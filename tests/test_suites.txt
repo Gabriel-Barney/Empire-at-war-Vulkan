@@ -120,6 +120,8 @@ alamo_game_save_tests                    retail
 alamo_game_save_export_tests             retail
 # Registered only without extracted/foc_data_text.zip, in place of the limits runs below.
 alamo_headless_limits_conformance        retail:foc,file:extracted/foc_data_text.zip optional
+# Recipes with "host game" (tests/benchmark/*.abench) are made by alamo_game, which needs a GPU.
+^alamo_bench_scenario_(space_battle_game|nebula_battle|water_battle)$  retail+vulkan
 ^alamo_bench_scenario_.*$                retail
 ^alamo_headless_bench_.*$                retail
 ^alamo_headless_galactic_ai_human.*$     retail
@@ -128,7 +130,8 @@ alamo_headless_limits_conformance        retail:foc,file:extracted/foc_data_text
 ^alamo_headless_outcome_.*$              retail
 ^alamo_headless_save_(galactic|skirmish)_.*$  retail
 ^alamo_headless_skirmish_ai_(foc|geonosis).*$ retail
-^parity_harness_.*$                      retail
+# Compared against retail reference captures (ALAMO_Q2_TRACES), as well as the game data.
+^parity_harness_.*$                      retail+traces
 # alamo_game itself on real data, with a (hidden) window: the game and a GPU.
 ^alamo_game_bench_.*$                    retail+vulkan
 ^alamo_game_smoke_.*$                    retail+vulkan
