@@ -6,8 +6,15 @@ A Windows x64 port of the Empire at War engine. The C++20 engine uses MSVC and V
 
 Open PowerShell in the project root. This checkout has a local toolchain. On a fresh checkout, install 64-bit Python 3.10 or newer and run `.\toolchain\2_setup.cmd`. Initial setup downloads the compiler, Windows SDK, CMake, Ninja, Rust and engine dependencies. The installer prompts for the Microsoft license when installing MSVC.
 
+`dev.cmd` is the one development command; `.\dev.cmd help` lists everything. It is a thin shim over `tools\dev.py`, which passes your arguments to CMake, CTest and the suite runner unchanged. Quote `|`, `&`, `<` and `>` for the shell you type in. Build trees come from `CMakePresets.json`: `fast` is `build\` (the default) and `full` is `build-full\`.
+
 | Command | Result |
 | --- | --- |
+| `.\dev.cmd doctor` | Report the toolchain, SDK, dependencies and game-data settings, with the fix for anything missing |
+| `.\dev.cmd check` | Build with warnings as errors and run the synthetic suite: the check every change needs, and what CI runs |
+| `.\dev.cmd check --quick` | The same without tests labelled `slow` (the inner loop) |
+| `.\dev.cmd check --target alamo_core_tests` | Build one target and run only the tests whose names start with it |
+| `.\dev.cmd check --preset full` | Fresh configure and clean build in `build-full\`, then every suite |
 | `.\toolchain\2_setup.cmd --check` | Verify installed dependencies offline |
 | `.\dev.cmd configure` | Generate the Release build in `build\` |
 | `.\dev.cmd build` | Compile the engine, tools, and C++ tests |
@@ -19,6 +26,14 @@ Open PowerShell in the project root. This checkout has a local toolchain. On a f
 | `.\dev.cmd test -R alamo_core_tests` | Run CTest directly with any CTest options |
 | `.\dev.cmd launcher` | Build `launcher\target\release\command-center.exe` |
 | `.\dev.cmd launcher-test` | Run the launcher tests |
+
+A failed step prints the first meaningful diagnostic, the toolchain and commit, a command that reproduces it, the elapsed time and the log path. Every run's log is in `build\logs\`, and `build\logs\dev-last.json` holds the last result.
+
+Project code compiles with `/WX`. Configure with `-DALAMO_WARNINGS_AS_ERRORS=OFF` to see a warning backlog without stopping.
+
+## Continuous integration
+
+`.github/workflows/landing.yml` runs on every pull request into `main` and reports one required status, `landing`. A change to prose only (top-level and `docs\*.md`, `docs\agents\`) runs the doc-reference lint. Any other change installs the pinned toolchain without Rust (`2_setup.cmd --engine-only --accept-msvc-license`, cached by the setup scripts' hash), then runs `dev.cmd doctor` and `dev.cmd check`. The test results and `build\logs\` are attached to the run. Retail, Vulkan and trace checks stay local (`docs\DECISIONS.md` "Retail and GPU evidence is a recorded local run").
 
 In Command Center, select `build\bin\alamo_game.exe` as the engine executable and choose the installed game folder.
 

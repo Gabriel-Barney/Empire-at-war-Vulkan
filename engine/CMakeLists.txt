@@ -72,6 +72,13 @@ if(MSVC)
   target_compile_options(alamo_engine_flags INTERFACE
     "$<$<COMPILE_LANGUAGE:CXX>:/w44365;/w44388;/w45219;/w44242;/w44254;/w44826;/w44800;/w44287;/w44296;/w44265;/w44062>"
     "$<$<COMPILE_LANGUAGE:CXX>:/external:anglebrackets;/external:W0>")
+  # Warnings are errors in project code (docs/GROUND_UP_WORKFLOW_DESIGN.md "MSVC build and verification"). Vendored
+  # code is exempt where it is built: Lua with /W0, miniaudio / VMA / FFmpeg behind #pragma warning(push, 0), SDK and
+  # STL headers through /external:W0. -DALAMO_WARNINGS_AS_ERRORS=OFF to look at a backlog without stopping.
+  option(ALAMO_WARNINGS_AS_ERRORS "Compile project code with /WX" ON)
+  if(ALAMO_WARNINGS_AS_ERRORS)
+    target_compile_options(alamo_engine_flags INTERFACE /WX)
+  endif()
 endif()
 target_compile_features(alamo_engine_flags INTERFACE cxx_std_20)
 

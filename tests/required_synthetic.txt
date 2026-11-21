@@ -35,6 +35,7 @@ alamo_core_sim_tests
 alamo_core_tests
 alamo_crash_tests
 alamo_data_tests
+alamo_dev_selftest
 alamo_formats_tests
 alamo_fuzz_smoke slow
 alamo_galactic_conflict_tests
