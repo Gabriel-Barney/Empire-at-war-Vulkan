@@ -1,4 +1,4 @@
-// Terrain decorations, CPU side (DECORATIONS.md 1, 3, 4, 5). See decorations.hpp for the contract.
+// Terrain decorations, CPU side (legacy docs/re/DECORATIONS.md 1, 3, 4, 5). See decorations.hpp for the contract.
 #include "alamo/terrain/decorations.hpp"
 
 #include "alamo/core/hash.hpp"
@@ -300,7 +300,7 @@ BuildStatus decal_impl(const Terrain& t, const TerrainDecal& d, DecalGeometry& o
 
     // Atlas matrix (4.3 step 2): u = (column + scale lx) / s, v = (row + scale ly) / s, s = sqrt(N),
     // lx, ly = frame-local fractions (0..1 from the frame origin = the decal's (-X, +Y) corner; the
-    // frame's Y axis is -height). Slot origin settled by capture (g1f t05, DECORATIONS 4.3 [H]):
+    // frame's Y axis is -height). Slot origin settled by capture (DECORATIONS 4.3 [H]):
     // with X^ = (cos t, sin t), Y^ = X^ turned +90 deg about +z and lx', ly' = (P - C).X^, (P - C).Y^,
     // u = (col + 0.5 + lx'/w)/4 - 1, v = (row + 0.5 - ly'/h)/4 - 1 for N = 16, scale 1. So (u min,
     // v min) of the slot sits at the (-X, +Y) corner, u runs along +X, v along -Y, no inset. This

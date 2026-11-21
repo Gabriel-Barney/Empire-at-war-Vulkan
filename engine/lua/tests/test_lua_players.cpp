@@ -56,7 +56,7 @@ namespace fs = std::filesystem;
 
 namespace {
 
-// q6 t11 (docs/re/LUA_API.md "Binding error model across all bindings"): a binding error does not unwind; it logs
+// q6 t11 (legacy docs/re/LUA_API.md "Binding error model across all bindings"): a binding error does not unwind; it logs
 // "SCRIPT ERROR: ..." and sets the script's stop flag. run() reports those lines as its result (a Lua error as before)
 // and clears the flag, so the next snippet runs on a live script.
 std::string run(LuaVm& vm, const std::string& code) {
@@ -162,7 +162,7 @@ struct Galaxy {
     explicit Galaxy(std::vector<std::tuple<int32_t, PlanetIndex, const char*>> extra = {},
                     const std::function<void(galactic::GalacticRules&, const objects::ObjectTypeDatabase&)>& tune = {}) {
         files.add("Data\\XML\\GameObjectFiles.xml", "<L><File>Units.xml</File></L>");
-        files.add("Data\\XML\\Units.xml", ::alamo::test::with_galactic_dummies(  // mcx1 t05: DUMMY_* roles
+        files.add("Data\\XML\\Units.xml", ::alamo::test::with_galactic_dummies(  // DUMMY_* roles
                   "<R>\n"
                   "<Planet Name=\"Planet_A\"><Planet_Credit_Value>10</Planet_Credit_Value></Planet>\n"
                   "<Planet Name=\"Planet_B\"><Planet_Credit_Value>20</Planet_Credit_Value></Planet>\n"
@@ -189,12 +189,12 @@ struct Galaxy {
                   "<GroundInfantry Name=\"Slice_B_T\"><Affiliation>Empire</Affiliation><Tech_Level>1</Tech_Level>"
                   "<Build_Initially_Locked>Yes</Build_Initially_Locked><Build_Can_Be_Unlocked_By_Slicer>Yes</Build_Can_Be_Unlocked_By_Slicer>"
                   "<Slice_Cost_Credits>200</Slice_Cost_Credits></GroundInfantry>\n"
-                  // refix t04: a galactic company (one port object) whose Company_Units the member views stand for.
+                  // a galactic company (one port object) whose Company_Units the member views stand for.
                   "<GroundInfantry Name=\"Smuggler_T\"><CategoryMask>Infantry</CategoryMask></GroundInfantry>\n"
                   "<GroundInfantry Name=\"Crew_T\"><CategoryMask>Infantry</CategoryMask></GroundInfantry>\n"
                   "<HeroCompany Name=\"Smuggler_Team_T\"><Company_Units>Smuggler_T, Crew_T, Smuggler_T</Company_Units>"
                   "<Company_Transport_Unit>Frigate_T</Company_Transport_Unit></HeroCompany>\n"
-                  // cu8f t04b: a unit with UNIT_AI (Set_Prefer_Ground_Over_Space refuses objects without it).
+                  // a unit with UNIT_AI (Set_Prefer_Ground_Over_Space refuses objects without it).
                   "<GroundInfantry Name=\"Ai_Trooper_T\"><Behavior>UNIT_AI</Behavior><CategoryMask>Infantry</CategoryMask>"
                   "</GroundInfantry>\n"
                   "</R>"));
@@ -307,7 +307,7 @@ void test_players() {
                   "loc = Find_Player('local'); "
                   "e_id = emp.Get_ID(); u_id = und.Get_ID(); same = (loc == emp); diff = (emp ~= und)") == "");
     CHECK(gnum(vm, "e_id") == 0.0 && gnum(vm, "u_id") == 1.0 && gtrue(vm, "same") && gtrue(vm, "diff"));
-    // q6 t11 (LUA_API.md "Lookups"): a name that is no faction is a script error (no unwind: the code runs on, the
+    // q6 t11 (legacy docs/re/LUA_API.md "Lookups"): a name that is no faction is a script error (no unwind: the code runs on, the
     // script stops at the end of its pass); a known faction without a player is nil, silently.
     {
         const size_t m0 = vm.messages().size();
@@ -387,7 +387,7 @@ void test_players() {
     CHECK(!g.sim->type_locked(0, frigate) && g.sim->type_unlocked(0, frigate) && !g.sim->type_unlocked(1, frigate));
     CHECK(run(vm, "emp.Lock_Tech(emp)").find("Expected game object type.") != std::string::npos);
     // Stage 3: Is_Build_Locked (script locks), Is_Affiliated_With (<Affiliation>), planet facts, Find_Path.
-    // Find_Path answers from the AI finder (GALACTIC.md 4/5): AI players only, all-pairs fog rule (auto-reveal on by
+    // Find_Path answers from the AI finder (legacy docs/re/GALACTIC.md 4/5): AI players only, all-pairs fog rule (auto-reveal on by
     // default, so no frame / revealed byte is needed), never the human hop gate (GRC 1.1).
     CHECK(run(vm, "bl0 = ft.Is_Build_Locked(emp) and 1 or 0 emp.Lock_Tech(ft) bl1 = ft.Is_Build_Locked(emp) and 1 or 0 "
                   "emp.Unlock_Tech(ft) tt = Find_Object_Type('Trooper_T') af1 = tt.Is_Affiliated_With(emp) and 1 or 0 "
@@ -546,7 +546,7 @@ void test_perception() {
     CHECK(r2.ok && same_bits(gnum(vm, "v2"), r2.value));
     CHECK(r3.ok && same_bits(gnum(vm, "v3"), r3.value) && before == g.rng.synced());
     CHECK(gnil(vm, "v4") && gnil(vm, "v5"));
-    CHECK(gnil(vm, "w1") && gnil(vm, "w2"));  // mcx8 t12: no parent galaxy -> warning, no value (also in a galactic game)
+    CHECK(gnil(vm, "w1") && gnil(vm, "w2"));  // no parent galaxy -> warning, no value (also in a galactic game)
 
     // EvaluatePerception in the galactic context itself: Underworld (AI) sees the Empire frigate at A.
     g.world.set_perception({&geq, &gres}, {&geq, &gres});
@@ -950,7 +950,7 @@ void test_galactic_ops() {
     CHECK(run(vm, "po1 = PC.Get_Owner().Get_ID() po2 = PA.Get_Owner().Get_ID() pn = PC.Get_Owner().Get_Faction_Name()") == "");
     CHECK(gnum(vm, "po1") == 0.0 && gnum(vm, "po2") == static_cast<double>(sim.planets()[0].owner));
     CHECK(run(vm, "pe = (pn == emp.Get_Faction_Name())") == "" && gtrue(vm, "pe"));
-    // Invade (a1g t05, A1_READINGS §31): issued by the local player (Empire) with its own ground units only. ufa is
+    // Invade (A1_READINGS §31): issued by the local player (Empire) with its own ground units only. ufa is
     // Underworld's fleet without ground units, PA no fleet: warnings, no order.
     const uint32_t issued = bridge.orders_issued;
     CHECK(run(vm, "ufa.Invade() PA.Invade()") == "" && bridge.orders_issued == issued);
@@ -973,7 +973,7 @@ void test_galactic_ops() {
     sim.set_hidden(1, true);
     CHECK(run(vm, "u1 = PA.Get_Is_Planet_AI_Usable() u2 = PB.Get_Is_Planet_AI_Usable() "
                   "c1 = UTr.Can_Land_On_Planet(PA) c2 = F1.Can_Land_On_Planet(PA) c3 = UTr.Can_Land_On_Planet(PB)") == "");
-    // mcx8 t12: Can_Land_On_Planet has no hidden test (c3); a non-planet's Get_Is_Planet_AI_Usable is an error.
+    // Can_Land_On_Planet has no hidden test (c3); a non-planet's Get_Is_Planet_AI_Usable is an error.
     CHECK(gtrue(vm, "u1") && !gtrue(vm, "u2") && gtrue(vm, "c1") && !gtrue(vm, "c2") && gtrue(vm, "c3"));
     CHECK(run(vm, "u3 = F1.Get_Is_Planet_AI_Usable()").find("is not a planet.") != std::string::npos);
     CHECK(run(vm, "UTr.Can_Land_On_Planet(1)").find("GameObjectWrapper::Can_Land_On_Planet -- invalid type for parameter 1. Expected game object.") !=
@@ -990,7 +990,7 @@ void test_galactic_ops() {
 }
 
 // ------------------------------------------------------------------------------------------
-// P4 lua: the bindings of the FoC galactic special systems (special_systems.hpp, P4_SIM_SYSTEMS.md): galactic
+// P4 lua: the bindings of the FoC galactic special systems (special_systems.hpp, legacy docs/re/P4_SIM_SYSTEMS.md): galactic
 // Activate_Ability / task-force Activate_Ability + Land_Units -> GalacticSim::ground_activated_trigger, Lock_Tech ->
 // lock_type, Set_*_Tutorial -> the sim flags, Is_Ability_Ready / Activate_Ability Black Market gate.
 
@@ -1002,7 +1002,7 @@ public:
     bool tf_valid(int32_t tf) override { return tf == 3; }
     int32_t tf_force_count(int32_t) override { return static_cast<int32_t>(units.size()); }
     void tf_set_flag(int32_t, AiTfFlag, bool) override {}
-    // a2m t05: Produce_Force calls that reached the host; a stage object other than `planet` is not a planet.
+    // Produce_Force calls that reached the host; a stage object other than `planet` is not a planet.
     objects::ObjectHandle planet;
     std::vector<std::pair<bool, bool>> produced;  // (stage present, sync)
     int32_t tf_produce_force(int32_t, const AiArg& stage, bool sync) override {
@@ -1186,7 +1186,7 @@ uint64_t special_session() {
     ai.units = {h[1], h[2]};
     CHECK(run(vm, "st = TF.Land_Units() sf = st.IsFinished() tfr = TF.Activate_Ability() tfn = (tfr == nil) "
                   "TF.Activate_Ability('halter_t') TF.Activate_Ability('UNUSED_NAME') TF.Activate_Ability(ft, true)") == "" &&
-          gtrue(vm, "sf") && gtrue(vm, "tfn"));  // refix t04: no return value (L1P4_LUA_GAPS 1.2 item 4)
+          gtrue(vm, "sf") && gtrue(vm, "tfn"));  // no return value (L1P4_LUA_GAPS 1.2 item 4)
     CHECK(ai.orders.size() == 3 && ai.orders[0] == AiTfOrder::LandUnits && ai.orders[1] == AiTfOrder::ActivateAbility &&
           ai.orders[2] == AiTfOrder::ActivateAbility && ai.abilities.size() == 2 && ai.abilities[0].empty() &&
           ai.abilities[1] == "Halter_T" && g.store->alive(h[1]) && g.store->alive(h[2]) && sim.respawns_pending(0).size() == 1);
@@ -1298,7 +1298,7 @@ void test_company_member_views() {
     CHECK(gstr(vm, "cn") == "CREW_T" && static_cast<int>(gnum(vm, "ncrew")) == 1 && gtrue(vm, "differs") && gtrue(vm, "valid"));
     CHECK(static_cast<int>(gnum(vm, "nemp")) == 0 && gstr(vm, "ct") == "SMUGGLER_TEAM_T" && gtrue(vm, "pl"));
     CHECK(gtrue(vm, "isc") && gtrue(vm, "pf") && gstr(vm, "ts").find("Smuggler_T") != std::string::npos);
-    // refixf t03: every filter kind sees the member views (the original's cargo objects): a player alone lists the
+    // every filter kind sees the member views (the original's cargo objects): a player alone lists the
     // company followed by its matching entries (company first, entry order).
     CHECK(run(vm, "own = Find_All_Objects_Of_Type(Comp.Get_Owner()) ci = 0 vi = 0 "
                   "for i, o in ipairs(own) do if rawequal(o, Comp) then ci = i elseif rawequal(o, sm) then vi = i end end") == "");
@@ -1318,7 +1318,7 @@ void test_company_member_views() {
             std::printf("  member views: unexpected %s\n", m.c_str());
             ++g_fail;
         }
-    // mcx5 t04: member views past entry 255 (no 256 cap any more). The cache key keeps the old formula below 256 and
+    // member views past entry 255 (no 256 cap any more). The cache key keeps the old formula below 256 and
     // uses a disjoint range from 256 on, so no two (company, entry) pairs share a key.
     {
         auto key = [](int32_t id, uint32_t index) {
@@ -1334,7 +1334,7 @@ void test_company_member_views() {
     }
 }
 
-// a1g t06: Spawn_Unit at a galactic planet goes through GalacticSim::spawn_unit, so the units live in the sim like
+// Spawn_Unit at a galactic planet goes through GalacticSim::spawn_unit, so the units live in the sim like
 // produced ones (space units in the owner's orbit fleet, ground units and companies on the surface, one object per
 // company), the shipped SpawnList + Assemble_Fleet pattern (Story_Campaign_Underworld.lua, S10 PROBE A) gives a fleet
 // (landed units are launched into it) and the fleet's Move_To flies it. The sim state matches a direct
@@ -1424,7 +1424,7 @@ void test_spawn_assemble() {
     CHECK(hl.digest() == hd.digest());
 }
 
-// mcx8 t12 (docs/re/MCX8_BINDINGS_PLAYERS_STORY.md): an AI host with fixed targets (id -> object; a valid target without
+// mcx8 t12 (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md): an AI host with fixed targets (id -> object; a valid target without
 // an object stands for a region target) and a fixed stage answer for _FindStageArea.
 class T12Ai final : public AiScriptHost {
 public:
@@ -1471,8 +1471,8 @@ public:
     void set_global_value(std::string_view, const AiGlobalValue&) override {}
 };
 
-// mcx8 t12: the player / story / AI bindings whose port behaviour was guessed, each against the retail behaviour of
-// docs/re/MCX8_BINDINGS_PLAYERS_STORY.md (one block per section).
+// the player / story / AI bindings whose port behaviour was guessed, each against the retail behaviour of
+// legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md (one block per section).
 void test_mcx8_t12() {
     Galaxy g;
     galactic::GalacticSim& sim = *g.sim;
@@ -1624,7 +1624,7 @@ void test_mcx8_t12() {
     CHECK(run(vm, "dg = Declare_Goal_Type") == "" && gnil(vm, "dg"));
 }
 
-// mcx8 t12: Can_Land_On_Planet's ground cap (Max_Ground_Forces_On_Planet, any owner) and the land-unit-itself rule.
+// Can_Land_On_Planet's ground cap (Max_Ground_Forces_On_Planet, any owner) and the land-unit-itself rule.
 void test_mcx8_t12_can_land() {
     std::vector<std::tuple<int32_t, PlanetIndex, const char*>> extra;
     for (int i = 0; i < 9; ++i) extra.emplace_back(0, 0, "Trooper_T");  // planet A: 10 ground units with the default one

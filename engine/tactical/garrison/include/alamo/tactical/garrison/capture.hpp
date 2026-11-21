@@ -1,6 +1,6 @@
 // S4 - structure capture: CAPTURE_POINT objects (reinforcement points, build pads, abandoned turrets, community
 // structures) change owner when one side controls them; the source of STORY_CAPTURE_STRUCTURE. Spec:
-// docs/re/L1_S4_REMAINING.md §4.2 (CapturePointBehaviorClass service 0x501980, capture complete 0x500e30) [H unless
+// legacy docs/re/L1_S4_REMAINING.md §4.2 (CapturePointBehaviorClass service 0x501980, capture complete 0x500e30) [H unless
 // tagged]:
 //   * service every `interval` frames per point (CAPTURE_POINT behaviour interval 4; first service at once);
 //   * start gate (REMAINING_GAPS §3.3, campaign only; the host passes 0 for skirmish): frame >= allowed_frame
@@ -11,7 +11,7 @@
 //     owned) excluding the point: neutral-owned point -> the first one's owner, any later one not allied with it ->
 //     neutral (contested); owned point -> any one not allied with the owner -> neutral, else the owner; (d) none -> the
 //     owner when the point is sticky (REINFORCEMENT_POINT or Ownership_Sticks), else neutral (decay). (a) build pads
-//     with contents (UC or child) -> the current owner, before (b) (q6 t19: set_pad_occupied);
+//     with contents (UC or child) -> the current owner, before (b) (set_pad_occupied);
 //   * progress 0..1: step = 1 / (T x 30) x interval (T = Capture_Point_Transition_Time_Seconds, T <= 0 -> 1; the
 //     controller's Capture_Point_Time_Multiplier m = 1 [port: no battlefield modifiers]); controller == owner ->
 //     progress -= step (min 0; at 0 pending := owner); else pending := controller, progress += step (max 1); at 1 the
@@ -95,7 +95,7 @@ public:
 
     std::span<const CaptureEvent> events() const { return events_; }
     void clear_events() { events_.clear(); }
-    std::span<const CaptureAnim> anims() const { return anims_; }  // r3h t05: the last service's, in point order
+    std::span<const CaptureAnim> anims() const { return anims_; }  // the last service's, in point order
     void hash(StateHasher& h) const;
     // N1 stage 2 (save_file.hpp contract, garrison_save.cpp): the constructor parameters (neutral player, interval,
     // allowed frame - restored), every point (owner, position, descriptor, step, pending, progress, next service) and
@@ -128,7 +128,7 @@ private:
     std::function<bool(ObjectId)> pad_occupied_;
     std::vector<Point> points_;  // ascending id
     std::vector<CaptureEvent> events_;
-    std::vector<CaptureAnim> anims_;  // r3h t05: presentation, not saved
+    std::vector<CaptureAnim> anims_;  // presentation, not saved
 };
 
 }  // namespace alamo::tactical::garrison

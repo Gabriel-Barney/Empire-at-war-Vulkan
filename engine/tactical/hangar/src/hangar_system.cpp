@@ -156,7 +156,7 @@ bool HangarSystem::bind_launch(uint32_t serial, ObjectId object) {
         for (Spawned& s : c.spawned)
             if (s.serial == serial && s.id == kNoObject) {
                 s.id = object;
-                if (c.leaving_serial == serial) c.leaving = object;  // r3g t03: +0x58, listened for signal 10
+                if (c.leaving_serial == serial) c.leaving = object;  // +0x58, listened for signal 10
                 return true;
             }
     return false;
@@ -405,12 +405,12 @@ void HangarSystem::update(uint32_t frame, SimRng& rng, const StreamOf* stream_of
     // Services, newest object first (descending id).
     for (size_t k = carriers_.size(); k-- > 0;) {
         Carrier& c = carriers_[k];
-        // r3g t03: Spawn_Garrison_On_Load (vf13 0x594400 -> 0x593960) runs once, before the first service, while the
+        // Spawn_Garrison_On_Load (vf13 0x594400 -> 0x593960) runs once, before the first service, while the
         // entry list is still empty [M: vf13's trigger; the port runs it at the first update after the add].
         const bool load = cfg_.land && c.entries.empty() && descs_[c.desc].garrison_on_load;
         const bool due = c.due <= frame;
         if (!load && !due) continue;
-        if (stream_of && *stream_of) {  // SP5 t03: this carrier's own stream
+        if (stream_of && *stream_of) {  // this carrier's own stream
             SimRng own = (*stream_of)(c.id);
             service(c, frame, own, load, due);
         } else {
@@ -428,7 +428,7 @@ void HangarSystem::service(Carrier& c, uint32_t frame, SimRng& rng, bool load, b
     else if (c.state == 0 && can_spawn(c, frame, rng)) launch(c, frame, rng);
 }
 
-// ---- r3g t03: land structures (STATION_HANGARS_SOUND §2.5 "Land", §2.7; 0x594880 / 0x593760 / 0x593960) ----
+// ---- land structures (STATION_HANGARS_SOUND §2.5 "Land", §2.7; 0x594880 / 0x593760 / 0x593960) ----
 
 uint32_t HangarSystem::delay_frame(const Carrier& c, uint32_t frame) const {
     const float df = static_cast<float>(cfg_.fps) * descs_[c.desc].delay_seconds + static_cast<float>(frame);
@@ -599,7 +599,7 @@ void HangarSystem::clear_requests() {
                 ++i;
                 continue;
             }
-            if (c.leaving_serial == s.serial) {  // r3g t03: the leaving unit failed to spawn [port: back to state 0]
+            if (c.leaving_serial == s.serial) {  // the leaving unit failed to spawn [port: back to state 0]
                 c.leaving_serial = 0;
                 if (c.state == 2) c.state = 0;
             }

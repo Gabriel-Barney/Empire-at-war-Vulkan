@@ -1,7 +1,7 @@
 # N1 save size guard for the FoC story campaign (Full_Story_Campaign_Underworld with its story plots): unlike the HotM
 # guard in test_ai_galactic.cpp this checks the whole save file, because the story's Lua VM ("story.lua") is not pristine
 # and only the file's LZ packing shrinks it. Run by ctest: cmake -DHEADLESS=... -DOUT=... -DMAX_FILE=... -DMAX_RAW=...
-# [-DSAVE_AT=TICK] -P (SAVE_AT default 9000 = 5 min of game time; N1f t08: a late-game entry saves at 2 h).
+# [-DSAVE_AT=TICK] -P (SAVE_AT default 9000 = 5 min of game time; a late-game entry saves at 2 h).
 # Needs ALAMO_FOC_DATA; prints SKIP without it (SKIP_REGULAR_EXPRESSION).
 if(NOT DEFINED ENV{ALAMO_FOC_DATA} OR "$ENV{ALAMO_FOC_DATA}" STREQUAL "")
   message(STATUS "SKIP: ALAMO_FOC_DATA is not set")

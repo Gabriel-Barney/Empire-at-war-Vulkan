@@ -58,7 +58,7 @@ void test_campaign() {
     CHECK(s.skirmish_map.empty());
     check_options(s, o);
 
-    c.game_options.set = true;  // ui1 t06: the advanced options dialog accepted
+    c.game_options.set = true;  // the advanced options dialog accepted
     c.game_options.credits = 12000;
     c.game_options.start_tech = 2;
     c.game_options.max_tech = 4;

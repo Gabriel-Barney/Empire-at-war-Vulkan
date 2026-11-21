@@ -225,7 +225,7 @@ std::string bench_report_json(const BenchReport& r) {
     str("final_crc", crc);
     str("presentation_check", r.presentation_check);
     str("screen", r.screen);
-    // bm2: the scenario, its fingerprint check and the GPU timer scopes.
+    // the scenario, its fingerprint check and the GPU timer scopes.
     str("scenario", r.scenario);
     val("scenario_version", std::to_string(r.scenario_version));
     str("fingerprint", r.fingerprint);
@@ -240,7 +240,7 @@ std::string bench_report_json(const BenchReport& r) {
         gpu += ": " + stats_json(r.gpu_ms[k].second);
     }
     val("gpu_ms", gpu + "}");
-    // bm3 t04: load time and the first frames' hitches.
+    // load time and the first frames' hitches.
     val("load_ms", num(r.load_ms));
     val("early_ms", stats_json(r.early_ms));
     std::string hit = "{\"threshold_ms\": " + num(r.hitch_threshold_ms) + ", \"count\": " + std::to_string(r.hitch_count) + ", \"worst\": [";

@@ -34,7 +34,7 @@ int32_t terrain_index(std::string_view s) {
 }
 
 // [name-ok-begin: retail faction-name table 0x140b30568 (Rebel 0, Empire 1, Pirates 2, Underworld 4, Hutts 5),
-// docs/re/L1_S4_REMAINING.md, BATTLE_TRANSITIONS.md "defender faction index"]
+// legacy docs/re/L1_S4_REMAINING.md, legacy docs/re/BATTLE_TRANSITIONS.md "defender faction index"]
 int32_t map_faction_index(std::string_view name) {
     if (ascii_iequals(name, "Rebel")) return 0;
     if (ascii_iequals(name, "Empire")) return 1;
@@ -128,7 +128,7 @@ bool load_conflict_rules(const FileProvider& provider, const data::GameDatabase&
         };
         out.raid_free_mask = mask("Raid_Force_Free_Object_Category_Mask");
         out.raid_limited_mask = mask("Raid_Force_Limited_Object_Category_Mask");
-        out.raid_max_limited = g.shared.raid_force_max_limited_objects.value_or(0);  // ref4 t06: GameConstants::shared
+        out.raid_max_limited = g.shared.raid_force_max_limited_objects.value_or(0);  // GameConstants::shared
         out.raid_max_heroes = g.shared.raid_force_max_heros.value_or(0);
     }
 
@@ -210,7 +210,7 @@ bool load_conflict_rules(const FileProvider& provider, const data::GameDatabase&
     // Factions (FactionFiles.xml list order; matched to GalacticRules by name).
     out.factions.assign(galactic.factions.size(), ConflictFactionInfo{});
     for (size_t f = 0; f < galactic.factions.size(); ++f) out.factions[f].map_faction = map_faction_index(galactic.factions[f].name);
-    // cu5 t01: every <Faction> definition in list order (duplicates included) from the one FactionFiles.xml parse
+    // every <Faction> definition in list order (duplicates included) from the one FactionFiles.xml parse
     // (galactic_rules.cpp load_factions); a later definition's fields override, as when the XML was read here.
     for (const FactionRules& fr : galactic.factions) {
         const uint32_t fi = galactic.find_faction(fr.name);
@@ -351,7 +351,7 @@ float ConflictManager::unit_power(ObjectHandle h) const {
     const uint32_t t = static_cast<uint32_t>(sim_->store().type(h));
     const auto& ti = sim_->rules().types;
     float p = t < ti.size() ? ti[t].ai_combat_power : 0.0f;
-    if (sim_->company_survivors(h)) {  // mcx4 t22: a company that lost members
+    if (sim_->company_survivors(h)) {  // a company that lost members
         for (const uint32_t mt : *sim_->company_survivors(h))
             if (mt < ti.size()) p += ti[mt].ai_combat_power;
         return p;
@@ -645,7 +645,7 @@ void ConflictManager::run(ConflictKind kind) {
                 state_ = ConflictState::Decide;
                 continue;
             case ConflictState::Decide: {
-                if (kind == ConflictKind::Space && on_space_decide) {  // mcx6 t03: the story manager's orbit record
+                if (kind == ConflictKind::Space && on_space_decide) {  // the story manager's orbit record
                     const int32_t local = sim_->local_player();
                     if (local != kNoPlayer && (head.attacker == local || head.defender == local)) on_space_decide(head);
                 }
@@ -653,7 +653,7 @@ void ConflictManager::run(ConflictKind kind) {
                 int32_t overrun_loser = kNoPlayer;
                 // mcx4 t07 (Q7.6): the story / campaign auto-resolve lock suppresses the overrun check (not the exclusion list).
                 if (rules_->overrun_multiple != 0.0f && !story_locked(head)) {
-                    // q6 t18: the side strengths of 0x2ab880 (overrun_strength, AI_GALACTIC_TOKENS §9.12).
+                    // the side strengths of 0x2ab880 (overrun_strength, AI_GALACTIC_TOKENS §9.12).
                     const bool space = kind == ConflictKind::Space;
                     const float ap = overrun_strength(head, false, space), dp = overrun_strength(head, true, space);
                     const float mx = std::max(ap, dp), mn = std::min(ap, dp);
@@ -743,7 +743,7 @@ ArCombatant make_ar_combatant(const GalacticRules& galactic, const ConflictRules
     c.strength_bonus = ct.strength_bonus;  // Q9: the representative type's pairs (0x60c710)
     uint64_t first_cats = ct.categories;
     bool first = true;
-    // mcx4 t22: a company that lost members fights with its survivors (one piece per surviving member type, in order).
+    // a company that lost members fights with its survivors (one piece per surviving member type, in order).
     std::vector<std::pair<uint32_t, int32_t>> members = ct.members;
     if (survivors) {
         members.clear();
@@ -903,7 +903,7 @@ void ConflictManager::auto_finish(const ConflictInfo& head) {
     pop_head(head.kind);
 }
 
-// a2m r2: the galactic auto-resolve bounty (docs/re/A2M_R2_RE_B.md §2 [H]; amounts traced in A2M_R2_UW_BOUNTY_TRACE.md §1).
+// a2m r2: the galactic auto-resolve bounty (legacy docs/re/A2M_R2_RE_B.md §2 [H]; amounts traced in legacy docs/re/A2M_R2_UW_BOUNTY_TRACE.md §1).
 // Every object the auto-resolve kills runs the death handler 0x39bdb0 -> 0x392600 with the other battle side as the killer
 // K (0x60b930: the first combatant of the other side's list). Galactic branch, per dying object of owner O and type T:
 // - gates: O != K and O not allied with K (an ownerless object passes); B = T's bounty (bounty.hpp) > 0;
@@ -987,7 +987,7 @@ void ConflictManager::split_space_forces(int32_t player, const std::vector<Objec
     std::vector<uint32_t> plain;
     for (uint32_t i = 0; i < units.size(); ++i) {
         const uint32_t t = static_cast<uint32_t>(store.type(units[i]));
-        if (rules_->type(t).super_weapon) {  // trl2 t07: rule 1 [port: outside the cap split, no cap used]
+        if (rules_->type(t).super_weapon) {  // rule 1 [port: outside the cap split, no cap used]
             start[i] = 1;
             continue;
         }
@@ -1057,8 +1057,8 @@ void ConflictManager::split_space_forces(int32_t player, const std::vector<Objec
     for (uint32_t i = 0; i < units.size(); ++i) (start[i] ? out.start : out.reserve).push_back(units[i]);
 }
 
-// story t07: 0x2bd500 rules 2 / 3 (BT §2.3). [port] a forced type / flagship with no matching unit falls through to the next
-// rule. trl2 t07: rule 1 holds in every branch: a TACTICAL_SUPER_WEAPON unit always goes to the start force.
+// 0x2bd500 rules 2 / 3 (BT §2.3). [port] a forced type / flagship with no matching unit falls through to the next
+// rule. Rule 1 holds in every branch: a TACTICAL_SUPER_WEAPON unit always goes to the start force.
 void ConflictManager::split_space_forces(int32_t player, const std::vector<ObjectHandle>& units, BattleForces& out, uint32_t forced_type,
                                          bool flagship, const std::vector<ObjectHandle>& leads) const {
     size_t pick = units.size();
@@ -1108,7 +1108,7 @@ void ConflictManager::split_land_forces(const ConflictInfo& head, BattleForces& 
     split_land_impl(head, d, a, forced_type, true);
 }
 
-// linked (story t07, a sandbox LINK_TACTICAL record): [port] record units the attacker already landed (a link fired by
+// linked (a sandbox LINK_TACTICAL record): [port] record units the attacker already landed (a link fired by
 // STORY_LAND_ON / DEPLOY: the original's last-invade vector holds the just-landed units) count like record units in orbit.
 void ConflictManager::split_land_impl(const ConflictInfo& head, BattleForces& d, BattleForces& a, uint32_t forced_type, bool linked) const {
     d.player = head.defender;
@@ -1174,7 +1174,7 @@ std::string ConflictManager::choose_map(const ConflictInfo& head, int32_t base_l
     if (!field.empty()) {
         name = field;
     } else {
-        // BT §2.1 step 1.2 (CU8F_T03_T05_RE §1.3 / §1.4, cu8f t03): the picker runs every time the planet type names no
+        // BT §2.1 step 1.2 (CU8F_T03_T05_RE §1.3 / §1.4): the picker runs every time the planet type names no
         // map; the stored pick (planet data +0x1e0) is only its preferred name (the scan stops after it), and the answer is
         // stored back every time, an empty one included (a miss clears the earlier pick).
         if (pt.terrain < 0) {
@@ -1248,7 +1248,7 @@ bool ConflictManager::begin_battle(const ConflictInfo& head, Linked linked, uint
             BattleForces f;
             if (linked == Linked::Sandbox && !human(pl)) {
                 f.player = pl;  // §2.9.5 sandbox: AI sides get nothing
-            } else if (linked == Linked::Sandbox) {  // story t07: 0x2bce30 with Param6 / Param14
+            } else if (linked == Linked::Sandbox) {  // 0x2bce30 with Param6 / Param14
                 const std::vector<ObjectHandle> units = orbit_units(head.planet, pl);
                 std::vector<ObjectHandle> leads;  // [port] a fleet's lead ship = its first space unit (fleet order)
                 for (uint32_t fi : sim_->fleets_at(head.planet, pl))
@@ -1265,7 +1265,7 @@ bool ConflictManager::begin_battle(const ConflictInfo& head, Linked linked, uint
         }
     } else {  // OI galactic: TACTICAL_GAPS 4.2 land split (sandbox, BT §2.9.5: humanOnly = 1)
         BattleForces d, a;
-        if (linked == Linked::Sandbox) split_land_forces(head, d, a, forced_type);  // story t07: Param6 lead rule (a)
+        if (linked == Linked::Sandbox) split_land_forces(head, d, a, forced_type);  // Param6 lead rule (a)
         else split_land_forces(head, d, a);
         for (BattleForces* f : {&d, &a})
             if (linked == Linked::Sandbox && !human(f->player)) {
@@ -1303,7 +1303,7 @@ bool ConflictManager::story_autoresolve_unit(const ConflictInfo& c) const {
     for (uint32_t fi : sim_->planets()[c.planet].orbit) {
         const FleetState& f = sim_->fleets()[fi];
         if (!f.alive || f.moving || (f.owner != c.attacker && f.owner != c.defender)) continue;
-        if (f.story_autoresolve_lock) return true;  // mcx4 t20: a fleet that once held such a unit (+0x95)
+        if (f.story_autoresolve_lock) return true;  // a fleet that once held such a unit (+0x95)
         for (ObjectHandle m : f.contents)
             if (store.alive(m) && flagged(static_cast<uint32_t>(store.type(m)))) return true;
     }
@@ -1405,7 +1405,7 @@ void ConflictManager::finish_battle(const BattleResult& result, LinkedResolution
     pop_head(head.kind);
 }
 
-// story t07: the post-battle resolution of a linked battle (0x2a7580 -> land 0x2aa510 / space 0x2aa8e0, BT §2.9.6).
+// the post-battle resolution of a linked battle (0x2a7580 -> land 0x2aa510 / space 0x2aa8e0, BT §2.9.6).
 // [M] for the base steps: "cut to level 0" = the owner's ground structures destroyed (the port's ground base level is
 // the structure count) / the starbase removed; 0x27f370's per-type player call is not modelled [port].
 void ConflictManager::apply_resolution(const ConflictInfo& head, LinkedResolution resolution) {
@@ -1680,7 +1680,7 @@ void ConflictManager::rewrite_defenders(int32_t loser, int32_t winner) {
 // ---- CRC ----
 
 void ConflictManager::hash(StateHasher& h) const {
-    records::Hasher rec(h, sim_->store());  // REF4 t02: the save's field lists (galactic_records.hpp)
+    records::Hasher rec(h, sim_->store());  // the save's field lists (galactic_records.hpp)
     for (const std::vector<ConflictInfo>* q : {&space_q_, &land_q_}) {
         h.u32(static_cast<uint32_t>(q->size()));
         for (const ConflictInfo& c : *q) records::visit(rec, c);

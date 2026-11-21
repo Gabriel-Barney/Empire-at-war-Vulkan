@@ -1,5 +1,5 @@
 // Audio databases: SFX events, music events, speech events and the Audio constants, parsed from the
-// game XML (docs/re/xml_field_tables.md "SFXEvent", "MusicEvent", "Audio"; MAIN_LOOP.md startup
+// game XML (docs/re/xml_field_tables.md "SFXEvent", "MusicEvent", "Audio"; legacy docs/re/MAIN_LOOP.md startup
 // order: TheAudioConstants, then SFXEventFiles, ..., MusicEvents, SpeechEvents).
 //
 // Files (through any FileProvider, normally the VFS):
@@ -8,7 +8,7 @@
 //   Data\XML\MusicEvents.xml        -> MusicEvent
 //   Data\XML\SpeechEvents.xml       -> SpeechEvent
 //
-// Field semantics and defaults follow docs/re/AUDIO.md §1.1, §2.1, §3.1:
+// Field semantics and defaults follow legacy docs/re/AUDIO.md §1.1, §2.1, §3.1:
 //   * Use_Preset copies every field of the named (earlier) event at that point of parsing; tags before
 //     it are overwritten, later tags override. The event keeps its own name and is never a preset.
 //   * Duplicate event names: the first definition wins; later ones are counted in the report.

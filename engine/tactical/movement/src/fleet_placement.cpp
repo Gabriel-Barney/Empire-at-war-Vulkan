@@ -1,4 +1,4 @@
-// cu8l t03: the campaign space fleet placement 0x4fbb10 (fleet_placement.hpp; docs/re/CU8K_T03_T08_T09_RE.md §1).
+// the campaign space fleet placement 0x4fbb10 (fleet_placement.hpp; legacy docs/re/CU8K_T03_T08_T09_RE.md §1).
 #include "alamo/tactical/movement/fleet_placement.hpp"
 
 #include <algorithm>

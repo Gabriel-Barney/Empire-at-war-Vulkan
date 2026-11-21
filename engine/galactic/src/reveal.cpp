@@ -1,4 +1,4 @@
-// docs/re/GALACTIC_REVEAL_CORRUPTION.md (GRC) on GalacticSim (declared in campaign.hpp): the planet revealed byte
+// legacy docs/re/GALACTIC_REVEAL_CORRUPTION.md (GRC) on GalacticSim (declared in campaign.hpp): the planet revealed byte
 // D +0x2c9 (campaign-start home reveal, the galactic pre-step 0x4b2600, story rewards, Is_Planet_Revealed 0x3fa420) and
 // the corruption transition D +0x2e2..+0x2f8 (begin 0x4b72e0 / 0x4b7260, complete 0x4b7a50 via 0x3fc5b0, cancel
 // 0x4b6c50, fraction 0x4b7e20, particle pairs 0x3ff230).
@@ -264,7 +264,7 @@ void GalacticSim::rebuild_corruption_pairs(PlanetIndex planet) {
                           level_value(c.particle_energy_per_level, cur),     level_value(c.particle_energy_per_level, eff)};
 }
 
-// ---- mcx4 t09: the fleet visibility vote (MCX4_GAL2_RE_ANSWERS Q3, 0x433090) [H] ---------------------------------------
+// ---- the fleet visibility vote (MCX4_GAL2_RE_ANSWERS Q3, 0x433090) [H] ---------------------------------------
 // Presentation only: no rule reads it. Steps 1-10 of Q3 with the local player L, owner O.
 bool GalacticSim::fleet_visible_to_local(uint32_t fleet) const {
     if (local_player_ == kNoPlayer) return true;  // 1. the vote only means something for L

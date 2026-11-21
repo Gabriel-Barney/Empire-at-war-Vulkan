@@ -1,4 +1,4 @@
-// CU2 t11: write_file_atomic / atomic_temp_path (atomic_file.hpp). Every run works in its own temp
+// write_file_atomic / atomic_temp_path (atomic_file.hpp). Every run works in its own temp
 // directory (pid + clock), so parallel ctest runs and other trees never share a path.
 #include <atomic>
 #include <chrono>

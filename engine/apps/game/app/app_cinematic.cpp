@@ -1,5 +1,5 @@
-// alamo_game App: the in-game cinematic camera of a battle (refixf t05) - the tactical super weapon's firing shot and the
-// explosion shake it carries (docs/re/TSW_PLANET_DESTROY.md §11; the math is battle_fx.hpp).
+// alamo_game App: the in-game cinematic camera of a battle - the tactical super weapon's firing shot and the
+// explosion shake it carries (legacy docs/re/TSW_PLANET_DESTROY.md §11; the math is battle_fx.hpp).
 //
 // Presentation only. The shot starts on the Fire cue (TacticalBattle::special_weapon_events, read after the tick), runs on
 // the tactical frame count (stops while paused, 30 Hz steps), and only overrides what is drawn and heard: the RTS camera
@@ -118,7 +118,7 @@ void App::cinematic_step() {
     cine_.clock = cine_.shot.clock(b->frame());
 }
 
-// story t13: after the frame's Lua ops (lua_presentation) - the hand-over timer on the battle frame, the scripts' lock
+// after the frame's Lua ops (lua_presentation) - the hand-over timer on the battle frame, the scripts' lock
 // (Lock_Controls on, cinematic camera or mode on) for the P11 block, the bars' slide. No battle: nothing held.
 void App::linked_ui_step() {
     const sim::TacticalBattle* b = battle();
@@ -155,7 +155,7 @@ void App::cinematic_input(ui::InputFrame& raw) {
 // End of 0x49cd00: the keyframed eye / look at the shot clock (attached keys on the TSW's drawn transform), the shake,
 // the shot's near / far planes; FOV stays the mode camera's (no FOV keys).
 bool App::cinematic_camera(ui::CameraParams& cp) {
-    if (story_camera_view(cp)) return true;  // ui2 t03: the story script's cinematic camera (Start_Cinematic_Camera)
+    if (story_camera_view(cp)) return true;  // the story script's cinematic camera (Start_Cinematic_Camera)
     if (!cine_.shot.active()) return false;
     ObjectFrame f;
     const std::vector<render::SnapshotObject>& objs = bview_.frame().objects;  // ascending id
@@ -187,7 +187,7 @@ bool App::cinematic_camera(ui::CameraParams& cp) {
 }
 
 // The letterbox bar overlay (0x140a28c10 [M]): two black bars, each Camera_FX_Manager_Letterbox_Height x level of the
-// screen height, over the world and under the dialogs. story t13: the level is the higher of the TSW shot's bars and the
+// screen height, over the world and under the dialogs. The level is the higher of the TSW shot's bars and the
 // linked-battle / story-script bars (LinkedBattleOverlay).
 void App::draw_letterbox(ui::HudDrawList& dl, const ui::HudCanvas& canvas, uint32_t w, uint32_t h) const {
     const float level = std::max({cine_.letterbox.level(), linked_ui_.letterbox_level(), story_box_.level(now_s_)});

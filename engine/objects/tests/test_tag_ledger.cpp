@@ -1,4 +1,4 @@
-// mcx0 t02: the compiled tag ledger (objects/tag_ledger.hpp) - lookup, states, and agreement with field_schema().
+// the compiled tag ledger (objects/tag_ledger.hpp) - lookup, states, and agreement with field_schema().
 #include <string_view>
 
 #include "alamo/objects/field_schema.hpp"
@@ -22,7 +22,7 @@ int main() {
             }
         if (!found) ++missing;
         CHECK(find_tag_ledger(r.cls, r.tag) != nullptr);
-        // Consumer counts are not compiled (ref1 t01); the lint checks them against the code.
+        // Consumer counts are not compiled; the lint checks them against the code.
         CHECK(r.spec.empty() || r.spec.starts_with("docs/"));
         if (r.state == LedgerState::RetailUnused) CHECK(r.spec.starts_with("docs/re/"));
         if (r.state == LedgerState::OutOfScope) CHECK(r.spec.starts_with("docs/xml-scope.md"));
@@ -38,11 +38,11 @@ int main() {
     CHECK(std::string_view(to_string(LedgerState::Verified)) == "verified");
     CHECK(std::string_view(to_string(LedgerState::RetailUnused)) == "retail_unused" &&
           !is_honour_gap(LedgerState::RetailUnused));
-    // mcx4 t16: out-of-scope rows (hardware detection here) are settled, not honour gaps.
+    // out-of-scope rows (hardware detection here) are settled, not honour gaps.
     const TagLedgerRow* cpu = find_tag_ledger("HardwareConfiguration", "CPUSpeed");
     CHECK(cpu != nullptr && cpu->state == LedgerState::OutOfScope && !is_honour_gap(cpu->state));
     CHECK(std::string_view(to_string(LedgerState::OutOfScope)) == "out_of_scope");
-    // mcx4: a segment error of the descriptor tables (MousePointer.Icon_Name is the object types' Icon_Name) is settled.
+    // a segment error of the descriptor tables (MousePointer.Icon_Name is the object types' Icon_Name) is settled.
     const TagLedgerRow* icon = find_tag_ledger("MousePointer", "Icon_Name");
     CHECK(icon != nullptr && icon->state == LedgerState::Misfiled && !is_honour_gap(icon->state));
     CHECK(std::string_view(to_string(LedgerState::Misfiled)) == "misfiled");

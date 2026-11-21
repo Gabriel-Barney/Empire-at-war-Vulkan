@@ -1,4 +1,4 @@
-// alamo_galactic_visibility_tests: GRC §2 (docs/re/GALACTIC_REVEAL_CORRUPTION.md) planet visibility masks on GalacticSim.
+// alamo_galactic_visibility_tests: GRC §2 (legacy docs/re/GALACTIC_REVEAL_CORRUPTION.md) planet visibility masks on GalacticSim.
 //   1. the VisibilityLevelType converter and the faction defaults;
 //   2. each source on a synthetic galaxy: baseline (local player only), presence (AI players only), always-on spies
 //      (unit / structure / planet, influence range), Ground_Activated spies (probe: entry, expiry, range, removal), story
@@ -493,7 +493,7 @@ void test_player_view() {
     CHECK(nv.ownership_visible.empty() && nv.local_orbit_visible.empty() && nv.is_passable(rC, PathRequest{}));
 }
 
-// A2 t01: PlayerView::ai_perceived_non_neutral for a mover with an AI system (stand-in: the true owner, no fogged memory).
+// PlayerView::ai_perceived_non_neutral for a mover with an AI system (stand-in: the true owner, no fogged memory).
 void test_player_view_ai_perceived() {
     std::printf("  player view ai perceived owner\n");
     World w;  // Empire human; Rebel and Underworld are AI players; A = Emp, C = Reb, D = Und, B and E neutral-owned

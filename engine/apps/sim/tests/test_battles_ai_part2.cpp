@@ -1,4 +1,4 @@
-// Part 2 of test_battles_ai (bo3 t03: split by position; see test_battles_ai_common.hpp).
+// Part 2 of test_battles_ai (split by position; see test_battles_ai_common.hpp).
 #include "test_battles_ai_common.hpp"
 #include "tactical_battle_test_access.hpp"  // ref3 t06
 
@@ -29,7 +29,7 @@ void test_thief_release(const Data& d, int how) {
     // not a garrison for anyone else
     const objects::ObjectId other[] = {t.thief2}, self[] = {t.thief};
     CHECK(!b.can_garrison(t.thief2, t.clone) && b.garrison().free_slots(t.clone) == 0);
-    {  // s78n t19: the refusal comes before any side effect - the unit's order queue, its move and the RNG are untouched
+    {  // the refusal comes before any side effect - the unit's order queue, its move and the RNG are untouched
         SimRng& rng = t.s.host->random().synced();
         const Vec3 p2 = t.pos(t.thief2);
         CHECK(b.order_move(*t.tm, 1, other, p2.x + 60.0f, p2.y, rng) == commands::RejectReason::None);
@@ -158,7 +158,7 @@ void test_thief_save_load(const Data& d, bool no_garrison_unit) {
 namespace bo3split {
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
 
-// s78n t19: a save in the window between a command-phase kill and the next battle tick. `how` 0: the eject ability
+// a save in the window between a command-phase kill and the next battle tick. `how` 0: the eject ability
 // kills the stolen vehicle (unit ability 46 off: Take_Damage kind 13) with the thief inside; 1: a STIM_PACK kills its
 // user (S10_ThiefN: half its max health). The death is in the combat system's list and the host has not processed it:
 // the dead unit's object is still in the store. The save is taken at once; the loaded session then runs on with the
@@ -587,7 +587,7 @@ namespace bo3split {
 // a1g t04 follow-up: BattleAi::land_drop_ok (TACTICAL_GAPS §4.2): the land Reinforce drop validity of a reserve entry. A spot
 // is refused when a slot is impassable (an Obstacle strip on the map), fogged for the player (force 1), or its footprint is
 // taken (a live unit stands there); an unknown entry is refused; otherwise accepted.
-// a1h t06: the test is run by the host (TacticalBattle::land_drop_valid); blockers are the Collidable_By_Projectile_Living
+// the test is run by the host (TacticalBattle::land_drop_valid); blockers are the Collidable_By_Projectile_Living
 // objects and S10_Trooper carries hard extents 6 x 6 (a type with neither extents nor a model has a zero drop cell: refused).
 void test_battle_ai_land_drop(const Data& d) {
     jobs::JobSystem js(jobs::JobSystemConfig{0});
@@ -707,7 +707,7 @@ void test_battle_ai_land_drop(const Data& d) {
         }
         std::printf("  land drop: %zu / %zu spots fogged-valid / valid, %zu refused only by fog (fog %s), %zu next to enemy units\n",
                     fog_ok.size(), clear_ok.size(), newly, fog ? "on" : "off", next_to_enemy);
-        {  // ref5 t06: the AI lane's answers come from the capture and never read the battle
+        {  // the AI lane's answers come from the capture and never read the battle
             TacticalAiSetup tl = ts;
             tl.ai_lane = true;
             BattleAi al(*b, *tm, host, tl);
@@ -739,7 +739,7 @@ void test_battle_ai_land_drop(const Data& d) {
                 }
             });
             CHECK(ai_lane_live_reads() == reads_before);
-            // ref5 t07: right after the capture (the battle unchanged), every family with a full snapshot answer gives the
+            // right after the capture (the battle unchanged), every family with a full snapshot answer gives the
             // live rule's answer (the drop tests are partial on the capture by design and checked above).
             {
                 ai::tactical::BattleFacts& bf = al.facts();
@@ -805,8 +805,8 @@ void test_battle_ai_land_drop(const Data& d) {
 namespace bo3split {
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
 
-// a2h t05: load_tactical_ai_data, the battle hosts' loader (alamo_headless --skirmish-ai / galactic --battles, alamo_game),
-// fills TacticalAiSetup::constants from GameConstants; a missing tag or no GameConstants keeps the default (mcx1 t02: a bad value converts as retail does, atof -> 0).
+// load_tactical_ai_data, the battle hosts' loader (alamo_headless --skirmish-ai / galactic --battles, alamo_game),
+// fills TacticalAiSetup::constants from GameConstants; a missing tag or no GameConstants keeps the default (a bad value converts as retail does, atof -> 0).
 void test_tactical_ai_constants_load() {
     const fs::path root = fs::temp_directory_path() / "alamo_sim_tactical_ai_constants";
     std::error_code ec;

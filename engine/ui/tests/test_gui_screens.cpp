@@ -87,7 +87,7 @@ void test_real_data() {
             ss.recap_colors = {Rgba8{255, 255, 255, 176}, Rgba8{255, 24, 39, 255}};
             ss.title = U"Incoming Transmission from Darth Vader";
             ss.has_completed = false;
-            ss.goal_colors = {Rgba8{128, 128, 255, 255}, Rgba8{84, 84, 168, 255}};  // q6 t14: per-row colours (read: x 0.66)
+            ss.goal_colors = {Rgba8{128, 128, 255, 255}, Rgba8{84, 84, 168, 255}};  // per-row colours (read: x 0.66)
             CHECK(is.show_story_summary(ss));
             if (const GuiDialog* sd = gui.find(dlg::kStorySummary))
                 if (const GuiControl* gl = sd->get("IDC_GOAL_LIST"))
@@ -311,7 +311,7 @@ void test_targeting() {
         in.update(mouse_frame(400, 300, L, L, 0, 4.0));
         CHECK(!tc.update(in, keys, ctx, out));
     }
-    // TRU1 t01: FIRE_LOBBING_SUPERWEAPON (47) picks a ground point and sends command 25 at position, one per user, never
+    // FIRE_LOBBING_SUPERWEAPON (47) picks a ground point and sends command 25 at position, one per user, never
     // queued (even from a queued HUD click).
     {
         CHECK(ability_target_kind(47) == TargetKind::Point);
@@ -561,7 +561,7 @@ void test_targeting() {
         out.clear();
         abilities_from_s9(as, grp, 32, out);
         CHECK(!out.empty() && out[0].icon == "i_sa_strike.tga" && out.size() == 2 && out[1].icon == "i_sa_tractor_beam.tga");
-        // mcx4 t14 (docs/re/MCX4_PRES_RE_ANSWERS_2.md Q5): the record's Alternate_Name_Text / Alternate_Description_Text
+        // mcx4 t14 (legacy docs/re/MCX4_PRES_RE_ANSWERS_2.md Q5): the record's Alternate_Name_Text / Alternate_Description_Text
         // replace the TEXT_TOOLTIP_ABILITY_<type>_NAME / _DESCRIPTION keys, each on its own.
         // ledger: verifies Unit_Ability.Alternate_Name_Text
         // ledger: verifies Unit_Ability.Alternate_Description_Text
@@ -584,8 +584,8 @@ void test_targeting() {
 }
 
 namespace test_gui_screens_t {
-void test_skirmish_maps();  // test_gui_skirmish_maps.cpp (p4ui t06)
-void test_skirmish_options();  // test_gui_skirmish_maps.cpp (skm1 t02 / t06)
+void test_skirmish_maps();  // test_gui_skirmish_maps.cpp
+void test_skirmish_options();  // test_gui_skirmish_maps.cpp
 void test_skirmish_preview();  // p4uim t03 / t04
 void test_skirmish_colours();  // p4uia t01 / t02
 void test_skirmish_slot_defaults();  // modc t47

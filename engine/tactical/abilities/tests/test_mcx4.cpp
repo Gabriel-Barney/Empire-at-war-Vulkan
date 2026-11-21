@@ -1,5 +1,5 @@
 // mcx4 (Stage 9, box MCX2): ability tags base FoC sets that the port stored without using. Expected values from
-// docs/re/MCX4_RE_ANSWERS_TACTICAL.md.
+// legacy docs/re/MCX4_RE_ANSWERS_TACTICAL.md.
 #include "test_abilities_common.hpp"
 
 #include <cmath>

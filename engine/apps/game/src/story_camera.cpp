@@ -1,4 +1,4 @@
-// ui2 t03 / t05: the story script's cinematic camera, fade and letterbox (story_camera.hpp).
+// the story script's cinematic camera, fade and letterbox (story_camera.hpp).
 #include "alamo/game/story_camera.hpp"
 
 #include <algorithm>

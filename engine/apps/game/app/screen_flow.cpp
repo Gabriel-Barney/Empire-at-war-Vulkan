@@ -1,4 +1,4 @@
-// alamo_game host, ref6 t05: the screen rule table (screen_flow.hpp).
+// alamo_game host, the screen rule table (screen_flow.hpp).
 #include "screen_flow.hpp"
 
 namespace alamo_game_app {

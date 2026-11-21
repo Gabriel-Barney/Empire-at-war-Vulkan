@@ -1,5 +1,5 @@
 // alamo_ai_tactical_perception_tests (no framework; non-zero exit on failure).
-// A1 stage 1b (docs/re/AI_TACTICAL_PERCEPTION.md): leaf cache rules, the evaluator tree and every
+// A1 stage 1b (legacy docs/re/AI_TACTICAL_PERCEPTION.md): leaf cache rules, the evaluator tree and every
 // token family, normalised tokens, threat grid geometry / projection / 300-frame re-projection / fog
 // memory (incl. the [M] cell-force double count), point / zone danger into zone_reachability, the
 // Lua-facing functions, a scripted scenario CRC (golden shared by MSVC / clang / gcc; 1 / 4 / N
@@ -446,7 +446,7 @@ struct Fixture {
         PerceptionObject barracks = make_obj(17, 0, kBarracks, O - 100.0f, O + 20.0f, 50.0f, 0.0f);
         barracks.built_structure = true;
         barracks.dummy_ground_structure = true;
-        barracks.no_owner_list = true;  // skai t15: pre-built at the start (out of the grid owner list)
+        barracks.no_owner_list = true;  // pre-built at the start (out of the grid owner list)
         w.objects.push_back(barracks);
         w.objects[0].zone = 2;
         w.objects[1].zone = 2;
@@ -501,7 +501,7 @@ static void test_tokens() {
     // ---- Game ----
     CHECK(f.val("Game.Age") == static_cast<double>(30.0f * (1.0f / 30.0f)));
     CHECK(f.val("Game.IsCampaignGame") == 0.0);
-    // mcx8 t09 (docs/re/AI_GALACTIC_TOKENS.md §4, 0x6e1fb0 on the base Game evaluator [H]): battles read the game
+    // mcx8 t09 (legacy docs/re/AI_GALACTIC_TOKENS.md §4, 0x6e1fb0 on the base Game evaluator [H]): battles read the game
     // settings flags too: 1.0 by default, 0.0 when an advanced option was changed with random events off.
     CHECK(f.val("Game.InterventionsEnabled") == 1.0);
     {
@@ -509,7 +509,7 @@ static void test_tokens() {
         off.w.interventions_enabled = false;
         CHECK(off.val("Game.InterventionsEnabled") == 0.0);
     }
-    // Game.ForceUnnormalized: every player's grid objects, health-scaled: 100+10+0+300+100+10 = 520 (b0422 / skai t12: the
+    // Game.ForceUnnormalized: every player's grid objects, health-scaled: 100+10+0+300+100+10 = 520 (the
     // DUMMY_GROUND_STRUCTURE barracks 17 (50) is not in the per-player grid lists)
     CHECK(f.val("Game.ForceUnnormalized") == 520.0);
     CHECK(f.val("Game.ForceUnnormalized {Parameter_Category = GameObjectCategoryType[Vehicle]}") == 200.0);
@@ -751,7 +751,7 @@ static void test_duplicate_zone_names() {
     CHECK(g.p.evaluator_handle(g.h_zone2) == g.h_zone2 && g.p.evaluator_handle(g.h_outside) == g.h_outside);
 }
 
-// OPT2 t13: OpenBuildPadCount {Parameter_Type}: a pad counts when its own type is listed (case-insensitive), else when the
+// OpenBuildPadCount {Parameter_Type}: a pad counts when its own type is listed (case-insensitive), else when the
 // host's pad_accepts hook accepts one of the listed types (known names only, in list order, stopping at the first yes); no
 // hook means only the pad's own type counts.
 static void test_open_pad_types() {
@@ -1390,7 +1390,7 @@ static void test_a1g_readings() {
     std::printf("a1g readings: OK\n");
 }
 
-// A2k t06: the name -> mask config from the data-loaded GameObjectCategoryType converter (mod categories get bits).
+// the name -> mask config from the data-loaded GameObjectCategoryType converter (mod categories get bits).
 static void test_category_mask_from_enums() {
     class OneFile final : public FileProvider {
     public:

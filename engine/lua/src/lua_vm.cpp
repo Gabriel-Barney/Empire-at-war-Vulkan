@@ -72,7 +72,7 @@ bool load_script(lua_State* L, const LuaVm::Impl& vm, std::string_view name, boo
     }
 }
 
-// require(name), stock Lua 5.0.2 (mcx6 t07, LUA_API.md "require and _LOADED"), files through the FileProvider:
+// require(name), stock Lua 5.0.2 (legacy docs/re/LUA_API.md "require and _LOADED"), files through the FileProvider:
 // _LOADED[name] truthy -> that value, nothing loaded; else the file is found (read_script: LUA_PATH order) and compiled,
 // _REQUIREDNAME is saved, set to the name for the run and restored after it, a nil result becomes true, and only then
 // _LOADED[name] := the result. A chunk that raises leaves no entry (a later require tries again); a cycle loads the file
@@ -209,7 +209,7 @@ const char* reader_chunk(lua_State*, void* data, size_t* size) {
     return p;
 }
 
-// OPT2 t04: profiler zones around the mark / sweep part of every collection (alamo_lua_gc_hook, a build patch of
+// profiler zones around the mark / sweep part of every collection (alamo_lua_gc_hook, a build patch of
 // lgc.c), on whichever thread runs it: "lua.gc" = all of them, "lua.gc.auto" = the automatic ones that run inside a
 // script call (what the schedule in gc_schedule.cpp is meant to make rare). Wall-clock only.
 thread_local int64_t t_gc_start = -1;

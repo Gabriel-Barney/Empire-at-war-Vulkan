@@ -4,7 +4,7 @@
 // and picking.hpp uses for screen rays. Camera state is local presentation state: it never feeds the
 // sim (orders leave as commands, orders.hpp).
 //
-// Sources: docs/re/RENDER.md §3.4-3.5, SPACE_AND_OPEN.md §A.1-A.2, §B.8, §D.7 2 (pose), TacticalCameras.xml
+// Sources: legacy docs/re/RENDER.md §3.4-3.5, legacy docs/re/SPACE_AND_OPEN.md §A.1-A.2, §B.8, §D.7 2 (pose), TacticalCameras.xml
 // and GameConstants.xml (vanilla FoC values are the defaults below), xml_field_tables.md (field types).
 //
 // Pose (SPACE_AND_OPEN D.7 2, [H] order, [M] yaw axis): look-at point, yaw about +Z (0 = looking north,
@@ -12,9 +12,9 @@
 // eye = look_at + distance * (-cos(pitch) * forward + sin(pitch) * Z), forward = (sin yaw, cos yaw, 0).
 // Yaw 0 / pitch 50 / distance 1000 puts the eye 766 above and 643 behind (-Y) the look-at point.
 // FOV (degrees, defined for 4:3) is horizontal; displays wider than 4:3 get 2 atan(tan(f/2) * 0.75 * 16/9)
-// (RENDER.md §3.4). Galactic: horizontal FOV atan(0.5), near 10, far 10000, no widening (B.8).
+// (legacy docs/re/RENDER.md §3.4). Galactic: horizontal FOV atan(0.5), near 10, far 10000, no widening (B.8).
 //
-// Input, rates and smoothing follow docs/re/P1_CAMERA_INPUT.md (2026-10-28):
+// Input, rates and smoothing follow legacy docs/re/P1_CAMERA_INPUT.md (2026-10-28):
 //   * scrolling (§2): per direction a distance d past the screen edge (keys: d = Offscreen_Region), speed S = Min + (d /
 //     Offscreen) (Max - Min) windowed, the Min / Max midpoint fullscreen; T = (S_right - S_left, S_bottom - S_top) x the
 //     options scroll-speed slider (>= 0.1), x Push_Scroll_Speed_Modifier in push mode, T.y x 1.2. The scroll velocity is
@@ -49,7 +49,7 @@
 //     follows the terrain under it (linear smoothing over CameraTuning::terrain_smooth_time; snapped on jumps), and
 //     the eye is kept Min_Height_Above_Terrain above the terrain under it by raising the pitch (so CameraParams and
 //     the orbit pose stay one consistent camera).
-//   * Control-group camera jump (UI.md §4.4): jump_to(point) moves the look-at point (clamped, terrain-snapped) and
+//   * Control-group camera jump (legacy docs/re/UI.md §4.4): jump_to(point) moves the look-at point (clamped, terrain-snapped) and
 //     keeps yaw / pitch / zoom; focus_point() = mean of the group's positions in index order. The host gets the jump
 //     from HotkeyDispatcher (HotkeyEvent::camera_jump).
 #pragma once
@@ -91,7 +91,7 @@ struct CameraParams {
     float roll = 0.0f;
 };
 
-// Hor+ rule of the tactical camera (RENDER.md §3.4); same formula as render::tactical_fov_x.
+// Hor+ rule of the tactical camera (legacy docs/re/RENDER.md §3.4); same formula as render::tactical_fov_x.
 float tactical_fov_x(float fov_degrees, float aspect);
 // [port: Gabriel 2026-11-13] Hor+ for the galactic camera (the original keeps B.8's horizontal FOV at every aspect): the
 // horizontal FOV `fov_x_4_3` (radians) holds at 4:3 and narrower; a wider aspect keeps 4:3's vertical FOV,
@@ -144,7 +144,7 @@ struct ScrollConstants {
     float max_speed = 4000, min_speed = 1000;  // *_Max / _Min_Scroll_Speed (speed units, see the header comment)
     int32_t offscreen_region_px = 50;  // *_Offscreen_Scroll_Region (distance past the edge for the full speed)
     float push_speed_modifier = 2.0f;  // Push_Scroll_Speed_Modifier (push mode only)
-    // Scroll smoothing (P1_CAMERA_INPUT.md §2.2, STRATEGIC_GAPS §7.1), per-second form of the per-update rule: with
+    // Scroll smoothing (legacy docs/re/P1_CAMERA_INPUT.md §2.2, STRATEGIC_GAPS §7.1), per-second form of the per-update rule: with
     // n = dt x reference_rate updates, T != 0 -> v += Scroll_Acceleration_Factor x T x n per component, clamped so it never
     // passes T (a zero component of T is cut to 0 at once); T = 0 -> v /= Scroll_Deceleration_Factor^n, v := 0 once
     // |vx| and |vy| < 0.1 x reference_rate (the original's 0.1 speed units per update). v and T are speeds (units / s).
@@ -155,16 +155,16 @@ struct ScrollConstants {
 };
 // One smoothing step (above) of the scroll velocity (vx, vy) towards the target velocity (tx, ty) over `dt` seconds.
 void scroll_smooth(float tx, float ty, float dt, const ScrollConstants& s, float& vx, float& vy);
-// SmoothCD (Game Programming Gems 4; P1_CAMERA_INPUT.md §4.1): critically damped spring of `value` / `velocity` towards
+// SmoothCD (Game Programming Gems 4; legacy docs/re/P1_CAMERA_INPUT.md §4.1): critically damped spring of `value` / `velocity` towards
 // `target` with smooth time `smooth_time` over dt seconds; smooth_time <= 0 snaps.
 void smooth_cd(float& value, float& velocity, float target, float smooth_time, float dt);
 struct GalacticCameraConstants {
     float initial_pitch_deg = -30, zoomed_pitch_deg = -35;  // GMC_*PitchAngleDegrees (negative = down)
     float initial_pullback = 700, zoomed_pullback_radius_fraction = 3.0f;
     Vec3 zoomed_offset_radius_fractions{0, 0, 1.05f};
-    float zoom_time = 0.65f;  // smoothstep 3t^2 - 2t^3 (RENDER.md §3.5)
+    float zoom_time = 0.65f;  // smoothstep 3t^2 - 2t^3 (legacy docs/re/RENDER.md §3.5)
     float right_button_scroll_factor = 0.25f;
-    float scroll_plane = 10.0f;  // Galactic_Scroll_Plane: z of the camera's look-at point (P1_CAMERA_INPUT.md §1)
+    float scroll_plane = 10.0f;  // Galactic_Scroll_Plane: z of the camera's look-at point (legacy docs/re/P1_CAMERA_INPUT.md §1)
     Vec3 start_position{0, 0, 0};
     // Camera_Stop_Left / _Right are read only by dead code (no caller, STRATEGIC_GAPS §7.1) and Camera_Z_Position has no
     // reader: not parsed.
@@ -184,7 +184,7 @@ struct CameraBox {
     float min_x = -5000, min_y = -5000, max_x = 5000, max_y = 5000;
 };
 
-// Options and rates. Options (P1_CAMERA_INPUT.md §3.1; the host copies them from the profile / options menu):
+// Options and rates. Options (legacy docs/re/P1_CAMERA_INPUT.md §3.1; the host copies them from the profile / options menu):
 struct CameraTuning {
     float scroll_speed_option = 1.0f;  // IDC_SCROLL_SPEED_SLIDER (0..3; at least 0.1 is used; Defaults = 1.0)
     bool windowed = false;             // windowed: edge speed by distance past the edge, keys = Max; fullscreen: midpoint
@@ -242,7 +242,7 @@ public:
     // Mouse drag mode of this frame (middle / right-scroll / both-buttons drag).
     enum class Drag : uint8_t { None, Pan, Rotate };
     Drag drag() const { return drag_; }
-    // ui2 t06 (story SCROLL_LOCK, STORY_PRESENTATION_REWARDS.md 5.11): no key, edge or drag scrolling while set; rotation and zoom stay.
+    // ui2 t06 (story SCROLL_LOCK, legacy docs/re/STORY_PRESENTATION_REWARDS.md 5.11): no key, edge or drag scrolling while set; rotation and zoom stay.
     void set_scroll_locked(bool locked) { scroll_locked_ = locked; }
     bool scroll_locked() const { return scroll_locked_; }
 
@@ -320,7 +320,7 @@ private:
     bool scroll_locked_ = false;                  // ui2 t06
 };
 
-// Galactic map camera (RENDER.md §3.5 [M], SPACE_AND_OPEN B.8): looks north (+Y) pitched down by
+// Galactic map camera (legacy docs/re/RENDER.md §3.5 [M], SPACE_AND_OPEN B.8): looks north (+Y) pitched down by
 // -GMC_InitialPitchAngleDegrees, pulled back GMC_InitialPullbackDistance; zooming onto a planet blends
 // (smoothstep over GMC_ZoomTime) to pitch -GMC_ZoomedPitch and pullback radius * fraction around
 // planet + offset * radius.
@@ -338,7 +338,7 @@ public:
     void set_scroll_locked(bool locked) { scroll_locked_ = locked; }
     bool scroll_locked() const { return scroll_locked_; }
     // Wheel: notches > 0 = zoom-in request for the host (take_zoom_in_request: the hovered or selected planet ->
-    // zoom_to_planet), < 0 = zoom out from the settled zoomed view. No continuous zoom (P1_CAMERA_INPUT.md §5).
+    // zoom_to_planet), < 0 = zoom out from the settled zoomed view. No continuous zoom (legacy docs/re/P1_CAMERA_INPUT.md §5).
     void zoom(float notches);
     bool take_zoom_in_request() { return std::exchange(zoom_in_request_, false); }
     // Options (scroll slider, windowed, absolute / right-button scrolling); look-at, bounds, FOV and zoom state are kept.
@@ -352,7 +352,7 @@ public:
     float pitch_deg() const;   // down angle (positive)
     float pullback() const;
     bool zoomed() const { return zoomed_; }
-    bool dragging() const { return dragging_; }  // ui1 t01: a middle / right-scroll drag holds the map
+    bool dragging() const { return dragging_; }  // a middle / right-scroll drag holds the map
     bool transitioning() const { return t_anim_ < 1.0f; }
     // Zoom transition progress z (0..1, linear in time over GMC_ZoomTime, before the pose smoothstep; 1 = settled).
     // Direction: zoomed() (true = zooming / zoomed in, false = zooming / zoomed out).

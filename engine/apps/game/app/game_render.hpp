@@ -14,7 +14,7 @@
 #include <vector>
 
 #include "alamo/assets/asset_cache.hpp"
-#include "alamo/game/battle_fx.hpp"  // S8 t31: lobbing charge-up cues
+#include "alamo/game/battle_fx.hpp"  // lobbing charge-up cues
 #include "alamo/game/game_data.hpp"
 #include "alamo/game/game_session.hpp"
 #include "alamo/game/script_cinematics.hpp"  // mcx6 t05
@@ -107,7 +107,7 @@ public:
     }
 
     ui::GalacticCameraController& camera() { return camera_; }
-    // ui4 t06: the fleet drag preview segments of the next prepare() (GalacticSceneBuilder::set_drag_lines).
+    // the fleet drag preview segments of the next prepare() (GalacticSceneBuilder::set_drag_lines).
     void set_drag_lines(std::vector<render::GalacticDragLine> lines) {
         if (builder_) builder_->set_drag_lines(std::move(lines));
     }
@@ -146,7 +146,7 @@ private:
     std::vector<render::FactionColor> colors_;
     render::RouteLineStyle style_;
     render::CorruptionPathSettings corruption_path_;  // FIXPASS_GALACTIC §3.2 (GameConstants)
-    float cycle_speed_ = 5.0f, cycle_darken_ = 0.5f;   // mcx4 t14: GUI_Cycle_Speed / GUI_Darken_Level
+    float cycle_speed_ = 5.0f, cycle_darken_ = 0.5f;   // GUI_Cycle_Speed / GUI_Darken_Level
     uint32_t cycle_planet_ = 0;                        // the selection the cycle started for
     double cycle_t0_ = 0.0;
     ui::GalacticCameraController camera_;
@@ -174,7 +174,7 @@ struct BattleViewStats {
     uint64_t decals = 0;
     uint64_t muzzles = 0;  // muzzle flashes handed to the snapshots (sum over captures; R3 attack row)
     uint32_t lasers_peak = 0;  // most laser projectiles handed to the renderer in one frame (playtest R1)
-    // q6 t02: most model projectiles (Projectile_Custom_Render 0, e.g. Thrawn's Revenge's Proj_Space_Laser_*.alo) drawn in one frame
+    // most model projectiles (Projectile_Custom_Render 0, e.g. Thrawn's Revenge's Proj_Space_Laser_*.alo) drawn in one frame
     uint32_t model_projectiles_peak = 0;
 };
 
@@ -188,11 +188,11 @@ public:
     void set_particle_detail(float detail) {
         if (pworld_) pworld_->set_detail(detail);
     }
-    // vis1 t02: shadow detail of the object blob shadows (render::blob_shadow_mode; 0 = Off, kPortShadowDetailOn = On).
+    // shadow detail of the object blob shadows (render::blob_shadow_mode; 0 = Off, kPortShadowDetailOn = On).
     void set_shadow_detail(int32_t detail) { shadow_detail_ = detail; }
-    // vis1 t06: GameConstants Object_Visual_Status_Particle_Attach_Bone_Names (stun / infection particle bones).
+    // GameConstants Object_Visual_Status_Particle_Attach_Bone_Names (stun / infection particle bones).
     void set_status_particle_bones(std::string bones) { status_bones_ = std::move(bones); }
-    // vis1 t01: the weather the last capture read (land battles; inactive otherwise).
+    // the weather the last capture read (land battles; inactive otherwise).
     const render::WeatherView& weather() const { return weather_; }
     // Scripted runs: every model the frame requests is loaded and resident before it is built (ModelStreamer::
     // finish_pending), so a new type's first drawn frame and its particles do not depend on load timing; likewise each
@@ -204,7 +204,7 @@ public:
     void use_scene(GpuCore& gpu);
     // World bounding radius of a type (drawn bounding sphere of its model x Scale_Factor); 0 until the model is loaded.
     float type_radius(objects::TypeIndex t);
-    // refixf t05: half-extents of the type's drawn model box x Scale_Factor (TSW firing shot E, TSW_PLANET_DESTROY.md §11.2
+    // half-extents of the type's drawn model box x Scale_Factor (TSW firing shot E, legacy docs/re/TSW_PLANET_DESTROY.md §11.2
     // [M: the model box]); zero until the model is loaded.
     ui::Vec3 type_half_extents(objects::TypeIndex t);
     float load_progress() const;
@@ -219,13 +219,13 @@ public:
     const BattleViewStats& stats() const { return stats_; }
     float clear_color(int i) const;
     // P2 selection circles of this frame (TacticalHud::selection_blobs): blob instances in the main list, one model per
-    // ShadowBlobMaterials entry (vis1 t03: the blob's own material, UI.md 1.3; unknown / empty: the first Selection*
+    // ShadowBlobMaterials entry (the blob's own material, legacy docs/re/UI.md 1.3; unknown / empty: the first Selection*
     // material); land: on the terrain under the unit (ui::selection_blob_ground_instance). Set before prepare().
     void set_selection_blobs(std::span<const ui::SelectionBlob> blobs) { blobs_.assign(blobs.begin(), blobs.end()); }
-    // vis1 t08: the local player's selected object ids (ascending; empty in a cinematic / outside the battle screen): the
+    // the local player's selected object ids (ascending; empty in a cinematic / outside the battle screen): the
     // Force_Healing range blob is drawn under a selected owner (also while an ability target is picked). Set before prepare().
     void set_heal_selection(std::vector<uint32_t> ids) { heal_sel_ = std::move(ids); }
-    // mcx4 t14: the object under the cursor (0 = none), brightened by Mouse_Over_Highlight_Scale. Set before prepare().
+    // the object under the cursor (0 = none), brightened by Mouse_Over_Highlight_Scale. Set before prepare().
     void set_hover(uint32_t id) { hover_ = id; }
     // mcx4 t15 (MCX4_PRES_RE_ANSWERS_2 Q7): start an object light effect at wall time `now`, unless one is running on
     // the object (0x48e4d0: a running pulse is not replaced). set_pulse_time sets the clock of the next prepare().
@@ -236,9 +236,9 @@ public:
     // x (1 + GUI_Flash_Level x remaining / GUI_Rapid_Flash_Duration), three times; a new flash replaces a running one.
     void rapid_flash(uint32_t id, double now);
     const float* shield_flash_color() const { return shield_flash_color_; }
-    // cu9g t03: the bombing-run targeting blob of this frame (HUD_GAPS §9.5; nullopt = none). Set before prepare().
+    // the bombing-run targeting blob of this frame (HUD_GAPS §9.5; nullopt = none). Set before prepare().
     void set_bombing_blob(const std::optional<render::JamBlob>& blob) { bombing_blob_ = blob; }
-    // ui2 t08 (STORY_PRESENTATION_LUA.md 4.1 / 4.2): the story script's Play_Lightning_Effect bolts of this frame (extra beams
+    // ui2 t08 (legacy docs/re/STORY_PRESENTATION_LUA.md 4.1 / 4.2): the story script's Play_Lightning_Effect bolts of this frame (extra beams
     // drawn with the ability beams, lightning only) and its Enable_Fog / Enable_Distance_Fog switches (scene fog off when either
     // is false; the environment's own setting decides otherwise). Presentation only.
     void set_script_beams(std::vector<render::BeamInstance> beams) { script_beams_ = std::move(beams); }
@@ -249,7 +249,7 @@ public:
     // reinforcement drop point (game_main: TacticalHud BeginReinforcement until the drop / cancel).
     void set_space_reinforcement_overlay(bool on);
     // --- end R3/R5 render ---
-    // P1 move acknowledgement (P1_DOUBLE_CLICK_MOVE.md §2.3; presentation only): spawns the particle object type `type`
+    // P1 move acknowledgement (legacy docs/re/P1_DOUBLE_CLICK_MOVE.md §2.3; presentation only): spawns the particle object type `type`
     // (a GameConstants GUI_*_Command_Ack_Effect value: the type's model for this mode, else `type` as a particle file) at
     // `p` scaled by `scale` (GUI_Move_Acknowledge_Scale_Land / _Space). `normal`: a GUI_Move_Command_Ack_Effect object (the
     // kind a double-click kills). False when nothing was spawned (unknown type, no particle renderer).
@@ -261,19 +261,19 @@ public:
     render::RecordOptions ropt;
 
 private:
-    // S8 t31 (TACTICAL_COMBAT.md "Charge-up"): the charging lobbing units' Lobbing_Superweapon_Chargeup_Particle on
+    // S8 t31 (legacy docs/re/TACTICAL_COMBAT.md "Charge-up"): the charging lobbing units' Lobbing_Superweapon_Chargeup_Particle on
     // Lobbing_Superweapon_Chargeup_Particle_Bone_Name as attached effects (percent kEffectLobChargeup).
     void append_lob_chargeups(const sim::TacticalBattle& battle, render::SimSnapshot& snap);
 
     GpuCore* gpu_ = nullptr;
-    const objects::GameObjectTypes* types_ = nullptr;  // S8 t31: the lobbing XML tags
-    std::vector<TswCue> lob_chargeups_;               // S8 t31: track_lob_chargeups (battle_fx.hpp)
+    const objects::GameObjectTypes* types_ = nullptr;  // the lobbing XML tags
+    std::vector<TswCue> lob_chargeups_;               // track_lob_chargeups (battle_fx.hpp)
     render::AbilityFxTracker ability_fx_;             // vis1 t06 (ability_fx.hpp)
     std::string status_bones_ = "B_HEAD, Turret_00, B_Turret_00, B_Turret, B_Turret_Base, ROOT";  // vis1 t06 (vanilla value)
-    // cu8g t03: the battle's active environment at the last capture (TacticalBattle::environment_index); prepare()
+    // the battle's active environment at the last capture (TacticalBattle::environment_index); prepare()
     // re-applies it on the scene (MapScene::set_environment) and the particle wind when it changed.
     uint32_t env_wanted_ = 0;
-    // mcx6 t05: the story's Show_Emitter state at the last capture (lua::PresentationState::emitters as particle group bits,
+    // the story's Show_Emitter state at the last capture (lua::PresentationState::emitters as particle group bits,
     // game::emitter_overrides); the builder's emitter source reads it.
     std::map<objects::ObjectId, game::EmitterGroups> emitter_groups_;
     std::vector<render::BeamInstance> script_beams_;  // ui2 t08
@@ -287,7 +287,7 @@ private:
     bool have_last_prepare_ = false;
     uint64_t weather_fx_ = 0;  // ParticleWorld::Handle of the weather emitter (0 = none)
     std::string weather_fx_name_;
-    // vis1 t02: object blob shadows (land).
+    // object blob shadows (land).
     render::BlobShadowBuilder blob_shadows_;
     std::vector<terrain::ShadowBlob> shadow_blobs_;
     int32_t shadow_detail_ = render::kPortShadowDetailOn;
@@ -300,13 +300,13 @@ private:
     std::unique_ptr<render::StreamedSimModels> models_;
     std::unique_ptr<render::SimInstanceBuilder> builder_;
     render::InterpolatedFrame frame_;
-    std::vector<render::SimWorldEffect> world_fx_;  // vis1 t08: decoration effects + the frame's (shield penetration)
-    std::vector<uint32_t> heal_sel_;                  // vis1 t08: set_heal_selection
-    uint32_t hover_ = 0;                              // mcx4 t14: set_hover
-    std::map<uint64_t, render::LightPulse> pulses_;   // mcx4 t15: running object light effects
+    std::vector<render::SimWorldEffect> world_fx_;  // decoration effects + the frame's (shield penetration)
+    std::vector<uint32_t> heal_sel_;                  // set_heal_selection
+    uint32_t hover_ = 0;                              // set_hover
+    std::map<uint64_t, render::LightPulse> pulses_;   // running object light effects
     double pulse_now_ = 0.0;
     float shield_flash_duration_ = 0.1f;              // GameConstants Shield_Flash_Duration
-    float gui_flash_level_ = 3.0f, gui_rapid_flash_duration_ = 0.1f;  // mcx4 t14: GUI_Flash_Level / GUI_Rapid_Flash_Duration
+    float gui_flash_level_ = 3.0f, gui_rapid_flash_duration_ = 0.1f;  // GUI_Flash_Level / GUI_Rapid_Flash_Duration
     float shield_flash_color_[3] = {1.0f, 1.1f, 1.25f};  // GameConstants Shield_Flash_Scale
     float hover_scale_ = 1.5f;                        // GameConstants Mouse_Over_Highlight_Scale
     std::vector<render::Instance> bg_;
@@ -334,7 +334,7 @@ private:
     };
     std::vector<MoveAckFx> acks_;
     std::vector<ui::SelectionBlob> blobs_;
-    // vis1 t03: selection blob models, uploaded on first use per material (index into blob_mats_; ok = false: the upload
+    // selection blob models, uploaded on first use per material (index into blob_mats_; ok = false: the upload
     // failed, not retried).
     struct SelectionModel {
         uint32_t material = 0;
@@ -345,7 +345,7 @@ private:
     uint32_t blob_fallback_ = UINT32_MAX;  // the first Selection* material (UINT32_MAX: none)
     std::vector<std::unique_ptr<SelectionModel>> sel_models_;
     render::GpuModel* selection_model(GpuCore& gpu, const std::string& material);
-    std::optional<render::JamBlob> bombing_blob_;  // cu9g t03: the land bombing-run targeting blob (drawn through jam_models_)
+    std::optional<render::JamBlob> bombing_blob_;  // the land bombing-run targeting blob (drawn through jam_models_)
     render::JamBlobModels jam_models_;  // R5 sensor jamming radius blobs (one model per material + colour)
     render::BeamStyleTable beam_styles_;  // R5 ability beams: per-special styles over the GameConstants fallbacks (ABILITY_VISUALS 4.2)
     render::BeamBoneFn beam_bone_;        // bone world positions (HP_trac_bone, hardpoint / muzzle bones)

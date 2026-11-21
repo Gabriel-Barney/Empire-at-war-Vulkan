@@ -1,4 +1,4 @@
-// ref2 t03: the SessionSpec builder (session_spec.hpp).
+// the SessionSpec builder (session_spec.hpp).
 #include "alamo/game/session_spec.hpp"
 
 #include <algorithm>

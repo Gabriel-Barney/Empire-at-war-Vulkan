@@ -142,18 +142,18 @@ struct BenchReport {
     uint64_t final_crc = 0;
     std::string presentation_check = "skipped";  // "match" / "diverged" / "skipped"
     std::vector<std::string> autopilot;          // what the run answered for the player (battle prompts, dialogs)
-    // bm2: the scenario ("" = a plain --bench-save run), its version, the fingerprint check ("match", "skipped" or why it
+    // the scenario ("" = a plain --bench-save run), its version, the fingerprint check ("match", "skipped" or why it
     // diverged: then the run is not comparable), the scenario written by --bench-make, the camera keys used.
     std::string scenario, fingerprint = "skipped", scenario_made;
     uint32_t scenario_version = 0;
     uint64_t camera_keys = 0;
-    // bm2 t06: GPU timer scopes over the counted frames ("frame" = the whole command buffer, then the renderer's
+    // GPU timer scopes over the counted frames ("frame" = the whole command buffer, then the renderer's
     // "world" / "scene" / "ao" / "post" / "taa" in first-seen order), in GPU milliseconds. gpu_timestamps false: the
     // queue has no timestamps (no scopes).
     bool gpu_timestamps = false;
     uint64_t gpu_frames = 0;
     std::vector<std::pair<std::string, FrameTimeStats>> gpu_ms;
-    // bm3 t04: load and first-use cost. load_ms = from the save's load start to the first measured tick (the load screen, the
+    // load and first-use cost. load_ms = from the save's load start to the first measured tick (the load screen, the
     // warm-up frames and every pipeline / model / texture the first view waits for); early_ms = the first kEarlyFrames counted
     // frames; hitches = counted frames over hitch_threshold_ms (4 x the median, at least 25 ms): their count and the worst
     // kMaxHitches as {frame index, ms}, worst first.

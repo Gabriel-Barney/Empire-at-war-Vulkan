@@ -10,7 +10,7 @@ namespace alamo::ui {
 namespace {
 
 constexpr int32_t K(char c) { return static_cast<int32_t>(c); }
-// Win32 virtual keys not in vk:: (UI.md §4.3 defaults).
+// Win32 virtual keys not in vk:: (legacy docs/re/UI.md §4.3 defaults).
 constexpr int32_t kVkNumpad1 = 0x61, kVkNumpad2 = 0x62, kVkNumpad3 = 0x63, kVkNumpadSub = 0x6D, kVkF5 = 0x74,
                   kVkF6 = 0x75, kVkF12 = 0x7B, kVkScrollLock = 0x91, kVkOem1 = 0xBA /* ; */, kVkOemComma = 0xBC,
                   kVkOemMinus = 0xBD, kVkOemPeriod = 0xBE, kVkOem2 = 0xBF /* / */, kVkOem4 = 0xDB /* [ */,
@@ -283,7 +283,7 @@ bool HotkeyTable::load(const HotkeyProfile& in) {
 }
 
 namespace {
-// `0x2127f0` (P1_CAMERA_INPUT.md §6): modifier 0 matches only with Shift, Ctrl and Alt all up; 1 / 2 / 3 when Shift /
+// `0x2127f0` (legacy docs/re/P1_CAMERA_INPUT.md §6): modifier 0 matches only with Shift, Ctrl and Alt all up; 1 / 2 / 3 when Shift /
 // Ctrl / Alt is held (the others are ignored).
 bool matches(const InputState& in, const HotkeyBinding& b) {
     if (b.key < 0 || !in.key_pressed(static_cast<uint32_t>(b.key))) return false;

@@ -1,4 +1,4 @@
-// aud1 t07: tactical intro speech (GameAudioHost; rules: docs/re/AUDIO.md §9.7).
+// tactical intro speech (GameAudioHost; rules: legacy docs/re/AUDIO.md §9.7).
 #include "alamo/game/game_audio_host.hpp"
 
 #include <string>

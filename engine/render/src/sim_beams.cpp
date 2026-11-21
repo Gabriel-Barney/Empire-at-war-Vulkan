@@ -204,7 +204,7 @@ std::vector<BeamInstance> beams_from_frame(const InterpolatedFrame& frame, const
                 if (!hb.empty() && bone(*target, hb, p)) end = p;
             }
             Vec3 p{};
-            if (!r.style.end_bone.empty() && bone && bone(*target, r.style.end_bone, p)) end = p;  // vis1 t08: drain
+            if (!r.style.end_bone.empty() && bone && bone(*target, r.style.end_bone, p)) end = p;  // drain
         }
         b.end = f3(end);
         // near end: the owner's bone, else the owner position

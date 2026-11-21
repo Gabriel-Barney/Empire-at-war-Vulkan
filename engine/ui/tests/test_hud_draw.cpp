@@ -86,7 +86,7 @@ void test_cpu() {
     const render::Instance in = ui::selection_blob_instance(dummy, b);
     CHECK(in.model == &dummy && near(in.transform.m[0][0], 25) && near(in.transform.m[1][3], 20) &&
           near(in.transform.m[2][3], 30 + ui::kSpaceBlobLift));
-    {  // vis1 t03: land circles lie on the ground's local slope (z = 0.1 x + 0.2 y + 5): footprint kept, axes sheared
+    {  // land circles lie on the ground's local slope (z = 0.1 x + 0.2 y + 5): footprint kept, axes sheared
         const std::function<float(float, float)> ground = [](float x, float y) { return 0.1f * x + 0.2f * y + 5.0f; };
         const render::Instance g = ui::selection_blob_ground_instance(dummy, b, ground);
         CHECK(near(g.transform.m[0][0], 25) && near(g.transform.m[1][1], 25) && near(g.transform.m[2][0], 0.1f * 25) &&
@@ -254,7 +254,7 @@ std::shared_ptr<assets::TextureAsset> ring_texture() {
 // Real data (ALAMO_FOC_DATA): CommandBarComponents.xml, the MT_CommandBar atlas (MTD + TGA), MasterTextFile_ENGLISH,
 // the real i_tactical_controls.alo shell (lit through the game's effects) and a space scene of debug boxes, at the
 // three resolutions -> logs/ui_hud_real_<w>x<h>.png.
-void test_gpu_real(Gpu& g, const std::string& src_dir, bool strict) {
+void test_gpu_real(Gpu& g, [[maybe_unused]] const std::string& src_dir, bool strict) {
     (void)strict;
     const char* root = std::getenv("ALAMO_FOC_DATA");
     if (!root || !*root) {
@@ -507,9 +507,9 @@ void test_gpu_real(Gpu& g, const std::string& src_dir, bool strict) {
         std::printf("real hud %ux%u: bottom-left coverage %.1f%%\n", w, h, 100.0 * static_cast<double>(covered) / static_cast<double>(total));
         CHECK(covered * 2 > total);
         char name[64];
-        std::snprintf(name, sizeof name, "/logs/ui_hud_real_%ux%u.png", w, h);
-        CHECK(render::write_png_rgba(src_dir + name, w, h, rgba));
-        std::printf("wrote %s%s\n", src_dir.c_str(), name);
+        std::snprintf(name, sizeof name, "/ui_hud_real_%ux%u.png", w, h);
+        CHECK(render::write_png_rgba(::alamo::test::artifact_dir() + name, w, h, rgba));
+        std::printf("wrote %s%s\n", ::alamo::test::artifact_dir().c_str(), name);
         o.destroy(g);
     }
     g.ring.wait_idle();
@@ -524,7 +524,7 @@ void test_gpu_real(Gpu& g, const std::string& src_dir, bool strict) {
 // each faction alternate. Per alt: exactly one *_Faceplate_ALT<alt> mesh passes the instance's mesh mask and _ALT test,
 // with a MeshAlpha effect and a real (non-fallback) texture, and the faceplate's alpha-255 texels cover the whole
 // radar_galactic rectangle (no magenta pixel inside its inner 80 %).
-void test_gpu_galactic_faceplate(Gpu& g, const std::string& src_dir) {
+void test_gpu_galactic_faceplate(Gpu& g, [[maybe_unused]] const std::string& src_dir) {
     const char* root = std::getenv("ALAMO_FOC_DATA");
     if (!root || !*root) {
         std::printf("galactic faceplate: ALAMO_FOC_DATA not set, skipped\n");
@@ -703,8 +703,8 @@ void test_gpu_galactic_faceplate(Gpu& g, const std::string& src_dir) {
         CHECK(ss.draws > 0 && ss.pending_pipeline == 0);
         CHECK(total > 0 && magenta == 0);
         char name[80];
-        std::snprintf(name, sizeof name, "/logs/ui_galactic_faceplate_alt%d.png", alt);
-        CHECK(render::write_png_rgba(src_dir + name, w, h, rgba));
+        std::snprintf(name, sizeof name, "/ui_galactic_faceplate_alt%d.png", alt);
+        CHECK(render::write_png_rgba(::alamo::test::artifact_dir() + name, w, h, rgba));
     }
     o.destroy(g);
     g.ring.wait_idle();
@@ -976,8 +976,8 @@ void test_gpu(const std::string& src_dir) {
         CHECK(green > 50);
         const std::vector<uint8_t> rgba(px, px + static_cast<size_t>(w) * h * 4);
         char name[64];
-        std::snprintf(name, sizeof name, "/logs/ui_hud_%ux%u.png", w, h);
-        const std::string png = src_dir + name;
+        std::snprintf(name, sizeof name, "/ui_hud_%ux%u.png", w, h);
+        const std::string png = ::alamo::test::artifact_dir() + name;
         CHECK(render::write_png_rgba(png, w, h, rgba));
         std::printf("wrote %s\n", png.c_str());
         o.destroy(g);

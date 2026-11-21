@@ -1,4 +1,4 @@
-// q6 t03: skirmish rules shared by alamo_game and alamo_headless (skirmish_rules.hpp).
+// skirmish rules shared by alamo_game and alamo_headless (skirmish_rules.hpp).
 #include "alamo/game/skirmish_rules.hpp"
 
 #include <algorithm>

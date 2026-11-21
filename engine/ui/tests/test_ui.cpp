@@ -182,7 +182,7 @@ void test_input() {
 }
 
 // ---- camera ------------------------------------------------------------------------------------------
-// SmoothCD reference (P1_CAMERA_INPUT.md §4.1), computed independently of camera.cpp.
+// SmoothCD reference (legacy docs/re/P1_CAMERA_INPUT.md §4.1), computed independently of camera.cpp.
 float smooth_ref(float cur, float vel, float target, float st, float dt) {
     const double w = 2.0 / st, x = w * dt, e = 1.0 / (1.0 + x + 0.48 * x * x + 0.235 * x * x * x);
     const double c = static_cast<double>(cur) - target, tmp = (vel + w * c) * dt;
@@ -711,7 +711,7 @@ void test_picking() {
 }
 
 // ---- orders ------------------------------------------------------------------------------------------
-uint32_t qcode(float v) {  // COMMANDS.md §3.2 entry 1..3, computed independently
+uint32_t qcode(float v) {  // legacy docs/re/COMMANDS.md §3.2 entry 1..3, computed independently
     const double step = 20000.0 / static_cast<double>((1u << 18) - 2u);
     return static_cast<uint32_t>((static_cast<double>(v) + 10000.0) / step + 0.5);
 }
@@ -748,7 +748,7 @@ void feed(InputState& in, OrderTranslator& ot, const Bindings& b, const OrderCon
     }
 }
 
-// ui1 t02: IDC_ALTERNATE_MOUSE_CONTROLS - left click selects own units, orders elsewhere; right click clears.
+// IDC_ALTERNATE_MOUSE_CONTROLS - left click selects own units, orders elsewhere; right click clears.
 void test_orders_alternate() {
     World w;
     const OrderContext c = w.ctx();
@@ -1054,7 +1054,7 @@ SessionResult run_session(const std::vector<InputFrame>& frames) {
     return r;
 }
 
-// ---- P1 double-click move / move flags (P1_DOUBLE_CLICK_MOVE.md) ---------------------------------------------------
+// ---- P1 double-click move / move flags (legacy docs/re/P1_DOUBLE_CLICK_MOVE.md) ---------------------------------------------------
 void test_double_click_move() {
     using T = commands::EventType;
     World w;
@@ -1245,7 +1245,7 @@ void test_double_click_move() {
     s.click(Button::Right, 500, 200);
     o = run(land, mark);
     CHECK(o.size() == 1 && o[0].event.u("flags") == 0x06);
-    // ui3 t01: the attack button / key (MoveToggle::Attack) makes the next ground order an attack-move, once; the move
+    // the attack button / key (MoveToggle::Attack) makes the next ground order an attack-move, once; the move
     // button / key (MoveToggle::Move) a plain move; arming one clears the other.
     ot.arm_move_toggle(MoveToggle::Attack);
     CHECK(ot.move_toggle_armed(MoveToggle::Attack) && !ot.move_toggle_armed(MoveToggle::Move));

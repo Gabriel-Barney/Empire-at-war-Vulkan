@@ -1,7 +1,7 @@
 // L1 systems (owner: tactical-systems agent): the faction / GameConstants loaders of the tactical systems, defined in
 // tactical_battle_l1.cpp and tactical_battle_l1_strikes.cpp (target alamo_sim_battle). Split out of campaign_battles.hpp
-// (WF1b t01) so those battle sources no longer include the campaign layer; campaign_battles.hpp includes this header.
-// cu5 t01: the faction loaders read the definitions `rules` holds (FactionRules::xml_fields, list order, a later
+// so those battle sources no longer include the campaign layer; campaign_battles.hpp includes this header.
+// the faction loaders read the definitions `rules` holds (FactionRules::xml_fields, list order, a later
 // definition's non-empty tag wins), not FactionFiles.xml again.
 #pragma once
 

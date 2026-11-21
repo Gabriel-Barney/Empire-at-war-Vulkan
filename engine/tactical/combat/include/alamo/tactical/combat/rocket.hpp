@@ -1,4 +1,4 @@
-// refixf t01 - ROCKET / MPTL_ROCKET flight (docs/re/S9_DEATH_CLONE_SHIELDS.md §2.4): the rocket spline (SplineClass,
+// ROCKET / MPTL_ROCKET flight (legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §2.4): the rocket spline (SplineClass,
 // §2.4.3), the jittered leg builder (0x4c9990, §2.4.4 / §2.4.5), the land / space initial path builders (0x4c8b90 /
 // 0x4c91a0, §2.4.10) and the missile-shield re-plans (0x4cceb0 / 0x4cdb00, §2.4.6 / §2.4.7). CombatSystem drives them
 // (projectile step, §2.4.2); they are free functions here so the tests can pin the maths and the draw counts.
@@ -81,7 +81,7 @@ struct RocketParams {
     bool explode_at_target = false;    // Explode_When_Reached_Target_Radius (+0x7e)
 };
 
-// S8 t06 (docs/re/LOB_SOLVER.md §6.6): the terrain grid the projectile ground test 0x135840 intersects. Vertex (x, y) =
+// S8 t06 (legacy docs/re/LOB_SOLVER.md §6.6): the terrain grid the projectile ground test 0x135840 intersects. Vertex (x, y) =
 // (x cell, y cell, (float)heights[y width + x] x height_scale) (0x135a70; x / y clamped to the grid for the height lookup
 // only); cells (x, y) with 0 <= x < width - 1, 0 <= y < height - 1 (the patches' cells). Water: a plane at z =
 // water_height when water_type != 0 (1 water, 2 lava, 3 ice; TERRAIN_WATER_POST). Empty (width or height < 2, or too
@@ -116,7 +116,7 @@ bool ray_triangle(Vec3 O, Vec3 D, Vec3 v0, Vec3 v1, Vec3 v2, float& best);
 
 // Land terrain for mode-1 legs and the land re-plan: h(x, y) (heightmap 0x135140 / 0x135350, bilinear) and the
 // heightmap extent box (0x1320d0: centre and half sizes). [port] No height function = flat ground at z 0; no box = every
-// point is inside. S8 t06: `grid` is the heightmap for the projectile ground test (ground_segment).
+// point is inside. `grid` is the heightmap for the projectile ground test (ground_segment).
 struct RocketTerrain {
     std::function<float(float, float)> height;
     bool has_box = false;

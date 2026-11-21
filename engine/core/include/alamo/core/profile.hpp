@@ -1,4 +1,4 @@
-// Tick profiler (OPT1, docs/OPT1_PLAN.md): scoped timers per sim / AI system, worker busy time, and a ring of per-tick
+// Tick profiler (OPT1, legacy docs/OPT1_PLAN.md): scoped timers per sim / AI system, worker busy time, and a ring of per-tick
 // records with a percentile report.
 //
 // Determinism: this is wall-clock data and is write-only from the sim's point of view. Nothing here may feed game

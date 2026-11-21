@@ -1,4 +1,4 @@
-//! Mod conflict and load-order checker: the port's `alamo_mod_check --conflicts` (ums3, Stage 10; docs/MODS.md 3.1.2).
+//! Mod conflict and load-order checker: the port's `alamo_mod_check --conflicts` (ums3, Stage 10; docs/MODS.md "One catalog and one resolver").
 //!
 //! The port decides who wins each file: it mounts the profile's mods as the game does (the earlier mod wins a loose
 //! file; a later mod's loose file beats an earlier mod's MEG record; the base game's loose file beats any MEG record)
@@ -144,7 +144,7 @@ impl Report {
 // ------------------------------------------------------------------ the port's report
 
 /// The check's arguments for a profile's mods in load order: `alamo_mod_check --conflicts` (ums3; the port's VFS
-/// decides who wins each file, MEG records included; docs/MODS.md 3.1.2).
+/// decides who wins each file, MEG records included; docs/MODS.md "One catalog and one resolver").
 pub fn conflict_args(foc: &Path, mods: &[PathBuf]) -> Vec<String> {
     let mut a: Vec<String> =
         ["--game", &foc.to_string_lossy(), "--conflicts", "--no-hash", "--json", "-"].iter().map(|s| s.to_string()).collect();
@@ -421,7 +421,7 @@ mod tests {
         Input { mods, foc: Some(PathBuf::from("C:\\Fixture\\corruption")), exe: None }
     }
 
-    /// The conflicts page from the recorded report (ums3 t01): who wins, how much of each mod is replaced, the
+    /// The conflicts page from the recorded report: who wins, how much of each mod is replaced, the
     /// warnings in the page's order, warnings before notes.
     #[test]
     fn the_conflicts_page_comes_from_the_recorded_report() {

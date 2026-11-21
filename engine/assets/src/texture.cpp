@@ -86,7 +86,7 @@ void convert_masked(const std::uint8_t* src, std::uint32_t w, std::uint32_t h, c
     }
 }
 
-// ---- conversions for the formats the GPU path has no direct equivalent for (mcx2 t04, MOD_COMPAT_DESIGN 10.3) ----
+// ---- conversions for the formats the GPU path has no direct equivalent for (MOD_COMPAT_DESIGN 10.3) ----
 
 // How a DDS level is turned into upload data. Masked: convert_masked to RGBA8. The others are named after the source.
 enum class Source : std::uint8_t {
@@ -450,8 +450,8 @@ bool decode_dds(std::vector<std::uint8_t> file, TextureAsset& out, std::string* 
             case 40: use(Source::A8P8, TextureFormat::RGBA8); break;           // A8P8
             case 41: use(Source::P8, TextureFormat::RGBA8); break;             // P8
             case fourcc('D', 'X', '1', '0'):
-                // mcx2 t11: retail loads textures through d3dx9_43, which has no reader for the DX10 extended header
-                // (D3DXGetImageInfoFromFileInMemory: D3DXERR_INVALIDDATA, docs/re/MCX2_T02_ASSET_SALVAGE.md 4), so
+                // retail loads textures through d3dx9_43, which has no reader for the DX10 extended header
+                // (D3DXGetImageInfoFromFileInMemory: D3DXERR_INVALIDDATA, legacy docs/re/MCX2_T02_ASSET_SALVAGE.md 4), so
                 // retail shows such a texture as missing; the port does the same.
                 return fail(error, "DX10-header DDS: retail's D3DX9 cannot read it (the texture is missing in retail too)");
             default:

@@ -24,17 +24,17 @@ add_executable(alamo_vfs_tests tests/test_vfs.cpp)
 target_link_libraries(alamo_vfs_tests PRIVATE alamo_vfs alamo_test_support)
 add_test(NAME alamo_vfs_tests COMMAND alamo_vfs_tests)
 
-# modc t10: the STEAMMOD= resolver (steam_workshop.hpp) on a synthetic Steam layout in its own temp folder.
+# the STEAMMOD= resolver (steam_workshop.hpp) on a synthetic Steam layout in its own temp folder.
 add_executable(alamo_vfs_steam_tests tests/test_steam_workshop.cpp)
 target_link_libraries(alamo_vfs_steam_tests PRIVATE alamo_vfs alamo_test_support)
 add_test(NAME alamo_vfs_steam_tests COMMAND alamo_vfs_steam_tests)
 
-# ums2 t01: ModEnvironment on a synthetic install (own temp folder).
+# ModEnvironment on a synthetic install (own temp folder).
 add_executable(alamo_vfs_env_tests tests/test_mod_environment.cpp)
 target_link_libraries(alamo_vfs_env_tests PRIVATE alamo_vfs alamo_test_support)
 add_test(NAME alamo_vfs_env_tests COMMAND alamo_vfs_env_tests)
 
-# mcx3 t01-t03: modinfo reader, mod descriptors, registry scan and stack resolution on a synthetic install (own temp folder).
+# modinfo reader, mod descriptors, registry scan and stack resolution on a synthetic install (own temp folder).
 
 add_executable(alamo_vfs_registry_tests tests/test_mod_registry.cpp)
 target_link_libraries(alamo_vfs_registry_tests PRIVATE alamo_vfs alamo_test_support)

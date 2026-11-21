@@ -1,5 +1,5 @@
 # C4b reference tests (owned by the materials agent): FF alpha/additive effects vs a CPU D3D9 reference
-# and skinned draws vs the Phase 1 glTF exports. Uses alamo_render's public API plus RendererCore::draw_key (src/, REF3 t07).
+# and skinned draws vs the Phase 1 glTF exports. Uses alamo_render's public API plus RendererCore::draw_key (src/).
 add_executable(alamo_render_reference_tests
   test_reference.cpp
   ff_reference.cpp

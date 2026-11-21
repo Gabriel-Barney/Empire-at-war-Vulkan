@@ -47,19 +47,19 @@ namespace alamo::galactic {
 
 namespace {
 
-// v2 (story t11): + i32 victory hold; v3 (q6, AI_GALACTIC_TOKENS §9.4): + PlanetState::built_objects; v4 (A2k t04 /
+// v2: + i32 victory hold; v3 (q6, AI_GALACTIC_TOKENS §9.4): + PlanetState::built_objects; v4 (A2k t04 /
 // t01): + i32 x 2 build queue phases per planet, - the two PlanetState build bonus floats (the production modifiers are
-// derived, GalacticSim::production_bonus); v5 (cu8f t04b): + the Prefer_Ground_Over_Space false ids; v6 (q6 t21): + the
+// derived, GalacticSim::production_bonus); v5: + the Prefer_Ground_Over_Space false ids; v6: + the
 // deferred victory tests; v7 (2026-11-13, [port: Gabriel]): + the fleet / ship names. Only the current version is read,
 // and v6 (no names: read as none), so saves from before the names still load. v8 (galab): + per player the home planet,
 // per planet the siphon source type / object and the bonus holder, then the neutralized counts {player, type, count};
-// v6 / v7 read them as the session's start() values (home) and none. v9 (map1 t06): + the structure marker memory
-// {i32 object, i32 slot, i32 marker}, object-id-ascending, live objects only; v6 - v8 read it as none. v10 (mcx4 t01):
+// v6 / v7 read them as the session's start() values (home) and none. v9: + the structure marker memory
+// {i32 object, i32 slot, i32 marker}, object-id-ascending, live objects only; v6 - v8 read it as none. v10:
 // + per planet the initial-placement list {u32 count, u32 type...} (Special_Case_Production), then the campaign's
 // auto-resolve rules {bool disabled, bool story campaign, u32 count, {u32 planet type, bool land}...}; v6 - v9 keep the
-// session's start() values. v11 (mcx4 t20): + last, the fleets holding the sticky story auto-resolve lock {u32 count,
+// session's start() values. v11: + last, the fleets holding the sticky story auto-resolve lock {u32 count,
 // u32 fleet index...} ascending; v10 and older derive it from each fleet's current contents.
-constexpr uint32_t kGalacticSaveVersion = 12;  // 12 (mcx4 t22): + the company survivor records after the locks
+constexpr uint32_t kGalacticSaveVersion = 12;  // 12: + the company survivor records after the locks
 constexpr uint32_t kGalacticSaveVersionNoSurvivors = 11;
 constexpr uint32_t kGalacticSaveVersionNoLocks = 10;
 constexpr uint32_t kGalacticSaveVersionNoPlacement = 9;
@@ -67,7 +67,7 @@ constexpr uint32_t kGalacticSaveVersionNoPlacement = 9;
 constexpr uint32_t kGalacticSaveVersionNoSlots = 8;
 constexpr uint32_t kGalacticSaveVersionNoGalab = 7;
 constexpr uint32_t kGalacticSaveVersionNoNames = 6;
-constexpr uint32_t kConflictSaveVersion = 4;  // v2: BattleRequest::linked (story t10); v3: BattleRequest::sandbox (q6); v4: ArCombatant::strength_bonus (mcx4 t06)
+constexpr uint32_t kConflictSaveVersion = 4;  // v2: BattleRequest::linked; v3: BattleRequest::sandbox (q6); v4: ArCombatant::strength_bonus
 
 using records::get_handle;
 using records::put_handle;
@@ -121,7 +121,7 @@ void GalacticSim::write(ByteWriter& w) const {
     w.i32(neutral_player_).i32(local_player_);
     w.boolean(auto_reveal_).boolean(reveal_sfx_).boolean(true).boolean(emit_events_).boolean(slot_choices_);
 
-    records::Writer rec(w, st);  // REF4 t02: the records' fields from one list (galactic_records.hpp)
+    records::Writer rec(w, st);  // the records' fields from one list (galactic_records.hpp)
     for (size_t i = 0; i < players_.size(); ++i) {
         records::visit(rec, players_[i]);
         w.f32(i < last_income_.size() ? last_income_[i] : 0.0f);
@@ -405,7 +405,7 @@ bool GalacticSim::read(ByteReader& r) {
             if (!r.ok() || t >= types) return false;
         }
     }
-    if (version >= 11) {  // mcx4 t20: the locked fleets, ascending
+    if (version >= 11) {  // the locked fleets, ascending
         uint32_t n_locked = 0;
         if (!r.count(n_locked, 4)) return false;
         uint32_t prev = 0;
@@ -548,7 +548,7 @@ bool valid_state(int8_t s) {
 
 void ConflictManager::write(ByteWriter& w) const {
     const objects::ObjectStore& st = sim_->store();
-    records::Writer rec(w, st);  // REF4 t02: ConflictInfo / ConflictLogEntry from one list (galactic_records.hpp)
+    records::Writer rec(w, st);  // ConflictInfo / ConflictLogEntry from one list (galactic_records.hpp)
     w.u32(kConflictSaveVersion);
     w.u32(static_cast<uint32_t>(sim_->planets().size()));
     for (const std::vector<ConflictInfo>* q : {&space_q_, &land_q_}) {

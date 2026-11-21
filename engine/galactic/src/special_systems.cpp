@@ -1,4 +1,4 @@
-// P4 sim (owner: galactic agent): FoC galactic special systems (special_systems.hpp; docs/re/P4_SIM_SYSTEMS.md = P4).
+// P4 sim (owner: galactic agent): FoC galactic special systems (special_systems.hpp; legacy docs/re/P4_SIM_SYSTEMS.md = P4).
 // Confidence markers follow the spec: [H] read, [M] inferred from strong evidence, [L] guess; [inferred] / [port] mark
 // rules the port chose where the spec is [M] / [L] or the port's object model differs (galactic teams are single
 // objects, no orbital special-structure list, no local-player notion: a human is treated as the local player, SP).
@@ -21,7 +21,7 @@ namespace alamo::galactic {
 
 namespace {
 
-// Special-ability payloads (COMMANDS.md, kind + "data" bytes): little-endian u32 fields, then a u8 flag where the kind
+// Special-ability payloads (legacy docs/re/COMMANDS.md, kind + "data" bytes): little-endian u32 fields, then a u8 flag where the kind
 // has one; the exact size per kind is checked on read.
 commands::EventData special_event(uint32_t kind, const ByteWriter& w) {
     commands::EventData e(commands::EventType::SpecialAbility);
@@ -182,7 +182,7 @@ bool GalacticSim::faction_pairing(int32_t player, int32_t owner) const {
     const std::string& a = faction_of(player).name;
     const std::string& b = faction_of(owner).name;
     auto is = [](const std::string& n, const char* f) { return iequals(n, f); };
-    // [name-ok-begin: retail by-name pairing in 0x48d900, docs/re/P4_SIM_SYSTEMS.md §1.2 step 1]
+    // [name-ok-begin: retail by-name pairing in 0x48d900, legacy docs/re/P4_SIM_SYSTEMS.md §1.2 step 1]
     if (is(a, "Rebel")) return is(b, "Empire") || is(b, "Underworld");
     if (is(a, "Empire")) return is(b, "Rebel") || is(b, "Underworld");
     if (is(a, "Underworld")) return is(b, "Rebel") || is(b, "Empire");

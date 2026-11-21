@@ -1,16 +1,16 @@
-"""Ledger lint (docs/MOD_COMPAT_DESIGN.md §7.2 and §9.1, roadmap mcx0 t03 / t04).
+"""Ledger lint (docs/MOD_COMPAT_DESIGN.md §7.2 and §9.1).
 
 Checks that the generated ledgers match the code, without writing anything:
   tag ledger      engine/objects/generated/tag_ledger.inc (engine/objects/tools/gen_tag_ledger.py)
                   - every row's state is what the code gives now (consumed / verified only with a consumer); the
-                    consumer files are not compiled (roadmap ref1 t01: the selftest shows that moving a read between
+                    consumer files are not compiled (the selftest shows that moving a read between
                     files leaves tag_ledger.inc unchanged), and the human view's counts refresh on regeneration;
                   - no row moves from consumed / verified to stored / unread (a reader was removed);
                   - every "// ledger: consumes|verifies <Class>.<Tag>" annotation names a row and sits next to code
                     (consumes) or in a test that names the tag (verifies);
                   - every RETAIL_UNUSED entry (roadmap mcx4) names a row nothing reads and cites an existing docs/re
                     page that names the tag; such a row is retail_unused, settled like a consumed one.
-                  - every OUT_OF_SCOPE entry (mcx4 t16) names a row nothing reads, is not also RETAIL_UNUSED and gives a
+                  - every OUT_OF_SCOPE entry names a row nothing reads, is not also RETAIL_UNUSED and gives a
                     scope reason labelled in docs/DECISIONS.md "Out-of-scope tag-ledger rows"; such a row is out_of_scope,
                     not a gap.
                   - every MISFILED entry (mcx4) names a row nothing reads under its class, is named Class.Tag in
@@ -18,8 +18,8 @@ Checks that the generated ledgers match the code, without writing anything:
                     literal (the real owner's reader); such a row is misfiled, not a gap.
   binding ledger  engine/lua/src/binding_table.inc (engine/lua/tools/gen_bindings.py): the effect and consumer
                   columns are what the code gives now.
-A failure prints what differs and the command that regenerates the ledger. Runs in build_agent.cmd (before the build),
-in build_gate.cmd (tools/lint/gate_summary.py) and as the ctest entry alamo_objects_tag_ledger_lint.
+A failure prints what differs and the command that regenerates the ledger. Runs as the ctest entry
+alamo_objects_tag_ledger_lint (synthetic suite: dev.cmd suite synthetic).
 
 Usage: check_tag_ledger.py [--selftest | --gaps [--group NAME] [--counts]]
   --gaps    list the base-FoC honour gaps still open (tier 1, base_uses > 0, state unread / stored: the mcx4 exit test
@@ -83,7 +83,7 @@ def check_tags(gen):
     return 0
 
 
-# mcx4 t08: the open gap rows split into work groups, one roadmap task each (first match on "Class.Tag" wins; the
+# the open gap rows split into work groups, one roadmap task each (first match on "Class.Tag" wins; the
 # task text names the group: "rows: check_tag_ledger.py --gaps --group render"). A row that moves out of the gaps
 # (consumed, verified, retail_unused) leaves its group by itself; a new row lands in the first group that matches.
 GAP_GROUPS = [
@@ -102,7 +102,7 @@ GAP_GROUPS = [
               r"|^(Income_Stream_Mod_Ability\.(Affects_All_Allied_Sources|Interval_Multiplier)|Absorb_Blaster_Ability\."
               r"Damage_Absorb_\w+|Ability_Base\.Unit_Strength_Category|Siphon_Credits_Ability\.Evade_Detection_Chance"
               r"|Income_Stream_Ability\.Split_Income_With_Allies|Spawn_Ability\.Recharge_Time_In_Seconds)$"),
-    # Multiplayer-named rows that a skirmish or single player reads in retail (mcx4 t16: retail runs skirmish as a
+    # Multiplayer-named rows that a skirmish or single player reads in retail (retail runs skirmish as a
     # multiplayer game type), and three rows docs/re/xml_field_tables.md files under HardwareConfiguration that are an
     # ability's fields (offsets 0x18 / 0x178 / 0x180): not out of scope, so they stay with the group that reads them.
     ("galactic", r"^(GameConstants\.Default_Bounty_By_Category_MP|GameObjectType\.Override_Bounty_MP)$"),
@@ -211,7 +211,7 @@ def check_bindings(gen):
             print("binding ledger: stale:\n  " + d)
         print("binding ledger: regenerate with: python engine/lua/tools/gen_bindings.py")
         return 1
-    if hasattr(gen, "render_hooks"):  # ref5 t04: the hook list of the three hook structs
+    if hasattr(gen, "render_hooks"):  # the hook list of the three hook structs
         with open(gen.HOOKS_OUT, encoding="utf-8") as f:
             if f.read() != gen.render_hooks():
                 print("binding ledger: engine/lua/src/bridge_hooks.inc is stale: regenerate with: python engine/lua/tools/gen_bindings.py")
@@ -331,7 +331,7 @@ def selftest(gen):
     if len(probs) != 3:
         print("selftest: RETAIL_UNUSED problems", probs)
         bad += 1
-    # OUT_OF_SCOPE (mcx4 t16): a listed row nothing reads becomes out_of_scope; a read row, an unknown row, a row also
+    # OUT_OF_SCOPE: a listed row nothing reads becomes out_of_scope; a read row, an unknown row, a row also
     # in RETAIL_UNUSED, a reason not in SCOPE_REASONS or one the record does not label is an error.
     record = "## " + gen.SCOPE_SECTION + " (Gabriel)\n- **multiplayer**: x\n## Next\n- **debug keys**: y\n"
     scope = {("GameConstants", "Income_Redistribution"): "multiplayer"}

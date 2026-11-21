@@ -1,4 +1,4 @@
-// ui2 t03 / t05: the story script's cinematic camera (docs/re/STORY_PRESENTATION_LUA.md §2): key tracks for the eye and the
+// the story script's cinematic camera (legacy docs/re/STORY_PRESENTATION_LUA.md §2): key tracks for the eye and the
 // look-at target, on the shot clock in mode frames (30 per second, a pause stops them). Set_Cinematic_*_Key writes a hold
 // key, Transition_Cinematic_*_Key a start key at the last key position and a blend key `int(30 x seconds)` later (ease
 // 0.5 / 0.5), Transition_To_Tactical_Camera a blend to the RTS camera's pose (ease 0.25 / 0.25), Cinematic_Zoom a move along
@@ -73,7 +73,7 @@ private:
     tactical::Vec3 last_key_[2];           // per track: the "last key position" later Transition keys start from
 };
 
-// The script fade (STORY_PRESENTATION_LUA.md §1.2) on the render clock (seconds): black only, linear.
+// The script fade (legacy docs/re/STORY_PRESENTATION_LUA.md §1.2) on the render clock (seconds): black only, linear.
 class ScreenFade {
 public:
     void fade_out(double seconds, double now) { begin(Mode::Out, seconds, now); }  // clear -> black over `seconds`; stays black

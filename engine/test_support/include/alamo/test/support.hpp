@@ -1,4 +1,4 @@
-// Shared support for the engine test exes (CU4 t01): the CHECK harness, file and environment helpers, the
+// Shared support for the engine test exes: the CHECK harness, file and environment helpers, the
 // installed-game data roots and the ctest skip code. Header-only (INTERFACE target alamo_test_support); every exe
 // that includes it gets one g_fail / g_checks however many of its TUs include it (inline variables).
 //
@@ -73,9 +73,30 @@ inline std::string env_or(const char* name, const char* fallback) {
     return v.empty() ? std::string(fallback) : v;
 }
 
+// The folder for files a test writes for a person to look at (PNGs, coverage reports), created on first use. CTest sets
+// ALAMO_TEST_ARTIFACT_DIR to <build>/artifacts/<entry>/ for every entry (cmake/AlamoTestSuites.cmake), so parallel
+// entries and the companions of a mixed test never share a folder. Run by hand without it: <exe dir>/../artifacts/<exe>
+// (build/artifacts/<exe>). Never the source tree.
+inline std::string artifact_dir() {
+    namespace fs = std::filesystem;
+    std::string dir = env_or_empty("ALAMO_TEST_ARTIFACT_DIR");
+    if (dir.empty()) {
+#ifdef _MSC_VER
+        char* exe = nullptr;
+        fs::path p = (_get_pgmptr(&exe) == 0 && exe) ? fs::path(exe) : fs::path("test");
+#else
+        fs::path p("test");
+#endif
+        dir = (p.parent_path() / ".." / "artifacts" / p.stem()).lexically_normal().string();
+    }
+    std::error_code ec;
+    fs::create_directories(dir, ec);
+    return dir;
+}
+
 // Installed-game data roots (the FoC "corruption" folder / the EaW "GameData" folder); empty when not set. Data-driven
-// tests print a SKIP line and pass (or return kSkipReturnCode) when these are empty; the build scripts set them
-// (tools\test_env.cmd).
+// parts print a SKIP line when these are empty. The synthetic suite clears them; retail entries run behind
+// alamo_test_gate, which reports a missing root as a skip (README.md "Test suites"). Set them in dev.local.cmd.
 inline std::string foc_data_root() { return env_or_empty("ALAMO_FOC_DATA"); }
 inline std::string eaw_data_root() { return env_or_empty("ALAMO_EAW_DATA"); }
 

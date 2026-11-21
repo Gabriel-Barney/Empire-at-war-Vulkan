@@ -1,10 +1,10 @@
-// REF4 t02: the save ledger of BattleAi. Every data member is listed once:
+// the save ledger of BattleAi. Every data member is listed once:
 //   SAVED(member, hashed)    written by write() / visit_saved, restored by read() and walked by hash() / visit_saved;
 //   SAVED(member, unhashed)  written and restored, outside the CRC (visit_saved's save_only fields);
 //   REBUILT(member, "why")   set again by the constructor or start() when a load rebuilds the battle;
 //   DERIVED(member, "why")   recomputed from saved state, a per-type cache, scratch, or a diagnostic counter;
 //   CHECKED(member, "why")   not restored, but write() / read() read it.
-// tools/lint/check_battle_ledger.py (build_agent.cmd, ctest alamo_sim_battle_ledger_lint) checks it against
+// tools/lint/check_battle_ledger.py (ctest alamo_sim_battle_ledger_lint) checks it against
 // battle_ai.hpp and the bodies of write / read / hash / visit_saved in battle_ai.cpp. write() and hash() walk the saved
 // fields through one list (visit_saved), so a field the save gains enters the CRC unless it is marked save_only.
 // Order: the declaration order in battle_ai.hpp. Read by the lint only (not compiled).

@@ -1,4 +1,4 @@
-// P2 stage 2: world-anchored order feedback (docs/re/UI.md §1.5): waypoint lines, move acknowledgements and the
+// P2 stage 2: world-anchored order feedback (legacy docs/re/UI.md §1.5): waypoint lines, move acknowledgements and the
 // space hard-point target reticles. All are 2D HUD quads projected through the gameplay View at a constant pixel
 // size, like the brackets (hud_world.hpp), except the move acknowledgement's particle, which is requested from
 // the host (render particles, R4) by name.
@@ -107,7 +107,7 @@ private:
     std::vector<Item> items_;
 };
 
-// Hard-point reticles (docs/re/HUD_GAPS.md §1): built for the HOVERED ship only (never for the selection), one per
+// Hard-point reticles (legacy docs/re/HUD_GAPS.md §1): built for the HOVERED ship only (never for the selection), one per
 // targetable hard point that is not destroyed (the host skips destroyed / enemy-disabled ones, §1.2). Size: width =
 // *_Screen_Size x screen width, height = width x 4/3 as a screen fraction (= size x 4/3 x canvas height), half size on
 // the "on" frames of a flash (60 frames from an attack / targeted ability on that hard point, phase toggling every 3

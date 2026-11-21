@@ -1,4 +1,4 @@
-// DynamicTrackFX.xml / ShadowBlobMaterials.xml readers (DECORATIONS.md 3.1, 5.2). They use the
+// DynamicTrackFX.xml / ShadowBlobMaterials.xml readers (legacy docs/re/DECORATIONS.md 3.1, 5.2). They use the
 // tolerant XML DOM of alamo_data when that module is configured (read-only use); otherwise they
 // report that the module is missing.
 #include <cmath>

@@ -216,7 +216,7 @@ void PassabilityGrid::sample_cells(const ObstacleFootprint& fp, std::vector<uint
     };
     const uint64_t total = (static_cast<uint64_t>(nx) + 1) * (static_cast<uint64_t>(ny) + 1);
     if (pf && fp.fine_tune && total <= (uint64_t{1} << 24)) {
-        // OPT3 t12: the Fine_Tune rays through pf, one result per sample, collected in the serial loop's sample order.
+        // the Fine_Tune rays through pf, one result per sample, collected in the serial loop's sample order.
         const uint32_t row = nx + 1;
         std::vector<int64_t> cell(static_cast<size_t>(total), -1);
         (*pf)(static_cast<uint32_t>(total), 8, [&](uint32_t begin, uint32_t end) {
@@ -258,7 +258,7 @@ uint32_t PassabilityGrid::stamp(ObjectId id, const ObstacleFootprint& fp, const 
     unstamp(id);
     Stamp s;
     s.bits = fp.bits & 0x1FFu;
-    if (w_ != 0 && h_ != 0) {  // S8 t09: an empty grid still records the (cell-less) stamp, as the header promises
+    if (w_ != 0 && h_ != 0) {  // an empty grid still records the (cell-less) stamp, as the header promises
         if (counts_.empty()) counts_.assign(base_.size(), std::array<uint16_t, 9>{});
         sample_cells(fp, s.cells, &pf);
         apply(s, 1);
@@ -332,7 +332,7 @@ uint32_t PassabilityGrid::stamp_secondary(ObjectId id, const ObstacleFootprint& 
     unstamp_secondary(id);
     Stamp s;
     s.bits = fp.bits & 0x1FFu;  // SecondaryOccupationPassability (no Obstacle default for secondary occupants)
-    if (w_ != 0 && h_ != 0) {   // S8 t09: recorded without cells on an empty grid, as stamp()
+    if (w_ != 0 && h_ != 0) {   // recorded without cells on an empty grid, as stamp()
         if (counts_.empty()) counts_.assign(base_.size(), std::array<uint16_t, 9>{});
         sample_cells(fp, s.cells);
         apply(s, 1);

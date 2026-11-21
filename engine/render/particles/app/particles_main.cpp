@@ -45,7 +45,7 @@
 #include "alamo/render/renderer.hpp"
 #include "alamo/rhi/rhi.hpp"
 #include "alamo/vfs/vfs.hpp"
-#include "app_common.hpp"  // engine/render/app (CU4 t03)
+#include "app_common.hpp"  // engine/render/app
 #if defined(ALAMO_PARTICLES_HAVE_SIM)
 #include "alamo/core/sim_crc.hpp"
 #include "alamo/jobs/crc_recorder.hpp"
@@ -54,6 +54,24 @@
 #include "alamo/render/sim_session.hpp"
 #include "alamo/render/sim_snapshot.hpp"
 #include "alamo/render/sim_view.hpp"
+
+// Where the default PNGs go: ALAMO_TEST_ARTIFACT_DIR (CTest sets it per entry to <build>/artifacts/<entry>), else
+// <exe dir>/../artifacts/alamo_render (build/artifacts/alamo_render). Never the source tree. --png overrides it.
+static std::string artifact_png(const char* name) {
+    namespace fs = std::filesystem;
+    fs::path dir;
+    if (const char* env = std::getenv("ALAMO_TEST_ARTIFACT_DIR"); env && *env) {
+        dir = alamo::path_from_utf8(env);
+    } else {
+        char* exe = nullptr;
+        dir = (_get_pgmptr(&exe) == 0 && exe) ? fs::path(exe).parent_path() / ".." / "artifacts" / "alamo_render"
+                                               : fs::path("artifacts");
+    }
+    std::error_code ec;
+    fs::create_directories(dir, ec);
+    return (dir / name).lexically_normal().string();
+}
+
 #endif
 
 int run_particles_main(int argc, char** argv);
@@ -354,8 +372,7 @@ int run_showcase(const Opt& opt) {
                 static_cast<unsigned long long>(ws.dropped), restarts, st.textures, st.textures_pending);
     for (const SystemPtr& s : systems) std::printf("  %s (%zu emitters)\n", s->name.c_str(), s->emitters.size());
     const std::string png = !opt.png.empty() ? opt.png
-                                             : std::string(ALAMO_RENDER_SOURCE_DIR) +
-                                                   (files ? "/logs/particles_showcase.png" : "/logs/particles_synthetic_showcase.png");
+                                             : artifact_png(files ? "particles_showcase.png" : "particles_synthetic_showcase.png");
     const uint32_t lit = g.lit_pixels();
     ok = ok && g.png(png) && lit > 1000 && max_draws > 0;
     std::printf("%s %s (%u lit pixels)\n", ok ? "wrote" : "FAILED", png.c_str(), lit);
@@ -449,7 +466,7 @@ int run_map(const Opt& opt) {
                 opt.map.c_str(), main.size(), sky.size(), as.proxies, as.particle_proxies, as.stripped, as.unresolved, as.hidden, ws.systems,
                 ws.live_particles, static_cast<unsigned long long>(ws.spawned), ps.systems_drawn, ps.systems_culled, ps.draw_calls,
                 ps.transparent_draws, ps.water_draws, ps.heat_draws, ps.sorted_emitters, g.stats.draws);
-    const std::string png = !opt.png.empty() ? opt.png : std::string(ALAMO_RENDER_SOURCE_DIR) + "/logs/particles_map.png";
+    const std::string png = !opt.png.empty() ? opt.png : artifact_png("particles_map.png");
     ok = ok && after_settle >= 0 && g.png(png);
     std::printf("%s %s\n", ok ? "wrote" : "FAILED", png.c_str());
     attach.clear();
@@ -567,7 +584,7 @@ int run_sim_check(const Opt& opt) {
                 "%llu spawned, max %u particle draw calls; attach: %u unresolved proxies\n",
                 static_cast<unsigned long long>(opt.ticks), same ? "IDENTICAL" : "DIFFER", ref.records.size(), dv.message.c_str(), as.synced,
                 ws.systems, ws.live_particles, static_cast<unsigned long long>(ws.spawned), max_draws, attach.stats().unresolved);
-    const std::string png = std::string(ALAMO_RENDER_SOURCE_DIR) + "/logs/particles_sim.png";
+    const std::string png = artifact_png("particles_sim.png");
     ok = ok && g.png(png);
     std::printf("%s %s\n", ok ? "wrote" : "FAILED", png.c_str());
     attach.clear();

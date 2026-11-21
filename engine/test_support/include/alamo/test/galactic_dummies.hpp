@@ -1,10 +1,10 @@
 // mcx1 t05 (D4): test-data authoring helper for synthetic GameObjectType XML.
 //
-// A type's galactic role comes only from the DUMMY_* ids of its generic <Behavior> list (docs/re/MCX1_RE_ANSWERS.md Q7.2),
+// A type's galactic role comes only from the DUMMY_* ids of its generic <Behavior> list (legacy docs/re/MCX1_RE_ANSWERS.md Q7.2),
 // never from its element tag. Real FoC types carry those behaviours; the port's older synthetic fixtures were written
 // with the vanilla element tags alone. with_galactic_dummies() writes the behaviour such a fixture type would carry in
 // the shipped data: right after each opening tag of a listed element it inserts one extra <Behavior> element (repeated
-// list tags append, OBJECT_TYPES.md §4.4), so the fixture's own <Behavior> text is untouched. Variants are skipped: a
+// list tags append, legacy docs/re/OBJECT_TYPES.md §4.4), so the fixture's own <Behavior> text is untouched. Variants are skipped: a
 // variant's own <Behavior> would replace its parent's list (§3.3), and it inherits the parent's DUMMY_* id anyway.
 //   StarBase -> DUMMY_STAR_BASE; GroundStructure / GroundBase / SpecialStructure -> DUMMY_GROUND_STRUCTURE;
 //   Squadron -> DUMMY_SPACE_FIGHTER_SQUADRON; SpaceUnit -> DUMMY_STARSHIP;

@@ -1,11 +1,11 @@
 // alamo_assets - skeleton, ALA animation clips and CPU pose sampling / skin palettes.
 //
-// Skinning model (SPEC.md 2.6, PORTING.md 2.4): rigid, one bone per vertex. Skinned vertices are
+// Skinning model (legacy docs/formats/SPEC.md 2.6, legacy docs/shaders/PORTING.md 2.4): rigid, one bone per vertex. Skinned vertices are
 // stored in bind (model) space, so the palette matrix of bone b is
 //     world_anim(b) * inverse(world_bind(b)).
 // Static meshes are stored in the space of their attach bone: draw with world_anim(attach_bone).
 //
-// Animation (SPEC.md 4.3): each ALA bone track REPLACES the bind-local translation / rotation /
+// Animation (legacy docs/formats/SPEC.md 4.3): each ALA bone track REPLACES the bind-local translation / rotation /
 // scale of the same-named skeleton bone. Bones without a track keep their bind-local matrix.
 //
 // Thread safety: all functions are pure (inputs const, outputs caller-owned) and may run

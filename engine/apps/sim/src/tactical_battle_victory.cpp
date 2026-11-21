@@ -1,6 +1,6 @@
-// --- story t06: the tactical victory monitor (docs/re/BATTLE_TRANSITIONS.md §2.5 / §3.1a, SKIRMISH_SETUP.md §4,
-// TSW_PLANET_DESTROY.md §2 / §6; tactical_battle.hpp "story t06"). Serial code, no synced draws.
-// ccpgt t02: the Capture Control Points rule 0x15 and its domination timer (SKIRMISH_SETUP §4.2).
+// --- the tactical victory monitor (legacy docs/re/BATTLE_TRANSITIONS.md §2.5 / §3.1a, legacy docs/re/SKIRMISH_SETUP.md §4,
+// legacy docs/re/TSW_PLANET_DESTROY.md §2 / §6; tactical_battle.hpp "story t06"). Serial code, no synced draws.
+// the Capture Control Points rule 0x15 and its domination timer (SKIRMISH_SETUP §4.2).
 #include <algorithm>
 #include <cmath>
 #include <utility>
@@ -18,11 +18,11 @@ namespace {
 constexpr int32_t kRecordCountdown = 210;  // 0xd2: 7 s at 30 frames (§2.5, SKIRMISH_SETUP §2 step 4)
 constexpr int32_t kStoryShortCountdown = 30;  // VICTORY with Reward_Param2 != 0: 1 s
 constexpr int32_t kTswStoryCountdown = 30;    // TSW_PLANET_DESTROY §6 item 5 (b)
-constexpr uint8_t kSkirmishAllUnits = 0x12;   // SKIRMISH_ALL_ENEMY_UNITS_DESTROYED (skm1 t02)
+constexpr uint8_t kSkirmishAllUnits = 0x12;   // SKIRMISH_ALL_ENEMY_UNITS_DESTROYED
 constexpr uint8_t kSkirmishLandBase = 0x13;   // SKIRMISH_ALL_ENEMY_BASE_COMPONENTS_DESTROYED
-constexpr uint8_t kSkirmishCommandHq = 0x14;  // ENEMY_COMMAND_HQ_DESTROYED (skm1 t02)
+constexpr uint8_t kSkirmishCommandHq = 0x14;  // ENEMY_COMMAND_HQ_DESTROYED
 constexpr uint8_t kSkirmishStarbase = 0x16;   // SKIRMISH_SPACE_ENEMY_STARBASE_DESTROYED
-constexpr uint8_t kControlPointDomination = 0x15;  // CONTROL_POINT_DOMINATION (ccpgt t02)
+constexpr uint8_t kControlPointDomination = 0x15;  // CONTROL_POINT_DOMINATION
 
 }  // namespace
 
@@ -34,7 +34,7 @@ void TacticalBattle::vm_setup(TacticalMode& mode) {
         // ccpgt t02 (SKIRMISH_SETUP §0 / §4.2): game type 4 forces the win condition 0x15, the only record of each player, so
         // nothing else can win. Players: the skirmish slots on a skirmish map; [port] the attacker and the defender in the
         // game's skirmish (a galactic hop battle).
-        if (skirmish_map()) {  // skm2 t02: every slot
+        if (skirmish_map()) {  // every slot
             for (int32_t s = 0; s < skirmish_slot_count(); ++s)
                 if (const int32_t p = skirmish_slot_player(s); p >= 0) vm_add_record(kControlPointDomination, p, kRecordCountdown, false);
         } else {
@@ -44,10 +44,10 @@ void TacticalBattle::vm_setup(TacticalMode& mode) {
                 if (ids[i] >= 0 && (i == 0 || ids[1] != ids[0])) vm_add_record(kControlPointDomination, ids[i], kRecordCountdown, false);
         }
     } else if (skirmish_map()) {
-        // SKIRMISH_SETUP §2 step 4: one record per player with the option's win condition (skm1 t02: BattleConfig::skirmish_options;
+        // SKIRMISH_SETUP §2 step 4: one record per player with the option's win condition (BattleConfig::skirmish_options;
         // 0x4ad000's valid sets: land 0x12..0x14, space 0x12 / 0x16; anything else = the kind's MP_Default_Land / Space_Tactical_
-        // Win_Condition, 0x13 / 0x16) [port: only the slot players; skm2 t02: every slot].
-        // mcx4 t14: the kind's default is GameConstants MP_Default_Land / Space_Tactical_Win_Condition (SkirmishOptions).
+        // Win_Condition, 0x13 / 0x16) [port: only the slot players; every slot].
+        // the kind's default is GameConstants MP_Default_Land / Space_Tactical_Win_Condition (SkirmishOptions).
         const BattleConfig::SkirmishOptions& so = cfg_.skirmish_options;
         const uint8_t type = skirmish_win_condition(so.set ? so.win_condition : uint8_t{0}, space_, so.land_default_win, so.space_default_win);
         for (int32_t s = 0; s < skirmish_slot_count(); ++s)
@@ -177,7 +177,7 @@ bool TacticalBattle::vm_blocker(int32_t player, bool base_only) {
         const int32_t o = st.owner(h);
         if (o < 0 || o == player || !combat_->is_enemy(player, o) || !victory_relevant(static_cast<uint32_t>(st.type(h)))) continue;
         if (const Unit* u = unit_by_id(st.id(h)); u && u->retreated) continue;
-        if (base_only && (!vm_base_object(st, h) || skirmish_slot_of(o) < 0)) continue;  // skm2 t02: any slot's
+        if (base_only && (!vm_base_object(st, h) || skirmish_slot_of(o) < 0)) continue;  // any slot's
         // skm1 t02 (§4, 0x12): in a skirmish only objects whose owner is human or has an AI count (Neutral / Hostile never block).
         if (!base_only && skirmish_map()) {
             const auto& ps = galaxy_->players();
@@ -285,7 +285,7 @@ void TacticalBattle::vm_object_lost(const VmTracked& t) {
         const auto has = [this](uint8_t type, int32_t e) {
             return std::any_of(vm_records_.begin(), vm_records_.end(), [&](const VmRecord& r) { return r.type == type && r.player == e; });
         };
-        for (int32_t s = 0; s < skirmish_slot_count(); ++s) {  // skm2 t02: every slot, in slot order
+        for (int32_t s = 0; s < skirmish_slot_count(); ++s) {  // every slot, in slot order
             const int32_t e = skirmish_slot_player(s);
             if (e < 0 || e == p || !combat_->is_enemy(p, e)) continue;
             if (has(kSkirmishAllUnits, e) && vm_test(kSkirmishAllUnits, e)) continue;
@@ -385,7 +385,7 @@ void TacticalBattle::check_victory(TacticalMode& mode) {
     if (vm_declared_ && frame_ > vm_declared_frame_ && vm_countdown_ > 0) --vm_countdown_;
     // ccpgt t02 (§4.2, tactical tick 0x3639d0): the domination timer counts down; at <= 0 it tests 0x15 for the armed player
     // (queued while held, as every test) and disarms. [M] +-1 frame against the capture service's order in the tick.
-    if (vm_cp_armed_ && (vm_cp_timer_ = dec_wrap(vm_cp_timer_)) <= 0) {  // ref4 t03: INT32_MIN wraps, as on x86
+    if (vm_cp_armed_ && (vm_cp_timer_ = dec_wrap(vm_cp_timer_)) <= 0) {  // INT32_MIN wraps, as on x86
         const int32_t p = vm_cp_player_;
         vm_cp_disarm();
         vm_test(kControlPointDomination, p);

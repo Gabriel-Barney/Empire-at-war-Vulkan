@@ -1,5 +1,5 @@
-// Asset audit for the mod load report (mcx2 t01, docs/MOD_COMPAT_DESIGN.md 12.1 `assets`; check_mod_data runs it and
-// format_mod_report_json writes the section, docs/MODS.md 5.1): every art, audio, movie and
+// Asset audit for the mod load report (docs/MODS.md "Load report (alamo.mod_report)" `assets`; check_mod_data runs it and
+// format_mod_report_json writes the section, docs/MODS.md "Load report (alamo.mod_report)"): every art, audio, movie and
 // map file a mod layer serves (its loose Data tree, or a MEG mounted from the mod's folder) is decoded headless with the
 // runtime decoders, by family, and sorted into decoded / salvaged (the rule that applied, D5) / rejected (the reason).
 //
@@ -13,9 +13,9 @@
 //   movie     Data\Art\Movies\**\*.BIK                              video::probe_bink_header (when linked)
 //   text      Data\Text\*.DAT (MasterTextFile_<LANGUAGE>)            ui::TextDatabase::parse (salvage: text_salvaged)
 //   gui       GUIDialogs.rc / GUIDialogs.xml / MT_CommandBar.mtd       the ui readers; a failure is `gui_fallback` (the game
-//                                                                    uses the next layer's copy, mcx2 t07)
+//                                                                    uses the next layer's copy)
 // Not audited: fonts (retail registers only the TrueType fonts embedded in its exe and never opens a font file,
-// docs/re/MCX2_T02_ASSET_SALVAGE.md 4), files in folders whose name starts with '.' (tool metadata).
+// legacy docs/re/MCX2_T02_ASSET_SALVAGE.md 4), files in folders whose name starts with '.' (tool metadata).
 // A rejection retail shares (a docs/re citation says retail does not show it either) is marked retail_equivalent and
 // does not lower the grade (12.2). Files the base game ships are not audited (retail's own data; the tests cover them).
 //
@@ -62,7 +62,7 @@ struct AssetAudit {
 // Audits the files `v` serves from its mod layers (vfs::Layer::Kind::Mod, and the MEGs a mod owns).
 AssetAudit audit_mod_assets(const vfs::Vfs& v, const AssetAuditOptions& opt = {});
 // A salvage rule (AssetEntry::rule of a salvaged entry) that retail's behaviour backs: a compat_assets probe verdict or
-// a test of retail's own loader (docs/re/MCX2_T02_ASSET_SALVAGE.md 3-4). Any other salvage keeps G3 open as
+// a test of retail's own loader (legacy docs/re/MCX2_T02_ASSET_SALVAGE.md 3-4). Any other salvage keeps G3 open as
 // "salvage unconfirmed" (design 12.2).
 bool asset_salvage_confirmed(const std::string& rule);
 // Decodes one file as `family` (exposed for tests and the corpus runner). state: 0 decoded, 1 salvaged, 2 rejected.

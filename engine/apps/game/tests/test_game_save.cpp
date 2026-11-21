@@ -8,7 +8,7 @@
 //   Animation on (SimAnimation's "anim" chunk, n2-host / n2-tai): a save the check offers must load (else it is refused at
 //   the check with the chunk's name).
 //   N1 stage 2: a space and a land skirmish (animation on) saved DURING their battle, checked the same way (C and B).
-//   N1f: a human conflict saved while it waits for the choice (Vote) and saved with the answer sent but not yet drained; a
+//   a human conflict saved while it waits for the choice (Vote) and saved with the answer sent but not yet drained; a
 //   battle accepted but not yet pushed ("battles" v2 in flight = 1); a human-fought campaign battle saved mid-battle;
 //   t07: a human-fought campaign land battle (the human launches ground units, hops and invades) saved mid-battle;
 //   t08: the FoC story campaign (human Underworld) saved mid-battle, with a file size guard.
@@ -184,7 +184,7 @@ bool order_attack(game::GameSession& s, size_t pick) {
     return false;
 }
 
-// N1f t07: a human land invasion (ordinary recorded commands). Candidate `pick` (in the order found) = a human planet
+// a human land invasion (ordinary recorded commands). Candidate `pick` (in the order found) = a human planet
 // with own ground units on its surface and a revealed hostile neighbour defended on the ground (surface units or
 // structures). Heart of the Maw has a starbase and a fleet at every planet and one fleet loses the space conflict, so
 // start() launches the ground units into the orbit fleet and sends every other human fleet there; step() merges them
@@ -498,7 +498,7 @@ game::SessionSpec skirmish_spec(const std::string& map) {
     s.skirmish.ai_faction = "Empire";
     s.seed = 5;
     s.animation = true;  // as the game runs it
-    s.skirmish_hop = true;  // skm1 t01: the save / load runs answer the galactic battle choice (the conflict scaffold)
+    s.skirmish_hop = true;  // the save / load runs answer the galactic battle choice (the conflict scaffold)
     return s;
 }
 
@@ -545,14 +545,14 @@ int main(int argc, char** argv) {
         SaveFile f;
         game::SessionSpec s;
         CHECK(SaveFile::read_file(path, f, &err) && game::GameSession::spec_from_save(f, s, &err));
-        CHECK(s.interventions_enabled());  // mcx8 t07: default options, no spec.interventions_off key
+        CHECK(s.interventions_enabled());  // default options, no spec.interventions_off key
         s.seed += 1;
         game::GameSession r(data, js, s);
         const bool ok = r.start_from_save(f, &err);
         std::printf("other seed: %s\n", ok ? "LOADED" : err.c_str());
         CHECK(!ok && err.find("seed") != std::string::npos);
     }
-    // ref4 t01: the game chunk (v2) carries the host's presentation bytes (the App's StoryPresenter) through a save and a load;
+    // the game chunk (v2) carries the host's presentation bytes (the App's StoryPresenter) through a save and a load;
     // a session with no writer writes the loaded bytes back as they were; a v1 chunk (no presentation) still loads.
     if (!path.empty()) {
         SaveFile f;
@@ -624,7 +624,7 @@ int main(int argc, char** argv) {
     if (!space.empty()) battle_check("Space battle", skirmish_spec(space.front()));
     if (!land.empty()) battle_check("Land battle", skirmish_spec(land.front()));
 
-    // N1f: human-conflict checks on the campaign: the session as the game runs it, the human's fleet ordered at an enemy.
+    // human-conflict checks on the campaign: the session as the game runs it, the human's fleet ordered at an enemy.
     const auto fought_campaign = [] {
         game::SessionSpec s = campaign_spec();
         s.animation = true;
@@ -717,10 +717,10 @@ int main(int argc, char** argv) {
     // story t06 (BT §3.1a): it no longer ends at frame 1. 0xb is only tested when a victory-relevant object leaves a player,
     // and nothing does at the start (a side that never had a relevant object cannot lose by 0xb). Checked over the first
     // 300 battle frames: still running, nothing declared. [port] Still open: the plot's ENABLE_VICTORY 0 hold and its
-    // VICTORY ending wait for the story reward wiring. story t10: the jailed UMP_TYBER_ZANN prop (a Variant_Of_Existing_Type
+    // VICTORY ending wait for the story reward wiring. The jailed UMP_TYBER_ZANN prop (a Variant_Of_Existing_Type
     // of the Victory_Relevant Tyber_Zann, an Underworld object from frame 0 in the original, §3.1a item 4) survives the
     // branched-map discard: a linked battle keeps attacker-owned objects (REMAINING_GAPS §3.1 item 4, global 0x140b155d8).
-    // story t13: UM01 sets P13 = 0 (no banner under the game's Pending decide) and P9 0 / P10 1 / P11 1 (the overlay's
+    // UM01 sets P13 = 0 (no banner under the game's Pending decide) and P9 0 / P10 1 / P11 1 (the overlay's
     // letterbox and input block, CampaignBattles::linked_presentation).
     PlanetIndex kessel_planet = kInvalidPlanet;
     int32_t kessel_attacker = -1;
@@ -742,7 +742,7 @@ int main(int argc, char** argv) {
         if (kessel) {
             const galactic::BattleRequest& r = s.battles()->conflicts().active_request();
             CHECK(r.forces.size() == 2 && r.forces[0].start.empty() && r.forces[1].start.empty() && r.forces[1].reserve.empty());
-            // The jailed Tyber (story t10): an Underworld victory-relevant object on the map at the start.
+            // The jailed Tyber: an Underworld victory-relevant object on the map at the start.
             const sim::TacticalMode* tm = s.host().modes().top_tactical();
             const objects::TypeIndex ut = data.types.resolve_name("UMP_TYBER_ZANN");
             CHECK(ut != objects::kNone && data.types.get_bool(ut, "Victory_Relevant"));  // inherited from Tyber_Zann
@@ -806,7 +806,7 @@ int main(int argc, char** argv) {
                     s.in_battle() ? "started" : "not started", started);
     }
     // t08: the FoC story campaign (Full_Story_Campaign_Underworld as the human Underworld: story plots and their Lua VMs,
-    // the battle's tactical story VMs) saved mid-battle. story t06: the Kessel mission above no longer ends at once, so
+    // the battle's tactical story VMs) saved mid-battle. The Kessel mission above no longer ends at once, so
     // this is that story mission (M01 plot and Lua running), saved at battle tick 150 without orders (the Underworld has
     // no two orderable units there yet). Size guard: about twice the 2026-10-31 size.
     {
@@ -831,7 +831,7 @@ int main(int argc, char** argv) {
             const uintmax_t size = fs::file_size(path_from_utf8(p), ec);
             std::printf("story battle save: %" PRIuMAX " bytes (guard %" PRIuMAX ")\n", size, kStoryBattleMaxBytes);
             CHECK(size > 0 && size <= kStoryBattleMaxBytes);
-            // tst1 t07: where the bytes are (the guard is on the packed file; each chunk packed on its own approximates
+            // where the bytes are (the guard is on the packed file; each chunk packed on its own approximates
             // its share), largest first, so a growth past the guard names its chunks.
             SaveFile f;
             if (SaveFile::read_file(p, f)) {

@@ -100,7 +100,7 @@ void RadarFeed::battle_tick(const sim::TacticalBattle& battle, const objects::Ob
             if (b.name.empty()) continue;  // a galactic planet highlight (Add_Radar_Blip(planet)), not a radar blip
             RadarBlipNote n;
             n.name = b.name;
-            if (b.object_id < 0) {  // mcx8 t12: a blip at a fixed position (AI target / task force / position argument)
+            if (b.object_id < 0) {  // a blip at a fixed position (AI target / task force / position argument)
                 n.valid = true;
                 n.x = b.x;
                 n.y = b.y;

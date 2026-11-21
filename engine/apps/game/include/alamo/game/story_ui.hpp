@@ -4,7 +4,7 @@
 //                   open corruption panel) into notifications on the transitions, plus the one-shot events the host
 //                   reports (GUI click, speech / movie end, battle-end screen closed, mission lost). Presentation only.
 //   story_ui_event  [port] a notification as a port-only command (PortExtension subtype kStoryUiSubtype): the original
-//                   dispatches these synchronously from the UI (STORY.md 4.1), but a fired story event changes the
+//                   dispatches these synchronously from the UI (legacy docs/re/STORY.md 4.1), but a fired story event changes the
 //                   hashed story state, so the port sends them through the command stream (recorded, replayed, applied
 //                   at the command phase by GameSession::port_event -> notify_ui with the issuing player). Payload: kind
 //                   u8 (bit 7 kStoryUiTacticalBit = StoryUiNotification::tactical; recordings made before the flag never
@@ -30,7 +30,7 @@
 //   LinkedBattleOverlay  what a story-linked battle opens with, until the battle's story script takes over:
 //                    P10 with P9 != 1 (LinkedPresentation::letterbox) -> the letterbox bars of the overlay 0x140a28c10 are
 //                    fully in from the first battle frame; P11 (presentation_b, the cinematic input-block flag 0x140a28c91,
-//                    UI.md §1.3 / §4) -> the world gets no mouse input and the selection circles are hidden. The same
+//                    legacy docs/re/UI.md §1.3 / §4) -> the world gets no mouse input and the selection circles are hidden. The same
 //                    overlay draws the scripts' Letter_Box_In / _On (in) and _Out / _Off (out) in every battle (TSW §11.2
 //                    [M]: one bar overlay, the same height constant). [port][L] the hand-over: a script letterbox op ends the
 //                    letterbox hold; Lock_Controls / Start_ or End_Cinematic_Mode / _Camera ends the input hold, after which
@@ -71,13 +71,13 @@ struct StoryMediaCue {
     enum class Kind : uint8_t { Movie, Speech, AdvisorMovie, AdvisorStop, Sfx };
     Kind kind = Kind::Movie;
     std::string name;
-    bool loop = false;  // AdvisorMovie: COMMANDBAR_MOVIE P2 / MULTIMEDIA P10 != 0 (STORY_PRESENTATION_REWARDS.md 1.3, 6.2); else it plays once
+    bool loop = false;  // AdvisorMovie: COMMANDBAR_MOVIE P2 / MULTIMEDIA P10 != 0 (legacy docs/re/STORY_PRESENTATION_REWARDS.md 1.3, 6.2); else it plays once
 };
 // Appends the cues of one fired reward (type upper-case as in StoryFired; params[0] = Reward_Param1): START_MOVIE (P1), SPEECH (P1),
 // MULTIMEDIA (P8 speech, P9 talking head with the P10 loop flag), COMMANDBAR_MOVIE (P1 head, P2 loop), STOP_COMMANDBAR_MOVIE,
 // SFX (P1).
 void story_reward_media(std::string_view reward_type, const std::vector<std::string>& params, std::vector<StoryMediaCue>& out);
-// ref5 t02: story_reward_media has a handler registered for `reward_type` (upper case); the media rewards in registration order.
+// story_reward_media has a handler registered for `reward_type` (upper case); the media rewards in registration order.
 bool story_reward_media_handles(std::string_view reward_type);
 std::vector<std::string_view> story_reward_media_names();
 
@@ -88,8 +88,8 @@ struct StoryUiView {
     bool zoomed = false;              // the galactic camera is zoomed onto a planet (GalacticCamera::zoomed)
     uint32_t zoom_planet = 0;         // the planet the camera zoomed onto (0 = unknown: `planet`)
     uint32_t corruption_planet = 0;   // the open corruption panel's planet (0 = closed)
-    uint32_t special_kind = 0;        // STY1 t03: the open special dialog's SpecialAbility kind (0 = none)
-    uint8_t drag = 0;                 // STY1 t03: galactic HUD drag in progress: 1 fleet / unit, 2 land force, 0 none
+    uint32_t special_kind = 0;        // the open special dialog's SpecialAbility kind (0 = none)
+    uint8_t drag = 0;                 // galactic HUD drag in progress: 1 fleet / unit, 2 land force, 0 none
 };
 
 class StoryUiFeed {
@@ -123,7 +123,7 @@ private:
     uint64_t counts_[static_cast<size_t>(sim::StoryUiEvent::Count)] = {};
 };
 
-// story t13: see the header comment. Presentation only (wall-time slide, no sim reads beyond the frame number).
+// see the header comment. Presentation only (wall-time slide, no sim reads beyond the frame number).
 class LinkedBattleOverlay {
 public:
     static constexpr uint32_t kHandOverFrames = 150;  // [port] 5 s of battle frames at 30 Hz

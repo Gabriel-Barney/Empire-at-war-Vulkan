@@ -1,4 +1,4 @@
-// Binding family: the script gaps left by L1/S4 wave 2a (L1/S4 wave 2b; docs/re/SCRIPT_GAPS.md, section numbers
+// Binding family: the script gaps left by L1/S4 wave 2a (L1/S4 wave 2b; legacy docs/re/SCRIPT_GAPS.md, section numbers
 // below). Host contract and error discipline: alamo/lua/script_gaps.hpp. [H] rules are the doc's; port choices are
 // marked [port], the doc's [M] / [L] keep their mark.
 //
@@ -35,14 +35,14 @@ namespace {
 constexpr char kMarkupKey[] = "alamo.markup";            // {next = n, [handle] = {amount = x, [1..k] = target ids}}
 constexpr char kMarkupHostKey[] = "alamo.markup.host";   // light userdata: ScriptMarkupHost*
 
-// Behaviour type ids (OBJECT_RUNTIME.md §4.3, behaviors.cpp; the tests check them against the name table).
+// Behaviour type ids (legacy docs/re/OBJECT_RUNTIME.md §4.3, behaviors.cpp; the tests check them against the name table).
 constexpr objects::BehaviorTypeId kBehSpecialWeapon = 0x2F, kBehLobbing = 0x37, kBehStarBase = 0x5C,
                                   kBehWeaponSource = 0x63, kBehDestroyAfterFire = 0x67;
 
 // ---------------------------------------------------------------- small helpers
 
-using detail::push_nil;  // ref5 t03: vm_internal.hpp
-using detail::push_bool;  // ref5 t03: vm_internal.hpp
+using detail::push_nil;  // vm_internal.hpp
+using detail::push_bool;  // vm_internal.hpp
 
 // Errors and warnings: Call::script_error_stop / Call::script_warning (the original's helpers: logged, no unwind; the
 // binding returns nothing).
@@ -115,7 +115,7 @@ bool destroy(Call& c, ObjectHandle h) {
     return store(c)->destroy(h);
 }
 
-// Destroy-after sweep (SCRIPT_GAPS.md conventions): every object of `player` with
+// Destroy-after sweep (legacy docs/re/SCRIPT_GAPS.md conventions): every object of `player` with
 // DUMMY_DESTROY_AFTER_SPECIAL_WEAPON_FIRED is destroyed (insertion order, a copy of the list).
 void destroy_after_sweep(Call& c, int32_t player) {
     objects::ObjectStore* st = store(c);
@@ -327,7 +327,7 @@ int g_create_cinematic_transport(Call& c) {
     const ObjectHandle h = spawn(c, sp);
     if (!h || !st->alive(h)) return push_nil(c);
     if (!st->has_behavior(h, objects::beh::TransportLanding)) st->add_behavior(h, objects::beh::TransportLanding);
-    st->set_landing_persist(h, persist);  // a1i t05: pack +0xc9, read by the land drop test (TACTICAL_GAPS §4.2.2 item 3)
+    st->set_landing_persist(h, persist);  // pack +0xc9, read by the land drop test (TACTICAL_GAPS §4.2.2 item 3)
     if (hk && hk->transports) hk->transports->add(st->id(h), landing_mode, anim_delta, idle, persist);
     if (!hint.empty()) {
         if (!st->has_behavior(h, objects::beh::Hint)) st->add_behavior(h, objects::beh::Hint);
@@ -563,7 +563,7 @@ std::span<const detail::ImplEntry> detail::impl_script_gaps() { return kImpl; }
 
 namespace {
 
-// LandTaskForce.Fire_Special_Weapon(type_name, target) 0x6eb7f0 (AI_TACTICAL §7.3.4, s78f t04) [H unless tagged]. No
+// LandTaskForce.Fire_Special_Weapon(type_name, target) 0x6eb7f0 (AI_TACTICAL §7.3.4) [H unless tagged]. No
 // block status. Exactly 2 arguments. type_name: a Lua string naming a type with LOBBING_SUPERWEAPON in its Land behaviour
 // set. target: an AITargetLocationWrapper (point = the location's position: a unit target's object position [M: its
 // getter], a region target's stored centre - accepted without an object) or a GameObjectWrapper (the raw position, no
@@ -584,7 +584,7 @@ int land_task_force_fire_special_weapon(Call& c, const char* kName, const std::v
     const bool lobbing = t != objects::kNone && t < ty->size() && ty->has_behavior(t, objects::BehaviorSet::Land, kBehLobbing);
     if (!lobbing) return c.script_error_stop("%s -- %s is not a land special weapon!", kName, name.c_str());
     // An AI target ([M] the unit target's position getter, vf +0x68: its object's position, else the host's target
-    // position) or a game object; ref5 t03: converted by detail::position_arg, the argument's class tested here first.
+    // position) or a game object; converted by detail::position_arg, the argument's class tested here first.
     if (!c.userdata(2, cls_target()) && !c.userdata(2, detail::cls_game_object()))
         return c.script_error_stop("%s -- Invalid type for parameter 1.  Expected game object or target location", kName);
     Vec3 point;

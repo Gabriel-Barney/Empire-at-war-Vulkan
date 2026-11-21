@@ -1,4 +1,4 @@
-// P4 in-game screens (docs/re/UI.md §3.2 "Screens by dialog"): message boxes, battle end, campaign score, retreat,
+// P4 in-game screens (legacy docs/re/UI.md §3.2 "Screens by dialog"): message boxes, battle end, campaign score, retreat,
 // in-game chat, planet info, advanced video options and map selection, as flows over GuiManager dialogs.
 // Host API: show_*() with plain data in, GuiManager::update events in (update()), ScreenActions + commands out. The
 // screens never read or write sim state; the only sim-affecting click (Retreat) leaves as a commands::EventData.
@@ -176,7 +176,7 @@ public:
     void set_countdown(float seconds);  // battle end
     bool show_campaign_score(const CampaignScoreInfo& info);
     bool show_retreat_confirm();
-    // ui1 t05 (Lua Activate_Retry_Dialog, LUA_API.md): IDD_RETRY_DIALOG - TEXT_MISSION_FAILED, IDC_RETRY_BUTTON
+    // ui1 t05 (Lua Activate_Retry_Dialog, legacy docs/re/LUA_API.md): IDD_RETRY_DIALOG - TEXT_MISSION_FAILED, IDC_RETRY_BUTTON
     // (TEXT_LOAD_AUTOSAVE) -> MessageBoxResult{tag "retry", button 0}, IDC_QUIT_BUTTON -> button 1; Esc does nothing.
     bool show_retry();
     bool open_chat(bool team_only = false);

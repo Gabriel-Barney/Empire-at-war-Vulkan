@@ -1,4 +1,4 @@
-// Fog-of-war texture (DECORATIONS.md 2). See fow.hpp.
+// Fog-of-war texture (legacy docs/re/DECORATIONS.md 2). See fow.hpp.
 #include "alamo/terrain/fow.hpp"
 
 #include <algorithm>

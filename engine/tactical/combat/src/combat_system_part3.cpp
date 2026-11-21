@@ -11,7 +11,7 @@ void CombatSystem::flush() {
             break;
         }
     if (any_dead) {
-        // s78f t07: a dead team_leader hands the role over (kill() already did it for deaths through Die; this covers
+        // a dead team_leader hands the role over (kill() already did it for deaths through Die; this covers
         // remove_unit and saves taken between the two).
         for (const Unit& d : units_)
             if (d.flags & kUnitDead) hand_over_team(d);
@@ -35,14 +35,14 @@ void CombatSystem::flush() {
         // OI abilities: repairer lists of removed units go with them.
         repairs_.erase(std::remove_if(repairs_.begin(), repairs_.end(), [this](const Repairer& r) { return find(r.unit) < 0; }),
                        repairs_.end());
-        clear_removed_base_shields();  // tru3 t04: signal 0x28 of a removed generator
+        clear_removed_base_shields();  // signal 0x28 of a removed generator
         if (hooks_) hooks_->units_removed();
     }
     size_t w = 0;
     for (size_t i = 0; i < projectiles_.size(); ++i)
         if (projectiles_[i].alive) projectiles_[w++] = projectiles_[i];
     projectiles_.resize(w);
-    // refixf t01: rocket states follow their projectiles (both in serial order).
+    // rocket states follow their projectiles (both in serial order).
     if (!rockets_.empty()) {
         size_t rw = 0, j = 0;
         for (size_t k = 0; k < rockets_.size(); ++k) {
@@ -199,7 +199,7 @@ bool CombatSystem::can_attack(ObjectId id) const {
     return live(u) && unit_can_attack(*u);
 }
 
-// ---- fog follow-up: space-station special weapon (SCRIPT_GAPS.md §1.1 step 5) ----
+// ---- fog follow-up: space-station special weapon (legacy docs/re/SCRIPT_GAPS.md §1.1 step 5) ----
 int32_t CombatSystem::special_weapon_hardpoint(ObjectId station) const {
     const Unit* u = unit(station);
     if (!u) return -1;
@@ -305,7 +305,7 @@ bool CombatSystem::launch_projectile(const ProjectileLaunch& l, uint32_t frame) 
         p.max_travel = 0.0f;
         p.fuse = l.fuse_seconds;
     } else if (spline_rocket(pd)) {
-        // refixf t01: a host-launched spline rocket flies the §2.4.10 path to `aim`; its travel limit is Spawn_Projectile's
+        // a host-launched spline rocket flies the §2.4.10 path to `aim`; its travel limit is Spawn_Projectile's
         // (MFD with no override + the target radius + |aim z - launch z|) [M], since the path is longer than the line.
         p.rocket = 1;
         if (pd.max_flight_distance > 0.0f) p.max_travel = pd.max_flight_distance + radius + abs_f(aim.z - l.from.z);
@@ -485,7 +485,7 @@ void CombatSystem::suspend_infection(ObjectId id) {
 }
 
 void CombatSystem::resume_infection(ObjectId id, uint32_t frame) {
-    // vfunc +0xb8 alone (cu8f t06): counter - 1, floored at 0; the pack (frames left, parameters) is not rewritten.
+    // vfunc +0xb8 alone: counter - 1, floored at 0; the pack (frames left, parameters) is not rewritten.
     (void)frame;
     Unit* u = unit(id);
     if (!u || !u->infect_attached || (u->flags & kUnitDead)) return;
@@ -497,7 +497,7 @@ bool CombatSystem::detonate_projectile(size_t index, uint32_t frame) {
     projectiles_[index].alive = 0;
     const Projectile pc = projectiles_[index];  // copy: detonation may spawn (death projectiles)
     const ProjectileDesc& pd = data_->projectiles[pc.desc];
-    // S8 t06: a host call between ticks (DETONATE_REMOTE_BOMB) queries the last tick's trees for the area damage.
+    // a host call between ticks (DETONATE_REMOTE_BOMB) queries the last tick's trees for the area damage.
     const TreeSet* const saved = trees_;
     if (!trees_) trees_ = last_trees_;
     // tru1 t08 (TRU1_A_RE_ANSWERS B1, 0x4caea0): the commanded detonation spawns the lifetime particle and runs the
@@ -582,7 +582,7 @@ void CombatSystem::set_hardpoint_disabled(ObjectId id, uint32_t hp, bool on) {
 }
 
 bool CombatSystem::copy_upgrade_hardpoints(ObjectId old_station, ObjectId new_station) {
-    // Starbase_Upgrade_Copy_Hardpoints (0x70ec70), HARDPOINT_DISABLED.md §3 [H].
+    // Starbase_Upgrade_Copy_Hardpoints (0x70ec70), legacy docs/re/HARDPOINT_DISABLED.md §3 [H].
     const Unit* o = unit(old_station);
     const Unit* n = unit(new_station);
     if (!o || !n) return false;
@@ -700,7 +700,7 @@ int32_t CombatSystem::priority_override(ObjectId id) const {
 }
 
 bool CombatSystem::set_stickiness_override(ObjectId id, float seconds) {
-    // cu8f t04a: 0x568df0 from the Lua setters (CU8F_T04_T06_RE §1.1 writers 1 / 2): TD +0x158 := seconds, as given.
+    // 0x568df0 from the Lua setters (CU8F_T04_T06_RE §1.1 writers 1 / 2): TD +0x158 := seconds, as given.
     Unit* u = unit(id);
     if (!u) return false;
     u->stickiness = seconds;
@@ -713,7 +713,7 @@ float CombatSystem::stickiness_override(ObjectId id) const {
 }
 
 bool CombatSystem::reset_stickiness(ObjectId id) {
-    // cu8f t04a: the task-force release 0x5ff610 (§1.1 writer 3): TD +0x158 := type +0x528 of the unit's type, or of
+    // the task-force release 0x5ff610 (§1.1 writer 3): TD +0x158 := type +0x528 of the unit's type, or of
     // its first team member's type for a TEAM owner (its own type when it has no member left).
     Unit* u = unit(id);
     if (!u) return false;
@@ -923,7 +923,7 @@ void CombatSystem::hash_units(StateHasher& h) const {
             bh.i32(u.id);
             bh.u32(u.desc);
             bh.i32(u.owner);
-            bh.u32(u.flags & ~kUnitHostMirrorFlags);  // S8 t10 / t11: the host mirrors are derived state
+            bh.u32(u.flags & ~kUnitHostMirrorFlags);  // the host mirrors are derived state
             bh.f32(u.health);
             bh.f32(u.shield);
             bh.u8(u.shield_depleted);
@@ -1027,15 +1027,15 @@ void CombatSystem::hash_extended(StateHasher& h) const {
         h.f32(u.emitter_radius);
         // OI abilities
         h.i32(u.priority_override);
-        if (u.stickiness != 0.0f) {  // cu8f t04a: TD +0x158 stickiness threshold (format unchanged at the spawn 0.0)
+        if (u.stickiness != 0.0f) {  // TD +0x158 stickiness threshold (format unchanged at the spawn 0.0)
             h.u8(0x58);
             h.f32(u.stickiness);
         }
         if (u.sfx_ready != 0 || u.terrain_damage != 0.0f || u.terrain_next != 0 || u.terrain_delay != 0.0f) {
-            h.u8(0x5B);  // trn1 t02: SurfaceFX instances and the terrain damage timer (format unchanged at the spawn values)
+            h.u8(0x5B);  // SurfaceFX instances and the terrain damage timer (format unchanged at the spawn values)
             h.u8(u.sfx_ready);
             for (const uint8_t p : u.sfx_prev) h.u8(p);
-            for (const uint8_t p : u.sfx_prev_more) h.u8(p);  // mcx4 t17: empty for every base FoC type
+            for (const uint8_t p : u.sfx_prev_more) h.u8(p);  // empty for every base FoC type
             h.f32(u.terrain_damage);
             h.u32(u.terrain_next);
             h.f32(u.terrain_delay);
@@ -1051,7 +1051,7 @@ void CombatSystem::hash_extended(StateHasher& h) const {
             h.u8(0x0A);
             h.u32(u.weapon_bone);
         }
-        if (u.lob_pending || u.lob_charged || u.lob_stamp != 0) {  // S8 t26: fire-at-position order (format unchanged without)
+        if (u.lob_pending || u.lob_charged || u.lob_stamp != 0) {  // fire-at-position order (format unchanged without)
             h.u8(0x37);
             h.f32(u.lob_point.x);
             h.f32(u.lob_point.y);
@@ -1060,12 +1060,12 @@ void CombatSystem::hash_extended(StateHasher& h) const {
             h.u8(u.lob_charged);
             h.u32(u.lob_stamp);
         }
-        if (desc_of(u).lobbing_superweapon && desc_of(u).turret) {  // s78f t04: the lobbing turret's angles
+        if (desc_of(u).lobbing_superweapon && desc_of(u).turret) {  // the lobbing turret's angles
             h.u8(0x3B);
             h.f32(u.lob_tpitch);
             h.f32(u.lob_tyaw);
         }
-        if (u.tstate != 0) {  // s78f t03: targeting state TD +0x18 and its target (format unchanged at 0)
+        if (u.tstate != 0) {  // targeting state TD +0x18 and its target (format unchanged at 0)
             h.u8(0x18);
             h.u8(u.tstate);
             h.i32(u.ttarget);
@@ -1082,7 +1082,7 @@ void CombatSystem::hash_extended(StateHasher& h) const {
             h.i32(u.aim_hp);
             h.u8(u.locked);
         }
-        if (u.infect_attached) {  // refix t02: INFECTION behaviour state (format unchanged without one)
+        if (u.infect_attached) {  // INFECTION behaviour state (format unchanged without one)
             h.u8(0x54);
             h.u32(u.infect_suspend);
             h.i32(u.infect_desc);
@@ -1090,12 +1090,12 @@ void CombatSystem::hash_extended(StateHasher& h) const {
             h.i32(u.infect_source);
             h.i32(u.infect_left);  // cu8f t06
         }
-        if (u.infect_seen != 0xFFFFFFFFu) {  // cu8f t06: the spread counter on a candidate, once counted
+        if (u.infect_seen != 0xFFFFFFFFu) {  // the spread counter on a candidate, once counted
             h.u8(0x55);
             h.u32(u.infect_seen);
             h.i32(u.infect_count);
         }
-        // tru1 t02: BASE_SHIELD state (generators only: add_unit sets the service frame) and the straddled shield
+        // BASE_SHIELD state (generators only: add_unit sets the service frame) and the straddled shield
         if (u.bshield_state != 0 || u.bshield_next != 0 || u.bshield_off_stamp != 0) {
             h.u8(0x56);
             h.u8(u.bshield_state);
@@ -1123,7 +1123,7 @@ void CombatSystem::hash_extended(StateHasher& h) const {
         h.u32(p.serial);
         h.u32(p.jammed_frame);
         h.u8(p.ever_jammed);
-        if (p.lob) {  // S8 t04: grenade flight state (absent for other shots: format unchanged)
+        if (p.lob) {  // grenade flight state (absent for other shots: format unchanged)
             h.u8(0x33);
             h.f32(p.gravity);
             for (const Vec3& v : {p.launch, p.lob_dir}) {
@@ -1140,7 +1140,7 @@ void CombatSystem::hash_extended(StateHasher& h) const {
             }
         }
         if (p.fuse >= 0.0f) h.f32(p.fuse);  // OI abilities: armed bombs only
-        if (p.rocket) {  // refixf t01: spline-rocket state (absent for other projectiles: format unchanged)
+        if (p.rocket) {  // spline-rocket state (absent for other projectiles: format unchanged)
             h.u8(0x52);
             const Rocket* rk = find_rocket(p.serial);
             if (!rk) continue;
@@ -1173,7 +1173,7 @@ void CombatSystem::hash_extended(StateHasher& h) const {
         h.i32(pl);
         h.i32(src);
     }
-    if (!shield_upgrade_.empty()) {  // tru1 t02: Base_Shield_Upgrade entries (format unchanged without one)
+    if (!shield_upgrade_.empty()) {  // Base_Shield_Upgrade entries (format unchanged without one)
         h.u8(0x5A);
         h.u32(static_cast<uint32_t>(shield_upgrade_.size()));
         for (const ShieldUpgrade& e : shield_upgrade_) {

@@ -1,5 +1,5 @@
 // engine/lua L1/S4 wave 2b: the script-gap family (bind_script_gaps.cpp, alamo/lua/script_gaps.hpp; spec
-// docs/re/SCRIPT_GAPS.md): Fire_Special_Weapon (three paths, upgrade gate, destroy-after sweep), the task-force
+// legacy docs/re/SCRIPT_GAPS.md): Fire_Special_Weapon (three paths, upgrade gate, destroy-after sweep), the task-force
 // variant, Fire_Tactical_Superweapon / Is_Tactical_Superweapon_Ready, Spawn_Special_Weapon,
 // Is_Affected_By_Laser_Defense, Create_Cinematic_Transport + the landing machine, Start_Cinematic_Space_Retreat,
 // Apply_Markup handles, Get_Parent_Mode_Object (a wrapper on the parent store), and the family table itself.
@@ -273,7 +273,7 @@ static void test_task_force(const Db& db) {
     g_units = nullptr;
 }
 
-// LandTaskForce.Fire_Special_Weapon (AI_TACTICAL §7.3.4, s78f t04): exactly 2 arguments, a string type name, a game object
+// LandTaskForce.Fire_Special_Weapon (AI_TACTICAL §7.3.4): exactly 2 arguments, a string type name, a game object
 // (or AI target) target - a plain position is an error; the first READY lobbing unit of the type is returned even when the
 // fire order is refused; none ready -> false.
 static void test_land_task_force(const Db& db) {

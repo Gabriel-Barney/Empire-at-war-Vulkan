@@ -187,7 +187,7 @@ bool vertex_tables_agree(materials::VertexLayout l) {
 
 namespace {
 // Render-owned vertex streams (not ALO meshes): the engine's pre-lit prim vertex used by the
-// stencil-darken pass (TERRAIN_WATER_POST.md 4.2: XYZ|DIFFUSE|TEX1, 24 bytes, D3DCOLOR = BGRA8) and
+// stencil-darken pass (legacy docs/re/TERRAIN_WATER_POST.md 4.2: XYZ|DIFFUSE|TEX1, 24 bytes, D3DCOLOR = BGRA8) and
 // the FLOAT2-only full-screen quad.
 constexpr materials::VertexAttributeDesc kPrimAttrs[] = {
     {materials::kLocPosition, materials::vkfmt::kR32G32B32Sfloat, "VK_FORMAT_R32G32B32_SFLOAT", 0},

@@ -1,4 +1,4 @@
-// Prebuild of effect sources (roadmap modc t23): runs fxc.exe from the project toolchain's Windows SDK on
+// Prebuild of effect sources: runs fxc.exe from the project toolchain's Windows SDK on
 // `.fx` files and fills an FxCache (fx_source.hpp). Used by alamo_fx_prebuild, alamo_effect_audit
 // --fx-prebuild and the materials tests; not part of alamo_materials (the engine never runs a compiler).
 #pragma once
@@ -49,7 +49,7 @@ bool prebuild_fx_sources(const FileProvider& files, std::span<const std::string>
                          const std::filesystem::path& fxc, bool force, std::vector<FxPrebuildItem>& items,
                          std::string* err = nullptr);
 
-// modc t36: the whole prebuild of one data set, as alamo_game and alamo_mod_check run it when a mod is mounted:
+// the whole prebuild of one data set, as alamo_game and alamo_mod_check run it when a mod is mounted:
 // every `.fx` the loader would take for `shader_files` (shader_files_from_vfs(vfs, true)) through
 // prebuild_fx_sources without force. With fxc missing the cached entries still count and the others say so.
 struct FxPrebuildRun {

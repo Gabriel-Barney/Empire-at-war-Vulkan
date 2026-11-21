@@ -1,4 +1,4 @@
-// ui2: the host side of the story presentation rewards (docs/re/STORY_PRESENTATION_REWARDS.md): what retail's reward
+// the host side of the story presentation rewards (legacy docs/re/STORY_PRESENTATION_REWARDS.md): what retail's reward
 // dispatcher (0x456970) does to the local HUD / camera / input when a story event fires. Presentation only (rule 3):
 // nothing here reads or writes sim state; the fired reward log is the input, the state below is what the host draws and
 // obeys. The class is data-free and clock-free (`now` is the host's wall time in seconds), so its dispatch is covered by
@@ -68,7 +68,7 @@ struct StoryTextLine {
 
 // One of the ten tutorial arrow slots (§3.2).
 struct StoryArrow {
-    enum class Kind : uint8_t { Component, Planet, Fleet, Production, Ability, MapObject, Unit };  // Unit: FLASH_UNIT (ref5 t02)
+    enum class Kind : uint8_t { Component, Planet, Fleet, Production, Ability, MapObject, Unit };  // Unit: FLASH_UNIT
     Kind kind = Kind::Component;
     std::string target;  // component name / planet type / unit type / ability / object type
     std::string region;  // FLASH_PLANET_GUI P2 / FLASH_UNIT P1 (upper case)
@@ -162,7 +162,7 @@ public:
         double advisor_hint_interval = 300.0; // Advisor_Hint_Interval, seconds (ticks at kTicksPerSecond)
         uint32_t first_hint_tick = 90;        // §6.5: player +0x3e0 := 0x5a at mode start
         bool subtitles = true;                // IDC_USE_MOVIE_SUBTITLES
-        double flash_duration = 0.4;          // mcx4 t14: GameConstants GUI_Flash_Duration (one flash; FLASH_* x 3)
+        double flash_duration = 0.4;          // GameConstants GUI_Flash_Duration (one flash; FLASH_* x 3)
     };
     static constexpr uint32_t kTicksPerSecond = 30;
 
@@ -178,7 +178,7 @@ public:
     // game mode type of the plot (0 galactic, 1 space, 2 land; SET_ADVISOR's slot). Returns true when this class handles
     // the reward (the media rewards START_MOVIE / SPEECH playback stay with story_reward_media).
     bool on_reward(std::string_view type, const std::vector<std::string>& params, double now, uint8_t mode);
-    // ref5 t02: the reward names on_reward handles (upper case), in registration order. The game's coverage test checks the
+    // the reward names on_reward handles (upper case), in registration order. The game's coverage test checks the
     // Ui rows of the sim's story reward table against these and story_reward_media_handles (story_ui.hpp).
     static bool has_reward_handler(std::string_view name);
     static std::vector<std::string_view> reward_names();
@@ -202,7 +202,7 @@ public:
     // ui4 t11 (P4_SIM_SYSTEMS §2.7.1): the message callback 0x140b313c0 - an urgent advisor line (front of the queue, the
     // Urgent sound) in `color`.
     void urgent_message(std::u32string text, StoryColor color);
-    // q6 t36 (Q6_T27_ELIM_END_TIMING.md "Probe answer"): a game text queued at the BACK of the hint queue (0x1402dd630 with
+    // q6 t36 (legacy docs/re/Q6_T27_ELIM_END_TIMING.md "Probe answer"): a game text queued at the BACK of the hint queue (0x1402dd630 with
     // front = 0, the Message sound), such as the "planet changed hands" line of the owner setter 0x3fb040 (changed_hands_text).
     void queue_message(std::u32string text, StoryColor color);
     // ui4 t11 (HUD_GAPS §10.2): the Droid Log's IDC_HINTS_CHECK writes all three modes' advisor-hint flags.
@@ -216,7 +216,7 @@ public:
     // fade-out is not waited for (only the last text of a run is drawn fading).
     void update(double now, bool hints_blocked);
     // A hint text is up at `now` (retail GUI +0x26b2): shown and its display time not over. While it is up the HUD keeps the
-    // looping Light_Loop movie open and the campaign end screen waits (Q6_T27 §2 / §3, q6 t34 / t36).
+    // looping Light_Loop movie open and the campaign end screen waits (Q6_T27 §2 / §3).
     bool hint_up(double now) const { return hint_shown_ && now < shown_.start + shown_.seconds; }
 
     // §6.4 periodic hint: call once per tick of the local human's mode; `hints` = that mode's faction hint ids.
@@ -275,7 +275,7 @@ public:
     // The count of rewards handled / ignored since reset (tests, probes).
     uint64_t handled() const { return handled_; }
 
-    // ref4 t01: the presenter's own save, carried in GameSession's "game" chunk (v2). Everything the queries above return is
+    // the presenter's own save, carried in GameSession's "game" chunk (v2). Everything the queries above return is
     // written (the hooks, colours and config are set up from the game data again and are not). Host times are written relative
     // to `now` and read back relative to the loading host's `now`. read() rejects a wrong version or a short / corrupt blob
     // and then leaves the presenter as it was.
@@ -325,7 +325,7 @@ private:
     std::set<std::string> slots_;                    // "PLANET|SLOT" upper case
     mutable std::vector<StoryTextLine> live_;
     uint64_t handled_ = 0;
-    // DUAL_FLASH (§2.5, ref5 t02): armed by the reward, holds up to two flashes; saved (presenter save v2).
+    // DUAL_FLASH (§2.5): armed by the reward, holds up to two flashes; saved (presenter save v2).
     struct DualHeld {
         bool planet = false;
         std::string target;
@@ -337,7 +337,7 @@ private:
     } dual_;
 };
 
-// ---- data readers (ui2 t07, STORY_PRESENTATION_REWARDS.md 6.4) ----
+// ---- data readers (legacy docs/re/STORY_PRESENTATION_REWARDS.md 6.4) ----
 // A comma / whitespace separated id list ("A, B C" -> A, B, C).
 std::vector<std::string> split_story_ids(std::string_view list);
 // GameConstants Advisor_Hint_Interval (seconds, shipped 300) and Advisor_Hint_Duration (seconds per character, shipped 0.1).

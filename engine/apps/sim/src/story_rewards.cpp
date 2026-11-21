@@ -1,6 +1,6 @@
-// STY1: the coverage table of the story rewards (story_rewards.hpp). Sorted by name; one row per Reward_Type the shipped
-// FoC / EaW story XML uses, plus every other name of retail's Reward_Type enum (mcx0 t05: retail_story_rewards(),
-// docs/re/STORY_REWARDS_GALACTIC.md §0.1), the ones the port does not implement yet as Missing.
+// the coverage table of the story rewards (story_rewards.hpp). Sorted by name; one row per Reward_Type the shipped
+// FoC / EaW story XML uses, plus every other name of retail's Reward_Type enum (retail_story_rewards(),
+// legacy docs/re/STORY_REWARDS_GALACTIC.md §0.1), the ones the port does not implement yet as Missing.
 #include "alamo/sim/story_rewards.hpp"
 
 namespace alamo::sim {
@@ -42,7 +42,7 @@ constexpr StoryRewardRow kRewards[] = {
     {"ENABLE_GALACTIC_REVEAL", O::Session, "StorySession::apply_reward (galactic reveal / corruption / autoresolve)"},
     {"ENABLE_INVASION", O::Session, "STY1 t05: galactic::StoryGates"},
     {"ENABLE_OBJECTIVE_DISPLAY", O::Ui, "presentation / HUD (ui lanes); no sim state"},
-    {"ENABLE_OVERWHELMING_ODDS", O::Retail, "retail enum 0x63 has no case in the dispatcher 0x456970: a no-op (STORY_REWARDS_GALACTIC.md §0)"},
+    {"ENABLE_OVERWHELMING_ODDS", O::Retail, "retail enum 0x63 has no case in the dispatcher 0x456970: a no-op (legacy docs/re/STORY_REWARDS_GALACTIC.md §0)"},
     {"ENABLE_SABOTAGE", O::Session, "mcx6: galactic::StoryGates::sabotage_enabled, refuses a human player's sabotage"},
     {"ENABLE_VICTORY", O::Session, "StorySession::apply_reward (battle / galactic monitor hooks)"},
     {"FINISHED_TUTORIAL", O::Session, "STY1 t04: StorySession tutorial state"},
@@ -68,7 +68,7 @@ constexpr StoryRewardRow kRewards[] = {
     {"HIDE_TUTORIAL_CURSOR", O::Ui, "presentation / HUD (ui lanes); no sim state"},
     {"HIGHLIGHT_OBJECT", O::Ui, "presentation / HUD (ui lanes); no sim state"},
     {"INCREMENT_FLAG", O::Model, "lua::StoryModel::apply_reward"},
-    {"INFORMATION", O::Retail, "retail no-op: code 0x06 goes to the dispatcher's common exit (STORY_REWARDS_GALACTIC.md §1.18)"},
+    {"INFORMATION", O::Retail, "retail no-op: code 0x06 goes to the dispatcher's common exit (legacy docs/re/STORY_REWARDS_GALACTIC.md §1.18)"},
     {"INVADE_PLANET", O::Session, "StorySession::apply_reward (earlier groups)"},
     {"LINK_TACTICAL", O::Session, "StorySession::apply_reward (earlier groups)"},
     {"LOAD_CAMPAIGN", O::Session, "STY1 t04: StorySession tutorial state"},
@@ -119,8 +119,8 @@ constexpr StoryRewardRow kRewards[] = {
     {"SET_SPAWN", O::Session, "mcx6: the battle host re-balances the indigenous spawners (TacticalBattle::reward_set_spawn)"},
     {"SET_TACTICAL_MAP", O::Session, "StorySession::apply_reward (earlier groups)"},
     {"SET_TECH_LEVEL", O::Session, "StorySession::apply_reward (earlier groups)"},
-    {"SET_WEATHER", O::Session, "mcx6: retail no-op apart from the incomplete-parameters log (STORY_REWARDS_GALACTIC.md §1.14)"},
-    {"SFX", O::Ui, "presentation: the game host plays the SFX event P1 through the SFX manager (STORY_REWARDS_GALACTIC.md §1.22)"},
+    {"SET_WEATHER", O::Session, "mcx6: retail no-op apart from the incomplete-parameters log (legacy docs/re/STORY_REWARDS_GALACTIC.md §1.14)"},
+    {"SFX", O::Ui, "presentation: the game host plays the SFX event P1 through the SFX manager (legacy docs/re/STORY_REWARDS_GALACTIC.md §1.22)"},
     {"SHOW_COMMAND_BAR", O::Ui, "presentation / HUD (ui lanes); no sim state"},
     {"SHOW_RAID_SLOT", O::Ui, "presentation / HUD (ui lanes); no sim state"},
     {"SHOW_SMUGGLE_SLOT", O::Ui, "presentation / HUD (ui lanes); no sim state"},
@@ -153,7 +153,7 @@ constexpr StoryRewardRow kRewards[] = {
 };
 char upper(char c) { return c >= 'a' && c <= 'z' ? static_cast<char>(c - 'a' + 'A') : c; }
 
-// retail's Reward_Type enum: the reward records of the story enum table 0x00a29140 (docs/re/STORY_REWARDS_GALACTIC.md §0.1).
+// retail's Reward_Type enum: the reward records of the story enum table 0x00a29140 (legacy docs/re/STORY_REWARDS_GALACTIC.md §0.1).
 constexpr RetailStoryReward kRetailRewards[] = {
     {"BUILDABLE_UNIT", 0x1},
     {"UNIQUE_UNIT", 0x2},
@@ -297,7 +297,7 @@ constexpr RetailStoryReward kRetailRewards[] = {
     {"ENABLE_CAMPAIGN_VICTORY_MOVIE", 0x8e},
 };
 
-// retail's story event types (docs/re/STORY.md §0.1) and how far the port dispatches each.
+// retail's story event types (legacy docs/re/STORY.md §0.1) and how far the port dispatches each.
 using E = StoryEventState;
 constexpr StoryEventRow kEvents[] = {
     {"STORY_ENTER", 0x1, E::Full, ""},
@@ -359,7 +359,7 @@ constexpr StoryEventRow kEvents[] = {
     {"STORY_CORRUPTION_TACTICAL_COMPLETE", 0x3a, E::Full, ""},
     {"STORY_CORRUPTION_TACTICAL_FAILED", 0x3b, E::Full, ""},
     {"STORY_OPEN_CORRUPTION", 0x3c, E::Full, ""},
-    {"STORY_CORRUPTION_INCREASED", 0x3d, E::Retail, "no factory case: retail drops the event with STORY MODE ERROR (STORY.md §0.1)"},
+    {"STORY_CORRUPTION_INCREASED", 0x3d, E::Retail, "no factory case: retail drops the event with STORY MODE ERROR (legacy docs/re/STORY.md §0.1)"},
 };
 
 bool same_upper(std::string_view a, std::string_view upper_name) {

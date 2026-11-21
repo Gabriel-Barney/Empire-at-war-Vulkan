@@ -1,5 +1,5 @@
-// TRU1 t01 / t03: the FIRE_LOBBING_SUPERWEAPON (47) accept gate (0x39b480 case 0x2f) and the GRAVITY_CONTROL_FIELD
-// service (docs/re/TRU1_GRAVITY_FIELD.md). Hand-computed frames on the OI sandbox.
+// the FIRE_LOBBING_SUPERWEAPON (47) accept gate (0x39b480 case 0x2f) and the GRAVITY_CONTROL_FIELD
+// service (legacy docs/re/TRU1_GRAVITY_FIELD.md). Hand-computed frames on the OI sandbox.
 #include "test_abilities_common.hpp"
 
 namespace bo3split {

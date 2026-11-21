@@ -1,4 +1,4 @@
-// P4 sim (owner: galactic agent): data tables of the FoC galactic special systems (docs/re/P4_SIM_SYSTEMS.md = P4):
+// P4 sim (owner: galactic agent): data tables of the FoC galactic special systems (legacy docs/re/P4_SIM_SYSTEMS.md = P4):
 // BlackMarketItems.xml, the galactic special abilities of the object types' <Abilities> lists (Black_Market_Ability,
 // Galactic_Sabotage_Ability, Hack_Super_Weapon_Ability, Corruption_Ability, Planet_Income_Bonus_Ability,
 // Planet_Income_Gambling_Ability), the per-type fields those systems read and the GameConstants they use.
@@ -41,7 +41,7 @@ enum class SpecialAbilityClass : uint8_t {
     SystemSpy = 8,      // System_Spy_Ability (GRC 2.3 / 2.3.1: planet visibility modifiers)
     ReducePrice = 9,    // Reduce_Production_Price_Ability (A2K_T01_BUILD_COST_RE 1.3)
     ReduceTime = 10,    // Reduce_Production_Time_Ability (same class family, the time tables)
-    // galab (docs/re/GALAB_ABILITIES_RE.md)
+    // galab (legacy docs/re/GALAB_ABILITIES_RE.md)
     RemoveCorruption = 11,     // Remove_Corruption_Ability (heroes; §1)
     PlanetDestruction = 12,    // Planet_Destruction_Ability (Death Star / Death Star II; §2)
     SiphonCredits = 13,        // Siphon_Credits_Ability (Han Solo, smugglers; §3)
@@ -159,7 +159,7 @@ struct BlackMarketItemDef {
 
 // One corruption choice of a planet type (Corruption_N_*, P4 5.1 record 0x52c570), slot order 1, 2, 3. Presentation
 // fields (speech events, briefing, Bink holograms) are not read.
-// Corruption mission [inferred until docs/re/L1_S4_REMAINING.md section C]: a choice whose Tactical_Game_Mode is Land /
+// Corruption mission [inferred until legacy docs/re/L1_S4_REMAINING.md section C]: a choice whose Tactical_Game_Mode is Land /
 // Space and whose Tactical_Map_Name is set starts a tactical battle at the planet on that map (attacker = the corrupting
 // player, defender = the planet's owner) with Tactical_Script_Name as the tactical story (apps/sim
 // CampaignBattles::start_corruption); a choice without one corrupts the planet directly. Credits and the unit
@@ -262,7 +262,7 @@ struct TypeSpecial {
     bool prevents_minor_siphons = false;   // Prevents_Minor_Credit_Siphons (T +0x63; no FoC type sets it)
 };
 
-// mcx4 t09 (docs/re/MCX4_T09_RE_ANSWERS.md Q6): the galaxy-map ability button kind of a type. The kinds are tested in
+// mcx4 t09 (legacy docs/re/MCX4_T09_RE_ANSWERS.md Q6): the galaxy-map ability button kind of a type. The kinds are tested in
 // the order 6, 1, 9, 2, 3, 4, 5, 7, 8, 10; the first whose Activated_*_Ability_Names list names one of the type's
 // <Abilities> entries (TypeSpecial::ability_entry_names, case-insensitive) wins: 1 Slice, 2 Sabotage, 3 System_Spy,
 // 4 Neutralize_Hero, 5 Siphon_Credits, 6 Destroy_Planet, 7 Corrupt_Planet, 8 Remove_Corruption, 9 Black_Market,

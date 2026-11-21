@@ -1,5 +1,5 @@
-// alamo_headless --trace-out FILE (q2f t05): a per-tick state trace of a galactic run in the Q2TRACE 1 format of the
-// Q2 reference traces (tools/probe_mod/q2_traces/README.md "Trace format"), so `q2trace.py validate` and
+// alamo_headless --trace-out FILE: a per-tick state trace of a galactic run in the Q2TRACE 1 format of the
+// Q2 reference traces (legacy tools/probe_mod/q2_traces/README.md "Trace format"), so `q2trace.py validate` and
 // `q2trace.py compare <run dir> --port-trace FILE` read a port run like a retail one: planet owners, object counts by
 // type, player credits, fiscal-cycle fields and the synced-RNG state per tick.
 //

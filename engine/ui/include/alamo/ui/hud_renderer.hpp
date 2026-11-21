@@ -1,4 +1,4 @@
-// alamo_ui_draw - the HUD's Vulkan pass (P2, docs/re/UI.md §1.1 steps 4-9, §2.5). Records, AFTER
+// alamo_ui_draw - the HUD's Vulkan pass (P2, legacy docs/re/UI.md §1.1 steps 4-9, §2.5). Records, AFTER
 // render::Renderer::render() has finished the 3D world and its whole post chain (bloom included) into the
 // target, one dynamic-rendering pass over the same colour image (LOAD) with:
 //   * the depth clear of step 4 (optional depth attachment, cleared; only HUD 3D models use it - nothing reads
@@ -93,7 +93,7 @@ public:
 
     using StepCallback = std::function<void(VkCommandBuffer cmd, const HudFrameStep& step)>;
     // Records the HUD pass into `cmd` (outside any pass). `fonts` may be null (no text pages). `dialogs` (P4, optional):
-    // the GUI dialog draw list (GuiManager::build) drawn at the Dialogs step (2D scene #1, UI.md §1.1 step 7) - all of
+    // the GUI dialog draw list (GuiManager::build) drawn at the Dialogs step (2D scene #1, legacy docs/re/UI.md §1.1 step 7) - all of
     // its 13 layers in order, before the step callback. `cursor` (optional): the mouse cursor list (MouseCursor::build)
     // drawn at the Cursor step (2D scene #2, topmost), all layers in order.
     bool record(rhi::Frame& frame, VkCommandBuffer cmd, const HudTarget& target, const HudCanvas& canvas,

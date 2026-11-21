@@ -1,4 +1,4 @@
-// mcx0 t01: IssueSink (compat_issue.hpp) - de-duplication by (kind, subject, source), counts, severity and
+// IssueSink (compat_issue.hpp) - de-duplication by (kind, subject, source), counts, severity and
 // retail-equivalent folding, first-add order, and the index-order merge of per-index buffers.
 #include <cstdio>
 #include <string>
@@ -26,7 +26,7 @@ void names() {
     IssueKind k = IssueKind::Count;
     CHECK(!alamo::parse_issue_kind("no_such_kind", k) && k == IssueKind::Count);
     CHECK(alamo::issue_kind_name(IssueKind::HonourGap) == "honour_gap");
-    // ums4 t07: appended last, so every earlier value keeps its number.
+    // appended last, so every earlier value keeps its number.
     CHECK(alamo::issue_kind_name(IssueKind::LoaderDiagnostic) == "loader_diagnostic");
     CHECK(static_cast<int>(IssueKind::TextSalvaged) == 17 && static_cast<int>(IssueKind::LoaderDiagnostic) == 18);
     CHECK(alamo::issue_severity_name(IssueSeverity::Error) == "error");

@@ -1,4 +1,4 @@
-// alamo_audio tests (no framework; non-zero exit on failure). Rules: docs/re/AUDIO.md (§ refs below).
+// alamo_audio tests (no framework; non-zero exit on failure). Rules: legacy docs/re/AUDIO.md (§ refs below).
 //   * XML parsing on synthetic files (defaults, in-order Use_Preset, unknown tags, odd values, chains);
 //   * SFX gates in the original order, per-cycle draws checked draw by draw against a replica of the free
 //     RNG, the instance state machine, chaining (2D only), stop fades, voice pools with priority/distance
@@ -381,7 +381,7 @@ void test_parse() {
     const MusicEvent& g = db.music()[db.find_music("Galactic")];
     CHECK(g.files.size() == 3 && g.files[1] == "G2.MP3" && g.loop && g.fade_in_seconds == 2.0f && g.volume_percent == 60);
     CHECK(db.speech()[db.find_speech("Line_2")].overlap_test == "Tut");
-    // mcx4 t13 (docs/re/MCX4_T13_RE_ANSWERS.md "DynamicTrack.Files family" [H]): the music parser's Files (playlist) and
+    // mcx4 t13 (legacy docs/re/MCX4_T13_RE_ANSWERS.md "DynamicTrack.Files family" [H]): the music parser's Files (playlist) and
     // Volume_Percent, which xml_field_tables.md files under DynamicTrack; checked on "Galactic" above (Files, Volume_Percent).
     // ledger: verifies DynamicTrack.Files
     // ledger: verifies DynamicTrack.Volume_Percent
@@ -827,7 +827,7 @@ void test_music() {
         return "Galactic";
     });
     a.set_mode(AudioMode::Land);
-    // aud1 t06 (AUDIO.md §9.2): combat refuses in Lua mode 12 (the play_music default the music above used) ...
+    // aud1 t06 (legacy docs/re/AUDIO.md §9.2): combat refuses in Lua mode 12 (the play_music default the music above used) ...
     a.notify_combat(true);
     CHECK(a.current_music() == "Galactic" && a.music_mode() == music_mode::kLua);
     // ... so the battle starts from tactical ambient (mode 6), as enter_tactical leaves it.
@@ -966,6 +966,28 @@ void test_decode_backend() {
     CHECK(std::fabs(pcm.samples[25] - static_cast<float>(std::sin(6.283185307179586 * 441.0 * 25 / 22050) * 16000.0 / 32768.0)) < 1e-3f);
     std::vector<uint8_t> junk = {1, 2, 3, 4, 5};
     CHECK(!probe_audio(junk) && sniff_container(junk) == Container::Unknown);
+    // fmt chunks whose cbSize skip makes dr_wav seek backwards (fuzz hang 2026-11-21, reduced): a RIFF/WAVE that ends
+    // after an 18-byte fmt chunk with cbSize 26 (the skip past the end used to clamp and the 44-byte seek back landed
+    // on the fmt chunk again), and a fmt size of 0xFFFFFFF8 (its int skip is -26, back to the fmt chunk in range).
+    // Both used to loop forever inside miniaudio's decoder init; they are rejected.
+    std::vector<std::vector<uint8_t>> hangs;  // also streamed as music / speech below
+    for (const auto [fmt_size, cb_size] : {std::pair<uint32_t, uint16_t>{18, 26}, {0xFFFFFFF8u, 0}}) {
+        std::vector<uint8_t> bad(wav.begin(), wav.begin() + 36);  // RIFF, WAVE, fmt header + 16 PCM bytes
+        for (size_t i = 0; i < 4; ++i) bad[16 + i] = static_cast<uint8_t>(fmt_size >> (8 * i));
+        bad.push_back(static_cast<uint8_t>(cb_size));
+        bad.push_back(static_cast<uint8_t>(cb_size >> 8));
+        CHECK(bad.size() == 38);
+        CHECK(sniff_container(bad) == Container::Wav && !probe_audio(bad) && !decode_audio(bad, pcm));
+        hangs.push_back(std::move(bad));
+    }
+    // The same 18-byte fmt chunk with cbSize 0 followed by the data is valid and still decodes.
+    std::vector<uint8_t> fmt18(wav.begin(), wav.begin() + 36);
+    fmt18[16] = 18;
+    fmt18.insert(fmt18.end(), {0, 0});
+    fmt18.insert(fmt18.end(), wav.begin() + 36, wav.end());
+    fmt18[4] = static_cast<uint8_t>(fmt18.size() - 8);
+    fmt18[5] = static_cast<uint8_t>((fmt18.size() - 8) >> 8);
+    CHECK(probe_audio(fmt18) && decode_audio(fmt18, pcm) && pcm.frames() == 2205);
 
     MemSamples ms;
     ms.files[normalize_name("TONE.WAV")] = wav;
@@ -991,6 +1013,36 @@ void test_decode_backend() {
     CHECK(peak > 0.1f && peak < 0.3f);  // 16000/32768 x 0.5 gain x pan law
     CHECK(be->read_mix(mix.data(), 4410) == 4410);  // 0.2 s pulled > 0.1 s tone
     CHECK(!be->playing(1));
+    // Music / speech voices stream through their own decoder over the same bounded reader: the fuzz-hang inputs above
+    // fail to start (they used to hang inside start()), an empty file too, and a valid WAV still streams, looped.
+    ms.files[normalize_name("HANG_CB.WAV")] = hangs[0];
+    ms.files[normalize_name("HANG_SIZE.WAV")] = hangs[1];
+    ms.files[normalize_name("EMPTY.WAV")] = {};
+    ms.files[normalize_name("FMT18.WAV")] = fmt18;
+    for (const Bus bus : {Bus::Music, Bus::Speech}) {
+        for (const char* name : {"hang_cb.wav", "hang_size.wav", "empty.wav"}) {
+            CHECK(!be->start(3, SampleRef{bus, name}, vp));
+            CHECK(!be->playing(3));
+        }
+    }
+    {
+        VoiceParams loop = vp;
+        loop.loop = true;
+        CHECK(be->start(4, SampleRef{Bus::Music, "fmt18.wav"}, loop));
+        float looped_peak = 0.0f;
+        for (int i = 0; i < 3; ++i) {  // 0.3 s pulled through a 0.1 s tone: plays across two loop seeks
+            CHECK(be->read_mix(mix.data(), 4410) == 4410);
+            for (float s : mix) looped_peak = std::max(looped_peak, std::fabs(s));
+            CHECK(be->playing(4));
+        }
+        CHECK(looped_peak > 0.1f && looped_peak < 0.3f);
+        // The last block (0.2..0.3 s) is the tone's third pass: still sound after two seeks back to frame 0.
+        float tail_peak = 0.0f;
+        for (size_t i = mix.size() / 2; i < mix.size(); ++i) tail_peak = std::max(tail_peak, std::fabs(mix[i]));
+        CHECK(tail_peak > 0.1f);
+        be->stop(4);
+        CHECK(!be->playing(4));
+    }
     // Through the AudioSystem: the same rules drive the real backend.
     MemoryProvider tree = make_tree();
     tree.add("Data\\XML\\SFXEventsTest.xml", R"(<SFXEvents><SFXEvent Name="Tone"><Samples>TONE.WAV</Samples><Min_Pitch>200</Min_Pitch><Max_Pitch>200</Max_Pitch></SFXEvent></SFXEvents>)");
@@ -1259,13 +1311,8 @@ void test_lua_bridge() {
 using ::alamo::test::env_or_empty;
 
 void write_report(const std::string& game, const std::string& text) {
-#ifdef ALAMO_AUDIO_LOG_DIR
-    std::ofstream f(std::string(ALAMO_AUDIO_LOG_DIR) + "/audio_" + game + "_report.txt", std::ios::binary);
+    std::ofstream f(::alamo::test::artifact_dir() + "/audio_" + game + "_report.txt", std::ios::binary);
     f << text;
-#else
-    (void)game;
-    (void)text;
-#endif
 }
 
 void test_real(const std::string& game, const std::string& root, bool is_eaw) {
@@ -1391,6 +1438,40 @@ void test_real(const std::string& game, const std::string& root, bool is_eaw) {
     std::printf("real data %s: probed %u (failed %u), %zu formats\n", game.c_str(), probed, failed, formats.size());
     CHECK(probed > 50 && failed == 0);
 
+    // Stream the same music / speech sample as the game does (MiniaudioBackend::start: a decoder over the bounded
+    // memory reader, read on demand): every file starts, plays, and the sample as a whole is not silent.
+    {
+        MiniaudioConfig mc;
+        mc.no_device = true;
+        mc.sample_rate = 44100;
+        auto be = MiniaudioBackend::create(src, mc);
+        CHECK(be != nullptr);
+        uint32_t streamed = 0, stream_failed = 0;
+        float stream_peak = 0.0f;
+        std::vector<float> mix(8192 * 2);
+        for (const auto* list : {&sample_music, &sample_speech})
+            for (const SampleRef& ref : *list) {
+                if (!be) break;
+                if (!be->start(1, ref, VoiceParams{})) {
+                    ++stream_failed;
+                    rep += "  unstreamable " + ref.file + "\n";
+                    continue;
+                }
+                bool ok = be->playing(1);
+                for (int i = 0; i < 4 && ok; ++i) {  // ~0.75 s
+                    ok = be->read_mix(mix.data(), 8192) == 8192;
+                    for (float s : mix) stream_peak = std::max(stream_peak, std::fabs(s));
+                }
+                be->stop(1);
+                ok ? ++streamed : ++stream_failed;
+            }
+        std::snprintf(buf, sizeof buf, "streamed %u music/speech files, %u failed, peak %.3f\n", streamed, stream_failed,
+                      stream_peak);
+        rep += buf;
+        std::printf("real data %s: %s", game.c_str(), buf);
+        CHECK(streamed == sample_music.size() + sample_speech.size() && stream_failed == 0 && stream_peak > 0.05f);
+    }
+
     // A short null-device session over real events with real lengths.
     NullBackend nb([&](const SampleRef& ref) -> std::optional<double> {
         std::vector<uint8_t> bytes;
@@ -1414,7 +1495,7 @@ void test_real(const std::string& game, const std::string& root, bool is_eaw) {
 
 // ------------------------------------------------------------------ aud2 (mixer order, music pause, SFX file lookup)
 
-// aud2 t06 (AUDIO.md §1.6 / §3.2): the 0.3 speech cap applies to the voice gain before the 3D distance attenuation (Miles
+// aud2 t06 (legacy docs/re/AUDIO.md §1.6 / §3.2): the 0.3 speech cap applies to the voice gain before the 3D distance attenuation (Miles
 // attenuates on top), so a distant 3D SFX is ducked as much as a near one. aud2 t04 (§2.3 / §6.1): the music manager's
 // pause counter holds the music voice and stops the playlist until the last resume.
 void test_aud2_mixer() {
@@ -1479,7 +1560,7 @@ void test_aud2_mixer() {
     }
 }
 
-// aud2 t05 (AUDIO.md §5): SFX samples resolve by leaf name through the normal file layer, loose files first - a loose
+// aud2 t05 (legacy docs/re/AUDIO.md §5): SFX samples resolve by leaf name through the normal file layer, loose files first - a loose
 // Data\Audio\SFX\<name> overrides the archive copy - and a mod's own SFX archive layers over FoC's (names it lacks
 // still come from FoC's copy) instead of replacing it.
 void test_aud2_sfx_lookup() {
@@ -1578,7 +1659,7 @@ void test_aud2_sfx_lookup() {
 }  // namespace
 
 // [port] Bounded event log (AudioConfig::log_limit): the live game keeps only the newest events, so a long battle
-// neither regrows the log on the frame thread nor leaks it (docs/PERFORMANCE.md "Audio event log hitches").
+// neither regrows the log on the frame thread nor leaks it (legacy docs/PERFORMANCE.md "Audio event log hitches").
 void test_log_limit() {
     Rig rig;
     AudioSystem& a = *rig.a;

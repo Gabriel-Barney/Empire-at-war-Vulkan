@@ -63,7 +63,7 @@ bool TacticalBattle::pad_rule_blocker(const objects::ObjectStore& st, objects::O
     // [port, open] the candidates are the battle's live, non-retreated units - the set the port's capture controller
     // counts (tactical_battle_garrison step 3). Map props are not candidates: Neutral-owned props with an unset
     // Influences_Capture_Point (= true) stood within the radius of the Utapau mineral / outpost pads, so with the
-    // Neutral exemption gone the AI could never build there and the vanilla land skirmish stopped ending (q6 t19).
+    // Neutral exemption gone the AI could never build there and the vanilla land skirmish stopped ending.
     // Whether retail's 0x42e400 query reaches props is not read (AI_TACTICAL §7.5.1, SKIRMISH_SETUP "Port status").
     const objects::ObjectId id = st.id(h);
     const auto it = std::lower_bound(units_.begin(), units_.end(), id, [](const Unit& u, objects::ObjectId v) { return u.id < v; });
@@ -165,7 +165,7 @@ int32_t TacticalBattle::pad_build(TacticalMode& mode, objects::ObjectId pad, obj
     }
     // Start build 0x42dbd0 (charge 0, sfx 0): empty pad, cooldown elapsed, the builder exists and is allied with the pad
     // owner (0x39a2c0: relation(builder -> pad owner) == 0). In skirmish the Neutral player is not allied even with itself,
-    // so nobody builds on a Neutral-owned pad (q6 t19, AI_TACTICAL §7.5.1).
+    // so nobody builds on a Neutral-owned pad (AI_TACTICAL §7.5.1).
     if (!empty || (cur && cur->cooldown_end > frame_) || owner < 0 || !bt_allied(builder, owner)) return -1;
     objects::SpawnParams sp;
     sp.type = type;
@@ -196,7 +196,7 @@ int32_t TacticalBattle::pad_build(TacticalMode& mode, objects::ObjectId pad, obj
     }
     ++stats_.pad_builds;
     pad_events_.push_back({PadEvent::Kind::Started, pad_build_sfx_, st.id(uc), objects::kNoObjectId, type, builder, st.position(uc)});
-    play_battle_clip(pad, 0x74, false, 1.0f, 0.0f);  // r3h t05: Start build 0x42dbd0 plays Pad_Build on the pad (L1_S4 §3.6)
+    play_battle_clip(pad, 0x74, false, 1.0f, 0.0f);  // Start build 0x42dbd0 plays Pad_Build on the pad (L1_S4 §3.6)
     return 1;
 }
 
@@ -234,7 +234,7 @@ void TacticalBattle::pads_tick(TacticalMode& mode) {
                 s.cooldown_start = frame_;
                 s.cooldown_end = frame_ + static_cast<uint32_t>(frames_trunc(wait * 30.0f + 0.5f));
             }
-            if (pad_alive) play_battle_clip(s.pad, 0x75, false, 1.0f, 0.0f);  // r3h t05: 0x42e6d0 ends with Pad_Sell
+            if (pad_alive) play_battle_clip(s.pad, 0x75, false, 1.0f, 0.0f);  // 0x42e6d0 ends with Pad_Sell
         };
         if (s.uc != objects::kNoObjectId) {
             const objects::ObjectHandle uh = st.find(s.uc);

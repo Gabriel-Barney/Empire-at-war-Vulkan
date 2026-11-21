@@ -1,4 +1,4 @@
-// S8 - combat-stat modifiers (docs/re/TACTICAL_COMBAT.md section 4). Two independent systems; do
+// S8 - combat-stat modifiers (legacy docs/re/TACTICAL_COMBAT.md section 4). Two independent systems; do
 // not merge them.
 //
 // System A - ModifierSet (additive per stacking category), section 4.1-4.3 [H]:
@@ -172,7 +172,7 @@ struct UnitAbilityDesc {
 // Get_Unit_Ability_Mod_Multiplier (0x398010) for one object: product over the 2 slots where the
 // ability is active, LUCKY_SHOT skipped. `abilities` = the type's slot data (nullptr = empty slot).
 float ability_product(const UnitAbilityDesc* const abilities[2], const bool active[2], ModKind kind);
-// Squad rule (s78h t03): a TEAM container's value. `own` = the container's own product; `members` =
+// Squad rule: a TEAM container's value. `own` = the container's own product; `members` =
 // EVERY live member's own product (a stand-in leader and 1.0-valued members included). own if != 1,
 // else the minimum over `members` (member order, <= replaces); no members -> 1. Members themselves
 // never take this value (each reads its own product).

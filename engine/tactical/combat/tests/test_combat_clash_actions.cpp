@@ -1,5 +1,5 @@
-// mcx4 (Stage 9, lane mcx4-tac2): the action-driven hero clash's action runner (docs/re/HERO_CLASH.md §4;
-// docs/re/MCX4_T10_RE_ANSWERS.md §11 Attack_Action; docs/re/MCX4_T11_T12_RE_ANSWERS.md §B3 Move_Action and
+// mcx4 (Stage 9, lane mcx4-tac2): the action-driven hero clash's action runner (legacy docs/re/HERO_CLASH.md §4;
+// legacy docs/re/MCX4_T10_RE_ANSWERS.md §11 Attack_Action; legacy docs/re/MCX4_T11_T12_RE_ANSWERS.md §B3 Move_Action and
 // Special_Ability_Action). Shipped data never starts such a clash (Clash_Range 0.0), so these tests drive the manager with
 // synthetic HEROCLASH.XML entries and a stub host that records every effect.
 #include "test_combat_common.hpp"

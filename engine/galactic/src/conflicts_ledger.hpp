@@ -1,10 +1,10 @@
-// REF4 t02: the save ledger of ConflictManager. Every data member is listed once:
+// the save ledger of ConflictManager. Every data member is listed once:
 //   SAVED(member, hashed)    written by write(), restored by read() and walked by hash();
 //   SAVED(member, unhashed)  written and restored, outside the CRC;
 //   REBUILT(member, "why")   set again by the host (CampaignBattles::attach) or the constructor before read();
 //   DERIVED(member, "why")   recomputed from saved state or scratch;
 //   CHECKED(member, "why")   not restored, but write() / read() / hash() read it.
-// tools/lint/check_battle_ledger.py (build_agent.cmd, ctest alamo_sim_battle_ledger_lint) checks it against
+// tools/lint/check_battle_ledger.py (ctest alamo_sim_battle_ledger_lint) checks it against
 // conflicts.hpp and the bodies of write / read / hash / register_crc in engine/galactic/src. The fields of a ConflictInfo
 // and a ConflictLogEntry are listed once, in galactic_records.hpp (save writer, reader and hash()).
 // Order: the declaration order in conflicts.hpp. Read by the lint only (not compiled).

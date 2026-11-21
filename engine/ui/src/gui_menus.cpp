@@ -25,7 +25,7 @@ std::string trimmed(std::string_view s) {
     return std::string(s);
 }
 
-// UI.md 9.4: a map without a name key lists as its file name, directory and ".TED" dropped, cut to 22 characters + "..." when
+// legacy docs/re/UI.md 9.4: a map without a name key lists as its file name, directory and ".TED" dropped, cut to 22 characters + "..." when
 // longer than 25.
 std::string map_file_label(std::string_view map) {
     if (const size_t s = map.find_last_of("\\/"); s != std::string_view::npos) map.remove_prefix(s + 1);
@@ -128,8 +128,8 @@ int32_t keyboard_page(std::string_view dialog) {
 float to01(int32_t v) { return static_cast<float>(std::clamp(v, 0, 100)) / 100.0f; }
 int32_t to100(float v) { return static_cast<int32_t>(std::lround(std::clamp(v, 0.0f, 1.0f) * 100.0f)); }
 
-// IDC_EDIT_* (keyboard dialogs) -> hotkey slot name (hotkeys.hpp). ui3 t02: the order is the retail one - the edit-name
-// string table (0x8063d0 .. 0x807310, stride 0x20, UI.md §4.3) lists the boxes in slot order, entry i = slot i
+// IDC_EDIT_* (keyboard dialogs) -> hotkey slot name (hotkeys.hpp). The order is the retail one - the edit-name
+// string table (0x8063d0 .. 0x807310, stride 0x20, legacy docs/re/UI.md §4.3) lists the boxes in slot order, entry i = slot i
 // (alamo_ui_hud_ui3_tests checks every entry).
 struct EditSlot {
     const char* edit;
@@ -478,7 +478,7 @@ std::u32string hotkey_action_label(uint16_t slot) {
     return out;
 }
 
-// UI5 t09 (UI.md §4.3 "Capture"): the keyboard dialog's label text of each original slot 0..122, in slot order (the
+// UI5 t09 (legacy docs/re/UI.md §4.3 "Capture"): the keyboard dialog's label text of each original slot 0..122, in slot order (the
 // retail table next to the IDC_EDIT_* names); a derived group slot 123..152 is reported as its group slot.
 const char* hotkey_action_text_id(uint16_t slot) {
     static constexpr const char* kIds[123] = {
@@ -628,7 +628,7 @@ CampaignMenu build_campaign_menu(std::span<const data::CampaignDef* const> sorte
         const std::string set = trimmed(c->campaign_set).empty() ? c->name : trimmed(c->campaign_set);
         const std::string_view cs = c->raw_value("Supports_Custom_Settings");
         const bool custom = ascii_iequals(trimmed(cs), "true") || ascii_iequals(trimmed(cs), "yes") || trimmed(cs) == "1";
-        // mcx4 t07 (docs/re/MCX4_RE_ANSWERS_GALACTIC.md Q7.3): Is_Listed (ctor true; bool code 0x0: "1" or a first Y / T)
+        // mcx4 t07 (legacy docs/re/MCX4_RE_ANSWERS_GALACTIC.md Q7.3): Is_Listed (ctor true; bool code 0x0: "1" or a first Y / T)
         // false hides the campaign from the setup-screen lists (0x478f90 with listed_only, 0xfb950) - here the custom
         // (conquest) list. Retail's tutorial chooser does not filter on it, and its story campaigns (all Is_Listed false
         // in FoC) are started by name, so the story and tutorial lists keep them.
@@ -741,7 +741,7 @@ void FrontEnd::fill_campaign_select(GuiDialog& d) {
         d.show(buttons[b], has);
         if (has) d.set_text(buttons[b], faction_label(s->factions[b].faction));
     }
-    // UI5 t08: IDC_STATIC_DIFFICULTY_DESCRIPTION (one line, 200 x 16 units) keeps its empty .rc caption: retail's code never
+    // IDC_STATIC_DIFFICULTY_DESCRIPTION (one line, 200 x 16 units) keeps its empty .rc caption: retail's code never
     // names it (nor this dialog), so no campaign description is written into it.
 }
 
@@ -766,14 +766,14 @@ void FrontEnd::fill_custom_staging(GuiDialog& d) {
 std::u32string FrontEnd::skirmish_row_text(const SkirmishMapInfo& m) const {
     if (!m.label.empty()) return m.label;
     if (m.name_key.empty()) return ascii32(map_file_label(m.map));
-    // "(%d) %s": the player count and the localised name; the raw key when the text database has no entry (UI.md 9.3).
+    // "(%d) %s": the player count and the localised name; the raw key when the text database has no entry (legacy docs/re/UI.md 9.3).
     std::u32string t = gui_->text_db() && gui_->text_db()->find(m.name_key) ? gui_->caption_text(m.name_key) : utf8_to_utf32(m.name_key);
     return ascii32("(" + std::to_string(m.players ? m.players : m.max_players) + ") ") + t;
 }
 
-// The rows of the active tab and game type (UI.md 9.4: a space map is listed under Space, the others under Land; ccpgt t02:
+// The rows of the active tab and game type (legacy docs/re/UI.md 9.4: a space map is listed under Space, the others under Land; ccpgt t02:
 // Capture Control Points lists the land maps with the CONTROL tag), each by row text case-insensitively, ties by map id. The selection is the map selected last for that game type when it is listed
-// (UI.md 9.5 / 9.7), else row 0 (as retail's 0xfb950; modc t19: no map is preferred by name). The row selected becomes the
+// (legacy docs/re/UI.md 9.5 / 9.7), else row 0 (as retail's 0xfb950; no map is preferred by name). The row selected becomes the
 // map remembered for the type.
 void FrontEnd::fill_skirmish_maps(GuiDialog& d) {
     struct Row {
@@ -822,7 +822,7 @@ int32_t FrontEnd::skirmish_map_row(std::string_view map) const {
 }
 
 void FrontEnd::fill_skirmish_game_types(GuiDialog& d) {
-    // UI.md 9.7 (ccpgt t02): game types 2 Land, 3 Space and 4 Capture Control Points, each named by the text database's game
+    // legacy docs/re/UI.md 9.7: game types 2 Land, 3 Space and 4 Capture Control Points, each named by the text database's game
     // type entry; the list is LBS_SORT, so the rows are ordered by their text (case-insensitively, ties by type). The row of
     // the type selected last is selected.
     struct Row {
@@ -853,12 +853,12 @@ int32_t FrontEnd::skirmish_game_type_row(int32_t type) const {
 
 void FrontEnd::fill_skirmish_colours(GuiDialog& d) {
     char id[32];
-    for (int32_t p = 0; p < skirmish_slots_; ++p) {  // the shown slots (ui1 t07)
+    for (int32_t p = 0; p < skirmish_slots_; ++p) {  // the shown slots
         std::snprintf(id, sizeof id, "IDC_PLAYER_COLOR_%d", p);
         const bool has = !colour_palette_.empty();
         d.show(id, has);
         if (!has) continue;
-        // UI.md 3.7.1: one U+25A0 per palette entry, drawn in the entry's colour.
+        // legacy docs/re/UI.md 3.7.1: one U+25A0 per palette entry, drawn in the entry's colour.
         d.set_items(id, std::vector<std::u32string>(colour_palette_.size(), std::u32string(1, 0x25A0)),
                     std::min(slot_colour_[p], static_cast<int32_t>(colour_palette_.size()) - 1));
         if (GuiControl* c = d.get(id)) c->item_colors = colour_palette_;
@@ -869,7 +869,7 @@ int32_t FrontEnd::skirmish_colour(int32_t slot) const {
     return slot >= 0 && slot < skirmish_slots_ && !colour_palette_.empty() ? std::min(slot_colour_[slot], static_cast<int32_t>(colour_palette_.size()) - 1) : -1;
 }
 
-// IDC_IMAGE and its start numbers for the selected row (UI.md 9.6 / 9.6.1); IDC_SCENARIO_DESCRIPTION_TEXT_BOX is switched
+// IDC_IMAGE and its start numbers for the selected row (legacy docs/re/UI.md 9.6 / 9.6.1); IDC_SCENARIO_DESCRIPTION_TEXT_BOX is switched
 // off and never filled (9.6.2).
 void FrontEnd::fill_skirmish_preview(GuiDialog& d) {
     const GuiControl* list = d.get("IDC_STAGING_MAP_LIST");
@@ -888,10 +888,10 @@ void FrontEnd::fill_skirmish_preview(GuiDialog& d) {
     d.show("IDC_SCENARIO_DESCRIPTION_TEXT_BOX", false);
 }
 
-// UI.md 9.7: the picks are stored as they are, then in slot order slot 0 keeps its colour and each later slot whose colour
+// legacy docs/re/UI.md 9.7: the picks are stored as they are, then in slot order slot 0 keeps its colour and each later slot whose colour
 // an earlier slot uses takes the lowest colour index no earlier slot uses; the combos show the result.
 void FrontEnd::resolve_skirmish_colours(GuiDialog& d) {
-    const int32_t kUsed = skirmish_slots_;  // ui1 t07: every shown slot
+    const int32_t kUsed = skirmish_slots_;  // every shown slot
     const auto palette = static_cast<int32_t>(colour_palette_.size());
     for (int32_t p = 1; p < kUsed; ++p) {
         const auto taken = [&](int32_t col) {
@@ -914,7 +914,7 @@ void FrontEnd::resolve_skirmish_colours(GuiDialog& d) {
     }
 }
 
-// ---- ui1 t06: advanced game options ----
+// ---- advanced game options ----
 TechSliderRange tech_slider_range(const CampaignChoice& c, int32_t adjustment) {
     TechSliderRange r;
     r.adjustment = adjustment;
@@ -933,13 +933,13 @@ void FrontEnd::fill_game_options(GuiDialog& d, const GameOptionsSetup& o) {
     const int32_t lo = std::max(0, o.min_credits / kCreditStep), hi = std::max(lo, o.max_credits / kCreditStep);
     d.set_range("IDC_SKIRMISH_CREDITS_SLIDER", lo, hi);
     d.set_value("IDC_SKIRMISH_CREDITS_SLIDER", std::clamp(o.credits / kCreditStep, lo, hi));
-    // mcx4 t19: the campaign's custom tech bounds shifted by the faction's adjustment (tech_range_).
+    // the campaign's custom tech bounds shifted by the faction's adjustment (tech_range_).
     const int32_t tlo = tech_range_.lo, thi = tech_range_.hi;
     d.set_range("IDC_SKIRMISH_STARTING_TECH_LEVEL_SLIDER", tlo, thi);
     d.set_value("IDC_SKIRMISH_STARTING_TECH_LEVEL_SLIDER", std::clamp(o.start_tech, tlo, thi));
     d.set_range("IDC_SKIRMISH_MAX_TECH_LEVEL_SLIDER", tlo, thi);
     d.set_value("IDC_SKIRMISH_MAX_TECH_LEVEL_SLIDER", std::clamp(o.max_tech, tlo, thi));
-    // CBS_SORT is not acted on by the gadget (UI.md 3.7.1 [M]): the rows stay in option order 0..3.
+    // CBS_SORT is not acted on by the gadget (legacy docs/re/UI.md 3.7.1 [M]): the rows stay in option order 0..3.
     std::vector<std::u32string> rows;
     for (const char* k : kAutoKeys) rows.push_back(text(k));
     d.set_items("IDC_ALLOW_AUTORESOLVE_COMBO", std::move(rows), std::clamp(o.auto_resolve, 0, 3));
@@ -959,12 +959,12 @@ GameOptionsSetup FrontEnd::read_game_options(const GuiDialog& d) const {
     if (const GuiControl* c = d.get("IDC_SKIRMISH_MAX_TECH_LEVEL_SLIDER")) o.max_tech = std::clamp(c->value, tlo, thi);
     o.max_tech = std::max(o.max_tech, o.start_tech);
     if (const GuiControl* c = d.get("IDC_ALLOW_AUTORESOLVE_COMBO"); c && c->selected >= 0) o.auto_resolve = std::clamp(c->selected, 0, 3);
-    o.random_events = false;  // mcx8 t10: flag 0x10 is never set in FoC
-    o.set = options_changed_;  // mcx8 t10: flag 0x20, not "accepted"
+    o.random_events = false;  // flag 0x10 is never set in FoC
+    o.set = options_changed_;  // flag 0x20, not "accepted"
     return o;
 }
 
-// ---- skm1 t02: the skirmish options dialog ----
+// ---- the skirmish options dialog ----
 namespace {
 const char* win_condition_key(int32_t w) {
     switch (w) {
@@ -985,8 +985,8 @@ void FrontEnd::fill_skirmish_options(GuiDialog& d, const SkirmishOptionsSetup& o
     d.set_checked("IDC_ALLOW_STARTING_UNIT_PURCHASE", o.starting_units);
     d.set_checked("IDC_ALLOW_SUPER_WEAPONS", o.super_weapons);
     d.set_checked("IDC_PRE_BUILT_BASE", o.prebuilt_base);
-    // UI.md 9.7 (0x4ace40): the rows of the game type; the value steps to the type's default when it is not one of them
-    // (0x4ad000). CBS_SORT is not acted on by the gadget (UI.md 3.7.1 [M]): the rows stay in condition order.
+    // legacy docs/re/UI.md 9.7 (0x4ace40): the rows of the game type; the value steps to the type's default when it is not one of them
+    // (0x4ad000). CBS_SORT is not acted on by the gadget (legacy docs/re/UI.md 3.7.1 [M]): the rows stay in condition order.
     skirmish_win_rows_ = game_type_ == kSkirmishGameControl ? std::vector<int32_t>{kWinControlPoints}
                          : game_type_ == kSkirmishGameSpace ? std::vector<int32_t>{kWinAllUnits, kWinStarbase}
                                                             : std::vector<int32_t>{kWinAllUnits, kWinAllStructures, kWinCommandHq};
@@ -1045,10 +1045,10 @@ void FrontEnd::show_game_option_values(GuiDialog& d) const {
     tech("IDC_SKIRMISH_MAX_TECH_LEVEL_SLIDER", "IDC_SKIRMISH_MAX_TECH_LEVEL_VALUE");
 }
 
-// ui1 t07 [port] (UI.md 9.6.1: the map's start positions cap IDC_PLAYER_TEAM_n; the original's slot name rows are not
+// ui1 t07 [port] (legacy docs/re/UI.md 9.6.1: the map's start positions cap IDC_PLAYER_TEAM_n; the original's slot name rows are not
 // recovered): one row per player the selected map takes (2..8). Slot 0 is the local player, slot 1 an AI, slots 2.. a
 // "Closed" / "AI" choice (Closed first, so the default game stays one against one); teams 1..N (slot 0 team 1, the
-// others team 2). The skirmish sim takes two players (backlog b0240): the host starts slots 0 and 1 only.
+// others team 2). The skirmish sim takes two players: the host starts slots 0 and 1 only.
 void FrontEnd::fill_skirmish_slots(GuiDialog& d) {
     const GuiControl* list = d.get("IDC_STAGING_MAP_LIST");
     const SkirmishMapInfo* m = list && list->selected >= 0 && static_cast<size_t>(list->selected) < map_view_.size()
@@ -1119,7 +1119,7 @@ void FrontEnd::fill_skirmish(GuiDialog& d) {
     fill_skirmish_slots(d);
 }
 
-// modc t08: the mod picker. The rows come from the host when the dialog opens; the selection starts on the row selected
+// the mod picker. The rows come from the host when the dialog opens; the selection starts on the row selected
 // last, else the active row, else row 0 (the base game). Reports arrive through set_mod_report and are kept per row id.
 void FrontEnd::fill_mods(GuiDialog& d) {
     mods_ = p_.mods ? p_.mods() : std::vector<ModPickerEntry>{};
@@ -1451,7 +1451,7 @@ void FrontEnd::fill_gameplay(GuiDialog& d, const GameplaySettings& g) {
     d.set_checked("IDC_ABILITIES_DEFAULT_TO_AUTOFIRE", g.abilities_autofire);
     const char* radios[3] = {"IDC_RADIO_EASY", "IDC_RADIO_MEDIUM", "IDC_RADIO_HARD"};
     d.set_checked(radios[std::clamp(g.difficulty, 0, 2)], true);
-    // UI5 t08: the radios keep their empty .rc captions; IDC_RADIO_BLANK / 2 / 3 next to them carry the difficulty names.
+    // the radios keep their empty .rc captions; IDC_RADIO_BLANK / 2 / 3 next to them carry the difficulty names.
 }
 
 GameplaySettings FrontEnd::read_gameplay(const GuiDialog& d) const {
@@ -1524,13 +1524,13 @@ void FrontEnd::setup(GuiDialog& d) {
     if (ascii_iequals(n, kMain)) {
         d.show("IDC_MAIN_MENU_PLAY_DEMO", p_.demo);
         d.show("IDC_MAIN_MENU_SINGLE_PLAYER_GAMES", !p_.demo);
-        // modc t08: the port's Mods button (kPortDialogExtensionsRc) opens the mod picker.
+        // the port's Mods button (kPortDialogExtensionsRc) opens the mod picker.
         const bool mods = p_.mods && gui_->has_dialog(kPortModsDialog);
         d.show("IDC_PORT_MAIN_MENU_MODS", mods);
         if (mods) d.set_text("IDC_PORT_MAIN_MENU_MODS", gui_->port_text(U"Mods"));
         close_multiplayer_gap(d);
     } else if (ascii_iequals(n, kSingle)) {
-        d.set_items("IDC_HINT_LIST", {});  // UI5 t08: hidden until a button is hovered (UI.md §4.5 "Hint list")
+        d.set_items("IDC_HINT_LIST", {});  // hidden until a button is hovered (legacy docs/re/UI.md §4.5 "Hint list")
         d.show("IDC_HINT_LIST", false);
         d.show("IDC_DEBUG_LOAD_SKIRMISH_MAP_BUTTON", false);
         d.enable("IDC_NEW_CAMPAIGN_BUTTON", !menu_.story.empty());
@@ -1547,10 +1547,10 @@ void FrontEnd::setup(GuiDialog& d) {
         fill_custom_staging(d);
     } else if (ascii_iequals(n, kSkirmish)) {
         fill_skirmish(d);
-    } else if (ascii_iequals(n, kAdvanced)) {  // ui1 t06: the accepted values, else the defaults
+    } else if (ascii_iequals(n, kAdvanced)) {  // the accepted values, else the defaults
         fill_game_options(d, game_options_stored_ ? game_options_ : p_.game_option_defaults);
-        options_changed_ = game_options_.set;  // mcx8 t10: flag 0x20 stays set until Defaults or a campaign start
-    } else if (ascii_iequals(n, kSkirmishAdvanced)) {  // skm1 t02: the accepted values, else the defaults
+        options_changed_ = game_options_.set;  // flag 0x20 stays set until Defaults or a campaign start
+    } else if (ascii_iequals(n, kSkirmishAdvanced)) {  // the accepted values, else the defaults
         fill_skirmish_options(d, skirmish_options_.set ? skirmish_options_ : p_.skirmish_option_defaults);
     } else if (ascii_iequals(n, kTutorial)) {
         std::vector<std::u32string> items;
@@ -1609,7 +1609,7 @@ void FrontEnd::setup(GuiDialog& d) {
             d.set_text("IDC_USER_TEXT_STRING_1", utf8_to_utf32(confirm_save_));
             d.show("IDC_USER_TEXT_STRING_1", true);
         }
-        if (rebind && rebind_other_ >= 0 && rebind_slot_ >= 0) {  // UI5 t09 (UI.md §4.3 Capture): retail's two lines
+        if (rebind && rebind_other_ >= 0 && rebind_slot_ >= 0) {  // UI5 t09 (legacy docs/re/UI.md §4.3 Capture): retail's two lines
             auto action = [&](int32_t slot) {
                 const auto s = static_cast<uint16_t>(slot);
                 const char* id = hotkey_action_text_id(s);
@@ -1707,7 +1707,7 @@ void FrontEnd::on_cancel(const GuiEvent& e, std::vector<MenuAction>& out) {
         go(kMain);
         return;
     }
-    if (ascii_iequals(n, kTutorial)) {  // UI5 t07: Esc = its Cancel button (opened from the main menu)
+    if (ascii_iequals(n, kTutorial)) {  // Esc = its Cancel button (opened from the main menu)
         go(kMain);
         return;
     }
@@ -1715,7 +1715,7 @@ void FrontEnd::on_cancel(const GuiEvent& e, std::vector<MenuAction>& out) {
         go(kSingle);
         return;
     }
-    if (keyboard_page(n) >= 0) {  // UI5 t09 (UI.md §4.3 Capture): a field in capture goes back to its applied key
+    if (keyboard_page(n) >= 0) {  // UI5 t09 (legacy docs/re/UI.md §4.3 Capture): a field in capture goes back to its applied key
         if (GuiDialog* d = gui_->find(n); d && d->focus_index() >= 0) {
             const GuiControl& c = (*d)[static_cast<size_t>(d->focus_index())];
             const int32_t slot = c.type == GuiGadgetType::EditBox ? keyboard_edit_slot(c.id()) : -1;
@@ -1746,7 +1746,7 @@ void FrontEnd::on_change(const GuiEvent& e, std::vector<MenuAction>& out) {
     GuiDialog* d = gui_->find(e.dialog);
     if (!d) return;
     const std::string_view n = e.dialog;
-    if (ascii_iequals(n, kPortModsDialog)) {  // modc t08: a picker row selected -> its report (cached, else the host checks it)
+    if (ascii_iequals(n, kPortModsDialog)) {  // a picker row selected -> its report (cached, else the host checks it)
         if (e.control == "IDC_PORT_MODS_LIST" && e.kind == GuiEvent::Kind::SelectionChanged && e.value >= 0 &&
             static_cast<size_t>(e.value) < mods_.size() && mods_[static_cast<size_t>(e.value)].id != mod_selected_) {
             mod_selected_ = mods_[static_cast<size_t>(e.value)].id;
@@ -1763,20 +1763,20 @@ void FrontEnd::on_change(const GuiEvent& e, std::vector<MenuAction>& out) {
         if (e.control == "IDC_GAME_TYPE_LIST" && e.value >= 0 && static_cast<size_t>(e.value) < game_type_rows_.size()) {
             if (const int32_t t = game_type_rows_[static_cast<size_t>(e.value)]; t != game_type_) {
                 game_type_ = t;
-                skirmish_options_.win_condition = 0;  // skm1 t02 (UI.md 9.7, 0x4acf00 keep = 1): the type's default condition
+                skirmish_options_.win_condition = 0;  // skm1 t02 (legacy docs/re/UI.md 9.7, 0x4acf00 keep = 1): the type's default condition
                 // [port] the pre-built base the Space type forced off is not carried to a land type
                 if (t != kSkirmishGameSpace) skirmish_options_.prebuilt_base = p_.skirmish_option_defaults.prebuilt_base;
                 fill_skirmish_maps(*d);
             }
         } else if (e.control == "IDC_STAGING_MAP_LIST") {
-            // UI.md 9.7: every selection change stores the row's map for the current game type.
+            // legacy docs/re/UI.md 9.7: every selection change stores the row's map for the current game type.
             if (e.value >= 0 && static_cast<size_t>(e.value) < map_view_.size())
                 last_map_[game_type_ == kSkirmishGameSpace ? 1 : 0] = maps_[map_view_[static_cast<size_t>(e.value)]].map;
             fill_skirmish_preview(*d);
             fill_skirmish_slots(*d);  // ui1 t07
         } else if (ascii_istarts_with(e.control, "IDC_PLAYER_COLOR_") && e.control.size() == 18 && e.value >= 0 &&
                    static_cast<size_t>(e.value) < colour_palette_.size()) {
-            // UI.md 9.7: the pick is stored as it is, then the clash rule runs in slot order.
+            // legacy docs/re/UI.md 9.7: the pick is stored as it is, then the clash rule runs in slot order.
             const int32_t slot = e.control.back() - '0';
             if (slot >= 0 && slot < skirmish_slots_) {
                 slot_colour_[slot] = e.value;
@@ -1785,7 +1785,7 @@ void FrontEnd::on_change(const GuiEvent& e, std::vector<MenuAction>& out) {
         }
     }
     else if (ascii_iequals(n, kAdvanced) && e.kind == GuiEvent::Kind::ValueChanged) {  // ui1 t06
-        options_changed_ = true;  // mcx8 t10: every slider event sets flag 0x20
+        options_changed_ = true;  // every slider event sets flag 0x20
         show_game_option_values(*d);
     }
     else if (ascii_iequals(n, kSkirmishAdvanced) && (e.kind == GuiEvent::Kind::ValueChanged || e.kind == GuiEvent::Kind::SelectionChanged ||
@@ -1883,7 +1883,7 @@ void FrontEnd::on_click(const GuiEvent& e, std::vector<MenuAction>& out) {
     } else if (ascii_iequals(n, kCustomStaging) && d) {
         if (is("IDC_CANCEL_BUTTON")) go(kSingle);
         else if (is("IDC_SELECT_OPTIONS")) {
-            // mcx4 t19: the tech slider range of the selected campaign and faction (MCX5_RE_ANSWERS Q3.1).
+            // the tech slider range of the selected campaign and faction (MCX5_RE_ANSWERS Q3.1).
             tech_range_ = TechSliderRange{};
             const GuiControl* list = d->get("IDC_STAGING_MAP_LIST");
             const GuiControl* fc = d->get("IDC_FACTION_COMBO");
@@ -1905,8 +1905,8 @@ void FrontEnd::on_click(const GuiEvent& e, std::vector<MenuAction>& out) {
                     a.campaign = s.factions[fi].campaign;
                     a.faction = s.factions[fi].faction;
                     a.difficulty = difficulty_of(*d);
-                    a.game_options = game_options_;  // ui1 t06: the advanced options (set = false: the campaign's)
-                    game_options_.set = false;       // mcx8 t10: retail clears flag 0x20 after the campaign start's copy
+                    a.game_options = game_options_;  // the advanced options (set = false: the campaign's)
+                    game_options_.set = false;       // retail clears flag 0x20 after the campaign start's copy
                     out.push_back(std::move(a));
                 }
             }
@@ -1920,9 +1920,9 @@ void FrontEnd::on_click(const GuiEvent& e, std::vector<MenuAction>& out) {
             pop();
         } else if (is("IDC_DEFAULTS_BUTTON")) {
             fill_game_options(*d, p_.game_option_defaults);
-            options_changed_ = false;  // mcx8 t10: Defaults clears flag 0x20
+            options_changed_ = false;  // Defaults clears flag 0x20
         } else if (is("IDC_ALLOW_RANDOM_EVENTS")) {
-            options_changed_ = true;  // mcx8 t10: a checkbox event sets flag 0x20 (the box is greyed in FoC)
+            options_changed_ = true;  // a checkbox event sets flag 0x20 (the box is greyed in FoC)
         }
     } else if (ascii_iequals(n, kSkirmishAdvanced) && d) {  // skm1 t02
         if (is("IDC_BUTTON_ACCEPT")) {
@@ -1938,7 +1938,7 @@ void FrontEnd::on_click(const GuiEvent& e, std::vector<MenuAction>& out) {
         }
     } else if (ascii_iequals(n, kSkirmish) && d) {
         if (is("IDC_CANCEL_BUTTON")) go(kSingle);
-        else if (is("IDC_SELECT_OPTIONS")) push(kSkirmishAdvanced);  // skm1 t02: retail 0xea8d0 picks the skirmish dialog
+        else if (is("IDC_SELECT_OPTIONS")) push(kSkirmishAdvanced);  // retail 0xea8d0 picks the skirmish dialog
         else if (is("IDC_SELECT_OFFICIAL_MAPS") || is("IDC_SELECT_CUSTOM_MAPS")) {
             custom_tab_ = is("IDC_SELECT_CUSTOM_MAPS");
             fill_skirmish_maps(*d);
@@ -1953,8 +1953,8 @@ void FrontEnd::on_click(const GuiEvent& e, std::vector<MenuAction>& out) {
                     char id[32];
                     std::snprintf(id, sizeof id, "IDC_PLAYER_NAME_%d", p);
                     const GuiControl* nm = d->get(id);
-                    if (p >= 2 && (!nm || nm->selected < 1)) continue;  // ui1 t07: Open (no player)
-                    // skm1 t06: the slot's AI difficulty (slot 1: rows Easy / Medium / Hard; slots 2..: Open first)
+                    if (p >= 2 && (!nm || nm->selected < 1)) continue;  // Open (no player)
+                    // the slot's AI difficulty (slot 1: rows Easy / Medium / Hard; slots 2..: Open first)
                     const int32_t row = nm && nm->selected >= 0 ? nm->selected : (p >= 2 ? 2 : 1);
                     a.difficulties.push_back(p == 0 ? 1 : std::clamp(p >= 2 ? row - 1 : row, 0, 2));
                     if (p == 1) a.difficulty = a.difficulties.back();
@@ -2096,7 +2096,7 @@ void FrontEnd::on_click(const GuiEvent& e, std::vector<MenuAction>& out) {
         if (is("IDC_APPLY")) {
             apply_keys(out);
             pop();
-        } else if (is("IDC_OK")) {  // Back: UI5 t09 (UI.md §4.3) closes, nothing applied, no question; the edits are
+        } else if (is("IDC_OK")) {  // Back: UI5 t09 (legacy docs/re/UI.md §4.3) closes, nothing applied, no question; the edits are
             keys_dirty_ = false;     // dropped (the next open copies the applied table)
             pop();
         } else if (is("IDC_RESTORE_DEFAULTS")) {
@@ -2232,7 +2232,7 @@ void FrontEnd::apply_keys(std::vector<MenuAction>& out) {
     out.push_back(act(MenuAction::Kind::KeybindingsChanged));
 }
 
-// UI5 t08 (UI.md §4.5 "Hint list"): "Hint_<control id>" from the game text, wrapped into IDC_HINT_LIST's rows (white); a
+// UI5 t08 (legacy docs/re/UI.md §4.5 "Hint list"): "Hint_<control id>" from the game text, wrapped into IDC_HINT_LIST's rows (white); a
 // control without a hint shows one blank row. The list is shown from the first hover on.
 void FrontEnd::show_hint(GuiDialog& d, std::string_view control) {
     if (!d.get("IDC_HINT_LIST")) return;
@@ -2265,7 +2265,7 @@ void FrontEnd::update(std::span<const GuiEvent> events, const InputFrame& raw, s
         const int32_t slot = c.type == GuiGadgetType::EditBox ? keyboard_edit_slot(c.id()) : -1;
         if (slot >= 0) {
             for (uint32_t k = 1; k < 256; ++k) {
-                // UI5 t09 (UI.md §4.3 Capture): every key but Shift / Ctrl / Alt alone binds, Delete and Backspace
+                // UI5 t09 (legacy docs/re/UI.md §4.3 Capture): every key but Shift / Ctrl / Alt alone binds, Delete and Backspace
                 // included (retail has no per-slot clear); Esc is the dialog's cancel event. [port] Tab is a key here
                 // (MissionHolocron's default; whether retail's field receives Tab is not settled).
                 if (!raw.keys_pressed.test(k) || k == vk::kEscape || k == vk::kShift || k == vk::kControl || k == vk::kAlt ||
@@ -2305,7 +2305,7 @@ void FrontEnd::update(std::span<const GuiEvent> events, const InputFrame& raw, s
             case GuiEvent::Kind::RowClicked:  // [port: Gabriel] only the saved games tree uses row clicks
                 if (ascii_iequals(e.dialog, kSave) || ascii_iequals(e.dialog, kLoad)) on_change(e, out);
                 break;
-            case GuiEvent::Kind::Hovered:  // UI5 t08: the single-player menu's hint list
+            case GuiEvent::Kind::Hovered:  // the single-player menu's hint list
                 if (ascii_iequals(e.dialog, kSingle))
                     if (GuiDialog* d = gui_->find(kSingle)) show_hint(*d, e.control);
                 break;

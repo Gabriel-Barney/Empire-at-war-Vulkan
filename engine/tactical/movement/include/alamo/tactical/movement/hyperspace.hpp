@@ -1,4 +1,4 @@
-// L1 systems - hyperspace departures and the locomotor engines flag (docs/re/L1_S4_REMAINING.md §3.4, docs/re/SCRIPT_GAPS.md
+// L1 systems - hyperspace departures and the locomotor engines flag (legacy docs/re/L1_S4_REMAINING.md §3.4, legacy docs/re/SCRIPT_GAPS.md
 // §2.2 / §3.2; the MOVEMENT.md §2.6 "Departure" figures do not apply, L1_S4_REMAINING §3.4 corrections).
 //
 // HyperspaceDepartures: locomotor vf +0x2a8(keep_parent_link, delay) (0x5caf40, FIGHTER / SIMPLE_SPACE locomotors;
@@ -14,7 +14,7 @@
 // EngineControl: Locomotor_Set_Engines (0x5545a0) [H]: engine hard point destroyed -> engines off for good
 // (+0xd0 = 0, +0xd1 = 1); disable for t seconds -> off with re-enable frame +0xd4 = max(+0xd4, now + int(30 t));
 // t < 0 -> off indefinitely. Both act only when (online or a timed disable is pending) and not permanent
-// (HARDPOINT_DISABLED.md §9.1): so destroying the last engine hard point while the engines are already off
+// (legacy docs/re/HARDPOINT_DISABLED.md §9.1): so destroying the last engine hard point while the engines are already off
 // indefinitely does NOT set permanent. repair_online = the hardpoint-repair online path 0x393980 (clears permanent);
 // enable = the script path (on unless destroyed). online() = Are_Engines_Online (+0xd0); while off, the effective
 // max speed takes x Engines_Disabled_Speed_Modifier live (MOVEMENT §3.4 item 5). Timed disables end in tick()

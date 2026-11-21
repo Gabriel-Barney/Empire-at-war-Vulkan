@@ -2,7 +2,7 @@
 //
 // Error discipline: Lua 5.0 raises errors with longjmp, which skips C++ destructors. So no Lua error
 // is ever raised while a C++ object with a destructor is alive in a binding:
-//   * binding implementations (ImplFn) never call lua_error / luaL_check*. q6 t11 (docs/re/LUA_API.md "Binding error
+//   * binding implementations (ImplFn) never call lua_error / luaL_check*. q6 t11 (legacy docs/re/LUA_API.md "Binding error
 //     model across all bindings"): a binding never raises a Lua error at all. An error-level diagnostic is
 //     Call::script_error_stop (log, set the script's stop flag, return no values), a warning Call::script_warning (log
 //     only);
@@ -58,7 +58,7 @@ private:
     profile::Scope scope_;
 };
 
-// mcx6 t08: the runaway-script guard (LuaVmOptions::script_budget). A count hook armed on the lua_State that is about
+// the runaway-script guard (LuaVmOptions::script_budget). A count hook armed on the lua_State that is about
 // to run raises a Lua error tagged kRunawayTag after `budget` VM instructions; the error unwinds to the resume / pcall
 // that started the run (only Lua's own frames: the hook fires inside luaV_execute). Armed around each entry and put
 // back afterwards, so no hook is left on a state between runs (a saved state may not carry one, vm_persist.cpp). An entry
@@ -109,14 +109,14 @@ std::span<const ImplEntry> impl_script_gaps();   // bind_script_gaps.cpp: specia
 std::span<const ImplEntry> impl_fog();           // bind_fog.cpp: FogOfWar.* and LuaFOWCellsClass.Undo_Reveal (fog follow-up)
 std::span<const ImplEntry> impl_script_remaining();  // bind_script_remaining.cpp: the last unbound globals / methods (L1 final)
 
-// L1/S4 wave 2b (SCRIPT_GAPS.md §1.4 / §1.5): Land/SpaceTaskForceClass.Fire_Special_Weapon(type_name, target) on the
+// L1/S4 wave 2b (legacy docs/re/SCRIPT_GAPS.md §1.4 / §1.5): Land/SpaceTaskForceClass.Fire_Special_Weapon(type_name, target) on the
 // task force's units (unit-list order). For the tactical AI family's binding (bind_ai_tactical.cpp): pass the task
 // force's units (AiScriptHost::tf_units) and its player (§1.5 upgrade gate; -1 = the first unit's owner). Pushes the
 // result (the firing unit, or false / nothing on a script error) and returns the value count, like an ImplFn.
 int task_force_fire_special_weapon(Call& c, bool space, const std::vector<objects::ObjectHandle>& units, int32_t player);
 // bind_script_remaining.cpp: the neutral player id (the galactic sim's, else the first neutral-faction player); -1 unknown.
 int32_t neutral_player_id(Call& c);
-// storyb t17 (STORYB_T17_SPAWNS_AND_DEATH.md §1.2 / §1.3 / §2.2 [H]): an effect object of `type` made for `parent` in the
+// storyb t17 (legacy docs/re/STORYB_T17_SPAWNS_AND_DEATH.md §1.2 / §1.3 / §2.2 [H]): an effect object of `type` made for `parent` in the
 // parent's store, at the parent's position and facing (+ `z_offset` and the type's Layer_Z_Adjust when `layer_z`), owned
 // by `owner`. When the parent has a model (object_has_model) it is attached to it (dies with it, objects::SpawnParams::
 // attach_parent); [port] the render attachment to a bone is not kept: the object draws at its own position.
@@ -143,7 +143,7 @@ void task_force_set_targeting_priorities(Call& c, const std::vector<objects::Obj
 int ai_wrapper_object(Call& c, int i, objects::ObjectHandle& out);
 // An AITargetLocationWrapper with no live object (a region / marker target): its host position [port]. False otherwise.
 bool ai_target_position(Call& c, int i, Vec3& out);
-// q6 t03 (LUA_API.md "Unit order bindings: target arguments"): argument i as an AITargetLocationWrapper.
+// q6 t03 (legacy docs/re/LUA_API.md "Unit order bindings: target arguments"): argument i as an AITargetLocationWrapper.
 //   is_target: the argument is one (false: anything else, nothing else filled);
 //   dead:      no AI host, the target is not valid (the original's AI target +0x38 null), or its object is gone [port];
 //   object:    its live game object (AI target vf+0x30), null for a region / marker target;
@@ -174,7 +174,7 @@ const std::vector<std::string>& class_names();
 uint32_t class_id(std::string_view cls);
 uint32_t parent_class(uint32_t cls);  // kNoClass at the root (LuaUserVar)
 
-// q6 t11 (LUA_API.md "Mode gates", "Dead or null wrappers"): what the dispatcher checks before the implementation runs.
+// q6 t11 (legacy docs/re/LUA_API.md "Mode gates", "Dead or null wrappers"): what the dispatcher checks before the implementation runs.
 // The mode gate is tested first (an error), then the dead-wrapper rule of a GameObjectWrapper method.
 enum class ModeGate : uint8_t {
     None,
@@ -187,7 +187,7 @@ enum class DeadRule : uint8_t {
     Error,        // script error "this object is already dead" (Call::script_error_stop)
     WarnNothing,  // warning "this object is dead!", returns nothing
     WarnZero,     // warning "this object is dead!", returns 0
-    SilentZero,   // no message, returns 0 (Get_Shield, docs/re/MCX8_BINDINGS_OBJECTS.md)
+    SilentZero,   // no message, returns 0 (Get_Shield, legacy docs/re/MCX8_BINDINGS_OBJECTS.md)
 };
 
 struct MethodSlot {
@@ -225,7 +225,7 @@ struct LuaVm::Impl {
     double time = 0.0;
     uint32_t frame = 0;
     std::vector<std::string> messages, errors;
-    uint32_t runaways = 0;          // mcx6 t08: runs stopped by options.script_budget
+    uint32_t runaways = 0;          // runs stopped by options.script_budget
     std::vector<uint32_t> unbound;  // per binding row (binding_table())
     uint64_t unbound_total = 0;
     std::map<int32_t, ThreadRec> threads;  // id order = service order
@@ -238,7 +238,7 @@ struct LuaVm::Impl {
     // GameObjectWrapper Ud::reserved holds the store tag of its object.
     int32_t store_tag = 0;
     std::string save_error;  // N1: why the last LuaVm::write could not save ("" = it saved)
-    bool touched = false;    // q6 t19: LuaVm::fresh() is !touched
+    bool touched = false;    // LuaVm::fresh() is !touched
 
     void message(std::string line);
     void kill_thread(int32_t id);  // marks; removal happens in reap()
@@ -268,7 +268,7 @@ struct Call {
         return s ? std::string_view(s, lua_strlen(L, idx(i))) : std::string_view();
     }
     const Ud* userdata(int i, uint32_t cls) const;  // nullptr unless an engine userdata of `cls`
-    // q6 t03 / t11 (LUA_API.md "What an error does to the script", "Binding error model across all bindings"): the
+    // q6 t03 / t11 (legacy docs/re/LUA_API.md "What an error does to the script", "Binding error model across all bindings"): the
     // original's script error 0x248190, used for every error-level diagnostic of every binding. Logs "SCRIPT ERROR:
     // <text>" and sets the script's exited flag (+0x121, LuaVm::Impl::exit_requested, the flag ScriptExit sets), with no
     // Lua error: the binding returns nothing (returns 0), pcall succeeds, the calling thread runs on to its next yield,
@@ -350,13 +350,13 @@ void galactic_trigger(Call& c, const std::vector<std::pair<objects::ObjectHandle
 bool black_market_allows(Call& c, int32_t player, std::string_view ability_name, bool must_be_bought);
 // --- end P4 lua ---
 
-// a1g t06: Spawn_Unit at a planet in a galactic script (the VM's store is the galactic sim's, `location` is one of its
+// Spawn_Unit at a planet in a galactic script (the VM's store is the galactic sim's, `location` is one of its
 // planets): GalacticSim::spawn_unit, so the unit lives in the sim like a produced one (space units in the owner's orbit
 // fleet, companies landed or in a new fleet, ground units on the surface, structures on the planet; one object per
 // company: the members are the company's views, no member objects). Null when not handled (no galactic sim, not a
 // planet, a type without a galactic role): the caller then creates the object directly.
 objects::ObjectHandle galactic_spawn_unit(Call& c, uint32_t type, int32_t player, objects::ObjectHandle location);
-// bkg3 t04: the container of an object of the galactic sim's store (GalacticSim::container_of: a unit's fleet, a
+// the container of an object of the galactic sim's store (GalacticSim::container_of: a unit's fleet, a
 // stationary fleet's planet, a landed unit's / structure's planet), for VMs without an ObjectBridge::container_of hook
 // (the galactic AI's plan and free-store VMs: the sim keeps fleet membership outside the store's container links).
 // False when the VM's store is not a galactic sim's store.
@@ -370,13 +370,13 @@ inline constexpr int32_t kParentStoreTag = 1;
 // one object per Company_Units entry; the port's is ONE object of the company type (campaign.hpp "Company transports").
 // A member view is a GameObjectWrapper of that company object standing for its Company_Units entry `index`: Ud::reserved
 // = store tag (low byte) | kMemberViewFlag | index << 16. Galactic Find_All_Objects_Of_Type returns views for the entries
-// that pass its filters (refixf t03: member type, category / properties masks, owner), Find_First_Object for member type
+// that pass its filters (member type, category / properties masks, owner), Find_First_Object for member type
 // names; Get_Type gives the member type, Get_Parent_Object the company's plain wrapper (the
 // original's transport), the galactic Activate_Ability does nothing (a unit inside a transport). Every other method acts
 // on the company object [port]. Views are cached in the object cache under object_cache_key (negative keys).
 inline constexpr int32_t kStoreTagMask = 0xff;
 inline constexpr int32_t kMemberViewFlag = 0x100;
-// mcx5 t04: member views are made on demand for any Company_Units entry (the original keeps one object per entry, no
+// member views are made on demand for any Company_Units entry (the original keeps one object per entry, no
 // cap); the index has 16 bits in Ud::reserved, so entries from 65536 on get no view (nil) - far above any company.
 inline constexpr uint32_t kMaxMemberViews = 65536;  // limit: guard (16-bit index in Ud::reserved)
 inline int32_t store_tag_of(const Ud& ud) { return ud.reserved & kStoreTagMask; }
@@ -462,7 +462,7 @@ AiArg ai_arg(Call& c, int i);
 void push_position(lua_State* L, Vec3 p);
 Vec3 position_of(const Ud& u);
 
-// ref5 t03: the small result helpers every binding family shares (were copied into each bind_*.cpp).
+// the small result helpers every binding family shares (were copied into each bind_*.cpp).
 inline int push_nil(Call& c) {
     lua_pushnil(c.L);
     return 1;
@@ -473,11 +473,11 @@ inline int push_bool(Call& c, bool b) {
 }
 inline bool is_bool(const Call& c, int i) { return c.has(i) && lua_type(c.L, c.idx(i)) == LUA_TBOOLEAN; }
 
-// ref5 t03: "something which defines a position" (LUA_API.md), one rule for every binding family (bind_objects.cpp):
+// "something which defines a position" (legacy docs/re/LUA_API.md), one rule for every binding family (bind_objects.cpp):
 //   GameObjectWrapper        alive: its position (`object` = it); dead: Dead;
 //   PositionWrapper          its value;
 //   AITargetLocationWrapper  its live object's position (`object` = it), else the AI host's target position (a region or
-//                            marker target, mcx8 t01), else Dead (no AI host, an invalid target);
+//                            marker target), else Dead (no AI host, an invalid target);
 //   task force               its first live unit (`object` = it) [port], else Dead;
 //   anything else            NotPosition.
 // A family that accepts fewer kinds tests the argument's class itself before converting it.

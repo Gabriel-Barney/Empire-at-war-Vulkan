@@ -18,7 +18,7 @@
 #include <string>
 #include <vector>
 
-#include "alamo/core/bytes.hpp"  // FOW t01: fog save round trip
+#include "alamo/core/bytes.hpp"  // fog save round trip
 #include "alamo/core/file_provider.hpp"
 #include "alamo/core/host_fs.hpp"
 #include "alamo/core/hash.hpp"  // S4: name_crc for map placements
@@ -31,17 +31,17 @@
 #include "alamo/objects/object_types.hpp"
 #include "alamo/objects/behaviors.hpp"
 #include "alamo/sim/campaign_battles.hpp"
-#include "alamo/tactical/abilities/ability_types.hpp"  // s78j t03: SPRINT
+#include "alamo/tactical/abilities/ability_types.hpp"  // SPRINT
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
 #include "alamo/ai/ai_definitions.hpp"        // OI host: BattleAi order test
 #include "alamo/ai/perception_equations.hpp"
-#include "alamo/lua/lua_vm.hpp"  // refixf t03: Find_All_Objects_Of_Type from a battle VM
+#include "alamo/lua/lua_vm.hpp"  // Find_All_Objects_Of_Type from a battle VM
 #include "alamo/lua/object_bridge.hpp"
 #include "alamo/sim/battle_ai.hpp"
 #endif
 #include "alamo/sim/map_spawn.hpp"
 #include "alamo/sim/sim_host.hpp"
-#include "alamo/tactical/movement/ted_grid.hpp"  // S7 t07: SPACE_OBSTACLE footprints
+#include "alamo/tactical/movement/ted_grid.hpp"  // SPACE_OBSTACLE footprints
 #include "alamo/vfs/vfs.hpp"
 #include "alamo/tactical/garrison/garrison_types.hpp"  // S4
 #include "alamo/test/support.hpp"
@@ -62,7 +62,7 @@ inline const char* g_temp_prefix = "alamo_sim_battle_tests";
 // s78n t20 review: an edit make_data applies to the S10Types.xml text it writes (null: none). A test that sets it also
 // sets its own g_temp_prefix (the edited data gets its own folder) and resets both.
 inline std::string (*g_types_patch)(std::string) = nullptr;
-// SP5 t03: the same for the fighter data's S10BayHardPoints.xml (null: none).
+// the same for the fighter data's S10BayHardPoints.xml (null: none).
 inline std::string (*g_bay_patch)(std::string) = nullptr;
 // mcx4 tac2: extra GameConstants children make_data inserts before </GameConstants> (null: none).
 inline const char* g_constants_extra = nullptr;
@@ -188,7 +188,7 @@ inline std::string fog_types() {
     return t;
 }
 
-// FOW t01: the fog data plus a Space_Automatic Battlefield_Modifier with FOW_Reveal_Range_Multiplier 1.5 on the corvettes
+// the fog data plus a Space_Automatic Battlefield_Modifier with FOW_Reveal_Range_Multiplier 1.5 on the corvettes
 // (Empire has one, the Underworld four), as the shipped Hutt_Field_Commander_FOW_Increase (Ground_Automatic) is built.
 inline std::string fog_bm_types() {
     std::string t = fog_types();
@@ -232,7 +232,7 @@ inline std::string anim_types() {
         if (p != std::string::npos) t.insert(p + at.size(), what);
     };
     insert_after("<GroundInfantry Name=\"S10_Trooper\">", "<Death_Persistence_Duration>1.0</Death_Persistence_Duration><Death_Fade_Time>0.5</Death_Fade_Time>");
-    // refixf t04: the star base's typed clone (no Remove_Upon_Death, 30 s persistence) is made on the battle's last tick.
+    // the star base's typed clone (no Remove_Upon_Death, 30 s persistence) is made on the battle's last tick.
     insert_after("<StarBase Name=\"S10_Star_Base_1\">",
                  "<Remove_Upon_Death>Yes</Remove_Upon_Death><Death_Clone>Damage_Normal, S10_Star_Base_Death_Clone</Death_Clone>");
     insert_after("<SpaceUnit Name=\"S10_Frigate\">", "<Death_Clone>Damage_Normal, S10_Frigate_Death_Clone</Death_Clone>");
@@ -258,7 +258,7 @@ inline std::string presence_types() {
     return t;
 }
 
-// refixf t03: TEAM containers in land battles: S10_Trooper has Create_Team and S10_Squad no Create_Team_Type, so each
+// TEAM containers in land battles: S10_Trooper has Create_Team and S10_Squad no Create_Team_Type, so each
 // squad chunk gets one object of the type named "Team" whose representative type (0x3973b0) is S10_Squad.
 inline std::string team_types() {
     std::string t = kTypes;
@@ -270,9 +270,9 @@ inline std::string team_types() {
     return t;
 }
 
-// s78n t03 / t09: the team data with the Team type on LAND_TEAM_CONTAINER_LOCOMOTOR (its own mover, members steering to
+// the team data with the Team type on LAND_TEAM_CONTAINER_LOCOMOTOR (its own mover, members steering to
 // slots) and MaxJiggleDistance 0.75; the trooper sized as FoC's Squad_Stormtrooper (Custom_Hard extents 2.0 x Scale_Factor
-// 1.5 = half-extent 3.0) with FormationSpacing 0.5. s78n t14: ContainerArrangement Rows (FoC's Stormtrooper_Team).
+// 1.5 = half-extent 3.0) with FormationSpacing 0.5. ContainerArrangement Rows (FoC's Stormtrooper_Team).
 // s78n review: `garrison` adds a garrison vehicle (S10_Walker: GARRISON_VEHICLE, 8 Infantry slots; company S10_Walker_Co),
 // makes the trooper a GARRISON_UNIT and gives troopers and walker 100000 health (nobody dies during the garrison test).
 inline std::string squad_types(bool garrison = false) {
@@ -306,7 +306,7 @@ inline std::string squad_types(bool garrison = false) {
     return t;
 }
 
-// a1i t04: the team data plus a landing transport: S10_Squad (Max_Squad_Size 2: two teams) names Company_Transport_Unit
+// the team data plus a landing transport: S10_Squad (Max_Squad_Size 2: two teams) names Company_Transport_Unit
 // S10_Lander, whose Landing_Transport_Variant S10_Lander_Landing (TRANSPORT, Hover_Offset 10 inherited) carries it down.
 inline std::string landing_types() {
     std::string t = team_types();
@@ -324,7 +324,7 @@ inline std::string landing_types() {
     return t;
 }
 
-// s78j t03 / t04: the team data plus a SPRINT unit ability (SPEED Mod_Multiplier 1.5, long expiry) on S10_Trooper, so a
+// the team data plus a SPRINT unit ability (SPEED Mod_Multiplier 1.5, long expiry) on S10_Trooper, so a
 // test can activate it on single team members.
 inline std::string sprint_types() {
     std::string t = team_types();
@@ -336,7 +336,7 @@ inline std::string sprint_types() {
     return t;
 }
 
-// s78k t04: the team data with a converting blaster (Projectile_Convert_Enemy_*: every Infantry enemy within 30 of the
+// the team data with a converting blaster (Projectile_Convert_Enemy_*: every Infantry enemy within 30 of the
 // detonation changes owner to the shooter's), so team members convert in a battle.
 inline std::string convert_types() {
     std::string t = team_types();
@@ -484,7 +484,7 @@ inline std::string hack_types() {
                  "<Custom_Hard_XExtent>6</Custom_Hard_XExtent><Custom_Hard_YExtent>6</Custom_Hard_YExtent>"
                  "<Unit_Abilities_Data SubObjectList=\"Yes\"><Unit_Ability><Type>CAPTURE_VEHICLE</Type><Recharge_Seconds>1</Recharge_Seconds>"
                  "<GUI_Activated_Ability_Name>S10_StealN</GUI_Activated_Ability_Name></Unit_Ability>"
-                 // s78n t19: a STIM_PACK whose self damage (half the max health) can kill its user in the command phase
+                 // a STIM_PACK whose self damage (half the max health) can kill its user in the command phase
                  "<Unit_Ability><Type>STIM_PACK</Type><Recharge_Seconds>1</Recharge_Seconds><Expiration_Seconds>2</Expiration_Seconds>"
                  "<Damage_Percent_When_Activated>0.5</Damage_Percent_When_Activated></Unit_Ability></Unit_Abilities_Data>"
                  "<Abilities SubObjectList=\"Yes\"><Vehicle_Thief_Ability Name=\"S10_StealN\"><Activation_Style>User_Input</Activation_Style>"
@@ -550,7 +550,7 @@ inline std::string s4_types() {
                 " <GroundInfantry Name=\"S4_Hero\"><Variant_Of_Existing_Type>S10_Trooper</Variant_Of_Existing_Type>"
                 "<Is_Named_Hero>Yes</Is_Named_Hero><Hyperspace>Yes</Hyperspace><Hyperspace_Speed>1.5</Hyperspace_Speed>"
                 "<Population_Value>1</Population_Value></GroundInfantry>\n"
-                // a1f t07: Secondary_Abandoned_Sensor's combat-relevant tags (a selectable neutral capture structure, no weapon; health
+                // Secondary_Abandoned_Sensor's combat-relevant tags (a selectable neutral capture structure, no weapon; health
                 // 250 instead of 700 so three troopers kill it before the Underworld wins)
                 " <SecondaryStructure Name=\"S4_Sensor\"><Behavior>CAPTURE_POINT, SELECTABLE, DUMMY_GROUND_STRUCTURE</Behavior>"
                 "<Is_Dummy>Yes</Is_Dummy><Tactical_Health>250</Tactical_Health><CategoryMask>Structure</CategoryMask>"
@@ -586,7 +586,7 @@ inline const char* const kBmItems = R"(<BlackMarketItems>
 )";
 // --- end P4 tactical ---
 
-// Skirmish station production test data (mcx4 t04: S10_Tech_Upgrade / S10_No_Queue_Upgrade too, see below): the
+// Skirmish station production test data (S10_Tech_Upgrade / S10_No_Queue_Upgrade too, see below): the
 // Empire star base lists S10_Base_Upgrade (DUMMY_UPGRADE with a
 // Skirmish_Automatic Starbase_Upgrade_Ability, prerequisite S10_Star_Base_1, limit 1 for all allies) in its Empire row of
 // Tactical_Buildable_Objects_Multiplayer, and upgrades to S10_Star_Base_2. s78n t20 step 5: S10_Trooper (a land unit of
@@ -617,7 +617,7 @@ inline std::string prod_types() {
                       " <UpgradeObject Name=\"S10_Land_Upgrade\"><Behavior>DUMMY_UPGRADE</Behavior><Affiliation>Empire</Affiliation>"
                       "<Tactical_Build_Cost_Multiplayer>100</Tactical_Build_Cost_Multiplayer><Tactical_Build_Time_Seconds>1</Tactical_Build_Time_Seconds>"
                       "<Tactical_Production_Queue>Tactical_Upgrades</Tactical_Production_Queue></UpgradeObject>\n"
-                      // mcx4 t04: a skirmish tech upgrade like FoC's EC_Level_Two_Tech_Upgrade (both tech flags, the upgrades queue), at
+                      // a skirmish tech upgrade like FoC's EC_Level_Two_Tech_Upgrade (both tech flags, the upgrades queue), at
                       // most one built in a battle by the Empire and its allies
                       " <UpgradeObject Name=\"S10_Tech_Upgrade\"><Behavior>DUMMY_UPGRADE</Behavior><Affiliation>Empire</Affiliation>"
                       "<Tactical_Build_Cost_Multiplayer>10</Tactical_Build_Cost_Multiplayer><Tactical_Build_Time_Seconds>2</Tactical_Build_Time_Seconds>"
@@ -632,7 +632,7 @@ inline std::string prod_types() {
     return t;
 }
 
-// refixf t02: the star base is a SPACE_OBSTACLE (as every FoC star base: STARBASES.XML) with a 250 footprint.
+// the star base is a SPACE_OBSTACLE (as every FoC star base: STARBASES.XML) with a 250 footprint.
 inline std::string obstacle_types() {
     std::string t = kTypes;
     const std::string at = "<StarBase Name=\"S10_Star_Base_1\">";
@@ -645,14 +645,14 @@ inline std::string obstacle_types() {
     // S8 t02 / S7 t13 (test_runtime_obstacles): a weak LAND_OBSTACLE bunker, a LAND_OBSTACLE rock and a smaller rock
     // placeholder that always spawns the rock (Map_Load_Spawn_Table); a SPACE_OBSTACLE map unit (SIMPLE_SPACE locomotor, so
     // Hyperspace_Away kills it), an asteroid and a smaller asteroid placeholder that always spawns the asteroid.
-    // S8 t13: the land obstacles have no Land_Model_Name, so (MOVEMENT §1.3) they stamp only with Fine_Tune off (the
+    // the land obstacles have no Land_Model_Name, so (MOVEMENT §1.3) they stamp only with Fine_Tune off (the
     // explicit XML rectangle); with the default (on) and no proxy retail never stamps them.
     const std::string extra =
         " <GroundStructure Name=\"S10_Obst_Bunker\"><Fine_Tune_Occupied_Passability>No</Fine_Tune_Occupied_Passability><Tactical_Health>40</Tactical_Health><CategoryMask>Structure</CategoryMask>"
         "<Behavior>SELECTABLE</Behavior><LandBehavior>LAND_OBSTACLE</LandBehavior><Collidable_By_Projectile_Living>Yes</Collidable_By_Projectile_Living>"
         "<Obstacle_Width>60</Obstacle_Width><Obstacle_Height>60</Obstacle_Height><Obstacle_X_Offset>-30</Obstacle_X_Offset>"
         "<Obstacle_Y_Offset>-30</Obstacle_Y_Offset></GroundStructure>\n"
-        // S8 t09: a structure whose death clone is not an obstacle (Death_Clone_Is_Obstacle false, as Imperial_Prison_Dathomir)
+        // a structure whose death clone is not an obstacle (Death_Clone_Is_Obstacle false, as Imperial_Prison_Dathomir)
         " <GroundStructure Name=\"S10_Obst_Prison\"><Fine_Tune_Occupied_Passability>No</Fine_Tune_Occupied_Passability><Tactical_Health>40</Tactical_Health><CategoryMask>Structure</CategoryMask>"
         "<Behavior>SELECTABLE</Behavior><LandBehavior>LAND_OBSTACLE</LandBehavior><Death_Clone_Is_Obstacle>No</Death_Clone_Is_Obstacle>"
         "<Obstacle_Width>60</Obstacle_Width><Obstacle_Height>60</Obstacle_Height><Obstacle_X_Offset>-30</Obstacle_X_Offset>"
@@ -671,9 +671,9 @@ inline std::string obstacle_types() {
     return t;
 }
 
-// S7 t12: a TIE-like fighter squadron (FIGHTER_LOCOMOTOR members, Squadron_Units -> one TEAM container in space). Health
+// a TIE-like fighter squadron (FIGHTER_LOCOMOTOR members, Squadron_Units -> one TEAM container in space). Health
 // is high so the frigates' lasers do not end the test; the attack range is wide so a frigate next to the route becomes the
-// fighters' combat auto target long before they pass it. S7 t22: the squadron's chase ranges are the FoC X-wing squadron's
+// fighters' combat auto target long before they pass it. The squadron's chase ranges are the FoC X-wing squadron's
 // (Guard 1000 / Idle 200 / Attack_Move_Response 300); `fog` starts from the fog test types (frigates REVEAL 900 and
 // HIDE_WHEN_FOGGED; the fighters reveal nothing).
 inline std::string fighter_types(bool fog = false) {
@@ -694,7 +694,7 @@ inline std::string fighter_types(bool fog = false) {
                  "<Squadron_Formation_Error_Tolerance>25</Squadron_Formation_Error_Tolerance><Guard_Chase_Range>1000.0</Guard_Chase_Range>"
                  "<Idle_Chase_Range>200.0</Idle_Chase_Range><Attack_Move_Response_Range>300.0</Attack_Move_Response_Range></Squadron>\n"
                  " <Team Name=\"Team\"><Behavior>TEAM</Behavior></Team>\n"
-                 // S7 t24: a moving carrier (a locomotor, so its launches escort it) with one fighter bay; one squadron at a time
+                 // a moving carrier (a locomotor, so its launches escort it) with one fighter bay; one squadron at a time
                  " <SpaceUnit Name=\"S10_Carrier\"><Variant_Of_Existing_Type>S10_Frigate</Variant_Of_Existing_Type>"
                  "<Tactical_Health>20000</Tactical_Health><HardPoints>HP_S10_Laser_A, HP_S10_Bay</HardPoints>"
                  "<SpaceBehavior>STARSHIP_LOCOMOTOR, SPAWN_SQUADRON</SpaceBehavior>"
@@ -756,7 +756,7 @@ inline std::unique_ptr<Data> make_data(bool fog = false, bool anim = false, bool
                                            : fog_setup ? "_fog_setup"  // FOWF t05
                                            : fog_bm ? "_fog_bm"  // FOW t01
                                            : obstacle ? "_obstacle"  // refixf t02
-                                           : team     ? "_team"  // refixf t03: TEAM containers
+                                           : team     ? "_team"  // TEAM containers
                                            : prod   ? "_prod"  // station production
                                            : s4   ? "_s4"  // S4
                                            : bm   ? "_bm"  // P4 tactical
@@ -767,7 +767,7 @@ inline std::unique_ptr<Data> make_data(bool fog = false, bool anim = false, bool
     remove_all_long(d->root, ec);
     const fs::path x = d->root / "Data/XML";
     write_file(x / "GameObjectFiles.xml", "<GameObjectFiles><File>S10Types.xml</File></GameObjectFiles>\n");
-    // mcx1 t05: the fixture's types carry the DUMMY_* behaviours real FoC types have (galactic roles come only from them).
+    // the fixture's types carry the DUMMY_* behaviours real FoC types have (galactic roles come only from them).
     const auto patched = [](std::string t) {
         return ::alamo::test::with_galactic_dummies(g_types_patch ? g_types_patch(std::move(t)) : std::move(t));
     };
@@ -795,14 +795,14 @@ inline std::unique_ptr<Data> make_data(bool fog = false, bool anim = false, bool
     write_file(x / "HardPointDataFiles.xml", fighters ? "<Hard_Point_Files><File>S10HardPoints.xml</File><File>S10BayHardPoints.xml</File></Hard_Point_Files>\n"
                                                       : "<Hard_Point_Files><File>S10HardPoints.xml</File></Hard_Point_Files>\n");
     write_file(x / "S10HardPoints.xml", kHardpoints);
-    if (fighters)  // S7 t24: the carrier's fighter bay
+    if (fighters)  // the carrier's fighter bay
         write_file(x / "S10BayHardPoints.xml",
                    [](std::string t) { return g_bay_patch ? g_bay_patch(std::move(t)) : t; }(
                        "<HardPoints><HardPoint Name=\"HP_S10_Bay\"><Type>HARD_POINT_FIGHTER_BAY</Type><Health>200</Health>"
                        "<Fighter_Bay_Flyout_Distance>100</Fighter_Bay_Flyout_Distance></HardPoint></HardPoints>\n"));
     write_file(x / "FactionFiles.xml", "<FactionFiles><File>S10Factions.xml</File></FactionFiles>\n");
     std::string factions = kFactions;
-    // S10 map owners: Hostile (3), a native faction (4) and a playable faction without a player (5). modc t03: the first
+    // S10 map owners: Hostile (3), a native faction (4) and a playable faction without a player (5). The first
     // native faction (not playable, neutral or planet-controlling) owns the natives, so Hostile comes first as in FoC.
     if (s4)
         factions.insert(factions.find("</Factions>"), " <Faction Name=\"Hostile\"></Faction>\n <Faction Name=\"S10_Natives\"></Faction>\n"
@@ -831,8 +831,8 @@ inline std::unique_ptr<Data> make_data(bool fog = false, bool anim = false, bool
                " <Damage_To_Armor_Mod>Damage_Laser, Armor_Ship, 0.8</Damage_To_Armor_Mod>\n"
                " <AutoResolveLoserAttrition>0.80</AutoResolveLoserAttrition>\n"
                " <Space_Retreat_Allowed_Countdown_Seconds>5.0</Space_Retreat_Allowed_Countdown_Seconds>\n" +
-                   std::string(landing || sprint || convert || hack || vland || squad || squad_garrison ? " <Use_Reinforcement_Points>No</Use_Reinforcement_Points>\n" : "") +  // a1i t04: no points on the map
-                   std::string(fog_setup ? " <SetupPhaseEnabled>True</SetupPhaseEnabled>\n"  // FOWF t05: a mod's land setup phase
+                   std::string(landing || sprint || convert || hack || vland || squad || squad_garrison ? " <Use_Reinforcement_Points>No</Use_Reinforcement_Points>\n" : "") +  // no points on the map
+                   std::string(fog_setup ? " <SetupPhaseEnabled>True</SetupPhaseEnabled>\n"  // a mod's land setup phase
                                            " <SetupPhaseCountdownSeconds>3</SetupPhaseCountdownSeconds>\n"
                                          : "") +
                    std::string(g_constants_extra ? g_constants_extra : "") + "</GameConstants>\n");
@@ -945,8 +945,8 @@ struct Run {
     std::map<int32_t, int32_t> fog_last_target;  // human unit -> auto target after the previous tick
     uint32_t fog_new_targets = 0, fog_bad_targets = 0, fog_force_frames = 0;
     uint32_t fog_ability_frame = 0;  // battle frame the ping / Force Sight was activated (0 = not used)
-    uint32_t fog_ability_user = 0;   // aud1 t10: its user
-    // aud1 t10: one tick later the battle has cleared the EffectOn from events() (consume_events) and the presentation
+    uint32_t fog_ability_user = 0;   // its user
+    // one tick later the battle has cleared the EffectOn from events() (consume_events) and the presentation
     // copy (AbilitySystem::activation_events) still holds it
     bool fog_effect_cleared = false, fog_effect_kept = false;
     float fog_probe_x = 0.0f, fog_probe_y = 0.0f;  // the user's position mirrored halfway through the map centre
@@ -954,7 +954,7 @@ struct Run {
     // OI fog: shots (REVEAL vf26 flashes) seen, host API round trips (FOW-active flag, reinforcement overlay)
     uint64_t fog_shots = 0, fog_flashed = 0;
     bool fog_api_ok = true, fog_api_checked = false;
-    // FOW t01: Battlefield_Modifier FOW_Reveal_Range_Multiplier (fog_bm data: S10_FOW_Boost on the corvettes), per player
+    // Battlefield_Modifier FOW_Reveal_Range_Multiplier (fog_bm data: S10_FOW_Boost on the corvettes), per player
     uint32_t bm_on_frames[2] = {0, 0}, bm_off_after_on[2] = {0, 0}, bm_bad_frames = 0;
     float bm_r_on = 0.0f, bm_r_off = 0.0f;  // a REVEAL unit's sight radius with / without the bonus
     bool bm_saved = false, bm_save_ok = false, bm_grid_ok = false;
@@ -1049,7 +1049,7 @@ inline void fog_probe(TacticalBattle& b, TacticalMode& tm, Run& out, StateHasher
     acc.u64(h.digest());
 }
 
-// FOW t01: the Battlefield_Modifier reveal list end to end. While a player has a live S10_FOW_Boost corvette its +0x1f8
+// the Battlefield_Modifier reveal list end to end. While a player has a live S10_FOW_Boost corvette its +0x1f8
 // bonus is 0.5 (MostExtreme in one category: several corvettes count once) and its REVEAL units reveal with sight x 1.5;
 // when the last one dies the bonus is 0 again. Once, with the bonus on: the grid reveal of a REVEAL unit covers the cells
 // of a 1.5 x sight circle (on a copy read back from FogOfWar::write, so the copy also checks the list survives a save),
@@ -1258,7 +1258,7 @@ inline Run run_campaign(const Data& d, bool land, bool fight, int32_t workers, u
     return out;
 }
 
-// wr1 t05: --golden-out DIR (test_battles.cpp) regenerates into DIR instead of over the tracked testdata.
+// --golden-out DIR (test_battles.cpp) regenerates into DIR instead of over the tracked testdata.
 inline std::string g_golden_out;
 inline std::string testdata_path(const std::string& name) {
     return (g_golden_out.empty() ? std::string(ALAMO_SIM_TESTDATA) : g_golden_out) + "/" + name;

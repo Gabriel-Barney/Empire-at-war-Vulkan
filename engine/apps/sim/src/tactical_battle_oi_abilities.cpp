@@ -1,4 +1,4 @@
-// OI abilities (owner: tactical abilities agent): the battle-host side of docs/re/TACTICAL_GAPS.md Â§1-Â§2 / Â§7 for
+// OI abilities (owner: tactical abilities agent): the battle-host side of legacy docs/re/TACTICAL_GAPS.md Â§1-Â§2 / Â§7 for
 // engine/tactical/abilities - the AbilityHost hooks (fog tests, map rectangle, locomotor state, ground height, the
 // Battlefield_Modifier reveal list), the repair credit hooks, the ability actions after the tick (move / stop orders,
 // owner changes), the objects abilities create (mines, summons, deploy troopers, barrage targets) and the death spawns
@@ -187,12 +187,12 @@ void TacticalBattle::oi_install(TacticalMode& mode, SimRng& rng) {
     };
 #endif
     // OI follow-up t03 (A1_READINGS Â§28.9): the script's shares of the movement lock (Lock_Current_Orders, a Divert).
-    // a1i t04: + the unload exit path of a landing object's unloaded units (Â§35.2, the locomotor's forced-move term).
+    // + the unload exit path of a landing object's unloaded units (Â§35.2, the locomotor's forced-move term).
     // s78n t06 review: + the hero clash's share (0x39ad40 reads the one counter the clash Begin 0x6abde0 raises), so
     // AbilitySystem::locked (can(HUNT), the behaviour switch-ons, the Lure follower filter) sees a duelling hero locked.
     h.movement_locked = [this](tc::ObjectId id) { return script_movement_locked(id) || landing_locked(id) || hero_clash_locked(id); };
     // S8 t06 (LOB_SOLVER §3.5): Remote_Bomb range tests against a garrisoned target's host. S8 t10 (§5.1): the host's gun
-    // bones of its current ALT entry (Num_Garrison_Guns FP_0<i>_ALT<a>, CombatSystem::garrison_fire_bones; s78f t03: world
+    // bones of its current ALT entry (Num_Garrison_Guns FP_0<i>_ALT<a>, CombatSystem::garrison_fire_bones; world
     // position and x-axis yaw of the current pose).
     h.garrison_holder = [this](tc::ObjectId id) -> tc::ObjectId { return garrison_holder_of(id); };
     h.garrison_fire_bones = [this](tc::ObjectId holder, tactical::Vec3& holder_pos, std::vector<tc::GarrisonFireBone>& bones) {
@@ -377,7 +377,7 @@ objects::ObjectHandle TacticalBattle::script_spawn(TacticalMode& mode, const obj
         return h;
     }
     const uint32_t t = static_cast<uint32_t>(p.type);
-    script_add_types(std::span<const uint32_t>(&t, 1));  // q6 t12: a real battle unit, not a prop
+    script_add_types(std::span<const uint32_t>(&t, 1));  // a real battle unit, not a prop
     // l1_props: a type the tables could not take (no tables) still joins the L1 systems
     const objects::ObjectId id = oi_spawn_unit(mode, static_cast<int32_t>(p.type), p.position, p.facing, p.owner, true);
     return id != objects::kNoObjectId ? mode.primary().find(id) : objects::ObjectHandle{};
@@ -596,7 +596,7 @@ void TacticalBattle::oi_events(TacticalMode& mode) {
             case ta::AbilityEventKind::MoveOrder: {  // 0x2a7b80 moves (HUNT, JET_PACK, CONFUSE, ...): not an order cancel
                 Unit* u = unit_by_id(e.id);
                 if (u && u->alive && !u->retreated && u->movable && bt_rng_) {
-                    // S7 t06: JET_PACK (0x3a38d0) swaps a Uses_Multiple_Locomotors unit to its secondary locomotor
+                    // JET_PACK (0x3a38d0) swaps a Uses_Multiple_Locomotors unit to its secondary locomotor
                     // (0x3a9910, MOVEMENT Â§3.1.1) before the move; the JETPACK locomotor flies it and swaps back on landing.
                     // Its weapons are suspended meanwhile (kUnitWeaponsSuspended, set before each combat tick).
                     if (e.type == ta::kJetPack && movement_) movement_->use_secondary_locomotor(e.id, true);
@@ -620,13 +620,13 @@ void TacticalBattle::oi_events(TacticalMode& mode) {
                 if (u && u->alive && u->movable && movement_) {
                     const std::vector<objects::ObjectId> ids{e.id};
                     // cu8j t02 (MOVEMENT §4.7.2 / §4.7.5): the stop-and-hold 0x3a9880 leaves every coordinator and adopts
-                    // (one ctor draw through the 0x39bcb0 predicate); DEPLOY 0x3a1ce0 stops, then adopts. cu8l t02: the
+                    // (one ctor draw through the 0x39bcb0 predicate); DEPLOY 0x3a1ce0 stops, then adopts. the
                     // coordinator-system stop 0x4261f0 (kStopLeave) leaves every coordinator without the adopt.
                     if (e.value == ta::kStopHold) {
                         (void)oi_stop_hold(mode, e.id);
                         break;
                     }
-                    // b0416: the unit leaves its coordinator, so the formation's attack block no longer moves it (as the
+                    // the unit leaves its coordinator, so the formation's attack block no longer moves it (as the
                     // Stop order, order_stop).
                     team_attack_drop(ids);
                     if (e.value == ta::kStopLeave) {
@@ -650,7 +650,7 @@ void TacticalBattle::oi_events(TacticalMode& mode) {
             case ta::AbilityEventKind::Immobilised:  // cu8l t02 (CU8K_T02_T06_RE §3, rule 6): the first movement lock
                 if (bt_rng_ && !script_movement_locked(e.id) && !landing_locked(e.id)) (void)mv_first_lock(mode, e.id, *bt_rng_);
                 break;
-            case ta::AbilityEventKind::TrooperReleased:  // r3g t02: 0x392160 - off the walker's bone, LANDING starts
+            case ta::AbilityEventKind::TrooperReleased:  // 0x392160 - off the walker's bone, LANDING starts
                 if (Unit* u = unit_by_id(e.id)) {
                     u->attached_to = objects::kNoObjectId;
                     u->attach_bone = -1;
@@ -692,7 +692,7 @@ void TacticalBattle::oi_events(TacticalMode& mode) {
                 const objects::ObjectId id = oi_spawn_unit(mode, q.object_type, oi_sv(q.position), oi_sv(q.facing), q.owner);
                 // mcx4 (MCX4_T10_RE_ANSWERS §15): a Buzz_Droids cloud is bound too (the ability system runs its pack)
                 if (id != objects::kNoObjectId) (void)abilities_->bind_spawn(q.serial, id);
-                // mcx4 t13: the summon / contamination / buzz-droid line hangs off the new object (presentation feed)
+                // the summon / contamination / buzz-droid line hangs off the new object (presentation feed)
                 if (q.purpose == ta::SpawnPurpose::Summon && id != objects::kNoObjectId)
                     summon_spawns_.push_back({id, q.source, q.owner, q.ability_type});
                 break;
@@ -721,7 +721,7 @@ void TacticalBattle::oi_events(TacticalMode& mode) {
                 // Vehicle_Thief (TACTICAL_GAPS Â§2.3.10): the victim type's capture variant (+0xda8, the resolved
                 // Vehicle_Thief_Inside_Clone of +0xda0) at the victim with the victim's owner (one id); the thief
                 // boards it; EJECT_VEHICLE_THIEF (46) on for the variant (REMAINING_GAPS Â§5.1). No variant: the
-                // original is boarded (s78n t12).
+                // original is boarded.
                 int32_t vt = q.object_type;
                 const Unit* victim = unit_by_id(q.target);
                 if (vt < 0 && victim) {
@@ -770,7 +770,7 @@ void TacticalBattle::oi_events(TacticalMode& mode) {
                 // garrison); 5. +0x3a2 |= 0x08 (stolen vehicle, permanent); 7. +0x3a1 |= 0x10 (incognito); 8. the thief
                 // boards. [port] the thief's record of the vehicle's previous owner is not kept (the eject kills the
                 // vehicle, REMAINING_GAPS §5.1, so nothing reads it); the store notify (step 6) is not modelled.
-                // s78n t12: step 3 only when the boarded object has unit ability 46.
+                // step 3 only when the boarded object has unit ability 46.
                 if (abilities_->has_ability(id, ta::kEjectVehicleThief))
                     abilities_->set_unit_ability_active(id, ta::kEjectVehicleThief, true, frame_);
                 const objects::ObjectHandle th = store.find(q.source), vh = store.find(id);
@@ -859,7 +859,7 @@ void TacticalBattle::oi_events(TacticalMode& mode) {
                 const objects::TypeIndex t = catalog_->types().raw().find(r->particle_effect);
                 if (t == objects::kNone || t >= catalog_->types().size()) break;
                 const objects::ObjectHandle h = spawn_prop(mode, static_cast<int32_t>(t), oi_sv(q.position), oi_sv(q.facing), q.owner);
-                // cu8g t05: not bound (the lure went off, or its owner is gone, before this pass): removed at once.
+                // not bound (the lure went off, or its owner is gone, before this pass): removed at once.
                 if (h && !abilities_->bind_spawn(q.serial, store.id(h))) remove_silently.push_back(store.id(h));
                 break;
             }
@@ -940,7 +940,7 @@ void TacticalBattle::oi_deployed_behaviors(TacticalMode& mode, objects::ObjectId
 bool TacticalBattle::oi_stop_hold(TacticalMode& mode, objects::ObjectId id) {
     const Unit* u = unit_by_id(id);
     if (!u || !u->alive || !u->movable || !movement_) return false;
-    // b0416: the unit leaves its coordinator, so the formation's attack block no longer moves it (as the Stop order,
+    // the unit leaves its coordinator, so the formation's attack block no longer moves it (as the Stop order,
     // order_stop). Without this a land attack block re-planned its approach on the 30-frame timer and undeployed a Mobile
     // Defense Unit that DEPLOY had just stopped.
     const std::vector<objects::ObjectId> ids{id};
@@ -997,7 +997,7 @@ void TacticalBattle::oi_ability_anims(uint64_t gframe) {
             if (anim_->play_default_idle(*gm, p.id, at, &presence)) ++stats_.anim_plays;
             continue;
         }
-        if (p.only_from_idle) {  // r3h t06: Idle_Blockblaster only over an idle-like clip or its own finished one
+        if (p.only_from_idle) {  // Idle_Blockblaster only over an idle-like clip or its own finished one
             const anim::SlotView cur = w->slot(p.id);
             const bool own_done = cur.type == p.type && cur.mode == anim::SlotMode::Finished;
             if (cur.type != anim::kNoAnimType && !anim::is_idle_like(cur.type) && !own_done) continue;

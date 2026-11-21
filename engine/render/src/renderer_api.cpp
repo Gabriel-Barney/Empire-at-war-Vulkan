@@ -1,5 +1,5 @@
 // alamo_render - the public Renderer (alamo/render/renderer.hpp): every call forwards to the RendererCore it owns
-// (renderer_core.hpp, REF3 t07). No behaviour of its own.
+// (renderer_core.hpp). No behaviour of its own.
 #include "alamo/render/renderer.hpp"
 
 #include "renderer_core.hpp"

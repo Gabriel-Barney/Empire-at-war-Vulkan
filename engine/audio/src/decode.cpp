@@ -1,8 +1,10 @@
 #include "alamo/audio/decode.hpp"
 
+#include <algorithm>
 #include <cstring>
 
 #include "ma_include.hpp"
+#include "memory_file.hpp"
 
 namespace alamo::audio {
 namespace {
@@ -25,16 +27,18 @@ uint16_t wav_format_tag(std::span<const uint8_t> b) {
 }
 
 struct Decoder {
+    detail::MemoryFile file;
     ma_decoder dec{};
     bool ok = false;
+    explicit Decoder(std::span<const uint8_t> bytes) : file(bytes) {}
     ~Decoder() {
         if (ok) ma_decoder_uninit(&dec);
     }
 };
 
-bool open(std::span<const uint8_t> bytes, Decoder& d, std::string* err) {
-    ma_decoder_config cfg = ma_decoder_config_init(ma_format_f32, 0, 0);  // native channels/rate
-    const ma_result r = ma_decoder_init_memory(bytes.data(), bytes.size(), &cfg, &d.dec);
+bool open(Decoder& d, std::string* err) {
+    const ma_decoder_config cfg = ma_decoder_config_init(ma_format_f32, 0, 0);  // native channels/rate
+    const ma_result r = detail::init_decoder(d.file, cfg, d.dec);
     if (r != MA_SUCCESS) {
         if (err) *err = std::string("miniaudio: ") + ma_result_description(r);
         return false;
@@ -54,8 +58,8 @@ Container sniff_container(std::span<const uint8_t> b) {
 }
 
 std::optional<AudioInfo> probe_audio(std::span<const uint8_t> bytes, std::string* err) {
-    Decoder d;
-    if (!open(bytes, d, err)) return std::nullopt;
+    Decoder d(bytes);
+    if (!open(d, err)) return std::nullopt;
     AudioInfo info;
     info.container = sniff_container(bytes);
     if (info.container == Container::Wav) info.wav_format_tag = wav_format_tag(bytes);
@@ -75,8 +79,8 @@ std::optional<AudioInfo> probe_audio(std::span<const uint8_t> bytes, std::string
 
 bool decode_audio(std::span<const uint8_t> bytes, PcmBuffer& out, std::string* err) {
     out = PcmBuffer{};
-    Decoder d;
-    if (!open(bytes, d, err)) return false;
+    Decoder d(bytes);
+    if (!open(d, err)) return false;
     ma_format fmt{};
     ma_uint32 ch = 0, rate = 0;
     if (ma_decoder_get_data_format(&d.dec, &fmt, &ch, &rate, nullptr, 0) != MA_SUCCESS || ch == 0) {

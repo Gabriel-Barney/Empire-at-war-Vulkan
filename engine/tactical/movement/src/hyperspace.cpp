@@ -103,7 +103,7 @@ const EngineControl::Entry* EngineControl::find(ObjectId id) const {
     return (it == list_.end() || it->id != id) ? nullptr : &*it;
 }
 
-// 0x5545a0 entry test: (+0xd0 == 1 or +0xd4 >= 0) and +0xd1 == 0 (HARDPOINT_DISABLED.md §9.1) [H].
+// 0x5545a0 entry test: (+0xd0 == 1 or +0xd4 >= 0) and +0xd1 == 0 (legacy docs/re/HARDPOINT_DISABLED.md §9.1) [H].
 static bool engines_settable(uint8_t online, uint8_t destroyed, uint8_t indefinite, uint32_t reenable) {
     const bool timed = !indefinite && reenable != 0;
     return (online != 0 || timed) && destroyed == 0;

@@ -3,7 +3,7 @@
 // region decomposition vs a cell BFS, land paths on random mazes (validity, reachability,
 // near-optimality, determinism), smoothing and clearance, locomotion, formations, collision
 // helpers, the collision-object layer (priority sort, crowd refresh, cancellation, budget fallback) and group moves, space occupancy / planner / Hermite playback, the space
-// fighter locomotor (FIGHTER_FLYING.md: primitives, cell grids, Moving, squadron orbit, attack run, dogfight lock), determinism across
+// fighter locomotor (legacy docs/re/FIGHTER_FLYING.md: primitives, cell grids, Moving, squadron orbit, attack run, dogfight lock), determinism across
 // 1 / 4 / N threads with golden CRCs, and (ALAMO_FOC_DATA) every shipped land and space map.
 #include <algorithm>
 #include <atomic>
@@ -299,7 +299,7 @@ static void test_grid() {
         two.stamp(3, c);
         CHECK(two.effective(10, 10) == (kPassObstacle | kPassRebelWall) && two.unstamp(1) && two.effective(10, 10) == kPassObstacle);
     }
-    // OPT3 t11: stamp_all (cells sampled through a ParallelFor, here one that runs the entries back to front) gives the
+    // stamp_all (cells sampled through a ParallelFor, here one that runs the entries back to front) gives the
     // grid and stamps of the stamp() loop, also with a fine-tune ray, a repeated id and an id stamped before.
     {
         std::vector<std::pair<ObjectId, ObstacleFootprint>> list;
@@ -329,7 +329,7 @@ static void test_grid() {
         }
         const auto ea = ser.effective_values(), eb = par.effective_values();
         CHECK(same && std::equal(ea.begin(), ea.end(), eb.begin(), eb.end()));
-        // OPT3 t12: stamp() with a ParallelFor (the fine-tune samples' rays through it, here back to front) stamps the same
+        // stamp() with a ParallelFor (the fine-tune samples' rays through it, here back to front) stamps the same
         // cells as the serial stamp().
         PassabilityGrid one;
         one.init(32, 32);
@@ -349,7 +349,7 @@ static void test_grid() {
     ObstacleFootprint fp3 = make_footprint({300.0f, 300.0f}, 90.0f, 60.0f, 10.0f, 0.0f, -5.0f, 0, 0, 1.0f, 0);
     g.stamp(79, fp3);
     CHECK(g.effective(15, 15) == kPassObstacle && g.effective(15, 18) == kPassObstacle && g.effective(18, 15) == kPassClear);
-    // S8 t01: per-object cell query (0x59efa0) and rekey (map placement stamp -> object id).
+    // per-object cell query (0x59efa0) and rekey (map placement stamp -> object id).
     CHECK(g.occupies(79, 15, 15) && g.occupies(79, 15, 18) && !g.occupies(79, 18, 15) && !g.occupies(79, 16, 15));
     CHECK(g.occupies_world(79, {300.0f, 330.0f}) && !g.occupies_world(79, {340.0f, 300.0f}));
     CHECK(!g.occupies(80, 15, 15) && !g.occupies(79, -1, 15) && !g.occupies(79, 15, 99));
@@ -374,7 +374,7 @@ static void test_grid() {
         CHECK(ha.digest() == hb.digest());  // same as stamping under the object id
         CHECK(a.unstamp(12) && a.effective(5, 5) == kPassObstacle && a.unstamp(-6) && a.effective(5, 5) == kPassClear);
     }
-    {  // S8 t02: stamped ids ascending (placement ids first); a footprint on no cell is still a stamp (stamped, no cells)
+    {  // stamped ids ascending (placement ids first); a footprint on no cell is still a stamp (stamped, no cells)
         PassabilityGrid z;
         z.init(16, 16);
         const ObstacleFootprint off = make_footprint({-400.0f, 100.0f}, 0.0f, 20.0f, 20.0f, -10.0f, -10.0f, 0, 0, 1.0f, 0);
@@ -385,7 +385,7 @@ static void test_grid() {
         CHECK((z.stamped_ids() == std::vector<ObjectId>{-2, 4, 30}));
         CHECK(z.unstamp(30) && z.unstamp(4) && z.effective(5, 5) == kPassObstacle && (z.stamped_ids() == std::vector<ObjectId>{-2}));
     }
-    {  // S7 t13: space static entries handed from a placement id to the object id
+    {  // space static entries handed from a placement id to the object id
         SpaceOccupancy occ;
         occ.add_static(-4, {10.0f, 20.0f}, 50.0f, kSpaceStatic);
         occ.add_static(9, {500.0f, 0.0f}, 5.0f, kSpaceStatic);
@@ -650,7 +650,7 @@ static void test_locomotion() {
     CHECK(arrived && accel_ok && m.speed == 0.0f && m.state == LocoState::WalkStopped && m.next == 3);
     CHECK(m.pos.y > 95.0f && std::fabs(m.pos.x - 100.0f) < 16.0f);  // the swing: under the turn radius v / R = 4 / 15deg = 15.3
     CHECK(frames > 50 && frames < 90);  // 200 units at <= 4 / frame with accel ramp
-    // bkm2 t06 (b0042): two-sided. Along the last segment (+y, the last line y = 100): from 5 before it (0x15) to the coast
+    // two-sided. Along the last segment (+y, the last line y = 100): from 5 before it (0x15) to the coast
     // past it, v^2 / (2a) = 16 / 2 = 8; across (+x), the swing lies outside the corner (x >= 100) and under the turn radius
     // v / R = 4 / (15 deg in rad) = 15.28. The run is a pure function of its inputs, so the end point and the frame count
     // are also checked as measured.
@@ -789,7 +789,7 @@ static void test_formations() {
     CHECK(formation_side_correction(0.05f) == 0.0f && formation_side_correction(3.1f) == 0.1f && formation_side_correction(-3.1f) == -0.1f);
 }
 
-// ---------------------------------------------------------------- 7b. double-click move (P1_DOUBLE_CLICK_MOVE.md §4)
+// ---------------------------------------------------------------- 7b. double-click move (legacy docs/re/P1_DOUBLE_CLICK_MOVE.md §4)
 static void test_double_click() {
     CHECK(kMoveFlagAttackMove == 0x01 && kMoveFlagGuardMove == 0x02 && kMoveFlagPlayerOrder == 0x04 && kMoveFlagDoubleClick == 0x80);
     MovementConstants k;
@@ -1323,7 +1323,7 @@ static void test_path_around() {
         w = around_window({20.0f, 20.0f}, {60.0f, 60.0f}, 3, false, 100, 100);
         CHECK(w.x0 == 0 && w.y0 == 0 && w.x1 == 6 && w.y1 == 6);  // clamped to the grid
     }
-    // ---- mov1 t03 (b0180, BKR1_RE_ANSWERS Q4 [H]): 0x677e40's terrain corners over a 7 x 7 window
+    // ---- mov1 t03 (BKR1_RE_ANSWERS Q4 [H]): 0x677e40's terrain corners over a 7 x 7 window
     {
         constexpr int32_t kW = 7;
         const auto run_corners = [](const std::vector<std::pair<int32_t, int32_t>>& blocked) {
@@ -1381,7 +1381,7 @@ static void test_path_around() {
         q.obstacles = obs;
         AroundResult res;
         CHECK(around_search(g, k, q, res));
-        // mov1 t03: + the four window-corner cells (concave: two sides outside the window), 0x677e40's terrain vertices
+        // + the four window-corner cells (concave: two sides outside the window), 0x677e40's terrain vertices
         CHECK(res.vertices == 10 && res.complexity == 10 && !res.crossing && res.window.size() == 1);
         // around the -b side: the two side routes tie and the heap rules take the one expanded first
         CHECK(res.points.size() == 4 && res.points[0] == start && res.points[3] == goal);
@@ -1579,7 +1579,7 @@ static void test_destination_offsets() {
 }
 
 // s78n t20 (MOVEMENT 3.5 step 2, 1.5.1 item 5): the walk step's "at once" collision cap and the record on top of a
-// started path (no braking for its end, the speed kept when its last waypoint is passed; s78n t26.4: popped in the walk).
+// started path (no braking for its end, the speed kept when its last waypoint is passed; popped in the walk).
 static void test_walk_step_t20() {
     LocomotorParams p;
     p.max_speed = 1.0f;
@@ -1638,7 +1638,7 @@ static void test_walk_step_t20() {
 
 // Collision objects inside MovementSystem: creation, crowd box / refresh, cancellation, budget fallback.
 static void test_collision_system() {
-    // StoppedVsStopped (s78n t20, MOVEMENT 5.4.3): two overlapping parked units of radius 40. No instant displacement: the
+    // StoppedVsStopped (MOVEMENT 5.4.3): two overlapping parked units of radius 40. No instant displacement: the
     // cheaper one to move - both would back straight away from the other; unit 2 already faces that way, unit 1 would
     // have to turn 180 degrees first - walks a path to the first free spot of the ring search around itself (rings 0, 1,
     // 2.8, 5.4, 8.8, 13, 18, 23.8, 30.4, 37.8, 46, 55, 64.8, 74.8, 84.8: the step grows by 0.8 up to 10; the first ring
@@ -1682,9 +1682,9 @@ static void test_collision_system() {
         for (; f < 300 && !s.collisions().list().empty(); ++f) s.tick(f, rng);
         CHECK(s.collisions().list().empty() && s.stats().collisions_created == 1 && s.stats().collisions_resolved == 1 &&
               s.stats().collisions_cancelled == 0);
-        // s78n t26.4: past the spot's line (+x), off the line by the side-steps (no lane term without an order, no snap)
+        // past the spot's line (+x), off the line by the side-steps (no lane term without an order, no snap)
         CHECK(s.view(1).pos == (V2{400.0f, 400.0f}) && !s.view(2).pushed && s.view(2).pos.x > 405.0f + ring - 5.0f);
-        // bkm2 t06 (b0042): two-sided along the last segment (+x, the spot's line x = 405 + ring): from 5 before the line
+        // two-sided along the last segment (+x, the spot's line x = 405 + ring): from 5 before the line
         // (0x15) to the coast past it, v^2 / (2a) = vmax / 2 = 0.78 (1.0 x LandSpeedMultiplier 1.56; decel unset = vmax,
         // §3.4); the end point itself is deterministic and checked as measured
         const V2 e2 = s.view(2).pos;
@@ -1728,7 +1728,7 @@ static void test_collision_system() {
         s.tick(++f, rng);
         CHECK(s.collisions().list().empty() && s.stats().collisions_resolved == resolved0 + 1 && s.stats().collisions_cancelled == 0);
     }
-    // Quota (s78n t18, MOVEMENT 5.4.1 driver step 2): with a zero quota a record is never decided - it stays in state
+    // Quota (MOVEMENT 5.4.1 driver step 2): with a zero quota a record is never decided - it stays in state
     // None, which answers max speed, so the mover walks on through the blocker's footprint; no dynamic search runs and
     // nothing is displaced (retail has no instant shove).
     {
@@ -1779,7 +1779,7 @@ static void build_land_scenario(MovementSystem& sys, uint32_t units) {
     }
 }
 
-// bkm2 t01 / t02 (b0040 / b0041; MOVEMENT §5.4.7 items 3.4 / 3.5 / 4): the units stopped by their own TerrainCollision
+// bkm2 t01 / t02 (MOVEMENT §5.4.7 items 3.4 / 3.5 / 4): the units stopped by their own TerrainCollision
 // record, observed per tick through the public views. A Terrain record in state None (0, waiting for its decision)
 // before a tick that is gone after it, while its unit walks no detour (a taken detour moves the record to Resolving and
 // keeps it), stopped its unit: own cell impassable, Path Around failed, or no base path. One unit can lose several
@@ -1851,7 +1851,7 @@ static uint32_t run_land(MovementSystem& sys, uint32_t first, uint32_t max_frame
     return f - first;
 }
 
-// mov1 t04 (b0181, BKR1_RE_ANSWERS Q5 [H]): pack +0x28c. A vehicle (max speed 1.5 x 1.56 = 2.34: L = max(60, 30 x 2.0 x
+// mov1 t04 (BKR1_RE_ANSWERS Q5 [H]): pack +0x28c. A vehicle (max speed 1.5 x 1.56 = 2.34: L = max(60, 30 x 2.0 x
 // 2.34) = 140.4) ordered 400 along x: the byte is false while the rest of its path is longer than L, turns true within
 // one rebuild (8 frames) of the rest dropping below L, and is not written while the unit stands (sticky).
 static void test_mov1_near_end() {
@@ -1903,10 +1903,10 @@ static void test_land_group() {
     // record (MOVEMENT §5.4.6 state table, row 15 [H]), so 19 stands; the Pass records hold their S (37 behind 19, 55 behind
     // 37, 16 held by 55) at speed 0 while M passes, and no record of the four ends (Starved has no contact or end test;
     // no jam breaker in retail, RE f36dc98b). The jammed units are counted apart and checked to be exactly that cycle.
-    // s78p (b0049): with one formation path per formation and each member on its lane the formations no longer cross in
+    // s78p: with one formation path per formation and each member on its lane the formations no longer cross in
     // the maze, so the cycle does not form; all 36 arrive at frame ~8460 (the lanes are longer than the singly planned
     // paths). The cap is 9000; the jam bound stays for the record.
-    // bkm2 t01 (b0040): the run is deterministic, so its counts are checked exactly as measured (dev 7f063b20, MSVC and
+    // the run is deterministic, so its counts are checked exactly as measured (dev 7f063b20, MSVC and
     // clang): see the checks below the summary line.
     TerrainStopLog tlog;
     const uint32_t frames = run_land(sys, 0, 9000, rng, serial_for, ground, nullptr, nullptr, &tlog);
@@ -1971,9 +1971,9 @@ static void test_land_group() {
                     static_cast<double>(distance(v.pos, cell_center(75, 80))));
     }
     for (ObjectId id : far_ids) std::printf("land group: unit %d ended 400 or more from the destination\n", id);
-    // bkm2 t01 (b0040): exact, as measured (a port measurement; retail's count for this maze is unknown). The jam check is
-    // PROVISIONAL (b0034): the Starved / Pass cycle of the s78n t26 review formed without the formation path / lanes
-    // (s78p, b0049) and may have been a port artefact rather than retail; with them no unit jams. Every unit arrives
+    // exact, as measured (a port measurement; retail's count for this maze is unknown). The jam check is
+    // PROVISIONAL: the Starved / Pass cycle of the s78n t26 review formed without the formation path / lanes
+    // (s78p) and may have been a port artefact rather than retail; with them no unit jams. Every unit arrives
     // (36), one of them only as "done": unit 1 is stopped at frame 365 by its own TerrainCollision records (MOVEMENT
     // §5.4.7 item 7: its order is lost and the member counts as arrived) - it had two records waiting (no duplicate rule,
     // item 1); the first decision's kind-3 Path Around failed (the "failed detour" stop), which cleared its paths, so the
@@ -2030,7 +2030,7 @@ static void test_land_group() {
     CHECK(g3ok && s3.view(1).arrived && distance(s3.view(1).pos, cell_center(55, 20)) < 1.0f && s3.stats().dynamic_repaths >= 1);
     CHECK(distance(s3.view(2).pos, cell_center(30, 20)) < 1.0f);  // the blocker was not pushed
 
-    // Destination occupied by a stopped unit (s78n t18, MOVEMENT 5.4.1 0x684710 / 0x685e10): the early-arrival cut - the
+    // Destination occupied by a stopped unit (MOVEMENT 5.4.1 0x684710 / 0x685e10): the early-arrival cut - the
     // path ends at the last point where the mover's box (hx + 5, hy) is clear of the standing unit (18 + 5 + 18 = 41,
     // found in steps of 5, cut 3 more).
     MovementSystem s4{MovementConfig{}};
@@ -2042,7 +2042,7 @@ static void test_land_group() {
     d.units = {1};
     d.destination = cell_center(30, 30);
     s4.move(d, rng, 0);
-    // (s78n t20: the blocker comes after the order - the destination check 0x439360 of the order would move the goal off
+    // (the blocker comes after the order - the destination check 0x439360 of the order would move the goal off
     // a unit that already stands there)
     // mov1 t04 (BKR1 Q5 [H]): a destination counts as blocked only once the mover's approximation byte +0x28c (rebuilt
     // every 8 frames) says its path ends within L = max(60, 60 x max speed), so the blocker comes inside that range
@@ -2115,7 +2115,7 @@ static void test_push_search() {
         CHECK(s.stats().pushes == 1 && s.stats().push_failures == 0 && push_frame > 0 && end_frame > push_frame);
         // s78n t26.4 (MOVEMENT 3.5.1 item 1, 3.5.2 C.7): where 0x15 stopped it on its push path (no snap), within a
         // step plus the side-step drift of the spot
-        // bkm2 t06 (b0042): two-sided along the push path's last segment b0 -> spot T (open ground: one straight leg, unit
+        // two-sided along the push path's last segment b0 -> spot T (open ground: one straight leg, unit
         // dir): from 5 before T's line (0x15's -5) to the coast past it, v^2 / (2a) = vmax / 2 = 1.17 (Infantry 1.5 x
         // LandSpeedMultiplier 1.56 = 2.34; decel unset = vmax, §3.4); across, the side-step drift is the measured exact value
         const V2 tgt{b0.x + ring, b0.y - ring};
@@ -2173,7 +2173,7 @@ static void test_push_search() {
         o.units = {1};
         o.destination = cell_center(55, 20);
         s.move(o, rng, 0);
-        s.coordinator_update(0, 0, rng);  // cu8j: each order composes at its own (next) coordinator update
+        s.coordinator_update(0, 0, rng);  // each order composes at its own (next) coordinator update
         MoveOrder later;
         later.units = {2};
         later.destination = cell_center(30, 35);
@@ -2354,7 +2354,7 @@ static void test_space() {
     }
 }
 
-// OPT3 t12: SpaceOccupancy::build_index (query_segment visits only the entries near the query) answers every query as the
+// SpaceOccupancy::build_index (query_segment visits only the entries near the query) answers every query as the
 // full scan does: random statics and tracks, random segments, layers, self ids and times, static / no static; a mutation
 // drops the index (full scan again) until the next build; a non-finite query scans everything.
 static void test_space_index() {
@@ -2588,7 +2588,7 @@ static void test_space_compose_boxes() {
     }
 }
 
-// bkm1 t05 (b0037, MOVEMENT §4.3 item 1 with its s78n t19 correction [H]): a space formation ranks its rows by the attack
+// bkm1 t05 (MOVEMENT §4.3 item 1 with its s78n t19 correction [H]): a space formation ranks its rows by the attack
 // range 0x3749d0 (shortest range in front), as on land. Two frigates of one formation with equal speed and type: by the
 // older speed key the tie goes to the lower id (1 in front); by range the 80-range unit 2 leads, 200-range unit 1 behind.
 static void test_space_rank_key() {
@@ -2620,7 +2620,7 @@ static void test_space_rank_key() {
 
 // ---------------------------------------------------------------- OI tactical (PHASE4 S7 open items)
 static void test_oi_land() {
-    // PathFrameDelay stagger (§1.6) with the FormationClass ctor draw (cu8j t01, correcting cu8i t02): the order draws
+    // PathFrameDelay stagger (§1.6) with the FormationClass ctor draw (correcting cu8i t02): the order draws
     // nothing; the next coordinator update draws r' = int(0, PathFrameDelay) per staggered formation (formation order),
     // then one int(1, FPS) per formation. The plan gate is now + accumulated PathFrameDelay + r' - 2 FPS, so the first
     // plan frame is now + acc + r' + 1; the ctor draw only sets the next-check timer.
@@ -2684,7 +2684,7 @@ static void test_oi_land() {
         sys.coordinator_update(5, 200, rng);
         CHECK(sys.view(1).start_frame == 5 && rng.draws() == 3);
     }
-    // cu8i t02 / cu8j t02: the FormationClass ctor draw is one int(1, FPS); a unit with an order has a coordinator, others
+    // the FormationClass ctor draw is one int(1, FPS); a unit with an order has a coordinator, others
     // (and unknown ids) do not. Adopt (0x39bcb0) draws once for a coordinator-less unit and nothing for one with a
     // coordinator; stop-and-hold (0x3a9880) leaves the coordinator first, so it always draws.
     {
@@ -2833,7 +2833,7 @@ static void test_oi_land() {
         o.units = {1, 2};
         o.destination = cell_center(70, 20);
         sys.move(o, rng, 0);
-        sys.coordinator_update(0, 0, rng);  // the composition's draws (cu8j t01) before the jiggle count
+        sys.coordinator_update(0, 0, rng);  // the composition's draws before the jiggle count
         const uint64_t after_move = rng.draws();
         uint32_t moving_frames = 0;
         float max_off = 0.0f;
@@ -2853,7 +2853,7 @@ static void test_oi_land() {
         CHECK(ground && sys.view(1).arrived && sys.view(2).arrived);
         CHECK(sys.view(2).jiggle == (V2{0.0f, 0.0f}));
     }
-    // Side-error steering (§4.4; s78n t26.4: the lane term of MOVEMENT §5.4.1 "How Walk combines" item 2): a member 12 units
+    // Side-error steering (§4.4; the lane term of MOVEMENT §5.4.1 "How Walk combines" item 2): a member 12 units
     // off its segment converges back; without it the unit walks along its facing, parallel to the segment (the wanted yaw
     // is the segment direction, MOVEMENT §3.5.2 C.7).
     {
@@ -2892,7 +2892,7 @@ static void test_oi_land() {
         PassabilityGrid g;
         g.init(80, 40);
         sys.set_grid(std::move(g));
-        // (s78n t20, MOVEMENT 5.4.5 item 4: a victim whose faction scatters from crushers is pushed out of the way on a
+        // (MOVEMENT 5.4.5 item 4: a victim whose faction scatters from crushers is pushed out of the way on a
         // crush-flee path; these victims belong to one that does not - FoC: the Empire - so the crusher drives over them)
         sys.set_scatters_fn([](int32_t) { return false; });
         UnitDesc atat = land_unit(1, cell_center(5, 20), 11, 1.0f, 30.0f, kUccGiantVehicle);
@@ -3024,7 +3024,7 @@ static void test_oi_space() {
     CHECK(speeds_ok);
 }
 
-// ---------------------------------------------------------------- space fighters (FIGHTER_FLYING.md §1-§5)
+// ---------------------------------------------------------------- space fighters (legacy docs/re/FIGHTER_FLYING.md §1-§5)
 static FighterKin fighter_kin() {
     FighterKin k;  // X-wing-like, space multiplier 1.2 applied where the getters do
     k.turn = 3.6f;
@@ -3234,7 +3234,7 @@ static void test_fighter_moving() {
         sys.tick(f, rng);
         const UnitView v = sys.view(1);
         speed_ok = speed_ok && v.speed <= 4.8f + 1e-4f;
-        float ar = 1.0f, ap = 1.0f;  // S7 t05: the render attitude = the view's roll / pitch
+        float ar = 1.0f, ap = 1.0f;  // the render attitude = the view's roll / pitch
         att_ok = att_ok && sys.attitude(1, ar, ap) && ar == v.roll && ap == v.pitch;
         min_roll = std::min(min_roll, ar);
         if (f == 1) {
@@ -3453,7 +3453,7 @@ static CrcLog fighter_crc_run(const ParallelFor& pf) {
     return log;
 }
 
-// Golden digest of the fighter scenario (FIGHTER_FLYING 2026-10-29); MSVC and clang must both produce it. s78f t02: the
+// Golden digest of the fighter scenario (FIGHTER_FLYING 2026-10-29); MSVC and clang must both produce it. the
 // fighter 31's move now builds a fighter formation, hashed with the fighters ("FFOR"); without that section the digest is
 // still the 2026-10-29 value 0x5a7df50c208f33b1 (the motion is unchanged).
 // cu8j t01 (2026-11-08): the fighter formations compose at the next coordinator update (one draw each, first check at
@@ -3539,7 +3539,7 @@ static CrcLog space_crc_run(const ParallelFor& pf) {
 // path (11 accepted goals); MovingVsMoving answers follow the role slots.
 // s78n t26.2 (MOVEMENT §3.5.2 A / B): the speed controller (End Move T = a, 0x15 restarts), the start turn in place.
 // s78n t26 closing review (FIGHTER_FLYING §7.5 item 4): formation mates side-step by their footprint overlap.
-static constexpr uint64_t kGoldenLand = 0xb11e914f8b8f4049ull;  // mov2 t01 / t03 / t08 / t09 and review fixes: formation path copies, 3-D recruitment, rejoin tracker, squad re-order at speed; mov2 t04: tracker snapshot before the walk; mov1: Starved count, tie-break extent, terrain corners, +0x28c, overtake rank, step 10, SvS kept, tick order; sp6: tree-hash layout (movement / combat / objects hashes); bkm1: lane fallback / stop point, shield-free class, recruitment, stored z, secondary facing; s78p: formation path and lanes; s78n t26 review round 2 (mixed formations, range rank); closing review; t26.4 the move step C; t26.3 the corner pass
+static constexpr uint64_t kGoldenLand = 0xb11e914f8b8f4049ull;  // mov2 t01 / t03 / t08 / t09 and review fixes: formation path copies, 3-D recruitment, rejoin tracker, squad re-order at speed; tracker snapshot before the walk; mov1: Starved count, tie-break extent, terrain corners, +0x28c, overtake rank, step 10, SvS kept, tick order; sp6: tree-hash layout (movement / combat / objects hashes); bkm1: lane fallback / stop point, shield-free class, recruitment, stored z, secondary facing; s78p: formation path and lanes; s78n t26 review round 2 (mixed formations, range rank); closing review; t26.4 the move step C; t26.3 the corner pass
 static constexpr uint64_t kGoldenSpace = 0x8fc952146335d9dbull;  // sp6: tree-hash layout (movement / combat / objects hashes)
 
 static void test_determinism() {
@@ -3588,7 +3588,7 @@ static void test_real_data() {
     objects::GameObjectTypes types;
     const bool have_types = raw.load(*fs) && types.build(raw, fs.get());
     CHECK(have_types);
-    if (have_types) {  // S7 t06: Uses_Multiple_Locomotors type data (FoC: the jetpack users; Bossk has no secondary)
+    if (have_types) {  // Uses_Multiple_Locomotors type data (FoC: the jetpack users; Bossk has no secondary)
         const auto desc = [&types](const char* name) { return unit_desc_from_type(types, types.resolve_name(name)); };
         const UnitDesc dt2 = desc("Dark_Trooper_PhaseII"), boba = desc("Boba_Fett"), bossk = desc("Bossk");
         const UnitDesc dt1 = desc("Dark_Trooper_PhaseI");
@@ -3597,7 +3597,7 @@ static void test_real_data() {
         CHECK(boba.uses_multiple_locomotors && boba.secondary_locomotor == LocomotorKind::Jetpack && boba.alt_max_speed == 2.5f &&
               boba.alt_turn_rate == 6.0f);
         CHECK(bossk.uses_multiple_locomotors && !bossk.has_secondary_locomotor);
-        const UnitDesc dt3 = desc("Dark_Trooper_PhaseIII");  // S7 t14: Alternate 1.8, turn unset -> 2.0 (MOVEMENT §3.1.1)
+        const UnitDesc dt3 = desc("Dark_Trooper_PhaseIII");  // Alternate 1.8, turn unset -> 2.0 (MOVEMENT §3.1.1)
         CHECK(dt3.has_secondary_locomotor && dt3.alt_max_speed == 1.8f && dt3.alt_turn_rate == 2.0f);
         CHECK(!dt1.uses_multiple_locomotors && !dt1.has_secondary_locomotor);
         CHECK(locomotor_kind_from_type(types, types.resolve_name("Dark_Trooper_PhaseII"), MoveMode::Land) == LocomotorKind::Default);
@@ -3621,7 +3621,7 @@ static void test_real_data() {
         ObjectId id = -1;
         std::string kind = "-";
     };
-    std::vector<NotArrived> not_arrived;  // bkm2 t02 (b0041)
+    std::vector<NotArrived> not_arrived;  // bkm2 t02
     uint32_t all_stops = 0, stopped_units = 0;  // terrain stops observed per unit (TerrainStopLog), every map
     for (const std::string& path : maps) {
         std::vector<uint8_t> bytes;
@@ -3694,7 +3694,7 @@ static void test_real_data() {
                     ++arrived;
                     continue;
                 }
-                // bkm2 t02 (b0041): each unit that did not arrive was stopped by its own TerrainCollision record
+                // each unit that did not arrive was stopped by its own TerrainCollision record
                 const auto it = std::find_if(tlog.stops.begin(), tlog.stops.end(), [&](const TerrainStop& t) { return t.id == id; });
                 const std::string m = path.substr(path.find_last_of('\\') + 1);
                 const std::string kind = it != tlog.stops.end() ? it->kind : std::string("-");
@@ -3863,8 +3863,8 @@ static void test_real_data() {
     CHECK(plan_fail == 0 && plan_invalid == 0 && off_ground == 0);
     // s78n t26.4 (MOVEMENT 5.4.7 item 3): a unit whose blocked step gets no TerrainCollision detour is stopped where it
     // stands (no retry) - every unit that did not arrive was stopped so (a full-speed swing at a detour corner into a
-    // wall's clearance, then no rejoin; see docs/PHASE4.md s78n t26.4).
-    // bkm2 t02 (b0041): exact, as measured (dev 7f063b20, MSVC and clang): 3 of 3240 do not arrive - EM01_TRAIL_OF_A_JEDI unit
+    // wall's clearance, then no rejoin; see legacy docs/PHASE4.md s78n t26.4).
+    // exact, as measured (dev 7f063b20, MSVC and clang): 3 of 3240 do not arrive - EM01_TRAIL_OF_A_JEDI unit
     // 18, EM08_SITH_TOMBS unit 15, _MP_LAND_NABOO unit 13 - and each was stopped by its own TerrainCollision record whose
     // kind-3 Path Around failed (kind 'f'); no other unit on any map was stopped by a terrain record. A port measurement:
     // why these three swing into the clearance (and whether retail does) is not settled (b0041's replay / RE part is open).
@@ -3872,7 +3872,7 @@ static void test_real_data() {
                 land_stopped, all_stops, stopped_units);
     // mov1 (2026-11-17): with the BKR1 / BKR2 rules and the retail tick order 2 of 3240 stopped by a failed TerrainCollision
     // detour (EM08_SITH_TOMBS unit 13, _LAND_PLANET_SALEUCAMI_INTIMIDATION unit 17). mov2 t08 / t11 (2026-11-20, MSVC; the
-    // previous window's tracker for rejoin goals 2 - 11, docs/re/MOV2_T05_TERRAIN_STOPS.md [H]): EM08 13 arrives; Saleucami
+    // previous window's tracker for rejoin goals 2 - 11, legacy docs/re/MOV2_T05_TERRAIN_STOPS.md [H]): EM08 13 arrives; Saleucami
     // 14 and 17 stop by the ring rule (a failed kind-3 detour); and TM05_IMPERIAL_POLICY 13 / 14 / 22 stand in a static
     // MovingVsMoving ring for the rest of the run (14 held on its Path Around hold line for 22, 22 creeping at the closing
     // speed toward the standing 13 with Min_Speed 0, 13 a state-6 follower of the standing 14). MOV2_RE_QUESTIONS Q4 [H per
@@ -4002,7 +4002,7 @@ static void test_land_obstacle_footprint() {
         "<OverridePassability>RebelWall</OverridePassability></GroundStructure>\n"
         "<GroundStructure Name=\"Modelled\"><LandBehavior>LAND_OBSTACLE</LandBehavior><Scale_Factor>2</Scale_Factor></GroundStructure>\n"
         "<GroundStructure Name=\"Bare\"><LandBehavior>LAND_OBSTACLE</LandBehavior></GroundStructure>\n"
-        // S8 t09: a build pad (proxy target), a barracks stamped through it, a type without a land model, fine-tune off
+        // a build pad (proxy target), a barracks stamped through it, a type without a land model, fine-tune off
         "<GroundStructure Name=\"Pad\"><LandBehavior>LAND_OBSTACLE</LandBehavior><Obstacle_Width>40</Obstacle_Width>"
         "<Obstacle_Height>40</Obstacle_Height><Obstacle_X_Offset>-20</Obstacle_X_Offset><Obstacle_Y_Offset>-20</Obstacle_Y_Offset>"
         "<Scale_Factor>3</Scale_Factor></GroundStructure>\n"
@@ -4014,7 +4014,7 @@ static void test_land_obstacle_footprint() {
         "<Obstacle_Height>40</Obstacle_Height></GroundStructure>\n"
         "<GroundStructure Name=\"FineOff\"><LandBehavior>LAND_OBSTACLE</LandBehavior><Obstacle_Width>40</Obstacle_Width>"
         "<Obstacle_Height>40</Obstacle_Height><Fine_Tune_Occupied_Passability>No</Fine_Tune_Occupied_Passability></GroundStructure>\n"
-        // S8 t13: no Land_Model_Name with fine-tune off (both sizes / one size), one XML size + model box, a wall, a proxy
+        // no Land_Model_Name with fine-tune off (both sizes / one size), one XML size + model box, a wall, a proxy
         // with its own OverridePassability
         "<GroundStructure Name=\"OffBoth\"><LandBehavior>LAND_OBSTACLE</LandBehavior><Obstacle_Width>40</Obstacle_Width>"
         "<Obstacle_Height>20</Obstacle_Height><Obstacle_X_Offset>-20</Obstacle_X_Offset><Obstacle_Y_Offset>-10</Obstacle_Y_Offset>"
@@ -4197,7 +4197,7 @@ static void test_land_obstacle_footprint() {
 }
 #endif
 
-// REF2 t07: the land tick's stages after the walk run in the order docs/re/MOVEMENT.md §3.3 gives ("Port land tick: the
+// the land tick's stages after the walk run in the order docs/re/MOVEMENT.md §3.3 gives ("Port land tick: the
 // stages after the walk", the rows between the land-tail-stages markers); a reorder has to change both.
 void test_land_tail_stages() {
     std::printf("REF2 t07: the land tick's stages after the walk against docs/re/MOVEMENT.md 3.3\n");

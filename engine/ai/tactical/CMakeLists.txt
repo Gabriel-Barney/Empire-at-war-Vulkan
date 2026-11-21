@@ -1,5 +1,5 @@
 # A1 stage 1 - tactical AI pieces that do not depend on the shared AI framework (A2) or the tactical
-# perception evaluators (docs/re/AI_TACTICAL.md sections 1.3, 3, 5, 6.1-6.3, 10):
+# perception evaluators (legacy docs/re/AI_TACTICAL.md sections 1.3, 3, 5, 6.1-6.3, 10):
 #   target lists (unit targets, land hint-zone regions, space CELL_x_y grid), the Applies filter,
 #   land zone reachability (zone graph all-pairs + threat tolerances), FindTarget / Reachable_Target
 #   selection, DAMAGE_TRACKING store + FindDeadlyEnemy, free-store admission + service scheduling,
@@ -58,7 +58,7 @@ if(TARGET alamo_ai_lua)
   add_test(NAME alamo_ai_tactical_world_tests COMMAND alamo_ai_tactical_world_tests)
   set_tests_properties(alamo_ai_tactical_world_tests PROPERTIES TIMEOUT 600)
 
-  # REF1 t03: the world's state records and their one field list each (src/tactical_ai_records.hpp, not installed):
+  # the world's state records and their one field list each (src/tactical_ai_records.hpp, not installed):
   # round trip, CRC byte order pin, per-field coverage of the save and the CRC.
   add_executable(alamo_ai_tactical_records_tests tests/test_ai_tactical_records.cpp)
   target_include_directories(alamo_ai_tactical_records_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -67,7 +67,7 @@ if(TARGET alamo_ai_lua)
   add_test(NAME alamo_ai_tactical_records_tests COMMAND alamo_ai_tactical_records_tests)
 endif()
 
-# A1 t01 settled readings (docs/re/A1_READINGS.md 6, 9, 13-15): nFow rounding, UnitAI data-pack stamps and the first
+# A1 t01 settled readings (legacy docs/re/A1_READINGS.md 6, 9, 13-15): nFow rounding, UnitAI data-pack stamps and the first
 # re-projection check, destroyed objects' memory entries, free-store land / space admission and service timing.
 add_executable(alamo_ai_tactical_readings_tests tests/test_ai_tactical_readings.cpp)
 target_link_libraries(alamo_ai_tactical_readings_tests PRIVATE alamo_ai_tactical alamo_test_support)
@@ -80,7 +80,7 @@ if("vfs" IN_LIST ALAMO_ENGINE_MODULES AND "terrain" IN_LIST ALAMO_ENGINE_MODULES
   target_link_libraries(alamo_ai_tactical_tests PRIVATE alamo_vfs)
   target_compile_definitions(alamo_ai_tactical_tests PRIVATE ALAMO_AI_TACTICAL_HAVE_DATA=1)
 endif()
-# Scenario CRC across commits and compilers: the scenario ai_tactical_scenario (tools/goldens/scenarios.json, wr1 t07).
+# Scenario CRC across commits and compilers: the scenario ai_tactical_scenario (tools/goldens/scenarios.json).
 add_test(NAME alamo_ai_tactical_tests COMMAND alamo_ai_tactical_tests)
 set_tests_properties(alamo_ai_tactical_tests PROPERTIES TIMEOUT 600)
 

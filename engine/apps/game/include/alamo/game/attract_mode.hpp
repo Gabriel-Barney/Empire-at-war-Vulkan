@@ -1,7 +1,7 @@
-// OI host (alamo_game): the main-menu attract demo controller - the owner of the audio attract-mode flag (AUDIO.md §1.6:
+// OI host (alamo_game): the main-menu attract demo controller - the owner of the audio attract-mode flag (legacy docs/re/AUDIO.md §1.6:
 // 3D voices silent, no battle mode music while the demo runs; the menu theme plays) and of the demo's idle pause.
 //
-// docs/re/MAIN_MENU_BACKGROUND.md §3 (the original controller 0x22bc0 / 0x22f10 / 0x22c50 / 0x22bf0) [H]:
+// legacy docs/re/MAIN_MENU_BACKGROUND.md §3 (the original controller 0x22bc0 / 0x22f10 / 0x22c50 / 0x22bf0) [H]:
 //   * menu_opened(): every time the main menu opens with Main_Menu_Demo_Attract_Mode set - not running: arm and Start
 //     the first map at once; running: the map-cycle check (0x235f0).
 //   * the map index advances before every load (index = (index + 1) mod count; the first map shown is entry 1 mod count,
@@ -49,7 +49,7 @@ bool is_attract_recording(const std::string& entry);
 // --- the demo's camera (presentation only, wall time; never part of the sim) ---
 // The original films the demo with the in-game cinematic ("interesting object") camera: a code-driven camera, not data (the
 // demo map holds no camera keys, Demo_Attract_Controller.lua only reveals the map and sends the fleets to the story zones;
-// the shot logic is untraced, MAIN_MENU_BACKGROUND.md §3.1 step 8). [M] stand-in (Playtest 3 t14, hulls seen nose-on):
+// the shot logic is untraced, legacy docs/re/MAIN_MENU_BACKGROUND.md §3.1 step 8). [M] stand-in (Playtest 3 t14, hulls seen nose-on):
 // shots of `shot_seconds` on the next live combat unit; the camera keeps a SIDE view of the followed hull - its view
 // direction stays within `swing_deg` of perpendicular to the hull's facing (turn rate limited), so a nose-on or tail-on
 // view never lasts. Yaw convention of ui::TacticalCameraController: degrees about +Z, 0 = looking north (+Y), positive

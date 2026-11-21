@@ -1,10 +1,10 @@
-// P4 Lua GUI control hooks (docs/re/UI.md §2.3 last paragraph; docs/re/LUA_API.md GUI_* rows): scripts drive
+// P4 Lua GUI control hooks (legacy docs/re/UI.md §2.3 last paragraph; legacy docs/re/LUA_API.md GUI_* rows): scripts drive
 // command-bar components by name. engine/lua records the calls in its PresentationLog (PresentationOp::Gui*, the L1
 // presentation family); this consumer applies them to a HUD's ButtonRuntime table (TacticalHud / GalacticHud
 // buttons()). The engine/lua -> GuiScriptCall conversion lives in the optional alamo_ui_lua library
 // (gui_script_lua.hpp) so alamo_ui_hud does not depend on the VM.
 //
-// Argument counts from the binary's error strings (LUA_API.md): GUI_Button_Icon 6 (1 string, 3 float),
+// Argument counts from the binary's error strings (legacy docs/re/LUA_API.md): GUI_Button_Icon 6 (1 string, 3 float),
 // GUI_Component_Blink 4 (string, bool, ...), GUI_Component_Color 5 (string, float x4), GUI_Component_Enable 2,
 // GUI_Component_Flash 4 (string, bool, ...), GUI_Component_Play_Anim 4 (string, animation name, ...),
 // GUI_Component_Stop_Anim 1, GUI_Component_Stop_Flash 1, GUI_Component_Text 2 (string, text id), GUI_Component_Visibility 2,

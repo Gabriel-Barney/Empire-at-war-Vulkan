@@ -1,5 +1,5 @@
-// s78f t02: fighter formations - the move-block stack of a squadron (or of a fighter without one) and the formation
-// step that runs it (docs/re/FIGHTER_FLYING.md §4.11 A-I, A1_READINGS §33.4 / §33.4.1, MOVEMENT §6.1 / §6.2). Replaces
+// fighter formations - the move-block stack of a squadron (or of a fighter without one) and the formation
+// step that runs it (legacy docs/re/FIGHTER_FLYING.md §4.11 A-I, A1_READINGS §33.4 / §33.4.1, MOVEMENT §6.1 / §6.2). Replaces
 // S7 t37's one-block FighterGuard (fighter.hpp FighterFormation, movement_system.hpp "s78f t02").
 //
 // Port model. One FighterFormation per key (squadron container id, or the solo fighter's id), ascending key; the retail
@@ -118,7 +118,7 @@ float MovementSystem::fform_unit_speed(ObjectId key) {
     for (const ObjectId m : fform_members(key))
         if (const Unit* u = unit_ptr(m)) {
             float v = u->lp.max_speed;
-            if (squad) v = team_base_speed(*u) * u->team_factor;  // s78l t01: the container's own Max_Speed included
+            if (squad) v = team_base_speed(*u) * u->team_factor;  // the container's own Max_Speed included
             s = s < 0.0f ? v : std::min(s, v);
         }
     return s;
@@ -213,7 +213,7 @@ void MovementSystem::fform_order(const MoveOrder& order, const std::vector<uint3
 void MovementSystem::fighter_new_order(const MoveOrder& order, uint32_t frame) {
     if (cfg_.mode != MoveMode::Space) return;
     const std::vector<uint32_t> idx = order_indices(order);
-    // cu8j t01: the group move's coordinator still composes at the next update (draws, first checks); nobody moves.
+    // the group move's coordinator still composes at the next update (draws, first checks); nobody moves.
     uint32_t serial = 0;
     if (!idx.empty()) {
         V2 goal = order.destination;

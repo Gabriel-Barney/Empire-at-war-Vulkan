@@ -4,7 +4,7 @@
 Standard library only. Parity is checked by behaviour, not by CRC or hash equality (Gabriel, 2026-10-29): travel and build
 timings, income, AI choices, battle outcomes and damage, each against a tolerance written down with its reason in
 tools/parity/scenarios.json. Replaces the `q2trace.py compare` step of Q2F t07; the trace, production-queue and AI-log
-parsers are tools/parity/trace_parsers.py (ref3 t02; the Q2 kit imports them from there).
+parsers are tools/parity/trace_parsers.py (the Q2 kit imports them from there).
 
   parity_harness.py run [--scenario ID ...] [--port-exe alamo_headless.exe] [--refs DIR] [--out DIR]
                         [--reuse-port] [--check-baseline FILE] [--write-baseline FILE] [--commit SHA]
@@ -19,7 +19,7 @@ parsers are tools/parity/trace_parsers.py (ref3 t02; the Q2 kit imports them fro
       Scenarios, their reference runs and whether they are present on this machine.
   parity_harness.py outcome --scenario ID [--port-exe EXE] [--seeds N] [--jobs J] [--out DIR] [--reuse-port]
   parity_harness.py outcome --list
-      AI-vs-AI outcome sweep (ref4 t04): one scenario of tools/parity/outcomes.json run over seeds 1..N and judged by
+      AI-vs-AI outcome sweep: one scenario of tools/parity/outcomes.json run over seeds 1..N and judged by
       the share of seeds that end, their end frames, non-retail Lua errors and, for the skai exit scenarios, retail's
       end rate (outcome_sweep.py). Writes <out>/<scenario>/report.txt and the seed logs (default out:
       tools/parity/out/outcome). Exit 0 pass, 1 fail, 2 error, 77 skipped (no ALAMO_FOC_DATA or alamo_headless).
@@ -54,7 +54,7 @@ sys.path.insert(0, os.path.join(REPO, "tools", "lint"))
 sys.path.insert(0, HERE)
 import trace_parsers as tp  # noqa: E402  (tools/parity/trace_parsers.py: trace / queue / CRC / AI-log parsers)
 import story_battle  # noqa: E402  (tools/parity/story_battle.py: the story battle reader)
-import outcome_sweep  # noqa: E402  (tools/parity/outcome_sweep.py: AI-vs-AI outcome sweeps over seeds, ref4 t04)
+import outcome_sweep  # noqa: E402  (tools/parity/outcome_sweep.py: AI-vs-AI outcome sweeps over seeds)
 
 SKIP = 77
 FACTIONS = tuple(tp.FACTION_TOKENS)  # Empire, Rebel, Underworld
@@ -64,11 +64,11 @@ CATEGORY = {"travel": "timing", "build": "timing", "econ": "income", "ai": "AI c
 # contents apart), construction stand-ins, squadron containers and starbase-upgrade objects.
 NOT_UNIT = ("PROJ_", "_MARKER", "BACKDROP", "ASTEROID", "NEBULA", "STARS_", "STAR_BACKDROP", "SPACE_JUNK", "DEATH_CLONE",
             "_PAD", "CONTAINER", "_UPGRADE", "MERCHANT_DOCK", "EXPLOSION", "DAMAGE_SPACE", "DAMAGE_LAND", "PARTICLE",
-            "_DUD", "PROJECTILE_")  # bkg3: Large_Dud / Huge_Dud and Projectile_Shield_Absorb_* are particle types, not units
+            "_DUD", "PROJECTILE_")  # Large_Dud / Huge_Dud and Projectile_Shield_Absorb_* are particle types, not units
 
 
 # ---- small helpers ---------------------------------------------------------------------------------------------------
-SHOLA_CAPTURERS = ("Rebel",)  # b0107: the factions whose Shola captures are graded
+SHOLA_CAPTURERS = ("Rebel",)  # the factions whose Shola captures are graded
 
 
 def load_json(path):
@@ -266,7 +266,7 @@ def segment_fleet(track, ppos, stop_samples=STOP_SAMPLES):
         if frm is None or frm == to:
             continue
         # Departure = the last sample at the planet: retail moves the fleet from its orbit slot to the planet centre on the
-        # departure tick, the port parks it at the centre (q4hf t04: the same rule both sides, no one-tick offset).
+        # departure tick, the port parks it at the centre (the same rule both sides, no one-tick offset).
         fx, fy = ppos[frm]
         nxt = track[a[1] + 1]
         dep = nxt[0] if math.hypot(nxt[2] - fx, nxt[3] - fy) <= tp.ORBIT_SNAP else last[0]
@@ -315,13 +315,13 @@ def fleet_hops(trace_path, fac, max_tick=None):
 def galactic_metrics(trace_path, queue_path=None, ai_log=None, sample_ticks=(4500, 9000, 13500), max_tick=None,
                      hop_max_tick=None):
     """Metric values of one galactic run (retail trace or port state trace), {metric id: value}, plus notes. max_tick: only
-    the mode frames up to this one (a reference run that went on longer than the scenario, q4hf t03). hop_max_tick: the
-    cut for travel.hop_ticks alone (default max_tick); a reference run's later legs still measure fleet speeds (gai3 t01)."""
+    the mode frames up to this one (a reference run that went on longer than the scenario). hop_max_tick: the
+    cut for travel.hop_ticks alone (default max_tick); a reference run's later legs still measure fleet speeds."""
     m = tp.trace_metrics(trace_path, max_tick=max_tick)
     fac = m["factions"]
     out, notes = {}, []
     # Travel: leg duration per route (departure = first moved sample, arrival = first sample of a stop, a pass through a
-    # planet centre splits the trip; same rule both sides, q4hf t04). Keyed by faction: the hop speed is the fleet's (its
+    # planet centre splits the trip; same rule both sides). Keyed by faction: the hop speed is the fleet's (its
     # units' Hyperspace_Speed, the Underworld corruption bonus).
     trips, legs = fleet_hops(trace_path, fac, max_tick)
     if hop_max_tick is not None and hop_max_tick != max_tick:
@@ -531,7 +531,7 @@ def skirmish_retail_metrics(trace_path, frames):
                 mf = int(p[3])
             elif t == "M":
                 meta[p[1]] = " ".join(p[2:])
-                # Port tactical traces (alamo_headless --skirmish-ai --trace-out, q4hf t02): the port's projectiles are not store
+                # Port tactical traces (alamo_headless --skirmish-ai --trace-out): the port's projectiles are not store
                 # objects, so the trace records the battle frame of the first shot instead of a PROJ_ object.
                 if p[1] == "first_shot_frame" and first_shot is None:
                     first_shot = int(p[2])
@@ -743,7 +743,7 @@ def compare(scen, tols, retail_runs, port, gaps=None):
     return results
 
 
-# ---- distribution mode (parity tier 2, docs/DECISIONS.md "Parity tiers") --------------------------------------------------
+# ---- distribution mode (parity tier 2, docs/SIMULATION.md "Parity tiers") --------------------------------------------------
 DIST_DEFAULTS = {"seeds": 10, "z": 2.0, "spread_factor": 3.0, "spread_min_runs": 5, "seed_min_share": 0.8}
 
 
@@ -957,10 +957,10 @@ def retail_metrics(scen, run_dir):
 
 def default_seed(scen, ref_info):
     """The port seed of the single-run mode: galactic, the reference run's (retail starts from seed 0 on the menu path);
-    skirmish, none (the host's default, 1: retail seeds a skirmish itself, tools/probe_mod/q2_traces/README.md)."""
+    skirmish, none (the host's default, 1: retail seeds a skirmish itself, legacy tools/probe_mod/q2_traces/README.md)."""
     if scen["kind"] == "galactic":
         return int(ref_info.get("seed") or "0", 16)
-    if scen["kind"] == "story":  # retail starts the campaign from seed 0 on the menu path (STORY_T04_KESSEL_RUN.md §1)
+    if scen["kind"] == "story":  # retail starts the campaign from seed 0 on the menu path (legacy docs/re/STORY_T04_KESSEL_RUN.md §1)
         return 0
     return None
 
@@ -970,7 +970,7 @@ def port_command(scen, exe, out_dir, ref_info, seed=None):
     if seed is None:
         seed = default_seed(scen, ref_info)
     seed_args = ["--seed", str(seed)] if seed is not None else []
-    if scen["kind"] == "story":  # storyb t03: the campaign's linked mission, hands-off, the battle's tactical trace
+    if scen["kind"] == "story":  # the campaign's linked mission, hands-off, the battle's tactical trace
         return [exe, "--economy", "--galactic-ai", "--story", "--battles", "fight", "--campaign", scen["campaign"],
                 "--human", scen["human"]] + [x for t in scen.get("ai_types", []) for x in ("--ai-type", t)] + seed_args + [
                 "--ticks", str(scen["ticks"]), "--workers", str(scen.get("workers", 4)), "--quiet",
@@ -1005,7 +1005,7 @@ def seed_list(scen, ref_info, cfg, count=None, base=None):
 
 
 def skirmish_port_trace_metrics(trace_path, frames):
-    """Port skirmish host tactical trace (--trace-out, q4hf t02): the damage metrics, reduced by the retail reader (hull lost
+    """Port skirmish host tactical trace (--trace-out): the damage metrics, reduced by the retail reader (hull lost
     per faction from the per-object health, the first shot). Units, credits and builds keep coming from the AI log."""
     m, _, info = skirmish_retail_metrics(trace_path, frames)
     return {k: v for k, v in m.items() if k.startswith("combat.")}, info
@@ -1471,14 +1471,14 @@ def selftest():
         if not cond:
             fails.append(what)
             print("FAIL " + what)
-    # ref3 t02: the harness's parsers are its own (trace_parsers.py); nothing it loads comes from a probe kit.
+    # the harness's parsers are its own (trace_parsers.py); nothing it loads comes from a probe kit.
     kit = os.path.normcase(os.path.join(REPO, "tools", "probe_mod"))
     loaded = [m.__name__ for m in list(sys.modules.values())
               if os.path.normcase(os.path.abspath(getattr(m, "__file__", None) or "")).startswith(kit + os.sep)]
     check(not loaded, "no probe-kit module loaded: %s" % loaded)
     check(not any(os.path.normcase(os.path.abspath(p)).startswith(kit + os.sep) for p in sys.path if p),
           "no probe-kit folder on sys.path")
-    # ref4 t04: the outcome sweeps (judge, parsers) and the scenario file.
+    # the outcome sweeps (judge, parsers) and the scenario file.
     outcome_sweep.selftest(check)
     bad = outcome_sweep.check_scenarios(load_json(os.path.join(HERE, "outcomes.json")))
     check(not bad, "outcomes.json well formed: %s" % bad)
@@ -1507,7 +1507,7 @@ def selftest():
     check(tolerance_for({"ai.build_mix": {"min_overlap": 0.5}, "ai": {"abs": 1}}, "ai.build_mix[Rebel]")["min_overlap"] == 0.5,
           "tolerance by family")
     check(tolerance_for({"econ.credits_at": {"rel": 0.1}}, "econ.credits_at_4500[Rebel]")["rel"] == 0.1, "tolerance by prefix")
-    # Hop segmentation (q4hf t04): a repeated sample mid-flight is not a stop, a pass through B's centre splits the trip.
+    # Hop segmentation: a repeated sample mid-flight is not a stop, a pass through B's centre splits the trip.
     pp = {"A": (0.0, 0.0), "B": (10.0, 0.0), "C": (20.0, 0.0)}
     trk = ([(f, 1, 0.0, 5.0) for f in range(5)] + [(5, 1, 0.0, 0.0), (6, 1, 2.5, 0.0), (7, 1, 2.5, 0.0), (8, 1, 5.0, 0.0),
            (9, 1, 7.5, 0.0), (10, 1, 10.0, 5.0), (11, 1, 10.0, 0.0), (12, 1, 12.5, 0.0), (13, 1, 15.0, 0.0), (14, 1, 17.5, 0.0)] +
@@ -1532,7 +1532,7 @@ def selftest():
         check(rm.get("build.ticks[REBEL_X-WING_SQUADRON@CORELLIA]") == 20, "fixture build: start 20, created 40 -> 20 ticks (%s)" % rm.get("build.ticks[REBEL_X-WING_SQUADRON@CORELLIA]"))
         check(rm.get("outcome.planets_final[Empire]") == 2 and rm.get("outcome.captures[Empire]") == 1, "fixture capture")
         check(rm.get("ai.fleet_departures[Empire]") == 1, "fixture one Empire departure")
-        # gai3 t01: hop_max_tick reads legs past max_tick (the hop arrives at 36); the other metrics keep the max_tick cut.
+        # hop_max_tick reads legs past max_tick (the hop arrives at 36); the other metrics keep the max_tick cut.
         cm = galactic_metrics(ret, sample_ticks=(29,), max_tick=30)[0]
         hm = galactic_metrics(ret, sample_ticks=(29,), max_tick=30, hop_max_tick=59)[0]
         check("travel.hop_ticks[Empire:KUAT->CORELLIA]" not in cm, "max_tick 30 cuts the hop arriving at 36")
@@ -1586,7 +1586,7 @@ def selftest():
         check(sm.get("outcome.units_lost[Empire]") == 2, "skirmish Empire lost 2 interceptors")
         check(sm.get("econ.credits_at_1800[Rebel]") == 900.0, "skirmish credits at 1800")
         check(sm.get("outcome.battle_ended") == 0, "skirmish battle still running")
-        # Skirmish port tactical trace (--trace-out, q4hf t02): hull lost per faction from the O lines, the first shot from the
+        # Skirmish port tactical trace (--trace-out): hull lost per faction from the O lines, the first shot from the
         # M first_shot_frame record; a dead unit (flag 2) and a neutral prop do not count.
         st = os.path.join(tmp, "sk_port.q2t")
         o = "O %d %d %d 00000000 00000000 00000000 00000000 00000000 00000000 %s %d 4194303 4194303 4194303 00000000 00000000\n"

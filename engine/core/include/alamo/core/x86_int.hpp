@@ -8,7 +8,7 @@
 // dropped the effect after one frame while the MSVC build (like retail) kept it, so the mod's skirmish CRC differed
 // between the compilers from tick 2 (mod golden aol_space). These helpers give the x86 result on every compiler, so a
 // mod value out of int32 range keeps the per-tick CRC equal between MSVC and clang (CLAUDE.md rule 3,
-// docs/MOD_COMPAT_DESIGN.md §13.3).
+// docs/MODS.md "Determinism with mods").
 //
 // Use them wherever sim code turns a data-driven float into an int (static_cast<int32_t>(float) is UB out of range) and
 // wherever it decrements an int32 countdown that may start at INT32_MIN.

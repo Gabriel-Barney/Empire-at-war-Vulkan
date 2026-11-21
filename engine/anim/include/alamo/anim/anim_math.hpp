@@ -1,11 +1,11 @@
-// R3 deterministic pose math (docs/re/ANIM_PARTICLES.md §A.6). Gameplay reads animated bone transforms
+// R3 deterministic pose math (legacy docs/re/ANIM_PARTICLES.md §A.6). Gameplay reads animated bone transforms
 // (projectile spawn points, Lua Get_Bone_Position, hardpoint effects), so every operation here is a fixed
 // sequence of IEEE float +, -, * (no FMA: the engine builds with /fp:precise / -ffp-contract=off) and the
 // retail fast inverse square root (dmath::fast_rsqrt_retail: magic 0x5F375A86, two Newton steps), never
 // 1/sqrt. The functions live in anim_math.cpp (not inline) so every caller - sim or render, any compiler
 // flags - runs the same compiled code.
 //
-// Conventions (docs/formats/SPEC.md §2.2, same as alamo_assets): Mat34 is row-major 3x4 with column
+// Conventions (legacy docs/formats/SPEC.md §2.2, same as alamo_assets): Mat34 is row-major 3x4 with column
 // vectors, p'[r] = m[r][0]*x + m[r][1]*y + m[r][2]*z + m[r][3]; a * b applies b first. Mat34 has the
 // memory layout of assets::Mat3x4 (12 floats, 48 bytes), so render code may copy poses byte for byte.
 // Quat is (x, y, z, w), Hamilton, as stored in ALA files.
@@ -35,7 +35,7 @@ Float3 dequantize_translation(const Float3& offset, const Float3& scale, const u
 // Shortest-arc nlerp (0x235750): when dot(a, b) < 0 the second quaternion is negated; component-wise
 // lerp a + (b - a) * t; normalised with fast_rsqrt_retail(x*x + y*y + z*z + w*w) (sums left to right).
 // [port] the lerp form a + (b - a) * t and the summation order are assumed (bit parity with the
-// original needs a disassembly check; listed in docs/PHASE4.md R3 open items).
+// original needs a disassembly check; listed in legacy docs/PHASE4.md R3 open items).
 Quat nlerp_fast(const Quat& a, const Quat& b, float t);
 // a + (b - a) * t per component.
 Float3 lerp(const Float3& a, const Float3& b, float t);

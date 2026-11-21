@@ -1,4 +1,4 @@
-// OPT2 t04: Lua GC without spikes - staggered scheduled collections, collected in parallel (alamo/lua/gc_schedule.hpp).
+// Lua GC without spikes - staggered scheduled collections, collected in parallel (alamo/lua/gc_schedule.hpp).
 //   * gc_due: below the fill share never due; at or above it due on exactly one tick per period; slots differ by VM;
 //   * a __gc sentinel in each VM counts collections that ran inside a script call (automatic) and the ones the
 //     schedule ran (finalizer on the owner thread after the detached collection): with the schedule the automatic
@@ -52,7 +52,7 @@ static double gnum(LuaVm& vm, const char* name) {
 // collection (automatic = during any script call, including the compile of the Step chunk; else = the schedule's
 // collect_scheduled, which tick_range brackets with in_script = false) and arms a new proxy. `keep` grows slowly, so
 // the heap and with it the threshold changes over the run. Collections during the setup chunk are not counted.
-// (mcx8 t12: the flag used to be cleared at the end of Step, so an automatic collection while the next Step chunk
+// (the flag used to be cleared at the end of Step, so an automatic collection while the next Step chunk
 // compiled counted as a scheduled one - a heap-layout accident that one global less in every VM exposed.)
 static const char* const kScript = R"(
 auto_gc, sched_gc, in_script = 0, 0, true

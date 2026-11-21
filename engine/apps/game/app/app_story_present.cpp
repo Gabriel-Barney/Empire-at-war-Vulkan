@@ -1,4 +1,4 @@
-// alamo_game App: the story presentation rewards (ui2; docs/re/STORY_PRESENTATION_REWARDS.md). The fired rewards of the
+// alamo_game App: the story presentation rewards (ui2; legacy docs/re/STORY_PRESENTATION_REWARDS.md). The fired rewards of the
 // local player's plots feed game::StoryPresenter (story_present.hpp, data-free and tested without a window); this file
 // wires its state to the host: the text column (SCREEN_TEXT / MULTIMEDIA lines on the tutorial_text / tutorial_text_back
 // look), the advisor hint box, and what the other tasks of the group read (locks, camera commands, pointers).
@@ -29,9 +29,9 @@ void App::story_present_setup() {
         if (const std::u16string* s = ui_.text.find(id)) return ui::utf16_to_utf32(*s);
         return {};
     };
-    StoryPresenter::Config& cfg = story_present_.config();  // ui2 t07: Advisor_Hint_Interval / Advisor_Hint_Duration
+    StoryPresenter::Config& cfg = story_present_.config();  // Advisor_Hint_Interval / Advisor_Hint_Duration
     load_story_advisor_config(data_.db.constants(), cfg);
-    StoryPresenter::Colors colors;  // mcx4 t14 / t15: the screen-text colours (STORY_PRESENTATION_REWARDS §1.1)
+    StoryPresenter::Colors colors;  // the screen-text colours (STORY_PRESENTATION_REWARDS §1.1)
     load_story_colors(data_.db.constants().element, colors);
     story_present_.set_colors(colors);
     advisor_mode_ = 255;
@@ -45,7 +45,7 @@ void App::story_present_setup() {
     story_present_.set_hooks(std::move(h));
 }
 
-// ref4 t01: the presenter the loaded save carried (GameSession "game" chunk v2), read at this frame's clock. False (presenter
+// the presenter the loaded save carried (GameSession "game" chunk v2), read at this frame's clock. False (presenter
 // reset) when the save has none (v1) or it does not read.
 bool App::story_present_restore() {
     const std::optional<std::vector<uint8_t>> saved = session_ ? session_->take_loaded_presentation() : std::nullopt;
@@ -73,7 +73,7 @@ void App::story_present_lua(const lua::PresentationEvent& e) {
     } else if (e.op == Op::RemoveAllText) {
         story_present_.remove_all_text();
     }
-    // storyb t17: Lua Highlight / Highlight_Small make a real Object_Highlight[_Small] object (STORYB_T17_SPAWNS_AND_DEATH.md
+    // Lua Highlight / Highlight_Small make a real Object_Highlight[_Small] object (legacy docs/re/STORYB_T17_SPAWNS_AND_DEATH.md
     // §1), which the scene draws; the 2D bracket stand-in is kept for the HIGHLIGHT_OBJECT reward only.
 }
 
@@ -260,7 +260,7 @@ constexpr uint32_t kPointerLayer = 10;
 constexpr ui::Rgba8 kArrowColor{255, 224, 40, 255}, kFlashColor{255, 255, 80, 255}, kHighlightColor{80, 255, 120, 255};
 
 // A downward arrow whose tip is at `tip` (canvas units) bouncing with the clock: [port] a 2D stand-in for the 3D model
-// i_tutorial_arrow.alo (docs/re/STORY_PRESENTATION_REWARDS.md §3.2).
+// i_tutorial_arrow.alo (legacy docs/re/STORY_PRESENTATION_REWARDS.md §3.2).
 void draw_arrow(ui::HudDrawList& dl, ui::Vec2f tip, double now, float scale = 1.0f) {
     const float bob = 5.0f * static_cast<float>(std::sin(now * 6.0));
     const float x = tip.x, y = tip.y + 6.0f * scale + std::abs(bob);
@@ -314,7 +314,7 @@ bool App::story_project(const ui::HudCanvas& canvas, float x, float y, float z, 
 }
 
 // First instance of an object type by name: the first planet of that planet type on the galactic screen, the first object
-// in the snapshot on a battle (STORY_PRESENTATION_REWARDS.md §2.1, §3: "the first instance").
+// in the snapshot on a battle (legacy docs/re/STORY_PRESENTATION_REWARDS.md §2.1, §3: "the first instance").
 bool App::story_type_position(std::string_view type, ui::Vec3& out) const {
     const uint32_t t = data_.rules.find_type(type);
     if (t == galactic::kNoIndex) return false;
@@ -387,7 +387,7 @@ void App::story_component_flash(ui::HudDrawList& dl, const ui::HudCanvas& canvas
     const ui::HudLayout& layout = gal ? ui_.galactic_hud.layout() : ui_.tactical_hud.layout();
     std::set<int32_t> active;
     for (const StoryComponentFlash& f : story_present_.flashes()) {
-        if (now_s_ < f.start || now_s_ >= f.until) continue;  // this entry's window (ref5 t02: DUAL_FLASH steps start later)
+        if (now_s_ < f.start || now_s_ >= f.until) continue;  // this entry's window (DUAL_FLASH steps start later)
         const int32_t idx = ui_.components.find(f.component);
         if (idx < 0) continue;
         active.insert(idx);
@@ -476,7 +476,7 @@ void App::build_story_pointers(ui::HudDrawList& dl, const ui::HudCanvas& canvas)
             draw_highlight(dl, at, hl.small ? 14.0f : 26.0f, now_s_, kHighlightColor);
     }
     for (const StoryObjectFlash& f : story_present_.object_flashes()) {  // FLASH_OBJECT / FLASH_PLANET: the object's colour flash
-        if (now_s_ >= f.until || now_s_ < f.start) continue;  // ref5 t02: a held DUAL_FLASH step starts later
+        if (now_s_ >= f.until || now_s_ < f.start) continue;  // a held DUAL_FLASH step starts later
         ui::Vec3 p;
         ui::Vec2f at;
         if ((static_cast<int64_t>(std::floor((now_s_ - f.start) / 0.2)) % 2) == 0 && story_type_position(f.type_name, p) &&
@@ -495,7 +495,7 @@ void App::build_story_pointers(ui::HudDrawList& dl, const ui::HudCanvas& canvas)
                     if (story_object_position(hl.object_id, p) && story_project(canvas, p.x, p.y, p.z, at))
                         draw_highlight(dl, at, 30.0f, now_s_, kHighlightColor);
                 }
-                // mcx8 t12: the galactic Add_Radar_Blip(planet) turns the planet's highlight on (an unnamed blip).
+                // the galactic Add_Radar_Blip(planet) turns the planet's highlight on (an unnamed blip).
                 for (const lua::StoryBlip& b : story->model(set).blips()) {
                     ui::Vec3 p;
                     ui::Vec2f at;

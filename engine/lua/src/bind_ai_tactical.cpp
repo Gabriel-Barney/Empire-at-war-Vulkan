@@ -1,7 +1,7 @@
 // Binding family: tactical AI (roadmap A1 stage 2; alamo/lua/ai_tactical_bridge.hpp). Every binding forwards
 // to the AiTacticalScriptHost attached to the VM (engine/ai/tactical implements it). Argument checks follow the
 // vm_internal.hpp error discipline (Call::script_error_stop, never lua_error). Validation strings are the port's
-// own unless docs/re/AI_TACTICAL.md / LUA_API.md give one.
+// own unless legacy docs/re/AI_TACTICAL.md / legacy docs/re/LUA_API.md give one.
 #include <cstdarg>
 #include <cstdio>
 #include <string>
@@ -36,8 +36,8 @@ int32_t script_of(lua_State* L) {
 uint32_t cls(const char* name) { return detail::class_id(name); }
 void push_position(lua_State* L, float x, float y, float z) { detail::push_position(L, Vec3{x, y, z}); }
 
-using detail::push_nil;  // ref5 t03: vm_internal.hpp
-using detail::push_bool;  // ref5 t03: vm_internal.hpp
+using detail::push_nil;  // vm_internal.hpp
+using detail::push_bool;  // vm_internal.hpp
 int push_num(Call& c, double d) {
     lua_pushnumber(c.L, d);
     return 1;
@@ -56,7 +56,7 @@ int push_object(Call& c, objects::ObjectHandle h) {
     return 1;
 }
 
-using detail::is_bool;  // ref5 t03: vm_internal.hpp
+using detail::is_bool;  // vm_internal.hpp
 
 // Any wrapper argument -> AiArg (detail::ai_arg, bind_ai.cpp's rule) plus PositionWrapper -> AiPoint.
 void arg_of(Call& c, int i, AiArg& a, AiPoint& p) {
@@ -242,7 +242,7 @@ int m_distance(Call& c) {
     const double d = h ? h->tf_distance(c.self->id, a, p) : -1.0;
     return d < 0.0 ? push_nil(c) : push_num(c, d);
 }
-// Set_Targeting_Priorities(set [, type or category filter]) (LUA_API.md strings). OI lua: the units get the per-unit
+// Set_Targeting_Priorities(set [, type or category filter]) (legacy docs/re/LUA_API.md strings). OI lua: the units get the per-unit
 // override through the objects family (S8 CombatSystem::set_priority_override for combat units,
 // detail::task_force_set_targeting_priorities); the host keeps its record of the set.
 int m_set_targeting_priorities(Call& c) {
@@ -257,7 +257,7 @@ int m_set_targeting_priorities(Call& c) {
 }
 int m_noop(Call&) { return 0; }
 
-// mcx6 t06 (LUA_API.md "Task force: Enable_Attack_Positioning and Release_Reinforcements"): land 0x6eaa80. Exactly one
+// mcx6 t06 (legacy docs/re/LUA_API.md "Task force: Enable_Attack_Positioning and Release_Reinforcements"): land 0x6eaa80. Exactly one
 // argument (a nil counts), a Lua boolean; both errors stop the script and change nothing (two spaces after the full stops,
 // as retail). [port] retail passes no count to the "%d" of the first text (it prints an unspecified number); the port
 // prints the argument count. Then the host writes the flag on the current members with UNIT_AI. No return value.
@@ -321,7 +321,7 @@ int g_most_defended_position(Call& c) {
     return 1;
 }
 
-// Project_By_Unit_Range(unit, position source) (AI_TACTICAL_PERCEPTION.md §5).
+// Project_By_Unit_Range(unit, position source) (legacy docs/re/AI_TACTICAL_PERCEPTION.md §5).
 int g_project_by_unit_range(Call& c) {
     if (c.nargs != 2) return c.script_error_stop("Project_By_Unit_Range -- invalid number of parameters. Expected 2, got %d.", c.nargs);
     AiArg u, a;
@@ -384,9 +384,9 @@ int m_should_switch_weapons(Call& c) {
 constexpr BindingKind G = BindingKind::Global;
 constexpr BindingKind M = BindingKind::Method;
 
-// mcx0 t04 (binding effect ledger, engine/lua/tools/gen_bindings.py); mcx6 t06: the land Enable_Attack_Positioning and
+// mcx0 t04 (binding effect ledger, engine/lua/tools/gen_bindings.py); the land Enable_Attack_Positioning and
 // both Release_Reinforcements act (full); the space Enable_Attack_Positioning stays retail's no-op.
-// binding-effect: SpaceTaskForceClass.Enable_Attack_Positioning noop-retail retail 0x17d070 is a shared no-op body (docs/re/LUA_API.md)
+// binding-effect: SpaceTaskForceClass.Enable_Attack_Positioning noop-retail retail 0x17d070 is a shared no-op body (legacy docs/re/LUA_API.md)
 #define ALAMO_TACTICAL_TF_METHODS(K)                                     \
     {M, K, "Move_To", m_move_to},                                        \
     {M, K, "Attack_Move", m_attack_move},                                \

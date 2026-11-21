@@ -41,7 +41,7 @@
     float4 WindGrassVector;
     float4 FogColor;
     float4 ShadowParams;      // x extrusion distance, y depth scale
-    float4 Light1Vector;      // FF fill lights 1, 2 (RENDER.md 2.3), zero in space
+    float4 Light1Vector;      // FF fill lights 1, 2 (legacy docs/re/RENDER.md 2.3), zero in space
     float4 Light1Diffuse;
     float4 Light1Specular;
     float4 Light2Vector;

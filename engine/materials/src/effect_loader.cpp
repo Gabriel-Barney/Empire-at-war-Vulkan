@@ -126,7 +126,7 @@ ResolvedPass resolve_pass(const fx::Effect& e, int technique, int pass_index, co
         if (c != fx::StateClass::Sampler && c != fx::StateClass::SetSampler) only_samplers = false;
     }
     r.restore_only = pass_index > 0 && (only_samplers || ascii_icontains(pass.name, "cleanup"));
-    // RENDER.md 2.1: a pass annotated AlamoCleanup = true is excluded from the draw passes; the
+    // legacy docs/re/RENDER.md 2.1: a pass annotated AlamoCleanup = true is excluded from the draw passes; the
     // annotation, when present, overrides the heuristic.
     for (const auto& a : pass.annotations)
         if (ascii_iequals(a.type.name, "ALAMOCLEANUP") && !a.value.words.empty()) r.restore_only = a.value.words[0] != 0;
@@ -226,7 +226,7 @@ ResolvedPass resolve_pass(const fx::Effect& e, int technique, int pass_index, co
     // pass Translated. No DXC here: translate_pass() compiles on demand.
     if (r.program_status == ProgramStatus::NeedsTranslation && !vsb.empty() && !psb.empty()) {
         shaderxlat::Program vp, pp;
-        // SM1-2 pairs, or vs_3_0 with ps_3_0 (modc t22; D3D9 draws a shader model 3 stage only with the other at 3 too).
+        // SM1-2 pairs, or vs_3_0 with ps_3_0 (D3D9 draws a shader model 3 stage only with the other at 3 too).
         if (shaderxlat::parse(vsb, vp) && shaderxlat::parse(psb, pp) && vp.is_vs() && pp.is_ps() &&
             ((vp.major <= 2 && pp.major <= 2) || (vp.major == 3 && pp.major == 3))) {
             r.vs_bytecode.assign(vsb.begin(), vsb.end());
@@ -390,7 +390,7 @@ bool host_path_under(std::string_view host, std::string_view dir) {
 namespace {
 // Candidate game paths of an effect name for one extension (".fxo" / ".fx"): a name with a directory
 // is tried as given (only when its own extension is `ext` or absent) and with `ext`; a bare name under
-// Shaders\, Shaders\Engine\ and Shaders\Terrain\ in that order (RENDER.md 6).
+// Shaders\, Shaders\Engine\ and Shaders\Terrain\ in that order (legacy docs/re/RENDER.md 6).
 std::vector<std::string> effect_candidates(std::string_view effect, std::string_view ext) {
     std::string n(effect);
     std::string base = n;
@@ -508,8 +508,8 @@ FxSourceState EffectLibrary::fx_source_status(std::string_view effect, std::stri
 std::optional<MaterialEffect> EffectLibrary::load_file(std::string_view effect, std::string* err) {
     auto path = find_effect_path(effect);
     if (auto src = find_effect_source(effect)) {
-        // The original compiles the HLSL with D3DX here and prefers it to the .fxo (RENDER.md 6); the port
-        // takes the alamo_fx_prebuild result from the FxCache (modc t23), else keeps the .fxo.
+        // The original compiles the HLSL with D3DX here and prefers it to the .fxo (legacy docs/re/RENDER.md 6); the port
+        // takes the alamo_fx_prebuild result from the FxCache, else keeps the .fxo.
         std::vector<uint8_t> fxo;
         std::string why;
         const FxSourceState st = source_state(*src, &fxo, &why);
@@ -633,9 +633,9 @@ std::optional<MaterialEffect> EffectLibrary::load_parsed(std::string_view name_o
     std::vector<ResolvedPass> passes = resolve_technique(m.technique);
     if (!drawable(passes)) {
         // [port] A technique with a shader pass the port has no program for (vs_3_0 / ps_3_0 in mods) is
-        // skipped like one that fails ValidateTechnique in the original (RENDER.md 6): the next technique
+        // skipped like one that fails ValidateTechnique in the original (legacy docs/re/RENDER.md 6): the next technique
         // by LOD, then file order, whose passes all have a program (max_viewport never). None: keep the
-        // best one (its submeshes draw unlit). docs/MODS.md, shader section.
+        // best one (its submeshes draw unlit). docs/MODS.md "Effects and shaders in mods".
         std::vector<int> order;
         for (size_t i = 0; i < e->techniques.size(); ++i)
             if (static_cast<int>(i) != m.technique &&

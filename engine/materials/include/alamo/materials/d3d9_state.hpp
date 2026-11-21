@@ -1,6 +1,6 @@
 // D3D9 device-state model used to resolve effect passes into pipeline keys.
 //
-// PORTING.md 3.1: effective state = D3D9 defaults <- ENGINE\Phase<phase>.fxo pass 0 <- material
+// legacy docs/shaders/PORTING.md 3.1: effective state = D3D9 defaults <- ENGINE\Phase<phase>.fxo pass 0 <- material
 // pass. States are stored by their index in the D3DX effect state table (alamo::fx::stateInfo,
 // 0..0xB2), not by D3DRENDERSTATETYPE value, so the FXO state operations apply without a second
 // numbering. Enum values below are the d3d9types.h values as stored in FXO state words.

@@ -163,7 +163,7 @@ void parse_class_fields(const data::XmlNode& e, SpecialAbilityDesc& s, const Abi
     set_bonus(L::FireRate, f_or(e, "Fire_Rate_Bonus_Percentage", 0.0f));  // [M: the fire-rate field name]
     s.apply_to_all_allies = b_or(e, "Apply_To_All_Allies", false) || b_or(e, "Affects_All_Allies", false);
     s.reverse_logic = b_or(e, "Reverse_Application_Logic", false);
-    s.specific_faction = s_or(e, "Specific_Faction");  // s78n t04: Combat_Bonus +0x1a0 (resolved by AbilitySystem::set_host)
+    s.specific_faction = s_or(e, "Specific_Faction");  // Combat_Bonus +0x1a0 (resolved by AbilitySystem::set_host)
     s.fow_reveal_multiplier = f_or(e, "FOW_Reveal_Range_Multiplier", 1.0f);
     s.reinforcement_time_multiplier = f_or(e, "Reinforcement_Time_Multiplier", 1.0f);
     s.stealth_duration_multiplier = f_or(e, "Stealth_Duration_Multiplier", 1.0f);
@@ -184,12 +184,12 @@ void parse_class_fields(const data::XmlNode& e, SpecialAbilityDesc& s, const Abi
     s.berserker_damage = f_or(e, "Berserker_Damage", 0.0f);
     s.berserker_damage_range = f_or(e, "Berserker_Damage_Range", 0.0f);
     s.berserker_duration = f_or(e, "Berserker_Duration_In_Secs", 0.0f);
-    s.catch_dist = f_or(e, "Catch_Dist", 0.0f);  // cu8i t01: Saber_Throw
+    s.catch_dist = f_or(e, "Catch_Dist", 0.0f);  // Saber_Throw
     if (r.type_max_speed) {
         const std::string_view saber = data::trim(last_text(e, "Saber_Name"));
         if (!saber.empty()) s.saber_speed = std::max(0.0f, r.type_max_speed(saber));
         if (!saber.empty() && r.type_max_flight_distance) s.saber_max_flight = std::max(0.0f, r.type_max_flight_distance(saber));
-        if (!saber.empty() && r.projectile) s.saber_projectile = r.projectile(saber);  // cu8k t01: the thrown saber's desc
+        if (!saber.empty() && r.projectile) s.saber_projectile = r.projectile(saber);  // the thrown saber's desc
     }
     s.activation_time = f_or(e, "Activation_Time_In_Seconds", 0.0f);
     s.trigger_radius = f_or(e, "Trigger_Radius", 0.0f);
@@ -203,9 +203,9 @@ void parse_class_fields(const data::XmlNode& e, SpecialAbilityDesc& s, const Abi
     // Grenade_Attack +0x1c0 is Grenade_Toss_Anim; Toss_Anim (+0x190) belongs to Remote_Bomb (xml_field_tables.md).
     s.toss_anim = s_or(e, "Grenade_Toss_Anim");
     if (s.toss_anim.empty()) s.toss_anim = s_or(e, "Toss_Anim");
-    s.spawn_bone = s_or(e, "Spawn_Bone");  // S8 t06: Remote_Bomb toss bone (LOB_SOLVER §3.5)
-    if (s.spawn_bone.empty()) s.spawn_bone = s_or(e, "Spawn_Bone_Name");  // mcx4 t06: Spawn_Ability +0x198 (§14)
-    s.recharge_time_in_seconds = f_or(e, "Recharge_Time_In_Seconds", 1.0f);  // mcx4 t06: Spawn_Ability +0x194 (§14)
+    s.spawn_bone = s_or(e, "Spawn_Bone");  // Remote_Bomb toss bone (LOB_SOLVER §3.5)
+    if (s.spawn_bone.empty()) s.spawn_bone = s_or(e, "Spawn_Bone_Name");  // Spawn_Ability +0x198 (§14)
+    s.recharge_time_in_seconds = f_or(e, "Recharge_Time_In_Seconds", 1.0f);  // Spawn_Ability +0x194 (§14)
     if (s.recharge_time_in_seconds < 0.0f) s.recharge_time_in_seconds = 0.0f;
     s.fuse_time = f_any(e, {"Grenade_Explode_Timer_In_Secs", "Detonation_Time_In_Secs"}, 0.0f);
     s.requires_direct_command = b_or(e, "Requires_Direct_Player_Command", false);
@@ -218,7 +218,7 @@ void parse_class_fields(const data::XmlNode& e, SpecialAbilityDesc& s, const Abi
     s.anim_speedup = f_or(e, "Attack_Animation_Speedup", 1.0f);
     s.right_to_left = b_or(e, "Apply_Damage_Right_To_Left", false);
     s.attack_anim = s_or(e, "Attack_Animation");
-    s.grabbed_anim = s_or(e, "Target_Grabbed_Animation");  // r3h t04: Eat (+0x1d0): the victim loops it while held
+    s.grabbed_anim = s_or(e, "Target_Grabbed_Animation");  // Eat (+0x1d0): the victim loops it while held
     s.anim_sub_index = i_or(e, "Attack_Animation_Subindex", i_or(e, "Attack_Anim_Sub_Index", 0));
     s.damage_frame = i_or(e, "Damage_Frame_Number", 0);
     s.begin_damage_frame = i_or(e, "Begin_Applying_Damage_Frame", 0);
@@ -227,7 +227,7 @@ void parse_class_fields(const data::XmlNode& e, SpecialAbilityDesc& s, const Abi
     s.health_per_victim = f_or(e, "Health_Per_Victim", 0.0f);
     s.fire_frame = i_or(e, "Fire_Frame", 0);
     s.face_target = b_or(e, "Face_Target", false);
-    s.turn_rate = f_or(e, "Turn_Rate", 10.0f);      // ctor 0x714e30 defaults (cu8f t06)
+    s.turn_rate = f_or(e, "Turn_Rate", 10.0f);      // ctor 0x714e30 defaults
     s.firing_cone = f_or(e, "Firing_Cone", 45.0f);
     s.fire_delay = f_or(e, "Fire_Delay", 0.0f);
     s.fire_continuation = f_or(e, "Fire_Continuation", 0.0f);
@@ -372,7 +372,7 @@ bool parse_unit_ability(const data::XmlNode& e, UnitAbilityRecord& out, const Ab
     out.effective_radius = f_or(e, "Effective_Radius", 0.0f);
     out.recharge_seconds = f_or(e, "Recharge_Seconds", 0.0f);
     out.expiration_seconds = f_or(e, "Expiration_Seconds", 0.0f);
-    out.is_pulsing = b_or(e, "Is_Pulsing", false);  // no reader in the original [M] (cu8f t06): kept for the record only
+    out.is_pulsing = b_or(e, "Is_Pulsing", false);  // no reader in the original [M]: kept for the record only
     out.pulse_frequency_secs = f_or(e, "Pulse_Frequency_Secs", 0.0f);
     out.max_pulses = i_or(e, "Max_Number_Of_Pulses", 0);
     out.alternate_icon_name = s_or(e, "Alternate_Icon_Name");
@@ -381,7 +381,7 @@ bool parse_unit_ability(const data::XmlNode& e, UnitAbilityRecord& out, const Ab
     out.gui_activated_ability_name = s_or(e, "GUI_Activated_Ability_Name");
     out.gui_name_crc = out.gui_activated_ability_name.empty() ? 0u : name_crc(out.gui_activated_ability_name);
     out.spawned_object_type = s_or(e, "Spawned_Object_Type");
-    out.max_spawned_objects = i_or(e, "Max_Num_Spawned_Objects", -1);  // [port] absent: no cap (cu8f t06)
+    out.max_spawned_objects = i_or(e, "Max_Num_Spawned_Objects", -1);  // [port] absent: no cap
     out.bomb_countdown_seconds = f_or(e, "Bomb_Countdown_Seconds", 0.0f);
     out.area_effect_decal_distance = f_or(e, "Area_Effect_Decal_Distance", 0.0f);
     for (data::XmlNode c : e.children("Projectile_Types_Override"))
@@ -475,7 +475,7 @@ SpecialAbilityDesc parse_special_ability(const data::XmlNode& e, const AbilityRe
     s.duration_secs = f_or(e, "Duration_In_Secs", 0.0f);
     s.force_sight_duration = f_or(e, "Force_Sight_Duration_In_Secs", 0.0f);  // fog follow-up
     s.stealth_transition_time = f_or(e, "Stealth_Transition_Time", 0.0f);
-    {  // mcx4 t15: the owner's and the target's light effect (0x48e4d0 / 0x48e880), every special ability
+    {  // the owner's and the target's light effect (0x48e4d0 / 0x48e880), every special ability
         const auto light = [&e](LightEffectDesc& l, std::string_view type_tag, std::string_view color_tag, std::string_view color2_tag,
                                 std::string_view duration_tag, std::string_view pulses_tag) {
             l.type = light_effect_type_from_name(last_text(e, type_tag));

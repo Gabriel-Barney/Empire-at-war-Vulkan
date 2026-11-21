@@ -206,7 +206,7 @@ uint32_t RenderRng::below(uint32_t n) { return n == 0 ? 0u : static_cast<uint32_
 DecalSpawn RuntimeDecals::spawn(const terrain::Terrain& terrain, const DecalFxDef& fx, float x, float y, float z, float heading,
                                 float now) {
     if (!terrain.present || terrain.width < 2 || terrain.height < 2) return DecalSpawn::NoTerrain;
-    // Size = Scale exactly. Random_Size_Offset is parsed but not applied: the g1f t05 capture (RENDER.md 7.3,
+    // Size = Scale exactly. Random_Size_Offset is parsed but not applied: the g1f t05 capture (legacy docs/re/RENDER.md 7.3,
     // DECORATIONS 4.2) showed every drawn EXPLOSION_SCORCH_SMALL / _TINY decal at its Scale within 0.005 (offset 0.1 in
     // the XML), i.e. a size factor of 1 in this build.
     // Random values: slot pair, rotation [port order].

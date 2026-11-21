@@ -36,7 +36,7 @@ namespace fs = std::filesystem;
 
 using ::alamo::test::g_fail;
 
-// q6 t11 (docs/re/LUA_API.md "Binding error model across all bindings"): a binding error does not unwind; it logs
+// q6 t11 (legacy docs/re/LUA_API.md "Binding error model across all bindings"): a binding error does not unwind; it logs
 // "SCRIPT ERROR: ..." and sets the script's stop flag. run() reports those lines as its result (a Lua error as before)
 // and clears the flag, so the next snippet runs on a live script.
 static std::string run(LuaVm& vm, const std::string& code) {
@@ -61,7 +61,7 @@ static double gnum(LuaVm& vm, const char* name) {
 }
 
 static bool contains(const std::string& s, const char* part) { return s.find(part) != std::string::npos; }
-// q6 t11: an invalid camera position is a warning (logged "SCRIPT WARNING: ...", the binding returns, no stop).
+// an invalid camera position is a warning (logged "SCRIPT WARNING: ...", the binding returns, no stop).
 static bool warned(LuaVm& vm, const std::string& code, const char* part) {
     return run(vm, code).empty() && !vm.exit_requested() && !vm.messages().empty() &&
            vm.messages().back().rfind("SCRIPT WARNING: ", 0) == 0 && contains(vm.messages().back(), part);
@@ -189,7 +189,7 @@ static void test_object_effects() {
           ev[2].args[1].text == "Rescue_Effect");
     CHECK(ev[3].args.size() == 3 && ev[3].args[1].kind == PresentationArg::Kind::Type && ev[3].args[2].text == "Bone_A");
     // OI lua: the resolved requests a render host consumes (object id, type index / name, bone), drained with the events.
-    // storyb t17 (STORYB_T17_SPAWNS_AND_DEATH.md §2): a known type without PARTICLE becomes an object of that type at the
+    // storyb t17 (legacy docs/re/STORYB_T17_SPAWNS_AND_DEATH.md §2): a known type without PARTICLE becomes an object of that type at the
     // receiver, its owner's, returned; an unknown (or a PARTICLE) type stays a render request.
     const auto& pe = log.particle_effects();
     CHECK(pe.size() == 1 && pe[0].frame == 7 && pe[0].seq == ev[2].seq && pe[0].object == 2 && pe[0].type == -1 &&
@@ -218,7 +218,7 @@ static void test_object_effects() {
     CHECK(contains(run(vm, "trooper.Show_Emitter('x')"), "Show_Emitter -- invalid number of parameters. Expected 2, got 1."));
 }
 
-// cu8g t03: Set_New_Environment(int) - LUA_API.md contract strings; recorded, then the tactical host's
+// Set_New_Environment(int) - legacy docs/re/LUA_API.md contract strings; recorded, then the tactical host's
 // TacticalScriptHooks::set_new_environment with the truncated int (the mode clamps).
 static void test_set_new_environment() {
     World w;
@@ -241,7 +241,7 @@ static void test_set_new_environment() {
     CHECK(run(vm, "Set_New_Environment(2) Set_New_Environment(3.9) Set_New_Environment(-1)") == "");
     CHECK(got == std::vector<int32_t>({2, 3, -1}) && log.events().size() == 4);
     CHECK(contains(run(vm, "Set_New_Environment(true)"), "Expected int.") && got.size() == 3);  // refused: no hook call
-    // ui2 t08: Set_Cinematic_Environment reaches the sim hook with its bool
+    // Set_Cinematic_Environment reaches the sim hook with its bool
     std::vector<bool> cin;
     hooks.set_cinematic_environment = [&cin](bool on) { cin.push_back(on); };
     CHECK(run(vm, "Set_Cinematic_Environment(true) Set_Cinematic_Environment(false)") == "");
@@ -625,7 +625,7 @@ static void test_save_load() {
     const PresentationState& sa = la.state();
     CHECK(sa.camera == CameraMode::Cinematic && sa.controls_locked && sa.movie == "Mid_Movie" && sa.movie_block != 0 &&
           !sa.hidden_sub_objects.empty() && !sa.emitters.empty() && !sa.in_end_cinematic.empty() && la.events().size() > 10 &&
-          la.particle_effects().empty());  // storyb t17: the 'Trooper' effect is an object
+          la.particle_effects().empty());  // the 'Trooper' effect is an object
     ByteWriter wl;
     la.write(wl);
     ByteWriter wv;
@@ -702,7 +702,7 @@ static void test_save_load() {
     attach_presentation(b, nullptr);
 }
 
-// ui2 t03: a position argument is resolved when the script calls: "@pos", x, y, z follow the call's own arguments.
+// a position argument is resolved when the script calls: "@pos", x, y, z follow the call's own arguments.
 static void test_camera_positions() {
     World w;
     LuaHost h = w.host();
@@ -720,7 +720,7 @@ static void test_camera_positions() {
           ev[1].args[4].number == 9.0);
     CHECK(ev[2].args.size() == 13 && ev[2].args[9].text == "@pos");  // the object's own position at call time
     CHECK(ev[3].args.size() == 5 && ev[3].args[1].text == "@pos");
-    // ui2 t08: Play_Lightning_Effect carries the resolved end (param 2) and start (param 3) after its own arguments.
+    // Play_Lightning_Effect carries the resolved end (param 2) and start (param 3) after its own arguments.
     CHECK(run(vm, "Play_Lightning_Effect('Zap', Create_Position(1, 2, 3), Create_Position(4, 5, 6))") == "");
     const PresentationEvent& zap = log.events().back();
     CHECK(zap.op == PresentationOp::PlayLightningEffect && zap.args.size() == 11 && zap.args[0].text == "Zap");

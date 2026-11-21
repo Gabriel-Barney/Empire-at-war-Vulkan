@@ -1,4 +1,4 @@
-// R3 behaviour-driven clip selection on top of AnimWorld (docs/re/ANIM_PARTICLES.md §A.7, ABILITIES_HARDPOINTS
+// R3 behaviour-driven clip selection on top of AnimWorld (legacy docs/re/ANIM_PARTICLES.md §A.7, ABILITIES_HARDPOINTS
 // §4.9): flinch (0x62dde0), idle while engaged (0x62e570), the death clip (DeathBehavior 0x58cdb0) and the corpse
 // countdown (0x58d430). The per-object behaviour state lives here (sorted by ObjectId); the clip state stays in the
 // AnimWorld. Everything is integer frame timers + synced RNG draws in the caller's service order, so it is
@@ -10,7 +10,7 @@
 //             79-82 while the current clip is attack-like or Attack Idle; random variant (synced), loop, blend
 //             Max_Flinch_Blend_Seconds, speed 1. Held Max_Flinch_Hold_Seconds, then no new flinch for
 //             Idle_ / Attack_Flinch_Interval_Seconds. No clip of the type = nothing (no draw).
-//   idle      [H] (s78k t02, TACTICAL_COMBAT §3.1.1 slot 47 "s78k t02"; IdleBehavior 0x62e570) serviced EVERY frame
+//   idle      [H] (TACTICAL_COMBAT §3.1.1 slot 47 "s78k t02"; IdleBehavior 0x62e570) serviced EVERY frame
 //             (not only when the clip finished; not suspended by Prevent_All_Fire), only for objects with IDLE (s78l t03
 //             (b)); no service while the locomotor reports moving (s78l t03 (a): LocomotorInput::on_path, the host's;
 //             unless Allow_Idle_When_Moving; then the idle records are cleared) or in a Walk deploy state (the host skips
@@ -33,13 +33,13 @@
 //             the death type or has finished (the death clip length is sim-visible), then Death_Fade_Time, then
 //             the object (and its row) is removed.
 //
-// PORT CHOICES ([port], listed in docs/PHASE4.md R3):
+// PORT CHOICES ([port], listed in legacy docs/PHASE4.md R3):
 //   * seconds -> frames by truncation int(30 * s) (ABILITIES_HARDPOINTS §6.3), negative -> 0;
-//   * idle (s78k t02): the "Attack Idle with a blend draw" is drawn even when the model has no Attack Idle clip (the
+//   * idle: the "Attack Idle with a blend draw" is drawn even when the model has no Attack Idle clip (the
 //     play then fails and the clip stays; [M] retail evaluates the argument before the play); the default idle from an
 //     attack clip is index 0, one-shot, speed 1 [M]; whether a stationary turn is "on a path" is the host's on_path
 //     (the idle service runs after the turn / stop play in the same call) [M]; the flinch bookkeeping of step 2 is not
-//     modelled here (flinch: on_hit / service); s78l t03: the idle records are kept in ascending presence id (retail
+//     modelled here (flinch: on_hit / service); the idle records are kept in ascending presence id (retail
 //     iterates an unordered_map; only ties between two allied / two non-allied records that map to different
 //     animations could differ);
 //   * flinch only from no clip / idle-like / attack-like / Attack Idle (not while moving, turning or dying); the
@@ -89,7 +89,7 @@ struct IdleParams {
     int32_t idle_type = kAnimIdle;  // default idle (crouch / garrison mapping: the caller's)
     bool loop_idle = false;         // Loop_Idle_Anim_00
     float idle_rate = 1.0f;         // Idle_Anim_00_Rate_Mod
-    // s78l t03: the presence step of the default idle type (null: none - also while crouched / a garrison override,
+    // the presence step of the default idle type (null: none - also while crouched / a garrison override,
     // which come first in 0x395920). Must outlive the call it is passed to.
     const PresenceIdleFn* presence = nullptr;
 };
@@ -107,7 +107,7 @@ struct DeathParams {
 };
 
 // Locomotor clip selection (WalkLocomotor 0x61f840, turn 0x620190; §A.7 walk / move and turn rows).
-// s78k t02: what the IDLE service's TARGETING lookup (0x62e570 step 3 / 4) finds for a unit: no TARGETING behaviour at
+// what the IDLE service's TARGETING lookup (0x62e570 step 3 / 4) finds for a unit: no TARGETING behaviour at
 // all (neither its own nor, for a team member, its container's), a TARGETING without a target, or one holding a target
 // (TD +8 != null; suspension ignored).
 enum class IdleTarget : uint8_t { None = 0, NoTarget = 1, Target = 2 };
@@ -130,7 +130,7 @@ struct LocomotorInput {
     bool burning = false;                  // object +0x3a1 & 2 [M]
     bool deployed = false;                 // deployed walker
     int32_t idle_type = kNoAnimType;       // garrison container mapping (caller); kNoAnimType = default rule
-    IdleTarget target = IdleTarget::NoTarget;  // s78k t02: the idle service's TARGETING lookup (host)
+    IdleTarget target = IdleTarget::NoTarget;  // the idle service's TARGETING lookup (host)
     bool allow_idle_when_moving = false;       // Allow_Idle_When_Moving (type +0x85): idle service also while moving
     // s78l t03 (slot 47 "s78l t03" (a)): the IDLE moving gate - the locomotor (vf +0x110) reports moving: a path on its
     // stack (Walk / Bike / Fighter / SimpleSpace / Team, whatever the speed, arrival turn included), the container's for
@@ -138,10 +138,10 @@ struct LocomotorInput {
     // when !movable (no locomotor: never gated). Gated: no IDLE service (records cleared, no draw).
     bool on_path = false;
     bool has_idle = true;  // s78l t03 (b): the object has the IDLE behaviour (7); without it there is no idle service
-    // s78l t02: the host's locomotor plays the stationary turn clips itself (the Walk arrival turn's events): no TURNL /
+    // the host's locomotor plays the stationary turn clips itself (the Walk arrival turn's events): no TURNL /
     // TURNR from the yaw change here.
     bool host_turn = false;
-    // bkx1 t04 (b0059, BKX1_RENDER_RE §2): a Walk_Transition unit's clip as its locomotor runs it (MovementSystem UnitView
+    // bkx1 t04 (BKX1_RENDER_RE §2): a Walk_Transition unit's clip as its locomotor runs it (MovementSystem UnitView
     // wt_clip / wt_pos / wt_rate): 16 MOVESTART, 17..20 the end clips, 2 MOVE after MOVESTART, -1 none. The locomotor's
     // frame and rate (clip frames per sim frame = fps / 30 x rate) start the clip.
     int32_t wt_clip = -1;
@@ -171,16 +171,16 @@ inline constexpr int32_t kAnimFwDie = 32, kAnimFtkDie = 36, kAnimFlDie = 41, kAn
 inline constexpr int32_t kAnimTurnLeftCrouch = 72, kAnimTurnRightCrouch = 73;
 inline constexpr float kDeployBlendSeconds = 0.0333f;
 bool is_move_family(int32_t type);                     // 2, 61, 66, 67, 115
-bool is_walk_transition_clip(int32_t type);            // bkx1 t04: 16 MOVESTART, 17..20 MOVE_ENDONE..MOVE_ENDFOUR
+bool is_walk_transition_clip(int32_t type);            // 16 MOVESTART, 17..20 MOVE_ENDONE..MOVE_ENDFOUR
 int32_t default_idle_type(const AnimModel* m, const LocomotorInput& in, const IdleParams& idle);
-// s78l t03: `idle.idle_type`, or the presence step's answer for `records` when idle.presence is set, the records are not
+// `idle.idle_type`, or the presence step's answer for `records` when idle.presence is set, the records are not
 // empty and the answer has a clip in `m` ([port] no clip: the plain type, as default_idle_type).
 int32_t presence_idle_type(const AnimModel* m, ObjectId id, const IdleParams& idle, std::span<const IdleRecord> records);
 // r3g t07 (S9_DEATH_CLONE_SHIELDS §1.3-1.4, DeathBehavior attach 0x58cdb0): the death clip is the type's
 // Specific_Death_Anim_Type / _Index only (+0xd98 / +0xd9c); the killing kind never picks a clip. Kind-specific deaths
 // (FW / FL / FTK / Fire / CA / Crushed) come from the Death_Clone the kind selects, whose type names its clip.
 
-// refixf t04: the data-driven part of Die + DeathBehavior, computed WITHOUT an AnimWorld so the sim can schedule the
+// the data-driven part of Die + DeathBehavior, computed WITHOUT an AnimWorld so the sim can schedule the
 // removal of a death clone store object identically with and without the animation service (ANIM_PARTICLES §A.7: the
 // death clip length is sim-visible; it is read from the model's clip data, not from a running animation).
 struct DeathPlan {
@@ -193,7 +193,7 @@ struct DeathPlan {
 };
 // Same draws in the same order as begin_death (spin: one synced float when 0 < chance < 1; then the variant: one int in
 // [0, n - 1] when `p.index` is random and `m` has n > 0 variants of the death type - AnimWorld::play's draw). The death
-// type is p.type (r3g t07: never chosen by `damage_kind`, which is only recorded). m = null: no clip,
+// type is p.type (never chosen by `damage_kind`, which is only recorded). m = null: no clip,
 // no variant draw. lifetime = what AnimBehaviors::service's countdown gives a corpse that starts at the death frame:
 //   spin   Spin_Away_On_Death_Time;
 //   clip   one_shot_frames(clip, speed 1) + 1 (the corpse service runs before the advance, so it sees the finished clip
@@ -256,7 +256,7 @@ public:
 
     // ---- idle behaviour (incl. idle while engaged; s78k t02 flow above) ----
     // One service of 0x62e570 (call every frame the unit is not moving; draws with a target whatever the clip). True if
-    // it played a clip. s78l t03: with a target the idle records are cleared; without one they age first (every value
+    // it played a clip. With a target the idle records are cleared; without one they age first (every value
     // - 1, a record below 1 erased), then the default idle type is resolved (presence_idle_type with idle.presence).
     bool service_idle(AnimWorld& w, ObjectId id, const IdleParams& idle, IdleTarget target, SimRng& rng, uint64_t frame,
                       bool crouch_changed = false);
@@ -269,7 +269,7 @@ public:
     // resets the countdown). The caller applies the gates (receiver with IDLE, no target, not moving).
     void presence_refresh(ObjectId id, ObjectId presence, int32_t frames);
     std::span<const IdleRecord> idle_records(ObjectId id) const;  // ascending presence id; empty when none
-    // s78l t03: true when the locomotor has seen a yaw for `id` and `yaw_deg` differs from it by more than 0.01 deg (the
+    // true when the locomotor has seen a yaw for `id` and `yaw_deg` differs from it by more than 0.01 deg (the
     // stationary turn test of service_locomotor, read before the call: the host's arrival-turn = on a path rule).
     bool yaw_changed(ObjectId id, float yaw_deg) const;
 
@@ -283,7 +283,7 @@ public:
     // mcx4 t11 blends (AnimTunables, GameConstants): walker - MoveBlendTime for a move clip (0 for a Walk_Transition
     // unit's MOVE, 0x61f840), IdleWalkBlendTime for the stop; team member - Team(Crouch)MoveBlendTime from an idle / turn
     // clip, (Crouch)IdleWalkBlendTime into an idle, else kTeam(Crouch)SwitchBlendSeconds; turns infantry_turn_blend;
-    // then (s78k t02) the idle service on every call while not moving (in.target; also while moving with
+    // then the idle service on every call while not moving (in.target; also while moving with
     // in.allow_idle_when_moving), after the locomotor's own play (crouch change forces the idle clip). Returns the
     // number of plays started (0 - 2).
     uint32_t service_locomotor(AnimWorld& w, ObjectId id, const LocomotorParams& p, const LocomotorInput& in, SimRng& rng, uint64_t frame);
@@ -298,12 +298,12 @@ public:
     // ---- death / corpse ----
     // Die + DeathBehavior start. NoRow: `id` has no AnimWorld row (a corpse without clip is still recorded,
     // unless remove_upon_death). RemoveNow: the row (if any) was removed; the caller removes the object.
-    // `damage_kind` = the killing hit's DamageType (recorded on the corpse; it does not pick the clip, r3g t07).
+    // `damage_kind` = the killing hit's DamageType (recorded on the corpse; it does not pick the clip).
     // Spin-away (Spin_Away_On_Death): [port] decided here, one synced float [0, 1) < chance when 0 < chance < 1
     // (chance >= 1 or unset: always); a spinning death plays no clip and is removed after Spin_Away_On_Death_Time.
     DeathResult begin_death(AnimWorld& w, ObjectId id, const DeathParams& p, const CorpseInfo& info, SimRng& rng, uint64_t frame,
                             uint8_t damage_kind = 1);
-    // refixf t04: the same with the spin decision / death type / variant already made by plan_death (no draws): a death
+    // the same with the spin decision / death type / variant already made by plan_death (no draws): a death
     // clone whose removal the sim schedules. The clip plays when the row's model has plan.type / plan.variant.
     DeathResult begin_death(AnimWorld& w, ObjectId id, const DeathParams& p, const DeathPlan& plan, const CorpseInfo& info, uint64_t frame,
                             uint8_t damage_kind = 1);
@@ -347,7 +347,7 @@ private:
         uint64_t idle_countdown = 0;  // I +0xc (frames)
         float last_yaw = 0.0f;  // locomotor
         bool have_yaw = false, last_crouch = false;
-        std::vector<IdleRecord> records;  // s78l t03: I +0x10, ascending presence id (retail: an unordered map)
+        std::vector<IdleRecord> records;  // I +0x10, ascending presence id (retail: an unordered map)
     };
     Entry* find(ObjectId id);
     const Entry* find(ObjectId id) const;

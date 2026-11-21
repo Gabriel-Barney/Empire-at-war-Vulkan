@@ -1,5 +1,5 @@
-// TRU1 t03 - GRAVITY_CONTROL_FIELD (behaviour 0x3a): a powered generator slows the enemy units around it whose type sets
-// Is_Affected_By_Gravity_Control_Field. Behaviour: docs/re/TRU1_GRAVITY_FIELD.md.
+// GRAVITY_CONTROL_FIELD (behaviour 0x3a): a powered generator slows the enemy units around it whose type sets
+// Is_Affected_By_Gravity_Control_Field. Behaviour: legacy docs/re/TRU1_GRAVITY_FIELD.md.
 //
 // Port shape: the generator's state lives on its ability object (gravity_due / gravity_on / gravity_list), the victim's
 // flag on the victim's (in_gravity_field). The slow is one list-5 (MaxSpeed) entry in the victim's own ModifierSet whose
@@ -81,7 +81,7 @@ void AbilitySystem::gravity_apply(Obj& g, uint32_t frame) {
         const bool hostile = p != g.owner && enemy(p, g.owner);
         for (Obj& v : objs_) {
             if (v.owner != p || v.dead || !v.combat_unit || v.id == g.id) continue;
-            // cmb3 t06 (b0452, TRU1_GRAVITY_FIELD §1.5 [H]): the query skips an object inside a container (obj +0x3a7, set by
+            // cmb3 t06 (TRU1_GRAVITY_FIELD §1.5 [H]): the query skips an object inside a container (obj +0x3a7, set by
             // enter-container 0x37ade0 for garrisons and transports alike, and by Lua Set_In_Limbo), in both branches: a
             // carried unit is neither slowed nor released while carried (one slowed before keeps the slow). The port's
             // +0x3a7 reading is kUnitContained (garrisoned or limbo).

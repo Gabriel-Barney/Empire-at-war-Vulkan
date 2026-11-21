@@ -23,7 +23,7 @@ void FrameSynchronizer::set_paused(bool on) {
 }
 
 uint32_t FrameSynchronizer::rate() const {
-    // --- OI host: MAIN_LOOP.md §1.2 applies "fast -> 120" then "cinematic -> 30": the cinematic lock wins ---
+    // --- OI host: legacy docs/re/MAIN_LOOP.md §1.2 applies "fast -> 120" then "cinematic -> 30": the cinematic lock wins ---
     if (cinematic_) return kCinematicRate;
     if (fast_) return kFastModeRate;
     // --- end OI host ---

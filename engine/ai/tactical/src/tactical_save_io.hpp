@@ -89,7 +89,7 @@ inline objects::ObjectHandle get_handle(ByteReader& r, const objects::ObjectStor
     return st.exists(raw) ? objects::ObjectHandle{} : raw;
 }
 
-// ---------------------------------------------------------------- one field list per record (REF1 t03)
+// ---------------------------------------------------------------- one field list per record
 // A record lists its fields once, in a visit(Ar&, R&) function (R = the record, const for the writer and the hasher).
 // Three archives walk that list: SaveWriter (the N1 save bytes), SaveReader (decodes them) and RecordHasher (the
 // per-tick CRC). Each field names the streams it belongs to: the CRC covers the fields the battle's outcome reads, so
@@ -99,8 +99,8 @@ enum class In : uint8_t { Both, Save, Hash };
 
 // Save-format features an older image lacks (SaveReader); the writer and the hasher always have them.
 struct Features {
-    bool pad_fact = true;  // b0416: TacticalAiObject::pad_occupied (tactical AI save version 14 / 15)
-    bool retest = true;    // skai t15: pick contrast entries, PP layer flags and re-test byte (version 16 / 17)
+    bool pad_fact = true;  // TacticalAiObject::pad_occupied (tactical AI save version 14 / 15)
+    bool retest = true;    // pick contrast entries, PP layer flags and re-test byte (version 16 / 17)
 };
 enum class Feature : uint8_t { PadFact, Retest };
 

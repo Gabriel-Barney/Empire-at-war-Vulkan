@@ -1,4 +1,4 @@
-// Effect sources and the compiled-source cache (fx_source.hpp, roadmap modc t23).
+// Effect sources and the compiled-source cache (fx_source.hpp).
 // Cache file layout, little-endian:
 //   "AFXC" u32 format | u32 len + key | u8 ok | u32 len + compiler | u32 len + log | u32 len + fxo |
 //   u64 FNV-1a of everything before it
@@ -251,7 +251,7 @@ bool FxCache::store(const std::string& key, const FxCacheEntry& entry) const {
 
     const alamo::AtomicWriteResult r = alamo::write_file_atomic(dir / (key + ".afx"), b);  // 16 tries, 1 ms apart
     if (r == alamo::AtomicWriteResult::ReplaceFailed) {
-        // Lost a race against another writer of the same key (CU2 t11: same policy as ShaderCache; this
+        // Lost a race against another writer of the same key (same policy as ShaderCache; this
         // returned false before). The key covers every source byte, so the other entry is equivalent.
         FxCacheEntry other;
         return load(key, other);

@@ -3,12 +3,12 @@
 // Every binding here records a PresentationEvent (sim frame + arguments) into the VM's
 // PresentationLog and updates PresentationState (alamo/lua/presentation.hpp). None of them reads or
 // writes sim state, draws random numbers or changes anything a sim CRC hashes.
-// Argument contracts and messages: docs/re/LUA_API.md "Binding map" (the original's own strings).
+// Argument contracts and messages: legacy docs/re/LUA_API.md "Binding map" (the original's own strings).
 // Behaviour the docs do not give is marked [inferred].
-// Exception (mcx6 t05): Promote_To_Space_Cinematic_Layer moves the object (TacticalScriptHooks::teleport); likewise (mcx6)
+// Exception: Promote_To_Space_Cinematic_Layer moves the object (TacticalScriptHooks::teleport); likewise (mcx6)
 // Do_End_Cinematic_Cleanup suspends and moves the objects it cleans up (ObjectBridge state + the teleport hook).
-// Exception (story t12): Resume_Hyperspace_In also clears the host's reinforcement hold through
-// TacticalScriptHooks::resume_hyperspace_in (script_gaps.hpp) when a tactical host installed it; likewise (cu8g t03)
+// Exception: Resume_Hyperspace_In also clears the host's reinforcement hold through
+// TacticalScriptHooks::resume_hyperspace_in (script_gaps.hpp) when a tactical host installed it; likewise
 // Set_New_Environment changes the mode's environment through TacticalScriptHooks::set_new_environment.
 #include <map>
 #include <string>
@@ -32,7 +32,7 @@ namespace {
 PresentationLog& log_of(Call& c) { return detail::presentation_of(c.L); }
 uint32_t frame_of(const Call& c) { return c.vm->frame; }
 
-using detail::is_bool;  // ref5 t03: vm_internal.hpp
+using detail::is_bool;  // vm_internal.hpp
 bool boolean(const Call& c, int i) { return lua_toboolean(c.L, c.idx(i)) != 0; }
 
 const detail::Ud* engine_ud(const Call& c, int i) {
@@ -112,7 +112,7 @@ PresentationEvent& record(Call& c, PresentationOp op, bool with_self = false) {
 
 PresentationState& state(Call& c) { return log_of(c).mutable_state(); }
 
-// ui2 t03 (STORY_PRESENTATION_LUA.md 2.4): the position argument is resolved when the script calls, so the host that draws
+// ui2 t03 (legacy docs/re/STORY_PRESENTATION_LUA.md 2.4): the position argument is resolved when the script calls, so the host that draws
 // the camera needs its coordinates: after the call's own arguments the event carries a String "@pos" and the three Number
 // coordinates (an object's position, or the PositionWrapper's). Nothing is appended for a dead object or an AI target.
 void append_position(Call& c, PresentationEvent& e, int i) {
@@ -267,7 +267,7 @@ int g_end_cinematic_mode(Call& c) {
 
 // Set_Cinematic_*_Key(position, x|dist, y|pitch, z|yaw, euler, attach_object|0, use_object_rotation,
 // animation): a cut. Transition_Cinematic_*_Key: same with the time (seconds) as parameter 2.
-// q6 t11 (LUA_API.md): Set_Cinematic_Target_Key takes 8 or more arguments (FoC Underworld Act I M03 passes 9; the
+// q6 t11 (legacy docs/re/LUA_API.md): Set_Cinematic_Target_Key takes 8 or more arguments (FoC Underworld Act I M03 passes 9; the
 // message says 8); an invalid position is a warning and the binding returns (the complete warning list).
 int set_key(Call& c, const char* cls, PresentationOp op, bool camera, bool transition) {
     const int expected = transition ? 9 : 8;
@@ -313,7 +313,7 @@ int g_transition_to_tactical(Call& c) {
 }
 
 int focus(Call& c, const char* msg, PresentationOp op) {
-    if (!is_position(c, 1)) return c.script_warning("%s", msg);  // q6 t11: a warning (LUA_API.md, the warning list)
+    if (!is_position(c, 1)) return c.script_warning("%s", msg);  // a warning (legacy docs/re/LUA_API.md, the warning list)
     append_position(c, record(c, op), 1);
     PresentationState& s = state(c);
     s.camera_focus = to_arg(c, 1);
@@ -366,11 +366,11 @@ int g_set_cinematic_environment(Call& c) {
     record(c, PresentationOp::SetCinematicEnvironment);
     state(c).cinematic_environment = boolean(c, 1);
     if (ObjectBridge* b = c.vm->owner ? attached_object_bridge(*c.vm->owner) : nullptr; b && b->tactical && b->tactical->set_cinematic_environment)
-        b->tactical->set_cinematic_environment(boolean(c, 1));  // ui2 t08: the sim-side environment switch
+        b->tactical->set_cinematic_environment(boolean(c, 1));  // the sim-side environment switch
     return 0;
 }
 
-// Set_New_Environment(int) (0x5448a0; LUA_API.md contract strings; no shipped call sites): recorded, then (cu8g t03)
+// Set_New_Environment(int) (0x5448a0; legacy docs/re/LUA_API.md contract strings; no shipped call sites): recorded, then
 // the tactical host's TacticalScriptHooks::set_new_environment with the int argument (the mode clamps it,
 // CU8F_T03_T05_RE §2.2). [port] the number is truncated toward zero like every int argument (detail::to_int).
 int g_set_new_environment(Call& c) {
@@ -382,14 +382,14 @@ int g_set_new_environment(Call& c) {
     return 0;
 }
 
-// mcx6 t05 (docs/re/MCX6_T05_CINEMATIC_BINDINGS.md §3, 0x5433f0): the object moves to its own position raised by 20000 on z
+// mcx6 t05 (legacy docs/re/MCX6_T05_CINEMATIC_BINDINGS.md §3, 0x5433f0): the object moves to its own position raised by 20000 on z
 // (the cinematic layer above the battlefield) through the reposition 0x3abb80, which Teleport uses too: the tactical host's
 // TacticalScriptHooks::teleport (store, movement, combat, trees), the facing kept; without one the store position. Its
 // cinematic camera keys and the scripts' Get_Position then see the raised object. Outside a tactical mode retail's
 // "Command only valid in a tactical game." is a script error: the dispatcher's mode gate (bindings.cpp kTacticalGlobals /
 // kGateTexts, before the argument checks). [port] Its "... only valid in a land or space tactical game." for another
 // tactical kind has no port case (every port tactical store is land or space).
-// binding-effect: Promote_To_Space_Cinematic_Layer full z + 20000 through TacticalScriptHooks::teleport (docs/re/MCX6_T05_CINEMATIC_BINDINGS.md §3)
+// binding-effect: Promote_To_Space_Cinematic_Layer full z + 20000 through TacticalScriptHooks::teleport (legacy docs/re/MCX6_T05_CINEMATIC_BINDINGS.md §3)
 int g_promote_to_space_cinematic_layer(Call& c) {
     if (!c.has(1)) return c.script_error_stop("LuaPromoteToSpaceCinematicLayer -- Expected gameobject parameter 1");
     if (!is_object(c, 1)) return c.script_error_stop("LuaPromoteToSpaceCinematicLayer -- Invalid parameter 1, expected a game object");
@@ -415,7 +415,7 @@ int g_promote_to_space_cinematic_layer(Call& c) {
 // position). The suspension is ScriptObjectState::end_cinematic_suspended, which the battle host reads every tick; nothing
 // lifts it, as in retail. [port] It stands for retail's per-behaviour suspend virtual (+0xc0) as the port's per-tick unit
 // controls: the locomotor does not run and the weapons do not fire (Suspend_Locomotor + Prevent_All_Fire's effects).
-// binding-effect: Do_End_Cinematic_Cleanup full locomotor objects suspended (no locomotor run, no fire) and moved to (1, 1, 0) through TacticalScriptHooks::teleport; alamo_game hides them (docs/re/MCX6_T05_CINEMATIC_BINDINGS.md §2)
+// binding-effect: Do_End_Cinematic_Cleanup full locomotor objects suspended (no locomotor run, no fire) and moved to (1, 1, 0) through TacticalScriptHooks::teleport; alamo_game hides them (legacy docs/re/MCX6_T05_CINEMATIC_BINDINGS.md §2)
 int g_do_end_cinematic_cleanup(Call& c) {
     record(c, PresentationOp::DoEndCinematicCleanup);
     ObjectBridge* b = c.vm->owner ? attached_object_bridge(*c.vm->owner) : nullptr;
@@ -619,7 +619,7 @@ int g_hide_sub_object(Call& c) {
     const std::string mesh = ascii_upper(c.string(3));
     const bool hide = c.number(2) != 0.0;
     state(c).hidden_sub_objects[std::to_string(id) + "|" + mesh] = hide;
-    // mcx6 t04: the bridge's hidden-mesh map, which the renderer reads (CampaignBattles::hidden_sub_objects). Not a
+    // the bridge's hidden-mesh map, which the renderer reads (CampaignBattles::hidden_sub_objects). Not a
     // per-object script state: presentation only, so the bridge's state hash does not change.
     if (ObjectBridge* b = c.vm->owner ? attached_object_bridge(*c.vm->owner) : nullptr) b->set_sub_object_hidden(id, mesh, hide);
     return 0;
@@ -657,7 +657,7 @@ int m_attach_particle_effect(Call& c) {
         }
     }
     if (c.nargs == 2) r.bone = std::string(c.string(2));
-    // storyb t17 (STORYB_T17_SPAWNS_AND_DEATH.md §2 [H]): the effect is an object of the type in the parent's store (whatever
+    // storyb t17 (legacy docs/re/STORYB_T17_SPAWNS_AND_DEATH.md §2 [H]): the effect is an object of the type in the parent's store (whatever
     // its Is_Decoration says), owned by the parent's owner, at the parent's position and facing, attached to the parent (it
     // dies with it; a PARTICLE type's Particle_Lifetime_Frames ends it on time); the call returns it. [port] It draws at its
     // own position (the bone only placed the render attachment): the render request is kept only when no object was made.
@@ -751,7 +751,7 @@ int g_play_lightning_effect(Call& c) {
         if (!engine_ud(c, i)) return c.script_error_stop("%s -- invalid type for parameter %d. Expected position of some sort.", n, i);
     PresentationLog& log = log_of(c);
     PresentationEvent& e = record(c, PresentationOp::PlayLightningEffect);
-    append_position(c, e, 2);  // ui2 t08: the end (param 2) then the start (param 3), read once at the call (a moving bone is not tracked)
+    append_position(c, e, 2);  // the end (param 2) then the start (param 3), read once at the call (a moving bone is not tracked)
     append_position(c, e, 3);
     const PresentationConfig& cfg = log.config();
     const uint32_t frames = cfg.lightning_frames_of ? cfg.lightning_frames_of(c.string(1)) : cfg.lightning_frames;

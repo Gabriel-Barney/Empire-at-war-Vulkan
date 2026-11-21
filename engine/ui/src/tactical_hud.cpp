@@ -32,7 +32,7 @@ std::vector<uint32_t> capped(std::vector<uint32_t> ids, size_t n = 127) {
     if (ids.size() > n) ids.resize(n);
     return ids;
 }
-// ui3 t07: MasterTextFile text of `key` - a missing key shows as TextDatabase::text gives it, no text database the key
+// MasterTextFile text of `key` - a missing key shows as TextDatabase::text gives it, no text database the key
 // itself (as the tooltips), never an English stand-in.
 std::u32string text_or(const TextDatabase* text, const char* key) {
     return text ? utf16_to_utf32(text->text(key)) : ascii32(key);
@@ -294,7 +294,7 @@ void TacticalHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
     auto act = [&](HudAction a) {
         if (actions) actions->push_back(std::move(a));
     };
-    // Radar: left press / drag = camera jump to the cursor (UI.md §1.7 click-to-move-camera).
+    // Radar: left press / drag = camera jump to the cursor (legacy docs/re/UI.md §1.7 click-to-move-camera).
     for (const HudPointerEvent& e : routed.hud) {
         if (e.button != Button::Left) continue;
         if (e.kind == HudPointerEvent::Kind::Press) radar_drag_ = radar_ >= 0 && e.component == radar_;
@@ -361,7 +361,7 @@ void TacticalHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
             break;
         }
         if (handled) continue;
-        // Build queue: left click cancels the entry (CommandBarClass::Cancel_Production, UI.md §2.3) -> TacticalCancel.
+        // Build queue: left click cancels the entry (CommandBarClass::Cancel_Production, legacy docs/re/UI.md §2.3) -> TacticalCancel.
         for (const QueueSlot& q : queue_slots_) {
             if (q.component != k.component) continue;
             handled = true;
@@ -374,7 +374,7 @@ void TacticalHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
                 h.value = q.entry.type_index;
                 h.ids = {q.entry.queue, q.entry.index};
                 act(std::move(h));
-                buttons_.play_sfx("GUI_Cancel_SFX", k.component);  // UI5 t06: CommandBarClass::Cancel_Production (UI.md §3.6)
+                buttons_.play_sfx("GUI_Cancel_SFX", k.component);  // CommandBarClass::Cancel_Production (legacy docs/re/UI.md §3.6)
             }
             break;
         }
@@ -495,7 +495,7 @@ void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> 
         };
         set_text(planet_text_, frame.planet_name);
         if (frame.tech >= 0) {
-            std::u32string t = text_or(text_, "TEXT_TECH");  // ui3 t07: no English stand-in
+            std::u32string t = text_or(text_, "TEXT_TECH");  // no English stand-in
             char n[16];
             std::snprintf(n, sizeof n, " %d", frame.tech);
             set_text(tech_text_, t + ascii32(n));
@@ -557,7 +557,7 @@ void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> 
         build_objectives(frame);
         build_wings(frame);
         build_pause_banner(frame);
-        // UI.md §1.1 5h: the drag rectangle is queued with the main HUD pass (not while the interface is hidden).
+        // legacy docs/re/UI.md §1.1 5h: the drag rectangle is queued with the main HUD pass (not while the interface is hidden).
         if (frame.drag_select) stats_.drag_box = add_drag_box(dl_, canvas_, frame.drag_rect) > 0;
         tooltip_.update(buttons_, *table_, tooltip_cfg_, frame.time);
         stats_.tooltip = tooltip_.draw(dl_, *atlas_, *fonts_, canvas_, *table_, buttons_, text_, frame.cursor_px,
@@ -646,7 +646,7 @@ void TacticalHud::build_radar(const TacticalHudFrame& f, std::span<const HudUnit
     // Blips (radar_blip, layer 5): every unit in its team colour; selected units colorized (Radar_Colorize_Selected_Units).
     const CommandBarComponent* bc = radar_blip_ >= 0 ? &(*table_)[static_cast<size_t>(radar_blip_)] : nullptr;
     const uint32_t blayer = bc ? std::max<uint32_t>(static_cast<uint32_t>(bc->base_layer), layer + 1) : 5u;
-    // Per type (UI.md §1.7): Is_Visible_On_Radar / Is_Visible_On_Enemy_Radar, Radar_Icon_Name at Radar_Icon_Size
+    // Per type (legacy docs/re/UI.md §1.7): Is_Visible_On_Radar / Is_Visible_On_Enemy_Radar, Radar_Icon_Name at Radar_Icon_Size
     // (logical -1..1 radar space -> canvas: x size / 2) [port: tinted with the blip colour]; no icon: the dot.
     const int32_t local = f.world.local_player;
     for (const HudUnit& u : units) {
@@ -667,10 +667,10 @@ void TacticalHud::build_radar(const TacticalHudFrame& f, std::span<const HudUnit
         Rgba8 col = u.selected && f.radar_colorize_selected ? f.radar_selected_color : u.team_color;
         col.a = 255;
         bool drawn = false;
-        // mcx4 t14: a Radar_Register_As_Foreground_Object blip one layer above the others
+        // a Radar_Register_As_Foreground_Object blip one layer above the others
         const uint32_t ulayer = t && t->radar_foreground && blayer + 1 < kHudLayers ? blayer + 1 : blayer;
         if (t && !t->radar_icon.empty()) {
-            const float k = f.world.land ? t->radar_scale_land : t->radar_scale_space;  // mcx4 t14: Radar_Icon_Scale_*
+            const float k = f.world.land ? t->radar_scale_land : t->radar_scale_space;  // Radar_Icon_Scale_*
             const Vec2f sz = t->radar_icon_size.x > 0.0f && t->radar_icon_size.y > 0.0f
                                  ? Vec2f{t->radar_icon_size.x * 0.5f * radar_view_.size.x * k, t->radar_icon_size.y * 0.5f * radar_view_.size.y * k}
                                  : Vec2f{};
@@ -688,7 +688,7 @@ void TacticalHud::build_radar(const TacticalHudFrame& f, std::span<const HudUnit
         if (!drawn) dot(dl_, ulayer, c, u.selected ? 2.5f : 1.5f, col);
         ++stats_.radar_blips;
     }
-    // Pings: the event type's .alo (Event_Model_Name, UI.md §1.7) goes to radar_models() for the host's HudModelDrawer;
+    // Pings: the event type's .alo (Event_Model_Name, legacy docs/re/UI.md §1.7) goes to radar_models() for the host's HudModelDrawer;
     // [port] an expanding, fading ring of dots stands in when the type has no model or the host draws no models.
     if (f.radar_events) {
         for (const RadarEvent& e : f.radar_events->items()) {
@@ -846,7 +846,7 @@ void TacticalHud::build_abilities(const TacticalHudFrame& f) {
         r.disabled = !s.ability.enabled;
         r.selected = s.ability.active;
         r.icon_override = s.ability.icon;
-        r.tooltip_key = s.ability.tooltip_key;  // ui3 t07: the ability's own text ("" = the component's Tooltip_Text)
+        r.tooltip_key = s.ability.tooltip_key;  // the ability's own text ("" = the component's Tooltip_Text)
         r.build_fill = s.ability.recharge < 1.0f ? std::clamp(s.ability.recharge, 0.0f, 1.0f) * 100.0f : -1.0f;
         r.overlay = s.ability.autofire;
         const CommandBarComponent& c = (*table_)[ci];
@@ -954,7 +954,7 @@ void TacticalHud::build_buy_buttons(const TacticalHudFrame& f) {
             case HudBuildOption::Block::QueueFull: r.tooltip_index = 0; break;
             case HudBuildOption::Block::PopCap: r.tooltip_index = 1; break;
             case HudBuildOption::Block::Funds: r.tooltip_index = 2; break;
-            case HudBuildOption::Block::None: r.tooltip_index = 0; break;  // ui3 t07: the type's own tooltip (tooltip_key)
+            case HudBuildOption::Block::None: r.tooltip_index = 0; break;  // the type's own tooltip (tooltip_key)
             default: r.tooltip_index = -1; break;
         }
         r.tooltip_key = o.block == HudBuildOption::Block::None ? o.tooltip_key : std::string();
@@ -1091,7 +1091,7 @@ void TacticalHud::build_buttons(const TacticalHudFrame& f) {
 
 int32_t TacticalHud::font_of(int32_t component, float fallback_points) const {
     const CommandBarComponent* c = component >= 0 ? &(*table_)[static_cast<size_t>(component)] : nullptr;
-    // mcx4 t14: no component in the data: the port's size for this text
+    // no component in the data: the port's size for this text
     return fonts_->component_font(c ? std::string_view(c->font_name) : std::string_view(), c ? c->font_point_size : fallback_points,
                                   FontUse::Text, canvas_.font_height());
 }

@@ -1,4 +1,4 @@
-// Lua GC without spikes (OPT2 t04): staggered scheduled collections of a host's script VMs, run in parallel at one
+// Lua GC without spikes: staggered scheduled collections of a host's script VMs, run in parallel at one
 // fixed point of the host's tick. Lua 5.0.2's collector is unchanged (no incremental GC): a VM still collects its
 // whole heap in one go, and its automatic collection (allocation count >= GCthreshold, inside whatever script call
 // allocates) still runs as the backstop. The schedule only collects a VM a little EARLIER, at a point the host picks
@@ -59,7 +59,7 @@ bool gc_due(const LuaVm::HeapInfo& h, uint64_t tick, const GcPolicy& policy = {}
 uint32_t collect_scheduled(std::span<LuaVm* const> vms, uint64_t tick, const ParallelFor& pf = serial_for,
                            const GcPolicy& policy = {});
 
-// Teardown (OPT3 t11: a battle's AI holds dozens of plan, evaluator and free-store VMs, and closing them one by one
+// Teardown (a battle's AI holds dozens of plan, evaluator and free-store VMs, and closing them one by one
 // made the battle-end tick). prepare_detached_close drops the null entries of `vms` and runs every VM's finalizers on
 // the calling thread, VM by VM in list order (LuaVm::finalize_for_close); afterwards destroying a VM only frees its
 // own heap (CRT allocator, thread-safe), so the VMs may be destroyed on any thread, in any order. The calling thread

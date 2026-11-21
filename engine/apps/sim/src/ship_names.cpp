@@ -1,4 +1,4 @@
-// ref5 t04: ship names (ship_names.hpp; docs/re/MCX8_BINDINGS_OBJECTS.md §"Ship names").
+// ship names (ship_names.hpp; legacy docs/re/MCX8_BINDINGS_OBJECTS.md §"Ship names").
 #include "alamo/sim/ship_names.hpp"
 
 #include <algorithm>

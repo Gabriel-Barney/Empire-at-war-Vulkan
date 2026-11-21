@@ -1,4 +1,4 @@
-# [port] alamo_crash: crash minidumps for the port's executables (include/alamo/crash/crash_handler.hpp, docs/BUILD.md
+# [port] alamo_crash: crash minidumps for the port's executables (include/alamo/crash/crash_handler.hpp, legacy docs/BUILD.md
 # "Crash dumps"). No sim dependency; linked by alamo_game and alamo_headless, which call alamo::crash::install() first thing.
 add_library(alamo_crash STATIC src/crash_handler.cpp)
 target_include_directories(alamo_crash PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)

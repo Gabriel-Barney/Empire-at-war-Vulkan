@@ -1,4 +1,4 @@
-"""mcx5 t05 limit lint: every integer limit in engine/ sim code says what kind of limit it is (docs/MOD_COMPAT_DESIGN.md §8,
+"""mcx5 t05 limit lint: every integer limit in engine/ sim code says what kind of limit it is (docs/MODS.md "Limits policy",
 P5: no port limit below retail).
 
     python tools/lint/check_limits.py [--engine DIR] [--list] [--quiet]
@@ -132,7 +132,7 @@ def run(engine, list_all=False, quiet=False):
                     print(f'{rel}:{line}: {name}: {kind} {detail}')
     if bad:
         print(f'check_limits: {bad} of {total} limit(s) untagged or malformed in {len(files)} files '
-              '(docs/MOD_COMPAT_DESIGN.md §8)')
+              '(docs/MODS.md "Limits policy")')
         return 1
     if not quiet:
         print(f'check_limits: OK ({total} limits in {len(files)} files: ' +

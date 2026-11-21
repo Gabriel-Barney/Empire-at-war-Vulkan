@@ -1,5 +1,5 @@
 // Test shaders for alamo_rhi_tests (compiled to SPIR-V headers by DXC at build time).
-// Interface follows docs/shaders/PORTING.md section 1: set 1 = combined image samplers, push constants.
+// Interface follows legacy docs/shaders/PORTING.md section 1: set 1 = combined image samplers, push constants.
 
 struct PushData {
     float4 color;

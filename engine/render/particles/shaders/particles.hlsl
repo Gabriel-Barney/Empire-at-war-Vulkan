@@ -1,5 +1,5 @@
-// alamo_render_particles (R4): GPU particle simulation + drawing. Clean-room, docs/re/ANIM_PARTICLES.md B and
-// docs/formats/SPEC.md 3. Render particles are visual only (B.6): any RNG and float order is allowed here.
+// alamo_render_particles (R4): GPU particle simulation + drawing. Clean-room, legacy docs/re/ANIM_PARTICLES.md B and
+// legacy docs/formats/SPEC.md 3. Render particles are visual only (B.6): any RNG and float order is allowed here.
 //
 // Entry points: CSUpdate (age / death / forces / integration of every slot of the packet's emitters), CSSpawn (initial
 // state of the CPU's spawn records), CSSort (per-emitter back-to-front order, one group per sorted emitter), VSMain /
@@ -10,7 +10,7 @@ struct Particle {
     float4 pos_age;   // xyz position (world, or emitter space for object-space emitters), w age (s)
     float4 vel_life;  // xyz velocity, w lifetime (s)
     float4 rnd;       // random colour offsets 0..1 (rgb added, a subtracted)
-    float4 misc;      // x rotation (rad), y spin scale (signed), z alive (0/1), w 1 = died on the ground (vis1 t05: hidden, frozen)
+    float4 misc;      // x rotation (rad), y spin scale (signed), z alive (0/1), w 1 = died on the ground (hidden, frozen)
 };
 
 struct ShapeGpu {
@@ -51,7 +51,7 @@ struct SpawnRec {
     float lerp;
     uint seed;
     int parent_slot;
-    uint flags;      // 1 from death, 2 mesh point (vis1 t04)
+    uint flags;      // 1 from death, 2 mesh point
     float4 start;    // xyz: the start position when flags & 2 (emitter space)
 };
 
@@ -65,7 +65,7 @@ struct FrameConsts {
     uint4 counts;     // x spawn count, y group count
     float4 fog_color; // scene fog colour (rgb)
     float4 fog_vals;  // FOG_VALS x, y: f = saturate(x * camera depth + y) (1 = no fog)
-    float4 ground;    // vis1 t05: terrain grid width, height (vertices), spacing, enabled
+    float4 ground;    // terrain grid width, height (vertices), spacing, enabled
 };
 
 static const uint kFObjectSpace = 1u;
@@ -78,7 +78,7 @@ static const uint kFWeather = 64u;
 static const uint kFTail = 128u;
 static const uint kFAdditiveFade = 256u;   // modes 1 / 4: the alpha track fades RGB
 static const uint kFTriangle = 512u;       // geometry 0x05 = 0 (3 vertices)
-static const uint kFGroundKill = 1024u;    // vis1 t05: ground behaviour 1 (dies on the terrain)
+static const uint kFGroundKill = 1024u;    // ground behaviour 1 (dies on the terrain)
 static const uint kFGroundBounce = 2048u;  // ground behaviour 2 (bounces)
 
 static const uint kEParent = 1u;
@@ -98,7 +98,7 @@ static const uint kEDeathParent = 4u;
 #ifdef CS
 [[vk::binding(5, 0)]] StructuredBuffer<SpawnRec> Spawns;
 [[vk::binding(6, 0)]] StructuredBuffer<uint2> Groups;
-[[vk::binding(8, 0)]] StructuredBuffer<float> Heights;  // vis1 t05: terrain grid (row-major)
+[[vk::binding(8, 0)]] StructuredBuffer<float> Heights;  // terrain grid (row-major)
 #endif
 [[vk::binding(7, 0)]] ConstantBuffer<FrameConsts> FC;
 
@@ -167,7 +167,7 @@ float3 accel_of(DescGpu d, EmitterGpu e, float3 p, bool local_space) {
     return a;
 }
 
-// vis1 t05: terrain height at world (x, y), linear over the mesh triangle like terrain::Terrain::sample_height.
+// terrain height at world (x, y), linear over the mesh triangle like terrain::Terrain::sample_height.
 float ground_height(float2 w) {
     const float maxx = FC.ground.x - 1.0, maxy = FC.ground.y - 1.0;
     const float gx = clamp(w.x / FC.ground.z, 0.0, maxx), gy = clamp(w.y / FC.ground.z, 0.0, maxy);
@@ -308,7 +308,7 @@ void CSSpawn(uint3 tid : SV_DispatchThreadID) {
         // Inherit velocity; weather particles add it per step instead (CSUpdate), never into the stored velocity.
         if (d.motion.z != 0.0 && (d.flags.x & kFWeather) == 0u) vel += e.vel_d.xyz * d.motion.z;
     }
-    if ((r.flags & 2u) != 0u) pos = r.start.xyz;  // vis1 t04: spawn source 1-3, a point on the parent mesh (CPU-placed)
+    if ((r.flags & 2u) != 0u) pos = r.start.xyz;  // spawn source 1-3, a point on the parent mesh (CPU-placed)
     // Pre-age (back-filled event): closed-form constant-acceleration step.
     const float t = r.pre_age;
     const float3 a = accel_of(d, e, pos, local_space);
@@ -400,7 +400,7 @@ VSOut VSMain(uint vid : SV_VertexID, uint inst : SV_InstanceID) {
         if (slot == 0xFFFFFFFFu || slot >= e.info.y) return o;
     }
     const Particle p = Particles[e.info.x + slot];
-    if (p.misc.z == 0.0 || p.misc.w != 0.0) return o;  // dead, or died on the ground (vis1 t05)
+    if (p.misc.z == 0.0 || p.misc.w != 0.0) return o;  // dead, or died on the ground
     const DescGpu d = Descs[e.info.z];
     const float f = p.pos_age.w / max(p.vel_life.w, 1e-6);
     float4 col = float4(track(d, 0u, f), track(d, 1u, f), track(d, 2u, f), track(d, 3u, f));

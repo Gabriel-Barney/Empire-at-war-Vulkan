@@ -1,4 +1,4 @@
-// Descriptor management for the translated-shader interface (docs/shaders/PORTING.md section 1):
+// Descriptor management for the translated-shader interface (legacy docs/shaders/PORTING.md section 1):
 //   set 0 binding 0 : VSConstants { float4 c[256]; }   uniform buffer
 //   set 0 binding 1 : PSConstants { float4 c[32];  }   uniform buffer
 //   set 1 binding 0..15 : combined image samplers s0..s15 (partially bound: unused slots may stay empty)

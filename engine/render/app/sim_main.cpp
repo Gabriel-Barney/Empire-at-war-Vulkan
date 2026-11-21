@@ -56,7 +56,7 @@
 #include "alamo/render/sim_view.hpp"
 #include "alamo/rhi/rhi.hpp"
 #include "alamo/vfs/vfs.hpp"
-#include "app_common.hpp"  // engine/render/app (CU4 t03)
+#include "app_common.hpp"  // engine/render/app
 #ifdef ALAMO_RENDER_HAVE_ANIM_DRIVER
 #include "alamo/render/anim/anim_pose_cache.hpp"  // R3: poses of the sim-owned AnimWorld
 #include "alamo/render/anim/sim_anim_driver.hpp"  // R3: fallback visual driver (--no-sim-anim)
@@ -325,7 +325,7 @@ public:
         scene_->apply(ropt);
         // Laser projectiles (Projectile_Custom_Render 1 / 2): procedural beams / kites, GameConstants Z scale factors.
         {
-            // cu5 t04: the <GameConstants> root the game database parsed, not a second read of the file.
+            // the <GameConstants> root the game database parsed, not a second read of the file.
             if (world_.gdb) render::parse_laser_constants(world_.gdb->constants().element, laser_k_);
             if (!renderer.init_lasers([this](std::string_view n, assets::TextureRole r) { return cache_->texture(n, r); }))
                 std::fprintf(stderr, "warning: laser projectiles not drawn (PrimAdditive / textures unavailable)\n");
@@ -363,7 +363,7 @@ public:
             return false;
         }
         prender_.set_sort_range(zfar_);
-        if (scene_) prender_.set_wind(scene_->scene_wind());  // cu8f t05: map-load scene wind (space / no scene: zero)
+        if (scene_) prender_.set_wind(scene_->scene_wind());  // map-load scene wind (space / no scene: zero)
         renderer.set_scene_hook(&prender_);
         pattach_ = std::make_unique<render::particles::ProxyAttachments>(*pworld_, *plib_);
         popt_.detail = opt_.particle_detail;

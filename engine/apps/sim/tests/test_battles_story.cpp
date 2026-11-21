@@ -1,5 +1,5 @@
-// alamo_sim_battle_story_tests: S10 battle transitions, host side (docs/re/BATTLE_TRANSITIONS.md): story battles (L1/S4 wave 2a), linked battles, story victory rewards, Invade() of scripted fleets, S4 story battles.
-// Split out of test_battles.cpp (WF1b t01); the fixture (synthetic data, maps, run_campaign) is battle_test_fixture.hpp.
+// alamo_sim_battle_story_tests: S10 battle transitions, host side (legacy docs/re/BATTLE_TRANSITIONS.md): story battles (L1/S4 wave 2a), linked battles, story victory rewards, Invade() of scripted fleets, S4 story battles.
+// Split out of test_battles.cpp; the fixture (synthetic data, maps, run_campaign) is battle_test_fixture.hpp.
 
 #include "battle_test_fixture.hpp"
 #include "alamo/core/host_fs.hpp"
@@ -17,7 +17,7 @@ struct StoryRun {
     std::vector<std::string> lua;
     uint32_t activations = 0;
     bool fog_on_seen = false, fog_off_seen = false;  // fog follow-up: the battle's FOW-active flag over the run
-    // ref5 t04: the Full bindings reading a hook that neither the galactic story's bridge nor the battle's script / AI hook
+    // the Full bindings reading a hook that neither the galactic story's bridge nor the battle's script / AI hook
     // sets wire (taken once the battle runs); hooks_checked = the sets were seen.
     std::vector<std::string> unwired;
     bool hooks_checked = false;
@@ -29,7 +29,7 @@ StoryRun run_story_battle(const Data& d, const FileProvider& files, int32_t work
     cfg.seed = 2026;
     cfg.players = 4;
     cfg.story_crc = true;
-    cfg.object_scripts = true;  // ref5 t04: the object-script hooks of the battle bridge are wired too (no type has a script)
+    cfg.object_scripts = true;  // the object-script hooks of the battle bridge are wired too (no type has a script)
     SimHost host(d.types, js, cfg);
     host.set_object_script_files(&files);
     galactic::GalacticSim* gs = host.start_galactic(d.rules, make_setup(d, false));
@@ -77,7 +77,7 @@ StoryRun run_story_battle(const Data& d, const FileProvider& files, int32_t work
     return out;
 }
 
-// mcx6 t03 (docs/re/STORY.md §5 "Battle composition", mcx6 Q14): an AUTO-RESOLVED space conflict at S10_B. Its decide
+// mcx6 t03 (legacy docs/re/STORY.md §5 "Battle composition", mcx6 Q14): an AUTO-RESOLVED space conflict at S10_B. Its decide
 // state records the orbit's Ship_Class lists (ConflictManager::on_space_decide -> StorySession::record_battle_composition)
 // before the auto-resolve: the Empire's (local player) frigate + corvette, the Underworld fleet's units. The fixture's types
 // have no Ship_Class, so every entry is -1. The Empire plot's WIN/LOSE_BATTLES with FRIENDLY_ONLY_CONTAINS CLASS_FIGHTER
@@ -175,19 +175,19 @@ struct LinkedRun {
     size_t forces = 0, def_start = 0, att_start = 0, att_reserve = 0;
     uint32_t fought = 0;
     std::string log, conflicts;
-    // story t07: the record's P9-P14 as the battle sees them, and the P13 banner (ask = the battle dialog answers Pending).
+    // the record's P9-P14 as the battle sees them, and the P13 banner (ask = the battle dialog answers Pending).
     CampaignBattles::LinkedPresentation presentation;
     galactic::LinkedResolution resolution = galactic::LinkedResolution::None, resolution_after = galactic::LinkedResolution::None;
     bool skipped_dialog = false;
     uint64_t banner_tick = 0, begin_tick = 0;
     bool paused_in_banner = true, begin_refused_early = false;
-    // story t10: `post` puts an Underworld (attacker) S10_Trooper (Is_Branched_Map_Discardable by default) on the land map;
+    // `post` puts an Underworld (attacker) S10_Trooper (Is_Branched_Map_Discardable by default) on the land map;
     // -1 = not checked, else whether it is in the battle at its first frame; and the request's linked flag.
     int post_kept = -1;
     bool request_linked = false;
 };
 
-// `params9`: Reward_Param9.. XML appended after Param8 (story t07). `ask`: human_choice Pending (the game's battle dialog), so
+// `params9`: Reward_Param9.. XML appended after Param8. `ask`: human_choice Pending (the game's battle dialog), so
 // a P13 banner waits for ResumeGame, sent 20 ticks after it went up. `post`: see LinkedRun::post_kept.
 LinkedRun run_linked(const Data& d, bool space, bool sandbox, const std::string& params9 = {}, bool ask = false, bool post = false) {
     LinkedRun out;
@@ -240,7 +240,7 @@ LinkedRun run_linked(const Data& d, bool space, bool sandbox, const std::string&
     for (uint64_t t = 0; t < 400 && battles.battles_fought() == 0; ++t) {
         const size_t fired = host.story() ? host.story()->linked_tactical().size() : 0;
         host.tick_once();
-        // story t07: the record waits while its banner is up (the flag stays set then, so it is only tracked outside it)
+        // the record waits while its banner is up (the flag stays set then, so it is only tracked outside it)
         out.flag_after_tick = out.flag_after_tick || (gs->linked_battle_pending() && !battles.linked_banner_up() && !battles.linked_record());
         if (host.story() && fired == 0 && !host.story()->linked_tactical().empty()) out.reward_tick = host.frame();
         if (battles.linked_banner_up()) {
@@ -287,13 +287,13 @@ LinkedRun run_linked(const Data& d, bool space, bool sandbox, const std::string&
     return out;
 }
 
-// a1f t08: the S10 PROBE A story sequence (tools/probe_mod/s10_map_owners/s10_story.lua, the shipped
+// the S10 PROBE A story sequence (tools/probe_mod/s10_map_owners/s10_story.lua, the shipped
 // Story_Campaign_Underworld.lua attack pattern) on the synthetic galaxy: a galactic story script of the human's plot
 // assembles the Underworld squads in orbit of S10_C into a fleet, BlockOnCommand(fleet.Move_To(S10_B)) (the Empire's
 // planet, an Empire squad on the surface), Sleep(1), fleet.Invade(). The block must last until the fleet is in orbit
 // of S10_B (StorySession's order_finished); before a1f t08 it finished at once, Invade() ran in hyperspace and was
 // dropped, so the fleet sat in orbit with either human. The squads are spawned at S10_C with Spawn_Unit (the probe's
-// SpawnList; a1g t06: registered with the GalacticSim, so Assemble_Fleet flies them). Two runs: Underworld human (the
+// SpawnList; registered with the GalacticSim, so Assemble_Fleet flies them). Two runs: Underworld human (the
 // probe's fallback: the original invaded at once) and Empire human with an Underworld without galactic AI (the probe's
 // preferred variant, AI_Player_Control None: the original's fleet stayed in orbit and never invaded). a1g t05
 // (A1_READINGS §31): fleet.Invade() is issued by the LOCAL player with its own ground units only, so with a human
@@ -515,7 +515,7 @@ void test_linked_battle(const Data& d) {
         CHECK(r.def_start == (sandbox ? 1u : 0u));  // not sandbox: no galactic unit; sandbox: the human defender's squad
         CHECK(r.fought == 1 && r.log.find("LINK_TACTICAL S10_B") != std::string::npos && r.log.find(" started") != std::string::npos);
         CHECK(r.conflicts.find(space ? " space S10_B " : " land S10_B ") != std::string::npos);
-        // story t07: defaults (P9 1, P12 DESTROY_AI, P13 on but answered at once headless); the dialog skip is taken at the end.
+        // defaults (P9 1, P12 DESTROY_AI, P13 on but answered at once headless); the dialog skip is taken at the end.
         CHECK(r.resolution == galactic::LinkedResolution::DestroyAi && r.resolution_after == galactic::LinkedResolution::None);
         CHECK(r.presentation.arrival == 1 && r.presentation.arrival_cinematic && !r.presentation.hyperspace_hold);
         CHECK(!r.presentation.presentation_a && !r.presentation.presentation_b && r.skipped_dialog && r.banner_tick == 0);
@@ -559,7 +559,7 @@ void test_linked_map_objects(const Data& d) {
     CHECK(r.started && r.request_linked && r.post_kept == 1);
 }
 
-// story t09 / t12: a linked space battle (LINK_TACTICAL P7 = tactical plots, P9 = 2; no galactic units, so nothing ever
+// a linked space battle (LINK_TACTICAL P7 = tactical plots, P9 = 2; no galactic units, so nothing ever
 // dies) whose tactical plot holds the victory monitor at its start (ENABLE_VICTORY 0), names an unknown faction at 1 s
 // (logged, nothing) and ends with VICTORY Underworld (Param2 1: 1 s, silent) at 12 s, past the 300-frame time limit, which
 // does not run while the monitor is held. The tactical script calls Resume_Hyperspace_In after 20 services: the P9 = 2
@@ -660,7 +660,7 @@ StoryRewardRun run_story_rewards(const Data& d) {
     return out;
 }
 
-// story t12: the P9 = 2 hold in a normal space battle (the arrival source installed by hand): three extra Underworld
+// the P9 = 2 hold in a normal space battle (the arrival source installed by hand): three extra Underworld
 // corvettes stay in the pool (unit cap 6); while held the Reinforce order is refused NotAllowed and the stand-in deploy
 // waits even for an empty side; released, the order goes through the usual rules (cap: QueueFull, or deployed).
 void test_arrival_hold(const Data& d) {
@@ -734,12 +734,12 @@ void test_story_victory_rewards(const Data& d) {
     test_arrival_hold(d);
 }
 
-// story t11: the galactic plot set's ENABLE_VICTORY / VICTORY act on the galactic monitor (GalacticSim::victory_hold,
+// the galactic plot set's ENABLE_VICTORY / VICTORY act on the galactic monitor (GalacticSim::victory_hold,
 // galactic::check_victory): two holds at 0 s, one release and a Param1-less no-op at 1 s, an unknown faction at 2 s
 // (logged), VICTORY Underworld at 3 s: the hold is released and the campaign ends for the Underworld 210 frames later. The
-// human Empire's Credits_Accrued 0 would win at its next credit change without the hold (q6 t21: tested in add_credits);
+// human Empire's Credits_Accrued 0 would win at its next credit change without the hold (tested in add_credits);
 // under the hold the test is deferred, and VICTORY releases every level without replaying it. A prereq-less ELAPSED 0
-// fires at its second T9 (tick 2, StoryModel::tick_timer, A2I_T01_FRAME_ORDER.md §6).
+// fires at its second T9 (tick 2, StoryModel::tick_timer, legacy docs/re/A2I_T01_FRAME_ORDER.md §6).
 void test_galactic_story_victory(const Data& d) {
     const fs::path x = d.root / "Data/XML";
     write_file(x / "Story_Plots_GVic.xml", "<Story_Mode_Plots><Active_Plot>Story_GVic.xml</Active_Plot></Story_Mode_Plots>\n");
@@ -764,7 +764,7 @@ void test_galactic_story_victory(const Data& d) {
     galactic::VictoryRules rules;
     rules.human.conditions = {galactic::VictoryCondition::CreditsAccrued};
     gs->set_victory_rules(rules);
-    CHECK(!galactic::check_victory(*gs).finished());  // q6 t21: nothing is polled; no credit change yet
+    CHECK(!galactic::check_victory(*gs).finished());  // nothing is polled; no credit change yet
     StoryStart st;
     st.files = &files;
     st.plot_sets = {{0, "Story_Plots_GVic.xml"}};
@@ -871,7 +871,7 @@ void test_story_battle(const Data& d) {
                "<Story_Mode_Plots><Lua_Script>Story_S10_Tac</Lua_Script><Active_Plot>Story_S10_Tac.xml</Active_Plot></Story_Mode_Plots>\n");
     write_file(x / "Story_S10_Tac.xml",
                "<Story>\n"
-               // L1/S4 wave 2b (SCRIPT_GAPS.md §4.2 / §4.5): VICTORY names one faction (empty never fires);
+               // L1/S4 wave 2b (legacy docs/re/SCRIPT_GAPS.md §4.2 / §4.5): VICTORY names one faction (empty never fires);
                // TACTICAL_DESTROY needs the dead type in Param1.
                " <Event Name=\"Victory_E\"><Event_Type>STORY_VICTORY</Event_Type><Event_Param1>Empire</Event_Param1></Event>\n"
                " <Event Name=\"Victory_U\"><Event_Type>STORY_VICTORY</Event_Type><Event_Param1>Underworld</Event_Param1></Event>\n"
@@ -879,7 +879,7 @@ void test_story_battle(const Data& d) {
                " <Event Name=\"First_Kill\"><Event_Type>STORY_TACTICAL_DESTROY</Event_Type>"
                "<Event_Param1>S10_Frigate, S10_Corvette, S10_Star_Base_1</Event_Param1></Event>\n"
                " <Event Name=\"Script_Saw\"><Event_Type>STORY_AI_NOTIFICATION</Event_Type><Event_Param2>TAC_SCRIPT</Event_Param2></Event>\n"
-               // fog follow-up (FOG_OF_WAR.md §6): the map centre is fogged for the Empire (no REVEAL units in this
+               // fog follow-up (legacy docs/re/FOG_OF_WAR.md §6): the map centre is fogged for the Empire (no REVEAL units in this
                // data) until the script's FogOfWar.Reveal; that fires Fog_Point, whose ENABLE_FOW 0 reward switches
                // the battle's fog off. Units without TEAM / HIDE_WHEN_FOGGED are never hidden: Fog_Object fires at once.
                " <Event Name=\"Script_Fog\"><Event_Type>STORY_AI_NOTIFICATION</Event_Type><Event_Param2>FOG_CELLS</Event_Param2></Event>\n"
@@ -888,7 +888,7 @@ void test_story_battle(const Data& d) {
                " <Event Name=\"Fog_Object\"><Event_Type>STORY_FOG_OBJECT_REVEAL</Event_Type><Event_Param1>S10_Corvette</Event_Param1></Event>\n"
                "</Story>\n");
     write_file(d.root / "Data/Scripts/Story/Story_S10_Tac.lua",
-               // q6: main's first resume is at load (STORY.md §8 item 9), so the reveal waits a few services: the
+               // q6: main's first resume is at load (legacy docs/re/STORY.md §8 item 9), so the reveal waits a few services: the
                // battle's fog must be seen on before ENABLE_FOW 0 switches it off.
                "function Base_Definitions() ServiceRate = 0.1 done = false revealed = false waits = 0 end\n"
                "function main() while true do\n"
@@ -908,7 +908,7 @@ void test_story_battle(const Data& d) {
     std::printf("  story battle: %zu log bytes, Lua activations %u, identical for 0 / 4 workers: %s\n", a.log.size(), a.activations,
                 a.log == b.log ? "yes" : "NO");
     CHECK(a.lua.empty() && a.activations > 0);
-    // ref5 t04: no Full binding reads a hook the real story / object-script / AI bridges leave unset.
+    // no Full binding reads a hook the real story / object-script / AI bridges leave unset.
     for (const std::string& u : a.unwired) std::printf("  unwired: %s\n", u.c_str());
     CHECK(a.hooks_checked && a.unwired.empty());
     // L1/S4 wave 2b feeds: movement transitions (UNIT_ARRIVED / FULL_STOP) and reserve deployments (REINFORCE).
@@ -935,16 +935,16 @@ void test_story_battle(const Data& d) {
 }
 
 // --- S4 (owner: S4 agent): the remaining S4 event sources in story land battles (s4_types data; docs/re/
-// L1_S4_REMAINING.md §3.5, §4). The human Empire defends S10_B (its galactic plot's STORY_LAND_TACTICAL loads
+// legacy docs/re/L1_S4_REMAINING.md §3.5, §4). The human Empire defends S10_B (its galactic plot's STORY_LAND_TACTICAL loads
 // Story_Plots_S4_Tac.xml, so the Empire is the tactical plot player = the "local player"); commands go through SimHost's
 // order hook (a stand-in for apps/game's router):
 //   battle-load screen: STORY_LOAD_TACTICAL_MAP (galactic, planet S10_B, land) -> SET_TACTICAL_MAP S4_Land_Alt replaces
 //                    the battle's map (the loader records the name it was asked for)
 //   battle frame 5   Select the Empire troopers + MoveToPosition onto the capture post -> STORY_COMMAND_UNIT
 //   battle frame 40  Select one trooper + Escort another                              -> STORY_GUARD_UNIT
-//   battle frame 20  Garrison (52) of the last trooper (placed nearest the bunker; s78n t26.3: the first one, at the back
+//   battle frame 20  Garrison (52) of the last trooper (placed nearest the bunker; the first one, at the back
 //                    of the column, now turns in place before its move - the corner pass's corridor test - and reached
-//                    the bunker too late for the post's capture window; s78n t26.4: frame 20, not 60 - stopped beside
+//                    the bunker too late for the post's capture window; frame 20, not 60 - stopped beside
 //                    the post facing away, the trooper turns on the move (CloseEnoughAngleForMoveStart 180, MOVEMENT
 //                    §3.5.2 A / C.7) in a loop, and from frame 60 it took the bunker 10 frames before the Underworld came
 //                    within 300 of the post, too late for its 30-frame capture) into the neutral bunker (also a capture
@@ -964,14 +964,14 @@ struct S4Run {
     bool garrison_flag = false, left = false, readded = false, bunker_taken = false, post_taken = false;
     bool fire_query = false, can_query = false, hero_changed = false, contained = false;
     // a1f t07 (attack_sensor runs): the neutral sensor is a combat unit and a capture point, untouched by the target scan;
-    // S7 t30: the attack order on it is refused (relation 2), so it stays alive and a capture point.
+    // the attack order on it is refused (relation 2), so it stays alive and a capture point.
     bool sensor_combat = false, sensor_point = false, sensor_untouched = false, sensor_killed = false, sensor_point_removed = false;
     int attack_order = -1;
     float sensor_health = -1.0f;  // last health fraction seen
     uint32_t garrisoned_frames = 0;
     int mission = -1, piracy = -1;
     int32_t winner = -2;
-    size_t mission_units = 99;          // story t08: galactic units in the mission battle's request (start + reserve)
+    size_t mission_units = 99;          // galactic units in the mission battle's request (start + reserve)
     uint64_t mission_tick = 0, battle_tick = 0;
     int32_t corruption_b = -2, corruption_a = -2;
     float credits_before = -1.0f, credits_after = -1.0f;
@@ -995,11 +995,11 @@ terrain::MapData s4_map(bool sensor = false) {
     place("Defending Forces Position", 900.0f, 660.0f, 0, 90.0f);  // the defenders' anchor (marker, no type needed)
     place("S4_Post", 900.0f, 660.0f, 2, 90.0f);                    // on the defender anchor
     place("S4_Bunker", 900.0f, 700.0f, 2, 90.0f);                  // among the defenders' first row
-    if (sensor) place("S4_Sensor", 940.0f, 660.0f, 2, 90.0f);      // a1f t07: next to the defenders, neutral
+    if (sensor) place("S4_Sensor", 940.0f, 660.0f, 2, 90.0f);      // next to the defenders, neutral
     return m;
 }
 
-// corruption: 0 none, 1 mission, 2 hero alone, 3 (story t08) mission with no Underworld unit near S10_B; attack_sensor (a1f t07): the map gets a neutral S4_Sensor and the Empire
+// corruption: 0 none, 1 mission, 2 hero alone, 3 mission with no Underworld unit near S10_B; attack_sensor: the map gets a neutral S4_Sensor and the Empire
 // troopers only attack it (frame 60), no other scripted orders.
 S4Run run_s4_battle(const Data& d, const FileProvider& files, int32_t workers, int corruption, bool attack_sensor = false) {
     using R = commands::RejectReason;
@@ -1028,7 +1028,7 @@ S4Run run_s4_battle(const Data& d, const FileProvider& files, int32_t workers, i
     for (const auto& m : diag) std::printf("  story diag: %s\n", m.c_str());
     CampaignBattleOptions opt;
     opt.conflict.human_choice = galactic::BattleChoice::Fight;
-    // story t08 + t06: a corruption mission brings no galactic unit and the victory monitor tests only when a
+    // a corruption mission brings no galactic unit and the victory monitor tests only when a
     // victory-relevant object leaves a player, so the synthetic mission (no plot VICTORY) ends at the time limit, where
     // the defender holds [port]; kept short so the galaxy is back before the piracy step at tick 2700.
     opt.battle.max_frames = corruption ? 1200 : 6000;
@@ -1080,7 +1080,7 @@ S4Run run_s4_battle(const Data& d, const FileProvider& files, int32_t workers, i
             out.piracy = static_cast<int>(battles.start_corruption(0, 1, 1));
             out.corruption_a = gs->corruption_transition_active(0) ? gs->effective_corruption_type(0) : int8_t{-2};
         }
-        if (corruption == 3 && !invaded && host.modes().depth() == 1) {  // story t08: the linked start needs no unit in orbit
+        if (corruption == 3 && !invaded && host.modes().depth() == 1) {  // the linked start needs no unit in orbit
             CHECK(gs->fleets_at(1, 1).empty());
             out.credits_before = gs->credits(1);
             out.mission = static_cast<int>(battles.start_corruption(1, 1, 2));
@@ -1235,7 +1235,7 @@ void test_s4_battle(const Data& d) {
     write_file(x / "Story_S4.xml",
                "<Story>\n"
                " <Event Name=\"Go_Land\"><Event_Type>STORY_LAND_TACTICAL</Event_Type><Event_Param1>Story_Plots_S4_Tac.xml</Event_Param1></Event>\n"
-               // L1_S4_REMAINING.md §4.4: Param1 planets, Param3 GROUND / SPACE; the reward fills the land map slot.
+               // legacy docs/re/L1_S4_REMAINING.md §4.4: Param1 planets, Param3 GROUND / SPACE; the reward fills the land map slot.
                " <Event Name=\"Map_Hook\"><Event_Type>STORY_LOAD_TACTICAL_MAP</Event_Type><Event_Param1>S10_B</Event_Param1>"
                "<Event_Param3>GROUND</Event_Param3><Reward_Type>SET_TACTICAL_MAP</Reward_Type><Reward_Param1>S4_Land_Alt</Reward_Param1>"
                "<Reward_Param2>GROUND</Reward_Param2></Event>\n"
@@ -1247,7 +1247,7 @@ void test_s4_battle(const Data& d) {
                "<Event_Param2>S4_Hero</Event_Param2></Event>\n"
                " <Event Name=\"Map_Hero_Never\"><Event_Type>STORY_LOAD_TACTICAL_MAP</Event_Type><Event_Param1>S10_B</Event_Param1>"
                "<Event_Param2>S10_Corvette</Event_Param2></Event>\n"
-               // SCRIPT_GAPS.md §4.7: Param1 planets, Param2 the corruption keyword (default any).
+               // legacy docs/re/SCRIPT_GAPS.md §4.7: Param1 planets, Param2 the corruption keyword (default any).
                " <Event Name=\"Corrupt_Done\"><Event_Type>STORY_CORRUPTION_TACTICAL_COMPLETE</Event_Type><Event_Param1>S10_B</Event_Param1>"
                "<Event_Param2>KIDNAPPING</Event_Param2></Event>\n"
                " <Event Name=\"Corrupt_Failed\"><Event_Type>STORY_CORRUPTION_TACTICAL_FAILED</Event_Type><Event_Param1>S10_B</Event_Param1></Event>\n"
@@ -1325,7 +1325,7 @@ void test_s4_battle(const Data& d) {
         const S4Run b = run_s4_battle(d, files, w, 0);
         CHECK(b.log == a.log && !first_divergence(a.crc, b.crc).diverged);
     }
-    // a1f t07: a map-placed neutral SELECTABLE capture structure (Secondary_Abandoned_Sensor stand-in) is a battle combat
+    // a map-placed neutral SELECTABLE capture structure (Secondary_Abandoned_Sensor stand-in) is a battle combat
     // unit as well as a capture point; the target scan skips the Is_Neutral player's objects (TACTICAL_COMBAT §2.2), so
     // the Empire troopers next to it leave it alone. S7 t30 (TACTICAL_COMBAT §2.10): the Neutral player is relation 2, so
     // the human attack order is refused too (the attack cursor needs relation 1): the sensor is never damaged and stays a
@@ -1356,8 +1356,8 @@ void test_s4_battle(const Data& d) {
     if (c.winner == 1) CHECK(c.corruption_b == 2);
     CHECK(c.log.find("CorruptionMission") != std::string::npos);
     CHECK(c.piracy == static_cast<int>(CampaignBattles::CorruptionStart::Applied) && fired_in(c.log, "Pirated"));
-    CHECK(c.mission_units == 0);  // story t08: not sandbox, the map and the mission plots supply every unit
-    // story t08: no Underworld unit anywhere near S10_B - the mission starts at once through the linked record (BT §2.9.3,
+    CHECK(c.mission_units == 0);  // not sandbox, the map and the mission plots supply every unit
+    // no Underworld unit anywhere near S10_B - the mission starts at once through the linked record (BT §2.9.3,
     // L1_S4_REMAINING §4.5), its battle is pushed at the next hook and the mission's story events follow its winner.
     const S4Run n = run_s4_battle(d, files, 0, 3);
     for (const auto& m : n.battles) std::printf("  %s\n", m.c_str());
@@ -1376,7 +1376,7 @@ void test_s4_battle(const Data& d) {
     const S4Run f = run_s4_battle(d, files, 0, 2);
     std::printf("  corruption, hero alone: mission %d, winner %d, B corruption %d; Corrupt_Done %d, Corrupt_Failed %d\n", f.mission,
                 f.winner, f.corruption_b, fired_in(f.log, "Corrupt_Done") ? 1 : 0, fired_in(f.log, "Corrupt_Failed") ? 1 : 0);
-    // story t08: the mission starts through the linked record (not sandbox): no galactic unit enters, so the units the
+    // the mission starts through the linked record (not sandbox): no galactic unit enters, so the units the
     // test picks no longer matter; the story events follow the winner.
     CHECK(f.mission == static_cast<int>(CampaignBattles::CorruptionStart::MissionQueued) && (f.winner == 0 || f.winner == 1));
     CHECK(fired_in(f.log, "Corrupt_Failed") == (f.winner != 1) && fired_in(f.log, "Corrupt_Done") == (f.winner == 1) &&

@@ -1,5 +1,5 @@
-// Shared, immutable planet graph (GALACTIC.md section 3 "Build_Planet_Graph", corrected by
-// docs/re/PHASE2_ANSWERS.md Q1-Q3).
+// Shared, immutable planet graph (legacy docs/re/GALACTIC.md section 3 "Build_Planet_Graph", corrected by
+// legacy docs/re/PHASE2_ANSWERS.md Q1-Q3).
 //
 // Built once from a GalaxyMap and shared read-only by every player's fleet A* and every AI's
 // all-pairs computation. Rebuild when the link set or the node set changes (story rewards, a

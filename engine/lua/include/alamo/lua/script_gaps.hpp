@@ -1,4 +1,4 @@
-// L1/S4 wave 2b (docs/re/SCRIPT_GAPS.md): the script bindings left open by wave 2a and the host contract they
+// L1/S4 wave 2b (legacy docs/re/SCRIPT_GAPS.md): the script bindings left open by wave 2a and the host contract they
 // need (src/bind_script_gaps.cpp).
 //
 // Bound by the family (vm_internal.hpp impl_script_gaps):
@@ -16,7 +16,7 @@
 // Land/SpaceTaskForceClass.Fire_Special_Weapon calls detail::task_force_fire_special_weapon (vm_internal.hpp)
 // with the task force's unit list - see that declaration.
 //
-// Error discipline (SCRIPT_GAPS.md "Common conventions"): the original's script error / warning helpers do not
+// Error discipline (legacy docs/re/SCRIPT_GAPS.md "Common conventions"): the original's script error / warning helpers do not
 // unwind; the binding logs the message and returns nothing (nil), or carries on where the doc says so (argument
 // defaults of Create_Cinematic_Transport). Logged lines: "SCRIPT ERROR: ..." / "SCRIPT WARNING: ..." in
 // LuaVm::messages(). Argument-count errors of the dispatcher (dead receiver) still raise as before.
@@ -93,14 +93,14 @@ struct TacticalScriptHooks {
     // Start_Cinematic_Space_Retreat -> (unit, delay, false). False = not such a unit. Unset: Hyperspace_Away keeps its
     // Lua order on the direct path; the space retreat line-up happens, nobody jumps (logged).
     std::function<bool(objects::ObjectHandle unit, int32_t delay_frames, bool keep_parent_link)> hyperspace_out_link;
-    // story t12: Resume_Hyperspace_In() (0x543570) clears the reinforcement hyperspace hold 0x140b27d5f (LINK_TACTICAL
+    // Resume_Hyperspace_In() (0x543570) clears the reinforcement hyperspace hold 0x140b27d5f (LINK_TACTICAL
     // P9 == 2, L1_S4_REMAINING §3.4). Unset: only the presentation event is recorded.
     std::function<void()> resume_hyperspace_in;
-    // cu8g t03: Set_New_Environment(int) (0x5448a0 -> mode vf25, CU8F_T03_T05_RE §2.2): the mode's active environment
+    // Set_New_Environment(int) (0x5448a0 -> mode vf25, CU8F_T03_T05_RE §2.2): the mode's active environment
     // index := clamp(index, 0, n - 1) (the battle's TacticalBattle::set_environment; land weather re-inits on its next
     // service, the renderer re-applies lighting / fog / clouds / sky / land wind). Unset: only the presentation event.
     std::function<void(int32_t index)> set_new_environment;
-    // ui2 t08: Set_Cinematic_Environment(bool) (0x5441a0, CU8G_T02_ENV_PICK_RE 5): true switches to the map's "Cinematic"
+    // Set_Cinematic_Environment(bool) (0x5441a0, CU8G_T02_ENV_PICK_RE 5): true switches to the map's "Cinematic"
     // environment (the replaced index is remembered), false restores it (TacticalBattle::set_cinematic_environment). Unset:
     // only the presentation state.
     std::function<void(bool on)> set_cinematic_environment;

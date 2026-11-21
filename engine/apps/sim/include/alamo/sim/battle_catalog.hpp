@@ -61,7 +61,7 @@ struct BattleTables {
     std::vector<UnitVisuals> units;
     struct ProjectileVisuals {
         int32_t detonation = -1, armor_reduced = -1, absorbed = -1, lifetime = -1;  // Projectile_*_Particle types
-        int32_t ground = -1;  // tru1 t08: Projectile_Ground_Detonation_Particle (land ground / water hits)
+        int32_t ground = -1;  // Projectile_Ground_Detonation_Particle (land ground / water hits)
     };
     std::vector<ProjectileVisuals> projectiles;
     std::vector<std::array<std::string, 2>> fire_bones;  // per hardpoint: Fire_Bone_A / Fire_Bone_B ("" none)
@@ -79,7 +79,7 @@ public:
                   std::vector<std::string>* diagnostics = nullptr);
 
     const objects::GameObjectTypes& types() const { return *types_; }
-    const FileProvider* files() const { return files_; }  // refixf t04: model / clip reads (null: none)
+    const FileProvider* files() const { return files_; }  // model / clip reads (null: none)
     const tactical::combat::DamageArmorTable& damage() const { return damage_; }
     const std::vector<tactical::combat::PrioritySet>& priority_sets() const { return priority_sets_; }
     size_t hardpoint_records() const { return hardpoints_.size(); }
@@ -140,8 +140,8 @@ public:
         bool has_bounds = false;
         std::vector<std::string> bones;       // upper-cased bone names
         std::vector<std::array<float, 3>> bone_pos;  // bind-world translation per bone
-        std::vector<std::array<float, 9>> bone_rot;  // refixf t06: bind-world 3x3 part per bone (row-major)
-        int32_t max_alt = -1;  // S8 t10: highest _ALT<n> index of the mesh names (0x12dca0), -1 none
+        std::vector<std::array<float, 9>> bone_rot;  // bind-world 3x3 part per bone (row-major)
+        int32_t max_alt = -1;  // highest _ALT<n> index of the mesh names (0x12dca0), -1 none
         int32_t find(std::string_view bone) const;  // -1 when absent
     };
     // `space`: Space_Model_Name else Land_Model_Name; `fallback`: then the other mode's field, then Galactic_Model_Name.
@@ -156,11 +156,11 @@ public:
     // S7 t07 (MOVEMENT §2.2 model-extent fallback, SpaceObstacleHooks): half x / y of avoid_model(type, space = true)'s
     // collision bound (1 / 1 when the model has no collision mesh); false without model data.
     bool space_model_half_extents(uint32_t type, float& half_x, float& half_y) const;
-    // OPT3 t05: loads the model data of `types` that is not cached yet (avoid_model(type, space); on land also
+    // loads the model data of `types` that is not cached yet (avoid_model(type, space); on land also
     // model_info(type, false, true), the stamp extents) on `pf`, one job per type, so a battle's first tick does not read
     // the files one type after another. Same entries as the lazy loads (same files -> same answer): only the time moves.
     void preload_models(std::span<const uint32_t> types, bool space, const ParallelFor& pf) const;
-    // OPT3 t09: the general form. `what` = kPreload* bits: avoid_model(type, space), model_info(type, space, false) (the
+    // the general form. `what` = kPreload* bits: avoid_model(type, space), model_info(type, space, false) (the
     // bones build_battle reads; extend_battle preloads all three), model_info(type, space, true) (the stamp extents). One
     // job per model file, which is parsed once for every entry that reads it.
     static constexpr uint32_t kPreloadAvoid = 1, kPreloadBones = 2, kPreloadExtents = 4;
@@ -189,7 +189,7 @@ public:
     // Fog of war GameConstants (Desired{Land,Space}FOWCellSize, {Land,Space}FOWRegrowTime, AIUsesFogOfWar{Land,Space},
     // Tactical_Overrun_Multiple, Minimum_Tactical_Overrun_Time_In_Secs). Owner: fog agent.
     const tactical::fog::FogConstants& fog_constants() const { return fog_constants_; }
-    // mcx4 t11: the movement GameConstants (MovementConstants::from_game_constants; defaults without GameConstants) and
+    // the movement GameConstants (MovementConstants::from_game_constants; defaults without GameConstants) and
     // WalkAnimationCutoff (GC +0x1504 = 0x140b16d04, FoC 0.6; MCX4_T11_T12_RE_ANSWERS §S: the WalkLocomotor 0x61f840 plays
     // WALKMOVE below this x max speed).
     const tactical::movement::MovementConstants& movement_constants() const { return movement_constants_; }
@@ -218,18 +218,18 @@ public:
     // from the unit model falls back to the attachment bone; Model_To_Attach bones are not read]. Without model data the
     // tables equal build_battle's.
     BattleTables build_battle(const std::vector<uint32_t>& unit_types, std::vector<uint32_t>& out_unit_index, bool space) const;
-    // OPT3 t09: the same build in steps, for the battle setup, which appends types to its list several times. The build is
+    // the same build in steps, for the battle setup, which appends types to its list several times. The build is
     // a left fold over the list, so extend_battle() builds only the entries appended since its last call onto `out`
     // (bound by begin_battle, which must outlive the build) and appends their out_unit_index entries: afterwards `out`
     // and out_unit_index equal build_battle(unit_types, out_unit_index, space). `unit_types` may only grow at the end.
     struct BattleBuild;
     std::unique_ptr<BattleBuild> begin_battle(BattleTables& out, bool space) const;
     void extend_battle(BattleBuild& b, const std::vector<uint32_t>& unit_types, std::vector<uint32_t>& out_unit_index) const;
-    // ref5 t01: projectile type `t` in the build's tables (the battle's land strikes: Bombardment_Projectile types are not
+    // projectile type `t` in the build's tables (the battle's land strikes: Bombardment_Projectile types are not
     // unit weapons): its CombatData index, appending projectile_desc(t) and its visuals the first time (a type a unit
     // already fires keeps its entry). -1 for an out-of-range type.
     int32_t extend_projectile(BattleBuild& b, uint32_t t) const;
-    // ref5 t01: the one ProjectileDesc builder for projectile type `t` (every caller: unit weapons, hard points, death
+    // the one ProjectileDesc builder for projectile type `t` (every caller: unit weapons, hard points, death
     // projectiles, land strikes). `full`: the battle tables' fields (S9 category, rockets, detonation effects); false is
     // the plain build() view. Default desc for an out-of-range type.
     tactical::combat::ProjectileDesc projectile_desc(uint32_t t, bool full = true) const;
@@ -268,13 +268,13 @@ private:
     // The XML element of raw-store field `f` (through the source document), null node if not found.
     bool field_node(uint32_t f, data::XmlNode& out) const;
     int32_t type_or_none(std::string_view name) const;
-    std::string avoid_path(uint32_t type, bool space) const;  // OPT3 t09: the model file an entry reads, "" none
+    std::string avoid_path(uint32_t type, bool space) const;  // the model file an entry reads, "" none
     std::string info_path(uint32_t type, bool space, bool fallback) const;
 
     const objects::GameObjectTypes* types_;
     tactical::combat::DamageArmorTable damage_;
     std::vector<tactical::combat::PrioritySet> priority_sets_;
-    std::vector<tactical::combat::SurfaceFxDef> surface_fx_;  // trn1 t02: SURFACEFX.XML (CombatData::surface_fx)
+    std::vector<tactical::combat::SurfaceFxDef> surface_fx_;  // SURFACEFX.XML (CombatData::surface_fx)
     std::map<std::string, Tags> hardpoints_;  // upper-cased name -> tags (lookup only)
     float space_health_mult_ = 1.5f, land_health_mult_ = 1.0f;
     float space_idle_speed_ = 0.0f;
@@ -289,8 +289,8 @@ private:
     float threat_decay_step_ = 0.05f;
     float engines_disabled_speed_ = 0.4f;
     float nebula_ability_disable_ = 5.0f, force_ability_disable_ = 0.0f, ion_storm_shield_disable_ = 5.0f;
-    int32_t max_remote_bombs_ = 20;  // mcx4: GameConstants Max_Remote_Bombs_Per_Player (FoC 20)
-    float earthquake_transition_ = 2.0f, telekinesis_transition_ = 0.75f;  // trl2 t03: GameConstants *_Transition_Time
+    int32_t max_remote_bombs_ = 20;  // GameConstants Max_Remote_Bombs_Per_Player (FoC 20)
+    float earthquake_transition_ = 2.0f, telekinesis_transition_ = 0.75f;  // GameConstants *_Transition_Time
     tactical::combat::CombatConfig combat_config_;  // OI tactical
     TransitionConstants transition_;                // battle host
     const FileProvider* files_ = nullptr;           // battle host: model reads

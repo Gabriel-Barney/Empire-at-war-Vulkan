@@ -48,7 +48,7 @@ struct Skeleton {
 // Vertex data.
 //
 // Every mesh stores vertices in one "master" layout: 144 bytes in chunk 0x10007, or 128 bytes in
-// the EaW-era chunk 0x10005 (same fields without the unknown float4; SPEC.md 2.5). The vertex
+// the EaW-era chunk 0x10005 (same fields without the unknown float4; legacy docs/formats/SPEC.md 2.5). The vertex
 // format name (chunk 0x10002, e.g. "alD3dVertNU2U3U3") tells the runtime which subset of those
 // fields to upload to the GPU; see VertexFormatInfo.
 struct VertexFormatInfo {
@@ -201,7 +201,7 @@ struct AloFile {
 };
 
 // Parse an in-memory .alo. Throws FormatError. With opt.salvage (the runtime loaders; tools stay strict) the defects
-// retail draws anyway load instead (compat_assets runs 1-3, docs/re/MCX2_T02_ASSET_SALVAGE.md 3), each noted in
+// retail draws anyway load instead (compat_assets runs 1-3, legacy docs/re/MCX2_T02_ASSET_SALVAGE.md 3), each noted in
 // opt.notes: "alo_trailing_junk" (a top-level chunk overrunning the file after the skeleton and connections ends the
 // model), "alo_collision_dropped" (a broken collision tree is dropped), "alo_skin_index_clamped" (a skin influence
 // outside the bone map goes to entry 0). Everything else stays an error, as retail does not show it either or hangs.

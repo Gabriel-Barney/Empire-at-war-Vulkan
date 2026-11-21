@@ -1,4 +1,4 @@
-// P4 sim (owner: galactic agent): the FoC galactic special systems behind the P4 panels (docs/re/P4_SIM_SYSTEMS.md = P4):
+// P4 sim (owner: galactic agent): the FoC galactic special systems behind the P4 panels (legacy docs/re/P4_SIM_SYSTEMS.md = P4):
 // the Ground_Activated hero trigger and hero respawns, the black market, sabotage, the super-weapon hack, the planet
 // income abilities and the corruption requirements. Data tables: special_data.hpp (GalacticRules::special). The
 // operations are GalacticSim members (campaign.hpp "P4 sim" block); this header holds their result types, the
@@ -55,7 +55,7 @@
 
 namespace alamo::galactic {
 
-// SpecialAbility (event 13) kinds (P4 0 item 1, COMMANDS.md id 13) [H].
+// SpecialAbility (event 13) kinds (P4 0 item 1, legacy docs/re/COMMANDS.md id 13) [H].
 inline constexpr uint32_t kSpecialActivate = 1;
 inline constexpr uint32_t kSpecialSlice = 2;  // REMAINING_GAPS 1.3.1
 inline constexpr uint32_t kSpecialNeutralize = 3;  // GALAB §7.5: the human's pick from the Neutralize_Hero panel
@@ -63,7 +63,7 @@ inline constexpr uint32_t kSpecialBlackMarket = 4;
 inline constexpr uint32_t kSpecialSabotage = 5;
 inline constexpr uint32_t kSpecialCorruption = 6;  // apps/sim CampaignBattles (kSpecialAbilityCorrupt)
 inline constexpr uint32_t kSpecialHack = 7;
-// Quantizers of the payload floats (COMMANDS.md 3.2): q8 amounts, q5 durations.
+// Quantizers of the payload floats (legacy docs/re/COMMANDS.md 3.2): q8 amounts, q5 durations.
 inline constexpr uint8_t kQuantAmount = 8;
 inline constexpr uint8_t kQuantDuration = 5;
 
@@ -138,7 +138,7 @@ struct RespawnEntry {
     uint8_t flag = 0;       // hero +0x330 [L]: always 0 in the port
 };
 
-// ---- SpecialAbility payloads ([port] layout of the Opaque "data" bytes, little-endian; COMMANDS.md gives the
+// ---- SpecialAbility payloads ([port] layout of the Opaque "data" bytes, little-endian; legacy docs/re/COMMANDS.md gives the
 // original's bit fields: id32s, q8 / q5 codes, flag bits) ----------------------------------------------------------
 // kind 1: u32 planet id, u32 unit id (a unit or a fleet: its first member with an accepting Ground_Activated ability)
 // kind 4: u32 planet, u32 buyer hero, u32 item name CRC, u32 q8 price code, u32 q5 respawn-seconds code, u8 only-one

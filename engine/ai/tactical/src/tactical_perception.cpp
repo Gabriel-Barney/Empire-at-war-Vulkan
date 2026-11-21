@@ -15,7 +15,7 @@ namespace alamo::ai::tactical {
 namespace {
 
 // ---------------------------------------------------------------------------------- leaves
-// ref6 t03: one list makes the Leaf enum and the token names (N: a leaf the evaluators register by that name; I: an internal
+// one list makes the Leaf enum and the token names (N: a leaf the evaluators register by that name; I: an internal
 // leaf with no name entry - Type is matched by name in leaf_of, HintValue is the hint-set value). Order = the enum's.
 #define ALAMO_TACTICAL_LEAVES(N, I)                                                                                         \
     /* sub-evaluator tokens */                                                                                              \
@@ -926,7 +926,7 @@ struct Eval {
                 if (P != ctx.self) return false;
                 std::vector<std::string_view> types;
                 param_names(ps, "Parameter_Type", types);
-                // OPT2 t13: the listed types' indices once per call, and only when the host answers pad_accepts (each
+                // the listed types' indices once per call, and only when the host answers pad_accepts (each
                 // type_index() scans every type name; it was run per open pad and name, 90 % of land goal scoring).
                 std::vector<int32_t> accepts;
                 if (w.pad_accepts)
@@ -952,7 +952,7 @@ struct Eval {
                 uint32_t c = 0;
                 for (const PerceptionObject& o : w.objects) {
                     if (o.owner != P || !o.alive || !o.built_structure) continue;
-                    // skai t12: a structure under construction counts as the type it becomes.
+                    // a structure under construction counts as the type it becomes.
                     const PerceptionType* t = w.type_of(o);
                     const int32_t ty = t && t->under_construction && t->constructed_type >= 0 ? t->constructed_type : o.type;
                     if (types.empty() || listed(types, type_name(ty))) ++c;

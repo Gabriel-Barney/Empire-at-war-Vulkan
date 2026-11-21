@@ -7,11 +7,11 @@
 // Deferred<T>  - kick a background computation at frame T whose result becomes visible exactly
 //                at frame T+k: never earlier (even if it finished early), blocking at T+k if it is
 //                late. Double-buffered: readers before T+k keep seeing the previous result.
-//                This is how the per-AI 90-frame all-pairs recompute (GALACTIC.md §4) runs off the
+//                This is how the per-AI 90-frame all-pairs recompute (legacy docs/re/GALACTIC.md §4) runs off the
 //                sim thread while staying lockstep-safe.
 //
 // Sim rate: kDefaultTicksPerSecond = 30 logic frames/s for galactic and tactical, confirmed by RE
-// (docs/re/PHASE2_ANSWERS.md Q12; single-player fast mode runs 120). All cadences here are in
+// (legacy docs/re/PHASE2_ANSWERS.md Q12; single-player fast mode runs 120). All cadences here are in
 // frames, so only the tick rate changes between modes.
 #pragma once
 #include <cstdint>
@@ -30,7 +30,7 @@
 
 namespace alamo::jobs {
 
-inline constexpr uint32_t kDefaultTicksPerSecond = 30;  // confirmed: docs/re/PHASE2_ANSWERS.md Q12
+inline constexpr uint32_t kDefaultTicksPerSecond = 30;  // confirmed: legacy docs/re/PHASE2_ANSWERS.md Q12
 
 class DeferredBase {
 public:
@@ -190,7 +190,7 @@ private:
         uint32_t phase;
         bool enabled;
         SystemFn fn;
-        profile::ZoneId zone;  // OPT1: "sys.<name>"
+        profile::ZoneId zone;  // "sys.<name>"
     };
     JobSystem* js_;
     uint32_t tps_;

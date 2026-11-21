@@ -1,7 +1,7 @@
 #pragma once
-// Split out of test_battles_ai.cpp (bo3 t03): shared includes, types and helpers; the tests live in test_battles_ai_partN.cpp.
-// alamo_sim_battle_ai_tests: S10 battle transitions, host side (docs/re/BATTLE_TRANSITIONS.md): the tactical AI in battles (BattleAi orders, find team, land drop, constants), land teams, landing objects.
-// Split out of test_battles.cpp (WF1b t01); the fixture (synthetic data, maps, run_campaign) is battle_test_fixture.hpp.
+// Split out of test_battles_ai.cpp: shared includes, types and helpers; the tests live in test_battles_ai_partN.cpp.
+// alamo_sim_battle_ai_tests: S10 battle transitions, host side (legacy docs/re/BATTLE_TRANSITIONS.md): the tactical AI in battles (BattleAi orders, find team, land drop, constants), land teams, landing objects.
+// Split out of test_battles.cpp; the fixture (synthetic data, maps, run_campaign) is battle_test_fixture.hpp.
 
 #include "battle_test_fixture.hpp"
 #include "tactical_battle_test_access.hpp"  // ref3 t06
@@ -79,7 +79,7 @@ struct ClashSession {
 
     ClashSession(const Data& d, uint32_t workers, const CampaignBattleOptions& opt, std::initializer_list<const char*> defenders,
                  std::initializer_list<const char*> invaders, bool launch) {
-        g_adoption_exempt.clear();  // ref2 t04: a new session's ids
+        g_adoption_exempt.clear();  // a new session's ids
         js = std::make_unique<jobs::JobSystem>(jobs::JobSystemConfig{static_cast<int32_t>(workers)});
         SimConfig cfg;
         cfg.seed = 2026;
@@ -216,7 +216,7 @@ void test_reserve_drop_facing(bool attacker_marker);
 void test_battle_ai_land_drop(const Data& d);
 void test_tactical_ai_constants_load();
 #endif
-// cmb1 t01 - t03 (test_battles_ai_part3.cpp): land Auto_Engage, the land scan range while moving, land Order_Attack issue
+// t03 (test_battles_ai_part3.cpp): land Auto_Engage, the land scan range while moving, land Order_Attack issue
 void test_land_auto_engage();
 
 }  // namespace
@@ -384,7 +384,7 @@ inline void test_landing_drop(bool timed, uint32_t destroy_at = 0) {
             CHECK(std::fabs(mp.x - st.position(lh).x) < 30.0f && std::fabs(mp.y - st.position(lh).y) < 30.0f);  // spawned at the landing
             CHECK(b->landings_in_flight(1) == 1 && b->landings_unloaded().empty());
         }
-        if (destroy_at > 0) {  // a1j t01: the landing destroyed mid-unload
+        if (destroy_at > 0) {  // the landing destroyed mid-unload
             if (since == destroy_at) {
                 CHECK(st.alive(lh) && tm->destroy(lh));
                 continue;
@@ -414,14 +414,14 @@ inline void test_landing_drop(bool timed, uint32_t destroy_at = 0) {
             ByteReader r(w.bytes());
             CHECK(b->read_part(TacticalBattle::SavePart::State, r));
             // s78f t02 / q6: battle state version 8 (the two version-7 branches merged: FighterFormationRecord::pushed dropped
-            // and the q6 TEAM-container attacks); ccpgt t02: version 9 (the domination timer); cu8k t01: version 10 (the
-            // thrown sabers); cu8l t03: version 11 (the start fleet arrivals); s78n t20 stage A: version 12 (the land attack
+            // and the q6 TEAM-container attacks); version 9 (the domination timer); version 10 (the
+            // thrown sabers); version 11 (the start fleet arrivals); s78n t20 stage A: version 12 (the land attack
             // blocks); fleet cohesion: version 13 (per-player cohesion); TRU1: version 14 (retreat flight, spawners, debris;
-            // exact: every other version is refused); skm1 t07: version 15 (skirmish garrison re-delivery); r3g t01: version 16
-            // (the landing's Land / Takeoff clip); skm2 t02: version 17 (skirmish sides 2..7); cmb1 t01 / t06: version 18
-            // (land formation records, the attack blocks' last-observed point); cmb2 t03: version 19 (the attack blocks'
-            // plan retry frame); ref2 t01: version 20 (BOMBARD_DELAY, map hints, marker names, pad levels); aitac t05:
-            // version 21 (space reinforcement arrivals); tru2 t01: version 22 (INDIGENOUS_UNIT list and spawner homes):
+            // exact: every other version is refused); version 15 (skirmish garrison re-delivery); version 16
+            // (the landing's Land / Takeoff clip); version 17 (skirmish sides 2..7); version 18
+            // (land formation records, the attack blocks' last-observed point); version 19 (the attack blocks'
+            // plan retry frame); version 20 (BOMBARD_DELAY, map hints, marker names, pad levels); aitac t05:
+            // version 21 (space reinforcement arrivals); version 22 (INDIGENOUS_UNIT list and spawner homes):
             // 20, 21 and 23 are refused.
             std::vector<uint8_t> stale(w.bytes().begin(), w.bytes().end());
             for (const uint32_t v : {20u, 21u, 23u}) {
@@ -1574,9 +1574,9 @@ struct LandGuardRun {
     uint32_t replan_frames = 0;
     bool own_attack_move = false, block_kept = false;  // bkt1 t05
     size_t blocks0 = 0;
-    bool nudged = false, rechecked = false;  // cmb1 t04: the arrived re-check (0x410a60) below R
+    bool nudged = false, rechecked = false;  // the arrived re-check (0x410a60) below R
     uint32_t recheck_frames = 0;
-    bool marker_attack_move = false, marker_kept = false;  // cmb2 t06: own Attack_Move on a non-combat object
+    bool marker_attack_move = false, marker_kept = false;  // own Attack_Move on a non-combat object
     float marker_goal_d = 0.0f;
     objects::ObjectId marker = objects::kNoObjectId;
 };
@@ -1754,7 +1754,7 @@ inline LandGuardRun run_land_guard(const Data& d) {
             continue;
         }
         if (stage == 5) {
-            // bkt1 t05 (b0075, BKT1_ATTACK_RE §3 [H]): the guard squad's own Attack_Move (arg 0) on the friendly squad, moved
+            // bkt1 t05 (BKT1_ATTACK_RE §3 [H]): the guard squad's own Attack_Move (arg 0) on the friendly squad, moved
             // 600 away first: the land attack move on the object - an attack block (atk_target = the squad), no lock
             const objects::ObjectHandle gh = st.find(sq[1]);
             const Vec3 gp0 = st.position(gh);
@@ -1798,7 +1798,7 @@ inline LandGuardRun run_land_guard(const Data& d) {
             continue;
         }
         if (stage == 12) {
-            // cmb2 t06 (b0075, BKT1_ATTACK_RE §3 [H]): the squad's own Attack_Move (arg 0) on an object that is not a combat
+            // cmb2 t06 (BKT1_ATTACK_RE §3 [H]): the squad's own Attack_Move (arg 0) on an object that is not a combat
             // unit (a story-marker stand-in: a store object of the company type, never adopted by the combat system), about
             // 700 away: the land attack move on it - an attack block naming it, kept by its checks (no lock, TARGETING by
             // geometry), the plan trimmed to weapon range (250) of it, not onto it
@@ -1813,7 +1813,7 @@ inline LandGuardRun run_land_guard(const Data& d) {
             spn.position = Vec3{mx, my, sp.z};
             const objects::ObjectHandle mh = st.create(spn);
             out.marker = st.alive(mh) ? st.id(mh) : objects::kNoObjectId;
-            g_adoption_exempt.push_back(out.marker);  // ref2 t04: never adopted on purpose
+            g_adoption_exempt.push_back(out.marker);  // never adopted on purpose
             CHECK(out.marker != objects::kNoObjectId && !cs.has_unit(out.marker));
             if (out.marker == objects::kNoObjectId) {
                 stage = 9;
@@ -2018,7 +2018,7 @@ inline void test_land_move_to_object() {
 // recruits both). The third squad's troopers get +140 % fire range (600 instead of 250), so it can hit long before the
 // others. While it can hit and the seed is still well out of its own range (> 280) with every squad walking, no 30-frame
 // check may land-stop (the formation walks on together); the window is longer than one check interval.
-// bkm2 t08 (b0048): the target is revealed for player 0 (else the hidden term stops nothing at all), and a frame counts
+// the target is revealed for player 0 (else the hidden term stops nothing at all), and a frame counts
 // when every squad was walking at its start (a land stop in the frame ends "walking" in that same frame, so the old
 // end-of-frame test could not see the stop it is about). Run on the pre-fix per-mover check (the grouping by atk_form
 // disabled) it fails: the long-range squad's own block land-stops it (1 stop, the window cut short).
@@ -2053,7 +2053,7 @@ inline LandAttackFormationStopRun run_land_attack_formation_stop(const Data& d) 
         auto& cs = const_cast<tc::CombatSystem&>(b->combat());
         const mv::MovementSystem& ms = b->movement();
         if (stage == 0) {
-            // bkm2 t08 (b0048): the test data has no reveal source, so without this the target is hidden for player 0 and
+            // the test data has no reveal source, so without this the target is hidden for player 0 and
             // the hidden term (FIGHTER_FLYING §4.11 C 1 / C 4, s78n t26 review round 3) suppresses every land stop - the
             // check then passed on the per-mover stop too. The scenario is about a visible target.
             if (b->fog()) alamo::sim::TacticalBattleTestAccess::fog(*b)->reveal_all(0);
@@ -2157,7 +2157,7 @@ struct LandAttackUnseenRun {
     uint32_t window = 0, replans_moving = 0, stops_moving = 0, replan_frames = 0;
     bool stealthed = false, dropped = false, orders_cleared = false, block_cleared = false, stood = false;
     uint32_t drop_frames = 0;
-    bool to_frozen = false, dropped_at_p = false;  // cmb1 t06: the last-observed point (frozen while hidden)
+    bool to_frozen = false, dropped_at_p = false;  // the last-observed point (frozen while hidden)
 };
 
 inline std::string trooper_stealth(std::string t) {  // S10_Trooper: unit ability STEALTH + its Stealth_Ability
@@ -2253,7 +2253,7 @@ inline LandAttackUnseenRun run_land_attack_unseen(const Data& d, bool stealth) {
             CHECK(v.has_goal);
             const objects::ObjectHandle th = st.find(tcid);
             const Vec3 tp = st.position(th);
-            frozen = st.position(st.find(target));  // cmb1 t06: the block's last-observed point stays here while hidden
+            frozen = st.position(st.find(target));  // the block's last-observed point stays here while hidden
             out.moved = b->teleport(*tm, tcid, Vec3{tp.x + perp.x * 300.0f, tp.y + perp.y * 300.0f, tp.z}, st.facing(th));
             replans0 = ms.stats().attack_replans;
             stops0 = b->stats().attack_land_stops;
@@ -2296,7 +2296,7 @@ inline LandAttackUnseenRun run_land_attack_unseen(const Data& d, bool stealth) {
             }
             continue;
         }
-        if (stage == 8) {  // cmb1 t06: arrival near the point: d < 40 -> a position block at L (the block dropped)
+        if (stage == 8) {  // arrival near the point: d < 40 -> a position block at L (the block dropped)
             if (b->attack_blocks() == 0) {
                 const float fx = v.pos.x - frozen.x, fy = v.pos.y - frozen.y;
                 out.dropped_at_p = b->stats().attack_unseen_drops == replans0 + 1 && std::sqrt(fx * fx + fy * fy) < 120.0f;

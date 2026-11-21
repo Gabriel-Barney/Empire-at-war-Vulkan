@@ -1,4 +1,4 @@
-// alamo_game_skirmish_maps_tests (p4ui t06 + p4uim t03, docs/re/UI.md section 9): the skirmish map catalog and map preview on a fake FoC install
+// alamo_game_skirmish_maps_tests (legacy docs/re/UI.md section 9): the skirmish map catalog and map preview on a fake FoC install
 // (loose official + custom maps, a MEG, a mod folder), in its own temp folder; and, with ALAMO_FOC_DATA, on the shipped data.
 #include <algorithm>
 #include <cstdio>
@@ -102,7 +102,7 @@ const SkirmishMapEntry* by_path(const std::vector<SkirmishMapEntry>& v, const st
     return nullptr;
 }
 
-// p4uim t03: read_skirmish_map_preview on synthetic maps: the embedded top chunk 0x13, the start positions as 0..1 fractions
+// read_skirmish_map_preview on synthetic maps: the embedded top chunk 0x13, the start positions as 0..1 fractions
 // (land from the lower left corner, space centred; y flipped to screen down), mini 12 gating, a missing file.
 void test_preview() {
     const fs::path T = fs::temp_directory_path() / "alamo_game_skirmish_preview_test";
@@ -251,8 +251,8 @@ void test_fake_install() {
     fs::remove_all(T, ec);
 }
 
-// q6 t02: skirmish_space_maps / skirmish_land_maps leave out maps whose file is empty through the normal lookup (Thrawn's
-// Revenge ships a 0-byte _MP_SPACE_KUAT.ted over the FoC one). modc t19: sorted by name, no map moved to the front.
+// skirmish_space_maps / skirmish_land_maps leave out maps whose file is empty through the normal lookup (Thrawn's
+// Revenge ships a 0-byte _MP_SPACE_KUAT.ted over the FoC one). Sorted by name, no map moved to the front.
 void test_map_lists_skip_empty() {
     const fs::path T = fs::temp_directory_path() / "alamo_game_skirmish_lists_test";
     fs::remove_all(T);
@@ -286,7 +286,7 @@ void test_map_lists_skip_empty() {
     fs::remove_all(T, ec);
 }
 
-// The shipped data (ALAMO_FOC_DATA): UI.md 9.4 "Vanilla result after the patches: 24 land and 24 space maps, all official, no custom".
+// The shipped data (ALAMO_FOC_DATA): legacy docs/re/UI.md 9.4 "Vanilla result after the patches: 24 land and 24 space maps, all official, no custom".
 void test_real_data() {
     const char* root = std::getenv("ALAMO_FOC_DATA");
     if (!root || !*root) {

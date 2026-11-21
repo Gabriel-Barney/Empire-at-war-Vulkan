@@ -63,10 +63,10 @@
 #include "alamo/render/renderer.hpp"
 #include "alamo/render/objects.hpp"
 #include "alamo/render/ted.hpp"
-#include "renderer_core.hpp"  // REF3 t07: RendererCore inspection points (src/, target alamo_render_internal)
+#include "renderer_core.hpp"  // RendererCore inspection points (src/, target alamo_render_internal)
 #include "alamo/rhi/rhi.hpp"
 #include "alamo/vfs/vfs.hpp"
-#include "app_common.hpp"  // engine/render/app (CU4 t03)
+#include "app_common.hpp"  // engine/render/app
 
 using namespace alamo;
 using Clock = std::chrono::steady_clock;
@@ -990,7 +990,7 @@ int main(int argc, char** argv) {
                 pt.clear[0] = env_clear ? renderer.lighting().clear_color.x : 0.02f;
                 pt.clear[1] = env_clear ? renderer.lighting().clear_color.y : 0.025f;
                 pt.clear[2] = env_clear ? renderer.lighting().clear_color.z : 0.05f;
-                if (scene) {  // land: TEE 15; space: black (SPACE_AND_OPEN.md 0 item 3)
+                if (scene) {  // land: TEE 15; space: black (legacy docs/re/SPACE_AND_OPEN.md 0 item 3)
                     const render::Float3 c = scene->clear_color();
                     pt.clear[0] = c.x;
                     pt.clear[1] = c.y;
@@ -1012,7 +1012,7 @@ int main(int argc, char** argv) {
                 }
                 if (scene) {
                     scene->update(renderer, *streamer);
-                    // Background idle animations (planet spin) advance on the 30 Hz tick (SPACE_AND_OPEN.md D.7 4).
+                    // Background idle animations (planet spin) advance on the 30 Hz tick (legacy docs/re/SPACE_AND_OPEN.md D.7 4).
                     scene->set_sim_tick(static_cast<uint64_t>(std::floor(static_cast<double>(std::max(0.0f, t)) * 30.0)));
                     scene->world().update(std::max(0.0f, t - last_t) * opt.time_scale);
                     instances.assign(scene->instances().begin(), scene->instances().end());

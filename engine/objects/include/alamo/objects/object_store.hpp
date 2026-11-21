@@ -1,4 +1,4 @@
-// Runtime game objects (docs/re/OBJECT_RUNTIME.md): one object kind for everything (planets,
+// Runtime game objects (legacy docs/re/OBJECT_RUNTIME.md): one object kind for everything (planets,
 // fleets, heroes, units, projectiles, hardpoints, props); behaviours make the difference.
 //
 // Identity
@@ -106,13 +106,13 @@ enum ObjectFlag : uint8_t {
     // but is left out of what the secondary store keeps it out of: the store's CRC, the tactical trace and every Lua
     // object search (lua detail::script_objects). Not one of the original's +0x3A0 bits.
     kFlagMapDecoration = 0x10,
-    // storyb t17 (STORYB_T17_SPAWNS_AND_DEATH.md §3.1 [H]): a dead object that retail has already unlinked. Retail's battle
+    // storyb t17 (legacy docs/re/STORYB_T17_SPAWNS_AND_DEATH.md §3.1 [H]): a dead object that retail has already unlinked. Retail's battle
     // deaths happen inside the store update and leave the store at its end-of-step flush, the same frame; the port's battle
     // runs after the store update (SimHost T5), so its dead objects wait for the next frame's flush. [port] The host marks
     // the ones dead by the end of T5 (TacticalMode::mark_step_deaths): the tactical trace leaves them out, as retail's
     // sample does, while a later death (a T9 story script) is sampled once, dead. Not one of the original's +0x3A0 bits.
     kFlagUnlinkedInRetail = 0x20,
-    // refix t01 (S9_DEATH_CLONE_SHIELDS.md §1.6 [H], AI_TACTICAL.md §2, L1_S4_REMAINING.md): +0x3a0 bit 0x40 = dying /
+    // refix t01 (legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §1.6 [H], legacy docs/re/AI_TACTICAL.md §2, legacy docs/re/L1_S4_REMAINING.md): +0x3a0 bit 0x40 = dying /
     // dead state (Die sets it; death clones are created with it), bit 0x80 = removing. A death clone gets both (0xc0).
     // Such an object still exists and is alive() (it is drawn and runs its death sequence), but gameplay searches skip
     // it: use active() for "alive and not dying / removing" (the original's +0x3a0 & 0xc2 clear).
@@ -162,19 +162,19 @@ public:
     // Owner change (Lua Change_Owner, story rewards, captures; L1/S4 2026-10-27): the object leaves the
     // old owner's owned_by() list (order of the others kept) and is APPENDED to the new owner's list, as
     // if it had been registered for that owner now [port: the original's per-owner lists are its player
-    // trees, TACTICAL_COMBAT.md 1.3 "remove from the old tree, insert into the new"]. Live objects only;
+    // trees, legacy docs/re/TACTICAL_COMBAT.md 1.3 "remove from the old tree, insert into the new"]. Live objects only;
     // false for a stale / dead handle, owner < -1, or no change. The owner is part of hash_state; the
     // parity CRC (position / facing / health) is unchanged. Systems that cache owners (GalacticSim data
     // packs, tactical TreeSet) are the caller's to update.
     bool set_owner(ObjectHandle h, int32_t owner);
-    // a1h t08 - transport carried type (TransportDataPack +0x48, A1_READINGS §32.2 [H]): the company type a TRANSPORT
+    // transport carried type (TransportDataPack +0x48, A1_READINGS §32.2 [H]): the company type a TRANSPORT
     // carries, which is its representative type (0x3973b0) when set. The original sets it in galactic company production
     // (0x4f45c0) and on a land reinforcement's landing object (0x4ee230 from 0x2b5fe0: the galactic parent's
     // representative type in campaign, the reinforced type in skirmish); Create_Cinematic_Transport leaves it unset.
     // Only live objects with TRANSPORT or TRANSPORT_LANDING (the pack at obj +0xc8) have it; kNone clears it. False and
     // nothing changed otherwise or for a type index out of range. A new object starts with none.
     bool set_carried_type(ObjectHandle h, TypeIndex carried);
-    // a1i t05 - landing persist (TransportDataPack +0xc9, TACTICAL_GAPS §4.2.2 item 3 [H]): set only by
+    // landing persist (TransportDataPack +0xc9, TACTICAL_GAPS §4.2.2 item 3 [H]): set only by
     // Create_Cinematic_Transport's `persist` argument; a persistent landing transport never takes off and does not block a
     // human drop's ignore of landing transports. Same objects as set_carried_type; false and nothing changed otherwise.
     bool set_landing_persist(ObjectHandle h, bool persist);
@@ -185,7 +185,7 @@ public:
     void update(uint32_t frame, const ServiceFn& service, const std::function<void(ObjectStore&)>& pre_service = {});
     void flush();  // deferred-delete flush (also called by update())
 
-    // Behaviour service (object Service step 4, OBJECT_RUNTIME.md §4.4 / §9.1, TACTICAL_GAPS.md
+    // Behaviour service (object Service step 4, legacy docs/re/OBJECT_RUNTIME.md §4.4 / §9.1, legacy docs/re/TACTICAL_GAPS.md
     // §6.4 / §6.6), for use inside the ServiceFn: visits the object's SERVICED behaviour instances
     // in attach order and calls `fn` for each one whose next-service frame <= `frame` AND whose
     // disable counter is 0; before the call the next-service frame becomes frame + interval (base
@@ -196,7 +196,7 @@ public:
     using BehaviorServiceFn = std::function<void(ObjectStore&, ObjectHandle, BehaviorTypeId id, uint32_t index)>;
     uint32_t service_behaviors(ObjectHandle h, uint32_t frame, const BehaviorServiceFn& fn);
 
-    // ---- behaviour scheduling (OI objects 2026-10-28, TACTICAL_GAPS.md §6.4) ----
+    // ---- behaviour scheduling (OI objects 2026-10-28, legacy docs/re/TACTICAL_GAPS.md §6.4) ----
     // Initialise of every attached behaviour (construction lists and add_behavior; the port has no
     // object load path that re-attaches, so it always runs):
     //   * interval < 2: next-service frame 0 (due at once);
@@ -216,7 +216,7 @@ public:
     // Per-instance overrides for the behaviour systems (no-ops on stale handles / bad indices).
     void set_behavior_next_service(ObjectHandle h, uint32_t index, uint32_t frame);
     void set_behavior_interval(ObjectHandle h, uint32_t index, uint32_t interval);
-    // Disable counter (+0x3c, TACTICAL_GAPS.md §6.6): Enable (vf23 0x4c30a0) = max(0, c - 1),
+    // Disable counter (+0x3c, legacy docs/re/TACTICAL_GAPS.md §6.6): Enable (vf23 0x4c30a0) = max(0, c - 1),
     // Disable (vf24 0x4c30b0) = c + 1; serviced / "behaviour active" only at 0. Return the new
     // counter (0 on a stale handle / bad index).
     uint32_t enable_behavior(ObjectHandle h, uint32_t index);
@@ -233,7 +233,7 @@ public:
 
     // Called from destroy() when the dying object has a parent-mode id (Â§2.5).
     std::function<void(const ObjectStore&, ObjectHandle dying)> on_parent_mode_death;
-    // q6 object scripts (docs/re/OBJECT_SCRIPTS.md §1.2 / §1.3): called at the end of create(), after the behaviour
+    // q6 object scripts (legacy docs/re/OBJECT_SCRIPTS.md §1.2 / §1.3): called at the end of create(), after the behaviour
     // lists and the store lists, so a host can attach the type's Lua_Script. Host wiring: not saved, not hashed. Unset:
     // nothing. [port] The original attaches before the object enters the store lists.
     std::function<void(ObjectStore&, ObjectHandle created)> on_created;
@@ -241,7 +241,7 @@ public:
     // ---- queries ----
     bool exists(ObjectHandle h) const;  // live or dead-but-not-flushed
     bool alive(ObjectHandle h) const;   // exists and not dead (Lua Is_Valid)
-    // refix t01: dying / removing (kFlagDying or kFlagRemoving set: death clones). False for a stale handle.
+    // dying / removing (kFlagDying or kFlagRemoving set: death clones). False for a stale handle.
     bool dying(ObjectHandle h) const { return exists(h) && (flags_[h.slot()] & kFlagDeathClone) != 0; }
     // alive() and not dying(): what gameplay searches see (Lua Find_* walks, AI perception, counts by type / owner).
     bool active(ObjectHandle h) const { return alive(h) && (flags_[h.slot()] & kFlagDeathClone) == 0; }
@@ -304,8 +304,8 @@ public:
     // counter (a primary store's shared counter gets the same value from every store of that game).
     // False and nothing changed (store and counter) on a version / mode / kind / types mismatch, an
     // inconsistent list or truncated data. Like SimRng / StoryModel it does not require r.done(): the
-    // caller checks that at the end of its chunk. Version 2 (a1h t08) adds the carried types at the end; a version 1
-    // save still loads (no carried types). Version 3 (a1i t05) adds the landing persist flags after them (v1 / v2 load
+    // caller checks that at the end of its chunk. Version 2 adds the carried types at the end; a version 1
+    // save still loads (no carried types). Version 3 adds the landing persist flags after them (v1 / v2 load
     // with none).
     static constexpr uint32_t kSaveVersion = 3;
     void write(ByteWriter& w) const;
@@ -353,7 +353,7 @@ private:
     std::vector<uint8_t> flags_, registered_serviced_;
     std::vector<ObjectHandle> container_, attach_parent_;
     std::vector<TypeIndex> carried_type_;  // kNone: none (always kNone on a free slot)
-    std::vector<uint8_t> landing_persist_;  // a1i t05: 1 = persist (always 0 on a free slot)
+    std::vector<uint8_t> landing_persist_;  // 1 = persist (always 0 on a free slot)
     std::vector<std::vector<BehaviorTypeId>> behaviors_;
     std::vector<std::vector<BehaviorState>> beh_state_;  // parallel to behaviors_
     std::vector<std::array<uint8_t, kBehaviorTypeCount>> behavior_index_;  // 0xFF = absent

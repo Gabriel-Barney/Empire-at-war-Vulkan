@@ -126,7 +126,7 @@ static void test_buffer_interp() {
     CHECK(!buf.latest().curr);
 }
 
-// S7 t05: movement attitude (fighter / flyer roll and pitch) - transform, snapshot fill, digest, interpolation.
+// movement attitude (fighter / flyer roll and pitch) - transform, snapshot fill, digest, interpolation.
 static Vec3 column(const assets::Mat3x4& m, int c) { return {m.m[0][c], m.m[1][c], m.m[2][c]}; }
 static bool near3v(const Vec3& a, const Vec3& b, float eps = 1e-5f) {
     return near(a.x, b.x, eps) && near(a.y, b.y, eps) && near(a.z, b.z, eps);
@@ -319,7 +319,7 @@ static void test_projectiles(const render::SyntheticSimWorld& w) {
     render::interpolate(nullptr, s1, 1.0f, render::InterpMode::Original, f);
     b.build(f, models, main, bg, &st);
     CHECK(st.projectiles == 2 && st.projectiles_drawn == 1 && main.size() == 1 && b.lasers().empty());  // serial 4 has no type
-    // PROJECTILE_NEBULA_DRAW.md 1: Projectile_Custom_Render 1 / 2 never use the ALO (the model is dropped) and become a
+    // legacy docs/re/PROJECTILE_NEBULA_DRAW.md 1: Projectile_Custom_Render 1 / 2 never use the ALO (the model is dropped) and become a
     // procedural laser centred on the position along the flight direction - drawn even though no model is resident.
     table.set_projectile_render(frig, 2, 5.0f, 10.0f, 2, 0);
     table.set_projectile_color(frig, 139, 230, 104, 255);
@@ -441,7 +441,7 @@ static void test_synthetic(const render::SyntheticSimWorld& w) {
                              mark = w.types.resolve_name("Sim_Marker");
     CHECK(table[frig].model == render::kSyntheticModel && table[corv].model == render::kSyntheticModel && table[mark].model.empty());
     CHECK(table[frig].scale == 60.0f && table[corv].scale == 40.0f && table[frig].lod_bias == 4.0f && table[frig].max_health == 1200.0f);
-    {   // p4uia t02: set_owner_colours replaces owner % 9 for the owners it lists
+    {   // set_owner_colours replaces owner % 9 for the owners it lists
         uint8_t idx = 0;
         table.team_color(1, table[frig], idx);
         CHECK(idx == 1);
@@ -755,7 +755,7 @@ static void test_gpu(const render::SyntheticSimWorld& w, const std::string& src_
         std::printf("gpu: synthetic sim frame: %u instances, %u draws, %u object pixels\n", st.instances, st.draws, lit);
         CHECK(fg.size() == 56 && st.draws >= 1 && lit > 200);
         const std::vector<uint8_t> rgba(px, px + static_cast<size_t>(o.w) * o.h * 4);
-        const std::string png = src_dir + "/logs/render_sim_synthetic.png";
+        const std::string png = ::alamo::test::artifact_dir() + "/render_sim_synthetic.png";
         CHECK(render::write_png_rgba(png, o.w, o.h, rgba));
         std::printf("wrote %s\n", png.c_str());
     }

@@ -11,12 +11,12 @@
 #include "alamo/sim/sim_anim.hpp"  // L1/S4 wave 2a story hookup (SimAnimation::world)
 #endif
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
-#include "alamo/lua/players.hpp"  // a1j t07: TacticalGalacticContext
+#include "alamo/lua/players.hpp"  // TacticalGalacticContext
 #endif
 #include "save_io.hpp"  // N1 stage 2
 #include "alamo/sim/battle_object_bridge.hpp"  // ref2 t04
 #if defined(ALAMO_SIM_HAVE_STORY) || defined(ALAMO_SIM_HAVE_TACTICAL_AI)
-#include "alamo/lua/object_bridge.hpp"  // mcx6: script_bridges
+#include "alamo/lua/object_bridge.hpp"  // script_bridges
 #endif
 
 namespace alamo::sim {
@@ -27,7 +27,7 @@ public:
     explicit ConflictGate(CampaignBattles& b) : b_(&b) {}
     void on_space_conflict(PlanetIndex planet, int32_t attacker) override { b_->cm_->on_space_conflict(planet, attacker); }
     bool on_invade(int32_t attacker, PlanetIndex planet, std::span<const objects::ObjectHandle> units) override {
-        // story t07: the last-invade vector 0x140a172b0 (InvadeEvent 0x48ff50, every id of the event; human invades only:
+        // the last-invade vector 0x140a172b0 (InvadeEvent 0x48ff50, every id of the event; human invades only:
         // the AI's task-force invasions call Land_Invade directly) [port: any human invade reaching the conflict hooks].
         GalacticMode* g = b_->host_->galactic_mode();
         if (g && g->sim() && attacker >= 0 && static_cast<size_t>(attacker) < g->sim()->players().size() &&
@@ -45,7 +45,7 @@ public:
         return false;
     }
     void on_service_tail() override {
-        // BT §1.4 step 2 (0x2be640, a1j t05): while the story block holds (GalacticSim::story_block: a linked battle record
+        // BT §1.4 step 2 (0x2be640): while the story block holds (GalacticSim::story_block: a linked battle record
         // waits and the local player is attacker or defender of a queued conflict) nothing of the conflict processing runs
         // this tick. [port] Not while a corruption mission's conflict is queued: the original starts that record at once,
         // the port runs it through the queue, so blocking would hold it forever.
@@ -205,7 +205,7 @@ bool CampaignBattles::attach(std::vector<std::string>* diag) {
     };
     cm_->attach();
     // --- battle host (BT pass): optional S10 seams (campaign_battles.hpp CampaignBattleOptions "battle host") ---
-    gate_ = std::make_unique<ConflictGate>(*this);  // BT §1.4 step 2: the manager runs unless the story block holds (a1j t05)
+    gate_ = std::make_unique<ConflictGate>(*this);  // BT §1.4 step 2: the manager runs unless the story block holds
     g->sim()->set_conflict_hooks(gate_.get());
     // BT §1.6 story lock: a locked human-involved conflict is fought. Source: the running story
     // (StorySession::autoresolve_locked); unlocked = the ConflictConfig answer (same as no decide callback).
@@ -222,13 +222,13 @@ bool CampaignBattles::attach(std::vector<std::string>* diag) {
         return cm_->autoresolve_locked(c) ? galactic::BattleChoice::Fight : cm_->config().human_choice;
     };
 #ifdef ALAMO_SIM_HAVE_STORY
-    // mcx6 t03 (STORY.md §5 "Battle composition"): the space decide state of a conflict the local player takes part in
+    // mcx6 t03 (legacy docs/re/STORY.md §5 "Battle composition"): the space decide state of a conflict the local player takes part in
     // records the orbit's Ship_Class lists for WIN/LOSE_BATTLES (retail 0x2b92e0 -> 0x449f10).
     cm_->on_space_decide = [this](const galactic::ConflictInfo& c) {
         if (StorySession* s = host_->story()) s->record_battle_composition(c.planet);
     };
 #endif
-    // BT §2.1 random map picker (CU8F_T03_T05_RE §1.3, cu8f t03): installed always, so the planet's stored pick is written
+    // BT §2.1 random map picker (CU8F_T03_T05_RE §1.3): installed always, so the planet's stored pick is written
     // back as retail does; without a table (no source, no list) every pick is "".
     cm_->pick_map = [this](bool space, int32_t terrain, int32_t faction, int32_t base_level, const std::string& preferred) {
         if (opt_.map_candidate_source) {  // [port] built on the first pick (campaign_battles.hpp map_candidate_source)
@@ -240,11 +240,11 @@ bool CampaignBattles::attach(std::vector<std::string>* diag) {
     // --- end battle host ---
     host_->set_after_mode_update([this](SimHost& h) { hook(h); });
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
-    host_->set_before_commands([this](SimHost& h) {  // sp3 t04: the AI lane's batches due this frame
+    host_->set_before_commands([this](SimHost& h) {  // the AI lane's batches due this frame
         if (ai_) ai_->apply_lane_batch(h.frame());
     });
 #endif
-    register_crcs(host_->crc_registry());  // ref4 t02: the CRC chunks, in registration order
+    register_crcs(host_->crc_registry());  // the CRC chunks, in registration order
     // S10-int: ability commands (40 / 43 / 57 / 58) of the running battle at the command phase.
     host_->set_tactical_command_hook([this](SimHost& h, uint8_t player, const commands::EventData& ev) {
         TacticalMode* tm = h.tactical();
@@ -278,13 +278,13 @@ bool CampaignBattles::attach(std::vector<std::string>* diag) {
         if (ev.type() == commands::EventType::ResumeGame) return resume_game(player, ev);  // battle host: TACTICAL_GAPS §4.11
         return corruption_command(player, ev);
     });
-    register_session_chunks();  // N1: the conflict manager and the between-battle state (ref4 t02: named)
+    register_session_chunks();  // N1: the conflict manager and the between-battle state (named)
     return true;
 }
 
 // --- N1 save / load (owner: n1-host; stage 2 n2-host; campaign_battles.hpp) ---
 namespace {
-constexpr uint32_t kBattlesSaveVersion = 4;  // 2: + the battle in flight (stage 2); 3: + the linked-battle state (story t07);
+constexpr uint32_t kBattlesSaveVersion = 4;  // 2: + the battle in flight (stage 2); 3: + the linked-battle state;
                                              // 4: the pad records moved to the planets (galactic save v2, q6)
 constexpr uint32_t kBattleLevelVersion = 1;
 // limit: guard save decode: counts, refuses
@@ -450,7 +450,7 @@ bool CampaignBattles::read_state(ByteReader& r) {
         // links it; no recreate: the battle was set up already).
         GalacticMode* gm = host_->galactic_mode();
         battle_->set_pad_persistence(gm && gm->sim() ? gm->sim()->built_objects(pending_req_.info.planet) : nullptr, false);
-        battle_->set_structure_memory(gm ? gm->sim() : nullptr, false);  // map1 t06: relinked, read only
+        battle_->set_structure_memory(gm ? gm->sim() : nullptr, false);  // relinked, read only
     }
     return true;
 }
@@ -520,7 +520,7 @@ void CampaignBattles::register_battle_chunks() {
         ap.name = "battle.ai";
         ap.write = [this](ByteWriter& w) {
             if (ai_) {
-                ai_->lane_sync();  // sp3: the AI lane's running job collected first
+                ai_->lane_sync();  // the AI lane's running job collected first
                 ai_->write(w);
             }
         };
@@ -641,7 +641,7 @@ commands::RejectReason CampaignBattles::resume_game(uint8_t player, const comman
     // -> fight (state 3), bit 1 -> auto-resolve with the force flag (0x29c020, state 6). [port] single player takes the MP
     // rule (the retail SP dialog calls 0x28c7e0 directly, not through the command stream); other states: NotAllowed.
     (void)player;
-    if (lk_.banner_up) return linked_begin() ? commands::RejectReason::None : commands::RejectReason::NotAllowed;  // story t07: P13
+    if (lk_.banner_up) return linked_begin() ? commands::RejectReason::None : commands::RejectReason::NotAllowed;  // P13
     if (!cm_ || cm_->state() != galactic::ConflictState::Vote) return commands::RejectReason::NotAllowed;
     cm_->choose(ev.u("flag") != 0 ? galactic::BattleChoice::AutoResolve : galactic::BattleChoice::Fight);
     return commands::RejectReason::None;
@@ -649,7 +649,7 @@ commands::RejectReason CampaignBattles::resume_game(uint8_t player, const comman
 
 std::string pick_random_map(const std::vector<CampaignBattleOptions::MapCandidate>& candidates, bool space, int32_t terrain,
                             int32_t faction, int32_t base_level, std::string_view preferred) {
-    // CU8F_T03_T05_RE §1.3 (cu8f t03): the campaign's filter, table order; the scan stops after the preferred name.
+    // CU8F_T03_T05_RE §1.3: the campaign's filter, table order; the scan stops after the preferred name.
     const int32_t map_type = space ? 2 : 1;
     const uint32_t tq = static_cast<uint32_t>(terrain);
     const bool not_terrain = (tq & 0x80000000u) != 0;  // query bit 31: "not this terrain" (0xffffffff = any)
@@ -782,7 +782,7 @@ void CampaignBattles::push_battle(SimHost& host) {
     // Land campaign battle: AI credits swapped for the tactical budget (A1 tactical_credits.hpp).
     credits_.clear();
     std::vector<int32_t> budget_players{pending_req_.info.defender, pending_req_.info.attacker};
-    if (direct_)  // skm2 t02: a skirmish map battle's slots 2..
+    if (direct_)  // a skirmish map battle's slots 2..
         for (size_t s = 2; s < opt_.battle.skirmish_slots.size(); ++s) budget_players.push_back(opt_.battle.skirmish_slots[s].player);
     if (kind == ModeKind::Land && opt_.tactical_budget)
         for (int32_t p : budget_players) {
@@ -796,7 +796,7 @@ void CampaignBattles::push_battle(SimHost& host) {
 #endif
     BattleConfig bc = opt_.battle;
     bc.map_battle = direct_;  // start_map_battle: no branched-map discard
-    bc.session_seed = host.session_seed();  // SP5 t03: the services' counter-based streams
+    bc.session_seed = host.session_seed();  // the services' counter-based streams
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
     if (opt_.tactical_ai) bc.order_interval = bc.reinforce_interval = 0;  // A1: the tactical AI orders and reinforces
 #endif
@@ -812,7 +812,7 @@ void CampaignBattles::push_battle(SimHost& host) {
     battle_->set_l1_factions(opt_.l1_factions);    // L1 systems
     battle_->enable_fleet_groups(opt_.fleet_groups);  // [port] fleet groups (off by default)
 #ifdef ALAMO_SIM_HAVE_STORY
-    // ui2 t06: the story's per-player switches (DISABLE_RETREAT / DISABLE_REINFORCEMENTS) are in place before the battle's first
+    // the story's per-player switches (DISABLE_RETREAT / DISABLE_REINFORCEMENTS) are in place before the battle's first
     // update, as in a run that kept them from the previous tick (the battle itself does not save them; a load rebuilds it here).
     if (StorySession* st = host.story()) story_sync_switches(*st);
 #endif
@@ -879,7 +879,7 @@ void CampaignBattles::push_battle(SimHost& host) {
         });
     }
 #endif
-    if (!rebuilding_) battle_->apply_skirmish_start_credits();  // skm1 t01: SKIRMISH_SETUP §2 step 3 (skirmish map battles)
+    if (!rebuilding_) battle_->apply_skirmish_start_credits();  // SKIRMISH_SETUP §2 step 3 (skirmish map battles)
     battle_->setup(static_cast<TacticalMode&>(m), std::move(pending_map_), host.random().synced(), host.players(),
                    host.parallel_for());
     pending_map_ = terrain::MapData{};
@@ -893,8 +893,8 @@ void CampaignBattles::push_battle(SimHost& host) {
     galactic_context_begin(kind);  // a1j t07
 #endif
     register_battle_chunks();  // N1 stage 2: the running battle's save chunks
-    host.scoring_mode_started(kind, pending_req_.map);  // q6 t09: Game_Mode_Starting_Event(Land / Space, map)
-    // storyb t14: battle deaths -> Tactical_Unit_Destroyed_Event (the battle store's objects, before they leave it).
+    host.scoring_mode_started(kind, pending_req_.map);  // Game_Mode_Starting_Event(Land / Space, map)
+    // battle deaths -> Tactical_Unit_Destroyed_Event (the battle store's objects, before they leave it).
     objects::ObjectStore* bstore = &static_cast<TacticalMode&>(m).primary();
     battle_->set_scoring_death([hp = &host, bstore](objects::ObjectHandle h, int32_t killer) {
         hp->scoring_tactical_death(*bstore, h, killer);
@@ -930,7 +930,7 @@ void CampaignBattles::hook(SimHost& host) {
         s->set_victory_hooks([this](bool has_param, int32_t value) { story_victory_enable(has_param, value); },  // story t09
                              [this](const std::string& faction, bool short_silent) { story_victory(faction, short_silent); });
         s->set_tactical_reward_hook([this](const std::string& type, const std::vector<std::string>& params) { story_tactical_reward(type, params); });
-        s->set_raid_test([this](int32_t player, const std::vector<objects::ObjectHandle>& units) {  // mcx6 t03: Enter Param7
+        s->set_raid_test([this](int32_t player, const std::vector<objects::ObjectHandle>& units) {  // Enter Param7
             return cm_->raid_force(player, units);
         });
         story_fog_session_ = s;
@@ -945,11 +945,11 @@ void CampaignBattles::hook(SimHost& host) {
     }
 #ifdef ALAMO_SIM_HAVE_STORY
     if (!battle_) {
-        story_landings(host);  // story t07: the last-invade vector from this T9's human landings (before the rewards)
+        story_landings(host);  // the last-invade vector from this T9's human landings (before the rewards)
         story_linked(host);    // L1/S4 wave 2b: story-forced battles (LINK_TACTICAL records)
     }
 #endif
-    if (!battle_ && !pending_ && lk_.present) start_linked_record();  // story t07 / t08: a waiting record (0x28f590 again)
+    if (!battle_ && !pending_ && lk_.present) start_linked_record();  // a waiting record (0x28f590 again)
     if (pending_) {  // BT §2.9.3: a linked battle is pushed in the hook that started it (the hook after its reward)
         push_battle(host);
         return;
@@ -966,7 +966,7 @@ void CampaignBattles::hook(SimHost& host) {
     TacticalMode* tm = host.tactical();
     if (!tm) return;
     battle_->tick(*tm, host.random().synced(), host.parallel_for(), host.sim_time(), host.frame());
-    for (const TacticalBattle::ProductionDone& d : battle_->production_done())  // storyb t14: signal 0x22
+    for (const TacticalBattle::ProductionDone& d : battle_->production_done())  // signal 0x22
         host.scoring_tactical_production(d.type, d.player);
     // L1 systems (TSW_PLANET_DESTROY §4 steps 7-9): the TSW's state-9 frame destroys the galactic planet now, mid-battle
     // (the parent galaxy is mutated while the tactical mode runs); only with a parent conflict (not a map battle).
@@ -1010,13 +1010,13 @@ void CampaignBattles::hook(SimHost& host) {
     const bool auto_resolved = ar_requested_;
     ar_requested_ = false;
     if (auto_resolved) {
-        scoring_auto_resolve();               // q6 t09: entries before this one are settled first
-        host.scoring_reset_tactical_stats();  // q6 t09: the HUD auto-resolve begins inside resolve_battle
+        scoring_auto_resolve();               // entries before this one are settled first
+        host.scoring_reset_tactical_stats();  // the HUD auto-resolve begins inside resolve_battle
         ar_reset_sent_ = true;                // its log entry consumes it
         result.winner = cm_->resolve_battle(result);
         log_.push_back("auto-resolve from tactical: winner " + std::to_string(result.winner));
     }
-    last_end_.valid = true;  // ui3 t05: the battle-end screen's figures (presentation)
+    last_end_.valid = true;  // the battle-end screen's figures (presentation)
     last_end_.winner = result.winner;
     last_end_.attacker = battle_->request().info.attacker;
     last_end_.defender = battle_->request().info.defender;
@@ -1058,7 +1058,7 @@ void CampaignBattles::hook(SimHost& host) {
 #endif
     // P4 sim: an auto-resolved battle was written back above. battle host: a corruption mission skips the normal write-back
     // and BattleWon / Lost (ConflictManager::finish_corruption_mission, TACTICAL_GAPS 4.8).
-    const galactic::LinkedResolution resolution = lk_.resolution;  // story t07: GOM+0x61c, cleared by every battle end
+    const galactic::LinkedResolution resolution = lk_.resolution;  // GOM+0x61c, cleared by every battle end
     lk_.resolution = galactic::LinkedResolution::None;
     if (direct_) {
         direct_ = false;  // start_map_battle: nothing to write back
@@ -1079,14 +1079,14 @@ bool CampaignBattles::start_map_battle(galactic::BattleRequest r) {
                        " map: no map battle");
         return false;
     }
-    // OPT3 t12: the battle's model files load now (session load), not in its first tick's setup.
+    // the battle's model files load now (session load), not in its first tick's setup.
     if (GalacticMode* g = host_->galactic_mode(); g && g->sim() && catalog_)
         TacticalBattle::prepare_models(*catalog_, *g->sim(), *rules_, r, map, host_->parallel_for());
     pending_req_ = std::move(r);
     pending_map_ = std::move(map);
     pending_ = true;
     direct_ = true;
-    host_->scoring_map_battle();  // mcx6 t07 (GAME_SCORING.md §9.1): the scoring script sees no galactic mode
+    host_->scoring_map_battle();  // mcx6 t07 (legacy docs/re/GAME_SCORING.md §9.1): the scoring script sees no galactic mode
     return true;
 }
 
@@ -1135,7 +1135,7 @@ CampaignBattles::CorruptionStart CampaignBattles::start_corruption(PlanetIndex p
     if (gs.credits(player) < cost) return CorruptionStart::Refused;
     // Mission only with a tactical slot, a non-AI corrupting player, single player [§4.5; AI corrupters apply directly].
     const bool mission = o->tactical && gs.players()[static_cast<size_t>(player)].human;
-    // story t08: the mission's record names the planet owner's faction (0x28bd70 refuses an empty defender name).
+    // the mission's record names the planet owner's faction (0x28bd70 refuses an empty defender name).
     std::string defender_faction;
     if (ps.owner >= 0 && static_cast<size_t>(ps.owner) < gs.players().size()) {
         const uint32_t f = gs.players()[static_cast<size_t>(ps.owner)].faction;
@@ -1327,7 +1327,7 @@ void CampaignBattles::read_linked(ByteReader& r, LinkedState& out) {
 
 void CampaignBattles::register_crcs(CrcRegistry& reg) const {
     cm_->register_crc(reg, "galactic.conflicts");
-    reg.add("battle.state", [this](StateHasher& h) { hash_state(h); });  // ref4 t02: the bodies are named members
+    reg.add("battle.state", [this](StateHasher& h) { hash_state(h); });  // the bodies are named members
     reg.add("battle.movement", [this](StateHasher& h) { hash_movement(h); });
     reg.add("battle.combat", [this](StateHasher& h) { hash_combat(h); });
     // S10-int: S9 state (abilities.objects + combat.ext), speed factors, particles / containers / dummies.
@@ -1496,7 +1496,7 @@ void CampaignBattles::story_load_map(galactic::BattleRequest& r) {
     if (map.empty()) return;
     log_.push_back("story: SET_TACTICAL_MAP " + map + " replaces " + r.map);
     r.map = map;
-    r.story_map = true;  // ui5 t10: the Mission load dialogs
+    r.story_map = true;  // the Mission load dialogs
 #else
     (void)r;
 #endif
@@ -1533,13 +1533,13 @@ void CampaignBattles::story_bridge_begin(SimHost& host, GameMode& mode) {
     if ((!s && !scripts) || !battle_) return;
     story_bridge_ = std::make_unique<lua::ObjectBridge>();
     lua::ObjectBridge& b = *story_bridge_;
-    // ref3 t06: abilities / ability_frame come from make_object_bridge below (TacticalBattle::bind_script_abilities).
+    // abilities / ability_frame come from make_object_bridge below (TacticalBattle::bind_script_abilities).
 #ifdef ALAMO_SIM_HAVE_ANIM
     if (opt_.animation) b.anim = &opt_.animation->world(mode);
 #endif
     SimHost* h = &host;
     b.anim_frame = [h] { return h->frame(); };
-    // ref2 t04: the battle lifecycle (Spawn_Unit, companies, Take_Damage, Change_Owner, Despawn) through the battle, for
+    // the battle lifecycle (Spawn_Unit, companies, Take_Damage, Change_Owner, Despawn) through the battle, for
     // every session with this bridge (before, the spawn / damage hooks were set with object scripts only, and the story
     // VMs' Spawn_Unit / Take_Damage / Despawn wrote the bare store).
     make_object_bridge(*battle_, [h] { return h->tactical(); }, b);
@@ -1548,17 +1548,17 @@ void CampaignBattles::story_bridge_begin(SimHost& host, GameMode& mode) {
         if (battle_ && tm && tm->primary().alive(o)) battle_->set_garrison_spawn(tm->primary().id(o), on);
     };
     b.is_enemy = [this](int32_t x, int32_t y) { return battle_ && battle_->combat().is_enemy(x, y); };
-    // refixf t03: Find_All_Objects_Of_Type / Find_Nearest match TEAM containers on their company / team type.
+    // Find_All_Objects_Of_Type / Find_Nearest match TEAM containers on their company / team type.
     b.representative_type = [this](objects::ObjectHandle o) {
         TacticalMode* tm = host_->tactical();
         return (battle_ && tm && tm->primary().exists(o)) ? battle_->representative_type(tm->primary().id(o)) : objects::kNone;
     };
-    // mcx8 t12: Get_Game_Scoring_Type answers a TEAM container's company type.
+    // Get_Game_Scoring_Type answers a TEAM container's company type.
     b.team_company_type = [this](objects::ObjectHandle o) {
         TacticalMode* tm = host_->tactical();
         return (battle_ && tm && tm->primary().exists(o)) ? battle_->team_company_type(tm->primary().id(o)) : objects::kNone;
     };
-    // ref5 t04: Get_Name (the host's ship names, MCX8_BINDINGS_OBJECTS §"Ship names").
+    // Get_Name (the host's ship names, MCX8_BINDINGS_OBJECTS §"Ship names").
     b.ship_name = [this](objects::ObjectHandle o) {
         const TacticalMode* tm = host_->tactical();
         return tm ? host_->ship_name_of(tm->primary(), o) : std::string_view();
@@ -1568,7 +1568,7 @@ void CampaignBattles::story_bridge_begin(SimHost& host, GameMode& mode) {
         TacticalMode* tm = host_->tactical();
         return (battle_ && tm && tm->primary().exists(o)) ? battle_->map_hint(tm->primary().id(o)) : std::string_view();
     };
-    // s78i t02: the Reinforce_Unit stand-in faces the owner's entry-facing record (TACTICAL_COMBAT §3.1.1 "other spawns").
+    // the Reinforce_Unit stand-in faces the owner's entry-facing record (TACTICAL_COMBAT §3.1.1 "other spawns").
     b.reinforce_facing = [this](int32_t player) { return battle_ ? battle_->player_drop_facing(player) : Vec3{1.0f, 0.0f, 0.0f}; };
     b.pipeline = &host.pipeline();
     // --- L1/S4 wave 2b: Dummy_Barrage_Target for Lua position-targeted abilities, script hooks, feed state ---
@@ -1752,7 +1752,7 @@ void CampaignBattles::story_bridge_begin(SimHost& host, GameMode& mode) {
             TacticalMode* tm = h->tactical();
             if (battle_ && tm && tm->primary().alive(u)) battle_->script_opportunity_fire(tm->primary().id(u), on);
         };
-        // STY1 t01: Prevent_All_Fire / Suspend_Locomotor / Set_Cannot_Be_Killed / Override_Max_Speed -> the battle's tick
+        // Prevent_All_Fire / Suspend_Locomotor / Set_Cannot_Be_Killed / Override_Max_Speed -> the battle's tick
         // through the bridge's unit control installed above.
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
         b.prevent_ai_usage = [this, h](objects::ObjectHandle u, bool on) {
@@ -1799,7 +1799,7 @@ void CampaignBattles::story_feed(SimHost& host) {
         n.other = d.killer == tactical::combat::kNoObject ? 0 : d.killer;
         s->notify_tactical(n);
     }
-    // STY1 t03: STORY_GENERIC names raised by the battle (hyperspace / bombard / ability) and the super laser's shot.
+    // STORY_GENERIC names raised by the battle (hyperspace / bombard / ability) and the super laser's shot.
     for (const TacticalBattle::StoryGeneric& g : battle_->story_generics()) s->notify_ui({StoryUiEvent::Generic, g.player, 0, g.name, true});
     for (const tactical::abilities::SpecialWeaponEvent& e : battle_->special_weapon_events())
         if (e.kind == tactical::abilities::SwEventKind::Fired && battle_->is_space_battle())
@@ -1861,7 +1861,7 @@ void CampaignBattles::story_feed(SimHost& host) {
         n.player = e.new_owner;
         s->notify_tactical(n);
     }
-    // STORY_CAPTURE_HERO has no dispatcher in 1.121 (L1_S4_REMAINING.md §4.3): never fed.
+    // STORY_CAPTURE_HERO has no dispatcher in 1.121 (legacy docs/re/L1_S4_REMAINING.md §4.3): never fed.
     // --- end S4 ---
     // Create_Cinematic_Transport landing machines (script_gaps.hpp): clip lengths unknown here (the default), the
     // take-off end destroys the transport.
@@ -1883,7 +1883,7 @@ void CampaignBattles::story_feed(SimHost& host) {
 
 // --- fog follow-up (campaign_battles.hpp): fog for the tactical story, station special weapon, ENABLE_FOW ---
 void CampaignBattles::story_fog_start(StoryBattleStart& st) {
-    // STORY_FOG_POSITION_REVEAL / STORY_FOG_OBJECT_REVEAL (FOG_OF_WAR.md §6.6): "not fogged" for the plot's player,
+    // STORY_FOG_POSITION_REVEAL / STORY_FOG_OBJECT_REVEAL (legacy docs/re/FOG_OF_WAR.md §6.6): "not fogged" for the plot's player,
     // force 0 (both fire at once for non-human plot players and while the fog is off, as in the original).
     st.fog_point_visible = [this](int32_t player, double x, double y, double) {
         return battle_ && !battle_->fog_point_fogged(player, static_cast<float>(x), static_cast<float>(y), false);
@@ -1892,7 +1892,7 @@ void CampaignBattles::story_fog_start(StoryBattleStart& st) {
 }
 
 void CampaignBattles::story_fog_begin() {
-    // S8: Fire_Special_Weapon on a space station (SCRIPT_GAPS.md §1.1 step 5) -> the battle's CombatSystem (the
+    // S8: Fire_Special_Weapon on a space station (legacy docs/re/SCRIPT_GAPS.md §1.1 step 5) -> the battle's CombatSystem (the
     // can-fire test refuses targets hidden from the station's owner with force 1).
     story_hooks_.station_readiness = [this](objects::ObjectHandle h) {
         TacticalMode* tm = host_->tactical();
@@ -1916,7 +1916,7 @@ void CampaignBattles::story_fog_begin() {
         TacticalMode* tm = host_->tactical();
         return battle_ && tm && battle_->fog_object(tm->primary().id(h), out);
     };
-    // refixf t03: Find_Nearest with a player (FOW_Object_Hidden, FOG_OF_WAR §5).
+    // Find_Nearest with a player (FOW_Object_Hidden, FOG_OF_WAR §5).
     story_fog_.object_hidden = [this](objects::ObjectHandle h, int32_t player, bool force) {
         TacticalMode* tm = host_->tactical();
         return battle_ && tm && tm->primary().exists(h) && battle_->fog_object_hidden(player, tm->primary().id(h), force);
@@ -1942,7 +1942,7 @@ void CampaignBattles::story_fog_reward(bool has_param, int32_t value) {
 }
 // --- end fog follow-up ---
 
-// --- story t09: tactical ENABLE_VICTORY / VICTORY rewards -> the running battle's victory monitor ---
+// --- tactical ENABLE_VICTORY / VICTORY rewards -> the running battle's victory monitor ---
 void CampaignBattles::story_victory_enable(bool has_param, int32_t value) {
     if (battle_) battle_->reward_enable_victory(has_param, value);
 }
@@ -1959,7 +1959,7 @@ void CampaignBattles::story_victory(const std::string& faction, bool short_silen
 }
 // --- end story t09 ---
 
-// --- STY1 t06: tactical story rewards on the running battle (docs/re/STORY_REWARDS_GALACTIC.md §4) ---
+// --- tactical story rewards on the running battle (legacy docs/re/STORY_REWARDS_GALACTIC.md §4) ---
 void CampaignBattles::story_sync_switches(const StorySession& s) {
     GalacticMode* g = host_->galactic_mode();
     if (!battle_ || !g || !g->sim()) return;
@@ -2022,7 +2022,7 @@ void CampaignBattles::story_tactical_reward(const std::string& type, const std::
 
 // --- L1/S4 wave 2b: story-forced battles. Each new StorySession::linked_tactical() entry (a LINK_TACTICAL reward) is
 // parsed (parse_link_tactical, BT §2.9.1), written as the linked-battle record (queue_linked, 0x28bd70: refused while a
-// record waits) and started at once (start_linked_record, 0x28f590; story t07). Entries left after a start wait for a
+// record waits) and started at once (start_linked_record, 0x28f590). Entries left after a start wait for a
 // later hook (the battle is pending). ---
 namespace {
 std::string trimmed_text(std::string_view v) {
@@ -2111,7 +2111,7 @@ void CampaignBattles::story_linked(SimHost& host) {
     }
 }
 
-// story t07: the last-invade vector from the landings the story routed (STORY_LAND_ON / DEPLOY sources): a human player's
+// the last-invade vector from the landings the story routed (STORY_LAND_ON / DEPLOY sources): a human player's
 // UnitsLanded = the last `value` surface units of that player at the planet [port: StorySession's own mapping].
 void CampaignBattles::story_landings(SimHost& host) {
     StorySession* s = host.story();
@@ -2205,7 +2205,7 @@ void CampaignBattles::l1_hooks(SimHost& host) {
     k.face_immediate = [this, h, id_of](objects::ObjectHandle u, Vec3 f) {  // storyb t11
         if (TacticalMode* tm = h->tactical(); battle_ && tm) battle_->face_immediate(*tm, id_of(u), f);
     };
-    k.movement_first_lock = [this, h, id_of](objects::ObjectHandle u) {  // cu8l t02: Lock_Current_Orders' first lock
+    k.movement_first_lock = [this, h, id_of](objects::ObjectHandle u) {  // Lock_Current_Orders' first lock
         if (TacticalMode* tm = h->tactical(); battle_ && tm) battle_->script_first_lock(*tm, id_of(u));
     };
     k.retreat_increment_frames = [this](int32_t player) { return battle_ ? battle_->retreat_increment_frames(player) : 0; };
@@ -2215,7 +2215,7 @@ void CampaignBattles::l1_hooks(SimHost& host) {
     k.spawn = [this, h](const objects::SpawnParams& p) {
         TacticalMode* tm = h->tactical();
         if (!tm) return objects::ObjectHandle{};
-        if (battle_) return battle_->script_spawn_effect(*tm, p);  // ref2 t04: the adopt step (L1 systems)
+        if (battle_) return battle_->script_spawn_effect(*tm, p);  // the adopt step (L1 systems)
         return tm->spawn(p);
     };
     // Space fields (Is_In_* / Is_Point_In_* / Find_Nearest_Space_Field): the battle's field index (kField* bits are

@@ -1,4 +1,4 @@
-// alamo_terrain - water plane, water mesh and water shader inputs (TERRAIN_WATER_POST.md 3).
+// alamo_terrain - water plane, water mesh and water shader inputs (legacy docs/re/TERRAIN_WATER_POST.md 3).
 //
 // One plane per map at header 15, drawn only when the type (header 16) is water/lava/ice.
 // Geometry: for every terrain patch whose minimum height is below the plane, the patch's 31x31

@@ -1,4 +1,4 @@
-// P2 stage 2: command-bar shell models (docs/re/UI.md §2.2). A shell is a 3D .alo drawn with the shell ortho
+// P2 stage 2: command-bar shell models (legacy docs/re/UI.md §2.2). A shell is a 3D .alo drawn with the shell ortho
 // camera (HudCanvas kHudCameraShells); every non-shell component sits on the bone of its own name.
 //
 // Findings from the real models (i_tactical_controls.alo 157 bones / 153 meshes, i_galactic_controls.alo,

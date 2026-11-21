@@ -59,10 +59,10 @@ inline std::vector<int32_t> determinism_worker_counts() {
     return w;
 }
 
-// Worker-count check (OPT3 t07), in-process form for unit tests and short runs: runs `run(workers)`
+// Worker-count check, in-process form for unit tests and short runs: runs `run(workers)`
 // (returns the run's CrcLog) for every count in order and compares each log with the first count's.
 // Long runs use the per-process form instead, one ctest entry per count: alamo_add_worker_count_check()
-// in engine/CMakeLists.txt (docs/BUILD.md "Worker-count check").
+// in engine/CMakeLists.txt (docs/SIMULATION.md "Worker-count check").
 //
 //   const auto rep = jobs::check_worker_counts([&](int32_t w) { return run_my_sim(w); });
 //   for (const auto& r : rep.runs) std::printf("  workers %d: %s\n", r.workers, r.vs_first.message.c_str());
@@ -95,7 +95,7 @@ WorkerCountReport check_worker_counts(Run&& run, const std::vector<int32_t>& cou
     return rep;
 }
 
-// The same check for runs whose result is more than a CrcLog (cu9 t18: alamo_headless's --check-workers modes, which
+// The same check for runs whose result is more than a CrcLog (alamo_headless's --check-workers modes, which
 // also compare their own logs / text). `first` is the first count's result, run by the caller (it may print or fail on
 // its own); `run(workers)` returns a result of the same type for every further count, `log_of(result)` its CrcLog, and
 // `report(workers, result, divergence)` prints what the caller wants and returns whether the extra data matches `first`

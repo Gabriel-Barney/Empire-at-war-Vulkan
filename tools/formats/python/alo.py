@@ -72,7 +72,7 @@ def _submesh(d, o, s, material):
         elif cid in (0x10005, 0x10007):
             n = sm["num_vertices"]
             if n and cs == n * 128 and cid == 0x10005:
-                # EaW-era record: the 144-byte layout without the unknown float4 at +96 (SPEC.md 2.5).
+                # EaW-era record: the 144-byte layout without the unknown float4 at +96 (legacy docs/formats/SPEC.md 2.5).
                 sm["vertices"] = [VERTEX_128.unpack_from(d, co + i * 128) for i in range(n)]
                 sm["vertices"] = [v[:24] + (1.0, 1.0, 1.0, 1.0) + v[24:] for v in sm["vertices"]]
             elif n and cs != n * 144:
@@ -101,7 +101,7 @@ def _submesh(d, o, s, material):
 
 
 # Emitter property block (chunk 0x700/0x02) mini-chunk IDs -> (name, struct format).
-# Mirrors particle::emitter_fields() in the C++ library (see SPEC.md section 3 for confidence).
+# Mirrors particle::emitter_fields() in the C++ library (see legacy docs/formats/SPEC.md section 3 for confidence).
 EMITTER_FIELDS = {
     0x04: ("blend_mode", "<I"), 0x05: ("geometry", "<I"), 0x06: ("tool_field_06", "<I"),
     0x07: ("use_bursts", "<?"), 0x08: ("object_space", "<?"), 0x09: ("outward_speed", "<f"),

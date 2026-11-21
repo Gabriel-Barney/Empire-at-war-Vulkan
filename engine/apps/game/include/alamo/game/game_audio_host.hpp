@@ -3,7 +3,7 @@
 // draw is on its own FREE (unsynced) SimRng - so the sim's per-tick CRC is the same with audio on or off.
 //   UI            GUI / HUD SFX hooks -> GameAudio::gui_sfx.
 //   unit response the local player's select / move / attack / guard / stop order -> GameAudio::unit_response on the
-//                 representative unit = the lowest id of the order's units [port; AUDIO.md 3.3 M]; played before the
+//                 representative unit = the lowest id of the order's units [port; legacy docs/re/AUDIO.md 3.3 M]; played before the
 //                 command is submitted (local only).
 //   battle events after every battle tick, in a stable order: new battle units -> object_spawned (engine / ambient
 //                 loops) and object_moving from the movement state (ascending id); deaths -> unit_death
@@ -12,7 +12,7 @@
 //                 catalog]); any of them involving the local player -> combat (battle music, mode 7); the tactical super
 //                 weapon's cues (battle_fx.hpp tsw_cues -> tsw_audio).
 //   modes         front end / galactic / battle pending + load screen / tactical (enter_tactical) / leave_mode.
-//   listener      set_camera from the active camera (AUDIO.md 1.8).
+//   listener      set_camera from the active camera (legacy docs/re/AUDIO.md 1.8).
 // Unit sounds come from the typed object view (GameObjectTypes::get_string), cached per type.
 #pragma once
 #include <array>
@@ -34,7 +34,7 @@
 #include "alamo/game/battle_fx.hpp"
 #include "alamo/game/game_data.hpp"
 #include "alamo/objects/object_store.hpp"
-#include "alamo/tactical/abilities/ability_system.hpp"  // aud1 t10: AbilityActivation
+#include "alamo/tactical/abilities/ability_system.hpp"  // AbilityActivation
 
 namespace alamo::audio {
 class AudioDatabase;
@@ -70,11 +70,11 @@ struct GameAudioStats {
     uint64_t battle_pending = 0;                    // GALACTIC_DIALOGS §1.3 battle prompt sound + music
     uint64_t engine_loop_requests = 0, removed = 0, station_upgrades = 0;  // STATION_HANGARS_SOUND §1.2 / §3
     uint64_t movie_music = 0, movie_halts = 0, movie_cues = 0, movie_restores = 0;  // movie music modes 14 / 17 (STRATEGIC_GAPS §7.4)
-    uint64_t tsw_activations = 0, tsw_fires = 0, tsw_planet_deaths = 0;  // refix t06: tsw_audio cues played
-    uint64_t lob_chargeups = 0, lob_charged = 0;                         // S8 t31: lobbing charge-up / charged cues
-    uint64_t control_point_lines = 0;                                    // ccpgu t01: control point countdown lines
+    uint64_t tsw_activations = 0, tsw_fires = 0, tsw_planet_deaths = 0;  // tsw_audio cues played
+    uint64_t lob_chargeups = 0, lob_charged = 0;                         // lobbing charge-up / charged cues
+    uint64_t control_point_lines = 0;                                    // control point countdown lines
     uint64_t garrison_lines = 0, clash_win_speech = 0;                   // aud4: SFXEvent_Bunker_Garrisoned / clash win speech
-    uint64_t anim_sounds = 0;                                           // aud1 t03: AnimationSFXMaps SOUND rows started
+    uint64_t anim_sounds = 0;                                           // AnimationSFXMaps SOUND rows started
     uint64_t planet_reveals = 0, production_sfx = 0, build_music = 0;    // aud2 t01 / t03
     uint64_t fleet_jumps = 0, campaign_end_music = 0, deactivations = 0;  // aud2 t07 / t08 / t04
     uint64_t health_warnings = 0, hardpoint_lines = 0, hardpoint_explosions = 0;  // mcx4 t13 batch A
@@ -92,7 +92,7 @@ struct GameAudioStats {
     uint64_t ability_lines = 0;                                                    // mcx4 t13 batch R
 };
 
-// trl2 t08 (AUDIO.md §9.5, MCX4_T10_RE_ANSWERS §3): the fire sounds of shots held by Projectile_Appearance_Delay_Frames.
+// trl2 t08 (legacy docs/re/AUDIO.md §9.5, MCX4_T10_RE_ANSWERS §3): the fire sounds of shots held by Projectile_Appearance_Delay_Frames.
 // A new projectile whose spawn (appearance) frame lies after the current frame plays nothing at the shot: offer() keeps it
 // and returns true. take_due(now) hands every kept shot whose appearance frame is <= now to `fn` (fire order) and drops
 // it; the caller plays it at the projectile's position then, if the projectile remains.
@@ -147,7 +147,7 @@ public:
     void ui(std::string_view event);
     void speech(std::string_view event);  // a queued speech event (story dialog scripts' DIALOG lines)
     // L1/S4 wave 1: speech events that ended since the last call (AudioSystem::on_speech_done, finished or killed by
-    // Stop_All_Speech / a mode change - AUDIO.md §3.1 reports both to the story), in end order. Empty when inactive.
+    // Stop_All_Speech / a mode change - legacy docs/re/AUDIO.md §3.1 reports both to the story), in end order. Empty when inactive.
     std::vector<std::string> take_speech_done();
     // P4 host: the local faction's announcement by its Faction tag (GameAudio::faction_sfx, e.g.
     // SFXEvent_Sabotage_Success) and the GUI negative feedback (the special systems' local error SFX, [port]).
@@ -201,15 +201,15 @@ public:
     // Firing: the TSW type's TSW_SFXEvent_Activate_Voice and TSW_SFXEvent_Weapon_Power_Up attached to the TSW (2D or 3D
     // by the event's data) and TSW_MusicEvent_Activation_Start as music mode 8; AttackAnim: its SFXEvent_Fire (weapon
     // fire rules); PlanetDestroyed: the target dummy's Death_SFXEvent_Start_Die at the dummy (unit_death: the dummy's own
-    // sounds stop). Every owner's TSW is heard [M: the spec lists no owner test]. S8 t31 (TACTICAL_COMBAT.md "Charge-up"):
+    // sounds stop). Every owner's TSW is heard [M: the spec lists no owner test]. S8 t31 (legacy docs/re/TACTICAL_COMBAT.md "Charge-up"):
     // LobChargeup plays the unit type's Lobbing_Superweapon_SFXEvent_Chargeup, LobCharged its
     // Lobbing_Superweapon_SFXEvent_Fire, both attached to the unit (every owner's). battle_tick calls it.
     void tsw_audio(std::span<const TswCue> cues, const objects::GameObjectTypes& types);
     void sim_tick();  // once per sim tick
     // aud1 (battle_tick's calls, public for the scripted battle tests): the tactical weather (type name, 0..1 intensity:
     // GameAudio::set_weather, weather loops + the faction SFXEvent_Weather_Begin / _End) and one combat notification
-    // (AUDIO.md §2.3 slot 76: battle music when the local player is involved, the base-under-attack announcement).
-    // aud1 t03 (AUDIO.md §9.4): AnimationSFXMaps SOUND rows the sim's animation crossed this tick (SimAnimation::events,
+    // (legacy docs/re/AUDIO.md §2.3 slot 76: battle music when the local player is involved, the base-under-attack announcement).
+    // aud1 t03 (legacy docs/re/AUDIO.md §9.4): AnimationSFXMaps SOUND rows the sim's animation crossed this tick (SimAnimation::events,
     // kind Sound), in its order: each starts attached to the animating object (3D-attached when Is_3D, else 2D-attached),
     // no fog / owner test at start (fogged objects are muted). Returns the number started.
     struct AnimSound {
@@ -238,10 +238,10 @@ public:
         Vec3 position{};
     };
     uint32_t self_destruct_lines(std::span<const SelfDestructCue> counting);
-    // aud1 t04 (AUDIO.md §9.5): one shot's fire sound (fire_event(hardpoint_fire, shooter_fire)), 3D at the projectile's
+    // aud1 t04 (legacy docs/re/AUDIO.md §9.5): one shot's fire sound (fire_event(hardpoint_fire, shooter_fire)), 3D at the projectile's
     // spawn position. Returns the instance id (0 = none / refused).
     uint32_t weapon_fired(uint64_t shooter, std::string_view hardpoint_fire, std::string_view shooter_fire, const Vec3& position);
-    // aud1 t05: each battle player's Faction name (index = player), read by battle_tick's object_events; set at battle start.
+    // each battle player's Faction name (index = player), read by battle_tick's object_events; set at battle start.
     void set_player_factions(std::vector<std::string> factions) { player_factions_ = std::move(factions); }
     // mcx4 t13 batch D: the running battle is a tactical corruption mission (0x28ae30; picks the _Tactical_Corruption_
     // Mission HUD result lines).
@@ -249,10 +249,10 @@ public:
     void weather(std::string_view type, float intensity, bool local_affected = true);  // local_affected: no Weatherproof
     void combat(bool local_involved, bool local_base_attacked);
     // --- aud1 t05 (object SFX: abilities, shields, hyperspace; src/game_audio_host_objects.cpp) ---
-    // AUDIO.md §9.6, after every battle tick (battle_tick calls it; presentation only, const reads):
+    // legacy docs/re/AUDIO.md §9.6, after every battle tick (battle_tick calls it; presentation only, const reads):
     //   ability   AbilitySystem EffectOn (the activation presentation 0x48e4d0): the special ability's SFXEvent_Activate
     //             attached to the user, SFXEvent_Target_Affected attached to the target when there is one. Read from
-    //             activation_events() after the last serial played (aud1 t10: the battle clears events() inside its tick).
+    //             activation_events() after the last serial played (the battle clears events() inside its tick).
     //   hyperspace TacticalBattle::hyperspace_sfx(): Arrive -> the owner faction's SFXEvent_Arrive_From_Hyperspace attached
     //             to the object; Depart -> the type's SFXEvent_Retreat_Engines_Jump, else the owner faction's
     //             SFXEvent_Exit_Into_Hyperspace, 3D at the object's position (not attached).
@@ -291,7 +291,7 @@ public:
     // The instant target / area abilities whose activation 0x3a3e20 plays the record's SFXEvent_Target_Ability
     // (types 19, 23..26, 28, 35, 36, 42 and SELF_DESTRUCT 39).
     static bool plays_target_ability_line(uint8_t ability_type);
-    // mcx4 t13: `field` of the type's first <Abilities> entry whose element is `element` (e.g. Laser_Defense_Ability
+    // `field` of the type's first <Abilities> entry whose element is `element` (e.g. Laser_Defense_Ability
     // Zap_SFXEvent), "" when none.
     static std::string_view special_line(const objects::GameObjectTypes& types, objects::TypeIndex t, std::string_view element,
                                          std::string_view field);
@@ -343,7 +343,7 @@ public:
     // One hyperspace arrival (public for the scripted tests): the owner faction's SFXEvent_Arrive_From_Hyperspace attached
     // to the arriving object. Returns the instance id (0 = none / refused).
     uint32_t hyperspace_arrival(uint64_t object, std::string_view owner_faction, const Vec3& position);
-    // mcx6 t05 (docs/re/MCX6_T05_CINEMATIC_BINDINGS.md): Lua Cinematic_Hyperspace_In's arrival sound (state 0x2c timer 45):
+    // mcx6 t05 (legacy docs/re/MCX6_T05_CINEMATIC_BINDINGS.md): Lua Cinematic_Hyperspace_In's arrival sound (state 0x2c timer 45):
     // hyperspace_arrival with player `owner`'s faction (set_player_factions; none: nothing plays).
     uint32_t cinematic_arrival(uint64_t object, int32_t owner, const Vec3& position);
     // Lua Play_Cinematic_Engine_Flyby (0x57ea50): the object type's SFXEvent_Ambient_Moving (type +0x1520) attached to the
@@ -359,13 +359,13 @@ private:
     std::map<objects::TypeIndex, std::pair<std::string, std::string>> shield_tags_;   // type -> (down, back up)
     std::map<objects::ObjectId, int> shield_up_;                                      // ascending id
     size_t hyperspace_seen_ = 0;  // TacticalBattle::hyperspace_sfx() entries already played
-    uint32_t activation_seen_ = 0;  // aud1 t10: the last AbilityActivation::serial played
+    uint32_t activation_seen_ = 0;  // the last AbilityActivation::serial played
     uint64_t ability_sfx_played_ = 0, hyperspace_sfx_played_ = 0, shield_sfx_played_ = 0;
 
 public:
     // --- end aud1 t05 ---
     // --- aud1 t07 (tactical intro speech; src/game_audio_host_intro.cpp) ---
-    // AUDIO.md §9.7 (0x364b20): once per battle the local player's faction speaks one SpeechEvent_Tactical_Intro_* line
+    // legacy docs/re/AUDIO.md §9.7 (0x364b20): once per battle the local player's faction speaks one SpeechEvent_Tactical_Intro_* line
     // (Faction fields), only to the local player and only for its side. Both builds.
     struct IntroSpeechFacts {
         bool land = false;               // land battle (else space)
@@ -411,10 +411,10 @@ public:
     static std::string_view control_point_line(int32_t prev, int32_t timer, int32_t leader, int32_t local_player, bool leader_is_enemy);
 
     // aud4 (battle_tick's presentation rules, public for the tests; both builds):
-    // L1_S4_REMAINING §4.1 (b0289): a unit that actually entered a garrison -> the local faction's SFXEvent_Bunker_Garrisoned
+    // L1_S4_REMAINING §4.1: a unit that actually entered a garrison -> the local faction's SFXEvent_Bunker_Garrisoned
     // [M: for the local player's own units only], else "". SFXEvent_Bunker_Vacated has no traced trigger (backlog).
     static std::string_view garrison_line(int32_t unit_owner, int32_t local_player);
-    // mcx4 t13 (docs/re/MCX4_T13_RE_ANSWERS.md; battle_tick's rules, public for the tests):
+    // mcx4 t13 (legacy docs/re/MCX4_T13_RE_ANSWERS.md; battle_tick's rules, public for the tests):
     // "GameObjectType.SFXEvent_Health_Low_Warning family" (Take_Damage 0x3a9e30 [H]): the type tag a hit plays when it takes
     // the victim's health fraction from `before` to `after` across a threshold, the critical one tested first
     // (GameConstants Health_Critical_Percent_Threshold / Health_Low_Percent_Threshold): the victim type's
@@ -495,18 +495,18 @@ public:
     };
     static ControlLines control_lines(bool friendly_old, bool friendly_new, bool hostile_old, bool hostile_new, bool old_neutral,
                                       bool new_neutral);
-    // HERO_CLASH §3.8 (b0300): the clash winner's speech event, First_Hero_Win_Speech when hero 1 (First_Hero_Type) won,
+    // HERO_CLASH §3.8: the clash winner's speech event, First_Hero_Win_Speech when hero 1 (First_Hero_Type) won,
     // else Second_Hero_Win_Speech; "" for an unknown entry. (Attack_SFXEvent belongs to Clash_Actions, i.e. the
     // action-driven clash that shipped data never reaches, HERO_CLASH §4.)
-    // aud1 t02: the weather audio name of a tactical::combat::WeatherType value (CLEAR, RAIN, SNOW, SANDSTORM, ASH; out of
+    // the weather audio name of a tactical::combat::WeatherType value (CLEAR, RAIN, SNOW, SANDSTORM, ASH; out of
     // range -> CLEAR), the names WeatherAudio.xml and the Faction SFXEvent_Weather_Begin / _End pairs use.
     static std::string_view weather_name(uint8_t type);
-    // aud1 t01 (AUDIO.md §9.1): the Music_Event_List_* / Ambient_Map_Sounds key of a map terrain type
+    // aud1 t01 (legacy docs/re/AUDIO.md §9.1): the Music_Event_List_* / Ambient_Map_Sounds key of a map terrain type
     // (TacticalBattle::terrain_type(): 0 Temperate .. 6 Urban, 7 Space); 8 or more -> "" (retail plays no list music).
     static std::string_view terrain_name(uint32_t type);
-    // aud1 t04 (AUDIO.md §9.5): the fire sound of a shot - the hardpoint type's Fire_SFXEvent when it has one, else the
+    // aud1 t04 (legacy docs/re/AUDIO.md §9.5): the fire sound of a shot - the hardpoint type's Fire_SFXEvent when it has one, else the
     // shooter's SFXEvent_Fire (only one plays; both empty = none). Unit weapon shots pass hardpoint_fire = "".
-    // aud1 t08 (AUDIO.md §9.8): a hit on `victim_owner`'s object counts as "the local base attacked" when the victim is a
+    // aud1 t08 (legacy docs/re/AUDIO.md §9.8): a hit on `victim_owner`'s object counts as "the local base attacked" when the victim is a
     // base object (land DUMMY_GROUND_STRUCTURE / DUMMY_LAND_BASE_LEVEL_COMPONENT, space DUMMY_STAR_BASE /
     // DUMMY_ORBITAL_STRUCTURE), the attacker is hostile to the victim's owner, and the owner is the local player or an ally
     // of it whose victim type has Is_Community_Property. The rate limit is GameAudio::combat's.
@@ -514,7 +514,7 @@ public:
                               bool owner_is_ally, bool community_property);
     static std::string_view fire_event(std::string_view hardpoint_fire, std::string_view shooter_fire);
     static std::string_view clash_win_speech(const tactical::combat::HeroClashData* data, uint32_t entry, bool first_won);
-    // AUDIO.md §2.3 (b0286): this tick's "any player has its faction super weapon on the map". The first report after
+    // legacy docs/re/AUDIO.md §2.3: this tick's "any player has its faction super weapon on the map". The first report after
     // battle_reset re-picks the mode's music (the start forces are known one tick after the Battle scene began); later
     // reports only set the flag that the next mode switch reads.
     void super_weapon_report(bool present);
@@ -524,11 +524,11 @@ public:
 
     // Positions of objects for attached instances (copied from the render snapshot after each capture).
     void set_object_positions(std::vector<std::pair<uint64_t, Vec3>> positions);
-    // `cinematic` = a Lua cinematic camera is active (AUDIO.md §1.2 / §1.6: listener at the camera, gates 2 / 9).
+    // `cinematic` = a Lua cinematic camera is active (legacy docs/re/AUDIO.md §1.2 / §1.6: listener at the camera, gates 2 / 9).
     void set_listener(const Vec3& eye, const Vec3& look_at, bool cinematic = false);
-    // OI host: the game-state flags the AudioSystem gates and gains read (AUDIO.md §1.1 gate 4, §1.6, §3), owned by the
+    // OI host: the game-state flags the AudioSystem gates and gains read (legacy docs/re/AUDIO.md §1.1 gate 4, §1.6, §3), owned by the
     // host. modal = a modal GUI dialog is open (speech ducking off); gui_only = gate 4's "flag +0x94 AND a modal dialog"
-    // (the flag's retail owner is open [AUDIO.md §8]; [port] the host sets it while the in-game pause menu / its option
+    // (the flag's retail owner is open [legacy docs/re/AUDIO.md §8]; [port] the host sets it while the in-game pause menu / its option
     // dialogs are up); attract = the main-menu attract demo runs (attract_mode.hpp). Each changes only on a new value.
     void set_flags(bool modal, bool gui_only, bool attract);
     bool attract() const { return attract_; }
@@ -536,7 +536,7 @@ public:
     // OI host (P3 video item 3): the output device's buffering in seconds (period size x periods / rate; 0 for the
     // null backend / inactive audio), subtracted from a movie's audio clock (MoviePlayer::set_audio_latency).
     double output_latency_seconds() const;
-    // The profile's bus levels (options load / apply / preview). aud2 t02 (AUDIO.md §4): the master level is also saved as
+    // The profile's bus levels (options load / apply / preview). aud2 t02 (legacy docs/re/AUDIO.md §4): the master level is also saved as
     // the level Lua Master_Volume_Restore ramps back to (AudioSystem::save_master_volume).
     void set_volumes(float master, float sfx, float speech, float music);
 
@@ -544,12 +544,12 @@ public:
     // t01 (GALACTIC_REVEAL_CORRUPTION 1.3): the galactic pre-step revealed a planet: Audio.xml's SFXEvent_Planet_Revealed
     // value (AudioConstants::sfx_planet_revealed; FoC GUI_Planet_Mouse_Over), 2D. Nothing when the constant is empty.
     void planet_revealed();
-    // t04 (AUDIO.md §6.1, §2.3): whether this application is the active one (WM_ACTIVATEAPP). Inactive: update() does
+    // t04 (legacy docs/re/AUDIO.md §6.1, §2.3): whether this application is the active one (WM_ACTIVATEAPP). Inactive: update() does
     // nothing (step 14 runs only while active) and the music manager's pause counter is raised (AudioSystem::pause_music);
     // active again: the counter drops and updates resume. Only a change does anything. The host starts active.
     void set_app_active(bool active);
     bool app_active() const { return app_active_; }
-    // t03 (AUDIO.md §6.2, xml_field_tables GameObject +0x1450 / +0x1460 / +0x1470): a galactic production event of the
+    // t03 (legacy docs/re/AUDIO.md §6.2, xml_field_tables GameObject +0x1450 / +0x1460 / +0x1470): a galactic production event of the
     // local player plays the built type's SFXEvent_Build_Started / _Build_Cancelled / _Build_Complete (2D, as the
     // event's data says: the HUD voice lines use Preset_GUI-style 2D presets); a completion also starts the type's
     // Build_Music_Completed as music mode 4 (STRATEGIC_GAPS §7.4; [port] for the local player's own production only).
@@ -574,7 +574,7 @@ public:
     static constexpr const char* kFleetHyperspaceEvent = "Galactic_Fleet_Hyperspace";
     uint32_t fleet_departure(bool local_owner, bool local_sees);
     // t08 (GAME_SCORING, STRATEGIC_GAPS §7.4): the campaign-end dialog opened - Audio.xml
-    // Music_Event_Battle_End_Summary_Screen_<Win/Lose>, music mode 16 (mcx4 t13: retail never reads the faction's
+    // Music_Event_Battle_End_Summary_Screen_<Win/Lose>, music mode 16 (retail never reads the faction's
     // Music_Event_Strategic_*; `enemy_faction` is unused).
     void campaign_end(bool won, std::string_view enemy_faction = {});
     // Lua presentation audio ops (Play_Music, Stop_All_Speech, SFX permissions, ...) of events with seq >= *next_seq
@@ -614,13 +614,13 @@ private:
         float yaw = 0.0f, elevation = 0.0f;
         bool playing = false;
     };
-    std::map<int64_t, TurretTurn> turret_turn_;               // mcx4 t13: unit -> last turret pose (lookup only)
+    std::map<int64_t, TurretTurn> turret_turn_;               // unit -> last turret pose (lookup only)
     struct AbilityLoop {
         std::string event;
         uint64_t target = 0;  // the target the loop also runs on (0 none)
     };
-    std::map<std::pair<int64_t, uint8_t>, AbilityLoop> ability_loop_;  // mcx4 t13: (user, ability) -> running loop (lookup only)
-    // aud1 t04: Fire_SFXEvent of a CombatData::hardpoints entry (resolved by its HardPoint type name, cached; "" none).
+    std::map<std::pair<int64_t, uint8_t>, AbilityLoop> ability_loop_;  // (user, ability) -> running loop (lookup only)
+    // Fire_SFXEvent of a CombatData::hardpoints entry (resolved by its HardPoint type name, cached; "" none).
     const std::string& hardpoint_fire_sfx(const objects::GameObjectTypes& types, const tactical::combat::CombatSystem& cs, int32_t hardpoint);
 
     std::unique_ptr<audio::AudioDatabase> db_;
@@ -632,27 +632,27 @@ private:
     SimRng rng_;  // FREE: presentation only
     std::vector<std::string> speech_done_;  // ended speech events not taken yet
     std::map<objects::TypeIndex, std::unique_ptr<audio::UnitSounds>> sounds_;  // lookup only
-    uint8_t base_behaviors_[4] = {0, 0, 0, 0};  // aud1 t08: behaviour ids (land 2, space 2), resolved on first use
+    uint8_t base_behaviors_[4] = {0, 0, 0, 0};  // behaviour ids (land 2, space 2), resolved on first use
     bool base_behaviors_ready_ = false;
-    std::vector<std::string> player_factions_;  // aud1 t05: set_player_factions
-    std::map<int32_t, std::string> hardpoint_fire_;  // aud1 t04: hardpoint desc index -> Fire_SFXEvent (lookup only)
+    std::vector<std::string> player_factions_;  // set_player_factions
+    std::map<int32_t, std::string> hardpoint_fire_;  // hardpoint desc index -> Fire_SFXEvent (lookup only)
     std::unordered_map<uint64_t, Vec3> positions_;                             // lookup only (never iterated)
     std::set<objects::ObjectId> spawned_;                                      // battle units already announced
     std::map<objects::ObjectId, bool> moving_;                                 // ascending id
     std::unordered_set<uint64_t> inaudible_;  // lookup only (never iterated): hidden / stealthed / fogged for the local player
     std::unordered_set<uint64_t> hidden_;     // lookup only: the stealthed / Lua-hidden part of inaudible_ (muted in cinematics too)
-    std::vector<objects::TypeIndex> super_weapon_types_;  // b0286: every faction's Faction_Super_Weapon type (resolved once)
+    std::vector<objects::TypeIndex> super_weapon_types_;  // every faction's Faction_Super_Weapon type (resolved once)
     bool super_weapon_types_ready_ = false, battle_reported_ = false;
-    size_t clash_ends_seen_ = 0;  // b0300: HeroClashManager::ended() entries already voiced  // battle_reported_: a battle_tick ran since battle_reset
+    size_t clash_ends_seen_ = 0;  // HeroClashManager::ended() entries already voiced  // battle_reported_: a battle_tick ran since battle_reset
     size_t upgrades_seen_ = 0;                // TacticalBattle::station_upgrades() announced so far
-    int32_t cp_timer_ = -1;                   // ccpgu t01: TacticalBattle::control_point_timer() at the last battle_tick
+    int32_t cp_timer_ = -1;                   // TacticalBattle::control_point_timer() at the last battle_tick
     MusicScene scene_ = MusicScene::None;
     uint32_t last_serial_ = 0;
     bool have_serial_ = false;
     DelayedFireSounds delayed_shots_;  // trl2 t08
     int32_t retreating_player_ = -1;  // TacticalBattle::retreating_player() at the last battle_tick
     bool modal_ = false, gui_only_ = false, attract_ = false;  // OI host: flags last applied
-    bool app_active_ = true;                                   // aud2 t04: set_app_active
+    bool app_active_ = true;                                   // set_app_active
     bool pending_played_ = false;  // battle_pending ran since the last scene change
     bool movie_music_on_ = false, movie_halted_ = false;  // a movie's mode 14 / 17 music is the current one / it halted the music
     GameAudioStats stats_;

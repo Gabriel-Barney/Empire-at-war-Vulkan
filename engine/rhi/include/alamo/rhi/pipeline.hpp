@@ -1,7 +1,7 @@
 // Graphics pipelines for dynamic rendering (no VkRenderPass) from a small description, and a
 // VkPipelineCache persisted to disk. Dynamic state (always): viewport, scissor, stencil reference,
 // stencil compare mask, stencil write mask (MeshShadowVolume uses 63), blend constants, depth bias
-// (PORTING.md 3.2; see depth_bias_from_d3d9). The masks in DepthStencilState are therefore ignored:
+// (legacy docs/shaders/PORTING.md 3.2; see depth_bias_from_d3d9). The masks in DepthStencilState are therefore ignored:
 // set them with vkCmdSetStencilCompareMask / vkCmdSetStencilWriteMask when stencil is enabled.
 // D3D9 conventions to remember when filling this from effect state: D3D treats clockwise as front
 // facing and D3DCULL_CCW culls counter-clockwise faces -> front_face = CLOCKWISE, cull = BACK.

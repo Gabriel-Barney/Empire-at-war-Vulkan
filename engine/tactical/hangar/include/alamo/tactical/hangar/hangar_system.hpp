@@ -1,7 +1,7 @@
 // Hangars - SPAWN_SQUADRON (behaviour 0x1A, SpawnSquadronBehaviorClass) for space stations and carriers, and the
 // hangar / hardpoint part of the skirmish station upgrade (Starbase_Upgrade_Ability).
-// Spec: docs/re/STATION_HANGARS_SOUND.md §1-§2 (with HARDPOINT_DISABLED.md §3 / §9.4, ABILITIES_HARDPOINTS.md §2.4 /
-// §2.5 for DEPLOY_SQUAD). r3g t03: the land structure path (HangarConfig::land) - bones, the Structure Open / Hold /
+// Spec: legacy docs/re/STATION_HANGARS_SOUND.md §1-§2 (with legacy docs/re/HARDPOINT_DISABLED.md §3 / §9.4, legacy docs/re/ABILITIES_HARDPOINTS.md §2.4 /
+// §2.5 for DEPLOY_SQUAD). The land structure path (HangarConfig::land) - bones, the Structure Open / Hold /
 // Close states, Spawn_Garrison_On_Load - is modelled (LAND below).
 //
 // WIRING (host = the battle, engine/apps/sim TacticalBattle)
@@ -22,7 +22,7 @@
 //     survive and are no longer counted by anyone. Retreat: nothing here (the hyperspace query blocks launches; the
 //     retreat coordinator treats spawned squadrons like any unit).
 //
-// LAND (r3g t03, §2.5 "Land" / §2.7, SpawnSquadron service 0x594880, signal handler 0x593760, bulk 0x593960): no bays.
+// LAND (§2.5 "Land" / §2.7, SpawnSquadron service 0x594880, signal handler 0x593760, bulk 0x593960): no bays.
 //   * state 0: can-spawn (items 1-5, 7, 8) -> Structure Open (68, HangarHost::clip) -> state 1; no Open clip: launch at
 //     once -> state 2. State 1: at the first service where Open has finished, launch -> Structure Hold (69, looping,
 //     presentation only) -> state 2 (a failed launch retries). State 2 waits for the unit that is leaving: its exit move
@@ -89,7 +89,7 @@ struct HangarDesc {
     // The type has the DEPLOY_SQUAD (75) unit ability. Used when no AbilitySystem is attached (set_abilities);
     // with one, AbilitySystem::has_ability(id, kDeploySquad) decides.
     bool deploy_squad = false;
-    // Land (r3g t03): Spawned_Squadron_Location_Bones count (the host resolves bone i), their fly-out distances
+    // Land: Spawned_Squadron_Location_Bones count (the host resolves bone i), their fly-out distances
     // (Spawned_Squadron_Location_Flyout_Distances, by bone index), the distance without one ([port] the spawner's
     // combat radius; retail: a model size), Spawn_Garrison_On_Load.
     uint32_t land_bones = 0;
@@ -110,7 +110,7 @@ struct HangarConfig {
     uint32_t fps = combat::kDefaultFps;
     uint32_t service_interval = 30;  // behaviour service interval (first due = add frame + Get_Int(0, interval - 1))
     bool skirmish = true;            // community-property rotation and the station pending-delivery path
-    bool land = false;               // r3g t03: the land structure path (no bays; Open / Hold / Close states)
+    bool land = false;               // the land structure path (no bays; Open / Hold / Close states)
 };
 
 // A unit the host must create after update(), request order. Each consumes object ids.
@@ -127,8 +127,8 @@ struct LaunchRequest {
     Vec3 direction;              // normalize(P1 - P0); zero when the flyout distance is 0
     Vec3 facing{1.0f, 0.0f, 0.0f};  // direction, else the bone X axis [port]
     bool escort = false;         // the carrier has a locomotor: order kind 3 (guard the carrier); else move to P1
-    bool land = false;           // r3g t03: a land structure's unit: created at `origin` facing `facing`, moved to `flyout`
-    bool leaving = false;        // r3g t03: the one-by-one launch whose exit move closes the structure (not the bulk)
+    bool land = false;           // a land structure's unit: created at `origin` facing `facing`, moved to `flyout`
+    bool leaving = false;        // the one-by-one launch whose exit move closes the structure (not the bulk)
 };
 
 enum class HangarEventKind : uint8_t {
@@ -196,7 +196,7 @@ public:
     // r3g t03 (land, signal 10): the leaving unit's exit move finished. Closes the structure when `object` is the unit a
     // carrier is waiting for (state 2); otherwise ignored.
     void unit_left(ObjectId object, uint32_t frame);
-    // r3g t03: the land units still leaving their structure (one per carrier in state 2 with a bound unit), ascending
+    // the land units still leaving their structure (one per carrier in state 2 with a bound unit), ascending
     // carrier id. The host reports their arrival with unit_left.
     std::vector<ObjectId> leaving_units() const;
     // Lua Set_Garrison_Spawn (obj +0x3CB).
@@ -207,7 +207,7 @@ public:
     void deploy_squad(ObjectId carrier, uint32_t frame, float recharge_seconds);
 
     // Serial, once per frame: carrier deaths, then the due services (descending id).
-    // SP5 t03 (docs/SIM_PARALLEL_DESIGN.md §4.4): with `stream_of`, each serviced carrier's draws (the entry and bay
+    // SP5 t03 (docs/SIMULATION.md "Counter-based random streams"): with `stream_of`, each serviced carrier's draws (the entry and bay
     // picks) come from stream_of(carrier id) - a counter-based stream of its own - instead of `rng`; the order of the
     // services and every other effect are unchanged. Null: the synced draws (retail order).
     using StreamOf = std::function<SimRng(ObjectId carrier)>;
@@ -310,7 +310,7 @@ private:
     uint32_t serial_ = 1;
 };
 
-// Do_Starbase_Upgrade (0x70f070, STATION_HANGARS_SOUND.md §1.2) steps 4 and 9 plus the hangar side of step 10, for
+// Do_Starbase_Upgrade (0x70f070, legacy docs/re/STATION_HANGARS_SOUND.md §1.2) steps 4 and 9 plus the hangar side of step 10, for
 // the host after it created `new_station` (S's type's Next_Level_Base, S's owner / position / facing; its combat unit
 // exists and, when `hangars` is given and the type spawns, it is already add_carrier'ed with its own first-due draw):
 //   step 4: hardpoint state copy by index (CombatSystem::copy_upgrade_hardpoints);

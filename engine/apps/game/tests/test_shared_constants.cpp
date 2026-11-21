@@ -1,4 +1,4 @@
-// alamo_game_shared_constants_tests (ref4 t06): every GameConstants tag that several modules read is read once
+// alamo_game_shared_constants_tests: every GameConstants tag that several modules read is read once
 // (data::SharedGameConstants, GameConstants::shared) and a mod's value reaches every user. A temp mod over the synthetic mod
 // fixture (testdata/mod_fixture) replaces GameConstants.xml with a value for every shared tag that differs from FoC's;
 // load_game_data loads it through MODPATH=, and each user is checked: galactic rules, conflict rules, the battle catalog

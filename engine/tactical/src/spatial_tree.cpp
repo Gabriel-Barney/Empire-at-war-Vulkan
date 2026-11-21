@@ -324,7 +324,7 @@ uint32_t SpatialTree::split(uint32_t b, uint32_t e) {
     Aabb nb = items_[b].tight;
     for (uint32_t i = b + 1; i < e; ++i) nb = merge(nb, items_[i].tight);
     const float ex = nb.max.x - nb.min.x, ey = nb.max.y - nb.min.y, ez = nb.max.z - nb.min.z;
-    // TACTICAL_COMBAT.md 1.2: X only when strictly longer than both, else Y when strictly
+    // legacy docs/re/TACTICAL_COMBAT.md 1.2: X only when strictly longer than both, else Y when strictly
     // longer than Z, else Z.
     const int axis = (ex > ey && ex > ez) ? 0 : (ey > ez ? 1 : 2);
     const uint32_t mid = b + (e - b) / 2;  // first floor(n/2) go to child 0

@@ -1,9 +1,9 @@
-// alamo_game App: the mod picker (modc t08; ui IDD_PORT_MODS_DIALOG, game/mod_picker.hpp, docs/MODS.md §5.2).
-// The rows are the base game and the rows of the mod catalog (ums1 t03: vfs::ModCatalog, one row per installed folder
+// alamo_game App: the mod picker (ui IDD_PORT_MODS_DIALOG, game/mod_picker.hpp, docs/MODS.md "The mod picker").
+// The rows are the base game and the rows of the mod catalog (vfs::ModCatalog, one row per installed folder
 // and modinfo variant; Steam workshop items found the way the STEAMMOD= resolver finds them, and <game>\Mods folders),
 // each identified by its catalog key. Selecting a row runs the load report (game::check_mod_data, the same report alamo_mod_check
 // prints, alamo.mod_report) on a worker thread - presentation only, its own Vfs and data, nothing the sim reads - and
-// shows its summary; Launch restarts this exe with the row's resolved stack (ums1 t04: vfs::ModStack::launch_args, the
+// shows its summary; Launch restarts this exe with the row's resolved stack (vfs::ModStack::launch_args, the
 // list alamo_play and alamo_mod_check --resolve give too) and quits, since the data, text and GUI are loaded once per
 // process.
 #include "game_app.hpp"
@@ -32,7 +32,7 @@ const vfs::ModDescriptor* App::find_mod_row(const std::string& key) const {
 void App::init_mod_picker(ui::MenuProviders& mp) {
     const vfs::InstallLocations where = vfs::default_install_at(game_root_);  // ums1 t01
     workshop_libraries_ = where.steam_libraries;
-    mod_catalog_ = vfs::scan_mod_catalog(where, false);  // ums1 t02 / t03, ums4 t01: the rows are the catalog's
+    mod_catalog_ = vfs::scan_mod_catalog(where, false);  // the rows are the catalog's
     const vfs::ModCatalog& catalog = mod_catalog_;
     std::printf("mods: %zu installed (%zu Steam libraries)\n", catalog.mods.size(), workshop_libraries_.size());
     // The active row: the row of the first mod argument of this run (a stacked submod comes first), else the base game.
@@ -96,7 +96,7 @@ void App::check_mod(const std::string& id) {
     o.shader_compile = false;  // the effect audit without the runtime DXC compile: lighter inside the running game
     const std::string root = game_root_;
     std::printf("mods: checking %s\n", id.empty() ? "the base game" : id.c_str());
-    // mcx3 t06 / ums1 t04: resolve the row's stack first (declared and likely parents, submod first), then check that stack.
+    // resolve the row's stack first (declared and likely parents, submod first), then check that stack.
     mod_check_ = std::async(std::launch::async, [root, id, o] { return game::check_picked_mod(root, id, o); });
 }
 

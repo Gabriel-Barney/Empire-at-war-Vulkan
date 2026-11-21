@@ -1,4 +1,4 @@
-// Sampler cache keyed by state (PORTING.md 3.3: filters, addressing, anisotropy, LOD bias). The key
+// Sampler cache keyed by state (legacy docs/shaders/PORTING.md 3.3: filters, addressing, anisotropy, LOD bias). The key
 // packs into 64 bits, so equality and hashing are exact and padding-free.
 #pragma once
 #include <cstdint>

@@ -4,7 +4,7 @@
 // alamo_game.exe next to it with --game and --cache-dir <here>\cache, sends its output to alamo_game_log.txt and waits.
 // Only an error shows a window (a message box offering the log). Its own arguments are passed on, so a mod folder
 // dropped onto Play.exe plays that mod (MODPATH=); mods are also picked in the game (main menu, Mods). Mod arguments
-// start as their resolved stack (ums1 t04, game::play_launch_args in mod_resolve.hpp: the in-game picker's and alamo_mod_check's list).
+// start as their resolved stack (game::play_launch_args in mod_resolve.hpp: the in-game picker's and alamo_mod_check's list).
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -130,14 +130,14 @@ int run() {
     in.fixed = {L"F:\\SteamLibrary\\steamapps\\common\\Star Wars Empire at War\\corruption",
                 L"C:\\GOG Games\\Star Wars - Empire at War\\corruption",
                 L"C:\\Program Files (x86)\\GOG Galaxy\\Games\\Star Wars - Empire at War\\corruption"};
-    std::vector<std::string> libraries;  // ums2 t07: the search's Steam libraries, reused by the resolver
+    std::vector<std::string> libraries;  // the search's Steam libraries, reused by the resolver
     fs::path game = play::find_game(in, &libraries);
     const bool asked = game.empty();
     if (asked) game = ask_for_game(in.saved_file);
     if (game.empty()) return 1;
     const std::vector<std::string>* found_libraries = asked ? nullptr : &libraries;  // a folder the user picked: walk from it
 
-    // ums1 t04: the mods start as the stack the in-game picker and alamo_mod_check --resolve give (one resolver).
+    // the mods start as the stack the in-game picker and alamo_mod_check --resolve give (one resolver).
     vfs::ModStack stack;
     const std::string game_u8 = vfs::native_utf8(game);
     const std::optional<std::vector<std::wstring>> stacked =

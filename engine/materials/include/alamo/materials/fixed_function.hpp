@@ -1,4 +1,4 @@
-// Fixed-function passes -> FF ubershader data (PORTING.md 3.4). The texture-stage configuration
+// Fixed-function passes -> FF ubershader data (legacy docs/shaders/PORTING.md 3.4). The texture-stage configuration
 // and FF switches are resolved once per pass; the per-draw values (material colours, TFACTOR,
 // texture transforms) are D3DX state expressions evaluated on the CPU per draw.
 #pragma once

@@ -86,7 +86,7 @@ bool ring_search(const RingSetup& s, const std::function<bool(V2 p, uint32_t rin
 // record's axis and the line S -> C (a round record: hx).
 bool ring_blocked(V2 sample, float reach, const FootRect& rec);
 
-// ---- s78n t20: the path record cut 0x54e780(points, keep) (MOVEMENT §5.4.4 item 5) ----
+// ---- the path record cut 0x54e780(points, keep) (MOVEMENT §5.4.4 item 5) ----
 // Keeps the arc length `keep` measured from the first point: walking the segments from the start (zero-length ones
 // skipped), at the first segment with keep < length so far + its length every point after the segment's first point is
 // erased, and when keep > the length so far one point is appended at that arc length (linear interpolation; keep exactly
@@ -158,7 +158,7 @@ CellBox around_window(V2 start, V2 goal, uint32_t bound, bool giant, int32_t gri
 // either way.
 bool around_search(const PassabilityGrid& grid, const MovementConstants& k, const AroundRequest& q, AroundResult& out);
 
-// mov1 t03 (b0180, BKR1_RE_ANSWERS Q4 [H]): the terrain-corner cells of the feasibility step 0x677e40 over a window of
+// mov1 t03 (BKR1_RE_ANSWERS Q4 [H]): the terrain-corner cells of the feasibility step 0x677e40 over a window of
 // bw x bh cells, row-major local indices. open[i]: the cell passes the class mask (0x67cd80); reach[i]: it is in the
 // 4-neighbour flood fill from the start cell. Steps: (3) the blocked-neighbour mask M of every window cell (bit k =
 // neighbour k outside the window or not open; bits 0 (-1,-1), 1 (0,-1), 2 (+1,-1), 3 (-1,0), 4 (+1,0), 5 (-1,+1),

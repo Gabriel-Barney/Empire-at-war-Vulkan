@@ -87,7 +87,7 @@ bool parse_color_bytes(std::string_view text, materials::float4& out) {
 
 std::vector<FactionColor> load_faction_colors(const FileProvider& files) {
     std::vector<FactionColor> out;
-    data::ListedXmlOptions lo;  // cu5 t02: the shared list walk (list order; empty, missing, unparsable files skipped)
+    data::ListedXmlOptions lo;  // the shared list walk (list order; empty, missing, unparsable files skipped)
     lo.name_docs_by_entry = true;
     data::for_each_listed_xml(files, "Data\\XML\\FactionFiles.xml", [&](data::ListedXmlFile& file) {
         for (data::XmlNode n : file.doc->root().children("Faction")) {

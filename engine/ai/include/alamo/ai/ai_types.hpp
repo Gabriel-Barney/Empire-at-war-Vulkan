@@ -1,5 +1,5 @@
 // AI framework (roadmap A2, shared with the tactical AI A1): common enums, parsers and the service clock.
-// docs/re/AI_GALACTIC.md §1 (framework); confidence tags are the doc's.
+// legacy docs/re/AI_GALACTIC.md §1 (framework); confidence tags are the doc's.
 //
 // Everything in engine/ai/ai_*.hpp is mode-agnostic framework (galactic, space and land contexts use it);
 // galactic-only parts live in galactic_ai*.hpp. The framework is single-threaded sim code: it runs on the

@@ -1,4 +1,4 @@
-// alamo_render - ability beams (docs/re/ABILITY_VISUALS.md 2, 4, 6). See beams.hpp. CPU side: constants, lightning
+// alamo_render - ability beams (legacy docs/re/ABILITY_VISUALS.md 2, 4, 6). See beams.hpp. CPU side: constants, lightning
 // library, per-beam animation and geometry. The renderer side (init_beams / draw_beams) is in beams_draw.cpp.
 #include "alamo/render/beams.hpp"
 
@@ -434,7 +434,7 @@ void BeamGeometry::build(std::span<const BeamDraw> draws, const ViewMatrices& vi
     };
     for (const BeamDraw& d : draws) {
         const BeamInstance& b = d.beam;
-        if (b.style.texture.empty()) {  // vis1 t08: a lightning-only beam (Drain_Life)
+        if (b.style.texture.empty()) {  // a lightning-only beam (Drain_Life)
             if (!d.lightning) {
                 ++skipped;
                 continue;

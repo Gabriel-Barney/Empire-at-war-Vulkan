@@ -1,4 +1,4 @@
-// TRU1 t05 / t06 / t07 (docs/re/TRU1_C_RE.md): indigenous spawners, the space retreat jump-out flight and hardpoint
+// TRU1 t05 / t06 / t07 (legacy docs/re/TRU1_C_RE.md): indigenous spawners, the space retreat jump-out flight and hardpoint
 // breakoff debris, on a synthetic campaign (no game data needed).
 //   * retreat: the Empire retreats from a space battle; at the countdown end its three frigates line up at the Attacker
 //     Entry Position marker, creep 8.125 per frame along the flight direction (opposite the marker's facing) for 29
@@ -255,11 +255,11 @@ struct SpaceRun {
     bool debris_tracked = false, debris_moved = true, debris_turned = false, debris_expired = false, particle_followed = true;
     bool particle_gone = false, boom_seen = false, saved = false;
     uint32_t debris_spawn_frame = 0, debris_gone_frame = 0;
-    // trn1 t06: the pursuers' movement speed factor before the request and during the countdown, the retreating side's
+    // the pursuers' movement speed factor before the request and during the countdown, the retreating side's
     int32_t pursue_checks = 0;
     bool pursue_ok = true;
     int64_t debris_life = -1;
-    // mcx6: FORCE_RETREAT of the local player refused (no retreat), of the defender accepted, a second one not made;
+    // FORCE_RETREAT of the local player refused (no retreat), of the defender accepted, a second one not made;
     // SET_HEALTH 50 % of every frigate, then 100 % of the first only.
     bool force_local_refused = false, force_again_refused = false, health_half = false, health_first_only = false;
 };
@@ -355,7 +355,7 @@ SpaceRun run_space(const Data& d, int32_t workers) {
                     out.boom_seen = out.boom_seen || (st.exists(o) && static_cast<uint32_t>(st.type(o)) == boom);
             }
         }
-        // trn1 t06: before the request every unit's factor is its own (1 here); during the countdown (the retreat runs, no
+        // before the request every unit's factor is its own (1 here); during the countdown (the retreat runs, no
         // flight yet) the pursuers' (player 1) are x 3 and the retreating player's stay
         if (b->retreat_flight_state() == 0 && !out.flight)
             for (const objects::ObjectHandle o : st.all_objects()) {
@@ -477,7 +477,7 @@ struct LandRun {
     // variant 3: T_Hut on after SET_SPAWN 0.3 and then 1.0; the other battle rewards through the battle host
     int32_t on_low = -1, on_full = -1;
     bool health_half = false, retreat_logged = false, invalid_logged = false, not_shield_silent = false;
-    // variant 4 (mcx4 t05): spawned units of the active T_Hut on a Corrupt_Militia planet: T_Ewok (corruptible) owned by
+    // variant 4: spawned units of the active T_Hut on a Corrupt_Militia planet: T_Ewok (corruptible) owned by
     // the Underworld, T_Ewok_B (Is_Indigenous_Unit_Corruptible False) by the hut's owner; variant 5: a Kidnapping planet,
     // every unit kept
     uint32_t corrupt_converted = 0, corrupt_kept = 0, corrupt_wrong = 0;
@@ -492,7 +492,7 @@ struct LandRun {
 // "t_hut" matches nothing); 2: a SET_PLANET_SPAWN entry (battle planet, "T_HUT", 0.0) in the story gates before the battle
 // (both T_Hut off at the first scan); 3: eight T_Hut more, at frame 5 SET_SPAWN 0.3 (3 of 10 on, 7 off) then 1.0 (every one on:
 // N = on + off, STORY_REWARDS_GALACTIC §1.13), and SET_HEALTH / DISABLE_SPECIAL_STRUCTURE / FORCE_RETREAT through
-// CampaignBattles::story_tactical_reward. Variants stop at frame 20; 4 and 5 at 400; 6 (tru2 t01: a T_Restless_Hut more) runs
+// CampaignBattles::story_tactical_reward. Variants stop at frame 20; 4 and 5 at 400; 6 (a T_Restless_Hut more) runs
 // as 0.
 LandRun run_land(const Data& d, int32_t workers, int variant = 0) {
     LandRun out;
@@ -544,7 +544,7 @@ LandRun run_land(const Data& d, int32_t workers, int variant = 0) {
     const uint32_t hut = type_of(d, "T_Hut"), pack_hut = type_of(d, "T_Pack_Hut"), restless_hut = type_of(d, "T_Restless_Hut");
     std::vector<objects::ObjectId> pack_members;
     std::vector<objects::ObjectId> seen_units;                 // near_hut is checked where a unit was placed
-    std::vector<std::pair<objects::ObjectId, Vec3>> last_pos;  // tru2 t01: the previous frame's position
+    std::vector<std::pair<objects::ObjectId, Vec3>> last_pos;  // the previous frame's position
     std::vector<objects::ObjectId> moving_units;               // moved since the previous frame
     bool pack_killed = false;
     for (uint64_t t = 0; t < 4000; ++t) {

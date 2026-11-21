@@ -1,8 +1,8 @@
 // alamo_game App: screens, panels, saves, battle prompts, holocron / encyclopedia, cursor (split from game_main.cpp).
 #include "game_app.hpp"
-#include "alamo/data/values.hpp"  // mcx4 t14: trim
+#include "alamo/data/values.hpp"  // trim
 #include "alamo/vfs/vfs.hpp"  // q6: the mod layer decides the buy list's [port interim rule]
-#include "alamo/sim/l1_loaders.hpp"  // modc t49: skirmish_option_defaults
+#include "alamo/sim/l1_loaders.hpp"  // skirmish_option_defaults
 
 namespace alamo_game_app {
 
@@ -92,7 +92,7 @@ bool App::skirmish_map_is_land(const std::string& map) const {
 // default fleet. The list is the original dialog's (game::skirmish_buy_list: cost > 0, Affiliation, Available_In_Skirmish
 // or the map kind's build tab, not cinematic-only, named heroes hidden, most expensive first, no cap: the list box scrolls).
 void App::open_buy_units(const SessionSpec& spec) {
-    // modc t49: with the "free starting units" option off (Fall of the Republic sets MP_Default_Free_Starting_Units = no) the
+    // with the "free starting units" option off (Fall of the Republic sets MP_Default_Free_Starting_Units = no) the
     // slots start without forces (SKIRMISH_SETUP §2 step 4) and the original allows no starting purchase (the flag's control
     // is IDC_ALLOW_STARTING_UNIT_PURCHASE, §2.7): the screen is skipped, as a bought fleet would never reach the map.
     const sim::BattleConfig::SkirmishOptions opts =
@@ -174,14 +174,14 @@ void App::handle_screen_actions(const std::vector<ui::ScreenAction>& acts) {
                 break;
             }
             case K::BuyUnitsBack: open_main_menu(); break;
-            case K::StoryClosed:  // STY1 t03: the story / tutorial dialog's Continue / close (0x1243f0, 0x105190)
+            case K::StoryClosed:  // the story / tutorial dialog's Continue / close (0x1243f0, 0x105190)
                 story_ui_.generic("Continue_Tutorial");
                 story_ui_.generic("close_story_dialog");
                 break;
             case K::StorySummaryClosed:
                 story_summary_open_ = false;
                 break;
-            case K::TutorialContinue:  // ui2 t02: IDC_CONTINUE closes the dialog and raises the story's generic trigger (4)
+            case K::TutorialContinue:  // IDC_CONTINUE closes the dialog and raises the story's generic trigger (4)
                 story_ui_.generic("Continue_Tutorial");
                 break;
             case K::TutorialQuit: {  // IDC_QUIT_TO_MAIN asks TEXT_QUIT_SURE (yes / no); yes leaves the session
@@ -194,7 +194,7 @@ void App::handle_screen_actions(const std::vector<ui::ScreenAction>& acts) {
                 screens_.show_message(m);
                 break;
             }
-            case K::LandInvade:  // ui3 t05: "Invade System" - the Invade command at the battle's planet, then as Continue
+            case K::LandInvade:  // "Invade System" - the Invade command at the battle's planet, then as Continue
                 if (session_ && invade_planet_ != 0) {
                     commands::EventData ev(commands::EventType::Invade);
                     ev.set("planet", invade_planet_);
@@ -204,7 +204,7 @@ void App::handle_screen_actions(const std::vector<ui::ScreenAction>& acts) {
                 [[fallthrough]];
             case K::BattleEndContinue:
                 battle_end_open_ = false;
-                story_ui_.generic("battle_end_closed");  // L1/S4 wave 1: STORY.md 4.1 step 6, GENERIC "battle_end_closed"
+                story_ui_.generic("battle_end_closed");  // L1/S4 wave 1: legacy docs/re/STORY.md 4.1 step 6, GENERIC "battle_end_closed"
                 if (battle_end_auto_) audio_.galactic_resume();  // the win / lose music ends with the screen
                 battle_end_auto_ = false;
                 if (session_ && session_->spec().kind == SessionKind::Skirmish) {
@@ -221,7 +221,7 @@ void App::handle_screen_actions(const std::vector<ui::ScreenAction>& acts) {
                         flow_.on(ScreenEvent::MainMenu);
                         open_main_menu();
                     }
-                } else if (a.tag == "load_different_data") {  // mcx3 t05: Load anyway (button 0) / Cancel
+                } else if (a.tag == "load_different_data") {  // Load anyway (button 0) / Cancel
                     const std::string path = std::exchange(pending_different_data_, std::string());
                     if (a.button == 0 && !path.empty() && load_save_file(path, nullptr, true))
                         screen_line(U"Loaded with different data: continuing it is not supported", ui::Rgba8{255, 200, 64, 255});
@@ -229,7 +229,7 @@ void App::handle_screen_actions(const std::vector<ui::ScreenAction>& acts) {
                     answer_battle_prompt(a.button == 1);
                 } else if (a.tag == "retry") {  // Lua Activate_Retry_Dialog: Retry restarts the session, Quit leaves it
                     if (a.button == 0 && session_) {
-                        // STY1 t07: Retry loads [AutoSave] (0x55b60); without one (no battle began yet) it restarts the session
+                        // Retry loads [AutoSave] (0x55b60); without one (no battle began yet) it restarts the session
                         const SessionSpec spec = session_->spec();
                         if (!saves_dir_.empty() && save_exists(saves_dir_, kAutoSaveName) && load_saved_game(kAutoSaveName)) break;
                         if (!start_session(spec)) open_main_menu();
@@ -287,7 +287,7 @@ void App::show_battle_end(bool dialog) {
         }
     }
     info.title = info.victory ? txt("TEXT_WIN_BATTLE", U"You have won the battle!") : txt("TEXT_LOST_BATTLE", U"You have lost the battle!");
-    // L1/S4 wave 1 (SCRIPT_GAPS.md 4.2): the local player lost a battle that ran a tactical plot set -> STORY_MISSION_LOST
+    // L1/S4 wave 1 (legacy docs/re/SCRIPT_GAPS.md 4.2): the local player lost a battle that ran a tactical plot set -> STORY_MISSION_LOST
     // to the galactic story, name = that plots file (the shipped Param1 values) [inferred: the original's "monitor
     // MISSION_LOST name" source is not specified].
     if (!info.victory && !battle_plots_.empty()) story_ui_.mission_lost(battle_plots_);
@@ -301,7 +301,7 @@ void App::show_battle_end(bool dialog) {
     const game::BattleKillCount kills = game::count_battle_kills(dead, local_player());  // t41: campaign score, final tick included
     tally_.kills += kills.kills;
     tally_.losses += kills.losses;
-    // ui3 t05: the battle time (TEXT_BATTLE_TIME, the battle's frames / 30), salvage (the bounty of the units the local
+    // the battle time (TEXT_BATTLE_TIME, the battle's frames / 30), salvage (the bounty of the units the local
     // player's enemies lost: TEXT_SUMMARY_BOUNTY_COLLECTED), each side's lost credit value, the efficiency and the lost
     // named heroes' portraits (5 per side), by the auto-resolve screen's rules (battle_summary.hpp); types costing 0 are
     // not listed (§3.1).
@@ -349,8 +349,8 @@ void App::show_battle_end(bool dialog) {
         if (info.can_invade) invade_planet_ = static_cast<uint32_t>(g->store().id(ps.object));
     }
     info.can_save_replay = false;  // N1
-    if (!dialog) return;  // story t13: a linked battle's skip - the story and score bookkeeping above, no screen, no music
-    // mcx4 t13: the dialog's music call (modes 9 / 10; no change when the declare already set that mode).
+    if (!dialog) return;  // a linked battle's skip - the story and score bookkeeping above, no screen, no music
+    // the dialog's music call (modes 9 / 10; no change when the declare already set that mode).
     audio_.battle_end(info.victory, winner);
     battle_end_open_ = screens_.show_battle_end(info);
 }
@@ -400,9 +400,9 @@ void App::show_auto_resolve_end(const galactic::ConflictLogEntry& e) {
     info.your_efficiency = sum.efficiency[0];
     info.enemy_efficiency = sum.efficiency[1];
     info.can_save_replay = false;
-    // b0310 (AUDIO.md §2.3): a lost auto-resolve names the winner's faction, as the tactical battle end does, so the
+    // b0310 (legacy docs/re/AUDIO.md §2.3): a lost auto-resolve names the winner's faction, as the tactical battle end does, so the
     // faction's Music_Event_Tactical_Lose_Vs_Faction row is tried first.
-    // mcx4 t13: keyed by the loser on a win, by the winner on a loss (0x28f250).
+    // keyed by the loser on a win, by the winner on a loss (0x28f250).
     std::string winner;
     if (const int32_t other = info.victory ? e.loser : e.winner; other >= 0 && static_cast<size_t>(other) < g->players().size()) {
         const uint32_t f = g->players()[static_cast<size_t>(other)].faction;
@@ -439,7 +439,7 @@ std::u32string App::txt(std::string_view id, std::u32string_view fallback) const
     return std::u32string(fallback);
 }
 
-// [port] the faction's Text_ID (Factions.xml <Text_ID>; modc t20: read, not built from the name), else its name.
+// [port] the faction's Text_ID (Factions.xml <Text_ID>; read, not built from the name), else its name.
 std::u32string App::faction_label(int32_t player) const {
     const galactic::GalacticSim* g = galaxy();
     if (!g || player < 0 || static_cast<size_t>(player) >= g->players().size()) return {};
@@ -488,7 +488,7 @@ void App::save_message(std::u32string caption, const std::string& detail) {
 }
 
 void App::save_game_as(const std::string& typed) {
-    if (typed == kAutoSaveName) return;  // STY1 t07: retail rejects the reserved name (the box is cleared, nothing saved)
+    if (typed == kAutoSaveName) return;  // retail rejects the reserved name (the box is cleared, nothing saved)
     if (!session_ || demo_session()) return save_message(U"The game cannot be saved now", "no game is running");
     if (saves_dir_.empty()) return save_message(txt("TEXT_SAVE_FAILED", U"Failed to save game."), "no saved games folder");
     std::string path, err;
@@ -545,7 +545,7 @@ bool App::load_save_file(const std::string& path, const commands::CommandRecordi
     end_session();
     session_ = std::move(s);
     recording_ = commands::CommandRecording{};
-    if (replay) recording_ = *replay;  // bm2: a replayed stream is the run's stream (crc_check replays it again)
+    if (replay) recording_ = *replay;  // a replayed stream is the run's stream (crc_check replays it again)
     else session_->record_to(&recording_);  // record_after_load: the stream continues the save
     loaded_save_ = path;
     ++saves_loaded_;
@@ -599,7 +599,7 @@ void App::auto_resolve_result(const galactic::GalacticSim& g, const galactic::Co
 void App::answer_battle_prompt(bool auto_resolve) {
     if (!choice_open_) return;
     choice_open_ = false;
-    if (prompt_.linked) {  // story t13: the P13 banner has Begin only; the battle (and its load screen) starts at the next hook
+    if (prompt_.linked) {  // the P13 banner has Begin only; the battle (and its load screen) starts at the next hook
         const bool sent = session_ && session_->begin_linked();
         std::printf("battle choice: begin (story link%s)\n", sent ? "" : ", not sent");
         return;
@@ -633,7 +633,7 @@ void App::open_battle_prompt(const galactic::GalacticSim& g, const galactic::Con
     const std::vector<objects::ObjectHandle> mine = conflict_units(g, c, me), theirs = conflict_units(g, c, enemy);
     prompt_.left = battle_force_summary(g, mine, icon, per);
     prompt_.right = battle_force_summary(g, theirs, icon, per);
-    // mcx4 t14: a side without a hero portrait shows its faction's commander icon (land infantry / space fighter).
+    // a side without a hero portrait shows its faction's commander icon (land infantry / space fighter).
     auto faction_icon = [&g, this](int32_t p) -> std::string_view {
         if (p < 0 || static_cast<size_t>(p) >= g.players().size()) return {};
         const uint32_t fi = g.players()[static_cast<size_t>(p)].faction;
@@ -688,9 +688,9 @@ void App::open_linked_banner(const galactic::GalacticSim& g, const sim::Campaign
                 r.map.c_str());
 }
 
-// STORY.md §1.6 step 3 / GALACTIC_DIALOGS §2.1: a Story_Dialog event fired (its record is already in the sim's holocron
+// legacy docs/re/STORY.md §1.6 step 3 / GALACTIC_DIALOGS §2.1: a Story_Dialog event fired (its record is already in the sim's holocron
 // list). Popup false (every shipped event): b_story_arc_g flashes, the faction's Default_Transmission_Message
-// (TEXT_ENCYCLOPEDIA_HOLOCRON_UPDATED for every shipped faction; mcx4 t14: read from the local faction) is a white
+// (TEXT_ENCYCLOPEDIA_HOLOCRON_UPDATED for every shipped faction; read from the local faction) is a white
 // screen-text line, and SFXEvent_Mission_Added plays only when the event has Story_Dialog_SFX (no shipped event does).
 // Popup true: the summary opens at this record instead.
 void App::add_holocron_chapter(const StoryDialogMeta& meta, size_t lines) {
@@ -866,7 +866,7 @@ void App::galactic_screens() {
     }
     if (session_->battle_choice_pending() && !choice_open_)
         if (const galactic::ConflictInfo* c = session_->conflict_head()) open_battle_prompt(*g, *c);
-    // story t13: the linked record's banner (it can also go down without Begin, e.g. a loaded save shows it again).
+    // the linked record's banner (it can also go down without Begin, e.g. a loaded save shows it again).
     if (choice_open_ && prompt_.linked && !(session_->battles() && session_->battles()->linked_banner_up())) choice_open_ = false;
     if (!choice_open_)
         if (const sim::CampaignBattles::LinkedRecord* r = session_->linked_banner_record()) open_linked_banner(*g, *r);
@@ -877,8 +877,8 @@ void App::galactic_screens() {
             if (e.how == 1) auto_resolve_result(*g, e);
         }
     }
-    // q6 t34 (Q6_T27_ELIM_END_TIMING.md §2 [H]): a ready monitor shows the end screen only while no message box is up and
-    // no Bink movie is open; the advisor hint texts hold it through the Light_Loop they keep open (q6 t36).
+    // q6 t34 (legacy docs/re/Q6_T27_ELIM_END_TIMING.md §2 [H]): a ready monitor shows the end screen only while no message box is up and
+    // no Bink movie is open; the advisor hint texts hold it through the Light_Loop they keep open.
     if (session_->spec().kind == SessionKind::Campaign && !campaign_over_ && end_screen_clear())
         if (const int32_t o = galactic::victory_outcome(*g, local_player()); o != 0) show_campaign_end(o > 0);  // Int-verify
 }
@@ -890,7 +890,7 @@ bool App::end_screen_clear() const {
            !story_present_.hint_up(now_s_) && ency_.stage() != ui::EncyclopediaPanel::Stage::Shown;
 }
 
-// q6 t36: a planet owner's name in the changed-hands line (the faction's Text_ID); [port] no player: "Neutral".
+// a planet owner's name in the changed-hands line (the faction's Text_ID); [port] no player: "Neutral".
 std::u32string App::owner_label(int32_t player) const {
     std::u32string s = faction_label(player);
     // [name-ok: display text fallback when the text file lacks TEXT_FACTION_NEUTRAL, not a faction rule]
@@ -902,7 +902,7 @@ void App::show_campaign_end(bool victory) {
     const galactic::GalacticSim* g = galaxy();
     if (!g) return;
     campaign_over_ = true;
-    // ui1 t05 (GAME_SCORING.md §7): the dialog's values come from the GameScoring script (galactic stats, tactical = false).
+    // ui1 t05 (legacy docs/re/GAME_SCORING.md §7): the dialog's values come from the GameScoring script (galactic stats, tactical = false).
     ScoringStats stats;
     {
         sim::SimHost& host = session_->host();
@@ -943,7 +943,7 @@ void App::show_campaign_end(bool victory) {
         }
     }
     if (!screens_.show_campaign_score(score)) notes_.push_back("campaign score dialog missing");
-    {  // aud2 t08: Music_Event_Strategic_Win / _Lose (mode 16); a lost campaign names the winner as the enemy faction, as
+    {  // Music_Event_Strategic_Win / _Lose (mode 16); a lost campaign names the winner as the enemy faction, as
        // the battle end does (the _Vs_Faction row first).
         std::string winner;
         const galactic::VictoryResult vr = galactic::check_victory(*g);
@@ -978,7 +978,7 @@ void App::open_story_summary() {
     if (!session_) return;
     sync_story_scripts(*session_, data_, story_scripts_, story_loads_);
     HolocronSummaryView v = holocron_summary(*session_, story_scripts_, ui_.text, summary_completed_, summary_entry_);
-    {  // mcx4 t14: the running campaign's Show_Completed_Tab
+    {  // the running campaign's Show_Completed_Tab
         const data::CampaignDef* c = data_.db.find_campaign(session_->spec().campaign);
         v.info.show_completed_tab = completed_tab_shown(c ? c->raw_value("Show_Completed_Tab") : std::string_view(), c != nullptr);  // ledger: consumes Campaign.Show_Completed_Tab
     }
@@ -999,7 +999,7 @@ void App::open_story_summary() {
 
 bool App::story_controls_locked() const {
 #ifdef ALAMO_SIM_HAVE_STORY
-    if (story_present_.controls_locked()) return true;  // ui2 t06: the LOCK_CONTROLS reward (distinct from the Lua call, §5.1)
+    if (story_present_.controls_locked()) return true;  // the LOCK_CONTROLS reward (distinct from the Lua call, §5.1)
     if (sim::StorySession* story = session_ ? session_->host().story() : nullptr)
         if (const lua::PresentationLog* log = story->presentation()) return log->state().controls_locked;
 #endif
@@ -1013,7 +1013,7 @@ void App::build_encyclopedia(ui::HudDrawList& dl, const ui::HudCanvas& canvas) {
     uint32_t object = 0;
     objects::TypeIndex type = objects::kNone;
     const uint32_t w = targets_.width, h = targets_.height;
-    uint32_t stack_fleet = 0;  // ui1 t03: a fleet under the cursor (map fleet in transit or a planet's fleet button)
+    uint32_t stack_fleet = 0;  // a fleet under the cursor (map fleet in transit or a planet's fleet button)
     bool stack_land = false;
     if (screen() == Screen::Galactic && gview_.attached() && !ui_.gui.hit(mx, my)) {  // HUD_GAPS §6: not under a dialog
         const ui::View v = ui::make_view(gview_.camera_params(w, h), w, h);
@@ -1027,7 +1027,7 @@ void App::build_encyclopedia(ui::HudDrawList& dl, const ui::HudCanvas& canvas) {
                 if (static_cast<uint32_t>(p.id) == object) type = p.type;
         }
     } else if (screen() == Screen::Battle && bview_.active()) {
-        // HUD_GAPS §2.2: the hover pick of build_tactical_hud (the world pick, refixf t08; reticle owner kept).
+        // HUD_GAPS §2.2: the hover pick of build_tactical_hud (the world pick; reticle owner kept).
         for (const ui::HudUnit& u : hud_units_)
             if (u.id == hover_ship_ && hover_ship_ != 0 && u.type < data_.types.size()) {
                 object = u.id;
@@ -1125,7 +1125,7 @@ void App::build_encyclopedia(ui::HudDrawList& dl, const ui::HudCanvas& canvas) {
     if (ency_.build(dl, canvas, e, layout, ui_.faction_alt()).x > 0.0f) ++ency_shown_;
 }
 
-// ui1 t01 (docs/re/UI.md §3.1 gives the pointer set, not the rules; [port] docs/PHASE4.md "UI1 cursor"): the object under the
+// ui1 t01 (legacy docs/re/UI.md §3.1 gives the pointer set, not the rules; [port] legacy docs/PHASE4.md "UI1 cursor"): the object under the
 // cursor (the order translator's world pick) sets the hover kind - own (SELECT), enemy of the local player (ATTACK),
 // other owned objects friendly, unowned neutral - and, with a selection: can_attack = a selected unit can hit the
 // target at all (combat can_hit is not NoTarget), in_range = one of those can hit it from where it stands or can move
@@ -1167,7 +1167,7 @@ void App::fill_cursor_hover(ui::CursorContext& c) {
         return;
     }
     const auto target = static_cast<tactical::combat::ObjectId>(hit->id);
-    bview_.set_hover(static_cast<uint32_t>(hit->id));  // mcx4 t14: Mouse_Over_Highlight_Scale
+    bview_.set_hover(static_cast<uint32_t>(hit->id));  // Mouse_Over_Highlight_Scale
     const int32_t owner = cb.owner(target);
     const int32_t me = local_player();
     if (owner == me) c.hover = H::Own;
@@ -1200,7 +1200,7 @@ void App::fill_cursor_hover(ui::CursorContext& c) {
 
 void App::update_cursor(ui::HudDrawList& dl) {
     // ui ask 1: one cursor - the OS arrow is hidden over the window while the game draws its own.
-    if (cinematic_hides_cursor()) {  // refixf t05: cinematic mode on hides the cursor (0x262490(..., 0))
+    if (cinematic_hides_cursor()) {  // cinematic mode on hides the cursor (0x262490(..., 0))
         set_os_cursor_hidden(true);
         return;
     }
@@ -1213,7 +1213,7 @@ void App::update_cursor(ui::HudDrawList& dl) {
     c.drag_selecting = input_.button(ui::Button::Left).dragging && screen() == Screen::Battle;
     c.selection = !orders_.selection().empty();
     if (screen() == Screen::Galactic) {
-        c.scrolling = gview_.camera().dragging();  // ui1 t01: POINTER_MAP_SCROLLING_MODE while the map is dragged
+        c.scrolling = gview_.camera().dragging();  // POINTER_MAP_SCROLLING_MODE while the map is dragged
         const ui::GalacticDrag& d = ui_.galactic_hud.drag();
         c.fleet_drag = d.active;
         c.drop_on_fleet = d.over_fleet;
@@ -1225,9 +1225,9 @@ void App::update_cursor(ui::HudDrawList& dl) {
     } else if (screen() == Screen::Battle) {
         c.rotating = bview_.camera().drag() == ui::TacticalCameraController::Drag::Rotate;
         c.scrolling = bview_.camera().drag() == ui::TacticalCameraController::Drag::Pan;
-        // ui1 t01: the hovered object decides the plain cursor (ATTACK / out of range / CANT_ATTACK, SELECT, GARRISON_IN,
-        // MOVE / CANT_MOVE). [port] rules (docs/PHASE4.md "UI1 cursor"): see fill_cursor_hover.
-        bview_.set_hover(0);  // mcx4 t14: fill_cursor_hover sets the object under the cursor
+        // the hovered object decides the plain cursor (ATTACK / out of range / CANT_ATTACK, SELECT, GARRISON_IN,
+        // MOVE / CANT_MOVE). [port] rules (legacy docs/PHASE4.md "UI1 cursor"): see fill_cursor_hover.
+        bview_.set_hover(0);  // fill_cursor_hover sets the object under the cursor
         if (!c.over_ui && bview_.active()) fill_cursor_hover(c);
         // A running pick: the targeted-ability cursor (valid on a hit object / any ground point) or the landing-point one.
         if (!c.over_ui && bview_.active()) {
@@ -1248,7 +1248,7 @@ void App::update_cursor(ui::HudDrawList& dl) {
                 c.targeting = ui::CursorContext::Targeting::Reinforcement;
             } else if (bombing_targeting_) {
                 c.targeting = ui::CursorContext::Targeting::BombingRun;  // POINTER_BOMBING_RUN_TARGET (HUD_GAPS §9.5)
-            } else if (sw_weapon_ != objects::kNoObjectId) {  // ui1 t04: POINTER_ATTACK_WITH_SPECIAL_WEAPON_n / _INVALID
+            } else if (sw_weapon_ != objects::kNoObjectId) {  // POINTER_ATTACK_WITH_SPECIAL_WEAPON_n / _INVALID
                 c.targeting = ui::CursorContext::Targeting::SpecialWeapon;
                 c.special_weapon = sw_icon_;
                 c.target_valid = c.hover == ui::CursorContext::Hover::Enemy;
@@ -1281,7 +1281,7 @@ void App::build_panels(std::vector<ui::HudDrawList>& lists) {
         f.time = now_s_;
         f.cursor_px = cur;
     };
-    // Hero roster (battle): the local player's named heroes on the map, and the types with Show_Hero_Head (mcx4 t14).
+    // Hero roster (battle): the local player's named heroes on the map, and the types with Show_Hero_Head.
     std::vector<ui::HeroEntry> heroes;
     hero_types_.clear();
     if (screen() == Screen::Battle && bview_.active())

@@ -33,7 +33,7 @@ void AiContext::service(int64_t now, bool enabled, bool auto_resolve_busy) {
         services_->template_init(now);
         templates.clear_changed();
         initialised_ = true;
-        // OPT2 t01: this player's fixed phase (header comment).
+        // this player's fixed phase (header comment).
         for (ServiceClock* c : {&perception_clock, &planning_clock, &execution_clock, &learning_clock})
             c->next = now + stagger_offset(stagger_slot_, stagger_slots_, c->period());
         goal_clock.next = now + stagger_offset(stagger_slot_, stagger_slots_, planning_clock.period());
@@ -45,19 +45,19 @@ void AiContext::service(int64_t now, bool enabled, bool auto_resolve_busy) {
     if (goal_clock.due(now)) {
         goal_clock.reschedule(now);
         ++service_counts[1];
-        ALAMO_PROFILE_SCOPE("ai.goals");  // OPT2 t01: per-subsystem AI time
+        ALAMO_PROFILE_SCOPE("ai.goals");  // per-subsystem AI time
         goals.service(now);
     }
     if (planning_clock.due(now)) {
         planning_clock.reschedule(now);
         ++service_counts[2];
-        ALAMO_PROFILE_SCOPE("ai.planning");  // OPT2 t01: per-subsystem AI time
+        ALAMO_PROFILE_SCOPE("ai.planning");  // per-subsystem AI time
         services_->planning_service(now);
     }
     if (execution_clock.due(now)) {
         execution_clock.reschedule(now);
         ++service_counts[3];
-        ALAMO_PROFILE_SCOPE("ai.execution");  // OPT2 t01: per-subsystem AI time
+        ALAMO_PROFILE_SCOPE("ai.execution");  // per-subsystem AI time
         services_->execution_service(now);
     }
     if (learning_clock.due(now)) {
@@ -68,7 +68,7 @@ void AiContext::service(int64_t now, bool enabled, bool auto_resolve_busy) {
     if (template_clock.due(now)) {
         template_clock.reschedule(now);
         ++service_counts[5];
-        ALAMO_PROFILE_SCOPE("ai.templates");  // OPT2 t01: per-subsystem AI time
+        ALAMO_PROFILE_SCOPE("ai.templates");  // per-subsystem AI time
         templates.service(eval_);
         if (templates.changed()) {
             templates.clear_changed();

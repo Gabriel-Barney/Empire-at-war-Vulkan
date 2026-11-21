@@ -532,7 +532,7 @@ impl Drop for Sizes {
 mod tests {
     use super::*;
 
-    /// The mods page's rows from the recorded `alamo_mod_check --list` (ums3 t01): one row per folder, sources from the
+    /// The mods page's rows from the recorded `alamo_mod_check --list`: one row per folder, sources from the
     /// catalog kinds, names and Workshop ids as before.
     #[test]
     fn the_mods_page_rows_come_from_the_recorded_catalog() {

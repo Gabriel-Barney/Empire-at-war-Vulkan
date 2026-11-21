@@ -1,6 +1,7 @@
-// test_render: tests split from test_render.cpp (PAF t08).
+// test_render: tests split from test_render.cpp.
 #include "test_render_common.hpp"
-#include "renderer_core.hpp"  // REF3 t07: RendererCore inspection points (src/, target alamo_render_internal)
+#include "alamo/test/support.hpp"
+#include "renderer_core.hpp"  // RendererCore inspection points (src/, target alamo_render_internal)
 #include "alamo/core/host_fs.hpp"
 
 namespace test_render_t {
@@ -139,8 +140,8 @@ int run_gpu(const std::string& src_dir) {
             }
             std::printf("  ssao: %d pixels darker, %d brighter channels, %d background channels changed\n", darker, brighter,
                         bg_changed);
-            render::write_png_rgba(std::string(ALAMO_RENDER_SOURCE_DIR) + "/logs/render_ssao_off.png", 128, 128, off);
-            render::write_png_rgba(std::string(ALAMO_RENDER_SOURCE_DIR) + "/logs/render_ssao_on.png", 128, 128, on);
+            render::write_png_rgba(::alamo::test::artifact_dir() + "/render_ssao_off.png", 128, 128, off);
+            render::write_png_rgba(::alamo::test::artifact_dir() + "/render_ssao_on.png", 128, 128, on);
             CHECK(brighter == 0 && bg_changed == 0 && darker > 20);
             CHECK(render_frame(g, g.renderer, o, fvm, ai, &gm));
             CHECK(std::memcmp(off.data(), o.px(0, 0), off.size()) == 0);
@@ -567,7 +568,7 @@ int run_gpu(const std::string& src_dir) {
                 fl.fog_start = 0.0f;
                 fl.fog_end = 10.0f;
             }
-            {   // A pass that sets FogEnable = FALSE keeps its colour under scene fog (RENDER.md 2.4).
+            {   // A pass that sets FogEnable = FALSE keeps its colour under scene fog (legacy docs/re/RENDER.md 2.4).
                 materials::MaterialEffect nf = make_effect("TESTBUMP", "MeshBumpColorize", materials::CompareOp::Always, 0);
                 materials::StateSlot& fs = nf.passes[0].state.rs[static_cast<size_t>(materials::RS::FogEnable)];
                 fs.value = 0;
@@ -843,7 +844,7 @@ int run_gpu(const std::string& src_dir) {
             Offscreen o;
             CHECK(o.create(g, 512, 512));
             std::error_code ec;
-            std::filesystem::create_directories(alamo::path_from_utf8(src_dir) / "logs", ec);
+            (void)ec;  // artifact_dir() creates its folder
             struct Capture {
                 double coverage = 0, lit = 0;
                 std::vector<uint8_t> rgba;
@@ -939,12 +940,12 @@ int run_gpu(const std::string& src_dir) {
                             c.coverage * 100.0, c.lit * 100.0);
             };
             auto save = [&](const char* file, const Capture& c) {
-                const std::string png = src_dir + "/logs/" + file;
+                const std::string png = ::alamo::test::artifact_dir() + "/" + file;
                 CHECK(render::write_png_rgba(png, 512, 512, c.rgba));
                 std::printf("  wrote %s\n", png.c_str());
             };
 
-            // -- Shadow volumes (SPACE_AND_OPEN.md B.5): z-fail two-sided, colour write 0, Z LESS without write, cull
+            // -- Shadow volumes (legacy docs/re/SPACE_AND_OPEN.md B.5): z-fail two-sided, colour write 0, Z LESS without write, cull
             // none, stencil ALWAYS ref 1 masks 0x3F; D3D9 CW faces (Vulkan back, pso.hpp) z-fail INCR (wrap), CCW faces
             // (Vulkan front) z-fail DECR (wrap), pass / fail KEEP; extrusion 200.
             for (const char* svname : {"MeshShadowVolume.fx", "RSkinShadowVolume.fx"}) {
@@ -2626,7 +2627,7 @@ int run_gpu(const std::string& src_dir) {
                             const size_t drawn_att = shoot(true, before);
                             for (uint32_t h = 0; h < lay->hardpoints; ++h) v.set_destroyed(h, true);
                             const size_t after_att = shoot(true, after);
-                            size_t kept_att = 0;  // r1b t03: only a hardpoint that never changes visuals keeps its turret
+                            size_t kept_att = 0;  // only a hardpoint that never changes visuals keeps its turret
                             for (uint32_t h = 0; h < lay->hardpoints; ++h) kept_att += att[h] && lay->removes[h].empty() ? 1u : 0u;
                             const uint32_t d_turrets = differ(bare, before), d_destroy = differ(before, after);
                             std::printf("  Star_Destroyer hardpoints: %zu turrets attached (%u draws vs %u bare, %u pixels differ); all %u destroyed: "
@@ -2725,7 +2726,7 @@ int run_gpu(const std::string& src_dir) {
                                                     static_cast<const uint8_t*>(o2.readback.mapped()) + static_cast<size_t>(1280) * 720 * 4);
                     std::vector<uint8_t> rgba = shot;
                     for (size_t i = 3; i < rgba.size(); i += 4) rgba[i] = 255;
-                    const std::string png = src_dir + "/logs/" + ms.png;
+                    const std::string png = ::alamo::test::artifact_dir() + "/" + ms.png;
                     CHECK(render::write_png_rgba(png, 1280, 720, rgba));
                     const render::MapSceneStats& mst = scene.stats();
                     const render::WorldStats& ws = scene.world().stats();
@@ -2940,7 +2941,7 @@ int run_gpu(const std::string& src_dir) {
                     g.ring.wait_idle();
                     scene.stop(rr);
                 }
-                // (d) Terrain decorations, fog of war and space maps (DECORATIONS.md, SPACE_AND_OPEN.md A).
+                // (d) Terrain decorations, fog of war and space maps (legacy docs/re/DECORATIONS.md, legacy docs/re/SPACE_AND_OPEN.md A).
                 {
                     auto luma_of = [](const uint8_t* p, size_t n, double& mean, double& sd) {
                         double s = 0, s2 = 0;
@@ -3068,7 +3069,7 @@ int run_gpu(const std::string& src_dir) {
                                                         static_cast<const uint8_t*>(o2.readback.mapped()) + npx * 4);
                         std::vector<uint8_t> rgba = shot;
                         for (size_t i = 3; i < rgba.size(); i += 4) rgba[i] = 255;
-                        const std::string png = src_dir + "/logs/" + ds.png;
+                        const std::string png = ::alamo::test::artifact_dir() + "/" + ds.png;
                         CHECK(render::write_png_rgba(png, 1280, 720, rgba));
                         double m0 = 0, s0 = 0;
                         luma_of(shot.data(), npx, m0, s0);
@@ -3087,7 +3088,7 @@ int run_gpu(const std::string& src_dir) {
                                     s0);
                         std::printf("  wrote %s\n", png.c_str());
                         if (scene.space()) {
-                            // SPACE_AND_OPEN.md D.7 worked numbers (default Space_Mode camera, 16:9): each named backdrop
+                            // legacy docs/re/SPACE_AND_OPEN.md D.7 worked numbers (default Space_Mode camera, 16:9): each named backdrop
                             // alone in the background pass (same camera, near 10 / far 100000), lit pixels measured,
                             // next to the analytic sphere (radius Scale_Factor x 4.92 at the .ted position).
                             struct Want {
@@ -3147,11 +3148,11 @@ int run_gpu(const std::string& src_dir) {
                                 const std::string name = alamo::ascii_lower(std::string("render_space_") + tn + ".png");
                                 std::vector<uint8_t> prgba(pv, pv + npx * 4);
                                 for (size_t i = 3; i < prgba.size(); i += 4) prgba[i] = 255;
-                                CHECK(render::write_png_rgba(src_dir + "/logs/" + name, 1280, 720, prgba));
+                                CHECK(render::write_png_rgba(::alamo::test::artifact_dir() + "/" + name, 1280, 720, prgba));
                                 std::printf("  D.7 %s (scale %.0f, pos %.0f %.0f %.0f): analytic centre NDC (%.2f, %.2f), d %.0f, angular radius "
                                             "%.1f deg, limbs NDC y %.2f..%.2f, angular diameter %.2f vertical FOVs, %.0f%% of the height from the bottom; "
                                             "measured: %zu px lit (%.1f%%), rows %u..%u (top NDC y %.2f, %.0f%% of the height from the bottom), "
-                                            "cols %u..%u; D.7 expects %s; wrote logs/%s\n",
+                                            "cols %u..%u; D.7 expects %s; wrote <artifacts>/%s\n",
                                             p.type_name.c_str(), static_cast<double>(p.scale), static_cast<double>(p.position[0]),
                                             static_cast<double>(p.position[1]), static_cast<double>(p.position[2]),
                                             static_cast<double>(std::tan(az) * xs), static_cast<double>(std::tan(el) * ys), static_cast<double>(d),
@@ -3211,11 +3212,11 @@ int run_gpu(const std::string& src_dir) {
                                 const uint8_t* pv = static_cast<const uint8_t*>(o2.readback.mapped());
                                 std::vector<uint8_t> prgba(pv, pv + npx * 4);
                                 for (size_t i = 3; i < prgba.size(); i += 4) prgba[i] = 255;
-                                CHECK(render::write_png_rgba(src_dir + "/logs/render_space_yavin01_ds2_chunks.png", 1280, 720, prgba));
+                                CHECK(render::write_png_rgba(::alamo::test::artifact_dir() + "/render_space_yavin01_ds2_chunks.png", 1280, 720, prgba));
                                 double m1 = 0, s1 = 0;
                                 luma_of(pv, npx, m1, s1);
                                 std::printf("  D.7 Death_Star_Chunks (%s, scale %.2f, pos %.0f %.0f %.0f): main scene %s, background %s; framed at "
-                                            "distance 4500: %u draws, luma %.2f / %.2f; wrote logs/render_space_yavin01_ds2_chunks.png\n",
+                                            "distance 4500: %u draws, luma %.2f / %.2f; wrote <artifacts>/render_space_yavin01_ds2_chunks.png\n",
                                             p.model_name.c_str(), static_cast<double>(p.scale), static_cast<double>(p.position[0]),
                                             static_cast<double>(p.position[1]), static_cast<double>(p.position[2]), in_main ? "yes" : "no",
                                             in_bg ? "yes" : "no", pst.draws, m1, s1);
@@ -3323,9 +3324,9 @@ int run_gpu(const std::string& src_dir) {
                             std::vector<uint8_t> rgba(p, p + npx * 4);
                             for (size_t i = 3; i < rgba.size(); i += 4) rgba[i] = 255;
                             const char* name = pitch > 0.0f ? "render_stars_back02.png" : "render_stars_back02_up.png";
-                            CHECK(render::write_png_rgba(src_dir + "/logs/" + name, 1280, 720, rgba));
+                            CHECK(render::write_png_rgba(::alamo::test::artifact_dir() + "/" + name, 1280, 720, rgba));
                             std::printf("W_STARS_BACK02 (pitch %.1f): %u of %u vertices with colour 0; %u sky draws; %zu pixels lit (> 8), %zu "
-                                        "bright (> 64) of %zu, luma %.2f / %.2f; wrote logs/%s\n",
+                                        "bright (> 64) of %zu, luma %.2f / %.2f; wrote <artifacts>/%s\n",
                                         static_cast<double>(pitch), zero, verts, st.sky_draws, lit, bright, npx, mean, sd, name);
                             }
                         } else {
@@ -3385,12 +3386,12 @@ int run_gpu(const std::string& src_dir) {
                             for (size_t i = 0; i < npx; ++i) covered += (p[4 * i] | p[4 * i + 1] | p[4 * i + 2]) > 8 ? 1u : 0u;
                             std::vector<uint8_t> rgba(p, p + npx * 4);
                             for (size_t i = 3; i < rgba.size(); i += 4) rgba[i] = 255;
-                            CHECK(render::write_png_rgba(src_dir + "/logs/render_deathstar2_destroyed.png", 1280, 720, rgba));
+                            CHECK(render::write_png_rgba(::alamo::test::artifact_dir() + "/render_deathstar2_destroyed.png", 1280, 720, rgba));
                             std::printf("W_PLANET_DEATHSTAR_II_DESTROYED: %u Planet.fx submeshes (%u loaded as NU2U3U3 via _ALAMO_VERTEX_TYPE, "
                                         "%u in bucket 3, %u lit); drawn sphere centre (%.0f, %.0f, %.0f) radius %.0f, scale %.2f (main scene), "
                                         "drawn bounds (%.0f %.0f %.0f)..(%.0f %.0f %.0f), asset bounds (%.0f %.0f %.0f)..(%.0f %.0f %.0f), "
                                         "camera distance %.0f; %u draws, %u sky draws (%u pending), "
-                                        "%.1f%% covered, luma %.2f / %.2f; wrote logs/render_deathstar2_destroyed.png\n",
+                                        "%.1f%% covered, luma %.2f / %.2f; wrote <artifacts>/render_deathstar2_destroyed.png\n",
                                         planet, overridden, opaque, lit, static_cast<double>(sp.center.x), static_cast<double>(sp.center.y),
                                         static_cast<double>(sp.center.z), static_cast<double>(sp.radius), static_cast<double>(kScale),
                                         static_cast<double>(pm->drawn_bounds().min.x), static_cast<double>(pm->drawn_bounds().min.y),

@@ -1,5 +1,5 @@
 // S9 - AbilityCountdownBehavior (behaviour 0x46, obj +0x1e8) arithmetic, exactly as
-// docs/re/ABILITIES_HARDPOINTS.md 2.6 [H]. Integer frames; int(x) is truncation.
+// legacy docs/re/ABILITIES_HARDPOINTS.md 2.6 [H]. Integer frames; int(x) is truncation.
 #pragma once
 #include <array>
 #include <cstdint>

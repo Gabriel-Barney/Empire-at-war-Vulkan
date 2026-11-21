@@ -67,9 +67,9 @@ struct Animation {
     bool is_rotation_animated(std::size_t bone) const;
 };
 
-// Strict by default (tools). With opt.salvage (the runtime, mcx2 t03) a block-layout animation whose block sizes,
+// Strict by default (tools). With opt.salvage (the runtime) a block-layout animation whose block sizes,
 // indices and data do not agree is not an error: retail's reader keeps the declared block sizes and arrays and reads a
-// track's value for frame f at f * block + index (docs/re/MCX2_T02_ASSET_SALVAGE.md section 2). The parse replays that
+// track's value for frame f at f * block + index (legacy docs/re/MCX2_T02_ASSET_SALVAGE.md section 2). The parse replays that
 // read into blocks that fit, so every consumer sees a valid animation (rule "ala_block_stride"):
 //   - a track whose reads stay inside the data gets exactly the values retail reads (a block size of 0 repeats the
 //     first frame's value on every frame);

@@ -1,4 +1,4 @@
-// R5 t04 tests: ability beams (docs/re/ABILITY_VISUALS.md 2, 4, 6 finding 1). CPU: GameConstants / style / lightning
+// R5 t04 tests: ability beams (legacy docs/re/ABILITY_VISUALS.md 2, 4, 6 finding 1). CPU: GameConstants / style / lightning
 // parsing, ribbon + dot + lightning geometry, per-beam animation (scroll, dot travel, one-shots, super-laser continuation),
 // SnapshotBeam -> world endpoints (bones, hardpoint, Ranged_Target_Z_Adjust, zap nearest bone), snapshot digest /
 // interpolation, apply_beams on a real AbilitySystem + CombatSystem (tractor, energy weapon, laser-defense zap). GPU (needs
@@ -31,7 +31,7 @@
 #include "alamo/vfs/vfs.hpp"
 #include "alamo/test/support.hpp"
 #include "alamo/render/test/gpu.hpp"
-#include "renderer_core.hpp"  // REF3 t07: RendererCore inspection points (src/, target alamo_render_internal)
+#include "renderer_core.hpp"  // RendererCore inspection points (src/, target alamo_render_internal)
 
 using namespace alamo;
 
@@ -823,7 +823,7 @@ static bool render_frame(Gpu& g, render::Renderer& r, Offscreen& o, const render
 
 // The beams on black with the shipped textures: lit pixels around each beam, tractor green, energy weapon orange, super
 // laser green; PNG logs\render_beams.png.
-static void test_beams_gpu(Gpu& g, const std::string& src_dir) {
+static void test_beams_gpu(Gpu& g, [[maybe_unused]] const std::string& src_dir) {
     const std::string root = env_or_empty("ALAMO_FOC_DATA");
     if (root.empty()) {
         std::printf("beams gpu: ALAMO_FOC_DATA not set, skipped\n");
@@ -892,7 +892,7 @@ static void test_beams_gpu(Gpu& g, const std::string& src_dir) {
                 st.beam_pending, render::renderer_core(rr).last_beam_geometry().vertices.size(), render::renderer_core(rr).last_beam_geometry().batches.size());
     CHECK(st.beam_ribbons >= 3 && st.beam_pending == 0 && st.beam_dots >= 14);
     const std::vector<uint8_t> px = o.pixels();
-    CHECK(render::write_png_rgba(src_dir + "/logs/render_beams.png", o.w, o.h, [&] {
+    CHECK(render::write_png_rgba(::alamo::test::artifact_dir() + "/render_beams.png", o.w, o.h, [&] {
         std::vector<uint8_t> p = px;
         for (size_t i = 3; i < p.size(); i += 4) p[i] = 255;
         return p;

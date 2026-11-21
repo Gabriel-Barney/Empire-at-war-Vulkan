@@ -1,4 +1,4 @@
-// ref4 t05: the one way every host opens the game's data - alamo_game (load_game_data) and each alamo_headless runner
+// the one way every host opens the game's data - alamo_game (load_game_data) and each alamo_headless runner
 // (--economy, --story, --map, --battles, --galactic-ai, --skirmish-ai foc, the save runs). It picks the FoC folder
 // (`game_dir`, else ALAMO_FOC_DATA), opens it through vfs::ModEnvironment (the mod stack from the VFS arguments) and turns
 // the D1 base-EaW refusal into a status, so no host can forget that check. What each host does with a failure (exit code,

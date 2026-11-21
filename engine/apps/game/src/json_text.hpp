@@ -1,4 +1,4 @@
-// CU2 t12: the one JSON string escaper of alamo_game_core (internal header; mod_check.cpp's report and benchmark.cpp's
+// the one JSON string escaper of alamo_game_core (internal header; mod_check.cpp's report and benchmark.cpp's
 // bench_report_json). Other module-local escapers (apps/sim bench_stats.cpp, the materials tools, tools/formats
 // json_writer.hpp) are candidates for one core helper, which would be a core header change.
 #pragma once

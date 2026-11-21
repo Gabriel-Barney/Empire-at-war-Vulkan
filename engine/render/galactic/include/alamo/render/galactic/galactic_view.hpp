@@ -3,12 +3,12 @@
 //
 // What is drawn (row / route / id order, so instance lists are deterministic):
 //   background  In_Background rows (Galaxy_Core_Art_Model = w_galaxy00.alo) - the galactic background scene
-//               (RENDER.md 1.2: background scenes with near 10 / far 100000, depth cleared after; draw with
+//               (legacy docs/re/RENDER.md 1.2: background scenes with near 10 / far 100000, depth cleared after; draw with
 //               Renderer::render's `sky` + RecordOptions::space). [port] no galactic star dome: the docs name none
 //               (open item).
 //   planets     Galactic_Model_Name (Destroyed_Galactic_Model_Name when destroyed) at Galactic_Position, uniform
 //               Scale_Factor, owner colour as Colorization (B.3); spin = the model's <model>_IDLE_00 clip on the
-//               galactic mode frame (SPACE_AND_OPEN.md D.7 4: Loop_Idle_Anim_00, Idle_Anim_00_Rate_Mod, frames on
+//               galactic mode frame (legacy docs/re/SPACE_AND_OPEN.md D.7 4: Loop_Idle_Anim_00, Idle_Anim_00_Rate_Mod, frames on
 //               30 Hz ticks; the galactic frame freezes while paused, Animate_During_Galactic_Mode_Pause = no).
 //   starbases   the starbase object's Galactic_Model_Name (i_eb_station_level1.alo ...) next to its planet
 //               [port: offset; the orbit geometry 0x569d50 is [M] in GALACTIC_ECONOMY.md 3.2].
@@ -67,7 +67,7 @@ enum class GalacticPrimitive : uint8_t {
     Line = 7,
     Count
 };
-// SPACE_AND_OPEN.md D.7: every w_planet_* model shares the Hoth sphere of radius 4.92, so a planet's world
+// legacy docs/re/SPACE_AND_OPEN.md D.7: every w_planet_* model shares the Hoth sphere of radius 4.92, so a planet's world
 // radius is Scale_Factor x 4.92 (the galactic zoom computes exactly that).
 inline constexpr float kPlanetSphereRadius = 4.92f;
 inline constexpr uint32_t rgba8(uint32_t r, uint32_t g, uint32_t b, uint32_t a = 255) {
@@ -198,7 +198,7 @@ struct CorruptionPathSettings {
     Vec3 offset{0, 0, 0};                             // Corruption_Path_Offset
     float neighbour_distance = 100.0f;                // MaximumFleetMovementDistance (0x3ef2d0 A* neighbour)
 };
-// cu5 t04: from the parsed <GameConstants> root (GameDatabase::constants().element; null = the defaults above), so the
+// from the parsed <GameConstants> root (GameDatabase::constants().element; null = the defaults above), so the
 // host reads GameConstants.xml once for every settings record.
 CorruptionPathSettings load_corruption_path_settings(const data::XmlNode& game_constants_root);
 // One path line (galactic_corruption_paths): owned by planet row `owner`, towards row `other`; rgba = the tinted colour
@@ -269,7 +269,7 @@ struct GalacticViewStats {
     uint32_t planets = 0, background = 0, starbases = 0, rings = 0, routes = 0, fleets = 0, fleet_lines = 0, route_sparks = 0;
     uint32_t no_model = 0, animated = 0, fogged = 0, fogged_fleets = 0, hidden_routes = 0;
     uint32_t orbit_fleets = 0;     // in orbit, not drawn (§2.1); fogged_fleets are counted separately
-    uint32_t hidden_fleets = 0;    // mcx4 t14: in transit but kGalFleetHidden (the local visibility vote), not drawn
+    uint32_t hidden_fleets = 0;    // in transit but kGalFleetHidden (the local visibility vote), not drawn
     uint32_t stealth_fleets = 0;   // drawn with ALT1
     uint32_t selection = 0;        // selection model instances (0 or 1)
     uint32_t corruption_paths = 0; // corruption path line instances (§3.2)
@@ -291,7 +291,7 @@ public:
     // Host input for the next build(): the camera zoom factor f of FIXPASS_GALACTIC §3.1 (route colour blend; sparkles
     // off at f == 1). Kept until changed; default 0 (zoomed out).
     void set_route_zoom(float f) { route_zoom_ = f; }
-    // ui4 t06: the fleet drag preview segments of the next build() (kept until changed; empty = no drag). Drawn as
+    // the fleet drag preview segments of the next build() (kept until changed; empty = no drag). Drawn as
     // CorruptionPathSettings::texture (GameConstants Fleet_Hyperspace_Band_Texture_Name, the +0x70 texture the preview
     // reads) ribbons of width 2.0 x corruption_width_scale [port: the original passes 2.0 to the same line builder as the
     // corruption paths' Corruption_Path_Width, so the same unit scale]; no zoom fade (the drag runs on the galaxy view).
@@ -392,7 +392,7 @@ struct GalacticLightSettings {
     float zoom_light_level = 0.5f;                          // Galactic_Zoom_Light_Level
     float intensity = 0.5f;                                 // the record's sun intensity
 };
-// GameConstants.xml values (missing / malformed tags keep the FoC defaults above). cu5 t04: from the parsed
+// GameConstants.xml values (missing / malformed tags keep the FoC defaults above). From the parsed
 // <GameConstants> root (GameDatabase::constants().element; null = the defaults).
 GalacticLightSettings load_galactic_light_settings(const data::XmlNode& game_constants_root);
 // The record at planet-zoom fraction `zoom` (0 = zoomed out, 1 = zoomed in; clamped); black clear colour, no fog.

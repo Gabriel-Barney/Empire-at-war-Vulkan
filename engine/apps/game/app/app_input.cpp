@@ -1,8 +1,8 @@
 // alamo_game App: special systems, sim stepping, command routing, HUD / galactic / battle / menu input (split from game_main.cpp).
 #include "game_app.hpp"
-#include "options_pages.hpp"  // ref6 t04: the game setup pages
-#include "alamo/data/values.hpp"  // mcx4 t14: data::trim
-#include "alamo/galactic/economy.hpp"  // mcx4 t13: build countdown speech
+#include "options_pages.hpp"  // the game setup pages
+#include "alamo/data/values.hpp"  // data::trim
+#include "alamo/galactic/economy.hpp"  // build countdown speech
 #ifdef ALAMO_SIM_HAVE_ANIM
 #include "alamo/sim/sim_anim.hpp"  // aud1 t03
 #endif
@@ -91,7 +91,7 @@ void App::special_feedback() {
                 break;
             case K::SabotageVigilance:  // TEXT_SABOTAGE_FAILURE_VIGILANCE to the saboteur's owner, _PREVENTED_ to the planet's
                 if (local || e.other_player == local_player()) {
-                    // ui4 t11: the message callback (P4 §2.7.1) as an urgent advisor line.
+                    // the message callback (P4 §2.7.1) as an urgent advisor line.
                     galactic_message(local ? "TEXT_SABOTAGE_FAILURE_VIGILANCE" : "TEXT_SABOTAGE_PREVENTED_VIGILANCE");
                     ++special_msgs_;
                 }
@@ -117,7 +117,7 @@ void App::special_feedback() {
                     std::printf("slice: %s %s%s%s\n", type_name(e.type), e.value == 0 ? "unlocked" : e.value == 2 ? "lost effort" : "failed",
                                 id ? ", message " : "", id ? id : "");
                     if (id) {
-                        galactic_message(id);  // ui4 t11: an urgent advisor line
+                        galactic_message(id);  // an urgent advisor line
                         ++special_msgs_;
                     }
                     if (local && e.value == 0) {
@@ -133,7 +133,7 @@ void App::special_feedback() {
         }
     }
 }
-// ui4 t08: Factions.xml announcer events of the local player - the galactic event ones (game::galactic_announcement) and
+// Factions.xml announcer events of the local player - the galactic event ones (game::galactic_announcement) and
 // [port] SFXEvent_Max_Credits_Limit_Reached when the credits reach the account cap (rising edge).
 void App::announcer_feedback() {
     const galactic::GalacticSim* g = galaxy();
@@ -141,7 +141,7 @@ void App::announcer_feedback() {
     const int32_t me = local_player();
     using K = galactic::GalacticEventKind;
     constexpr uint32_t kNoPassThrough = 0xFFFFFFFFu;
-    uint32_t pass_through_fleet = kNoPassThrough;  // aud2 t07: the fleet of the event before, when a pass-through arrival
+    uint32_t pass_through_fleet = kNoPassThrough;  // the fleet of the event before, when a pass-through arrival
     for (const galactic::GalacticEvent& e : session_->take_announce_events()) {
         // q6 t36 (owner setter 0x3fb040 tail, Q6_T27 §1 [H]): every owner change queues "<planet>: Control changed from
         // <old> to <new>" at the back of the advisor hint queue in red, whoever the owners are; the _BONUS text with the
@@ -178,7 +178,7 @@ void App::announcer_feedback() {
                 story_present_.urgent_message(std::move(line), StoryColor{0, 193, 91, 255});
             }
         }
-        // aud2 t03: the local player's production begin / cancel / complete -> the built type's SFXEvent_Build_* (and
+        // the local player's production begin / cancel / complete -> the built type's SFXEvent_Build_* (and
         // Build_Music_Completed). Galactic production types index the object type table (as HeroRespawned).
         if (me >= 0 && e.player == me && e.type < data_.types.size() &&
             (e.kind == K::ProductionBegin || e.kind == K::ProductionCanceled || e.kind == K::ProductionCompleted)) {
@@ -234,7 +234,7 @@ void App::announcer_feedback() {
     }
 }
 
-// ui4 t05 / t11: a galactic message (the original's message callback 0x140b313c0, P4_SIM_SYSTEMS §2.7.1): text from the
+// a galactic message (the original's message callback 0x140b313c0, P4_SIM_SYSTEMS §2.7.1): text from the
 // MasterTextFile (the id when missing) as an urgent advisor line.
 void App::galactic_message(std::string_view id) {
     const std::u16string* t = ui_.text.find(id);
@@ -247,9 +247,9 @@ void App::galactic_message(std::string_view id) {
 
 void App::post_tick() {
     audio_.sim_tick();
-    audio_.on_events(session_->presentation_events(), data_.types, local_player());  // ref2 t02: this tick's events
+    audio_.on_events(session_->presentation_events(), data_.types, local_player());  // this tick's events
     if (session_->take_reveal_sfx()) {  // GRC 1.3: a planet was revealed by the galactic pre-step (frame > 0)
-        audio_.planet_revealed();  // aud2 t01: Audio.xml's SFXEvent_Planet_Revealed value (FoC GUI_Planet_Mouse_Over)
+        audio_.planet_revealed();  // Audio.xml's SFXEvent_Planet_Revealed value (FoC GUI_Planet_Mouse_Over)
         ++reveal_sfx_;
     }
     special_feedback();  // P4 host
@@ -264,7 +264,7 @@ void App::post_tick() {
             const objects::ObjectStore& st = session_->host().modes().top_tactical()->primary();
             const game::GameSession* gs = session_.get();
 #ifdef ALAMO_SIM_HAVE_ANIM
-            // aud1 t03 (AUDIO.md §9.4): the AnimationSFXMaps SOUND rows the battle's animation crossed, attached to their object.
+            // aud1 t03 (legacy docs/re/AUDIO.md §9.4): the AnimationSFXMaps SOUND rows the battle's animation crossed, attached to their object.
             if (const sim::SimAnimation* an = session_->animation())
                 if (const sim::GameMode* top = session_->host().modes().top()) {
                     std::vector<GameAudioHost::AnimSound> snd;
@@ -272,7 +272,7 @@ void App::post_tick() {
                         if (e.def && e.def->kind == anim::AnimEventDef::Kind::Sound)
                             snd.push_back({static_cast<uint64_t>(e.id), e.def->name, e.position});
                     audio_.animation_sounds(snd);
-                    // mcx4 t13: spin-away deaths (the host voices each corpse once).
+                    // spin-away deaths (the host voices each corpse once).
                     std::vector<GameAudioHost::SpinDeath> spins;
                     for (const anim::Corpse& c : an->corpses(*top))
                         if (c.spin_away)
@@ -334,7 +334,7 @@ void App::post_tick() {
             }
             audio_.battle_tick(*b, st, data_.types, local_player(),
                                [gs](objects::ObjectId id) { return gs->script_hidden(id); });  // q6 t19 §10.3
-            {  // aud1 t07 (AUDIO.md §9.7): the tactical intro speech, campaign battles only, not story-linked ones.
+            {  // aud1 t07 (legacy docs/re/AUDIO.md §9.7): the tactical intro speech, campaign battles only, not story-linked ones.
                 // [port] The port hosts a skirmish as a galactic hop, so "no galactic parent" is the skirmish / attract
                 // session kind; benchmark runs stay silent so their speech-done notifications do not change.
                 const galactic::GalacticSim* g = galaxy();
@@ -379,7 +379,7 @@ void App::post_tick() {
                 };
                 const std::string intro =
                     audio_.intro_speech_tick(b->frame(), eligible, presentation_cinematic() || cine_.shot.active(), facts, present);
-                // mcx4 t14 (AUDIO.md §9.7 step 5, 0x2fc7a0): with the line queued, the local faction's
+                // mcx4 t14 (legacy docs/re/AUDIO.md §9.7 step 5, 0x2fc7a0): with the line queued, the local faction's
                 // Tactical_Intro_Command_Bar_Movie_Name plays on the command bar's advisor slot. [port] looped until the
                 // line ends (retail times it from the speech event, [M]); a story movie on the slot keeps it.
                 if (!intro.empty() && !story_movie_)
@@ -396,7 +396,7 @@ void App::post_tick() {
                             break;
                         }
             }
-            for (const TswCue& c : tsw_cues(b->special_weapon_events(), st)) {  // refixf t05: TSW_PLANET_DESTROY.md §11
+            for (const TswCue& c : tsw_cues(b->special_weapon_events(), st)) {  // legacy docs/re/TSW_PLANET_DESTROY.md §11
                 if (c.kind == TswCue::Kind::Firing) tsw_shot_begin(c, *b, st);              // 0x2ccf30: the firing shot
                 else if (c.kind == TswCue::Kind::PlanetDestroyed) tsw_shake(c, *b);        // 0x2cdbb0 at the dummy
             }
@@ -423,7 +423,7 @@ void App::step_sim() {
     if (!session_ || hold_sim_ || script_hold_ || paused_ || battle_end_open_ || story_summary_open_) return;
     // mcx4 t14 (MCX4_PRES_RE_ANSWERS_3 Q6): a Pause_Game_While_Playing movie holds the game mode while it plays.
     if ((full_movie_.playing() && full_movie_.pauses_game()) || (advisor_movie_.playing() && advisor_movie_.pauses_game())) return;
-    if (load_intro_frames_ > 0) return;  // QA t11: the load screen reaches the screen before the push's blocking load
+    if (load_intro_frames_ > 0) return;  // the load screen reaches the screen before the push's blocking load
     const bool demo = screen() == Screen::Menu && demo_session();  // OI host: the attract demo behind the main menu
     if ((screen() == Screen::Menu && !demo) || screen() == Screen::BattleLoad || screen() == Screen::Quit) return;
     const bool smoke = !opt_.smoke.empty();
@@ -465,7 +465,7 @@ std::vector<uint32_t> App::synced_selection() const {
     return v;
 }
 
-// Unit responses (AUDIO.md 3.3): the representative unit = the lowest id of the order's units [port].
+// Unit responses (legacy docs/re/AUDIO.md 3.3): the representative unit = the lowest id of the order's units [port].
 void App::respond(const commands::EventData& ev) {
     if (!session_) return;
     using T = commands::EventType;
@@ -527,7 +527,7 @@ void App::respond(const commands::EventData& ev) {
                 if (st.alive(th)) fields = b->space_fields().kinds_at(st.position(th).x, st.position(th).y);
             }
         }
-    // mcx4 t13: an attack on a hard point (ref2 = 1 + HardPointType, COMMANDS.md 2) names its kind for the response.
+    // an attack on a hard point (ref2 = 1 + HardPointType, legacy docs/re/COMMANDS.md 2) names its kind for the response.
     const uint32_t ref2 = ev.type() == T::Attack ? ev.u("ref2") : 0u;
     const int32_t hp_kind = ref2 > 0 && ref2 <= 13 ? static_cast<int32_t>(ref2) - 1 : -1;
     audio_.unit_response(data_.types, st.type(h), static_cast<uint64_t>(st.id(h)), kind, false, top->tactical() ? st.owner(h) : -1,
@@ -573,7 +573,7 @@ void App::route_commands(std::vector<commands::EventData>& cmds, std::span<const
             ++hidden_moves_dropped_;
             continue;
         }
-        // STY1 t03 (STY1_GENERIC_AUTOSAVE.md §1.2): the local player's HUD retreat press / fleet merge / land-to-space drop
+        // STY1 t03 (legacy docs/re/STY1_GENERIC_AUTOSAVE.md §1.2): the local player's HUD retreat press / fleet merge / land-to-space drop
         if (e.type() == commands::EventType::Retreat && screen() == Screen::Battle) story_ui_.generic("retreat_clicked");
         if (screen() == Screen::Galactic && e.type() == commands::EventType::FleetManagement) {
             if (e.u("op") == commands::kFleetMerge) story_ui_.generic("merge_fleets");
@@ -669,7 +669,7 @@ void App::handle_hud_actions(const std::vector<ui::HudAction>& acts) {
                 break;
             }
             case ui::HudAction::Kind::BeginReinforcement:  // the drop point is the next left click in the world
-                if (!reinforce_available(static_cast<objects::ObjectId>(a.unit))) {  // ui3 t04: cap / retreat / locked
+                if (!reinforce_available(static_cast<objects::ObjectId>(a.unit))) {  // cap / retreat / locked
                     // mcx4 t13 (MCX4_T13_RE_ANSWERS "Faction.SFXEvent_Tactical_Unit_Cap_Reached family", ReinforceEvent
                     // Execute 0x403cb0): a drop refused for room plays the local faction's line. [port] the port refuses
                     // at the pad click, before a drop point is picked.
@@ -705,7 +705,7 @@ void App::handle_hud_actions(const std::vector<ui::HudAction>& acts) {
                     submit(commands::ev::production(static_cast<uint16_t>(a.value), a.unit, true,
                                                     static_cast<uint8_t>(a.ids[0]), static_cast<uint8_t>(a.ids[1])));
                 break;
-            case ui::HudAction::Kind::BuildRefused: {  // ui4 t02: a greyed galactic build pad: GUI negative feedback, no command
+            case ui::HudAction::Kind::BuildRefused: {  // a greyed galactic build pad: GUI negative feedback, no command
                 // ui4 t11 (P4_SIM_SYSTEMS §2.7.3): no announcer here - a refused build plays nothing of its own in retail, and
                 // its blockaded speech has no reader.
                 audio_.negative_feedback();
@@ -769,7 +769,7 @@ void App::handle_hud_actions(const std::vector<ui::HudAction>& acts) {
                         }
                 break;
             case ui::HudAction::Kind::Button:
-                // OI host: game speed (UI.md §2.3 "play/pause and fast forward = game speed"): b_fast_forward[_t] toggles
+                // OI host: game speed (legacy docs/re/UI.md §2.3 "play/pause and fast forward = game speed"): b_fast_forward[_t] toggles
                 // single-player fast mode (GameSession::set_fast_forward; wall-clock pacing only).
                 // The HUD's options button (b_option_t / b_option_g) opens the in-game menu, which pauses the sim.
                 if (a.name == "b_option_t" || a.name == "b_option_g") {
@@ -779,8 +779,8 @@ void App::handle_hud_actions(const std::vector<ui::HudAction>& acts) {
                     }
                     break;
                 }
-                if (tactical_button(a)) break;  // ui3 t01 / t03: c_button00 / 02 / 04, b_reinforcement, beacon, movie mode, droid
-                // P1_DOUBLE_CLICK_MOVE.md §2.1: the attack-move / waypoint / guard order buttons (c_button01 / 03 / 05) arm the
+                if (tactical_button(a)) break;  // c_button00 / 02 / 04, b_reinforcement, beacon, movie mode, droid
+                // legacy docs/re/P1_DOUBLE_CLICK_MOVE.md §2.1: the attack-move / waypoint / guard order buttons (c_button01 / 03 / 05) arm the
                 // one-shot move toggles of the next move order.
                 if (screen() == Screen::Battle && (ascii_iequals(a.name, "c_button01") || ascii_iequals(a.name, "c_button03") || ascii_iequals(a.name, "c_button05"))) {
                     orders_.arm_move_toggle(ascii_iequals(a.name, "c_button01")   ? ui::MoveToggle::AttackMove
@@ -789,7 +789,7 @@ void App::handle_hud_actions(const std::vector<ui::HudAction>& acts) {
                     break;
                 }
                 // cu9g t03 (HUD_GAPS §9.4): the land b_special_weapon = the bombing-run button (0x346a80 -> 0x2e7950); a disabled
-                // button never reaches here (HudButtons swallows the click). Space: below (ui1 t04).
+                // button never reaches here (HudButtons swallows the click). Space: below.
                 if (screen() == Screen::Battle && !bview_.space() && ascii_iequals(a.name, "b_special_weapon") && a.button == ui::Button::Left) {
                     bombing_toggle();
                     break;
@@ -800,7 +800,7 @@ void App::handle_hud_actions(const std::vector<ui::HudAction>& acts) {
                     break;
                 }
                 if (a.name == "advanced_planetary") {  // GALACTIC_DIALOGS §4: "Base Layout" enters / leaves the planet map
-                    set_planet_map(!planet_map_open_);   // ui4 t04: GALACTIC_PLANET_MAP §1.1 open rules
+                    set_planet_map(!planet_map_open_);   // GALACTIC_PLANET_MAP §1.1 open rules
                     break;
                 }
                 // ui4 t04 (GALACTIC_PLANET_MAP §1.3): back_button closes the map; b_zoom_adv_map at the close-up zooms out,
@@ -921,7 +921,7 @@ void App::fleet_drag_preview(const ui::View& view, const std::vector<ui::PickSph
 
 void App::galactic_input() {
     const uint32_t w = targets_.width, h = targets_.height;
-    {  // P1_CAMERA_INPUT.md §1: the scroll clamp box = the union of the planets' spheres (centre +- radius)
+    {  // legacy docs/re/P1_CAMERA_INPUT.md §1: the scroll clamp box = the union of the planets' spheres (centre +- radius)
         std::vector<ui::Vec3> centres;
         std::vector<float> half;
         for (const ui::PickSphere& s : gview_.pick_items())
@@ -931,7 +931,7 @@ void App::galactic_input() {
             }
         if (!centres.empty()) gview_.set_camera_bounds(ui::galactic_scroll_box(centres, half));
     }
-    gview_.camera().set_scroll_locked(story_present_.scroll_locked() || story_present_.controls_locked());  // ui2 t06: the story's SCROLL_LOCK reward
+    gview_.camera().set_scroll_locked(story_present_.scroll_locked() || story_present_.controls_locked());  // the story's SCROLL_LOCK reward
     // ui4 t04 (GALACTIC_PLANET_MAP §1.3, P1_CAMERA_INPUT §5): the wheel steps galaxy -> close-up -> planet map and back. Up at
     // the settled close-up opens the map; down with the map open only closes it (the camera does not see that notch).
     bool wheel_to_camera = true;
@@ -943,14 +943,14 @@ void App::galactic_input() {
     }
     if ((!opt_.hidden || !opt_.smoke.empty()) && wheel_to_camera) gview_.camera().update(input_, ui_.bindings, dt_);
     gview_.camera().step(dt_);
-    const uint32_t planet_before_input = selected_planet_;  // ui2 t06: LOCK_PLANET_SELECTION restores it below
+    const uint32_t planet_before_input = selected_planet_;  // LOCK_PLANET_SELECTION restores it below
     const ui::CameraParams cp = gview_.camera_params(w, h);
     ui::OrderContext ctx;
     ctx.mode = ui::UiMode::Galactic;
     ctx.local_player = local_player();
     ctx.view = ui::make_view(cp, w, h);
     const std::vector<ui::PickSphere> items = gview_.pick_items();
-    // P1_CAMERA_INPUT.md §5 wheel up: the hovered planet (or the planet of the hovered fleet) becomes the selected one,
+    // legacy docs/re/P1_CAMERA_INPUT.md §5 wheel up: the hovered planet (or the planet of the hovered fleet) becomes the selected one,
     // then the camera zooms onto the selected planet (the planet panel opens with the zoom).
     if (gview_.camera().take_zoom_in_request() && !story_controls_locked()) {
         if (const auto hov = ui::pick_spheres(items, ui::pixel_ray(ctx.view, input_.mouse_x(), input_.mouse_y()))) {
@@ -1006,7 +1006,7 @@ void App::galactic_input() {
         const auto hit = ui::pick_spheres(items, ui::pixel_ray(ctx.view, input_.mouse_x(), input_.mouse_y()));
         if (hit && items[*hit].kind == ui::PickKind::Planet) selected_planet_ = items[*hit].id;
     }
-    // A left click on nothing (P1_CAMERA_INPUT.md §5): besides Select{}, the planet selection clears while not zoomed in.
+    // A left click on nothing (legacy docs/re/P1_CAMERA_INPUT.md §5): besides Select{}, the planet selection clears while not zoomed in.
     if (orders_.take_planet_deselect() && gview_.camera().zoom_state() == 0) selected_planet_ = 0;
     orders_.take_move_acks();  // no ground moves in galactic
     // A fleet selection selects the planet it orbits (the organiser's planet).
@@ -1016,7 +1016,7 @@ void App::galactic_input() {
             if (const uint32_t at = sel ? gview_.fleet_planet_id(sel) : 0; at != 0) selected_planet_ = at;
         last_fleet_sel_ = sel;
     }
-    // ui2 t06 (STORY_PRESENTATION_REWARDS.md 5.12): while the story locks planet selection a click, a wheel zoom or a fleet
+    // ui2 t06 (legacy docs/re/STORY_PRESENTATION_REWARDS.md 5.12): while the story locks planet selection a click, a wheel zoom or a fleet
     // selection does not change the selected planet; the story's own SELECT_PLANET reward writes it outside this input pass.
     if (story_present_.planet_selection_locked()) selected_planet_ = planet_before_input;
     if (const auto z = orders_.take_planet_zoom())
@@ -1038,7 +1038,7 @@ void App::galactic_input() {
     {
         const size_t before = cmds.size();
         const bool was_dragging = fleet_drag_active_;
-        story_forced_clicks();  // ui2 t02: FORCE_CLICK_GUI
+        story_forced_clicks();  // FORCE_CLICK_GUI
         ui_.galactic_hud.update_input(routed_, input_.shift(), input_.ctrl(), now_s_, cmds, &acts);
         // Fleet drag sounds: GUI_Drag_Fleet when a fleet / unit drag starts, GUI_Drop_Fleet when its drop issued an order.
         const ui::GalacticDrag& d = ui_.galactic_hud.drag();
@@ -1054,7 +1054,7 @@ void App::galactic_input() {
             static_cast<size_t>(e.component) < ui_.components.size() &&
             ui_.galactic_hud.buttons().visual(static_cast<uint32_t>(e.component)) != ui::ButtonVisual::Disabled)
             story_ui_.click_gui(ui_.components[static_cast<size_t>(e.component)].name);
-    // The galactic shell panels and the hero roster (ui4 t01, FIXPASS_GALACTIC §2.2: a good slot's click focuses the hero's
+    // The galactic shell panels and the hero roster (FIXPASS_GALACTIC §2.2: a good slot's click focuses the hero's
     // planet, a double click zooms; hover gives Mouse_Over_SFX, the tooltip and the encyclopedia pop-up). Only SlicePanel
     // reads the wheel.
     for (ui::HudPanel* p : panels())
@@ -1082,7 +1082,7 @@ void App::battle_input() {
     const sim::TacticalMode* tm = session_ ? session_->host().modes().top_tactical() : nullptr;
     if (!tm || !bview_.active()) return;
     const uint32_t w = targets_.width, h = targets_.height;
-    bview_.camera().set_scroll_locked(story_present_.scroll_locked() || story_present_.controls_locked());  // ui2 t06: the story's SCROLL_LOCK reward
+    bview_.camera().set_scroll_locked(story_present_.scroll_locked() || story_present_.controls_locked());  // the story's SCROLL_LOCK reward
     if (!opt_.hidden || !opt_.smoke.empty()) bview_.camera().update(input_, ui_.bindings, dt_);
     const ui::CameraParams cp = bview_.camera_params(w, h);
     ui::OrderContext ctx;
@@ -1090,7 +1090,7 @@ void App::battle_input() {
     ctx.local_player = local_player();
     ctx.view = ui::make_view(cp, w, h);
     ctx.trees = &tm->trees();  // const reads between ticks (P1 picking contract)
-    ctx.pick_tests = world_pick_tests();  // refixf t08: precise model test, then the override sphere (HUD_GAPS §2.2)
+    ctx.pick_tests = world_pick_tests();  // precise model test, then the override sphere (HUD_GAPS §2.2)
     if (!bview_.space() && bview_.scene()) {
         const terrain::MapData* m = &bview_.scene()->map();
         ctx.ground_height = [m](float x, float y) { return m->terrain.sample_height(x, y); };
@@ -1101,13 +1101,13 @@ void App::battle_input() {
         return st->exists(hh) ? static_cast<uint32_t>(st->type(hh)) : 0xFFFFFFFFu;
     };
     std::vector<commands::EventData> cmds;
-    // story t13 (UI.md §4, flag 0x140a28c91): while a linked battle's P11 input block holds the world gets no mouse input -
+    // story t13 (legacy docs/re/UI.md §4, flag 0x140a28c91): while a linked battle's P11 input block holds the world gets no mouse input -
     // no drop point, no targeted pick, no selection / orders. The HUD, the camera and the keys are not blocked.
     const bool world_blocked = linked_ui_.input_blocked();
     // Reinforcement drop (TacticalHud BeginReinforcement): the next world left click is the landing point (ground plane
     // z = 0, land: the terrain height there [port]); a right click cancels. The click is not an order.
     bool drop_click = false;
-    // ui3 t04: Esc ends a reinforcement / bombing-run / beacon pick (the pause menu does not open then: app_frame.cpp).
+    // Esc ends a reinforcement / bombing-run / beacon pick (the pause menu does not open then: app_frame.cpp).
     if (input_.key_pressed(ui::vk::kEscape) && routed_.keys_to_world) cancel_picks();
     // An entry that cannot be called any more (cap reached, retreat, controls locked) ends its pick.
     if (reinforce_unit_ != 0 && !reinforce_available(static_cast<objects::ObjectId>(reinforce_unit_))) reinforce_unit_ = 0;
@@ -1131,11 +1131,11 @@ void App::battle_input() {
         const auto key = static_cast<objects::ObjectId>(reinforce_unit_);
         const int32_t me_p = local_player();
         const bool valid = have && rb && rb->reinforce_point_ok(*tm, me_p, key, p.x, p.y);
-        // The release after a right double press is swallowed (P1_DOUBLE_CLICK_MOVE.md §1.1): it does not cancel.
+        // The release after a right double press is swallowed (legacy docs/re/P1_DOUBLE_CLICK_MOVE.md §1.1): it does not cancel.
         if (input_.button(ui::Button::Right).click && !input_.button(ui::Button::Right).in_double_press) {
             reinforce_unit_ = 0;
             drop_click = true;
-            audio_.faction_sfx("Reinforcements_Cancelled_SFXEvent");  // mcx4 t13: the user's placement cancel (0x343e0, argument 1)
+            audio_.faction_sfx("Reinforcements_Cancelled_SFXEvent");  // the user's placement cancel (0x343e0, argument 1)
         } else if (input_.button(ui::Button::Left).click) {
             drop_click = true;
             if (valid) {
@@ -1259,7 +1259,7 @@ void App::battle_input() {
             }
         }
     }
-    // ui1 t04 [port] (backlog b0238): while the space special weapon is aimed, a left click on an enemy object sends
+    // ui1 t04 [port]: while the space special weapon is aimed, a left click on an enemy object sends
     // command 25 (weapon, target object) and ends the aim; on anything else the GUI negative SFX and the aim stays; a
     // right click cancels. Orders and the drag box wait while it is on, as for the bombing run.
     bool sw_click = false;
@@ -1293,7 +1293,7 @@ void App::battle_input() {
     // Int-final: the space reinforcement overlay (R5 fog palette 3) while a space drop point is being picked.
     bview_.set_space_reinforcement_overlay(bview_.space() && reinforce_unit_ != 0);
     // Targeted-ability pick (TargetingController, before the order translator: a frame whose click it used is not an
-    // order). The click becomes the ability command through the command stream (UI.md §4.1; cmds -> route_commands).
+    // order). The click becomes the ability command through the command stream (legacy docs/re/UI.md §4.1; cmds -> route_commands).
     bool targeted = false;
     if (!drop_click && !world_blocked && targeting_.active()) {
         std::vector<ui::UiOrder> picks;
@@ -1313,7 +1313,7 @@ void App::battle_input() {
         cmds.push_back(std::move(o.event));
         voice.push_back(o.voice ? 1 : 0);
     }
-    for (const ui::MoveAck& a : orders_.take_move_acks()) move_ack(a);  // P1_DOUBLE_CLICK_MOVE.md §2.3
+    for (const ui::MoveAck& a : orders_.take_move_acks()) move_ack(a);  // legacy docs/re/P1_DOUBLE_CLICK_MOVE.md §2.3
     if (!drop_click && reticle_orders(ctx, cmds)) voice.assign(cmds.size(), 1);  // HUD_GAPS §1.6 (orders rewritten)
     if (hud_hit_debug_) {
         const int32_t px = hud_hit_px_ >= 0 ? hud_hit_px_ : input_.mouse_x(), py = hud_hit_px_ >= 0 ? hud_hit_py_ : input_.mouse_y();
@@ -1370,17 +1370,17 @@ void App::battle_input() {
     if (routed_.keys_to_world && !paused_)
         for (size_t wing = 0; wing < 2; ++wing)
             if (input_.key_pressed(wing == 0 ? kVkF2 : kVkF3)) select_wing(wing, input_.shift(), input_.ctrl());
-    // P1_DOUBLE_CLICK_MOVE.md §2.1: the attack-move (T), guard (G) and waypoint hotkeys arm the next move order's toggle.
+    // legacy docs/re/P1_DOUBLE_CLICK_MOVE.md §2.1: the attack-move (T), guard (G) and waypoint hotkeys arm the next move order's toggle.
     for (const ui::HotkeyEvent& e : hk) {
         if (e.slot == ui::hk::kAttackMove) orders_.arm_move_toggle(ui::MoveToggle::AttackMove);
         else if (e.slot == ui::hk::kGuard) orders_.arm_move_toggle(ui::MoveToggle::GuardMove);
         else if (e.slot == ui::hk::kWaypoint) orders_.arm_move_toggle(ui::MoveToggle::Waypoint);
         else if (e.slot == ui::hk::kSuperWeapon && !bview_.space() && bombing_run_ready()) bombing_toggle();  // 0x63f00 case 0x16 (land)
-        else if (e.slot == ui::hk::kSuperWeapon && bview_.space()) space_weapon_toggle();  // ui1 t04: 0x63f00 case 0x16 (space)
+        else if (e.slot == ui::hk::kSuperWeapon && bview_.space()) space_weapon_toggle();  // 0x63f00 case 0x16 (space)
         else if (e.slot == ui::hk::kDroidAdvisor) open_holocron(ui::InfoPage::DroidLog);  // capture C2 (no galaxy in a skirmish: nothing)
         else if (e.slot == ui::hk::kFleetCohesion && bview_.space()) session_->toggle_fleet_cohesion();  // [port] fleet cohesion
     }
-    story_forced_clicks();  // ui2 t02: FORCE_CLICK_GUI
+    story_forced_clicks();  // FORCE_CLICK_GUI
     const size_t cmds_before = cmds.size(), acts_before = acts.size();
     ui_.tactical_hud.update_input(routed_, input_.shift(), input_.ctrl(), now_s_, cmds, &acts);
     {  // mcx4 t13 (MCX4_T13_RE_ANSWERS "Unit_Ability.SFXEvent_GUI_Unit_Ability_Activated family", 0x307190): the HUD
@@ -1411,12 +1411,12 @@ void App::battle_input() {
                 story_ui_.click_gui(ui_.components[static_cast<size_t>(e.component)].name);
     if (hero_panel_.open()) hero_panel_.update_input(routed_, input_.shift(), input_.ctrl(), now_s_, &acts);
     handle_hud_actions(acts);
-    queue_default_autofire(cmds);  // ui1 t02: IDC_ABILITIES_DEFAULT_TO_AUTOFIRE
+    queue_default_autofire(cmds);  // IDC_ABILITIES_DEFAULT_TO_AUTOFIRE
     voice.resize(cmds.size(), 1);
     route_commands(cmds, voice);
 }
 
-// P1_DOUBLE_CLICK_MOVE.md §2.3 (`0x418b0`): the particle by priority attack > guard > double > normal (a double first kills
+// legacy docs/re/P1_DOUBLE_CLICK_MOVE.md §2.3 (`0x418b0`): the particle by priority attack > guard > double > normal (a double first kills
 // the nearest live normal ack silently), scaled GUI_Move_Acknowledge_Scale_Land / _Space; the radar ping
 // Default_Attack_Click / Default_Click, a double removing the playing Default_Click and playing Default_Double_Click.
 // cu9g t03 (HUD_GAPS §9.2): the land HUD's `ready`: controls not locked and the local bombing run available.
@@ -1471,7 +1471,7 @@ void App::move_ack(const ui::MoveAck& a) {
 ui::CameraTuning App::option_tuning(ui::CameraTuning t) const {
     if (!live_input()) return t;  // smoke / replay runs: the defaults (machine and profile independent)
     t.scroll_speed_option = ui::scroll_speed_option_from_slider(gameplay_.scroll_speed);  // IDC_SCROLL_SPEED_SLIDER
-    t.windowed = windowed();  // UI5 t01: Options > Video > Windowed (edge scrolling, P1_CAMERA_INPUT)
+    t.windowed = windowed();  // Options > Video > Windowed (edge scrolling, P1_CAMERA_INPUT)
     t.absolute_scrolling = gameplay_.absolute_scroll;
     t.right_button_scroll = gameplay_.right_button_scroll;
     t.both_buttons_rotate = gameplay_.both_buttons_rotate;
@@ -1496,14 +1496,14 @@ void App::handle_menu_actions(const std::vector<ui::MenuAction>& acts) {
         std::printf("menu: %s %s %s\n", ui::menu_action_name(a.kind), a.campaign.c_str(), a.map.c_str());
         switch (a.kind) {
             case K::ShowCredits: show_credits(); break;  // ui1 t03
-            case K::StartTutorial:  // ui1 t03: a tutorial is a campaign of the tutorial set (CampaignSetInfo), started the same way
+            case K::StartTutorial:  // a tutorial is a campaign of the tutorial set (CampaignSetInfo), started the same way
             case K::StartCampaign: {
-                SessionChoice c;  // ref2 t03: built by make_session_spec (human conflicts ask Fight / Auto-resolve / Retreat)
+                SessionChoice c;  // built by make_session_spec (human conflicts ask Fight / Auto-resolve / Retreat)
                 c.kind = GameKind::Campaign;
                 c.campaign = a.campaign;
                 c.faction = a.faction;
                 c.difficulty = a.difficulty;
-                c.game_options = game::CampaignOptionsPage::session_options(a.game_options);  // ui1 t06, ref6 t04
+                c.game_options = game::CampaignOptionsPage::session_options(a.game_options);  // ui1 t06
                 if (!start_session(make_session_spec(c, session_options()))) {
                     notes_.push_back("campaign " + a.campaign + " did not start");
                     open_main_menu();
@@ -1511,10 +1511,10 @@ void App::handle_menu_actions(const std::vector<ui::MenuAction>& acts) {
                 break;
             }
             case K::StartSkirmish: {
-                SessionChoice c;  // ref2 t03: built by make_session_spec
+                SessionChoice c;  // built by make_session_spec
                 c.kind = GameKind::Skirmish;
                 c.map = a.map;
-                // modc t20: an unnamed slot takes the data's default (game::default_skirmish_faction: Is_Playable factions in
+                // an unnamed slot takes the data's default (game::default_skirmish_faction: Is_Playable factions in
                 // FactionFiles.xml order), not a base-game name.
                 c.skirmish.human_faction = a.factions.size() > 0 ? a.factions[0] : std::string{};
                 c.skirmish.ai_faction = a.factions.size() > 1 ? a.factions[1] : std::string{};
@@ -1527,15 +1527,15 @@ void App::handle_menu_actions(const std::vector<ui::MenuAction>& acts) {
                 if (!a.factions.empty() && !a.factions[0].empty()) skirmish_profile_.faction = a.factions[0];
                 if (!a.colors.empty()) skirmish_profile_.colour = std::clamp(a.colors[0], 0, 8);
                 save_game_options();
-                // skm2 t02: the opened slots 2.. (ui1 t07 staging rows, up to the map's 8 starts) are AI players with their
+                // the opened slots 2.. (ui1 t07 staging rows, up to the map's 8 starts) are AI players with their
                 // own faction ("" = the data's default AI faction), team and difficulty.
                 for (size_t k = 2; k < a.factions.size() && k < 8; ++k) c.skirmish.extra_slots.push_back({a.factions[k], {}, {}});
                 for (const int32_t t : a.teams) c.skirmish.teams.push_back(std::max(-1, t - 1));  // IDC_PLAYER_TEAM_n is 1-based
                 for (const int32_t d : a.difficulties) c.skirmish.difficulties.push_back(std::clamp(d, 0, 2));
                 c.skirmish.control_points = a.game_type == ui::kSkirmishGameControl;  // ccpgt t02
-                // skm1 t06: the AI slot's difficulty (TEXT_EASY / MEDIUM / HARD_AI_PLAYER) drives the AI players' difficulty.
+                // the AI slot's difficulty (TEXT_EASY / MEDIUM / HARD_AI_PLAYER) drives the AI players' difficulty.
                 c.difficulty = a.difficulty;  // clamped by make_session_spec
-                // skm1 t02: the skirmish options dialog (never accepted: GameSession takes the MP_Default_* values).
+                // the skirmish options dialog (never accepted: GameSession takes the MP_Default_* values).
                 c.skirmish_options = game::SkirmishOptionsPage::battle_options(a.skirmish_options);  // ref6 t04
                 open_buy_units(make_session_spec(c, session_options()));  // the skirmish starts from the buy-units screen
                 break;
@@ -1547,7 +1547,7 @@ void App::handle_menu_actions(const std::vector<ui::MenuAction>& acts) {
                 apply_camera_page();
                 save_game_options();  // ui1 t02
                 break;
-            case K::KeybindingsChanged:  // ui1 t02: the keyboard dialogs edited ui_.hotkeys; bindings follow, kept between runs
+            case K::KeybindingsChanged:  // the keyboard dialogs edited ui_.hotkeys; bindings follow, kept between runs
                 sync_control_bindings(ui_.hotkeys, camera_, ui_.bindings);
                 save_game_options();
                 break;
@@ -1577,7 +1577,7 @@ void App::handle_menu_actions(const std::vector<ui::MenuAction>& acts) {
             case K::CheckMod: check_mod(a.mod); break;    // modc t08
             case K::LaunchMod: launch_mod(a.mod); break;
             case K::PreviewAudio: audio_.set_volumes(a.audio.master, a.audio.sfx, a.audio.speech, a.audio.music); break;
-            case K::ApplyAudio:  // ui1 t02: the dialog opens with these and they are kept between runs
+            case K::ApplyAudio:  // the dialog opens with these and they are kept between runs
                 audio_opts_ = a.audio;
                 apply_audio_page();
                 save_game_options();
@@ -1644,7 +1644,7 @@ void App::handle_menu_actions(const std::vector<ui::MenuAction>& acts) {
     }
 }
 
-// mcx4 t14: the intro line ended -> its command bar movie stops (the slot goes back to the advisor loop rules).
+// the intro line ended -> its command bar movie stops (the slot goes back to the advisor loop rules).
 void App::intro_movie_speech_done(const std::string& event) {
     if (intro_movie_line_.empty() || !ascii_iequals(event, intro_movie_line_)) return;
     intro_movie_line_.clear();

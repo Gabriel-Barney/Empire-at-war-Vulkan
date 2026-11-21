@@ -1,7 +1,7 @@
 // --crc-out writer shared by every alamo_headless run mode. By default it writes the full v1 log (ALAMO_CRC 1: one line
 // per tick; the worker-count tests rely on it). With --crc-checkpoint N [--crc-keep T,T,...] it writes the v2 checkpoint
 // log instead (ALAMO_CRC 2: the first and last tick, every tick that is a multiple of N and the kept ticks; the checked-in
-// goldens use it, see docs/status/golden-checkpoints.md and sim_crc.hpp). Process-wide because one process is one run.
+// goldens use it, see docs/SIMULATION.md "CRC log formats" and sim_crc.hpp). Process-wide because one process is one run.
 #pragma once
 #include <cstdint>
 #include <cstdio>

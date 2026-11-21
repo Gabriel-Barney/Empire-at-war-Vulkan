@@ -237,7 +237,7 @@ bool GarrisonSystem::masks_match(ObjectId unit, ObjectId holder) const {
 
 int32_t GarrisonSystem::reserved(ObjectId holder) const {
     int32_t n = 0;
-    std::vector<ObjectId> groups;  // s78n t18: a squad walking in reserves once
+    std::vector<ObjectId> groups;  // a squad walking in reserves once
     for (const Unit& u : units_) {
         if (u.host != holder || (u.state != State::Moving && u.state != State::Closing)) continue;  // states 1 - 2
         GarrisonGroup g;
@@ -283,7 +283,7 @@ std::span<const ObjectId> GarrisonSystem::occupants(ObjectId holder) const {
 }
 
 int32_t GarrisonSystem::used_slots(ObjectId holder) const {
-    // 0x3954b0: the sum over the contents-list entries of the entry type's Garrison_Value. s78n t18: a squad is one
+    // 0x3954b0: the sum over the contents-list entries of the entry type's Garrison_Value. a squad is one
     // entry, its container (FIGHTER_FLYING §7.4): its members count once, with the group's value.
     int32_t n = 0;
     std::vector<ObjectId> groups;
@@ -505,7 +505,7 @@ void GarrisonSystem::service_key(const std::vector<size_t>& mem, ObjectId key, i
 }
 
 void GarrisonSystem::service(uint32_t frame, const PoseFn& pose, const ApproachFn& approach) {
-    std::vector<ObjectId> groups;  // s78n t18: the groups decided in this pass
+    std::vector<ObjectId> groups;  // the groups decided in this pass
     std::vector<size_t> mem;
     for (size_t idx = 0; idx < units_.size(); ++idx) {
         const Unit& u = units_[idx];

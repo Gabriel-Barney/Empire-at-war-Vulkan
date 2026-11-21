@@ -1,4 +1,4 @@
-// test_abilities: main() (bo3 t03: tests live in test_abilities_partN.cpp, shared code in test_abilities_common.hpp).
+// test_abilities: main() (tests live in test_abilities_partN.cpp, shared code in test_abilities_common.hpp).
 #include "test_abilities_common.hpp"
 
 void* operator new(std::size_t n) {

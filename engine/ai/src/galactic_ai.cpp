@@ -34,7 +34,7 @@ GalacticAiWorld::Impl::Impl(gal::GalacticSim& s, objects::ObjectStore& st, const
                             std::vector<GalacticAiTypeInfo> ti, AiOrderSink snk, GalacticAiConfig c)
     : sim(s), store(st), types(ty), files(fp), rng(r), defs(d), eqs(e), tinfo(std::move(ti)), sink(std::move(snk)),
       cfg(std::move(c)), res(s, tinfo, nullptr, {}) {
-    if (types) cat_enum = &types->enums().get(objects::EnumId::GameObjectCategory);  // q6 t03: the loaded enum
+    if (types) cat_enum = &types->enums().get(objects::EnumId::GameObjectCategory);  // the loaded enum
     res.set_category_enum(cat_enum);
     for (GalacticAiTypeInfo& t : tinfo)
         if (t.category_mask == 0) {
@@ -51,8 +51,8 @@ GalacticAiWorld::Impl::Impl(gal::GalacticSim& s, objects::ObjectStore& st, const
 GalacticSimTokenResolver::Hooks GalacticAiWorld::Impl::make_hooks() {
     GalacticSimTokenResolver::Hooks h;
     h.story_campaign = cfg.story_campaign;
-    // storyb t10 (STORYB_T10_TRIGGER_AI.md): StoryTrigger reads an AI story flag without clearing it.
-    // mcx8 t07: the planet root passes the planet's object id as the flag's target (-1 = none on a player root).
+    // storyb t10 (legacy docs/re/STORYB_T10_TRIGGER_AI.md): StoryTrigger reads an AI story flag without clearing it.
+    // the planet root passes the planet's object id as the flag's target (-1 = none on a player root).
     h.story_flag = [this](int32_t p, std::string_view name, int32_t location) {
         return story_model != nullptr && story_model->check_ai_flag(p, name, location, false);
     };
@@ -189,7 +189,7 @@ bool GalacticAiWorld::Impl::evaluate_id(int32_t self, int32_t opponent, uint32_t
     c.rng = &rng.synced();
     const EvalResult r = ai::evaluate(eqs, e, c, res);
     ++eval_count;
-    // Port diagnostics (never hashed): a failure names its first failing site (q6 t10). sp4a: the success counters are
+    // Port diagnostics (never hashed): a failure names its first failing site. sp4a: the success counters are
     // cached per equation id (no key built per evaluation).
     if (r.ok) {
         if (eval_stat_slots.size() <= e) eval_stat_slots.resize(static_cast<size_t>(e) + 1);
@@ -210,7 +210,7 @@ bool GalacticAiWorld::Impl::evaluate_id(int32_t self, int32_t opponent, uint32_t
 // Script_<File>.Evaluate (AI_GALACTIC_2 Â§4.4) [H]: Data/Scripts/Evaluators/<File>.lua loaded once as ONE shared
 // instance; no cache; PlayerObject = Self, Target = the context target; Evaluate(strings..., number); then
 // Evaluator_Clean_Up(). Only a Lua number succeeds. Script globals persist across calls and players.
-// mcx8 t01: Target is the context target as an AI target (AITargetLocationWrapper: Get_Game_Object = the planet,
+// Target is the context target as an AI target (AITargetLocationWrapper: Get_Game_Object = the planet,
 // Get_Distance), the same wrapper the tactical evaluators get, since retail's evaluator (0x652040) is one function for
 // both modes; it is set only when there is a target (a goal without one leaves the global as the script left it).
 // Fall of the Republic's GetSmugglingLevel calls Target.Get_Game_Object().
@@ -435,7 +435,7 @@ uint32_t GalacticAiWorld::Impl::next_starbase_type(PlanetIndex p) const {
         const uint32_t f = players[static_cast<size_t>(ps.owner)].faction;
         if (f >= rules.factions.size()) return gal::kNoIndex;
         const std::string& fn = rules.factions[f].name;
-        // [name-ok-begin: retail faction and type names in 0x3f8fd0, docs/re/A2M_R3_RE_A.md §1.2]
+        // [name-ok-begin: retail faction and type names in 0x3f8fd0, legacy docs/re/A2M_R3_RE_A.md §1.2]
         if (ascii_iequals(fn, "Rebel")) cand = rules.find_type("Rebel_Star_Base_1");
         else if (ascii_iequals(fn, "Empire")) cand = rules.find_type("Empire_Star_Base_1");
         // [name-ok-end]
@@ -532,7 +532,7 @@ int32_t GalacticAiWorld::Impl::tf_produce_force(int32_t tf, const lua::AiArg& st
         pit->second.test_contrast = false;  // inert until the running-plan contrast re-test 0x6c47c0 is ported
     }
     t.stage = valid_planet(sp) ? static_cast<int32_t>(sp) : -1;
-    // q2f t09: the second argument is the sync flag (BT +0xda, Q2F_T09_RE_ANSWERS Q1.5) [H].
+    // the second argument is the sync flag (BT +0xda, Q2F_T09_RE_ANSWERS Q1.5) [H].
     t.sync = sync;
     t.sync_started = false;
     t.sync_left = -1.0;
@@ -712,7 +712,7 @@ std::vector<PlanetIndex> PlayerAi::flood(int mode, std::vector<uint8_t>* reached
 
 gal::Bitset GalacticAiWorld::Impl::ai_dangerous(int32_t player) const {
     if (snap.planet_count != sim.planets().size()) return {};
-    ALAMO_PROFILE_SCOPE("ai.gal.danger");  // OPT2 t11: the perception reader on the goal / market paths
+    ALAMO_PROFILE_SCOPE("ai.gal.danger");  // the perception reader on the goal / market paths
     gal::PlayerView v;
     perc.fill_view(snap, player, v);
     return std::move(v.dangerous);
@@ -814,7 +814,7 @@ bool PlayerAi::accept(Goal& g) {
     g.pp_valid = true;
     g.cost = pp.net;  // Init 0x6c0d00: net cost -> goal +0x78, ETA -> +0x7c
     g.eta = pp.eta;
-    g.nominal_time = w->pp_nominal_time(pp);  // A2f t09: AllowedTime base 0x6c0450(PP) [H]
+    g.nominal_time = w->pp_nominal_time(pp);  // AllowedTime base 0x6c0450(PP) [H]
     g.pp_handle = h;
     w->pps.emplace(h, std::move(pp));
     return true;
@@ -993,7 +993,7 @@ void PlayerAi::execution_service(int64_t) {
     for (size_t i = 0; i < bonuses.size();) {
         const bool added = ctx.goals.give_desire_bonus(bonuses[i].goal_type, bonuses[i].target, bonuses[i].bonus);
         if (added || bonuses[i].deadline <= w->now) {
-            // mcx8 t12 (MCX8_BINDINGS_PLAYERS_STORY.md "GiveDesireBonus", poll 0x699eb0) [H]: the blocking status
+            // mcx8 t12 (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "GiveDesireBonus", poll 0x699eb0) [H]: the blocking status
             // finishes true when the bonus was added, false at the deadline.
             if (const auto st = w->statuses.find(bonuses[i].status); st != w->statuses.end()) {
                 st->second.finished = true;
@@ -1009,7 +1009,7 @@ void PlayerAi::execution_service(int64_t) {
 void PlayerAi::templates_changed(int64_t) {
     // §9.5: the changed templates insert their budget categories (apply_template_budget). a2g F2: retail sets the budget
     // reset flag +0x74 exactly when the template set changes, in either direction, and the next fiscal tick clears it
-    // (FoC HotM probe, docs/re/A2G_T01_RESET_FLAG_PROBE.md) [H correlation; the setter is unread]. The initial selection
+    // (FoC HotM probe, legacy docs/re/A2G_T01_RESET_FLAG_PROBE.md) [H correlation; the setter is unread]. The initial selection
     // runs before the budget's Init, which clears the flag.
     apply_template_budget();
     ctx.budget.mark_reset();
@@ -1142,7 +1142,7 @@ void GalacticAiWorld::Impl::end_plan(int32_t id, bool by_goal_system) {
     decide(pi.player, "plan " + std::to_string(id) + " " + library.plans[pi.plan].name + " ended " +
                           (pi.result ? "success" : "failure") + (by_goal_system ? " (released)" : ""));
     if (pi.vm) {
-        append_script_errors(*pi.vm, library.plans[pi.plan].name + ": ", errors);  // S7 t27: with SCRIPT ERROR lines
+        append_script_errors(*pi.vm, library.plans[pi.plan].name + ": ", errors);  // with SCRIPT ERROR lines
         lua::attach_markup_host(*pi.vm, nullptr);
         runtime->release(pi.plan, std::move(pi.vm));
     }
@@ -1162,7 +1162,7 @@ void GalacticAiWorld::Impl::tf_event(const TaskForceRec& tf, PlanEvent event, co
         errors.push_back(library.plans[it->second.plan].name + " " + std::string(name) + ": " + err);
 }
 
-// mcx8 t12 (MCX8_BINDINGS_PLAYERS_STORY.md "GiveDesireBonus") [H]: a plan script's GiveDesireBonus becomes a pending
+// mcx8 t12 (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "GiveDesireBonus") [H]: a plan script's GiveDesireBonus becomes a pending
 // bonus with a blocking status (StatusKind::DesireBonus) at once; the same target and deadline rules as the queued
 // requests below. An unknown player or goal type is not taken (the binding queues it; the drain drops it).
 int32_t GalacticAiWorld::Impl::give_desire_bonus(int32_t script, int32_t player, std::string_view goal, ObjectHandle h,
@@ -1295,7 +1295,7 @@ void GalacticAiWorld::Impl::prune_tf(TaskForceRec& tf) {
     for (const ObjectHandle h : u)
         if (lost(h)) lost_members.emplace_back(tf.id, h);  // bkg2 b0099: event 2 at the drain
     u.erase(std::remove_if(u.begin(), u.end(), lost), u.end());
-    // a2m t10: a member removed (0x10) or no longer the player's (0x1a) reached the TF base handler 0x5fe5d0.
+    // a member removed (0x10) or no longer the player's (0x1a) reached the TF base handler 0x5fe5d0.
     if (u.size() < before && std::find(lost_tfs.begin(), lost_tfs.end(), tf.id) == lost_tfs.end()) lost_tfs.push_back(tf.id);
 }
 
@@ -1314,7 +1314,7 @@ bool GalacticAiWorld::Impl::counted_entry_type(uint32_t type) const {
 // as the members (their company type: the member object's own type [port]), the wanted types not yet given build tasks
 // and the build tasks still Queued / Producing. [port] Raised at the drain within the frame of the prune that saw the
 // loss (the execution service's claim_units sweep, or a binding's prune), not inside the simulation step. [L] Retail's
-// other senders (a fleet object the TF still listens to, A2M t10.5: the saboteur exit at frame 248) are not modelled.
+// other senders (a fleet object the TF still listens to, the saboteur exit at frame 248) are not modelled.
 // bkg2 b0099 (A2M_T08_T10_T14_RE t10.3, base handler step 1) [H]: before that test, each removed member raises event 2
 // Unit_Destroyed (argument: the member) synchronously; a handler may end the plan, which skips the event 7 test.
 // [port] All the TF's removals of the prune are raised first, then one event 7 test (retail tests after each signal).
@@ -1511,7 +1511,7 @@ void GalacticAiWorld::Impl::claim_units(int32_t player) {
                 q.current_queue_id = -1;
                 q.current_type = gal::kNoIndex;
             }
-            finish_build(*match);  // a2m t05: PRODUCTION_END makes no budget call (0x5f9f90 is a TF type counter, Q5.1)
+            finish_build(*match);  // PRODUCTION_END makes no budget call (0x5f9f90 is a TF type counter, Q5.1)
             // a2m t03 (A2M_T03_PRODUCE_FORCE_CLAIMS Q3) [H]: 0x6498f0 with a null destination (plain Produce_Force())
             // admits the new object to the free store (PRODUCTION_FINISHED); only a task with a destination goes on to
             // PRODUCTION_END -> Add_Force.
@@ -1544,7 +1544,7 @@ void GalacticAiWorld::Impl::claim_units(int32_t player) {
         }
         free_store_admitted(player, u);
     }
-    // Task forces that lost every unit (No_Units_Remaining, galactic code 7 [H]). a2m t10: a TF with a member loss queued
+    // Task forces that lost every unit (No_Units_Remaining, galactic code 7 [H]). a TF with a member loss queued
     // in lost_tfs is decided by drain_lost_members instead (the counted-entry rule); this sweep keeps the empty TFs whose
     // members left by release (Release_Unit / Release_Forces).
     drain_lost_members();
@@ -1773,7 +1773,7 @@ bool GalacticAiWorld::Impl::step_status(StatusRec& s) {
             }
             // READY_TO_MERGE -> DO_TASK_FORCE_MERGE / JOIN_TASK_FORCE (A2K_T08_RE_ANSWERS Q2.3 step 4) [H: only fleets
             // holding TF members merge, op 3 into the TF fleet]: at the stage each member's stationary fleet merges into
-            // the TF FleetObject when it orbits the stage (a2m t02, Q8.3), else into the fleet of the first member there
+            // the TF FleetObject when it orbits the stage (Q8.3), else into the fleet of the first member there
             // (member order). Arrival no longer merges (GalacticSim::arrive, Q1), so this is what keeps the gathered force
             // one fleet for Move_To. [port] Unit-wise, like Form_Units, in the pass that finishes the task.
             {
@@ -1880,7 +1880,7 @@ int32_t GalacticAiWorld::Impl::tf_order(int32_t tf, lua::AiTfOrder kind, const l
             return id;
         }
         case lua::AiTfOrder::LandUnits: {
-            // Land_Units 0x6cec80 (a2m t05, A2M_T04_RE_ANSWERS Q6) [H]:
+            // Land_Units 0x6cec80 (A2M_T04_RE_ANSWERS Q6) [H]:
             //   1. the elected FleetObject (TF +0x120) and at least one unit, else the warning and nil;
             //   2. X = the fleet's orbit planet (retail does not null-check: a fleet in transit would crash; the port
             //      returns the status and logs it, open item 5);
@@ -1979,7 +1979,7 @@ int32_t GalacticAiWorld::Impl::tf_order(int32_t tf, lua::AiTfOrder kind, const l
             if (!valid_planet(p)) return -1;
             // 0x6ce600 calls GameObjectManager::Land_Invade (GalacticSim::invade) directly with the fleet owner as the
             // attacker, not the Invade event: the event executor's gates (0x48ff50: galactic pause counter, pending
-            // story-linked battle, issuer = local player) do not apply (A1_READINGS §31.2, a1h t03).
+            // story-linked battle, issuer = local player) do not apply (A1_READINGS §31.2).
             if (note_order(t.player, sim.invade(t.player, p, units), "invade " + planet_name(p) + " with " + std::to_string(units.size())) !=
                 cmd::RejectReason::None)
                 return -1;
@@ -2204,7 +2204,7 @@ void GalacticAiWorld::Impl::step_free_store_moves(int32_t player) {
 //      (GalacticSim::travel_type: the company's transport, else its own type) has the TRANSPORT behaviour. A TRANSPORT
 //      unit that is not a ground unit (a hero ship carrying its team) is not a candidate: the port's op 5 lands ground
 //      units only and would refuse it;
-//   4. Prefer_Ground_Over_Space (cu8f t04b; true by default and for a unit without UNIT_AI);
+//   4. Prefer_Ground_Over_Space (true by default and for a unit without UNIT_AI);
 //   5. F orbits a planet P with fewer ground forces than Max_Ground_Forces_On_Planet (0x3f9530: surface_forces) and an
 //      accessible surface (0x375220: a destroyed planet has none).
 // Then two FleetManagement events for U's owner: op 2 (detach U from F at P: a fleet of its own; nothing when it is
@@ -2224,7 +2224,7 @@ void GalacticAiWorld::Impl::auto_land_free_units(int32_t player) {
         if (!ti || !ground_kind(ti->kind) || !tt || !tt->transport_behavior) continue;  // 3: TRANSPORT
         const uint32_t f = fleet_of_unit(u);
         if (f == gal::kNoFleet) continue;  // 3: in a fleet
-        if (!sim.prefer_ground_over_space(u)) continue;  // 4 (cu8f t04b): stays in orbit
+        if (!sim.prefer_ground_over_space(u)) continue;  // 4: stays in orbit
         const PlanetIndex p = sim.fleets()[f].planet;  // 5
         if (!valid_planet(p)) continue;
         if (sim.surface_forces(p) >= rules.constants.max_ground_forces_on_planet) continue;
@@ -2278,7 +2278,7 @@ int32_t GalacticAiWorld::Impl::find_target(int32_t script, const lua::AiFindTarg
     std::vector<int32_t> cand;
     std::vector<double> value;
     const uint32_t eq = equation(r.perception);  // sp4a (S7): once, not per planet
-    // The perception target list order: planet rows in reverse (A2M_T08_T10_T14_RE.md t14.7: the retail Rebel slice pick
+    // The perception target list order: planet rows in reverse (legacy docs/re/A2M_T08_T10_T14_RE.md t14.7: the retail Rebel slice pick
     // lists Tatooine, Shola, Nal Hutta, Kashyyyk, Kuat, Felucia, Corellia, then the best, The_Maw) [H]. The first
     // highest score is the best, so the order decides which planet gets probability p.
     for (size_t k = sim.planets().size(); k-- > 0;) {  // target_list_at order: planet rows in reverse
@@ -2313,7 +2313,7 @@ bool GalacticAiWorld::Impl::tf_add_unit(int32_t tf, ObjectHandle unit) {
     it->second.had_units = true;
     return true;
 }
-// Refit_To_Definition(planet, budget) (AI_GALACTIC.md 2.4 [H] fill loop, L1_S4_REMAINING Â§2.12 [M]): percentage
+// Refit_To_Definition(planet, budget) (legacy docs/re/AI_GALACTIC.md 2.4 [H] fill loop, L1_S4_REMAINING Â§2.12 [M]): percentage
 // task-force definitions only (-3 otherwise). budget = 0: a finished status, nothing changes. budget > 0: repeat
 //   1. pick a percent team by synced float roulette over its weight: the deficit max(0, pct/100 x (units + 1) - count)
 //      [port: N = W/Wb x Max_Ground_Forces_On_Planet is not specified; all deficits 0 -> the percentages];
@@ -2470,7 +2470,7 @@ void GalacticAiWorld::Impl::service_free_store(int32_t player) {
         }
     }
     drain_world_requests(world, player, -1);
-    append_script_errors(vm, "free store " + std::to_string(player) + ": ", errors);  // S7 t27: with SCRIPT ERROR lines
+    append_script_errors(vm, "free store " + std::to_string(player) + ": ", errors);  // with SCRIPT ERROR lines
     lua::clear_script_logs(vm);
 }
 
@@ -2486,7 +2486,7 @@ GalacticAiWorld::GalacticAiWorld(gal::GalacticSim& sim, objects::ObjectStore& st
     w.world.attach_galactic(&sim);
     w.world.attach_ai_paths(&w);  // Lua Find_Path from the AI's own scripts answers from the AI path finders
     w.world.set_perception({&equations, &w.res}, {&equations, &w.res});
-    // mcx8 t12: Budget.Flush_Category / GiveDesireBonus name checks against the AI definitions.
+    // Budget.Flush_Category / GiveDesireBonus name checks against the AI definitions.
     w.world.goal_category_known = [&w](std::string_view n) { return w.defs.find_category(n) >= 0; };
     w.world.goal_type_known = [&w](std::string_view n) { return w.defs.find_goal(n) != kAiNone; };
     PlanScriptRuntime::VmSetup setup;
@@ -2609,12 +2609,12 @@ std::unique_ptr<PlayerAi> GalacticAiWorld::Impl::make_player(int32_t player, con
     GoalSystemConfig gcfg;
     gcfg.sleep_frames = frames_trunc(static_cast<float>(kAiFps) * sleep);
     gcfg.extra_goals_per_category = type->goal_set_extension_size;  // AIPlayerType +0xE8 (0x721b60) [H]
-    gcfg.nominal_allowed_time = true;  // A2f t09: AllowedTime = 0x6c0450(PP) x tolerance (A2F_RE_READS §1.4 item 2) [H]
+    gcfg.nominal_allowed_time = true;  // AllowedTime = 0x6c0450(PP) x tolerance (A2F_RE_READS §1.4 item 2) [H]
     gcfg.retail_cadence = true;        // a2m r2 (A2M_R2_RE_A §2.1): seeded first quota, slice ends at the quota
     gcfg.like_sets = true;             // bkg3 (BKG3_RE_ANSWERS Q4): Is_Like like-sets in the active tests
     p.ctx.goals.init(w.defs, std::move(sources), &p, &p.ctx.learning, &p.ctx.templates, &w.rng.synced(), gcfg);
     p.ctx.attach(&p, [&w, &p](const std::string& eq, double& out) { return w.evaluate(p.player, p.ctx.opponent, eq, -1, out); });
-    if (w.cfg.stagger) {  // OPT2 t01: a fixed planning phase from the player's AI ordinal (players in index order)
+    if (w.cfg.stagger) {  // a fixed planning phase from the player's AI ordinal (players in index order)
         int32_t ordinal = 0;
         for (const GalacticAiPlayerConfig& o : w.cfg.players) ordinal += o.player < player ? 1 : 0;
         p.ctx.set_stagger(ordinal, static_cast<int32_t>(w.cfg.players.size()));
@@ -2640,7 +2640,7 @@ void GalacticAiWorld::Impl::install_sim_hooks() {
     w.income_hook = w.sim.add_income_hook([token, self](const gal::IncomeTick& t) {
         if (!token.expired()) self->on_income(t);
     });
-    // a2k t10: Add_Credits with notify -> 0x4b0310 -> 0x615b40 on the galactic budget (A2K_T10_CREDIT_NOTIFY_RE) [H].
+    // Add_Credits with notify -> 0x4b0310 -> 0x615b40 on the galactic budget (A2K_T10_CREDIT_NOTIFY_RE) [H].
     w.credit_hook = w.sim.add_credit_notify_hook([token, self](int32_t player, float applied) {
         if (token.expired()) return;
         PlayerAi* pa = self->player_ai(player);
@@ -2650,7 +2650,7 @@ void GalacticAiWorld::Impl::install_sim_hooks() {
     w.sim.set_production_service_hook([token, self](PlanetIndex p) {
         if (!token.expired()) self->market_planet(p);
     });
-    // q2f t01: an AI player's pay-as-you-go installments go through its budget (0x53b900).
+    // an AI player's pay-as-you-go installments go through its budget (0x53b900).
     w.sim.set_installment_hook([token, self, gs = &w.sim](PlanetIndex p, uint32_t q, const gal::BuildEntry& head, float a) {
         if (!token.expired()) return self->installment(p, q, head, a);
         return gs->players()[static_cast<size_t>(head.player)].account.credits >= a ? a : -1.0f;  // no AI any more
@@ -2762,9 +2762,9 @@ void GalacticAiWorld::update_player(int32_t player, int64_t now, bool galactic_o
     Impl& w = *impl_;
     w.now = now;
     if (w.perception_frame != now) {
-        ALAMO_PROFILE_SCOPE("ai.gal.frame");  // OPT2 t01: once-per-frame work (GC, snapshot, perception, story requests)
+        ALAMO_PROFILE_SCOPE("ai.gal.frame");  // once-per-frame work (GC, snapshot, perception, story requests)
         w.perception_frame = now;
-        {  // OPT2 t04: staggered scheduled Lua collections, once per frame before any script of this world runs
+        {  // staggered scheduled Lua collections, once per frame before any script of this world runs
             std::vector<lua::LuaVm*> vms;  // free stores by player, plans by id, evaluators by name (saved orders)
             for (const auto& a : w.ai)
                 if (a && a->fs_vm) vms.push_back(a->fs_vm.get());
@@ -2774,11 +2774,11 @@ void GalacticAiWorld::update_player(int32_t player, int64_t now, bool galactic_o
                 if (e.vm) vms.push_back(e.vm.get());
             lua::collect_scheduled(vms, static_cast<uint64_t>(now), w.cfg.lua_gc_pf);
         }
-        // OPT2 t02: background path recomputes due on this galactic frame are applied before anything reads them.
+        // background path recomputes due on this galactic frame are applied before anything reads them.
         for (const auto& a : w.ai)
             if (a) a->paths.publish(static_cast<int32_t>(w.sim.frame()));
         {
-            ALAMO_PROFILE_SCOPE("ai.gal.snapshot");  // OPT2 t11: perception cost, split
+            ALAMO_PROFILE_SCOPE("ai.gal.snapshot");  // perception cost, split
             w.snap = snapshot_from_sim(w.sim, w.cfg.ai_uses_fog_galactic);
         }
         {
@@ -2795,11 +2795,11 @@ void GalacticAiWorld::update_player(int32_t player, int64_t now, bool galactic_o
         {
             ALAMO_PROFILE_SCOPE("ai.gal.refresh");  // OPT2 t11
             w.res.refresh(w.sim.frame(), now);
-            // q6 t03: the player conflict stamps (signals 0x11 / 0x13) from the conflict manager's state after T5.
+            // the player conflict stamps (signals 0x11 / 0x13) from the conflict manager's state after T5.
             const gal::ConflictManager* cm = w.conflicts ? w.conflicts : dynamic_cast<const gal::ConflictManager*>(w.sim.conflict_hooks());
             if (cm) w.res.observe_conflicts(*cm, static_cast<int32_t>(now));
         }
-        // Story requests and Suspend_AI from the story session's world (and the AI's own). aitac t01: while a battle is
+        // Story requests and Suspend_AI from the story session's world (and the AI's own). While a battle is
         // on top the story's requests belong to the tactical context of the current mode (TacticalAiWorld::
         // attach_story_world drains them), so they are left in the story world.
         bool suspended = w.world.ai_suspended();
@@ -2809,7 +2809,7 @@ void GalacticAiWorld::update_player(int32_t player, int64_t now, bool galactic_o
         }
         w.gate.suspend(suspended);
     }
-    w.drain_lost_members();  // a2m t10: losses seen outside a service (bindings, queries) of the previous call
+    w.drain_lost_members();  // losses seen outside a service (bindings, queries) of the previous call
     PlayerAi* pa = w.player_ai(player);
     if (!pa || !galactic_on_top) return;
     const bool enabled = w.gate.enabled(AiMode::Galactic) && !w.sim.paused();
@@ -2882,7 +2882,7 @@ const std::vector<AiDecision>& GalacticAiWorld::decision_log() const { return im
 std::vector<std::string> GalacticAiWorld::lua_errors() const {
     std::vector<std::string> e = impl_->errors;
     for (const auto& [id, p] : impl_->plans)
-        if (p.vm) append_script_errors(*p.vm, impl_->library.plans[p.plan].name + ": ", e);  // S7 t27: with SCRIPT ERROR lines
+        if (p.vm) append_script_errors(*p.vm, impl_->library.plans[p.plan].name + ": ", e);  // with SCRIPT ERROR lines
     return e;
 }
 uint64_t GalacticAiWorld::orders_issued() const { return impl_->orders; }
@@ -3047,8 +3047,8 @@ void GalacticAiWorld::hash(StateHasher& h) const {
         h.i32(id);
         h.i32(t.stage);
         h.i32(t.area);
-        h.u32(t.fleet);  // a2m t02: TF +0x120
-        if (t.sync) {  // q2f t09: only a sync gather adds its countdown (other task forces hash as before)
+        h.u32(t.fleet);  // TF +0x120
+        if (t.sync) {  // only a sync gather adds its countdown (other task forces hash as before)
             h.boolean(t.sync_started);
             h.f64(t.sync_left);
         }
@@ -3104,14 +3104,14 @@ void GalacticAiWorld::hash(StateHasher& h) const {
         lua::hash_global_value(h, v);  // L1 final: same bytes for non-table values
     }
     h.u64(w.orders);
-    w.res.hash(h);  // REF4 t02: the token resolver's saved state (leaf cache, stamps, observer)
+    w.res.hash(h);  // the token resolver's saved state (leaf cache, stamps, observer)
 }
 
 void GalacticAiWorld::register_crc(CrcRegistry& registry, const std::string& name) const {
     registry.add(name, [this](StateHasher& h) { hash(h); });
 }
 
-// ================================================================ AI execution path finder (GALACTIC.md Â§4)
+// ================================================================ AI execution path finder (legacy docs/re/GALACTIC.md Â§4)
 
 // One recompute's inputs: Node_Weight from this world's perception (published by this frame's update), the
 // Is_Planet_Revealed fog gate only for a non-human AI player (GalacticPerception::all_pairs_input, Q8 step 2) and the
@@ -3188,7 +3188,7 @@ std::vector<GalacticAiDifficulty> load_ai_difficulties(const FileProvider& files
         GalacticAiDifficulty d;
         d.name = std::string(n.attribute("Name", n.name()));
         float v = 0.0f;
-        // mcx1 t03: the shared data-class rule (last occurrence wins, TBD / empty skipped).
+        // the shared data-class rule (last occurrence wins, TBD / empty skipped).
         if (ai_parse_float(data::xml_values::text(n, "Galactic_AI_Contrast_Multiplier"), v)) d.galactic_contrast = v;
         if (ai_parse_float(data::xml_values::text(n, "Galactic_AI_Goal_Cycle_Sleep_Duration"), v)) d.galactic_goal_sleep = v;
         out.push_back(std::move(d));
@@ -3253,7 +3253,7 @@ std::vector<GalacticAiTypeInfo> make_galactic_ai_type_info(const objects::GameOb
             if (m != objects::kNone && static_cast<size_t>(m) < out.size()) out[static_cast<size_t>(m)].squadron_member = true;
     }
     // Starting_Spawned_Units_Tech_0..5: (type, count) lists, repeated tags appended (the hangar / tactical reading).
-    // mcx8 t07: Potential_Indigenous_Power has the same converter (code 0x46, OBJECT_TYPES §3): (type, power) entries.
+    // Potential_Indigenous_Power has the same converter (code 0x46, OBJECT_TYPES §3): (type, power) entries.
     static constexpr const objects::ListTag* kStartingTech[] = {
         &objects::tags::Starting_Spawned_Units_Tech_0, &objects::tags::Starting_Spawned_Units_Tech_1,
         &objects::tags::Starting_Spawned_Units_Tech_2, &objects::tags::Starting_Spawned_Units_Tech_3,
@@ -3284,7 +3284,7 @@ std::vector<GalacticAiTypeInfo> make_galactic_ai_type_info(const objects::GameOb
             type_count_list(ti, *kStartingTech[n], out[t].spawn_tech[n]);
         type_count_list(ti, objects::tags::Potential_Indigenous_Power, out[t].indigenous_power);
     }
-    fill_category_masks(out, &types.enums().get(objects::EnumId::GameObjectCategory));  // q6 t03: the loaded enum
+    fill_category_masks(out, &types.enums().get(objects::EnumId::GameObjectCategory));  // the loaded enum
     return out;
 }
 

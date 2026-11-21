@@ -1,12 +1,12 @@
-// Mod conflicts (ums1 t05, alamo_mod_check --conflicts --json): which mod of a load order wins each file the mods share,
+// Mod conflicts (alamo_mod_check --conflicts --json): which mod of a load order wins each file the mods share,
 // decided by the VFS's own lookup, so the Command Center's conflicts page stops keeping first-match rules of its own.
 //
 // A stack is mounted exactly as alamo_game mounts it (vfs::mount_game: the command line as written, earliest mod wins,
-// docs/MODS.md 3.1; the mod MEGs the winning MegaFiles.xml names). Each mod's files are its loose Data tree plus the
+// docs/MODS.md "Command line switches"; the mod MEGs the winning MegaFiles.xml names). Each mod's files are its loose Data tree plus the
 // records of its mounted MEGs that the game's MEG lookup reaches (meg::Archive::lookup; a record a malformed table hides
 // is not the mod's file). Every path two layers have is resolved with Vfs::resolve: the winner is the layer the game
 // reads, which is not always the earlier mod (a later mod's loose file beats an earlier mod's MEG record, and the base
-// game's loose file beats any MEG record; docs/MODS.md 3.1).
+// game's loose file beats any MEG record; docs/MODS.md "Command line switches").
 //
 // Findings, in this order (the launcher's ranks):
 //   list_ignored  a list file (GameObjectFiles, HardPointDataFiles, TradeRouteFiles, CampaignFiles) that another
@@ -46,7 +46,7 @@ struct ConflictPair {
     size_t xml_files = 0;             // how many of them end in .XML
 };
 
-// The finding kinds in the launcher's rank order (ums4 t04: an enum; conflict_kind_name gives the JSON spelling
+// The finding kinds in the launcher's rank order (an enum; conflict_kind_name gives the JSON spelling
 // "list_ignored", "submod_order", "no_effect", "no_data").
 enum class ConflictKind : uint8_t { ListIgnored, SubmodOrder, NoEffect, NoData };
 const char* conflict_kind_name(ConflictKind kind);

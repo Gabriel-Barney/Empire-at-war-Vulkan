@@ -1,5 +1,5 @@
 // L1 systems tests: special weapons, lobbing superweapons, the tactical superweapon state machine
-// (special_weapons.hpp, docs/re/SCRIPT_GAPS.md Â§1) and the combat pieces they use (launch_projectile, the
+// (special_weapons.hpp, legacy docs/re/SCRIPT_GAPS.md Â§1) and the combat pieces they use (launch_projectile, the
 // WEAPON_SPECIAL force-1 fog gate). Hand-computed frames; repeated runs hash identically.
 #include <cstddef>
 #include <cstdio>

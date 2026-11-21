@@ -1,11 +1,11 @@
-// REF4 t02: the save ledger of GalacticSim. Every data member is listed once:
+// the save ledger of GalacticSim. Every data member is listed once:
 //   SAVED(member, hashed)    written by write(), restored by read() and walked by hash_state or one of its hash_*
 //                            sections;
 //   SAVED(member, unhashed)  written and restored, outside the CRC;
 //   REBUILT(member, "why")   set again by start() / the host with the same setup before read();
 //   DERIVED(member, "why")   recomputed from saved state, scratch, or presentation records;
 //   CHECKED(member, "why")   not restored, but write() / read() read it (a fingerprint read() checks, a lookup).
-// tools/lint/check_battle_ledger.py (build_agent.cmd, ctest alamo_sim_battle_ledger_lint) checks it against
+// tools/lint/check_battle_ledger.py (ctest alamo_sim_battle_ledger_lint) checks it against
 // campaign.hpp and the bodies of write / read / hash_* / register_crc in engine/galactic/src. The fields of the records
 // (PlayerState, PlanetState, FleetState) are listed once, in galactic_records.hpp: one visit per record serves the save
 // writer, the reader and hash_state.

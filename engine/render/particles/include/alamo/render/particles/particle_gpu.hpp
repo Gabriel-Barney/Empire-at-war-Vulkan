@@ -5,7 +5,7 @@
 //     slot of its emitters and CSSpawn over its spawn records), builds the frame's draw list (visible systems, parent
 //     fade > 0.01, whole-system AABB vs frustum, B.5) and sorts the particles of sorted emitters (blend 0/2/5/11 with
 //     0x2B) back-to-front with one CSSort group each;
-//   draw(bucket): systems back-to-front (per renderable, RENDER.md 1.4), inside a system its emitters in file order, one
+//   draw(bucket): systems back-to-front (per renderable, legacy docs/re/RENDER.md 1.4), inside a system its emitters in file order, one
 //     instanced draw each (6 vertices x pool, dead slots degenerate): bucket 8 (Transparent), bucket 7 (Water) for
 //     systems flagged water, bucket 11 (Heat) for heat emitters (0x3B, drawn as PrimAlpha).
 // Blend states (SPEC 3.1): 0 opaque (z-write), 1/4 ONE/ONE (alpha fades RGB), 2/5/7/11/13 SRCALPHA/INVSRCALPHA,
@@ -53,9 +53,9 @@ public:
 
     // Scene wind for the Affected_By_Wind particle path (FrameConstants::wind, particles.hlsl: velocity += wind x 0.5 x dt;
     // weather particles step with velocity + 5 x wind). World space, world units per second. Hosts set it at map load
-    // from render::scene_wind (map_scene.hpp, cu8f t05): land = the active environment's wind, space = zero.
+    // from render::scene_wind (map_scene.hpp): land = the active environment's wind, space = zero.
     void set_wind(const Float3& w) { wind_ = w; }
-    // vis1 t05 (ANIM_PARTICLES B.4, docs/re/WEATHER_VISUALS.md §7): the land terrain for the ground behaviour of emitters
+    // vis1 t05 (ANIM_PARTICLES B.4, legacy docs/re/WEATHER_VISUALS.md §7): the land terrain for the ground behaviour of emitters
     // with 0x2F = 1 / 2 - the height grid (row-major, `width` x `height` vertices `spacing` world units apart from the
     // origin, world z), sampled like terrain::Terrain::sample_height. Empty = no terrain (space): no ground test. Call
     // after init(), with the GPU idle or before the first prepare() that uses it (the buffer is replaced at once).
@@ -116,7 +116,7 @@ private:
     VkPipeline cs_update_ = VK_NULL_HANDLE, cs_spawn_ = VK_NULL_HANDLE, cs_sort_ = VK_NULL_HANDLE, cs_clear_ = VK_NULL_HANDLE;
     std::map<std::tuple<uint32_t, VkFormat, VkFormat, VkFormat, VkSampleCountFlagBits>, VkPipeline> gfx_;
     rhi::Buffer particles_, order_, death_;
-    rhi::Buffer heights_;  // vis1 t05: terrain heights (binding 8; a 16-byte dummy without terrain)
+    rhi::Buffer heights_;  // terrain heights (binding 8; a 16-byte dummy without terrain)
     float ground_[4] = {0, 0, 1, 0};  // grid width, height, spacing, enabled
     uint32_t capacity_ = 0;
     GpuTexture default_tex_;

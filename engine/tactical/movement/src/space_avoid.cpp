@@ -1,4 +1,4 @@
-// Space avoidance tree and precise model test (docs/re/SPACE_AVOIDANCE.md). See space_avoid.hpp.
+// Space avoidance tree and precise model test (legacy docs/re/SPACE_AVOIDANCE.md). See space_avoid.hpp.
 #include "alamo/tactical/movement/space_avoid.hpp"
 
 #include <cmath>

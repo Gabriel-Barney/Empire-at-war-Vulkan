@@ -333,7 +333,7 @@ impl App {
                 }
             }
         }
-        // ums3: the install and the mods come from the port's own check (alamo_mod_check --list), not a scan here.
+        // the install and the mods come from the port's own check (alamo_mod_check --list), not a scan here.
         let (steam, mods, mod_check, catalog_error) = load_catalog(&cfg.settings);
 
         // `--profile "Name"` (what the desktop shortcuts use) picks the profile for this run.

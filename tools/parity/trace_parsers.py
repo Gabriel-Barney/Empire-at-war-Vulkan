@@ -1,4 +1,4 @@
-"""trace_parsers.py - the parsers of the Q4 parity harness (ref3 t02, 2026-11-19): the original game's Q2 state traces
+"""trace_parsers.py - the parsers of the Q4 parity harness (2026-11-19): the original game's Q2 state traces
 (Q2TRACE 1 reader, metrics, production queue, Lua probe output) and the port's outputs (ALAMO_CRC 1 log, --ai-log).
 
 Until ref3 they lived in the Q2 probe kit (tools/probe_mod/q2_traces/analysis/q2_parity.py and q2trace.py) and
@@ -172,7 +172,7 @@ def trace_metrics(path, factions_override=None, max_tick=None):
             owners_initial = dict(own)
             owners_now.update(own)
         for name, o in sorted(own.items()):
-            # q4hf t03: a run whose tick-0 sample holds one planet only (20261108-204711: CORELLIA with a placeholder
+            # a run whose tick-0 sample holds one planet only (20261108-204711: CORELLIA with a placeholder
             # owner) gets the rest at tick 1. A planet's first sight, and the setup on tick 1, are initial owners.
             if owners_initial is not None and (name not in owners_now or tick <= 1):
                 owners_initial[name] = o
@@ -680,7 +680,7 @@ def parse(path):
         in_header = True
         for ln, line in enumerate(fh, 2):
             if not line.endswith("\n"):
-                # storyb t09: a reader stopped mid-write (killed, PC off) leaves a cut last line. Drop it and, below,
+                # a reader stopped mid-write (killed, PC off) leaves a cut last line. Drop it and, below,
                 # the frame it belonged to, so validate / to-q1 still give a (partial) summary of everything before.
                 cut = True
                 break

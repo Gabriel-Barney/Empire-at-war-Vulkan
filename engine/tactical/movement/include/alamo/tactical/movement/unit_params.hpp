@@ -1,5 +1,5 @@
 // Per-unit movement parameters taken from GameObjectType fields (docs/re/MOVEMENT.md §3.4, §4,
-// §5.3; OBJECT_TYPES.md). Raw XML values: the MovementSystem applies the mode multiplier
+// §5.3; legacy docs/re/OBJECT_TYPES.md). Raw XML values: the MovementSystem applies the mode multiplier
 // (Object_Max_Speed_Multiplier_Land / _Space) to speed, acceleration and turn rate.
 #pragma once
 #include <cstdint>
@@ -115,7 +115,7 @@ struct UnitDesc {
     float strafe_distance = 0.0f;       // Strafe_Distance (+0x2118)
     float prepare_strafe_height = 0.0f; // Prepare_Strafe_Height (+0x1e24)
     bool has_pre_turn_anim = false;     // Has_Pre_Turn_Anim (+0x36)
-    // ---- S7 t06 / t14: Uses_Multiple_Locomotors swap (MOVEMENT.md §3.1.1, 0x3a9910; MovementSystem::use_secondary_locomotor) ----
+    // ---- Uses_Multiple_Locomotors swap (MOVEMENT.md §3.1.1, 0x3a9910; MovementSystem::use_secondary_locomotor) ----
     bool uses_multiple_locomotors = false;  // Uses_Multiple_Locomotors (+0x74)
     // The swap can run: Secondary_Locomotor_Name (+0x2078) is JETPACK_LOCOMOTOR and Primary_Locomotor_Name (+0x2058) is
     // not. [port] retail tells "on the secondary" by the locomotor class (JetPack vf96 = 0, every other class 1), so a
@@ -154,7 +154,7 @@ struct UnitDesc {
     // s78l t02 (MOVEMENT §3.5.1, save version 12): Rotation_Animation_Speed (+0x388, raw). The arrival turn's begin / band /
     // end clips play at (Stopped_Rate_Of_Turn, else the turn rate) / this when both are > 0, else at 1 (0x3736a0).
     float rotation_animation_speed = 0.0f;
-    // bkm1 t08 (b0050, MOVEMENT §3.5.3; save version 31): UseSecondaryFacing (+0xd2) and its five GameObjectType floats
+    // bkm1 t08 (MOVEMENT §3.5.3; save version 31): UseSecondaryFacing (+0xd2) and its five GameObjectType floats
     // (type defaults 0x367250): SecondaryTurnInPlaceROTCoefficient +0x1670, SecondaryTurnAngle +0x1674 (degrees),
     // Min / MaxSecondaryTurnROTCoefficient +0x1678 / +0x167c, SecondaryTurnLookaheadDistance +0x1680 (world units).
     bool use_secondary_facing = false;

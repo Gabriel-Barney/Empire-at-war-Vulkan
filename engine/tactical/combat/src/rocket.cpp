@@ -1,4 +1,4 @@
-// refixf t01 - ROCKET / MPTL_ROCKET flight maths (docs/re/S9_DEATH_CLONE_SHIELDS.md §2.4). See rocket.hpp.
+// ROCKET / MPTL_ROCKET flight maths (legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §2.4). See rocket.hpp.
 #include "alamo/tactical/combat/rocket.hpp"
 
 #include <bit>
@@ -454,7 +454,7 @@ bool rocket_replan_space(RocketSpline& path, Vec3 P, Vec3 E, Vec3 last_velocity,
     return true;
 }
 
-// ---- S8 t06: the terrain / water segment test 0x135840 (docs/re/LOB_SOLVER.md §6.6) ----
+// ---- the terrain / water segment test 0x135840 (legacy docs/re/LOB_SOLVER.md §6.6) ----
 
 bool ray_triangle(Vec3 O, Vec3 D, Vec3 v0, Vec3 v1, Vec3 v2, float& best) {
     // 0x20c410: Moeller-Trumbore without back-face culling, in the doc's float order (no FMA).

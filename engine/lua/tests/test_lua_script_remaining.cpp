@@ -1,5 +1,5 @@
 // engine/lua L1 final: the remaining family (bind_script_remaining.cpp, alamo/lua/script_remaining.hpp; spec
-// docs/re/L1_S4_REMAINING.md §1 / §2): every global and method it binds, with and without host hooks (the "not
+// legacy docs/re/L1_S4_REMAINING.md §1 / §2): every global and method it binds, with and without host hooks (the "not
 // available" answers and the documented data fallbacks), GlobalValue (process store, tables, userdata refused, save /
 // load), LuaScriptWrapper across two VMs, the task-force delegation to the object bindings, the family table (no
 // duplicates) and the coverage (no unbound row left).
@@ -55,7 +55,7 @@ static std::string run(LuaVm& vm, const std::string& code) {
     if (!vm.run(code, "test", &err)) return err.empty() ? "error" : err;
     return {};
 }
-// q6 t11 (docs/re/LUA_API.md "Binding error model across all bindings"): a binding error does not unwind; it logs
+// q6 t11 (legacy docs/re/LUA_API.md "Binding error model across all bindings"): a binding error does not unwind; it logs
 // "SCRIPT ERROR: ..." and sets the script's stop flag. run_stop() reports those lines as its result (a Lua error as
 // before) and clears the flag, so the next snippet runs on a live script.
 static std::string run_stop(LuaVm& vm, const std::string& code) {
@@ -143,7 +143,7 @@ struct Db {
                    "<AI_Combat_Power>40</AI_Combat_Power><Projectile_Types>Laser_P</Projectile_Types>"
                    "<Energy_Capacity>250</Energy_Capacity><Tactical_Bribe_Cost>300</Tactical_Bribe_Cost></SpaceUnit>\n"
                    "<SpaceUnit Name=\"Fighter\"><CategoryMask>Fighter</CategoryMask><AI_Combat_Power>10</AI_Combat_Power></SpaceUnit>\n"
-                   // mcx8 t12: Can_Garrison needs a GARRISON_* host behaviour, a GARRISON_UNIT and free slots.
+                   // Can_Garrison needs a GARRISON_* host behaviour, a GARRISON_UNIT and free slots.
                    "<GroundStructure Name=\"Bunker\"><Garrison_Category>Infantry</Garrison_Category>"
                    "<Behavior>GARRISON_STRUCTURE</Behavior><Num_Garrison_Slots>4</Num_Garrison_Slots>"
                    "<Property_Flags>CanContainGarrison | GarrisonCanFire</Property_Flags></GroundStructure>\n"
@@ -221,7 +221,7 @@ struct FakeAi final : AiScriptHost {
     bool tf_collect_free_units(int32_t, uint64_t) override { return false; }
     bool status_finished(int32_t) override { return true; }
     AiStatusResult status_result(int32_t) override { return AiStatusResult::Nil; }
-    bool target_valid(int32_t t) override { return t == 5 || t == 6; }  // q6 t03: 6 = a region target (no object)
+    bool target_valid(int32_t t) override { return t == 5 || t == 6; }  // 6 = a region target (no object)
     ObjectHandle target_object(int32_t t) override { return t == 5 ? target : ObjectHandle{}; }
     bool target_position(int32_t t, Vec3& out) override {
         if (t != 6) return false;
@@ -382,7 +382,7 @@ static void test_fields(const Db& db) {
     CHECK(run(lv, "s = Are_On_Opposite_Sides_Of_Shield(Ship, Create_Position(5, 0, 0)); s4 = Are_On_Opposite_Sides_Of_Shield(Ship, Ship, P, true)") ==
           "");
     CHECK(gtrue(lv, "s") && gtrue(lv, "s4"));
-    // mcx8 t01: a region AI target (no game object) gives its position (AotCW's BusyTacticalFreeStore passes one).
+    // a region AI target (no game object) gives its position (AotCW's BusyTacticalFreeStore passes one).
     {
         FakeAi ai;
         attach_ai_host(lv, &ai, 1);
@@ -458,7 +458,7 @@ static void test_object_methods(const Db& db) {
     CHECK(run(vm, "Ship.Get_Build_Pad_Contents()") == "" && last_message_has(vm, "is not a build pad"));
     // Build on a pad (no host): rules off -> the UC object is created and becomes the contents; rules on -> refused.
     CHECK(run(vm, "Ship.Build('Fighter')") == "" && last_message_has(vm, "-- Object ") &&
-          last_message_has(vm, "is not a valid build location."));  // mcx8 t01: retail's text (0x5739c0)
+          last_message_has(vm, "is not a valid build location."));  // retail's text (0x5739c0)
     CHECK(run(vm, "Pad.Build('No_Such_Type')") == "" && last_message_has(vm, "unknown game object type No_Such_Type"));
     CHECK(run(vm, "r = Pad.Build('Fighter', true)") == "" && !gtrue(vm, "r") && !gnil(vm, "r") && last_message_has(vm, "game rules prevent"));
     CHECK(run(vm, "Pad.Build('Fighter', 1)") == "" && last_message_has(vm, "Expected boolean."));
@@ -481,7 +481,7 @@ static void test_object_methods(const Db& db) {
     const RemainingObjectState* ts = e.bridge.find_remaining_state(e.store.id(trooper));
     CHECK(ps && ps->build_pad_locked && ss && !ss->dynamic_lod && ss->behaviors.size() == 1 && ss->behaviors.at(loco) == false &&
           ss->stickiness == 2.5f && ts && ts->prefer_ground == 1);
-    // cu8 t08: Enable_Behavior(id, false) disables the object's behaviour of that type (store counter, §2.6).
+    // Enable_Behavior(id, false) disables the object's behaviour of that type (store counter, §2.6).
     CHECK(e.store.behavior_disable_count(ship, e.store.behavior_index(ship, static_cast<objects::BehaviorTypeId>(loco))) == 1);
     CHECK(run(vm, "Ship.Set_Prefer_Ground_Over_Space(true)") == "" && last_message_has(vm, "missing Unit_AI behavior"));
     CHECK(run(vm, "Ship.Set_Prefer_Ground_Over_Space()") == "" && last_message_has(vm, "Missing required boolean parameter."));
@@ -693,13 +693,13 @@ static void test_task_forces(const Db& db) {
     // OI lua (A1 ask 2): objects-family position arguments take AI targets (-> their object) and task forces (-> the
     // first live unit), without the AI VMs' Lua shim.
     set_ai_target_global(vm, "Gone", 9);  // not a valid target: no object
-    // refixf t03: Find_Nearest candidates are UNIT_AI objects (the troopers; the ship has no UNIT_AI).
+    // Find_Nearest candidates are UNIT_AI objects (the troopers; the ship has no UNIT_AI).
     CHECK(run(vm, "n1 = Find_Nearest(TF, 'Trooper'); n2 = Find_Nearest(Tgt, 'Trooper'); n3 = Find_Nearest(Gone)") == "");
     CHECK(gid(vm, "n1") == e.store.id(t2) && gid(vm, "n2") == e.store.id(t2) && gnil(vm, "n3"));
     const uint32_t before = e.bridge.orders_issued;
     CHECK(run(vm, "s1 = Ship.Attack_Move(Tgt); s2 = Ship.Move_To(TF); s3 = Ship.Guard_Target(Tgt)") == "");
     CHECK(e.bridge.orders_issued == before + 3 && !gnil(vm, "s1") && !gnil(vm, "s2"));
-    // q6 t03: an invalid AI target is a script error (no unwind, the script's exited flag), not a Lua error.
+    // an invalid AI target is a script error (no unwind, the script's exited flag), not a Lua error.
     CHECK(run(vm, "Ship.Move_To(Gone)") == "" && last_message_has(vm, "SCRIPT ERROR: GameObjectWrapper::Move_To -- Target is already dead."));
     CHECK(vm.exit_requested());
     reset_script_threads(vm);
@@ -709,7 +709,7 @@ static void test_task_forces(const Db& db) {
     CHECK(run(vm, "n6 = Find_Nearest(Tgt)") == "" && gnil(vm, "n6"));  // no host: an AI wrapper resolves to nothing
 }
 
-// q6 t03 (docs/re/LUA_API.md "Unit order bindings: target arguments"): GameObjectWrapper Attack_Target takes an object or
+// q6 t03 (legacy docs/re/LUA_API.md "Unit order bindings: target arguments"): GameObjectWrapper Attack_Target takes an object or
 // an AI target (its object), Move_To / Attack_Move / Guard_Target also task forces and positions; argument errors are
 // script errors (logged, nothing returned, pcall succeeds, the script's exited flag), the thread runs on to its yield and
 // the Service then stops the script's other threads.
@@ -721,7 +721,7 @@ static uint32_t payload_u32(const commands::EventData& e, size_t at) {
 }
 #endif
 
-// ref5 t03: one position rule (detail::position_arg) in every binding family: a region AI target (6, a position with no
+// one position rule (detail::position_arg) in every binding family: a region AI target (6, a position with no
 // object) and a task force (3, its first live unit) are positions for the object family (Get_Distance), the script
 // helpers (Is_Point_In_Nebula, Are_On_Opposite_Sides_Of_Shield) and the story family (Add_Radar_Blip; no object
 // followed); an empty task force is not a position. The FogOfWar family: test_lua_fog.cpp.
@@ -997,7 +997,7 @@ static void test_tactical_perception(const Db& db) {
     th.ambush = AiTacticalScriptHost::kAmbushTargetDead;
     CHECK(run(vm, "a7 = TF.Prepare_Ambush(AITarget, 'front', 250, 0.5)") == "" && gnil(vm, "a7") &&
           last_message_has(vm, "Target object is already dead") && th.direction == 0);
-    // mcx6 t06 (LUA_API.md "Task force: Enable_Attack_Positioning and Release_Reinforcements"): land 0x6eaa80 - exactly one
+    // mcx6 t06 (legacy docs/re/LUA_API.md "Task force: Enable_Attack_Positioning and Release_Reinforcements"): land 0x6eaa80 - exactly one
     // argument (a nil counts), a boolean; the errors stop the script with retail's texts (two spaces after the full stop)
     // and change nothing; no return value. The space method is retail's no-op 0x17d070 (no check, no message).
     CHECK(run(vm, "e1 = TF.Enable_Attack_Positioning()") == "" && gnil(vm, "e1") && th.attack_pos_calls == 0 && vm.exit_requested() &&

@@ -1,4 +1,4 @@
-// A1 stage 1b - tactical perceptual evaluators and token leaves (docs/re/AI_TACTICAL_PERCEPTION.md 1-3).
+// A1 stage 1b - tactical perceptual evaluators and token leaves (legacy docs/re/AI_TACTICAL_PERCEPTION.md 1-3).
 //
 // The equation language, linker, '#' operator, Function_/Script_ references and token ids are S2's
 // (alamo/ai/perception_equations.hpp, used unchanged). This file is the tactical TokenResolver: the
@@ -19,7 +19,7 @@
 //   <unit>.Type.IsType            -> 1 iff the object's type name is one of Parameter_Type [L]
 //   <land location>.Hints.<name>  -> PerceptionWorld::zone_hint (absent: 0) [L: value rule open item 2]
 //
-// Duplicate zone names (TACTICAL_GAPS 6.8, A1 t03) [H; M for "evaluation looks the evaluator up by the bound id"]:
+// Duplicate zone names (TACTICAL_GAPS 6.8) [H; M for "evaluation looks the evaluator up by the bound id"]:
 // every hint zone gets its own region target (own handle, centre, reachability, list position), but the
 // original registers location evaluators under the zone's NAME id and refuses a second registration, so a
 // zone whose name repeats an earlier zone's evaluates through the evaluator of the first REGISTERED zone with
@@ -84,11 +84,11 @@ struct PerceptionTarget {
 
 struct TacticalPerceptionConfig {
     // GameObjectCategoryType name -> mask (0 unknown). Default: the objects module's built-in table; TacticalAiWorld sets
-    // tactical_category_resolver(types) = category_mask_from(types->enums()) when it has the types (A2k t06).
+    // tactical_category_resolver(types) = category_mask_from(types->enums()) when it has the types.
     std::function<uint64_t(std::string_view)> category_mask;
 };
 
-// A2k t06: GameObjectCategoryType name -> bits with the converter of `enums` (objects::GameObjectTypes::enums(): loaded from
+// GameObjectCategoryType name -> bits with the converter of `enums` (objects::GameObjectTypes::enums(): loaded from
 // Data\XML\Enum\GameObjectCategoryType.xml through the VFS, so mod categories get their bits); 0 for an unknown name or
 // a discarded converter. `enums` must outlive the returned function.
 std::function<uint64_t(std::string_view)> category_mask_from(const objects::EnumRegistry& enums);
@@ -125,7 +125,7 @@ public:
     TacticalTokenResolver(const TacticalPerception& p, const PerceptionWorld& w) : p_(p), w_(w) {}
     bool resolve(const EvalContext& ctx, const TokenRef& token, double& out) const override;
     bool implements(Root root, std::span<const TokenId> path, const TokenTable& tokens) const override;
-    // implements() without a resolver (it reads only the leaf tables): the load report's ai.token_coverage (mcx0 t06).
+    // implements() without a resolver (it reads only the leaf tables): the load report's ai.token_coverage.
     static bool path_implemented(Root root, std::span<const TokenId> path, const TokenTable& tokens);
     // Script_<File>.Evaluate (AI_GALACTIC_2 §4.4, unchanged in tactical): TacticalPerception's script evaluator
     // (fails without one). Serial callers only.

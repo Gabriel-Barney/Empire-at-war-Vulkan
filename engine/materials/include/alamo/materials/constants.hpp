@@ -1,5 +1,5 @@
 // GPU constant layouts shared by the C++ side and engine/materials/shaders/common.hlsli
-// (PORTING.md 2.2 - 2.4). Every member is a float4 / uint4 (or an array of them), so the
+// (legacy docs/shaders/PORTING.md 2.2 - 2.4). Every member is a float4 / uint4 (or an array of them), so the
 // layout is identical under std140, std430 and -fvk-use-dx-layout.
 //
 // Matrix convention ("register rows"): a matrix is stored as the rows R[i] that the vertex
@@ -36,7 +36,7 @@ struct FrameCB {
     float4 wind_grass_vector;       // WIND_GRASS_PARAMS
     float4 fog_color;               // was D3DRS_FOGCOLOR
     float4 shadow_params;           // x SHADOW_EXTRUSION_DISTANCE, y DEPTH_SCALE (addition to 2.2)
-    // Fixed-function lights 1 and 2 (the two fills, RENDER.md 2.3; zero in space). The FF path
+    // Fixed-function lights 1 and 2 (the two fills, legacy docs/re/RENDER.md 2.3; zero in space). The FF path
     // lights with D3DLIGHT 0..2 + ambient (light 0's ambient = scene ambient, D3DRS_AMBIENT = 0);
     // the shader paths only see light 0 and the SH matrices. World space, towards the light;
     // diffuse = colour x intensity, specular = specular x 2 x intensity.
@@ -93,7 +93,7 @@ enum EngineSampler : uint32_t {   // set 1 binding 1 sampler array (quality-cont
 // (D3D9 FF reads a missing texture as white). The sampler slot still goes in the high 8 bits.
 constexpr uint32_t kNoTexture = 0u;
 
-// set 0, binding 2 - MaterialTable record for the whole mesh family (PORTING.md 2.3), 96 bytes.
+// set 0, binding 2 - MaterialTable record for the whole mesh family (legacy docs/shaders/PORTING.md 2.3), 96 bytes.
 struct MeshMaterial {
     float4 diffuse;           // .xyz Diffuse, .w Diffuse.w where float4 (BatchMeshAlpha) / 1
     float4 emissive;          // .xyz Emissive, .w Shininess (Planet: AtmospherePower)
@@ -110,7 +110,7 @@ static_assert(offsetof(MeshMaterial, uv_offset_scroll) == 64);
 static_assert(offsetof(MeshMaterial, tex) == 80);
 static_assert(sizeof(MeshMaterial) == 96);
 
-// set 0, binding 3 - BonePalette SSBO, one world-space bone matrix per entry (PORTING.md 2.4).
+// set 0, binding 3 - BonePalette SSBO, one world-space bone matrix per entry (legacy docs/shaders/PORTING.md 2.4).
 // Rigid skinning, 1 bone per vertex, no weights. The vertex shader reads the bone index from
 // NORMAL.w (truncated, as the original vs_1_1 code did) and fetches
 // BonePalette[DrawData.bone_base + index]. NORMAL.w holds the SUBMESH-LOCAL index (the ALO
@@ -123,7 +123,7 @@ struct BoneMatrix {
 static_assert(sizeof(BoneMatrix) == 48);
 constexpr int kOriginalPaletteBones = 24;     // m_skinMatrixArray float3x4[24], c0..c71
 
-// set 0, binding 4 - per-draw fixed-function data (FF ubershader, PORTING.md 3.4), 432 bytes.
+// set 0, binding 4 - per-draw fixed-function data (FF ubershader, legacy docs/shaders/PORTING.md 3.4), 432 bytes.
 // Built on the CPU per draw from the resolved FF pass (fixed_function.hpp).
 struct FfStage {
     uint32_t color_op, color_arg1, color_arg2, alpha_op;            // D3DTOP_* / D3DTA_* values
@@ -148,7 +148,7 @@ static_assert(offsetof(FfDrawData, stage) == 304);
 static_assert(offsetof(FfDrawData, tex) == 400);
 static_assert(sizeof(FfDrawData) == 432);
 
-// Generic D3D9 register files for translated SM1-3 shaders (PORTING.md 1, track B).
+// Generic D3D9 register files for translated SM1-3 shaders (legacy docs/shaders/PORTING.md 1, track B).
 //   set 0 binding 0 : VSConstants { float4 c[256]; }   CTAB register order
 //   set 0 binding 1 : PSConstants { float4 c[32];  }   ps_2_0 has 32, ps_1_x 8
 //   set 1 binding 0..15 : combined image samplers s0..s15 (ps_1_x: sampler n = texture stage n)

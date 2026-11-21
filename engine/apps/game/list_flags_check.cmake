@@ -1,4 +1,4 @@
-# ref3 t05: alamo_game --list-flags --json (game_main.cpp kGameFlags, schema alamo.game_flags) must equal the copy the
+# alamo_game --list-flags --json (game_main.cpp kGameFlags, schema alamo.game_flags) must equal the copy the
 # Command Center's tests read (launcher/src/testdata/game_flags.json), line for line (the exe writes CRLF to a file, the checkout has LF). The launcher itself reads the list
 # from the exe at run time; this keeps its test data from going stale.
 #   cmake -DGAME=<alamo_game.exe> -DEXPECTED=<launcher/src/testdata/game_flags.json> -DOUT=<file> -P list_flags_check.cmake

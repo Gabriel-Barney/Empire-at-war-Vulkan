@@ -1,5 +1,5 @@
 // A1 stage 1b - the Lua-facing functions that read the threat grid or combat power
-// (docs/re/AI_TACTICAL_PERCEPTION.md 5, AI_TACTICAL.md 6.4). Pure C++; the Lua bindings are stage 2.
+// (legacy docs/re/AI_TACTICAL_PERCEPTION.md 5, legacy docs/re/AI_TACTICAL.md 6.4). Pure C++; the Lua bindings are stage 2.
 #pragma once
 #include <cstdint>
 #include <optional>

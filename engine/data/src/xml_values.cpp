@@ -132,7 +132,7 @@ namespace {
 // Visits every field occurrence of entry `e` in document order with the rule's walk: (element, trimmed value) for each
 // occurrence that changes a field. A child with element children is a container (kData descends into it; its own text
 // is not a field value in practice and is ignored); kAbility looks at direct children only. kObject skips a container
-// marked SubObjectList="Yes" (exactly): it holds sub-objects, not fields of this entry (OBJECT_TYPES.md §4.2).
+// marked SubObjectList="Yes" (exactly): it holds sub-objects, not fields of this entry (legacy docs/re/OBJECT_TYPES.md §4.2).
 template <typename F>
 void walk(XmlNode e, EntryRule rule, F&& visit) {
     for (XmlNode c = e.first_child(); c; c = c.next_sibling()) {

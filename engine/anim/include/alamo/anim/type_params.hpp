@@ -1,4 +1,4 @@
-// R3: the GameObjectType fields animation reads (docs/re/ANIM_PARTICLES.md §A.2, §A.7), resolved from the
+// R3: the GameObjectType fields animation reads (legacy docs/re/ANIM_PARTICLES.md §A.2, §A.7), resolved from the
 // typed object view (engine/objects). Built only when engine/objects is configured
 // (ALAMO_ANIM_HAVE_OBJECTS).
 #pragma once

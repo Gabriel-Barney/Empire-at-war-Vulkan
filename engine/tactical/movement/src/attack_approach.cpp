@@ -1,4 +1,4 @@
-// s78n t25.1: the attack approach on land, pure geometry (docs/re/MOVEMENT.md §4.3.2 items 2-4, 6 and 7).
+// the attack approach on land, pure geometry (docs/re/MOVEMENT.md §4.3.2 items 2-4, 6 and 7).
 #include "alamo/tactical/movement/attack_approach.hpp"
 
 #include <algorithm>
@@ -13,14 +13,14 @@
 
 namespace alamo::tactical::movement {
 
-// s78n t25.1: §4.3.2 item 2, the coefficient loop (float32: six tries for 0.2).
+// §4.3.2 item 2, the coefficient loop (float32: six tries for 0.2).
 std::vector<float> attack_arc_tries(float base) {
     std::vector<float> out;
     for (float f = base; f > -1.0f && out.size() < 64; f -= 0.2f) out.push_back(f);
     return out;
 }
 
-// s78n t25.1: §4.3.2 item 4, step(a, b) as written in 0x43b520.
+// §4.3.2 item 4, step(a, b) as written in 0x43b520.
 float arc_step(float a, float b, float rho) {
     const float ab = a + b;
     return dmath::acos(dmath::sqrt(rho * rho - ab * ab / 4.0f) / rho);
@@ -32,7 +32,7 @@ V2 rot(V2 v, float th) {
     return {v.x * c - v.y * s, v.x * s + v.y * c};
 }
 
-// s78n t25.1: 0x43b520, one ring (§4.3.2 item 4).
+// 0x43b520, one ring (§4.3.2 item 4).
 bool ring_place(std::span<RingForm> prefix, V2 c, V2 u, V2 d0, float rho_k, float half_arc, const SlotTestFn& test, bool commit) {
     const size_t n = prefix.size();
     if (n == 0) return true;
@@ -108,7 +108,7 @@ bool ring_place(std::span<RingForm> prefix, V2 c, V2 u, V2 d0, float rho_k, floa
     return true;
 }
 
-// s78n t25.1: 0x43d380, the rings of one coefficient try (§4.3.2 item 3).
+// 0x43d380, the rings of one coefficient try (§4.3.2 item 3).
 bool ring_layout(std::span<RingForm> l, V2 c, V2 u, V2 d0, float r, float f, float r_t, const SlotTestFn& test, bool commit) {
     const float r_min = std::max(r_t, r * f);
     const float half_arc = attack_half_arc(f);
@@ -134,7 +134,7 @@ bool ring_layout(std::span<RingForm> l, V2 c, V2 u, V2 d0, float r, float f, flo
     return start == l.size();
 }
 
-// s78n t25.1: a member's slot position on the laid-out path (§4.3.2 item 7).
+// a member's slot position on the laid-out path (§4.3.2 item 7).
 bool trim_point(std::span<const V2> path, float s, float depth, float lateral, bool extend, V2& out) {
     if (path.empty()) return false;
     const float q = s + depth;
@@ -186,7 +186,7 @@ bool trim_point(std::span<const V2> path, float s, float depth, float lateral, b
     return true;
 }
 
-// s78n t25.1: 0x410e90, the fire trim (§4.3.2 item 7). cmb1 t05: `guard` = start back by guard_range (BKR1 Q7 (a): only a
+// 0x410e90, the fire trim (§4.3.2 item 7). `guard` = start back by guard_range (BKR1 Q7 (a): only a
 // guard of a LAND_OBSTACLE object; the caller passes false for every other block, guard or not).
 float fire_trim(std::span<const V2> path, std::span<const TrimMember> members, bool guard, float guard_range,
                 const MemberFireFn& can_fire) {
@@ -211,7 +211,7 @@ float fire_trim(std::span<const V2> path, std::span<const TrimMember> members, b
     }
 }
 
-// s78n t25.1: §4.3.2 item 6, the slot leg point Q'.
+// §4.3.2 item 6, the slot leg point Q'.
 bool slot_leg_point(V2 g, V2 v, float theta, float q, V2& out) {
     if (!(q > 0.0f)) return false;
     out = g + rot(v * -1.0f, theta) * q;
@@ -284,7 +284,7 @@ V2 last_dir(std::span<const V2> p) {
         if (length_sq(p[i] - p[i - 1]) > 0.0f) return normalize_retail(p[i] - p[i - 1]);
     return {};
 }
-// cmb3 t03 (b0199, BKR2 Q7 item 4 [H]): the slot leg (0x417520) takes the literal first segment (p[1] - p[0]) and last
+// cmb3 t03 (BKR2 Q7 item 4 [H]): the slot leg (0x417520) takes the literal first segment (p[1] - p[0]) and last
 // segment, normalised; a zero segment gives (0, 0), so a zero last segment means no leg and a zero first segment fails the
 // dot test (> 0). Every pathfinder waypoint has z = 0 (MOVEMENT §3.5.2 "Waypoint z" items 1 - 2; G's z is appended only after
 // the leg path), so retail's 3-D unit vectors equal these 2-D ones.
@@ -322,7 +322,7 @@ float slot_leg_reach(const PassabilityGrid& grid, const RegionMap& regions, V2 g
     return piece_reach(grid, regions, g, q, mask, ok);
 }
 
-// s78n t25.2: the box loop of place_formation (0x43d6a0; the union of the slot rectangles), factored out for 0x438c10.
+// the box loop of place_formation (0x43d6a0; the union of the slot rectangles), factored out for 0x438c10.
 bool MovementSystem::formation_box(const std::vector<uint32_t>& idx, const LandForm& f, V2 axis, float& x0, float& x1,
                                    float& y0, float& y1) const {
     x0 = 3.0e38f;
@@ -388,7 +388,7 @@ bool MovementSystem::attack_path(const Unit& lead, uint32_t mask, V2 centroid, V
     return true;
 }
 
-// s78n t25.2: 0x43a070, the attack-arc slot test (§4.3.2 item 5) of formation f with (HX, HY) at the slot point p, for
+// 0x43a070, the attack-arc slot test (§4.3.2 item 5) of formation f with (HX, HY) at the slot point p, for
 // the formation's class 0x4779e0 (LandForm::mask, s78n t26 review round 2): p passable, zone-connected to the lead, the
 // terrain line p -> C clear (every crossed cell, the last included: a target on a stamped cell never gets a slot), and
 // the object test - the layer objects within sqrt(HX^2 + HY^2) + E of p, without the target, the order's units, objects
@@ -399,7 +399,7 @@ bool MovementSystem::attack_path(const Unit& lead, uint32_t mask, V2 centroid, V
 bool MovementSystem::arc_slot_test(const MoveOrder& order, const std::vector<uint32_t>& idx, const LandForm& f, float hx,
                                    float hy, V2 p) const {
     const Unit& lead = units_[idx[f.members[0]]];
-    const uint32_t mask = f.best;  // bkm1 t03: 0x43a070 calls 0x4779e0 itself (not 0x414720's plan class)
+    const uint32_t mask = f.best;  // 0x43a070 calls 0x4779e0 itself (not 0x414720's plan class)
     const V2 c = order.attack.c;
     if (!grid_.passable_world(p, mask)) return false;
     if (!zone_connected(regions_, mask, p, lead.m.pos)) return false;
@@ -446,9 +446,9 @@ bool MovementSystem::arc_slot_test(const MoveOrder& order, const std::vector<uin
     return sum < 0.15f * hx * hy;
 }
 
-// s78n t25.2: 0x438c10 (§4.3.2 item 2) at a new non-guard attack order. L = the formations whose lead is a Land layer
+// 0x438c10 (§4.3.2 item 2) at a new non-guard attack order. L = the formations whose lead is a Land layer
 // object and that have a member not in range (slots 44 / 45 at order time); R = the minimum engagement range over the
-// order's units; the reference formation (nearest to the mean of L's centroids, strict <, first wins; cmb2 t02: 3-D) is
+// order's units; the reference formation (nearest to the mean of L's centroids, strict <, first wins; 3-D) is
 // test-planned (attack_path); fewer than 2 points or a zero last segment -> nothing written. L sorted rear-most first
 // (ascending (centroid - path start) . d0; [port] stable, lead-id tie-break), the six coefficient tries of ring_layout
 // on the ring axis u = -d1 around C, the first success re-run with commit and written to every member of each formation.
@@ -508,7 +508,7 @@ void MovementSystem::attack_slots(const MoveOrder& order, const std::vector<uint
         unslotted(forms[ref]);
         return;
     }
-    // s78o (b0072): the first / last non-zero segment, as attack_plan takes them ([port] the port's paths may start with the
+    // s78o: the first / last non-zero segment, as attack_plan takes them ([port] the port's paths may start with the
     // start point and its cell centre): a zero first segment no longer gives d0 = (0, 0) and the rear-most / left-to-right
     // ring order by id alone (crossed slots); no non-zero segment -> unslotted below
     const V2 d0 = first_dir(path);
@@ -558,7 +558,7 @@ void MovementSystem::attack_slots(const MoveOrder& order, const std::vector<uint
     unslotted(forms[ref]);
 }
 
-// s78n t25.2: one formation's attack plan (§4.3.2 items 6 - 7; 0x41c1a0 -> 0x417520 -> 0x40eb90 / 0x410e90), run at the
+// one formation's attack plan (§4.3.2 items 6 - 7; 0x41c1a0 -> 0x417520 -> 0x40eb90 / 0x410e90), run at the
 // order ([port] retail plans at the formation update that follows). Non-guard with the fire hook set and every member
 // able to fire from where it stands (0x40edd0): the members stop as halt() stops them (End Move braking, the path stack
 // cleared), arrived, the slot kept; no path. Else the path to G (attack_path; failure: the members are stopped and
@@ -603,9 +603,9 @@ bool MovementSystem::attack_plan(const MoveOrder& order, const std::vector<uint3
         }
     }
     V2 g = order.attack.g;
-    const V2 g_ordered = g;  // bkm1 t06: attack_path's zone re-validation 0x50f480 may replace it (then z = 0)
+    const V2 g_ordered = g;  // attack_path's zone re-validation 0x50f480 may replace it (then z = 0)
     std::vector<V2> path;
-    float fz = 0.0f;  // bkm1 t06: the stored height of the path's last point (a slot leg's G)
+    float fz = 0.0f;  // the stored height of the path's last point (a slot leg's G)
     if (f.members.size() > 1) ++stats_.formation_paths;  // s78p
     if (!attack_path(lead, f.mask, f.centroid, g, path)) {
         if (f.members.size() > 1) {
@@ -614,7 +614,7 @@ bool MovementSystem::attack_plan(const MoveOrder& order, const std::vector<uint3
         }
         // the plan fails: no path is set. cmb2 t03 (BKR2 Q7 item 6 [H]): the movers are listed for the host, which keeps the
         // block and retries the plan once 2 x FPS < now - the failure frame (TacticalBattle::AttackBlock::retry).
-        // mov2 t12 (b0198, BKR2 Q7 item 6 [H]): the members keep their current path stacks - each is restored to what it
+        // mov2 t12 (BKR2 Q7 item 6 [H]): the members keep their current path stacks - each is restored to what it
         // was before this order's set-up (`snap`: goal, path, push record, start, facings, pending composition), keeping
         // only the new block's formation and attack-slot data. (Before t12: stopped and failed.)
         for (const uint32_t m : f.members) attack_failed_.push_back(units_[idx[m]].d.id);
@@ -654,7 +654,7 @@ bool MovementSystem::attack_plan(const MoveOrder& order, const std::vector<uint3
                 if (lp.ok && lp.points.size() >= 2 && dot(literal_first_dir(lp.points), literal_first_dir(path)) > 0.0f) {
                     path = std::move(lp.points);
                     path.push_back(g);
-                    // bkm1 t06 (b0051, MOVEMENT §3.5.2 "waypoint z" item 3): G goes in with its xyz, Q' and the rest z = 0;
+                    // bkm1 t06 (MOVEMENT §3.5.2 "waypoint z" item 3): G goes in with its xyz, Q' and the rest z = 0;
                     // G's z = the target's (C's) height ([port] the terrain height at a staged G); a G replaced by the
                     // zone re-validation has z = 0
                     fz = !(g == g_ordered) ? 0.0f : g == order.attack.c ? order.attack.cz : terrain(g);
@@ -664,13 +664,13 @@ bool MovementSystem::attack_plan(const MoveOrder& order, const std::vector<uint3
         }
         ++(taken ? stats_.attack_legs : stats_.attack_leg_refused);
     }
-    float b0 = 0.0f;  // bkm1 t02: the front row's slot depth (MOVEMENT §4.3.3 item 2: retail's front row is depth 0)
+    float b0 = 0.0f;  // the front row's slot depth (MOVEMENT §4.3.3 item 2: retail's front row is depth 0)
     for (const Slot& s : f.slots) b0 = std::min(b0, s.back);
     std::vector<V2> uncut;  // the path before the fire trim's cut (empty: no trim)
     float goal_s = 0.0f;
     if (order.attack.trim && eng_->has_fire_test()) {
         std::vector<TrimMember> tm;
-        // s78o (b0071): a member without TARGETING (the host's LandAttackUnit::targeting) is not tested. bkm1 t02 (review):
+        // s78o: a member without TARGETING (the host's LandAttackUnit::targeting) is not tested. bkm1 t02 (review):
         // each at its depth behind the front row (b0), as its lane end (set_lanes) - the point tested is where it stops
         for (const Slot& s : f.slots) {
             const LandAttackUnit* e = attack_entry(order, units_[idx[s.member]].d.id);
@@ -692,7 +692,7 @@ bool MovementSystem::attack_plan(const MoveOrder& order, const std::vector<uint3
         // path is its first node alone and has no direction; the uncut one extends backwards along its first segment)
         uncut = path;
         cut_points(path, keep);
-        // bkm1 t06: the cut 0x54e780 interpolates z between the two waypoints it cuts between ([port] by the 2-D fraction);
+        // the cut 0x54e780 interpolates z between the two waypoints it cuts between ([port] by the 2-D fraction);
         // a cut before the last segment leaves only z = 0 points
         if (fz != 0.0f) {
             const size_t n0 = uncut.size();
@@ -728,7 +728,7 @@ bool MovementSystem::attack_plan(const MoveOrder& order, const std::vector<uint3
         x.lane.clear();
         if (x.d.locomotor != LocomotorKind::Default) x.sm.dest = goal;
     }
-    // s78p (b0049, MOVEMENT §3.5.2 D / G): the members of a formation of 2+ follow their lanes on the formation path (the slot
+    // s78p (MOVEMENT §3.5.2 D / G): the members of a formation of 2+ follow their lanes on the formation path (the slot
     // leg's and the fire trim's cut path), each ending at its slot point above ([port] the members planned singly before)
     if (f.members.size() > 1 && path.size() >= 2) set_lanes(idx, f, path, kept, mem, fz);
     return false;
@@ -784,13 +784,13 @@ void MovementSystem::set_lanes(const std::vector<uint32_t>& idx, const LandForm&
         ms.entry = sq.entry;
         ms.entry_left.assign(packs.size(), 0.0f);
         for (size_t e = 1; e < packs.size(); ++e) ms.entry_left[e] = packs[e][n];
-        if (ff.on()) {  // mcx4 t11: the slot offset (depth, lateral) turns by r(s)
+        if (ff.on()) {  // the slot offset (depth, lateral) turns by r(s)
             ms.depth = -(s.back - b0);
             ms.rot_full = ff.full;
             ms.rot_start = ff.start;
             ms.rot_rate = ff.rate;
         }
-        // bkm1 t02 (b0096, MOVEMENT §4.3.3 item 2): the depth behind the front row (retail's front row is depth 0, the
+        // bkm1 t02 (MOVEMENT §4.3.3 item 2): the depth behind the front row (retail's front row is depth 0, the
         // port's layout centres its rows). mov2 t01 (§4.3.3 items 1 - 3 [H]): the member walks a copy of the formation path,
         // steered to its slot lateral, its end lines moved by +0x68; it stops at lane_end
         const LaneShape sh = ms.shape();

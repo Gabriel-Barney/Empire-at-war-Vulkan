@@ -1,4 +1,4 @@
-// P4 completion 2: the remaining game screens (docs/re/UI.md §3.2), same host API as GameScreens (gui_screens.hpp): plain
+// P4 completion 2: the remaining game screens (legacy docs/re/UI.md §3.2), same host API as GameScreens (gui_screens.hpp): plain
 // data in through show_* / set_*, GuiManager events in through update(), ScreenActions out. Display only - no sim access.
 //
 //   IDD_SKIRMISH_BUY_UNITS_DIALOG   unit list "name  cost  xN" (IDC_SKIRMISH_BUY_FORCES_LISTBOX), credits balance, selected
@@ -7,7 +7,7 @@
 //   IDD_STORY_DIALOG                story text lines (IDC_STORY_TEXT), image; Accept / Cancel / Close -> Story*{tag}
 //   IDD_STORY_SUMMARY_DIALOG        goals + recap lists, Active / Completed radios -> StorySummaryFilter (host refills),
 //                                   Close; Abandon is permanently disabled and has no handler (retail: switched off at
-//                                   creation, no callback case; docs/re/P4_SIM_SYSTEMS.md §9.1)
+//                                   creation, no callback case; legacy docs/re/P4_SIM_SYSTEMS.md §9.1)
 //   (IDD_PLANET_INFO, GALACTIC_DIALOGS §9, is GameScreens::show_planet_info in gui_screens.hpp; IDD_PLANET_DIALOG is
 //   dead in the original and not ported)
 //   "holocron" pages (4 tab radios on every page: Droid log / Data chart / Tech tree / Summary; Close / Esc ->
@@ -19,7 +19,7 @@
 //                                   state; Land / Space radios switch the _SPACE variant
 //     IDD_SUMMARY_SCREEN_PRODUCTION / _FLEETS / _ECONOMY   planet rows (6 / 10 / 6 visible, IDC_SCROLLBAR_SLIDER scrolls),
 //                                   sub-page radios; column buttons -> SummarySort{tag}, Planetary -> SummaryPlanetary
-// Tech tree art (UI.md §3.7.2): IDC_RIGHT_ARROWn / _DRIGHT_ / _RRIGHT_ / _DOWN_ get i_tree_arrow_right / _2right / _3right /
+// Tech tree art (legacy docs/re/UI.md §3.7.2): IDC_RIGHT_ARROWn / _DRIGHT_ / _RRIGHT_ / _DOWN_ get i_tree_arrow_right / _2right / _3right /
 // _down.tga, white; the fleet summary's IDC_HEROES_DIVIDERS(r-1) is the right arrow above each filled row r >= 1.
 // [port] choices: tech icon tint locked 90 grey, available and researched white (the original has no researched colour;
 // TechState keeps the value); the data chart is drawn as 2-unit
@@ -47,7 +47,7 @@ struct BuyUnitEntry {
     uint32_t owned = 0;
     std::string icon;
     bool can_buy = true;
-    uint32_t type_index = 0;  // mcx4 t04: the host's type index (buy limits, game::skirmish_buy_allowed)
+    uint32_t type_index = 0;  // the host's type index (buy limits, game::skirmish_buy_allowed)
 };
 struct BuyUnitsState {
     int64_t credits = 0;
@@ -89,14 +89,14 @@ struct StorySummaryInfo {
     std::vector<Rgba8> recap_colors;
     int32_t selected = -1;      // goal row preselected (-1 = the last row)
     bool has_completed = true;  // false: the Completed tab is disabled
-    bool show_completed_tab = true;  // mcx4 t14: false (Campaign Show_Completed_Tab False) hides IDC_RADIO_COMPLETED
+    bool show_completed_tab = true;  // false (Campaign Show_Completed_Tab False) hides IDC_RADIO_COMPLETED
 };
 
 enum class InfoPage : uint8_t { DroidLog, DataChart, TechTree, SummaryProduction, SummaryFleets, SummaryEconomy };
 
 struct DroidLogInfo {
     std::vector<std::u32string> entries;
-    std::vector<Rgba8> colors;  // mcx4 t14: per-entry text colour (alpha 0 or missing: the skin's font colours)
+    std::vector<Rgba8> colors;  // per-entry text colour (alpha 0 or missing: the skin's font colours)
     std::string picture;
     std::vector<std::pair<std::string, std::u32string>> legend;  // (icon, text) for IDC_PA_ICONn / IDC_PA_TEXTn, n = 0..24
     bool hints = true;
@@ -117,7 +117,7 @@ struct TechTreeItem {
     TechState state = TechState::Locked;
 };
 struct TechTreeInfo {
-    // modc t20: the player faction's Tech_Tree_Dialog_Name (FoC IDD_TECH_TREE_REBEL / _EMPIRE / _BLACKMARKET); "" = the
+    // the player faction's Tech_Tree_Dialog_Name (FoC IDD_TECH_TREE_REBEL / _EMPIRE / _BLACKMARKET); "" = the
     // faction has no tech tree (the page does not open).
     std::string dialog;
     bool space = false;

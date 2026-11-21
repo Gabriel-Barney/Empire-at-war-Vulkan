@@ -1,5 +1,5 @@
 // alamo_render (lib alamo_render_sim) - R5 sim-driven terrain decorations: dynamic unit tracks and scorch decals from
-// the R1 snapshot frames (docs/re/DECORATIONS.md §4.2, §5.2; data in surface_fx.hpp). Render-side only: it reads
+// the R1 snapshot frames (legacy docs/re/DECORATIONS.md §4.2, §5.2; data in surface_fx.hpp). Render-side only: it reads
 // InterpolatedFrames and the type table, keeps its own state and random generator, and never touches the sim.
 //
 // Per new sim tick (InterpolatedFrame::tick advanced; dt = ticks / 30 s, at most 1 s):

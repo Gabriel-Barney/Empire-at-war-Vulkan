@@ -18,7 +18,7 @@
 // The planet rows fan out over a ParallelFor (per-index outputs), fleets are collected in fleet order and
 // sorted by id: the result is bit-identical for every worker count.
 //
-// Interpolation (MAIN_LOOP.md: the original renders the latest state, no interpolation): InterpMode::Original
+// Interpolation (legacy docs/re/MAIN_LOOP.md: the original renders the latest state, no interpolation): InterpMode::Original
 // (default, parity) copies the latest snapshot; InterpMode::Smooth blends fleet position / facing of fleets
 // present in both snapshots by the frame's tick alpha and the idle-animation clock (planet spin); planets and
 // routes are not interpolated (they do not move).
@@ -60,7 +60,7 @@ struct GalacticTypeInfo {
     std::string fleet_override;   // Galactic_Fleet_Override_Model_Name (units)
     float scale = 1.0f;           // Scale_Factor
     float lod_bias = 4.0f;        // LOD_Bias
-    bool in_background = false;   // In_Background (galactic background scene, SPACE_AND_OPEN.md A.3 table)
+    bool in_background = false;   // In_Background (galactic background scene, legacy docs/re/SPACE_AND_OPEN.md A.3 table)
     bool loop_idle = false;       // Loop_Idle_Anim_00
     float idle_rate = 1.0f;       // Idle_Anim_00_Rate_Mod
 };
@@ -83,7 +83,7 @@ private:
 };
 
 // Faction colours (Factions.xml <Color> / <No_Colorization_Color> / <Display_Font_Color> / <Big_Fleet_Color>,
-// FactionFiles.xml order; faction record +0xa8 / +0xd8 / +0xb8 / +0xc8, xml_field_tables.md). R2 t01: `display_font` is the
+// FactionFiles.xml order; faction record +0xa8 / +0xd8 / +0xb8 / +0xc8, xml_field_tables.md). `display_font` is the
 // colour of the faction's text (planet labels, Planet Info name: GALACTIC_DIALOGS §9.2 [H] reads +0xb8..+0xc4); `big_fleet`
 // is parsed but no reader is traced yet (needs RE).
 struct FactionColor {
@@ -106,7 +106,7 @@ bool faction_text_color(std::span<const FactionColor> table, std::string_view na
 // "R, G, B[, A]" bytes (commas and / or blanks; TradeRouteLines.xml has "128, 0 0, 255") -> float4 / 255.
 bool parse_color_bytes(std::string_view text, materials::float4& out);
 
-// Owner -> colour of the galactic map. [port] SPACE_AND_OPEN.md B.3 gives the tactical rule (MP palette by player
+// Owner -> colour of the galactic map. [port] legacy docs/re/SPACE_AND_OPEN.md B.3 gives the tactical rule (MP palette by player
 // slot); for the single-player galaxy the port uses the owner FACTION's <Color> (Factions.xml), falling back to the
 // MP palette entry of the player id when the faction has none. Neutral owners: the faction's No_Colorization_Color.
 struct GalacticPalette {
@@ -155,7 +155,7 @@ struct GalacticPlanetSnap {
     uint32_t surface_units = 0;
     uint32_t orbit_fleets = 0;
     uint16_t flags = 0;
-    // GRC 4 corruption presentation (docs/re/GALACTIC_REVEAL_CORRUPTION.md; read from the sim, never fed back):
+    // GRC 4 corruption presentation (legacy docs/re/GALACTIC_REVEAL_CORRUPTION.md; read from the sim, never fed back):
     int8_t corruption_type = -1;       // current type D +0x2f4
     int8_t corruption_effective = -1;  // 0x4b7e90: the pending type while a transition runs, else the current one
     float corruption_fraction = 1.0f;  // 0x4b7e20 at the snapshot's mode frame (the planet service's frame argument)

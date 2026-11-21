@@ -1,5 +1,5 @@
-// mcx6 t05: the story script's cinematic object calls, host side (script_cinematics.hpp), data-free. Expected values from
-// docs/re/MCX6_T05_CINEMATIC_BINDINGS.md (0x5c9a80 timer 25 - delay, shown at 35, sound at 45; the ModelEmitterType table
+// the story script's cinematic object calls, host side (script_cinematics.hpp), data-free. Expected values from
+// legacy docs/re/MCX6_T05_CINEMATIC_BINDINGS.md (0x5c9a80 timer 25 - delay, shown at 35, sound at 45; the ModelEmitterType table
 // 0x2641c0). Do_End_Cinematic_Cleanup's object set is the sim binding's (engine/lua tests, test_lua_presentation.cpp).
 #include <cstdio>
 #include <vector>

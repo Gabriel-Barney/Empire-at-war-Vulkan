@@ -66,7 +66,7 @@ std::wstring first_line_utf8(std::string_view bytes) {
 }
 
 fs::path find_game(const FindInputs& in, std::vector<std::string>* steam_libraries) {
-    // ums1 t01: one search (vfs::find_install) for every launch surface; this side only reads game_path.txt.
+    // one search (vfs::find_install) for every launch surface; this side only reads game_path.txt.
     vfs::InstallInputs v;
     if (!in.saved_file.empty() && path_exists(in.saved_file)) {
         std::string bytes;
@@ -113,7 +113,7 @@ std::optional<std::vector<std::wstring>> stack_mod_args(const std::vector<std::w
     std::vector<std::string> picked;
     for (const std::wstring& a : args) {
         std::string u = vfs::native_utf8(fs::path(a));
-        if (vfs::is_mod_arg(u)) picked.push_back(std::move(u));  // ums4 t04: the one is_mod_arg
+        if (vfs::is_mod_arg(u)) picked.push_back(std::move(u));  // the one is_mod_arg
         else out.push_back(a);
     }
     if (picked.empty()) return args;

@@ -64,7 +64,7 @@ bool RendererCore::ensure_targets(VkExtent2D ext) {
     };
     const rhi::Format ds = ds_format_ != VK_FORMAT_UNDEFINED ? rhi::from_vk(ds_format_) : rhi::from_vk(desc_.depth_format);
     // Back-buffer equivalent + depth-stencil, SceneTexture, DistortionTexture (1x), bloom A/B (1/4x),
-    // all A8R8G8B8-equivalent UNORM (TERRAIN_WATER_POST.md 4.1).
+    // all A8R8G8B8-equivalent UNORM (legacy docs/re/TERRAIN_WATER_POST.md 4.1).
     if (!make(tg_.scene, ds, 1.0f, "render.scene") || !make(tg_.scene_tex, rhi::Format::Undefined, 1.0f, "SceneTexture") ||
         !make(tg_.distortion, rhi::Format::Undefined, 1.0f, "DistortionTexture") ||
         !make(tg_.bloom_a, rhi::Format::Undefined, 0.25f, "bloom A") ||
@@ -601,7 +601,7 @@ using detail::resolve_into;
 
 bool RendererCore::build_sky(rhi::Frame& frame, const ViewMatrices& view, std::span<const Instance> sky, DrawMode mode,
                          const RecordOptions& opts, Built& out, std::vector<Instance>& storage, DrawStats& st) {
-    // Background objects: the main camera with near 10 / far 100000 (SPACE_AND_OPEN.md D.7 2: same position,
+    // Background objects: the main camera with near 10 / far 100000 (legacy docs/re/SPACE_AND_OPEN.md D.7 2: same position,
     // rotation and FOV; no re-centring). Land skydomes are camera-relative (translation = eye).
     const ViewMatrices sv = background_view(view);
     storage.clear();
@@ -625,7 +625,7 @@ bool RendererCore::build_sky(rhi::Frame& frame, const ViewMatrices& view, std::s
         sky_build_ = false;
         return ok;
     }
-    // Space background scene (SPACE_AND_OPEN.md A.4 item 3, A.4 "background scene properties"): the environment's
+    // Space background scene (legacy docs/re/SPACE_AND_OPEN.md A.4 item 3, A.4 "background scene properties"): the environment's
     // ambient + sun, fill lights 1 and 2 at intensity 0, fog off, distance fade off.
     const Lighting saved = lighting_;
     const float fb = fade_begin_, fe = fade_end_;
@@ -724,8 +724,8 @@ bool RendererCore::render(rhi::Frame& frame, VkCommandBuffer primary, const Pass
     out.set_depth_state(rhi::ImageState::Undefined);
     const bool depth = scene.has_depth();
     const float clear[4] = {target.clear[0], target.clear[1], target.clear[2], 1.0f};  // frame clear alpha is 0xFF
-    // Space too: the "no stencil shadows" rule of space mode applies to the background scene only (SPACE_AND_OPEN.md A
-    // item 2); the main space scene draws its shadow volumes, the darken and the soft-shadow resolve (RENDER.md 7.3:
+    // Space too: the "no stencil shadows" rule of space mode applies to the background scene only (legacy docs/re/SPACE_AND_OPEN.md A
+    // item 2); the main space scene draws its shadow volumes, the darken and the soft-shadow resolve (legacy docs/re/RENDER.md 7.3:
     // ~20 volumes per frame in a space battle; g1f t06 Kuat frame order). The background build never draws Shadow items.
     const bool shadows_on = opts.shadows && opts.shader_detail > 0 && ds_format_ != VK_FORMAT_UNDEFINED;
     const bool soft_on = opts.soft_shadows && opts.shader_detail > 0;  // shader detail 0: StencilDarken (hard)
@@ -826,7 +826,7 @@ bool RendererCore::render(rhi::Frame& frame, VkCommandBuffer primary, const Pass
     };
     if (timing) timing->chunks = 0;
 
-    // 0. Land world: sky cube, water reflection / refraction targets (TERRAIN_WATER_POST.md 3.5), before the
+    // 0. Land world: sky cube, water reflection / refraction targets (legacy docs/re/TERRAIN_WATER_POST.md 3.5), before the
     //    main scene. They render into their own targets with their own builds.
     const bool world_on = world_ != nullptr && mode == DrawMode::Lit;
     rhi::GpuTimer* gt = opts.gpu_timer && opts.gpu_timer->enabled() ? opts.gpu_timer : nullptr;
@@ -841,7 +841,7 @@ bool RendererCore::render(rhi::Frame& frame, VkCommandBuffer primary, const Pass
     }
     const auto tw1 = clock::now();
     const uint32_t scene_scope = gt ? gt->begin_scope(primary, "scene") : 0u;
-    // 1. Background scene(s), then a depth clear (RENDER.md 1.2). Space: its Shadow / Bloom / Heat items are not drawn
+    // 1. Background scene(s), then a depth clear (legacy docs/re/RENDER.md 1.2). Space: its Shadow / Bloom / Heat items are not drawn
     //    (no stencil shadows, no heat in the background scene) and the space FOW plane closes it (A.4).
     bool cleared = false;
     const bool space_fow = world_on && opts.space && world_->space() && world_->fow_enabled();
@@ -849,7 +849,7 @@ bool RendererCore::render(rhi::Frame& frame, VkCommandBuffer primary, const Pass
         begin_target(fn, primary, scene, depth, clear, true, false);
         if (opts.space) {
             const size_t k0 = bucket_begin(skyb.items, PhaseBucket::Shadow), k1 = bucket_begin(skyb.items, PhaseBucket::Water);
-            // Background bucket mask 0xbbf (SPACE_AND_OPEN.md A.5) leaves out Shadow (bit 6) and Bloom (bit 10); Heat
+            // Background bucket mask 0xbbf (legacy docs/re/SPACE_AND_OPEN.md A.5) leaves out Shadow (bit 6) and Bloom (bit 10); Heat
             // (bit 11) is in the mask but the background has no heat target / composite (A.4: heat 0), so it is skipped.
             const size_t k2 = bucket_begin(skyb.items, PhaseBucket::Bloom);
             if (k0 > 0) record_range(primary, skyb, 0, k0, W, H, true);
@@ -864,7 +864,7 @@ bool RendererCore::render(rhi::Frame& frame, VkCommandBuffer primary, const Pass
         cleared = true;
     }
     // 1b. Terrain patches (bucket 0, the terrain render task precedes the bucket's mesh draws), then the
-    //     terrain decorations 3, 2, 1, 0, 4 (DECORATIONS.md 0 item 2).
+    //     terrain decorations 3, 2, 1, 0, 4 (legacy docs/re/DECORATIONS.md 0 item 2).
     bool depth_cleared = false;
     if (world_on) {
         begin_target(fn, primary, scene, depth, cleared ? nullptr : clear, true, false);
@@ -891,7 +891,7 @@ bool RendererCore::render(rhi::Frame& frame, VkCommandBuffer primary, const Pass
             begin_target(fn, primary, scene, depth, nullptr, false, false);
             // Soft path [port]: the blur reads the frame's ALPHA as the shadow mask, but the port's passes write alpha
             // (texture alpha of terrain, units, decorations, water ...) where the original keeps it at 1 (RGB-only
-            // writes, TERRAIN_WATER_POST.md 4.3). Reset it to 1 first, else every pixel with alpha < 1 takes the
+            // writes, legacy docs/re/TERRAIN_WATER_POST.md 4.3). Reset it to 1 first, else every pixel with alpha < 1 takes the
             // shadow colour (playtest 3: the whole land frame darkened).
             ok = !soft_on || post_darken(frame, primary, *dk, W, H, true);
             if (ok) ok = post_darken(frame, primary, *dk, W, H);
@@ -950,7 +950,7 @@ bool RendererCore::render(rhi::Frame& frame, VkCommandBuffer primary, const Pass
         world_draw_water_tracks(frame, primary, view, W, H);  // decoration type 5 right after the water
         fn.vkCmdEndRendering(primary);
     }
-    // Laser projectiles (PROJECTILE_NEBULA_DRAW.md 1): one PrimAdditive batch per kind at the end of the Transparent
+    // Laser projectiles (legacy docs/re/PROJECTILE_NEBULA_DRAW.md 1): one PrimAdditive batch per kind at the end of the Transparent
     // bucket [port: where the original's single flush task sorts among the bucket's tasks is not traced].
     auto laser_pass = [&]() {
         if ((lasers_.empty() && !beams_active_) || mode != DrawMode::Lit) return;
@@ -1009,7 +1009,7 @@ bool RendererCore::render(rhi::Frame& frame, VkCommandBuffer primary, const Pass
         resolve_into(fn, primary, scene, &out, &out);
         if (gt) gt->end_scope(primary, msaa_scope);
     }
-    // 5. Post: SceneTexture copy after Transparent, heat, bloom (RENDER.md 1.4/1.5, 4.4/4.5).
+    // 5. Post: SceneTexture copy after Transparent, heat, bloom (legacy docs/re/RENDER.md 1.4/1.5, 4.4/4.5).
     const auto tp0 = clock::now();
     const uint32_t post_scope = gt ? gt->begin_scope(primary, "post") : 0u;
     if (heat_on || bloom_on) {
@@ -1371,6 +1371,10 @@ bool setup_validation_env(const std::string& source_dir) {
         set_env("VK_LAYER_PATH", vvl.lexically_normal().make_preferred().string());
     const char* dis = std::getenv("VK_LOADER_LAYERS_DISABLE");
     if (!dis || !*dis) set_env("VK_LOADER_LAYERS_DISABLE", "~implicit~");
+    // A run that hides every driver (the synthetic test suite sets VK_LOADER_DRIVERS_DISABLE=*) has no device to validate on,
+    // so the "validation layers present means a device is required" rule does not apply.
+    const char* drivers_off = std::getenv("VK_LOADER_DRIVERS_DISABLE");
+    if (drivers_off && *drivers_off) return false;
     lp = std::getenv("VK_LAYER_PATH");
     if (!lp || !*lp) return false;
     const std::string s(lp);

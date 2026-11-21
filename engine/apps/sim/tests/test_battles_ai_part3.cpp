@@ -9,7 +9,7 @@ namespace {
 
 // The chase ranges on the land types (the test data has none): Idle_Chase_Range 300, Attack_Move_Response_Range 200,
 // Guard_Chase_Range 400 on the company (a squad container's ranges, 0x3973b0) and the trooper (a unit's own).
-// cmb2 t04: with g_trooper_hp the trooper also gets the targetable hard point HP_S10_Laser_A
+// with g_trooper_hp the trooper also gets the targetable hard point HP_S10_Laser_A
 bool g_trooper_hp = false;
 
 std::string chase_ranges(std::string t) {
@@ -60,7 +60,7 @@ struct LandAutoEngageRun {
     bool found = false, idle_none = false, ordered = false, arrived = false, pushed = false, moved_toward = false;
     bool popped = false, resumed = false;
     uint32_t push_frames = 0, pop_frames = 0;
-    int32_t push_hp = -2;  // cmb2 t04: the hard point the auto block names (-1 none)
+    int32_t push_hp = -2;  // the hard point the auto block names (-1 none)
 };
 
 LandAutoEngageRun run_land_auto_engage(const Data& d) {
@@ -398,7 +398,7 @@ void test_land_auto_engage() {
                     r.moved_toward ? 1 : 0, r.popped ? 1 : 0, r.pop_frames, r.resumed ? 1 : 0);
         CHECK(r.found && r.idle_none && r.ordered && r.arrived && r.pushed && r.push_frames <= 120 && r.moved_toward);
         CHECK(r.popped && r.pop_frames <= 61 && r.resumed);
-        CHECK(r.push_hp == -1);  // cmb2 t04: no hard points, no hard point named
+        CHECK(r.push_hp == -1);  // no hard points, no hard point named
         // cmb2 t04 (FIGHTER_FLYING §4.11 B, BKT1_ATTACK_RE §1.3 [H]): the troopers carry a targetable hard point -> the Push
         // names one (0x394610); its position is the block's goal point and the engagement adds 0x397780(T)
         auto dh = chase_data(true, true);

@@ -1,4 +1,4 @@
-// refixf t08: host side of the tactical world pick (HUD_GAPS §2.2). See world_pick.hpp.
+// host side of the tactical world pick (HUD_GAPS §2.2). See world_pick.hpp.
 #include "alamo/game/world_pick.hpp"
 #include "alamo/objects/game_object_types.hpp"
 
@@ -53,7 +53,7 @@ ui::WorldPickTests tactical_pick_tests(const sim::TacticalMode& mode, const sim:
         t.skip = [battle, hidden = std::move(script_hidden)](uint32_t id) {
             const auto oid = static_cast<objects::ObjectId>(id);
             if (battle && battle->contained_by(oid) != objects::kNoObjectId) return true;
-            return hidden && hidden(oid);  // q6 t19: Lua Hide(true)
+            return hidden && hidden(oid);  // Lua Hide(true)
         };
     }
     return t;

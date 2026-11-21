@@ -34,8 +34,8 @@ add_library(alamo_ui_hud STATIC
   src/hud_font.cpp
   src/hud_draw.cpp
   src/credits_roll.cpp
-  src/movie_caption.cpp  # ui5 t02 / t12: full-screen movie captions (AUDIO.md §3.4)
-  src/text_crawl.cpp     # storyb t13: the story text crawl over a movie (StarWars3DTextCrawl.xml)
+  src/movie_caption.cpp  # full-screen movie captions (legacy docs/re/AUDIO.md §3.4)
+  src/text_crawl.cpp     # the story text crawl over a movie (StarWars3DTextCrawl.xml)
   src/hud_world.cpp
   src/hud_input.cpp
   src/hud_buttons.cpp
@@ -70,7 +70,7 @@ if(TARGET alamo_tactical_abilities)  # hud_abilities.hpp abilities_from_s9 (read
   target_compile_definitions(alamo_ui_hud PUBLIC ALAMO_UI_HAVE_ABILITIES=1)
 else()
   # targeting.cpp reads the ability type enums only (header-only); without the abilities library (a module list that
-  # leaves out objects) it still needs their headers (wr3 t06: the one include failure the module closure leaves).
+  # leaves out objects) it still needs their headers (the one include failure the module closure leaves).
   target_include_directories(alamo_ui_hud PRIVATE ${PROJECT_SOURCE_DIR}/engine/tactical/abilities/include
                              ${PROJECT_SOURCE_DIR}/engine/tactical/combat/include ${PROJECT_SOURCE_DIR}/engine/tactical/include)
 endif()
@@ -140,7 +140,7 @@ add_test(NAME alamo_ui_screens_tests COMMAND alamo_ui_screens_tests)
 set_tests_properties(alamo_ui_screens_tests PROPERTIES TIMEOUT 120)
 
 # p4ui t03 (CPU): colour combos draw item text in the item colour, tech-tree arrows / tints, battle-end arrows, fleet
-# summary dividers (docs/re/UI.md §3.7).
+# summary dividers (legacy docs/re/UI.md §3.7).
 add_executable(alamo_ui_colour_arrows_tests tests/test_gui_colour_arrows.cpp)
 target_link_libraries(alamo_ui_colour_arrows_tests PRIVATE alamo_ui_hud alamo_data alamo_test_support)
 add_test(NAME alamo_ui_colour_arrows_tests COMMAND alamo_ui_colour_arrows_tests)
@@ -229,7 +229,7 @@ if(TARGET alamo_render)
   set_tests_properties(alamo_ui_render_bridge_tests PROPERTIES TIMEOUT 60)
 endif()
 
-# p4ui t04 (CPU, synthetic data): which fleet fills which of the three organiser panes (docs/re/UI.md §7).
+# p4ui t04 (CPU, synthetic data): which fleet fills which of the three organiser panes (legacy docs/re/UI.md §7).
 add_executable(alamo_ui_organizer_tests tests/test_gui_organizer.cpp)
 target_link_libraries(alamo_ui_organizer_tests PRIVATE alamo_ui_hud alamo_data alamo_test_support)
 if(TARGET alamo_vfs)

@@ -1,5 +1,5 @@
 // Galactic AI perception tokens on the S3 GalacticSim (see galactic_ai_tokens.hpp). The rule of every leaf is
-// docs/re/AI_GALACTIC_TOKENS.md; [port] marks a stand-in for data the port does not have.
+// legacy docs/re/AI_GALACTIC_TOKENS.md; [port] marks a stand-in for data the port does not have.
 #include "alamo/ai/galactic_ai_tokens.hpp"
 
 #include <algorithm>
@@ -248,7 +248,7 @@ std::vector<GalacticContrastEntry> galactic_ai_contrast_list(const gal::Galactic
 namespace {
 
 constexpr double kNever = 1.0e18;              // TimeSince* of an event that never happened [H]
-// mcx5 t02: the GameConstants the tokens normalise by are read from the data (AI_GALACTIC_TOKENS §2 neighbour lists and
+// the GameConstants the tokens normalise by are read from the data (AI_GALACTIC_TOKENS §2 neighbour lists and
 // the §4 / §5 tables [H]): MaximumFleetMovementDistance GC+0x108 (the galaxy map's copy), MaximumPoliticalControl +0xF0,
 // MaximumStarbaseLevel +0xF4, MaximumGroundbaseLevel +0xF8, MaximumSpecialStructures +0xFC (EconomyConstants). A
 // divisor of 0 divides as retail does (double; only MaxStructureSlots fails, its §4 row), except the fleet distance:
@@ -261,7 +261,7 @@ constexpr int32_t kLifeForever = -1;
 // Galactic_Hints hint-set defaults [H].
 constexpr std::string_view kGalacticHints[] = {"CHOKEPOINT", "OFFENSEDELAYGROUND", "OFFENSEDELAYSPACE", "PRIORITYTARGET"};
 
-// ref6 t03: the token spec table - one row per root-relative, upper-case path a resolve_* handler below evaluates (mcx0
+// the token spec table - one row per root-relative, upper-case path a resolve_* handler below evaluates (mcx0
 // t05's path registry), with what its leaf cache and the fog recompute need. Read by the registry (path_registered,
 // registered_paths, implements() and the load report's ai.token_coverage), by the handlers (every cached leaf takes its
 // key and lifetime from its row: cached() with token_spec() for a literal path, a compile error when the path has no
@@ -867,7 +867,7 @@ void GalacticSimTokenResolver::refresh(int32_t frame, int64_t logic_frame) {
     }
 }
 
-// ---------------------------------------------------------------- player conflict stamps (q6 t03, §8.2)
+// ---------------------------------------------------------------- player conflict stamps (§8.2)
 
 void GalacticSimTokenResolver::stamp_players(bool space, int32_t attacker, int32_t defender, int32_t now) {
     // Listener 0x66d490 [H]: the evaluator's player id == the record's defender -> defender stamp; else == the attacker ->
@@ -911,7 +911,7 @@ void GalacticSimTokenResolver::observe_conflicts(const gal::ConflictManager& cm,
     for (size_t i = conflict_log_seen_; i < log.size(); ++i) {
         const gal::ConflictLogEntry& e = log[i];
         const auto kind = static_cast<uint8_t>(e.kind);
-        // bkg3 t04: the planet's TimeSinceSpaceConflict / TimeSinceGroundConflict stamp, at the end of a battle that was
+        // the planet's TimeSinceSpaceConflict / TimeSinceGroundConflict stamp, at the end of a battle that was
         // resolved or fought ([M] a dropped record is no battle end).
         if (e.how != 0 && e.planet != kInvalidPlanet) {
             std::vector<int32_t>& ps = e.kind == gal::ConflictKind::Space ? stamp_space_ : stamp_ground_;
@@ -1067,7 +1067,7 @@ struct GalacticSimTokenResolver::Impl {
     std::span<const gal::PlanetState> planets;
     std::span<const gal::PlayerState> players;
 
-    // mcx0 t05: set when a handler finds no branch for the path (dispatches(); nullptr in evaluation).
+    // set when a handler finds no branch for the path (dispatches(); nullptr in evaluation).
     bool* unmatched = nullptr;
 
     Impl(const GalacticSimTokenResolver& res, const EvalContext& c)
@@ -1114,7 +1114,7 @@ struct GalacticSimTokenResolver::Impl {
         return true;
     }
 
-    // ref6 t03: a cached leaf whose key and lifetime come from its token spec row (`enemy` picks a Force row's side).
+    // a cached leaf whose key and lifetime come from its token spec row (`enemy` picks a Force row's side).
     template <class F>
     bool cached(const TokenSpec& spec, bool enemy, int32_t inst, std::span<const Param> params, F&& compute, double& out) const {
         return leaf(spec.key_for(enemy), inst, spec.life, params, std::forward<F>(compute), out);
@@ -1176,7 +1176,7 @@ struct GalacticSimTokenResolver::Impl {
             if (g.neighbour(e) == b) return true;
         return false;
     }
-    // ---- mcx4 t02: the AI connectivity graph (MCX4_GAL2_RE_ANSWERS Q1, 0x662b30 / 0x662c90 / 0x662140) [H] ----
+    // ---- the AI connectivity graph (MCX4_GAL2_RE_ANSWERS Q1, 0x662b30 / 0x662c90 / 0x662140) [H] ----
     bool friendly_to(int32_t a, int32_t b) const {  // relation table entry 0: self or ally; an invalid id fails
         if (!valid_player(a) || !valid_player(b)) return false;
         const gal::Relation rel = sim.relation(a, b);
@@ -1899,7 +1899,7 @@ struct GalacticSimTokenResolver::Impl {
             return no_path();
         }
         if (k == "TYPE.TOKEN") return out = static_cast<double>(ps.type), true;  // [L] the type evaluator's token
-        // q6 t07: the planet's type evaluator is the global per-type evaluator the tactical side uses (A1_READINGS §23):
+        // the planet's type evaluator is the global per-type evaluator the tactical side uses (A1_READINGS §23):
         // IsType = 1.0 when the planet's OWN type name is listed in Parameter_Type (case-insensitive), else 0.0; a planet
         // without a type fails. [M: the galactic wiring; the leaf is the shared one.] Stock galactic equations never use it;
         // Thrawn's Revenge picks planets by name with it (BasicGalacticEquations_Generated.xml, ...).
@@ -1917,7 +1917,7 @@ struct GalacticSimTokenResolver::Impl {
                 v = static_cast<double>(rules.special.type(ps.type).black_market_modifier);
                 return true;
             }, out);
-        // q6 t03: Target.Owner = the owner's galactic player evaluator (§8.2 "Roots"), for the player tokens TR uses through
+        // Target.Owner = the owner's galactic player evaluator (§8.2 "Roots"), for the player tokens TR uses through
         // it [M: the Owner sub-evaluator; other Owner.* player tokens stay unregistered here]. An unowned planet fails.
         if (k.substr(0, 6) == "OWNER.") {
             const std::string_view sub = k.substr(6);
@@ -2433,7 +2433,7 @@ struct GalacticSimTokenResolver::Impl {
     }
 };
 
-// ---------------------------------------------------------------- q6 t18: leaf cache readers and the signal 0xE
+// ---------------------------------------------------------------- leaf cache readers and the signal 0xE
 
 bool GalacticSimTokenResolver::enemy_force(int32_t self, PlanetIndex planet, bool space, uint64_t mask, double& out) const {
     EvalContext c;
@@ -2515,7 +2515,7 @@ void GalacticSimTokenResolver::visibility_event(PlanetIndex planet, int32_t play
         x.force_leaf = nullptr;
         x.force_inst = -1;
     };
-    // ref6 t03: the fogged rows of the token spec table, each evaluator's in fog_order.
+    // the fogged rows of the token spec table, each evaluator's in fog_order.
     static const auto fogged = [] {
         std::array<std::vector<const TokenSpec*>, 2> o;  // [0] planet (Target rows), [1] force (Force rows)
         for (const TokenSpec& t : kTokenSpecs)

@@ -1,4 +1,4 @@
-"""ums4 t03 mod-system lint (Stage 10, docs/MODS.md 3.1.2 / 3.2, docs/DECISIONS.md "Unified mod system refactor"): the
+"""ums4 t03 mod-system lint (Stage 10, docs/MODS.md "One catalog and one resolver", "File resolution order", docs/MODS.md "One mod environment per process"): the
 mod environment has one owner per question, so the transition shims stay gone.
 
     python tools/lint/check_mod_system.py [--root DIR] [--quiet]
@@ -14,7 +14,7 @@ Rules:
              (the catalog, ModEnvironment::mounted()) or alamo_mod_check's JSON. A literal with a space in it (a message
              such as "named in modinfo.json") is text, not a file name.
   shim       None of the removed transition names comes back in engine/ code: list_installed_mods, resolve_stack,
-             scan_installed_mods, ModRegistry, ResolvedStack (ums4 t01; their replacements: the ModCatalog rows,
+             scan_installed_mods, ModRegistry, ResolvedStack (their replacements: the ModCatalog rows,
              vfs::resolve, scan_mod_catalog, ModCatalog, ModStack).
 Scanned: engine/ (C++: .cpp .hpp .h .inl .cc) and launcher/src (.rs). Comments are ignored. Tests may write fixture
 files, so test code is not scanned: engine/**/tests, engine/**/testdata, and in Rust every `#[cfg(test)]` item (the
@@ -198,7 +198,7 @@ def main(argv):
         print(f'{rel}:{no}: {rule}: {line}')
     if found:
         print(f'check_mod_system: {len(found)} finding(s): Vfs::mod_dirs() outside engine/vfs, a modinfo.json reader '
-              f'outside {CATALOG} or a removed shim name (docs/MODS.md 3.2)')
+              f'outside {CATALOG} or a removed shim name (docs/MODS.md "File resolution order")')
         return 1
     if '--quiet' not in argv:
         print('check_mod_system: 0 findings (no Vfs::mod_dirs() call outside engine/vfs, no modinfo.json reader outside '

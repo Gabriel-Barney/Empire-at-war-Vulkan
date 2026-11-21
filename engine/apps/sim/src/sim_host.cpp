@@ -9,8 +9,8 @@
 #include "alamo/galactic/campaign.hpp"
 #include "alamo/objects/game_object_types.hpp"
 #ifdef ALAMO_SIM_HAVE_STORY
-#include "alamo/lua/ai_bridge.hpp"         // q6 t09: call_global_function / AiEventArg (GameScoring event calls)
-#include "alamo/lua/object_bridge.hpp"     // q6 t09: the story's families for the scoring VM
+#include "alamo/lua/ai_bridge.hpp"         // call_global_function / AiEventArg (GameScoring event calls)
+#include "alamo/lua/object_bridge.hpp"     // the story's families for the scoring VM
 #include "alamo/lua/presentation.hpp"
 #include "alamo/lua/script_remaining.hpp"  // L1 bindings: process-wide GlobalValue store
 #if defined(ALAMO_LUA_PLAYERS)
@@ -24,7 +24,7 @@ namespace cmd = alamo::commands;
 
 namespace {
 bool finite(float f) { return f - f == 0.0f; }
-// sp2: the process-wide CRC cadence new hosts start with (set_default_crc_cadence; alamo_game's main sets it once).
+// the process-wide CRC cadence new hosts start with (set_default_crc_cadence; alamo_game's main sets it once).
 std::atomic<uint32_t> g_crc_every{1};
 std::atomic<size_t> g_crc_ring{0};
 }  // namespace
@@ -175,16 +175,16 @@ GameMode& SimHost::start_game(ModeKind kind) {
         pacing_.reset();
         random_.seed_session(cfg_.seed);
         modes_.reset_ids();
-        scoring_scaffold_ = false;  // mcx6 t07: scoring_map_battle marks the new session again
+        scoring_scaffold_ = false;  // scoring_map_battle marks the new session again
     }
     const bool new_session = modes_.empty();
-    if (ship_names_) ship_names_->start_game(new_session);  // ref5 t04: Start_Game resets the name lists' cursors
+    if (ship_names_) ship_names_->start_game(new_session);  // Start_Game resets the name lists' cursors
     GameMode& m = modes_.push(kind);
     // --- OI objects: behaviour Initialise draws its first due frame from the synced RNG (TACTICAL_GAPS 6.4);
     //     primary store only (the secondary store is local / cosmetic) ---
     m.primary().bind_sync_rng(&random_.synced());
     // --- end OI objects ---
-    if (new_session) create_scoring(m);  // q6 t06: before the players are set up and the plots load
+    if (new_session) create_scoring(m);  // before the players are set up and the plots load
     if (object_scripts_) {  // q6: scripts attach to every object the mode's primary store creates from now on
         if (new_session) {
             object_players_.reset();
@@ -226,13 +226,13 @@ const lua::LuaVm* SimHost::scoring_vm() const {
 #endif
 }
 
-// GAME_SCORING.md §1.1 / §1.2: release the old script, then a fresh unpooled state: the file's top level (require),
+// legacy docs/re/GAME_SCORING.md §1.1 / §1.2: release the old script, then a fresh unpooled state: the file's top level (require),
 // Base_Definitions(), the main thread (created, not resumed). Errors are kept as messages; the session goes on without
 // the script's globals.
 void SimHost::create_scoring(GameMode& m) {
 #ifdef ALAMO_SIM_HAVE_STORY
     scoring_vm_.reset();
-    scoring_players_.reset();  // q6 t03: start_galactic attaches a new one
+    scoring_players_.reset();  // start_galactic attaches a new one
     scoring_starts_.clear();
     scoring_events_.clear();
     scoring_failed_ = false;
@@ -266,7 +266,7 @@ void SimHost::scoring_note(std::string_view what) {
     scoring_messages_.push_back(std::to_string(frame_) + " " + scoring_name_ + ": " + std::string(what));
 }
 
-// q6 t09 (GAME_SCORING.md §2 / §3). Everything below runs on the sim thread at the fixed points listed in sim_host.hpp.
+// q6 t09 (legacy docs/re/GAME_SCORING.md §2 / §3). Everything below runs on the sim thread at the fixed points listed in sim_host.hpp.
 #ifdef ALAMO_SIM_HAVE_STORY
 namespace {
 constexpr const char* scoring_mode_name(ModeKind k) {
@@ -386,7 +386,7 @@ void SimHost::scoring_reset_tactical_stats() {
 #endif
 }
 
-// mcx6 t07 (GAME_SCORING.md §9.1, sim_host.hpp): the skirmish's scaffold galaxy is hidden from the scoring script.
+// mcx6 t07 (legacy docs/re/GAME_SCORING.md §9.1, sim_host.hpp): the skirmish's scaffold galaxy is hidden from the scoring script.
 void SimHost::scoring_map_battle() {
     scoring_scaffold_ = true;
     scoring_starts_.erase(std::remove_if(scoring_starts_.begin(), scoring_starts_.end(),
@@ -433,7 +433,7 @@ void SimHost::service_scoring() {
 #endif
 }
 
-// storyb t14: the neutral player of the galactic campaign (any depth: a battle sits on top of it), -1 without one.
+// the neutral player of the galactic campaign (any depth: a battle sits on top of it), -1 without one.
 int32_t SimHost::scoring_neutral_player() const {
     for (size_t i = 0; i < modes_.depth(); ++i)
         if (const auto* g = dynamic_cast<const GalacticMode*>(&modes_.at(i)); g && g->sim()) return g->sim()->neutral_player();
@@ -475,7 +475,7 @@ void SimHost::scoring_tactical_production(uint32_t type, int32_t player) {
 // After T9: the galactic events the story drained this tick (stream order).
 void SimHost::scoring_deliver_events() {
 #ifdef ALAMO_SIM_HAVE_STORY
-    if (scoring_scaffold_) scoring_events_.clear();  // mcx6 t07: a skirmish's scaffold galaxy raises nothing
+    if (scoring_scaffold_) scoring_events_.clear();  // a skirmish's scaffold galaxy raises nothing
     if (scoring_events_.empty()) return;
     std::vector<galactic::GalacticEvent> events;
     events.swap(scoring_events_);
@@ -516,7 +516,7 @@ void SimHost::scoring_deliver_events() {
                              {arg_object(planet_object(e.planet)), st.alive(h) ? arg_object(h) : arg_type(e.type)});
                 break;
             }
-            case K::StarbaseLevelChanged: {  // storyb t14: planet signal 0x26 (old type, new type; nil when absent)
+            case K::StarbaseLevelChanged: {  // planet signal 0x26 (old type, new type; nil when absent)
                 const auto type_or_nil = [](int64_t t) {
                     lua::AiEventArg a;
                     if (t >= 0 && t < static_cast<int64_t>(UINT32_MAX)) a = arg_type(static_cast<uint32_t>(t));
@@ -558,7 +558,7 @@ bool SimHost::start_story(const StoryStart& start, std::vector<std::string>* dia
     }
     auto s = std::make_unique<StorySession>(*g->sim(), g->primary(), g->types(), random_);
     s->set_command_pipeline(pipeline_.get());  // orders issued while the scripts load
-    s->set_lua_gc_parallel_for(pf_);            // OPT2 t04: scheduled Lua collections on the host's job system
+    s->set_lua_gc_parallel_for(pf_);            // scheduled Lua collections on the host's job system
     s->set_switch_control_hook(switch_control_);  // q6: before the plots load (sim_host.hpp)
     g->sim()->set_emit_events(true);
     StoryStart st = start;  // Int-final: the session-wide GlobalValue table for every plot VM
@@ -569,7 +569,7 @@ bool SimHost::start_story(const StoryStart& start, std::vector<std::string>* dia
     }
     story_ = std::move(s);
 #ifdef ALAMO_SIM_HAVE_STORY
-    // q6 t09: the scoring VM reaches the session's players, objects and presentation like the plot scripts, and gets the
+    // the scoring VM reaches the session's players, objects and presentation like the plot scripts, and gets the
     // galactic events every T9 drain takes from the stream (delivered after T9).
     if (scoring_vm_) {
 #if defined(ALAMO_LUA_PLAYERS)
@@ -578,14 +578,14 @@ bool SimHost::start_story(const StoryStart& start, std::vector<std::string>* dia
         lua::attach_object_bridge(*scoring_vm_, story_->object_bridge());
         lua::attach_presentation(*scoring_vm_, story_->presentation());
     }
-    scoring_players_.reset();  // q6 t03: the story's world replaces the scoring VM's own
+    scoring_players_.reset();  // the story's world replaces the scoring VM's own
     if (object_scripts_) {     // q6: the galactic objects' scripts get the story's world and object bridge
 #if defined(ALAMO_LUA_PLAYERS)
         object_scripts_->set_player_world(g->primary(), story_->player_world());
 #endif
         object_scripts_->set_bridge(g->primary(), story_->object_bridge());
     }
-    if (lua::ObjectBridge* ob = story_->object_bridge())  // ref5 t04: Get_Name on galactic objects
+    if (lua::ObjectBridge* ob = story_->object_bridge())  // Get_Name on galactic objects
         ob->ship_name = [this, st = &g->primary()](objects::ObjectHandle h) { return ship_name_of(*st, h); };
     story_->set_scoring_tap([this](const std::vector<galactic::GalacticEvent>& events) {
         if (scoring_vm_) scoring_events_.insert(scoring_events_.end(), events.begin(), events.end());
@@ -616,9 +616,9 @@ galactic::GalacticSim* SimHost::start_galactic(const galactic::GalacticRules& ru
     }
     mode.attach_sim(std::move(sim));
 #ifdef ALAMO_SIM_HAVE_STORY
-    {   // storyb t14 (GAME_SCORING.md §3): the death and neutralized signals reach the scoring script while the objects live.
+    {   // storyb t14 (legacy docs/re/GAME_SCORING.md §3): the death and neutralized signals reach the scoring script while the objects live.
         galactic::GalacticSim::ScoringHooks hooks;
-        hooks.destroyed = [this](objects::ObjectHandle h) {  // mcx6 t07: not from a skirmish's scaffold galaxy
+        hooks.destroyed = [this](objects::ObjectHandle h) {  // not from a skirmish's scaffold galaxy
             if (scoring_vm_ && !scoring_scaffold_)
                 scoring_call("Galactic_Unit_Destroyed_Event", {arg_object(h), arg_player(scoring_neutral_player())});
         };
@@ -629,7 +629,7 @@ galactic::GalacticSim* SimHost::start_galactic(const galactic::GalacticRules& ru
     }
 #endif
 #if defined(ALAMO_SIM_HAVE_STORY) && defined(ALAMO_LUA_PLAYERS)
-    // q6 t03 (GAME_SCORING.md §3, the PlayerWrapper arguments; TR's plugins call Find_Player / Get_Name): until a story
+    // q6 t03 (legacy docs/re/GAME_SCORING.md §3, the PlayerWrapper arguments; TR's plugins call Find_Player / Get_Name): until a story
     // session gives it the story's world, the scoring VM gets a player world of its own over the campaign's players. [port]
     // Not hashed: with a GalacticSim the facts it serves (credits, relations, tech locks) are the sim's, which the sim
     // hashes; only Lua-only flags a scoring script might set live here (the story session's world hashes those).
@@ -648,21 +648,21 @@ galactic::GalacticSim* SimHost::start_galactic(const galactic::GalacticRules& ru
         object_scripts_->set_player_world(mode.primary(), object_players_.get());
     }
 #endif
-    scoring_mode_started(ModeKind::Galactic, {});  // q6 t09: map = the campaign name, resolved at delivery
+    scoring_mode_started(ModeKind::Galactic, {});  // map = the campaign name, resolved at delivery
     return mode.sim();
 }
 
 bool SimHost::end_game_mode() {
 #ifdef ALAMO_SIM_HAVE_STORY
-    if (scoring_vm_ && modes_.top()) {  // q6 t09: Game_Mode_Ending_Event before the mode's shutdown (§3, signal 0x24)
+    if (scoring_vm_ && modes_.top()) {  // Game_Mode_Ending_Event before the mode's shutdown (§3, signal 0x24)
         scoring_flush_starts();          // a mode set up and ended within one frame still started first
-        // mcx6 t07: not for a skirmish's scaffold galaxy (scoring_map_battle)
+        // not for a skirmish's scaffold galaxy (scoring_map_battle)
         if (!(scoring_scaffold_ && modes_.top()->kind() == ModeKind::Galactic))
             scoring_call("Game_Mode_Ending_Event", {arg_string(scoring_mode_name(modes_.top()->kind()))});
     }
-    if (modes_.depth() <= 1) {  // q6 t06: before the store its wrappers point into
+    if (modes_.depth() <= 1) {  // before the store its wrappers point into
         scoring_vm_.reset();
-        scoring_players_.reset();  // q6 t03: after the VM that points to it
+        scoring_players_.reset();  // after the VM that points to it
     }
 #endif
     if (object_scripts_ && modes_.top()) {  // q6: the mode's object scripts go before its store
@@ -685,11 +685,11 @@ bool SimHost::tick_once() {
     if (recorder_->log().records.empty()) recorder_->capture(frame_);  // initial state (after load)
     // T1 Begin_Tick.
     ++frame_;
-    profile::begin_tick(frame_);  // OPT1: wall-clock profiler; nothing below reads it
+    profile::begin_tick(frame_);  // wall-clock profiler; nothing below reads it
     step("T1.begin_tick");
     // T2 scheduled commands due this frame (handler runs inside, in drain order).
     batch_crc_ = 0;
-    if (before_commands_) before_commands_(*this);  // sp3 t04: AI lane batches due this frame, before the players' commands
+    if (before_commands_) before_commands_(*this);  // AI lane batches due this frame, before the players' commands
     pipeline_->begin_tick(frame_);
     step("T2.commands");
     // T4 TreeCull: rebuild dirty spatial trees.
@@ -703,11 +703,11 @@ bool SimHost::tick_once() {
     ctx.players = cfg_.players;
     ctx.trace = trace_;
 #ifdef ALAMO_SIM_HAVE_STORY
-    if (scoring_vm_) ctx.scoring = [this] { service_scoring(); };  // q6 t09: GAME_SCORING.md §2
+    if (scoring_vm_) ctx.scoring = [this] { service_scoring(); };  // legacy docs/re/GAME_SCORING.md §2
 #endif
     if (object_scripts_) ctx.object_scripts = [this](GameMode& m) { object_scripts_->service(m); };  // q6
     modes_.update(ctx);
-    if (ship_names_) {  // ref5 t04: the top mode's new SELECTABLE objects get their names (the synced state is read, not drawn)
+    if (ship_names_) {  // the top mode's new SELECTABLE objects get their names (the synced state is read, not drawn)
         const objects::ObjectStore* parent = modes_.depth() > 1 ? &modes_.at(1).primary() : nullptr;
         ship_names_->service(modes_.top()->primary(), parent, random_.synced().state());
     }
@@ -733,7 +733,7 @@ bool SimHost::tick_once() {
     if (before_story_) before_story_(*this);
     // --- end P4 host ---
     // T8 global Lua [stub]. T9 story (S4): story time = galactic mode time (GALACTIC_ECONOMY 8) = the T9 time argument
-    // (float)(mode frame) x seconds-per-frame (STORY.md 4.7 / 7.3), a pure function of the synced frame count.
+    // (float)(mode frame) x seconds-per-frame (legacy docs/re/STORY.md 4.7 / 7.3), a pure function of the synced frame count.
     if (story_) {
         const GalacticMode* g = galactic_mode();
         const double mode_seconds = StorySession::t9_seconds(g ? g->frame() : frame_);
@@ -742,7 +742,7 @@ bool SimHost::tick_once() {
         step("T9.story");
     }
 #ifdef ALAMO_SIM_HAVE_STORY
-    if (scoring_vm_) {  // q6 t09: GameScoring galactic event calls (the events this T9 drained, stream order)
+    if (scoring_vm_) {  // GameScoring galactic event calls (the events this T9 drained, stream order)
         scoring_deliver_events();
         step("T9.scoring");
     }
@@ -756,7 +756,7 @@ bool SimHost::tick_once() {
     step("T12.post_tick");
     // T13 End_Tick: events, frame CRC.
     pipeline_->events().deliver();
-    if (crc_every_ <= 1 || frame_ % crc_every_ == 0) record_crc();  // sp2: checkpoint ticks only when the cadence is > 1
+    if (crc_every_ <= 1 || frame_ % crc_every_ == 0) record_crc();  // checkpoint ticks only when the cadence is > 1
     step("T13.end_tick");
     profile::end_tick();
     return true;
@@ -770,7 +770,7 @@ uint64_t SimHost::run_fast(uint64_t ticks) {
 
 bool SimHost::loop_iteration(uint32_t now_ms) {
     pacing_.set_stopped(modes_.empty());
-    // [port] no per-frame mode update (vtable +0xb8, R1 d = 0.03 per tick): no mode overrides it (cu9 t15).
+    // [port] no per-frame mode update (vtable +0xb8, R1 d = 0.03 per tick): no mode overrides it.
     return pacing_.pace(now_ms) && tick_once();
 }
 
@@ -829,7 +829,7 @@ ObjectHandle SimHost::resolve(uint32_t wire) const {
     const GameMode* t = modes_.top();
     if (!t || wire == cmd::kNoObject || wire > static_cast<uint32_t>(std::numeric_limits<int32_t>::max())) return {};
     const ObjectHandle h = t->primary().find(static_cast<ObjectId>(wire));
-    return t->primary().active(h) ? h : ObjectHandle{};  // refix t01: dying / removing objects (death clones) are not targets
+    return t->primary().active(h) ? h : ObjectHandle{};  // dying / removing objects (death clones) are not targets
 }
 
 std::vector<ObjectHandle> SimHost::owned_units(uint8_t player, const std::vector<uint32_t>& ids) const {
@@ -845,7 +845,7 @@ std::vector<ObjectHandle> SimHost::owned_units(uint8_t player, const std::vector
 }
 
 cmd::RejectReason SimHost::handle(uint64_t tick, const cmd::Command& c) {
-    // mcx5 t01: the wire carries 13-bit ids; the sim's are uint8_t (kMaxPlayers guard, 0..255): a larger id is refused here.
+    // the wire carries 13-bit ids; the sim's are uint8_t (kMaxPlayers guard, 0..255): a larger id is refused here.
     if (c.header.player >= kMaxPlayers) {
         ++rejected_;
         return cmd::RejectReason::InvalidPlayer;

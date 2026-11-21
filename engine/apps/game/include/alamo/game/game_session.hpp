@@ -25,7 +25,7 @@
 //   participants as alamo_headless save_run: "ai" (GalacticAiWorld write / read) after the chunks CampaignBattles
 //                ("galactic.conflicts", "battles") and SimAnimation ("anim") register, then "game" = this session's own
 //                state that later ticks read (pause / pause pending, the land skirmish's Invade sent, a battle choice in
-//                flight) and, from v2 (ref4 t01), the host's presentation state (set_presentation_writer).
+//                flight) and, from v2, the host's presentation state (set_presentation_writer).
 //   save         save_blocker() (cheap: a real game, SimHost::save_allowed) -> check_save() (a full SimHost::save: also
 //                refused when a chunk is written EMPTY - a system whose save has not landed, e.g. "anim", whose read
 //                fails, so the save could not be loaded) -> save() hands that save out (kept while nothing ticks).
@@ -53,7 +53,7 @@
 #include "alamo/game/game_data.hpp"
 #include "alamo/game/save_games.hpp"
 #include "alamo/game/script_cinematics.hpp"
-#include "alamo/game/session_spec.hpp"  // ref2 t03: SessionSpec and its builder
+#include "alamo/game/session_spec.hpp"  // SessionSpec and its builder
 #include "alamo/jobs/job_system.hpp"
 #include "alamo/sim/campaign_battles.hpp"
 #include "alamo/sim/sim_host.hpp"
@@ -68,8 +68,8 @@ namespace alamo::game {
 inline constexpr uint16_t kBattleChoiceSubtype = 0x4243;  // "BC"
 commands::EventData battle_choice_event(galactic::BattleChoice choice);
 // P4 host: the retreat dialog's Autoresolve (IDC_AUTORESOLVE in a tactical battle; retail drives the sim from the GUI
-// without a command, docs/re/P4_SIM_SYSTEMS.md §9.3, so the port wraps it in this port event, one byte, for replays).
-// The auto-resolve dialog's Withdraw is the original Withdrawl event (COMMANDS.md id 49, no payload, §9.2); retail shows
+// without a command, legacy docs/re/P4_SIM_SYSTEMS.md §9.3, so the port wraps it in this port event, one byte, for replays).
+// The auto-resolve dialog's Withdraw is the original Withdrawl event (legacy docs/re/COMMANDS.md id 49, no payload, §9.2); retail shows
 // that dialog only in multiplayer, so the port has no dialog for it (GameSession::withdraw has no UI caller). The story
 // summary's Abandon is dead in retail (§9.1): no command. See GameSession::port_event.
 inline constexpr uint16_t kTacticalAutoResolveSubtype = 0x5441;  // "TA"
@@ -92,12 +92,12 @@ struct BattleOrderStats {
 struct PortEventStats {
     uint64_t withdraw = 0, withdraw_accepted = 0, withdraw_dropped = 0;
     uint64_t tactical_auto_resolve = 0, tactical_auto_resolve_refused = 0;
-    uint64_t story_esc = 0;  // bkc1 t01: story Esc commands applied (Story_Handle_Esc offered to the plots)
+    uint64_t story_esc = 0;  // story Esc commands applied (Story_Handle_Esc offered to the plots)
     uint64_t story_ui = 0, story_ui_dropped = 0;  // L1/S4 wave 1: story UI events applied / dropped (no story, bad payload)
-    uint64_t ai_difficulty = 0;  // skm2 t01: kAiDifficultySubtype commands applied
+    uint64_t ai_difficulty = 0;  // kAiDifficultySubtype commands applied
 };
 
-// P4 host: the FoC galactic special dialogs (docs/re/P4_SIM_SYSTEMS.md §1-§5). A human's Ground_Activated hero ability
+// P4 host: the FoC galactic special dialogs (legacy docs/re/P4_SIM_SYSTEMS.md §1-§5). A human's Ground_Activated hero ability
 // posts GalacticEventKind::SpecialDialog instead of applying; for the local player GameSession keeps it here until the
 // panel answers (a SpecialAbility command) or closes. Presentation state: never hashed, never read by the sim.
 struct SpecialDialog {
@@ -168,13 +168,13 @@ public:
     bool in_battle() const { return battle() != nullptr && host_->modes().top_tactical() != nullptr; }
     // q6 t19 (OBJECT_SCRIPTS §10.3): Lua Hide(true) on an object of the running battle (CampaignBattles::script_hidden).
     // Presentation only: the model, its particles, surface FX and fog ghost, the object's sounds, its radar blip and the
-    // mouse pick skip it; nothing here feeds the sim. mcx6 t05: also the script cinematics' hides (script_cinematics()).
+    // mouse pick skip it; nothing here feeds the sim. Also the script cinematics' hides (script_cinematics()).
     bool script_hidden(objects::ObjectId id) const;
     // mcx6 t05 (script_cinematics.hpp): the drawn state of Cinematic_Hyperspace_In / Do_End_Cinematic_Cleanup, fed by the
     // game app from the story's presentation log; reset per battle by the app. Presentation only.
     ScriptCinematics& script_cinematics() { return cinematics_; }
     const ScriptCinematics& script_cinematics() const { return cinematics_; }
-    // mcx6 t04: Lua Hide_Sub_Object on an object of the running battle (CampaignBattles::hidden_sub_objects).
+    // Lua Hide_Sub_Object on an object of the running battle (CampaignBattles::hidden_sub_objects).
     std::span<const std::string> hidden_sub_objects(objects::ObjectId id) const {
         return battles_ ? battles_->hidden_sub_objects(id) : std::span<const std::string>();
     }
@@ -182,7 +182,7 @@ public:
     // Does the battle view draw the local player's FOW grid and the HideWhenFogged marks? Not in the attract demo: the
     // original films it with the in-game cinematic camera, and every cinematic shot start (0x49b1a0) clears the FOW render
     // option 0x140a12501 that all fog draw paths test, so the demo shows no fog on any map, with or without a
-    // DEMO_CONTROLLER reveal (MAIN_MENU_BACKGROUND.md §4a, [H] code chain, [M] that the capture is that). Presentation
+    // DEMO_CONTROLLER reveal (legacy docs/re/MAIN_MENU_BACKGROUND.md §4a, [H] code chain, [M] that the capture is that). Presentation
     // only: the demo's sim fog (targeting, AI) is unchanged.
     bool view_draws_fog() const { return !spec_.attract; }
     const BattleOrderStats& order_stats() const { return order_stats_; }
@@ -195,7 +195,7 @@ public:
     bool battle_choice_pending() const;
     const galactic::ConflictInfo* conflict_head() const;
     // The local player is the head conflict's attacker or defender: battle_choice_pending and auto_resolving add the
-    // conflict state; on its own it is the Withdraw enable rule (cu9 t04: was can_withdraw; no Withdraw button yet, the
+    // conflict state; on its own it is the Withdraw enable rule (was can_withdraw; no Withdraw button yet, the
     // dialog is multiplayer-only in retail).
     bool local_in_head_conflict() const;
     bool choose_battle(galactic::BattleChoice choice);
@@ -228,7 +228,7 @@ public:
     // the running battle (its objects' health and shields rescaled, its tactical AI) and later battles' tactical AI. False
     // when no live session runs or the submit failed (a replay sends nothing: the recorded command does it).
     bool set_ai_difficulty(int32_t difficulty);
-    // skm2 t01 / t02: an AI player's current difficulty 0..2 (a skirmish slot's own, else the session's).
+    // an AI player's current difficulty 0..2 (a skirmish slot's own, else the session's).
     int32_t ai_difficulty_of(int32_t player) const;
     bool fleet_cohesion() const { return fleet_cohesion_; }
     const PortEventStats& port_stats() const { return port_stats_; }
@@ -236,7 +236,7 @@ public:
     // to StorySession::notify_ui with the issuing player at the command phase. False without a story session or when
     // the submit failed.
     bool notify_story_ui(const sim::StoryUiNotification& n);
-    // bkc1 t01: true when the story takes this Esc (sim::StorySession::esc_goes_to_story) and the key was sent as a
+    // true when the story takes this Esc (sim::StorySession::esc_goes_to_story) and the key was sent as a
     // story Esc command; false = the host goes on with its own Esc handling (pause menu).
     bool story_esc();
     // P4 host: galactic special abilities (SpecialAbility event 13; galactic special_systems.hpp). activate_special =
@@ -260,25 +260,25 @@ public:
     // presentation (SFX / messages). Collected right before T9 (the T2..T8 events), from every later batch the story
     // drains inside T9 (events raised by Lua / story rewards there, StorySession::set_drain_tap) and after each tick.
     std::vector<galactic::GalacticEvent> take_special_events();
-    // ui4 t08: the galactic events the announcer reacts to (PlanetOwnerChanged, CorruptionChanged, FleetDeparted; aud2 t03:
-    // also ProductionBegin / ProductionCanceled / ProductionCompleted for the production SFX; aud2 t07: FleetArrived pass-through
+    // the galactic events the announcer reacts to (PlanetOwnerChanged, CorruptionChanged, FleetDeparted; aud2 t03:
+    // also ProductionBegin / ProductionCanceled / ProductionCompleted for the production SFX; FleetArrived pass-through
     // hops, which mark the departure right after them as a hop, not a move order), since the last call (presentation only).
     std::vector<galactic::GalacticEvent> take_announce_events();
     const SpecialStats& special_stats() const { return special_stats_; }
     // OI host: the Lua presentation's cinematic rate lock (lua::PresentationState::cinematic_rate_lock: cinematic camera
     // or cinematic mode of the story VMs), read right after T9 of every tick (SimHost::set_after_story_hook): it pins
     // the pacing to 30 ticks/s (FrameSynchronizer::set_cinematic_lock) and selects the parity CRC's non-inverted form
-    // for this tick's capture (ParityFrameOptions::invert = !lock, COMMANDS.md §7.1 step 6). Sim-computed input, so a
+    // for this tick's capture (ParityFrameOptions::invert = !lock, legacy docs/re/COMMANDS.md §7.1 step 6). Sim-computed input, so a
     // replay gets the same parity. False without a story session.
     bool cinematic_rate_lock() const { return rate_lock_; }
     uint64_t rate_lock_ticks() const { return rate_lock_ticks_; }  // ticks captured with the lock (diagnostics)
     // Tests: replaces the story presentation as the lock's source (nullptr = back to the story).
     void set_rate_lock_source(std::function<bool()> fn) { rate_lock_source_ = std::move(fn); }
-    // refixf t05: the in-game cinematic camera's lock (TSW firing shot, TSW_PLANET_DESTROY.md §11.2 step 2: FS +0x37 while
+    // the in-game cinematic camera's lock (TSW firing shot, legacy docs/re/TSW_PLANET_DESTROY.md §11.2 step 2: FS +0x37 while
     // the shot runs). Pacing only (30 ticks/s, wins over fast mode): [port] the parity options stay with the story lock,
     // because the shot is presentation (input can skip it) and must not reach a CRC.
     void set_presentation_rate_lock(bool on);
-    // OI host: single-player fast mode (the HUD's b_fast_forward / b_fast_forward_t; MAIN_LOOP.md §1.5: 120 ticks/s,
+    // OI host: single-player fast mode (the HUD's b_fast_forward / b_fast_forward_t; legacy docs/re/MAIN_LOOP.md §1.5: 120 ticks/s,
     // the cinematic lock wins). Wall-clock pacing only (FrameSynchronizer::set_fast), mirrored into the Lua presentation
     // state (PresentationLog::set_fast_forward); Lua Cancel_Fast_Forward ends it at the next tick; a pause / resume
     // clears it. Never changes what a tick computes.
@@ -288,7 +288,7 @@ public:
     bool galactic_ai_running() const;
     bool story_running() const { return host_ && host_->story() != nullptr; }
     uint64_t galactic_ai_orders() const;
-    // q6 t08: per player the galactic AI type the session gave it ("" = none; empty before start / without the galactic AI).
+    // per player the galactic AI type the session gave it ("" = none; empty before start / without the galactic AI).
     const std::vector<std::string>& ai_types() const { return ai_types_; }
 #ifdef ALAMO_SIM_HAVE_ANIM
     const sim::SimAnimation* animation() const { return anim_.get(); }
@@ -329,7 +329,7 @@ public:
     // Records the drained batches from now on (call before the first tick; a loaded session's stream continues its save).
     void record_to(commands::CommandRecording* rec);
     bool loaded() const { return loaded_; }
-    // ref4 t01: host presentation state (the App's StoryPresenter, story_present.hpp) carried in the "game" chunk (v2), outside
+    // host presentation state (the App's StoryPresenter, story_present.hpp) carried in the "game" chunk (v2), outside
     // the sim and the CRC. `writer` fills it at each save; with none set the bytes the loaded save carried are written back
     // as they were. take_loaded_presentation(): those bytes, once (nullopt: not loaded, a v1 save, a save written without
     // presentation state, or taken already) - the host then falls back to replaying the lasting rewards.
@@ -353,7 +353,7 @@ private:
 #endif
     std::unique_ptr<sim::SimHost> host_;
     std::unique_ptr<sim::CampaignBattles> battles_;  // after host_: destroyed first (clears its hooks)
-    sim::PresentationEvents presentation_;  // ref2 t02: the last tick's (presentation_events)
+    sim::PresentationEvents presentation_;  // the last tick's (presentation_events)
     bool presentation_on_ = false;
     galactic::GalacticSetup setup_;
     terrain::MapData skirmish_map_;
@@ -366,7 +366,7 @@ private:
     bool fleet_cohesion_ = false;       // [port] fleet cohesion preference of the local player
     bool fleet_cohesion_sent_ = false;  // a cohesion command is in flight (cleared when port_event applies it)
     bool choice_sent_ = false;  // a battle choice is in flight for the pending conflict
-    bool banner_sent_ = false;  // story t13: the linked banner's Begin is in flight (cleared once the banner is down)
+    bool banner_sent_ = false;  // the linked banner's Begin is in flight (cleared once the banner is down)
     PortEventStats port_stats_;
     commands::RejectReason port_event(uint8_t player, const commands::EventData& ev);
     void land_skirmish_invade();
@@ -393,7 +393,7 @@ private:
     ScriptCinematics cinematics_;  // mcx6 t05
     // N1 / t09 save / load.
     bool loading_ = false;  // start() runs for start_from_save (no skirmish opening order)
-    // skm1 t01: a skirmish started on its map (not the attract demo, not the tests' skirmish_hop)
+    // a skirmish started on its map (not the attract demo, not the tests' skirmish_hop)
     bool skirmish_map_battle() const { return spec_.kind == SessionKind::Skirmish && !spec_.attract && !spec_.skirmish_hop; }
     bool loaded_ = false;
     std::string playthrough_;           // [port: Gabriel] presentation only, never read by the sim
@@ -403,10 +403,10 @@ private:
     bool allow_different_data_ = false;  // mcx3 t05
     std::vector<std::string> ai_types_;  // per player: the galactic AI type ("" = none), for the descriptor
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
-    // skm2 t01: the battles' tactical AI setup (shared with CampaignBattleOptions::tactical_ai; null without a tactical AI)
+    // the battles' tactical AI setup (shared with CampaignBattleOptions::tactical_ai; null without a tactical AI)
     std::shared_ptr<sim::TacticalAiSetup> tactical_setup_;
 #endif
-    void apply_ai_difficulty(int32_t difficulty);  // skm2 t01: the kAiDifficultySubtype command's effect
+    void apply_ai_difficulty(int32_t difficulty);  // the kAiDifficultySubtype command's effect
     uint64_t submits_ = 0;               // commands submitted (check_save's cache key with the host frame)
     std::optional<SaveFile> save_cache_;
     std::string save_refusal_;           // check_save()'s cached answer when it refused
@@ -414,7 +414,7 @@ private:
     uint64_t save_check_frame_ = 0, save_check_submits_ = 0;
     void describe_session();             // SimHost::set_session (end of start())
     std::function<void(ByteWriter&)> presentation_writer_;  // ref4 t01
-    std::vector<uint8_t> loaded_presentation_;               // ref4 t01: the loaded save's presentation bytes
+    std::vector<uint8_t> loaded_presentation_;               // the loaded save's presentation bytes
     bool presentation_taken_ = false;
     void write_game_state(ByteWriter& w) const;
     bool read_game_state(ByteReader& r);
@@ -437,7 +437,7 @@ std::unique_ptr<GameSession> load_game(const GameData& data, jobs::JobSystem& js
                                        const commands::CommandRecording* replay = nullptr, commands::CommandRecording* record = nullptr,
                                        SaveFile* file_out = nullptr, bool allow_different_data = false,
                                        bool* different_data = nullptr);
-// mcx3 t05: the save descriptor's mods of a stack (GameData::mods).
+// the save descriptor's mods of a stack (GameData::mods).
 std::vector<sim::SaveMod> save_mods(const std::vector<vfs::ModDescriptor>& mods);
 
 }  // namespace alamo::game

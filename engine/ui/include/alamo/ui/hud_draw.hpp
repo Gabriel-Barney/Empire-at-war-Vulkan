@@ -1,4 +1,4 @@
-// P2 HUD draw list (docs/re/UI.md §2.5, §1.1): 13 layers (0..12), each with six sub-lists drawn in a fixed
+// P2 HUD draw list (legacy docs/re/UI.md §2.5, §1.1): 13 layers (0..12), each with six sub-lists drawn in a fixed
 // order - plain quads, radial-wipe quads, radial-wipe quads (alternate state), extra quads, model text, text -
 // each sub-list one dynamic batch, cleared after drawing. Everything is in HUD canvas units (+Y up) and drawn
 // with an identity world and the components ortho camera (hud_canvas.hpp), after the 3D world's post chain
@@ -11,7 +11,7 @@
 // Texture pages: 0 = white, 1 = the MT_CommandBar atlas, 2 = the radar image (terrain + fog of war, a dynamic
 // page the host refreshes), 3..15 = FontCache pages (kHudPageFontBase + page), 16..31 = image pages (P4: stand-alone
 // GUI textures such as MenuBack_overlay_panel / loadmenuback / planet icons that are not in the atlas).
-// Blend (docs/re/STRATEGIC_GAPS.md §7.2 [H]): the layer draw submits each sub-list with a 2D-effect selector, so the
+// Blend (legacy docs/re/STRATEGIC_GAPS.md §7.2 [H]): the layer draw submits each sub-list with a 2D-effect selector, so the
 // LIST decides the blend, not the item: plain quads -> 0 PrimOpaque (no blend), fill dials -> 2 PrimAlpha
 // (SRCALPHA / INVSRCALPHA, tex x diffuse), alternate dials -> 1 PrimAdditive (ONE / ONE, tex x diffuse), extra quads ->
 // 3 PrimModulate (ZERO / SRCCOLOR, colour = tex + diffuse); z write off, z-func always. HudList's Opaque / Alpha /
@@ -38,7 +38,7 @@ namespace alamo::ui {
 class FontCache;
 
 // Sub-lists in draw order. The first four are named by their effect (above); Quads / Dial / DialAlt / Extra are the
-// UI.md §2.5 names of the same lists. Every list draws fill < 100 as a radial wipe (radial_wipe), 100 as a plain quad.
+// legacy docs/re/UI.md §2.5 names of the same lists. Every list draws fill < 100 as a radial wipe (radial_wipe), 100 as a plain quad.
 enum class HudList : uint8_t {
     Opaque = 0, Alpha = 1, Additive = 2, Modulate = 3, ModelText = 4, Text = 5,
     Quads = Opaque, Dial = Alpha, DialAlt = Additive, Extra = Modulate,
@@ -95,9 +95,9 @@ inline uint32_t pack_rgba(Rgba8 c) {
 }
 
 // Radial "clock wipe" (§2.5 list 2/3): fill 100 (or more) -> the plain quad (4 vertices); otherwise a fan over the
-// last `fill` % of the clock: from (100 - fill) % clockwise from 12 o'clock round to 12 o'clock (cu9h t03: the retail
+// last `fill` % of the clock: from (100 - fill) % clockwise from 12 o'clock round to 12 o'clock (the retail
 // bombing-run dial at value v shows the first v % clockwise from 12 o'clock uncovered and the rest under the texture, and
-// UI.md §2.5 says the fan loses one vertex per 12.5 % of the dial value; the dial callers pass 100 - value). One
+// legacy docs/re/UI.md §2.5 says the fan loses one vertex per 12.5 % of the dial value; the dial callers pass 100 - value). One
 // perimeter vertex per 45-degree boundary passed (the corners and edge midpoints of the quad) plus the start and end
 // points: 3 + (45-degree boundaries strictly inside the sweep) vertices for 0 < fill < 100, i.e. 3 at 0..12.5 % up to
 // 10 near 100 %; fill <= 0 returns 0 (nothing drawn). Writes up to 10 vertices (centre first) and returns the count;
@@ -211,7 +211,7 @@ inline float fit_width_scale(float width, float max_width) {
 float add_text(HudDrawList& dl, uint32_t layer, HudList list, FontCache& fonts, const HudCanvas& canvas,
                std::u32string_view text, Vec2f anchor, const HudTextStyle& style);
 
-// Max_Text_Width wrapping (UI.md §2.1, §2.4): greedy word wrap of `text` into lines no wider than
+// Max_Text_Width wrapping (legacy docs/re/UI.md §2.1, §2.4): greedy word wrap of `text` into lines no wider than
 // `max_width_px` pixels (FontCache advances); '\n' forces a break, a word wider than the limit is split between
 // code points, runs of spaces at a break are dropped. max_width_px <= 0: one line per '\n' only.
 std::vector<std::u32string> wrap_text(FontCache& fonts, int32_t font, std::u32string_view text, float max_width_px);

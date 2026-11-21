@@ -1,7 +1,7 @@
-// alamo_game_mod_picker_tests (modc t08): the mod picker's data side (mod_picker.hpp) on the read-only fixture of
+// alamo_game_mod_picker_tests: the mod picker's data side (mod_picker.hpp) on the read-only fixture of
 // testdata/mod_fixture (its Mods folders and fake Steam library): the installed-mod list (catalog rows), the report
 // summary, the launch arguments of a mod and of a likely submod (stacked on its parent), and the relaunch command line.
-// The modinfo.json reader is vfs's (alamo_vfs_registry_tests); the rows are vfs::ModCatalog's (ums1 t03).
+// The modinfo.json reader is vfs's (alamo_vfs_registry_tests); the rows are vfs::ModCatalog's.
 //   alamo_game_mod_picker_tests <testdata/mod_fixture>
 #include <cstdio>
 #include <cstdlib>
@@ -32,7 +32,7 @@ bool has_line(const std::vector<std::string>& lines, const std::string& needle) 
     return false;
 }
 
-// The picker's rows (ums4 t01: the catalog's rows themselves): `foc` with these Steam libraries, no content hashes.
+// The picker's rows (the catalog's rows themselves): `foc` with these Steam libraries, no content hashes.
 std::vector<alamo::vfs::ModDescriptor> picker_rows(const std::string& foc, std::vector<std::string> libs) {
     return game::stack_catalog(foc, libs).mods;
 }
@@ -48,7 +48,7 @@ void test_list(const std::string& fixture, const std::string& foc) {
     CHECK(mods[1].id == "FixtureChecks" && mods[1].kind == ModKind::LocalMods && mods[1].arg() == "MODPATH=Mods\\FixtureChecks");
     CHECK(mods[2].id == "FixtureMod" && mods[2].name == "FixtureMod");
     CHECK(mods[3].id == "FixtureSub" && mods[3].name == "Fixture Sub");  // modinfo.json "name"
-    // ums1 t03: the rows are the catalog's, keyed by catalog key.
+    // the rows are the catalog's, keyed by catalog key.
     CHECK(mods[0].catalog_key() == "900000001" && mods[1].catalog_key() == "Mods\\FixtureChecks" && mods[3].variant.empty());
     CHECK(picker_rows(foc, {}).size() == 3);
     CHECK(picker_rows(fixture + "/no_such_game", {}).empty());
@@ -108,7 +108,7 @@ void test_installed_rows() {
     }
     const alamo::vfs::InstallLocations where = alamo::vfs::default_install_at(foc);
     const alamo::vfs::ModCatalog catalog = alamo::vfs::scan_mod_catalog(where, false);
-    const std::vector<alamo::vfs::ModDescriptor>& rows = catalog.mods;  // ums4 t01: the picker's rows are these
+    const std::vector<alamo::vfs::ModDescriptor>& rows = catalog.mods;  // the picker's rows are these
     size_t variants = 0;
     for (const alamo::vfs::ModDescriptor& d : rows) variants += d.variant.empty() ? 0u : 1u;
     std::printf("  installed: %zu rows (%zu variants) from %zu Steam libraries\n", rows.size(), variants, where.steam_libraries.size());
@@ -126,7 +126,7 @@ void test_installed_rows() {
     }
 }
 
-// ums4 t05: the resolver's hint (from the files alone) agrees with the load report's `submod` for a stack whose data
+// the resolver's hint (from the files alone) agrees with the load report's `submod` for a stack whose data
 // loads; and (t06) a candidate that a junction makes the same folder as a mounted mod is in the stack, not a parent.
 void test_hint_agrees(const std::string& fixture, const std::string& foc) {
     game::ModCheckOptions opt;

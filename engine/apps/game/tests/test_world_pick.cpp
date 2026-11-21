@@ -1,4 +1,4 @@
-// alamo_game_world_pick_tests (refixf t08, data-free): the tactical world pick 0x36600 (HUD_GAPS §2.2) through
+// alamo_game_world_pick_tests (data-free): the tactical world pick 0x36600 (HUD_GAPS §2.2) through
 // game::tactical_pick_tests on a SpaceMode with hand-built model collision data (TacticalMode::set_model_source):
 // a hit on a collision mesh, a miss inside the model's bound box but outside its meshes (the box-only pick hits there),
 // the Mouse_Collide_Override_Sphere_Radius sphere when the precise test misses, the nearest hit over the candidates
@@ -172,7 +172,7 @@ void test_mesh_hit_and_box_miss() {
     const ui::WorldPickTests tests = game::tactical_pick_tests(*b->mode, nullptr, w->radii);
     tactical::QueryContext qc;
     const tactical::SpatialTree& all = b->mode->trees().all();
-    // The tree box is the model collision bound (refixf t07): 400 x 20 x 400.
+    // The tree box is the model collision bound: 400 x 20 x 400.
     const tactical::Aabb* box = all.bounds(s);
     CHECK(box && near(box->max.x - box->min.x, 400.0f, 0.01f) && near(box->max.z - box->min.z, 400.0f, 0.01f));
     // On a strip: the precise test hits the plate at y = 0 (t = 0.5).

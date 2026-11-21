@@ -1,5 +1,5 @@
 // A1 - tactical free store: admission filter, membership and service scheduling
-// (docs/re/AI_TACTICAL.md 5.1-5.4; framework AI_GALACTIC.md 1.10). The Lua side (script start,
+// (legacy docs/re/AI_TACTICAL.md 5.1-5.4; framework legacy docs/re/AI_GALACTIC.md 1.10). The Lua side (script start,
 // FreeStoreService resume, On_Unit_Service / On_Unit_Added calls, AIBuildTask hand-off) rides on
 // the A2 plan / Lua work and is stage 2.
 //

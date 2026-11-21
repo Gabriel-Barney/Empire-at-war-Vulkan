@@ -1,4 +1,4 @@
-// Part 2 of test_movement_gaps (bo3 t03: split by position; see test_movement_gaps_common.hpp).
+// Part 2 of test_movement_gaps (split by position; see test_movement_gaps_common.hpp).
 #include "test_movement_gaps_common.hpp"
 #include "alamo/test/engagement_fns.hpp"
 
@@ -591,12 +591,12 @@ void test_land_squad() {
     CHECK(a.path && a.arrived && a.member_view);
     CHECK(a.max_off_path < 0.01f);          // the container walks its own straight path, never re-centred on the members
     CHECK(a.min_centroid_gap > 15.0f);      // ... which stay 25 to the side
-    // at the team speed (the slowest member's Max_Speed x mult); s78n t16: the straggler cap 0x5ab640 lets it close in on
+    // at the team speed (the slowest member's Max_Speed x mult); the straggler cap 0x5ab640 lets it close in on
     // that speed from below while a member that cannot go faster trails it (the cap ends 2 behind the slot box)
     CHECK(a.cont_speed <= a.team && a.cont_speed > 0.9f * a.team);
     CHECK(a.lead_speed > a.team);           // the member behind its slot catches up above the team speed
     CHECK(a.lag_speed < a.team);            // the member ahead of its slot slows down
-    CHECK(a.final_err < 25.0f);  // s78n t14: no recovery for a container that is never laid out (ContainerArrangement None)
+    CHECK(a.final_err < 25.0f);  // no recovery for a container that is never laid out (ContainerArrangement None)
     std::printf("land squad: off path %.4f, centroid gap >= %.2f, team %.3f, catch-up %.3f, wait %.3f, final slot error %.3f\n",
                 static_cast<double>(a.max_off_path), static_cast<double>(a.min_centroid_gap), static_cast<double>(a.team),
                 static_cast<double>(a.lead_speed), static_cast<double>(a.lag_speed), static_cast<double>(a.final_err));
@@ -963,7 +963,7 @@ void test_land_squad_review() {
     }
     {  // a slot in a wall: the recovery walks straight at it, through the impassable cells, and ends on it
         MovementSystem sys{MovementConfig{}};
-        // s78n t14: a Rows container (recovery needs the laid-out flag): members 2 / 3 in front (+x), member 1 the back-most,
+        // a Rows container (recovery needs the laid-out flag): members 2 / 3 in front (+x), member 1 the back-most,
         // alone in the back row; half-extents 20 -> member 1's slot (-20, 0), its slot point (180, 400) in the wall
         PassabilityGrid g2 = open_grid(100, 100);
         for (int32_t y = 19; y <= 21; ++y)
@@ -1043,7 +1043,7 @@ void test_land_squad_review() {
         const V2 at = cell_center(10, 20);
         const V2 slots[3] = {{0.0f, 15.0f}, {0.0f, 0.0f}, {0.0f, -15.0f}};
         const V2 starts[3] = {at + slots[0], at + slots[1], at + slots[2]};
-        squad(sys, at, slots, starts, 0);  // s78n t14: Rows (the recovery below needs a laid-out container)
+        squad(sys, at, slots, starts, 0);  // Rows (the recovery below needs a laid-out container)
         ObjectId tc = -1;
         V2 ts;
         CHECK(sys.team_slot(2, tc, ts) && tc == 100);
@@ -1590,7 +1590,7 @@ void t16_squad(MovementSystem& sys, V2 at, int32_t arrangement, float cmax, floa
     for (ObjectId id : ids) CHECK(sys.set_team(id, 100, 1.0f, cmax));
 }
 
-// s78n t16 (FIGHTER_FLYING §7.7, S78N_T14_RUN.md):
+// s78n t16 (FIGHTER_FLYING §7.7, legacy docs/re/S78N_T14_RUN.md):
 //  * 0x5ab540: the container accelerates and brakes at the minimum over its members of OverrideDeceleration x (the
 //    members' team-capped speed / member Max_Speed) - FoC Stormtrooper squad 0.05 x 1.56 = 0.078 per frame (team speed
 //    0.8 x 1.56), Rebel squad 0.07 x 1.56 = 0.1092 (team speed 1.0 x 1.56); the smallest member value wins; a member type
@@ -1760,14 +1760,14 @@ V2 t14b_avoid_ref(const MovementSystem& sys, ObjectId member, V2 dir, float vmax
     std::sort(recs.begin(), recs.end(), [](const CollisionObject& x, const CollisionObject& y) { return x.seq < y.seq; });
     const UnitView a = sys.view(member);
     const float ratio = vmax > 0.0f ? std::clamp(a.speed / vmax, 0.0f, 1.0f) : 0.0f;
-    const float ra = 3.0f;  // s78n t18: the member's soft footprint radius (0x397780 of a unit that is no container)
+    const float ra = 3.0f;  // the member's soft footprint radius (0x397780 of a unit that is no container)
     std::vector<V2> vecs;
     std::vector<float> weights;
     for (const CollisionObject& c : recs) {
         const ObjectId other = c.a == k ? c.b : c.a;
         CHECK(!sys.is_land_team_container(other));
         V2 v{};
-        // s78n t18: MovingVsStopped - the obstacle side always, the mover side only in Repulsion; MovingVsMoving - Repulse
+        // MovingVsStopped - the obstacle side always, the mover side only in Repulsion; MovingVsMoving - Repulse
         const bool gives = c.kind == CollisionKind::MovingVsStopped   ? c.b == k || c.state == CollisionState::Repulsion
                            : c.kind == CollisionKind::MovingVsMoving ? c.state == CollisionState::Repulsion
                                                                      : false;
@@ -1798,7 +1798,7 @@ V2 t14b_avoid_ref(const MovementSystem& sys, ObjectId member, V2 dir, float vmax
 //  * fleeing: Fleeing_Infantry_Speed_Bonus (2) on the container's acceleration and turn rate and on the members'
 //    acceleration and turn rate (the x 2 on the speeds is pinned in test_land_squad_part_b);
 //  * the MovingVsMoving crush pair flees only when the squad's owner scatters (set_scatters_fn), else it is pushed;
-//  * (the garrison exclusion: test_land_squad_gates, s78n t18);
+//  * (the garrison exclusion: test_land_squad_gates);
 //  * the steering vector's weights and dot >= -0.5 rule against a recomputation;
 //  * a pushed walk cut short on a container with no order leaves it stopped: its members recover to their slots.
 void test_land_squad_review_fixes() {
@@ -1970,7 +1970,7 @@ void test_land_squad_review_fixes() {
         uint32_t f = 20, cut_at = 0;
         for (; f < 900 && !sys.view(100).pushed; ++f) sys.tick(f, rng, serial_for);
         CHECK(sys.view(100).pushed);
-        // wall the container in: its pushed walk is blocked from now on. s78n t23: a ring two cells out - its own cell
+        // wall the container in: its pushed walk is blocked from now on. a ring two cells out - its own cell
         // stays passable (standing on an impassable cell, its MovingVsMoving record with the giant would stop it at
         // once, MOVEMENT §5.4.2 validity)
         const V2 kp = sys.view(100).pos;
@@ -2234,7 +2234,7 @@ void test_land_squad_repulsion() {
             for (const CollisionObject& c : sys.collisions().list())
                 if (c.a == 100 && c.b == oid) {
                     if (c.kind == CollisionKind::MovingVsStopped && c.state == CollisionState::Repulsion) rep = true;
-                    else if (c.state != CollisionState::Active) ++r.other_states;  // mov1 t08: a new record waits one tick in 0
+                    else if (c.state != CollisionState::Active) ++r.other_states;  // a new record waits one tick in 0
                     if (k.pos.x > op.x + 80.0f) ++r.records_after;
                 }
             if (rep) ++r.repulsion_frames;
@@ -2327,7 +2327,7 @@ void test_land_squad_repulsion() {
                 if (cb && kb.pos.x > pa.x + 60.0f) r.min_b = std::min(r.min_b, kb.speed);
                 for (const CollisionObject& c : sys.collisions().list()) {
                     if (c.kind == CollisionKind::MovingVsMoving && c.state == CollisionState::Repulsion) ++r.repulse;
-                    else if (c.state != CollisionState::Active) ++r.other;  // mov1 t08: a new record waits one tick in 0
+                    else if (c.state != CollisionState::Active) ++r.other;  // a new record waits one tick in 0
                 }
                 const V2 fw = dir_from_deg(ka.yaw);
                 for (ObjectId id = 101; id <= 104; ++id)
@@ -2494,7 +2494,7 @@ void test_land_squad_repulsion() {
                 tal = tal || c.state == CollisionState::TryAgainLater;
                 // s78n t18 review (MOVEMENT 5.3.2, the crowd box query on layer 0x10): the 9-member squad counts once, as
                 // its container, with the vehicle: 5 x 2 (the members are no layer objects: 5 x 11 would be 55)
-                if (c.a == 100 && c.b == 70 && c.state != CollisionState::Active) {  // mov1 t08: not before its first service
+                if (c.a == 100 && c.b == 70 && c.state != CollisionState::Active) {  // not before its first service
                     if (c.crowd == 10.0f) ++crowd_frames;
                     else ++crowd_other;
                 }
@@ -2543,7 +2543,7 @@ void test_land_squad_repulsion() {
                 if (dot(v.pos - path[0], t) < length(path[1] - path[0]) * 0.75f) bend = std::max(bend, dot(v.pos - path[0], left));
                 for (const CollisionObject& c : sys.collisions().list()) {
                     if (c.a == 1 && c.b == 2 && c.state == CollisionState::Repulsion) ++repulsion;
-                    else if (c.state != CollisionState::Active) ++other;  // mov1 t08: a new record waits one tick in 0
+                    else if (c.state != CollisionState::Active) ++other;  // a new record waits one tick in 0
                 }
             }
             CHECK(arrived && length(sys.view(1).pos - cell_center(45, 25)) < 1.0f);

@@ -1,4 +1,4 @@
-# Fog of war (docs/re/FOG_OF_WAR.md): per-player FOW grids (state / reveal count / fade), filled midpoint-circle
+# Fog of war (legacy docs/re/FOG_OF_WAR.md): per-player FOW grids (state / reveal count / fade), filled midpoint-circle
 # reveals with the original's top-edge quirk, dense mask, 16-frame staggered decay + refog hook, REVEAL sources
 # (ally sharing, one-cell re-reveal), queries with the AI gate, Lua-facing ops, renderer view.
 # Depends on core (and the alamo_tactical header category_reduce.hpp) only (the host fills FogObject / FogHideQuery from the store and the type data).

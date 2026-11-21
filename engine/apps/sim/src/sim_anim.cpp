@@ -141,7 +141,7 @@ bool SimAnimation::read(SimHost& host, ByteReader& r) {
         m.world = r.raw(r.u32());
         m.max_seen = r.i32();
         if (!r.ok()) return false;
-        if (version == 2) {  // refix t01: ids, then kinds (unplanned: the death draws at the next sync)
+        if (version == 2) {  // ids, then kinds (unplanned: the death draws at the next sync)
             std::vector<ObjectId> ids;
             if (!read_id_list(r, ids) || ids.size() > r.remaining()) return false;
             m.clones.resize(ids.size());
@@ -388,7 +388,7 @@ uint32_t SimAnimation::service_locomotor(const GameMode& mode, ObjectId id, anim
     lp.min_move_ratio = min_ratio;
     lp.idle = idle_params(mode, t, mw.world->model(id));
     lp.idle.presence = presence;  // s78l t03 (service_locomotor drops it while crouched)
-    // s78k t02: Allow_Idle_When_Moving (the TARGETING lookup is the caller's in.target).
+    // Allow_Idle_When_Moving (the TARGETING lookup is the caller's in.target).
     in.has_idle = store.has_behavior(h, objects::beh::Idle);  // s78l t03 (b): no IDLE, no idle service
     in.allow_idle_when_moving = tp.allow_idle_when_moving;
     const uint32_t n = mw.behaviors->service_locomotor(*mw.world, id, lp, in, rng, frame);
@@ -685,7 +685,7 @@ void SimAnimation::sync(const GameMode& mode, SimRng& rng, uint64_t frame) {
         if (model_has_events(m)) mw.event_rows.push_back(id);  // ascending: ids above every earlier one
     }
     // Death clones spawned since the last sync die now (request order), after their model creation.
-    // refixf t04: the clone's store object is the battle's to remove (also on RemoveNow); only the row is handled here.
+    // the clone's store object is the battle's to remove (also on RemoveNow); only the row is handled here.
     for (const ModeWorld::PendingClone& pc : mw.pending_clones) {
         if (!store.alive(store.find(pc.id)) || beh.is_corpse(pc.id)) continue;
         ++stats_.clone_deaths;
@@ -745,7 +745,7 @@ void SimAnimation::service(SimHost& host) {
     scratch_destroy_.clear();
     mw.behaviors->service(*mw.world, frame, scratch_destroy_);  // flinch holds, corpse countdown
     stats_.corpses_removed += static_cast<uint32_t>(scratch_destroy_.size());
-    // refixf t04: finished corpses lose their rows only. The store objects that outlive their death (death clones) are
+    // finished corpses lose their rows only. The store objects that outlive their death (death clones) are
     // removed by the battle at the frame of its plan (TacticalBattle death_clones_), the same with and without this
     // service, so nothing here changes the object store.
     // Muzzles re-hidden after their 4 ticks.

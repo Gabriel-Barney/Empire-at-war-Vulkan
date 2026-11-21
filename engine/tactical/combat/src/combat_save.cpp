@@ -14,14 +14,14 @@
 //         were taken at, the own Mod_Multiplier products, the per-tick scratch bytes - restored verbatim, so
 //         reads before the next phase A see the saved values)
 //   u32 + flat hardpoint table (each unit's [hp_begin, hp_begin + hp_count) range is validated)
-//   u32 + projectiles (dead-not-flushed ones too), u32 + spline-rocket states (refixf t01, serial order: one per
+//   u32 + projectiles (dead-not-flushed ones too), u32 + spline-rocket states (serial order: one per
 //         projectile with the rocket flag; flags, s, budget, FireAtPosition, launch point, last velocity, the spline's
 //         control points, segments (12 coefficients + length) and total), u32 + delayed damage queue
 //   u32 + base-power entries, u32 + hardpoint repairers, u32 + team heads (phase A output read by const queries)
 //   this tick's outputs: deaths, hardpoint events, smoke, damage, hit, shot, survivor events
 //   6 x u64 stats
 // Rebuilt on read, not saved: per-unit candidate lists and sweep results (phase C / E scratch, written before read),
-// the team member list (cu8f t04a, from the units),
+// the team member list (from the units),
 // emitter / leader / effect scratch, query contexts, the diminishing-firepower spline (from the config), the rocket
 // splines' polyline tables (plan-time scratch) and the rocket terrain (host-attached).
 //
@@ -146,13 +146,13 @@ void CombatSystem::write(ByteWriter& w) const {
         put_vec3(w, u.lob_point);  // S8 t26 fire-at-position order
         w.u8(u.lob_pending).u8(u.lob_charged).u32(u.lob_stamp);
         w.f32(u.lob_tpitch).f32(u.lob_tyaw).u8(u.tstate).i32(u.ttarget);  // s78f t04 / t03
-        // refix t02: INFECTION behaviour
+        // INFECTION behaviour
         w.u8(u.infect_attached).u32(u.infect_suspend).i32(u.infect_desc).i32(u.infect_player).i32(u.infect_source);
-        w.i32(u.infect_left).u32(u.infect_seen).i32(u.infect_count);  // v13 (cu8f t06)
+        w.i32(u.infect_left).u32(u.infect_seen).i32(u.infect_count);  // v13
         w.u8(u.bshield_state).u8(u.bshield_upgraded).u32(u.bshield_off_stamp).u32(u.bshield_next).i32(u.bshield_in);  // v16
-        w.u8(u.sfx_ready);  // v17 (trn1 t02)
+        w.u8(u.sfx_ready);  // v17
         for (const uint8_t p : u.sfx_prev) w.u8(p);
-        {  // mcx4 t17: the instances past the fixed slots, only for a type that has them (the layout is unchanged otherwise)
+        {  // the instances past the fixed slots, only for a type that has them (the layout is unchanged otherwise)
             const size_t nfx = data_->units[u.desc].surface_fx.size();
             for (size_t k = kSurfaceFxFixedSlots; k < nfx; ++k) {
                 const size_t j = k - kSurfaceFxFixedSlots;
@@ -183,7 +183,7 @@ void CombatSystem::write(ByteWriter& w) const {
         put_vec3(w, p.dir);
         w.f32(p.speed).f32(p.travelled).f32(p.max_travel).u32(p.spawn_frame).f32(p.damage).u16(p.damage_type).u8(p.kind);
         w.u8(p.alive).u32(p.jammed_frame).u8(p.ever_jammed).f32(p.fuse).u8(p.rocket);
-        w.u8(p.lob).u8(p.stuck).f32(p.gravity).i32(p.stuck_to);  // S8 t04: grenade flight
+        w.u8(p.lob).u8(p.stuck).f32(p.gravity).i32(p.stuck_to);  // grenade flight
         put_vec3(w, p.launch);
         put_vec3(w, p.lob_dir);
         put_vec3(w, p.stuck_offset);
@@ -374,7 +374,7 @@ bool CombatSystem::read(ByteReader& r) {
         u.sfx_ready = r.u8();  // trn1 t02 (v17)
         for (uint8_t& p : u.sfx_prev) p = r.u8();
         u.sfx_prev_more.clear();
-        if (u.desc < unit_descs) {  // mcx4 t17: as written (the type's entries past the fixed slots)
+        if (u.desc < unit_descs) {  // as written (the type's entries past the fixed slots)
             const size_t nfx = data_->units[u.desc].surface_fx.size();
             for (size_t k = kSurfaceFxFixedSlots; k < nfx; ++k) {
                 u.sfx_prev_more.push_back(r.u8());
@@ -471,8 +471,8 @@ bool CombatSystem::read(ByteReader& r) {
         p.stuck_offset = get_vec3<Vec3>(r);
         if (!r.ok() || p.desc >= proj_descs || p.rocket > 2 || p.lob > 1 || p.stuck > 1) return false;
     }
-    // refixf t01: rocket states, exactly one per rocket-flagged projectile, in the same (serial) order.
-    if (!r.count(n, 65)) return false;  // cu8k t01: + thrower
+    // rocket states, exactly one per rocket-flagged projectile, in the same (serial) order.
+    if (!r.count(n, 65)) return false;  // + thrower
     std::vector<Rocket> rockets(n);
     {
         size_t j = 0;
@@ -684,8 +684,8 @@ bool CombatSystem::read(ByteReader& r) {
     effect_scratch_.clear();
     leaders_.clear();
     flush_hps_.clear();
-    stun_visuals_.clear();  // vis1 t08: presentation only, not saved (the serial keeps counting)
-    rebuild_team_members();  // cu8f t04a: derived from the units (phase A rebuilds it every tick)
+    stun_visuals_.clear();  // presentation only, not saved (the serial keeps counting)
+    rebuild_team_members();  // derived from the units (phase A rebuilds it every tick)
     return true;
 }
 

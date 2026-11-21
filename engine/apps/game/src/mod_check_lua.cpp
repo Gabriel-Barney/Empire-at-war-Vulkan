@@ -1,6 +1,6 @@
 // Mod check, Lua family (mod_check_detail.hpp): every Data\Scripts\**\*.lua compiled, entry scripts' main chunks run,
-// unbound engine calls, GlobalValue session dependence (modc t12), missing requires (modc t24) and the binding
-// effect gaps (mcx0 t06).
+// unbound engine calls, GlobalValue session dependence, missing requires and the binding
+// effect gaps.
 #include "mod_check_detail.hpp"
 
 #include <algorithm>
@@ -177,8 +177,8 @@ std::string missing_require_of(std::string_view err) {
 }
 
 // XML elements whose text names a script the original loads by that name (with or without .lua): an object type's or a
-// story plot's Lua_Script (OBJECT_SCRIPTS.md, STORY.md), an AI player's free store scripts, GameConstants'
-// Game_Scoring_Script_Name (GAME_SCORING.md). Matched case-insensitively.
+// story plot's Lua_Script (legacy docs/re/OBJECT_SCRIPTS.md, legacy docs/re/STORY.md), an AI player's free store scripts, GameConstants'
+// Game_Scoring_Script_Name (legacy docs/re/GAME_SCORING.md). Matched case-insensitively.
 constexpr std::string_view kScriptNameTags[] = {"LUA_SCRIPT", "GALACTICFREESTORESCRIPT", "SPACEFREESTORESCRIPT", "LANDFREESTORESCRIPT",
                                                 "GAME_SCORING_SCRIPT_NAME"};
 
@@ -223,7 +223,7 @@ std::string_view script_root_of(std::string_view path) {
 }
 
 // modc t24. A main chunk that fails on a require no layer can satisfy fails the same way in retail: its Lua 5.0.2
-// require raises "could not load package" (docs/re/MODC_LOADER.md section 6), so the script does not load. That matters
+// require raises "could not load package" (legacy docs/re/MODC_LOADER.md section 6), so the script does not load. That matters
 // when the data loads the script; a mod's own script that nothing names never runs (e.g. Thrawn's Revenge's
 // GameScoring_old.lua beside the GameScoring.lua that GameConstants names). Fills missing_require / named_by and moves
 // the unnamed ones to lua_unused_scripts. Only the roots whose scripts are loaded by a name the data gives count as
@@ -290,7 +290,7 @@ void add_unbound(UnboundMap& calls, const std::map<std::string, uint32_t>& found
         ++c.scripts;
     }
 }
-// mcx0 t06: calls to engine bindings, by binding; the ones with an effect gap (lua::binding_effect_gap) or a retail no-op
+// calls to engine bindings, by binding; the ones with an effect gap (lua::binding_effect_gap) or a retail no-op
 // become report v4 entries. Methods are matched by name (the static scan does not know the receiver's class).
 struct BindingCallAcc {
     uint32_t call_sites = 0, scripts = 0;

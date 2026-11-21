@@ -52,7 +52,7 @@
 #include "alamo/ui/camera.hpp"
 #include "alamo/ui/input.hpp"
 #include "alamo/vfs/vfs.hpp"
-#include "app_common.hpp"  // engine/render/app (CU4 t03)
+#include "app_common.hpp"  // engine/render/app
 #ifdef ALAMO_RENDER_GALACTIC_UI_INPUT
 #include "alamo/ui/window_input.hpp"
 #endif
@@ -132,7 +132,7 @@ std::unique_ptr<render::GalacticWorld> load_world(const GalOptions& opt) {
     return w;
 }
 
-// cu5 t04: the <GameConstants> root the world's game database parsed (null for the synthetic world, which has none),
+// the <GameConstants> root the world's game database parsed (null for the synthetic world, which has none),
 // shared by every GameConstants reader here instead of each reading the file again.
 data::XmlNode game_constants(const render::GalacticWorld& w) { return w.gdb ? w.gdb->constants().element : data::XmlNode{}; }
 
@@ -179,7 +179,7 @@ public:
         // R2: the galactic light record (GameConstants Galactic_Zoom_*_Light_*; FoC defaults for the synthetic world).
         if (world_.files) light_ = render::load_galactic_light_settings(game_constants(world_));
         renderer.set_lighting(render::galactic_lighting(light_));  // per frame: prepare() follows the camera's zoom blend
-        renderer.set_object_fade(-1.0f, -1.0f);  // galactic: no distance fade (SPACE_AND_OPEN.md B.8)
+        renderer.set_object_fade(-1.0f, -1.0f);  // galactic: no distance fade (legacy docs/re/SPACE_AND_OPEN.md B.8)
         types.build(world_.types);
         if (!world_.synthetic) {
             cache_ = std::make_unique<assets::AssetCache>(*world_.files, effects_->model_load_options());

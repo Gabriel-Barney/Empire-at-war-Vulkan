@@ -1,7 +1,7 @@
-// A2 tactical - the tactical PotentialPlan: the land / space marshaller lists (docs/re/AI_GALACTIC_2.md §1.1:
+// A2 tactical - the tactical PotentialPlan: the land / space marshaller lists (legacy docs/re/AI_GALACTIC_2.md §1.1:
 // land FreeStore, Plan, Reinforcement, TechTree, Hero, Contrast, TacticalBuild; space FreeStore, TechTree, Plan,
 // Reinforcement, Hero, Contrast, TacticalBuild) on the generic solver core (ai_plans.hpp run_pp_solver), with the
-// tactical marshaller rules of docs/re/AI_GALACTIC_3.md §1 and the tactical hero attach (§2) / population cap (§3).
+// tactical marshaller rules of legacy docs/re/AI_GALACTIC_3.md §1 and the tactical hero attach (§2) / population cap (§3).
 //
 // The solve runs where the galactic one does: in Find_Plan_For_Goal at proposal time (slot 10, land and space
 // 0x6b8850), so its synced draws (Plan Setup C ints, IgnoreTarget contrast floats) happen during proposal, in cursor
@@ -81,7 +81,7 @@ struct TacticalPpInput {
     // Types (PerceptionWorld order) + category names.
     const std::vector<PerceptionType>* types = nullptr;
     std::function<uint64_t(std::string_view)> category_mask;
-    // q6 t03: the space-layer category bits (tactical_space_categories); 0 = the stock names through category_mask.
+    // the space-layer category bits (tactical_space_categories); 0 = the stock names through category_mask.
     uint64_t space_categories = 0;
     // Sources.
     std::vector<PpFreeUnit> free_units;
@@ -101,7 +101,7 @@ struct TacticalPpInput {
     float contrast_multiplier = 1.0f;  // Land_ / Space_AI_Contrast_Multiplier (difficulty)
     int32_t recent_failures = 0;       // Learning 0x588980 at this target
     std::function<double(uint64_t mask)> enemy_strength;
-    // q6 t19 - the escort list's strength (AI_TACTICAL §7.7.1 flag 1, read only when some TF is an EscortForce): unit
+    // the escort list's strength (AI_TACTICAL §7.7.1 flag 1, read only when some TF is an EscortForce): unit
     // target -> the enemies around the target, the target object excluded; region -> as enemy_strength. Absent: the
     // escort list uses enemy_strength.
     std::function<double(uint64_t mask)> escort_strength;
@@ -117,7 +117,7 @@ struct TacticalPpPick {
     int32_t ref = -1;   // unit id / pool key / pad id
     int32_t tf = 0;     // task force index of the plan
     int32_t team = -1;  // team index within the task force (-1 = unplaced)
-    int32_t contrast_entry = -1;  // skai t15: its contrast entry (PP +0x70), read by the running-plan re-test
+    int32_t contrast_entry = -1;  // its contrast entry (PP +0x70), read by the running-plan re-test
 };
 // contrast_entry of a unit a land reinforcement appended to a running plan's unit list (0x6bf3d0): no selection entry.
 inline constexpr int32_t kPickNotSelected = -2;
@@ -127,11 +127,11 @@ struct TacticalPpResult {
     std::vector<TacticalPpPick> picks;
     size_t candidates = 0;
     std::string last_veto;  // marshaller whose Finalize failed the solve (diagnostics), "-" none
-    // skai t15: the contrast layer flags of the solve (PP +0x1a0 space / +0x1a1 ground, Setup C), read by the re-test.
+    // the contrast layer flags of the solve (PP +0x1a0 space / +0x1a1 ground, Setup C), read by the re-test.
     bool layer_space = false, layer_ground = false;
 };
 
-// skai t15 (docs/re/SKAI_T15_PLAN_RETEST.md §1): one selection of a running plan's PotentialPlan as the re-test commits it.
+// skai t15 (legacy docs/re/SKAI_T15_PLAN_RETEST.md §1): one selection of a running plan's PotentialPlan as the re-test commits it.
 struct PpRetestPick {
     int32_t type = -1;
     int32_t tf = -1, team = -1;   // its team slot (-1: in no team: the main list)

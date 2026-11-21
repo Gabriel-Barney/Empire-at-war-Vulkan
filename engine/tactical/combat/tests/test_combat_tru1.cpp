@@ -78,7 +78,7 @@ void test_area_immune_faction() {
 }
 
 namespace {
-// tru1 t02: player 0 owns a base-shield generator (radius 500) at the origin; player 1 is its enemy. Unit 1 is the
+// player 0 owns a base-shield generator (radius 500) at the origin; player 1 is its enemy. Unit 1 is the
 // generator; others are added per case. Player 0 has base power from object 99 unless `power` is false.
 struct ShieldWorld {
     World w;
@@ -449,7 +449,7 @@ void test_base_shield_dome() {
 
 
 namespace {
-// tru1 t08: a straight no-target shot of player 0 from (0, 0, 1) toward (300, 0, 1) over a plateau at z 5 (x >= 160,
+// a straight no-target shot of player 0 from (0, 0, 1) toward (300, 0, 1) over a plateau at z 5 (x >= 160,
 // TACTICAL_COMBAT §3.4 ground test) in land; space has no ground test, so the shot runs out its 200 flight distance.
 // Unit 2 (player 1, enemy) sits 30 to the side of the ground hit / expiry area, inside the effect radius 100.
 struct DetonationWorld {
@@ -471,7 +471,7 @@ struct DetonationWorld {
         rt.grid = g;
         w.sys->set_rocket_terrain(std::move(rt));
         w.add(2, td, 1, unit_at);
-        if (sinks) {  // trn1 t04: the whole map lies under water
+        if (sinks) {  // the whole map lies under water
             SurfaceQueries q;
             q.under_water = [](float, float) { return true; };
             w.sys->set_surface_queries(std::move(q));
@@ -509,7 +509,7 @@ void test_ion_stun_water_kill() {
     shot.ion_stun = true;
     shot.ion_stun_radius = 100.0f;
     shot.ion_stun_duration = 5.0f;
-    shot.stun_radius = 100.0f;  // trl2 t04: the area stun's radius and gate
+    shot.stun_radius = 100.0f;  // the area stun's radius and gate
     shot.stun_frames = 300;
     {
         DetonationWorld d(GameMode::Land, shot, Vec3{142, 30, 0}, true);
@@ -575,7 +575,7 @@ void test_ground_detonation_particle() {
     shot.ion_stun = true;
     shot.ion_stun_radius = 100.0f;
     shot.ion_stun_duration = 5.0f;
-    shot.stun_radius = 100.0f;  // trl2 t04: the area stun's radius and gate
+    shot.stun_radius = 100.0f;  // the area stun's radius and gate
     shot.stun_frames = 300;
     {  // land: the ramp at x 140..160 stops it at x 144 -> ground; ion stun yes, weaken no
         DetonationWorld d(GameMode::Land, shot, Vec3{142, 30, 0});

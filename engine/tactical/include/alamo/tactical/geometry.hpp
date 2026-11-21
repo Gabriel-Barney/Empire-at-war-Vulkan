@@ -80,7 +80,7 @@ inline float dist2_point_aabb(Vec3 p, const Aabb& b) {
 inline bool overlaps(const Sphere& s, const Aabb& b) { return dist2_point_aabb(s.center, b) <= s.radius * s.radius; }
 
 // ---- 2D circle (XY, any Z) ----------------------------------------------------------------
-// The original GOM radius query (TACTICAL_COMBAT.md 1.6) queries centre +- r in X and Y and
+// The original GOM radius query (legacy docs/re/TACTICAL_COMBAT.md 1.6) queries centre +- r in X and Y and
 // +-1e18 in Z (Z is up), i.e. it is a 2D query. This shape is its exact-circle form: an entry
 // matches when its box is within r of the centre in the XY plane, whatever its Z.
 struct CircleXY {

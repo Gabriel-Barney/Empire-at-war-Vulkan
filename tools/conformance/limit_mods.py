@@ -1,4 +1,4 @@
-"""mcx5 t06: the limits conformance mods factions_80 and levels_10, and their G2 headless runs; ref4 t03: huge_delay.
+"""mcx5 t06: the limits conformance mods factions_80 and levels_10, and their G2 headless runs; huge_delay.
 
     python -I tools/conformance/limit_mods.py build --out DIR
     python -I tools/conformance/limit_mods.py run --exe ALAMO_HEADLESS [--exe2 ALAMO_HEADLESS] --out DIR
@@ -8,11 +8,11 @@
 build writes the two mods under DIR/Mods:
   Factions80  committed files (engine/apps/game/testdata/conformance/limits/Mods/Factions80): 72 filler factions listed
               before the stock eight, so Rebel / Empire / ... take faction (and player) indices 72..79 and every
-              campaign holds 80 players (one per faction, docs/re/BKC1_RE_ANSWERS.md Q2).
+              campaign holds 80 players (one per faction, legacy docs/re/BKC1_RE_ANSWERS.md Q2).
   Levels10    FoC's GameConstants.xml (from extracted/foc_data_text.zip; retail data is never committed) with
               MaximumPoliticalControl, MaximumStarbaseLevel, MaximumGroundbaseLevel and MaximumSpecialStructures set
               to 10.
-  HugeDelay   (ref4 t03) FoC's GameConstants.xml with the delays in HUGE_DELAY_TAGS set to 99999999999 seconds, so
+  HugeDelay   FoC's GameConstants.xml with the delays in HUGE_DELAY_TAGS set to 99999999999 seconds, so
               seconds x 30 is far outside int32 at the sites that turn them into frame counts (the L1 bombing-run and
               bombard services read theirs at the start of every land battle). The port converts them with the x86
               range behaviour of alamo/core/frames.hpp (INT32_MIN), so the MSVC and clang CRC logs must match
@@ -52,7 +52,7 @@ MODS = {'factions_80': 'Factions80', 'levels_10': 'Levels10', 'huge_delay': 'Hug
 RUN_ARGS = {
     'space': ['--skirmish-ai', 'skirmish', '--map', '_MP_SPACE_GEONOSIS', '--ai', 'Empire,Rebel', '--fail-on-lua-errors'],
     'land': ['--skirmish-ai', 'skirmish', '--map', '_MP_LAND_UTAPAU', '--ai', 'Empire,Rebel', '--fail-on-lua-errors'],
-    # ref4 t03: the Capture Control Points game type, whose domination countdown starts from
+    # the Capture Control Points game type, whose domination countdown starts from
     # Control_Point_Domination_Victory_Time_In_Secs (huge_delay: INT32_MIN, then a wrapping decrement).
     'land_cp': ['--skirmish-ai', 'skirmish', '--map', '_MP_LAND_UTAPAU', '--ai', 'Empire,Rebel', '--control-points',
                 '--fail-on-lua-errors'],

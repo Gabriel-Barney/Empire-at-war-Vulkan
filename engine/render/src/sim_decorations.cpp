@@ -188,7 +188,7 @@ void SimDecorations::update(const InterpolatedFrame& frame) {
             ++stats_.foot_unmatched;
             continue;
         }
-        if (it->script_hidden) continue;  // q6 t19: surface type 0x11 for a Lua-hidden object (no footprints)
+        if (it->script_hidden) continue;  // surface type 0x11 for a Lua-hidden object (no footprints)
         const std::string_view surface = surface_type_name(terrain_surface_type(t, f.position.x, f.position.y));
         const SurfaceSettings* ss = foot_settings((*table_)[it->type], f, surface);
         if (!ss) {

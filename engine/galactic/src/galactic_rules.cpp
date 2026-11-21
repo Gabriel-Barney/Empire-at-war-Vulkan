@@ -56,7 +56,7 @@ uint32_t resolve_or_none(const objects::GameObjectTypes& types, std::string_view
 // OI galactic (STRATEGIC_GAPS 1.2 / 1.3 / 1.7): dummy behaviour, company transport, buildability fields.
 void extract_oi_fields(const objects::GameObjectTypes& types, objects::TypeIndex t, TypeInfo& i) {
     i.data_rules = true;
-    i.dummy = galactic_dummy(types, static_cast<uint32_t>(t));  // mcx1 t05: generic Behavior, retail order (Q7.2)
+    i.dummy = galactic_dummy(types, static_cast<uint32_t>(t));  // generic Behavior, retail order (Q7.2)
     i.transport_behavior = types.has_behavior(t, objects::BehaviorSet::Union, objects::beh::Transport);
     for (objects::TypeIndex r : types.get_type_refs(t, objects::tags::Company_Transport_Unit)) {
         if (r != objects::kNone) i.company_transport = r;
@@ -201,7 +201,7 @@ EconomyConstants load_economy_constants(const data::GameDatabase& db) {
         c.base_vs_tech[static_cast<size_t>(i)] = g.get_float(
             "Production_Speed_Mod_Base_Vs_Tech_" + std::to_string(i), c.base_vs_tech[static_cast<size_t>(i)]);
     c.max_ground_forces_on_planet = g.get_int("Max_Ground_Forces_On_Planet", c.max_ground_forces_on_planet);
-    // mcx5 t02: absent tags take the GameConstants defaults, 1 each (0x2c91c0, MCX5_RE_ANSWERS Q1.9 [H]).
+    // absent tags take the GameConstants defaults, 1 each (0x2c91c0, MCX5_RE_ANSWERS Q1.9 [H]).
     c.max_political_control = g.get_int("MaximumPoliticalControl", 1);
     c.max_starbase_level = g.get_int("MaximumStarbaseLevel", 1);
     c.max_groundbase_level = g.get_int("MaximumGroundbaseLevel", 1);
@@ -212,7 +212,7 @@ EconomyConstants load_economy_constants(const data::GameDatabase& db) {
     c.ai_build_task_reservation_seconds =
         g.get_float("AI_BuildTaskReservationSeconds", c.ai_build_task_reservation_seconds);  // mcx4 t05 (C1)
     c.health_low_percent_threshold = g.shared.health_low_percent_threshold.value_or(c.health_low_percent_threshold);  // a2l t03; ref4 t06 (shared)
-    {  // a2m t05: Low_ / Medium_ / High_Threat_Reachability_Tolerance (A2M_T04_RE_ANSWERS Q3)
+    {  // Low_ / Medium_ / High_Threat_Reachability_Tolerance (A2M_T04_RE_ANSWERS Q3)
         static constexpr const char* kTol[3] = {"Low_Threat_Reachability_Tolerance", "Medium_Threat_Reachability_Tolerance",
                                                 "High_Threat_Reachability_Tolerance"};
         for (size_t i = 0; i < 3; ++i) c.threat_reachability_tolerance[i] = g.get_float(kTol[i], c.threat_reachability_tolerance[i]);
@@ -225,7 +225,7 @@ EconomyConstants load_economy_constants(const data::GameDatabase& db) {
         g.get_float("MaxInfluenceTransitionAlignmentPenalty", c.influence_alignment_penalty);
     c.ai_uses_galactic_pop_cap = g.get_bool("AI_Uses_Galactic_Pop_Cap", c.ai_uses_galactic_pop_cap);  // A2 galactic
     // OI galactic (STRATEGIC_GAPS 2.1): the galactic mode's speed multiplier M.
-    c.fleet_speed_multiplier = g.shared.object_max_speed_multiplier_galactic.value_or(c.fleet_speed_multiplier);  // ref4 t06: GameConstants::shared
+    c.fleet_speed_multiplier = g.shared.object_max_speed_multiplier_galactic.value_or(c.fleet_speed_multiplier);  // GameConstants::shared
     c.planet_reveal_delay_seconds = g.get_float("Planet_Reveal_Delay_Time", c.planet_reveal_delay_seconds);  // GRC 1.3
     const auto float_list = [&g](const char* tag, std::vector<float>& out) {  // GRC 4.5
         if (auto t = g.get(tag)) {
@@ -340,7 +340,7 @@ std::vector<DifficultyRules> load_difficulties(const FileProvider& provider, std
     auto doc = read_xml(provider, "Data\\XML\\DifficultyAdjustments.xml", diagnostics);
     if (!doc) return out;
     for (data::XmlNode n : doc->root().children("Difficulty_Adjustment")) {
-        DifficultyRules d;  // mcx1 t03: the shared data-class rule (last occurrence wins, TBD / empty skipped)
+        DifficultyRules d;  // the shared data-class rule (last occurrence wins, TBD / empty skipped)
         d.name = std::string(n.attribute("Name"));
         d.credit_multiplier = atof_or(data::xml_values::text(n, "Credit_Multiplier"), 1.0f);
         d.galactic_build_time_multiplier = atof_or(data::xml_values::text(n, "Galactic_Build_Time_Multiplier"), 1.0f);

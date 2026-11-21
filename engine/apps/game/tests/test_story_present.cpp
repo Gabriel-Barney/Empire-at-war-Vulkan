@@ -1,5 +1,5 @@
 // alamo_game_story_present_tests (data-free): StoryPresenter (story_present.hpp), the host side of the story presentation
-// rewards (docs/re/STORY_PRESENTATION_REWARDS.md). One block per spec section.
+// rewards (legacy docs/re/STORY_PRESENTATION_REWARDS.md). One block per spec section.
 #include <cstdint>
 #include <cstdio>
 #include <set>
@@ -58,7 +58,7 @@ void text_test() {
     CHECK(s.lines()[1].revealed(3.0) == s.lines()[1].text.size());
     CHECK(s.lines()[2].seconds == 5.0 && s.lines()[2].channel == game::StoryTextChannel::Subtitle);
     CHECK(s.lines()[2].revealed(3.0) == 0 && s.lines()[2].revealed(4.0) > 0);
-    {  // mcx4 t14 (docs/re/MCX4_T14_RE_ANSWERS.md "GameConstants.Text_Reveal_Rate"): elapsed seconds x the rate
+    {  // mcx4 t14 (legacy docs/re/MCX4_T14_RE_ANSWERS.md "GameConstants.Text_Reveal_Rate"): elapsed seconds x the rate
         game::StoryTextLine tl;
         tl.text = U"abcdefghijklmnopqrstuvwxyz";
         tl.start = 10.0;
@@ -159,14 +159,14 @@ void pointer_test() {
     CHECK(h.object_flashes().empty() && h.map_flashes().empty());
 }
 
-// mcx4 t14 / t15 (docs/re/STORY_PRESENTATION_REWARDS.md §1.1): the screen-text channel colours come from GameConstants
+// mcx4 t14 / t15 (legacy docs/re/STORY_PRESENTATION_REWARDS.md §1.1): the screen-text channel colours come from GameConstants
 // Hint_Text_Color / System_Text_Color / Task_Text_Color / Speech_Text_Color ("r g b", alpha 255); a short value keeps
 // the default.
 // ledger: verifies GameConstants.Hint_Text_Color
 // ledger: verifies GameConstants.System_Text_Color
 // ledger: verifies GameConstants.Task_Text_Color
 // ledger: verifies GameConstants.Speech_Text_Color
-// mcx4 t14 (docs/re/MCX4_T14_RE_ANSWERS.md "GameConstants.CB_Flash_Count"): a flash run by count, no arrow.
+// mcx4 t14 (legacy docs/re/MCX4_T14_RE_ANSWERS.md "GameConstants.CB_Flash_Count"): a flash run by count, no arrow.
 void count_flash_test() {
     alamo::test::section("count-run component flash (CB_Flash_Count)");
     game::StoryPresenter s = make();
@@ -322,7 +322,7 @@ void advisor_test() {
     CHECK(ids.size() == 3 && ids[0] == "TEXT_A" && ids[2] == "TEXT_C" && game::split_story_ids("").empty());
 }
 
-// q6 t36 (Q6_T27_ELIM_END_TIMING.md "Probe answer" [H]): the galactic hint text queue as retail ran it in the q6 t33 probe.
+// q6 t36 (legacy docs/re/Q6_T27_ELIM_END_TIMING.md "Probe answer" [H]): the galactic hint text queue as retail ran it in the q6 t33 probe.
 void hint_queue_test() {
     alamo::test::section("q6 t36: hint text queue");
     game::StoryPresenter s = make();
@@ -361,7 +361,7 @@ void hint_queue_test() {
     CHECK(s.shown_hint() == nullptr);
 }
 
-// ref4 t01: every reward kind on_reward handles (plus the Lua / host calls) into one presenter, in an order that leaves
+// every reward kind on_reward handles (plus the Lua / host calls) into one presenter, in an order that leaves
 // every lasting switch set.
 void feed_everything(game::StoryPresenter& s) {
     const double t = 10.0;
@@ -540,7 +540,7 @@ void save_test() {
     CHECK(!game::StoryPresenter::is_lasting_reward("SCREEN_TEXT") && game::StoryPresenter::is_lasting_reward("disable_retreat"));
 }
 
-// ref5 t02: every Ui row of the sim's story reward table has a handler in the presenter or the media table; every name either
+// every Ui row of the sim's story reward table has a handler in the presenter or the media table; every name either
 // registers is a row of the table; DUAL_FLASH pairs the next two flashes, FLASH_UNIT takes an arrow slot, SFX is a media cue.
 void handler_test() {
     alamo::test::section("ref5 t02: Ui rows have a registered handler");

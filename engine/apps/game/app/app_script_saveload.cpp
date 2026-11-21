@@ -218,7 +218,7 @@ void open_save_dialog(std::vector<ScriptStep>& s) {
 // open / close on a click, so the first-row click and Down of step_select_row would close the save's group) and checks
 // the selection.
 void select_save(std::vector<ScriptStep>& s, const char* dialog, const char* name) {
-    // tst1 t01: the tree opens only the newest save's groups when it fills. In a saves folder kept from an earlier run that
+    // the tree opens only the newest save's groups when it fills. In a saves folder kept from an earlier run that
     // can be another save (an older Auto Save), leaving `name` inside a closed group: open closed group rows ("[+] ...",
     // one click each, then a frame for the list to refill) until it is listed.
     auto click = std::make_shared<std::optional<ScriptStep>>();
@@ -388,7 +388,7 @@ ScriptStep step_begin_battle() {
 void add_saveload_steps(std::vector<ScriptStep>& s) {
     auto run = std::make_shared<Run>();
     const std::string png = "game_smoke_saveload_";
-    // Setup: this run's save names are not in the folder (a re-run). tst1 t01: nor the Auto Save an earlier run left in
+    // Setup: this run's save names are not in the folder (a re-run). Nor the Auto Save an earlier run left in
     // this smoke's own folder (the overwrite step counts the folder's saves); never the player's own folder's Auto Save.
     s.push_back(step_wait("saves folder ready", [](App& a) {
         if (a.saves_dir_.empty()) return stop(a, "setup", "no saves folder");

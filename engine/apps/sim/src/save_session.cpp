@@ -95,7 +95,7 @@ void SessionDescriptor::write(ByteWriter& w) const {
     for (const auto& [k, v] : opts) w.str(k).str(v);
     w.u64(data_fingerprint);
     w.str(writer);
-    if (!mods.empty()) {  // mcx3 t05: optional trailing block
+    if (!mods.empty()) {  // optional trailing block
         w.u32(static_cast<uint32_t>(mods.size()));
         for (const SaveMod& m : mods) w.str(m.key).str(m.name).str(m.version).u64(m.content_hash);
     }
@@ -136,7 +136,7 @@ bool SessionDescriptor::read(ByteReader& r) {
     }
     d.data_fingerprint = r.u64();
     d.writer = r.str();
-    if (r.ok() && !r.done()) {  // mcx3 t05: the mods block
+    if (r.ok() && !r.done()) {  // the mods block
         const uint32_t nm = r.u32();
         if (!r.ok() || nm > kMaxCount) return false;
         for (uint32_t i = 0; i < nm && r.ok(); ++i) {
@@ -169,7 +169,7 @@ std::string SessionDescriptor::mismatch(const SessionDescriptor& s, const Sessio
     for (size_t i = 0; i < s.setup.size(); ++i)
         if (!(s.setup[i] == c.setup[i])) return "player " + std::to_string(i) + " setup differs (" + s.setup[i].faction + ")";
     if (s.difficulty != c.difficulty) return "difficulty '" + s.difficulty + "' != '" + c.difficulty + "'";
-    // sp3: the AI-lane options (ai_lane, k_ai) are not compared: a lane-off save also loads into an AI-lane session (bench,
+    // the AI-lane options (ai_lane, k_ai) are not compared: a lane-off save also loads into an AI-lane session (bench,
     // harness), and the battle.ai chunk refuses a lane save in a lane-off session itself.
     const auto compared = [](const std::vector<std::pair<std::string, std::string>>& o) {
         std::vector<std::pair<std::string, std::string>> v;

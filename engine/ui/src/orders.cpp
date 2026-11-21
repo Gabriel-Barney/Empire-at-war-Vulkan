@@ -127,7 +127,7 @@ void OrderTranslator::tactical(const InputState& in, const OrderContext& ctx) {
                 if (!((in.alt() && !in.ctrl()) || toggle_waypoint_)) waypoint_mode_ = false;
                 right_release(in, ctx);
             }
-        } else if (!hit && !in.shift()) {  // P1_CAMERA_INPUT.md §5: a plain click on nothing submits Select{} [port: Shift]
+        } else if (!hit && !in.shift()) {  // legacy docs/re/P1_CAMERA_INPUT.md §5: a plain click on nothing submits Select{} [port: Shift]
             emit_select({});
         }
     }
@@ -195,12 +195,12 @@ uint8_t OrderTranslator::move_flags(const InputState& in, bool dbl) {
 
 // Order button release (default scheme action 13 -> `0x41f70`): the cursor action at the release point.
 void OrderTranslator::right_release(const InputState& in, const OrderContext& ctx) {
-    const auto hit = toggle_force_move_ ? std::nullopt  // ui3 t01: the Move toggle - a ground move whatever is under the cursor
+    const auto hit = toggle_force_move_ ? std::nullopt  // the Move toggle - a ground move whatever is under the cursor
                                         : pick_world(ctx.trees->all(), ctx.view, pixel_ray(ctx.view, in.mouse_x(), in.mouse_y()),
                                                      ctx.pick_filter, qctx_, ctx.pick_tests);
     if (hit) {
         waypoint_mode_ = false;  // any other order ends an Alt run
-        // ui3 t01: the Attack toggle attacks any object that is not the local player's (hostile or not).
+        // the Attack toggle attacks any object that is not the local player's (hostile or not).
         const bool attack = is_hostile(ctx, hit->id) || (toggle_force_attack_ && !is_selectable(ctx, hit->id));
         toggle_attack_ = toggle_guard_ = toggle_waypoint_ = toggle_force_attack_ = toggle_force_move_ = false;
         if (attack) {
@@ -231,7 +231,7 @@ void OrderTranslator::right_double(const InputState& in, const OrderContext& ctx
 
 // `0x3b360`: one move order at pixel (px, py), its flags and its acknowledgement (spec §2).
 void OrderTranslator::ground_move(const InputState& in, const OrderContext& ctx, int32_t px, int32_t py, bool dbl) {
-    const ButtonState& rb = in.button(alternate_ ? Button::Left : Button::Right);  // ui1 t02: the order button
+    const ButtonState& rb = in.button(alternate_ ? Button::Left : Button::Right);  // the order button
     // Facing variant: a press anchor and a Chebyshev drag > MinimumDragDistance. A double click never has an anchor.
     const int32_t ddx = rb.drag.x1 - rb.drag.x0, ddy = rb.drag.y1 - rb.drag.y0;
     const int32_t cheb = std::max(ddx < 0 ? -ddx : ddx, ddy < 0 ? -ddy : ddy);

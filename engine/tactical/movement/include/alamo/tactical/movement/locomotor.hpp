@@ -10,7 +10,7 @@
 // End Move and coast along the last frame's displacement; a waypoint is passed only by crossing its line (-0.001); turn
 // toward the wanted yaw (segment direction + lane term + collision vector) by the budget left; travel along the facing to
 // the waypoint line (s' = |D / tau|, tau = 0 or a degenerate segment skips the waypoint); every step is point-tested at its
-// new position (0x50e280) unless the path is forced - a refused point reports `blocked` with no commit (s78n t24: the
+// new position (0x50e280) unless the path is forced - a refused point reports `blocked` with no commit (the
 // system makes a TerrainCollision record, §5.4.7); v^2 / (2a) > the rest of the path -> End Move unless a started path
 // lies below. Directions use the retail fast inverse sqrt (§3.5 step 5).
 // s78n t26.5 (§3.5.2 E): the land team container runs the same step (WalkExtras::container): the budget R with no f
@@ -60,7 +60,7 @@ struct LocomotorParams {
     float turn_rate = 0.0f;   // degrees / frame
     uint32_t mask = kPassClear;
     float close_enough_angle = 180.0f;
-    // bkm1 t08 (b0050, MOVEMENT §3.5.3): UseSecondaryFacing and its coefficients (UnitDesc, raw type values)
+    // bkm1 t08 (MOVEMENT §3.5.3): UseSecondaryFacing and its coefficients (UnitDesc, raw type values)
     bool secondary = false;
     float sec_angle = 90.0f;
     float sec_min = 0.0f;
@@ -98,13 +98,13 @@ struct LandMotion {
     float wt_rate = 0.0f;
     float wt_f4 = 0.0f;
     float wt_f0 = 0.0f;
-    // bkm1 t06 (b0051, MOVEMENT §3.5.2 "waypoint z" items 3-4; save version 31): the stored height of the path's last waypoint
+    // bkm1 t06 (MOVEMENT §3.5.2 "waypoint z" items 3-4; save version 31): the stored height of the path's last waypoint
     // while path.back() == end_at - every other waypoint is stored with z = 0 (a pathfinder path, a lane, a push path; the
     // pathfinder drops the heights). Non-zero only on a slot-leg path (G appended with the target's height, interpolated by a
     // fire-trim cut on that segment), so C.11 sums that last segment 3-D: sqrt(l^2 + end_z^2).
     float end_z = 0.0f;
     V2 end_at;
-    // bkm1 t08 (b0050, MOVEMENT §3.5.3; save version 31): the secondary yaw Y2 (Walk pack +0x270, degrees), copied from the
+    // bkm1 t08 (MOVEMENT §3.5.3; save version 31): the secondary yaw Y2 (Walk pack +0x270, degrees), copied from the
     // orientation when the Walk attaches (add_unit, a locomotor swap) and never reset after: only stepped - in the move
     // step with B2 toward the lookahead yaw w1, in the turn in place 0x10 toward its w at r x SecondaryTurnInPlaceROTCoefficient.
     // Read only by the B2 angle and the arrival turn's reached rule ([port] the formation block pop's snap to Y2, 0x4105a0,
@@ -132,7 +132,7 @@ float walk_transition_accel(const WalkTransition& wt, float vmax);
 // count; m != 0 -> ((S / (m - 1)) x (u / S)) x (u / S), else u ([port] S <= 0: u).
 float walk_transition_decel(const WalkTransition& wt, float vmax, float v, float f0);
 
-// s78n t26.2: the speed fraction of waypoint i (1.0 past the end; 0x5c4b80 / 0x5c4af0, the static (1.0, 1.0) default).
+// the speed fraction of waypoint i (1.0 past the end; 0x5c4b80 / 0x5c4af0, the static (1.0, 1.0) default).
 inline float wp_frac(const LandMotion& m, size_t i) {
     return i < m.frac.size() && i < m.path.size() ? m.frac[i] : 1.0f;
 }
@@ -145,7 +145,7 @@ struct WalkResult {
     // arrival turn of §3.5.1) toward `want` (degrees) before it moves; speed 0, nothing else this frame.
     bool turn = false;
     float want = 0.0f;
-    // s78n t26.4: popped = the walk finished the top record and went on along the started path below in the same call
+    // popped = the walk finished the top record and went on along the started path below in the same call
     // (C.4; the caller pops the record); coast = an End Move coast step ran (C.4); restart = 0x15 away from the end (the move
     // restarts from state 0); tau_skips / degen_skips = waypoints skipped by tau = 0 (C.9) / a degenerate segment (C.8).
     bool popped = false;
@@ -258,7 +258,7 @@ struct WalkExtras {
 bool walk_wanted_dir(const LandMotion& m, const WalkExtras* x, V2& dir);
 bool walk_wanted_dir(std::span<const V2> path, uint32_t next, V2 pos, const WalkExtras* x, V2& dir);
 
-// s78n t26.4: the index a record resumes at when the record above it (kind, rejoin index) is popped (pop_top's rule):
+// the index a record resumes at when the record above it (kind, rejoin index) is popped (pop_top's rule):
 // max(next, min(resume, size)) for a kind-2 detour, at least 1.
 uint32_t resume_index(const LandMotion& q, uint8_t kind, uint32_t resume);
 

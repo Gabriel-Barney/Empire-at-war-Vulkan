@@ -2,7 +2,7 @@
 # (environments, terrain, TEM table, passability, zones, cameras, objects), per-patch terrain meshes
 # with per-material A4R4G4B4 blend passes, water plane/mesh/constants, object placements -> models,
 # decorations (decals, shadow blobs, map + dynamic tracks) and the fog-of-war texture, space maps.
-# Spec: docs/re/TERRAIN_WATER_POST.md 1-3, 5; docs/re/DECORATIONS.md; docs/re/SPACE_AND_OPEN.md A.
+# Spec: legacy docs/re/TERRAIN_WATER_POST.md 1-3, 5; legacy docs/re/DECORATIONS.md; legacy docs/re/SPACE_AND_OPEN.md A.
 add_library(alamo_terrain STATIC
   src/chunk.cpp
   src/ted_read.cpp

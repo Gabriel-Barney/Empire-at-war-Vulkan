@@ -1,4 +1,4 @@
-// ui4 t04: the FoC galactic planet map ("Base Layout", docs/re/GALACTIC_PLANET_MAP.md) inside GalacticHud: map_shell's
+// the FoC galactic planet map ("Base Layout", legacy docs/re/GALACTIC_PLANET_MAP.md) inside GalacticHud: map_shell's
 // texts and icons (§7), the land-map picture on map_window (§3), the marker pads (§4) and the ground forces in orbit
 // (§5), and the drops of §6 (galactic_hud.hpp, kMapOrbitIndex).
 #include <algorithm>

@@ -3,7 +3,7 @@
 // the coefficient tries, the chord step, one ring (0x43b520), the ring layout (0x43d380), the trim point, the fire trim
 // (0x410e90) and the slot leg point. Hand numbers are derived in the comments from the spec's rules; each test checks the
 // rule's output against them.
-// s78n t25.2: the attack block in MovementSystem (MoveOrder::attack): the attack slots 0x438c10 with the slot test 0x43a070,
+// the attack block in MovementSystem (MoveOrder::attack): the attack slots 0x438c10 with the slot test 0x43a070,
 // the per-formation attack plan (the "every member can fire" stop, the slot leg, the fire trim), the re-plan route, the
 // solo rule (§4.2 item 6) and the slot state of Unit (kept by halt, cleared by stop / teleport / plain orders).
 #include <cmath>
@@ -556,7 +556,7 @@ void test_scene_plan_failure() {
     CHECK(!failed[0] && failed[1] && moving[0]);
     std::printf("plan failure: G on the grid failed %d (moving %d), G off the grid failed %d (moving %d)\n", failed[0] ? 1 : 0,
                 moving[0] ? 1 : 0, failed[1] ? 1 : 0, moving[1] ? 1 : 0);
-    // mov2 t12 (b0198, BKR2 Q7 item 6 [H]): a failed plan sets no path - a unit walking a move keeps its goal, its path and
+    // mov2 t12 (BKR2 Q7 item 6 [H]): a failed plan sets no path - a unit walking a move keeps its goal, its path and
     // its speed (before t12 it was stopped: no goal, failed). The lead on the obstacle cell holds a plain move (it cannot
     // leave the cell, speed 0) when the attack order with G off the grid comes: the plan fails, the move order stays.
     {
@@ -583,14 +583,14 @@ void test_scene_plan_failure() {
     }
 }
 
-// bkm3 t02 (b0072): the two-formation scene with both leads standing on their cell centres ((100, 440) and (100, 760) from
+// the two-formation scene with both leads standing on their cell centres ((100, 440) and (100, 760) from
 // kO: cell centres are at 20 x the cell index). attack_slots takes d0 from the first non-zero segment (first_dir, s78o), so
 // the ring order is the left-most first on its right-hand normal: the y = +160 formation (11) index 0, the y = -160 one
 // (10) the middle at 2 step(15, 0) = +0.0625102, 11 at -0.0625713, as the off-centre scene. With d0 = (0, 0) every
 // projection would tie and the id order would put 10 left (the thetas swap).
 // A zero first segment does not occur today: find_land_path drops it (region_astar's std::unique; cell_astar never emits
 // the start cell's centre; a blocked start's escape leg is non-zero). The path checks below pin that, so the scene's
-// thetas catch a d0 = normalize(path[1] - path[0]) only once a path with a repeated start can be made (b0072).
+// thetas catch a d0 = normalize(path[1] - path[0]) only once a path with a repeated start can be made.
 void test_scene_zero_first_segment() {
     ::alamo::test::section("scene_zero_first_segment");
     MovementSystem sys{MovementConfig{}};
@@ -847,7 +847,7 @@ void test_scene_plain_orders() {
     const uint32_t fid = sys.view(10).form_id;
     sys.halt(one, 1);
     CHECK(close_to(sys.view(10).atk_rho, 240.0f, 1e-3f) && sys.view(10).atk_form != 0 && !sys.view(10).has_goal);
-    // s78o (b0066, FIGHTER_FLYING §7.5 item 4): halt() keeps the formation identity too; stop() drops it
+    // s78o (FIGHTER_FLYING §7.5 item 4): halt() keeps the formation identity too; stop() drops it
     CHECK(fid != 0 && sys.view(10).form_id == fid);
     sys.stop(one);
     CHECK(sys.view(10).atk_rho == 0.0f && sys.view(10).atk_form == 0 && sys.view(10).atk_target == -1 && sys.view(10).form_id == 0);
@@ -907,7 +907,7 @@ void test_scene_guard() {
         const V2 c = kO + V2{d, 0.0f};
         bool los_only_always = true;
         uint32_t asked = 0;
-        bool to_g = true;  // bkt1 t06 (b0079): the trim's line of fire ends at the plan's goal G (a guard block: G = C)
+        bool to_g = true;  // the trim's line of fire ends at the plan's goal G (a guard block: G = C)
         alamo::test::set_fire_test<V2>(alamo::test::engagement_of(sys), [&](ObjectId, V2, ObjectId, bool los_only, V2 g, float) {
             los_only_always = los_only_always && los_only;
             to_g = to_g && close2(g, c, 0.01f);
@@ -950,7 +950,7 @@ void test_scene_guard() {
         sys.move(o, rng, 1);
         CHECK(close2(sys.view(10).goal, kO + V2{310.0f, 0.0f}, 0.01f));
     }
-    // s78o (b0071): an unarmed guard (the host's targeting false: no TARGETING) is not tested by the trim, so the
+    // s78o: an unarmed guard (the host's targeting false: no TARGETING) is not tested by the trim, so the
     // |p - C| <= 150 term does not hold it back either: with no tested member every s passes and the trim keeps 0 - the
     // goal is the path's first node (the slot point around the start), where retail trims an all-unarmed guard
     {
@@ -977,7 +977,7 @@ void test_scene_guard() {
     }
 }
 
-// tst2 t03 (bkt1 t06 coverage, b0079; MOVEMENT §4.3.2 item 7 [H], BKT1_ATTACK_RE §1.2): a staged attack block - the
+// tst2 t03 (bkt1 t06 coverage; MOVEMENT §4.3.2 item 7 [H], BKT1_ATTACK_RE §1.2): a staged attack block - the
 // block goal point G moved off T's point C by the staging (here G = C - (150, 0), as 0x40e260 / 0x440f90 would leave it
 // for a member inside its min range) - plans to G and the fire trim's line of fire ends at G, never at C. The height
 // passed with G is the order's C height (PHASE4 bkt1 t06 [port]: a staged G takes C's height). The scene of

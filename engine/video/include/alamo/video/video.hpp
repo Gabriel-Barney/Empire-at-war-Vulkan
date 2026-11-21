@@ -1,4 +1,4 @@
-// alamo_video - Bink movie playback (docs/PHASE4.md P3) through FFmpeg's Bink decoder.
+// alamo_video - Bink movie playback (legacy docs/PHASE4.md P3) through FFmpeg's Bink decoder.
 //
 // FFmpeg (approved by Gabriel 2026-10-27) is the pinned 8.1.3 Bink-only LGPL v2.1+ shared build from
 // toolchain\9_ffmpeg_bink.cmd: libavcodec bink / binkaudio_rdft / binkaudio_dct decoders, libavformat bink
@@ -84,7 +84,7 @@ struct VideoFrame {
 struct OpenOptions {
     PixelFormat format = PixelFormat::Rgba8;
     int audio_track = 0;        // which Bink audio track to decode; -1 = no audio
-    // Movies.xml `Alpha` (docs/re/STRATEGIC_GAPS.md §7.3 [H]: the original opens alpha movies with the alpha-plane flag
+    // Movies.xml `Alpha` (legacy docs/re/STRATEGIC_GAPS.md §7.3 [H]: the original opens alpha movies with the alpha-plane flag
     // and copies BGRA with alpha; every other movie is drawn opaque). true: the file's alpha plane is kept (Rgba8 A =
     // the plane, straight - not premultiplied; Yuv420p gets the A plane); false: the plane is ignored (A = 255, no A
     // plane, VideoInfo::has_alpha false). Default true = whatever the file has.
@@ -92,7 +92,7 @@ struct OpenOptions {
 };
 
 // Movies.xml <Movie> fields the players need (STRATEGIC_GAPS §7.3): parse_movies (movie_db.hpp, built with engine/data).
-// ui5 t12 (docs/re/AUDIO.md §3.4 "Movie subtitles"): one Movies.xml caption: <Caption_Frame> TEXT_ID, frame and
+// ui5 t12 (legacy docs/re/AUDIO.md §3.4 "Movie subtitles"): one Movies.xml caption: <Caption_Frame> TEXT_ID, frame and
 // <Caption_Duration> TEXT_ID, frames of the same text id (-1 = no Caption_Duration for it).
 struct MovieCaption {
     std::string text_id;
@@ -116,7 +116,7 @@ struct MovieEntry {
     int32_t text_crawl_end_frame = -1;
 };
 
-// ui5 t12: which caption is on screen (AUDIO.md §3.4). Frames are numbered from 1 like Bink's; step() is called once per
+// which caption is on screen (legacy docs/re/AUDIO.md §3.4). Frames are numbered from 1 like Bink's; step() is called once per
 // frame advance with the frame before and after it. A caption whose frame lies in (prev, cur] and that `shows(text_id)`
 // (the host's text lookup: false for a missing text or "[TBL]") replaces the shown one from `cur` for its duration
 // (0 -> 120 frames, none -> ends at the next step); the first such caption in the list's (text id) order wins. Without
@@ -137,7 +137,7 @@ public:
     }
     template <class Shows>
     void step(int64_t prev, int64_t cur, Shows&& shows) {
-        // AUDIO.md 3.4: only the first caption (text-id order) whose frame lies in (prev, cur] counts; when `shows`
+        // legacy docs/re/AUDIO.md 3.4: only the first caption (text-id order) whose frame lies in (prev, cur] counts; when `shows`
         // refuses it ([TBL]) nothing starts this frame, a later match in the same window is not tried.
         for (size_t i = 0; i < captions_.size(); ++i) {
             const MovieCaption& c = captions_[i];

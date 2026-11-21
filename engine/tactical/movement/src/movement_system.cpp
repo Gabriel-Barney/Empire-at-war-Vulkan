@@ -55,15 +55,15 @@ void MovementSystem::rebuild_regions_if_dirty(const ParallelFor& pf) {
 int32_t MovementSystem::formation_ctor_draw(SimRng& rng) { return rng.range_int(1, kFormationFps); }
 
 bool MovementSystem::has_coordinator(ObjectId id) const {
-    id = order_id(id);  // s78n t03: a steering member's coordinator is its container's
+    id = order_id(id);  // a steering member's coordinator is its container's
     // cu8i t02 [port]: a unit has a movement coordinator (retail locomotor pack +0x1f0 formation) while it has an order
     // (a goal) or a formation; the coordinator-less rest is what 0x39bcb0 adopts at Load_Map's tail.
-    // cu8j: also while it waits for its order's composition (pend) or holds in an adopt's coordinator (adopted).
+    // also while it waits for its order's composition (pend) or holds in an adopt's coordinator (adopted).
     const Unit* u = unit_ptr(id);
     return u && (u->has_goal || u->in_formation || u->adopted || u->pend != 0);
 }
 
-// ---------------------------------------------------------------- cu8j t01 / t02: coordinator update, adopt
+// ---------------------------------------------------------------- coordinator update, adopt
 uint32_t MovementSystem::compose_register(bool space, bool moves, V2 goal) {
     if (++pend_serial_ == 0) pend_serial_ = 1;  // 0 = none (a wrap after 2^32 orders)
     PendingComposition pc;
@@ -108,7 +108,7 @@ void MovementSystem::compose_land(const PendingComposition& pc, uint32_t frame, 
     uint32_t acc = 0;
     for (size_t i = 0; i < forms.size(); ++i) {
         const int32_t pfd = forms[i].front()->d.path_frame_delay;
-        // cu8l t01: a birth coordinator (hold_from_birth: moves false) is the team container's own formation, and no
+        // a birth coordinator (hold_from_birth: moves false) is the team container's own formation, and no
         // vanilla container type has PathFrameDelay (CU8K_T02_T06_RE §1.3): no r'. [port] Its members' PathFrameDelay is
         // not read for it.
         if (pfd <= 0 || !pc.moves) continue;  // [port] a negative PathFrameDelay draws nothing (vanilla: 0 or 4)
@@ -139,7 +139,7 @@ bool MovementSystem::compose_space(const PendingComposition& pc, uint32_t frame,
         float vmax = 0.0f, vmin = 0.0f;
     };
     std::vector<Cand> cands;
-    // s78n t10: one unit's world box (SPACE_AVOIDANCE §3.1) from the host's model data - the collision bound through the
+    // one unit's world box (SPACE_AVOIDANCE §3.1) from the host's model data - the collision bound through the
     // unit's position, yaw and Scale_Factor; no model: [P, P + 0.1]. [port] yaw only (a fighter's pitch / roll are not
     // applied). False: no host data.
     const auto unit_box = [this](const Unit& x, AvoidObstacle& o) {
@@ -173,7 +173,7 @@ bool MovementSystem::compose_space(const PendingComposition& pc, uint32_t frame,
         F3 p{};
         if (fobject_pos(key, p)) c.pos = {p.x, p.y};
         else c.pos = u->m.pos;
-        // s78n t10: the world AABB 0x3982b0 (Custom_Hard extents are not read there). A ship: its model box. A squadron
+        // the world AABB 0x3982b0 (Custom_Hard extents are not read there). A ship: its model box. A squadron
         // container: the team box = the min / max union of its fighters' boxes, team index order [M: the union rule].
         // [port] without host data (no hook, or a model that does not load): the object position with the hard extents
         // (Custom_Hard_X/YExtent x Scale_Factor), else the radius; a squadron: its first fighter's.
@@ -254,7 +254,7 @@ bool MovementSystem::compose_space(const PendingComposition& pc, uint32_t frame,
         if (eng_->movement_locked(seed.key)) continue;
         // Role 0 (fighters, squadron containers, objects without a layer): recruit in candidate order. [port] every space
         // locomotor is kind 2.
-        // s78n t10: |cc - cs| between the box centres; the reach term keeps D = |goal - seed position|.
+        // |cc - cs| between the box centres; the reach term keeps D = |goal - seed position|.
         const float reach = 0.33f * length(pc.goal - seed.pos);
         for (size_t i = 0; i < cands.size();) {
             const Cand& c = cands[i];
@@ -316,7 +316,7 @@ bool MovementSystem::stop_and_hold(ObjectId id, SimRng& rng) {
 }
 
 MovementSystem::CoordinatorHold MovementSystem::coordinator_hold(ObjectId id) const {
-    const Unit* u = unit_ptr(order_id(id));  // s78n t03: a steering member answers for its container
+    const Unit* u = unit_ptr(order_id(id));  // a steering member answers for its container
     // cu8l t02 [port]: "in a formation" = a member of a formation of > 1 unit, or a unit whose composed move (not waiting
     // for its composition, not an adopt's degenerate hold) is still running. A unit waiting for its composition or held
     // by an adopt is in a coordinator without a formation of its own.
@@ -327,7 +327,7 @@ MovementSystem::CoordinatorHold MovementSystem::coordinator_hold(ObjectId id) co
 }
 
 bool MovementSystem::split_from_formation(ObjectId id, SimRng& rng) {
-    id = order_id(id);  // s78n t03: a steering member's formation is its container's
+    id = order_id(id);  // a steering member's formation is its container's
     if (coordinator_hold(id) != CoordinatorHold::Formation) return false;
     Unit* u = unit_ptr(id);
     (void)formation_ctor_draw(rng);  // 0x4f84e0: the new formation (ctor return 0x4f8518)
@@ -350,7 +350,7 @@ void MovementSystem::configure(Unit& u) const {
     // 0 = immobilised). Acceleration / deceleration scale with the effective speed (3.4). x 1 is exact, so a
     // factor of 1 keeps every value bit-identical.
     const float sf = u.speed_factor;
-    // S7 t14: the normal (kind 1) values; the jetpack's airborne-kind alternates are loco_max_speed / loco_turn_rate.
+    // the normal (kind 1) values; the jetpack's airborne-kind alternates are loco_max_speed / loco_turn_rate.
     const float base = u.speed_override >= 0.0f ? u.speed_override : u.d.max_speed;  // OI abilities: Berserker +0x2a0
     u.lp.max_speed = std::max(base, 0.0f) * mult * sf;
     u.lp.turn_rate = std::max(u.d.turn_rate, 0.0f) * mult;
@@ -358,7 +358,7 @@ void MovementSystem::configure(Unit& u) const {
     u.lp.decel = u.d.decel > 0.0f ? u.d.decel * mult * sf : u.lp.max_speed;
     u.lp.mask = cfg_.classes.mask(u.d.movement_class);
     u.lp.close_enough_angle = u.d.close_enough_angle > 0.0f ? u.d.close_enough_angle : k.close_enough_angle_for_move_start;
-    u.lp.secondary = u.d.use_secondary_facing && u.d.locomotor == LocomotorKind::Default;  // bkm1 t08: a Walk flag
+    u.lp.secondary = u.d.use_secondary_facing && u.d.locomotor == LocomotorKind::Default;  // a Walk flag
     u.lp.sec_angle = u.d.secondary_angle;
     u.lp.sec_min = u.d.secondary_min;
     u.lp.sec_max = u.d.secondary_max;
@@ -404,7 +404,7 @@ bool MovementSystem::add_unit(const UnitDesc& d) {
         if (forced_spot(*it, it->m.pos, spot)) it->m.pos = spot;
     }
     if (cfg_.mode == MoveMode::Land) {
-        it->prev_pos = it->m.pos;  // s78n t26.4: no displacement before the first frame
+        it->prev_pos = it->m.pos;  // no displacement before the first frame
         const float r = tree_half(*it);
         const V2 p = it->m.pos;
         tree_.insert(static_cast<EntityHandle>(d.id), Aabb{{p.x - r, p.y - r, -1.0f}, {p.x + r, p.y + r, 1.0f}}, 1u);
@@ -434,7 +434,7 @@ bool MovementSystem::remove_impl(ObjectId id) {
     fighter_removed(id);  // FIGHTER_FLYING: squadrons, cells, locks, targets naming it
     const bool steering = units_[static_cast<size_t>(i)].anchor >= 0 || units_[static_cast<size_t>(i)].d.team_container;
     units_.erase(units_.begin() + i);
-    for (Unit& m : units_)  // s78n t03: a removed container releases its members
+    for (Unit& m : units_)  // a removed container releases its members
         if (m.anchor == id) {
             m.anchor = -1;
             m.recovery = 0;
@@ -461,7 +461,7 @@ UnitView MovementSystem::view(ObjectId id) const {
     v.z = u->z;
     v.yaw = u->m.yaw;
     v.speed = u->m.speed;
-    v.max_speed = loco_max_speed(*u);  // S10-int; S7 t14: the jetpack's Alternate_Max_Speed in its airborne kind
+    v.max_speed = loco_max_speed(*u);  // S10-int; the jetpack's Alternate_Max_Speed in its airborne kind
     v.has_goal = u->has_goal;
     v.arrived = u->arrived;
     v.failed = u->failed;
@@ -474,7 +474,7 @@ UnitView MovementSystem::view(ObjectId id) const {
     v.atk_form = u->atk_form;
     v.atk_target = u->atk_target;
     v.goal = u->goal;
-    if (u->anchor >= 0) {  // s78n t03: a steering member moves with its container's order (and while recovering)
+    if (u->anchor >= 0) {  // a steering member moves with its container's order (and while recovering)
         if (const Unit* k = unit_ptr(u->anchor)) {
             v.has_goal = k->has_goal || u->recovery != 0;
             v.arrived = k->arrived;
@@ -508,18 +508,18 @@ UnitView MovementSystem::view(ObjectId id) const {
     v.deploy_state = u->deploy;  // S8 t11
     v.deploy_clip = u->dclip;
     v.walk_deployed = u->walk_deployed;  // s78n t26.1
-    v.wt_clip = u->m.wt_clip;  // bkx1 t04 (b0059)
+    v.wt_clip = u->m.wt_clip;  // bkx1 t04
     v.wt_pos = u->m.wt_pos;
     v.wt_rate = u->m.wt_rate;
     v.turret_elevation = u->tcur[1];  // S8 t24
     v.turret_yaw = u->tcur[2];
-    if (u->d.turret && u->taim) {  // s78f t03: the aim state (0x386170 equality: negatives wrapped by +360, within 0.0001)
+    if (u->d.turret && u->taim) {  // the aim state (0x386170 equality: negatives wrapped by +360, within 0.0001)
         const bool dep = u->deploy == LocoState::WalkDeploying || u->deploy == LocoState::WalkDeployed;
         const float ext = dep ? u->d.turret_deployed_extent : u->d.turret_extent;
         const auto w = [](float a) { return a < 0.0f ? a + 360.0f : a; };
         bool eq = true;
         for (size_t k = 0; k < 3; ++k) eq = eq && std::fabs(w(u->tcur[k]) - w(u->ttgt[k])) <= 0.0001f;
-        v.turret_aim = std::fabs(u->ttgt[2]) > ext ? int8_t{-2} : eq ? int8_t{1} : int8_t{0};  // s78f t08: -2 cannot aim
+        v.turret_aim = std::fabs(u->ttgt[2]) > ext ? int8_t{-2} : eq ? int8_t{1} : int8_t{0};  // -2 cannot aim
     }
     return v;
 }
@@ -676,7 +676,7 @@ void MovementSystem::move(const MoveOrder& order, SimRng& rng, uint32_t frame) {
     // kept; the rest of the selection moves, and an all-deployed selection gets no move.
     if (cfg_.mode == MoveMode::Land)
         std::erase_if(idx, [this](uint32_t i) { return deployed_d(units_[i]) && !auto_deployer(units_[i]); });
-    if (!fform_internal_) fform_waypoint(order, idx);  // s78f t02: fighters with a formation append the block instead
+    if (!fform_internal_) fform_waypoint(order, idx);  // fighters with a formation append the block instead
     if (idx.empty()) return;
     if (order.switch_locomotor)  // MOVEMENT §6.2: multi-locomotor units swap first (others ignore the bit)
         for (uint32_t i : idx) swap_locomotor(units_[i], true);
@@ -700,7 +700,7 @@ void MovementSystem::move(const MoveOrder& order, SimRng& rng, uint32_t frame) {
     }
     if (cfg_.mode == MoveMode::Land) move_land(order, idx, frame, delays, serial, rng);
     else move_space(order, idx, frame, delays, serial);
-    if (!fform_internal_) fform_order(order, idx, frame, serial);  // s78f t02: a new formation holding the order's block
+    if (!fform_internal_) fform_order(order, idx, frame, serial);  // a new formation holding the order's block
 }
 
 void MovementSystem::move_land(const MoveOrder& order, const std::vector<uint32_t>& idx, uint32_t frame,
@@ -715,10 +715,10 @@ void MovementSystem::move_land(const MoveOrder& order, const std::vector<uint32_
         f.id = u.d.id;
         f.pos = u.m.pos;
         f.max_speed = loco_max_speed(u);  // 0x41b2a0 reads vf74: S7 t14, the jetpack's alternate while airborne-kind
-        if (u.d.team_container && u.team_cap < kInf) f.max_speed = u.team_cap;  // s78n t03: a container walks at the team speed
+        if (u.d.team_container && u.team_cap < kInf) f.max_speed = u.team_cap;  // a container walks at the team speed
         // s78n t26 review round 2 (MOVEMENT §4.3 correction [H]): the layout's rank key, the attack range 0x3749d0
         f.attack_range = eng_->attack_range(u.d.id);
-        // bkm1 t04 (b0036, MOVEMENT §4.2 step 2 item 7 test 9 [H]): E = 0x4f6e40 (a move: the attack range; an attack
+        // bkm1 t04 (MOVEMENT §4.2 step 2 item 7 test 9 [H]): E = 0x4f6e40 (a move: the attack range; an attack
         // order: the entry's engage, set below), K = min(E, Targeting_Min_Attack_Distance), 0 under a guard block
         f.engage = f.attack_range;
         f.min_engage = eng_->min_attack_distance(u.d.id);
@@ -730,7 +730,7 @@ void MovementSystem::move_land(const MoveOrder& order, const std::vector<uint32_
         f.order = u.d.formation_order;
         f.collision_class = u.d.collision_class;
         f.team_member = u.d.team_member;
-        f.z = u.z;        // mov2 t03: d_min is 3-D
+        f.z = u.z;        // d_min is 3-D
         // mov2 t03 [port]: the parent team (retail pack +0x1f0) is Unit::team unless it is the unit itself - a land squad
         // container's set_team link to itself is the host's speed link, not a parent (BKR2 Q8: formations hold containers
         // and lone units, whose parent team is null in FoC)
@@ -741,8 +741,8 @@ void MovementSystem::move_land(const MoveOrder& order, const std::vector<uint32_
     // formations (no split, no slot test)
     const bool attack = order.attack.target >= 0;
     const bool replan = attack && order.attack.replan;
-    const uint32_t coord = replan ? 0u : ++coord_serial_;  // mov1 t05: one movement coordinator per order (0x426140)
-    for (size_t n = 0; n < idx.size(); ++n) {  // bkm1 t04: E and K of the recruitment's test 9
+    const uint32_t coord = replan ? 0u : ++coord_serial_;  // one movement coordinator per order (0x426140)
+    for (size_t n = 0; n < idx.size(); ++n) {  // E and K of the recruitment's test 9
         if (attack)
             if (const LandAttackUnit* e = attack_entry(order, units_[idx[n]].d.id)) mem[n].engage = e->engage;
         mem[n].min_engage = attack && order.attack.guard ? 0.0f : std::min(mem[n].engage, mem[n].min_engage);
@@ -752,7 +752,7 @@ void MovementSystem::move_land(const MoveOrder& order, const std::vector<uint32_
         // or melee (0x372210), or its 3-D distance to the target d < r_seed (0x3969f0) + E_r + Solo_Attack_Range. The flag
         // is set on every member and read only for the seed (members are not seeds until picked). Otherwise the seed is
         // short-range when d < E_r x Short_Range_Attack_Formation_Coefficient (1.6), and a short-range seed recruits
-        // only units of its own exact type (bkm1 t04: §4.2 step 2 item 7 test 3, correcting "recruits nobody").
+        // only units of its own exact type (§4.2 step 2 item 7 test 3, correcting "recruits nobody").
         for (size_t n = 0; n < idx.size(); ++n) {
             const Unit& u = units_[idx[n]];
             const LandAttackUnit* e = attack_entry(order, u.d.id);
@@ -827,7 +827,7 @@ void MovementSystem::move_land(const MoveOrder& order, const std::vector<uint32_
         return lp.ok && !(path_length(lp.points) > k.formation_recruit_path_ratio * d_min);
     };
     std::vector<uint64_t> taken;
-    std::vector<LandForm> forms;  // s78n t20: every formation of the order, laid out before any goal is given
+    std::vector<LandForm> forms;  // every formation of the order, laid out before any goal is given
     PendingComposition* pc = serial != 0 ? &pending_.back() : nullptr;
     // P1 double-click (0x80): speed-band recruitment; the destination check ranks the formations fastest-first (0x439360).
     const bool dbl = (order.flags & kMoveFlagDoubleClick) != 0;
@@ -844,8 +844,8 @@ void MovementSystem::move_land(const MoveOrder& order, const std::vector<uint32_
     // ([port] their units are stopped and report `failed`).
     const bool queued = (order.flags & kMoveFlagQueue) != 0;
     const bool position_order =
-        !(order.flags & kMoveFlagSkipValidation) && !order.skip_destination_check && !attack && !queued;  // s78n t25.2: + attack
-    // bkm3 t01 (b0076, MOVEMENT §4.2 step 2 "Destination"): an attack order's point P (the target's goal point C, 0x583150)
+        !(order.flags & kMoveFlagSkipValidation) && !order.skip_destination_check && !attack && !queued;  // + attack
+    // bkm3 t01 (MOVEMENT §4.2 step 2 "Destination"): an attack order's point P (the target's goal point C, 0x583150)
     // is validated per seed as well - its result is used only for position goals, but a failure still ends the pass: this
     // formation and every later one get no move. Not for a re-plan (no composition pass) or a queued order.
     // mov2 t06 (MOVEMENT §4.2 step 2, MOV2_RE_QUESTIONS Q3 [H]): a move to an object (skip_destination_check, not an
@@ -899,7 +899,7 @@ void MovementSystem::move_land(const MoveOrder& order, const std::vector<uint32_
             if (length_sq(lf.fwd) == 0.0f) lf.fwd = {1.0f, 0.0f};
             lf.keep_id = keys[gi];
             // cmb2 t05 (BKT1_ATTACK_RE §2.2 [H]): 0x414720's G0 is the block's goal point C (staging has not run yet)
-            set_form_mask(idx, lf, order.attack.c);  // s78n t26 review round 2 (0x4779e0); bkm1 t03: 0x414720
+            set_form_mask(idx, lf, order.attack.c);  // s78n t26 review round 2 (0x4779e0); 0x414720
             forms.push_back(std::move(lf));
         }
     }
@@ -951,7 +951,7 @@ void MovementSystem::move_land(const MoveOrder& order, const std::vector<uint32_
             lf.centre = centre;
             lf.fresh = fresh;
             // cmb2 t05 (BKT1_ATTACK_RE §2.2 [H]): an attack order's G0 is the block's goal point C, not the staged G
-            set_form_mask(idx, lf, attack ? order.attack.c : centre);  // s78n t26 review round 2 (0x4779e0); bkm1 t03: 0x414720
+            set_form_mask(idx, lf, attack ? order.attack.c : centre);  // s78n t26 review round 2 (0x4779e0); 0x414720
             forms.push_back(std::move(lf));
         }
     }
@@ -973,13 +973,13 @@ void MovementSystem::move_land(const MoveOrder& order, const std::vector<uint32_
     // moves the centre the formations' slots are laid around.
     if (position_order && !forms.empty()) {
         destination_check(order, idx, forms, group_c);
-        for (LandForm& lf : forms) set_form_mask(idx, lf, lf.centre);  // bkm1 t03: 0x414720 runs again at the plan, for the moved goal
+        for (LandForm& lf : forms) set_form_mask(idx, lf, lf.centre);  // 0x414720 runs again at the plan, for the moved goal
     }
     // s78n t26 review round 3 (FIGHTER_FLYING §4.11 G 5 [H]): a re-path of a moving formation on a non-guard block leaves
     // a member that is in range (slots 44 / 45 from where it stands, the host's in_range) and not moving (no goal, speed 0:
     // locomotor vf +0x1c0(0) false) on its own path - no new goal, no path, its slot kept
     std::vector<uint8_t> atk_keep(idx.size(), 0);
-    // mov2 t12 (b0198, BKR2_RE_ANSWERS Q7 item 6 [H]): an attack order's members as they were before the slot loop - a
+    // mov2 t12 (BKR2_RE_ANSWERS Q7 item 6 [H]): an attack order's members as they were before the slot loop - a
     // failed plan (0x41c1a0 returns 0) sets no path, so they keep their path stacks and walk on
     std::vector<Unit> atk_snap(attack ? idx.size() : 0);
     std::vector<uint8_t> snapped(idx.size(), 0);
@@ -995,7 +995,7 @@ void MovementSystem::move_land(const MoveOrder& order, const std::vector<uint32_
             const std::vector<uint32_t>& f = lf.members;
             const V2 fwd = lf.fwd;
             const float fspeed = lf.speed;
-            const uint32_t form_id = lf.keep_id != 0 ? lf.keep_id : ++form_serial_;  // s78n t25.2: a re-plan keeps it
+            const uint32_t form_id = lf.keep_id != 0 ? lf.keep_id : ++form_serial_;  // a re-plan keeps it
             for (const Slot& s : lf.slots) {
                 if (atk_keep[s.member]) continue;  // s78n t26 review round 3: G 5
                 Unit& u = units_[idx[s.member]];
@@ -1015,7 +1015,7 @@ void MovementSystem::move_land(const MoveOrder& order, const std::vector<uint32_
                 V2 target = exact;
                 // s78n t20 F5 (MOVEMENT §4.3.1: the block goal := the accepted centre): the cell snap only for slots the
                 // destination check did not place ([port] unchecked orders keep the older slot search)
-                // s78n t25.2: not for an attack order (its goals come from the attack plan, exact)
+                // not for an attack order (its goals come from the attack plan, exact)
                 if (!(order.flags & kMoveFlagSkipValidation) && !lf.checked && !attack) target = pick_land_slot(u, target, taken);
                 // s78n t20 (MOVEMENT §5.4.4 item 5, §4.3.1 item 6): the formation identity and the slot in its frame;
                 // the single-member shortcut of the plan (no flag 0x20, no object goal; [port] flag 0x10 has no sender)
@@ -1040,12 +1040,12 @@ void MovementSystem::move_land(const MoveOrder& order, const std::vector<uint32_
                 // order drops a running arrival turn.
                 u.final_facing = lf.fresh ? kNoFacing : order.final_facing_deg;
                 u.forced = (order.flags & kMoveFlagSkipValidation) != 0;
-                arrival_reset(u);  // s78l t02: the arrival turn state too
-                // s78n t25.2: a re-plan starts at once, unless the unit still waits for its composition
+                arrival_reset(u);  // the arrival turn state too
+                // a re-plan starts at once, unless the unit still waits for its composition
                 u.start_frame = pc ? kStartPending : replan && u.pend != 0 ? u.start_frame : frame + delays[s.member];
                 if (pc) {
                     u.pend = serial;
-                    u.adopted = false;  // cu8j t02: it leaves the adopt's coordinator for the order's
+                    u.adopted = false;  // it leaves the adopt's coordinator for the order's
                 }
                 u.formation_speed = f.size() > 1 ? fspeed : kInf;
                 u.in_formation = f.size() > 1;  // OI tactical
@@ -1065,7 +1065,7 @@ void MovementSystem::move_land(const MoveOrder& order, const std::vector<uint32_
                 // s78n t23 review fix 6 (MOVEMENT §5.4.1 "The stamp in full" item 7): the order path goes through the push
                 // and stamps the unit's held records only when no collision record owns the unit; with an owner every
                 // path record (the detour too) is destroyed with no stamp, and that record ends at its next service
-                // mov2 t12: an attack order's stamp waits for its plan (a failed plan sets no path, so no stamp)
+                // an attack order's stamp waits for its plan (a failed plan sets no path, so no stamp)
                 if (u.push_owner == kNoDetour && !attack) stamp_held(u, frame);
                 end_push(u);  // a1k t03 [port]: a new move ends a pushed move
                 u.threat = order.threat_threshold;  // §4.2
@@ -1090,7 +1090,7 @@ void MovementSystem::move_land(const MoveOrder& order, const std::vector<uint32_
             }
         }
     }
-    // s78p (b0049, MOVEMENT §3.5.2 D / G, s78n t26 RE 2): a land formation of 2+ plans one formation path (0x417520: from
+    // s78p (MOVEMENT §3.5.2 D / G, s78n t26 RE 2): a land formation of 2+ plans one formation path (0x417520: from
     // the members' centroid when the lead reaches it, else from the lead, to the formation's destination, for the
     // formation's class - attack_path) and every member follows its lane on it (0x413340, set_lanes), ending at its slot.
     // [port] built here at the order, with the order frame's positions (retail: at the plan, after the composition); not
@@ -1116,10 +1116,10 @@ void MovementSystem::move_land(const MoveOrder& order, const std::vector<uint32_
                 lf.slots = layout_formation(mem, lf.members, fwd0, k);
                 for (const Slot& s : lf.slots) units_[idx[s.member]].form_slot = {-s.back, s.lateral};
             }
-            set_lanes(idx, lf, fpath, atk_keep, mem, 0.0f, lf.fresh ? kNoFacing : order.facing_deg);  // mcx4 t11: the facing
+            set_lanes(idx, lf, fpath, atk_keep, mem, 0.0f, lf.fresh ? kNoFacing : order.facing_deg);  // the facing
         }
     // s78n t25.2 (MOVEMENT §4.3.2 items 2 and 6 - 7): the attack slots of a new order (0x438c10; not at a re-plan;
-    // s78n t25.4: guard blocks too, by the guard L rule), then the attack plan of every formation (the "every member can
+    // guard blocks too, by the guard L rule), then the attack plan of every formation (the "every member can
     // fire" stop, the slot leg, the fire trim, the member goals), before the squad start-delay draws below (a stopped
     // container gets no path, so no draw).
     if (attack) {
@@ -1129,7 +1129,7 @@ void MovementSystem::move_land(const MoveOrder& order, const std::vector<uint32_
         for (const LandForm& lf : forms)
             if (attack_plan(order, idx, lf, frame, atk_keep, mem, atk_snap))
                 for (const uint32_t m : lf.members) plan_failed[m] = 1;
-        // mov2 t12: the order path's stamp of the held records (deferred from the slot loop) for the members that got one
+        // the order path's stamp of the held records (deferred from the slot loop) for the members that got one
         for (size_t n = 0; n < idx.size(); ++n)
             if (snapped[n] && !plan_failed[n] && atk_snap[n].push_owner == kNoDetour)
                 stamp_held(units_[idx[n]], frame);
@@ -1144,7 +1144,7 @@ void MovementSystem::move_land(const MoveOrder& order, const std::vector<uint32_
         const Unit& tc = units_[i];
         // (s78n t20 batch 2: a container the failed zone validation left without a formation gets no path: no draw)
         if (!tc.d.team_container || tc.m.speed != 0.0f || !tc.has_goal) continue;
-        if (std::find(no_draw.begin(), no_draw.end(), i) != no_draw.end()) continue;  // mov2 t12: a failed plan sets no path
+        if (std::find(no_draw.begin(), no_draw.end(), i) != no_draw.end()) continue;  // a failed plan sets no path
         for (const LandTeamSlot& e : land_team(tc.d.id))
             if (Unit* m = unit_ptr(e.member))
                 m->start_delay = static_cast<uint32_t>(rng.range_int(0, cfg_.constants.max_move_frame_delay));
@@ -1168,7 +1168,7 @@ void MovementSystem::move_land(const MoveOrder& order, const std::vector<uint32_
 // [port] the taken rectangles of a failed pass are dropped.
 // s78n t26 review round 2 (MOVEMENT §4.3.1 item 7 (c), §4.3.2 item 5 [H]): 0x4779e0 - of the movement classes whose
 // mask lies inside the intersection of the members' masks, the one with the most mask bits ([port] [L] ties: the lowest
-// class index; none inside: the intersection itself). One class for a single-class formation. bkm1 t03 (b0035):
+// class index; none inside: the intersection itself). One class for a single-class formation. bkm1 t03:
 // 0x414720's switch to the class without the Shield bit is applied where the formation's goal is known
 // (shield_free_mask, at the layout and again after the destination check).
 uint32_t MovementSystem::best_class_within(uint32_t inter, bool& found) const {
@@ -1195,7 +1195,7 @@ void MovementSystem::set_form_mask(const std::vector<uint32_t>& idx, LandForm& l
     lf.mask = lf.members.empty() ? lf.best : shield_free_mask(lf.inter, lf.best, units_[idx[lf.members[0]]].m.pos, goal);
 }
 
-// bkm1 t03 (b0035, MOVEMENT §4.3.1 item 7 (c) [H]): at every plan 0x414720 takes 0x4779e0's class c; when the goal G is
+// bkm1 t03 (MOVEMENT §4.3.1 item 7 (c) [H]): at every plan 0x414720 takes 0x4779e0's class c; when the goal G is
 // zone-connected to the lead for c (or 0x50f480 validates it, G := the validated point) and G is also zone-connected to
 // the lead for the best class without the Shield bit 0x40 (0x477b00: of the classes whose mask lies inside the members'
 // intersection with bit 0x40 cleared, the one with the most bits), the formation plans for that class instead - so it
@@ -1261,7 +1261,7 @@ void MovementSystem::destination_check(const MoveOrder& order, const std::vector
         V2 dn = dest;
         if (n > 0 && !forced) {
             dn = dest + kRing[n % 8u] * (20.0f * static_cast<float>((n + 7u) / 8u));
-            // bkm1 t03: the pass tests keep 0x4779e0's class (the test plan above is a plan: 0x414720's class)
+            // the pass tests keep 0x4779e0's class (the test plan above is a plan: 0x414720's class)
             if (!grid_.passable_world(dn, rf.best) || !zone_connected(regions_, rf.best, dest, dn)) continue;
             if (!line_passable(grid_, dest, dn, rf.best)) {
                 LandPathRequest q;
@@ -1291,7 +1291,7 @@ void MovementSystem::destination_check(const MoveOrder& order, const std::vector
             forms[ord[r]].centre = centres[r];
             forms[ord[r]].checked = true;  // s78n t20 F5
         }
-        // mov1 t05 (b0186, BKR1_RE_ANSWERS Q3 [H]): after the placement passes the Land-layer formations are sorted by
+        // mov1 t05 (BKR1_RE_ANSWERS Q3 [H]): after the placement passes the Land-layer formations are sorted by
         // 0x43b110 - descending projection of the block goal on the order axis about D, front-most first - or, with order
         // flag 0x80, by 0x43b420 - descending speed of the slowest member, fastest first - and given ranks 0, 1, 2, ...
         // (descriptor +0x22c, copied to FormationClass +0x23c). [port] ties keep the nearest-first order (retail std::sort
@@ -1329,7 +1329,7 @@ bool MovementSystem::place_formation(const std::vector<uint32_t>& idx, const Lan
     float x0 = 3.0e38f, x1 = -3.0e38f, y0 = 3.0e38f, y1 = -3.0e38f;
     bool all_inf = true, all_giant = true, all_containers = true;
     // s78n t20 F8 [port]: the slots are laid along the layout's forward axis f.fwd, R along `axis`: each slot rectangle's
-    // centre and extents are taken in the axis frame (the same box when the two agree); s78n t25.2: formation_box
+    // centre and extents are taken in the axis frame (the same box when the two agree); formation_box
     const V2 right = formation_right(axis);
     if (!formation_box(idx, f, axis, x0, x1, y0, y1)) return false;
     for (const Slot& s : f.slots) {
@@ -1473,7 +1473,7 @@ void MovementSystem::move_space(const MoveOrder& order, const std::vector<uint32
         f.id = u.d.id;
         f.pos = u.m.pos;
         f.max_speed = u.lp.max_speed;
-        // bkm1 t05 (b0037, MOVEMENT §4.3 item 1 with the s78n t19 correction [H]): 0x41a080 ranks by the attack range
+        // bkm1 t05 (MOVEMENT §4.3 item 1 with the s78n t19 correction [H]): 0x41a080 ranks by the attack range
         // 0x3749d0 in space too (the speed key was a [port] stand-in)
         f.attack_range = eng_->attack_range(u.d.id);
         f.radius = u.d.radius;
@@ -1516,7 +1516,7 @@ void MovementSystem::move_space(const MoveOrder& order, const std::vector<uint32
             V2 fwd = order.facing_deg != kNoFacing ? dir_from_deg(order.facing_deg) : normalize_retail(dest - c);
             if (length_sq(fwd) == 0.0f) fwd = {1.0f, 0.0f};
             uint32_t n = 0;
-            for (const Slot& s : layout_formation(mem, f, fwd, k)) {  // bkm1 t05: the attack-range key
+            for (const Slot& s : layout_formation(mem, f, fwd, k)) {  // the attack-range key
                 Unit& u = units_[idx[s.member]];
                 V2 target = slot_world(dest, fwd, s);
                 if (!(order.flags & kMoveFlagSkipValidation))
@@ -1546,9 +1546,9 @@ void MovementSystem::move_space(const MoveOrder& order, const std::vector<uint32
 }
 
 void MovementSystem::stop(std::span<const ObjectId> ids) {
-    fform_stop(ids);  // S7 t37 / s78f t02: Stop drops the fighter formations
+    fform_stop(ids);  // Stop drops the fighter formations
     for (ObjectId id : ids) {
-        Unit* u = unit_ptr(order_id(id));  // s78n t03: a steering member's stop stops its container
+        Unit* u = unit_ptr(order_id(id));  // a steering member's stop stops its container
         if (!u) continue;
         if (is_air(*u) && u->d.locomotor == LocomotorKind::LandBomber) continue;  // §4.6 [port]: a bombing pass runs out
         u->has_goal = false;
@@ -1559,14 +1559,14 @@ void MovementSystem::stop(std::span<const ObjectId> ids) {
         u->m.next = 0;
         u->m.speed = 0.0f;
         u->m.state = LocoState::WalkStopped;
-        u->around.clear();  // s78n t18: the path stack is cleared
-        u->form_id = 0;     // s78n t20: it leaves its formation
-        u->form_rank = 0;   // mov1 t05: and its coordinator
+        u->around.clear();  // the path stack is cleared
+        u->form_id = 0;     // it leaves its formation
+        u->form_rank = 0;   // and its coordinator
         u->form_first = -1;
         u->coord_id = 0;
         u->cohesion_speed = kInf;  // [port] fleet cohesion: a stop ends the move's cap
         u->self_arrive = false;
-        u->atk_theta = u->atk_rho = 0.0f;  // s78n t25.2: a stop drops the attack block (halt() keeps it)
+        u->atk_theta = u->atk_rho = 0.0f;  // a stop drops the attack block (halt() keeps it)
         u->atk_form = 0;
         u->atk_target = -1;
         u->lane.clear();  // s78p: a lane not yet taken goes with the order
@@ -1605,11 +1605,11 @@ void MovementSystem::halt(std::span<const ObjectId> ids, uint32_t frame) {
         const ObjectId one[] = {id};
         Unit* u = unit_ptr(order_id(id));
         if (!u || cfg_.mode != MoveMode::Land || u->d.locomotor != LocomotorKind::Default || u->deploy != LocoState::None) {
-            const float th = u ? u->atk_theta : 0.0f, rh = u ? u->atk_rho : 0.0f;  // s78n t25.2: the block is kept
+            const float th = u ? u->atk_theta : 0.0f, rh = u ? u->atk_rho : 0.0f;  // the block is kept
             const uint32_t af = u ? u->atk_form : 0u;
             const ObjectId at = u ? u->atk_target : -1;
-            const uint32_t fid = u ? u->form_id : 0u;  // s78o (b0066): and the formation identity
-            const int32_t frk = u ? u->form_rank : 0, ffi = u ? u->form_first : -1;  // mov1 t05: and the coordinator
+            const uint32_t fid = u ? u->form_id : 0u;  // s78o: and the formation identity
+            const int32_t frk = u ? u->form_rank : 0, ffi = u ? u->form_first : -1;  // and the coordinator
             const uint32_t cid = u ? u->coord_id : 0u;
             stop(one);
             if (u) {
@@ -1627,7 +1627,7 @@ void MovementSystem::halt(std::span<const ObjectId> ids, uint32_t frame) {
         const float v = u->m.speed;
         const LocoState s = u->m.state;
         // s78n t25.2 (MOVEMENT §4.3.2 item 8): the land stop and item 6's stop end the walk, not the attack block
-        // s78o (b0066, FIGHTER_FLYING §7.5 item 4): nor the formation - form_id (form_slot is not touched by stop()) stays,
+        // s78o (FIGHTER_FLYING §7.5 item 4): nor the formation - form_id (form_slot is not touched by stop()) stays,
         // so halted mates side-step by the footprint overlap coefficient, not the distance ramp, and the deploy gate keeps
         // the formation together
         const float th = u->atk_theta, rh = u->atk_rho;
@@ -1801,15 +1801,15 @@ void MovementSystem::tick(uint32_t frame, SimRng& rng, const ParallelFor& pf) {
     deploy_pose_.clear();  // s78n t26.1 review
     despawned_.clear();
     fevents_.clear();
-    tevents_.clear();  // s78l t02: the host takes them right after the tick (TacticalBattle::play_turn_clip_events)
-    for (Unit& u : units_) {  // s78l t02: arrival_turn_ended reports this tick's ends (and drops since the last tick)
+    tevents_.clear();  // the host takes them right after the tick (TacticalBattle::play_turn_clip_events)
+    for (Unit& u : units_) {  // arrival_turn_ended reports this tick's ends (and drops since the last tick)
         u.aturn_ended = u.aturn_end_pending;
         u.aturn_end_pending = false;
     }
-    if (!deferred_compose_) coordinator_update(frame, frame, rng);  // cu8j t01: a host without its own step-10 call
+    if (!deferred_compose_) coordinator_update(frame, frame, rng);  // a host without its own step-10 call
     if (cfg_.mode == MoveMode::Land) tick_land(frame, rng, pf);  // jiggle draws (see header)
     else {
-        fform_tick(frame, rng);  // s78f t02: the fighter formations' step (plan, arrival, 0x4192b0, 0x410a60)
+        fform_tick(frame, rng);  // the fighter formations' step (plan, arrival, 0x4192b0, 0x410a60)
         tick_space(frame, pf);
     }
 }
@@ -1918,9 +1918,9 @@ void MovementSystem::plan_land(uint32_t frame, const ParallelFor& pf) {
         req.push_back(i);
     }
     if (req.empty()) return;
-    // s78p (b0049): a member with a lane takes it as its path (no search of its own) while its goal is still the stop point
+    // s78p: a member with a lane takes it as its path (no search of its own) while its goal is still the stop point
     // the order gave it and both its position and that goal pass its class ([port] else it plans singly, as before: the
-    // search's start escape and goal snap). mov2 t01: the lane is the formation path's copy
+    // search's start escape and goal snap). The lane is the formation path's copy
     std::vector<uint8_t> use_lane(req.size(), 0);
     for (size_t r = 0; r < req.size(); ++r) {
         const Unit& u = units_[req[r]];
@@ -1948,11 +1948,11 @@ void MovementSystem::plan_land(uint32_t frame, const ParallelFor& pf) {
                 plan_space_path(air_, air_k, q, ssc, air_out[r]);
                 continue;
             }
-            if (u.forced || use_lane[r]) continue;  // s78k t01: the straight path is built below; s78p: the lane
+            if (u.forced || use_lane[r]) continue;  // the straight path is built below; s78p: the lane
             LandPathRequest q;
             q.start = u.m.pos;
             q.goal = u.goal;
-            q.mask = plan_mask(u);  // bkm1 t03 (b0035): 0x414720 - the class without the Shield bit when the goal allows
+            q.mask = plan_mask(u);  // 0x414720 - the class without the Shield bit when the goal allows
             // s78n t03 [port]: a squad container plans without clearance (its planner footprint is untraced; its radius is
             // the joint box's, for the formation layout).
             q.clearance_radius = u.d.radius > kCellSize && !u.d.team_container ? u.d.radius : 0.0f;
@@ -1969,16 +1969,16 @@ void MovementSystem::plan_land(uint32_t frame, const ParallelFor& pf) {
         Unit& u = units_[req[r]];
         u.need_path = false;
         ++stats_.paths_planned;
-        // bkm1 t07 (b0055): the path set resets the stack (0x554480): a record pushed onto the old order path after the
+        // the path set resets the stack (0x554480): a record pushed onto the old order path after the
         // order (a TerrainCollision detour while the new order waited) goes with it; a failed plan sets no path (review)
         if (u.pushed && !is_air(u) && (u.forced || use_lane[r] || out[r].ok)) end_push(u);
         std::vector<V2> lane;
         lane.swap(u.lane);  // s78p: a lane is taken by this plan or dropped
-        u.slot_on = false;  // mov2 t01: set again below when the lane is the new order path
-        u.around.clear();  // s78n t18: a new path (pack +0x288 := NOW), planned around nobody
+        u.slot_on = false;  // set again below when the lane is the new order path
+        u.around.clear();  // a new path (pack +0x288 := NOW), planned around nobody
         u.path_change = frame;
-        u.approx_countdown = 0;  // mov1 t04: a path push zeroes pack +0x275
-        u.cut_pending = false;   // mov1 t08: the plan (after the driver) replaced the path a cut left
+        u.approx_countdown = 0;  // a path push zeroes pack +0x275
+        u.cut_pending = false;   // the plan (after the driver) replaced the path a cut left
         if (is_air(u)) {
             if (air_out[r].fallback) ++stats_.space_fallbacks;
             if (!air_out[r].ok || air_out[r].wps.empty()) {
@@ -2013,7 +2013,7 @@ void MovementSystem::plan_land(uint32_t frame, const ParallelFor& pf) {
             u.m.path = {u.m.pos, u.goal};
             u.m.next = 1;
             u.m.escape_until = 2u;
-            u.m.frac.clear();  // s78n t26.2: a new record - fractions (1.0, 1.0), turn-done clear
+            u.m.frac.clear();  // a new record - fractions (1.0, 1.0), turn-done clear
             u.m.turn_done = false;
             // bkm1 t06 (MOVEMENT §3.5.2 "waypoint z" item 3): 0x40ed70 stores both ends with their heights ([port] the unit's
             // height and the terrain's at the destination); only the 3-D length reads them (C.11 never sums its one segment)
@@ -2024,13 +2024,13 @@ void MovementSystem::plan_land(uint32_t frame, const ParallelFor& pf) {
             continue;
         }
         if (use_lane[r]) {
-            // s78p (b0049, MOVEMENT §3.5.2 G): the path set of the member's lane; the corner pass runs on the lane (§3.5.2 D)
+            // s78p (MOVEMENT §3.5.2 G): the path set of the member's lane; the corner pass runs on the lane (§3.5.2 D)
             // and the walk-deployed cap's d is the formation path's 3-D length (§3.2.1 item 2). mov2 t01 (§4.3.3 item 1
             // [H]): the path is the formation path's copy (waypoint 0 the formation's start), the slot shape and end shift
             // ride with it (slot_on)
             u.m.path = std::move(lane);
             u.slot_on = true;
-            u.m.end_z = u.lane_z;  // bkm1 t06: a slot-leg path keeps G's height on its last point
+            u.m.end_z = u.lane_z;  // a slot-leg path keeps G's height on its last point
             u.m.end_at = u.m.path.back();
             u.lane_z = 0.0f;
             u.m.next = 1;
@@ -2045,10 +2045,10 @@ void MovementSystem::plan_land(uint32_t frame, const ParallelFor& pf) {
         }
         if (out[r].ok) {
             u.m.path = std::move(out[r].points);
-            u.m.end_z = 0.0f;  // bkm1 t06: the pathfinder stores z = 0 at every point
+            u.m.end_z = 0.0f;  // the pathfinder stores z = 0 at every point
             u.m.next = 1;
             u.m.escape_until = out[r].start_blocked ? 2u : 0u;
-            u.m.frac.clear();  // s78n t26.2: a new record - fractions (1.0, 1.0), turn-done clear
+            u.m.frac.clear();  // a new record - fractions (1.0, 1.0), turn-done clear
             u.m.turn_done = false;
             u.goal = out[r].goal_used;
             corner_pass(u);  // s78n t26.3
@@ -2112,7 +2112,7 @@ bool MovementSystem::deploy_gate_holds(const Unit& u) const {
 }
 
 // s78n t26.1 (MOVEMENT §3.2.1 item 2, the plan's member loop): an auto-deployer takes the cap test 0x3ac100 with d = the
-// summed 3-D length of the formation path when the path is set. s78p (b0049): `d` >= 0 is that length for a member on a
+// summed 3-D length of the formation path when the path is set. s78p: `d` >= 0 is that length for a member on a
 // lane (Unit::lane_d); else ([port] a unit alone, or one that planned singly) its own planned path's.
 void MovementSystem::plan_deploy_cap(Unit& u, uint32_t frame, float d) {
     if (!auto_deployer(u) || u.d.locomotor != LocomotorKind::Default || is_air(u)) return;
@@ -2126,7 +2126,7 @@ void MovementSystem::plan_deploy_cap(Unit& u, uint32_t frame, float d) {
 // 0x14 is affected: a standing one starts its path at its walk's 0x16 either way (then start rule A). A moving unit that is
 // not aligned coasts in End Move (C.1 / C.4), stops at 0x15 and starts the path from 0x16. [port] A squad container keeps
 // its own path_started (team_walk); the Walk byte is set for it and for every non-Walk locomotor. s78n t26.5 (FIGHTER_FLYING
-// §7.7 item 5, MOVEMENT §3.5.2 G / E): a standing squad container starts its new path from 0x16. mov2 t09: a moving one is
+// §7.7 item 5, MOVEMENT §3.5.2 G / E): a standing squad container starts its new path from 0x16. a moving one is
 // aligned by 0x410170's TEAM rule when waypoint 0's fraction is > 0 (it walks on in its state); otherwise it brakes at its
 // rate in End Move along its facing (Unit::coast).
 void MovementSystem::set_path_started(Unit& u) const {
@@ -2164,14 +2164,14 @@ void MovementSystem::set_path_started(Unit& u) const {
 // s78n t26.3 (MOVEMENT §3.5.2 D, s78n t26 RE 2): the corner-speed pass 0x5070b0 of the Walk path set vf +0x190 0x42c680
 // and of the squad container's 0x5ad140 - land mode, a formation path (every land order composes a formation: form_id;
 // [port] the flag-0x20 straight path too, it is the formation's path) of a Walk unit or a squad container. The input is
-// the unit's own path: s78p (b0049) for a member of a formation of 2+ its lane 0x413340 (mov2 t01: formation_lane on the
+// the unit's own path: s78p for a member of a formation of 2+ its lane 0x413340 (formation_lane on the
 // formation path's copy it walks, with the pull-in, one point per waypoint); a unit alone (or one that planned singly) its own planned path. vmax = the effective max speed (a container: its
 // team speed), vmin = Min_Speed x mode, R, f_min, a = the deceleration (a container: its rate 0x5ab540, team_rate); probe
 // segment max(2, 10 x 0x397830) = max(2, the soft radius) ([port] UnitDesc::radius stands for Scale_Factor x the
 // radius), a container max(2, max(HX, HY) / 2). Line test = 0x5a4c10 for the unit's movement class; corridor 0x5093c0 =
 // per probe segment a zero-width rectangle (centre the midpoint, half length |seg| / 2), failed by any land layer object
 // other than the unit whose footprint rectangle overlaps it and that was Static (not moving, unit_moving) before the plan
-// (Unit::trk_static: the flags of the last tracker update, taken before the last walk, mov2 t04). The splice
+// (Unit::trk_static: the flags of the last tracker update, taken before the last walk). The splice
 // (item 1) is not reachable: the plan resets the stack before the path set (§3.5.2 G), as plan_land replaces the path.
 void MovementSystem::corner_pass(Unit& u) {
     if (cfg_.mode != MoveMode::Land || u.form_id == 0 || is_air(u) || u.m.path.size() < 2) return;
@@ -2271,7 +2271,7 @@ bool MovementSystem::mvm_contact(const Unit& a, const Unit& b) const {
         FootTrack t;
         t.pos = u.m.pos;
         t.yaw = u.m.yaw;
-        const StackPoly sp = stack_poly(u, scratch);  // s78n t20: along the path stack
+        const StackPoly sp = stack_poly(u, scratch);  // along the path stack
         t.path = sp.pts;
         t.next = sp.next;
         t.speed = u.m.speed;
@@ -2309,11 +2309,11 @@ float MovementSystem::mvs_contact(const Unit& a, const Unit& b) const {
     if (pair_gated(a, b) || (raised(a) && !raised(b))) return -1.0f;
     const float look = mvs_look_distance(a, b);
     std::vector<V2> scratch;
-    const StackPoly sp = stack_poly(a, scratch);  // s78n t20: the path stack (the top record, then the order path)
+    const StackPoly sp = stack_poly(a, scratch);  // the path stack (the top record, then the order path)
     if (!(look > 0.0f) || sp.next >= sp.pts.size()) return -1.0f;
     V2 ha = foot_half(a);
     float turn_yaw = kNoFacing;
-    if (in_place_turn(a)) {  // s78n t26.2: vf +0x1b0 (states 0xF / 0x10 / 0x11)
+    if (in_place_turn(a)) {  // vf +0x1b0 (states 0xF / 0x10 / 0x11)
         const float err = std::fabs(wrap_deg(heading_deg(sp.pts[sp.next] - a.m.pos) - a.m.yaw));
         const float k = std::clamp(err / 90.0f, 0.0f, 1.0f), mx = std::max(ha.x, ha.y);
         ha = {ha.x + (mx - ha.x) * k, ha.y + (mx - ha.y) * k};
@@ -2397,7 +2397,7 @@ void MovementSystem::detect_collisions(uint32_t frame) {
 }
 
 // Driver 0x50a780 (MOVEMENT §5.4.1): every record is serviced every frame. Validity first: a record whose participants
-// are gone or left the layer is dropped. Then (s78n t20) the records that do not take the quota pass - the decided
+// are gone or left the layer is dropped. Then the records that do not take the quota pass - the decided
 // MovingVsMoving ones and every StoppedVsStopped - are serviced in creation order; then the others in priority order, each
 // record's state service - a state-None record is decided only while the dynamic pathfinder's quota allows, else it
 // waits. `rng` = the battle's synced stream: s78n t23, the MovingVsMoving retry draws of §5.4.6 (mvm_fail and the passed
@@ -2425,7 +2425,7 @@ void MovementSystem::drive_collisions(uint32_t frame, SimRng& rng) {
             return mvm_choose(c, units_[static_cast<size_t>(ia)], units_[static_cast<size_t>(ib)], false).mode != 0;
         },
         [&](const CollisionObject& c) {
-            // 5 x the land object-grid objects in the 160 x 160 box on the participants' XY midpoint (s78n t18: the
+            // 5 x the land object-grid objects in the 160 x 160 box on the participants' XY midpoint (the
             // layer-0x10 box query - a squad counts once, as its container; both participants count). The keep pass
             // ran first, so both participants exist. (Not called for a one-participant Terrain record: its crowd is 0.)
             const V2 pa = units_[static_cast<size_t>(find(c.a))].m.pos, pb = units_[static_cast<size_t>(find(c.b))].m.pos;
@@ -2438,7 +2438,7 @@ void MovementSystem::drive_collisions(uint32_t frame, SimRng& rng) {
     stats_.collisions_resolved += coll_.last_resolved();
 }
 
-// mov1 t08: 0x509ea0 as the walk reads it - the lowest answer of each unit's records and the "at once" flag, folded right
+// 0x509ea0 as the walk reads it - the lowest answer of each unit's records and the "at once" flag, folded right
 // before the walk from every live record (after this tick's driver, detection and plans: a record detection just made
 // answers its constructor values, 0 for a MovingVsMoving record, until the next driver services it).
 void MovementSystem::fold_collision_answers() {
@@ -2451,7 +2451,7 @@ void MovementSystem::fold_collision_answers() {
         Unit* a = unit_ptr(c.a);
         Unit* b = unit_ptr(c.b);
         if (!a || !b) continue;
-        // max speed, flag untouched; s78n t23: a finished record is destroyed before the walk (driver step 3)
+        // max speed, flag untouched; a finished record is destroyed before the walk (driver step 3)
         if (c.kind == CollisionKind::StoppedVsStopped || c.state == CollisionState::Resolved) continue;
         a->coll_speed = std::min(a->coll_speed, record_answer(c, true));
         a->coll_now = c.now_a;

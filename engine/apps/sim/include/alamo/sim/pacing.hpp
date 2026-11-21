@@ -1,4 +1,4 @@
-// S5 frame pacing: the original FrameSynchronizer's single-player tick decision (docs/re/MAIN_LOOP.md
+// S5 frame pacing: the original FrameSynchronizer's single-player tick decision (legacy docs/re/MAIN_LOOP.md
 // §1.2, §1.5). Wall-clock gating only: it decides WHEN a tick runs, never what it computes (the sim
 // step is always 1/30 s, sim time = frame / 30).
 //

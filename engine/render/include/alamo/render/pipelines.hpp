@@ -48,7 +48,7 @@ namespace alamo::render {
 // "MeshBumpColorize.fx" / "Data\Art\Shaders\MESHBUMPCOLORIZE.FXO" -> "MESHBUMPCOLORIZE".
 std::string effect_key(std::string_view effect);
 // True when technique `technique` of `e` carries a VENDOR_FILTER_0..9 annotation (int, or a decimal string) equal
-// to `vendor_id` (RENDER.md "Technique selection"). False for vendor_id 0 or an index out of range.
+// to `vendor_id` (legacy docs/re/RENDER.md "Technique selection"). False for vendor_id 0 or an index out of range.
 bool technique_vendor_filtered(const fx::Effect& e, size_t technique, uint32_t vendor_id);
 
 class EffectCache {
@@ -60,11 +60,11 @@ public:
 
     // Thread-safe; loads once per key (failures cached). nullptr when missing / malformed.
     std::shared_ptr<const materials::MaterialEffect> get(std::string_view effect, std::string* err = nullptr);
-    // Submesh effects (SPACE_AND_OPEN.md D.3): get(), but a missing / failing effect resolves to the built-in
+    // Submesh effects (legacy docs/re/SPACE_AND_OPEN.md D.3): get(), but a missing / failing effect resolves to the built-in
     // green TNoShader default (EffectLibrary::load_or_default, is_default_effect()). nullptr only without a
     // file provider. Post / engine effects keep using get() (nullptr = pass skipped).
     std::shared_ptr<const materials::MaterialEffect> get_or_default(std::string_view effect);
-    // get(), with the original's vendor filter applied (RENDER.md "Technique selection": a technique is rejected
+    // get(), with the original's vendor filter applied (legacy docs/re/RENDER.md "Technique selection": a technique is rejected
     // when one of its VENDOR_FILTER_0..9 int annotations equals the adapter's PCI vendor id). When the technique
     // get() picked is rejected for `vendor_id`, the best remaining technique (same rule as
     // materials::pick_best_technique) is resolved instead and cached per (name, vendor); otherwise get()'s effect
@@ -75,7 +75,7 @@ public:
     std::shared_ptr<const materials::MaterialEffect> get_for_vendor(std::string_view effect, uint32_t vendor_id,
                                                                     std::string* err = nullptr);
     // assets::ModelLoadOptions whose vertex_type_override returns the material effect's _ALAMO_VERTEX_TYPE
-    // (MaterialEffect::vertex_type_override(), SPACE_AND_OPEN.md D.2: Planet.fx -> alD3dVertNU2U3U3), "" to keep
+    // (MaterialEffect::vertex_type_override(), legacy docs/re/SPACE_AND_OPEN.md D.2: Planet.fx -> alD3dVertNU2U3U3), "" to keep
     // the ALO format. Runs on loader threads through get() (mutex; deterministic per material). The cache must
     // outlive every AssetCache / load using the options.
     assets::ModelLoadOptions model_load_options();
@@ -92,7 +92,7 @@ public:
         size_t remapped = 0;   // missing names resolved to a shipped effect (LoadOptions::missing_effect_remap, opt-in)
     };
     Stats stats() const;
-    // Shader issues of the effects requested so far (docs/MODS.md shader section, materials::effect_audit.hpp):
+    // Shader issues of the effects requested so far (docs/MODS.md "Effects and shaders in mods", materials::effect_audit.hpp):
     // .fx source only / shadowed, load or technique failure, shader passes without a program. One set per
     // effect name, recorded on its first get() / get_or_default(); sorted by (effect, kind). in_mod from the
     // VFS shader listing. Translation failures are the renderer's (Renderer::shader_issues()).

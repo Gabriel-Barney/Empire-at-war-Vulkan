@@ -7,7 +7,7 @@
 namespace alamo::ui {
 
 TargetKind ability_target_kind(uint8_t t) {
-    // ABILITIES_HARDPOINTS.md §2.9 "Argument" table.
+    // legacy docs/re/ABILITIES_HARDPOINTS.md §2.9 "Argument" table.
     switch (t) {
         // target object (command 40)
         case 13: case 15: case 16: case 18: case 20: case 21: case 22: case 27: case 30: case 31: case 34: case 37:
@@ -137,7 +137,7 @@ bool TargetingController::update(const InputState& in, const Bindings& keys, con
         case TargetKind::Point:
         case TargetKind::PointMode: {
             if (!ground_point(ctx, in.mouse_x(), in.mouse_y(), p)) return true;
-            if (ability_ == tactical::abilities::kFireLobbingSuperweapon) {  // TRU1 t01: command 25 per user, never queued
+            if (ability_ == tactical::abilities::kFireLobbingSuperweapon) {  // command 25 per user, never queued
                 std::vector<commands::EventData> fire;
                 special_weapon_point_events(users_, p, ctx.local_player, fire);
                 for (commands::EventData& e : fire) out.push_back({std::move(e), false});

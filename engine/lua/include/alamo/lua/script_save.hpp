@@ -1,4 +1,4 @@
-// q6 t19: the saved state of one script owner's LuaScriptClass - the shared "script block" (docs/re/LUA_SAVE.md §1, §2;
+// the saved state of one script owner's LuaScriptClass - the shared "script block" (legacy docs/re/LUA_SAVE.md §1, §2;
 // port notes there: "one shared script block save routine serves all owners; each owner adds only its name chunk and its
 // own engine-side fields"). Used by the story plot scripts (story.lua chunk), the GameScoring script (scoring chunk) and,
 // once the object-script host saves, by every game-object script (OBJECT_SCRIPTS §2.6).

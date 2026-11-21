@@ -1,4 +1,4 @@
-// Game randomness (G0 part 4 / Q1), matching the original exactly (docs/re/MAIN_LOOP.md §4.1).
+// Game randomness (G0 part 4 / Q1), matching the original exactly (legacy docs/re/MAIN_LOOP.md §4.1).
 //
 // The original has two instances of one 32-bit LCG:
 //     s <- s * 0x41C64E6D + 0xBDF   (wrapping)          r15 = (s >> 10) & 0x7FFF
@@ -11,7 +11,7 @@
 // host's seed; replays/saves: the recorded seed/state).
 //
 // Rules for sim code:
-//   * Draw from synced() only on the sim thread, in the original's draw order (MAIN_LOOP.md §4.2).
+//   * Draw from synced() only on the sim thread, in the original's draw order (legacy docs/re/MAIN_LOOP.md §4.2).
 //     Parallel phases must not draw.
 //   * Never use std::rand, std::random_device, std::mt19937 or std::uniform_*_distribution.
 #pragma once
@@ -50,7 +50,7 @@ public:
     // Original percent(p): p == 0 -> false and p == 100 -> true without a draw; otherwise step until
     // ((s >> 10) & 0x7F) <= 100, true if that value < p.
     bool percent(int32_t p) noexcept;
-    // Inline copies of the synced generator in the original (docs/re/COMMANDS.md §8). They are draws
+    // Inline copies of the synced generator in the original (legacy docs/re/COMMANDS.md §8). They are draws
     // like the helpers; call these at the matching sites so the draw count stays identical.
     //   0x532480: float in [lo, hi], bounds swapped if needed    0x5324d0: float in [0, 1]
     //   0x623fe0: one step, coin = bit 0 of (s >> 10)
@@ -105,7 +105,7 @@ public:
     // Boot: seeds the free instance.
     void seed_free(uint32_t seed) noexcept { free_.seed(seed); }
 
-    // Lua GameRandom.Free_Random (MAIN_LOOP.md §4.1, [H]): multiplayer -> synchronized RNG for every
+    // Lua GameRandom.Free_Random (legacy docs/re/MAIN_LOOP.md §4.1, [H]): multiplayer -> synchronized RNG for every
     // form; single player: the no-argument form draws int(0, 0xFFFF) from the SYNCHRONIZED state
     // (so it can only return 0..0x7FFE because of the range cap), ranged forms use the free state.
     int32_t lua_free_random([[maybe_unused]] bool multiplayer) noexcept { return synced_.range_int(0, 0xFFFF); }

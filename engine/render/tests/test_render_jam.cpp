@@ -1,4 +1,4 @@
-// alamo_render_jam_tests - Phase 4 R5 t05 sensor jamming visual (docs/re/ABILITY_VISUALS.md section 3). No GPU, no game data.
+// alamo_render_jam_tests - Phase 4 R5 t05 sensor jamming visual (legacy docs/re/ABILITY_VISUALS.md section 3). No GPU, no game data.
 //   * jam_blob_visible: allies always; others only with Show_Blob_To_Enemies and not fogged; dying / contained / faded jammers
 //     and non-positive radii draw nothing
 //   * jam_blobs over an InterpolatedFrame: centre = the jammer object's position, half size = radius (side 2 r), material and
@@ -247,7 +247,7 @@ static void test_ability_fx() {
     CHECK(t.live() == 2);
 }
 
-// vis1 t08: Force_Healing range blobs (§8) only under a selected, drawable owner of the local player, colour alpha 1; the
+// Force_Healing range blobs (§8) only under a selected, drawable owner of the local player, colour alpha 1; the
 // snapshot's heal blobs and world effects reach the digest and the interpolated frame.
 static void test_heal_blobs_and_world_effects() {
     render::InterpolatedFrame f;

@@ -45,7 +45,7 @@ void AiPathFinder::recompute(const galactic::PlanetGraph& graph, const galactic:
     digest_ = matrices_digest(cache_.matrices());
 }
 
-// OPT2 t02: a cadence recompute on the background hook, applied at frame + latency. A result still in flight (only when
+// a cadence recompute on the background hook, applied at frame + latency. A result still in flight (only when
 // the latency is not below the 90-frame period) is applied first.
 void AiPathFinder::kick(int32_t frame, const galactic::PlanetGraph& graph, const galactic::AllPairsInput& input,
                         const ParallelFor& pf) {

@@ -1,4 +1,4 @@
-// Data-driven seconds -> integer frame counts for sim code, one function per rounding form the original uses (ref4 t03).
+// Data-driven seconds -> integer frame counts for sim code, one function per rounding form the original uses.
 //
 // The original turns "seconds x frames per second" (a float from XML, Lua or GameConstants) into an int32 frame count with
 // the x86 conversion instructions, where a NaN or a value outside [-2^31, 2^31) gives 0x80000000 (alamo/core/x86_int.hpp).

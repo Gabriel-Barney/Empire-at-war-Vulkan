@@ -1,4 +1,4 @@
-// mcx6 RANDOM_STORY (docs/re/STORY_REWARDS_GALACTIC.md §1.15): the plot the reward builds from code, as Story XML text.
+// mcx6 RANDOM_STORY (legacy docs/re/STORY_REWARDS_GALACTIC.md §1.15): the plot the reward builds from code, as Story XML text.
 // Internal to apps/sim (StorySession::random_story fills the input from the galaxy and adds the plot).
 #pragma once
 #include <cstdint>

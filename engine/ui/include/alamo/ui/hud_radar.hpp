@@ -1,4 +1,4 @@
-// P2 stage 2: the tactical radar / minimap (docs/re/UI.md §1.7, RadarMap.xml).
+// P2 stage 2: the tactical radar / minimap (legacy docs/re/UI.md §1.7, RadarMap.xml).
 //   * RadarSettings: RadarMap.xml - map events (Event_Model_Name / _Scale / _Duration / Single_Instance /
 //     Persistent), space / land backdrop textures, FOW colours (space 25,66,120,100; land 10,10,10,100) and the
 //     per-biome passability colours (Default first, then e.g. Temperate);
@@ -58,7 +58,7 @@ struct RadarSettings {
     PassabilityPalette palette(std::string_view biome) const;
 };
 
-// Space asteroid fields on the radar (RadarMap.xml Space_Asteroid_Field_Color / _Border_Color, UI.md §1.7): discs in
+// Space asteroid fields on the radar (RadarMap.xml Space_Asteroid_Field_Color / _Border_Color, legacy docs/re/UI.md §1.7): discs in
 // world units; the host lists the map's fields. [port] shape = disc of `radius` (the field's extent), border = the
 // outermost radar pixel ring, both alpha-blended over the background before the fog.
 struct RadarField {
@@ -93,7 +93,7 @@ private:
 // Passability classes (w x h, values Passability) -> RGBA with a palette.
 std::vector<uint8_t> passability_rgba(std::span<const uint8_t> classes, const PassabilityPalette& palette);
 
-// map1 t02 (docs/re/MAP1_RADAR_TERRAIN_RE.md): the land radar's terrain picture.
+// map1 t02 (legacy docs/re/MAP1_RADAR_TERRAIN_RE.md): the land radar's terrain picture.
 // RadarMap.xml block of a map's environment index (.ted map info mini 0x06, MapInfo::counts[4]): 0..7 = TEMPERATE, ARCTIC,
 // DESERT, FOREST, SWAMP, VOLCANIC, URBAN, SPACE; any other value: "" (no block: no picture) [H].
 std::string_view radar_biome(uint32_t index);
@@ -132,7 +132,7 @@ public:
     // ping. Returns its id.
     uint32_t add(const RadarSettings& s, std::string_view type, float x, float y);
     void remove(uint32_t id);
-    // Lua Add_Radar_Blip(object, name) / Remove_Radar_Blip(name) (UI.md §1.7; the visual is [port], no spec): a persistent
+    // Lua Add_Radar_Blip(object, name) / Remove_Radar_Blip(name) (legacy docs/re/UI.md §1.7; the visual is [port], no spec): a persistent
     // named marker (a ring ping that follows the object). Upsert by case-insensitive name; the age is kept on a move.
     uint32_t set_marker(std::string_view name, float x, float y);
     bool remove_marker(std::string_view name);

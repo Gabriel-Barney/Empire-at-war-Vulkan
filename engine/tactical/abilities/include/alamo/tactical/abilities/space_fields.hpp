@@ -4,7 +4,7 @@
 // A field is an object whose type sets Is_Asteroid_Field (+0x54) / Is_Impassable_Asteroid (+0x55) (asteroid),
 // Is_Ion_Storm (+0x56) or Is_Nebula (+0x57) AND has a SPACE_OBSTACLE behaviour (0x4c): the circle at its position +
 // Space_Obstacle_Offset (+0x16e4) with radius Space_Obstacle_Radius (+0x16f0) - the rule of the fog's dense mask
-// (FOG_OF_WAR.md §1.3, 0x35e870) [H for the set; M: the same circle answers the "in field" queries]. A point is inside
+// (legacy docs/re/FOG_OF_WAR.md §1.3, 0x35e870) [H for the set; M: the same circle answers the "in field" queries]. A point is inside
 // when its XY distance to the centre is <= the radius [M]. Find_Nearest_Space_Field: the field of the asked kinds
 // whose centre is nearest in XY, ties by the lower field index (insertion order = the mode's object order) [port].
 // Kinds use the Lua mask bits of script_remaining.hpp (asteroid 1, ion storm 2, nebula 4).

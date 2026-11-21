@@ -193,7 +193,7 @@ void SimInstanceBuilder::build(const InterpolatedFrame& frame, SimModelSource& m
             ++st.contained;
             continue;
         }
-        if (o.script_hidden) {  // q6 t19: the model hide switch (0x264c80)
+        if (o.script_hidden) {  // the model hide switch (0x264c80)
             ++st.script_hidden;
             continue;
         }
@@ -227,7 +227,7 @@ void SimInstanceBuilder::build(const InterpolatedFrame& frame, SimModelSource& m
         Instance in;
         in.model = m;
         const float scale = tinfo ? tinfo->scale : 1.0f;
-        in.transform = object_transform(o, scale);  // S7 t05: + movement roll / pitch
+        in.transform = object_transform(o, scale);  // + movement roll / pitch
         in.motion_id = motion_key(1, static_cast<uint64_t>(o.id));
         in.light_scale = {1, 1, 1, (o.fade < 1.0f ? o.fade : 1.0f) * s.fog_alpha};
         if (s.stealth.tinted() && tinfo) {  // R5: LIGHT_SCALE *= lerp(white, Stealth_Color, v) (0x3a0c20)
@@ -239,19 +239,19 @@ void SimInstanceBuilder::build(const InterpolatedFrame& frame, SimModelSource& m
                 ++st.stealth_tinted;
             }
         }
-        if (pulses_)  // mcx4 t15: a running light effect replaces the colour multiplier's RGB
+        if (pulses_)  // a running light effect replaces the colour multiplier's RGB
             if (const auto it = pulses_->find(static_cast<uint64_t>(o.id)); it != pulses_->end()) {
                 const float base[3] = {in.light_scale.x, in.light_scale.y, in.light_scale.z};
                 float rgb[3];
                 if (light_pulse_rgb(it->second, pulse_now_, base, rgb)) in.light_scale = {rgb[0], rgb[1], rgb[2], in.light_scale.w};
             }
-        if (o.id == hover_ && hover_ != objects::kNoObjectId) {  // mcx4 t14: Mouse_Over_Highlight_Scale
+        if (o.id == hover_ && hover_ != objects::kNoObjectId) {  // Mouse_Over_Highlight_Scale
             const float k = hover_brighten(hover_scale_, 1.0f);
             in.light_scale = {in.light_scale.x * k, in.light_scale.y * k, in.light_scale.z * k, in.light_scale.w};
         }
         in.no_shadow = s.stealth.shadow_dropped();  // R5: the model's stencil-shadow bit is cleared while stealthed
         st.stealth_no_shadow += in.no_shadow ? 1u : 0u;
-        // vis1 t02: a blob-shadow type at this detail has its stencil shadow off (the terrain blob replaces it).
+        // a blob-shadow type at this detail has its stencil shadow off (the terrain blob replaces it).
         if (blob_detail_ > 0 && tinfo && blob_detail_ < tinfo->blob_below_detail) in.no_shadow = true;
         in.no_distance_fade = tinfo && tinfo->no_distance_fade;  // mcx4 t15
         in.team_color_override = true;
@@ -341,7 +341,7 @@ void SimInstanceBuilder::build(const InterpolatedFrame& frame, SimModelSource& m
                     }
                     ++st.stealthed;
                 }
-                // mcx6 t04: Hide_Sub_Object hides the named sub-mesh of this object, whatever the masks above say.
+                // Hide_Sub_Object hides the named sub-mesh of this object, whatever the masks above say.
                 for (size_t i = 0; i < ma.meshes.size() && !script_hidden.empty(); ++i) {
                     if (s.combined[i] != 0) continue;
                     for (const std::string& name : script_hidden)
@@ -359,7 +359,7 @@ void SimInstanceBuilder::build(const InterpolatedFrame& frame, SimModelSource& m
                 }
             }
         }
-        // mcx6 t05: Show_Emitter's particle groups (set_emitter_source), before the glow rule, which owns pe / pte of its units.
+        // Show_Emitter's particle groups (set_emitter_source), before the glow rule, which owns pe / pte of its units.
         if (emitters_ && m->asset && s.vis.layout()) {
             EmitterOverride eo = emitters_(o.id);
             if ((o.engine_flags & kEngineGlowUnit) != 0) {
@@ -389,7 +389,7 @@ void SimInstanceBuilder::build(const InterpolatedFrame& frame, SimModelSource& m
                 st.script_emitters += changed ? 1u : 0u;
             }
         }
-        // bkx1 t05 (b0019 / b0020, BKX1_RENDER_RE §1): the SimpleSpace engine glow - the engine particle proxies by name
+        // bkx1 t05 (BKX1_RENDER_RE §1): the SimpleSpace engine glow - the engine particle proxies by name
         // prefix (pe / pte / pi) hidden or shown on top of the mask above (engine_glow: TURBO picks pte over pe, engines
         // off hide G, ion stun shows pi). Only pi is ever un-hidden here: pe / pte keep the mask above, so a destroyed engine
         // hard point's Hide_Engine_Particles stays. [port] the glow brightness (EngineGlow::tint, SystemScalar::Color) is

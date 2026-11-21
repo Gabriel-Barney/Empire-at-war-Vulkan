@@ -42,7 +42,7 @@ bool App::render_frame() {
         return as != rhi::SwapchainStatus::Error;
     }
     VkCommandBuffer cmd = f->cmd();
-    if (bench_active()) bench_gpu_begin(*f, cmd);  // bm2: GPU timer scopes (the slot's last results, "frame" opens)
+    if (bench_active()) bench_gpu_begin(*f, cmd);  // GPU timer scopes (the slot's last results, "frame" opens)
     const rhi::DeviceFns& fn = ctx_.vkd();
     const rhi::AcquireResult acq = gpu_.up.record_acquires(cmd);
     gpu_.renderer.set_time(static_cast<float>(now_s_));
@@ -87,15 +87,15 @@ bool App::render_frame() {
         gpu_.renderer.set_texture_reduction(texture_reduction(adv_video_.texture));
         gview_.set_particle_detail(particle_detail(adv_video_.particle));
         bview_.set_particle_detail(particle_detail(adv_video_.particle));
-        // vis1 t02: blob shadows follow the Shadow detail option (Off = 0, On = retail's ShadowDetail 3).
+        // blob shadows follow the Shadow detail option (Off = 0, On = retail's ShadowDetail 3).
         bview_.set_shadow_detail(adv_video_.shadow > 0 ? render::kPortShadowDetailOn : 0);
     }
     // [port: Gabriel] Render Scale (Advanced video): the share of the window's pixels the galactic / battle scene is drawn with.
     gro.render_scale = bro.render_scale = render_scale_value(adv_video_.render_scale);
-    gro.gpu_timer = bro.gpu_timer = bench_gpu_timer();  // bm2: the renderer's scopes (null outside a benchmark)
+    gro.gpu_timer = bro.gpu_timer = bench_gpu_timer();  // the renderer's scopes (null outside a benchmark)
     if (galactic) {
         ui::CameraParams cp = gview_.camera_params(w, h);
-        bench_camera(cp, 1, w, h);  // bm2: a scenario's scripted camera
+        bench_camera(cp, 1, w, h);  // a scenario's scripted camera
         const auto prep0 = Clock::now();
         gview_.prepare(render_alpha(), now_s_, selected_planet_, &cp);
         ft_.prepare += static_cast<float>(ms_since(prep0));
@@ -103,24 +103,24 @@ bool App::render_frame() {
         ok = gpu_.renderer.render(*f, cmd, pt, ui::to_view_matrices(cp, w, h), gview_.main, render::DrawMode::Lit, gro, &draw_stats_,
                                   nullptr, gview_.background);
     } else if (battle_view) {
-        // story t13: no selection circles while a linked battle's P11 input block holds (UI.md §1.3, flag 0x140a28c91).
+        // no selection circles while a linked battle's P11 input block holds (legacy docs/re/UI.md §1.3, flag 0x140a28c91).
         if (screen() == Screen::Battle && !cinematic_hides_hud() && !linked_ui_.input_blocked()) {
             bview_.set_selection_blobs(ui_.tactical_hud.selection_blobs());  // last HUD build's circles (one frame behind)
-            bview_.set_heal_selection(synced_selection());                   // vis1 t08: Force_Healing range blobs
+            bview_.set_heal_selection(synced_selection());                   // Force_Healing range blobs
         } else {
             bview_.set_selection_blobs({});  // load screen / attract demo: no selection
             bview_.set_heal_selection({});
         }
-        // cu9g t03 bombing-run blob; ui3 t04: the reinforcement drop preview takes the same slot (one pick at a time).
+        // cu9g t03 bombing-run blob; the reinforcement drop preview takes the same slot (one pick at a time).
         bview_.set_bombing_blob(screen() != Screen::Battle ? std::nullopt : bombing_targeting_ ? bombing_blob_ : reinforce_blob_);
         const auto prep0 = Clock::now();
-        bview_.set_pulse_time(now_s_);  // mcx4 t15: light effects run on wall time
+        bview_.set_pulse_time(now_s_);  // light effects run on wall time
         bview_.prepare(gpu_, render_alpha());
         ft_.prepare += static_cast<float>(ms_since(prep0));
         bview_.use_scene(gpu_);
         ui::CameraParams cp = bview_.camera_params(w, h);
-        cinematic_camera(cp);  // refixf t05: the TSW firing shot + its shake replace the drawn view (the controller is untouched)
-        bench_camera(cp, 2, w, h);  // bm2: a scenario's scripted camera replaces the drawn view in a benchmark run
+        cinematic_camera(cp);  // the TSW firing shot + its shake replace the drawn view (the controller is untouched)
+        bench_camera(cp, 2, w, h);  // a scenario's scripted camera replaces the drawn view in a benchmark run
         const float env_scale = detail_options_ ? environment_fade_scale(adv_video_.environment) : 1.0f;  // Environment detail [M]
         gpu_.renderer.set_object_fade(cp.fade_begin * env_scale, cp.fade_end * env_scale);
         for (int i = 0; i < 4; ++i) pt.clear[i] = bview_.clear_color(i);
@@ -164,7 +164,7 @@ bool App::render_frame() {
             shells = &ui_.galactic_shells;
             layout = &ui_.galactic_hud.layout();
         }
-    } else if (screen() == Screen::Battle && battle_view && !cinematic_hides_hud()) {  // refixf t05: no HUD during the cinematic
+    } else if (screen() == Screen::Battle && battle_view && !cinematic_hides_hud()) {  // no HUD during the cinematic
         build_tactical_hud();
         hud_list = ui_.tactical_hud.draw_list();
         canvas = &ui_.tactical_hud.canvas();
@@ -174,7 +174,7 @@ bool App::render_frame() {
             layout = &ui_.tactical_hud.layout();
         }
     }
-    // ui2 t06 (STORY_PRESENTATION_REWARDS.md 5.6): SHOW_COMMAND_BAR 0 hides the command bar and the HUD built on it (a hide
+    // ui2 t06 (legacy docs/re/STORY_PRESENTATION_REWARDS.md 5.6): SHOW_COMMAND_BAR 0 hides the command bar and the HUD built on it (a hide
     // counter: nested hides need matching shows); the story overlay, dialogs and cursor stay.
     if (story_present_.command_bar_hidden() && (galactic || (screen() == Screen::Battle && battle_view))) {
         hud_list = ui::HudDrawList{};
@@ -196,13 +196,13 @@ bool App::render_frame() {
         q.color = {255, 255, 255, 255};
         q.page = kMoviePage;
         dialogs.add(0, ui::HudList::Quads, q);
-        // ui5 t02 / t12 (AUDIO.md §3.4): the movie's caption, with IDC_USE_MOVIE_SUBTITLES on.
+        // ui5 t02 / t12 (legacy docs/re/AUDIO.md §3.4): the movie's caption, with IDC_USE_MOVIE_SUBTITLES on.
         if (audio_opts_.subtitles && ui_.fonts)
             if (const std::string_view id = full_movie_.caption(); !id.empty())
                 if (const std::u16string* t = ui_.text.find(id))
                     ui::add_movie_caption(dialogs, 1, *ui_.fonts, *canvas, ui::gui_unescape(ui::utf16_to_utf32(*t)),
                                           ui::movie_caption_style(data_.db.constants()));
-        draw_text_crawl(dialogs, *canvas);  // storyb t13: Movies.xml Text_Crawl_Name
+        draw_text_crawl(dialogs, *canvas);  // Movies.xml Text_Crawl_Name
     }
     // Panels (hero roster, black market, sabotage, corruption, hack) on top of the HUD list; their shells draw at the
     // HUD's ShellModels step.
@@ -211,12 +211,12 @@ bool App::render_frame() {
     if (galactic || battle_hud) build_panels(panel_lists);
     for (const ui::HudDrawList& pl : panel_lists) merge_lists(hud_list, pl);
     if ((galactic || battle_hud) && !bench_active()) build_encyclopedia(hud_list, *canvas);  // BM2a: no tooltips
-    if (!bench_active()) build_story_overlay(hud_list, *canvas);  // ui2: story text lines, advisor hint (and the pointers)
-    if (battle_view || galactic) draw_letterbox(dialogs, *canvas, w, h);  // refixf t05: cinematic letterbox, over the world, under the dialogs
+    if (!bench_active()) build_story_overlay(hud_list, *canvas);  // story text lines, advisor hint (and the pointers)
+    if (battle_view || galactic) draw_letterbox(dialogs, *canvas, w, h);  // cinematic letterbox, over the world, under the dialogs
     // OI host: the attract demo world under the menu. GuiManager's backdrop paints an opaque black fill under the
     // MenuBack_overlay quad, which would hide the world: left out while the demo is drawn [port: until engine/ui draws the
-    // overlay alone - stretched to the window, straight alpha - over a world, MAIN_MENU_BACKGROUND.md §6.4].
-    // MAIN_MENU_BACKGROUND.md §5 / §6.4: the overlay itself (title wordmark top, LucasArts / Petroglyph logos bottom left;
+    // overlay alone - stretched to the window, straight alpha - over a world, legacy docs/re/MAIN_MENU_BACKGROUND.md §6.4].
+    // legacy docs/re/MAIN_MENU_BACKGROUND.md §5 / §6.4: the overlay itself (title wordmark top, LucasArts / Petroglyph logos bottom left;
     // 86 % transparent) stays over the demo for as long as the menu shows: one quad stretched to the window, straight
     // alpha, under the dialogs, without the backdrop's black fill.
     std::string backdrop;
@@ -254,7 +254,7 @@ bool App::render_frame() {
             dialogs.add(ui::kHudLayers - 1, ui::HudList::Alpha, q);
         }
     }
-    build_story_fade(dialogs, *canvas, w, h);  // ui2 t04: Fade_Screen_In / _Out, Fade_On / _Off (render clock)
+    build_story_fade(dialogs, *canvas, w, h);  // Fade_Screen_In / _Out, Fade_On / _Off (render clock)
     // Playtest QA D1: the end-of-battle hold ends in a fade to black over its last 2 s [port]
     if (const sim::TacticalBattle* hb = battle(); hb && hb->end_hold_active()) {
         const float fade = 1.0f - std::min(static_cast<float>(hb->end_hold_frames_left()) / 60.0f, 1.0f);
@@ -265,9 +265,9 @@ bool App::render_frame() {
         dialogs.add(ui::kHudLayers - 1, ui::HudList::Alpha, q);
     }
     info_.build_overlay(dialogs);  // data-chart lines over IDC_DATA_CHART_IMAGE
-    if (credits_.active() && !credits_.build(dialogs, *ui_.fonts, *canvas, now_s_)) open_main_menu();  // ui1 t03: ended
+    if (credits_.active() && !credits_.build(dialogs, *ui_.fonts, *canvas, now_s_)) open_main_menu();  // ended
     if (rename_.active()) rename_.build(dialogs, *ui_.fonts, *canvas, now_s_);  // [port] fleet / ship rename prompt
-    if (overlay_.shown()) {  // OPT1 t07: the frame-time overlay, top layer of the dialogs list (under the cursor)
+    if (overlay_.shown()) {  // the frame-time overlay, top layer of the dialogs list (under the cursor)
         overlay_.read_ticks();
         overlay_.build(dialogs, *canvas, *ui_.fonts);
     }
@@ -358,7 +358,7 @@ bool App::render_frame() {
     waits[nw++] = rhi::semaphore_info(f->acquire_semaphore(), 0, VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT | VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
     if (acq.wait_value) waits[nw++] = rhi::semaphore_info(gpu_.up.timeline(), acq.wait_value, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT);
     const VkSemaphoreSubmitInfo signal = rhi::semaphore_info(sc_.render_finished(image), 0, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT);
-    if (bench_active()) bench_gpu_end(cmd);  // bm2: "frame" closes (world, HUD, gamma, present blit, readback)
+    if (bench_active()) bench_gpu_end(cmd);  // "frame" closes (world, HUD, gamma, present blit, readback)
     rhi::FrameSubmit fs;
     fs.waits = {waits, nw};
     fs.signals = {&signal, 1};
@@ -393,7 +393,7 @@ bool App::render_frame() {
 
 // ------------------------------------------------------------------------------------------------ frame
 void App::frame() {
-    {  // OPT1 t07: the previous frame's phase times, closed at this frame's start (frame cap and window pump included)
+    {  // the previous frame's phase times, closed at this frame's start (frame cap and window pump included)
         const Clock::time_point start = Clock::now();
         if (frame_t0_ != Clock::time_point{}) {
             ft_.frame = static_cast<float>(std::chrono::duration<double, std::milli>(start - frame_t0_).count());
@@ -454,12 +454,12 @@ void App::frame() {
     } else {
         raw = ui::capture_input(win_, now_s_, dt_);
     }
-    if (raw.keys_pressed.test(kVkF11)) {  // OPT1 t07: the frame-time overlay; the key is not passed on
+    if (raw.keys_pressed.test(kVkF11)) {  // the frame-time overlay; the key is not passed on
         overlay_.set_shown(!overlay_.shown(), opt_.profile);
         raw.keys_pressed.set(kVkF11, false);
         raw.keys_down.set(kVkF11, false);
     }
-    cinematic_input(raw);  // refixf t05: the cinematic controller takes the mouse first (TSW_PLANET_DESTROY.md §11.2)
+    cinematic_input(raw);  // the cinematic controller takes the mouse first (legacy docs/re/TSW_PLANET_DESTROY.md §11.2)
     std::u32string typed = printable(win_.take_text());
     if (bench_active()) typed.clear();
     // [port: Gabriel] The fleet / ship rename prompt takes the keyboard while open (typed text, Backspace, Enter, Esc): no
@@ -520,7 +520,7 @@ void App::frame() {
     std::vector<ui::MenuAction> acts;
     ui_.front.update(gui_events_, raw, acts);
     handle_menu_actions(acts);
-    poll_mod_check();  // modc t08: a finished mod load report goes to the picker
+    poll_mod_check();  // a finished mod load report goes to the picker
     {  // in-game screens: battle end, retreat, planet info, buy units, story, holocron (P4)
         std::vector<ui::ScreenAction> sacts;
         std::vector<commands::EventData> scmds;
@@ -570,7 +570,7 @@ void App::frame() {
             ui_.front.show_pause_menu();
         }
     }
-    // MAIN_LOOP.md §1.5: the pause menu and the full-screen dialogs it opens (options and their pages, save / load, quit
+    // legacy docs/re/MAIN_LOOP.md §1.5: the pause menu and the full-screen dialogs it opens (options and their pages, save / load, quit
     // confirm) set the tactical pause in single player - no ticks while any of them is open, whatever opened it.
     if (session_ && !demo_session() && (screen() == Screen::Galactic || screen() == Screen::Battle) && menu_dialog_open()) paused_ = true;
     if (paused_ && !menu_dialog_open()) paused_ = false;
@@ -583,22 +583,22 @@ void App::frame() {
     // outside the battle screen, so the flag is kept here too).
     if (bview_.active()) bview_.set_space_reinforcement_overlay(screen() == Screen::Battle && bview_.space() && reinforce_unit_ != 0);
     // 3. Sim, then the story's presentation ops (movies, audio) of the ticks just run; Lua movies advance.
-    if (battle_view_pending_ && load_intro_frames_ == 0) start_battle_view();  // QA t11: the load screen is already up
-    story_script_mode_check();  // ui2: before the sim and the Lua ops of this frame (a new mode's first calls must survive)
+    if (battle_view_pending_ && load_intro_frames_ == 0) start_battle_view();  // the load screen is already up
+    story_script_mode_check();  // before the sim and the Lua ops of this frame (a new mode's first calls must survive)
     {
         const auto sim0 = Clock::now();
         step_sim();
         ft_.sim = static_cast<float>(ms_since(sim0));
     }
-    cinematic_step();  // refixf t05: shot clock from the tactical frame, timer end, letterbox slide
+    cinematic_step();  // shot clock from the tactical frame, timer end, letterbox slide
     if (screen() == Screen::Menu && demo_session()) {  // OI host: the attract demo's camera; a finished demo battle restarts
         if (session_->skirmish_over() && !start_attract_map()) stop_attract();
         else demo_camera();
     }
     lua_presentation();
-    linked_ui_step();  // story t13: after this frame's Lua ops
+    linked_ui_step();  // after this frame's Lua ops
     story_reward_step();  // L1/S4 wave 1: START_MOVIE / MULTIMEDIA reward media
-    story_script_frame();  // ui2: the script's bars / camera moves / camera rewards, mode-change reset
+    story_script_frame();  // the script's bars / camera moves / camera rewards, mode-change reset
     if (screen() == Screen::Galactic && session_) galactic_screens();
     if (bench_active()) bench_autopilot();  // BM2a: battle prompts, load screens, battle-end and story dialogs, movies
     if (screen() != Screen::Movie) {
@@ -645,7 +645,7 @@ void App::frame() {
         audio_.set_listener({cp.eye.x, cp.eye.y, cp.eye.z}, {cp.target.x, cp.target.y, cp.target.z}, cinematic);
     }
     audio_flags();  // OI host: modal / GUI-only / attract
-    // aud2 t04 (AUDIO.md §6.1 / §2.3): audio updates and music only while this application is active. Smoke, hidden and
+    // aud2 t04 (legacy docs/re/AUDIO.md §6.1 / §2.3): audio updates and music only while this application is active. Smoke, hidden and
     // benchmark runs (no live input) never pause: their audio clock must not depend on window focus.
     audio_.set_app_active(win_.app_active() || !live_input());
     // BM2a: in a benchmark the audio clock runs on the sim (1/30 s per tick that ran this frame) and a speech's end is
@@ -673,7 +673,7 @@ bool App::crc_check() {
         std::fprintf(stderr, "crc check: no session\n");
         return false;
     }
-    session_->host().capture_crc_now();  // sp2: both logs end with the current tick (checkpoint cadence)
+    session_->host().capture_crc_now();  // both logs end with the current tick (checkpoint cadence)
     const CrcLog& on = session_->host().crc_log();
     const uint64_t ticks = session_->ticks();
     CrcLog off;

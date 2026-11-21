@@ -2,7 +2,7 @@
 // (GameObjectFiles, FactionFiles, CampaignFiles, TradeRouteFiles, HardPointDataFiles, SFXEventFiles,
 // TargetingPrioritySetFiles, CommandBarComponentFiles, ...).
 //
-// cu5 t02: the one place that walks such a list. Free and stateless; every function keeps LIST ORDER and
+// the one place that walks such a list. Free and stateless; every function keeps LIST ORDER and
 // DUPLICATES (a file listed twice is visited twice), so a loader written on top of it reads exactly what its
 // hand-written loop did. What differs between the loaders (empty entries, missing or unparsable listed files,
 // the element name of an entry) is an explicit option, never a silent default change. De-duplication and

@@ -192,7 +192,7 @@ void test_grid() {
     a.unstamp_secondary(600);
     b.unstamp_secondary(600);
     CHECK(hash_of(a) == hash_of(b) && bytes_of(a) == bytes_of(b));
-    // S8 t01: a map stamp handed to its object (rekey) round-trips under the object id; the loader's own stamp under the
+    // a map stamp handed to its object (rekey) round-trips under the object id; the loader's own stamp under the
     // placement id is replaced.
     {
         PassabilityGrid r = build(5);
@@ -204,7 +204,7 @@ void test_grid() {
         CHECK(load(l, rb) && bytes_of(l) == rb && hash_of(l) == hash_of(r) && l.stamped(77) && !l.stamped(-3));
         CHECK(l.occupies(77, 36, 26) && !l.occupies(-3, 36, 26));
     }
-    // S8 t02: a run-time stamp that lands on no cell (off the grid) is still a stamp; it round-trips with no cells.
+    // a run-time stamp that lands on no cell (off the grid) is still a stamp; it round-trips with no cells.
     {
         PassabilityGrid z = build(5);
         CHECK(z.stamp(88, make_footprint({-500.0f, -500.0f}, 0.0f, 20.0f, 20.0f, -10.0f, -10.0f, 0, 0, 1.0f, 0)) == 0);
@@ -259,7 +259,7 @@ void test_space_occupancy() {
     CHECK(load(b, good) && bytes_of(b) == good && hash_of(b) == hash_of(a));
     CHECK(b.query_segment({-50.0f, 10.0f}, {250.0f, 10.0f}, 400.0f, 470.0f, 20.0f, kLayerFrigate, 1, true, 400) ==
           a.query_segment({-50.0f, 10.0f}, {250.0f, 10.0f}, 400.0f, 470.0f, 20.0f, kLayerFrigate, 1, true, 400));
-    // S7 t13: a map placement's entry handed to its object (rekey_static) round-trips under the object id.
+    // a map placement's entry handed to its object (rekey_static) round-trips under the object id.
     {
         SpaceOccupancy k = a;
         CHECK(k.rekey_static(-3, 21) && !k.has_static(-3) && k.has_static(21));
@@ -561,7 +561,7 @@ void build_land(World& w, uint32_t seed) {
     w.sys.grid().stamp(900, make_footprint(cell_center(40, 40), 30.0f, 60.0f, 30.0f, -30.0f, -15.0f, 0, 0, 1.0f, 0));
     w.sys.set_height_fn([](float x, float y) { return x > 1000.0f ? 40.0f : (y > 1500.0f ? 12.0f : 0.0f); });
     w.sys.set_anim_length_fn(anim_len);
-    // (s78n t20: the crusher lane's victims do not scatter, so the crusher drives over them - the crush events are saved)
+    // (the crusher lane's victims do not scatter, so the crusher drives over them - the crush events are saved)
     w.sys.set_scatters_fn([](int32_t) { return false; });
     w.sys.set_threat_fn([](int32_t, V2 p) { return distance(p, cell_center(45, 45)) < 200.0f ? 30.0f : 0.0f; });
     const float hi = 95.0f * kCellSize;
@@ -611,7 +611,7 @@ void build_land(World& w, uint32_t seed) {
     bm.locomotor = LocomotorKind::LandBomber;
     bm.prepare_strafe_height = 100.0f;
     CHECK(w.sys.add_unit(bm));
-    // S7 t06: a Uses_Multiple_Locomotors trooper (WALK primary, JETPACK secondary, Alternate speeds).
+    // a Uses_Multiple_Locomotors trooper (WALK primary, JETPACK secondary, Alternate speeds).
     UnitDesc dt = land_unit(304, cell_center(26, 16), 0, 1.0f, 6.0f, kUccInfantry);
     dt.uses_multiple_locomotors = true;
     dt.has_secondary_locomotor = true;
@@ -641,7 +641,7 @@ void land_before(World& w, uint32_t f) {
             o = MoveOrder{};
             o.units = {200};
             o.destination = cell_center(88, 27);
-            // (s78n t20: an ordinary order - on a forced path decision step 2 pushes the victims aside instead)
+            // (an ordinary order - on a forced path decision step 2 pushes the victims aside instead)
             s.move(o, w.rng, f);
             o.flags = 0;
             o.units = {300};
@@ -656,7 +656,7 @@ void land_before(World& w, uint32_t f) {
             o.units = {303};
             o.destination = cell_center(60, 45);
             s.move(o, w.rng, f);
-            o.units = {304};  // S7 t06: jetpack jump (switch bit), back on WALK after the landing
+            o.units = {304};  // jetpack jump (switch bit), back on WALK after the landing
             o.destination = cell_center(12, 8);
             o.switch_locomotor = true;
             s.move(o, w.rng, f);
@@ -687,13 +687,13 @@ void land_before(World& w, uint32_t f) {
             o.flags = kMoveFlagQueue;
             s.move(o, w.rng, f);
             o = MoveOrder{};
-            o.units = {304};  // S7 t06: a second jump
+            o.units = {304};  // a second jump
             o.destination = cell_center(20, 14);
             o.switch_locomotor = true;
             s.move(o, w.rng, f);
             break;
         case 450:
-            o.units = {304};  // S7 t06: a plain move (walks when landed)
+            o.units = {304};  // a plain move (walks when landed)
             o.destination = cell_center(28, 20);
             s.move(o, w.rng, f);
             break;
@@ -888,7 +888,7 @@ Scenario space_scenario() {
     return s;
 }
 
-// ---------------------------------------------------------------- s78l t02: arrival turn (version 12)
+// ---------------------------------------------------------------- arrival turn (version 12)
 // Has_Pre_Turn_Anim walkers with begin / band / end clips (clip data hook) and a plain walker turn to their final
 // facings; saves land in the begin clip, the band turn and the end clip. The host drains the turn clip events.
 bool arrival_clip(ObjectId, int32_t anim, uint32_t& n, float& fps) {
@@ -947,7 +947,7 @@ Scenario arrival_scenario() {
     return s;
 }
 
-// s78n t03: a land squad container walks its own path, its members steer to their slots; saves land while the team
+// a land squad container walks its own path, its members steer to their slots; saves land while the team
 // moves, while a member recovers to its slot after the team stopped, and after.
 void build_squad(World& w) {
     PassabilityGrid g;
@@ -956,7 +956,7 @@ void build_squad(World& w) {
     w.rng = SimRng(31);
     UnitDesc c = land_unit(100, cell_center(10, 20), 0, 2.0f, 12.0f, kUccInfantry);
     c.team_container = true;
-    c.container_arrangement = 1;  // s78n t14: Dartboard (re-lays, Halton seeds, start delays in the saves)
+    c.container_arrangement = 1;  // Dartboard (re-lays, Halton seeds, start delays in the saves)
     CHECK(w.sys.add_unit(c));
     const V2 slots[3] = {{0.0f, 0.0f}, {-20.0f, 15.0f}, {-20.0f, -15.0f}};
     std::vector<ObjectId> ids;
@@ -1042,7 +1042,7 @@ Scenario squad_speed_scenario() {
     return s;
 }
 
-// s78n t18: a squad (container 100, members 1..4 with a deceleration tag) that walks through a standing infantry unit (a
+// a squad (container 100, members 1..4 with a deceleration tag) that walks through a standing infantry unit (a
 // live Repulsion record), gets a new order while moving (the braking coast), has a member suspended and one parked, a
 // garrison-exit host, a hover unit rising, and a vehicle that path-arounds a standing one (the detour bookkeeping).
 void build_t18(World& w) {
@@ -1269,7 +1269,7 @@ void test_t18_states() {
     check_resume(sc, (turn[0] + turn[1]) / 2, 41);  // a loader that already ran
 }
 
-// s78n t20: saves inside the record states and path records of batch A, each in its own lane (250 apart):
+// saves inside the record states and path records of batch A, each in its own lane (250 apart):
 //  * a Path Around detour (a kind-2 record with hold tags and a resume index on top of the order path) - vehicle 10 around
 //    the standing vehicle 11;
 //  * a StoppedVsStopped record in Resolving (a kind-3 record) - the overlapping parked vehicles 20 / 21;
@@ -1412,7 +1412,7 @@ void t25_attack_before(World& w, uint32_t f) {
     w.sys.move(o, w.rng, f);
 }
 
-// mov3 t02 (b0166): a save round trip with the bkm1 stored heights and the secondary yaw live - the t25.2 attack approach
+// a save round trip with the bkm1 stored heights and the secondary yaw live - the t25.2 attack approach
 // on sloped ground (z = x / 10: the slot leg's G carries the target's height, LandMotion::end_z, and the members' paths
 // Unit::lane_z) with unit 10 a UseSecondaryFacing type (its Y2 steps while it walks). Every resume point continues
 // identically.
@@ -1439,7 +1439,7 @@ void test_mov3_heights_save() {
         alamo::test::set_fire_test<V2>(alamo::test::engagement_of(w.sys),
                                        [c](ObjectId, V2 p, ObjectId, bool, V2, float) { return distance(p, c) <= 255.0f; });
     };
-    // the t25.2 order with the target's height C z = 40, no fire trim: the slot leg's G carries it (bkm1 t06)
+    // the t25.2 order with the target's height C z = 40, no fire trim: the slot leg's G carries it
     sc.before = [](World& w, uint32_t f) {
         if (f != 1) return;
         MoveOrder o;
@@ -1506,7 +1506,7 @@ void test_t25_attack() {
     check_resume(sc, (moving_first + moving_last) / 2, 31);
 }
 
-// s78o (b0087): a damaged unit record must not hang or index out of bounds after the load. In the t25.2 attack approach
+// s78o: a damaged unit record must not hang or index out of bounds after the load. In the t25.2 attack approach
 // unit 10 carries an attack slot (atk_theta / atk_rho, found by their 8 bytes) and no path record, so its Walk_Transition
 // block (wt_clip, wt_pos, wt_rate, wt_f4, wt_f0) sits a fixed 107 bytes + 20 before atk_theta (io_unit: prev_pos ..
 // self_goal with empty push vectors, then s78p's lane (empty: its count) and lane_d); the block of a unit without
@@ -1978,7 +1978,7 @@ int main() {
     const Coverage lc = check_resume(land, 1, 0);
     CHECK(lc.crushes > 0 && lc.max_collisions > 0);
     for (uint32_t at : {45u, 160u, 333u, 480u}) check_resume(land, at, 0);
-    {  // S7 t06: the saves above cover the secondary locomotor (45, 333) and the WALK primary after it (480)
+    {  // the saves above cover the secondary locomotor (45, 333) and the WALK primary after it (480)
         World w(land.cfg);
         land.build(w);
         bool sec45 = false, sec333 = false, walk480 = false, swapped_back = false;
@@ -2000,7 +2000,7 @@ int main() {
     CHECK(sc.locks > 0 && sc.departures > 0);
     for (uint32_t at : {30u, 75u, 210u, 330u, 430u}) check_resume(space, at, 0);
     check_resume(space, 300, 120);
-    {  // s78l t02: saves inside the begin clip, the band turn and the end clip of the arrival turns
+    {  // saves inside the begin clip, the band turn and the end clip of the arrival turns
         const Scenario arr = arrival_scenario();
         World w(arr.cfg);
         arr.build(w);
@@ -2017,7 +2017,7 @@ int main() {
         for (uint32_t at : {first + 1, (first + last) / 2, last - 1, last}) check_resume(arr, at, 0);
         std::printf("arrival turn saves: unit 1 turning %u frames (%u..%u)\n", turning, first, last);
     }
-    {  // s78n t03: saves while the squad walks, at the turn of the second order and while members settle
+    {  // saves while the squad walks, at the turn of the second order and while members settle
         const Scenario sq = squad_scenario();
         World w(sq.cfg);
         sq.build(w);
@@ -2035,8 +2035,8 @@ int main() {
                     }
             }
         }
-        // s78n t16: the container waits for stragglers (0x5ab640), so the members stop near their slots: a short recovery.
-        // s78n t18: it also brakes at its rate into the path end, so the members arrive with it (a frame of recovery, or none)
+        // the container waits for stragglers (0x5ab640), so the members stop near their slots: a short recovery.
+        // it also brakes at its rate into the path end, so the members arrive with it (a frame of recovery, or none)
         CHECK(moving > 40 && w.sys.view(100).arrived);
         (void)recovering;
         for (uint32_t at : {5u, 60u, 151u, 200u, 300u, last_recovering > 0 ? last_recovering - 1u : 298u}) check_resume(sq, at, 0);
@@ -2109,7 +2109,7 @@ int main() {
     test_t20_states();              // s78n t20
     test_t25_attack();              // s78n t25.2
     test_mov3_heights_save();       // mov3 t02
-    test_s78o_unit_rejections();    // s78o (b0087)
+    test_s78o_unit_rejections();    // s78o
     test_stale_team_entries();      // s78n t18 review
     test_hidden_after_load();       // s78n t18 review
     test_t18_review_rejections();   // s78n t18 review

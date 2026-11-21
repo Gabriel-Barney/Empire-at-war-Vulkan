@@ -1,5 +1,5 @@
 // AI framework, Lua side (library alamo_ai_lua): plan-script loading and the script pool
-// (docs/re/AI_GALACTIC.md §1.9.1, §1.9.4). Shared by the galactic AI and the tactical AI (A1).
+// (legacy docs/re/AI_GALACTIC.md §1.9.1, §1.9.4). Shared by the galactic AI and the tactical AI (A1).
 //
 // LOADING (0x4e7e30 / 0x4e7170) [H]: every *.lua of the plan folders (kPlanFolders order; [port] sorted by
 // name within a folder) is run in a fresh VM; then PlanDefinitionLoad = true and Base_Definitions() (PGAICommands:
@@ -45,7 +45,7 @@ public:
     };
     explicit PlanScriptRuntime(VmSetup setup);
 
-    // Loads `paths` (already in load order). Appends to `library`. OPT3 t09: the paths' load VMs are built through
+    // Loads `paths` (already in load order). Appends to `library`. The paths' load VMs are built through
     // `pf` (one job per path, committed in path order: the result does not depend on it); `files` must allow
     // concurrent reads (the VFS and DirectoryProvider do).
     size_t load(const FileProvider& files, const std::vector<std::string>& paths, const AiDefinitions& defs,
@@ -82,7 +82,7 @@ public:
     void restore_pools(std::vector<std::vector<std::unique_ptr<lua::LuaVm>>> pools, size_t created,
                        std::vector<std::unique_ptr<lua::LuaVm>> pristine_from = {});
     void set_vms_created(size_t created) { created_ = created; }  // undoes the count of VMs a failed load made
-    // Teardown (OPT3 t11): moves every pooled VM to the end of `out` (plan order, pool order) and empties the pools.
+    // Teardown: moves every pooled VM to the end of `out` (plan order, pool order) and empties the pools.
     void take_vms(std::vector<std::unique_ptr<lua::LuaVm>>& out);
     // N1 save size: the VM load() pooled for `plan` while it has never been acquired - pooled VMs only run between
     // acquire and release, so it is still exactly as load() left it, and every session rebuilt from the same data
@@ -116,7 +116,7 @@ private:
     std::unique_ptr<lua::LuaVm> build_load_vm(const std::string& source, const AiDefinitions& defs, PlanDefinition& def,
                                               bool* def_ok, std::vector<std::string>* diag, bool legacy_require) const;
     VmSetup setup_;
-    // OPT3 t11: the files the VMs' require / dofile / loadfile read (host.files), cached for every VM of this runtime:
+    // the files the VMs' require / dofile / loadfile read (host.files), cached for every VM of this runtime:
     // one plan load requires the same libraries in every plan VM, each through up to 22 script-root lookups. Bytes
     // only (each VM still parses its own chunk), so a VM is the same with or without it. Safe for load()'s jobs.
     class ReadCache;
@@ -148,7 +148,7 @@ public:
         missing_.clear();
     }
     size_t loaded() const { return vms_.size(); }
-    // Teardown (OPT3 t11): moves every loaded VM to the end of `out` (name order) and forgets them (missing kept).
+    // Teardown: moves every loaded VM to the end of `out` (name order) and forgets them (missing kept).
     void take_vms(std::vector<std::unique_ptr<lua::LuaVm>>& out) {
         for (auto& [key, l] : vms_) out.push_back(std::move(l.vm));
         vms_.clear();
@@ -172,10 +172,10 @@ private:
 };
 
 // The plan files of every folder in load order: list(folder + "*.lua") per kPlanFolders entry, in the lister's order
-// (mcx3 t13: a Vfs gives retail's find order, loose files then MEG records in stored order).
+// (a Vfs gives retail's find order, loose files then MEG records in stored order).
 std::vector<std::string> list_plan_files(const std::function<std::vector<std::string>(std::string_view)>& list);
 
-// S7 t27: the script errors of a plan / free-store VM for lua_errors() and the AI log: its thread errors (errors()) and
+// the script errors of a plan / free-store VM for lua_errors() and the AI log: its thread errors (errors()) and
 // the "SCRIPT ERROR: ..." lines the bindings log without unwinding (LuaVm::messages(), e.g. Move_To(nil)), each as
 // `prefix` + line, appended to `out` (thread errors first, then the messages in order). Diagnostics only.
 void append_script_errors(const lua::LuaVm& vm, const std::string& prefix, std::vector<std::string>& out);

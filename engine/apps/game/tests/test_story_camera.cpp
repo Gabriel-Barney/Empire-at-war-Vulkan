@@ -1,4 +1,4 @@
-// ui2 t03 / t04 / t05: the story script's cinematic camera, fade and letterbox models (story_camera.hpp), data-free.
+// the story script's cinematic camera, fade and letterbox models (story_camera.hpp), data-free.
 #include <cmath>
 #include <cstdio>
 
@@ -14,7 +14,7 @@ bool near(float a, float b, float eps = 1e-3f) { return std::fabs(a - b) <= eps;
 bool near(const Vec3& a, const Vec3& b, float eps = 1e-3f) { return near(a.x, b.x, eps) && near(a.y, b.y, eps) && near(a.z, b.z, eps); }
 
 void fade_test() {
-    alamo::test::section("fade: black only, linear, render clock (STORY_PRESENTATION_LUA.md 1.2)");
+    alamo::test::section("fade: black only, linear, render clock (legacy docs/re/STORY_PRESENTATION_LUA.md 1.2)");
     ScreenFade f;
     CHECK(!f.active() && f.alpha(0.0) == 0.0f);
     f.fade_out(2.0, 10.0);  // always starts from clear, ends and stays black

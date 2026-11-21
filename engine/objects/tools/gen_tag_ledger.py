@@ -1,4 +1,4 @@
-"""Tag ledger generator (docs/MOD_COMPAT_DESIGN.md §7.2, roadmap mcx0 t02).
+"""Tag ledger generator (docs/MODS.md "Tag ledger and value semantics").
 
 One row per (class, tag) of retail's XML descriptor tables (docs/re/xml_field_tables.md, through the generated
 engine/objects/src/field_schema_table.inc; class = the row's segment owner), with the port's state:
@@ -9,7 +9,7 @@ engine/objects/src/field_schema_table.inc; class = the row's segment owner), wit
   consumed  engine code reads it: a string literal naming the tag in engine source outside the descriptor tables,
             tests, tools and the load report (every typed read goes through an accessor taking the tag name:
             GameObjectTypes::get_*(t, "Tag"), GameConstants::get*("Tag"), XmlNode::child*("Tag"), CampaignDef::raw_value) or
-            a typed handle named in code (objects::tags::Tag, alamo/objects/type_tags.hpp; ref6 t01),
+            a typed handle named in code (objects::tags::Tag, alamo/objects/type_tags.hpp),
             a name the code builds from such literals ("Corruption_" + n + "_Type": built_tag_reads),
             or an annotation "// ledger: consumes <Class>.<Tag>" next to an indirect read (a column filled from the
             tag, a struct member set by a loader)
@@ -23,7 +23,7 @@ engine/objects/src/field_schema_table.inc; class = the row's segment owner), wit
   out_of_scope
             no engine code reads it, and the port leaves it out on purpose: the row is in OUT_OF_SCOPE with one of
             the scope reasons of docs/xml-scope.md "Out-of-scope tag-ledger rows" (multiplayer, hardware detection,
-            graphic detail levels, debug keys, localised splash / credits; roadmap mcx4 t16). Not an honour gap; shown
+            graphic detail levels, debug keys, localised splash / credits). Not an honour gap; shown
             like retail_unused. A row a single-player or skirmish game reads in retail is never out of scope.
   misfiled  no engine code reads it under this class, because the row is a segment error of xml_field_tables.md:
             the descriptor belongs to another class (docs/re/XML_FIELD_TABLE_SEGMENTS.md names the real owner). The
@@ -42,7 +42,7 @@ every row until a row says otherwise: TIER_OVERRIDES). corpus_uses / corpus_mods
 
 Outputs (both generated, never edited by hand):
   engine/objects/generated/tag_ledger.inc   rows compiled into alamo_objects (objects/tag_ledger.hpp): class, tag,
-                                            code, state, spec, base uses, tier. No consumer column (ref1 t01): moving
+                                            code, state, spec, base uses, tier. No consumer column: moving
                                             a tag read between files leaves it unchanged
   build/tag-ledger.md                 the human view, with the consumer counts
 
@@ -234,7 +234,7 @@ RETAIL_UNUSED = {
     ("Tractor_Beam_Attack_Ability", "Damage_Application_Time_In_Secs"): "docs/re/xml_reference_index.md Tractor_Beam_Attack_Ability.Damage_Application_Time_In_Secs",
 }
 
-# Rows the port leaves out on purpose (roadmap mcx4 t16, Gabriel 2026-11-18): (class, tag) -> scope reason. Each reason
+# Rows the port leaves out on purpose (Gabriel 2026-11-18): (class, tag) -> scope reason. Each reason
 # is a bold label in SCOPE_RECORD's SCOPE_SECTION, which ties it to the scope decision it follows from. Retail runs
 # skirmish as a multiplayer game type, so an "_MP" row that a skirmish reads (bounties, extra players, the setup
 # defaults) is not out of scope; neither is a row single player reads (Campaign.Is_Multiplayer filters the campaign
@@ -329,7 +329,7 @@ EXCLUDED_FILES = {
     "engine/apps/game/src/mod_check.cpp",
 }
 SOURCE_EXT = (".cpp", ".hpp", ".h", ".inc")
-TAG_HANDLE = re.compile(r"(?<![A-Za-z0-9_])tags::([A-Za-z0-9_]+)")  # ref6 t01: typed handle reads
+TAG_HANDLE = re.compile(r"(?<![A-Za-z0-9_])tags::([A-Za-z0-9_]+)")  # typed handle reads
 ANNOTATION = re.compile(r"ledger:\s*(consumes|verifies)\s+([A-Za-z0-9_]+)\.([A-Za-z0-9_\-\.]+)")
 ROW = re.compile(r'\{"([^"]+)", (0x[0-9a-fA-F]+), (0x[0-9a-fA-F]+), "([^"]*)", (\d+)')
 
@@ -495,7 +495,7 @@ def find_consumers(rows, exact_only=frozenset(), sources=None):
             for _, s in lits:
                 for cls in literal_classes(by_tag.get(s.lower(), ()), text):
                     consumers.setdefault((cls, s.lower()), set()).add(r)
-            # ref6 t01: a typed handle read (objects::tags::Name, alamo/objects/type_tags.hpp) in code names the tag too
+            # a typed handle read (objects::tags::Name, alamo/objects/type_tags.hpp) in code names the tag too
             code = "\n".join(line for i, line in enumerate(text.split("\n"), 1) if i in code_lines)
             for m in TAG_HANDLE.finditer(re.sub(r"//[^\n]*", "", code)):
                 for cls in literal_classes(by_tag.get(m.group(1).lower(), ()), text):
@@ -716,7 +716,7 @@ def spec_index(pages=None):
 
 def pick_spec(pages, pinned=""):
     """A row's spec from the pages naming its tag (sorted): the committed one while it still names the tag, else the
-    first. Sticky, so a new docs/re page that sorts first rewrites no rows (roadmap ref1 t01: the alphabetical pick
+    first. Sticky, so a new docs/re page that sorts first rewrites no rows (the alphabetical pick
     alone moved rows in 53 of 120 docs/re commits)."""
     if pinned and pinned in pages:
         return pinned
@@ -822,7 +822,7 @@ def render_md(ledger):
         "# Tag ledger",
         "",
         "Generated by `engine/objects/tools/gen_tag_ledger.py` (roadmap mcx0 t02); do not edit. Design:",
-        "`docs/MOD_COMPAT_DESIGN.md` §7.2. One row per (class, tag) of retail's descriptor tables",
+        "`docs/MODS.md` 'Tag ledger and value semantics'. One row per (class, tag) of retail's descriptor tables",
         "(`docs/re/xml_field_tables.md`; class = segment owner). The compiled copy is",
         "`engine/objects/generated/tag_ledger.inc` (class, tag, code, state, spec, base uses, tier); the consumer counts",
         "are only here, so moving a read between files leaves it unchanged. `tools/lint/check_tag_ledger.py` keeps both in",

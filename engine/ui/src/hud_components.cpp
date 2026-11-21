@@ -178,7 +178,7 @@ size_t ComponentTable::parse(const data::XmlNode& root) {
 }
 
 bool ComponentTable::load(const FileProvider& files, std::string* error) {
-    // cu5 t02: the shared list walk (list order, empty entries skipped, missing / unparsable files reported).
+    // the shared list walk (list order, empty entries skipped, missing / unparsable files reported).
     data::ListedXmlOptions lo;
     lo.visit_missing = true;
     lo.visit_unparsable = true;
@@ -505,7 +505,7 @@ std::u16string pseudo_localize(std::u16string_view s) {
 }
 
 std::string retail_language_for_langid(uint16_t langid) {
-    // docs/re/MCX2_T02_ASSET_SALVAGE.md 5: retail maps the Windows user LANGID (GetUserDefaultLangID) through a fixed
+    // legacy docs/re/MCX2_T02_ASSET_SALVAGE.md 5: retail maps the Windows user LANGID (GetUserDefaultLangID) through a fixed
     // table to one of its languages; Japanese, Korean, Chinese and Thai are then overridden to English, and a LANGID outside the table is
     // English. The table lists these primary languages with these sublanguages.
     const unsigned primary = langid & 0x3FFu, sub = static_cast<unsigned>(langid >> 10);

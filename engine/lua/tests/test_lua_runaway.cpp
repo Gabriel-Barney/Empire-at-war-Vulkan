@@ -1,4 +1,4 @@
-// mcx6 t08: the runaway-script guard (LuaVmOptions::script_budget, docs/MOD_COMPAT_DESIGN.md §10 P6).
+// the runaway-script guard (LuaVmOptions::script_budget, docs/MODS.md "Fault containment and the no-abort rule" P6).
 //   * a script thread that never yields is stopped after the budget, reported as script_runaway, counted, and the
 //     other threads and the VM go on; the same budget stops the same thread at the same instruction (pure count);
 //   * a well-behaved thread that yields every resume runs far more instructions in total than one budget: the budget

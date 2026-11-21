@@ -1,6 +1,6 @@
 // alamo_render_particles - particle system files (ALO top chunk 0x900) as CPU data (R4).
 //
-// Clean-room: written from docs/formats/SPEC.md section 3 and docs/re/ANIM_PARTICLES.md section B. The byte-level
+// Clean-room: written from legacy docs/formats/SPEC.md section 3 and legacy docs/re/ANIM_PARTICLES.md section B. The byte-level
 // parse is tools/formats (alamo::particle::parse_system); this layer turns it into what the runtime uses:
 //   * texture names without directories (64 EaW emitters store full authoring paths, B.2), upper-case;
 //   * the lifetime shape recomputed from 0x0F / 0x13 (SPEC 3.2: the stored one is stale in 383 of 891 emitters);
@@ -77,8 +77,8 @@ struct EmitterDef {
     float initial_delay = 0;    // 0x24
     float stop_time = 0;        // 0x32
     float skip_time = 0;        // 0x33
-    uint32_t spawn_source = 0;  // 0x34 (vis1 t04: 1 random vertex, 2 random triangle point, 3 every vertex of the parent mesh)
-    float mesh_normal_offset = 0;  // 0x3C (vis1 t04: offset along the mesh normal x 0.5, sources 1 / 2)
+    uint32_t spawn_source = 0;  // 0x34 (1 random vertex, 2 random triangle point, 3 every vertex of the parent mesh)
+    float mesh_normal_offset = 0;  // 0x3C (offset along the mesh normal x 0.5, sources 1 / 2)
     // Particle life + motion
     float lifetime = 1;         // 0x0F
     float random_lifetime = 0;  // 0x13
@@ -91,8 +91,8 @@ struct EmitterDef {
     bool inherit_velocity = false;   // 0x43
     float inherit_velocity_factor = 0;  // 0x28
     bool affected_by_wind = false;   // 0x31
-    uint32_t ground_behavior = 0;    // 0x2F (vis1 t05: 1 dies on the terrain, 2 bounces; particles.hlsl CSUpdate)
-    float bounciness = 1;            // 0x30 (vis1 t05: bounce v -= n (v.n)(1 + bounciness))
+    uint32_t ground_behavior = 0;    // 0x2F (1 dies on the terrain, 2 bounces; particles.hlsl CSUpdate)
+    float bounciness = 1;            // 0x30 (bounce v -= n (v.n)(1 + bounciness))
     // Randomisation
     float random_color[4] = {0, 0, 0, 0};  // 0x2C
     bool random_color_uniform = false;     // 0x2D
@@ -159,7 +159,7 @@ ProxyName parse_proxy_name(std::string_view name);
 
 // Cache key of a system name: ASCII upper-cased, one trailing ".ALO" cut ("p_smoke.alo" -> "P_SMOKE"). A directory is
 // kept and '/' is not rewritten, so ParticleLibrary::get("Data\Art\Models\P_SMOKE.ALO") does not share the "P_SMOKE"
-// entry (CU2 t03: get's key unchanged); load_system cuts the directory itself before calling this for SystemDef::name.
+// entry (get's key unchanged); load_system cuts the directory itself before calling this for SystemDef::name.
 std::string system_key(std::string_view name);
 
 // Case-insensitive cache of systems by name ("P_SMOKE" / "p_smoke.alo"): one load per name, misses cached (134 shipped

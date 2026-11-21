@@ -1,5 +1,5 @@
 // tactical_battle: cmb1 t01 / t03 - the land formation records (LandFormationRecord), land Auto_Engage and the land scan
-// range (docs/re/BKR1_RE_ANSWERS.md Q2 / Q8 [H], FIGHTER_FLYING §4.10 A / §4.11 B / E [H]).
+// range (legacy docs/re/BKR1_RE_ANSWERS.md Q2 / Q8 [H], FIGHTER_FLYING §4.10 A / §4.11 B / E [H]).
 #include "tactical_battle_internal.hpp"
 
 namespace alamo::sim {
@@ -120,7 +120,7 @@ uint8_t TacticalBattle::land_chase(const objects::ObjectStore& store, const Land
         const Unit* x = id != objects::kNoObjectId ? unit_in(units_, id) : nullptr;
         return x && x->alive && !x->retreated && store.alive(x->h) ? x : nullptr;
     };
-    // ref5 t08: the land adapter of the one chase-input builder (tactical_battle_chase.cpp)
+    // the land adapter of the one chase-input builder (tactical_battle_chase.cpp)
     ChaseOrder o;
     o.first_flags = o.flags = r.flags;  // Rr and the attack-move branch read blocks[0]
     o.moving = v.has_goal;
@@ -202,7 +202,7 @@ void TacticalBattle::land_engage_service(TacticalMode& mode, SimRng& rng) {
         if (c.removed || !combat_->has_unit(c.id)) continue;
         combat_->set_flag(c.id, tc::kUnitScanQuery, movement_->has_unit(c.id) && land_formation(c.id) != nullptr);
     }
-    // cmb2 t07 (BKR2_RE_ANSWERS Q3 [H], mov1 t06): MovingVsStopped step 10 (0x685490) found a hostile unit on the mover's
+    // cmb2 t07 (BKR2_RE_ANSWERS Q3 [H]): MovingVsStopped step 10 (0x685490) found a hostile unit on the mover's
     // probe detour - its formation F gets the kind-3 attack block on it (flags 0, +0x50 = 1, Push 0x41fd30: the attack slots
     // and the plan), so the whole formation switches to attacking it. F null (no land formation record) -> nothing
     // ([port] the movement already resolved the pair). The pairs in the movement's order (its serial tick).
@@ -215,7 +215,7 @@ void TacticalBattle::land_engage_service(TacticalMode& mode, SimRng& rng) {
         if (tu == objects::kNoObjectId || !combat_->has_unit(tu) || !lead) continue;
         const mv::UnitView v = movement_->view(r.mover);
         const int32_t me = st.owner(lead->h);
-        // cmb1 t04 / t06: blocks[0]'s last-observed point (0x584750 at every formation step, the lead as viewer): seen ->
+        // blocks[0]'s last-observed point (0x584750 at every formation step, the lead as viewer): seen ->
         // the object's position; hidden -> frozen; stealthed -> the formation lead's position, which is the member nearest
         // the movers' centroid and is taken where the movers are known (BattleAi::guard_follow_step)
         if (const Unit* go = land_goal_unit(st, r.goal_object)) {

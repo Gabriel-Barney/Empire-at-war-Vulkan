@@ -1,4 +1,4 @@
-# SP5 (docs/SIM_PARALLEL_DESIGN.md §4.3, §4.4, §5): the services phase graph (declared read / write component sets,
+# SP5 (docs/SIMULATION.md "Deferred writes in canonical order", "Counter-based random streams", "Services chain"): the services phase graph (declared read / write component sets,
 # phases of disjoint services, debug write check, reverse-order check), deferred-write buffers committed by canonical key,
 # and counter-based random streams. Depends on core only; the host (TacticalBattle) declares its services.
 add_library(alamo_tactical_services STATIC

@@ -1,5 +1,5 @@
 // D3D9 SM1-3 program -> SM6 HLSL (entry VSMain / PSMain) for DXC -spirv, following the interface
-// convention of docs/shaders/PORTING.md section 1 ("translated SM1-3 code"):
+// convention of legacy docs/shaders/PORTING.md section 1 ("translated SM1-3 code"):
 //
 //   set 0 binding 0   cbuffer VSConstants { float4 c[256]; }      D3D9 vertex float constants
 //   set 0 binding 1   cbuffer PSConstants { float4 c[32];  }      ps_2_0: c0..c31; ps_1_x: c0..c7 plus

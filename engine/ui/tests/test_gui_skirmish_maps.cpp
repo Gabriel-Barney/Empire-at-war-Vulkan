@@ -1,15 +1,15 @@
-// test_gui_skirmish_maps (p4ui t06 + p4uim, p4uia, p4uis; docs/re/UI.md sections 9 and 3.7.1): the skirmish staging screen in
+// test_gui_skirmish_maps (p4ui t06 + p4uim, p4uia, p4uis; legacy docs/re/UI.md sections 9 and 3.7.1): the skirmish staging screen in
 // FrontEnd on a fake provider: Official / Custom tabs, the Land / Space game type list filtering the rows (a first opening is
 // on Land, the type selected last is remembered at once), row text ("(N) name", missing key, file-name fallback with the
 // 22 + "..." cut), order (row text case-insensitively, ties by map id), the initial selection (the map selected last for the
 // game type, else Kuat on Space, else row 0), the map remembered on every selection change, that Start sends the selected
 // row's map id through the filtered / sorted view, the preview image with the numbered start markers, the hidden description
 // box and the colour combos (items, default = slot index, the slot-order clash rule, colours carried in StartSkirmish).
-// ccpgt t02: the third game type, Capture Control Points (rows sorted by text, land maps with the CONTROL tag only, the land
+// the third game type, Capture Control Points (rows sorted by text, land maps with the CONTROL tag only, the land
 // map memory shared with Land, game type 4 in StartSkirmish). Data-free.
 #include "test_gui_screens_common.hpp"
 
-#include "alamo/data/game_database.hpp"  // mcx4 t19: CampaignDef
+#include "alamo/data/game_database.hpp"  // CampaignDef
 
 namespace test_gui_screens_t {
 
@@ -195,8 +195,8 @@ void test_skirmish_maps() {
     const GuiDialog* d = rig.env.gui.find(kStaging);
     CHECK(d && d->get("IDC_SELECT_OFFICIAL_MAPS")->visible && d->get("IDC_SELECT_CUSTOM_MAPS")->visible);
 
-    // The game type list (t01, ccpgt t02): Land, Space and Capture Control Points from the text database, sorted by text (LBS_SORT);
-    // a first opening is on Land (UI.md 9.7).
+    // The game type list (t01): Land, Space and Capture Control Points from the text database, sorted by text (LBS_SORT);
+    // a first opening is on Land (legacy docs/re/UI.md 9.7).
     CHECK(rig.control("IDC_GAME_TYPE_LIST")->items ==
           (std::vector<std::u32string>{U"Capture Control Points", U"Ground Battle", U"Space Battle"}));
     CHECK(rig.fe.skirmish_game_type_row(kSkirmishGameControl) == 0 && rig.fe.skirmish_game_type_row(kSkirmishGameLand) == 1 &&
@@ -224,13 +224,13 @@ void test_skirmish_maps() {
     rig.game_type(false);
     CHECK(selected_of(rig.env.gui) == 6);
 
-    // Space type: only the space maps; nothing remembered for Space yet, so row 0 (UI.md 9.7; modc t19: no map by name).
+    // Space type: only the space maps; nothing remembered for Space yet, so row 0 (legacy docs/re/UI.md 9.7; no map by name).
     rig.game_type(true);
     CHECK(rig.fe.skirmish_space_type() && items_of(rig.env.gui) == official_space && selected_of(rig.env.gui) == 0);
     CHECK(rig.fe.skirmish_map_row("_mp_space_kuat") == 1 && rig.fe.skirmish_map_row("_MP_LAND_ENDOR") == -1 && rig.fe.skirmish_map_row("nope") == -1);
     CHECK(rig.start() == "_MP_SPACE_ABC");
 
-    // UI.md 9.5: the map follows the list selection, not Start. Pick a row on each type without starting; after switching away
+    // legacy docs/re/UI.md 9.5: the map follows the list selection, not Start. Pick a row on each type without starting; after switching away
     // and back the row picked is selected again.
     rig.select(0);  // Space: ABC
     rig.game_type(false);
@@ -306,7 +306,7 @@ void test_skirmish_maps() {
     CHECK(items_of(empty.env.gui).empty() && selected_of(empty.env.gui) == -1 && empty.start().empty());
 }
 
-// ccpgt t02 (UI.md 9.4 / 9.7): Capture Control Points lists only the land maps with the CONTROL tag (never a space map, on either
+// ccpgt t02 (legacy docs/re/UI.md 9.4 / 9.7): Capture Control Points lists only the land maps with the CONTROL tag (never a space map, on either
 // tab), shares the remembered land map with Land (retail's one LastInternetMapLand key), is remembered as the type on reopening,
 // and Start sends game type 4; Land and Space send 2 and 3.
 void test_skirmish_control_points() {
@@ -356,11 +356,11 @@ void test_skirmish_preview() {
     const GuiControl* img = rig.control("IDC_IMAGE");
     CHECK(img->image == "tex:_MP_LAND_ALPHA" && img->markers.size() == 3);  // the dialog opens on Land
     CHECK(img->markers[0].pos.x == 0.25f && img->markers[0].pos.y == 0.5f && img->markers[1].pos.x == 0.75f);
-    // Start i shows the number i + 1 in opaque white, whatever the slot colours are (UI.md 9.6.1).
+    // Start i shows the number i + 1 in opaque white, whatever the slot colours are (legacy docs/re/UI.md 9.6.1).
     const Rgba8 white{255, 255, 255, 255};
     CHECK(img->markers[0].label == U"1" && img->markers[1].label == U"2" && img->markers[2].label == U"3");
     CHECK(img->markers[0].color == white && img->markers[1].color == white && img->markers[2].color == white);
-    // The description box is switched off and never filled (UI.md 9.6.2).
+    // The description box is switched off and never filled (legacy docs/re/UI.md 9.6.2).
     const GuiControl* desc = rig.control("IDC_SCENARIO_DESCRIPTION_TEXT_BOX");
     CHECK(!desc->visible && desc->text.empty());
     rig.game_type(true);
@@ -384,9 +384,9 @@ void test_skirmish_preview() {
           !bare.control("IDC_SCENARIO_DESCRIPTION_TEXT_BOX")->visible && bare.control("IDC_SCENARIO_DESCRIPTION_TEXT_BOX")->text.empty());
 }
 
-// p4uia t01 / t02, p4uis t03: IDC_PLAYER_COLOR_n of the used slots hold the 9 palette entries as U+25A0 glyphs (drawn as text in
-// the entry's colour, no filled box: UI.md 3.7.1), the default colour is the slot index, the colour clash rule runs in slot order
-// (UI.md 9.7), and StartSkirmish carries the chosen indices.
+// IDC_PLAYER_COLOR_n of the used slots hold the 9 palette entries as U+25A0 glyphs (drawn as text in
+// the entry's colour, no filled box: legacy docs/re/UI.md 3.7.1), the default colour is the slot index, the colour clash rule runs in slot order
+// (legacy docs/re/UI.md 9.7), and StartSkirmish carries the chosen indices.
 void test_skirmish_colours() {
     Rig rig({map_row("_MP_LAND_X", "", 2, false, false)});
     rig.open_staging();
@@ -396,7 +396,7 @@ void test_skirmish_colours() {
         CHECK(c->item_colors == palette9() && c->selected == slot && rig.fe.skirmish_colour(slot) == slot);
     }
     CHECK(!rig.control("IDC_PLAYER_COLOR_2")->visible && rig.fe.skirmish_colour(2) == -1);
-    {  // UI.md 3.7.1: the selected glyph is drawn as text in its palette colour, with no filled box behind it (no preview
+    {  // legacy docs/re/UI.md 3.7.1: the selected glyph is drawn as text in its palette colour, with no filled box behind it (no preview
        // here, so no start marker can carry a palette colour)
         Rig flat({map_row("_MP_LAND_X", "", 2, false, false)}, true, false);
         flat.open_staging();
@@ -487,8 +487,8 @@ void test_skirmish_slot_defaults() {
     CHECK(check({{"Rebel", ""}}, {0, 0, 0, 1}));  // one faction: the AI row 0 XOR 1 does not exist -> 0
 }
 
-// skm1 t02 / t06: the staging screen's Select Options opens IDD_INTERNET_STAGING_DIALOG_ADVANCED_SKIRMISH_OPTIONS (retail
-// 0xea8d0, not the campaign dialog) with the host's defaults; the win condition rows follow the game type (UI.md 9.7: Land
+// the staging screen's Select Options opens IDD_INTERNET_STAGING_DIALOG_ADVANCED_SKIRMISH_OPTIONS (retail
+// 0xea8d0, not the campaign dialog) with the host's defaults; the win condition rows follow the game type (legacy docs/re/UI.md 9.7: Land
 // 0x12..0x14 with 0x13 selected, Space 0x12 / 0x16 with 0x16, Control 0x15 only); HQ forces the pre-built base on and disables
 // it, Space unchecks and disables it; Accept stores the values and StartSkirmish carries them; a game type change steps the win
 // condition back to the type's default. t06: slot 1 offers TEXT_EASY / MEDIUM / HARD_AI_PLAYER (Medium first), slot 2
@@ -561,7 +561,7 @@ void test_skirmish_options() {
     CHECK(o && opts(o, "IDC_WIN_CONDITION_COMBO")->items == (std::vector<std::u32string>{U"Control"}));
 }
 
-// mcx4 t19 (docs/re/MCX5_RE_ANSWERS.md Q3.1 [H], readers 0xed4b0 / 0xed610): the advanced game options' tech sliders
+// mcx4 t19 (legacy docs/re/MCX5_RE_ANSWERS.md Q3.1 [H], readers 0xed4b0 / 0xed610): the advanced game options' tech sliders
 // span the selected campaign's [Min_Custom_Tech_Level - adj, Max_Custom_Tech_Level - adj], adj = the selected faction's
 // Displayed_Tech_Level_Adjustment; the campaign ctor's 1 / 5 when the campaign sets neither.
 // ledger: verifies Campaign.Min_Custom_Tech_Level
@@ -677,7 +677,7 @@ END
     CHECK(acts.size() == 1u && acts[0].faction == "Rebel" && acts[0].game_options.set && acts[0].game_options.start_tech == 0 &&
           acts[0].game_options.max_tech == 4);
 
-    // mcx8 t10 (docs/re/AI_GALACTIC_TOKENS.md §4 [H]): `set` is retail's flag 0x20 "an option was changed", not "accepted".
+    // mcx8 t10 (legacy docs/re/AI_GALACTIC_TOKENS.md §4 [H]): `set` is retail's flag 0x20 "an option was changed", not "accepted".
     // The start above copied the options and cleared it: a second start in the same run uses the campaign's own values.
     acts.clear();
     click(kCustom, "IDC_PLAY_BUTTON");

@@ -1,4 +1,4 @@
-// alamo_render - camera and matrix conventions (docs/re/RENDER.md 3.2):
+// alamo_render - camera and matrix conventions (legacy docs/re/RENDER.md 3.2):
 //   * world right-handed, Z up; the camera looks along its local -Z;
 //   * column vectors, matrices stored as rows (Mat4::m[row][col], p' = M p) - the same "register
 //     rows" as materials::FrameCB / DrawData, so rows copy straight into the constant buffers;
@@ -63,19 +63,19 @@ struct ViewMatrices {
     uint32_t width = 1, height = 1;
 };
 ViewMatrices make_view(const OrbitCamera& cam, uint32_t width, uint32_t height);
-// Same with explicit clip planes (the tactical camera: Near_Clip 10 / Far_Clip 7000, RENDER.md 3.4).
+// Same with explicit clip planes (the tactical camera: Near_Clip 10 / Far_Clip 7000, legacy docs/re/RENDER.md 3.4).
 ViewMatrices make_view(const OrbitCamera& cam, uint32_t width, uint32_t height, float znear, float zfar);
 // TacticalCameras.xml FOV (degrees, defined for 4:3) -> horizontal FOV in radians for a display aspect:
-// wider than 4:3 gives 2 atan(tan(fov/2) * 0.75 * 16/9) (RENDER.md 3.4).
+// wider than 4:3 gives 2 atan(tan(fov/2) * 0.75 * 16/9) (legacy docs/re/RENDER.md 3.4).
 float tactical_fov_x(float fov_degrees, float aspect);
 
-// Background-scene camera (SPACE_AND_OPEN.md D.7 2): the SAME camera as `main` - view, eye, view_inv and the
+// Background-scene camera (legacy docs/re/SPACE_AND_OPEN.md D.7 2): the SAME camera as `main` - view, eye, view_inv and the
 // projection's x/y scale (FOV, aspect) unchanged - with only the depth range replaced by near 10 / far 100000
 // (distance fade off is the renderer's part). No re-centring, no rotation-only view.
 inline constexpr float kBackgroundNear = 10.0f, kBackgroundFar = 100000.0f;
 ViewMatrices background_view(const ViewMatrices& main);
 
-// Galactic camera (SPACE_AND_OPEN.md B.8 [H]): horizontal FOV atan(0.5) = 0.4636 rad (26.57 deg) for every
+// Galactic camera (legacy docs/re/SPACE_AND_OPEN.md B.8 [H]): horizontal FOV atan(0.5) = 0.4636 rad (26.57 deg) for every
 // display aspect in the original (no Hor+ correction), near 10, far 10000, no distance fade (RecordOptions::galactic for
 // the post rules). Galactic background scenes use near 10 / far 100000. [port: Gabriel 2026-11-13] Hor+: atan(0.5) is
 // the 4:3 value; wider displays keep 4:3's vertical FOV (galactic_fov_x, same as ui::galactic_fov_x).

@@ -105,7 +105,7 @@ std::uint32_t submesh_flags(const alo::Mesh& mesh, const alo::SubMesh& sm, const
     return f;
 }
 
-// D.4 / SPEC.md 2.5: the legacy converter is the one for 128-byte records (a stride accepted only
+// D.4 / legacy docs/formats/SPEC.md 2.5: the legacy converter is the one for 128-byte records (a stride accepted only
 // in chunk 0x10005). A 0x10005 chunk holding 144-byte records is read as the 144-byte layout and
 // keeps its colour. One predicate for both the colour override and legacy_vertex_chunks.
 bool is_legacy_record(const alo::SubMesh& sm) { return sm.vertex_stride == 128; }
@@ -318,7 +318,7 @@ bool build_model(std::span<const std::uint8_t> bytes, std::string_view name, Mod
             if (error) *error = "particle system ALO, not a model";
             return false;
         }
-        const alo::AloFile file = alo::parse(bytes, alamo::ParseOptions{true, nullptr});  // mcx2 t03: retail-equivalent salvage (alo.hpp)
+        const alo::AloFile file = alo::parse(bytes, alamo::ParseOptions{true, nullptr});  // retail-equivalent salvage (alo.hpp)
         if (file.kind != alo::AloFile::Kind::Model) {
             if (error) *error = "particle system ALO, not a model";
             return false;

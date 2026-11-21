@@ -1,5 +1,5 @@
 // alamo_render - land map world: terrain patches, water and the water's extra passes
-// (docs/re/TERRAIN_WATER_POST.md 2, 3), drawn by Renderer::render() while attached with set_world().
+// (legacy docs/re/TERRAIN_WATER_POST.md 2, 3), drawn by Renderer::render() while attached with set_world().
 //
 // Terrain (bucket 0, before the bucket's mesh draws): per patch a 36-byte vertex buffer
 // (terrain::TerrainVertex = materials PrimVertLit), per pass a u16 index buffer and the 32x32 blend
@@ -30,7 +30,7 @@
 // The original draws TerrainRenderBaked (pre-baked patch textures) in the reflection / refraction
 // passes; this port draws the normal splatting passes there.
 //
-// Decorations (docs/re/DECORATIONS.md, engine/terrain decorations.hpp / fow.hpp), main pass only:
+// Decorations (legacy docs/re/DECORATIONS.md, engine/terrain decorations.hpp / fow.hpp), main pass only:
 //   bucket 0 right after the terrain patches, in the order 3 (map tracks on land), 2 (dynamic tracks),
 //   1 (decals, D_master_decal.tga, one draw per render mode 0..13), 0 (shadow blobs per material),
 //   4 (fog of war: every visible patch again with TerrainFogOfWar, DESTCOLOR / ZERO), all with the camera's
@@ -183,7 +183,7 @@ public:
     void update(float dt);
     // Environment skydome objects for the sky cube (instances at the origin with their skydome transform).
     void set_sky(std::span<const Instance> sky);
-    // cu8g t03: the clouds of a new environment (Set_New_Environment, TERRAIN_WATER_POST §5.3 step 4): scale and
+    // the clouds of a new environment (Set_New_Environment, TERRAIN_WATER_POST §5.3 step 4): scale and
     // velocity at once (the offset keeps accumulating); a different texture is uploaded through the init() texture
     // source and swapped in by make_resident() once its upload is done (new bindless slot, terrain texture sets
     // rewritten; the old texture keeps drawing until then and stays owned until shutdown). Before init(): scale and
@@ -206,7 +206,7 @@ public:
     const rhi::RenderTarget* refraction_target() const { return refraction_ ? &refraction_->rt : nullptr; }
 
     // ---- CPU helpers (exposed for tests).
-    // CLOUD_TEX_U / V of TERRAIN_WATER_POST.md 2.5.
+    // CLOUD_TEX_U / V of legacy docs/re/TERRAIN_WATER_POST.md 2.5.
     static void cloud_matrices(float scale, float offset_x, float offset_y, materials::float4& u, materials::float4& v);
     // World mirror about the plane z = height (determinant -1).
     static Mat4 reflection_matrix(float height);
@@ -286,7 +286,7 @@ private:
     MaterialGpu materials_[terrain::kMaterialSlots];
     std::vector<GpuTexture> textures_;
     int cloud_texture_ = -1;
-    int pending_cloud_ = -1;  // cu8g t03: set_clouds' texture while its upload is in flight
+    int pending_cloud_ = -1;  // set_clouds' texture while its upload is in flight
     void swap_pending_cloud();
     std::shared_ptr<const materials::MaterialEffect> terrain_fx_;
     const materials::ResolvedPass* terrain_pass_ = nullptr;

@@ -1,4 +1,4 @@
-// alamo_render - terrain decorations and fog of war on the GPU (docs/re/DECORATIONS.md; CPU side in
+// alamo_render - terrain decorations and fog of war on the GPU (legacy docs/re/DECORATIONS.md; CPU side in
 // engine/terrain decorations.hpp / fow.hpp). See world.hpp for what draws where.
 #include <algorithm>
 #include <cmath>
@@ -34,7 +34,7 @@ bool box_outside(const Mat4& vp, const assets::Aabb& b) {
     return false;
 }
 
-// Engine prim effect of a render mode (DECORATIONS.md 1.1). The depth-sprite modes 4-6 draw with the
+// Engine prim effect of a render mode (legacy docs/re/DECORATIONS.md 1.1). The depth-sprite modes 4-6 draw with the
 // effect of their blend (1-3): their DEPTH_SCALE soft-particle technique needs a scene depth texture the
 // decoration pass does not have [choice]. 8-11 and 13 are no decoration modes: not drawn.
 const char* prim_effect_name(uint32_t m) {
@@ -73,7 +73,7 @@ std::unique_ptr<materials::FfDrawTemplate> make_template(const materials::Materi
     return t;
 }
 
-// The camera with near and far moved by +0.3 (DECORATIONS.md 1.3, bit-faithful variant).
+// The camera with near and far moved by +0.3 (legacy docs/re/DECORATIONS.md 1.3, bit-faithful variant).
 ViewMatrices decoration_view(const ViewMatrices& v) {
     ViewMatrices d = v;
     const float m22 = v.proj.m[2][2], m23 = v.proj.m[2][3];
@@ -195,7 +195,7 @@ bool WorldRenderer::init_decorations(const terrain::TerrainMesh& mesh, const Wor
     for (const terrain::ShadowBlobMaterial& m : blob_materials_) blob_texture_.push_back(slot_tex(m.texture, assets::TextureRole::Color));
     for (const std::string& t : d.extra_textures) slot_tex(t, assets::TextureRole::Color);
 
-    // ---- FOW index lists (TerrainFogOfWar redraws whole patches, DECORATIONS.md 2.5).
+    // ---- FOW index lists (TerrainFogOfWar redraws whole patches, legacy docs/re/DECORATIONS.md 2.5).
     if (!options_.space && !mesh.patches.empty()) {
         std::vector<uint16_t> ix;
         for (uint32_t row = 0; row < terrain::kPatchQuads; ++row)
@@ -289,7 +289,7 @@ void WorldRenderer::set_fow_box(float x0, float y0, float x1, float y1) {
     ++fow_box_gen_;  // the space plane buffers are rewritten lazily, each in its own frame slot
 }
 
-// Space FOW plane (DECORATIONS.md 2.7): the box at SpaceFOWHeight, PrimVert, white. Grid UV = 200 repeats across the
+// Space FOW plane (legacy docs/re/DECORATIONS.md 2.7): the box at SpaceFOWHeight, PrimVert, white. Grid UV = 200 repeats across the
 // box: SpaceFogOfWar.fxo's stage-1 texture transform is FOW_TEX_U / FOW_TEX_V x 200 without their translation over
 // camera-space texgen, i.e. u = 200 x / (x1 - x0), v = -200 y / (y1 - y0) [M: FXO expression; the port feeds the grid
 // through the plane UVs instead of texgen]. W_Space_FOW_Grid's cells carry alpha 18 / 255 with transparent borders,
@@ -393,7 +393,7 @@ bool WorldRenderer::build_dynamic(const rhi::Frame& frame, std::vector<DecoDraw>
         dd.bounds = t.mesh.bounds;
         add(t.mesh.vertices, t.mesh.indices, dd);
     }
-    // Type 1: fading decals, colours refreshed from their age; dead ones dropped (DECORATIONS.md 4.4).
+    // Type 1: fading decals, colours refreshed from their age; dead ones dropped (legacy docs/re/DECORATIONS.md 4.4).
     for (size_t i = 0; i < fading_decals_.size();) {
         const terrain::DecalFade f = terrain::decal_fade(fading_records_[i], deco_time_);
         if (f.dead) {
@@ -441,7 +441,7 @@ bool WorldRenderer::build_dynamic(const rhi::Frame& frame, std::vector<DecoDraw>
         const uint32_t mi = mat < blob_materials_.size() ? mat : 0u;
         dd.mode = mi < blob_materials_.size() ? blob_materials_[mi].mode : RenderMode::Modulate;
         dd.texture = mi < blob_texture_.size() ? blob_texture_[mi] : -1;
-        dd.clamp = true;  // blob textures: U and V CLAMP (DECORATIONS.md 3.4)
+        dd.clamp = true;  // blob textures: U and V CLAMP (legacy docs/re/DECORATIONS.md 3.4)
         dd.prelit = true;
         dd.bounds = bounds;
         add(verts, idx, dd);
@@ -595,7 +595,7 @@ void RendererCore::world_draw_decorations(rhi::Frame& frame, VkCommandBuffer cmd
     VkBuffer dyn_buf = VK_NULL_HANDLE;
     VkDeviceSize dyn_ib = 0;
     if (!w.build_dynamic(frame, dyn, dyn_buf, dyn_ib)) log::errorf("render", "decorations: per-frame buffer allocation failed");
-    // Order 3, 2, 1 (by mode), 0 (DECORATIONS.md 0 item 2), each culled by its bounds.
+    // Order 3, 2, 1 (by mode), 0 (legacy docs/re/DECORATIONS.md 0 item 2), each culled by its bounds.
     std::vector<DecoBatch> list;
     auto push = [&](const WorldRenderer::DecoDraw& d, bool dynamic) {
         if (box_outside(dv.view_proj, d.bounds)) return;
@@ -637,7 +637,7 @@ void RendererCore::world_draw_decorations(rhi::Frame& frame, VkCommandBuffer cmd
             ++ds.pending;
             continue;
         }
-        // Track texture matrix (DECORATIONS.md 5.1): (frac(t u_speed), frac(t v_speed)).
+        // Track texture matrix (legacy docs/re/DECORATIONS.md 5.1): (frac(t u_speed), frac(t v_speed)).
         const float tu = d.u_speed * w.deco_time_, tv = d.v_speed * w.deco_time_;
         if (pass->fixed_function) {
             FfGeoDraw g;
@@ -810,7 +810,7 @@ void RendererCore::world_draw_space_fow(rhi::Frame& frame, VkCommandBuffer cmd, 
     // Stage 0 = FOW texture by camera-space texgen. The FXO's TEXTURE0 expression scales FOW_TEX_U / V by 200
     // and drops their translation; with this port's FOW_TEX_U / V (texture spans the playable box) that maps
     // the view outside [0,1]. The matrix used here maps camera space -> world -> FOW_TEX_U / V instead, so the
-    // texture covers the box exactly [choice; the original space mapping is not traced, DECORATIONS.md 2.7].
+    // texture covers the box exactly [choice; the original space mapping is not traced, legacy docs/re/DECORATIONS.md 2.7].
     g.stage0_rows = true;
     const materials::float4 U = fow_u_, V = fow_v_;
     const float uu[4] = {U.x, U.y, U.z, U.w}, vv[4] = {V.x, V.y, V.z, V.w};

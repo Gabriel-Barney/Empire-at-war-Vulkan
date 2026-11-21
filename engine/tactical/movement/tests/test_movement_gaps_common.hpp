@@ -1,7 +1,7 @@
 #pragma once
-// Split out of test_movement_gaps.cpp (bo3 t03): shared includes, types and helpers; the tests live in test_movement_gaps_partN.cpp.
+// Split out of test_movement_gaps.cpp: shared includes, types and helpers; the tests live in test_movement_gaps_partN.cpp.
 // alamo_tactical_movement_gaps_tests (no framework; non-zero exit on failure).
-// docs/re/REMAINING_GAPS.md §4.1-4.7: corridor squeeze, threat mode (space ops 25-32, land region cost), and the
+// legacy docs/re/REMAINING_GAPS.md §4.1-4.7: corridor squeeze, threat mode (space ops 25-32, land region cost), and the
 // jetpack, flying, bike, land-bomber and fighter locomotors; determinism of a mixed scenario across 1 / 4 / N threads
 // with a golden CRC.
 #include <algorithm>
@@ -72,7 +72,7 @@ CrcLog mixed_run(const ParallelFor& pf);
 // cu8j t01 / t02 (2026-11-08): compositions at the next coordinator update (draws, start frames, the jetpack swap's draw)
 // and the hash's pending composition / adopt state.
 // s78n t20 F5 (2026-11-10): moved (checked orders take no cell snap; the single-member shortcut's exact goal is hashed).
-inline constexpr uint64_t kGoldenMixed = 0x61d132d1fd7293feull;  // mov2 t01 / t03 / t08 / t09 and review fixes: formation path copies, 3-D recruitment, rejoin tracker, squad re-order at speed; mcx4 t11: bike LateralAcceleration, LANDBOMBER facing lookahead, final formation facing; mov1: BKR1 / BKR2 rules, tick order; sp6: tree-hash layout (movement / combat / objects hashes); bkm1: lane fallback / stop point, shield-free class, recruitment, stored z, secondary facing; s78p: formation path and lanes; s78n t26.4: the move step C (no snap); s78n t26.3: the corner pass; s78n t26.2: the speed controller, the start turn (s78n t20: the path stack top, formation identity, the destination check; F5)
+inline constexpr uint64_t kGoldenMixed = 0x61d132d1fd7293feull;  // mov2 t01 / t03 / t08 / t09 and review fixes: formation path copies, 3-D recruitment, rejoin tracker, squad re-order at speed; bike LateralAcceleration, LANDBOMBER facing lookahead, final formation facing; mov1: BKR1 / BKR2 rules, tick order; sp6: tree-hash layout (movement / combat / objects hashes); bkm1: lane fallback / stop point, shield-free class, recruitment, stored z, secondary facing; s78p: formation path and lanes; the move step C (no snap); the corner pass; the speed controller, the start turn (the path stack top, formation identity, the destination check; F5)
 AvoidModel wall_model();
 void test_space_avoid();
 void test_speed_override();

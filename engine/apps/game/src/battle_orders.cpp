@@ -7,7 +7,7 @@ namespace alamo::game {
 
 namespace cmd = alamo::commands;
 
-// ref2 t06: the orders go through TacticalBattle::apply_order, the battle's one validate-and-apply entry (the AI's orders
+// the orders go through TacticalBattle::apply_order, the battle's one validate-and-apply entry (the AI's orders
 // it does not shape itself go there too); this layer keeps the human-only parts: which events the order hook routes, and
 // the diagnostics counters.
 cmd::RejectReason route_battle_order(sim::CampaignBattles& battles, sim::SimHost& host, uint8_t player, const cmd::EventData& ev,

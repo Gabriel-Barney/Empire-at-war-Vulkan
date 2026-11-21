@@ -1,4 +1,4 @@
-// ref6 t01: typed object-type field handles. Engine code outside engine/objects reads a type's tags through these instead
+// typed object-type field handles. Engine code outside engine/objects reads a type's tags through these instead
 // of a tag string (GameObjectTypes::get_float(t, "Tag") gives 0 on a typo and lets every reader carry its own default):
 //   types.get(t, tags::Guard_Chase_Range)        the effective value (the XML value, else the tag's one default)
 //   types.name(t)                                the type's name

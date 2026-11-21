@@ -1,5 +1,5 @@
 // alamo_ai_tactical tests (no framework; non-zero exit on failure).
-// A1 stage 1 (docs/re/AI_TACTICAL.md): target lists (unit / land hint-zone / space grid), Applies,
+// A1 stage 1 (legacy docs/re/AI_TACTICAL.md): target lists (unit / land hint-zone / space grid), Applies,
 // zone reachability, FindTarget selection (draw counts, P(best) = p), DAMAGE_TRACKING +
 // FindDeadlyEnemy, free-store admission + service cadence, land credit transfer, a scripted
 // scenario CRC (golden shared by MSVC / clang / gcc; zone all-pairs serial vs threaded) and, with

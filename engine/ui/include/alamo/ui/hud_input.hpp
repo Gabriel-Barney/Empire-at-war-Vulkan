@@ -1,4 +1,4 @@
-// P2 input routing (docs/re/UI.md §4.1-4.2 [H]): per mouse / key event the handlers are offered the event in a
+// P2 input routing (legacy docs/re/UI.md §4.1-4.2 [H]): per mouse / key event the handlers are offered the event in a
 // fixed order and the first consumer wins:
 //   button press   overlay -> modal targeting controller -> GUI dialogs -> chat (left only) -> HUD -> world
 //                  (middle: overlay -> targeting -> dialogs -> world; the HUD never takes middle presses)

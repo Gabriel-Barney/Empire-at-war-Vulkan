@@ -1,10 +1,10 @@
-// mcx6 t05: the host side of the story script's cinematic object calls (docs/re/MCX6_T05_CINEMATIC_BINDINGS.md). The Lua
+// the host side of the story script's cinematic object calls (legacy docs/re/MCX6_T05_CINEMATIC_BINDINGS.md). The Lua
 // bindings only record them (lua::PresentationOp); the game app feeds the events here, between ticks, and the drawn
 // state below is what the battle view, the world pick and the object sounds read (GameSession::script_hidden).
 //
 //   Cinematic_Hyperspace_In(delay)  (§1, L1_S4_REMAINING §3.4, 0x574e50 -> 0x5c9a80, state 0x2c): the arrival timer starts
 //                                   at 25 - delay and counts one per frame; the model is hidden until 35 and the owner
-//                                   faction's SFXEvent_Arrive_From_Hyperspace plays at 45 (AUDIO.md §9.6), so the ship
+//                                   faction's SFXEvent_Arrive_From_Hyperspace plays at 45 (legacy docs/re/AUDIO.md §9.6), so the ship
 //                                   shows delay + 10 frames and is heard delay + 20 frames after the call.
 //   Do_End_Cinematic_Cleanup()      (§2, 0x541e20 -> 0x38ed10): not here. The sim binding suspends the objects (saved
 //                                   ScriptObjectState::end_cinematic_suspended) and GameSession::script_hidden hides them

@@ -3,8 +3,8 @@
 // movie-mode buttons, the reinforcement pad's availability and the drop-point preview's state.
 //
 // Retail references: HUD_GAPS §5.1 (who enables the buttons), BATTLE_TRANSITIONS §3.4 (retreat), TACTICAL_GAPS §4.2.1
-// (the human drop preview 0x345c0), UI.md §4.3 (slots). What a key does in the hotkey dispatch 0x63f00 is not traced
-// for most slots: those are [port] choices, listed in docs/PHASE4.md ("ui3 tactical hotkeys").
+// (the human drop preview 0x345c0), legacy docs/re/UI.md §4.3 (slots). What a key does in the hotkey dispatch 0x63f00 is not traced
+// for most slots: those are [port] choices, listed in legacy docs/PHASE4.md ("ui3 tactical hotkeys").
 #include <filesystem>
 
 #include "alamo/tactical/abilities/ability_types.hpp"
@@ -272,7 +272,7 @@ void App::tactical_hotkeys(const std::vector<ui::HotkeyEvent>& hk, std::vector<c
             case hk_::kMovieMode: movie_mode_ = !movie_mode_; break;
             case hk_::kToggleInterface: interface_hidden_ = !interface_hidden_; break;
             case hk_::kHolocron: objectives_hidden_ = !objectives_hidden_; break;  // [port] the battle's holocron = the objectives box
-            // CinematicView, taunts, chat, give credits, player list: multiplayer / not traced - no action (docs/PHASE4.md).
+            // CinematicView, taunts, chat, give credits, player list: multiplayer / not traced - no action (legacy docs/PHASE4.md).
             default: break;
         }
     }
@@ -323,7 +323,7 @@ bool App::tactical_button(const ui::HudAction& a) {
 
 void App::fill_command_buttons(ui::TacticalHudFrame& hf) const {
     hf.world.interface_hidden = interface_hidden_ || movie_mode_;
-    hf.world.health_bar_spacing_px = hud_consts_.health_bar_spacing;  // mcx4 t14: Health_Bar_Spacing
+    hf.world.health_bar_spacing_px = hud_consts_.health_bar_spacing;  // Health_Bar_Spacing
     hf.objectives_hidden = objectives_hidden_;  // ENABLE_OBJECTIVE_DISPLAY writes it too (story_present_frame)
     const sim::TacticalBattle* b = battle();
     if (!b) return;
@@ -331,7 +331,7 @@ void App::fill_command_buttons(ui::TacticalHudFrame& hf) const {
     c.present = true;
     c.controls_locked = story_controls_locked();
     const int32_t me = local_player();
-    c.retreat_enabled = b->retreat_block(me) == 0 || b->retreat_cancellable(me);  // trl2 t04: the second click cancels
+    c.retreat_enabled = b->retreat_block(me) == 0 || b->retreat_cancellable(me);  // the second click cancels
     const float running = b->retreat_countdown_progress();
     const float allowed = b->retreat_allowed_progress();
     c.retreat_dial = running >= 0.0f ? running : allowed < 1.0f ? allowed : -1.0f;

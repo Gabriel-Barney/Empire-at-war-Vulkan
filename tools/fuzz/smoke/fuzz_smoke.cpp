@@ -1,6 +1,6 @@
-// alamo_fuzz_smoke - a seeded, deterministic mutation fuzzer over fuzz_targets.hpp (mcx2 t08, MOD_COMPAT_DESIGN.md
+// alamo_fuzz_smoke - a seeded, deterministic mutation fuzzer over fuzz_targets.hpp (docs/MODS.md
 // 11.3). No third-party fuzzer: it runs in every tree (MSVC and clang, a slow-labelled ctest entry) and under the ASan
-// build; build_fuzz.cmd's libFuzzer targets explore further with coverage feedback.
+// build; the old repo's clang + libFuzzer build (build_fuzz.cmd, not carried over) explored further with coverage feedback.
 //
 //   alamo_fuzz_smoke [--seconds S] [--iterations N] [--only a,b] [--seed U64] [--out DIR] [--no-data] [--corpus DIR]
 //   alamo_fuzz_smoke --repro FILE --target NAME
@@ -13,6 +13,7 @@
 // inputs. A crash or an escaping exception writes the input to <out>\crash_<target>.bin (reproduce with --repro); the
 // process exits 1 on an escaping exception, and a crash ends it (ctest reports the failure).
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <csignal>
 #include <cstdio>
@@ -22,6 +23,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "alamo/core/host_fs.hpp"
@@ -65,6 +67,34 @@ void dump_current() {
         if (!g_current->empty()) std::fwrite(g_current->data(), 1, g_current->size(), f);
         std::fclose(f);
         std::fprintf(stderr, "fuzz_smoke: input written to %s\n", g_crash_path.c_str());
+    }
+}
+
+
+// Hang watchdog: an input that runs for kHangSeconds is a hang (an endless loop in a parser). The time budget is only
+// checked between inputs, so without this the process would sit until the CTest timeout and leave nothing behind;
+// instead the input is written to <out>\hang_<target>.bin (reproduce with --repro) and the run fails at once.
+constexpr int kHangSeconds = 10;
+std::atomic<unsigned long long> g_progress{0};
+std::atomic<const char*> g_running_target{nullptr};
+
+void watchdog() {
+    unsigned long long last = g_progress.load();
+    int still = 0;
+    for (;;) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        const unsigned long long now = g_progress.load();
+        const char* target = g_running_target.load();
+        still = (now == last && target) ? still + 1 : 0;
+        last = now;
+        if (still < kHangSeconds) continue;
+        std::fprintf(stderr, "fuzz_smoke: HANG in target %s (one input ran %d s)\n", target, kHangSeconds);
+        const std::string::size_type at = g_crash_path.rfind("crash_");
+        if (at != std::string::npos) g_crash_path.replace(at, 6, "hang_");
+        dump_current();
+        std::printf("FUZZ_SMOKE FAIL (hang in %s)\n", target);
+        std::fflush(nullptr);
+        std::_Exit(1);
     }
 }
 
@@ -278,6 +308,7 @@ int main(int argc, char** argv) {
     SetUnhandledExceptionFilter(on_crash);
 #endif
     std::signal(SIGABRT, on_abort);
+    std::thread(watchdog).detach();
     std::error_code ec;
     fs::create_directories(alamo::path_from_utf8(out_dir), ec);
 
@@ -317,10 +348,12 @@ int main(int argc, char** argv) {
         long long n = 0, escaped = 0;
         Bytes input;
         g_current = &input;
+        g_running_target = t.name;
         // Every seed as is first, then mutations until the time or iteration budget is used.
         for (const auto& s : seeds) {
             input = s;
             try {
+                ++g_progress;
                 t.run(input);
             } catch (const std::exception& e) {
                 ++escaped;
@@ -335,6 +368,7 @@ int main(int argc, char** argv) {
             input = seeds[r.below(seeds.size())];
             mutate(input, r, seeds);
             try {
+                ++g_progress;
                 t.run(input);
             } catch (const std::exception& e) {
                 if (escaped++ == 0) {
@@ -349,6 +383,7 @@ int main(int argc, char** argv) {
             }
         }
         g_current = nullptr;
+        g_running_target = nullptr;
         std::printf("%-9s %8lld inputs  seeds %zu (synthetic %zu, game %d, mods %d, corpus %d)  escaped %lld\n", t.name, n,
                     seeds.size(), seeds.size() - static_cast<size_t>(from_game + from_mods + from_corpus), from_game,
                     from_mods, from_corpus, escaped);

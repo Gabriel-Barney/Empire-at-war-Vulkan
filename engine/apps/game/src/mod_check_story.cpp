@@ -75,7 +75,7 @@ void check_story(const GameData& d, ModCheckReport& r) {
             r.story.rewards_missing.push_back(u);
         } else if (!row || row->owner == sim::StoryRewardOwner::Retail) {
             std::string why = row ? std::string(row->note)
-                                  : std::string("not in retail's Reward_Type enum: its dispatcher ignores it (STORY_REWARDS_GALACTIC.md 0.1)");
+                                  : std::string("not in retail's Reward_Type enum: its dispatcher ignores it (legacy docs/re/STORY_REWARDS_GALACTIC.md 0.1)");
             r.retail_equivalent.push_back({"unknown_reward", name, u.uses, u.first_file, u.in_mod, std::move(why)});
         }
     }

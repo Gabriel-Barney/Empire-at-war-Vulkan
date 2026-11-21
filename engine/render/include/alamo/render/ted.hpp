@@ -1,6 +1,6 @@
 // alamo_render - map environments, now read by engine/terrain (the canonical .ted reader). This header
 // keeps the render-side names: MapEnvironments is the terrain EnvironmentSet plus the space flag
-// (no terrain chunk 0x101 -> fills off, RENDER.md 1.2). render::Environment lives in lighting.hpp.
+// (no terrain chunk 0x101 -> fills off, legacy docs/re/RENDER.md 1.2). render::Environment lives in lighting.hpp.
 #pragma once
 #include <cstdint>
 #include <span>

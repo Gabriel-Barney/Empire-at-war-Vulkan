@@ -59,7 +59,7 @@ struct Region {
 class RegionMap {
 public:
     // Builds regions, adjacency and, for each mask, components and clearance. The masks are independent: one `pf` job
-    // each, per-mask outputs (OPT3 t05), so the result is the same for any worker count.
+    // each, per-mask outputs, so the result is the same for any worker count.
     void build(const PassabilityGrid& grid, std::span<const uint32_t> masks, const ParallelFor& pf = serial_for);
     uint64_t grid_version() const { return grid_version_; }
 
@@ -178,7 +178,7 @@ void smooth_path(const PassabilityGrid& grid, std::vector<V2>& points, uint32_t 
                  const RegionMap* regions = nullptr, int32_t slot = -1, const ThreatCost* threat = nullptr);
 float path_length(std::span<const V2> points);
 
-// s78p (b0049, MOVEMENT §3.5.2 D, s78n t26 RE 2; 0x413340): the lane of a formation member - one point per waypoint of the
+// s78p (MOVEMENT §3.5.2 D, s78n t26 RE 2; 0x413340): the lane of a formation member - one point per waypoint of the
 // formation path `fpath`. Point i: origin fpath[i], direction n = lane_dir(fpath, i) (i = 0: unit(wp1 - wp0), fast then
 // exact normalise; i > 0: the waypoint line's bisector of 0x5c5060, the last waypoint its incoming direction); row k =
 // min(int(s_i / 30), rows - 1), s_i = the 2-D arc length to i; lateral offset L0 = LaneShape::offset(s_i) (+ = toward
@@ -221,10 +221,10 @@ struct MemberSlot {
 float lane_end_shift(std::span<const V2> fpath, const LaneShape& shape, float back);
 V2 lane_dir(std::span<const V2> fpath, size_t i);
 std::vector<V2> formation_lane(const PassabilityGrid& grid, std::span<const V2> fpath, const LaneShape& shape, uint32_t mask);
-// bkm1 t02 (b0096, MOVEMENT §4.3.3 items 2 - 5 [H]): where a formation member stops - the last waypoint G moved along the
+// bkm1 t02 (MOVEMENT §4.3.3 items 2 - 5 [H]): where a formation member stops - the last waypoint G moved along the
 // last segment's direction d1 by -back (back >= 0: the member's depth behind the front row, which stops on G) and across
 // it by the shape's L at arc length total - back: G - d1 back + (-d1.y, d1.x) L. Not along the path's arc, not pulled in,
-// not snapped to a cell, not reserved. mcx4 t11: with the final-facing rotation psi (0x411980) the along term is
+// not snapped to a cell, not reserved. With the final-facing rotation psi (0x411980) the along term is
 // lane_end_shift (cos psi D - sin psi L) and the lateral is the rotated slot lateral at that arc position.
 V2 lane_end(std::span<const V2> fpath, const LaneShape& shape, float back);
 // Nearest passable cell (to `p`) with the given component, ring search up to max_rings; ties: the
@@ -348,7 +348,7 @@ std::vector<float> corner_fractions(const std::vector<V2>& poly, const CornerPas
 // (negative for a left turn, d_in x d > 0), segment length seg: N = (uint)(|theta| v / omega / seg + 3) points p_k = P_j +
 // t (sin|theta| - sin((1 - 2u)|theta|)) v / omega + n (cos((2u - 1)|theta|) - cos|theta|) v / omega, u = k / N, t =
 // unit(A - P_j), n its normal toward the incoming direction; it stops before a p_k past the aim line (cross(A - last, p_k -
-// last) x s < 0), then A is appended. `out` starts with P_j. s78o (b0088) [port]: N is at most kCornerArcProbeMaxPoints
+// last) x s < 0), then A is appended. `out` starts with P_j. s78o [port]: N is at most kCornerArcProbeMaxPoints
 // (also for a non-finite N), so custom data cannot make the pass hang or the cast overflow.
 // limit: guard arc probe point count (hang / cast overflow on custom data)
 inline constexpr uint32_t kCornerArcProbeMaxPoints = 16384;

@@ -1,7 +1,7 @@
-// mcx1 t02: retail XML value semantics, one module for every data loader (docs/MOD_COMPAT_DESIGN.md §7.1).
+// retail XML value semantics, one module for every data loader (docs/MODS.md "Tag ledger and value semantics").
 //
-// Retail converts a tag's text by the field's type code (docs/re/OBJECT_TYPES.md §4.5, the dispatcher every
-// descriptor-table class shares: docs/re/MCX1_RE_ANSWERS.md Q1). The XML reader has already trimmed the value (§4.3);
+// Retail converts a tag's text by the field's type code (legacy docs/re/OBJECT_TYPES.md §4.5, the dispatcher every
+// descriptor-table class shares: legacy docs/re/MCX1_RE_ANSWERS.md Q1). The XML reader has already trimmed the value (§4.3);
 // these functions trim too, so a caller may pass raw element text. Each function is the rule for one value kind:
 //
 //   skipped     exactly "TBD", or empty after trimming: the field keeps its previous value (§4.4, §6.3)
@@ -30,7 +30,7 @@ namespace alamo::data::xml_values {
 // beyond the C whitespace skip. (Moved here from objects::c_atoi / c_atof, which forward.)
 int32_t c_atoi(std::string_view s);
 double c_atof(std::string_view s);
-// The list tokeniser of OBJECT_TYPES.md §4.5: delimiters space, comma, tab, CR, LF (collapsed). keep_bar: '|' is a token
+// The list tokeniser of legacy docs/re/OBJECT_TYPES.md §4.5: delimiters space, comma, tab, CR, LF (collapsed). keep_bar: '|' is a token
 // of its own (code 0x53 OR groups); split_bar: '|' is a delimiter (masks). Views point into `s`.
 std::vector<std::string_view> split_list(std::string_view s, bool keep_bar = false, bool split_bar = false);
 
@@ -44,11 +44,11 @@ std::vector<std::string_view> to_mask(std::string_view v);
 // The last child element named `tag` (case-insensitive), or a null node: retail's "last occurrence wins" for a scalar.
 XmlNode last_child(XmlNode e, std::string_view tag);
 
-// How one class's entry parse walks its element (docs/re/MCX1_RE_ANSWERS.md Q1):
+// How one class's entry parse walks its element (legacy docs/re/MCX1_RE_ANSWERS.md Q1):
 // - kData: Faction, Campaign, GameConstants, TradeRoute, HardPoint: every child, a child with element children is
 //   descended into at any depth and its children are fields of the same entry; `TBD` skipped.
 // - kObject: GameObjectType: as kData, except that a container marked SubObjectList="Yes" (exactly) holds sub-objects, not
-//   fields, and is not descended into (OBJECT_TYPES.md §4.2; Q1: the other data classes have no such branch).
+//   fields, and is not descended into (legacy docs/re/OBJECT_TYPES.md §4.2; Q1: the other data classes have no such branch).
 // - kAbility: the `*_Ability` and `Unit_Ability` sub-objects: direct children only, `TBD` is a value like any other.
 // In all of them an empty value never changes a field.
 struct EntryRule {

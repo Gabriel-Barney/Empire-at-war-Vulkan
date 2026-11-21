@@ -1,4 +1,4 @@
-// R3 animation types (docs/re/ANIM_PARTICLES.md §A.1): the original's ModelAnimType ids 0..118, their
+// R3 animation types (legacy docs/re/ANIM_PARTICLES.md §A.1): the original's ModelAnimType ids 0..118, their
 // XML / Lua names (Specific_Death_Anim_Type, Attack_Animation, Play_Animation, ...) and their ALA file
 // suffixes (<base>_<SUFFIX>_<NN>.ALA). The suffix of id 113 keeps the shipped misspelling
 // CONTAIMINATE_LOOP. Ids 90 (HACKING) and 91 (REPAIRING) have a suffix but no XML name.

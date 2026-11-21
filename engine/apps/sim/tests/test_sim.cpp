@@ -7,7 +7,7 @@
 //   * command handlers: select / move / attack / stop validation, wire id mapping, execute_direct
 //   * synthetic space map (no game data): record a 600-tick run with live orders + AI stand-ins,
 //     save the stream (it must reload byte for byte), replay it at 0/1/4/N workers -> identical CRC logs, = the record
-//     run. Real time pacing gives the same CRCs as the fast runner. No stored golden (wr1 t07): --golden-out DIR
+//     run. Real time pacing gives the same CRCs as the fast runner. No stored golden: --golden-out DIR
 //     writes the stream and CRC log for the scenario sim_tests (tools/goldens/scenarios.json), which diffs them
 //     against the parent commit's.
 //   * real data (ALAMO_FOC_DATA set; skipped otherwise): FoC space map _SPACE_PLANET_CORELLIA_PIRACY
@@ -53,7 +53,7 @@
 #include "alamo/test/support.hpp"
 #ifdef ALAMO_SIM_HAVE_STORY
 #include "alamo/lua/story_model.hpp"  // dialog_log (L1/S4 wave 1 test)
-#include "alamo/lua/presentation.hpp"  // tst2 t02: the movie state of the Esc test
+#include "alamo/lua/presentation.hpp"  // the movie state of the Esc test
 #include "alamo/galactic/conflicts.hpp"  // BattleRequest (L1/S4 wave 2a test)
 #include "alamo/lua/script_remaining.hpp"  // GlobalValueStore (q6 object-script test)
 #endif
@@ -68,7 +68,7 @@ static bool g_regen = false;
 
 using ::alamo::test::env_or_empty;
 
-// wr1 t05: --golden-out DIR regenerates into DIR instead of over the tracked testdata (the scenario-result run of
+// --golden-out DIR regenerates into DIR instead of over the tracked testdata (the scenario-result run of
 // tools/goldens/scenarios.json). Only golden and recorded-stream paths go through here.
 static std::string g_golden_out;
 static std::string testdata(const std::string& name) {
@@ -105,7 +105,7 @@ static void test_pacing() {
     fs.set_paused(false);
     fs.set_cinematic_lock(true);
     CHECK(fs.rate() == 30);
-    fs.set_fast(true);  // OI host: the cinematic lock wins over fast mode (MAIN_LOOP.md §1.2)
+    fs.set_fast(true);  // OI host: the cinematic lock wins over fast mode (legacy docs/re/MAIN_LOOP.md §1.2)
     CHECK(fs.rate() == 30);
     fs.reset();
     CHECK(fs.pace(0xFFFFFFF0u) && !fs.pace(0x10u) && fs.pace(0x11u));  // timeGetTime wrap
@@ -356,7 +356,7 @@ static void test_commands(const World& w) {
     CHECK(tm.order(3) == nullptr && tm.trees().size() == 55 && !host.resolve(15));
 }
 
-// bkc1 t04 (backlog b0012; COMMANDS §2.4.1, q6 t15 probe 6): SelectAll keeps the issuer's SELECTABLE units and leaves out
+// bkc1 t04 (COMMANDS §2.4.1, q6 t15 probe 6): SelectAll keeps the issuer's SELECTABLE units and leaves out
 // base structures (DUMMY_GROUND_STRUCTURE: barracks, factories), star bases (DUMMY_STAR_BASE: the own space station),
 // orbital structures and mines, plus anything not SELECTABLE (build pads have no SELECTABLE in the shipped data: the
 // FoC check in alamo_objects_tests); other players' units are never selected; the selection is replaced.
@@ -447,7 +447,7 @@ static void determinism(const objects::GameObjectTypes& types, const terrain::Ma
                 live.log.records.back().parity);
     CHECK(live.ticks == ticks && live.log.records.size() == ticks + 1 && rec.command_count() > 50);
     CHECK(live.applied > 20 && live.rejected > 5);
-    // wr1 t07: always record -> save -> reload -> replay. With --regen / --golden-out the stream is a result (testdata()),
+    // always record -> save -> reload -> replay. With --regen / --golden-out the stream is a result (testdata()),
     // otherwise a temp file (no stored stream to compare with).
     const std::string stream_path =
         g_regen ? testdata(stem + ".acmd") : (fs::temp_directory_path() / ("alamo_sim_tests_" + stem + ".acmd")).string();
@@ -508,7 +508,7 @@ static void test_save_session(const World& w) {
     CHECK(e.read(dr) && dr.done());
     CHECK(SessionDescriptor::mismatch(d, e).empty() && e.option("a") == "1" && e.option("zz", "x") == "x");
     {
-        // mcx5 t01: a version-1 descriptor (written before the 64-slot cap went: u8 scheduler max_players) still reads.
+        // a version-1 descriptor (written before the 64-slot cap went: u8 scheduler max_players) still reads.
         // Layout: u32 version | 3 str | u32 n + str data_args | u32 seed | u32 players | u32 delay | max_players | ...
         std::vector<uint8_t> v1(dw.bytes().begin(), dw.bytes().end());
         size_t at = 4;
@@ -540,7 +540,7 @@ static void test_save_session(const World& w) {
     f.set_option("a", "2");
     CHECK(!SessionDescriptor::mismatch(d, f).empty());
     CHECK(!SessionDescriptor::only_data_differs(d, f));  // an option is not data
-    // mcx3 t05: the stack. Without mods the bytes are the version 1 layout; with mods a trailing block round-trips.
+    // the stack. Without mods the bytes are the version 1 layout; with mods a trailing block round-trips.
     {
         SessionDescriptor m = d;
         m.mods = {{"StackSub", "Stack Sub", "1.0", 0x10}, {"StackParent", "Stack Parent", "2.0", 0x20}};
@@ -776,7 +776,7 @@ static bool g_regen_story = false;
 static bool g_story_only = false;
 
 // Writes `text` to testdata/<name> with --regen / --regen-story / --golden-out (the scenario sim_tests); no stored copy
-// is compared (wr1 t07: the scenario diffs the log against the parent commit's).
+// is compared (the scenario diffs the log against the parent commit's).
 static void check_text_golden(const std::string& name, const std::string& text) {
     if (!g_regen_story) return;
     const std::string path = testdata(name);
@@ -920,7 +920,7 @@ struct Run {
     uint64_t scoring_services = 0, scoring_calls = 0, scoring_releases = 0;
 };
 
-// scoring: the GameScoring script name to run (q6 t09; nullptr = none, the S4 golden run).
+// scoring: the GameScoring script name to run (nullptr = none, the S4 golden run).
 static Run run(const World& w, const FileProvider& files, int32_t workers, uint64_t ticks, const char* scoring = nullptr) {
     const GalacticRules r = rules();
     jobs::JobSystem js(jobs::JobSystemConfig{workers});
@@ -989,7 +989,7 @@ static Run run(const World& w, const FileProvider& files, int32_t workers, uint6
 // size (those players would get no controller), starts it sized with session_players, and every player has a controller
 // slot; <Story_Name> "Faction, file" pairs give plot sets to factions without a <Faction>_Story_Name.
 static void test_many_players(const World& w) {
-    CHECK(session_players(3) == 8 && session_players(22) == 22 && session_players(100) == 100 && session_players(300) == kMaxPlayers);  // mcx5 t01: no 64 cap
+    CHECK(session_players(3) == 8 && session_players(22) == 22 && session_players(100) == 100 && session_players(300) == kMaxPlayers);  // no 64 cap
     GalacticRules r = rules();
     GalacticSetup s = setup();
     for (uint32_t i = 0; i < 17; ++i) {  // 3 + 17 = 20 players: Mod_0..Mod_16 (planet-less AI factions)
@@ -1021,7 +1021,7 @@ static void test_many_players(const World& w) {
     host.run_fast(5);
     CHECK(last_frame > 0);  // the last player's controller runs
     {
-        // mcx5 t01: no 64-player cap (retail keeps a vector): 100 players start, the last one's controller runs.
+        // no 64-player cap (retail keeps a vector): 100 players start, the last one's controller runs.
         GalacticRules r100 = r;
         GalacticSetup s100 = s;
         for (uint32_t i = 17; i < 97; ++i) {
@@ -1050,7 +1050,7 @@ static void test_many_players(const World& w) {
              {"Story_Name", " Empire, Second_E.xml, Mod_3 , Sub\\Story_Plots_M3.xml,\n Mod_16, M16.xml, Dangling "},
              {"Story_Name", "Mod_3, Later.xml, Mod_5, M5.xml"}};
     const std::vector<StoryPlotSet> sets = campaign_plot_sets(c, *gs);
-    // q6 t03 (STORY.md §2.1 [H]): the faction tags first, then every Story_Name pair in list order (a faction may get
+    // q6 t03 (legacy docs/re/STORY.md §2.1 [H]): the faction tags first, then every Story_Name pair in list order (a faction may get
     // several sets); a dangling name is dropped.
     CHECK(sets.size() == 6);
     if (sets.size() == 6) {
@@ -1063,7 +1063,7 @@ static void test_many_players(const World& w) {
     }
 }
 
-// q6 t06 (GAME_SCORING.md §1.2 / §1.3): the GameScoring script is re-created at every new session, after the GlobalValue
+// q6 t06 (legacy docs/re/GAME_SCORING.md §1.2 / §1.3): the GameScoring script is re-created at every new session, after the GlobalValue
 // clear and before the plots load, so a value its Base_Definitions sets (Thrawn's Revenge: MOD_ID) reaches the plot
 // scripts' Base_Definitions.
 static void test_scoring_script(const World& w) {
@@ -1114,7 +1114,7 @@ static void test_scoring_script(const World& w) {
     CHECK(plain.scoring_vm() == nullptr && plain.global_values()->get("MOD_ID").kind == lua::AiGlobalValue::Nil);
 }
 
-// q6 t09: the frames the Service of GAME_SCORING.md §2 pumps at for `rate`: now = (float)frame / (float)30 widened,
+// the frames the Service of legacy docs/re/GAME_SCORING.md §2 pumps at for `rate`: now = (float)frame / (float)30 widened,
 // due when there is no LastService or now - LastService > rate (strict, double).
 static std::string expected_pumps(double rate, uint64_t ticks) {
     std::string out;
@@ -1152,7 +1152,7 @@ static const char* kScoringCommon =
     "function Game_Mode_Ending_Event(mode) Log(\"E:\" .. mode) end\n"
     "function Reset_Tactical_Stats() Log(\"R\") end\n";
 
-// q6 t09 (GAME_SCORING.md §2 / §3): the Service pump (ServiceRate / LastService), the release on ScriptExit and on a Lua
+// q6 t09 (legacy docs/re/GAME_SCORING.md §2 / §3): the Service pump (ServiceRate / LastService), the release on ScriptExit and on a Lua
 // error (thread or event call), the mode starting / ending events, GameRandom.Free_Random off the synced stream.
 static void test_scoring_service(const World& w) {
     const fs::path root = fs::temp_directory_path() / "alamo_sim_scoring_service";
@@ -1190,13 +1190,13 @@ static void test_scoring_service(const World& w) {
     };
     free_script("Scoring_Free", true);
     free_script("Scoring_Plain", false);
-    // q6 t03: the players without a story session (Thrawn's Revenge's plugins: Find_Player, PlayerWrapper::Get_Name).
+    // the players without a story session (Thrawn's Revenge's plugins: Find_Player, PlayerWrapper::Get_Name).
     script("Scoring_Players",
            "function Base_Definitions() ServiceRate = 0 n = 0 end\n"
            "function Game_Mode_Starting_Event(mode, map) local p = Find_Player(\"Empire\") Log(\"N:\" .. p.Get_Name()) end\n"
            "function main() while true do n = n + 1 if n <= 2 then Log(\"F:\" .. Find_Player(\"Underworld\").Get_Faction_Name()) end "
            "coroutine.yield(true) end end\n");
-    // mcx6 t07 (GAME_SCORING.md §9.1): a skirmish - Base_Definitions runs while the session has no players, every later
+    // mcx6 t07 (legacy docs/re/GAME_SCORING.md §9.1): a skirmish - Base_Definitions runs while the session has no players, every later
     // call sees them, and the map battle's scaffold galaxy never reaches the script (no Galactic start / end / events).
     script("Scoring_Skirmish",
            "function Base_Definitions() ServiceRate = 0 Log(\"B:\" .. tostring(Find_Player(\"Empire\") == nil)) end\n"
@@ -1281,7 +1281,7 @@ static void test_scoring_service(const World& w) {
         CHECK(s.log() == "S:Galactic:Scoring_Campaign;" && s.host->scoring_services() == 0 && s.host->scoring_vm() != nullptr);
     }
 #if defined(ALAMO_LUA_PLAYERS)
-    {  // q6 t03: no story session - the scoring VM has a player world of its own over the campaign's players (before,
+    {  // no story session - the scoring VM has a player world of its own over the campaign's players (before,
        // Find_Player gave nil there and the first event call released the script).
         Session s = start("Scoring_Players");
         s.host->run_fast(10);
@@ -1290,7 +1290,7 @@ static void test_scoring_service(const World& w) {
         CHECK(s.host->scoring_vm() != nullptr && s.host->scoring_releases() == 0);
         CHECK(s.host->end_game_mode() && s.host->scoring_vm() == nullptr);
     }
-    {  // mcx6 t07: a skirmish map battle (CampaignBattles::start_map_battle -> SimHost::scoring_map_battle) over its galaxy.
+    {  // a skirmish map battle (CampaignBattles::start_map_battle -> SimHost::scoring_map_battle) over its galaxy.
         Session s = start("Scoring_Skirmish");
         CHECK(s.log() == "B:true;" && !s.host->scoring_scaffold());
         s.host->scoring_map_battle();
@@ -1326,7 +1326,7 @@ static void test_scoring_service(const World& w) {
     }
 }
 
-// q6 t09: GameScoring in the S4 synthetic story campaign (production, conquest, a space mode pushed and popped): the
+// GameScoring in the S4 synthetic story campaign (production, conquest, a space mode pushed and popped): the
 // galactic event calls arrive in stream order after T9, and the run is identical for every worker count (rule 3).
 static const char* kScoringStory =
     "function Base_Definitions() ServiceRate = 0.1 end\n"
@@ -1336,7 +1336,7 @@ static const char* kScoringStory =
     "function Galactic_Production_End_Event(planet, o) Log(\"PE:\" .. tostring(planet ~= nil) .. tostring(o ~= nil)) end\n"
     "function Galactic_Planet_Faction_Change(planet, n, o) Log(\"FC:\" .. tostring(planet ~= nil and n ~= nil and o ~= nil)) end\n"
     "function Galactic_Unit_Destroyed_Event(object, killer) Log(\"UD:\" .. tostring(object ~= nil) .. tostring(killer ~= nil)) end\n"
-    // storyb t14: tactical deaths (the object of the battle's store, as a parent-store wrapper) and starbase levels.
+    // tactical deaths (the object of the battle's store, as a parent-store wrapper) and starbase levels.
     "function Tactical_Unit_Destroyed_Event(object, killer) Log(\"TD:\" .. tostring(object ~= nil and object.Is_Valid())"
     " .. tostring(killer ~= nil)) end\n"
     "function Galactic_Starbase_Level_Change(planet, old_type, new_type) Log(\"SB:\" .. tostring(planet ~= nil)) end\n";
@@ -1393,7 +1393,7 @@ static void test_scoring_story(const World& w) {
     }
 }
 
-// storyb t14 (GAME_SCORING.md §3): the death signals reach the scoring script while the objects are alive, in a galactic
+// storyb t14 (legacy docs/re/GAME_SCORING.md §3): the death signals reach the scoring script while the objects are alive, in a galactic
 // session without a story: GalacticSim::destroy_object -> Galactic_Unit_Destroyed_Event(object, neutral player); a
 // battle death (SimHost::scoring_tactical_death, as TacticalBattle::process_death calls it) -> Tactical_Unit_Destroyed_Event
 // with the tactical object as a wrapper the galactic-store VM can use (Is_Valid runs on the battle store), the killer's
@@ -1437,15 +1437,15 @@ static void test_scoring_deaths(const World& w) {
     host.end_game_mode();
 }
 
-// q6 (Thrawn's Revenge story chain): (1) a tick-2 event (ELAPSED 0, A2i t01) reaches a PGStoryMode-style script whose
+// q6 (Thrawn's Revenge story chain): (1) a tick-2 event (ELAPSED 0) reaches a PGStoryMode-style script whose
 // state machine starts at load - Story_Event_Trigger only switches state when CurrentState == NextState, which holds
 // only after main's first resume; the load-time resume (StorySession::start_threads_at_load) puts it there before the first T9's STORY_ELAPSED
 // dispatch (T9 step 2) - (2) a prereq-less Perpetual STORY_ELAPSED fires first where the T9 clock has accumulated
 // Param1 seconds since the first T9; the Perpetual reset clears the accumulator and the initialised flag, so the next
-// T9 re-records the start and the next fire comes Param1 seconds after that (STORY.md §4.7 [H]: period Param1 plus one
+// T9 re-records the start and the next fire comes Param1 seconds after that (legacy docs/re/STORY.md §4.7 [H]: period Param1 plus one
 // T9), (3) SWITCH_CONTROL rewards reach the host hook (SimHost::set_switch_control_hook), from an XML reward (faction
 // name) and from a Lua Set_Reward_Parameter(0, faction name) like StoryUtil.ChangeAIPlayer (a player object is not a
-// converter value: LUA_API.md "StoryEventWrapper dialog and parameter setters"). Same results for every worker count.
+// converter value: legacy docs/re/LUA_API.md "StoryEventWrapper dialog and parameter setters"). Same results for every worker count.
 static const char* kQ6Plot =
     "<Story>\n"
     " <Event Name=\"Begin\"><Event_Type>STORY_ELAPSED</Event_Type><Event_Param1>0</Event_Param1></Event>\n"
@@ -1579,7 +1579,7 @@ static void test_q6_story_chain(const World& w) {
     remove_all_long(root, ec);
 }
 
-// bkc1 t01 (docs/re/BKC1_RE_ANSWERS.md Q1 [H]): Story_Handle_Esc. The key goes to the story only while the cinematic
+// bkc1 t01 (legacy docs/re/BKC1_RE_ANSWERS.md Q1 [H]): Story_Handle_Esc. The key goes to the story only while the cinematic
 // camera is on (Start_Cinematic_Camera, the controller's state 4); handle_esc() offers the call to every ACTIVE plot of
 // the current mode in plot-table order, calling the plot script's global only when it is a function (no arguments); a
 // suspended plot (D) is skipped, a plot without a script (B) or without the function is no error. A thread the handler
@@ -1660,7 +1660,7 @@ static void test_story_handle_esc(const World& w) {
     remove_all_long(root, ec);
 }
 
-// tst2 t02: a Lua Bink movie takes the Esc only while it plays. Play_Bink_Movie leaves the movie's name in the presentation
+// a Lua Bink movie takes the Esc only while it plays. Play_Bink_Movie leaves the movie's name in the presentation
 // state after its block has run out (no Stop_Bink_Movie), as the Kessel UM01 intro does (BlockOnCommand on its Binks, then
 // the cinematic camera): from then on the cinematic camera hands the key to the story again.
 static void test_story_esc_after_movie(const World& w) {
@@ -1702,7 +1702,7 @@ static void test_story_esc_after_movie(const World& w) {
 }
 }  // namespace story_test
 
-// q6: game-object Lua scripts (object_scripts.hpp, docs/re/OBJECT_SCRIPTS.md) on synthetic land types and scripts.
+// q6: game-object Lua scripts (object_scripts.hpp, legacy docs/re/OBJECT_SCRIPTS.md) on synthetic land types and scripts.
 namespace object_script_test {
 
 struct OsWorld {
@@ -1769,7 +1769,7 @@ static std::unique_ptr<OsWorld> make_os_world() {
            "function Hit(o, t) GlobalValue.Set('Hits', (GlobalValue.Get('Hits') or '') .. t.Get_Object_ID() .. ',') end\n"
            "function main() Object.Event_Object_In_Range(Hit, 50) while true do Object.Service_Wrapper() "
            "GlobalValue.Set('Hits', (GlobalValue.Get('Hits') or '') .. '|') coroutine.yield(true) end end\n");
-    // A miniature TR GenericCompanySpawner (OBJECT_SCRIPTS.md §6.1): exit outside land, spawn the company at the dummy,
+    // A miniature TR GenericCompanySpawner (legacy docs/re/OBJECT_SCRIPTS.md §6.1): exit outside land, spawn the company at the dummy,
     // hide it, kill the dummy once 40% or less of the company lives. GameRandom draws on the synced stream.
     script(r, "Os_Spawner",
            "function Base_Definitions() ServiceRate = 0.1 Units = {} end\n"
@@ -1869,7 +1869,7 @@ static void test_attach_and_gate(const OsWorld& w) {
         CHECK(gv_text(host, "Main").empty());     // main created, not run
         host.run_fast(1);
         CHECK(gv_text(host, "Main") == "OS_ATTACH_VARIANT/" + std::to_string(host.tactical()->primary().id(v)));
-        std::string why;  // q6 t19: refused for the bare tactical mode (no rebuilder), not for the scripts
+        std::string why;  // refused for the bare tactical mode (no rebuilder), not for the scripts
         CHECK(!host.save_allowed(&why) && why.find("game-object") == std::string::npos);
         // A missing file: no script (counted).
         spawn(host, w, "Os_Missing", 0, {0, 0, 0});
@@ -1982,7 +1982,7 @@ static void test_proximity_and_spawner(const OsWorld& w) {
         CHECK(!st.alive(dummy) && gv_num(host, "SpawnerDone") == 1.0 && host.object_scripts()->live() == 0 &&
               host.object_scripts()->stats().released_dead == 1);
     }
-    {   // Galactic store: Get_Game_Mode is "Galactic", the spawner exits on its first pump; q6 t19: a live script no
+    {   // Galactic store: Get_Game_Mode is "Galactic", the spawner exits on its first pump; a live script no
         // longer blocks the save.
         SimHost host(w.types, js, os_config(true));
         host.set_object_script_files(w.files.get());
@@ -2010,7 +2010,7 @@ static void test_worker_counts(const OsWorld& w) {
         for (int i = 0; i < 4; ++i) spawn(host, w, "Os_Spawner", i % 2, {static_cast<float>(100 * i), 0, 0});
         spawn(host, w, "Os_Gate", 0, {0, 0, 0});
         spawn(host, w, "Os_Prox", 1, {150, 0, 0});
-        // q6 t19: a pooled instance released and handed out again mid-run (each new holder draws on its first pump).
+        // a pooled instance released and handed out again mid-run (each new holder draws on its first pump).
         const ObjectHandle p1 = spawn(host, w, "Os_Pool", 0, {20, 0, 0});
         spawn(host, w, "Os_Pool", 1, {30, 0, 0});
         host.run_fast(30);
@@ -2027,7 +2027,7 @@ static void test_worker_counts(const OsWorld& w) {
     }
 }
 
-// q6 t19: the script pool (§1.4, §2.3) and the type instance (§1.5).
+// the script pool (§1.4, §2.3) and the type instance (§1.5).
 static const ObjectScriptHost::PoolInfo* pool_of(const std::vector<ObjectScriptHost::PoolInfo>& pools, const char* name) {
     for (const ObjectScriptHost::PoolInfo& p : pools)
         if (p.name == name) return &p;
@@ -2288,7 +2288,7 @@ static void test_story_rewards_oi(const World& w) {
                "<Reward_Param1>C</Reward_Param1><Prereq>Begin</Prereq></Event>\n"
                " <Event Name=\"Clean_Bad\"><Event_Type>STORY_TRIGGER</Event_Type><Reward_Type>REMOVE_CORRUPTION</Reward_Type>"
                "<Reward_Param1>Nowhere</Reward_Param1><Prereq>Begin</Prereq></Event>\n"
-               // STY1 t08: the timed removal's start raises STORY_GENERIC "decrease_corruption" (wrapper 0x3f6770)
+               // the timed removal's start raises STORY_GENERIC "decrease_corruption" (wrapper 0x3f6770)
                " <Event Name=\"Relock_Seen\"><Event_Type>STORY_GENERIC</Event_Type><Event_Param1>decrease_corruption</Event_Param1></Event>\n"
                " <Event Name=\"Lock_F\"><Event_Type>STORY_TRIGGER</Event_Type><Reward_Type>LOCK_UNIT</Reward_Type>"
                "<Reward_Param1>Fighters</Reward_Param1><Prereq>Begin</Prereq></Event>\n"
@@ -2443,7 +2443,7 @@ static void test_story_rewards_oi(const World& w) {
 // --- end OI lua ---
 
 // --- host follow-up: the T9 time argument. SimHost feeds StoryModel the (float)(galactic mode frame) x (1/30 as float)
-// clock (STORY.md 4.7 / 7.3), not the global frame and not wall time: time-based events (STORY_ELAPSED) fire at the
+// clock (legacy docs/re/STORY.md 4.7 / 7.3), not the global frame and not wall time: time-based events (STORY_ELAPSED) fire at the
 // frame the spec gives, a pushed tactical mode stalls the story clock (the galactic mode frame does not advance),
 // and the whole series and the fired frames are identical for 0/1/4/15 workers. ---
 static void test_story_t9_clock(const World& w) {
@@ -2507,7 +2507,7 @@ static void test_story_t9_clock(const World& w) {
         CHECK(differs_from_double);  // the float product is the clock, not mode frame / 30 in double
         // The pushed tactical mode stalls the clock: the global frame ran ahead of the galactic mode frame by the 60 battle ticks.
         CHECK(series.back().global == kTicks && series.back().galactic == kTicks - (kBattleTo - kBattleFrom));
-        // Fired frames: Zero at the second T9 (A2i t01: the first evaluation only records LastTime, 0x454980); Five / Half
+        // Fired frames: Zero at the second T9 (the first evaluation only records LastTime, 0x454980); Five / Half
         // where the accumulated T9 clock reaches 5 s / 12.5 s (replayed here from the recorded series: LastTime = first T9,
         // accumulated += now - LastTime from the second T9 on, fire at accumulated >= Param1).
         std::map<std::string, uint64_t> fired;
@@ -2544,7 +2544,7 @@ static void test_story_t9_clock(const World& w) {
     remove_all_long(root, ec);
 }
 
-// A2i t01 (A2I_T01_FRAME_ORDER.md §6): the load-time story pass. start_story ends with STORY_TECH_LEVEL (each player's
+// A2i t01 (legacy docs/re/A2I_T01_FRAME_ORDER.md §6): the load-time story pass. start_story ends with STORY_TECH_LEVEL (each player's
 // starting tech level) to that player's plot sets, in player-index order, with the Fire chain applied at once: a
 // TECH_LEVEL event's UNIQUE_UNIT reward spawns its unit before tick 1 (in the initial CRC record), its STORY_TRIGGER
 // dependant pays at load too, the T9 TECH_LEVEL poll never fires them again, and a prereq-less ELAPSED 0 fires at T9 of
@@ -2678,9 +2678,9 @@ static void test_story_load_pass(const World& w) {
     remove_all_long(root, ec);
 }
 
-// a2j t05 (A2J_T05_STORY_LOAD.md): the load pass's CONSTRUCT side and its galactic stream. Before the tech pass every
+// a2j t05 (legacy docs/re/A2J_T05_STORY_LOAD.md): the load pass's CONSTRUCT side and its galactic stream. Before the tech pass every
 // starting-force object raises STORY_CONSTRUCT (+ CONSTRUCT_LEVEL for a starbase) to every plot set ("via=load:construct").
-// a2k t12 (A2K_T07_STORY_LOAD_RE.md): at L8 the planets are still neutral, so only neutral-accepting filters fire
+// a2k t12 (legacy docs/re/A2K_T07_STORY_LOAD_RE.md): at L8 the planets are still neutral, so only neutral-accepting filters fire
 // (SB_Built with FILTER_NEUTRAL_ONLY, not SB_Friendly with the default FRIENDLY_ONLY, not Enemy_Corvette); CONSTRUCT_LEVEL
 // compares Param2 with SB1's Base_Level 1 under Param3 SPACE (A_Star_1, not A_Star_2), the Barracks raises none
 // (A_Ground_1); the walk is planet by planet in <Locations> order, so the Fighters appended last at A come before the
@@ -3012,7 +3012,7 @@ static Result run(const objects::GameObjectTypes& types, const FileProvider& fil
         out.dialog_tag = d[0].tag;
         out.dialog_chapter = d[0].chapter;
     }
-    // q6 t14: the holocron record of that fire, saved with the session (v3) and re-linked to its event on load.
+    // the holocron record of that fire, saved with the session (v3) and re-linked to its event on load.
     if (const lua::StoryHolocron* h = story.holocron()) {
         out.holocron = h->size();
         story.mark_holocron_read(0);
@@ -3088,7 +3088,7 @@ static const char* kGalactic =
     " <Event Name=\"Won_Fighters_Never\"><Event_Type>STORY_WIN_BATTLES</Event_Type><Event_Param1>1</Event_Param1>"
     "<Event_Param3>FRIENDLY_CONTAINS CLASS_FIGHTER</Event_Param3></Event>\n"
     " <Event Name=\"Bounced_D\"><Event_Type>STORY_INVASION_BOUNCED</Event_Type><Event_Param1>PlanetD</Event_Param1></Event>\n"
-    // wave 2b: a pending corruption mission ends with the battle (SCRIPT_GAPS.md §4.7)
+    // wave 2b: a pending corruption mission ends with the battle (legacy docs/re/SCRIPT_GAPS.md §4.7)
     " <Event Name=\"Corrupt_C\"><Event_Type>STORY_CORRUPTION_TACTICAL_COMPLETE</Event_Type><Event_Param1>PlanetC</Event_Param1>"
     "<Event_Param2>KIDNAPPING</Event_Param2></Event>\n"
     " <Event Name=\"Corrupt_Failed_Never\"><Event_Type>STORY_CORRUPTION_TACTICAL_FAILED</Event_Type><Event_Param1>PlanetC</Event_Param1></Event>\n"
@@ -3162,7 +3162,7 @@ static std::unique_ptr<Types> make_types(const fs::path& root) {
                " <Planet Name=\"PlanetC\"><Behavior>PLANET</Behavior></Planet>\n"
                " <Planet Name=\"PlanetD\"><Behavior>PLANET</Behavior></Planet>\n"
                " <StarBase Name=\"SB1\"><Victory_Relevant>Yes</Victory_Relevant><Tactical_Health>500</Tactical_Health><CategoryMask>Structure</CategoryMask></StarBase>\n"
-               // wave 2b: SELECTABLE (CHECK_DESTROYED counts live SELECTABLE objects, SCRIPT_GAPS.md §4.8)
+               // wave 2b: SELECTABLE (CHECK_DESTROYED counts live SELECTABLE objects, legacy docs/re/SCRIPT_GAPS.md §4.8)
                " <SpaceUnit Name=\"Corvette\"><Victory_Relevant>Yes</Victory_Relevant><Behavior>SELECTABLE</Behavior><Tactical_Health>100</Tactical_Health>"
                "<CategoryMask>Corvette</CategoryMask><Ship_Class>Corvette</Ship_Class></SpaceUnit>\n"
                " <GroundInfantry Name=\"Infantry\"><Victory_Relevant>Yes</Victory_Relevant><Tactical_Health>10</Tactical_Health><CategoryMask>Infantry</CategoryMask></GroundInfantry>\n"
@@ -3273,7 +3273,7 @@ static Result run(const objects::GameObjectTypes& types, const FileProvider& fil
             story.notify_ui({StoryUiEvent::ClickGui, pEmpire, 0, "b_reinforcement", true});
             story.notify_ui({StoryUiEvent::ClickGui, pUnder, 0, "b_special_weapon", true});  // not the tactical plot owner
             story.notify_ui({StoryUiEvent::SpeechDone, pEmpire, 0, "TAC_SPEECH_01", true});
-            story.notify_ui({StoryUiEvent::Generic, pEmpire, 0, "start_hyperspace", true});  // STY1 t03: the battle plot hears it
+            story.notify_ui({StoryUiEvent::Generic, pEmpire, 0, "start_hyperspace", true});  // the battle plot hears it
         }
         host.tick_once();
     }
@@ -3285,7 +3285,7 @@ static Result run(const objects::GameObjectTypes& types, const FileProvider& fil
     story.notify_ui({StoryUiEvent::ClickGui, pEmpire, 0, "b_reinforcement", true});
     CHECK(host.end_game_mode());
     // S10 results: the Empire won the space battle at C, then lost a land battle at D, which Underworld owns (an invasion
-    // that bounced; no snapshot of that battle). mcx6 t03: the composition is the story manager's orbit record (the battle
+    // that bounced; no snapshot of that battle). The composition is the story manager's orbit record (the battle
     // host's space decide state; here made by hand at A, where the Empire's corvette orbits): local [corvette 3].
     story.record_battle_composition(story_test::rA);
     CHECK(story.battle_composition(true) == std::vector<int32_t>{3} && story.battle_composition(false).empty());
@@ -3475,7 +3475,7 @@ static void test_real_data() {
         CHECK(!first_divergence(a, b).diverged && a.records.size() == 2791);
         const std::string golden = testdata("galactic_hotm_golden.crc");
         std::string gerr;
-        if (g_regen) {  // wr1 t07: a result of the scenario sim_tests, no stored copy
+        if (g_regen) {  // a result of the scenario sim_tests, no stored copy
             CrcLog g = a;
             g.comments = {"G0 + S3: Sandbox_Heart_Of_The_Maw_Underworld, seed 99, 1500 + 30 paused + 60 space + 1200 ticks"};
             CHECK(g.save(golden, &gerr));
@@ -3552,8 +3552,8 @@ int main(int argc, char** argv) {
     test_story_synthetic(*world);
     test_story_rewards_oi(*world);  // OI lua
     test_story_t9_clock(*world);    // host follow-up: T9 time argument
-    test_story_load_pass(*world);   // A2i t01: load-time STORY_TECH_LEVEL pass, ELAPSED 0 at tick 2
-    test_story_load_construct(*world);  // a2j t05: starting-force / spawn CONSTRUCT and the load-time event stream
+    test_story_load_pass(*world);   // load-time STORY_TECH_LEVEL pass, ELAPSED 0 at tick 2
+    test_story_load_construct(*world);  // starting-force / spawn CONSTRUCT and the load-time event stream
     test_story_wave1();
     test_story_wave2a();
     story_test::test_many_players(*world);  // Q6

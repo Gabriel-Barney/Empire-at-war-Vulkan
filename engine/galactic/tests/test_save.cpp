@@ -159,7 +159,7 @@ struct Scenario {
     size_t full_prefix_limit = 0;  // truncation test: every prefix up to this save size, else ~600 samples
     bool expect_conflicts = true;  // synthetic: the scripted Vote / InBattle save points must be hit
 
-    // REF4 t02: digest of every tick's galactic CRC, conflict CRC and save bytes (0: printed, not checked). Pinned before the
+    // digest of every tick's galactic CRC, conflict CRC and save bytes (0: printed, not checked). Pinned before the
     // galactic / conflict records were walked by one field list for the save and the CRC, so that change moved no byte.
     uint64_t pin = 0;
 };
@@ -624,7 +624,7 @@ void drive_synthetic(GalacticSim& s, ConflictManager& cm, const objects::ObjectS
                 }
             break;
         case 15: s.set_galactic_stealth(s.planets()[rE].starbase, true); break;
-        case 16:  // cu8f t04b: Set_Prefer_Ground_Over_Space false on one unit (save v5)
+        case 16:  // Set_Prefer_Ground_Over_Space false on one unit (save v5)
             for (ObjectHandle u : s.planets()[rA].surface)
                 if (st.alive(u)) {
                     s.set_prefer_ground_over_space(u, false);
@@ -650,7 +650,7 @@ void drive_synthetic(GalacticSim& s, ConflictManager& cm, const objects::ObjectS
         case 35: s.set_relation(pEmpire, pNeutral, Relation::Ally); break;
         case 40:
             s.claim_victory(pUnder, 3, 100000);
-            s.victory_hold_raise();  // story t11: the galactic monitor hold (save v2)
+            s.victory_hold_raise();  // the galactic monitor hold (save v2)
             s.victory_hold_raise();
             break;
         case 45:
@@ -723,7 +723,7 @@ void test_synthetic() {
     sc.prepare = [](GalacticSim& s) {
         s.set_emit_events(true);
         s.reveal_all_planets();
-        // map1 t06: a structure marker record (saved v9, hashed) on two live objects, written out of id order
+        // a structure marker record (saved v9, hashed) on two live objects, written out of id order
         std::vector<objects::ObjectId> ids;
         for (const PlanetState& p : s.planets())
             if (p.is_planet && s.store().alive(p.object)) ids.push_back(s.store().id(p.object));
@@ -738,7 +738,7 @@ void test_synthetic() {
     };
     sc.drive = drive_synthetic;
     sc.full_prefix_limit = 1u << 20;  // every prefix
-    sc.pin = 0x67e4152092046d2eull;  // REF4 t02: before the records' field lists
+    sc.pin = 0x67e4152092046d2eull;  // before the records' field lists
     run_scenario(sc);
 }
 
@@ -784,7 +784,7 @@ void test_set_marker_id() {
 // A2k t04 (A2J_RE_BUILD_MARKET §4): start() draws each planet's two build-queue phases (synced Get_Int(1, 30), queue 0
 // then 1, row order) at the PRODUCTION attach; nothing else in start() draws, so the RNG after start() is the reference
 // stream after exactly those draws. The phases are saved: a session started from another seed reads the saved values.
-// map1 t06: the structure marker memory is saved for live objects only, so the hash covers live objects only too: after the
+// the structure marker memory is saved for live objects only, so the hash covers live objects only too: after the
 // remembered object dies, a session restored from the save hashes exactly like the one that saved it.
 void test_structure_slots_dead() {
     std::printf("  structure marker memory: dead objects\n");
@@ -881,23 +881,23 @@ void test_queue_phases() {
         ByteReader orr(older);
         CHECK(!o.read(orr));
 
-        // cu8f t04b: v5 adds the Prefer_Ground_Over_Space false ids at the end; a v4 image is refused (only the current
+        // v5 adds the Prefer_Ground_Over_Space false ids at the end; a v4 image is refused (only the current
         // version is read, cu6). The flag is saved and enters the hash only once a live unit has it false.
-        // q6 t21: v6 adds the deferred victory tests after them (u32 count 0 here); a v5 image is refused.
+        // v6 adds the deferred victory tests after them (u32 count 0 here); a v5 image is refused.
         // [port] v7 adds the fleet / ship names after them (u32 count 0 here). v6 is still read (as no names), so saves
         // from before the names load; v5 and older are refused.
         // galab: v8 adds after them the home planets (u32 per player), per planet the siphon type / source and the bonus
         // holder (12 bytes) and the neutralized counts (u32 count 0 here); a v7 image is read with the start() homes and
         // no galab state, which is this session's state, so it writes back as the v8 bytes.
         const size_t galab = 4 * s.players().size() + 12 * s.planets().size() + 4;
-        // map1 t06: v9 adds the structure marker memory after them (u32 count 0 here); a v8 image reads as none.
-        // mcx4 t01 / t07: v10 adds per planet the initial-placement list (u32 count + types), then the campaign's
+        // v9 adds the structure marker memory after them (u32 count 0 here); a v8 image reads as none.
+        // v10 adds per planet the initial-placement list (u32 count + types), then the campaign's
         // auto-resolve rules (2 bools, u32 count, 5 bytes per pair) last; a v9 image keeps the start() values, which are
         // this session's, so it writes back as the v10 bytes.
         size_t placement = 2 + 4 + 5 * s.autoresolve_exclusions().size();
         for (const PlanetState& pl : s.planets()) placement += 4 + 4 * pl.initial_placement.size();
-        // mcx4 t20: v11 adds the locked fleets (u32 count 0 here); a v10 image derives them from the contents (none).
-        // mcx4 t22: v12 adds the company survivor records last (u32 count 0 here); a v11 image has none.
+        // v11 adds the locked fleets (u32 count 0 here); a v10 image derives them from the contents (none).
+        // v12 adds the company survivor records last (u32 count 0 here); a v11 image has none.
         CHECK(bytes.size() >= galab + 24 + placement && bytes[0] == 12 && bytes[bytes.size() - 1] == 0);
         std::vector<uint8_t> v11(bytes.begin(), bytes.end() - 4);
         v11[0] = 11;
@@ -1108,7 +1108,7 @@ void test_foc() {
         }
         drive_conflicts(s, cm, st, t);
     };
-    sc.pin = 0x3823a3d7aeba6b5eull;  // REF4 t02: before the records' field lists (FoC data)
+    sc.pin = 0x3823a3d7aeba6b5eull;  // before the records' field lists (FoC data)
     run_scenario(sc);
 }
 

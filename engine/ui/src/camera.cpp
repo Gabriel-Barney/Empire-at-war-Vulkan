@@ -256,7 +256,7 @@ float key_axis(const InputState& in, const Bindings& k, Action neg, Action pos) 
 }
 int32_t clampi(int32_t v, int32_t lo, int32_t hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
-// Scroll target velocity T (P1_CAMERA_INPUT.md §2.1), speed units / s, y screen-down.
+// Scroll target velocity T (legacy docs/re/P1_CAMERA_INPUT.md §2.1), speed units / s, y screen-down.
 //   edge: edge scrolling allowed this frame; push: push mode (distances from the press point (px, py) past a dead zone).
 void scroll_target(const InputState& in, const Bindings& keys, const ScrollConstants& s, const CameraTuning& t, bool edge,
                    bool push, int32_t px, int32_t py, float& tx, float& ty) {
@@ -589,7 +589,7 @@ void TacticalCameraController::update(const InputState& in, const Bindings& keys
                       (in.frame().mouse_inside || dragging);
     const ButtonState& db = in.button(in.button(Button::Middle).down ? Button::Middle : Button::Right);
     float tx = 0, ty = 0;
-    if (!scroll_locked_) scroll_target(in, keys, s_, t_, edge, push, db.drag.x0, db.drag.y0, tx, ty);  // ui2 t06: SCROLL_LOCK
+    if (!scroll_locked_) scroll_target(in, keys, s_, t_, edge, push, db.drag.x0, db.drag.y0, tx, ty);  // SCROLL_LOCK
     scroll_smooth(tx, ty, dt, s_, scroll_vx_, scroll_vy_);
     if (scroll_vx_ != 0.0f || scroll_vy_ != 0.0f) {
         const float k = 3e-4f * dist_.value * dt;  // world speed = S x 3e-4 x distance
@@ -732,7 +732,7 @@ void GalacticCameraController::update(const InputState& in, const Bindings& keys
     const bool push = !t_.absolute_scrolling && dragging_;
     const bool edge = !(t_.absolute_scrolling && dragging_) && !in.button(Button::Left).down && (f.mouse_inside || dragging_);
     float tx = 0, ty = 0;
-    if (!scroll_locked_) scroll_target(in, keys, s_, t_, edge, push, b.drag.x0, b.drag.y0, tx, ty);  // ui2 t06: SCROLL_LOCK
+    if (!scroll_locked_) scroll_target(in, keys, s_, t_, edge, push, b.drag.x0, b.drag.y0, tx, ty);  // SCROLL_LOCK
     scroll_smooth(tx, ty, dt, s_, scroll_vx_, scroll_vy_);
     if (scroll_vx_ != 0.0f || scroll_vy_ != 0.0f) pan(scroll_vx_ * dt, -scroll_vy_ * dt);
     // Wheel = planet zoom (§5); [port: Gabriel] the zoom keys act as one notch per press.

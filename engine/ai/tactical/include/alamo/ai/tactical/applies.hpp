@@ -1,5 +1,5 @@
-// A1 - which targets a goal can use: Applies(flags, aiPlayer), docs/re/AI_TACTICAL.md 3.3;
-// AIGoalApplicationType / AIGoalReachabilityType (AI_GALACTIC.md 1.4).
+// A1 - which targets a goal can use: Applies(flags, aiPlayer), legacy docs/re/AI_TACTICAL.md 3.3;
+// AIGoalApplicationType / AIGoalReachabilityType (legacy docs/re/AI_GALACTIC.md 1.4).
 //
 // Region (0x725730): matches iff Tactical_Location is set. Global never matches a target.
 // Unit (0x724ef0):

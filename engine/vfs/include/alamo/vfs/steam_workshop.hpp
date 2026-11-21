@@ -1,4 +1,4 @@
-// alamo_vfs STEAMMOD= resolver without the Steam API (roadmap modc t10, docs/MODS.md §3.1).
+// alamo_vfs STEAMMOD= resolver without the Steam API (docs/MODS.md "Command line switches").
 //
 // Retail asks the Steam client for a subscribed workshop item's folder; the port looks on disk instead: a workshop item
 // counts as installed when <library>\steamapps\workshop\content\<app id>\<id>\ is a folder in one of the Steam library
@@ -31,7 +31,7 @@
 namespace alamo::vfs {
 
 // Steam app id of Star Wars: Empire at War - Gold Pack, whose workshop holds FoC mods (the original's STEAMMOD= items
-// live under workshop\content\32470; docs/MODS.md §3.1). Not a mod id.
+// live under workshop\content\32470; docs/MODS.md "Command line switches"). Not a mod id.
 inline constexpr std::string_view kFocSteamAppId = "32470";
 
 // Every library "path" value of a libraryfolders.vdf text (Valve KeyValues), in file order, with the KeyValues escapes

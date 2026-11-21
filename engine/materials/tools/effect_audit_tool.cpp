@@ -1,10 +1,10 @@
 // alamo_effect_audit - lists what the port does with every effect a game + mod set ships
-// (materials::audit_effects, docs/MODS.md shader section, roadmap modc t11).
+// (materials::audit_effects, docs/MODS.md "Effects and shaders in mods").
 //
 //   alamo_effect_audit <FoC dir with Data\> [MODPATH=<dir>]... [FALLBACKPATH=<dir>]... [--no-dxc] [--json <file>|-]
 //                      [--fx-cache <dir>] [--fx-prebuild] [--fxc <fxc.exe>] [--no-fx]
 //
-// Effect sources (.fx, modc t23) are taken from the FxCache (--fx-cache, default FxCache::default_directory());
+// Effect sources (.fx) are taken from the FxCache (--fx-cache, default FxCache::default_directory());
 // --fx-prebuild first compiles the missing ones like alamo_fx_prebuild; --no-fx audits the t11 behaviour.
 //
 // Prints one line per issue (kind, mod/base, effect, path, detail) and a summary; exit code 0 (issues are

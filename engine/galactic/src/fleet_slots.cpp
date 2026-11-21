@@ -1,5 +1,5 @@
 // Fleet orbit slots: the authoritative state behind the galaxy map's fleet boxes (g_planet_fleet slot 0..2,
-// docs/re/GALAXY_MAP_PRESENTATION.md 1.3: a fleet's own slot, fleet +0xc0 -> +0x48). Playtest 3 t07: the slots were HUD-only.
+// legacy docs/re/GALAXY_MAP_PRESENTATION.md 1.3: a fleet's own slot, fleet +0xc0 -> +0x48). Playtest 3 t07: the slots were HUD-only.
 //
 // Rules ([M] unless noted; the binary gives the slot field and the display rule, not the assignment rules):
 //   - Every fleet in orbit has a slot 0..kOrbitSlots-1, unique among the fleets of its owner at that planet (owners

@@ -1,11 +1,11 @@
-// ModEnvironment (ums2, Stage 10, docs/MODS.md 3.2 "One mod environment per process"): the one object that opens a
+// ModEnvironment (ums2, Stage 10, docs/MODS.md "One mod environment per process"): the one object that opens a
 // game's files for a process. From the StarWarsG-style command line it builds the mount plan (VfsConfig through
 // parse_command_line), creates the Vfs (findings into the caller's IssueSink with their layer), describes every mounted
 // mod folder (describe_mounted_mod, Vfs::mod_dirs() order), applies the base-EaW refusal (D1) and keeps the layer table
 // with each layer's owning ModDescriptor. alamo_game, alamo_headless, alamo_mod_check and session_run open through it, so
 // "which mods are mounted and which mod serves this file" has one answer per process.
 //
-// Retail is still the authority on what the command line means (docs/MODS.md 3.1, 3.2): the environment never reorders
+// Retail is still the authority on what the command line means (docs/MODS.md "Command line switches", "File resolution order"): the environment never reorders
 // or adds an argument; descriptors feed reports, the picker and save headers only, nothing in gameplay reads them.
 //
 // Thread safety: open() builds everything; every const method may be called concurrently afterwards (as Vfs).

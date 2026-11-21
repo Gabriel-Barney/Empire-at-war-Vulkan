@@ -1,4 +1,4 @@
-// Offscreen colour target with a host-visible readback buffer (CU4 t02 / t03): the one copy the render / ui GPU tests and
+// Offscreen colour target with a host-visible readback buffer: the one copy the render / ui GPU tests and
 // the alamo_render sub-mains (--sim, --galactic, --particles PNG captures) share. Header-only; tool and test code, not
 // used by the renderer itself.
 //

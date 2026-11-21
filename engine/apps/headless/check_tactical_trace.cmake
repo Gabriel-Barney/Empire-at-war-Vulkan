@@ -1,6 +1,6 @@
-# ctest driver of alamo_headless_skirmish_trace (q4hf t02, tactical_trace.hpp). -D EXE, TRACE, PY (may be empty), Q2TRACE.
+# ctest driver of alamo_headless_skirmish_trace (tactical_trace.hpp). -D EXE, TRACE, PY (may be empty), Q2TRACE.
 # 1. The synthetic skirmish (no game data) with --check-workers and --trace-out: only the first run writes the trace, so
-#    equal CRCs across worker counts show the trace changes nothing in the sim (wr1 t07: no stored golden).
+#    equal CRCs across worker counts show the trace changes nothing in the sim (no stored golden).
 # 2. The trace holds the battle: the slots, a first-shot record, a keyframe, destroyed objects and the end reason.
 # 3. q2trace.py validate re-reads the trace, rebuilds the objects frame by frame and recomputes every digest (exit 0 = consistent).
 file(REMOVE "${TRACE}")

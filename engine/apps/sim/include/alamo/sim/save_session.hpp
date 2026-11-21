@@ -99,7 +99,7 @@ struct SessionPlayer {
     friend bool operator==(const SessionPlayer&, const SessionPlayer&) = default;
 };
 
-// mcx3 t05: one mod of the stack a save was made with (vfs::ModDescriptor's identity; mod_registry.hpp). Shown when the
+// one mod of the stack a save was made with (vfs::ModDescriptor's identity; mod_registry.hpp). Shown when the
 // save's data differs; never compared for the refusal itself (data_fingerprint is).
 struct SaveMod {
     std::string key, name, version;
@@ -108,7 +108,7 @@ struct SaveMod {
 };
 
 struct SessionDescriptor {
-    // 2 (mcx5 t01): the scheduler's max_players is a u16 (no 64-player cap); version 1 still reads.
+    // 2: the scheduler's max_players is a u16 (no 64-player cap); version 1 still reads.
     static constexpr uint32_t kVersion = 2;
 
     // What to build: "galactic" = a data-driven campaign / galactic conquest; hosts may define their own kinds
@@ -131,7 +131,7 @@ struct SessionDescriptor {
     // from different game data is refused.
     uint64_t data_fingerprint = 0;
     std::string writer;                   // engine build that wrote the save (informational)
-    // mcx3 t05: the mods the data was loaded with (VFS order). Written after `writer` only when not empty, so a save
+    // the mods the data was loaded with (VFS order). Written after `writer` only when not empty, so a save
     // without mods keeps the version 1 bytes and an older reader's layout; a save without the block reads as no mods.
     std::vector<SaveMod> mods;
 
@@ -190,7 +190,7 @@ struct LoadReport {
     std::vector<std::string> missing;     // expected by the rebuilt session, absent from the save
     std::vector<std::string> unexpected;  // in the save, but the rebuilt session has no such system
     std::string descriptor_error;         // non-empty: the save does not belong to this session (nothing was read)
-    // mcx3 t05: descriptor_error is a data difference only (SessionDescriptor::only_data_differs): the save may be
+    // descriptor_error is a data difference only (SessionDescriptor::only_data_differs): the save may be
     // loaded anyway (SimHost::set_allow_different_data).
     bool different_data = false;
     // The load went ahead over a data difference (allowed): the session runs on other data than it was saved with.
@@ -207,7 +207,7 @@ concept SaveableSystem = requires(const T& c, T& m, ByteWriter& w, ByteReader& r
     c.write(w);
     { m.read(r) } -> std::same_as<bool>;
 };
-// A module system's write / read. cu9 t16: every saved system has them now, so a type without them is a build error
+// A module system's write / read. Every saved system has them now, so a type without them is a build error
 // (the migration fallback that wrote nothing and failed the read, "pending until the module lands", is gone).
 template <SaveableSystem T>
 void write_system(const T& system, ByteWriter& w) {

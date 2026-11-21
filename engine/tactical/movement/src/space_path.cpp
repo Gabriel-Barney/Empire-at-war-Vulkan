@@ -135,7 +135,7 @@ uint32_t SpaceOccupancy::query_static(V2 a, V2 b, float radius) const {
     return bits;
 }
 
-// OPT3 t12: the margin of the grid index and of query_segment's track cull. A query circle on [a, b] passes an entry's test
+// the margin of the grid index and of query_segment's track cull. A query circle on [a, b] passes an entry's test
 // only within radius + entry radius of the entry (a static's centre, a track piece's point inside the waypoint box); the
 // margin covers the float rounding of the per-entry tests by orders of magnitude, so a skipped entry could not pass.
 constexpr float kCullMargin = 16.0f;
@@ -223,13 +223,13 @@ uint32_t SpaceOccupancy::query_segment(V2 a, V2 b, float t0, float t1, float rad
                                        uint32_t now, float static_bonus) const {
     uint32_t bits = 0;
     const V2 qlo{std::min(a.x, b.x), std::min(a.y, b.y)}, qhi{std::max(a.x, b.x), std::max(a.y, b.y)};
-    // OPT3 t12: with the index only the entries whose box shares a cell with the query box (segment box +- radius) are
+    // with the index only the entries whose box shares a cell with the query box (segment box +- radius) are
     // tested, each once: in the cell (max(entry first x, query first x), max(entry first y, query first y)), which both cell
     // ranges contain. Without it (or for a non-finite query) every entry is tested. Same tests, OR of bits: same result.
     const bool indexed = index_.valid && std::isfinite(qlo.x) && std::isfinite(qlo.y) && std::isfinite(qhi.x) &&
                          std::isfinite(qhi.y) && std::isfinite(radius) && std::isfinite(static_bonus);
     int32_t cx0 = 0, cy0 = 0, cx1 = -1, cy1 = -1;
-    // mcx4 t11: a positive static bonus widens the candidate box (a larger box visits the same entries plus more; the
+    // a positive static bonus widens the candidate box (a larger box visits the same entries plus more; the
     // per-entry tests decide)
     const float qr = with_static && static_bonus > 0.0f ? radius + static_bonus : radius;
     if (indexed) index_cells({qlo.x - qr, qlo.y - qr}, {qhi.x + qr, qhi.y + qr}, cx0, cy0, cx1, cy1);
@@ -253,7 +253,7 @@ uint32_t SpaceOccupancy::query_segment(V2 a, V2 b, float t0, float t1, float rad
         visit(statics_.size(), index_.s_start, index_.s_items, index_.s_c0, [&](size_t e) {
             const auto& [id, s] = statics_[e];
             if (id == self) return;
-            const float rr = radius + static_bonus + s.r;  // mcx4 t11: + SpaceStaticObstacleAvoidanceBonusDistance
+            const float rr = radius + static_bonus + s.r;  // + SpaceStaticObstacleAvoidanceBonusDistance
             if (seg_point_dist_sq(a, b, s.c) < rr * rr) bits |= s.bits;
         });
     }
@@ -310,7 +310,7 @@ void SpaceOccupancy::hash(StateHasher& h) const {
 }
 
 // ---------------------------------------------------------------- planner
-// OPT3 t12: SpaceScratch::VisitTable - linear probing over a power-of-two slot array; clear() bumps a generation instead
+// SpaceScratch::VisitTable - linear probing over a power-of-two slot array; clear() bumps a generation instead
 // of touching the slots.
 size_t SpaceScratch::VisitTable::slot_of(uint64_t key) const {
     uint64_t x = key + 0x9E3779B97F4A7C15ull;  // splitmix64 finaliser
@@ -482,7 +482,7 @@ struct Search {
         return (arc_len + dg * k.special_aligned_operator_bonus) / tp.speed;
     }
 
-    // sp2 t04: `mult_of()` gives the cost multiplier (<= 0: rejected); it is called only after the budget and closed-state
+    // `mult_of()` gives the cost multiplier (<= 0: rejected); it is called only after the budget and closed-state
     // tests, because a successor those reject is dropped whatever its cost (motion_factor is a pure occupancy query, so
     // skipping it changes nothing but time).
     template <class M>
@@ -598,7 +598,7 @@ struct Search {
         const float L = rs * sweep * kDegToRad;
         const float dt = L / wait_speed;
         const uint32_t steps = std::max<uint32_t>(1u, static_cast<uint32_t>(std::ceil(sweep / step_deg)));
-        const auto mult = [&] {  // sp2 t04: evaluated by push() only when the state can take it
+        const auto mult = [&] {  // evaluated by push() only when the state can take it
             float f = 0.0f;
             V2 prev = n.pos;
             for (uint32_t j = 1; j <= steps; ++j) {
@@ -653,7 +653,7 @@ struct Search {
         const bool after_tangent = n.op == 11 || n.op == 12 || n.op == 15 || n.op == 16;
         const int tangent_side = (n.op == 11 || n.op == 15) ? 0 : 1;
         if (after_tangent) final_arc(n, ni, tangent_side, 17);  // op 17
-        // op 18: wait. S8 t09: [port] the step is clamped to the goal distance, so at the goal (dg 0) it would be a pure
+        // op 18: wait. [port] the step is clamped to the goal distance, so at the goal (dg 0) it would be a pure
         // delay with the pose unchanged (retail always travels WaitOperatorBaseFrameTime at the wait speed); such a step is
         // not generated (a jetpack's playback would see two identical poses and drop to 0x16 in the air, §3.1.1).
         if (req.wait_operators && wait_speed > 0.0f && dg > 0.0f) {
@@ -834,7 +834,7 @@ struct Search {
             // OI tactical: ops 5 / 6 - speed up to max (after a wait / slow-down), slow down to the wait speed.
             if (n.speed < speed) speed_change(n, ni, speed, 5);
             if (n.speed > wait_speed && wait_speed > 0.0f) speed_change(n, ni, wait_speed, 6);
-            // op 7: wait (slow straight for WaitOperatorBaseFrameTime frames); S8 t09: not at the goal (see op 18)
+            // op 7: wait (slow straight for WaitOperatorBaseFrameTime frames); not at the goal (see op 18)
             if (req.wait_operators && wait_speed > 0.0f && dg > 0.0f) {
                 const float dt = k.wait_operator_base_frame_time;
                 const float L = std::min(wait_speed * dt, dg);
@@ -1119,7 +1119,7 @@ bool plan_space_path(const SpaceOccupancy& occ, const MovementConstants& k, cons
     float budget_f = static_cast<float>(tp.budget);
     float best_progress = 0.0f;
     const uint32_t tries = std::max<uint32_t>(1, k.space_pathing_tries);
-    // sp2: results of tries 2..N (index t - 2) run in parallel waves: when try t (t >= 2) has no usable result, tries t..N
+    // results of tries 2..N (index t - 2) run in parallel waves: when try t (t >= 2) has no usable result, tries t..N
     // run at once, try t with its exact parameters and the later ones with the chain's parameters for the best progress
     // known now (the real one can only grow; a later try whose parameters that changes starts the next wave).
     std::vector<TryResult> spec;

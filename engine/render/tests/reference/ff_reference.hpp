@@ -1,6 +1,6 @@
 // CPU reference model of the Direct3D 9 fixed-function pipeline for the effects checked in C4b.
 // Written from the D3D9 documentation semantics and hand-transcribed from the shipped FXO
-// listings (docs/shaders/shaders_decompiled.zip effect.fx.txt + CATALOG.md expressions), so it
+// listings (docs/shaders/shaders_decompiled.zip effect.fx.txt + legacy docs/shaders/CATALOG.md expressions), so it
 // is independent of engine/materials' state resolution and of the FF ubershader: a mismatch
 // against the GPU is a bug in one of them.
 #pragma once

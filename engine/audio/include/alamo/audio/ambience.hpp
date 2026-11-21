@@ -1,9 +1,9 @@
 // Tactical ambience: the weather audio manager (weather loops + weather intermittents + "clear weather"
 // map intermittents, WeatherAudio.xml) and the map ambient beds (Audio.xml Ambient_Map_Sounds ->
-// AmbientMapSounds.xml). Everything plays through AudioSystem as ordinary SFX events (AUDIO.md §4: "There
+// AmbientMapSounds.xml). Everything plays through AudioSystem as ordinary SFX events (legacy docs/re/AUDIO.md §4: "There
 // is no ambient bus: ambient beds, weather and Is_Ambient_VO are ordinary SFX events").
 //
-// Rules (AUDIO.md §6.2, §7; [inferred]/[port] where the spec is silent):
+// Rules (legacy docs/re/AUDIO.md §6.2, §7; [inferred]/[port] where the spec is silent):
 //   * Weather loop: the row of WeatherAudioTable::loop_for(weather, intensity). When the selected event
 //     changes, the playing loop is stopped with its event's Loop_Fade_Out_Seconds and the new one started
 //     2D with its Loop_Fade_In_Seconds (Fade_Out_Active_Loop / Fade_In_New_Loop; the presets comment
@@ -13,7 +13,7 @@
 //     selected weather intermittent is None = "when weather is clear" [inferred]): when the selected event
 //     changes the countdown is armed with float(min, max) seconds; on expiry the event is started at
 //     intermittent_distance (50) units from the listener at a free-RNG angle float(0, 2π) in the
-//     listener's horizontal plane, then re-armed with float(min, max) (AUDIO.md §6.2).
+//     listener's horizontal plane, then re-armed with float(min, max) (legacy docs/re/AUDIO.md §6.2).
 //     §7 [port]: the countdown runs on wall time (the original counts 1 per update, armed in 1/30 s
 //     units: the same duration at 30 updates/s).
 //   * Map beds [inferred from the AmbientMapSounds.xml comment "SFXEvent name, closest surround dist,
@@ -61,7 +61,7 @@ public:
     void set_paused(bool paused);
     bool paused() const { return paused_; }
 
-    // Once per audio step, after AudioSystem::update (AUDIO.md §6.1 order). Wall seconds.
+    // Once per audio step, after AudioSystem::update (legacy docs/re/AUDIO.md §6.1 order). Wall seconds.
     void update(double dt_seconds);
 
     // Introspection (tests, debug overlay).

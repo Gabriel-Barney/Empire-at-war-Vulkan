@@ -1,5 +1,5 @@
 //! The install and the installed mods, as the port's `alamo_mod_check --list --json` reports them (ums3, Stage 10:
-//! the Command Center keeps no mod scanner of its own; docs/MODS.md 3.1.2).
+//! the Command Center keeps no mod scanner of its own; docs/MODS.md "One catalog and one resolver").
 //!
 //! Facts this relies on (`engine/apps/game/tools/mod_check_main.cpp`, `mod_check.hpp` `format_mod_catalog_json`):
 //! * `alamo_mod_check.exe` sits next to `alamo_game.exe` (and in the test build, next to the launcher);

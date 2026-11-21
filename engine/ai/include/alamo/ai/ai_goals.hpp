@@ -1,4 +1,4 @@
-// AI framework: the goal system - proposal, commit and Resolve_Category (docs/re/AI_GALACTIC.md §1.3-1.6).
+// AI framework: the goal system - proposal, commit and Resolve_Category (legacy docs/re/AI_GALACTIC.md §1.3-1.6).
 // Mode-agnostic: everything that depends on the mode (targets, Applies, the reachability block, desire
 // evaluation, Find_Plan_For_Goal + PotentialPlan, plans, budget) goes through GoalModeHooks.
 //
@@ -20,16 +20,16 @@
 // higher desire). Desire / priority stored as (float), clamped to [0, 1e18]. A failed evaluation counts as
 // an evaluation with no proposal [port].
 //
-// BATCHED VALUES (OPT2 t03) [port, same results]: a mode whose candidate_pf() is set walks the slice first (the
+// BATCHED VALUES [port, same results]: a mode whose candidate_pf() is set walks the slice first (the
 // walk reads only the proposable / skip / applies state, which evaluations, slot 10 and insert do not change),
 // then evaluates the candidates whose function prepare_evaluation() accepts on that ParallelFor (const, one output
 // per candidate), then runs every candidate's Learning terms, slot 10 and insert in visit order. A rejected
 // function (Script_ evaluators: Lua and synced draws) is evaluated in place in that serial loop, as before.
 //
-// SLICE BRACKET (OPT2 t10) [port, same results]: slice_begin() / slice_end() enclose each proposal slice (every slot 10
+// SLICE BRACKET [port, same results]: slice_begin() / slice_end() enclose each proposal slice (every slot 10
 // of the slice runs in between). The tactical AI uses it to ask the host once per slice for what its solves read.
 //
-// BATCHED ACCEPT (OPT2 t10) [port, moves results]: a mode whose accept_batched() is true splits slot 10. In visit order,
+// BATCHED ACCEPT [port, moves results]: a mode whose accept_batched() is true splits slot 10. In visit order,
 // accept_prepare() runs the part before the solve (the tactical plan pick and the solve's inputs, drawing from the
 // candidate's own RNG stream, not the synced one) and the candidate becomes PENDING (solve i of the slice, i = visit
 // order among the prepared). After the slice, accept_start() runs the slice's solves (any thread, any order) and
@@ -98,8 +98,8 @@ struct Goal {
     bool pp_valid = false;
     float cost = 0.0f;              // +0x78
     float eta = 0.0f;               // +0x7c seconds
-    // A2f t09: 0x6c0450(PP), the AllowedTime base (GoalSystemConfig::nominal_allowed_time): sum of btime(T, none)
-    // over the PP's selection x the plan player's Galactic_ (A2f t09) / Land_ / Space_ (A2g t06) Build_Time_Multiplier. Set with eta; refreshed when the PP is
+    // 0x6c0450(PP), the AllowedTime base (GoalSystemConfig::nominal_allowed_time): sum of btime(T, none)
+    // over the PP's selection x the plan player's Galactic_ / Land_ / Space_ Build_Time_Multiplier. Set with eta; refreshed when the PP is
     // re-solved (plan_activatable). 0 without a PP.
     float nominal_time = 0.0f;
     int32_t pp_handle = -1;         // mode-owned PotentialPlan record
@@ -135,7 +135,7 @@ public:
     // g.plan / g.pp_* / g.cost / g.eta (galactic: g.nominal_time). False rejects the candidate.
     virtual bool accept(Goal& g) = 0;
     // 0x6c4a50: a new proposal at accept; re-solves its PotentialPlan honouring the reservations (§28.6 step 3). The
-    // galactic mode refreshes g.nominal_time from the re-solved selection (AllowedTime reads the PP live, A2f t09).
+    // galactic mode refreshes g.nominal_time from the re-solved selection (AllowedTime reads the PP live).
     virtual bool plan_activatable(Goal& g) = 0;
     virtual bool plan_invalid(const Goal& g) = 0;      // 0x6c47c0 (-> 0x6c45e0: a unit taken by another PP)
     // skai t15 (SKAI_T15_PLAN_RETEST §2.1): Resolve_Category also re-validates an old candidate's running plan (no
@@ -175,7 +175,7 @@ public:
     }
     // Serial, in visit order, once per prepared candidate: the bookkeeping evaluate() does for itself.
     virtual void evaluated(const std::string& function) { (void)function; }
-    // OPT2 t10: brackets each proposal slice (every slot 10 of the slice runs in between), so a mode may share host
+    // brackets each proposal slice (every slot 10 of the slice runs in between), so a mode may share host
     // answers between the slice's solves. Default: nothing.
     virtual void slice_begin() {}
     virtual void slice_end() {}
@@ -204,7 +204,7 @@ struct GoalSystemConfig {
     // tactical AI still uses this default of 1 (its goldens move with 2; follow-up for the tactical owner).
     int32_t extra_goals_per_category = 1;
     // A2f t09 (A2F_RE_READS §1.4 item 2) [H]: AllowedTime (0x692860) with a PP = Goal::nominal_time x
-    // Build_Time_Delay_Tolerance, and nominal_time is hashed. The galactic AI (A2f t09) and the tactical AI (A2g t06,
+    // Build_Time_Delay_Tolerance, and nominal_time is hashed. The galactic AI and the tactical AI (A2g t06,
     // Land_ / Space_Build_Time_Multiplier) set it; off keeps the PP ETA x tolerance base.
     bool nominal_allowed_time = false;
     // a2m r2 (A2M_R2_RE_A §2.1) [H], set by the galactic AI: the goal-system Init 0x6ca1f0 seeds evalsLastPass with
@@ -216,7 +216,7 @@ struct GoalSystemConfig {
     // bkg3 (BKG3_RE_ANSWERS Q4, 0x721a50 / 0x6b83c0) [H], set by the galactic AI: 'the goal is already active' (slot 9, and
     // Resolve's kept-or-active test) holds when a goal on the same target has a type whose like-set (GoalTypeDef::like_set)
     // contains the candidate's type, not only for the exact (type, target); the greedy lastOld rule accepts the goal first
-    // and needs the same target. Retail uses the same lookup in land and space: the tactical AI sets it too (aitac t04).
+    // and needs the same target. Retail uses the same lookup in land and space: the tactical AI sets it too.
     // Off: the exact (type, target) test, lastOld stop before the accept.
     bool like_sets = false;
     // skai t17 (AI_GALACTIC §1.6 steps 3-6, BKG3_RE_ANSWERS Q4: 0x6c8970 / 0x721a50) [H]: an old candidate (a replaceable
@@ -249,7 +249,7 @@ public:
     uint32_t evaluations_last_pass() const { return evals_last_; }
     uint32_t passes() const { return passes_; }
     const GoalSystemConfig& config() const { return cfg_; }  // aitac t04
-    bool accept_pending() const { return pending_ready_ >= 0; }  // OPT2 t10: batched-accept solves in flight
+    bool accept_pending() const { return pending_ready_ >= 0; }  // batched-accept solves in flight
     int64_t accept_ready_frame() const { return pending_ready_; }
     uint32_t commits() const { return commits_; }
     int32_t exclusion_count(uint32_t goal_type) const;
@@ -267,7 +267,7 @@ public:
     void purge(int32_t keep_running);
     Goal* find_active_by_running(int32_t running);
     Goal* find_active(uint32_t goal_type, int32_t target);
-    // bkg3: 0x721a50 on the active set: a goal on `target` (any category) whose type's like-set holds `goal_type`.
+    // 0x721a50 on the active set: a goal on `target` (any category) whose type's like-set holds `goal_type`.
     bool active_like(uint32_t goal_type, int32_t target) const;
     // Block list +0x2a0 (AI_GALACTIC_2 §5.1) [H]: TaskForce.Block_Goal_Proposal clears the proposed set and
     // appends the plan's goal (key = goal serial); Unblock removes every occurrence. While non-empty nothing
@@ -287,7 +287,7 @@ private:
     bool proposal_slice(int64_t now);  // true when the pass completed
     void end_pass(int64_t now);        // budget weights, Commit, next quota and sleep
     void accept_tail(Goal g);          // slot 10's budget test, then insert
-    void apply_pending();              // OPT2 t10: accept_finish + accept_tail of the pending goals
+    void apply_pending();              // accept_finish + accept_tail of the pending goals
     bool skip(uint32_t goal_type, int32_t target);
     void insert(Goal g);
     void commit(int64_t now);
@@ -309,7 +309,7 @@ private:
     std::vector<std::vector<Goal>> active_, proposed_;
     std::vector<int32_t> exclusion_;  // per goal type (+0x260)
     std::vector<uint32_t> block_list_;  // +0x2a0 (goal serials)
-    // OPT2 t03: one slice's candidates (visit order) and their batched values; scratch, rebuilt every slice
+    // one slice's candidates (visit order) and their batched values; scratch, rebuilt every slice
     struct Candidate {
         uint32_t source = 0;
         int32_t target = -1;

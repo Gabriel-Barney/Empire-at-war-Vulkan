@@ -10,7 +10,7 @@ using namespace bo3split;
 bool TacticalBattle::Engagement::hostile(int32_t a, int32_t b) const { return b_.combat_ && b_.combat_->is_enemy(a, b); }
 
 // s78n t26 review round 2 (MOVEMENT §4.3 correction [H]): the formation layout's rank key, Get attack range 0x3749d0 (the
-// value land_attack_order reads); a squad container through its first live member. bkm1 t05 (b0037): space ranks by it too.
+// value land_attack_order reads); a squad container through its first live member. Space ranks by it too.
 float TacticalBattle::Engagement::attack_range(int32_t id) const {
     if (!b_.combat_) return 0.0f;
     const objects::ObjectId unit = b_.attack_lead(id);
@@ -28,7 +28,7 @@ bool TacticalBattle::Engagement::has_fire_test() const { return !b_.space_ && b_
 
 // s78n t25.3 (MOVEMENT §4.3.2 items 6 / 7, 0x40edd0 / 0x410e90; TACTICAL_COMBAT §2.8 B 4): can the mover hit the target
 // from p: slots 43 / 46 and the line of fire from p at the ground height (CombatSystem::can_hit_from; a squad container
-// through its first live member). Yes or NoTarget (nothing tested) = it can fire. s78n t25.4: los_only (a guard block's
+// through its first live member). Yes or NoTarget (nothing tested) = it can fire. los_only (a guard block's
 // trim, item 7) answers the line of fire alone (CombatSystem::line_of_fire_from).
 bool TacticalBattle::Engagement::can_fire_from(int32_t mover, float px, float py, int32_t target, bool los_only, float gx, float gy,
                                                float gz) const {
@@ -37,7 +37,7 @@ bool TacticalBattle::Engagement::can_fire_from(int32_t mover, float px, float py
     tactical::Vec3 from = b_.combat_->can_hit_origin(unit);
     from.x = px;
     from.y = py;
-    // bkt1 t06 (b0079, MOVEMENT §4.3.2 item 7 / 0x40f7c0): from p at the terrain height, or the water height for a
+    // bkt1 t06 (MOVEMENT §4.3.2 item 7 / 0x40f7c0): from p at the terrain height, or the water height for a
     // Water-capable class (the mover's movement mask has the Water bit) where the water lies above; to G at its height (the
     // movement's goal point); CombatSystem raises both by their Ranged_Target_Z_Adjust
     const terrain::MapData& map = b_.map_;

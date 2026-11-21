@@ -1,4 +1,4 @@
-// Event payload tables: docs/re/COMMANDS.md §2 (wire order). Field names are the port's.
+// Event payload tables: legacy docs/re/COMMANDS.md §2 (wire order). Field names are the port's.
 #include "alamo/commands/event_types.hpp"
 
 #include <array>

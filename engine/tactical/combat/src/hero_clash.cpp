@@ -1,4 +1,4 @@
-// s78n t06 - hero clashes: HEROCLASH.XML and the land mode's HeroClashManager (docs/re/HERO_CLASH.md §1-§6).
+// hero clashes: HEROCLASH.XML and the land mode's HeroClashManager (legacy docs/re/HERO_CLASH.md §1-§6).
 #include "alamo/tactical/combat/hero_clash.hpp"
 #include "alamo/core/frames.hpp"
 #include "alamo/core/x86_int.hpp"
@@ -549,7 +549,7 @@ void HeroClashManager::new_exchange(Clash& c, uint32_t frame, HeroClashHost& hos
         play = f1 > 0 && f1 == f2 && fps1 == fps2 && fps1 > 0.0f;
     }
     // Otherwise nothing is played: the next frame starts a new exchange (and draws again) [H; M in practice].
-    // r3h t02: both heroes start their exchange clips (variant v, one-shot, blend 0.1, speed 1).
+    // both heroes start their exchange clips (variant v, one-shot, blend 0.1, speed 1).
     if (play) {
         host.play(c.hero1, a1, v);
         host.play(c.hero2, a2, v);

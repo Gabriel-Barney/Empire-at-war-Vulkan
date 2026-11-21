@@ -9,7 +9,7 @@ namespace alamo::tactical::garrison {
 namespace {
 bool valid(const objects::GameObjectTypes& types, objects::TypeIndex t) { return t != objects::kNone && t < types.size(); }
 
-// GameObjectPropertiesType bit (OBJECT_TYPES.md 9.1.2): the enum file's value, else the vanilla constant.
+// GameObjectPropertiesType bit (legacy docs/re/OBJECT_TYPES.md 9.1.2): the enum file's value, else the vanilla constant.
 uint64_t property_bit(const objects::GameObjectTypes& types, const char* name, uint64_t vanilla) {
     const auto m = types.enums().get(objects::EnumId::GameObjectProperties).convert(name);
     return (m && *m != 0) ? static_cast<uint64_t>(*m) : vanilla;

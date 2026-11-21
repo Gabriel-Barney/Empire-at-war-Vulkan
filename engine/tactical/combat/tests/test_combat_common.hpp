@@ -1,6 +1,6 @@
 #pragma once
-// Split out of test_combat.cpp (bo3 t03): shared includes, types and helpers; the tests live in test_combat_partN.cpp.
-// S8 combat tests: hand-computed reference formulas (docs/re/TACTICAL_COMBAT.md 2-4, incl. the four
+// Split out of test_combat.cpp: shared includes, types and helpers; the tests live in test_combat_partN.cpp.
+// S8 combat tests: hand-computed reference formulas (legacy docs/re/TACTICAL_COMBAT.md 2-4, incl. the four
 // disassembly-verified rules), modifier stacking, priority sets, damage pipeline, a scripted
 // 2-sided space engagement whose per-tick CRC log must be identical for 1/4/N threads and match the
 // golden file on every compiler, a per-tick allocation count and a modifier-aggregation benchmark.
@@ -196,7 +196,7 @@ void test_targeting_rules();
 void test_circular_lead();
 void test_turn_toward();
 
-// ---- S8 t04: lob solver and grenade flight (docs/re/LOB_SOLVER.md) ------------------------------------------------
+// ---- lob solver and grenade flight (legacy docs/re/LOB_SOLVER.md) ------------------------------------------------
 
 inline constexpr float kDeg = 57.29577951308232f;
 float lob_dist(Vec3 a, Vec3 b);
@@ -893,7 +893,7 @@ struct MuzzleWorld {
 void test_muzzle_bones();
 
 // ================================================================================================
-// S8 t10 - t12: own-weapon gate steps 5-7, first service, own-player sweep, garrison fire bones
+// own-weapon gate steps 5-7, first service, own-player sweep, garrison fire bones
 // ================================================================================================
 
 // An own-weapon shooter (id 1, player 0, type 0) at the origin and a tough target (id 2, player 1) at `at`; the shooter
@@ -906,7 +906,7 @@ struct OwnOpt {
     bool idle_fire = false, lobbing = false;
     int8_t weapons_enabled_flag = -1;  // ability slot 0's WEAPONS_ENABLED flag (-1: no ability)
     float target_z_adjust = 0.0f;      // the target type's Ranged_Target_Z_Adjust
-    std::function<void(CombatData&)> edit;  // S8 t26 / t27: last edits before the system is made (units 0 / 1)
+    std::function<void(CombatData&)> edit;  // last edits before the system is made (units 0 / 1)
 };
 struct OwnWorld {
     World w;
@@ -996,7 +996,7 @@ void test_foc_data();
 void bench_modifiers();
 
 // ================================================================================================
-// s78f t03 / t04: targeting states 0-4, slots 47 / 48, TeamTargeting copy, charge-up turret slew
+// targeting states 0-4, slots 47 / 48, TeamTargeting copy, charge-up turret slew
 // ================================================================================================
 
 struct StateHooks final : CombatHooks {
@@ -1010,8 +1010,8 @@ struct StateHooks final : CombatHooks {
     }
     void facing_set(ObjectId id, Vec3) override { faced.push_back(id); }
     int8_t turret_aim_state(ObjectId) const override { return aim; }
-    ObjectId pending = kNoObject;  // s78f t08: pending_ability_target answer
-    uint32_t deploy_requests = 0;  // s78f t08: request_deploy calls
+    ObjectId pending = kNoObject;  // pending_ability_target answer
+    uint32_t deploy_requests = 0;  // request_deploy calls
     ObjectId pending_ability_target(ObjectId) const override { return pending; }
     void request_deploy(ObjectId, uint32_t) override { ++deploy_requests; }
 };
@@ -1033,7 +1033,7 @@ void test_convert_container_unit();
 void test_charge_up_slew();
 
 // ================================================================================================
-// s78n t06: hero clashes (docs/re/HERO_CLASH.md §1-§6)
+// hero clashes (legacy docs/re/HERO_CLASH.md §1-§6)
 // ================================================================================================
 
 inline constexpr const char* kClashXml = R"(<?xml version="1.0"?>
@@ -1159,7 +1159,7 @@ struct ClashStub final : HeroClashHost {
         fps = model_fps;
         return true;
     }
-    struct Play {  // r3h t02: the exchange clips the manager started
+    struct Play {  // the exchange clips the manager started
         ObjectId id;
         std::string anim;
         uint32_t variant;
@@ -1241,7 +1241,7 @@ void test_turret_slew();           // r1b t10
 using namespace bo3split;
 
 inline void test_energy_drain_engines() {
-    // cu8f t02 (CU8F_T01_T02_T07_RE.md §2.4): after the shield steps, EnergyPool::Absorb takes min(E, x) from the pool of a
+    // cu8f t02 (legacy docs/re/CU8F_T01_T02_T07_RE.md §2.4): after the shield steps, EnergyPool::Absorb takes min(E, x) from the pool of a
     // projectile with Projectile_Does_Energy_Damage; ANY positive absorption with Projectile_Disables_Engines_When_Power_
     // Drained calls CombatHooks::engines_drained(victim, Projectile_Disable_Engines_Duration). Shields absorb first.
     struct DrainHooks final : CombatHooks {

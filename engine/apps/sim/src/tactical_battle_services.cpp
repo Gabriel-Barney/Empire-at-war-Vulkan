@@ -1,4 +1,4 @@
-// SP5 (docs/SIM_PARALLEL_DESIGN.md §5, "Services chain"): TacticalBattle::tick as a services phase graph.
+// SP5 (docs/SIMULATION.md "Services chain"): TacticalBattle::tick as a services phase graph.
 //
 // Every step of the tick is one service, declared in tick order with the components it reads and writes
 // (tactical::services::ServiceGraph). Services whose sets are disjoint share a phase and may run at the same time
@@ -119,7 +119,7 @@ void TacticalBattle::build_service_graph() {
     svc_owner_ = this;
     svc::ServiceGraph& g = *svc_graph_;
     g.set_component_names(comp_names());
-    // sp0's step zone names (tac.s.*, docs/PERFORMANCE.md "serial path split"): one zone per service, timed by the runner.
+    // sp0's step zone names (tac.s.*, docs/SIMULATION.md "Services chain"): one zone per service, timed by the runner.
     g.set_zone_prefix("tac.s.");
     const auto lap = [&g](const char* zone) { g.barrier(std::string("lap.") + zone, [zone] { profile::lap(zone); }); };
 
@@ -131,7 +131,7 @@ void TacticalBattle::build_service_graph() {
     // [port] before this the host never saw such a death (the object stayed, dead in combat only).
     g.add("late_deaths", kAll, kAll, [this] {
         if (combat_ && !combat_->deaths().empty()) {
-            // s78n t19: the hooks get this tick's context first, so what a late death starts (its death clip, a corpse
+            // the hooks get this tick's context first, so what a late death starts (its death clip, a corpse
             // clone) is stamped with the current frame, not with the tick before
             if (hooks_) hooks_->set_tick(tick_.rng, tick_.global_frame);
             const std::vector<tc::DeathEvent> late(combat_->deaths().begin(), combat_->deaths().end());
@@ -142,18 +142,18 @@ void TacticalBattle::build_service_graph() {
         story_generics_.clear();
         story_reinforced_.clear();  // L1/S4 wave 2b story hook: this tick's reserve deployments
         ability_finished_.clear();  // S7 t15 A1: this tick's signal 0x29
-        landings_unloaded_.clear();  // a1i t04: signal 0x19 records of the last tick
-        // trl2 t04: the cancel records the last tick reported; a player cancel from this tick's commands (before the tick)
+        landings_unloaded_.clear();  // signal 0x19 records of the last tick
+        // the cancel records the last tick reported; a player cancel from this tick's commands (before the tick)
         // stays for the host's read after it.
         retreat_cancels_.erase(retreat_cancels_.begin(), retreat_cancels_.begin() + static_cast<std::ptrdiff_t>(retreat_cancels_mark_));
         retreat_cancels_mark_ = 0;
-        production_done_.clear();    // q6 t19: signal 0x22 records of the last tick
+        production_done_.clear();    // signal 0x22 records of the last tick
         story_garrisoned_.clear();  // S4: this tick's garrison entries / structure captures
         story_captured_.clear();
         l1_asteroid_hits_.clear();  // mcx4 t13
         gravity_power_.clear();
         sk_redelivered_.clear();
-        // mcx4 t13: drop only what the last tick already reported; exits ordered between ticks (Leave_Garrison, eject)
+        // drop only what the last tick already reported; exits ordered between ticks (Leave_Garrison, eject)
         // stay for this tick's readers.
         story_vacated_.erase(story_vacated_.begin(), story_vacated_.begin() + static_cast<std::ptrdiff_t>(story_vacated_mark_));
         story_vacated_mark_ = 0;
@@ -169,7 +169,7 @@ void TacticalBattle::build_service_graph() {
     // S8 t17 (FIGHTER_FLYING §4.10 B): squadron of the shared team target, before this tick's orders
     g.add("share_groups", kAll, kAll, [this] { share_groups_sync(); });
     g.add("weather", kAll, kAll, [this] { l1_weather_tick(*tick_.rng); });  // L1 systems: land weather service
-    // s78n t06: land tick step 4, after the weather (HERO_CLASH §2.1)
+    // land tick step 4, after the weather (HERO_CLASH §2.1)
     g.add("hero_clash", kAll, kAll, [this] { hero_clash_tick(*tick_.mode, *tick_.rng, tick_.global_frame); });
     // fog of war: common-tick step 4, before the object services (owner: fog agent). FogOfWar::decay_step only.
     g.add("fog_decay", 0, bit(cFog), [this] { fog_decay(); });
@@ -179,7 +179,7 @@ void TacticalBattle::build_service_graph() {
 
     // ---- orders: 1. reinforcements, 2. stand-in orders, 3. retreat coordinator -------------------------------------
     g.add("reinforce", kAll, kAll, [this] { reinforce(*tick_.mode, *tick_.rng, true); });
-    g.add("landing", kAll, kAll, [this] { landing_service(*tick_.mode, *tick_.rng); });  // a1i t04: landing objects
+    g.add("landing", kAll, kAll, [this] { landing_service(*tick_.mode, *tick_.rng); });  // landing objects
     g.add("issue_orders", kAll, kAll, [this] {
         if (cfg_.order_interval > 0 && (frame_ - 1) % cfg_.order_interval == 0) issue_orders(*tick_.mode, *tick_.rng);
     });
@@ -207,13 +207,13 @@ void TacticalBattle::build_service_graph() {
 
     // ---- pre-move: attack blocks, 4. speed factors, movement inputs --------------------------------------------------
     // s78n t20 stage A: serial, ascending mover, before the collision feed and the movement tick
-    // cmb1 t01 / t03: land Auto_Engage (the auto attack blocks of the land formation records) and the land scan flags
+    // land Auto_Engage (the auto attack blocks of the land formation records) and the land scan flags
     g.add("land_engage", kAll, kAll, [this] { land_engage_service(*tick_.mode, *tick_.rng); });
     g.add("attack_block", kAll, kAll, [this] { attack_block_service(*tick_.mode, *tick_.rng); });
     g.add("speed_factors", kFeedReads, bit(cMovement), [this] { apply_speed_factors(); });
     // [port] fleet groups: slowest-member cap and straggler wait (no-op while no group exists)
     g.add("fleet", kAll, kAll, [this] { fleet_tick(*tick_.mode); });
-    // s78n t20: targets / ranges / hero clashes for the land collision decisions
+    // targets / ranges / hero clashes for the land collision decisions
     g.add("collision_feed", kFeedReads, bit(cMovement), [this] { feed_collision_info(tick_.mode->primary()); });
     // S7 fighters: new squadrons (map start, reinforcements, hangar launches, wingmen) and params
     g.add("fighter_sync", kAll, kAll, [this] { fighter_sync(); });
@@ -228,15 +228,15 @@ void TacticalBattle::build_service_graph() {
     g.add("move_tick", kAll, kAll, [this] { movement_->tick(frame_, *tick_.rng, *tick_.pf); });
     g.add("move_commit", kAll, kAll, [this] { movement_->commit(tick_.mode->primary()); });
     g.add("pushed_clones", kAll, kAll, [this] { kill_pushed_clones(*tick_.mode); });  // s78n t20 batch 1
-    // s78l t02: the arrival turn's clip plays (synced variant draws), ascending id
+    // the arrival turn's clip plays (synced variant draws), ascending id
     g.add("turn_clips", kAll, kAll, [this] { play_turn_clip_events(*tick_.rng, tick_.global_frame); });
-    g.add("s4_exit_arrivals", kAll, kAll, [this] { s4_exit_arrivals(); });  // s78n t26.1: garrison hosts' +0xf8 hook
-    // S8 t11: deploy clip ends (Is_Active, deploy flags, signal 0x29) before the combat tick
+    g.add("s4_exit_arrivals", kAll, kAll, [this] { s4_exit_arrivals(); });  // garrison hosts' +0xf8 hook
+    // deploy clip ends (Is_Active, deploy flags, signal 0x29) before the combat tick
     g.add("deploy_sync", kAll, kAll, [this] { oi_deploy_sync(*tick_.mode); });
     lap("tac.movement");
 
     // ---- motion post ------------------------------------------------------------------------------------------------
-    // S7 t22 / t25: enter_idle drops the squadrons' team targets (§4.7 step 4, §4.10 D)
+    // enter_idle drops the squadrons' team targets (§4.7 step 4, §4.10 D)
     g.add("fighter_idle", kAll, kAll, [this] { fighter_enter_idle(); });
     // S7 fighters: Provoke / Retarget -> combat attack orders (before the combat tick)
     g.add("fighter_events", kAll, kAll, [this] { forward_fighter_events(); });
@@ -246,9 +246,9 @@ void TacticalBattle::build_service_graph() {
         oi_crush_.assign(movement_->crush_events().begin(), movement_->crush_events().end());  // OI tactical
     });
     g.add("l1_motion", kAll, kAll, [this] { l1_motion(*tick_.mode, *tick_.rng); });  // L1: hyperspace jumps, engine re-enables
-    // cu8l t03: the start fleet's hyperspace arrivals (timer draws, finishes)
+    // the start fleet's hyperspace arrivals (timer draws, finishes)
     g.add("arrivals", kAll, kAll, [this] { arrival_service(*tick_.mode, *tick_.rng); });
-    // cu8 t02: Disable_Force_Abilities_Range emitters (Force-disable stamps)
+    // Disable_Force_Abilities_Range emitters (Force-disable stamps)
     g.add("force_disable", kAll, kAll, [this] { l1_force_disable(*tick_.mode); });
     // engine loops: SimpleSpace locomotor services (moving first, then idle)
     g.add("engine_loops", kAll, kAll, [this] { hg_engine_service(); });
@@ -260,7 +260,7 @@ void TacticalBattle::build_service_graph() {
     g.add("trees", kAll, kAll, [this] {
         TacticalMode& mode = *tick_.mode;
         objects::ObjectStore& store = mode.primary();
-        mode.resolve_models();  // refixf t07: after a load, before the boxes and the parallel sweeps read the model cache
+        mode.resolve_models();  // after a load, before the boxes and the parallel sweeps read the model cache
         // SP5 (read old, write new, commit in index order): the boxes are computed per unit in parallel (const reads; the
         // model-cache entries bounds_of fills lazily are filled first, serially: prepare_bounds), each tree updated in unit
         // order.
@@ -295,15 +295,15 @@ void TacticalBattle::build_service_graph() {
     // ---- 5. combat (abilities run inside its serial phases), events -------------------------------------------------
     g.add("combat_flags", kAll, kAll, [this] { combat_sync(tick_.mode->primary()); });
     g.add("s4_positions", kAll, kAll, [this] { s4_positions(*tick_.mode); });  // S4: garrisoned units sit on their holders
-    // s78n t03: the land teams' TeamTargeting P_U (cleared after the combat tick)
+    // the land teams' TeamTargeting P_U (cleared after the combat tick)
     g.add("combat_team_pos", bit(cStore) | bit(cState), bit(cCombat), [this] { combat_team_positions(tick_.mode->primary()); });
     lap("tac.combat_pre");
     g.add("abilities_combat", kAll, kAll, [this] {
         hooks_->set_tick(tick_.rng, tick_.global_frame);
         abilities_->tick(frame_, tick_.mode->trees(), *tick_.rng, *tick_.pf);
-        oi_ability_anims(tick_.global_frame);  // r3h t01: this tick's ability clips on the animation world
-        bt_base_shield_anims(tick_.global_frame, *tick_.rng);  // r3h t06: SHIELD_ON / SHIELD_OFF
-        combat_->clear_team_positions();  // s78n t03: readers between ticks use the head's own position (save / load equal)
+        oi_ability_anims(tick_.global_frame);  // this tick's ability clips on the animation world
+        bt_base_shield_anims(tick_.global_frame, *tick_.rng);  // SHIELD_ON / SHIELD_OFF
+        combat_->clear_team_positions();  // readers between ticks use the head's own position (save / load equal)
     });
     lap("tac.combat");
     g.add("consume_events", kAll, kAll, [this] { consume_events(*tick_.mode, *tick_.rng); });
@@ -312,10 +312,10 @@ void TacticalBattle::build_service_graph() {
 
     // ---- services ---------------------------------------------------------------------------------------------------
     g.add("hangars", kAll, kAll, [this] { hg_tick(*tick_.mode, *tick_.rng); });  // hangars: SPAWN_SQUADRON services, launches
-    g.add("spawners", kAll, kAll, [this] { sp_tick(*tick_.mode, *tick_.rng); });  // TRU1 t05 / t07: indigenous spawners, debris
-    // cu8k t01: Saber_Throw throws / SWORD_CONTROL / SWORD_CATCH (after the saber's step)
+    g.add("spawners", kAll, kAll, [this] { sp_tick(*tick_.mode, *tick_.rng); });  // indigenous spawners, debris
+    // Saber_Throw throws / SWORD_CONTROL / SWORD_CATCH (after the saber's step)
     g.add("saber_throw", kAll, kAll, [this] { saber_throw_service(*tick_.mode); });
-    // cu8g t01: HOLSTER_WEAPON (engine-loop suppression, draw / holster SFX requests)
+    // HOLSTER_WEAPON (engine-loop suppression, draw / holster SFX requests)
     g.add("holster", kAll, kAll, [this] { hg_holster_service(); });
     g.add("l1_weapons", kAll, kAll, [this] { l1_weapons(*tick_.mode, *tick_.rng); });  // L1: special-weapon volleys, TSW
     lap("tac.services");
@@ -326,7 +326,7 @@ void TacticalBattle::build_service_graph() {
     g.add("pads", kAll, kAll, [this] { pads_tick(*tick_.mode); });  // Int-final: build pads
     // skai: skirmish map battles: the Income_Stream credit trickle (credits through the host's callback)
     g.add("income", bit(cStore) | bit(cState), bit(cHost), [this] { sk_income(*tick_.mode); });
-    // skm1 t07: skirmish start-force re-delivery (SKIRMISH_SETUP §2.4): the garrison timer, the land pool / space pending list
+    // skirmish start-force re-delivery (SKIRMISH_SETUP §2.4): the garrison timer, the land pool / space pending list
     g.add("skirmish_redelivery", kAll, kAll, [this] { sk_garrison_tick(); });
     // battle host: base-shield secondary occupants follow the live shields (land): the passability grid, bt_shields_
     g.add("shield_stamps", bit(cStore) | bit(cCombat), bit(cMovement) | bit(cState), [this] { bt_shield_stamps(*tick_.mode); });
@@ -340,7 +340,7 @@ void TacticalBattle::build_service_graph() {
     // ping list / weather-dirty flag (state).
     g.add("fog", bit(cStore) | bit(cState) | bit(cCombat) | bit(cAbilities) | bit(cGarrison) | bit(cTrees),
           bit(cFog) | bit(cState), [this] { fog_service(*tick_.mode); });
-    g.add("fog_setup", kAll, kAll, [this] { fog_setup_tick(); });  // FOWF t05: setup phase end (all humans ready / countdown)
+    g.add("fog_setup", kAll, kAll, [this] { fog_setup_tick(); });  // setup phase end (all humans ready / countdown)
     lap("tac.fog");
 
     // ---- queues, victory --------------------------------------------------------------------------------------------
@@ -348,7 +348,7 @@ void TacticalBattle::build_service_graph() {
     g.add("team_attack", kAll, kAll, [this] { team_attack_service(*tick_.mode, *tick_.rng); });
     // [port: Gabriel] 5b. queueable unit actions: completed orders start the next entry
     g.add("queues", kAll, kAll, [this] { advance_queues(*tick_.mode, *tick_.rng); });
-    g.add("swap_back", kAll, kAll, [this] { late_swap_back_signals(); });  // S7 t27: jetpack swap back, signal 0x29
+    g.add("swap_back", kAll, kAll, [this] { late_swap_back_signals(); });  // jetpack swap back, signal 0x29
     g.add("stats", bit(cCombat), bit(cState), [this] {
         stats_.shots = combat_->stats().shots;
         stats_.hits = combat_->stats().hits;
@@ -357,10 +357,10 @@ void TacticalBattle::build_service_graph() {
     // this tick's new coordinators compose their formations (the FormationClass ctor draws, the land stagger draws).
     // Orders given after it (the AI and story services of the host) compose at the next tick's.
     g.add("coordinators", kAll, kAll, [this] { movement_->coordinator_update(frame_, tick_.global_frame, *tick_.rng); });
-    // 6. victory. story t06: the victory monitor (losses since the last tick, countdown, end)
+    // 6. victory. The victory monitor (losses since the last tick, countdown, end)
     g.add("victory", kAll, kAll, [this] { check_victory(*tick_.mode); });
     g.add("end_clones", kAll, kAll, [this] {
-        if (finished_ && !death_clones_.empty()) remove_death_clones(*tick_.mode, true);  // refixf t04: the clones end with it
+        if (finished_ && !death_clones_.empty()) remove_death_clones(*tick_.mode, true);  // the clones end with it
     });
     g.add("space_obstacles", kAll, kAll, [this] { space_obstacles_sync(*tick_.mode); });  // refixf t02
     g.add("land_obstacles", kAll, kAll, [this] { land_obstacles_sync(*tick_.mode, *tick_.pf); });  // S8 t02
@@ -372,7 +372,7 @@ void TacticalBattle::build_service_graph() {
 }
 
 void TacticalBattle::tick(TacticalMode& mode, SimRng& rng, const ParallelFor& pf, double sim_time, uint64_t global_frame) {
-    if (finished_) {  // finished outside a tick (auto-resolve stop): the clones go before the mode pops (refixf t04)
+    if (finished_) {  // finished outside a tick (auto-resolve stop): the clones go before the mode pops
         if (!death_clones_.empty()) remove_death_clones(mode, true);
         return;
     }
@@ -386,7 +386,7 @@ void TacticalBattle::tick(TacticalMode& mode, SimRng& rng, const ParallelFor& pf
     }
     svc_graph_->run(pf, svc_mode_, svc_check_.get());
     tick_ = TickContext{};
-    story_vacated_mark_ = story_vacated_.size();  // mcx4 t13: reported by this tick
+    story_vacated_mark_ = story_vacated_.size();  // reported by this tick
     pad_events_mark_ = pad_events_.size();
     ability_toggles_mark_ = ability_toggles_.size();
     strike_starts_mark_ = strike_starts_.size();

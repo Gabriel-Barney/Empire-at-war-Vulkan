@@ -229,7 +229,7 @@ void test_report() {
     CHECK(bench_report_json(r).find("\"error\": \"caf\xc3\xa9 \\u00e9\"") != std::string::npos);
 }
 
-// bm2: scenario files in alamo_game (benchmark_scenario.hpp): flags, settings, the headless refusal, the make and the
+// scenario files in alamo_game (benchmark_scenario.hpp): flags, settings, the headless refusal, the make and the
 // fingerprint check, on temporary files.
 CrcLog fake_log(uint64_t first, uint64_t last, uint64_t salt) {
     CrcLog log;
@@ -359,7 +359,7 @@ void test_report_bm2() {
 
 }  // namespace
 
-// bm3: the load / first-use numbers (bench_hitches, the report keys) and the --bench-new-save / --bench-maps flags.
+// the load / first-use numbers (bench_hitches, the report keys) and the --bench-new-save / --bench-maps flags.
 void test_bm3() {
     BenchReport r;
     std::vector<float> ms(600, 5.0f);
@@ -438,8 +438,8 @@ void test_bm3() {
     CHECK(check_bench_new_save(n).find("do not mix") != std::string::npos);
 }
 
-// bm2d t01: the exe on a scenario whose save does not load (the pinned bytes are fine, the format is not a save): "scenario changed,
-// not comparable", exit 3 (as alamo_headless --bench), so tools\regen_goldens.cmd remakes the scene. Needs the exe and a GPU/window.
+// the exe on a scenario whose save does not load (the pinned bytes are fine, the format is not a save): "scenario changed,
+// not comparable", exit 3 (as alamo_headless --bench), so the scene is remade (alamo_game --bench-regen). Needs the exe and a GPU/window.
 void test_stale_scene_exe(const std::string& exe) {
     namespace fs = std::filesystem;
     const fs::path dir = fs::temp_directory_path() / "alamo_game_benchmark_tests_stale_scene";

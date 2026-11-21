@@ -25,7 +25,7 @@
 #include "alamo/core/sim_crc.hpp"
 #include "alamo/ai/ai_path_finder.hpp"
 #ifdef ALAMO_AI_HAVE_GALACTIC_AI
-#include "alamo/ai/galactic_ai_tokens.hpp"  // mcx0 t05: the in-game resolver's registry
+#include "alamo/ai/galactic_ai_tokens.hpp"  // the in-game resolver's registry
 #endif
 #include "alamo/ai/galactic_perception.hpp"
 #include "alamo/ai/galactic_seed.hpp"
@@ -41,7 +41,7 @@
 #include "alamo/galactic/all_pairs.hpp"
 #include "alamo/galactic/economy.hpp"  // FactionRules
 #ifdef ALAMO_AI_HAVE_GALACTIC_SIM
-#include "alamo/galactic/galactic_rules.hpp"  // cu5 t01: load_factions for the seed options
+#include "alamo/galactic/galactic_rules.hpp"  // load_factions for the seed options
 #endif
 #include "alamo/galactic/planet_graph.hpp"
 #include "alamo/objects/game_object_types.hpp"
@@ -111,7 +111,7 @@ public:
     std::string origin(std::string_view path) const override { return exists(path) ? "mem" : ""; }
 };
 
-// A2J t07 (docs/re/A2J_T07_LITERALS.md §1): the literal converters read the data enum files (mods may add values).
+// A2J t07 (legacy docs/re/A2J_T07_LITERALS.md §1): the literal converters read the data enum files (mods may add values).
 static void test_enum_literal_files() {
     // Built-in table: no file read.
     {
@@ -383,7 +383,7 @@ static void test_language() {
         CHECK(eval_failure_site(set, evaluate(set, set.find("a"), ctx, r)).empty());  // ok: no site
         CHECK(eval_failure_site(set, evaluate(set, set.find("Loop"), ctx, r)) == "recursion Function_Loop");
     }
-    // a2k t12 (A2K_T06_RE.md §1-2): every element name of every file is a Function_ token before parsing, so a reference
+    // a2k t12 (legacy docs/re/A2K_T06_RE.md §1-2): every element name of every file is a Function_ token before parsing, so a reference
     // to a later file's name builds (file order does not matter), a reference to a name no file defines fails the build;
     // converter names are trimmed and case-sensitive.
     {
@@ -642,7 +642,7 @@ static std::string golden_text(const RunDigest& d) {
     return buf;
 }
 
-static std::string g_golden_out;  // wr1 t05: --golden-out DIR writes the golden into DIR
+static std::string g_golden_out;  // --golden-out DIR writes the golden into DIR
 
 static void test_determinism(bool write_golden) {
     const RunDigest serial = run_synthetic(160, 4, 181, serial_for);
@@ -672,7 +672,7 @@ static void test_determinism(bool write_golden) {
         b.hash(hb);
         CHECK(ha.digest() == hb.digest());
     }
-    // The digests across commits and compilers: the scenario ai_perception (tools/goldens/scenarios.json; wr1 t07: no
+    // The digests across commits and compilers: the scenario ai_perception (tools/goldens/scenarios.json; no
     // stored golden). --write-golden / --golden-out write them.
     if (!write_golden) return;
     const std::string text = golden_text(serial);
@@ -684,7 +684,7 @@ static void test_determinism(bool write_golden) {
     std::printf("golden written: %s\n%s", path.c_str(), text.c_str());
 }
 
-// ---- AI execution path finder (ai_path_finder.hpp, GALACTIC.md §4) -------------------------------
+// ---- AI execution path finder (ai_path_finder.hpp, legacy docs/re/GALACTIC.md §4) -------------------------------
 
 // A(0,0) B(50,0) C(100,0) D(50,30); free hop <= 60: links A-B, B-C, A-D, D-C, B-D (A-C = 100 is not linked).
 static GalaxyMap diamond_map() {
@@ -806,7 +806,7 @@ static void test_path_finder_costs_and_fog() {
     CHECK(zf.weight(D, B) == hop(50.0f) && zf.weight(B, D) == hop(30.0f));
 }
 
-// A2k t02: the per-target stage flood (ai_stage_flood, A2K_T02_RE_ANSWERS Q1(b)). Line A(0) - B(1) - T(2) - C(3) - D(4),
+// the per-target stage flood (ai_stage_flood, A2K_T02_RE_ANSWERS Q1(b)). Line A(0) - B(1) - T(2) - C(3) - D(4),
 // 50 apart, free hop <= 75. Default view: a player without an AI system, every planet visible, non-held planets are
 // enemy-owned (passable only at level 5).
 static void test_ai_stage_flood() {
@@ -880,7 +880,7 @@ static void test_ai_stage_flood() {
 
 // The finder on the Q11 cadence over a perturbed synthetic galaxy: K AI players, staggered, 90-frame services every
 // 3 frames (the Execution interval). Digest over every finder's hash after each frame + all paths at the end.
-// OPT2 t02 / OPT3 t04: `latency` > 0 runs the background mode on `bg` (publish at the start of each frame); `save_at` >= 0
+// `latency` > 0 runs the background mode on `bg` (publish at the start of each frame); `save_at` >= 0
 // saves every finder at the start of that frame and continues with fresh finders read from the save
 // (`saved_in_flight`: whether a recompute was in flight then).
 static uint64_t run_path_finders(uint32_t planets, uint32_t ais, uint32_t frames, const ParallelFor& pf, uint32_t latency = 0,
@@ -933,9 +933,9 @@ static uint64_t run_path_finders(uint32_t planets, uint32_t ais, uint32_t frames
     return h.digest();
 }
 
-// OPT2 t02: the background mode. A recompute kicked on frame N is applied on N + latency exactly (never earlier, also
+// the background mode. A recompute kicked on frame N is applied on N + latency exactly (never earlier, also
 // when it finished at once), results are identical for every worker count, and a save with recomputes in flight loads
-// into a run identical to the uninterrupted one (OPT3 t04).
+// into a run identical to the uninterrupted one.
 static void test_path_finder_background() {
     const galactic::PlanetGraph g = galactic::PlanetGraph::build(diamond_map());
     const std::vector<double> flat(4, 0.0);
@@ -1038,7 +1038,7 @@ using ::alamo::test::env_or;  // alamo/test/support.hpp
     CHECK(company.valid && company.layer == UnitLayer::Ground && !company.structure);  // CategoryMask ignored
     CHECK(wing.valid && wing.layer == UnitLayer::Space);
     CHECK(!plain.valid && !frigate.valid);  // no DUMMY_* behaviour: no role, whatever the tag
-    CHECK(!gbase.valid);  // DUMMY_GROUND_BASE: never created at a planet (A2K_T07_STORY_LOAD_RE §2, mcx1 t11)
+    CHECK(!gbase.valid);  // DUMMY_GROUND_BASE: never created at a planet (A2K_T07_STORY_LOAD_RE §2)
     CHECK(story.valid && story.layer == UnitLayer::Space);  // Props_Story with DUMMY_STARSHIP: a starship
     CHECK(!lookup("Missing").valid);
     std::printf("   seed roles (synthetic): by DUMMY_* behaviour only, element tags ignored\n");
@@ -1073,7 +1073,7 @@ static void real_data(const std::string& root, const char* label, bool foc) {
                 rep.unresolved_functions);
     CHECK(rep.files >= 10 && rep.files_failed == 0);
     CHECK(rep.parse_errors == 0);
-    // A2J t07: the literal converters came from the shipped Data\XML\Enum files.
+    // the literal converters came from the shipped Data\XML\Enum files.
     CHECK(set.enum_literals().from_file("GameObjectCategoryType") && set.enum_literals().from_file("AIGoalCategoryType") &&
           set.enum_literals().from_file("GameObjectPropertiesType"));
     {
@@ -1088,8 +1088,8 @@ static void real_data(const std::string& root, const char* label, bool foc) {
     std::vector<PerceptionMemory> mem(dummy.players.size());
     const GalacticTokenResolver resolver(dummy, mem);
     const std::string report = coverage_report(set, rep, &resolver, label);
-    const std::string out = std::string(ALAMO_AI_LOG_DIR) + "/ai_perception_coverage_" + (foc ? "foc" : "eaw") + ".txt";
-    fs::create_directories(path_from_utf8(ALAMO_AI_LOG_DIR), ec);
+    const std::string out = ::alamo::test::artifact_dir() + "/ai_perception_coverage_" + (foc ? "foc" : "eaw") + ".txt";
+    fs::create_directories(path_from_utf8(::alamo::test::artifact_dir()), ec);
     std::ofstream(path_from_utf8(out), std::ios::binary) << report;
     const std::vector<CoverageEntry> cov = coverage(set, &resolver);
     uint32_t paths = 0, registered = 0, implemented = 0;
@@ -1105,8 +1105,8 @@ static void real_data(const std::string& root, const char* label, bool foc) {
     }
     std::printf("   token paths %u: registered %u, implemented %u -> %s\n", paths, registered, implemented, out.c_str());
 #ifdef ALAMO_AI_HAVE_GALACTIC_AI
-    // mcx0 t05: the same paths against the in-game resolver's registry (GalacticSimTokenResolver, the one alamo_game runs;
-    // docs/re/AI_GALACTIC_TOKENS.md §5 lists what it misses).
+    // the same paths against the in-game resolver's registry (GalacticSimTokenResolver, the one alamo_game runs;
+    // legacy docs/re/AI_GALACTIC_TOKENS.md §5 lists what it misses).
     {
         uint32_t in_game = 0;
         std::vector<std::string> missing;
@@ -1193,7 +1193,7 @@ static void real_data(const std::string& root, const char* label, bool foc) {
     raw.load(*v, &diag);
     objects::GameObjectTypes types;
     types.build(raw, v.get(), &diag);
-    // mcx1 t05: the seed's roles come from the DUMMY_* behaviours (galactic::galactic_dummy), never the element tag.
+    // the seed's roles come from the DUMMY_* behaviours (galactic::galactic_dummy), never the element tag.
     {
         uint32_t with_role = 0;
         for (objects::TypeIndex t = 0; t < types.size(); ++t) with_role += force_type_of(types, t).valid ? 1u : 0u;
@@ -1237,7 +1237,7 @@ static void real_data(const std::string& root, const char* label, bool foc) {
 }
 
 // q6: Thrawn's Revenge (workshop 1125571106, next to a Steam FoC install or ALAMO_TR_DATA) through the VFS: its own
-// element tags (SkirmishSpaceUnit, DummyStructure, ...) take their DUMMY_* roles in the galactic seed (mcx1 t05: every
+// element tags (SkirmishSpaceUnit, DummyStructure, ...) take their DUMMY_* roles in the galactic seed (every
 // type does).
 static void tr_seed_roles(const std::string& foc_data) {
 #ifdef ALAMO_AI_HAVE_VFS

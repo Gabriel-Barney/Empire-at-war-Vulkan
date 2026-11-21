@@ -1,7 +1,7 @@
 // alamo_headless --skirmish-ai (A1 stage 2): see skirmish_run.hpp.
 #include "skirmish_run.hpp"
 #include "crc_out.hpp"
-#include "tactical_trace.hpp"  // q4hf t02: --trace-out
+#include "tactical_trace.hpp"  // --trace-out
 
 #include <algorithm>
 #include <chrono>
@@ -29,7 +29,7 @@
 #include "alamo/galactic/campaign.hpp"
 #include "alamo/galactic/conflicts.hpp"
 #include "alamo/galactic/galactic_rules.hpp"
-#include "alamo/game/skirmish_rules.hpp"  // q6 t03: AI types, default forces, map planet type (shared with alamo_game)
+#include "alamo/game/skirmish_rules.hpp"  // AI types, default forces, map planet type (shared with alamo_game)
 #include "alamo/jobs/crc_recorder.hpp"
 #include "alamo/objects/game_object_types.hpp"
 #include "alamo/objects/object_types.hpp"
@@ -43,8 +43,8 @@
 #include "alamo/vfs/mod_environment.hpp"
 #include "alamo/vfs/vfs.hpp"
 #ifdef ALAMO_HEADLESS_HAVE_GALACTIC_AI
-#include "alamo/ai/galactic_ai.hpp"         // a1j t07: make_galactic_ai_type_info
-#include "alamo/ai/galactic_ai_tokens.hpp"  // a1j t07: GalacticSimTokenResolver
+#include "alamo/ai/galactic_ai.hpp"         // make_galactic_ai_type_info
+#include "alamo/ai/galactic_ai_tokens.hpp"  // GalacticSimTokenResolver
 #endif
 #else
 #include "alamo/objects/game_object_types.hpp"  // N1 stage 2 stubs
@@ -56,8 +56,8 @@ namespace {
 using namespace alamo;
 namespace fs = std::filesystem;
 
-// skai t15 (Gabriel, 2026-11-16: "allow retail's Lua errors in the exit test"; DECISIONS.md "Retail Lua errors in the skai
-// exit test"): Lua errors that retail raises too, each shown from the binary in docs/re. Exact text as the tactical AI
+// skai t15 (Gabriel, 2026-11-16: "allow retail's Lua errors in the exit test"; docs/SIMULATION.md "Retail Lua errors in
+// outcome tests"): Lua errors that retail raises too, each shown from the binary in docs/re. Exact text as the tactical AI
 // reports it. Reported, not counted against --fail-on-lua-errors.
 //   - BobaFettFlameInfantry.lua MoveUntilDone re-issues fett.Move_To(target) after PumpEvents (one yield, AI_GALACTIC
 //     §1.9) without a TestValid; retail's Move_To raises this for a dead object target (LUA_API, Move_To target table).
@@ -65,7 +65,7 @@ constexpr std::string_view kRetailLuaErrors[] = {
     "BOBAFETTFLAMEINFANTRY: SCRIPT ERROR: GameObjectWrapper::Move_To -- Target is already dead.",
 };
 
-// ref4 t06: MP_Default_Credits through GameConstants::shared (0 without a GameConstants.xml, as before).
+// MP_Default_Credits through GameConstants::shared (0 without a GameConstants.xml, as before).
 int32_t skirmish_credits(const alamo::data::GameConstants& gc) { return gc.shared.mp_default_credits.value_or(0); }
 
 bool is_retail_lua_error(std::string_view e) {
@@ -310,7 +310,7 @@ struct Session {
     // map with its pre-built base and MP_Default_Credits. foc-land-campaign keeps the old invasion of a campaign map (the campaign
     // rules); foc-station guards the campaign-only defender retreat rule (t41).
     bool skirmish = true;
-    // skai (q2f t04): the skirmish host (foc-land, skirmish): slot 0 Empire, slot 1 Rebel, the battle started on the map
+    // skai: the skirmish host (foc-land, skirmish): slot 0 Empire, slot 1 Rebel, the battle started on the map
     // (CampaignBattles::start_map_battle) with each slot's default forces; human = the idle human slot's player (-1: none).
     bool map_host = false;
     int32_t human = -1;
@@ -326,7 +326,7 @@ bool load_game(Session& s, std::vector<std::string>& diag) {
 }
 
 // 3 planets A - B - C; the defender (player 0) holds B's orbit, the attacker (player 1) moves in from C.
-// q6 t02: `slots` = the factions of players 0 and 1 (empty = Empire, Rebel).
+// `slots` = the factions of players 0 and 1 (empty = Empire, Rebel).
 galactic::GalacticSetup make_galaxy(const Session& s, uint32_t planet_type, const std::vector<uint32_t>& defender,
                                     const std::vector<uint32_t>& attacker, float credits = 0.0f, const std::vector<uint32_t>& slots = {}) {
     galactic::GalacticSetup g;
@@ -353,11 +353,11 @@ galactic::GalacticSetup make_galaxy(const Session& s, uint32_t planet_type, cons
     r.faction = slots.size() == 2 ? slots[1] : s.rules.find_faction("Rebel");
     // [name-ok-end]
     galactic::PlayerSetup n;
-    n.faction = s.rules.neutral_faction();  // modc t03: the first Is_Neutral faction (FoC: Neutral)
+    n.faction = s.rules.neutral_faction();  // the first Is_Neutral faction (FoC: Neutral)
     g.players = {e, r, n};
     // S10 map owners [probe 2026-10-29]: a Hostile player besides Neutral (map owners resolve by faction; natives -> Hostile).
     galactic::PlayerSetup h;
-    h.faction = s.rules.native_owner_faction();  // modc t03: by data (FoC: Hostile)
+    h.faction = s.rules.native_owner_faction();  // by data (FoC: Hostile)
     if (h.faction != galactic::kNoIndex && h.faction != e.faction && h.faction != r.faction) g.players.push_back(h);
     for (const uint32_t t : defender) g.forces.push_back({0, 1, t});
     for (const uint32_t t : attacker) g.forces.push_back({1, 2, t});
@@ -423,7 +423,7 @@ bool foc_load(Session& s, const MapRunOptions& opt, std::vector<std::string>& di
         skipped = true;
         return false;
     }
-    IssueSink issues;  // ums2: the VFS findings (nothing reads them here yet)
+    IssueSink issues;  // the VFS findings (nothing reads them here yet)
     game::OpenedGameData opened = game::open_game_data(root, opt.game_args, issues);  // ref4 t05
     if (!opened.ok()) {  // the VFS error or the D1 base-EaW refusal
         diag.push_back(opened.error);
@@ -437,22 +437,22 @@ bool foc_load(Session& s, const MapRunOptions& opt, std::vector<std::string>& di
     if (!ai::load_ai_definitions(*s.files, ai::list_ai_data(list), s.defs)) return false;
     ai::load_equation_files(*s.files, vp->list(ai::kPerceptionEquationGlob), s.eqs);
     s.ai = std::make_shared<sim::TacticalAiSetup>();
-    sim::load_tactical_ai_data(*s.ai, *s.files, &s.db.constants(), list);  // a2h t05: plans, difficulties, GameConstants
+    sim::load_tactical_ai_data(*s.ai, *s.files, &s.db.constants(), list);  // plans, difficulties, GameConstants
     return true;
 }
 
-// BM1 t02: --skirmish-ai foc-fleet / --save-session skirmish --campaign foc-fleet, the foc space battle with both fleets this many
+// --skirmish-ai foc-fleet / --save-session skirmish --campaign foc-fleet, the foc space battle with both fleets this many
 // times over (the benchmark's large space battle, tests/benchmark/space_battle.abench).
 constexpr int kFleetScale = 4;
-// BM3 t02: --save-session skirmish --campaign foc-land-army, the foc-land skirmish with both sides' company lists this many times over
+// --save-session skirmish --campaign foc-land-army, the foc-land skirmish with both sides' company lists this many times over
 // (the benchmark's large land battle, tests/benchmark/land_battle.abench).
 constexpr int kArmyScale = 6;
-// SP5 t07: --save-session skirmish --campaign foc-land-army4, four times land_battle's forces (the services stress scene,
-// docs/SIM_PARALLEL_DESIGN.md §7 "a large-scene stress (four times the fleets)"; tools/benchmark/stress_land4.cmd).
+// --save-session skirmish --campaign foc-land-army4, four times land_battle's forces (the services stress scene,
+// docs/SIMULATION.md "Proving the same outcome"; tools/benchmark/stress_land4.cmd).
 constexpr int kArmyStressScale = 4 * kArmyScale;
 
 // land: a land battle; land_skirmish (t50): that battle is a skirmish (an _MP_LAND_ map, MP_Default_Credits), else the campaign invasion.
-// fleet_scale (BM1 t02, kind foc-fleet; BM3 t02, kind foc-land-army for the land lists): the starting forces of both sides repeated that many
+// fleet_scale (kind foc-fleet; BM3 t02, kind foc-land-army for the land lists): the starting forces of both sides repeated that many
 // times (the benchmark's large space and land battles).
 bool foc_session(Session& s, const MapRunOptions& opt, std::vector<std::string>& diag, bool& skipped, bool land, bool station = false,
                  bool land_skirmish = false, int fleet_scale = 1) {
@@ -500,7 +500,7 @@ bool foc_session(Session& s, const MapRunOptions& opt, std::vector<std::string>&
 
 std::string trimmed(std::string_view v) { return std::string(data::trim(v)); }  // data::trim = the std::isspace set
 
-// ---- q6 t02 / t03: the skirmish host's data rules for any faction (mods through MODPATH=) ----
+// ---- the skirmish host's data rules for any faction (mods through MODPATH=) ----
 // engine/apps/game/rules (skirmish_rules.hpp), shared with alamo_game. This host's deliberate differences are options:
 // no base-game lists (it has always started every faction from the data's Space_ / Land_Skirmish_AI_Default_Forces, which
 // the checked-in goldens hold) and no hyperspace leader (the battle starts on the map, no galactic hop).
@@ -545,9 +545,9 @@ std::vector<std::string> split_factions(std::string_view v) {
     return out;
 }
 
-// skai (q2f t04): the skirmish host. foc-land: _MP_LAND_UTAPAU, both slots AI; skirmish: --map (default _MP_SPACE_GEONOSIS),
+// skai: the skirmish host. foc-land: _MP_LAND_UTAPAU, both slots AI; skirmish: --map (default _MP_SPACE_GEONOSIS),
 // --human FACTION makes that slot an idle human. Slot 0 = player 0, slot 1 = player 1: Empire / Rebel by default (the retail
-// trace's owners), q6 t02: --ai FACTION[,FACTION] (MapRunOptions::ai_factions) for any factions of the data. MP_Default_Credits
+// trace's owners), --ai FACTION[,FACTION] (MapRunOptions::ai_factions) for any factions of the data. MP_Default_Credits
 // each; the starting forces (skirmish_slot_forces) wait at planets 0 / 2 of the scaffold galaxy (no conflict) and become the
 // battle's starting units; the base, pads and stations come from the map's team markers. Each AI slot plays
 // game::resolve_ai_type (skirmish: no campaign pairs).
@@ -794,7 +794,7 @@ int skirmish_ai_run(const MapRunOptions& opt, const std::string& kind, const std
         for (const std::string& d : diag) std::fprintf(stderr, "  %s\n", d.c_str());
         return 2;
     }
-    if (host && !opt.quiet)  // q6 t02: the slots, their AI types and starting forces (stdout only, nothing hashed)
+    if (host && !opt.quiet)  // the slots, their AI types and starting forces (stdout only, nothing hashed)
         for (const std::string& d : diag)
             if (d.rfind("skirmish host: ", 0) == 0) std::printf("%s\n", d.c_str());
     terrain::MapData map;
@@ -819,7 +819,7 @@ int skirmish_ai_run(const MapRunOptions& opt, const std::string& kind, const std
     s.ai->equations = &s.eqs;
     s.ai->files = s.files.get();
     if (opt.ai_latency >= 0) s.ai->path_latency = static_cast<uint32_t>(opt.ai_latency);  // OPT2 t01 / t02 parity knobs
-    s.ai->stagger = opt.ai_stagger == 1;  // bkx1 t01 (b0123): off by default as galactic; --ai-stagger turns the phases on
+    s.ai->stagger = opt.ai_stagger == 1;  // off by default as galactic; --ai-stagger turns the phases on
     s.ai->pp_streams = opt.pp_streams;  // OPT2 t10 parity knobs
     s.ai->plan_retest = opt.plan_retest;  // skai t15
     if (opt.pp_latency >= 0) s.ai->pp_latency = static_cast<uint32_t>(opt.pp_latency);
@@ -829,7 +829,7 @@ int skirmish_ai_run(const MapRunOptions& opt, const std::string& kind, const std
         std::string text;
         uint64_t ticks = 0;
         size_t lua_errors = 0;
-        size_t retail_lua_errors = 0;  // skai t15: of lua_errors, the ones retail raises too (kRetailLuaErrors)
+        size_t retail_lua_errors = 0;  // of lua_errors, the ones retail raises too (kRetailLuaErrors)
         // S10 land outcome: from the battle summary (TacticalBattle::summary) - battle frames, winner faction, victory.
         bool ended = false, starbase_lost = false;
         unsigned long battle_frames = 0;
@@ -837,13 +837,13 @@ int skirmish_ai_run(const MapRunOptions& opt, const std::string& kind, const std
         // t50 (land skirmish): the battle's BattleStats as last seen while it ran (the summary only exists once it has ended).
         unsigned long prebuilt = 0, pads = 0, structures = 0, shots = 0;
         uint64_t orders = 0;
-        // s78n t20: per side, the 2-D distance of its first start-force unit from its spawn-point marker (-1: none)
+        // per side, the 2-D distance of its first start-force unit from its spawn-point marker (-1: none)
         double start_off[2] = {-1.0, -1.0};
         unsigned long attack_reissues = 0, attack_stops = 0, attack_skips = 0;  // s78n t20 stage A (BattleStats)
         // cmb1 t01 / t04 (BattleStats): land auto attack blocks pushed / popped, guard re-plans (moving, arrived, unseen) and
         // position guards
         unsigned long auto_pushes = 0, auto_pops = 0, guard_repaths = 0, guard_rechecks = 0, guard_unseen = 0, guard_drops = 0;
-        unsigned long step10 = 0;  // cmb2 t07: MovingVsStopped step 10 attack blocks issued
+        unsigned long step10 = 0;  // MovingVsStopped step 10 attack blocks issued
     };
     constexpr uint32_t kBattleFrames = 30 * 480;  // [port] the 15-min battle limit (S10)
     std::string log_text;
@@ -853,7 +853,7 @@ int skirmish_ai_run(const MapRunOptions& opt, const std::string& kind, const std
         cfg.seed = opt.seed;
         cfg.players = 4;
         cfg.object_scripts = opt.object_scripts;  // q6
-        // q4hf t02: the tactical state trace reads the battle after each tick (never writes it); the first run only.
+        // the tactical state trace reads the battle after each tick (never writes it); the first run only.
         PortTacticalTrace trace;
         if (write_trace && !trace_out.empty()) {
             std::string sides;
@@ -1095,7 +1095,7 @@ int skirmish_ai_run(const MapRunOptions& opt, const std::string& kind, const std
         out.pads = pads;
         out.structures = structures;
         out.shots = shots;
-        if (opt.report_fielded) {  // tst2 t04: "  fielded p<slot> <faction> <TYPE> x<count> walked <distance>", type name order
+        if (opt.report_fielded) {  // "  fielded p<slot> <faction> <TYPE> x<count> walked <distance>", type name order
             std::map<std::pair<int32_t, std::string>, std::pair<uint32_t, double>> by_type;
             for (const auto& [id, f] : fielded) {
                 auto& acc = by_type[{f.owner, f.type}];
@@ -1124,7 +1124,7 @@ int skirmish_ai_run(const MapRunOptions& opt, const std::string& kind, const std
                           st.attached, st.load_failures, st.pumps, st.first_draws, st.released_exit, st.released_dead,
                           st.released_mode, st.thread_errors, os->live(), os->error_total());
             out.text += buf;
-            {  // q6 t19: the §1.4 pools (name size/in use) and the reuse counts
+            {  // the §1.4 pools (name size/in use) and the reuse counts
                 std::string pl = "  object script pools:";
                 for (const sim::ObjectScriptHost::PoolInfo& p : os->pools())
                     pl += " " + p.name + " " + std::to_string(p.size) + "/" + std::to_string(p.in_use);
@@ -1192,9 +1192,9 @@ int skirmish_ai_run(const MapRunOptions& opt, const std::string& kind, const std
                 return true;
             },
             counts);
-    // t48: shipped scripts against the port: a Lua error here is a port bug until shown otherwise. a1j t07: any kind with
+    // t48: shipped scripts against the port: a Lua error here is a port bug until shown otherwise. Any kind with
     // --fail-on-lua-errors.
-    // skai t15 (Gabriel, 2026-11-16, DECISIONS.md "Retail Lua errors in the skai exit test"): a Lua error that retail raises
+    // skai t15 (Gabriel, 2026-11-16, docs/SIMULATION.md "Retail Lua errors in outcome tests"): a Lua error that retail raises
     // too, shown from the binary in docs/re and listed in kRetailLuaErrors, is reported but allowed.
     if ((kind == "foc-station" || opt.fail_on_lua_errors) && first.lua_errors > first.retail_lua_errors) {
         std::printf("Lua errors: %zu (%zu retail, documented; no other allowed)\n", first.lua_errors, first.retail_lua_errors);
@@ -1271,8 +1271,8 @@ std::shared_ptr<SkirmishSaveData> skirmish_save_load(const std::string& kind, co
     Session& s = d->s;
     std::vector<std::string> diag;
     skipped = false;
-    const bool army4 = kind == "foc-land-army4";  // SP5 t07: four times foc-land-army
-    const bool army = kind == "foc-land-army" || army4;  // BM3 t02: foc-land with the company lists repeated kArmyScale times
+    const bool army4 = kind == "foc-land-army4";  // four times foc-land-army
+    const bool army = kind == "foc-land-army" || army4;  // foc-land with the company lists repeated kArmyScale times
     const bool foc = kind == "foc" || kind == "foc-land" || kind == "foc-land-campaign" || kind == "foc-fleet" || army;
     if (!foc && kind != "synthetic") {
         err = "unknown skirmish '" + kind + "' (synthetic | foc | foc-fleet | foc-land | foc-land-army | foc-land-army4 | foc-land-campaign)";
@@ -1289,7 +1289,7 @@ std::shared_ptr<SkirmishSaveData> skirmish_save_load(const std::string& kind, co
         err = "ALAMO_FOC_DATA / --game not set";
         return nullptr;
     }
-    // SP5 t07: Max_Ground_Forces_On_Planet x 4 for the stress scene, so the galaxy holds (and the battle takes) four times
+    // Max_Ground_Forces_On_Planet x 4 for the stress scene, so the galaxy holds (and the battle takes) four times
     // land_battle's companies on each side ([port] bench only; GalacticSim reads the rules when it starts).
     if (army4) s.rules.constants.max_ground_forces_on_planet *= 4;
     if (!ok) {
@@ -1324,7 +1324,7 @@ std::shared_ptr<SkirmishSaveData> skirmish_save_load(const std::string& kind, co
     h.u32(static_cast<uint32_t>(s.defs.goals.size()));
     h.u32(static_cast<uint32_t>(s.eqs.size()));
     d->fingerprint = sim::combine_fingerprints({sim::fingerprint_types(s.types), sim::fingerprint_galactic(s.rules, s.setup), h.digest()});
-    // SP5 t07: the services stress scene runs without the tactical AI. The AI's land population cap (BattleAi::population_cap,
+    // the services stress scene runs without the tactical AI. The AI's land population cap (BattleAi::population_cap,
     // retail rule) would keep most of the 24x lists in reserve; the stand-in deploys every reserve on its cadence (no land
     // cap), so the map holds four times land_battle's forces, and the tick is movement, combat and the services.
     if (army4) s.ai.reset();

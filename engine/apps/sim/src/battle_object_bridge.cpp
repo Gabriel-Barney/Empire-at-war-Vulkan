@@ -1,4 +1,4 @@
-// ref2 t04: the battle lifecycle hooks of a Lua ObjectBridge (battle_object_bridge.hpp).
+// the battle lifecycle hooks of a Lua ObjectBridge (battle_object_bridge.hpp).
 #include "alamo/sim/battle_object_bridge.hpp"
 
 #include <memory>

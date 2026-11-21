@@ -10,13 +10,13 @@
 #include <map>
 
 #include "alamo/ai/ai_types.hpp"
-#include "alamo/ai/ai_goals.hpp"  // bkx1 t01: goal_quota_players
+#include "alamo/ai/ai_goals.hpp"  // goal_quota_players
 #include "alamo/ai/tactical/tactical_perception.hpp"
 #include "alamo/core/ascii.hpp"
 #include "alamo/core/dmath.hpp"
 #include "alamo/core/profile.hpp"
 #include "alamo/core/sim_crc.hpp"
-#include "alamo/data/game_database.hpp"  // a2h t05: load_tactical_ai_data
+#include "alamo/data/game_database.hpp"  // load_tactical_ai_data
 #include "alamo/galactic/campaign.hpp"
 #include "alamo/jobs/job_system.hpp"
 #include "alamo/lua/object_bridge.hpp"
@@ -24,8 +24,8 @@
 #include "alamo/sim/battle_object_bridge.hpp"  // ref2 t04
 #include "alamo/sim/sim_host.hpp"
 #include "alamo/sim/tactical_battle.hpp"
-#include "alamo/tactical/movement/land_path.hpp"    // mcx6 t06: line_passable (attack position terrain check)
-#include "alamo/tactical/movement/unit_params.hpp"  // refixf t06: space drop footprint
+#include "alamo/tactical/movement/land_path.hpp"    // line_passable (attack position terrain check)
+#include "alamo/tactical/movement/unit_params.hpp"  // space drop footprint
 #include "save_io.hpp"
 
 namespace alamo::sim {
@@ -109,28 +109,28 @@ BattleAi::BattleAi(TacticalBattle& battle, TacticalMode& mode, SimHost& host, co
     cfg.constants = setup.constants;
     cfg.log_decisions = setup.log_decisions;
     cfg.game_seed = host.session_seed();  // A2 tactical: perception '#' reseed (AI_GALACTIC_3 §7.3)
-    cfg.lua_gc_pf = host.parallel_for();  // OPT2 t04: scheduled Lua collections on the host's job system
-    cfg.background = jobs::make_background_start(host.jobs());  // OPT2 t02: background path recomputes
+    cfg.lua_gc_pf = host.parallel_for();  // scheduled Lua collections on the host's job system
+    cfg.background = jobs::make_background_start(host.jobs());  // background path recomputes
     cfg.path_latency = setup.path_latency;
     cfg.stagger = setup.stagger;  // OPT2 t01
-    // bkx1 t01 (b0123, BKX1_CADENCE_RE §2 [H]): the goal quota's N - H over the global PlayerList, as galactic
+    // bkx1 t01 (BKX1_CADENCE_RE §2 [H]): the goal quota's N - H over the global PlayerList, as galactic
     {
         std::vector<ai::QuotaPlayer> qp;
         for (const galactic::PlayerState& ps : g.players()) qp.push_back({ps.faction, ps.human});
         const auto& factions = g.rules().factions;
         cfg.quota_players = ai::goal_quota_players(qp, factions.size(), [&factions](size_t f) { return std::string_view(factions[f].name); });
     }
-    cfg.pf = host.parallel_for();  // OPT2 t03: goal candidates' perception values; OPT2 t10: slot-10 solves
+    cfg.pf = host.parallel_for();  // goal candidates' perception values; slot-10 solves
     cfg.pp_streams = setup.pp_streams;  // OPT2 t10
     cfg.plan_retest = setup.plan_retest;  // skai t15
     cfg.pp_latency = setup.pp_latency;
     cfg.ai_lane = setup.ai_lane;  // sp3
     cfg.k_ai = setup.k_ai == 0 ? 1 : setup.k_ai;
-    // A2 tactical (§3.2). trl2 t02: one source with the battle's land count (TacticalBattle::population_used reads the
+    // A2 tactical (§3.2). One source with the battle's land count (TacticalBattle::population_used reads the
     // catalog's GameConstants value).
     allow_reinforcement_fraction_ = b_->catalog_ ? b_->catalog_->allow_reinforcement_fraction() : setup.constants.allow_reinforcement_percentage;
     use_reinforcement_points_ = setup.constants.use_reinforcement_points;           // a1g t04 follow-up (land drops)
-    // ref2 t05: the threat grid's box is the fog box (AI_TACTICAL_PERCEPTION §4.1): one source, TacticalBattle::map_extents
+    // the threat grid's box is the fog box (AI_TACTICAL_PERCEPTION §4.1): one source, TacticalBattle::map_extents
     const tactical::Aabb bb = b_->map_extents(mode, TacticalBattle::ExtentsUse::Perception);
     cfg.map = {bb.min.x, bb.min.y, bb.max.x, bb.max.y};
 #ifdef ALAMO_AI_TACTICAL_HAVE_TERRAIN
@@ -154,7 +154,7 @@ BattleAi::BattleAi(TacticalBattle& battle, TacticalMode& mode, SimHost& host, co
             ls.ai = ps.ai;
             ls.credits = g.credits(static_cast<int32_t>(p));
             const auto pi = static_cast<int32_t>(p);
-            // skm2 t02: a skirmish map battle's slots 2.. take part too.
+            // a skirmish map battle's slots 2.. take part too.
             const bool participant = pi == cfg.attacker || pi == cfg.defender || (b_->skirmish_map() && b_->skirmish_slot_of(pi) >= 0);
             const std::string type = !participant ? std::string() : setup.ai_type ? setup.ai_type(pi, g) : default_tactical_ai_type(pi, g);
             if (!type.empty()) {
@@ -168,7 +168,7 @@ BattleAi::BattleAi(TacticalBattle& battle, TacticalMode& mode, SimHost& host, co
         cfg.lua_players.push_back(ls);
     }
     {
-        // skai t12: the PlayerList of the goal quota = the players plus one per faction without a player (the galactic
+        // the PlayerList of the goal quota = the players plus one per faction without a player (the galactic
         // AI's count, galactic_ai.cpp quota_players; a faction defined twice under one name counts once [port]).
         const auto& factions = g.rules().factions;
         auto n = static_cast<int32_t>(players);
@@ -183,12 +183,12 @@ BattleAi::BattleAi(TacticalBattle& battle, TacticalMode& mode, SimHost& host, co
     world_ = std::make_unique<at::TacticalAiWorld>(mode.primary(), &mode.types(), setup.files, host.random(), *setup.defs,
                                                    *setup.equations, *this, std::move(cfg));
     lua::ObjectBridge& br = world_->object_bridge();
-    TacticalBattle* bt = b_;  // abilities / ability_frame: make_object_bridge below (ref3 t06)
+    TacticalBattle* bt = b_;  // abilities / ability_frame: make_object_bridge below
     br.is_enemy = [this, bt](int32_t x, int32_t y) {  // sp3 slice 4e: the view with the lane on
         if (!lane_view()) return bt->combat().is_enemy(x, y);
         return x >= 0 && x < 256 && view_hostile(static_cast<uint8_t>(x), y);
     };
-    // refixf t03: Find_All_Objects_Of_Type / Find_Nearest match TEAM containers on their company / team type.
+    // Find_All_Objects_Of_Type / Find_Nearest match TEAM containers on their company / team type.
     const objects::ObjectStore* rep_store = &mode.primary();
     br.representative_type = [this, bt, rep_store](objects::ObjectHandle o) {
         if (lane_view()) {  // sp3 slice 4e: the AI's handles are the snapshot store's
@@ -201,7 +201,7 @@ BattleAi::BattleAi(TacticalBattle& battle, TacticalMode& mode, SimHost& host, co
         }
         return rep_store->exists(o) ? bt->representative_type(rep_store->id(o)) : objects::kNone;
     };
-    // mcx8 t12: Get_Game_Scoring_Type answers a TEAM container's company type (the lane: the captured view).
+    // Get_Game_Scoring_Type answers a TEAM container's company type (the lane: the captured view).
     br.team_company_type = [this, bt, rep_store](objects::ObjectHandle o) {
         if (lane_view()) {
             const objects::ObjectStore& vs = world_->view_store();
@@ -213,11 +213,11 @@ BattleAi::BattleAi(TacticalBattle& battle, TacticalMode& mode, SimHost& host, co
         }
         return rep_store->exists(o) ? bt->team_company_type(rep_store->id(o)) : objects::kNone;
     };
-    // q6 t28: Find_Hint / Get_Hint see the map objects' .ted hint names.
+    // Find_Hint / Get_Hint see the map objects' .ted hint names.
     br.map_hint = [bt, rep_store](objects::ObjectHandle o) {
         return rep_store->exists(o) ? bt->map_hint(rep_store->id(o)) : std::string_view();
     };
-    // s78i t02: the Reinforce_Unit stand-in faces the owner's entry-facing record (TACTICAL_COMBAT §3.1.1 "other spawns").
+    // the Reinforce_Unit stand-in faces the owner's entry-facing record (TACTICAL_COMBAT §3.1.1 "other spawns").
     br.reinforce_facing = [bt](int32_t player) { return bt->player_drop_facing(player); };
     br.order_finished = [this, bt](objects::ObjectId id, uint32_t) {
         if (lane_view()) {  // sp3 slice 4e
@@ -240,7 +240,7 @@ BattleAi::BattleAi(TacticalBattle& battle, TacticalMode& mode, SimHost& host, co
         if (world_->ai_lane()) return lua::script_movement_locked(std::span<const lua::ScriptLockFact>(lane_locks_), id, goal);
         return lua::script_movement_locked(br, id, goal);
     });
-    // STY1 t01: Prevent_All_Fire / Suspend_Locomotor / Set_Cannot_Be_Killed / Override_Max_Speed of the AI VMs' objects.
+    // Prevent_All_Fire / Suspend_Locomotor / Set_Cannot_Be_Killed / Override_Max_Speed of the AI VMs' objects.
     // [port] With the AI lane on the bridge belongs to the lane thread and its facts are not published for these (the lock
     // facts are saved state; a new fact would change the lane save format): the setters are then stored only.
     bt->set_script_unit_control(this, [this, &br](objects::ObjectId id) {
@@ -257,7 +257,7 @@ BattleAi::BattleAi(TacticalBattle& battle, TacticalMode& mode, SimHost& host, co
         return c;
     });
 
-    // ref2 t04: the battle lifecycle of the AI VMs (Spawn_Unit, companies, Take_Damage, Change_Owner, Despawn) through the
+    // the battle lifecycle of the AI VMs (Spawn_Unit, companies, Take_Damage, Change_Owner, Despawn) through the
     // battle, the same factory as the story VMs' bridge; before, only Change_Owner went through the battle (OI host) and the
     // rest wrote the bare store. [port] With the AI lane on the VMs' handles are the snapshot store's and their scripts run
     // off the critical lane, so every lifecycle call is refused there (no shipped AI script makes one).
@@ -369,7 +369,7 @@ BattleAi::BattleAi(TacticalBattle& battle, TacticalMode& mode, SimHost& host, co
         k.engines_online = [bt, bid](objects::ObjectHandle u) { return bt->engines_online(bid(u)); };
         k.ground_height = [bt](float x, float y) { return bt->ground_height(x, y); };
         k.teleport = [bt, md, bid](objects::ObjectHandle u, Vec3 p, Vec3 f) { bt->teleport(*md, bid(u), p, f); };
-        // aitac t03: Face_Immediate of an AI VM through the battle (movement facing, presentation), as the story VMs';
+        // Face_Immediate of an AI VM through the battle (movement facing, presentation), as the story VMs';
         // before, the binding set the bare store facing
         k.face_immediate = [bt, md, bid](objects::ObjectHandle u, Vec3 f) { bt->face_immediate(*md, bid(u), f); };
         k.movement_first_lock = [bt, md, bid](objects::ObjectHandle u) { bt->script_first_lock(*md, bid(u)); };  // cu8l t02
@@ -377,13 +377,13 @@ BattleAi::BattleAi(TacticalBattle& battle, TacticalMode& mode, SimHost& host, co
         k.retreat_increment_frames = [bt](int32_t player) { return bt->retreat_increment_frames(player); };
         k.set_new_environment = [bt](int32_t index) { bt->set_environment(index); };  // cu8g t03
         k.set_cinematic_environment = [bt](bool on) { bt->set_cinematic_environment(on); };  // ui2 t08
-        k.spawn = [bt, md](const objects::SpawnParams& p) { return bt->script_spawn_effect(*md, p); };  // ref2 t04: the adopt step
+        k.spawn = [bt, md](const objects::SpawnParams& p) { return bt->script_spawn_effect(*md, p); };  // the adopt step
 #ifdef ALAMO_LUA_HAVE_FOG
-        // refixf t03: Find_Nearest(obj, filter, player, bool) skips objects fogged for the player (0x35f470, force = 1).
+        // Find_Nearest(obj, filter, player, bool) skips objects fogged for the player (0x35f470, force = 1).
         fog_hooks_.object_hidden = [bt, bid](objects::ObjectHandle o, int32_t player, bool force) {
             return bt->fog_object_hidden(player, bid(o), force);
         };
-        // S7 t34: the AI VMs' FogOfWar.* (Reveal_All in BurnUnits' fire sale, Reveal, Temporary_Reveal) run on the
+        // the AI VMs' FogOfWar.* (Reveal_All in BurnUnits' fire sale, Reveal, Temporary_Reveal) run on the
         // battle's fog, as the story VMs' (CampaignBattles::story_begin); before, `fog` stayed null and every call was a
         // "Command only valid in a tactical game" SCRIPT ERROR. Null when the battle runs without fog (BattleConfig::fog).
         // [port] the AI VMs' FOWCells handles are not in the save (none of the shipped AI scripts keeps one).
@@ -455,7 +455,7 @@ void BattleAi::wrap_lane_hooks() {
         const objects::ObjectHandle h = vs.find(id);
         return vs.exists(h) ? vs.owner(h) : -1;
     };
-    // ---- reads (ref5 t07: the fact tables l1_ ... answer live or from the capture, by lane_view()) ----
+    // ---- reads (the fact tables l1_ ... answer live or from the capture, by lane_view()) ----
     {
         const TacticalBattle* bt = b_;
         l1_.set_rule([this](const objects::ObjectId& id) { return l1_fact(id); });
@@ -640,7 +640,7 @@ void BattleAi::wrap_lane_hooks() {
     };
 }
 
-// ref5 t07: the l1_ rule - one battle unit or container's L1 answers (const battle reads: the capture runs it in parallel).
+// the l1_ rule - one battle unit or container's L1 answers (const battle reads: the capture runs it in parallel).
 BattleAi::L1Fact BattleAi::l1_fact(objects::ObjectId id) const {
     const TacticalBattle* bt = b_;
     L1Fact o;
@@ -665,7 +665,7 @@ void BattleAi::capture_l1() {
     for (const TacticalBattle::Container& c : b_->containers_) ids.push_back(c.id);
     std::sort(ids.begin(), ids.end());
     ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
-    // slice 4f: the l1_ rule per object in parallel (const battle reads, per-index outputs); ref5 t07: as fact tables
+    // slice 4f: the l1_ rule per object in parallel (const battle reads, per-index outputs); as fact tables
     l1_.capture(std::move(ids), host_->parallel_for(), 16);
     {
         std::vector<objects::ObjectId> blows;
@@ -816,7 +816,7 @@ bool BattleAi::start(std::vector<std::string>* diag) {
     // sp3 slice 4c: the start scripts (critical lane, before the first AI slot) read a view captured now, and what they
     // queue is collected at once (no job is pending yet: the first update would otherwise drop it).
     capture_lane_view();
-    set_thinking(true);  // ref5 t06: the start scripts read only the view
+    set_thinking(true);  // the start scripts read only the view
     const bool ok = world_->start(diag);
     set_thinking(false);
     set_build_time_multipliers();
@@ -852,7 +852,7 @@ void BattleAi::update() {
         lane_job_.pending = true;
         lane_job_.frame = host_->frame();
         lane_job_.batch.clear();
-        set_thinking(true);  // ref5 t06: from here to the end of think() no host answer reads the battle
+        set_thinking(true);  // from here to the end of think() no host answer reads the battle
         world_->think();  // inline: the AI lane's job (t03: on the AI thread)
         set_thinking(false);
         lane_job_.locks = world_->object_bridge().script_lock_facts();  // slice 4e: published at collect
@@ -866,9 +866,9 @@ void BattleAi::update() {
     standin_orders();
 }
 
-// sp3 t02: the TacticalAiHost answers of this AI slot (critical lane; the overrides read the battle while `valid` is false).
+// the TacticalAiHost answers of this AI slot (critical lane; the overrides read the battle while `valid` is false).
 void BattleAi::capture_lane_view() {
-    ALAMO_PROFILE_SCOPE("tac.ai.capture");  // sp3: wall clock only
+    ALAMO_PROFILE_SCOPE("tac.ai.capture");  // wall clock only
     profile::Steps steps;
     view_.valid = false;
     ensure_type_facts();
@@ -897,7 +897,7 @@ void BattleAi::capture_lane_view() {
         if (u.alive && !u.retreated) view_.live_units.push_back(u.id);
     std::sort(view_.live_units.begin(), view_.live_units.end());
     ALAMO_PROFILE_STEP(steps, "tac.cap.pads_scan");
-    // ref5 t07: the per-player fact tables, from their rules (every host player)
+    // the per-player fact tables, from their rules (every host player)
     {
         std::vector<int32_t> all(np);
         for (int32_t p = 0; p < players; ++p) all[static_cast<size_t>(p)] = p;
@@ -960,7 +960,7 @@ void BattleAi::capture_lane_view() {
                     v.arrived = m.arrived ? 1 : 0;
                     v.gx = m.goal.x;
                     v.gy = m.goal.y;
-                    if (!bt->space_) v.mask = bt->movement_->mask_of(u.id);  // ref5 t06: the attack-position line test
+                    if (!bt->space_) v.mask = bt->movement_->mask_of(u.id);  // the attack-position line test
                 }
             }
         });
@@ -1107,10 +1107,10 @@ std::string BattleAi::summary() const {
 // ---- N1 stage 2 save / load (owner: n2-host): chunk "battle.ai" ---------------------------------------------------
 namespace {
 // 2: UnitAI re-projection stamps; 3: a1h t02 object-goal follow records; 4: s78n t25.4 ObjectFollow::guard
-// mcx6 t06: 7 (lane off) / 8 (lane on) = 4 / 6 + the UnitAI attack-positioning stamps (unit_ai_second_) after the follow
+// 7 (lane off) / 8 (lane on) = 4 / 6 + the UnitAI attack-positioning stamps (unit_ai_second_) after the follow
 // records; 4 / 5 / 6 still load (the second stamp then reads the first's value [port]).
 constexpr uint32_t kBattleAiSaveVersion4 = 4;
-constexpr uint32_t kBattleAiLaneSaveVersion5 = 5;  // sp3 t04: version 4 + the AI lane's queued orders (lane on only)
+constexpr uint32_t kBattleAiLaneSaveVersion5 = 5;  // version 4 + the AI lane's queued orders (lane on only)
 constexpr uint32_t kBattleAiLaneSaveVersion6 = 6;  // sp3 slice 4e: version 5 + the movement-lock facts (published, job)
 constexpr uint32_t kBattleAiSaveVersion = 7;
 constexpr uint32_t kBattleAiLaneSaveVersion = 8;
@@ -1134,7 +1134,7 @@ void follow_fields(A& a, F& f) {
 }
 }
 
-// REF4 t02: one field list for the save (save_io::Out) and the CRC (save_io::Hash). Before, hash() kept its own list and
+// one field list for the save (save_io::Out) and the CRC (save_io::Hash). Before, hash() kept its own list and
 // left out ai_side_, opp_prev_, unit_ai_stamps_ and unit_ai_second_ (opportunity filtering, attack positioning).
 template <class A>
 void BattleAi::visit_saved(A& a) const {
@@ -1144,7 +1144,7 @@ void BattleAi::visit_saved(A& a) const {
     a.seq(follows_, [](A& x, const ObjectFollow& f) { follow_fields(x, f); });
     a(unit_ai_second_);  // version 7 / 8
     if (!world_->ai_lane()) return;
-    // sp3: the host waited for the running job (lane_sync); a finished job not yet collected is saved as it is
+    // the host waited for the running job (lane_sync); a finished job not yet collected is saved as it is
     const auto command = [](A& x, const cmd::Command& c) { x.blob(cmd::encode_command(c)); };
     const auto lock = [](A& x, const lua::ScriptLockFact& f) { x(f.id, f.locked, f.diverted, f.goal); };
     a.save_only(lane_digest_);  // hash() takes it in the world's place
@@ -1164,14 +1164,14 @@ void BattleAi::write(ByteWriter& w) const {
 }
 
 void BattleAi::hash(StateHasher& h) const {
-    if (world_->ai_lane()) h.u64(lane_digest_);  // sp3 t02: the last collected job's world digest
+    if (world_->ai_lane()) h.u64(lane_digest_);  // the last collected job's world digest
     else world_->hash(h);
     save_io::Hash a(h);
     visit_saved(a);
 }
 
 bool BattleAi::read(ByteReader& r) {
-    // sp3 t04: version 5 (lane block) only into an AI-lane world; version 4 into either (an AI-lane world then starts with
+    // version 5 (lane block) only into an AI-lane world; version 4 into either (an AI-lane world then starts with
     // an empty batch)
     const uint32_t version = r.u32();
     const bool lane_version = version == kBattleAiLaneSaveVersion5 || version == kBattleAiLaneSaveVersion6 || version == kBattleAiLaneSaveVersion;
@@ -1248,8 +1248,8 @@ bool BattleAi::read(ByteReader& r) {
     // slice 4e: a version-5 save (no facts) takes the loaded bridge's (its world was saved after the job)
     lane_locks_ = version == kBattleAiLaneSaveVersion6 || version == kBattleAiLaneSaveVersion ? std::move(lane_locks)
                                                                                                 : world_->object_bridge().script_lock_facts();
-    view_.valid = false;  // sp3 t02: captured again at the next AI slot
-    view_.grid_valid = false;  // ref5 t06: the grid copy too (a loaded grid may have another state at the same version)
+    view_.valid = false;  // captured again at the next AI slot
+    view_.grid_valid = false;  // the grid copy too (a loaded grid may have another state at the same version)
     world_->object_bridge().lane_abilities = nullptr;  // sp3 slice 4b: likewise the ability records
     lane_unloaded_.clear();  // sp3 slice 4d: consumed within the tick of its apply
     return true;
@@ -1290,7 +1290,7 @@ void BattleAi::ensure_type_facts() {
 }
 
 void BattleAi::fill(at::PerceptionWorld& w, std::vector<at::TacticalAiObject>& out) {
-    ensure_type_facts();  // sp3 t01: before the parallel build below reads it
+    ensure_type_facts();  // before the parallel build below reads it
     const objects::ObjectStore& st = mode_->primary();
     const objects::GameObjectTypes& types = mode_->types();
     const galactic::GalacticSim& g = *b_->galaxy_;
@@ -1316,7 +1316,7 @@ void BattleAi::fill(at::PerceptionWorld& w, std::vector<at::TacticalAiObject>& o
         } else {
             // t48: skirmish reads Player_%d_Position_Marker of Self. [port] the port's skirmish deploys both sides at the battle
             // anchors, not at those markers, so each side's start position is its anchor (defender 0, attacker 1).
-            // skm2 t02: every side of a skirmish map with more than two slots (side k >= 2 = slot k).
+            // every side of a skirmish map with more than two slots (side k >= 2 = slot k).
             for (uint8_t side = 0; side < b_->side_count(); ++side) {
                 at::StartMarker m;
                 m.kind = at::StartMarker::Kind::PlayerPosition;
@@ -1325,7 +1325,7 @@ void BattleAi::fill(at::PerceptionWorld& w, std::vector<at::TacticalAiObject>& o
                 w.markers.push_back(m);
             }
         }
-        // A2k t13 / t06: a type without a converted CategoryMask field resolves its names with the types' data-loaded
+        // a type without a converted CategoryMask field resolves its names with the types' data-loaded
         // GameObjectCategoryType converter (mod categories), as the tactical AI's perception does.
         const auto mask = at::category_mask_from(types.enums());
         // battle host: type flag +0x29 = listed in some type's Squadron_Units (0x377500), sorted for lookup.
@@ -1363,13 +1363,13 @@ void BattleAi::fill(at::PerceptionWorld& w, std::vector<at::TacticalAiObject>& o
                 }
             }
             pt.is_hero = types.get(ti, objects::tags::Is_Named_Hero);
-            pt.bombing_run_prevention_radius = types.get(ti, objects::tags::Bombing_Run_Prevention_Radius);  // float field (bkc1 t07)
+            pt.bombing_run_prevention_radius = types.get(ti, objects::tags::Bombing_Run_Prevention_Radius);  // float field
             pt.community_property = types.get(ti, objects::tags::Is_Community_Property);
             // --- A2 tactical: PotentialPlan inputs (tactical_pp.hpp) ---
             pt.tech_level = types.get(ti, objects::tags::Tech_Level);
             pt.population = type_population(static_cast<int32_t>(t));
             pt.build_cost = static_cast<float>(types.get(ti, objects::tags::Build_Cost_Credits));  // int field
-            pt.build_time_seconds = types.get(ti, objects::tags::Build_Time_Seconds);  // int field +0x890 (A2g t06: AllowedTime base)
+            pt.build_time_seconds = types.get(ti, objects::tags::Build_Time_Seconds);  // int field +0x890 (AllowedTime base)
             for (const std::string_view f : types.get(ti, objects::tags::Affiliation)) pt.affiliation.emplace_back(f);
             // flags +0x67 Create_Team / +0x29 squadron member / +0x21 Cinematic_Object_Only, behaviours 0x5C DUMMY_STAR_BASE /
             // 0x5B DUMMY_GROUND_BASE (AI_GALACTIC_3 §6 table) [battle host: replaces the Is_Dummy stand-in]
@@ -1381,7 +1381,7 @@ void BattleAi::fill(at::PerceptionWorld& w, std::vector<at::TacticalAiObject>& o
                              (kGroundBase != objects::kNoBehavior && types.has_behavior(ti, objects::BehaviorSet::Union, kGroundBase));
             static const objects::BehaviorTypeId kUc = objects::behavior_type_id("TACTICAL_UNDER_CONSTRUCTION");
             pt.under_construction = kUc != objects::kNoBehavior && types.has_behavior(ti, objects::BehaviorSet::Union, kUc);
-            if (pt.under_construction) {  // skai t12: the finished type, for TacticalBuiltStructureCount
+            if (pt.under_construction) {  // the finished type, for TacticalBuiltStructureCount
                 const objects::TypeIndex ft = types.resolve_name(types.get(ti, objects::tags::Tactical_Buildable_Constructed));
                 if (ft != objects::kNone && ft < types.size()) pt.constructed_type = static_cast<int32_t>(ft);
             }
@@ -1416,7 +1416,7 @@ void BattleAi::fill(at::PerceptionWorld& w, std::vector<at::TacticalAiObject>& o
             for (uint32_t bq = 0; bq < players; ++bq) {
                 if (a == bq) continue;
                 const bool hostile = c.is_enemy(static_cast<int32_t>(a), static_cast<int32_t>(bq));
-                // skm2 t02: an ally (relation 0: a skirmish team mate) is friendly to the perception, as the combat table says.
+                // an ally (relation 0: a skirmish team mate) is friendly to the perception, as the combat table says.
                 const bool ally = !hostile && b_->bt_relation(static_cast<int32_t>(a), static_cast<int32_t>(bq)) == 0;
                 w.relation[static_cast<size_t>(a) * players + bq] = static_cast<uint8_t>(hostile ? 1 : ally ? 0 : 2);
             }
@@ -1425,7 +1425,7 @@ void BattleAi::fill(at::PerceptionWorld& w, std::vector<at::TacticalAiObject>& o
         // shared by its weapon hard points [port M].
         const tc::CombatSystem* cs = &c;
         TacticalBattle* bt = b_;
-        if (world_->ai_lane()) {  // ref5 t06: the capture's copy
+        if (world_->ai_lane()) {  // the capture's copy
             w.hard_points = [this](int32_t id, std::vector<at::PerceptionHardPoint>& hps) {
                 hps.clear();
                 const auto& ix = view_.hp_index;
@@ -1470,7 +1470,7 @@ void BattleAi::fill(at::PerceptionWorld& w, std::vector<at::TacticalAiObject>& o
             return (map->passability_at(cx, cy) & (terrain::kPassSteep | terrain::kPassWater)) != 0u;
         };
     }
-    if (!b_->space_ && !w.point_explore_blocked) {  // aitac t07: Explore_Area's cell test (0x26)
+    if (!b_->space_ && !w.point_explore_blocked) {  // Explore_Area's cell test (0x26)
         const terrain::MapData* map = &b_->map_;
         w.point_explore_blocked = [map](float x, float y) {
             const float fx = (x + 10.0f) / 20.0f, fy = (y + 10.0f) / 20.0f;
@@ -1491,7 +1491,7 @@ void BattleAi::fill(at::PerceptionWorld& w, std::vector<at::TacticalAiObject>& o
     // Retail run 20261116-171531 (Utapau, won by destroying the base) proposes Hold_Position at 10, then 5 (20 - 15, one
     // activation failure) and 20: 10 * Is_Initial_Skirmish_State_Established (1 with the base, 2 after tech 2), none of
     // it from 20 * IsLandControlGame (SKAI_T15_PLAN_RETEST "IsLandControlGame"). [port] the control-point win condition
-    // stands for type 4 (ccpgu t03). It gates Hold_Position, Secure_Victory_Control_Point and May_Lose_Land_Control_Game
+    // stands for type 4. It gates Hold_Position, Secure_Victory_Control_Point and May_Lose_Land_Control_Game
     // (which, when 1, holds back the opening unit builds).
     w.land_control = b_->cfg_.skirmish && b_->cfg_.control_point_domination && !b_->space_;
     w.interventions_enabled = b_->cfg_.interventions_enabled;  // mcx8 t09 Game.InterventionsEnabled (game settings flags)
@@ -1511,7 +1511,7 @@ void BattleAi::fill(at::PerceptionWorld& w, std::vector<at::TacticalAiObject>& o
     if (!b_->space_ && !w.in_active_base_shield) {
         const TacticalBattle* sb = b_;
         if (world_->ai_lane()) {
-            // ref5 t06 (tru1 t02, TRU1_A_RE_ANSWERS A1): l1_base_shield_covers on the shields the capture found on (combat's
+            // ref5 t06 (TRU1_A_RE_ANSWERS A1): l1_base_shield_covers on the shields the capture found on (combat's
             // shield state); before, the lane counted every live BASE_SHIELD of the snapshot store.
             w.in_active_base_shield = [this](const at::Vec3f& p) {
                 for (const LaneView::Shield& s : view_.shields) {
@@ -1579,7 +1579,7 @@ void BattleAi::fill(at::PerceptionWorld& w, std::vector<at::TacticalAiObject>& o
         if (ps.uc != objects::kNoObjectId) pad_built.push_back(ps.uc);
     }
     std::sort(pad_built.begin(), pad_built.end());
-    // OPT2 t03: the listed objects (store order) first; their entries are built on the job system (per-index outputs, every
+    // the listed objects (store order) first; their entries are built on the job system (per-index outputs, every
     // read below is const); the UNIT_AI stamp draws then run serially in store order.
     std::vector<objects::ObjectHandle> listed;
     for (const objects::ObjectHandle h : st.all_objects()) {
@@ -1606,7 +1606,7 @@ void BattleAi::fill(at::PerceptionWorld& w, std::vector<at::TacticalAiObject>& o
         o.owner = st.owner(h);
         o.type = type;
         if (u && u->container != 0xFFFFFFFFu) o.rep_type = static_cast<int32_t>(st.type(b_->containers_[u->container].h));
-        if (const objects::TypeIndex ct = st.carried_type(h); ct != objects::kNone) o.rep_type = static_cast<int32_t>(ct);  // a1i t04: §35.3
+        if (const objects::TypeIndex ct = st.carried_type(h); ct != objects::kNone) o.rep_type = static_cast<int32_t>(ct);  // §35.3
         o.has_unit_ai = st.has_behavior(h, kUnitAi) && c.has_unit(id);
         o.team_or_hide_when_fogged = st.has_behavior(h, kTeam) || st.has_behavior(h, kHideWhenFogged);
         o.mobile = u && u->movable;
@@ -1745,7 +1745,7 @@ void BattleAi::fill(at::PerceptionWorld& w, std::vector<at::TacticalAiObject>& o
                 if (a.attack_target < 0 && c.has_unit(mid) && c.current_target(mid) != tc::kNoObject) a.attack_target = c.current_target(mid);
             }
         }
-        // mcx6 t06 (LUA_API.md "Task force: Enable_Attack_Positioning", 0x4f6470): the formation attack target (0x41a2e0 =
+        // mcx6 t06 (legacy docs/re/LUA_API.md "Task force: Enable_Attack_Positioning", 0x4f6470): the formation attack target (0x41a2e0 =
         // CombatSystem::attack_goal) of the unit, of a TEAM container its first member's that has one (ascending id) [port:
         // the container has no combat entry]; the aimed point = the goal's hard point world position, else the target's
         // position; the 2-D extent of the target, of a TEAM container target its first live member's [port].
@@ -1779,9 +1779,9 @@ void BattleAi::fill(at::PerceptionWorld& w, std::vector<at::TacticalAiObject>& o
             }
         }
         a.damage_tracking = o.has_damage_tracking || st.has_behavior(h, kDamageTracking);
-        // q6 t19 - 0x5680b0 (A1_READINGS §33.2.1): TEAM container or both type flags; not garrisoned / a hidden landing
+        // 0x5680b0 (A1_READINGS §33.2.1): TEAM container or both type flags; not garrisoned / a hidden landing
         // (+0x3a7); not dead (listed objects are alive); not in a transport [port: battles model no carried units, the
-        // garrison holder stands in]; no hero clash (+0x3b4, s78n t06: kUnitHeroClash); SPECIAL_WEAPON only on a
+        // garrison holder stands in]; no hero clash (+0x3b4, kUnitHeroClash); SPECIAL_WEAPON only on a
         // DUMMY_STAR_BASE.
         a.hero_clash = c.has_unit(id) && (c.flags(id) & tc::kUnitHeroClash) != 0;
         a.pad_occupied = b_->pad_occupied(id);  // b0416 (Setup A test 11)
@@ -1797,7 +1797,7 @@ void BattleAi::fill(at::PerceptionWorld& w, std::vector<at::TacticalAiObject>& o
     // UnitAI data pack (A1_READINGS §14): two synced draws per UNIT_AI object, F + Get_Int(0, 300) - 300 then
     // F + Get_Int(0, 150) - 150. [port] drawn when fill() first lists the object (store order, after the battle tick
     // of its creation frame), not inside the object's construction.
-    // mcx6 t06: the second draw (+0x34) is kept too (unit_ai_second_), for the attack-positioning step.
+    // the second draw (+0x34) is kept too (unit_ai_second_), for the attack-positioning step.
     std::map<objects::ObjectId, int32_t> stamps, seconds;
     for (size_t i = 0; i < listed.size(); ++i) {
         if (!st.has_behavior(listed[i], kUnitAi)) continue;
@@ -1820,7 +1820,7 @@ void BattleAi::fill(at::PerceptionWorld& w, std::vector<at::TacticalAiObject>& o
     unit_ai_second_ = std::move(seconds);
 }
 
-// mcx6 t06 (LUA_API.md attack position 0x4f5390, terrain check 0x4f48a0 [M]): the static line test 0x5a4c10 of the land
+// mcx6 t06 (legacy docs/re/LUA_API.md attack position 0x4f5390, terrain check 0x4f48a0 [M]): the static line test 0x5a4c10 of the land
 // passability grid for the unit's movement class (a TEAM container: its first live member's, ascending id); space and units
 // without a movement entry: clear.
 bool BattleAi::attack_position_line_clear(int32_t object_id, const at::Vec3f& a, const at::Vec3f& b) {
@@ -1905,7 +1905,7 @@ struct BattleAi::FactEnv {
 BattleAi::FactEnv BattleAi::live_env() const { return FactEnv{*this, mode_->primary(), false}; }
 BattleAi::FactEnv BattleAi::view_env() const { return FactEnv{*this, world_->view_store(), true}; }
 
-// ---- ref5 t06: the AI lane's remaining host answers, from the capture ----------------------------------------------
+// ---- the AI lane's remaining host answers, from the capture ----------------------------------------------
 
 void BattleAi::capture_lane_rest() {
     // Base shields: the ones l1_base_shield_covers counts (store order; the test is an any-of).
@@ -1960,7 +1960,7 @@ void BattleAi::capture_lane_rest() {
     view_.upgrades.clear();
     for (const TacticalBattle::StationUpgrade& u : b_->station_upgrades()) view_.upgrades.emplace_back(u.old_station, u.new_station);
     // Skirmish production: every type hg_build_check can accept (in types_used_, a tactical queue), per AI player
-    // (ref5 t07: the builders and can_build fact tables; can_build only where some builder lists the type).
+    // (the builders and can_build fact tables; can_build only where some builder lists the type).
     {
         std::vector<std::pair<int32_t, int32_t>> keys;
         if (b_->production_enabled()) {
@@ -2114,11 +2114,11 @@ bool BattleAi::move_unit(objects::ObjectId id, float x, float y, float threat_th
     o.units = {id};
     o.destination = {std::clamp(x, bb.min.x, bb.max.x), std::clamp(y, bb.min.y, bb.max.y)};
     o.threat_threshold = threat_threshold;
-    o.flags = flags;  // s78f t10: the order's block flags (0x01 attack-move / 0x02 guard)
-    o.goal_object = goal_object == objects::kNoObjectId ? -1 : goal_object;  // s78f t10: the object block (movement: -1 = none)
+    o.flags = flags;  // the order's block flags (0x01 attack-move / 0x02 guard)
+    o.goal_object = goal_object == objects::kNoObjectId ? -1 : goal_object;  // the object block (movement: -1 = none)
     // s78n t20 (MOVEMENT 4.3.1 items 2 / 6): an object goal (block kind 3) takes neither the destination check nor the
-    // single-member shortcut. s78n t25.3: land attack blocks are TacticalBattle::land_attack_order; what is left here on
-    // land is the a1h follow and the Attack_Move blocks on a non-attackable object ([port]; s78n t25.4: Guard_Target on an
+    // single-member shortcut. Land attack blocks are TacticalBattle::land_attack_order; what is left here on
+    // land is the a1h follow and the Attack_Move blocks on a non-attackable object ([port]; Guard_Target on an
     // object is a guard block of land_attack_order). The check's object test has no exemption for the order's target (retail sends kind 3 to
     // the attack-arc slot test 0x438c10, which leaves the target out), so run on an object goal it moves the goal off
     // the very object the units were sent to: attackers end out of weapon range of a standing enemy and never fire.
@@ -2131,7 +2131,7 @@ bool BattleAi::is_fighter(objects::ObjectId id) const {
     return b_->space_ && b_->movement_->has_unit(id) && b_->movement_->view(id).locomotor == mv::LocomotorKind::Fighter;
 }
 
-// ---- a1h t02: object-goal follow (A1_READINGS §33.4, rule §33.5.2) ----------------------------------------------------
+// ---- object-goal follow (A1_READINGS §33.4, rule §33.5.2) ----------------------------------------------------
 
 void BattleAi::follow_drop(const std::vector<objects::ObjectId>& units) {
     b_->team_attack_drop(units);  // q6: a newer order ends an attack on a TEAM container (signal 0xb)
@@ -2175,7 +2175,7 @@ void BattleAi::follow_service() {
         const TacticalBattle::Unit* tu = b_->unit_by_id(f.target);
         if (!st.alive(th) || (tu && (!tu->alive || tu->retreated))) f.units.clear();  // signal 0x10: the goal ends
         if (f.units.empty()) continue;
-        // cmb1 t04: a land guard's formation step runs every tick (C 3), its re-path / re-check on the 30-frame timer
+        // a land guard's formation step runs every tick (C 3), its re-path / re-check on the 30-frame timer
         if (f.guard && !b_->space_) {
             guard_follow_step(f, st.position(th));
             continue;
@@ -2190,7 +2190,7 @@ void BattleAi::follow_service() {
         const Vec3 tp = st.position(th);
         const float dx = tp.x - f.gx, dy = tp.y - f.gy;
         if (dx * dx + dy * dy <= f.r * f.r) continue;
-        // mcx6 t06 (LUA_API.md "Readers of UnitAI +0x38" 2, FIGHTER_FLYING §4.11 E): members[0]'s UNIT_AI vetoes the
+        // mcx6 t06 (legacy docs/re/LUA_API.md "Readers of UnitAI +0x38" 2, FIGHTER_FLYING §4.11 E): members[0]'s UNIT_AI vetoes the
         // re-path (0x4f5780) while its attack-positioning flag is set (Keep_Moving_In_Battle: unset in FoC, not read).
         // [port] a TEAM member holds no UNIT_AI of its own here: its container's flag is read. Space never sets it.
         if (!b_->space_) {
@@ -2217,7 +2217,7 @@ void BattleAi::follow_service() {
     follows_.erase(std::remove_if(follows_.begin(), follows_.end(), [](const ObjectFollow& f) { return f.units.empty(); }), follows_.end());
 }
 
-// cmb1 t04 (b0070 / b0200; FIGHTER_FLYING §4.11 A / C 3 / G 1, BKR2 Q6 [H]): one formation step of a land guard follow (the
+// cmb1 t04 (FIGHTER_FLYING §4.11 A / C 3 / G 1, BKR2 Q6 [H]): one formation step of a land guard follow (the
 // guard block's object f.target; tp its position). A re-plan is the guard block's (MOVEMENT §4.3.2 item 8: items 6 / 7 again,
 // the slot and the formations kept; TacticalBattle::land_attack_order guard, replan).
 //   - an auto attack block on top (land_engage_service): nothing - step 3 is skipped while it is the top;
@@ -2347,9 +2347,9 @@ void BattleAi::guard_follow_step(ObjectFollow& f, Vec3 tp) {
 // S7 t26 (AI_TACTICAL §7.3.3 item 2, A1_READINGS §33.3): the orders executed here (group / unit moves, MoveToObject, attack,
 // the Lua object orders Move_To / Attack_Move / Guard_Target / Stop) raise signal 0xb on each unit they take (TEAM
 // containers: their members; the world adds the container), which ends the Activate_Ability blocks waiting on it.
-// S7 t31: raised through TacticalBattle::raise_order_replaced, as the human commands and the story orders are.
+// raised through TacticalBattle::raise_order_replaced, as the human commands and the story orders are.
 bool BattleAi::hostile_owner(uint8_t player, int32_t owner) const {
-    // S7 t30: the relation table (TACTICAL_COMBAT §2.10) already makes an Is_Neutral player relation 2 (not enemy).
+    // the relation table (TACTICAL_COMBAT §2.10) already makes an Is_Neutral player relation 2 (not enemy).
     return b_->combat_->is_enemy(static_cast<int32_t>(player), owner);
 }
 
@@ -2378,13 +2378,13 @@ void BattleAi::order_signals(uint8_t player, const cmd::EventData& ev) {
     for (const uint32_t w : wire)
         for (const objects::ObjectId id : team_units(player, w))
             if (std::find(done.begin(), done.end(), id) == done.end()) done.push_back(id);
-    b_->raise_order_replaced(done);  // S7 t31: every listener (this world, the story bridge)
+    b_->raise_order_replaced(done);  // every listener (this world, the story bridge)
 }
 
 cmd::RejectReason BattleAi::execute(uint8_t player, const cmd::EventData& ev) {
     facts_.order_refused.clear();
     facts_.wrote();  // ref5 t07
-    if (world_ && world_->ai_lane()) {  // sp3 t04: queued for the batch due N + k_ai
+    if (world_ && world_->ai_lane()) {  // queued for the batch due N + k_ai
         // sp3 slice 4c: an event execute_order does not act on is not run from the AI side either
         if (!lane_batched(ev)) return cmd::RejectReason::Unhandled;
         const cmd::RejectReason p = predict_order(player, ev);
@@ -2417,7 +2417,7 @@ void BattleAi::count_executed(const cmd::EventData& ev, cmd::RejectReason r) {
     ++(r == cmd::RejectReason::None ? e.first : e.second);
 }
 
-// ---- sp3 t04: the AI lane's command batch ---------------------------------------------------------------------------
+// ---- the AI lane's command batch ---------------------------------------------------------------------------
 
 bool BattleAi::lane_batched(const cmd::EventData& ev) {
     using T = cmd::EventType;
@@ -2433,7 +2433,7 @@ bool BattleAi::lane_batched(const cmd::EventData& ev) {
         case T::TacticalSpecialAbility:
         case T::TacticalSpecialAbilityWithDummyTarget:
         case T::SetAbilityAutofire:
-        case T::Facing:  // ref2 t06: the types execute_order now passes to TacticalBattle::apply_order
+        case T::Facing:  // the types execute_order now passes to TacticalBattle::apply_order
         case T::Garrison:
         case T::MoveToGarrison:
         case T::TacticalSell: return true;
@@ -2502,7 +2502,7 @@ cmd::RejectReason BattleAi::predict_order(uint8_t player, const cmd::EventData& 
                 for (const objects::ObjectId mid : view_team_units(player, le32(b, off))) ids.push_back(mid);
             if (ids.empty()) return R::InvalidUnit;
             if (order == lua::LuaOrder::Stop || order == lua::LuaOrder::HyperspaceAway) return R::None;  // ref2 t06
-            if (order == lua::LuaOrder::CancelHyperspace) return R::NotAllowed;  // ref2 t06: the documented refusal
+            if (order == lua::LuaOrder::CancelHyperspace) return R::NotAllowed;  // the documented refusal
             bool any = false;
             for (const objects::ObjectId id : ids) any = any || movable(id);
             if (!any) return R::InvalidUnit;
@@ -2515,7 +2515,7 @@ cmd::RejectReason BattleAi::predict_order(uint8_t player, const cmd::EventData& 
         // sp3 slice 4c: the rest of the batched types, from the view (the apply reports a differing answer)
         case T::Reinforce: {  // slice 4d: in the pool, room (can_reinforce, land population), a finite point
             const auto key = static_cast<int32_t>(ev.u("unit"));
-            const int32_t pi = player;  // ref5 t07: the facts' capture (a player it did not list: no reinforcing)
+            const int32_t pi = player;  // the facts' capture (a player it did not list: no reinforcing)
             if (!facts_.can_reinforce(pi)) return R::NotAllowed;
             const std::vector<at::TacticalReinforcement> pool = facts_.reinforcement_pool(pi);
             const auto it = std::find_if(pool.begin(), pool.end(), [key](const at::TacticalReinforcement& e) { return e.key == key; });
@@ -2550,7 +2550,7 @@ cmd::RejectReason BattleAi::predict_order(uint8_t player, const cmd::EventData& 
             }
             return R::InvalidUnit;
         }
-        // ref2 t06: the types apply_order takes for the AI - an owned unit in the view (the apply reports a differing answer)
+        // the types apply_order takes for the AI - an owned unit in the view (the apply reports a differing answer)
         case T::Facing:
         case T::Garrison:
         case T::TacticalSell: {
@@ -2625,7 +2625,7 @@ void BattleAi::apply_lane_batch(uint64_t frame) {
         const bool reinforce = c.payload.type() == cmd::EventType::Reinforce;
         const auto player = static_cast<int32_t>(c.header.player);
         const size_t before = reinforce ? mode_->primary().owned_by(player).size() : 0;
-        // ref5 t06: the drop tests the AI's prediction left out (the drop searches run here, on the critical lane)
+        // the drop tests the AI's prediction left out (the drop searches run here, on the critical lane)
         const cmd::RejectReason r = reinforce && !lane_drop_valid(c) ? cmd::RejectReason::InvalidPosition
                                                                      : execute_order(static_cast<uint8_t>(c.header.player), c.payload);  // uint8_t ids: lossless
         if (r == cmd::RejectReason::None) order_signals(static_cast<uint8_t>(c.header.player), c.payload);
@@ -2668,13 +2668,13 @@ cmd::RejectReason BattleAi::execute_order(uint8_t player, const cmd::EventData& 
             if (o.units.empty()) return R::None;
             o.destination = {std::clamp(x, bb.min.x, bb.max.x), std::clamp(y, bb.min.y, bb.max.y)};
             follow_drop(o.units);
-            for (const objects::ObjectId mid : o.units) if (b_->abilities_) b_->abilities_->move_ordered(mid, b_->frame_);  // mcx4: Terminate_Effect_On_Move_Command (MCX4_T10_RE_ANSWERS §13)
+            for (const objects::ObjectId mid : o.units) if (b_->abilities_) b_->abilities_->move_ordered(mid, b_->frame_);  // Terminate_Effect_On_Move_Command (MCX4_T10_RE_ANSWERS §13)
             b_->movement_->move(o, host_->random().synced(), b_->frame_);
             for (const objects::ObjectId id : o.units) {
                 b_->combat_->clear_order(id);
-                b_->combat_->set_attack_goal(id, tc::kNoObject);  // refixf t06: a position block
+                b_->combat_->set_attack_goal(id, tc::kNoObject);  // a position block
             }
-            b_->fighter_order(o.units, 0, Vec3{o.destination.x, o.destination.y, 0.0f});  // S7 t22: the squadrons' formation
+            b_->fighter_order(o.units, 0, Vec3{o.destination.x, o.destination.y, 0.0f});  // the squadrons' formation
             return R::None;
         }
         case T::MoveToObject: {
@@ -2687,7 +2687,7 @@ cmd::RejectReason BattleAi::execute_order(uint8_t player, const cmd::EventData& 
             const objects::ObjectHandle th = tw <= 0x7FFFFFFFu ? st.find(static_cast<objects::ObjectId>(tw)) : objects::ObjectHandle{};
             if (!st.alive(th)) {
                 ++stale_;
-                return R::None;  // COMMANDS.md sec. 6.2: a missing / dying target is a silent no-op
+                return R::None;  // legacy docs/re/COMMANDS.md sec. 6.2: a missing / dying target is a silent no-op
             }
             mv::MoveOrder o;
             for (const uint32_t id : ev.ids("movers"))  // battle host: TEAM containers -> their members
@@ -2699,10 +2699,10 @@ cmd::RejectReason BattleAi::execute_order(uint8_t player, const cmd::EventData& 
             const Vec3 tp = st.position(th);
             b_->drop_locked(o.units);  // OI follow-up t03
             if (o.units.empty()) return R::None;
-            for (const objects::ObjectId id : o.units) b_->combat_->set_attack_goal(id, tc::kNoObject);  // refixf t06: kind 1
-            b_->fighter_order(o.units, 0, tp);  // S7 t22: a position snapshot (kind 1)
+            for (const objects::ObjectId id : o.units) b_->combat_->set_attack_goal(id, tc::kNoObject);  // kind 1
+            b_->fighter_order(o.units, 0, tp);  // a position snapshot (kind 1)
             follow_drop(o.units);
-            for (const objects::ObjectId mid : o.units) if (b_->abilities_) b_->abilities_->move_ordered(mid, b_->frame_);  // mcx4: Terminate_Effect_On_Move_Command (MCX4_T10_RE_ANSWERS §13)
+            for (const objects::ObjectId mid : o.units) if (b_->abilities_) b_->abilities_->move_ordered(mid, b_->frame_);  // Terminate_Effect_On_Move_Command (MCX4_T10_RE_ANSWERS §13)
             if (o.units.size() == 1) {
                 b_->combat_->clear_order(o.units.front());
                 return move_unit(o.units.front(), tp.x, tp.y) ? R::None : R::InvalidUnit;
@@ -2731,7 +2731,7 @@ cmd::RejectReason BattleAi::execute_order(uint8_t player, const cmd::EventData& 
             for (const uint32_t id : ev.ids("attackers"))
                 for (const objects::ObjectId mid : team_units(player, id))
                     if (std::find(attackers.begin(), attackers.end(), mid) == attackers.end()) attackers.push_back(mid);
-            follow_drop(attackers);  // a1h t02: a newer order (signal 0xb, A1_READINGS §33.3)
+            follow_drop(attackers);  // a newer order (signal 0xb, A1_READINGS §33.3)
             std::vector<TacticalBattle::TeamPick> picks;
             // s78n t25.3 (MOVEMENT §4.3.2 item 2): on land the attackers of each resolved target (groups in order of first
             // appearance) form one movement order with the attack block (TacticalBattle::land_attack_order)
@@ -2751,9 +2751,9 @@ cmd::RejectReason BattleAi::execute_order(uint8_t player, const cmd::EventData& 
                 // goal in weapon range). [port] a TEAM container target keeps the ordered slot (TeamAttack).
                 if (!b_->space_ && !ct) (void)b_->combat_->order_attack_issue(u->id, tu->id, hp);
                 else b_->combat_->order_attack(u->id, tu->id, hp);
-                b_->combat_->set_attack_goal(u->id, tu->id, hp);  // refixf t06: Attack_Target block (kind 3, hard point, §2.8)
+                b_->combat_->set_attack_goal(u->id, tu->id, hp);  // Attack_Target block (kind 3, hard point, §2.8)
                 if (ct && b_->combat_->has_unit(u->id)) b_->team_attack_set(u->id, ct->id, tu->id, true);
-                if (!b_->movement_locked(u->id))  // S7 t22: an object block; a locked unit keeps its formation (as Move_To)
+                if (!b_->movement_locked(u->id))  // an object block; a locked unit keeps its formation (as Move_To)
                     b_->fighter_order(std::span<const objects::ObjectId>(&u->id, 1), 0, tp,
                                       ct && b_->movement_->fighter_squad(ct->id) ? ct->id : tu->id);
                 ++n;
@@ -2762,15 +2762,15 @@ cmd::RejectReason BattleAi::execute_order(uint8_t player, const cmd::EventData& 
                     auto g = std::find_if(groups.begin(), groups.end(), [&](const auto& x) { return x.first == tu->id; });
                     if (g == groups.end()) g = groups.insert(groups.end(), {tu->id, {}});
                     g->second.push_back(u->id);
-                    b_->attack_block_set(u->id, ct ? ct->id : tu->id, 0, tp, ct ? -1 : hp);  // cmb2 t04: the named hard point
+                    b_->attack_block_set(u->id, ct ? ct->id : tu->id, 0, tp, ct ? -1 : hp);  // the named hard point
                     continue;
                 }
                 const Vec3 up = st.position(u->h);
                 const float dx = tp.x - up.x, dy = tp.y - up.y, d = dmath::sqrt(dx * dx + dy * dy);
                 const float range = std::max(u->range, 100.0f);
-                // s78f t10: as the human path (TacticalBattle::exec_attack, FIGHTER_FLYING §4.11 B 1 / B 3): a fighter's move
+                // as the human path (TacticalBattle::exec_attack, FIGHTER_FLYING §4.11 B 1 / B 3): a fighter's move
                 // names the target as its object block; in range nobody moves and the formation is still replaced.
-                // modc t06: with a TEAM container target `t` is null; the block is the human path's (the squadron
+                // with a TEAM container target `t` is null; the block is the human path's (the squadron
                 // container itself, else the picked member).
                 const objects::ObjectId block = ct && b_->movement_->fighter_squad(ct->id) ? ct->id : tu->id;
                 const objects::ObjectId fobj = is_fighter(u->id) ? block : objects::kNoObjectId;
@@ -2798,7 +2798,7 @@ cmd::RejectReason BattleAi::execute_order(uint8_t player, const cmd::EventData& 
             if (sub < lua::kLuaOrderSubtype || sub > lua::kLuaOrderSubtype + 0xFFu || b.size() < lua::kLuaOrderPayloadBytes) return R::Unhandled;
             const auto order = static_cast<lua::LuaOrder>(sub - lua::kLuaOrderSubtype);
             // battle host: a TEAM container's order goes to its live members (the container itself has no movement).
-            // refixf t06: a task-force group order (tactical_ai.hpp HOST CONTRACT) carries its further units after the 24-byte
+            // a task-force group order (tactical_ai.hpp HOST CONTRACT) carries its further units after the 24-byte
             // block, one u32 each: all of them form one order (MOVEMENT §6.3 [H]: one coordinator for the task force).
             std::vector<objects::ObjectId> ids = team_units(player, le32(b, 0));
             for (size_t off = lua::kLuaOrderPayloadBytes; off + 4 <= b.size(); off += 4)
@@ -2813,11 +2813,11 @@ cmd::RejectReason BattleAi::execute_order(uint8_t player, const cmd::EventData& 
                     b_->combat_->clear_order(id);
                     b_->combat_->set_attack_goal(id, tc::kNoObject);  // refixf t06
                 }
-                b_->fighter_order_clear(ids);  // S7 t22: Stop leaves the formation [M]
+                b_->fighter_order_clear(ids);  // Stop leaves the formation [M]
                 return R::None;
             }
             if (order == lua::LuaOrder::HyperspaceAway) {
-                // ref2 t06: Hyperspace_Away of a VM without the hyperspace hook (with it the binding calls
+                // Hyperspace_Away of a VM without the hyperspace hook (with it the binding calls
                 // TacticalScriptHooks::hyperspace_out_link itself): the battle's departure for each unit, delay 0, keep =
                 // the order's argument. Refused when no unit can jump (land, no locomotor, already leaving).
                 bool any = false;
@@ -2832,17 +2832,17 @@ cmd::RejectReason BattleAi::execute_order(uint8_t player, const cmd::EventData& 
             for (const objects::ObjectId id : ids)
                 if (b_->unit_by_id(id)->movable) group.units.push_back(id);
             if (group.units.empty()) return R::InvalidUnit;
-            follow_drop(ids);  // a1h t02: the collector raises signal 0xb on each unit it takes (A1_READINGS §33.3)
+            follow_drop(ids);  // the collector raises signal 0xb on each unit it takes (A1_READINGS §33.3)
             const TacticalBattle::Unit* u = b_->unit_by_id(group.units.front());
             float x = std::bit_cast<float>(le32(b, 8)), y = std::bit_cast<float>(le32(b, 12));
             const uint32_t tw = le32(b, 4);
             bool point_goal = false;  // S7 t29 rework: a land Attack_Move on a non-hostile object goes to its position
-            bool nonhostile_block = false;  // bkt1 t05: a unit Attack_Move on a non-hostile object (land attack block, no lock)
+            bool nonhostile_block = false;  // a unit Attack_Move on a non-hostile object (land attack block, no lock)
             if (tw != cmd::kNoObject) {
                 const objects::ObjectHandle th = tw <= 0x7FFFFFFFu ? st.find(static_cast<objects::ObjectId>(tw)) : objects::ObjectHandle{};
                 if (!st.alive(th)) {
                     ++stale_;
-                    return R::None;  // COMMANDS.md sec. 6.2: a missing / dying target is a silent no-op (stale script reference)
+                    return R::None;  // legacy docs/re/COMMANDS.md sec. 6.2: a missing / dying target is a silent no-op (stale script reference)
                 }
                 const Vec3 tp = st.position(th);
                 x = tp.x;
@@ -2855,12 +2855,12 @@ cmd::RejectReason BattleAi::execute_order(uint8_t player, const cmd::EventData& 
                     // object stays the goal. No Order_Attack, no formation attack target (path B needs relation 1): the units
                     // go there, auto-engage on the way and never attack the object itself.
                     for (const objects::ObjectId id : group.units) b_->combat_->set_attack_goal(id, tc::kNoObject);
-                    // bkt1 t05 (b0075, BKT1_ATTACK_RE §3 [H]): an object's own Attack_Move (arg 0; Move_Internal 0x57da90) is
+                    // bkt1 t05 (BKT1_ATTACK_RE §3 [H]): an object's own Attack_Move (arg 0; Move_Internal 0x57da90) is
                     // the land attack move on the object itself - kind 3 with flag 0x01, the exact goal, slots, staging and
                     // the fire trim as for an enemy, no lock (the attack block below, kAttackBlockNoLock)
                     point_goal = !b_->space_ && (le32(b, 20) & at::kTfAttackMoveIssueAttack) != 0;
-                    // (not on the caller itself or its container: BKT1_ATTACK_RE §3.1, those stay a move to the point). cmb3 t01 (b)
-                    // (b0169): the caller is the order's object (payload word 0); a squadmate of the caller, or a member of a
+                    // (not on the caller itself or its container: BKT1_ATTACK_RE §3.1, those stay a move to the point). Case (b):
+                    // the caller is the order's object (payload word 0); a squadmate of the caller, or a member of a
                     // calling squad container, is neither, so it gets the block. tu is a battle unit, never a container, so
                     // the caller's container (+0x2b0) cannot be it.
                     // A task force's further units (after byte 24) are not callers: BKT1 §3.1 is the object's own Move_Internal.
@@ -2879,7 +2879,7 @@ cmd::RejectReason BattleAi::execute_order(uint8_t player, const cmd::EventData& 
                         std::vector<objects::ObjectId> kept;
                         for (const objects::ObjectId id : group.units)
                             if (!b_->combat_->has_unit(id) || b_->combat_->order_attack_issue(id, tu->id, -1)) kept.push_back(id);
-                            else facts_.order_refused.push_back(static_cast<int32_t>(id));  // q6 t19: not moved, not pending
+                            else facts_.order_refused.push_back(static_cast<int32_t>(id));  // not moved, not pending
                         for (const objects::ObjectId id : ids)  // members that do not move still get the order
                             if (std::find(group.units.begin(), group.units.end(), id) == group.units.end() && b_->combat_->has_unit(id))
                                 b_->combat_->order_attack_issue(id, tu->id, -1);
@@ -2889,10 +2889,10 @@ cmd::RejectReason BattleAi::execute_order(uint8_t player, const cmd::EventData& 
                     }
                     for (const objects::ObjectId id : group.units) b_->combat_->set_attack_goal(id, tu->id, -1);
                     // Staging (0x40e260 [M], §2.8): land formations (type 1) only - a single space Attack_Move is not staged.
-                    // s78n t25.3: on land it is TacticalBattle::attack_stage_goal, inside the attack order below.
+                    // on land it is TacticalBattle::attack_stage_goal, inside the attack order below.
                 } else if (order == lua::LuaOrder::AttackMove) {
                     for (const objects::ObjectId id : group.units) b_->combat_->set_attack_goal(id, tc::kNoObject);
-                    // cmb2 t06 (b0075, BKT1_ATTACK_RE §3.1 / §3.5 [H]): an object's own Attack_Move (arg 0) on an object that is
+                    // cmb2 t06 (BKT1_ATTACK_RE §3.1 / §3.5 [H]): an object's own Attack_Move (arg 0) on an object that is
                     // not a combat unit (a story marker) is the land attack move too - kind 3 with flag 0x01 on the object, no
                     // lock (TARGETING by geometry: TacticalBattle::attack_can_hit_at); not on the caller or its container
                     // (review: not a TEAM container - its members are the combat units - and not a retreated unit)
@@ -2905,10 +2905,10 @@ cmd::RejectReason BattleAi::execute_order(uint8_t player, const cmd::EventData& 
                     nonhostile_block = !b_->space_ && !self && !combat_object && (le32(b, 20) & at::kTfAttackMoveIssueAttack) == 0;
                 }
             }
-            if (order != lua::LuaOrder::AttackMove || tw == cmd::kNoObject)  // refixf t06: position / guard / move blocks
+            if (order != lua::LuaOrder::AttackMove || tw == cmd::kNoObject)  // position / guard / move blocks
                 for (const objects::ObjectId id : group.units) b_->combat_->set_attack_goal(id, tc::kNoObject);
             if (!std::isfinite(x) || !std::isfinite(y)) return R::InvalidPosition;
-            // S7 t22: the squadrons' formation - block flags 0x01 attack-move / 0x02 guard; an Attack_Move / Guard of an
+            // the squadrons' formation - block flags 0x01 attack-move / 0x02 guard; an Attack_Move / Guard of an
             // object keeps it as the slot goal (Move_To(object) is a position snapshot, kind 1).
             const uint8_t fflags = order == lua::LuaOrder::AttackMove ? mv::kMoveFlagAttackMove
                                    : order == lua::LuaOrder::Guard    ? mv::kMoveFlagGuardMove
@@ -2922,14 +2922,14 @@ cmd::RejectReason BattleAi::execute_order(uint8_t player, const cmd::EventData& 
             // Guard_Target on an object build a kind-3 block, which never takes the position destination check;
             // Move_To(object) is a kind-1 position snapshot and takes it (the same split as `fobj` above)
             const bool object_block = fobj != objects::kNoObjectId;
-            // s78n t25.4: a land Guard_Target on an object is a guard block of the movement (land_attack_order, guard)
+            // a land Guard_Target on an object is a guard block of the movement (land_attack_order, guard)
             const bool land_guard = !b_->space_ && order == lua::LuaOrder::Guard && object_block;
             // s78n t20 stage A (FIGHTER_FLYING §4.11 A / E, MOVEMENT §4.3.2 item 6): a land Attack_Move on an attackable
-            // object (bkt1 t05: a non-hostile one too, no lock) is an attack block of each mover (TacticalBattle::AttackBlock, whose 30-frame checks re-path it: the
+            // object (a non-hostile one too, no lock) is an attack block of each mover (TacticalBattle::AttackBlock, whose 30-frame checks re-path it: the
             // object follow below leaves it out), and a unit that can already hit it from where it stands takes no path.
             const TacticalBattle::Unit* atu = tw != cmd::kNoObject && tw <= 0x7FFFFFFFu ? b_->unit_by_id(static_cast<objects::ObjectId>(tw)) : nullptr;
             const bool combat_target = atu && atu->alive && !atu->retreated && b_->combat_->has_unit(atu->id);
-            // cmb2 t06: a non-combat object (nonhostile_block set above) is a no-lock attack block as well
+            // a non-combat object (nonhostile_block set above) is a no-lock attack block as well
             const bool attack_block = !b_->space_ && order == lua::LuaOrder::AttackMove && !point_goal && tw != cmd::kNoObject &&
                                       (combat_target ? (nonhostile_block || hostile_owner(player, st.owner(atu->h))) : nonhostile_block);
             if (attack_block) {
@@ -2940,15 +2940,15 @@ cmd::RejectReason BattleAi::execute_order(uint8_t player, const cmd::EventData& 
                 const Vec3 tp = st.position(st.find(aid));
                 const uint8_t bf = static_cast<uint8_t>(mv::kMoveFlagAttackMove | (nonhostile_block ? TacticalBattle::kAttackBlockNoLock : 0));
                 for (const objects::ObjectId id : group.units) b_->attack_block_set(id, aid, bf, tp);
-                b_->land_order(group.units, mv::kMoveFlagAttackMove, tp, aid);  // cmb1 t01: the formation's block
+                b_->land_order(group.units, mv::kMoveFlagAttackMove, tp, aid);  // the formation's block
                 (void)b_->land_attack_order(*mode_, group.units, aid, tp, mv::kMoveFlagAttackMove, false, host_->random().synced());
                 return R::None;
             }
-            // a1h t02: an object goal (kind 3) is followed by the movement layer (§33.4). s78n t26 review round 2: Move_To on an
+            // an object goal (kind 3) is followed by the movement layer (§33.4). s78n t26 review round 2: Move_To on an
             // object is a kind-1 position snapshot (LUA_API Move_Internal flags 0 [H]): no follow
             if (tw != cmd::kNoObject && !point_goal && !attack_block && order != lua::LuaOrder::MoveTo) {
                 const Vec3 tp = st.position(st.find(static_cast<objects::ObjectId>(tw)));
-                // s78f t10: fighters given an object block follow it in their own formation (0x4192b0 steps 3 / 4,
+                // fighters given an object block follow it in their own formation (0x4192b0 steps 3 / 4,
                 // FIGHTER_FLYING §4.11); the follow's re-issued plain move would replace that block with a flags-0 position
                 // block (and drop its pushed auto blocks), so they stay out of the follow.
                 std::vector<objects::ObjectId> fu;
@@ -2963,7 +2963,7 @@ cmd::RejectReason BattleAi::execute_order(uint8_t player, const cmd::EventData& 
                 // The follow record above re-plans it (follow_service). Locked units are dropped by the builder.
                 for (const objects::ObjectId id : group.units) b_->combat_->clear_order(id);
                 const Vec3 gp = st.position(st.find(fobj));
-                b_->land_order(group.units, fflags, gp, fobj);  // cmb1 t01: the formation's guard block
+                b_->land_order(group.units, fflags, gp, fobj);  // the formation's guard block
                 // cmb2 t03 (review): a failed first plan waits 2 x FPS before the follow tries again
                 if (b_->land_attack_order(*mode_, group.units, fobj, gp, fflags, false, host_->random().synced(), true) ==
                         TacticalBattle::AttackPlan::Failed &&
@@ -2981,10 +2981,10 @@ cmd::RejectReason BattleAi::execute_order(uint8_t player, const cmd::EventData& 
             if (group.units.size() == 1) {  // a single unit: unchanged path
                 if (order != lua::LuaOrder::AttackMove) b_->combat_->clear_order(u->id);
                 if (!b_->movement_locked(u->id)) b_->fighter_order(group.units, fflags, Vec3{x, y, 0.0f}, fobj);
-                return move_unit(u->id, x, y, tt, fflags, fobj, object_block) ? R::None : R::InvalidUnit;  // s78f t10: the same block
+                return move_unit(u->id, x, y, tt, fflags, fobj, object_block) ? R::None : R::InvalidUnit;  // the same block
             }
             group.threat_threshold = tt;
-            group.flags = fflags;  // s78f t10: the movement block = the host record's (flags, object)
+            group.flags = fflags;  // the movement block = the host record's (flags, object)
             group.goal_object = fobj == objects::kNoObjectId ? -1 : fobj;
             group.skip_destination_check = object_block;  // s78n t20 fix (MOVEMENT 4.3.1 item 2)
             const tactical::Aabb& gb = mode_->bounds();
@@ -3018,7 +3018,7 @@ cmd::RejectReason BattleAi::execute_order(uint8_t player, const cmd::EventData& 
             // --- A2 tactical: TacticalBuildEvent 0x42edf0 for an AI player (L1_S4_REMAINING §3.6): refusals in order,
             // then the build starts at once (pad_build, check_rules false). ---
             // battle host: the shared TacticalBuild hook (TacticalBattle::tactical_build, ai = true: same refusal order; no
-            // charge in a campaign battle, the full Tactical_Build_Cost_Multiplayer in land skirmish, skai t09; the UC /
+            // charge in a campaign battle, the full Tactical_Build_Cost_Multiplayer in land skirmish; the UC /
             // constructed objects become battle combat units).
             const uint32_t pw = ev.u("pad");
             if (pw == commands::kNoObject || pw > 0x7FFFFFFFu) return R::InvalidTarget;
@@ -3026,7 +3026,7 @@ cmd::RejectReason BattleAi::execute_order(uint8_t player, const cmd::EventData& 
                                       host_->random().synced(), true);
             // --- end A2 tactical ---
         }
-        // ref2 t06: every other event goes through the battle's validate-and-apply entry, as a human's would (Turn_To_Face
+        // every other event goes through the battle's validate-and-apply entry, as a human's would (Turn_To_Face
         // -> order_facing, the Garrison family -> s4_command, Sell -> tactical_sell, the ability events -> handle_command);
         // no AI order is dropped as Unhandled for want of a branch here. The AI issues no selection-based event.
         default: return b_->apply_order(*mode_, player, ev, {}, host_->random().synced());
@@ -3110,7 +3110,7 @@ float BattleAi::population_cap(int32_t player) {
 // (int)sum + 1 when the fraction exceeds Allow_Reinforcement_Percentage_Normalized (shipped 0.0: any fraction rounds up).
 float BattleAi::population_used(int32_t player) {
     lane_live_read("population_used");
-    if (!b_->space_) return b_->population_used(player);  // trl2 t02: the land list sum (BKG1_RE_ANSWERS §7.1), rounded
+    if (!b_->space_) return b_->population_used(player);  // the land list sum (BKG1_RE_ANSWERS §7.1), rounded
     float pop = 0.0f;
     std::vector<uint8_t> counted(b_->parts_.size(), 0);
     for (const TacticalBattle::Unit& u : b_->units_)
@@ -3192,13 +3192,13 @@ bool pad_name_equal(std::string_view a, std::string_view b) {
 
 
 // The pads `player` can build on: live TACTICAL_BUILD_OBJECTS objects owned by the player or an ally (0x39a2c0, relation
-// 0: never a Neutral-owned pad, q6 t19), empty, unblocked, cooldown over, ascending id [M: the free store's pad table +0xE8
+// 0: never a Neutral-owned pad), empty, unblocked, cooldown over, ascending id [M: the free store's pad table +0xE8
 // order, a hash map in the original - AI_TACTICAL §7.5.1 asks a defined order]; accepts = the UC types of the pad type's Tactical_Buildable_Objects_Campaign
 // row for the player's faction (S10 battles are campaign battles, as pad_build).
 std::vector<at::TacticalPad> BattleAi::build_pads_in(const FactEnv& env, int32_t player) const {
     std::vector<at::TacticalPad> out;
     const objects::ObjectStore& st = env.st;
-    const std::vector<CaptureInfluencer> influencers = capture_influencers(st);  // OPT2 t10: once for every pad
+    const std::vector<CaptureInfluencer> influencers = capture_influencers(st);  // once for every pad
     const objects::GameObjectTypes& types = mode_->types();
     const std::string faction = env.faction(player);
     for (const objects::ObjectHandle h : st.all_objects()) {
@@ -3233,7 +3233,7 @@ at::PadCheck BattleAi::build_pad_check_in(const FactEnv& env, int32_t player, in
     return pad_check(env, player, pad, capture_influencers(env.st));
 }
 
-// sp3 t02: TypeFacts (built before any pad query) instead of the lazily filled memo, so the AI lane can read it.
+// TypeFacts (built before any pad query) instead of the lazily filled memo, so the AI lane can read it.
 bool BattleAi::influences_capture(objects::TypeIndex t) const { return t < mode_->types().size() && type_facts(t).influences_capture; }
 
 
@@ -3276,7 +3276,7 @@ at::PadCheck BattleAi::pad_check(const FactEnv& env, int32_t player, int32_t pad
 
 // --- battle host follow-up: TEAM order expansion, opportunity targets, HIJACK -----------------------------------------
 
-// ---- refixf t06: space TF.Reinforce ring search (header) ----
+// ---- space TF.Reinforce ring search (header) ----
 bool BattleAi::space_drop_frame(int32_t player, at::SpaceDropFrame& out) {
     lane_live_read("space_drop_frame");
     uint8_t side = 0;
@@ -3297,7 +3297,7 @@ bool BattleAi::space_drop_frame(int32_t player, at::SpaceDropFrame& out) {
 }
 
 bool BattleAi::prevention_hit_in(const FactEnv& env, int32_t player, const at::Vec3f& p) const {
-    // sp3 t02: with the lane view, the snapshot store and the captured relations (think() never reads the battle)
+    // with the lane view, the snapshot store and the captured relations (think() never reads the battle)
     const objects::ObjectStore& st = env.st;
     const objects::GameObjectTypes& types = mode_->types();
     for (const objects::ObjectHandle h : st.all_objects()) {  // GOM list +0x2f0 stand-in: GOM order
@@ -3317,7 +3317,7 @@ bool BattleAi::prevention_hit_in(const FactEnv& env, int32_t player, const at::V
 
 bool BattleAi::base_alive_in(const FactEnv& env, int32_t player) const {
     if (!b_->cfg_.skirmish) return true;  // 0x28afb0: the rule is the skirmish's
-    // sp3 t02: with the lane view, the snapshot store and the captured alliance table (think() never reads the battle)
+    // with the lane view, the snapshot store and the captured alliance table (think() never reads the battle)
     const objects::ObjectStore& st = env.st;
     const auto allied = [&](int32_t o) { return o == player || env.allied(player, o); };
     static const objects::BehaviorTypeId kStarBase = objects::behavior_type_id("DUMMY_STAR_BASE");
@@ -3419,7 +3419,7 @@ std::vector<at::AttackStateSignal> BattleAi::attack_state_signals() {
 // blow on the UNIT_AI holder raises nothing. No owner, structure, amount or cooldown filter. attacker = the shooter, a
 // TEAM member replaced by its container (0x39b1a0); deliberate = its current attack target, formation target first
 // (0x397a40), is the unit. [port] a target that names the hit member of the holder's team counts as the holder.
-// [port] land only for now (skai t15, 2026-11-16): the space task forces get it with lane skai-b's space work.
+// [port] land only for now (2026-11-16): the space task forces get it with lane skai-b's space work.
 std::vector<at::UnitDamagedSignal> BattleAi::unit_damaged_signals() {
     std::vector<at::UnitDamagedSignal> out;
     if (b_->space_ || !b_->combat_) return out;
@@ -3485,7 +3485,7 @@ at::TacticalReinforcement BattleAi::hijack_unit(int32_t player, int32_t type, bo
 }
 // --- end battle host ---
 
-// ref5 t06: with the lane on both writes are batch commands applied at the due tick (apply_host_release).
+// with the lane on both writes are batch commands applied at the due tick (apply_host_release).
 void BattleAi::unit_released(int32_t player, int32_t object_id, ai::tactical::TacticalAiHost::UnitRelease path) {
     if (lane_view()) return queue_host_release(kHostUnitReleased, player, object_id, static_cast<uint8_t>(path));
     lane_live_read("unit_released");
@@ -3552,7 +3552,7 @@ bool BattleAi::landing_in_flight(int32_t player, int32_t key) const {
         const TacticalBattle::Participant& p = b_->parts_[l.participant];
         if (l.timed && l.state != 3 && p.owner == player && p.galactic_id == key) return true;
     }
-    for (const TacticalBattle::ArrivalRec& r : b_->arrivals_) {  // aitac t05: a space reinforcement still arriving
+    for (const TacticalBattle::ArrivalRec& r : b_->arrivals_) {  // a space reinforcement still arriving
         if (r.reinforce < 0 || static_cast<size_t>(r.reinforce) >= b_->parts_.size()) continue;
         const TacticalBattle::Participant& p = b_->parts_[static_cast<size_t>(r.reinforce)];
         if (p.owner == player && p.galactic_id == key) return true;
@@ -3596,13 +3596,13 @@ void BattleAi::resolve_weather_categories() {
 float BattleAi::sight_weather_factor(int32_t type, int32_t) {
     lane_live_read("sight_weather_factor");
     if (b_->space_ || type < 0) return 1.0f;
-    resolve_weather_categories();  // REF1 t04: the cached category, not a per-call type string lookup
+    resolve_weather_categories();  // the cached category, not a per-call type string lookup
     if (static_cast<size_t>(type) >= weather_category_.size()) return 1.0f;
     const int32_t c = weather_category_[static_cast<size_t>(type)];
     return c < 0 ? 1.0f : b_->weather().sight_modifier(weather_categories_[static_cast<size_t>(c)]);
 }
 
-// ref5 t07: the six signal lists in one call (the world takes each right before it handles it, or all at publish).
+// the six signal lists in one call (the world takes each right before it handles it, or all at publish).
 void BattleAi::frame_events(uint32_t kinds, at::FrameEvents& out) {
     if (kinds & at::FrameEvents::kOpportunity) out.opportunity = opportunity_targets();
     if (kinds & at::FrameEvents::kAttackStates) out.attack_states = attack_state_signals();
@@ -3612,7 +3612,7 @@ void BattleAi::frame_events(uint32_t kinds, at::FrameEvents& out) {
     if (kinds & at::FrameEvents::kProduced) out.produced = production_completed();
 }
 
-// ref5 t07: one rule per fact family, read from the battle. A FactTable family's lane answer is the same rule's answer at
+// one rule per fact family, read from the battle. A FactTable family's lane answer is the same rule's answer at
 // the capture; a FactQuery family's lane answer reads the capture (FactEnv view, or the view_* tests: partial for the drop
 // tests, whose rest runs at the apply, lane_drop_valid).
 void BattleAi::wire_facts() {
@@ -3678,7 +3678,7 @@ void BattleAi::wire_facts() {
     f.contrast_table = &b_->rules_->contrast;
 }
 
-// [port] The S10 stand-in (TacticalBattle::issue_orders, REF1 t02) for the sides that have no tactical AI, on its own
+// [port] The S10 stand-in (TacticalBattle::issue_orders) for the sides that have no tactical AI, on its own
 // cadence; the players this AI controls are left out.
 void BattleAi::standin_orders() {
     if (b_->frame_ == 0 || (b_->frame_ - 1) % kStandinInterval != 0) return;

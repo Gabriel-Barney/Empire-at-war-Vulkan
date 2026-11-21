@@ -40,7 +40,7 @@ static bool has_warning(const XmlDocument& d, uint32_t line, std::string_view ne
     return false;
 }
 
-// mcx1 t02: retail value kinds (docs/re/OBJECT_TYPES.md §4.5 type codes; §4.4 repeated tags; §6.3 TBD).
+// retail value kinds (legacy docs/re/OBJECT_TYPES.md §4.5 type codes; §4.4 repeated tags; §6.3 TBD).
 static void test_xml_values() {
     namespace xv = alamo::data::xml_values;
     // code 0x0: "1" or a first character Y / y / T / t; everything else false.
@@ -82,14 +82,14 @@ static void test_xml_values() {
     CHECK(xv::bool_or(ne, "Y", false, xv::kAbility) && !xv::bool_or(ne, "Y", false));
     CHECK(xv::list(ne, "L").size() == 3 && xv::list(ne, "L", xv::kAbility).size() == 1);
     CHECK(xv::texts(ne, "X").size() == 1 && xv::fields(ne).size() == 3);
-    // OBJECT_TYPES.md §4.2: for object types a SubObjectList="Yes" container holds sub-objects, not fields; any other
+    // legacy docs/re/OBJECT_TYPES.md §4.2: for object types a SubObjectList="Yes" container holds sub-objects, not fields; any other
     // container is a group. Q1: the other data classes have no SubObjectList branch and descend into it too.
     const auto so = XmlDocument::parse(
         "<E><Other SubObjectList=\"yes\"><X>4</X></Other><Abilities SubObjectList=\"Yes\"><A><X>9</X></A></Abilities></E>");
     CHECK(so.ok());
     CHECK(xv::int_or(so.root(), "X", -1, xv::kObject) == 4);
     CHECK(xv::int_or(so.root(), "X", -1) == 9);
-    // mcx1 t14: UCRT atof edge cases - "-nan" keeps its sign, a hex overflow is inf and a hex underflow 0.
+    // UCRT atof edge cases - "-nan" keeps its sign, a hex overflow is inf and a hex underflow 0.
     CHECK(std::isnan(xv::c_atof("-nan")) && std::signbit(xv::c_atof("-nan")) && !std::signbit(xv::c_atof("nan")));
     CHECK(xv::c_atof("0x1p99999") == std::numeric_limits<double>::infinity());
     CHECK(xv::c_atof("-0x1p99999") == -std::numeric_limits<double>::infinity());
@@ -192,7 +192,7 @@ static void test_xml_recovery() {
         CHECK(has_warning(d, 2, "<R> is not closed"));
         CHECK(d.root().child_text("A") == "x < 5");
     }
-    {  // element names may start with a digit (the original loads these unit files: docs/re/MODC_LOADER.md section 3)
+    {  // element names may start with a digit (the original loads these unit files: legacy docs/re/MODC_LOADER.md section 3)
         const char* src =
             "\xEF\xBB\xBF<?xml version=\"1.0\"?>\r\n"
             "<181st>\r\n"
@@ -339,7 +339,7 @@ static void test_values() {
 
 using ::alamo::test::write_file;
 
-// modc t06: planet columns through Variant_Of_Existing_Type (OBJECT_TYPES.md §3.3 / §3.4). The template is in a later
+// planet columns through Variant_Of_Existing_Type (legacy docs/re/OBJECT_TYPES.md §3.3 / §3.4). The template is in a later
 // file (any definition order), a two-step chain, a variant's own tags win, its <Behavior> replaces the list (last one
 // wins), an empty tag is a no-op, a missing parent or a cycle keeps only the element's own tags.
 static void test_planet_variants() {
@@ -858,7 +858,7 @@ static void integration_merge(const DataSource& foc, const DataSource& eaw) {
     CHECK(db.find_campaign("Full_Story_Campaign_Empire") != nullptr);
 }
 
-// cu5 t02: the <File> list helper keeps list order and duplicates; empty entries, missing and unparsable files follow
+// the <File> list helper keeps list order and duplicates; empty entries, missing and unparsable files follow
 // the options.
 namespace {
 class MapProvider final : public FileProvider {

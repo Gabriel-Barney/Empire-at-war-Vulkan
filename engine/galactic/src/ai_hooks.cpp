@@ -1,6 +1,6 @@
 // A2 galactic: the GalacticSim operations and queries the galactic AI (engine/ai) asked for (declared in
 // campaign.hpp, "A2 galactic"): income-tick listeners (AI_GALACTIC_2 §3.1), production queries, and the
-// FleetManagement event (COMMANDS.md id 8, AI_GALACTIC_2 §5.4) - the one path for fleet form / detach / merge /
+// FleetManagement event (legacy docs/re/COMMANDS.md id 8, AI_GALACTIC_2 §5.4) - the one path for fleet form / detach / merge /
 // launch / land, used by the galactic HUD's fleet drag (it replaces the P host block of campaign.cpp, same ops 2-5)
 // and by the AI through the command stream (execute_direct).
 //
@@ -360,7 +360,7 @@ RejectReason GalacticSim::fleet_management(int32_t player, const commands::Event
         fleets_[nf].contents = std::move(moved);
         for (const ObjectHandle u : fleets_[nf].contents) fleet_member_joined(nf, u);  // mcx4 t20
         fleets_[nf].carried = std::move(carried);
-        // ui4 t13: a launch from the surface is retail's op 4 (launch: the reveal, REMAINING_GAPS 6.1) then op 0 (a new
+        // a launch from the surface is retail's op 4 (launch: the reveal, REMAINING_GAPS 6.1) then op 0 (a new
         // fleet: the space conflict in a hostile orbit), as kFleetLaunch runs them (GALACTIC_PLANET_MAP §6.2 rules 2 / 4).
         // [port] the conflict only for a fleet that stays: one moving on leaves the orbit (a lone ground unit is no attacker).
         if (launched) launch_reveal(p, unit);

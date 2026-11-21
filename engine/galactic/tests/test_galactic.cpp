@@ -1,5 +1,5 @@
 // alamo_galactic tests (no framework; non-zero exit on failure).
-// Semantics under test: docs/re/PHASE2_ANSWERS.md Q1-Q11.
+// Semantics under test: legacy docs/re/PHASE2_ANSWERS.md Q1-Q11.
 #include <algorithm>
 #include <cmath>
 #include <cstdio>

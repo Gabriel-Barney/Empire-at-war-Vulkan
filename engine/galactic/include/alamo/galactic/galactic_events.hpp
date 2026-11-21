@@ -1,6 +1,6 @@
 // S4 "Story & campaign events": the game-side events the galactic simulation emits for the story
-// system (story plots' STORY_* triggers, docs/re/SUBSYSTEMS.md "story") and for the script event
-// callbacks the engine looks up by name (docs/re/LUA_API.md: Galactic_Planet_Faction_Change,
+// system (story plots' STORY_* triggers, legacy docs/re/SUBSYSTEMS.md "story") and for the script event
+// callbacks the engine looks up by name (legacy docs/re/LUA_API.md: Galactic_Planet_Faction_Change,
 // Galactic_Production_Begin_Event / _Canceled_Event / _End_Event, Galactic_Starbase_Level_Change,
 // Galactic_Unit_Destroyed_Event).
 //
@@ -44,11 +44,11 @@ enum class GalacticEventKind : uint8_t {
     ProductionCanceled,      // player, planet, type, value = queue, other_player = 1 if refunded
     ProductionCompleted,     // player, planet, type, object = created object (0 = none: tech upgrade)
     StarbaseLevelChanged,    // player, planet, value = new level (0 = destroyed), type = new starbase type (level 0: none),
-                             // other_player = the old starbase type, -1 none (storyb t14: Galactic_Starbase_Level_Change)
+                             // other_player = the old starbase type, -1 none (Galactic_Starbase_Level_Change)
     ObjectDestroyed,         // object, type (kNoIndex for a fleet object), player = owner, planet (or invalid); value 1 =
                              // an auto-resolve kill (mcx4 Q4: Die schedules the respawn itself and skips the "hero
                              // defeated" path 0x3a01f0, so no STORY_DEFEAT_HERO); 2 = a member `type` of the
-                             // company `object` lost at a battle end (the company stays, mcx4 t22); else 0
+                             // company `object` lost at a battle end (the company stays); else 0
     UnitsLanded,             // player, planet, value = units landed
     CorruptionChanged,       // planet, player = corrupting player, value = corruption type, other_player = old type
     TechLevelChanged,        // player, value = new level, other_player = old level
@@ -57,7 +57,7 @@ enum class GalacticEventKind : uint8_t {
     BattleWon,               // planet, player = winner, other_player = loser, value = 1 land / 2 space, type = victory type
     BattleLost,              // planet, player = loser, other_player = winner, value = 1 land / 2 space
     BattleRetreat,           // planet, player = the retreating player, value = 1 land / 2 space
-    // P4 sim (special_systems.hpp; docs/re/P4_SIM_SYSTEMS.md):
+    // P4 sim (special_systems.hpp; legacy docs/re/P4_SIM_SYSTEMS.md):
     SpecialDialog,           // a human's hero ability opens its panel: player, planet, object = hero, other_player = the
                              // SpecialAbility kind the panel answers with (4 black market / 5 sabotage / 6 corruption /
                              // 7 hack), value = q5 code of the black-market respawn time R (else 0)
@@ -81,7 +81,7 @@ enum class GalacticEventKind : uint8_t {
     // STY1 t08 (retail wrappers 0x3f6810 / 0x3f6770 -> 0x32edd0, GRC 4.3): a timed corruption transition begins:
     CorruptionStarted,       // planet, player = corrupting player (gain), value = 1 gain / 0 removal; story STORY_GENERIC
                              // "increase_corruption" / "decrease_corruption"
-    // galab (docs/re/GALAB_ABILITIES_RE.md):
+    // galab (legacy docs/re/GALAB_ABILITIES_RE.md):
     SiphonStarted,           // Siphon_Credits applied: player = siphoner, planet, object = hero, type = hero type, value =
                              // Siphon_Duration_In_Cycles, other_player = planet owner (TEXT_SIPHON_BEGIN)
     SiphonVigilance,         // a generic siphoner caught on Planet_Vigilance (killed): player, planet, object = hero,

@@ -27,7 +27,7 @@ namespace io = save_io;
 
 namespace {
 
-// 2: skirmish_or_mp, PerceptionObject::parent_object (A1_READINGS §30.3); 3 (cu12 t10): PerceptionObject::valid_bombing_target
+// 2: skirmish_or_mp, PerceptionObject::parent_object (A1_READINGS §30.3); 3: PerceptionObject::valid_bombing_target
 // removed (never read: IsValidBombingTarget is computed, A1_READINGS §21).
 constexpr uint32_t kPerceptionWorldVersion = 3;
 constexpr uint32_t kGridVersion = 1;

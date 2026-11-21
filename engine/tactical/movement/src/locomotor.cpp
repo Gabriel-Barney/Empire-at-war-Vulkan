@@ -6,7 +6,7 @@
 
 #include "alamo/tactical/movement/formation.hpp"
 #include "alamo/tactical/movement/land_path.hpp"
-#include "alamo/tactical/movement/special_locomotors.hpp"  // mcx4 t11: bike_lateral_step / bike_travel_dir
+#include "alamo/tactical/movement/special_locomotors.hpp"  // bike_lateral_step / bike_travel_dir
 
 namespace alamo::tactical::movement {
 
@@ -174,7 +174,7 @@ bool wt_end_move(LandMotion& m, const WalkTransition& wt, float vmax) {
         // the end clip = 17 + (int(cur / (n_move / k)) % k), switched only when the phase <= the clip step, +0xf4 := the phase
         const float seg = wt.count[0] / static_cast<float>(k);
         float q = std::floor(m.wt_pos / seg);
-        if (!(q >= 0.0f) || q > static_cast<float>(k)) q = 0.0f;  // s78o (b0087): never a clip below 17 or an int overflow
+        if (!(q >= 0.0f) || q > static_cast<float>(k)) q = 0.0f;  // s78o: never a clip below 17 or an int overflow
         const float phase = m.wt_pos - q * seg;
         if (phase <= wt_step(m, wt)) {
             int32_t e = 17 + static_cast<int32_t>(q) % k;
@@ -381,7 +381,7 @@ WalkResult walk_step(LandMotion& m, const LocomotorParams& p, float speed_cap, c
     if ((m.state == LocoState::WalkEndMove || m.state == LocoState::WalkStartMove) && !team) budget *= v / vmax_u;
     float s = v;
     if (!(v > 0.0f)) return r;
-    // bkm1 t08 (b0050, MOVEMENT §3.5.3 item 2a): B2 once per call before the loop - delta2 = |wrap(w0 - Y2)| with w0 the
+    // bkm1 t08 (MOVEMENT §3.5.3 item 2a): B2 once per call before the loop - delta2 = |wrap(w0 - Y2)| with w0 the
     // primary wanted yaw; B2 = clamp(delta2 / SecondaryTurnAngle x f, Min, Max) x R (f = v / vmax_u, not x f again in
     // 0x12 / 0x14)
     float budget2 = 0.0f;
@@ -444,7 +444,7 @@ WalkResult walk_step(LandMotion& m, const LocomotorParams& p, float speed_cap, c
             std::swap(m.started, below->started);
             m.next = resume_index(m, x->below_kind, x->below_resume);
             forced = x->below_forced;
-            top_shift = x->end_shift;  // mov2 t01: the order path below carries the end shift
+            top_shift = x->end_shift;  // the order path below carries the end shift
             below = nullptr;
             r.popped = true;
             no_turn = true;
@@ -469,7 +469,7 @@ WalkResult walk_step(LandMotion& m, const LocomotorParams& p, float speed_cap, c
             budget = e > budget ? 0.0f : budget - e;
             if (budget > 0.0f) m.turn_done = true;
         }
-        // bkm1 t08: Y2 steps with B2 toward w1 under the same conditions, its leftover carried to the next waypoint of the call
+        // Y2 steps with B2 toward w1 under the same conditions, its leftover carried to the next waypoint of the call
         if (p.secondary && !no_turn && budget2 > 0.0f) {
             const float w2 = yaw2_want();
             const float e2 = std::fabs(wrap_deg(w2 - m.yaw2));

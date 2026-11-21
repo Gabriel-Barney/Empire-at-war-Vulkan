@@ -53,7 +53,7 @@ std::optional<PickHit> pick(const tactical::SpatialTree& tree, const tactical::R
 std::span<const tactical::RayHit> pick_all(const tactical::SpatialTree& tree, const tactical::Ray& ray,
                                            tactical::QueryFilter filter, tactical::QueryContext& ctx);
 
-// refixf t08: the tactical world pick 0x36600 (docs/re/HUD_GAPS.md §2.2). Per candidate: the precise model test (0x38f900,
+// the tactical world pick 0x36600 (legacy docs/re/HUD_GAPS.md §2.2). Per candidate: the precise model test (0x38f900,
 // SPACE_AVOIDANCE §5); when it misses and the type's Mouse_Collide_Override_Sphere_Radius (type +0x4e0) is > 0, a
 // ray-sphere test at the object centre with that radius. The nearest hit wins; a contained child resolves to its
 // container. The tests are host callbacks (the model data lives in the sim host); all of them are const reads.

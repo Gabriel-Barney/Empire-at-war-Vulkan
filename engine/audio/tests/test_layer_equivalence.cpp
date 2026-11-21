@@ -1,6 +1,6 @@
-// ums0 t05: the layer seam changes no result. shader_files_from_vfs (materials) and GameSampleSource::default_sfx_megs
+// the layer seam changes no result. shader_files_from_vfs (materials) and GameSampleSource::default_sfx_megs
 // (audio) moved from the mod-folder tests on Vfs::mod_dirs() to vfs::Layer / Vfs::resolve_all; this test keeps the
-// pre-ums0 versions as reference copies and compares both on the installed reference mods (docs/MODS.md §10.3, plus
+// pre-ums0 versions as reference copies and compares both on the installed reference mods (docs/MODS.md "Reference set", plus
 // the AotR / AotCW stack of the 2026-11-18 corpus sweep, §10.4) and on base FoC. Data-driven: skips without
 // ALAMO_FOC_DATA, and a mod that is not installed in the Steam library next to it is skipped by name.
 #include <cstdio>
@@ -27,7 +27,7 @@ namespace materials = alamo::materials;
 // ---- Reference copies of the pre-ums0 code (dev 2f30b33e), kept only for this comparison ----
 
 // The mod search list the pre-ums0 code read (Vfs::mod_dirs()): the host roots of the mod layers, which come first in
-// search order (ums4 t01: only engine/vfs calls mod_dirs()).
+// search order (only engine/vfs calls mod_dirs()).
 std::vector<std::string> old_mod_dirs(const vfs::Vfs& v) { return vfs::mod_layer_roots(v); }
 
 std::vector<materials::ShaderFileEntry> old_shader_files_from_vfs(const vfs::Vfs& v, bool include_engine) {

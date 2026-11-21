@@ -1,4 +1,4 @@
-// test_ai_galactic: main() (bo3 t03: tests live in test_ai_galactic_partN.cpp, shared code in test_ai_galactic_common.hpp).
+// test_ai_galactic: main() (tests live in test_ai_galactic_partN.cpp, shared code in test_ai_galactic_common.hpp).
 #include "test_ai_galactic_common.hpp"
 
 
@@ -71,7 +71,7 @@ int main(int argc, char** argv) {
     test_goal_nominal_time_resolve();  // a2g t05 (a)
     test_goal_resolve_time_ok();       // a2g t05 (b)
     test_goal_old_candidate_reaccept();  // skai t17
-    test_active_goals_category();      // a2g F1, a2h t04
+    test_active_goals_category();      // a2g F1
     test_maintenance_tokens();         // a2h t03
     test_force_maintenance_tokens();   // a2i t04
     test_budget_fraction_to_build();   // a2h t07

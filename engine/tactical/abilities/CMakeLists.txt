@@ -1,4 +1,4 @@
-# S9 - hardpoints & abilities (docs/re/ABILITIES_HARDPOINTS.md): unit-ability info table, records and
+# S9 - hardpoints & abilities (legacy docs/re/ABILITIES_HARDPOINTS.md): unit-ability info table, records and
 # XML parsers, countdowns, command 43/40/57/58 paths, special abilities (tractor, ion, lucky shot,
 # concentrate fire, energy weapon, stealth, jamming, laser defense, blaster listeners). Built on
 # the S8 CombatSystem (hooks); the XML parsers read engine/data.
@@ -16,7 +16,7 @@ add_library(alamo_tactical_abilities STATIC
   src/ability_classes.cpp    # OI abilities: special-ability class bodies (TACTICAL_GAPS §2.3)
   src/special_weapons.cpp  # L1 systems
   src/space_fields.cpp     # L1 systems
-  src/gravity_field.cpp    # TRU1 t03: GRAVITY_CONTROL_FIELD
+  src/gravity_field.cpp    # GRAVITY_CONTROL_FIELD
   src/ability_save.cpp     # N1 stage 2: AbilitySystem / SpecialWeaponSystem / SpaceFieldIndex write + read
 )
 add_library(alamo::tactical_abilities ALIAS alamo_tactical_abilities)
@@ -41,7 +41,7 @@ if(TARGET alamo_vfs)
   target_compile_definitions(alamo_tactical_abilities_tests PRIVATE ALAMO_ABILITIES_TESTS_HAVE_VFS=1)
 endif()
 add_test(NAME alamo_tactical_abilities_tests
-         COMMAND alamo_tactical_abilities_tests)  # battle CRC across commits: scenario abilities_space (wr1 t07)
+         COMMAND alamo_tactical_abilities_tests)  # battle CRC across commits: scenario abilities_space
 set_tests_properties(alamo_tactical_abilities_tests PROPERTIES TIMEOUT 300)
 
 # L1 systems: special weapons / lobbing superweapons / tactical superweapon (special_weapons.hpp) and the combat

@@ -1,5 +1,5 @@
 // Conversations: scripted sequences of speech and SFX lines played one after another (hero clash
-// exchanges, advisor briefings, unit-to-unit chatter scripted by the game). AUDIO.md §8 lists the
+// exchanges, advisor briefings, unit-to-unit chatter scripted by the game). legacy docs/re/AUDIO.md §8 lists the
 // original's SFX/speech conversation managers as not read, so the sequencing rules here are [port],
 // built only from the documented primitives:
 //   * a Speech line goes through the speech FIFO (AudioSystem::queue_speech, §3.1) and is finished when

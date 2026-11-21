@@ -53,7 +53,7 @@ UnitDesc unit_desc_from_type(const objects::GameObjectTypes& t, uint32_t ti) {
     d.strafe_distance = t.get(ti, objects::tags::Strafe_Distance);
     d.prepare_strafe_height = t.get(ti, objects::tags::Prepare_Strafe_Height);
     d.has_pre_turn_anim = t.get(ti, objects::tags::Has_Pre_Turn_Anim);
-    // S7 t06 / t14: Uses_Multiple_Locomotors (MOVEMENT §3.1.1). The primary is the behaviour-list locomotor the host
+    // Uses_Multiple_Locomotors (MOVEMENT §3.1.1). The primary is the behaviour-list locomotor the host
     // routes (the swap back builds Primary_Locomotor_Name; every FoC user names the WALK_LOCOMOTOR of its list).
     d.uses_multiple_locomotors = t.get(ti, objects::tags::Uses_Multiple_Locomotors);
     d.secondary_locomotor = locomotor_kind_from_token(t.get(ti, objects::tags::Secondary_Locomotor_Name));
@@ -61,7 +61,7 @@ UnitDesc unit_desc_from_type(const objects::GameObjectTypes& t, uint32_t ti) {
                                 locomotor_kind_from_token(t.get(ti, objects::tags::Primary_Locomotor_Name)) != LocomotorKind::Jetpack;
     d.alt_max_speed = t.get(ti, objects::tags::Alternate_Max_Speed);  // unconditional: the type defaults are 1.0 / 2.0
     d.alt_turn_rate = t.get(ti, objects::tags::Alternate_Max_Rate_Of_Turn);
-    // S8 t11: Deployment_Anim_Rate, unset -> the type ctor's 1.0 (MOVEMENT §3.2).
+    // Deployment_Anim_Rate, unset -> the type ctor's 1.0 (MOVEMENT §3.2).
     if (t.is_set(ti, objects::tags::Deployment_Anim_Rate)) d.deployment_anim_rate = t.get(ti, objects::tags::Deployment_Anim_Rate);
     // s78n t26.1 (MOVEMENT §3.2.1): walking while deployed (deploy_ability is the host's).
     d.deploys = t.get(ti, objects::tags::Deploys);
@@ -83,7 +83,7 @@ UnitDesc unit_desc_from_type(const objects::GameObjectTypes& t, uint32_t ti) {
     if (t.is_set(ti, objects::tags::Movement_Directions_Count))
         d.movement_directions = t.get(ti, objects::tags::Movement_Directions_Count);
     d.rotation_animation_speed = t.get(ti, objects::tags::Rotation_Animation_Speed);  // s78l t02
-    // bkm1 t08 (b0050, MOVEMENT §3.5.3 item 6): UseSecondaryFacing and its coefficients; an unset row keeps the type default
+    // bkm1 t08 (MOVEMENT §3.5.3 item 6): UseSecondaryFacing and its coefficients; an unset row keeps the type default
     d.use_secondary_facing = t.get(ti, objects::tags::UseSecondaryFacing);
     const auto sec = [&](const objects::FloatTag& k, float def) {
         if (!t.is_set(ti, k)) return def;
@@ -95,7 +95,7 @@ UnitDesc unit_desc_from_type(const objects::GameObjectTypes& t, uint32_t ti) {
     d.secondary_min = sec(objects::tags::MinSecondaryTurnROTCoefficient, 0.0f);
     d.secondary_max = sec(objects::tags::MaxSecondaryTurnROTCoefficient, 1.0f);
     d.secondary_lookahead = sec(objects::tags::SecondaryTurnLookaheadDistance, 0.0f);
-    // S8 t24: the TURRET of a Deploys type (MOVEMENT §3.2 "Turret recentre around deploy"). s78f t08 (TACTICAL_COMBAT
+    // the TURRET of a Deploys type (MOVEMENT §3.2 "Turret recentre around deploy"). s78f t08 (TACTICAL_COMBAT
     // §3.1.1 "s78f t08 answers" 6 [H]): every TURRET type slews the same way (0x632050: one Turret_Rotate_Speed step per
     // service, no shortcut for non-deployers; the deploy state only picks the deployed extents / rest angle), so the model
     // covers every TURRET type; the tick runs it on land only. [port] Turret_Rotate_Speed <= 0: no model (aimed at once).

@@ -1,13 +1,13 @@
-// P2: consumers of the tactical HUD's host actions (docs/re/UI.md §4.1 "modal targeting controller"):
+// P2: consumers of the tactical HUD's host actions (legacy docs/re/UI.md §4.1 "modal targeting controller"):
 //   BeginAbilityTargeting -> TargetingController (ability mode: the next world click picks the target)
 //   BeginReinforcement    -> TargetingController (drop mode: the next world click picks the landing point)
 //   RadarCameraJump       -> apply_radar_jump (the tactical camera looks at the clicked radar point)
-// Presentation only: the picked target leaves as a command (COMMANDS.md §2: 40 TacticalSpecialAbility on an object,
+// Presentation only: the picked target leaves as a command (legacy docs/re/COMMANDS.md §2: 40 TacticalSpecialAbility on an object,
 // 57 TacticalSpecialAbilityWithDummyTarget on a ground point - the host / sim spawns the dummy target -, 43
 // SetUnitAbilityMode with the point for the position-via-43 types, 12 Reinforce at the drop point; 47
-// FIRE_LOBBING_SUPERWEAPON's ground point leaves as 25 SpecialWeaponFire at position, TRU1 t01).
+// FIRE_LOBBING_SUPERWEAPON's ground point leaves as 25 SpecialWeaponFire at position).
 //
-// Ability families (ABILITIES_HARDPOINTS.md §2.9 table [H for the lists]): ability_target_kind(). [port] HUNT / LURE /
+// Ability families (legacy docs/re/ABILITIES_HARDPOINTS.md §2.9 table [H for the lists]): ability_target_kind(). [port] HUNT / LURE /
 // AVOID_DANGER (optional target) and TARGETED_INVULNERABILITY take an object; JET_PACK a ground point (57).
 //
 // Host wiring: RouteHooks::targeting_active = [&]{ return targeting.active(); } (the router then gives the targeting

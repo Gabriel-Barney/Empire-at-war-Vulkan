@@ -26,7 +26,7 @@ namespace alamo::galactic {
 inline constexpr uint32_t kNoIndex = 0xFFFFFFFFu;
 
 // How a type takes part in the galaxy: from its DUMMY_* behaviours and PLANET, never from its XML element tag
-// (mcx1 t05, D4; MCX1_RE_ANSWERS.md Q7; galactic_unit_kind below).
+// (D4; legacy docs/re/MCX1_RE_ANSWERS.md Q7; galactic_unit_kind below).
 enum class UnitKind : uint8_t {
     Other = 0,
     SpaceUnit = 1,        // ships, space heroes: live in fleets
@@ -85,7 +85,7 @@ struct TypeInfo {
     uint32_t political_faction = kNoIndex;
     std::vector<std::pair<uint32_t, int32_t>> max_political_control;
 
-    // ---- OI galactic (docs/re/STRATEGIC_GAPS.md = SG) -----------------------------------------------------------
+    // ---- OI galactic (legacy docs/re/STRATEGIC_GAPS.md = SG) -----------------------------------------------------------
     // Defaults are the hand-built-rules values (tests): no dummy behaviour, no limits, unlimited slots. The data path
     // (extract_type_info) fills every field from the typed view.
     uint8_t dummy = 0;                   // DUMMY_* behaviour id (kDummy* below), 0 = none (classify by `kind`)
@@ -144,7 +144,7 @@ inline bool is_star_base_type(const TypeInfo& t) {
     return t.dummy != 0 ? t.dummy == kDummyStarBase : t.kind == UnitKind::StarBase;
 }
 
-// Galactic role (q6 t03; mcx1 t05, D4). The element tag carries no behaviour (OBJECT_TYPES §0 rule 2; MCX1_RE_ANSWERS
+// Galactic role (D4). The element tag carries no behaviour (OBJECT_TYPES §0 rule 2; MCX1_RE_ANSWERS
 // Q7.1: no galactic reader of it). Retail's create-at-planet routine (Q7.2, 0x400b40) tests the DUMMY_* ids of the type's
 // generic <Behavior> list (not Galactic / Land / SpaceBehavior) in the fixed order 0x5B, 0x5C, 0x5F, 0x60, 0x5D, 0x5E,
 // 0x61, the first match wins; a type with none of them is not created. A planet is any type with PLANET (id 3) in its

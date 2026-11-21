@@ -1,5 +1,5 @@
 // alamo_commands tests (no framework; non-zero exit on failure).
-// Semantics under test: docs/re/COMMANDS.md (event catalogue §2, quantizers §3.2, scheduling §4).
+// Semantics under test: legacy docs/re/COMMANDS.md (event catalogue §2, quantizers §3.2, scheduling §4).
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -134,7 +134,7 @@ void test_catalogue() {
 }
 
 void test_quantizers() {
-    // Bits = smallest b with 2^b - 1 >= ceil((max - min) / step) + 1 (COMMANDS.md §3.2 nominal steps).
+    // Bits = smallest b with 2^b - 1 >= ceil((max - min) / step) + 1 (legacy docs/re/COMMANDS.md §3.2 nominal steps).
     const double steps[kQuantizerCount] = {0, 0.1, 0.1, 0.1, 0.1, 0.01, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1};
     for (uint8_t i = 1; i < kQuantizerCount; ++i) {
         const Quantizer& q = quantizer(i);
@@ -172,7 +172,7 @@ void test_round_trip() {
     Rng r(1);
     for (int i = 0; i < 3000; ++i) {
         Command c;
-        c.header.player = static_cast<uint16_t>(r.below(i % 2 ? 256u : kMaxPlayerSlots));  // mcx5 t01: 13-bit ids
+        c.header.player = static_cast<uint16_t>(r.below(i % 2 ? 256u : kMaxPlayerSlots));  // 13-bit ids
         c.header.source = static_cast<CommandSource>(r.below(4));
         c.header.sequence = static_cast<uint32_t>(r.next());
         c.header.issue_tick = r.next();
@@ -272,7 +272,7 @@ void test_queued_flag() {
     CHECK(decode_command(q, pos, d) == DecodeError::None && d == c && d.payload.queued() && d.header.source == CommandSource::AI);
     pos = 0;
     CHECK(decode_command(plain, pos, d) == DecodeError::None && !d.payload.queued());
-    // mcx5 t01: source byte bits 2-6 are player id bits 8-12 (0x05 = source AI, player 256 + 2).
+    // source byte bits 2-6 are player id bits 8-12 (0x05 = source AI, player 256 + 2).
     auto high = q;
     high[3] = static_cast<uint8_t>(kCommandQueuedBit | 0x05);
     pos = 0;
@@ -821,7 +821,7 @@ void test_old_streams() {
 
 }  // namespace
 
-// mcx5 t01: more than 255 players (no 64-slot cap): the scheduler, the stream header, the EventBus save; the version-1
+// more than 255 players (no 64-slot cap): the scheduler, the stream header, the EventBus save; the version-1
 // scheduler save (u8 max_players) still reads.
 void test_wide_players() {
     SchedulerConfig cfg;

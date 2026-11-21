@@ -1,4 +1,4 @@
-// alamo_render - ability beams, renderer side (docs/re/ABILITY_VISUALS.md 4.1 draw 0x37fa50): Engine\PrimAdditive batches per
+// alamo_render - ability beams, renderer side (legacy docs/re/ABILITY_VISUALS.md 4.1 draw 0x37fa50): Engine\PrimAdditive batches per
 // texture in the Transparent bucket. The CPU side (animation, geometry) is in beams.cpp.
 #include <algorithm>
 #include <cstring>

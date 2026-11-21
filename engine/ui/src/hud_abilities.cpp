@@ -70,7 +70,7 @@ void abilities_from_s9(const tactical::abilities::AbilitySystem& sys, const Sele
         const auto type = static_cast<uint8_t>(t);
         bool any = false;
         std::string alternate;  // t42: Alternate_Icon_Name of the first member's record (hud_abilities.hpp)
-        std::string alt_name, alt_desc;  // mcx4 t14: that record's Alternate_Name_Text / Alternate_Description_Text
+        std::string alt_name, alt_desc;  // that record's Alternate_Name_Text / Alternate_Description_Text
         bool have_record = false;
         HudAbility a;
         a.ability_type = type;
@@ -102,7 +102,7 @@ void abilities_from_s9(const tactical::abilities::AbilitySystem& sys, const Sele
         a.targeted = k != TargetKind::None;
         a.target_kind = static_cast<uint8_t>(k);
         a.icon = alternate.empty() ? ability_icon(type) : std::move(alternate);
-        // ui3 t07: the MasterTextFile pair TEXT_TOOLTIP_ABILITY_<type>_NAME / _DESCRIPTION; mcx4 t14 (MCX4_PRES_RE_ANSWERS_2
+        // the MasterTextFile pair TEXT_TOOLTIP_ABILITY_<type>_NAME / _DESCRIPTION; mcx4 t14 (MCX4_PRES_RE_ANSWERS_2
         // Q5, tooltip 0x2f3e20): the first member's record's Alternate_Name_Text / Alternate_Description_Text replace each
         // key when set. Two keys: two lines.
         if (const std::string_view n = tactical::abilities::ability_type_info(type).name; !n.empty() && n != "NONE") {

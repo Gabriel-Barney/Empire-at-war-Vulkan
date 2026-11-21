@@ -1,4 +1,4 @@
-// Galactic victory monitor (victory.hpp; docs/re/STRATEGIC_GAPS.md §1.4, Q6_T15_RETAIL_RUN.md "ELIM C" / "q6 t25").
+// Galactic victory monitor (victory.hpp; legacy docs/re/STRATEGIC_GAPS.md §1.4, legacy docs/re/Q6_T15_RETAIL_RUN.md "ELIM C" / "q6 t25").
 #include "alamo/galactic/victory.hpp"
 
 #include <algorithm>
@@ -226,7 +226,7 @@ int32_t victory_outcome(const GalacticSim& sim, int32_t player) {
     return r.winner == player ? 1 : -1;
 }
 
-// ---- GalacticSim: the monitor's records and event-driven tests (campaign.hpp, q6 t21 / t22) ------------------------
+// ---- GalacticSim: the monitor's records and event-driven tests (campaign.hpp) ------------------------
 
 void GalacticSim::set_victory_rules(VictoryRules rules) {
     victory_rules_ = std::move(rules);

@@ -1,4 +1,4 @@
-// alamo_render - hardpoint visuals (docs/re/SPACE_AND_OPEN.md B.9 / B.10): the <HardPoint> records of
+// alamo_render - hardpoint visuals (legacy docs/re/SPACE_AND_OPEN.md B.9 / B.10): the <HardPoint> records of
 // HardPointDataFiles.xml, the bone map of a model, the per (type, model) hardpoint layout (sub-objects, setup
 // mask, destroy effects, attachments) and the per-instance state (HardpointVisibility).
 //
@@ -14,7 +14,7 @@
 // Subtree = the sub-object's bone is the target bone or a descendant, walking parents up to but not including
 // bone 0 (bone 0 never matches). Writes overwrite the bit (an ALO-hidden mesh can be shown); last write wins.
 // Not reversible in the game; DUMMY_ART and Is_Destroyable = No hardpoints never change visuals.
-// Model_To_Attach removal (B.10 answer 4, step (f) 0x3a5700, before the visibility changes; r1b t03): a destroyed
+// Model_To_Attach removal (B.10 answer 4, step (f) 0x3a5700, before the visibility changes): a destroyed
 // hardpoint with a Model_To_Attach erases the FIRST remaining sub-object named like that file's stem (upper-cased,
 // cut at ".ALO"; case-insensitive) in sub-object order - meshes, proxies, then the attachment slots in HardPoints
 // order. Usually its own slot; with several hardpoints attaching the same model, the first copy still present.
@@ -160,7 +160,7 @@ private:
     bool ready_ = false;
 };
 
-// bkx1 t05 (b0019 / b0020, docs/re/BKX1_RENDER_RE.md §1 [H]): the model's particle groups switched by the engine state. A
+// bkx1 t05 (legacy docs/re/BKX1_RENDER_RE.md §1 [H]): the model's particle groups switched by the engine state. A
 // group is the particle proxies whose name starts with a fixed prefix (case-insensitive, prefix length only: "pe" also
 // matches "pem*", not "pte*"): pe = the engine glow, pte = the turbo engines, pi = the ion-stun effect. 0 = none.
 inline constexpr uint8_t kGlowPe = 1, kGlowPte = 2, kGlowPi = 4;

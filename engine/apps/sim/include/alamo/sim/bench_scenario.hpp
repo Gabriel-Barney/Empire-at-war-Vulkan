@@ -1,4 +1,4 @@
-// BM1 benchmark scenario file (docs/PHASE4.md "BM - repeatable benchmark"): one fixed piece of game time that every
+// BM1 benchmark scenario file (legacy docs/PHASE4.md "BM - repeatable benchmark"): one fixed piece of game time that every
 // benchmark run replays exactly, so two runs measure the same work and the per-tick CRCs prove that they did.
 //
 // A scenario is a small text manifest (*.abench) next to three files it names:

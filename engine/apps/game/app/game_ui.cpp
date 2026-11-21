@@ -18,7 +18,7 @@ namespace alamo::game {
 
 namespace {
 
-// mcx2 t07 (MOD_COMPAT_DESIGN.md 10.4): reads a path from a chosen copy (Vfs::read_nth), so a mod's GUI file that fails
+// mcx2 t07 (docs/MODS.md "Asset salvage and GUI fallback"): reads a path from a chosen copy (Vfs::read_nth), so a mod's GUI file that fails
 // to load can be replaced by the next layer's copy (usually the base game's). Without a Vfs it is the plain provider.
 class LayerFallbackFiles final : public FileProvider {
 public:
@@ -64,7 +64,7 @@ void report_gui_fallback(const char* path, const std::string& why, const std::st
 bool GameUi::init(GpuCore& gpu, const GameData& data, ui::MenuProviders providers, std::string* err) {
     std::string e;
     // A mod's GUIDialogs.rc / .xml, MT_CommandBar.mtd / .tga that does not load falls back to the next layer's copy with
-    // a gui_fallback line, instead of the game refusing to start (mcx2 t07). [port] retail's behaviour for a broken
+    // a gui_fallback line, instead of the game refusing to start. [port] retail's behaviour for a broken
     // copy is not checked; the game cannot run without them, so a fallback is never worse.
     LayerFallbackFiles gui_files(*data.files, data.vfs);
     for (uint32_t failed = 0; !ui::load_gui_data(gui_files, gui_data, &e, &failed);) {
@@ -126,7 +126,7 @@ bool GameUi::init(GpuCore& gpu, const GameData& data, ui::MenuProviders provider
     atlas.texture_width = atlas_tex->width;
     atlas.texture_height = atlas_tex->height;
     {
-        // Retail's text language: the Windows user language through its table, else English (UI.md 3.5, mcx2 t06);
+        // Retail's text language: the Windows user language through its table, else English (legacy docs/re/UI.md 3.5);
         // a missing MasterTextFile_<LANGUAGE>.DAT falls back to English, a DAT with a bad record keeps the entries
         // before it (text_salvaged).
         const std::string language = ui::retail_language_for_langid(GetUserDefaultLangID());

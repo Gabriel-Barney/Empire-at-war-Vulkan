@@ -1,8 +1,8 @@
-// alamo_terrain - terrain decorations, CPU side (docs/re/DECORATIONS.md): decals, shadow blobs, map
+// alamo_terrain - terrain decorations, CPU side (legacy docs/re/DECORATIONS.md): decals, shadow blobs, map
 // spline tracks, dynamic unit tracks. Fog of war is in fow.hpp. No Vulkan: everything here is plain
 // vertex/index arrays plus the draw parameters a renderer needs.
 //
-// Decoration types (one alD3dTerrainDecorationRenderTask each, DECORATIONS.md 0):
+// Decoration types (one alD3dTerrainDecorationRenderTask each, legacy docs/re/DECORATIONS.md 0):
 //   0 shadow blobs   1 decals   2 dynamic tracks   3 map tracks on land   4 fog of war
 //   5 map tracks on the water plane.
 //
@@ -31,7 +31,7 @@
 // Type 5 (TrackGeometry with on_water()): as type 3 but in bucket 7 right after the water, with the
 //   unmodified camera (no 0.3 offset), and not fogged.
 //
-// Render mode blend states (DECORATIONS.md 1.1): OPAQUE none; ADDITIVE ONE/ONE (colour x texture);
+// Render mode blend states (legacy docs/re/DECORATIONS.md 1.1): OPAQUE none; ADDITIVE ONE/ONE (colour x texture);
 // ALPHA SRC_ALPHA/ONE_MINUS_SRC_ALPHA; MODULATE ZERO/SRC_COLOR with fragment = saturate(texture +
 // vertex colour); DIFFUSE_ALPHA as above; DECAL_BUMP_ALPHA DST_COLOR/SRC_COLOR (2 x src x dst,
 // 0.5 neutral) with the vertex RGB holding a packed tangent.
@@ -59,7 +59,7 @@ enum class DecorationType : uint32_t {
     ShadowBlob = 0, Decal = 1, DynamicTrack = 2, LandTrack = 3, FogOfWar = 4, WaterTrack = 5,
 };
 
-// Engine prim modes (DECORATIONS.md 1.1). Values are the file / XML values.
+// Engine prim modes (legacy docs/re/DECORATIONS.md 1.1). Values are the file / XML values.
 enum class RenderMode : uint32_t {
     Opaque = 0, Additive = 1, Alpha = 2, Modulate = 3, DepthSpriteAdditive = 4, DepthSpriteAlpha = 5,
     DepthSpriteModulate = 6, DiffuseAlpha = 7, StencilDarken = 8, FinalBlur = 9, Heat = 10,
@@ -102,7 +102,7 @@ struct DecorationMesh {
     uint32_t triangle_count() const { return static_cast<uint32_t>(indices.size() / 3); }
 };
 
-// Blob/decal rectangle frame (DECORATIONS.md 3.2): X axis = R(rot) (width, 0), Y axis =
+// Blob/decal rectangle frame (legacy docs/re/DECORATIONS.md 3.2): X axis = R(rot) (width, 0), Y axis =
 // R(rot) (0, -height), origin = centre - (X + Y)/2; local (lx, ly) in [0,1]^2 covers the rectangle.
 struct DecorationFrame {
     float origin[2] = {0, 0}, x_axis[2] = {0, 0}, y_axis[2] = {0, 0};
@@ -114,14 +114,14 @@ struct DecorationFrame {
     std::array<float, 2> local(float x, float y) const;
 };
 
-// Packs a unit vector component pair into tangent bytes: (t + 1) * 127.5 (DECORATIONS.md 4.3).
+// Packs a unit vector component pair into tangent bytes: (t + 1) * 127.5 (legacy docs/re/DECORATIONS.md 4.3).
 uint8_t pack_unit(float t);
 
 // ---------------------------------------------------------------- decals (type 1)
 struct DecalGeometry {
     DecorationMesh mesh;                 // colours written for alpha = intensity (age 0)
     RenderMode mode = RenderMode::Modulate;
-    // Atlas UV rows applied to the lifted world position (x, y, z, 1) (DECORATIONS.md 4.3 step 2).
+    // Atlas UV rows applied to the lifted world position (x, y, z, 1) (legacy docs/re/DECORATIONS.md 4.3 step 2).
     std::array<float, 4> atlas_u{}, atlas_v{};
     uint8_t tangent_rgb[3] = {0x7F, 0x7F, 0x7F};  // packed decal X axis on the terrain plane (bump)
 };
@@ -156,7 +156,7 @@ struct DecalFade {
     float alpha = 1.0f;
     bool dead = false;                   // age > fade time: no longer drawn, remove
 };
-// alpha = intensity * (L - age) / L for L = fade_time > 0, else intensity (DECORATIONS.md 4.4).
+// alpha = intensity * (L - age) / L for L = fade_time > 0, else intensity (legacy docs/re/DECORATIONS.md 4.4).
 DecalFade decal_fade(const TerrainDecal& decal, float age_seconds);
 // Vertex colour (B, G, R, A) for a mode, alpha and tangent (white decal colour, 4.4).
 std::array<uint8_t, 4> decal_vertex_color(RenderMode mode, float alpha, const uint8_t (&tangent_rgb)[3]);
@@ -171,7 +171,7 @@ struct ShadowBlobMaterial {
     RenderMode mode = RenderMode::Modulate;  // Render_Mode (default MODULATE)
 };
 // The two hard-coded entries: 0 w_shadow_blob.tga MODULATE, 1 w_light_blob.tga ADDITIVE
-// (DECORATIONS.md 3.1; their names are not established [L], "Default_Shadow"/"Default_Light").
+// (legacy docs/re/DECORATIONS.md 3.1; their names are not established [L], "Default_Shadow"/"Default_Light").
 std::vector<ShadowBlobMaterial> builtin_blob_materials();
 // Appends ShadowBlobMaterials.xml <Material name=...> entries. False if the XML has no root or the
 // module was built without alamo_data.
@@ -180,7 +180,7 @@ bool parse_shadow_blob_materials(std::span<const uint8_t> xml, std::vector<Shado
 // Index of a material by name (case-insensitive), or 0 (the default shadow) if missing.
 uint32_t find_blob_material(const std::vector<ShadowBlobMaterial>& materials, std::string_view name);
 
-// Placement state the owner sets per frame (DECORATIONS.md 3.2).
+// Placement state the owner sets per frame (legacy docs/re/DECORATIONS.md 3.2).
 struct ShadowBlob {
     float position[2] = {0, 0};
     float rotation = 0.0f;               // radians
@@ -195,7 +195,7 @@ struct BlobGeometry {
     assets::Aabb bounds;
     float max_height = 0.0f;             // highest terrain height under the blob (water test)
 };
-// Geometry per DECORATIONS.md 3.3 (no clipping: the texture must be sampled with CLAMP).
+// Geometry per legacy docs/re/DECORATIONS.md 3.3 (no clipping: the texture must be sampled with CLAMP).
 bool build_blob_geometry(const Terrain& terrain, const ShadowBlob& blob, RenderMode mode, BlobGeometry& out);
 // Colour rules of 3.3 (0x12ff60), returned as B, G, R, A.
 std::array<uint8_t, 4> blob_vertex_color(RenderMode mode, const float (&rgba)[4], float alpha);
@@ -228,7 +228,7 @@ struct TrackGeometry {
     uint32_t rows = 0, columns = 0;                   // samples along x profile entries across
     float length = 0.0f;                              // total arc length
 };
-// Ribbon per DECORATIONS.md 5.1: per sample a row of `profile.size()` vertices from +width/2 to
+// Ribbon per legacy docs/re/DECORATIONS.md 5.1: per sample a row of `profile.size()` vertices from +width/2 to
 // -width/2 along the left perpendicular (-ty, tx) of the tangent [L side]; z per height mode
 // (0 water + 1, 1 terrain, 2 terrain + offset) sampled at each vertex; normal = smooth terrain
 // normal (water: up); u = arc / repeat_length (or arc / length when 0), v = k / (n - 1); colour
@@ -260,7 +260,7 @@ size_t build_map_track_geometry(const Terrain& terrain, std::vector<TrackGeometr
 std::array<float, 2> track_uv_offset(const TerrainTrack& track, float seconds);
 
 // ---------------------------------------------------------------- dynamic tracks (type 2)
-// One DynamicTrackFX.xml entry; defaults = the FX constructor (DECORATIONS.md 5.2).
+// One DynamicTrackFX.xml entry; defaults = the FX constructor (legacy docs/re/DECORATIONS.md 5.2).
 struct DynamicTrackParams {
     std::string name;
     std::string texture;                 // texture_name
@@ -283,7 +283,7 @@ float smoothstep01(float t);
 
 struct DynamicTrackBuildOptions {
     // Point colour RGB = direction of the following segment ((dx+1)*127.5, (dy+1)*127.5, 0x7F),
-    // as read in the code for every mode (DECORATIONS.md 5.2). For DIFFUSE_ALPHA that tints the
+    // as read in the code for every mode (legacy docs/re/DECORATIONS.md 5.2). For DIFFUSE_ALPHA that tints the
     // track [L, capture pending]; false writes white RGB for non-bump modes instead.
     bool direction_in_color = true;
     // Long segments are split so no quad spans more than this along the track, to follow the
@@ -319,7 +319,7 @@ public:
     float head_distance() const { return head_distance_; }
     // opacity * (1 - smoothstep(begin, end, head - distance)); 0 for gaps.
     float point_alpha(size_t i) const;
-    // Ribbon (DECORATIONS.md 5.2): edges at +-width (mitred at joints, miter length capped at
+    // Ribbon (legacy docs/re/DECORATIONS.md 5.2): edges at +-width (mitred at joints, miter length capped at
     // 4 x width [L]), z = terrain + kDynamicTrackLift, smooth terrain normals, u = 0 left / 1
     // right, v = 0.5 -+ (edge length / segment_length) / 2 per segment, alpha from the end points.
     // False (empty) with fewer than 2 points.

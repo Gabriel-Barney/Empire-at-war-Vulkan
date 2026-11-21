@@ -1,0 +1,134 @@
+# Which CTest entries are not purely synthetic (cmake/AlamoTestSuites.cmake; README.md "Test suites").
+#
+#   <test name, or ^regex$>  <entry> [<entry>...]
+#
+# An entry is <suite>[+<suite>][:<need>,<need>...]. Suites: synthetic, retail, vulkan, traces. Needs (checked by
+# alamo_test_gate before the test runs): foc (ALAMO_FOC_DATA), eaw (ALAMO_EAW_DATA), traces (ALAMO_Q2_TRACES), vulkan
+# (a Vulkan 1.3 device), file:<path>. retail defaults to foc, vulkan to vulkan, traces to traces.
+#
+# A trailing "optional" marks a rule whose test exists only in some configurations (no stale-rule warning).
+#
+# The first entry keeps the test's name; each further entry adds a companion <name>_<suite>[_<suite>] that runs the
+# same command behind the gate. "synthetic", when present, must come first: the test then runs as is with game data
+# and Vulkan drivers hidden. A test that is not listed here is synthetic only.
+#
+# Classified 2026-11-21 by running every entry with and without game data and with and without Vulkan drivers
+# (VK_LOADER_DRIVERS_DISABLE=*): a test whose output changed, or that printed a skip line, uses that prerequisite.
+# When you add a data or GPU part to a test, add its line here; check with dev.cmd suite synthetic and dev.cmd suite all.
+
+# --- Unit-test executables with retail-data parts: synthetic checks + a retail companion --------------------------
+alamo_ai_galactic_tests                  synthetic retail
+alamo_ai_tactical_perception_tests       synthetic retail
+alamo_ai_tactical_tests                  synthetic retail
+alamo_ai_tests                           synthetic retail:foc,eaw
+alamo_anim_tests                         synthetic retail
+alamo_assets_tests                       synthetic retail
+alamo_audio_game_tests                   synthetic retail:foc,eaw
+alamo_audio_tests                        synthetic retail:foc,eaw
+alamo_data_tests                         synthetic retail:foc,eaw
+alamo_galactic_galab_tests               synthetic retail
+alamo_galactic_save_tests                synthetic retail
+alamo_galactic_special_tests             synthetic retail
+alamo_galactic_visibility_tests          synthetic retail
+alamo_game_battle_summary_tests          synthetic retail
+alamo_game_mod_check_tests               synthetic retail
+alamo_game_mod_faction_tests             synthetic retail
+alamo_game_mod_picker_tests              synthetic retail
+alamo_game_session_tests                 synthetic retail:foc,eaw
+alamo_game_skirmish_maps_tests           synthetic retail
+alamo_lua_players_tests                  synthetic retail
+alamo_lua_save_tests                     synthetic retail
+alamo_lua_story_tests                    synthetic retail
+alamo_lua_tests                          synthetic retail:foc,eaw
+alamo_materials_tests                    synthetic retail
+alamo_objects_tests                      synthetic retail:foc,eaw
+alamo_shaderxlat_tests                   synthetic retail:foc,eaw
+alamo_sim_battle_tests                   synthetic retail
+alamo_sim_l1_tests                       synthetic retail
+alamo_sim_story_rewards_tests            synthetic retail:foc,eaw
+alamo_sim_tests                          synthetic retail
+alamo_tactical_abilities_tests           synthetic retail
+alamo_tactical_combat_tests              synthetic retail
+alamo_tactical_hangar_tests              synthetic retail
+alamo_tactical_movement_tests            synthetic retail
+alamo_terrain_tests                      synthetic retail
+alamo_ui_gui_tests                       synthetic retail
+alamo_ui_hud_tests                       synthetic retail
+alamo_ui_screens_tests                   synthetic retail
+alamo_video_tests                        synthetic retail
+
+# --- Entries that do nothing without the installed game: retail only ----------------------------------------------
+alamo_ai_story_save_size                 retail
+alamo_audio_layer_equivalence_tests      retail
+alamo_galactic_economy_foc_campaign      retail
+alamo_headless_eval_uw_infra             retail
+alamo_headless_galactic_ai               retail
+alamo_headless_galactic_trace            retail
+alamo_headless_save_hotm                 retail
+alamo_headless_save_hotm_anim            retail
+alamo_headless_save_hotm_scheduled       retail
+alamo_headless_skirmish_ai_slots_land    retail
+alamo_headless_skirmish_ai_slots_space   retail
+alamo_headless_story_esc                 retail
+parity_autoresolve                       retail
+
+# --- alamo_render.exe checks that need a device to do anything: vulkan only ---------------------------------------
+alamo_render_app_sync                    vulkan
+alamo_render_galactic_headless_check     vulkan
+alamo_render_particles_showcase          vulkan
+alamo_render_particles_sim_check         vulkan
+alamo_render_sim_anim_crc_check          vulkan
+alamo_render_sim_headless_check          vulkan
+alamo_render_sim_particles_check         vulkan
+
+# --- CPU checks + GPU parts -------------------------------------------------------------------------------------
+alamo_rhi_gpu_tests                      synthetic vulkan
+alamo_ui_draw_tests                      synthetic vulkan
+
+# --- CPU checks + GPU parts + parts that need the game and a GPU together -----------------------------------------
+# No retail-only companion: their data parts render. <name>_vulkan runs without data, <name>_retail_vulkan with both.
+alamo_render_anim_tests                  synthetic vulkan retail+vulkan
+alamo_render_beams_tests                 synthetic vulkan retail+vulkan
+alamo_render_galactic_tests              synthetic vulkan retail+vulkan
+alamo_render_particles_tests             synthetic vulkan retail+vulkan:foc,eaw
+alamo_render_r5_tests                    synthetic vulkan retail+vulkan
+alamo_render_reference_tests             synthetic vulkan retail+vulkan
+alamo_render_shadow_tests                synthetic vulkan retail+vulkan
+alamo_render_sim_tests                   synthetic vulkan retail+vulkan
+alamo_render_space_tests                 synthetic vulkan retail+vulkan
+alamo_render_taa_tests                   synthetic vulkan retail+vulkan
+alamo_render_tests                       synthetic vulkan retail+vulkan
+alamo_shaderxlat_gpu_tests               synthetic vulkan retail+vulkan:foc,eaw
+alamo_ui_gui_draw_tests                  synthetic vulkan retail+vulkan
+
+# --- Needs the game exe on real data with a window --------------------------------------------------------------
+alamo_game_bench_stale_scene             retail+vulkan
+
+# --- Synthetic entries whose names the families below would otherwise match (the first matching line wins) --------
+alamo_game_bench_scenario_headless       synthetic
+alamo_headless_bench_synthetic           synthetic
+parity_harness_selftest                  synthetic
+
+# --- Slow tier ----------------------------------------------------------------------------------------------------
+# Without game data nearly every slow entry used to print "... skipped" and pass; they are retail entries now.
+alamo_render_fsr_tests                   synthetic vulkan retail+vulkan
+alamo_render_xess_tests                  synthetic vulkan retail+vulkan
+alamo_sim_tests_every_map                retail:foc,eaw
+alamo_ai_story_save_size_late            retail
+alamo_ai_tests_tr_seed_roles             retail
+alamo_game_save_tests                    retail
+alamo_game_save_export_tests             retail
+# Registered only without extracted/foc_data_text.zip, in place of the limits runs below.
+alamo_headless_limits_conformance        retail:foc,file:extracted/foc_data_text.zip optional
+^alamo_bench_scenario_.*$                retail
+^alamo_headless_bench_.*$                retail
+^alamo_headless_galactic_ai_human.*$     retail
+^alamo_headless_limits_.*$               retail optional  # registered only with extracted/foc_data_text.zip
+^alamo_headless_mod_golden_.*$           retail
+^alamo_headless_outcome_.*$              retail
+^alamo_headless_save_(galactic|skirmish)_.*$  retail
+^alamo_headless_skirmish_ai_(foc|geonosis).*$ retail
+^parity_harness_.*$                      retail
+# alamo_game itself on real data, with a (hidden) window: the game and a GPU.
+^alamo_game_bench_.*$                    retail+vulkan
+^alamo_game_smoke_.*$                    retail+vulkan

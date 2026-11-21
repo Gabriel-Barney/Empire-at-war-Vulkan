@@ -1,19 +1,19 @@
-// Effect audit (docs/MODS.md, shader section; roadmap modc t11): what the port does with every effect
+// Effect audit (docs/MODS.md "Effects and shaders in mods"): what the port does with every effect
 // the mounted shader directories ship, mod or base, in a form a load report can list. No GPU needed;
 // DXC optional. The renderer reaches the same results lazily per drawn effect (render::EffectCache::
 // issues(), Renderer::shader_issues()); this runs them all up front.
 //
-// Effects are looked up by name through the FileProvider (mod dirs first, RENDER.md 6), so a mod .fxo
+// Effects are looked up by name through the FileProvider (mod dirs first, legacy docs/re/RENDER.md 6), so a mod .fxo
 // that overrides or adds an effect is parsed and its shader passes go through track B (shaderxlat ->
 // HLSL -> DXC -> SPIR-V) like the shipped ones. What cannot be drawn as the original draws it is an
 // issue below; the renderer's fallback for each kind is fixed (no crash, no silent skip):
-//   SourceOnly / LoadFailed  green default effect under the effect's name (SPACE_AND_OPEN.md D.3)
+//   SourceOnly / LoadFailed  green default effect under the effect's name (legacy docs/re/SPACE_AND_OPEN.md D.3)
 //   NoTechnique              the shared green default effect (D.3)
 //   TranslateFailed /
 //   UnsupportedPass          the submesh is drawn with the unlit fallback (base texture, the pass's blend);
 //                            Heat / Shadow bucket submeshes are not drawn
 //   SourceShadowed           the .fxo is used (the original compiles the .fx instead)
-// A `.fx` that alamo_fx_prebuild compiled (modc t23, fx_source.hpp) is loaded like the original loads it and
+// A `.fx` that alamo_fx_prebuild compiled (fx_source.hpp) is loaded like the original loads it and
 // is no Source* issue; its other issues name the .fx.
 //   TechniqueSkipped         the next technique whose passes all have a program is drawn
 #pragma once
@@ -67,7 +67,7 @@ struct EffectAudit {
     size_t translated_passes = 0;  // track-B passes of the loaded effects (restore-only passes excluded)
     size_t translated_ok = 0;      // of which translated (and, with DXC, compiled to SPIR-V)
     bool compiled = false;         // DXC was given: TranslateFailed covers DXC errors too
-    size_t sources = 0;            // effects with a reachable <name>.fx (modc t23)
+    size_t sources = 0;            // effects with a reachable <name>.fx
     size_t sources_compiled = 0;   // of which the compiled source is loaded (FxSourceState::Compiled)
     std::vector<ShaderIssue> issues;  // sorted by (effect, kind)
     size_t count(ShaderIssueKind k) const;

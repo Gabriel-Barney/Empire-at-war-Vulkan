@@ -2,7 +2,7 @@
 // land frame was darkened. Cause: StencilDarkenFinalBlur multiplies the frame by the blurred ALPHA of the back buffer
 // (alpha 0 = shadowed), and the port's passes write alpha (texture alpha of terrain, units, decorations, water, particles),
 // so every pixel whose alpha ended below 1 took the shadow colour. The original keeps unshadowed alpha at 1 (RGB-only writes,
-// TERRAIN_WATER_POST.md 4.3).
+// legacy docs/re/TERRAIN_WATER_POST.md 4.3).
 //   GPU (skips without a Vulkan 1.3 device): a plane under a shadow volume whose pass leaves alpha < 1 outside the shadow
 //     (an alpha-writing overlay quad): the soft frame must equal the hard frame outside the shadow and darken the shadow.
 //   Detail options [port] (t11): output gamma over a flat frame (identity at 1, c^(1/g) otherwise, alpha kept), Shader detail
@@ -88,7 +88,7 @@ bool save_png(const std::string& path, const std::vector<uint8_t>& img, uint32_t
     return render::write_png_rgba(path, w, h, rgba);
 }
 
-void land_map(Gpu& g, const std::string& src_dir, const char* root) {
+void land_map(Gpu& g, [[maybe_unused]] const std::string& src_dir, const char* root) {
     vfs::VfsConfig cfg;
     cfg.foc_root = root;
     std::string err;
@@ -172,9 +172,9 @@ void land_map(Gpu& g, const std::string& src_dir, const char* root) {
                 CHECK(mode != 2 || st.soft_shadows == (st.shadow_volumes > 0));
                 img[mode].assign(o.data(), o.data() + bytes);
             }
-            CHECK(save_png(src_dir + "/logs/render_shadow_off.png", img[0], W, H));
-            CHECK(save_png(src_dir + "/logs/render_shadow_hard.png", img[1], W, H));
-            CHECK(save_png(src_dir + "/logs/render_shadow_soft.png", img[2], W, H));
+            CHECK(save_png(::alamo::test::artifact_dir() + "/render_shadow_off.png", img[0], W, H));
+            CHECK(save_png(::alamo::test::artifact_dir() + "/render_shadow_hard.png", img[1], W, H));
+            CHECK(save_png(::alamo::test::artifact_dir() + "/render_shadow_soft.png", img[2], W, H));
             double mean[3] = {0, 0, 0};
             size_t darker = 0, soft_darker = 0;
             for (size_t i = 0; i + 3 < bytes; i += 4) {
@@ -240,7 +240,7 @@ void land_map(Gpu& g, const std::string& src_dir, const char* root) {
                 }
                 mean_ms /= n;
                 diff /= n;
-                CHECK(save_png(src_dir + "/logs/render_shadow_soft_msaa4.png", std::vector<uint8_t>(o.data(), o.data() + bytes), W, H));
+                CHECK(save_png(::alamo::test::artifact_dir() + "/render_shadow_soft_msaa4.png", std::vector<uint8_t>(o.data(), o.data() + bytes), W, H));
                 std::printf("MSAA 4x soft shadows: mean luma %.2f (1x %.2f), mean |1x - 4x| luma %.2f\n", mean_ms, mean[2], diff);
                 CHECK(std::fabs(mean_ms - mean[2]) < mean[2] * 0.02);
                 CHECK(diff < 3.0);
@@ -342,7 +342,7 @@ int run_gpu(const std::string& src_dir) {
 }  // namespace
 
 int main() {
-    run_gpu(ALAMO_RENDER_SOURCE_DIR);
+    if (run_gpu(ALAMO_RENDER_SOURCE_DIR) != 0) ++g_fail;  // a GPU failure (e.g. no context with validation required)
     std::printf("%s (%d failures)\n", g_fail ? "FAILED" : "PASSED", g_fail);
     return g_fail ? 1 : 0;
 }

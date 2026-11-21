@@ -18,7 +18,7 @@ struct NameId {
     BehaviorTypeId id;
 };
 
-// docs/re/OBJECT_RUNTIME.md §4.3.
+// legacy docs/re/OBJECT_RUNTIME.md §4.3.
 const NameId kNames[] = {
     {"LAND_TEAM_CONTAINER_LOCOMOTOR", 0x01}, {"LAND_TEAM_INFANTRY_LOCOMOTOR", 0x01}, {"SIMPLE_LOCOMOTOR", 0x01},
     {"STARSHIP_LOCOMOTOR", 0x01}, {"SIMPLE_SPACE_LOCOMOTOR", 0x01}, {"FLEET_LOCOMOTOR", 0x01},
@@ -56,7 +56,7 @@ const NameId kNames[] = {
 
 struct NameIndex {
     std::unordered_map<std::string, BehaviorTypeId> by_name;  // lookup only
-    std::unordered_map<uint32_t, BehaviorTypeId> by_crc;      // lookup only (map1 t04: .ted chunk 0x4B8 ids)
+    std::unordered_map<uint32_t, BehaviorTypeId> by_crc;      // lookup only (.ted chunk 0x4B8 ids)
     std::string_view canonical[kBehaviorTypeCount] = {};
     NameIndex() {
         for (const NameId& n : kNames) {

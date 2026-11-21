@@ -1,4 +1,4 @@
-// alamo_render (lib alamo_render_sim) - vis1 t02: object blob shadows (docs/re/WEATHER_VISUALS.md §4, DECORATIONS.md §3).
+// alamo_render (lib alamo_render_sim) - vis1 t02: object blob shadows (legacy docs/re/WEATHER_VISUALS.md §4, legacy docs/re/DECORATIONS.md §3).
 // A land object whose type names Blob_Shadow_Material_Name gets a terrain shadow blob (terrain::ShadowBlob, drawn by
 // MapScene::set_shadow_blobs) instead of its stencil shadow when the shadow detail is below the type's
 // Blob_Shadow_Below_Detail_Level:

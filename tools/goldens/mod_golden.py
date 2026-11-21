@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run one mod scenario (tests/goldens/mods/<name>.json; roadmap mcx7 t04, docs/MOD_COMPAT_DESIGN.md §13.3).
+"""Run one mod scenario (tests/goldens/mods/<name>.json; roadmap mcx7 t04, docs/MODS.md "Determinism with mods").
 
 A mod scenario is a short headless skirmish of a reference mod. Its CRC log used to be stored as tests/goldens/mods/<name>.crc;
 since wr1 t07 (2026-11-21) it is a scenario of tools/goldens/scenarios.json, computed on the parent and the commit and
@@ -9,9 +9,9 @@ diffed by tools/goldens/behaviour_check.py (nightly tier). The spec file names t
   python -I tools/goldens/mod_golden.py --spec S --exe alamo_headless.exe [more alamo_headless arguments, e.g. --crc-out F]
   python -I tools/goldens/mod_golden.py --spec S --fingerprint     print the installed mod's fingerprint (the scenario's
                                                                     input identity in the result cache key)
-It skips (prints "skipped" and exits 0, so ctest_skips.py counts it) when ALAMO_FOC_DATA is not set or the workshop item
+It skips (prints a "SKIP mod golden ..." line and exits 77, the skip code its retail ctest entry registers) when ALAMO_FOC_DATA is not set or the workshop item
 is not installed (the Steam libraries: the one holding the FoC folder, then ALAMO_STEAM_ROOT or the default client's
-libraryfolders.vdf, as docs/MODS.md §3.1). Otherwise it runs alamo_headless --game <ALAMO_FOC_DATA> <args> <stack>
+libraryfolders.vdf, as docs/MODS.md "Command line switches"). Otherwise it runs alamo_headless --game <ALAMO_FOC_DATA> <args> <stack>
 [--workers 4] <more arguments> and passes its exit code through (the ctest entry: the mod loads and runs without error).
 """
 from __future__ import annotations
@@ -89,12 +89,12 @@ def main() -> int:
     name = os.path.splitext(os.path.basename(a.spec))[0]
     game = os.environ.get("ALAMO_FOC_DATA", "")
     if not game or not os.path.isdir(game):
-        print(f"mod golden {name}: ALAMO_FOC_DATA not set, skipped")
-        return 0
+        print(f"SKIP mod golden {name}: ALAMO_FOC_DATA not set")
+        return 77
     mod_dir = find_mod(game, spec["mod"])
     if mod_dir is None:
-        print(f"mod golden {name}: workshop item {spec['mod']} ({spec.get('name', '')}) not installed next to ALAMO_FOC_DATA, skipped")
-        return 0
+        print(f"SKIP mod golden {name}: workshop item {spec['mod']} ({spec.get('name', '')}) not installed next to ALAMO_FOC_DATA")
+        return 77
     fp = fingerprint(mod_dir)
     if a.fingerprint:
         print(fp)

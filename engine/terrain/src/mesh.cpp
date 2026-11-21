@@ -1,4 +1,4 @@
-// Terrain mesh build (TERRAIN_WATER_POST.md 2.1-2.3). See mesh.hpp.
+// Terrain mesh build (legacy docs/re/TERRAIN_WATER_POST.md 2.1-2.3). See mesh.hpp.
 #include "alamo/terrain/mesh.hpp"
 
 #include <algorithm>

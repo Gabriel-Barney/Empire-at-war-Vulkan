@@ -1,4 +1,4 @@
-// SP5: the services phase graph (service_graph.hpp).
+// the services phase graph (service_graph.hpp).
 #include "alamo/tactical/services/service_graph.hpp"
 
 #include <algorithm>

@@ -1,6 +1,6 @@
 # R4 particle systems (Phase 4): particle ALO -> CPU data, CPU emitter bookkeeping (counts and timing of the original),
 # GPU simulation (compute) + drawing in buckets 7 / 8 / 11 through the Renderer's scene hook, attachment to model
-# proxies (sim view objects, map placements). Clean-room: docs/re/ANIM_PARTICLES.md B, docs/formats/SPEC.md 3.
+# proxies (sim view objects, map placements). Clean-room: legacy docs/re/ANIM_PARTICLES.md B, legacy docs/formats/SPEC.md 3.
 # Render particles are visual only (B.6): nothing here is read by the simulation.
 
 # ---------------------------------------------------------------- shaders (DXC -> SPIR-V headers)

@@ -1,4 +1,4 @@
-// ref5 t04: ship names (alamo/sim/ship_names.hpp; docs/re/MCX8_BINDINGS_OBJECTS.md §"Ship names"): the list file format,
+// ship names (alamo/sim/ship_names.hpp; legacy docs/re/MCX8_BINDINGS_OBJECTS.md §"Ship names"): the list file format,
 // shared lists, drawing without replacement with Roman numerals after a wrap, the Start_Game reset, the parent-mode copy,
 // SELECTABLE objects only, and the save chunk.
 #include <cstdio>

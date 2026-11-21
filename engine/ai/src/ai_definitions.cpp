@@ -181,7 +181,7 @@ void AiDefinitions::load_category_enum(std::string_view xml, const std::string& 
     }
     std::vector<std::string> names;
     std::vector<int32_t> values;
-    // Dynamic-enum rules (OBJECT_TYPES §9.1 [H], as the equation-literal table reads the same file, A2J t07): C atoi of
+    // Dynamic-enum rules (OBJECT_TYPES §9.1 [H], as the equation-literal table reads the same file): C atoi of
     // the text; an entry with empty text gets the running entry index.
     for (const data::XmlNode n : doc.root().children()) {
         const std::string_view t = n.text_trimmed();
@@ -309,7 +309,7 @@ void AiDefinitions::add_function_set(std::string_view set_name, std::string_view
         // a2m r1: a repeated <Function> is a scalar field read twice: the last occurrence wins (A2K_T06_RE §1.5: the entry is
         // read through a field table, Function a converter scalar; OBJECT_TYPES §4.4: repeated scalar tags, last wins).
         // Vanilla BasicDefensiveGalacticSet Generate_Magic_Space_Defense lists Zero then Needs_Magic_Space_Defense;
-        // retail spawns that magic defense (a2m r1: the Rebel fleet at Yavin on mode frame 56, docs/PHASE4.md).
+        // retail spawns that magic defense (a2m r1: the Rebel fleet at Yavin on mode frame 56, legacy docs/PHASE4.md).
         for (const data::XmlNode f : n.children("Function")) e.function = std::string(f.text_trimmed());
         if (e.goal == kAiNone) {
             diagnostics.push_back(diag(file, n.line(), "unknown goal '" + std::string(goal) + "' in set " + s.name));

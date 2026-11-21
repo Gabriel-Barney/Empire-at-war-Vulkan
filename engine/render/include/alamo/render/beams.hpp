@@ -1,4 +1,4 @@
-// alamo_render - ability beams (docs/re/ABILITY_VISUALS.md 2, 4, 6): the LineSubClass ribbon renderer (tractor beam,
+// alamo_render - ability beams (legacy docs/re/ABILITY_VISUALS.md 2, 4, 6): the LineSubClass ribbon renderer (tractor beam,
 // energy weapon, super laser, laser-defense zap, leech shields) with its billboard dots and the LightningEffect helix /
 // arc, drawn additive (Engine\PrimAdditive) in the Transparent bucket (8).
 //
@@ -59,7 +59,7 @@ struct BeamConstants {
 // Reads Tractor_Beam_Width / _Frames / _Texture / _Color and Energy_Beam_* from GameConstants.xml bytes (missing tags keep
 // `out`'s values). False: not parseable.
 bool parse_beam_constants(std::span<const uint8_t> xml, BeamConstants& out);
-// cu5 t04: the same from the parsed <GameConstants> root (GameDatabase::constants().element); false for a null root.
+// the same from the parsed <GameConstants> root (GameDatabase::constants().element); false for a null root.
 bool parse_beam_constants(const data::XmlNode& game_constants_root, BeamConstants& out);
 
 // One resolved beam style (the ability's beam fields over the GC fallbacks, 4.2).
@@ -73,7 +73,7 @@ struct BeamStyle {
     int8_t dot_dir = 1;               // +1 owner -> target, -1 target -> owner
     std::string lightning;            // LightningEffect name ("" none)
     std::string start_bone;           // owner bone the beam starts at ("" = the owner position)
-    std::string end_bone;             // vis1 t08: target bone the beam ends at ("" = the target centre + z adjust)
+    std::string end_bone;             // target bone the beam ends at ("" = the target centre + z adjust)
     std::vector<std::string> bones;   // zap: Bone_Names (the one nearest the far end starts the beam)
     int32_t lifetime = 0;             // zap: ticks the beam lasts (Laser_Beam_Frames); 0 = while the ability lists it
     int32_t continuation = 0;         // super laser: ticks kept after the target is lost (Fire_Continuation x FPS)

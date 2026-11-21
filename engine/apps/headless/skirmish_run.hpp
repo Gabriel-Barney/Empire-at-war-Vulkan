@@ -5,8 +5,8 @@
 //   foc:       the FoC data (--game DIR or ALAMO_FOC_DATA; exit 0 "skipped" without it): shipped AI data, plans,
 //              BusyTacticalFreeStore, DifficultyAdjustments, a space map (--map, default _MP_SPACE_KUAT) and an
 //              Empire vs Rebel fleet.
-//   foc-fleet: (BM1 t02) foc with both fleets four times over, the benchmark's large space battle (tests/benchmark/space_battle.abench).
-//   foc-land-army: (BM3 t02) foc on the land skirmish map with both ground company lists six times over, the benchmark's large land battle
+//   foc-fleet: foc with both fleets four times over, the benchmark's large space battle (tests/benchmark/space_battle.abench).
+//   foc-land-army: foc on the land skirmish map with both ground company lists six times over, the benchmark's large land battle
 //                  (tests/benchmark/land_battle.abench).
 //   foc-land:  (battle host, t50) a land SKIRMISH on the same FoC data: a multiplayer land map (--map, default _MP_LAND_UTAPAU),
 //              both sides with MP_Default_Credits and their pre-built base (Command Center + Barracks pads built), the skirmish pad
@@ -14,7 +14,7 @@
 //              planet, Rebel companies lift off from the next planet, fly in and invade (S10 land conflict, fought AI vs AI).
 //              Players: Empire, Rebel, Neutral, Hostile (map owners resolve by faction, TacticalBattle::bt_map_owner).
 //   foc-land-campaign: the same invasion under the campaign rules on Utapau's campaign map (--map, default _Land_Planet_Utapau_01).
-//   foc-land / skirmish (skai, q6 t02): the skirmish host on any data (MODPATH= mods too): MapRunOptions::ai_factions (--ai) picks
+//   foc-land / skirmish (skai): the skirmish host on any data (MODPATH= mods too): MapRunOptions::ai_factions (--ai) picks
 //              the slots' factions (default Empire, Rebel); each AI slot plays its faction's Basic_AI (stock factions: the stock
 //              type), starts with its Space_ / Land_Skirmish_AI_Default_Forces (else its cheapest buildable units, [port]).
 // Both: a 3-planet galaxy whose attacker fleet moves into the defender's orbit (S10 conflict, fought AI vs AI),
@@ -26,7 +26,7 @@
 #include "map_run.hpp"
 
 // `ai_log`: write every battle's AI decision log + Lua errors (first run) to this file ("" = none).
-// `trace_out` (q4hf t02): the first run's tactical battle as a Q2TRACE 1 state trace (tactical_trace.hpp; "" = none).
+// `trace_out`: the first run's tactical battle as a Q2TRACE 1 state trace (tactical_trace.hpp; "" = none).
 int skirmish_ai_run(const MapRunOptions& opt, const std::string& kind, const std::string& ai_log = {},
                     const std::string& trace_out = {});
 

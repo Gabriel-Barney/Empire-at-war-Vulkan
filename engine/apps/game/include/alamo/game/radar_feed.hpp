@@ -1,4 +1,4 @@
-// P host (alamo_game): radar feeds - what the tactical radar shows besides the unit blips and the fog (UI.md §1.7,
+// P host (alamo_game): radar feeds - what the tactical radar shows besides the unit blips and the fog (legacy docs/re/UI.md §1.7,
 // RadarMap.xml). Presentation only: reads the battle's const state, writes engine/ui's RadarEvents / field list; nothing
 // here feeds the sim or its CRC.
 //   radar_asteroid_fields  Space_Asteroid_Field_Color / _Border_Color discs: the battle's SpaceFieldIndex fields that are
@@ -14,8 +14,8 @@
 //                          Transition_Radar_Event has no traced call site (not played).
 //   RadarFeed::blips       Lua Add_Radar_Blip(object, name) / Remove_Radar_Blip(name): persistent named markers that follow
 //                          the object ([port] visual: gold ring; the original's blip art is not traced).
-// Not fed (no spec): the base-under-attack radar ping (AUDIO.md names no event), Interdict_Activated (tru3 t01: a radar
-// map event at the generator, raised by its power-on 0x61c700 -> 0x355ca0; rad1 t06), Default_Beacon_Placement
+// Not fed (no spec): the base-under-attack radar ping (legacy docs/re/AUDIO.md names no event), Interdict_Activated (a radar
+// map event at the generator, raised by its power-on 0x61c700 -> 0x355ca0), Default_Beacon_Placement
 // (multiplayer beacons, out of scope),
 // Galactic_Build_Complete_Planet_Ping (galactic radar).
 // Needs engine/ui's alamo_ui_hud (ALAMO_GAME_HAVE_CONTROLS).

@@ -1,15 +1,15 @@
-// P2 stage 2: the original 153-slot hotkey table (docs/re/UI.md §4.3 [H] table, [M] slot -> label mapping) and
-// its dispatch into commands (COMMANDS.md §2.4 ControlGroup / SelectAll / StopMovement / Retreat) and host
+// P2 stage 2: the original 153-slot hotkey table (legacy docs/re/UI.md §4.3 [H] table, [M] slot -> label mapping) and
+// its dispatch into commands (legacy docs/re/COMMANDS.md §2.4 ControlGroup / SelectAll / StopMovement / Retreat) and host
 // intents (targeting modes, camera, interface).
 //
-// Profile keys (UI.md §4.3): KeySettingsCount (<= 153), KeySettingKeycode<n> (Win32 VK, -1 = unbound),
+// Profile keys (legacy docs/re/UI.md §4.3): KeySettingsCount (<= 153), KeySettingKeycode<n> (Win32 VK, -1 = unbound),
 // KeySettingModifier<n> (0 none, 1 Shift, 2 Ctrl, 3 Alt). Binding a key removes it from every other slot; slots
 // 0..9 drive their three derived slots (assign 123+n = Ctrl, add 133+n = Shift, third 143+n = Alt [M]).
-// Matching (P1_CAMERA_INPUT.md §6, `0x2127f0`): an unmodified slot fires only with Shift, Ctrl and Alt all up; a Shift /
+// Matching (legacy docs/re/P1_CAMERA_INPUT.md §6, `0x2127f0`): an unmodified slot fires only with Shift, Ctrl and Alt all up; a Shift /
 // Ctrl / Alt slot fires when that modifier is held (others ignored); per key the first matching slot in index order wins
 // (Ctrl+Shift+1 = assign group 1, slot 123 before 133). So H (stop), Shift+H (hunt), Ctrl+H and Alt+H coexist.
 //
-// Control groups (UI.md §4.4): recall n = ControlGroup{n, assign 0}; Ctrl+n = ControlGroup{n, assign 1, add 0};
+// Control groups (legacy docs/re/UI.md §4.4): recall n = ControlGroup{n, assign 0}; Ctrl+n = ControlGroup{n, assign 1, add 0};
 // Shift+n = ControlGroup{n, assign 1, add 1} (the wire's add bit exists only with assign). Group number = the
 // digit ([port]: slot 0 = key '1' = group 1 ... slot 9 = key '0' = group 0, the number st_control_group draws).
 // A second recall of the same group within 1 s also asks the host to jump the camera (local only).
@@ -100,7 +100,7 @@ public:
     // Binds `slot` (removing the same key + modifier from every other slot); slots 0..9 also rebind their derived
     // slots. key -1 unbinds.
     void bind(uint16_t slot, HotkeyBinding b);
-    // UI5 t05: the other slots bind(slot, b) would unbind (the same key + modifier, also for the derived slots of 0..9),
+    // the other slots bind(slot, b) would unbind (the same key + modifier, also for the derived slots of 0..9),
     // ascending; empty for key -1.
     std::vector<uint16_t> conflicts(uint16_t slot, HotkeyBinding b) const;
     // Profile I/O: save writes all 153 slots; load reads min(KeySettingsCount, 153) slots (missing entries keep
@@ -135,7 +135,7 @@ public:
     // not a pure command, plus camera-jump requests). `selection` = synced local selection (Stop needs one).
     void update(const InputState& in, const HotkeyTable& table, std::span<const uint32_t> selection, double now,
                 std::vector<commands::EventData>& commands, std::vector<HotkeyEvent>& events);
-    static constexpr double kDoubleRecallSeconds = 1.0;  // UI.md §4.4
+    static constexpr double kDoubleRecallSeconds = 1.0;  // legacy docs/re/UI.md §4.4
     // [port: Gabriel] the Pause slot emits pause_event(!paused) (orders.hpp) and flips this; the host keeps it in sync
     // with the sim (e.g. after a HUD pause button).
     void set_paused(bool p) { paused_ = p; }
@@ -156,9 +156,9 @@ private:
     std::vector<uint16_t> fired_;
 };
 
-// ui3 t02: the tactical ability (ABILITIES_HARDPOINTS 2.1 type name, e.g. "SPREAD_OUT") an ability slot (24..65, 90..122)
+// the tactical ability (ABILITIES_HARDPOINTS 2.1 type name, e.g. "SPREAD_OUT") an ability slot (24..65, 90..122)
 // or DeploySquad (66) fires; "" for other slots and for the two ability slots no FoC type matches (SystemControl,
-// DestroyPlanet). [port] matched by meaning: the keyboard dialog's edit-box names (UI.md §4.3) against the ability types the
+// DestroyPlanet). [port] matched by meaning: the keyboard dialog's edit-box names (legacy docs/re/UI.md §4.3) against the ability types the
 // FoC data uses; the original's slot -> ability lookup in the hotkey dispatch (0x63f00) is not traced. Slots of one
 // meaning share a type (SelfDestruct / SpaceSelfDestruct, LaserDefense / SpaceLaserDefense, FullSalvo / FoCFullSalvo,
 // SensorJamming / FoCSensorJamming, MinorDrainLife / DrainLife).
@@ -168,7 +168,7 @@ std::string_view hotkey_ability_name(uint16_t slot);
 int8_t hotkey_group(uint16_t slot);
 
 // P1: camera hotkeys onto the tactical camera (local presentation only). Host callbacks give world points:
-//   camera_jump (double recall / Alt+n)  -> jump_to(group(n))        (UI.md §4.4)
+//   camera_jump (double recall / Alt+n)  -> jump_to(group(n))        (legacy docs/re/UI.md §4.4)
 //   kTacticalOverview (Insert)           -> toggle_overview()
 //   kCameraReset (End)                   -> reset()
 //   kCameraCentre (PgUp)                 -> jump_to(selection())     [port: centre on the selection]

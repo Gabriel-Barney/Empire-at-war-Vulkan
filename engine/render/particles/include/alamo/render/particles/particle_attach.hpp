@@ -1,4 +1,4 @@
-// alamo_render_particles - particle systems on model proxies (R4, docs/re/ANIM_PARTICLES.md B.3).
+// alamo_render_particles - particle systems on model proxies (R4, legacy docs/re/ANIM_PARTICLES.md B.3).
 //
 // Per owner (a stable 64-bit key: sim object id, map placement) and per ALO proxy of the owner's model: the proxy
 // name is cut at _ALT / _LOD and resolved through the ParticleLibrary (names that resolve to nothing load nothing);
@@ -45,7 +45,7 @@ public:
     // `intensity` >= 0: the system's detail scale through the scalar setter (index 0, smoothing 0.1 s: SurfaceFX, R4
     // STRATEGIC_GAPS §6.2), set when it changes; < 0 leaves the scalars alone.
     void sync_effect(uint64_t key, SystemPtr def, const Mat3x4& transform, float fade, bool visible = true, float intensity = -1.0f);
-    // The galactic planet corruption scalars (GALACTIC_REVEAL_CORRUPTION.md 4.5, snapped every frame with smoothing 0) on
+    // The galactic planet corruption scalars (legacy docs/re/GALACTIC_REVEAL_CORRUPTION.md 4.5, snapped every frame with smoothing 0) on
     // every live system of owner `key` (after its sync_effect): colour RGBA = brightness (index 4), emission = scale
     // (index 1), detail = energy (index 0). Unknown keys are ignored.
     void set_effect_scalars(uint64_t key, float brightness, float scale, float energy);
@@ -54,7 +54,7 @@ public:
     void clear();  // releases every owner
 
     static uint64_t static_key(const Instance& inst, uint64_t salt);
-    // vis1 t04 (docs/re/WEATHER_VISUALS.md §6, 0x13c870 / 0x12db30): the parent mesh of a proxy on bone `proxy_bone` - the
+    // vis1 t04 (legacy docs/re/WEATHER_VISUALS.md §6, 0x13c870 / 0x12db30): the parent mesh of a proxy on bone `proxy_bone` - the
     // first mesh attached to that bone's parent bone (none for a proxy on the root bone), its first submesh's positions and
     // triangles; `submesh` = that submesh's index (its vertex space: the attach bone, or model space when skinned).
     // Null when there is none.
@@ -70,7 +70,7 @@ private:
         int alt = -1, lod = -1;
         bool finished = false;
         float intensity = -1.0f;  // last scalar-setter intensity (sync_effect)
-        int64_t mesh_sub = -1;    // vis1 t04: the parent mesh's submesh (spawn sources 1-3), -1 = none
+        int64_t mesh_sub = -1;    // the parent mesh's submesh (spawn sources 1-3), -1 = none
     };
     struct Owner {
         uint64_t model_uid = 0;

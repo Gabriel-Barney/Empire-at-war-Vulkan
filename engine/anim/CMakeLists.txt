@@ -1,4 +1,4 @@
-# R3 - sim-side animation (docs/re/ANIM_PARTICLES.md §A): ModelAnimType table, clip discovery + binding,
+# R3 - sim-side animation (legacy docs/re/ANIM_PARTICLES.md §A): ModelAnimType table, clip discovery + binding,
 # per-object three-slot playback state (SoA by object id), deterministic advance and bone poses read by
 # gameplay. Clean-room: written from docs/ only. No Vulkan, no render dependency.
 #   alamo_anim         core: needs alamo_core + alamo_formats (ALA/ALO parsing, private)
@@ -23,7 +23,6 @@ endif()
 
 add_executable(alamo_anim_tests tests/test_anim.cpp)
 target_link_libraries(alamo_anim_tests PRIVATE alamo_anim alamo_formats Threads::Threads alamo_test_support)
-target_compile_definitions(alamo_anim_tests PRIVATE "ALAMO_ANIM_LOG_DIR=\"${PROJECT_SOURCE_DIR}/logs\"")
 if(TARGET alamo_jobs)
   target_link_libraries(alamo_anim_tests PRIVATE alamo_jobs)
   target_compile_definitions(alamo_anim_tests PRIVATE ALAMO_ANIM_HAVE_JOBS=1)

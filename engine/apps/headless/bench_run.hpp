@@ -1,4 +1,4 @@
-// alamo_headless BM1 benchmark (docs/PHASE4.md "BM - repeatable benchmark"; scenario format: alamo/sim/bench_scenario.hpp).
+// alamo_headless BM1 benchmark (legacy docs/PHASE4.md "BM - repeatable benchmark"; scenario format: alamo/sim/bench_scenario.hpp).
 //
 //   --bench SCENARIO.abench [--runs R] [--warmup W] [--workers N] [--ticks K] [--bench-json FILE|-] [--bench-baseline OLD.json]
 //           [--crc-out F] [--golden F] [--bench-allow-changed] [--quiet]
@@ -17,7 +17,7 @@
 //       --crc-out writes the first run's CRC log; --golden compares every run's log with a CRC log (exit 1 on a difference:
 //       the OPT3 t07 worker-count check, alamo_add_worker_count_check). Runs must also agree with each other (exit 1).
 //       Without the game data the scenario needs: "skipped", exit 0.
-//       bm2c t02: a `host game` scenario (made by alamo_game --bench-make) runs the same way through alamo_game_core's
+//       a `host game` scenario (made by alamo_game --bench-make) runs the same way through alamo_game_core's
 //       GameSession (open_game_save_source below): its fingerprint is the rendered run's CRC log, so a match proves the
 //       sim-only run did the rendered run's sim work.
 //   --bench-make SCENARIO.abench --save-session KIND [--campaign C] [--map M] [--battles B] [--story] [--seed S]
@@ -29,7 +29,7 @@
 //       otherwise. The arguments are recorded in the manifest's "make" line.
 //   --bench-regen SCENARIO.abench
 //       Remakes the scenario with the arguments its manifest recorded (one command after a save-format or game-data change;
-//       tools/goldens/bench_scenarios.py materialize runs it per build, wr1 t06 / t07).
+//       tools/goldens/bench_scenarios.py materialize runs it per build).
 #pragma once
 #include <cstdint>
 #include <memory>

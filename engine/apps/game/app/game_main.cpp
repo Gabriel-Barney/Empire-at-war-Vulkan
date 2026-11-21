@@ -1,4 +1,4 @@
-// alamo_game (P host): the playable game exe. Per frame (MAIN_LOOP.md order): pump the window, capture input (WM_CHAR
+// alamo_game (P host): the playable game exe. Per frame (legacy docs/re/MAIN_LOOP.md order): pump the window, capture input (WM_CHAR
 // text included), route it (dialogs -> HUD -> world), menus / load screens / HUD / camera / click orders, at most the
 // paced sim tick(s), snapshots of the finished ticks, render (world + HUD + dialogs), audio update.
 //
@@ -23,10 +23,10 @@
 #include "alamo/vfs/steam_workshop.hpp"
 #include "alamo/jobs/topology.hpp"  // sp1: OS hints
 
-#include "alamo/game/open_game_data.hpp"  // ref4 t05: game_data_root
+#include "alamo/game/open_game_data.hpp"  // game_data_root
 #include "alamo/game/save_export.hpp"
 #include "alamo/render/galactic/galactic_snapshot.hpp"
-#include "alamo/sim/l1_loaders.hpp"  // mcx4 t14: skirmish_option_defaults
+#include "alamo/sim/l1_loaders.hpp"  // skirmish_option_defaults
 
 namespace alamo_game_app {
 
@@ -130,9 +130,9 @@ bool App::init() {
     gpu_.renderer.set_anisotropy(static_cast<uint32_t>(adv_video_.anisotropy));
     // Menus: skirmish maps from the data, audio volumes from the host.
     ui::MenuProviders mp;
-    // Skirmish maps (UI.md section 9, p4ui t06): the catalog of Data\Art\Maps, Data\CustomMaps and the mod folders' maps, read once;
+    // Skirmish maps (legacy docs/re/UI.md section 9): the catalog of Data\Art\Maps, Data\CustomMaps and the mod folders' maps, read once;
     // the front end filters the rows of the Official / Custom tab. Without a single catalog row the name lists stand in:
-    // space maps, then land maps, each sorted by name (game_data.hpp; modc t19: no map moved to the front). cu9 t05: kept,
+    // space maps, then land maps, each sorted by name (game_data.hpp; no map moved to the front). kept,
     // because list_maps sees every VFS layer while the catalog's official list sees only the base and MEG layers, so a data
     // set whose MP maps have no decodable header there still gets rows.
     skirmish_catalog_ = std::make_shared<const SkirmishMapCatalog>(build_skirmish_map_catalog(data_));
@@ -146,7 +146,7 @@ bool App::init() {
             i.name_key = e.name_key;
             i.custom = custom_tab;
             i.space = e.kind == 2;
-            // ccpgt t02 (UI.md 9.4): a land map whose upper-cased tag contains CONTROL is listed under Capture Control Points.
+            // ccpgt t02 (legacy docs/re/UI.md 9.4): a land map whose upper-cased tag contains CONTROL is listed under Capture Control Points.
             i.control = e.kind == 1 && e.mode_tag.find("CONTROL") != std::string::npos;
             map_rows.push_back(std::move(i));
         }
@@ -166,7 +166,7 @@ bool App::init() {
                 static_cast<size_t>(std::count_if(map_rows.begin(), map_rows.end(), [](const ui::SkirmishMapInfo& m) { return !m.custom; })),
                 static_cast<size_t>(std::count_if(map_rows.begin(), map_rows.end(), [](const ui::SkirmishMapInfo& m) { return m.custom; })),
                 skirmish_catalog_->official.size(), skirmish_catalog_->custom_scan.size());
-    // p4uia t01: the GameConstants MP_Color_* palette (byte RGB) for the staging colour combos.
+    // the GameConstants MP_Color_* palette (byte RGB) for the staging colour combos.
     mp.player_colors = [this] {
         const render::MpPalette pal = gpu_.resolver ? gpu_.resolver->palette() : render::default_mp_palette();
         const auto byte = [](float v) { return static_cast<uint8_t>(std::lround(std::clamp(v, 0.0f, 1.0f) * 255.0f)); };
@@ -174,7 +174,7 @@ bool App::init() {
         for (const materials::float4& c : pal.color) out.push_back({byte(c.x), byte(c.y), byte(c.z), 255});
         return out;
     };
-    // p4uim t03 (UI.md 9.6): <stem>.tga, else the map's embedded image, else Generic_Space / Generic_Land.tga; plus the start
+    // p4uim t03 (legacy docs/re/UI.md 9.6): <stem>.tga, else the map's embedded image, else Generic_Space / Generic_Land.tga; plus the start
     // positions. Cached per map (a selection change asks again; the embedded image is decoded once).
     auto previews = std::make_shared<std::map<std::string, ui::SkirmishPreview>>();
     mp.skirmish_preview = [this, previews](const ui::SkirmishMapInfo& m) {
@@ -206,23 +206,23 @@ bool App::init() {
     mp.camera_settings = [this] { return camera_; };
     mp.gameplay = [this] { return gameplay_; };
     mp.audio = [this] { return audio_opts_; };  // ui1 t02
-    {  // ui1 t06: the advanced game options' defaults (GameConstants MP_Default_*) and the credits range
+    {  // the advanced game options' defaults (GameConstants MP_Default_*) and the credits range
         const data::GameConstants& gc = data_.db.constants();
         ui::GameOptionsSetup& o = mp.game_option_defaults;
-        o.credits = gc.shared.mp_default_credits.value_or(o.credits);  // ref4 t06: GameConstants::shared
+        o.credits = gc.shared.mp_default_credits.value_or(o.credits);  // GameConstants::shared
         o.start_tech = gc.get_int("MP_Default_Start_Tech_Level", o.start_tech);
         o.max_tech = gc.get_int("MP_Default_Max_Tech_Level", o.max_tech);
         o.auto_resolve = std::clamp(gc.get_int("MP_Default_Allow_Auto_Resolve", o.auto_resolve), 0, 3);
         o.random_events = gc.get_bool("MP_Default_Allow_Random_Events", o.random_events);
         o.min_credits = gc.get_int("Min_Skirmish_Credits", o.min_credits);
         o.max_credits = std::max(o.min_credits, gc.get_int("Max_Skirmish_Credits", o.max_credits));
-        // skm1 t02: the skirmish options dialog (same credits default and range; flags MP_Default_Allow_Heroes / _Free_Starting_
+        // the skirmish options dialog (same credits default and range; flags MP_Default_Allow_Heroes / _Free_Starting_
         // Units / _Allow_SuperWeapons / _Pre_Built_Base; win condition 0 = the game type's default)
         ui::SkirmishOptionsSetup& k = mp.skirmish_option_defaults;
         k.credits = o.credits;
         k.min_credits = o.min_credits;
         k.max_credits = o.max_credits;
-        // ref4 t06: the flags and the kinds' default win conditions (mcx4 t14, enum names) from the sim's one reader.
+        // the flags and the kinds' default win conditions (enum names) from the sim's one reader.
         const sim::BattleConfig::SkirmishOptions skd = sim::skirmish_option_defaults(gc);
         k.heroes = skd.heroes;
         k.starting_units = skd.starting_units;
@@ -266,7 +266,7 @@ bool App::init() {
         return v;
     };
     mp.advanced_video = [this] { return adv_video_; };
-    // ui5 t12 (AUDIO.md §3.4): a caption whose text is missing or "[TBL]" does not show (nor replace the one on screen).
+    // ui5 t12 (legacy docs/re/AUDIO.md §3.4): a caption whose text is missing or "[TBL]" does not show (nor replace the one on screen).
     full_movie_.set_caption_filter([this](std::string_view id) {
         const std::u16string* t = ui_.text.find(id);
         return t != nullptr && *t != u"[TBL]";
@@ -286,7 +286,7 @@ bool App::init() {
                 v.push_back(std::move(i));
                 continue;
             }
-            if (e.name == kAutoSaveName) {  // STY1 t07: retail shows [AutoSave] as TEXT_GUI_AUTO_SAVE, first, outside any tree
+            if (e.name == kAutoSaveName) {  // retail shows [AutoSave] as TEXT_GUI_AUTO_SAVE, first, outside any tree
                 i.label = ui_.gui.text_db() && ui_.gui.text_db()->find("TEXT_GUI_AUTO_SAVE") ? ui_.gui.caption_text("TEXT_GUI_AUTO_SAVE")
                                                                                               : std::u32string(U"Auto Save");
                 v.insert(v.begin(), std::move(i));
@@ -324,11 +324,11 @@ bool App::init() {
     mp.save_exists = [this](const std::string& name) { return game::save_exists(saves_dir_, name); };
     mp.skirmish_profile = [this] { return skirmish_profile_; };  // modc t47 (load_game_options fills it in live play)
     mp.skirmish_maps = [map_rows] { return map_rows; };
-    if (!opt_.bench.active()) init_mod_picker(mp);  // modc t08: the Mods button (scripted runs open it, never Launch)
-    // modc t20: the staging faction list from the data (Is_Playable, non-neutral, FactionFiles.xml order), not built-in names.
+    if (!opt_.bench.active()) init_mod_picker(mp);  // the Mods button (scripted runs open it, never Launch)
+    // the staging faction list from the data (Is_Playable, non-neutral, FactionFiles.xml order), not built-in names.
     for (const galactic::FactionRules& f : data_.rules.factions)
         if (f.is_playable && !f.is_neutral) mp.skirmish_factions.push_back({f.name, f.text_id});
-    // mcx4 t19: the advanced options' tech slider range is shifted by the selected faction's adjustment.
+    // the advanced options' tech slider range is shifted by the selected faction's adjustment.
     mp.tech_adjustment = [this](std::string_view faction) {
         const uint32_t f = data_.rules.find_faction(faction);
         return f < data_.rules.factions.size() ? data_.rules.factions[f].displayed_tech_level_adjustment : 0;
@@ -344,7 +344,7 @@ bool App::init() {
     sync_control_bindings(ui_.hotkeys, camera_, ui_.bindings);
     attract_.set_config(load_attract_config(data_.db.constants()));
     saliency_ = game::load_saliency_weights(data_.db.constants());
-    {  // P1 move acknowledgement constants (P1_DOUBLE_CLICK_MOVE.md §2.3 / §5)
+    {  // P1 move acknowledgement constants (legacy docs/re/P1_DOUBLE_CLICK_MOVE.md §2.3 / §5)
         const data::GameConstants& gc = data_.db.constants();
         for (size_t i = 0; i < ack_fx_.size(); ++i)
             if (const auto v = gc.get(ui::ack_effect_constant(static_cast<ui::AckEffect>(i)))) ack_fx_[i] = std::string(*v);
@@ -352,10 +352,10 @@ bool App::init() {
             if (const auto v = gc.get(ui::ack_radar_constant(static_cast<ui::AckRadar>(i)))) ack_radar_[i] = std::string(*v);
         ack_scale_land_ = gc.get_float("GUI_Move_Acknowledge_Scale_Land", ack_scale_land_);
         ack_scale_space_ = gc.get_float("GUI_Move_Acknowledge_Scale_Space", ack_scale_space_);
-        // refixf t05: the in-game cinematic camera (TSW_PLANET_DESTROY.md §11.3)
+        // the in-game cinematic camera (legacy docs/re/TSW_PLANET_DESTROY.md §11.3)
         cine_.enabled = gc.get_bool("In_Game_Cinematics", true);
         cine_.letterbox_height = gc.get_float("Camera_FX_Manager_Letterbox_Height", 0.085f);
-        beacon_delay_s_ = gc.get_float("BeaconPlaceDelay", 5000.0f) / 1000.0f;  // ui3 t03: ms between two beacons
+        beacon_delay_s_ = gc.get_float("BeaconPlaceDelay", 5000.0f) / 1000.0f;  // ms between two beacons
         // mcx4 (MCX4_T11_T12_RE_ANSWERS §C3): the unit-response speaker ranking.
         if (const auto v = gc.get("Unit_Command_Rankings_By_Category"))  // ledger: consumes GameConstants.Unit_Command_Rankings_By_Category
             command_rankings_ = GameAudioHost::command_rankings(*v);
@@ -363,7 +363,7 @@ bool App::init() {
     }
     // The unsynced presentation generator (0x140a2ab18, seeded from the performance counter at boot); smoke runs fixed.
     cine_.rng.reseed(opt_.smoke.empty() && !bench_active() ? static_cast<uint64_t>(Clock::now().time_since_epoch().count()) : 0xf0f0f0f0u);
-    // Live play: the user's Windows double-click time / rectangle (P1_DOUBLE_CLICK_MOVE.md §0); smoke runs keep the defaults.
+    // Live play: the user's Windows double-click time / rectangle (legacy docs/re/P1_DOUBLE_CLICK_MOVE.md §0); smoke runs keep the defaults.
     if (live_input()) input_ = ui::InputState(ui::system_input_config());
     if (!audio_.init(data_, opt_.audio, opt_.seed ^ 0xA0D10u, &err)) std::fprintf(stderr, "audio: %s (continuing without)\n", err.c_str());
     audio_.set_log_limit(kGameAudioLogLimit);  // [port] the newest few thousand events only (GameAudioHost::set_log_limit)
@@ -371,7 +371,7 @@ bool App::init() {
     if (live_input()) ui_.gui.set_clipboard([] { return clipboard_text(); }, [](std::u32string_view t) { set_clipboard_text(t); });
     ui_.galactic_hud.set_sfx_hook([this](std::string_view ev, int32_t) { audio_.ui(ev); });
     ui_.tactical_hud.set_sfx_hook([this](std::string_view ev, int32_t) { audio_.ui(ev); });
-    load_game_options();  // ui1 t02: audio, gameplay, camera and key bindings from the last run (live play)
+    load_game_options();  // audio, gameplay, camera and key bindings from the last run (live play)
     faction_colors_ = render::load_faction_colors(*data_.files);
     gview_.init(gpu_, data_, faction_colors_, render::load_route_line_style(*data_.files));
     apply_camera_tuning();
@@ -396,13 +396,13 @@ bool App::init() {
         }
         std::string e;
         radar_settings_.load(*data_.files, &e);
-        // HUD_GAPS §1.5: the hard-point reticle textures (GameConstants) and their stand-alone DDS pages. cu5 t03: the
+        // HUD_GAPS §1.5: the hard-point reticle textures (GameConstants) and their stand-alone DDS pages. the
         // <GameConstants> root GameData parsed (GameDatabase::constants().element), not a second read of the file.
         if (const data::XmlNode& gc = data_.db.constants().element) {
             reticles_.parse(gc);
             ency_cfg_ = ui::tooltip_config_from(gc);  // HUD_GAPS §2.2 delays / fade / min display / layout
-            hud_consts_ = ui::hud_constants_from(gc);  // mcx4 t14 / t15: bar spacing, radar selection colour, prompt colour
-            if (ui_.fonts) ui_.fonts->set_defaults(hud_consts_.fonts);  // mcx4 t14: the GameConstants default fonts
+            hud_consts_ = ui::hud_constants_from(gc);  // bar spacing, radar selection colour, prompt colour
+            if (ui_.fonts) ui_.fonts->set_defaults(hud_consts_.fonts);  // the GameConstants default fonts
         }
         hud_images_ = [this](std::string_view t) { return ui_.pages.resolve(t); };
         if (const char* dbg = std::getenv("ALAMO_HUD_HIT_DEBUG")) {
@@ -433,7 +433,7 @@ bool App::init() {
             panel_shells_.apply(p->layout());
         }
     }
-    // OPT1: the tick profiler (wall clock; the sim only writes it) and the frame-time overlay.
+    // the tick profiler (wall clock; the sim only writes it) and the frame-time overlay.
     if (opt_.profile) {
         profile::start(65536);
         overlay_.set_log(true);
@@ -546,7 +546,7 @@ using namespace alamo_game_app;
 static constexpr uint32_t kGameCrcCheckpoint = 64;  // the goldens' v2 checkpoint cadence
 static constexpr size_t kGameCrcRing = 4096;        // records kept in live play (~2.4 h of ticks at 64)
 
-// BM3: `--bench-new-save FILE ...` / `--bench-maps`: loads the game data and works on it without a window or a renderer.
+// `--bench-new-save FILE ...` / `--bench-maps`: loads the game data and works on it without a window or a renderer.
 static int bench_new_main(const Options& opt) {
     if (const std::string why = check_bench_new_save(opt.bench_new); !why.empty()) {
         std::fprintf(stderr, "benchmark: %s\n", why.c_str());
@@ -606,7 +606,7 @@ static int bench_regen_prepare(const Options& opt, const std::vector<std::string
     return 0;
 }
 
-// ref3 t05: every flag main()'s argument loop reads, in one table. The loop dispatches through it, and
+// every flag main()'s argument loop reads, in one table. The loop dispatches through it, and
 // `alamo_game --list-flags --json` prints it (schema alamo.game_flags v1, print_flag_list) for the Command Center
 // (launcher/src/launch.rs), so a flag added or renamed here reaches the launcher's argument check with no second copy.
 // A value flag takes the next argument, whatever it is ("" at the end of the line); an argument with '=' in it is a data
@@ -739,7 +739,7 @@ static int print_flag_list(bool json) {
 }
 
 int main(int argc, char** argv) {
-    // ref3 t05: `alamo_game --list-flags [--json]`, the first argument only (elsewhere it could be another flag's value),
+    // `alamo_game --list-flags [--json]`, the first argument only (elsewhere it could be another flag's value),
     // before anything that could print.
     if (argc > 1 && std::string_view(argv[1]) == "--list-flags")
         return print_flag_list(argc > 2 && std::string_view(argv[2]) == "--json");
@@ -749,17 +749,17 @@ int main(int argc, char** argv) {
         alamo::crash::install(crash_opt);
         alamo::crash::crash_if_requested();
     }
-    alamo::vfs::install_steam_workshop_lookup();  // modc t10: STEAMMOD= from the Steam library folders
+    alamo::vfs::install_steam_workshop_lookup();  // STEAMMOD= from the Steam library folders
     enable_dpi_awareness();  // before any window: sizes and the video modes in physical pixels
     Options opt;
     const std::vector<std::string> args(argv, argv + argc);
     opt.argv.assign(args.begin() + (argc > 0 ? 1 : 0), args.end());
-    std::string regen_save;  // bm3: --bench-regen S: the save made again from the scenario's make line (deleted at the end)
-    {  // bm2: --bench-scenario / --bench-make FILE first; the flags below override what the file sets
+    std::string regen_save;  // --bench-regen S: the save made again from the scenario's make line (deleted at the end)
+    {  // --bench-scenario / --bench-make FILE first; the flags below override what the file sets
         std::string serr;
         std::vector<std::string> scenario_args = args;
         for (size_t k = 1; k + 1 < args.size(); ++k)
-            if (args[k] == "--bench-regen") {  // bm3: made as `--bench-make S --bench-save <the remade save>`
+            if (args[k] == "--bench-regen") {  // made as `--bench-make S --bench-save <the remade save>`
                 if (const int rc = bench_regen_prepare(opt, args, args[k + 1], regen_save, scenario_args); rc != 0) return rc;
                 break;
             }
@@ -786,7 +786,7 @@ int main(int argc, char** argv) {
                 continue;
             }
         }
-        {  // BM3: --bench-new-save / --bench-maps and their options (benchmark_save.hpp)
+        {  // --bench-new-save / --bench-maps and their options (benchmark_save.hpp)
             size_t bi = static_cast<size_t>(i);
             std::string berr;
             const int br = parse_bench_new_arg(args, bi, opt.bench_new, &berr);
@@ -800,7 +800,7 @@ int main(int argc, char** argv) {
             }
         }
         const std::string a = argv[i];
-        if (const GameFlag* f = find_game_flag(a)) {  // ref3 t05: kGameFlags
+        if (const GameFlag* f = find_game_flag(a)) {  // kGameFlags
             const std::string v = f->value && i + 1 < argc ? argv[++i] : std::string();
             if (!f->apply(target, *f, v)) return usage();
         } else if (a.find('=') != std::string::npos) {
@@ -813,7 +813,7 @@ int main(int argc, char** argv) {
         log::set_min_level(log::Level::Warn);
         return export_save_main(opt, export_in, export_out);
     }
-    if (opt.bench_new.active()) return bench_new_main(opt);  // BM3: no window, no renderer
+    if (opt.bench_new.active()) return bench_new_main(opt);  // no window, no renderer
     if (opt.width == 0 || opt.height == 0) return usage();
     if (!opt.smoke.empty() && one_of_index(*find_game_flag("--smoke"), opt.smoke) < 0) return usage();
     if (opt.bench.active()) {  // BM2a: no smoke script, intro, attract demo or frame-time overlay in a benchmark run
@@ -856,6 +856,6 @@ int main(int argc, char** argv) {
     if (above) (void)alamo::jobs::raise_current_thread_priority();
     App app(std::move(opt));
     const int rc = app.run();
-    if (!regen_save.empty()) std::remove(regen_save.c_str());  // bm3: --bench-regen's temporary save
+    if (!regen_save.empty()) std::remove(regen_save.c_str());  // --bench-regen's temporary save
     return rc;
 }

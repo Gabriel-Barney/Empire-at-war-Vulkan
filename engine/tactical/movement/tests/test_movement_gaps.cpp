@@ -1,10 +1,10 @@
-// test_movement_gaps: main() (bo3 t03: tests live in test_movement_gaps_partN.cpp, shared code in test_movement_gaps_common.hpp).
+// test_movement_gaps: main() (tests live in test_movement_gaps_partN.cpp, shared code in test_movement_gaps_common.hpp).
 #include "test_movement_gaps_common.hpp"
 
 
 int main() {
     test_corridor();
-    test_lanes();  // s78p (b0049)
+    test_lanes();  // s78p
     test_threat();
     test_rules();
     test_flying_rules();

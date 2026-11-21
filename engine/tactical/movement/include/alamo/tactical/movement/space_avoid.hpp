@@ -1,4 +1,4 @@
-// Space avoidance tree (GOM +0x558) and the precise model test 0x38f900 (docs/re/SPACE_AVOIDANCE.md), the rules behind
+// Space avoidance tree (GOM +0x558) and the precise model test 0x38f900 (legacy docs/re/SPACE_AVOIDANCE.md), the rules behind
 // the fighter locomotor's obstacle-avoidance hook (FighterAvoidFn, fighter.hpp; FIGHTER_FLYING §3.5).
 //
 // Pure geometry on host-supplied data: the host builds one AvoidModel per type (from the ALO collision meshes, model
@@ -76,7 +76,7 @@ bool avoid_precise(const AvoidObstacle& o, F3 a, F3 b, bool& inside);
 // clear -> true with its position in hit_pos; byte 1 set -> skipped, and every later hit is rejected (false).
 bool space_avoid(std::span<const AvoidObstacle> members, F3 centre, F3 half, F3 a, F3 b, F3& hit_pos);
 
-// refixf t07: the precise test 0x38f900 as the projectile segment query calls it (0x2abcf0, TACTICAL_COMBAT §3.4 /
+// the precise test 0x38f900 as the projectile segment query calls it (0x2abcf0, TACTICAL_COMBAT §3.4 /
 // §2.9 Q1). Query mask `mask` (7 with Projectile_Does_Shield_Damage, else 5); mesh masks (§5.6) are 1, except the
 // SHIELD mesh of a type with the shield behaviour (o.skip_shield), whose mask is `shield_mask` (2 while shield points
 // > 0, else 0). One hit record over the whole model (t starts at 1.0, a hit needs 0 < t < record.t), so the surviving

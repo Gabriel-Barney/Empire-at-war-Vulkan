@@ -1,5 +1,5 @@
 // Registry of the SPIR-V programs compiled at build time from engine/materials/shaders
-// (PORTING.md track A hot set + the fixed-function ubershader of 3.4).
+// (legacy docs/shaders/PORTING.md track A hot set + the fixed-function ubershader of 3.4).
 //
 // Effects outside the hot set return ProgramStatus::NeedsTranslation: they go through track B
 // (automatic SM1-3 -> SPIR-V translation of the FXO bytecode, a later task) using the generic
@@ -53,7 +53,7 @@ struct VertexInput {
 // Vertex attribute table per layout (location, VkFormat value + name, byte offset). Mesh layouts
 // mirror engine/assets vertex_layout.hpp revision 2 (both 64-byte strides): every non-RSkin
 // layout uses the assets Static layout, every RSkin layout the Skinned layout. PrimVert /
-// PrimVertLit are the engine's dynamic FVF buffers (RENDER.md 1.4): XYZ|DIFFUSE|TEX1 (24 B) and
+// PrimVertLit are the engine's dynamic FVF buffers (legacy docs/re/RENDER.md 1.4): XYZ|DIFFUSE|TEX1 (24 B) and
 // XYZ|NORMAL|DIFFUSE|TEX1 (36 B), colour D3DCOLOR = B8G8R8A8_UNORM.
 struct VertexAttributeDesc {
     uint32_t location;

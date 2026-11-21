@@ -1,5 +1,5 @@
-// alamo_headless --skirmish-ai KIND --trace-out FILE (q4hf t02): a per-tick state trace of the run's tactical battle in the
-// Q2TRACE 1 format of the retail skirmish traces (tools/probe_mod/q2_traces/README.md "Trace format", mode_type 2 space /
+// alamo_headless --skirmish-ai KIND --trace-out FILE: a per-tick state trace of the run's tactical battle in the
+// Q2TRACE 1 format of the retail skirmish traces (legacy tools/probe_mod/q2_traces/README.md "Trace format", mode_type 2 space /
 // 1 land), so the Q4 parity harness (tools/parity) reduces a port skirmish with the same reader as a retail one: per-object
 // owner, type and health per tick (combat.damage_taken = hull lost by each faction's units), the players' credits and the
 // first shot (combat.first_shot_frame). `q2trace.py validate` reads it like a retail trace.

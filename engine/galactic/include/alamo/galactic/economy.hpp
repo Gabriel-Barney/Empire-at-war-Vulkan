@@ -105,10 +105,10 @@ struct EconomyConstants {
     // A2 galactic (AI_GALACTIC_3 §3.1): AI_Uses_Galactic_Pop_Cap (+0x11EBC), ctor false, absent from shipped XML.
     bool ai_uses_galactic_pop_cap = false;
     // REMAINING_GAPS 1.5 item 2: Good_Side_Name (+0x12e0; "REBEL" in FoC and TR): story BUILDABLE_UNIT raises this
-    // faction's tech when no sliceable candidate remains. modc t03: no built-in faction name; data without the field
+    // faction's tech when no sliceable candidate remains. No built-in faction name; data without the field
     // names no faction.
     std::string good_side_name;
-    // modc t20: Evil_Side_Name ("EMPIRE" in FoC), read for presentation only (route sides FIXPASS_GALACTIC 3.1, the HUD
+    // Evil_Side_Name ("EMPIRE" in FoC), read for presentation only (route sides FIXPASS_GALACTIC 3.1, the HUD
     // shell alternate); no sim code reads it. "" = none.
     std::string evil_side_name;
     // mcx6 RANDOM_STORY (STORY_REWARDS_GALACTIC §1.15): GameConstants Random_Story_Triggers (+0x600), Random_Story_Max_Triggers
@@ -128,10 +128,10 @@ struct FactionRules {
     bool can_control_planets = false;       // Can_Control_Planets (+0x109)
     bool is_playable = false;               // Is_Playable (+0x20a8)
     bool benefits_from_corruption = false;  // Benefits_From_Corruption (+0x10b)
-    bool easily_bribed = false;             // Easily_Bribed (+0x10c): its planets charge Cheap_Bribe_Cost (mcx4 t05, Q5.1)
+    bool easily_bribed = false;             // Easily_Bribed (+0x10c): its planets charge Cheap_Bribe_Cost (Q5.1)
     bool debug_switchable = false;          // Is_Debug_Switchable_To (+0x10a): story SWITCH_SIDES steps to it (mcx6)
-    // modc t03: Basic_AI (+0x378, xml_field_tables.md), trimmed as written; the AIPlayerType a skirmish slot of this
-    // faction plays (AI_GALACTIC.md §1.2, SKIRMISH_SETUP.md §2.1). "" = none; the shipped "None" is kept as written.
+    // Basic_AI (+0x378, xml_field_tables.md), trimmed as written; the AIPlayerType a skirmish slot of this
+    // faction plays (legacy docs/re/AI_GALACTIC.md §1.2, legacy docs/re/SKIRMISH_SETUP.md §2.1). "" = none; the shipped "None" is kept as written.
     std::string basic_ai;
     float hyperspace_speed_factor = 0.07f;  // Hyperspace_Speed_Factor (+0x3b0); default [L] (every vanilla faction sets 0.07)
     float maintenance_cost = 0.0f;          // Maintenance_Cost (+0x3AC): AI upkeep factor only (A2H_GALACTIC_AI_RE §3) [H]
@@ -164,18 +164,18 @@ struct FactionRules {
     // S7 t30 (TACTICAL_COMBAT §2.10): Allies (+0x3e0) / Enemies (+0x3f8) faction names as written (comma / space
     // separated in the XML); the campaign relation table compares them case-insensitively.
     std::vector<std::string> allies, enemies;
-    // modc t20: presentation fields read by the game host only (never by sim code; not saved, not in the CRC), so the UI
-    // needs no faction names. Text_ID (offset not in xml_field_tables.md, modc t25; FoC TEXT_FACTION_REBELS ...),
+    // presentation fields read by the game host only (never by sim code; not saved, not in the CRC), so the UI
+    // needs no faction names. Text_ID (offset not in xml_field_tables.md; FoC TEXT_FACTION_REBELS ...),
     // Tech_Tree_Dialog_Name (+0x2698: IDD_TECH_TREE_REBEL / _EMPIRE / _BLACKMARKET), Tech_Level_Icon_Name (+0x138:
     // i_button_r_tech_upgrade_ / _e_), all trimmed as written; "" = none.
     std::string text_id, tech_tree_dialog, tech_level_icon;
     // [port: Gabriel] the faction's emblem for the saved games list: Icon_Name, else Alternate_Icon_Name (trimmed; "" = none).
     std::string icon;
-    // Land_ / Space_Mode_Selection_Blob_Material_Name (+0x2818 / +0x2840; UI.md selection circle's faction default).
+    // Land_ / Space_Mode_Selection_Blob_Material_Name (+0x2818 / +0x2840; legacy docs/re/UI.md selection circle's faction default).
     std::string land_selection_blob, space_selection_blob;
-    // cu5 t01: every field of this faction definition, (tag, trimmed text) in document order. The loaders of the other
+    // every field of this faction definition, (tag, trimmed text) in document order. The loaders of the other
     // faction tags (Basic_AI map, campaign seed options, skirmish default forces, retreat and bombardment data, conflict
-    // unit caps) read them here instead of parsing FactionFiles.xml again. Not saved, not in the CRC. mcx1 t03: retail's
+    // unit caps) read them here instead of parsing FactionFiles.xml again. Not saved, not in the CRC. retail's
     // walk (MCX1_RE_ANSWERS Q1): nested elements descended into, empty and TBD values left out.
     std::vector<std::pair<std::string, std::string>> xml_fields;
     // Trimmed text of the last field named `tag` (case-insensitive; retail: a repeated scalar's last occurrence wins),
@@ -208,7 +208,7 @@ struct DifficultyRules {
     float damage_multiplier = 1.0f;
     float health_multiplier = 1.0f;
     float shield_multiplier = 1.0f;
-    float bribe_cost_multiplier = 1.0f;  // Bribe_Cost_Multiplier (+0x4C): scales an AI mover's route toll (mcx4 t05, Q5.1)
+    float bribe_cost_multiplier = 1.0f;  // Bribe_Cost_Multiplier (+0x4C): scales an AI mover's route toll (Q5.1)
 };
 
 namespace econ {
@@ -303,7 +303,7 @@ float influence_alignment_factor(ForceSide owner, ForceSide planet, float streng
 // Moves control toward target by delta, clamped at the target.
 float political_ramp(float control, float target, float delta);
 
-// ---- build countdown (mcx4 t09, docs/re/MCX4_T09_RE_ANSWERS.md Q7) -------------------------------------------------
+// ---- build countdown (legacy docs/re/MCX4_T09_RE_ANSWERS.md Q7) -------------------------------------------------
 // Presentation of a queue entry whose type has Build_Countdown_Timer (FoC: Death_Star); the build itself runs on the
 // normal production timer. Speech 0x401e50: with r = (int)remaining (truncation) and the Build_Speech_Countdowns
 // prefix, when the remaining time moved from `previous` to `remaining` seconds:

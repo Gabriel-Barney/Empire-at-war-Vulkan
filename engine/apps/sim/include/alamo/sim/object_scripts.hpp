@@ -1,4 +1,4 @@
-// q6: game-object Lua scripts (docs/re/OBJECT_SCRIPTS.md): one script instance per object whose type names a
+// q6: game-object Lua scripts (legacy docs/re/OBJECT_SCRIPTS.md): one script instance per object whose type names a
 // Lua_Script, attached at construction, serviced after the store update, released on ScriptExit / a binding error /
 // death. Owned by SimHost (SimConfig::object_scripts; off by default, so sessions without it keep their CRC streams).
 //
@@ -45,7 +45,7 @@
 // Everything runs on the sim thread in that fixed order, so worker counts never change it (rule 3). The pool adds no
 // RNG draw: which instance an object gets (list order) and when the top levels / release-time Base_Definitions run are
 // fixed points of that order.
-// SAVES (q6 t19, §2.6, LUA_SAVE.md; SimHost chunk "object_scripts", write / read below). Saved: every live script
+// SAVES (§2.6, legacy docs/re/LUA_SAVE.md; SimHost chunk "object_scripts", write / read below). Saved: every live script
 // (object id + handle, its pool name = the script name, which instance it holds) and its instance's script block
 // (lua::write_script_block: the whole Lua heap - globals incl. LastService, threads at their saved pc, GetEvent queue,
 // wrappers - plus the thread records); every pool in name order with each instance's flags (in use, fresh) and block;
@@ -119,7 +119,7 @@ public:
     // §3: after the mode's primary store update (the caller skips paused modes).
     void service(GameMode& mode);
 
-    // q6 t19: N1 save / load (SAVES above), between ticks. write: false (+ *err) when an instance's Lua state cannot be
+    // N1 save / load (SAVES above), between ticks. write: false (+ *err) when an instance's Lua state cannot be
     // saved (LuaVm::save_error; the bytes are then not loadable). read: the rebuilt session's stores must be the saved
     // ones (same count and mode kinds, push order); false (+ *err) on damaged data or a refused block, nothing changed.
     static constexpr uint32_t kSaveVersion = 1;
@@ -143,7 +143,7 @@ public:
 
     struct Stats {
         uint64_t attached = 0;       // object attaches (Base_Definitions run when fresh, main thread made)
-        uint64_t attached_no_bridge = 0;  // modc t32: attaches whose store had no object bridge bound yet (its
+        uint64_t attached_no_bridge = 0;  // attaches whose store had no object bridge bound yet (its
                                           // Base_Definitions saw no abilities / Change_Owner / Spawn_Unit hooks)
         uint64_t load_failures = 0;  // missing / not compiling: no script
         uint64_t loaded = 0;         // instances loaded (new VM, top level run): pool loads + unpooled ones

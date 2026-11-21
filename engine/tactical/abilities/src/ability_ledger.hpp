@@ -1,10 +1,10 @@
-// REF4 t02: the save ledger of AbilitySystem. Every data member is listed once:
+// the save ledger of AbilitySystem. Every data member is listed once:
 //   SAVED(member, hashed)    written by write(), restored by read() and walked by hash() / register_crc;
 //   SAVED(member, unhashed)  written and restored, outside the CRC;
 //   REBUILT(member, "why")   set again by the host or setup when a load rebuilds the battle;
 //   DERIVED(member, "why")   recomputed from saved state, a cache, scratch or the records of one tick;
 //   CHECKED(member, "why")   not restored, but write() / read() read it (a fingerprint read() checks).
-// tools/lint/check_battle_ledger.py (build_agent.cmd, ctest alamo_sim_battle_ledger_lint) checks it against
+// tools/lint/check_battle_ledger.py (ctest alamo_sim_battle_ledger_lint) checks it against
 // ability_system.hpp and the bodies of write / read / hash / register_crc. Scope: the members of AbilitySystem; a field
 // of Obj, Mine, ... is written field by field and is not seen here.
 // Order: the declaration order in ability_system.hpp. Read by the lint only (not compiled).

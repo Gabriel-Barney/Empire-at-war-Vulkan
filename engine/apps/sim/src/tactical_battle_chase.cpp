@@ -101,7 +101,7 @@ TacticalBattle::FighterChaseFacts TacticalBattle::fighter_chase_order(const Figh
                                                                      const objects::ObjectStore& store, float attack_range) const {
     FighterChaseFacts f;
     f.members = members;
-    // s78f t02: the movement formation's top, when it is a live auto block
+    // the movement formation's top, when it is a live auto block
     if (const mv::FighterFormation* ff = movement_->fighter_formation(r.key);
         ff && !ff->blocks.empty() && ff->blocks.back().pushed && fighter_goal_live(ff->blocks.back().object, store))
         f.last_push = ff->blocks.back().object;

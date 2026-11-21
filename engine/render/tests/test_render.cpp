@@ -1,6 +1,6 @@
 // test_render: main and the tests that stayed (see test_render_common.hpp; the others are in test_render_*.cpp).
 #include "test_render_common.hpp"
-#include "renderer_core.hpp"  // REF3 t07: RendererCore inspection points (src/, target alamo_render_internal)
+#include "renderer_core.hpp"  // RendererCore inspection points (src/, target alamo_render_internal)
 #include "alamo/core/host_fs.hpp"
 #include "alamo/render/weather_fx.hpp"
 
@@ -225,7 +225,7 @@ void test_camera() {
     CHECK(near_eq(cb.view_proj[3].z, vm.view_proj.m[3][2]) && near_eq(cb.time_pad.x, 1.5f));
     CHECK(near_eq(cb.resolution_constants.x, 1600.0f) && near_eq(cb.resolution_constants.w, 0.5f / 900.0f));
 
-    {   // Background camera (SPACE_AND_OPEN.md D.7 2) = the main camera except near 10 / far 100000: same view,
+    {   // Background camera (legacy docs/re/SPACE_AND_OPEN.md D.7 2) = the main camera except near 10 / far 100000: same view,
         // eye, view_inv and FOV terms (bit for bit), only the depth terms differ.
         render::OrbitCamera sc;
         sc.target = {241.0f, -57.0f, 0.0f};
@@ -311,10 +311,10 @@ void test_ssao_math() {
     CHECK(tl.x < 0.0f && tl.y > 0.0f);
 }
 
-// Planet spin (SPACE_AND_OPEN.md D.7 4): the planets' _IDLE_00 clip turns bone Hoth +360 deg about local Z over
+// Planet spin (legacy docs/re/SPACE_AND_OPEN.md D.7 4): the planets' _IDLE_00 clip turns bone Hoth +360 deg about local Z over
 // 240 frames at fps 1.0; clip time = ticks / 30 x Idle_Anim_00_Rate_Mod. This checks the time base with
 // assets::sample's generic loop (period = frame count). R3: MapScene itself now wraps at count - 1 like the original
-// (ANIM_PARTICLES.md A.9: one revolution per 239 s); that rule is tested in engine/anim (alamo_anim_tests).
+// (legacy docs/re/ANIM_PARTICLES.md A.9: one revolution per 239 s); that rule is tested in engine/anim (alamo_anim_tests).
 void test_idle_spin() {
     CHECK(render::MapScene::idle_anim_seconds(1800, 1.0f) == 60.0f);   // 60 s of 30 Hz ticks
     CHECK(render::MapScene::idle_anim_seconds(1800, 0.25f) == 15.0f);  // Coruscant_Backdrop rate 0.25
@@ -409,7 +409,7 @@ void test_lod() {
     CHECK(render::blend_mode_for_key(k) == render::BlendMode::Alpha);
     k.dst_color = materials::BlendFactor::One;
     CHECK(render::blend_mode_for_key(k) == render::BlendMode::Additive);
-    // LOD detail (SPACE_AND_OPEN.md B.4): d = min(LOD_Bias x coverage, (MeshDetail + 1) / 2), bias 4 default.
+    // LOD detail (legacy docs/re/SPACE_AND_OPEN.md B.4): d = min(LOD_Bias x coverage, (MeshDetail + 1) / 2), bias 4 default.
     CHECK(render::kDefaultLodBias == 4.0f && render::Instance{}.lod_bias == 4.0f);
     CHECK(near_eq(render::lod_detail(4.0f, 0.1f, 1.0f), 0.4f) && near_eq(render::lod_detail(4.0f, 0.5f, 1.0f), 1.0f));
     CHECK(near_eq(render::lod_detail(4.0f, 0.5f, 0.0f), 0.5f) && near_eq(render::lod_detail(0.5f, 0.2f, 1.0f), 0.1f));
@@ -460,7 +460,7 @@ void test_lod() {
         }
         CHECK(near_eq(render::kGalacticFovX, std::atan(0.5f)));
     }
-    // Phase buckets (RENDER.md 1.3 order).
+    // Phase buckets (legacy docs/re/RENDER.md 1.3 order).
     CHECK(render::phase_bucket(materials::RenderPhase::None) == render::PhaseBucket::Opaque);
     CHECK(render::phase_bucket(materials::RenderPhase::Transparent) == render::PhaseBucket::Transparent);
     CHECK(render::phase_bucket(materials::RenderPhase::Heat) == render::PhaseBucket::Heat);
@@ -537,7 +537,7 @@ void test_lighting() {
     }
 }
 
-// vis1 t01 (docs/re/WEATHER_VISUALS.md §2 / §3): lightning-flash schedule, fog-plane alpha, the flash in the SH lighting.
+// vis1 t01 (legacy docs/re/WEATHER_VISUALS.md §2 / §3): lightning-flash schedule, fog-plane alpha, the flash in the SH lighting.
 void test_weather_fx() {
     using namespace alamo::render;
     {  // fog plane: start pulled toward end - 0.0001, end kept; fog off or alpha 0: unchanged
@@ -880,7 +880,7 @@ void test_type_resolution() {
         CHECK(!r.resolve(alamo::name_crc("Unknown_Type"), false, t) && r.resolve(alamo::name_crc("No_Model"), false, t));
         CHECK(scale("Base") == 2.0f && scale("Var_Space") == 1.0f && scale("Var_Land") == 2.0f && scale("Var_Var") == 1.0f);
         CHECK(scale("Gal_Only") == 1.0f);  // invalid Scale_Factor -> 1
-        // mcx4 t15 (docs/re/TERRAIN_WATER_POST.md, the reflection pass): the water render target and clip plane come from
+        // mcx4 t15 (legacy docs/re/TERRAIN_WATER_POST.md, the reflection pass): the water render target and clip plane come from
         // GameConstants.
         // ledger: verifies GameConstants.Water_Render_Target_Resolution
         // ledger: verifies GameConstants.Water_Clip_Plane_Offset
@@ -935,7 +935,7 @@ void test_scene_wind() {
     m.terrain.present = false;  // space: never written
     w = render::scene_wind(m);
     CHECK(w.x == 0.0f && w.y == 0.0f && w.z == 0.0f);
-    // cu8g t03: the wind of the environment Set_New_Environment made active (index form; clamped to n - 1), space zero.
+    // the wind of the environment Set_New_Environment made active (index form; clamped to n - 1), space zero.
     m.terrain.present = true;
     m.environments.start_index = 0;
     w = render::scene_wind(m, 1);
@@ -1048,7 +1048,7 @@ using namespace test_render_t;
 
 
 // Hardpoint plumbing (hardpoints.hpp): XML record, mesh -> bone map, effects, per-instance visibility composition.
-// bkx1 t05 (b0019 / b0020, BKX1_RENDER_RE §1 [H]): the SimpleSpace engine glow rule. Proxy groups by name prefix
+// bkx1 t05 (BKX1_RENDER_RE §1 [H]): the SimpleSpace engine glow rule. Proxy groups by name prefix
 // (pe engines, pte turbo engines, pi ion stun; case-insensitive); G = pte while TURBO is active, else pe, the other group
 // hidden; engines off without a timer (a destroyed engine hard point) hide G; a timed disable keeps G with the flicker
 // tint (in [0, 0.2], 1.0 over 0.1 s at the last frame); online: brightness 0.8 v / V + 0.2; ion stun shows pi; dying hides
@@ -1177,7 +1177,7 @@ void test_hardpoints() {
         v.init(std::make_shared<const render::HardpointLayout>(l));
         const uint8_t* storage = v.mask().data();
         auto mask = [&] { return V(v.mask().begin(), v.mask().end()); };
-        // A: decal + ALO-hidden scorch + proxy shown; its Model_To_Attach slot (10) erased (r1b t03, B.10 step (f))
+        // A: decal + ALO-hidden scorch + proxy shown; its Model_To_Attach slot (10) erased (B.10 step (f))
         CHECK(v.ready() && mask() == (V{0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0}));
         CHECK(!v.attachment_visible(0) && v.attachment_visible(1) && !v.attachment_visible(2));
         CHECK(v.set_destroyed(1, true) && v.set_destroyed(1, true) && v.destroyed_count() == 2);

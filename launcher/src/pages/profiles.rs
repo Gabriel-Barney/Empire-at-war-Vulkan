@@ -29,7 +29,7 @@ pub struct State {
     /// A profile file that was opened and is waiting in the review dialog.
     import: Option<Import>,
     presets: Option<PresetCache>,
-    /// mcx3 t06: the resolved stack of the active profile's mods (alamo_mod_check --resolve).
+    /// the resolved stack of the active profile's mods (alamo_mod_check --resolve).
     resolver: crate::stack::Resolver,
 }
 
@@ -1266,7 +1266,7 @@ fn mods_card(app: &mut App, st: &mut State, ui: &mut egui::Ui, report: Option<&R
     let checking = report.is_none();
     let check_error = st.conflicts.error.clone();
     let mut act: Option<Act> = None;
-    // mcx3 t06: the resolved stack, when it is for the mods the profile has now.
+    // the resolved stack, when it is for the mods the profile has now.
     let resolving = st.resolver.poll();
     let profile_mods = app.cfg.active().mods.clone();
     let foc = mods::foc_dir(&app.steam, &app.cfg.settings);
@@ -1297,7 +1297,7 @@ fn mods_card(app: &mut App, st: &mut State, ui: &mut egui::Ui, report: Option<&R
         ui.label(theme::faint(
             "Passed to the game as MODPATH= in this order. The first mod wins when two mods change the same file — list a submod above its parent.",
         ));
-        // mcx3 t06: the stack the port resolves from these mods (declared and likely parents, submod first).
+        // the stack the port resolves from these mods (declared and likely parents, submod first).
         ui.horizontal(|ui| {
             let can = n > 0 && foc.is_some() && mod_check.is_some() && !resolving;
             if ui

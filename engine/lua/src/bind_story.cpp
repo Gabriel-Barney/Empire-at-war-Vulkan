@@ -1,7 +1,7 @@
 // Binding family: story events and flags, objectives, radar blips, planet highlights (L1 stage 2).
 // They act on the StoryModel attached to the VM (attach_story, include/alamo/lua/story_model.hpp);
 // without one, queries return nil/false and commands do nothing (a message is logged).
-// Contracts and messages: docs/re/LUA_API.md "Binding map" (the original's validation strings).
+// Contracts and messages: legacy docs/re/LUA_API.md "Binding map" (the original's validation strings).
 // Error discipline: vm_internal.hpp (no Lua error raised from here; Call::script_error_stop).
 #include <cstdio>
 #include <string>
@@ -21,7 +21,7 @@ using detail::Call;
 namespace {
 
 const char kStoryKey[] = "alamo.story";
-const char kStoryGroupKey[] = "alamo.story.group";  // q6 t03: the StoryTable (attach_story_table)
+const char kStoryGroupKey[] = "alamo.story.group";  // the StoryTable (attach_story_table)
 constexpr uint32_t kNone = 0xFFFFFFFFu;
 
 StoryModel* story(lua_State* L) { return detail::registry_ptr<StoryModel>(L, kStoryKey); }
@@ -36,10 +36,10 @@ uint32_t cls_event() {
     return c;
 }
 
-using detail::push_nil;  // ref5 t03: vm_internal.hpp
-using detail::push_bool;  // ref5 t03: vm_internal.hpp
+using detail::push_nil;  // vm_internal.hpp
+using detail::push_bool;  // vm_internal.hpp
 
-// q6 t03 (STORY.md §2.4): the story manager's plot table - every player's plot set of the VM's game mode
+// q6 t03 (legacy docs/re/STORY.md §2.4): the story manager's plot table - every player's plot set of the VM's game mode
 // (attach_story_table; nullptr = the VM's own model is the whole table).
 StoryTable* story_table(lua_State* L) { return detail::registry_ptr<StoryTable>(L, kStoryGroupKey); }
 // The model a plot / event wrapper refers to: Ud::reserved = 0 the VM's own model (attach_story), k > 0 the table's
@@ -88,7 +88,7 @@ StoryEventState& self_event_state(Call& c) {
 
 void no_story(Call& c, const char* what) { c.vm->message(std::string("[story] ") + what + " ignored: no story attached"); }
 
-// `(int)(n + 0.5)` (C truncation, so -1.7 -> -1; saturating) printed with "%d" (LUA_API.md "StoryEventWrapper dialog and
+// `(int)(n + 0.5)` (C truncation, so -1.7 -> -1; saturating) printed with "%d" (legacy docs/re/LUA_API.md "StoryEventWrapper dialog and
 // parameter setters" 2d / the shared converter).
 std::string rounded_int_text(double n) {
     char buf[16];
@@ -124,9 +124,9 @@ std::string type_display_name(Call& c, const StoryModel* m, objects::TypeIndex t
 
 // ---------------------------------------------------------------- globals
 
-// Story_Event(name [, game object]) - dispatches STORY_AI_NOTIFICATION (docs/re/STORY.md §5): events
+// Story_Event(name [, game object]) - dispatches STORY_AI_NOTIFICATION (legacy docs/re/STORY.md §5): events
 // whose Event_Param2 names `name`; with an object, its type name must be in Event_Param1, without
-// one Event_Param1 must be empty. q6 t03 (STORY.md §2.4 [H]): to every ACTIVE plot of every player in the mode's table
+// one Event_Param1 must be empty. q6 t03 (legacy docs/re/STORY.md §2.4 [H]): to every ACTIVE plot of every player in the mode's table
 // (StoryTable::story_event, table order; no player filter, no first-match stop); a dead object goes as "no object".
 int g_story_event(Call& c) {
     if (c.nargs < 1 || c.nargs > 2)
@@ -151,7 +151,7 @@ int g_story_event(Call& c) {
     return 0;
 }
 
-// Get_Story_Plot("File.xml") -> StoryPlotWrapper, or nothing. q6 t03 (STORY.md §2.1 / §2.4 [H]): ONE lookup in the
+// Get_Story_Plot("File.xml") -> StoryPlotWrapper, or nothing. q6 t03 (legacy docs/re/STORY.md §2.1 / §2.4 [H]): ONE lookup in the
 // mode's table - every player's plots, active or suspended (StoryTable::find_plot; the VM's own model alone without a
 // table) - by the CRC-32 of the name as passed: case and path must match the Story_Plots text, no ".xml" is added. The
 // table is unique, so at most one plot matches. Not found: warning "Get_Story_Plot -- plot %s not found.", no value.
@@ -180,7 +180,7 @@ int g_get_story_plot(Call& c) {
     return 0;
 }
 
-// Check_Story_Flag(player, flag_name, target, reset) -> boolean (docs/re/MCX8_BINDINGS_PLAYERS_STORY.md
+// Check_Story_Flag(player, flag_name, target, reset) -> boolean (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md
 // "Check_Story_Flag") [H]. AI story flags are raised by the host (StoryModel::raise_ai_flag, TRIGGER_AI) per (player,
 // name as given, target object id or -1). Argument 3: a live game object, an AI target's game object, or anything else
 // (nil) = no target; argument 4 must be a boolean; a set flag read with reset true is cleared.
@@ -213,7 +213,7 @@ int g_check_story_flag(Call& c) {
     return push_bool(c, m->check_ai_flag(player->id, c.string(2), loc, reset));
 }
 
-// Add_Objective(text_id, battle_info) (MCX8_BINDINGS_PLAYERS_STORY.md "Add_Objective") [H]: true = a battle info line,
+// Add_Objective(text_id, battle_info) (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "Add_Objective") [H]: true = a battle info line,
 // false = a numbered objective (StoryObjective::battle_info).
 int g_add_objective(Call& c) {
     if (c.nargs != 2) return c.script_error_stop("Add_Objective -- invalid number of parameters. Expected 2, got %d.", c.nargs);
@@ -240,7 +240,7 @@ const detail::Ud* planet_arg(Call& c, int i) {
 }
 
 // Position of argument 1 (0x4990b0): a live game object (also followed: `object`), a PositionWrapper, an AI target (its
-// object, else its host position) or a task force (its first live unit [port]): detail::position_arg (ref5 t03). Only a
+// object, else its host position) or a task force (its first live unit [port]): detail::position_arg. Only a
 // game object argument is followed; an AI target's or task force's object gives its position at the call.
 bool blip_position(Call& c, StoryBlip& out) {
     Vec3 p{};
@@ -253,7 +253,7 @@ bool blip_position(Call& c, StoryBlip& out) {
     return true;
 }
 
-// Add_Radar_Blip (MCX8_BINDINGS_PLAYERS_STORY.md "Add_Radar_Blip") [H]. Galactic: Add_Radar_Blip(planet) turns the
+// Add_Radar_Blip (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "Add_Radar_Blip") [H]. Galactic: Add_Radar_Blip(planet) turns the
 // planet's highlight on. Tactical: Add_Radar_Blip(position source, name) appends a blip (the same name twice: two blips).
 int g_add_radar_blip(Call& c) {
     if (galactic_mode(c)) {
@@ -318,7 +318,7 @@ int m_plot_get_event(Call& c) {
     if (!self_plot_valid(c)) return push_nil(c);
     const uint32_t plot = static_cast<uint32_t>(c.self->id);
     const uint32_t e = self_model(c)->find_event(plot, c.string(1));
-    // q6 t03 (STORY.md §2.4 [H]): only this plot's events; a missing one is a script error (the calling script ends at the
+    // q6 t03 (legacy docs/re/STORY.md §2.4 [H]): only this plot's events; a missing one is a script error (the calling script ends at the
     // end of its service pass), no value.
     if (e == kNone) {
         const std::string event(c.string(1));
@@ -347,11 +347,11 @@ int m_plot_reset(Call& c) {
 
 int m_event_is_valid(Call& c) { return push_bool(c, self_event_valid(c)); }
 
-// q6 t03 (LUA_API.md "StoryEventWrapper dialog and parameter setters" [H]). Every method returns silently, before any
+// q6 t03 (legacy docs/re/LUA_API.md "StoryEventWrapper dialog and parameter setters" [H]). Every method returns silently, before any
 // argument check, when the wrapper's event is gone; none returns a value. Errors use the script error model
 // (Call::script_error_stop: logged, nothing returned, the calling script ends at the end of its service pass).
 //
-// Set_Event_Parameter / Set_Reward_Parameter go through the event's vf2 (STORY.md 0.2: "set parameter i (0-based) from a
+// Set_Event_Parameter / Set_Reward_Parameter go through the event's vf2 (legacy docs/re/STORY.md 0.2: "set parameter i (0-based) from a
 // list of strings"), the same setter the XML loader uses, so a Lua-set parameter is matched by the event type's own rule
 // (name lists, per-name counts, thresholds, comparisons) exactly like the XML text. The index is (int)(i + 0.5), 0-based:
 // 0 = Event_Param1 / Reward_Param1. Setting an event parameter restarts the per-name countdowns (re-read from Param2 /

@@ -5,7 +5,7 @@
 // One LuaPlayerWorld per game session, shared by every script VM of that session
 // (attach_player_world). It is sim state: owned and mutated by the sim thread only, hashed by hash().
 //
-// Backing (docs/re/GALACTIC_ECONOMY.md = GE, LUA_API.md):
+// Backing (docs/re/GALACTIC_ECONOMY.md = GE, legacy docs/re/LUA_API.md):
 //   * players, factions, credits, tech level: the S3 GalacticSim when attached (Give_Money goes
 //     through GalacticSim::add_credits = Add_Credits 0x27f370: AI Credit_Multiplier, no debt, cap);
 //     otherwise the LuaPlayerSetup rows (tactical / skirmish / tests) with the same econ::add_credits;
@@ -117,7 +117,7 @@ struct BudgetFlushRequest {
     std::string category;
 };
 
-// a1j t07 (docs/re/A1_READINGS.md §38): the parent galaxy of a tactical mode, as its AI scripts see it. The battle host
+// a1j t07 (legacy docs/re/A1_READINGS.md §38): the parent galaxy of a tactical mode, as its AI scripts see it. The battle host
 // sets it on the tactical AI's world (LuaPlayerWorld::set_tactical_galactic); not saved (the host sets it again when a
 // loaded battle is rebuilt). With it:
 //   * Evaluate_In_Galactic_Context (0x69e1b0): the perception is evaluated with `source` (the galactic equations and a
@@ -141,7 +141,7 @@ public:
     // Players = the sim's players (ids = sim player ids). `sim` must outlive the world (nullptr detaches).
     void attach_galactic(galactic::GalacticSim* sim);
     galactic::GalacticSim* galactic() const { return sim_; }
-    // The AI execution path finders (Lua Find_Path, GALACTIC.md 4/5). `q` must outlive the world (nullptr detaches;
+    // The AI execution path finders (Lua Find_Path, legacy docs/re/GALACTIC.md 4/5). `q` must outlive the world (nullptr detaches;
     // Find_Path then falls back to the fleet A*).
     void attach_ai_paths(ai::AiPathQuery* q) { ai_paths_ = q; }
     ai::AiPathQuery* ai_paths() const { return ai_paths_; }
@@ -175,7 +175,7 @@ public:
     int32_t tech_level(int32_t p) const;
     void set_tech_level(int32_t p, int32_t level);
     int32_t find_faction_player(std::string_view faction) const;  // lowest id, -1 if none
-    // q6 t11 (docs/re/LUA_API.md "Lookups", Find_Player): 1 when `faction` names a faction of the game data (the attached
+    // q6 t11 (legacy docs/re/LUA_API.md "Lookups", Find_Player): 1 when `faction` names a faction of the game data (the attached
     // GalacticSim's FactionFiles list, case-insensitive), 0 when it does not, -1 when the world has no faction list (no
     // GalacticSim attached) [port: Find_Player then cannot tell an unknown faction from one without a player].
     int faction_known(std::string_view faction) const;
@@ -192,7 +192,7 @@ public:
 
     std::vector<LuaPlayerState>& states() { return state_; }
     const std::vector<LuaPlayerState>& states() const { return state_; }
-    // mcx8 t12 (docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "Flush_Category", "GiveDesireBonus"): the AI host's name checks
+    // mcx8 t12 (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "Flush_Category", "GiveDesireBonus"): the AI host's name checks
     // (its AiDefinitions: goal categories, goal types). Unset = names are not checked (sim-less worlds, tests). Not
     // hashed or saved: the host sets them again.
     std::function<bool(std::string_view)> goal_category_known;

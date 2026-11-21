@@ -1,5 +1,5 @@
-// Effect sources (`<name>.fx`, roadmap modc t23). The original compiles a `.fx` with D3DX at run time and
-// prefers it to a `.fxo` of the same name (RENDER.md 6). The port compiles sources ahead of time: the
+// Effect sources (`<name>.fx`). The original compiles a `.fx` with D3DX at run time and
+// prefers it to a `.fxo` of the same name (legacy docs/re/RENDER.md 6). The port compiles sources ahead of time: the
 // prebuild tool `alamo_fx_prebuild` (engine/materials/tools, fx_compile.hpp) runs the toolchain's fxc.exe
 // (`/T fx_2_0`) on every reachable `.fx` and stores the result in an FxCache keyed by the source text and
 // every file it #includes. EffectLibrary::load() takes a compiled source from that cache; without an entry,
@@ -18,7 +18,7 @@ class FileProvider;
 
 namespace alamo::materials {
 
-inline constexpr const char* kFxProfile = "fx_2_0";  // fxc target of every compile (RENDER.md 6: D3DX effects)
+inline constexpr const char* kFxProfile = "fx_2_0";  // fxc target of every compile (legacy docs/re/RENDER.md 6: D3DX effects)
 inline constexpr uint32_t kFxKeyVersion = 1;         // bump when the key or the compile arguments change
 
 struct FxSourceFile {

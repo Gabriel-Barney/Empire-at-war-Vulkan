@@ -1,4 +1,4 @@
-// A1 - tactical AI target list (AITargetLocations), docs/re/AI_TACTICAL.md 3.1-3.2.
+// A1 - tactical AI target list (AITargetLocations), legacy docs/re/AI_TACTICAL.md 3.1-3.2.
 //
 // One list per AI player per battle (perception system +0xe0; goal proposal and FindTarget iterate
 // it in list order). Entries:

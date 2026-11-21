@@ -3,7 +3,7 @@
 //
 // SimSnapshot: an immutable copy of what the renderer needs from one finished sim tick, taken at the end
 // of the tick (after SimHost::tick_once returned) from the top tactical mode's PRIMARY store:
-//   per object (ascending object id): type, owner + team colour (SPACE_AND_OPEN.md B.3: player slot -> the
+//   per object (ascending object id): type, owner + team colour (legacy docs/re/SPACE_AND_OPEN.md B.3: player slot -> the
 //   9-colour MP palette, neutral owners -> No_Colorization_Color), position, facing, health, LOD_Bias,
 //   fade, flags (dying / In_Background / drawable) and its hardpoint destroyed bits.
 // Building reads the store through its const interface only: no ObjectStore / mode / RNG / command /
@@ -16,9 +16,9 @@
 // smooth mode fades them out over one tick, the original mode hides them.
 // Hardpoints: battle hardpoints are CombatSystem records, not objects; their destroyed bits come from
 // apply_hardpoint_source (r1b t02 removed the provisional attach-child rule). The render side keeps destroyed
-// bits sticky (the game never repairs hardpoint visuals, SPACE_AND_OPEN.md B.10).
+// bits sticky (the game never repairs hardpoint visuals, legacy docs/re/SPACE_AND_OPEN.md B.10).
 //
-// Interpolation (docs/re/MAIN_LOOP.md: the original renders once per loop iteration with NO
+// Interpolation (legacy docs/re/MAIN_LOOP.md: the original renders once per loop iteration with NO
 // interpolation): InterpMode::Original (default, parity) draws the latest snapshot as is;
 // InterpMode::Smooth blends the previous and the latest snapshot by the frame's tick alpha (position
 // lerp, facing nlerp, roll / pitch shorter-way angle lerp, health / fade lerp; objects new this tick appear at their current state, objects
@@ -90,7 +90,7 @@ struct SnapshotTypeInfo {
     std::string spin_away_explosion;
     // Projectile types (xml_field_tables: Projectile_Custom_Render +0x23c int, Projectile_Width +0x464, Projectile_Length
     // +0x468, Projectile_Texture_Slot +0x46c, Projectile_Laser_Color +0x454): Projectile_Custom_Render 1 (beam) / 2 (kite)
-    // are procedural lasers (lasers.hpp, PROJECTILE_NEBULA_DRAW.md 1) - their model is never loaded (`model` stays "").
+    // are procedural lasers (lasers.hpp, legacy docs/re/PROJECTILE_NEBULA_DRAW.md 1) - their model is never loaded (`model` stays "").
     int32_t projectile_custom_render = 0;
     float projectile_width = 0.0f, projectile_length = 0.0f;
     uint8_t projectile_slot[2] = {0, 0};                  // (column, row)
@@ -102,7 +102,7 @@ struct SnapshotTypeInfo {
     float stealth_color[4] = {1.0f, 1.0f, 1.0f, 1.0f};
     float cloak_color[4] = {1.0f, 1.0f, 1.0f, 1.0f};
     float stealth_time = 0.0f, cloak_time = 0.0f;
-    // vis1 t02 blob shadows (OBJECT_TYPES type +0x17bc..+0x17f0, docs/re/WEATHER_VISUALS.md §4): Blob_Shadow_Material_Name
+    // vis1 t02 blob shadows (OBJECT_TYPES type +0x17bc..+0x17f0, legacy docs/re/WEATHER_VISUALS.md §4): Blob_Shadow_Material_Name
     // ("" = no blob), Blob_Shadow_Scale (width, height in world units; default 1, 1), Blob_Shadow_Intensity (default 1),
     // Blob_Shadow_Below_Detail_Level (leading integer, default 0) and Blob_Shadow_Bone_Name ("" = the object position).
     std::string blob_material;
@@ -141,7 +141,7 @@ public:
     // B.3 team colour: non-neutral owner -> palette[owner % 9] (index = owner % 9); neutral -> the type's
     // No_Colorization_Color when set, else the owner faction's (index kNeutralTeam).
     materials::float4 team_color(int32_t owner, const SnapshotTypeInfo& t, uint8_t& index) const;
-    // p4uia t02: the palette index (0..8) a non-neutral owner uses instead of owner % 9: owner k takes colours[k]; owners past
+    // the palette index (0..8) a non-neutral owner uses instead of owner % 9: owner k takes colours[k]; owners past
     // the list keep owner % 9. Presentation only (the sim never reads a colour). Empty = every owner % 9.
     void set_owner_colours(std::vector<uint8_t> colours) { owner_colours_ = std::move(colours); }
     // Tests / tools: replace the model of every type (e.g. a debug box for model-less synthetic types).
@@ -221,7 +221,7 @@ enum SnapshotFlag : uint8_t {
     // R3: a spin-away corpse (Spin_Away_On_Death): add_snapshot_corpses applies the render-side spin motion; when it
     // leaves the frame SimDecorations plays the type's Spin_Away_On_Death_Explosion at its last position.
     kSnapSpinAway = 0x40,
-    // refix t01: a store death clone (objects::kFlagDeathClone, dying / removing): drawn while it plays its death, but
+    // a store death clone (objects::kFlagDeathClone, dying / removing): drawn while it plays its death, but
     // not a HUD unit and never hovered or picked.
     kSnapDeathClone = 0x80,
 };
@@ -263,7 +263,7 @@ struct SnapshotObject {
     // 0x4eb020), no surface FX / foot plants play (surface type 0x11); the host also drops its radar blip, mutes its sounds
     // and skips it in the mouse pick. Presentation only, not in digest().
     bool script_hidden = false;
-    // bkx1 t05 (b0019 / b0020, BKX1_RENDER_RE §1): the engine glow inputs of a space unit with a non-fighter locomotor
+    // bkx1 t05 (BKX1_RENDER_RE §1): the engine glow inputs of a space unit with a non-fighter locomotor
     // (apply_battle_state): kEngineGlow* bits (hardpoints.hpp), the timed engine disable's frames left (0 = none or
     // permanent) and speed / effective max speed. Presentation only, not in digest().
     uint8_t engine_flags = 0;
@@ -298,8 +298,8 @@ struct SnapshotEffect {
     // R5 Lua GameObjectWrapper.Attach_Particle_Effect(type [, bone]) (lua::ParticleEffectRequest): seq + 1 of the request
     // (0 = not a Lua effect; one system per request, keyed by it) and the bone the system follows ("" = the root).
     uint32_t lua_seq = 0;
-    std::string bone{};  // vis1 t06: may list candidates, comma separated (the first the model has)
-    // vis1 t06: an ability one-shot (ability_fx.hpp): its occurrence number (0 = none; one system per occurrence).
+    std::string bone{};  // may list candidates, comma separated (the first the model has)
+    // an ability one-shot (ability_fx.hpp): its occurrence number (0 = none; one system per occurrence).
     uint32_t fx_seq = 0;
 };
 // R4: SnapshotEffect::percent of an active unit ability's Particle_Effect (128 + ability type 0..75).
@@ -317,7 +317,7 @@ struct SnapshotHardpointEvent {
     uint32_t index = 0;  // HardPoints list index
 };
 
-// R3 muzzle flash (ANIM_PARTICLES.md A.7 attack row: muzzle sub-objects per fire bone are shown and re-hidden after 4
+// R3 muzzle flash (legacy docs/re/ANIM_PARTICLES.md A.7 attack row: muzzle sub-objects per fire bone are shown and re-hidden after 4
 // ticks [M]): the sim's muzzle state of one object this tick. The builder shows every mesh / proxy whose own bone is
 // `bone` (case-insensitive; e.g. MuzzleA_00 -> MuzzleA_00_Flash, ALO-hidden by default) on the object's model, or on
 // its Model_To_Attach of hardpoint `hardpoint` (>= 0) when the fire bone lives there.
@@ -423,7 +423,7 @@ struct SimSnapshot {
     std::vector<SnapshotBeam> beams;              // R5: ability beams (ascending owner id, then kind; apply_battle_beams;
                                                   // vis1 t08 drain bolts appended after them)
     SnapshotJamming jamming;                      // R5: sensor jamming (apply_battle_jamming)
-    // vis1 t08: world-placed sim effects (Base_Shield_Penetration_Particle at the dome contact; apply_battle_ability_fx),
+    // world-placed sim effects (Base_Shield_Penetration_Particle at the dome contact; apply_battle_ability_fx),
     // synced with the decoration effects (keys (id << 8) | 2).
     std::vector<SimWorldEffect> world_effects;
     uint32_t store_objects = 0;                // objects in the store (incl. not drawable / dying)
@@ -477,7 +477,7 @@ std::vector<SnapshotEffect> snapshot_lua_effects(const RequestRange& requests, c
 // every object with `count(id)` == its type's hardpoint count (other counts: a different list, left alone).
 void apply_hardpoint_source(SimSnapshot& snap, const std::function<uint32_t(objects::ObjectId)>& count,
                             const std::function<bool(objects::ObjectId, uint32_t)>& destroyed);
-// S7 t05: the movement attitude of live objects (FIGHTER_FLYING §1.1: fighter roll / pitch, flyer bank / pitch, bike
+// the movement attitude of live objects (FIGHTER_FLYING §1.1: fighter roll / pitch, flyer bank / pitch, bike
 // lean) from a source that knows it per object id (TacticalBattle::unit_attitude: radians, SnapshotObject::roll / pitch
 // conventions). Every object that is not a corpse (kSnapCorpse) and for which `source` returns true gets roll / pitch
 // (non-finite values -> 0); the others keep theirs. Null source: no-op.
@@ -489,7 +489,7 @@ void set_snapshot_hardpoint_events(SimSnapshot& snap, std::span<const SnapshotHa
 void apply_fog_hidden(SimSnapshot& snap, const std::function<bool(const SnapshotObject&)>& hidden);
 // R3: marks garrisoned / transported objects (kSnapContained) with a host predicate (null clears every mark).
 void apply_contained(SimSnapshot& snap, const std::function<bool(const SnapshotObject&)>& contained);
-// q6 t19: marks Lua-hidden objects (SnapshotObject::script_hidden) with a host predicate (null clears every mark).
+// marks Lua-hidden objects (SnapshotObject::script_hidden) with a host predicate (null clears every mark).
 void apply_script_hidden(SimSnapshot& snap, const std::function<bool(const SnapshotObject&)>& hidden);
 // R3: this tick's muzzle state (entries of objects not in the snapshot or with an empty bone dropped; sorted by id,
 // input order kept per id).
@@ -539,7 +539,7 @@ std::vector<SnapshotFootPlant> snapshot_foot_plants(const EventRange& events) {
 }
 #ifdef ALAMO_SIM_HAVE_BATTLES
 // Both of the above from a running battle (snapshot captured from the battle's tactical mode): attached_effects(),
-// CombatSystem::hardpoint_count / hardpoint_destroyed and (R5) this tick's CombatSystem::hardpoint_events, and (S7 t05)
+// CombatSystem::hardpoint_count / hardpoint_destroyed and (R5) this tick's CombatSystem::hardpoint_events, and
 // the movement attitude of every mover (TacticalBattle::unit_attitude through apply_snapshot_attitude). With `table`
 // (R4) also the Particle_Effect of every active unit ability (AbilitySystem::is_active + record): the name is resolved as
 // a GameObjectType (its model, e.g. a Particles.xml type) and used as an ALO name otherwise; one effect per (object,
@@ -711,7 +711,7 @@ struct InterpolatedFrame {
     std::vector<SnapshotProjectile> projectiles;
     std::vector<SnapshotBeam> beams;  // the current snapshot's (R5 ability beams)
     SnapshotJamming jamming;  // the current snapshot's (R5)
-    std::vector<SimWorldEffect> world_effects;  // the current snapshot's (vis1 t08)
+    std::vector<SimWorldEffect> world_effects;  // the current snapshot's
 };
 
 // Frame view between prev (may be null) and curr at `alpha` in [0, 1] (clamped; non-finite -> 1).
@@ -732,7 +732,7 @@ Vec3 interp_facing(const Vec3& a, const Vec3& b, float t);  // normalised lerp; 
 float interp_angle(float a, float b, float t);
 
 // Alamo models are authored nose along model -Y, left along +X, up +Z (ALO hardpoint / muzzle / engine bones of the
-// ships, vehicles, fighters and projectiles; docs/formats/SPEC.md 2.2). kIdentityFacing is the facing whose
+// ships, vehicles, fighters and projectiles; legacy docs/formats/SPEC.md 2.2). kIdentityFacing is the facing whose
 // object_transform has the identity rotation (a model as authored).
 inline constexpr Vec3 kIdentityFacing{0.0f, -1.0f, 0.0f};
 // Model -> world of a sim object: the model's nose (-Y) along the facing (normalised; zero -> kIdentityFacing), its
@@ -743,7 +743,7 @@ assets::Mat3x4 object_transform(const Vec3& position, const Vec3& facing, float 
 // R3: the same with a roll of `roll` radians about the facing axis applied first (spin-away corpses). roll = 0 gives
 // exactly object_transform.
 assets::Mat3x4 object_transform(const Vec3& position, const Vec3& facing, float scale, float roll);
-// S7 t05: the same with a pitch of `pitch` radians about the object's left axis (positive = nose down: forward' = f cos
+// the same with a pitch of `pitch` radians about the object's left axis (positive = nose down: forward' = f cos
 // - u sin, up' = u cos + f sin) and then the roll about the pitched forward axis. With the level facing (cos Y, sin Y, 0)
 // the nose points along FIGHTER_FLYING §1.1 forward (cos Y cos P, sin Y cos P, -sin P). pitch = 0 gives exactly the
 // roll-only overload.

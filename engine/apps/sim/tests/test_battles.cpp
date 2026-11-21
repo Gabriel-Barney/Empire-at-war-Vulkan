@@ -1,4 +1,4 @@
-// alamo_sim_battle_tests: S10 battle transitions, host side (docs/re/BATTLE_TRANSITIONS.md).
+// alamo_sim_battle_tests: S10 battle transitions, host side (legacy docs/re/BATTLE_TRANSITIONS.md).
 //   * synthetic game data (types, hardpoints, projectiles, factions, contrast table) + a 3-planet galaxy;
 //   * space: a human-defended orbit is attacked, the conflict is FOUGHT: tactical Space mode pushed over the
 //     suspended galaxy, MovementSystem + CombatSystem run the battle on an in-memory map, the result is
@@ -284,7 +284,7 @@ void test_auto_only(const Data& d) {
 
 using ::alamo::test::env_or_empty;
 
-// Fog of war in battles (owner: fog agent; docs/re/FOG_OF_WAR.md): units with REVEAL reveal for their side, the
+// Fog of war in battles (owner: fog agent; legacy docs/re/FOG_OF_WAR.md): units with REVEAL reveal for their side, the
 // human sees part of the map and enemy units hidden / shown over time, the AI player is never fogged (force 0),
 // the neutral player has no grid; fog is worker-count independent (identical per-frame fog digests and CRC logs for
 // 0 and 4 workers). Fog follow-up: the grids are still not in the CRC, but the human's targeting now reads them
@@ -309,7 +309,7 @@ void test_fog_battle(const Data& d) {
         CHECK(off.fog_frames == 0);
         CHECK(a.fog_new_targets > 0 && a.fog_bad_targets == 0);
         CHECK(a.fog_ability_frame == 30 && a.fog_probe_before && a.fog_probe_after);
-        // aud1 t10: Force Sight's EffectOn (the audio host's SFXEvent_Activate) survives the tick that clears events()
+        // Force Sight's EffectOn (the audio host's SFXEvent_Activate) survives the tick that clears events()
         // (the space ping raises none)
         if (land) CHECK(a.fog_effect_cleared && a.fog_effect_kept);
         if (land) CHECK(a.fog_force_on && a.fog_force_frames >= 59 && a.fog_force_frames <= 61);
@@ -321,7 +321,7 @@ void test_fog_battle(const Data& d) {
     }
 }
 
-// FOWF t05: a land battle with a mod-style setup phase (SetupPhaseEnabled, SetupPhaseCountdownSeconds 3). During setup
+// a land battle with a mod-style setup phase (SetupPhaseEnabled, SetupPhaseCountdownSeconds 3). During setup
 // the human moves an own unit with SetupPhaseMove (31; an enemy unit is refused); SetupPhaseTriggerEnd (32) from the AI arms the 90-frame
 // countdown, from the (only) human ends the phase at the next tick; afterwards 31 is refused.
 struct SetupRun {
@@ -433,7 +433,7 @@ void test_fog_setup_battle(const Data& d) {
     CHECK(ai4.end_frame == ai.end_frame && ai4.moved && ai4.refused_after);
 }
 
-// FOW t01: Battlefield_Modifier feeds the fog reveal list (space battle, fog_bm data; see fog_bm_probe).
+// Battlefield_Modifier feeds the fog reveal list (space battle, fog_bm data; see fog_bm_probe).
 void test_fog_bm_battle(const Data& d) {
     const Run a = run_campaign(d, false, true, 0, 2500, 0.0f, true);
     std::printf("  bonus frames: Empire %u (then off %u), Underworld %u (then off %u); sight radius on %.1f / off %.1f; bad frames %u; "
@@ -731,7 +731,7 @@ void test_land_drop_rules() {
     CHECK(land_drop_radius_ok(500.0f, 0.0f, objs, true));   // d = 500 <= 500
     CHECK(!land_drop_radius_ok(500.5f, 0.0f, objs, true));  // outside every enabling radius
     CHECK(land_drop_radius_ok(500.5f, 0.0f, objs, false));  // without Use_Reinforcement_Points
-    {  // a1i t04: the unload offsets use 3.0 x the team bounds (the validity 2.5); team members keep their offsets in-team.
+    {  // the unload offsets use 3.0 x the team bounds (the validity 2.5); team members keep their offsets in-team.
         const LandDropLayout v = land_drop_layout(rebel, 0.0f, 0.0f, 0.0f), u = land_drop_layout(rebel, 0.0f, 0.0f, 0.0f, 3.0f);
         CHECK(v.ok && u.ok && v.slots.size() == u.slots.size());
         bool wider = false;
@@ -749,7 +749,7 @@ void test_land_drop_rules() {
         CHECK(a.ok && b.ok && a.slots.size() == b.slots.size());
         for (size_t i = 0; a.ok && b.ok && i < a.slots.size(); ++i) CHECK(a.slots[i].x == b.slots[i].x && a.slots[i].y == b.slots[i].y);
     }
-    {  // a1i t05: Find_Free_Placement rings (box 20 x 10 -> step 24, 22.5-degree angles, 360 inclusive).
+    {  // Find_Free_Placement rings (box 20 x 10 -> step 24, 22.5-degree angles, 360 inclusive).
         const FreePlacementBox box{-10.0f, -5.0f, 10.0f, 5.0f};
         float qx = 0.0f, qy = 0.0f;
         CHECK(find_free_placement(100.0f, 50.0f, box, {}, 2500.0f, qx, qy) && qx == 100.0f && qy == 50.0f);
@@ -870,7 +870,7 @@ void test_foc() {
                 catalog.hardpoint_records(), catalog.priority_sets().size(), catalog.damage().damage_count());
     CHECK(crules.contrast.size() == 11 && catalog.hardpoint_records() > 100 && !catalog.priority_sets().empty());
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
-    {  // a2h t05: the hosts' loader on the shipped data - the tags are found (not the defaults' fallback) and read
+    {  // the hosts' loader on the shipped data - the tags are found (not the defaults' fallback) and read
         TacticalAiSetup ts;
         const vfs::Vfs* vp = files.get();
         load_tactical_ai_data(ts, *files, &db.constants(), [vp](std::string_view g) { return vp->list(g); });
@@ -903,7 +903,7 @@ void test_foc() {
             CHECK(rebel_squad_slots_ok(land_drop_layout(s, 250.0f, -125.0f, 90.0f), 250.0f, -125.0f, 90.0f));
         }
     }
-    {  // refixf t01: rocket curve fields reach the battle tables (MPTL fires Proj_Ground_Proton_Torpedo: MPTL_Rocket,
+    {  // rocket curve fields reach the battle tables (MPTL fires Proj_Ground_Proton_Torpedo: MPTL_Rocket,
        // straight 100, curve 50, offset 7, Target_Point_On_Terrain, Explode_When_Reached_Target_Radius)
         std::vector<uint32_t> idx;
         const BattleTables bt = catalog.build_battle({static_cast<uint32_t>(types.resolve_name("MPTL"))}, idx);
@@ -1194,7 +1194,7 @@ struct AnimRun {
     uint32_t max_detached = 0, max_corpses = 0, flinch_seen = 0, muzzles_seen = 0, hp_muzzles_seen = 0, foot_events = 0, impact_events = 0;
     uint64_t events_digest = 0;  // per-tick events (id, name, bone, position bits)
     std::vector<std::string> battles;
-    // refix t01 / t03: death clone objects (+0x3a0 |= 0xc0) seen in the tactical store, battle clone count, searches
+    // death clone objects (+0x3a0 |= 0xc0) seen in the tactical store, battle clone count, searches
     uint32_t max_dying = 0, clone_objects = 0, dying_found = 0;
     bool corpse_path_trooper = false, corpse_path_trooper_k4 = true, corpse_path_frigate = true;
 };
@@ -1310,7 +1310,7 @@ AnimRun run_anim_campaign(const Data& d, bool land, int32_t workers, uint64_t ti
     return out;
 }
 
-// s78k t05 (TACTICAL_COMBAT §3.1.1 "Slot 47", "Order of the tests" [H]; s78j t02): the attack-idle pose hook tests the
+// s78k t05 (TACTICAL_COMBAT §3.1.1 "Slot 47", "Order of the tests" [H]): the attack-idle pose hook tests the
 // current clip before its Get_Float draw. On a land trooper of a battle with an animation world (the synthetic trooper
 // model has clips 5 Attack and 6 Attack Idle), not moving: from Idle the hook draws once (blend in [0.2, 0.75]) and plays
 // clip 6; a second service while clip 6 plays draws nothing and keeps it; while clip 5 Attack plays it draws nothing
@@ -1513,16 +1513,16 @@ void test_anim_battles() {
             // Foot plants from the moving troopers' MOVE clip, impacts from the DIE clip (detached corpses too),
             // muzzle flashes from their blasters.
             CHECK(a.foot_events > 0 && a.impact_events > 0 && a.muzzles_seen > 0 && s.muzzle_flashes > 0);
-            // refix t03: S10_Trooper (Infantry, no HIDE_WHEN_FOGGED) clones itself on the corpse path: no clone object,
+            // S10_Trooper (Infantry, no HIDE_WHEN_FOGGED) clones itself on the corpse path: no clone object,
             // the dying row plays the clone's death (clone_deaths); key 4 (Force lightning) and ships keep the object.
             CHECK(a.corpse_path_trooper && !a.corpse_path_trooper_k4 && !a.corpse_path_frigate);
             CHECK(s.clone_deaths > 0);
         } else {
             // Frigates / corvettes: the death clone plays DIE and is removed (store object destroyed) after 2 s + 1 s.
-            // (refix t01: the star base's own-type clone - no model, Remove_Upon_Death: removed at once - is made on the
+            // (the star base's own-type clone - no model, Remove_Upon_Death: removed at once - is made on the
             // battle's last tick, which ends the battle before the anim sync starts clone deaths: removed_at_death 0.)
             CHECK(s.clone_deaths > 0 && s.corpses_removed > 0);
-            // refix t01: the clones are store objects flagged dying / removing until their death sequence removes them.
+            // the clones are store objects flagged dying / removing until their death sequence removes them.
             CHECK(a.clone_objects > 0 && a.max_dying > 0);
             // Ships fire from hardpoints: their muzzle records carry the HardPoints index.
             CHECK(a.hp_muzzles_seen > 0);
@@ -1538,7 +1538,7 @@ void test_anim_battles() {
     }
 }
 
-// ---- refixf t04: death clone removal, headless and with the animation service ----
+// ---- death clone removal, headless and with the animation service ----
 // The space campaign on the anim data: frigate / corvette clones (S10_Frigate_Death_Clone: 2 s persistence + 1 s fade, no
 // Remove_Upon_Death) must leave the store at the planned frame; the star base's typed clone (30 s) is made on the battle's
 // last tick and must not outlive the battle. `anim`: the SimAnimation service is attached (no "anim" CRC system, so the
@@ -1652,7 +1652,7 @@ void test_death_clone_removal() {
                     wreck ? "(DIE clip)" : "(no clip)", h.life.size(), removed, static_cast<unsigned long long>(expect), other,
                     static_cast<unsigned long long>(base_made), static_cast<unsigned long long>(h.end_frame), h.alive_at_end);
         CHECK(removed > 0 && other == 0);              // headless: removed at the planned frame (were never removed before)
-        CHECK(base_clones == 1 && base_made + 210 == h.end_frame);  // made at the declaration (story t06: 210 frames to the end) ...
+        CHECK(base_clones == 1 && base_made + 210 == h.end_frame);  // made at the declaration (210 frames to the end) ...
         CHECK(h.alive_at_end == 0);                    // ... and gone with the battle, like every clone left
         for (const auto& [id, l] : h.life) CHECK(l.second != 0);  // no clone object after the battle
         // The animation service changes nothing in the sim: same CRC log, same clone lifetimes; its corpse rows follow
@@ -1802,7 +1802,7 @@ void test_black_market_battle() {
 
 // --- battle host (BT pass): land lead / reserve split, HIJACK reserve, ResumeGame, map picker, pad command refusals ---
 void test_bt_pass(const Data& d) {
-    // Map picker (CU8F_T03_T05_RE §1.3, cu8f t03; [port] deterministic draw).
+    // Map picker (CU8F_T03_T05_RE §1.3; [port] deterministic draw).
     {
         using MC = CampaignBattleOptions::MapCandidate;
         std::vector<MC> c(7);
@@ -2011,7 +2011,7 @@ void test_map_owners(const Data& d) {
         TacticalBattle* b = battles.battle();
         if (!b || !host.tactical() || b->frame() != 1) continue;
         CHECK(b->request().info.attacker == 0 && b->request().info.defender == 1);
-        // bkt1 t07 (b0084): the stand-in orders drive the attacker and the defender only; a third party idles
+        // the stand-in orders drive the attacker and the defender only; a third party idles
         CHECK(b->standin_owner(0) && b->standin_owner(1) && !b->standin_owner(2) && !b->standin_owner(-1));
         const objects::ObjectStore& st = host.tactical()->primary();
         const objects::TypeIndex post = d.types.resolve_name("S4_Post"), rp = d.types.resolve_name("S4_RPoint");
@@ -2145,7 +2145,7 @@ galactic::GalacticSetup campaign_setup(const Data& d, bool drop_hostile) {
     galactic::GalacticSetup s = galactic::build_campaign_setup(d.db, d.rules, "S10_GC", {}, &diag);
     for (uint32_t i = 0; i < s.map.planets.size(); ++i)  // the synthetic planets carry no Galactic_Position
         s.map.planets.position[i] = {static_cast<float>(i) * 60.0f, 0.0f, 0.0f};
-    // bkc1 t03: one player per faction in table order (player = faction index), so Hostile (3), S10_Natives (4) and
+    // one player per faction in table order (player = faction index), so Hostile (3), S10_Natives (4) and
     // S10_Absent (5) trail the campaign's factions; dropping them is the run without the Hostile / native players.
     if (drop_hostile)
         while (!s.players.empty() && s.players.back().faction >= d.rules.find_faction("Hostile")) s.players.pop_back();
@@ -2153,7 +2153,7 @@ galactic::GalacticSetup campaign_setup(const Data& d, bool drop_hostile) {
 }
 
 // The S10_GC land invasion of S10_B (Underworld 1 attacks Empire 0): map posts at x 600.. with raw owners (faction
-// indices) 0 Empire, 1 Underworld, 4 S10_Natives, 3 Hostile; returns x -> owner at battle frame 1. bkc1 t03: the campaign
+// indices) 0 Empire, 1 Underworld, 4 S10_Natives, 3 Hostile; returns x -> owner at battle frame 1. The campaign
 // holds a player per faction (player = faction index), so the native post keeps its own faction's player 4.
 std::map<int, int32_t> campaign_battle_posts(const Data& d, bool drop_hostile) {
     std::map<int, int32_t> out;
@@ -2215,7 +2215,7 @@ std::map<int, int32_t> campaign_battle_posts(const Data& d, bool drop_hostile) {
 }
 
 // [probe 2026-10-29, inferred] the campaign's Hostile player: inert on the galactic map (no AI, no credits, no planets, no
-// income), and the owner of the map's Hostile objects in a campaign land battle. bkc1 t03 (docs/re/BKC1_RE_ANSWERS.md Q2
+// income), and the owner of the map's Hostile objects in a campaign land battle. bkc1 t03 (legacy docs/re/BKC1_RE_ANSWERS.md Q2
 // [H]): a campaign creates one player for every faction of the table, in table order (player = faction index), so the
 // factions the campaign does not name (Hostile 3, S10_Natives 4, S10_Absent 5) are all such inert players.
 void test_campaign_hostile(const Data& d) {
@@ -2366,7 +2366,7 @@ void test_land_upgrade_production_done() {
 // Empire slot's start force (one S10_Squad) is its garrison list; once every member is dead, after the faction's
 // Garrison_Reinforcement_Delay_Seconds (none in the fixture: 20 s) the start-force list is added to its reinforcement pool
 // once (not again: re-delivered units are not garrison objects). Before the delay nothing is added.
-// aitac t08 (b0160): a skirmish map battle's slot players are the stand-in's sides in land and space - slot 2 besides the
+// a skirmish map battle's slot players are the stand-in's sides in land and space - slot 2 besides the
 // defender 0 / attacker 1 pair; a player without a slot is a third party (idles).
 void test_standin_slots() {
     for (const bool space : {false, true}) {
@@ -2563,7 +2563,7 @@ void test_skirmish_redelivery() {
     };
     uint32_t killed_at = 0, delivered_at = 0;
     size_t pool0 = 0, pool_before = 0;
-    bool fed = false;  // mcx4 t13: the presentation feed names the slot on the expiry tick
+    bool fed = false;  // the presentation feed names the slot on the expiry tick
     for (uint64_t t = 0; t < 1200 && delivered_at == 0; ++t) {
         host.tick_once();
         TacticalBattle* b = battles.battle();
@@ -2639,7 +2639,7 @@ void test_station_production(float build_mult = 1.0f) {
             before = gs->credits(0);
             commands::EventData ev(commands::EventType::Production);
             ev.set("type_index", up).set("location", static_cast<uint32_t>(station));
-            if (build_mult != 1.0f) b->set_ai_build_time_multiplier(0, build_mult);  // skm1 t04: as BattleAi sets it for an AI
+            if (build_mult != 1.0f) b->set_ai_build_time_multiplier(0, build_mult);  // as BattleAi sets it for an AI
             CHECK(host.execute_direct(0, commands::CommandSource::Player, ev) == commands::RejectReason::None);
             after = gs->credits(0);
             CHECK(host.execute_direct(0, commands::CommandSource::Player, ev) == commands::RejectReason::NotAllowed);  // limit 1
@@ -2678,7 +2678,7 @@ void test_station_production(float build_mult = 1.0f) {
     CHECK(after == before - 100.0f);
 }
 
-// mcx4 t04: the S10 space skirmish battle again. At frame 2 the Empire orders S10_Base_Upgrade (Tactical_Units queue, 30
+// the S10 space skirmish battle again. At frame 2 the Empire orders S10_Base_Upgrade (Tactical_Units queue, 30
 // frames) and S10_Tech_Upgrade (Tactical_Upgrades queue, 60 frames) at its star base; S10_No_Queue_Upgrade (no
 // Tactical_Production_Queue) is refused. SKIRMISH_SETUP §3 service 0x498170 [H]: the head of each queue counts down, so the
 // tech upgrade finishes about 60 frames after the order (one list per builder would make it wait for the base upgrade: 90).
@@ -2739,11 +2739,11 @@ void test_tactical_tech_upgrade() {
                 ev.set("type_index", type).set("location", static_cast<uint32_t>(station));
                 return host.execute_direct(0, commands::CommandSource::Player, ev);
             };
-            b->set_emit_presentation(true);  // ref2 t02: the presentation events from here on
+            b->set_emit_presentation(true);  // the presentation events from here on
             CHECK(order(no_queue) == commands::RejectReason::NotAllowed);  // 0x497140: queue -1 is never built
             CHECK(order(base_up) == commands::RejectReason::None);
             CHECK(order(tech_up) == commands::RejectReason::None);
-            {  // ref2 t02: cancel the tech upgrade (the 2nd order at the station) and order it again in the same frame
+            {  // cancel the tech upgrade (the 2nd order at the station) and order it again in the same frame
                 commands::EventData cancel(commands::EventType::Production);
                 cancel.set("location", static_cast<uint32_t>(station)).set("cancel", 1u).set("index", 1u);
                 CHECK(host.execute_direct(0, commands::CommandSource::Player, cancel) == commands::RejectReason::None);
@@ -2786,7 +2786,7 @@ void test_tactical_tech_upgrade() {
     }
     CHECK(ordered && built && killed && dropped);
     CHECK(built_at >= 2 + 60 && built_at <= 2 + 60 + 3);  // its own queue: not behind the 30-frame base upgrade
-    // ref2 t02: the presentation events of the run, in order: base begin, tech begin, tech cancel, tech begin (frame 2,
+    // the presentation events of the run, in order: base begin, tech begin, tech cancel, tech begin (frame 2,
     // the refused order reports nothing), then the two completions (base at about 32, tech at about 62), all player 0.
     {
         using PK = PresentationEventKind;
@@ -2818,7 +2818,7 @@ struct GateRun {
     bool seen = false, sw0 = false, sw1 = false, br0 = false, br1 = false, bd0 = false, bd_off = true, bd_on = false;
     bool killed = false, sw1_after = false;
     float rt0 = -1.0f, rt1 = -1.0f, rt0_after = -1.0f, rt1_after = -1.0f;
-    // r1b t01: Take_Damage(30, "hp_s10_laser_b") on that frigate before it dies: hardpoint 1 loses 30, hardpoint 0 and
+    // Take_Damage(30, "hp_s10_laser_b") on that frigate before it dies: hardpoint 1 loses 30, hardpoint 0 and
     // the hull nothing; an unknown name applies nothing.
     bool named = false, unknown = true, hp0_full = false, hull_same = false;
     float hp1_lost = 0.0f;
@@ -2952,7 +2952,7 @@ void test_final_tick_losses(const Data& d) {
     CHECK(battles.battles_fought() == 1 && !battles.battle());
     const size_t recorded = battles.last_battle_losses().size();
     std::printf("  final tick: %zu deaths seen per tick, %zu in the loss records\n", seen, recorded);
-    // story t06: the battle now ends 210 frames after the victory declaration, so the deaths come before the final tick;
+    // the battle now ends 210 frames after the victory declaration, so the deaths come before the final tick;
     // the records still hold every one of them.
     CHECK(seen > 0 && recorded >= seen);
 }
@@ -3235,7 +3235,7 @@ void test_remote_bomb_marker() {
 //     Map_Load_Spawn_Table placeholder's stamp is replaced by the spawned rock's footprint; a rock spawned during the
 //     battle is stamped at the end of that tick under its object id and unstamped the tick it is removed;
 //   * space: a map-placed SPACE_OBSTACLE unit owns its placement entry (object id) and loses it when it dies (Hyperspace_Away
-//     kill); a placeholder's entry is replaced by the spawned asteroid's (radius 400, not the placeholder's 50); S8 t09: the
+//     kill); a placeholder's entry is replaced by the spawned asteroid's (radius 400, not the placeholder's 50); the
 //     asteroid (not a battle unit) loses its entry the tick it is removed;
 //   * S8 t09 (S9_DEATH_CLONE_SHIELDS §1.6, MOVEMENT §1.3): a death clone keeps only HIDE_WHEN_FOGGED / IMPOSING_PRESENCE /
 //     LAND_OBSTACLE (the last only with Death_Clone_Is_Obstacle) and gets DEATH; a clone without LAND_OBSTACLE is never
@@ -3337,7 +3337,7 @@ void test_runtime_obstacles(bool space) {
                 CHECK(occ.static_entry(other, c, r, bits) && r == 400.0f && c.x == -2500.0f && c.y == 2500.0f);  // not 50
                 std::printf("  space: map unit %d entry r 120, spawned asteroid %d entry r %.0f\n", unit, other, static_cast<double>(r));
                 CHECK(b->hyperspace_out(unit, 0, true));  // killed 90 frames later
-                // S8 t09: the asteroid is no battle unit; removing it must drop its (re-keyed) entry at the next sync.
+                // the asteroid is no battle unit; removing it must drop its (re-keyed) entry at the next sync.
                 asteroid = other;
                 asteroid_h = st.find(other);
                 CHECK(tm->destroy(asteroid_h));
@@ -3362,7 +3362,7 @@ void test_runtime_obstacles(bool space) {
                 spawned = st.id(spawned_h);
                 spawn_frame = b->frame();
                 CHECK(spawned > 0 && !g.stamped(spawned));
-                // S8 t09: death clones of a bunker (Death_Clone_Is_Obstacle default true) and of a prison (false).
+                // death clones of a bunker (Death_Clone_Is_Obstacle default true) and of a prison (false).
                 sp.type = static_cast<objects::TypeIndex>(type_of(*d, "S10_Obst_Bunker"));
                 sp.position = {1200.0f, 1000.0f, 0.0f};
                 const objects::ObjectHandle bc = tm->spawn_death_clone(sp);
@@ -3386,7 +3386,7 @@ void test_runtime_obstacles(bool space) {
                 spawned_checked = true;
                 CHECK(g.stamped(spawned) && same(g.stamp_cells(spawned), cells_of(g, 300.0f, 1000.0f, 100.0f)));
                 CHECK(g.effective(mv::world_to_cell(300.0f), mv::world_to_cell(1000.0f)) == mv::kPassObstacle);
-                // S8 t09: the bunker's clone kept LAND_OBSTACLE and is stamped; the prison's is not.
+                // the bunker's clone kept LAND_OBSTACLE and is stamped; the prison's is not.
                 CHECK(g.stamped(bunker_clone) && same(g.stamp_cells(bunker_clone), cells_of(g, 1200.0f, 1000.0f, 60.0f)));
                 CHECK(!g.stamped(prison_clone) && g.effective(mv::world_to_cell(1200.0f), mv::world_to_cell(600.0f)) == mv::kPassClear);
                 CHECK(tm->destroy(spawned_h));
@@ -3427,12 +3427,12 @@ void test_runtime_obstacles(bool space) {
 }
 
 
-// SP5 (docs/SIM_PARALLEL_DESIGN.md §5): the tick's services phase graph. Every run mode gives the default run's per-tick
+// SP5 (docs/SIMULATION.md "Services chain"): the tick's services phase graph. Every run mode gives the default run's per-tick
 // CRCs and fog digests (Serial = the declared order, Reverse = each phase backwards: an undeclared read or write between
 // services of one phase would show here, Parallel at 4 workers), and the debug write check (every service's changes to
 // the checkable components inside its declared writes) finds no violation. One battle per call: each runs as its own ctest
 // entry (`--service-modes space|land`), since the write check alone costs about 13 s a battle and the two together put
-// alamo_sim_battle_tests over the landing tier's 30 s limit (tools/lint/test_tiers.py).
+// alamo_sim_battle_tests over the fast tier's limit of a few seconds (entries above it carry the ctest label slow).
 void test_service_modes(const Data& d, bool land) {
     using tactical::services::RunMode;
     const TacticalBattle::ServiceRunDefaults saved = TacticalBattle::service_run_defaults();
@@ -3646,7 +3646,7 @@ int main(int argc, char** argv) {
     }
     std::printf("skirmish station production: Production at the star base, upgrade object, station upgrade\n");
     test_station_production();
-    test_station_production(1.5f);  // skm1 t04: Easy AI build time
+    test_station_production(1.5f);  // Easy AI build time
     std::printf("mcx4 t04: tactical production queues and the skirmish tech upgrade\n");
     test_tactical_tech_upgrade();
     test_skirmish_redelivery();      // skm1 t07

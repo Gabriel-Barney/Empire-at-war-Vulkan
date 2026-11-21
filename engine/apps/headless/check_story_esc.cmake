@@ -1,5 +1,5 @@
-# ctest driver of alamo_headless_story_esc (tst2 t02, b0143; ai_run.hpp --story-esc-at). -D EXE, TRACE, PY (may be empty), READER.
-# The UM01 Esc run of retail (docs/re/STORY_T04_KESSEL_RUN.md §1, run 20261108-234224): Underworld campaign, seed 0, the
+# ctest driver of alamo_headless_story_esc (ai_run.hpp --story-esc-at). -D EXE, TRACE, PY (may be empty), READER.
+# The UM01 Esc run of retail (legacy docs/re/STORY_T04_KESSEL_RUN.md §1, run 20261108-234224): Underworld campaign, seed 0, the
 # linked Kessel land mission, Esc after battle frame 128 while the intro cinematic plays. Retail calls Story_Handle_Esc
 # between ticks; the mission's handler starts IntroCineCleanup, whose spawns (MILLENNIUM_FALCON_LANDING, URAI_FEN, ...) appear
 # at frame 129 and whose despawns (the UMP_CINE_* objects) at 130. Hands-off the same objects come only at 5361 / 7542.

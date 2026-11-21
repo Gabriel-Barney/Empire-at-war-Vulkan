@@ -1,5 +1,5 @@
 // AI framework: the per-mode context (TacticalAIManagerClass) and the enable gate (TheAIClass)
-// (docs/re/AI_GALACTIC.md §1.1-1.3). Shared by galactic (galactic_ai.hpp) and the tactical AI (A1).
+// (legacy docs/re/AI_GALACTIC.md §1.1-1.3). Shared by galactic (galactic_ai.hpp) and the tactical AI (A1).
 //
 // ORDER (0x5f5ab0, every frame of the player's update, only for the context of the current top mode):
 //   if the mode's AI is disabled / suspended: nothing, except galactic Planning while the auto-resolve is
@@ -60,7 +60,7 @@ public:
     void service(int64_t now, bool enabled, bool auto_resolve_busy);
 
     bool initialised() const { return initialised_; }
-    // OPT2 t01: this player's AI ordinal and the AI player count (call before the first service).
+    // this player's AI ordinal and the AI player count (call before the first service).
     void set_stagger(int32_t slot, int32_t slots) {
         stagger_slot_ = slot;
         stagger_slots_ = slots;

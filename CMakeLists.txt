@@ -24,8 +24,9 @@ endif()
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 enable_testing()
-# Several rendering tests write their diagnostic PNGs in this directory.
-file(MAKE_DIRECTORY "${PROJECT_SOURCE_DIR}/logs")
+# Suite labels (synthetic / retail / vulkan / traces), the prerequisite gate and companion entries for mixed tests.
+# Included before any test is added: it overrides add_test.
+include(cmake/AlamoTestSuites.cmake)
 add_subdirectory(tools/meg)
 add_subdirectory(tools/formats)
 add_subdirectory(tools/shaders/cpp)
@@ -33,3 +34,7 @@ add_subdirectory(tools/shaders/cpp)
 add_subdirectory(engine)
 add_subdirectory(tools/parity)
 add_subdirectory(tools/fuzz)
+
+# A tests/test_suites.txt rule that matches no configured test is stale (renamed test, or module not configured).
+# Deferred: engine/render and engine/apps/game add some tests in deferred calls of this directory.
+cmake_language(DEFER CALL alamo_test_suites_check)

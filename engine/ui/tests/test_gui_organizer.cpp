@@ -1,5 +1,5 @@
-// alamo_ui_organizer_tests (p4ui t04, CPU, synthetic data): which fleet fills which pane of the fleet organiser
-// (docs/re/UI.md §7). The three panes q1 / q2 / q3 always exist; the HUD fills them by the fleets' orbit slots and the
+// alamo_ui_organizer_tests (CPU, synthetic data): which fleet fills which pane of the fleet organiser
+// (legacy docs/re/UI.md §7). The three panes q1 / q2 / q3 always exist; the HUD fills them by the fleets' orbit slots and the
 // orbit owner, not by provider order; foreign units are drawn but inert. No game data needed.
 #include "test_gui_screens_common.hpp"
 
@@ -7,7 +7,7 @@ namespace {
 
 using namespace test_gui_screens_t;
 
-constexpr int kPad = 3;  // unit pads per pane in the synthetic table (q{n}_0001 .. q{n}_0003; q{n}_0000 is the header pad, UI.md §7.4)
+constexpr int kPad = 3;  // unit pads per pane in the synthetic table (q{n}_0001 .. q{n}_0003; q{n}_0000 is the header pad, legacy docs/re/UI.md §7.4)
 
 std::string organizer_xml() {
     std::string x = "<CommandBarComponents>\n";
@@ -91,7 +91,7 @@ struct Env {
             if (h.component == c) return hud.canvas().canvas_to_pixel(0.5f * (h.min.x + h.max.x), 0.5f * (h.min.y + h.max.y));
         return Vec2f{-1, -1};
     }
-    // Press `from`, start the drag, rebuild (the empty pads appear, UI.md §7.3), move onto `to_name`'s pad, release; the
+    // Press `from`, start the drag, rebuild (the empty pads appear, legacy docs/re/UI.md §7.3), move onto `to_name`'s pad, release; the
     // commands the drop issued.
     std::vector<commands::EventData> drag(const std::string& from, const std::string& to_name, bool* valid = nullptr) {
         const int32_t fc = id(from), tc = id(to_name);
@@ -139,7 +139,7 @@ struct Env {
     }
 };
 
-// UI.md §7.1: three panes whatever the fleet count; one fleet in slot 1 fills pane 1 only.
+// legacy docs/re/UI.md §7.1: three panes whatever the fleet count; one fleet in slot 1 fills pane 1 only.
 void test_one_fleet() {
     Env e;
     e.build({make_fleet(900, 1, false, 2)}, true);
@@ -153,7 +153,7 @@ void test_one_fleet() {
     CHECK(e.hud.stats().organize_shown && e.filled(0) + e.filled(1) + e.filled(2) == 0 && e.hud.stats().fleet_slots == 0);
 }
 
-// UI.md §7.2: the local player's orbit: slot k -> pane k, whatever the provider order.
+// legacy docs/re/UI.md §7.2: the local player's orbit: slot k -> pane k, whatever the provider order.
 void test_slots_to_panes() {
     Env e;
     e.build({make_fleet(902, 2, false, 1), make_fleet(900, 0, false, 1), make_fleet(901, 1, false, 1)}, true);
@@ -162,7 +162,7 @@ void test_slots_to_panes() {
     CHECK(e.hud.draggable(e.id("q1_fleet")) && e.hud.draggable(e.id("q2_0001")) && e.hud.draggable(e.id("q3_0001")));
 }
 
-// UI.md §7.2: every own slot-0 fleet merges into pane 0, one pad run after the other from the first pad.
+// legacy docs/re/UI.md §7.2: every own slot-0 fleet merges into pane 0, one pad run after the other from the first pad.
 void test_slot0_merge() {
     Env e;
     e.build({make_fleet(900, 0, false, 2), make_fleet(901, 1, false, 1), make_fleet(902, 0, false, 1)}, true);
@@ -192,14 +192,14 @@ void test_slot0_merge() {
     CHECK(out.size() == 1 && out[0] == commands::ev::move_object_to_object(900, 101));
 }
 
-// UI.md §7.2: a pane shows at most its pads; the rest of the stacks are not drawn.
+// legacy docs/re/UI.md §7.2: a pane shows at most its pads; the rest of the stacks are not drawn.
 void test_pane_overflow() {
     Env e;
     e.build({make_fleet(900, 0, false, 4)}, true);
     CHECK(e.filled(0) == kPad && e.hud.stats().fleet_slots == static_cast<uint32_t>(kPad));
 }
 
-// UI.md §7.2, second row: the orbit is not the local player's. Foreign fleets (merged) -> pane 0, own slot 1 -> pane 1,
+// legacy docs/re/UI.md §7.2, second row: the orbit is not the local player's. Foreign fleets (merged) -> pane 0, own slot 1 -> pane 1,
 // own slots 0 and 2 -> pane 2 (merged); foreign units are drawn but inert.
 void test_foreign_orbit() {
     Env e;
@@ -238,7 +238,7 @@ void test_unknown_slots() {
     // Foreign orbit: a slot-less own fleet takes the first empty pane (pane 0 holds no foreign fleet here).
     e.build({make_fleet(900, -1, false, 1), make_fleet(901, 1, false, 1)}, false);
     CHECK(e.icon(1, 0) == "i_901_0.tga" && e.icon(0, 0) == "i_900_0.tga" && e.filled(2) == 0);
-    // UI.md §7.2 first row: in the local player's orbit a non-local (e.g. allied) fleet fills no pane, even a free one.
+    // legacy docs/re/UI.md §7.2 first row: in the local player's orbit a non-local (e.g. allied) fleet fills no pane, even a free one.
     e.build({make_fleet(904, 2, true, 1), make_fleet(901, 1, false, 1)}, true);
     CHECK(e.filled(0) == 0 && e.icon(1, 0) == "i_901_0.tga" && e.filled(2) == 0 && e.hud.stats().fleet_slots == 1);
     // More fleets than panes: the surplus is not shown.
@@ -246,7 +246,7 @@ void test_unknown_slots() {
     CHECK(e.filled(0) == 1 && e.filled(1) == 1 && e.filled(2) == 1 && e.hud.stats().fleet_slots == 3);
 }
 
-// UI.md §7.4: q{n}_0000 is the header pad, never a unit pad: units start at q{n}_0001.
+// legacy docs/re/UI.md §7.4: q{n}_0000 is the header pad, never a unit pad: units start at q{n}_0001.
 void test_header_pad() {
     Env e;
     e.build({make_fleet(900, 0, false, 2)}, true);
@@ -259,7 +259,7 @@ void test_header_pad() {
     CHECK(e.drag("q2_0001", "q1_0000", &valid).empty() && !valid);
 }
 
-// UI.md §7.2: units of one fleet with the same type share a pad with the count; other types and kNoSlotType units do not.
+// legacy docs/re/UI.md §7.2: units of one fleet with the same type share a pad with the count; other types and kNoSlotType units do not.
 void test_stacks() {
     Env e;
     GalacticFleet f = make_fleet(900, 0, false, 0);
@@ -289,7 +289,7 @@ void test_stacks() {
     CHECK(valid && o.size() == 1 && o[0] == fleet_management_event(commands::kFleetMerge, 902, 901, 9101));
 }
 
-// UI.md §7.3: empty pads show only while dragging; a drop on an empty pane makes a new fleet in that slot, on a pad of an
+// legacy docs/re/UI.md §7.3: empty pads show only while dragging; a drop on an empty pane makes a new fleet in that slot, on a pad of an
 // occupied pane it merges.
 void test_empty_pads() {
     Env e;

@@ -1,4 +1,4 @@
-// Jetpack, flying, bike, land-bomber and fighter locomotors (docs/re/REMAINING_GAPS.md §4.3-4.7; MOVEMENT.md §3.1,
+// Jetpack, flying, bike, land-bomber and fighter locomotors (legacy docs/re/REMAINING_GAPS.md §4.3-4.7; MOVEMENT.md §3.1,
 // §3.2). The MovementSystem drives them (movement_system.hpp: "special locomotors"); this header holds the kinds, the
 // per-unit state, the animation ids they request and the pure per-frame rules (unit-tested on their own).
 //
@@ -42,7 +42,7 @@ LocomotorKind locomotor_kind_from_token(std::string_view token);
 // (use_secondary_locomotor, MoveOrder::switch_locomotor; UnitDesc::secondary_locomotor).
 LocomotorKind locomotor_kind_from_type(const objects::GameObjectTypes& types, uint32_t type_index, MoveMode mode);
 
-// ModelAnimType ids requested by these locomotors (docs/re/ANIM_PARTICLES.md §A.1).
+// ModelAnimType ids requested by these locomotors (legacy docs/re/ANIM_PARTICLES.md §A.1).
 enum AnimId : int32_t {
     kAnimNone = -1,
     kAnimMove = 2, kAnimTurnLeft = 3, kAnimTurnRight = 4,
@@ -139,7 +139,7 @@ struct TurnAnim {
 };
 TurnAnim jetpack_turn_anim(float err_deg, float turn_rate, bool has_pre_turn_anim);
 
-// ---- s78l t02: the Walk locomotor's arrival turn (MOVEMENT §3.5.1 "Arrival turn, details") ----
+// ---- the Walk locomotor's arrival turn (MOVEMENT §3.5.1 "Arrival turn, details") ----
 // Clip classes: idle-class (0x27b5e0: 0, 1, 71, 77-82) and the turn clips (3, 4, 21-24).
 bool anim_idle_class(int32_t anim);
 bool anim_turn_clip(int32_t anim);
@@ -156,7 +156,7 @@ TurnAnim arrival_turn_band(float err_deg, float stopped_rate, float threshold, i
 int32_t arrival_turn_end_clip(int32_t anim);
 // The TURNL / TURNR blend cap of a unit without Has_Pre_Turn_Anim: GameConstants InfantryTurnBlendTime (0x140b16d28 = GC
 // +0x1528; MovementConstants::infantry_turn_blend_time, this is its default and FoC value). Blend = min(D / r x 0.03333,
-// cap), D = e0 wrapped into [0, 360) (mcx4 t11, 0x620190 [M]: a right turn counts 360 - |e0|).
+// cap), D = e0 wrapped into [0, 360) (0x620190 [M]: a right turn counts 360 - |e0|).
 inline constexpr float kArrivalTurnBlendCapPort = 0.2f;
 
 // Jetpack altitude (0x6404e0). `track(i)` = the unit's position i frames ahead (path playback, or position +
@@ -175,7 +175,7 @@ float step_altitude(float z, float target, float max_lift, float terrain_here, f
 // +-bank_turn_angle.
 float bike_lean(float lean, int32_t turn_anim, float roll_rate, float bank_turn_angle);
 
-// ---- FLYING_LOCOMOTOR (docs/re/FIGHTER_FLYING.md §6; corrections §9.2 / §9.3) ---------------------------------
+// ---- FLYING_LOCOMOTOR (legacy docs/re/FIGHTER_FLYING.md §6; corrections §9.2 / §9.3) ---------------------------------
 // Angles in degrees; positive pitch is nose down; forward = (cos Y cos Pi, sin Y cos Pi, -sin Pi) (§1.1). Every
 // sin / cos below takes the radian argument (+-angle) x k (k = 0x3C8EFA35) with the tiny-angle shortcut (|x| < 2^-69:
 // sin x = x, cos x = 1) and dmath in place of the CRT sinf / cosf / atan2f (the port's determinism rule).
@@ -302,7 +302,7 @@ bool locomotor_airborne_kind(LocomotorKind kind, LocoState state);
 // is in the clearance layer when (layer & kLayerCorvette) != 0 (0x537e60).
 uint32_t object_tracking_layer(bool uses_multiple_locomotors, bool airborne_kind, bool moving, uint32_t space_layer,
                                uint32_t stationary_space_layer);
-// Query half-extents 0x396850 -> 0x371be0 (s78n t10, TACTICAL_COMBAT §5.4.6 item 1): both Custom_Hard extents > 0 ->
+// Query half-extents 0x396850 -> 0x371be0 (TACTICAL_COMBAT §5.4.6 item 1): both Custom_Hard extents > 0 ->
 // Scale_Factor x (X, Y), no model read; else no model for the mode -> (0, 0), even with one custom set; else per axis the
 // custom value when > 0, else the |collision-bound half x / y| of the model, x Scale_Factor (the half size, not |max|;
 // the bound's centre offset is ignored).
@@ -323,7 +323,7 @@ bool clearance_candidate(V2 from, V2 to, float qx, float qy, const ClearanceEntr
 // within R(r) of A = s + (e - s) a, R lerping the two oriented-box radii from the direction toward s (at r = 0) to the
 // direction toward e (at r = 1). Heights are not compared.
 bool clearance_hit(V2 from, V2 to, float qx, float qy, const ClearanceEntry& e, float t);
-// Per-hit value (s78n t10, §5.4.6 side finding): the model box the hit reads is the collision bound as centre and half
+// Per-hit value (§5.4.6 side finding): the model box the hit reads is the collision bound as centre and half
 // size, so box_lo_z = its centre z and box_hi_z = its half z, and (c.z + h.z) x Scale_Factor + object z is the scaled top
 // of the collision bound.
 inline float clearance_top(float box_lo_z, float box_hi_z, float scale_factor, float obj_z) {
@@ -335,7 +335,7 @@ struct ClearanceInfo {
     uint32_t stationary_space_layer = 0;    // Stationary_Space_Layer (+0x16e0); Space_Layer is UnitDesc::space_layer_type
     V2 half;                                // clearance_half_extents (the flyer's (qx, qy); an entry's (ex, ey) [M])
     bool has_box = false;                   // the land model (type +0x2a0) is there; no model = no hit value
-    float box_lo_z = 0.0f, box_hi_z = 0.0f; // s78n t10: the collision bound's centre z and half z, before Scale_Factor
+    float box_lo_z = 0.0f, box_hi_z = 0.0f; // the collision bound's centre z and half z, before Scale_Factor
     float scale_factor = 1.0f;              // Scale_Factor (+0x658)
 };
 using ClearanceInfoFn = std::function<bool(ObjectId id, ClearanceInfo& out)>;  // false = unknown object (skipped)

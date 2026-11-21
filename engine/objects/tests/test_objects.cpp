@@ -92,7 +92,7 @@ static void test_schema() {
     CHECK(is_behavior_list_tag("spacebehavior") && !is_behavior_list_tag("Behaviors"));
     CHECK(kind_of_code(0x2a) == FieldKind::Raw && kind_of_code(0x17) == FieldKind::Name &&
           kind_of_code(0x16) == FieldKind::NumberList && kind_of_code(0x5) == FieldKind::Int);
-    // modc t29: code 0x50 is a bool written into a flag bit (CommandBarComponent Hidden / Toggle / ...).
+    // code 0x50 is a bool written into a flag bit (CommandBarComponent Hidden / Toggle / ...).
     CHECK(kind_of_code(0x50) == FieldKind::Bool);
     const uint32_t hidden = find_field_schema("Hidden", "CommandBarComponent");
     CHECK(hidden != kNoSchema && field_schema()[hidden].code == 0x50 && field_schema()[hidden].kind() == FieldKind::Bool);
@@ -343,7 +343,7 @@ static void test_types_synthetic() {
     CHECK(ty.get_bool(base, "Is_Dummy") && !ty.get_bool(base, "Hyperspace") && ty.get_float(base, "Mass") == 2.0f);
     CHECK(ty.get_list(base, "Behavior").size() == 3 && ty.get_list(base, "Behavior")[2] == "STARSHIP_COMBATANT");
     CHECK(ty.get_int(base, "Required_Ground_Base_Level") == 1);  // §6.1 normalisation
-    // bkc1 t07 (b0126): numeric getters read the field's own slot whatever its schema kind. Override_Bounty_SP and
+    // numeric getters read the field's own slot whatever its schema kind. Override_Bounty_SP and
     // Bombing_Run_Prevention_Radius are float-parsed (code 0x8): get_int truncates; Population_Value is int (0x6).
     {
         const TypeIndex num = T("Num");
@@ -420,10 +420,10 @@ static bool same_types(const GameObjectTypes& a, const GameObjectTypes& b) {
 }
 
 // ------------------------------------------------------------------------------------------
-// OBJECT_TYPES.md §9 / OBJECT_RUNTIME.md §9 rules
+// legacy docs/re/OBJECT_TYPES.md §9 / legacy docs/re/OBJECT_RUNTIME.md §9 rules
 
-// mcx1 t06 (D2, Gabriel 2026-11-17; DECISIONS.md "Mod compatibility system decisions"): squadrons are retail's. Every
-// Squadron_Units list keeps its members as written (OBJECT_TYPES.md §4.4: repeated list tags append) and the prices stay the
+// mcx1 t06 (D2, Gabriel 2026-11-17; docs/MODS.md "Standing mod decisions"): squadrons are retail's. Every
+// Squadron_Units list keeps its members as written (legacy docs/re/OBJECT_TYPES.md §4.4: repeated list tags append) and the prices stay the
 // XML's (or the members' derived sum), for one-type fighter / bomber squadrons too; the 2026-11-13 resize to 12 is gone.
 static void test_retail_squadrons() {
     const fs::path root = fs::temp_directory_path() / "alamo_objects_squad_size_test";
@@ -514,7 +514,7 @@ static int32_t fake_anim_type(std::string_view name) {
     return -1;
 }
 
-// Targeting_Priority_Set registry and ModelAnimType conversion (OBJECT_TYPES.md §9.1.3).
+// Targeting_Priority_Set registry and ModelAnimType conversion (legacy docs/re/OBJECT_TYPES.md §9.1.3).
 static void test_s1_registries() {
     const fs::path root = fs::temp_directory_path() / "alamo_objects_s1r_test";
     std::error_code ec;
@@ -986,7 +986,7 @@ static void test_store() {
     CHECK(land.behavior_index(a, beh::Locomotor) == 2 && land.serviced_behavior_count(a) == 4);
     CHECK(land.has_behavior(a, beh::Team) && !land.has_behavior(a, 0x10));
     CHECK(land.add_behavior(a, 0x45) && !land.add_behavior(a, 0x45) && land.behaviors(a).back() == 0x45);
-    // S8 t09: Remove_Behavior (the death-clone strip): one instance leaves, later ones move down with their state; the
+    // Remove_Behavior (the death-clone strip): one instance leaves, later ones move down with their state; the
     // object leaves the per-type table and category list with the last instance. Saved and reloaded unchanged.
     {
         ObjectStore st(ModeKind::Space, StoreKind::Primary, types);
@@ -1081,7 +1081,7 @@ static void test_store() {
     CHECK(newest.size() == 6 && st.owner(newest[0]) == 5 && st.owner(newest[1]) == 6);  // last queued created first
     CHECK(st.find_all_of_type(trooper).size() == 6 && st.find_all_of_type(trooper)[0] == newest[0]);
     CHECK(st.owned_by(5).size() == 1 && st.owned_by(1).size() == 4);
-    // refix t01: a death clone (kFlagDying | kFlagRemoving) exists, is alive and keeps its id / lists, but active()
+    // a death clone (kFlagDying | kFlagRemoving) exists, is alive and keeps its id / lists, but active()
     // and find_all_of_type skip it; destroy() still works on it.
     {
         const ObjectHandle clone = newest[0];
@@ -1456,7 +1456,7 @@ static void test_store_save() {
         ByteReader r(bytes);
         CHECK(s2.read(r) && r.done() && store_digest(s2) == store_digest(s1) && s2.id_counter().next() == s1.id_counter().next());
     }
-    // a1h t08 / a1i t05: version 1 (no carried-type section) and version 2 (no landing-persist section) saves still
+    // version 1 (no carried-type section) and version 2 (no landing-persist section) saves still
     // load; this store has no transports, so the v3 save ends with two empty sections (u32 0 each).
     for (const uint8_t ver : {uint8_t{1}, uint8_t{2}}) {
         std::vector<uint8_t> old = saved;
@@ -1471,7 +1471,7 @@ static void test_store_save() {
     remove_all_long(root, ec);
 }
 
-// a1h t08: the transport carried type (TransportDataPack +0x48, A1_READINGS §32.2): only TRANSPORT / TRANSPORT_LANDING
+// the transport carried type (TransportDataPack +0x48, A1_READINGS §32.2): only TRANSPORT / TRANSPORT_LANDING
 // objects have one; it is saved, hashed only when set, and gone with the object.
 static void test_carried_type() {
     const fs::path root = fs::temp_directory_path() / "alamo_objects_carried_test";
@@ -1511,7 +1511,7 @@ static void test_carried_type() {
         ByteReader r(b);
         CHECK(t.read(r) && r.done() && t.carried_type(d) == company && t.carried_type(o) == company &&
               t.carried_type(plain) == kNone && store_digest(t) == store_digest(s) && store_bytes(t) == b);
-        // (a1i t05: the last 4 bytes are the empty landing-persist list)
+        // (the last 4 bytes are the empty landing-persist list)
         std::vector<uint8_t> bad = b;  // the last entry's type out of range: refused, store unchanged
         bad[bad.size() - 5] = 0x7F;
         ByteReader rb(bad);
@@ -1530,7 +1530,7 @@ static void test_carried_type() {
     sp.type = drop;
     const ObjectHandle n = s.create(sp);
     CHECK(n.slot() == d.slot() && n != d && s.carried_type(n) == kNone);
-    // a1i t05: the landing persist flag (TransportDataPack +0xc9): the same objects, saved (version 3), hashed when set.
+    // the landing persist flag (TransportDataPack +0xc9): the same objects, saved (version 3), hashed when set.
     const uint64_t before_persist = store_digest(s);
     CHECK(!s.landing_persist(o) && !s.set_landing_persist(plain, true) && !s.landing_persist(plain));
     CHECK(s.set_landing_persist(o, true) && s.landing_persist(o) && store_digest(s) != before_persist);
@@ -1661,11 +1661,11 @@ static void integration(const std::string& root, const char* label, bool foc) {
                 types.faction_names().size(), ts.factions_dropped);
     if (foc) CHECK(ts.variants == 911 && ts.resolved_pass0 == 911 && ts.unresolved == 0);
     else CHECK(ts.variants == 449 && ts.resolved_later == 7 && ts.unresolved == 0);
-    if (foc) {  // bkc1 t07 (b0126): the float field read as an int (A2M_R2_UW_BOUNTY_TRACE section 1: Gallofree 50)
+    if (foc) {  // the float field read as an int (A2M_R2_UW_BOUNTY_TRACE section 1: Gallofree 50)
         const TypeIndex g = db.find("Gallofree_Transport");
         CHECK(g != kNone && types.get_int(g, "Override_Bounty_SP") == 50);
     }
-    if (foc) {  // bkc1 t04 (b0012, COMMANDS 2.4.1, q6 t15 probe 6): what SelectAll leaves out, in the shipped data
+    if (foc) {  // bkc1 t04 (COMMANDS 2.4.1, q6 t15 probe 6): what SelectAll leaves out, in the shipped data
         const BehaviorTypeId pad = behavior_type_id("TACTICAL_BUILD_OBJECTS");
         const BehaviorTypeId ground = behavior_type_id("DUMMY_GROUND_STRUCTURE");
         const BehaviorTypeId star_base = behavior_type_id("DUMMY_STAR_BASE");
@@ -1771,9 +1771,9 @@ static void integration(const std::string& root, const char* label, bool foc) {
 
     std::string name = label;
     for (char& c : name) c = static_cast<char>(c >= 'A' && c <= 'Z' ? c - 'A' + 'a' : c);
-    // Report under the build tree (ALAMO_OBJECTS_LOG_DIR = <build>/logs). Written to a temporary file and
+    // Report under the build tree (alamo::test::artifact_dir()). Written to a temporary file and
     // renamed into place; any failure is reported, never fatal (the report is informational).
-    const fs::path out = path_from_utf8(ALAMO_OBJECTS_LOG_DIR) / ("objects_coverage_" + name + ".txt");
+    const fs::path out = path_from_utf8(::alamo::test::artifact_dir()) / ("objects_coverage_" + name + ".txt");
     fs::path tmp = out;
     tmp += ".tmp";
     fs::create_directories(out.parent_path(), ec);
@@ -1796,7 +1796,7 @@ static void integration(const std::string& root, const char* label, bool foc) {
     std::printf("  coverage report: %s (%s)\n", path_to_utf8(out).c_str(), written ? "written" : "NOT WRITTEN (non-fatal)");
 }
 
-// ref6 t01: every typed handle (alamo/objects/type_tags.hpp) names a type field, an unset tag reads the handle's one
+// every typed handle (alamo/objects/type_tags.hpp) names a type field, an unset tag reads the handle's one
 // default through get(t, handle), a set one its XML value, and name(t) is the type's name.
 // What an unset tag reads equals the handle's default (Float / Int / Bool / Text) or the kind's fixed unset value.
 template <class T>

@@ -233,7 +233,7 @@ int main() {
         CHECK(r && r->location.find("Config.meg#") != std::string::npos);
         CHECK(v->origin("Data\\XML\\P_Meg_FB.xml") == r->location);
     }
-    // read_nth (mcx2 t07): the copies in resolution order: mod A, mod B; mod B, base; base, MEG, fallback
+    // read_nth: the copies in resolution order: mod A, mod B; mod B, base; base, MEG, fallback
     {
         std::vector<uint8_t> b;
         Vfs::Resolution w{};
@@ -248,7 +248,7 @@ int main() {
         CHECK(!v->read_nth("Data\\XML\\Nothing.xml", 0, b));
     }
 
-    // ums0: layers in resolution order with their provenance; layer_of / resolve_all.
+    // layers in resolution order with their provenance; layer_of / resolve_all.
     {
         using alamo::vfs::Layer;
         const auto& L = v->layers();
@@ -304,7 +304,7 @@ int main() {
         CHECK(!v->read("Data\\XML\\Nope.xml", buf) && buf.empty());
     }
 
-    // list(): union, dedupe, '*' does not cross '\\', '**' does. mcx3 t13 (MCX4_GAL2_RE_ANSWERS Q6, UI.md §9.2): retail's
+    // list(): union, dedupe, '*' does not cross '\\', '**' does. mcx3 t13 (MCX4_GAL2_RE_ANSWERS Q6, legacy docs/re/UI.md §9.2): retail's
     // find order - the mod trees, the base tree, the MEGs (mount order, record order), the fallback trees.
     {
         const auto l = v->list("Data\\Scripts\\AI\\*.lua");
@@ -362,7 +362,7 @@ int main() {
             // Mod list order: ModOnly then Config -> Config mounted later.
             CHECK(v2->mounts()[5].path.find("ModOnly.meg") != std::string::npos);
             CHECK(v2->mounts()[7].path.find("MegMod") != std::string::npos);  // FoC Patch slot from the mod
-            // ums0: a MEG opened from the mod's folder belongs to the mod; the base Config.meg it lists does not.
+            // a MEG opened from the mod's folder belongs to the mod; the base Config.meg it lists does not.
             const auto lay = [&](std::string_view path) -> const alamo::vfs::Layer* {
                 const auto r = v2->resolve(path);
                 return r ? v2->layer_of(*r) : nullptr;
@@ -375,7 +375,7 @@ int main() {
             CHECK(cf && cf->kind == alamo::vfs::Layer::Kind::Meg && cf->mod == -1 && !cf->from_mod());
             const alamo::vfs::Layer* p64 = lay("Data\\XML\\Order0.xml");
             CHECK(p64 && p64->mod == -1);
-            // ums2 t08: the files one layer holds (a MEG's reachable records; a loose tree in byte order).
+            // the files one layer holds (a MEG's reachable records; a loose tree in byte order).
             if (mo) CHECK(v2->layer_files(*mo) == std::vector<std::string>{"DATA\\XML\\S2_MODONLY.XML"});
             const std::vector<std::string> modfiles = v2->layer_files(v2->layers()[0]);
             CHECK(std::is_sorted(modfiles.begin(), modfiles.end()) &&
@@ -405,7 +405,7 @@ int main() {
                 CHECK(i && i->layer == 1 && i->retail_equivalent && i->severity == alamo::IssueSeverity::Info);
             }
             CHECK(sink.count(alamo::IssueKind::MegUnsorted) == 1);
-            // ums2 t03: other VFS findings too: a list entry no layer has, on the layer of the mod whose list names it.
+            // other VFS findings too: a list entry no layer has, on the layer of the mod whose list names it.
             const alamo::CompatIssue* gone = sink.find(alamo::IssueKind::MissingFile, "DATA\\GONE.MEG", "DATA\\MEGAFILES.XML");
             CHECK(gone && gone->layer == 1 && !gone->retail_equivalent);
             CHECK(sink.size() == 2 && v2->warnings().size() == 2);  // every finding is also a warnings() line

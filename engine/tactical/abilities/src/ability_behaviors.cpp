@@ -1,4 +1,4 @@
-// OI abilities - the unit-ability framework pieces of docs/re/TACTICAL_GAPS.md §1 / §2.1 / §2.2 / §7.3-7.4 on top of
+// OI abilities - the unit-ability framework pieces of legacy docs/re/TACTICAL_GAPS.md §1 / §2.1 / §2.2 / §7.3-7.4 on top of
 // the S9 AbilitySystem: SAP-init draws, Active_By_Default, the autofire driver, order cancel, event-driven classes
 // (Combat_Bonus / Enhance_Defense auras, Battlefield_Modifier, Base_Power, Weatherproof, Retreat_Prevention,
 // Enable_Ability), the handler bodies (DEPLOY, JET_PACK, BARRAGE, SPREAD_OUT, REPLENISH_WINGMEN, instant effects) and
@@ -94,8 +94,8 @@ bool AbilitySystem::bind_spawn(uint32_t serial, ObjectId id) {
             Obj* o = obj(r.source);
             if (!o) return false;
             o->troopers.push_back(id);
-            o->trooper_squads.push_back(r.squad);  // cu8f t06: its squad (CU8F_T04_T06_RE §3.2)
-            // r3g t02: in the timed machine the trooper hangs on its bone (Rope Slide, +0x3a2 |= 2) until state 5 ends;
+            o->trooper_squads.push_back(r.squad);  // its squad (CU8F_T04_T06_RE §3.2)
+            // in the timed machine the trooper hangs on its bone (Rope Slide, +0x3a2 |= 2) until state 5 ends;
             // it does not move until its LANDING has ended. The lock is taken at its first rope service (state 3): the
             // host binds between its event pass and the event clear, so a lock here would lose its Immobilised event.
             if (o->troop_state != 0)
@@ -120,7 +120,7 @@ bool AbilitySystem::bind_spawn(uint32_t serial, ObjectId id) {
                 }
             return false;
         }
-    // cu8f t06 (CU8F_T04_T06_RE §3.1): the LURE Particle_Effect object (LureDataPack +0x18). cu8g t05: false (not bound:
+    // cu8f t06 (CU8F_T04_T06_RE §3.1): the LURE Particle_Effect object (LureDataPack +0x18). False (not bound:
     // the host removes it silently) when the lure was deactivated since the request, or its owner is gone.
     for (const SpawnRequest& r : spawns_)
         if (r.serial == serial && r.purpose == SpawnPurpose::LureEffect) {
@@ -380,7 +380,7 @@ void AbilitySystem::gate_entries(const Obj& src, const SpecialAbilityDesc& s, bo
     // cu8f t06 (CU8F_T04_T06_RE §3.3 [H]): apply 0x6f02c0 pushes {true, no expiry, source = this ability on this object}
     // per set Enable_* flag onto each affected player's list; remove 0x6f13b0 deletes the entries of that source. Affected
     // players (0x6f1130): the owner, or with Apply_To_All_Allies every player allied with it (index order).
-    // s78n t07: "allied" is the relation-0 test (`friendly`, CU8F_T04_T06_RE §3.3): a neutral player gets nothing.
+    // "allied" is the relation-0 test (`friendly`, CU8F_T04_T06_RE §3.3): a neutral player gets nothing.
     if (!push) {
         player_entries_.erase(std::remove_if(player_entries_.begin(), player_entries_.end(),
                                              [&](const PlayerEntry& e) {
@@ -407,7 +407,7 @@ void AbilitySystem::modifier_entries(const Obj& src, uint32_t desc, const Specia
     // Battlefield_Modifier apply 0x6f02c0 (push) / remove 0x6f13b0 (delete by source); cu8g t05 (CU8F_T04_T06_RE §3.3 [H]):
     // Reverse_Application_Logic swaps the two (the caller passes push = !reverse on apply, reverse on remove), and the
     // affected players are always the owner, or every player allied with it (index order) with Apply_To_All_Allies
-    // (0x6f1130; the earlier "reverse -> the enemies" reading [M] is gone; s78n t07: allied = relation 0, `friendly`,
+    // (0x6f1130; the earlier "reverse -> the enemies" reading [M] is gone; allied = relation 0, `friendly`,
     // so a neutral player is not affected). Per player, permanent append inserts keyed by
     // the source: the reveal list +0x1f8 (FOW §5.2) and the float lists, then the Enable_* gate lists (gate_entries).
     const auto np = static_cast<int32_t>(combat_->player_count());
@@ -421,7 +421,7 @@ void AbilitySystem::modifier_entries(const Obj& src, uint32_t desc, const Specia
                                                         e.crc == s.name_crc;
                                              }),
                               player_entries_.end());
-        if (s.base_shield_upgrade)  // tru1 t02 / tru3 t03: every entry of this source and this ability
+        if (s.base_shield_upgrade)  // every entry of this source and this ability
             for (int32_t p = 0; p < np; ++p) combat_->remove_base_shield_upgrade(p, src.id, s.name_crc);
         gate_entries(src, s, false);
         return;
@@ -470,7 +470,7 @@ bool AbilitySystem::spread_out(ObjectId id) const {
 // ================================================================================================
 
 bool AbilitySystem::aura_target(const Obj& src, uint32_t di, const Obj& t) const {
-    // s78m t05: CombatBonusAbilityClass accept vf +0x28 (0x6f4bf0, TACTICAL_COMBAT §5.4.3 item 4), in order. s78n t04:
+    // CombatBonusAbilityClass accept vf +0x28 (0x6f4bf0, TACTICAL_COMBAT §5.4.3 item 4), in order. s78n t04:
     // Enhance_Defense no longer comes here (its accept is the constant-false stub; §5.4.4 item 3c, enhance_defense_apply).
     const SpecialAbilityDesc& s = data_->specials[di];
     if (s.cls != SpecialClass::CombatBonus) return false;
@@ -558,7 +558,7 @@ void AbilitySystem::aura_on(Obj& src, SpecialState& sp, uint32_t frame) {
             break;
         case SpecialClass::BattlefieldModifier:
             // 0x6f10b0 (apply): cu8g t05 (CU8F_T04_T06_RE §3.3 [H]): Reverse_Application_Logic swaps apply and remove, for
-            // the float lists and the reveal list as for the Enable_* gate lists (cu8f t06).
+            // the float lists and the reveal list as for the Enable_* gate lists.
             modifier_entries(src, sp.desc, s, !s.reverse_logic);
             break;
         case SpecialClass::BasePower:  // 0x6efaf0: every player allied to the source (owner included), keyed by it
@@ -573,7 +573,7 @@ void AbilitySystem::aura_on(Obj& src, SpecialState& sp, uint32_t frame) {
                 if (p == src.owner || (s.apply_to_all_allies && friendly(src.owner, p)))
                     source_entries_.push_back(SourceEntry{p, src.id, s.name_crc, 2});
             break;
-        case SpecialClass::GarrisonUpgrade:  // tru3 t05: apply 0x6ffc60, only in a skirmish (0x6ffdb0)
+        case SpecialClass::GarrisonUpgrade:  // apply 0x6ffc60, only in a skirmish (0x6ffdb0)
             // The owner, or with Apply_To_All_Allies (+0x178) every player allied with it (0x2823e0, relation 0), index order.
             if (cfg_.skirmish && host_.garrison_types)
                 for (int32_t p = 0; p < np; ++p)
@@ -601,7 +601,7 @@ void AbilitySystem::aura_off(Obj& src, SpecialState& sp, uint32_t frame) {
     sp.applied = 0;
     const auto np = static_cast<int32_t>(combat_->player_count());
     switch (s.cls) {
-        case SpecialClass::CombatBonus:  // s78n t04: Enhance_Defense's entries are never removed
+        case SpecialClass::CombatBonus:  // Enhance_Defense's entries are never removed
             for (Obj& t : objs_) {
                 if (!t.combat_unit || !combat_->has_unit(t.id)) continue;
                 if (combat_->remove_unit_modifiers(t.id, src.id, s.name_crc) == 0) continue;
@@ -611,7 +611,7 @@ void AbilitySystem::aura_off(Obj& src, SpecialState& sp, uint32_t frame) {
             }
             break;
         case SpecialClass::BattlefieldModifier:
-            // 0x6f17d0 (remove); with Reverse_Application_Logic it pushes (cu8g t05, §3.3).
+            // 0x6f17d0 (remove); with Reverse_Application_Logic it pushes (§3.3).
             modifier_entries(src, sp.desc, s, s.reverse_logic);
             break;
         case SpecialClass::BasePower:  // 0x6eff70
@@ -627,7 +627,7 @@ void AbilitySystem::aura_off(Obj& src, SpecialState& sp, uint32_t frame) {
             for (int32_t p = 0; p < np; ++p)
                 if (p == src.owner || (s.apply_to_all_allies && friendly(src.owner, p))) set_special_enabled(p, s.ability_name_crc, false);
             break;
-        case SpecialClass::GarrisonUpgrade:  // tru3 t05: remove 0x6ffe30, the same players (allies as they are now)
+        case SpecialClass::GarrisonUpgrade:  // remove 0x6ffe30, the same players (allies as they are now)
             if (cfg_.skirmish && host_.garrison_types)
                 for (int32_t p = 0; p < np; ++p)
                     if (p == src.owner || (s.apply_to_all_allies && friendly(src.owner, p))) host_.garrison_types(p, s.garrison_types, false);
@@ -667,12 +667,12 @@ void AbilitySystem::h_deploy(Obj& o, bool on, uint32_t frame) {
     // skai t19 (SKAI_T19_MDU_DEPLOY_BLOCK §1 [H]): 0x3a1ce0 first leaves every coordinator (0x426d50 -> vf4 0x4f7d30: the
     // unit's formation membership and its land attack block stay with the old formation), then adopts (0x39bcb0, one
     // ctor draw; return 0x3a1f81, MOVEMENT §4.7.2), both directions, before Walk Deploy. That is the stop-and-hold; the
-    // earlier stop + adopt (kStopAdopt, cu8j t02) left a formation member in its formation, whose re-plan then undeployed
-    // a Mobile Defense Unit before its Build. mdu1 t01: with a host, the leave and adopt run here, in this call, before
+    // earlier stop + adopt (kStopAdopt) left a formation member in its formation, whose re-plan then undeployed
+    // a Mobile Defense Unit before its Build. With a host, the leave and adopt run here, in this call, before
     // Walk Deploy as in 0x3a1ce0; queued, a stale land attack block re-planned the unit in the services between the
     // activation (a Lua Activate_Ability between ticks) and the event pass, which undeployed it in the deploy's first frame.
     if (!host_.stop_hold_now || !host_.stop_hold_now(o.id, frame)) stop_order(o.id, frame, kStopHold);
-    // TRU1 t03 (MOVEMENT §3.2 "Deploy(true)", docs/re/TRU1_GRAVITY_FIELD.md): the Walk locomotor refuses to start a deploy
+    // TRU1 t03 (MOVEMENT §3.2 "Deploy(true)", legacy docs/re/TRU1_GRAVITY_FIELD.md): the Walk locomotor refuses to start a deploy
     // while the unit is in a gravity control field (obj +0x3a1 bit 0x40); the stop above still happened. With a movement
     // host the locomotor refuses it too (MovementSystem deploy_block, every route); this copy covers the host-less path.
     if (on && o.in_gravity_field) return;
@@ -685,7 +685,7 @@ void AbilitySystem::h_deploy(Obj& o, bool on, uint32_t frame) {
         // [port] no locomotor host: the deploy is instant.
         if (o.deployed == (on ? 1 : 0)) return;
         o.deployed = on ? 1 : 0;
-        // S9 t04: the death-clone deploy remap reads "deploying or deployed" (S9_DEATH_CLONE_SHIELDS.md §1.2) [port: the
+        // the death-clone deploy remap reads "deploying or deployed" (legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §1.2) [port: the
         // DEPLOY state stands in for the walk locomotor's deploy-pending flag / Deployed state].
         combat_->set_flag(o.id, combat::kUnitDeploying, on);
     }
@@ -860,7 +860,7 @@ void AbilitySystem::h_instant(Obj& o, uint32_t t, ObjectId target, uint32_t fram
 }
 
 void AbilitySystem::deploy_troopers(Obj& o, const UnitAbilityRecord& r, uint32_t frame) {
-    // REMAINING_GAPS §5.2 [H] (state 4 of 0x591a90 -> 0x590730). No draws. cu8f t06: the spawn does not read
+    // REMAINING_GAPS §5.2 [H] (state 4 of 0x591a90 -> 0x590730). No draws. The spawn does not read
     // Max_Num_Spawned_Objects (Can_Activate does); the troopers of one spawn form one squad [port: the state-7 grouping by
     // owner player always gives one group here], numbered per unit.
     (void)frame;
@@ -931,7 +931,7 @@ int32_t AbilitySystem::trooper_squads(ObjectId id) const {
 }
 
 // ================================================================================================
-// r3g t02: the timed DEPLOY_TROOPERS machine (REMAINING_GAPS §5.2, DeployTroopersBehavior service 0x591a90, interval 1)
+// the timed DEPLOY_TROOPERS machine (REMAINING_GAPS §5.2, DeployTroopersBehavior service 0x591a90, interval 1)
 // and the troopers' LANDING (0x630fe0)
 // ================================================================================================
 
@@ -943,8 +943,8 @@ uint32_t AbilitySystem::clip_finish(ObjectId id, int32_t anim_type) const {
 }
 
 void AbilitySystem::troopers_service(Obj& o, uint32_t frame) {
-    // States of 0x591a90 (clip ids: Drop Rope 0x61, Deploy Troopers 0x5e, Lift Rope 0x62). Settled from the binary
-    // (r3g t02): Drop Rope plays once the walker is deployed; at its end state 4 (0x590730) plays Deploy Troopers and
+    // States of 0x591a90 (clip ids: Drop Rope 0x61, Deploy Troopers 0x5e, Lift Rope 0x62). Settled from the binary:
+    // Drop Rope plays once the walker is deployed; at its end state 4 (0x590730) plays Deploy Troopers and
     // spawns the troopers at their bones (each on Rope Slide, attached); at Deploy Troopers' end state 5 releases every
     // trooper (0x392160, LANDING resumed). [port] states 6 / 7 (the troopers' squad grouping 0x590bb0 and 0x58fb80) are
     // folded: Lift Rope follows the release; at its end (state 8) the ability recharges and goes inactive and the walker
@@ -1061,7 +1061,7 @@ void AbilitySystem::rope_service(Obj& t, uint32_t frame) {
 }
 
 // ================================================================================================
-// LURE (cu8f t06, CU8F_T04_T06_RE §3.1 [H]; LureBehaviorClass 0x23)
+// LURE (CU8F_T04_T06_RE §3.1 [H]; LureBehaviorClass 0x23)
 // ================================================================================================
 
 bool AbilitySystem::lure_running(ObjectId id) const {
@@ -1111,7 +1111,7 @@ void AbilitySystem::lure_deactivate(Obj& o, uint32_t frame) {
         event(AbilityEventKind::RemoveSilently, kLure, o.lure_effect, o.id, frame);
         o.lure_effect = kNoObject;
     }
-    // cu8g t05: an effect requested this tick and not bound yet goes too (bind_spawn refuses it, the host removes it).
+    // an effect requested this tick and not bound yet goes too (bind_spawn refuses it, the host removes it).
     for (SpawnRequest& r : spawns_)
         if (r.purpose == SpawnPurpose::LureEffect && r.source == o.id) r.cancelled = true;
 }
@@ -1234,7 +1234,7 @@ void AbilitySystem::h_behavior(Obj& o, uint32_t t, bool on, uint32_t frame) {
     // cu8l t02 (CU8K_T02_T06_RE §2 rows 0x3a4138 / 0x3a41e6, rule 5): every toggle but HUNT on and SELF_DESTRUCT stops and
     // holds the unit (0x3a9880: one draw when it is not a squad member) before the behaviour's activate / deactivate; turning
     // a running behaviour off (0x4c3700; not HUNT) holds it a second time. [M] after the port's already-on / already-off
-    // returns; [port] DEPLOY_TROOPERS without clip data finishes in the toggle; its timed machine (r3g t02) is aborted
+    // returns; [port] DEPLOY_TROOPERS without clip data finishes in the toggle; its timed machine is aborted
     // by the off toggle (troopers_abort).
     const bool hold = t != kSelfDestruct && !(t == kHunt && on);
     if (on) {
@@ -1247,12 +1247,12 @@ void AbilitySystem::h_behavior(Obj& o, uint32_t t, bool on, uint32_t frame) {
         if (t == kSelfDestruct) {
             o.self_destruct = 1;
             if (r && r->stop_when_activated) {  // vf23 0x630950: stop + lock only with Stop_When_Activated (§28.9)
-                stop_order(o.id, frame, kStopHold);  // cu8l t02: a stop-and-hold (0x630b78, CU8K_T02_T06_RE §2)
+                stop_order(o.id, frame, kStopHold);  // a stop-and-hold (0x630b78, CU8K_T02_T06_RE §2)
                 lock_pair(o, kLockSelfDestruct, true, frame);
             }
         }
         // [port] DEPLOY_TROOPERS' stop + lock (0x58f6a0) and its release (0x58f600) fall in this same call: no net lock.
-        // r3g t02: with clip data (AbilityHost::anim_clip set) the timed state machine runs instead (troopers_service).
+        // with clip data (AbilityHost::anim_clip set) the timed state machine runs instead (troopers_service).
         if (t == kDeployTroopers && r && host_.anim_clip) {
             stop_order(o.id, frame, kStopHold);
             lock_pair(o, kLockTroops, true, frame);
@@ -1313,9 +1313,9 @@ void AbilitySystem::behaviors_service(Obj& o, uint32_t frame) {
             return;
         }
     }
-    lure_service(o, frame);  // cu8f t06: LURE (0x23), interval 1
+    lure_service(o, frame);  // LURE (0x23), interval 1
     if (o.dead) return;
-    gravity_service(o, frame);  // TRU1 t03: GRAVITY_CONTROL_FIELD (0x3a), interval 60
+    gravity_service(o, frame);  // GRAVITY_CONTROL_FIELD (0x3a), interval 60
     // HUNT (0x21): interval 30, or 1 while burning (0x621840).
     if (o.behavior[kHunt] && frame >= o.hunt_due) {
         const bool burning = o.combat_unit && combat_->burning(o.id);
@@ -1368,7 +1368,7 @@ void AbilitySystem::hunt_decide(Obj& o, uint32_t frame) {
     }
     if (!found) {
         // 2. all objects (0x2a9ff0 mode 1): those hidden from the owner (FOW_Object_Hidden force 0); pick hidden, else any.
-        //    mcx4: a force-sensitive hunter picks among the force-sensitive objects first (one Get_Int either way).
+        //    a force-sensitive hunter picks among the force-sensitive objects first (one Get_Int either way).
         scratch_.clear();
         if (fs)
             for (size_t i = 0; i < combat_->unit_count(); ++i) {

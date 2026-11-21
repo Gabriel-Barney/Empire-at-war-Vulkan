@@ -1,4 +1,4 @@
-# bm2: alamo_game scenario runs (ctest alamo_game_bench_scenario; bm2c t03: alamo_game_bench_scenario_taa with -DTAA=1).
+# bm2: alamo_game scenario runs (ctest alamo_game_bench_scenario; alamo_game_bench_scenario_taa with -DTAA=1).
 #   cmake -DGAME=<alamo_game> -DSAVE=<.alsv> -DRECIPE=<recipe .abench> -DOUT=<dir> [-DTAA=1] -P bench_scenario_check.cmake
 # 1. make:  --bench-make on a copy of the recipe from the battle save: the run passes and writes a `host game` scenario
 #           (save, orders, fingerprint pinned; the recipe's camera, mode, preset and frames per tick kept).
@@ -6,7 +6,7 @@
 #           timer scopes are reported (when the queue has timestamps), the PNGs of the two runs are identical, and the
 #           camera moved (the first and last PNG differ).
 # 3. pins:  a scenario whose fingerprint file changed is refused before anything loads.
-# -DTAA=1 (bm2c t03): the recipe is on bm-high (TAA Medium); make and runs at 640x360, run b with --bench-redraw-every 3 (a
+# -DTAA=1: the recipe is on bm-high (TAA Medium); make and runs at 640x360, run b with --bench-redraw-every 3 (a
 #           third of its settled frames drawn again and taken back out of the TAA history, as alamo_game_bench_fixed_taa):
 #           both reports say "taa": true, run b reports the forced redraws and TAA discards, and the PNGs still match run a's.
 # The scenario files are named after the recipe's `name` (battle_orbit, battle_orbit_taa).

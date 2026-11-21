@@ -456,7 +456,7 @@ void test_parse() {
     CHECK(k.font("IDD_X", "IDC_HINT_LIST", GuiGadgetType::ListBox, TextAlign::Left).face == "Arial Unicode MS");
     CHECK(k.font("IDD_X", "", GuiGadgetType::Text, TextAlign::Center).face == "EmpireAtWar-Medium");  // C_Text -> global
     CHECK(k.tooltip("idc_test_check") == "TEXT_TIP" && k.tooltip_count() == 1);
-    // modc t34 (UI.md 3.2): a run of commas is one separator, as spaces and tabs ("215,,22": height 22, no empty field).
+    // modc t34 (legacy docs/re/UI.md 3.2): a run of commas is one separator, as spaces and tabs ("215,,22": height 22, no empty field).
     {
         DialogScript dc;
         std::string err;
@@ -595,7 +595,7 @@ void test_routing_and_controls() {
         const Vec2f right = env.gui.canvas().canvas_to_pixel(r.max.x - 0.5f, 0.5f * (r.min.y + r.max.y));
         const Vec2f left = env.gui.canvas().canvas_to_pixel(r.min.x + 0.5f, 0.5f * (r.min.y + r.max.y));
         env.sfx.clear();
-        env.frame(right, false);  // UI5 t06: entering the slider is a hover, the press a Button_Press
+        env.frame(right, false);  // entering the slider is a hover, the press a Button_Press
         CHECK(env.sfx.size() == 1 && env.sfx[0] == "GUI_Common_Dialog_Button_Hilight");
         ev = env.frame(right, true);
         CHECK(has_event(ev, GuiEvent::Kind::ValueChanged, "IDC_TEST_SLIDER", 100));
@@ -642,12 +642,12 @@ void test_routing_and_controls() {
         env.frame(field, true);
         env.frame(field, false);
         CHECK(d->get("IDC_TEST_COMBO")->open);
-        // UI5 t06: hover and the open click sound like a button.
+        // hover and the open click sound like a button.
         CHECK(env.sfx.size() == 2 && env.sfx[0] == "GUI_Common_Dialog_Button_Hilight" && env.sfx[1] == "GUI_Common_Dialog_Button_Press");
         const float rh = static_cast<float>(env.fonts.metrics(env.gui.control_font(*d, static_cast<size_t>(d->find("IDC_TEST_COMBO")))).line_height) *
                          env.gui.canvas().units_per_pixel_y;
         const Vec2f row2 = env.gui.canvas().canvas_to_pixel(f.min.x + 10.0f, f.max.y - 15.0f - 2.0f - 2.5f * rh);
-        // UI5 t06 (UI.md §3.6): the open drop-down is silent; coming back onto the field hovers, the closing click presses.
+        // UI5 t06 (legacy docs/re/UI.md §3.6): the open drop-down is silent; coming back onto the field hovers, the closing click presses.
         env.sfx.clear();
         env.frame(row2, false);
         CHECK(env.sfx.empty());
@@ -668,7 +668,7 @@ void test_routing_and_controls() {
     {
         env.sfx.clear();
         env.click(*d, "IDC_TEST_EDIT");
-        CHECK(!env.sfx.empty() && env.sfx.back() == "GUI_Common_Dialog_Button_Press");  // UI5 t06: no hover sound, a press
+        CHECK(!env.sfx.empty() && env.sfx.back() == "GUI_Common_Dialog_Button_Press");  // no hover sound, a press
         CHECK(std::count(env.sfx.begin(), env.sfx.end(), std::string("GUI_Common_Dialog_Button_Hilight")) == 0);
         ev = env.frame({0, 0}, false, {}, false, U"Save 1");
         CHECK(has_event(ev, GuiEvent::Kind::TextChanged, "IDC_TEST_EDIT") && d->get("IDC_TEST_EDIT")->text == U"Save 1");
@@ -710,7 +710,7 @@ void test_routing_and_controls() {
     CHECK(gradient);
 }
 
-// UI5 t03 / t04: combo field height and drop-down scrolling, list scroll bar (arrows with art and auto-repeat, thumb
+// combo field height and drop-down scrolling, list scroll bar (arrows with art and auto-repeat, thumb
 // drag, track paging, Home / End), edit boxes (ES_AUTOHSCROLL scrolling, caret placement, selection, clipboard).
 void test_widgets_ui5() {
     Env env;
@@ -720,7 +720,7 @@ void test_widgets_ui5() {
     const auto ci = static_cast<size_t>(d->find("IDC_W_COMBO"));
     const auto li = static_cast<size_t>(d->find("IDC_W_LIST"));
     env.frame({1000, 700}, false);
-    // Combo: the closed field is the skin's 25-unit pop-down button height (UI.md §3.7.1), not 15.
+    // Combo: the closed field is the skin's 25-unit pop-down button height (legacy docs/re/UI.md §3.7.1), not 15.
     CHECK(std::fabs(env.gui.combo_field_height(*d, ci) - 25.0f) < 1e-3f && std::fabs((*d)[ci].field_height - 25.0f) < 1e-3f);
     std::vector<std::u32string> many;
     for (int k = 0; k < 30; ++k) many.push_back(U"fps " + std::u32string(1, U'A' + static_cast<char32_t>(k)));
@@ -894,7 +894,7 @@ void test_widgets_ui5() {
     env.gui.build(a, env.now);
     env.gui.build(b, env.now);
     CHECK(a.digest() == b.digest());
-    // UI5 t08: a dialog tooltip sits below-right of the cursor, flips at the right / bottom edge and stays on screen.
+    // a dialog tooltip sits below-right of the cursor, flips at the right / bottom edge and stays on screen.
     {
         const HudCanvas& cv = env.gui.canvas();
         const float hw = 0.5f * cv.width, hh = 0.5f * cv.height;
@@ -908,7 +908,7 @@ void test_widgets_ui5() {
     }
 }
 
-// mcx4 t07 (docs/re/MCX4_RE_ANSWERS_GALACTIC.md Q7.3): Is_Listed false hides a custom (conquest) campaign from the
+// mcx4 t07 (legacy docs/re/MCX4_RE_ANSWERS_GALACTIC.md Q7.3): Is_Listed false hides a custom (conquest) campaign from the
 // setup list; story and tutorial entries stay (retail starts story campaigns by name, its tutorial list ignores the flag).
 // ledger: verifies Campaign.Is_Listed
 void test_campaign_menu_is_listed() {
@@ -974,7 +974,7 @@ void test_menus() {
     step(env.click(*mm, "IDC_MAIN_MENU_SINGLE_PLAYER_GAMES"));
     CHECK(fe.top() == "IDD_SINGLE_PLAYER_GAMES_MENU_DIALOG" && env.gui.open_count() == 1);
     CHECK(!env.gui.top()->get("IDC_DEBUG_LOAD_SKIRMISH_MAP_BUTTON")->visible);
-    {  // UI5 t08 (UI.md §4.5 Hint list): hidden until a button is hovered, then "Hint_<id>" (a blank row without one)
+    {  // UI5 t08 (legacy docs/re/UI.md §4.5 Hint list): hidden until a button is hovered, then "Hint_<id>" (a blank row without one)
         GuiDialog* sp = env.gui.top();
         CHECK(!sp->get("IDC_HINT_LIST")->visible);
         step(env.frame(env.px_of(*sp, "IDC_SKIRMISH_GAMES_BUTTON"), false));
@@ -1208,7 +1208,7 @@ void test_menus() {
     CHECK(hotkey_label({0x7B, HotkeyMod::None}) == U"F12" && hotkey_label({0x6D, HotkeyMod::None}) == U"Numpad -" &&
           hotkey_label({'1', HotkeyMod::Shift}) == U"Shift+1");
 
-    // UI5 t09 (UI.md §4.3 Capture): Delete / Backspace bind like any key, Tab is a key (focus stays), a conflict can be
+    // UI5 t09 (legacy docs/re/UI.md §4.3 Capture): Delete / Backspace bind like any key, Tab is a key (focus stays), a conflict can be
     // refused (Cancel), Back closes without applying or asking, Esc on a field in capture restores its applied key.
     CHECK(std::string_view(hotkey_action_text_id(hk::kSelectLike)) == "TEXT_SELECT_LIKE" &&
           std::string_view(hotkey_action_text_id(130)) == "TEXT_GROUP_8_SELECT" && hotkey_action_text_id(160) == nullptr);
@@ -1256,7 +1256,7 @@ void test_menus() {
     step(env.frame({0, 0}, false, {vk::kEscape}));
     step(env.frame({0, 0}, false, {vk::kEscape}));
     CHECK(fe.top() != "IDD_KEYBOARD_OPTIONS_DIALOG" && fe.top() != "IDD_DIALOG_BOX_QUIT_CONFIRM" && acts.empty());
-    // UI5 t07: Esc in the tutorial list goes where its Cancel goes (the main menu, which opened it).
+    // Esc in the tutorial list goes where its Cancel goes (the main menu, which opened it).
     {
         std::vector<GuiEvent> e(1);
         e[0].kind = GuiEvent::Kind::Cancel;
@@ -1278,7 +1278,7 @@ void test_load_screen() {
     CHECK(ls.open(env.gui, LoadScreenKind::Skirmish, info));
     GuiDialog* d = env.gui.find("IDD_SKIRMISH_BATTLE_LOAD_DIALOG");
     CHECK(d && !d->get("IDC_BEGIN_BUTTON")->visible && d->get("IDC_STATIC_PLANET_NAME")->text == U"Kuat");
-    // QA t16: no live scene around it, the planet's text in the list, the overlay by default, no asset name as the title.
+    // no live scene around it, the planet's text in the list, the overlay by default, no asset name as the title.
     CHECK(d && d->options().opaque_backdrop && d->get("IDC_LIST_REFERENCE")->items.size() >= 2 &&
           d->get("IDC_LIST_REFERENCE")->items[0] == U"line 1");
     CHECK(gui_no_asset_name(U"_Space_Planet_Felucia_01.ted").empty() && gui_no_asset_name(U"Data\\Art\\x").empty() &&
@@ -1734,7 +1734,7 @@ void test_galactic_dialogs() {
         own.slot = 0;
         own.units = 12;  // 3 layers
         own.icon = "i_button_units.tga";
-        own.owner_color = {40, 90, 220, 255};  // R2 t01: §1.4 secondary colour = the owner faction's [M: tints the stack texture]
+        own.owner_color = {40, 90, 220, 255};  // §1.4 secondary colour = the owner faction's [M: tints the stack texture]
         GalacticPlanetStack foe;
         foe.slot = 1;
         foe.enemy = true;
@@ -2089,7 +2089,7 @@ void test_galactic_hud() {
         }
         CHECK(stack3);
         // §1.5 / §1.7: one medal per faction with a hero the host reports (it applies the visibility gates; the HUD adds no
-        // fog gate of its own, ui4 t10).
+        // fog gate of its own).
         const uint32_t no_medal = h2.stats().label_icons;
         icons[0].hero_rebel = icons[0].hero_empire = true;
         icons[1].hero_empire = true;
@@ -2248,7 +2248,7 @@ void test_galactic_hud() {
         };
         std::vector<commands::EventData> o = map_drag("land_fleet_00", "map_window");
         CHECK(o.size() == 1 && o[0] == commands::fleet_management_event(commands::kFleetLand, 101, 50, 777));
-        // §6.2 rule 2 (ui4 t13): the unit is given the pad's marker and lands; the pad's occupant goes to orbit as a new fleet
+        // §6.2 rule 2: the unit is given the pad's marker and lands; the pad's occupant goes to orbit as a new fleet
         // and forgets its marker.
         const commands::EventData launch555 = commands::fleet_management_event(commands::kFleetMoveNew, 101, commands::kNoObject, 555, 101);
         o = map_drag("land_fleet_00", "unit_pad00");
@@ -2365,7 +2365,7 @@ void test_galactic_hud() {
         }
         hud.build(f);
     }
-    // ui4 t02: a blocked option (can_enqueue's reason) is greyed, its Tooltip_Text entry follows the reason, a left click
+    // a blocked option (can_enqueue's reason) is greyed, its Tooltip_Text entry follows the reason, a left click
     // is BuildRefused (negative feedback) with no command; the queued count is the Text_Offset2 line.
     GalacticHudFrame f5 = f;
     f5.providers.build_options = [](uint32_t, std::vector<GalacticBuildOption>& out) {

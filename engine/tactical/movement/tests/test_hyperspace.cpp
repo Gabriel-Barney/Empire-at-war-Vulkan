@@ -93,7 +93,7 @@ void test_engines() {
     CHECK(!e.online(3) && e.destroyed(3));
     e.remove(3);
     CHECK(e.online(3));
-    // HARDPOINT_DISABLED.md §9.1. Repair online (0x393980): off -> on, permanent cleared, timer reset, one On event.
+    // legacy docs/re/HARDPOINT_DISABLED.md §9.1. Repair online (0x393980): off -> on, permanent cleared, timer reset, one On event.
     e.clear_events();
     CHECK(!e.repair_online(9, 1));  // unknown (no entry): nothing
     e.disable(4, -1.0f, 0);  // upgrade-copy disable (destroyed = 0, t < 0): not permanent

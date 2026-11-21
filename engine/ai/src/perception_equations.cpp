@@ -29,7 +29,7 @@ bool is_digit(char c) { return c >= '0' && c <= '9'; }
 bool is_ident_start(char c) { return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_'; }
 bool is_ident(char c) { return is_ident_start(c) || is_digit(c); }
 
-// ---- enum literal converters (A2I_TOKENS_RE §3.1; A2J t07: dynamic ones from Data\XML\Enum, A2J_T07_LITERALS §1) ----
+// ---- enum literal converters (A2I_TOKENS_RE §3.1; dynamic ones from Data\XML\Enum, A2J_T07_LITERALS §1) ----
 
 constexpr std::string_view kGoalCategoryEnum = "AIGoalCategoryType";
 
@@ -43,7 +43,7 @@ constexpr std::string_view kHardPointNames[] = {
 // A2J_T07_LITERALS §3] (every shipped literal spells the name exactly as registered).
 struct LiteralList {
     std::vector<objects::EnumConverter> conv;
-    // A2k t12 (A2K_T06_RE.md §2) [H]: the converter name is trimmed, then compared exactly (case-sensitive).
+    // A2k t12 (legacy docs/re/A2K_T06_RE.md §2) [H]: the converter name is trimmed, then compared exactly (case-sensitive).
     const objects::EnumConverter* find(std::string_view name) const {
         for (const objects::EnumConverter& c : conv)
             if (c.enum_name == ascii_trim(name)) return &c;
@@ -765,7 +765,7 @@ uint32_t EquationSet::add(std::string_view name, std::string_view text, LoadRepo
     e.name = std::string(name);
     e.text = std::string(ascii_trim(text));
     std::string key = ascii_upper(name);
-    declared_.insert(key);  // a2k t12: a Function_ token even when the equation fails to build or is a duplicate
+    declared_.insert(key);  // a Function_ token even when the equation fails to build or is a duplicate
     if (index_.count(key)) {
         if (report) {
             ++report->duplicates;
@@ -819,7 +819,7 @@ void EquationSet::add_file(std::string_view xml, const std::string& file, LoadRe
 
 void EquationSet::link(LoadReport* report) {
     if (report) report->unresolved_functions = 0;
-    // A2k t12 (A2K_T06_RE.md §1.2-1.4) [H]: retail registers Function_<Name> for every root element of every equation file
+    // A2k t12 (legacy docs/re/A2K_T06_RE.md §1.2-1.4) [H]: retail registers Function_<Name> for every root element of every equation file
     // before it parses any equation, so a reference to a name that no file defines is an invalid token and fails the
     // referrer's build (dropped like a parse error). A defined name whose equation was dropped stays a valid token: the
     // referrer builds and the reference evaluates false (unresolved, below). [port] the check runs here, after every

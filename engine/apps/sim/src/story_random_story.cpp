@@ -1,8 +1,8 @@
-// mcx6 RANDOM_STORY plot builder (docs/re/STORY_REWARDS_GALACTIC.md §1.15; retail builder 0x4bfdc0, trigger 0x4bec90,
+// mcx6 RANDOM_STORY plot builder (legacy docs/re/STORY_REWARDS_GALACTIC.md §1.15; retail builder 0x4bfdc0, trigger 0x4bec90,
 // final event 0x4be420 on the generator object 0x140a2aba0). Retail draws every value from its free (unsynced) RNG; the
 // port passes the story session's own saved RANDOM_STORY stream (StorySession::random_story_rng_), so a plot - sim state -
 // comes out the same after a load.
-// [port] choices (listed next to the reward in STORY_REWARDS_GALACTIC.md):
+// [port] choices (listed next to the reward in legacy docs/re/STORY_REWARDS_GALACTIC.md):
 //   - a draw from an empty pool, or a trigger whose retries all fail, rebuilds the trigger (retail indexes the empty
 //     list / recurses); after kMaxRebuilds rebuilds the trigger is left without parameters (retail would not end);
 //   - the follow-up REMOVE_STORY_GOAL event of each trigger names the trigger event as its tag [L];

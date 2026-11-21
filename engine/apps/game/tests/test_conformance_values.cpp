@@ -1,7 +1,7 @@
-// alamo_game_conformance_values_tests (mcx1 t07): the conformance mod `values` (testdata/conformance/values, README there)
+// alamo_game_conformance_values_tests: the conformance mod `values` (testdata/conformance/values, README there)
 // loaded through the real MODPATH= route with no game data. Every expectation is retail's rule, cited from
-// docs/re/MCX1_RE_ANSWERS.md (Q1 per-child dispatch, Q2 bools, Q3 overflow, Q4 several roots, Q5 UTF-16, Q7 element tags)
-// or docs/re/OBJECT_TYPES.md (§4.4 repeated tags, §4.5 converters). Read only: nothing is written.
+// legacy docs/re/MCX1_RE_ANSWERS.md (Q1 per-child dispatch, Q2 bools, Q3 overflow, Q4 several roots, Q5 UTF-16, Q7 element tags)
+// or legacy docs/re/OBJECT_TYPES.md (§4.4 repeated tags, §4.5 converters). Read only: nothing is written.
 //   alamo_game_conformance_values_tests <testdata/conformance/values>
 #include <cstdint>
 #include <cstdio>

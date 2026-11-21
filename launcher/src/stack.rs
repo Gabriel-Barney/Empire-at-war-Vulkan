@@ -1,4 +1,4 @@
-//! The resolved mod stack of a profile (mcx3 t06, docs/MOD_COMPAT_DESIGN.md §5.2 / §15): runs the port's
+//! The resolved mod stack of a profile (docs/MODS.md "Stack resolution", "Saves, mod versions and the launcher"): runs the port's
 //! `alamo_mod_check --resolve` on the profile's mods and reads its JSON report. The check owns the rules
 //! (declared `modinfo.json` dependencies, the submod hint's likely parent, cycle and base-EaW errors, the
 //! two-total-conversion warning); the launcher only shows the result and can take its order.

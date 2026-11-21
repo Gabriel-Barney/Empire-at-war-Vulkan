@@ -34,9 +34,9 @@ std::string GameSampleSource::path_for(const SampleRef& ref) const {
     return "Data\\Audio\\SFX\\" + ref.file;
 }
 
-// SFX (aud2 t05, AUDIO.md §5): the archives store bare leaf names and the original resolves them through the normal file
+// SFX (legacy docs/re/AUDIO.md §5): the archives store bare leaf names and the original resolves them through the normal file
 // layer, where loose files override archives: the loose Data\Audio\SFX\<name> first (mod, then FoC, through the VFS),
-// then the SFX archives by leaf name. Music and speech: streamed through the normal file layer only (AUDIO.md §5), so a
+// then the SFX archives by leaf name. Music and speech: streamed through the normal file layer only (legacy docs/re/AUDIO.md §5), so a
 // speech event naming a file that only exists in an SFX archive does not play, as in the original.
 const meg::Entry* GameSampleSource::find_in_archives(std::string_view name, const meg::Archive** owner) const {
     for (const auto& a : archives_) {
@@ -86,7 +86,7 @@ std::vector<std::string> GameSampleSource::default_sfx_megs(const vfs::Vfs& vfs,
             if (iequals(o, s)) return;
         out.push_back(s);
     };
-    // aud2 t05: a mod's own copy of an SFX archive layers over FoC's instead of replacing it (the original mounts the
+    // a mod's own copy of an SFX archive layers over FoC's instead of replacing it (the original mounts the
     // archive both at the install prefix and through the normal mod-first file open, 0x227b90): every loose copy, mod
     // search order first, then FoC's. A MEG inside a MEG is not a host file. ums0: the copies come from the VFS's own
     // resolution order (Vfs::resolve_all), not from paths built from the mod folders.

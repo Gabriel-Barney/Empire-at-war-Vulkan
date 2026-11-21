@@ -166,7 +166,7 @@ int main() {
     CHECK(!bad_rep.runs[0].vs_first.diverged && !bad_rep.runs[1].vs_first.diverged);
     CHECK(bad_rep.runs[2].vs_first.diverged && bad_rep.runs[2].vs_first.tick == 50 &&
           bad_rep.runs[2].vs_first.system == "particles");
-    // cu9 t18: the overload with a caller-run first result and an extra comparison (alamo_headless's --check-workers).
+    // the overload with a caller-run first result and an extra comparison (alamo_headless's --check-workers).
     {
         struct Res {
             alamo::CrcLog log;

@@ -1,4 +1,4 @@
-// alamo_anim tests (R3, docs/re/ANIM_PARTICLES.md Â§A):
+// alamo_anim tests (R3, legacy docs/re/ANIM_PARTICLES.md Â§A):
 //   * type table (119 ids, names, suffixes incl. CONTAIMINATE_LOOP, predicates), clip file names;
 //   * frame rules: loops wrap at count - 1 (planet idle: one revolution = 239 s), one-shots stop at count - 2;
 //   * play rules: lock, random variant draws, type -1, crossfade start / keep-previous / modes 2-3, timed
@@ -662,7 +662,7 @@ std::unique_ptr<AnimModel> behaviour_model(bool flinch_clips = true) {
 
 // MSVC 19.51; clang 20 / gcc 14 must match. Was 4357bd5e704ab19c before the locomotor state (last yaw / crouch)
 // and the corpse spin-away / damage-kind fields joined AnimBehaviors::hash.
-constexpr uint64_t kBehaviourGolden = 0x53d7bba7979bbe88ull;  // s78k t02: idle service every call, target draws
+constexpr uint64_t kBehaviourGolden = 0x53d7bba7979bbe88ull;  // idle service every call, target draws
 
 uint64_t behaviours_hash(const AnimWorld& w, const AnimBehaviors& b) {
     alamo::StateHasher h;
@@ -807,7 +807,7 @@ void test_behaviors() {
         CHECK(w.current_type(5) == before);
     }
     {
-        // s78k t02: no TARGETING (None) after an attack -> the plain idle behaviour, no countdown; a model without
+        // no TARGETING (None) after an attack -> the plain idle behaviour, no countdown; a model without
         // Attack Idle still draws the blend while the countdown runs (the play fails, the clip stays); the locomotor
         // runs the idle service only while not moving (Allow_Idle_When_Moving: also while moving), every call.
         AnimWorld w;
@@ -839,7 +839,7 @@ void test_behaviors() {
         in.speed = 1.0f;
         in.max_speed = 1.0f;
         in.target = IdleTarget::Target;
-        in.on_path = true;  // s78l t03: the host's moving gate
+        in.on_path = true;  // the host's moving gate
         CHECK(lb.service_locomotor(lw, 3, lp, in, rng, 1) == 1 && lw.current_type(3) == kAnimMove);
         uint32_t st = rng.state();
         CHECK(lb.service_locomotor(lw, 3, lp, in, rng, 2) == 0 && rng.state() == st && lb.idle_countdown(3) == 0);  // moving: none
@@ -999,7 +999,7 @@ void test_events_and_locomotor() {
     CHECK(ev && ev->size() == 2 && (*ev)[0].bone == "B_Foot_R" && (*ev)[1].time == 1032);
     CHECK(map.find("ei_trooper_die_00") && map.find("ei_trooper_die_00")->front().kind == AnimEventDef::Kind::Sound);
     std::vector<uint32_t> hit;
-    if (ev) {  // AUDIO.md §9.4: time / 100 = frames (the plants at frames 0 and 10.32), half-open (before, after]
+    if (ev) {  // legacy docs/re/AUDIO.md §9.4: time / 100 = frames (the plants at frames 0 and 10.32), half-open (before, after]
         crossed_events(*ev, 30.0f, 62, 0.0f, 1.0f, false, hit);  // (0, 1]: the 0 plant does not fire on the first play
         CHECK(hit.empty());
         crossed_events(*ev, 30.0f, 62, 10.0f, 11.0f, false, hit);  // (10, 11]: 10.32
@@ -1247,7 +1247,7 @@ void test_events_and_locomotor() {
         CHECK(b.deploy(w, 3, false, 2.0f, dr, 1) && w.current_type(3) == kAnimDeploy && w.slot(3).speed == 2.0f &&
               w.slot(3).variant == static_cast<uint32_t>(dreplay.range_int(0, 1)) && w.crossfading(3));
         CHECK(b.deploy(w, 3, true, 1.5f, dr, 2) && w.current_type(3) == kAnimUndeploy && w.current_frame_count(3) == 40);
-        // s78n t26.1: a walk that ends deployed sets the Deploy clip on its last frame (variant 0, speed 1, no draw).
+        // a walk that ends deployed sets the Deploy clip on its last frame (variant 0, speed 1, no draw).
         const SimRng before = dr;
         CHECK(b.deploy_at_end(w, 3, 3) && w.current_type(3) == kAnimDeploy && w.slot(3).variant == 0 && w.slot(3).speed == 1.0f);
         CHECK(w.slot(3).frame == static_cast<float>(w.current_frame_count(3) - 1) && dr.state() == before.state());
@@ -1294,7 +1294,7 @@ void test_events_and_locomotor() {
 
 // Record sizes of the documented layouts (anim_state.hpp / anim_behaviors.hpp).
 constexpr size_t kAnimSaveRowBytes = 108;
-constexpr size_t kAnimSaveEntryBytes = 55;  // + 8 per idle record (s78l t03)
+constexpr size_t kAnimSaveEntryBytes = 55;  // + 8 per idle record
 constexpr size_t kAnimSaveCorpseBytes = 77;
 
 struct SaveScenario {
@@ -1395,7 +1395,7 @@ void test_save() {
     w.add(13, nullptr, 0);  // a row without a model: saved, model_of not asked
     std::vector<ObjectId> removed;
     for (uint64_t f = 1; f <= 120; ++f) save_step(w, b, rng, f, sc, removed);
-    for (const ObjectId id : {2, 3, 7}) {  // s78l t03: idle records in the save (two on one entry)
+    for (const ObjectId id : {2, 3, 7}) {  // idle records in the save (two on one entry)
         if (b.is_corpse(id)) continue;
         b.presence_refresh(id, 900, 50);
         b.presence_refresh(id, 901, 60);
@@ -1459,7 +1459,7 @@ void test_save() {
                 w.size(), b.corpses().size(), compared);
 
     // ---- rejection: truncated / corrupted data leaves the target unchanged ----
-    for (const ObjectId id : w.ids()) {  // s78l t03: records for the corruption checks below (two on one entry)
+    for (const ObjectId id : w.ids()) {  // records for the corruption checks below (two on one entry)
         if (b.is_corpse(id)) continue;
         b.presence_refresh(id, 900, 50);
         b.presence_refresh(id, 901, 60);
@@ -1543,7 +1543,7 @@ void test_save() {
         bad[4] = 0xFF;  // entry count past the data
         bad[6] = 0xFF;
         CHECK(behaviours_reject(bad));
-        // s78l t03: a record with frames < 1, records out of order.
+        // a record with frames < 1, records out of order.
         size_t with1 = entries, with2 = entries;
         for (uint32_t k = 0; k < entries; ++k) {
             uint32_t nr = 0;
@@ -1656,7 +1656,7 @@ void test_real_data() {
     CHECK(!mismatched.empty() && mismatched.size() < 100);
     CHECK(cache.failures() == 0);
     // Report.
-    if (FILE* fp = std::fopen(ALAMO_ANIM_LOG_DIR "/anim_discovery_foc.txt", "wb")) {
+    if (FILE* fp = std::fopen((::alamo::test::artifact_dir() + "/anim_discovery_foc.txt").c_str(), "wb")) {
         std::fprintf(fp, "R3 clip discovery over the merged FoC + EaW VFS (%s)\n", root);
         std::fprintf(fp, "ALO %zu, ALA %zu (naming rule %zu), clip files discovered %zu: bound %zu, mismatched %zu\n", alos.size(), alas.size(),
                      named, clip_state.size(), bound, mismatched.size());
@@ -1724,7 +1724,7 @@ void test_real_data() {
 
 }  // namespace
 
-// refixf t04: plan_death (no AnimWorld) gives the frame the corpse countdown removes the object, for clips of several
+// plan_death (no AnimWorld) gives the frame the corpse countdown removes the object, for clips of several
 // lengths / rates, no clip, spin-away, Remove_Upon_Death and forever; begin_death draws exactly what plan_death draws, and
 // the planned begin_death draws nothing.
 void test_death_plan() {
@@ -1917,7 +1917,7 @@ void test_idle_records() {
     std::printf("idle records: aging / clear / gate / presence idle ok\n");
 }
 
-// bkx1 t04 (b0059, BKX1_RENDER_RE §2.1 / §2.2 [H]): the Walk_Transition clips follow the locomotor's state. MOVESTART (16)
+// bkx1 t04 (BKX1_RENDER_RE §2.1 / §2.2 [H]): the Walk_Transition clips follow the locomotor's state. MOVESTART (16)
 // and an end clip (17) start at the locomotor's frame and rate with no draw; MOVE after MOVESTART starts at the carry-over
 // frame with no draw (a plain MOVE start draws its frame); the end clip gives way to the idle when the locomotor stops;
 // a model without the clip keeps its current clip.

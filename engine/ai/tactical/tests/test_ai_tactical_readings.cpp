@@ -1,5 +1,5 @@
 // alamo_ai_tactical_readings_tests (no framework; non-zero exit on failure).
-// A1 t01 (docs/re/A1_READINGS.md): the settled threat-grid and free-store readings.
+// A1 t01 (legacy docs/re/A1_READINGS.md): the settled threat-grid and free-store readings.
 //   13  nFow rounds away from zero (ceil), clamped 0..512
 //   14  the UnitAI data-pack stamps (two synced draws) and the first re-projection check at the first service,
 //       then +300 per service without re-basing (catch up)
@@ -206,8 +206,8 @@ static void test_destroy_memory() {
     CHECK(g.memory_entries(0, c1).empty() && g.memory_entries(0, c2).empty());
 }
 
-// ---------------------------------------------------------------- mcx6 t06: the attack position's square (0x4f5390)
-// LUA_API.md "Attack position 0x4f5390": the four d x d squares around T, corners (x, y), (x - d, y), (x - d, y - d),
+// ---------------------------------------------------------------- the attack position's square (0x4f5390)
+// legacy docs/re/LUA_API.md "Attack position 0x4f5390": the four d x d squares around T, corners (x, y), (x - d, y), (x - d, y - d),
 // (x, y - d); the lowest enemy force of `self` wins, the first on a tie; the result is that square's centre (z = 0).
 static void test_attack_position_square() {
     PerceptionWorld w = make_world();

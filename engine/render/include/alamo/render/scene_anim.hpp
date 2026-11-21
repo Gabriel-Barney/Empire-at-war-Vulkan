@@ -1,4 +1,4 @@
-// alamo_render - R3 T6 scene models (docs/re/ANIM_PARTICLES.md A.5): models that are not sim objects but are registered
+// alamo_render - R3 T6 scene models (legacy docs/re/ANIM_PARTICLES.md A.5): models that are not sim objects but are registered
 // for animation (here: the Model_To_Attach models of hardpoints - turrets, dishes, emitters) advance in tick step T6
 // with the object time t = sim frame / 30. Each model plays its "<model stem>_IDLE_00" clip, looped with the original
 // frame rule (wrap at count - 1), sampled with alamo_anim's pose math (the same as MapScene's background idles).

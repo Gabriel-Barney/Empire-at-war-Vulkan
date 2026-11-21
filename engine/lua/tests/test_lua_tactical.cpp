@@ -46,7 +46,7 @@ static std::string run(LuaVm& vm, const std::string& code) {
     if (!vm.run(code, "test", &err)) return err.empty() ? "error" : err;
     return {};
 }
-// q6 t11 (docs/re/LUA_API.md "Binding error model across all bindings"): a binding error does not unwind; it logs
+// q6 t11 (legacy docs/re/LUA_API.md "Binding error model across all bindings"): a binding error does not unwind; it logs
 // "SCRIPT ERROR: ..." and sets the script's stop flag. run_stop() reports those lines as its result (a Lua error as
 // before) and clears the flag, so the next snippet runs on a live script.
 static std::string run_stop(LuaVm& vm, const std::string& code) {
@@ -221,13 +221,13 @@ static void test_no_systems(const Db& db) {
                   "e = s.Are_Engines_Online() u = s.Is_Under_Effects_Of_Ability('TRACTOR_BEAM') "
                   "x, y, z = s.Get_Bone_Position('Root').Get_XYZ() b = s.Play_Animation('Attack', false)") == "");
     CHECK(gtrue(vm, "a") && gtrue(vm, "e") && !gtrue(vm, "u"));
-    // L1/S4 wave 2b (SCRIPT_GAPS.md §2.1): only TRACTOR_BEAM / ION_CANNON_SHOT; others log a script error, no value.
+    // L1/S4 wave 2b (legacy docs/re/SCRIPT_GAPS.md §2.1): only TRACTOR_BEAM / ION_CANNON_SHOT; others log a script error, no value.
     const size_t msgs = vm.messages().size();
     CHECK(run(vm, "d = s.Is_Under_Effects_Of_Ability('DEFEND')") == "" && !gtrue(vm, "d"));
     CHECK(vm.messages().size() == msgs + 1 && vm.messages().back().find("not yet supported") != std::string::npos);
     CHECK(gnum(vm, "x") == 5.0 && gnum(vm, "y") == 6.0 && gnum(vm, "z") == 7.0);  // [port] no animation data: the position
     CHECK(run_stop(vm, "s.Force_Ability_Recharge()") != "" && run_stop(vm, "s.Force_Ability_Recharge('DEFEND', 'x')") != "" &&
-          run_stop(vm, "s.Reset_Ability_Counter()") == "" && run_stop(vm, "s.Get_Bone_Position(3)") != "" &&  // mcx8 t12: no args read
+          run_stop(vm, "s.Reset_Ability_Counter()") == "" && run_stop(vm, "s.Get_Bone_Position(3)") != "" &&  // no args read
           run_stop(vm, "s.Is_Under_Effects_Of_Ability()") != "");
     // Cancel_Hyperspace: a Lua order on the direct path (counted even without a pipeline).
     const uint32_t before = bridge.orders_issued;
@@ -317,7 +317,7 @@ struct AbilityWorld {
         hauler.radius = 20.0f;
         hauler.hardpoints = {0};
         push(hauler, ab::AbilityObjectDesc{});
-        // cu8l t04: a squad member (desc 3) with HUNT / AVOID_DANGER (Activate_Ability ids 6 / 12) and AFTERBURNER
+        // a squad member (desc 3) with HUNT / AVOID_DANGER (Activate_Ability ids 6 / 12) and AFTERBURNER
         // (8, unsupported by Activate_Ability); its team container uses desc 4 (no abilities of its own).
         cb::UnitDesc squaddie;
         squaddie.name = "Squaddie";
@@ -475,7 +475,7 @@ static void test_abilities(const Db& db) {
     CHECK(run(vm, "TF.Activate_Ability('SPOILER_LOCK', false)") == "" && !a.is_active(ship, ab::kSpoilerLock));
     CHECK(run(vm, "TF.Activate_Ability('TRACTOR_BEAM', t)") == "" && ai.activated.size() == 1 && ai.activated[0].second);
     attach_ai_host(vm, nullptr, -1);
-    // S7 t26: which object Activate_Ability calls return a block - "never" families (DEFEND, SPOILER_LOCK) nil even on
+    // which object Activate_Ability calls return a block - "never" families (DEFEND, SPOILER_LOCK) nil even on
     // success; an ability the unit lacks nil; DEPLOY nil when already in the requested state, else a block; the
     // Dummy_Barrage_Target ids (BUZZ_DROIDS) a block once the gates pass.
     a.force_recharge(ship, ab::kSpoilerLock, 0.0f);
@@ -485,7 +485,7 @@ static void test_abilities(const Db& db) {
     std::printf("  activate ability blocks: n1 %d n2 %d n3 %d d1 %d bz %d\n", gnil(vm, "n1"), gnil(vm, "n2"), gnil(vm, "n3"),
                 gnil(vm, "d1"), gnil(vm, "bz"));
     CHECK(gnil(vm, "n1") && gnil(vm, "n2") && gnil(vm, "n3") && !gnil(vm, "d1") && !gnil(vm, "bz") && a.is_active(ship, ab::kSpoilerLock));
-    // S7 t32: BUZZ_DROIDS (71) - the host spawns the Dummy_Barrage_Target at the point (command-40 path on it).
+    // BUZZ_DROIDS (71) - the host spawns the Dummy_Barrage_Target at the point (command-40 path on it).
     CHECK(dummy_at.x == 10.0f && dummy_at.y == 20.0f && dummy_owner == 0);
     CHECK(run(vm, "s.Activate_Ability('SPOILER_LOCK', false)") == "");
     // S7 t15 A1 / t26 (§7.3.3 item 2): the object block (TRACTOR_BEAM, accepted) is pending until the unit's next signal
@@ -500,7 +500,7 @@ static void test_abilities(const Db& db) {
     bridge.ability_finished(ship);
     CHECK(run(vm, "f3 = ab1.IsFinished() ab2 = s.Activate_Ability('TRACTOR_BEAM', t) f4 = ab2.IsFinished()") == "");
     CHECK(gtrue(vm, "f3") && !gtrue(vm, "f4") && bridge.ability_signals(ship) == signals0 + 1);
-    bridge.order_replaced(ship);  // S7 t26: a new order (0xb) ends it too
+    bridge.order_replaced(ship);  // a new order (0xb) ends it too
     CHECK(run(vm, "f5 = ab2.IsFinished() f6 = ab1.IsFinished()") == "" && gtrue(vm, "f5") && gtrue(vm, "f6"));
     {  // S7 t31 (§7.3.3 item 1): Activate_Ability of a listed id (BUZZ_DROIDS 71, gates passed) raises 0xb on the unit before
        // executing, through the host's raiser (the battle): a pending block on the unit ends. TRACTOR_BEAM (30) is not listed.

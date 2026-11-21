@@ -70,7 +70,7 @@ enum SubmeshFlags : std::uint32_t {
 //   alD3dVertB4I4NU2U3U3        5  Skinned  same + tangent frame
 // Renderer mapping: skinned -> SKINNED permutation; tangent_frame -> BUMP inputs; color -> vertex
 // colour. With ModelLoadOptions::vertex_type_override these traits describe the EFFECTIVE vertex
-// type (the effect's _ALAMO_VERTEX_TYPE), as in the original loader (SPACE_AND_OPEN.md D.2). Decoded by alamo_formats
+// type (the effect's _ALAMO_VERTEX_TYPE), as in the original loader (legacy docs/re/SPACE_AND_OPEN.md D.2). Decoded by alamo_formats
 // (alo::vertex_format_info): unknown names get known = false and fields inferred from the tokens
 // (U2, U3U3, Skin/B4I4, trailing C).
 struct VertexFormatTraits {
@@ -160,7 +160,7 @@ struct ModelAsset {
 // effect declares (`_ALAMO_VERTEX_TYPE`, e.g. "alD3dVertNU2U3U3"), or an empty string to keep the
 // ALO's format. The original loader replaces the ALO format string with the effect's type when the
 // effect is a standard alD3dEffect with a known type, and packs the stored records into that layout
-// (SPACE_AND_OPEN.md D.2; Planet.fx makes W_PLANET_DEATHSTAR_II_DESTROYED's alD3dVertN submeshes
+// (legacy docs/re/SPACE_AND_OPEN.md D.2; Planet.fx makes W_PLANET_DEATHSTAR_II_DESTROYED's alD3dVertN submeshes
 // NU2U3U3 with stored UVs and T = B = 0). Return empty for a missing / failed effect (D.3) and for
 // a name alamo_formats does not know (such a name is ignored with a warning). Called from the
 // loading thread: must be thread-safe and deterministic (same material -> same answer).
@@ -175,7 +175,7 @@ struct ModelLoadOptions {
 
 // Parse an in-memory .alo. Returns false (with *error) on a malformed file or a particle system.
 //
-// Vertex rules (original loader, SPACE_AND_OPEN.md D.4/D.5):
+// Vertex rules (original loader, legacy docs/re/SPACE_AND_OPEN.md D.4/D.5):
 //   * tangent / binormal: effective format with a frame -> the stored vectors verbatim (zero stays
 //     zero; no repair, no generation, no handedness rule); without a frame -> zero. Shaders must
 //     tolerate zero T/B (the engine's SafeNormalize turns the projected vector into (0, 0, +-1)).

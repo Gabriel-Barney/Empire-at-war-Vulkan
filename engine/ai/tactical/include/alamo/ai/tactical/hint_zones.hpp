@@ -1,4 +1,4 @@
-// A1 - AI hint zones of a land map (docs/re/AI_TACTICAL.md 3.2; MOVEMENT.md "LandZonePathFinderClass
+// A1 - AI hint zones of a land map (legacy docs/re/AI_TACTICAL.md 3.2; MOVEMENT.md "LandZonePathFinderClass
 // (zones from .ted 0x10B)").
 //
 // The land mode's hint-zone list (+0x3a0) is filled by the map loader with AIHintZoneClass objects.

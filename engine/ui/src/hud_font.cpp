@@ -145,7 +145,7 @@ public:
         const int32_t h = heights_[static_cast<size_t>(font)];
         const float s = stretch_[static_cast<size_t>(font)];
         out = {};
-        // Stretch_Factor scales the glyph height only (GALACTIC_DIALOGS.md §6); widths / advances stay unstretched.
+        // Stretch_Factor scales the glyph height only (legacy docs/re/GALACTIC_DIALOGS.md §6); widths / advances stay unstretched.
         out.advance = std::max(1, static_cast<int32_t>(std::lround(static_cast<float>(h) * 0.6f)));
         if (c == U' ' || c == U'\t') return true;
         out.width = std::max(1, static_cast<int32_t>(std::lround(static_cast<float>(h) * 0.5f)));
@@ -205,7 +205,7 @@ public:
         };
         HFONT f = make(h0, 0);
         if (!f) return -1;
-        // Stretch_Factor (GALACTIC_DIALOGS.md §6): outside 0.9999..1.0001 the font is re-created at height
+        // Stretch_Factor (legacy docs/re/GALACTIC_DIALOGS.md §6): outside 0.9999..1.0001 the font is re-created at height
         // floor(h x s + 0.5) with the width = the unstretched font's tmAveCharWidth, i.e. only the height changes.
         int h = h0;
         if (req.stretch > 0.0f && (req.stretch < 0.9999f || req.stretch > 1.0001f)) {

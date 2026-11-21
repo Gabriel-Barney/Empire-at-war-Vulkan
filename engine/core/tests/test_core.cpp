@@ -137,7 +137,7 @@ static void test_remove_all_long_safety(const std::filesystem::path& tmp) {
     CHECK(alamo::remove_all_long(outside, ec) == 4 && !ec);  // outside, inner, keep.txt, keep2.txt
 }
 
-// mcx8 t11 (docs/MOD_COMPAT_DESIGN.md §13.3): the x86 conversion / decrement results, identical on MSVC and clang.
+// mcx8 t11 (docs/MODS.md "Determinism with mods"): the x86 conversion / decrement results, identical on MSVC and clang.
 // volatile inputs keep the checks at run time (the compiler cannot fold an out-of-range cast it might treat as UB).
 void test_x86_int() {
     static_assert(alamo::trunc_i32(2.9f) == 2 && alamo::trunc_i32(-2.9f) == -2);
@@ -158,7 +158,7 @@ void test_x86_int() {
     CHECK(alamo::add_wrap(INT32_MAX, 1) == INT32_MIN);
 }
 
-// ref4 t03: data-driven seconds -> frames, one function per rounding form, with the x86 range behaviour on both compilers
+// data-driven seconds -> frames, one function per rounding form, with the x86 range behaviour on both compilers
 // (negative, NaN, 2^32 and in-range values; float and double). In range each is the plain cast of its rounding.
 void test_frames() {
     using alamo::frames_ceil;
@@ -205,10 +205,10 @@ int main() {
     CHECK(alamo::name_crc("data/xml/planets.xml") == alamo::name_crc("DATA\\XML\\PLANETS.XML"));
     CHECK(alamo::iequals("Data/Xml", "DATA\\XML"));
     CHECK(!alamo::iequals("abc", "abd"));
-    // CU2: one CRC-32 table: crc32 == ~crc32_raw(~seed), including a chained seed.
+    // one CRC-32 table: crc32 == ~crc32_raw(~seed), including a chained seed.
     CHECK(alamo::crc32("123456789", 9, alamo::crc32("abc", 3)) == alamo::crc32("abc123456789", 12));
     CHECK(alamo::crc32("", 0) == 0u);
-    // CU2: exact ASCII helpers ('/' != '\\', non-ASCII bytes unchanged, whitespace = space/tab/CR/LF).
+    // exact ASCII helpers ('/' != '\\', non-ASCII bytes unchanged, whitespace = space/tab/CR/LF).
     static_assert(alamo::ascii_iequals("Data\\Xml", "DATA\\XML"));
     static_assert(!alamo::ascii_iequals("Data/Xml", "DATA\\XML"));
     static_assert(!alamo::ascii_iequals("ab", "abc"));
@@ -240,7 +240,7 @@ int main() {
             CHECK(alamo::ascii_to_lower(c) == static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
         }
     }
-    // CU2 t09: the constexpr FNV-1a overloads give the same values as the pointer form.
+    // the constexpr FNV-1a overloads give the same values as the pointer form.
     static_assert(alamo::fnv1a64(std::string_view()) == alamo::kFnv1a64Offset);
     static_assert(alamo::fnv1a64(std::string_view("a")) == 0xaf63dc4c8601ec8cull);  // FNV-1a 64 test vector
     {

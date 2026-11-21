@@ -20,7 +20,7 @@ inline uint64_t attached_effect_key(int64_t object_id, uint8_t percent) {
 // effects are not recreated) while the object and the request stay listed.
 inline uint64_t lua_effect_key(uint32_t lua_seq) { return (1ull << 60) | static_cast<uint64_t>(lua_seq); }
 
-// vis1 t06: owner key of an ability one-shot (SnapshotEffect::fx_seq, ability_fx.hpp): one system per occurrence.
+// owner key of an ability one-shot (SnapshotEffect::fx_seq, ability_fx.hpp): one system per occurrence.
 inline uint64_t ability_fx_key(uint32_t fx_seq) { return (1ull << 58) | static_cast<uint64_t>(fx_seq); }
 
 // Owner key of a projectile (SnapshotProjectile::serial): its model's proxies (missile trails), or the system itself when
@@ -33,9 +33,9 @@ struct SimAttachStats {
     uint32_t culled = 0;        // Allow_Particle_Model_Culling types the local player cannot see (systems kept, not drawn)
     uint32_t attached = 0, attached_missing = 0;  // InterpolatedFrame::effects synced / whose asset is no particle file
     uint32_t world = 0, world_missing = 0;        // R5 world effects synced / whose asset is no particle file
-    uint32_t contained = 0;                       // R3: kSnapContained objects skipped (q6 t19: and Lua-hidden ones)
+    uint32_t contained = 0;                       // R3: kSnapContained objects skipped (and Lua-hidden ones)
     uint32_t lua = 0, lua_bones = 0;              // R5: Lua Attach_Particle_Effect systems synced / effects placed at a bone
-    uint32_t ability_fx = 0;                      // vis1 t06: ability one-shots synced (SnapshotEffect::fx_seq)
+    uint32_t ability_fx = 0;                      // ability one-shots synced (SnapshotEffect::fx_seq)
     uint32_t projectiles = 0;                     // projectiles synced (proxies or particle-file model)
 };
 

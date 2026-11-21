@@ -1,6 +1,6 @@
-# ctest driver of alamo_headless_eval_uw_infra (tst2 t07, b0441; ai_run.hpp --eval-equations). -D EXE.
+# ctest driver of alamo_headless_eval_uw_infra (ai_run.hpp --eval-equations). -D EXE.
 # The five Underworld infrastructure equations on Heart of the Maw, seed 0, human Empire, after one tick, against retail's
-# frame-0 row of docs/re/A2M_R3_RE_A.md §7.2 (run 20261116-020754): all 20 values must be equal. Values print with %.6g;
+# frame-0 row of legacy docs/re/A2M_R3_RE_A.md §7.2 (run 20261116-020754): all 20 values must be equal. Values print with %.6g;
 # retail's table rounds them (0.914, 0.766, 24.89). Without ALAMO_FOC_DATA the run skips and prints no eval line.
 execute_process(COMMAND "${EXE}" --economy --galactic-ai --campaign Sandbox_Heart_Of_The_Maw_Empire --human Empire --seed 0
                         --ticks 1 --workers 4 --quiet --story --eval-player Underworld

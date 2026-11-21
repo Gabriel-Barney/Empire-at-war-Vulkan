@@ -1,5 +1,5 @@
 // G0-3 command scheduler: orders are queued and handed to the sim at a scheduled tick (the original's
-// ScheduledEventQueue, docs/re/COMMANDS.md §4).
+// ScheduledEventQueue, legacy docs/re/COMMANDS.md §4).
 //
 // TICK MODEL. drain(T) is called exactly once per sim tick, at the start of tick T - right after the
 // frame increment, before the game-mode update (MAIN_LOOP T2; see pipeline.hpp) - with T = first_tick,
@@ -19,8 +19,8 @@
 //   scheduled_tick already drained (< next drain tick)            -> Late
 // Accepted inserts raise the player's next sequence above the inserted one.
 //
-// The original's network / lockstep scheduling (COMMANDS.md §4.3-§4.4: receive from peers, command
-// turns, MaxAhead, FrameSync) is not ported: multiplayer is out of scope (docs/DECISIONS.md, CU7). The
+// The original's network / lockstep scheduling (legacy docs/re/COMMANDS.md §4.3-§4.4: receive from peers, command
+// turns, MaxAhead, FrameSync) is not ported: multiplayer is out of scope (docs/DECISIONS.md "Multiplayer code removed"). The
 // .acmd header and the saves still carry its config bytes, as the constants below (written as is,
 // checked on read), so the stream and save layouts are unchanged.
 //
@@ -98,7 +98,7 @@ public:
     // bytes), per player the next sequence and the drained-sequence set. read() restores all of it,
     // config included (max_players may differ from the constructor's); false and nothing changed on a
     // bad version / config / command or an inconsistent queue.
-    // 2 (mcx5 t01): max_players is a u16 (the 64-slot cap is gone); version 1 (u8) still reads.
+    // 2: max_players is a u16 (the 64-slot cap is gone); version 1 (u8) still reads.
     static constexpr uint32_t kSaveVersion = 2;
     void write(ByteWriter& w) const;
     bool read(ByteReader& r);

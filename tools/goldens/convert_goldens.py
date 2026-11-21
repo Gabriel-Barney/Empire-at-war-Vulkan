@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Convert full CRC goldens (ALAMO_CRC 1, one line per tick) to checkpoint goldens (ALAMO_CRC 2).
 
-Format and comparison rules: engine/core/include/alamo/core/sim_crc.hpp (CrcLog) and docs/status/golden-checkpoints.md.
+Format and comparison rules: engine/core/include/alamo/core/sim_crc.hpp (CrcLog) and docs/SIMULATION.md "CRC log formats".
 A v2 file keeps the header lines and the comments, adds `checkpoint <N>` (and an optional `keep <tick> ...` line) and stores only the first record, the last record, every tick with tick % N == 0 and the kept
 ticks. It is a subset of the full log, so it compares against a full log (or a fresh run) on its stored ticks.
 

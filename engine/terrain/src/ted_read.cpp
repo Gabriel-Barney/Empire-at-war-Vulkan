@@ -1,4 +1,4 @@
-// .ted reader (TERRAIN_WATER_POST.md 1, 5). See ted.hpp for the contract.
+// .ted reader (legacy docs/re/TERRAIN_WATER_POST.md 1, 5). See ted.hpp for the contract.
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -413,7 +413,7 @@ bool parse_scroll(std::span<const uint8_t> node, WaterScroll& s, Ctx& c) {
     return true;
 }
 
-// ---- chunk 6: decals (DECORATIONS.md 4.1). Each child 0x10 is one mini list.
+// ---- chunk 6: decals (legacy docs/re/DECORATIONS.md 4.1). Each child 0x10 is one mini list.
 bool parse_decals(std::span<const uint8_t> node, std::vector<TerrainDecal>& out, Ctx& c) {
     std::vector<ChunkView> kids;
     std::vector<MiniView> minis;
@@ -461,7 +461,7 @@ bool parse_decals(std::span<const uint8_t> node, std::vector<TerrainDecal>& out,
     return true;
 }
 
-// ---- chunk 9: tracks (DECORATIONS.md 5.1). Each child 0x100 holds 0x101 minis, 0x102 points,
+// ---- chunk 9: tracks (legacy docs/re/DECORATIONS.md 5.1). Each child 0x100 holds 0x101 minis, 0x102 points,
 // 0x103 texture name, 0x104 widths, 0x105 alpha profile.
 bool parse_tracks(std::span<const uint8_t> node, std::vector<TerrainTrack>& out, Ctx& c) {
     std::vector<ChunkView> kids, sub;
@@ -604,7 +604,7 @@ bool parse_terrain(std::span<const uint8_t> node, Terrain& t, Ctx& c) {
                 TerrainMaterial m;
                 if (!decode_terrain_material(r.payload, m)) return c.fail("malformed TEM material record");
                 if (slot < kMaterialSlots) t.materials[slot] = std::move(m);
-                else t.extra_materials.push_back(std::move(m));  // mcx5 t03: retail keeps every record (Q2.3)
+                else t.extra_materials.push_back(std::move(m));  // retail keeps every record (Q2.3)
                 ++slot;
             }
             break;
@@ -668,7 +668,7 @@ bool parse_object(std::span<const uint8_t> node, ObjectPlacement& o, Ctx& c) {
                             if (!n.empty() && n != "NONE") o.attachments.push_back(std::move(n));
                         }
                     }
-                } else if (s.id == 0x4B7 && s.has_children) {  // map1 t04: extra behaviours (Q6_T30 3)
+                } else if (s.id == 0x4B7 && s.has_children) {  // extra behaviours (Q6_T30 3)
                     if (!read_chunks(s.payload, sub2)) return c.fail("object behaviours 0x4B7: malformed");
                     for (const ChunkView& b : sub2) {
                         if (b.id != 0x4B8 || b.has_children) continue;
@@ -696,7 +696,7 @@ bool parse_object(std::span<const uint8_t> node, ObjectPlacement& o, Ctx& c) {
                 for (const MiniView& m : minis)
                     if (m.id == 0x01) o.hint = mini_string(m);
             }
-        } else if (k.id == 0x46E && k.has_children) {  // map1 t04: marker name, the layout of 0x482 (Q6_T30 3)
+        } else if (k.id == 0x46E && k.has_children) {  // marker name, the layout of 0x482 (Q6_T30 3)
             if (!read_chunks(k.payload, sub)) return c.fail("object marker name 0x46E: malformed");
             o.has_marker_name = true;
             for (const ChunkView& s : sub) {
@@ -772,7 +772,7 @@ bool parse_minis_block(std::span<const uint8_t> leaf, std::vector<RawMini>& raw,
     return true;
 }
 
-// SPACE_AND_OPEN.md A.1: 04/05 playable box (default +-5000), 07/08 camera box (default the
+// legacy docs/re/SPACE_AND_OPEN.md A.1: 04/05 playable box (default +-5000), 07/08 camera box (default the
 // playable box shrunk by 400 in X/Y), 00/01 pitch/yaw, 02 distance, 03 look-at, 06 FOV.
 void decode_space(const PlayableArea& p, SpaceMapDesc& s) {
     s.present = true;

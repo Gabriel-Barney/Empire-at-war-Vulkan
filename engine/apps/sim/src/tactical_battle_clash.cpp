@@ -1,4 +1,4 @@
-// s78n t06 - the battle side of the land hero clashes (docs/re/HERO_CLASH.md §2-§6): the HeroClashHost of
+// the battle side of the land hero clashes (legacy docs/re/HERO_CLASH.md §2-§6): the HeroClashHost of
 // tactical::combat::HeroClashManager over the battle's object store, MovementSystem and CombatSystem. Serial code only;
 // the synced draws are the manager's (one float per fought exchange) and the Move_To of the clash start (MovementSystem).
 #include <algorithm>
@@ -93,7 +93,7 @@ public:
     bool walking(tc::ObjectId id) override {
         // Locomotor vf +0x1c0(0): the walk has a path on its stack. s78n t06 [port]: an order that is moving (not waiting
         // for its composition at the next coordinator update, MOVEMENT §4.7.4, nor for a later start frame) or the arrival
-        // turn (its path is still on the stack, s78l t02). So the start frame's Move_To is not walking yet and the heroes
+        // turn (its path is still on the stack). So the start frame's Move_To is not walking yet and the heroes
         // snap (slide) to their spots on the start frame (HERO_CLASH §3.3 [M]).
         if (!b_.movement_->has_unit(id)) return false;
         const mv::UnitView v = b_.movement_->view(id);
@@ -212,7 +212,7 @@ public:
         r.amount = amount;
         r.kind = tc::kKindNormal;
         r.source = source;
-        r.source_is_projectile = false;  // s78n t13: a non-projectile source without +0x3a1 & 0x10 - no diminishing firepower
+        r.source_is_projectile = false;  // a non-projectile source without +0x3a1 & 0x10 - no diminishing firepower
         b_.hero_clash_hits_.push_back(r);
     }
 
@@ -225,7 +225,7 @@ private:
     TacticalMode& mode_;
     objects::ObjectStore& st_;
     SimRng& rng_;
-    uint64_t gframe_ = 0;  // r3h t02: the host frame (animation time base)
+    uint64_t gframe_ = 0;  // the host frame (animation time base)
 };
 
 void TacticalBattle::set_hero_clash_data(std::shared_ptr<const tc::HeroClashData> d) {

@@ -1,4 +1,4 @@
-// P4 sim (owner: galactic agent): loader of the special-system tables (special_data.hpp, docs/re/P4_SIM_SYSTEMS.md).
+// P4 sim (owner: galactic agent): loader of the special-system tables (special_data.hpp, legacy docs/re/P4_SIM_SYSTEMS.md).
 #include <algorithm>
 #include <map>
 #include <memory>
@@ -24,7 +24,7 @@ std::vector<float> float_list(std::string_view s) {
     return out;
 }
 
-// mcx1 t03: the shared data-class rule for a list field: every occurrence appends (TBD / empty skipped).
+// the shared data-class rule for a list field: every occurrence appends (TBD / empty skipped).
 std::string joined(data::XmlNode n, std::string_view tag) {
     std::string out;
     for (std::string_view v : data::xml_values::texts(n, tag)) {
@@ -55,7 +55,7 @@ SpecialAbilityClass class_of(std::string_view tag) {
     if (ascii_iequals(tag, "System_Spy_Ability")) return SpecialAbilityClass::SystemSpy;
     if (ascii_iequals(tag, "Reduce_Production_Price_Ability")) return SpecialAbilityClass::ReducePrice;
     if (ascii_iequals(tag, "Reduce_Production_Time_Ability")) return SpecialAbilityClass::ReduceTime;
-    // galab (docs/re/GALAB_ABILITIES_RE.md)
+    // galab (legacy docs/re/GALAB_ABILITIES_RE.md)
     if (ascii_iequals(tag, "Remove_Corruption_Ability")) return SpecialAbilityClass::RemoveCorruption;
     if (ascii_iequals(tag, "Planet_Destruction_Ability")) return SpecialAbilityClass::PlanetDestruction;
     if (ascii_iequals(tag, "Siphon_Credits_Ability")) return SpecialAbilityClass::SiphonCredits;
@@ -278,7 +278,7 @@ SpecialAbilityDef parse_ability(const objects::ObjectTypeDatabase& raw, objects:
             note(diag, "galactic: " + a.name + ": production ability needs Galactic_Automatic");
         a.style = ActivationStyle::GalacticAutomatic;
         break;
-    // galab post-load rules (docs/re/GALAB_ABILITIES_RE.md) [H].
+    // galab post-load rules (legacy docs/re/GALAB_ABILITIES_RE.md) [H].
     case SpecialAbilityClass::RemoveCorruption:
         // 0x5b17f0: a negative multiplier -> 1.0 (0 is kept); a time <= 0 -> 10.0. The style stays as written
         // (Ground_Activated in every FoC entry).
@@ -552,7 +552,7 @@ void load_special_rules(const FileProvider& provider, const data::GameDatabase& 
         for (objects::FieldIndex f : types.sub_objects(t, objects::tags::Abilities)) {
             // OI galactic (STRATEGIC_GAPS 1.4 / 2.2): the galactic stealth / detection / planet destruction entries.
             const std::string_view tag = raw.tag_name(f);
-            {  // mcx4 t09: every entry's Name (Q6)
+            {  // every entry's Name (Q6)
                 const objects::FieldColumns& fa = raw.fields();
                 for (uint32_t i = 0; i < fa.attr_count[f]; ++i) {
                     const objects::XmlAttr& at = raw.attributes()[fa.attr_begin[f] + i];
@@ -661,7 +661,7 @@ void load_special_rules(const FileProvider& provider, const data::GameDatabase& 
                 c.slot = slot;
                 c.type = static_cast<int8_t>(types.get_enum(t, p + "Type"));
                 c.credit_cost = to_f(types.get_string(t, p + "Credit_Cost"));
-                {  // stored as a float field: rounded half up (bkc1 t07: get_int now truncates a float field)
+                {  // stored as a float field: rounded half up (get_int now truncates a float field)
                     const float f = types.get_float(t, p + "Credit_Cost");
                     c.credit_cost_rounded = f > 0.0f ? static_cast<int32_t>(f + 0.5f) : types.get_int(t, p + "Credit_Cost");
                 }

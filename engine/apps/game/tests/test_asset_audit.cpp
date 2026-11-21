@@ -1,4 +1,4 @@
-// alamo_game_asset_audit_tests (mcx2 t01, asset_audit.hpp): a fake FoC install with a mod folder in its own temp folder.
+// alamo_game_asset_audit_tests (asset_audit.hpp): a fake FoC install with a mod folder in its own temp folder.
 // The mod serves a good texture, a broken one, a model without its connections chunk (retail hangs on it: a
 // retail-equivalent rejection), a valid model and an empty animation; the base game's own files are not audited.
 // Checks the counts, the entries, the JSON and that a second run with a cache decodes nothing and agrees.

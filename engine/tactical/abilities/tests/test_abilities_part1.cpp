@@ -1,4 +1,4 @@
-// Part 1 of test_abilities (bo3 t03: split by position; see test_abilities_common.hpp).
+// Part 1 of test_abilities (split by position; see test_abilities_common.hpp).
 #include "test_abilities_common.hpp"
 
 namespace bo3split {
@@ -93,7 +93,7 @@ void test_info_table() {
 
 namespace bo3split {
 
-// mcx7: the ability timers follow x86 integer semantics on every compiler (x86_int.hpp). Inputs go through volatile so
+// the ability timers follow x86 integer semantics on every compiler (x86_int.hpp). Inputs go through volatile so
 // no compiler folds them; before the fix the clang build ended a 99999999999 s laser defense after one frame while MSVC
 // (and retail) kept it, so Age of Legends' skirmish CRC differed between the compilers.
 void test_x86_timers() {
@@ -301,7 +301,7 @@ void test_gates() {
     CHECK(!a.can_activate(5, kSprint, true, true, f));
     a.set_corrupted(3, false);
     // Force gate: type 13 with F = 1 on a unit without the record still runs the gate order
-    // TRU1 t01: 47 passes for an owned unit whose type does not require base power (test_tru1_lobbing_gate), once the
+    // 47 passes for an owned unit whose type does not require base power (test_tru1_lobbing_gate), once the
     // nebula lockout set above (gate 2) is over
     CHECK(!a.can_activate(1, kFireLobbingSuperweapon, true, true, f));
     CHECK(a.can_activate(1, kFireLobbingSuperweapon, true, true, f + 200));
@@ -494,7 +494,7 @@ void test_last_hardpoint_kills() {
 namespace bo3split {
 
 void test_death_clone_remap() {
-    // S9 t04 (S9_DEATH_CLONE_SHIELDS.md §1.2 - §1.4): key remap, existence check, sub-key, fallbacks, synced draws.
+    // S9 t04 (legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §1.2 - §1.4): key remap, existence check, sub-key, fallbacks, synced draws.
     World w;
     ProjectileDesc dis;
     dis.name = "Disruptor";
@@ -729,7 +729,7 @@ void test_ion_stun() {
 namespace bo3split {
 
 void test_missile_shield() {
-    {  // S9 t05 (S9_DEATH_CLONE_SHIELDS.md §2.3 / §2.5): lasers (category 7 -> 0x4cec80) are TESTED by an active
+    {  // S9 t05 (legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §2.3 / §2.5): lasers (category 7 -> 0x4cec80) are TESTED by an active
        // MISSILE_SHIELD, but the turn is limited by their Max_Rate_Of_Turn - 0 in vanilla - so they fly through and hit.
         ShieldWorld w(ProjectileCategory::Laser, false, 0.0f);
         CHECK(w.ab->is_active(2, kMissileShield) && w.ab->immobilize_count(2) == 1);
@@ -794,7 +794,7 @@ void test_missile_shield() {
         CHECK(w.sys->health(2) < w.sys->max_health(2));
     }
     {  // rockets (0x4cfc40): a passive emitter (radius overridden by ability 32) re-plans the path on the crossing.
-       // refixf t01: the new spline bends around a sphere through B (2k = 60 ahead of the crossing point, §2.4.7) - the
+       // the new spline bends around a sphere through B (2k = 60 ahead of the crossing point, §2.4.7) - the
        // rockets, aimed at the emitter itself, pass it at about 240 instead of hitting it. A 0 turn rate keeps the
        // facing (only the facing turns; the position comes from the spline).
         ShieldWorld w(ProjectileCategory::Rocket, true, 0.0f);
@@ -982,7 +982,7 @@ void test_concentrate_energy() {
 
 namespace bo3split {
 
-// Fog follow-up (FOG_OF_WAR.md §3.3): Force Sight = Reveal_All for the owner while channelling (undone at the end
+// Fog follow-up (legacy docs/re/FOG_OF_WAR.md §3.3): Force Sight = Reveal_All for the owner while channelling (undone at the end
 // or on death) through set_fog_reveal_all; FOW_REVEAL_PING asks the host to spawn its Spawned_Object_Type.
 void test_fog_abilities() {
     World w;
@@ -1026,7 +1026,7 @@ void test_fog_abilities() {
     CHECK(w.ab->special_applied(1, name_crc("Yoda_Force_Sight")) && w.has_event(AbilityEventKind::EffectOn, 1));
     CHECK(w.ab->countdown_counter(1, kForceSight) == 1500);
     {
-        // aud1 t10: the EffectOn outlives clear_events (the battle clears inside its tick) as a presentation copy, kept
+        // the EffectOn outlives clear_events (the battle clears inside its tick) as a presentation copy, kept
         // kVisualKeepFrames frames, numbered for the host's cursor; not hashed.
         StateHasher before;
         w.ab->hash(before);
@@ -1124,12 +1124,12 @@ void test_jamming_visual_fields() {
     CHECK(part.blob_material.empty() && !part.show_blob_to_enemies && part.blob_color[0] == 1.0f && part.blob_color[3] == 1.0f);
     const SpecialAbilityDesc other = parse_special_ability(block.first_child().next_sibling().next_sibling(), r, nullptr);
     CHECK(other.blob_material.empty());  // only the jammer class reads the Blob_* fields
-    // vis1 t06: the target / status particle names (any class; presentation only)
+    // the target / status particle names (any class; presentation only)
     CHECK(other.target_particle_effect == "Force_Telekinesis_Particles" && other.target_particle_bones.size() == 3 &&
           other.target_particle_bones[0] == "Turret_00" && other.target_particle_bones[2] == "ROOT");
     CHECK(other.stunned_effect == "Stunned_Particle_Effect" && other.infection_particle == "Infection_Particle_Effect");
     CHECK(part.target_particle_effect.empty() && part.target_particle_bones.empty() && part.stunned_effect.empty());
-    // vis1 t08: Drain_Life's lightning and bones, Force_Healing's range blob (presentation only)
+    // Drain_Life's lightning and bones, Force_Healing's range blob (presentation only)
     const data::XmlNode dn = block.first_child().next_sibling().next_sibling().next_sibling();
     const SpecialAbilityDesc drain = parse_special_ability(dn, r, nullptr);
     CHECK(drain.cls == SpecialClass::DrainLife && drain.drain_effect == "Drain_Life_Effect" && drain.drain_source_bone == "HP_Drain" &&
@@ -1706,7 +1706,7 @@ void test_oi_auras() {
     w.add(5, hd, 0, {300, 0, 0});  // a second source, same stacking category
     CHECK_EQ(w.sys->modifier(1, ModList::Damage), 0.25f);
     CHECK_EQ(w.sys->modifier(3, ModList::Damage), 0.25f);  // added after the source
-    CHECK_EQ(w.sys->modifier(2, ModList::Damage), 0.25f);  // from the second source 5 (s78n t04: not from itself)
+    CHECK_EQ(w.sys->modifier(2, ModList::Damage), 0.25f);  // from the second source 5 (not from itself)
     CHECK_EQ(w.sys->modifier(4, ModList::Damage), 0.0f);   // other owner
     CHECK_EQ(w.sys->max_health(1), 300.0f);
     CHECK_EQ(w.sys->health(1), 300.0f);  // current += new max - old max
@@ -2229,7 +2229,7 @@ void test_oi_class_bodies() {
         CHECK(w.ab->add_container(5, sqd, 0, mem, w.frame, &w.rng));
         const ObjectId one[] = {1}, squad[] = {5};
         CHECK(w.ab->set_unit_ability_mode(one, kDeploy, true, w.frame) == 1 && w.ab->deployed(1) && w.ab->is_active(1, kDeploy));
-        CHECK((w.sys->flags(1) & kUnitDeploying) != 0);  // S9 t04: the death-clone deploy remap's state
+        CHECK((w.sys->flags(1) & kUnitDeploying) != 0);  // the death-clone deploy remap's state
         w.collect();
         CHECK(w.count(AbilityEventKind::Deployed, 1) == 1 && w.count(AbilityEventKind::StopOrder, 1) == 1);
         CHECK(w.ab->set_unit_ability_mode(one, kDeploy, false, w.frame) == 1 && !w.ab->deployed(1));
@@ -2351,7 +2351,7 @@ void test_mdu1_deploy_stop_hold_now() {
 void test_gaps_deploy_troopers() {
     // §5.2: member i of the spawned type's company at Owner_Attachment_Bone i; bones the model lacks are skipped (their
     // member index too); N = members - deployed (+0x40); no draws. Max_Num_Spawned_Objects 9 does not bind here
-    // (cu8f t06: test_cu8f_deploy_cap).
+    // (test_cu8f_deploy_cap).
     OiWorld w;
     AbilityObjectDesc a;
     UnitAbilityRecord dt = rec(kDeployTroopers, 0.0f, 20.0f);
@@ -2528,7 +2528,7 @@ void test_gaps_blast() {
           !w.ab->fire_gate(1, nullptr, proj, scale));
     for (int i = 0; i < 40 && w.ab->blast_counter(1) > 0; ++i) w.tick();
     CHECK(w.ab->blast_counter(1) == -1);  // K = 1 special hard point
-    CHECK(incognito());  // s78n t12: not cleared at the charge's end
+    CHECK(incognito());  // not cleared at the charge's end
     CHECK(!w.ab->fire_gate(1, &laser, proj, scale) && !w.ab->fire_gate(1, nullptr, proj, scale));
     proj = 0;
     CHECK(w.ab->fire_gate(1, &special, proj, scale) && proj == 1 && scale == 5.0f);
@@ -2539,7 +2539,7 @@ void test_gaps_blast() {
     proj = 0;
     scale = 1.0f;
     CHECK(w.ab->fire_gate(1, &laser, proj, scale) && w.ab->fire_gate(1, &special, proj, scale) && proj == 0 && scale == 1.0f);
-    // s78n t12: still set after the special ended (no remove override); the user's first projectile that reaches
+    // still set after the special ended (no remove override); the user's first projectile that reaches
     // Take_Damage on anything clears it (the shooter rule of §8.4.1 step 10).
     CHECK(incognito());
     w.add(2, sd, 1, {5000, 0, 0});

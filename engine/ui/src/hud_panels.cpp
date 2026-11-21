@@ -55,7 +55,7 @@ HudTextStyle style_of(const CommandBarComponent* c, FontCache& fonts, const HudC
     return st;
 }
 
-// t40: the pop-up's layout, canvas units from the panel's top-left corner. mcx4 t14: the GameConstants
+// t40: the pop-up's layout, canvas units from the panel's top-left corner. The GameConstants
 // Encyclopedia_*_Offset columns come from TooltipConfig (cfg_; FoC values confirmed on the captures: an icon Y offset of
 // -12 puts the icon 12 units down, a class Y offset of 5 the class line 5 units below the band); the rest measured on
 // C3_tooltip_slot_h1_full.png [inferred].

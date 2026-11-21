@@ -1,4 +1,4 @@
-// P2 tactical HUD (docs/re/UI.md §1, §2): owns the canvas, the CommandBarComponents-driven layout, the
+// P2 tactical HUD (legacy docs/re/UI.md §1, §2): owns the canvas, the CommandBarComponents-driven layout, the
 // world-space layer (hud_world.hpp), the selected-unit panel (s_select_NN / s_health_NN / s_shield_NN), the
 // ability buttons (special_button_NN + special_border_NN), the tactical build queue (tqueueNN), the land
 // reinforcement pad (r_RRCC), the command / game buttons, tooltips, the radar, order feedback (waypoint lines,
@@ -52,7 +52,7 @@ std::vector<SelectedGroup> group_selection(std::span<const HudUnit> units, size_
 // Ability state of a selected group: read-only S9 queries (hud_abilities.hpp abilities_from_s9 fills it from
 // tactical::abilities::AbilitySystem) or any host callback.
 struct HudAbility {
-    uint8_t ability_type = 0;   // 1..76 (COMMANDS.md §2 TacticalSpecialAbility)
+    uint8_t ability_type = 0;   // 1..76 (legacy docs/re/COMMANDS.md §2 TacticalSpecialAbility)
     std::string icon;           // atlas texture (e.g. "i_sa_*.tga")
     float recharge = 1.0f;      // 0..1, 1 = ready (the dial shows recharge x 100 while < 1)
     bool active = false;        // mode on (selected look)
@@ -87,7 +87,7 @@ struct HudBuildOption {
     int32_t cost = -1;          // credits (text2, gold, under the button); < 0 none
     uint32_t queued = 0;        // entries of this type in the builder's queue (text, > 1 shown)
     Block block = Block::None;  // != None: disabled
-    std::string tooltip_key;    // ui3 t07: the type's text (Text_ID) shown as the tooltip of a buyable option
+    std::string tooltip_key;    // the type's text (Text_ID) shown as the tooltip of a buyable option
 };
 struct HudReinforcement {
     uint32_t unit = 0;          // reinforcement-pool object (Reinforce event "unit")
@@ -164,7 +164,7 @@ struct HudAction {
     bool shift = false, ctrl = false;
 };
 
-// A 3D model the HUD wants drawn through an ortho camera (radar event models, UI.md §1.7: RadarMap.xml
+// A 3D model the HUD wants drawn through an ortho camera (radar event models, legacy docs/re/UI.md §1.7: RadarMap.xml
 // Event_Model_Name, e.g. I_minimap_*.alo). Model space -> canvas: translate(center) x uniform `scale` (canvas units per
 // model unit); drawn by alamo_ui_draw HudModelDrawer at the Models2 step (HUD camera kHudCameraModels2).
 struct HudModelDraw {
@@ -184,7 +184,7 @@ struct HudObjective {
     State state = State::Active;
 };
 
-// Tactical order buttons c_button00..05 (attack, attack-move, move, waypoint, full stop, guard; docs/re/HUD_GAPS.md §5):
+// Tactical order buttons c_button00..05 (attack, attack-move, move, waypoint, full stop, guard; legacy docs/re/HUD_GAPS.md §5):
 // never hidden - visible whenever the tactical command bar is - only enabled / disabled every frame from the local
 // player's OWN selected units (enemy / allied units in the selection are ignored):
 //   attack      disabled when no own selected unit can attack (attack behaviour)
@@ -200,15 +200,15 @@ struct HudOrderButtons {
 };
 bool order_button_enabled(uint32_t button, const HudOrderButtons& s);  // button 0..5 = c_button00..05
 
-// Land b_special_weapon = the bombing-run button (HUD_GAPS §9.1 - §9.3, cu9g t03). Never hidden in land, only disabled
+// Land b_special_weapon = the bombing-run button (HUD_GAPS §9.1 - §9.3). Never hidden in land, only disabled
 // every frame (controls locked, no bombing-run record, run not available); alternate icon 3, tooltip 3
 // (TEXT_TOOLTIP_BOMBRUN_BUTTON); the Build_Texture_Name dial is the cooldown. `present` false (no tactical HUD feed): the
-// component keeps its data state. ui1 t04: in space the same component is the special-weapon button (HUD_GAPS §9.1,
+// component keeps its data state. In space the same component is the special-weapon button (HUD_GAPS §9.1,
 // 0x317d00: icon 0..2 = the weapon's Special_Weapon_Index, a station 2; tooltip 0..2, or 4 TEXT_TOOLTIP_REQUIRES_COMM_ARRAY
 // while special weapons are not allowed); `hidden` [port] when the local player has no space special weapon.
 struct HudBombingRunButton {
     bool present = false;       // a battle: the HUD drives the button
-    bool hidden = false;        // ui1 t04: space without a special weapon
+    bool hidden = false;        // space without a special weapon
     int32_t icon = 3;           // Icon_Alternate_Texture_Name index (land 3)
     int32_t tooltip = 3;        // Tooltip_Text index (land 3)
     bool disabled = true;       // !ready (0x312570)
@@ -216,7 +216,7 @@ struct HudBombingRunButton {
                                 // 1.0 draws nothing, as the ability buttons; HUD_GAPS §9.9 item 1 is a probe question)
 };
 
-// ui3 t03 / t04: the other command-bar buttons the land / space HUD update enables in the same pass as c_button00..05
+// the other command-bar buttons the land / space HUD update enables in the same pass as c_button00..05
 // (HUD_GAPS §5.1: "reinforcement availability, retreat allowed") and the reinforcement window's texts. `present` false
 // (no battle feed): the components keep their data state. Lua GUI_Component_Visibility / _Enable override (mods).
 struct HudCommandButtons {
@@ -236,7 +236,7 @@ struct HudCommandButtons {
     bool beacon_enabled = false;
     bool beacon_selected = false;
     bool movie_mode = false;         // b_camera_t (TEXT_MOVIE_MODE) selected look
-    // ui3 t04: reinforcement_counter = number of pad entries (hidden at 0); r_pop_text = "used/cap" population (hidden
+    // reinforcement_counter = number of pad entries (hidden at 0); r_pop_text = "used/cap" population (hidden
     // when there is no cap: land); r_pop_icon shown with it.
     uint32_t reinforce_count = 0;
     int32_t pop_used = -1, pop_cap = -1;
@@ -314,7 +314,7 @@ struct TacticalHudFrame {
     std::span<const HudOrderQueue> order_queues;
     HudOrderButtons order_buttons;  // c_button00..05 enable state (HUD_GAPS §5)
     HudBombingRunButton bombing_run;  // b_special_weapon in land (HUD_GAPS §9)
-    HudCommandButtons command_buttons;  // ui3 t03 / t04: b_retreat, b_reinforcement, beacon, movie mode, reinforcement texts
+    HudCommandButtons command_buttons;  // b_retreat, b_reinforcement, beacon, movie mode, reinforcement texts
     bool objectives_hidden = false;     // ui3 t01 [port]: the Mission Holocron key (Tab) toggles the objectives box
     // [port: Gabriel, original screenshot] Game Paused banner (pause_shell: yellow TEXT_GAME_PAUSED bar at the top
     // centre, red TEXT_BUTTON_RESUME_GAME button under it - a click emits HudAction::ResumeGame) while `paused`.
@@ -324,7 +324,7 @@ struct TacticalHudFrame {
     // objectives word-wrapped to the box. Empty = no box.
     std::span<const HudObjective> objectives;
     std::u32string objectives_header;   // "" = TEXT_TEST_OBJECTIVE_HEADER
-    // Drag-select box (UI.md §1.1 step 5h "drag rectangle"; Playtest 3): while the world owns a left drag past the drag
+    // Drag-select box (legacy docs/re/UI.md §1.1 step 5h "drag rectangle"; Playtest 3): while the world owns a left drag past the drag
     // threshold (InputState ButtonState::dragging), the press -> cursor rectangle in pixels (ButtonState::drag). Drawn
     // by add_drag_box over the same bounds box_select uses on release (drag_select_bounds). The corner marker of the
     // original is the POINTER_DRAG_SELECT_MODE cursor (DragSelectPointer_00), drawn by the cursor pass, not here.
@@ -390,12 +390,12 @@ public:
     // layout of the previous build() (what the player sees). `routed.world` gives the cursor for radar drags.
     void update_input(const RoutedInput& routed, bool shift, bool ctrl, double now, std::vector<commands::EventData>& out,
                       std::vector<HudAction>* actions = nullptr);
-    // ui3 t02: an ability hotkey = a left click on the first ability button (selection panel order) showing
+    // an ability hotkey = a left click on the first ability button (selection panel order) showing
     // `ability_type`: the same command / BeginAbilityTargeting action as the click (`queued` = the queue modifier).
     // False when no button shows it or it is disabled (nothing emitted). Uses the slots of the previous build().
     bool activate_ability(uint8_t ability_type, bool queued, std::vector<commands::EventData>& out,
                           std::vector<HudAction>* actions = nullptr) const;
-    // ui3 t01: c_button00..05 enabled after the previous build() (HUD_GAPS §5.1 rules, Lua overrides); false when the
+    // c_button00..05 enabled after the previous build() (HUD_GAPS §5.1 rules, Lua overrides); false when the
     // component is missing or hidden. The order hotkeys (Attack, Move, ...) act only while their button would.
     bool order_button_live(uint32_t button) const;
     // Stage-1 entry point: left click on a selection portrait -> Select{that group's ids} (no state change).
@@ -498,7 +498,7 @@ uint32_t add_drag_box(HudDrawList& dl, const HudCanvas& canvas, const DragRect& 
 
 // Decimal with thousands separators ("13,000", "-1,250") [port: original screenshots].
 std::u32string hud_thousands(int64_t v);
-// Reinforce event (COMMANDS.md §2 id 12) for a reinforcement unit dropped at a world point.
+// Reinforce event (legacy docs/re/COMMANDS.md §2 id 12) for a reinforcement unit dropped at a world point.
 commands::EventData reinforce_event(uint32_t unit, Vec3 point);
 // SetUnitAbilityMode (id 43) toggling `ability` on `units` (max 127).
 commands::EventData ability_mode_event(std::span<const uint32_t> units, uint8_t ability, bool on);

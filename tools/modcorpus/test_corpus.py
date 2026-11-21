@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ctest driver of the corpus runner (alamo_modcorpus_tests; roadmap mcx7 t02, t03). No game data needed.
+"""ctest driver of the corpus runner (alamo_modcorpus_tests). No game data needed.
 
 1. grade.py --selftest (the G0-G3 rules and the drop comparison on hand-made results).
 2. A check-stage sweep of the conformance mods `stacks` (engine/apps/game/testdata/conformance/stacks): the grades and
@@ -33,7 +33,7 @@ import run_corpus  # noqa: E402
 TESTDATA = os.path.join(ROOT, "engine", "apps", "game", "testdata")
 
 STACKS_WANT = {
-    # ums2 t09: resolver messages name mods by catalog key (Mods\<folder>).
+    # resolver messages name mods by catalog key (Mods\<folder>).
     "CycleA": ("G0", "stack: dependency cycle: Mods\\CycleA -> Mods\\CycleB -> Mods\\CycleA", ["CycleA", "CycleB"]),
     "CycleB": ("G0", "stack: dependency cycle: Mods\\CycleB -> Mods\\CycleA -> Mods\\CycleB", ["CycleB", "CycleA"]),
     "EawOnly": ("G0", "stack: Mods\\EawOnly: base-EaW mod: retail runs it with sweaw.exe", ["EawOnly"]),

@@ -1,4 +1,4 @@
-// storyb t13: the story text crawl over the full-screen movie (Movies.xml Text_Crawl_Name / Text_Crawl_Start_Frame ->
+// the story text crawl over the full-screen movie (Movies.xml Text_Crawl_Name / Text_Crawl_Start_Frame ->
 // StarWars3DTextCrawl.xml, video::parse_text_crawls), drawn by ui::add_text_crawl ([port] look values there).
 #include "game_app.hpp"
 

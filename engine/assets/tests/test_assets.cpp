@@ -118,7 +118,7 @@ struct SynBone {
 // rskin_junk: non-legacy vertices carry indices (bone, 0xDEAD, 0, 0) and weights (0.2, 0.8, 0, 0);
 // RSkin must still use bone_index[0] (the parser range-checks only that one for RSkin).
 // zero_frame: tangent and binormal stored as zero (as the exporter writes for formats without a frame).
-// chunk5_144: 144-byte records stored in a 0x10005 chunk (accepted by the parser, SPEC.md 2.5).
+// chunk5_144: 144-byte records stored in a 0x10005 chunk (accepted by the parser, legacy docs/formats/SPEC.md 2.5).
 Bytes make_alo(const std::vector<SynBone>& bones, const std::vector<SynMesh>& meshes, bool legacy = false,
                bool rskin_junk = false, bool zero_frame = false, bool chunk5_144 = false) {
     W hdr;
@@ -609,7 +609,7 @@ void test_dds() {
         CHECK(decode_dds(f, t, &err));
         CHECK(t.cubemap && t.layers == 6 && t.format == TextureFormat::BC3 && t.levels.size() == 6);
         CHECK(t.level(5, 0) && t.level_bytes(*t.level(5, 0))[0] == 5 && t.level(4, 0)->offset == 128 + 64);
-        // partial cubemap (mcx2 t04): the faces present keep their data, the others are black, with a warning
+        // partial cubemap: the faces present keep their data, the others are black, with a warning
         Bytes partial = dds_header(4, 4, 1, 0x4, FCC("DXT5"), 0, 0, 0, 0, 0, 0x200u | 0x400u | 0x2000u);
         for (int face = 0; face < 2; ++face)
             for (int i = 0; i < 16; ++i) partial.push_back(static_cast<std::uint8_t>(9 + face));
@@ -677,9 +677,9 @@ void test_dds() {
     }
 }
 
-// Mod texture formats (mcx2 t04, MOD_COMPAT_DESIGN.md 10.3): every one decodes to a format the renderer samples, with
+// Mod texture formats (docs/MODS.md "Asset salvage and GUI fallback"): every one decodes to a format the renderer samples, with
 // the values D3D9 gave. Expected values worked out by hand from the format definitions.
-// mcx2: a PNG under any name decodes (retail's D3DX picks the decoder by content; Thrawn's Revenge icons are PNGs named
+// a PNG under any name decodes (retail's D3DX picks the decoder by content; Thrawn's Revenge icons are PNGs named
 // .tga). Built with stored deflate blocks: RGBA 8-bit, a 2-bit grey image with a colour key, an Adam7 RGB image.
 Bytes png_file(std::uint32_t w, std::uint32_t h, std::uint8_t depth, std::uint8_t ctype, std::uint8_t interlace,
                const Bytes& raw, const Bytes& trns = {}) {
@@ -945,7 +945,7 @@ void test_tga() {
     CHECK(!decode_tga(tga(10, 2, 1, 32, 0, {0x85, 1, 2, 3, 4}), t, &err));
     CHECK(!decode_tga(tga(2, 2, 2, 24, 0, {1, 2, 3}), t, &err));
     CHECK(!decode_tga(tga(1, 2, 2, 8, 0, {}), t, &err));  // type 1 without a colour map
-    {  // colour-mapped (mcx2 t04): 2 entries of 24 bits starting at index 5, 8-bit indices; type 9 = RLE
+    {  // colour-mapped: 2 entries of 24 bits starting at index 5, 8-bit indices; type 9 = RLE
         const Bytes h = {0, 1, 1, 5, 0, 2, 0, 24, 0, 0, 0, 0, 2, 0, 1, 0, 8, 0x20};
         const Bytes map = {10, 20, 30, 40, 50, 60};
         CHECK(decode_tga(cat({h, map, {6, 5}}), t, &err) && t.format == TextureFormat::BGRA8 && t.data[0] == 40 &&
@@ -982,7 +982,7 @@ void test_tga() {
     // decode_texture sniffs DDS vs TGA
     CHECK(decode_texture(tga(3, 1, 1, 8, 0, {7}), t, &err) && t.data[0] == 7 && t.mip_levels == 1);
     CHECK(sniff_texture_file(tga(2, 1, 1, 24, 0, {1, 2, 3})) == TextureFileKind::Tga);
-    // Lookup order (SPACE_AND_OPEN.md B.2): as named, Textures dir, .dds as named, .dds in Textures dir.
+    // Lookup order (legacy docs/re/SPACE_AND_OPEN.md B.2): as named, Textures dir, .dds as named, .dds in Textures dir.
     const auto c = texture_candidates("Foo.tga");
     CHECK(c.size() == 4 && c[0] == "FOO.TGA" && c[1] == "DATA\\ART\\TEXTURES\\FOO.TGA" && c[2] == "FOO.DDS" &&
           c[3] == "DATA\\ART\\TEXTURES\\FOO.DDS");
@@ -1793,7 +1793,7 @@ void test_real_data() {
         }
     }
 
-    // Lookup steps (SPACE_AND_OPEN.md B.2) vs the pre-B.2 rule (Textures\ + name, then .DDS, then .TGA).
+    // Lookup steps (legacy docs/re/SPACE_AND_OPEN.md B.2) vs the pre-B.2 rule (Textures\ + name, then .DDS, then .TGA).
     {
         auto legacy = [](const std::string& name) {
             std::string s = name;
@@ -1925,7 +1925,7 @@ void test_real_data() {
         }
 
     // glTF exports: EI_ROYALGAURD is vanilla; LS_Redeye and LPF_Pellaeon_SD_Turret_04 come from the
-    // Legeds_ships_transfer mod (docs/formats/validation.md), mounted as MODPATH when present.
+    // Legeds_ships_transfer mod (legacy docs/formats/validation.md), mounted as MODPATH when present.
     check_gltf(*vfs, "EI_ROYALGAURD");
     const std::string mod = std::string(root) + "\\Mods\\Legeds_ships_transfer";
     if (std::filesystem::is_directory(alamo::path_from_utf8(mod))) {

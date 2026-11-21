@@ -1,4 +1,4 @@
-// Part 1 of test_movement_gaps (bo3 t03: split by position; see test_movement_gaps_common.hpp).
+// Part 1 of test_movement_gaps (split by position; see test_movement_gaps_common.hpp).
 #include "test_movement_gaps_common.hpp"
 
 ParallelFor make_thread_pf(unsigned threads) { return ::alamo::test::make_thread_parallel_for(threads); }
@@ -17,7 +17,7 @@ UnitDesc unit(ObjectId id, V2 pos, int32_t cls, float speed, float radius, Locom
     d.pos = pos;
     d.max_speed = speed;
     d.turn_rate = 6.0f;
-    d.alt_max_speed = speed;  // S7 t14: a jetpack flies with the alternates; the same values keep these scenarios
+    d.alt_max_speed = speed;  // a jetpack flies with the alternates; the same values keep these scenarios
     d.alt_turn_rate = 6.0f;
     d.movement_class = cls;
     d.collision_class = kUccInfantry;
@@ -27,7 +27,7 @@ UnitDesc unit(ObjectId id, V2 pos, int32_t cls, float speed, float radius, Locom
     return d;
 }
 
-// ---------------------------------------------------------------- s78p (b0049) formation lanes (MOVEMENT §3.5.2 D, 0x413340)
+// ---------------------------------------------------------------- s78p formation lanes (MOVEMENT §3.5.2 D, 0x413340)
 void test_lanes() {
     const PassabilityGrid none;  // no grid: every point passes
     const auto at = [](V2 a, float x, float y) { return near(a.x, x, 1e-3f) && near(a.y, y, 1e-3f); };
@@ -70,7 +70,7 @@ void test_lanes() {
     CHECK(lane_end_shift(longer, sh, -30.0f) == 30.0f && at(lane_end(longer, sh, -30.0f), 230.0f, 0.0f));
     sh.left = 12.0f;
     CHECK(at(lane_end(longer, sh, 50.0f), 150.0f, 12.0f));
-    // Squeeze rows: the lane is one point per waypoint whatever the line between them (mov2 t01: it feeds only the corner
+    // Squeeze rows: the lane is one point per waypoint whatever the line between them (it feeds only the corner
     // pass; retail has no point per row and no segment test). A narrow row takes the unit's offset in that entry's pack.
     const std::vector<float> shift = {0.0f, 0.0f, 0.0f, 10.0f, 10.0f, 0.0f, 0.0f};
     const std::vector<uint32_t> entry = {0, 0, 0, 1, 1, 0, 0};
@@ -491,7 +491,7 @@ void test_jetpack() {
     o.units = {1};
     o.destination = cell_center(70, 40);
     sys.move(o, rng, 0);
-    sys.coordinator_update(0, 0, rng);  // cu8j t01: the composition draws at the next coordinator update
+    sys.coordinator_update(0, 0, rng);  // the composition draws at the next coordinator update
     const SimRng before = rng;
     std::vector<uint8_t> states;
     std::vector<int32_t> anims;
@@ -544,7 +544,7 @@ void test_flying() {
     o.units = {1};
     o.destination = cell_center(60, 60);
     sys.move(o, rng, 0);
-    sys.coordinator_update(0, 0, rng);  // cu8j t01: the composition draws at the next coordinator update
+    sys.coordinator_update(0, 0, rng);  // the composition draws at the next coordinator update
     uint32_t arrive = 0, reissues = 0, last_reissue = 0, min_gap = 100000;
     LocoState prev = LocoState::None;
     const uint64_t draws0 = rng.draws();
@@ -554,7 +554,7 @@ void test_flying() {
         sys.tick(f, rng);
         const UnitView v = sys.view(1);
         max_roll = std::max(max_roll, std::fabs(v.roll));
-        float ar = 0.0f, ap = 0.0f;  // S7 t05: the render attitude = the flyer's roll / pitch
+        float ar = 0.0f, ap = 0.0f;  // the render attitude = the flyer's roll / pitch
         att_ok = att_ok && sys.attitude(1, ar, ap) && ar == v.roll && ap == v.pitch && std::fabs(ap) <= 30.0f;
         max_pitch = std::max(max_pitch, std::fabs(ap));
         if (arrive) max_dist = std::max(max_dist, distance(v.pos, o.destination));
@@ -606,7 +606,7 @@ void test_flying() {
     walk.units = {2};
     walk.destination = cell_center(80, 60);
     s2.move(walk, rng, 0);
-    s2.coordinator_update(0, 0, rng);  // cu8j t01: the composition draws at the next coordinator update
+    s2.coordinator_update(0, 0, rng);  // the composition draws at the next coordinator update
     const uint64_t draws2 = rng.draws();
     float near_end = 1e9f;
     for (uint32_t f = 0; f < 1500; ++f) {
@@ -672,7 +672,7 @@ void test_flying_clearance() {
     h = clearance_half_extents(2.0f, 3.0f, 1.5f, false, 9.0f, 9.0f);
     CHECK(h.x == 3.0f && h.y == 4.5f);
     CHECK(clearance_top(0.0f, 40.0f, 2.0f, 25.0f) == 105.0f && clearance_top(-10.0f, 10.0f, 3.0f, 7.0f) == 7.0f);
-    CHECK(clearance_top(4.0f, 36.0f, 2.0f, 25.0f) == 105.0f);  // s78n t10: (centre z 4 + half z 36) x 2 + 25
+    CHECK(clearance_top(4.0f, 36.0f, 2.0f, 25.0f) == 105.0f);  // (centre z 4 + half z 36) x 2 + 25
     // Hit test, isotropic radii (R = 3 + 5 = 8): the segment (0, 0) -> (100, 0) touches entries within 8 of it.
     ClearanceEntry e;
     e.ex = e.ey = 3.0f;
@@ -819,7 +819,7 @@ void test_flying_clearance() {
     CHECK(z0 < 60.0f && m1 == w1 && m1 > 95.0f && z1 > 90.0f && z1 <= m1 + 1.0f);
 }
 
-// S7 t06: Uses_Multiple_Locomotors WALK <-> JETPACK swap (MOVEMENT §3.1 / §6.2, 0x3a9910) and the clearance query
+// Uses_Multiple_Locomotors WALK <-> JETPACK swap (MOVEMENT §3.1 / §6.2, 0x3a9910) and the clearance query
 // acting on the jetpacking unit (FIGHTER_FLYING §6.3.1: the airborne multi-locomotor unit is in the Corvette layer).
 UnitDesc trooper(ObjectId id, V2 pos) {  // Dark_Trooper_PhaseII-like: WALK primary, JETPACK secondary
     UnitDesc d = unit(id, pos, 0, 1.0f, 6.0f, LocomotorKind::Default);
@@ -891,7 +891,7 @@ void test_multi_locomotor() {
     j2.destination = cell_center(20, 60);
     j2.switch_locomotor = true;
     sys.move(j2, rng, f);
-    sys.coordinator_update(f, f, rng);  // cu8j: the orders' and the swap's compositions draw here, not in flight
+    sys.coordinator_update(f, f, rng);  // the orders' and the swap's compositions draw here, not in flight
     UnitView v = sys.view(1);
     CHECK(v.locomotor == LocomotorKind::Jetpack && v.secondary_locomotor && v.has_goal && v.loco_state == LocoState::None &&
           v.max_speed == 2.5f * mult);
@@ -1106,7 +1106,7 @@ void test_jetpack_accel_fallback() {
                 static_cast<double>(mult), static_cast<double>(2.5f * mult));
 }
 
-// PR #19 review (S8 t09): a jetpack in flight must never repeat a pose (MOVEMENT §3.1.1: a 0x13 frame whose follower step
+// PR #19 review: a jetpack in flight must never repeat a pose (MOVEMENT §3.1.1: a 0x13 frame whose follower step
 // leaves position and orientation unchanged drops to 0x16 and swaps back in the air). The planner made zero-length wait
 // steps (ops 7 / 18 clamped to the goal distance) at the goal in facing mode; it no longer does. Checks the planner output
 // directly (facing-mode requests: no two consecutive waypoints with the same pose and later time) and whole flights with a
@@ -1276,7 +1276,7 @@ void test_jetpack_orders() {
         CHECK(sys.view(1).secondary_locomotor && sys.view(1).loco_state == LocoState::WalkStopped);
         sys.tick(1, rng);
         CHECK(!sys.view(1).secondary_locomotor && sys.view(1).locomotor == LocomotorKind::Default &&
-              sys.view(1).pos == cell_center(10, 10) && rng.draws() == 1);  // cu8j t02: the swap's composition
+              sys.view(1).pos == cell_center(10, 10) && rng.draws() == 1);  // the swap's composition
     }
     {  // re-issue: a walking formation member keeps its goal alone and flies there
         MovementSystem sys{MovementConfig{}};
@@ -1518,7 +1518,7 @@ void test_fighter_space() {
     CHECK(sys.teleport(1, {2030.0f, 0.0f}, 0.0f, 0.0f, fr));
     for (uint32_t g = 1; g <= 20; ++g) sys.tick(fr + g, rng);
     CHECK(distance(sys.view(1).pos, {2030.0f, 0.0f}) < 1e-3f);
-    // Attack target: the next move is Moving (0x1B) at order time [port, S7 t12: the target fed then may be the old order's]
+    // Attack target: the next move is Moving (0x1B) at order time [port, the target fed then may be the old order's]
     // and turns into Directed_Combat (0x1E) on its first fighter frame (§2 step 6).
     FighterTarget pt;
     pt.point = true;  // a point target at the origin
@@ -1560,7 +1560,7 @@ void test_fighter_guard() {
     CHECK(fg && fg->blocks.size() == 1 && fg->blocks[0].kind == kFighterBlockObject && fg->blocks[0].object == 2 &&
           fg->blocks[0].flags == kMoveFlagGuardMove && fg->follow && fg->next == kStartPending &&
           fg->state == kFormationMoving && fg->speed == -1.0f);
-    {  // cu8j t01: the composition (next coordinator update) draws int(1, FPS); the first check is F + 30 + r
+    {  // the composition (next coordinator update) draws int(1, FPS); the first check is F + 30 + r
         SimRng ref = rng;
         sys.coordinator_update(0, 0, rng);
         const int32_t r = ref.range_int(1, kFormationFps);
@@ -1949,7 +1949,7 @@ void test_fighter_formation_stack() {
                 limit ? 1 : 0, prepop ? 1 : 0, kept_near ? 1 : 0, leash_pop ? 1 : 0, hidden_pop ? 1 : 0, c3 ? 1 : 0,
                 arrived_first ? 1 : 0, wp_frame, rearrived ? 1 : 0, arrived_pop ? 1 : 0, arrived_pop_frame, follow_ok, follow_runs, follow_rearrived, station_pop ? 1 : 0,
                 new_order ? 1 : 0);
-    // cu8j t01: the guard's formation is composed at frame 0, its first check at 0 + 30 + int(1, 30) <= 60.
+    // the guard's formation is composed at frame 0, its first check at 0 + 30 + int(1, 30) <= 60.
     CHECK(queued && not_moved && saved && popped && pop_frame <= 2u * kFighterGuardInterval + 1u && flew);
     CHECK(arrived_first && arrived_pop && arrived_pop_frame <= wp_frame + kFighterGuardInterval + 1u);
     CHECK(follow_runs > 0 && follow_ok == follow_runs);
@@ -2080,7 +2080,7 @@ void test_space_avoid() {
     CHECK(!avoid_precise(none, {80.0f, 0.0f, 0.0f}, {120.0f, 0.0f, 0.0f}, inside));
     CHECK(!inside);
 
-    // refixf t07: the projectile form (nearest hit, masks). A SHIELD wall in front of the hull wall: model y = 10 is
+    // the projectile form (nearest hit, masks). A SHIELD wall in front of the hull wall: model y = 10 is
     // world x = 90 (t 0.25 on 80 -> 120), the hull at t 0.5.
     {
         AvoidModel two_walls = wall_model();
@@ -2329,7 +2329,7 @@ void test_arrival_turn() {
         const Run r = run(90.0f, 30.0f, 1, 1);
         CHECK(r.after[0] == 30.0f && r.after.back() == 30.0f);
     }
-    {  // s78l t02: a stop drops the running turn -> arrival_turn_ended on the next tick only
+    {  // a stop drops the running turn -> arrival_turn_ended on the next tick only
         MovementSystem sys{MovementConfig{}};
         land_system(sys, 100);
         UnitDesc d = unit(1, cell_center(10, 10), 2, 2.0f, 8.0f, LocomotorKind::Default);

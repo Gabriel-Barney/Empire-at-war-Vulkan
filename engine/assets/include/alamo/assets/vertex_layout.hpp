@@ -1,6 +1,6 @@
 // alamo_assets - the two fixed GPU vertex layouts produced from ALO submeshes.
 //
-// Every ALO submesh stores the same 144-byte master vertex (SPEC.md 2.5); the vertex format name
+// Every ALO submesh stores the same 144-byte master vertex (legacy docs/formats/SPEC.md 2.5); the vertex format name
 // (0x10002) only says which fields are meaningful. We repack into one of two 64-byte layouts:
 //
 // VertexLayout::Static (all non-RSkin formats: alD3dVertN, NU2, NU2C, NU2U3U3, Grass)
@@ -17,7 +17,7 @@
 //
 // VertexLayout::Skinned (alD3dVertRSkin*; rigid skinning, one bone per vertex, weight 1)
 //   off  size  field      VkFormat                     notes
-//    0    12   position   VK_FORMAT_R32G32B32_SFLOAT   model (bind) space, NOT bone-local (SPEC.md 2.6)
+//    0    12   position   VK_FORMAT_R32G32B32_SFLOAT   model (bind) space, NOT bone-local (legacy docs/formats/SPEC.md 2.6)
 //   12    16   normal     VK_FORMAT_R32G32B32A32_SFLOAT xyz = normal as stored,
 //                                                      w = submesh-local palette index (0..23) as a
 //                                                      float, like the original's NORMAL.w packing;
@@ -28,11 +28,11 @@
 //   48    12   binormal   VK_FORMAT_R32G32B32_SFLOAT
 //   60     4   color      VK_FORMAT_R8G8B8A8_UNORM     same rules as Static
 //   The skeleton bone of a vertex is Submesh::bone_palette[uint(normal.w)]; a renderer that wants a
-//   single per-instance palette SSBO (PORTING.md 2.4) remaps on the CPU or through a per-draw
+//   single per-instance palette SSBO (legacy docs/shaders/PORTING.md 2.4) remaps on the CPU or through a per-draw
 //   palette-offset table. (Revision 2: colour replaced the former u16 skeleton-bone field at 60,
 //   which no shader read.)
 //
-// Tangent frame (both layouts), original-engine rule (SPACE_AND_OPEN.md B.7/D.5): the engine never
+// Tangent frame (both layouts), original-engine rule (legacy docs/re/SPACE_AND_OPEN.md B.7/D.5): the engine never
 // generates or repairs one. Submesh::has_tangents = the effective format (after the effect's
 // _ALAMO_VERTEX_TYPE override, D.2) has a frame; then T and B are the stored vectors verbatim, used
 // as two independent vectors (not unit, not orthogonal, no handedness sign; may be zero). Otherwise

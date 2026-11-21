@@ -1,4 +1,4 @@
-// GRC 2 (docs/re/GALACTIC_REVEAL_CORRUPTION.md §2): planet visibility levels (VisibilityLevelType bits), the
+// GRC 2 (legacy docs/re/GALACTIC_REVEAL_CORRUPTION.md §2): planet visibility levels (VisibilityLevelType bits), the
 // per-(planet, player) modifier list entries (SimpleModifierListClass<tVisibilityLevelType>, PD +0x1B8) and the
 // VisibilityLevelType text converter (0x510120). The runtime (lists, fold, sources, expiry) is on GalacticSim
 // (campaign.hpp, src/visibility.cpp).

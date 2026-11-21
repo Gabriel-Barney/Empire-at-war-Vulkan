@@ -1,4 +1,4 @@
-// A1 stage 1b - the tactical world as tactical perception reads it (docs/re/AI_TACTICAL_PERCEPTION.md).
+// A1 stage 1b - the tactical world as tactical perception reads it (legacy docs/re/AI_TACTICAL_PERCEPTION.md).
 //
 // A plain snapshot the host (stage 2 framework hookup) fills from the object store, the player list,
 // the type database, the FOW system and the mode, once per AI frame (before AI evaluation, after the
@@ -46,7 +46,7 @@ struct PerceptionType {
     int32_t tech_level = 0;                // Tech_Level (+0x89C)
     float population = 0.0f;               // pop(T, mode) 0x373500 (Land_/Space_Override_Population_Value if >= 0)
     float build_cost = 0.0f;               // Build_Cost_Credits (+0x86C)
-    // A2g t06: Build_Time_Seconds (+0x890, int field), 0x371230's base without a planet: the tactical AllowedTime base
+    // Build_Time_Seconds (+0x890, int field), 0x371230's base without a planet: the tactical AllowedTime base
     // 0x6c0450 sums it over a PotentialPlan's selection (tactical_nominal_time, tactical_ai.hpp).
     int32_t build_time_seconds = 0;
     float tactical_cost = 0.0f;            // TacticalBuild price: pad price 0x3744e0 (UC types) / tactical price 0x496d80
@@ -55,7 +55,7 @@ struct PerceptionType {
     // some type's Squadron_Units, +0x21 Cinematic_Object_Only, or behaviour DUMMY_STAR_BASE / DUMMY_GROUND_BASE.
     bool pp_excluded = false;
     bool under_construction = false;       // behaviour 0x2A TACTICAL_UNDER_CONSTRUCTION (pad structures, UC_)
-    // skai t12: an under-construction type's Tactical_Buildable_Constructed type (index into the type table), -1 none.
+    // an under-construction type's Tactical_Buildable_Constructed type (index into the type table), -1 none.
     // TacticalBuiltStructureCount names a structure being built by this type (host-filled, not hashed).
     int32_t constructed_type = -1;
     bool generic_hero = false;             // +0x14
@@ -114,7 +114,7 @@ struct PerceptionObject {
     bool engines_online = true;            // [L]
     // player-token inputs
     bool dummy_ground_structure = false;   // behaviour 0x5F (BaseLevel, land skirmish)
-    // skai t15: pre-built at the skirmish start, never in the grid owner lists (skai t22: also a space skirmish's
+    // pre-built at the skirmish start, never in the grid owner lists (also a space skirmish's
     // team-marker start station, SKAI_T22_SPACE_AI_RE Part 3). Not saved: the host fills it from the
     // store flag (objects::kFlagNoAiOwnerList, saved with the store) every AI frame; the grid's owner lists are saved.
     bool no_owner_list = false;

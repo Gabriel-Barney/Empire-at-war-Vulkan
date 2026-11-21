@@ -1,4 +1,4 @@
-// S8 - data tables read by combat: the damage-vs-armor matrix (TACTICAL_COMBAT.md 3.2) and the
+// S8 - data tables read by combat: the damage-vs-armor matrix (legacy docs/re/TACTICAL_COMBAT.md 3.2) and the
 // targeting priority sets (2.4). Both are loaded once and read-only during the simulation.
 #pragma once
 #include <cstdint>
@@ -63,7 +63,7 @@ struct PrioritySet {
     std::vector<int32_t> unit_exclusions;    // type indices
     uint64_t category_exclusions = 0;
     uint64_t property_exclusions = 0;
-    // refixf t06: Hard_Point_Priorities / Hard_Point_Exclusions are HardPointType values (field type 0x45, the enum-list
+    // Hard_Point_Priorities / Hard_Point_Exclusions are HardPointType values (field type 0x45, the enum-list
     // parser also used by Victory_Conditions; the shipped sets list "Shield_Generator, Engine, FIGHTER_BAY, ..."), not
     // hardpoint names: list order, values as HardpointKind (combat_system.hpp).
     std::vector<int32_t> hardpoint_priorities;

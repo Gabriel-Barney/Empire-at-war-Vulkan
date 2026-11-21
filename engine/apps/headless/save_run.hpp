@@ -38,7 +38,7 @@
 //   --save-when any|battle|galactic|pending|scheduled   save at the first tick >= T where saving is allowed and: any; a
 //              tactical battle is on the mode stack; no battle on the stack (the battles then start after the load); a
 //              conflict is queued / being decided with no battle running (not reachable in the all-AI sessions: the conflict
-//              manager decides and the battle host pushes the battle within one tick); scheduled (OPT3 t04): an AI background
+//              manager decides and the battle host pushes the battle within one tick); scheduled: an AI background
 //              job (galactic or land path recompute, latency_job.hpp) is in flight.
 // The check also asserts that the synced RNG (state + draw count) after loading equals the saving run's at the save
 // tick and at T+K.

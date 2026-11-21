@@ -46,8 +46,8 @@ public:
     }
     void sample(const galactic::GalacticSim& g);
     // Conflict results (ConflictManager log) and the local plot set's story dialogs, newest first.
-    // ui4 t11: the story dialog log, then `advisor_rows` (droid_log_rows of the advisor lines shown so far).
-    // `advisor_colors`: one colour per advisor row (mcx4 t14; shorter: the skin's colours).
+    // the story dialog log, then `advisor_rows` (droid_log_rows of the advisor lines shown so far).
+    // `advisor_colors`: one colour per advisor row (shorter: the skin's colours).
     ui::DroidLogInfo droid_log(const GameSession& s, const GameData& d, const ui::TextDatabase& text,
                                std::span<const std::u32string> advisor_rows, std::span<const ui::Rgba8> advisor_colors = {}) const;
     ui::DataChartInfo chart(const galactic::GalacticSim& g, const GameData& d, const ui::TextDatabase& text) const;
@@ -75,7 +75,7 @@ struct StoryScriptLoads {
 };
 void sync_story_scripts(const GameSession& s, const GameData& d, StoryDialogCache& cache, StoryScriptLoads& loads);
 
-// Fire step 6 records (STORY.md §1.6) of every plot set since `cursor` (advanced), in firing order: the holocron list is
+// Fire step 6 records (legacy docs/re/STORY.md §1.6) of every plot set since `cursor` (advanced), in firing order: the holocron list is
 // global (GALACTIC_DIALOGS §2.8), so every player's records count. With the loaded Story_Dialog script chapter
 // (story_script.hpp): its title, lines with their TEXTCOLOR colours and WAIT times (TEXT through Story_Var), SFX / DIALOG
 // cues, IMAGE, and the event's Add_Dialog_Text lines as they are at EXTRA_TEXT; its MOVIE / MOVIE_ONCE goes to `movies`.
@@ -84,7 +84,7 @@ struct StoryMovie {
     std::string name;
     bool loop = true;
 };
-// GALACTIC_DIALOGS §2.1 / STORY.md §1.6 step 3: per returned dialog, Story_Dialog_Popup, Story_Dialog_SFX, the holocron
+// GALACTIC_DIALOGS §2.1 / legacy docs/re/STORY.md §1.6 step 3: per returned dialog, Story_Dialog_Popup, Story_Dialog_SFX, the holocron
 // record it added, and whether it comes from a random story plot (Random_Plot_*: the IDD_STORY_DIALOG offer, §2.4).
 struct StoryDialogMeta {
     bool popup = false;
@@ -112,7 +112,7 @@ HolocronSummaryView holocron_summary(const GameSession& s, const StoryDialogCach
                                      uint64_t selected_id);
 
 // P4 host: rows of the FoC galactic special panels for an open dialog (GameSession::special_dialog), from the GalacticSim
-// getters (galactic special_systems.hpp; docs/re/P4_SIM_SYSTEMS.md). `kind` = galactic::kSpecial*; `hero_id` = the dialog's
+// getters (galactic special_systems.hpp; legacy docs/re/P4_SIM_SYSTEMS.md). `kind` = galactic::kSpecial*; `hero_id` = the dialog's
 // buyer / saboteur / defiler / hacker (0: none, e.g. a preview).
 //   black market  bm_offers in item-table order (max 5 shown): name / description / icon from BlackMarketItems.xml, price,
 //                 enabled = affordable and not purchased [port], tech icon by the item's faction (0 Rebel, 1 Empire)
@@ -138,12 +138,12 @@ SpecialPanelData special_panel(const galactic::GalacticSim& g, const GameData& d
                                std::span<const ui::HudTypeInfo> hud_types, int32_t player, uint32_t kind, PlanetIndex planet,
                                uint32_t hero_id);
 
-// Campaign end (Int-verify): the host calls galactic::victory_outcome (victory.hpp; q6 t21: the sim holds the records)
+// Campaign end (Int-verify): the host calls galactic::victory_outcome (victory.hpp; the sim holds the records)
 // instead of the former campaign_outcome stand-in.
 struct BattleTally {
     uint32_t kills = 0, losses = 0;  // units destroyed by / of the local player (battle deaths)
 };
-// ui1 t05 (GAME_SCORING.md §7): the statistics dialog's values from the GameScoring script's
+// ui1 t05 (legacy docs/re/GAME_SCORING.md §7): the statistics dialog's values from the GameScoring script's
 // Get_Game_Stat_For_Control_ID (efficiencies 0..1+, title = a TEXT_*_TITLEnn key). ok = false: no script answer.
 struct ScoringStats {
     bool ok = false;

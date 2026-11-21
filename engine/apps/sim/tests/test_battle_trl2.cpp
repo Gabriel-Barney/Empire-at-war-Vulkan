@@ -327,7 +327,7 @@ void test_ground_special_weapon() {
     CHECK(seen && ions == 1 && owner_ok && at_backdrop && registered && others == 0);
 }
 
-// ---- trl2 t05: space ----
+// ---- space ----
 // S10_Star_Base_1 names T_SD_Boom (a PARTICLE) as its Retreat_Self_Destruct_Explosion.
 std::string self_destruct_patch(std::string t) {
     const std::string at = "<StarBase Name=\"S10_Star_Base_1\">";

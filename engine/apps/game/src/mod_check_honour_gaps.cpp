@@ -1,4 +1,4 @@
-// Mod check, honour-gap family (mod_check_detail.hpp, report v4, docs/MOD_COMPAT_DESIGN.md §12.1): tags of retail's
+// Mod check, honour-gap family (mod_check_detail.hpp, report v4, docs/MODS.md "Load report (alamo.mod_report)"): tags of retail's
 // descriptor tables the data sets to a non-default value that the tag ledger says the port does not act on.
 #include "mod_check_detail.hpp"
 

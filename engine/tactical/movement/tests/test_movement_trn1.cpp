@@ -1,5 +1,5 @@
 // alamo_tactical_movement_trn1_tests (no framework; non-zero exit on failure).
-// trn1 t03 (docs/re/MOVEMENT.md §3.6, docs/re/TRN1_TERRAIN_GAMEPLAY.md §3): the land terrain conform 0x42bb40 - the water
+// trn1 t03 (docs/re/MOVEMENT.md §3.6, legacy docs/re/TRN1_TERRAIN_GAMEPLAY.md §3): the land terrain conform 0x42bb40 - the water
 // plane for Water-class units, the Overall_Length pitch and z lift, the Overall_Width roll and the passability cut of the
 // sample points. Hand numbers follow from the rules in the comments.
 #include <cmath>

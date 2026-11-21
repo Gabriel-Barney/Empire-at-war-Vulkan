@@ -45,7 +45,7 @@ static void test_hasher() {
     const uint8_t raw[] = {1, 2, 3, 4, 0x00, 0x00, 0x80, 0x3F, 0xEF, 0xBE};
     t2.bytes(raw, sizeof raw);
     CHECK(t1.digest() == t2.digest());
-    // OPT3 t05: the inline typed feeds (pending-word fast path) equal the byte stream fed one byte at a time, for every
+    // the inline typed feeds (pending-word fast path) equal the byte stream fed one byte at a time, for every
     // alignment of every width, mixed with bulk bytes() calls.
     {
         alamo::StateHasher typed, bytewise;
@@ -179,7 +179,7 @@ static void test_bytes() {
     CHECK(r.u8() == 0 && !r.ok());
 }
 
-// Golden sequences: computed independently from the MAIN_LOOP.md §4.1 spec (Python model, float32
+// Golden sequences: computed independently from the legacy docs/re/MAIN_LOOP.md §4.1 spec (Python model, float32
 // rounding emulated), so they pin the algorithm, not just this implementation.
 static void test_rng() {
     alamo::SimRng a(12345);
@@ -273,7 +273,7 @@ static void test_parity() {
     // crc32_raw = the standard table CRC without the init/final inversion.
     CHECK((alamo::crc32_raw("123456789", 9, 0xFFFFFFFFu) ^ 0xFFFFFFFFu) == 0xCBF43926u);
     CHECK(alamo::crc32_raw(xb, 0) == 0u);
-    // Frame finish (COMMANDS.md §7.1 steps 5-7).
+    // Frame finish (legacy docs/re/COMMANDS.md §7.1 steps 5-7).
     alamo::ParityFrameOptions po;
     CHECK(alamo::parity_finish(5, 0x12345678u, po) == ~0x12345678u);  // invert only
     po.scoring = [](uint32_t seed) { return seed * 3u + 1u; };

@@ -12,7 +12,7 @@ void TacticalAiConstants::load(const data::GameConstants& gc) {
     high_threat_tolerance = gc.get_float("High_Threat_Reachability_Tolerance", high_threat_tolerance);
     space_threat_decay_step = gc.get_float("AI_SpaceThreatDecayStep", space_threat_decay_step);
     fog_cells_per_threat_cell = gc.get_int("AI_FogCellsPerThreatCell", fog_cells_per_threat_cell);
-    desired_land_fow_cell_size = gc.shared.desired_land_fow_cell_size.value_or(desired_land_fow_cell_size);  // ref4 t06: GameConstants::shared
+    desired_land_fow_cell_size = gc.shared.desired_land_fow_cell_size.value_or(desired_land_fow_cell_size);  // GameConstants::shared
     desired_space_fow_cell_size = gc.shared.desired_space_fow_cell_size.value_or(desired_space_fow_cell_size);
     ai_uses_fow_space = gc.shared.ai_uses_fog_of_war_space.value_or(ai_uses_fow_space);
     ai_uses_fow_land = gc.shared.ai_uses_fog_of_war_land.value_or(ai_uses_fow_land);

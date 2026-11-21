@@ -1,4 +1,4 @@
-// Part 3 of test_movement_gaps (bo3 t03: split by position; see test_movement_gaps_common.hpp).
+// Part 3 of test_movement_gaps (split by position; see test_movement_gaps_common.hpp).
 #include "alamo/test/engagement_fns.hpp"
 #include "test_movement_gaps_common.hpp"
 
@@ -1329,7 +1329,7 @@ void test_t20_early_arrival() {
         // is End Move's T = a from the rest test on (the t20 sqrt(2 a rest) curve was a port stand-in)
         CHECK(r.speed_after == r.speed_before && near(r.speed_before, mult, 1e-4f));  // at the full 1 x 1.56
         // its front stays 5 + 3 short of the standing footprint, less the frame it walks on at full speed before its record is
-        // decided (mov1 t08: detection at the end of the driver, the decision at the next one)
+        // decided (detection at the end of the driver, the decision at the next one)
         CHECK(r.min_gap >= 5.0f + 3.0f - mult - 1e-3f);
         std::printf("t20 early arrival: cut %.1f, stopped at %.3f, speed %.3f -> %.3f on the cut frame\n", static_cast<double>(back + 3.0f),
                     static_cast<double>(r.end.x), static_cast<double>(r.speed_before), static_cast<double>(r.speed_after));
@@ -1355,7 +1355,7 @@ void test_t20_early_arrival() {
         CHECK(first_clear(10.0f, 6.0f, dest, 12.0f, 6.0f, start.x, 120.0f, V2{dest.x + 100.0f, dest.y}) < 0.0f);
         const Out r = vehicle_case(2);
         CHECK(r.arrived && r.st.early_arrivals == 0 && r.around && r.path_end == dest);
-        // s78n t26.4: the same coast past the rejoin point (dest + 30), no snap
+        // the same coast past the rejoin point (dest + 30), no snap
         CHECK(distance(r.end, V2{dest.x + 30.0f, dest.y}) < mult * mult / (2.0f * 0.05f));
     }
     {  // (vi) even the mover's own position fails (a second unit stands on it): nothing is cut
@@ -1447,7 +1447,7 @@ void test_t20_early_arrival() {
         }
         CHECK(lane.size() == 2 && side.size() == 2);
         bool placed = false;
-        V2 end0[5];  // mov2 t01: each member's path end after the plan (the formation path's end W: every member walks a copy)
+        V2 end0[5];  // each member's path end after the plan (the formation path's end W: every member walks a copy)
         bool have0 = false;
         uint32_t f = 1;
         for (; f < 2500 && sys.stats().early_arrivals == 0; ++f) {
@@ -1757,7 +1757,7 @@ void test_t20_decision_leftovers() {
             arrived = v.arrived;
             pushed = pushed || v.pushed;
             held = held || (v.has_goal && v.speed < v.max_speed && v.pos.x > start.x + 20.0f && v.pos.x < dest.x - 20.0f);
-            // (mov1 t08: a record detection made at the end of this tick's driver waits in state 0; validity drops it at the
+            // (a record detection made at the end of this tick's driver waits in state 0; validity drops it at the
             // next driver)
             for (const CollisionObject& c : sys.collisions().list())
                 listed = listed || (c.a == 10 && c.b == 11 && c.state != CollisionState::Active);
@@ -1879,7 +1879,7 @@ void test_t20_stopped_vs_stopped() {
         }
         if (what == 2) CHECK(sys.deploy(11, true, 0) == MovementSystem::DeployResult::Deploying);
         SimRng rng(101);
-        sys.tick(0, rng, pf);  // mov1 t08: detection at the end of the driver makes the record; the next driver decides it
+        sys.tick(0, rng, pf);  // detection at the end of the driver makes the record; the next driver decides it
         sys.tick(1, rng, pf);
         if (sys.collisions().list().size() == 1) {
             o.master = sys.collisions().list()[0].master;
@@ -2216,7 +2216,7 @@ void test_t20_death_clone() {
         MovementSystem sys{MovementConfig{}};
         setup(sys);
         SimRng rng(525);
-        sys.tick(0, rng, serial_for);  // mov1 t08: the record detection makes waits for the next driver
+        sys.tick(0, rng, serial_for);  // the record detection makes waits for the next driver
         sys.tick(1, rng, serial_for);
         CHECK(sys.collisions().list().size() == 1);
         if (sys.collisions().list().size() == 1) {

@@ -1,4 +1,4 @@
-// aud1 t05: ability, shield and hyperspace object SFX (GameAudioHost; rules: docs/re/AUDIO.md §9.6).
+// ability, shield and hyperspace object SFX (GameAudioHost; rules: legacy docs/re/AUDIO.md §9.6).
 #include "alamo/game/game_audio_host.hpp"
 
 #include "alamo/core/ascii.hpp"
@@ -332,7 +332,7 @@ void GameAudioHost::object_events(const sim::TacticalBattle& battle, const objec
         const audio::FactionAudio* f = game_data_->find_faction(player_factions[static_cast<size_t>(owner)]);
         return f ? f->get(tag) : std::string_view{};
     };
-    // Abilities: EffectOn = the activation presentation (light, particle, sound), event order (aud1 t10: the kept copy).
+    // Abilities: EffectOn = the activation presentation (light, particle, sound), event order (the kept copy).
     ability_activations(battle.abilities().activation_events(), store, types);
     // mcx4 t13 (MCX4_T13_RE_ANSWERS "Laser_Defense_Ability.Zap_SFXEvent", "Tactical_Bribe_Ability.SFXEvent_Success
     // family"): a laser-defense zap, a refused bribe and a paid bribe play the ability's line attached to the user; any owner.
@@ -359,7 +359,7 @@ void GameAudioHost::object_events(const sim::TacticalBattle& battle, const objec
     // Hyperspace: the battle's append-only log from our cursor (a shorter log = a new battle or a load). An Arrive of a
     // reinforcement held in hyperspace (LINK_TACTICAL Param9 = 2) is logged only after the script's Resume_Hyperspace_In
     // clears the hold (TacticalBattle::arrival_held; L1_S4_REMAINING §3.4, 0x543570):
-    // binding-consumer: Resume_Hyperspace_In (docs/re/MCX6_T05_CINEMATIC_BINDINGS.md §6)
+    // binding-consumer: Resume_Hyperspace_In (legacy docs/re/MCX6_T05_CINEMATIC_BINDINGS.md §6)
     const std::span<const sim::TacticalBattle::HyperspaceSfx> log = battle.hyperspace_sfx();
     if (log.size() < hyperspace_seen_) hyperspace_seen_ = 0;
     for (; hyperspace_seen_ < log.size(); ++hyperspace_seen_) {

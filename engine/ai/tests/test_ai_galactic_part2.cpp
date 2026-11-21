@@ -1,4 +1,4 @@
-// Part 2 of test_ai_galactic (bo3 t03: split by position; see test_ai_galactic_common.hpp).
+// Part 2 of test_ai_galactic (split by position; see test_ai_galactic_common.hpp).
 #include "test_ai_galactic_common.hpp"
 
 // a2m t02 (A2K_T08_RE_ANSWERS Q2.3 step 4 TRANSPORTS_TO_ORBIT, A2L_T01_RE_ANSWERS Q8.3) [H state; M name]: Produce_Force
@@ -347,7 +347,7 @@ void test_fleet_distance_tokens() {
     std::printf("fleet distance tokens: IsConnectedTo follows MaximumFleetMovementDistance (P1 72.1, P2 120)\n");
 }
 
-// mcx4 t02 (docs/re/MCX4_GAL2_RE_ANSWERS.md Q1): the four connectivity tokens over the AI connectivity graph 0x662c90.
+// mcx4 t02 (legacy docs/re/MCX4_GAL2_RE_ANSWERS.md Q1): the four connectivity tokens over the AI connectivity graph 0x662c90.
 // The synthetic chain P0..P7 (60 apart in x, 72.1 per hop, a trade route per hop). Edge = distance / GameConstants
 // TradeRouteMovementFactor on a trade route, else the distance when <= MaximumFleetMovementDistance; value = how often the
 // planet lies strictly inside the shortest path of a pair, over the largest count.
@@ -611,7 +611,7 @@ void test_budget_fraction_before_init() {
 
 // A2f t02 R1: ProductionM vetoes a produced candidate whose Setup C time is 1e18 (no source planet passes 0x2804d0, or a
 // structure 0x2804d0 refuses at the target) [port: AI_GALACTIC_2 §1.4 has no such veto]. Cases from the HotM diagnosis
-// (docs/re/A2F_PRODUCTION_STALL_DIAG.md): a zero-cost hero type (Veers_AT_AT_Walker), Build_Initially_Locked never
+// (legacy docs/re/A2F_PRODUCTION_STALL_DIAG.md): a zero-cost hero type (Veers_AT_AT_Walker), Build_Initially_Locked never
 // unlocked (TIE_Fighter_Squadron), a structure whose Required_Special_Structures is missing at the target (Heavy /
 // Advanced Vehicle Factory). Free-store units of such types still join (FreeStore score, Production 0.5). Category-mask
 // teams no longer drop zero-cost types (no cost rule in §1.3).
@@ -705,7 +705,7 @@ void test_production_unbuildable() {
 
 GoalSystemConfig galactic_goal_config() {
     GoalSystemConfig c;
-    c.nominal_allowed_time = true;  // as the galactic AI (A2f t09)
+    c.nominal_allowed_time = true;  // as the galactic AI
     return c;
 }
 
@@ -745,7 +745,7 @@ void test_goal_time_drop() {
     CHECK(late_goal_released_after(false, 10.0f, LateMode::Stalled) < 0);  // Set_As_Goal_System_Removable(false): kept
     CHECK(late_goal_released_after(true, 0.0f, LateMode::Stalled) < 0);    // ETA 0 -> AllowedTime 0 = no limit
 
-    // 0x525200 in a world (AI_GALACTIC_2 §3.4, q2f t01): a Barracks plan at P0 (Upgrade_Starbase goal). While its build
+    // 0x525200 in a world (AI_GALACTIC_2 §3.4): a Barracks plan at P0 (Upgrade_Starbase goal). While its build
     // task waits on the market it is > 0; from production start (the bid record is released) it is 0.
     ParityWorld pw(false, {"BuildBarracks"});
     float first = -1.0f, last = -1.0f, peak = 0.0f;
@@ -999,10 +999,10 @@ void test_btime_none_speed_factor() {
 // ================================================================ a2g t05 (a): nominal_time follows the plan_activatable re-solve
 //
 // Commit's 0x6c4a50 re-solves a new proposal's PP honouring the free-store reservations (A1_READINGS §28.6 step 3), and
-// AllowedTime reads the re-solved selection (A2f t09). HeroDeny's team "HeroShip | Corvette = 1,1": the proposal's first
+// AllowedTime reads the re-solved selection. HeroDeny's team "HeroShip | Corvette = 1,1": the proposal's first
 // solve takes the free-store hero (build time 50 s -> nominal 50); the hero is then reserved by another PP before the
 // Commit, so the re-solve produces a Corvette (100 s -> nominal 100). The activated goal's nominal_time is the new one's.
-// a2k t01: 0x6c4a50 also copies the re-solved net cost and ETA to the goal (G +0x78 / +0x7C, A2H_T06_TACTICAL_ETA §2.1) [H],
+// 0x6c4a50 also copies the re-solved net cost and ETA to the goal (G +0x78 / +0x7C, A2H_T06_TACTICAL_ETA §2.1) [H],
 // so Resolve's fundable test and the budget add see them: the free hero's net 0 becomes the produced Corvette's cost. (The
 // port kept the proposal's cost: on HotM the Empire's Build_Space_Forces reserved the first solve's Acclamator, 2500,
 // while the re-solve built Tartan + Broadside, 3050, which left room for Build_Ground_Forces at frame 42.)
@@ -1349,7 +1349,7 @@ void test_force_maintenance_tokens() {
     CHECK(ok);
     const double fm0 = token("Variable_Target.FriendlyForce.Maintenance", 0, 1, 0, ok);
     CHECK(ok && fm0 == f0 / gross0);
-    // The failing bindings first: the leaf cache key holds no Variable_Enemy (AI_GALACTIC_TOKENS §9.9, q6 t18) and
+    // The failing bindings first: the leaf cache key holds no Variable_Enemy (AI_GALACTIC_TOKENS §9.9) and
     // failures are never cached, so a value cached for player 1 would answer them for 15 s.
     token("Variable_Target.EnemyForce.Maintenance", 0, 3, 7, ok);
     const bool ok_enemy_gross0 = ok;
@@ -1383,7 +1383,7 @@ void test_force_maintenance_tokens() {
         float s = gal::econ::income_base(p.base_value, p.black_market);
         if (p.owner != sim.neutral_player())
             s += gal::econ::income_political(p.base_value, static_cast<float>(sim.rules().constants.max_political_control),
-                                             sim.rules().constants.political_income_curve);  // GC+0xF0 (mcx5 t02)
+                                             sim.rules().constants.political_income_curve);  // GC+0xF0
         float gain = 0.0f;
         if (p.owner >= 0)
             for (const uint32_t rt : p.links) gain += std::max(0.0f, sim.map().routes.credit_gain_factor[rt]);
@@ -1798,7 +1798,7 @@ void test_budget_fraction_in_progress() {
 // ================================================================ a2g F2: the budget reset flag +0x74 on a template switch
 //
 // AI_GALACTIC_2 §3.1 tick second pass: with the reset flag, P = Σ x w first, then P += (credits - Σ) x w; the tick clears it.
-// Retail sets it when the template set changes (docs/re/A2G_T01_RESET_FLAG_PROBE.md); the port never set it before.
+// Retail sets it when the template set changes (legacy docs/re/A2G_T01_RESET_FLAG_PROBE.md); the port never set it before.
 void test_budget_reset_on_template_switch() {
     // AiBudget alone: Init {1, 1} with 1000 credits (A = P = 500 each), reweight {3, 1} (w 0.75 / 0.25, A = P = 500), one
     // tick with 1100 credits (Σ = 1000). Without the flag P = 500 + 100 w; with it P = 1000 w + 100 w.
@@ -1898,14 +1898,14 @@ void test_free_store_path_rules() {
     CHECK(free_store_path_sum(std::vector<uint32_t>{0u, 0u}, 2) == 0 && free_store_path_passes(0));  // src == dst
     std::vector<uint32_t> long_path(1500, 1u);
     CHECK(free_store_path_sum(long_path, 1500) == 1000);  // at most 1000 hops summed
-    // q2f t09: the sync ETA's path length 0x691370 = (low 16 bits of the sum) / 10, node costs ignored.
+    // the sync ETA's path length 0x691370 = (low 16 bits of the sum) / 10, node costs ignored.
     {
         const std::vector<uint32_t> len{gal::pack_edge_weight(0u, 2200u), gal::pack_edge_weight(3u, 730u), 0u};
         CHECK(ai_path_length(len, 3) == 293.0);
         CHECK(ai_path_length(std::vector<uint32_t>{0u, 0u}, 2) == 0.0);
         CHECK(ai_path_length({}, 0) == static_cast<double>(0xFFFFu) / 10.0);  // empty path: the sum's start -1
     }
-    // a2l t03: Reachable_Target's slot 7 (0x663810, A2L_T03_RE_ANSWERS Q1.2) per level.
+    // Reachable_Target's slot 7 (0x663810, A2L_T03_RE_ANSWERS Q1.2) per level.
     {
         const std::vector<uint32_t> free2{gal::pack_edge_weight(0u, 7u), 0u};  // A -> B, no node cost, hop 7
         const std::vector<uint32_t> cost2{gal::pack_edge_weight(1u, 7u), 0u};  // node cost 1 on the destination
@@ -2107,7 +2107,7 @@ void test_free_store_world() {
     CHECK(r2.size() == 3 && std::find(r2.begin(), r2.end(), PlanetIndex{2}) != r2.end());  // P2 reached (flag 4), not crossed
     CHECK(r5.size() == 8);
     const uint64_t d0 = pw.rng->synced().draws();
-    // gai3 t05 (A2M_T08_T10_T14_RE.md t14.7): candidates are walked in target-list order, the planet rows in reverse, and a
+    // gai3 t05 (legacy docs/re/A2M_T08_T10_T14_RE.md t14.7): candidates are walked in target-list order, the planet rows in reverse, and a
     // tie keeps the first, so the highest tied row is the best.
     CHECK(world.reachable_target(0, "One", "Friendly", "Friendly_Only", 1.0) == 1);  // ties keep the first (P1), no draw
     CHECK(pw.rng->synced().draws() == d0);

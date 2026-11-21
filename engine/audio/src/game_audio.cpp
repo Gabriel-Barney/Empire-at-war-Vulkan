@@ -67,7 +67,7 @@ std::string GameAudio::pick(const std::vector<std::string>& list) {
     return list[static_cast<size_t>(rng_->range_int(0, static_cast<int32_t>(list.size()) - 1))];
 }
 
-// The mode music table (AUDIO.md §2.3) from the local faction's Faction tags.
+// The mode music table (legacy docs/re/AUDIO.md §2.3) from the local faction's Faction tags.
 std::string GameAudio::resolve_music(uint8_t mode) {
     const FactionAudio* f = data_->find_faction(faction_);
     if (!f) return {};
@@ -268,7 +268,7 @@ void GameAudio::set_camera(const CameraState& camera) {
 
 void GameAudio::set_weather(std::string_view weather, float intensity, bool local_affected) {
     ambience_.set_weather(weather, intensity);
-    // aud1 t02 (AUDIO.md §9.3, 0x323340): the faction line plays when the intensity goes from exactly 0 to above 0 (Begin)
+    // aud1 t02 (legacy docs/re/AUDIO.md §9.3, 0x323340): the faction line plays when the intensity goes from exactly 0 to above 0 (Begin)
     // or from above 0 to exactly 0 (End), keyed by the current type, never on a type change alone; nothing for CLEAR or
     // while the local player is not weather-affected (Weatherproof). 2D, unforced.
     const bool was_on = weather_intensity_ > 0.0f, on = intensity > 0.0f;
@@ -286,7 +286,7 @@ void GameAudio::sim_tick() {
 }
 
 void GameAudio::update(double wall_dt_seconds) {
-    // AUDIO.md §6.1 step 14 order: audio system + SFX + music + speech, conversation managers, ambience.
+    // legacy docs/re/AUDIO.md §6.1 step 14 order: audio system + SFX + music + speech, conversation managers, ambience.
     audio_->update(wall_dt_seconds);
     conversations_.update(wall_dt_seconds);
     ambience_.update(wall_dt_seconds);
@@ -303,7 +303,7 @@ void GameAudio::update(double wall_dt_seconds) {
 // ---------------------------------------------------------------- battle events
 
 uint32_t GameAudio::weapon_fire(uint64_t /*shooter*/, std::string_view event, const Vec3& position) {
-    // AUDIO.md §9.5: 3D at the fixed muzzle / projectile position (0x2d5240), not attached; the fog test applies.
+    // legacy docs/re/AUDIO.md §9.5: 3D at the fixed muzzle / projectile position (0x2d5240), not attached; the fog test applies.
     if (event.empty() || audio_->database().constants().test_disable_weapon_fire_sfx) return 0;
     return impact(event, position);
 }
@@ -347,7 +347,7 @@ void GameAudio::stop_object_sfx(uint64_t object, std::string_view event, float f
 
 void GameAudio::combat(const CombatEvent& e) {
     if (!tactical_) return;
-    // AUDIO.md §9.2: mode 16 (battle end) is not excluded from the battle switch, so combat after battle_end still
+    // legacy docs/re/AUDIO.md §9.2: mode 16 (battle end) is not excluded from the battle switch, so combat after battle_end still
     // switches to battle music (notify_combat applies the retail exclusion list).
     if (e.local_player_involved) audio_->notify_combat(true);
     if (!e.local_base_attacked) return;
@@ -475,7 +475,7 @@ uint32_t GameAudio::unit_response(uint64_t representative, const UnitSounds& sou
     if (order == UnitOrder::Count) return 0;
     auto resp = [&](UnitOrder o) -> const std::string& { return sounds.response[static_cast<size_t>(o)]; };
     std::string event;
-    // [inferred] AUDIO.md §3.3: the non-hero-ability override first, then the group variants, then the order's
+    // [inferred] legacy docs/re/AUDIO.md §3.3: the non-hero-ability override first, then the group variants, then the order's
     // own line; FleetMove falls back to Move.
     if (non_hero_ability) {
         if (order == UnitOrder::Select) event = sounds.select_with_non_hero_ability;

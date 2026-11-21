@@ -1,7 +1,7 @@
 // alamo_meg - clean-room reader for Petroglyph Alamo-engine MEG archives.
 // No dependencies beyond the C++20 standard library and the host OS file-mapping API.
 //
-// Supported container versions (see docs/assets/README.md for byte layouts):
+// Supported container versions (see legacy docs/assets/README.md for byte layouts):
 //   V1  - Empire at War / Forces of Corruption retail archives (all shipped files).
 //   V2  - 0xFFFFFFFF / 0x3F7D70A4 header, 20-byte records.
 //   V3  - 0xFFFFFFFF / 0x3F7D70A4 header + name-table size, 20-byte records (u16 flags first) with
@@ -70,7 +70,7 @@ public:
     // record table, then confirm by case-insensitive name compare (handles collisions).
     const Entry* find(std::string_view name) const;
 
-    // The game's lookup (docs/re/MCX3_MEG_LOOKUP.md): the probe sequence of the CRT's bsearch over the record table as
+    // The game's lookup (legacy docs/re/MCX3_MEG_LOOKUP.md): the probe sequence of the CRT's bsearch over the record table as
     // stored, comparing the unsigned CRC of the normalised name with each record's stored CRC, no name compare; the
     // record found names the record that holds the data through its index field. Same as find() on a well-formed
     // table; on a malformed one it reproduces the game: entries an unsorted table hides are not found, one of
@@ -81,7 +81,7 @@ public:
     // Position of the record the probe sequence stops at for `crc` (before the index field), or SIZE_MAX.
     size_t probe(uint32_t crc) const;
 
-    // What lookup() makes of a malformed table (mcx3 t04), counted over the records; first_* name one example each.
+    // What lookup() makes of a malformed table, counted over the records; first_* name one example each.
     struct TableIssues {
         bool unsorted = false;         // some stored CRC is below the one before it
         uint32_t unreachable = 0;      // records lookup_crc(own CRC) never reaches (an unsorted table): lost

@@ -6,7 +6,7 @@
 //   MoveToPositionFacing        -> MovementSystem::move (the unit list, clamped to the mode bounds)
 //   Attack                      -> CombatSystem::order_attack (ref2 = 1 + HardPointType -> the target's first
 //                                  targetable hard point of that type) + a move into 80 % of the attack range;
-//                                  the target is also the units' attack goal (refixf t06)
+//                                  the target is also the units' attack goal
 //   PortExtension LuaOrder      -> MoveTo / AttackMove / Guard: a move to the target object / point; Stop.
 //                                  refixf t06 (TACTICAL_COMBAT §2.8): AttackMove on an enemy combat object sets it as
 //                                  each unit's attack goal (CombatSystem::set_attack_goal, path B); the task-force order
@@ -27,7 +27,7 @@
 //
 // Why not SimHost::execute_direct: SimHost::apply handles MoveToPosition / MoveToObject / Attack with the G0
 // stub locomotor of the TacticalMode, not the battle's MovementSystem / CombatSystem (integrator ask in
-// docs/PHASE4.md); the AI uses its own CommandPipeline::execute_direct whose handler is BattleAi::execute.
+// legacy docs/PHASE4.md); the AI uses its own CommandPipeline::execute_direct whose handler is BattleAi::execute.
 #pragma once
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
 #include <cstdint>
@@ -42,7 +42,7 @@
 #include "alamo/ai/tactical/tactical_ai.hpp"
 #include "alamo/core/file_provider.hpp"
 #include "alamo/lua/object_bridge.hpp"     // sp3 slice 4b: LaneAbilityView, LaneWrite
-#include "alamo/lua/fog_bridge.hpp"        // refixf t03: Find_Nearest's fog test in the tactical AI VMs
+#include "alamo/lua/fog_bridge.hpp"        // Find_Nearest's fog test in the tactical AI VMs
 #include "alamo/lua/script_gaps.hpp"       // battle host: the tactical AI VMs' TacticalScriptHooks
 #include "alamo/lua/script_remaining.hpp"  // L1 bindings: the tactical AI VMs' RemainingScriptHooks
 #include "alamo/tactical/abilities/special_weapons.hpp"  // sp3 slice 4e: the view's SpecialWeaponSystem copy
@@ -59,14 +59,14 @@ class TacticalBattle;
 class TacticalMode;
 
 // What the tactical AI needs from the session (loaded once by the host).
-// sp3: the process-wide default of TacticalAiSetup::ai_lane / k_ai (alamo_headless --ai-lane [--ai-lane-k K]). Set once
+// the process-wide default of TacticalAiSetup::ai_lane / k_ai (alamo_headless --ai-lane [--ai-lane-k K]). Set once
 // at start-up, before any setup is built; never read by sim code after that (each world keeps its own copy, saved).
 struct AiLaneDefaults {
     bool on = false;
     uint32_t k_ai = ai::tactical::kDefaultAiLaneLatency;
 };
 AiLaneDefaults& ai_lane_defaults();
-// ref5 t06: how many times AI lane code (think()) read the live battle through a BattleAi host answer, process-wide, and
+// how many times AI lane code (think()) read the live battle through a BattleAi host answer, process-wide, and
 // the first such answer's name (null when none). Diagnostic: alamo_headless fails a lane run with a nonzero count.
 uint64_t ai_lane_live_reads(const char** first = nullptr);
 
@@ -79,13 +79,13 @@ struct TacticalAiSetup {
     // AIPlayerType of a battle player ("" = no tactical AI). Default: default_tactical_ai_type.
     std::function<std::string(int32_t player, const galactic::GalacticSim& galaxy)> ai_type;
     int32_t difficulty = 1;  // 0 Easy, 1 Normal, 2 Hard
-    // skm2 t02: per player index its difficulty (0..2; -1 or missing = `difficulty`): a skirmish slot's own (SKIRMISH_SETUP
+    // per player index its difficulty (0..2; -1 or missing = `difficulty`): a skirmish slot's own (SKIRMISH_SETUP
     // §1, slot +0x158).
     std::vector<int32_t> player_difficulty;
     ai::tactical::TacticalAiConstants constants;
     bool log_decisions = true;
     // OPT2 t01 / t02 (TacticalAiConfig::stagger / path_latency): per-player planning phases; the land path finder's
-    // background recompute latency (0 = the original timing). bkx1 t01 (b0123): stagger off by default.
+    // background recompute latency (0 = the original timing). Stagger off by default.
     bool stagger = false;
     uint32_t path_latency = galactic::kDefaultAllPairsLatency;
     // OPT2 t10 (TacticalAiConfig::pp_streams / pp_latency): slot-10 solves on their own RNG streams, applied pp_latency
@@ -93,19 +93,19 @@ struct TacticalAiSetup {
     bool pp_streams = true;
     uint32_t pp_latency = ai::tactical::kDefaultPpLatency;
     bool plan_retest = true;  // skai t15 / t18 (TacticalAiConfig::plan_retest)
-    // sp3 (TacticalAiConfig::ai_lane / k_ai, docs/SIM_PARALLEL_DESIGN.md 5.1): the AI lane, off by default; the process
+    // sp3 (TacticalAiConfig::ai_lane / k_ai, docs/SIMULATION.md "AI lane cycle"): the AI lane, off by default; the process
     // default (ai_lane_defaults) is what a setup starts with, so every host that builds one follows the command line.
     bool ai_lane = ai_lane_defaults().on;
     uint32_t k_ai = ai_lane_defaults().k_ai;
 };
 
 // The AIPlayerType of a non-human, playable, non-neutral player: its faction's Basic_AI (FactionRules::basic_ai, faction
-// +0x378; AI_TACTICAL.md "Skirmish slots use Faction.Basic_AI"); "" for none or "None". modc t03: from the data, not by
+// +0x378; legacy docs/re/AI_TACTICAL.md "Skirmish slots use Faction.Basic_AI"); "" for none or "None". From the data, not by
 // faction name (FoC's Basic_AI values are the old built-in mapping Empire -> BasicEmpire, Rebel -> BasicRebel,
 // Underworld -> AI_Player_Underworld, so base-FoC battles are unchanged).
 std::string default_tactical_ai_type(int32_t player, const galactic::GalacticSim& galaxy);
 
-// a2h t05: the session data of the tactical AI, one loader for every battle host (alamo_headless --skirmish-ai and
+// the session data of the tactical AI, one loader for every battle host (alamo_headless --skirmish-ai and
 // galactic --battles, alamo_game): the tactical_plan_files of both modes (list = the VFS glob lister; empty = the plan
 // lists are left as they are), the difficulty table (load_tactical_ai_difficulties) and the GameConstants values
 // (TacticalAiConstants::load; gc null or a missing tag keeps the current value, i.e. the default).
@@ -127,16 +127,16 @@ public:
     // skm2 t01 (SKIRMISH_SETUP 1.1): TacticalAiWorld::set_difficulty for `player`, then the battle's build-time multipliers
     // again. False when the player has no tactical AI here or the difficulty is unchanged.
     bool set_difficulty(int32_t player, int32_t difficulty);
-    // a1h t02: the object-goal follow records' 30-frame re-path (the first step of update(); public for the host tests).
+    // the object-goal follow records' 30-frame re-path (the first step of update(); public for the host tests).
     void follow_service();
-    // sp3 t04 (AI lane, docs/SIM_PARALLEL_DESIGN.md 5.1): with TacticalAiConfig::ai_lane on, the AI's unit orders (moves,
+    // sp3 t04 (AI lane, docs/SIMULATION.md "AI lane cycle"): with TacticalAiConfig::ai_lane on, the AI's unit orders (moves,
     // MoveToObject, Attack, the Lua object orders Move_To / Attack_Move / Guard_Target / Stop) are not executed when given:
     // execute() answers with predict_order() and queues an accepted order as a command due on global frame N + k_ai (N =
     // the frame of the AI update). apply_lane_batch(frame) runs at the start of a tick (SimHost T2, before the players'
     // commands) and executes every queued order due by then in (due, player, sequence) order with the same rules as
     // before (execute_order), signals included. The other AI writes stay immediate until t05. Lane off: nothing queued.
     void apply_lane_batch(uint64_t frame);
-    // sp3 t02: with the lane on, update() runs the world as TacticalAiWorld::publish() (critical lane) + think() (the AI
+    // with the lane on, update() runs the world as TacticalAiWorld::publish() (critical lane) + think() (the AI
     // lane; inline until t03 moves it to the AI thread). Each think() is a job whose outputs - the orders it queued and
     // the digest of the AI world after it - become visible only when the job is collected: at the next update(), or at
     // the start of the tick its orders are due (k_ai = 1), whichever comes first; the battle.ai CRC hashes the digest of
@@ -158,7 +158,7 @@ public:
     bool controls(int32_t player) const;
     std::string summary() const;
     // The CRC "battle.ai": the world's digest (the last collected job's with the AI lane), then the saved fields in their
-    // save order (visit_saved; REF4 t02: one list for write() and hash(), the statistics left out).
+    // save order (visit_saved; one list for write() and hash(), the statistics left out).
     void hash(StateHasher& h) const;
     // N1 stage 2 (owner: n2-host; CampaignBattles chunk "battle.ai"): u32 version, a section with the TacticalAiWorld
     // (TacticalAiWorld::write / read, then relink() - battle.ai is the last battle chunk read), the AI sides
@@ -168,14 +168,14 @@ public:
     bool read(ByteReader& r);
 
 private:
-    // REF4 t02: the fields after the world section, for save_io::Out (write) and save_io::Hash (hash). battle_ai.cpp.
+    // the fields after the world section, for save_io::Out (write) and save_io::Hash (hash). battle_ai.cpp.
     template <class A>
     void visit_saved(A& a) const;
 
 public:
     // ---- TacticalAiHost ----
     void fill(ai::tactical::PerceptionWorld& w, std::vector<ai::tactical::TacticalAiObject>& objects) override;
-    // The battle's signal lists of the tick just run (FrameEvents; ref5 t07: one call for the six lists).
+    // The battle's signal lists of the tick just run (FrameEvents; one call for the six lists).
     //   opportunity: hard points whose opportunity target changed to a new live target since the previous call (ascending
     //     unit id, then hard-point index [port: no in-tick order]); owner = the unit's team container when it has one.
     //   attack_states: s78f t08, CombatSystem::attack_state_events. damaged: skai t15, signal 0x18 (unit_damaged_signals).
@@ -184,7 +184,7 @@ public:
     //   produced: q6 t19, TacticalBattle::production_done (land builds that went to the reinforcement pool).
     void frame_events(uint32_t kinds, ai::tactical::FrameEvents& out) override;
     commands::RejectReason execute(uint8_t player, const commands::EventData& ev) override;
-    // ref5 t07: the rules of every fact family are this class's private answers below (wire_facts); with the AI lane on,
+    // the rules of every fact family are this class's private answers below (wire_facts); with the AI lane on,
     // think() reads the capture (capture_lane_view) instead.
     ai::tactical::BattleFacts& facts() override { return facts_; }
     // HIJACK_UNIT (AI_GALACTIC_3 §4.3): GalacticSim::magic_spawn at the battle planet, a surface unit launched into the
@@ -202,14 +202,14 @@ public:
     // set in the combat model). cu8f t04a (CU8F_T04_T06_RE §1.1): and its stickiness threshold, then each TEAM member's,
     // := the type's Targeting_Stickiness_Time_Threshold (CombatSystem::reset_stickiness).
     void unit_left_task_force(int32_t object_id) override;
-    // a1g t04 follow-up - land TF.Reinforce drop validity: TacticalBattle::land_drop_valid (a1h t06: moved to the host so the
+    // a1g t04 follow-up - land TF.Reinforce drop validity: TacticalBattle::land_drop_valid (moved to the host so the
     // Reinforce command re-runs it) with this battle's mode. AI drops pass human = false (movers ignored, landing
     // transports block).
     bool land_drop_valid(int32_t player, int32_t key, const ai::tactical::Vec3f& p, bool human);
     // --- end battle host ---
 
 private:
-    // ---- ref5 t07: the fact rules (BattleFacts, read from the battle; wired by wire_facts) ----
+    // ---- the fact rules (BattleFacts, read from the battle; wired by wire_facts) ----
     ai::tactical::BattleFacts facts_;
     void wire_facts();
     // lane_thinking_ and the facts' snapshot mode together (the view only while it is valid)
@@ -225,12 +225,12 @@ private:
     bool can_build_now(int32_t player, int32_t type);
     std::vector<int32_t> tactical_builders(int32_t player, int32_t type);  // skirmish station production
     // --- end A2 tactical ---
-    // S7 t21: TacticalBattle::movement_locked (0x39ad40) for the ambush member list.
+    // TacticalBattle::movement_locked (0x39ad40) for the ambush member list.
     bool movement_locked(int32_t object_id);
-    // S7 t27: the L1 weather system's Sight_Range_Modifier for the type's Weather_Category (every owner weather-affected
+    // the L1 weather system's Sight_Range_Modifier for the type's Weather_Category (every owner weather-affected
     // [port], as the fog's land sight range).
     float sight_weather_factor(int32_t type, int32_t object_id);
-    // refixf t06 - space TF.Reinforce ring search (AI_TACTICAL §7.4, TACTICAL_GAPS §4.2). Entry facing = the player's side
+    // space TF.Reinforce ring search (AI_TACTICAL §7.4, TACTICAL_GAPS §4.2). Entry facing = the player's side
     // deploy facing (TacticalBattle facing_ [port: stands in for the mode +0x288 record]); playable box = the mode bounds.
     // Prevention = live objects with Reinforcement_Prevention_Radius whose owner is not allied (not the player, and an
     // enemy in the combat relation table, or no owner). Drop test: box, prevention, fog (force 1; fog builds), then the
@@ -239,16 +239,16 @@ private:
     // mask, 0 -> 4) | 8 [M: the moving query stands in for the swept box; state-4 reservations are not tolerated].
     bool space_drop_frame(int32_t player, ai::tactical::SpaceDropFrame& out);
     bool space_drop_ok(int32_t player, int32_t key, const ai::tactical::Vec3f& p, float facing_deg, float sweep);
-    // a1j t01 - land TF.Reinforce with BattleConfig::landing_unload_timed (A1_READINGS §36): reinforce_in_flight = the
+    // land TF.Reinforce with BattleConfig::landing_unload_timed (A1_READINGS §36): reinforce_in_flight = the
     // player's timed landing object of pool entry `key` (participant galactic id) has not finished its unload.
     bool reinforce_in_flight(int32_t player, int32_t key);
-    // mcx6 t06 (LUA_API.md "Attack position 0x4f5390", 0x4f48a0 [M]): the land passability grid's static line test
+    // mcx6 t06 (legacy docs/re/LUA_API.md "Attack position 0x4f5390", 0x4f48a0 [M]): the land passability grid's static line test
     // (0x5a4c10, line_passable) for the movement class of `object_id` (a TEAM container: its first live member's).
     bool attack_position_line_clear(int32_t object_id, const ai::tactical::Vec3f& a, const ai::tactical::Vec3f& b);
     // The signal lists (frame_events)
     std::vector<ai::tactical::OpportunityTargetEvent> opportunity_targets();
     std::vector<ai::tactical::AttackStateSignal> attack_state_signals();
-    std::vector<ai::tactical::UnitDamagedSignal> unit_damaged_signals();  // skai t15: signal 0x18
+    std::vector<ai::tactical::UnitDamagedSignal> unit_damaged_signals();  // signal 0x18
     std::vector<int32_t> ability_finished();
     std::vector<ai::tactical::ReinforcementsUnloaded> reinforcements_unloaded();
     std::vector<ai::tactical::ProductionCompleted> production_completed();
@@ -278,7 +278,7 @@ private:
         return t < type_facts_.size() - 1 ? type_facts_[t] : type_facts_.back();
     }
     float type_population(int32_t type) const;  // A2 tactical: pop(T, mode) 0x373500
-    // OPT2 t10: build_pad_check's blocker scan. The live Influences_Capture_Point objects (store order) are listed once
+    // build_pad_check's blocker scan. The live Influences_Capture_Point objects (store order) are listed once
     // per build_pads call instead of once per pad, and the type flag is memoised per type (0 unknown, 1 no, 2 yes).
     struct CaptureInfluencer {
         objects::ObjectHandle h;
@@ -286,7 +286,7 @@ private:
         Vec3 position;
     };
     bool influences_capture(objects::TypeIndex t) const;
-    // sp3 t02 / ref5 t07: what the store-reading fact rules read - the battle, or (lane view) the snapshot store and the
+    // what the store-reading fact rules read - the battle, or (lane view) the snapshot store and the
     // captured pad states, relations and live units. One rule each, over either.
     struct FactEnv;
     FactEnv live_env() const;
@@ -326,14 +326,14 @@ private:
     // cmb1 t04 (FIGHTER_FLYING §4.11 A / C 3 / G 1, BKR2 Q6 [H]): a land guard follow's formation step (every tick)
     void guard_follow_step(ObjectFollow& f, Vec3 tp);
     commands::RejectReason execute_order(uint8_t player, const commands::EventData& ev);
-    // s78f t10: `flags` / `goal_object` = the order's movement block (mv::MoveOrder::flags / goal_object), the same values the
+    // `flags` / `goal_object` = the order's movement block (mv::MoveOrder::flags / goal_object), the same values the
     // host's fighter formation record gets (TacticalBattle::fighter_order), so the movement layer's fighter leash and the
     // host's chase tests read one block.
     // s78n t20 fix: `object_block` - the move stands for an object-goal block (kind 3) although `goal_object` names
     // none (an attack approach, the object follow's re-path): no destination check (MOVEMENT 4.3.1 item 2).
     bool move_unit(objects::ObjectId id, float x, float y, float threat_threshold = ::alamo::tactical::movement::kThreatOff,
                    uint8_t flags = 0, objects::ObjectId goal_object = objects::kNoObjectId, bool object_block = false);
-    bool is_fighter(objects::ObjectId id) const;  // s78f t10: a space unit on the fighter locomotor
+    bool is_fighter(objects::ObjectId id) const;  // a space unit on the fighter locomotor
 
     TacticalBattle* b_;
     TacticalMode* mode_;
@@ -341,16 +341,16 @@ private:
     std::vector<ai::tactical::HintZone> zones_;
     ai::tactical::ZoneLocator zone_locator_;  // position -> zone (A1_READINGS §4)
     std::unique_ptr<ai::tactical::TacticalAiWorld> world_;
-    uint32_t order_listener_ = 0;   // S7 t31: TacticalBattle::add_order_replaced_listener token (world_->order_replaced)
+    uint32_t order_listener_ = 0;   // TacticalBattle::add_order_replaced_listener token (world_->order_replaced)
     std::vector<uint8_t> ai_side_;  // per player: has a tactical AI
     uint32_t stale_ = 0;  // object orders whose target died before execution (no-ops)
-    // sp3 t04: the AI lane's queued orders (header: player, source AI, sequence, scheduled_tick = due frame), in issue
+    // the AI lane's queued orders (header: player, source AI, sequence, scheduled_tick = due frame), in issue
     // order; hashed and saved with the lane on.
     std::vector<commands::Command> lane_batch_;
-    // sp3 t02: the TacticalAiHost answers think() reads, captured on the critical lane at each AI slot (capture_lane_view,
+    // the TacticalAiHost answers think() reads, captured on the critical lane at each AI slot (capture_lane_view,
     // before TacticalAiWorld::publish) with the lane on; the facts' snapshot functions and the lane hooks read it while
     // `valid` (a load clears it: the relink's fill reads the battle). Per player: index = player id.
-    // ref5 t07: the per-player answers (pool, can_reinforce, population, drop frame), the movement locks, the timed landings
+    // the per-player answers (pool, can_reinforce, population, drop frame), the movement locks, the timed landings
     // and the skirmish production are BattleFacts tables now (facts_, captured from the same rules).
     struct LaneView {
         bool valid = false;
@@ -378,20 +378,20 @@ private:
             uint8_t live = 0, movable = 0;     // alive and not retreated; movable
             uint8_t mv = 0, has_goal = 0, arrived = 0;  // slice 4e: the movement system has it; its UnitView
             float gx = 0.0f, gy = 0.0f;                 // the move goal
-            uint32_t mask = 0;                          // ref5 t06: MovementSystem::mask_of (mv only)
+            uint32_t mask = 0;                          // MovementSystem::mask_of (mv only)
         };
         std::vector<Unit> units;
         struct Team {
             objects::ObjectId id = objects::kNoObjectId;
             uint8_t removed = 0, target = 0;
             objects::TypeIndex rep_type = objects::kNone;  // slice 4e: TacticalBattle::representative_type
-            objects::TypeIndex company_type = objects::kNone;  // mcx8 t12: TacticalBattle::team_company_type
+            objects::TypeIndex company_type = objects::kNone;  // TacticalBattle::team_company_type
         };
         std::vector<Team> teams;
         std::vector<uint8_t> retreat_ok;
         bool production = false;
         // slice 4e (part 2): a copy of the special weapons (reads, and the dry runs of begin_targeting / tsw_fire), the TSW
-        // planet gate. ref5 t07: the per-object and per-player L1 answers are fact tables (l1_, ...).
+        // planet gate. The per-object and per-player L1 answers are fact tables (l1_, ...).
         std::optional<tactical::abilities::SpecialWeaponSystem> sw;
         bool tsw_planet_ok = false;
         // slice 4e (part 3): fog_object_hidden(force = 1) of every object for the AI players (ascending id; bit k for the
@@ -401,7 +401,7 @@ private:
         // slice 4f: the perception's point test (force 1) - the fog running and FOW-active, the AI players' grids
         bool fog_live = false;
         std::vector<tactical::fog::FogGrid> fog_grids;  // fog_players order
-        // ref5 t06: the rest of what think() asked the live battle for.
+        // the rest of what think() asked the live battle for.
         // The active BASE_SHIELDs l1_base_shield_covers counts (combat's shield on; centre, radius squared), store order.
         struct Shield {
             float x = 0.0f, y = 0.0f, z = 0.0f, r2 = 0.0f;
@@ -430,7 +430,7 @@ private:
         float box_min[2] = {0.0f, 0.0f}, box_max[2] = {0.0f, 0.0f};
     };
     LaneView view_;
-    // ref5 t06: lane code reads only view_. lane_thinking_ is set while think() (and, lane on, the start scripts) run; every
+    // lane code reads only view_. lane_thinking_ is set while think() (and, lane on, the start scripts) run; every
     // live battle read of a host answer goes through lane_live_read, which counts it (ai_lane_live_reads; alamo_headless
     // fails a lane run that had one) and asserts in debug builds. Scratch, never read by sim code.
     bool lane_thinking_ = false;
@@ -441,7 +441,7 @@ private:
     const LaneView::Reserve* view_reserve(int32_t player, int32_t key) const;
     bool view_land_drop_ok(int32_t player, int32_t key, const ai::tactical::Vec3f& p) const;
     bool view_space_drop_ok(int32_t player, int32_t key, const ai::tactical::Vec3f& p);
-    // ref5 t06: the AI's host writes (unit_released, unit_left_task_force) as batch commands with the lane on.
+    // the AI's host writes (unit_released, unit_left_task_force) as batch commands with the lane on.
     void queue_host_release(uint8_t op, int32_t player, int32_t object_id, uint8_t path);
     void apply_host_release(const commands::Command& c);
     void unit_released_live(int32_t player, int32_t object_id, ai::tactical::TacticalAiHost::UnitRelease path);
@@ -459,7 +459,7 @@ private:
     uint32_t lane_refused_spawns_ = 0;  // [diagnostic] Spawn_Unit from an AI VM with the lane on (refused)
     void wrap_lane_hooks();
     void capture_l1();
-    // ref5 t07: the L1 hook reads of the AI VMs as fact tables (lane on only): one rule each, the battle's answer, read live
+    // the L1 hook reads of the AI VMs as fact tables (lane on only): one rule each, the battle's answer, read live
     // on the critical lane and from the capture inside lane code. L1Fact: one battle unit or container's answers.
     struct L1Fact {
         double rate = 0.0, ttd = 1e18;
@@ -488,14 +488,14 @@ private:
     static bool lane_write_command(const commands::EventData& ev);
     std::vector<int32_t> weather_category_;  // per type: index into weather_categories_ (-1: none)
     std::vector<std::string> weather_categories_;
-    void resolve_weather_categories();  // fills the two above once per type table (REF1 t04)
+    void resolve_weather_categories();  // fills the two above once per type table
     void capture_lane_view();
-    void set_build_time_multipliers();  // skm1 t04: TacticalBattle::ai_build_time_mult_ after the world's start
+    void set_build_time_multipliers();  // TacticalBattle::ai_build_time_mult_ after the world's start
     // sp3 slice 4c: TacticalBattle::unit_by_id / team_units / hostile_owner on the view (predict_order on the AI lane).
     const LaneView::Unit* view_unit(objects::ObjectId id) const;
     std::vector<objects::ObjectId> view_team_units(uint8_t player, uint32_t wire) const;
     bool view_hostile(uint8_t player, int32_t owner) const;
-    // ref5 t06: answer from the view only inside lane code (think(), the lane start scripts); the critical lane (fill at
+    // answer from the view only inside lane code (think(), the lane start scripts); the critical lane (fill at
     // publish, the batch's apply, a load's relink) reads the battle, which the capture left unchanged.
     bool lane_view() const { return view_.valid && lane_thinking_; }
     struct LaneJob {
@@ -523,18 +523,18 @@ private:
     // UnitAI data-pack re-projection stamps (A1_READINGS §14) of the listed UNIT_AI objects, drawn once per object
     // (draw_unit_ai_stamps, two synced draws) when fill() first lists it; ascending id.
     std::map<objects::ObjectId, int32_t> unit_ai_stamps_;
-    // mcx6 t06: the second draw of the same pack (+0x34, UnitAiStamps::second: the attack-positioning stamp), same keys.
+    // the second draw of the same pack (+0x34, UnitAiStamps::second: the attack-positioning stamp), same keys.
     // Not hashed (it is read only through the AI world's attack-positioning records, which are); saved (battle.ai 7 / 8).
     std::map<objects::ObjectId, int32_t> unit_ai_second_;
     std::vector<objects::ObjectId> team_units(uint8_t player, uint32_t wire) const;  // battle host: unit or TEAM members
-    // S7 t26: signal 0xb (a new order replaces the unit's order) on every unit an executed AI / script order took.
+    // signal 0xb (a new order replaces the unit's order) on every unit an executed AI / script order took.
     void order_signals(uint8_t player, const commands::EventData& ev);
     // The ordered-attack hostility test (0x39a450 -> Is_Enemy 0x2824f0, relation == 1): the battle's relation table
-    // (TACTICAL_COMBAT §2.10, S7 t30), where an Is_Neutral player is relation 2.
+    // (TACTICAL_COMBAT §2.10), where an Is_Neutral player is relation 2.
     bool hostile_owner(uint8_t player, int32_t owner) const;
     lua::TacticalScriptHooks tactical_;    // battle host: script_gaps.hpp hooks of the tactical AI VMs (L1 final list)
 #ifdef ALAMO_LUA_HAVE_FOG
-    // refixf t03: object_hidden (Find_Nearest's FOW_Object_Hidden test); S7 t34: fog = the battle's fog (FogOfWar.*).
+    // object_hidden (Find_Nearest's FOW_Object_Hidden test); fog = the battle's fog (FogOfWar.*).
     lua::FogScriptHooks fog_hooks_;
 #endif
     lua::RemainingScriptHooks remaining_;  // L1 bindings: script_remaining.hpp hooks of the tactical AI VMs (Divert; Int-final: strikes, damage stats, fields, weather, shields)

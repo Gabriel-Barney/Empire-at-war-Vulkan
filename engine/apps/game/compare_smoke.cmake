@@ -1,5 +1,5 @@
 # Compares two dumped smoke outputs: a run's per-tick CRC log (comment lines '#' ignored) and command recording (byte for
-# byte) with another run's (wr1 t07: no checked-in goldens; the screens smoke against the campaign smoke, and
+# byte) with another run's (no checked-in goldens; the screens smoke against the campaign smoke, and
 # check_crc_checkpoint.cmake on its own logs).
 #   cmake -DACTUAL=<dir>/game_smoke_<name> -DGOLDEN=<other dir>/game_smoke_<name> -P compare_smoke.cmake
 # No dumped files (no ALAMO_FOC_DATA: the smoke skipped) -> "skipped", success. -DHEADLESS=<alamo_headless> is needed only
@@ -8,7 +8,7 @@ if(NOT EXISTS "${ACTUAL}.crc")
   message(STATUS "smoke compare: ${ACTUAL}.crc not written (no game data): skipped")
   return()
 endif()
-# Checkpoint golden (ALAMO_CRC 2, docs/status/golden-checkpoints.md): only the golden's stored ticks are compared, by
+# Checkpoint golden (ALAMO_CRC 2, docs/SIMULATION.md "CRC log formats"): only the golden's stored ticks are compared, by
 # alamo_headless --compare (the same code as every --golden check). -DHEADLESS=<alamo_headless> is passed by the game
 # CMake. A full golden (ALAMO_CRC 1) takes the exact line-by-line compare below.
 file(STRINGS "${GOLDEN}.crc" _golden_head LIMIT_COUNT 1)

@@ -1,4 +1,4 @@
-# P3 - video: Bink movie playback (docs/PHASE4.md P3).
+# P3 - video: Bink movie playback (legacy docs/PHASE4.md P3).
 #
 # FFmpeg 8.1.3 Bink-only LGPL v2.1+ shared build (approved by Gabriel 2026-10-27) from toolchain\9_ffmpeg_bink.cmd
 # into toolchain\ffmpeg-8.1.3: avcodec-62 / avformat-62 / avutil-60 DLLs + headers. Nothing links against it:

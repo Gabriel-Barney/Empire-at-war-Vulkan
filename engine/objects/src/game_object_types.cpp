@@ -43,7 +43,7 @@ const Def kDefaults[] = {
     {"Build_Max_Instances_Per_Planet", "-1"}, {"Tactical_Build_Cost_Campaign", "-1"},
     {"Space_Override_Population_Value", "-1"}, {"Land_Override_Population_Value", "-1"},
     {"Select_Box_Z_Adjust", "-1.0"}, {"Tactical_Sell_Percentage", "0.5"}, {"Spawned_Squadron_Delay_Seconds", "5.0"},
-    {"Ranged_Target_Z_Adjust", "6.0"},  // ref6 t01: type +0x4dc, constructor default 6.0 (LOB_SOLVER §1.1)
+    {"Ranged_Target_Z_Adjust", "6.0"},  // type +0x4dc, constructor default 6.0 (LOB_SOLVER §1.1)
     {"Projectile_Fire_Pulse_Count", "1"}, {"Projectile_Fire_Pulse_Delay_Seconds", "1.0"},
     {"Projectile_Max_Flight_Distance", "50.0"}, {"Alternate_Max_Speed", "1.0"}, {"Alternate_Max_Rate_Of_Turn", "2.0"},
     {"Max_Thrust", "0.015"}, {"Max_Rate_Of_Roll", "2.0"}, {"Bank_Turn_Angle", "70.0"}, {"Max_Lift", "0.8"},
@@ -630,7 +630,7 @@ void GameObjectTypes::after_pass() {
 }
 
 void GameObjectTypes::load_registries(const FileProvider& provider) {
-    // cu5 t02: the shared list walk. Every child element of the list's root is an entry (not only <File>), in list
+    // the shared list walk. Every child element of the list's root is an entry (not only <File>), in list
     // order; the listed documents stay alive in registry_docs_ (the tables keep views into them).
     data::ListedXmlOptions list_options;
     list_options.entry_tag = {};
@@ -682,8 +682,8 @@ void GameObjectTypes::load_registries(const FileProvider& provider) {
         faction_name_.push_back(name);
         faction_neutral_.push_back(parse_type_bool(last_child_text(n, "Is_Neutral")) ? 1 : 0);
     });
-    // §9.1.3 / TACTICAL_COMBAT.md §2.4: Targeting_Priority_Set names, every set kept in file order
-    // (lookups first-wins, like the combat loader). Loaded before the types (MAIN_LOOP.md order).
+    // §9.1.3 / legacy docs/re/TACTICAL_COMBAT.md §2.4: Targeting_Priority_Set names, every set kept in file order
+    // (lookups first-wins, like the combat loader). Loaded before the types (legacy docs/re/MAIN_LOOP.md order).
     have_priority_sets_ = load_list("Data\\XML\\TargetingPrioritySetFiles.xml", [&](data::XmlNode n) {
         const std::string_view name = data::trim(n.attribute("Name"));
         if (!name.empty()) priority_set_name_.push_back(name);
@@ -859,7 +859,7 @@ const FieldValue& GameObjectTypes::effective(TypeIndex t, FieldId f) const {
 }
 
 bool GameObjectTypes::get_bool(TypeIndex t, std::string_view tag) const { return effective(t, find_type_field(tag)).b; }
-// bkc1 t07 (b0126): the numeric getters read the slot the field's parser fills, so a caller does not need to know
+// the numeric getters read the slot the field's parser fills, so a caller does not need to know
 // which numeric kind the schema gives a tag. A float-parsed field (codes 0x8..0xb, e.g. Override_Bounty_SP with text
 // "50") read with get_int truncates toward zero, as a C float -> int cast; an int field read with get_float converts.
 // Before, get_int on a float field returned the unset int slot (0).

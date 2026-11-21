@@ -286,7 +286,7 @@ int bench_run(const BenchOptions& opt) {
     std::printf("bench: scenario %s version %u: %s\n", sc.name.c_str(), sc.version, sc.description.c_str());
     const bool game_host = sc.host == bench::Host::Game;  // BM2: an alamo_game save (game.campaign / game.skirmish)
 #ifndef ALAMO_HEADLESS_HAVE_GAME_CORE
-    if (game_host) {  // bm2c t02: timed sim-only through alamo_game_core (bench_game.cpp), not built into this exe
+    if (game_host) {  // timed sim-only through alamo_game_core (bench_game.cpp), not built into this exe
         std::fprintf(stderr, "bench: %s was made by alamo_game (host game) and this alamo_headless has no alamo_game_core: run it with "
                      "alamo_game --bench-scenario %s\n", sc.name.c_str(), opt.scenario.c_str());
         return 2;
@@ -674,7 +674,7 @@ int bench_make(const BenchOptions& opt) {
     sc.final_crc = replayed.records.empty() ? 0 : replayed.records.back().combined;
     sc.dir = dir.string();
     bench::Scenario old;
-    const bool had_old = bench::Scenario::load_recipe(opt.scenario, old, nullptr);  // wr1 t06: a recipe keeps its settings too
+    const bool had_old = bench::Scenario::load_recipe(opt.scenario, old, nullptr);  // a recipe keeps its settings too
     sc.description = !opt.description.empty() ? opt.description : had_old ? old.description : std::string();
     if (had_old) {  // BM2 format-2 keys (the rendered run's settings and camera) stay with the scenario
         sc.copy_run_settings(old);

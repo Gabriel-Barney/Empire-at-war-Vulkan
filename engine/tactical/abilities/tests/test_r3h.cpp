@@ -1,4 +1,4 @@
-// r3h (docs/re/ABILITIES_HARDPOINTS.md §4.14 / §4.15): the clips the ability system hands its host (AbilityAnimPlay) per
+// r3h (legacy docs/re/ABILITIES_HARDPOINTS.md §4.14 / §4.15): the clips the ability system hands its host (AbilityAnimPlay) per
 // frame, and the Berserker damage passes of the §4.13 probe case under the retail restart rule (update 0x712fd0).
 // Hand-computed frames on the OI sandbox (test_abilities_common.hpp).
 #include "test_abilities_common.hpp"
@@ -59,7 +59,7 @@ void r3h_lightning() {
 }
 
 // Generic_Attack (§4.14): Attack_Animation one-shot at Attack_Animation_Speedup, blend 0.2; the default idle at its end;
-// the hit at Damage_Frame_Number. r3h t04: a clip from outside (observe_clip: the world shows a flinch) aborts it before
+// the hit at Damage_Frame_Number. a clip from outside (observe_clip: the world shows a flinch) aborts it before
 // the hit - default idle, release, no damage.
 void r3h_generic(bool interrupt) {
     OiWorld w;
@@ -178,7 +178,7 @@ void r3h_generic_variants() {
     CHECK(v0.health == 70.0f && v1.health == 70.0f);
 }
 
-// Eat_Attack (§4.14, r3h t04): the owner plays Attack_Animation (blend 0.2); at Attachment_Frame the victim loops its
+// Eat_Attack (§4.14): the owner plays Attack_Animation (blend 0.2); at Attachment_Frame the victim loops its
 // Target_Grabbed_Animation (EATEN_DIE 65, blend 0); it is destroyed at Target_Destruction_Frame.
 void r3h_eat() {
     OiWorld w;

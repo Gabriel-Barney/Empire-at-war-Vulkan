@@ -104,7 +104,7 @@ std::optional<std::string_view> GameConstants::get(std::string_view tag) const {
     return fields[it->second].second;
 }
 
-// mcx1 t02: retail's converters (MCX1_RE_ANSWERS Q1 / Q2, OBJECT_TYPES §4.5): a stored value always converts (atoi / atof
+// retail's converters (MCX1_RE_ANSWERS Q1 / Q2, OBJECT_TYPES §4.5): a stored value always converts (atoi / atof
 // prefix, garbage 0; bool "1" or a first Y / T); only an absent tag gives the fallback (fields holds no empty or TBD values).
 float GameConstants::get_float(std::string_view tag, float fallback) const {
     const auto v = get(tag);
@@ -246,11 +246,11 @@ void GameDatabase::load_constants(const FileProvider& provider, bool& ok) {
         c.index_[normalize_name(tag)] = static_cast<uint32_t>(c.fields.size());
         c.fields.emplace_back(tag, value);
     }
-    // Retail atof, like get_float: an unreadable value gives 0 (mcx1 t02).
+    // Retail atof, like get_float: an unreadable value gives 0.
     // mcx5 t02 (MCX5_RE_ANSWERS Q1.9, 0x2c91c0 [H]): a file without the tag keeps the GameConstants default 1.0.
     if (const auto v = c.get("MaximumFleetMovementDistance")) c.max_fleet_move_distance = xml_values::to_float(*v);
     else c.max_fleet_move_distance = 1.0f;
-    // ref4 t06: the tags several modules read, once (game_database.hpp, SharedGameConstants).
+    // the tags several modules read, once (game_database.hpp, SharedGameConstants).
     SharedGameConstants& s = c.shared;
     const auto f = [&c](std::string_view tag, std::optional<float>& out) {
         if (const auto v = c.get(tag)) out = xml_values::to_float(*v);
@@ -367,10 +367,10 @@ void GameDatabase::load_game_objects(const FileProvider& provider, bool& ok) {
     }
 
     // The planet columns, after every file is read: a <Variant_Of_Existing_Type> planet takes each field it does not
-    // set from its resolved parent (OBJECT_TYPES.md §3.3: scalars from the child when it has the tag). Within one element
-    // a repeated scalar tag takes its last occurrence and an empty or TBD value changes nothing (mcx1 t03, §4.4); values
-    // convert by their type codes (mcx1 t02: In_Background / Always_Instantiate_Galactic bool 0x0, the ints atoi).
-    // modc t06: a mod defines every planet as a variant of one template planet; base FoC / EaW define no planet variant.
+    // set from its resolved parent (legacy docs/re/OBJECT_TYPES.md §3.3: scalars from the child when it has the tag). Within one element
+    // a repeated scalar tag takes its last occurrence and an empty or TBD value changes nothing (§4.4); values
+    // convert by their type codes (In_Background / Always_Instantiate_Galactic bool 0x0, the ints atoi).
+    // a mod defines every planet as a variant of one template planet; base FoC / EaW define no planet variant.
     for (uint32_t row = 0; row < p.name.size(); ++row) {
         const std::vector<XmlNode>& chain = chains[row];
         // The nearest element of the chain that sets <tag>; its last occurrence.

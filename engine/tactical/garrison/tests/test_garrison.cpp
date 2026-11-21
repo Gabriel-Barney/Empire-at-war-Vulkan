@@ -1,4 +1,4 @@
-// alamo_tactical_garrison_tests (S4, docs/re/L1_S4_REMAINING.md §3.5 / §2.5 / §4.2): GarrisonSystem (masks with the
+// alamo_tactical_garrison_tests (S4, legacy docs/re/L1_S4_REMAINING.md §3.5 / §2.5 / §4.2): GarrisonSystem (masks with the
 // zero-mask rule, allied / neutral hosts, Lua Can_Garrison capacity rule with reserved walkers vs the entry rule,
 // approach point, entering delay, exit point, eject on host death / owner change, kill for CanContainGarrison-only
 // hosts, Leave_Garrison cancelling an approach, Can_Garrison_Fire, hash determinism), CapturePointSystem (start gate,
@@ -221,7 +221,7 @@ uint64_t scripted_hash() {
     return hs.digest() ^ static_cast<uint64_t>(g.occupants(50).size());
 }
 
-// A1 t08: a host captured by its own garrison keeps it. Capture complete (§4.2) hands an occupied host to the first
+// a host captured by its own garrison keeps it. Capture complete (§4.2) hands an occupied host to the first
 // occupant's owner (rule b) and the host applies that owner change to the garrison: occupants allied with the new owner
 // stay, the others are ejected (entry order, at the exit point); a hostile owner change (bribe / Change_Owner) or a
 // neutral one ejects everyone.
@@ -290,7 +290,7 @@ void test_owner_change() {
     CHECK(g.events().empty() && g.holder_of(1) == 10);
 }
 
-// STY1 t01: Lua Disable_Capture suspends the point's service - progress, pending and owner stay frozen, and capture
+// Lua Disable_Capture suspends the point's service - progress, pending and owner stay frozen, and capture
 // resumes from where it stopped when the suspension ends.
 void test_capture_suspended() {
     constexpr int32_t kNeutral = 9;
@@ -812,7 +812,7 @@ void test_types() {
     CHECK(capture_desc_from_type(types, rp, cp) && cp.sticky);
     CHECK(!capture_desc_from_type(types, plain, cp));
     CHECK(influences_capture(types, plain) && !influences_capture(types, dt1));
-    // mcx4 t05: a CASH_POINT type; an absent Cash_Point_Transition_Time_Seconds keeps the type ctor's 2 (0x367250)
+    // a CASH_POINT type; an absent Cash_Point_Transition_Time_Seconds keeps the type ctor's 2 (0x367250)
     CashPointDesc kd;
     CHECK(cash_point_desc_from_type(types, raw.find("Cash"), kd) && kd.credits_per_second == 200.0f && kd.radius == 40.0f &&
           kd.transition_seconds == 2.0f);

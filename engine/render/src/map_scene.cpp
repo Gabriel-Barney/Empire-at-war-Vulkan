@@ -138,7 +138,7 @@ terrain::WaterOptions GameTypeResolver::water_options() const {
     terrain::WaterOptions o;
     const data::GameConstants& gc = db_.constants();
     o.render_target_resolution = gc.get_int("Water_Render_Target_Resolution", o.render_target_resolution);
-    // TERRAIN_WATER_POST.md reflection pass: the GameConstants record's default is 10 (an absent tag); FoC writes 0.0.
+    // legacy docs/re/TERRAIN_WATER_POST.md reflection pass: the GameConstants record's default is 10 (an absent tag); FoC writes 0.0.
     o.clip_plane_offset = gc.get_float("Water_Clip_Plane_Offset", 10.0f);
     return o;
 }
@@ -153,7 +153,7 @@ MpPalette GameTypeResolver::palette() const {
 bool GameTypeResolver::load_render_xml(const FileProvider& files) {
     hardpoint_defs_.clear();
     hardpoints_loaded_ = false;
-    // cu5 t02: the shared list walk (list order; every entry is opened, an empty one fails to).
+    // the shared list walk (list order; every entry is opened, an empty one fails to).
     data::ListedXmlOptions lo;
     lo.keep_empty_entries = true;
     lo.visit_missing = true;
@@ -302,7 +302,7 @@ void MapScene::clear_loaded() {
 // lighting_ from the active environment; without one the mode's default (land / space).
 void MapScene::lighting_from_environment() {
     const terrain::Environment* env = environment();
-    // Space too: the main scene keeps the environment's fill lights (SPACE_AND_OPEN.md 0 item 2); the renderer
+    // Space too: the main scene keeps the environment's fill lights (legacy docs/re/SPACE_AND_OPEN.md 0 item 2); the renderer
     // zeroes them for the background scene only (RecordOptions::space).
     if (env) lighting_ = Lighting::from_environment(*env, false);
     else if (space_) {
@@ -388,7 +388,7 @@ bool MapScene::load_impl(const FileProvider& files, std::string_view map, const 
         stats_.water_ms = ms_since(t);
         stats_.water_patches = static_cast<uint32_t>(water_.patches.size());
         stats_.water_triangles = water_.triangles;
-        // Decorations (DECORATIONS.md 4, 5.1): map track ribbons (per-map budgets) and decal geometry.
+        // Decorations (legacy docs/re/DECORATIONS.md 4, 5.1): map track ribbons (per-map budgets) and decal geometry.
         t = clock::now();
         stats_.tracks = static_cast<uint32_t>(map_.terrain.tracks.size());
         stats_.tracks_built = static_cast<uint32_t>(terrain::build_map_track_geometry(map_.terrain, deco_.tracks));
@@ -453,7 +453,7 @@ bool MapScene::load_impl(const FileProvider& files, std::string_view map, const 
     env_index_ = map_.environments.start_index < map_.environments.environments.size() ? map_.environments.start_index : 0u;
     env_dirty_ = false;
     lighting_from_environment();
-    // Fog (SPACE_AND_OPEN.md B.1 [H]): the active environment's fog always wins; the 0x100/2 scene-fog block
+    // Fog (legacy docs/re/SPACE_AND_OPEN.md B.1 [H]): the active environment's fog always wins; the 0x100/2 scene-fog block
     // is overwritten on every environment apply, so it is ignored here.
     log::infof("render", "map %s: fog from the start environment (%s, %.0f..%.0f)", std::string(map).c_str(),
                lighting_.fog_enabled ? "on" : "off", lighting_.fog_start, lighting_.fog_end);
@@ -582,7 +582,7 @@ bool MapScene::start(Renderer& r, ModelStreamer& streamer, assets::AssetCache& c
 }
 
 void MapScene::update(Renderer& r, ModelStreamer& streamer) {
-    if (env_dirty_ && started_) {  // cu8g t03: re-apply the active environment (set_environment; RE §5)
+    if (env_dirty_ && started_) {  // re-apply the active environment (set_environment; RE §5)
         env_dirty_ = false;
         r.set_lighting(lighting_);  // light record, SH, ambient, fog, bloom, shadow colour, clear colour
         if (!space_) world_.set_clouds(terrain::effective_clouds(map_, environment()));  // land 0x3bbed0; space: lighting only
@@ -717,7 +717,7 @@ void MapScene::load_idle_anim(assets::AssetCache& cache, std::string_view model,
     if (out.clip && out.clip->frame_count == 0) out.clip.reset();
 }
 
-// ---- R3 (ANIM_PARTICLES.md A.5 / A.9): original frame rules for the background idle clips ----------------
+// ---- R3 (legacy docs/re/ANIM_PARTICLES.md A.5 / A.9): original frame rules for the background idle clips ----------------
 namespace {
 
 // Frame position of a clip started at frame 0 after `seconds` of play: loops wrap at count - 1 (the last stored
@@ -871,7 +871,7 @@ OrbitCamera MapScene::tactical_camera(float aspect, float distance_override) con
     }
     cam.target = {cx, cy, map_.terrain.sample_height(cx, cy)};
     cam.yaw = -1.5707963f;  // camera south of the target, looking north (+Y)
-    // TacticalCameras.xml Land_Mode defaults (RENDER.md 3.4): pitch 50, distance 460, FOV 55. The map's 0x10C
+    // TacticalCameras.xml Land_Mode defaults (legacy docs/re/RENDER.md 3.4): pitch 50, distance 460, FOV 55. The map's 0x10C
     // block stores 12 = 50, 14 = 460, 15 = 55, read here as pitch / distance / FOV [inferred]; 03 (1250..2300)
     // is not the start distance.
     const terrain::CameraBlock& tc = map_.tactical_camera;

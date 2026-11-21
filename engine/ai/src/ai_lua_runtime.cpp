@@ -208,7 +208,7 @@ std::unique_ptr<lua::LuaVm> PlanScriptRuntime::build_load_vm(const std::string& 
 
 size_t PlanScriptRuntime::load(const FileProvider& files, const std::vector<std::string>& paths, const AiDefinitions& defs,
                                PlanLibrary& library, std::vector<std::string>* diag, const ParallelFor& pf) {
-    // OPT3 t09: each path's load VM (read, chunk, Base_Definitions, definition globals) is built on its own job: per-path
+    // each path's load VM (read, chunk, Base_Definitions, definition globals) is built on its own job: per-path
     // outputs, nothing outside the new VM is written (the bindings attach the host by pointer; the shipped plans'
     // chunks and Definitions() only set their own globals). The results are committed below in path order on this
     // thread, which takes the VMs over, so the library, the pools, vms_created() and the diagnostics are the serial ones.
@@ -405,7 +405,7 @@ std::unique_ptr<lua::LuaVm> start_free_store_vm(PlanScriptRuntime& runtime, cons
                                                 lua::AiScriptHost* host, int32_t script_id, bool galactic, int32_t player,
                                                 const std::function<void(lua::LuaVm&)>& before_thread,
                                                 std::vector<std::string>* diagnostics) {
-    // mcx6 t07 (LUA_API.md "Script lookup and require"): a name from XML loads whichever LUA_PATH entry exists first
+    // mcx6 t07 (legacy docs/re/LUA_API.md "Script lookup and require"): a name from XML loads whichever LUA_PATH entry exists first
     // (NAME.lua then NAME.lc in the install folder, then in each script root in order), .lc included.
     std::vector<uint8_t> bytes;
     const std::string path = lua::read_script(files, script, bytes);
@@ -437,7 +437,7 @@ std::vector<std::string> list_plan_files(const std::function<std::vector<std::st
         for (std::string& f : files)
             if (f.size() > n && f.find('\\', n) == std::string::npos && f.find('/', n) == std::string::npos)
                 direct.push_back(std::move(f));
-        // mcx3 t13 (MCX4_GAL2_RE_ANSWERS Q6 / UI.md §9.2): the plan scan 0x4e7e30 loads in the find's order, which the
+        // mcx3 t13 (MCX4_GAL2_RE_ANSWERS Q6 / legacy docs/re/UI.md §9.2): the plan scan 0x4e7e30 loads in the find's order, which the
         // lister keeps (a Vfs lists loose files, then MEG records in stored order), so no re-sort here.
         for (std::string& f : direct) out.push_back(std::move(f));
     }

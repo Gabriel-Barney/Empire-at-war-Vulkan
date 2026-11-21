@@ -1,14 +1,14 @@
-// P2 HUD fonts (docs/re/UI.md §3.4 [H]): TrueType faces rasterised at runtime into glyph texture pages,
+// P2 HUD fonts (legacy docs/re/UI.md §3.4 [H]): TrueType faces rasterised at runtime into glyph texture pages,
 // colours applied at draw time.
 //   * Pixel em height = point size * (screenH * 96 / 600) / 72 (hud_canvas.hpp font_pixel_height_int);
 //   * weight 700 for bold faces else 400, antialiased; Stretch_Factor s outside 0.9999..1.0001 re-creates the font at
 //     height floor(h x s + 0.5) keeping the unstretched tmAveCharWidth (taller / squatter glyphs, same widths;
-//     GALACTIC_DIALOGS.md §6);
+//     legacy docs/re/GALACTIC_DIALOGS.md §6);
 //   * a face that cannot be created falls back to "EmpireAtWar-Medium"; Windows face substitution is logged.
 // GlyphRasterizer is the OS seam: make_system_rasterizer() is GDI on Windows (CreateFontW +
 // GetGlyphOutlineW GGO_GRAY8_BITMAP into 8-bit coverage), and the deterministic BoxRasterizer elsewhere
 // (filled boxes; for platforms without GDI and for pixel-exact tests). The port contract is the size rule,
-// not GDI (UI.md §3.4 "Port").
+// not GDI (legacy docs/re/UI.md §3.4 "Port").
 // [port] bold = the face name contains "Bold" (the data names faces "EmpireAtWar-Bold", "Arial Bold"); a registered
 // game font (register_game_fonts) keeps its own weight instead.
 //
@@ -121,7 +121,7 @@ public:
     // kFallbackFontFace; -1 only when even that fails.
     int32_t font(std::string_view face, float point_size, uint32_t screen_height, float stretch = 1.0f);
     const FontMetrics& metrics(int32_t font) const { return fonts_[static_cast<size_t>(font)].metrics; }
-    // mcx4 t14: the default fonts and a component's font by the retail rule (0x349a20 / 0x351d50): its own name (size:
+    // the default fonts and a component's font by the retail rule (0x349a20 / 0x351d50): its own name (size:
     // its own, else the use's); a size without a name takes the use's face (Text / Button: Command_Bar_Default_Font_Name);
     // neither: the use's default font. `name` empty / `size` <= 0 = unset.
     void set_defaults(DefaultFonts d) { defaults_ = std::move(d); }

@@ -1,5 +1,5 @@
 // MovementSystem: the Walk locomotor's deploy states (docs/re/MOVEMENT.md §3.2 "Deploy states", "A locomotor swap
-// undeploys"; S8 t11 / t12). Contract: movement_system.hpp ("S8 t11 / t12").
+// undeploys"). Contract: movement_system.hpp ("S8 t11 / t12").
 #include <algorithm>
 #include <cmath>
 
@@ -25,7 +25,7 @@ bool turret_angles_equal(const float* a, const float* b) {
 
 bool MovementSystem::turret_at_rest(const Unit& u) const {
     if (turret_rest_) return turret_rest_(u.d.id);
-    // S8 t24: always against the UNDEPLOYED Turret_Rest_Angle, also in 0x18 (MOVEMENT §3.2 "At rest").
+    // always against the UNDEPLOYED Turret_Rest_Angle, also in 0x18 (MOVEMENT §3.2 "At rest").
     return !u.d.turret || turret_angles_equal(u.tcur, u.d.turret_rest);
 }
 
@@ -48,7 +48,7 @@ void MovementSystem::turret_recentre(Unit& u, const float* rest) {
 void MovementSystem::tick_turrets(uint32_t frame) {
     // TURRET service 0x632270 + motion 0x631210, every frame (behaviour interval 1). [port] after the Walk deploy pass.
     const float now = static_cast<float>(frame) / 30.0f;  // seconds (frame / FPS; the sim runs at 30)
-    if (cfg_.mode != MoveMode::Land) return;  // s78f t08: [port] the space TURRET aim stays unmodelled (aimed at once)
+    if (cfg_.mode != MoveMode::Land) return;  // [port] the space TURRET aim stays unmodelled (aimed at once)
     for (Unit& u : units_) {
         if (!u.d.turret) continue;
         const float* rest = turret_rest_angle(u);
@@ -155,8 +155,8 @@ MovementSystem::DeployResult MovementSystem::deploy(ObjectId id, bool on, uint32
     Unit& u = units_[static_cast<size_t>(i)];
     if (u.d.locomotor != LocomotorKind::Default) return DeployResult::NoWalk;  // JetPack / Bike / ...: 0x1fa90
     if (on) {
-        // Deploy(true) 0x61d300: nothing in 0x18 / 0x19, with the walking-deployed flag +0x2b3 set (s78n t26.1) or inside a
-        // gravity control field (obj +0x3a1 & 0x40, TRU1 t03: the host's deploy_block hook).
+        // Deploy(true) 0x61d300: nothing in 0x18 / 0x19, with the walking-deployed flag +0x2b3 set or inside a
+        // gravity control field (obj +0x3a1 & 0x40, the host's deploy_block hook).
         if (u.deploy == LocoState::WalkDeploying || u.deploy == LocoState::WalkDeployed || u.walk_deployed) return DeployResult::Ignored;
         if (deploy_block_ && deploy_block_(id)) return DeployResult::Ignored;
         if (u.deploy == LocoState::WalkUndeploying && !turret_at_rest(u)) {
@@ -181,7 +181,7 @@ MovementSystem::DeployResult MovementSystem::deploy(ObjectId id, bool on, uint32
         deploy_begin_clip(u, kAnimDeploy, frame);
         return DeployResult::Deploying;
     }
-    // Deploy(false): 0x18 / 0x19 / the walking-deployed flag -> 0x1A; first the pad blocker 0x42e3b0 / 0x42e3d0 (b0173: an
+    // Deploy(false): 0x18 / 0x19 / the walking-deployed flag -> 0x1A; first the pad blocker 0x42e3b0 / 0x42e3d0 (an
     // occupied build pad, e.g. a Mobile Defense Unit with a turret, does not undeploy). The Undeploy clip starts in the per-frame pass (turret wait). s78n t26.1 (MOVEMENT §3.2.1 item 3): only
     // the state is written - no stop, no speed or path change; a unit walking deployed freezes where it is (the walk does
     // not run in 0x1A) with its speed kept.
@@ -194,7 +194,7 @@ MovementSystem::DeployResult MovementSystem::deploy(ObjectId id, bool on, uint32
 // ---- s78n t26.1 (MOVEMENT §3.2.1): walking while deployed ----
 
 float MovementSystem::path_length_3d(std::span<const V2> path, float z0, float z1) {
-    // 0x54f610: the summed 3-D length of every segment from the stored waypoint heights. bkm1 t06 (b0051, MOVEMENT §3.5.2
+    // 0x54f610: the summed 3-D length of every segment from the stored waypoint heights. bkm1 t06 (MOVEMENT §3.5.2
     // "waypoint z"): the pathfinder stores z = 0 at every point, so a planned path (and a lane, a push path) is exactly its
     // 2-D length on any terrain; only a slot leg's G (z1) and a forced path's two ends (z0, z1) carry a height. Before bkm1
     // the port sampled the terrain at every point.
@@ -331,7 +331,7 @@ bool MovementSystem::snap_yaw(ObjectId id, float yaw_deg) {
 }
 
 void MovementSystem::tick_deploy(uint32_t frame) {
-    // Walk vf6 0x61e930, states 0x16 (s78n t26.1), 0x18 / 0x1A (serial, ascending id; each unit writes only itself and the
+    // Walk vf6 0x61e930, states 0x16, 0x18 / 0x1A (serial, ascending id; each unit writes only itself and the
     // event list).
     for (Unit& u : units_) {
         if (u.d.locomotor != LocomotorKind::Default) continue;
@@ -399,12 +399,12 @@ void MovementSystem::hash_deploy(StateHasher& h) const {
         h.i32(u.dclip);
         h.u32(u.dclip_start);
         h.f32(u.dclip_pos0);
-        if (u.walk_deployed) h.u8(0xB3);  // s78n t26.1: the walking-deployed flag (only when set)
+        if (u.walk_deployed) h.u8(0xB3);  // the walking-deployed flag (only when set)
     }
 }
 
 void MovementSystem::hash_turrets(StateHasher& h) const {
-    // S8 t24: the TURRET state of the Deploys units (appended only when there are any).
+    // the TURRET state of the Deploys units (appended only when there are any).
     uint32_t nt = 0;
     for (const Unit& u : units_) nt += u.d.turret ? 1u : 0u;
     if (nt == 0) return;

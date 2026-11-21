@@ -1,5 +1,5 @@
 #pragma once
-// ref6 t02: an EngagementQueries for the movement / combat unit tests, answering each query from a lambda the test sets
+// an EngagementQueries for the movement / combat unit tests, answering each query from a lambda the test sets
 // (an unset one keeps the interface default; has_* is true once its lambda is set). Engine code implements the interface
 // itself (TacticalBattle); this adapter is for tests only. The object must outlive the system it is handed to.
 #include <cstdint>

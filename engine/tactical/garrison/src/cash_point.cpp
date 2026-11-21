@@ -1,4 +1,4 @@
-// mcx4 t05: CASH_POINT service (cash_point.hpp; MCX4_RE_ANSWERS_TACTICAL.md §5).
+// CASH_POINT service (cash_point.hpp; legacy docs/re/MCX4_RE_ANSWERS_TACTICAL.md §5).
 #include "alamo/tactical/garrison/cash_point.hpp"
 
 #include <algorithm>

@@ -1,4 +1,4 @@
-// P4 load screens (docs/re/UI.md §5): the battle / mission load dialogs while the LoadThread runs.
+// P4 load screens (legacy docs/re/UI.md §5): the battle / mission load dialogs while the LoadThread runs.
 //   1. open(): picks IDD_LAND_BATTLE_LOAD_DIALOG / IDD_SPACE_BATTLE_LOAD_DIALOG / IDD_SKIRMISH_BATTLE_LOAD_DIALOG /
 //      IDD_LAND_MISSION_LOAD_DIALOG / IDD_SPACE_MISSION_LOAD_DIALOG, fills planet name, terrain / weather / natives texts
 //      and icons, the historical-reference list and the player names; IDC_BEGIN_BUTTON is HIDDEN; the host stops the

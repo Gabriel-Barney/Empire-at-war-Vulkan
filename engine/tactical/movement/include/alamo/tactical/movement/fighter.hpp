@@ -1,4 +1,4 @@
-// Space fighter locomotor (FIGHTER_LOCOMOTOR; docs/re/FIGHTER_FLYING.md §1-§5 and §9.1 / §9.4, MOVEMENT.md §2.5,
+// Space fighter locomotor (FIGHTER_LOCOMOTOR; legacy docs/re/FIGHTER_FLYING.md §1-§5 and §9.1 / §9.4, MOVEMENT.md §2.5,
 // §3.1): the per-frame primitives, the per-unit state and the two fighter cell grids. The MovementSystem drives the
 // states (movement_system.hpp, "fighters").
 //
@@ -160,7 +160,7 @@ struct FighterParams {
     float max_thrust = 1.0f;            // Max_Thrust (+0x384), raw ([port] default: the FoC fighter value 1.0)
     float min_follow_distance = 25.0f;  // Minimum_Follow_Distance (+0x534)
     float attack_range = 450.0f;        // max attack range 0x3749d0 (Targeting_Max_Attack_Distance +0x500) [M]
-    FighterChaseRanges chase;           // s78f t02: the fighter type's ranges (a fighter without a squadron)
+    FighterChaseRanges chase;           // the fighter type's ranges (a fighter without a squadron)
 };
 // Reads Max_Thrust, Minimum_Follow_Distance and Targeting_Max_Attack_Distance (a value <= 0 keeps the default) and the
 // chase ranges (fighter_chase_ranges_from_type).
@@ -292,7 +292,7 @@ struct FighterSquad {
     // first team member, a fighter) has Space_Layer 0 or Disregard_Space_Layer_For_Guard_Attack_Move: the guard follow
     // (path copy, speed cap) applies, a single object block may re-path and step 5 pops instead of 0x4220d0.
     bool guard_follow = true;
-    FighterChaseRanges chase;  // s78f t02: the squadron type's ranges (0x4165f0 reads u = the container's type)
+    FighterChaseRanges chase;  // the squadron type's ranges (0x4165f0 reads u = the container's type)
 };
 struct FighterSquadDesc {
     ObjectId id = -1;
@@ -378,7 +378,7 @@ struct FighterEvent {
     ObjectId target = -1;
 };
 
-// Obstacle avoidance host hook (0x5c8b70 steps 2-4; SPACE_AVOIDANCE.md): Query_AABB on the space avoidance tree (GOM
+// Obstacle avoidance host hook (0x5c8b70 steps 2-4; legacy docs/re/SPACE_AVOIDANCE.md): Query_AABB on the space avoidance tree (GOM
 // +0x558) with the box (centre, half-extents), candidates in the tree's result order (TACTICAL_COMBAT §1.6: reverse
 // collection order; [port] ascending object id), each tested with the precise model test (0x38f900) against the
 // segment a -> b. The first candidate whose test hits decides: when the shared hit-record byte 1 ("the segment starts

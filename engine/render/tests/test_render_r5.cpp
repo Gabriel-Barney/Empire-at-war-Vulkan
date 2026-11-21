@@ -686,7 +686,7 @@ static void test_stage2_builder() {
     f.tick = 7;
     b.build(f, models, main, bg, &st);
     CHECK(main.empty() && st.contained == 1);
-    // q6 t19: Lua-hidden (script_hidden): not drawn, counted apart.
+    // Lua-hidden (script_hidden): not drawn, counted apart.
     render::SnapshotObject hid = sobj(3, 0);
     hid.type = 2;
     hid.script_hidden = true;
@@ -1723,7 +1723,7 @@ static void test_gpu(const std::string& src_dir, const std::string& out_dir) {
     g.ctx.shutdown();
 }
 
-// ------------------------------------------------------------------------------------------- R5 stealth + fog springs (r5 t03)
+// ------------------------------------------------------------------------------------------- R5 stealth + fog springs
 // ABILITY_VISUALS 1.1 / 1.2 / 1.3 / 1.4: the critically damped spring, the Stealth_Color multiply, the hardpoint mesh mask,
 // the shadow bit and the 0.25 s HideWhenFogged spring.
 static void test_stealth_spring() {
@@ -1990,7 +1990,7 @@ static void test_stealth_builder() {
     std::printf("stealth / fog springs: OK\n");
 }
 
-// Type table: Stealth_Color / Stealth_Transition_Time are read from the nested <Abilities> entries (r5 t03).
+// Type table: Stealth_Color / Stealth_Transition_Time are read from the nested <Abilities> entries.
 static void test_stealth_type_table() {
     render::SnapshotTypeInfo none;  // defaults: no stealth data, white
     CHECK(!none.has_stealth_color && !none.has_cloak_color && none.stealth_time == 0.0f && none.cloak_time == 0.0f &&
@@ -2039,7 +2039,7 @@ static void test_stealth_type_table() {
                 static_cast<double>(u.stealth_color[1]), static_cast<double>(u.stealth_color[3]), static_cast<double>(u.stealth_time));
 }
 
-// vis1 t02 (docs/re/WEATHER_VISUALS.md §4): object blob shadows - the shadow-detail rule, the per-object placement and the
+// vis1 t02 (legacy docs/re/WEATHER_VISUALS.md §4): object blob shadows - the shadow-detail rule, the per-object placement and the
 // type fields read from the real data.
 static void test_blob_shadows() {
     using render::BlobShadowMode;
@@ -2137,12 +2137,12 @@ static void test_blob_shadows() {
           real[bush].blob_size[1] == 30.0f);
     CHECK(real[scout].blob_material == "Generic_Shadow" && real[scout].blob_below_detail == 3 && real[scout].blob_size[0] == 18.0f &&
           real[scout].blob_size[1] == 7.0f && real[scout].blob_bone == "B_Chest");
-    {  // mcx4 t15 (docs/re/MCX4_T15_RE_ANSWERS.md): Exclude_From_Distance_Fade (Prop_Rock_Cluster_02 true) -> no fade cull
+    {  // mcx4 t15 (legacy docs/re/MCX4_T15_RE_ANSWERS.md): Exclude_From_Distance_Fade (Prop_Rock_Cluster_02 true) -> no fade cull
         // ledger: verifies GameObjectType.Exclude_From_Distance_Fade
         const objects::TypeIndex rock = real.find("Prop_Rock_Cluster_02");
         CHECK(rock != objects::kNone && real[rock].no_distance_fade && !real[scout].no_distance_fade);
     }
-    {  // mcx4 t15 (docs/re/MCX4_PRES_RE_ANSWERS_2.md Q7): the light effect shapes; GameConstants Shield_Flash_Scale /
+    {  // mcx4 t15 (legacy docs/re/MCX4_PRES_RE_ANSWERS_2.md Q7): the light effect shapes; GameConstants Shield_Flash_Scale /
        // Shield_Flash_Duration feed a type-1 Color_Flash.
         // ledger: verifies GameConstants.Shield_Flash_Scale
         // ledger: verifies GameConstants.Shield_Flash_Duration
@@ -2172,7 +2172,7 @@ static void test_blob_shadows() {
         p.type = 5;  // Continuous_Smooth_Pulse never ends, starts at B
         CHECK(render::light_pulse_rgb(p, 10.0, base, o) && std::fabs(o[0] - 1.0f) < 1e-4f && render::light_pulse_rgb(p, 99.0, base, o));
     }
-    {  // mcx4 t14 (docs/re/MCX4_PRES_RE_ANSWERS_3.md Q10): the GUI flash - GUI_Flash_Level 3 -> 4x at the start, back to
+    {  // mcx4 t14 (legacy docs/re/MCX4_PRES_RE_ANSWERS_3.md Q10): the GUI flash - GUI_Flash_Level 3 -> 4x at the start, back to
        // 1x over GUI_Rapid_Flash_Duration 0.1 s, three times in a row
         // ledger: verifies GameConstants.GUI_Flash_Level
         // ledger: verifies GameConstants.GUI_Rapid_Flash_Duration
@@ -2189,7 +2189,7 @@ static void test_blob_shadows() {
         CHECK(render::light_pulse_rgb(p, 0.2125, base, o) && o[0] > 3.0f);                     // the third has started
         CHECK(!render::light_pulse_rgb(p, 0.3125, base, o));
     }
-    {  // mcx4 t14 (docs/re/MCX4_T14_RE_ANSWERS.md): Mouse_Over_Highlight_Scale 1.5 -> a hovered object up to 1.5x brighter
+    {  // mcx4 t14 (legacy docs/re/MCX4_T14_RE_ANSWERS.md): Mouse_Over_Highlight_Scale 1.5 -> a hovered object up to 1.5x brighter
         // ledger: verifies GameConstants.Mouse_Over_Highlight_Scale
         CHECK(render::SimInstanceBuilder::hover_brighten(1.5f, 1.0f) == 1.5f && render::SimInstanceBuilder::hover_brighten(1.5f, 0.0f) == 1.0f);
         CHECK(render::SimInstanceBuilder::hover_brighten(1.5f, 0.5f) == 1.25f);
@@ -2204,7 +2204,7 @@ static void test_blob_shadows() {
     std::printf("blob shadows: %u types with Blob_Shadow_Material_Name, %u draw a blob at Shadow detail On\n", with_blob, blob_at_on);
 }
 
-// mcx6 t05: Lua Show_Emitter's particle prefix groups (BKX1_RENDER_RE §1.1) through the builder's emitter source.
+// Lua Show_Emitter's particle prefix groups (BKX1_RENDER_RE §1.1) through the builder's emitter source.
 static void test_script_emitters() {
     const std::string dir = (fs::temp_directory_path() / "alamo_render_r5_tests").string();
     std::string err;
