@@ -7,7 +7,7 @@
 //     tactical PotentialPlan (A2 tactical: test_potential_plan + the skirmish), Attack_Target "Random"
 //     and Guard_Target(task force) draws, Build_All refusal, Withdraw_Units, legal orders only (0 rejected), the
 //     Easy 15 s goal sleep, two identical runs and the golden (decision log + per-150-frame CRC; written by MSVC
-//     with --write-golden, clang / gcc must match).
+//     with --write-golden).
 #include <algorithm>
 #include <bit>
 #include <cmath>

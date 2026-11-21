@@ -2,7 +2,7 @@
 // Split out of test_abilities.cpp: shared includes, types and helpers; the tests live in test_abilities_partN.cpp.
 // S9 tests: hardpoints & abilities (legacy docs/re/ABILITIES_HARDPOINTS.md). Hand-computed checks per rule,
 // a scripted space battle with abilities and hardpoint kills (CRC log identical for 1/4/N threads,
-// golden file shared by MSVC / clang / gcc), a per-tick allocation count and FoC data checks.
+// golden file written by MSVC), a per-tick allocation count and FoC data checks.
 //   alamo_tactical_abilities_tests [--golden <file>] [--write-golden <file>]
 #include <algorithm>
 #include <array>
@@ -43,13 +43,6 @@ inline std::atomic<uint64_t> g_allocs{0};
 inline std::atomic<bool> g_count{false};
 }  // namespace
 using namespace bo3split;
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmismatched-new-delete"
-#endif
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
 
 using namespace alamo;
 using namespace alamo::tactical;

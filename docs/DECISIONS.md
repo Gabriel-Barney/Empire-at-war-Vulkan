@@ -23,8 +23,8 @@ Gabriel, 2026-10-27 to 2026-10-29.
 - **Windows x64 is the only supported platform.** No other platforms and no non-Windows code paths. The Xlib / XCB /
   Wayland surface code, the GCC build and its toolchain were removed (2026-10-29); GCC is retired, with no GCC-only fixes.
 - **MSVC builds what ships**, rendering is **Vulkan** only. Shaders are compiled to SPIR-V by DXC (`toolchain\dxc`), so
-  the C++ compiler choice does not affect them. How clang is used is in "Clang runs nightly only" below; the compiler
-  rules that protect determinism are in `docs/SIMULATION.md`.
+  the C++ compiler choice does not affect them. MSVC is the only C++ compiler ("MSVC is the only compiler" below); the
+  compiler rules that protect determinism are in `docs/SIMULATION.md`.
 - **Single player only.** Multiplayer is out of scope: no networking, lobby, online screens or MP-only work (see
   "Multiplayer code removed").
 - **The original game's save files are not loaded.** The port uses only its own save format (N1); do not let the
@@ -49,23 +49,26 @@ tactical fog overrun reveal of networked game types (`FogOfWar::service_overrun`
 Layouts did not change: the `.acmd` header and the N1 saves still carry the late / mode / turn / max_ahead bytes, written
 as the constants 0 / 0 / 1 / 2 and checked on read, so goldens and saves stay byte-identical.
 
-## Clang runs nightly only
+## MSVC is the only compiler
 
-Gabriel, 2026-11-21, replacing the per-change clang build.
+Gabriel, 2026-11-21, following `docs/GROUND_UP_WORKFLOW_DESIGN.md`. Replaces "Clang runs nightly only" (same day),
+which kept clang 20 as a nightly second compiler.
 
-- **Per change: MSVC only.** A change is built and tested with MSVC (README.md). The sanitizer runs are not asked of a
-  change either.
-- **Nightly: clang, the sanitizers and the MSVC-versus-clang compare.** clang 20 stays the second compiler (warnings
-  `-Wconversion -Wshadow` at zero, sanitizers, a determinism cross-check), run on a schedule rather than before landing.
-  A clang warning, sanitizer finding or compiler difference found there is fixed like any other bug.
-- **Stand-in per change:** `engine/CMakeLists.txt` turns on off-by-default MSVC warnings that cover clang's
-  `-Wconversion` family (C4365, C4388, C5219, C4242, C4254, C4826, C4800, C4287, C4296, C4265, C4062) for C++ engine
-  code, so most of what clang would catch still shows per change.
+- **No clang and no GCC anywhere.** No clang, clang-cl, clangd, clang-format or clang-tidy: no clang build, nightly
+  job, lint hook, clang sanitizer job or MSVC-versus-clang comparison, and no `__clang__` / `__GNUC__` branches in
+  project code. Vendored sources keep their own.
+- **What covers clang's checks.** Per change: `engine/CMakeLists.txt` turns on off-by-default MSVC warnings for the
+  conversion family (C4365, C4388, C5219, C4242, C4254, C4826, C4800, C4287, C4296, C4265, C4062) in C++ engine code.
+  Nightly, and before a high-risk change lands: MSVC `/analyze`, an MSVC AddressSanitizer build, Debug and optimized
+  Release runs, and the determinism checks in `docs/SIMULATION.md`.
+- **Limits.** Compiler portability is not promised. Undefined behaviour and races are caught only by the MSVC checks,
+  the tests and review, so code that converts out-of-range values keeps using the defined helpers
+  (`alamo/core/x86_int.hpp`, `alamo/core/frames.hpp`).
+- **Old comments.** Comments that record a past measurement on clang ("measured on MSVC and clang") are history and
+  may stay. A golden written by MSVC is the only reference.
 - Why: clang took about 28 % of recorded test time and about half of a sim change's landing check; in about 1,000 clang
-  builds it failed where MSVC passed 14 times, mostly flakes. The rare real bug it finds (one undefined float-to-int
-  overflow) is still found within a day.
-- Note: this checkout's toolchain (README.md) installs MSVC only; the clang nightly is not set up here yet. The rule
-  stands for when it is.
+  builds it failed where MSVC passed 14 times, mostly flakes. One pinned toolchain is simpler to install, cache and
+  diagnose.
 
 ## Approved third-party dependencies
 

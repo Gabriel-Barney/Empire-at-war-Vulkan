@@ -10,7 +10,6 @@
 // Order: the declaration order in story_session.hpp. Read by the lint only (not compiled).
 #pragma once
 
-// clang-format off
 #define ALAMO_STORY_SESSION_LEDGER(SAVED, REBUILT, DERIVED, CHECKED) \
     REBUILT(self_, "a2k t12: the handle the sim's spawn hook reaches this session through") \
     REBUILT(sim_, "the GalacticSim handed to the constructor") \
@@ -65,4 +64,3 @@
     SAVED(lines_, unhashed) \
     SAVED(frame_, unhashed) \
     SAVED(seconds_, unhashed)
-// clang-format on

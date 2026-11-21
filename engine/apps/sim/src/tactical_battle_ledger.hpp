@@ -21,7 +21,6 @@
 // Included only by tactical_battle_save.cpp.
 #pragma once
 
-// clang-format off
 #define ALAMO_TACTICAL_BATTLE_LEDGER(SAVED, REBUILT, DERIVED) \
     DERIVED(land_obstacle_none_, "per-type cache (filled from type data on first use)") \
     DERIVED(drop_pos_, "scratch inside one call or tick") \
@@ -278,4 +277,3 @@
 #else
 #define ALAMO_TACTICAL_BATTLE_LEDGER_AI(SAVED, REBUILT, DERIVED)
 #endif
-// clang-format on

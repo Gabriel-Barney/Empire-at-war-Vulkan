@@ -606,8 +606,8 @@ The runner's 0 / 4 worker comparison covers worker counts. Each reference mod al
 `tests/goldens/mods/<name>.json`, run by `tools/goldens/mod_golden.py` as ctest `alamo_headless_mod_golden_<name>`,
 skipped when `ALAMO_FOC_DATA` is unset or the mod is not installed. Mods set values the stock game never uses (delays of
 99999999999 seconds); sim code converts them with x86 range behaviour (`alamo/core/x86_int.hpp`, `alamo/core/frames.hpp`;
-`tools/lint/check_frame_casts.py` enforces it outside `engine/core`), and `tools/conformance/limit_mods.py` checks MSVC
-and clang CRC logs agree on such data. All other rules are in `docs/SIMULATION.md`.
+`tools/lint/check_frame_casts.py` enforces it outside `engine/core`), and `tools/conformance/limit_mods.py` checks the CRC
+logs agree across worker counts on such data. All other rules are in `docs/SIMULATION.md`.
 
 ### Saves, mod versions and the launcher
 

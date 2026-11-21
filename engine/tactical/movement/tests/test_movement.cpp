@@ -3453,7 +3453,7 @@ static CrcLog fighter_crc_run(const ParallelFor& pf) {
     return log;
 }
 
-// Golden digest of the fighter scenario (FIGHTER_FLYING 2026-10-29); MSVC and clang must both produce it. the
+// Golden digest of the fighter scenario (FIGHTER_FLYING 2026-10-29); written by MSVC. the
 // fighter 31's move now builds a fighter formation, hashed with the fighters ("FFOR"); without that section the digest is
 // still the 2026-10-29 value 0x5a7df50c208f33b1 (the motion is unchanged).
 // cu8j t01 (2026-11-08): the fighter formations compose at the next coordinator update (one draw each, first check at
@@ -3514,7 +3514,7 @@ static CrcLog space_crc_run(const ParallelFor& pf) {
     return log;
 }
 
-// Golden digests of the final record (MSVC and clang must both produce these). OI tactical (2026-10-28): land moved
+// Golden digests of the final record (written by MSVC). OI tactical (2026-10-28): land moved
 // (PathFrameDelay stagger draws on the plain return move, hash adds jiggle / formation flag / crush events), space moved
 // (hash format; ops 5 / 6 and the doc's re-expansion list). S7 collision layer (2026-10-29): land moved (persistent
 // collision objects hashed, priority-ordered resolution; units act on their own check frames); space unchanged.

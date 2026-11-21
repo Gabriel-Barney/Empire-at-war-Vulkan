@@ -12,7 +12,6 @@
 // Order: the declaration order in campaign.hpp. Read by the lint only (not compiled).
 #pragma once
 
-// clang-format off
 #define ALAMO_GALACTIC_LEDGER(SAVED, REBUILT, DERIVED, CHECKED) \
     CHECKED(rules_, "start(): write() stores the type count, read() refuses another") \
     CHECKED(store_, "the session's object store (restored first): handles are saved as object ids") \
@@ -69,4 +68,3 @@
     SAVED(local_player_, hashed) \
     SAVED(auto_reveal_, hashed) \
     SAVED(reveal_sfx_, unhashed)
-// clang-format on

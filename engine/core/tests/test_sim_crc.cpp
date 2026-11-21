@@ -102,7 +102,7 @@ static void test_hasher() {
     g.u64(0x0123456789ABCDEFull);
     g.f64(3.5);
     std::printf("  StateHasher pin digest %016llx\n", static_cast<unsigned long long>(g.digest()));
-    CHECK(g.digest() == 0x5e4582e2c39f7cb0ull);  // pinned (MSVC; clang/gcc must match)
+    CHECK(g.digest() == 0x5e4582e2c39f7cb0ull);  // pinned (MSVC)
 }
 
 static void test_registry_and_log() {

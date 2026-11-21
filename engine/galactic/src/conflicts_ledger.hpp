@@ -10,7 +10,6 @@
 // Order: the declaration order in conflicts.hpp. Read by the lint only (not compiled).
 #pragma once
 
-// clang-format off
 #define ALAMO_CONFLICTS_LEDGER(SAVED, REBUILT, DERIVED, CHECKED) \
     REBUILT(decide, "host callback") \
     REBUILT(start_battle, "host callback") \
@@ -41,4 +40,3 @@
     SAVED(request_, unhashed) \
     SAVED(planet_map_, hashed) \
     SAVED(log_, hashed)
-// clang-format on

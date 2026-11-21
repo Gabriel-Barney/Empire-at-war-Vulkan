@@ -2,7 +2,7 @@
 // A1 stage 1b (legacy docs/re/AI_TACTICAL_PERCEPTION.md): leaf cache rules, the evaluator tree and every
 // token family, normalised tokens, threat grid geometry / projection / 300-frame re-projection / fog
 // memory (incl. the [M] cell-force double count), point / zone danger into zone_reachability, the
-// Lua-facing functions, a scripted scenario CRC (golden shared by MSVC / clang / gcc; 1 / 4 / N
+// Lua-facing functions, a scripted scenario CRC (golden written by MSVC; 1 / 4 / N
 // threads) and, with ALAMO_FOC_DATA, every shipped tactical perceptual equation.
 //
 //   alamo_ai_tactical_perception_tests [--golden <file>] [--write-golden <file>]

@@ -17,7 +17,7 @@ Terms used throughout:
 ## Determinism rules
 
 Saves, replays and every parity and regression check rely on the per-tick CRC. Rule 3: **every result game logic reads is
-bit-identical across worker counts, runs, and the MSVC and clang builds.** Parity with retail does not relax it ("Parity
+bit-identical across worker counts and runs.** Parity with retail does not relax it ("Parity
 tiers"). `engine/jobs/include/alamo/jobs/deterministic.hpp` holds the helpers that give bit-identical results for any
 worker count (0, 1, 4, 16, ...) and any scheduling.
 
@@ -33,8 +33,8 @@ worker count (0, 1, 4, 16, ...) and any scheduling.
 
 ### Floating point and compilers
 
-- MSVC ships, clang is the second compiler used to check determinism (nightly).
-- IEEE single precision, no FMA contraction: MSVC `/fp:precise`, clang `-ffp-contract=off` (`alamo_engine_flags` in
+- MSVC is the only compiler (`docs/DECISIONS.md` "MSVC is the only compiler"). A golden written by MSVC is the reference.
+- IEEE single precision, no FMA contraction: MSVC `/fp:precise` (`alamo_engine_flags` in
   `engine/CMakeLists.txt`, with `/W4 /permissive- /utf-8`). `sqrt` only, which is correctly rounded.
 - Retail-shaped numeric code already in place (for example `fast_rsqrt_retail`) stays.
 
@@ -348,7 +348,7 @@ the declarations ("Services chain"):
 
 Every simulation change is judged against the tiers:
 
-- **Rule 3:** the worker-count checks, MSVC and clang (clang nightly); a sanitizer run for job-system changes.
+- **Rule 3:** the worker-count checks; an MSVC AddressSanitizer run for job-system changes.
 - **Tier 1:** unit tests and retail spec checks; retail-defined order stays an explicit graph edge; story Lua stays on the
   critical lane.
 - **Tier 2:** flag-gated changes judged by the parity harness over many seeds ("Flag-gated tier-2 changes").

@@ -4,8 +4,8 @@
 //   alamo_core_dmath_tests --write-golden FILE    (re)generate the golden file (MSVC build)
 //
 // Each function runs on a fixed input set (splitmix64-generated, several domains); the output bit
-// patterns are hashed with StateHasher. The golden file holds one digest per function, so MSVC,
-// clang and gcc builds must all reproduce it bit for bit. The CRT is used ONLY as an accuracy
+// patterns are hashed with StateHasher. The golden file holds one digest per function, and every
+// build must reproduce it bit for bit. The CRT is used ONLY as an accuracy
 // reference here (tests are not sim code).
 #include <cmath>
 #include <cstdio>

@@ -1248,12 +1248,6 @@ void test_hardpoints() {
     CHECK(ti.hardpoint_index("hp_star_destroyer_engines") == 1 && ti.hardpoint_index("HP_Nope") == -1 && ti.hardpoint_index("") == -1);
 }
 
-// GCC flags free() inside a replaced operator delete (-Wmismatched-new-delete) although the replaced operator new
-// above allocates with malloc(); the pairing is correct by construction.
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmismatched-new-delete"
-#endif
 void* operator new(std::size_t n) {
     if (g_count_allocs.load(std::memory_order_relaxed)) {
         const uint64_t k = g_allocs.fetch_add(1, std::memory_order_relaxed);
@@ -1264,9 +1258,6 @@ void* operator new(std::size_t n) {
 }
 void operator delete(void* p) noexcept { std::free(p); }
 void operator delete(void* p, std::size_t) noexcept { std::free(p); }
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
 
 
 int main() {

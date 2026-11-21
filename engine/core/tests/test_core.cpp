@@ -258,7 +258,7 @@ int main() {
 
     // DirectoryProvider: case-insensitive.
     namespace fs = std::filesystem;
-    // Unique per run, so concurrent ctest runs (e.g. MSVC + clang at once) don't share the folder.
+    // Unique per run, so concurrent ctest runs (e.g. two build trees at once) don't share the folder.
     const fs::path tmp = fs::temp_directory_path() /
                          ("alamo_core_test_" + std::to_string(std::random_device{}()) + "_" +
                           std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));

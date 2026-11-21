@@ -10,7 +10,6 @@
 // Order: the declaration order in battle_ai.hpp. Read by the lint only (not compiled).
 #pragma once
 
-// clang-format off
 #define ALAMO_BATTLE_AI_LEDGER(SAVED, REBUILT, DERIVED, CHECKED) \
     REBUILT(facts_, "ref5 t07: rules wired by the constructor; tables captured again at the next AI slot; order_refused read at once") \
     DERIVED(type_facts_, "per-type cache (filled from type data on first use)") \
@@ -56,4 +55,3 @@
     REBUILT(tactical_, "script hooks of the tactical AI VMs, installed again by start()") \
     REBUILT(fog_hooks_, "script hooks of the tactical AI VMs, installed again by start()") \
     REBUILT(remaining_, "script hooks of the tactical AI VMs, installed again by start()")
-// clang-format on

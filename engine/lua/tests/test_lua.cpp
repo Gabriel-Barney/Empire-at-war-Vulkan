@@ -282,7 +282,7 @@ static void test_random_and_math() {
     }
     lua_pop(L, 1);
     std::printf("  numeric digest %016llx\n", static_cast<unsigned long long>(digest));
-    CHECK(digest == 0x5C4BB890FC69E99Eull);  // golden: MSVC 14.51 build; GCC / Clang must match
+    CHECK(digest == 0x5C4BB890FC69E99Eull);  // golden: MSVC 14.51 build
 
     // pairs() order over table / userdata keys is reproducible (keys hash by creation serial, not
     // address): two VMs, the second created after unrelated allocations, give the same order.
@@ -336,7 +336,7 @@ static void test_gc_determinism() {
     uint32_t survivors = 0;
     for (char ch : gstr(v1, "surv")) survivors += ch == ',' ? 1u : 0u;
     CHECK(survivors == 20 && gnum(v1, "nv") == 0.0);
-    // Golden (MSVC 14.51 build; clang must match) on a bare patched VM (base library only, so engine binding
+    // Golden (MSVC 14.51 build) on a bare patched VM (base library only, so engine binding
     // changes do not move it): tostring names, pairs order over the surviving table keys, the automatic
     // collection points and gcinfo are fixed by creation serials and Lua's own byte accounting, not addresses.
     lua_State* B = lua_open();

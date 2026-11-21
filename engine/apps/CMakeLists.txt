@@ -347,10 +347,10 @@ if(_alamo_sim)
     alamo_label_slow(alamo_headless_skirmish_ai_geonosis)
     # the limits conformance mods factions_80 (80 factions / players, the stock ones at 72..79) and levels_10
     # (GameConstants maxima 10) at G2 (engine/apps/game/testdata/conformance/limits/README.md), and ref4 t03's huge_delay
-    # (GameConstants delays of 99999999999 s, far outside int32 frames; MSVC and clang must agree): space and land skirmish
+    # (GameConstants delays of 99999999999 s, far outside int32 frames; converted with x86 range behaviour): space and land skirmish
     # 3000 ticks, galactic 9000 ticks, one ctest entry per worker count (0 writes the CRC log, 4 compares). The mods are
     # written at configure time (levels_10's GameConstants comes from extracted/foc_data_text.zip); the runs skip without
-    # ALAMO_FOC_DATA. MSVC / clang: tools/conformance/limit_mods.py run --exe <msvc> --exe2 <clang>.
+    # ALAMO_FOC_DATA. By hand: tools/conformance/limit_mods.py run --exe <alamo_headless>.
     set(_lim_out ${CMAKE_CURRENT_BINARY_DIR}/conformance_limits)
     if(ALAMO_LINT_PYTHON AND EXISTS ${PROJECT_SOURCE_DIR}/extracted/foc_data_text.zip)
       execute_process(COMMAND ${ALAMO_LINT_PYTHON} ${PROJECT_SOURCE_DIR}/tools/conformance/limit_mods.py build --out ${_lim_out}
@@ -664,7 +664,7 @@ add_test(NAME alamo_headless_selfcheck COMMAND alamo_headless --selfcheck)
 # Q1 replay: a fixed recorded command stream must give identical per-tick CRC sequences for 0/1/4/N workers.
 # alamo_headless_replay_workers* is the OPT3 t07 worker-count check (one process per count); alamo_headless_replay_golden
 # runs the in-process form (--check-workers, jobs::check_worker_counts). The result across commits is the scenario replay
-# of tools/goldens/scenarios.json (no stored golden; the MSVC-versus-clang comparison script was not carried over from the old repo).
+# of tools/goldens/scenarios.json (no stored golden).
 set(_q1_data ${CMAKE_CURRENT_SOURCE_DIR}/headless/testdata)
 alamo_add_worker_count_check(alamo_headless_replay_workers
     COMMAND alamo_headless --replay ${_q1_data}/replay_stream.acmd

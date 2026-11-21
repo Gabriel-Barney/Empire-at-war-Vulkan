@@ -10,7 +10,6 @@
 // Order: the declaration order in movement_system.hpp. Read by the lint only (not compiled).
 #pragma once
 
-// clang-format off
 #define ALAMO_MOVEMENT_LEDGER(SAVED, REBUILT, DERIVED, CHECKED) \
     CHECKED(cfg_, "set by the battle at construction; write() stores the mode, read() refuses another") \
     SAVED(grid_, hashed) \
@@ -63,4 +62,3 @@
     DERIVED(devents_, "records of one tick, drained by the battle (take_deploy_events) in the same tick") \
     DERIVED(exit_arrivals_, "records of one tick, drained by the battle (take_exit_arrivals) in the same tick") \
     DERIVED(tevents_, "records of one tick, drained by the battle (take_turn_clip_events) in the same tick")
-// clang-format on

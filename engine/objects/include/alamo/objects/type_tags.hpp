@@ -42,7 +42,6 @@ struct SubObjectsTag {
 
 // X(kind, Name, default): kind Float / Int / Bool / Text / Vec / List / Ref / Mask / Sub; the default is used by
 // Float / Int / Bool / Text and is 0 for the others (their unset value is fixed).
-// clang-format off
 #define ALAMO_TYPE_TAGS(X)                                                                                            \
     /* chase ranges (FIGHTER_FLYING §4.10 A; BKR1 Q8): tactical_battle_chase.cpp */                                   \
     X(Float, Guard_Chase_Range, 0.0f)                                                                                 \
@@ -574,7 +573,6 @@ struct SubObjectsTag {
     X(Bool, Initial_State_Visible_Under_FOW, false)                                                                   \
     X(Bool, Is_Dummy, false)                                                                                          \
     X(Int, Population_Value, 0)
-// clang-format on
 
 namespace tags {
 #define ALAMO_TYPE_TAG_DECL_Float(name, def) inline constexpr FloatTag name{#name, def};

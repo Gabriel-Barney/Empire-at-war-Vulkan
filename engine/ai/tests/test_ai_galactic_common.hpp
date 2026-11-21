@@ -954,7 +954,7 @@ void test_prefer_ground_auto_land();
 // through GalacticSim::ground_activated_trigger (Activate_Ability / Land_Units): the saboteur corrupts a clean planet
 // (corruption_ai_pick) and sabotages a corrupted one, Tyber Zann buys on the black market of the planet he corrupted,
 // IG-88 hacks the Death Star II orbiting a corrupted planet. Per-frame CRCs identical for 0 / 1 / 4 / 15 workers and
-// against tests/golden/ai_underworld_crc.txt (MSVC and clang check the same file).
+// against tests/golden/ai_underworld_crc.txt.
 inline const char* kUwLibrary = R"(
 require("SynAICommands")
 function AssembleForce(taskforce)

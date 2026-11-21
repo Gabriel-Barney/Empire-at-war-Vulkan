@@ -176,13 +176,7 @@ bench::Json machine_json() {
 }
 
 std::string compiler_text() {
-#if defined(__clang__)
-    return std::string("clang ") + __clang_version__;
-#elif defined(_MSC_VER)
     return "MSVC " + std::to_string(_MSC_FULL_VER);
-#else
-    return "unknown";
-#endif
 }
 
 bench::Json build_json() {

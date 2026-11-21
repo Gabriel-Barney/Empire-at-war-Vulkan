@@ -85,8 +85,7 @@ add_test(NAME alamo_ai_tactical_tests COMMAND alamo_ai_tactical_tests)
 set_tests_properties(alamo_ai_tactical_tests PROPERTIES TIMEOUT 600)
 
 # Stage 1b perception tests: leaf cache rules, every token, threat-grid projection / re-projection /
-# fog memory, Lua-facing functions, scenario CRC golden (1 / 4 / N threads; MSVC writes it, clang
-# must match) and, with ALAMO_FOC_DATA, the shipped tactical perceptual equations.
+# fog memory, Lua-facing functions, scenario CRC golden (1 / 4 / N threads; MSVC writes it) and, with ALAMO_FOC_DATA, the shipped tactical perceptual equations.
 add_executable(alamo_ai_tactical_perception_tests tests/test_ai_tactical_perception.cpp)
 target_link_libraries(alamo_ai_tactical_perception_tests PRIVATE alamo_ai_tactical alamo_test_support)
 if(TARGET alamo_vfs)

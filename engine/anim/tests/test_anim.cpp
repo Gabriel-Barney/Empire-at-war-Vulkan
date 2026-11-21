@@ -431,7 +431,7 @@ void test_crossfade_bits() {
     const Float3 tl = lerp({1.0f, 2.0f, 3.0f}, {-4.0f, 0.5f, 9.25f}, 0.3f);
     digest = digest * 1000003u + float_bits(tl.x) + float_bits(tl.y) * 3u + float_bits(tl.z) * 7u;
     std::printf("crossfade bits: %s\n  digest %016" PRIx64 "\n", line.c_str(), digest);
-    // Golden (MSVC 19.51 /fp:precise; clang 20 and gcc 14 -ffp-contract=off must match).
+    // Golden (MSVC 19.51 /fp:precise).
     CHECK(digest == 0x14d597a6e9768f72ull);
 }
 
@@ -660,7 +660,7 @@ std::unique_ptr<AnimModel> behaviour_model(bool flinch_clips = true) {
                           {kAnimAttackFlinchBack, 1, 10, 30.0f, 2}});
 }
 
-// MSVC 19.51; clang 20 / gcc 14 must match. Was 4357bd5e704ab19c before the locomotor state (last yaw / crouch)
+// MSVC 19.51. Was 4357bd5e704ab19c before the locomotor state (last yaw / crouch)
 // and the corpse spin-away / damage-kind fields joined AnimBehaviors::hash.
 constexpr uint64_t kBehaviourGolden = 0x53d7bba7979bbe88ull;  // idle service every call, target draws
 

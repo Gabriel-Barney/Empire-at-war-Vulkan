@@ -1,5 +1,5 @@
 // alamo_fuzz_smoke - a seeded, deterministic mutation fuzzer over fuzz_targets.hpp (docs/MODS.md
-// 11.3). No third-party fuzzer: it runs in every tree (MSVC and clang, a slow-labelled ctest entry) and under the ASan
+// 11.3). No third-party fuzzer: it runs in every tree (a slow-labelled ctest entry) and under the ASan
 // build; the old repo's clang + libFuzzer build (build_fuzz.cmd, not carried over) explored further with coverage feedback.
 //
 //   alamo_fuzz_smoke [--seconds S] [--iterations N] [--only a,b] [--seed U64] [--out DIR] [--no-data] [--corpus DIR]

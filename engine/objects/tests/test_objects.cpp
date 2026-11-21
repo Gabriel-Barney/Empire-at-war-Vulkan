@@ -1343,7 +1343,7 @@ static void test_store_save() {
 
     const std::vector<uint8_t> saved = store_bytes(a);
     {
-        StateHasher h;  // same bytes from every compiler / run (compare the MSVC and clang logs)
+        StateHasher h;  // same bytes from every compiler / run (compare the logs)
         h.bytes(saved.data(), saved.size());
         std::printf("  store save: %zu bytes, digest %016llx\n", saved.size(), static_cast<unsigned long long>(h.digest()));
     }

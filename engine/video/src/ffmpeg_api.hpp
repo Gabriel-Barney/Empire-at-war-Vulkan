@@ -1,9 +1,7 @@
 // Runtime-loaded FFmpeg entry points (avutil / avcodec / avformat). Internal to engine/video.
 #pragma once
 
-#if defined(_MSC_VER) && !defined(__clang__)
 #pragma warning(push, 0)
-#endif
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -12,9 +10,7 @@ extern "C" {
 #include <libavutil/frame.h>
 #include <libavutil/mem.h>
 }
-#if defined(_MSC_VER) && !defined(__clang__)
 #pragma warning(pop)
-#endif
 
 #include <string>
 

@@ -10,7 +10,6 @@
 // Order: the declaration order in combat_system.hpp. Read by the lint only (not compiled).
 #pragma once
 
-// clang-format off
 #define ALAMO_COMBAT_LEDGER(SAVED, REBUILT, DERIVED, CHECKED) \
     CHECKED(data_, "the host's type tables; write() stores their counts, read() refuses others") \
     REBUILT(cfg_, "set by the battle at construction") \
@@ -77,4 +76,3 @@
     DERIVED(ctx_free_, "query context pool") \
     DERIVED(serial_ctx_, "query context") \
     SAVED(weather_acc_, unhashed)
-// clang-format on

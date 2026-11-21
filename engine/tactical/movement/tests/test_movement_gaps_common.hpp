@@ -64,7 +64,7 @@ void test_fighter_guard();
 void test_fighter_formation_stack();
 CrcLog mixed_run(const ParallelFor& pf);
 
-// Golden digest of the final record (MSVC and clang must both produce it). S7 collision layer (2026-10-29): moved (the
+// Golden digest of the final record (written by MSVC). S7 collision layer (2026-10-29): moved (the
 // land hash appends the collision objects; priority-ordered resolution). FIGHTER_FLYING §6 flying (2026-10-29): moved
 // (Hermite follower, attitude / altitude steps, D + dir x L loiter; flying units hash pitch, V, path index, target).
 // S7 t15 (2026-11-02): moved (the Has_Pre_Turn_Anim jetpack's take-off turn: band rates, one-shot clips, clip-end exit).

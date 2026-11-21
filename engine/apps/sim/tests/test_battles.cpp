@@ -7,7 +7,7 @@
 //     attacker lands its survivors;
 //   * the same campaign with auto-resolve only;
 //   * per-tick CRC logs identical for 0/1/4/N workers and equal to testdata/battle_synthetic_golden.crc
-//     (MSVC writes it with --regen; clang / gcc must reproduce it).
+//     (MSVC writes it with --regen).
 // With ALAMO_FOC_DATA (FoC "corruption" folder) a real FoC space map battle runs as well.
 
 #include "battle_test_fixture.hpp"
@@ -1675,7 +1675,7 @@ void test_death_clone_removal() {
 // The space campaign on the bm data: at battle frame 10 the gate state of every frigate / corvette's POWER_TO_WEAPONS
 // is read and the human Empire sends command 43 on it. Without a purchase both players are gated (no activation);
 // with S10_BM_Item given to the Empire before the start only the Underworld stays gated. CRC log identical for every
-// worker count and equal to testdata/battle_bm_golden.crc (MSVC writes it with --regen; clang must reproduce it).
+// worker count and equal to testdata/battle_bm_golden.crc (MSVC writes it with --regen).
 struct BmRun {
     CrcLog crc;
     std::vector<std::string> battles;

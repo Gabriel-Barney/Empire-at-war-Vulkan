@@ -884,7 +884,7 @@ int main() {
     if (!w.ok) return 1;
     {
         // C functions saved under another name (shared dispatchers; with MSVC's /OPT:ICF also functions the linker
-        // folded). Printed so the MSVC and clang logs can be compared.
+        // folded). Printed so the logs of two builds can be compared.
         const std::vector<std::string> al = detail::cfunction_aliases();
         uint64_t h = 0xcbf29ce484222325ull;
         for (const std::string& a : al) h = fnv1a64(a.data(), a.size(), h);

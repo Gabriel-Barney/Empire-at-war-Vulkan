@@ -11,7 +11,6 @@
 // Order: the declaration order in story_model.hpp. Read by the lint only (not compiled).
 #pragma once
 
-// clang-format off
 #define ALAMO_STORY_MODEL_LEDGER(SAVED, REBUILT, DERIVED, CHECKED) \
     REBUILT(on_reward, "host callback") \
     REBUILT(faction_of, "host callback") \
@@ -41,4 +40,3 @@
     DERIVED(fire_depth_, "recursion guard inside one fire") \
     DERIVED(firing_, "mcx6: the notification being fired, inside one fire") \
     DERIVED(reset_depth_, "RESET_BRANCH depth inside one reset")
-// clang-format on

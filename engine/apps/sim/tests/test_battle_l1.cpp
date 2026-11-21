@@ -538,7 +538,7 @@ void test_battle(const Data& d) {
         std::printf("  workers %2d: %s, trace %s\n", w, dv.message.c_str(), b.trace == a.trace ? "identical" : "DIFFERENT");
         CHECK(!dv.diverged && b.trace == a.trace);
     }
-    // Golden (MSVC writes it with --regen; clang / gcc must reproduce it): includes the L1 state ("battle.abilities").
+    // Golden (MSVC writes it with --regen): includes the L1 state ("battle.abilities").
     const std::string path = (g_golden_out.empty() ? std::string(ALAMO_SIM_TESTDATA) : g_golden_out) + "/battle_l1_golden.crc";
     CrcLog log = a.crc;
     log.comments = {"L1 systems synthetic campaign: special weapon, TSW, hyperspace, engines, teleport; seed 7"};

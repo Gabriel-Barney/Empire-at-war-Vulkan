@@ -6,7 +6,7 @@
 # the build dir, the determinism patches below are applied to the copies (each one verified), and the
 # copies are compiled AS C++ with the same compiler as the engine:
 #   * one language/ABI: no C compiler needed by the build scripts, no extern "C" seams;
-#   * /fp:precise (MSVC) or -ffp-contract=off (clang) like every engine target (rule 3);
+#   * /fp:precise like every engine target (rule 3);
 #   * third-party warnings are silenced for this target only (/W0, -w); the include dir is SYSTEM.
 # Built: core VM + lauxlib + base (incl. coroutine), string and table libs - what the original's
 # scripts can reach. NOT built: lmathlib (the original exposes no math table; an optional dmath-backed
@@ -53,14 +53,14 @@ alamo_lua_patch(lstring.c "  ts->tsv.marked = 0;\n" "  ts->tsv.marked = 0;\n  ts
 # Portability (same value): C++ forbids a direct pointer -> 32-bit integer cast on 64-bit targets.
 alamo_lua_patch(llimits.h "#define IntPoint(p)  ((lu_hash)(p))\n" "#define IntPoint(p)  ((lu_hash)(size_t)(p))\n")
 # Toolchain workaround (not a semantic change): MSVC 14.51 at /O2 miscompiles ltable.c computesizes
-# (rehash sizing) - stock 5.0.2 crashes in luaopen_base; /Od, /O1, /d2SSAOptimizer- and clang /O2 are
-# fine. Optimisation is switched off for that one cold function on MSVC only.
+# (rehash sizing) - stock 5.0.2 crashes in luaopen_base; /Od, /O1 and /d2SSAOptimizer- are fine.
+# Optimisation is switched off for that one cold function.
 alamo_lua_patch(ltable.c
   "static void computesizes  (int nums[], int ntotal, int *narray, int *nhash) {\n"
-  "#if defined(_MSC_VER) && !defined(__clang__)\n#pragma optimize(\"\", off)  /* alamo: MSVC 14.51 /O2 miscompiles this function */\n#endif\nstatic void computesizes  (int nums[], int ntotal, int *narray, int *nhash) {\n")
+  "#if defined(_MSC_VER)\n#pragma optimize(\"\", off)  /* alamo: MSVC 14.51 /O2 miscompiles this function */\n#endif\nstatic void computesizes  (int nums[], int ntotal, int *narray, int *nhash) {\n")
 alamo_lua_patch(ltable.c
   "  lua_assert(na <= *narray && na >= *narray/2);\n}\n"
-  "  lua_assert(na <= *narray && na >= *narray/2);\n}\n#if defined(_MSC_VER) && !defined(__clang__)\n#pragma optimize(\"\", on)\n#endif\n")
+  "  lua_assert(na <= *narray && na >= *narray/2);\n}\n#if defined(_MSC_VER)\n#pragma optimize(\"\", on)\n#endif\n")
 alamo_lua_patch(ltable.c
   "      return hashpointer(t, gcvalue(key));\n"
   "      return hashmod(t, cast(lu_hash, gcvalue(key)->gch.alamo_serial));  /* alamo: serial, not address */\n")
@@ -106,7 +106,7 @@ alamo_lua_patch(lbaselib.c "      sprintf(buff, \"thread: %p\", (void *)lua_toth
 # gcinfo / collectgarbage / weak tables ([port], no patch needed): the collector runs when Lua's own byte count
 # (requested sizes, lstate.h nblocks) reaches the threshold, so collection points - and therefore weak-table
 # clearing and gcinfo() - are a function of the VM's allocation history only: identical across runs and worker
-# counts, and across MSVC / clang (same x64 ABI, same struct sizes). Tested against a golden in test_lua.cpp.
+# counts. Tested against a golden in test_lua.cpp.
 # end OI lua
 # OI lua (UB fixes, clang ASan/UBSan 2026-10-28; upstream 5.0.2 UB, not our patches or C API use). Each one keeps the
 # value the shipped x64 code already computes, so behaviour, results and CRCs are unchanged:

@@ -10,7 +10,6 @@
 // Order: the declaration order in galactic_ai_tokens.hpp. Read by the lint only (not compiled).
 #pragma once
 
-// clang-format off
 #define ALAMO_GALACTIC_AI_TOKENS_LEDGER(SAVED, REBUILT, DERIVED, CHECKED) \
     CHECKED(sim_, "the GalacticSim: read() refuses a planet count other than 0 or the sim's") \
     REBUILT(types_, "the AI type table, set by the owning world") \
@@ -35,4 +34,3 @@
     CHECKED(mu_, "the leaf cache's lock, held by write() / hash() / read()") \
     SAVED(cache_, hashed) \
     SAVED(hits_, unhashed)
-// clang-format on

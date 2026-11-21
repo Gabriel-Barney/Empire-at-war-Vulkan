@@ -154,7 +154,7 @@ static void test_lz_codec() {
                 static_cast<double>(structured.size()) / static_cast<double>(packed));
     CHECK(packed * 10 < structured.size());
 
-    // Cross-compiler determinism: the MSVC and clang builds must write exactly these bytes.
+    // Determinism: every build must write exactly these bytes.
     const std::vector<uint8_t> golden_in = save_like(20000, 12, 99);
     const std::vector<uint8_t> golden = alamo::lz_compress(golden_in);
     std::printf("lz: golden input %zu -> %zu bytes, digest %016llx\n", golden_in.size(), golden.size(),

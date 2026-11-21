@@ -4,7 +4,7 @@
 // calls capture(tick) and gets a CrcRecord: one 64-bit digest per system (registration order)
 // plus a combined digest. A CrcLog is the sequence of records of a run; two logs are compared
 // with first_divergence(), which names the first diverging tick and system. The same harness
-// backs worker-count checks (0/1/4/N), cross-compiler checks (MSVC/clang/gcc golden files),
+// backs worker-count checks (0/1/4/N), golden files,
 // replays, saves and parity runs.
 //
 // HASHER CONTRACT (what a system feeds its StateHasher):

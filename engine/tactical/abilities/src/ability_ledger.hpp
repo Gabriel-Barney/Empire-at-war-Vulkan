@@ -10,7 +10,6 @@
 // Order: the declaration order in ability_system.hpp. Read by the lint only (not compiled).
 #pragma once
 
-// clang-format off
 #define ALAMO_ABILITY_LEDGER(SAVED, REBUILT, DERIVED, CHECKED) \
     SAVED(anim_plays_, unhashed) \
     REBUILT(host_, "host callbacks (set_host)") \
@@ -39,4 +38,3 @@
     SAVED(type_overrides_, hashed) \
     SAVED(bm_blocked_, unhashed) \
     REBUILT(fog_reveal_all_, "host callback (fog follow-up)")
-// clang-format on

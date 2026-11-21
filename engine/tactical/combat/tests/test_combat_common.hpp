@@ -49,15 +49,6 @@ inline std::atomic<uint64_t> g_allocs{0};
 inline std::atomic<bool> g_count{false};
 }  // namespace
 using namespace bo3split;
-// GCC flags free() inside a replaced operator delete (-Wmismatched-new-delete) although the replaced
-// operator new allocates with malloc(); the pairing is correct by construction (as in test_render).
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmismatched-new-delete"
-#endif
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
 
 using namespace alamo;
 using namespace alamo::tactical;

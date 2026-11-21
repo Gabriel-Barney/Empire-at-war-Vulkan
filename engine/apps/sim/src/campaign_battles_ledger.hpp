@@ -13,7 +13,6 @@
 // Order: the declaration order in campaign_battles.hpp. Read by the lint only (not compiled).
 #pragma once
 
-// clang-format off
 #define ALAMO_CAMPAIGN_BATTLES_LEDGER(SAVED, REBUILT, DERIVED, CHECKED) \
     DERIVED(resume_, "load pass 1: the running battle to rebuild, set by read_state") \
     REBUILT(gate_, "story-block forwarder, made by attach()") \
@@ -58,4 +57,3 @@
     SAVED(ai_, hashed) \
     SAVED(ai_log_, unhashed) \
     DERIVED(lua_close_wait_, "OPT3 t11: the last battle's VM-freeing job")
-// clang-format on

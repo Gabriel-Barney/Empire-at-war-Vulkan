@@ -25,7 +25,7 @@ target_include_directories(alamo_tactical_combat PUBLIC ${CMAKE_CURRENT_SOURCE_D
 target_link_libraries(alamo_tactical_combat PUBLIC alamo_tactical alamo_core alamo_engine_flags PRIVATE alamo_data alamo_objects)
 
 # Tests: hand-computed formulas, modifier stacking, priority sets, a scripted 2-sided space battle
-# (CRC log identical for 1/4/N threads; golden file shared by MSVC and clang), per-tick
+# (CRC log identical for 1/4/N threads; golden file written by MSVC), per-tick
 # allocation count, modifier-aggregation micro-benchmark (printed). Data checks use ALAMO_FOC_DATA.
 # Regenerate the golden: alamo_tactical_combat_tests --write-golden <file>.
 add_executable(alamo_tactical_combat_tests tests/test_combat.cpp tests/test_combat_part1.cpp tests/test_combat_part2.cpp tests/test_combat_part3.cpp

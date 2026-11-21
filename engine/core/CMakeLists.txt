@@ -51,7 +51,7 @@ target_link_libraries(alamo_core_compat_issue_tests PRIVATE alamo_core alamo_tes
 add_test(NAME alamo_core_compat_issue_tests COMMAND alamo_core_compat_issue_tests)
 set_tests_properties(alamo_core_compat_issue_tests PROPERTIES TIMEOUT 60)
 
-# Q1: dmath accuracy vs the CRT. Bit-identical outputs across commits and MSVC / clang: the scenario dmath of
+# Q1: dmath accuracy vs the CRT. Bit-identical outputs across commits: the scenario dmath of
 # tools/goldens/scenarios.json (--write-golden <file>; no stored digests).
 add_executable(alamo_core_dmath_tests tests/test_dmath.cpp)
 target_link_libraries(alamo_core_dmath_tests PRIVATE alamo_core alamo_test_support)
