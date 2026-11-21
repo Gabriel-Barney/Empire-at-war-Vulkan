@@ -296,6 +296,21 @@ The shared PCH (`engine/pch`) holds std headers only and defaults ON only when n
 cannot cache `/Fp` compiles). Rejected as no gain: lld-link, removing `-U ALAMO_ENGINE_MODULES`. A header diet beyond
 the bo3 split is out of scope: not to be re-added without a new decision here.
 
+## One development entry point
+
+Gabriel, 2026-11-21.
+
+`dev.cmd` at the repository root is the only development command, for people, agents and CI alike. It stays a thin
+shim: it checks that `toolchain\venv\Scripts\python.exe` exists (printing the remediation if not) and passes every
+argument unchanged to `tools/dev.py`. The logic (doctor, check presets, suite, package, reports) lives in Python, not
+in batch, and there is no `dev.ps1`. This replaces the PowerShell entry point proposed in
+`docs/GROUND_UP_WORKFLOW_DESIGN.md`.
+
+Why: the rest of the automation (`tools/test_suite.py`, the lints, the gate checks) is already Python, so the entry
+point can share its code and test itself with `unittest`. Every caller (cmd, PowerShell, Git Bash, GitHub Actions,
+Claude Code, Codex) runs the same command with exact argument lists and no execution-policy setup. Batch keeps only
+what it does best: running on a bare machine and reporting a missing Python.
+
 ## Big-file splits are by position, with named-namespace helpers
 
 Gabriel, 2026-11-13 (roadmap bo3).
