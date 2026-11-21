@@ -1,0 +1,446 @@
+// Binding family: tactical AI (roadmap A1 stage 2; alamo/lua/ai_tactical_bridge.hpp). Every binding forwards
+// to the AiTacticalScriptHost attached to the VM (engine/ai/tactical implements it). Argument checks follow the
+// vm_internal.hpp error discipline (Call::script_error_stop, never lua_error). Validation strings are the port's
+// own unless docs/re/AI_TACTICAL.md / LUA_API.md give one.
+#include <cstdarg>
+#include <cstdio>
+#include <string>
+#include <vector>
+
+#include "alamo/lua/ai_tactical_bridge.hpp"
+#include "alamo/lua/object_bridge.hpp"
+#include "alamo/lua/script_remaining.hpp"
+#include "alamo/core/ascii.hpp"
+#include "vm_internal.hpp"
+
+namespace alamo::lua {
+
+namespace {
+
+using detail::Call;
+using detail::Ud;
+
+const char kTacticalHostKey[] = "alamo.ai.tactical.host";
+const char kScriptKey[] = "alamo.ai.script";  // bind_ai.cpp: the calling script id (shared registry key)
+
+AiTacticalScriptHost* host_of(lua_State* L) { return detail::registry_ptr<AiTacticalScriptHost>(L, kTacticalHostKey); }
+
+int32_t script_of(lua_State* L) {
+    lua_pushstring(L, kScriptKey);
+    lua_rawget(L, LUA_REGISTRYINDEX);
+    const int32_t id = lua_type(L, -1) == LUA_TNUMBER ? detail::to_int(lua_tonumber(L, -1)) : -1;
+    lua_pop(L, 1);
+    return id;
+}
+
+uint32_t cls(const char* name) { return detail::class_id(name); }
+void push_position(lua_State* L, float x, float y, float z) { detail::push_position(L, Vec3{x, y, z}); }
+
+using detail::push_nil;  // ref5 t03: vm_internal.hpp
+using detail::push_bool;  // ref5 t03: vm_internal.hpp
+int push_num(Call& c, double d) {
+    lua_pushnumber(c.L, d);
+    return 1;
+}
+int push_status(Call& c, int32_t status) {
+    if (status < 0) return push_nil(c);
+    Ud ud;
+    ud.cls = cls("AIBlockingStatus");
+    ud.id = status;
+    detail::push_engine_userdata(c.L, ud);
+    return 1;
+}
+int push_object(Call& c, objects::ObjectHandle h) {
+    if (!h) return push_nil(c);
+    detail::push_object(c.L, *c.vm, h);
+    return 1;
+}
+
+using detail::is_bool;  // ref5 t03: vm_internal.hpp
+
+// Any wrapper argument -> AiArg (detail::ai_arg, bind_ai.cpp's rule) plus PositionWrapper -> AiPoint.
+void arg_of(Call& c, int i, AiArg& a, AiPoint& p) {
+    a = detail::ai_arg(c, i);
+    p = AiPoint{};
+    if (const Ud* ud = c.userdata(i, detail::cls_position())) {
+        const Vec3 v = detail::position_of(*ud);
+        p.present = true;
+        p.x = v.x;
+        p.y = v.y;
+        p.z = v.z;
+    }
+}
+
+const char* tf_class_name(Call& c) {
+    static const uint32_t s = cls("SpaceTaskForceClass");
+    return c.self->cls == s ? "SpaceTaskForceClass" : (c.self->cls == cls("LandTaskForceClass") ? "LandTaskForceClass" : "TaskForceClass");
+}
+
+// ---------------------------------------------------------------- task force orders
+
+int tf_order(Call& c, AiTacticalOrder order, const char* name) {
+    AiArg a;
+    AiPoint p;
+    arg_of(c, 1, a, p);
+    if (!a.present && !p.present) return c.script_error_stop("%s::%s -- invalid target parameter.", tf_class_name(c), name);
+    const double number = c.is_number(2) ? c.number(2) : -1.0;
+    bool flag = false;
+    for (int i = 2; i <= c.nargs; ++i)
+        if (is_bool(c, i)) flag = lua_toboolean(c.L, c.idx(i)) != 0;
+    AiTacticalScriptHost* h = host_of(c.L);
+    if (!h) return push_nil(c);
+    return push_status(c, h->tf_tactical_order(c.self->id, order, a, p, number, flag));
+}
+// A GameObjectWrapper of a dead object at argument i (arg_of leaves it absent).
+bool dead_object_arg(Call& c, int i) {
+    if (!c.has(i) || lua_type(c.L, c.idx(i)) != LUA_TUSERDATA) return false;
+    const auto* ud = static_cast<const Ud*>(lua_touserdata(c.L, c.idx(i)));
+    return ud && ud->cls == detail::cls_game_object() && !detail::object_alive(*c.vm, *ud);
+}
+std::string tf_display_name(Call& c) {
+    AiScriptHost* h = c.vm && c.vm->owner ? ai_host(*c.vm->owner) : nullptr;
+    return h ? h->tf_name(c.self->id) : std::string();
+}
+// S7 t20 (AI_TACTICAL §7.3.2, SpaceTaskForceClass 0x6e7940; the land form the same [M]): no argument -> "No destination
+// set for TaskForce %s"; an argument that is not an object, AI target, task force or position (nil included) -> "Parameter 1
+// is not a valid destination for TaskForce %s"; both logged as script errors (no unwind), nil. A dead object -> nil with no
+// message (an AI target without a location: the host answers nil).
+int m_move_to(Call& c) {
+    if (c.nargs < 1) return c.script_error_stop("No destination set for TaskForce %s", tf_display_name(c).c_str());
+    if (dead_object_arg(c, 1)) return push_nil(c);
+    AiArg a;
+    AiPoint p;
+    arg_of(c, 1, a, p);
+    if ((!a.present && !p.present) || a.player >= 0)
+        return c.script_error_stop("Parameter 1 is not a valid destination for TaskForce %s", tf_display_name(c).c_str());
+    return tf_order(c, AiTacticalOrder::MoveTo, "Move_To");
+}
+int m_attack_move(Call& c) { return tf_order(c, AiTacticalOrder::AttackMove, "Attack_Move"); }
+int m_guard_target(Call& c) { return tf_order(c, AiTacticalOrder::GuardTarget, "Guard_Target"); }
+int m_explore_area(Call& c) { return tf_order(c, AiTacticalOrder::ExploreArea, "Explore_Area"); }
+// S7 t21 Prepare_Ambush(target, direction, minDist, threat) (AI_TACTICAL §7.3.1): space exactly 4 arguments, land 4 or 5
+// (the 5th = Move_To's useZonePath). Argument errors are script errors (logged, no unwind) with nil; the host then builds
+// the SpaceAmbushBlockStatus (space) or the one-shot move (land). [port] texts where §7.3.1 gives none: parameter 1 of
+// another class, parameter 2 not a string, parameter 4 not a number.
+int m_prepare_ambush(Call& c) {
+    static const uint32_t land = cls("LandTaskForceClass");
+    const bool is_land = c.self->cls == land;
+    if (is_land ? (c.nargs != 4 && c.nargs != 5) : c.nargs != 4) return c.script_error_stop("Invalid number of parameters");
+    if (dead_object_arg(c, 1)) return c.script_error_stop("Target object is already dead");
+    AiArg a;
+    AiPoint p;
+    arg_of(c, 1, a, p);
+    if (!a.object && a.target < 0) return c.script_error_stop("Parameter 1 is not a game object or an AI target");
+    if (!c.is_string(2)) return c.script_error_stop("Parameter 2 is not a direction string");
+    const std::string_view text = c.string(2);
+    auto same = [&text](std::string_view w) { return ascii_iequals(text, w); };
+    const int direction = same("front") ? 0 : same("left") ? 1 : same("right") ? 2 : same("back") ? 3 : -1;
+    if (direction < 0) return c.script_error_stop("Unrecognized direction %s", std::string(text).c_str());
+    if (!c.is_number(3) || !(c.number(3) > 0.0)) return c.script_error_stop("Parameter 3 is not a positive number");
+    if (!c.is_number(4)) return c.script_error_stop("Parameter 4 is not a number");
+    const bool zone_path = is_land && c.nargs == 5 && is_bool(c, 5) && lua_toboolean(c.L, c.idx(5)) != 0;
+    AiTacticalScriptHost* h = host_of(c.L);
+    if (!h) return push_nil(c);
+    std::string name;
+    const int32_t st = h->tf_prepare_ambush(c.self->id, a, direction, c.number(3), c.number(4), zone_path, &name);
+    if (st == AiTacticalScriptHost::kAmbushTargetDead) return c.script_error_stop("Target object is already dead");
+    if (st == AiTacticalScriptHost::kAmbushTargetRegion)
+        return c.script_error_stop("Target %s is invalid: AI targets must represent game objects", name.c_str());
+    return push_status(c, st);
+}
+// Fire_Special_Weapon(type_name, target): SCRIPT_GAPS §1.4 / §1.5 on the task force's units (unit-list order),
+// through the L1/S4 wave-2b helper; player -1 = the first unit's owner.
+int m_fire_special_weapon(Call& c) {
+    static const uint32_t space_cls = cls("SpaceTaskForceClass");
+    AiScriptHost* h = c.vm && c.vm->owner ? ai_host(*c.vm->owner) : nullptr;
+    const std::vector<objects::ObjectHandle> units = h ? h->tf_units(c.self->id) : std::vector<objects::ObjectHandle>{};
+    return detail::task_force_fire_special_weapon(c, c.self->cls == space_cls, units, -1);
+}
+
+int m_attack_target(Call& c) {
+    AiArg a;
+    AiPoint p;
+    arg_of(c, 1, a, p);
+    if (!a.present || (!a.object && a.target < 0))
+        return c.script_error_stop("%s::Attack_Target -- only unit targets may be attacked; use Move_To instead.", tf_class_name(c));
+    std::string hp;
+    if (c.is_string(2)) hp = std::string(c.string(2));
+    AiTacticalScriptHost* h = host_of(c.L);
+    if (!h) return push_nil(c);
+    return push_status(c, h->tf_attack_target(c.self->id, a, hp));
+}
+
+int m_reinforce(Call& c) {
+    AiArg a;
+    AiPoint p;
+    arg_of(c, 1, a, p);
+    if (!a.present && !p.present) return c.script_error_stop("%s::Reinforce -- invalid target parameter.", tf_class_name(c));
+    const double wait = c.is_number(2) ? c.number(2) : -1.0;
+    AiTacticalScriptHost* h = host_of(c.L);
+    if (!h) return push_nil(c);
+    const int32_t s = h->tf_reinforce(c.self->id, a, p, wait);
+    if (s == -2) {
+        c.vm->message(std::string(tf_class_name(c)) + "::Reinforce -- taskforce has no reinforcements");
+        return push_nil(c);
+    }
+    if (s == -3) {  // skm1 t03 (AI_TACTICAL §7.4): space skirmish without a live allied starbase
+        c.vm->message("Rule Change: AI players cannot reinforce after their starbase has been destroyed");
+        return push_nil(c);
+    }
+    return push_status(c, s);
+}
+
+int m_build_all(Call& c) {
+    AiTacticalScriptHost* h = host_of(c.L);
+    return push_status(c, h ? h->tf_build_all(c.self->id) : -1);
+}
+
+int m_build(Call& c) {
+    if (!c.is_string(1)) return c.script_error_stop("%s::Build -- invalid type for parameter 1. Expected string.", tf_class_name(c));
+    AiArg pad;
+    AiPoint p;
+    arg_of(c, 2, pad, p);
+    AiTacticalScriptHost* h = host_of(c.L);
+    return push_status(c, h ? h->tf_build(c.self->id, c.string(1), pad) : -1);
+}
+
+int m_reserved_pads(Call& c) {
+    AiTacticalScriptHost* h = host_of(c.L);
+    std::vector<objects::ObjectHandle> pads;
+    if (h) pads = h->tf_reserved_pads(c.self->id);
+    lua_newtable(c.L);
+    int n = 0;
+    for (const objects::ObjectHandle o : pads) {
+        detail::push_object(c.L, *c.vm, o);
+        if (lua_isnil(c.L, -1)) {
+            lua_pop(c.L, 1);
+            continue;
+        }
+        lua_rawseti(c.L, -2, ++n);
+    }
+    return 1;
+}
+
+int m_withdraw(Call& c) {
+    AiTacticalScriptHost* h = host_of(c.L);
+    return push_bool(c, h && h->tf_withdraw(c.self->id));
+}
+int m_threat_max(Call& c) {
+    AiTacticalScriptHost* h = host_of(c.L);
+    return push_num(c, h ? h->tf_self_threat(c.self->id, false) : 0.0);
+}
+int m_threat_sum(Call& c) {
+    AiTacticalScriptHost* h = host_of(c.L);
+    return push_num(c, h ? h->tf_self_threat(c.self->id, true) : 0.0);
+}
+int m_distance(Call& c) {
+    AiArg a;
+    AiPoint p;
+    arg_of(c, 1, a, p);
+    if (!a.present && !p.present) return c.script_error_stop("%s::Get_Distance -- invalid parameter 1.", tf_class_name(c));
+    AiTacticalScriptHost* h = host_of(c.L);
+    const double d = h ? h->tf_distance(c.self->id, a, p) : -1.0;
+    return d < 0.0 ? push_nil(c) : push_num(c, d);
+}
+// Set_Targeting_Priorities(set [, type or category filter]) (LUA_API.md strings). OI lua: the units get the per-unit
+// override through the objects family (S8 CombatSystem::set_priority_override for combat units,
+// detail::task_force_set_targeting_priorities); the host keeps its record of the set.
+int m_set_targeting_priorities(Call& c) {
+    if (c.nargs != 1 && c.nargs != 2)
+        return c.script_error_stop("Set_Targeting_Priorities - invalid number of parameters. Expected 1 or 2, got %d.", c.nargs);
+    if (!c.is_string(1)) return c.script_error_stop("Set_Targeting_Priorities - invalid type for parameter 1. Expected string.");
+    if (c.nargs == 2 && !c.is_string(2)) return c.script_error_stop("Set_Targeting_Priorities -- invalid type for parameter 2. Expected string.");
+    AiScriptHost* ai = c.vm && c.vm->owner ? ai_host(*c.vm->owner) : nullptr;
+    if (ai) detail::task_force_set_targeting_priorities(c, ai->tf_units(c.self->id));
+    if (AiTacticalScriptHost* h = host_of(c.L)) h->tf_set_targeting_priorities(c.self->id, c.string(1));
+    return 0;
+}
+int m_noop(Call&) { return 0; }
+
+// mcx6 t06 (LUA_API.md "Task force: Enable_Attack_Positioning and Release_Reinforcements"): land 0x6eaa80. Exactly one
+// argument (a nil counts), a Lua boolean; both errors stop the script and change nothing (two spaces after the full stops,
+// as retail). [port] retail passes no count to the "%d" of the first text (it prints an unspecified number); the port
+// prints the argument count. Then the host writes the flag on the current members with UNIT_AI. No return value.
+int m_enable_attack_positioning(Call& c) {
+    if (c.nargs != 1)
+        return c.script_error_stop("Enable_Attack_Positioning - Invalid number of parameters.  Expected 1, got %d", c.nargs);
+    if (!is_bool(c, 1)) return c.script_error_stop("Enable_Attack_Positioning - Invalid type for parameter 1.  Expected boolean.");
+    if (AiTacticalScriptHost* h = host_of(c.L)) h->tf_enable_attack_positioning(c.self->id, lua_toboolean(c.L, c.idx(1)) != 0);
+    return 0;
+}
+// Release_Reinforcements() (0x6e8a70, land and space): arguments ignored, no error path, no return value.
+int m_release_reinforcements(Call& c) {
+    if (AiTacticalScriptHost* h = host_of(c.L)) h->tf_release_reinforcements(c.self->id);
+    return 0;
+}
+
+// ---------------------------------------------------------------- globals
+
+// FindDeadlyEnemy(object | unit AI target | task force) or FindDeadlyEnemy(AI target, radius, player) (§6.3).
+int g_find_deadly_enemy(Call& c) {
+    if (c.nargs != 1 && c.nargs != 3)
+        return c.script_error_stop("FindDeadlyEnemy -- invalid number of parameters. Expected 1 or 3, got %d.", c.nargs);
+    AiArg a;
+    AiPoint p;
+    arg_of(c, 1, a, p);
+    if (!a.present) return c.script_error_stop("FindDeadlyEnemy -- invalid type for parameter 1.");
+    double radius = 0.0;
+    int32_t player = -1;
+    if (c.nargs == 3) {
+        if (!c.is_number(2)) return c.script_error_stop("FindDeadlyEnemy -- invalid type for parameter 2. Expected number.");
+        radius = c.number(2);
+        AiArg pa;
+        AiPoint pp;
+        arg_of(c, 3, pa, pp);
+        if (pa.player < 0) return c.script_error_stop("FindDeadlyEnemy -- invalid type for parameter 3. Expected player.");
+        player = pa.player;
+    }
+    AiTacticalScriptHost* h = host_of(c.L);
+    return push_object(c, h ? h->find_deadly_enemy(script_of(c.L), a, radius, player) : objects::ObjectHandle{});
+}
+
+// Get_Most_Defended_Position(source, player) (§6.4): exactly 2 arguments; no result -> the 1e18 position.
+int g_most_defended_position(Call& c) {
+    if (c.nargs != 2) return c.script_error_stop("Get_Most_Defended_Position -- invalid number of parameters. Expected 2, got %d.", c.nargs);
+    AiArg a;
+    AiPoint p;
+    arg_of(c, 1, a, p);
+    if (!a.present && !p.present) return c.script_error_stop("Get_Most_Defended_Position -- invalid type for parameter 1.");
+    AiArg pa;
+    AiPoint pp;
+    arg_of(c, 2, pa, pp);
+    if (pa.player < 0) return c.script_error_stop("Get_Most_Defended_Position -- invalid type for parameter 2. Expected player.");
+    AiTacticalScriptHost* h = host_of(c.L);
+    AiPoint out;
+    if (!h || !h->most_defended_position(script_of(c.L), a, p, pa.player, out)) {
+        constexpr float kNone = 1.0e18f;
+        push_position(c.L, kNone, kNone, kNone);
+        return 1;
+    }
+    push_position(c.L, out.x, out.y, out.z);
+    return 1;
+}
+
+// Project_By_Unit_Range(unit, position source) (AI_TACTICAL_PERCEPTION.md §5).
+int g_project_by_unit_range(Call& c) {
+    if (c.nargs != 2) return c.script_error_stop("Project_By_Unit_Range -- invalid number of parameters. Expected 2, got %d.", c.nargs);
+    AiArg u, a;
+    AiPoint up, p;
+    arg_of(c, 1, u, up);
+    arg_of(c, 2, a, p);
+    if (!u.object) return c.script_error_stop("Project_By_Unit_Range -- invalid type for parameter 1. Expected a game object.");
+    if (!a.present && !p.present) return c.script_error_stop("Project_By_Unit_Range -- invalid type for parameter 2.");
+    AiTacticalScriptHost* h = host_of(c.L);
+    AiPoint out;
+    if (!h || !h->project_by_unit_range(u.object, a, p, out)) return push_nil(c);
+    push_position(c.L, out.x, out.y, out.z);
+    return 1;
+}
+
+int m_is_good_against(Call& c) {
+    if (c.nargs != 1) return c.script_error_stop("GameObjectWrapper::Is_Good_Against -- invalid number of parameters. Expected 1, got %d.", c.nargs);
+    AiArg a;
+    AiPoint p;
+    arg_of(c, 1, a, p);
+    if (!a.object) return c.script_error_stop("GameObjectWrapper::Is_Good_Against -- invalid type for parameter 1. Expected a game object.");
+    if (!detail::object_alive(*c.vm, *c.self)) return c.script_error_stop("GameObjectWrapper::Is_Good_Against -- this object is dead!");
+    AiTacticalScriptHost* h = host_of(c.L);
+    return push_bool(c, h && h->is_good_against(detail::object_handle(*c.self), a.object) == 1);
+}
+
+// aitac t06 (AI_TACTICAL §8.1, 0x580c50): unit.Should_Switch_Weapons(target) - would another entry of my Projectile_Types
+// do more damage to the target's current defence layer than the one I fire now (the battle's
+// RemainingScriptHooks::should_switch_weapons; [port] false without the hook). Order: no object -> nothing; fewer than two
+// entries -> false before any argument test; the argument count and type errors; a dead target or an AI target with no
+// object -> error; then the score.
+int m_should_switch_weapons(Call& c) {
+    constexpr const char* kName = "GameObjectWrapper::Should_Switch_Weapons";
+    if (!detail::object_alive(*c.vm, *c.self)) return 0;  // step 1: no object behind the wrapper -> no value
+    const objects::ObjectHandle self = detail::object_handle(*c.self);
+    ObjectBridge* b = c.vm->owner ? attached_object_bridge(*c.vm->owner) : nullptr;
+    RemainingScriptHooks* hk = b ? b->remaining : nullptr;
+    if (!hk || !hk->should_switch_weapons) return push_bool(c, false);
+    if (hk->should_switch_weapons(self, objects::ObjectHandle{}) == 0) return push_bool(c, false);  // steps 2-3
+    if (c.nargs != 1) return c.script_error_stop("%s -- invalid number of parameters.  Expected 1, got %d.", kName, c.nargs);
+    AiArg a;
+    AiPoint p;
+    arg_of(c, 1, a, p);
+    objects::ObjectHandle target = a.object;
+    if (!a.present || (!a.object && a.target < 0))
+        return c.script_error_stop("%s -- invalid type for parameter 1.  Expected object or ai target.", kName);
+    if (!a.object) {
+        AiScriptHost* h = c.vm && c.vm->owner ? ai_host(*c.vm->owner) : nullptr;
+        target = h ? h->target_object(a.target) : objects::ObjectHandle{};
+        if (!target)
+            return c.script_error_stop("%s -- ai target %d does not represent a game object (requried for this function).", kName, a.target);
+    }
+    const objects::ObjectStore* st = c.vm->host.store;
+    if (!st || !st->alive(target)) return c.script_error_stop("%s -- target is already dead.", kName);
+    const int32_t r = hk->should_switch_weapons(self, target);
+    if (r < 0) return 0;  // the current index is outside the list: no value
+    return push_bool(c, r == 1);
+}
+
+constexpr BindingKind G = BindingKind::Global;
+constexpr BindingKind M = BindingKind::Method;
+
+// mcx0 t04 (binding effect ledger, engine/lua/tools/gen_bindings.py); mcx6 t06: the land Enable_Attack_Positioning and
+// both Release_Reinforcements act (full); the space Enable_Attack_Positioning stays retail's no-op.
+// binding-effect: SpaceTaskForceClass.Enable_Attack_Positioning noop-retail retail 0x17d070 is a shared no-op body (docs/re/LUA_API.md)
+#define ALAMO_TACTICAL_TF_METHODS(K)                                     \
+    {M, K, "Move_To", m_move_to},                                        \
+    {M, K, "Attack_Move", m_attack_move},                                \
+    {M, K, "Attack_Target", m_attack_target},                            \
+    {M, K, "Guard_Target", m_guard_target},                              \
+    {M, K, "Explore_Area", m_explore_area},                              \
+    {M, K, "Prepare_Ambush", m_prepare_ambush},                          \
+    {M, K, "Fire_Special_Weapon", m_fire_special_weapon},                \
+    {M, K, "Reinforce", m_reinforce},                                    \
+    {M, K, "Build_All", m_build_all},                                    \
+    {M, K, "Build", m_build},                                            \
+    {M, K, "Get_Reserved_Build_Pads", m_reserved_pads},                  \
+    {M, K, "Get_Distance", m_distance},                                  \
+    {M, K, "Release_Reinforcements", m_release_reinforcements}
+
+constexpr detail::ImplEntry kImpl[] = {
+    ALAMO_TACTICAL_TF_METHODS("LandTaskForceClass"),
+    ALAMO_TACTICAL_TF_METHODS("SpaceTaskForceClass"),
+    {M, "LandTaskForceClass", "Enable_Attack_Positioning", m_enable_attack_positioning},
+    {M, "SpaceTaskForceClass", "Enable_Attack_Positioning", m_noop},
+    {M, "TaskForceClass", "Get_Self_Threat_Max", m_threat_max},
+    {M, "TaskForceClass", "Get_Self_Threat_Sum", m_threat_sum},
+    {M, "TaskForceClass", "Withdraw_Units", m_withdraw},
+    {M, "TaskForceClass", "Set_Targeting_Priorities", m_set_targeting_priorities},
+    {G, "", "FindDeadlyEnemy", g_find_deadly_enemy},
+    {G, "", "Get_Most_Defended_Position", g_most_defended_position},
+    {G, "", "Project_By_Unit_Range", g_project_by_unit_range},
+    {M, "GameObjectWrapper", "Is_Good_Against", m_is_good_against},
+    {M, "GameObjectWrapper", "Should_Switch_Weapons", m_should_switch_weapons},
+};
+
+#undef ALAMO_TACTICAL_TF_METHODS
+
+}  // namespace
+
+std::span<const detail::ImplEntry> detail::impl_ai_tactical() { return kImpl; }
+
+// OI lua (A1 ask 2): the players family's EvaluatePerception forwards here while a tactical host is attached (what the
+// EvaluatePerception shim did in the AI VMs). -2 = no tactical host (the caller keeps its own path).
+int detail::tactical_evaluate_perception(Call& c, std::string_view name, int32_t player, int target_index) {
+    AiTacticalScriptHost* h = host_of(c.L);
+    if (!h) return -2;
+    AiArg t;
+    AiPoint p;
+    if (target_index > 0) arg_of(c, target_index, t, p);
+    double v = 0.0;
+    if (!h->evaluate_perception(script_of(c.L), name, player, t, v)) return push_nil(c);
+    return push_num(c, v);
+}
+
+void attach_ai_tactical_host(LuaVm& vm, AiTacticalScriptHost* host) {
+    detail::set_registry_ptr(vm.state(), kTacticalHostKey, host);
+}
+
+AiTacticalScriptHost* ai_tactical_host(LuaVm& vm) { return host_of(vm.state()); }
+
+}  // namespace alamo::lua

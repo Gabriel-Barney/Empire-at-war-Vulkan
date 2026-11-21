@@ -1,0 +1,268 @@
+#include "game_movies.hpp"
+
+#include "alamo/game/hud_feeds.hpp"  // mcx4 t13: movie_frame_cue
+
+#include <cstdio>
+
+#ifdef ALAMO_GAME_HAVE_VIDEO
+#include <cmath>
+#include <cstdlib>
+#include <vector>
+
+#include "alamo/audio/audio_system.hpp"
+#include "alamo/core/ascii.hpp"
+#include "alamo/data/values.hpp"
+#include "alamo/data/xml.hpp"
+#include "alamo/video/movie_db.hpp"
+#include "alamo/video/video.hpp"
+#else
+namespace alamo::video {
+class MoviePlayer {};  // complete stand-ins for the owned pointers (no engine/video in this build)
+class CaptionTrack {};
+}  // namespace alamo::video
+#endif
+
+namespace alamo::game {
+
+MovieSlot::MovieSlot() = default;
+MovieSlot::~MovieSlot() = default;  // owners call stop() first (it needs the audio host)
+
+#ifdef ALAMO_GAME_HAVE_VIDEO
+
+bool movies_available(std::string* err) { return video::ffmpeg_available(err); }
+
+namespace {
+// "Event, frame, Event2, frame2" (the SFXEvent_Frame list shape [port: MusicEvent_Frame has no sample in the data]).
+std::vector<std::pair<int64_t, std::string>> parse_frame_list(std::string_view text) {
+    std::vector<std::string> tok;
+    std::string cur;
+    for (const char c : text) {
+        if (c == ',' || c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+            if (!cur.empty()) tok.push_back(std::move(cur));
+            cur.clear();
+        } else {
+            cur.push_back(c);
+        }
+    }
+    if (!cur.empty()) tok.push_back(std::move(cur));
+    std::vector<std::pair<int64_t, std::string>> out;
+    for (size_t i = 0; i + 1 < tok.size(); i += 2) out.emplace_back(std::strtoll(tok[i + 1].c_str(), nullptr, 10), tok[i]);
+    return out;
+}
+}  // namespace
+
+bool MovieSlot::open(const GameData& data, GameAudioHost& audio, std::string_view name, bool loop, std::string* err) {
+    stop(audio);
+    if (!video::ffmpeg_available(err)) return false;
+    audio::AudioSystem* sys = audio.system();
+    // Movies.xml entry (by Name or Movie_File base name): its Movie_File is the path (e.g. Logo1 ->
+    // Data\Art\Movies\Binked\LucasArtsLogo.bik), its Alpha decides the alpha plane and the draw (§7.3), Cannot_Skip the
+    // skip keys. An entry with an empty Movie_File (FoC Logo3) has nothing to play. No entry: Binked\<name>.BIK, opaque
+    // [port].
+    video::MovieEntry entry;
+    bool have_entry = false;
+    bool credits_flag = false, halt_flag = false, pause_flag = false;
+    std::vector<Cue> cues;
+    std::vector<int64_t> sfx_frames, speech_frames;
+    std::vector<std::string> sfx_events, speech_events;
+    {
+        std::vector<uint8_t> xml;
+        if (data.files->read("Data\\XML\\Movies.xml", xml)) {
+            const data::XmlDocument doc = data::XmlDocument::parse(xml, "Movies.xml");
+            const std::vector<video::MovieEntry> db = video::parse_movies(doc.root());
+            if (const video::MovieEntry* m = video::find_movie(db, name)) {
+                entry = *m;
+                have_entry = true;
+                // The music fields of the same record (the last <Movie> of that Name, like find_movie).
+                for (data::XmlNode n : doc.root().children("Movie")) {
+                    if (!ascii_iequals(n.attribute("Name"), entry.name)) continue;
+                    credits_flag = data::parse_bool_or(n.child_text("Has_Credits"), false);
+                    halt_flag = data::parse_bool_or(n.child_text("Halt_Game_Music"), false);
+                    // ledger: consumes Movie.Pause_Game_While_Playing
+                    pause_flag = data::parse_bool_or(n.child_text("Pause_Game_While_Playing"), false);
+                    cues.clear();
+                    for (auto& [frame, ev] : parse_frame_list(n.child_text("MusicEvent_Frame"))) cues.push_back({frame, std::move(ev)});
+                    sfx_frames.clear();
+                    sfx_events.clear();
+                    speech_frames.clear();
+                    speech_events.clear();
+                    // ledger: consumes Movie.SFXEvent_Frame
+                    for (data::XmlNode c : n.children("SFXEvent_Frame"))
+                        for (auto& [frame, ev] : parse_frame_list(c.text_trimmed())) {
+                            sfx_frames.push_back(frame);
+                            sfx_events.push_back(std::move(ev));
+                        }
+                    // ledger: consumes Movie.SpeechEvent_Frame
+                    for (data::XmlNode c : n.children("SpeechEvent_Frame"))
+                        for (auto& [frame, ev] : parse_frame_list(c.text_trimmed())) {
+                            speech_frames.push_back(frame);
+                            speech_events.push_back(std::move(ev));
+                        }
+                }
+            }
+        }
+    }
+    if (have_entry && entry.file.empty()) {
+        if (err) *err = "Movies.xml entry has no Movie_File";
+        return false;
+    }
+    const std::string path = have_entry ? entry.file : "Data\\Art\\Movies\\Binked\\" + std::string(name) + ".BIK";
+    video::OpenOptions oo = video::open_options_for(entry, video::PixelFormat::Rgba8, sys ? 0 : -1);
+    auto dec = video::BinkDecoder::open(*data.files, path, oo, err);
+    if (!dec) return false;
+    const video::VideoInfo info = dec->info();
+    const bool sound = sys && info.sample_rate > 0 && info.channels > 0;
+    player_ = std::make_unique<video::MoviePlayer>(std::move(dec), sound ? video::MoviePlayer::Clock::Audio : video::MoviePlayer::Clock::Wall);
+    if (sound) {  // the movie's PCM on the speech bus; the player is the master clock
+        video::MoviePlayer* mp = player_.get();
+        stream_ = sys->open_stream(static_cast<uint32_t>(info.sample_rate), static_cast<uint32_t>(info.channels), audio::AudioBus::Speech,
+                                   [mp](float* o, size_t n) { return mp->read_audio(o, n); });
+        if (stream_ == 0) {  // no stream support: wall clock, no sound
+            oo.audio_track = -1;
+            auto again = video::BinkDecoder::open(*data.files, path, oo, err);
+            if (!again) {
+                player_.reset();
+                return false;
+            }
+            player_ = std::make_unique<video::MoviePlayer>(std::move(again), video::MoviePlayer::Clock::Wall);
+        } else {
+            player_->set_audio_latency(audio.output_latency_seconds());  // OI host: P3 video item 3
+        }
+    }
+    player_->set_loop(loop);
+    serial_ = 0;
+    has_frame_ = false;
+    alpha_ = entry.alpha;
+    cannot_skip_ = entry.cannot_skip;
+    pause_game_ = pause_flag;  // mcx4 t14
+    crawl_name_ = entry.text_crawl_name;  // storyb t13
+    crawl_start_ = entry.text_crawl_start_frame;
+    has_credits_ = credits_flag;
+    halt_music_ = halt_flag;
+    cues_ = std::move(cues);
+    next_cue_ = 0;
+    sfx_frames_ = std::move(sfx_frames);
+    sfx_events_ = std::move(sfx_events);
+    speech_frames_ = std::move(speech_frames);
+    speech_events_ = std::move(speech_events);
+    cue_frame_ = 0;
+    captions_ = std::make_unique<video::CaptionTrack>();  // ui5 t12: Caption_Frame / Caption_Duration
+    captions_->reset(entry.captions);
+    caption_frame_ = 0;  // the first step covers (0, 1], so a caption on frame 1 shows
+    fps_ = info.fps_num > 0 && info.fps_den > 0 ? static_cast<double>(info.fps_num) / static_cast<double>(info.fps_den) : 30.0;
+    audio_ = &audio;
+    // STRATEGIC_GAPS §7.4: the movie-music flag starts mode 14 music, Halt_Game_Music stops the game's music; both are
+    // undone when the movie stops (GameAudioHost::movie_ended).
+    if (has_credits_ || halt_music_) {
+        audio.movie_started(has_credits_, halt_music_);
+        music_started_ = true;
+    }
+    width_ = static_cast<uint32_t>(info.width > 0 ? info.width : 0);
+    height_ = static_cast<uint32_t>(info.height > 0 ? info.height : 0);
+    name_ = std::string(name);
+    return true;
+}
+
+void MovieSlot::stop(GameAudioHost& audio) {
+    if (stream_ && audio.system()) audio.system()->stop_stream(stream_);  // the mixer lets go of the player first
+    stream_ = 0;
+    player_.reset();
+    if (music_started_) audio.movie_ended();
+    music_started_ = false;
+    audio_ = nullptr;
+    cues_.clear();
+    next_cue_ = 0;
+    sfx_frames_.clear();
+    sfx_events_.clear();
+    speech_frames_.clear();
+    speech_events_.clear();
+    cue_frame_ = 0;
+    captions_.reset();
+    has_credits_ = halt_music_ = false;
+    has_frame_ = false;
+    cannot_skip_ = false;
+    pause_game_ = false;
+    name_.clear();
+    crawl_name_.clear();
+    crawl_start_ = 0;
+}
+
+int32_t MovieSlot::text_crawl_frame() const {
+    if (!player_ || crawl_name_.empty()) return -1;
+    const int64_t frame = static_cast<int64_t>(std::floor(player_->time_s() * fps_));
+    return frame >= crawl_start_ ? static_cast<int32_t>(frame - crawl_start_) : -1;
+}
+
+std::string_view MovieSlot::caption() const { return captions_ ? captions_->text_id() : std::string_view(); }
+
+bool MovieSlot::update(double dt, ui::HudRenderer& hud, uint16_t page) {
+    if (!player_) return false;
+    player_->update(dt);
+    if (audio_ && !cues_.empty()) {  // music cues (mode 17) keyed to the movie's frame clock; a loop restarts the list
+        const int64_t frame = static_cast<int64_t>(std::floor(player_->time_s() * fps_));
+        if (next_cue_ > 0 && frame < cues_[next_cue_ - 1].frame) next_cue_ = 0;
+        while (next_cue_ < cues_.size() && cues_[next_cue_].frame <= frame) audio_->movie_cue(cues_[next_cue_++].event);
+    }
+    if (audio_ && (!sfx_frames_.empty() || !speech_frames_.empty())) {  // mcx4 t13: Bink frame numbers count from 1
+        const int64_t frame = static_cast<int64_t>(std::floor(player_->time_s() * fps_)) + 1;
+        if (frame < cue_frame_) cue_frame_ = 0;  // a loop went back to the start
+        if (frame > cue_frame_) {
+            if (const int32_t i = movie_frame_cue(sfx_frames_, cue_frame_, frame); i >= 0)
+                audio_->ui(sfx_events_[static_cast<size_t>(i)]);  // 2D, not forced (0x5dbd60)
+            if (const int32_t i = movie_frame_cue(speech_frames_, cue_frame_, frame); i >= 0) {
+                if (audio::AudioSystem* sys = audio_->system()) sys->stop_all_speech();  // 0x5dbe70: the cue starts at once
+                audio_->speech(speech_events_[static_cast<size_t>(i)]);
+            }
+            cue_frame_ = frame;
+        }
+    }
+    if (captions_ && !captions_->empty()) {  // ui5 t12 (AUDIO.md §3.4): Bink frame numbers count from 1
+        const int64_t frame = static_cast<int64_t>(std::floor(player_->time_s() * fps_)) + 1;
+        if (frame < caption_frame_) {  // a loop went back to the start
+            captions_->restart();
+            caption_frame_ = 0;
+        }
+        if (frame > caption_frame_) {
+            captions_->step(caption_frame_, frame, [this](std::string_view id) { return !caption_shows_ || caption_shows_(id); });
+            caption_frame_ = frame;
+        }
+    }
+    const video::VideoFrame* vf = player_->current_frame();
+    if (vf && player_->frame_serial() != serial_ && vf->plane_count > 0) {
+        serial_ = player_->frame_serial();
+        has_frame_ = hud.set_image_rgba(page, static_cast<uint32_t>(vf->width), static_cast<uint32_t>(vf->height), vf->data);
+    }
+    return !player_->finished();
+}
+
+bool MovieSlot::playing() const { return player_ && !player_->finished(); }
+
+#else  // no engine/video: movies are skipped
+
+bool movies_available(std::string* err) {
+    if (err) *err = "built without engine/video";
+    return false;
+}
+bool MovieSlot::open(const GameData&, GameAudioHost&, std::string_view, bool, std::string* err) {
+    if (err) *err = "built without engine/video";
+    return false;
+}
+void MovieSlot::stop(GameAudioHost&) {
+    player_.reset();
+    stream_ = 0;
+    music_started_ = false;
+    audio_ = nullptr;
+    cues_.clear();
+    next_cue_ = 0;
+    fps_ = 30.0;
+    serial_ = 0;
+    has_frame_ = false;
+    name_.clear();
+}
+bool MovieSlot::update(double, ui::HudRenderer&, uint16_t) { return false; }
+std::string_view MovieSlot::caption() const { return {}; }
+bool MovieSlot::playing() const { return false; }
+
+#endif
+
+}  // namespace alamo::game

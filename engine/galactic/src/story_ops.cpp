@@ -1,0 +1,334 @@
+// L1/S4 additions to GalacticSim (declared in campaign.hpp, "L1/S4 Lua + story operations"): the
+// operations Lua story scripts call directly (Change_Owner, Assemble_Fleet) and the containment queries
+// the Lua object bindings need for galactic objects (Get_Parent_Object, Get_Planet_Location,
+// Contains_Hero, ...). Kept out of campaign.cpp so the S3 / S10 owners of that file are not disturbed.
+//
+// Determinism: serial code only; every walk is over vectors in index order (fleets in creation order,
+// orbit lists in arrival order, contents in content order). No RNG.
+#include <algorithm>
+
+#include "alamo/galactic/campaign.hpp"
+
+namespace alamo::galactic {
+
+uint32_t GalacticSim::fleet_containing(ObjectHandle unit) const {
+    if (!unit) return kNoFleet;
+    for (uint32_t i = 0; i < fleets_.size(); ++i)
+        if (fleets_[i].alive && std::find(fleets_[i].contents.begin(), fleets_[i].contents.end(), unit) != fleets_[i].contents.end())
+            return i;
+    return kNoFleet;
+}
+
+ObjectHandle GalacticSim::container_of(ObjectHandle object) const {
+    if (!store_->exists(object)) return {};
+    const uint32_t own = fleet_of(object);
+    if (own != kNoFleet) {  // a fleet: its planet while stationary in orbit
+        const FleetState& f = fleets_[own];
+        return (!f.moving && valid_planet(f.planet)) ? planets_[f.planet].object : ObjectHandle{};
+    }
+    const uint32_t fl = fleet_containing(object);
+    if (fl != kNoFleet) return fleets_[fl].object;
+    for (const PlanetState& p : planets_) {
+        if (!p.is_planet) continue;
+        if (p.starbase == object || std::find(p.structures.begin(), p.structures.end(), object) != p.structures.end() ||
+            std::find(p.surface.begin(), p.surface.end(), object) != p.surface.end())
+            return p.object;
+    }
+    return store_->container(object);
+}
+
+std::vector<ObjectHandle> GalacticSim::contents_of(ObjectHandle object) const {
+    std::vector<ObjectHandle> out;
+    if (!store_->exists(object)) return out;
+    const uint32_t fl = fleet_of(object);
+    if (fl != kNoFleet) {
+        for (ObjectHandle m : fleets_[fl].contents)
+            if (store_->alive(m)) out.push_back(m);
+        return out;
+    }
+    const PlanetIndex pi = planet_of(object);
+    if (pi == kInvalidPlanet || !valid_planet(pi)) {  // anything else: the store's container links
+        for (ObjectHandle m : store_->all_objects())
+            if (store_->alive(m) && store_->container(m) == object) out.push_back(m);
+        return out;
+    }
+    const PlanetState& p = planets_[pi];
+    for (uint32_t f : p.orbit)
+        if (fleets_[f].alive && store_->alive(fleets_[f].object)) out.push_back(fleets_[f].object);
+    for (ObjectHandle u : p.surface)
+        if (store_->alive(u)) out.push_back(u);
+    for (ObjectHandle s : p.structures)
+        if (store_->alive(s)) out.push_back(s);
+    if (store_->alive(p.starbase)) out.push_back(p.starbase);
+    return out;
+}
+
+// Change_Owner. Planets: GE 4.2 "Forced transfers" (0x3f7280) in its documented order: the conflict is
+// cleared, the starbase is cleared (0x4bda40: destroyed here [M]), the space queue is re-evaluated at
+// level 0, the starbase owner reset, the planet's surface forces handled (0x4b7670 / 0x4b7860 not traced:
+// [L] every structure and surface unit not owned by the new owner is converted to it, so the derived owner
+// (GE 4.1: structures, then surface units) keeps the new owner), then the transfer is applied with
+// control 1.0 through the common owner-change steps (on_owner_change: story/store event, credit caps,
+// capture bonus, corruption, siphon, queues). The political-control breakdown is recomputed every frame
+// here, so "clears the political breakdown" has nothing to clear.
+// Other objects [port]: the store owner changes (ObjectStore::set_owner); a fleet's members follow their
+// fleet and a stationary fleet then merges into the new owner's stationary fleet in orbit (as on
+// arrival); a member of a stationary fleet leaves it (an emptied fleet dies) and joins the new owner's
+// fleet in orbit there (found or created); a member of a moving fleet is refused; a starbase also moves
+// the planet's starbase owner.
+bool GalacticSim::change_owner(ObjectHandle object, int32_t player) {
+    if (!store_->alive(object) || !valid_player(player)) return false;
+    const PlanetIndex pi = planet_of(object);
+    if (pi != kInvalidPlanet && valid_planet(pi)) {
+        PlanetState& p = planets_[pi];
+        if (p.owner == player) return false;
+        p.in_battle = false;
+        if (store_->alive(p.starbase)) destroy_object(p.starbase);
+        reevaluate_queue(pi, kSpaceQueue, 0);
+        p.starbase_owner = kNoPlayer;
+        for (ObjectHandle s : p.structures)
+            if (store_->alive(s)) store_->set_owner(s, player);
+        for (ObjectHandle u : p.surface)
+            if (store_->alive(u)) store_->set_owner(u, player);
+        const int32_t old = p.owner;
+        p.owner = player;
+        p.control = 1.0f;
+        on_owner_change(pi, old);
+        return true;
+    }
+    const uint32_t own = fleet_of(object);
+    if (own != kNoFleet) {
+        if (!fleets_[own].alive || fleets_[own].owner == player) return false;
+        fleets_[own].owner = player;
+        store_->set_owner(object, player);
+        for (ObjectHandle m : fleets_[own].contents)
+            if (store_->alive(m)) store_->set_owner(m, player);
+        const FleetState& f = fleets_[own];
+        if (!f.moving && valid_planet(f.planet)) {
+            const std::vector<uint32_t> orbit = planets_[f.planet].orbit;
+            for (uint32_t g : orbit)
+                if (g != own && fleets_[g].alive && fleets_[g].owner == player && !fleets_[g].moving) {
+                    merge_fleet(own, g);
+                    break;
+                }
+        }
+        return true;
+    }
+    if (store_->owner(object) == player) return false;
+    const uint32_t fl = fleet_containing(object);
+    if (fl != kNoFleet) {
+        if (fleets_[fl].moving || !valid_planet(fleets_[fl].planet)) return false;
+        const PlanetIndex at = fleets_[fl].planet;
+        FleetState& src = fleets_[fl];
+        for (size_t k = 0; k < src.contents.size(); ++k)
+            if (src.contents[k] == object) {
+                src.contents.erase(src.contents.begin() + static_cast<std::ptrdiff_t>(k));
+                src.carried.erase(src.carried.begin() + static_cast<std::ptrdiff_t>(k));
+                break;
+            }
+        if (src.contents.empty()) kill_fleet(fl);
+        store_->set_owner(object, player);
+        const uint32_t dst = orbit_fleet(player, at);  // may grow fleets_: no FleetState reference held
+        fleets_[dst].contents.push_back(object);
+        fleets_[dst].carried.push_back(0);
+        fleet_member_joined(dst, object);
+        return true;
+    }
+    for (PlanetState& p : planets_)
+        if (p.is_planet && p.starbase == object) p.starbase_owner = player;
+    return store_->set_owner(object, player);
+}
+
+uint32_t GalacticSim::assemble_fleet(std::span<const ObjectHandle> units) {
+    std::vector<ObjectHandle> picked;
+    std::vector<uint32_t> source;  // the unit's fleet; kNoFleet = landed on `at`'s surface (launched below)
+    int32_t owner = kNoPlayer;
+    PlanetIndex at = kInvalidPlanet;
+    for (ObjectHandle u : units) {
+        if (!store_->alive(u) || fleet_of(u) != kNoFleet || planet_of(u) != kInvalidPlanet) continue;
+        if (std::find(picked.begin(), picked.end(), u) != picked.end()) continue;
+        const uint32_t fl = fleet_containing(u);
+        int32_t u_owner = kNoPlayer;
+        PlanetIndex u_at = kInvalidPlanet;
+        if (fl != kNoFleet) {
+            if (fleets_[fl].moving || !valid_planet(fleets_[fl].planet)) continue;
+            u_owner = fleets_[fl].owner;
+            u_at = fleets_[fl].planet;
+        } else {  // a landed unit (surface list; structures and starbases never fly)
+            for (PlanetIndex i = 0; i < planets_.size() && u_at == kInvalidPlanet; ++i)
+                if (planets_[i].is_planet && std::find(planets_[i].surface.begin(), planets_[i].surface.end(), u) != planets_[i].surface.end())
+                    u_at = i;
+            if (u_at == kInvalidPlanet) continue;
+            u_owner = store_->owner(u);
+            if (!valid_player(u_owner)) continue;
+        }
+        if (picked.empty()) {
+            owner = u_owner;
+            at = u_at;
+        } else if (u_owner != owner || u_at != at) {
+            continue;
+        }
+        picked.push_back(u);
+        source.push_back(fl);
+    }
+    if (picked.empty()) return kNoFleet;
+    // One fleet holding exactly these units: it is the assembled fleet.
+    const uint32_t first = source[0];
+    if (first != kNoFleet && std::all_of(source.begin(), source.end(), [first](uint32_t s) { return s == first; })) {
+        size_t live = 0;
+        for (ObjectHandle m : fleets_[first].contents) live += store_->alive(m) ? 1u : 0u;
+        if (live == picked.size()) return first;
+    }
+    const uint32_t out = create_fleet(owner, at);
+    for (size_t i = 0; i < picked.size(); ++i) {
+        if (source[i] == kNoFleet) {  // launch (FleetManagement op 4, SG 1.7): off the surface, reveal pass, into the fleet
+            std::vector<ObjectHandle>& surface = planets_[at].surface;
+            surface.erase(std::find(surface.begin(), surface.end(), picked[i]));
+            fleets_[out].contents.push_back(picked[i]);
+            fleets_[out].carried.push_back(0);
+            fleet_member_joined(out, picked[i]);
+            launch_reveal(at, picked[i]);
+            continue;
+        }
+        FleetState& src = fleets_[source[i]];
+        for (size_t k = 0; k < src.contents.size(); ++k)
+            if (src.contents[k] == picked[i]) {
+                src.contents.erase(src.contents.begin() + static_cast<std::ptrdiff_t>(k));
+                src.carried.erase(src.carried.begin() + static_cast<std::ptrdiff_t>(k));
+                break;
+            }
+        fleets_[out].contents.push_back(picked[i]);
+        fleets_[out].carried.push_back(0);
+        fleet_member_joined(out, picked[i]);
+    }
+    for (uint32_t s : source)
+        if (s != kNoFleet && fleets_[s].alive && fleets_[s].contents.empty()) kill_fleet(s);
+    return out;
+}
+
+}  // namespace alamo::galactic
+
+// ---- STY1 lane B story rewards (docs/re/STORY_REWARDS_GALACTIC.md) --------------------------------------------------
+
+namespace alamo::galactic {
+
+uint32_t GalacticSim::force_hero_respawn(uint32_t type) {
+    uint32_t n = 0;
+    for (PlanetState& p : planets_)
+        for (RespawnEntry& e : p.respawns)
+            if (e.type == type) {
+                e.due = frame_;  // the respawn service sees it due on its next pass (§1.3)
+                ++n;
+            }
+    return n;
+}
+
+uint32_t GalacticSim::story_remove_units(uint32_t type, bool all) {
+    uint32_t n = 0;
+    if (type >= rules_->types.size()) return 0;
+    const std::vector<ObjectHandle> found = store_->find_all_of_type(static_cast<objects::TypeIndex>(type));
+    const bool events = emit_events_;
+    emit_events_ = false;  // plain removal 0x391310: no death event, no bounty
+    for (const ObjectHandle h : found) {
+        if (!store_->alive(h)) continue;
+        if (destroy_object(h)) ++n;
+        if (!all) break;
+    }
+    emit_events_ = events;
+    if (n != 0 && !all) return n;
+    // Pass 2 (§1.4): queued hero respawns of this type, or of a team whose first member is this type.
+    for (PlanetState& p : planets_)
+        for (size_t i = 0; i < p.respawns.size();) {
+            const uint32_t t = p.respawns[i].type;
+            const bool match = t == type || (t < rules_->types.size() && !rules_->types[t].company_units.empty() &&
+                                             rules_->types[t].company_units.front() == type);
+            if (!match) {
+                ++i;
+                continue;
+            }
+            p.respawns.erase(p.respawns.begin() + static_cast<std::ptrdiff_t>(i));
+            ++n;
+            if (!all) return n;
+        }
+    return n;
+}
+
+uint32_t GalacticSim::story_move_fleets(int32_t plot_player, PlanetIndex from, PlanetIndex to, uint32_t filter) {
+    if ((filter != 1 && filter != 3) || !valid_planet(from) || !valid_planet(to) || !valid_player(plot_player)) return 0;
+    std::vector<uint32_t> chosen;
+    for (const uint32_t f : planets_[from].orbit) {
+        const FleetState& fl = fleets_[f];
+        if (!fl.alive || fl.moving || fl.planet != from) continue;
+        const bool friendly = allied(fl.owner, plot_player);
+        if ((filter == 1) == friendly) chosen.push_back(f);
+    }
+    // Merge per owner into the first fleet of that owner (a fleet-management merge, §1.6; other owners are never mixed [port]).
+    std::vector<uint32_t> leaders;
+    for (const uint32_t f : chosen) {
+        uint32_t lead = kNoFleet;
+        for (const uint32_t l : leaders)
+            if (fleets_[l].owner == fleets_[f].owner) lead = l;
+        if (lead == kNoFleet) leaders.push_back(f);
+        else merge_fleet(f, lead);
+    }
+    uint32_t moved = 0;
+    for (const uint32_t l : leaders)
+        if (fleets_[l].alive && move_fleet(fleets_[l].owner, l, to) == RejectReason::None) ++moved;
+    return moved;
+}
+
+bool GalacticSim::ability_ready(const SpecialAbilityDef& a, int32_t owner, uint32_t type) const {
+    bool ready = a.initially_enabled;
+    for (const StoryGates::Power& p : story_gates_.powers)
+        if (p.player == owner && p.type == type && p.name_crc == a.name_crc) ready = !p.revoked;
+    return ready;
+}
+
+// ---- mcx6 story rewards (docs/re/STORY_REWARDS_GALACTIC.md §1.10, §1.17) ----------------------------------------------
+
+int32_t GalacticSim::max_starbase_level(PlanetIndex planet) const {
+    const int32_t written = story_gates_.stat(story_gates_.max_starbase, planet);
+    if (written != StoryGates::kUnsetStat) return written;
+    const auto& m = map_.planets.max_space_base;
+    return planet < m.size() && m[planet] >= 0 ? m[planet] : 5;
+}
+
+void GalacticSim::story_set_base_value(PlanetIndex planet, int32_t value) {
+    if (valid_planet(planet)) planets_[planet].base_value = value;
+}
+
+int32_t GalacticSim::story_switch_sides(std::string_view faction) {
+    if (!valid_player(local_player_) || players_.empty()) return kNoPlayer;
+    const auto n = static_cast<int32_t>(players_.size());
+    auto switchable = [this](int32_t i) {
+        const uint32_t f = players_[static_cast<size_t>(i)].faction;
+        return f < rules_->factions.size() && rules_->factions[f].debug_switchable;
+    };
+    // One step of 0x297e80: the next switchable index after the local one (wrapping); then the human flags.
+    auto step = [&]() {
+        int32_t i = local_player_;
+        for (int32_t k = 0; k < n; ++k) {
+            i = (i + 1) % n;
+            if (!switchable(i)) continue;
+            local_player_ = i;
+            if (!players_[static_cast<size_t>(i)].ai)  // no AI system: the new local player is the only human
+                for (int32_t p = 0; p < n; ++p) players_[static_cast<size_t>(p)].human = p == i;
+            return true;
+        }
+        return false;  // [port] no switchable player: retail's loop never ends
+    };
+    if (faction.empty()) {
+        step();
+        return local_player_;
+    }
+    const uint32_t f0 = players_[static_cast<size_t>(local_player_)].faction;
+    // [port] at most one round of n steps: retail loops forever when F0 is not switchable and P1 cannot be reached.
+    for (int32_t round = 0; round < n; ++round) {
+        if (!step()) break;
+        const uint32_t f = players_[static_cast<size_t>(local_player_)].faction;
+        if (f == f0 || f == rules_->find_faction(faction)) break;  // P1 looked up by name each round (0x3303d0)
+    }
+    return local_player_;
+}
+
+}  // namespace alamo::galactic

@@ -1,0 +1,369 @@
+// S5 game modes and the mode stack (docs/re/MAIN_LOOP.md §2-§3, docs/re/OBJECT_RUNTIME.md §5).
+//
+// GameModeManager keeps a stack whose TOP IS ELEMENT 0. Only the top mode is ticked; a galactic
+// mode under a tactical battle stays alive (suspended) and neither its mode frame nor its objects
+// change during the battle. There is no menu mode: an empty stack means "simulation stopped".
+//
+// Every mode owns a primary store (sim objects; ids from the session's shared IdCounter) and a
+// secondary store (local / cosmetic objects, own counter, kept out of the sim CRC). Tactical modes
+// (land, space) also own the spatial TreeSet (engine/tactical, keyed by gameplay object id).
+//
+// Tick (vtable +0xb0), real order with stubs where the owning systems do not exist yet:
+//   galactic: common tick FIRST, then cinematic step, income at the income frame, per-planet RNG
+//             value [stub: no planets in this store yet], victory events.
+//   land/space: cinematic step [stub], per-AI-player tactical AI data [stub], movement scratch
+//             reset [stub], land: weather + hero clash [in TacticalBattle], tactical frame += 1, victory event
+//             0x11 [stub], common tick LAST.
+//   common (§3.3): FOW for players with id = F (mod 16) [stub counter], GOM service of the primary
+//             then the secondary store (OBJECT_RUNTIME.md §5.3: refit spatial trees, serviced
+//             objects newest-first, delayed creations last-to-first, deferred-delete flush),
+//             retreat coordinator + victory monitor [stub], bombing/bombard managers [stub].
+// The mode frame (+0x10) is advanced by GameModeManager::post_tick() unless the mode is paused.
+//
+// PROVISIONAL stand-ins until G2 (movement / combat) lands, clearly separate from the real order:
+//   * Orders (move / move-to-object / attack / stop) are recorded per object (UnitOrder, keyed by
+//     object id in an ordered map).
+//   * StubLocomotor: an object with the LOCOMOTOR behaviour and a move-type order advances in a
+//     straight line by its Max_Speed per frame (MOVEMENT.md: per-frame units) toward the goal, read
+//     from START-OF-TICK positions (computed in parallel, per index; applied in the object's service
+//     slot). Attack orders close to Targeting_Max_Attack_Distance and hold. No combat, no damage.
+//   * Spatial bounds: a cube of half-extent max(Custom_Hard_X/YExtent) when set, else 40 (space) /
+//     10 (land) x Scale_Factor. Real model bounds come with the asset-backed object setup.
+#pragma once
+#include <array>
+#include <cstdint>
+#include <functional>
+#include <map>
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "alamo/core/bytes.hpp"
+#include "alamo/core/parallel.hpp"
+#include "alamo/core/sim_crc_fwd.hpp"
+#include "alamo/core/sim_rng.hpp"
+#include "alamo/objects/object_store.hpp"
+#include "alamo/tactical/tree_set.hpp"
+
+namespace alamo::galactic {
+class GalacticSim;
+}
+namespace alamo::tactical::movement {
+struct AvoidModel;
+struct AvoidObstacle;
+}  // namespace alamo::tactical::movement
+
+namespace alamo::sim {
+
+using objects::ModeKind;
+using objects::ObjectHandle;
+using objects::ObjectId;
+using objects::kNoObjectId;
+
+// mcx5 t01: the session's PlayerList bound. The original keeps a vector with no fixed cap (MODS.md §10.4); the port's
+// per-player state is sized from SimConfig::players, and this guard (far above any mod: Age of Legends has 50) only
+// exists because the sim's player ids are uint8_t (host hooks, tactical battles, battle AI). The commands carry 13 bits
+// (commands::kMaxPlayerSlots). start_galactic refuses a setup above it; SimHost::handle refuses an id >= it.
+inline constexpr uint32_t kMaxPlayers = 256;  // limit: guard (uint8_t sim player ids 0..255)
+
+// Spatial category bits (TreeSet masks).
+inline constexpr uint32_t kCatUnit = 0x1;       // has a locomotor
+inline constexpr uint32_t kCatStructure = 0x2;  // selectable, no locomotor
+inline constexpr uint32_t kCatProp = 0x4;       // everything else (props, markers, asteroids)
+
+class GameMode;
+
+// What a mode tick may use from the host. Trace (optional) receives step names for tests.
+struct ModeTickContext {
+    uint64_t global_frame = 0;
+    GameRandom* random = nullptr;
+    const ParallelFor* pf = nullptr;
+    uint32_t players = 8;
+    std::vector<std::string>* trace = nullptr;
+    // q6 t09: the scoring-manager service (GAME_SCORING.md §2), run by GameModeManager::update at its "gmm.scoring"
+    // step, before the mode tick. Empty = nothing (the host has no GameScoring script).
+    std::function<void()> scoring;
+    // q6: the game-object script service (object_scripts.hpp), right after the mode's primary store update (common tick
+    // step 8; galactic: after GalacticSim::update), not while the mode is paused. Trace step "common.object_scripts"
+    // only while set. Empty = nothing (SimConfig::object_scripts off).
+    std::function<void(GameMode&)> object_scripts;
+    double sim_time() const { return static_cast<double>(global_frame) / static_cast<double>(30); }
+};
+
+enum class OrderKind : uint8_t { Idle = 0, Move = 1, MoveToObject = 2, Attack = 3 };
+
+struct UnitOrder {
+    OrderKind kind = OrderKind::Idle;
+    uint8_t player = 0;          // issuer
+    uint8_t in_range = 0;        // attack: target within Targeting_Max_Attack_Distance (holding)
+    uint64_t issued_frame = 0;   // global frame the order was applied in
+    Vec3 goal{};                 // Move
+    ObjectId target = kNoObjectId;  // MoveToObject / Attack
+};
+
+class GameMode {
+public:
+    GameMode(ModeKind kind, const objects::GameObjectTypes& types, objects::IdCounter& ids);
+    virtual ~GameMode() = default;
+    GameMode(const GameMode&) = delete;
+    GameMode& operator=(const GameMode&) = delete;
+
+    ModeKind kind() const { return kind_; }
+    bool tactical() const { return kind_ != ModeKind::Galactic; }
+    const char* name() const;
+
+    uint64_t frame() const { return frame_; }  // mode frame (+0x10)
+    uint64_t ticks() const { return ticks_; }  // logic ticks run (diagnostic)
+    bool suspended() const { return suspended_; }
+
+    objects::ObjectStore& primary() { return primary_; }
+    const objects::ObjectStore& primary() const { return primary_; }
+    objects::ObjectStore& secondary() { return secondary_; }
+    const objects::ObjectStore& secondary() const { return secondary_; }
+    const objects::GameObjectTypes& types() const { return *types_; }
+
+    // "paused" query (vtable +0x48): freezes the mode frame.
+    virtual bool paused() const { return paused_; }
+    void set_paused(bool p) { paused_ = p; }
+
+    // Lifecycle (vtable +0x08 init, +0x10 shutdown, +0x50 suspend, +0x58 resume).
+    virtual void init() {}
+    virtual void shutdown() {}
+    virtual void suspend() { suspended_ = true; }
+    virtual void resume() { suspended_ = false; }
+
+    // Logic tick (vtable +0xb0).
+    virtual void tick(const ModeTickContext& ctx) = 0;
+    // GameModeManager::Post_Tick: mode frame += 1 unless paused.
+    void post_tick() {
+        if (!paused()) ++frame_;
+    }
+    // [port] The per-frame (render-rate) update (vtable +0xb8; d = 0.03 per tick done this iteration, else 0) has no
+    // override in the port, so neither the hook nor its d is modelled (cu9 t15).
+
+    // Mode-level sim state for the CRC (frames, counters, orders); stores are hashed separately.
+    virtual void hash(StateHasher& h) const;
+    // N1 save (SimHost "frame" chunk): the mode-level state hash() covers plus the suspended flag. Stores are saved
+    // separately ("objects"). read_state: false (unchanged) on a kind mismatch / bad data. Tactical modes are not
+    // saved in stage 1 (SimHost::save_allowed refuses while one is on the stack): their write_state writes nothing
+    // and read_state fails.
+    virtual void write_state(ByteWriter& w) const;
+    virtual bool read_state(ByteReader& r);
+
+protected:
+    void common_tick(const ModeTickContext& ctx);
+    // Store service hooks used by the common tick (tactical modes add tree refit + stub motion).
+    virtual void pre_service(objects::ObjectStore&, const ModeTickContext&) {}
+    virtual void service_object(objects::ObjectStore&, ObjectHandle, const ModeTickContext&) {}
+    virtual void after_store_update(const ModeTickContext&) {}
+    static void trace(const ModeTickContext& ctx, const char* step);
+
+    ModeKind kind_;
+    const objects::GameObjectTypes* types_;
+    objects::ObjectStore primary_;
+    objects::ObjectStore secondary_;
+    uint64_t frame_ = 0;
+    uint64_t ticks_ = 0;
+    uint64_t fow_updates_ = 0;
+    bool paused_ = false;
+    bool suspended_ = false;
+};
+
+class GalacticMode final : public GameMode {
+public:
+    GalacticMode(const objects::GameObjectTypes& types, objects::IdCounter& ids);
+    ~GalacticMode() override;
+    void tick(const ModeTickContext& ctx) override;
+    void hash(StateHasher& h) const override;
+    // N1: + the pause counter (restored without re-pushing GalacticSim pauses: the sim's own pause state is in its
+    // "galactic.state" chunk). cu9f t01: the pre-S3 income cadence is no longer hashed or saved (frame chunk version 2).
+    void write_state(ByteWriter& w) const override;
+    bool read_state(ByteReader& r) override;
+
+    // S3 economy (engine/galactic GalacticSim) running on this mode's primary store. When attached,
+    // the tick is GalacticSim::update() (it services the store itself: fleets, planets, production,
+    // delayed creations + flush, fiscal cycle), then the secondary store.
+    void attach_sim(std::unique_ptr<galactic::GalacticSim> sim);
+    galactic::GalacticSim* sim() { return sim_.get(); }
+    const galactic::GalacticSim* sim() const { return sim_.get(); }
+    // Galactic pause counter (GMM +0x2c, MAIN_LOOP.md §1.5): freezes the mode frame and services;
+    // mirrored into GalacticSim::push_pause / pop_pause.
+    void push_pause();
+    void pop_pause();
+    // a1j t05: 0x4b2360 is also true while the story block holds (GalacticSim::paused(), A1_READINGS §31.7).
+    bool paused() const override;
+
+private:
+    uint32_t pause_count_ = 0;
+    std::unique_ptr<galactic::GalacticSim> sim_;
+};
+
+// Land and space battles.
+class TacticalMode : public GameMode {
+public:
+    TacticalMode(ModeKind kind, const objects::GameObjectTypes& types, objects::IdCounter& ids, uint32_t players);
+
+    tactical::TreeSet& trees() { return trees_; }
+    const tactical::TreeSet& trees() const { return trees_; }
+    uint64_t tactical_frame() const { return tactical_frame_; }  // land +0x410 / space +0x3c0
+
+    // Playable bounds (orders outside are rejected). Defaults: +-1e6.
+    void set_bounds(const tactical::Aabb& b) { bounds_ = b; }
+    const tactical::Aabb& bounds() const { return bounds_; }
+
+    // Spawns into the primary store with health = fraction x Tactical_Health and links the object
+    // into the trees by its object id. fraction is clamped to finite (non-finite -> 1).
+    ObjectHandle spawn(const objects::SpawnParams& p, float health_fraction = 1.0f);
+    // refix t01: a death clone (0x29f270, S9_DEATH_CLONE_SHIELDS.md §1.6 [H]): spawned like spawn() but created with
+    // object flags kFlagDeathClone (+0x3a0 |= 0xc0), so its player-tree membership reads Collidable_By_Projectile_Dead
+    // (type +0x42, TACTICAL_COMBAT §1.3: objects in the dead / death-clone state) instead of _Living. S8 t09: then the
+    // behaviour strip (only HIDE_WHEN_FOGGED, IMPOSING_PRESENCE and, with Death_Clone_Is_Obstacle, LAND_OBSTACLE stay)
+    // and the DEATH behaviour.
+    ObjectHandle spawn_death_clone(const objects::SpawnParams& p);
+    // Destroy_Object + tree dead flag; unlinked from the trees after the store's flush.
+    bool destroy(ObjectHandle h);
+
+    // The tree box (GameObject::Get_World_AABB 0x3982b0, SPACE_AVOIDANCE §3.1, refixf t07): with a model source, the
+    // type model's collision bound (§3.2) through the object transform with Scale_Factor (OBB -> AABB), [P, P + 0.1]
+    // for a type without a model; extent_box() when the source has no data for the type, for TEAM objects [port: the
+    // team list's box is not modelled; no FoC TEAM type is projectile-collidable] and without a source (synthetic
+    // runs without model files). Serial callers only (it fills the per-type model cache).
+    tactical::Aabb bounds_of(ObjectHandle h) const;
+    // SP5: fills exactly the model-cache entry bounds_of(h) would fill (serial); afterwards bounds_of(h) only reads, so it
+    // may run in a parallel loop until the next spawn of a new type.
+    void prepare_bounds(ObjectHandle h) const;
+    // The pre-t07 box: the per-type half extent (max Custom_Hard_X/YExtent, else 40 (space) / 10 (land) x Scale_Factor)
+    // around the position. [port] Still the model box stand-in of the fog (FogObject) and the garrison holder.
+    tactical::Aabb extent_box(ObjectHandle h) const;
+    // refixf t07: per-type model collision data for bounds_of and the precise projectile test. known = false: no data
+    // (the model did not load); known with a null model: the type has no model.
+    struct ModelRef {
+        bool known = false;
+        const tactical::movement::AvoidModel* model = nullptr;
+    };
+    using ModelSource = std::function<ModelRef(objects::TypeIndex)>;
+    void set_model_source(ModelSource src);
+    bool has_model_source() const { return static_cast<bool>(model_source_); }
+    // The cached entry; resolves it first when `resolve` (serial callers only). Unresolved without `resolve`: unknown.
+    ModelRef model_ref(objects::TypeIndex t, bool resolve) const;
+    // Resolves the types of every live object after set_model_source / a load (serial; no-op otherwise), so that
+    // read-only callers (the parallel projectile sweeps) find every tree member's type resolved.
+    void resolve_models();
+    // The object as an avoidance obstacle (position, planar facing, Scale_Factor, model, shield behaviour; avoid_place
+    // applied). False when there is no model data for its type (see ModelRef).
+    bool obstacle_of(ObjectHandle h, tactical::movement::AvoidObstacle& o, bool resolve) const;
+    float collision_box_modifier(objects::TypeIndex t) const { return t < box_modifier_.size() ? box_modifier_[t] : 0.0f; }
+    uint32_t category_of(ObjectHandle h) const;
+    bool movable(ObjectHandle h) const;
+    // Map load end (Rebuild_With_Threshold on every tree).
+    void finish_load(const ParallelFor& pf = serial_for);
+
+    // Orders (sim state, applied by the command handler).
+    void set_order(ObjectId id, const UnitOrder& o);
+    void clear_order(ObjectId id) { orders_.erase(id); }
+    const UnitOrder* order(ObjectId id) const;
+    const std::map<ObjectId, UnitOrder>& orders() const { return orders_; }
+
+    void tick(const ModeTickContext& ctx) override;
+    void hash(StateHasher& h) const override;
+    // N1 stage 2: GameMode state + tactical frame, AI service count, bounds, the unit orders, the boxes to refit at the
+    // next store update and the dying objects not yet flushed. The spatial trees are the host's "spatial" chunk.
+    void write_state(ByteWriter& w) const override;
+    bool read_state(ByteReader& r) override;
+
+    uint64_t ai_services() const { return ai_services_; }
+    // storyb t17 (objects::kFlagUnlinkedInRetail): the primary store's dead objects pending the flush at the end of SimHost
+    // T5 (the battle and its animation step) get the mark; story-script deaths after it do not.
+    void mark_step_deaths();
+
+protected:
+    void pre_service(objects::ObjectStore& store, const ModeTickContext& ctx) override;
+    void service_object(objects::ObjectStore& store, ObjectHandle h, const ModeTickContext& ctx) override;
+    void after_store_update(const ModeTickContext& ctx) override;
+    virtual void mode_specific(const ModeTickContext&) {}
+
+private:
+    void plan_motion(const ModeTickContext& ctx);
+
+    struct Step {
+        ObjectId id = kNoObjectId;
+        ObjectHandle h;
+        const UnitOrder* order = nullptr;
+        Vec3 pos{}, facing{};
+        uint8_t moved = 0, arrived = 0, in_range = 0, lost_target = 0;
+    };
+    void compute_step(Step& s) const;
+
+    std::vector<float> half_extent_;  // per type
+    // refixf t07: per type: Scale_Factor (invalid -> 1), Collision_Box_Modifier, TEAM / shield behaviour flags.
+    std::vector<float> scale_, box_modifier_;
+    std::vector<uint8_t> team_, shielded_;
+    ModelSource model_source_;
+    mutable std::vector<ModelRef> models_;          // per type, valid where model_done_ is set (definition cache)
+    mutable std::vector<uint8_t> model_done_;
+    bool models_dirty_ = false;
+    tactical::TreeSet trees_;
+    tactical::Aabb bounds_{{-1.0e6f, -1.0e6f, -1.0e6f}, {1.0e6f, 1.0e6f, 1.0e6f}};
+    std::map<ObjectId, UnitOrder> orders_;
+    uint64_t tactical_frame_ = 0;
+    uint64_t ai_services_ = 0;
+    // Stub motion scratch (per tick).
+    std::vector<Step> steps_;
+    std::vector<uint32_t> step_of_slot_;
+    std::vector<ObjectId> moved_;       // objects whose box changed; refit at the next store update
+    std::vector<ObjectId> dying_;       // destroyed; removed from the trees after the flush
+};
+
+class LandMode final : public TacticalMode {
+public:
+    LandMode(const objects::GameObjectTypes& types, objects::IdCounter& ids, uint32_t players)
+        : TacticalMode(ModeKind::Land, types, ids, players) {}
+
+protected:
+    void mode_specific(const ModeTickContext& ctx) override;  // weather + hero clash (trace; both run in TacticalBattle)
+};
+
+class SpaceMode final : public TacticalMode {
+public:
+    SpaceMode(const objects::GameObjectTypes& types, objects::IdCounter& ids, uint32_t players)
+        : TacticalMode(ModeKind::Space, types, ids, players) {}
+};
+
+// The mode stack. Session-level effects of Start_Game (FrameSynchronizer reset, RNG seeding) are
+// done by the host (SimHost::start_game); this class does the stack part.
+class GameModeManager {
+public:
+    GameModeManager(const objects::GameObjectTypes& types, uint32_t players) : types_(&types), players_(players) {}
+
+    // Start_Game push: suspend the current top, create the mode, insert at index 0, init. A
+    // tactical mode pushed over another mode gets the parent-mode death hook (§2.5).
+    GameMode& push(ModeKind kind);
+    // End_Game_Mode pop: shutdown + destroy the top; the new top is resumed. False if empty.
+    bool pop();
+
+    bool empty() const { return stack_.empty(); }
+    size_t depth() const { return stack_.size(); }
+    GameMode* top() { return stack_.empty() ? nullptr : stack_.front().get(); }
+    const GameMode* top() const { return stack_.empty() ? nullptr : stack_.front().get(); }
+    GameMode& at(size_t i) { return *stack_.at(i); }  // 0 = top
+    const GameMode& at(size_t i) const { return *stack_.at(i); }
+    TacticalMode* top_tactical();
+    const TacticalMode* top_tactical() const;
+
+    // GameModeManager::Update: scoring service (ctx.scoring), then ONLY the top mode's tick.
+    void update(const ModeTickContext& ctx);
+    // Post_Tick: top mode frame += 1 unless paused.
+    void post_tick();
+
+    objects::IdCounter& ids() { return ids_; }
+    const objects::IdCounter& ids() const { return ids_; }
+    void reset_ids() { ids_.reset(); }
+
+private:
+    const objects::GameObjectTypes* types_;
+    uint32_t players_;
+    objects::IdCounter ids_;  // shared by the primary stores of every mode in the session
+    std::vector<std::unique_ptr<GameMode>> stack_;
+};
+
+}  // namespace alamo::sim

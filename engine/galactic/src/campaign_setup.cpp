@@ -1,0 +1,180 @@
+// Campaign definition (engine/data CampaignDef) -> GalacticSetup.
+#include <algorithm>
+
+#include "alamo/data/xml_values.hpp"
+#include "alamo/data/game_database.hpp"
+#include "alamo/core/ascii.hpp"
+#include "alamo/data/values.hpp"
+#include "alamo/galactic/campaign.hpp"
+#include "alamo/galactic/victory.hpp"
+
+namespace alamo::galactic {
+
+namespace {
+
+}  // namespace
+
+// mcx4 t01 / t07: the campaign rule fields MCX4_RE_ANSWERS_GALACTIC Q1 / Q7.4 / Q7.6 settle (campaign.hpp).
+void read_campaign_rule_fields(const data::CampaignDef& c, const GalacticRules& rules, GalacticSetup& s,
+                               std::vector<std::string>* diagnostics) {
+    // mcx4 t01 (MCX4_RE_ANSWERS_GALACTIC Q1): Special_Case_Production "Faction, Planet, Type"; the faction is not read.
+    for (std::string_view v : c.raw_values("Special_Case_Production")) {
+        const std::vector<std::string_view> fields = data::split_fields(v);
+        if (fields.size() < 3) continue;
+        const uint32_t pt = rules.find_type(data::trim(fields[1])), t = rules.find_type(data::trim(fields[2]));
+        if (pt == kNoIndex || t == kNoIndex) {
+            if (diagnostics) diagnostics->push_back("galactic: special case production skipped: " + std::string(v));
+            continue;
+        }
+        s.special_case_production.emplace_back(pt, t);
+    }
+    // mcx4 t07 (MCX4_RE_ANSWERS_GALACTIC Q7.4): Corruption_Level_Override "planet, int" pairs (code 0x2B, several pairs
+    // per element), file order.
+    for (std::string_view v : c.raw_values("Corruption_Level_Override")) {
+        const std::vector<std::string_view> fields = data::split_fields(v);
+        for (size_t i = 0; i + 1 < fields.size(); i += 2) {
+            const uint32_t pt = rules.find_type(data::trim(fields[i]));
+            if (pt == kNoIndex) {
+                if (diagnostics) diagnostics->push_back("galactic: corruption level override skipped: " + std::string(fields[i]));
+                continue;
+            }
+            s.corruption_level_override.emplace_back(pt, data::xml_values::int_or(data::trim(fields[i + 1]), 0));
+        }
+    }
+    // mcx4 t07 (Q7.6 / Q7.4): the auto-resolve fields. Bools are code 0x0 (to_bool), the last occurrence wins;
+    // Autoresolve_Exclusion_Locations is a string list read as (planet, land | space) pairs, every element appends.
+    for (std::string_view v : c.raw_values("Is_Autoresolve_Allowed")) s.autoresolve_allowed = data::xml_values::to_bool(v);
+    for (std::string_view v : c.raw_values("Is_Story_Campaign")) s.story_campaign = data::xml_values::to_bool(v);
+    for (std::string_view v : c.raw_values("Autoresolve_Exclusion_Locations")) {
+        const std::vector<std::string_view> fields = data::split_fields(v);
+        for (size_t i = 0; i + 1 < fields.size(); i += 2) {
+            const uint32_t pt = rules.find_type(data::trim(fields[i]));
+            const std::string_view kind = data::trim(fields[i + 1]);
+            const bool land = ascii_iequals(kind, "land");
+            if (pt == kNoIndex || (!land && !ascii_iequals(kind, "space"))) {  // 0x4471b0 matches only "land" / "space"
+                if (diagnostics) diagnostics->push_back("galactic: autoresolve exclusion skipped: " + std::string(fields[i]));
+                continue;
+            }
+            s.autoresolve_exclusions.emplace_back(pt, land);
+        }
+    }
+}
+
+GalacticSetup build_campaign_setup(const data::GameDatabase& db, const GalacticRules& rules, std::string_view campaign,
+                                   const CampaignOptions& options, std::vector<std::string>* diagnostics) {
+    GalacticSetup s;
+    const data::CampaignDef* c = db.find_campaign(campaign);
+    if (!c) {
+        if (diagnostics) diagnostics->push_back("galactic: unknown campaign " + std::string(campaign));
+        return s;
+    }
+    s.map = data::build_galaxy_map(db, campaign, diagnostics);
+    s.planet_type.assign(s.map.planets.size(), kNoIndex);
+    for (size_t i = 0; i < s.map.planets.size(); ++i) s.planet_type[i] = rules.find_type(s.map.planets.name[i]);
+
+    // Factions the campaign names, collected as a set and ordered by FactionFiles order [L].
+    std::vector<uint8_t> used(rules.factions.size(), 0);
+    auto use = [&](std::string_view name) {
+        const uint32_t f = rules.find_faction(data::trim(name));
+        if (f != kNoIndex) used[f] = 1;
+        return f;
+    };
+    auto first_field = [](std::string_view raw) {
+        const std::vector<std::string_view> fields = data::split_fields(raw);
+        return fields.empty() ? std::string_view{} : fields[0];
+    };
+    for (const auto& hl : c->home_locations) use(hl.first);
+    for (const std::string& r : c->starting_credits) use(first_field(r));
+    for (const std::string& r : c->starting_forces) use(first_field(r));
+    for (const std::string& r : c->ai_player_control) use(first_field(r));
+    for (const std::string& r : c->starting_tech_level) use(first_field(r));
+    for (const std::string& r : c->max_tech_level) use(first_field(r));
+    if (!c->starting_active_player.empty()) use(c->starting_active_player);
+    const uint32_t neutral = rules.neutral_faction();
+    if (neutral != kNoIndex) used[neutral] = 1;
+    // REMAINING_GAPS 3.3 [inferred, probe 2026-10-29]: a Hostile player, so tactical maps' native objects (Hostile /
+    // Sarlacc / Hutts owners) survive the battle's owner lookup. Retail campaigns hold a player per faction at its
+    // faction index; Hostile's own entry was not logged. It takes no galactic part: no AI (no AI_Player_Control),
+    // no credits, not playable (income, victory and the Holocron skip it), owns nothing. modc t03: that faction by data
+    // (GalacticRules::native_owner_faction; FoC: Hostile), not by name.
+    const uint32_t hostile = rules.native_owner_faction();
+    if (hostile != kNoIndex) used[hostile] = 1;
+    const std::vector<uint8_t> named = used;  // the campaign's own factions (+ Neutral, Hostile)
+    // bkc1 t03 (docs/re/BKC1_RE_ANSWERS.md Q2 [H], Create_Default_Players 0x293390): a campaign has no required-player
+    // list, so retail creates one player for EVERY faction of the faction table, in table order, with no Is_Playable /
+    // Is_Neutral filter: player index = faction index (FoC: 0 Rebel, 1 Empire, 2 Pirates, 3 Neutral, 4 Hostile, 5 Sarlacc,
+    // 6 Underworld, 7 Hutts; the UM01 trace has 8 players, human Underworld at 6). The factions the campaign names only
+    // decide human / AI / credits / tech below. A repeated <Faction> definition is one faction (its first entry).
+    for (uint32_t f = 0; f < rules.factions.size(); ++f)
+        if (rules.find_faction(rules.factions[f].name) == f) used[f] = 1;
+
+    const std::string_view human = options.human_faction.empty() ? std::string_view(c->starting_active_player)
+                                                                  : std::string_view(options.human_faction);
+    const uint32_t difficulty = rules.find_difficulty(options.ai_difficulty);
+    std::vector<int32_t> player_of(rules.factions.size(), kNoPlayer);
+    for (uint32_t f = 0; f < rules.factions.size(); ++f) {
+        if (!used[f]) continue;
+        PlayerSetup p;
+        p.faction = f;
+        p.named = named[f] != 0;
+        p.human = ascii_iequals(rules.factions[f].name, data::trim(human));
+        for (const std::string& r : c->ai_player_control) {
+            const std::vector<std::string_view> fields = data::split_fields(r);
+            if (fields.size() >= 2 && ascii_iequals(fields[0], rules.factions[f].name) && !ascii_iequals(fields[1], "None"))
+                p.ai = !p.human;
+        }
+        if (p.ai) p.difficulty = difficulty;
+        player_of[f] = static_cast<int32_t>(s.players.size());
+        s.players.push_back(p);
+    }
+    for (const std::string& r : c->starting_credits) {
+        const std::vector<std::string_view> fields = data::split_fields(r);
+        if (fields.size() < 2) continue;
+        const uint32_t f = rules.find_faction(fields[0]);
+        if (f != kNoIndex && player_of[f] != kNoPlayer)
+            s.players[static_cast<size_t>(player_of[f])].credits = data::xml_values::float_or(data::trim(fields[1]), 0.0f);  // atof (mcx1 t02)
+    }
+    for (const std::string& r : c->starting_tech_level) {
+        const std::vector<std::string_view> fields = data::split_fields(r);
+        if (fields.size() < 2) continue;
+        const uint32_t f = rules.find_faction(fields[0]);
+        if (f != kNoIndex && player_of[f] != kNoPlayer)
+            s.players[static_cast<size_t>(player_of[f])].tech_level = data::xml_values::int_or(data::trim(fields[1]), 1);  // atoi (mcx1 t02)
+    }
+    for (const std::string& r : c->max_tech_level) {  // REMAINING_GAPS 1.4 (0x4af2d0)
+        const std::vector<std::string_view> fields = data::split_fields(r);
+        if (fields.size() < 2) continue;
+        const uint32_t f = rules.find_faction(fields[0]);
+        if (f != kNoIndex && player_of[f] != kNoPlayer)
+            s.players[static_cast<size_t>(player_of[f])].max_tech_level = data::xml_values::int_or(data::trim(fields[1]), 5);
+    }
+    s.tech_sweep_at_start = true;
+    for (const auto& hl : c->home_locations) {  // GRC 1.4: Home_Location (faction, planet); the first entry wins
+        const uint32_t f = rules.find_faction(data::trim(hl.first));
+        const PlanetIndex p = s.map.planets.find(data::trim(hl.second));
+        if (f != kNoIndex && player_of[f] != kNoPlayer && s.players[static_cast<size_t>(player_of[f])].home == kInvalidPlanet)
+            s.players[static_cast<size_t>(player_of[f])].home = p;
+    }
+    // GRC 0: campaign default true. mcx1 t02 / t03: bool code 0x0 ("1" or a first Y / T), the last occurrence wins
+    // (MCX1_RE_ANSWERS Q1 / Q2; raw_values holds no empty or TBD value).
+    for (std::string_view v : c->raw_values("Planet_Auto_Reveal")) s.planet_auto_reveal = data::xml_values::to_bool(v);
+    for (const std::string& r : c->starting_forces) {
+        const std::vector<std::string_view> fields = data::split_fields(r);
+        if (fields.size() < 3) continue;
+        const uint32_t f = rules.find_faction(fields[0]);
+        const PlanetIndex p = s.map.planets.find(fields[1]);
+        const uint32_t t = rules.find_type(fields[2]);
+        if (f == kNoIndex || p == kInvalidPlanet || t == kNoIndex) {
+            if (diagnostics) diagnostics->push_back("galactic: starting force skipped: " + r);
+            continue;
+        }
+        s.forces.push_back({player_of[f], p, t});
+    }
+    read_campaign_rule_fields(*c, rules, s, diagnostics);  // mcx4 t01 / t07
+    // q6 t22: the victory conditions; the Human_ list goes to the human's faction (Starting_Active_Player, or the
+    // faction the player picked).
+    s.victory = load_victory_rules(db, campaign, s.map, nullptr, human);  // diagnostics: not collected (as before)
+    return s;
+}
+
+}  // namespace alamo::galactic

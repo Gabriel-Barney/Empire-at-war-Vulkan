@@ -1,0 +1,93 @@
+// Builders for GalacticSnapshot until the S3 galactic economy (engine/galactic) owns the live
+// galactic state: a campaign's starting state (Starting_Forces / AI_Player_Control / Home_Location)
+// and a deterministic synthetic galaxy for the headless host's synthetic maps and the tests.
+//
+// PROVISIONAL (interim; replaced by the S3 state when it lands):
+//   * players: the factions named by AI_Player_Control, then Home_Location, then Starting_Forces, in
+//     first-appearance order, plus a neutral player (options.neutral_faction) if no listed faction is neutral; every
+//     non-neutral faction
+//     is an AI player (headless AI-vs-AI); relation = friendly only to itself;
+//   * planet owner: the faction of the first ground force / structure listed at the planet, else of
+//     the starbase, else of the first space force, else the neutral player (GALACTIC_ECONOMY.md 4.1
+//     precedence, simplified); political control 1.0;
+//   * starbase: the highest Base_Level StarBase listed at the planet; ground / special structures go
+//     to the structure list (ground variant); every other force is a unit (layer per force type);
+//   * Self sees the orbit of planets it owns or has forces at (no fog-reveal rules yet).
+#pragma once
+#include <cstdint>
+#include <functional>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include "alamo/ai/galactic_perception.hpp"
+#include "alamo/core/galaxy.hpp"
+
+namespace alamo::galactic {
+struct FactionRules;
+}
+
+namespace alamo::data {
+struct CampaignDef;
+}
+namespace alamo::objects {
+class GameObjectTypes;
+}
+namespace alamo {
+class FileProvider;
+}
+
+namespace alamo::ai {
+
+struct ForceType {
+    bool valid = false;
+    UnitLayer layer = UnitLayer::Space;
+    bool starbase = false;   // StarBase element
+    bool structure = false;  // GroundStructure / SpecialStructure element
+    float combat_power = 0.0f;  // AI_Combat_Power
+    int32_t base_level = 0;     // Base_Level (starbases)
+};
+using ForceTypeLookup = std::function<ForceType(std::string_view type_name)>;
+
+// From the typed object database (engine/objects): the galactic role rule (mcx1 t05, D4; galactic::galactic_dummy, the
+// first DUMMY_* behaviour of the generic Behavior list in retail's order; MCX1_RE_ANSWERS Q7.2), never the element tag.
+// StarBase -> starbase (space), structures -> ground, starships and squadrons -> space, companies -> ground; a type with
+// no DUMMY_* behaviour is not a valid starting force. `types` must outlive the lookup.
+ForceTypeLookup make_force_type_lookup(const objects::GameObjectTypes& types);
+// One type (index into `types`; invalid for an out-of-range index or a type with no galactic role, mcx1 t05).
+ForceType force_type_of(const objects::GameObjectTypes& types, uint32_t type);
+
+// modc t03: the faction facts come from the data (seed_options_from_factions), never from faction names. Unset
+// functions = no faction is neutral / benefits from corruption.
+struct CampaignSeedOptions {
+    std::function<bool(std::string_view faction)> is_neutral;                // Is_Neutral
+    std::function<bool(std::string_view faction)> benefits_from_corruption;  // Benefits_From_Corruption
+    // The player added when no listed faction is neutral: the data's first Is_Neutral faction ([port] a placeholder
+    // name that matches no faction when the data has none).
+    std::string neutral_faction = "(no neutral faction)";
+    bool fog = true;  // false: GalacticSnapshot::fog_disabled and planet_auto_reveal
+};
+// The options of a campaign seed from the faction definitions (galactic::load_factions: Data\XML\FactionFiles.xml and
+// the files it names, list order; the first definition of a name counts): Is_Neutral, Benefits_From_Corruption and the
+// first Is_Neutral faction, names compared case-insensitively. No factions: the defaults above.
+CampaignSeedOptions seed_options_from_factions(const std::vector<galactic::FactionRules>& factions);
+
+struct CampaignSeed {
+    GalacticSnapshot snapshot;
+    std::vector<std::string> player_names;  // index = player id
+    std::vector<std::string> diagnostics;   // unknown planets / types, malformed entries
+};
+
+CampaignSeed seed_campaign_snapshot(const data::CampaignDef& campaign, const GalaxyMap& map,
+                                    const ForceTypeLookup& lookup, const CampaignSeedOptions& options = {});
+
+// Deterministic synthetic galaxy (alamo::SimRng): `ai_players` AI factions + one neutral player,
+// random owners, starbases, units and orbit visibility. Same arguments => identical snapshot.
+GalacticSnapshot make_synthetic_snapshot(uint32_t planets, uint32_t ai_players, uint32_t seed);
+
+// Small deterministic change of a snapshot between frames (units move / die, owners flip), for
+// hosts and tests that need perception input to evolve without the S3 simulation. Uses `seed`
+// and `frame` only.
+void perturb_snapshot(GalacticSnapshot& s, uint32_t seed, uint32_t frame);
+
+}  // namespace alamo::ai

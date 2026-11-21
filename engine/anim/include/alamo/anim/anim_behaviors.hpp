@@ -1,0 +1,361 @@
+// R3 behaviour-driven clip selection on top of AnimWorld (docs/re/ANIM_PARTICLES.md §A.7, ABILITIES_HARDPOINTS
+// §4.9): flinch (0x62dde0), idle while engaged (0x62e570), the death clip (DeathBehavior 0x58cdb0) and the corpse
+// countdown (0x58d430). The per-object behaviour state lives here (sorted by ObjectId); the clip state stays in the
+// AnimWorld. Everything is integer frame timers + synced RNG draws in the caller's service order, so it is
+// deterministic; the only float the renderer reads (corpse fade fraction) is derived, never hashed.
+//
+// Rules (tags as in the RE doc):
+//   flinch    [H flow, M direction naming] on a hit: type by the angle between the victim's facing and the hit's
+//             travel direction (< 45 deg back, 45-135 deg left / right by side, > 135 deg front), 83-86 instead of
+//             79-82 while the current clip is attack-like or Attack Idle; random variant (synced), loop, blend
+//             Max_Flinch_Blend_Seconds, speed 1. Held Max_Flinch_Hold_Seconds, then no new flinch for
+//             Idle_ / Attack_Flinch_Interval_Seconds. No clip of the type = nothing (no draw).
+//   idle      [H] (s78k t02, TACTICAL_COMBAT §3.1.1 slot 47 "s78k t02"; IdleBehavior 0x62e570) serviced EVERY frame
+//             (not only when the clip finished; not suspended by Prevent_All_Fire), only for objects with IDLE (s78l t03
+//             (b)); no service while the locomotor reports moving (s78l t03 (a): LocomotorInput::on_path, the host's;
+//             unless Allow_Idle_When_Moving; then the idle records are cleared) or in a Walk deploy state (the host skips
+//             it). s78l t03 (c): idle records (presence id -> frames) from IMPOSING_PRESENCE (presence_refresh), cleared
+//             with a target, aged by the no-target service, read by the default idle type (IdleParams::presence). The host gives the
+//             TARGETING lookup (IdleTarget: the unit's TARGETING, a team member without one its container's, read
+//             whether suspended or not):
+//             * target held (TD +8): EVERY service draws one synced int [0, 30] and sets the idle countdown to it + 90
+//               (frames); when the current clip is attack-like / Attack / Attack Idle and finished and the model has
+//               Attack Idle: Attack Idle (index 0, one-shot, blend 0, speed 1, no further draw). Nothing else;
+//             * no target: the countdown drops by 1 (while > 0); nothing more while a flinch is held or the current
+//               clip is still playing (crouch change excepted). Then, from a finished attack-like / Attack / Attack
+//               Idle clip when the unit has TARGETING: countdown > 0 -> Attack Idle (index 0, one-shot, blend = synced
+//               float [0.2, 0.75], speed 1), else the default idle (index 0, one-shot, idle blend, speed 1); from any
+//               other clip the plain idle behaviour (AnimWorld::service_idle: fidget timer).
+//   death     [H] Die resets the animation state (overlay cleared, flinch dropped), then Specific_Death_Anim_Type /
+//             _Index (default Die, 0xFFFF = synced random variant), one-shot, blend 0.5, speed 1. No clip and
+//             Remove_Upon_Death -> removed at once.
+//   corpse    [H] the Death_Persistence_Duration countdown (-1 = forever) starts once the current clip is no longer
+//             the death type or has finished (the death clip length is sim-visible), then Death_Fade_Time, then
+//             the object (and its row) is removed.
+//
+// PORT CHOICES ([port], listed in docs/PHASE4.md R3):
+//   * seconds -> frames by truncation int(30 * s) (ABILITIES_HARDPOINTS §6.3), negative -> 0;
+//   * idle (s78k t02): the "Attack Idle with a blend draw" is drawn even when the model has no Attack Idle clip (the
+//     play then fails and the clip stays; [M] retail evaluates the argument before the play); the default idle from an
+//     attack clip is index 0, one-shot, speed 1 [M]; whether a stationary turn is "on a path" is the host's on_path
+//     (the idle service runs after the turn / stop play in the same call) [M]; the flinch bookkeeping of step 2 is not
+//     modelled here (flinch: on_hit / service); s78l t03: the idle records are kept in ascending presence id (retail
+//     iterates an unordered_map; only ties between two allied / two non-allied records that map to different
+//     animations could differ);
+//   * flinch only from no clip / idle-like / attack-like / Attack Idle (not while moving, turning or dying); the
+//     hold end plays the return clip (Attack Idle when the flinch was an attack flinch and the clip exists, else
+//     the default idle with Loop_Idle_Anim_00 / Idle_Anim_00_Rate_Mod) with the flinch blend; both flinch plays
+//     use blend mode 2 (rescale a running fade);
+//   * left / right: the hit travels toward the victim's left side (cross(facing, dir).z > 0) -> it came from the
+//     right -> Flinch_Right;
+//   * the death play passes lock = 1 (no later behaviour or Lua call replaces the death clip);
+//   * corpse phases cascade within one service (persistence 0 and fade 0 remove the corpse on the frame the
+//     death clip ends);
+//   * locomotor: move-family priority Deployed_Walk > CROUCHMOVE > FIRE_MOVE > WALKMOVE > Move, phase kept across
+//     the whole family; turn clips only for stationary units with a yaw change > 0.01 deg, index 0, speed 1
+//     (Rotation_Animation_Speed unused: units not documented), move blend; Walk_ / Crouch_Animation_Speed unused
+//     (the doc's walk row names Movement_Animation_Speed only);
+//   * spin-away decided at death with one synced float when 0 < chance < 1 (the original draw was
+//     not found, ABILITIES_HARDPOINTS §8 item 10), lasting Spin_Away_On_Death_Time, then removed (no fade).
+#pragma once
+#include <cstdint>
+#include <functional>
+#include <span>
+#include <vector>
+
+#include "alamo/anim/anim_state.hpp"
+
+namespace alamo::anim {
+
+struct FlinchParams {
+    float blend_seconds = 0.25f;           // Max_Flinch_Blend_Seconds (+0x20e8)
+    float hold_seconds = 0.5f;             // Max_Flinch_Hold_Seconds (+0x20ec)
+    float idle_interval_seconds = 1.0f;    // Idle_Flinch_Interval_Seconds (+0x20f4)
+    float attack_interval_seconds = 3.0f;  // Attack_Flinch_Interval_Seconds (+0x20f0)
+};
+
+// s78l t03 (TACTICAL_COMBAT slot 47 "s78l t03" (c)): one idle record of the IDLE pack's list I +0x10 - a presence object's
+// id and the frames left (written by IMPOSING_PRESENCE, aged by the no-target service). Kept in ascending presence id.
+struct IdleRecord {
+    ObjectId presence = 0;
+    int32_t frames = 0;
+};
+// The default idle type's presence step (0x395920 step 2), the host's: the unit's records (ascending presence id) ->
+// the idle type of the winning record (first matching Presence_Induced_Animations entry), kNoAnimType for none. Pure
+// read (no RNG).
+using PresenceIdleFn = std::function<int32_t(ObjectId unit, std::span<const IdleRecord> records)>;
+
+struct IdleParams {
+    int32_t idle_type = kAnimIdle;  // default idle (crouch / garrison mapping: the caller's)
+    bool loop_idle = false;         // Loop_Idle_Anim_00
+    float idle_rate = 1.0f;         // Idle_Anim_00_Rate_Mod
+    // s78l t03: the presence step of the default idle type (null: none - also while crouched / a garrison override,
+    // which come first in 0x395920). Must outlive the call it is passed to.
+    const PresenceIdleFn* presence = nullptr;
+};
+
+struct DeathParams {
+    int32_t type = kAnimDie;              // Specific_Death_Anim_Type (+0xd98)
+    bool type_explicit = false;           // the type sets Specific_Death_Anim_Type (no damage-kind mapping then)
+    uint32_t index = kRandomVariant;      // Specific_Death_Anim_Index (+0xd9c)
+    bool remove_upon_death = false;       // Remove_Upon_Death (+0x9b)
+    float persistence_seconds = -1.0f;    // Death_Persistence_Duration (+0x2290), < 0 = forever
+    float fade_seconds = 0.25f;           // Death_Fade_Time (+0x2294)
+    bool spin_away = false;               // Spin_Away_On_Death (+0x9a)
+    float spin_away_chance = 0.0f;        // Spin_Away_On_Death_Chance (+0x2208)
+    float spin_away_seconds = 0.0f;       // Spin_Away_On_Death_Time (+0x220c)
+};
+
+// Locomotor clip selection (WalkLocomotor 0x61f840, turn 0x620190; §A.7 walk / move and turn rows).
+// s78k t02: what the IDLE service's TARGETING lookup (0x62e570 step 3 / 4) finds for a unit: no TARGETING behaviour at
+// all (neither its own nor, for a team member, its container's), a TARGETING without a target, or one holding a target
+// (TD +8 != null; suspension ignored).
+enum class IdleTarget : uint8_t { None = 0, NoTarget = 1, Target = 2 };
+
+struct LocomotorParams {
+    float movement_anim_speed = 1.0f;       // Movement_Animation_Speed (+0x370)
+    float deployed_walk_anim_speed = 1.0f;  // Deployed_Walk_Anim_Speed
+    // mcx4 t11 (MCX4_T11_T12_RE_ANSWERS §S): 0x140b16d04 = GameConstants WalkAnimationCutoff (GC +0x1504, FoC 0.6): WALKMOVE
+    // while speed < this x max speed. The host passes the loaded value (BattleCatalog::walk_animation_cutoff).
+    float walk_speed_ratio = 0.6f;
+    float min_move_ratio = 0.1f;            // [port] floor of the current / max speed factor
+    IdleParams idle;
+};
+
+struct LocomotorInput {
+    bool movable = true;
+    float speed = 0.0f, max_speed = 0.0f;  // current / max speed (moving when speed > 0)
+    float yaw_deg = 0.0f;                  // facing yaw this tick (turn detection)
+    bool crouched = false;                 // behaviour 7 crouch query
+    bool burning = false;                  // object +0x3a1 & 2 [M]
+    bool deployed = false;                 // deployed walker
+    int32_t idle_type = kNoAnimType;       // garrison container mapping (caller); kNoAnimType = default rule
+    IdleTarget target = IdleTarget::NoTarget;  // s78k t02: the idle service's TARGETING lookup (host)
+    bool allow_idle_when_moving = false;       // Allow_Idle_When_Moving (type +0x85): idle service also while moving
+    // s78l t03 (slot 47 "s78l t03" (a)): the IDLE moving gate - the locomotor (vf +0x110) reports moving: a path on its
+    // stack (Walk / Bike / Fighter / SimpleSpace / Team, whatever the speed, arrival turn included), the container's for
+    // a land team member, JetPack state != stopped, the Flying / LandBomber formation tests. The host's answer; ignored
+    // when !movable (no locomotor: never gated). Gated: no IDLE service (records cleared, no draw).
+    bool on_path = false;
+    bool has_idle = true;  // s78l t03 (b): the object has the IDLE behaviour (7); without it there is no idle service
+    // s78l t02: the host's locomotor plays the stationary turn clips itself (the Walk arrival turn's events): no TURNL /
+    // TURNR from the yaw change here.
+    bool host_turn = false;
+    // bkx1 t04 (b0059, BKX1_RENDER_RE §2): a Walk_Transition unit's clip as its locomotor runs it (MovementSystem UnitView
+    // wt_clip / wt_pos / wt_rate): 16 MOVESTART, 17..20 the end clips, 2 MOVE after MOVESTART, -1 none. The locomotor's
+    // frame and rate (clip frames per sim frame = fps / 30 x rate) start the clip.
+    int32_t wt_clip = -1;
+    float wt_pos = 0.0f, wt_rate = 0.0f;
+    // mcx4 t11 (MCX4_T11_T12_RE_ANSWERS §B4 "Blend times"): a land team member (LandTeamInfantryLocomotor 0x62ca10, the
+    // host's Default-locomotor member of a team container) takes the team blends of its clip choice 0x62c420; any
+    // other unit the WalkLocomotor ones (0x61f840 / 0x61f510).
+    bool team_member = false;
+    // mcx4 t11 (0x620190 / 0x62bef0): the stationary turn clip's blend is min(time to turn, InfantryTurnBlendTime), time =
+    // the yaw error to turn (wanted - facing, degrees) / the turn rate (degrees per frame) x 0.03333. turn_rate_deg <= 0:
+    // the host does not know them ([port M]: the blend is the cap).
+    float turn_error_deg = 0.0f, turn_rate_deg = 0.0f;
+};
+
+// mcx4 t11 (0x620190 / 0x62bef0 / 0x642740 [H read, M angle]): the TURNL / TURNR blend. Retail takes the absolute value of
+// the error wrapped into [0, 360) (0x20b100), not into (-180, 180]: a right turn of e degrees counts 360 - |e|. Rate <= 0:
+// `cap`.
+float infantry_turn_blend(float err_deg, float rate_deg_per_frame, float cap);
+// mcx4 t11 (0x62c420 third branch [H], .data 0x140a44300 / 0x140a44308): a team member's clip change that is neither from
+// an idle- / turn-like clip nor into an idle-like one blends 0.2 s, or 0.4 s when exactly one of the two clips is
+// CROUCHMOVE (67).
+inline constexpr float kTeamClipSwitchBlendSeconds = 0.2f, kTeamCrouchSwitchBlendSeconds = 0.4f;
+
+// Locomotor / default-idle rules, exposed for tests.
+inline constexpr int32_t kAnimFireDie = 62, kAnimDeployedDie = 60, kAnimCaDie = 58, kAnimDeployedCaDie = 59;
+inline constexpr int32_t kAnimFwDie = 32, kAnimFtkDie = 36, kAnimFlDie = 41, kAnimEatenDie = 65, kAnimCrushed = 101;
+inline constexpr int32_t kAnimTurnLeftCrouch = 72, kAnimTurnRightCrouch = 73;
+inline constexpr float kDeployBlendSeconds = 0.0333f;
+bool is_move_family(int32_t type);                     // 2, 61, 66, 67, 115
+bool is_walk_transition_clip(int32_t type);            // bkx1 t04: 16 MOVESTART, 17..20 MOVE_ENDONE..MOVE_ENDFOUR
+int32_t default_idle_type(const AnimModel* m, const LocomotorInput& in, const IdleParams& idle);
+// s78l t03: `idle.idle_type`, or the presence step's answer for `records` when idle.presence is set, the records are not
+// empty and the answer has a clip in `m` ([port] no clip: the plain type, as default_idle_type).
+int32_t presence_idle_type(const AnimModel* m, ObjectId id, const IdleParams& idle, std::span<const IdleRecord> records);
+// r3g t07 (S9_DEATH_CLONE_SHIELDS §1.3-1.4, DeathBehavior attach 0x58cdb0): the death clip is the type's
+// Specific_Death_Anim_Type / _Index only (+0xd98 / +0xd9c); the killing kind never picks a clip. Kind-specific deaths
+// (FW / FL / FTK / Fire / CA / Crushed) come from the Death_Clone the kind selects, whose type names its clip.
+
+// refixf t04: the data-driven part of Die + DeathBehavior, computed WITHOUT an AnimWorld so the sim can schedule the
+// removal of a death clone store object identically with and without the animation service (ANIM_PARTICLES §A.7: the
+// death clip length is sim-visible; it is read from the model's clip data, not from a running animation).
+struct DeathPlan {
+    bool spin = false;           // spin-away death (no clip; removed after Spin_Away_On_Death_Time)
+    int32_t type = kNoAnimType;  // death clip type that plays (kNoAnimType: none - missing clip, spin or no model)
+    uint32_t variant = 0;        // its variant
+    bool remove_now = false;     // no clip, no spin and Remove_Upon_Death: removed at once
+    bool forever = false;        // Death_Persistence_Duration < 0 (no spin) or a clip that never ends: never removed
+    uint64_t lifetime = 0;       // frames from the death to the removal (valid when !remove_now && !forever)
+};
+// Same draws in the same order as begin_death (spin: one synced float when 0 < chance < 1; then the variant: one int in
+// [0, n - 1] when `p.index` is random and `m` has n > 0 variants of the death type - AnimWorld::play's draw). The death
+// type is p.type (r3g t07: never chosen by `damage_kind`, which is only recorded). m = null: no clip,
+// no variant draw. lifetime = what AnimBehaviors::service's countdown gives a corpse that starts at the death frame:
+//   spin   Spin_Away_On_Death_Time;
+//   clip   one_shot_frames(clip, speed 1) + 1 (the corpse service runs before the advance, so it sees the finished clip
+//          one frame later) + Death_Persistence_Duration + Death_Fade_Time;
+//   none   Death_Persistence_Duration + Death_Fade_Time.
+DeathPlan plan_death(const AnimModel* m, const DeathParams& p, uint8_t damage_kind, SimRng& rng);
+inline constexpr uint64_t kNeverFrames = ~uint64_t{0};
+// Sim frames a one-shot clip of `frame_count` frames at `fps` x `speed` takes to finish after the frame it starts on
+// (AnimWorld::advance with dt = 1/30 per frame, stopping at max(count - 2, 0); the start frame's own advance has dt 0, so
+// a clip of <= 2 frames finishes there: 0); kNeverFrames when it makes no progress.
+uint64_t one_shot_frames(uint32_t frame_count, float fps, float speed);
+
+inline constexpr float kDeathBlendSeconds = 0.5f;
+inline constexpr uint32_t kEngagedBaseFrames = 90;   // idle countdown = 90 + int [0, 30] (every service with a target)
+inline constexpr int32_t kEngagedRandomFrames = 30;
+
+// int(30 * seconds) (alamo/core/frames.hpp frames_trunc: 2^31 out of int32 range), 0 for negative / NaN.
+uint64_t seconds_to_frames(float seconds);
+// Flinch type for a hit travelling along (dx, dy) on a victim facing (fx, fy) (2-D, z ignored). attacking: the
+// Attack_Flinch_* set. A zero direction or facing counts as a hit from the front.
+int32_t flinch_type(float fx, float fy, float dx, float dy, bool attacking);
+
+enum class CorpsePhase : uint8_t { Dying = 0, Persisting = 1, Fading = 2, SpinAway = 3 };
+
+// Render-side data of a corpse is captured at death (the store object of a battle unit is removed at death,
+// [port]: the corpse lives on as an AnimWorld row + this record until the countdown ends).
+struct CorpseInfo {
+    uint32_t object_type = 0xFFFFFFFFu;  // GameObjectType index
+    int32_t owner = -1;
+    float position[3] = {0.0f, 0.0f, 0.0f};
+    float facing[3] = {1.0f, 0.0f, 0.0f};
+};
+
+struct Corpse {
+    ObjectId id = 0;
+    CorpsePhase phase = CorpsePhase::Dying;
+    int32_t death_type = kNoAnimType;  // the type played (kNoAnimType: no clip)
+    bool forever = false;              // persistence < 0: never fades
+    bool spin_away = false;            // spin-away death: no clip, removed after Spin_Away_On_Death_Time
+    uint8_t damage_kind = 1;           // killing damage kind
+    bool detached = false;             // the store object is gone (render draws it from `info`)
+    uint64_t death_frame = 0;
+    uint64_t phase_end = 0;            // Persisting / Fading: frame the phase ends
+    uint64_t persist_frames = 0, fade_frames = 0;
+    CorpseInfo info;
+    // Render helper: 1 until the fade starts, then linearly down to 0 at the end (never hashed).
+    float alpha(uint64_t frame) const;
+};
+
+enum class DeathResult : uint8_t { Corpse = 0, RemoveNow, NoRow };
+
+class AnimBehaviors {
+public:
+    // ---- flinch ----
+    // Returns true when a flinch clip started. `idle` = the clip to return to after the hold.
+    bool on_hit(AnimWorld& w, ObjectId id, const FlinchParams& p, const IdleParams& idle, float fx, float fy, float dx, float dy,
+                SimRng& rng, uint64_t frame);
+    bool flinching(ObjectId id) const;
+    uint64_t next_flinch_frame(ObjectId id) const;  // 0 when none recorded
+
+    // ---- idle behaviour (incl. idle while engaged; s78k t02 flow above) ----
+    // One service of 0x62e570 (call every frame the unit is not moving; draws with a target whatever the clip). True if
+    // it played a clip. s78l t03: with a target the idle records are cleared; without one they age first (every value
+    // - 1, a record below 1 erased), then the default idle type is resolved (presence_idle_type with idle.presence).
+    bool service_idle(AnimWorld& w, ObjectId id, const IdleParams& idle, IdleTarget target, SimRng& rng, uint64_t frame,
+                      bool crouch_changed = false);
+    // s78l t03 (a): the service of a unit the moving gate stops (step 1): the records are cleared, nothing else (no draw).
+    // [port] the flinch weight reset of the same step has no counterpart: the port's flinch has no weight, a moving unit
+    // starts none (on_hit) and its locomotor clip replaces a running one.
+    void idle_gated(ObjectId id);
+    uint64_t idle_countdown(ObjectId id) const;  // I +0xc, frames; 0 when none recorded
+    // s78l t03 (c): IMPOSING_PRESENCE's write 0x62e450 - find-or-insert the record of `presence` with `frames` (a refresh
+    // resets the countdown). The caller applies the gates (receiver with IDLE, no target, not moving).
+    void presence_refresh(ObjectId id, ObjectId presence, int32_t frames);
+    std::span<const IdleRecord> idle_records(ObjectId id) const;  // ascending presence id; empty when none
+    // s78l t03: true when the locomotor has seen a yaw for `id` and `yaw_deg` differs from it by more than 0.01 deg (the
+    // stationary turn test of service_locomotor, read before the call: the host's arrival-turn = on a path rule).
+    bool yaw_changed(ObjectId id, float yaw_deg) const;
+
+    // ---- locomotor (one call per unit per tick, the battle's locomotor step) ----
+    // moving: Move family by state (Deployed_Walk 115 > CROUCHMOVE 67 > FIRE_MOVE 61 > WALKMOVE 66 when slow >
+    // Move 2; a missing clip falls back to Move), loop, speed = (Deployed_Walk_Anim_Speed for 115, else
+    // Movement_Animation_Speed) x max(speed / max, min); restarted only on a type change: inside the family the
+    // phase is kept (switch_preserving_phase), from outside a synced random start frame. Stopped: a Move-family
+    // clip goes back to the default idle (loop Loop_Idle_Anim_00); a stationary yaw change plays
+    // TURNL / TURNR (CROUCHTURNL / R when crouched; one-shot, index 0, speed 1 [port]) while turning;
+    // mcx4 t11 blends (AnimTunables, GameConstants): walker - MoveBlendTime for a move clip (0 for a Walk_Transition
+    // unit's MOVE, 0x61f840), IdleWalkBlendTime for the stop; team member - Team(Crouch)MoveBlendTime from an idle / turn
+    // clip, (Crouch)IdleWalkBlendTime into an idle, else kTeam(Crouch)SwitchBlendSeconds; turns infantry_turn_blend;
+    // then (s78k t02) the idle service on every call while not moving (in.target; also while moving with
+    // in.allow_idle_when_moving), after the locomotor's own play (crouch change forces the idle clip). Returns the
+    // number of plays started (0 - 2).
+    uint32_t service_locomotor(AnimWorld& w, ObjectId id, const LocomotorParams& p, const LocomotorInput& in, SimRng& rng, uint64_t frame);
+
+    // ---- deploy / undeploy (0x61e930: 25 / 26, synced random variant, one-shot, blend 0.0333, speed
+    // Deployment_Anim_Rate). Returns true if a clip started (current_frame_count gives its length). ----
+    bool deploy(AnimWorld& w, ObjectId id, bool undeploy, float deployment_anim_rate, SimRng& rng, uint64_t frame);
+    // s78n t26.1 (MOVEMENT §3.2.1 item 3, Walk 0x16 with the walking-deployed flag): the Deploy clip (25) set on its last
+    // frame, blend 0.2, speed 1.0, one-shot ([port] variant 0: no draw). True if it started.
+    bool deploy_at_end(AnimWorld& w, ObjectId id, uint64_t frame);
+
+    // ---- death / corpse ----
+    // Die + DeathBehavior start. NoRow: `id` has no AnimWorld row (a corpse without clip is still recorded,
+    // unless remove_upon_death). RemoveNow: the row (if any) was removed; the caller removes the object.
+    // `damage_kind` = the killing hit's DamageType (recorded on the corpse; it does not pick the clip, r3g t07).
+    // Spin-away (Spin_Away_On_Death): [port] decided here, one synced float [0, 1) < chance when 0 < chance < 1
+    // (chance >= 1 or unset: always); a spinning death plays no clip and is removed after Spin_Away_On_Death_Time.
+    DeathResult begin_death(AnimWorld& w, ObjectId id, const DeathParams& p, const CorpseInfo& info, SimRng& rng, uint64_t frame,
+                            uint8_t damage_kind = 1);
+    // refixf t04: the same with the spin decision / death type / variant already made by plan_death (no draws): a death
+    // clone whose removal the sim schedules. The clip plays when the row's model has plan.type / plan.variant.
+    DeathResult begin_death(AnimWorld& w, ObjectId id, const DeathParams& p, const DeathPlan& plan, const CorpseInfo& info, uint64_t frame,
+                            uint8_t damage_kind = 1);
+    bool is_corpse(ObjectId id) const;
+    const Corpse* corpse(ObjectId id) const;
+    std::span<const Corpse> corpses() const { return corpses_; }  // ascending id
+    void detach(ObjectId id);                                      // store object gone, corpse kept
+
+    // ---- per frame (before AnimWorld::advance) ----
+    // Ends flinch holds (return clip) and runs the corpse countdown in ascending id. Corpses whose countdown
+    // ended are removed (row + state) and their ids appended to `removed` (the caller removes the objects).
+    void service(AnimWorld& w, uint64_t frame, std::vector<ObjectId>& removed);
+
+    // Drops every behaviour state of `id` (object removed by someone else).
+    void remove(ObjectId id);
+    void hash(StateHasher& h) const;
+    size_t state_count() const { return entries_.size(); }
+
+    // ---- N1 save / load (contract: alamo/core/save_file.hpp; src/anim_save.cpp) ----
+    // Layout: u32 version (3; 2 and 1 are accepted without records, 1 with its combat-timer frame stamp read as countdown
+    // 0); u32 count + every behaviour entry in ascending id (i32 id, i32 flinch type, u64 flinch
+    // end, u64 next flinch, f32 flinch blend, i32 return type, bool return loop, f32 return speed, u64 idle countdown,
+    // f32 last yaw, bool have yaw, bool last crouch, version 3: u32 record count + per record in ascending presence id
+    // i32 presence id, i32 frames (>= 1)); u32 count + every corpse in ascending id (i32 id, u8 phase, i32
+    // death type, bool forever, bool spin-away, u8 damage kind, bool detached, u64 death frame, u64 phase end, u64
+    // persist frames, u64 fade frames, CorpseInfo: u32 object type, i32 owner, f32 position[3], f32 facing[3]).
+    // Independent of the AnimWorld (the host reads it before the AnimWorld). False and unchanged on bad data; reads
+    // its own fields only (the owner checks done()).
+    void write(ByteWriter& w) const;
+    bool read(ByteReader& r);
+
+private:
+    struct Entry {
+        ObjectId id = 0;
+        int32_t flinch = kNoAnimType;  // flinch type being held
+        uint64_t flinch_end = 0, flinch_next = 0;
+        float flinch_blend = 0.0f;
+        int32_t ret_type = kAnimIdle;
+        bool ret_loop = false;
+        float ret_speed = 1.0f;
+        uint64_t idle_countdown = 0;  // I +0xc (frames)
+        float last_yaw = 0.0f;  // locomotor
+        bool have_yaw = false, last_crouch = false;
+        std::vector<IdleRecord> records;  // s78l t03: I +0x10, ascending presence id (retail: an unordered map)
+    };
+    Entry* find(ObjectId id);
+    const Entry* find(ObjectId id) const;
+    Entry& entry(ObjectId id);
+    Corpse* find_corpse(ObjectId id);
+
+    std::vector<Entry> entries_;   // ascending id
+    std::vector<Corpse> corpses_;  // ascending id
+};
+
+}  // namespace alamo::anim

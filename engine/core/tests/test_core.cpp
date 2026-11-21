@@ -1,0 +1,340 @@
+// alamo_core unit tests (no framework; returns non-zero on failure).
+#include <cctype>
+#include <chrono>
+#include <cstdio>
+#include <cstring>
+#include <vector>
+#include <filesystem>
+#include <fstream>
+#include <random>
+#include <span>
+#include <string>
+
+#include "alamo/core/file_provider.hpp"
+#include "alamo/core/host_fs.hpp"
+#include "alamo/core/galaxy.hpp"
+#include "alamo/core/hash.hpp"
+#include "alamo/core/parallel.hpp"
+#include "alamo/test/support.hpp"
+#include "alamo/core/x86_int.hpp"
+#include "alamo/core/frames.hpp"
+
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <winioctl.h>
+
+using ::alamo::test::g_fail;
+
+// Turns the empty directory `link` into a junction (IO_REPARSE_TAG_MOUNT_POINT) to `target` with
+// FSCTL_SET_REPARSE_POINT. Junctions need no privilege (unlike symlinks).
+static bool make_junction(const std::filesystem::path& link, const std::filesystem::path& target) {
+    HANDLE h = CreateFileW(link.c_str(), GENERIC_WRITE, 0, nullptr, OPEN_EXISTING,
+                           FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+    if (h == INVALID_HANDLE_VALUE) return false;
+    const std::wstring print = std::filesystem::absolute(target).native();
+    const std::wstring subst = L"\\??\\" + print;
+    // REPARSE_DATA_BUFFER (MountPointReparseBuffer): tag, length, reserved, 4 offsets/lengths, names.
+    std::vector<unsigned char> buf(16 + (subst.size() + print.size() + 2) * sizeof(wchar_t), 0);
+    auto put16 = [&](size_t off, size_t v) {
+        buf[off] = static_cast<unsigned char>(v & 0xFF);
+        buf[off + 1] = static_cast<unsigned char>((v >> 8) & 0xFF);
+    };
+    const DWORD tag = 0xA0000003u;  // IO_REPARSE_TAG_MOUNT_POINT
+    std::memcpy(buf.data(), &tag, 4);
+    put16(4, buf.size() - 8);                                      // ReparseDataLength
+    put16(8, 0);                                                   // SubstituteNameOffset
+    put16(10, subst.size() * sizeof(wchar_t));                     // SubstituteNameLength
+    put16(12, (subst.size() + 1) * sizeof(wchar_t));               // PrintNameOffset
+    put16(14, print.size() * sizeof(wchar_t));                     // PrintNameLength
+    std::memcpy(buf.data() + 16, subst.c_str(), subst.size() * sizeof(wchar_t));
+    std::memcpy(buf.data() + 16 + (subst.size() + 1) * sizeof(wchar_t), print.c_str(), print.size() * sizeof(wchar_t));
+    DWORD ret = 0;
+    const BOOL ok = DeviceIoControl(h, FSCTL_SET_REPARSE_POINT, buf.data(), static_cast<DWORD>(buf.size()), nullptr, 0,
+                                    &ret, nullptr);
+    CloseHandle(h);
+    return ok != FALSE;
+}
+
+// remove_all_long safety on Windows: junctions are not followed, read-only entries go, a locked file
+// is a bounded failure, and inputs Win32 would widen ("x.", "C:x", roots) are refused.
+static void test_remove_all_long_safety(const std::filesystem::path& tmp) {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    const fs::path tree = tmp / "tree";
+    const fs::path outside = tmp / "outside";  // the junction target: not under `tree`
+    fs::create_directories(tree / "ro_dir", ec);
+    fs::create_directories(outside / "inner", ec);
+    { std::ofstream(outside / "keep.txt") << "keep"; }
+    { std::ofstream(outside / "inner" / "keep2.txt") << "keep"; }
+    { std::ofstream(tree / "ro_dir" / "ro.txt") << "ro"; }
+    SetFileAttributesW((tree / "ro_dir" / "ro.txt").c_str(), FILE_ATTRIBUTE_READONLY);
+    SetFileAttributesW((tree / "ro_dir").c_str(), FILE_ATTRIBUTE_READONLY);
+    fs::create_directory(tree / "junction", ec);
+    const bool junction = make_junction(tree / "junction", outside);
+    if (junction) {
+        CHECK(fs::exists(tree / "junction" / "keep.txt", ec));  // the junction resolves
+    } else {
+        std::printf("  (junction test skipped: FSCTL_SET_REPARSE_POINT failed, error %lu)\n", GetLastError());
+    }
+    const std::uintmax_t removed = alamo::remove_all_long(tree, ec);
+    CHECK(!ec && removed == 4);  // tree, ro_dir, ro.txt, junction (the link itself)
+    CHECK(!fs::exists(tree, ec));
+    CHECK(fs::exists(outside / "keep.txt", ec) && fs::exists(outside / "inner" / "keep2.txt", ec));
+    // A junction passed as the top-level path is removed as a link too.
+    fs::create_directory(tmp / "top_junction", ec);
+    if (make_junction(tmp / "top_junction", outside)) {
+        CHECK(alamo::remove_all_long(tmp / "top_junction", ec) == 1 && !ec);
+        CHECK(!fs::exists(tmp / "top_junction", ec) && fs::exists(outside / "keep.txt", ec));
+    }
+
+    // Locked file (no FILE_SHARE_DELETE): a bounded failure, not a hang; the tree stays consistent.
+    const fs::path locked_dir = tmp / "locked";
+    fs::create_directories(locked_dir, ec);
+    HANDLE h = CreateFileW((locked_dir / "busy.bin").c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
+                           FILE_ATTRIBUTE_NORMAL, nullptr);
+    CHECK(h != INVALID_HANDLE_VALUE);
+    const auto t0 = std::chrono::steady_clock::now();
+    CHECK(alamo::remove_all_long(locked_dir, ec) == static_cast<std::uintmax_t>(-1) && ec);
+    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();
+    CHECK(ms < 5000);
+    std::printf("  locked file: remove_all_long failed after %lld ms (%s)\n", static_cast<long long>(ms),
+                ec.message().c_str());
+    if (h != INVALID_HANDLE_VALUE) CloseHandle(h);
+    CHECK(alamo::remove_all_long(locked_dir, ec) == 2 && !ec);  // released: now it goes
+
+    // Refused inputs (each would otherwise widen to something else; all targets here are harmless).
+    fs::create_directories(tmp / "victim", ec);
+    CHECK(alamo::remove_all_long(tmp / "victim.", ec) == static_cast<std::uintmax_t>(-1) && ec);
+    CHECK(alamo::remove_all_long(tmp / "victim ", ec) == static_cast<std::uintmax_t>(-1) && ec);
+    CHECK(alamo::remove_all_long(tmp / "victim" / ".", ec) == static_cast<std::uintmax_t>(-1) && ec);
+    CHECK(alamo::remove_all_long(tmp / "victim" / "x" / "..", ec) == static_cast<std::uintmax_t>(-1) && ec);
+    CHECK(fs::exists(tmp / "victim", ec));
+    {   // drive-relative "X:name": resolved against the drive's current directory
+        const fs::path cwd = fs::current_path(ec);
+        const std::wstring name = L"alamo_core_driverel_" + std::to_wstring(GetCurrentProcessId());
+        fs::create_directory(cwd / name, ec);
+        CHECK(alamo::remove_all_long(fs::path(cwd.root_name().native() + name), ec) == static_cast<std::uintmax_t>(-1) && ec);
+        CHECK(fs::exists(cwd / name, ec));
+        fs::remove(cwd / name, ec);
+    }
+    {   // a volume root (on an unused drive letter, so a broken guard could not delete anything)
+        const DWORD drives = GetLogicalDrives();
+        for (int i = 25; i >= 3; --i)
+            if (!(drives & (1u << i))) {
+                const std::wstring root = std::wstring(1, static_cast<wchar_t>(L'A' + i)) + L":\\";
+                CHECK(alamo::remove_all_long(fs::path(root), ec) == static_cast<std::uintmax_t>(-1) && ec);
+                CHECK(alamo::remove_all_long(fs::path(L"\\\\?\\" + root), ec) == static_cast<std::uintmax_t>(-1) && ec);
+                break;
+            }
+    }
+    CHECK(alamo::remove_all_long(fs::path(L"\\\\.\\pipe\\x"), ec) == static_cast<std::uintmax_t>(-1) && ec);
+    CHECK(alamo::remove_all_long(tmp / "victim", ec) == 1 && !ec);
+    CHECK(alamo::remove_all_long(outside, ec) == 4 && !ec);  // outside, inner, keep.txt, keep2.txt
+}
+
+// mcx8 t11 (docs/MOD_COMPAT_DESIGN.md §13.3): the x86 conversion / decrement results, identical on MSVC and clang.
+// volatile inputs keep the checks at run time (the compiler cannot fold an out-of-range cast it might treat as UB).
+void test_x86_int() {
+    static_assert(alamo::trunc_i32(2.9f) == 2 && alamo::trunc_i32(-2.9f) == -2);
+    static_assert(alamo::trunc_i32(99999999999.0f) == INT32_MIN && alamo::dec_wrap(INT32_MIN) == INT32_MAX);
+    volatile float big = 99999999999.0f, neg = -3.0e10f, edge = 2147483648.0f, low = -2147483648.0f, zero = 0.0f;
+    const float q = zero;
+    volatile float nanv = q / q;
+    CHECK(alamo::trunc_i32(big * 30.0f) == INT32_MIN);  // Age of Legends' Defense_Duration_In_Secs x FPS
+    CHECK(alamo::trunc_i32(neg) == INT32_MIN);
+    CHECK(alamo::trunc_i32(edge) == INT32_MIN);          // 2^31 is out of range
+    CHECK(alamo::trunc_i32(low) == INT32_MIN);           // -2^31 is in range
+    CHECK(alamo::trunc_i32(nanv) == INT32_MIN);
+    CHECK(alamo::trunc_i32(2147483520.0f) == 2147483520);  // the largest float below 2^31
+    volatile double bigd = 1.0e12;
+    CHECK(alamo::trunc_i32(bigd) == INT32_MIN && alamo::trunc_i32(-7.9) == -7);
+    volatile int32_t m = INT32_MIN;
+    CHECK(alamo::dec_wrap(m) == INT32_MAX && alamo::dec_wrap(0) == -1);
+    CHECK(alamo::add_wrap(INT32_MAX, 1) == INT32_MIN);
+}
+
+// ref4 t03: data-driven seconds -> frames, one function per rounding form, with the x86 range behaviour on both compilers
+// (negative, NaN, 2^32 and in-range values; float and double). In range each is the plain cast of its rounding.
+void test_frames() {
+    using alamo::frames_ceil;
+    using alamo::frames_round;
+    using alamo::frames_trunc;
+    static_assert(frames_trunc(30.0f * 2.5f) == 75 && frames_trunc(30.0 * 0.1) == 3);
+    volatile float zero = 0.0f, secs = 0.25f, big = 99999999999.0f, two32 = 4294967296.0f, neg = -2.5f, negbig = -3.0e10f;
+    const float q = zero;
+    volatile float nanv = q / q;
+    // In range: the plain truncation / rounding / ceiling (0.25 s = 7.5 frames).
+    CHECK(frames_trunc(30.0f * secs) == 7 && frames_round(30.0f * secs) == 8 && frames_ceil(30.0f * secs) == 8);
+    CHECK(frames_trunc(30.0f * secs + 0.5f) == 8);  // the original's (int)(x + 0.5)
+    CHECK(frames_trunc(30.0f * 2.0f) == 60 && frames_round(60.0f) == 60 && frames_ceil(60.0f) == 60);
+    CHECK(frames_trunc(zero) == 0 && frames_round(zero) == 0 && frames_ceil(zero) == 0);
+    // Negative: toward zero / half away from zero / up, still in range.
+    CHECK(frames_trunc(neg) == -2 && frames_round(neg) == -3 && frames_ceil(neg) == -2);
+    CHECK(static_cast<uint32_t>(frames_trunc(neg)) == 0xfffffffeu);  // what an unsigned frame field holds
+    // NaN, 2^32, a huge mod value and a huge negative one: integer indefinite (INT32_MIN) for every form.
+    for (const float v : {static_cast<float>(nanv), static_cast<float>(two32), big * 30.0f, static_cast<float>(negbig)}) {
+        CHECK(frames_trunc(v) == INT32_MIN);
+        CHECK(frames_round(v) == INT32_MIN);
+        CHECK(frames_ceil(v) == INT32_MIN);
+    }
+    CHECK(frames_round(2147483520.0f) == 2147483520 && frames_ceil(2147483520.0f) == 2147483520);
+    volatile double dsecs = 0.1, dbig = 1.0e12, dtwo32 = 4294967296.0, dneg = -0.5;
+    const double dq = static_cast<double>(zero);
+    volatile double dnan = dq / dq;
+    CHECK(frames_trunc(30.0 * dsecs) == 3 && frames_round(30.0 * 1.25) == 38 && frames_ceil(30.0 * dsecs) == 3);  // 30 x 0.1 is 3.0 in double
+    CHECK(frames_trunc(30.0 * 0.11) == 3 && frames_ceil(30.0 * 0.11) == 4);
+    CHECK(frames_round(dneg) == -1 && frames_ceil(dneg) == 0 && frames_trunc(dneg) == 0);
+    for (const double v : {static_cast<double>(dnan), static_cast<double>(dtwo32), static_cast<double>(dbig), -static_cast<double>(dbig)}) {
+        CHECK(frames_trunc(v) == INT32_MIN);
+        CHECK(frames_round(v) == INT32_MIN);
+        CHECK(frames_ceil(v) == INT32_MIN);
+    }
+    CHECK(frames_ceil(2147483647.5) == INT32_MIN && frames_trunc(2147483647.5) == INT32_MAX);  // ceil leaves the range
+}
+
+int main() {
+    test_x86_int();
+    test_frames();
+    // CRC-32/IEEE check value.
+    CHECK(alamo::crc32("123456789", 9) == 0xCBF43926u);
+    CHECK(alamo::name_crc("data/xml/planets.xml") == alamo::name_crc("DATA\\XML\\PLANETS.XML"));
+    CHECK(alamo::iequals("Data/Xml", "DATA\\XML"));
+    CHECK(!alamo::iequals("abc", "abd"));
+    // CU2: one CRC-32 table: crc32 == ~crc32_raw(~seed), including a chained seed.
+    CHECK(alamo::crc32("123456789", 9, alamo::crc32("abc", 3)) == alamo::crc32("abc123456789", 12));
+    CHECK(alamo::crc32("", 0) == 0u);
+    // CU2: exact ASCII helpers ('/' != '\\', non-ASCII bytes unchanged, whitespace = space/tab/CR/LF).
+    static_assert(alamo::ascii_iequals("Data\\Xml", "DATA\\XML"));
+    static_assert(!alamo::ascii_iequals("Data/Xml", "DATA\\XML"));
+    static_assert(!alamo::ascii_iequals("ab", "abc"));
+    static_assert(alamo::ascii_to_upper('z') == 'Z' && alamo::ascii_to_upper('{') == '{' && alamo::ascii_to_upper('/') == '/');
+    static_assert(alamo::ascii_to_lower('A') == 'a' && alamo::ascii_to_lower('@') == '@' && alamo::ascii_to_lower('[') == '[');
+    static_assert(alamo::ascii_trim(" \t\r\nab c\n ") == "ab c");
+    static_assert(alamo::ascii_trim("\v x \f") == "\v x \f");  // \v / \f are not stripped (data::trim does)
+    static_assert(alamo::ascii_trim(" \t ").empty());
+    static_assert(alamo::ascii_istarts_with("Data\\Art", "DATA") && !alamo::ascii_istarts_with("Da", "DATA"));
+    static_assert(alamo::ascii_iends_with("x.ALO", ".alo") && !alamo::ascii_iends_with("o", ".alo"));
+    static_assert(alamo::ascii_icontains("Rebel_X-Wing", "x-wing") && alamo::ascii_icontains("a", "") &&
+                  !alamo::ascii_icontains("ab", "abc"));
+    static_assert(alamo::ascii_iless("abc", "ABD") && !alamo::ascii_iless("ABC", "abc") && alamo::ascii_iless("ab", "ABC"));
+    static_assert(alamo::valid_chunk_name("GALAXY_1") && !alamo::valid_chunk_name("") && !alamo::valid_chunk_name("a b") &&
+                  !alamo::valid_chunk_name("a\n"));
+    {
+        const std::string hi = "\xC3\xA9tat/Ab";
+        CHECK(alamo::ascii_upper(hi) == "\xC3\xA9TAT/AB");
+        CHECK(alamo::ascii_lower(hi) == "\xC3\xA9tat/ab");
+        std::string s = "mIxEd";
+        alamo::ascii_upper_in_place(s);
+        CHECK(s == "MIXED");
+        alamo::ascii_lower_in_place(s);
+        CHECK(s == "mixed");
+        // Same results as std::toupper / std::tolower in the "C" locale for every byte value.
+        for (int b = 0; b < 256; ++b) {
+            const char c = static_cast<char>(b);
+            CHECK(alamo::ascii_to_upper(c) == static_cast<char>(std::toupper(static_cast<unsigned char>(c))));
+            CHECK(alamo::ascii_to_lower(c) == static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+        }
+    }
+    // CU2 t09: the constexpr FNV-1a overloads give the same values as the pointer form.
+    static_assert(alamo::fnv1a64(std::string_view()) == alamo::kFnv1a64Offset);
+    static_assert(alamo::fnv1a64(std::string_view("a")) == 0xaf63dc4c8601ec8cull);  // FNV-1a 64 test vector
+    {
+        const std::string t = "The quick brown fox";
+        const std::vector<uint8_t> v(t.begin(), t.end());
+        CHECK(alamo::fnv1a64(t.data(), t.size()) == alamo::fnv1a64(std::string_view(t)));
+        CHECK(alamo::fnv1a64(t.data(), t.size(), 7) == alamo::fnv1a64(std::string_view(t), 7));
+        CHECK(alamo::fnv1a64(std::span<const uint8_t>(v)) == alamo::fnv1a64(std::string_view(t)));
+        CHECK(alamo::fnv1a64(nullptr, 0) == alamo::kFnv1a64Offset);
+    }
+    CHECK(alamo::normalize_path(".\\Data//XML\\x.xml") == "DATA\\XML\\X.XML");
+    CHECK(alamo::with_default_dir_ext("ei_trooper", "Data\\Art\\Models\\", ".alo") == "DATA\\ART\\MODELS\\EI_TROOPER.ALO");
+    CHECK(alamo::with_default_dir_ext("Data/Art/Models/x.ALO", "Data\\Art\\Models\\", ".alo") == "DATA\\ART\\MODELS\\X.ALO");
+    CHECK(alamo::with_default_dir_ext("w.v1", "D\\", ".alo") == "D\\W.V1");
+
+    // DirectoryProvider: case-insensitive.
+    namespace fs = std::filesystem;
+    // Unique per run, so concurrent ctest runs (e.g. MSVC + clang at once) don't share the folder.
+    const fs::path tmp = fs::temp_directory_path() /
+                         ("alamo_core_test_" + std::to_string(std::random_device{}()) + "_" +
+                          std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::error_code tec;
+    alamo::remove_all_long(tmp, tec);
+    fs::create_directories(tmp / "Data" / "XML");
+    { std::ofstream(tmp / "Data" / "XML" / "PLANETS.XML") << "<Planets/>"; }
+    alamo::DirectoryProvider dp(alamo::path_to_utf8(tmp));
+    std::vector<uint8_t> buf;
+    CHECK(dp.exists("data/xml/planets.xml"));
+    CHECK(dp.read(".\\Data\\XML\\Planets.xml", buf) && buf.size() == 10);
+    CHECK(!dp.read("Data\\XML\\missing.xml", buf) && buf.empty());
+    alamo::remove_all_long(tmp, tec);
+    CHECK(!tec);
+
+    // long_path: forms, then a write / rename / read round trip in a folder deeper than 300 characters.
+    CHECK(alamo::long_path(fs::path()).empty());
+    CHECK(alamo::long_path(fs::path(L"C:/a/./b/../c.txt")).native() == L"\\\\?\\C:\\a\\c.txt");
+    CHECK(alamo::long_path(fs::path(L"\\\\srv\\share\\x/y")).native() == L"\\\\?\\UNC\\srv\\share\\x\\y");
+    CHECK(alamo::long_path(fs::path(L"\\\\?\\C:\\x")).native() == L"\\\\?\\C:\\x");
+    CHECK(alamo::long_path(fs::path(L"\\\\.\\pipe\\p")).native() == L"\\\\.\\pipe\\p");
+    CHECK(alamo::long_path(fs::path(L"rel")).native().rfind(L"\\\\?\\", 0) == 0);
+    // Generic forms of "\\?\C:\x\y" after a UTF-8 round trip (MSVC "//?/", libstdc++ "/?/").
+    CHECK(alamo::long_path(fs::path(L"//?/C:/x/y")).native() == L"\\\\?\\C:\\x\\y");
+    CHECK(alamo::long_path(fs::path(L"/?/C:/x/y")).native() == L"\\\\?\\C:\\x\\y");
+    CHECK(alamo::long_path(alamo::path_from_utf8(alamo::path_to_utf8(fs::path(L"\\\\?\\C:\\x\\y")))).native() ==
+          L"\\\\?\\C:\\x\\y");
+    {
+        fs::path deep = tmp / "long";
+        while (deep.native().size() <= 320) deep /= "nested_directory_level_0123456789";
+        std::error_code ec;
+        CHECK(fs::create_directories(alamo::long_path(deep), ec) && !ec);
+        const fs::path tmp_file = deep / "file.tmp";
+        const fs::path file = deep / "file.bin";
+        { std::ofstream(alamo::long_path(tmp_file), std::ios::binary) << "long path payload"; }
+        fs::rename(alamo::long_path(tmp_file), alamo::long_path(file), ec);
+        CHECK(!ec);
+        CHECK(fs::exists(alamo::long_path(file), ec));
+        CHECK(alamo::read_host_file(alamo::path_to_utf8(file), buf) && buf.size() == 17);
+        CHECK(alamo::read_host_file(file, buf) && buf.size() == 17);                     // plain long path
+        CHECK(alamo::read_host_file(alamo::long_path(file), buf) && buf.size() == 17);   // "\\?\" path
+        CHECK(alamo::read_host_file(alamo::path_to_utf8(alamo::long_path(file)), buf) && buf.size() == 17);
+        CHECK(!alamo::read_host_file(deep / "missing.bin", buf) && buf.empty());
+        fs::create_directories(alamo::long_path(deep / "sub"), ec);
+        const std::vector<fs::path> entries = alamo::list_directory(deep, ec);
+        CHECK(!ec && entries.size() == 2);  // file.bin + sub (not the current directory, see list_directory)
+        for (const fs::path& e : entries) CHECK(e == file || e == deep / "sub");
+        alamo::list_directory(deep / "missing", ec);
+        CHECK(ec);
+        const std::uintmax_t removed = alamo::remove_all_long(tmp, ec);
+        CHECK(!ec && removed >= 8);  // tmp, long, the nested levels, file.bin, sub
+        CHECK(!fs::exists(alamo::long_path(tmp), ec));
+        CHECK(alamo::remove_all_long(tmp, ec) == 0 && !ec);  // missing: 0, no error
+    }
+    fs::create_directories(tmp, tec);
+    test_remove_all_long_safety(tmp);
+    CHECK(alamo::remove_all_long(tmp, tec) == 1 && !tec);
+
+    // Galaxy tables.
+    alamo::GalaxyMap g;
+    const auto a = g.planets.add("Coruscant");
+    const auto b = g.planets.add("Corellia");
+    CHECK(g.planets.find("CORUSCANT") == a);
+    CHECK(g.planets.find("Nope") == alamo::kInvalidPlanet);
+    const auto r = g.routes.add("Coruscant_Corellia");
+    g.routes.point_a[r] = a;
+    g.routes.point_b[r] = b;
+    CHECK(g.validate().empty());
+    g.routes.point_b[r] = a;
+    CHECK(!g.validate().empty());
+
+    // serial_for covers the range.
+    uint32_t sum = 0;
+    alamo::serial_for(10, 1, [&](uint32_t s, uint32_t e) { for (uint32_t i = s; i < e; ++i) sum += i; });
+    CHECK(sum == 45);
+
+    std::printf(g_fail ? "alamo_core_tests: %d failure(s)\n" : "alamo_core_tests: OK\n", g_fail);
+    return g_fail ? 1 : 0;
+}

@@ -1,0 +1,241 @@
+﻿// P host (alamo_game): everything the game session needs from the data files, loaded once per process.
+//   GameData       VFS (or a directory provider), GameDatabase, object types, galactic rules, conflict rules and the
+//                  S10 battle catalog - exactly what alamo_headless --battles loads, in the same order.
+//   skirmish       a skirmish is hosted as a three-planet "galaxy" (alamo_headless --skirmish-ai's layout): the human
+//                  player's fleet at planet 2, the AI's fleet holding planet 1; the human fleet's opening hop to
+//                  planet 1 (a command in the stream) starts the space conflict whose tactical battle is the skirmish,
+//                  on the map picked in the menu (the map loader ignores the conflict's own map choice).
+// Render-free (no GPU): used by alamo_game and its headless tests / replays.
+#pragma once
+#include <cstdint>
+#include <map>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "alamo/core/compat_issue.hpp"
+#include "alamo/core/file_provider.hpp"
+#include "alamo/core/host_fs.hpp"
+#include "alamo/data/game_database.hpp"
+#include "alamo/galactic/campaign.hpp"
+#include "alamo/galactic/conflicts.hpp"
+#include "alamo/galactic/galactic_rules.hpp"
+#include "alamo/game/skirmish_rules.hpp"  // q6 t03: AI types, default forces, map planet type (shared with alamo_headless)
+#include "alamo/objects/game_object_types.hpp"
+#include "alamo/objects/object_types.hpp"
+#include "alamo/sim/battle_catalog.hpp"
+#include "alamo/vfs/mod_environment.hpp"
+#include "alamo/vfs/mod_registry.hpp"
+
+#ifdef ALAMO_GAME_HAVE_GALACTIC_AI
+#include "alamo/ai/ai_definitions.hpp"
+#include "alamo/ai/galactic_ai.hpp"
+#include "alamo/ai/perception_equations.hpp"
+#endif
+#ifdef ALAMO_SIM_HAVE_TACTICAL_AI
+#include "alamo/sim/battle_ai.hpp"
+#endif
+
+namespace alamo::vfs {
+class Vfs;
+}
+
+namespace alamo::game {
+
+// AI data shared by the galactic AI (A2) and the tactical AI (A1): definitions, perception equations, plan
+// scripts, difficulty adjustments, per-type AI facts. Loaded once with the game data (VFS only).
+struct AiData;
+#ifdef ALAMO_GAME_HAVE_GALACTIC_AI
+struct AiData {
+    ai::AiDefinitions defs;
+    ai::EquationSet equations;
+    std::vector<std::string> plan_files;                 // galactic plan scripts (ai::list_plan_files)
+    std::vector<ai::GalacticAiDifficulty> difficulties;
+    std::vector<ai::GalacticAiTypeInfo> type_info;
+#ifdef ALAMO_SIM_HAVE_TACTICAL_AI
+    // A1: the tactical AI of AI players in battles (plans per mode, difficulties); setup points at defs / equations.
+    std::shared_ptr<sim::TacticalAiSetup> tactical;
+#endif
+};
+#endif
+// resolve_ai_type: alamo/game/skirmish_rules.hpp (q6 t03, modc t03).
+
+struct GameData {
+    std::string root;                      // game folder (FoC "corruption") or synthetic data folder
+    std::unique_ptr<FileProvider> files;   // the ModEnvironment for real data, DirectoryProvider for synthetic data
+    vfs::ModEnvironment* env = nullptr;    // ums2: = files for real data (mounted mods, layer owners), else null
+    vfs::Vfs* vfs = nullptr;               // = &env->vfs() for real data (audio archives, map lists), else null
+    alamo::IssueSink vfs_issues;           // ums2: the findings ModEnvironment::open recorded (VFS, with their layer)
+    data::GameDatabase db;
+    objects::ObjectTypeDatabase raw;
+    objects::GameObjectTypes types;
+    galactic::GalacticRules rules;
+    galactic::ConflictRules crules;
+    std::unique_ptr<sim::BattleCatalog> catalog;
+    std::shared_ptr<AiData> ai;  // null: no AI data / built without engine/ai galactic AI
+    // q6 t08: Faction.Basic_AI (ai::load_faction_basic_ai: upper-case faction name -> AIPlayerType; empty without engine/ai).
+    std::map<std::string, std::string> basic_ai;
+    // q6 t08: Faction Space_ / Land_Skirmish_AI_Default_Forces (SKIRMISH_SETUP §2 step 4) as written, per upper-case faction
+    // name (FactionFiles.xml order; the last definition with a list wins, as alamo_headless's skirmish host).
+    SkirmishForceTable skirmish_forces;  // skirmish_rules.hpp load_skirmish_forces
+    std::vector<std::string> diagnostics;
+    // Q5: one record per loader step, in load order; the step's diagnostics are diagnostics[first_diag, + diag_count).
+    // ms is wall clock (reports only, never read by the sim).
+    struct LoadStage {
+        std::string name;
+        size_t first_diag = 0, diag_count = 0;
+        double ms = 0;
+        bool ok = true;
+    };
+    std::vector<LoadStage> stages;
+    std::vector<std::string> args;  // N1 / t09: the VFS command line the data was loaded with (save descriptors)
+    // mcx3: one descriptor per mounted mod folder, Vfs::mod_dirs() order (ModEnvironment::mounted(): name, version,
+    // content hash, game tag). Saves store them; nothing in gameplay reads them.
+    std::vector<vfs::ModDescriptor> mods;
+    // N1 / t09: sim::fingerprint_types of `types`, computed on first use (saves / loads only; one process-wide cache).
+    uint64_t types_fingerprint() const;
+
+private:
+    mutable uint64_t types_fp_ = 0;
+    mutable bool types_fp_done_ = false;
+};
+
+// Real game data under `root` (the FoC folder; MODPATH= / FALLBACKPATH= style `args` as alamo_headless). False + err.
+// mcx3 t03 (D1): a mounted mod whose modinfo.json tags it EAW and not FOC is refused before anything loads: false, err
+// "<name> (<id>): base-EaW mod: retail runs it with sweaw.exe" (vfs::kBaseEawRefusal); out.mods and out.vfs are set.
+bool load_game_data(const std::string& root, const std::vector<std::string>& args, GameData& out, std::string* err = nullptr);
+// Any folder with Data\XML (tests: synthetic data written by the test). False + err.
+bool load_game_data_dir(const std::string& dir, GameData& out, std::string* err = nullptr);
+
+// Skirmish galaxy (see the file comment). Players: 0 = human (`human_faction`), 1 = AI (`ai_faction`), then (skm2 t02) one
+// AI player per extra slot (slot k = player k, its forces on planet skirmish_slot_planet(k)), then the first neutral
+// faction, then the native-owner faction (GalacticRules::native_owner_faction). An empty faction name is the
+// default slot faction (default_skirmish_faction). `units_human` / `units_ai` = type names of the starting fleets (unknown names are skipped);
+// empty = the faction's default fleet (default_skirmish_fleet). `planet_type` = a planet type name ("" =
+// skirmish_galaxy_planet(rules, "", land): the first PLANET type that forbids no unit; GameSession passes the map's planet,
+// modc t19). False + err when a faction or every unit is unknown.
+// Land skirmish (land = true): the AI's ground forces hold planet 1's surface (no space units, so no space conflict);
+// the human's ground forces ride a fleet (one space unit + the ground units launched at session start) that hops to
+// planet 1 and invades on arrival (the session submits the Invade order): the land battle on the chosen land map.
+struct SkirmishSetup {
+    std::string human_faction, ai_faction;  // "" = default_skirmish_faction (modc t03: from the data, not by name)
+    std::vector<std::string> units_human, units_ai;    // space fleets ("" = default_skirmish_fleet)
+    bool land = false;
+    // Land: ground forces ("" = default_skirmish_ground). Space (P4 host, tests): a non-empty ground_human stands on the
+    // human's planet surface (FleetManagement launch / land); empty = none, as before.
+    std::vector<std::string> ground_human, ground_ai;
+    std::string planet_type;
+    // p4uia t02: the colour index (0..8, GameConstants MP_Color_* entry) of player 0 (human) and 1 (AI) chosen on the
+    // staging screen; players without an entry keep their index. Presentation only: the setup and the sim ignore it.
+    std::vector<uint8_t> colors;
+    // q6 t02 [port]: no starting forces and no "unknown unit" failure - the attract demo clears the forces anyway (every unit
+    // comes from its map), and a mod's Underworld may have no default fleet (Thrawn's Revenge). Not saved (the demo is never).
+    bool no_forces = false;
+    // modc t48: a slot whose forces name no known unit type starts empty instead of failing the setup. GameSession sets it
+    // for the skirmish map battle (no opening hop needs a fleet): retail starts a slot with nothing when its faction has no
+    // default forces (Age of Legends' land skirmish, modc t09 A4). Derived from the session kind, not saved.
+    bool empty_slots_ok = false;
+    // ccpgt t02: the staging screen's Capture Control Points game type (4) on a land map: the battle's win condition is 0x15
+    // CONTROL_POINT_DOMINATION (sim::BattleConfig::control_point_domination, SKIRMISH_SETUP §4.2). Saved.
+    bool control_points = false;
+    // skm2 t02 (SKIRMISH_SETUP §1, staging slots 2..7 opened as AI players): the slots after the human (0) and the AI (1),
+    // in slot order, each an AI player of its faction ("" = default_skirmish_faction for an AI slot) with its own forces
+    // ("" = the faction's defaults, as the AI slot's). Saved.
+    struct ExtraSlot {
+        std::string faction;
+        std::vector<std::string> units, ground;  // space fleet / land forces
+    };
+    std::vector<ExtraSlot> extra_slots;
+    // skm2 t02: per slot (0, 1, then extra_slots) its team (IDC_PLAYER_TEAM_n - 1); missing / negative = the slot's own index
+    // (every slot its own team). Saved.
+    std::vector<int32_t> teams;
+    // skm2 t02 (SKIRMISH_SETUP §1: slot +0x158 -> player +0x3bc): per slot its AI difficulty 0..2 (slot 0, the human, unused);
+    // missing / negative = SessionSpec::difficulty. Saved.
+    std::vector<int32_t> difficulties;
+};
+// skm2 t02: the slot count (2 + extra_slots, at most 8), a slot's team (SkirmishSetup::teams, else the slot) and its galaxy
+// planet (slot 0 kSkirmishHumanPlanet, 1 kSkirmishBattlePlanet, k >= 2 planet k + 1).
+int32_t skirmish_slot_count(const SkirmishSetup& s);
+int32_t skirmish_slot_team(const SkirmishSetup& s, int32_t slot);
+PlanetIndex skirmish_slot_planet(int32_t slot);
+bool make_skirmish_galaxy(const GameData& data, const SkirmishSetup& s, galactic::GalacticSetup& out, std::string* err = nullptr);
+// modc t03 [port] (retail's lobby always names both slots): the faction of an unnamed skirmish slot. Human slot: the first
+// Is_Playable faction in FactionFiles.xml order; AI slot: the first Is_Playable faction other than `human` (FoC: Rebel,
+// Empire, the port's old built-in defaults). "" when the data has none.
+std::string default_skirmish_faction(const galactic::GalacticRules& rules, bool ai_slot, std::string_view human = {});
+// modc t45 (STORY_REWARDS_GALACTIC §2.1, retail 0x479320): the campaign a LOAD_CAMPAIGN reward starts. `name` (any case)
+// selects a campaign's Campaign_Set; the result is the member of that set whose Starting_Active_Player is the faction at
+// index `side` of the faction list (FactionFiles load order). nullptr when the name, the faction or the member is unknown.
+const data::CampaignDef* load_campaign_target(const GameData& data, std::string_view name, int32_t side);
+// `s` with its empty slot factions replaced by default_skirmish_faction.
+SkirmishSetup resolve_skirmish_factions(const galactic::GalacticRules& rules, SkirmishSetup s);
+// q6 t08: the default forces make_skirmish_galaxy uses, as type names the data defines (skirmish_rules.hpp
+// skirmish_default_forces with the alamo_game option hyperspace leader). modc t17: every faction alike, base FoC included
+// (FoC: two squadrons of fighters in space, two infantry squads on land, as retail):
+//   every faction                     the faction's Space_ / Land_Skirmish_AI_Default_Forces (SKIRMISH_SETUP §2 step 4),
+//                                     names the data does not define, and types the galaxy cannot hold (space: not a
+//                                     SpaceUnit / Squadron kind; land: not a GroundUnit kind), dropped. [port] none left: up
+//                                     to three of the faction's buildable units (data_fallback_forces).
+//   space                             [port] the port hosts a skirmish as a galactic hop, so the fleet needs a hyperspace
+//                                     member: the first one moves to the front; without one the faction's cheapest buildable
+//                                     hyperspace ship that holds the list's non-hyperspace squadrons (else the cheapest) is
+//                                     put in front. Retail places these squadrons directly at the map's spawn markers.
+std::vector<std::string> default_skirmish_fleet(const GameData& data, const std::string& faction);
+std::vector<std::string> default_skirmish_ground(const GameData& data, const std::string& faction);
+inline constexpr PlanetIndex kSkirmishHumanPlanet = 2, kSkirmishBattlePlanet = 1;
+
+// Space skirmish maps of the data (Data\Art\Maps\_MP_SPACE_*.ted through the VFS), sorted by name (modc t19: no map
+// is moved to the front). Empty without a VFS. [port] Both lists leave out a map whose loose file (through
+// the normal lookup) is empty or cannot be sized (Thrawn's Revenge ships a 0-byte _MP_SPACE_KUAT.ted); MEG entries are kept,
+// so vanilla lists are unchanged.
+std::vector<std::string> skirmish_space_maps(const GameData& data);
+// Land skirmish maps (Data\Art\Maps\_MP_LAND_*.ted), sorted. Empty without a VFS.
+std::vector<std::string> skirmish_land_maps(const GameData& data);
+// ---- Skirmish map catalog (docs/re/UI.md section 9, roadmap p4ui t06) --------------------------------------------------
+// The menu's map table: three scans over the layers, each map's header (top chunk 0 of the .ted) read through the normal
+// VFS lookup (mod > FoC loose > MEGs > fallbacks, so a mod's copy of an official map name decides its header).
+//   official      Data\Art\Maps\*.TED   from the FoC-loose and MEG layers; every entry kept, readable or not
+//   custom scan   Data\CustomMaps\*.TED from the FoC-loose and MEG layers, plus Data\Art\Maps\*.TED from the mod layer;
+//                 an entry is kept only when its custom flag (mini 0B) is 1
+// Entries are keyed by the logical path (one entry per path per list; the same path can sit in both lists), in path order.
+struct SkirmishMapEntry {
+    std::string path;      // normalised logical path, e.g. "DATA\ART\MAPS\_MP_LAND_ENDOR.TED"
+    std::string map;       // map id for SessionSpec::skirmish_map / terrain::map_path: the file stem when the file is directly
+                           // under DATA\ART\MAPS\ ("_MP_LAND_ENDOR"), else the full logical path
+    uint32_t kind = 0;     // mini 01: 1 land, 2 space (0 = absent or unreadable)
+    uint32_t players = 1;  // mini 02, 1 when absent
+    bool custom = false;   // mini 0B == 1: the Custom tab shows it, else the Official tab
+    std::string name_key;  // mini 08 (UTF-8 text key), "" when absent
+    std::string mode_tag;  // ccpgt t02: mini 0A (the game-mode tag), upper-cased as retail stores it; "" when absent
+    bool readable = false; // the file was read and its map-info chunk decoded
+};
+struct SkirmishMapCatalog {
+    std::vector<SkirmishMapEntry> official;
+    std::vector<SkirmishMapEntry> custom_scan;  // kept entries only (custom flag 1)
+};
+// Builds the catalog (reads every candidate's header once). Empty over a null VFS / GameData without one.
+SkirmishMapCatalog build_skirmish_map_catalog(const vfs::Vfs& vfs);
+SkirmishMapCatalog build_skirmish_map_catalog(const GameData& data);
+// The skirmish list of one tab: entries of `official` then `custom_scan` with kind 1 or 2, players >= 2 and
+// custom == `custom_tab` (UI.md 9.4); a logical path listed in both lists appears once.
+std::vector<SkirmishMapEntry> skirmish_map_rows(const SkirmishMapCatalog& catalog, bool custom_tab);
+// The entry for a map id (a stem, a file name or a path: the terrain::map_path rule, case-insensitive), nullptr when absent.
+const SkirmishMapEntry* find_skirmish_map(const SkirmishMapCatalog& catalog, std::string_view map);
+
+// p4uim t03 (UI.md 9.3 / 9.6): what the staging preview needs from a map file, read through the normal VFS lookup.
+struct SkirmishMapPreview {
+    bool found = false;                    // the file was read
+    std::vector<uint8_t> embedded_image;   // top chunk 0x13 (a TGA file), empty = none
+    // Top chunk 3 start positions as fractions of the map (x right, y down), only when the header's mini 12 is set. Land
+    // maps run 0..width / 0..height from the lower left corner, space maps are centred on the origin; world +Y is up.
+    std::vector<std::pair<float, float>> starts;
+};
+SkirmishMapPreview read_skirmish_map_preview(const FileProvider& files, std::string_view map, bool space);
+
+// skirmish_map_planet_type (skirmish_rules.hpp): presentation only here (load screen portrait, tactical HUD planet name):
+// the skirmish galaxy's planets keep the Kuat / Coruscant type, because a map's planet type may forbid the setup (Alderaan:
+// Planet_Surface_Accessible No).
+
+}  // namespace alamo::game

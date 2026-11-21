@@ -1,0 +1,305 @@
+// S10 battle setup: game data -> the tables MovementSystem (S7), CombatSystem (S8) and AbilitySystem (S9) read
+// for one tactical battle. Loaded once per session (BattleCatalog), then the tables are built per battle for
+// exactly the types taking part (dense indices in first-use order, so a battle's tables never depend on other
+// battles).
+//
+// Sources: GameConstants (Damage_To_Armor_Mod, health multipliers, ability / engine constants),
+// TargetingPrioritySetFiles.xml (priority sets), HardPointDataFiles.xml (<HardPoint> records; last definition
+// of a name wins, Variant_Of_Existing_Type copies the parent's tags first), projectile types and unit fields
+// from the typed object view.
+// Integration (S10-int, 2026-10-27): build_battle() adds the S9 ability data (Unit_Abilities_Data /
+// Abilities sub-object lists through the type loader's variant rules, parsed by parse_unit_ability /
+// parse_special_ability, linked with link_combat_abilities), the S9 unit / projectile / hardpoint fields
+// (death clones, death projectiles, hit-particle list sizes, energy, ion stun, smoke, fire bones, hardpoint
+// death objects) and the visual object types the host spawns as PARTICLE objects (R4).
+// PROVISIONAL [port] until models are loaded by the sim: hardpoint attachment points sit at the unit centre
+// (fire bones are resolved against the animated pose only when the host runs animation), combat radius =
+// movement footprint radius.
+#pragma once
+#include <array>
+#include <cstdint>
+#include <map>
+#include <memory>
+#include <span>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "alamo/core/file_provider.hpp"
+#include "alamo/core/parallel.hpp"
+#include "alamo/tactical/abilities/ability_data.hpp"
+#include "alamo/tactical/abilities/ability_system.hpp"
+#include "alamo/tactical/combat/combat_system.hpp"
+#include "alamo/tactical/fog/fog_of_war.hpp"  // fog of war constants (owner: fog agent)
+#include "alamo/tactical/movement/constants.hpp"  // mcx4 t11
+
+namespace alamo::data {
+struct GameConstants;
+class XmlNode;
+}  // namespace alamo::data
+namespace alamo::objects {
+class GameObjectTypes;
+}
+namespace alamo::tactical::movement {
+struct AvoidModel;
+}
+
+namespace alamo::sim {
+
+// Per-battle tables (S10-int). Index spaces: units / abilities.objects = the build order of the unit types,
+// projectiles / hardpoints = CombatData's.
+struct BattleTables {
+    tactical::combat::CombatData combat;
+    tactical::abilities::AbilityData abilities;  // objects[i] describes the same type as combat.units[i]
+    struct UnitVisuals {
+        std::vector<int32_t> hit, shield_hit;  // Damage_Hit_Particles / Shield_Hit_Particles (TypeIndex, -1 unknown)
+        std::vector<int32_t> death_explosions; // Death_Explosions
+        std::string smoke;                     // Damaged_Smoke_Asset_Name (render attachment, not an object)
+        int32_t particle_lifetime = 0;         // not used for units
+    };
+    std::vector<UnitVisuals> units;
+    struct ProjectileVisuals {
+        int32_t detonation = -1, armor_reduced = -1, absorbed = -1, lifetime = -1;  // Projectile_*_Particle types
+        int32_t ground = -1;  // tru1 t08: Projectile_Ground_Detonation_Particle (land ground / water hits)
+    };
+    std::vector<ProjectileVisuals> projectiles;
+    std::vector<std::array<std::string, 2>> fire_bones;  // per hardpoint: Fire_Bone_A / Fire_Bone_B ("" none)
+    std::vector<std::string> diagnostics;                // ability XML parse notes
+    // mcx4 tac2 (MCX4_T10_RE_ANSWERS §15 [H]): per abilities.specials entry, Battlefield_Modifier
+    // Disable_Reinforcement_Vulnerability (+0x194, default false): while applied, the covered players' transport unload steps
+    // skip Elevated_Vulnerability (TacticalBattle::reinforcement_vulnerability_disabled).
+    std::vector<uint8_t> special_disable_reinforcement_vulnerability;
+};
+
+class BattleCatalog {
+public:
+    // `types` must outlive the catalog. `files` may be null (no hardpoints / priority sets).
+    BattleCatalog(const objects::GameObjectTypes& types, const FileProvider* files, const data::GameConstants* constants,
+                  std::vector<std::string>* diagnostics = nullptr);
+
+    const objects::GameObjectTypes& types() const { return *types_; }
+    const FileProvider* files() const { return files_; }  // refixf t04: model / clip reads (null: none)
+    const tactical::combat::DamageArmorTable& damage() const { return damage_; }
+    const std::vector<tactical::combat::PrioritySet>& priority_sets() const { return priority_sets_; }
+    size_t hardpoint_records() const { return hardpoints_.size(); }
+    float space_health_multiplier() const { return space_health_mult_; }
+    // GameConstants SpaceIdleMovementSpeed (STATION_HANGARS_SOUND §3: engine loops moving at >= 1.1 x this speed).
+    float space_idle_movement_speed() const { return space_idle_speed_; }
+    float land_health_multiplier() const { return land_health_mult_; }
+    // GameConstants Land_ / Space_Capture_Allowed_Countdown_Seconds, Garrisoned_Max_Attack_Distance_Multiplier
+    // (REMAINING_GAPS §3.3); < 0 = not read (the battle keeps its config value).
+    float capture_countdown(bool space) const { return space ? space_capture_countdown_ : land_capture_countdown_; }
+    // ccpgt t02 (SKIRMISH_SETUP §4.2): GameConstants Control_Point_Domination_Victory_Time_In_Secs (GC+0x11b30; 30 when unset).
+    float control_point_victory_seconds() const { return control_point_victory_seconds_; }
+    float garrisoned_range_multiplier() const { return garrisoned_range_mult_; }
+    // mcx4 t10 (SKIRMISH_SETUP §3, build time 0x496f00 [H]): GC Tactical_Build_Time_Multiplier (FoC 1.0).
+    float tactical_build_time_multiplier() const { return tactical_build_time_mult_; }
+    bool use_reinforcement_points() const { return use_reinforcement_points_; }  // Use_Reinforcement_Points (GC +0x118a0; land drops)
+    // trl2 t02 (BKG1_RE_ANSWERS §7.1, 0x2aba70 [H]): GC Allow_Reinforcement_Percentage_Normalized (+0x10CC, FoC 0.0): the
+    // population sum rounds up when its fraction exceeds this.
+    float allow_reinforcement_fraction() const { return allow_reinforcement_fraction_; }
+    // mcx4 tac2 (MCX4_T10_RE_ANSWERS §16 / §16a [H]): Apply_Elevated_Vulnerability 0x3a8550 - the land pair
+    // Elevated_Vulnerability_Duration / _Factor (GC +0x1177c / +0x11780), the space pair Space_Elevated_Vulnerability_* (GC
+    // +0x11784 / +0x11788). GameConstants ctor 0x2c91c0 defaults: 15 s and -3.0 for both pairs (FoC: land 3 s / -2.0,
+    // space 5 s / -3.0).
+    float elevated_vulnerability_duration(bool space) const { return space ? space_elev_vuln_secs_ : elev_vuln_secs_; }
+    float elevated_vulnerability_factor(bool space) const { return space ? space_elev_vuln_factor_ : elev_vuln_factor_; }
+    // mcx4 tac2 (MCX4_T10_RE_ANSWERS §19, A1_READINGS §35.2 state 4 [H]): GC Skirmish_Reinforcement_Delay_Frames (+0x117e8,
+    // ctor and FoC 90), the base entry of a player's reinforcement-time list (player +0x230).
+    int32_t skirmish_reinforcement_delay_frames() const { return skirmish_reinforce_delay_; }
+    // mcx4 tac2 (MCX4_T10_RE_ANSWERS §16 / §18 [H]): GC Override_Death_Persistence_Duration (+0x11eb8; ctor 0, FoC 30.0),
+    // the persistence the death clone of a dying Infantry-category object gets (0x29f270).
+    float override_death_persistence() const { return override_death_persistence_; }
+    float threat_decay_step() const { return threat_decay_step_; }  // AI_SpaceThreatDecayStep (DAMAGE_TRACKING)
+    // S10-int constants.
+    float engines_disabled_speed_modifier() const { return engines_disabled_speed_; }  // Engines_Disabled_Speed_Modifier
+    tactical::abilities::AbilityConfig ability_config(bool space, bool skirmish) const;
+    // OI tactical: CombatConfig defaults from GameConstants (tc::apply_game_constants: low-health threshold, melee cutoff,
+    // opportunity-fire cutoff, diminishing-firepower curve); the battle sets mode / health multipliers on top.
+    const tactical::combat::CombatConfig& combat_config() const { return combat_config_; }
+    // --- battle host (BT): GameConstants of the battle setup / transitions (TACTICAL_GAPS §4.2, §4.9) ---
+    struct TransitionConstants {
+        // Retreat attrition (RetreatCoordinator vf13): space = Space_Retreat_Attrition_Factor; land =
+        // Land_Retreat_Attrition_Factor + Blockade_Run_Attrition_Factor (blockade term only past an enemy fleet).
+        float space_retreat_attrition = 0.0f, land_retreat_attrition = 0.0f, blockade_run_attrition = 0.0f;
+        // Land lead unit 0x29c0c0 rule (b): Preferred_Pathfinder_Types in order (empty in FoC / TR).
+        std::vector<std::string> preferred_pathfinder_types;
+        // Raid force test 0x432e20 (Raid_Force_*; TR leaves them empty: never a raid).
+        std::string raid_required_faction;
+        uint64_t raid_free_mask = 0, raid_limited_mask = 0;
+        int32_t raid_max_limited = 0, raid_max_heroes = 0;
+    };
+    const TransitionConstants& transition_constants() const { return transition_; }
+    // Model data (battle host, item 5): read from the type's ALO through the catalog's FileProvider when the sim is built
+    // with engine/assets (ALAMO_SIM_HAVE_ASSETS); null / false otherwise or when the model does not load (headless runs
+    // without art data keep the data-only fallbacks). Bind pose, model space (x forward, z up), before Scale_Factor.
+    // Cached per (type, mode) behind a mutex (const, thread-safe, deterministic: same files -> same answer).
+    struct ModelInfo {
+        float min[3] = {0.0f, 0.0f, 0.0f}, max[3] = {0.0f, 0.0f, 0.0f};
+        bool has_bounds = false;
+        std::vector<std::string> bones;       // upper-cased bone names
+        std::vector<std::array<float, 3>> bone_pos;  // bind-world translation per bone
+        std::vector<std::array<float, 9>> bone_rot;  // refixf t06: bind-world 3x3 part per bone (row-major)
+        int32_t max_alt = -1;  // S8 t10: highest _ALT<n> index of the mesh names (0x12dca0), -1 none
+        int32_t find(std::string_view bone) const;  // -1 when absent
+    };
+    // `space`: Space_Model_Name else Land_Model_Name; `fallback`: then the other mode's field, then Galactic_Model_Name.
+    const ModelInfo* model_info(uint32_t type, bool space, bool fallback = false) const;
+    // MapStampHooks::model_half_extents (land placements: Land, Space, Galactic model order): half x / y extents and the
+    // z extent of the bind-pose bounds; false without model data.
+    bool model_half_extents(uint32_t type, float& half_x, float& half_y, float& height_z) const;
+    // SPACE_AVOIDANCE §3.2 / §5: the collision data of the type's model for the mode (Space_ / Land_Model_Name, no
+    // fallback) for the fighter avoidance test: collision bound, COLLISIONBOX, collision-enabled mesh triangles in model
+    // space (bind pose). Null without model data. Cached per (type, mode) behind the model mutex.
+    const tactical::movement::AvoidModel* avoid_model(uint32_t type, bool space) const;
+    // S7 t07 (MOVEMENT §2.2 model-extent fallback, SpaceObstacleHooks): half x / y of avoid_model(type, space = true)'s
+    // collision bound (1 / 1 when the model has no collision mesh); false without model data.
+    bool space_model_half_extents(uint32_t type, float& half_x, float& half_y) const;
+    // OPT3 t05: loads the model data of `types` that is not cached yet (avoid_model(type, space); on land also
+    // model_info(type, false, true), the stamp extents) on `pf`, one job per type, so a battle's first tick does not read
+    // the files one type after another. Same entries as the lazy loads (same files -> same answer): only the time moves.
+    void preload_models(std::span<const uint32_t> types, bool space, const ParallelFor& pf) const;
+    // OPT3 t09: the general form. `what` = kPreload* bits: avoid_model(type, space), model_info(type, space, false) (the
+    // bones build_battle reads; extend_battle preloads all three), model_info(type, space, true) (the stamp extents). One
+    // job per model file, which is parsed once for every entry that reads it.
+    static constexpr uint32_t kPreloadAvoid = 1, kPreloadBones = 2, kPreloadExtents = 4;
+    void preload(std::span<const uint32_t> types, bool space, uint32_t what, const ParallelFor& pf) const;
+    // S8 t06 B4 (LOB_SOLVER §5.1, WeaponBehavior data pack init 0x54cb00): the fire bones <Muzzle_Bone_Name>_00, _01, ...
+    // (default MUZZLEA) of the type's model for the mode (Space_ / Land_Model_Name, no fallback) until a name is missing,
+    // as bind-pose offsets in the combat unit-local frame (x forward, y left, z up) x Scale_Factor. False without model
+    // data (`out` cleared); true with an empty list = the model has no such bone (the weapon never fires). build_battle
+    // (with a mode) stores them in UnitDesc::muzzle_bones.
+    bool muzzle_bones(uint32_t type, bool space, std::vector<tactical::Vec3>& out) const;
+    // S8 t27 (TACTICAL_COMBAT §3.1.1 "Bone list", type model load 0x375380): the type's Target_Bones (comma list) looked up
+    // on its model for the mode, list order, names missing on the model dropped, as bind-pose offsets in the combat
+    // unit-local frame x Scale_Factor. True with an empty list when the type has no Target_Bones; false without model
+    // data (`out` cleared). build_battle (with a mode) stores them in UnitDesc::target_bones.
+    bool target_bones(uint32_t type, bool space, std::vector<tactical::Vec3>& out) const;
+    // s78n t20 batch 2 (FIGHTER_FLYING §7.4 item 1, type +0x2390 / +0x2398 resolved at the type model load 0x375380): the
+    // type's Garrison_Bone_Names, as target_bones (list order, names missing on the model dropped, unit-local x
+    // Scale_Factor). True with an empty list when the type names none; false without model data (`out` cleared).
+    bool entry_bones(uint32_t type, bool space, std::vector<tactical::Vec3>& out) const;
+    // S8 t10 (LOB_SOLVER §5.1 "Garrison fire bones in detail", type model load 0x375380): the gun-bone table of a type with
+    // `guns` = Num_Garrison_Guns != 0 - M = the model's highest _ALT mesh index entries (ALT a = 0..M-1), `guns` bones
+    // each: FP_0<i>_ALT<a> (i <= 9) or FP_<i>_ALT<a> (i >= 10), bind pose in the unit-local frame x Scale_Factor, with the
+    // yaw of the bone's x axis; a missing bone is invalid (-1). False without model data (`out` cleared).
+    bool garrison_bones(uint32_t type, bool space, int32_t guns, std::vector<std::vector<tactical::combat::GarrisonBone>>& out) const;
+    // --- end battle host ---
+    // Fog of war GameConstants (Desired{Land,Space}FOWCellSize, {Land,Space}FOWRegrowTime, AIUsesFogOfWar{Land,Space},
+    // Tactical_Overrun_Multiple, Minimum_Tactical_Overrun_Time_In_Secs). Owner: fog agent.
+    const tactical::fog::FogConstants& fog_constants() const { return fog_constants_; }
+    // mcx4 t11: the movement GameConstants (MovementConstants::from_game_constants; defaults without GameConstants) and
+    // WalkAnimationCutoff (GC +0x1504 = 0x140b16d04, FoC 0.6; MCX4_T11_T12_RE_ANSWERS §S: the WalkLocomotor 0x61f840 plays
+    // WALKMOVE below this x max speed).
+    const tactical::movement::MovementConstants& movement_constants() const { return movement_constants_; }
+    float walk_animation_cutoff() const { return walk_animation_cutoff_; }
+    // mcx4 t11 (MCX4_T11_T12_RE_ANSWERS §S / §B4 "Blend times"): the locomotor clip blends (seconds; anim::AnimTunables
+    // fields of the same names). [port] 0 (hard cut) without GameConstants.
+    struct LocomotorBlends {
+        float idle_walk = 0.0f;          // IdleWalkBlendTime (+0x1510)
+        float crouch_idle_walk = 0.0f;   // CrouchIdleWalkBlendTime (+0x1514)
+        float move = 0.0f;               // MoveBlendTime (+0x1518)
+        float team_move = 0.0f;          // TeamMoveBlendTime (+0x1520)
+        float team_crouch_move = 0.0f;   // TeamCrouchMoveBlendTime (+0x1524)
+        float infantry_turn = 0.0f;      // InfantryTurnBlendTime (+0x1528)
+    };
+    const LocomotorBlends& locomotor_blends() const { return locomotor_blends_; }
+
+    // Per-battle tables: one UnitDesc per entry of `unit_types` (same order; duplicates allowed), the
+    // hardpoints and projectiles they reference. out_unit_index[i] = UnitDesc index of unit_types[i].
+    // (S8/S10 view: no ability data, no S9 fields - kept for the catalog tests.)
+    tactical::combat::CombatData build(const std::vector<uint32_t>& unit_types, std::vector<uint32_t>& out_unit_index) const;
+    // S10-int: the full battle tables (combat + S9 fields + abilities + visuals).
+    BattleTables build_battle(const std::vector<uint32_t>& unit_types, std::vector<uint32_t>& out_unit_index) const;
+    // battle host: the same with model data for `space` / land battles: a unit whose model resolves a hard point's
+    // Attachment_Bone / Fire_Bone_A / Fire_Bone_B gets its own copy of that HardpointDesc with attach_offset / bone_a /
+    // bone_b at the bind-pose bone positions x Scale_Factor (unit-local) [port: static bind pose; a fire bone missing
+    // from the unit model falls back to the attachment bone; Model_To_Attach bones are not read]. Without model data the
+    // tables equal build_battle's.
+    BattleTables build_battle(const std::vector<uint32_t>& unit_types, std::vector<uint32_t>& out_unit_index, bool space) const;
+    // OPT3 t09: the same build in steps, for the battle setup, which appends types to its list several times. The build is
+    // a left fold over the list, so extend_battle() builds only the entries appended since its last call onto `out`
+    // (bound by begin_battle, which must outlive the build) and appends their out_unit_index entries: afterwards `out`
+    // and out_unit_index equal build_battle(unit_types, out_unit_index, space). `unit_types` may only grow at the end.
+    struct BattleBuild;
+    std::unique_ptr<BattleBuild> begin_battle(BattleTables& out, bool space) const;
+    void extend_battle(BattleBuild& b, const std::vector<uint32_t>& unit_types, std::vector<uint32_t>& out_unit_index) const;
+    // ref5 t01: projectile type `t` in the build's tables (the battle's land strikes: Bombardment_Projectile types are not
+    // unit weapons): its CombatData index, appending projectile_desc(t) and its visuals the first time (a type a unit
+    // already fires keeps its entry). -1 for an out-of-range type.
+    int32_t extend_projectile(BattleBuild& b, uint32_t t) const;
+    // ref5 t01: the one ProjectileDesc builder for projectile type `t` (every caller: unit weapons, hard points, death
+    // projectiles, land strikes). `full`: the battle tables' fields (S9 category, rockets, detonation effects); false is
+    // the plain build() view. Default desc for an out-of-range type.
+    tactical::combat::ProjectileDesc projectile_desc(uint32_t t, bool full = true) const;
+    BattleTables::ProjectileVisuals projectile_visuals(uint32_t t) const;
+
+private:
+    using Tags = std::vector<std::pair<std::string, std::string>>;  // (upper-cased tag, trimmed text)
+    struct BuildState {
+        tactical::combat::CombatData* d = nullptr;
+        BattleTables* full = nullptr;  // null: plain build()
+        std::map<std::string, int32_t> hp_index;
+        std::map<uint32_t, int32_t> proj_index;
+        std::map<uint32_t, uint32_t> unit_index;  // type -> UnitDesc index (a repeated type shares it)
+        int32_t model_mode = -1;  // battle host: -1 no model data, 0 land, 1 space
+    };
+
+public:
+    struct BattleBuild {
+        BuildState state;
+        size_t built = 0;          // unit_types entries built so far
+        ParallelFor pf = serial_for;  // preload of the appended types
+    };
+
+private:
+    int32_t hardpoint_on_model(int32_t base, uint32_t unit_type, BuildState& s) const;  // battle host
+    void load_hardpoints(const FileProvider& files, std::vector<std::string>* diag);
+    void load_priority_sets(const FileProvider& files, std::vector<std::string>* diag);
+    void load_surface_fx(const FileProvider& files, std::vector<std::string>* diag);  // trn1 t02
+    tactical::combat::UnitDesc unit_desc(uint32_t t, BuildState& s) const;
+    int32_t projectile(uint32_t t, BuildState& s) const;
+    int32_t hardpoint(std::string_view name, BuildState& s) const;
+    // Builds unit_types[first..] onto `s`, appending to out_unit_index.
+    void build_units(const std::vector<uint32_t>& unit_types, size_t first, std::vector<uint32_t>& out_unit_index, BuildState& s) const;
+    void s9_unit_fields(uint32_t t, tactical::combat::UnitDesc& u, BuildState& s) const;
+    tactical::abilities::AbilityObjectDesc ability_desc(uint32_t t, BuildState& s) const;
+    // The XML element of raw-store field `f` (through the source document), null node if not found.
+    bool field_node(uint32_t f, data::XmlNode& out) const;
+    int32_t type_or_none(std::string_view name) const;
+    std::string avoid_path(uint32_t type, bool space) const;  // OPT3 t09: the model file an entry reads, "" none
+    std::string info_path(uint32_t type, bool space, bool fallback) const;
+
+    const objects::GameObjectTypes* types_;
+    tactical::combat::DamageArmorTable damage_;
+    std::vector<tactical::combat::PrioritySet> priority_sets_;
+    std::vector<tactical::combat::SurfaceFxDef> surface_fx_;  // trn1 t02: SURFACEFX.XML (CombatData::surface_fx)
+    std::map<std::string, Tags> hardpoints_;  // upper-cased name -> tags (lookup only)
+    float space_health_mult_ = 1.5f, land_health_mult_ = 1.0f;
+    float space_idle_speed_ = 0.0f;
+    float land_capture_countdown_ = -1.0f, space_capture_countdown_ = -1.0f, garrisoned_range_mult_ = -1.0f;
+    float tactical_build_time_mult_ = 1.0f;
+    float control_point_victory_seconds_ = 30.0f;
+    bool use_reinforcement_points_ = true;
+    float allow_reinforcement_fraction_ = 0.0f;
+    float elev_vuln_secs_ = 15.0f, elev_vuln_factor_ = -3.0f, space_elev_vuln_secs_ = 15.0f, space_elev_vuln_factor_ = -3.0f;
+    int32_t skirmish_reinforce_delay_ = 90;
+    float override_death_persistence_ = 0.0f;
+    float threat_decay_step_ = 0.05f;
+    float engines_disabled_speed_ = 0.4f;
+    float nebula_ability_disable_ = 5.0f, force_ability_disable_ = 0.0f, ion_storm_shield_disable_ = 5.0f;
+    int32_t max_remote_bombs_ = 20;  // mcx4: GameConstants Max_Remote_Bombs_Per_Player (FoC 20)
+    float earthquake_transition_ = 2.0f, telekinesis_transition_ = 0.75f;  // trl2 t03: GameConstants *_Transition_Time
+    tactical::combat::CombatConfig combat_config_;  // OI tactical
+    TransitionConstants transition_;                // battle host
+    const FileProvider* files_ = nullptr;           // battle host: model reads
+    struct ModelCache;                              // battle host: (type, mode) -> ModelInfo, mutex-guarded
+    std::shared_ptr<ModelCache> model_cache_;
+    tactical::fog::FogConstants fog_constants_;
+    tactical::movement::MovementConstants movement_constants_;  // mcx4 t11
+    float walk_animation_cutoff_ = 0.6f;
+    LocomotorBlends locomotor_blends_;  // mcx4 t11
+};
+
+}  // namespace alamo::sim

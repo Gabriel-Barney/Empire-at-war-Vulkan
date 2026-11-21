@@ -1,0 +1,113 @@
+# BM2a: alamo_game benchmark mode on a saved game (ctest alamo_game_bench_fixed / alamo_game_bench_realtime).
+#   cmake -DGAME=<alamo_game> -DSAVE=<.alsv> -DOUT=<dir> -DMODE=fixed|realtime -P bench_check.cmake
+# Both modes: the two runs' CRC logs must be identical byte for byte.
+# fixed:    two fixed-frames runs (bm-smoke, 2 frames per tick, 60 ticks, a PNG every 10th counted frame) must both pass
+#           (presentation on/off check included), report the same final CRC and frame count, and write identical PNGs.
+# realtime: two real-time runs (bm-smoke, 90 ticks) must pass, report measured frames with frame times and the same
+#           final CRC.
+# -DTAA=1 (BM2b, fixed only): the runs use bm-high (TAA Medium) at 640x360 and run b adds --bench-redraw-every 3, so a
+#           third of its settled frames are drawn again and taken back out of the TAA history; both reports must say
+#           "taa": true, run b must report forced redraws and TAA discards, and the PNGs must still match run a's.
+# Without the save (no ALAMO_FOC_DATA: the saveload smoke skipped) the check is skipped.
+if(NOT EXISTS "${SAVE}")
+  message(STATUS "alamo_game bench ${MODE}: ${SAVE} missing (saveload smoke skipped?): skipped")
+  return()
+endif()
+include("${CMAKE_CURRENT_LIST_DIR}/bench_common.cmake")  # json_field, compare_png_sets
+
+function(bench_run tag out_var)
+  set(dir "${OUT}/${tag}")
+  file(REMOVE_RECURSE "${dir}")
+  file(MAKE_DIRECTORY "${dir}")
+  set(preset bm-smoke)
+  if(TAA)
+    set(preset bm-high --width 640 --height 360)
+  endif()
+  set(args --hidden --benchmark ${MODE} --bench-save "${SAVE}" --bench-preset ${preset} --bench-report "${dir}/report.json"
+           --bench-crc-out "${dir}/run.crc")
+  if(MODE STREQUAL "fixed")
+    list(APPEND args --bench-ticks 60 --bench-frames-per-tick 2 --bench-png-dir "${dir}" --bench-png-every 10)
+    if(TAA AND tag STREQUAL "b")
+      list(APPEND args --bench-redraw-every 3)
+    endif()
+  else()
+    list(APPEND args --bench-ticks 90)
+  endif()
+  execute_process(COMMAND "${GAME}" ${args} RESULT_VARIABLE rc OUTPUT_VARIABLE out ERROR_VARIABLE err)
+  file(WRITE "${dir}/stdout.txt" "${out}")
+  file(WRITE "${dir}/stderr.txt" "${err}")
+  if(NOT rc EQUAL 0)
+    message(FATAL_ERROR "alamo_game bench ${MODE} run ${tag}: exit ${rc}\n${out}\n${err}")
+  endif()
+  if(NOT EXISTS "${dir}/report.json")
+    message(FATAL_ERROR "alamo_game bench ${MODE} run ${tag}: no report\n${out}")
+  endif()
+  file(READ "${dir}/report.json" report)
+  set(${out_var} "${report}" PARENT_SCOPE)
+endfunction()
+
+# The two runs' per-tick CRC logs, byte for byte (not just the final value).
+function(compare_crc_logs)
+  file(SHA256 "${OUT}/a/run.crc" ca)
+  file(SHA256 "${OUT}/b/run.crc" cb)
+  if(NOT ca STREQUAL cb)
+    message(FATAL_ERROR "alamo_game bench ${MODE}: the two runs' CRC logs differ (${OUT}/a/run.crc vs ${OUT}/b/run.crc)")
+  endif()
+endfunction()
+
+bench_run(a ra)
+json_field("${ra}" result res_a)
+json_field("${ra}" frames frames_a)
+json_field("${ra}" final_crc crc_a)
+json_field("${ra}" presentation_check check_a)
+string(JSON median_a GET "${ra}" frame_ms median)
+if(NOT res_a STREQUAL "ok" OR NOT check_a STREQUAL "match" OR frames_a EQUAL 0)
+  message(FATAL_ERROR "alamo_game bench ${MODE}: result ${res_a}, presentation check ${check_a}, ${frames_a} frames\n${ra}")
+endif()
+
+if(MODE STREQUAL "realtime")
+  json_field("${ra}" ticks ticks_a)
+  if(NOT ticks_a EQUAL 90 OR median_a LESS_EQUAL 0)
+    message(FATAL_ERROR "alamo_game bench realtime: ${ticks_a} ticks, median ${median_a} ms\n${ra}")
+  endif()
+  # A second run: other frame times, the same ticks (what the autopilot answers lands on the same tick).
+  bench_run(b rb)
+  json_field("${rb}" final_crc crc_b)
+  if(NOT crc_a STREQUAL crc_b)
+    message(FATAL_ERROR "alamo_game bench realtime: final CRC ${crc_a} vs ${crc_b}")
+  endif()
+  compare_crc_logs()
+  message(STATUS "alamo_game bench realtime: OK (${frames_a} frames, median ${median_a} ms, CRC ${crc_a} in both runs)")
+  return()
+endif()
+
+bench_run(b rb)
+json_field("${rb}" frames frames_b)
+json_field("${rb}" final_crc crc_b)
+if(NOT frames_a EQUAL 120 OR NOT frames_b EQUAL 120)
+  message(FATAL_ERROR "alamo_game bench fixed: ${frames_a} / ${frames_b} counted frames, expected 120 (60 ticks x 2)")
+endif()
+if(NOT crc_a STREQUAL crc_b)
+  message(FATAL_ERROR "alamo_game bench fixed: final CRC ${crc_a} vs ${crc_b}")
+endif()
+compare_crc_logs()
+json_field("${ra}" unsettled_frames unsettled_a)
+json_field("${rb}" unsettled_frames unsettled_b)
+json_field("${ra}" taa taa_a)
+json_field("${rb}" taa taa_b)
+json_field("${rb}" forced_redraws forced_b)
+json_field("${rb}" taa_discarded discarded_b)
+if(TAA)
+  if(NOT taa_a STREQUAL "ON" OR NOT taa_b STREQUAL "ON")
+    message(FATAL_ERROR "alamo_game bench fixed TAA: report taa ${taa_a} / ${taa_b}, expected true in both runs")
+  endif()
+  # 120 counted frames, every 3rd settled one forced: about 60 redraws, each taken back out of the TAA history.
+  if(forced_b LESS 50 OR discarded_b LESS forced_b)
+    message(FATAL_ERROR "alamo_game bench fixed TAA: run b forced ${forced_b} redraws, ${discarded_b} TAA discards")
+  endif()
+elseif(NOT taa_a STREQUAL "OFF")
+  message(FATAL_ERROR "alamo_game bench fixed: report taa ${taa_a} with bm-smoke")
+endif()
+compare_png_sets("${OUT}/a" "${OUT}/b" "alamo_game bench fixed" pngs_a)
+list(LENGTH pngs_a n)
+message(STATUS "alamo_game bench fixed: OK (${n} identical PNGs over 120 counted frames, CRC ${crc_a}, unsettled frames redrawn ${unsettled_a} / ${unsettled_b}, TAA ${taa_a}, run b forced redraws ${forced_b}, TAA discards ${discarded_b})")

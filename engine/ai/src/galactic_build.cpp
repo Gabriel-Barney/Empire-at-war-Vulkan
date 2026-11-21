@@ -1,0 +1,717 @@
+// Galactic production (docs/re/AI_GALACTIC_2.md §2.3): Produce_Force creates one AIBuildTask per selection
+// without a free unit; galactic tasks go on the global pending list and the per-planet AIPlanetBuildQueue market
+// (every > 30 frames per planet queue: re-check, claim one, bid, start the least-slack task) produces them.
+// Produced objects are claimed on the producing planet; failures dispatch Production_Failed; there is no
+// time-out. [port] / [M] mark the stand-ins (listed in docs/PHASE4.md A2 open items).
+#include "galactic_ai_impl.hpp"
+#include "alamo/core/frames.hpp"
+
+namespace alamo::ai {
+
+namespace {
+constexpr float kLevelFactorK = 1.0f;  // 0x140b16c8c = GameConstants +0x148C, ctor 1.0 (AI_GALACTIC_3 §8) [H]
+constexpr int64_t kMarketPeriod = kAiFps;  // strict >: more than FPS frames since the last run
+constexpr int64_t kPollFrames = 3;          // PRODUCTION_QUEUED polls (galactic)
+}  // namespace
+
+float GalacticAiWorld::Impl::funds_time(const BuildTask& b) const {
+    // 0x6490d0: the goal budget's time until it can afford cost(T) (0x613720).
+    const PlayerAi* pa = player_ai(b.player);
+    if (!pa) return 0.0f;
+    return pa->ctx.budget.time_to_afford(b.category, b.goal_key, cost_none(b.type));
+}
+
+const Goal* GalacticAiWorld::Impl::goal_of_plan(int32_t player, int32_t plan) const {
+    const PlayerAi* pa = player_ai(player);
+    if (!pa || plan < 0) return nullptr;
+    for (const auto& cat : pa->ctx.goals.active())
+        for (const Goal& g : cat)
+            if (g.running == plan) return &g;
+    return nullptr;
+}
+
+// AIPlanetBuildQueue ctor 0x53b5c0 (A2J_RE_BUILD_MARKET §4) [H]: last-run frame = synced Get_Int(1, (int)(FPS + 0.5))
+// (0x1ffb40), queue 0 then queue 1, for every planet when its PRODUCTION behaviour attaches at galaxy build, in planet
+// creation order. A2k t04: GalacticSim::start draws them at that point of the galaxy build (build_queue_phase); the AI
+// world only copies them, without drawing. A loaded game overwrites the values (AI save).
+void GalacticAiWorld::Impl::init_queue_phases() {
+    const auto planets = sim.planets();
+    planet_queues.assign(planets.size(), {});
+    for (size_t i = 0; i < planets.size(); ++i)
+        for (uint32_t q = 0; q < 2; ++q)
+            planet_queues[i][q].last_run = sim.build_queue_phase(static_cast<PlanetIndex>(i), q);
+}
+
+void GalacticAiWorld::Impl::remove_pending(int32_t id) {
+    pending_builds.erase(std::remove(pending_builds.begin(), pending_builds.end(), id), pending_builds.end());
+    const auto it = builds.find(id);
+    if (it != builds.end()) it->second.listed = false;
+}
+
+void GalacticAiWorld::Impl::create_build_tasks(TaskForceRec& tf) {
+    PlanInstance* pi = plan_of_script(tf.plan);
+    if (!pi) return;
+    const PlanDefinition& def = library.plans[pi->plan];
+    PlayerAi* pa = player_ai(tf.player);
+    for (size_t i = 0; i < tf.wanted.size(); ++i) {
+        const uint32_t type = tf.wanted[i];
+        const gal::TypeInfo* ti = type_info(type);
+        BuildTask b;
+        b.id = next_build++;
+        b.plan = tf.plan;
+        b.tf = tf.id;
+        b.player = tf.player;
+        b.type = type;
+        b.created = now;
+        b.next_poll = now;
+        b.goal_key = pi->goal_key;
+        b.category = pi->category;
+        b.queue = ti && ti->build_cost > 0 && sim.queue_kind(type) == gal::kGroundQueue ? 0 : 1;  // A2 galactic: queue_kind
+        const PlanetIndex stage = tf.stage >= 0 ? static_cast<PlanetIndex>(tf.stage) : kInvalidPlanet;
+        const PlanetIndex source = i < tf.wanted_source.size() ? tf.wanted_source[i] : kInvalidPlanet;
+        // bkg3 t03 (retail run 20261113-053156, BKG3_RE_ANSWERS Q7; settles A2L_T03 Q5.3) [H behaviour]: a task made by
+        // Produce_Force() with no destination has a null BT +0x98, so the market runs no path test and adds no travel
+        // term for it: every planet that can build the type bids. Build_Ground_Forces' tank buster and infantry are
+        // built at Naboo (idle ground queue) while Kamino and MonCalimari build their mines. The selection's source
+        // planet (PP+0x180) stays the spawn place of a magic plan only.
+        b.dest = valid_planet(stage) ? stage : (def.magic_plan ? source : kInvalidPlanet);
+        builds.emplace(b.id, b);
+        BuildTask& t = builds[b.id];
+        tf.builds.push_back(t.id);
+        // a2m t05 (A2M_T04_RE_ANSWERS Q5.2) [H]: the charge at task-list time moves cost(T, 0) from the goal's required
+        // to its allocated amount (0x691950 -> 0x6110e0) and sets the "charged" byte BT +0xd0; no amount is stored on
+        // the task. The committed spend s grows at production start (the market bind 0x64abf0), not at PRODUCTION_END
+        // (0x5f9f90 there is a per-task-force type counter nothing reads, not a budget call).
+        auto charge = [&] {
+            if (t.charged) return;
+            const float ch = cost_none(type);
+            if (pa) pa->ctx.budget.spend(t.category, t.goal_key, ch);  // Allocate 0x691950 -> 0x6110e0
+            t.charged = true;  // also the market's "to be produced" marker (+0x7C)
+        };
+        if (def.magic_plan) {
+            // BUILD_TASK_LIST -> HIJACK_UNIT 0x648370 (AI_GALACTIC_3 §4.2-4.3) [H]. No charge: the Allocate needs the
+            // AIPlanetBuildTask pointer, which magic tasks never get [M]. GalacticSim::magic_spawn (A2 galactic hook):
+            // steal (MagicPlanStealing or a named hero), cancel pending respawns, spawn at the destination as a
+            // finished queue item; null = FAILED.
+            const PlanetIndex at = valid_planet(t.dest) ? t.dest : (pi->target >= 0 ? static_cast<PlanetIndex>(pi->target) : kInvalidPlanet);
+            const bool hero = type < tinfo.size() && tinfo[type].hero;
+            const ObjectHandle o = valid_planet(at) ? sim.magic_spawn(tf.player, at, type, def.magic_plan_stealing, hero) : ObjectHandle{};
+            if (!o) {
+                fail_build(t, "magic spawn refused");
+                continue;
+            }
+            decide(tf.player, "magic spawn " + type_name(type) + " at " + planet_name(at));
+            if (PlayerAi* owner = player_ai(tf.player)) owner->known.insert(store.id(o));  // not an On_Unit_Added: the task takes it
+            // Step 5: a non-structure created on the surface is launched (op 4) and formed (op 0), FAILED when blockaded.
+            if (ti && !structure_kind(ti->kind) && on_surface(o)) {
+                if (sim.ai_blockaded(at)) {  // 0x3fa370 (A2GAL_READINGS 4)
+                    fail_build(t, "blockaded");
+                    continue;
+                }
+                launch_and_form(tf.player, at, o, unit_jumps(o) ? kAloneFleet : gal::kNoFleet);
+            }
+            tf_join(tf, o);  // galactic: 0x6498f0 hands the unit to the task -> FINISHED
+            tf.had_units = true;
+            finish_build(t);
+            continue;
+        }
+        if (ti && structure_kind(ti->kind)) {
+            // structure / generic: charge, bind the build planet = the goal target (0x6956f0) -> PRODUCTION_QUEUED.
+            // The bind writes the planet and bid -1 (the bound marker of market steps 2 / 4); with no goal target it
+            // writes null and 1e18, and the task bids like any other (A2J_RE_BUILD_MARKET §2) [H].
+            charge();
+            if (pi->target >= 0 && valid_planet(static_cast<PlanetIndex>(pi->target))) {
+                t.bound = true;
+                t.dest = static_cast<PlanetIndex>(pi->target);
+                t.bid_planet = t.dest;
+                t.bid = -1.0;
+            }
+        } else if (def.allow_free_store_units) {
+            // BUILD_TASK_LIST -> 0x4d2bd0 (A2L_T01_RE_ANSWERS Q7.4) [H]: the task claims every free-store entry of its
+            // type (reservations not read) and waits on the pending list uncharged and out of the market (+0x7C = 0);
+            // the free-store service decides the claims (service_build_tasks). No matching entry: charged at once.
+            // The port marks a claim as "Queued and not charged" (no other produced task is uncharged).
+            bool claimed = false;
+            for (const ObjectHandle u : free_units(tf.player)) claimed = claimed || store.type(u) == type;
+            if (!claimed) charge();
+        } else {
+            charge();
+        }
+        pending_builds.push_back(t.id);  // the AIPlanetBuildTask on the global pending list 0x140b39330
+        t.listed = true;
+        decide(tf.player, "build task " + std::to_string(t.id) + " " + type_name(type) + " for " + tf.name +
+                              (t.bound ? " at " + planet_name(t.dest) : std::string()));
+    }
+    tf.wanted.clear();
+    tf.wanted_source.clear();
+}
+
+// Free-store service 0x4d5a70 for a claiming task (A2L_T01_RE_ANSWERS Q7.4) [H]: vf+0xb0 = 0x690240 per claimed entry:
+// 2 (lapse) unless the entry's reservation +0x30 is the task's own PotentialPlan, else 0 (hand over) when the unit sits
+// at a planet and is not in transit, else 1 (wait). A handed-over unit joins the task force uncharged; when every claim
+// lapsed the task is charged (0x649070 -> 0x64ab50) and bids in the market. [port] the decision runs at the task's own
+// 3-frame poll, not the store's global 3-frame phase; claims raised by later admissions (0x4d2c90) are not modelled.
+// Returns true when the task left the Queued state (handed a unit).
+bool GalacticAiWorld::Impl::resolve_claim(BuildTask& b) {
+    const auto pit = plans.find(b.plan);
+    const int32_t pp = pit != plans.end() ? pit->second.pp : -1;
+    bool wait = false;
+    for (const ObjectHandle u : free_units(b.player)) {
+        if (store.type(u) != b.type) continue;
+        const auto r = unit_reserved.find(store.id(u));
+        if (pp < 0 || r == unit_reserved.end() || r->second != pp) continue;  // 2: the claim lapses
+        if (planet_of_unit(u) == kInvalidPlanet) {  // 1: in transit (0x68efb0)
+            wait = true;
+            continue;
+        }
+        const auto tit = tfs.find(b.tf);  // 0: 0x647df0 gives the unit to the task (the entry is erased)
+        off_free_store(u);
+        finish_build(b);
+        if (tit == tfs.end() || tit->second.stage < 0) {
+            // a2m t03 (A2M_T03_PRODUCE_FORCE_CLAIMS Q3) [H]: no destination (plain Produce_Force()):
+            // WAIT_FOR_FREESTORE_ALLOC -> PRODUCTION_FINISHED -> 0x6c27d0 re-admits the unit as a fresh, unreserved entry
+            // (On_Unit_Added runs) and removes its selection from the PP. It never joins the task force. [port] In the
+            // same poll as the hand-over, not at the task's next FSM update.
+            pp_handed_back(b.plan, u);
+            free_store_admitted(b.player, u);
+            return true;
+        }
+        // With a destination: PRE_PATH_SEPERATE (the split) ... PRODUCTION_END -> Add_Force, so the FleetObject elected
+        // by the add is the unit's own fleet after the split (bkg2 b0097). [port] The unit joins the member list here
+        // also with the sync flag, where retail's Add_Force waits for the departure (WAIT_FOR_SYNC_MOVE): it then
+        // elects nothing until the departure (step_status, tf_elect).
+        // bkg2 b0121 (A2K_T08 Q2.3 step 1, BKG1_RE_ANSWERS 10) [H path; M re-admit]: a claimed unit on a planet surface goes
+        // to GROUND_UNIT_PRODUCTION (0x648120), which fails the task (Production_Failed) when that planet is blockaded and
+        // is not the stage; the unit goes back to the free store. [port] A sync task force runs the test at its departure
+        // in retail (Q2F_T09 Q2.4); the port does not test it there.
+        if (!tit->second.sync && on_surface(u) && static_cast<int32_t>(planet_of_unit(u)) != tit->second.stage) {
+            const gal::TypeInfo* uti = type_info(store.type(u));
+            if (uti && ground_kind(uti->kind) && sim.ai_blockaded(planet_of_unit(u))) {
+                fail_build(b, "blockaded");
+                free_store_admitted(b.player, u);
+                return true;
+            }
+        }
+        claim_split(tit->second, u);
+        tf_join(tit->second, u, !tit->second.sync);
+        tit->second.had_units = true;
+        return true;
+    }
+    if (wait) return false;
+    // every claim lapsed: charged once (Allocate 0x691950 -> 0x6110e0; see create_build_tasks)
+    if (PlayerAi* pa = player_ai(b.player)) pa->ctx.budget.spend(b.category, b.goal_key, cost_none(b.type));
+    b.charged = true;
+    return false;
+}
+
+// 0x4d2bd0 (a1h t07): the first free-store unit of `type` at a planet. It does not read the entry's +0x30 owner
+// (A1_READINGS §28.5): the claim covers reserved units too. Since a2l (A2L_T01_RE_ANSWERS Q7.4) the build task no
+// longer takes this unit; the free-store service hands over only a unit its own PotentialPlan reserved (resolve_claim).
+ObjectHandle GalacticAiWorld::Impl::free_store_supply(int32_t player, uint32_t type) const {
+    for (const ObjectHandle u : free_units(player))
+        if (store.type(u) == type && planet_of_unit(u) != kInvalidPlanet) return u;
+    return {};
+}
+
+void GalacticAiWorld::Impl::finish_build(BuildTask& b) {
+    b.state = BuildState::Finished;
+    remove_pending(b.id);
+    for (auto& pq : planet_queues)
+        for (PlanetBuildQueue& q : pq) {
+            q.tasks.erase(std::remove(q.tasks.begin(), q.tasks.end(), b.id), q.tasks.end());
+            if (q.current == b.id) {
+                q.current = -1;
+                q.current_queue_id = -1;
+                q.current_type = gal::kNoIndex;
+            }
+        }
+}
+
+// PRODUCTION_FAILED (7): Production_Failed(tf, type) (0x5fdd90), out of the bookkeeping (0x4d4ee0), finish.
+void GalacticAiWorld::Impl::fail_build(BuildTask& b, const char* why) {
+    finish_build(b);
+    b.state = BuildState::Failed;
+    decide(b.player, "build task " + std::to_string(b.id) + " " + type_name(b.type) + " failed (" + why + ")");
+    const auto tit = tfs.find(b.tf);
+    if (tit == tfs.end()) return;
+    lua::AiEventArg a;
+    a.kind = lua::AiEventArg::String;
+    a.text = type_name(b.type);
+    const TaskForceRec copy = tit->second;
+    tf_event(copy, PlanEvent::ProductionFailed, {a});
+}
+
+void GalacticAiWorld::Impl::end_plan_builds(int32_t plan) {
+    for (auto it = builds.begin(); it != builds.end();) {
+        BuildTask& b = it->second;
+        if (b.plan != plan) {
+            ++it;
+            continue;
+        }
+        remove_pending(b.id);
+        for (auto& pq : planet_queues)
+            for (PlanetBuildQueue& q : pq) {
+                q.tasks.erase(std::remove(q.tasks.begin(), q.tasks.end(), b.id), q.tasks.end());
+                // A production in progress keeps the queue busy until the next production service of the planet:
+                // reclaimed, it goes on and its object goes to the free store (signals 3 / 4 with the task gone);
+                // otherwise a PAYG owner's queue cancels it with a refund there (cancel_ended_production, a2m r2).
+                // Whether the PAYG reclaim took the task stays readable (BudgetFractionToBuild).
+                if (q.current == b.id) q.current = b.reclaimed ? kQueueTaskEndedReclaimed : kQueueTaskEnded;
+            }
+        it = builds.erase(it);
+    }
+}
+
+// PAYG reclaim r = 0x5f7d40(plan, amount) (AI_GALACTIC_3 §8) [H mechanism; M meanings]: the plan's build tasks whose
+// production has started with a remaining cost in (0, amount], oldest first (port: task id = creation order; the
+// original's wall-clock comparator is a determinism hazard), ties by AI_Combat_Power descending; taken greedily while
+// the cost fits the remaining amount; each taken task is flagged (+0xD9). [port] Remaining cost = the queue entry's
+// cost x remaining / build time (the installments still to pay).
+float GalacticAiWorld::Impl::payg_reclaim(int32_t plan, float amount) {
+    struct Cand {
+        int32_t id;
+        float cost, power;
+    };
+    std::vector<Cand> cands;
+    for (const auto& [id, b] : builds) {
+        if (b.plan != plan || b.state != BuildState::Producing || b.queue_id < 0 || !valid_planet(b.producing_at)) continue;
+        float rem = 0.0f;
+        for (const gal::BuildEntry& e : sim.queue_of(b.producing_at, b.queue))
+            if (e.type == b.type && e.player == b.player) {
+                rem = e.build_time > 0.0f ? e.cost * (e.remaining / e.build_time) : 0.0f;
+                break;
+            }
+        if (rem > 0.0f && rem <= amount) cands.push_back({id, rem, power_of(b.type)});
+    }
+    std::stable_sort(cands.begin(), cands.end(), [](const Cand& x, const Cand& y) { return x.power > y.power; });
+    std::stable_sort(cands.begin(), cands.end(), [](const Cand& x, const Cand& y) { return x.id < y.id; });
+    float r = 0.0f, left = amount;
+    for (const Cand& c : cands) {
+        if (c.cost > left) continue;
+        left -= c.cost;
+        r += c.cost;
+        builds[c.id].reclaimed = true;
+    }
+    return r;
+}
+
+void GalacticAiWorld::Impl::planet_lost(PlanetIndex p) {
+    // Signal 0xE: every task of the planet's queues with bid < 0 (producing, or bound to this planet) fails; the others
+    // return to the back of the pending list with no choice (0x695a30) (A2J_RE_BUILD_MARKET §1, §3) [H].
+    for (PlanetBuildQueue& q : planet_queues[p]) {
+        const std::vector<int32_t> ids = q.tasks;
+        q.tasks.clear();
+        q.current = -1;
+        q.current_queue_id = -1;
+        q.current_type = gal::kNoIndex;
+        for (const int32_t id : ids) {
+            const auto it = builds.find(id);
+            if (it == builds.end()) continue;
+            BuildTask& b = it->second;
+            if (b.state == BuildState::Producing || (b.state == BuildState::Queued && b.bid < 0.0)) {
+                fail_build(b, "planet lost");
+            } else if (b.state == BuildState::Queued) {
+                b.bid = kPpInfinite;
+                b.bid_planet = kInvalidPlanet;
+                if (!b.listed) {
+                    pending_builds.push_back(id);
+                    b.listed = true;
+                }
+            }
+        }
+    }
+}
+
+// The market of one planet's queues (AIPlanetBuildQueue update 0x53cd60), queue 0 then queue 1, from
+// ProductionBehavior::Service (AI_GALACTIC_3 §5) [H]: GalacticSim's production-service hook calls it for each planet in
+// planet service order (newest registered first) right before that planet's own queues advance.
+// Market path test (0x6955a0 / 0x695c90): planet `from` -> b.dest with the delivery class (REMAINING_GAPS §6.2); floods
+// cached per frame and (owner, source, mode). No destination (or from == dest) passes.
+int GalacticAiWorld::Impl::delivery_mode(const BuildTask& b) const {
+    return galactic_ai_delivery_mode(b.type < tinfo.size() && tinfo[b.type].stealth_company, false);  // +0xDA: [port] unset
+}
+
+bool GalacticAiWorld::Impl::delivery_reachable(int32_t owner, const BuildTask& b, PlanetIndex from) {
+    if (b.dest == kInvalidPlanet || b.dest == from) return true;
+    if (delivery_frame != now) {
+        delivery_frame = now;
+        delivery_reach.clear();
+    }
+    const int mode = delivery_mode(b);
+    const auto key = std::make_tuple(owner, from, mode);
+    auto it = delivery_reach.find(key);
+    if (it == delivery_reach.end()) {
+        const gal::Bitset danger = ai_dangerous(owner);
+        it = delivery_reach.emplace(key, galactic_ai_delivery_flood(sim, owner, from, mode, &danger)).first;
+    }
+    return b.dest < it->second.size() && it->second[b.dest] != 0;
+}
+
+// AIPlanetBuildQueue 0x53ba60 (a2m r2, A2M_R2_RE_B §1.1-1.2, §1.5) [H]: at the top of every AI queue service (0x53cd60, run
+// by the planet's production service for queue 0 then 1 before the queues advance), a queue whose current build task has
+// ended (+0xA8) while it produced, and was not taken by the PAYG reclaim (+0xD9), cancels the head entry of its production
+// queue with the refund (0x403900 refund = true: the paid fraction clamp(1 - remaining / T, 0, 1) x cost through
+// Add_Credits notify 1, so Credit_Multiplier applies and the goal budget's P grows) when the planet's owner pays as it
+// goes. In every case the queue lets go of the task. [port] The port's only task end that leaves a production running is
+// the plan end (end_plan_builds); its other task ends (Production_Failed, the planet lost) clear the queue record, and an
+// empty task force does not end its producing tasks (the empty test waits for them). The head is cancelled without
+// checking its id, as the original does; the port marks the state with current_queue_id >= 0 and current ==
+// kQueueTaskEnded.
+void GalacticAiWorld::Impl::cancel_ended_production(PlanetIndex p, uint32_t qi, int32_t owner) {
+    PlanetBuildQueue& Q = planet_queues[p][qi];
+    if (Q.current != kQueueTaskEnded || Q.current_queue_id < 0) return;
+    if (sim.pays_as_you_go(owner)) {
+        const auto queue = sim.queue_of(p, qi);
+        if (!queue.empty()) {
+            const gal::BuildEntry head = queue[0];
+            if (sim.cancel(head.player, p, qi, 0, true) == cmd::RejectReason::None)
+                decide(owner, "cancel ended build " + type_name(head.type) + " at " + planet_name(p) + " (refund)");
+        }
+        Q.current_queue_id = -1;
+        Q.current_type = gal::kNoIndex;
+    }
+}
+
+void GalacticAiWorld::Impl::market_planet(PlanetIndex p) {
+    if (sim.frame() != market_sim_frame) {
+        // [port] The galactic tick (T5) runs before this frame's T7 AI update, which sets `now` to the host frame:
+        // the market of this tick already counts as that frame.
+        market_sim_frame = sim.frame();
+        ++now;
+    }
+    const auto planets = sim.planets();
+    if (planet_queues.size() != planets.size()) planet_queues.resize(planets.size());
+    const auto players = sim.players();
+    const auto& rules = sim.rules();
+    {
+        const size_t pi = p;
+        if (pi >= planets.size()) return;
+        const gal::PlanetState& ps = planets[pi];
+        if (!ps.is_planet) return;
+        const int32_t owner = ps.owner;
+        // Owner change of a planet with AI production (signal 0xE).
+        for (PlanetBuildQueue& q : planet_queues[pi]) {
+            bool lost = false;
+            for (const int32_t id : q.tasks) {
+                const auto it = builds.find(id);
+                if (it != builds.end() && it->second.player != owner) lost = true;
+            }
+            if (lost) planet_lost(p);
+        }
+        if (owner < 0 || static_cast<size_t>(owner) >= players.size()) return;
+        const uint32_t f = players[static_cast<size_t>(owner)].faction;
+        if (f < rules.factions.size() && rules.factions[f].is_neutral) return;
+        for (uint32_t qi = 0; qi < 2; ++qi) {
+            PlanetBuildQueue& Q = planet_queues[pi][qi];
+            cancel_ended_production(p, qi, owner);  // 0x53ba60, every service, before the market period test
+            if (now - Q.last_run <= kMarketPeriod) continue;
+            Q.last_run = now;
+            // A finished or dropped production whose task is gone frees the queue.
+            if (Q.current < 0 && Q.current_queue_id >= 0) {
+                bool there = false;
+                for (const gal::BuildEntry& e : sim.queue_of(p, qi)) there = there || (e.type == Q.current_type && e.player == owner);
+                if (!there) {
+                    Q.current = kQueueTaskEnded;
+                    Q.current_queue_id = -1;
+                    Q.current_type = gal::kNoIndex;
+                }
+            }
+            // 1. the current item's remaining time
+            const auto sim_queue = sim.queue_of(p, qi);  // A2 galactic: GalacticSim::queue_of
+            float queue_time = sim_queue.empty() ? 0.0f : sim_queue[0].remaining;
+            // Queue-time term of a listed task (0x53cfd0 / 0x53d142, A2J_RE_BUILD_MARKET S1) [H]: max(fundsTime, btime)
+            // for a pay-as-you-go player; otherwise btime only when the funds are there (fundsTime 0), else nothing.
+            const bool payg = sim.pays_as_you_go(owner);
+            const auto queue_term = [&](const BuildTask& b, float ft) {
+                const float bt = btime_at(owner, b.type, p);
+                return payg ? std::max(ft, bt) : (ft <= 0.0f ? bt : 0.0f);
+            };
+            // 0x2804d0 for the market [port: also the story's production-disabled list, OI2 ai].
+            const auto buildable_here = [&](const BuildTask& b) {
+                return can_build_at(owner, b.type, p) && !sim.production_disabled(owner, b.type);
+            };
+            // 2. re-check own tasks: a bound task (bid < 0) is always kept and fails when it can no longer be built
+            //    here; an unbound one is kept while reachable with fundsTime >= queueTime and buildable, otherwise it
+            //    is released to the back of the pending list with no choice (0x695a30) (A2J_RE_BUILD_MARKET §3) [H].
+            for (const int32_t id : std::vector<int32_t>(Q.tasks)) {
+                const auto it = builds.find(id);
+                if (it == builds.end()) {
+                    Q.tasks.erase(std::remove(Q.tasks.begin(), Q.tasks.end(), id), Q.tasks.end());
+                    continue;
+                }
+                BuildTask& b = it->second;
+                if (b.state == BuildState::Producing) continue;  // its time is the current item's (step 1)
+                if (b.state != BuildState::Queued) {
+                    Q.tasks.erase(std::remove(Q.tasks.begin(), Q.tasks.end(), id), Q.tasks.end());
+                    continue;
+                }
+                const float ft = funds_time(b);
+                if (b.bid < 0.0) {
+                    if (buildable_here(b)) queue_time += queue_term(b, ft);
+                    else fail_build(b, "not buildable here");  // Production_Failed 0x5fdd90
+                    continue;
+                }
+                // mcx4 t05 (MCX4_T11_T12_RE_ANSWERS C1) [H read]: the reservation timer 0x695780 started at the claim
+                // (0x695a10, FPS x AI_BuildTaskReservationSeconds); an expired one releases the task [M: the timer
+                // counts as expired once its length has passed].
+                const bool expired =
+                    b.claimed >= 0 &&
+                    now - b.claimed >= frames_trunc(static_cast<float>(kAiFps) *  // [port] clamp keeps x 30 inside int32
+                                                    std::clamp(sim.rules().constants.ai_build_task_reservation_seconds, 0.0f, 7.0e7f));
+                if (!expired && delivery_reachable(owner, b, p) && ft >= queue_time && buildable_here(b)) {  // 0x6955a0
+                    queue_time += queue_term(b, ft);
+                    continue;
+                }
+                b.bid = kPpInfinite;  // 0x695a30: planet = null, bid = 1e18, appended to the pending list
+                b.bid_planet = kInvalidPlanet;
+                Q.tasks.erase(std::remove(Q.tasks.begin(), Q.tasks.end(), id), Q.tasks.end());
+                if (!b.listed) {
+                    pending_builds.push_back(id);
+                    b.listed = true;
+                }
+            }
+            // 3. claim one pending task that chose this planet queue (at most one per run): the oldest entry, scanning
+            //    the vector from index 0 (A2J_RE_BUILD_MARKET §1) [H]. The original tests only planet and queue index;
+            //    the port also filters owner and state (a task of another player never names this owner's queue).
+            for (const int32_t id : pending_builds) {
+                BuildTask& b = builds[id];
+                if (b.bid_planet != p || b.queue != qi || b.player != owner || b.state != BuildState::Queued || !b.charged) continue;
+                Q.tasks.push_back(id);
+                b.claimed = now;  // 0x695a10: the reservation timer starts
+                queue_time += queue_term(b, funds_time(b));
+                remove_pending(id);
+                break;
+            }
+            // 4. bid on every pending task of this owner and queue index with bid >= 0 and the AIBuildTask "to be
+            //    produced" flag (+0x7C; cleared while a free-store claim is pending: a Queued task not yet charged).
+            //    Every refusal clears the task's choice when that choice is this planet (S3) [H].
+            for (const int32_t id : pending_builds) {
+                BuildTask& b = builds[id];
+                if (b.queue != qi || b.player != owner || b.bid < 0.0 || b.state != BuildState::Queued || !b.charged) continue;
+                const auto refuse = [&b, p] {
+                    if (b.bid_planet == p) {
+                        b.bid_planet = kInvalidPlanet;
+                        b.bid = kPpInfinite;
+                    }
+                };
+                const gal::TypeInfo* ti = type_info(b.type);
+                if (!ti || !buildable_here(b)) {
+                    refuse();
+                    continue;
+                }
+                if (ground_kind(ti->kind) && static_cast<int32_t>(ps.surface.size()) >= rules.constants.max_ground_forces_on_planet) {
+                    refuse();  // a company with no free ground slot
+                    continue;
+                }
+                if (!delivery_reachable(owner, b, p) || funds_time(b) < queue_time) {  // path mode 2 / 3 / 5 (0x695c90); funds
+                    refuse();
+                    continue;
+                }
+                double travel = 0.0;
+                const gal::TypeInfo* tt = type_info(travel_type_of(b.type));  // a company: its transport (SG 1.7)
+                const float hs = tt ? tt->hyperspace_speed : ti->hyperspace_speed;
+                if (b.dest != kInvalidPlanet && b.dest != p && hs > 0.0f) {
+                    const uint32_t fi = players[static_cast<size_t>(owner)].faction;
+                    // x the fleet speed multiplier M (STRATEGIC_GAPS §2.1), as the fleet's departure speed.
+                    const float fs = (fi < rules.factions.size() ? rules.factions[fi].hyperspace_speed_factor : 1.0f) *
+                                     sim.fleet_speed_multiplier();
+                    const Vec3 a = planets[b.dest].position, c = ps.position;
+                    const double dx = static_cast<double>(a.x) - c.x, dy = static_cast<double>(a.y) - c.y, dz = static_cast<double>(a.z) - c.z;
+                    travel = std::sqrt(dx * dx + dy * dy + dz * dz) / (static_cast<double>(hs) * static_cast<double>(fs) * kAiFps);
+                }
+                const int32_t base = ti->required_ground_base == 0 ? ps.starbase_level : sim.ground_base_level(p);
+                const int32_t req = ti->required_ground_base == 0 ? ti->required_star_base : ti->required_ground_base;
+                const double level = 1.0 + static_cast<double>(base - req) * static_cast<double>(kLevelFactorK);
+                const double ratio = cost_none(b.type) > 0.0f ? static_cast<double>(cost_at(owner, b.type, p)) / static_cast<double>(cost_none(b.type)) : 1.0;
+                const double bid = (static_cast<double>(queue_time) + static_cast<double>(btime_at(owner, b.type, p)) + travel) * level * ratio;
+                if (bid < b.bid || b.bid_planet == p) {  // ties: the first bidder keeps it
+                    b.bid = bid;
+                    b.bid_planet = p;
+                }
+            }
+            // 5. start production: idle queue holding tasks -> among those that pay as they go (or are funded) and are
+            //    buildable here, the least slack = goal ETA - (NOW - goal creation) / FPS - btime (strict <, first in
+            //    list order); a task with no goal has slack 1e18 (S2, the ordering of 0x53bb20) [H].
+            if (Q.current >= 0 || Q.current_queue_id >= 0 || Q.tasks.empty()) continue;
+            BuildTask* pick = nullptr;
+            double best = 0.0;
+            for (const int32_t id : Q.tasks) {
+                BuildTask& b = builds[id];
+                if (b.state != BuildState::Queued) continue;
+                if (!(payg || funds_time(b) <= 0.0f) || !buildable_here(b)) continue;
+                const Goal* g = b.tf >= 0 ? goal_of_plan(b.player, b.plan) : nullptr;
+                const double slack = g ? static_cast<double>(g->eta) - static_cast<double>(now - g->created) / kAiFps -
+                                             static_cast<double>(btime_at(owner, b.type, p))
+                                       : 1e18;
+                if (!pick || slack < best) {
+                    pick = &b;
+                    best = slack;
+                }
+            }
+            if (!pick) continue;
+            BuildTask& b = *pick;
+            b.queue_id = next_queue_id++;
+            // Clear the matching reservation slot (type and goal).
+            const PlanInstance* plan = plan_of_script(b.plan);
+            auto& slots = Q.reservations;
+            for (auto r = slots.begin(); r != slots.end(); ++r)
+                if (r->type == b.type && plan && r->pp == plan->pp) {
+                    slots.erase(r);
+                    break;
+                }
+            int32_t before = 0;
+            for (const gal::BuildEntry& e : sim.queue_of(p, qi)) before += e.type == b.type && e.player == owner ? 1 : 0;
+            cmd::EventData ev(cmd::EventType::Production);
+            ev.set("type_index", b.type);
+            ev.set("location", static_cast<uint32_t>(store.id(ps.object)));
+            if (order(owner, ev, "build " + type_name(b.type) + " at " + planet_name(p)) != cmd::RejectReason::None) {
+                fail_build(b, "production refused");
+                continue;
+            }
+            // 0x64abf0, the bind at production start (A2M_T04_RE_ANSWERS Q5.2) [H]: the goal's committed spend s grows
+            // by the full (float)cost(T, none), unconditionally.
+            if (PlayerAi* pa = player_ai(owner)) pa->ctx.budget.paid(b.category, b.goal_key, cost_none(b.type));
+            b.state = BuildState::Producing;
+            b.producing_at = p;
+            b.bid = -1.0;
+            b.queue_entries_before = before;
+            Q.current = b.id;
+            Q.current_queue_id = b.queue_id;
+            Q.current_type = b.type;
+        }
+    }
+}
+
+// An AI player's pay-as-you-go installment a for the head of queue q at planet p (0x53b900, AI_GALACTIC_2 §3.4; q2f
+// t01) [H]: while the planet's AIPlanetBuildQueue has a current task (+0x18), the installment is paid from that task's
+// goal budget (may pause); otherwise from the refund accumulator (always paid). [port] A current task that left the map
+// or whose goal struct is gone counts as none. A player without a PlayerAi pays as a human (credits >= a).
+float GalacticAiWorld::Impl::installment(PlanetIndex p, uint32_t q, const gal::BuildEntry& head, float a) {
+    PlayerAi* pa = player_ai(head.player);
+    if (!pa) return sim.players()[static_cast<size_t>(head.player)].account.credits >= a ? a : -1.0f;
+    const int32_t current = p < planet_queues.size() && q <= 1 ? planet_queues[p][q].current : -1;
+    const auto it = current >= 0 ? builds.find(current) : builds.end();
+    if (it == builds.end()) return pa->ctx.budget.installment(-1, 0, a);
+    return pa->ctx.budget.installment(it->second.category, it->second.goal_key, a);
+}
+
+// PRODUCTION_QUEUED polls (every 3 frames, galactic) and the producing tasks' queue items.
+void GalacticAiWorld::Impl::service_build_tasks(int32_t player) {
+    std::vector<int32_t> ids;
+    for (const auto& [id, b] : builds)
+        if (b.player == player && (b.state == BuildState::Queued || b.state == BuildState::Producing)) ids.push_back(id);
+    for (const int32_t id : ids) {
+        const auto it = builds.find(id);
+        if (it == builds.end()) continue;
+        BuildTask& b = it->second;
+        if (b.state == BuildState::Queued) {
+            if (now < b.next_poll) continue;
+            b.next_poll = now + kPollFrames;
+            if (!b.charged && !b.bound && resolve_claim(b)) continue;
+            // 0x2ac320 = the galactic population legality (AI_GALACTIC_3 §3.5) [H]: pop(T, 0) > max(capacity - used, 0)
+            // fails the task; it applies to an AI only with AI_Uses_Galactic_Pop_Cap (never in shipped data), so a
+            // task the market cannot place (e.g. a hero without a galactic cost) waits, like the original (no time-out).
+            if (sim.population_capped(player) && pop_of(b.type) > static_cast<double>(sim.population_room(player))) {
+                fail_build(b, "population cap");
+                continue;
+            }
+            // [port] A type the story production-disabled after the plan chose it (DISABLE_BUILDABLE, 0x282510) fails
+            // the task instead of being queued (OI2 ai; the original's poll reads only 0x2ac320).
+            if (sim.production_disabled(player, b.type)) {
+                fail_build(b, "production disabled");
+                continue;
+            }
+            if (b.bound && valid_planet(b.dest)) {  // the target's structure slots are full
+                const gal::TypeInfo* ti = type_info(b.type);
+                const gal::PlanetState& ps = sim.planets()[b.dest];
+                const auto& msb = sim.map().planets.max_space_base;
+                if (ti && ti->kind == gal::UnitKind::GroundStructure) {
+                    // 0x3f8af0 vs 0x372740 (Special_Structures_Land, not <Max_Ground_Base>; galactic_slots.hpp) [H].
+                    const int32_t slots = ground_slot_max(b.dest);
+                    if (slots >= 0 && ground_slots_used(b.dest) >= slots) fail_build(b, "structure slots full");
+                } else if (ti && ti->kind == gal::UnitKind::StarBase) {
+                    const int32_t slots = b.dest < msb.size() && msb[b.dest] >= 0 ? msb[b.dest] : 5;
+                    if (ps.starbase_level >= slots) fail_build(b, "starbase maxed");
+                }
+            }
+            continue;
+        }
+        // Producing: the queue item is gone without a claimed object -> a tech upgrade finished, else it was
+        // dropped (starbase without base, enemy fleet, re-evaluation) -> failed [port: signal 3/4 vs cancel].
+        if (!valid_planet(b.producing_at)) continue;
+        int32_t count = 0;
+        for (const gal::BuildEntry& e : sim.queue_of(b.producing_at, b.queue)) count += e.type == b.type && e.player == player ? 1 : 0;
+        if (count > b.queue_entries_before) continue;
+        const gal::TypeInfo* ti = type_info(b.type);
+        if (ti && ti->advances_tech != 0) {
+            finish_build(b);  // a2m t05: no budget call at PRODUCTION_END (Q5.1)
+        } else {
+            fail_build(b, "production dropped");
+        }
+    }
+    // Finished / failed tasks leave the map once their task force no longer lists them as pending.
+    for (auto it = builds.begin(); it != builds.end();) {
+        const BuildTask& b = it->second;
+        if ((b.state == BuildState::Finished || b.state == BuildState::Failed) && b.player == player) {
+            const auto tit = tfs.find(b.tf);
+            if (tit != tfs.end()) {
+                auto& v = tit->second.builds;
+                v.erase(std::remove(v.begin(), v.end(), b.id), v.end());
+            }
+            it = builds.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+// 0x525200 (AI_GALACTIC_2 §3.4 "Goal production time"; q2f t01) [H]: over the player's build tasks (id order = the
+// execution system's list order) that hold a bid record (PRODUCTION_QUEUED, not yet producing: the port's Queued) and
+// belong to the running plan's goal (or to no task force): max over those without a bid planet of the build time with
+// no planet, plus max over those with one of the queue wait (0x53bb20) + the build time there. Producing tasks add
+// nothing. 0 when no task matches; the goal is always activated here (the maintenance test only runs for goals with a
+// running plan).
+float GalacticAiWorld::Impl::goal_production_time(int32_t running) const {
+    const auto pit = plans.find(running);
+    if (running < 0 || pit == plans.end()) return 0.0f;
+    const int32_t player = pit->second.player;
+    const PlayerAi* pa = player_ai(player);
+    if (!pa) return 0.0f;
+    // slack(T) at P = goal ETA - (NOW - goal created) / FPS - btime(T, P); no goal: 1e18.
+    const auto slack = [&](const BuildTask& t, PlanetIndex p) -> float {
+        const Goal* g = t.tf >= 0 ? goal_of_plan(player, t.plan) : nullptr;
+        if (!g) return 1e18f;
+        return (g->eta - static_cast<float>(now - g->created) / static_cast<float>(kAiFps)) - btime_at(t.player, t.type, p);
+    };
+    const bool payg = sim.pays_as_you_go(player);
+    float none = 0.0f, t = 0.0f;
+    for (const auto& entry : builds) {
+        const BuildTask& x = entry.second;
+        if (x.player != player || x.state != BuildState::Queued) continue;
+        if (x.tf >= 0 && x.plan != running) continue;
+        const PlanetIndex p = x.bid_planet;
+        if (!valid_planet(p) || x.queue > 1 || static_cast<size_t>(p) >= planet_queues.size()) {
+            none = std::max(none, btime_none(x.type));
+            continue;
+        }
+        // 0x53bb20(Q, 0, X): the current item's remaining time, then Q's listed tasks with no more slack than X.
+        const auto sim_queue = sim.queue_of(p, x.queue);
+        float wait = sim_queue.empty() ? 0.0f : sim_queue[0].remaining;
+        const PlanetBuildQueue& Q = planet_queues[p][x.queue];
+        if (Q.current != x.id && x.tf >= 0) {  // [port] a task without a task force is never ranked (no goal to read)
+            const float sx = slack(x, p);
+            for (const int32_t id : Q.tasks) {
+                const auto yt = builds.find(id);
+                if (yt == builds.end()) continue;
+                const BuildTask& y = yt->second;
+                if (slack(y, p) > sx) continue;
+                const float bt = btime_at(y.player, y.type, p), ft = funds_time(y);
+                wait += payg ? std::max(bt, ft) : bt + ft;
+            }
+        }
+        t = std::max(t, wait + btime_at(x.player, x.type, p));
+    }
+    return none + t;
+}
+
+}  // namespace alamo::ai
