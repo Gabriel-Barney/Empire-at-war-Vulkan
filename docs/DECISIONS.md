@@ -314,6 +314,30 @@ point can share its code and test itself with `unittest`. Every caller (cmd, Pow
 Claude Code, Codex) runs the same command with exact argument lists and no execution-policy setup. Batch keeps only
 what it does best: running on a bare machine and reporting a missing Python.
 
+## Retail and GPU evidence is a recorded local run
+
+Gabriel, 2026-11-21.
+
+The GitHub repository is public. Hosted CI runs the synthetic suite only, and no self-hosted runner executes
+pull-request code. Game data, retail captures and private mods never reach hosted CI. A change that needs the retail,
+vulkan or traces suite (the evidence table of `docs/GROUND_UP_WORKFLOW_DESIGN.md`) is checked on the maintainer's
+Windows machine with `dev.cmd suite <name>` at the pull request's head commit. The pull request records that commit,
+the suite, and the counts and skip reasons from `build\test-results\report-<suite>.md`.
+
+Why: a self-hosted runner on a public repository would run untrusted pull-request code on the machine that holds the
+game install, and the retail data may not be copied to hosted runners.
+
+## Decisions live in DECISIONS.md
+
+Gabriel, 2026-11-21.
+
+The architecture decision records (ADRs) of `docs/GROUND_UP_WORKFLOW_DESIGN.md` are sections of this file, written as
+its introduction says; there is no `docs/adr/` folder. Simulation and mod rules stay in `docs/SIMULATION.md` and
+`docs/MODS.md`. Terms go in `GLOSSARY.md`, created with the workflow skills.
+
+Why: code already cites these headings and `tools/lint/check_doc_refs.py` checks them, so one file keeps every
+decision findable by its heading.
+
 ## Big-file splits are by position, with named-namespace helpers
 
 Gabriel, 2026-11-13 (roadmap bo3).
