@@ -7,7 +7,7 @@
 //     reference model (tolerance 2/255).
 //   Data (ALAMO_FOC_DATA = FoC "corruption" folder): the real FXOs for the GPU comparison; the
 //     Royal Guard (and Dark Trooper if present) skinned against the Phase 1 glTF export
-//     (docs/formats/examples) on the CPU, and rendered for silhouette IoU against the reference
+//     (extracted/format_examples, local) on the CPU, and rendered for silhouette IoU against the reference
 //     PNGs -> logs/reference/<name>_<frame>.png.
 #include <algorithm>
 #include <array>
@@ -536,7 +536,7 @@ struct SkinFrame {
     const char* model;
     const char* anim;      // nullptr = bind
     int frame;
-    const char* ref_png;   // docs/formats/examples/...
+    const char* ref_png;   // extracted/format_examples/...
     bool gltf;             // compare positions against EI_ROYALGAURD.gltf (bind + its animation)
 };
 
@@ -626,7 +626,7 @@ double silhouette_iou(const Mask& ref, const Mask& ours) {
 }
 
 void run_skinning(Gpu* g, const vfs::Vfs& files) {
-    const std::string examples = kSrcDir + "/docs/formats/examples/";
+    const std::string examples = kSrcDir + "/extracted/format_examples/";
     Gltf gltf;
     std::string err;
     const bool have_gltf = gltf.load(examples + "EI_ROYALGAURD.gltf", &err);

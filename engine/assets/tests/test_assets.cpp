@@ -2,7 +2,7 @@
 //   * Synthetic in-memory ALO / ALA / DDS / TGA round-trips and AssetCache concurrency: always run.
 //   * Real data (ALAMO_FOC_DATA = folder containing FoC's Data\, built with alamo_vfs): every ALO
 //     and ALA the VFS lists, every texture they reference, a capital ship, and a comparison against
-//     the Phase 1 glTF exports in docs/formats/examples.
+//     the Phase 1 glTF exports in extracted/format_examples (local, README.md "Game data").
 #include <algorithm>
 #include <array>
 #include <atomic>

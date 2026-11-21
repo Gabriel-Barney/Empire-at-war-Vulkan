@@ -34,6 +34,8 @@ set "ALAMO_EAW_DATA=D:\Games\Star Wars Empire at War\GameData"
 
 The optional `extracted\foc_data_text.zip` enables XML conformance checks during configuration. Retail trace comparisons read captures from `ALAMO_Q2_TRACES`. Keep game files, captures and machine settings local.
 
+The optional `extracted\format_examples\` folder holds glTF exports and reference renders of game models for `alamo_assets_tests` and `alamo_render_reference_tests`. Without it, those glTF checks skip. They are made from the installed game. For example, extract `DATA\ART\MODELS\EI_ROYALGAURD.ALO` and `EI_ROYALGAURD_IDLE_00.ALA` from FoC's `Data\models.meg` with `build\bin\megtool.exe extract`, then run `build\bin\alo2gltf.exe --anim EI_ROYALGAURD_IDLE_00.ALA EI_ROYALGAURD.ALO extracted\format_examples\EI_ROYALGAURD.gltf`. The reference PNGs come from `tools\formats\python\render_gltf.py`. Game assets and anything made from them are never committed.
+
 ## Test suites
 
 Every CTest entry belongs to one suite, carried as a CTest label:

@@ -92,7 +92,7 @@ alamo_render_beams_tests                 synthetic vulkan retail+vulkan
 alamo_render_galactic_tests              synthetic vulkan retail+vulkan
 alamo_render_particles_tests             synthetic vulkan retail+vulkan:foc,eaw
 alamo_render_r5_tests                    synthetic vulkan retail+vulkan
-alamo_render_reference_tests             synthetic vulkan retail+vulkan
+alamo_render_reference_tests             synthetic vulkan retail+vulkan:foc,file:extracted/format_examples/EI_ROYALGAURD.gltf
 alamo_render_shadow_tests                synthetic vulkan retail+vulkan
 alamo_render_sim_tests                   synthetic vulkan retail+vulkan
 alamo_render_space_tests                 synthetic vulkan retail+vulkan
