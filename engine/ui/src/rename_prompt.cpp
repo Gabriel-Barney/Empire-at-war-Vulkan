@@ -29,8 +29,29 @@ void RenamePrompt::open(uint32_t object, bool fleet, std::string_view current) {
     active_ = true;
     object_ = object;
     fleet_ = fleet;
+    fleet_group_ = false;
     text_ = utf8_to_utf32(current);
     if (text_.size() > commands::kMaxObjectNameChars) text_.resize(commands::kMaxObjectNameChars);
+}
+
+void RenamePrompt::open_fleet_group(uint16_t group, std::string_view current) {
+    active_ = true;
+    object_ = group;
+    fleet_ = true;
+    fleet_group_ = true;
+    const std::u32string all = utf8_to_utf32(current);
+    text_.clear();
+    for (const char32_t c : all) {
+        if (!fits(c)) break;
+        text_.push_back(c);
+    }
+}
+
+bool RenamePrompt::fits(char32_t c) const {
+    if (!fleet_group_) return text_.size() < commands::kMaxObjectNameChars;
+    const auto v = static_cast<uint32_t>(c);
+    const size_t bytes = v < 0x80u ? 1u : v < 0x800u ? 2u : v < 0x10000u ? 3u : 4u;
+    return utf32_to_utf8(text_).size() + bytes <= commands::kFleetGroupNameMax;
 }
 
 std::string RenamePrompt::utf8() const { return utf32_to_utf8(text_); }
@@ -45,7 +66,7 @@ RenamePrompt::Result RenamePrompt::update(std::u32string_view typed, bool backsp
         const auto v = static_cast<uint32_t>(c);
         // Printable only (the host's printable() already drops controls); no surrogates, nothing past U+10FFFF.
         if (v < 0x20 || (v >= 0x7F && v <= 0x9F) || (v >= 0xD800 && v <= 0xDFFF) || v > 0x10FFFF) continue;
-        if (text_.size() >= commands::kMaxObjectNameChars) break;
+        if (!fits(c)) break;
         text_.push_back(c);
     }
     if (backspace && !text_.empty()) text_.pop_back();
@@ -77,7 +98,7 @@ void RenamePrompt::build(HudDrawList& dl, FontCache& fonts, const HudCanvas& c, 
         const float y = y0 + pad + (static_cast<float>(row) + 0.5f) * lh + (row >= 1 ? 4.0f : 0.0f) + (row >= 2 ? 4.0f : 0.0f);
         add_text(dl, kHudLayers - 1, HudList::Text, fonts, c, text, c.pixel_to_canvas(cx, y), s);
     };
-    line(0, u32(fleet_ ? "Rename fleet" : "Rename ship"), {255, 220, 120, 255});
+    line(0, u32(fleet_group_ ? "Rename fleet group" : fleet_ ? "Rename fleet" : "Rename ship"), {255, 220, 120, 255});
     // The text field: a darker strip with the text and a caret blinking at 2 Hz (wall clock, presentation only).
     const float fy = y0 + pad + lh + 4.0f;
     rect(dl, c, x0 + pad, fy - 2.0f, x0 + w - pad, fy + lh + 2.0f, {0, 0, 0, 255});

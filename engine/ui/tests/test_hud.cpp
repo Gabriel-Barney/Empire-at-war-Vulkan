@@ -1216,6 +1216,17 @@ void test_tactical_hud_fleet_groups() {
     CHECK(hud.panel_groups().size() == 2 && hud.panel_groups()[1].overflow &&
           hud.panel_groups()[1].ids == (std::vector<uint32_t>{12, 13}));
     CHECK(hud.stats().fleet_tabs == 1);  // the overflow slot has no tab
+    // #176: a right click on the tab asks the host to rename the group (value = its id, name = its name in UTF-8).
+    std::vector<commands::EventData> out;
+    std::vector<HudAction> acts;
+    RoutedInput r;
+    r.hover_component = kFleetTabHitBase;
+    r.hud = {{HudPointerEvent::Kind::Press, Button::Right, kFleetTabHitBase, 0, 0},
+             {HudPointerEvent::Kind::Release, Button::Right, kFleetTabHitBase, 0, 0},
+             {HudPointerEvent::Kind::Click, Button::Right, kFleetTabHitBase, 0, 0}};
+    hud.update_input(r, false, false, 1.0, out, &acts);
+    CHECK(out.empty() && acts.size() == 1 && acts[0].kind == HudAction::Kind::FleetGroupRename && acts[0].value == 7 &&
+          acts[0].name == "Vanguard");
 }
 
 void test_tactical_hud() {

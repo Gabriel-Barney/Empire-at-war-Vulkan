@@ -712,6 +712,9 @@ void App::handle_hud_actions(const std::vector<ui::HudAction>& acts) {
                 ++build_refusals_;
                 break;
             }
+            case ui::HudAction::Kind::FleetGroupRename:  // [port: Gabriel] right click on a fleet group tab (#176)
+                if (a.value > 0 && screen() == Screen::Battle) rename_.open_fleet_group(static_cast<uint16_t>(a.value), a.name);
+                break;
             case ui::HudAction::Kind::WingSelect:  // [port: Gabriel] squadron wing button: shift adds, ctrl centres only
                 if (a.value >= 0) select_wing(static_cast<size_t>(a.value), a.shift, a.ctrl);
                 break;

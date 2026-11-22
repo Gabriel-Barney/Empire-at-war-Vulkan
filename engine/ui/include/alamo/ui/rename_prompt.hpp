@@ -10,6 +10,7 @@
 #include <string>
 #include <string_view>
 
+#include "alamo/commands/fleet_group.hpp"  // kFleetGroupNameMax
 #include "alamo/ui/hud_draw.hpp"
 
 namespace alamo::ui {
@@ -23,10 +24,15 @@ public:
 
     // `fleet`: the title says fleet (true) or ship (false). `current` = the name now (UTF-8, "" = none).
     void open(uint32_t object, bool fleet, std::string_view current);
+    // [port: Gabriel, #176] a tactical fleet group (docs/DECISIONS.md "Fleet groups: exception to the current focus"):
+    // object() = the group id; the text stays within commands::kFleetGroupNameMax UTF-8 bytes (whole characters). The
+    // host sends a FleetGroupOp::Rename on submit.
+    void open_fleet_group(uint16_t group, std::string_view current);
     void close() { active_ = false; }
     bool active() const { return active_; }
     uint32_t object() const { return object_; }
-    bool fleet() const { return fleet_; }
+    bool fleet() const { return fleet_ && !fleet_group_; }
+    bool fleet_group() const { return fleet_group_; }
     const std::u32string& text() const { return text_; }
     std::string utf8() const;  // text() as UTF-8
 
@@ -38,7 +44,8 @@ public:
     void build(HudDrawList& dl, FontCache& fonts, const HudCanvas& canvas, double now) const;
 
 private:
-    bool active_ = false, fleet_ = false;
+    bool active_ = false, fleet_ = false, fleet_group_ = false;
+    bool fits(char32_t c) const;  // one more character keeps the text within this kind's limit
     uint32_t object_ = 0;
     std::u32string text_;
 };

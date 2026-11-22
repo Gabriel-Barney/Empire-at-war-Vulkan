@@ -7,7 +7,7 @@
 //   Dissolve     nothing          every group with a unit in the selection is removed
 //   RemoveUnits  nothing          the selected units leave their groups
 //   SetLock      locked (u8 0/1)  every group with a unit in the selection is locked / unlocked
-//   Rename       group (u16 LE), name length (u8), name bytes (UTF-8, at most kFleetGroupNameMax)
+//   Rename       group (u16 LE), name length (u8), name bytes (UTF-8, at most kFleetGroupNameMax; cut at a character)
 // The sim applies them at the command phase from its synced selection (sim/fleet_groups.hpp).
 #pragma once
 #include <cstddef>

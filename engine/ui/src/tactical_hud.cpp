@@ -375,10 +375,22 @@ void TacticalHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
     }
 
     // [port: Gabriel] fleet group header tabs (#174): left click selects the whole group; shift adds it to the selection.
+    // Right click (#176): the host opens the rename prompt for the group.
     for (const HudPointerEvent& e : routed.hud) {
-        if (e.kind != HudPointerEvent::Kind::Click || e.button != Button::Left || e.component < kFleetTabHitBase ||
+        if (e.kind != HudPointerEvent::Kind::Click || e.component < kFleetTabHitBase ||
             e.component - kFleetTabHitBase >= static_cast<int32_t>(fleet_tab_ids_.size()))
             continue;
+        if (e.button == Button::Right) {
+            const auto& [gid, gname] = fleet_tab_group_[static_cast<size_t>(e.component - kFleetTabHitBase)];
+            HudAction h;
+            h.kind = HudAction::Kind::FleetGroupRename;
+            h.component = e.component;
+            h.value = gid;
+            h.name = gname;
+            act(std::move(h));
+            continue;
+        }
+        if (e.button != Button::Left) continue;
         const std::vector<uint32_t>& m = fleet_tab_ids_[static_cast<size_t>(e.component - kFleetTabHitBase)];
         std::vector<uint32_t> ids = shift ? selection_ids() : std::vector<uint32_t>{};
         for (const uint32_t id : m)
@@ -517,6 +529,7 @@ void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> 
     hits_.clear();
     wing_ids_.clear();
     fleet_tab_ids_.clear();
+    fleet_tab_group_.clear();
     slot_rects_.clear();
     stats_ = {};
     if (!table_ || !atlas_ || !fonts_) return;
@@ -1367,6 +1380,7 @@ void TacticalHud::build_fleet_tabs(const TacticalHudFrame& f) {
                 else
                     for (size_t k = s; k < e; ++k) members.insert(members.end(), groups_[k].ids.begin(), groups_[k].ids.end());
                 fleet_tab_ids_.push_back(std::move(members));
+                fleet_tab_group_.emplace_back(id, fg ? utf32_to_utf8(fg->name) : std::string{});
                 ++stats_.fleet_tabs;
             }
             a = b;
