@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """The development command behind dev.cmd (docs/DECISIONS.md "One development entry point").
 
-  dev.cmd doctor [--engine-only]          toolchain, SDK, dependencies and game data, with remediation
+  dev.cmd doctor [--engine-only]          toolchain, SDK, dependencies and game data, with remediation;
+                                          warns when the shell is elevated
   dev.cmd configure [--preset P]          configure the preset's build tree (CMakePresets.json; default: fast)
   dev.cmd build [TARGET] [--preset P]     configure, check TARGET exists, build it (default: everything)
   dev.cmd check [--preset P] [--target T] [--quick]
@@ -285,11 +286,11 @@ def elevation_warning(elevated: bool) -> str:
     """What doctor prints about an elevated shell, given whether it runs elevated."""
     if not elevated:
         return ""
-    return ("warning: this shell is elevated (Administrator). The Vulkan loader ignores VK_LAYER_PATH in an elevated "
-            "process, so the pinned validation layer in toolchain\\vvl\\bin cannot be enabled and the GPU tests' "
-            "validation-layer check fails (alamo_rhi_gpu_tests, alamo_shaderxlat_gpu_tests). Fix: run dev.cmd from an "
-            "unelevated shell, or register toolchain\\vvl\\bin\\VkLayer_khronos_validation.json under "
-            "HKLM\\SOFTWARE\\Khronos\\Vulkan\\ExplicitLayers (as .github/workflows/landing.yml does).")
+    return ("warning: this shell is elevated (Administrator). The Vulkan loader ignores VK_LAYER_PATH in an elevated\n"
+            "  process, so the pinned validation layer in toolchain\\vvl\\bin cannot be enabled and the GPU tests'\n"
+            "  validation-layer check fails (alamo_rhi_gpu_tests, alamo_shaderxlat_gpu_tests).\n"
+            "  Fix: run dev.cmd from an unelevated shell, or register toolchain\\vvl\\bin\\VkLayer_khronos_validation.json\n"
+            "  under HKLM\\SOFTWARE\\Khronos\\Vulkan\\ExplicitLayers (as .github/workflows/landing.yml does).")
 
 
 def cmd_doctor(r: Runner, args: list[str]) -> None:
