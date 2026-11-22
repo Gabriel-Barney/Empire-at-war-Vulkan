@@ -17,18 +17,22 @@
   dev.cmd launcher | launcher-test        build or test the Rust Command Center launcher
   dev.cmd selftest                        this script's own unit tests
 
+check, test and suite run their tests inside one of the machine's test slots (tools\\test_slots.py,
+ALAMO_TEST_SLOTS; README.md "Test slots"): a second job waits and says which job it waits for.
+
 dev.cmd loads dev.local.cmd (machine settings such as ALAMO_FOC_DATA) and passes every argument here unchanged.
 Arguments reach CMake, CTest and tools/test_suite.py as exact argument lists. cmd reads | & < > before this script
 does, so the double quotes around such an argument must reach cmd: in cmd, dev.cmd test -R "^(a|b)$"; in PowerShell,
 .\\dev.cmd test -R '"^(a|b)$"'.
 
-Every step's output goes to the console and to build\\logs\\dev-<time>-<command>.log. A failed step prints the step,
+Every step's output goes to the console and to build\\logs\\dev-<time>-<pid>-<command>.log. A failed step prints the step,
 the first meaningful diagnostic, the toolchain and source identity, a reproduction command, the elapsed time and the
 log path; build\\logs\\dev-last.json holds the same for CI and agents. Standard library only.
 """
 
 from __future__ import annotations
 
+import contextlib
 import datetime
 import difflib
 import json
@@ -39,6 +43,9 @@ import subprocess
 import sys
 import time
 import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python -I leaves the script's folder off sys.path
+import test_slots  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOOLCHAIN = os.path.join(ROOT, "toolchain")
@@ -152,9 +159,9 @@ def resolve(cmd: list[str], env: dict[str, str] | None) -> list[str]:
     return [found or cmd[0], *cmd[1:]]
 
 
-def test_env(env: dict[str, str]) -> dict[str, str]:
-    """Tests write temporary files under build\\tmp, never the user's TEMP."""
-    tmp = os.path.join(ROOT, "build", "tmp")
+def test_env(env: dict[str, str], run_id: str) -> dict[str, str]:
+    """Tests write temporary files under build\\tmp\\<run>, never the user's TEMP, and never into another run's."""
+    tmp = os.path.join(ROOT, "build", "tmp", run_id)
     os.makedirs(tmp, exist_ok=True)
     env = dict(env)
     env[_find_key(env, "TEMP")] = tmp
@@ -188,7 +195,8 @@ class Runner:
         self.start = time.monotonic()
         os.makedirs(LOG_DIR, exist_ok=True)
         stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        self.log_path = os.path.join(LOG_DIR, f"dev-{stamp}-{command}.log")
+        self.run_id = f"{stamp}-{os.getpid()}"  # this run's log, temp and result folders: unique per process
+        self.log_path = os.path.join(LOG_DIR, f"dev-{self.run_id}-{command}.log")
         self.log = open(self.log_path, "w", encoding="utf-8", newline="\n")
         self.env: dict[str, str] | None = None
 
@@ -266,12 +274,45 @@ def build(r: Runner, bdir: str, target: str | None, clean: bool = False) -> None
     r.run(f"build {target or 'all'}", cmd, r.env)
 
 
+def run_results_dir(bdir: str, run_id: str) -> str:
+    """Where a run's own copy of its reports goes; <build>\\test-results keeps the latest run's."""
+    return os.path.join(bdir, "test-results", "runs", run_id)
+
+
+_RUN_ID = re.compile(r"^\d{8}-\d{6}-\d+$")
+
+
+def prune_runs(parent: str, keep: int = 20) -> None:
+    """Removes all but the newest `keep` run folders (named <date>-<time>-<pid>) under parent."""
+    try:
+        runs = sorted(n for n in os.listdir(parent) if _RUN_ID.match(n) and os.path.isdir(os.path.join(parent, n)))
+    except OSError:
+        return
+    for n in runs[:-keep] if len(runs) > keep else []:
+        shutil.rmtree(os.path.join(parent, n), ignore_errors=True)
+
+
+@contextlib.contextmanager
+def test_slot(r: Runner, bdir: str):
+    """Holds one of the machine's test slots while the tests run, so concurrent jobs wait instead of timing each other
+    out (dev.cmd check, test and suite; tools/test_slots.py; README.md "Test slots"). Prunes old run folders."""
+    slot = test_slots.acquire(f"dev.cmd {subprocess.list2cmdline([r.command, *r.argv])}")
+    prune_runs(os.path.join(ROOT, "build", "tmp"))
+    prune_runs(os.path.join(bdir, "test-results", "runs"))
+    try:
+        yield
+    finally:
+        slot.release()
+
+
 def test_suite(r: Runner, bdir: str, args: list[str]) -> None:
     py = os.path.join(TOOLCHAIN, "venv", "Scripts", "python.exe")
     suite = args[0] if args and not args[0].startswith("-") else "synthetic"
-    r.run(f"suite {suite}", [py, "-I", os.path.join(ROOT, "tools", "test_suite.py"), "--build", bdir,
-                             "--suite", suite, *(args[1:] if args and not args[0].startswith("-") else args)],
-          test_env(r.env or {}))
+    rest = args[1:] if args and not args[0].startswith("-") else args
+    with test_slot(r, bdir):
+        r.run(f"suite {suite}", [py, "-I", os.path.join(ROOT, "tools", "test_suite.py"), "--build", bdir,
+                                 "--suite", suite, "--archive", run_results_dir(bdir, r.run_id), *rest],
+              test_env(r.env or {}, r.run_id))
 
 
 # ------------------------------------------------------------------------------------------------- commands
@@ -397,7 +438,9 @@ def cmd_test(r: Runner, args: list[str]) -> None:
     if not os.path.isfile(os.path.join(bdir, "CTestTestfile.cmake")):
         raise SystemExit(f"dev.cmd: {bdir} is not configured. Run dev.cmd build first.")
     r.env = msvc_env()
-    r.run("ctest", ["ctest", "--test-dir", bdir, "--output-on-failure", "--no-tests=error", *rest], test_env(r.env))
+    with test_slot(r, bdir):
+        r.run("ctest", ["ctest", "--test-dir", bdir, "--output-on-failure", "--no-tests=error", *rest],
+              test_env(r.env, r.run_id))
 
 
 def cmd_suite(r: Runner, args: list[str]) -> None:
@@ -487,6 +530,24 @@ class _Tests(unittest.TestCase):
         presets = load_presets()
         self.assertEqual(presets["analyze"], os.path.join(ROOT, "build-analyze"))
         self.assertEqual(len(set(presets.values())), len(presets))
+
+    def test_each_run_has_its_own_temp_and_result_folders(self):
+        a, b = test_env({"PATH": "x"}, "20261122-010203-111"), test_env({"PATH": "x"}, "20261122-010203-222")
+        self.assertEqual(a["TEMP"], os.path.join(ROOT, "build", "tmp", "20261122-010203-111"))
+        self.assertEqual(a["TEMP"], a["TMP"])
+        self.assertNotEqual(a["TEMP"], b["TEMP"])
+        self.assertEqual(run_results_dir("E:\\b", "20261122-010203-111"),
+                         os.path.join("E:\\b", "test-results", "runs", "20261122-010203-111"))
+
+    def test_old_run_folders_are_pruned(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            names = [f"20261122-0000{i:02d}-{100 + i}" for i in range(25)] + ["keep-me"]
+            for n in names:
+                os.makedirs(os.path.join(d, n))
+            prune_runs(d, keep=20)
+            left = sorted(os.listdir(d))
+            self.assertEqual(left, sorted(names[5:]))  # the 5 oldest runs go; a folder not named like a run stays
 
     def test_take_preset(self):
         self.assertEqual(take_preset(["--preset", "full", "-R", "x"]), ("full", ["-R", "x"]))

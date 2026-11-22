@@ -74,6 +74,12 @@ Each failed test gets one retry, except determinism checks. A test that passes o
 
 Tests write images and reports to `build\artifacts\<entry>\`, never to the source tree.
 
+## Test slots
+
+`dev.cmd check`, `dev.cmd test` and `dev.cmd suite` take one of this machine's test slots while their tests run (`tools\test_slots.py`). With the default single slot, a second job started meanwhile, from this checkout or another and by any user, waits instead of running beside the first and timing out. It prints which job holds the slot (process id, command and folder), repeats that every minute, and starts when that job exits, even if the job crashed: a slot is a Windows file lock, released by the system when its process ends. Set `ALAMO_TEST_SLOTS` (for example in `dev.local.cmd`) to let more test runs share the machine. The slots live in `%ProgramData%\alamo-dev\test-slots\` (`ALAMO_TEST_SLOT_DIR` overrides it). `python -I tools\test_slots.py status` lists the slots and their holders. Builds do not take a slot.
+
+Each run also gets its own temporary folder, `build\tmp\<run>\`, and a copy of its report and JUnit files in `build\test-results\runs\<run>\`. `build\test-results\` itself keeps the latest run's files, and the 20 newest run folders of each kind are kept.
+
 ## Working with Claude Code or Codex
 
 Open this directory as the project root in either tool. Both use the development guide in `AGENTS.md`.

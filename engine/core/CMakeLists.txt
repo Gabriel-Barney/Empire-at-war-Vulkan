@@ -116,6 +116,14 @@ if(ALAMO_LINT_PYTHON)
            COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/nightly_record.py selftest)
   set_tests_properties(alamo_dev_selftest alamo_landing_gate_selftest alamo_skills_check alamo_skills_selftest
                        alamo_analyze_report_selftest alamo_nightly_record_selftest PROPERTIES TIMEOUT 120)
+  # Machine-wide test slots: a second job waits for the holder, names it, and gets the slot when the holder exits or
+  # crashes (tools/test_slots.py; README.md "Test slots"). It uses its own slot folder, not the machine's.
+  add_test(NAME alamo_test_slots_selftest COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/test_slots.py selftest)
+  # Two real dev.cmd suite runs started at once on one build tree (tests/fixtures/test_slots): one waits and names
+  # the other, and each keeps its own temp folder, report and log.
+  add_test(NAME alamo_test_slots_concurrent
+           COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/test_slots.py concurrent)
+  set_tests_properties(alamo_test_slots_selftest alamo_test_slots_concurrent PROPERTIES TIMEOUT 300)
   # The suite runner's own checks (suite labels, retry policy, skip reasons, the report table).
   add_test(NAME alamo_test_suite_selftest COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/test_suite.py --selftest)
   # Injected failures fail at the intended point (tools/injected_failures.py; tests/fixtures/injected_failures): a
