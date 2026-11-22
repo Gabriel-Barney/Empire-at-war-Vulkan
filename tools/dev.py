@@ -16,6 +16,11 @@
                                                   synthetic without the tests labelled no_asan
   dev.cmd test [--preset P] [CTEST ARGS]  run CTest on the preset's tree with any CTest options
   dev.cmd suite [NAME] [--preset P] [tools/test_suite.py options] [-- CTEST ARGS]
+  dev.cmd package --commit SHA [--out DIR]
+                                          build HEAD (it must be SHA, with a clean tree) in build-package\\ with
+                                          PDBs and stage an internal package outside the checkout (default
+                                          %LOCALAPPDATA%\\alamo-dev\\packages): alamo-<sha>\\ with MANIFEST.json and
+                                          SHA256SUMS, alamo-<sha>.zip, and the PDBs in alamo-<sha>-pdb.zip
   dev.cmd launcher | launcher-test        build or test the Rust Command Center launcher
   dev.cmd selftest                        this script's own unit tests
 
@@ -37,6 +42,8 @@ from __future__ import annotations
 import contextlib
 import datetime
 import difflib
+import glob
+import hashlib
 import json
 import os
 import re
@@ -45,6 +52,7 @@ import subprocess
 import sys
 import time
 import unittest
+import zipfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # python -I leaves the script's folder off sys.path
 import test_slots  # noqa: E402
@@ -465,7 +473,182 @@ def cmd_launcher(r: Runner, args: list[str], verb: str) -> None:
     r.run(f"cargo {verb}", [os.path.join(ROOT, "launcher", "cargo.cmd"), verb, "--release", "--locked", *args])
 
 
+# ------------------------------------------------------------------------------------------------- packaging (#29)
+
+PACKAGE_PRESET = "package"
+PACKAGE_TARGETS = ("alamo_game", "alamo_headless")
+# (path in the package, source): "bin:<name>" is the build tree's bin folder; anything else is relative to the
+# checkout, and one "*" matches a versioned toolchain folder. #27 decision 3 lists what ships.
+PACKAGE_FILES = (
+    ("alamo_game.exe", "bin:alamo_game.exe"),
+    ("alamo_headless.exe", "bin:alamo_headless.exe"),
+    ("dxcompiler.dll", "bin:dxcompiler.dll"),
+    ("dxil.dll", "bin:dxil.dll"),
+    ("avcodec-62.dll", "bin:avcodec-62.dll"),
+    ("avformat-62.dll", "bin:avformat-62.dll"),
+    ("avutil-60.dll", "bin:avutil-60.dll"),
+    ("amd_fidelityfx_loader_vk.dll", "bin:amd_fidelityfx_loader_vk.dll"),
+    ("amd_fidelityfx_upscaler_vk.dll", "bin:amd_fidelityfx_upscaler_vk.dll"),
+    ("libxess.dll", "bin:libxess.dll"),
+    ("licenses/LICENSE.txt", "LICENSE"),
+    ("licenses/lua-COPYRIGHT.txt", "toolchain/lua-*/COPYRIGHT"),
+    ("licenses/miniaudio-LICENSE.txt", "toolchain/miniaudio-*/LICENSE"),
+    ("licenses/smaa-LICENSE.txt", "engine/render/third_party/smaa/LICENSE.txt"),
+    ("licenses/ffmpeg-COPYING.LGPLv2.1.txt", "bin:COPYING.LGPLv2.1"),
+    ("licenses/amd_fidelityfx_license.md", "bin:amd_fidelityfx_license.md"),
+    ("licenses/intel_xess_license.txt", "bin:intel_xess_license.txt"),
+    ("licenses/intel_xess_third-party-programs.txt", "bin:intel_xess_third-party-programs.txt"),
+    ("licenses/dxc-LICENSE-LLVM.txt", "toolchain/dxc/LICENSE-LLVM.txt"),
+    ("licenses/dxc-LICENSE-MIT.txt", "toolchain/dxc/LICENSE-MIT.txt"),
+    ("licenses/dxc-LICENSE-MS.txt", "toolchain/dxc/LICENSE-MS.txt"),
+)
+# The symbols go in their own archive, never the package (docs/DECISIONS.md "Release symbols").
+PACKAGE_SYMBOLS = (("alamo_game.pdb", "bin:alamo_game.pdb"), ("alamo_headless.pdb", "bin:alamo_headless.pdb"))
+# Never in the package: fxc and its DLL (docs/DECISIONS.md "fxc ships in test builds"), symbols, Command Center.
+NEVER_PACKAGED = re.compile(r"(^|/)(fxc\.exe|d3dcompiler_47\.dll|command-center\.exe)$|\.pdb$", re.I)
+
+
+class PackageError(Exception):
+    pass
+
+
+def resolve_package_files(entries, bin_dir: str, root: str, symbols: bool = False) -> list[tuple[str, str]]:
+    """(package path, source file) for every entry; every missing source is named at once. Outside the symbols
+    archive, a never-packaged name is refused."""
+    out, missing = [], []
+    for dest, src in entries:
+        if not symbols and NEVER_PACKAGED.search(dest):
+            raise PackageError(f"{dest} must never be in the package")
+        if src.startswith("bin:"):
+            found = [os.path.join(bin_dir, src[4:])]
+        else:
+            found = sorted(glob.glob(os.path.join(root, src.replace("/", os.sep))))
+        if len(found) != 1 or not os.path.isfile(found[0]):
+            missing.append(f"{dest} ({src}{': ' + str(len(found)) + ' matches' if len(found) > 1 else ''})")
+            continue
+        out.append((dest, found[0]))
+    if missing:
+        raise PackageError("missing from the build: " + ", ".join(missing))
+    return out
+
+
+def file_sha256(path: str) -> tuple[str, int]:
+    h, size = hashlib.sha256(), 0
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+            size += len(chunk)
+    return h.hexdigest(), size
+
+
+def package_manifest(commit: str, toolchain: dict, deps: dict, files, symbols) -> dict:
+    def digests(items):
+        return {dest: dict(zip(("sha256", "bytes"), file_sha256(src))) for dest, src in items}
+
+    return {"commit": commit, "toolchain": toolchain, "dependencies": deps, "files": digests(files),
+            "symbols": digests(symbols)}
+
+
+def sha256sums(digests: dict[str, str]) -> str:
+    """sha256sum's format (`sha256sum -c`, PowerShell Get-FileHash), sorted by path."""
+    return "".join(f"{digests[p]}  {p}\n" for p in sorted(digests))
+
+
+def dependency_versions(toolchain: str) -> dict[str, str]:
+    """Versions from the toolchain's versioned folders (name-1.2.3) and the pinned DXC release."""
+    out = {}
+    for name in os.listdir(toolchain):
+        m = re.fullmatch(r"([a-z]+)-(\d[\w.]*)", name)
+        if m and os.path.isdir(os.path.join(toolchain, name)):
+            out[m.group(1)] = m.group(2)
+    try:
+        with open(os.path.join(toolchain, "3_renderer_deps.cmd"), encoding="utf-8") as f:
+            m = re.search(r"DirectXShaderCompiler/releases/download/v([\w.]+)/", f.read())
+        if m:
+            out["dxc"] = m.group(1)
+    except OSError:
+        pass
+    return dict(sorted(out.items()))
+
+
+def package_refusal(commit: str, head: str, status: str, out_dir: str, root: str) -> str | None:
+    """Why dev.cmd package must not run, or None. #27 decisions 2 and 3: the exact, clean HEAD, staged outside."""
+    if commit != head:
+        return f"--commit {commit[:12]} is not HEAD ({head[:12]}): check that commit out first"
+    if status.strip():
+        return "the tree has uncommitted changes; a package is built from a clean commit"
+    inside = os.path.normcase(os.path.abspath(out_dir) + os.sep).startswith(os.path.normcase(os.path.abspath(root))
+                                                                             + os.sep)
+    if inside:
+        return f"--out {out_dir} is inside the checkout; a package is staged outside the checkout"
+    return None
+
+
+def git_out(args: list[str]) -> str:
+    p = subprocess.run(["git", *args], capture_output=True, text=True, cwd=ROOT)
+    if p.returncode:
+        raise SystemExit(f"dev.cmd package: git {' '.join(args)} failed: {p.stderr.strip()}")
+    return p.stdout.strip()
+
+
+def cmd_package(r: Runner, args: list[str]) -> None:
+    commit = out = None
+    it = iter(args)
+    for a in it:
+        if a == "--commit":
+            commit = next(it, "")
+        elif a == "--out":
+            out = next(it, "")
+        else:
+            raise SystemExit(f"dev.cmd package: unknown argument '{a}'")
+    if not commit:
+        raise SystemExit("dev.cmd package: --commit <sha> is required (the commit checked out, HEAD)")
+    commit = git_out(["rev-parse", "--verify", commit + "^{commit}"])
+    out = os.path.abspath(out or os.path.join(os.environ.get("LOCALAPPDATA", os.path.dirname(ROOT)), "alamo-dev",
+                                              "packages"))
+    refusal = package_refusal(commit, git_out(["rev-parse", "HEAD"]), git_out(["status", "--porcelain"]), out, ROOT)
+    if refusal:
+        raise SystemExit(f"dev.cmd package: {refusal}")
+    r.env = msvc_env()
+    bdir = configure(r, PACKAGE_PRESET)
+    for target in PACKAGE_TARGETS:
+        build(r, bdir, target)
+    bin_dir = os.path.join(bdir, "bin")
+    try:
+        files = resolve_package_files(PACKAGE_FILES, bin_dir, ROOT)
+        symbols = resolve_package_files(PACKAGE_SYMBOLS, bin_dir, ROOT, symbols=True)
+    except PackageError as e:
+        raise StepFailed("stage package", 1, [f"error: {e}"],
+                         "a listed file is missing: check the toolchain (dev.cmd doctor) and the build") from None
+    name = f"alamo-{commit[:12]}"
+    stage = os.path.join(out, name)
+    shutil.rmtree(stage, ignore_errors=True)
+    for dest, src in files:
+        os.makedirs(os.path.dirname(os.path.join(stage, dest)), exist_ok=True)
+        shutil.copy2(src, os.path.join(stage, dest))
+    manifest = package_manifest(commit, tool_identity(r.env), dependency_versions(TOOLCHAIN), files, symbols)
+    manifest["toolchain"]["source"] = commit
+    with open(os.path.join(stage, "MANIFEST.json"), "w", encoding="utf-8", newline="\n") as f:
+        json.dump(manifest, f, indent=2)
+        f.write("\n")
+    digests = {dest: d["sha256"] for dest, d in manifest["files"].items()}
+    digests["MANIFEST.json"] = file_sha256(os.path.join(stage, "MANIFEST.json"))[0]
+    with open(os.path.join(stage, "SHA256SUMS"), "w", encoding="utf-8", newline="\n") as f:
+        f.write(sha256sums(digests))
+    package_zip, symbols_zip = os.path.join(out, name + ".zip"), os.path.join(out, name + "-pdb.zip")
+    with zipfile.ZipFile(package_zip, "w", zipfile.ZIP_DEFLATED) as z:
+        for dest in sorted([*digests, "SHA256SUMS"]):
+            z.write(os.path.join(stage, dest), f"{name}/{dest}")
+    with zipfile.ZipFile(symbols_zip, "w", zipfile.ZIP_DEFLATED) as z:
+        for dest, src in symbols:
+            z.write(src, f"{name}-pdb/{dest}")
+    text = f"dev.cmd: package staged in {stage}\n  package: {package_zip}\n  symbols: {symbols_zip}"
+    print(text)
+    r.log.write(text + "\n")
+
+
 COMMANDS = {
+    "package": cmd_package,
     "doctor": cmd_doctor,
     "configure": cmd_configure,
     "build": cmd_build,
@@ -591,6 +774,100 @@ class _Tests(unittest.TestCase):
 
     def test_unknown_command_and_usage(self):
         self.assertEqual(main(["no-such-command"]), 2)
+
+    # -------------------------------------------------------------------------------- dev.cmd package (#29)
+
+    def _fake_tree(self, d: str, skip: tuple[str, ...] = ()) -> tuple[str, str]:
+        """A source root and bin folder holding every file the package lists, except `skip`."""
+        root, bdir = os.path.join(d, "src"), os.path.join(d, "bin")
+        for dest, src in (*PACKAGE_FILES, *PACKAGE_SYMBOLS):
+            if dest in skip:
+                continue
+            path = os.path.join(bdir, src[4:]) if src.startswith("bin:") else os.path.join(
+                root, src.replace("*", "1.0").replace("/", os.sep))
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(dest)
+        return root, bdir
+
+    def test_package_lists_the_runtime_and_licence_notices(self):
+        dests = {d for d, _ in PACKAGE_FILES}
+        for name in ("alamo_game.exe", "alamo_headless.exe", "dxcompiler.dll", "dxil.dll", "avcodec-62.dll",
+                     "avformat-62.dll", "avutil-60.dll", "amd_fidelityfx_loader_vk.dll",
+                     "amd_fidelityfx_upscaler_vk.dll", "libxess.dll"):
+            self.assertIn(name, dests)
+        notices = " ".join(d for d in dests if d.startswith("licenses/"))
+        self.assertIn("licenses/LICENSE.txt", dests)  # the project's own
+        for part in ("lua", "miniaudio", "smaa", "ffmpeg", "fidelityfx", "xess", "dxc"):
+            self.assertIn(part, notices.lower())
+        self.assertEqual({d for d, _ in PACKAGE_SYMBOLS}, {"alamo_game.pdb", "alamo_headless.pdb"})
+
+    def test_package_never_holds_fxc_d3dcompiler_pdbs_or_command_center(self):
+        for d, _ in PACKAGE_FILES:
+            self.assertIsNone(NEVER_PACKAGED.search(d), d)
+        for bad in ("fxc.exe", "D3DCompiler_47.dll", "alamo_game.pdb", "x/command-center.exe"):
+            self.assertIsNotNone(NEVER_PACKAGED.search(bad), bad)
+        with self.assertRaises(PackageError):
+            resolve_package_files((("fxc.exe", "bin:fxc.exe"),), "E:\\nowhere", "E:\\nowhere")
+
+    def test_package_resolves_every_file_and_names_all_missing(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            root, bdir = self._fake_tree(d)
+            files = resolve_package_files(PACKAGE_FILES, bdir, root)
+            self.assertEqual([dest for dest, _ in files], [dest for dest, _ in PACKAGE_FILES])
+            self.assertTrue(all(os.path.isfile(src) for _, src in files))
+        with tempfile.TemporaryDirectory() as d:
+            root, bdir = self._fake_tree(d, skip=("libxess.dll", "licenses/lua-COPYRIGHT.txt"))
+            with self.assertRaises(PackageError) as e:
+                resolve_package_files(PACKAGE_FILES, bdir, root)
+            self.assertIn("libxess.dll", str(e.exception))
+            self.assertIn("lua-COPYRIGHT.txt", str(e.exception))
+
+    def test_package_manifest_and_checksums(self):
+        import hashlib
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            a, b = os.path.join(d, "a.exe"), os.path.join(d, "b.txt")
+            with open(a, "wb") as f:
+                f.write(b"abc")
+            with open(b, "wb") as f:
+                f.write(b"")
+            m = package_manifest("0123456789abcdef0123456789abcdef01234567", {"msvc": "14.44"}, {"lua": "5.0.2"},
+                                 [("alamo.exe", a), ("licenses/b.txt", b)], [("alamo.pdb", b)])
+            self.assertEqual(m["commit"], "0123456789abcdef0123456789abcdef01234567")
+            self.assertEqual(m["toolchain"], {"msvc": "14.44"})
+            self.assertEqual(m["dependencies"], {"lua": "5.0.2"})
+            # Expected digests: SHA-256 of "abc" and of the empty string (FIPS 180-2 examples).
+            abc = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+            empty = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            self.assertEqual(m["files"]["alamo.exe"], {"sha256": abc, "bytes": 3})
+            self.assertEqual(m["files"]["licenses/b.txt"], {"sha256": empty, "bytes": 0})
+            self.assertEqual(m["symbols"]["alamo.pdb"]["sha256"], empty)
+            self.assertEqual(hashlib.sha256(b"abc").hexdigest(), abc)
+            sums = sha256sums({"alamo.exe": abc, "MANIFEST.json": empty})
+            self.assertEqual(sums, f"{empty}  MANIFEST.json\n{abc}  alamo.exe\n")
+
+    def test_package_dependency_versions_from_the_toolchain(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            for name in ("lua-5.0.2", "miniaudio-0.11.25", "ffmpeg-8.1.3", "fidelityfx-2.4.0", "xess-3.0.2", "dxc",
+                         "venv", "msvc"):
+                os.makedirs(os.path.join(d, name))
+            with open(os.path.join(d, "3_renderer_deps.cmd"), "w", encoding="utf-8") as f:
+                f.write("set DXC_URL=https://github.com/microsoft/DirectXShaderCompiler/releases/download/"
+                        "v1.8.2407/dxc_2024_07_31.zip\n")
+            self.assertEqual(dependency_versions(d), {"dxc": "1.8.2407", "ffmpeg": "8.1.3", "fidelityfx": "2.4.0",
+                                                      "lua": "5.0.2", "miniaudio": "0.11.25", "xess": "3.0.2"})
+
+    def test_package_refuses_another_commit_a_dirty_tree_or_a_folder_inside_the_checkout(self):
+        head = "0123456789abcdef0123456789abcdef01234567"
+        self.assertIsNone(package_refusal(head, head, "", "E:\\packages", "E:\\repo"))
+        self.assertIn("is not HEAD", package_refusal("fedcba9876543210fedcba9876543210fedcba98", head, "", "E:\\p",
+                                                     "E:\\repo"))
+        self.assertIn("uncommitted", package_refusal(head, head, " M tools/dev.py", "E:\\p", "E:\\repo"))
+        self.assertIn("outside the checkout", package_refusal(head, head, "", "E:\\repo\\build\\pkg", "E:\\repo"))
+        self.assertIsNone(package_refusal(head, head, "", "E:\\repo-packages", "E:\\repo"))
 
 
 def selftest() -> int:

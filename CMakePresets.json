@@ -36,6 +36,13 @@
       "inherits": "base",
       "binaryDir": "${sourceDir}/build-asan",
       "cacheVariables": { "ALAMO_ASAN": "ON", "ALAMO_RELEASE_PDB": "ON" }
+    },
+    {
+      "name": "package",
+      "displayName": "Release with PDBs for an internal package (dev.cmd package)",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build-package",
+      "cacheVariables": { "ALAMO_RELEASE_PDB": "ON" }
     }
   ]
 }
