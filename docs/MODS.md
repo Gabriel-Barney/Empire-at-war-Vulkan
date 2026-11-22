@@ -622,7 +622,7 @@ against the game's, and conflict warnings (two total conversions, a submod above
 |---|---|
 | FoC mods only | Base-EaW mods are detected and refused with the reason (G0); the heuristic alone only warns |
 | Retail squadrons | Squadrons use retail's `Squadron_Units` lists and prices for base FoC and mods; no resize or price scaling |
-| Load anyway | A save from another mod version may load when every referenced type, faction and script exists; the session is marked; continuing it is not supported |
+| Load anyway | A save from another mod version may load when its saved state still reads against the current data: in practice the type list is unchanged and every referenced faction and script exists. A save whose type list gained or reordered types is refused (a remap by name is #144, out of focus). The session is marked; continuing it is not supported (narrowed 2026-11-22 to what is built) |
 | Element tags carry no behaviour | Everywhere; base-FoC golden moves are approved once the change is shown to match retail |
 | Broken art matches retail | Salvage where retail draws, nothing where retail shows nothing, always reported; `--strict` lists every defect |
 | Corpus and target | The installed mods and their stacks; G3 on every installed setup, G4 on the reference set |
