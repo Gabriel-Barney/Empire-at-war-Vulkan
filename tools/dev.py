@@ -504,7 +504,8 @@ PACKAGE_FILES = (
 )
 # The symbols go in their own archive, never the package (docs/DECISIONS.md "Release symbols").
 PACKAGE_SYMBOLS = (("alamo_game.pdb", "bin:alamo_game.pdb"), ("alamo_headless.pdb", "bin:alamo_headless.pdb"))
-# Never in the package: fxc and its DLL (docs/DECISIONS.md "fxc ships in test builds"), symbols, Command Center.
+# Never in the package (#27 decision 3): fxc and its DLL, which the release build does not need; the symbols; and
+# Command Center, which needs the Rust toolchain.
 NEVER_PACKAGED = re.compile(r"(^|/)(fxc\.exe|d3dcompiler_47\.dll|command-center\.exe)$|\.pdb$", re.I)
 
 
@@ -560,6 +561,9 @@ def dependency_versions(toolchain: str) -> dict[str, str]:
     for name in os.listdir(toolchain):
         m = re.fullmatch(r"([a-z]+)-(\d[\w.]*)", name)
         if m and os.path.isdir(os.path.join(toolchain, name)):
+            if out.get(m.group(1), m.group(2)) != m.group(2):
+                raise PackageError(f"toolchain holds two versions of {m.group(1)}: {out[m.group(1)]} and "
+                                   f"{m.group(2)}; remove the old folder")
             out[m.group(1)] = m.group(2)
     try:
         with open(os.path.join(toolchain, "3_renderer_deps.cmd"), encoding="utf-8") as f:
@@ -569,6 +573,18 @@ def dependency_versions(toolchain: str) -> dict[str, str]:
     except OSError:
         pass
     return dict(sorted(out.items()))
+
+
+def remove_build_outputs(bin_dir: str) -> list[str]:
+    """Deletes the packaged files the build writes to bin, so this build relinks the executables and its post-build
+    steps copy the DLLs and notices again: a file left over from an earlier build can never ship."""
+    removed = []
+    for _, src in (*PACKAGE_FILES, *PACKAGE_SYMBOLS):
+        path = os.path.join(bin_dir, src[4:])
+        if src.startswith("bin:") and os.path.isfile(path):
+            os.remove(path)
+            removed.append(src[4:])
+    return removed
 
 
 def package_refusal(commit: str, head: str, status: str, out_dir: str, root: str) -> str | None:
@@ -611,9 +627,10 @@ def cmd_package(r: Runner, args: list[str]) -> None:
         raise SystemExit(f"dev.cmd package: {refusal}")
     r.env = msvc_env()
     bdir = configure(r, PACKAGE_PRESET)
+    bin_dir = os.path.join(bdir, "bin")
+    remove_build_outputs(bin_dir)
     for target in PACKAGE_TARGETS:
         build(r, bdir, target)
-    bin_dir = os.path.join(bdir, "bin")
     try:
         files = resolve_package_files(PACKAGE_FILES, bin_dir, ROOT)
         symbols = resolve_package_files(PACKAGE_SYMBOLS, bin_dir, ROOT, symbols=True)
@@ -626,8 +643,12 @@ def cmd_package(r: Runner, args: list[str]) -> None:
     for dest, src in files:
         os.makedirs(os.path.dirname(os.path.join(stage, dest)), exist_ok=True)
         shutil.copy2(src, os.path.join(stage, dest))
-    manifest = package_manifest(commit, tool_identity(r.env), dependency_versions(TOOLCHAIN), files, symbols)
-    manifest["toolchain"]["source"] = commit
+    try:
+        deps = dependency_versions(TOOLCHAIN)
+    except PackageError as e:
+        raise StepFailed("stage package", 1, [f"error: {e}"]) from None
+    toolchain = {k: v for k, v in tool_identity(r.env).items() if k != "source"}  # the commit is the manifest's own
+    manifest = package_manifest(commit, toolchain, deps, files, symbols)
     with open(os.path.join(stage, "MANIFEST.json"), "w", encoding="utf-8", newline="\n") as f:
         json.dump(manifest, f, indent=2)
         f.write("\n")
@@ -648,13 +669,13 @@ def cmd_package(r: Runner, args: list[str]) -> None:
 
 
 COMMANDS = {
-    "package": cmd_package,
     "doctor": cmd_doctor,
     "configure": cmd_configure,
     "build": cmd_build,
     "check": cmd_check,
     "test": cmd_test,
     "suite": cmd_suite,
+    "package": cmd_package,
     "launcher": lambda r, a: cmd_launcher(r, a, "build"),
     "launcher-test": lambda r, a: cmd_launcher(r, a, "test"),
 }
@@ -824,8 +845,19 @@ class _Tests(unittest.TestCase):
             self.assertIn("libxess.dll", str(e.exception))
             self.assertIn("lua-COPYRIGHT.txt", str(e.exception))
 
+    def test_package_build_outputs_are_removed_before_the_build(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            root, bdir = self._fake_tree(d)
+            with open(os.path.join(bdir, "alamo_tools.exe"), "w") as f:
+                f.write("not packaged")
+            removed = remove_build_outputs(bdir)
+            self.assertIn("libxess.dll", removed)
+            self.assertIn("alamo_game.pdb", removed)
+            self.assertEqual(os.listdir(bdir), ["alamo_tools.exe"])
+            self.assertTrue(os.path.isfile(os.path.join(root, "LICENSE")))  # sources outside bin stay
+
     def test_package_manifest_and_checksums(self):
-        import hashlib
         import tempfile
         with tempfile.TemporaryDirectory() as d:
             a, b = os.path.join(d, "a.exe"), os.path.join(d, "b.txt")
@@ -859,6 +891,9 @@ class _Tests(unittest.TestCase):
                         "v1.8.2407/dxc_2024_07_31.zip\n")
             self.assertEqual(dependency_versions(d), {"dxc": "1.8.2407", "ffmpeg": "8.1.3", "fidelityfx": "2.4.0",
                                                       "lua": "5.0.2", "miniaudio": "0.11.25", "xess": "3.0.2"})
+            os.makedirs(os.path.join(d, "lua-5.4.0"))
+            with self.assertRaises(PackageError):
+                dependency_versions(d)
 
     def test_package_refuses_another_commit_a_dirty_tree_or_a_folder_inside_the_checkout(self):
         head = "0123456789abcdef0123456789abcdef01234567"
