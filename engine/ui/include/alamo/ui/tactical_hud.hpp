@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "alamo/commands/command.hpp"
+#include "alamo/commands/fleet_group.hpp"  // [port] fleet group tab buttons (#177)
 #include "alamo/ui/hud_buttons.hpp"
 #include "alamo/ui/hud_canvas.hpp"
 #include "alamo/ui/hud_components.hpp"
@@ -60,6 +61,9 @@ struct HudFleetGroup {
     std::vector<uint32_t> members;  // every member, ascending (selected or not)
 };
 inline constexpr int32_t kFleetTabHitBase = 0x41000000;  // hit-box ids of the group header tabs (index into the runs)
+// #177: a tab's Merge button (on the oldest tab when the selection spans two or more groups; sends FleetGroupOp::Merge)
+// and Split button (on a tab whose group is only partly selected; sends FleetGroupOp::Create of the selection).
+inline constexpr int32_t kFleetMergeHitBase = 0x42000000, kFleetSplitHitBase = 0x43000000;
 // [port: Gabriel, 2026-11-22, #172] The selected-unit bar with fleet groups: each group's selected members by type
 // (groups in feed order, types by their lowest id), then the ungrouped selected units by type. With more entries than
 // `slots`, the entries from the last slot on fold into one overflow entry ("+N", every unit not shown).
@@ -508,6 +512,7 @@ private:
     // rectangle (centre, size, layer; size 0 = not drawn).
     std::vector<std::vector<uint32_t>> fleet_tab_ids_;
     std::vector<std::pair<uint16_t, std::string>> fleet_tab_group_;  // per tab: the group id and name (UTF-8)
+    std::vector<size_t> fleet_selected_;  // per feed group: its selected members (this build)
     struct SlotRect {
         Vec2f center{}, size{};
         uint32_t layer = 0;

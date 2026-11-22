@@ -22,7 +22,8 @@ EventData fleet_group_event(const FleetGroupCommand& c) {
         }
         case FleetGroupOp::Create:
         case FleetGroupOp::Dissolve:
-        case FleetGroupOp::RemoveUnits: break;
+        case FleetGroupOp::RemoveUnits:
+        case FleetGroupOp::Merge: break;
     }
     return ev::port_extension(kFleetGroupSubtype, std::span<const uint8_t>(b));
 }
@@ -34,6 +35,7 @@ std::optional<FleetGroupCommand> parse_fleet_group(std::span<const uint8_t> data
         case static_cast<uint8_t>(FleetGroupOp::Create):
         case static_cast<uint8_t>(FleetGroupOp::Dissolve):
         case static_cast<uint8_t>(FleetGroupOp::RemoveUnits):
+        case static_cast<uint8_t>(FleetGroupOp::Merge):
             if (data.size() != 1) return std::nullopt;
             c.op = static_cast<FleetGroupOp>(data[0]);
             return c;

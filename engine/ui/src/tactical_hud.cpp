@@ -376,10 +376,23 @@ void TacticalHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
 
     // [port: Gabriel] fleet group header tabs (#174): left click selects the whole group; shift adds it to the selection.
     // Right click (#176): the host opens the rename prompt for the group.
+    const auto in_range = [this](int32_t component, int32_t base) {
+        return component >= base && component - base < static_cast<int32_t>(fleet_tab_ids_.size());
+    };
     for (const HudPointerEvent& e : routed.hud) {
-        if (e.kind != HudPointerEvent::Kind::Click || e.component < kFleetTabHitBase ||
-            e.component - kFleetTabHitBase >= static_cast<int32_t>(fleet_tab_ids_.size()))
-            continue;
+        if (e.kind != HudPointerEvent::Kind::Click || e.button != Button::Left) continue;
+        // #177: Merge / Split act on the synced selection (the sim's), as the N / U / Y hotkeys do.
+        commands::FleetGroupCommand c;
+        if (in_range(e.component, kFleetMergeHitBase)) {
+            c.op = commands::FleetGroupOp::Merge;
+            out.push_back(commands::fleet_group_event(c));
+        } else if (in_range(e.component, kFleetSplitHitBase)) {
+            c.op = commands::FleetGroupOp::Create;
+            out.push_back(commands::fleet_group_event(c));
+        }
+    }
+    for (const HudPointerEvent& e : routed.hud) {
+        if (e.kind != HudPointerEvent::Kind::Click || !in_range(e.component, kFleetTabHitBase)) continue;
         if (e.button == Button::Right) {
             const auto& [gid, gname] = fleet_tab_group_[static_cast<size_t>(e.component - kFleetTabHitBase)];
             HudAction h;
@@ -545,6 +558,11 @@ void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> 
     stats_.world = world_.stats();
     groups_ = frame.fleet_groups_on ? group_selection_fleets(units, frame.fleet_groups, panel_slot_count())
                                     : group_selection(units);
+    fleet_selected_.assign(frame.fleet_groups_on ? frame.fleet_groups.size() : 0, 0);
+    for (size_t k = 0; k < fleet_selected_.size(); ++k)
+        for (const HudUnit& u : units)
+            if (u.selected && std::binary_search(frame.fleet_groups[k].members.begin(), frame.fleet_groups[k].members.end(), u.id))
+                ++fleet_selected_[k];
     // ui3 t07 (HUD_GAPS §2.1): Tooltip_Text entry 1 in tactical land mode when the component has a second entry, else
     // entry 0; the groups that pick an entry by state (buy buttons, the bombing-run button) override it below.
     for (uint32_t i = 0; i < table_->size(); ++i)
@@ -1332,9 +1350,21 @@ void TacticalHud::build_fleet_tabs(const TacticalHudFrame& f) {
             continue;
         }
         const HudFleetGroup* fg = nullptr;
-        for (const HudFleetGroup& x : f.fleet_groups)
-            if (x.id == id) fg = &x;
+        size_t selected_here = 0, groups_selected = 0;
+        bool oldest = true;  // no earlier group has a selected member
+        for (size_t k = 0; k < f.fleet_groups.size(); ++k) {
+            const size_t n_sel = k < fleet_selected_.size() ? fleet_selected_[k] : 0;
+            if (n_sel > 0) ++groups_selected;
+            if (f.fleet_groups[k].id == id) {
+                fg = &f.fleet_groups[k];
+                selected_here = n_sel;
+            } else if (!fg && n_sel > 0) {
+                oldest = false;
+            }
+        }
         const bool locked = fg && fg->locked;
+        const bool merge_button = oldest && groups_selected >= 2;
+        const bool split_button = fg && selected_here > 0 && selected_here < fg->members.size();
         const Rgba8 edge = locked ? Rgba8{230, 190, 80, 255} : Rgba8{120, 170, 230, 255};
         bool first = true;
         for (size_t a = s; a < e;) {  // one frame per row of the run
@@ -1352,7 +1382,9 @@ void TacticalHud::build_fleet_tabs(const TacticalHudFrame& f) {
                        Rgba8{0, 0, 0, 0}, edge);
             if (first) {
                 first = false;
-                const Vec2f tab_size{std::max(hi.x - lo.x + 4.0f, 64.0f), 14.0f};
+                constexpr Vec2f kButton{34.0f, 12.0f};
+                const float buttons = (merge_button ? kButton.x + 2.0f : 0.0f) + (split_button ? kButton.x + 2.0f : 0.0f);
+                const Vec2f tab_size{std::max(hi.x - lo.x + 4.0f, 64.0f + buttons), 14.0f};
                 const Vec2f tab{lo.x - 2.0f + 0.5f * tab_size.x, hi.y + 2.0f + 0.5f * tab_size.y};
                 frame_rect(dl_, layer, tab, tab_size, locked ? Rgba8{70, 52, 18, 230} : Rgba8{22, 40, 66, 230}, edge);
                 float text_x = tab.x - 0.5f * tab_size.x + 4.0f;
@@ -1375,6 +1407,24 @@ void TacticalHud::build_fleet_tabs(const TacticalHudFrame& f) {
                     add_text(dl_, layer, HudList::Text, *fonts_, canvas_, label, {text_x, tab.y}, st);
                 }
                 hit(kFleetTabHitBase + static_cast<int32_t>(fleet_tab_ids_.size()), layer, tab, tab_size);
+                // #177: Merge / Split buttons at the tab's right end (above the tab's own hit box).
+                float bx = tab.x + 0.5f * tab_size.x - 1.0f;
+                const auto button = [&](int32_t hit_base, const char* text) {
+                    const Vec2f bc{bx - 0.5f * kButton.x, tab.y};
+                    bx -= kButton.x + 2.0f;
+                    frame_rect(dl_, layer + 1, bc, kButton, Rgba8{40, 62, 92, 240}, Rgba8{170, 200, 240, 255});
+                    if (font >= 0) {
+                        HudTextStyle bst;
+                        bst.font = font;
+                        bst.outline = true;
+                        bst.align = TextAlign::Center;
+                        bst.color = Rgba8{236, 240, 246, 255};
+                        add_text(dl_, layer + 1, HudList::Text, *fonts_, canvas_, ascii32(text), bc, bst);
+                    }
+                    hit(hit_base + static_cast<int32_t>(fleet_tab_ids_.size()), layer + 1, bc, kButton);
+                };
+                if (split_button) button(kFleetSplitHitBase, "Split");
+                if (merge_button) button(kFleetMergeHitBase, "Merge");
                 std::vector<uint32_t> members;
                 if (fg) members = fg->members;
                 else

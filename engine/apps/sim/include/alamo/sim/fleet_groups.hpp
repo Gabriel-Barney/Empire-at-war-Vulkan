@@ -83,7 +83,9 @@ public:
     float min_leader_scale = 0.25f;
 
     // One fleet group command for `player`. `units` = the issuer's selection, already filtered to the player's live movable
-    // battle units (ascending or not). Create needs at least one unit and a free group; Rename needs the player's group.
+    // battle units (ascending or not). Create needs at least one unit and a free group; Rename needs the player's group;
+    // Merge needs two of the player's groups with a selected unit and at most kMaxMembers members between them (the
+    // oldest keeps its id, name and lock; every member's slot is recaptured).
     commands::RejectReason apply(uint8_t player, const commands::FleetGroupCommand& c, std::span<const objects::ObjectId> units,
                                  const InfoFn& info);
 

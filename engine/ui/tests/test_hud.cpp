@@ -1227,6 +1227,38 @@ void test_tactical_hud_fleet_groups() {
     hud.update_input(r, false, false, 1.0, out, &acts);
     CHECK(out.empty() && acts.size() == 1 && acts[0].kind == HudAction::Kind::FleetGroupRename && acts[0].value == 7 &&
           acts[0].name == "Vanguard");
+
+    // #177: Merge on the oldest tab when the selection spans two groups; Split on a tab whose group is partly selected.
+    const auto left_click = [&](int32_t component) {
+        std::vector<commands::EventData> o;
+        RoutedInput ri;
+        ri.hover_component = component;
+        ri.hud = {{HudPointerEvent::Kind::Press, Button::Left, component, 0, 0},
+                  {HudPointerEvent::Kind::Release, Button::Left, component, 0, 0},
+                  {HudPointerEvent::Kind::Click, Button::Left, component, 0, 0}};
+        hud.update_input(ri, false, false, 1.0, o, nullptr);
+        return o;
+    };
+    const auto has_box = [&](int32_t component) {
+        for (const HudHitBox& hb : hud.hit_boxes())
+            if (hb.component == component) return true;
+        return false;
+    };
+    for (HudUnit& u : units) u.selected = u.id == 10 || u.id == 12;  // group 7 (10 of 10, 11, 15) and group 8 (12)
+    hud.build(fr, units, types);
+    CHECK(hud.stats().fleet_tabs == 2 && has_box(kFleetMergeHitBase) && !has_box(kFleetMergeHitBase + 1));
+    CHECK(has_box(kFleetSplitHitBase) && !has_box(kFleetSplitHitBase + 1));  // group 7 partly selected; group 8 wholly
+    commands::FleetGroupCommand merge, split;
+    merge.op = commands::FleetGroupOp::Merge;
+    split.op = commands::FleetGroupOp::Create;
+    std::vector<commands::EventData> got = left_click(kFleetMergeHitBase);
+    CHECK(got.size() == 1 && got[0] == commands::fleet_group_event(merge));
+    got = left_click(kFleetSplitHitBase);
+    CHECK(got.size() == 1 && got[0] == commands::fleet_group_event(split));
+    // One group, wholly selected: neither button.
+    for (HudUnit& u : units) u.selected = u.id == 12;
+    hud.build(fr, units, types);
+    CHECK(hud.stats().fleet_tabs == 1 && !has_box(kFleetMergeHitBase) && !has_box(kFleetSplitHitBase));
 }
 
 void test_tactical_hud() {
