@@ -2,7 +2,7 @@
 """Run one test suite (or all) and report passed / failed / skipped counts by suite, with the reason for every skip.
 
   python -I tools/test_suite.py [--suite synthetic|retail|vulkan|traces|all] [--build <dir>] [--fast] [--no-retry]
-                                [--require <suite>,...] [-- <extra ctest args>]
+                                [--require <suite>,...] [--archive <dir>] [-- <extra ctest args>]
   python -I tools/test_suite.py --write-required [--build <dir>]   regenerate tests/required_synthetic.txt
   python -I tools/test_suite.py --selftest
 
@@ -216,6 +216,8 @@ def main(argv: list[str]) -> int:
         f.write("\n".join(lines) + "\n")
     print("\n" + "\n".join(lines))
     print(f"\n(report: {path})")
+    if opt("--archive"):
+        print(f"(this run's copy: {archive_results(results_dir, opt('--archive'), suite)})")
     bad = any(r["status"] == "failed" for r in results.values()) or missing
     return 1 if bad else 0
 
@@ -292,6 +294,17 @@ def show_all_labels():
 _BUILD = [os.path.join(ROOT, "build")]
 
 
+def archive_results(results_dir: str, archive: str, suite: str) -> str:
+    """Copies this run's report and JUnit files into archive (dev.cmd passes <build>\\test-results\\runs\\<run>), so a
+    later run on the same build tree does not overwrite them."""
+    os.makedirs(archive, exist_ok=True)
+    for name in (f"report-{suite}.md", f"{suite}.xml", f"{suite}-retry.xml"):
+        src = os.path.join(results_dir, name)
+        if os.path.isfile(src):
+            shutil.copy2(src, os.path.join(archive, name))
+    return archive
+
+
 def selftest() -> int:
     bad = []
 
@@ -321,6 +334,20 @@ def selftest() -> int:
     ok("| retail | 0 | 0 | 1 | 0 |" in rep and "| retail+vulkan | 0 | 1 | 0 | 0 |" in rep, "per-suite table")
     ok("- foc: x: b" in rep, "skip reason listed")
     ok("gone_test" in rep, "missing required entry listed")
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        results = os.path.join(d, "test-results")
+        os.makedirs(results)
+        for name in ("report-synthetic.md", "synthetic.xml"):
+            with open(os.path.join(results, name), "w", encoding="utf-8") as f:
+                f.write(name)
+        run1 = archive_results(results, os.path.join(results, "runs", "r1"), "synthetic")
+        with open(os.path.join(results, "report-synthetic.md"), "w", encoding="utf-8") as f:
+            f.write("second run")
+        archive_results(results, os.path.join(results, "runs", "r2"), "synthetic")
+        with open(os.path.join(run1, "report-synthetic.md"), encoding="utf-8") as f:
+            ok(f.read() == "report-synthetic.md", "the first run's archived report survives the second run")
+        ok(os.path.isfile(os.path.join(results, "runs", "r2", "synthetic.xml")), "JUnit archived")
     for b in bad:
         print("test_suite selftest FAIL: " + b)
     if bad:

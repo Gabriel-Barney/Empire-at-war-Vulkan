@@ -190,6 +190,7 @@ alamo_tactical_special_weapons_tests
 alamo_tactical_tests
 alamo_tactical_tree_save_tests
 alamo_terrain_tests
+alamo_test_slots_selftest
 alamo_ui_colour_arrows_tests
 alamo_ui_draw_tests
 alamo_ui_gui_draw_tests

@@ -110,6 +110,10 @@ if(ALAMO_LINT_PYTHON)
   add_test(NAME alamo_landing_gate_selftest COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/landing_gate.py selftest)
   set_tests_properties(alamo_dev_selftest alamo_landing_gate_selftest alamo_skills_check alamo_skills_selftest
                        PROPERTIES TIMEOUT 120)
+  # Machine-wide test slots: a second job waits for the holder, names it, and gets the slot when the holder exits or
+  # crashes (tools/test_slots.py; README.md "Test slots"). It uses its own slot folder, not the machine's.
+  add_test(NAME alamo_test_slots_selftest COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/test_slots.py selftest)
+  set_tests_properties(alamo_test_slots_selftest PROPERTIES TIMEOUT 180)
   set_tests_properties(alamo_core_doc_refs_lint alamo_core_doc_refs_lint_selftest PROPERTIES TIMEOUT 120)
   # sim code turns data-driven seconds into frame counts only through alamo/core/frames.hpp (no plain
   # static_cast of seconds x FPS to an integer outside engine/core; tools/lint/check_frame_casts.py).
