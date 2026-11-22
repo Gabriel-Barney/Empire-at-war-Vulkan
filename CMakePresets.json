@@ -29,6 +29,13 @@
       "inherits": "base",
       "binaryDir": "${sourceDir}/build-analyze",
       "cacheVariables": { "ALAMO_ANALYZE": "ON", "ALAMO_PCH": "OFF" }
+    },
+    {
+      "name": "asan",
+      "displayName": "Release with MSVC AddressSanitizer (nightly)",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build-asan",
+      "cacheVariables": { "ALAMO_ASAN": "ON", "ALAMO_RELEASE_PDB": "ON" }
     }
   ]
 }

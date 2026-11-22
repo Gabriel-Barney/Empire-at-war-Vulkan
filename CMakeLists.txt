@@ -21,6 +21,19 @@ if(MSVC AND (ALAMO_RELEASE_PDB OR "$ENV{ALAMO_RELEASE_PDB}" STREQUAL "1"))
   add_link_options($<$<CONFIG:Release>:/DEBUG> $<$<CONFIG:Release>:/OPT:REF> $<$<CONFIG:Release>:/OPT:ICF> $<$<CONFIG:Release>:/INCREMENTAL:NO>)
 endif()
 
+# MSVC AddressSanitizer, the nightly "asan" preset (dev.cmd check --preset asan; docs/DECISIONS.md "MSVC is the only
+# compiler"). Every C and C++ target is instrumented: MSVC's std::string and std::vector annotations must agree between
+# the code that writes a container and the code that reads it, so mixing instrumented and plain code reports false
+# use-after-poison. /Z7 gives ASan the debug info for its reports (without it, warning C5072 is an error under /WX).
+# The linker adds the ASan runtime (/INFERASANLIBS, the default); the tests find its DLL on the MSVC environment's PATH.
+# Release already avoids the incompatible /RTC, /ZI and incremental linking. The asan preset also sets
+# ALAMO_RELEASE_PDB for the linker's /DEBUG, so the reports name functions and lines.
+option(ALAMO_ASAN "Compile everything with MSVC /fsanitize=address" OFF)
+if(ALAMO_ASAN)
+  message(STATUS "AddressSanitizer: on")
+  add_compile_options(/fsanitize=address /Z7)
+endif()
+
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 enable_testing()

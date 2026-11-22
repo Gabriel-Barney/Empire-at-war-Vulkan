@@ -1174,7 +1174,7 @@ void test_streams() {
         a.stop_stream(h);
         const uint64_t at_stop = movie.produced;
         a.update(0.5);
-        CHECK(movie.produced == at_stop && !a.stream_open(h) && rig.backend.stream(op->voice) == nullptr);
+        CHECK(movie.produced == at_stop && !a.stream_open(h) && rig.backend.stream(stream_voice) == nullptr);
         CHECK(last_op(a, LogOp::StreamStop) && last_op(a, LogOp::StreamStop)->handle == h);
         // Without streams the SFX cap is gone again.
         a.update(0.0);
