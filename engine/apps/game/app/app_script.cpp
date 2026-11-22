@@ -280,6 +280,50 @@ ScriptStep step_hotkey(std::string name, uint16_t slot) {
 
 // Battle: control group 1 = the selection (Ctrl+1), then '1' twice within a second: the recall plus the camera jump to the
 // group's centroid (SimHost::control_group through CameraFocus::group).
+// [port: Gabriel] fleet groups (--fleet-groups only, #174): N makes a group of the selection, Y locks it; the selected-unit
+// bar then shows the group's framed run under its header tab (checked, and shot as <prefix>_fleet_groups.png).
+void add_fleet_group_steps(std::vector<ScriptStep>& s, const std::string& prefix) {
+    const auto press = [](const char* name, char key) {
+        return ScriptStep{name, [key](App&, ui::InputFrame& f) {
+                              static int n = 0;
+                              if (++n == 2) {
+                                  f.keys_down.set(ui::vk::key(key));
+                                  f.keys_pressed.set(ui::vk::key(key));
+                              }
+                              const bool done = n > 4;
+                              if (done) n = 0;
+                              return done;
+                          },
+                          100};
+    };
+    const auto own_group = [](App& a) -> const sim::FleetGroup* {
+        const sim::TacticalBattle* b = a.battle();
+        if (!b) return nullptr;
+        for (const sim::FleetGroup& g : b->fleet_groups().groups())
+            if (static_cast<int32_t>(g.owner) == a.local_player()) return &g;
+        return nullptr;
+    };
+    s.push_back(press("make a fleet group (N)", 'N'));
+    s.push_back(step_wait("fleet group made", [own_group](App& a) { return own_group(a) != nullptr; }, 300));
+    s.push_back(press("lock the fleet group (Y)", 'Y'));
+    s.push_back(step_wait("fleet group locked", [own_group](App& a) {
+        const sim::FleetGroup* g = own_group(a);
+        return g && g->locked;
+    }, 300));
+    s.push_back(step_ticks("bar shows the group", 5));
+    s.push_back({"fleet group tab drawn", [](App& a, ui::InputFrame&) {
+                     const uint32_t tabs = a.ui_.tactical_hud.stats().fleet_tabs;
+                     std::printf("script: fleet groups: %u header tab(s) in the selected-unit bar\n", tabs);
+                     if (tabs == 0) {
+                         std::fprintf(stderr, "script: no fleet group tab in the selected-unit bar\n");
+                         a.script_failed_ = true;
+                     }
+                     return true;
+                 },
+                 10});
+    s.push_back(step_shot(prefix + "_fleet_groups.png"));
+}
+
 void add_control_group_steps(std::vector<ScriptStep>& s) {
     s.push_back({"assign control group 1 (Ctrl+1)", [](App&, ui::InputFrame& f) {
                      static int n = 0;
@@ -1576,7 +1620,7 @@ void App::make_script() {
     } else {
         s.push_back(step_click_control("IDD_MAIN_MENU_DIALOG", "IDC_MAIN_MENU_SINGLE_PLAYER_GAMES"));
     }
-    auto battle_steps = [&s](const std::string& prefix) {
+    auto battle_steps = [&s, this](const std::string& prefix) {
         s.push_back(step_wait("load screen ready", [](App& a) { return a.screen() == Screen::BattleLoad && a.ui_.load.ready(); }, 6000));
         s.push_back(step_shot(prefix + "_load.png"));
         s.push_back({"begin", [](App& a, ui::InputFrame& f) {
@@ -1599,6 +1643,7 @@ void App::make_script() {
         const size_t unit_steps = s.size();
         s.push_back(step_ticks("selection drained", 3));
         add_control_group_steps(s);
+        if (opt_.fleet_groups) add_fleet_group_steps(s, prefix);
         s.push_back(step_encyclopedia("encyclopedia over a unit"));
         s.push_back(step_shot(prefix + "_encyclopedia.png"));
         if (env_or_empty("ALAMO_SMOKE_SCREENS") == "1") s.push_back(step_unit_tooltip(prefix + "_screen_tooltip.png"));

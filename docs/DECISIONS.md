@@ -176,7 +176,10 @@ retail behaviour. Design: the claude.ai doc "Fleet groups design" (2026-11-13). 
   `TacticalBattle::enable_fleet_groups`). Off, no group can exist: every tier-1 rule, tier-2 distribution and golden CRC
   is unchanged. Group state enters the tick CRC and the save (`battle.fleet_groups` chunk) only once a group exists; a
   save made with it on loads only in a session with it on.
-- Groups are shown inside the retail selected-unit bar (a framed run of portraits per group), not as a separate strip.
+- Groups are shown inside the retail selected-unit bar (a framed run of portraits per group), not as a separate strip. Layout (2026-11-22):
+  groups first in creation order, each a framed run of per-type portraits under a header tab (number, name, a lock
+  when locked; a tab click selects the whole group), then the ungrouped units by type; past the last slot one "+N"
+  slot holds and selects the rest.
 - A **locked** group keeps its members' offsets, moves at its slowest member's speed **and waits for stragglers**
   (leaders slow down when a member falls behind).
 - Fleet cohesion stays separate: a locked group's move is one single-ship order per member, which Tight cohesion leaves

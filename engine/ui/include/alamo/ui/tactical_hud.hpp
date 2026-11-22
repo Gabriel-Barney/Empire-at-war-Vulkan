@@ -45,9 +45,26 @@ struct SelectedGroup {
     std::vector<uint32_t> ids;  // ascending
     float health = 1.0f;        // mean health fraction
     float shield = -1.0f;       // mean shield fraction (< 0: none)
+    uint16_t fleet = 0;         // [port] fleet group id of the units (0: none)
+    bool overflow = false;      // [port] the "+N" entry: every unit past the bar's last slot (type unused)
 };
 // Selected units grouped by type, groups ordered by their lowest id [port], at most `max_groups`.
 std::vector<SelectedGroup> group_selection(std::span<const HudUnit> units, size_t max_groups = 48);
+
+// [port: Gabriel] Fleet groups (docs/DECISIONS.md "Fleet groups: exception to the current focus"): one of the local
+// player's groups, host feed per frame while fleet groups are on (#174).
+struct HudFleetGroup {
+    uint16_t id = 0;                // shown as the group's number
+    std::u32string name;            // "" = unnamed
+    bool locked = false;
+    std::vector<uint32_t> members;  // every member, ascending (selected or not)
+};
+inline constexpr int32_t kFleetTabHitBase = 0x41000000;  // hit-box ids of the group header tabs (index into the runs)
+// [port: Gabriel, 2026-11-22, #172] The selected-unit bar with fleet groups: each group's selected members by type
+// (groups in feed order, types by their lowest id), then the ungrouped selected units by type. With more entries than
+// `slots`, the entries from the last slot on fold into one overflow entry ("+N", every unit not shown).
+std::vector<SelectedGroup> group_selection_fleets(std::span<const HudUnit> units, std::span<const HudFleetGroup> fleets,
+                                                  size_t slots);
 
 // Ability state of a selected group: read-only S9 queries (hud_abilities.hpp abilities_from_s9 fills it from
 // tactical::abilities::AbilitySystem) or any host callback.
@@ -331,6 +348,10 @@ struct TacticalHudFrame {
     bool drag_select = false;
     DragRect drag_rect;
     std::span<const HudWing> wings;  // [port: Gabriel] squadron wing buttons (HudWing); empty = none
+    // [port: Gabriel] fleet groups on in this battle, and the local player's groups (creation order). Off: the bar is the
+    // retail one whatever the feed holds.
+    bool fleet_groups_on = false;
+    std::span<const HudFleetGroup> fleet_groups;
 };
 
 struct TacticalHudStats {
@@ -346,6 +367,7 @@ struct TacticalHudStats {
     uint32_t objectives = 0, objective_lines = 0;
     bool drag_box = false;              // drag-select box drawn
     uint32_t wings = 0;                 // [port: Gabriel] squadron wing buttons drawn
+    uint32_t fleet_tabs = 0;            // [port: Gabriel] fleet group header tabs drawn
 };
 
 class TacticalHud {
@@ -420,6 +442,8 @@ private:
     void build_pause_banner(const TacticalHudFrame& f);
     void build_objectives(const TacticalHudFrame& f);
     void build_wings(const TacticalHudFrame& f);
+    void build_fleet_tabs(const TacticalHudFrame& f);
+    size_t panel_slot_count() const;
     int32_t font_of(int32_t component, float fallback_points) const;
     void hit(int32_t component, uint32_t layer, Vec2f center, Vec2f size, uint32_t slot = 0);
     Vec2f component_size(uint32_t component, const ComponentPlacement& p) const;
@@ -477,6 +501,14 @@ private:
     int32_t obj_back_ = -1, obj_header_ = -1, obj_text_ = -1, obj_icon_ = -1;
     std::vector<std::vector<uint32_t>> wing_ids_;  // [port: Gabriel] members per wing button of the last build
     int32_t wing_hover_ = -1;                      // wing button under the cursor (index), -1 none
+    // [port: Gabriel] fleet groups (#174): every member per header tab of the last build, and each drawn panel slot's
+    // rectangle (centre, size, layer; size 0 = not drawn).
+    std::vector<std::vector<uint32_t>> fleet_tab_ids_;
+    struct SlotRect {
+        Vec2f center{}, size{};
+        uint32_t layer = 0;
+    };
+    std::vector<SlotRect> slot_rects_;
     RadarView radar_view_;
     std::vector<HudModelDraw> radar_models_;
     bool radar_drag_ = false;

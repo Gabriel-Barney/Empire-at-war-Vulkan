@@ -1197,6 +1197,7 @@ void App::build_tactical_hud() {
         }
     }
     fill_wings(hf);            // [port: Gabriel] squadron wing buttons
+    fill_fleet_groups(hf);     // [port: Gabriel] fleet groups in the selected-unit bar
     fill_command_buttons(hf);  // b_retreat / b_reinforcement / beacon / movie mode, reinforcement texts
     hud_units_ = units;
     // FIXPASS_GALACTIC §4.2: the advisor *_LOOP Bink in Movie_tactical (the HUD's own component), only while it plays.
