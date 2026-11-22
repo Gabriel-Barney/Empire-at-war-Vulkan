@@ -1046,12 +1046,18 @@ int32_t GalacticAiWorld::Impl::instantiate(PlayerAi& p, Goal& g) {
     lua::attach_markup_host(*vm, this);
     vm->set_time(now_seconds(sim));
     vm->set_frame(static_cast<uint32_t>(sim.frame()));
+    // gai1 t05 (legacy docs/re/B0173_RE_ANSWERS.md Q1, 0x5f7090 -> 0x5751d0) [H]: `Target` is always a GameObjectWrapper,
+    // written on every instantiation: the planet's object for a planet goal, one with no object (truthy, Is_Valid false;
+    // Move_To / Produce_Force treat it as nil) for a goal without a target. Retail does not write `AITarget` for a goal
+    // without a target; nil here is the same in the port: a pooled script was released through Flush_G (drops the
+    // AITargetLocationWrapper global, Is_Pool_Safe false) and Base_Definitions (PGBaseDefinitions sets AITarget = nil),
+    // and a fresh one ran Base_Definitions, so no earlier plan's AITarget is left to keep.
     if (g.target >= 0) {
         lua::set_ai_target_global(*vm, "AITarget", g.target);
         vm->set_object_global("Target", sim.planets()[static_cast<size_t>(g.target)].object);
     } else {
         lua::set_nil_global(*vm, "AITarget");
-        lua::set_nil_global(*vm, "Target");
+        lua::set_objectless_global(*vm, "Target");
     }
     lua::set_budget_global(*vm, pi.id);
     lua::set_player_global(*vm, "PlayerObject", p.player);

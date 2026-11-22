@@ -482,6 +482,44 @@ function MainForce_Thread()
   ScriptExit()
 end
 )";
+// gai1 t05 (legacy docs/re/B0173_RE_ANSWERS.md Q1, 0x5f7090): the plan global `Target` is always a GameObjectWrapper. Each
+// plan records type(Target), whether it is truthy, Target.Is_Valid(), and (targeted plan) whether it is the AI target's
+// planet object. Codes: 1 true / 0 false; type 1 = userdata, 0 = nil, 2 = anything else.
+inline const char* kLibT05Target = R"(
+function T05_Record(prefix)
+  local t = type(Target)
+  if t == "userdata" then GlobalValue.Set(prefix .. "_type", 1) elseif t == "nil" then GlobalValue.Set(prefix .. "_type", 0) else GlobalValue.Set(prefix .. "_type", 2) end
+  if Target then GlobalValue.Set(prefix .. "_truthy", 1) else GlobalValue.Set(prefix .. "_truthy", 0) end
+  if t == "userdata" and Target.Is_Valid() then GlobalValue.Set(prefix .. "_valid", 1) else GlobalValue.Set(prefix .. "_valid", 0) end
+  if AITarget and t == "userdata" and Target == AITarget.Get_Game_Object() then GlobalValue.Set(prefix .. "_planet", 1) else GlobalValue.Set(prefix .. "_planet", 0) end
+end
+)";
+inline const char* kPlanT05NoTarget = R"(
+require("SynAICommands")
+require("T05Target")
+function Definitions()
+  Category = "Build_Space_Forces"
+  IgnoreTarget = true
+  TaskForce = { { "MainForce", "DenyHeroAttach", "Frigate = 1" } }
+end
+function MainForce_Thread()
+  T05_Record("t05_nt")
+  MainForce.Set_Plan_Result(true)
+  ScriptExit()
+end
+)";
+inline const char* kPlanT05Planet = R"(
+require("SynAICommands")
+require("T05Target")
+function Definitions()
+  Category = "Conquer_Planet"
+  TaskForce = { { "MainForce", "DenyHeroAttach", "HeroShip = 1" } }
+end
+function MainForce_Thread()
+  T05_Record("t05_p")
+  ScriptExit()
+end
+)";
 
 // a2m t03 (A2M_T03_PRODUCE_FORCE_CLAIMS Q1-Q3): the task force starts with no members; Are_All_Units_On_Free_Store is
 // false while the PotentialPlan has a unit to produce; plain Produce_Force() hands the claimed hero back to the free store
@@ -727,6 +765,9 @@ struct ParityWorld {
         files.add("Data\\Scripts\\AI\\MainEscort.lua", kPlanMainEscort);
         files.add("Data\\Scripts\\AI\\A2lNoTarget.lua", kPlanA2lNoTarget);
         files.add("Data\\Scripts\\AI\\A2lPlainProduce.lua", kPlanA2lPlainProduce);
+        files.add("Data\\Scripts\\Library\\T05Target.lua", kLibT05Target);
+        files.add("Data\\Scripts\\AI\\T05NoTarget.lua", kPlanT05NoTarget);
+        files.add("Data\\Scripts\\AI\\T05Planet.lua", kPlanT05Planet);
         files.add("Data\\Scripts\\AI\\A2mMoveTo.lua", kPlanA2mMoveTo);
         files.add("Data\\Scripts\\AI\\A2mLand.lua", kPlanA2mLand);
         files.add("Data\\Scripts\\AI\\A2mNur.lua", kPlanA2mNur);
@@ -816,6 +857,7 @@ void test_parity_rules();
 void test_ai_clock_precision();
 void test_stage_and_setup_a();
 void test_null_stage_and_plain_produce();
+void test_plan_target_wrapper();
 void test_move_to_fleet_object();
 void test_fleet_object_reelection();
 void test_produce_force_stage_launch();
