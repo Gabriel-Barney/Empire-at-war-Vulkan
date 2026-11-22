@@ -132,8 +132,12 @@ if(ALAMO_LINT_PYTHON)
            COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/injected_failures.py compile)
   add_test(NAME alamo_injected_wrong_result
            COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/injected_failures.py wrong-result)
+  # A quarantined wrong result is reported and passes until its entry expires, then fails (tests/quarantine.txt).
+  add_test(NAME alamo_injected_quarantine
+           COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/injected_failures.py quarantine)
   set_tests_properties(alamo_test_suite_selftest PROPERTIES TIMEOUT 120)
-  set_tests_properties(alamo_injected_compile_failure alamo_injected_wrong_result PROPERTIES TIMEOUT 300)
+  set_tests_properties(alamo_injected_compile_failure alamo_injected_wrong_result alamo_injected_quarantine
+                       PROPERTIES TIMEOUT 300)
   set_tests_properties(alamo_core_doc_refs_lint alamo_core_doc_refs_lint_selftest PROPERTIES TIMEOUT 120)
   # sim code turns data-driven seconds into frame counts only through alamo/core/frames.hpp (no plain
   # static_cast of seconds x FPS to an integer outside engine/core; tools/lint/check_frame_casts.py).

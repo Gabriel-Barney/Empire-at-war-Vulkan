@@ -22,6 +22,11 @@ says so: worker-count entries _w<N>, goldens, CRC, replay, selfcheck, parity har
 A test that passes on the retry counts as passed but is listed as flaky in the report, and its first failing output
 is appended to <build>/test-results/flaky.jsonl, so the evidence of the first failure is kept.
 
+Quarantine: tests/quarantine.txt lists known flaky, non-critical tests with a tracking issue, an owner and an expiry
+date. A listed test that still fails after the retry is reported as quarantined and does not fail the run until the
+entry expires; then it fails again, and the run says which entry expired. A determinism check cannot be listed, and a
+malformed list fails the run.
+
 Outputs: <build>/test-results/<suite>.xml (CTest JUnit), <build>/test-results/report-<suite>.md (the report printed at
 the end), flaky.jsonl. Standard library only.
 """
@@ -205,6 +210,14 @@ def main(argv: list[str]) -> int:
                                             "first_output": results[n]["out"][-6000:]}) + "\n")
                         results[n] = dict(again[n], flaky=True)
 
+    try:
+        results, expired = apply_quarantine(results, load_quarantine(), datetime.date.today(), selected)
+    except QuarantineError as e:
+        print(f"test_suite.py: error: {e}")
+        return 1
+    for note in expired:
+        print(f"test_suite.py: {note}; the failure counts again (renew or remove the entry in tests/quarantine.txt)")
+
     missing = []
     if suite in ("synthetic", "all") and not filtered:
         required = required_tests()
@@ -230,7 +243,7 @@ def report(suite, results, selected, flaky, missing, require, fast) -> list[str]
     by_suite: dict[str, dict[str, list[str]]] = {}
     for n, r in results.items():
         s = suite_of(selected.get(n, []))
-        by_suite.setdefault(s, {"passed": [], "failed": [], "skipped": []})[r["status"]].append(n)
+        by_suite.setdefault(s, {"passed": [], "failed": [], "skipped": [], "quarantined": []})[r["status"]].append(n)
     lines = [f"# Test report: suite {suite}" + (" (fast tier: slow tests excluded)" if fast else ""), ""]
     if require:
         lines.append(f"Required in this run: {', '.join(sorted(set(require)))} (a missing prerequisite fails).")
@@ -267,6 +280,11 @@ def report(suite, results, selected, flaky, missing, require, fast) -> list[str]
     failed = sorted(n for c in by_suite.values() for n in c["failed"])
     if failed:
         lines += ["", "## Failed", *[f"- {n}" for n in failed]]
+    quarantined = sorted(n for c in by_suite.values() for n in c["quarantined"])
+    if quarantined:
+        lines += ["", "## Quarantined (failed; reported, not failing the run, until the entry expires: tests/quarantine.txt)",
+                  *[f"- {n} ({results[n]['quarantine']['issue']}, {results[n]['quarantine']['owner']}, until "
+                    f"{results[n]['quarantine']['expires']})" for n in quarantined]]
     if flaky:
         lines += ["", "## Flaky (failed, then passed on one retry; first output in test-results/flaky.jsonl)",
                   *[f"- {n}" for n in sorted(flaky)]]
@@ -281,8 +299,63 @@ def report(suite, results, selected, flaky, missing, require, fast) -> list[str]
                   ", ".join(sorted(n for v in unl.values() for n in v))]
     total = {k: sum(len(c[k]) for c in by_suite.values()) for k in ("passed", "failed", "skipped")}
     lines += ["", f"Total: {total['passed']} passed, {total['failed']} failed, {total['skipped']} skipped"
+              + (f", {len(quarantined)} quarantined" if quarantined else "")
               + (f", {len(missing)} required entries missing" if missing else "")]
     return lines
+
+
+QUARANTINE_FILE = os.path.join(ROOT, "tests", "quarantine.txt")
+
+
+class QuarantineError(Exception):
+    pass
+
+
+def parse_quarantine(lines: list[str]) -> dict[str, dict]:
+    """tests/quarantine.txt: one tab-separated entry per line, test, #issue, owner, expiry (YYYY-MM-DD)."""
+    entries: dict[str, dict] = {}
+    for no, line in enumerate(lines, 1):
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        parts = [p.strip() for p in line.rstrip("\r\n").split("\t")]
+        if len(parts) != 4 or not all(parts):
+            raise QuarantineError(f"tests/quarantine.txt:{no}: need test, #issue, owner and expiry, tab-separated: {line!r}")
+        name, issue, owner, expires = parts
+        if not re.fullmatch(r"#\d+", issue):
+            raise QuarantineError(f"tests/quarantine.txt:{no}: the issue is written #<number>, got {issue!r}")
+        try:
+            day = datetime.date.fromisoformat(expires)
+        except ValueError:
+            raise QuarantineError(f"tests/quarantine.txt:{no}: the expiry is a date YYYY-MM-DD, got {expires!r}") from None
+        entries[name] = {"issue": issue, "owner": owner, "expires": day.isoformat(), "day": day}
+    return entries
+
+
+def load_quarantine(path: str | None = None) -> dict[str, dict]:
+    """The quarantine list; ALAMO_QUARANTINE_FILE points elsewhere (tools/injected_failures.py quarantine)."""
+    path = path or os.environ.get("ALAMO_QUARANTINE_FILE") or QUARANTINE_FILE
+    if not os.path.isfile(path):
+        return {}
+    with open(path, encoding="utf-8") as f:
+        return parse_quarantine(f.read().splitlines())
+
+
+def apply_quarantine(results: dict, entries: dict, today: datetime.date, labels: dict) -> tuple[dict, list[str]]:
+    """Failed tests under a current quarantine become 'quarantined'; an expired entry leaves the failure standing and
+    says so. A determinism check cannot be quarantined: rerunning or excusing those proves nothing."""
+    for name in entries:
+        if not retryable(name, labels.get(name, [])):
+            raise QuarantineError(f"tests/quarantine.txt: {name} is a determinism check and cannot be quarantined")
+    out, notes = dict(results), []
+    for name, entry in entries.items():
+        r = out.get(name)
+        if not r or r["status"] != "failed":
+            continue
+        if entry["day"] >= today:
+            out[name] = dict(r, status="quarantined", quarantine=entry)
+        else:
+            notes.append(f"{name}: its quarantine ({entry['issue']}, {entry['owner']}) expired on {entry['expires']}")
+    return out, notes
 
 
 _ALL = None
@@ -335,6 +408,37 @@ def selftest() -> int:
     ok("| retail | 0 | 0 | 1 | 0 |" in rep and "| retail+vulkan | 0 | 1 | 0 | 0 |" in rep, "per-suite table")
     ok("- foc: x: b" in rep, "skip reason listed")
     ok("gone_test" in rep, "missing required entry listed")
+    # Quarantine (tests/quarantine.txt): test, issue, owner, expiry.
+    import datetime as _dt
+    today = _dt.date(2026, 11, 22)
+    entries = parse_quarantine(["# comment", "", "alamo_flaky_tests\t#40\tGabriel\t2026-12-01",
+                                "alamo_old_tests\t#41\tGabriel\t2026-11-21"])
+    ok(set(entries) == {"alamo_flaky_tests", "alamo_old_tests"}, "quarantine entries parsed")
+    for bad_line in ("alamo_x_tests\t#40\t\t2026-12-01", "alamo_x_tests\t40\tGabriel\t2026-12-01",
+                     "alamo_x_tests\t#40\tGabriel\t2026-13-01", "alamo_x_tests\t#40\tGabriel"):
+        try:
+            parse_quarantine([bad_line])
+            ok(False, f"malformed quarantine entry accepted: {bad_line!r}")
+        except QuarantineError:
+            pass
+    res = {"alamo_flaky_tests": {"status": "failed", "out": ""}, "alamo_old_tests": {"status": "failed", "out": ""},
+           "alamo_other_tests": {"status": "failed", "out": ""}, "alamo_ok_tests": {"status": "passed", "out": ""}}
+    labels = {n: ["synthetic"] for n in res}
+    res2, notes = apply_quarantine(res, entries, today, labels)
+    ok(res2["alamo_flaky_tests"]["status"] == "quarantined", "a quarantined failure is reported, not failed")
+    ok(res2["alamo_old_tests"]["status"] == "failed", "an expired quarantine fails again")
+    ok(any("alamo_old_tests" in n and "expired" in n for n in notes), "the expired entry is named")
+    ok(res2["alamo_other_tests"]["status"] == "failed" and res2["alamo_ok_tests"]["status"] == "passed",
+       "other results unchanged")
+    try:
+        apply_quarantine({"alamo_x_w4": {"status": "failed", "out": ""}},
+                         parse_quarantine(["alamo_x_w4\t#40\tGabriel\t2026-12-01"]), today, {"alamo_x_w4": []})
+        ok(False, "a determinism check was quarantined")
+    except QuarantineError:
+        pass
+    rep = "\n".join(report("synthetic", res2, labels, [], [], [], False))
+    ok("## Quarantined" in rep and "alamo_flaky_tests (#40, Gabriel, until 2026-12-01)" in rep, "quarantine listed")
+    ok("1 quarantined" in rep, "quarantined count in the total")
     import tempfile
     with tempfile.TemporaryDirectory() as d:
         latest = os.path.join(d, "test-results")

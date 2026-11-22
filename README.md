@@ -72,6 +72,8 @@ The `retail`, `vulkan` and `traces` entries run behind `alamo_test_gate`. It che
 
 Each failed test gets one retry, except determinism checks. A test that passes on the retry counts as passed and appears as flaky in the report. Its first failing output is kept in `build\test-results\flaky.jsonl`.
 
+A known flaky, non-critical test can be quarantined in `tests\quarantine.txt`: test name, tracking issue, owner and expiry date, tab-separated. While the entry is current, the test's failure is listed under "Quarantined" in the report and does not fail the run. After the expiry it fails again, and the run names the expired entry. Determinism checks cannot be quarantined, and a malformed entry fails the run.
+
 Tests write images and reports to `build\artifacts\<entry>\`, never to the source tree.
 
 ## Test slots
