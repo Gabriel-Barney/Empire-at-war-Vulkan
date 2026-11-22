@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Road to Playable</title>
+<meta name="description" content="The project roadmap: stages, boxes and the GitHub issues in each, read live.">
+<!--
+  The project roadmap (README.md "Roadmap"). The stages and boxes come from flow.json next to this file; the work is
+  the repository's GitHub issues, read live from the public API, and joins a box through the label roadmap:<box id>.
+  Edit flow.json to change the chart (python -I tools/roadmap_flow.py check), and labels to move work between boxes.
+-->
+<style>
+:root {
+  --bg: #0f1419; --panel: #161c23; --panel2: #1c242d; --line: #2a3540; --text: #d9e1e8; --muted: #8796a5;
+  --accent: #e3b341; --done: #3fb950; --active: #58a6ff; --todo: #8b949e; --start: #e3b341; --danger: #f85149;
+  --t1: #f0883e; --t2: #58a6ff; --t3: #8b949e; --edge: #3d4b59; --edge-hi: #e3b341; --chip: #232d38;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f6f8fa; --panel: #ffffff; --panel2: #f0f3f6; --line: #d0d7de; --text: #1f2328; --muted: #59636e;
+    --accent: #9a6700; --done: #1a7f37; --active: #0969da; --todo: #6e7781; --start: #9a6700; --danger: #cf222e;
+    --t1: #bc4c00; --t2: #0969da; --t3: #6e7781; --edge: #b6c0ca; --edge-hi: #9a6700; --chip: #eaeef2;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f6f8fa; --panel: #ffffff; --panel2: #f0f3f6; --line: #d0d7de; --text: #1f2328; --muted: #59636e;
+  --accent: #9a6700; --done: #1a7f37; --active: #0969da; --todo: #6e7781; --start: #9a6700; --danger: #cf222e;
+  --t1: #bc4c00; --t2: #0969da; --t3: #6e7781; --edge: #b6c0ca; --edge-hi: #9a6700; --chip: #eaeef2;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+body { font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+a { color: var(--active); text-decoration: none; }
+a:hover { text-decoration: underline; }
+header { display: flex; flex-wrap: wrap; gap: 12px 32px; align-items: flex-end; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+header h1 { margin: 0; font-size: 22px; }
+.eyebrow { color: var(--accent); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; }
+.bars { display: grid; gap: 6px; min-width: 260px; flex: 1; max-width: 460px; }
+.bar { font-size: 12px; color: var(--muted); }
+.bar b { color: var(--text); }
+.meter { height: 6px; border-radius: 3px; background: var(--chip); overflow: hidden; margin-top: 2px; }
+.meter > i { display: block; height: 100%; background: var(--done); }
+.status-line { font-size: 12px; color: var(--muted); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+button, select, input { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; }
+button { cursor: pointer; }
+button:hover { border-color: var(--muted); }
+nav.stages { display: flex; gap: 4px; padding: 8px 20px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+nav.stages a { flex: 0 0 auto; padding: 4px 10px; border-radius: 6px; color: var(--text); font-size: 12px; background: var(--panel); border: 1px solid var(--line); }
+nav.stages a .meter { width: 100%; }
+main { display: grid; grid-template-columns: 300px minmax(0, 1fr) 380px; gap: 0; min-height: calc(100vh - 140px); }
+aside { border-right: 1px solid var(--line); padding: 14px; overflow-y: auto; max-height: calc(100vh - 120px); position: sticky; top: 0; }
+aside.right { border-right: 0; border-left: 1px solid var(--line); }
+aside h2 { font-size: 15px; margin: 0 0 6px; }
+.hint { color: var(--muted); font-size: 12px; margin: 0 0 10px; }
+ol.important { padding-left: 22px; margin: 0; }
+ol.important li { margin-bottom: 10px; }
+.issue-title { font-weight: 600; }
+.meta { font-size: 12px; color: var(--muted); }
+.chip { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 10px; background: var(--chip); color: var(--muted); margin-right: 4px; white-space: nowrap; }
+.chip.t1 { color: var(--t1); } .chip.t2 { color: var(--t2); } .chip.t3 { color: var(--t3); }
+.chip.start { color: var(--start); }
+#flow { position: relative; padding: 16px 20px 60px; }
+#edges { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+section.stage { position: relative; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--panel) 70%, transparent); padding: 10px 12px 14px; margin-bottom: 28px; }
+section.stage h3 { margin: 0 0 2px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+section.stage .goal { font-size: 12px; color: var(--muted); margin: 0 0 10px; max-width: 900px; }
+.boxes { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 26px 22px; }
+.box { position: relative; z-index: 1; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--todo); border-radius: 8px; padding: 8px 10px 6px; cursor: pointer; }
+.box.wide { grid-column: span 2; }
+.box.done { border-left-color: var(--done); opacity: .62; }
+.box.active { border-left-color: var(--active); }
+.box.start { box-shadow: 0 0 0 1px var(--start); }
+.box.sel { outline: 2px solid var(--accent); outline-offset: 2px; opacity: 1; }
+.box.dim { opacity: .25; }
+.box .label { font-weight: 600; font-size: 13px; }
+.box .note { font-size: 11px; color: var(--muted); margin: 2px 0 4px; }
+.box .stats { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+.box .badge { position: absolute; top: -8px; right: -8px; min-width: 20px; height: 20px; border-radius: 10px; background: var(--active); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; padding: 0 5px; }
+.box.start .badge { background: var(--start); color: #000; }
+.tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+.tabs button[aria-selected="true"] { border-color: var(--accent); color: var(--accent); }
+ul.issues { list-style: none; padding: 0; margin: 0; }
+ul.issues li { padding: 6px 0; border-bottom: 1px solid var(--line); }
+ul.issues li.closed .issue-title { text-decoration: line-through; color: var(--muted); }
+.filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.filters input { flex: 1; min-width: 140px; }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--muted); margin: 0 0 14px; }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; margin-right: 4px; }
+.error { color: var(--danger); }
+.empty { color: var(--muted); font-style: italic; }
+@media (max-width: 1200px) {
+  main { grid-template-columns: minmax(0, 1fr); }
+  aside, aside.right { position: static; max-height: none; border: 0; border-bottom: 1px solid var(--line); }
+  aside.left { order: 2; } #flow { order: 1; } aside.right { order: 3; }
+}
+@media (max-width: 600px) {
+  header, nav.stages { padding-left: 16px; padding-right: 16px; }
+  #flow { padding: 12px 16px 40px; }
+  .box.wide { grid-column: auto; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <div class="eyebrow">Empire at War engine port</div>
+    <h1 id="title">Road to playable</h1>
+  </div>
+  <div class="bars" id="bars"></div>
+  <div class="status-line">
+    <span id="loaded">Loading…</span>
+    <button id="reload" type="button">Reload</button>
+    <button id="theme" type="button" title="Switch light and dark">◐</button>
+    <a id="repo-link" href="#">Issues</a>
+  </div>
+</header>
+<nav class="stages" id="stage-nav" aria-label="Stages"></nav>
+<main>
+  <aside class="left">
+    <h2>Most important</h2>
+    <p class="hint">Open issues by tier, then by where they sit on the road (earlier stages first). <span class="chip start">start</span> marks a box whose solid-arrow boxes are all done.</p>
+    <ol class="important" id="important"></ol>
+  </aside>
+  <div id="flow">
+    <svg id="edges" aria-hidden="true"></svg>
+    <div class="legend">
+      <span><i style="background:var(--done)"></i>done</span>
+      <span><i style="background:var(--active)"></i>in progress</span>
+      <span><i style="background:var(--todo)"></i>not started</span>
+      <span><i style="background:transparent;box-shadow:0 0 0 1px var(--start)"></i>can start now</span>
+      <span>── needed first &nbsp; - - feeds into</span>
+    </div>
+    <div id="stages"></div>
+  </div>
+  <aside class="right">
+    <div class="tabs" role="tablist" id="tabs">
+      <button type="button" role="tab" data-tab="box" aria-selected="true">Box</button>
+      <button type="button" role="tab" data-tab="all" aria-selected="false">All issues</button>
+      <button type="button" role="tab" data-tab="unsorted" aria-selected="false">Not on the chart</button>
+    </div>
+    <div id="tab-box"></div>
+    <div id="tab-all" hidden>
+      <div class="filters">
+        <input id="search" type="search" placeholder="Search titles, ids, boxes">
+        <select id="f-tier" aria-label="Tier"><option value="">Any tier</option><option>T1</option><option>T2</option><option>T3</option><option value="none">No tier</option></select>
+        <select id="f-state" aria-label="State"><option value="open">Open</option><option value="closed">Closed</option><option value="">Open and closed</option></select>
+      </div>
+      <ul class="issues" id="all-list"></ul>
+    </div>
+    <div id="tab-unsorted" hidden>
+      <p class="hint">Open issues with no <code>roadmap:&lt;box&gt;</code> label. Give each one a box at triage.</p>
+      <ul class="issues" id="unsorted-list"></ul>
+    </div>
+  </aside>
+</main>
+<script>
+"use strict";
+const CACHE_KEY = "roadmap-issues-v1";
+const state = { flow: null, issues: [], boxes: new Map(), selected: null, fetchedAt: null };
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function store(get, key, value) {
+  try { return get ? localStorage.getItem(key) : localStorage.setItem(key, value); } catch (e) { return null; }
+}
+
+function tierOf(title) {
+  const m = /^\[(T[123]|no tier)\]/.exec(title);
+  return m ? (m[1] === "no tier" ? "none" : m[1]) : "none";
+}
+function tasksOf(body) {
+  const open = (body.match(/^\s*[-*] \[ \]/gm) || []).length;
+  const done = (body.match(/^\s*[-*] \[[xX]\]/gm) || []).length;
+  return { open, done };
+}
+function parseIssue(i) {
+  const labels = i.labels.map((l) => (typeof l === "string" ? l : l.name));
+  const box = (labels.find((l) => l.startsWith("roadmap:")) || "").slice(8) || null;
+  const t = tasksOf(i.body || "");
+  const closed = i.state === "closed";
+  // A closed issue counts all its tasks done; an issue without a checklist counts as one task.
+  const total = Math.max(1, t.open + t.done);
+  return {
+    number: i.number, title: i.title, url: i.html_url, closed, labels, box, tier: tierOf(i.title),
+    tasksTotal: total, tasksDone: closed ? total : Math.min(t.done, total), updated: i.updated_at,
+  };
+}
+
+// ?issues=<file> reads a saved copy of the API's issue list instead (gh api --paginate
+// "repos/<repo>/issues?state=all&per_page=100" --jq ".[]" | jq -s . > issues.json), for viewing without network.
+const ISSUES_FILE = new URLSearchParams(location.search).get("issues");
+
+async function fetchIssues(repo) {
+  const out = [];
+  for (let page = 1; page < 50; page++) {
+    const url = ISSUES_FILE || `https://api.github.com/repos/${repo}/issues?state=all&per_page=100&page=${page}`;
+    const r = await fetch(url, { headers: { Accept: "application/vnd.github+json" } });
+    if (!r.ok) {
+      const reset = r.headers.get("x-ratelimit-reset");
+      const when = reset ? ` until ${new Date(reset * 1000).toLocaleTimeString()}` : "";
+      throw new Error(r.status === 403 || r.status === 429 ? `GitHub's hourly limit for unsigned reads is used up${when}` : `GitHub answered ${r.status}`);
+    }
+    const batch = await r.json();
+    out.push(...batch.filter((i) => !i.pull_request).map((i) => ({
+      number: i.number, title: i.title, html_url: i.html_url, state: i.state, body: i.body || "",
+      labels: i.labels.map((l) => l.name), updated_at: i.updated_at,
+    })));
+    if (ISSUES_FILE || batch.length < 100) break;
+  }
+  return out;
+}
+
+function computeBoxes() {
+  const flow = state.flow;
+  state.boxes = new Map();
+  let order = 0;
+  for (const s of flow.stages) for (const b of s.boxes) {
+    state.boxes.set(b.id, { ...b, stage: s.id, order: order++, issues: [], from: [] });
+  }
+  for (const b of state.boxes.values()) for (const [to, kind] of Object.entries(b.to || {})) {
+    const t = state.boxes.get(to);
+    if (t) t.from.push({ id: b.id, kind });
+  }
+  for (const i of state.issues) if (i.box && state.boxes.has(i.box)) state.boxes.get(i.box).issues.push(i);
+  for (const b of state.boxes.values()) {
+    b.open = b.issues.filter((i) => !i.closed).length;
+    b.closedCount = b.issues.length - b.open;
+    b.tasksTotal = b.issues.reduce((n, i) => n + i.tasksTotal, 0);
+    b.tasksDone = b.issues.reduce((n, i) => n + i.tasksDone, 0);
+    b.status = b.open === 0 && (b.done || b.issues.length > 0) ? "done" : (b.tasksDone > 0 || b.closedCount > 0 ? "active" : "todo");
+  }
+  for (const b of state.boxes.values()) {
+    b.start = b.status !== "done" && b.from.filter((f) => f.kind === "solid").every((f) => state.boxes.get(f.id).status === "done");
+  }
+}
+
+function pct(a, b) { return b ? Math.round((100 * a) / b) : 0; }
+function meter(a, b) { return `<div class="meter"><i style="width:${pct(a, b)}%"></i></div>`; }
+
+function renderHeader() {
+  const open = state.issues.filter((i) => !i.closed);
+  const onChart = state.issues.filter((i) => i.box);
+  const tasks = onChart.reduce((n, i) => n + i.tasksTotal, 0), tasksDone = onChart.reduce((n, i) => n + i.tasksDone, 0);
+  const boxes = [...state.boxes.values()], boxesDone = boxes.filter((b) => b.status === "done").length;
+  $("bars").innerHTML =
+    `<div class="bar"><b>${pct(boxesDone, boxes.length)}%</b> of boxes done · ${boxesDone} of ${boxes.length}${meter(boxesDone, boxes.length)}</div>` +
+    `<div class="bar"><b>${pct(tasksDone, tasks)}%</b> of tasks on the chart done · ${tasksDone} of ${tasks} · ${open.length} open issues${meter(tasksDone, tasks)}</div>`;
+  $("stage-nav").innerHTML = state.flow.stages.map((s) => {
+    const bs = s.boxes.map((b) => state.boxes.get(b.id));
+    const d = bs.filter((b) => b.status === "done").length;
+    return `<a href="#stage-${esc(s.id)}">${d}/${bs.length} · ${esc(s.title)}${meter(d, bs.length)}</a>`;
+  }).join("");
+}
+
+function boxHtml(b) {
+  const cls = ["box", b.status, b.size === "wide" ? "wide" : "", b.start ? "start" : "", state.selected === b.id ? "sel" : ""].join(" ");
+  const badge = b.open ? `<span class="badge" title="${b.open} open issues">${b.open}</span>` : "";
+  const stats = b.issues.length ? `<span>${b.closedCount}/${b.issues.length} issues</span><span>${b.tasksDone}/${b.tasksTotal} tasks</span>`
+                                : `<span>${b.done ? "done before the move to issues" : "no issues yet"}</span>`;
+  return `<div class="${cls}" id="box-${esc(b.id)}" data-box="${esc(b.id)}" tabindex="0" role="button" aria-label="${esc(b.label)}">` +
+         `${badge}<div class="label">${esc(b.label)}</div>${b.note ? `<div class="note">${esc(b.note)}</div>` : ""}` +
+         `${meter(b.tasksDone, b.tasksTotal)}<div class="stats">${stats}</div></div>`;
+}
+
+function renderFlow() {
+  $("stages").innerHTML = state.flow.stages.map((s) =>
+    `<section class="stage" id="stage-${esc(s.id)}"><h3>${esc(s.title)}</h3>` +
+    `${s.goal ? `<p class="goal">${esc(s.goal)}${s.exit ? ` <b>Done when:</b> ${esc(s.exit)}` : ""}</p>` : ""}` +
+    `<div class="boxes">${s.boxes.map((b) => boxHtml(state.boxes.get(b.id))).join("")}</div></section>`).join("");
+  drawEdges();
+}
+
+function drawEdges() {
+  const svg = $("edges"), host = $("flow").getBoundingClientRect();
+  svg.setAttribute("width", host.width); svg.setAttribute("height", $("flow").scrollHeight);
+  const sel = state.selected;
+  let paths = "";
+  for (const b of state.boxes.values()) for (const [to, kind] of Object.entries(b.to || {})) {
+    const a = $(`box-${b.id}`), c = $(`box-${to}`);
+    if (!a || !c) continue;
+    const r1 = a.getBoundingClientRect(), r2 = c.getBoundingClientRect();
+    let x1, y1, x2, y2, d;
+    if (r2.top >= r1.bottom - 4) {
+      x1 = r1.left + r1.width / 2 - host.left; y1 = r1.bottom - host.top;
+      x2 = r2.left + r2.width / 2 - host.left; y2 = r2.top - host.top;
+      const k = Math.max(24, (y2 - y1) / 2);
+      d = `M${x1},${y1} C${x1},${y1 + k} ${x2},${y2 - k} ${x2},${y2}`;
+    } else {
+      const right = r2.left >= r1.right;
+      x1 = (right ? r1.right : r1.left) - host.left; y1 = r1.top + r1.height / 2 - host.top;
+      x2 = (right ? r2.left : r2.right) - host.left; y2 = r2.top + r2.height / 2 - host.top;
+      const k = Math.max(20, Math.abs(x2 - x1) / 2) * (right ? 1 : -1);
+      d = `M${x1},${y1} C${x1 + k},${y1} ${x2 - k},${y2} ${x2},${y2}`;
+    }
+    const hi = sel && (sel === b.id || sel === to);
+    paths += `<path d="${d}" fill="none" stroke="var(${hi ? "--edge-hi" : "--edge"})" stroke-width="${hi ? 2.2 : 1.4}"` +
+             `${kind === "dashed" ? ' stroke-dasharray="5 4"' : ""} marker-end="url(#${hi ? "ah-hi" : "ah"})"/>`;
+  }
+  svg.innerHTML = `<defs>${["ah", "ah-hi"].map((id) => `<marker id="${id}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="var(${id === "ah" ? "--edge" : "--edge-hi"})"/></marker>`).join("")}</defs>` + paths;
+}
+
+function tierChip(t) { return `<span class="chip ${t === "none" ? "" : t.toLowerCase()}">${t === "none" ? "no tier" : t}</span>`; }
+function shortTitle(i) { return i.title.replace(/^\[(T[123]|no tier)\]\s*/, ""); }
+function issueLi(i, showBox = true) {
+  const b = i.box && state.boxes.get(i.box);
+  const where = showBox ? (b ? ` · <a href="#" data-goto="${esc(b.id)}">${esc(b.label)}</a>` : " · not on the chart") : "";
+  const tasks = i.tasksTotal > 1 ? ` · ${i.tasksDone}/${i.tasksTotal} tasks` : "";
+  return `<li class="${i.closed ? "closed" : ""}">${tierChip(i.tier)}<a class="issue-title" href="${esc(i.url)}" target="_blank" rel="noopener">#${i.number} ${esc(shortTitle(i))}</a>` +
+         `<div class="meta">${i.closed ? "closed" : "open"}${tasks}${where}</div></li>`;
+}
+
+const TIER_RANK = { T1: 1, T2: 2, T3: 3, none: 4 };
+function rank(i) {
+  const b = i.box && state.boxes.get(i.box);
+  return [TIER_RANK[i.tier], b && b.start ? 0 : 1, b ? b.order : 9999, i.number];
+}
+function byRank(a, b) {
+  const x = rank(a), y = rank(b);
+  for (let k = 0; k < x.length; k++) if (x[k] !== y[k]) return x[k] - y[k];
+  return 0;
+}
+
+function renderImportant() {
+  const list = state.issues.filter((i) => !i.closed && i.tier !== "none" && i.box).sort(byRank).slice(0, 25);
+  $("important").innerHTML = list.map((i) => {
+    const b = state.boxes.get(i.box);
+    return `<li>${tierChip(i.tier)}${b.start ? '<span class="chip start">start</span>' : ""}` +
+           `<a class="issue-title" href="${esc(i.url)}" target="_blank" rel="noopener">${esc(shortTitle(i))}</a>` +
+           `<div class="meta">#${i.number} · <a href="#" data-goto="${esc(b.id)}">${esc(b.label)}</a>${i.tasksTotal > 1 ? ` · ${i.tasksDone}/${i.tasksTotal} tasks` : ""}</div></li>`;
+  }).join("") || '<li class="empty">No open tiered issues on the chart.</li>';
+}
+
+function renderBoxTab() {
+  const b = state.selected && state.boxes.get(state.selected);
+  if (!b) {
+    $("tab-box").innerHTML = '<p class="hint">Pick a box in the chart to see its issues.</p>';
+    return;
+  }
+  const stage = state.flow.stages.find((s) => s.id === b.stage);
+  const links = (ids, word) => ids.length ? `<div class="meta">${word}: ${ids.map((f) => `<a href="#" data-goto="${esc(f.id)}">${esc(state.boxes.get(f.id).label)}</a>${f.kind === "dashed" ? " (feeds in)" : ""}`).join(", ")}</div>` : "";
+  const after = Object.entries(b.to || {}).map(([id, kind]) => ({ id, kind }));
+  const issues = [...b.issues].sort((x, y) => (x.closed - y.closed) || byRank(x, y));
+  $("tab-box").innerHTML =
+    `<div class="eyebrow">${esc(stage.title)}</div><h2>${esc(b.label)}</h2>` +
+    `${b.note ? `<p class="hint">${esc(b.note)}</p>` : ""}` +
+    `<div class="meta">${b.open} open, ${b.closedCount} closed · ${b.tasksDone}/${b.tasksTotal} tasks · label <code>roadmap:${esc(b.id)}</code></div>` +
+    links(b.from, "Comes after") + links(after, "Leads to") +
+    `<p><a href="https://github.com/${esc(state.flow.repo)}/issues?q=${encodeURIComponent(`label:roadmap:${b.id}`)}" target="_blank" rel="noopener">Open on GitHub</a></p>` +
+    `<ul class="issues">${issues.map((i) => issueLi(i, false)).join("") || '<li class="empty">No issues carry this box’s label.</li>'}</ul>`;
+}
+
+function renderLists() {
+  const q = $("search").value.trim().toLowerCase(), tier = $("f-tier").value, st = $("f-state").value;
+  const list = state.issues.filter((i) => {
+    if (st && (st === "open") === i.closed) return false;
+    if (tier && i.tier !== tier) return false;
+    if (!q) return true;
+    const b = i.box && state.boxes.get(i.box);
+    return (`#${i.number} ${i.title} ${i.labels.join(" ")} ${b ? b.label : ""}`).toLowerCase().includes(q);
+  }).sort(byRank);
+  $("all-list").innerHTML = list.slice(0, 400).map((i) => issueLi(i)).join("") || '<li class="empty">Nothing matches.</li>';
+  for (const el of document.querySelectorAll(".box")) {
+    const b = state.boxes.get(el.dataset.box);
+    el.classList.toggle("dim", !!q && !b.label.toLowerCase().includes(q) && !b.id.toLowerCase().includes(q) &&
+      !b.issues.some((i) => (`#${i.number} ${i.title}`).toLowerCase().includes(q)));
+  }
+  $("unsorted-list").innerHTML = state.issues.filter((i) => !i.closed && !(i.box && state.boxes.has(i.box)))
+    .sort(byRank).map((i) => issueLi(i, false)).join("") || '<li class="empty">Every open issue has a box.</li>';
+}
+
+function select(id, scroll) {
+  state.selected = id;
+  for (const el of document.querySelectorAll(".box")) el.classList.toggle("sel", el.dataset.box === id);
+  showTab("box");
+  renderBoxTab();
+  drawEdges();
+  if (scroll) $(`box-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  try { history.replaceState(null, "", `#${id}`); } catch (e) { /* file:// */ }
+}
+
+function showTab(name) {
+  for (const btn of document.querySelectorAll("#tabs button")) btn.setAttribute("aria-selected", String(btn.dataset.tab === name));
+  for (const t of ["box", "all", "unsorted"]) $(`tab-${t}`).hidden = t !== name;
+}
+
+function render() {
+  computeBoxes();
+  renderHeader();
+  renderFlow();
+  renderImportant();
+  renderBoxTab();
+  renderLists();
+}
+
+async function load(force) {
+  $("loaded").textContent = "Loading…";
+  try {
+    if (!state.flow) {
+      const r = await fetch("flow.json", { cache: "no-cache" });
+      if (!r.ok) throw new Error(`flow.json: ${r.status}`);
+      state.flow = await r.json();
+      $("title").textContent = state.flow.title;
+      $("repo-link").href = `https://github.com/${state.flow.repo}/issues`;
+    }
+    const cached = JSON.parse(store(true, CACHE_KEY) || "null");
+    let raw, note = "";
+    if (!ISSUES_FILE && !force && cached && Date.now() - cached.at < 5 * 60 * 1000) {
+      raw = cached.issues; state.fetchedAt = cached.at;
+    } else {
+      try {
+        raw = await fetchIssues(state.flow.repo);
+        state.fetchedAt = Date.now();
+        store(false, CACHE_KEY, JSON.stringify({ at: state.fetchedAt, issues: raw }));
+      } catch (e) {
+        if (!cached) throw e;
+        raw = cached.issues; state.fetchedAt = cached.at;
+        note = ` (${e.message}; showing the copy from then)`;
+      }
+    }
+    state.issues = raw.map(parseIssue);
+    render();
+    const sel = decodeURIComponent(location.hash.slice(1));
+    if (state.boxes.has(sel)) select(sel, true);
+    $("loaded").innerHTML = `Issues read ${new Date(state.fetchedAt).toLocaleString()}<span class="error">${esc(note)}</span>`;
+  } catch (e) {
+    $("loaded").innerHTML = `<span class="error">Could not load the roadmap: ${esc(e.message)}</span>`;
+  }
+}
+
+document.addEventListener("click", (e) => {
+  const go = e.target.closest("[data-goto]");
+  if (go) { e.preventDefault(); select(go.dataset.goto, true); return; }
+  const box = e.target.closest(".box");
+  if (box) select(box.dataset.box, false);
+  const tab = e.target.closest("#tabs button");
+  if (tab) showTab(tab.dataset.tab);
+});
+document.addEventListener("keydown", (e) => {
+  const box = e.target.closest && e.target.closest(".box");
+  if (box && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); select(box.dataset.box, false); }
+});
+for (const id of ["search", "f-tier", "f-state"]) $(id).addEventListener("input", () => { if (state.flow) { showTab("all"); renderLists(); } });
+$("reload").addEventListener("click", () => load(true));
+$("theme").addEventListener("click", () => {
+  const dark = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() === "#0f1419";
+  document.documentElement.dataset.theme = dark ? "light" : "dark";
+  store(false, "roadmap-theme", document.documentElement.dataset.theme);
+  drawEdges();
+});
+const savedTheme = store(true, "roadmap-theme");
+if (savedTheme) document.documentElement.dataset.theme = savedTheme;
+let resizeTimer;
+window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => state.flow && drawEdges(), 120); });
+load(false);
+</script>
+</body>
+</html>

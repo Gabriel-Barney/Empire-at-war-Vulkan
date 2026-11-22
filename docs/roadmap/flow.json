@@ -1,0 +1,350 @@
+{
+  "title": "Road to playable",
+  "repo": "Gabriel-Barney/Empire-at-war-Vulkan",
+  "stages": [
+    {
+      "id": "st0",
+      "title": "Foundations",
+      "goal": "Battles reach an outcome, the game host runs, saves and replays round-trip, and reference captures of the original game exist.",
+      "boxes": [
+        {
+          "id": "LAND",
+          "label": "Land battle flow",
+          "note": "battles reach an outcome",
+          "done": true,
+          "to": {
+            "N1": "solid"
+          }
+        },
+        {
+          "id": "HOSTUI",
+          "label": "Game host UI wiring",
+          "note": "all groups done",
+          "done": true,
+          "to": {
+            "N1": "dashed"
+          }
+        },
+        {
+          "id": "N1",
+          "label": "N1 Save / load + replay",
+          "note": "galactic · battles · AI · Lua VMs · menus",
+          "done": true,
+          "to": {
+            "FOLLOW": "solid"
+          }
+        },
+        {
+          "id": "G1",
+          "label": "G1 in-game capture",
+          "done": true,
+          "to": {
+            "FOLLOW": "solid"
+          }
+        },
+        {
+          "id": "Q2",
+          "label": "Q2 reference traces",
+          "done": true,
+          "to": {
+            "Q2F": "solid",
+            "STORY": "dashed"
+          }
+        },
+        {
+          "id": "PROC",
+          "label": "PA Production audit and safety net",
+          "note": "git · remotes · sanitizer · gate",
+          "to": {
+            "OPT": "dashed"
+          }
+        }
+      ]
+    },
+    {
+      "id": "st2",
+      "title": "Finish the core systems",
+      "goal": "Write the code for the specs that already exist and close the gaps the reference traces found. Most of these groups do not depend on each other, so they can run in parallel by module.",
+      "exit": "Every group here is closed, the galactic AI builds and moves like the original within the q4h tolerances (build timings, income, AI choices, battle outcomes), and goldens are regenerated.",
+      "boxes": [
+        {
+          "id": "FOLLOW",
+          "label": "N1 and G1 follow-ups",
+          "note": "save tests · capture leftovers",
+          "done": true
+        },
+        {
+          "id": "RE",
+          "label": "Code the finished specs",
+          "note": "specs written 2026-10-29",
+          "done": true,
+          "to": {
+            "ABIL": "dashed",
+            "ANIM": "dashed",
+            "MOVE": "dashed",
+            "Q4": "solid",
+            "UIART": "dashed"
+          }
+        },
+        {
+          "id": "MOVE",
+          "label": "Movement and combat",
+          "note": "per-id cell query · collision layer",
+          "done": true,
+          "to": {
+            "OPT": "solid",
+            "QAFULL": "dashed"
+          }
+        },
+        {
+          "id": "ABIL",
+          "label": "Abilities",
+          "note": "OI abilities done; probe confirmed 2026-11-04",
+          "done": true,
+          "to": {
+            "Q4": "solid",
+            "QAFULL": "dashed"
+          }
+        },
+        {
+          "id": "ANIM",
+          "label": "Animation states",
+          "note": "crouch · burning · deploy · death",
+          "to": {
+            "Q4": "solid",
+            "QAFULL": "dashed"
+          }
+        },
+        {
+          "id": "AIVIEW",
+          "label": "AI: galactic and tactical",
+          "note": "player_view planet owners · tactical readings",
+          "to": {
+            "OPT": "solid",
+            "Q2F": "dashed",
+            "QAFULL": "dashed"
+          }
+        },
+        {
+          "id": "Q2F",
+          "label": "Trace parity gaps",
+          "note": "galactic AI · payment · RNG · skirmish host",
+          "to": {
+            "Q4": "solid",
+            "QAFULL": "dashed"
+          }
+        },
+        {
+          "id": "MAP",
+          "label": "Maps and map loading",
+          "note": "map record · placements · radar · start setup",
+          "to": {
+            "QAFULL": "dashed"
+          }
+        }
+      ]
+    },
+    {
+      "id": "st3",
+      "title": "Campaigns and menus",
+      "goal": "Make the story campaigns playable from start to finish and complete the remaining screens and art. Also fleet groups, a port feature that is off by default (moved here from Stage 8 · Port features on 2026-11-21, Gabriel).",
+      "exit": "A story campaign plays through to its end, and no menu screen in single player is missing. Fleet groups pass their own exit test with the switch on, and every golden passes unchanged with it off.",
+      "boxes": [
+        {
+          "id": "UIART",
+          "label": "UI art and fonts",
+          "note": "TTFs · dialogs · tech-tree art · UI1 / UI3-UI5 UI gaps",
+          "to": {
+            "Q4": "solid"
+          }
+        },
+        {
+          "id": "AUDIO",
+          "label": "Audio",
+          "note": "battle SFX triggers · weather · anim sounds · music / speech hookups · audio RE gaps",
+          "to": {
+            "Q4": "solid"
+          }
+        },
+        {
+          "id": "STORY",
+          "label": "Story campaigns end to end",
+          "note": "L1 story · L1 stage 3 · UI2 story presentation",
+          "to": {
+            "Q4": "solid"
+          }
+        },
+        {
+          "id": "FLEETG",
+          "label": "Fleet groups",
+          "note": "phase 1 done (fg1); phases 2-3 in the backlog"
+        }
+      ]
+    },
+    {
+      "id": "side5",
+      "title": "Side goal: repeatable benchmark",
+      "goal": "Give every performance goal one shared measuring tool: fixed saves, recorded orders and a scripted camera, with per-tick CRCs proving each run matched. Runs alongside the main stages; nothing on the road to playable waits for it.",
+      "exit": "A player or session can start the benchmark from the game or the command line, get a report, and see a clear flag when a run is not comparable with its baseline.",
+      "boxes": [
+        {
+          "id": "BMS",
+          "label": "BM1 Benchmark core",
+          "note": "scenario format · CRC check · sim-only mode",
+          "done": true,
+          "to": {
+            "BMR": "solid",
+            "OPT": "dashed"
+          }
+        },
+        {
+          "id": "BMR",
+          "label": "BM2 Rendered runs",
+          "note": "scripted camera · real-time and fixed frames",
+          "done": true,
+          "to": {
+            "BMC": "solid"
+          }
+        },
+        {
+          "id": "BMC",
+          "label": "BM3 Stress scenes and reports",
+          "note": "battles · galactic · effects · loads",
+          "done": true,
+          "to": {
+            "BMU": "solid"
+          }
+        },
+        {
+          "id": "BMU",
+          "label": "BM4 In-game benchmark screen",
+          "note": "menu entry · results",
+          "size": "wide"
+        }
+      ]
+    },
+    {
+      "id": "st5",
+      "title": "Graphics & Performance",
+      "goal": "Measure first, then spread and parallelise the heavy work without breaking determinism. Measuring can start at any time. The parallel work waits for the AI and tactical groups, so the edits do not clash. Also the FSR and XeSS upscalers, port features that are off by default (moved here from Stage 8 · Port features on 2026-11-21, Gabriel).",
+      "exit": "Big AI updates no longer land on a single tick, and results stay identical at any thread count. FSR and XeSS each pass their own exit test with the switch on, and every golden passes unchanged with it off.",
+      "boxes": [
+        {
+          "id": "OPT",
+          "label": "OPT Multithreading and smooth ticks",
+          "note": "measure · spread AI work · parallel passes",
+          "to": {
+            "Q4": "dashed"
+          }
+        },
+        {
+          "id": "SIMP",
+          "label": "SIMP Parallel sim redesign",
+          "note": "AI lane · snapshot · phase graph · cheap checksum",
+          "to": {
+            "Q4": "dashed"
+          }
+        },
+        {
+          "id": "FSR",
+          "label": "FSR upscaling",
+          "note": "AMD FSR 4.1 / 3.1 via FidelityFX SDK 2.4.0"
+        },
+        {
+          "id": "XESS",
+          "label": "XeSS upscaling",
+          "note": "Intel XeSS Super Resolution via XeSS SDK 3.0.2"
+        }
+      ]
+    },
+    {
+      "id": "st6",
+      "title": "Parity and full QA pass",
+      "goal": "Compare the finished port against base Forces of Corruption by behaviour (Q4), then run one deeper playtest and QA pass over the whole game instead of chasing single captures (QAFULL). The mod boxes Q5, Q6 and MODC moved to Stage 9 on 2026-11-19; Stage 7 (Full QA pass) was merged in on 2026-11-21 (Gabriel).",
+      "exit": "The behaviour comparison against base Forces of Corruption passes within tolerance, a fresh frame-by-frame capture review has no open P0 or P1 item, and every unconfirmed check from the earlier playtests has a verdict.",
+      "boxes": [
+        {
+          "id": "Q4",
+          "label": "Q4 · Milestone 1 parity check",
+          "note": "by behaviour, not hashes",
+          "to": {
+            "Q6": "dashed"
+          }
+        },
+        {
+          "id": "QAFULL",
+          "label": "Full QA pass",
+          "note": "deeper playtest · retail shots · fresh capture review"
+        }
+      ]
+    },
+    {
+      "id": "st9",
+      "title": "Mod system",
+      "goal": "All mod-system work in one stage (Gabriel, 2026-11-19: Stage 6's mod boxes Q5, Q6 and MODC moved in; Stage 10, the unified mod system refactor, stays its own finished stage). Make most, if not all, installed Forces of Corruption mods play as in retail: generated coverage ledgers (tags, Lua bindings, story rewards, AI tokens, asset formats), retail value rules for every XML loader, no port limit below retail, asset salvage settled against retail, mod stacks from modinfo.json, and a graded corpus of every installed mod (legacy docs/MOD_COMPAT_DESIGN.md and the 2026-11-17 mod audit).",
+      "exit": "Every mod in the reference set of docs/MODS.md passes its checklist (mcx9; MODC folded into MCX6 2026-11-20); the corpus runner grades every installed workshop mod and local submod stack G3 (or lower only for retail-equivalent or out-of-scope reasons), and the four reference mods G4.",
+      "boxes": [
+        {
+          "id": "Q5",
+          "label": "Q5 mod diagnostics",
+          "done": true,
+          "to": {
+            "Q6": "solid"
+          }
+        },
+        {
+          "id": "Q6",
+          "label": "Q6 Thrawn's Revenge mod compatibility",
+          "done": true,
+          "to": {
+            "MCX6": "dashed"
+          }
+        },
+        {
+          "id": "MCX1",
+          "label": "MCX1 Ledgers and load report v4",
+          "done": true,
+          "to": {
+            "MCX2": "solid",
+            "MCX3": "solid",
+            "MCX6": "solid"
+          }
+        },
+        {
+          "id": "MCX2",
+          "label": "MCX2 Data, values and limits",
+          "to": {
+            "MCX6": "dashed"
+          }
+        },
+        {
+          "id": "MCX3",
+          "label": "MCX3 Scripts, story and presentation",
+          "done": true,
+          "to": {
+            "MCX6": "dashed"
+          }
+        },
+        {
+          "id": "MCX4",
+          "label": "MCX4 Assets and salvage",
+          "to": {
+            "MCX6": "dashed"
+          }
+        },
+        {
+          "id": "MCX5",
+          "label": "MCX5 Registry, stacks and saves",
+          "done": true,
+          "to": {
+            "MCX6": "dashed"
+          }
+        },
+        {
+          "id": "MCX6",
+          "label": "MCX6 Corpus and grades"
+        }
+      ]
+    }
+  ]
+}

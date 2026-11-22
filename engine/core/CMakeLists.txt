@@ -117,13 +117,16 @@ if(ALAMO_LINT_PYTHON)
   # The old roadmap import's selection and idempotence (tools/roadmap_import.py, #32).
   add_test(NAME alamo_roadmap_import_selftest
            COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/roadmap_import.py selftest)
+  # The roadmap flowchart file is well formed (tools/roadmap_flow.py; README.md "Roadmap").
+  add_test(NAME alamo_roadmap_flow_selftest
+           COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/roadmap_flow.py selftest)
   # The exact-package smoke test's checksum and manifest verification (tools/package_smoke.py; README.md "Internal
   # packages").
   add_test(NAME alamo_package_smoke_selftest
            COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/package_smoke.py selftest)
   set_tests_properties(alamo_dev_selftest alamo_landing_gate_selftest alamo_skills_check alamo_skills_selftest
                        alamo_analyze_report_selftest alamo_nightly_record_selftest alamo_roadmap_import_selftest
-                       alamo_package_smoke_selftest PROPERTIES TIMEOUT 120)
+                       alamo_roadmap_flow_selftest alamo_package_smoke_selftest PROPERTIES TIMEOUT 120)
   # Machine-wide test slots: a second job waits for the holder, names it, and gets the slot when the holder exits or
   # crashes (tools/test_slots.py; README.md "Test slots"). It uses its own slot folder, not the machine's.
   add_test(NAME alamo_test_slots_selftest COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/test_slots.py selftest)

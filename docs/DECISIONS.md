@@ -422,3 +422,12 @@ Gabriel, 2026-11-15.
 Crash minidumps need the PDB of the exact build that crashed. `ALAMO_RELEASE_PDB` (MSVC `/Z7` plus
 `/DEBUG /OPT:REF /OPT:ICF`) stays off by default in every build tree; test builds turn it on and keep the symbols on the
 developer machine, not in the player's package.
+
+## The roadmap is the issue tracker
+
+Gabriel, 2026-11-22 ("Import everything"; GitHub Pages for the roadmap page).
+
+All open work of the old roadmap store became GitHub issues (#44-#163), and the store is no longer updated. The roadmap
+page (README.md "Roadmap") draws the flowchart from `docs/roadmap/flow.json` and reads the issues live, joining them to
+boxes through `roadmap:<box>` labels; it is published with GitHub Pages. Importing an item does not put it in focus:
+"Current focus: parity tiers 1 and 2 only" still decides what is worked on.
