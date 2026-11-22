@@ -10,8 +10,8 @@ measures of success", step 3).
                                       fail the run; with an expired entry it fails again and the entry is named
 
 CTest runs them (alamo_injected_compile_failure, alamo_injected_wrong_result, alamo_injected_quarantine; synthetic), so
-landing runs them. The
-fixtures are separate CMake projects, configured into a temporary folder: never part of the engine build or a suite.
+landing runs them. The fixtures are separate CMake projects, configured into a temporary folder: never part of the
+engine build or a suite.
 dev.cmd's logs for the injected run go to that folder too, so build\\logs\\dev-last.json keeps the real run's result.
 Standard library only.
 """

@@ -173,6 +173,14 @@ def main(argv: list[str]) -> int:
         print(f"test_suite.py: no tests selected ({' '.join(filters) or 'no filter'}): configure and build first")
         return 1
 
+    try:  # checked before the run, so a bad list fails at once
+        quarantine = load_quarantine()
+        if quarantine:
+            check_quarantine(quarantine, show_tests(build, []))
+    except QuarantineError as e:
+        print(f"test_suite.py: error: {e}")
+        return 1
+
     latest_dir = os.path.join(build, "test-results")
     # With --archive (dev.cmd: <build>\test-results\runs\<run>) this run writes its JUnit and report there, then
     # copies them up as the latest, so concurrent runs on one tree never read each other's files.
@@ -210,13 +218,9 @@ def main(argv: list[str]) -> int:
                                             "first_output": results[n]["out"][-6000:]}) + "\n")
                         results[n] = dict(again[n], flaky=True)
 
-    try:
-        results, expired = apply_quarantine(results, load_quarantine(), datetime.date.today(), selected)
-    except QuarantineError as e:
-        print(f"test_suite.py: error: {e}")
-        return 1
+    results, expired = apply_quarantine(results, quarantine, datetime.date.today())
     for note in expired:
-        print(f"test_suite.py: {note}; the failure counts again (renew or remove the entry in tests/quarantine.txt)")
+        print(f"test_suite.py: {note}; the failure counts again (renew or remove the entry)")
 
     missing = []
     if suite in ("synthetic", "all") and not filtered:
@@ -311,41 +315,56 @@ class QuarantineError(Exception):
     pass
 
 
-def parse_quarantine(lines: list[str]) -> dict[str, dict]:
-    """tests/quarantine.txt: one tab-separated entry per line, test, #issue, owner, expiry (YYYY-MM-DD)."""
+def parse_quarantine(lines: list[str], source: str = "tests/quarantine.txt") -> dict[str, dict]:
+    """One tab-separated entry per line: test, #issue, owner, expiry (YYYY-MM-DD). Errors name `source`."""
     entries: dict[str, dict] = {}
     for no, line in enumerate(lines, 1):
         if not line.strip() or line.lstrip().startswith("#"):
             continue
+        where = f"{source}:{no}"
         parts = [p.strip() for p in line.rstrip("\r\n").split("\t")]
         if len(parts) != 4 or not all(parts):
-            raise QuarantineError(f"tests/quarantine.txt:{no}: need test, #issue, owner and expiry, tab-separated: {line!r}")
+            raise QuarantineError(f"{where}: need test, #issue, owner and expiry, tab-separated: {line!r}")
         name, issue, owner, expires = parts
         if not re.fullmatch(r"#\d+", issue):
-            raise QuarantineError(f"tests/quarantine.txt:{no}: the issue is written #<number>, got {issue!r}")
+            raise QuarantineError(f"{where}: the issue is written #<number>, got {issue!r}")
         try:
             day = datetime.date.fromisoformat(expires)
         except ValueError:
-            raise QuarantineError(f"tests/quarantine.txt:{no}: the expiry is a date YYYY-MM-DD, got {expires!r}") from None
-        entries[name] = {"issue": issue, "owner": owner, "expires": day.isoformat(), "day": day}
+            raise QuarantineError(f"{where}: the expiry is a date YYYY-MM-DD, got {expires!r}") from None
+        if name in entries:
+            raise QuarantineError(f"{where}: {name} is already listed")
+        entries[name] = {"issue": issue, "owner": owner, "expires": day.isoformat(), "day": day, "source": source}
     return entries
 
 
-def load_quarantine(path: str | None = None) -> dict[str, dict]:
+def load_quarantine() -> dict[str, dict]:
     """The quarantine list; ALAMO_QUARANTINE_FILE points elsewhere (tools/injected_failures.py quarantine)."""
-    path = path or os.environ.get("ALAMO_QUARANTINE_FILE") or QUARANTINE_FILE
+    path = os.environ.get("ALAMO_QUARANTINE_FILE") or QUARANTINE_FILE
     if not os.path.isfile(path):
         return {}
     with open(path, encoding="utf-8") as f:
-        return parse_quarantine(f.read().splitlines())
+        return parse_quarantine(f.read().splitlines(), shown_path(path))
 
 
-def apply_quarantine(results: dict, entries: dict, today: datetime.date, labels: dict) -> tuple[dict, list[str]]:
-    """Failed tests under a current quarantine become 'quarantined'; an expired entry leaves the failure standing and
-    says so. A determinism check cannot be quarantined: rerunning or excusing those proves nothing."""
-    for name in entries:
+def shown_path(path: str) -> str:
+    """`path` as messages show it: relative to the checkout when inside it."""
+    path = os.path.abspath(path)
+    inside = os.path.normcase(path).startswith(os.path.normcase(ROOT) + os.sep)
+    return os.path.relpath(path, ROOT).replace(os.sep, "/") if inside else path
+
+
+def check_quarantine(entries: dict, labels: dict) -> None:
+    """A determinism check cannot be quarantined: rerunning or excusing those proves nothing. `labels` holds every
+    configured test, not only this run's, so a listed determinism check is refused whatever the run selects."""
+    for name, entry in entries.items():
         if not retryable(name, labels.get(name, [])):
-            raise QuarantineError(f"tests/quarantine.txt: {name} is a determinism check and cannot be quarantined")
+            raise QuarantineError(f"{entry['source']}: {name} is a determinism check and cannot be quarantined")
+
+
+def apply_quarantine(results: dict, entries: dict, today: datetime.date) -> tuple[dict, list[str]]:
+    """Failed tests under a current quarantine (through its expiry date, local time) become 'quarantined'; an expired
+    entry leaves the failure standing and says so."""
     out, notes = dict(results), []
     for name, entry in entries.items():
         r = out.get(name)
@@ -409,37 +428,53 @@ def selftest() -> int:
     ok("- foc: x: b" in rep, "skip reason listed")
     ok("gone_test" in rep, "missing required entry listed")
     # Quarantine (tests/quarantine.txt): test, issue, owner, expiry.
-    import datetime as _dt
-    today = _dt.date(2026, 11, 22)
+    import tempfile
+    from unittest import mock
+    today = datetime.date(2026, 11, 22)
     entries = parse_quarantine(["# comment", "", "alamo_flaky_tests\t#40\tGabriel\t2026-12-01",
                                 "alamo_old_tests\t#41\tGabriel\t2026-11-21"])
     ok(set(entries) == {"alamo_flaky_tests", "alamo_old_tests"}, "quarantine entries parsed")
-    for bad_line in ("alamo_x_tests\t#40\t\t2026-12-01", "alamo_x_tests\t40\tGabriel\t2026-12-01",
-                     "alamo_x_tests\t#40\tGabriel\t2026-13-01", "alamo_x_tests\t#40\tGabriel"):
+    for bad_lines in (["alamo_x_tests\t#40\t\t2026-12-01"], ["alamo_x_tests\t40\tGabriel\t2026-12-01"],
+                      ["alamo_x_tests\t#40\tGabriel\t2026-13-01"], ["alamo_x_tests\t#40\tGabriel"],
+                      ["alamo_x_tests\t#40\tGabriel\t2026-12-01", "alamo_x_tests\t#41\tGabriel\t2026-12-01"]):
         try:
-            parse_quarantine([bad_line])
-            ok(False, f"malformed quarantine entry accepted: {bad_line!r}")
+            parse_quarantine(bad_lines)
+            ok(False, f"malformed quarantine list accepted: {bad_lines!r}")
         except QuarantineError:
             pass
     res = {"alamo_flaky_tests": {"status": "failed", "out": ""}, "alamo_old_tests": {"status": "failed", "out": ""},
            "alamo_other_tests": {"status": "failed", "out": ""}, "alamo_ok_tests": {"status": "passed", "out": ""}}
     labels = {n: ["synthetic"] for n in res}
-    res2, notes = apply_quarantine(res, entries, today, labels)
+    res2, notes = apply_quarantine(res, entries, today)
     ok(res2["alamo_flaky_tests"]["status"] == "quarantined", "a quarantined failure is reported, not failed")
     ok(res2["alamo_old_tests"]["status"] == "failed", "an expired quarantine fails again")
     ok(any("alamo_old_tests" in n and "expired" in n for n in notes), "the expired entry is named")
     ok(res2["alamo_other_tests"]["status"] == "failed" and res2["alamo_ok_tests"]["status"] == "passed",
        "other results unchanged")
-    try:
-        apply_quarantine({"alamo_x_w4": {"status": "failed", "out": ""}},
-                         parse_quarantine(["alamo_x_w4\t#40\tGabriel\t2026-12-01"]), today, {"alamo_x_w4": []})
-        ok(False, "a determinism check was quarantined")
-    except QuarantineError:
-        pass
+    check_quarantine(entries, labels)
+    for name, test_labels in (("alamo_x_w4", []), ("alamo_x_tests", ["synthetic", "determinism"])):
+        try:  # by name, and by label (main passes every configured test's labels, not only this run's)
+            check_quarantine(parse_quarantine([f"{name}\t#40\tGabriel\t2026-12-01"]), {name: test_labels})
+            ok(False, f"a determinism check was quarantined: {name}")
+        except QuarantineError as e:
+            ok(str(e).startswith("tests/quarantine.txt:") and name in str(e), f"determinism refusal message: {e}")
+    with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ):
+        listing = os.path.join(d, "q.txt")
+        with open(listing, "w", encoding="utf-8") as f:
+            f.write("alamo_x_tests\t#40\tGabriel\t2026-12-01\nalamo_y_tests\t#40\tGabriel\t2026-12-01\n")
+        os.environ["ALAMO_QUARANTINE_FILE"] = listing
+        ok(set(load_quarantine()) == {"alamo_x_tests", "alamo_y_tests"}, "ALAMO_QUARANTINE_FILE is read")
+        with open(listing, "a", encoding="utf-8") as f:
+            f.write("alamo_z_tests\t41\tGabriel\t2026-12-01\n")
+        try:
+            load_quarantine()
+            ok(False, "a malformed quarantine file was accepted")
+        except QuarantineError as e:
+            ok(str(e).startswith(shown_path(listing) + ":3:"),
+               f"errors name the file actually read: {e}")
     rep = "\n".join(report("synthetic", res2, labels, [], [], [], False))
     ok("## Quarantined" in rep and "alamo_flaky_tests (#40, Gabriel, until 2026-12-01)" in rep, "quarantine listed")
     ok("1 quarantined" in rep, "quarantined count in the total")
-    import tempfile
     with tempfile.TemporaryDirectory() as d:
         latest = os.path.join(d, "test-results")
         for run, text in (("r1", "first"), ("r2", "second")):
