@@ -1178,6 +1178,21 @@ void test_tactical_hud_fleet_outline() {
     for (HudUnit& u : units) u.selected = u.id == 23;  // only the ungrouped unit
     hud.build(fr, units, types);
     CHECK(outlines().empty() && hud.stats().fleet_outlines == 0);
+
+    // #179: a move being aimed with a locked group selected: a faint circle at each member's destination slot.
+    const std::vector<HudFleetGoal> goals = {{20, 500.0f, 600.0f}, {21, 600.0f, 600.0f}, {22, 500.0f, 700.0f}};
+    fr.fleet_preview = goals;
+    hud.build(fr, units, types);
+    std::vector<SelectionBlob> faint;
+    for (const SelectionBlob& b : hud.selection_blobs())
+        if (b.alpha < 1.0f) faint.push_back(b);
+    CHECK(faint.size() == 3 && hud.stats().fleet_preview == 3);
+    if (faint.size() == 3)
+        CHECK(faint[1].center.x == 600.0f && faint[1].center.y == 600.0f && faint[1].center.z == 5.0f && faint[1].radius == 10.0f &&
+              faint[1].material == "space_0" && faint[1].alpha > 0.0f);
+    fr.fleet_groups_on = false;
+    hud.build(fr, units, types);
+    CHECK(hud.stats().fleet_preview == 0);
 }
 
 // #174 [port: Gabriel] Fleet groups in the selected-unit bar: each group's selected members by type, then the ungrouped

@@ -253,6 +253,18 @@ void TacticalBattle::fleet_order_move(TacticalMode& mode, uint8_t player, std::s
     }
 }
 
+std::vector<FleetGroups::LockedMove> TacticalBattle::fleet_move_preview(const TacticalMode& mode, uint8_t player,
+                                                                       std::span<const objects::ObjectId> units, float x,
+                                                                       float y, float facing_deg) const {
+    std::vector<FleetGroups::LockedMove> moves;
+    if (!fleet_on_ || finished_ || !movement_ || !std::isfinite(x) || !std::isfinite(y)) return moves;
+    const objects::ObjectStore& st = mode.primary();
+    const FleetGroups::InfoFn info = [this, &st](objects::ObjectId id) { return fleet_unit_info(st, id); };
+    std::vector<objects::ObjectId> rest;
+    fleet_.plan_move(player, units, {x, y}, facing_deg, info, moves, rest);
+    return moves;
+}
+
 void TacticalBattle::fleet_tick(const TacticalMode& mode) {
     if (!fleet_on_ || !fleet_.used() || !movement_) return;
     const objects::ObjectStore& st = mode.primary();

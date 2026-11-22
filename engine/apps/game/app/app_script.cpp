@@ -282,6 +282,8 @@ ScriptStep step_hotkey(std::string name, uint16_t slot) {
 // group's centroid (SimHost::control_group through CameraFocus::group).
 // [port: Gabriel] fleet groups (--fleet-groups only, #174): N makes a group of the selection, Y locks it; the selected-unit
 // bar then shows the group's framed run under its header tab (checked, and shot as <prefix>_fleet_groups.png).
+std::pair<int32_t, int32_t> free_ground_pixel(App& a);  // below: a ground pixel with no object under it
+
 void add_fleet_group_steps(std::vector<ScriptStep>& s, const std::string& prefix) {
     const auto press = [](const char* name, char key) {
         return ScriptStep{name, [key](App&, ui::InputFrame& f) {
@@ -322,6 +324,47 @@ void add_fleet_group_steps(std::vector<ScriptStep>& s, const std::string& prefix
                  },
                  10});
     s.push_back(step_shot(prefix + "_fleet_groups.png"));
+    // #179: hold the order button on free ground and drag (a facing): the locked group's destination slots show as faint
+    // circles, checked and shot while held; the release is the group's move.
+    struct Aim {
+        int phase = 0;
+        bool shown = false;
+        std::pair<int32_t, int32_t> px{0, 0};
+        ScriptStep shot;
+    };
+    auto st = std::make_shared<Aim>();
+    st->shot = step_shot(prefix + "_fleet_preview.png");
+    s.push_back({"aim a locked group move (preview)", [st](App& a, ui::InputFrame& f) {
+                     if (!a.bview_.active() || a.screen() != Screen::Battle) return false;
+                     const uint8_t bit = ui::button_bit(ui::Button::Right);
+                     if (st->phase < 0) {  // released last frame: done
+                         std::printf("script: fleet groups: move preview shown while aiming %d\n", st->shown ? 1 : 0);
+                         if (!st->shown) {
+                             std::fprintf(stderr, "script: no fleet group move preview while aiming\n");
+                             a.script_failed_ = true;
+                         }
+                         return true;
+                     }
+                     if (st->phase == 0) st->px = free_ground_pixel(a);
+                     constexpr int kMove = 10;
+                     const int t = std::min(st->phase, kMove);
+                     f.mouse_x = st->px.first + 8 * t;
+                     f.mouse_y = st->px.second;
+                     f.mouse_inside = true;
+                     f.buttons_down = bit;
+                     if (st->phase == 0) f.buttons_pressed = bit;
+                     if (st->phase <= kMove) {
+                         ++st->phase;
+                         return false;
+                     }
+                     st->shown = st->shown || a.ui_.tactical_hud.stats().fleet_preview > 0;
+                     if (!st->shot.run(a, f)) return false;
+                     f.buttons_down = 0;
+                     f.buttons_released = bit;
+                     st->phase = -1;
+                     return false;
+                 },
+                 1400});
 }
 
 void add_control_group_steps(std::vector<ScriptStep>& s) {

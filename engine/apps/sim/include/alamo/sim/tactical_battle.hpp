@@ -782,6 +782,11 @@ public:
     void fleet_order_move(TacticalMode& mode, uint8_t player, std::span<const objects::ObjectId> units, float x, float y, SimRng& rng,
                           float facing_deg, bool attack_move, bool queued, uint8_t move_flags, std::vector<objects::ObjectId>& rest,
                           uint32_t& moved);
+    // [port: Gabriel, #179] The locked moves fleet_order_move would issue for these arguments (the same plan), changing
+    // nothing: the host's move preview. Empty while fleet groups are off or the battle is over.
+    std::vector<FleetGroups::LockedMove> fleet_move_preview(const TacticalMode& mode, uint8_t player,
+                                                            std::span<const objects::ObjectId> units, float x, float y,
+                                                            float facing_deg) const;
     // Any other order to these units stops their locked group's running move.
     void fleet_interrupt(std::span<const objects::ObjectId> units) {
         if (fleet_on_) fleet_.interrupt(units);

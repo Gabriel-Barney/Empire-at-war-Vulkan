@@ -190,6 +190,10 @@ retail behaviour. Design: the claude.ai doc "Fleet groups design" (2026-11-13). 
 - Merge and split (2026-11-22): a group's tab in the bar shows Merge when the selection spans two or more groups (the
   groups fold into the oldest, which keeps its id, name and lock; slots are recaptured; at most 40 members) and Split
   when the group is only partly selected (a new group of the selected units). A right click on a tab renames the group.
+- World visuals (2026-11-22), presentation only, drawn with the unit selection circles (no new art): a selected locked
+  group gets one ground outline enclosing its members in the player's selection colour, and while a ground move is
+  aimed (order button held) a faint circle shows at each member's destination slot, turned with the drag's facing; the
+  slots come from the same plan the order uses (`TacticalBattle::fleet_move_preview`).
 - Hotkeys N (new group), U (ungroup), Y (lock / unlock), slots 163..165. Every fleet group order is one PortExtension
   event (id 63) of subtype `kFleetGroupSubtype`, so the original event catalogue is unchanged.
 

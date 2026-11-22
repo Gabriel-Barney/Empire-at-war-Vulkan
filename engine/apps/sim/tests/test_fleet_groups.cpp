@@ -293,6 +293,7 @@ void test_merge_split() {
 
 struct FleetRun {
     std::vector<uint64_t> digests;
+    bool previewed = false;  // #179: the move preview matched the order
     bool ordered = false;      // the group was made, locked and moved
     bool refused_off = false;  // switch off: every fleet command refused, the move passed through
     bool arrived = false;      // the move ended with every member near its slot goal
@@ -421,8 +422,27 @@ FleetRun run_fleet_battle(const Data& d, int32_t workers, bool on) {
                 fastest = std::max(fastest, b->movement().view(id).max_speed);
             }
             out.split_speeds = fastest > slowest * 1.2f;
+            // #179: the preview is the plan the order then issues, and asking for it changes nothing
+            StateHasher before;
+            b->hash(before);
+            b->movement().hash_units(before);
+            const std::vector<FleetGroups::LockedMove> preview = b->fleet_move_preview(*tm, 0, ids, tx, ty, mv::kNoFacing);
+            StateHasher after;
+            b->hash(after);
+            b->movement().hash_units(after);
+            CHECK(before.digest() == after.digest());
+            CHECK(preview.size() == 1 && preview[0].goals.size() == ids.size());
             b->fleet_order_move(*tm, 0, ids, tx, ty, rng, mv::kNoFacing, false, false, mv::kMoveFlagPlayerOrder, rest, blocks);
             CHECK(blocks == 1 && rest.empty());
+            if (preview.size() == 1 && !b->fleet_groups().groups().empty()) {
+                const FleetGroup& issued = b->fleet_groups().groups()[0];
+                bool same = issued.members.size() == preview[0].goals.size();
+                for (size_t k = 0; same && k < issued.members.size(); ++k)
+                    same = issued.members[k].id == preview[0].goals[k].id && near(issued.members[k].goal.x, preview[0].goals[k].goal.x) &&
+                           near(issued.members[k].goal.y, preview[0].goals[k].goal.y);
+                CHECK(same);
+                out.previewed = same;
+            }
             out.ordered = blocks == 1 && b->fleet_groups().any_moving();
             moving = out.ordered;
             continue;
@@ -517,7 +537,7 @@ int main(int argc, char** argv) {
     CHECK(on.ordered && on.arrived && on.capped);
     std::printf("  %u members, speeds differ %d, move %u ticks, worst slot distance %.1f, fastest over cap %.3f\n", on.members,
                 on.split_speeds ? 1 : 0, on.move_ticks, static_cast<double>(on.worst_goal), static_cast<double>(on.fastest_over));
-    CHECK(on.split_speeds && on.members == 5);  // the fixture's frigates (3) and corvettes (5): the cap is exercised
+    CHECK(on.split_speeds && on.members == 5 && on.previewed);  // the fixture's frigates (3) and corvettes (5): the cap is exercised
     std::error_code ec;
     remove_all_long(d->root, ec);
     if (g_fail) {

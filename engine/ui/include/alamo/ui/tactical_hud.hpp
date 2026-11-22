@@ -60,6 +60,11 @@ struct HudFleetGroup {
     bool locked = false;
     std::vector<uint32_t> members;  // every member, ascending (selected or not)
 };
+// #179: one member's destination slot of a locked group move being aimed (host feed: TacticalBattle::fleet_move_preview).
+struct HudFleetGoal {
+    uint32_t id = 0;  // the member
+    float x = 0.0f, y = 0.0f;
+};
 inline constexpr int32_t kFleetTabHitBase = 0x41000000;  // hit-box ids of the group header tabs (index into the runs)
 // #177: a tab's Merge button (on the oldest tab when the selection spans two or more groups; sends FleetGroupOp::Merge)
 // and Split button (on a tab whose group is only partly selected; sends FleetGroupOp::Create of the selection).
@@ -359,6 +364,7 @@ struct TacticalHudFrame {
     // retail one whatever the feed holds.
     bool fleet_groups_on = false;
     std::span<const HudFleetGroup> fleet_groups;
+    std::span<const HudFleetGoal> fleet_preview;  // #179: faint circles at these slots (fleet groups on only)
 };
 
 struct TacticalHudStats {
@@ -376,6 +382,7 @@ struct TacticalHudStats {
     uint32_t wings = 0;                 // [port: Gabriel] squadron wing buttons drawn
     uint32_t fleet_tabs = 0;            // [port: Gabriel] fleet group header tabs drawn
     uint32_t fleet_outlines = 0;        // [port: Gabriel] locked fleet group ground outlines (#178)
+    uint32_t fleet_preview = 0;         // [port: Gabriel] move-preview circles (#179)
 };
 
 class TacticalHud {

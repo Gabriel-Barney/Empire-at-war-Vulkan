@@ -130,6 +130,14 @@ struct OrderContext {
     std::function<uint32_t(uint32_t)> type_of;
 };
 
+// [port: Gabriel, 2026-11-22, #179] The ground move being aimed (OrderTranslator::move_aim): the press point on the move
+// plane and, once the drag passes the drag threshold, the facing (degrees, 0 = +x) the release would give.
+struct MoveAim {
+    Vec3 anchor{};
+    bool has_facing = false;
+    float facing_deg = 0.0f;
+};
+
 class OrderTranslator {
 public:
     static constexpr size_t kMaxSelect = 127;
@@ -166,6 +174,9 @@ public:
     size_t submit(commands::CommandPipeline& pipe, uint8_t player);
 
     const std::vector<uint32_t>& selection() const { return sel_; }
+    // [port: Gabriel, #179] While the order button is held after a press on the ground (tactical, a selection, no object
+    // under the press point): the move it would give on release. nullopt otherwise. Reads only.
+    std::optional<MoveAim> move_aim(const InputState& in, const OrderContext& ctx) const;
     void set_selection(std::vector<uint32_t> ids);  // sorted + deduplicated
 
     // Galactic local UI request: planet id to zoom onto (double click), consumed by the host.
