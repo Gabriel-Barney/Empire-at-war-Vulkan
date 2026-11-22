@@ -30,7 +30,7 @@ cmd::FleetGroupCommand op(Op o, bool locked = false) {
 bool near(float a, float b, float eps = 0.01f) { return std::fabs(a - b) <= eps; }
 
 void test_commands() {
-    for (const Op o : {Op::Create, Op::Dissolve, Op::RemoveUnits}) {
+    for (const Op o : {Op::Create, Op::Dissolve, Op::RemoveUnits, Op::Merge}) {
         const cmd::EventData e = cmd::fleet_group_event(op(o));
         CHECK(e.type() == cmd::EventType::PortExtension && e.u("subtype") == cmd::kFleetGroupSubtype);
         const auto p = cmd::parse_fleet_group(e.bytes_view("data"));
@@ -226,6 +226,69 @@ void test_logic() {
     CHECK(fg.apply(1, op(Op::Create), std::span<const objects::ObjectId>(), info) == R::InvalidUnit);
 }
 
+// #177: Merge folds the player's groups with a selected unit into the oldest (lowest id), which keeps its id, name and
+// lock; every member's slot is recaptured; a merge past kMaxMembers or of fewer than two groups is refused; Split is
+// Create from the selected part of a group.
+void test_merge_split() {
+    World w;
+    w.add(10, 0.0f, 0.0f, 4.0f);
+    w.add(11, 100.0f, 0.0f, 4.0f);
+    w.add(12, 0.0f, 100.0f, 4.0f);
+    w.add(13, 100.0f, 100.0f, 4.0f);
+    w.add(20, 500.0f, 500.0f, 4.0f, 1);
+    const FleetGroups::InfoFn info = w.fn();
+    FleetGroups fg;
+    const objects::ObjectId a[] = {10, 11}, b[] = {12, 13}, enemy[] = {20};
+    CHECK(fg.apply(0, op(Op::Create), a, info) == R::None && fg.apply(0, op(Op::Create), b, info) == R::None);
+    CHECK(fg.apply(1, op(Op::Create), enemy, info) == R::None && fg.groups().size() == 3);
+    cmd::FleetGroupCommand rn = op(Op::Rename);
+    rn.group = 1;
+    rn.name = "Anvil";
+    CHECK(fg.apply(0, rn, {}, info) == R::None && fg.apply(0, op(Op::SetLock, true), a, info) == R::None);
+    const objects::ObjectId one_group[] = {10, 11};
+    CHECK(fg.apply(0, op(Op::Merge), one_group, info) == R::InvalidUnit);  // one group only: nothing to merge
+    const objects::ObjectId across[] = {11, 12, 20};  // 20 is player 1's: its group is not touched
+    CHECK(fg.apply(0, op(Op::Merge), across, info) == R::None);
+    CHECK(fg.groups().size() == 2);
+    const FleetGroup* m = fg.group(1);
+    CHECK(m && m->name == "Anvil" && m->locked && m->owner == 0 && m->members.size() == 4 && fg.group(2) == nullptr);
+    if (m && m->members.size() == 4) {
+        CHECK(m->members[0].id == 10 && m->members[3].id == 13);
+        // recaptured: centre (50, 50), frame forward = member 10's yaw (0) -> member 13 at (+50, +50)
+        CHECK(near(m->members[3].slot.x, 50.0f) && near(m->members[3].slot.y, 50.0f));
+    }
+    CHECK(fg.group(3) && fg.group(3)->owner == 1 && fg.group(3)->members.size() == 1);
+    // save round trip of the merged state
+    {
+        ByteWriter bw;
+        fg.write(bw);
+        FleetGroups copy;
+        ByteReader br(bw.bytes());
+        CHECK(copy.read(br) && br.done());
+        StateHasher h1, h2;
+        fg.hash(h1);
+        copy.hash(h2);
+        CHECK(h1.digest() == h2.digest());
+    }
+    // split: Create from part of the merged group; the rest stays
+    const objects::ObjectId part[] = {12, 13};
+    CHECK(fg.apply(0, op(Op::Create), part, info) == R::None);
+    CHECK(fg.group(1) && fg.group(1)->members.size() == 2 && fg.group_of(12) && fg.group_of(12)->id == 4 &&
+          fg.group_of(13) == fg.group_of(12));
+    // the member cap: two groups whose members together pass kMaxMembers are not merged
+    FleetGroups big;
+    std::vector<objects::ObjectId> x, y;
+    for (objects::ObjectId id = 200; id < 200 + static_cast<objects::ObjectId>(FleetGroups::kMaxMembers); ++id) {
+        w.add(id, static_cast<float>(id), 0.0f, 4.0f);
+        (id < 230 ? x : y).push_back(id);
+    }
+    w.add(300, 0.0f, 300.0f, 4.0f);
+    y.push_back(300);  // 30 + 11 = 41 members
+    CHECK(big.apply(0, op(Op::Create), x, info) == R::None && big.apply(0, op(Op::Create), y, info) == R::None);
+    const objects::ObjectId both[] = {200, 300};
+    CHECK(big.apply(0, op(Op::Merge), both, info) == R::QueueFull && big.groups().size() == 2);
+}
+
 // ---- the space battle ----
 
 struct FleetRun {
@@ -341,8 +404,15 @@ FleetRun run_fleet_battle(const Data& d, int32_t workers, bool on) {
                 CHECK(b->order_move(*tm, 0, rest, tx, ty, rng, mv::kNoFacing, false, false, mv::kMoveFlagPlayerOrder) == R::None);
                 break;
             }
-            CHECK(b->fleet_group_command(*tm, 0, data(op(Op::Create)), ids) == R::None);
-            CHECK(b->fleet_group_command(*tm, 0, data(op(Op::SetLock, true)), ids) == R::None);
+            // #177: two groups (the first two ships, then the rest), the first locked, merged into the first.
+            const size_t half = std::min<size_t>(2, ids.size());
+            const std::vector<objects::ObjectId> first(ids.begin(), ids.begin() + static_cast<std::ptrdiff_t>(half)),
+                second(ids.begin() + static_cast<std::ptrdiff_t>(half), ids.end());
+            CHECK(b->fleet_group_command(*tm, 0, data(op(Op::Create)), first) == R::None);
+            CHECK(b->fleet_group_command(*tm, 0, data(op(Op::SetLock, true)), first) == R::None);
+            CHECK(b->fleet_group_command(*tm, 0, data(op(Op::Create)), second) == R::None);
+            CHECK(b->fleet_group_command(*tm, 0, data(op(Op::Merge)), ids) == R::None);
+            CHECK(b->fleet_groups().groups().size() == 1 && b->fleet_groups().groups()[0].locked);
             CHECK(b->fleet_group_command(*tm, 1, data(op(Op::Create)), ids) == R::InvalidUnit);  // not player 1's ships
             slowest = 3.0e38f;
             float fastest = 0.0f;
@@ -437,6 +507,7 @@ int main(int argc, char** argv) {
     test_commands();
     std::printf("fleet groups on a fake world\n");
     test_logic();
+    test_merge_split();  // #177
     auto d = make_data();
     std::printf("fleet groups in a space battle: switch off\n");
     const FleetRun off = run_fleet_battle(*d, 0, false);

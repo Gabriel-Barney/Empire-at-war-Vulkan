@@ -168,6 +168,27 @@ R FleetGroups::apply(uint8_t player, const commands::FleetGroupCommand& c, std::
             }
             return any ? R::None : R::InvalidUnit;
         }
+        case Op::Merge: {  // #177: into the oldest group with a selected unit (groups_ is in creation = id order)
+            std::vector<size_t> hit;
+            size_t total = 0;
+            for (size_t i = 0; i < groups_.size(); ++i)
+                if (groups_[i].owner == player && has_any(groups_[i], sel)) {
+                    hit.push_back(i);
+                    total += groups_[i].members.size();
+                }
+            if (hit.size() < 2) return R::InvalidUnit;
+            if (total > kMaxMembers) return R::QueueFull;
+            FleetGroup& keep = groups_[hit[0]];
+            for (size_t k = 1; k < hit.size(); ++k)
+                for (const FleetMember& m : groups_[hit[k]].members) keep.members.push_back(m);
+            std::sort(keep.members.begin(), keep.members.end(),
+                      [](const FleetMember& x, const FleetMember& y) { return x.id < y.id; });
+            keep.moving = false;
+            for (FleetMember& m : keep.members) m.moving = false;
+            capture_slots(keep, info);
+            for (size_t k = hit.size(); k-- > 1;) groups_.erase(groups_.begin() + static_cast<std::ptrdiff_t>(hit[k]));
+            return R::None;
+        }
         case Op::Rename: {
             FleetGroup* g = find(c.group);
             if (!g || g->owner != player) return R::InvalidTarget;
