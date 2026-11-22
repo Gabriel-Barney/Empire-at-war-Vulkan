@@ -306,6 +306,8 @@ uint64_t fingerprint_galactic(const galactic::GalacticRules& rules, const galact
         h.f32(d.credit_multiplier);
         h.f32(d.galactic_build_time_multiplier);
     }
+    // Not every TypeInfo field is here (next_level_base, for one): the hosts combine this with fingerprint_types, which
+    // hashes every type field as written, so a data edit is caught there (#121, test_fingerprint_next_level_base).
     h.u32(static_cast<uint32_t>(rules.types.size()));
     for (const galactic::TypeInfo& t : rules.types) {
         h.str(t.name);
