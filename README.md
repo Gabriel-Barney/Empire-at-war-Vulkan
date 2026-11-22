@@ -50,6 +50,8 @@ In Command Center, select `build\bin\alamo_game.exe` as the engine executable an
 
 `fxc.exe`, `d3dcompiler_47.dll` and Command Center are never in it. A listed file missing from the build fails the command and names the file. No game data ships. Packages are for testing and are not published (`docs\DECISIONS.md` "fxc ships in test builds").
 
+`.github/workflows/release.yml`, started by hand on `main` (Actions → release → Run workflow; a run from another branch fails at once), runs `dev.cmd package` for that commit on a hosted runner. It attaches `alamo-<sha>.zip`, `alamo-<sha>-pdb.zip` and `SHA256SUMS` to a draft GitHub Release named "Internal build <sha>". Only collaborators can see a draft, and nothing is published. A second job on a fresh runner then downloads that exact package from the draft and runs `python -I tools\package_smoke.py check <zip> --sums SHA256SUMS`, which you can also run locally on a package. It verifies every checksum and the manifest. Then, from the unpacked folder, it checks that `alamo_game --list-flags --json` equals the launcher's copy, and runs `alamo_headless --selfcheck` and the replay with `--check-workers`. A gameplay `--smoke` with game data is a recorded local run on the same package.
+
 ## Game data
 
 Set `ALAMO_FOC_DATA` to the Forces of Corruption installation directory and `ALAMO_EAW_DATA` to the base game's installation directory. Each path should contain a `Data\` folder. For persistent settings on this machine, use `dev.local.cmd` at the project root. Example contents follow.
