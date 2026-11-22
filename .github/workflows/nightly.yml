@@ -3,6 +3,7 @@
 # "Nightly checks: last passing" (tools/nightly_record.py); a failed run leaves that row as it was and fails here.
 #   analyze -> dev.cmd check --preset analyze: build with MSVC /analyze, fail on a finding not in
 #              tests/analyze_baseline.txt (tools/analyze_report.py)
+#   asan    -> dev.cmd check --preset asan: build with MSVC AddressSanitizer, run the synthetic suite
 name: nightly
 
 on:
@@ -18,7 +19,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  analyze:
+  check:
+    strategy:
+      fail-fast: false  # one preset failing does not cancel the other
+      matrix:
+        preset: [analyze, asan]
     runs-on: windows-2025
     timeout-minutes: 240
     steps:
@@ -43,31 +48,44 @@ jobs:
       - name: dev.cmd doctor
         shell: cmd
         run: call .\dev.cmd doctor --engine-only
-      - name: dev.cmd check --preset analyze
+      # The GPU tests in the suite need the pinned validation layer, which an elevated loader finds only in HKLM
+      # (the same step as landing.yml).
+      - name: Register the validation layer for the elevated Vulkan loader
+        if: matrix.preset == 'asan'
+        shell: pwsh
+        run: |
+          $json = Join-Path $env:GITHUB_WORKSPACE 'toolchain\vvl\bin\VkLayer_khronos_validation.json'
+          if (-not (Test-Path $json)) { throw "missing $json" }
+          New-Item -Path 'HKLM:\SOFTWARE\Khronos\Vulkan\ExplicitLayers' -Force | Out-Null
+          New-ItemProperty -Path 'HKLM:\SOFTWARE\Khronos\Vulkan\ExplicitLayers' -Name $json -Value 0 -PropertyType DWord -Force | Out-Null
+      - name: dev.cmd check --preset ${{ matrix.preset }}
         shell: cmd
-        run: call .\dev.cmd check --preset analyze
+        run: call .\dev.cmd check --preset ${{ matrix.preset }}
       - name: Report
         if: always()
         shell: bash
         run: |
           f=build/logs/dev-last.json
           [ -f "$f" ] || exit 0
-          { echo "### analyze: $f"; echo '```json'; cat "$f"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          { echo "### ${{ matrix.preset }}: $f"; echo '```json'; cat "$f"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: nightly-analyze-${{ github.run_id }}-${{ github.run_attempt }}
-          path: build/logs/
+          name: nightly-${{ matrix.preset }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            build/logs/
+            build-asan/test-results/
           if-no-files-found: warn
           retention-days: 30
 
   # Only main's commits are recorded: a manual run on another branch checks it but does not touch the record.
   record:
-    needs: [analyze]
+    needs: [check]
     if: always() && github.ref == 'refs/heads/main'
     runs-on: windows-2025
     permissions:
+      actions: read  # each matrix leg's own result, from this run
       contents: read
       issues: write
     steps:
@@ -80,11 +98,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RESULTS: analyze=${{ needs.analyze.result }}
+          RUN_ID: ${{ github.run_id }}
           SHA: ${{ github.sha }}
           RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
+          # "check (analyze)" -> analyze=<conclusion>; a leg that never ran is recorded as missing.
+          results=$(gh run view "$RUN_ID" --json jobs -q '[.jobs[] | select(.name | startswith("check (")) | (.name | ltrimstr("check (") | rtrimstr(")")) + "=" + (.conclusion // "missing")] | join(",")')
+          for p in analyze asan; do case ",$results," in *",$p="*) ;; *) results="$results,$p=missing";; esac; done
+          RESULTS="${results#,}"
           title="Nightly checks: last passing"
           n=$(gh issue list --state all --limit 1000 --search "\"$title\" in:title" --json number,title -q ".[] | select(.title == \"$title\") | .number" | head -1)
           if [ -z "$n" ]; then
