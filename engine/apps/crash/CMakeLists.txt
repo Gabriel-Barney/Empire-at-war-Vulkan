@@ -12,3 +12,5 @@ add_executable(alamo_crash_tests tests/test_crash.cpp)
 target_link_libraries(alamo_crash_tests PRIVATE alamo_crash alamo_test_support)
 add_test(NAME alamo_crash_tests COMMAND alamo_crash_tests)
 set_tests_properties(alamo_crash_tests PROPERTIES TIMEOUT 120)
+# It crashes on purpose; AddressSanitizer would catch those crashes before the handler under test does.
+set_property(TEST alamo_crash_tests APPEND PROPERTY LABELS no_asan)

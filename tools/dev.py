@@ -12,6 +12,8 @@
                                             full  build-full\\  fresh configure, clean build, suite all
                                             analyze  build-analyze\\  build with MSVC /analyze, then fail on a
                                                      finding not in tests\\analyze_baseline.txt (no suite)
+                                            asan  build-asan\\  build with MSVC AddressSanitizer and PDBs, suite
+                                                  synthetic without the tests labelled no_asan
   dev.cmd test [--preset P] [CTEST ARGS]  run CTest on the preset's tree with any CTest options
   dev.cmd suite [NAME] [--preset P] [tools/test_suite.py options] [-- CTEST ARGS]
   dev.cmd launcher | launcher-test        build or test the Rust Command Center launcher
@@ -421,14 +423,17 @@ def check_plan(preset: str, target: str | None, quick: bool) -> dict:
         if target or quick:
             raise SystemExit("dev.cmd check: --target and --quick do not apply to --preset analyze")
         return {"fresh": False, "clean": False, "suite": None, "analyze": True}
-    if preset not in ("fast", "full"):
-        raise SystemExit(f"dev.cmd check: preset '{preset}' has no check yet (fast, full, analyze)")
+    if preset not in ("fast", "full", "asan"):
+        raise SystemExit(f"dev.cmd check: preset '{preset}' has no check yet (fast, full, analyze, asan)")
     full = preset == "full"
     suite = ["all"] if full else ["synthetic"]
     if quick:
         suite.append("--fast")
+    ctest = ["-LE", "^no_asan$"] if preset == "asan" else []  # deliberate crashes ASan would intercept
     if target:
-        suite += ["--", "-R", "^" + re.escape(target)]
+        ctest += ["-R", "^" + re.escape(target)]
+    if ctest:
+        suite += ["--", *ctest]
     return {"fresh": full, "clean": full, "suite": suite, "analyze": False}
 
 
@@ -522,6 +527,13 @@ class _Tests(unittest.TestCase):
         # analyze: an incremental /analyze build compared with the baseline; no suite (the binaries are fast's).
         self.assertEqual(check_plan("analyze", None, False),
                          {"fresh": False, "clean": False, "suite": None, "analyze": True})
+        # asan: an incremental AddressSanitizer build running the synthetic suite (--quick and --target apply).
+        # Tests labelled no_asan (deliberate crashes that ASan intercepts) are left out.
+        self.assertEqual(check_plan("asan", None, False),
+                         {"fresh": False, "clean": False, "suite": ["synthetic", "--", "-LE", "^no_asan$"],
+                          "analyze": False})
+        self.assertEqual(check_plan("asan", "alamo_x_tests", True)["suite"],
+                         ["synthetic", "--fast", "--", "-LE", "^no_asan$", "-R", "^alamo_x_tests"])
         for bad in (("nope", None, False), ("analyze", "alamo_x_tests", False), ("analyze", None, True)):
             with self.assertRaises(SystemExit):
                 check_plan(*bad)
@@ -529,6 +541,7 @@ class _Tests(unittest.TestCase):
     def test_analyze_preset_has_its_own_build_folder(self):
         presets = load_presets()
         self.assertEqual(presets["analyze"], os.path.join(ROOT, "build-analyze"))
+        self.assertEqual(presets["asan"], os.path.join(ROOT, "build-asan"))
         self.assertEqual(len(set(presets.values())), len(presets))
 
     def test_each_run_has_its_own_temp_and_result_folders(self):

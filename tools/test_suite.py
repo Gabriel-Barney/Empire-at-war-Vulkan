@@ -160,7 +160,10 @@ def main(argv: list[str]) -> int:
     if suite != "all" and suite != "synthetic":
         require.append(suite)
     fast = "--fast" in opts
-    filtered = any(a in FILTER_ARGS for a in extra)
+    # Excluding by label (dev.cmd check --preset asan: -LE ^no_asan$) is not a selection: the required-entry check still
+    # runs, without the entries the label excludes.
+    label_excludes = [extra[i + 1] for i, a in enumerate(extra[:-1]) if a in ("-LE", "--label-exclude")]
+    filtered = any(a in FILTER_ARGS and a not in ("-LE", "--label-exclude") for a in extra)
 
     filters = ([] if suite == "all" else ["-L", f"^{suite}$"]) + (["-LE", "^slow$"] if fast else []) + extra
     selected = show_tests(build, filters)
@@ -211,7 +214,9 @@ def main(argv: list[str]) -> int:
         if required is None:  # without the list the check would pass vacuously
             missing = [f"(tests/required_synthetic.txt is missing: regenerate it with dev.cmd suite --write-required)"]
         else:
-            missing = sorted(n for n, slow in required.items() if n not in results and not (fast and slow))
+            excluded = excluded_by_labels(show_tests(build, []), label_excludes) if label_excludes else set()
+            missing = sorted(n for n, slow in required.items()
+                             if n not in results and not (fast and slow) and n not in excluded)
 
     lines = report(suite, results, selected, flaky, missing, require, fast)
     path = os.path.join(results_dir, f"report-{suite}.md")
@@ -298,6 +303,11 @@ def show_all_labels():
 _BUILD = [os.path.join(ROOT, "build")]
 
 
+def excluded_by_labels(tests: dict[str, list[str]], patterns: list[str]) -> set[str]:
+    """The tests with a label matching one of the CTest -LE regular expressions."""
+    return {n for n, labels in tests.items() if any(re.search(p, label) for p in patterns for label in labels)}
+
+
 def publish_latest(run_dir: str, latest_dir: str, suite: str) -> None:
     """Copies a run's report and JUnit files from its own folder to <build>\test-results, the latest run's place."""
     for name in (f"report-{suite}.md", f"{suite}.xml", f"{suite}-retry.xml"):
@@ -335,6 +345,9 @@ def selftest() -> int:
     ok("| retail | 0 | 0 | 1 | 0 |" in rep and "| retail+vulkan | 0 | 1 | 0 | 0 |" in rep, "per-suite table")
     ok("- foc: x: b" in rep, "skip reason listed")
     ok("gone_test" in rep, "missing required entry listed")
+    tests = {"a": ["synthetic"], "crash": ["synthetic", "no_asan"], "b": ["synthetic", "slow"]}
+    ok(excluded_by_labels(tests, ["^no_asan$"]) == {"crash"}, "a -LE label excludes only its entries")
+    ok(excluded_by_labels(tests, []) == set(), "no -LE excludes nothing")
     import tempfile
     with tempfile.TemporaryDirectory() as d:
         latest = os.path.join(d, "test-results")
