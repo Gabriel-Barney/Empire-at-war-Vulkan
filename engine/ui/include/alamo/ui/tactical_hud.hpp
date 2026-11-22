@@ -375,6 +375,7 @@ struct TacticalHudStats {
     bool drag_box = false;              // drag-select box drawn
     uint32_t wings = 0;                 // [port: Gabriel] squadron wing buttons drawn
     uint32_t fleet_tabs = 0;            // [port: Gabriel] fleet group header tabs drawn
+    uint32_t fleet_outlines = 0;        // [port: Gabriel] locked fleet group ground outlines (#178)
 };
 
 class TacticalHud {
@@ -450,6 +451,7 @@ private:
     void build_objectives(const TacticalHudFrame& f);
     void build_wings(const TacticalHudFrame& f);
     void build_fleet_tabs(const TacticalHudFrame& f);
+    void build_fleet_outlines(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
     size_t panel_slot_count() const;
     int32_t font_of(int32_t component, float fallback_points) const;
     void hit(int32_t component, uint32_t layer, Vec2f center, Vec2f size, uint32_t slot = 0);
