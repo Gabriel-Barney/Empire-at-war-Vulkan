@@ -3023,6 +3023,18 @@ std::vector<uint32_t> GalacticAiWorld::solve_potential_plan(int32_t player, std:
     return out;
 }
 
+// A MoveTo status also hashes where it goes, how and which fleet it moves (#119): the save keeps them, so a divergence
+// there shows in the CRC log. The other kinds hash as before.
+void hash_status(StateHasher& h, const StatusRec& s) {
+    h.boolean(s.finished);
+    h.u8(static_cast<uint8_t>(s.result));
+    if (s.kind == StatusKind::MoveTo) {
+        h.u32(s.dest);
+        h.u8(s.mode);
+        h.u32(s.fleet);
+    }
+}
+
 void GalacticAiWorld::hash(StateHasher& h) const {
     const Impl& w = *impl_;
     assert(w.lost_tfs.empty() && w.lost_members.empty());  // bkg2 b0099: not hashed, drained within the frame
@@ -3058,8 +3070,7 @@ void GalacticAiWorld::hash(StateHasher& h) const {
     h.u32(static_cast<uint32_t>(w.statuses.size()));
     for (const auto& [id, s] : w.statuses) {
         h.i32(id);
-        h.boolean(s.finished);
-        h.u8(static_cast<uint8_t>(s.result));
+        hash_status(h, s);
     }
     h.u32(static_cast<uint32_t>(w.builds.size()));
     for (const auto& [id, b] : w.builds) {

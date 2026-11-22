@@ -1245,6 +1245,7 @@ void test_save_foc();
 #endif
 #endif
 void test_category_masks_from_enum_files();
+void test_status_hash_covers_move_to();  // #119
 void test_type_info_mod_categories();
 
 // Test functions (defined in the part files)
