@@ -696,6 +696,7 @@ void test_ownership() {
 // keeps its previous owner only when its type has Planet_Retains_Residual_Influence (default true) and it is not
 // destroyed; else its Political_Faction's player when its Political_Control is above 0; else the neutral player.
 void test_residual_influence() {
+    constexpr uint32_t kEmpireFaction = 0;  // make_rules: Empire, Underworld, Neutral
     // Underworld carries D's infantry to C, invades, then lifts the troops off C again: C has no physical owner left.
     const auto capture_and_leave = [](World& w) {
         GalacticSim& s = w.sim;
@@ -721,19 +722,21 @@ void test_residual_influence() {
         GalacticRules r = make_rules();
         r.types[tPlanetC].retains_residual_influence = false;
         r.types[tPlanetC].political_control = 2;
-        r.types[tPlanetC].political_faction = 0;  // Empire
+        r.types[tPlanetC].political_faction = kEmpireFaction;
         World w({{pUnder, rD, tCorvette}, {pUnder, rD, tInfantry}}, std::move(r));
         CHECK(w.planet(rC).owner == pEmpire);
         capture_and_leave(w);
-        CHECK(w.planet(rC).owner == pEmpire);
+        // A leaning owner is not owned for the target (BKG1 9.2 steps 3-4): floor 0, no presence entry, +v.
+        CHECK(w.planet(rC).owner == pEmpire && w.planet(rC).target_control == 2.0f);
     }
     {   // Residual influence comes before the leaning: the emptied planet stays with its last owner.
         GalacticRules r = make_rules();
         r.types[tPlanetC].political_control = 2;
-        r.types[tPlanetC].political_faction = 0;
+        r.types[tPlanetC].political_faction = kEmpireFaction;
         World w({{pUnder, rD, tCorvette}, {pUnder, rD, tInfantry}}, std::move(r));
         capture_and_leave(w);
-        CHECK(w.planet(rC).owner == pUnder);
+        // A residual owner is owned (floor 1, RESIDUAL_INFLUENCE 1) and its faction is not the leaning's: -2 + 1 -> 1.
+        CHECK(w.planet(rC).owner == pUnder && w.planet(rC).target_control == 1.0f);
     }
 }
 
