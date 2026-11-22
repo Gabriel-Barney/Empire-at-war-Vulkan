@@ -1,6 +1,111 @@
 # Empire at War Vulkan
 
-A Windows x64 port of the Empire at War engine. The C++20 engine uses MSVC and Vulkan. The Rust Command Center launcher uses the Windows MSVC target.
+> [!IMPORTANT]
+> **AI disclaimer.** This project is built mostly by AI coding agents (Claude Code and OpenAI Codex), directed by one
+> human maintainer. The engine code, tests, tools and documentation are largely AI-written. Every change must pass the
+> automated build and test checks before it lands, but not every line has been reviewed by a person. Expect mistakes,
+> and please report them as issues.
+
+A new engine for **Star Wars: Empire at War – Forces of Corruption**, written from scratch in C++20 with a **Vulkan**
+renderer for 64-bit Windows. It reads the game files of your installed copy and aims to play exactly like the original,
+while adding modern graphics options, smoother performance, better mod support and some optional quality-of-life features.
+
+**You need your own copy of the game.** No game files are included or ever committed. This is an unofficial fan project.
+It is not affiliated with or endorsed by Petroglyph, Lucasfilm, LucasArts, Disney or Electronic Arts.
+
+**Forks are welcome.** The project is public domain (see [LICENSE](LICENSE)), so you can fork it, change it and build on
+it for any purpose without asking.
+
+## Goals
+
+- **Play like the original.** Base Forces of Corruption is the measuring stick. The simulation is checked against the
+  retail game by its behaviour within a tolerance, and with no mod loaded the port behaves the way base FoC does.
+- **A modern renderer.** Vulkan in place of the original Direct3D 9, with modern anti-aliasing, upscaling, high refresh
+  rates and any resolution or aspect ratio.
+- **Use every core and stay smooth.** The simulation spreads its work across CPU cores while giving the same results for
+  any number of worker threads, so saves, replays and checks stay exact.
+- **Run mods without special cases.** Mods load through the same data mechanisms the original uses. The engine has no
+  mod-specific code: a gap a mod exposes is fixed as a general mechanism, never as "if this is mod X".
+- **Optional quality of life.** Features the original never had, such as pause, queued orders and fleet groups, are
+  added carefully. Each is a port feature that never changes the results of the original rules, and many can be turned off.
+- **Tested and reproducible.** A fixed 30-tick-per-second simulation with a per-tick checksum, saves and replays, and a
+  large automated test suite that runs on every change.
+
+Out of scope: multiplayer, platforms other than Windows x64, and loading the original game's save files.
+
+## Improvements over the original
+
+### Graphics and display
+
+| Feature | What it does |
+| --- | --- |
+| Vulkan renderer | Replaces the original Direct3D 9 renderer; shaders compiled to SPIR-V |
+| Smooth motion at any refresh rate | The view blends between simulation steps, so motion is smooth at 144 Hz and beyond instead of stepping at 30 Hz |
+| Anti-aliasing | Off, SMAA, TAA, or MSAA 2x / 4x / 8x |
+| Upscaling (in progress) | AMD FSR 4.1 / 3.1 and Intel XeSS Super Resolution |
+| Ambient occlusion | Screen-space AO for land battles |
+| Anisotropic filtering | Up to 16x on world textures |
+| V-sync and frame cap | Standard or low-latency V-sync, and a frame-rate cap from 30 to 240 fps |
+| Display modes | Exclusive fullscreen, borderless fullscreen or windowed, at any resolution the monitor offers |
+| Wide and ultrawide screens | The galactic map widens its view instead of stretching or cropping |
+| UI scale | 100 % to 500 %, so the HUD stays readable on 1440p and 4K screens |
+
+### Controls and gameplay
+
+| Feature | What it does |
+| --- | --- |
+| Pause | A pause button and hotkey in both galactic and tactical modes |
+| Free camera | Adjustable field of view, full 360° tactical camera rotation, and W A S D camera movement |
+| Queued orders | Shift+click queues orders; the HUD draws each unit's queue as a numbered dotted path |
+| Squadron wings | Select all your fighters or all your bombers at once (F2 / F3) |
+| Fleet and ship names | Name and rename your own fleets and ships; names are kept in saves |
+| Fleet cohesion | Toggle (O) between ships flying at their own speeds and the whole fleet keeping pace with its slowest ship |
+| Fleet groups (optional) | Persistent, nameable unit groups in battle that can be locked into formation, merged and split |
+| Mission holocron | Opens by itself at the start of a new campaign instead of only flashing its button |
+
+### Mods
+
+- Finds mods from command-line switches, mod folders and your Steam Workshop subscriptions, and stacks them in a defined order.
+- Writes a load report that lists what a mod uses and anything the engine could not load, instead of crashing.
+- Native 64-bit, so large mods are not held to the original's 32-bit memory space.
+- Thrawn's Revenge is the first full compatibility test case. The rules are in [docs/MODS.md](docs/MODS.md).
+
+### Command Center launcher
+
+A separate launcher (Rust) that starts the game with profiles, mods, Steam Workshop items, saves, graphics options and
+diagnostics. It reads Workshop state from Steam's own files and contains no Valve code.
+
+### Under the hood
+
+- A multi-threaded, deterministic simulation: identical results with 0, 1, 4 or 16 worker threads.
+- Save and load across galactic conquest, battles, AI and Lua scripts, plus replays of recorded orders.
+- A repeatable benchmark with fixed saves, recorded orders and a scripted camera.
+- Lua 5.0.2, the same version the original uses, so scripts keep their behaviour.
+
+## Status
+
+**Work in progress, not yet a complete game.** The foundations are done: battles play through to an outcome, saves and
+replays work, and the mod system loads real mods such as Thrawn's Revenge. Animation states, maps, audio, story campaigns, UI art and the
+full parity check against the retail game are still being worked on.
+
+The [roadmap](https://gabriel-barney.github.io/Empire-at-war-Vulkan/docs/roadmap/) shows every stage of the road to
+playable, with live progress from the GitHub issues. Standing design decisions are in
+[docs/DECISIONS.md](docs/DECISIONS.md), and the simulation rules are in [docs/SIMULATION.md](docs/SIMULATION.md).
+
+## Forks and contributions
+
+Forks are welcome, for any purpose: experiments, your own features, a different direction for the project, or a base
+for something new. The code is public domain under [the Unlicense](LICENSE), so no permission or credit is required
+(though a link back is appreciated). Bug reports and ideas are welcome as
+[issues](https://github.com/Gabriel-Barney/Empire-at-war-Vulkan/issues).
+
+If you fork it, keep game files out of your repository: the game's assets, and anything extracted or converted from
+them, belong to their owners.
+
+---
+
+The rest of this file is the developer guide: building, testing, continuous integration and game-data setup. The C++20
+engine builds with MSVC for Windows x64, and the Rust Command Center launcher uses the Windows MSVC target.
 
 ## Build and test
 
