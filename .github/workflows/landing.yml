@@ -17,6 +17,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read  # the classify job reads the pull request's current description for its Behaviour: line
 
 # A newer push to a pull request cancels its older run. A push to main never cancels one: main's run is what saves
 # the toolchain and compiler caches that every pull request restores (a cancelled run saves neither).
@@ -37,7 +38,10 @@ jobs:
         with:
           python-version: "3.15"
       # tools/landing_gate.py (self-test: CTest alamo_landing_gate_selftest) prints each path's class and writes
-      # code=true|false; an empty change list or a path it cannot classify fails the job.
+      # code=true|false; an empty change list or a path it cannot classify fails the job. A simulation change
+      # (tests/simulation_paths.txt) fails without a "Behaviour:" line in the description (docs/SIMULATION.md "Declared
+      # behaviour changes"). The description is read now, not from the event, so re-running the failed jobs after
+      # editing it sees the edit.
       - id: paths
         name: Classify changed paths
         shell: bash
@@ -45,7 +49,15 @@ jobs:
           EVENT: ${{ github.event_name }}
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
-        run: python -I tools/landing_gate.py classify --event "$EVENT" --base "$BASE" --head "$HEAD"
+          PR: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          body="$RUNNER_TEMP/pr-body.md"
+          : > "$body"
+          if [ "$EVENT" = pull_request ]; then gh pr view "$PR" --json body -q .body > "$body"; fi
+          python -I tools/landing_gate.py classify --event "$EVENT" --base "$BASE" --head "$HEAD" --body-file "$body"
 
   docs:
     needs: classify

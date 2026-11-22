@@ -344,6 +344,22 @@ the declarations ("Services chain"):
 - **Forks:** forcing the per-unit loops wide (`--svc-parallel-min 1`) and running phases serially (`--svc-mode serial`)
   must give the same CRCs, at every worker count.
 
+## Declared behaviour changes
+
+A pull request that changes simulation code says what behaviour changes. The simulation paths are listed in
+`tests/simulation_paths.txt`. The pull request's description carries one line:
+
+- `Behaviour: none` when no observable outcome changes (a refactor, a speed-up that keeps every CRC log byte-identical);
+- `Behaviour: <scenarios and systems>` otherwise, for example `Behaviour: simultaneous combat events tie-break
+  (combat), skirmish_ai_a1`. The pull request's tests show the expected effect, and its evidence names the first
+  affected tick and the scenario result.
+
+`landing` fails a pull request that touches a listed path without that line (`tools/landing_gate.py classify`). The
+line outside HTML comments counts. The check reads the description when it runs, so after adding the line, re-run the
+failed jobs. Every `landing` run also runs the synthetic `determinism` entries ("Worker-count check"). The entries that
+need game data run in the local `dev.cmd suite retail` that the pull request records (`docs/DECISIONS.md` "Retail and
+GPU evidence is a recorded local run"). The rule is `docs/DECISIONS.md` "Simulation changes are declared".
+
 ## Proving the same outcome
 
 Every simulation change is judged against the tiers:
