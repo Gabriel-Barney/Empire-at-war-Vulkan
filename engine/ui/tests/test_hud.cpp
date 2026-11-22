@@ -1122,6 +1122,102 @@ void test_routing() {
           r2.owner(Button::Left) == PointerTarget::None);
 }
 
+// #174 [port: Gabriel] Fleet groups in the selected-unit bar: each group's selected members by type, then the ungrouped
+// units; a header tab per group run selects the whole group; past the last slot one "+N" entry holds the rest. Off, the
+// bar is the retail one whatever the feed holds.
+void test_tactical_hud_fleet_groups() {
+    // The grouping by itself: units 10..15 (types 1 1 2 1 2 1), all selected; group 3 = {12, 13}, group 5 = {10, 14}.
+    std::vector<HudUnit> units(6);
+    const uint32_t type_of[6] = {1, 1, 2, 1, 2, 1};
+    for (uint32_t i = 0; i < 6; ++i) {
+        units[i].id = 10 + i;
+        units[i].type = type_of[i];
+        units[i].owner = 0;
+        units[i].selected = true;
+    }
+    std::vector<HudFleetGroup> fleets(2);
+    fleets[0].id = 3;
+    fleets[0].members = {12, 13};
+    fleets[1].id = 5;
+    fleets[1].locked = true;
+    fleets[1].members = {10, 14};
+    {
+        const std::vector<SelectedGroup> g = group_selection_fleets(units, fleets, 24);
+        CHECK(g.size() == 5);
+        if (g.size() == 5) {
+            CHECK(g[0].fleet == 3 && g[0].type == 2 && g[0].ids == (std::vector<uint32_t>{12}));
+            CHECK(g[1].fleet == 3 && g[1].type == 1 && g[1].ids == (std::vector<uint32_t>{13}));
+            CHECK(g[2].fleet == 5 && g[2].type == 1 && g[2].ids == (std::vector<uint32_t>{10}));
+            CHECK(g[3].fleet == 5 && g[3].type == 2 && g[3].ids == (std::vector<uint32_t>{14}));
+            CHECK(g[4].fleet == 0 && g[4].type == 1 && g[4].ids == (std::vector<uint32_t>{11, 15}));
+            for (const SelectedGroup& e : g) CHECK(!e.overflow);
+        }
+        // Four slots: the fourth holds every unit from the fourth entry on.
+        const std::vector<SelectedGroup> o = group_selection_fleets(units, fleets, 4);
+        CHECK(o.size() == 4 && o[3].overflow && o[3].fleet == 0 && o[3].ids == (std::vector<uint32_t>{11, 14, 15}));
+        CHECK(o.size() == 4 && !o[2].overflow && o[2].ids == (std::vector<uint32_t>{10}));
+    }
+
+    // The HUD (the test table has two portrait slots).
+    const ComponentTable t = hud_test::load_table();
+    const TextureAtlas atlas = hud_test::make_atlas();
+    auto box = make_box_rasterizer();
+    FontCache fonts(*box);
+    TacticalHud hud;
+    hud.init(t, atlas, fonts);
+    hud.resize(1024, 768);
+    std::vector<HudTypeInfo> types(3);
+    for (HudUnit& u : units) u.selected = u.id <= 12;  // 10, 11 (type 1), 12 (type 2)
+    std::vector<HudFleetGroup> one(1);
+    one[0].id = 7;
+    one[0].name = U"Vanguard";
+    one[0].locked = true;
+    one[0].members = {10, 11, 15};  // 15 is not selected
+    TacticalHudFrame fr;
+    fr.world.view = top_view(1024, 768);
+    hud.build(fr, units, types);
+    const uint64_t retail = hud.draw_list().digest();
+    const std::vector<SelectedGroup> retail_groups = hud.panel_groups();
+    // Off: the feed changes nothing.
+    fr.fleet_groups = one;
+    hud.build(fr, units, types);
+    CHECK(hud.draw_list().digest() == retail && hud.stats().fleet_tabs == 0);
+    CHECK(hud.panel_groups().size() == retail_groups.size());
+    // On: group 7's run {10, 11} with a tab, then the ungrouped 12.
+    fr.fleet_groups_on = true;
+    hud.build(fr, units, types);
+    const auto& g = hud.panel_groups();
+    CHECK(g.size() == 2 && g[0].fleet == 7 && g[0].ids == (std::vector<uint32_t>{10, 11}) && g[1].fleet == 0 &&
+          g[1].ids == (std::vector<uint32_t>{12}));
+    CHECK(hud.stats().fleet_tabs == 1 && hud.draw_list().digest() != retail);
+    const HudHitBox* tab = nullptr;
+    for (const HudHitBox& b : hud.hit_boxes())
+        if (b.component == kFleetTabHitBase) tab = &b;
+    CHECK(tab != nullptr);
+    if (tab) {
+        const Vec2f c{0.5f * (tab->min.x + tab->max.x), 0.5f * (tab->min.y + tab->max.y)};
+        const Vec2f px = hud.canvas().canvas_to_pixel(c.x, c.y);
+        CHECK(hud.hit_test(static_cast<int32_t>(px.x), static_cast<int32_t>(px.y)) == kFleetTabHitBase);
+    }
+    // A tab click selects the whole group (15 included); a portrait click in the run selects its units of that type.
+    std::vector<commands::EventData> cmds;
+    const HudPointerEvent tab_click{HudPointerEvent::Kind::Click, Button::Left, kFleetTabHitBase, 0, 0};
+    hud.on_pointer(std::span<const HudPointerEvent>(&tab_click, 1), cmds);
+    const HudPointerEvent slot_click{HudPointerEvent::Kind::Click, Button::Left, t.find("s_select_00"), 0, 0};
+    hud.on_pointer(std::span<const HudPointerEvent>(&slot_click, 1), cmds);
+    CHECK(cmds.size() == 2 && cmds[0] == commands::ev::select({10, 11, 15}) && cmds.size() == 2 &&
+          cmds[1] == commands::ev::select({10, 11}));
+    // Overflow with two slots: 12 (type 2) joins a second group, so three entries: the second slot is "+N".
+    std::vector<HudFleetGroup> two = one;
+    two.push_back(HudFleetGroup{8, U"", false, {12}});
+    for (HudUnit& u : units) u.selected = u.id <= 13;  // 13 is ungrouped
+    fr.fleet_groups = two;
+    hud.build(fr, units, types);
+    CHECK(hud.panel_groups().size() == 2 && hud.panel_groups()[1].overflow &&
+          hud.panel_groups()[1].ids == (std::vector<uint32_t>{12, 13}));
+    CHECK(hud.stats().fleet_tabs == 1);  // the overflow slot has no tab
+}
+
 void test_tactical_hud() {
     const ComponentTable t = hud_test::load_table();
     const TextureAtlas atlas = hud_test::make_atlas();
@@ -1377,6 +1473,7 @@ int main() {
     test_world();
     test_routing();
     test_tactical_hud();
+    test_tactical_hud_fleet_groups();  // #174
     test_tactical_panels();
     g_fail += run_stage2_tests();
     if (g_fail) {

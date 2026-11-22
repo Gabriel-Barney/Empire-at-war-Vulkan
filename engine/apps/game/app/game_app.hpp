@@ -506,8 +506,10 @@ public:
     // its bomber squadrons (a member type with Bomber in its CategoryMask). F2 / F3 or the wing buttons select one; a
     // second press within 0.4 s centres the camera on it.
     void fill_wings(ui::TacticalHudFrame& hf);
+    void fill_fleet_groups(ui::TacticalHudFrame& hf);  // [port: Gabriel] fleet groups in the selected-unit bar (#174)
     void select_wing(size_t wing, bool add, bool centre_only);
     std::vector<ui::HudWing> wings_;
+    std::vector<ui::HudFleetGroup> fleet_groups_;
     int32_t wing_last_ = -1;           // wing selected last and when (double press -> camera)
     double wing_last_s_ = -1.0e30;
     bool movie_mode_ = false;          // MovieMode key / b_camera_t [port]: the interface hidden

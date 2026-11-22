@@ -71,6 +71,42 @@ std::vector<SelectedGroup> group_selection(std::span<const HudUnit> units, size_
     return groups;
 }
 
+std::vector<SelectedGroup> group_selection_fleets(std::span<const HudUnit> units, std::span<const HudFleetGroup> fleets,
+                                                  size_t slots) {
+    std::vector<SelectedGroup> out;
+    std::vector<bool> taken(units.size(), false);
+    std::vector<HudUnit> part;
+    const auto add = [&out](std::vector<SelectedGroup> gs, uint16_t fleet) {
+        for (SelectedGroup& g : gs) {
+            g.fleet = fleet;
+            out.push_back(std::move(g));
+        }
+    };
+    for (const HudFleetGroup& f : fleets) {  // each group's selected members, by type
+        part.clear();
+        for (size_t i = 0; i < units.size(); ++i)
+            if (units[i].selected && !taken[i] && std::binary_search(f.members.begin(), f.members.end(), units[i].id)) {
+                part.push_back(units[i]);
+                taken[i] = true;
+            }
+        add(group_selection(part), f.id);
+    }
+    part.clear();
+    for (size_t i = 0; i < units.size(); ++i)
+        if (units[i].selected && !taken[i]) part.push_back(units[i]);
+    add(group_selection(part), 0);
+    if (slots > 0 && out.size() > slots) {  // "+N": every unit from the last slot on
+        SelectedGroup rest;
+        rest.overflow = true;
+        rest.health = -1.0f;
+        for (size_t k = slots - 1; k < out.size(); ++k) rest.ids.insert(rest.ids.end(), out[k].ids.begin(), out[k].ids.end());
+        std::sort(rest.ids.begin(), rest.ids.end());
+        out.resize(slots - 1);
+        out.push_back(std::move(rest));
+    }
+    return out;
+}
+
 uint32_t add_drag_box(HudDrawList& dl, const HudCanvas& canvas, const DragRect& rect, uint32_t layer) {
     if (canvas.screen_width == 0 || canvas.screen_height == 0) return 0;
     const PixelBounds b = drag_select_bounds(rect);
@@ -236,6 +272,11 @@ Vec2f TacticalHud::component_size(uint32_t component, const ComponentPlacement& 
 void TacticalHud::on_pointer(std::span<const HudPointerEvent> events, std::vector<commands::EventData>& out) const {
     for (const HudPointerEvent& e : events) {
         if (e.kind != HudPointerEvent::Kind::Click || e.button != Button::Left || e.component < 0) continue;
+        if (e.component >= kFleetTabHitBase && e.component - kFleetTabHitBase < static_cast<int32_t>(fleet_tab_ids_.size())) {
+            const std::vector<uint32_t>& m = fleet_tab_ids_[static_cast<size_t>(e.component - kFleetTabHitBase)];
+            out.push_back(commands::ev::select(capped(std::vector<commands::ObjectId>(m.begin(), m.end()))));
+            continue;
+        }
         for (size_t s = 0; s < groups_.size() && s < slot_component_.size(); ++s) {
             if (slot_component_[s] == e.component) {
                 std::vector<commands::ObjectId> ids(groups_[s].ids.begin(), groups_[s].ids.end());
@@ -331,6 +372,18 @@ void TacticalHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
         h.shift = shift;
         h.ctrl = ctrl;
         act(std::move(h));
+    }
+
+    // [port: Gabriel] fleet group header tabs (#174): left click selects the whole group; shift adds it to the selection.
+    for (const HudPointerEvent& e : routed.hud) {
+        if (e.kind != HudPointerEvent::Kind::Click || e.button != Button::Left || e.component < kFleetTabHitBase ||
+            e.component - kFleetTabHitBase >= static_cast<int32_t>(fleet_tab_ids_.size()))
+            continue;
+        const std::vector<uint32_t>& m = fleet_tab_ids_[static_cast<size_t>(e.component - kFleetTabHitBase)];
+        std::vector<uint32_t> ids = shift ? selection_ids() : std::vector<uint32_t>{};
+        for (const uint32_t id : m)
+            if (std::find(ids.begin(), ids.end(), id) == ids.end()) ids.push_back(id);
+        out.push_back(commands::ev::select(capped(std::move(ids))));
     }
 
     for (const ButtonClick& k : clicks) {
@@ -463,6 +516,8 @@ void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> 
     blobs_.clear();
     hits_.clear();
     wing_ids_.clear();
+    fleet_tab_ids_.clear();
+    slot_rects_.clear();
     stats_ = {};
     if (!table_ || !atlas_ || !fonts_) return;
     faction_alt_ = frame.faction_alt;
@@ -475,7 +530,8 @@ void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> 
     wc.canvas = &canvas_;
     world_.build(wc, units, types, *atlas_, *fonts_, dl_, &blobs_, flytext);
     stats_.world = world_.stats();
-    groups_ = group_selection(units);
+    groups_ = frame.fleet_groups_on ? group_selection_fleets(units, frame.fleet_groups, panel_slot_count())
+                                    : group_selection(units);
     // ui3 t07 (HUD_GAPS §2.1): Tooltip_Text entry 1 in tactical land mode when the component has a second entry, else
     // entry 0; the groups that pick an entry by state (buy buttons, the bombing-run button) override it below.
     for (uint32_t i = 0; i < table_->size(); ++i)
@@ -485,6 +541,7 @@ void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> 
         build_skeleton(frame);
         build_radar(frame, units, types);
         build_panel(frame, types);
+        build_fleet_tabs(frame);
         build_abilities(frame);
         build_queue(frame);
         build_reinforcements(frame);
@@ -759,6 +816,21 @@ void TacticalHud::build_panel(const TacticalHudFrame& f, std::span<const HudType
             add_atlas_quad(dl_, layer, HudList::Additive, *atlas_, c.lower_effect_texture[0], p.center, {}, c.scale, Rgba8{});
         if (!pad || !add_atlas_quad(dl_, layer, HudList::Alpha, *atlas_, *pad, p.center, size, 1.0f, Rgba8{}))
             frame_rect(dl_, layer, p.center, size, kPanelBack, kPanelEdge);
+        if (slot_rects_.size() <= s) slot_rects_.resize(s + 1);
+        slot_rects_[s] = SlotRect{p.center, size, layer};
+        if (g.overflow) {  // [port: Gabriel] fleet groups (#174): "+N", the units past the last slot
+            HudTextStyle st;
+            st.font = fonts_->component_font(c.font_name, c.font_point_size, FontUse::Text, canvas_.font_height());
+            st.color = c.has_text_color ? c.text_color : Rgba8{};
+            st.outline = c.text_outline;
+            st.align = TextAlign::Center;
+            char buf[16];
+            std::snprintf(buf, sizeof buf, "+%zu", g.ids.size());
+            add_text(dl_, layer, HudList::Text, *fonts_, canvas_, ascii32(buf), p.center, st);
+            hit(ci, layer, p.center, size, static_cast<uint32_t>(s));
+            ++stats_.panel_slots;
+            continue;
+        }
         if (t.icon_name.empty() ||
             !add_atlas_quad(dl_, layer, HudList::Alpha, *atlas_, t.icon_name, p.center, {size.x - 6.0f, size.y - 6.0f}, 1.0f,
                             Rgba8{}))
@@ -1225,6 +1297,84 @@ void TacticalHud::build_objectives(const TacticalHudFrame& f) {
 // [port: Gabriel, 2026-11-13] Squadron wing buttons (HudWing): a column at the left edge of the canvas, 40 units below
 // its middle, one 172 x 24 button per wing that has a squadron: "LABEL  n" (n = squadrons) and the key hint at the right.
 // Selected look while the whole wing is selected, brighter while hovered. Hit ids kWingHitBase + wing index.
+size_t TacticalHud::panel_slot_count() const {
+    size_t n = 0;
+    while (n < slot_component_.size() && slot_component_[n] >= 0) ++n;
+    return n;
+}
+
+// [port: Gabriel, 2026-11-22, #172 / #174] Fleet groups in the selected-unit bar: each run of panel slots holding one
+// group's units gets a frame (one per row the run spans) and, above its first row, a header tab with the group's number,
+// its name and a lock when locked. The tab is a hit box (kFleetTabHitBase + tab index) that selects every member.
+void TacticalHud::build_fleet_tabs(const TacticalHudFrame& f) {
+    if (!f.fleet_groups_on) return;
+    const int32_t font = font_of(obj_text_, 8.0f);
+    const size_t n = std::min({groups_.size(), slot_component_.size(), slot_rects_.size()});
+    for (size_t s = 0; s < n;) {
+        const uint16_t id = groups_[s].fleet;
+        size_t e = s + 1;
+        while (e < n && groups_[e].fleet == id && !groups_[e].overflow) ++e;
+        if (id == 0 || groups_[s].overflow || slot_rects_[s].size.x <= 0.0f) {
+            s = e;
+            continue;
+        }
+        const HudFleetGroup* fg = nullptr;
+        for (const HudFleetGroup& x : f.fleet_groups)
+            if (x.id == id) fg = &x;
+        const bool locked = fg && fg->locked;
+        const Rgba8 edge = locked ? Rgba8{230, 190, 80, 255} : Rgba8{120, 170, 230, 255};
+        bool first = true;
+        for (size_t a = s; a < e;) {  // one frame per row of the run
+            const SlotRect& r0 = slot_rects_[a];
+            Vec2f lo{r0.center.x - 0.5f * r0.size.x, r0.center.y - 0.5f * r0.size.y};
+            Vec2f hi{r0.center.x + 0.5f * r0.size.x, r0.center.y + 0.5f * r0.size.y};
+            size_t b = a + 1;
+            for (; b < e && slot_rects_[b].size.x > 0.0f && std::fabs(slot_rects_[b].center.y - r0.center.y) < 1.0f; ++b) {
+                const SlotRect& r = slot_rects_[b];
+                lo.x = std::min(lo.x, r.center.x - 0.5f * r.size.x);
+                hi.x = std::max(hi.x, r.center.x + 0.5f * r.size.x);
+            }
+            const uint32_t layer = r0.layer + 1;
+            frame_rect(dl_, layer, {0.5f * (lo.x + hi.x), 0.5f * (lo.y + hi.y)}, {hi.x - lo.x + 4.0f, hi.y - lo.y + 4.0f},
+                       Rgba8{0, 0, 0, 0}, edge);
+            if (first) {
+                first = false;
+                const Vec2f tab_size{std::max(hi.x - lo.x + 4.0f, 64.0f), 14.0f};
+                const Vec2f tab{lo.x - 2.0f + 0.5f * tab_size.x, hi.y + 2.0f + 0.5f * tab_size.y};
+                frame_rect(dl_, layer, tab, tab_size, locked ? Rgba8{70, 52, 18, 230} : Rgba8{22, 40, 66, 230}, edge);
+                float text_x = tab.x - 0.5f * tab_size.x + 4.0f;
+                if (locked) {  // a small padlock: shackle over a body
+                    const Vec2f body{text_x + 3.0f, tab.y - 1.5f};
+                    frame_rect(dl_, layer, {body.x, body.y + 4.0f}, {4.0f, 4.0f}, Rgba8{0, 0, 0, 0}, edge);
+                    frame_rect(dl_, layer, body, {6.0f, 5.0f}, edge, edge);
+                    text_x += 9.0f;
+                }
+                if (font >= 0) {
+                    HudTextStyle st;
+                    st.font = font;
+                    st.outline = true;
+                    st.align = TextAlign::Left;
+                    st.color = Rgba8{236, 240, 246, 255};
+                    char num[16];
+                    std::snprintf(num, sizeof num, "%u", static_cast<unsigned>(id));
+                    std::u32string label = ascii32(num);
+                    label += fg && !fg->name.empty() ? U" " + fg->name : std::u32string{};
+                    add_text(dl_, layer, HudList::Text, *fonts_, canvas_, label, {text_x, tab.y}, st);
+                }
+                hit(kFleetTabHitBase + static_cast<int32_t>(fleet_tab_ids_.size()), layer, tab, tab_size);
+                std::vector<uint32_t> members;
+                if (fg) members = fg->members;
+                else
+                    for (size_t k = s; k < e; ++k) members.insert(members.end(), groups_[k].ids.begin(), groups_[k].ids.end());
+                fleet_tab_ids_.push_back(std::move(members));
+                ++stats_.fleet_tabs;
+            }
+            a = b;
+        }
+        s = e;
+    }
+}
+
 void TacticalHud::build_wings(const TacticalHudFrame& f) {
     const int32_t font = font_of(obj_text_, 8.0f);
     if (font < 0) return;

@@ -176,6 +176,25 @@ void App::fill_wings(ui::TacticalHudFrame& hf) {
     hf.wings = wings_;
 }
 
+// [port: Gabriel, 2026-11-22, #174] Fleet groups: the local player's groups (creation order) for the selected-unit bar,
+// only while fleet groups are on in this session and battle.
+void App::fill_fleet_groups(ui::TacticalHudFrame& hf) {
+    fleet_groups_.clear();
+    const sim::TacticalBattle* b = battle();
+    hf.fleet_groups_on = session_ && session_->spec().fleet_groups && b && b->fleet_groups_enabled();
+    if (hf.fleet_groups_on)
+        for (const sim::FleetGroup& g : b->fleet_groups().groups()) {
+            if (static_cast<int32_t>(g.owner) != local_player()) continue;
+            ui::HudFleetGroup h;
+            h.id = g.id;
+            h.name = ui::utf8_to_utf32(g.name);
+            h.locked = g.locked;
+            for (const sim::FleetMember& m : g.members) h.members.push_back(static_cast<uint32_t>(m.id));  // ascending id
+            fleet_groups_.push_back(std::move(h));
+        }
+    hf.fleet_groups = fleet_groups_;
+}
+
 // A wing button / F2 / F3: select the wing (`add`: the selection plus the wing); a second press of the same wing within
 // 0.4 s [port], or `centre_only`, centres the camera on the wing's members.
 void App::select_wing(size_t wing, bool add, bool centre_only) {
