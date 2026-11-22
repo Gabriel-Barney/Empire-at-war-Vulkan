@@ -11,7 +11,7 @@
 //   players      per AI player (index order): AiContext (goals, templates, learning, budget, clocks), known objects,
 //                pending desire bonuses, reachability caches (10 s source lists, the per-target 10 s stage lists),
 //                AiPathFinder, free-store VM
-//   plans        PlanInstance + its Lua VM; task forces; blocking statuses; PotentialPlans; build tasks, the pending
+//   plans        PlanInstance + its Lua VM; task forces; the lost-member queue; blocking statuses; PotentialPlans; build tasks, the pending
 //                list, the planet build queues, the market's per-frame delivery floods, free-store reservations and
 //                moves, PAYG reclaims
 //   lua runtime  pooled plan VMs per plan (pool order) + the created counter; Script_ evaluator VMs + missing names.
@@ -56,7 +56,8 @@ namespace {
 // 7: the task force's sync gather state after its stage area; 8: the task force's FleetObject (TF
 // +0x120) after its sync state, the MoveTo status's fleet after its mode.
 // 9: + each build task's claim frame; 10: + each pending desire bonus's blocking status.
-constexpr uint32_t kWorldVersion = 10;
+// 11: + the lost-member queue (lost_tfs, lost_members) after the task forces (#122).
+constexpr uint32_t kWorldVersion = 11;
 // 2: logic frame, player conflict stamps, conflict observer; 3: leaf cache keyed by (leaf, instance, system player,
 // parameter set) with each entry's parameters, the 0xE visible flags and the last seen surface units; 4 (ref4
 // t02): + each cached parameter's converted enum value (ParamValue::enum_value: the category mask a 0xE recompute reads).
@@ -536,8 +537,6 @@ void GalacticAiWorld::set_save_lua_state(bool on) { impl_->lua_state = on; }
 
 void GalacticAiWorld::write(ByteWriter& w) const {
     const Impl& m = *impl_;
-    // bkg2 b0099: lost_tfs / lost_members are neither saved nor hashed; every prune_tf caller drains them in the frame.
-    assert(m.lost_tfs.empty() && m.lost_members.empty());
     const objects::ObjectStore& st = m.store;
     w.u32(kWorldVersion);
     // ---- shape ----
@@ -655,6 +654,16 @@ void GalacticAiWorld::write(ByteWriter& w) const {
         w.boolean(t.had_units);
         w.boolean(t.no_units_sent);
         w.boolean(t.alive);
+    }
+    // ---- the lost-member queue ----
+    // bkg2 b0099: prune_tf queues a task force's lost members; drain_lost_members raises their events. A prune in the
+    // sim step (a Production_Failed handler reading its task force) is drained by the next update_player, so a save
+    // between the two keeps the queue (#122).
+    put_vec(w, m.lost_tfs);
+    w.u32(static_cast<uint32_t>(m.lost_members.size()));
+    for (const auto& [tf, h] : m.lost_members) {
+        w.i32(tf);
+        put_handle(w, st, h);
     }
     // ---- blocking statuses ----
     w.u32(static_cast<uint32_t>(m.statuses.size()));
@@ -1020,6 +1029,18 @@ bool GalacticAiWorld::read(ByteReader& r) {
             tfs.emplace_hint(tfs.end(), id, std::move(t));
         }
     }
+    // ---- the lost-member queue (older saves: empty) ----
+    std::vector<int32_t> lost_tfs;
+    std::vector<std::pair<int32_t, ObjectHandle>> lost_members;
+    if (version >= 11) {
+        if (!get_vec(r, lost_tfs)) return false;
+        const uint32_t n = save::count(r, 16);
+        for (uint32_t i = 0; i < n && r.ok(); ++i) {
+            const int32_t tf = r.i32();
+            lost_members.emplace_back(tf, get_handle(r, st));
+        }
+        if (!r.ok()) return false;
+    }
     // ---- blocking statuses ----
     std::map<int32_t, StatusRec> statuses;
     {
@@ -1309,6 +1330,8 @@ bool GalacticAiWorld::read(ByteReader& r) {
     }
     m.plans = std::move(plans);  // the replaced plan VMs are destroyed (not pooled)
     m.tfs = std::move(tfs);
+    m.lost_tfs = std::move(lost_tfs);
+    m.lost_members = std::move(lost_members);
     m.statuses = std::move(statuses);
     m.pps = std::move(pps);
     m.builds = std::move(builds);

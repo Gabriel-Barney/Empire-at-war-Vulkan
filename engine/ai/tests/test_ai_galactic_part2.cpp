@@ -2304,3 +2304,73 @@ void test_goal_old_candidate_reaccept() {
     CHECK(on.old_active && on.new_active && on.old_running == 1 && on.ended_by_goal_system == 0);
     CHECK(!ended.old_active && ended.new_active);
 }
+
+// #122: a production failure raised in the sim step (the build planet is lost) whose handler reads its task force
+// queues the member it finds gone; Unit_Destroyed fires at the next update_player's drain. A save taken between the
+// two keeps the queue, so a world loaded from it raises the event exactly as the uninterrupted world does.
+namespace {
+struct LossSaveResult {
+    bool reached = false;   // the handler ran and the hero's loss was queued before the save point
+    double destroyed = -1;  // Unit_Destroyed count after the next update_player
+};
+
+LossSaveResult run_loss_save(bool save_and_load) {
+    LossSaveResult res;
+    ParityWorld pw(false, {"LossSave"});
+    lua::GlobalValueStore gv;
+    pw.world->set_global_values(&gv);
+    auto num = [&gv](const char* n) { const lua::AiGlobalValue v = gv.get(n); return v.kind == lua::AiGlobalValue::Number ? v.number : -1.0; };
+    objects::ObjectHandle hero;
+    for (const gal::FleetState& f : pw.sim->fleets())
+        if (f.alive && f.owner == 0)
+            for (const objects::ObjectHandle u : f.contents)
+                if (pw.store->alive(u) && pw.store->type(u) == pw.hero) hero = u;
+    if (!hero) return res;
+    int32_t frame = 1;
+    // Until the task force holds the hero and the starting frigate.
+    while (frame <= 30 * 120 && num("ls_ready") < 0.0) {
+        pw.sim->update();
+        pw.world->update_player(0, frame++, true, false);
+    }
+    if (num("ls_ready") < 0.0) return res;
+    // Until the frigate is in a planet's space build queue.
+    auto building_at = [&pw]() -> int32_t {
+        for (uint32_t p = 0; p < pw.sim->planets().size(); ++p)
+            for (const gal::BuildEntry& e : pw.sim->planets()[p].queue[1])
+                if (e.player == 0) return static_cast<int32_t>(p);
+        return -1;
+    };
+    while (frame <= 30 * 240 && building_at() < 0) {
+        pw.sim->update();
+        pw.world->update_player(0, frame++, true, false);
+    }
+    const int32_t at = building_at();
+    if (at < 0) return res;
+    pw.sim->destroy_object(hero);
+    pw.sim->change_owner(pw.sim->planets()[static_cast<size_t>(at)].object, 1);
+    for (int32_t i = 0; i < 30 * 5 && num("ls_failed") < 0.0; ++i) pw.sim->update();  // the sim step alone: no drain yet
+    res.reached = num("ls_failed") == 1.0 && num("ls_count") == 1.0 && num("ls_destroyed") < 0.0;
+    if (save_and_load) {
+        ByteWriter w;
+        pw.world->write(w);
+        pw.world.reset();
+        pw.make_world();
+        ByteReader r(w.bytes());
+        CHECK(pw.world->read(r) && r.done());
+        pw.world->set_global_values(&gv);
+    }
+    pw.world->update_player(0, frame, true, false);
+    res.destroyed = num("ls_destroyed");
+    pw.world->set_global_values(nullptr);
+    return res;
+}
+}  // namespace
+
+void test_lost_members_survive_save() {
+    const LossSaveResult plain = run_loss_save(false), saved = run_loss_save(true);
+    std::printf("lost members across a save: reached %s / %s, Unit_Destroyed %.0f uninterrupted, %.0f after save and load\n",
+                plain.reached ? "yes" : "no", saved.reached ? "yes" : "no", plain.destroyed, saved.destroyed);
+    CHECK(plain.reached && saved.reached);
+    CHECK(plain.destroyed == 1.0);
+    CHECK(saved.destroyed == plain.destroyed);
+}
