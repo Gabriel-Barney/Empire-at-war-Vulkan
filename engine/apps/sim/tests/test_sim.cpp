@@ -486,6 +486,39 @@ static void determinism(const objects::GameObjectTypes& types, const terrain::Ma
 
 // --- N1 (owner: n1-host): session descriptor, save_allowed, load refusals and a host-chunk round trip (galactic mode
 // without a GalacticSim; the data-driven sessions are alamo_headless --save-check) ---
+// #121: fingerprint_galactic (the derived galactic rules) leaves TypeInfo::next_level_base out, but every host combines
+// it with fingerprint_types, which hashes every field of every type as the XML writes it. So a Next_Level_Base edit
+// between save and load is still refused as "game data differs", and saves of unchanged data keep loading.
+static void test_fingerprint_next_level_base() {
+    auto fingerprint = [](const char* next) {
+        const fs::path root = fs::temp_directory_path() / "alamo_sim_tests_next_level_base";
+        std::error_code ec;
+        remove_all_long(root, ec);
+        write_file(root / "Data/XML/GameObjectFiles.xml", "<GameObjectFiles><File>Bases.xml</File></GameObjectFiles>\n");
+        write_file(root / "Data/XML/Bases.xml",
+                   std::string("<Bases>\n"
+                               " <SpaceUnit Name=\"Syn_Base_1\"><Base_Level>1</Base_Level><Next_Level_Base>") +
+                       next +
+                       "</Next_Level_Base></SpaceUnit>\n"
+                       " <SpaceUnit Name=\"Syn_Base_2\"><Base_Level>2</Base_Level></SpaceUnit>\n"
+                       " <SpaceUnit Name=\"Syn_Base_3\"><Base_Level>3</Base_Level></SpaceUnit>\n"
+                       "</Bases>\n");
+        DirectoryProvider files(path_to_utf8(root));
+        objects::ObjectTypeDatabase db;
+        objects::GameObjectTypes types;
+        CHECK(db.load(files) && types.build(db));
+        const uint64_t fp = combine_fingerprints({fingerprint_types(types)});
+        remove_all_long(root, ec);
+        return fp;
+    };
+    SessionDescriptor saved, same, edited;
+    saved.data_fingerprint = fingerprint("Syn_Base_2");
+    same.data_fingerprint = fingerprint("Syn_Base_2");
+    edited.data_fingerprint = fingerprint("Syn_Base_3");
+    CHECK(SessionDescriptor::mismatch(saved, same).empty());
+    CHECK(SessionDescriptor::mismatch(saved, edited).find("game data differs (fingerprint") == 0);
+}
+
 static void test_save_session(const World& w) {
     // Descriptor: round trip, compared fields, informational fields, truncated data.
     SessionDescriptor d;
@@ -3579,6 +3612,7 @@ int main(int argc, char** argv) {
     test_select_all();  // bkc1 t04
     test_realtime_equals_fast(*world);
     test_save_session(*world);  // N1
+    test_fingerprint_next_level_base();  // #121
     determinism(world->types, make_synthetic_map(), "synthetic", 600);
     test_real_data();
     std::printf(g_fail ? "alamo_sim_tests: %d failure(s)\n" : "alamo_sim_tests: OK\n", g_fail);
