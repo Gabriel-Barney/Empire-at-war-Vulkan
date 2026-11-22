@@ -206,11 +206,10 @@ void test_options_round_trip() {
     CHECK(back.ask_battle_choice && back.fleet_groups);
 }
 
-}  // namespace
-
 void test_new_game_seed() {
-    // gal1 t05 (#192, decided by the user 2026-11-22): alamo_game without --seed passes the wall clock; a new front-end
-    // campaign or skirmish draws its seed from it, so two games differ (retail seeds the synced RNG per session).
+    // gal1 t05 (docs/DECISIONS.md "Each new game draws its own seed"): alamo_game without --seed passes the wall
+    // clock; a new front-end campaign or skirmish draws its seed from it, so two games differ (retail seeds the synced
+    // RNG per session).
     game::SessionOptions o = app_options();
     o.seed_clock = 1000;
     game::SessionChoice camp;
@@ -250,6 +249,8 @@ void test_new_game_seed() {
     so.seed_clock = 1000;
     CHECK(game::make_session_spec(saved, so).seed == 5);
 }
+
+}  // namespace
 
 int main() {
     test_difficulty_names();

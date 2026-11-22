@@ -583,8 +583,8 @@ std::string App::local_faction() const {
 SessionOptions App::session_options() const {
     SessionOptions o;
     o.seed = opt_.seed;
-    // gal1 t05 (#192, decided by the user 2026-11-22): without --seed a new game draws its seed from the wall clock;
-    // smoke and bench runs keep the fixed seed so their tests stay deterministic.
+    // gal1 t05 (docs/DECISIONS.md "Each new game draws its own seed"): without --seed a new game draws its seed from
+    // the wall clock; smoke and bench runs keep the fixed seed so their tests stay deterministic.
     if (!opt_.seed_given && opt_.smoke.empty() && !bench_active())
         o.seed_clock = static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
     o.battle_max_frames = opt_.battle_max_frames;
