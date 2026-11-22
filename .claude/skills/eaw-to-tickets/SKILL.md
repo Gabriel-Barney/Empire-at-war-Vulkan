@@ -18,9 +18,9 @@ The issue tracker and triage label vocabulary should have been provided to you. 
 
 Work from whatever is already in the conversation context. If the user passes a reference (a spec path, an issue number or URL) as an argument, fetch it and read its full body and comments.
 
-### 2. Explore the codebase (optional)
+### 2. Preplanning
 
-If you have not already explored the codebase, do so to understand the current state of the code. Ticket titles and descriptions should use the project's domain glossary vocabulary, and respect ADRs in the area you're touching.
+Do the preplanning in `docs/agents/preplanning.md` first, unless the spec or issue already has a current `## Preplanning` record. If the record leaves open decisions, stop and bring them to the user instead of drafting tickets. Ticket titles and descriptions should use the project's domain glossary vocabulary, and respect the decisions in `docs/DECISIONS.md` (this repository's ADRs) in the area you're touching.
 
 Look for opportunities to prefactor the code to make the implementation easier. "Make the change easy, then make the easy change."
 

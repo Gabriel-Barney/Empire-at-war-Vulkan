@@ -32,9 +32,25 @@
     "research": {"path": "skills/engineering/research", "invocation": "model"},
     "prototype": {"path": "skills/engineering/prototype", "invocation": "model"},
     "wayfinder": {"path": "skills/engineering/wayfinder", "invocation": "user"},
-    "to-spec": {"path": "skills/engineering/to-spec", "invocation": "user"},
+    "to-spec": {
+      "path": "skills/engineering/to-spec",
+      "invocation": "user",
+      "adaptations": [
+        {"file": "SKILL.md",
+         "find": "1. Explore the repo to understand the current state of the codebase, if you haven't already. Use the project's domain glossary vocabulary throughout the spec, and respect any ADRs in the area you're touching.",
+         "replace": "1. Do the preplanning in `docs/agents/preplanning.md` first, unless the issue already has a current `## Preplanning` record. If the record leaves open decisions, stop and bring them to the user instead of writing the spec. Use the project's domain glossary vocabulary throughout the spec, and respect the decisions in `docs/DECISIONS.md` (this repository's ADRs) in the area you're touching."}
+      ]
+    },
     "codebase-design": {"path": "skills/engineering/codebase-design", "invocation": "model"},
-    "to-tickets": {"path": "skills/engineering/to-tickets", "invocation": "user"},
+    "to-tickets": {
+      "path": "skills/engineering/to-tickets",
+      "invocation": "user",
+      "adaptations": [
+        {"file": "SKILL.md",
+         "find": "### 2. Explore the codebase (optional)\n\nIf you have not already explored the codebase, do so to understand the current state of the code. Ticket titles and descriptions should use the project's domain glossary vocabulary, and respect ADRs in the area you're touching.",
+         "replace": "### 2. Preplanning\n\nDo the preplanning in `docs/agents/preplanning.md` first, unless the spec or issue already has a current `## Preplanning` record. If the record leaves open decisions, stop and bring them to the user instead of drafting tickets. Ticket titles and descriptions should use the project's domain glossary vocabulary, and respect the decisions in `docs/DECISIONS.md` (this repository's ADRs) in the area you're touching."}
+      ]
+    },
     "implement": {
       "path": "skills/engineering/implement",
       "invocation": "user",
