@@ -118,6 +118,16 @@ if(ALAMO_LINT_PYTHON)
   add_test(NAME alamo_test_slots_concurrent
            COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/test_slots.py concurrent)
   set_tests_properties(alamo_test_slots_selftest alamo_test_slots_concurrent PROPERTIES TIMEOUT 300)
+  # The suite runner's own checks (suite labels, retry policy, skip reasons, the report table).
+  add_test(NAME alamo_test_suite_selftest COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/test_suite.py --selftest)
+  # Injected failures fail at the intended point (tools/injected_failures.py; tests/fixtures/injected_failures): a
+  # compile error fails dev.cmd at the build step with the compiler's diagnostic, a wrong result fails the suite run.
+  add_test(NAME alamo_injected_compile_failure
+           COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/injected_failures.py compile)
+  add_test(NAME alamo_injected_wrong_result
+           COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/injected_failures.py wrong-result)
+  set_tests_properties(alamo_test_suite_selftest PROPERTIES TIMEOUT 120)
+  set_tests_properties(alamo_injected_compile_failure alamo_injected_wrong_result PROPERTIES TIMEOUT 300)
   set_tests_properties(alamo_core_doc_refs_lint alamo_core_doc_refs_lint_selftest PROPERTIES TIMEOUT 120)
   # sim code turns data-driven seconds into frame counts only through alamo/core/frames.hpp (no plain
   # static_cast of seconds x FPS to an integer outside engine/core; tools/lint/check_frame_casts.py).
