@@ -68,7 +68,7 @@ which kept clang 20 as a nightly second compiler.
   baseline holds them as debt to work down and only a new finding fails. Third-party code is out of scope through
   `/analyze:external-` and the repository-path filter. The same workflow runs `dev.cmd check --preset asan`: the
   synthetic suite built with `/fsanitize=address` and PDBs, without the tests labelled `no_asan` (deliberate crashes
-  that ASan would intercept); any ASan report fails it.
+  that ASan would intercept); any ASan report fails it. Open on 2026-11-22: #24, so that leg fails until it is fixed.
 - **Limits.** Compiler portability is not promised. Undefined behaviour and races are caught only by the MSVC checks,
   the tests and review, so code that converts out-of-range values keeps using the defined helpers
   (`alamo/core/x86_int.hpp`, `alamo/core/frames.hpp`).

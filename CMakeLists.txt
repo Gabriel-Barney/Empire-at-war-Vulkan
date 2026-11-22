@@ -26,7 +26,8 @@ endif()
 # the code that writes a container and the code that reads it, so mixing instrumented and plain code reports false
 # use-after-poison. /Z7 gives ASan the debug info for its reports (without it, warning C5072 is an error under /WX).
 # The linker adds the ASan runtime (/INFERASANLIBS, the default); the tests find its DLL on the MSVC environment's PATH.
-# Release already avoids the incompatible /RTC, /ZI and incremental linking.
+# Release already avoids the incompatible /RTC, /ZI and incremental linking. The asan preset also sets
+# ALAMO_RELEASE_PDB for the linker's /DEBUG, so the reports name functions and lines.
 option(ALAMO_ASAN "Compile everything with MSVC /fsanitize=address" OFF)
 if(ALAMO_ASAN)
   message(STATUS "AddressSanitizer: on")

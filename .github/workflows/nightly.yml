@@ -75,7 +75,7 @@ jobs:
           name: nightly-${{ matrix.preset }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             build/logs/
-            build-asan/test-results/
+            build-${{ matrix.preset }}/test-results/
           if-no-files-found: warn
           retention-days: 30
 
@@ -93,7 +93,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.15"
-      - name: Update "Nightly checks: last passing"
+      - name: 'Update the issue "Nightly checks: last passing"'  # quoted: a colon and space would end a plain value
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
