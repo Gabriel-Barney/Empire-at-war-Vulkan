@@ -581,13 +581,14 @@ int ai_campaign_run(const MapRunOptions& opt, const AiRunOptions& aopt) {
                 }
             }
             if (n % 1800 == 0 || n == opt.ticks) {
-                char line[256];
-                int k = std::snprintf(line, sizeof line, "# t=%" PRIu64 "s planets", n / 30);
+                // Built as a string: a campaign has no player limit, so a fixed buffer could overflow (#99).
+                char crc[17];
+                std::snprintf(crc, sizeof crc, "%016" PRIx64, host.crc_log().records.back().combined);
+                t += "# t=" + std::to_string(n / 30) + "s planets";
                 for (size_t p = 0; p < gs->players().size(); ++p)
-                    k += std::snprintf(line + k, sizeof line - static_cast<size_t>(k), " %zu=%d", p, gs->planets_owned(static_cast<int32_t>(p)));
-                std::snprintf(line + k, sizeof line - static_cast<size_t>(k), " plans %zu conflicts %zu crc %016" PRIx64 "\n",
-                              world.running_plans(), battles.conflicts().log().size(), host.crc_log().records.back().combined);
-                t += line;
+                    t += " " + std::to_string(p) + "=" + std::to_string(gs->planets_owned(static_cast<int32_t>(p)));
+                t += " plans " + std::to_string(world.running_plans()) + " conflicts " +
+                     std::to_string(battles.conflicts().log().size()) + " crc " + crc + "\n";
             }
         }
         const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
