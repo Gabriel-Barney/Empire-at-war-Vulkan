@@ -2,7 +2,7 @@
 # One aggregate status, "landing", succeeds only when the jobs the change needs report success for this candidate:
 #   docs-only change  -> docs   (doc-reference lint)
 #   anything else     -> engine (pinned MSVC toolchain, dev.cmd doctor, dev.cmd check --preset fast = build with /WX
-#                                and the synthetic suite)
+#                                through sccache and the synthetic suite)
 # Retail, Vulkan and trace evidence is a recorded local run, never hosted CI (docs/DECISIONS.md "Retail and GPU
 # evidence is a recorded local run").
 name: landing
@@ -17,9 +17,11 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request cancels its older run. A push to main never cancels one: main's run is what saves
+# the toolchain and compiler caches that every pull request restores (a cancelled run saves neither).
 concurrency:
   group: landing-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   classify:
@@ -76,8 +78,27 @@ jobs:
     if: needs.classify.outputs.code == 'true'
     runs-on: windows-2025
     timeout-minutes: 180
+    # sccache caches compiles across runs; CMake reads the launcher variables from the environment at configure time,
+    # and dev.cmd passes the environment through. With a launcher set, the shared PCH defaults OFF (docs/DECISIONS.md
+    # "Build speed").
+    env:
+      CMAKE_C_COMPILER_LAUNCHER: sccache
+      CMAKE_CXX_COMPILER_LAUNCHER: sccache
+      SCCACHE_DIR: ${{ runner.temp }}\sccache
+      SCCACHE_CACHE_SIZE: 3G
     steps:
       - uses: actions/checkout@v7
+      - uses: mozilla-actions/sccache-action@v0.0.11
+        with:
+          version: v0.19.0
+      # One cache entry per commit. A run restores its own ref's newest entry, else main's; caches saved on a pull
+      # request are visible only to that pull request, so main's push runs are what seed every new pull request.
+      - id: sccache
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ runner.temp }}\sccache
+          key: sccache-engine-${{ github.sha }}-${{ github.run_attempt }}
+          restore-keys: sccache-engine-
       - id: python
         uses: actions/setup-python@v7
         with:
@@ -133,6 +154,18 @@ jobs:
             if [[ "$f" == *.json ]]; then echo '```json' >> "$GITHUB_STEP_SUMMARY"; cat "$f" >> "$GITHUB_STEP_SUMMARY"; echo '```' >> "$GITHUB_STEP_SUMMARY"
             else cat "$f" >> "$GITHUB_STEP_SUMMARY"; fi
           done
+      # Stopping the server flushes the cache directory before it is saved, and prints the hit rate.
+      - name: sccache stats
+        if: always()
+        shell: bash
+        run: |
+          { echo '### sccache'; echo '```'; sccache --stop-server || true; echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Save the compiler cache
+        if: ${{ !cancelled() && steps.sccache.outcome == 'success' }}
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ runner.temp }}\sccache
+          key: ${{ steps.sccache.outputs.cache-primary-key }}
       - name: Upload test results and logs
         if: always()
         uses: actions/upload-artifact@v7
