@@ -208,6 +208,49 @@ void test_options_round_trip() {
 
 }  // namespace
 
+void test_new_game_seed() {
+    // gal1 t05 (#192, decided by the user 2026-11-22): alamo_game without --seed passes the wall clock; a new front-end
+    // campaign or skirmish draws its seed from it, so two games differ (retail seeds the synced RNG per session).
+    game::SessionOptions o = app_options();
+    o.seed_clock = 1000;
+    game::SessionChoice camp;
+    camp.kind = game::GameKind::Campaign;
+    camp.campaign = "Sandbox_Rebel";
+    game::SessionChoice sk;
+    sk.kind = game::GameKind::Skirmish;
+    sk.map = "_SPACE_PLANET_HOTH_01";
+    const uint32_t a = game::make_session_spec(camp, o).seed;
+    CHECK(a != 77 && game::make_session_spec(camp, o).seed == a);  // drawn, and the same clock gives the same seed
+    o.seed_clock = 1001;
+    const uint32_t b = game::make_session_spec(camp, o).seed;
+    CHECK(b != a && b != 77);
+    CHECK(game::make_session_spec(sk, o).seed == b);
+    // --seed given (or a smoke / bench run): no clock, the run's seed.
+    CHECK(game::make_session_spec(camp, app_options()).seed == 77 && game::make_session_spec(sk, app_options()).seed == 77);
+    // The attract demo keeps the run's seed + its start count.
+    game::SessionChoice at;
+    at.kind = game::GameKind::Attract;
+    at.attract_start = 3;
+    CHECK(game::make_session_spec(at, o).seed == 80);
+    // A story LOAD_CAMPAIGN reuses the running game's seed: the options read back carry no clock.
+    o.seed_clock = 1000;
+    const game::SessionSpec running = game::make_session_spec(camp, o);
+    const game::SessionOptions back = game::session_options_of(running);
+    CHECK(!back.seed_clock.has_value() && back.seed == a);
+    game::SessionChoice story;
+    story.kind = game::GameKind::StoryCampaign;
+    story.campaign = "Sandbox_Empire";
+    CHECK(game::make_session_spec(story, back).seed == a);
+    // A loaded save keeps the saved seed even if a clock is passed.
+    game::SessionChoice saved;
+    saved.kind = game::GameKind::Saved;
+    saved.campaign = "Sandbox_Rebel";
+    game::SessionOptions so;
+    so.seed = 5;
+    so.seed_clock = 1000;
+    CHECK(game::make_session_spec(saved, so).seed == 5);
+}
+
 int main() {
     test_difficulty_names();
     test_campaign();
@@ -217,6 +260,7 @@ int main() {
     test_story_campaign();
     test_saved();
     test_options_round_trip();
+    test_new_game_seed();  // gal1 t05
     if (g_fail) {
         std::printf("alamo_game_session_spec_tests: %d FAILED\n", g_fail);
         return 1;
