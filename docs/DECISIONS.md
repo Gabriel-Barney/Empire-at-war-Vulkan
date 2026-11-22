@@ -263,7 +263,9 @@ system rework, scratch arenas, parallel AI scoring, a C-runtime math ban in sim 
 particles, cheaper water) and graphics fidelity. Why: performance goals were already met with wide margins (worst tick
 p99 2.2 ms against a 16.7 ms budget). It is a deferral, not a ban: no one starts any of it without a new decision here.
 The definitions are in `legacy docs/DEFERRED_SIDE_GOALS.md`. The repeatable benchmark side goal (fixed saves, recorded
-orders, scripted camera, per-tick CRCs; `tools/benchmark`) is not deferred.
+orders, scripted camera, per-tick CRCs; `tools/benchmark`) is not deferred. Parallel AI scoring that is part of the
+parallel sim redesign (P0-P7, "Performance goal") is excepted from this deferral (Gabriel, 2026-11-22): the later focus
+exception there wins.
 
 ## Front-end and skirmish choices
 
@@ -421,7 +423,9 @@ Gabriel, 2026-11-15.
 
 Crash minidumps need the PDB of the exact build that crashed. `ALAMO_RELEASE_PDB` (MSVC `/Z7` plus
 `/DEBUG /OPT:REF /OPT:ICF`) stays off by default in every build tree; test builds turn it on and keep the symbols on the
-developer machine, not in the player's package.
+developer machine, not in the player's package. The release workflow's draft GitHub release may carry the build's PDBs
+as a separate `-pdb` zip beside the package, so crash dumps from that test build can be read; they never go inside the
+package or onto a published release (Gabriel, 2026-11-22).
 
 ## The roadmap is the issue tracker
 
