@@ -1,5 +1,6 @@
 // alamo_game App: attract demo, movies, story steps, session / battle flow (split from game_main.cpp).
 #include "game_app.hpp"
+#include "options_pages.hpp"  // new_game_fleet_groups
 
 #include "alamo/audio/audio_system.hpp"
 
@@ -583,7 +584,7 @@ SessionOptions App::session_options() const {
     SessionOptions o;
     o.seed = opt_.seed;
     o.battle_max_frames = opt_.battle_max_frames;
-    o.fleet_groups = opt_.fleet_groups;  // [port] fleet groups (--fleet-groups)
+    o.fleet_groups = new_game_fleet_groups(opt_.fleet_groups, camera_);  // [port] --fleet-groups or the option (#175)
     return o;
 }
 
