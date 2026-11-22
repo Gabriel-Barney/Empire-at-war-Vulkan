@@ -1,0 +1,110 @@
+# Internal release (#30; #27 decisions 1, 2 and 4; README.md "Internal packages"). Started by hand on main: a
+# hosted runner builds the exact commit with dev.cmd package and attaches the package, its PDB archive and
+# SHA256SUMS to a draft GitHub Release (visible to collaborators only; nothing is published). A second job on a fresh
+# runner downloads that package from the draft and runs tools/package_smoke.py: every checksum, then the data-free
+# checks from the unpacked folder. A gameplay --smoke with game data is a recorded local run on the same package.
+name: release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: windows-2025
+    timeout-minutes: 180
+    permissions:
+      contents: write  # create the draft release and upload its assets
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - name: Refuse a ref other than main
+        if: github.ref != 'refs/heads/main'
+        shell: bash
+        run: |
+          echo "::error::release runs on main only (this run is on $GITHUB_REF)"
+          exit 1
+      - uses: actions/checkout@v7
+      - id: python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.15"
+      - id: toolchain
+        uses: actions/cache/restore@v6
+        with:
+          path: toolchain
+          key: toolchain-engine-${{ steps.python.outputs.python-version }}-${{ hashFiles('toolchain/*.cmd', 'toolchain/*.sh', 'toolchain/*.py') }}
+      - name: Install the pinned toolchain
+        if: steps.toolchain.outputs.cache-hit != 'true'
+        shell: cmd
+        run: |
+          call toolchain\2_setup.cmd --engine-only --accept-msvc-license || exit /b 1
+          if exist toolchain\downloads rmdir /s /q toolchain\downloads
+      - name: dev.cmd doctor
+        shell: cmd
+        run: call .\dev.cmd doctor --engine-only
+      - name: dev.cmd package
+        shell: cmd
+        run: call .\dev.cmd package --commit %GITHUB_SHA% --out "%RUNNER_TEMP%\packages"
+      - id: release
+        name: Attach the package to a draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          short="${GITHUB_SHA:0:12}"
+          dir="$RUNNER_TEMP/packages"
+          tag="internal-$short"
+          cp "$dir/alamo-$short/SHA256SUMS" "$dir/SHA256SUMS"
+          # A rerun for the same commit replaces its earlier draft, so the smoke job can only download this package.
+          if gh release view "$tag" --json isDraft -q .isDraft 2>/dev/null | grep -qx true; then gh release delete "$tag" --yes; fi
+          notes="Internal test build of $GITHUB_SHA (run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID). Draft: not published. SHA256SUMS lists every file inside the package zip; the PDBs are in the -pdb zip."
+          gh release create "$tag" --draft --target "$GITHUB_SHA" --title "Internal build $short" --notes "$notes" \
+            "$dir/alamo-$short.zip" "$dir/alamo-$short-pdb.zip" "$dir/SHA256SUMS"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "draft release $tag: alamo-$short.zip, alamo-$short-pdb.zip, SHA256SUMS" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-logs-${{ github.run_id }}
+          path: build/logs/
+          if-no-files-found: warn
+          retention-days: 14
+
+  smoke:
+    needs: package
+    runs-on: windows-2025
+    timeout-minutes: 30
+    permissions:
+      contents: write  # a draft release is visible only to tokens that can write
+    steps:
+      - uses: actions/checkout@v7  # the flag list and the replay fixture the checks compare against
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.15"
+      - name: Download the exact package from the draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.package.outputs.tag }}
+        run: gh release download "$TAG" --dir "$RUNNER_TEMP/release" --pattern "alamo-${GITHUB_SHA:0:12}.zip" --pattern SHA256SUMS
+      - name: Smoke-test the package
+        shell: bash
+        run: |
+          set -o pipefail
+          python -I tools/package_smoke.py check "$RUNNER_TEMP/release/alamo-${GITHUB_SHA:0:12}.zip" \
+            --sums "$RUNNER_TEMP/release/SHA256SUMS" | tee "$RUNNER_TEMP/smoke.txt"
+      - name: Report
+        if: always()
+        shell: bash
+        run: |
+          [ -f "$RUNNER_TEMP/smoke.txt" ] || exit 0
+          { echo '### package smoke'; echo '```'; grep '^package_smoke' "$RUNNER_TEMP/smoke.txt" || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
