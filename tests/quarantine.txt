@@ -1,0 +1,5 @@
+# Quarantined tests: known flaky, non-critical failures that do not fail a run until their entry expires
+# (tools/test_suite.py "Quarantine"; README.md "Test suites"; docs/GROUND_UP_WORKFLOW_DESIGN.md "Failure response and
+# release"). One entry per line, tab-separated: test name, tracking issue (#<number>), owner, expiry (YYYY-MM-DD).
+# A determinism check can never be listed. Remove the entry when the test is fixed; renew it only with a reason on the
+# issue.

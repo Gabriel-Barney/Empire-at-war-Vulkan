@@ -120,8 +120,6 @@ if(ALAMO_LINT_PYTHON)
   set_tests_properties(alamo_dev_selftest alamo_landing_gate_selftest alamo_skills_check alamo_skills_selftest
                        alamo_analyze_report_selftest alamo_nightly_record_selftest alamo_roadmap_import_selftest
                        PROPERTIES TIMEOUT 120)
-  # Temporary: the two-PR race demonstration's invariant (tools/race_demo.py; tests/fixtures/race_demo/README.md, #17).
-  add_test(NAME alamo_race_demo COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/race_demo.py)
   # Machine-wide test slots: a second job waits for the holder, names it, and gets the slot when the holder exits or
   # crashes (tools/test_slots.py; README.md "Test slots"). It uses its own slot folder, not the machine's.
   add_test(NAME alamo_test_slots_selftest COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/test_slots.py selftest)
@@ -138,8 +136,12 @@ if(ALAMO_LINT_PYTHON)
            COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/injected_failures.py compile)
   add_test(NAME alamo_injected_wrong_result
            COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/injected_failures.py wrong-result)
+  # A quarantined wrong result is reported and passes until its entry expires, then fails (tests/quarantine.txt).
+  add_test(NAME alamo_injected_quarantine
+           COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/injected_failures.py quarantine)
   set_tests_properties(alamo_test_suite_selftest PROPERTIES TIMEOUT 120)
-  set_tests_properties(alamo_injected_compile_failure alamo_injected_wrong_result PROPERTIES TIMEOUT 300)
+  set_tests_properties(alamo_injected_compile_failure alamo_injected_wrong_result alamo_injected_quarantine
+                       PROPERTIES TIMEOUT 300)
   set_tests_properties(alamo_core_doc_refs_lint alamo_core_doc_refs_lint_selftest PROPERTIES TIMEOUT 120)
   # sim code turns data-driven seconds into frame counts only through alamo/core/frames.hpp (no plain
   # static_cast of seconds x FPS to an integer outside engine/core; tools/lint/check_frame_casts.py).
