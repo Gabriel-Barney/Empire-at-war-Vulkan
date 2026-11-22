@@ -157,6 +157,24 @@ ul.issues li.closed .issue-title { text-decoration: line-through; color: var(--m
 <script>
 "use strict";
 const CACHE_KEY = "roadmap-issues-v1";
+// Where flow.json is read from when the copy next to this page cannot be: a page opened from disk (file://, for
+// example a downloaded copy) may not read files beside it, so it reads main's copy from GitHub instead.
+const FLOW_FALLBACK = "https://raw.githubusercontent.com/Gabriel-Barney/Empire-at-war-Vulkan/main/docs/roadmap/flow.json";
+
+async function fetchFlow() {
+  const sources = location.protocol === "file:" ? [FLOW_FALLBACK] : ["flow.json", FLOW_FALLBACK];
+  let last;
+  for (const url of sources) {
+    try {
+      const r = await fetch(url, { cache: "no-cache" });
+      if (r.ok) return await r.json();
+      last = new Error(`${url}: ${r.status}`);
+    } catch (e) {
+      last = new Error(`${url}: ${e.message}`);
+    }
+  }
+  throw last;
+}
 const state = { flow: null, issues: [], boxes: new Map(), selected: null, fetchedAt: null };
 
 const $ = (id) => document.getElementById(id);
@@ -397,9 +415,7 @@ async function load(force) {
   $("loaded").textContent = "Loading…";
   try {
     if (!state.flow) {
-      const r = await fetch("flow.json", { cache: "no-cache" });
-      if (!r.ok) throw new Error(`flow.json: ${r.status}`);
-      state.flow = await r.json();
+      state.flow = await fetchFlow();
       $("title").textContent = state.flow.title;
       $("repo-link").href = `https://github.com/${state.flow.repo}/issues`;
     }
