@@ -156,7 +156,7 @@ ul.issues li.closed .issue-title { text-decoration: line-through; color: var(--m
 </main>
 <script>
 "use strict";
-const CACHE_KEY = "roadmap-issues-v1";
+const CACHE_KEY = "roadmap-issues-v2";  // v2: issues carry state_reason
 // Where flow.json is read from when the copy next to this page cannot be: a page opened from disk (file://, for
 // example a downloaded copy) may not read files beside it, so it reads main's copy from GitHub instead.
 const FLOW_FALLBACK = "https://raw.githubusercontent.com/Gabriel-Barney/Empire-at-war-Vulkan/main/docs/roadmap/flow.json";
@@ -197,10 +197,12 @@ function parseIssue(i) {
   const box = (labels.find((l) => l.startsWith("roadmap:")) || "").slice(8) || null;
   const t = tasksOf(i.body || "");
   const closed = i.state === "closed";
+  // Closed as not planned (dropped, merged elsewhere, wontfix): not work done, so it is left out of every count.
+  const dropped = closed && i.state_reason === "not_planned";
   // A closed issue counts all its tasks done; an issue without a checklist counts as one task.
   const total = Math.max(1, t.open + t.done);
   return {
-    number: i.number, title: i.title, url: i.html_url, closed, labels, box, tier: tierOf(i.title),
+    number: i.number, title: i.title, url: i.html_url, closed, dropped, labels, box, tier: tierOf(i.title),
     tasksTotal: total, tasksDone: closed ? total : Math.min(t.done, total), updated: i.updated_at,
   };
 }
@@ -221,7 +223,7 @@ async function fetchIssues(repo) {
     }
     const batch = await r.json();
     out.push(...batch.filter((i) => !i.pull_request).map((i) => ({
-      number: i.number, title: i.title, html_url: i.html_url, state: i.state, body: i.body || "",
+      number: i.number, title: i.title, html_url: i.html_url, state: i.state, state_reason: i.state_reason, body: i.body || "",
       labels: i.labels.map((l) => l.name), updated_at: i.updated_at,
     })));
     if (ISSUES_FILE || batch.length < 100) break;
@@ -240,7 +242,7 @@ function computeBoxes() {
     const t = state.boxes.get(to);
     if (t) t.from.push({ id: b.id, kind });
   }
-  for (const i of state.issues) if (i.box && state.boxes.has(i.box)) state.boxes.get(i.box).issues.push(i);
+  for (const i of state.issues) if (!i.dropped && i.box && state.boxes.has(i.box)) state.boxes.get(i.box).issues.push(i);
   for (const b of state.boxes.values()) {
     b.open = b.issues.filter((i) => !i.closed).length;
     b.closedCount = b.issues.length - b.open;
@@ -258,7 +260,7 @@ function meter(a, b) { return `<div class="meter"><i style="width:${pct(a, b)}%"
 
 function renderHeader() {
   const open = state.issues.filter((i) => !i.closed);
-  const onChart = state.issues.filter((i) => i.box);
+  const onChart = state.issues.filter((i) => i.box && !i.dropped);
   const tasks = onChart.reduce((n, i) => n + i.tasksTotal, 0), tasksDone = onChart.reduce((n, i) => n + i.tasksDone, 0);
   const boxes = [...state.boxes.values()], boxesDone = boxes.filter((b) => b.status === "done").length;
   $("bars").innerHTML =
@@ -325,7 +327,7 @@ function issueLi(i, showBox = true) {
   const where = showBox ? (b ? ` · <a href="#" data-goto="${esc(b.id)}">${esc(b.label)}</a>` : " · not on the chart") : "";
   const tasks = i.tasksTotal > 1 ? ` · ${i.tasksDone}/${i.tasksTotal} tasks` : "";
   return `<li class="${i.closed ? "closed" : ""}">${tierChip(i.tier)}<a class="issue-title" href="${esc(i.url)}" target="_blank" rel="noopener">#${i.number} ${esc(shortTitle(i))}</a>` +
-         `<div class="meta">${i.closed ? "closed" : "open"}${tasks}${where}</div></li>`;
+         `<div class="meta">${i.dropped ? "closed, not planned" : i.closed ? "closed" : "open"}${tasks}${where}</div></li>`;
 }
 
 const TIER_RANK = { T1: 1, T2: 2, T3: 3, none: 4 };
