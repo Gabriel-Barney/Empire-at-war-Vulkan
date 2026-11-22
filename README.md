@@ -24,6 +24,7 @@ Open PowerShell in the project root. This checkout has a local toolchain. On a f
 | `.\dev.cmd suite all` | Run every suite; retail and Vulkan entries skip with a reason when the machine lacks them |
 | `.\dev.cmd suite retail` | Run the retail-data suite; missing game data fails the run |
 | `.\dev.cmd test -R alamo_core_tests` | Run CTest directly with any CTest options |
+| `.\dev.cmd package --commit <sha>` | Build that commit (it must be `HEAD`, with a clean tree) and stage an internal package outside the checkout ("Internal packages") |
 | `.\dev.cmd launcher` | Build `launcher\target\release\command-center.exe` |
 | `.\dev.cmd launcher-test` | Run the launcher tests |
 
@@ -38,6 +39,16 @@ Project code compiles with `/WX`. Configure with `-DALAMO_WARNINGS_AS_ERRORS=OFF
 `main` is protected by the repository ruleset "main: landing required". Every change lands through a pull request as one squashed commit, so `main` has a linear history. `landing`, reported by GitHub Actions, must pass on the pull request. The branch does not have to be up to date with `main`: the pull request run tests the branch merged with `main` as it was then, and the run on every push to `main` catches a break between two changes that landed close together (`docs\DECISIONS.md` "Pull requests land squashed without an up-to-date rule"). Force pushes and deleting `main` are blocked, and no one bypasses the ruleset. No approving review is required, because the maintainer cannot approve their own pull request. Work on a branch from the latest `main`, push it, and open a pull request into `main`. `gh pr merge --auto --squash` lands it when `landing` passes, and the branch is deleted after the merge.
 
 In Command Center, select `build\bin\alamo_game.exe` as the engine executable and choose the installed game folder.
+
+## Internal packages
+
+`.\dev.cmd package --commit <sha>` builds an internal test package of one exact commit. It refuses a commit other than `HEAD` and a tree with uncommitted or untracked changes. It configures the `package` preset (`build-package\`, Release with PDBs: `docs\DECISIONS.md` "Release symbols"), builds `alamo_game` and `alamo_headless`, and stages the package in `%LOCALAPPDATA%\alamo-dev\packages\` (`--out <folder>` picks another folder outside the checkout):
+
+- `alamo-<sha>\` holds `alamo_game.exe`, `alamo_headless.exe`, the runtime DLLs (DXC, FFmpeg, FidelityFX, XeSS) and `licenses\`. It also holds `MANIFEST.json` (the commit, the toolchain, the dependency versions, and the SHA-256 and size of every file and PDB) and `SHA256SUMS`.
+- `alamo-<sha>.zip` is that folder.
+- `alamo-<sha>-pdb.zip` holds the PDBs, which never go in the package.
+
+`fxc.exe`, `d3dcompiler_47.dll` and Command Center are never in it. A listed file missing from the build fails the command and names the file. No game data ships. Packages are for testing and are not published (`docs\DECISIONS.md` "fxc ships in test builds").
 
 ## Game data
 
