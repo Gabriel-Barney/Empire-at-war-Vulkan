@@ -402,6 +402,9 @@ private:
     sim::LoadReport load_report_;
     bool allow_different_data_ = false;  // mcx3 t05
     std::vector<std::string> ai_types_;  // per player: the galactic AI type ("" = none), for the descriptor
+    // gai1 t06: per player, the AIPlayerType start() took the difficulty row from ("" = the fixed names; difficulty_row).
+    // Unlike ai_types_ it stays when the galactic AI world does not start: the rows were set before it.
+    std::vector<std::string> difficulty_types_;
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
     // the battles' tactical AI setup (shared with CampaignBattleOptions::tactical_ai; null without a tactical AI)
     std::shared_ptr<sim::TacticalAiSetup> tactical_setup_;

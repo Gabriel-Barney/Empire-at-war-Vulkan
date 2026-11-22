@@ -122,6 +122,8 @@ bool GameSession::start(std::vector<std::string>* diag, const commands::CommandR
     if (spec_.kind == SessionKind::Campaign) {
         galactic::CampaignOptions co;
         co.human_faction = spec_.faction;
+        // the setup's row for every AI player, by the fixed name: the galaxy setup knows no AIPlayerType. A player that
+        // gets one below (the galactic AI) takes its type's row instead (difficulty_row).
         co.ai_difficulty = difficulty_name(spec_.difficulty);
         setup_ = galactic::build_campaign_setup(d.db, d.rules, spec_.campaign, co, diag);
         if (spec_.game_options)  // the advanced options replace the campaign's starting credits and tech levels
@@ -224,7 +226,6 @@ bool GameSession::start(std::vector<std::string>* diag, const commands::CommandR
         // settings flag; with random events off the token is 0.0 and Disable_Interventions_Template turns interventions off.
         gcfg.interventions_enabled = spec_.interventions_enabled();
         gcfg.ai_uses_fog_galactic = d.db.constants().shared.ai_uses_fog_of_war_galactic.value_or(gcfg.ai_uses_fog_galactic);  // GameConstants::shared (shipped False)
-        const uint32_t diff = d.rules.find_difficulty(difficulty_name(spec_.difficulty));
         // the type from the data (resolve_ai_type): campaigns read the campaign's AI_Player_Control pairs, a
         // skirmish gives only its AI slot (ps.ai) the faction's Basic_AI (SKIRMISH_SETUP §2.1). Base FoC too.
         const std::vector<std::string>* control = nullptr;
@@ -241,10 +242,15 @@ bool GameSession::start(std::vector<std::string>* diag, const commands::CommandR
             ps.ai = true;
             // skm2 t02 (SKIRMISH_SETUP §1): a skirmish slot plays at its own difficulty (slot +0x158 -> player +0x3bc).
             const int32_t pd = ai_difficulty_of(static_cast<int32_t>(p));
-            ps.difficulty = pd == std::clamp(spec_.difficulty, 0, 2) ? diff : d.rules.find_difficulty(difficulty_name(pd));  // diff: the session's
+            // gai1 t06 (legacy docs/re/AI_GALACTIC.md §1.2, GetAdj 0x4b0500): the row is the type's Difficulty_Adjustments
+            // entry, as the galactic and tactical AIs read it (FoC: Easy / Normal / Hard_Default, the fixed names).
+            const ai::AiPlayerTypeDef* def = d.ai->defs.find_player(type);
+            ps.difficulty = difficulty_row(d.rules, def ? &def->difficulty : nullptr, pd);
             gcfg.players.push_back({static_cast<int32_t>(p), type, pd});
             ai_types_.resize(setup_.players.size());
             ai_types_[p] = type;
+            difficulty_types_.resize(setup_.players.size());
+            difficulty_types_[p] = type;
         }
         use_ai = !gcfg.players.empty();
     }
@@ -714,7 +720,15 @@ void GameSession::apply_ai_difficulty(int32_t difficulty) {
     spec_.difficulty = d;
     if (spec_.kind == SessionKind::Skirmish) spec_.skirmish.difficulties.assign(static_cast<size_t>(skirmish_slot_count(spec_.skirmish)), d);
     galactic::GalacticSim* gs = host_ ? host_->galactic_mode() ? host_->galactic_mode()->sim() : nullptr : nullptr;
-    const uint32_t row = data_->rules.find_difficulty(difficulty_name(d));
+    // gai1 t06: each player's row from the AIPlayerType start() took its row from (difficulty_row), else the fixed name.
+    const auto row_of = [&](size_t p) {
+        const std::array<std::string, 3>* type_rows = nullptr;
+#ifdef ALAMO_GAME_HAVE_GALACTIC_AI
+        if (data_->ai && p < difficulty_types_.size() && !difficulty_types_[p].empty())
+            if (const ai::AiPlayerTypeDef* def = data_->ai->defs.find_player(difficulty_types_[p])) type_rows = &def->difficulty;
+#endif
+        return difficulty_row(data_->rules, type_rows, d);
+    };
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
     if (tactical_setup_) {
         tactical_setup_->difficulty = d;
@@ -730,9 +744,12 @@ void GameSession::apply_ai_difficulty(int32_t difficulty) {
                 if (battles_) battles_->apply_ai_difficulty(pi, d);
                 continue;
             }
+            const uint32_t row = row_of(p);
             (void)gs->set_ai_difficulty(pi, row);
-            // The setup row only where start() set one (with the galactic AI): a rebuild from the new spec sets the same.
-            if (p < setup_.players.size() && setup_.players[p].difficulty != galactic::kNoIndex) setup_.players[p].difficulty = row;
+            // The setup row only where start() set one (the campaign setup, or an AIPlayerType's row, which may be
+            // kNoIndex): a rebuild from the new spec sets the same.
+            const bool typed = p < difficulty_types_.size() && !difficulty_types_[p].empty();
+            if (p < setup_.players.size() && (typed || setup_.players[p].difficulty != galactic::kNoIndex)) setup_.players[p].difficulty = row;
 #ifdef ALAMO_GAME_HAVE_GALACTIC_AI
             if (galactic_ai_) (void)galactic_ai_->set_difficulty(pi, d);
 #endif
@@ -1202,7 +1219,7 @@ void GameSession::describe_session() {
     d.data_args = dd.args;
     for (size_t p = 0; p < setup_.players.size(); ++p)
         d.setup.push_back(session_player(dd.rules, setup_.players[p], p < ai_types_.size() ? ai_types_[p] : std::string()));
-    d.difficulty = difficulty_name(spec_.difficulty);
+    d.difficulty = difficulty_name(spec_.difficulty);  // the session's (menu) difficulty; each player's row is in d.setup
     // Every SessionSpec field that changes what a tick computes (the seed is SimConfig's).
     d.set_option("spec.faction", spec_.faction);
     d.set_option("spec.difficulty", std::to_string(spec_.difficulty));

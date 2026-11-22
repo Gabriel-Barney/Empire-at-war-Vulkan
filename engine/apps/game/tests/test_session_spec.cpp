@@ -1,10 +1,13 @@
 // ref2 t03 (alamo_game_session_spec_tests): the one SessionSpec builder (session_spec.hpp), data-free, one check per game
 // kind: front-end campaign (and its advanced options), front-end skirmish, the benchmark save's skirmish, the attract
-// demo, a story LOAD_CAMPAIGN reward, a loaded save; plus the difficulty name table and session_options_of.
+// demo, a story LOAD_CAMPAIGN reward, a loaded save; plus the difficulty name table, a player's difficulty row
+// (difficulty_rules.hpp) and session_options_of.
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <string>
 
+#include "alamo/galactic/galactic_rules.hpp"
 #include "alamo/game/session_spec.hpp"
 #include "alamo/test/support.hpp"
 
@@ -39,6 +42,31 @@ void test_difficulty_names() {
     CHECK(std::string(game::difficulty_name(-4)) == "Easy_Default");  // out of range clamps
     CHECK(std::string(game::difficulty_name(9)) == "Hard_Default");
     CHECK(game::clamp_difficulty(-1) == 0 && game::clamp_difficulty(1) == 1 && game::clamp_difficulty(3) == 2);
+}
+
+// gai1 t06 (legacy docs/re/AI_GALACTIC.md §1.2, GetAdj 0x4b0500): a player's DifficultyAdjustments row is its
+// AIPlayerType's Difficulty_Adjustments entry; an empty entry or one naming no row is the all-1.0 dummy (kNoIndex);
+// without an AI type (a human) the fixed name's row.
+void test_difficulty_rows() {
+    galactic::GalacticRules rules;
+    for (const char* n : {"Easy_Default", "Normal_Default", "Hard_Default", "Mod_Normal"}) {
+        galactic::DifficultyRules r;
+        r.name = n;
+        rules.difficulties.push_back(r);
+    }
+    const std::array<std::string, 3> modded = {"Easy_Default", "Mod_Normal", ""};
+    CHECK(game::difficulty_row(rules, &modded, 1) == 3);  // the type's Normal: the custom row
+    CHECK(game::difficulty_row(rules, &modded, 0) == 0);
+    CHECK(game::difficulty_row(rules, &modded, 2) == galactic::kNoIndex);  // no Hard entry
+    CHECK(game::difficulty_row(rules, &modded, 7) == galactic::kNoIndex);  // clamps to Hard
+    const std::array<std::string, 3> unknown = {"Nope", "Nope", "Nope"};
+    CHECK(game::difficulty_row(rules, &unknown, 1) == galactic::kNoIndex);
+    // no AI type (a human): the fixed names
+    CHECK(game::difficulty_row(rules, nullptr, 0) == 0 && game::difficulty_row(rules, nullptr, 1) == 1 &&
+          game::difficulty_row(rules, nullptr, 2) == 2);
+    // shipped FoC types: the same rows as the fixed names
+    const std::array<std::string, 3> vanilla = {"Easy_Default", "Normal_Default", "Hard_Default"};
+    for (int32_t d = 0; d < 3; ++d) CHECK(game::difficulty_row(rules, &vanilla, d) == game::difficulty_row(rules, nullptr, d));
 }
 
 void test_campaign() {
@@ -210,6 +238,7 @@ void test_options_round_trip() {
 
 int main() {
     test_difficulty_names();
+    test_difficulty_rows();
     test_campaign();
     test_skirmish();
     test_benchmark_skirmish();

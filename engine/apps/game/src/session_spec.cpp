@@ -5,10 +5,6 @@
 
 namespace alamo::game {
 
-int32_t clamp_difficulty(int32_t difficulty) { return std::clamp(difficulty, 0, 2); }
-
-const char* difficulty_name(int32_t difficulty) { return kDifficultyNames[static_cast<size_t>(clamp_difficulty(difficulty))]; }
-
 SessionOptions session_options_of(const SessionSpec& s) {
     SessionOptions o;
     o.seed = s.seed;

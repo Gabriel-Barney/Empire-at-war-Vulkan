@@ -26,6 +26,7 @@
 #include "alamo/core/file_provider.hpp"
 #include "alamo/core/host_fs.hpp"
 #include "alamo/data/game_database.hpp"
+#include "alamo/game/difficulty_rules.hpp"
 #include "alamo/game/open_game_data.hpp"  // ref4 t05
 #include "alamo/galactic/campaign.hpp"
 #include "alamo/galactic/victory.hpp"  // campaign end report
@@ -166,8 +167,9 @@ int ai_campaign_run(const MapRunOptions& opt, const AiRunOptions& aopt) {
         return 2;
     }
     // AI types from the campaign's AI_Player_Control pairs (AI_GALACTIC §1.2); the unassigned (human) slot plays its
-    // faction's Basic_AI [port: AI-vs-AI], except the --human faction (a scripted human). Difficulty Normal [port].
-    const uint32_t normal = rules.find_difficulty("Normal_Default");
+    // faction's Basic_AI [port: AI-vs-AI], except the --human faction (a scripted human). Difficulty Normal [port]: the
+    // type's Normal Difficulty_Adjustments row (game::difficulty_row, gai1 t06; FoC: Normal_Default).
+    constexpr int32_t kNormal = 1;
     ai::GalacticAiConfig gcfg;
     gcfg.difficulties = difficulties;
     gcfg.contrast = &crules.contrast;  // A2 stage 2: the PGAICommands contrast table (Contrast marshaller)
@@ -201,8 +203,9 @@ int ai_campaign_run(const MapRunOptions& opt, const AiRunOptions& aopt) {
         }
         ps.human = false;
         ps.ai = true;
-        ps.difficulty = normal;
-        gcfg.players.push_back({static_cast<int32_t>(p), type, 1});
+        const ai::AiPlayerTypeDef* def = defs.find_player(type);
+        ps.difficulty = game::difficulty_row(rules, def ? &def->difficulty : nullptr, kNormal);
+        gcfg.players.push_back({static_cast<int32_t>(p), type, kNormal});
     }
     if (!aopt.human.empty() && human < 0) {
         std::fprintf(stderr, "galactic-ai: --human %s: no playable player of that faction\n", aopt.human.c_str());
