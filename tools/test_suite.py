@@ -2,7 +2,7 @@
 """Run one test suite (or all) and report passed / failed / skipped counts by suite, with the reason for every skip.
 
   python -I tools/test_suite.py [--suite synthetic|retail|vulkan|traces|all] [--build <dir>] [--fast] [--no-retry]
-                                [--require <suite>,...] [-- <extra ctest args>]
+                                [--require <suite>,...] [--archive <dir>] [-- <extra ctest args>]
   python -I tools/test_suite.py --write-required [--build <dir>]   regenerate tests/required_synthetic.txt
   python -I tools/test_suite.py --selftest
 
@@ -171,7 +171,10 @@ def main(argv: list[str]) -> int:
         print(f"test_suite.py: no tests selected ({' '.join(filters) or 'no filter'}): configure and build first")
         return 1
 
-    results_dir = os.path.join(build, "test-results")
+    latest_dir = os.path.join(build, "test-results")
+    # With --archive (dev.cmd: <build>\test-results\runs\<run>) this run writes its JUnit and report there, then
+    # copies them up as the latest, so concurrent runs on one tree never read each other's files.
+    results_dir = opt("--archive") or latest_dir
     os.makedirs(results_dir, exist_ok=True)
     junit = os.path.join(results_dir, f"{suite}.xml")
     env = dict(os.environ)
@@ -197,7 +200,7 @@ def main(argv: list[str]) -> int:
                        "^(" + "|".join(re.escape(n) for n in retry) + ")$"], env)
             again = parse_junit(junit2)
             now = datetime.datetime.now().isoformat(timespec="seconds")
-            with open(os.path.join(results_dir, "flaky.jsonl"), "a", encoding="utf-8") as f:
+            with open(os.path.join(latest_dir, "flaky.jsonl"), "a", encoding="utf-8") as f:
                 for n in retry:
                     if again.get(n, {}).get("status") == "passed":
                         flaky.append(n)
@@ -221,6 +224,9 @@ def main(argv: list[str]) -> int:
         f.write("\n".join(lines) + "\n")
     print("\n" + "\n".join(lines))
     print(f"\n(report: {path})")
+    if results_dir != latest_dir:
+        publish_latest(results_dir, latest_dir, suite)
+        print(f"(this run's own copy: {results_dir})")
     bad = any(r["status"] == "failed" for r in results.values()) or missing
     return 1 if bad else 0
 
@@ -302,6 +308,14 @@ def excluded_by_labels(tests: dict[str, list[str]], patterns: list[str]) -> set[
     return {n for n, labels in tests.items() if any(re.search(p, label) for p in patterns for label in labels)}
 
 
+def publish_latest(run_dir: str, latest_dir: str, suite: str) -> None:
+    """Copies a run's report and JUnit files from its own folder to <build>\test-results, the latest run's place."""
+    for name in (f"report-{suite}.md", f"{suite}.xml", f"{suite}-retry.xml"):
+        src = os.path.join(run_dir, name)
+        if os.path.isfile(src):
+            shutil.copy2(src, os.path.join(latest_dir, name))
+
+
 def selftest() -> int:
     bad = []
 
@@ -334,6 +348,20 @@ def selftest() -> int:
     tests = {"a": ["synthetic"], "crash": ["synthetic", "no_asan"], "b": ["synthetic", "slow"]}
     ok(excluded_by_labels(tests, ["^no_asan$"]) == {"crash"}, "a -LE label excludes only its entries")
     ok(excluded_by_labels(tests, []) == set(), "no -LE excludes nothing")
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        latest = os.path.join(d, "test-results")
+        for run, text in (("r1", "first"), ("r2", "second")):
+            run_dir = os.path.join(latest, "runs", run)
+            os.makedirs(run_dir)
+            for name in ("report-synthetic.md", "synthetic.xml"):
+                with open(os.path.join(run_dir, name), "w", encoding="utf-8") as f:
+                    f.write(text)
+            publish_latest(run_dir, latest, "synthetic")
+        with open(os.path.join(latest, "runs", "r1", "report-synthetic.md"), encoding="utf-8") as f:
+            ok(f.read() == "first", "the first run's own report survives the second run")
+        with open(os.path.join(latest, "synthetic.xml"), encoding="utf-8") as f:
+            ok(f.read() == "second", "the latest run's JUnit is published")
     for b in bad:
         print("test_suite selftest FAIL: " + b)
     if bad:
