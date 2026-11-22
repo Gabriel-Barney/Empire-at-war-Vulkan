@@ -89,6 +89,7 @@ alamo_injected_compile_failure
 alamo_injected_wrong_result
 alamo_jobs_crc_tests
 alamo_jobs_tests
+alamo_landing_gate_selftest
 alamo_lua_binding_effects_tests
 alamo_lua_fog_tests
 alamo_lua_gc_tests

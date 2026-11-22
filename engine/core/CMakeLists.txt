@@ -106,7 +106,10 @@ if(ALAMO_LINT_PYTHON)
   # reference resolves and no name is taken twice (tools/skills.py; docs/GROUND_UP_WORKFLOW_DESIGN.md).
   add_test(NAME alamo_skills_check COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/skills.py check)
   add_test(NAME alamo_skills_selftest COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/skills.py selftest)
-  set_tests_properties(alamo_dev_selftest alamo_skills_check alamo_skills_selftest PROPERTIES TIMEOUT 120)
+  # The landing gate's path classification and verdict (tools/landing_gate.py; .github/workflows/landing.yml).
+  add_test(NAME alamo_landing_gate_selftest COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/landing_gate.py selftest)
+  set_tests_properties(alamo_dev_selftest alamo_landing_gate_selftest alamo_skills_check alamo_skills_selftest
+                       PROPERTIES TIMEOUT 120)
   # The suite runner's own checks (suite labels, retry policy, skip reasons, the report table).
   add_test(NAME alamo_test_suite_selftest COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/test_suite.py --selftest)
   # Injected failures fail at the intended point (tools/injected_failures.py; tests/fixtures/injected_failures): a

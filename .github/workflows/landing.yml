@@ -17,6 +17,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read  # the classify job reads the pull request's current description for its Behaviour: line
 
 # A newer push to a pull request cancels its older run. A push to main never cancels one: main's run is what saves
 # the toolchain and compiler caches that every pull request restores (a cancelled run saves neither).
@@ -29,10 +30,19 @@ jobs:
     runs-on: windows-2025
     outputs:
       code: ${{ steps.paths.outputs.code }}
+      simulation: ${{ steps.paths.outputs.simulation }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.15"
+      # tools/landing_gate.py (self-test: CTest alamo_landing_gate_selftest) prints each path's class and writes
+      # code=true|false; an empty change list or a path it cannot classify fails the job. A simulation change
+      # (tests/simulation_paths.txt) fails without a "Behaviour:" line in the description (docs/SIMULATION.md "Declared
+      # behaviour changes"). The description is read now, not from the event, so re-running the failed jobs after
+      # editing it sees the edit.
       - id: paths
         name: Classify changed paths
         shell: bash
@@ -40,25 +50,15 @@ jobs:
           EVENT: ${{ github.event_name }}
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
+          PR: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          if [ "$EVENT" != "pull_request" ]; then
-            echo "code=true" >> "$GITHUB_OUTPUT"; echo "not a pull request: full check"; exit 0
-          fi
-          files=$(git diff --name-only "$BASE...$HEAD")
-          if [ -z "$files" ]; then
-            echo "::error::no changed files between $BASE and $HEAD"; exit 1
-          fi
-          code=false
-          while IFS= read -r f; do
-            # Prose only: top-level and docs/*.md, docs/agents. docs/re/*.md feeds the tag-ledger lint, so it is code.
-            if [[ "$f" =~ ^(README|AGENTS|CLAUDE)\.md$ || "$f" =~ ^docs/[^/]+\.md$ || "$f" =~ ^docs/agents/[^/]+\.md$ ]]; then
-              echo "docs: $f"
-            else
-              echo "code: $f"; code=true
-            fi
-          done <<< "$files"
-          echo "code=$code" >> "$GITHUB_OUTPUT"
+          body="$RUNNER_TEMP/pr-body.md"
+          : > "$body"
+          if [ "$EVENT" = pull_request ]; then gh pr view "$PR" --json body -q .body > "$body"; fi
+          python -I tools/landing_gate.py classify --event "$EVENT" --base "$BASE" --head "$HEAD" --body-file "$body"
 
   docs:
     needs: classify
@@ -209,6 +209,13 @@ jobs:
     if: always()
     runs-on: windows-2025
     steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.15"
+      # Fails unless the job this change needs reports success; a skipped, cancelled, failed or missing result fails
+      # with the job named. The step summary records the head, base and tested merge candidate (github.sha)
+      # (tools/landing_gate.py aggregate, self-test CTest alamo_landing_gate_selftest).
       - name: Aggregate result
         shell: bash
         env:
@@ -216,13 +223,10 @@ jobs:
           CODE: ${{ needs.classify.outputs.code }}
           DOCS: ${{ needs.docs.result }}
           ENGINE: ${{ needs.engine.result }}
-        run: |
-          echo "classify=$CLASSIFY code=$CODE docs=$DOCS engine=$ENGINE"
-          [ "$CLASSIFY" = success ] || { echo "::error::path classification did not succeed"; exit 1; }
-          if [ "$CODE" = true ]; then
-            [ "$ENGINE" = success ] || { echo "::error::engine check is $ENGINE"; exit 1; }
-          elif [ "$CODE" = false ]; then
-            [ "$DOCS" = success ] || { echo "::error::docs check is $DOCS"; exit 1; }
-          else
-            echo "::error::unknown classification '$CODE'"; exit 1
-          fi
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          CANDIDATE: ${{ github.sha }}
+        run: >-
+          python -I tools/landing_gate.py aggregate --classify "$CLASSIFY" --code "$CODE" --docs "$DOCS" --engine "$ENGINE"
+          --event "$EVENT" --base "$BASE" --head "$HEAD" --candidate "$CANDIDATE"
