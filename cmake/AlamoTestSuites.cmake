@@ -136,6 +136,11 @@ function(_alamo_suite_apply_env name suites)
   # Files written for a person (PNGs, coverage reports) go to one folder per entry under the build tree
   # (alamo::test::artifact_dir()), so parallel entries and the companions of a mixed test never overwrite each other.
   set(_mods "ALAMO_TEST_SUITE=set:${_label_list}" "ALAMO_TEST_ARTIFACT_DIR=set:${CMAKE_BINARY_DIR}/artifacts/${name}")
+  # Each entry gets its own TEMP / TMP. Tests use fixed names under temp_directory_path(), so a test and its companion
+  # (or two runs of one tree) running at once overwrote each other's files there (alamo_data_tests under suite all).
+  file(TO_NATIVE_PATH "${CMAKE_BINARY_DIR}/tmp/${name}" _tmp)
+  file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/tmp/${name}")
+  list(APPEND _mods "TEMP=set:${_tmp}" "TMP=set:${_tmp}")
   if(NOT "retail" IN_LIST suites AND NOT "traces" IN_LIST suites)
     list(APPEND _mods "ALAMO_FOC_DATA=unset:" "ALAMO_EAW_DATA=unset:")
   endif()

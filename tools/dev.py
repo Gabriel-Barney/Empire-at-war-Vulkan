@@ -49,8 +49,9 @@ _DIAG = [
     re.compile(r"^CMake Error\b"),
     re.compile(r"^\s*(FAIL|FAILED)\b[: ]"),
     re.compile(r"\*\*\*(Failed|Timeout|Exception)"),
+    re.compile(r"^Total: .*(\b[1-9]\d* failed|required entries missing)"),
     re.compile(r"^Traceback \(most recent call last\)"),
-    re.compile(r"\berror\b[: ]", re.I),
+    re.compile(r"(^|\s)error[: ]", re.I),
 ]
 
 
@@ -416,6 +417,11 @@ class _Tests(unittest.TestCase):
         self.assertIn("Failed", first_diagnostic(["1/2 Test #1: a ....***Failed  0.1 sec"]))
         self.assertEqual(first_diagnostic(["", "last words", ""]), "last words")
         self.assertEqual(first_diagnostic([]), "(no output)")
+
+    def test_first_diagnostic_suite_summary_not_command_line(self):
+        lines = ["+ ctest.EXE --test-dir build --output-on-failure --no-tests=error -L ^synthetic$",
+                 "Total: 204 passed, 0 failed, 0 skipped, 3 required entries missing"]
+        self.assertTrue(first_diagnostic(lines).startswith("Total: 204 passed"))
 
     def test_take_preset(self):
         self.assertEqual(take_preset(["--preset", "full", "-R", "x"]), ("full", ["-R", "x"]))

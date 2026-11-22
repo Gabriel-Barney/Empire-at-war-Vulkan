@@ -40,7 +40,7 @@ import xml.etree.ElementTree as ET
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SUITES = ("synthetic", "retail", "vulkan", "traces")
 REQUIRED_FILE = os.path.join(ROOT, "tests", "required_synthetic.txt")
-DETERMINISM = re.compile(r"(_w\d+|_k\d+_w\d+)$|golden|_crc|crc_|replay|selfcheck|determinism|^parity_harness", re.I)
+DETERMINISM = re.compile(r"(_w\d+|_wmax|_k\d+_w\d+)$|golden|_crc|crc_|replay|selfcheck|determinism|^parity_harness", re.I)
 FILTER_ARGS = {"-R", "--tests-regex", "-E", "--exclude-regex", "-L", "--label-regex", "-LE", "--label-exclude", "-I",
                "--tests-information", "-U", "--union", "--rerun-failed"}
 

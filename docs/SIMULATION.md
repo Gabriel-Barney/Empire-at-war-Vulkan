@@ -324,8 +324,8 @@ system). Two forms:
 
 - **Per process (long runs):** `alamo_add_worker_count_check(<name> COMMAND ...)` in `engine/CMakeLists.txt`. One ctest
   entry per count so counts run side by side: `<name>` runs `--workers 0 --crc-out`, and `<name>_w1`, `_w4`, `_w16` and
-  `_w<hardware threads - 1>` run `--workers N --golden` against it. 16 is above the logical core count, so preemption
-  inside a tick is covered. The entries are labelled `determinism`. A command must accept
+  `_wmax` (hardware threads - 1, named the same on every machine) run `--workers N --golden` against it. 16 is above
+  the logical core count of most machines, so preemption inside a tick is covered. The entries are labelled `determinism`. A command must accept
   `--workers`, `--crc-out` and `--golden` (every `alamo_headless` mode does).
 - **In process (unit tests, short runs):** `alamo::jobs::check_worker_counts(run, determinism_worker_counts())` in
   `alamo/jobs/crc_recorder.hpp` runs 0 / 1 / 4 / default and returns a `WorkerCountReport`.

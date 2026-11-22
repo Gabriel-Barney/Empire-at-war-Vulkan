@@ -102,6 +102,21 @@ jobs:
         with:
           path: toolchain
           key: ${{ steps.toolchain.outputs.cache-primary-key }}
+      - name: Register the validation layer for the elevated Vulkan loader
+        shell: pwsh
+        # Hosted runners run elevated, and the Vulkan loader ignores VK_LAYER_PATH in an elevated process, so the GPU
+        # tests' strict "the pinned layer must load" check failed. Register the pinned layer where an elevated loader
+        # looks (HKLM ExplicitLayers); the runner is discarded after the job.
+        run: |
+          $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+          $loader = Get-Item "$env:WINDIR\System32\vulkan-1.dll" -ErrorAction SilentlyContinue
+          Write-Host "elevated: $admin; system Vulkan loader: $(if ($loader) { $loader.VersionInfo.FileVersion } else { 'none' })"
+          $json = Join-Path $env:GITHUB_WORKSPACE 'toolchain\vvl\bin\VkLayer_khronos_validation.json'
+          if (-not (Test-Path $json)) { throw "missing $json" }
+          $key = 'HKLM:\SOFTWARE\Khronos\Vulkan\ExplicitLayers'
+          New-Item -Path $key -Force | Out-Null
+          New-ItemProperty -Path $key -Name $json -Value 0 -PropertyType DWord -Force | Out-Null
+          Write-Host "registered $json"
       - name: dev.cmd doctor
         shell: cmd
         run: call .\dev.cmd doctor --engine-only
