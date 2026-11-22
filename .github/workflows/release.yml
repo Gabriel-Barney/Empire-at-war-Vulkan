@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write  # create the draft release and upload its assets
+  contents: read
 
 concurrency:
   group: release-${{ github.sha }}
@@ -19,6 +19,8 @@ jobs:
   package:
     runs-on: windows-2025
     timeout-minutes: 180
+    permissions:
+      contents: write  # create the draft release and upload its assets
     outputs:
       tag: ${{ steps.release.outputs.tag }}
     steps:
@@ -61,6 +63,8 @@ jobs:
           dir="$RUNNER_TEMP/packages"
           tag="internal-$short"
           cp "$dir/alamo-$short/SHA256SUMS" "$dir/SHA256SUMS"
+          # A rerun for the same commit replaces its earlier draft, so the smoke job can only download this package.
+          if gh release view "$tag" --json isDraft -q .isDraft 2>/dev/null | grep -qx true; then gh release delete "$tag" --yes; fi
           notes="Internal test build of $GITHUB_SHA (run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID). Draft: not published. SHA256SUMS lists every file inside the package zip; the PDBs are in the -pdb zip."
           gh release create "$tag" --draft --target "$GITHUB_SHA" --title "Internal build $short" --notes "$notes" \
             "$dir/alamo-$short.zip" "$dir/alamo-$short-pdb.zip" "$dir/SHA256SUMS"
@@ -79,6 +83,8 @@ jobs:
     needs: package
     runs-on: windows-2025
     timeout-minutes: 30
+    permissions:
+      contents: write  # a draft release is visible only to tokens that can write
     steps:
       - uses: actions/checkout@v7  # the flag list and the replay fixture the checks compare against
       - uses: actions/setup-python@v7
@@ -101,4 +107,4 @@ jobs:
         shell: bash
         run: |
           [ -f "$RUNNER_TEMP/smoke.txt" ] || exit 0
-          { echo '### package smoke'; echo '```'; grep '^package_smoke' "$RUNNER_TEMP/smoke.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          { echo '### package smoke'; echo '```'; grep '^package_smoke' "$RUNNER_TEMP/smoke.txt" || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

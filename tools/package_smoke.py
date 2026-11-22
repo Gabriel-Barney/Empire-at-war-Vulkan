@@ -91,7 +91,11 @@ def run_checks(folder: str) -> list[str]:
 
     def run(name: str, cmd: list[str]) -> subprocess.CompletedProcess:
         print(f"package_smoke: {name}: {subprocess.list2cmdline(cmd)}", flush=True)
-        p = subprocess.run(cmd, cwd=folder, capture_output=True, text=True, errors="replace", timeout=600)
+        try:
+            p = subprocess.run(cmd, cwd=folder, capture_output=True, text=True, errors="replace", timeout=600)
+        except subprocess.TimeoutExpired as e:  # a hang is a failed check, not a crash of the smoke test
+            failed.append(f"{name} (no exit after {e.timeout:.0f} s)")
+            return subprocess.CompletedProcess(cmd, -1, "", "")
         tail = (p.stdout + p.stderr).strip().splitlines()[-5:]
         print("\n".join("  " + line for line in tail), flush=True)
         if p.returncode != 0:
@@ -112,6 +116,9 @@ def cmd_check(argv: list[str]) -> int:
         print(__doc__)
         return 2
     package_zip = os.path.abspath(argv[0])
+    if argv[-1] == "--sums":
+        print("package_smoke: error: --sums needs the release's SHA256SUMS file")
+        return 2
     release_sums = argv[argv.index("--sums") + 1] if "--sums" in argv else None
     with tempfile.TemporaryDirectory(prefix="alamo_package_smoke_") as d:
         try:
