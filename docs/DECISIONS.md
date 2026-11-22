@@ -329,6 +329,18 @@ the suite, and the counts and skip reasons from `build\test-results\report-<suit
 Why: a self-hosted runner on a public repository would run untrusted pull-request code on the machine that holds the
 game install, and the retail data may not be copied to hosted runners.
 
+## Codex skills are generated, not acceptance-tested
+
+Gabriel, 2026-11-21.
+
+`tools/skills.py` keeps generating `.agents/skills/` for Codex from the same source as `.claude/skills/`, and
+`alamo_skills_check` keeps checking both trees. The workflow is acceptance-tested in Claude Code only: no sample issue
+is run in Codex, and no cross-client resume (one client plans, the other implements) is required. When Codex comes into
+use, run one user-invoked and one model-invoked skill in it first and check for name clashes.
+
+Why: Codex is not installed on the development machine, and the cross-client proofs cost more than they buy for one
+maintainer working in Claude Code.
+
 ## Decisions live in DECISIONS.md
 
 Gabriel, 2026-11-21.
