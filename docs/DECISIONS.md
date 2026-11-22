@@ -60,7 +60,13 @@ which kept clang 20 as a nightly second compiler.
 - **What covers clang's checks.** Per change: `engine/CMakeLists.txt` turns on off-by-default MSVC warnings for the
   conversion family (C4365, C4388, C5219, C4242, C4254, C4826, C4800, C4287, C4296, C4265, C4062) in C++ engine code.
   Nightly, and before a high-risk change lands: MSVC `/analyze`, an MSVC AddressSanitizer build, Debug and optimized
-  Release runs, and the determinism checks in `docs/SIMULATION.md`.
+  Release runs, and the determinism checks in `docs/SIMULATION.md`. `.github/workflows/nightly.yml` runs
+  `dev.cmd check --preset analyze`, which fails on an `/analyze` finding not in `tests/analyze_baseline.txt`; the issue
+  "Nightly checks: last passing" holds the dated last-passing commit. Before a high-risk change lands, run that check
+  locally; `landing` does not require it yet (Gabriel, 2026-11-21, #10 decision 3). `/analyze` findings are not
+  compiler errors (`/analyze:WX-`): the first full run had 319 (241 of them C6262 stack size, mostly in tests), so the
+  baseline holds them as debt to work down and only a new finding fails. Third-party code is out of scope through
+  `/analyze:external-` and the repository-path filter.
 - **Limits.** Compiler portability is not promised. Undefined behaviour and races are caught only by the MSVC checks,
   the tests and review, so code that converts out-of-range values keeps using the defined helpers
   (`alamo/core/x86_int.hpp`, `alamo/core/frames.hpp`).

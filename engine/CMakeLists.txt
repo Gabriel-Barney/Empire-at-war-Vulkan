@@ -79,6 +79,14 @@ if(MSVC)
   if(ALAMO_WARNINGS_AS_ERRORS)
     target_compile_options(alamo_engine_flags INTERFACE /WX)
   endif()
+  # MSVC code analysis (C6xxx/C26xxx) on project code, the nightly "analyze" preset (dev.cmd check --preset analyze;
+  # docs/DECISIONS.md "MSVC is the only compiler"). /analyze:external- skips the external (angle-bracket) headers.
+  # /analyze:WX- keeps its findings from stopping the build (compiler warnings stay errors under /WX):
+  # tools/analyze_report.py compares the per-file *.nativecodeanalysis.xml with tests/analyze_baseline.txt instead.
+  option(ALAMO_ANALYZE "Compile project code with MSVC /analyze" OFF)
+  if(ALAMO_ANALYZE)
+    target_compile_options(alamo_engine_flags INTERFACE /analyze /analyze:external- /analyze:WX-)
+  endif()
 endif()
 target_compile_features(alamo_engine_flags INTERFACE cxx_std_20)
 
