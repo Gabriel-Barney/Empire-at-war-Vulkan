@@ -35,6 +35,8 @@ Project code compiles with `/WX`. Configure with `-DALAMO_WARNINGS_AS_ERRORS=OFF
 
 `.github/workflows/landing.yml` runs on every pull request into `main` and reports one required status, `landing`. A change to prose only (top-level and `docs\*.md`, `docs\agents\`) runs the doc-reference lint. Any other change installs the pinned toolchain without Rust (`2_setup.cmd --engine-only --accept-msvc-license`, cached by the setup scripts' hash), then runs `dev.cmd doctor` and `dev.cmd check`. The test results and `build\logs\` are attached to the run. Retail, Vulkan and trace checks stay local (`docs\DECISIONS.md` "Retail and GPU evidence is a recorded local run").
 
+`main` is protected by the repository ruleset "main: landing required". Every change lands through a pull request. `landing`, reported by GitHub Actions, must pass on a branch that is up to date with `main`. Force pushes and deleting `main` are blocked, and no one bypasses the ruleset. No approving review is required, because the maintainer cannot approve their own pull request. Work on a branch, push it, and open a pull request into `main`.
+
 In Command Center, select `build\bin\alamo_game.exe` as the engine executable and choose the installed game folder.
 
 ## Game data
