@@ -1122,6 +1122,64 @@ void test_routing() {
           r2.owner(Button::Left) == PointerTarget::None);
 }
 
+// #178 [port: Gabriel] A selected locked fleet group gets one ground outline: a selection circle in the local player's
+// selection material, centred on the members and enclosing all of them. Unlocked, unselected or fleet groups off: none.
+void test_tactical_hud_fleet_outline() {
+    const ComponentTable t = hud_test::load_table();
+    const TextureAtlas atlas = hud_test::make_atlas();
+    auto box = make_box_rasterizer();
+    FontCache fonts(*box);
+    TacticalHud hud;
+    hud.init(t, atlas, fonts);
+    hud.resize(1024, 768);
+    std::vector<HudTypeInfo> types(1);
+    types[0].select_box_scale = 10.0f;
+    types[0].scale = 1.0f;
+    std::vector<HudUnit> units(4);
+    const float xs[4] = {0.0f, 100.0f, 0.0f, 900.0f};
+    const float ys[4] = {0.0f, 0.0f, 100.0f, 900.0f};
+    for (uint32_t i = 0; i < 4; ++i) {
+        units[i].id = 20 + i;
+        units[i].owner = 0;
+        units[i].position = {xs[i], ys[i], 5.0f};
+        units[i].selected = i == 0;  // one member selected: the group counts as selected
+    }
+    std::vector<HudFleetGroup> feed(1);
+    feed[0].id = 4;
+    feed[0].locked = true;
+    feed[0].members = {20, 21, 22};
+    TacticalHudFrame fr;
+    fr.world.view = top_view(1024, 768);
+    fr.world.selection_material = [](int32_t owner, bool land, bool hero) {
+        return std::string(land ? "land_" : "space_") + std::to_string(owner) + (hero ? "_hero" : "");
+    };
+    fr.fleet_groups = feed;
+    const auto outlines = [&hud]() {
+        std::vector<SelectionBlob> o;
+        for (const SelectionBlob& b : hud.selection_blobs())
+            if (b.radius > 50.0f) o.push_back(b);  // unit circles are 10
+        return o;
+    };
+    hud.build(fr, units, types);
+    CHECK(outlines().empty() && hud.stats().fleet_outlines == 0);  // fleet groups off
+    fr.fleet_groups_on = true;
+    hud.build(fr, units, types);
+    const std::vector<SelectionBlob> o = outlines();
+    CHECK(o.size() == 1 && hud.stats().fleet_outlines == 1);
+    if (o.size() == 1) {
+        // centroid (33.3, 33.3); the farthest member (100, 0) or (0, 100) is 74.5 away, plus its circle (10)
+        CHECK(std::fabs(o[0].center.x - 100.0f / 3.0f) < 0.1f && std::fabs(o[0].center.y - 100.0f / 3.0f) < 0.1f);
+        CHECK(o[0].radius >= 84.0f && o[0].radius < 110.0f && o[0].material == "space_0" && !o[0].land);
+    }
+    feed[0].locked = false;
+    hud.build(fr, units, types);
+    CHECK(outlines().empty());
+    feed[0].locked = true;
+    for (HudUnit& u : units) u.selected = u.id == 23;  // only the ungrouped unit
+    hud.build(fr, units, types);
+    CHECK(outlines().empty() && hud.stats().fleet_outlines == 0);
+}
+
 // #174 [port: Gabriel] Fleet groups in the selected-unit bar: each group's selected members by type, then the ungrouped
 // units; a header tab per group run selects the whole group; past the last slot one "+N" entry holds the rest. Off, the
 // bar is the retail one whatever the feed holds.
@@ -1517,6 +1575,7 @@ int main() {
     test_routing();
     test_tactical_hud();
     test_tactical_hud_fleet_groups();  // #174
+    test_tactical_hud_fleet_outline();  // #178
     test_tactical_panels();
     g_fail += run_stage2_tests();
     if (g_fail) {

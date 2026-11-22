@@ -563,6 +563,7 @@ void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> 
         for (const HudUnit& u : units)
             if (u.selected && std::binary_search(frame.fleet_groups[k].members.begin(), frame.fleet_groups[k].members.end(), u.id))
                 ++fleet_selected_[k];
+    build_fleet_outlines(frame, units, types);
     // ui3 t07 (HUD_GAPS §2.1): Tooltip_Text entry 1 in tactical land mode when the component has a second entry, else
     // entry 0; the groups that pick an entry by state (buy buttons, the bombing-run button) override it below.
     for (uint32_t i = 0; i < table_->size(); ++i)
@@ -1328,6 +1329,49 @@ void TacticalHud::build_objectives(const TacticalHudFrame& f) {
 // [port: Gabriel, 2026-11-13] Squadron wing buttons (HudWing): a column at the left edge of the canvas, 40 units below
 // its middle, one 172 x 24 button per wing that has a squadron: "LABEL  n" (n = squadrons) and the key hint at the right.
 // Selected look while the whole wing is selected, brighter while hovered. Hit ids kWingHitBase + wing index.
+// [port: Gabriel, 2026-11-22, #178] A selected locked fleet group (any member selected) gets one ground outline: a
+// selection circle in the local player's selection material (the unit circles' drawing), centred on the members'
+// centroid and enclosing every member and its own circle, plus a small margin. Not while targeting or in a cinematic,
+// as the unit circles.
+void TacticalHud::build_fleet_outlines(const TacticalHudFrame& f, std::span<const HudUnit> units,
+                                       std::span<const HudTypeInfo> types) {
+    if (!f.fleet_groups_on || f.world.targeting_active || f.world.cinematic) return;
+    constexpr float kMargin = 12.0f;
+    for (size_t k = 0; k < f.fleet_groups.size() && k < fleet_selected_.size(); ++k) {
+        const HudFleetGroup& g = f.fleet_groups[k];
+        if (!g.locked || fleet_selected_[k] == 0) continue;
+        std::vector<const HudUnit*> live;
+        for (const uint32_t id : g.members) {
+            const auto it = std::lower_bound(units.begin(), units.end(), id, [](const HudUnit& u, uint32_t v) { return u.id < v; });
+            if (it != units.end() && it->id == id) live.push_back(&*it);
+        }
+        if (live.empty()) continue;
+        Vec3 c{};
+        for (const HudUnit* u : live) {
+            c.x += u->position.x;
+            c.y += u->position.y;
+            c.z += u->position.z;
+        }
+        const float n = static_cast<float>(live.size());
+        c = {c.x / n, c.y / n, c.z / n};
+        float r = 0.0f;
+        for (const HudUnit* u : live) {
+            const HudTypeInfo* t = u->type < types.size() ? &types[u->type] : nullptr;
+            const float own = t && t->select_box_scale > 0.0f ? t->select_box_scale * t->scale : 0.0f;
+            const float dx = u->position.x - c.x, dy = u->position.y - c.y;
+            r = std::max(r, std::sqrt(dx * dx + dy * dy) + own);
+        }
+        SelectionBlob sb;
+        sb.id = 0;
+        sb.center = c;
+        sb.radius = r + kMargin;
+        sb.land = f.world.land;
+        if (f.world.selection_material) sb.material = f.world.selection_material(f.world.local_player, f.world.land, false);
+        blobs_.push_back(std::move(sb));
+        ++stats_.fleet_outlines;
+    }
+}
+
 size_t TacticalHud::panel_slot_count() const {
     size_t n = 0;
     while (n < slot_component_.size() && slot_component_[n] >= 0) ++n;
