@@ -654,12 +654,13 @@ public:
             if (p_.pop_cap && p_.pop_of(r.type) > p_.remaining_pop) r.prod_score = kVeto;
             return r.prod_score;
         }
-        // MagicPlan (galactic): not spawnable -> veto; else one synced float in [0, 1] (0x5324d0).
+        // MagicPlan (galactic): not spawnable -> veto; else one synced float in [0, 1] (0x5324d0). A vetoed candidate
+        // draws nothing.
         const gal::TypeInfo* x = p_.ti(r.type);
-        // Not spawnable (AI_GALACTIC_2 §1.4 list; AI_GALACTIC_3 §4.1) [H]: a non-hero with cost < 1, a transport, tech > 5,
-        // a hero the player already has (tech > 5: a literal, 0x726238, MCX5_RE_ANSWERS Q1.8 [H]); structures (0x5F / 0x60) are spawnable; flags +0x2A / +0x29 (company / squadron
-        // members), 0x375270 ("Super" category) and generic 0x5C / 0x5B types (STRATEGIC_GAPS §1.2, §1.5) [H]. [port] Not
-        // modelled: unique / instance counts (+0xF60 / +0xF80).
+        // Not spawnable (AI_GALACTIC_2 §1.4 list; AI_GALACTIC_3 §4.1; legacy docs/re/BKG1_RE_ANSWERS.md §2.1 rules a-k) [H]:
+        // a non-hero with cost < 1, a transport, tech > 5 (a literal, 0x726238, MCX5_RE_ANSWERS Q1.8 [H]); structures
+        // (0x5F / 0x60) are spawnable; flags +0x2A / +0x29 (company / squadron members), 0x375270 ("Super" category) and
+        // generic 0x5C / 0x5B types (STRATEGIC_GAPS §1.2, §1.5) [H].
         if (!x || (!p_.hero(r.type) && x->build_cost < 1) || x->tech_level > 5) return kVeto;
         // The player's locks [H]: locked list 0x282550, and Build_Initially_Locked (+0xC1) without an unlock 0x282580
         // (GalacticSim::build_locked); the production-disabled list 0x282510 is tested above.
@@ -668,10 +669,18 @@ public:
             const GalacticAiTypeInfo& a = p_.w.tinfo[r.type];
             if (a.transport || a.transport_behavior || a.company_member || a.squadron_member || a.super_category || a.dummy_base)
                 return kVeto;
+            // gai1 t01, rule f (BKG1_RE_ANSWERS §2.1): a named hero (+0x13) with a space model (0x3729f0(T, 2) != null) is
+            // never spawned, whether or not the player has one (not a presence test). It keeps the Falcon variants, which
+            // inherit both from Millennium_Falcon, and every named space hero ship out of magic spawns.
+            if (a.hero && a.space_model) return kVeto;
         }
-        if (p_.hero(r.type))
-            for (const ObjectHandle u : p_.w.player_units(p_.player))
-                if (p_.w.store.type(u) == r.type) return kVeto;
+        // gai1 t01, rule j: a Required_Planets (+0xF60) or Required_Orbiting_Units (+0xF80) list.
+        if (!x->required_planets.empty() || !x->required_orbiting_units.empty()) return kVeto;
+        // gai1 t01, rule k: no Hyperspace (+0x24; a squadron's is its last member's), no Company_Units (+0x960) and not a
+        // ground / orbital structure.
+        const int8_t sq_hs = r.type < p_.w.tinfo.size() ? p_.w.tinfo[r.type].squadron_hyperspace : int8_t{-1};
+        const bool hyperspace = sq_hs >= 0 ? sq_hs == 1 : x->hyperspace;
+        if (!hyperspace && x->company_units.empty() && !p_.is_structure(r.type)) return kVeto;
         return p_.w.rng.synced().inline_unit_float();
     }
     void commit(uint32_t i) override {  // 0x726390

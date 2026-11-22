@@ -3249,6 +3249,15 @@ std::vector<GalacticAiTypeInfo> make_galactic_ai_type_info(const objects::GameOb
         // STRATEGIC_GAPS Â§1.1 / Â§1.2 / Â§1.5 [H]
         o.dummy_base = types.behavior_count(ti, "DUMMY_STAR_BASE") > 0 || types.behavior_count(ti, "DUMMY_GROUND_BASE") > 0;
         o.super_category = o.has_category("Super");
+        // gai1 t01 (legacy docs/re/BKG1_RE_ANSWERS.md §2.1 rule f): Space_Model_Name +0x200 after variant inheritance.
+        o.space_model = !ai_trim(types.get(ti, objects::tags::Space_Model_Name)).empty();
+        // A squadron's Hyperspace is its last resolved member's (OBJECT_TYPES §6.2 step 4 [H]); rule k reads it.
+        const std::vector<objects::TypeIndex> sq = types.get_type_refs(ti, objects::tags::Squadron_Units);
+        for (auto m = sq.rbegin(); m != sq.rend(); ++m)
+            if (*m != objects::kNone) {
+                o.squadron_hyperspace = types.get(*m, objects::tags::Hyperspace) ? 1 : 0;
+                break;
+            }
         o.unit_ai = types.behavior_count(ti, "UNIT_AI") > 0;
         o.stealth_company = types.get(ti, objects::tags::Is_Stealth_Company);
         const std::vector<objects::TypeIndex> cu = types.get_type_refs(ti, objects::tags::Company_Units);
