@@ -85,6 +85,8 @@ alamo_headless_selfcheck
 alamo_headless_skirmish_ai_synthetic
 alamo_headless_skirmish_plan_retest
 alamo_headless_skirmish_trace
+alamo_injected_compile_failure
+alamo_injected_wrong_result
 alamo_jobs_crc_tests
 alamo_jobs_tests
 alamo_landing_gate_selftest
@@ -190,6 +192,7 @@ alamo_tactical_special_weapons_tests
 alamo_tactical_tests
 alamo_tactical_tree_save_tests
 alamo_terrain_tests
+alamo_test_suite_selftest
 alamo_ui_colour_arrows_tests
 alamo_ui_draw_tests
 alamo_ui_gui_draw_tests
