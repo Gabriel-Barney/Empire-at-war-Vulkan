@@ -2,158 +2,325 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Road to Playable</title>
 <meta name="description" content="The project roadmap: stages, boxes and the GitHub issues in each, read live.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <!--
   The project roadmap (README.md "Roadmap"). The stages and boxes come from flow.json next to this file; the work is
   the repository's GitHub issues, read live from the public API, and joins a box through the label roadmap:<box id>.
   Edit flow.json to change the chart (python -I tools/roadmap_flow.py check), and labels to move work between boxes.
+  The look follows the old roadmap store's page (Empire-Vulkan-Brenach page_shell.html): a nav console whose
+  flowchart never leaves the screen, with the panel beside it (below it on a phone) showing what the chart selects.
 -->
 <style>
 :root {
-  --bg: #0f1419; --panel: #161c23; --panel2: #1c242d; --line: #2a3540; --text: #d9e1e8; --muted: #8796a5;
-  --accent: #e3b341; --done: #3fb950; --active: #58a6ff; --todo: #8b949e; --start: #e3b341; --danger: #f85149;
-  --t1: #f0883e; --t2: #58a6ff; --t3: #8b949e; --edge: #3d4b59; --edge-hi: #e3b341; --chip: #232d38;
+  --bg: #f3f4f7; --surface: #ffffff; --line: #d9dce5; --fg: #1a1e29; --muted: #5a6175;
+  --accent: #b8650a; --edge: #8a91a5; --ok: #1f7a4d; --bad: #b3261e;
+  --s-next: #1f7a4d; --s-partly: #a86a00; --s-open: #2563a8; --s-big: #8a5a14; --s-done: #5b6470; --s-out: #8b8f99;
+  --chip-bg: #eceef3; --lane: #eef0f5; --table: #e8eaf0; --on-accent: #ffffff; --on-pill: #ffffff;
+  --font-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
 }
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
-    --bg: #f6f8fa; --panel: #ffffff; --panel2: #f0f3f6; --line: #d0d7de; --text: #1f2328; --muted: #59636e;
-    --accent: #9a6700; --done: #1a7f37; --active: #0969da; --todo: #6e7781; --start: #9a6700; --danger: #cf222e;
-    --t1: #bc4c00; --t2: #0969da; --t3: #6e7781; --edge: #b6c0ca; --edge-hi: #9a6700; --chip: #eaeef2;
-  }
+/* Dark is the default, as on the old roadmap; the theme button switches to light and the choice is remembered. */
+:root:not([data-theme="light"]), :root[data-theme="dark"] {
+  --bg: #11141c; --surface: #191d28; --line: #2c3242; --fg: #e6e8ef; --muted: #9aa1b5; --accent: #f0a23b; --edge: #6d7690;
+  --ok: #4fc28a; --bad: #ef8b84;
+  --s-next: #4fc28a; --s-partly: #e5a83a; --s-open: #6aa6ec; --s-big: #d9a457; --s-done: #9aa4b2; --s-out: #6b707b;
+  --chip-bg: #222736; --lane: #151925; --table: #0d1017; --on-accent: #1a1204; --on-pill: #11141c; color-scheme: dark;
 }
-:root[data-theme="light"] {
-  --bg: #f6f8fa; --panel: #ffffff; --panel2: #f0f3f6; --line: #d0d7de; --text: #1f2328; --muted: #59636e;
-  --accent: #9a6700; --done: #1a7f37; --active: #0969da; --todo: #6e7781; --start: #9a6700; --danger: #cf222e;
-  --t1: #bc4c00; --t2: #0969da; --t3: #6e7781; --edge: #b6c0ca; --edge-hi: #9a6700; --chip: #eaeef2;
-}
+
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--bg); color: var(--text); }
-body { font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
-a { color: var(--active); text-decoration: none; }
-a:hover { text-decoration: underline; }
-header { display: flex; flex-wrap: wrap; gap: 12px 32px; align-items: flex-end; padding: 16px 20px; border-bottom: 1px solid var(--line); }
-header h1 { margin: 0; font-size: 22px; }
-.eyebrow { color: var(--accent); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; }
-.bars { display: grid; gap: 6px; min-width: 260px; flex: 1; max-width: 460px; }
-.bar { font-size: 12px; color: var(--muted); }
-.bar b { color: var(--text); }
-.meter { height: 6px; border-radius: 3px; background: var(--chip); overflow: hidden; margin-top: 2px; }
-.meter > i { display: block; height: 100%; background: var(--done); }
-.status-line { font-size: 12px; color: var(--muted); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-button, select, input { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; }
-button { cursor: pointer; }
-button:hover { border-color: var(--muted); }
-nav.stages { display: flex; gap: 4px; padding: 8px 20px; border-bottom: 1px solid var(--line); overflow-x: auto; }
-nav.stages a { flex: 0 0 auto; padding: 4px 10px; border-radius: 6px; color: var(--text); font-size: 12px; background: var(--panel); border: 1px solid var(--line); }
-nav.stages a .meter { width: 100%; }
-main { display: grid; grid-template-columns: 300px minmax(0, 1fr) 380px; gap: 0; min-height: calc(100vh - 140px); }
-aside { border-right: 1px solid var(--line); padding: 14px; overflow-y: auto; max-height: calc(100vh - 120px); position: sticky; top: 0; }
-aside.right { border-right: 0; border-left: 1px solid var(--line); }
-aside h2 { font-size: 15px; margin: 0 0 6px; }
-.hint { color: var(--muted); font-size: 12px; margin: 0 0 10px; }
-ol.important { padding-left: 22px; margin: 0; }
-ol.important li { margin-bottom: 10px; }
-.issue-title { font-weight: 600; }
-.meta { font-size: 12px; color: var(--muted); }
-.chip { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 10px; background: var(--chip); color: var(--muted); margin-right: 4px; white-space: nowrap; }
-.chip.t1 { color: var(--t1); } .chip.t2 { color: var(--t2); } .chip.t3 { color: var(--t3); }
-.chip.start { color: var(--start); }
-#flow { position: relative; padding: 16px 20px 60px; }
-#edges { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
-section.stage { position: relative; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--panel) 70%, transparent); padding: 10px 12px 14px; margin-bottom: 28px; }
-section.stage h3 { margin: 0 0 2px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
-section.stage .goal { font-size: 12px; color: var(--muted); margin: 0 0 10px; max-width: 900px; }
-.boxes { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 26px 22px; }
-.box { position: relative; z-index: 1; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--todo); border-radius: 8px; padding: 8px 10px 6px; cursor: pointer; }
-.box.wide { grid-column: span 2; }
-.box.done { border-left-color: var(--done); opacity: .62; }
-.box.active { border-left-color: var(--active); }
-.box.start { box-shadow: 0 0 0 1px var(--start); }
-.box.sel { outline: 2px solid var(--accent); outline-offset: 2px; opacity: 1; }
-.box.dim { opacity: .25; }
-.box .label { font-weight: 600; font-size: 13px; }
-.box .note { font-size: 11px; color: var(--muted); margin: 2px 0 4px; }
-.box .stats { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
-.box .badge { position: absolute; top: -8px; right: -8px; min-width: 20px; height: 20px; border-radius: 10px; background: var(--active); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; padding: 0 5px; }
-.box.start .badge { background: var(--start); color: #000; }
-.tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
-.tabs button[aria-selected="true"] { border-color: var(--accent); color: var(--accent); }
-ul.issues { list-style: none; padding: 0; margin: 0; }
-ul.issues li { padding: 6px 0; border-bottom: 1px solid var(--line); }
-ul.issues li.closed .issue-title { text-decoration: line-through; color: var(--muted); }
-.filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
-.filters input { flex: 1; min-width: 140px; }
-.legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--muted); margin: 0 0 14px; }
-.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; margin-right: 4px; }
-.error { color: var(--danger); }
-.empty { color: var(--muted); font-style: italic; }
-@media (max-width: 1200px) {
-  main { grid-template-columns: minmax(0, 1fr); }
-  aside, aside.right { position: static; max-height: none; border: 0; border-bottom: 1px solid var(--line); }
-  aside.left { order: 2; } #flow { order: 1; } aside.right { order: 3; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5; overflow: hidden; }
+[hidden] { display: none !important; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; text-wrap: balance; margin: 0; letter-spacing: .01em; }
+h2 { font-size: 18px; }
+p { margin: 0; }
+a { color: var(--accent); }
+code { font-family: var(--font-mono); font-size: .9em; }
+button { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.small { font-size: 13px; color: var(--muted); margin: 0; }
+.mono { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--edge); margin-right: 6px; }
+.dot.live { background: var(--ok); }
+.dot.err { background: var(--bad); }
+.error { color: var(--bad); }
+.bar { height: 6px; background: var(--chip-bg); border-radius: 3px; overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--ok); }
+
+.app { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+
+/* Top bar. */
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 24px; padding-block: 8px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); background: var(--surface); border-bottom: 1px solid var(--line); }
+.ttl { display: grid; min-width: 0; }
+.eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h1 { font-size: 21px; line-height: 1.2; }
+.overall { flex: 1 1 200px; display: grid; gap: 3px; min-width: 160px; max-width: 340px; }
+.overall span { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.overall b { color: var(--fg); }
+.overall .bar-bx > i { background: color-mix(in srgb, var(--ok) 60%, var(--muted)); }
+.live { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.acts { display: inline-flex; gap: 4px; }
+.acts button, .acts a { height: 26px; padding: 0 9px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; font-family: var(--font-mono); font-size: 12px; color: var(--fg); cursor: pointer; text-decoration: none; display: inline-grid; place-items: center; }
+.acts button:hover, .acts a:hover { border-color: var(--edge); }
+.miles { display: flex; gap: 18px; margin-left: auto; }
+.mile { display: grid; min-width: 0; }
+.mile b { font-family: var(--font-display); font-size: 15px; font-variant-numeric: tabular-nums; line-height: 1.25; }
+.mile span { font-size: 11.5px; color: var(--muted); line-height: 1.25; }
+.mile.go b { color: var(--ok); }
+
+.main { display: grid; grid-template-columns: clamp(230px, 20vw, 340px) minmax(0, 1fr) clamp(340px, 30vw, 560px); grid-template-areas: "side chart panel"; min-height: 0; }
+.side { grid-area: side; overflow-y: auto; overflow-x: hidden; min-height: 0; min-width: 0; display: grid; gap: 14px; align-content: start; padding-block: 14px 40px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 12px; background: var(--bg); border-right: 1px solid var(--line); overscroll-behavior: contain; }
+
+/* Chart pane: stage strip above, chart table below. */
+.chartpane { grid-area: chart; display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; min-height: 0; }
+.route { display: flex; gap: 4px; overflow-x: auto; padding-block: 6px; padding-left: max(8px, env(safe-area-inset-left, 0px)); padding-right: 8px; background: var(--surface); border-bottom: 1px solid var(--line); scrollbar-width: thin; }
+.stop { flex: 1 0 104px; min-width: 0; text-align: left; background: none; border: 1px solid transparent; border-radius: 5px; padding: 3px 7px; display: grid; gap: 2px; align-content: start; cursor: pointer; opacity: .62; }
+.stop:hover { background: var(--chip-bg); opacity: 1; }
+.stop.vis { opacity: 1; }
+.stop.cur .n { color: var(--accent); }
+.stop .n { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+.stop .t { font-size: 12px; font-weight: 600; line-height: 1.2; }
+.stop.fin .t { color: var(--muted); }
+.stop.side { border-left: 1px dashed var(--edge); border-radius: 0 5px 5px 0; }
+.stop .bar { height: 3px; margin-top: auto; }
+
+.table { position: relative; overflow: hidden; background-color: var(--table); background-image: radial-gradient(var(--line) 1px, transparent 1px); background-size: 22px 22px; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; min-height: 0; }
+.table.drag { cursor: grabbing; }
+.table svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; font-family: var(--font-body); }
+#cam { transform-origin: 0 0; }
+#cam.anim { transition: transform .32s cubic-bezier(.2, .7, .2, 1); }
+.lane > rect.bg { fill: var(--lane); stroke: var(--line); }
+.lane.cur > rect.bg { stroke: var(--accent); }
+.lane.side > rect.bg { stroke-dasharray: 5 4; }
+.lane.fin > rect.bg { opacity: .55; }
+.lane-h { cursor: pointer; }
+.lane-h rect { fill: transparent; }
+.lane-h text { fill: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.lane-h:hover text, .lane.cur .lane-h text { fill: var(--accent); }
+.edge { fill: none; stroke: var(--edge); stroke-width: 1.5; opacity: .55; }
+.edge.dash { stroke-dasharray: 5 4; }
+.edge.on { stroke: var(--accent); stroke-width: 2.4; opacity: 1; }
+.edge.off { opacity: .1; }
+#arr path { fill: var(--edge); } #arrOn path { fill: var(--accent); }
+.nd { cursor: pointer; outline: none; }
+.nd rect.box { fill: color-mix(in srgb, var(--c) 14%, var(--surface)); stroke: var(--c); stroke-width: 1.5; }
+.nd text { fill: var(--fg); font-size: 13px; font-weight: 600; }
+.nd text.sub { font-size: 11px; font-weight: 400; fill: var(--muted); }
+.nd.isdone rect.box { fill: var(--surface); }
+.nd.isdone text { fill: var(--muted); }
+.nd .trk { fill: color-mix(in srgb, var(--c) 22%, var(--surface)); }
+.nd .fil { fill: var(--c); }
+.nd text.cnt { font-size: 10px; font-weight: 500; fill: var(--muted); font-family: var(--font-mono); }
+.nd:hover rect.box { stroke-width: 3; }
+.nd:focus-visible rect.box { stroke: var(--accent); stroke-width: 3; stroke-dasharray: 4 3; }
+.nd.sel rect.box { stroke: var(--accent); stroke-width: 3.5; }
+.nd .halo { fill: none; stroke: var(--accent); stroke-width: 7; opacity: 0; }
+.nd.sel .halo { opacity: .22; }
+.nd.dim { opacity: .28; }
+.nd.dim:hover { opacity: .8; }
+.badge circle { fill: var(--c); stroke: var(--surface); stroke-width: 2; }
+.nd .badge text { fill: var(--on-pill); font-size: 10.5px; font-weight: 600; font-family: var(--font-mono); text-anchor: middle; }
+@media (prefers-reduced-motion: no-preference) { .nd { transition: opacity .16s; } .edge { transition: opacity .16s; } }
+@media (prefers-reduced-motion: reduce) { #cam.anim { transition: none; } }
+.ctl { position: absolute; right: max(10px, env(safe-area-inset-right, 0px)); bottom: 10px; display: flex; gap: 4px; align-items: center; }
+.ctl button { min-width: 32px; height: 32px; padding: 0 9px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; font-size: 13px; cursor: pointer; }
+.ctl button:hover { border-color: var(--edge); }
+.key { position: absolute; right: max(10px, env(safe-area-inset-right, 0px)); bottom: 50px; width: min(290px, calc(100% - 20px)); max-height: calc(100% - 60px); overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; display: grid; gap: 3px; font-size: 12.5px; color: var(--muted); cursor: default; }
+.key i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 7px; vertical-align: -1px; background: var(--c); }
+.key hr { width: 100%; border: 0; border-top: 1px solid var(--line); margin: 5px 0; }
+
+/* Panel. */
+.panel { grid-area: panel; display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-width: 0; min-height: 0; background: var(--bg); border-left: 1px solid var(--line); }
+.psearch { padding: 8px 8px 8px 16px; padding-right: max(8px, env(safe-area-inset-right, 0px)); background: var(--surface); border-bottom: 1px solid var(--line); }
+.psearch input[type=search] { display: block; width: 100%; min-width: 0; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; }
+.tabs { display: flex; gap: 2px; overflow-x: auto; padding-left: 8px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.tab { background: none; border: 0; border-bottom: 3px solid transparent; padding: 8px 12px 6px; font-family: var(--font-display); font-weight: 600; font-size: 14.5px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.tab:hover { color: var(--fg); }
+.tab[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+.scroll { overflow-y: auto; overflow-x: hidden; min-height: 0; padding-block: 14px 40px; padding-left: 16px; padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 14px; align-content: start; grid-template-columns: minmax(0, 1fr); overscroll-behavior: contain; }
+.view { display: grid; gap: 14px; min-width: 0; }
+@media (prefers-reduced-motion: no-preference) { .view.enter { animation: enter .18s ease-out; } @keyframes enter { from { transform: translateY(5px); opacity: .4; } } }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; display: grid; gap: 8px; min-width: 0; align-content: start; }
+.card.go { border-top: 3px solid var(--s-next); }
+.nextlist { list-style: none; margin: 0; padding: 0; display: grid; }
+.nextlist li { border-top: 1px solid var(--line); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 8px; align-items: start; }
+.nextlist li:first-child { border-top: 0; }
+.nextbtn { display: grid; gap: 1px; width: 100%; text-align: left; background: none; border: 0; padding: 6px 2px; cursor: pointer; min-width: 0; }
+.nextbtn:hover .nt { color: var(--accent); }
+.nt { font-weight: 600; font-size: 14px; }
+.nt .rk { font-family: var(--font-mono); font-weight: 600; color: var(--muted); margin-right: 6px; }
+.why { font-size: 12px; color: var(--muted); }
+.nd8 { font-family: var(--font-mono); font-size: 12px; color: var(--muted); white-space: nowrap; padding-top: 8px; text-decoration: none; }
+.nd8:hover { color: var(--accent); }
+.empty { color: var(--muted); padding: 18px; border: 1px dashed var(--line); border-radius: 6px; text-align: center; font-size: 13.5px; list-style: none; }
+.table .empty { position: absolute; inset: 16px; display: grid; place-items: center; }
+
+/* Box view. */
+.boxhead { display: grid; gap: 6px; }
+.crumb { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.linkish { background: none; border: 0; padding: 0; font-size: 12.5px; color: var(--muted); cursor: pointer; text-align: left; font-family: var(--font-mono); }
+.linkish:hover { color: var(--accent); }
+.closex { background: none; border: 1px solid var(--line); border-radius: 6px; padding: 2px 9px; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+.closex:hover { border-color: var(--edge); }
+.boxhead h2 { font-size: 21px; line-height: 1.2; }
+.boxmeta { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-size: 12.5px; color: var(--muted); }
+.boxhead .bar { max-width: 240px; }
+.neigh { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 5px 8px; align-items: baseline; font-size: 12.5px; color: var(--muted); }
+.neigh > div { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.nb { border: 1px solid var(--line); border-left: 3px solid var(--c); background: var(--surface); border-radius: 4px; padding: 0 7px; font-size: 12.5px; color: var(--fg); cursor: pointer; text-align: left; }
+.nb:hover { border-color: var(--accent); border-left-color: var(--c); }
+.nb.dash { border-style: dashed; border-left-style: solid; }
+.goal { margin: 0; font-size: 13.5px; }
+.exit { margin: 0; font-size: 12.5px; color: var(--muted); }
+.exit b { font-weight: 600; color: var(--fg); }
+.pill { border-radius: 4px; padding: 0 6px; font-weight: 600; color: var(--c); border: 1px solid var(--c); font-size: 12px; }
+.rdy { border-radius: 4px; padding: 0 6px; font-weight: 600; font-size: 12px; color: var(--on-pill); background: var(--s-next); }
+
+/* Issue rows. */
+.toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+select { padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); font: inherit; font-size: 13px; min-width: 0; max-width: 100%; }
+.iss-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.iss { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 8px; align-items: baseline; padding: 6px 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; font-size: 13px; }
+.iss a.tx { color: var(--fg); text-decoration: none; overflow-wrap: anywhere; }
+.iss a.tx:hover { color: var(--accent); text-decoration: underline; }
+.iss a.tx .no { font-family: var(--font-mono); font-size: 12px; color: var(--muted); margin-right: 4px; }
+.iss.closed a.tx { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.iss .meta2 { grid-column: 2; font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 2px 10px; }
+.iss .meta2 button { background: none; border: 0; padding: 0; font: inherit; color: var(--fg); text-decoration: underline; cursor: pointer; }
+.tier { display: inline-block; padding: 0 5px; border-radius: 4px; border: 1px solid currentColor; font-family: var(--font-mono); font-size: 11px; font-weight: 700; line-height: 16px; white-space: nowrap; color: var(--s-out); }
+.tier.T1 { color: var(--bad); }
+.tier.T2 { color: var(--s-partly); }
+.tier.T3 { color: var(--s-done); }
+.nt .tier { margin-right: 6px; vertical-align: 1px; }
+.gh { justify-self: start; font-size: 12.5px; font-family: var(--font-mono); }
+
+/* Overview: the stages as a numbered route line down the left, each with its boxes. */
+.stages { display: grid; }
+.stage { display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 10px; scroll-margin: 12px; }
+.rail { display: grid; grid-template-rows: auto 1fr; justify-items: center; }
+.rail .num { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-display); font-weight: 600; font-size: 13px; border: 2px solid var(--edge); background: var(--bg); color: var(--muted); }
+.rail .ln { width: 2px; background: var(--line); margin-top: 2px; }
+.stage:last-child .rail .ln { background: transparent; }
+.stage.fin .rail .num { background: var(--ok); border-color: var(--ok); color: var(--on-pill); }
+.stage.cur .rail .num { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.stage.flash .stage-head h2 { color: var(--accent); }
+.stage-body { display: grid; gap: 8px; padding-bottom: 18px; min-width: 0; }
+.stage-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; width: 100%; text-align: left; background: none; border: 0; padding: 1px 0 0; cursor: pointer; }
+.stage-head h2 { font-size: 16.5px; display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.here { font-family: var(--font-mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); font-weight: 500; }
+.stage-sum { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); white-space: nowrap; text-align: right; }
+.groups { display: grid; gap: 6px; min-width: 0; }
+.grp { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--c); border-radius: 6px; min-width: 0; }
+.grp.fin { opacity: .7; }
+.grp-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; width: 100%; text-align: left; background: none; border: 0; padding: 8px 12px; cursor: pointer; }
+.grp-head:hover .grp-title { color: var(--accent); }
+.grp-title { font-size: 14px; font-weight: 600; display: flex; flex-wrap: wrap; gap: 3px 8px; align-items: baseline; }
+.grp-title code { font-size: 11.5px; color: var(--muted); font-weight: 500; }
+.grp-right { display: grid; justify-items: end; gap: 3px; font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.grp-right .bar { width: 70px; }
+.meta { display: flex; flex-wrap: wrap; gap: 4px 6px; font-size: 12px; align-items: center; grid-column: 1; min-width: 0; color: var(--muted); }
+
+@media (max-width: 1240px) { .top .miles { display: none; } }
+/* Phone and narrow window: the chart stays pinned on top, the panel scrolls under it. */
+@media (max-width: 900px) {
+  .main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 38%) auto minmax(0, 1fr); grid-template-areas: "chart" "side" "panel"; }
+  .side { max-height: 22vh; border-right: 0; border-top: 1px solid var(--line); padding-block: 10px 14px; padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 }
-@media (max-width: 600px) {
-  header, nav.stages { padding-left: 16px; padding-right: 16px; }
-  #flow { padding: 12px 16px 40px; }
-  .box.wide { grid-column: auto; }
+@media (max-width: 760px) {
+  .panel { border-left: 0; border-top: 1px solid var(--line); }
+  .scroll { padding-left: max(16px, env(safe-area-inset-left, 0px)); }
+  .eyebrow { display: none; }
+  h1 { font-size: 17px; }
+  .top { gap: 2px 14px; padding-block: 5px; }
+  .overall { flex-basis: 120px; min-width: 110px; }
+  .live .lt { display: none; }
+  .stop { flex-basis: 84px; padding: 2px 5px; }
+  .stop .n { font-size: 10px; }
+  .stop .t { font-size: 11px; }
+  .ctl button { min-width: 30px; height: 30px; padding: 0 7px; }
 }
+@media (max-width: 520px) { .grp-head { grid-template-columns: minmax(0, 1fr); } .grp-right { justify-items: start; grid-auto-flow: column; justify-content: start; align-items: center; gap: 8px; } .stage-head { grid-template-columns: minmax(0, 1fr); } .stage-sum { text-align: left; white-space: normal; } }
 </style>
 </head>
 <body>
-<header>
-  <div>
-    <div class="eyebrow">Empire at War engine port</div>
-    <h1 id="title">Road to playable</h1>
-  </div>
-  <div class="bars" id="bars"></div>
-  <div class="status-line">
-    <span id="loaded">Loading…</span>
-    <button id="reload" type="button">Reload</button>
-    <button id="theme" type="button" title="Switch light and dark">◐</button>
-    <a id="repo-link" href="#">Issues</a>
-  </div>
-</header>
-<nav class="stages" id="stage-nav" aria-label="Stages"></nav>
-<main>
-  <aside class="left">
-    <h2>Most important</h2>
-    <p class="hint">Open issues by tier, then by where they sit on the road (earlier stages first). <span class="chip start">start</span> marks a box whose solid-arrow boxes are all done.</p>
-    <ol class="important" id="important"></ol>
-  </aside>
-  <div id="flow">
-    <svg id="edges" aria-hidden="true"></svg>
-    <div class="legend">
-      <span><i style="background:var(--done)"></i>done</span>
-      <span><i style="background:var(--active)"></i>in progress</span>
-      <span><i style="background:var(--todo)"></i>not started</span>
-      <span><i style="background:transparent;box-shadow:0 0 0 1px var(--start)"></i>can start now</span>
-      <span>── needed first &nbsp; - - feeds into</span>
+<div class="app">
+  <header class="top">
+    <div class="ttl">
+      <div class="eyebrow">EaW:FoC engine port</div>
+      <h1 id="title">Road to playable</h1>
     </div>
-    <div id="stages"></div>
-  </div>
-  <aside class="right">
-    <div class="tabs" role="tablist" id="tabs">
-      <button type="button" role="tab" data-tab="box" aria-selected="true">Box</button>
-      <button type="button" role="tab" data-tab="all" aria-selected="false">All issues</button>
-      <button type="button" role="tab" data-tab="unsorted" aria-selected="false">Not on the chart</button>
+    <div class="overall" id="overall"></div>
+    <div class="live mono">
+      <span id="loaded"><i class="dot"></i>Loading…</span>
+      <span class="acts">
+        <button id="reload" type="button" title="Read the issues again">Reload</button>
+        <button id="theme" type="button" title="Switch light and dark">◐</button>
+        <a id="repo-link" href="#" target="_blank" rel="noopener">Issues</a>
+      </span>
     </div>
-    <div id="tab-box"></div>
-    <div id="tab-all" hidden>
-      <div class="filters">
-        <input id="search" type="search" placeholder="Search titles, ids, boxes">
-        <select id="f-tier" aria-label="Tier"><option value="">Any tier</option><option>T1</option><option>T2</option><option>T3</option><option value="none">No tier</option></select>
-        <select id="f-state" aria-label="State"><option value="open">Open</option><option value="closed">Closed</option><option value="">Open and closed</option></select>
+    <section class="miles" id="miles" aria-label="Counts"></section>
+  </header>
+
+  <div class="main">
+    <aside class="side" aria-label="Most important">
+      <div class="card go">
+        <h2>Most important</h2>
+        <p class="small">Open issues by tier, then boxes that can start now, then by where they sit on the road (earlier stages first). Select one to see its box.</p>
+        <ol class="nextlist" id="important"></ol>
       </div>
-      <ul class="issues" id="all-list"></ul>
+    </aside>
+
+    <div class="chartpane">
+      <nav class="route" id="route" aria-label="Stages in order"></nav>
+      <div class="table" id="chart">
+        <div id="chartView"><div class="empty">Loading the flowchart…</div></div>
+        <div class="key" id="key" hidden></div>
+        <div class="ctl">
+          <button type="button" id="cKey" aria-expanded="false">Key</button>
+          <button type="button" id="cNow" title="Go to the current stage">Now</button>
+          <button type="button" id="cFit" title="Show the whole chart">Fit</button>
+          <button type="button" id="cOut" aria-label="Zoom out">−</button>
+          <button type="button" id="cIn" aria-label="Zoom in">+</button>
+        </div>
+      </div>
     </div>
-    <div id="tab-unsorted" hidden>
-      <p class="hint">Open issues with no <code>roadmap:&lt;box&gt;</code> label. Give each one a box at triage.</p>
-      <ul class="issues" id="unsorted-list"></ul>
-    </div>
-  </aside>
-</main>
+
+    <aside class="panel" id="panel" aria-label="Stages and issues">
+      <div class="psearch">
+        <input type="search" id="search" placeholder="Search titles, ids, boxes" aria-label="Search issues">
+      </div>
+      <div class="tabs" role="tablist" aria-label="Panel views">
+        <button class="tab" role="tab" type="button" id="tab-now" data-v="now">Overview</button>
+        <button class="tab" role="tab" type="button" id="tab-all" data-v="all">All issues</button>
+        <button class="tab" role="tab" type="button" id="tab-unsorted" data-v="unsorted">Not on the chart</button>
+      </div>
+      <div class="scroll" id="scroll">
+        <section class="view" id="v-now">
+          <p class="small">The stages and boxes come from <code>flow.json</code>; the work is the repository's GitHub issues, read live. An issue joins a box through its <code>roadmap:&lt;box&gt;</code> label, and a box's progress counts its closed issues and checklist items.</p>
+          <div class="stages" id="stages"></div>
+        </section>
+        <section class="view" id="v-box" hidden></section>
+        <section class="view" id="v-all" hidden>
+          <div class="toolbar">
+            <select id="f-tier" aria-label="Tier"><option value="">Any tier</option><option>T1</option><option>T2</option><option>T3</option><option value="none">No tier</option></select>
+            <select id="f-state" aria-label="State"><option value="open">Open</option><option value="closed">Closed</option><option value="">Open and closed</option></select>
+          </div>
+          <ul class="iss-list" id="all-list"></ul>
+        </section>
+        <section class="view" id="v-unsorted" hidden>
+          <p class="small">Open issues with no <code>roadmap:&lt;box&gt;</code> label. Give each one a box at triage.</p>
+          <ul class="iss-list" id="unsorted-list"></ul>
+        </section>
+      </div>
+    </aside>
+  </div>
+</div>
 <script>
 "use strict";
 const CACHE_KEY = "roadmap-issues-v2";  // v2: issues carry state_reason
@@ -175,7 +342,7 @@ async function fetchFlow() {
   }
   throw last;
 }
-const state = { flow: null, issues: [], boxes: new Map(), selected: null, fetchedAt: null };
+const state = { flow: null, issues: [], boxes: new Map(), stages: [], selected: null, hot: null, view: "now", prev: "now", fetchedAt: null, openStages: new Map() };
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -231,6 +398,17 @@ async function fetchIssues(repo) {
   return out;
 }
 
+/* ---------- the model: boxes with their issues, stages with their boxes ---------- */
+// A box's colour on the chart. "start": not started yet, and every box with a solid arrow into it is done.
+const STATUS = {
+  done:   { label: "Done",          c: "--s-done" },
+  active: { label: "In progress",   c: "--s-partly" },
+  start:  { label: "Can start now", c: "--s-next" },
+  todo:   { label: "Not started",   c: "--s-big" },
+};
+const look = (b) => (b.status === "done" ? "done" : b.status === "active" ? "active" : b.start ? "start" : "todo");
+const isSide = (s) => /^side goal/i.test(String(s.title || ""));
+
 function computeBoxes() {
   const flow = state.flow;
   state.boxes = new Map();
@@ -253,83 +431,52 @@ function computeBoxes() {
   for (const b of state.boxes.values()) {
     b.start = b.status !== "done" && b.from.filter((f) => f.kind === "solid").every((f) => state.boxes.get(f.id).status === "done");
   }
+  // Stage numbers come from ids like st5, so they stay put when a stage is removed; a side goal has no number.
+  let num = -1, cur = false;
+  state.stages = flow.stages.map((s) => {
+    const side = isSide(s), m = /^st(\d+)$/.exec(s.id);
+    if (!side) num = m ? Number(m[1]) : num + 1;
+    const boxes = s.boxes.map((b) => state.boxes.get(b.id));
+    const st = {
+      ...s, num, side, boxes, cur: false,
+      total: boxes.reduce((n, b) => n + b.tasksTotal, 0), done: boxes.reduce((n, b) => n + b.tasksDone, 0),
+      boxesDone: boxes.filter((b) => b.status === "done").length,
+    };
+    st.fin = st.boxesDone === boxes.length;
+    if (!st.fin && !cur) { st.cur = true; cur = true; }
+    return st;
+  });
 }
-
+const stageOf = (id) => state.stages.find((s) => s.id === id);
+const stageLabel = (st) => (st.side ? st.title : `Stage ${st.num} · ${st.title}`);
 function pct(a, b) { return b ? Math.round((100 * a) / b) : 0; }
-function meter(a, b) { return `<div class="meter"><i style="width:${pct(a, b)}%"></i></div>`; }
+const bar = (a, b, cls = "") => `<div class="bar ${cls}" aria-hidden="true"><i style="width:${b ? (100 * a) / b : 0}%"></i></div>`;
 
-function renderHeader() {
+/* ---------- top bar and stage strip ---------- */
+function renderHead() {
   const open = state.issues.filter((i) => !i.closed);
   const onChart = state.issues.filter((i) => i.box && !i.dropped);
   const tasks = onChart.reduce((n, i) => n + i.tasksTotal, 0), tasksDone = onChart.reduce((n, i) => n + i.tasksDone, 0);
   const boxes = [...state.boxes.values()], boxesDone = boxes.filter((b) => b.status === "done").length;
-  $("bars").innerHTML =
-    `<div class="bar"><b>${pct(boxesDone, boxes.length)}%</b> of boxes done · ${boxesDone} of ${boxes.length}${meter(boxesDone, boxes.length)}</div>` +
-    `<div class="bar"><b>${pct(tasksDone, tasks)}%</b> of tasks on the chart done · ${tasksDone} of ${tasks} · ${open.length} open issues${meter(tasksDone, tasks)}</div>`;
-  $("stage-nav").innerHTML = state.flow.stages.map((s) => {
-    const bs = s.boxes.map((b) => state.boxes.get(b.id));
-    const d = bs.filter((b) => b.status === "done").length;
-    return `<a href="#stage-${esc(s.id)}">${d}/${bs.length} · ${esc(s.title)}${meter(d, bs.length)}</a>`;
-  }).join("");
+  $("overall").innerHTML =
+    `<span><b>${pct(tasksDone, tasks)}%</b> of tasks on the chart · <b>${tasksDone}</b> of <b>${tasks}</b> done · ${open.length} open issues</span>${bar(tasksDone, tasks)}` +
+    `<span><b>${pct(boxesDone, boxes.length)}%</b> of boxes done · ${boxesDone} of ${boxes.length}</span>${bar(boxesDone, boxes.length, "bar-bx")}`;
+  const canStart = boxes.filter((b) => b.start).length;
+  const unsorted = open.filter((i) => !(i.box && state.boxes.has(i.box))).length;
+  const cur = state.stages.find((s) => s.cur);
+  $("miles").innerHTML =
+    (cur ? `<div class="mile"><b>${cur.side ? "Side" : "Stage " + cur.num}</b><span>${esc(cur.title)}</span></div>` : `<div class="mile go"><b>Done</b><span>every stage</span></div>`) +
+    `<div class="mile go"><b>${canStart}</b><span>box${canStart === 1 ? "" : "es"} can start now</span></div>` +
+    `<div class="mile"><b>${unsorted}</b><span>open, not on the chart</span></div>`;
+  $("route").innerHTML = state.stages.map((st) =>
+    `<button class="stop ${st.fin ? "fin" : ""} ${st.cur ? "cur" : ""} ${st.side ? "side" : ""}" type="button" data-st="${esc(st.id)}" ${st.cur ? 'aria-current="step"' : ""} title="Show this stage on the chart and in the panel">` +
+    `<span class="n">${st.side ? "Side" : st.num}${st.fin ? " ✓" : ""} · ${st.boxesDone}/${st.boxes.length}</span><span class="t">${esc(st.title.replace(/^side goal:\s*/i, ""))}</span>` +
+    `<span class="bar" aria-hidden="true"><i style="width:${st.total ? (100 * st.done) / st.total : st.fin ? 100 : 0}%"></i></span></button>`).join("");
+  markVisible();
 }
+$("route").addEventListener("click", (e) => { const b = e.target.closest(".stop"); if (b) selectStage(b.dataset.st); });
 
-function boxHtml(b) {
-  const cls = ["box", b.status, b.size === "wide" ? "wide" : "", b.start ? "start" : "", state.selected === b.id ? "sel" : ""].join(" ");
-  const badge = b.open ? `<span class="badge" title="${b.open} open issues">${b.open}</span>` : "";
-  const stats = b.issues.length ? `<span>${b.closedCount}/${b.issues.length} issues</span><span>${b.tasksDone}/${b.tasksTotal} tasks</span>`
-                                : `<span>${b.done ? "done before the move to issues" : "no issues yet"}</span>`;
-  return `<div class="${cls}" id="box-${esc(b.id)}" data-box="${esc(b.id)}" tabindex="0" role="button" aria-label="${esc(b.label)}">` +
-         `${badge}<div class="label">${esc(b.label)}</div>${b.note ? `<div class="note">${esc(b.note)}</div>` : ""}` +
-         `${meter(b.tasksDone, b.tasksTotal)}<div class="stats">${stats}</div></div>`;
-}
-
-function renderFlow() {
-  $("stages").innerHTML = state.flow.stages.map((s) =>
-    `<section class="stage" id="stage-${esc(s.id)}"><h3>${esc(s.title)}</h3>` +
-    `${s.goal ? `<p class="goal">${esc(s.goal)}${s.exit ? ` <b>Done when:</b> ${esc(s.exit)}` : ""}</p>` : ""}` +
-    `<div class="boxes">${s.boxes.map((b) => boxHtml(state.boxes.get(b.id))).join("")}</div></section>`).join("");
-  drawEdges();
-}
-
-function drawEdges() {
-  const svg = $("edges"), host = $("flow").getBoundingClientRect();
-  svg.setAttribute("width", host.width); svg.setAttribute("height", $("flow").scrollHeight);
-  const sel = state.selected;
-  let paths = "";
-  for (const b of state.boxes.values()) for (const [to, kind] of Object.entries(b.to || {})) {
-    const a = $(`box-${b.id}`), c = $(`box-${to}`);
-    if (!a || !c) continue;
-    const r1 = a.getBoundingClientRect(), r2 = c.getBoundingClientRect();
-    let x1, y1, x2, y2, d;
-    if (r2.top >= r1.bottom - 4) {
-      x1 = r1.left + r1.width / 2 - host.left; y1 = r1.bottom - host.top;
-      x2 = r2.left + r2.width / 2 - host.left; y2 = r2.top - host.top;
-      const k = Math.max(24, (y2 - y1) / 2);
-      d = `M${x1},${y1} C${x1},${y1 + k} ${x2},${y2 - k} ${x2},${y2}`;
-    } else {
-      const right = r2.left >= r1.right;
-      x1 = (right ? r1.right : r1.left) - host.left; y1 = r1.top + r1.height / 2 - host.top;
-      x2 = (right ? r2.left : r2.right) - host.left; y2 = r2.top + r2.height / 2 - host.top;
-      const k = Math.max(20, Math.abs(x2 - x1) / 2) * (right ? 1 : -1);
-      d = `M${x1},${y1} C${x1 + k},${y1} ${x2 - k},${y2} ${x2},${y2}`;
-    }
-    const hi = sel && (sel === b.id || sel === to);
-    paths += `<path d="${d}" fill="none" stroke="var(${hi ? "--edge-hi" : "--edge"})" stroke-width="${hi ? 2.2 : 1.4}"` +
-             `${kind === "dashed" ? ' stroke-dasharray="5 4"' : ""} marker-end="url(#${hi ? "ah-hi" : "ah"})"/>`;
-  }
-  svg.innerHTML = `<defs>${["ah", "ah-hi"].map((id) => `<marker id="${id}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="var(${id === "ah" ? "--edge" : "--edge-hi"})"/></marker>`).join("")}</defs>` + paths;
-}
-
-function tierChip(t) { return `<span class="chip ${t === "none" ? "" : t.toLowerCase()}">${t === "none" ? "no tier" : t}</span>`; }
-function shortTitle(i) { return i.title.replace(/^\[(T[123]|no tier)\]\s*/, ""); }
-function issueLi(i, showBox = true) {
-  const b = i.box && state.boxes.get(i.box);
-  const where = showBox ? (b ? ` · <a href="#" data-goto="${esc(b.id)}">${esc(b.label)}</a>` : " · not on the chart") : "";
-  const tasks = i.tasksTotal > 1 ? ` · ${i.tasksDone}/${i.tasksTotal} tasks` : "";
-  return `<li class="${i.closed ? "closed" : ""}">${tierChip(i.tier)}<a class="issue-title" href="${esc(i.url)}" target="_blank" rel="noopener">#${i.number} ${esc(shortTitle(i))}</a>` +
-         `<div class="meta">${i.dropped ? "closed, not planned" : i.closed ? "closed" : "open"}${tasks}${where}</div></li>`;
-}
-
+/* ---------- most important ---------- */
 const TIER_RANK = { T1: 1, T2: 2, T3: 3, none: 4 };
 function rank(i) {
   const b = i.box && state.boxes.get(i.box);
@@ -340,81 +487,400 @@ function byRank(a, b) {
   for (let k = 0; k < x.length; k++) if (x[k] !== y[k]) return x[k] - y[k];
   return 0;
 }
+function tierTag(t) { return `<span class="tier ${t === "none" ? "" : t}">${t === "none" ? "no tier" : t}</span>`; }
+function shortTitle(i) { return i.title.replace(/^\[(T[123]|no tier)\]\s*/, ""); }
 
 function renderImportant() {
-  const list = state.issues.filter((i) => !i.closed && i.tier !== "none" && i.box).sort(byRank).slice(0, 25);
-  $("important").innerHTML = list.map((i) => {
+  const list = state.issues.filter((i) => !i.closed && i.tier !== "none" && i.box && state.boxes.has(i.box)).sort(byRank).slice(0, 25);
+  $("important").innerHTML = list.map((i, n) => {
     const b = state.boxes.get(i.box);
-    return `<li>${tierChip(i.tier)}${b.start ? '<span class="chip start">start</span>' : ""}` +
-           `<a class="issue-title" href="${esc(i.url)}" target="_blank" rel="noopener">${esc(shortTitle(i))}</a>` +
-           `<div class="meta">#${i.number} · <a href="#" data-goto="${esc(b.id)}">${esc(b.label)}</a>${i.tasksTotal > 1 ? ` · ${i.tasksDone}/${i.tasksTotal} tasks` : ""}</div></li>`;
+    const why = [esc(b.label), b.start ? "can start now" : "", i.tasksTotal > 1 ? `${i.tasksDone}/${i.tasksTotal} tasks` : ""].filter(Boolean).join(" · ");
+    return `<li><button class="nextbtn" type="button" data-goto="${esc(b.id)}"><span class="nt"><span class="rk">${n + 1}.</span>${tierTag(i.tier)}${esc(shortTitle(i))}</span><span class="why">${why}</span></button>` +
+           `<a class="nd8" href="${esc(i.url)}" target="_blank" rel="noopener" title="Open the issue on GitHub">#${i.number}</a></li>`;
   }).join("") || '<li class="empty">No open tiered issues on the chart.</li>';
 }
 
-function renderBoxTab() {
-  const b = state.selected && state.boxes.get(state.selected);
-  if (!b) {
-    $("tab-box").innerHTML = '<p class="hint">Pick a box in the chart to see its issues.</p>';
-    return;
-  }
-  const stage = state.flow.stages.find((s) => s.id === b.stage);
-  const links = (ids, word) => ids.length ? `<div class="meta">${word}: ${ids.map((f) => `<a href="#" data-goto="${esc(f.id)}">${esc(state.boxes.get(f.id).label)}</a>${f.kind === "dashed" ? " (feeds in)" : ""}`).join(", ")}</div>` : "";
-  const after = Object.entries(b.to || {}).map(([id, kind]) => ({ id, kind }));
-  const issues = [...b.issues].sort((x, y) => (x.closed - y.closed) || byRank(x, y));
-  $("tab-box").innerHTML =
-    `<div class="eyebrow">${esc(stage.title)}</div><h2>${esc(b.label)}</h2>` +
-    `${b.note ? `<p class="hint">${esc(b.note)}</p>` : ""}` +
-    `<div class="meta">${b.open} open, ${b.closedCount} closed · ${b.tasksDone}/${b.tasksTotal} tasks · label <code>roadmap:${esc(b.id)}</code></div>` +
-    links(b.from, "Comes after") + links(after, "Leads to") +
-    `<p><a href="https://github.com/${esc(state.flow.repo)}/issues?q=${encodeURIComponent(`label:roadmap:${b.id}`)}" target="_blank" rel="noopener">Open on GitHub</a></p>` +
-    `<ul class="issues">${issues.map((i) => issueLi(i, false)).join("") || '<li class="empty">No issues carry this box’s label.</li>'}</ul>`;
+/* ---------- panel: issue rows ---------- */
+function issueLi(i, showBox = true) {
+  const b = i.box && state.boxes.get(i.box);
+  const where = showBox ? (b ? `<button type="button" data-goto="${esc(b.id)}" title="Open this box on the chart">${esc(b.label)}</button>` : "<span>not on the chart</span>") : "";
+  const tasks = i.tasksTotal > 1 ? `<span>${i.tasksDone}/${i.tasksTotal} tasks</span>` : "";
+  return `<li class="iss ${i.closed ? "closed" : ""}">${tierTag(i.tier)}<a class="tx" href="${esc(i.url)}" target="_blank" rel="noopener"><span class="no">#${i.number}</span>${esc(shortTitle(i))}</a>` +
+         `<span class="meta2"><span>${i.dropped ? "closed, not planned" : i.closed ? "closed" : "open"}</span>${tasks}${where}</span></li>`;
 }
 
+/* ---------- panel: overview (stages and their boxes) ---------- */
+function boxCard(b) {
+  const k = look(b);
+  const right = b.issues.length ? `${b.tasksDone}/${b.tasksTotal} tasks` : (b.done ? "done before issues" : "no issues yet");
+  return `<div class="grp ${b.status === "done" ? "fin" : ""}" style="--c:var(${STATUS[k].c})"><button class="grp-head" type="button" data-goto="${esc(b.id)}" title="Select this box on the chart">` +
+    `<span class="grp-title">${esc(b.label)}<code>${esc(b.id)}</code></span>` +
+    `<span class="grp-right"><span>${right}</span>${b.tasksTotal ? bar(b.tasksDone, b.tasksTotal) : ""}</span>` +
+    `<span class="meta"><span class="pill">${STATUS[k].label}</span>${b.open ? `<span>${b.open} open</span>` : ""}${b.note ? `<span>${esc(b.note)}</span>` : ""}</span></button></div>`;
+}
+function renderOverview() {
+  $("stages").innerHTML = state.stages.map((st) => {
+    const open = state.openStages.has(st.id) ? state.openStages.get(st.id) : !st.fin;
+    const right = st.fin ? "Done" : `${st.boxesDone}/${st.boxes.length} boxes · ${st.done}/${st.total} tasks`;
+    return `<section class="stage ${st.fin ? "fin" : ""} ${st.cur ? "cur" : ""}" id="stage-${esc(st.id)}">` +
+      `<div class="rail"><div class="num" aria-hidden="true">${st.fin ? "✓" : st.side ? "+" : st.num}</div><div class="ln"></div></div>` +
+      `<div class="stage-body"><button class="stage-head" type="button" aria-expanded="${open}" data-stage="${esc(st.id)}">` +
+      `<h2>${esc(st.title)}${st.cur ? ' <span class="here">Current stage</span>' : ""}</h2><span class="stage-sum">${esc(right)} ${open ? "▾" : "▸"}</span></button>` +
+      `${st.goal ? `<p class="goal">${esc(st.goal)}</p>` : ""}` +
+      `${open ? `${st.exit && !st.fin ? `<p class="exit"><b>Done when:</b> ${esc(st.exit)}</p>` : ""}<div class="groups">${st.boxes.map(boxCard).join("")}</div>` : ""}` +
+      `</div></section>`;
+  }).join("");
+}
+
+/* ---------- panel: one box ---------- */
+function renderBoxView() {
+  const b = state.selected && state.boxes.get(state.selected);
+  if (!b) { $("v-box").innerHTML = ""; return; }
+  const st = stageOf(b.stage), k = look(b);
+  const nb = (f) => { const x = state.boxes.get(f.id); return `<button class="nb ${f.kind === "dashed" ? "dash" : ""}" type="button" data-goto="${esc(x.id)}" style="--c:var(${STATUS[look(x)].c})" title="${f.kind === "dashed" ? "Feeds into" : "Needed first"}">${esc(x.label)}</button>`; };
+  const before = b.from.map(nb).join("");
+  const after = Object.entries(b.to || {}).filter(([id]) => state.boxes.has(id)).map(([id, kind]) => nb({ id, kind })).join("");
+  const issues = [...b.issues].sort((x, y) => (x.closed - y.closed) || byRank(x, y));
+  $("v-box").innerHTML = `<div class="boxhead">
+      <div class="crumb"><button class="linkish" type="button" data-stage-go="${esc(st.id)}">${esc(stageLabel(st))}</button><button class="closex" type="button" data-close="1" aria-label="Close this box">Close · Esc</button></div>
+      <h2>${esc(b.label)}</h2>
+      ${b.note ? `<p class="small">${esc(b.note)}</p>` : ""}
+      <div class="boxmeta" style="--c:var(${STATUS[k].c})"><span class="pill">${STATUS[k].label}</span>${b.tasksTotal ? `<span class="mono">${b.tasksDone}/${b.tasksTotal} tasks</span>` : ""}<span>${b.open} open, ${b.closedCount} closed</span><span>label <code>roadmap:${esc(b.id)}</code></span></div>
+      ${b.tasksTotal ? bar(b.tasksDone, b.tasksTotal) : ""}
+    </div>
+    ${before || after ? `<div class="neigh">${before ? `<span>Comes after</span><div>${before}</div>` : ""}${after ? `<span>Leads to</span><div>${after}</div>` : ""}</div>` : ""}
+    <ul class="iss-list">${issues.map((i) => issueLi(i, false)).join("") || `<li class="empty">${b.done ? "Done before the move to issues; no issue carries this box's label." : "No issues carry this box's label yet."}</li>`}</ul>
+    <a class="gh" href="https://github.com/${esc(state.flow.repo)}/issues?q=${encodeURIComponent(`label:roadmap:${b.id}`)}" target="_blank" rel="noopener">Open on GitHub ↗</a>
+    ${st.goal ? `<p class="goal">${esc(st.goal)}</p>` : ""}
+    ${st.exit && !st.fin ? `<p class="exit"><b>Stage done when:</b> ${esc(st.exit)}</p>` : ""}`;
+}
+
+/* ---------- panel: all issues and the ones off the chart ---------- */
+function queryMatches(i, q) {
+  const b = i.box && state.boxes.get(i.box);
+  return (`#${i.number} ${i.title} ${i.labels.join(" ")} ${b ? b.label : ""}`).toLowerCase().includes(q);
+}
 function renderLists() {
   const q = $("search").value.trim().toLowerCase(), tier = $("f-tier").value, st = $("f-state").value;
   const list = state.issues.filter((i) => {
     if (st && (st === "open") === i.closed) return false;
     if (tier && i.tier !== tier) return false;
-    if (!q) return true;
-    const b = i.box && state.boxes.get(i.box);
-    return (`#${i.number} ${i.title} ${i.labels.join(" ")} ${b ? b.label : ""}`).toLowerCase().includes(q);
+    return !q || queryMatches(i, q);
   }).sort(byRank);
-  $("all-list").innerHTML = list.slice(0, 400).map((i) => issueLi(i)).join("") || '<li class="empty">Nothing matches.</li>';
-  for (const el of document.querySelectorAll(".box")) {
-    const b = state.boxes.get(el.dataset.box);
-    el.classList.toggle("dim", !!q && !b.label.toLowerCase().includes(q) && !b.id.toLowerCase().includes(q) &&
-      !b.issues.some((i) => (`#${i.number} ${i.title}`).toLowerCase().includes(q)));
-  }
-  $("unsorted-list").innerHTML = state.issues.filter((i) => !i.closed && !(i.box && state.boxes.has(i.box)))
-    .sort(byRank).map((i) => issueLi(i, false)).join("") || '<li class="empty">Every open issue has a box.</li>';
+  $("all-list").innerHTML = list.slice(0, 400).map((i) => issueLi(i)).join("") || '<li class="empty">Nothing matches. Clear the search or change a filter.</li>';
+  const off = state.issues.filter((i) => !i.closed && !(i.box && state.boxes.has(i.box))).sort(byRank);
+  $("unsorted-list").innerHTML = off.map((i) => issueLi(i, false)).join("") || '<li class="empty">Every open issue has a box.</li>';
+  $("tab-unsorted").textContent = off.length ? `Not on the chart (${off.length})` : "Not on the chart";
 }
 
-function select(id, scroll) {
-  state.selected = id;
-  for (const el of document.querySelectorAll(".box")) el.classList.toggle("sel", el.dataset.box === id);
-  showTab("box");
-  renderBoxTab();
-  drawEdges();
-  if (scroll) $(`box-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+/* ---------- flowchart: one band per stage, top to bottom in stage order; boxes wrap to fit the pane ---------- */
+const NW = 200, LPAD = 12, GAPX = 20, GAPY = 18, GAPB = 28, MARG = 8, MAXC = 4;
+let L = null;
+const Cam = { x: 0, y: 0, k: 1 };
+const colsFor = (w) => Math.max(1, Math.min(MAXC, Math.floor((w - 2 * MARG - 2 * LPAD + GAPX) / (NW + GAPX))));
+function wrapText(s, max) {
+  const out = []; let cur = "";
+  String(s).split(/\s+/).forEach((w) => { if (cur && (cur + " " + w).length > max) { out.push(cur); cur = w; } else cur = cur ? cur + " " + w : w; });
+  if (cur) out.push(cur); return out;
+}
+function buildChart() {
+  const sts = state.stages;
+  const nm = {}, cols = colsFor(view().w), inner = cols * NW + (cols - 1) * GAPX, W = 2 * MARG + 2 * LPAD + inner;
+  let top = MARG;
+  const lanes = sts.map((st) => {
+    const tl = wrapText((st.side ? "" : st.num + " · ") + st.title, Math.floor(inner / 7.6)).slice(0, 2), lt = 14 + tl.length * 15;
+    const nodes = st.boxes.map((b) => {
+      const n = { b, id: b.id, to: b.to || {} };
+      n.lines = wrapText(b.label, 25); n.subl = b.note ? wrapText(b.note, 36).slice(0, 3) : [];
+      n.h = 12 + n.lines.length * 16 + n.subl.length * 13 + 16 + 6; nm[n.id] = n;
+      return n;
+    });
+    const l = { st, nodes, tl, lt, y: top }; let y = top + lt;
+    for (let i = 0; i < nodes.length; i += cols) {
+      const row = nodes.slice(i, i + cols), rh = Math.max(...row.map((n) => n.h));
+      const x0 = MARG + LPAD + (inner - row.length * NW - (row.length - 1) * GAPX) / 2;
+      row.forEach((n, k) => { n.x = x0 + k * (NW + GAPX); n.y = y; n.h = rh; n.lane_ = l; });
+      y += rh + GAPY;
+    }
+    l.h = (nodes.length ? y - GAPY + LPAD : y) - top; top += l.h + GAPB;
+    return l;
+  });
+  const H = top - GAPB + MARG, LW = W - 2 * MARG;
+  L = { W, H, lanes, nm, cols };
+  let edges = "", nodesSvg = "", lanesSvg = "";
+  /* Arrows sharing a side of a box fan out along it, ordered by where they go. */
+  const list = [], ports = {}, port = (id, side, e, other) => { (ports[id + "|" + side] = ports[id + "|" + side] || []).push({ e, other, id, side }); };
+  Object.values(nm).forEach((A) => Object.entries(A.to).forEach(([bid, style]) => {
+    const B = nm[bid]; if (!B) return;
+    const e = { A, B, style, row: A.y === B.y, near: A.y === B.y && Math.abs(A.x - B.x) < NW + GAPX + 1, ao: 0, bo: 0 };
+    list.push(e); if (e.near) return;
+    const down = B.y > A.y;
+    e.as = e.row || !down ? "t" : "b"; e.bs = e.row || down ? "t" : "b";
+    port(A.id, e.as, e, B); port(B.id, e.bs, e, A);
+  }));
+  Object.values(ports).forEach((ps) => {
+    ps.sort((a, b) => a.other.x - b.other.x);
+    const step = Math.min(14, (NW - 40) / ps.length);
+    ps.forEach((q, i) => { q.e[q.e.A.id === q.id ? "ao" : "bo"] = (i - (ps.length - 1) / 2) * step; });
+  });
+  list.forEach((e) => {
+    const { A, B, style } = e; let d;
+    if (e.near) { const r = B.x > A.x, x1 = r ? A.x + NW : A.x, x2 = r ? B.x : B.x + NW, y = A.y + A.h / 2; d = `M${x1},${y} L${x2},${y}`; }
+    else {
+      const x1 = A.x + NW / 2 + e.ao, x2 = B.x + NW / 2 + e.bo;
+      const y1 = e.as === "b" ? A.y + A.h : A.y, y2 = e.bs === "b" ? B.y + B.h : B.y;
+      const u = e.as === "b" ? 1 : -1, v = e.bs === "b" ? 1 : -1, dy = e.row ? 15 : Math.max(22, Math.abs(y2 - y1) / 2);
+      d = `M${x1},${y1} C${x1},${y1 + u * dy} ${x2},${y2 + v * dy} ${x2},${y2}`;
+    }
+    edges += `<path class="edge ${style === "dashed" ? "dash" : ""}" data-a="${esc(A.id)}" data-b="${esc(B.id)}" d="${d}" marker-end="url(#arr)"/>`;
+  });
+  lanes.forEach((l) => {
+    const st = l.st;
+    lanesSvg += `<g class="lane ${st.fin ? "fin" : ""} ${st.cur ? "cur" : ""} ${st.side ? "side" : ""}"><rect class="bg" x="${MARG}" y="${l.y}" width="${LW}" height="${l.h}" rx="8"/>` +
+      `<g class="lane-h" data-st="${esc(st.id)}"><rect x="${MARG}" y="${l.y}" width="${LW}" height="${l.lt - 2}"/>${l.tl.map((t, i) => `<text x="${MARG + LPAD}" y="${l.y + 18 + i * 15}">${esc(t)}</text>`).join("")}</g></g>`;
+  });
+  Object.values(nm).forEach((n) => {
+    const b = n.b, k = look(b); let ty = n.y + 22, t = "";
+    n.lines.forEach((s) => { t += `<text x="${n.x + 12}" y="${ty}">${esc(s)}</text>`; ty += 16; });
+    n.subl.forEach((s) => { t += `<text class="sub" x="${n.x + 12}" y="${ty - 3}">${esc(s)}</text>`; ty += 13; });
+    const by = n.y + n.h - 14;
+    if (b.tasksTotal) {
+      const bw = NW - 24 - 52, f = (bw * b.tasksDone) / b.tasksTotal;
+      t += `<rect class="trk" x="${n.x + 12}" y="${by}" width="${bw}" height="5" rx="2.5"/><rect class="fil" x="${n.x + 12}" y="${by}" width="${f}" height="5" rx="2.5"/>` +
+        `<text class="cnt" x="${n.x + NW - 12}" y="${by + 6}" text-anchor="end">${b.tasksDone}/${b.tasksTotal}</text>`;
+    } else {
+      t += `<text class="cnt" x="${n.x + 12}" y="${by + 6}">${b.done ? "done before issues" : "no issues yet"}</text>`;
+    }
+    const badge = b.open ? `<g class="badge"><circle cx="${n.x + NW - 2}" cy="${n.y + 2}" r="9"/><text x="${n.x + NW - 2}" y="${n.y + 6}">${b.open > 99 ? "99+" : b.open}</text></g>` : "";
+    const say = `${b.label}: ${STATUS[k].label}${b.tasksTotal ? `, ${b.tasksDone} of ${b.tasksTotal} tasks done` : ""}${b.open ? `, ${b.open} open issues` : ""}`;
+    nodesSvg += `<g class="nd ${b.status === "done" ? "isdone" : ""}" data-id="${esc(n.id)}" tabindex="0" role="button" aria-label="${esc(say)}" style="--c:var(${STATUS[k].c})">` +
+      `<rect class="halo" x="${n.x - 2}" y="${n.y - 2}" width="${NW + 4}" height="${n.h + 4}" rx="9"/><rect class="box" x="${n.x}" y="${n.y}" width="${NW}" height="${n.h}" rx="7"/>${t}${badge}</g>`;
+  });
+  return `<svg role="group" aria-label="Roadmap flowchart"><defs>` +
+    `<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z"/></marker>` +
+    `<marker id="arrOn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z"/></marker></defs><g id="cam">${lanesSvg}${edges}${nodesSvg}</g></svg>`;
+}
+/* Everything that leads to a box and everything it leads to. */
+function chainOf(id) {
+  const anc = new Set(), desc = new Set(), rev = {};
+  Object.values(L.nm).forEach((n) => Object.keys(n.to).forEach((b) => { (rev[b] = rev[b] || []).push(n.id); }));
+  const walk = (x, next, seen) => (next(x) || []).forEach((y) => { if (!seen.has(y) && L.nm[y]) { seen.add(y); walk(y, next, seen); } });
+  walk(id, (x) => rev[x], anc); walk(id, (x) => Object.keys((L.nm[x] && L.nm[x].to) || {}), desc);
+  return { anc, desc };
+}
+function lightChart() {
+  if (!L) return;
+  const focus = state.hot || state.selected, ch = focus && L.nm[focus] ? chainOf(focus) : null;
+  const q = $("search").value.trim().toLowerCase();
+  const filt = q ? new Set([...state.boxes.values()].filter((b) => b.label.toLowerCase().includes(q) || b.id.toLowerCase().includes(q) ||
+    b.issues.some((i) => (`#${i.number} ${i.title}`).toLowerCase().includes(q))).map((b) => b.id)) : null;
+  document.querySelectorAll("#chart .nd").forEach((g) => {
+    const id = g.dataset.id;
+    g.classList.toggle("sel", id === state.selected);
+    g.classList.toggle("dim", ch ? !(id === focus || ch.anc.has(id) || ch.desc.has(id)) : filt ? !filt.has(id) : false);
+  });
+  document.querySelectorAll("#chart .edge").forEach((e) => {
+    const a = e.dataset.a, b = e.dataset.b;
+    const on = !!ch && ((ch.anc.has(a) && (b === focus || ch.anc.has(b))) || ((a === focus || ch.desc.has(a)) && ch.desc.has(b)));
+    e.classList.toggle("on", on); e.classList.toggle("off", (!!ch && !on) || (!ch && !!filt && !(filt.has(a) && filt.has(b))));
+    e.setAttribute("marker-end", on ? "url(#arrOn)" : "url(#arr)");
+  });
+}
+function renderChart() {
+  if (!state.stages.length) { L = null; $("chartView").innerHTML = '<div class="empty">The flowchart has no stages yet.</div>'; return; }
+  $("chartView").innerHTML = buildChart();
+  applyCam(false);
+  lightChart();
+}
+function renderKey() {
+  $("key").innerHTML = Object.values(STATUS).map((s) => `<span><i style="--c:var(${s.c})"></i>${s.label}</span>`).join("") +
+    "<hr><span>Top to bottom, one band per stage.</span><span>Solid arrow: needed first. Dashed arrow: feeds into.</span>" +
+    "<span>Badge: open issues in the box. The bar counts closed issues and checked checklist items.</span>" +
+    "<span>Drag or scroll to move, ctrl+scroll or pinch to zoom, arrow keys to step between boxes.</span>";
+}
+
+/* ---------- camera ---------- */
+const view = () => { const r = $("chart").getBoundingClientRect(); return { w: r.width, h: r.height }; };
+function clampCam() {
+  if (!L) return;
+  const v = view(), keep = 90;
+  Cam.x = Math.min(v.w - keep, Math.max(keep - L.W * Cam.k, Cam.x));
+  Cam.y = Math.min(v.h - keep, Math.max(keep - L.H * Cam.k, Cam.y));
+}
+function applyCam(animate) {
+  const c = $("cam"); if (!c) return;
+  clampCam();
+  c.classList.toggle("anim", !!animate);
+  c.style.transform = `translate(${Cam.x}px, ${Cam.y}px) scale(${Cam.k})`;
+  markVisible();
+}
+function markVisible() {
+  if (!L) return;
+  const v = view();
+  L.lanes.forEach((l) => {
+    const a = Cam.y + l.y * Cam.k, b = a + l.h * Cam.k, el = document.querySelector(`.stop[data-st="${CSS.escape(l.st.id)}"]`);
+    if (el) el.classList.toggle("vis", b > 30 && a < v.h - 30);
+  });
+}
+function goHome(animate) {
+  if (!L) return;
+  const v = view(), cur = L.lanes.find((l) => l.st.cur) || L.lanes[0];
+  Cam.k = Math.min(1, (v.w - 8) / L.W);
+  Cam.x = (v.w - L.W * Cam.k) / 2;
+  Cam.y = 8 - cur.y * Cam.k;
+  applyCam(animate);
+}
+function fitAll() {
+  if (!L) return;
+  const v = view();
+  Cam.k = Math.min(1, (v.w - 16) / L.W, (v.h - 16) / L.H);
+  Cam.x = (v.w - L.W * Cam.k) / 2; Cam.y = Math.max(8, (v.h - L.H * Cam.k) / 2);
+  applyCam(true);
+}
+function zoomAt(cx, cy, f, animate) {
+  const k = Math.min(1.6, Math.max(0.2, Cam.k * f)), r = k / Cam.k;
+  Cam.x = cx - (cx - Cam.x) * r; Cam.y = cy - (cy - Cam.y) * r; Cam.k = k;
+  applyCam(animate);
+}
+function panToNode(id) {
+  const n = L && L.nm[id]; if (!n) return;
+  const v = view(), mx = Math.min(70, v.w * 0.12), my = 24;
+  const a = Cam.x + n.x * Cam.k, b = a + NW * Cam.k, t = Cam.y + n.y * Cam.k, u = t + n.h * Cam.k;
+  if (a < mx || b > v.w - mx) Cam.x = v.w / 2 - (n.x + NW / 2) * Cam.k;
+  if (t < my || u > v.h - my - 40) Cam.y = v.h / 2 - (n.y + n.h / 2) * Cam.k;
+  applyCam(true);
+  keepStopVisible(n.lane_.st.id);
+}
+function panToLane(id) {
+  const l = L && L.lanes.find((x) => x.st.id === id); if (!l) return;
+  const v = view();
+  if (L.W * Cam.k <= v.w) Cam.x = (v.w - L.W * Cam.k) / 2;
+  Cam.y = 8 - l.y * Cam.k;
+  applyCam(true);
+  keepStopVisible(id);
+}
+function keepStopVisible(id) {
+  const r = $("route"), el = r.querySelector(`.stop[data-st="${CSS.escape(id)}"]`); if (!el) return;
+  const a = el.offsetLeft - r.offsetLeft, b = a + el.offsetWidth;
+  if (a < r.scrollLeft) r.scrollLeft = a - 8; else if (b > r.scrollLeft + r.clientWidth) r.scrollLeft = b - r.clientWidth + 8;
+}
+
+/* Drag or wheel to pan, ctrl+wheel or pinch to zoom. A press that barely moves stays a click. */
+(function chartInput() {
+  const host = $("chart"), pts = new Map();
+  let dragged = false, last = null, pinch = null, swallow = false;
+  const local = (e) => { const r = host.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  host.addEventListener("pointerdown", (e) => {
+    if (e.target.closest(".ctl, .key")) return;
+    pts.set(e.pointerId, local(e));
+    if (pts.size === 1) { dragged = false; last = local(e); pinch = null; }
+    if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); dragged = true; }
+  });
+  host.addEventListener("pointermove", (e) => {
+    if (!pts.has(e.pointerId)) return;
+    const p = local(e); pts.set(e.pointerId, p);
+    if (pts.size === 2 && pinch) {
+      const [a, b] = [...pts.values()], d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (d > 0) zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, d / pinch, false);
+      pinch = d; return;
+    }
+    if (!dragged && Math.hypot(p.x - last.x, p.y - last.y) < 5) return;
+    if (!dragged) { dragged = true; host.classList.add("drag"); try { host.setPointerCapture(e.pointerId); } catch (x) { /* pointer already gone */ } }
+    Cam.x += p.x - last.x; Cam.y += p.y - last.y; last = p;
+    applyCam(false);
+  });
+  const up = (e) => { if (!pts.delete(e.pointerId)) return; host.classList.remove("drag"); if (dragged) { swallow = true; setTimeout(() => { swallow = false; }, 0); } if (pts.size === 1) last = [...pts.values()][0]; };
+  host.addEventListener("pointerup", up); host.addEventListener("pointercancel", up);
+  host.addEventListener("wheel", (e) => { if (e.target.closest(".key")) return; e.preventDefault(); if (e.ctrlKey) { const p = local(e); zoomAt(p.x, p.y, Math.exp(-e.deltaY * 0.01), false); return; } const u = e.deltaMode === 1 ? 16 : 1; Cam.x -= e.deltaX * u; Cam.y -= e.deltaY * u; applyCam(false); }, { passive: false });
+  host.addEventListener("scroll", () => { host.scrollTop = 0; host.scrollLeft = 0; });
+  host.addEventListener("click", (e) => {
+    if (swallow || e.target.closest(".ctl, .key")) return;
+    const n = e.target.closest(".nd"), h = e.target.closest(".lane-h");
+    if (n) { if (n.dataset.id === state.selected) closeBox(); else select(n.dataset.id); }
+    else if (h) selectStage(h.dataset.st);
+    else if (state.selected) closeBox();
+  });
+  host.addEventListener("mouseover", (e) => { const n = e.target.closest(".nd"), id = n ? n.dataset.id : null; if (id !== state.hot) { state.hot = id; lightChart(); } });
+  host.addEventListener("mouseleave", () => { if (state.hot) { state.hot = null; lightChart(); } });
+  host.addEventListener("keydown", (e) => {
+    const n = e.target.closest && e.target.closest(".nd"); if (!n) return;
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (n.dataset.id === state.selected) closeBox(); else select(n.dataset.id); return; }
+    const to = stepNode(n.dataset.id, e.key);
+    if (to) { e.preventDefault(); const g = document.querySelector(`#chart .nd[data-id="${CSS.escape(to)}"]`); if (g) { g.focus({ preventScroll: true }); panToNode(to); } }
+  });
+  host.addEventListener("focusin", (e) => { const n = e.target.closest && e.target.closest(".nd"); host.scrollTop = 0; host.scrollLeft = 0; if (n && e.target.matches(":focus-visible")) panToNode(n.dataset.id); });
+  $("cIn").onclick = () => { const v = view(); zoomAt(v.w / 2, v.h / 2, 1.25, true); };
+  $("cOut").onclick = () => { const v = view(); zoomAt(v.w / 2, v.h / 2, 0.8, true); };
+  $("cFit").onclick = fitAll;
+  $("cNow").onclick = () => goHome(true);
+  $("cKey").onclick = () => { const k = $("key"); k.hidden = !k.hidden; $("cKey").setAttribute("aria-expanded", String(!k.hidden)); };
+  if (window.ResizeObserver) new ResizeObserver(() => { if (!L) return; if (colsFor(view().w) !== L.cols) { renderChart(); if (state.selected) panToNode(state.selected); else goHome(false); } else applyCam(false); }).observe(host);
+})();
+function stepNode(id, key) {
+  const n = L && L.nm[id]; if (!n) return null;
+  const dir = key === "ArrowUp" || key === "ArrowLeft" ? -1 : 1, all = Object.values(L.nm);
+  if (key === "ArrowLeft" || key === "ArrowRight") {
+    const side = all.filter((x) => x.y === n.y && (x.x - n.x) * dir > 0);
+    return side.length ? side.reduce((best, x) => (Math.abs(x.x - n.x) < Math.abs(best.x - n.x) ? x : best)).id : null;
+  }
+  if (key !== "ArrowUp" && key !== "ArrowDown") return null;
+  const off = all.filter((x) => (x.y - n.y) * dir > 0); if (!off.length) return null;
+  const ry = off.reduce((best, x) => (Math.abs(x.y - n.y) < Math.abs(best - n.y) ? x.y : best), off[0].y);
+  return off.filter((x) => x.y === ry).reduce((best, x) => (Math.abs(x.x - n.x) < Math.abs(best.x - n.x) ? x : best)).id;
+}
+
+/* ---------- navigation between chart and panel ---------- */
+function setView(v) {
+  if (v === "box" && state.view !== "box") state.prev = state.view;
+  const changed = v !== state.view;
+  state.view = v;
+  for (const k of ["now", "box", "all", "unsorted"]) {
+    const el = $("v-" + k), on = k === v;
+    el.hidden = !on;
+    if (on && changed) { el.classList.remove("enter"); void el.offsetWidth; el.classList.add("enter"); }
+    const t = $("tab-" + k); if (t) t.setAttribute("aria-selected", String(on));
+  }
+  if (changed) $("scroll").scrollTop = 0;
+}
+function select(id) {
+  if (!state.boxes.has(id)) return;
+  state.selected = id; state.hot = null;
+  renderBoxView();
+  setView("box");
+  lightChart();
+  panToNode(id);
   try { history.replaceState(null, "", `#${id}`); } catch (e) { /* file:// */ }
 }
-
-function showTab(name) {
-  for (const btn of document.querySelectorAll("#tabs button")) btn.setAttribute("aria-selected", String(btn.dataset.tab === name));
-  for (const t of ["box", "all", "unsorted"]) $(`tab-${t}`).hidden = t !== name;
+function closeBox() {
+  const id = state.selected;
+  state.selected = null; state.hot = null;
+  setView(state.prev === "box" ? "now" : state.prev);
+  lightChart();
+  try { history.replaceState(null, "", location.pathname + location.search); } catch (e) { /* file:// */ }
+  const g = id && document.querySelector(`#chart .nd[data-id="${CSS.escape(id)}"]`);
+  if (g && document.activeElement && document.activeElement.closest && document.activeElement.closest("#v-box")) g.focus({ preventScroll: true });
+}
+function selectStage(id) {
+  state.selected = null; state.hot = null; state.openStages.set(id, true);
+  renderOverview(); setView("now"); lightChart();
+  const el = $(`stage-${id}`);
+  if (el) { el.scrollIntoView({ block: "start" }); el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1600); }
+  panToLane(id);
 }
 
 function render() {
   computeBoxes();
-  renderHeader();
-  renderFlow();
+  renderHead();
+  renderChart();
   renderImportant();
-  renderBoxTab();
+  renderOverview();
+  renderBoxView();
   renderLists();
+  renderKey();
 }
 
 async function load(force) {
-  $("loaded").textContent = "Loading…";
+  $("loaded").innerHTML = '<i class="dot"></i>Loading…';
   try {
     if (!state.flow) {
       state.flow = await fetchFlow();
@@ -436,40 +902,56 @@ async function load(force) {
         note = ` (${e.message}; showing the copy from then)`;
       }
     }
+    const first = !state.issues.length;
     state.issues = raw.map(parseIssue);
+    if (state.selected && !state.flow.stages.some((s) => s.boxes.some((b) => b.id === state.selected))) state.selected = null;
     render();
-    const sel = decodeURIComponent(location.hash.slice(1));
-    if (state.boxes.has(sel)) select(sel, true);
-    $("loaded").innerHTML = `Issues read ${new Date(state.fetchedAt).toLocaleString()}<span class="error">${esc(note)}</span>`;
+    if (first) {
+      goHome(false);
+      const sel = decodeURIComponent(location.hash.slice(1));
+      if (state.boxes.has(sel)) select(sel);
+    }
+    const when = new Date(state.fetchedAt).toLocaleString();
+    $("loaded").title = `Issues read ${when}`;
+    $("loaded").innerHTML = `<i class="dot ${note ? "err" : "live"}"></i><span class="lt">Issues read ${esc(when)}</span><span class="error">${esc(note)}</span>`;
   } catch (e) {
-    $("loaded").innerHTML = `<span class="error">Could not load the roadmap: ${esc(e.message)}</span>`;
+    $("loaded").innerHTML = `<i class="dot err"></i><span class="error">Could not load the roadmap: ${esc(e.message)}</span>`;
+    if (!L) $("chartView").innerHTML = `<div class="empty">Could not load the roadmap: ${esc(e.message)}</div>`;
   }
 }
 
+/* All panel and side clicks arrive here, so re-rendering a view never loses a handler. */
 document.addEventListener("click", (e) => {
-  const go = e.target.closest("[data-goto]");
-  if (go) { e.preventDefault(); select(go.dataset.goto, true); return; }
-  const box = e.target.closest(".box");
-  if (box) select(box.dataset.box, false);
-  const tab = e.target.closest("#tabs button");
-  if (tab) showTab(tab.dataset.tab);
+  const c = (sel) => e.target.closest(sel);
+  let b;
+  if (c("#chart")) return;
+  if ((b = c("[data-goto]"))) { e.preventDefault(); if (b.dataset.goto !== state.selected) select(b.dataset.goto); return; }
+  if ((b = c("[data-stage-go]"))) { selectStage(b.dataset.stageGo); return; }
+  if (c("[data-close]")) { closeBox(); return; }
+  if ((b = c("[data-stage]"))) { const id = b.dataset.stage; state.openStages.set(id, b.getAttribute("aria-expanded") !== "true"); renderOverview(); const h = document.querySelector(`[data-stage="${CSS.escape(id)}"]`); if (h) h.focus({ preventScroll: true }); return; }
+  if ((b = c(".tab"))) { if (state.selected) closeBox(); state.hot = null; setView(b.dataset.v); lightChart(); }
 });
+for (const id of ["panel", "important"]) {
+  const host = $(id);
+  host.addEventListener("mouseover", (e) => { const b = e.target.closest("[data-goto]"), v = b ? b.dataset.goto : null; if (v !== state.hot) { state.hot = v; lightChart(); } });
+  host.addEventListener("mouseleave", () => { if (state.hot) { state.hot = null; lightChart(); } });
+}
 document.addEventListener("keydown", (e) => {
-  const box = e.target.closest && e.target.closest(".box");
-  if (box && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); select(box.dataset.box, false); }
+  if (e.key !== "Escape") return;
+  if (!$("key").hidden) { $("key").hidden = true; $("cKey").setAttribute("aria-expanded", "false"); return; }
+  if (state.selected) closeBox();
 });
-for (const id of ["search", "f-tier", "f-state"]) $(id).addEventListener("input", () => { if (state.flow) { showTab("all"); renderLists(); } });
+$("search").addEventListener("input", () => { if (!state.flow) return; if (state.selected) closeBox(); setView("all"); renderLists(); lightChart(); });
+for (const id of ["f-tier", "f-state"]) $(id).addEventListener("input", () => { if (state.flow) renderLists(); });
 $("reload").addEventListener("click", () => load(true));
 $("theme").addEventListener("click", () => {
-  const dark = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() === "#0f1419";
-  document.documentElement.dataset.theme = dark ? "light" : "dark";
+  const light = document.documentElement.dataset.theme === "light";
+  document.documentElement.dataset.theme = light ? "dark" : "light";
   store(false, "roadmap-theme", document.documentElement.dataset.theme);
-  drawEdges();
 });
 const savedTheme = store(true, "roadmap-theme");
-if (savedTheme) document.documentElement.dataset.theme = savedTheme;
-let resizeTimer;
-window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => state.flow && drawEdges(), 120); });
+if (savedTheme === "light" || savedTheme === "dark") document.documentElement.dataset.theme = savedTheme;
+setView("now");
 load(false);
 </script>
 </body>
