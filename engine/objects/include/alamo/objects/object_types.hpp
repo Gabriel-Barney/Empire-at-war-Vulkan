@@ -39,6 +39,10 @@ using TypeIndex = uint32_t;
 using FieldIndex = uint32_t;
 using TagId = uint32_t;
 inline constexpr uint32_t kNone = 0xFFFFFFFFu;
+// Deepest field kept below a type element (1 = a direct child). Real files nest a handful of levels; a deeper element is
+// skipped with a limit_hit warning, so a malformed mod file cannot exhaust the loader's stack (#99).
+// limit: guard [port] XML nesting below a type element (stack bound; far above any real file)
+inline constexpr uint16_t kMaxFieldDepth = 256;
 
 enum class ParseStatus : uint8_t {
     Untyped,  // no schema row, or a Raw-kind row: text kept as is
@@ -155,7 +159,9 @@ public:
 
 private:
     void warn(std::string message);
-    void walk(TypeIndex t, data::XmlNode node, FieldIndex parent, uint16_t depth, std::string_view owner);
+    // Appends the fields below `node`; returns the line of the first element skipped for being deeper than
+    // kMaxFieldDepth, or 0.
+    uint32_t walk(TypeIndex t, data::XmlNode node, FieldIndex parent, uint16_t depth, std::string_view owner);
     uint32_t add_attrs(data::XmlNode node);
 
     std::vector<SourceFile> files_;

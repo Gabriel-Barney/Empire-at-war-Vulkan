@@ -261,6 +261,35 @@ static void test_loader_synthetic() {
     remove_all_long(root, ec);
 }
 
+// #99: a mod XML nested far deeper than any real file loads with a diagnostic instead of overflowing the stack. The
+// fields down to kMaxFieldDepth are kept; the elements below it are skipped and the warning names the type's file and
+// line.
+static void test_deep_nesting() {
+    const fs::path root = fs::temp_directory_path() / "alamo_objects_deep_test";
+    std::error_code ec;
+    remove_all_long(root, ec);
+    write_file(root / "Data/XML/GameObjectFiles.xml", "<Game_Object_Files><File>Deep.xml</File></Game_Object_Files>\n");
+    constexpr int kNest = 100000;
+    std::string xml = "<Root>\n<SpaceUnit Name=\"Deep\">\n";
+    for (int i = 0; i < kNest; ++i) xml += "<N>";
+    for (int i = 0; i < kNest; ++i) xml += "</N>";
+    xml += "\n</SpaceUnit>\n<SpaceUnit Name=\"After\"><Max_Speed>2</Max_Speed></SpaceUnit>\n</Root>\n";
+    write_file(root / "Data/XML/Deep.xml", xml);
+    DirectoryProvider dp(root.string());
+    ObjectTypeDatabase db;
+    std::vector<std::string> diag;
+    CHECK(db.load(dp, &diag));
+    CHECK(db.type_count() == 2 && db.find("After") == 1 && db.get_float(1, "Max_Speed") == 2.0f);
+    const TypeColumns& ty = db.types();
+    CHECK(ty.field_end[0] - ty.field_begin[0] == kMaxFieldDepth);  // one <N> per kept level
+    CHECK(db.fields().depth[ty.field_end[0] - 1] == kMaxFieldDepth);
+    bool warned = false;
+    for (const std::string& d : diag)
+        warned = warned || (d.find("Deep.xml(2)") != std::string::npos && d.find("nested deeper than") != std::string::npos);
+    CHECK(warned);
+    remove_all_long(root, ec);
+}
+
 static void test_converters() {
     CHECK(c_atoi("  -12abc") == -12 && c_atoi("+7") == 7 && c_atoi("x") == 0 && c_atoi("") == 0);
     CHECK(c_atoi("99999999999") == 2147483647 && c_atoi("-99999999999") == -2147483647 - 1);
@@ -1856,6 +1885,7 @@ int main() {
     test_schema();
     test_classify();
     test_loader_synthetic();
+    test_deep_nesting();  // #99
     test_converters();
     test_types_synthetic();
     test_retail_squadrons();

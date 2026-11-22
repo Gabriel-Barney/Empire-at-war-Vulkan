@@ -112,8 +112,10 @@ uint32_t ObjectTypeDatabase::add_attrs(data::XmlNode node) {
     return begin;
 }
 
-void ObjectTypeDatabase::walk(TypeIndex t, data::XmlNode node, FieldIndex parent, uint16_t depth,
-                              std::string_view owner) {
+uint32_t ObjectTypeDatabase::walk(TypeIndex t, data::XmlNode node, FieldIndex parent, uint16_t depth,
+                                  std::string_view owner) {
+    if (depth > kMaxFieldDepth) return node.first_child().line();
+    uint32_t too_deep = 0;
     for (data::XmlNode c = node.first_child(); c; c = c.next_sibling()) {
         const FieldIndex f = static_cast<FieldIndex>(fields_.size());
         const std::string_view text = data::trim(c.text());
@@ -131,8 +133,12 @@ void ObjectTypeDatabase::walk(TypeIndex t, data::XmlNode node, FieldIndex parent
         // An element with children is a container: its own text is not a value.
         const FieldKind kind = (schema == kNoSchema || c.child_count() > 0) ? FieldKind::Raw : field_schema()[schema].kind();
         fields_.status.push_back(classify_value(kind, text));
-        if (c.child_count() > 0) walk(t, c, f, static_cast<uint16_t>(depth + 1), c.name());
+        if (c.child_count() > 0) {
+            const uint32_t line = walk(t, c, f, static_cast<uint16_t>(depth + 1), c.name());
+            if (too_deep == 0) too_deep = line;
+        }
     }
+    return too_deep;
 }
 
 bool ObjectTypeDatabase::load(const FileProvider& provider, std::vector<std::string>* diagnostics) {
@@ -216,7 +222,9 @@ bool ObjectTypeDatabase::load(const FileProvider& provider, std::vector<std::str
             types_.attr_count.push_back(static_cast<uint32_t>(e.attribute_count()));
             types_.first_definition.push_back(first);
             types_.field_begin.push_back(static_cast<FieldIndex>(fields_.size()));
-            walk(t, e, kNone, 1, e.name());
+            if (const uint32_t deep = walk(t, e, kNone, 1, e.name()); deep != 0)
+                warn("limit_hit: " + where(sf, e.line()) + ": <" + std::string(e.name()) + "> has elements nested deeper than " +
+                     std::to_string(kMaxFieldDepth) + " levels (first at line " + std::to_string(deep) + "); they are skipped");
             types_.field_end.push_back(static_cast<FieldIndex>(fields_.size()));
             const FieldIndex v = last_field(t, kVariantTag);
             types_.variant_of.push_back(v == kNone ? std::string_view{} : fields_.text[v]);
