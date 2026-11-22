@@ -36,8 +36,8 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.15"
-      # tools/gate.py (self-test: CTest alamo_gate_selftest) prints each path's class, writes code=true|false, and
-      # puts the head, base and tested merge candidate (github.sha) in the step summary.
+      # tools/landing_gate.py (self-test: CTest alamo_landing_gate_selftest) prints each path's class and writes
+      # code=true|false; an empty change list or a path it cannot classify fails the job.
       - id: paths
         name: Classify changed paths
         shell: bash
@@ -45,8 +45,7 @@ jobs:
           EVENT: ${{ github.event_name }}
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
-          CANDIDATE: ${{ github.sha }}
-        run: python -I tools/gate.py classify --event "$EVENT" --base "$BASE" --head "$HEAD" --candidate "$CANDIDATE"
+        run: python -I tools/landing_gate.py classify --event "$EVENT" --base "$BASE" --head "$HEAD"
 
   docs:
     needs: classify
@@ -202,7 +201,8 @@ jobs:
         with:
           python-version: "3.15"
       # Fails unless the job this change needs reports success; a skipped, cancelled, failed or missing result fails
-      # with the job named (tools/gate.py aggregate, self-test CTest alamo_gate_selftest).
+      # with the job named. The step summary records the head, base and tested merge candidate (github.sha)
+      # (tools/landing_gate.py aggregate, self-test CTest alamo_landing_gate_selftest).
       - name: Aggregate result
         shell: bash
         env:
@@ -210,4 +210,10 @@ jobs:
           CODE: ${{ needs.classify.outputs.code }}
           DOCS: ${{ needs.docs.result }}
           ENGINE: ${{ needs.engine.result }}
-        run: python -I tools/gate.py aggregate --classify "$CLASSIFY" --code "$CODE" --docs "$DOCS" --engine "$ENGINE"
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          CANDIDATE: ${{ github.sha }}
+        run: >-
+          python -I tools/landing_gate.py aggregate --classify "$CLASSIFY" --code "$CODE" --docs "$DOCS" --engine "$ENGINE"
+          --event "$EVENT" --base "$BASE" --head "$HEAD" --candidate "$CANDIDATE"
