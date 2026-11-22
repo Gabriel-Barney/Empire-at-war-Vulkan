@@ -22,7 +22,10 @@ permissions:
 # A newer push to a pull request cancels its older run. A push to main never cancels one: main's run is what saves
 # the toolchain and compiler caches that every pull request restores (a cancelled run saves neither).
 concurrency:
-  group: landing-${{ github.event.pull_request.number || github.ref }}
+  # A pull request's runs share one group and a newer push cancels the older run. Every other run (each push to main)
+  # has its own group: GitHub keeps one pending run per group, so a shared group would replace a queued push run with
+  # the next one and leave a commit of main untested (it did: the race demonstration's first push, #17).
+  group: landing-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:

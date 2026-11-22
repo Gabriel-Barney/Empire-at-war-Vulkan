@@ -87,6 +87,7 @@ alamo_headless_skirmish_ai_synthetic
 alamo_headless_skirmish_plan_retest
 alamo_headless_skirmish_trace
 alamo_injected_compile_failure
+alamo_injected_quarantine
 alamo_injected_wrong_result
 alamo_jobs_crc_tests
 alamo_jobs_tests
@@ -133,6 +134,7 @@ alamo_render_tests
 alamo_render_xess_tests slow
 alamo_rhi_gpu_tests
 alamo_rhi_tests
+alamo_roadmap_import_selftest
 alamo_shaderxlat_gpu_tests
 alamo_shaderxlat_tests
 alamo_sim_battle_ai_hero_clash
