@@ -29,7 +29,11 @@ import tempfile
 BS = chr(92)
 LEGACY_INDEX = 'docs/LEGACY_DOCS.md'
 AUTHORITATIVE = ('docs/MODS.md', 'docs/SIMULATION.md', 'docs/DECISIONS.md')
-SKIP_DIRS = ('build/', 'launcher/target/', 'toolchain/', 'extracted/', 'logs/', '.git/')
+# workflow/skills/upstream is third-party text copied verbatim; .claude/skills and .agents/skills are generated from it
+# (tools/skills.py). Their "legacy CONTEXT.md" is upstream's wording, not this repo's legacy convention; the project's
+# own additions live in workflow/skills/manifest.json, which is scanned.
+SKIP_DIRS = ('build/', 'launcher/target/', 'toolchain/', 'extracted/', 'logs/', '.git/',
+             'workflow/skills/upstream/', '.claude/skills/', '.agents/skills/')
 # Files whose .md names are literal test data, not citations.
 SKIP_FILES = {
     'tools/lint/check_tag_ledger.py',  # self-test fixtures: made-up docs/re pages (A.md, X.md, AAA_NEW.md, ...)
