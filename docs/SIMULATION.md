@@ -355,7 +355,8 @@ A pull request that changes simulation code says what behaviour changes. The sim
   affected tick and the scenario result.
 
 `landing` fails a pull request that touches a listed path without that line (`tools/landing_gate.py classify`). The
-line outside HTML comments counts. The check reads the description when it runs, so after adding the line, re-run the
+line may be a list item or bold, in any case; a line inside an HTML comment or a code block, or an unfilled
+`Behaviour: <...>`, does not count. A moved file counts at its old and its new path. The check reads the description when it runs, so after adding the line, re-run the
 failed jobs. Every `landing` run also runs the synthetic `determinism` entries ("Worker-count check"). The entries that
 need game data run in the local `dev.cmd suite retail` that the pull request records (`docs/DECISIONS.md` "Retail and
 GPU evidence is a recorded local run"). The rule is `docs/DECISIONS.md` "Simulation changes are declared".

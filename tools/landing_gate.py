@@ -86,20 +86,29 @@ def simulation_paths(files: list[str], patterns: list[str]) -> list[str]:
 
 
 def behaviour_line(body: str) -> str | None:
-    """The value of the PR body's first 'Behaviour: ...' line outside HTML comments, or None."""
-    text = re.sub(r"<!--.*?-->", "", body or "", flags=re.S)
-    m = re.search(r"^[ \t]*Behaviour:[ \t]*(\S.*?)[ \t\r]*$", text, flags=re.M)
-    return m.group(1) if m else None
+    """The value of the PR body's first 'Behaviour: ...' line, or None.
+
+    HTML comments (an unclosed one runs to the end) and fenced code blocks do not count. The line may be a list item
+    or bold ('- Behaviour: none', '**Behaviour:** none') and the word is matched in any case. An unfilled placeholder
+    ('Behaviour: <...>') is not a declaration."""
+    text = re.sub(r"<!--.*?(-->|\Z)", "", body or "", flags=re.S)
+    text = re.sub(r"^[ \t]*(```|~~~).*?^[ \t]*\1[^\n]*$", "", text, flags=re.S | re.M)
+    m = re.search(r"^[ \t]*(?:[-*+][ \t]+)?(?:\*\*|__)?Behaviour:(?:\*\*|__)?[ \t]*(\S.*?)[ \t\r]*$", text,
+                  flags=re.M | re.I)
+    if not m or m.group(1).startswith("<"):
+        return None
+    return m.group(1)
 
 
-def behaviour_reason(sim_files: list[str], body: str) -> str | None:
-    """None when the PR may land as declared, else why not (docs/DECISIONS.md "Simulation changes are declared")."""
+def missing_behaviour_error(sim_files: list[str], body: str) -> str | None:
+    """The error for a simulation change without a declaration, or None (docs/DECISIONS.md "Simulation changes are
+    declared")."""
     if not sim_files or behaviour_line(body) is not None:
         return None
     shown = ", ".join(sim_files[:5]) + (f" and {len(sim_files) - 5} more" if len(sim_files) > 5 else "")
     return (f"this pull request changes simulation code ({shown}) but its description has no 'Behaviour:' line. "
-            "Add 'Behaviour: none' or 'Behaviour: <scenarios and systems that change>' to the description, then "
-            "re-run the failed jobs (docs/SIMULATION.md \"Declared behaviour changes\")")
+            "Add a line 'Behaviour: none', or 'Behaviour: ' and the scenarios and systems that change, to the "
+            "description, then re-run the failed jobs (docs/SIMULATION.md \"Declared behaviour changes\")")
 
 
 def _append(env_var: str, text: str) -> None:
@@ -110,8 +119,9 @@ def _append(env_var: str, text: str) -> None:
 
 
 def _changed_files(base: str, head: str) -> list[str]:
-    out = subprocess.run(["git", "-c", "core.quotepath=off", "diff", "--name-only", f"{base}...{head}"],
-                         capture_output=True, encoding="utf-8", check=True).stdout
+    # --no-renames lists a moved file at both paths, so moving code out of a simulation folder counts as touching it.
+    out = subprocess.run(["git", "-c", "core.quotepath=off", "diff", "--name-only", "--no-renames",
+                          f"{base}...{head}"], capture_output=True, encoding="utf-8", check=True).stdout
     return [f for f in out.splitlines() if f]
 
 
@@ -122,18 +132,23 @@ def cmd_classify(a: argparse.Namespace, changed_files=_changed_files) -> int:
     else:
         files = changed_files(a.base, a.head)
         code = needs_code(files)
-        sim = simulation_paths(files, load_simulation_patterns())
+        sim = set(simulation_paths(files, load_simulation_patterns()))
         for f in files:
-            print(f"{'simulation' if f in sim else path_class(f)}: {f}")
+            print(f"{path_class(f)}{' (simulation)' if f in sim else ''}: {f}")
         body = ""
         if a.body_file:
             with open(a.body_file, encoding="utf-8") as fh:
                 body = fh.read()
-        reason = behaviour_reason(sim, body)
-        if reason:
-            raise GateError(reason)
+        error = missing_behaviour_error(sorted(sim), body)
+        if error:
+            raise GateError(error)
         if sim:
-            print(f"Behaviour: {behaviour_line(body)}")
+            declared = behaviour_line(body)
+            print(f"Behaviour: {declared}")
+            _append("GITHUB_STEP_SUMMARY",
+                    f"### Simulation change\n\n`Behaviour: {declared}`\n\nThis run includes the synthetic `determinism` "
+                    "entries. The ones that need game data run in the local `dev.cmd suite retail` that the pull "
+                    "request records (docs/SIMULATION.md \"Declared behaviour changes\").\n\n")
     out = f"code={'true' if code else 'false'}\nsimulation={'true' if sim else 'false'}\n"
     _append("GITHUB_OUTPUT", out)
     print(out, end="")
@@ -178,7 +193,7 @@ def main(argv: list[str], changed_files=_changed_files) -> int:
 
 # ------------------------------------------------------------------------------------------------- self-test
 
-class _Tests(unittest.TestCase):
+class _RunsMain:
     def run_main(self, argv: list[str], files: list[str] | None = None) -> tuple[int, str, str, str]:
         """Runs main() as the workflow does; returns exit code, stdout, GITHUB_OUTPUT and GITHUB_STEP_SUMMARY."""
         with tempfile.TemporaryDirectory() as d:
@@ -198,6 +213,8 @@ class _Tests(unittest.TestCase):
             read = lambda p: open(p, encoding="utf-8").read() if os.path.exists(p) else ""
             return code, buf.getvalue(), read(out_path), read(summary_path)
 
+
+class _Tests(_RunsMain, unittest.TestCase):
     # classify
     def test_docs_only_change_needs_docs_job(self):
         self.assertFalse(needs_code(["README.md", "docs/DECISIONS.md", "docs/agents/preplanning.md"]))
@@ -262,7 +279,7 @@ class _Tests(unittest.TestCase):
         self.assertIn("| head | `-` |", summary)
 
 
-class _BehaviourTests(unittest.TestCase):
+class _BehaviourTests(_RunsMain, unittest.TestCase):
     PATTERNS = ["engine/tactical/", "engine/core/src/sim_*.cpp", "tests/goldens/", "!*/tests/*"]
 
     def test_simulation_paths_come_from_the_list_minus_tests(self):
@@ -275,43 +292,59 @@ class _BehaviourTests(unittest.TestCase):
         patterns = load_simulation_patterns()
         self.assertTrue(simulation_paths(["engine/tactical/combat/src/combat_system_part2.cpp"], patterns))
         self.assertTrue(simulation_paths(["engine/core/src/sim_crc.cpp"], patterns))
+        self.assertTrue(simulation_paths(["engine/apps/game/rules/skirmish_rules.cpp",
+                                          "engine/core/include/alamo/core/save_file.hpp"], patterns))
         self.assertFalse(simulation_paths(["engine/render/src/jam_fx.cpp", "tools/dev.py",
-                                           "engine/galactic/tests/test_economy.cpp"], patterns))
+                                           "engine/galactic/tests/test_economy.cpp", "engine/jobs/bench/b.cpp",
+                                           "engine/lua/tools/gen_bindings.py"], patterns))
 
     def test_behaviour_line(self):
         self.assertEqual(behaviour_line("## Behaviour\n\nBehaviour: none\n"), "none")
         self.assertEqual(behaviour_line("Behaviour:  battle tie-break (combat), skirmish_ai_a1 \r\n"),
                          "battle tie-break (combat), skirmish_ai_a1")
+        for written in ("- Behaviour: none", "**Behaviour:** none", "behaviour: none", "* __Behaviour:__ none"):
+            self.assertEqual(behaviour_line(written + "\n"), "none", written)
         self.assertIsNone(behaviour_line("## Behaviour\n\nnothing here\n"))
         self.assertIsNone(behaviour_line("Behaviour:\n"))
-        # The template's example inside an HTML comment does not count.
+        self.assertIsNone(behaviour_line("Behaviour: <scenarios and systems>\n"))  # the unfilled placeholder
+        # The template's example inside an HTML comment, an unclosed comment or a code block does not count.
         self.assertIsNone(behaviour_line("<!-- e.g.\nBehaviour: none\n-->\n"))
+        self.assertIsNone(behaviour_line("text <!-- unclosed\nBehaviour: none\n"))
+        self.assertIsNone(behaviour_line("```\nBehaviour: none\n```\n"))
+        self.assertEqual(behaviour_line("```\nx\n```\nBehaviour: none\n"), "none")
 
     def test_simulation_change_needs_a_declaration(self):
         sim = ["engine/tactical/combat/src/a.cpp"]
-        reason = behaviour_reason(sim, "## Behaviour\n\n<!-- Behaviour: none -->\n")
+        reason = missing_behaviour_error(sim, "## Behaviour\n\n<!-- Behaviour: none -->\n")
         self.assertIn("Behaviour:", reason)
         self.assertIn("engine/tactical/combat/src/a.cpp", reason)
-        self.assertIsNone(behaviour_reason(sim, "Behaviour: none"))
-        self.assertIsNone(behaviour_reason(sim, "Behaviour: unit pathing (movement), space_ai_b2"))
-        self.assertIsNone(behaviour_reason([], ""))  # no simulation path: no line needed
+        self.assertIsNone(missing_behaviour_error(sim, "Behaviour: none"))
+        self.assertIsNone(missing_behaviour_error(sim, "Behaviour: unit pathing (movement), space_ai_b2"))
+        self.assertIsNone(missing_behaviour_error([], ""))  # no simulation path: no line needed
 
-    def test_classify_fails_an_undeclared_simulation_change(self):
-        t = _Tests()
+    def test_classify_undeclared_declared_and_non_simulation_changes(self):
+        sim, other = ["engine/core/src/sim_rng.cpp"], ["engine/render/src/jam_fx.cpp"]
         with tempfile.TemporaryDirectory() as d:
             body = os.path.join(d, "body.md")
-            for text, want in (("## Behaviour\n", 1), ("Behaviour: none\n", 0)):
+            for text, files, want, output_want in (
+                    ("## Behaviour\n", sim, 1, ""),
+                    ("Behaviour: none\n", sim, 0, "code=true\nsimulation=true\n"),
+                    ("Behaviour: rng stream order (combat), skirmish_ai_a1\n", sim, 0, "code=true\nsimulation=true\n"),
+                    ("", other, 0, "code=true\nsimulation=false\n")):
                 with open(body, "w", encoding="utf-8") as f:
                     f.write(text)
-                code, out, output, _ = t.run_main(["classify", "--event", "pull_request", "--body-file", body],
-                                                  ["engine/core/src/sim_rng.cpp"])
-                self.assertEqual(code, want, out)
+                code, out, output, summary = self.run_main(
+                    ["classify", "--event", "pull_request", "--body-file", body], files)
+                self.assertEqual((code, output), (want, output_want), out)
                 if want:
                     self.assertIn("::error::", out)
                     self.assertIn("sim_rng.cpp", out)
+                elif files is sim:
+                    self.assertIn("code (simulation): engine/core/src/sim_rng.cpp", out)
+                    self.assertIn("Simulation change", summary)
+                    self.assertIn("determinism", summary)
                 else:
-                    self.assertIn("simulation: engine/core/src/sim_rng.cpp", out)
-                    self.assertEqual(output, "code=true\nsimulation=true\n")
+                    self.assertNotIn("Simulation change", summary)
 
 
 def selftest() -> int:

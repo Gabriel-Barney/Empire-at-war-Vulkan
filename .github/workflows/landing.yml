@@ -30,6 +30,7 @@ jobs:
     runs-on: windows-2025
     outputs:
       code: ${{ steps.paths.outputs.code }}
+      simulation: ${{ steps.paths.outputs.simulation }}
     steps:
       - uses: actions/checkout@v7
         with:
