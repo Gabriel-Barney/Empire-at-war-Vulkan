@@ -463,22 +463,25 @@ int32_t GalacticAiWorld::Impl::script_player(int32_t script) const {
     return it == plans.end() ? -1 : it->second.player;
 }
 
-// Planet targets (PlanetAITargetLocation, slot 4) [L, AI_GALACTIC open item 5]: Friendly = owned by the player
-// or an ally; Enemy = owned by a hostile non-neutral player; Neutral = unowned or neutral-owned; Contested = in
-// the conflict list. Global never applies to a planet.
+// Planet targets (PlanetAITargetLocation slot 4 = 0x665a30, legacy docs/re/BKG1_RE_ANSWERS.md §3.B.4 [H]): false
+// without an AI player or unless Is_Planet_Revealed 0x3fa420 holds (it takes no player: hidden -> false, then
+// auto-reveal, else the local human's byte). Then one bit by the owner, in this order: the AI player itself ->
+// Friendly; a neutral faction -> Neutral; an ally (relation entry 0) -> false for every flag; anyone else -> Enemy.
+// Contested is never read; Global never applies to a planet. [port] An unowned planet counts as the neutral player
+// (§3.B.7 item 4).
 bool GalacticAiWorld::Impl::applies(int32_t self, int32_t target, uint32_t flags) const {
-    if (target < 0 || !valid_planet(static_cast<PlanetIndex>(target))) return false;
-    const gal::PlanetState& ps = sim.planets()[static_cast<size_t>(target)];
+    if (self < 0 || target < 0 || !valid_planet(static_cast<PlanetIndex>(target))) return false;
+    if (!sim.is_planet_revealed(static_cast<PlanetIndex>(target))) return false;
+    const int32_t owner = sim.planets()[static_cast<size_t>(target)].owner;
+    if (owner == self) return (flags & app::Friendly) != 0;
     const auto players = sim.players();
     const auto& rules = sim.rules();
-    const bool owned = ps.owner >= 0 && static_cast<size_t>(ps.owner) < players.size();
-    const bool neutral_owner = !owned || (players[static_cast<size_t>(ps.owner)].faction < rules.factions.size() &&
-                                          rules.factions[players[static_cast<size_t>(ps.owner)].faction].is_neutral);
-    if ((flags & app::Friendly) && owned && (ps.owner == self || !sim.is_hostile(self, ps.owner)) && !neutral_owner) return true;
-    if ((flags & app::Enemy) && owned && !neutral_owner && sim.is_hostile(self, ps.owner)) return true;
-    if ((flags & app::Neutral) && neutral_owner) return true;
-    if ((flags & app::Contested) && ps.in_battle) return true;
-    return false;
+    const bool owned = owner >= 0 && static_cast<size_t>(owner) < players.size();
+    if (!owned || (players[static_cast<size_t>(owner)].faction < rules.factions.size() &&
+                   rules.factions[players[static_cast<size_t>(owner)].faction].is_neutral))
+        return (flags & app::Neutral) != 0;
+    if (sim.allied(self, owner)) return false;
+    return (flags & app::Enemy) != 0;
 }
 
 // ================================================================ AiScriptHost: task forces

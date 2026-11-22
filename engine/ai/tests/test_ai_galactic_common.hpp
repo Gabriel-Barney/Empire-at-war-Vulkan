@@ -976,6 +976,10 @@ void test_budget_fraction_in_progress();
 void test_budget_reset_on_template_switch();
 void test_free_store_path_rules();
 void test_free_store_world();
+void test_target_applies_owner_bits();    // gai1 t02
+void test_target_applies_allied_owner();  // gai1 t02
+void test_target_applies_revealed();      // gai1 t02
+void test_target_applies_contested();     // gai1 t02
 void test_prefer_ground_auto_land();
 
 // ================================================================ P4 ai: Underworld special systems

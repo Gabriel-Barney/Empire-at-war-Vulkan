@@ -2144,6 +2144,83 @@ void test_free_store_world() {
     CHECK(pw.rng->synced().draws() == d0 + 1);
 }
 
+// gai1 t02 (legacy docs/re/BKG1_RE_ANSWERS.md §3.B.4, retail 0x665a30): the galactic PlanetAITargetLocation Applies, seen
+// through Reachable_Target with no source (no reach test) and a flat perception. Ties keep the first planet in target-list
+// order (P7 first), so the pick is the highest planet row that applies, -1 when none does. ParityWorld: the Empire AI
+// (player 0) holds P0 / P1, the neutral player P2..P5, the Rebels P6 / P7.
+namespace {
+int32_t applies_pick(ParityWorld& pw, const char* application) {
+    return pw.world->reachable_target(0, "One", application, "Any", 1.0);
+}
+}  // namespace
+
+// Owner == the AI player: Friendly; a neutral faction: Neutral; any other non-allied owner: Enemy (relation entry != 0,
+// so a Neutral relation is Enemy too).
+void test_target_applies_owner_bits() {
+    ParityWorld pw(false, {"MagicSpace"});
+    pw.run(2);
+    gal::GalacticSim& sim = *pw.sim;
+    const int32_t o5 = sim.planets()[5].owner;
+    CHECK(o5 == 2 && sim.rules().factions[sim.players()[2].faction].is_neutral);
+    CHECK(applies_pick(pw, "Friendly") == 1);
+    CHECK(applies_pick(pw, "Neutral") == 5);
+    CHECK(applies_pick(pw, "Enemy") == 7);
+    sim.set_relation(0, 1, gal::Relation::Neutral);
+    CHECK(applies_pick(pw, "Enemy") == 7);
+    CHECK(applies_pick(pw, "Friendly") == 1);
+    sim.reset_relations();
+}
+
+// An allied owner: false for every flag.
+void test_target_applies_allied_owner() {
+    ParityWorld pw(false, {"MagicSpace"});
+    pw.run(2);
+    pw.sim->set_relation(0, 1, gal::Relation::Ally);
+    CHECK(applies_pick(pw, "Friendly") == 1);
+    CHECK(applies_pick(pw, "Enemy") == -1);
+    CHECK(applies_pick(pw, "Neutral") == 5);
+    CHECK(applies_pick(pw, "Friendly, Enemy, Neutral") == 5);
+    pw.sim->reset_relations();
+}
+
+// Is_Planet_Revealed 0x3fa420 (no player): a hidden planet fails every flag, auto-reveal or not; without auto-reveal an
+// unrevealed planet fails too.
+void test_target_applies_revealed() {
+    ParityWorld pw(false, {"MagicSpace"});
+    pw.run(2);
+    gal::GalacticSim& sim = *pw.sim;
+    CHECK(sim.planet_auto_reveal());
+    sim.set_hidden(7, true);
+    sim.set_hidden(1, true);
+    CHECK(applies_pick(pw, "Enemy") == 6);
+    CHECK(applies_pick(pw, "Friendly") == 0);
+    CHECK(applies_pick(pw, "Friendly, Enemy, Neutral") == 6);
+    sim.set_hidden(7, false);
+    sim.set_hidden(1, false);
+    sim.set_planet_auto_reveal(false);
+    sim.set_planet_revealed(7, false);
+    sim.set_planet_revealed(6, true);
+    CHECK(applies_pick(pw, "Enemy") == 6);
+    sim.set_planet_revealed(6, false);
+    CHECK(applies_pick(pw, "Enemy") == -1);
+    sim.set_planet_auto_reveal(true);
+    CHECK(applies_pick(pw, "Enemy") == 7);
+}
+
+// The Contested bit is never read: Contested alone never applies, a planet in battle included.
+void test_target_applies_contested() {
+    ParityWorld pw(false, {"MagicSpace"});
+    pw.run(2);
+    pw.sim->set_in_battle(7, true);
+    pw.sim->set_in_battle(3, true);
+    pw.sim->set_in_battle(1, true);
+    CHECK(applies_pick(pw, "Contested") == -1);
+    CHECK(applies_pick(pw, "Contested, Neutral") == 5);
+    pw.sim->set_in_battle(7, false);
+    pw.sim->set_in_battle(3, false);
+    pw.sim->set_in_battle(1, false);
+}
+
 // cu8f t04b (CU8F_T04_T06_RE §2.2 step 4): the free-store auto-land of an AI ground unit sitting in an orbiting fleet runs
 // only while the unit's Prefer_Ground_Over_Space is true (the default); false (Lua Set_Prefer_Ground_Over_Space) keeps it
 // in orbit. The infantry starts on P0's surface and is launched into an orbit fleet there before the AI runs.
