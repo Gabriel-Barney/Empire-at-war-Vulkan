@@ -76,6 +76,7 @@ struct TypeInfo {
     bool starbase_stealth = false;       // Planet_Starbase_Stealth (type +0xbb; REMAINING_GAPS 6.3, display only)
     bool groundbase_stealth = false;     // Planet_Groundbase_Stealth (type +0xbc; display only)
     bool surface_accessible = true;      // Planet_Surface_Accessible
+    bool retains_residual_influence = true;  // Planet_Retains_Residual_Influence (type +0xBA, default true: OBJECT_TYPES 4.6)
     ForceSide the_force = ForceSide::Neutral;  // The_Force
     float force_strength = 0.0f;         // Force_Strength
     // bkg2 b0125 (BKG1_RE_ANSWERS 9) [H]: political control inputs. Political_Control (+0x79C) of a planet (its leaning),
