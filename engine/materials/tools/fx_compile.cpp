@@ -1,4 +1,4 @@
-// fxc.exe runner (fx_compile.hpp, roadmap modc t23).
+// fxc.exe runner (fx_compile.hpp).
 #include "fx_compile.hpp"
 
 #include <algorithm>
@@ -81,7 +81,7 @@ std::filesystem::path default_fxc_path() {
     const std::string over = getenv_str("ALAMO_FXC");
     if (!over.empty()) return alamo::path_from_utf8(over);
     std::error_code ec;
-    // A test build's copy (tools/testbuild/package_testbuild.py, modc t36): <exe dir>\fxc\fxc.exe.
+    // A test build's copy (tools/testbuild/package_testbuild.py): <exe dir>\fxc\fxc.exe.
     std::wstring exe(MAX_PATH, L'\0');
     for (;;) {
         const DWORD n = GetModuleFileNameW(nullptr, exe.data(), static_cast<DWORD>(exe.size()));

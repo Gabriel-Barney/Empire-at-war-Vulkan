@@ -3,7 +3,7 @@
 // forces recorded when the auto-resolve started and the ones gone afterwards; nothing here touches the sim state, the
 // RNG or the credits, so the per-tick CRC and the goldens are unchanged. Render-free (alamo_game_core).
 //
-// What is recovered (docs/re/GALACTIC_DIALOGS.md 3.1, BATTLE_TRANSITIONS 4.4): the screen shows a battle time
+// What is recovered (legacy docs/re/GALACTIC_DIALOGS.md 3.1, BATTLE_TRANSITIONS 4.4): the screen shows a battle time
 // (TEXT_BATTLE_TIME), TEXT_SUMMARY_BOUNTY_COLLECTED "Salvage collected: $ %d", the credit value of each side's losses
 // (types costing 0 skipped) and a combat efficiency per side. The data side of bounty is recovered: GameConstants
 // Default_Bounty_By_Category_SP (category -> credits) and the per-type Override_Bounty_SP. NOT recovered (all [M]):
@@ -14,7 +14,7 @@
 //                   the type sets it (0 allowed), else the amount of the FIRST Default_Bounty_By_Category_SP entry
 //                   (document order) whose category intersects the type's CategoryMask, else 0. Shown only here; since
 //                   a2m r2 the galactic sim pays the bounty of a player's Bounty_On_Faction abilities for auto-resolve
-//                   kills (conflicts.cpp, docs/re/A2M_R2_UW_BOUNTY_TRACE.md §1).
+//                   kills (conflicts.cpp, legacy docs/re/A2M_R2_UW_BOUNTY_TRACE.md §1).
 //   * efficiency    per side: the other side's lost credit value / both sides' lost credit value, rounded to a percent
 //                   (nothing lost on either side: 100 for the winner, 0 for the loser).
 #pragma once

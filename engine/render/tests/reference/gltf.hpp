@@ -1,4 +1,4 @@
-// Minimal JSON + glTF 2.0 reader for the Phase 1 alo2gltf exports (docs/formats/examples):
+// Minimal JSON + glTF 2.0 reader for the Phase 1 alo2gltf exports (extracted/format_examples):
 // node TRS hierarchy, float/u16/u32 accessors, triangle lists, one rigid skin, animation 0
 // sampled at a keyframe index (exactly what tools/formats/python/render_gltf.py does).
 #pragma once

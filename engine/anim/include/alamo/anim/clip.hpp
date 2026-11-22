@@ -1,4 +1,4 @@
-// R3 clip library (docs/re/ANIM_PARTICLES.md §A.2, docs/formats/SPEC.md §4).
+// R3 clip library (legacy docs/re/ANIM_PARTICLES.md §A.2, legacy docs/formats/SPEC.md §4).
 //
 // Clip     one .ALA file, kept QUANTISED (u16 translations, i16 rotations, visibility bits) exactly as
 //          stored, so sampling dequantises with the engine's fixed float sequence (anim_math.hpp). Both

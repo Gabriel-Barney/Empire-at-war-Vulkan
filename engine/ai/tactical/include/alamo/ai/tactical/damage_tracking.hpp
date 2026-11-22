@@ -1,4 +1,4 @@
-// A1 - DAMAGE_TRACKING (behaviour 0x3e) store and FindDeadlyEnemy, docs/re/AI_TACTICAL.md 6.3.
+// A1 - DAMAGE_TRACKING (behaviour 0x3e) store and FindDeadlyEnemy, legacy docs/re/AI_TACTICAL.md 6.3.
 //
 // Each tracked object keeps attackerId -> accumulated damage. Every behaviour service the entries
 // decay by (maxHealth + maxShield) x AI_SpaceThreatDecayStep and are removed at <= 0 (0x58bd80)

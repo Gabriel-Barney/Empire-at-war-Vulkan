@@ -1,4 +1,4 @@
-// test_gui_screens: tests split from test_gui_screens.cpp (PAF t08).
+// test_gui_screens: tests split from test_gui_screens.cpp.
 #include "test_gui_screens_common.hpp"
 
 namespace test_gui_screens_t {

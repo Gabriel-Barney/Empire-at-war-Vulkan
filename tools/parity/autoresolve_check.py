@@ -1,4 +1,4 @@
-"""Galactic auto-resolve parity check (bkc1 t08, backlog b0027; ctest parity_autoresolve).
+"""Galactic auto-resolve parity check (ctest parity_autoresolve).
 
 Reads the retail battles of autoresolve_refs.json (each battle's "grade" block), writes the battle spec the port's
 alamo_galactic_autoresolve_parity reads, runs it over many seeds and grades the port's outcomes against retail:
@@ -6,7 +6,7 @@ alamo_galactic_autoresolve_parity reads, runs it over many seeds and grades the 
   winner      the retail winner in >= 90% of the seeds (the winner rule is deterministic; the RNG only orders the
               survival roll);
   losses      for every combatant type in the battle: the retail count destroyed (0 when not listed) inside the port's
-              5th..95th percentile band over the seeds (parity tier 2, docs/DECISIONS.md "Parity tiers");
+              5th..95th percentile band over the seeds (parity tier 2, docs/SIMULATION.md "Parity tiers");
   starbase    the retail starbase outcome (destroyed / surviving level) in >= 5% of the seeds;
   total       per side, the retail number of combatants destroyed inside the port's band (same rule as losses).
 

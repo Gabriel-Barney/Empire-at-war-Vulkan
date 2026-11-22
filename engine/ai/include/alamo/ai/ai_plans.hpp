@@ -1,5 +1,5 @@
 // AI framework: plan definitions, the plan pick and the PotentialPlan greedy solver
-// (docs/re/AI_GALACTIC.md §1.9.1-1.9.3). Mode-agnostic; the Lua side (reading Definitions() globals,
+// (legacy docs/re/AI_GALACTIC.md §1.9.1-1.9.3). Mode-agnostic; the Lua side (reading Definitions() globals,
 // pooled scripts, running plans) is in ai_lua_runtime.hpp, the galactic marshallers in galactic_ai.hpp.
 #pragma once
 #include <cstdint>
@@ -67,7 +67,7 @@ struct PlanDefinition {
 };
 
 // Every plan of a game session, in load order (folder order, then name order within a folder [port: the
-// original uses filesystem enumeration order, AI_GALACTIC.md §1.9.1 / open item 11]).
+// original uses filesystem enumeration order, legacy docs/re/AI_GALACTIC.md §1.9.1 / open item 11]).
 struct PlanLibrary {
     std::vector<PlanDefinition> plans;
     uint32_t find(std::string_view name) const;  // case-insensitive, kAiNone

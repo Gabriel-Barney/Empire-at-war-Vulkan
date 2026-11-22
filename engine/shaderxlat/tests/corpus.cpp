@@ -351,7 +351,7 @@ dcl t0
 mov oC0, t0
 mov oC1, c0
 )", {}},
-    // Shader model 3 (modc t22): semantic outputs / inputs, flow control, predication, a0 / aL addressing,
+    // Shader model 3: semantic outputs / inputs, flow control, predication, a0 / aL addressing,
     // texldl, vPos / vFace, def constants above c31.
     {"vs30_io", R"(vs_3_0
 defi i0, 3, 0, 0, 0
@@ -707,7 +707,7 @@ std::vector<Blob> corpus_blobs(std::string* note) {
     std::map<std::string, Blob> m;
     if (!foc.empty()) collect_game(foc, "foc", m, n);
     if (!eaw.empty()) collect_game(eaw, "eaw", m, n);
-    // modc t22: the shader model 3 programs installed workshop mods ship (ALAMO_WORKSHOP_DIR, else the
+    // the shader model 3 programs installed workshop mods ship (ALAMO_WORKSHOP_DIR, else the
     // workshop folder of the Steam library ALAMO_FOC_DATA is in).
     std::string ws = env_or_empty("ALAMO_WORKSHOP_DIR");
     const size_t at = foc.find("\\steamapps\\common\\");

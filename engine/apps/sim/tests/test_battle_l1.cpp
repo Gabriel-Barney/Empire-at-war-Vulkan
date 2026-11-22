@@ -1,4 +1,4 @@
-// alamo_sim_l1_tests: the L1 systems in a campaign battle (tactical_battle.hpp "L1 systems"; docs/re/SCRIPT_GAPS.md
+// alamo_sim_l1_tests: the L1 systems in a campaign battle (tactical_battle.hpp "L1 systems"; legacy docs/re/SCRIPT_GAPS.md
 // §1-§3). Synthetic data: an Underworld fleet with a tactical superweapon attacks the Empire at S10_B; in the space
 // battle the Empire spawns a special weapon at the map's DUMMY_SPECIAL_WEAPON_SOURCE prop (through the script spawn
 // path: TacticalMode::spawn + adopt_object), waits for its charge and fires it at an Underworld frigate; the TSW
@@ -48,7 +48,7 @@ namespace fs = std::filesystem;
 
 using ::alamo::test::g_fail;
 static bool g_regen = false;
-static std::string g_golden_out;  // wr1 t05: --golden-out DIR regenerates into DIR
+static std::string g_golden_out;  // --golden-out DIR regenerates into DIR
 
 namespace {
 
@@ -301,7 +301,7 @@ struct Run {
 // destruction); 1 = on to the end, the Empire (defender) retreats during the TSW sequence (victory hold, §2); 2 = on to
 // the end, the Empire's Faction_Leader is a member of a company on the battle planet's surface (victory 7 / 0x10, §6);
 // 3 = on to the end, the Underworld escort frigates die (Hyperspace_Away) on the release frame, the Death Star is left.
-// ui1 t04: via_command = the special weapon fires through command 25 (weapon + target object) instead of the direct
+// via_command = the special weapon fires through command 25 (weapon + target object) instead of the direct
 // begin targeting + fire calls; the CRC log and the special-weapon trace must not change.
 Run run(const Data& d, int32_t workers, int follow = 0, bool via_command = false) {
     Run out;
@@ -406,10 +406,10 @@ Run run(const Data& d, int32_t workers, int follow = 0, bool via_command = false
             // Engines: 2 s timed disable on an Empire frigate.
             CHECK(b->disable_engines(slowed, 2.0f));
             out.engines_off = b->engines_online(slowed) == 0;
-            // cu8f t07 (CU8F_T01_T02_T07_RE.md §3.2): in space the owner of a TACTICAL_SUPER_WEAPON (the Underworld's
+            // cu8f t07 (legacy docs/re/CU8F_T01_T02_T07_RE.md §3.2): in space the owner of a TACTICAL_SUPER_WEAPON (the Underworld's
             // L1_Death_Star) cannot retreat; the Empire can.
             CHECK(b->retreat_prevented(1) && !b->retreat_prevented(0));
-            b->set_retreat_off(0, true);  // ui2 t06: the story's DISABLE_RETREAT refuses the request too
+            b->set_retreat_off(0, true);  // the story's DISABLE_RETREAT refuses the request too
             CHECK(b->retreat_prevented(0) && b->retreat_off(0) && !b->retreat_off(1));
             b->set_retreat_off(0, false);
             CHECK(!b->retreat_prevented(0));
@@ -525,7 +525,7 @@ void test_battle(const Data& d) {
     CHECK(a.increment == 3);
     CHECK(a.ground < -1.0e30f);
     CHECK(a.fields);
-    {  // ui1 t04: the human space special-weapon path (command 25 with a target object) fires exactly as the direct calls
+    {  // the human space special-weapon path (command 25 with a target object) fires exactly as the direct calls
         const Run c = run(d, 0, 0, true);
         const auto dv = first_divergence(a.crc, c.crc);
         std::printf("  via command 25: fired %d hit %d, %s, trace %s\n", c.fired, c.hit, dv.message.c_str(), c.trace == a.trace ? "identical" : "DIFFERENT");
@@ -538,7 +538,7 @@ void test_battle(const Data& d) {
         std::printf("  workers %2d: %s, trace %s\n", w, dv.message.c_str(), b.trace == a.trace ? "identical" : "DIFFERENT");
         CHECK(!dv.diverged && b.trace == a.trace);
     }
-    // Golden (MSVC writes it with --regen; clang / gcc must reproduce it): includes the L1 state ("battle.abilities").
+    // Golden (MSVC writes it with --regen): includes the L1 state ("battle.abilities").
     const std::string path = (g_golden_out.empty() ? std::string(ALAMO_SIM_TESTDATA) : g_golden_out) + "/battle_l1_golden.crc";
     CrcLog log = a.crc;
     log.comments = {"L1 systems synthetic campaign: special weapon, TSW, hyperspace, engines, teleport; seed 7"};
@@ -568,19 +568,19 @@ struct LandRun {
     bool fought = false, weather_on = false, weather_advanced = false, forced = false, rain_sight = false;
     bool bombard_started = false, bombard_hit = false, bombard_reset = false;
     bool run_started = false, bombers_flew = false, run_done = false, refused_unavailable = false;
-    bool bombard_fed = false, run_fed = false;  // mcx4 t13: the strike_starts presentation feed
-    // ref5 t01: the strike projectile in the battle tables equals the catalog's one builder, visuals stay index-aligned.
+    bool bombard_fed = false, run_fed = false;  // the strike_starts presentation feed
+    // the strike projectile in the battle tables equals the catalog's one builder, visuals stay index-aligned.
     bool strike_desc_found = false, strike_desc_same = false, strike_visuals_aligned = false;
-    // cu9 t17: the HUD cooldown query (bombing_run_frames_until_available, 0x4950f0) when the run starts / ends.
+    // the HUD cooldown query (bombing_run_frames_until_available, 0x4950f0) when the run starts / ends.
     uint32_t run_wait_at_start = 1, run_wait_after = 0;
-    // cu9g t02: the dial fraction (bombing_run_cooldown_fraction, 0x495250) and command 28 outcomes.
+    // the dial fraction (bombing_run_cooldown_fraction, 0x495250) and command 28 outcomes.
     float dial_before = -1.0f, dial_at_start = -1.0f, dial_after = -1.0f;
     uint32_t wait_in_run = 0;
     bool dial_in_run_ok = true, dial_in_run_partial = false;
     bool cmd_none_for_defender = false, cmd_in_progress_refused = false, cmd_bad_point_refused = false;
 };
 
-// via_command: the run is started by command 28 BombingRun through TacticalBattle::handle_command (cu9g t02) instead of
+// via_command: the run is started by command 28 BombingRun through TacticalBattle::handle_command instead of
 // the direct start_bombing_run call; both must give the same CRC log.
 LandRun run_land(const Data& d, int32_t workers, bool via_command = false) {
     LandRun out;
@@ -732,7 +732,7 @@ LandRun run_land(const Data& d, int32_t workers, bool via_command = false) {
     return out;
 }
 
-// L1 systems t02/t03 (docs/re/TSW_PLANET_DESTROY.md): the galactic planet dies in the TSW's state-9 tick with the core
+// L1 systems t02/t03 (legacy docs/re/TSW_PLANET_DESTROY.md): the galactic planet dies in the TSW's state-9 tick with the core
 // routine only (fleets incl. the Death Star's, owner kept; the target dummy killed); the timers run in sequence (fire
 // F, destroy F+48, debris +10, release +10+40+1 with the test type); no victory is declared while the TSW holds the
 // monitor, and the battle ends on the release frame: (1) the Empire's retreat completed inside the hold -> all-retreated;
@@ -770,11 +770,11 @@ void test_tsw_follow(const Data& d) {
     }
 }
 
-// L1 systems t06 (docs/re/BATTLE_TRANSITIONS.md §3.1a item 1, TSW_PLANET_DESTROY.md §8; probe 2026-10-31, l1sys t06):
+// L1 systems t06 (legacy docs/re/BATTLE_TRANSITIONS.md §3.1a item 1, legacy docs/re/TSW_PLANET_DESTROY.md §8; probe 2026-10-31):
 // only victory-relevant types keep a side alive. The test types set Victory_Relevant Yes, L1_Death_Star sets none of the
 // three flags (like Death_Star_II). After the planet kill and the hold release the Underworld (attacker) escort frigates
 // die (the third one retreated at frame 2+5+90); with only the Death Star left the Empire (defender) wins all-destroyed,
-// declared at the deaths 90 frames after the Hyperspace_Away (story t06: the 0xb test of the escorts' loss) and ended 210
+// declared at the deaths 90 frames after the Hyperspace_Away (the 0xb test of the escorts' loss) and ended 210
 // frames later, the Death Star alive and undamaged. 0 / 4 workers.
 void test_tsw_lost(const Data& d) {
     const Run a = run(d, 0, 3);
@@ -800,7 +800,7 @@ void test_land(const Data& d) {
     CHECK(a.fought && a.weather_on && a.weather_advanced && a.forced && a.rain_sight);
     CHECK(a.refused_unavailable && a.bombard_started && a.bombard_hit && a.bombard_reset);
     CHECK(a.run_started && a.bombers_flew && a.run_done);
-    CHECK(a.bombard_fed && a.run_fed);  // mcx4 t13: strike_starts names the bombardment and the run's first bomber
+    CHECK(a.bombard_fed && a.run_fed);  // strike_starts names the bombardment and the run's first bomber
     std::printf("  strike projectile: found %d same as catalog %d visuals aligned %d\n", a.strike_desc_found, a.strike_desc_same,
                 a.strike_visuals_aligned);
     CHECK(a.strike_desc_found && a.strike_desc_same && a.strike_visuals_aligned);  // ref5 t01
@@ -823,7 +823,7 @@ void test_land(const Data& d) {
     CHECK(c.cmd_none_for_defender && c.cmd_in_progress_refused);
     CHECK(!first_divergence(a.crc, c.crc).diverged && a.trace == c.trace);
 }
-// ---- cu8g t03: Set_New_Environment / the typed environment pick (CU8F_T03_T05_RE §2.2, L1_S4_REMAINING §3.2) ----
+// ---- Set_New_Environment / the typed environment pick (CU8F_T03_T05_RE §2.2, L1_S4_REMAINING §3.2) ----
 // A land map with four environments (0 Rain_Test rain, 1 no scenario CLEAR, 2 Rain_Test rain, 3 "Cinematic" snow). The
 // battle starts on the map's start index 0 (weather on). Frame 60: set_environment(1) -> the next service turns the weather
 // off; frame 120: set_environment(2) -> restarted at phase 0; frame 150: save / load of the battle state keeps the index
@@ -909,7 +909,7 @@ EnvRun run_env(const Data& d, int32_t workers) {
         const uint32_t f = b->frame();
         last_frame = f;
         if (f == 1) {
-            // cu8g t02: the map-load pick over 4 records (3 = "Cinematic" -> 0); the weather follows the picked one
+            // the map-load pick over 4 records (3 = "Cinematic" -> 0); the weather follows the picked one
             // (Rain_Test on 0 / 2, none on 1 "Clear").
             out.picked = b->environment_index();
             out.picked_ok = out.picked < 3;
@@ -937,7 +937,7 @@ EnvRun run_env(const Data& d, int32_t workers) {
             const bool ok = b->read_part(TacticalBattle::SavePart::State, r);
             StateHasher h1;
             b->hash(h1);
-            // cu8g t02: the index is not saved; a load takes the map's start index (0) without a draw, the saved
+            // the index is not saved; a load takes the map's start index (0) without a draw, the saved
             // weather stays (bound to it: no restart at the next tick).
             out.saved = ok && h0.digest() == h1.digest() && b->environment_index() == 0;
         }
@@ -948,7 +948,7 @@ EnvRun run_env(const Data& d, int32_t workers) {
             out.kept = b->environment_index() == 0 && b->weather().active() && !started;
         }
         if (f == 180) out.clamped = b->set_environment(99) && b->environment_index() == 3 && b->set_environment(-5) && b->environment_index() == 0;
-        if (f == 200) {  // ui2 t08: Set_Cinematic_Environment - the "Cinematic" record (3), then back; repeats change nothing
+        if (f == 200) {  // Set_Cinematic_Environment - the "Cinematic" record (3), then back; repeats change nothing
             const uint32_t before = b->environment_index();
             out.cinematic = b->set_cinematic_environment(true) && b->environment_index() == 3 && !b->set_cinematic_environment(true) &&
                             b->set_cinematic_environment(false) && b->environment_index() == before && !b->set_cinematic_environment(false);
@@ -975,7 +975,7 @@ EnvRun run_env(const Data& d, int32_t workers) {
     return out;
 }
 
-// cu8g t02: 0x277030 on its own (CU8G_T02_ENV_PICK_RE §1).
+// 0x277030 on its own (CU8G_T02_ENV_PICK_RE §1).
 void test_environment_pick() {
     auto set = [](std::initializer_list<const char*> names) {
         terrain::EnvironmentSet e;
@@ -1021,7 +1021,7 @@ void test_environment(const Data& d) {
     CHECK(!first_divergence(a.crc, w.crc).diverged && a.trace == w.trace);
 }
 
-// ---- S7 t10 / t14: the MoveToPosition switch-locomotor bit through order_move, weapons suspended on the jetpack ----
+// ---- the MoveToPosition switch-locomotor bit through order_move, weapons suspended on the jetpack ----
 // (MOVEMENT §3.1.1 step 6 / §6.2) A Uses_Multiple_Locomotors trooper (WALK primary, JETPACK secondary, a blaster) is ordered
 // with the switch bit next to an enemy trooper: it swaps, flies and lands, then swaps back to WALK. While on the jetpack
 // the combat flag kUnitWeaponsSuspended mirrors the active locomotor and it fires nothing; back on WALK it fires again.
@@ -1031,11 +1031,11 @@ struct JetRun {
     bool current_projectile = false;
     uint32_t shots_flying = 0, shots_after = 0, suspended_frames = 0;
     uint32_t ability_finished = 0, finished_at_clear = 0;  // the jet's signals; those in the tick its flag cleared
-    uint32_t forced_frame = 0, signal_frame = 0;  // S7 t27: the host-side swap back (after that battle frame) / the signal's frame
+    uint32_t forced_frame = 0, signal_frame = 0;  // the host-side swap back (after that battle frame) / the signal's frame
     CrcLog crc;
 };
 
-// force_back (S7 t27): after the first airborne frame the test swaps the trooper back to WALK outside the movement tick (as
+// force_back: after the first airborne frame the test swaps the trooper back to WALK outside the movement tick (as
 // a host-side swap back would, MOVEMENT §3.1.1 callers); the next tick reports signal 0x29 once and clears the flag.
 JetRun run_jet(const Data& d, int32_t workers, bool force_back = false) {
     JetRun out;
@@ -1143,7 +1143,7 @@ JetRun run_jet(const Data& d, int32_t workers, bool force_back = false) {
     return out;
 }
 
-// ---- q6 t12: object-script spawns of types outside the battle tables, script Take_Damage ----
+// ---- object-script spawns of types outside the battle tables, script Take_Damage ----
 // An object script's Spawn_Unit of a type no participant brought (L1_Scout, the company L1_Deploy_Squad) used to make a
 // store prop (no combat, movement, AI). TacticalBattle::script_spawn / script_spawn_company extend the battle tables and
 // make battle units: combat + movement registered, a move order of the owner accepted, the company's members contained
@@ -1284,7 +1284,7 @@ void test_script_spawn(const Data& d) {
     CHECK(!first_divergence(a.crc, w.crc).diverged);
 }
 
-// ---- STY1 t01: the Lua object-state setters change the sim ----
+// ---- the Lua object-state setters change the sim ----
 // Prevent_All_Fire (no targeting / weapons), Suspend_Locomotor (speed factor 0), Override_Max_Speed (the speed cap) and
 // Set_Cannot_Be_Killed (the combat death gate) reach the battle through TacticalBattle::set_script_unit_control. The test
 // hooks every unit of player 1 (what a bridge's ScriptObjectState answers), orders them a march on the enemy, counts the
@@ -1448,7 +1448,7 @@ void test_jet(const Data& d) {
     CHECK(a.current_projectile);
     const JetRun w = run_jet(d, 4);
     CHECK(!first_divergence(a.crc, w.crc).diverged && w.suspended_frames == a.suspended_frames && w.ability_finished == 1);
-    // S7 t27: a swap back outside the movement tick is reported once, in the first tick after it, with the flag cleared.
+    // a swap back outside the movement tick is reported once, in the first tick after it, with the flag cleared.
     const JetRun fb = run_jet(d, 0, true);
     std::printf("  jetpack forced swap back after frame %u: signal at frame %u (%u signals), mirror %d\n", fb.forced_frame,
                 fb.signal_frame, fb.ability_finished, fb.mirror);
@@ -1456,9 +1456,9 @@ void test_jet(const Data& d) {
     CHECK(fb.mirror && fb.shots_flying == 0);
 }
 
-// ---- S7 t26: DEPLOY raises "unit ability finished" (signal 0x29) at the deploy completion ----
+// ---- DEPLOY raises "unit ability finished" (signal 0x29) at the deploy completion ----
 // (AI_TACTICAL §7.3.3 item 3) A deploy squad is ordered DEPLOY on, then off: each deploy / undeploy clip end raises 0x29
-// once for the trooper (S8 t11: oi_deploy_sync from the movement deploy events; the trooper has no deploy clip, so the
+// once for the trooper (oi_deploy_sync from the movement deploy events; the trooper has no deploy clip, so the
 // clip ends in the next tick) and only then is the ability active / inactive; a second DEPLOY on while deployed changes
 // nothing and raises nothing.
 struct DeployRun {
@@ -1540,7 +1540,7 @@ DeployRun run_deploy(const Data& d) {
         }
         if (dep == objects::kNoObjectId) continue;
         const objects::ObjectId ids[] = {dep};
-        // S8 t11: with the Walk locomotor Is_Active(DEPLOY) follows the walk state (0x19 Deployed), so it is read after the
+        // with the Walk locomotor Is_Active(DEPLOY) follows the walk state (0x19 Deployed), so it is read after the
         // clip end (this model has no clip data: the clip ends in the next tick), not right after the request.
         if (f == 10) {  // applied in the next tick's ability phase: the signal is in frame 11's events
             out.deployed = alamo::sim::TacticalBattleTestAccess::abilities(*b).set_unit_ability_mode(ids, ab::kDeploy, true, f) == 1;
@@ -1835,7 +1835,7 @@ PadRun run_pads(const Data& d, int32_t workers, bool skirmish = false) {
             scout = st.id(tm->spawn(sp));
             out.refused_rules = b->pad_build(*tm, pad, fr_t, true) == 0;  // not in the faction row
             out.other_list_refused = b->pad_build(*tm, pad, other_t, true) == 0;  // t50: only the mode's own list counts
-            out.enemy_builder_refused = b->pad_build(*tm, pad, uc_t, false, 0) == -1;  // q6 t19: player 0 is not allied with 1
+            out.enemy_builder_refused = b->pad_build(*tm, pad, uc_t, false, 0) == -1;  // player 0 is not allied with 1
             out.started = b->pad_build(*tm, pad, uc_t, true) == 1;
             if (const objects::ObjectHandle uh = st.find(b->pad_contents(pad)); st.alive(uh))
                 out.uc_owner_ok = st.owner(uh) == 1 && st.owner(st.find(pad)) == 1;
@@ -1912,7 +1912,7 @@ void test_pads(const Data& d) {
     std::printf("  pads q6 t19: built pool entry %d/%d, skirmish drop without a transport refused %d\n", a.pool_added, k.pool_added,
                 k.pool_drop_refused);
     CHECK(a.pool_added && k.pool_added && k.pool_drop_refused);
-    // cu9h t01: a land skirmish gives every player of a playable faction with a Skirmish_Land_Bomber an enabled record (here
+    // a land skirmish gives every player of a playable faction with a Skirmish_Land_Bomber an enabled record (here
     // the Underworld players: L1_Bomber); the Empire (no skirmish bomber) and Neutral (not playable) get none. Interval =
     // int(30 x Max_Bombing_Run_Interval_Seconds 120) = 3600, ready = setup frame + 3600, last start -1: dial 0 (shown full).
     // The empty gate list refuses runs in a skirmish, so nobody is available. The campaign battle keeps the attacker-only
@@ -2076,7 +2076,7 @@ void test_persist(const Data& d) {
 
 using ::alamo::test::env_or_empty;
 
-// ---- s78f t05: command 25 SpecialWeaponFire (TACTICAL_COMBAT §3.1.1 "Fire-at-position order", LOB_SOLVER §9) ----
+// ---- command 25 SpecialWeaponFire (TACTICAL_COMBAT §3.1.1 "Fire-at-position order", LOB_SOLVER §9) ----
 // The Empire defends S10_B with a lobbing superweapon (LOBBING_SUPERWEAPON + TURRET + WEAPON, a grenade projectile,
 // 1 s recharge, 10-frame charge-up). Three markers with DUMMY_DESTROY_AFTER_SPECIAL_WEAPON_FIRED (0x67): two of the
 // Empire, one of the Underworld. TacticalBattle::handle_command with SpecialWeaponFire:
@@ -2089,7 +2089,7 @@ using ::alamo::test::env_or_empty;
 //   (d) the WeaponBehavior charges up (LobChargeup, then LobCharged after the charge-up frames, both at the point) and
 //       fires one lob shot, which clears the order; ready again, at_position 0 with a live target: the order's point is
 //       the target's position.
-// TRU1 t01 (docs/re/TRU1_GRAVITY_FIELD.md §2): the human's FIRE_LOBBING_SUPERWEAPON (47) button is enabled for the weapon
+// TRU1 t01 (legacy docs/re/TRU1_GRAVITY_FIELD.md §2): the human's FIRE_LOBBING_SUPERWEAPON (47) button is enabled for the weapon
 // (no base power needed) and not for the Requires_Base_Power variant without power; the accepted order (c) starts 47's
 // recharge (Recharge_Seconds 1 = 30 frames) on the ability countdown.
 const char* kSwFireTypes = R"(
@@ -2304,7 +2304,7 @@ void test_sw_fire() {
     CHECK(r.button_enabled && r.button_unpowered_off && r.recharge_started);
 }
 
-// TRU1 t03 (docs/re/TRU1_GRAVITY_FIELD.md §1.2-1.3, §1.8): in a land battle a powered GRAVITY_CONTROL_FIELD generator
+// TRU1 t03 (legacy docs/re/TRU1_GRAVITY_FIELD.md §1.2-1.3, §1.8): in a land battle a powered GRAVITY_CONTROL_FIELD generator
 // (its own Base_Power_Ability, Ground_Automatic) slows the enemy units whose type sets Is_Affected_By_Gravity_Control_Field
 // within one service interval: their movement speed factor becomes 1 - 0.9 = 0.1; an enemy without the flag keeps 1.
 const char* kGravTypes = R"(
@@ -2634,7 +2634,7 @@ void test_foc() {
     const BattleCatalog catalog(types, files.get(), &db.constants(), &diag);
     test_foc_destroyer_droid(types, catalog);  // s78n t26.1
     test_foc_walk_transition(types);  // s78n t26 closing review
-    // TRU1 t03 / t01 (docs/re/TRU1_GRAVITY_FIELD.md §1.7, §2): the shipped generators, an affected type, the Magnepulse's 47
+    // TRU1 t03 / t01 (legacy docs/re/TRU1_GRAVITY_FIELD.md §1.7, §2): the shipped generators, an affected type, the Magnepulse's 47
     // record. The Empire generator has no Gravity_Control_Field_Slow_Fraction (0: it slows nothing).
     {
         const char* names[] = {"U_Ground_Gravity_Generator", "Skirmish_Ground_Gravity_Generator_U", "Ground_Gravity_Generator",
@@ -2702,7 +2702,7 @@ int main(int argc, char** argv) {
     test_deploy_extents(*d);  // s78n t10 review
     test_script_spawn(*d);  // q6 t12
     test_script_control(*d);  // STY1 t01
-    test_sw_fire();   // s78f t05: command 25
+    test_sw_fire();   // command 25
     test_gravity_field();  // TRU1 t03
     test_blast_cap();      // ref5 t01
     test_foc();

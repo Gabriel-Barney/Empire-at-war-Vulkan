@@ -107,7 +107,7 @@ void test_data(const char* foc) {
             found_infantry = true;
         }
     CHECK(found_infantry);
-    {  // mcx4 t09 (docs/re/A2M_R2_RE_B.md §2.2): a skirmish reads Default_Bounty_By_Category_MP and Override_Bounty_MP.
+    {  // mcx4 t09 (legacy docs/re/A2M_R2_RE_B.md §2.2): a skirmish reads Default_Bounty_By_Category_MP and Override_Bounty_MP.
        // FoC sets them like the _SP fields, except that Exploding_Container has an SP override (0) and no MP one.
        // ledger: verifies GameConstants.Default_Bounty_By_Category_MP
        // ledger: verifies GameObjectType.Override_Bounty_MP

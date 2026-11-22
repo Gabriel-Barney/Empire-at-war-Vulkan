@@ -778,7 +778,7 @@ void test_tree_set() {
     std::printf("tree set: %zu objects across %u player trees + all/obstacle/space\n", objs.size(), players);
 }
 
-// SP5: update_batch leaves every tree as the same updates one by one would (0 / 4 / 8 threads), skipping invalid boxes and
+// update_batch leaves every tree as the same updates one by one would (0 / 4 / 8 threads), skipping invalid boxes and
 // unknown ids the way update() does.
 void test_tree_set_update_batch() {
     const uint32_t players = 4;

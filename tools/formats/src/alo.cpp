@@ -26,7 +26,7 @@ Mat34 read_mat34(ByteReader& r) {
 
 struct Ctx {
     Model& model;
-    const ParseOptions* opt = nullptr;  // salvage mode (D5, mcx2 t03) when opt && opt->salvage
+    const ParseOptions* opt = nullptr;  // salvage mode (D5) when opt && opt->salvage
     bool salvage() const { return opt && opt->salvage; }
     void note(const char* rule, const std::string& detail) const {
         if (opt) opt->note(rule, detail);
@@ -118,7 +118,7 @@ Material parse_material(const Chunk& c, Ctx& ctx) {
 
 // ---- vertices ----
 // 0x10007: 144-byte records. 0x10005 (EaW-era files): 128-byte records, the 144-byte layout without
-// the unknown float4 at +96 (SPEC.md 2.5); a 144-byte 0x10005 is accepted too. Returns the stride.
+// the unknown float4 at +96 (legacy docs/formats/SPEC.md 2.5); a 144-byte 0x10005 is accepted too. Returns the stride.
 std::uint32_t parse_vertices(const Chunk& c, std::uint32_t count, VertexBuffer& vb) {
     if (count == 0) return 0;
     if (c.data.size() % count != 0)
@@ -139,7 +139,7 @@ std::uint32_t parse_vertices(const Chunk& c, std::uint32_t count, VertexBuffer& 
     vb.bone_index.resize(count);
     vb.bone_weight.resize(count);
     // The record is little-endian floats / u32s in field order (the size check above covers every record), copied field
-    // by field straight into the arrays (OPT3 t11: the per-value reader dominated battle model loads).
+    // by field straight into the arrays (the per-value reader dominated battle model loads).
     static_assert(sizeof(Vec2) == 8 && sizeof(Vec3) == 12 && sizeof(Vec4) == 16 && sizeof(vb.bone_index[0]) == 16);
     const std::uint8_t* rec = c.data.data();
     for (std::uint32_t i = 0; i < count; ++i, rec += stride) {
@@ -438,7 +438,7 @@ const char* billboard_mode_name(std::uint32_t m) {
 
 VertexFormatInfo vertex_format_info(std::string_view n) {
     VertexFormatInfo f;
-    // Known names (all observed in the shipped FoC + EaW data unless noted; SPEC.md 2.6).
+    // Known names (all observed in the shipped FoC + EaW data unless noted; legacy docs/formats/SPEC.md 2.6).
     // bones: influences per vertex (0 static, 1 RSkin rigid, 4 B4I4).
     struct E { std::string_view name; bool normal; int uv; bool tbn; bool color; int bones; bool grass; };
     static constexpr E table[] = {

@@ -1,4 +1,4 @@
-// P1 click -> order translation. Selection is synced sim state (COMMANDS.md §2.4, §6.2): Select
+// P1 click -> order translation. Selection is synced sim state (legacy docs/re/COMMANDS.md §2.4, §6.2): Select
 // is a SCHEDULED event, so the UI never changes a selection itself - it emits
 // commands::EventData and the host submits them (CommandPipeline::submit with CommandSource::Player).
 // The translator keeps a local mirror of the selection it last requested (for shift-add and attack
@@ -9,10 +9,10 @@
 //
 // Mapping (tactical; [port] where the docs give no UI rule). Right button = the order button of the default mouse scheme
 // (IDC_ALTERNATE_MOUSE_CONTROLS: set_alternate_mouse, below). Right-button orders follow
-// P1_DOUBLE_CLICK_MOVE.md: the order is resolved at the RELEASE from the object under the cursor there; a press that is a
+// legacy docs/re/P1_DOUBLE_CLICK_MOVE.md: the order is resolved at the RELEASE from the object under the cursor there; a press that is a
 // Win32 double click (ButtonState::double_press) acts at the press and its release is swallowed.
 //   left click on a selectable object      Select{id}            (shift: toggle id in the mirror -> Select{list})
-//   left click on nothing (no object hit)  Select{} (P1_CAMERA_INPUT.md §5; [port] not with Shift)
+//   left click on nothing (no object hit)  Select{} (legacy docs/re/P1_CAMERA_INPUT.md §5; [port] not with Shift)
 //   left double click on selectable        Select{every selectable of the same type on screen} (needs type_of)
 //   left drag (>= drag threshold)          Select{box}           (shift: union) - own player tree, ascending id
 //   right click on hostile                 Attack{target, attackers = selection, flag1 = Ctrl}
@@ -67,12 +67,12 @@ commands::EventData pause_event(bool pause);
 // True when `e` is a pause event (pause = its state).
 bool read_pause_event(const commands::EventData& e, bool& pause);
 
-// Move-order flag byte = the movement flag word (P1_DOUBLE_CLICK_MOVE.md §3.3; Execute copies it unchanged).
+// Move-order flag byte = the movement flag word (legacy docs/re/P1_DOUBLE_CLICK_MOVE.md §3.3; Execute copies it unchanged).
 namespace move_flag {
 inline constexpr uint8_t kAttackMove = 0x01, kGuardMove = 0x02, kPlayerOrder = 0x04, kWaypoint = 0x08, kDoubleClick = 0x80;
 }
 // One-shot HUD toggles (attack-move / guard / waypoint buttons): armed until the next move order is sent.
-// ui3 t01 [port] (the 0x140b29fc1 / fc2 toggles of P1_DOUBLE_CLICK_MOVE.md §2.1 are not traced): Attack (c_button00, the
+// ui3 t01 [port] (the 0x140b29fc1 / fc2 toggles of legacy docs/re/P1_DOUBLE_CLICK_MOVE.md §2.1 are not traced): Attack (c_button00, the
 // Attack hotkey) - the next right click on any object that is not the local player's attacks it, on the ground it is an
 // attack-move; Move (c_button02, the Move hotkey) - the next right click is a plain ground move at the cursor even over an
 // object (no attack, no move-to-object). Both clear with the next order, as the other toggles.
@@ -116,7 +116,7 @@ struct OrderContext {
     // tactical
     const tactical::TreeSet* trees = nullptr;
     tactical::QueryFilter pick_filter = tactical::kSkipDead;
-    // refixf t08: the world pick's model / sphere tests (HUD_GAPS §2.2, pick_world); null: tree boxes only (pick).
+    // the world pick's model / sphere tests (HUD_GAPS §2.2, pick_world); null: tree boxes only (pick).
     const WorldPickTests* pick_tests = nullptr;
     float ground_z = 0.0f;  // move-order plane (space: z = 0)
     // Optional land terrain height (x, y) -> z, refined by fixed-point iteration from ground_z [port].
@@ -150,14 +150,14 @@ public:
     // Acknowledgements of this frame's move orders, in order (cleared by the call).
     std::vector<MoveAck> take_move_acks() { return std::exchange(acks_, {}); }
     void arm_move_toggle(MoveToggle t);
-    // ui1 t02: IDC_ALTERNATE_MOUSE_CONTROLS (P1_DOUBLE_CLICK_MOVE §1.2, ground orders on the left button). Tactical only
+    // IDC_ALTERNATE_MOUSE_CONTROLS (P1_DOUBLE_CLICK_MOVE §1.2, ground orders on the left button). Tactical only
     // [port: the alternate table's actions 0..8 are not recovered]: a left click on an own selectable object selects as
     // in the default scheme (shift toggle, double click = same type); any other left click with a selection is the
     // order click (attack / move to object / ground move, no facing drag - a left drag is the selection box); a left
     // double press off own units is the double-click order at the press; a right click clears the selection.
     void set_alternate_mouse(bool on) { alternate_ = on; }
     bool alternate_mouse() const { return alternate_; }
-    // ui3 t01: an armed toggle (tests, HUD look).
+    // an armed toggle (tests, HUD look).
     bool move_toggle_armed(MoveToggle t) const;
     bool waypoint_mode() const { return waypoint_mode_; }
     // Orders with their queued flags (clears pending()).
@@ -194,9 +194,9 @@ private:
     std::vector<MoveAck> acks_;
     bool waypoint_mode_ = false;  // GameModeManager +0xb4: an Alt run has started
     bool toggle_attack_ = false, toggle_guard_ = false, toggle_waypoint_ = false;
-    bool toggle_force_attack_ = false, toggle_force_move_ = false;  // ui3 t01: MoveToggle::Attack / Move
+    bool toggle_force_attack_ = false, toggle_force_move_ = false;  // MoveToggle::Attack / Move
     bool queue_ = false;  // queue modifier held during this update
-    bool alternate_ = false;  // ui1 t02: IDC_ALTERNATE_MOUSE_CONTROLS
+    bool alternate_ = false;  // IDC_ALTERNATE_MOUSE_CONTROLS
     std::vector<uint32_t> sel_;
     std::optional<uint32_t> planet_zoom_;
     bool planet_deselect_ = false;

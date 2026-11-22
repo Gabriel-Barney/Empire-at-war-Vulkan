@@ -103,7 +103,7 @@ struct RendererCore::GeoState {
     shaderxlat::TranslatedPush push{};
 };
 
-// Per-frame half of the engine parameters of translated draws (D3DX row-major form, RENDER.md 2.2): everything
+// Per-frame half of the engine parameters of translated draws (D3DX row-major form, legacy docs/re/RENDER.md 2.2): everything
 // that does not depend on the instance. Computed once per build; also the key of the cached register images
 // (XTemplate), compared bytewise. Floats only (no padding).
 struct EngineFrame {

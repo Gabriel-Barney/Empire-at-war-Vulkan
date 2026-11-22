@@ -81,7 +81,7 @@ const std::vector<AnimEventDef>* AnimEventMap::find(std::string_view clip) const
 
 void crossed_events(const std::vector<AnimEventDef>& events, float /*fps*/, uint32_t count, float before, float after, bool wrapped,
                     std::vector<uint32_t>& out) {
-    // AUDIO.md §9.4 (0x4775d0): row time = file value / 100 in animation frames; nothing when the times are equal or
+    // legacy docs/re/AUDIO.md §9.4 (0x4775d0): row time = file value / 100 in animation frames; nothing when the times are equal or
     // negative; forward: every row with before < t <= after; a wrap: every row with t > before or t <= after (so a row at
     // exactly 0 fires only on a wrap, never on the first play).
     if (count < 2 || before < 0.0f || after < 0.0f || before == after) return;

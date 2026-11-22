@@ -1,6 +1,6 @@
-// L1 systems presentation: the tactical super weapon's sound / camera cues (refix t06), the in-game cinematic camera's
-// explosion shake and the TSW firing shot (refixf t05). Spec: docs/re/TSW_PLANET_DESTROY.md §3 (state table), §4 steps
-// 4-5, §11 (presentation: camera shake 0x2cdbb0 / 0x2cdc00, firing camera 0x2ccf30 / 0x4a5ef0), TACTICAL_GAPS.md §7.1.
+// L1 systems presentation: the tactical super weapon's sound / camera cues, the in-game cinematic camera's
+// explosion shake and the TSW firing shot. Spec: legacy docs/re/TSW_PLANET_DESTROY.md §3 (state table), §4 steps
+// 4-5, §11 (presentation: camera shake 0x2cdbb0 / 0x2cdc00, firing camera 0x2ccf30 / 0x4a5ef0), legacy docs/re/TACTICAL_GAPS.md §7.1.
 //
 //   tsw_cues        turns one battle tick's TacticalBattle::special_weapon_events() into cues the hosts play:
 //                     Firing          fire accepted (state 5): the TSW type's TSW_SFXEvent_Activate_Voice,
@@ -10,7 +10,7 @@
 //                     PlanetDestroyed state 9 with a live target dummy: camera shake (0x2cdbb0, §11.1) at the dummy and
 //                                     its type's Death_SFXEvent_Start_Die; the sim has killed the dummy (silently) and
 //                                     spawned the Death_Explosions pick (`pick`) in the same tick.
-//                     LobChargeup     S8 t31 (TACTICAL_COMBAT.md "Charge-up"): a LOBBING_SUPERWEAPON unit was aimed at its
+//                     LobChargeup     S8 t31 (legacy docs/re/TACTICAL_COMBAT.md "Charge-up"): a LOBBING_SUPERWEAPON unit was aimed at its
 //                                     fire-at-position point: its type's Lobbing_Superweapon_SFXEvent_Chargeup and the
 //                                     Lobbing_Superweapon_Chargeup_Particle on Lobbing_Superweapon_Chargeup_Particle_Bone_Name
 //                     LobCharged      its Lobbing_Superweapon_Chargeup_Frames ran out (the order is charged):
@@ -61,7 +61,7 @@ struct TswCue {
 // In event order. Events whose object is not in `store` (flushed / unknown) give no cue.
 std::vector<TswCue> tsw_cues(std::span<const tactical::abilities::SpecialWeaponEvent> events, const objects::ObjectStore& store);
 
-// S8 t31: `active` = the charge-ups whose Lobbing_Superweapon_Chargeup_Particle is shown, in start order. A LobChargeup
+// `active` = the charge-ups whose Lobbing_Superweapon_Chargeup_Particle is shown, in start order. A LobChargeup
 // cue adds its unit (a unit already listed is restarted: new frame, moved to the end), a LobCharged cue removes it. The
 // host also drops the units whose order is gone (cancelled, unit dead: CombatSystem::fire_at_position_state != 1)
 // [port: the particle is listed for the charge-up only; the spec just "starts" it].
@@ -255,7 +255,7 @@ public:
     static constexpr float kSlideSeconds = 0.5f;
     void slide_in() { target_ = 1.0f; }
     void slide_out() { target_ = 0.0f; }  // scaled by how far it is in (same rate)
-    void show() { level_ = target_ = 1.0f; }  // story t13: fully in at once (a linked battle's P10 opening)
+    void show() { level_ = target_ = 1.0f; }  // fully in at once (a linked battle's P10 opening)
     void remove() { level_ = target_ = 0.0f; }
     void update(float dt_seconds);
     float level() const { return level_; }

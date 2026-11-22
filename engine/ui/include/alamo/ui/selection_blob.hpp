@@ -1,4 +1,4 @@
-// alamo_ui_draw - selection circles as 3D scene primitives (docs/re/UI.md §1.3): the only world-space UI
+// alamo_ui_draw - selection circles as 3D scene primitives (legacy docs/re/UI.md §1.3): the only world-space UI
 // element that is not a projected 2D quad.
 //   * Space (alBlob, flat): a unit quad ModelAsset in the XY plane with the ShadowBlobMaterials.xml material's
 //     effect (Shader_Name, BlobStencilMasked.fx: render_phase Transparent) and textures Texture0 = Texture_Name
@@ -11,7 +11,7 @@
 //     the circle's top-down footprint, instead of draping over every terrain vertex as the original's alTerrainShadowBlob
 //     does. The land selection materials use BlobStencilMasked.fx, a two-pass stencil mask (cutout, then the colour where
 //     the cutout passed) that the terrain decoration path (first pass only) cannot draw, so the instance path stays
-//     (vis1 t03; cu13 t03 removed the earlier decoration-path attempt).
+//     (cu13 t03 removed the earlier decoration-path attempt).
 #pragma once
 #include <cstdint>
 #include <functional>
@@ -34,7 +34,7 @@ inline constexpr float kSpaceBlobLift = 0.5f;  // [port] z offset above the unit
 std::shared_ptr<assets::ModelAsset> selection_blob_model(const terrain::ShadowBlobMaterial& material);
 // Instance of an uploaded blob model for one blob (space).
 render::Instance selection_blob_instance(const render::GpuModel& model, const SelectionBlob& blob);
-// vis1 t03: land - the instance on the ground `height(x, y)`: centre z = the height at the centre + kSpaceBlobLift, the
+// land - the instance on the ground `height(x, y)`: centre z = the height at the centre + kSpaceBlobLift, the
 // quad's X / Y axes sheared by the slopes (h(x + r) - h(x - r)) / 2r and (h(y + r) - h(y - r)) / 2r, so the circle keeps
 // its radius seen from above and lies on the ground's local plane.
 render::Instance selection_blob_ground_instance(const render::GpuModel& model, const SelectionBlob& blob,

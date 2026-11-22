@@ -156,7 +156,7 @@ void test_missing_credits_event() {
     CHECK(cur(h) == "Gal_Rebel" && h.stats().movie_restores == 0);
 }
 
-// trl2 t08 (AUDIO.md §9.5, MCX4_T10_RE_ANSWERS §3): a shot held by Projectile_Appearance_Delay_Frames plays no fire sound at
+// trl2 t08 (legacy docs/re/AUDIO.md §9.5, MCX4_T10_RE_ANSWERS §3): a shot held by Projectile_Appearance_Delay_Frames plays no fire sound at
 // the shot; its sound is handed out on the frame it appears (or at the first battle tick after it), in fire order.
 void test_delayed_fire_sounds() {
     DelayedFireSounds q;
@@ -178,7 +178,7 @@ void test_delayed_fire_sounds() {
     CHECK(q.size() == 0);
 }
 
-// aud4 b0286 (AUDIO.md §2.3): the first super-weapon report of a battle re-picks the ambient music with the
+// aud4 b0286 (legacy docs/re/AUDIO.md §2.3): the first super-weapon report of a battle re-picks the ambient music with the
 // _Super_Weapon variant; later reports only set the flag; battle_reset starts a new battle's first report.
 void test_super_weapon_music() {
     GameData data;
@@ -201,7 +201,7 @@ void test_super_weapon_music() {
 }
 #endif
 
-// mcx4 t13 batch A (docs/re/MCX4_T13_RE_ANSWERS.md, both builds): the health warning and hard point lost line rules.
+// mcx4 t13 batch A (legacy docs/re/MCX4_T13_RE_ANSWERS.md, both builds): the health warning and hard point lost line rules.
 // "GameObjectType.SFXEvent_Health_Low_Warning family" (Take_Damage 0x3a9e30) and "GameObjectType.SFXEvent_Hardpoint_Destroyed
 // family" (0x386660).
 // ledger: verifies GameObjectType.SFXEvent_Health_Low_Warning
@@ -239,7 +239,7 @@ void test_health_and_hardpoint_lines() {
     CHECK(H::hardpoint_kind_event(atk, 5) == "Unit_HP_LASER_Corvette" && H::hardpoint_kind_event(atk, 0).empty());
 }
 
-// mcx4 t13 batch C (docs/re/MCX4_T13_RE_ANSWERS.md "Faction.SFXEvent_Tactical_Gain_Friendly_Control family", capture
+// mcx4 t13 batch C (legacy docs/re/MCX4_T13_RE_ANSWERS.md "Faction.SFXEvent_Tactical_Gain_Friendly_Control family", capture
 // complete 0x500e30; both builds): which halves a capture point owner change plays for the local player.
 // ledger: verifies Faction.SFXEvent_Tactical_Gain_Friendly_Control
 // ledger: verifies Faction.SFXEvent_Tactical_Lose_Friendly_Control
@@ -267,7 +267,7 @@ void test_control_lines() {
     CHECK(c.friendly.empty() && c.enemy.empty());
 }
 
-// mcx4 t13 batch D (docs/re/MCX4_T13_RE_ANSWERS.md "Faction.SFXEvent_HUD_Won_Land_Battle family", 0x343810 from the
+// mcx4 t13 batch D (legacy docs/re/MCX4_T13_RE_ANSWERS.md "Faction.SFXEvent_HUD_Won_Land_Battle family", 0x343810 from the
 // victory declare 0x343b90; both builds): the local faction's HUD line for a declared victory.
 // ledger: verifies Faction.SFXEvent_HUD_Won_Land_Battle
 // ledger: verifies Faction.SFXEvent_HUD_Lost_Land_Battle
@@ -282,7 +282,7 @@ void test_control_lines() {
 // ledger: verifies Faction.Space_Forced_Retreat_Due_To_Superweapon
 void test_battle_result_lines() {
     using H = GameAudioHost;
-    // mcx4 t13 (docs/re/MCX4_T13_RE_ANSWERS.md "Faction.Music_Event_Tactical_Win family: Ghidra follow-up"): the declare's
+    // mcx4 t13 (legacy docs/re/MCX4_T13_RE_ANSWERS.md "Faction.Music_Event_Tactical_Win family: Ghidra follow-up"): the declare's
     // music keys. Args: local, winner, attacker, defender.
     H::ResultMusic m = H::result_music(0, 0, 0, 1);  // local attacker wins: win music keyed by the defender
     CHECK(m.play && m.won && m.other == 1);
@@ -310,7 +310,7 @@ void test_battle_result_lines() {
     CHECK(!H::battle_result_gate(0x0a, false) && !H::battle_result_gate(0x17, false) && !H::battle_result_gate(0x10, true));
 }
 
-// mcx4 t13 batch E (docs/re/MCX4_T13_RE_ANSWERS.md "Faction.Land_Retreat_Begin_SFXEvent family"; both builds).
+// mcx4 t13 batch E (legacy docs/re/MCX4_T13_RE_ANSWERS.md "Faction.Land_Retreat_Begin_SFXEvent family"; both builds).
 // ledger: verifies Faction.Land_Retreat_Begin_SFXEvent
 // ledger: verifies Faction.Space_Retreat_Begin_SFXEvent
 // ledger: verifies Faction.Land_Retreat_Cancel_SFXEvent
@@ -324,7 +324,7 @@ void test_retreat_begin_lines() {
     CHECK(H::retreat_begin_tag(false, true, false) == "Land_Retreat_Enemy_Begin_SFXEvent");
     CHECK(H::retreat_begin_tag(false, true, true) == "Space_Retreat_Enemy_Begin_SFXEvent");
     CHECK(H::retreat_begin_tag(false, false, true).empty());  // an ally of the retreater hears nothing
-    // trl2 t04: cancel lines (land: the local retreater's own cancel only; space: any cancel, retreater's faction).
+    // cancel lines (land: the local retreater's own cancel only; space: any cancel, retreater's faction).
     CHECK(H::retreat_cancel_tag(false, true, true) == "Land_Retreat_Cancel_SFXEvent");
     CHECK(H::retreat_cancel_tag(false, true, false).empty());   // land automatic cancel: silent
     CHECK(H::retreat_cancel_tag(false, false, true).empty());   // land: an enemy's cancel is not heard
@@ -334,7 +334,7 @@ void test_retreat_begin_lines() {
     CHECK(H::retreat_cancel_type_first(false, true, true) && !H::retreat_cancel_type_first(false, true, false));
 }
 
-// mcx4 t13 batch G (docs/re/MCX4_T13_RE_ANSWERS.md "Faction.SFXEvent_HUD_Special_Weapon_Ready family"; both builds).
+// mcx4 t13 batch G (legacy docs/re/MCX4_T13_RE_ANSWERS.md "Faction.SFXEvent_HUD_Special_Weapon_Ready family"; both builds).
 // ledger: verifies Faction.SFXEvent_HUD_Special_Weapon_Ready
 // ledger: verifies Faction.SFXEvent_HUD_Enemy_Special_Weapon_Ready
 // ledger: verifies Faction.SFXEvent_HUD_Special_Weapon_Firing
@@ -356,7 +356,7 @@ void test_special_weapon_lines() {
     CHECK(H::nth_field(f, "SFXEvent_HUD_Enemy_Special_Weapon_Ready", 0) == "E_HV" && H::nth_field(f, "X", -1).empty());
 }
 
-// mcx4 t13 (docs/re/MCX4_T13_RE_ANSWERS.md "GameObjectType.SFXEvent_Move_Into_Asteroid_Field family"; both builds).
+// mcx4 t13 (legacy docs/re/MCX4_T13_RE_ANSWERS.md "GameObjectType.SFXEvent_Move_Into_Asteroid_Field family"; both builds).
 // ledger: verifies GameObjectType.SFXEvent_Move_Into_Asteroid_Field
 // ledger: verifies GameObjectType.SFXEvent_Move_Into_Nebula
 void test_move_into_field() {
@@ -367,7 +367,7 @@ void test_move_into_field() {
     CHECK(H::move_into_field_tag(0u).empty() && H::move_into_field_tag(2u).empty() && H::move_into_field_tag(8u).empty());
 }
 
-// mcx4 t13 batch I (docs/re/MCX4_T13_RE_ANSWERS.md "Faction.SFXEvent_HUD_Base_Shield_Online family"; both builds).
+// mcx4 t13 batch I (legacy docs/re/MCX4_T13_RE_ANSWERS.md "Faction.SFXEvent_HUD_Base_Shield_Online family"; both builds).
 // ledger: verifies Faction.SFXEvent_HUD_Base_Shield_Online
 // ledger: verifies Faction.SFXEvent_HUD_Base_Shield_Offline
 // ledger: verifies Faction.SFXEvent_HUD_Enemy_Base_Shield_Online
@@ -380,7 +380,7 @@ void test_base_shield_lines() {
     CHECK(H::base_shield_line(false, false) == "SFXEvent_HUD_Enemy_Base_Shield_Offline");
 }
 
-// mcx4 t13 batch J (docs/re/P4_SIM_SYSTEMS.md §2.7.3; MCX4_T13_RE_ANSWERS.md "Faction.SFXEvent_Tactical_Unit_Cap_Reached
+// mcx4 t13 batch J (legacy docs/re/P4_SIM_SYSTEMS.md §2.7.3; legacy docs/re/MCX4_T13_RE_ANSWERS.md "Faction.SFXEvent_Tactical_Unit_Cap_Reached
 // family"): SFXEvent_Tactical_Pop_Cap_Reached plays when the room for one unit turns false.
 // ledger: verifies Faction.SFXEvent_Tactical_Pop_Cap_Reached
 void test_unit_room() {
@@ -388,7 +388,7 @@ void test_unit_room() {
     CHECK(H::unit_room(3.0f, -1.0f) && H::unit_room(9.0f, 10.0f) && !H::unit_room(10.0f, 10.0f) && !H::unit_room(11.0f, 10.0f));
 }
 
-// mcx4 t13 batch M (docs/re/MCX4_T13_RE_ANSWERS.md "Faction.SFXEvent_Bombard_Available family"; both builds).
+// mcx4 t13 batch M (legacy docs/re/MCX4_T13_RE_ANSWERS.md "Faction.SFXEvent_Bombard_Available family"; both builds).
 // ledger: verifies Faction.SFXEvent_Bombard_Available
 // ledger: verifies Faction.SFXEvent_Bombard_Ally_Available
 // ledger: verifies Faction.SFXEvent_Bombard_Enemy_Available
@@ -405,17 +405,17 @@ void test_strike_available_tags() {
     CHECK(H::strike_available_tag(false, false, false) == "SFXEvent_Bombing_Run_Enemy_Available");
 }
 
-// mcx4 t13 batch O (docs/re/MCX4_T13_RE_ANSWERS.md "GameObjectType.Land_Damage_SFX"; both builds): the stage of a health
+// mcx4 t13 batch O (legacy docs/re/MCX4_T13_RE_ANSWERS.md "GameObjectType.Land_Damage_SFX"; both builds): the stage of a health
 // fraction is the last Land_Damage_Thresholds entry it is at or below.
 // ledger: verifies GameObjectType.Land_Damage_SFX
-// mcx4 t13 batch P (docs/re/MCX4_T13_RE_ANSWERS.md "Faction.SFXEvent_Tactical_Object_Building_Started family"; both
+// mcx4 t13 batch P (legacy docs/re/MCX4_T13_RE_ANSWERS.md "Faction.SFXEvent_Tactical_Object_Building_Started family"; both
 // builds): a local builder / seller hears the type line; every owner gets the faction line, a start also the loop.
 // ledger: verifies Faction.SFXEvent_Tactical_Object_Building_Started
 // ledger: verifies Faction.SFXEvent_Tactical_Object_Building_Loop
 // ledger: verifies Faction.SFXEvent_Tactical_Object_Building_Complete
 // ledger: verifies Faction.SFXEvent_Tactical_Object_Sold
 // ledger: verifies GameObjectType.SFXEvent_Sold_Tactical
-// mcx4 t13 batch S (docs/re/MCX4_T13_RE_ANSWERS.md "Faction.SpeechEvent_Super_Weapon_Moving_Range_60_Seconds family"):
+// mcx4 t13 batch S (legacy docs/re/MCX4_T13_RE_ANSWERS.md "Faction.SpeechEvent_Super_Weapon_Moving_Range_60_Seconds family"):
 // the highest threshold crossed in a step, and the own / enemy speech tags.
 // ledger: verifies Faction.SpeechEvent_Super_Weapon_Moving_Range_60_Seconds
 // ledger: verifies Faction.SpeechEvent_Super_Weapon_Moving_Range_30_Seconds
@@ -427,15 +427,15 @@ void test_strike_available_tags() {
 // ledger: verifies Faction.SpeechEvent_Super_Weapon_Enemy_Moving_Range_05_Seconds
 // ledger: verifies Faction.SpeechEvent_Super_Weapon_Moved_Into_Range
 // ledger: verifies Faction.SpeechEvent_Super_Weapon_Enemy_Moved_Into_Range
-// mcx4 t13 batch U (docs/re/MCX4_T13_RE_ANSWERS.md "Faction.SFXEvent_HUD_Reinforcement_Point_Contested"): the local
+// mcx4 t13 batch U (legacy docs/re/MCX4_T13_RE_ANSWERS.md "Faction.SFXEvent_HUD_Reinforcement_Point_Contested"): the local
 // player's reinforcement point starting to be neutralised.
 // ledger: verifies Faction.SFXEvent_HUD_Reinforcement_Point_Contested
-// mcx4 (docs/re/MCX4_T11_T12_RE_ANSWERS.md §C3): GameConstants Unit_Command_Rankings_By_Category picks the speaking unit.
+// mcx4 (legacy docs/re/MCX4_T11_T12_RE_ANSWERS.md §C3): GameConstants Unit_Command_Rankings_By_Category picks the speaking unit.
 // ledger: verifies GameConstants.Unit_Command_Rankings_By_Category
-// mcx4 t13 (docs/re/MCX4_T13_RE_ANSWERS.md "GameObjectType.SFXEvent_Turret_Rotating_Loop"): the motor loop runs while
+// mcx4 t13 (legacy docs/re/MCX4_T13_RE_ANSWERS.md "GameObjectType.SFXEvent_Turret_Rotating_Loop"): the motor loop runs while
 // the turret pose changes from tick to tick.
 // ledger: verifies GameObjectType.SFXEvent_Turret_Rotating_Loop
-// mcx4 t13 (docs/re/MCX4_PRES_RE_ANSWERS_2.md Q4): refusal codes 1 / 2 / 5 -> Land_Retreat_Not_Allowed_SFXEvent /
+// mcx4 t13 (legacy docs/re/MCX4_PRES_RE_ANSWERS_2.md Q4): refusal codes 1 / 2 / 5 -> Land_Retreat_Not_Allowed_SFXEvent /
 // Space_Retreat_Not_Allowed_SFXEvent; 3 / 4 / 6 -> Land_Retreat_Not_Allowed_Reason_1_SFXEvent,
 // Land_Retreat_Not_Allowed_Reason_2_SFXEvent, Land_Retreat_Not_Allowed_Reason_3_SFXEvent and the space
 // Space_Retreat_Not_Allowed_Reason_1_SFXEvent, Space_Retreat_Not_Allowed_Reason_2_SFXEvent,
@@ -588,7 +588,7 @@ void test_control_point_lines() {
     CHECK(lines == 3);
 }
 
-// aud1 t07 (AUDIO.md §9.7): the tactical intro speech pick, its gate, and (with engine/audio) one queued line.
+// aud1 t07 (legacy docs/re/AUDIO.md §9.7): the tactical intro speech pick, its gate, and (with engine/audio) one queued line.
 // ledger: verifies Faction.SpeechEvent_Tactical_Intro_Land_Attacker
 // ledger: verifies Faction.SpeechEvent_Tactical_Intro_Land_Defender
 // ledger: verifies Faction.SpeechEvent_Tactical_Intro_Space_Attacker
@@ -724,7 +724,7 @@ void test_intro_speech_t07() {
 
 
 #ifdef ALAMO_GAME_HAVE_AUDIO
-// aud1 (AUDIO.md §9): a scripted land battle (Temperate, rain) and a space battle through GameAudioHost - ambient then
+// aud1 (legacy docs/re/AUDIO.md §9): a scripted land battle (Temperate, rain) and a space battle through GameAudioHost - ambient then
 // battle music from the map terrain's list, the weather loop and SFXEvent_Weather_Begin, an AnimationSFXMaps SOUND row,
 // a hardpoint Fire_SFXEvent, the base-attack line (rate-limited), and TSW / Lua Play_Music not replaced by combat.
 const char* kAud1Sfx = R"(<?xml version="1.0"?>
@@ -880,7 +880,7 @@ void test_battle_hookups_aud1() {
 // ledger: verifies Faction.SFXEvent_GUI_Toggle_Non_Hero_Ability_Off
 // ledger: verifies Faction.SFXEvent_GUI_Enemy_Toggle_Non_Hero_Ability_On
 // ledger: verifies Faction.SFXEvent_GUI_Enemy_Toggle_Non_Hero_Ability_Off
-// aud1 t05 (AUDIO.md §9.6): the ability tag pick through the type's Unit_Ability -> <Abilities> entry, the departure tag
+// aud1 t05 (legacy docs/re/AUDIO.md §9.6): the ability tag pick through the type's Unit_Ability -> <Abilities> entry, the departure tag
 // pick, the shield transitions, and (with engine/audio) the activation playing on the user and the target.
 void test_object_sfx_t05() {
     using H = GameAudioHost;
@@ -931,14 +931,14 @@ void test_object_sfx_t05() {
     CHECK(s.activate == "Heal_On" && s.target_affected == "Heal_Target");
     CHECK(H::ability_sfx(types, objects::kNone, ta::kStealth).activate.empty());
 
-    // mcx4 t13 (docs/re/MCX4_T13_RE_ANSWERS.md "Unit_Ability.SFXEvent_GUI_Unit_Ability_Activated family" and
+    // mcx4 t13 (legacy docs/re/MCX4_T13_RE_ANSWERS.md "Unit_Ability.SFXEvent_GUI_Unit_Ability_Activated family" and
     // "Unit_Ability.SFXEvent_Target_Ability"): the record of the clicked ability (#0 -> record 0, else record 1).
     CHECK(H::unit_ability_line(types, hero, ta::kStealth, "SFXEvent_GUI_Unit_Ability_Activated") == "Gui_Stealth_On");
     CHECK(H::unit_ability_line(types, hero, ta::kSprint, "SFXEvent_GUI_Unit_Ability_Deactivated") == "Gui_Sprint_Off");
     CHECK(H::unit_ability_line(types, hero, ta::kSprint, "SFXEvent_Target_Ability") == "Sprint_Target");
     CHECK(H::unit_ability_line(types, healer, ta::kStealth, "SFXEvent_GUI_Unit_Ability_Activated").empty());
     CHECK(H::plays_target_ability_line(19) && H::plays_target_ability_line(39) && !H::plays_target_ability_line(ta::kStealth));
-    // mcx4 t13 (docs/re/MCX4_PRES_RE_ANSWERS_2.md Q3): SFXEvent_Special_Ability_Loop from the ability's own record (the
+    // mcx4 t13 (legacy docs/re/MCX4_PRES_RE_ANSWERS_2.md Q3): SFXEvent_Special_Ability_Loop from the ability's own record (the
     // third record here; the #0 / #1 pick would read the SPRINT record), on the six loop abilities, on the target for 31 / 55.
     // ledger: verifies Unit_Ability.SFXEvent_Special_Ability_Loop
     CHECK(H::ability_record_line(types, hero, ta::kEnergyWeapon, "SFXEvent_Special_Ability_Loop") == "Beam_Loop");
@@ -1004,7 +1004,7 @@ void test_object_sfx_t05() {
     h.ability_effect(types, healer, ta::kAreaEffectHeal, 5, Vec3{10, 0, 0}, 0, Vec3{});  // no target: the activation only
     CHECK(h.ability_sfx_played() == 3);
 
-    // aud1 t10: object_events reads AbilitySystem::activation_events (the EffectOn copy kept after the battle's tick clears
+    // object_events reads AbilitySystem::activation_events (the EffectOn copy kept after the battle's tick clears
     // events(); the battle side: alamo_sim_battle_tests fog_effect_kept) once each, by serial: an entry whose user is
     // gone plays nothing, a smaller newest serial (a new battle's system) starts over.
     objects::ObjectStore store(objects::ModeKind::Space, objects::StoreKind::Primary, types);
@@ -1038,7 +1038,7 @@ void test_object_sfx_t05() {
 // backend - t01 planet reveal plays the Audio.xml constant's value, t02 Master_Volume_Restore returns to the profile's
 // master, t03 production begin / cancel / complete (+ Build_Music_Completed), t04 no updates and paused music while the
 // application is inactive, t07 the fleet departure line, t08 the strategic win / lose music.
-// mcx4 t13 batch Q (docs/re/MCX4_T13_RE_ANSWERS.md "GameObjectType.Spin_Away_On_Death_SFXEvent_Start_Die" and
+// mcx4 t13 batch Q (legacy docs/re/MCX4_T13_RE_ANSWERS.md "GameObjectType.Spin_Away_On_Death_SFXEvent_Start_Die" and
 // "GameObjectType.Selt_Destruct_SFXEvent_Start_Die"): a spin-away corpse plays its type's line once; a self-destruct
 // countdown starts its line once and stops it when the unit leaves the counting list.
 // ledger: verifies GameObjectType.Spin_Away_On_Death_SFXEvent_Start_Die
@@ -1096,7 +1096,7 @@ void test_aud2() {
     CHECK(H::production_tag(H::Production::Begin) == "SFXEvent_Build_Started");
     CHECK(H::production_tag(H::Production::Cancel) == "SFXEvent_Build_Cancelled");
     CHECK(H::production_tag(H::Production::Complete) == "SFXEvent_Build_Complete");
-    // mcx4 t13 (docs/re/MCX4_T13_RE_ANSWERS.md "GameObjectType.SFXEvent_Tactical_Build_Started family"): the speech first,
+    // mcx4 t13 (legacy docs/re/MCX4_T13_RE_ANSWERS.md "GameObjectType.SFXEvent_Tactical_Build_Started family"): the speech first,
     // then the tactical line in a battle, then the plain one.
     // ledger: verifies GameObjectType.SFXEvent_Tactical_Build_Started
     // ledger: verifies GameObjectType.SFXEvent_Tactical_Build_Complete
@@ -1230,7 +1230,7 @@ void test_aud2() {
     h.update(0.0);
     CHECK(cur(h) == "Gal_Rebel");
 
-    // t08 / mcx4 t13 (docs/re/MCX4_T13_RE_ANSWERS.md "Faction.Music_Event_Strategic_Win family"): campaign won / lost ->
+    // t08 / mcx4 t13 (legacy docs/re/MCX4_T13_RE_ANSWERS.md "Faction.Music_Event_Strategic_Win family"): campaign won / lost ->
     // Audio.xml Music_Event_Battle_End_Summary_Screen_Win / _Lose in mode 16; the faction's Music_Event_Strategic_* rows
     // (retail-unused) are not played.
     h.campaign_end(true);

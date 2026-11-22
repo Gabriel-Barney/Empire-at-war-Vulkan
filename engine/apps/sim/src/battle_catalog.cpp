@@ -57,7 +57,7 @@ tc::HardpointKind hardpoint_kind(std::string_view type) {
     return tc::HardpointKind::DummyArt;
 }
 
-// cu5 t02: every <File> entry is opened (an empty one fails to); a missing or unparsable file is noted as not found.
+// every <File> entry is opened (an empty one fails to); a missing or unparsable file is noted as not found.
 data::ListedXmlOptions battle_list_options() {
     data::ListedXmlOptions o;
     o.keep_empty_entries = true;
@@ -110,7 +110,7 @@ BattleCatalog::BattleCatalog(const objects::GameObjectTypes& types, const FilePr
         lb.move = constants->get_float("MoveBlendTime", lb.move);
         lb.team_move = constants->get_float("TeamMoveBlendTime", lb.team_move);
         lb.team_crouch_move = constants->get_float("TeamCrouchMoveBlendTime", lb.team_crouch_move);
-        const data::SharedGameConstants& shared = constants->shared;  // ref4 t06: GameConstants::shared
+        const data::SharedGameConstants& shared = constants->shared;  // GameConstants::shared
         lb.infantry_turn = shared.infantry_turn_blend_time.value_or(lb.infantry_turn);
         // --- battle host: transition constants (TACTICAL_GAPS §4.2 raid / lead, §4.9 retreat attrition) ---
         TransitionConstants& k = transition_;
@@ -234,7 +234,7 @@ void BattleCatalog::load_priority_sets(const FileProvider& files, std::vector<st
 }
 
 void BattleCatalog::load_surface_fx(const FileProvider& files, std::vector<std::string>* diag) {
-    // trn1 t02 (docs/re/TRN1_TERRAIN_GAMEPLAY.md §2): the sim terms of Data\XML\SurfaceFX.xml.
+    // trn1 t02 (legacy docs/re/TRN1_TERRAIN_GAMEPLAY.md §2): the sim terms of Data\XML\SurfaceFX.xml.
     std::vector<uint8_t> bytes;
     if (!files.read("Data\\XML\\SurfaceFX.xml", bytes)) {
         note(diag, "battle: SurfaceFX.xml not found");
@@ -291,10 +291,10 @@ tc::ProjectileDesc BattleCatalog::projectile_desc(uint32_t t, bool full) const {
     p.damage_type = damage_.damage_index(ascii_trim(ty.get(t, objects::tags::Damage_Type)));
     const int32_t cat = ty.get(t, objects::tags::Projectile_Category);
     p.homing = cat == 1;
-    p.max_rate_of_turn = ty.get(t, objects::tags::Max_Rate_Of_Turn);  // S9 t05: missile-shield / homing turn limit
-    p.causes_infection = ty.get(t, objects::tags::Causes_Infection);    // S9 t04: INFECTION behaviour on hit
+    p.max_rate_of_turn = ty.get(t, objects::tags::Max_Rate_Of_Turn);  // missile-shield / homing turn limit
+    p.causes_infection = ty.get(t, objects::tags::Causes_Infection);    // INFECTION behaviour on hit
     p.lobbed = cat == 3;
-    // --- S8 t04 (LOB_SOLVER.md §1.1): grenade gravity / lob mod - an XML value (0 included) replaces the constructor
+    // --- S8 t04 (legacy docs/re/LOB_SOLVER.md §1.1): grenade gravity / lob mod - an XML value (0 included) replaces the constructor
     // defaults 1.05 / 5.02 (ProjectileDesc); Can_Lob_Slower (0.8 speed steps), Sticks_On_Collision ---
     if (!ty.get_string(t, objects::tags::Projectile_Grenade_Gravity).empty()) p.grenade_gravity = ty.get(t, objects::tags::Projectile_Grenade_Gravity);
     if (!ty.get_string(t, objects::tags::Projectile_Grenade_Gravity_Lob_Mod).empty())
@@ -326,7 +326,7 @@ tc::ProjectileDesc BattleCatalog::projectile_desc(uint32_t t, bool full) const {
     if (full) {
         // S10-int: S9 projectile fields (ABILITIES_HARDPOINTS 4.3, 4.4, 4.7; TACTICAL_COMBAT 3.5).
         if (cat >= 0 && cat <= 9) p.category = static_cast<tc::ProjectileCategory>(cat);
-        // refixf t01: ROCKET / MPTL_ROCKET spline flight (S9_DEATH_CLONE_SHIELDS.md §2.4). The distances use converter 0x8
+        // ROCKET / MPTL_ROCKET spline flight (legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §2.4). The distances use converter 0x8
         // (float; type +0x1fec / +0x1ff0 / +0x1ff4), 0 when absent; the two flags are type +0x7f / +0x7e.
         p.rocket_straight_distance = ty.get(t, objects::tags::Projectile_Rocket_Straight_Distance);
         p.rocket_curve_distance = ty.get(t, objects::tags::Projectile_Rocket_Curve_Distance);
@@ -483,7 +483,7 @@ int32_t BattleCatalog::hardpoint(std::string_view name, BuildState& s) const {
         const auto m = cat.convert(restr);
         if (m) h.fire_category_restrictions = static_cast<uint64_t>(*m);
     }
-    // HARDPOINT_DISABLED.md §4: Allows_Special_Weapon_Use (type +0x3d8) - its Set_System_Online writes the allied players'
+    // legacy docs/re/HARDPOINT_DISABLED.md §4: Allows_Special_Weapon_Use (type +0x3d8) - its Set_System_Online writes the allied players'
     // special-weapon flag.
     h.allows_special_weapon_use = flag("ALLOWS_SPECIAL_WEAPON_USE", h.allows_special_weapon_use);
     // ENABLE_SPECIAL_ABILITY hardpoints: Special_Ability_Name (type +0x450) as name_crc (0 = empty).
@@ -625,7 +625,7 @@ tc::UnitDesc BattleCatalog::unit_desc(uint32_t t, BuildState& s) const {
     // behaviour (0x0A: Behavior plus the battle mode's LandBehavior / SpaceBehavior list; every list without a mode) and a
     // non-empty Projectile_Types, independent of weapon hardpoints (the two sources fire side by side, gated by the
     // Fire_Weapon_When_* / Fire_When_* flags). Projectile_Types without WEAPON is never fired (abilities / Lua read it).
-    // a1h t01: M1_Repulsor_Tank (WEAPON + HP_2M_Tank_00, which excludes Air / Vehicle / Structure) fires its
+    // M1_Repulsor_Tank (WEAPON + HP_2M_Tank_00, which excludes Air / Vehicle / Structure) fires its
     // Proj_M1_Laser_Cannon at vehicles through this weapon.
     const auto projs = ty.get(t, objects::tags::Projectile_Types);
     const bool weapon_behavior =
@@ -637,7 +637,7 @@ tc::UnitDesc BattleCatalog::unit_desc(uint32_t t, BuildState& s) const {
         const objects::TypeIndex pt = ty.resolve_name(ascii_trim(projs.front()));
         if (pt != objects::kNone) u.listed_projectile = projectile(static_cast<uint32_t>(pt), s);
     }
-    // S8 t08: the own-weapon gate flags (type +0xae..+0xb1, default true). s78n t26.1 review 5: read for every type, not
+    // the own-weapon gate flags (type +0xae..+0xb1, default true). s78n t26.1 review 5: read for every type, not
     // only for one with the WEAPON behaviour - 0x568e60 and the slot 47 / TURRET deploy rules read the type field itself
     // (the Abstract_Mobile_Defense_Unit's Fire_Weapon_When_Undeployed No was lost: it has no weapon).
     {
@@ -707,7 +707,7 @@ tc::UnitDesc BattleCatalog::unit_desc(uint32_t t, BuildState& s) const {
             u.damage_alternates.emplace_back(static_cast<float>(objects::c_atof(ascii_trim(th[k]))),
                                              static_cast<int32_t>(objects::c_atof(ascii_trim(al[k]))));
     }
-    // q6 t19 - the type half of 0x5680b0 (A1_READINGS §33.2.1 tests 1 and 6) for the path-B goal promotion: both
+    // the type half of 0x5680b0 (A1_READINGS §33.2.1 tests 1 and 6) for the path-B goal promotion: both
     // Collidable_By_Projectile_Living and Is_Valid_Target [port: or a company member type - the combat goal is the member
     // unit where the original's is its TEAM container, which passes on its own]; a SPECIAL_WEAPON type only when it is
     // also a DUMMY_STAR_BASE. The object half (garrisoned, dead, hero clash) is tested by the combat system.
@@ -721,7 +721,7 @@ tc::UnitDesc BattleCatalog::unit_desc(uint32_t t, BuildState& s) const {
                               ty.company_member(t)) &&
                              (!beh(kSpecialWeapon) || beh(kDummyStarBase));
     }
-    // trn1 t01 / t02 / t05 (docs/re/TRN1_TERRAIN_GAMEPLAY.md): cover factor, SURFACE_FX instances, burning speed.
+    // trn1 t01 / t02 / t05 (legacy docs/re/TRN1_TERRAIN_GAMEPLAY.md): cover factor, SURFACE_FX instances, burning speed.
     if (!ty.get_string(t, objects::tags::Surface_Type_Cover_Damage_Shield).empty())
         u.cover_damage_shield = ty.get(t, objects::tags::Surface_Type_Cover_Damage_Shield);
     if (!ty.get_string(t, objects::tags::On_Fire_Speed_Modifier).empty()) u.on_fire_speed = ty.get(t, objects::tags::On_Fire_Speed_Modifier);
@@ -736,7 +736,7 @@ tc::UnitDesc BattleCatalog::unit_desc(uint32_t t, BuildState& s) const {
         if (has)
             for (const std::string_view item : ty.get(t, objects::tags::SurfaceFX_Name)) {
                 size_t at = 0;
-                while (at <= item.size()) {  // "A, B" in one item: split (mcx4 t17: every entry, no cap)
+                while (at <= item.size()) {  // "A, B" in one item: split (every entry, no cap)
                     const size_t comma = item.find(',', at);
                     const std::string_view name = ascii_trim(item.substr(at, comma == std::string_view::npos ? std::string_view::npos : comma - at));
                     const int32_t k = name.empty() ? -1 : tc::find_surface_fx(surface_fx_, name);
@@ -772,7 +772,7 @@ void BattleCatalog::s9_unit_fields(uint32_t t, tc::UnitDesc& u, BuildState& s) c
     u.energy_refresh_rate = ty.get(t, objects::tags::Energy_Refresh_Rate);
     u.requires_base_power = ty.get(t, objects::tags::Requires_Base_Power);
     u.passive_missile_shield_radius = ty.get(t, objects::tags::Passive_Missile_Shield_Radius);
-    // S8 t04 (LOB_SOLVER §1.1): type +0x4dc, constructor default 6.0 when the tag is absent (ref6 t01: the handle's
+    // S8 t04 (LOB_SOLVER §1.1): type +0x4dc, constructor default 6.0 when the tag is absent (the handle's
     // default, kDefaults).
     u.ranged_target_z_adjust = ty.get(t, objects::tags::Ranged_Target_Z_Adjust);
     u.converted_die_time = ty.get(t, objects::tags::Converted_To_Enemy_Die_Time_Seconds);
@@ -784,7 +784,7 @@ void BattleCatalog::s9_unit_fields(uint32_t t, tc::UnitDesc& u, BuildState& s) c
     // cu8g t05 (obj +0x2a0, the infection spread candidate test): a model is named for the battle's mode.
     if (s.model_mode >= 0)
         u.has_model = !ascii_trim(ty.get(t, s.model_mode == 1 ? objects::tags::Space_Model_Name : objects::tags::Land_Model_Name)).empty();
-    // Death_Clone: (key name, type) pairs (S9_DEATH_CLONE_SHIELDS.md §1.4): the static tDamageType enum first, else
+    // Death_Clone: (key name, type) pairs (legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §1.4): the static tDamageType enum first, else
     // 0x18 + the name's index in GameConstants Damage_Types (e.g. Damage_Disruptor_Hand). S9 t04.
     const auto clones = ty.get(t, objects::tags::Death_Clone);
     const objects::EnumConverter& kinds = ty.enums().get(objects::EnumId::DamageType);
@@ -810,7 +810,7 @@ void BattleCatalog::s9_unit_fields(uint32_t t, tc::UnitDesc& u, BuildState& s) c
     u.stationary_when_attacking = ty.get(t, objects::tags::Is_Stationary_When_Attacking);
     u.max_dist_walk_while_deployed = ty.get(t, objects::tags::Max_Dist_Walk_While_Deployed);
     u.shielded_only_when_deployed = ty.get(t, objects::tags::Shielded_Only_When_Deployed);  // s78n t26.1
-    // s78f t08: the target-type flags of the hold-fire rule and the TURRET cannot-aim branch.
+    // the target-type flags of the hold-fire rule and the TURRET cannot-aim branch.
     u.hold_fire_for_special_ability = ty.get(t, objects::tags::Should_Attacker_Hold_Fire_For_Special_Ability);
     u.limited_turrets_turn = ty.get(t, objects::tags::Should_Cause_Limited_Turrets_To_Turn);
     u.fires_forward = ty.get(t, objects::tags::Fires_Forward);  // mcx4 t03 (LOB_SOLVER §5.3)
@@ -839,13 +839,13 @@ void BattleCatalog::s9_unit_fields(uint32_t t, tc::UnitDesc& u, BuildState& s) c
     // trl2 t03 (TACTICAL_GAPS §2.3.4): Earthquake_Attack / Force_Telekinesis targets need these behaviours
     u.earthquake_target = ty.has_behavior(t, objects::BehaviorSet::Union, objects::behavior_type_id("EARTHQUAKE_TARGET"));
     u.telekinesis_target = ty.has_behavior(t, objects::BehaviorSet::Union, objects::behavior_type_id("TELEKINESIS_TARGET"));
-    {  // tru1 t02 (docs/re/TRU1_A_RE_ANSWERS.md A1 / A2): base shields; Shield_Requires_Base_Power defaults to true here
+    {  // tru1 t02 (legacy docs/re/TRU1_A_RE_ANSWERS.md A1 / A2): base shields; Shield_Requires_Base_Power defaults to true here
         static const objects::BehaviorTypeId kBaseShield = objects::behavior_type_id("BASE_SHIELD");
         static const objects::BehaviorTypeId kAffected = objects::behavior_type_id("AFFECTED_BY_SHIELD");
         u.base_shield_radius = ty.get(t, objects::tags::Base_Shield_Radius);
         u.base_shield = ty.has_behavior(t, objects::BehaviorSet::Union, kBaseShield) && u.base_shield_radius > 0.0f;
         u.base_shield_always_off = ty.get(t, objects::tags::Base_Shield_Always_Off);
-        // ref6 t01: the tag's one default is true (kDefaults), so the old "set in XML" test was always true
+        // the tag's one default is true (kDefaults), so the old "set in XML" test was always true
         u.base_shield_requires_power = ty.get(t, objects::tags::Shield_Requires_Base_Power);
         u.affected_by_shield = ty.has_behavior(t, objects::BehaviorSet::Union, kAffected);
     }
@@ -920,7 +920,7 @@ ta::AbilityObjectDesc BattleCatalog::ability_desc(uint32_t t, BuildState& s) con
     d.unique_space_type = type_or_none(ty.get(t, objects::tags::Unique_Space_Unit));
     // s78n t04 (TACTICAL_COMBAT §5.4.4 item 3b): a Combat_Bonus source buffs itself only with this type flag
     d.apply_self_on_creation = ty.get(t, objects::tags::Apply_Special_Ability_To_Self_On_Creation);
-    // TRU1 t03 (docs/re/TRU1_GRAVITY_FIELD.md): GRAVITY_CONTROL_FIELD generator values (missing tags read 0) and the flag
+    // TRU1 t03 (legacy docs/re/TRU1_GRAVITY_FIELD.md): GRAVITY_CONTROL_FIELD generator values (missing tags read 0) and the flag
     d.gravity_field = ty.has_behavior(t, objects::BehaviorSet::Union, objects::behavior_type_id("GRAVITY_CONTROL_FIELD"));
     d.gravity_field_range = ty.get(t, objects::tags::Gravity_Control_Field_Range);
     d.gravity_field_slow_fraction = ty.get(t, objects::tags::Gravity_Control_Field_Slow_Fraction);
@@ -946,11 +946,11 @@ ta::AbilityObjectDesc BattleCatalog::ability_desc(uint32_t t, BuildState& s) con
         const int32_t pt = type_or_none(name);
         return pt < 0 ? -1 : projectile(static_cast<uint32_t>(pt), s);
     };
-    r.type_max_speed = [types](std::string_view name) -> float {  // cu8i t01: Saber_Throw's Saber_Name speed
+    r.type_max_speed = [types](std::string_view name) -> float {  // Saber_Throw's Saber_Name speed
         const objects::TypeIndex x = types->resolve_name(ascii_trim(name));
         return x == objects::kNone ? -1.0f : types->columns().max_speed[x];
     };
-    r.type_max_flight_distance = [types](std::string_view name) -> float {  // cu8j t03: Saber_Name's max travel base
+    r.type_max_flight_distance = [types](std::string_view name) -> float {  // Saber_Name's max travel base
         const objects::TypeIndex x = types->resolve_name(ascii_trim(name));
         return x == objects::kNone ? -1.0f : types->get(x, objects::tags::Projectile_Max_Flight_Distance);
     };
@@ -1144,7 +1144,7 @@ std::unique_ptr<BattleCatalog::ModelInfo> info_from_asset(const assets::ModelAss
 
 }  // namespace
 
-// OPT3 t09: the model file an entry reads ("" none: the entry is null). avoid_model reads the mode's field; model_info
+// the model file an entry reads ("" none: the entry is null). avoid_model reads the mode's field; model_info
 // the first named field of its order (a missing file: no model data).
 std::string BattleCatalog::avoid_path(uint32_t type, bool space) const {
     const std::string_view name = ascii_trim(types_->get(type, space ? objects::tags::Space_Model_Name : objects::tags::Land_Model_Name));
@@ -1174,7 +1174,7 @@ const tactical::movement::AvoidModel* BattleCatalog::avoid_model(uint32_t type, 
         auto it = model_cache_->avoid.find(key);
         if (it != model_cache_->avoid.end()) return it->second.get();
     }
-    // Built outside the lock (OPT3 t05: preload loads files in parallel); two threads building the same key make the
+    // Built outside the lock (preload loads files in parallel); two threads building the same key make the
     // same entry and the first one stored is kept.
     std::unique_ptr<tactical::movement::AvoidModel> out;
     const std::string path = avoid_path(type, space);
@@ -1241,7 +1241,7 @@ void BattleCatalog::preload(std::span<const uint32_t> types, bool space, uint32_
 #ifdef ALAMO_SIM_HAVE_ASSETS
     if (!files_) return;
     // The entries of `types` not cached yet, grouped by the file they read (path order): one job per file parses it once
-    // and builds each of its entries (OPT3 t09; t05 parsed a file once per entry).
+    // and builds each of its entries (t05 parsed a file once per entry).
     struct Want {
         uint32_t type;
         uint32_t kind;  // kPreloadAvoid / kPreloadBones / kPreloadExtents

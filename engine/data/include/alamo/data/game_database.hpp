@@ -6,7 +6,7 @@
 //   Data\XML\GameObjectFiles.xml  -> listed files      -> object index (+ Planet types)
 //   Data\XML\TradeRouteFiles.xml  -> listed files      -> TradeRoute definitions
 //   Data\XML\CampaignFiles.xml    -> listed files      -> Campaign definitions
-// List semantics (docs/re/FALLBACK_CAMPAIGNS.md, docs/re/PHASE2_ANSWERS.md Q13): a list file is
+// List semantics (legacy docs/re/FALLBACK_CAMPAIGNS.md, legacy docs/re/PHASE2_ANSWERS.md Q13): a list file is
 // opened once (first match through the provider, no merging across tiers); each <File> is
 // "Data\XML\<name>"; a listed file that cannot be opened is skipped with a warning (the original
 // only writes a debug-log line). Only a missing or unparsable *list* file makes load() return false.
@@ -69,7 +69,7 @@ struct LoadedXmlFile {
     std::unique_ptr<XmlDocument> doc;
 };
 
-// ref4 t06: the GameConstants tags that several modules read, each read here once, so a mod's value reaches every user
+// the GameConstants tags that several modules read, each read here once, so a mod's value reaches every user
 // and no user spells the tag itself. A field is empty when the file has no such tag (or there is no file); a user then keeps
 // its own default, as before (the defaults still differ, e.g. Health_Low_Percent_Threshold 0.33 for the AI and the audio
 // host, 0 for combat; FoC sets every tag, so unifying them moves no FoC golden but does move the synthetic ones: an
@@ -212,7 +212,7 @@ public:
 private:
     const XmlDocument* load_file(const FileProvider& provider, const FileProvider* fallback,
                                  std::string_view path, bool required);
-    // True (and an error logged) when `path` was opened by load_file but did not parse (mcx1 t08, Q6.1).
+    // True (and an error logged) when `path` was opened by load_file but did not parse (Q6.1).
     bool listed_file_unparsable(std::string_view path, const char* what);
     // <File> entries of a list file (xml_list.hpp: list order, duplicates kept, empty entries skipped).
     std::vector<ListedXmlEntry> read_list(const FileProvider& provider, std::string_view list_path, bool& ok);

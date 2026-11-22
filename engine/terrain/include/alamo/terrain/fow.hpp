@@ -1,4 +1,4 @@
-// alamo_terrain - fog-of-war texture, CPU side (docs/re/DECORATIONS.md 2). No Vulkan.
+// alamo_terrain - fog-of-war texture, CPU side (legacy docs/re/DECORATIONS.md 2). No Vulkan.
 //
 // One texel per FOW cell over the map's playable box (MapData::playable_box). The sim (or a test)
 // supplies an intensity byte per cell (0 = fogged, 255 = clear; fow_state_to_intensity() converts
@@ -6,7 +6,7 @@
 // and maps each value through the palette into RGBA8 texels. Everything is integer arithmetic in
 // index order, so the texels are bit-identical on every machine and thread count.
 //
-// What the renderer must do (decoration type 4, DECORATIONS.md 2.4-2.6):
+// What the renderer must do (decoration type 4, legacy docs/re/DECORATIONS.md 2.4-2.6):
 //   * Upload FowGrid::texels() as a width() x height() VK_FORMAT_R8G8B8A8_UNORM texture, 1 mip,
 //     sampler linear + CLAMP_TO_EDGE (re-upload when build_texels() ran).
 //   * Bind FOW_TEX_U / FOW_TEX_V (fow_tex_u/fow_tex_v of the grid box) as float4 constants; the
@@ -39,7 +39,7 @@ constexpr float kSpaceFowHeight = -80.0f;    // SpaceFOWHeight
 constexpr uint32_t kSpaceFowEdgeFadeCells = 4;  // [port] fade_texel_edges ramp of the space plane (400 world units)
 
 // D3DCOLOR ARGB packing of a GameConstants colour "c1,c2,c3,c4": A = c4, R = c1, G = c2, B = c3
-// (DECORATIONS.md 2.3 step 4). Components are clamped to 0..255.
+// (legacy docs/re/DECORATIONS.md 2.3 step 4). Components are clamped to 0..255.
 constexpr uint32_t pack_fow_color(uint32_t c1, uint32_t c2, uint32_t c3, uint32_t c4) {
     auto cl = [](uint32_t v) { return v > 255u ? 255u : v; };
     return (cl(c4) << 24) | (cl(c1) << 16) | (cl(c2) << 8) | cl(c3);
@@ -59,7 +59,7 @@ std::array<uint32_t, 256> fow_palette(uint32_t visible_argb, uint32_t fog_argb);
 // 239..255 -> (i - 237) * 14.17 (28 .. 255).
 const std::array<uint8_t, 256>& fow_intensity_table();
 // One cell: v = state byte, p = second-array value, frames = sim frames since the grid update
-// (0..15), regrow = grid +0x4C / 16. [H] arithmetic, [M] meaning (DECORATIONS.md 2.3).
+// (0..15), regrow = grid +0x4C / 16. [H] arithmetic, [M] meaning (legacy docs/re/DECORATIONS.md 2.3).
 uint8_t fow_state_to_intensity(uint8_t v, uint8_t p, uint32_t frames, uint32_t regrow);
 
 // FOW_TEX_U / FOW_TEX_V for a box (x0, y0)-(x1, y1): world (x, y, z, 1) -> texture (u, v), with v
@@ -106,7 +106,7 @@ public:
                       std::vector<uint8_t>* processed = nullptr);
     const std::vector<uint8_t>& texels() const { return texels_; }  // W * H * 4 bytes
     // After build_texels: alpha ramps linearly to 0 on the border over `cells` cells, so the space FOW plane has no hard
-    // box outline [port: the original's plane edge is not traced; DECORATIONS.md 2.7]. Colour and game logic are untouched.
+    // box outline [port: the original's plane edge is not traced; legacy docs/re/DECORATIONS.md 2.7]. Colour and game logic are untouched.
     void fade_texel_edges(uint32_t cells);
 
 private:

@@ -5,6 +5,7 @@
 #include "alamo/audio/decode.hpp"
 #include "alamo/core/hash.hpp"
 #include "ma_include.hpp"
+#include "memory_file.hpp"
 
 namespace alamo::audio {
 
@@ -64,11 +65,13 @@ struct Voice {
     std::shared_ptr<const PcmBuffer> pcm;
     ma_audio_buffer_ref ref{};
     bool ref_ok = false;
-    // Music/speech: owned bytes + streaming decoder.
+    // Music/speech: owned bytes + streaming decoder reading them through a bounded VFS file (decode.cpp's fuzz-hang
+    // fix; the device thread reads through `file` until ma_decoder_uninit, and the Voice never moves: unique_ptr).
     std::vector<uint8_t> bytes;
+    detail::MemoryFile file;
     ma_decoder dec{};
     bool dec_ok = false;
-    bool paused = false;  // aud2 t04: held by pause() (ma_sound_stop keeps the cursor)
+    bool paused = false;  // held by pause() (ma_sound_stop keeps the cursor)
 
     Voice() = default;
     Voice(const Voice&) = delete;
@@ -171,8 +174,9 @@ bool MiniaudioBackend::start(uint32_t voice, const SampleRef& sample, const Voic
             im.error = "missing stream " + sample.file;
             return false;
         }
-        ma_decoder_config dc = ma_decoder_config_init(ma_format_f32, 0, 0);
-        if (ma_decoder_init_memory(v->bytes.data(), v->bytes.size(), &dc, &v->dec) != MA_SUCCESS) {
+        v->file.bytes = v->bytes;
+        const ma_decoder_config dc = ma_decoder_config_init(ma_format_f32, 0, 0);
+        if (detail::init_decoder(v->file, dc, v->dec) != MA_SUCCESS) {
             im.error = "cannot decode " + sample.file;
             return false;
         }

@@ -38,7 +38,7 @@ import os
 import re
 import sys
 
-# The parsers (trace / queue / Lua / CRC / AI log) live in tools/parity/trace_parsers.py (ref3 t02); the names stay
+# The parsers (trace / queue / Lua / CRC / AI log) live in tools/parity/trace_parsers.py; the names stay
 # importable from here for the kit's scripts.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "parity"))
 from trace_parsers import (  # noqa: E402,F401
@@ -99,7 +99,7 @@ def cmp_rng(ref, port):
     return Result("rng_draws", "DIVERGES", first, first_detail + "; " + detail, "engine/galactic + engine/ai (draw order)")
 
 
-PORT_FIRST_CYCLE_FRAME = 0   # engine/galactic: the frame-0 cycle is bookkeeping only (GalacticSim::start, q2f t02), first payment 1350
+PORT_FIRST_CYCLE_FRAME = 0   # engine/galactic: the frame-0 cycle is bookkeeping only (GalacticSim::start), first payment 1350
 PORT_CYCLE_PERIOD = 1350     # econ::fiscal_period_frames(45 s)
 
 

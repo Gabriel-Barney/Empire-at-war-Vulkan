@@ -1,5 +1,5 @@
 // Object contents lists (obj +0xF8 -> list) and in-battle tactical production (player +0x3A0 build manager) for the
-// skirmish station upgrade, docs/re/STATION_HANGARS_SOUND.md §1.1 / §1.2 steps 5, 7, 8.
+// skirmish station upgrade, legacy docs/re/STATION_HANGARS_SOUND.md §1.1 / §1.2 steps 5, 7, 8.
 //
 // ContentsSystem: per container, the contained objects in list order (DUMMY_UPGRADE objects such as the
 // *_Starbase_Upgrade objects, Enhanced_Shielding / Improved_Weapons dummies, garrisoned units). The parent of an
@@ -125,7 +125,7 @@ public:
     uint32_t count_type(int32_t player, int32_t type) const;
     // Orders queued or in progress in `player`'s queue `q` (the human Max_Build_Queue test).
     uint32_t count_queue(int32_t player, uint8_t q) const;
-    // mcx4 t04: builds of `type` that `player` completed in this battle (completion 0x498f70 adds 1 to the player's lifetime
+    // builds of `type` that `player` completed in this battle (completion 0x498f70 adds 1 to the player's lifetime
     // count, 0x2821b0, before the builder is looked at). The host adds the galactic count for the lifetime build limits.
     uint32_t built_count(int32_t player, int32_t type) const;
 

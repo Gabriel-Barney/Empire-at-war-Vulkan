@@ -60,7 +60,7 @@ uint32_t radial_wipe(const HudQuad& q, float fill, HudVertex (&out)[11]) {
         out[3] = corner(q, 0, 1);
         return 4;
     }
-    // cu9h t03: the fan covers the last `fill` % of the clock, i.e. from (100 - fill) % clockwise to 12 o'clock.
+    // the fan covers the last `fill` % of the clock, i.e. from (100 - fill) % clockwise to 12 o'clock.
     constexpr float kTwoPi = 6.28318530717958647692f;
     const float gone = 100.0f - fill;  // the part already wiped away, from 12 o'clock clockwise
     uint32_t n = 0;

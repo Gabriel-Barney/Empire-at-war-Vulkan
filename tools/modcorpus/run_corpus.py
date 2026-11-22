@@ -459,7 +459,7 @@ def md_escape(s: str) -> str:
 def matrix_md(matrix: dict) -> str:
     lines = [f"Sweep `{matrix['date']}` (`tools/modcorpus/run_corpus.py`; build `{matrix['build']}` from `{matrix['build_dir']}`, "
              f"stages {', '.join(matrix['stages'])}{', ASan' if matrix.get('asan') else ''}; per-setup results in "
-             f"`{matrix.get('out', 'logs/modcorpus/' + matrix['date'])}/`). Grades: `docs/MOD_COMPAT_DESIGN.md` §1.3, rules in `tools/modcorpus/grade.py`.",
+             f"`{matrix.get('out', 'logs/modcorpus/' + matrix['date'])}/`). Grades: `docs/MODS.md` 'Compatibility grades', rules in `tools/modcorpus/grade.py`.",
              "",
              "| Setup | Stack | Grade | First blocker | Space skirmish | Land skirmish | Galactic | Smokes |",
              "|---|---|---|---|---|---|---|---|"]

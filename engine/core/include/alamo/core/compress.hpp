@@ -16,7 +16,7 @@
 //     bit n - 1 of v, followed by the low n - 1 bits of v (extra bits, LSB-first).
 //
 // Determinism: the output is a pure function of the input bytes (integer arithmetic, fixed tie-breaks, positions
-// never addresses, single-threaded), so MSVC / clang builds and every thread count produce identical bytes.
+// never addresses, single-threaded), so every build and thread count produces identical bytes.
 // Robustness: lz_decompress validates everything (code tables, symbols, distances, sizes, the end padding) and never
 // reads or writes out of bounds, whatever the input.
 #pragma once

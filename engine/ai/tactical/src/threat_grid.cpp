@@ -573,7 +573,7 @@ float TacticalPerceptionGrid::cells_danger(const PerceptionWorld& w, int32_t pla
 }
 
 void TacticalPerceptionGrid::hash(StateHasher& h) const {
-    // OPT3 t09: the fields are gathered into one contiguous buffer (their little-endian bytes, in the order the typed
+    // the fields are gathered into one contiguous buffer (their little-endian bytes, in the order the typed
     // feeds had) and hashed with one bytes() call: the same byte stream and digest, without a feed per field.
     thread_local std::vector<unsigned char> buf;
     buf.clear();

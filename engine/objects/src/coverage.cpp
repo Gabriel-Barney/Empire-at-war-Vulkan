@@ -273,7 +273,7 @@ std::string format_coverage(const CoverageReport& r, const ObjectTypeDatabase& d
 
     o += format("\n## Behavior names (%zu distinct): known %u, unknown %u (ignored by the engine); type ids used %u / %u\n",
                 r.behaviors.size(), r.behaviors_known, r.behaviors_unknown, r.behavior_ids_used, kBehaviorTypeCount - 1);
-    o += "   (XML name -> runtime behaviour type id: docs/re/OBJECT_RUNTIME.md section 4.3)\n\n";
+    o += "   (XML name -> runtime behaviour type id: legacy docs/re/OBJECT_RUNTIME.md section 4.3)\n\n";
     {
         std::vector<const BehaviorCoverage*> bs;
         for (const BehaviorCoverage& b : r.behaviors) bs.push_back(&b);

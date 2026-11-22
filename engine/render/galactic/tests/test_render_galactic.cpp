@@ -113,7 +113,7 @@ static void test_r2_records() {
     const render::RouteLineSettings& neutral = s.settings[render::kRouteNeutral];
     CHECK(near(neutral.zoomed_out.x, 0.5f) && near(neutral.width, 0.0f) && neutral.render_mode == "ALPHA");
     CHECK(near(s.color(render::RouteClass::Enemy).x, 225 / 255.0f) && near(s.width(render::RouteClass::Corrupt), 3.0f));  // built-in
-    std::vector<uint8_t> gc_bytes;  // cu5 t04: the loaders take the parsed <GameConstants> root
+    std::vector<uint8_t> gc_bytes;  // the loaders take the parsed <GameConstants> root
     CHECK(mf.read("Data\\XML\\GameConstants.xml", gc_bytes));
     const data::XmlDocument gc_doc = data::XmlDocument::parse(gc_bytes, "GameConstants.xml");
     const render::GalacticLightSettings ls = render::load_galactic_light_settings(gc_doc.root());
@@ -123,7 +123,7 @@ static void test_r2_records() {
     CHECK(near(out.sun.intensity, 0.5f) && near(in.sun.intensity, 0.8f) && near(out.ambient.x, 0.05f) && out.fill[0].intensity == 0.0f &&
           out.fill[1].intensity == 0.0f);
     CHECK(near(out.sun.direction.x, d.x) && near(out.sun.direction.y, d.y) && near(out.sun.direction.z, d.z));
-    // R2 t03: halfway through the zoom (the camera's zoom blend) intensity and angles are halfway; the blend is clamped.
+    // halfway through the zoom (the camera's zoom blend) intensity and angles are halfway; the blend is clamped.
     {
         const render::Lighting mid = render::galactic_lighting(ls, 0.5f);
         const assets::Float3 dm = render::light_direction(135.0f * 3.14159265f / 180.0f, 20.0f * 3.14159265f / 180.0f);
@@ -138,7 +138,7 @@ static void test_r2_records() {
         CHECK(near(fo.sun.direction.x, std::sin(a) * std::cos(e)) && near(fo.sun.direction.y, -std::cos(a) * std::cos(e)) &&
               near(fo.sun.direction.z, std::sin(e)) && near(fo.sun.intensity, 0.5f));
     }
-    // R2 t01: faction colour table (Color / Display_Font_Color / Big_Fleet_Color; map vs text colour lookups).
+    // faction colour table (Color / Display_Font_Color / Big_Fleet_Color; map vs text colour lookups).
     {
         MemFiles ff;
         ff.files["Data\\XML\\FactionFiles.xml"] = "<Factions><File>Factions.xml</File></Factions>";
@@ -272,7 +272,7 @@ struct RunResult {
     CrcLog log;
     uint64_t state = 0, orders = 0, boarded = 0;
     uint32_t max_moving = 0, owner_changes = 0, arrivals = 0;
-    uint32_t slot_checked = 0, slot_mismatch = 0, slotted = 0;  // R2 t01: snapshot slot vs FleetState::slot
+    uint32_t slot_checked = 0, slot_mismatch = 0, slotted = 0;  // snapshot slot vs FleetState::slot
     size_t fleets = 0;
     render::GalacticViewStats last;
     std::shared_ptr<const render::GalacticSnapshot> snap;
@@ -313,7 +313,7 @@ static RunResult run(const render::GalacticWorld& w, const RunSpec& spec) {
                                                            spec.serial_snapshot ? serial_for : jobs::make_parallel_for(js));
         CHECK(got);
         if (spec.digests) spec.digests->push_back(snap->digest());
-        // R2 t01: the snapshot carries the sim's own orbit slot (FleetState::slot; -1 in transit), the one the HUD draws.
+        // the snapshot carries the sim's own orbit slot (FleetState::slot; -1 in transit), the one the HUD draws.
         for (const render::GalacticFleetSnap& f : snap->fleets) {
             const auto& sf = s.sim()->fleets()[f.index];
             const int8_t want = sf.moving ? static_cast<int8_t>(-1) : sf.slot;
@@ -545,10 +545,10 @@ static void test_synthetic(const render::GalacticWorld& w) {
     CHECK(st.planets == 12 && st.background == 1 && st.routes == 17 && st.route_sparks >= 1 && st.route_sparks < st.routes && st.rings >= 6 &&
           st.starbases >= 1 && st.no_model == 0);
     // GALAXY_MAP_PRESENTATION §2.1: only fleets in transit are drawn; orbiting ones are counted, not drawn.
-    CHECK(b.snap && st.fleets + st.hidden_fleets + st.orbit_fleets + st.fogged_fleets == b.snap->fleets.size());  // mcx4 t14: + hidden
+    CHECK(b.snap && st.fleets + st.hidden_fleets + st.orbit_fleets + st.fogged_fleets == b.snap->fleets.size());  // + hidden
     if (b.snap) {
         uint32_t transit = 0;
-        for (const auto& f : b.snap->fleets)  // mcx4 t14: a transit fleet the local vote hides is not drawn
+        for (const auto& f : b.snap->fleets)  // a transit fleet the local vote hides is not drawn
             transit += render::GalacticSceneBuilder::fleet_in_transit(f, b.snap->planets.size()) && !(f.flags & render::kGalFleetHidden) ? 1u : 0u;
         CHECK(st.fleets == transit && st.selection == 0);
     }
@@ -833,7 +833,7 @@ static void test_fleets_and_selection(const render::GalacticWorld& w) {
     // QA D6: rings, selection and fleet lines are gone from f = 0.25 on (planets and fleets stay), half at f = 0.125. t39:
     // the route stays to f = 1 (FIXPASS_GALACTIC §3.1) in Color_Zoomed_In; only its sparkle goes.
     {
-        {  // mcx4 t14 (docs/re/MCX4_T14_RE_ANSWERS.md): GUI_Cycle_Speed / GUI_Darken_Level colour cycle, mode 4
+        {  // mcx4 t14 (legacy docs/re/MCX4_T14_RE_ANSWERS.md): GUI_Cycle_Speed / GUI_Darken_Level colour cycle, mode 4
             // ledger: verifies GameConstants.GUI_Cycle_Speed
             // ledger: verifies GameConstants.GUI_Darken_Level
             using B = render::GalacticSceneBuilder;
@@ -895,7 +895,7 @@ static void test_fleets_and_selection(const render::GalacticWorld& w) {
             o.build(cf, models, ofg, obg, &os);
             CHECK(os.corruption_paths == 1);
         }
-        // ui4 t06: fleet drag preview segments (GALAXY_MAP_PRESENTATION §2.2): one ribbon each, grey tint, width 2 x the
+        // fleet drag preview segments (GALAXY_MAP_PRESENTATION §2.2): one ribbon each, grey tint, width 2 x the
         // corruption width scale; cleared by an empty list.
         {
             const Vec3 pa = fr.planets[0].position, pb = fr.planets[1].position;
@@ -967,7 +967,7 @@ static void test_fleets_and_selection(const render::GalacticWorld& w) {
     render::GalacticSnapshot snap;
     render::build_galactic_snapshot(gs, 0, types, pal, snap);
     CHECK(snap.find_fleet(fid) && !(snap.find_fleet(fid)->flags & render::kGalFleetStealthed));
-    // mcx4 t14: the hidden flag follows GalacticSim::fleet_visible_to_local for every fleet
+    // the hidden flag follows GalacticSim::fleet_visible_to_local for every fleet
     for (const render::GalacticFleetSnap& f : snap.fleets)
         CHECK(((f.flags & render::kGalFleetHidden) != 0) == !gs.fleet_visible_to_local(f.index));
     std::vector<objects::ObjectHandle> ships;
@@ -1117,7 +1117,7 @@ static void test_gpu(const render::GalacticWorld& w, const std::string& src_dir)
                     st.sky_draws, lit);
         CHECK(st.draws >= 40 && st.sky_draws >= 1 && lit > 2000);
         const std::vector<uint8_t> rgba(px, px + static_cast<size_t>(o.w) * o.h * 4);
-        const std::string png = src_dir + "/logs/render_galactic_synthetic_test.png";
+        const std::string png = ::alamo::test::artifact_dir() + "/render_galactic_synthetic_test.png";
         CHECK(render::write_png_rgba(png, o.w, o.h, rgba));
         std::printf("wrote %s\n", png.c_str());
         g.ring.wait_idle();
@@ -1330,7 +1330,7 @@ static void test_planet_portrait(const std::string& src_dir) {
             if (wants[i].png) {
                 CHECK(centre_alpha == 64u * 64u && centre_opaque > 3000 && centre_lit > 3000 && corner_alpha == 0 && border_alpha < 32 &&
                       dark_alpha == 0);
-                const std::string png = src_dir + "/logs/render_planet_portrait_" + wants[i].png + ".png";
+                const std::string png = ::alamo::test::artifact_dir() + "/render_planet_portrait_" + wants[i].png + ".png";
                 CHECK(render::write_png_rgba(png, n, n, tex->data));
                 std::printf("wrote %s\n", png.c_str());
             }

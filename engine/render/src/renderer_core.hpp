@@ -1,5 +1,5 @@
 // alamo_render - the renderer's implementation behind the public Renderer (alamo/render/renderer.hpp). Not part of the
-// public API (REF3 t07): engine/render's own sources, its tests and the alamo_render tool app include it (target
+// public API: engine/render's own sources, its tests and the alamo_render tool app include it (target
 // alamo_render_internal); every other module draws through Renderer. Renderer forwards each public call to the
 // RendererCore it owns (src/renderer_api.cpp); renderer_core() below reaches the core of a Renderer.
 //
@@ -73,7 +73,7 @@ public:
     // the first draw()/render() of a later frame after an idle wait. Old samplers stay alive in the sampler cache.
     void set_anisotropy(uint32_t level) { aniso_request_ = level; }
     uint32_t anisotropy() const;  // the effective level (0 = off)
-    // [port] Texture detail (the original's "texture reduction", RENDER.md 6): the number of top mip levels the scene's
+    // [port] Texture detail (the original's "texture reduction", legacy docs/re/RENDER.md 6): the number of top mip levels the scene's
     // samplers skip (0..3, 0 = off: the default, every sampler keeps its state). It travels with the anisotropy setting:
     // same latch and same sampler set (meshes, terrain, water, decorations with linear minification and mips; never the
     // HUD, post or prim samplers). A texture with fewer levels samples its last one.
@@ -109,7 +109,7 @@ public:
     // image, SceneTexture, DistortionTexture, 1/4 bloom pair) and is copied into target.color at the
     // end (target.depth is not used). `sky`: background objects (TEE 19/1A skydomes) drawn first with
     // a camera-relative transform (translation = eye) and the background camera (near 10, far 100000),
-    // then depth is cleared (RENDER.md 1.2).
+    // then depth is cleared (legacy docs/re/RENDER.md 1.2).
     bool render(rhi::Frame& frame, VkCommandBuffer primary, const PassTarget& target, const ViewMatrices& view,
                 std::span<const Instance> instances, DrawMode mode, const RecordOptions& opts, DrawStats* stats = nullptr,
                 DrawTiming* timing = nullptr, std::span<const Instance> sky = {});
@@ -120,7 +120,7 @@ public:
         world_ = w;
         reset_world_constants();
     }
-    // Object distance fade (TacticalCameras.xml Object_Fade_Begin / End, RENDER.md 3.4): DISTANCE_FADE_VALS
+    // Object distance fade (TacticalCameras.xml Object_Fade_Begin / End, legacy docs/re/RENDER.md 3.4): DISTANCE_FADE_VALS
     // in the FOG_VALS form, and instances entirely beyond `end` (view depth) are culled. end <= 0: off.
     void set_object_fade(float begin, float end) {
         fade_begin_ = begin;
@@ -150,7 +150,7 @@ public:
     // it is off.
     bool xess_supported();
     std::string upscaler_status(Upscaler u = Upscaler::Fsr) const;
-    // Laser projectiles (lasers.hpp, PROJECTILE_NEBULA_DRAW.md 1): init_lasers loads W_Laser_Pill.tga /
+    // Laser projectiles (lasers.hpp, legacy docs/re/PROJECTILE_NEBULA_DRAW.md 1): init_lasers loads W_Laser_Pill.tga /
     // p_particle_master.tga through `textures` and Engine\PrimAdditive; set_lasers gives the frame's lasers (copied),
     // drawn by render() in the Transparent bucket after its mesh items (and the hook's transparent draws) with the frame's
     // camera. Main scene only; no effect without init_lasers.
@@ -161,7 +161,7 @@ public:
     }
     bool lasers_ready() const;  // effect, pipeline inputs and both textures resident
     const LaserGeometry& last_laser_geometry() const { return laser_geo_; }
-    // Ability beams (beams.hpp, ABILITY_VISUALS.md 2 / 4): init_beams loads Engine\PrimAdditive and the textures on demand
+    // Ability beams (beams.hpp, legacy docs/re/ABILITY_VISUALS.md 2 / 4): init_beams loads Engine\PrimAdditive and the textures on demand
     // (w_galaxy_dot.tga, lightning_default.tga, each beam's ribbon texture) through `textures`; `lightning` (optional,
     // copied) = the LightningEffectTypes.xml effects (default: the shipped Tractor_Beam / Piet_Energy_Weapon). set_beams
     // gives the frame's beams (world endpoints) and the sim tick the frame shows: the per-beam animation (scroll, dots,
@@ -207,7 +207,7 @@ public:
     void wait_translations();
     using TranslationStats = Renderer::TranslationStats;
     TranslationStats translation_stats() const;
-    // Shader issues met so far (docs/MODS.md shader section): desc.effects->issues() plus one TranslateFailed
+    // Shader issues met so far (docs/MODS.md "Effects and shaders in mods"): desc.effects->issues() plus one TranslateFailed
     // per failed translation job (effect, path, translator / DXC message; the submesh draws unlit). Sorted by
     // (effect, kind); a load report or debug overlay lists them. Thread-safe.
     std::vector<materials::ShaderIssue> shader_issues() const;
@@ -254,7 +254,7 @@ private:
     const SceneLightConstants& scene_lights();
     struct SlcCache {
         bool valid = false;
-        DirLight sun, fill[2], flash;  // vis1 t01: the lightning flash is part of the SH too
+        DirLight sun, fill[2], flash;  // the lightning flash is part of the SH too
         assets::Float3 ambient{0, 0, 0};
         SceneLightConstants slc;
     };
@@ -384,7 +384,7 @@ private:
     bool set_msaa(uint32_t samples);  // rp_main_ / unlit_ms_ / scene_ms for `samples` (GPU idle when it changes)
     bool external_ = false;                           // draw(): caller's attachment formats
     VkPipeline unlit_int_[2][3] = {};
-    rhi::Buffer quad_vb_;                             // 6 FLOAT2 vertices at +-1.005 (TERRAIN_WATER_POST.md 4.2)
+    rhi::Buffer quad_vb_;                             // 6 FLOAT2 vertices at +-1.005 (legacy docs/re/TERRAIN_WATER_POST.md 4.2)
     rhi::Buffer prim_vb_;                             // per frame slot: 6 pre-lit prim vertices (stencil darken)
     rhi::Image white_3d_;
     std::shared_ptr<const materials::MaterialEffect> fx_post_[5];  // darken, darken-to-alpha, final blur, bloom, heat

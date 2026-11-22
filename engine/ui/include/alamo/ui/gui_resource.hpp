@@ -1,7 +1,7 @@
-// P4 GUI dialog data (docs/re/UI.md §3.1-3.4): the three files TheGUIDialogManager reads at boot.
+// P4 GUI dialog data (legacy docs/re/UI.md §3.1-3.4): the three files TheGUIDialogManager reads at boot.
 //   * Data\Resources\GUIDialog\Resource.h   -> ResourceIds (#define IDD_* / IDC_* numeric ids)
 //   * Data\Resources\GUIDialog\GUIDialogs.rc -> DialogScript: one RcDialog per DIALOGEX block (FoC 1.121 ships 111;
-//     UI.md's "117" counts differently), controls with positions / sizes in dialog units, style tokens, captions
+//     legacy docs/re/UI.md's "117" counts differently), controls with positions / sizes in dialog units, style tokens, captions
 //     (MasterTextFile keys or runtime placeholders). The original parses the script text itself (no .rc compile).
 //   * Data\XML\GUIDialogs.xml -> GuiSkin: <Textures> (Default gadget skins + per IDD_* / IDC_* overrides, "none" =
 //     no texture), <Fonts> (Default per gadget kind + per IDC_* + nested per IDD_*), <Tooltips> (IDC_* -> TextID).
@@ -175,7 +175,7 @@ struct GuiData {
     ResourceIds ids;
     GuiSkin skin;
 };
-// `failed` (optional) receives which of the two required files did not load (mcx2 t07: the caller can retry with the
+// `failed` (optional) receives which of the two required files did not load (the caller can retry with the
 // next layer's copy): kGuiRcFailed for GUIDialogs.rc, kGuiXmlFailed for GUIDialogs.xml.
 inline constexpr uint32_t kGuiRcFailed = 1u, kGuiXmlFailed = 2u;
 bool load_gui_data(const FileProvider& files, GuiData& out, std::string* error = nullptr, uint32_t* failed = nullptr);

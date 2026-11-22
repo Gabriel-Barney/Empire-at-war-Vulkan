@@ -10,7 +10,7 @@ void App::show_menu_after_intro() {
     open_main_menu();
 }
 
-// --- OI host: the main-menu attract demo (attract_mode.hpp, docs/re/MAIN_MENU_BACKGROUND.md) ---
+// --- OI host: the main-menu attract demo (attract_mode.hpp, legacy docs/re/MAIN_MENU_BACKGROUND.md) ---
 // 0xc58e0: the main menu opens - with Main_Menu_Demo_Attract_Mode (or --attract) the demo starts now, or the running one
 // gets its map-cycle check. Scripted runs start the demo from their own steps (their frame-driven runs stay machine
 // independent and their sessions stay the scripted ones).
@@ -53,11 +53,11 @@ bool App::attract_step(const ui::InputFrame& raw) {
 // its header names the map ([port] scan, attract_rec_map) and the same live demo runs there; no map path -> the entry is
 // skipped with a warning. [port] fallback: the first space skirmish map when the entry does not load as a space map.
 bool App::start_attract_map() {
-    SessionChoice c;  // ref2 t03: make_session_spec's Attract kind (seed + start count, frames past the cycle, no end hold)
+    SessionChoice c;  // make_session_spec's Attract kind (seed + start count, frames past the cycle, no end hold)
     c.kind = GameKind::Attract;
     c.attract_start = attract_.starts();
     c.attract_cycle_seconds = attract_.cycle_delay();
-    // modc t20: no slot factions - the demo's sides are faction indices (GameSession, 0x22f10); empty slots take the data's
+    // no slot factions - the demo's sides are faction indices (GameSession, 0x22f10); empty slots take the data's
     // default_skirmish_faction for the scaffolding galaxy.
     std::vector<std::string> maps;
     std::string entry = attract_.map();
@@ -96,7 +96,7 @@ void App::stop_attract() {
 }
 
 // [port] The original films the demo with the in-game cinematic camera ("interesting object" shots, combat shots first;
-// shot logic untraced, MAIN_MENU_BACKGROUND.md §3.1 step 8; a code-driven camera, no camera data in the map or the demo's
+// shot logic untraced, legacy docs/re/MAIN_MENU_BACKGROUND.md §3.1 step 8; a code-driven camera, no camera data in the map or the demo's
 // Lua). Stand-in [M]: 8 s shots, each on the next live combat unit (ascending id, cycling); the camera keeps a side view of
 // that hull (attract_mode.hpp demo_shot_yaw_deg: playtest 3 t14, hulls were seen nose-on), pitch 35, the tactical zoom stays.
 // Presentation only (wall time).
@@ -198,7 +198,7 @@ void App::audio_flags() {
     audio_.set_flags(modal, modal && paused_ && session_ != nullptr, attract_.running());
 }
 
-// The Lua presentation's camera is cinematic (listener at the camera, AUDIO.md §1.2).
+// The Lua presentation's camera is cinematic (listener at the camera, legacy docs/re/AUDIO.md §1.2).
 bool App::presentation_cinematic() const {
 #ifdef ALAMO_SIM_HAVE_STORY
     sim::StorySession* story = session_ ? session_->host().story() : nullptr;  // unique_ptr: non-const pointee
@@ -236,8 +236,8 @@ void App::stop_movies() {
 }
 
 void App::movie_step() {
-    // Movies.xml Cannot_Skip: the skip keys do nothing for that movie. UI.md §4.2: while a movie plays only Esc / Space skip
-    // (UI5 t07: a mouse click does not).
+    // Movies.xml Cannot_Skip: the skip keys do nothing for that movie. legacy docs/re/UI.md §4.2: while a movie plays only Esc / Space skip
+    // (a mouse click does not).
     const bool skip = !full_movie_.cannot_skip() && (input_.key_pressed(ui::vk::kEscape) || input_.key_pressed(ui::vk::kSpace));
     const bool playing = full_movie_.update(dt_, gpu_.hud, kMoviePage);
     if (playing && !skip) return;
@@ -255,7 +255,7 @@ void App::lua_presentation() {
     sim::StorySession* story = session_ ? session_->host().story() : nullptr;
     lua::PresentationLog* log = story ? story->presentation() : nullptr;
     if (!log) return;
-    script_cinematic_frame();  // mcx6 t05: a new battle forgets the last one's cinematic state
+    script_cinematic_frame();  // a new battle forgets the last one's cinematic state
     for (const lua::PresentationEvent& e : log->events()) {
         if (e.seq < lua_seq_) continue;
         lua_seq_ = e.seq + 1;
@@ -271,12 +271,12 @@ void App::lua_presentation() {
         } else if (e.op == lua::PresentationOp::GameMessage || e.op == lua::PresentationOp::RemoveAllText ||
                    e.op == lua::PresentationOp::ObjectHighlight || e.op == lua::PresentationOp::ObjectHighlightSmall) {
             story_present_lua(e);  // ui2
-        } else if (e.op == lua::PresentationOp::ActivateRetryDialog) {  // mission lost: IDD_RETRY_DIALOG (ui1 t05)
-            // STY1 t07: Retry ("Load autosave") loads [AutoSave], written when the battle began (handle_screen_actions).
+        } else if (e.op == lua::PresentationOp::ActivateRetryDialog) {  // mission lost: IDD_RETRY_DIALOG
+            // Retry ("Load autosave") loads [AutoSave], written when the battle began (handle_screen_actions).
             if (screens_.show_retry()) ++retry_boxes_;
         }
-        story_script_event(e);  // ui2 t03 / t04 / t05: fades, bars, the script cinematic camera, the RTS camera moves
-        if (session_->battle()) {  // story t13: the battle's letterbox overlay and the P11 hand-over (story_ui.hpp)
+        story_script_event(e);  // fades, bars, the script cinematic camera, the RTS camera moves
+        if (session_->battle()) {  // the battle's letterbox overlay and the P11 hand-over (story_ui.hpp)
             using Op = lua::PresentationOp;
             if (e.op == Op::LetterBoxIn || e.op == Op::LetterBoxOn) linked_ui_.script_letterbox(true);
             else if (e.op == Op::LetterBoxOut || e.op == Op::LetterBoxOff) linked_ui_.script_letterbox(false);
@@ -286,7 +286,7 @@ void App::lua_presentation() {
         }
     }
     audio_.apply_presentation(log->events(), &lua_audio_seq_);
-    {  // mcx6 t05: Cinematic_Hyperspace_In arrival sounds due this frame (0x5c9a80 timer 45: delay + 20 frames after the call)
+    {  // Cinematic_Hyperspace_In arrival sounds due this frame (0x5c9a80 timer 45: delay + 20 frames after the call)
         const sim::TacticalBattle* b = battle();
         const sim::TacticalMode* tm = session_->host().modes().top_tactical();
         if (b && tm) {
@@ -320,7 +320,7 @@ void App::lua_presentation() {
 #endif
 }
 #ifdef ALAMO_SIM_HAVE_STORY
-// mcx6 t05 (docs/re/MCX6_T05_CINEMATIC_BINDINGS.md): a new battle (another TacticalBattle, or its frame went back: a load)
+// mcx6 t05 (legacy docs/re/MCX6_T05_CINEMATIC_BINDINGS.md): a new battle (another TacticalBattle, or its frame went back: a load)
 // starts with no cinematic arrival or cleanup state.
 void App::script_cinematic_frame() {
     const sim::TacticalBattle* b = battle();
@@ -330,7 +330,7 @@ void App::script_cinematic_frame() {
     cine_frame_ = b->frame();
 }
 
-// mcx6 t05: one Lua presentation event of the running battle (read between ticks; presentation only, rule 3).
+// one Lua presentation event of the running battle (read between ticks; presentation only, rule 3).
 //   Cinematic_Hyperspace_In(delay)  space battles (0x574e50 is space-only): the model hidden until delay + 10 frames, the
 //                                   arrival sound at delay + 20 (lua_presentation, take_arrival_sfx). [port] The ship is
 //                                   not moved in from its hyperspace start point (the port's reinforcement arrivals are
@@ -376,7 +376,7 @@ void App::script_cinematic_event(const lua::PresentationEvent& e) {
 // order, then the tactical set; firing order within a set): START_MOVIE (Reward_Param1) -> the full-screen movie slot,
 // whose end raises STORY_MOVIE_DONE with the movie name (a movie that cannot be opened ends at once [port]: MOVIE_DONE has
 // no timeout); MULTIMEDIA (Reward_Param8) -> GameAudioHost::speech, whose end (AudioSystem::on_speech_done) raises
-// STORY_SPEECH_DONE (a speech that cannot play has no end: its 60 s Timeout fires nothing, STORY.md §8 item 4); MULTIMEDIA Reward_Param9 *_Loop -> the advisor slot
+// STORY_SPEECH_DONE (a speech that cannot play has no end: its 60 s Timeout fires nothing, legacy docs/re/STORY.md §8 item 4); MULTIMEDIA Reward_Param9 *_Loop -> the advisor slot
 // (Movie_galactic / Movie_tactical) until STOP_COMMANDBAR_MOVIE (FIXPASS_GALACTIC §4.2). Presentation only: the sim sees the
 // ends through the recorded story UI commands. ui2: the presentation rewards (text, pointers, locks, camera, hints) go through
 // story_present_reward; any MULTIMEDIA / SPEECH / COMMANDBAR_MOVIE movie or speech is a cue here.
@@ -387,7 +387,7 @@ void App::story_reward_step() {
         reward_cursor_.clear();
         reward_tac_model_ = nullptr;
         reward_tac_cursor_ = 0;
-        if (story_present_story_) {  // ui2: the story ended with its session: the presenter's text, locks and pointers go
+        if (story_present_story_) {  // the story ended with its session: the presenter's text, locks and pointers go
             story_present_.reset();
             story_present_story_ = nullptr;
         }
@@ -399,12 +399,12 @@ void App::story_reward_step() {
         load_story_campaign(*lc);
         return;
     }
-    if (story_present_story_ != story) {  // ui2: a new story session
+    if (story_present_story_ != story) {  // a new story session
         story_present_.reset();
         story_present_setup();
         story_present_story_ = story;
         // A loaded save has its fired rewards already. Retail saves the locks, the advisor switch and the screen text with the
-        // HUD; ref4 t01: the port saves the presenter in the game chunk (v2) and reads it back here. A save without it (v1)
+        // HUD; the port saves the presenter in the game chunk (v2) and reads it back here. A save without it (v1)
         // feeds the rewards whose state lasts again (StoryPresenter::is_lasting_reward); text, pointers, forced clicks, speech
         // and camera moves are not replayed then [port].
         const bool restored = story_present_restore();
@@ -433,8 +433,8 @@ void App::story_reward_step() {
         if (cursor > fired.size()) cursor = fired.size();
         for (; cursor < fired.size(); ++cursor) {
             const lua::StoryFired& f = fired[cursor];
-            story_present_reward(f, mode);  // ui2: the presentation rewards (text, pointers, locks, camera, advisor)
-            if (!story_reward_media_handles(f.reward_type)) continue;  // ref5 t02: the media rewards' own table
+            story_present_reward(f, mode);  // the presentation rewards (text, pointers, locks, camera, advisor)
+            if (!story_reward_media_handles(f.reward_type)) continue;  // the media rewards' own table
             std::vector<std::string> params;
             for (const lua::StoryParam& p : f.reward_params) params.push_back(p.text);
             story_reward_media(f.reward_type, params, cues);
@@ -465,7 +465,7 @@ void App::story_reward_step() {
             ++reward_speeches_;
             continue;
         }
-        if (c.kind == StoryMediaCue::Kind::Sfx) {  // ref5 t02: the SFX reward (STORY_REWARDS_GALACTIC §1.22), 2D
+        if (c.kind == StoryMediaCue::Kind::Sfx) {  // the SFX reward (STORY_REWARDS_GALACTIC §1.22), 2D
             audio_.ui(c.name);
             continue;
         }
@@ -479,7 +479,7 @@ void App::story_reward_step() {
             if (!advisor_movie_.playing()) gpu_.hud.clear_image_page(kAdvisorPage);
             continue;
         }
-        if (story_present_.movies_disabled()) {  // ui2 t07: DISABLE_MOVIES skips START_MOVIE (5.17); MOVIE_DONE is raised at once [port]
+        if (story_present_.movies_disabled()) {  // DISABLE_MOVIES skips START_MOVIE (5.17); MOVIE_DONE is raised at once [port]
             story_ui_.movie_done(c.name);
             continue;
         }
@@ -517,9 +517,9 @@ void App::story_ui_step() {
         (void)story_ui_.take();
         return;
     }
-    // STY1 t03: retail raises "click" first thing on every left or right press in the HUD handler (there is no "right_click")
+    // retail raises "click" first thing on every left or right press in the HUD handler (there is no "right_click")
     if (input_.button(ui::Button::Left).pressed || input_.button(ui::Button::Right).pressed) story_ui_.generic("click");
-    // STY1 t03: 0x3a310 raises drag_select after a box selection that caught at least one object
+    // 0x3a310 raises drag_select after a box selection that caught at least one object
     if (screen() == Screen::Battle && input_.button(ui::Button::Left).drag_ended && !orders_.selection().empty()) story_ui_.generic("drag_select");
     if (screen() == Screen::Battle && story_ui_.battle()) story_ui_.observe_battle(orders_.selection());  // battle-store ids
     if (screen() == Screen::Galactic) {
@@ -553,7 +553,7 @@ void App::shutdown() {
     stop_movies();
     gpu_.ring.wait_idle();
     ctx_.wait_idle();
-    bscen_.gpu.shutdown();  // bm2: the benchmark's GPU timer (bench_finish normally shuts it down first)
+    bscen_.gpu.shutdown();  // the benchmark's GPU timer (bench_finish normally shuts it down first)
     if (bview_.active()) bview_.stop(gpu_);
     session_.reset();
     gview_.destroy();
@@ -614,7 +614,7 @@ bool App::start_session(const SessionSpec& spec) {
 }
 
 #ifdef ALAMO_SIM_HAVE_STORY
-// modc t45: the campaign a story LOAD_CAMPAIGN reward names replaces the running game. Retail (§2.1): the set member whose
+// the campaign a story LOAD_CAMPAIGN reward names replaces the running game. Retail (§2.1): the set member whose
 // Starting_Active_Player is faction `side` starts as a fresh game, that faction plays (the active player [M]), difficulty =
 // P3 or 1; the old game's options are kept [M]. [port] P4 (every player's tech level) is not applied (no shipped data sets it).
 // An unknown campaign leaves the game running (retail stores nothing then).
@@ -624,7 +624,7 @@ void App::load_story_campaign(const sim::StoryLoadCampaign& lc) {
         std::printf("story: LOAD_CAMPAIGN %s side %d: unable to find campaign data\n", lc.name.c_str(), lc.side);
         return;
     }
-    // ref2 t03: a fresh game of the new campaign keeps the old game's options (run options, advanced game options,
+    // a fresh game of the new campaign keeps the old game's options (run options, advanced game options,
     // InterventionsEnabled) - make_session_spec's StoryCampaign kind.
     const SessionSpec& old = session_->spec();
     SessionChoice choice;
@@ -648,25 +648,25 @@ void App::load_story_campaign(const sim::StoryLoadCampaign& lc) {
 // The presentation side of a session that just started or was loaded (session_ is set).
 void App::session_started(const std::vector<std::string>& diag) {
     const SessionSpec& spec = session_->spec();
-    session_->set_presentation_events(true);  // ref2 t02: GameAudioHost::on_events in post_tick
+    session_->set_presentation_events(true);  // GameAudioHost::on_events in post_tick
     // [port: Gabriel] a new game (or a save from before playthroughs) starts a playthrough its saves are grouped under.
     if (session_->playthrough().empty()) {
         const int64_t now = unix_now();
         session_->set_playthrough(new_playthrough_id(now), now);
     }
-    apply_gameplay_options();  // ui1 t02: the session start reset the game speed indices (MAIN_LOOP.md §1.5)
+    apply_gameplay_options();  // the session start reset the game speed indices (legacy docs/re/MAIN_LOOP.md §1.5)
     holo_.reset();
     droid_rows_.clear();
-    droid_row_colors_.clear();  // ui4 t11: the Droid Log starts empty with each session [port: not saved]
-    planet_map_open_ = false;  // ui4 t04: the planet map and its marker cache start fresh per session
+    droid_row_colors_.clear();  // the Droid Log starts empty with each session [port: not saved]
+    planet_map_open_ = false;  // the planet map and its marker cache start fresh per session
     planet_map_planet_ = 0;
     planet_map_markers_.clear();
     map_marker_sent_.clear();
     story_cursor_ = 0;
     story_ui_.reset();  // L1/S4 wave 1: a new session's UI state
     reward_cursor_.clear();  // ... and its story reward media from the start
-    story_present_story_ = nullptr;  // ui2: the presenter starts afresh (a reused story address must not keep the old locks)
-    // ref4 t01: every save carries the presenter (game chunk v2); a story session reads it back in story_reward_step, a
+    story_present_story_ = nullptr;  // the presenter starts afresh (a reused story address must not keep the old locks)
+    // every save carries the presenter (game chunk v2); a story session reads it back in story_reward_step, a
     // loaded game without a story here.
     session_->set_presentation_writer([this](ByteWriter& w) { story_present_.write(w, now_s_); });
     if (session_->loaded() && !session_->story_running()) {
@@ -717,8 +717,8 @@ void App::session_started(const std::vector<std::string>& diag) {
         audio_.music(MusicScene::Galactic, local_faction());
     } else {
         flow_.on(ScreenEvent::SkirmishStarted);  // the hidden skirmish galaxy runs until the battle is pushed
-        // QA t11: on screen before the push's blocking load; ui5 t10: not for a save taken in the battle, which comes back
-        // through begin_battle(true) with the Mission dialog (UI.md §5.1, retail 0x8dc40 clears the skirmish flag).
+        // on screen before the push's blocking load; not for a save taken in the battle, which comes back
+        // through begin_battle(true) with the Mission dialog (legacy docs/re/UI.md §5.1, retail 0x8dc40 clears the skirmish flag).
         if (!(session_->loaded() && session_->in_battle())) open_battle_load(kInvalidPlanet, !spec.skirmish.land);
     }
     std::printf("session: %s %s, local player %d (%s), galactic AI %s, story %s\n", spec.kind == SessionKind::Campaign ? "campaign" : "skirmish",
@@ -738,7 +738,7 @@ void App::end_session() {
     if (ui_.load.is_open()) ui_.load.close();
     battle_view_pending_ = false;
     load_intro_frames_ = 0;
-    if (light_loop_held()) {  // q6 t36: the HUD's Light_Loop ends with the session (light_loop_step no longer runs)
+    if (light_loop_held()) {  // the HUD's Light_Loop ends with the session (light_loop_step no longer runs)
         advisor_movie_.stop(audio_);
         gpu_.hud.clear_image_page(kAdvisorPage);
     }
@@ -750,18 +750,18 @@ void App::end_session() {
 void App::begin_battle(bool from_save) {
     const sim::TacticalBattle* b = session_->battle();
     ++battles_seen_;
-    win_banner_set_ = false;  // mcx4 t14: a new battle has no banner yet
+    win_banner_set_ = false;  // a new battle has no banner yet
     reserve_seen_ = b ? b->reserves(local_player()).size() : 0;
     capture_owner_seen_.clear();  // mcx4 t14
     pulse_activation_seen_ = 0;   // mcx4 t15
     win_banner_.clear();
     reinforce_unit_ = 0;  // no drop point pending from an earlier battle
     bombing_targeting_ = false;  // nor a bombing-run pick
-    autofire_seen_.clear();  // ui1 t02: the default autofire is sent for this battle's objects
-    sw_weapon_ = objects::kNoObjectId;  // ui1 t04: nor a space special-weapon aim
+    autofire_seen_.clear();  // the default autofire is sent for this battle's objects
+    sw_weapon_ = objects::kNoObjectId;  // nor a space special-weapon aim
     bombing_blob_.reset();
     targeting_.cancel();  // nor a targeted ability
-    reinforce_blob_.reset();  // ui3: nor a drop preview / beacon pick; tether and interface keys reset per battle [port]
+    reinforce_blob_.reset();  // nor a drop preview / beacon pick; tether and interface keys reset per battle [port]
     beacon_pick_ = false;
     camera_tether_ = false;
     cycle_unit_ = 0;
@@ -781,7 +781,7 @@ void App::begin_battle(bool from_save) {
     const bool space = tm && tm->kind() == objects::ModeKind::Space;
     const PlanetIndex planet = b ? b->request().info.planet : kInvalidPlanet;
     battle_place_ = battle_place_name(planet);
-    // ui5 t10 (UI.md §5.1 "Which dialog"): the Mission load dialogs only for a SET_TACTICAL_MAP map override or a save
+    // ui5 t10 (legacy docs/re/UI.md §5.1 "Which dialog"): the Mission load dialogs only for a SET_TACTICAL_MAP map override or a save
     // taken during the battle (when the battle's map name is not empty, as 0x8dc40 checks); LINK_TACTICAL story battles
     // take the Battle pair like any other.
     const bool story_mission = b && (b->request().story_map || (from_save && !b->request().map.empty()));
@@ -797,7 +797,7 @@ void App::begin_battle(bool from_save) {
             std::printf("battle %" PRIu64 ": story link, letterbox %s, input block %s\n", battles_seen_, lp.letterbox ? "on" : "off",
                         lp.presentation_b ? "on" : "off");
     }
-    // STY1 t07: retail writes [AutoSave] at the start of every new load that is not a save load, before the mode starts
+    // retail writes [AutoSave] at the start of every new load that is not a save load, before the mode starts
     // (campaign and skirmish; not multiplayer): here the battle that was just begun, so Retry restarts the mission.
     if (session_ && !saves_dir_.empty() && !demo_session() && session_->check_save().empty()) {
         std::string err;
@@ -805,7 +805,7 @@ void App::begin_battle(bool from_save) {
             std::fprintf(stderr, "autosave: %s\n", err.c_str());
         else ui_.front.refresh_saves();
     }
-    // QA t11: the dialog first, the blocking BattleView::start only after it has been presented (a Fight answer or a
+    // the dialog first, the blocking BattleView::start only after it has been presented (a Fight answer or a
     // skirmish start opened it even earlier, before the tactical push's own load).
     if (ui_.load.is_open()) load_intro_frames_ = 1;
     else if (!open_battle_load(planet, space, story_mission)) notes_.push_back("load screen dialog missing");
@@ -835,9 +835,9 @@ void App::start_battle_view() {
     }
     gpu_.renderer.reset_taa_history();  // a new map: nothing to reproject from
     bview_.camera().set_fov_override(tactical_fov_set_ ? camera_.tactical_fov_deg : 0.0f);  // options: tactical FOV (0 = the data's)
-    bview_.camera().set_tuning(option_tuning(bview_.camera().tuning()));  // P1_CAMERA_INPUT.md §3.1 options
+    bview_.camera().set_tuning(option_tuning(bview_.camera().tuning()));  // legacy docs/re/P1_CAMERA_INPUT.md §3.1 options
     bview_.capture(*session_);
-    {  // aud1 t05: the battle players' faction names (hyperspace arrival / exit lines)
+    {  // the battle players' faction names (hyperspace arrival / exit lines)
         std::vector<std::string> factions;
         if (const galactic::GalacticSim* g = galaxy())
             for (const auto& pl : g->players())
@@ -874,7 +874,7 @@ void App::end_battle() {
                     as.models_with_clips, as.created, as.muzzle_flashes, as.flinches, as.death_clips);
     }
 #endif
-    cinematic_reset();  // refixf t05: a shot still running when the battle ends (the hold is released before frame 765)
+    cinematic_reset();  // a shot still running when the battle ends (the hold is released before frame 765)
     linked_ui_.reset();  // story t13
     bview_.stop(gpu_);
     if (ui_.load.is_open()) ui_.load.close();
@@ -883,7 +883,7 @@ void App::end_battle() {
     if (demo_session()) return;  // OI host: no battle-end screen; the attract controller moves on (screen() stays Menu)
     // story t13 (BT §2.9.6): the battle end took the dialog-skip flag 0x140b305ed of a LINK_TACTICAL record: the dialog
     // callback 0x87770 returns without the battle-summary dialog. [M] It also sets the galactic mode's battle-end-closed flag
-    // (+0x188, STORY.md §4.1 step 6): GENERIC battle_end_closed now, as a closed screen would raise it.
+    // (+0x188, legacy docs/re/STORY.md §4.1 step 6): GENERIC battle_end_closed now, as a closed screen would raise it.
     const sim::CampaignBattles* cb = session_ ? session_->battles() : nullptr;
     if (cb && cb->linked_presentation().last_battle_skipped_dialog && session_->spec().kind != SessionKind::Skirmish) {
         show_battle_end(false);
@@ -911,6 +911,6 @@ void App::end_battle() {
     audio_.music(MusicScene::Galactic, local_faction());
 }
 
-// --- P4 host: FoC galactic special systems (docs/re/P4_SIM_SYSTEMS.md) on the presentation side ---
+// --- P4 host: FoC galactic special systems (legacy docs/re/P4_SIM_SYSTEMS.md) on the presentation side ---
 
 }  // namespace alamo_game_app

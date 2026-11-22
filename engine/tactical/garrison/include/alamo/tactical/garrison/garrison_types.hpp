@@ -1,4 +1,4 @@
-// S4 garrison / capture descriptors from the object type data (GameObjectTypes; OBJECT_TYPES.md field table).
+// S4 garrison / capture descriptors from the object type data (GameObjectTypes; legacy docs/re/OBJECT_TYPES.md field table).
 //   holder:   GARRISON_VEHICLE / GARRISON_STRUCTURE / GARRISON_HOVER behaviour, or Property_Flags CanContainGarrison;
 //             Garrison_Category (accepted), Num_Garrison_Slots, Garrison_Enter_Dist / Exit_Dist / Radius,
 //             Property_Flags GarrisonCanFire, Is_Community_Property.

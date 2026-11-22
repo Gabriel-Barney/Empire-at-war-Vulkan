@@ -1,5 +1,5 @@
 // alamo_galactic_autoresolve_parity: runs the galactic auto-resolve (auto_resolve.hpp) on battles described in a small
-// text spec, over many seeds, with the FoC rules (ALAMO_FOC_DATA), and prints every outcome. bkc1 t08 (backlog b0027):
+// text spec, over many seeds, with the FoC rules (ALAMO_FOC_DATA), and prints every outcome. bkc1 t08:
 // tools/parity/autoresolve_check.py writes the spec from tools/parity/autoresolve_refs.json (the retail outcomes) and
 // grades the printed outcomes against them (ctest parity_autoresolve).
 //

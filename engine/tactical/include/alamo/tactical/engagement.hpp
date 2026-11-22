@@ -1,4 +1,4 @@
-// ref6 t02: the engagement questions movement and combat ask about each other - hostility, attack ranges, the movement's
+// the engagement questions movement and combat ask about each other - hostility, attack ranges, the movement's
 // fire test, the turret aim point, the movement lock, combat's scan-range query and the land shield-sides test - as one
 // interface the battle host (TacticalBattle) implements once and hands to both systems (MovementSystem::set_engagement,
 // CombatSystem::set_engagement). It replaces the per-rule std::function hooks and their translating lambdas.

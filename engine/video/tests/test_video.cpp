@@ -126,7 +126,7 @@ void test_yuv() {
     check(al[3] == 10 && al[7] == 20 && al[11] == 30 && al[15] == 40, "yuv alpha plane");
 }
 
-// ui5 t12 (docs/re/AUDIO.md §3.4): caption timing - window (prev, cur], first in text-id order, duration 0 -> 120, none ->
+// ui5 t12 (legacy docs/re/AUDIO.md §3.4): caption timing - window (prev, cur], first in text-id order, duration 0 -> 120, none ->
 // next step, expiry at start + duration, a hidden ("[TBL]") caption neither shows nor replaces; Movies.xml parsing.
 void test_captions() {
     using alamo::video::CaptionTrack;
@@ -182,7 +182,7 @@ void test_captions() {
     }
     check(db.size() == 2 && db[1].text_crawl_name.empty() && db[1].text_crawl_start_frame == 0 && db[1].text_crawl_end_frame == -1,
           "no text crawl by default");
-    // storyb t13: the movie's crawl fields and StarWars3DTextCrawl.xml (English first, then the language's own fields).
+    // the movie's crawl fields and StarWars3DTextCrawl.xml (English first, then the language's own fields).
     const char* mxml = R"(<Movies><Movie Name="Intro"><Movie_File>t.bik</Movie_File><Text_Crawl_Name> UW_CRAWL </Text_Crawl_Name>
         <Text_Crawl_Start_Frame>250</Text_Crawl_Start_Frame></Movie></Movies>)";
     const std::vector<uint8_t> mb(mxml, mxml + std::strlen(mxml));
@@ -573,7 +573,7 @@ void test_real_data() {
                     alpha_open, alpha_ok);
         check(db.size() > 20 && alpha_entries > 10, "Movies.xml parsed (Alpha entries present)");
         check(alpha_open > 0 && alpha_ok == alpha_open, "every Alpha movie decodes an alpha plane");
-        {  // storyb t13: every movie's text crawl names a scroll of StarWars3DTextCrawl.xml with text and a model
+        {  // every movie's text crawl names a scroll of StarWars3DTextCrawl.xml with text and a model
             std::vector<uint8_t> cx;
             check(vfs->read("Data\\XML\\StarWars3DTextCrawl.xml", cx), "StarWars3DTextCrawl.xml reads");
             const alamo::data::XmlDocument cdoc = alamo::data::XmlDocument::parse(cx, "StarWars3DTextCrawl.xml");
@@ -625,7 +625,7 @@ void test_real_data() {
 
 }  // namespace
 
-// mcx2 t05 / t08: the port's own Bink header probe (no FFmpeg).
+// the port's own Bink header probe (no FFmpeg).
 void test_bink_header() {
     std::vector<uint8_t> h(alamo::video::kBinkHeaderBytes, 0);
     h[0] = 'B'; h[1] = 'I'; h[2] = 'K'; h[3] = 'i';

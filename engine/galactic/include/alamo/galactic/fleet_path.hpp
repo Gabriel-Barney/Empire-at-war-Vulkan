@@ -1,5 +1,5 @@
-// Fleet movement path finding (GALACTIC.md section 3, GalacticPathFinderClass::Find_Path), with
-// the open-list discipline and Edge_Cost order of docs/re/PHASE2_ANSWERS.md Q3-Q6.
+// Fleet movement path finding (legacy docs/re/GALACTIC.md section 3, GalacticPathFinderClass::Find_Path), with
+// the open-list discipline and Edge_Cost order of legacy docs/re/PHASE2_ANSWERS.md Q3-Q6.
 //
 // The search reproduces the original exactly, so paths under exact f ties are the original's:
 //   * f = g + h in float, h = planet_distance(neighbour, goal) / max_speed_factor (Q3); the start
@@ -26,7 +26,7 @@
 
 namespace alamo::galactic {
 
-// The six request flags (Path_Request_Init sets all to true). Indices match GALACTIC.md; the
+// The six request flags (Path_Request_Init sets all to true). Indices match legacy docs/re/GALACTIC.md; the
 // meanings are the corrected ones of PHASE2_ANSWERS Q5 / Q6.
 struct PathRequest {
     PlanetIndex source = kInvalidPlanet;
@@ -40,7 +40,7 @@ struct PathRequest {
 
     // Fleet orders (MovementBlockStatus move mode m). Flag 5 stays as initialised.
     static PathRequest for_fleet_move_mode(PlanetIndex src, PlanetIndex dst, int m);
-    // AI request builder (0x665160), AI mode m in 0..5 (flags per FIXPASS_GALACTIC.md §1.4).
+    // AI request builder (0x665160), AI mode m in 0..5 (flags per legacy docs/re/FIXPASS_GALACTIC.md §1.4).
     // Flag 5 stays as initialised.
     static PathRequest for_ai_mode(PlanetIndex src, PlanetIndex dst, int m);
 };

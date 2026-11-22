@@ -151,7 +151,7 @@ void test_canvas() {
         CHECK(near(cv->corners[0].x, tl.x) && near(cv->corners[2].y, br.y));
         const Vec2f p = cv->canvas_to_pixel(123.0f, -45.0f), q = cv->pixel_to_canvas(p.x, p.y);
         CHECK(near(q.x, 123.0f, 1e-2f) && near(q.y, -45.0f, 1e-2f));
-        // Three ortho cameras spanning the canvas; near/far per UI.md 2.4.
+        // Three ortho cameras spanning the canvas; near/far per legacy docs/re/UI.md 2.4.
         CHECK(near(cv->cameras[kHudCameraComponents].half_width, 0.5f * cv->width) &&
               near(cv->cameras[kHudCameraShells].half_height, 0.5f * cv->height));
         CHECK(cv->cameras[0].znear == 0.1f && cv->cameras[0].zfar == 40.0f && cv->cameras[1].znear == 0.01f &&
@@ -215,7 +215,7 @@ void test_components() {
                         real.size(), counts[1], counts[2], counts[3], counts[4], counts[5]);
             CHECK(real.size() >= 800 && counts[1] >= 18 && counts[4] >= 80);
             CHECK(real.get("st_bracket_large") && real.get("generic_flytext") && real.get("s_select_23"));  // 00..23 in FoC
-            // P2 data check (2026-10-29, docs/re/UI.md §1.4 / §6): what the shipped files settle.
+            // P2 data check (2026-10-29, legacy docs/re/UI.md §1.4 / §6): what the shipped files settle.
             // (1) Layer identity: Base_Layer spans exactly 0..10 and the tooltips (drawn on HUD layer 10) carry 10.
             int32_t max_layer = -1;
             for (const CommandBarComponent& c : real.items()) max_layer = std::max(max_layer, c.base_layer);
@@ -309,7 +309,7 @@ void test_atlas_text() {
     esc.add("TEXT_ESC", u"a\\nb");
     CHECK(*esc.find("TEXT_ESC") == u"a\\nb" && esc.text("TEXT_ESC") == u"a\\nb");
     std::vector<uint8_t> bad = make_dat(kv);
-    bad.resize(bad.size() - 3);  // the last key cut: the entries before it are kept (mcx2 t06, text_salvaged)
+    bad.resize(bad.size() - 3);  // the last key cut: the entries before it are kept (text_salvaged)
     TextDatabase e2;
     std::string why;
     CHECK(e2.parse(bad, &why) && e2.size() == kv.size() - 1 && e2.salvaged() && e2.declared() == kv.size() &&
@@ -326,7 +326,7 @@ void test_atlas_text() {
         TextDatabase ok;
         CHECK(ok.parse(make_dat(three)) && !ok.salvaged() && ok.size() == 3);
     }
-    // Retail's language from the Windows LANGID (docs/re/MCX2_T02_ASSET_SALVAGE.md 5)
+    // Retail's language from the Windows LANGID (legacy docs/re/MCX2_T02_ASSET_SALVAGE.md 5)
     CHECK(retail_language_for_langid(0x0407) == "GERMAN" && retail_language_for_langid(0x0807) == "GERMAN");
     CHECK(retail_language_for_langid(0x040C) == "FRENCH" && retail_language_for_langid(0x2C0A) == "SPANISH");
     CHECK(retail_language_for_langid(0x0419) == "RUSSIAN" && retail_language_for_langid(0x0415) == "POLISH");
@@ -426,7 +426,7 @@ void test_draw_list() {
     const float fills[] = {0.0f, 5.0f, 12.5f, 13.0f, 25.0f, 50.0f, 99.0f, 100.0f};
     const uint32_t want[] = {0, 3, 3, 4, 4, 6, 10, 4};
     for (size_t i = 0; i < 8; ++i) CHECK(radial_wipe(q, fills[i], v) == want[i]);
-    // 50 %: fan centre, bottom-centre start, corners/midpoints, ends at top-centre (cu9h t03: the last half of the clock).
+    // 50 %: fan centre, bottom-centre start, corners/midpoints, ends at top-centre (the last half of the clock).
     CHECK(radial_wipe(q, 50.0f, v) == 6 && near(v[0].x, 5) && near(v[0].y, 5) && near(v[1].x, 5) && near(v[1].y, 0) &&
           near(v[2].x, 0) && near(v[2].y, 0) && near(v[5].x, 5) && near(v[5].y, 10));
     // 25 %: from 9 o'clock (left-centre) over the top-left corner to 12 o'clock.
@@ -704,7 +704,7 @@ void test_game_fonts() {
         return;
     }
 #ifdef _WIN32
-    const std::string logs = std::string(ALAMO_UI_SOURCE_DIR) + "/logs/";
+    const std::string logs = ::alamo::test::artifact_dir() + "/";
     const std::vector<std::tuple<std::string, float, std::u32string>> sample = {
         {"EmpireAtWar-Bold", 10.0f, U"Main Menu  Tutorial  Single Player"},
         {"EmpireAtWar-Bold", 8.0f, U"Load Game  Options  Exit Game"},

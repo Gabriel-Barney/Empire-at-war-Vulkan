@@ -1,4 +1,4 @@
-// Shared fixtures and helpers of test_render*.cpp (split from test_render.cpp, PAF t08). Test bodies live in the part files.
+// Shared fixtures and helpers of test_render*.cpp (split from test_render.cpp). Test bodies live in the part files.
 #pragma once
 
 // alamo_render tests (no framework; non-zero exit on failure).

@@ -31,7 +31,7 @@ DST_BEH = os.path.join(ROOT, "engine", "objects", "src", "behavior_classes.inc")
 #     Projectile_Appearance_Delay_Frames; Turret_* / Barrel_Bone_Name) sit between HardPoint runs at
 #     HardPoint offsets (strings every 0x20 from 0x120 next to Fire_SFXEvent 0x140 ... Fire_Bone_B
 #     0x1a0; 0x478 right after Repair_Amount_Per_Frame 0x474), while GameObjectType's own Text_ID /
-#     Projectile_Damage / Damage_Type are 0x120 / 0x474 / 0x418 in table 0xa2bf90 (OBJECT_TYPES.md 5.4).
+#     Projectile_Damage / Damage_Type are 0x120 / 0x474 / 0x418 in table 0xa2bf90 (legacy docs/re/OBJECT_TYPES.md 5.4).
 #     They are HardPoint fields.
 #   * table 0xa39ab0, end of the `Faction` segment: Initially_Enabled 0x40 ... Excluded_Unit_Categories
 #     0x88 drop from Faction offsets (0x3098) to the 0x3c..0x88 run that continues without a gap into
@@ -102,7 +102,7 @@ def main():
     if not names:
         print("no sub-object names found in", TAGS)
         return 1
-    # mcx0 t07 (docs/re/MCX0_T07_UNLISTED_TAGS.md): ability element names the ability factory 0x68b500 compares
+    # mcx0 t07 (legacy docs/re/MCX0_T07_UNLISTED_TAGS.md): ability element names the ability factory 0x68b500 compares
     # (docs/re/ghidra/strings_xrefs.csv) that the locality attribution of xml_tags.md put under no AllyEventClass list.
     for extra in FACTORY_SUB_OBJECTS:
         if extra not in names:

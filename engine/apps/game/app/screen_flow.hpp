@@ -1,4 +1,4 @@
-// alamo_game host, ref6 t05: the screen the game shows and every change of it. Each change is a named event; the rule
+// alamo_game host, the screen the game shows and every change of it. Each change is a named event; the rule
 // table (ScreenFlow::next) says which screen an event leads to from which screen, so it is tested without a window or a
 // GPU (alamo_game_screen_flow_tests). The App owns one ScreenFlow and changes its screen only through on().
 #pragma once

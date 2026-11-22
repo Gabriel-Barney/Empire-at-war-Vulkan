@@ -1,4 +1,4 @@
-// alamo_game host, ref6 t05: what the smoke script (app_script.cpp) asks of the running game and does to it through one
+// alamo_game host, what the smoke script (app_script.cpp) asks of the running game and does to it through one
 // narrow interface instead of reaching into the session's battle systems or the App's menu handling. The App implements
 // it (app_probe.cpp); answers are sim reads only, so a scripted run's choices never depend on render interpolation.
 #pragma once

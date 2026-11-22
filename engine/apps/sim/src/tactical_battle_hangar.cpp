@@ -1,5 +1,5 @@
 // Battle host side of the hangars, the skirmish station upgrade and the engine-loop requests
-// (docs/re/STATION_HANGARS_SOUND.md; engine/tactical/hangar: HangarSystem, EngineLoops, complete_station_upgrade).
+// (legacy docs/re/STATION_HANGARS_SOUND.md; engine/tactical/hangar: HangarSystem, EngineLoops, complete_station_upgrade).
 //
 //  * Setup: every battle type with SPAWN_SQUADRON gets a HangarDesc (Starting / Reserve_Spawned_Units_Tech_0..5,
 //    Spawned_Squadron_Delay_Seconds, Is_Community_Property, station = DUMMY_STAR_BASE [port], DEPLOY_SQUAD through the
@@ -8,9 +8,9 @@
 //  * Each tick after the combat tick and its events: HangarSystem::update, then the launch requests in order
 //    (squadron: members at the bay origin with its facing, then the team container, spawned flag +0x3a2 |= 2; single
 //    ship: rings r = 0 / 200 / 400 / 600 / 800 at 45 degree steps around the flyout point), bind_launch, the initial
-//    order (S7 t24, escort: a guard of the carrier - a move to the carrier's position with the guard flag 0x02 and the
+//    order (escort: a guard of the carrier - a move to the carrier's position with the guard flag 0x02 and the
 //    squadron's formation record {flags 0x02, goal object = the carrier}, so its auto targets are chased within
-//    Guard_Chase_Range of the carrier, followed by the movement layer (S7 t37: object goal block); else a move to the flyout point), then
+//    Guard_Chase_Range of the carrier, followed by the movement layer (object goal block); else a move to the flyout point), then
 //    clear_requests().
 //  * Removal: squadron container / single ship gone -> squadron_removed; carrier gone -> remove_carrier.
 //  * Station upgrade (SpawnPurpose::StationUpgrade): spawn Next_Level_Base for S's owner at S, complete_station_upgrade,
@@ -18,7 +18,7 @@
 //    (selection / control groups, announcement).
 //  * Engine loops: mode_enter at creation, locomotor_service every SimpleSpace service (not fighters / squadrons),
 //    engines offline / online from the ability events, remove on death / removal; the tick's requests are published
-//    for the audio host (engine_loop_requests()). cu8g t01: land Walk-locomotor units get mode enter and walk_service;
+//    for the audio host (engine_loop_requests()). Land Walk-locomotor units get mode enter and walk_service;
 //    HOLSTER_WEAPON heroes are attached before their mode enter and serviced every frame after the hangar services.
 #include <algorithm>
 #include <cmath>
@@ -36,7 +36,7 @@
 #include "alamo/sim/tactical_battle.hpp"
 #include "alamo/tactical/movement/special_locomotors.hpp"
 #include "alamo/tactical/movement/unit_params.hpp"
-#include "alamo/tactical/services/stream_rng.hpp"  // SP5 t03: counter-based streams
+#include "alamo/tactical/services/stream_rng.hpp"  // counter-based streams
 
 namespace alamo::sim {
 
@@ -111,7 +111,7 @@ void TacticalBattle::hg_add_types() {
         const std::vector<uint32_t> now = types_used_;
         for (const uint32_t t : now) {
             const auto ti = static_cast<objects::TypeIndex>(t);
-            // Skirmish (space; skai t03: land too): the tactical production lists (every faction row) join the tables.
+            // Skirmish (space; land too): the tactical production lists (every faction row) join the tables.
             if (cfg_.skirmish)
                 for (const std::string_view tok : types.get(ti, kBuildList)) {
                     const objects::TypeIndex x = types.resolve_name(hg_trim(tok));
@@ -135,7 +135,7 @@ void TacticalBattle::hg_add_types() {
 }
 
 void TacticalBattle::hg_setup(TacticalMode& mode) {
-    hg_mode_ = &mode;  // cu8g t01: the HOLSTER_WEAPON attach of map-load objects runs before l1_setup
+    hg_mode_ = &mode;  // the HOLSTER_WEAPON attach of map-load objects runs before l1_setup
     const objects::GameObjectTypes& types = catalog_->types();
     engine_loops_.set_space_idle_movement_speed(catalog_->space_idle_movement_speed());
     hg_tech_bonus_.assign(bt_players_, 0);
@@ -184,9 +184,9 @@ void TacticalBattle::hg_setup(TacticalMode& mode) {
     th::HangarHost h;
     h.tech_level = [this](int32_t p) { return hg_tech(p); };
     h.in_hyperspace = [this](tc::ObjectId id) { return l1_jumps_.departing(static_cast<objects::ObjectId>(id)); };
-    // skm1 t07: the skirmish start-force re-delivery list (SKIRMISH_SETUP §2.4; skirmish map battles only).
+    // the skirmish start-force re-delivery list (SKIRMISH_SETUP §2.4; skirmish map battles only).
     if (skirmish_map()) h.pending_delivery = [this](int32_t p, bool pop) { return sk_pending_delivery(p, pop); };
-    // r3g t03: the land structure clips (Structure Open / Hold / Close: static clip data from the model, the clip played on
+    // the land structure clips (Structure Open / Hold / Close: static clip data from the model, the clip played on
     // the animation world when one is attached; the finish = one_shot_frames) and the spawn bones (bind-pose bone point,
     // [port] the structure's facing: the bone's own yaw is not read).
     h.clip = [this](tc::ObjectId id, int32_t anim_type, bool loop, uint32_t& finish) {
@@ -301,7 +301,7 @@ void TacticalBattle::hg_holster_attach(const Unit& u) {
 }
 
 void TacticalBattle::saber_throw_service(TacticalMode& mode) {
-    // cu8k t01 (CU8F_T01_T02_T07_RE.md §2.7 items 1, 2, 4): the throw at SWORD_THROW's half (kSaberThrowDelay [M]); from the
+    // cu8k t01 (legacy docs/re/CU8F_T01_T02_T07_RE.md §2.7 items 1, 2, 4): the throw at SWORD_THROW's half (kSaberThrowDelay [M]); from the
     // throw + 6 SWORD_CONTROL: the saber gone (expired / detonated) -> the ability ends now; within Catch_Dist (3D, the
     // thrower's position to the saber's) -> SWORD_CATCH (snap drawn now) and the end 11 frames later. A thrower that is
     // gone drops its record (the saber flies on as a projectile).
@@ -347,7 +347,7 @@ void TacticalBattle::saber_throw_service(TacticalMode& mode) {
                 if (s.catch_dist > 0.0f && dx * dx + dy * dy + dz * dz < s.catch_dist * s.catch_dist) {
                     s.end_frame = frame_ + 11u;  // SWORD_CATCH (30 frames at speed 3) finishes at the 10th advance after its play
                     engine_loops_.saber_resolve(s.thrower, frame_, s.end_frame);
-                    play_battle_clip(s.thrower, 0x6e, false, 3.0f, 0.1f);  // r3h t01: SWORD_CATCH (0x6e), speed 3 [port: blend 0.1]
+                    play_battle_clip(s.thrower, 0x6e, false, 3.0f, 0.1f);  // SWORD_CATCH (0x6e), speed 3 [port: blend 0.1]
                 }
             }
         }
@@ -360,7 +360,7 @@ void TacticalBattle::saber_throw_service(TacticalMode& mode) {
 
 void TacticalBattle::hg_holster_service() {
     // Service 0x635750 (interval 1), ascending id. Engaged: a current attack target (0x397a40), a running Berserker (SAP
-    // +0x2cc), the current clip ATTACK / SPINMOVE, or a hero clash (+0x3b4, s78n t06: kUnitHeroClash). cu8j t03
+    // +0x2cc), the current clip ATTACK / SPINMOVE, or a hero clash (+0x3b4, kUnitHeroClash). cu8j t03
     // (CU8F_T01_T02_T07_RE §2.6 / §2.7): a thrown saber is in flight from the throw up to and including the ability's end
     // (the stand-in scheduled by saber_schedule); on the end frame the service still sees it in flight, so the held draw
     // transition clears and the hum is unsuppressed on the next frame, as in retail.
@@ -373,7 +373,7 @@ void TacticalBattle::hg_holster_service() {
         const bool engaged = (combat_ && combat_->has_unit(u.id) && combat_->current_target(u.id) != tc::kNoObject) ||
                              (abilities_ && abilities_->is_active(u.id, ta::kBerserker)) || anim_engaged_clip(u.id) ||
                              (combat_ && combat_->has_unit(u.id) && (combat_->flags(u.id) & tc::kUnitHeroClash) != 0);
-        // cu8j t03: the scheduled throw, then the service (the saber in flight from the throw to the ability's end), then
+        // the scheduled throw, then the service (the saber in flight from the throw to the ability's end), then
         // the catch snap (only a real catch) and the end.
         engine_loops_.saber_service(u.id, frame_, true);
         engine_loops_.holster_service(u.id, ht->desc, engaged, engine_loops_.saber_in_flight(u.id), frame_);
@@ -382,7 +382,7 @@ void TacticalBattle::hg_holster_service() {
 }
 
 void TacticalBattle::hg_adopt(const Unit& u, SimRng& rng) {
-    hg_holster_attach(u);  // cu8g t01: before mode enter, so a holster hero starts suppressed (no hum)
+    hg_holster_attach(u);  // before mode enter, so a holster hero starts suppressed (no hum)
     if (hg_engine_unit(u) || hg_walk_engine_unit(u)) engine_loops_.mode_enter(u.id, frame_);
     if (!hangars_ || u.type >= hangar_desc_.size() || hangar_desc_[u.type] < 0) return;
     if (hangars_->add_carrier(u.id, static_cast<uint32_t>(hangar_desc_[u.type]), frame_, &rng)) {
@@ -497,7 +497,7 @@ objects::ObjectId TacticalBattle::hg_spawn(TacticalMode& mode, int32_t type, int
             if (Unit* u = unit_by_id(id)) {
                 // q6 land end chain: a company without a team type (e.g. Boba_Fett_Team_Land_MP, one hero) has no
                 // container, so bt_adopt_built left its members immobile (only map / team members move there). They move
-                // like oi_spawn_unit's single units. q6 t19: land production no longer comes here (SKIRMISH_SETUP §3.1: it
+                // like oi_spawn_unit's single units. Land production no longer comes here (SKIRMISH_SETUP §3.1: it
                 // goes to the pool and lands through deploy, which moves such members); [port] kept for hangar launches.
                 const objects::TypeIndex mt = store.type(h);
                 if (ci == 0xFFFFFFFFu && !u->movable && movement_ && mode.movable(h) &&
@@ -571,7 +571,7 @@ objects::ObjectId TacticalBattle::hg_spawn(TacticalMode& mode, int32_t type, int
 
 void TacticalBattle::hg_tick(TacticalMode& mode, SimRng& rng) {
     if (!hangars_) return;
-    // SP5 t03: with the Hangar stream on, each carrier's entry / bay draws come from its own counter-based stream.
+    // with the Hangar stream on, each carrier's entry / bay draws come from its own counter-based stream.
     if (svc_streams_ & (1u << static_cast<uint32_t>(tactical::services::StreamId::Hangar))) {
         const tactical::hangar::HangarSystem::StreamOf own = [this](tactical::hangar::ObjectId carrier) {
             return tactical::services::stream_rng(cfg_.session_seed, frame_, tactical::services::StreamId::Hangar,
@@ -585,7 +585,7 @@ void TacticalBattle::hg_tick(TacticalMode& mode, SimRng& rng) {
     const std::vector<th::LaunchRequest> launches(hangars_->launches().begin(), hangars_->launches().end());
     for (const th::LaunchRequest& r : launches) {
         if (r.type < 0) continue;
-        if (r.land) {  // r3g t03: a land structure's unit
+        if (r.land) {  // a land structure's unit
             hg_land_launch(mode, r, rng);
             continue;
         }
@@ -595,7 +595,7 @@ void TacticalBattle::hg_tick(TacticalMode& mode, SimRng& rng) {
         hangars_->bind_launch(r.serial, bound);
         ++hg_launches_;
         // Initial order (STATION_HANGARS_SOUND §2.5): escort -> guard the carrier (order kind 3 with the carrier as target;
-        // S7 t24: block flags 0x02, slot goal = the carrier, Guard_Chase_Range, followed by the movement layer); else (a
+        // block flags 0x02, slot goal = the carrier, Guard_Chase_Range, followed by the movement layer); else (a
         // station, or the carrier already gone) a formation move to the flyout point. S7 t25 (FIGHTER_FLYING §4.10 E): a
         // single launched ship (no Squadron_Units) gets no move order.
         std::vector<int32_t> squad_members;
@@ -603,7 +603,7 @@ void TacticalBattle::hg_tick(TacticalMode& mode, SimRng& rng) {
             const Unit* c = r.escort ? unit_by_id(r.carrier) : nullptr;
             if (c && c->alive && !c->retreated && store.alive(c->h)) {
                 const Vec3 to = store.position(c->h);
-                // S7 t37: the move carries the carrier as its object goal (Coordinator::Move_To kind 3): the movement
+                // the move carries the carrier as its object goal (Coordinator::Move_To kind 3): the movement
                 // layer follows it (A1_READINGS §33.4.1).
                 exec_move(mode, ordered, to.x, to.y, rng, mv::kNoFacing, false, mv::kMoveFlagGuardMove, false, c->id);
                 fighter_order(ordered, mv::kMoveFlagGuardMove, Vec3{to.x, to.y, 0.0f}, c->id);
@@ -657,7 +657,7 @@ bool TacticalBattle::hg_move_done(objects::ObjectId id) const {
 }
 
 void TacticalBattle::hg_station_upgrade(TacticalMode& mode, const tactical::abilities::SpawnRequest& q) {
-    // STATION_HANGARS_SOUND.md §1.2 steps 2-11 (host order, ability SpawnPurpose::StationUpgrade).
+    // legacy docs/re/STATION_HANGARS_SOUND.md §1.2 steps 2-11 (host order, ability SpawnPurpose::StationUpgrade).
     const objects::GameObjectTypes& types = catalog_->types();
     objects::ObjectStore& store = mode.primary();
     Unit* s = unit_by_id(q.source);
@@ -821,7 +821,7 @@ std::vector<TacticalBattle::BuildOptionInfo> TacticalBattle::station_build_optio
         const uint8_t c = hg_build_check(st, player, builder, t);
         if (c == 1) continue;  // not buildable here (e.g. outside the battle tables)
         o.block = c != 0 ? c : (static_cast<float>(o.cost) > credits ? uint8_t{3} : uint8_t{0});
-        if (o.block == 0 && hg_queue_full(player, t)) o.block = 1;  // mcx4 t04: QueueFull (build bar item 4)
+        if (o.block == 0 && hg_queue_full(player, t)) o.block = 1;  // QueueFull (build bar item 4)
         out.push_back(o);
     }
     return out;
@@ -863,16 +863,16 @@ commands::RejectReason TacticalBattle::hg_production_command(TacticalMode& mode,
     }
     const auto type = static_cast<objects::TypeIndex>(ev.u("type_index"));
     if (!hg_buildable(st, p, builder, type)) return R::NotAllowed;
-    if (hg_queue_full(p, type)) return R::NotAllowed;  // mcx4 t04: a human's queue holds Max_Build_Queue entries
+    if (hg_queue_full(p, type)) return R::NotAllowed;  // a human's queue holds Max_Build_Queue entries
     const float cost = static_cast<float>(std::max(0, types.get(type, objects::tags::Tactical_Build_Cost_Multiplayer)));  // int field
     if (cost > 0.0f) {
         const float have = credits_get_ ? credits_get_(p) : 0.0f;
         if (have < cost) return R::CannotAfford;
         if (credits_add_) credits_add_(p, -cost);
     }
-    // 0x496f00: Tactical_Build_Time_Seconds x (skm1 t04) the AI difficulty multiplier for a non-human AI player (Space_ /
+    // 0x496f00: Tactical_Build_Time_Seconds x the AI difficulty multiplier for a non-human AI player (Space_ /
     // Land_Build_Time_Multiplier, set by BattleAi), in the order of SKIRMISH_SETUP §3 [H]: seconds x GC
-    // Tactical_Build_Time_Multiplier (mcx4 t10; shipped 1.0) x the AI multiplier. [port] The build-time modifiers (list 10)
+    // Tactical_Build_Time_Multiplier (shipped 1.0) x the AI multiplier. [port] The build-time modifiers (list 10)
     // are not applied. mcx4 t07 (Q7.2): in a campaign battle the faction's
     // Corruption_Tactical_Production_Time_Multipliers entry (planet corrupted ? 1 : 0) multiplies the time; production only
     // runs in skirmish here (production_enabled), where retail's factor is 1.0. The price factor (0x496d80) applies only
@@ -1047,7 +1047,7 @@ void TacticalBattle::hg_hash(StateHasher& h) const {
 
 namespace alamo::sim {
 
-// ---- galab t03: planet-bonus upgrade objects (docs/re/GALAB_ABILITIES_RE.md §4.3) ----------------------------------------
+// ---- planet-bonus upgrade objects (legacy docs/re/GALAB_ABILITIES_RE.md §4.3) ----------------------------------------
 
 void TacticalBattle::ga_add_types() {
     if (cfg_.skirmish) ga_upgrades_.clear();  // no galactic planets behind a skirmish

@@ -198,7 +198,7 @@ bool InfoScreens::show_story_summary(const StorySummaryInfo& s) {
 // ---- holocron pages -------------------------------------------------------------------------------------------------
 std::string InfoScreens::info_dialog() const { return info_open_; }
 
-// modc t20: the open info dialog counts too (a mod's Tech_Tree_Dialog_Name need not start with IDD_TECH_TREE_).
+// the open info dialog counts too (a mod's Tech_Tree_Dialog_Name need not start with IDD_TECH_TREE_).
 bool InfoScreens::info_dialog(std::string_view n) const {
     return is_info_dialog(n) || (!info_open_.empty() && iequals(n, info_open_));
 }
@@ -255,7 +255,7 @@ void InfoScreens::fill_chart(GuiDialog& d) {
 
 void InfoScreens::fill_tech(GuiDialog& d) {
     d.set_checked(tech_.space ? "IDC_TECH_TREE_SPACE" : "IDC_TECH_TREE_LAND", true);
-    // UI.md §3.7.2: every visible arrow image n = 0..99 gets its art, white (no per-state tint); the rectangle comes from the .rc.
+    // legacy docs/re/UI.md §3.7.2: every visible arrow image n = 0..99 gets its art, white (no per-state tint); the rectangle comes from the .rc.
     struct ArrowArt {
         const char* fmt;
         const char* texture;
@@ -349,7 +349,7 @@ void InfoScreens::fill_summary(GuiDialog& d) {
             if (row) set(id_n("IDC_PLANET_NAME%d", r), row->name);
             for (int32_t f = 0; f < 15; ++f)
                 image(d, id_nn("IDC_ROW%d_FLEET%d", r, f), row && static_cast<size_t>(f) < row->fleets.size() ? row->fleets[static_cast<size_t>(f)] : std::string());
-            if (r >= 1) {  // UI.md §3.7.2: the divider above a filled row is the right arrow, white; hidden with the row
+            if (r >= 1) {  // legacy docs/re/UI.md §3.7.2: the divider above a filled row is the right arrow, white; hidden with the row
                 const std::string div = id_n("IDC_HEROES_DIVIDERS%d", r - 1);
                 image(d, div, row ? std::string("i_tree_arrow_right.tga") : std::string());
                 if (GuiControl* dc = d.get(div)) dc->tint = Rgba8{255, 255, 255, 255};
@@ -483,7 +483,7 @@ void InfoScreens::on_click(const GuiEvent& e, std::vector<ScreenAction>& out) {
         a.tag = story_tag_;
         gui_->close(n);
         out.push_back(std::move(a));
-    } else if (iequals(n, dlg::kTutorial)) {  // ui2 t02: Continue closes and raises the trigger; Quit keeps the dialog up
+    } else if (iequals(n, dlg::kTutorial)) {  // Continue closes and raises the trigger; Quit keeps the dialog up
         if (is("IDC_CONTINUE")) {
             gui_->close(n);
             out.push_back(act(ScreenAction::Kind::TutorialContinue));

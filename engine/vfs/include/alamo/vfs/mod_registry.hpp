@@ -1,11 +1,11 @@
-// Mod catalog (mcx3, docs/MOD_COMPAT_DESIGN.md 5; ums1 t02): one ModDescriptor per installed (folder, variant), built
+// Mod catalog (mcx3, docs/MODS.md "Mod descriptors and modinfo.json"): one ModDescriptor per installed (folder, variant), built
 // from its folder before anything is mounted, and the stack resolution the launcher, the mod picker and
 // `alamo_mod_check --resolve` use. Every launch surface lists the catalog's rows (ums1, Stage 10): the in-game picker,
 // alamo_mod_check --list --json and through it the Command Center. This is the only modinfo.json reader (ums4: the
 // lint tools/lint/check_mod_system.py, ctest alamo_core_mod_system_lint, keeps it so).
 //
 // Retail stays the authority on what a command line means: MODPATH= / STEAMMOD= entries form one list in command-line
-// order and the earliest wins (docs/MODS.md 3.1). The registry only *builds* such a list before launch (submod first,
+// order and the earliest wins (docs/MODS.md "Command line switches"). The registry only *builds* such a list before launch (submod first,
 // then what it depends on); the VFS never reorders an explicit command line. Nothing in gameplay reads a descriptor:
 // retail never opens modinfo.json, so names, languages and dependencies feed the launcher, the picker, the report and
 // save headers only.
@@ -35,7 +35,7 @@ struct InstallLocations;
 enum class ModKind : uint8_t { Workshop, LocalMods, Path };
 enum class GameTag : uint8_t { Unknown, Foc, Eaw };
 enum class DependencyLayout : uint8_t { ResolveRecursive, ResolveLastItem, FullResolved };
-// The JSON spellings (ums4 t04: written once, for every alamo_mod_check writer): "workshop" / "local" / "path";
+// The JSON spellings (written once, for every alamo_mod_check writer): "workshop" / "local" / "path";
 // "FOC" / "EAW" / "" (Unknown).
 const char* mod_kind_name(ModKind kind);
 const char* game_tag_name(GameTag tag);
@@ -83,13 +83,13 @@ struct ModDescriptor {
     uint64_t content_hash = 0;            // mod_content_hash(root)
     std::vector<std::string> warnings;    // modinfo problems
     // Every digit run of the folder's main modinfo.json text, sorted, each once: the workshop ids a submod names in its
-    // text ("Requires ... 1125571106"), which the load report's submod hint marks as `mentioned` (ums4 t01: read here,
+    // text ("Requires ... 1125571106"), which the load report's submod hint marks as `mentioned` (read here,
     // the one modinfo.json reader, instead of by the report).
     std::vector<std::string> modinfo_numbers;
 
     // "<id>" or "<id>:<variant>": the save header's and the corpus matrix's key (unchanged by ums1).
     std::string key() const;
-    // The catalog row key, unique across kinds (ums1 t02): a workshop item "<id>" / "<id>:<variant>" (1125571106,
+    // The catalog row key, unique across kinds: a workshop item "<id>" / "<id>:<variant>" (1125571106,
     // 2083545253:subA), a <game>\Mods folder "Mods\<folder>" (Mods\AOW), any other folder its host path; a variant
     // adds ":<variant>". find_key and find_arg take it.
     std::string catalog_key() const;
@@ -141,16 +141,16 @@ bool mod_provides(const std::string& root, std::string_view path);
 // MODPATH=) of its likely parent from the data (the load report's submod hint), or nullopt. It gets the stack's
 // arguments so far, the mod first.
 using ParentHint = std::function<std::optional<std::string>(const std::vector<std::string>& stack_args)>;
-// Why a mod is in the stack (ums4 t04: an enum; the text is reason_text()).
+// Why a mod is in the stack (an enum; the text is reason_text()).
 enum class StackReason : uint8_t { Picked, Dependency, LikelyParent };
 struct StackMod {
     ModDescriptor mod;
     StackReason reason = StackReason::Picked;
-    std::string needed_by;  // Dependency / LikelyParent: the catalog key of the mod that needs it (ums2 t09: messages name mods by catalog_key())
+    std::string needed_by;  // Dependency / LikelyParent: the catalog key of the mod that needs it (messages name mods by catalog_key())
     // "picked", "dependency of <needed_by>", "likely parent of <needed_by>": the report's and the launcher's `reason`.
     std::string reason_text() const;
 };
-// The resolved stack of the picked mods (ums1 t04: one resolver for every launch surface: the in-game picker's Launch,
+// The resolved stack of the picked mods (one resolver for every launch surface: the in-game picker's Launch,
 // alamo_play and alamo_mod_check --resolve all start what launch_args() gives).
 struct ModStack {
     std::vector<StackMod> mods;        // launch order: each mod before the mods it depends on; ties keep discovery order

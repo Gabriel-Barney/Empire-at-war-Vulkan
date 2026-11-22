@@ -1,4 +1,4 @@
-// Fog of war: the per-mode system (docs/re/FOG_OF_WAR.md). One FogOfWar per tactical (land / space) battle.
+// Fog of war: the per-mode system (legacy docs/re/FOG_OF_WAR.md). One FogOfWar per tactical (land / space) battle.
 //
 //   * start(): one FogGrid per player with `grid` set (the host skips the first player of a neutral faction),
 //     all with the mode's geometry (Desired{Land,Space}FOWCellSize 15 / 100); saved Reveal_All re-applied.
@@ -206,7 +206,7 @@ public:
     void source_service(int32_t id, const FogObject& o, bool contained = false, bool setup_only = false);
     void source_change_owner(int32_t id, int32_t old_owner, const FogObject& o);  // vf18
     void source_remove(int32_t id);                                               // vf15
-    // SP5 (docs/SIM_PARALLEL_DESIGN.md §4.3): a frame's source services as one batch, the same result as calling
+    // SP5 (docs/SIMULATION.md "Deferred writes in canonical order"): a frame's source services as one batch, the same result as calling
     // source_remove / source_service for `ops` in order. The re-reveals' cell lists (sight radii, circles, dense mask:
     // const) are computed in parallel through `pf`; then each grid applies its own changes (undo, count) in op order, the
     // grids side by side, so the clamped undo and the per-cell first-reveal state see exactly the serial sequence. An id

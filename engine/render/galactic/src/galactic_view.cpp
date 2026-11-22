@@ -525,7 +525,7 @@ RouteLineStyle load_route_line_style(const FileProvider& files) {
         if (parse_color_bytes(f.child_text("Color_Zoomed_Out"), c)) r.zoomed_out = c;
         if (parse_color_bytes(f.child_text("Color_Zoomed_In"), c)) r.zoomed_in = c;
         {
-            // mcx4 t15: the TradeRouteLines block fields (xml_field_tables files them under TradeRoute).
+            // the TradeRouteLines block fields (xml_field_tables files them under TradeRoute).
             // ledger: consumes TradeRoute.Width
             const std::string w(f.child_text("Width"));
             const float v = std::strtof(w.c_str(), nullptr);
@@ -534,7 +534,7 @@ RouteLineStyle load_route_line_style(const FileProvider& files) {
         // ledger: consumes TradeRoute.Render_Mode
         const std::string mode(ascii_trim(f.child_text("Render_Mode")));
         if (!mode.empty()) r.render_mode = ascii_upper(mode);
-        // mcx4 t15: retail's tags are Texture_Name / Spark_Texture_Name (descriptor table; the port read <Texture> /
+        // retail's tags are Texture_Name / Spark_Texture_Name (descriptor table; the port read <Texture> /
         // <Spark_Texture>, which retail ignores). FoC writes neither, so its lines keep the parser defaults.
         const std::string tex(ascii_trim(f.child_text("Texture_Name")));
         if (!tex.empty()) r.texture = tex;
@@ -637,7 +637,7 @@ CorruptionPathSettings load_corruption_path_settings(const data::XmlNode& root) 
     if (parse_float_list(root.child_text("Corruption_Path_Offset"), v, 3) == 3 && std::isfinite(v[0]) && std::isfinite(v[1]) &&
         std::isfinite(v[2]))
         s.offset = {v[0], v[1], v[2]};
-    // mcx5: a GameConstants without the tag has the GameConstants default 1.0 (0x2c91c0, MCX5_RE_ANSWERS Q1.9), as the sim.
+    // a GameConstants without the tag has the GameConstants default 1.0 (0x2c91c0, MCX5_RE_ANSWERS Q1.9), as the sim.
     if (root.child_text("MaximumFleetMovementDistance").empty()) s.neighbour_distance = 1.0f;
     else if (parse_float_list(root.child_text("MaximumFleetMovementDistance"), v, 1) == 1 && std::isfinite(v[0]) && v[0] >= 0.0f)
         s.neighbour_distance = v[0];
@@ -813,7 +813,7 @@ void GalacticSceneBuilder::build(const GalacticFrame& frame, GalacticModelSource
         in.team_color = p.team_color;
         in.lod_bias = ti.lod_bias;
         in.alt = fog ? kFogPlanetAlt : 0;
-        // mcx4 t14: the selected planet pulses towards red (0x3ca480 overrides the cycle colour to 6, 0, 0).
+        // the selected planet pulses towards red (0x3ca480 overrides the cycle colour to 6, 0, 0).
         if (p.id == sel_.planet && sel_.planet != objects::kNoObjectId && sel_.cycle_darken > 0.0f)
             in.light_scale = cycle_light_scale(in.light_scale, Vec3{6.0f, 0.0f, 0.0f}, sel_.cycle_phase, sel_.cycle_darken);
         in.bone_world = pose(anims_[p.row], m, name, ti, frame.anim_frames, models);

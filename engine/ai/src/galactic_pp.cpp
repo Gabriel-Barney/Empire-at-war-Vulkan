@@ -1,4 +1,4 @@
-// Galactic PotentialPlan (docs/re/AI_GALACTIC_2.md §1, §2.1-2.2): the nine galactic marshallers on the generic
+// Galactic PotentialPlan (legacy docs/re/AI_GALACTIC_2.md §1, §2.1-2.2): the nine galactic marshallers on the generic
 // solver core (ai_plans.hpp run_pp_solver), the ETA / source-planet choice after every commit, the free-store
 // entry reservations (+0x30) and the planet build-queue reservations of commit step 4.
 // [H] rules are the doc's; [M] / [port] mark the data the port does not have (see the A2 open items).
@@ -134,7 +134,7 @@ struct GalPp {
     bool slot_percent(const PpSlot& s) const { return team_def(s).percent; }
     int32_t slot_max(const PpSlot& s) const { return team_def(s).max; }
 
-    // ---- ref5 t05: the hooks of the shared marshallers (pp_marshallers.hpp) ----
+    // ---- the hooks of the shared marshallers (pp_marshallers.hpp) ----
     void pp_begin_slots() {}
     void pp_init_slot(PpSlot& s, uint32_t tf, uint32_t) {
         const TaskForceDef& d = def.task_forces[tf];
@@ -551,8 +551,8 @@ void GalPp::pp_team_candidates(size_t si, F&& add) {
     }
 }
 
-using TechTreeM = TechTreeMarshaller<GalPp>;  // ref5 t05: 0x729190, shared with tactical
-using PlanM = PlanMarshaller<GalPp>;          // ref5 t05: 0x72a3b0 .. 0x72a060, shared with tactical
+using TechTreeM = TechTreeMarshaller<GalPp>;  // 0x729190, shared with tactical
+using PlanM = PlanMarshaller<GalPp>;          // 0x72a3b0 .. 0x72a060, shared with tactical
 
 
 class ProductionM final : public PpMarshaller {
@@ -707,7 +707,7 @@ public:
         }
         // (pool entries: tactical only) commander teams: Field_Com_* (not space), Fleet_Com_* (not land) -> both in
         // galactic, each when affiliated with the player's faction.
-        // [name-ok: retail type names in 0x726410 (strings 0x8ce5c8..0x8ce610), docs/re/AI_GALACTIC_3.md setup B]
+        // [name-ok: retail type names in 0x726410 (strings 0x8ce5c8..0x8ce610), legacy docs/re/AI_GALACTIC_3.md setup B]
         if (p_.any_hero_attach)
             for (const char* n : {"Field_Com_Rebel_Team", "Field_Com_Empire_Team", "Fleet_Com_Rebel_Team", "Fleet_Com_Empire_Team"}) {
                 const uint32_t t = p_.w.sim.rules().find_type(n);
@@ -890,7 +890,7 @@ public:
             const double R = p_.remaining[ei];
             if (!(P > 0.0 && wgt > 0.0f && R > 0.0)) continue;
             if (!(free || (p_.entries[ei].target * static_cast<double>(p_.tolerance) < R && p_.pop_allows(r.type)))) continue;
-            const double s = pp_contrast_pair_score(R, wgt, P);  // ref5 t05: 0x72b6a0, shared with tactical
+            const double s = pp_contrast_pair_score(R, wgt, P);  // 0x72b6a0, shared with tactical
             if (s > v) {
                 v = s;
                 r.contrast_entry = e;
@@ -904,7 +904,7 @@ public:
         // An untyped total of a layer this candidate covers is still short (§9.8 item 1): the totals by their layer byte.
         // Only through the main list (0x528 && rec+0xB0, §9.10); the escort-list check needs 0x525 (never in galactic).
         if (p_.main_met && r.non_escort && galactic_contrast_total_open(p_.entries, p_.remaining, r.space, r.ground)) return 0.0f;
-        if (pp_contrast_still_needed(p_, r, p_.w.mask_of(r.type))) return 0.0f;  // ref5 t05: shared with tactical
+        if (pp_contrast_still_needed(p_, r, p_.w.mask_of(r.type))) return 0.0f;  // shared with tactical
         return kVeto;  // what normally ends the solve
     }
     void commit(uint32_t) override {  // 0x72bf80 -> 0x6c4b20 [H]
@@ -1141,7 +1141,7 @@ void GalacticAiWorld::Impl::pp_unit_left(int32_t plan_id, ObjectHandle u) {
     v.erase(std::remove(v.begin(), v.end(), id), v.end());
 }
 
-// a2m t03: 0x6c27d0 (PP, unit) for a claimed unit a null-destination build task gives back (A2M_T03_PRODUCE_FORCE_CLAIMS
+// 0x6c27d0 (PP, unit) for a claimed unit a null-destination build task gives back (A2M_T03_PRODUCE_FORCE_CLAIMS
 // Q3) [H]: the reservation goes, the unit leaves PP +0x108 and its selection slot leaves the PP's lists (PP +0x58 ...),
 // so Are_All_Units_On_Free_Store, AllowedTime and the validity test no longer see it.
 void GalacticAiWorld::Impl::pp_handed_back(int32_t plan_id, ObjectHandle u) {

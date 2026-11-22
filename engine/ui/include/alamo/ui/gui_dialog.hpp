@@ -1,7 +1,7 @@
-// P4 GUI dialog manager (docs/re/UI.md §3, §4.1-4.2): runtime dialogs built from GUIDialogs.rc (gui_resource.hpp),
+// P4 GUI dialog manager (legacy docs/re/UI.md §3, §4.1-4.2): runtime dialogs built from GUIDialogs.rc (gui_resource.hpp),
 // skinned from GUIDialogs.xml, drawn as 2D scene #1 (HudRenderer::record's `dialogs` list, frame step Dialogs).
 //
-// Behaviour taken from UI.md:
+// Behaviour taken from legacy docs/re/UI.md:
 //   * input order: dialogs come after the overlay / targeting controller and before chat, HUD and world (InputRouter
 //     already has the slot: install() fills RouteHooks::dialog_hit / dialog_focus); a press is offered to every
 //     "always receives input" dialog and to the topmost one, consumed if any accepts (§4.1 0x1c3660);
@@ -12,7 +12,7 @@
 //   * UI sounds: GUI_Common_Dialog_Button_Hilight (button hover), GUI_Common_Dialog_Button_Press (click),
 //     GUI_Common_Dialog_Listbox_Entry_Select (list selection) through a HudSfxHook (§3.6).
 //
-// [port] choices (UI.md §3.3 / §6 leave them open):
+// [port] choices (legacy docs/re/UI.md §3.3 / §6 leave them open):
 //   * dialog unit -> canvas: 1 dialog unit = 1 HUD canvas unit (the 1024 x 768 Hor+ canvas, hud_canvas.hpp), so the
 //     on-screen pixel size is units / units-per-pixel - at 1024 x 768 one unit is one pixel; widescreen widens the
 //     canvas and keeps 768 units of height;
@@ -106,7 +106,7 @@ struct GuiStyle {
     float edit_caret_blink = 0.5f;
 };
 
-// A text label drawn over a custom image (the skirmish start numbers, UI.md 9.6.1): `pos` is a 0..1 fraction of the
+// A text label drawn over a custom image (the skirmish start numbers, legacy docs/re/UI.md 9.6.1): `pos` is a 0..1 fraction of the
 // drawing area (x right, y down), the label is centred on that point in the control's font in `color`. The drawing area
 // is the control rectangle inset by 5 % of its size on each side.
 struct GuiMarker {
@@ -124,7 +124,7 @@ struct GuiControl {
     int32_t value = 0, range_min = 0, range_max = 100;  // slider / progress
     std::vector<std::u32string> items; // list / combo
     // Per-item colours (list / combo): item k with a colour has its TEXT drawn flat in that colour (both gradient ends,
-    // control font; kept when the control is disabled) - UI.md §3.7.1. The skirmish staging colour combos fill each item
+    // control font; kept when the control is disabled) - legacy docs/re/UI.md §3.7.1. The skirmish staging colour combos fill each item
     // with one glyph (U+25A0), which the per-control font (IDC_PLAYER_COLOR_n: Arial Unicode MS 35, Stretch_Factor
     // 0.25) turns into a flat wide bar: the colour "swatch".
     std::vector<Rgba8> item_colors;
@@ -139,14 +139,14 @@ struct GuiControl {
     int32_t selected = -1;             // list / combo selection
     int32_t top = 0;                   // first visible list row
     bool open = false;                 // combo drop-down shown
-    bool left_justified = false;       // combo: closed-field text starts at the left edge + inset instead of centred (UI.md §3.7.1)
+    bool left_justified = false;       // combo: closed-field text starts at the left edge + inset instead of centred (legacy docs/re/UI.md §3.7.1)
     size_t caret = 0;                  // edit caret (code points)
     size_t sel_anchor = 0;             // edit: other end of the selection (== caret: nothing selected)
     size_t scroll_x = 0;               // edit: first code point drawn (ES_AUTOHSCROLL keeps the caret in view)
     float field_height = 15.0f;        // combo: closed field height (canvas units; the skin's pop-down button height)
     size_t max_chars = 256;            // edit limit [port]
     bool read_only = false;            // edit: keys are not typed into it (key-capture fields)
-    bool key_capture = false;          // edit: a key-binding field - Tab is a key to bind there, not a focus move (UI5 t05)
+    bool key_capture = false;          // edit: a key-binding field - Tab is a key to bind there, not a focus move
     bool text_outline = false;         // [port] force an outline under the caption (readability over bright art)
     bool ui_font = false;              // [port] QA D8: text in the dialog's L_Text font instead of the gadget's skin font
     // [port] QA U2: a static with fit_lines > 0 is never narrowed: word-wrapped to the control width in at most fit_lines
@@ -154,7 +154,7 @@ struct GuiControl {
     int32_t fit_lines = 0;
     size_t fit_keep_tail = 0;          // [port] t47: code points at the end of the text the "..." may not hide (fit_text_lines)
     std::string image;                 // custom image texture ("" = none)
-    std::vector<GuiMarker> markers;    // custom image: labels over the image (skirmish start numbers, UI.md 9.6.1)
+    std::vector<GuiMarker> markers;    // custom image: labels over the image (skirmish start numbers, legacy docs/re/UI.md 9.6.1)
     Rgba8 tint{255, 255, 255, 255};
     int32_t radio_group = -1;          // radio buttons: group index (WS_GROUP rule)
     Vec2f offset{};                    // [port] canvas-unit shift of the control rectangle (backdrop hotspots, +Y up)
@@ -202,7 +202,7 @@ public:
     bool set_image(std::string_view id, std::string texture);
     bool focus(std::string_view id);
     int32_t focus_index() const { return focus_; }
-    void clear_focus() {  // UI5 t09: no control has the keyboard focus (a key field leaves capture)
+    void clear_focus() {  // no control has the keyboard focus (a key field leaves capture)
         focus_ = -1;
         keyboard_focus_ = false;
     }
@@ -246,7 +246,7 @@ struct GuiEvent {
         Closed,
         RowClicked,        // [port] list row pressed with the mouse (value = row; after its SelectionChanged; the second press of a
                            // double click sends DoubleClicked instead)
-        Hovered,           // UI5 t08: the cursor entered an enabled push button / check box / radio button (retail dialog
+        Hovered,           // the cursor entered an enabled push button / check box / radio button (retail dialog
                            // event 0x0d; the single-player menu's hint list reads it)
     };
     Kind kind = Kind::Clicked;
@@ -330,7 +330,7 @@ public:
     size_t open_count() const { return stack_.size(); }
     std::vector<std::string> open_names() const;  // bottom -> top
 
-    // Routing (UI.md §4.1): a press at the pixel goes to the dialogs (inside one, or anywhere under a modal top).
+    // Routing (legacy docs/re/UI.md §4.1): a press at the pixel goes to the dialogs (inside one, or anywhere under a modal top).
     bool hit(int32_t px, int32_t py) const;
     bool has_focus() const;  // keys / wheel go to the dialogs (a modal dialog is open)
     void install(RouteHooks& hooks) const;
@@ -374,9 +374,9 @@ public:
         int32_t max_top = 0, vis = 1;
     };
     ScrollBar scroll_bar(const GuiDialog& d, size_t i) const;
-    // UI5 t08: a dialog tooltip's box of `size` (canvas units) for the cursor at `cursor` (HUD_GAPS §2.1 placement, on screen).
+    // a dialog tooltip's box of `size` (canvas units) for the cursor at `cursor` (HUD_GAPS §2.1 placement, on screen).
     GuiRect tooltip_box(Vec2f cursor, Vec2f size) const;
-    // Closed-field height of combo i: the skin's Combo_Box_Popdown_Button height (25 units, UI.md §3.7.1), else 15 [port].
+    // Closed-field height of combo i: the skin's Combo_Box_Popdown_Button height (25 units, legacy docs/re/UI.md §3.7.1), else 15 [port].
     float combo_field_height(const GuiDialog& d, size_t i) const;
 
 private:
@@ -439,8 +439,8 @@ private:
     // Pointer state.
     GuiDialog* hover_dialog_ = nullptr;
     int32_t hover_control_ = -1;
-    bool hover_scroll_ = false;  // UI5 t06: the cursor is over the hovered list's (or open drop-down's) scroll bar
-    bool hover_field_ = false;   // UI5 t06: the cursor is over the hovered combo box's field rect
+    bool hover_scroll_ = false;  // the cursor is over the hovered list's (or open drop-down's) scroll bar
+    bool hover_field_ = false;   // the cursor is over the hovered combo box's field rect
     double hover_since_ = 0.0;
     GuiDialog* press_dialog_ = nullptr;
     int32_t press_control_ = -1;

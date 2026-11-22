@@ -770,7 +770,7 @@ void corner_arc_probe(V2 pj, V2 a, float v, float omega, float theta_s, float se
     const bool left = theta_s >= 0.0f;
     const V2 n = left ? V2{-t.y, t.x} : V2{t.y, -t.x};
     const float s = left ? 1.0f : -1.0f;
-    // s78o (b0088) [port]: the point count is capped at kCornerArcProbeMaxPoints (an arc of 2^14 segments of at least 2
+    // s78o [port]: the point count is capped at kCornerArcProbeMaxPoints (an arc of 2^14 segments of at least 2
     // units is longer than any map) and a non-finite count takes the cap: a tiny positive Max_Rate_Of_Turn or a corner
     // near pi in custom data no longer plans ~1e7 points per corner or casts past UINT32_MAX (undefined, MSVC != clang)
     const float nf = th * v / omega / seg + 3.0f;
@@ -834,7 +834,7 @@ std::vector<float> corner_fractions(const std::vector<V2>& poly, const CornerPas
         }
         // item 5: the arc probe, the static line test and the corridor test; else v /= 1.5
         const float theta_s = cr > 0.0f ? -theta : theta;
-        bool line_passed = true;  // mov3 t05: the last line test's result
+        bool line_passed = true;  // the last line test's result
         while (v > 0.0f) {
             corner_arc_probe(pj, aim, v, omega, theta_s, in.seg, probe);
             bool line = true;

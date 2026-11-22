@@ -2,7 +2,7 @@
 // collision is a predicted conflict along the planned paths, resolved by behaviour. The
 // orchestration (every-4-frames checks, candidate query, resolutions) lives in MovementSystem;
 // this header holds the pure pieces and the persistent collision-object layer (priority order,
-// crowd refresh, budget gate; TACTICAL_GAPS.md §6.7).
+// crowd refresh, budget gate; legacy docs/re/TACTICAL_GAPS.md §6.7).
 //
 // s78n t18 (MOVEMENT §5.3.1): footprints are oriented rectangles (FootRect) - a squad container's is its joint slot box,
 // any other unit's its hard extents; the three contact tests are foot_overlap_coefficient (stopped vs stopped),
@@ -84,7 +84,7 @@ inline constexpr float kFootApproxStep = 2.0f;  // ApproximationForwardDistance:
 // direction; half extents ha = (hx, hy)) against the stopped rectangle `b`. Per segment the contact radius is rho(mover,
 // cos to the segment direction) + rho(b, cos to b's facing) at both ends, linear in between. Returns the path length to the
 // first contact when that is < max_dist, else -1. `turn_yaw` != kNoFacing: the mover turns in place - one zero-length
-// segment at `pos` with the forward axis dir(turn_yaw) (the caller swells ha toward a square). mcx4 t11: `step` = the
+// segment at `pos` with the forward axis dir(turn_yaw) (the caller swells ha toward a square). `step` = the
 // approximation's point spacing, GameConstants ApproximationForwardDistance (BKR1_RE_ANSWERS Q5: straight steps of at
 // most that length, at least 0.1).
 float foot_path_contact(V2 pos, std::span<const V2> path, uint32_t next, V2 ha, const FootRect& b, float max_dist,
@@ -103,10 +103,10 @@ struct FootTrack {
 };
 bool foot_moving_contact(const FootTrack& p, const FootTrack& q, int32_t frames);
 
-// ---- S7 persistent collision objects (TACTICAL_GAPS.md §6.7, MOVEMENT.md §5.4, §1.5).
+// ---- S7 persistent collision objects (legacy docs/re/TACTICAL_GAPS.md §6.7, MOVEMENT.md §5.4, §1.5).
 // A collision object (MovingVsMoving / MovingVsStopped / StoppedVsStopped) lives across frames from the check that
 // found it (creation frame +0x64) until the driver cancels it (no longer applies) or its resolution finishes.
-// Driver 0x50a780, once per frame (s78n t20: MOVEMENT §5.4.1 "Per-frame driver"):
+// Driver 0x50a780, once per frame (MOVEMENT §5.4.1 "Per-frame driver"):
 //   1. keep pass in list order: collisions whose keep test fails are cancelled (removed; list order is kept);
 //   2. every record that does not take the quota pass (vf +0x50 false: a decided MovingVsMoving, every
 //      StoppedVsStopped), in list (creation) order: serviced at once;
@@ -208,7 +208,7 @@ public:
     // Pair filter (0x5c7900): at most one collision per unordered pair.
     bool has_pair(ObjectId a, ObjectId b) const;
     // Appends a collision at the end of the list; returns its seq. No-op (returns UINT32_MAX) when the pair exists.
-    // s78n t24: a Terrain record has one participant (`a`; `b` is ignored and stored as kNoParticipant) and no pair key:
+    // a Terrain record has one participant (`a`; `b` is ignored and stored as kNoParticipant) and no pair key:
     // it is always appended.
     uint32_t add(CollisionKind kind, ObjectId a, ObjectId b, uint32_t frame);
     // One driver pass (steps 1-4 above). Resolve must not add or remove collisions; a collision it marks Resolved is
@@ -217,7 +217,7 @@ public:
              const ResolveFn& resolve);
 
     std::span<const CollisionObject> list() const { return list_; }
-    // s78n t23: the records for in-place field writes (the re-decide stamp of a path push); never adds or removes.
+    // the records for in-place field writes (the re-decide stamp of a path push); never adds or removes.
     std::span<CollisionObject> list_mut() { return list_; }
     std::span<const Step> last_order() const { return order_; }  // the last run's resolution order
     uint32_t last_cancelled() const { return cancelled_; }

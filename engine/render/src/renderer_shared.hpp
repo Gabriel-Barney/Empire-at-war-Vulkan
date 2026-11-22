@@ -30,7 +30,7 @@
 namespace alamo::render::detail {
 
 // Engine parameters of one draw in the ORIGINAL D3DX form (row-major, row-vector convention:
-// the transpose of the column-vector matrices used elsewhere in the renderer), RENDER.md 2.2.
+// the transpose of the column-vector matrices used elsewhere in the renderer), legacy docs/re/RENDER.md 2.2.
 // The per-frame half lives in EngineFrame (once per build); this is the per-draw half.
 struct EngineParams {
     const EngineFrame* f = nullptr;
@@ -40,7 +40,7 @@ struct EngineParams {
 };
 
 // Where an engine parameter's value comes from: the semantic table first, then the light-0 / skinning names
-// (only light 0 is uploaded by name, as in the original, RENDER.md 2.1), else the ALO material value (Store).
+// (only light 0 is uploaded by name, as in the original, legacy docs/re/RENDER.md 2.1), else the ALO material value (Store).
 enum class Src : uint8_t {
     Store, World, View, Proj, ViewProj, WorldView, Wvp, ViewInv, WorldInv, WorldInvT, WorldViewInv, Eye, EyeObj,
     LightScale, Time, Resolution, Fog, Fade, SphAll, SphFill, Extrusion, CloudU, CloudV, FowU, FowV, Zero, Skin,

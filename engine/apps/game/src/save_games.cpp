@@ -24,7 +24,7 @@ namespace fs = std::filesystem;
 
 namespace {
 
-// ui5 t13: every path string here is UTF-8 (the dialogs' text); std::string <-> fs::path goes through these, never through
+// every path string here is UTF-8 (the dialogs' text); std::string <-> fs::path goes through these, never through
 // fs::path(std::string) / path::string(), which use the ANSI code page and throw on a name outside it.
 // Not valid UTF-8 (a folder passed on the command line in the ANSI code page): read it as ANSI instead of throwing.
 fs::path host_path(const std::string& utf8) {
@@ -139,7 +139,7 @@ bool reserved_device(std::string_view s) {
 
 std::string default_saves_dir() {
 #ifdef _WIN32
-    // ui5 t13: the wide value, so a profile folder outside the ANSI code page keeps its name.
+    // the wide value, so a profile folder outside the ANSI code page keeps its name.
     wchar_t* v = nullptr;
     size_t len = 0;
     std::wstring la;
@@ -293,7 +293,7 @@ std::string sanitize_save_name(std::string_view typed) {
     for (size_t i = 0; i < typed.size();) {
         const char c = typed[i];
         const auto u = static_cast<unsigned char>(c);
-        if (u >= 0x80) {  // ui5 t13: a valid UTF-8 character is kept (Windows names are Unicode); a broken byte becomes '_'
+        if (u >= 0x80) {  // a valid UTF-8 character is kept (Windows names are Unicode); a broken byte becomes '_'
             const size_t n = utf8_sequence(typed, i);
             if (n == 0) {
                 s.push_back('_');

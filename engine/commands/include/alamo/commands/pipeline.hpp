@@ -2,7 +2,7 @@
 // The one path for all orders (player UI, AI, script, replay).
 //
 // begin_tick(T) is THE command point of a sim tick: call it first in tick T, before any system
-// update (provisional until docs/re/MAIN_LOOP.md / COMMANDS.md say where the original applies them).
+// update (provisional until legacy docs/re/MAIN_LOOP.md / legacy docs/re/COMMANDS.md say where the original applies them).
 // It runs, in this order:
 //   1. replay mode: insert the recorded batch of T into the scheduler (live submissions are refused);
 //   2. drain the batch of T (canonical order: tick, player slot, per-player sequence);
@@ -11,12 +11,12 @@
 //   4. append the batch to the recording (if recording);
 //   5. serially, in batch order: handler(cmd) resolves ids and applies; a CommandResult (diagnostic
 //      only, see events.hpp) is posted to the event bus in the same order.
-// The handler must follow the original's rules (COMMANDS.md §6.2): resolve ids at execution, treat
+// The handler must follow the original's rules (legacy docs/re/COMMANDS.md §6.2): resolve ids at execution, treat
 // missing/dying targets as a silent no-op, act on the issuer's current selection where the event says
 // so (selection is synced sim state set by Select/SelectAll/ControlGroup), and depend only on the
 // event fields + sim state (never on the local player).
 //
-// AI and Lua do not use the queue (COMMANDS.md §5): they build the same EventData and call
+// AI and Lua do not use the queue (legacy docs/re/COMMANDS.md §5): they build the same EventData and call
 // execute_direct() inside their own tick slot. That runs the handler at once - no delay, no
 // recording, no batch CRC (their effects are covered by the state CRC; they replay by re-running).
 // Events are not delivered here; the host calls events().deliver() at its chosen point.

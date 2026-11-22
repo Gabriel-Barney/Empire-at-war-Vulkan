@@ -1,4 +1,4 @@
-// alamo_headless --story: the speech clock of a headless story run (storyb t17).
+// alamo_headless --story: the speech clock of a headless story run.
 //
 // The game reports a story speech's end (STORY_SPEECH_DONE) when the audio system finishes the line (alamo_game: the
 // fired MULTIMEDIA / SPEECH rewards of the local player's plot sets -> GameAudioHost::speech -> AudioSystem::on_speech_done

@@ -8,7 +8,7 @@ namespace alamo::tactical::abilities {
 
 namespace {
 
-// Builders for the rows of ABILITIES_HARDPOINTS.md 2.1.
+// Builders for the rows of legacy docs/re/ABILITIES_HARDPOINTS.md 2.1.
 constexpr AbilityTypeInfo row(const char* n, uint8_t m, int16_t b = kBehaviorNone, uint8_t x = 1, uint8_t u = 0, uint8_t f = 0) {
     return AbilityTypeInfo{n, m, b, x, u, f, 0};
 }
@@ -127,7 +127,7 @@ constexpr ClassName kClasses[] = {
     {"Laser_Defense_Ability", SpecialClass::LaserDefense},
     {"Redirect_Blaster_Ability", SpecialClass::RedirectBlaster},
     {"Absorb_Blaster_Ability", SpecialClass::AbsorbBlaster},
-    {"Force_Sight_Ability", SpecialClass::ForceSight},  // fog follow-up (FOG_OF_WAR.md §3.3)
+    {"Force_Sight_Ability", SpecialClass::ForceSight},  // fog follow-up (legacy docs/re/FOG_OF_WAR.md §3.3)
     // OI abilities
     {"Combat_Bonus_Ability", SpecialClass::CombatBonus},
     {"Enhance_Defense_Ability", SpecialClass::EnhanceDefense},
@@ -249,9 +249,9 @@ int32_t special_service_interval(SpecialClass c, uint32_t fps) {
         case S::CancelSpecial:
         case S::Weatherproof:        // [M: an aura class like Base_Power; not in the §1.4 list]
         case S::RetreatPrevention:   // [M: same]
-        case S::GarrisonUpgrade:     // tru3 t05: apply / remove only
+        case S::GarrisonUpgrade:     // apply / remove only
             return 0;
-        case S::StarbaseUpgrade:     // STATION_HANGARS_SOUND.md §1.1: interval 2, Skirmish_Automatic, one-shot service
+        case S::StarbaseUpgrade:     // legacy docs/re/STATION_HANGARS_SOUND.md §1.1: interval 2, Skirmish_Automatic, one-shot service
             return 2;
         case S::Earthquake:
         case S::Telekinesis: return static_cast<int32_t>(fps / 10u);

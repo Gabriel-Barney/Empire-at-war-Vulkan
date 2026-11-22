@@ -10,7 +10,7 @@ namespace alamo::lua {
 
 namespace {
 
-// mcx6 t07 (LUA_API.md "LUA_PATH" [H]): the registration order of the roots - boot init (Library, GameObject,
+// mcx6 t07 (legacy docs/re/LUA_API.md "LUA_PATH" [H]): the registration order of the roots - boot init (Library, GameObject,
 // FreeStore, Miscellaneous, Story), the AI plan scan (AI, AI\SpaceMode, AI\LandMode, AI\StoryArc, Interventions), the
 // evaluator scan (Evaluators) [M: which scan registers first; it only orders those roots]. LUA_PATH puts "./" (the
 // install folder) before them.

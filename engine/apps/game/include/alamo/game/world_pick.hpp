@@ -1,4 +1,4 @@
-// refixf t08 (alamo_game): the host side of the tactical world pick 0x36600 (docs/re/HUD_GAPS.md §2.2; engine/ui
+// refixf t08 (alamo_game): the host side of the tactical world pick 0x36600 (legacy docs/re/HUD_GAPS.md §2.2; engine/ui
 // picking.hpp pick_world). Presentation-side input: const reads of the top tactical mode and the battle between ticks
 // (P1 picking contract); nothing here writes sim state or feeds the per-tick CRC. The orders built from a pick are sim
 // input as before.

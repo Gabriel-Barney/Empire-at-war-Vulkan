@@ -1,4 +1,4 @@
-// AI framework: AIBudgetClass (docs/re/AI_GALACTIC_2.md §3; galactic only, goal system +0x190).
+// AI framework: AIBudgetClass (legacy docs/re/AI_GALACTIC_2.md §3; galactic only, goal system +0x190).
 //
 // Membership (AI_GALACTIC_TOKENS §9.5 [H]): the category map holds only the categories an applied template listed
 // (0x615420 <Budget> / 0x615550 Tactical_Budget_Allowance, add_member), in first-insertion order, never removed; every
@@ -64,7 +64,7 @@ public:
     bool is_member(int32_t c) const;
     const std::vector<int32_t>& members() const { return order_; }  // insertion order
     // Reset flag +0x74 (a byte): set by every insert call and every 0x612ac0 (§9.5), and on a template switch
-    // (docs/re/A2G_T01_RESET_FLAG_PROBE.md [H correlation, setter unread]). The next tick() sets P = Σ x w before the
+    // (legacy docs/re/A2G_T01_RESET_FLAG_PROBE.md [H correlation, setter unread]). The next tick() sets P = Σ x w before the
     // drift redistribution, then clears it (AI_GALACTIC_2 §3.1); init() clears it.
     void mark_reset() { reset_ = true; }
     bool reset_pending() const { return reset_; }
@@ -105,7 +105,7 @@ public:
     // Committed spend s += n: the market bind at production start 0x64abf0 adds (float)cost(T, none) (A2M_T04_RE_ANSWERS
     // Q5.2) [H]; 0x5f9f90 is not a budget call.
     void paid(int32_t c, uint32_t goal, float n);
-    // Pay-as-you-go installment n (0x53b900, AI_GALACTIC_2 §3.4; q2f t01) [H]. With the goal's struct (an item its build
+    // Pay-as-you-go installment n (0x53b900, AI_GALACTIC_2 §3.4) [H]. With the goal's struct (an item its build
     // task ordered, 0x64adb0): have = min(alloc, c + a); (int)(have - n) < 0 -> s += n - alloc when alloc < n, returns
     // -1 (the build pauses); else p = min(n, have) is charged (0x615700: P -= p, s and alloc -= p floored at 0, a -= p
     // with a shortfall taken from c) and returned. Without a struct: +0x80 -= n (floor 0), returns n (always paid).

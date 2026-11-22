@@ -24,7 +24,7 @@ enum PlanetFlags : uint32_t {
     kPlanetInBackground = 1u << 0,   // <In_Background>yes (e.g. Galaxy_Core_Art_Model): scenery
     kPlanetAlwaysInstantiate = 1u << 1,
     // <Behavior> lists PLANET. The original's planet query (both path finders) keeps only objects
-    // with a PLANET behaviour slot and an owner id != -1 (docs/re/PHASE2_ANSWERS.md Q1); scenery
+    // with a PLANET behaviour slot and an owner id != -1 (legacy docs/re/PHASE2_ANSWERS.md Q1); scenery
     // such as Galaxy_Core_Art_Model (Behavior IDLE) is excluded by this, not by In_Background.
     kPlanetHasPlanetBehavior = 1u << 2,
 };

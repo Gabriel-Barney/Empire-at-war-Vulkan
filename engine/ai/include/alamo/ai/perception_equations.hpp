@@ -1,4 +1,4 @@
-// AI perception equations (docs/re/HOTSPOTS.md section 2, GALACTIC_ECONOMY.md section 6.1).
+// AI perception equations (legacy docs/re/HOTSPOTS.md section 2, GALACTIC_ECONOMY.md section 6.1).
 //
 // The original parses Data\XML\AI\PerceptualEquations\*.xml with a boost::spirit grammar inside
 // PerceptionFunctionG.dll and walks the resulting tree, resolving token leaves through the exe's
@@ -31,7 +31,7 @@
 //   * duplicate equation names: the first loaded definition wins (later ones are reported);
 //   * file order: as given (the host passes Vfs::list(), byte-sorted); names case-insensitive;
 //   * enum literals (A2I_TOKENS_RE §3) [H]: `Type[text]` is converted when the equation is built, by the converter named
-//     Type (EquationSet::enum_literals(); load_equation_files reads the data enum files, A2J t07): no such converter,
+//     Type (EquationSet::enum_literals(); load_equation_files reads the data enum files): no such converter,
 //     or text it cannot convert, is a parse error. A plain enum
 //     looks the whole trimmed, case-insensitive text up as ONE name (so any '|' fails); a bitfield splits on '|', space,
 //     ',', tab, LF and every token must be defined (value = their OR). An equation that fails to build (syntax or
@@ -140,7 +140,7 @@ struct ParseError {
 // The equation-literal converter registry (the exe's DatabaseUIntConversionClass registry as the port knows it): the
 // objects::EnumRegistry converters (GameObjectCategoryType, GameObjectPropertiesType, MovementClassType, ...), plus
 // AIGoalCategoryType, DifficultyLevelType (Easy 0, Normal 1, Hard 2) and HardPointType (the short names, value = index).
-// Converter-name lookup trimmed and case-sensitive (A2K_T06_RE.md §2) [H]; entry names trimmed and
+// Converter-name lookup trimmed and case-sensitive (legacy docs/re/A2K_T06_RE.md §2) [H]; entry names trimmed and
 // case-insensitive [H]. `bitfield` tells how `text` was split; `value` = the converted value; `names` = the trimmed names /
 // tokens (input case).
 struct EnumLiteral {
@@ -207,7 +207,7 @@ public:
     // Adds one equation (tests, the galactic consumer paths). Returns its index, or kUnresolved on
     // a syntax error / duplicate (first wins).
     uint32_t add(std::string_view name, std::string_view text, LoadReport* report = nullptr);
-    // Resolves every Function_ reference to an equation index. Call after the last add. A2k t12: a reference to a name
+    // Resolves every Function_ reference to an equation index. Call after the last add. a reference to a name
     // that no add() named fails its equation's build (counted as a parse error, removed from the index); a reference to
     // a named equation that failed to build stays unresolved (unresolved_functions; evaluates as an error).
     void link(LoadReport* report = nullptr);
@@ -217,7 +217,7 @@ public:
     size_t size() const { return eq_.size(); }
     TokenTable& tokens() { return tokens_; }
     const TokenTable& tokens() const { return tokens_; }
-    // The enum-literal converters add() builds with (A2J t07). Unset: the built-in table. Set it before the first add.
+    // The enum-literal converters add() builds with. Unset: the built-in table. Set it before the first add.
     void set_enum_literals(std::shared_ptr<const EnumLiteralTable> table);
     bool has_enum_literals() const { return literals_ != nullptr; }
     const EnumLiteralTable& enum_literals() const;
@@ -225,13 +225,13 @@ public:
 private:
     std::vector<Equation> eq_;
     std::unordered_map<std::string, uint32_t> index_;  // upper-cased name -> first definition
-    std::unordered_set<std::string> declared_;         // a2k t12: every upper-cased name added (the Function_ tokens)
+    std::unordered_set<std::string> declared_;         // every upper-cased name added (the Function_ tokens)
     TokenTable tokens_;
     std::shared_ptr<const EnumLiteralTable> literals_;
 };
 
 // Loads `paths` (game-relative, e.g. from Vfs::list(kPerceptionEquationGlob)) in the given order
-// and links. Unreadable files are reported and skipped. A2J t07: when `out` has no literal table yet, one is loaded
+// and links. Unreadable files are reported and skipped. When `out` has no literal table yet, one is loaded
 // from `provider` first (EnumLiteralTable::load; its problems go to LoadReport::messages) and set on `out`.
 LoadReport load_equation_files(const FileProvider& provider, std::span<const std::string> paths, EquationSet& out);
 
@@ -246,7 +246,7 @@ struct EvalContext {
     int32_t human = -1;
     int32_t location = -1;
     SimRng* rng = nullptr;  // Script_ evaluators (resolve_script) only; '#' never draws from it (below)
-    // --- A2 tactical: the '#' generator (docs/re/AI_GALACTIC_3.md §7.3) [H]. '#' does NOT use the synced RNG: an own
+    // --- A2 tactical: the '#' generator (legacy docs/re/AI_GALACTIC_3.md §7.3) [H]. '#' does NOT use the synced RNG: an own
     // LCG (x 1103515245 + 3039) reseeded before every equation evaluation from game_seed + (self x 131 + 0x123456FB)
     // + CRC-32(equation name) + target_name_crc (CRC-32 of the target's name, 0 when none). ---
     uint32_t game_seed = 0;        // the session seed (the value that seeded the synced LCG at game start)

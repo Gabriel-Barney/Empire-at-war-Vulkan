@@ -1,4 +1,4 @@
-// Engine loop sound requests, tactical side (docs/re/STATION_HANGARS_SOUND.md §3).
+// Engine loop sound requests, tactical side (legacy docs/re/STATION_HANGARS_SOUND.md §3).
 //
 // Set_Engine_Idle_Loop / Set_Engine_Moving_Loop (0x3a7cf0 / 0x3a7e30): per-object requested-state flags (moving
 // +0x3B5, idle +0x3B6). A call with on = 1 while the flag is 0 emits a Start request and sets the flag; on = 0 while
@@ -28,7 +28,7 @@
 //   * engines_online(id)    - ENGINE hardpoint repaired to full (EnginesOnline): idle on.
 //   * timed_disable(id)     - a timed engine disable (§3.3: Take_Damage, energy-pool projectile): moving off, idle off.
 //                             The timer expiry does not call audio. Called by TacticalBattle::disable_engines (the L1
-//                             timed-disable entry point) and TacticalBattle::energy_drain_engines (cu8f t02: the energy-pool
+//                             timed-disable entry point) and TacticalBattle::energy_drain_engines (the energy-pool
 //                             absorb 0x56c230 in Take_Damage, CombatHooks::engines_drained) for engine-loop units.
 //   * suppress(id, fade) / unsuppress(id) - 0x392410 / 0x393970: suppress clears both flags, blocks the switch (+0x3B9)
 //                             and emits one Suppress request carrying `fade` (seconds; < 0 = each loop's own
@@ -36,11 +36,11 @@
 //                             the flags say (GameAudio::suppress_engine_audio). unsuppress unblocks and emits an Unsuppress
 //                             request (GameAudio::clear_engine_audio_suppression); it restarts nothing - the next locomotor
 //                             service or mode enter does. Their only callers are the HOLSTER_WEAPON behaviour below and
-//                             Saber_Throw (CU8F_T01_T02_T07_RE.md §2.2 / §2.3), wired since cu8g t01.
+//                             Saber_Throw (legacy docs/re/CU8F_T01_T02_T07_RE.md §2.2 / §2.3), wired since cu8g t01.
 //   * remove(id)            - death or removal: forget the object (and its holster state), no request.
 //   * after the tick: requests() to the audio side, then clear_requests().
 //
-// HOLSTER_WEAPON (behaviour 0x4E, HolsterWeaponBehaviorClass; CU8F_T01_T02_T07_RE.md §2.3), land lightsaber heroes. Sim
+// HOLSTER_WEAPON (behaviour 0x4E, HolsterWeaponBehaviorClass; legacy docs/re/CU8F_T01_T02_T07_RE.md §2.3), land lightsaber heroes. Sim
 // state only (the bone motion is presentation); it decides the engine-loop (lightsaber hum) suppression and the draw /
 // holster SFX requests. Like the loop flags it never feeds back into sim logic and is not part of any CRC.
 //   * holster_attach(id)    - initialise (0x6355c0) / the map-load "placed" broadcast (0x635180), for an object whose
@@ -66,7 +66,7 @@
 //                             hum is unsuppressed the frame after the end (retail §2.6: "catch" = the end).
 //   Frame counts: holster_frames(s, fps) = round-half-away(fps x s) (0x27c9a0 -> 0x22f9c0): 0.17 s -> 5, 15 s -> 450 at 30.
 //   Saved with the flags (save version 4; 2 and 3 are still read): attached, drawn, transition start / end frames, last
-//   engaged frame, the thrown saber's throw / catch / end frames (version 4, cu8j t03; version 3 had the cu8i catch frame).
+//   engaged frame, the thrown saber's throw / catch / end frames (version 4; version 3 had the cu8i catch frame).
 #pragma once
 #include <algorithm>
 #include <cmath>
@@ -190,7 +190,7 @@ public:
     }
     void saber_throw(combat::ObjectId id, uint32_t frame) { (void)snap(id, false, frame); }  // 0x635450
     void saber_catch(combat::ObjectId id, uint32_t frame) { (void)snap(id, true, frame); }   // 0x635310
-    // cu8j t03: schedule a thrown saber (absolute frames; catch_frame 0 = it dies on its way back, no catch; end_frame >=
+    // schedule a thrown saber (absolute frames; catch_frame 0 = it dies on its way back, no catch; end_frame >=
     // throw_frame). Only for an object with a holster (the snaps need it). A new schedule replaces a pending one.
     void saber_schedule(combat::ObjectId id, uint32_t throw_frame, uint32_t catch_frame, uint32_t end_frame) {
         Obj* o = find_mut(id);
@@ -199,7 +199,7 @@ public:
         o->catch_frame = catch_frame;
         o->end_frame = std::max(o->throw_frame, end_frame);
     }
-    // cu8k t01: the real thrown saber's end is known only when the thrower sees it gone or catches it: the host schedules
+    // the real thrown saber's end is known only when the thrower sees it gone or catches it: the host schedules
     // with end_frame = kSaberOpenEnd and resolves it then (catch_frame 0 = no catch; the snap drawn runs on that frame's
     // saber_service(after), the end on the end frame).
     static constexpr uint32_t kSaberOpenEnd = 0xFFFFFFFFu;
@@ -289,7 +289,7 @@ private:
         // HOLSTER_WEAPON (behaviour +0x40 bone found, +0x50 drawn, +0x44 / +0x48 transition, +0x4c last engaged frame)
         uint8_t holster = 0, drawn = 0;
         uint32_t t_start = 0, t_end = 0, last_engaged = 0;
-        // cu8j t03: Saber_Throw's pending throw frame (0 = thrown or none), catch frame (0 = none pending) and end frame
+        // Saber_Throw's pending throw frame (0 = thrown or none), catch frame (0 = none pending) and end frame
         // (0 = no saber).
         uint32_t throw_frame = 0, catch_frame = 0, end_frame = 0;
     };

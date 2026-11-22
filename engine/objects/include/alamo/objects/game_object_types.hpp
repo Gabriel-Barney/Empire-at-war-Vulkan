@@ -1,4 +1,4 @@
-// Typed, merged GameObjectType view (docs/re/OBJECT_TYPES.md) built on the raw ObjectTypeDatabase.
+// Typed, merged GameObjectType view (legacy docs/re/OBJECT_TYPES.md) built on the raw ObjectTypeDatabase.
 //
 // Reproduces the original loader:
 //   * pass 0: every type element in creation order gets a first parse (defaults + own tags, Â§4) and
@@ -15,7 +15,7 @@
 // tags outside the type's descriptor table ignored, nested elements flattened unless
 // SubObjectList="Yes" (sub-object list). Scalars last-wins; list merge per type_fields.hpp.
 //
-// Value tables and load rules of OBJECT_TYPES.md §9 (2026-10-27):
+// Value tables and load rules of legacy docs/re/OBJECT_TYPES.md §9 (2026-10-27):
 //   * enum / bitmask fields convert through enums.hpp (FieldValue::i = enum value, FieldValue::mask
 //     = bitfield value; text / items keep the value as written). A failed conversion (unknown
 //     name, ONE unknown mask token) logs "Error: Class data member <tag>: Failed to convert value
@@ -29,7 +29,7 @@
 //     above. Without a lookup the names are kept only (no conversion, no log);
 //   * Targeting_Priority_Set (code 0x54, §9.1.3): a set name from the files listed in
 //     TargetingPrioritySetFiles.xml (loaded with the other registries, before the types, as in
-//     MAIN_LOOP.md's database order); FieldValue::i = index into targeting_priority_set_names() (first
+//     legacy docs/re/MAIN_LOOP.md's database order); FieldValue::i = index into targeting_priority_set_names() (first
 //     definition of a name, case-insensitive), -1 = none (the constructor's null). Unknown names fail as
 //     above. Without the list file the name is kept only;
 //   * implicit STARSHIP_COMBATANT appended to Behavior at the end of every top-level parse when
@@ -121,7 +121,7 @@ public:
                std::vector<std::string>* diagnostics = nullptr, AnimTypeLookup anim_types = nullptr);
 
     // Before build() (a default-constructed table, as the synthetic test worlds pass) this is an empty database, so a
-    // type-name lookup answers "none" instead of dereferencing null (tst2 t01, b0137). The per-type reads that take a
+    // type-name lookup answers "none" instead of dereferencing null. The per-type reads that take a
     // TypeIndex still need t < size() (0 here).
     const ObjectTypeDatabase& raw() const { return raw_ ? *raw_ : empty_raw(); }
     size_t size() const { return state_.size(); }
@@ -147,7 +147,7 @@ public:
     std::array<float, 4> get_vec(TypeIndex t, std::string_view tag) const;
     std::span<const std::string_view> get_list(TypeIndex t, std::string_view tag) const;
     std::span<const FieldIndex> get_sub_objects(TypeIndex t, std::string_view tag) const;
-    // ref6 t01: typed reads through the handles of alamo/objects/type_tags.hpp (engine code outside objects uses these;
+    // typed reads through the handles of alamo/objects/type_tags.hpp (engine code outside objects uses these;
     // tools/lint/check_tag_reads.py), the type's name and a sub-object list.
     float get(TypeIndex t, const FloatTag& k) const { return get_float(t, k.tag); }
     int32_t get(TypeIndex t, const IntTag& k) const { return get_int(t, k.tag); }

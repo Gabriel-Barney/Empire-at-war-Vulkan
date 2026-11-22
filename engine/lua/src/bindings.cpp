@@ -34,7 +34,7 @@ constexpr std::pair<std::string_view, std::string_view> kParents[] = {
 constexpr std::string_view kFixedClasses[] = {"GameObjectTypeWrapper", "GameObjectWrapper", "LuaScriptClass",
                                               "LuaUserVar", "PlayerWrapper"};
 
-// q6 t11 (LUA_API.md "Mode gates"): globals that are a script error outside their mode. The bindings that test it
+// q6 t11 (legacy docs/re/LUA_API.md "Mode gates"): globals that are a script error outside their mode. The bindings that test it
 // themselves with their own text (Find_Nearest, Create_Cinematic_Transport, Spawn_Special_Weapon, ...) are listed too:
 // the dispatcher's test runs first.
 constexpr std::string_view kTacticalGlobals[] = {
@@ -56,7 +56,7 @@ using detail::ModeGate;
 // own gate (bind_objects.cpp).
 constexpr std::pair<std::string_view, ModeGate> kMethodGates[] = {
     {"GameObjectWrapper.Get_Energy", ModeGate::Tactical},     {"GameObjectWrapper.Get_Hull", ModeGate::Tactical},
-    {"GameObjectWrapper.Get_Health", ModeGate::Tactical},  // mcx8 t12: the same function as Get_Hull (MCX8_BINDINGS_OBJECTS)
+    {"GameObjectWrapper.Get_Health", ModeGate::Tactical},  // the same function as Get_Hull (MCX8_BINDINGS_OBJECTS)
     {"GameObjectWrapper.Get_Shield", ModeGate::Tactical},     {"GameObjectWrapper.Hyperspace_Away", ModeGate::Tactical},
     {"GameObjectWrapper.Make_Invulnerable", ModeGate::Tactical}, {"GameObjectWrapper.Stop", ModeGate::Tactical},
     {"GameObjectWrapper.Teleport", ModeGate::Tactical},       {"GameObjectWrapper.Teleport_And_Face", ModeGate::Tactical},
@@ -77,14 +77,14 @@ constexpr std::pair<std::string_view, const char*> kGateTexts[] = {
     {"Get_Energy", "GameObjectWrapper::Get_Energy -- only valid in tactical mode"},
     {"Hyperspace_Away", "GameObjectWrapper::Hyperspace_Away -- only valid in space mode"},
     {"Get_AI_Power_Vs_Unit", "Get_AI_Power_Vs_Unit -- only valid in tactical mode"},
-    // mcx8 t12 (docs/re/MCX8_BINDINGS_OBJECTS.md, Hide_Object / Get_Hull / Get_Shield) [H]: Hide_Object's copy-pasted
+    // mcx8 t12 (legacy docs/re/MCX8_BINDINGS_OBJECTS.md, Hide_Object / Get_Hull / Get_Shield) [H]: Hide_Object's copy-pasted
     // prefix; Get_Health is registered to Get_Hull's function, so it prints "Get_Hull".
     {"Hide_Object", "LuaTransitionCinematicTargetKey -- Command only valid in a tactical game."},
     {"Get_Hull", "GameObjectWrapper::Get_Hull -- this command is only supported in tactical modes."},
     {"Get_Health", "GameObjectWrapper::Get_Hull -- this command is only supported in tactical modes."},
     {"Get_Shield", "GameObjectWrapper::Get_Shield -- this command is only supported in tactical modes."},
 };
-// LUA_API.md "Dead or null wrappers": GameObjectWrapper methods whose dead wrapper is not the silent default.
+// legacy docs/re/LUA_API.md "Dead or null wrappers": GameObjectWrapper methods whose dead wrapper is not the silent default.
 constexpr std::pair<std::string_view, DeadRule> kDeadRules[] = {
     // the implementation tests it
     {"Is_Valid", DeadRule::Binding}, {"Is_Pool_Safe", DeadRule::Binding}, {"Service_Wrapper", DeadRule::Binding},
@@ -103,7 +103,7 @@ constexpr std::pair<std::string_view, DeadRule> kDeadRules[] = {
     {"Set_Selectable", DeadRule::WarnNothing}, {"Take_Damage", DeadRule::Binding},  // warns after its count check
     {"Set_Targeting_Priorities", DeadRule::WarnNothing}, {"Set_Targeting_Stickiness_Time_Threshold", DeadRule::WarnNothing},
     {"Get_Rate_Of_Damage_Taken", DeadRule::WarnZero}, {"Get_Time_Till_Dead", DeadRule::WarnZero},
-    // mcx8 t12 (docs/re/MCX8_BINDINGS_OBJECTS.md) [H]: Take_Damage / Is_Ability_Ready test the argument count before the
+    // mcx8 t12 (legacy docs/re/MCX8_BINDINGS_OBJECTS.md) [H]: Take_Damage / Is_Ability_Ready test the argument count before the
     // dead wrapper, Get_Name answers "" for a dead wrapper (the bindings test it); a dead Get_Shield is 0, no message.
     {"Get_Name", DeadRule::Binding}, {"Is_Ability_Ready", DeadRule::Binding}, {"Get_Shield", DeadRule::SilentZero},
 };
@@ -213,7 +213,7 @@ bool is_host_value_global(std::string_view name) {
     return std::find(std::begin(kHostValues), std::end(kHostValues), name) != std::end(kHostValues);
 }
 
-// binding-effect: Declare_Goal_Type noop-retail not registered by the exe, so the global stays nil (docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "Declare_Goal_Type") [H]
+// binding-effect: Declare_Goal_Type noop-retail not registered by the exe, so the global stays nil (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "Declare_Goal_Type") [H]
 bool is_unregistered_global(std::string_view name) { return name == "Declare_Goal_Type"; }
 
 bool binding_implemented(const BindingInfo& b) {
@@ -415,7 +415,7 @@ struct Invocation {
     ImplFn fn;
     uint32_t counter;   // unbound counter slot: the binding row (kNoBinding = none)
     const char* label;  // binding name for messages
-    ModeGate gate;      // q6 t11: tested first
+    ModeGate gate;      // tested first
     bool object;        // a GameObjectWrapper method: `dead` applies
     DeadRule dead;
     const char* method; // method name (dead / gate messages)
@@ -450,7 +450,7 @@ struct StoreSwap {
     StoreSwap& operator=(const StoreSwap&) = delete;
 };
 
-// q6 t11 (LUA_API.md "Binding error model across all bindings"): the mode gate (a script error), then a dead
+// q6 t11 (legacy docs/re/LUA_API.md "Binding error model across all bindings"): the mode gate (a script error), then a dead
 // GameObjectWrapper's rule, then the implementation. Only the port's own failures return -1 (raised by the caller): an
 // unbound binding or a C++ exception; `err` then holds the message.
 int invoke(lua_State* L, const Invocation& inv, char* err, size_t cap) noexcept {
@@ -521,7 +521,7 @@ int method_call(lua_State* L) {
     const uint32_t slot = static_cast<uint32_t>(lua_tonumber(L, lua_upvalueindex(3)));
     const MethodSlot& s = method_slots()[slot];
     const char* name = s.label.c_str() + class_names()[s.cls].size() + 1;
-    // q6 t11: the gate and the dead-wrapper rule of the slot (kMethodGates / kDeadRules above). The receiver's class
+    // the gate and the dead-wrapper rule of the slot (kMethodGates / kDeadRules above). The receiver's class
     // decides whether the dead rule applies (a GameObjectWrapper); the slot's class only names the rule.
     const bool object = ud->cls == cls_game_object();
     // An extra (implemented-only) method is never unbound, so it has no counter.
@@ -572,7 +572,7 @@ int mt_tostring(lua_State* L) {
         const bool alive = alive_in(st, *ud);
         std::string_view type_name = "?";
         if (alive && types) {
-            const uint32_t mt = member_view_type(*vm, *ud);  // refix t04: a member view prints its member type
+            const uint32_t mt = member_view_type(*vm, *ud);  // a member view prints its member type
             const objects::TypeIndex t = mt != objects::kNone ? mt : st->type(object_handle(*ud));
             if (t < types->raw().type_count()) type_name = types->name(t);
         }
@@ -745,7 +745,7 @@ void push_parent_object(lua_State* L, LuaVm::Impl& vm, objects::ObjectHandle h) 
 }
 objects::ObjectStore* parent_store(LuaVm::Impl& vm) { return parent_store_of(vm); }
 
-// refix t04: company member views (vm_internal.hpp).
+// company member views (vm_internal.hpp).
 lua_Number object_cache_key(const Ud& ud) {
     if (!is_member_view(ud)) return static_cast<lua_Number>(ud.id);
     const auto id = static_cast<lua_Number>(ud.id);  // < 2^32

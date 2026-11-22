@@ -48,7 +48,7 @@ std::vector<uint8_t> CommandRecording::to_bytes() const {
     wire::put(out, kWireVersion);
     wire::put(out, from_save ? kStreamFromSave : uint16_t{0});
     wire::put(out, config.delay);
-    // mcx5 t01: max_players bits 0-7, then the byte that was reserved (0) holds bits 8-15, so a stream of at most 255
+    // max_players bits 0-7, then the byte that was reserved (0) holds bits 8-15, so a stream of at most 255
     // players keeps its bytes.
     wire::put(out, static_cast<uint8_t>(config.max_players & 0xFFu));
     wire::put(out, kSchedLateByte);

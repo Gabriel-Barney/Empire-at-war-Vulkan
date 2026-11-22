@@ -1,4 +1,4 @@
-// Part 1 of test_ai_galactic (bo3 t03: split by position; see test_ai_galactic_common.hpp).
+// Part 1 of test_ai_galactic (split by position; see test_ai_galactic_common.hpp).
 #include "test_ai_galactic_common.hpp"
 
 // ================================================================ framework unit tests
@@ -175,7 +175,7 @@ void test_goal_pass_cadence() {
                 static_cast<long long>(retail.size() > 1 ? retail[1].first : 0), static_cast<long long>(retail.size() > 2 ? retail[2].first : 0));
 }
 
-// gai3 t06 (BKG1_RE_ANSWERS.md B.9 / B.10): a pass evaluates a targeted source's targets in the order of
+// gai3 t06 (legacy docs/re/BKG1_RE_ANSWERS.md B.9 / B.10): a pass evaluates a targeted source's targets in the order of
 // GoalModeHooks::target_at, skipping targets the application rejects (galactic: planets only; retail's reverse order is
 // gai3 t08).
 void test_goal_target_walk_order() {
@@ -347,7 +347,7 @@ void test_desire_and_hysteresis() {
     CHECK(desire == -5.5);
 }
 
-// a1g t01 - free-store reservations through the goal system (A1_READINGS §28.6): a mock mode whose PotentialPlans
+// free-store reservations through the goal system (A1_READINGS §28.6): a mock mode whose PotentialPlans
 // want unit 1 (else a fallback unit). The proposal's solve ignores reservations and reserves nothing; the accept
 // re-solves honouring them and reserves; every Commit suspends the active goals' entries before any
 // Resolve_Category and kept goals re-assert them; a goal whose unit another PP reserved is released.
@@ -483,11 +483,11 @@ void test_goal_reservations() {
     std::printf("goal reservations: %zu hook calls in the last pass\n", hooks.trace.size());
 }
 
-// OPT2 t03 - batched goal values (ai_goals.hpp): a mode with candidate_pf() evaluates the slice's prepared candidates
+// batched goal values (ai_goals.hpp): a mode with candidate_pf() evaluates the slice's prepared candidates
 // first (any thread, any range order) and commits every candidate in visit order; an unprepared function ("S", a Script_
 // stand-in that draws from the synced RNG) is evaluated in place. Proposals, accepts, draws and evaluation counts must
 // equal the unbatched run for every fan-out.
-// OPT2 t10: the batched accept (ai_goals.hpp "BATCHED ACCEPT"). Every candidate's solve draws a data-dependent number of
+// the batched accept (ai_goals.hpp "BATCHED ACCEPT"). Every candidate's solve draws a data-dependent number of
 // times from its own stream (seeded by frame, source and target), so the results and the synced stream's draws are
 // the same for any fan-out; at latency 1 the solves of frame N are applied on N + 1 (never earlier), a save
 // with solves pending continues exactly as the uninterrupted run, and a block drops the pending goals.
@@ -753,7 +753,7 @@ void test_goal_batched_values() {
         std::vector<std::string> trace;  // serial calls only; a batched value is logged where evaluated() commits it
         uint32_t counted = 0;
         mutable std::atomic<uint32_t> prepared{0};  // evaluate_prepared() calls, any thread
-        // OPT2 t10: slice_begin() / slice_end() bracket every slice; every batched value commit and slot 10 lies inside one.
+        // slice_begin() / slice_end() bracket every slice; every batched value commit and slot 10 lies inside one.
         bool open = false, bracket_ok = true;
         uint32_t slices = 0;
         void slice_begin() override {
@@ -1245,7 +1245,7 @@ void syn_data(MemoryFiles& files, AiDefinitions& defs, EquationSet& eqs, std::ve
     eqs.add("Conquer_Desire",
             "(3 + 2 * (Variable_Target.EnemyForce.HasSpaceForce == 0) + Variable_Target.BaseIncome) * "
             "(Variable_Self.SpaceTotalUnnormalized >= 1000)");  // the starting frigate (a2h: starbases no longer count)
-    if (script_target) {  // mcx8 t01: the same desire, times an evaluator that reads Target as an AI target
+    if (script_target) {  // the same desire, times an evaluator that reads Target as an AI target
         files.add("Data\\Scripts\\Evaluators\\SynTarget.lua", kEvalSynTarget);
         eqs.add("Needs_Starbase_Upgrade",
                 "(Variable_Target.StarbaseLevel < Variable_Target.MaxStarbaseLevel) * (Variable_Self.CreditsUnnormalized >= 1000) * 4 * "
@@ -1318,7 +1318,7 @@ CampaignResult run_synthetic(unsigned threads, int32_t frames, bool script_targe
     const SimRng synced_before_world = rng.synced();
     GalacticAiWorld world(sim, store, &types, &files, rng, defs, eqs, tinfo,
                           [&sim](uint8_t p, const commands::EventData& ev) { return sim.execute(p, ev); }, cfg);
-    CHECK(rng.synced() == synced_before_world);  // A2k t04: the queue phases come from the galaxy build, not drawn here
+    CHECK(rng.synced() == synced_before_world);  // the queue phases come from the galaxy build, not drawn here
     std::vector<std::string> pd;
     CHECK(world.load_plans(plan_files, &pd));
     for (const std::string& d : pd) std::printf("  plans: %s\n", d.c_str());
@@ -1365,7 +1365,7 @@ std::string golden_text(const CampaignResult& r) {
     return o.str();
 }
 
-// OPT3 t09: PlanScriptRuntime::load builds the load VMs through a ParallelFor and commits them in path order, so a
+// PlanScriptRuntime::load builds the load VMs through a ParallelFor and commits them in path order, so a
 // threaded load equals the serial one: library, pools, pristine digests, VM count and diagnostics (a script error, a
 // missing file and a duplicate plan name included).
 void test_plan_load_parallel() {
@@ -1428,7 +1428,7 @@ void test_plan_load_parallel() {
     }
 }
 
-// mcx6 t07 (LUA_API.md "Script lookup and require"): a free store named by XML loads whichever LUA_PATH entry exists
+// mcx6 t07 (legacy docs/re/LUA_API.md "Script lookup and require"): a free store named by XML loads whichever LUA_PATH entry exists
 // first, .lc included: a .lc-only free store is found; an earlier root's file of the same name shadows it; none: one
 // "not found" diagnostic.
 void test_free_store_lc() {
@@ -1488,7 +1488,7 @@ void test_synthetic_campaign() {
     }
 }
 
-// mcx8 t01: the synthetic campaign with the starbase-upgrade desire multiplied by a Script_ evaluator that calls
+// the synthetic campaign with the starbase-upgrade desire multiplied by a Script_ evaluator that calls
 // Target.Get_Game_Object() / Target.Get_Distance() (Fall of the Republic's GetSmugglingLevel shape). With Target as a
 // plain game object (before) every call raised "attempt to call field `Get_Game_Object'" and no upgrade was wanted.
 void test_script_evaluator_ai_target() {
@@ -1502,7 +1502,7 @@ void test_script_evaluator_ai_target() {
     CHECK(upgrades > 0);
 }
 
-// AI execution path finder in the world (GALACTIC.md §4, ai_path_finder.hpp): lazy creation by a query before the
+// AI execution path finder in the world (legacy docs/re/GALACTIC.md §4, ai_path_finder.hpp): lazy creation by a query before the
 // first service, creation at the first service (stagger), the 90-frame recompute in the Execution service, Get_Path
 // answers, non-AI players rejected, and the "ai.paths" state identical for any thread count.
 std::vector<uint64_t> run_path_world(unsigned threads, int32_t frames, lua::LuaPlayerWorld* story) {
@@ -1573,7 +1573,7 @@ std::vector<uint64_t> run_path_world(unsigned threads, int32_t frames, lua::LuaP
         const std::vector<PlanetIndex> fw = world.path(p, 7, 0);
         CHECK(fw.size() >= 2 && fw.front() == 7 && fw.back() == 0);
     }
-    if (story) {  // aitac t01: a story request waits in the story world while a battle is on top (the tactical AI takes it)
+    if (story) {  // a story request waits in the story world while a battle is on top (the tactical AI takes it)
         story->purge_goal_requests.push_back(5);  // no such player: nothing to purge, only drained
         for (int32_t p = 0; p < static_cast<int32_t>(sim.players().size()); ++p) world.update_player(p, frames + 1, false, false);
         CHECK(story->purge_goal_requests.size() == 1);
@@ -1592,7 +1592,7 @@ void test_path_finder_world() {
 }
 
 // a2m r4 (AI_GALACTIC §1.3 [H]): the galactic AI services every player's clocks from the same frame, as the original
-// (no per-player phase); GalacticAiConfig::stagger (OPT2 t01, off by default) gives the later AI ordinals a fixed phase.
+// (no per-player phase); GalacticAiConfig::stagger (off by default) gives the later AI ordinals a fixed phase.
 // Returns per player {planning next, execution next, goal services, planning services} after `frames` frames.
 std::vector<std::array<int64_t, 4>> run_clock_phase(bool stagger, int32_t frames) {
     std::vector<std::array<int64_t, 4>> out;
@@ -1641,7 +1641,7 @@ void test_galactic_clock_phase() {
     const std::vector<std::array<int64_t, 4>> orig = run_clock_phase(false, frames);
     CHECK(orig.size() == 2 && orig[0] == orig[1]);  // both players on the same frames, same service counts
     const std::vector<std::array<int64_t, 4>> phased = run_clock_phase(true, frames);
-    // OPT2 t01: ordinal 1 of 2 starts its planning / goal clocks stagger_offset(1, 2, 3) = 1 frame later.
+    // ordinal 1 of 2 starts its planning / goal clocks stagger_offset(1, 2, 3) = 1 frame later.
     CHECK(phased.size() == 2 && phased[0] == orig[0] && phased[1][0] == phased[0][0] + AiContext::stagger_offset(1, 2, 3));
     CHECK(phased.size() == 2 && phased[1][2] + 1 == phased[0][2]);  // one goal service fewer for the later ordinal
 }
@@ -1955,7 +1955,7 @@ void test_leaf_cache() {
                 "recompute by mask; Groundbase 1800 live\n", res.cache_size());
 }
 
-// A2 t03: per-tech members of the other objects the force totals walk (AI_GALACTIC_TOKENS 2 / 3): every unit of an orbiting
+// per-tech members of the other objects the force totals walk (AI_GALACTIC_TOKENS 2 / 3): every unit of an orbiting
 // fleet adds its type's members to the space leaf ("each unit's type power (category) + its per-tech members"); every
 // ground structure adds its members (never its own power) to the ground leaf; surface units add only their power; a
 // ground structure with Is_Special_Weapon_In_Space adds its own power to the space leaf by the structure mask (Capital
@@ -1981,7 +1981,7 @@ void test_force_members() {
     rules.types[tSB2].kind = gal::UnitKind::GroundStructure;  // SB2 stands in for an ion cannon (ground, +0x1E), power 1200
     rules.types[tSB2].base_level = 0;
     rules.types[tSB2].required_star_base = 0;
-    // a2i t05: an orbital structure (DUMMY_ORBITAL_STRUCTURE, a sensor pod), power 50, kept in `structures` by the sim.
+    // an orbital structure (DUMMY_ORBITAL_STRUCTURE, a sensor pod), power 50, kept in `structures` by the sim.
     const uint32_t tPod = static_cast<uint32_t>(rules.types.size());
     {
         gal::TypeInfo pod;
@@ -2042,7 +2042,7 @@ void test_force_members() {
     CHECK(galactic_ai_planet_force(sim, ti, 7, 0, true, false, kAllCategories) == 800.0);
     CHECK(galactic_ai_planet_force(sim, ti, 7, 0, true, false, inf) == 800.0);
     {
-        // mcx8 t08 (docs/re/AI_GALACTIC_TOKENS.md §2 GroundTotalUnnormalized, §7 item 4): the Enemy ground leaf adds, when
+        // mcx8 t08 (legacy docs/re/AI_GALACTIC_TOKENS.md §2 GroundTotalUnnormalized, §7 item 4): the Enemy ground leaf adds, when
         // its total is > 0, the Potential_Indigenous_Power entries of the planet type whose unit type is affiliated with a
         // player hostile to Self (here the infantry; the corvette is affiliated with Self's faction only); no category
         // mask on that term, and the Friendly side never adds it.
@@ -2109,9 +2109,9 @@ void test_force_members() {
                 "ground leaf 800, 0x5f2430 untyped 4350 / 2300, typed Capital 1800, Structure 1500\n");
 }
 
-// mcx0 t05 (docs/MOD_COMPAT_DESIGN.md §9.4): the token path registry and the handlers agree. Every registered path is
+// mcx0 t05 (docs/MODS.md "AI token coverage"): the token path registry and the handlers agree. Every registered path is
 // taken by its root's handler chain (dispatches), and no candidate path the chain takes is missing from the registry.
-// Candidates: the registry itself, every registered path tried on the other roots, and the paths AI_GALACTIC_TOKENS.md §5
+// Candidates: the registry itself, every registered path tried on the other roots, and the paths legacy docs/re/AI_GALACTIC_TOKENS.md §5
 // lists as not registered in retail.
 void test_token_registry() {
     MemoryFiles files;
@@ -2188,7 +2188,7 @@ void test_token_registry() {
     CHECK(GalacticSimTokenResolver::path_registered(Root::Self, "HOMEPLANET.TYPE.TOKEN"));
     CHECK(!GalacticSimTokenResolver::path_registered(Root::Game, "FORCEVISIBILITY"));
     std::printf("  token registry: %zu registered, %zu candidates, %u handled\n", reg.size(), cand.size(), taken);
-    // ref6 t03: every fogged leaf of the token spec table, evaluated on a fresh resolver, holds its cache entry under the key
+    // every fogged leaf of the token spec table, evaluated on a fresh resolver, holds its cache entry under the key
     // the signal 0xE recompute looks up (a handler caching under another key would leave the recompute nothing to refresh,
     // silently), and a force leaf of one layer fills no fogged key of the other layer (a space / ground key swap).
     eqs.add("Fog_HasStructure", "Variable_Target.HasStructure {Parameter_Type = \"NoSuchType\"}");  // needs a Parameter_Type
@@ -2281,7 +2281,7 @@ void test_home_planet() {
     std::printf("home planet: Self.HomePlanet.Type.Token resolves through Home_Location; none -> the leaf fails\n");
 }
 
-// a2m t03: a test plan that calls Wait_For_Members gets the units its PotentialPlan selected (take_selection_units)
+// a test plan that calls Wait_For_Members gets the units its PotentialPlan selected (take_selection_units)
 // once it is waiting; the task force starts with no members (A2M_T03_PRODUCE_FORCE_CLAIMS Q1).
 void take_when_ready(ParityWorld& pw, lua::GlobalValueStore& gv) {
     if (gv.get("take_ready").kind != lua::AiGlobalValue::Number || gv.get("take_done").kind == lua::AiGlobalValue::Number) return;
@@ -2292,7 +2292,7 @@ void take_when_ready(ParityWorld& pw, lua::GlobalValueStore& gv) {
     gv.set("take_done", d);
 }
 
-// a1h t07: a build task of an AllowFreeStoreUnits plan takes its unit through 0x4d2bd0, which does not read the free-store
+// a build task of an AllowFreeStoreUnits plan takes its unit through 0x4d2bd0, which does not read the free-store
 // entry's +0x30 owner (A1_READINGS §28.5): a unit another PotentialPlan reserved is still supplied.
 void test_free_store_supply() {
     ParityWorld pw(false, {"HeroAttach"});
@@ -2308,7 +2308,7 @@ void test_free_store_supply() {
     std::printf("free-store supply: a reserved unit is supplied (0x4d2bd0 ignores +0x30)\n");
 }
 
-// A2k t02: the production source planets of a planet target are the target's own reachability list (0x665160 with
+// the production source planets of a planet target are the target's own reachability list (0x665160 with
 // destination = the target, A2K_T02_RE_ANSWERS Q1 port change 3). At Conquer_Planet's Enemy_destination level P3 has a
 // source list only when one of its neighbours is held, so the solver tests that produce for a P3 target give the Empire
 // P2 too (an infantry company; P2 has no starbase, so the Corvette is still built at P0).
@@ -2329,7 +2329,7 @@ void test_escort_flag() {
         s.forces.push_back({1, 3, tFrigate});
         s.forces.push_back({1, 3, tFrigate});
         s.forces.push_back({0, 0, tCorvette});
-        own_p2(s);  // A2k t02: a held neighbour gives P3 its production source list
+        own_p2(s);  // a held neighbour gives P3 its production source list
     });
     pw.run(2);
     bool ok_main = false, ok_escort = false, ok_both = false;
@@ -2480,7 +2480,7 @@ void test_ai_clock_precision() {
                 galactic_ai_time_since_corruption_change(3600, 0), galactic_ai_time_since_stamp(0, -1));
 }
 
-// A2k t02: the per-target stage (A2K_T02_RE_ANSWERS Q1) and FreeStore Setup A (Q2(c)) on the synthetic chain P0..P7
+// the per-target stage (A2K_T02_RE_ANSWERS Q1) and FreeStore Setup A (Q2(c)) on the synthetic chain P0..P7
 // (the Empire holds P0 / P1, its hero and frigate at P0; Conquer_Planet = Enemy_destination, level 2).
 void test_stage_and_setup_a() {
     CHECK(galactic_ai_hull_fraction(50.0f, 100.0f) == 0.5 && galactic_ai_hull_fraction(0.0f, 100.0f) == 1.0 &&
@@ -2515,7 +2515,7 @@ void test_stage_and_setup_a() {
         ParityWorld pw(false, {"HeroDeny"}, [](gal::GalacticSetup& s) { s.forces.push_back({0, 2, tInfantry}); });
         pw.run(2);
         CHECK(pw.world->stage_list(0, 3, 2) == (std::vector<PlanetIndex>{2, 1, 0}) && pw.world->stage_area(0, 3, 2) == 2);
-        CHECK(!pw.world->goal_blocked(0, "Conquer_Planet", 3));  // a2l t03: P3's neighbour P2 is held now
+        CHECK(!pw.world->goal_blocked(0, "Conquer_Planet", 3));  // P3's neighbour P2 is held now
         const std::vector<uint32_t> s = pw.world->solve_potential_plan(0, "HeroDeny", "Conquer_Planet", 3, &ok);
         CHECK(ok && pw.has(s, pw.hero));
     }

@@ -208,7 +208,7 @@ uint32_t GalacticSim::assemble_fleet(std::span<const ObjectHandle> units) {
 
 }  // namespace alamo::galactic
 
-// ---- STY1 lane B story rewards (docs/re/STORY_REWARDS_GALACTIC.md) --------------------------------------------------
+// ---- STY1 lane B story rewards (legacy docs/re/STORY_REWARDS_GALACTIC.md) --------------------------------------------------
 
 namespace alamo::galactic {
 
@@ -284,7 +284,7 @@ bool GalacticSim::ability_ready(const SpecialAbilityDef& a, int32_t owner, uint3
     return ready;
 }
 
-// ---- mcx6 story rewards (docs/re/STORY_REWARDS_GALACTIC.md §1.10, §1.17) ----------------------------------------------
+// ---- mcx6 story rewards (legacy docs/re/STORY_REWARDS_GALACTIC.md §1.10, §1.17) ----------------------------------------------
 
 int32_t GalacticSim::max_starbase_level(PlanetIndex planet) const {
     const int32_t written = story_gates_.stat(story_gates_.max_starbase, planet);

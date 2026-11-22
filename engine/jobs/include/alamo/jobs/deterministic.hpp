@@ -1,5 +1,5 @@
 // Deterministic parallel patterns: results are bit-identical for any worker count (0, 1, 4, 16...)
-// and any scheduling, as required by the lockstep contract in docs/PHASE2.md.
+// and any scheduling, as required by the lockstep contract in docs/SIMULATION.md "Determinism rules".
 //
 // Both helpers accept either a JobSystem& or a core alamo::ParallelFor (so modules that only
 // depend on core, e.g. galactic, can use them through the hook).
@@ -67,7 +67,7 @@ T parallel_reduce(Exec& exec, uint32_t count, uint32_t chunk, T init, MapChunk&&
     return acc;
 }
 
-// "Parallel pure scoring, then serial ordered insert" (AI goal proposal shape, HOTSPOTS.md §1):
+// "Parallel pure scoring, then serial ordered insert" (AI goal proposal shape, legacy docs/re/HOTSPOTS.md §1):
 //   buffer[i] = map(i)            in parallel (map must be pure / write nothing shared)
 //   commit(i, buffer[i])          serially, i = 0..count-1, on the calling thread
 // Commit order equals the original serial loop, so insertion order, tie-breaks and any RNG draws

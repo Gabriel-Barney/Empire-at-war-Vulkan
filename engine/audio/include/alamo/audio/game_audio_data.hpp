@@ -8,7 +8,7 @@
 //   Data\XML\FactionFiles.xml       -> listed files (Factions.xml, Expansion_Factions.xml): FactionAudio
 //   Data\XML\AnimationSFXMaps.txt   -> AnimationSfxMap
 //
-// Value formats (as shipped; AUDIO.md §6.2 "WeatherAudioManager: intensity-selected loops with fade
+// Value formats (as shipped; legacy docs/re/AUDIO.md §6.2 "WeatherAudioManager: intensity-selected loops with fade
 // in/out and intermittent events with min/max seconds"):
 //   <Weather_SFXEvent_Loop>         TYPE, intensity, event                       (event "None" = silence)
 //   <Weather_SFXEvent_Intermittent> TYPE, intensity, event, min_s, max_s
@@ -82,7 +82,7 @@ struct FactionAudio {
     std::vector<std::string> pair_values(std::string_view tag, std::string_view key) const;
 };
 
-// Data\XML\AnimationSFXMaps.txt (AUDIO.md §5, §6.2 "animation events"): tab/space separated lines
+// Data\XML\AnimationSFXMaps.txt (legacy docs/re/AUDIO.md §5, §6.2 "animation events"): tab/space separated lines
 //   SOUND    <animation> <time ms> <SFX event>
 //   SURFACE  <animation> <time ms> <surface fx> <bone>     (surface-dependent effect, for the particle host)
 // Entries of one animation are kept sorted by time (stable for equal times). Times are milliseconds from

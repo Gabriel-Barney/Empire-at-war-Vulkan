@@ -1,4 +1,4 @@
-// alamo_render - R5 fog of war, renderer side (docs/re/FOG_OF_WAR.md §7 "renderer contract", DECORATIONS.md §2.3-§2.7).
+// alamo_render - R5 fog of war, renderer side (legacy docs/re/FOG_OF_WAR.md §7 "renderer contract", legacy docs/re/DECORATIONS.md §2.3-§2.7).
 //
 // Input: one player's FOW grid as the sim keeps it (engine/tactical/fog FogRenderView: per cell a state byte and a fade
 // byte, the grid box / size, the mode frame F, the grid's last-decay frame and its regrow step, the FOW-active / render
@@ -6,7 +6,7 @@
 // (SimSnapshot::fog, filled between ticks by apply_battle_fog), so the render thread never reads sim memory and never
 // writes the grid.
 //
-// Per frame the renderer converts it (DECORATIONS.md §2.3):
+// Per frame the renderer converts it (legacy docs/re/DECORATIONS.md §2.3):
 //   1. state -> intensity per cell: f = clamp(F - last_decay - 1, 0, 15) sim frames since the grid's last decay
 //      (FOG_OF_WAR §7), r = regrow_step / 16 (integer [M]); v < 239: v' = max(0, v - f r) (fog regrowing between
 //      decays); else v' = min(255, v - fade + f) (fading in); intensity = table[v'] (terrain::fow_state_to_intensity);
@@ -83,7 +83,7 @@ struct FogColors {
 };
 // Reads the four colours from GameConstants.xml text (missing / malformed tags keep `out`'s values). False without a root.
 bool parse_fog_colors(std::span<const uint8_t> game_constants_xml, FogColors& out);
-// cu5 t04: the same from the parsed <GameConstants> root (GameDatabase::constants().element); false for a null root.
+// the same from the parsed <GameConstants> root (GameDatabase::constants().element); false for a null root.
 bool parse_fog_colors(const data::XmlNode& game_constants_root, FogColors& out);
 // The palette the renderer uses for a frame: space -> (kSpaceFowVisible, space_fog), or with the reinforcement overlay
 // palette 3 (kSpaceFowVisible, space_reinforce_fog); land setup phase -> (kLandFowVisible, setup_fog); land ->

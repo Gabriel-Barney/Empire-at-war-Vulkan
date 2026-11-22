@@ -1,4 +1,4 @@
-// alamo_game host, ui1 t02: the options kept between runs (game_display.hpp OptionsProfile) and the gameplay options the
+// alamo_game host, the options kept between runs (game_display.hpp OptionsProfile) and the gameplay options the
 // sim host applies - alternate mouse controls, the tactical / galactic game speed and the abilities' default autofire.
 #include "game_app.hpp"
 
@@ -25,7 +25,7 @@ void App::load_game_options() {
     apply_gameplay_options();
 }
 
-// ref6 t04: the apply hook of each options page (options_pages.hpp), called on the dialog's Accept and after a profile load.
+// the apply hook of each options page (options_pages.hpp), called on the dialog's Accept and after a profile load.
 void App::apply_audio_page() { audio_.set_volumes(audio_opts_.master, audio_opts_.sfx, audio_opts_.speech, audio_opts_.music); }
 
 void App::apply_camera_page() {
@@ -37,8 +37,8 @@ void App::apply_camera_page() {
 
 void App::apply_gameplay_page() {
     apply_tooltip_config();    // HUD_GAPS §2.2: IDC_DELAY_TOOLTIPS -> Long_Encyclopedia_Delay
-    apply_camera_tuning();     // P1_CAMERA_INPUT.md §3.1 mouse / scroll options
-    apply_gameplay_options();  // ui1 t02: alternate mouse, game speeds
+    apply_camera_tuning();     // legacy docs/re/P1_CAMERA_INPUT.md §3.1 mouse / scroll options
+    apply_gameplay_options();  // alternate mouse, game speeds
 }
 
 void App::save_game_options() {
@@ -54,9 +54,9 @@ void App::save_game_options() {
 }
 
 void App::apply_gameplay_options() {
-    // IDC_ALTERNATE_MOUSE_CONTROLS (P1_DOUBLE_CLICK_MOVE.md §1.2): ground orders on the left button.
+    // IDC_ALTERNATE_MOUSE_CONTROLS (legacy docs/re/P1_DOUBLE_CLICK_MOVE.md §1.2): ground orders on the left button.
     orders_.set_alternate_mouse(gameplay_.alternate_mouse);
-    // IDC_GAME_SPEED_SLIDER / IDC_STRATEGIC_GAME_SPEED_SLIDER (MAIN_LOOP.md §1.5): the speed table indices; wall-clock
+    // IDC_GAME_SPEED_SLIDER / IDC_STRATEGIC_GAME_SPEED_SLIDER (legacy docs/re/MAIN_LOOP.md §1.5): the speed table indices; wall-clock
     // pacing only. Retail sends them as GameOptions (39), which the port's command stream does not carry [port]: the
     // indices go straight to the pacing (a session start resets them to 2, so they are applied again then).
     if (session_ && live_input()) {
@@ -66,7 +66,7 @@ void App::apply_gameplay_options() {
     }
 }
 
-// ABILITIES_HARDPOINTS.md §2.3 "Autofire default at spawn": with IDC_ABILITIES_DEFAULT_TO_AUTOFIRE on, every new object of
+// legacy docs/re/ABILITIES_HARDPOINTS.md §2.3 "Autofire default at spawn": with IDC_ABILITIES_DEFAULT_TO_AUTOFIRE on, every new object of
 // the local player gets SetAbilityAutofire (58) for each of its abilities with Supports_Autofire, through the command
 // stream. [port] the host sees new objects in the local player's selection tree once per frame and sends one command
 // per ability type for all of them (retail queues it per object at spawn).
@@ -166,7 +166,7 @@ void App::space_weapon_toggle() {
     targeting_.cancel();
 }
 
-// ui1 t03: IDC_MENU_CREDITS -> the credits roll (credits_roll.hpp) over the menu backdrop; the menu dialogs close while it
+// IDC_MENU_CREDITS -> the credits roll (credits_roll.hpp) over the menu backdrop; the menu dialogs close while it
 // runs and the main menu comes back when it ends or is clicked away. CreditsText_<LANGUAGE>.DAT of the loaded text
 // language, else ENGLISH.
 void App::show_credits() {

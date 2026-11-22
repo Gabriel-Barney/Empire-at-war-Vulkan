@@ -1,4 +1,4 @@
-// alamo_game host, ref6 t04: the options pages' load / save and setup conversions (options_pages.hpp).
+// alamo_game host, the options pages' load / save and setup conversions (options_pages.hpp).
 #include "options_pages.hpp"
 
 #include <algorithm>

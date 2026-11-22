@@ -1,4 +1,4 @@
-// storyb t13: the 3D story text crawl over a movie (Movies.xml Text_Crawl_Name -> a <TextScroll> of
+// the 3D story text crawl over a movie (Movies.xml Text_Crawl_Name -> a <TextScroll> of
 // StarWars3DTextCrawl.xml; video::TextCrawlSpec holds the data). Retail renders the text into a texture
 // (Texture_Width_Pow_2 x Texture_Height_Pow_2, Font_Name / Font_Size) mapped on W_TextScroll.alo and films it from the
 // model's camera bone; the model's animation is not read here. [port] This draws the same text as HUD glyph lines on a

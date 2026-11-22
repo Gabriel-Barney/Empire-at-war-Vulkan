@@ -1,6 +1,6 @@
 # Hangars: SPAWN_SQUADRON fighter launches for stations and carriers, and the end of the skirmish station upgrade
-# (Starbase_Upgrade_Ability; the ability apply itself is in abilities/). Specs: docs/re/HARDPOINT_DISABLED.md §3 / §9.4,
-# docs/re/STATION_HANGARS_SOUND.md. The battle host (engine/apps/sim) creates the requested squadrons.
+# (Starbase_Upgrade_Ability; the ability apply itself is in abilities/). Specs: legacy docs/re/HARDPOINT_DISABLED.md §3 / §9.4,
+# legacy docs/re/STATION_HANGARS_SOUND.md. The battle host (engine/apps/sim) creates the requested squadrons.
 if(NOT TARGET alamo_tactical_abilities)
   message(STATUS "alamo_tactical_hangar skipped: needs alamo_tactical_abilities")
   return()

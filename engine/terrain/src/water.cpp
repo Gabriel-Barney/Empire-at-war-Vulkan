@@ -1,4 +1,4 @@
-// Water plane / mesh / constants (TERRAIN_WATER_POST.md 3). See water.hpp.
+// Water plane / mesh / constants (legacy docs/re/TERRAIN_WATER_POST.md 3). See water.hpp.
 #include "alamo/terrain/water.hpp"
 
 #include <algorithm>

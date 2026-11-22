@@ -1,4 +1,4 @@
-// AI all-pairs recompute schedule (docs/re/PHASE2_ANSWERS.md Q11). Pure functions; the frame
+// AI all-pairs recompute schedule (legacy docs/re/PHASE2_ANSWERS.md Q11). Pure functions; the frame
 // is the current game mode's frame counter (mode +0x10; assumed to advance once per 30 Hz logic
 // tick like the global FrameSynchronizer counter, not verified).
 //

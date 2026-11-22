@@ -1,4 +1,4 @@
-// alamo_terrain - canonical .ted map reader/writer (docs/re/TERRAIN_WATER_POST.md 1, 5; SPEC.md 1, 6).
+// alamo_terrain - canonical .ted map reader/writer (legacy docs/re/TERRAIN_WATER_POST.md 1, 5; legacy docs/formats/SPEC.md 1, 6).
 //
 // A map is one chunk file with four top-level chunks: 0 map info, 3 start positions, 2 preview
 // objects, 1 the world (environments 0x100, terrain 0x101, objects 0x102, playable bounds 0x103,
@@ -187,7 +187,7 @@ struct TerrainHeader {
     std::vector<RawMini> raw;
 };
 
-// Map decal (0x101/6 -> leaf 0x10 per decal), DECORATIONS.md 4.1. Defaults = runtime ctor values.
+// Map decal (0x101/6 -> leaf 0x10 per decal), legacy docs/re/DECORATIONS.md 4.1. Defaults = runtime ctor values.
 // Geometry / fade / colour: decorations.hpp (build_decal_geometry, decal_alpha).
 struct TerrainDecal {
     uint32_t field_00 = 0;                // 00 (always 0 in data; meaning unknown [L])
@@ -206,7 +206,7 @@ struct TerrainDecal {
     std::vector<RawMini> raw;             // every mini as stored
 };
 
-// Map spline track (0x101/9 -> node 0x100 per track), DECORATIONS.md 5.1. Defaults = ctor values.
+// Map spline track (0x101/9 -> node 0x100 per track), legacy docs/re/DECORATIONS.md 5.1. Defaults = ctor values.
 // Geometry: decorations.hpp (build_track_geometry).
 struct TerrainTrack {
     float field_00 = 10.0f;               // 00 (always 10; editor default width? [L])
@@ -253,8 +253,8 @@ struct Terrain {
         return m - kMaterialSlots < extra_materials.size() ? &extra_materials[m - kMaterialSlots] : nullptr;
     }
     WaterScroll water_scroll[2];            // child 7, child 8
-    std::vector<TerrainDecal> decals;       // child 6 (DECORATIONS.md 4.1; only UM11 in vanilla)
-    std::vector<TerrainTrack> tracks;       // child 9 (DECORATIONS.md 5.1; 23 FoC maps)
+    std::vector<TerrainDecal> decals;       // child 6 (legacy docs/re/DECORATIONS.md 4.1; only UM11 in vanilla)
+    std::vector<TerrainTrack> tracks;       // child 9 (legacy docs/re/DECORATIONS.md 5.1; 23 FoC maps)
 
     uint32_t patches_x() const { return width > 1 ? (width - 1) / kPatchQuads : 0; }
     uint32_t patches_y() const { return height > 1 ? (height - 1) / kPatchQuads : 0; }
@@ -269,11 +269,11 @@ struct Terrain {
     // over the grid cell: i = floor(wx / 20), j = floor(wy / 20), the fractions taken before any clamp, each corner index
     // clamped on its own (outside the map: the edge height); blended along y on columns i and i + 1, then along x.
     float sample_height_bilinear(float wx, float wy) const;
-    // trn1 (docs/re/TRN1_TERRAIN_GAMEPLAY.md §1): the gameplay surface type of a world point.
+    // trn1 (legacy docs/re/TRN1_TERRAIN_GAMEPLAY.md §1): the gameplay surface type of a world point.
     // cell_surface_type: the TEM `surface_type` (mini 14) of the material at the grid vertex nearest (wx, wy) - indices
     //   floor(w / 20 + 0.5) clamped to the grid, no water test (0x133b10 + material +0x84; Get_Damage_Multiplier's cover
     //   test). 0 for a material slot past the table.
-    // under_water: the map has a water plane and the terrain height at (wx, wy) (sample_height_bilinear, mov3 t08) is below
+    // under_water: the map has a water plane and the terrain height at (wx, wy) (sample_height_bilinear) is below
     //   the water height - 0.5 (the literal of 0x5efe50 and of the Destroy_When_Stunned_Over_Water test; local water
     //   patches [M] are not modelled).
     // water_surface_type: 4 water, 8 lava, 7 ice (table 0x140a123c8), 0 without a water plane.
@@ -306,7 +306,7 @@ struct ObjectPlacement {
     // 0x482 (TERRAIN_WATER_POST 1.6): the object's hint (marker) name, leaf child 0 mini 01 (NUL-terminated);
     // empty = the object has no 0x482 chunk. Lua Find_Hint / Get_Hint read it.
     std::string hint;
-    // 0x46E (docs/re/Q6_T30_FIND_HINT_ORDER.md 3): the object's marker name (MarkerDataPack), same layout as 0x482 (leaf
+    // 0x46E (legacy docs/re/Q6_T30_FIND_HINT_ORDER.md 3): the object's marker name (MarkerDataPack), same layout as 0x482 (leaf
     // child 0 mini 01); shipped maps mostly store an empty name. has_marker_name = the chunk exists.
     std::string marker_name;
     bool has_marker_name = false;
@@ -344,7 +344,7 @@ struct PlayableArea {
     std::vector<RawMini> raw;
 };
 
-// Space map description (SPACE_AND_OPEN.md A.1), filled from 0x103 when the map has no terrain.
+// Space map description (legacy docs/re/SPACE_AND_OPEN.md A.1), filled from 0x103 when the map has no terrain.
 // Defaults are the space loader's: playable box +-5000 on each axis, camera box = playable box
 // shrunk by 400 in X and Y. The camera fields are overwritten by the Space_Mode constants right
 // after load in the original (A.1 [M]); they are kept for tools. Read-only view derived from
@@ -384,7 +384,7 @@ struct MapData {
 
     bool is_space() const { return !terrain.present; }
     uint32_t passability_at(uint32_t x, uint32_t y) const;
-    // The playable box in world XY (what the FOW grid covers, DECORATIONS.md 2.2): land 0x103
+    // The playable box in world XY (what the FOW grid covers, legacy docs/re/DECORATIONS.md 2.2): land 0x103
     // 05/06, else the terrain extent; space 0x103 04/05 (default +-5000). False only for a land map
     // with neither a box nor a terrain grid.
     bool playable_box(float (&min_xy)[2], float (&max_xy)[2]) const;

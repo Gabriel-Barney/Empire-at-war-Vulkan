@@ -78,7 +78,7 @@ constexpr VertexAttributeDesc kSkinnedAttrs[] = {
     {kLocBinormal, kR32G32B32Sfloat, "VK_FORMAT_R32G32B32_SFLOAT", 48},
     {kLocColor0, kR8G8B8A8Unorm, "VK_FORMAT_R8G8B8A8_UNORM", 60},
 };
-// RENDER.md 1.4: dynamic geometry buffers created at init, CPU-expanded particles / lasers:
+// legacy docs/re/RENDER.md 1.4: dynamic geometry buffers created at init, CPU-expanded particles / lasers:
 //   FVF XYZ|DIFFUSE|TEX1         (24 B): pos @0, D3DCOLOR @12, uv @16   ("pre-lit")
 //   FVF XYZ|NORMAL|DIFFUSE|TEX1  (36 B): pos @0, normal @12, D3DCOLOR @24, uv @28   ("lit")
 constexpr VertexAttributeDesc kPrimAttrs[] = {

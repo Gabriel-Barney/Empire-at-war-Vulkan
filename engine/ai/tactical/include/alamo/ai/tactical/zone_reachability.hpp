@@ -1,4 +1,4 @@
-// A1 - land reachability (ZoneReachabilityClass slot 7, 0x73f5f0), docs/re/AI_TACTICAL.md 3.4.
+// A1 - land reachability (ZoneReachabilityClass slot 7, 0x73f5f0), legacy docs/re/AI_TACTICAL.md 3.4.
 //
 // The land execution path finder (LandExecutionPathFinderClass, created at Execution slot 6) is a
 // zone graph with the AIExecutionPathFinderClass all-pairs: Recompute_All_Pairs once at creation,
@@ -62,7 +62,7 @@ uint32_t land_zone_edge_weight(const HintZone& a, const HintZone& b, uint32_t no
 // Node cost from a zone's threat sum: (uint32)(int64)max(0, sum) / 100.
 uint32_t land_zone_node_cost(double threat_sum);
 
-// OPT2 t02: a ZoneGraph::compute() result (node costs, edges, all-pairs), applied with ZoneGraph::adopt().
+// a ZoneGraph::compute() result (node costs, edges, all-pairs), applied with ZoneGraph::adopt().
 struct ZoneGraphResult {
     std::vector<uint32_t> node_cost;
     ::alamo::galactic::detail::RawOwned raw;

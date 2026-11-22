@@ -1,4 +1,4 @@
-# P3 - audio: SFX / music / speech event databases and player (docs/PHASE4.md P3).
+# P3 - audio: SFX / music / speech event databases and player (legacy docs/PHASE4.md P3).
 #
 # Vendored miniaudio 0.11.25 (approved by Gabriel 2026-10-27): the pristine GitHub tag archive unpacked
 # by toolchain\8_miniaudio.cmd into toolchain\miniaudio-0.11.25 (SHA-256 pinned there). Like engine/lua,
@@ -63,19 +63,16 @@ endif()
 
 add_executable(alamo_audio_tests tests/test_audio.cpp)
 target_link_libraries(alamo_audio_tests PRIVATE alamo_audio alamo_test_support)
-# Coverage reports (XML fields, sample resolution, decode sample) go to <project>/logs/audio_*.txt.
-target_compile_definitions(alamo_audio_tests PRIVATE "ALAMO_AUDIO_LOG_DIR=\"${PROJECT_SOURCE_DIR}/logs\"")
 add_test(NAME alamo_audio_tests COMMAND alamo_audio_tests)
 set_tests_properties(alamo_audio_tests PROPERTIES TIMEOUT 300)
 
 # Game-host layer: ambience (weather / map), conversations, GameAudio event hooks, Lua bridge via GameAudio.
 add_executable(alamo_audio_game_tests tests/test_game_audio.cpp)
 target_link_libraries(alamo_audio_game_tests PRIVATE alamo_audio alamo_test_support)
-target_compile_definitions(alamo_audio_game_tests PRIVATE "ALAMO_AUDIO_LOG_DIR=\"${PROJECT_SOURCE_DIR}/logs\"")
 add_test(NAME alamo_audio_game_tests COMMAND alamo_audio_game_tests)
 set_tests_properties(alamo_audio_game_tests PROPERTIES TIMEOUT 300)
 
-# ums0 t05: shader_files_from_vfs and default_sfx_megs on the VFS layers equal the pre-ums0 code on the reference
+# shader_files_from_vfs and default_sfx_megs on the VFS layers equal the pre-ums0 code on the reference
 # mods (data-driven; skip code 77 without ALAMO_FOC_DATA). Needs the materials module for the shader half.
 if(TARGET alamo_materials)
   add_executable(alamo_audio_layer_equivalence_tests tests/test_layer_equivalence.cpp)

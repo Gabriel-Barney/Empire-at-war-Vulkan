@@ -39,7 +39,7 @@ pub fn same_path(a: &Path, b: &Path) -> bool {
 mod tests {
     use super::*;
 
-    /// The settings page's detection rows from the recorded `alamo_mod_check --list` (ums3 t01).
+    /// The settings page's detection rows from the recorded `alamo_mod_check --list`.
     #[test]
     fn detection_comes_from_the_recorded_install() {
         let c = crate::catalog::parse(crate::catalog::tests::RECORDED).unwrap();

@@ -1,5 +1,5 @@
 // alamo_galactic_special_tests: P4 sim, the FoC galactic special systems (special_systems.hpp,
-// docs/re/P4_SIM_SYSTEMS.md = P4).
+// legacy docs/re/P4_SIM_SYSTEMS.md = P4).
 //   1. payloads (SpecialAbility 13 kinds 1 / 4 / 5 / 7) and quantization;
 //   2. hand-computed cases on a synthetic galaxy: hero respawn scheduling (incl. the negative-default quirk), black
 //      market offers / pricing / AI pick / human command / gate, sabotage (AI, human command, vigilance, halt, cost
@@ -602,7 +602,7 @@ void test_hack() {
     }
 }
 
-// ---- 2e0. tech level and unlock sources (docs/re/REMAINING_GAPS.md 1.4, 1.5, 2) ---------------------------------------
+// ---- 2e0. tech level and unlock sources (legacy docs/re/REMAINING_GAPS.md 1.4, 1.5, 2) ---------------------------------------
 
 // Types reused as unlock subjects: Build_Initially_Locked + Build_Can_Be_Unlocked_By_Slicer at the given Tech_Level.
 void make_sliceable(GalacticRules& r, uint32_t type, int32_t tech) {
@@ -717,7 +717,7 @@ void test_tech_unlocks() {
         GalacticSim& s = w.sim;
         make_sliceable(w.rules, tFrigate, 1);
         make_sliceable(w.rules, tDS2, 2);
-        CHECK(w.rules.constants.good_side_name.empty());  // modc t03: no built-in faction name
+        CHECK(w.rules.constants.good_side_name.empty());  // no built-in faction name
         w.rules.constants.good_side_name = "REBEL";       // as FoC's GameConstants.xml
         s.buildable_unit_reward(pReb, tFrigate, tMerc);
         CHECK(s.type_unlocked(pReb, tFrigate) && s.type_locked(pReb, tMerc));
@@ -806,7 +806,7 @@ void test_tech_unlocks() {
         w.run(301);
         CHECK(w.planet(rB).corruption == kCorruptionNone && !s.type_unlocked(pUnd, tMerc));
     }
-    // mcx4 t09 (docs/re/MCX4_T09_RE_ANSWERS.md Q1): Corruption_1_Success_Credit_Bonus, Corruption_2_Success_Credit_Bonus,
+    // mcx4 t09 (legacy docs/re/MCX4_T09_RE_ANSWERS.md Q1): Corruption_1_Success_Credit_Bonus, Corruption_2_Success_Credit_Bonus,
     // Corruption_3_Success_Credit_Bonus. The bonus of the first choice slot whose type is the completed type is paid as a
     // float (notify 0) to the first Benefits_From_Corruption player on a normal completion (not the planet owner, not the
     // player that started it); a removal pays nothing; the capture path pays the type-3 slot at completion.
@@ -867,7 +867,7 @@ void test_tech_unlocks() {
     }
 }
 
-// ---- 2e1. Rebel tech theft: Slicer_Ability (docs/re/REMAINING_GAPS.md 1.1-1.3) --------------------------------------
+// ---- 2e1. Rebel tech theft: Slicer_Ability (legacy docs/re/REMAINING_GAPS.md 1.1-1.3) --------------------------------------
 
 // Gives tMerc (a named hero here) a Slicer ability: price = (cost curve 1 + affinity) x Slice_Cost, chance = 1 + the
 // difficulty curve (+ affinity), respawn lists 20 s at tech 1. tFrigate (Slice_Cost 100) and tDS2 (200) are candidates.
@@ -1056,7 +1056,7 @@ void test_income() {
     // planet_income sums the entries: B = base 20 + 400 - 3000 (no force / trade / political terms here) = -2580.
     CHECK(s.planet_income(rB, false) == 20.0f + 400.0f - 3000.0f);
     // The breakdown groups by tag in first-seen order (A's entries, then B's); standard entries keep tag 0. It shows the
-    // entries as last refreshed, and no fiscal cycle has run yet (the first is on frame 1350, q2f t02): refresh A here.
+    // entries as last refreshed, and no fiscal cycle has run yet (the first is on frame 1350): refresh A here.
     CHECK(s.planet_income(rA, false) > 0.0f);
     const std::vector<EconomyRow> rows = s.economy_breakdown_by_tag(pEmp);
     bool saw_mine = false, saw_base = false;
@@ -1315,7 +1315,7 @@ void test_foc() {
         CHECK(bonus1("Bestine") == 10000.0f && bonus1("Thyferra") == 7500.0f && bonus1("NalHutta") == 8000.0f);
     }
     {  // a2m r2: the Underworld's Racketeering upgrade carries the salvage bounty; conflict-rule bounty values of the traced
-       // battles (docs/re/A2M_R2_UW_BOUNTY_TRACE.md §1).
+       // battles (legacy docs/re/A2M_R2_UW_BOUNTY_TRACE.md §1).
         const uint32_t uw = rules.find_faction("Underworld");
         const uint32_t up = rules.find_type("Underworld_Racketeering_Corruption_Upgrade");
         CHECK(uw != kNoIndex && up != kNoIndex);
@@ -1366,7 +1366,7 @@ void test_foc() {
         size_t pairs = 0;
         for (const ConflictTypeInfo& ti : cr.types) pairs += ti.strength_bonus.size();
         CHECK(pairs == 0);
-        {  // mcx4 t09 (docs/re/MCX4_T09_RE_ANSWERS.md Q6): the galaxy-map ability button kind / label by FoC's lists.
+        {  // mcx4 t09 (legacy docs/re/MCX4_T09_RE_ANSWERS.md Q6): the galaxy-map ability button kind / label by FoC's lists.
            // ledger: verifies GameConstants.Activated_Destroy_Planet_Ability_Names
            // ledger: verifies GameConstants.Activated_Neutralize_Hero_Ability_Names
            // ledger: verifies GameConstants.Activated_Remove_Corruption_Ability_Names
@@ -1387,7 +1387,7 @@ void test_foc() {
             CHECK(kind("IG-88") == 4);  // Neutralize (4) is tested before Hack_Super_Weapon (10)
             CHECK(kind("Star_Destroyer") == -1);
         }
-        {  // mcx4 t09 (docs/re/MCX4_T09_RE_ANSWERS.md Q7): Build_Countdown_Timer on the Death Star only, with its
+        {  // mcx4 t09 (legacy docs/re/MCX4_T09_RE_ANSWERS.md Q7): Build_Countdown_Timer on the Death Star only, with its
            // Build_Speech_Countdowns prefix; the speech events and the HUD timer text.
            // ledger: verifies GameObjectType.Build_Countdown_Timer
             uint32_t timers = 0;

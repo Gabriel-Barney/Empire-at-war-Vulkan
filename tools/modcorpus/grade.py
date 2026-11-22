@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compatibility grades G0-G3 for one mod or stack (docs/MOD_COMPAT_DESIGN.md §1.3, §12.2, §12.3; roadmap mcx7 t02).
+"""Compatibility grades G0-G3 for one mod or stack (docs/MODS.md "Compatibility grades").
 
 The corpus runner (run_corpus.py) collects one *result* per setup: the load report summary of `alamo_mod_check` (v4) and
 the outcome of each headless run and smoke. This module turns that into a grade, the blockers that keep it from the next
@@ -20,7 +20,7 @@ Grades (each includes the ones below it):
   G4 needs retail runs (§14) and is never given here.
 
 Accepted blockers: corpus.json may list, per setup, blockers that are explained as retail-equivalent or as the mod's own
-design (with a `why` and a reference, e.g. MODS.md §10.4 t44). A blocker matching one (regex search) is reported under
+design (with a `why` and a reference, e.g. legacy docs/MODS.md §10.4 t44). A blocker matching one (regex search) is reported under
 `accepted` and does not lower the grade.
 
 Stages: a sweep that skipped the runs (--stages check) cannot give more than G1, one that skipped the smokes not more
@@ -284,7 +284,7 @@ def selftest() -> int:
     check("crash", grade(res)["blocking"][0], "space: exit 3221225477 (crash)")
     res = _full()
     res["runs"]["galactic"] = _ok_run(orders=0)
-    acc = [{"blocker": r"^galactic: no AI orders$", "why": "AI starts only after the human's popup", "ref": "MODS.md §10.4 t45"}]
+    acc = [{"blocker": r"^galactic: no AI orders$", "why": "AI starts only after the human's popup", "ref": "legacy docs/MODS.md §10.4 t45"}]
     r = grade(res, acc)
     check("accepted blocker", (r["grade"], len(r["accepted"])), ("G3", 1))
     res = _full(smokes={"smoke_skirmish": {"status": "failed", "exit": 1, "error": "step 12 of 91"}})

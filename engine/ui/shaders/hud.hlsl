@@ -1,4 +1,4 @@
-// alamo_ui_draw HUD 2D pass (P2, docs/re/UI.md §2.5): textured, vertex-coloured quads in HUD canvas units drawn
+// alamo_ui_draw HUD 2D pass (P2, legacy docs/re/UI.md §2.5): textured, vertex-coloured quads in HUD canvas units drawn
 // with an identity world and the HUD components ortho camera (push constants: canvas -> clip scale / offset).
 // set 0: binding 0 = Texture2D pages[16] (0 white, 1 MT_CommandBar atlas, 2.. glyph pages), binding 1 = sampler.
 // Clip-space Y is up (the renderer's D3D convention; the pass uses a negative-height viewport).

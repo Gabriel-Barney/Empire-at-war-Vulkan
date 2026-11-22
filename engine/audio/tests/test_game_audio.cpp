@@ -325,7 +325,7 @@ void test_data() {
     CHECK(f && f->get("Strategic_Map_Music_Event") == "Gal_Rebel");  // the duplicate faction is not kept
     CHECK(f->get("Credits").empty());                                 // only SFX/Music/Speech tags are kept
     CHECK(f->get("Music_Event_Space_Ambient_Super_Weapon").empty());
-    CHECK(f->get("Faction_Super_Weapon") == "Death_Star");  // b0286: kept for the super-weapon music choice
+    CHECK(f->get("Faction_Super_Weapon") == "Death_Star");  // kept for the super-weapon music choice
     CHECK((f->pair_values("Music_Event_List_Ambient", "temperate") ==
            std::vector<std::string>{"Amb_Temperate", "Amb_Temperate_2"}));
     CHECK(f->pair_values("SFXEvent_Weather_End", "RAIN").empty());  // "RAIN, " = no event
@@ -575,9 +575,9 @@ void test_music_modes() {
     CHECK(a.music_mode() == music_mode::kTacticalAmbient);
     // ledger: verifies Faction.Music_Event_Tactical_Win
     // ledger: verifies Faction.Music_Event_Tactical_Lose
-    // (docs/re/MCX4_T13_RE_ANSWERS.md "Faction.Music_Event_Tactical_Win family": Music_Event_Tactical_Win / _Lose.)
+    // (legacy docs/re/MCX4_T13_RE_ANSWERS.md "Faction.Music_Event_Tactical_Win family": Music_Event_Tactical_Win / _Lose.)
     // Victory against the Empire: the local record's _Vs_Faction row keyed by the loser, music mode 9. Mode 9 is not
-    // excluded from the battle switch (AUDIO.md §9.2), so combat afterwards switches to battle music.
+    // excluded from the battle switch (legacy docs/re/AUDIO.md §9.2), so combat afterwards switches to battle music.
     g.battle_end({true, "Empire", false});
     CHECK(a.current_music() == "Win_Vs_Empire" && a.music_mode() == music_mode::kTacticalWin && a.music_mode() == 9);
     g.combat({true, false});
@@ -606,7 +606,7 @@ void test_music_modes() {
     g.enter_tactical(space);
     g.combat({true, false});
     CHECK(a.current_music() == "Bat_Space");
-    // b0286: the host's first battle report (presence learnt one tick after enter_tactical) re-picks the mode's event;
+    // the host's first battle report (presence learnt one tick after enter_tactical) re-picks the mode's event;
     // later reports only change the flag, read at the next mode switch.
     g.set_super_weapon_present(true, true);
     CHECK(g.super_weapon_present() && a.current_music() == "Bat_Space_DS" && a.music_mode() == music_mode::kTacticalBattle);
@@ -777,7 +777,7 @@ void test_hooks() {
     CHECK(count_op(a, LogOp::SfxStart, "Engine_Move") == 1);
 
     // Battle events.
-    CHECK(g.weapon_fire(60, "Gun_Fire", p) != 0 && last_op(a, LogOp::SfxStart)->owner == 0);  // aud1 t04: positional (§9.5)
+    CHECK(g.weapon_fire(60, "Gun_Fire", p) != 0 && last_op(a, LogOp::SfxStart)->owner == 0);  // positional (§9.5)
     CHECK(g.weapon_fire(60, "", p) == 0);
     CHECK(g.explosion("Impact_Boom", p) != 0 && rig.positions.back().x == 5.0f);
     CHECK(g.object_sfx(61, "Ambient_Hum", p, 0.5f) != 0);
@@ -819,7 +819,7 @@ void test_hooks() {
     settle();
     g.set_weather("RAIN", 0.2f);
     CHECK(count_op(a, LogOp::SfxStart, "HUD_Rain_Begin") == 2);
-    // aud1 t02 (AUDIO.md §9.3): a type change at intensity > 0 announces nothing; a Weatherproof local player hears nothing.
+    // aud1 t02 (legacy docs/re/AUDIO.md §9.3): a type change at intensity > 0 announces nothing; a Weatherproof local player hears nothing.
     const int starts_before = count_op(a, LogOp::SfxStart, "");
     g.set_weather("SNOW", 0.4f);
     g.set_weather("RAIN", 0.4f);
@@ -829,7 +829,7 @@ void test_hooks() {
     g.set_weather("RAIN", 0.6f, false);
     CHECK(count_op(a, LogOp::SfxStart, "HUD_Rain_Begin") == 2);
 
-    // mcx4 t13 (docs/re/MCX4_T13_RE_ANSWERS.md "GameObjectType.Play_SFXEvent_On_Sighting"): a flagged type sighted -> its
+    // mcx4 t13 (legacy docs/re/MCX4_T13_RE_ANSWERS.md "GameObjectType.Play_SFXEvent_On_Sighting"): a flagged type sighted -> its
     // SFXEvent_Unit_Type_Spotted entry, else SFXEvent_Generic_Unit_Spotted; an enemy -> SFXEvent_Enemy_Spotted; the Lua
     // flag off -> nothing.
     // ledger: verifies Faction.SFXEvent_Generic_Unit_Spotted
@@ -874,7 +874,7 @@ void test_hooks() {
     CHECK(near(a.bus_level(AudioBus::Master), 0.6f));
 }
 
-// STATION_HANGARS_SOUND.md §3: engine idle / moving loop slots, crossfade restarts, death / removal kills,
+// legacy docs/re/STATION_HANGARS_SOUND.md §3: engine idle / moving loop slots, crossfade restarts, death / removal kills,
 // suppression, engines offline, fog mute, Max_Instances 2 voice stealing by camera distance.
 uint32_t voice_for(const AudioSystem& a, uint32_t handle) {
     for (auto it = a.log().rbegin(); it != a.log().rend(); ++it)
@@ -1458,10 +1458,8 @@ void test_real(const std::string& game, const std::string& root, bool is_eaw) {
     CHECK(types > 100 && unknown * 20 < lines && started + data_refusals <= types &&
           types - started - data_refusals <= types / 100 + 1);
 
-#ifdef ALAMO_AUDIO_LOG_DIR
-    std::ofstream out(std::string(ALAMO_AUDIO_LOG_DIR) + "/audio_game_" + game + "_report.txt", std::ios::binary);
+    std::ofstream out(::alamo::test::artifact_dir() + "/audio_game_" + game + "_report.txt", std::ios::binary);
     out << rep;
-#endif
 }
 
 }  // namespace

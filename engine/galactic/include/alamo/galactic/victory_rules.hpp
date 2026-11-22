@@ -1,5 +1,5 @@
 // Galactic victory conditions of a campaign (data only; the monitor is victory.hpp). Split from victory.hpp so that
-// GalacticSetup / GalacticSim (campaign.hpp) can hold the rules and run the event-driven tests themselves (q6 t21).
+// GalacticSetup / GalacticSim (campaign.hpp) can hold the rules and run the event-driven tests themselves.
 #pragma once
 #include <cstdint>
 #include <string>
@@ -33,7 +33,7 @@ struct VictorySide {
 };
 struct VictoryRules {
     VictorySide human, ai;
-    // q6 t22: the faction that gets the Human_ list (campaign Starting_Active_Player, or the faction the player picked
+    // the faction that gets the Human_ list (campaign Starting_Active_Player, or the faction the player picked
     // when the host overrides it). Empty: the players marked human get it [port: hand-built setups].
     std::string starting_active_faction;
 };

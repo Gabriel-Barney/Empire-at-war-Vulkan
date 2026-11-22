@@ -57,10 +57,10 @@ private:
     std::size_t offset_;
 };
 
-// Salvage mode (mcx2 t03, docs/MOD_COMPAT_DESIGN.md 10.2, decision D5: draw what retail draws). The runtime decoders
+// Salvage mode (docs/MODS.md "Asset salvage and GUI fallback", decision D5: draw what retail draws). The runtime decoders
 // accept the defects retail accepts and say which rule applied; the tools (formats_validate, alamo_mod_check --strict)
 // keep strict mode, where every defect is a FormatError. Each rule is documented where it applies and in
-// docs/re/MCX2_T02_ASSET_SALVAGE.md.
+// legacy docs/re/MCX2_T02_ASSET_SALVAGE.md.
 struct SalvageNote {
     std::string rule;    // short id, e.g. "ala_block_stride" (the report's salvaged[].rule)
     std::string detail;  // what was found and what was kept

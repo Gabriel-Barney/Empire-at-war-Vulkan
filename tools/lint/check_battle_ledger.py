@@ -1,4 +1,4 @@
-"""Save ledger lint (roadmap ref2 t01: TacticalBattle; ref4 t02: every saved module in TABLE below).
+"""Save ledger lint (TacticalBattle; every saved module in TABLE below).
 
 Every saved class in TABLE has a ledger header that lists each of its data members once. Two rule sets:
 
@@ -37,8 +37,8 @@ member in every class of TABLE (the real files) expecting exactly one new "missi
 Usage: check_battle_ledger.py [--selftest] [--list [Class]] [--only Class]
   --list      print the members the parser found with their ledger kind (and, for generic classes, which save / read /
               hash functions name them)
-Exit: 0 in step, 1 differences, 2 a file is missing. Runs in build_agent.cmd (before the build) and as the ctest entry
-alamo_sim_battle_ledger_lint.
+Exit: 0 in step, 1 differences, 2 a file is missing. Runs as the ctest entry alamo_sim_battle_ledger_lint (synthetic
+suite: dev.cmd suite synthetic).
 """
 import os
 import re
@@ -349,7 +349,7 @@ def check(header_text, ledger_text, save_text):
     return errors
 
 
-# ---------------------------------------------------------------------------------------------- generic classes (ref4 t02)
+# ---------------------------------------------------------------------------------------------- generic classes
 
 class Entry:
     """One saved class: its header, its ledger header, the source files that define its functions, and the regexes of

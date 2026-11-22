@@ -236,7 +236,7 @@ void GameScreens::fill_battle_end_values(GuiDialog& d, const BattleEndInfo& info
                 d.show(eff_id[side], true);
                 d.set_text(eff_id[side], v);
             } else {
-                tail += U"   " + v;  // QA t12: bare %, as the missing control shows it; label + figures crossed the divider
+                tail += U"   " + v;  // bare %, as the missing control shows it; label + figures crossed the divider
             }
         }
         GuiControl* h = d.get(head_id[side]);
@@ -282,7 +282,7 @@ bool GameScreens::show_battle_end(const BattleEndInfo& info) {
         d->set_value(bars[side], 0);
         d->show(bars[side], n[side] > static_cast<size_t>(kLossRows));
     }
-    for (const char* a : {"IDC_RIGHT_ARROW1", "IDC_RIGHT_ARROW2"}) {  // UI.md §3.7.2: the tech-tree right arrow, white
+    for (const char* a : {"IDC_RIGHT_ARROW1", "IDC_RIGHT_ARROW2"}) {  // legacy docs/re/UI.md §3.7.2: the tech-tree right arrow, white
         d->set_image(a, "i_tree_arrow_right.tga");
         if (GuiControl* ac = d->get(a)) ac->tint = Rgba8{255, 255, 255, 255};
         d->show(a, true);
@@ -433,7 +433,7 @@ void GameScreens::on_click(const GuiEvent& e, std::vector<ScreenAction>& out, st
         } else if (is("IDC_SAVE_REPLAY_BUTTON")) {
             out.push_back(act(ScreenAction::Kind::SaveReplay));
         }
-    } else if (iequals(n, dlg::kRetry)) {  // ui1 t05: the host's "retry" message-box handler takes it
+    } else if (iequals(n, dlg::kRetry)) {  // the host's "retry" message-box handler takes it
         if (is("IDC_RETRY_BUTTON") || is("IDC_QUIT_BUTTON")) {
             gui_->close(n);
             ScreenAction a = act(ScreenAction::Kind::MessageBoxResult);

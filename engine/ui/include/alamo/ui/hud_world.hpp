@@ -1,4 +1,4 @@
-// P2 world-space UI (docs/re/UI.md §1.2-1.5): selection brackets, health / shield / power bars, control-group
+// P2 world-space UI (legacy docs/re/UI.md §1.2-1.5): selection brackets, health / shield / power bars, control-group
 // numbers and fly-text are 2D quads placed by projecting a world point through the gameplay camera, drawn in
 // the HUD layers after the post chain and a depth clear, at a constant size in canvas units (they never shrink
 // with distance). The selection circle is the only true 3D primitive: WorldHud only lists SelectionBlob
@@ -8,7 +8,7 @@
 // Read-only with respect to the sim: inputs are HudUnit records copied from the render snapshot
 // (hud_sim_bridge.hpp) and the synced selection; nothing here writes sim state or emits commands.
 //
-// [port] choices (UI.md leaves them open, §6): bracket pieces centred on the left / right edge of the object's
+// [port] choices (legacy docs/re/UI.md leaves them open, §6): bracket pieces centred on the left / right edge of the object's
 // projected bounding sphere (radius x GUI_Bounds_Scale, at least 6 px) at the sphere centre's height; bars
 // centred above the bounds, health then shield then power, Health_Bar_Spacing (2) pixels apart; Smooth_Bar fills
 // clip the full-level overlay to the fraction, otherwise overlay level round(fraction * Max_Bar_Level); bars and
@@ -16,7 +16,7 @@
 // bracket centre + st_control_group Text_Offset (pixels, +Y down); GUI_Bracket_Size -1 from CategoryMask (see
 // derive_bracket_classes); fly-text rises 20 px/s for 2 s.
 // Bars keep a fixed size: GameConstants Health_Bar_Scale / Land_Health_Bar_Scale / Min_Health_Bar_Scale (defaults 20, 20,
-// 0) are only written by the GameConstants constructor and never read (docs/re/STRATEGIC_GAPS.md §7.2 [H]), so the
+// 0) are only written by the GameConstants constructor and never read (legacy docs/re/STRATEGIC_GAPS.md §7.2 [H]), so the
 // port does not parse them.
 #pragma once
 #include <cstdint>
@@ -54,12 +54,12 @@ struct HudTypeInfo {
     std::string selection_blob_material;  // Selection_Blob_Material_Name ("" = faction default)
     bool has_shields = false;             // Shield_Points > 0
     bool is_hero = false;
-    // [port] class for GUI_Bracket_Size -1 (UI.md §1.4 [M]; derive_bracket_classes: land Infantry -> small,
+    // [port] class for GUI_Bracket_Size -1 (legacy docs/re/UI.md §1.4 [M]; derive_bracket_classes: land Infantry -> small,
     // Structure -> large, else medium; space Fighter / Bomber (the two lowest category bits) -> small, Capital / Super / Structure -> large,
     // else medium).
     BracketSize land_class = BracketSize::Medium, space_class = BracketSize::Medium;
     std::string icon_name;                // Icon_Name (selection panel portrait)
-    // Radar (UI.md §1.7 per-type tags): Radar_Icon_Name (atlas texture, "" = the radar_blip dot), Radar_Icon_Size (x y in
+    // Radar (legacy docs/re/UI.md §1.7 per-type tags): Radar_Icon_Name (atlas texture, "" = the radar_blip dot), Radar_Icon_Size (x y in
     // the radar's logical space, -1..1 across the radar: canvas size = size x radar size / 2 [port]), Is_Visible_On_Radar /
     // Is_Visible_On_Enemy_Radar (absent = Yes [port]). mcx4 t14 (MCX4_PRES_RE_ANSWERS_3 Q12): Radar_Show_Facing (default
     // Yes) turns an icon blip with the unit's yaw (radar_show_facing), Radar_Rotate_Icon turns its texture a quarter turn
@@ -73,7 +73,7 @@ struct HudTypeInfo {
     // mcx4 t14 (same answer, registration GameModeClass vf87 0x362580): Radar_Register_As_Foreground_Object - the blip
     // goes on the radar's foreground layer, drawn above the other blips.
     bool radar_foreground = false;
-    bool radar_show_facing = true, radar_rotate = false;  // mcx4 t14: Radar_Show_Facing / Radar_Rotate_Icon
+    bool radar_show_facing = true, radar_rotate = false;  // Radar_Show_Facing / Radar_Rotate_Icon
     bool visible_on_radar = true, visible_on_enemy_radar = true;
     // q6 t19 (OBJECT_SCRIPTS §10.3, radar filter 0x35b4d0): Visible_On_Radar_When_Fogged - a Lua-hidden unit keeps its blip.
     bool visible_on_radar_when_fogged = false;
@@ -81,9 +81,9 @@ struct HudTypeInfo {
 BracketSize bracket_size(const HudTypeInfo& t, bool land);
 
 // Default class of a type whose GUI_Bracket_Size is -1, from its CategoryMask tokens (GameObjectCategoryType names,
-// OBJECT_TYPES.md §9.1.1: Fighter Bomber Transport Corvette Frigate Capital Super Infantry Vehicle Air Structure Wall ...).
-// UI.md §1.4 only says the original switches on the category (switch [H], category meaning [M]); this is the rule the
-// shipped GUI_Bracket_Size values agree with (docs/re/UI.md §1.4 "P2 data check"): explicit Corvette / Vehicle 1, Capital 2,
+// legacy docs/re/OBJECT_TYPES.md §9.1.1: Fighter Bomber Transport Corvette Frigate Capital Super Infantry Vehicle Air Structure Wall ...).
+// legacy docs/re/UI.md §1.4 only says the original switches on the category (switch [H], category meaning [M]); this is the rule the
+// shipped GUI_Bracket_Size values agree with (legacy docs/re/UI.md §1.4 "P2 data check"): explicit Corvette / Vehicle 1, Capital 2,
 // Structure mostly 2, Infantry mostly 0; Transport and Wall are nearly always explicit 0 (36 of 39, 16 of 21), so the
 // default rarely matters for them. Tokens match case-insensitively.
 struct BracketClasses {
@@ -114,7 +114,7 @@ struct HudUnit {
     Vec3 icon_anchor{};
     float icon_health = 1.0f;
     Rgba8 team_color{255, 255, 255, 255};  // snapshot team colour (radar blips)
-    float yaw_deg = 0.0f;  // mcx4 t14: the facing's angle from world +X, counter-clockwise, degrees (radar icon turn)
+    float yaw_deg = 0.0f;  // the facing's angle from world +X, counter-clockwise, degrees (radar icon turn)
     // R5 sensor jamming (ABILITY_VISUALS 3, radar filter 0x35b4d0): Is_Jammed this tick. The radar drops the blip of a unit that is
     // hostile to the local player and jammed; the owner's and allies' radar still shows it.
     bool jammed = false;
@@ -154,7 +154,7 @@ struct WorldHudContext {
     int32_t local_player = 0;
     std::function<bool(int32_t owner)> hostile;          // default: owner >= 0 && owner != local_player
     // Faction default selection material (Faction XML Land_ / Space_Mode_Selection_Blob_Material_Name; heroes
-    // Selection_<faction>_Hero) for an owner. Null [port]: no material name (modc t20: no built-in faction name; the
+    // Selection_<faction>_Hero) for an owner. Null [port]: no material name (no built-in faction name; the
     // land blob then takes the material table's first entry, the space blob model does not read it).
     std::function<std::string(int32_t owner, bool land, bool hero)> selection_material;
     bool interface_hidden = false;  // byte 0x140b3069b: nothing world-anchored is drawn

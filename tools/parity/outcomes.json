@@ -1,5 +1,5 @@
 {
- "_doc": "AI-vs-AI outcome sweeps (ref4 t04): parity_harness.py outcome --scenario ID runs alamo_headless with args plus --seed s for s = 1..seeds and judges the share of seeds (outcome_sweep.py has the keys). Thresholds sit below the measured share so that one seed's battle moving is not a failure (docs/DECISIONS.md 'Parity tiers', 'Outcome tests over seeds'); a share falling under them is. Measured on dev 262a47b1 (2026-11-19, MSVC, workers 0). Change a threshold only with the new measurement and its reason in why, like a golden. The first five are ctests (engine/apps/CMakeLists.txt, alamo_headless_outcome_<id>, label slow).",
+ "_doc": "AI-vs-AI outcome sweeps (ref4 t04): parity_harness.py outcome --scenario ID runs alamo_headless with args plus --seed s for s = 1..seeds and judges the share of seeds (outcome_sweep.py has the keys). Thresholds sit below the measured share so that one seed's battle moving is not a failure (docs/SIMULATION.md 'Parity tiers', 'Outcome tests over seeds'); a share falling under them is. Measured on dev 262a47b1 (2026-11-19, MSVC, workers 0). Change a threshold only with the new measurement and its reason in why, like a golden. The first five are ctests (engine/apps/CMakeLists.txt, alamo_headless_outcome_<id>, label slow).",
  "foc_space": {
   "args": ["--skirmish-ai", "foc", "--ticks", "16000", "--workers", "0", "--quiet", "--expect-battle-end"],
   "seeds": 16,
@@ -47,7 +47,7 @@
   "max_lua_seeds": 10,
   "retail": [["20261108-220755 (SKAI_T06_LAND_RUNS s1)", null], ["20261112-095520 (s6)", null], ["20261116-012157 (s8)", null],
              ["20261116-062402 (s9)", 27265]],
-  "why": "skai exit test (docs/DECISIONS.md 'skai exit test as a tier-2 distribution', Gabriel 2026-11-16; formerly tools/probe_mod/q2_traces/analysis/skai_exit.py, which judged no Lua errors): the Rebel AI against an idle human Empire on Utapau, end rate (Fisher) and end frames against the retail runs in retail (run id under tools/probe_mod/q2_traces/out, end frame or null). A new retail run of this lobby goes into retail. Not a ctest (36000 ticks x 10 seeds): run by hand."
+  "why": "skai exit test (docs/SIMULATION.md 'skai exit test', Gabriel 2026-11-16; formerly tools/probe_mod/q2_traces/analysis/skai_exit.py, which judged no Lua errors): the Rebel AI against an idle human Empire on Utapau, end rate (Fisher) and end frames against the retail runs in retail (run id under tools/probe_mod/q2_traces/out, end frame or null). A new retail run of this lobby goes into retail. Not a ctest (36000 ticks x 10 seeds): run by hand."
  },
  "skai_exit_empire": {
   "args": ["--skirmish-ai", "foc-land", "--map", "_MP_LAND_UTAPAU", "--human", "Underworld", "--ai", "Empire", "--ticks",

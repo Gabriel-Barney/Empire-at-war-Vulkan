@@ -1,4 +1,4 @@
-// CPU topology and the job system's pool (SIMP sp1, docs/SIM_PARALLEL_DESIGN.md 4.1), plus OS scheduling hints.
+// CPU topology and the job system's pool (SIMP sp1, docs/SIMULATION.md "Job system and CPU topology"), plus OS scheduling hints.
 //
 // The pool is one worker per physical core (SMT siblings left to the OS, the render thread and audio), on the
 // performance cores only (hybrid CPUs: the highest EfficiencyClass), within one last-level-cache domain (dual-CCD parts:

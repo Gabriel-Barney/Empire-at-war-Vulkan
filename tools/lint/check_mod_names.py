@@ -1,4 +1,4 @@
-"""modc t04 lint: no mod or faction name literals in engine/ sim code (docs/MODS.md §1 rule 1, docs/status/modc-audit.md).
+"""modc t04 lint: no mod or faction name literals in engine/ sim code (docs/MODS.md "The agnostic-loading rule", legacy docs/status/modc-audit.md).
 
     python tools/lint/check_mod_names.py [--engine DIR] [--names FILE] [--quiet]
     python tools/lint/check_mod_names.py --selftest
@@ -20,7 +20,7 @@ from pathlib import Path
 
 SCOPE = ['core', 'jobs', 'data', 'galactic', 'objects', 'anim', 'commands', 'tactical', 'ai', 'lua', 'vfs',
          'apps/sim', 'apps/headless', 'apps/game/src', 'apps/game/rules', 'apps/game/include',
-         'apps/game/app', 'ui']  # modc t20: the presentation host and the UI
+         'apps/game/app', 'ui']  # the presentation host and the UI
 SKIP_DIRS = {'tests', 'testdata', 'tools', 'bench', 'benches'}
 EXTS = {'.cpp', '.hpp', '.h', '.inl', '.cc'}
 WORKSHOP_ID = re.compile(r'^[1-9]\d{8,10}$')
@@ -237,7 +237,7 @@ def run(engine, names_file, quiet=False):
     for line in out:
         print(line)
     if bad:
-        print(f'check_mod_names: {bad} violation(s) in {len(files)} files (docs/status/modc-audit.md)')
+        print(f'check_mod_names: {bad} violation(s) in {len(files)} files (legacy docs/status/modc-audit.md)')
         return 1
     if not quiet:
         print(f'check_mod_names: OK ({len(files)} files, {ok} allowed by marker, {len(names)} names)')

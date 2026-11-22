@@ -1,6 +1,6 @@
 // S9 - read-only ability data: <Unit_Ability> records (Unit_Abilities_Data), special abilities
 // (the type's <Abilities> list) and the per-object-type ability descriptor, plus their XML
-// parsers (docs/re/ABILITIES_HARDPOINTS.md 2.2, 3.1-3.10, xml_field_tables.md).
+// parsers (legacy docs/re/ABILITIES_HARDPOINTS.md 2.2, 3.1-3.10, xml_field_tables.md).
 #pragma once
 #include <array>
 #include <cstdint>
@@ -38,7 +38,7 @@ struct UnitAbilityRecord {
     float effective_radius = 0.0f;       // Effective_Radius
     float recharge_seconds = 0.0f;       // Recharge_Seconds
     float expiration_seconds = 0.0f;     // Expiration_Seconds (<= 0: no active phase)
-    // LURE pulses (cu8f t06, CU8F_T04_T06_RE §3.1 [H]): every int(FPS x Pulse_Frequency_Secs) frames up to
+    // LURE pulses (CU8F_T04_T06_RE §3.1 [H]): every int(FPS x Pulse_Frequency_Secs) frames up to
     // Max_Number_Of_Pulses, then the behaviour suspends (AbilitySystem lure service).
     // Is_Pulsing (+0x2c) is parsed but has no reader in the original ([M]: LURE always pulses; the tag is even
     // registered as a float), so nothing reads it here either.
@@ -110,7 +110,7 @@ struct SpecialAbilityDesc {
     float damage_per_frame = 0.0f;               // energy weapon
     float duration_secs = 0.0f;                  // Duration_In_Secs (jamming fallback)
     float stealth_transition_time = 0.0f;  // parsed, not read by the sim: render-only fade (ABILITY_VISUALS §1.1)
-    LightEffectDesc owner_light, target_light;  // mcx4 t15: Owner_ / Target_Light_Effect_* (presentation only)
+    LightEffectDesc owner_light, target_light;  // Owner_ / Target_Light_Effect_* (presentation only)
     bool must_be_bought_on_black_market = false;
     // laser defense
     float defense_duration = 0.0f, protection_radius = 0.0f, zap_recharge = 0.0f, dist_travelled = 0.0f;
@@ -140,7 +140,7 @@ struct SpecialAbilityDesc {
     // overrides it.
     int32_t service_interval = -1;
 
-    // ---- OI abilities: class fields (TACTICAL_GAPS.md §2.3; XML names in the comments) ----
+    // ---- OI abilities: class fields (legacy docs/re/TACTICAL_GAPS.md §2.3; XML names in the comments) ----
     CubicCurve chance_curve;              // Activation_Chance with >= 2 values: (x, y) pairs (Whirlwind / Grenade)
     float activation_chance = 1.0f;       // Activation_Chance (one value)
     float damage_amount = 0.0f;           // Damage_Amount
@@ -165,7 +165,7 @@ struct SpecialAbilityDesc {
     // source to each affected player's base-shield upgrade list (CombatSystem::add_base_shield_upgrade), remove 0x6f13b0
     // deletes it (EL_ / RL_Enhanced_Base_Shield_Upgrade).
     bool base_shield_upgrade = false;
-    // tru3 t05: Garrison_Upgrade_Ability Additional_Garrison_Units (+0x188, count +0x190) as host TypeIndex values, list
+    // Garrison_Upgrade_Ability Additional_Garrison_Units (+0x188, count +0x190) as host TypeIndex values, list
     // order, a repeated name repeated. [port] Unknown names are dropped (retail stores what its type lookup gives).
     std::vector<int32_t> garrison_types;
     // Enable_Bombing_Runs (+0x191) / Enable_Special_Weapons (+0x192) / Enable_Planetary_Bombardment (+0x193) (cu8f t06,
@@ -177,13 +177,13 @@ struct SpecialAbilityDesc {
     bool single_target_heal = false;
     // Berserker (§2.3.2)
     float berserker_speed = 0.0f, berserker_damage = 0.0f, berserker_damage_range = 0.0f, berserker_duration = 0.0f;
-    // Saber_Throw (cu8i t01, CU8F_T01_T02_T07_RE §2.6): Catch_Dist (+0x180) and the Saber_Name projectile type's Max_Speed
+    // Saber_Throw (CU8F_T01_T02_T07_RE §2.6): Catch_Dist (+0x180) and the Saber_Name projectile type's Max_Speed
     // (per frame; 0 = unknown), for the thrown-saber flight stand-in (saber_flight_frames).
     float catch_dist = 0.0f;
     float saber_speed = 0.0f;
-    float saber_max_flight = 0.0f;  // cu8j t03: the Saber_Name type's Projectile_Max_Flight_Distance (0 = unknown)
-    int32_t saber_projectile = -1;  // cu8k t01: the Saber_Name type's ProjectileDesc (the thrown saber), -1 unknown
-    // Cable (r3g t04, CableAttackAbilityClass record +0x184 / +0x188 / +0x18c, frames): Drop_Phase_Duration,
+    float saber_max_flight = 0.0f;  // the Saber_Name type's Projectile_Max_Flight_Distance (0 = unknown)
+    int32_t saber_projectile = -1;  // the Saber_Name type's ProjectileDesc (the thrown saber), -1 unknown
+    // Cable (CableAttackAbilityClass record +0x184 / +0x188 / +0x18c, frames): Drop_Phase_Duration,
     // Pull_Phase_Duration, Paralyze_Phase_Duration (FoC: 110 / 140 / 300).
     float cable_drop_phase = 0.0f, cable_pull_phase = 0.0f, cable_paralyze_phase = 0.0f;
     // Proximity_Mines (§2.3.3) / Buzz_Droids / Summon / Spawn / Radioactive (Object_Type, Mine_Type, ...)
@@ -209,7 +209,7 @@ struct SpecialAbilityDesc {
     float arc_width = 0.0f, arc_min = 0.0f, arc_max = 0.0f, sweep_time = 0.0f, anim_speedup = 1.0f;
     bool right_to_left = false;
     std::string attack_anim;              // Attack_Animation (animation type name; t03 clip timing, empty = none)
-    std::string grabbed_anim;             // Target_Grabbed_Animation (r3h t04, Eat +0x1d0: the held victim's loop; empty = none)
+    std::string grabbed_anim;             // Target_Grabbed_Animation (Eat +0x1d0: the held victim's loop; empty = none)
     // Arc_Sweep Attack_Animation_Subindex (+0x198) / Super_Laser Attack_Anim_Sub_Index (+0x188): the explicit variant
     // of the attack clip (OI follow-up t01, §4.14); 0 elsewhere.
     int32_t anim_sub_index = 0;
@@ -230,10 +230,10 @@ struct SpecialAbilityDesc {
     float damage_multiplier = 1.0f;       // Damage_Multiplier (Leech_Shields / Blast) [L: application not traced]
     float max_damage_per_victim = 0.0f;   // Max_Damage_Per_Victim (Shield_Flare)
     float damage_arc = 0.0f;              // Damage_Arc_In_Degrees (flame thrower)
-    // Infection (refix t02; Damage_Per_Second above, Duration_Of_Infection -> duration_secs)
+    // Infection (Damage_Per_Second above, Duration_Of_Infection -> duration_secs)
     float distance_to_infect = 0.0f;      // Distance_To_Infect
     float seconds_to_infect = 0.0f;       // Seconds_To_Infect
-    // Infection_CategoryMask (cu8f t06, CU8F_T04_T06_RE §3.5 [H]): the spread's victim filter only (candidate type
+    // Infection_CategoryMask (CU8F_T04_T06_RE §3.5 [H]): the spread's victim filter only (candidate type
     // CategoryMask & mask != 0; 0 = nothing catches it by proximity); a direct Causes_Infection hit is not filtered.
     uint64_t infection_categories = 0;
     // Enable_Ability / Cancel_Special
@@ -275,8 +275,8 @@ struct AbilityObjectDesc {
     float stealth_detection_range = 0.0f;        // 0x3979d0: Target_Stealth_Units ? FOW reveal range : 0
     float passive_missile_shield_radius = 0.0f;  // Passive_Missile_Shield_Radius
     bool garrison_style = false;                 // obj +0x3a7 [M meaning]
-    // trn1 t04: Destroy_When_Stunned_Over_Water moved to combat::UnitDesc (the stun detonations test it, §4.12).
-    // ---- s78l t05: Tactical_Bribe acceptance (TACTICAL_COMBAT §5.4.1, 0x5b0f70 / 0x5b0ec0 / 0x395c10) ----
+    // Destroy_When_Stunned_Over_Water moved to combat::UnitDesc (the stun detonations test it, §4.12).
+    // ---- Tactical_Bribe acceptance (TACTICAL_COMBAT §5.4.1, 0x5b0f70 / 0x5b0ec0 / 0x395c10) ----
     // Read from the target side (the team container for a member, else the unit) and the user side (the modifiers).
     // A team container's desc should carry its representative type's values (0x3973b0) [inferred].
     bool named_hero = false;              // Is_Named_Hero (type +0x13): never bribed (`hero` above also counts generic heroes)
@@ -297,7 +297,7 @@ struct AbilityObjectDesc {
     // s78n t04 (TACTICAL_COMBAT §5.4.4 item 3b): Apply_Special_Ability_To_Self_On_Creation (type +0xe8): a Combat_Bonus
     // source of this type also offers its aura to itself at its creation. No shipped type sets it.
     bool apply_self_on_creation = false;
-    // TRU1 t03 (docs/re/TRU1_GRAVITY_FIELD.md): GRAVITY_CONTROL_FIELD (0x3a) generator values and the victim flag.
+    // TRU1 t03 (legacy docs/re/TRU1_GRAVITY_FIELD.md): GRAVITY_CONTROL_FIELD (0x3a) generator values and the victim flag.
     bool gravity_field = false;                 // has the GRAVITY_CONTROL_FIELD behaviour
     float gravity_field_range = 0.0f;           // Gravity_Control_Field_Range (type +0x1f98)
     float gravity_field_slow_fraction = 0.0f;   // Gravity_Control_Field_Slow_Fraction (+0x1f9c); 0 = the field does nothing
@@ -326,10 +326,10 @@ struct AbilityResolvers {
     // type name is a projectile type (Spawned_Object_Type resolution; unset: names starting "Proj" [port]).
     std::function<uint16_t(std::string_view)> damage;
     std::function<bool(std::string_view)> is_projectile;
-    // cu8i t01: a type's Max_Speed by name (Saber_Throw's Saber_Name), without registering it as a ProjectileDesc; < 0
+    // a type's Max_Speed by name (Saber_Throw's Saber_Name), without registering it as a ProjectileDesc; < 0
     // unknown.
     std::function<float(std::string_view)> type_max_speed;
-    // cu8j t03: a type's Projectile_Max_Flight_Distance by name (Saber_Throw's Saber_Name); < 0 unknown.
+    // a type's Projectile_Max_Flight_Distance by name (Saber_Throw's Saber_Name); < 0 unknown.
     std::function<float(std::string_view)> type_max_flight_distance;
 };
 
@@ -346,7 +346,7 @@ struct SaberFlight {
 };
 SaberFlight saber_flight(float out_dist, float back_dist, float max_travel, float speed, float catch_dist);
 // cu8j t03 [M]: the throw (anim 0x6c SWORD_THROW past its half, +3 frames a tick) comes 7 (or 8) frames after the apply.
-// cu8k t01: also the delay of the real throw (the host spawns the Saber_Name projectile then).
+// also the delay of the real throw (the host spawns the Saber_Name projectile then).
 inline constexpr uint32_t kSaberThrowDelay = 7;
 
 // "WEAPON_DELAY_MULTIPLIER" / "Weapon_Delay" -> 1..12, 0 unknown (case-insensitive, suffix optional).
@@ -374,7 +374,7 @@ std::vector<uint32_t> parse_special_abilities(const data::XmlNode& type_element,
 // Fills UnitDesc::abilities (the first two Unit_Abilities_Data entries, Mod_Multiplier system B)
 // by appending their combat descriptors to `cd.abilities`.
 void link_combat_abilities(const AbilityObjectDesc& d, combat::CombatData& cd, combat::UnitDesc& ud);
-// refix t02: UnitDesc::infection from the type's first Infection_Ability special (`specials` = AbilityData::specials, the
+// UnitDesc::infection from the type's first Infection_Ability special (`specials` = AbilityData::specials, the
 // pool d.specials indexes); no such special -> has = false.
 void link_infection(const AbilityObjectDesc& d, std::span<const SpecialAbilityDesc> specials, combat::UnitDesc& ud);
 

@@ -1,4 +1,4 @@
-// alamo_game session spec (ref2 t03): what a GameSession is built from, and the one builder that assembles it.
+// alamo_game session spec: what a GameSession is built from, and the one builder that assembles it.
 //
 //   SessionSpec        every field GameSession::start reads (campaign / skirmish choice, sim switches, host options).
 //   SessionChoice      what the player (or the story, the save, the attract controller) chose: the game kind and its
@@ -32,14 +32,14 @@ struct SessionSpec {
     std::string skirmish_map;
     SkirmishSetup skirmish;
     std::shared_ptr<const terrain::MapData> skirmish_map_data;  // tests: used instead of loading skirmish_map
-    // skm1 t01: a skirmish starts straight on its map (CampaignBattles::start_map_battle with BattleConfig::skirmish_map,
+    // a skirmish starts straight on its map (CampaignBattles::start_map_battle with BattleConfig::skirmish_map,
     // as alamo_headless --skirmish-ai skirmish and the retail skirmish start, SKIRMISH_SETUP §2): both slots' starting
     // forces (when skirmish_options.starting_units) are its units, the skirmish map rules apply (Income_Stream, per-slot
     // victory, team markers, the option credits). [port, tests only] skirmish_hop = the older scaffold kept for the
     // galactic conflict tests: the human fleet hops to the AI's planet and the battle is that conflict's (battle choice,
     // auto-resolve, retreat), without the skirmish map rules. The front end never sets it. Saved.
     bool skirmish_hop = false;
-    // skm1 t02: the skirmish game options (the staging screen's IDD_INTERNET_STAGING_DIALOG_ADVANCED_SKIRMISH_OPTIONS);
+    // the skirmish game options (the staging screen's IDD_INTERNET_STAGING_DIALOG_ADVANCED_SKIRMISH_OPTIONS);
     // set = false: the GameConstants MP_Default_* values (sim::skirmish_option_defaults). Saved (map battle only).
     sim::BattleConfig::SkirmishOptions skirmish_options;
     // Sim.
@@ -55,22 +55,22 @@ struct SessionSpec {
     // The pending-battle choice of a human conflict (fight / auto-resolve / retreat): false = always Fight (headless,
     // tests); true = the conflict waits (ConflictManager Vote state) for a battle_choice_event in the command stream.
     bool ask_battle_choice = false;
-    // OI host: the main-menu attract demo (docs/re/MAIN_LOOP.md §1.5 / AUDIO.md §1.6 "AI-vs-AI attract demo") [port]: a
+    // OI host: the main-menu attract demo (legacy docs/re/MAIN_LOOP.md §1.5 / legacy docs/re/AUDIO.md §1.6 "AI-vs-AI attract demo") [port]: a
     // space skirmish with no human - the skirmish's player 0 is AI controlled too, AI-vs-AI conflicts are fought (both
     // sides by the tactical AI, else the stand-in cadence) and player 0's fleet hop is a direct setup operation (no
     // command). local_player() stays 0 (the viewpoint). Space maps only (a land map fails start()). The demo's objects run
-    // their Lua_Scripts (object-script host on, modc t18): a DEMO_CONTROLLER runs Demo_Attract_Controller.lua.
+    // their Lua_Scripts (object-script host on): a DEMO_CONTROLLER runs Demo_Attract_Controller.lua.
     bool attract = false;
-    // ui1 t06: the campaign's advanced game options (ui::GameOptionsSetup; game_options false = the campaign's own
+    // the campaign's advanced game options (ui::GameOptionsSetup; game_options false = the campaign's own
     // Starting_Credits / tech levels). Credits, start and max tech apply to every player the campaign names; the
     // auto-resolve option (0 always / 1 never / 2 ask / 3 overwhelming odds) is the host's battle prompt rule; game_options
-    // with random events off makes the galactic AI's Game.InterventionsEnabled 0.0 (mcx8 t07). Not saved [port]: a loaded
-    // game asks again (ref4 t01: the battle prompt reads auto_resolve_option only when game_options is set, which a load
+    // with random events off makes the galactic AI's Game.InterventionsEnabled 0.0. Not saved [port]: a loaded
+    // game asks again (the battle prompt reads auto_resolve_option only when game_options is set, which a load
     // leaves false, so a loaded game falls back to "ask"; whether retail keeps the option across a load is not traced).
     bool game_options = false;
     int32_t start_credits = 6000, start_tech = 1, max_tech = 5, auto_resolve_option = 2;
     bool random_events = false;
-    // mcx8 t07: Game.InterventionsEnabled was off in the saved game (save key spec.interventions_off; the options above are
+    // Game.InterventionsEnabled was off in the saved game (save key spec.interventions_off; the options above are
     // not saved). interventions_enabled() = the galactic AI's Game.InterventionsEnabled.
     bool interventions_off = false;
     bool interventions_enabled() const { return !interventions_off && (!game_options || random_events); }
@@ -101,7 +101,7 @@ struct SessionOptions {
 };
 SessionOptions session_options_of(const SessionSpec& s);
 
-// ui1 t06: the campaign's advanced game options (IDD_CAMPAIGN_ADVANCED_OPTIONS_DIALOG accepted = set).
+// the campaign's advanced game options (IDD_CAMPAIGN_ADVANCED_OPTIONS_DIALOG accepted = set).
 struct CampaignOptions {
     bool set = false;
     int32_t credits = 6000, start_tech = 1, max_tech = 5, auto_resolve = 2;
@@ -113,7 +113,7 @@ enum class GameKind : uint8_t {
     Campaign,       // a campaign or tutorial from the front end (asks the battle choice when options say so)
     Skirmish,       // a skirmish map battle (front end staging -> buy units; the benchmark save)
     Attract,        // the main-menu AI-vs-AI demo: seed + start count, frames from the cycle, no end hold, no fleet groups
-    StoryCampaign,  // modc t45: a story LOAD_CAMPAIGN reward (options = the running game's, session_options_of)
+    StoryCampaign,  // a story LOAD_CAMPAIGN reward (options = the running game's, session_options_of)
     Saved,          // a loaded save: every field from the save (saved_kind says campaign or skirmish)
 };
 
@@ -123,7 +123,7 @@ struct SessionChoice {
     std::string campaign, faction;
     int32_t difficulty = 1;            // clamped to 0..2; StoryCampaign: negative = 1 (the reward's P3 unset)
     CampaignOptions game_options;      // Campaign, StoryCampaign
-    bool interventions_off = false;    // StoryCampaign, Saved (mcx8 t07)
+    bool interventions_off = false;    // StoryCampaign, Saved
     // Skirmish kinds: the map and the slots (factions already resolved by the caller, or "" = the data's default).
     std::string map;
     SkirmishSetup skirmish;

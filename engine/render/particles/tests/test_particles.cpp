@@ -1,5 +1,5 @@
 // alamo_render_particles_tests - R4 particle systems (no framework; non-zero exit on failure).
-//   * proxy names: _ALTn / _LODn indices and the cut name (ANIM_PARTICLES.md B.3), texture directory stripping
+//   * proxy names: _ALTn / _LODn indices and the cut name (legacy docs/re/ANIM_PARTICLES.md B.3), texture directory stripping
 //   * pool size (B.4) incl. the 5,003 cap and link multiplication; Particle Detail slot spread
 //   * spawn timing vs sim ticks: d = 0.03 s per tick, rate / burst / initial delay / burst count / stop time / pre-warm,
 //     back-filled event pre-ages, dropped spawns on a full pool, spawn-on-death / during-life links, release rules
@@ -76,7 +76,7 @@ static void test_names_pools() {
     CHECK(p.base == "P_X" && p.alt == -1);
     CHECK(texture_base_name("C:\\PROJECTS\\Art\\p_particle_master.tga") == "P_PARTICLE_MASTER.TGA");
     CHECK(texture_base_name("p_asteroids.dds") == "P_ASTEROIDS.DDS");
-    // System cache key (CU2 t03): upper + one trailing .ALO cut; the directory is kept and '/' is not rewritten.
+    // System cache key: upper + one trailing .ALO cut; the directory is kept and '/' is not rewritten.
     CHECK(system_key("p_smoke.alo") == "P_SMOKE" && system_key("P_SMOKE") == "P_SMOKE" && system_key(".alo") == ".ALO");
     CHECK(system_key("p_smoke.alo.alo") == "P_SMOKE.ALO");
     CHECK(system_key("Data\\Art\\Models\\p_smoke.ALO") == "DATA\\ART\\MODELS\\P_SMOKE");
@@ -337,7 +337,7 @@ static render::GpuModel fake_model(std::shared_ptr<assets::ModelAsset>& asset, c
     return m;
 }
 
-// vis1 t04 (docs/re/WEATHER_VISUALS.md §6): spawn sources 1 / 2 / 3 place particles on the proxy's parent mesh.
+// vis1 t04 (legacy docs/re/WEATHER_VISUALS.md §6): spawn sources 1 / 2 / 3 place particles on the proxy's parent mesh.
 static void test_spawn_sources() {
     auto asset = std::make_shared<assets::ModelAsset>();
     asset->name = "MESHY";
@@ -439,7 +439,7 @@ static void test_attach() {
     in.model = &m;
     in.transform.m[0][3] = 100.0f;
     {
-        // static_key = FNV-1a 64 (offset basis ^ salt) over the model uid then the transform bytes, | 1 (CU2 t09: the
+        // static_key = FNV-1a 64 (offset basis ^ salt) over the model uid then the transform bytes, | 1 (the
         // hand-rolled loop it replaced, kept here as the reference so the keys do not change).
         uint64_t h = 0xcbf29ce484222325ull ^ 77u;
         auto mix = [&](const void* p, size_t n) {
@@ -626,7 +626,7 @@ static void test_real_data() {
     std::printf("FoC+EaW: %u proxies in %u models: %u name a particle file, %u only after stripping, %u nothing "
                 "(library: %u loaded, %u missing, %u not particle)\n",
                 proxies, models, exact, stripped, none, ls.loaded, ls.missing, ls.not_particle);
-    // ANIM_PARTICLES.md B.3: 5,685 proxies, 2,206 resolve only after stripping (3,345 exact / 134 nothing there; this
+    // legacy docs/re/ANIM_PARTICLES.md B.3: 5,685 proxies, 2,206 resolve only after stripping (3,345 exact / 134 nothing there; this
     // scan finds 3,347 / 132: two names resolve as written here).
     CHECK(proxies == 5685 && stripped == 2206 && exact + none == 3479);
 }
@@ -752,7 +752,7 @@ static void test_gpu(const std::string& src_dir) {
         CHECK(lit > 2000);
         std::vector<uint8_t> rgba(px, px + static_cast<size_t>(o.w) * o.h * 4);
         for (size_t i = 3; i < rgba.size(); i += 4) rgba[i] = 255;
-        const std::string png = src_dir + "/logs/particles_synthetic.png";
+        const std::string png = ::alamo::test::artifact_dir() + "/particles_synthetic.png";
         CHECK(render::write_png_rgba(png, o.w, o.h, rgba));
         std::printf("wrote %s\n", png.c_str());
         // [port] MSAA 4x: the hook's Water / Transparent draws go into the multisampled scene (pipelines per sample count).
@@ -773,7 +773,7 @@ static void test_gpu(const std::string& src_dir) {
         for (auto h : hs) world.set_visible(h, false);
         world.update(0.03f);
         CHECK(frame(g, o, vm, {}, ro) && pr.last_stats().draw_calls == 0 && pr.last_stats().systems_hidden >= 1);
-        // vis1 t05: ground behaviour over a flat terrain at z = 0 - falling particles pass below it (0x2F = 0), die on it (1)
+        // ground behaviour over a flat terrain at z = 0 - falling particles pass below it (0x2F = 0), die on it (1)
         // or bounce off it (2). Lit pixels under each system's ground point: many for 0, (almost) none for 1 and 2.
         {
             std::vector<float> flat(21u * 21u, 0.0f);

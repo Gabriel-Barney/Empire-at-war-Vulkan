@@ -1,8 +1,8 @@
-// Galactic production (docs/re/AI_GALACTIC_2.md §2.3): Produce_Force creates one AIBuildTask per selection
+// Galactic production (legacy docs/re/AI_GALACTIC_2.md §2.3): Produce_Force creates one AIBuildTask per selection
 // without a free unit; galactic tasks go on the global pending list and the per-planet AIPlanetBuildQueue market
 // (every > 30 frames per planet queue: re-check, claim one, bid, start the least-slack task) produces them.
 // Produced objects are claimed on the producing planet; failures dispatch Production_Failed; there is no
-// time-out. [port] / [M] mark the stand-ins (listed in docs/PHASE4.md A2 open items).
+// time-out. [port] / [M] mark the stand-ins (listed in legacy docs/PHASE4.md A2 open items).
 #include "galactic_ai_impl.hpp"
 #include "alamo/core/frames.hpp"
 
@@ -32,7 +32,7 @@ const Goal* GalacticAiWorld::Impl::goal_of_plan(int32_t player, int32_t plan) co
 
 // AIPlanetBuildQueue ctor 0x53b5c0 (A2J_RE_BUILD_MARKET §4) [H]: last-run frame = synced Get_Int(1, (int)(FPS + 0.5))
 // (0x1ffb40), queue 0 then queue 1, for every planet when its PRODUCTION behaviour attaches at galaxy build, in planet
-// creation order. A2k t04: GalacticSim::start draws them at that point of the galaxy build (build_queue_phase); the AI
+// creation order. GalacticSim::start draws them at that point of the galaxy build (build_queue_phase); the AI
 // world only copies them, without drawing. A loaded game overwrites the values (AI save).
 void GalacticAiWorld::Impl::init_queue_phases() {
     const auto planets = sim.planets();
@@ -204,7 +204,7 @@ bool GalacticAiWorld::Impl::resolve_claim(BuildTask& b) {
     return false;
 }
 
-// 0x4d2bd0 (a1h t07): the first free-store unit of `type` at a planet. It does not read the entry's +0x30 owner
+// 0x4d2bd0: the first free-store unit of `type` at a planet. It does not read the entry's +0x30 owner
 // (A1_READINGS §28.5): the claim covers reserved units too. Since a2l (A2L_T01_RE_ANSWERS Q7.4) the build task no
 // longer takes this unit; the free-store service hands over only a unit its own PotentialPlan reserved (resolve_claim).
 ObjectHandle GalacticAiWorld::Impl::free_store_supply(int32_t player, uint32_t type) const {
@@ -644,7 +644,7 @@ void GalacticAiWorld::Impl::service_build_tasks(int32_t player) {
         if (count > b.queue_entries_before) continue;
         const gal::TypeInfo* ti = type_info(b.type);
         if (ti && ti->advances_tech != 0) {
-            finish_build(b);  // a2m t05: no budget call at PRODUCTION_END (Q5.1)
+            finish_build(b);  // no budget call at PRODUCTION_END (Q5.1)
         } else {
             fail_build(b, "production dropped");
         }
@@ -665,7 +665,7 @@ void GalacticAiWorld::Impl::service_build_tasks(int32_t player) {
     }
 }
 
-// 0x525200 (AI_GALACTIC_2 §3.4 "Goal production time"; q2f t01) [H]: over the player's build tasks (id order = the
+// 0x525200 (AI_GALACTIC_2 §3.4 "Goal production time") [H]: over the player's build tasks (id order = the
 // execution system's list order) that hold a bid record (PRODUCTION_QUEUED, not yet producing: the port's Queued) and
 // belong to the running plan's goal (or to no task force): max over those without a bid planet of the build time with
 // no planet, plus max over those with one of the queue wait (0x53bb20) + the build time there. Producing tasks add

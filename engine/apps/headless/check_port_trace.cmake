@@ -1,5 +1,5 @@
-# ctest driver of alamo_headless_galactic_trace (q2f t05, port_trace.hpp). -D EXE, TRACE, PY (may be empty), Q2TRACE.
-# 1. A short HotM galactic-AI run (with the story plots, --story, q2f t03) with --check-workers and --trace-out: only the first run writes the trace, so equal CRCs
+# ctest driver of alamo_headless_galactic_trace (port_trace.hpp). -D EXE, TRACE, PY (may be empty), Q2TRACE.
+# 1. A short HotM galactic-AI run (with the story plots, --story) with --check-workers and --trace-out: only the first run writes the trace, so equal CRCs
 #    and AI logs across worker counts show the trace changes nothing in the sim.
 # 2. q2trace.py validate re-reads the trace, rebuilds the objects frame by frame and recomputes every digest (exit 0 = consistent).
 file(REMOVE "${TRACE}")

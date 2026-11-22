@@ -170,8 +170,7 @@ const char* vk_result_name(VkResult r);
 // Logs "<what> failed: <result>" on channel "rhi" when r < 0. Returns r >= 0.
 bool vk_check(VkResult r, const char* what);
 
-// Zero-initialised Vulkan struct with sType set (avoids partial aggregate init, which trips
-// -Wmissing-field-initializers on GCC/Clang).
+// Zero-initialised Vulkan struct with sType set (avoids partial aggregate init).
 template <class T>
 inline T vk_struct(VkStructureType type) {
     T v{};

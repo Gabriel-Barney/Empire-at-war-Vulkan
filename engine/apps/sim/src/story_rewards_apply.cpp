@@ -1,5 +1,5 @@
 // STY1 lane B: the story rewards that change campaign rules, the galaxy and the tutorial (StorySession::apply_sty1_reward),
-// and the save / hash blocks of the state they keep. Behaviour: docs/re/STORY_REWARDS_GALACTIC.md (read from the retail
+// and the save / hash blocks of the state they keep. Behaviour: legacy docs/re/STORY_REWARDS_GALACTIC.md (read from the retail
 // dispatcher 0x456970); port choices are marked [port] / [M] / [L] as there. Kept in its own file so the older reward chain in
 // story_session.cpp stays small.
 //
@@ -549,7 +549,7 @@ void StorySession::reward_disable_reinforcements(Set& /*s*/, const std::string& 
 void StorySession::reward_disable_retreat(Set& /*s*/, const std::string& /*type*/, const std::vector<std::string>& params) {
     const std::string p1 = trimmed(params, 0);
     const std::string p2 = trimmed(params, 1);
-    // ui2 t06 (STORY_PRESENTATION_REWARDS.md 5.2): P1 faction, P2 atoi, both required; a listed faction cannot retreat. Retail
+    // ui2 t06 (legacy docs/re/STORY_PRESENTATION_REWARDS.md 5.2): P1 faction, P2 atoi, both required; a listed faction cannot retreat. Retail
     // keeps a faction list; the port keeps it per player of that faction [port], re-read each hook like the reinforcements.
     if (p1.empty() || p2.empty()) return;
     const bool off = atoi_text(p2) != 0;
@@ -658,7 +658,7 @@ bool StorySession::read_sty1(ByteReader& r, Sty1Save& out, uint32_t version) {
     t.skirmish_rules = r.boolean();
     t.filter_resets = r.u32();
     t.sandbox_requests = r.u32();
-    if (version >= 5) {  // DISABLE_RETREAT (ui2 t06)
+    if (version >= 5) {  // DISABLE_RETREAT
         n = r.u32();
         if (n > kMax) r.fail();
         for (uint32_t i = 0; i < n && r.ok(); ++i) out.retreat_off.push_back(r.u8());

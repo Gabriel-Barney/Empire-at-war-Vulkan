@@ -1,4 +1,4 @@
-// test_battles_ai: main() (bo3 t03: tests live in test_battles_ai_partN.cpp, shared code in test_battles_ai_common.hpp).
+// test_battles_ai: main() (tests live in test_battles_ai_partN.cpp, shared code in test_battles_ai_common.hpp).
 #include "test_battles_ai_common.hpp"
 
 
@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
     std::printf("s78l t04: Hack / Tactical_Bribe spread to the whole team; a vehicle's landing exit ends on the landing yaw\n");
     test_team_hack_bribe(false);
     test_team_hack_bribe(true);
-    for (const int variant : {0, 1, 2}) test_vehicle_thief(variant);  // s78n t05; s78n t12: without a clone type
+    for (const int variant : {0, 1, 2}) test_vehicle_thief(variant);  // without a clone type
     test_drop_extents_no_model();  // s78n t10
     {  // s78n t06 (+ review): hero clashes in a land battle (the worker-count check is its own ctest entries, --hero-clash)
         auto hd = make_data(false, false, false, false, false, false, false, false, false, false, false, false, false, false, true);
@@ -81,8 +81,8 @@ int main(int argc, char** argv) {
     std::printf("a1i t04 / t05: land Reinforce from a landing object (spawn, carried type, unload offsets, take-off)\n");
     test_landing_drop(false);
     test_landing_drop(true);
-    test_landing_drop(true, 90);  // a1j t01: destroyed with team 0 out
-    test_landing_drop(true, 30);  // a1j t01: destroyed before any unit is out
+    test_landing_drop(true, 90);  // destroyed with team 0 out
+    test_landing_drop(true, 30);  // destroyed before any unit is out
     if (g_fail) {
         std::printf("%d check(s) FAILED\n", g_fail);
         return 1;

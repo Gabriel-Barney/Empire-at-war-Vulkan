@@ -1,4 +1,4 @@
-// Enum and bitmask value converters of the GameObjectType loader (docs/re/OBJECT_TYPES.md §9.1).
+// Enum and bitmask value converters of the GameObjectType loader (legacy docs/re/OBJECT_TYPES.md §9.1).
 //
 // Three kinds, all with the same string rules (value trimmed of space/tab/CR/LF, then upper-cased;
 // inner spaces significant):

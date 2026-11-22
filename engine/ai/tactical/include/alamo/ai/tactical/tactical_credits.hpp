@@ -1,4 +1,4 @@
-// A1 - land campaign-battle credit transfer (docs/re/AI_TACTICAL.md 1.3, 1.4; AI_GALACTIC.md 1.7-1.8)
+// A1 - land campaign-battle credit transfer (legacy docs/re/AI_TACTICAL.md 1.3, 1.4; legacy docs/re/AI_GALACTIC.md 1.7-1.8)
 // for the S10 battle host.
 //
 // Battle start (land goal slot 6, 0x6b87e0 -> 0x612b00) [H code; M field names]: only when the mode

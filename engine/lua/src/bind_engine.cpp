@@ -1,5 +1,5 @@
 // The implemented bindings (L1 stage 1). Everything else in the RE table is an "unbound" stub.
-// Contracts and messages follow docs/re/LUA_API.md ("Binding map": the original's own
+// Contracts and messages follow legacy docs/re/LUA_API.md ("Binding map": the original's own
 // argument-validation strings). Implementations follow the error discipline of vm_internal.hpp.
 #include <algorithm>
 #include <string>
@@ -21,8 +21,8 @@ using detail::Call;
 
 namespace {
 
-using detail::push_nil;  // ref5 t03: vm_internal.hpp
-using detail::push_bool;  // ref5 t03: vm_internal.hpp
+using detail::push_nil;  // vm_internal.hpp
+using detail::push_bool;  // vm_internal.hpp
 int push_num(Call& c, double d) {
     lua_pushnumber(c.L, d);
     return 1;
@@ -42,7 +42,7 @@ int g_find_object_type(Call& c) {
     return 1;
 }
 
-// Find_All_Objects_Of_Type: bind_objects.cpp (refixf t03, with Find_First_Object / Find_Nearest).
+// Find_All_Objects_Of_Type: bind_objects.cpp (with Find_First_Object / Find_Nearest).
 
 objects::ObjectHandle self_object(Call& c) { return detail::object_handle(*c.self); }
 
@@ -54,7 +54,7 @@ int m_object_get_id(Call& c) {
 }
 
 int m_object_get_type(Call& c) {
-    // refix t04: a company member view's type is its Company_Units entry (vm_internal.hpp).
+    // a company member view's type is its Company_Units entry (vm_internal.hpp).
     const uint32_t member = detail::member_view_type(*c.vm, *c.self);
     detail::push_type(c.L, *c.vm, member != objects::kNone ? member : c.vm->host.store->type(self_object(c)));
     return 1;
@@ -70,12 +70,12 @@ int m_object_get_owner(Call& c) {
     const objects::ObjectHandle self = self_object(c);
     int32_t owner = c.vm->host.store->owner(self);
 #if defined(ALAMO_LUA_PLAYERS)
-    // q6 (docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "Get_Owner") [H]: a galactic planet object reports the planet's owner
+    // q6 (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "Get_Owner") [H]: a galactic planet object reports the planet's owner
     // (GalacticSim PlanetState::owner; retail reads the planet's political control record). The port's planet objects are
     // created without a store owner (campaign.cpp: "planets report their owner from the data pack"), so the store alone
     // said -1 for every planet; mod scripts read FindPlanet(x).Get_Owner().Get_Faction_Name() for every planet at start
     // (Thrawn's Revenge GalacticConquest, RandomSpawnManager). Only with a player world attached to the galactic sim
-    // whose store this VM reads. mcx8 t12: an owner id that is no player of the world gives nil (retail's player-list
+    // whose store this VM reads. An owner id that is no player of the world gives nil (retail's player-list
     // lookup finds nothing).
     if (c.vm->owner)
         if (const LuaPlayerWorld* w = player_world(*c.vm->owner)) {
@@ -86,7 +86,7 @@ int m_object_get_owner(Call& c) {
             if (!w->valid(owner)) return push_nil(c);
         }
 #endif
-    if (owner < 0) return push_nil(c);  // mcx8 t12: no player has a negative id
+    if (owner < 0) return push_nil(c);  // no player has a negative id
     detail::push_player(c.L, *c.vm, owner);
     return 1;
 }
@@ -94,7 +94,7 @@ int m_object_get_owner(Call& c) {
 int m_type_get_name(Call& c) {
     const objects::GameObjectTypes* types = c.vm->host.types;
     if (!types || c.self->value >= types->raw().type_count()) return push_nil(c);
-    // q6 (OBJECT_SCRIPTS.md §6.1 step 4, OBJECT_TYPES §3.1): the original stores type names upper-cased, so Get_Name
+    // q6 (legacy docs/re/OBJECT_SCRIPTS.md §6.1 step 4, OBJECT_TYPES §3.1): the original stores type names upper-cased, so Get_Name
     // returns the upper-case name (TR's GroundCompanyList keys, FotR's PlanetTable keys are upper-case type names).
     // LuaVmOptions::upper_type_names is on for every VM since modc t45.
     const std::string_view n = types->name(static_cast<objects::TypeIndex>(c.self->value));
@@ -121,7 +121,7 @@ int m_is_pool_safe(Call& c) {
 // ---------------------------------------------------------------- randomness
 
 // GameRandom(): int 0..65535; GameRandom(n): 0..n; GameRandom(a, b): [a, b] - all from the
-// SYNCHRONIZED stream (docs/re/COMMANDS.md §8; 0x5423a0). The original int helper caps the span.
+// SYNCHRONIZED stream (legacy docs/re/COMMANDS.md §8; 0x5423a0). The original int helper caps the span.
 int g_game_random(Call& c) {
     GameRandom* r = rng(c);
     if (!r) return c.script_error_stop("GameRandom -- no game random attached to this script");
@@ -139,7 +139,7 @@ int g_game_random(Call& c) {
     return push_num(c, v);
 }
 
-// GameRandom.Free_Random (0x540770, docs/re/MAIN_LOOP.md §4.1): the no-argument form draws
+// GameRandom.Free_Random (0x540770, legacy docs/re/MAIN_LOOP.md §4.1): the no-argument form draws
 // int(0, 0xFFFF) from the SYNCHRONIZED state (the quirk); ranged forms use the free state in
 // single player and fall back to the synchronized state (with a warning) in multiplayer.
 int m_free_random(Call& c) {
@@ -434,7 +434,7 @@ int g_dump_call_stack(Call& c) {
 int g_is_multiplayer_mode(Call& c) { return push_bool(c, c.vm->host.multiplayer); }
 int g_is_campaign_game(Call& c) { return push_bool(c, c.vm->host.campaign); }  // LuaHost::campaign
 
-// PROVISIONAL strings: the mode kind names (docs/re/OBJECT_RUNTIME.md §7).
+// PROVISIONAL strings: the mode kind names (legacy docs/re/OBJECT_RUNTIME.md §7).
 int g_get_game_mode(Call& c) {
     if (!c.vm->host.store) return push_nil(c);
     switch (c.vm->host.store->mode()) {
@@ -445,7 +445,7 @@ int g_get_game_mode(Call& c) {
     return 1;
 }
 
-// StringCompare(a, b, ...) (docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "StringCompare") [H]: true when the first two
+// StringCompare(a, b, ...) (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "StringCompare") [H]: true when the first two
 // arguments are Lua strings equal ignoring ASCII case, else false (a boolean; GameScoring.lua tests it with `if`). Fewer
 // than 2 arguments or a non-string (a number is not converted): false; arguments past the second are ignored.
 int g_string_compare(Call& c) {

@@ -1,5 +1,5 @@
 # S6 - tactical simulation. First piece: the spatial tree replacing TreeCullClass (culling +
-# gameplay queries), docs/re/HOTSPOTS.md section 3. The library depends on core only.
+# gameplay queries), legacy docs/re/HOTSPOTS.md section 3. The library depends on core only.
 add_library(alamo_tactical STATIC
   src/spatial_tree.cpp
   src/tree_set.cpp

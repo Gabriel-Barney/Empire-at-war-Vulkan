@@ -1,13 +1,13 @@
-// S6 - spatial tree replacing the original TreeCullClass (docs/re/TACTICAL_COMBAT.md section 1,
-// docs/re/HOTSPOTS.md section 3): one structure for render culling and gameplay proximity queries
+// S6 - spatial tree replacing the original TreeCullClass (legacy docs/re/TACTICAL_COMBAT.md section 1,
+// legacy docs/re/HOTSPOTS.md section 3): one structure for render culling and gameplay proximity queries
 // (collision, weapon targeting, AI threat checks, line of sight). See tree_set.hpp for the set of
 // trees the game keeps (per player, all objects, obstacle, space avoidance).
 //
-// HANDLES: the tree key must be the gameplay OBJECT ID (OBJECT_RUNTIME.md / TACTICAL_COMBAT.md
+// HANDLES: the tree key must be the gameplay OBJECT ID (legacy docs/re/OBJECT_RUNTIME.md / legacy docs/re/TACTICAL_COMBAT.md
 // 1.5: the GOM counter at +0x620, starting at 1, never reused, skips 0x3ffffe) - not a store slot
 // or pointer. Every result is sorted by this key, which is what makes "first found wins" callers
 // (target acquisition, area-damage victim order and caps, first projectile hit) deterministic
-// (TACTICAL_COMBAT.md 0.1). 0xFFFFFFFF (kNoEntity) is reserved.
+// (legacy docs/re/TACTICAL_COMBAT.md 0.1). 0xFFFFFFFF (kNoEntity) is reserved.
 //
 // Structure: a binary BVH in a node pool indexed by int32, one entry per leaf, plus a flat "root
 // list" of oversize entries. Entries carry a tight AABB and a 32-bit category mask; every node
@@ -22,7 +22,7 @@
 //             original's rebuild does, plus fat_margin); a move that stays inside it touches only
 //             the leaf, otherwise the fat box is reset and ancestors are refit (exact unions,
 //             stopping when nothing changes). No restructuring.
-//   rebuild - original split rule (TACTICAL_COMBAT.md 1.2): axis = the node box's longest extent
+//   rebuild - original split rule (legacy docs/re/TACTICAL_COMBAT.md 1.2): axis = the node box's longest extent
 //             (X only if strictly longer than Y and Z, else Y if strictly longer than Z, else Z);
 //             key = AABB centre on that axis; the first floor(n/2) go to child 0. The original
 //             finds that count split with a 16-bin histogram (an approximate median that keeps
@@ -43,7 +43,7 @@
 // caps (Max_Victims, the radius query's maximum count) AFTER this sort, and the radius query's
 // exact object tests (XY distance, sphere vs oriented box) on the returned candidates.
 //
-// INTENTIONAL DEVIATIONS from the original TreeCull (TACTICAL_COMBAT.md section 1), none of which
+// INTENTIONAL DEVIATIONS from the original TreeCull (legacy docs/re/TACTICAL_COMBAT.md section 1), none of which
 // change which entries a query returns, only their order and the cost:
 //   * Original order is pre-order with a node's own links first, then reversed by the intrusive
 //     list; here results are sorted by object id (the doc's port rule, 0.1 / 1.6).
@@ -57,11 +57,11 @@
 //
 // Filtering: every query takes a QueryFilter {include, exclude}; an entry matches when
 // (mask & include) != 0 and (mask & exclude) == 0. Subtrees are pruned on include (node masks are
-// ORs). Dead objects: per OBJECT_RUNTIME.md 5.3 a dying object stays linked until the
+// ORs). Dead objects: per legacy docs/re/OBJECT_RUNTIME.md 5.3 a dying object stays linked until the
 // deferred-delete flush at the end of the store update, so S1 flags it with set_dead() (the
 // reserved kDeadCategory bit) and queries that must skip it pass kSkipDead or exclude that bit.
 //
-// Store-update integration (OBJECT_RUNTIME.md 5.3 step 1, "refit the spatial trees" at the START
+// Store-update integration (legacy docs/re/OBJECT_RUNTIME.md 5.3 step 1, "refit the spatial trees" at the START
 // of the store update, before objects are serviced): S1 calls update() for objects whose bounds
 // changed, then maintain(game_time); remove() is called from the deferred-delete flush.
 //

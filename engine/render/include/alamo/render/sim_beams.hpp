@@ -1,4 +1,4 @@
-// alamo_render (lib alamo_render_sim) - R5 ability beams, sim side of the pipeline (docs/re/ABILITY_VISUALS.md 2, 4, 6):
+// alamo_render (lib alamo_render_sim) - R5 ability beams, sim side of the pipeline (legacy docs/re/ABILITY_VISUALS.md 2, 4, 6):
 //   * BeamStyleTable: the beam fields of every special ability of the game's types (Beam_Color / Beam_Width / Beam_Frames /
 //     Beam_Texture[_Name], Line_*, Laser_*, Owner_Particle_Bone_Name, Bone_Names ...) resolved over the GameConstants
 //     fallbacks (4.2), keyed by the special ability's name CRC (= UnitAbilityRecord::gui_name_crc), plus the per-type

@@ -1,4 +1,4 @@
-// trn1 t02 - SurfaceFX terrain modifiers (docs/re/TRN1_TERRAIN_GAMEPLAY.md §2): the sim part of SURFACEFX.XML. A unit
+// SurfaceFX terrain modifiers (legacy docs/re/TRN1_TERRAIN_GAMEPLAY.md §2): the sim part of SURFACEFX.XML. A unit
 // type with the SURFACE_FX land behaviour gets one instance per SurfaceFX_Name entry; each instance follows the surface
 // type under the unit and, when it changes, takes the old surface's ModifierSet entries off and puts the new one's on:
 //   good ground (12)          Defense_Mod -> list 0, Damage_Mod -> list 1

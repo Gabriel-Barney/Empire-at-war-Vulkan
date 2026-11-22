@@ -1,4 +1,4 @@
-// Track B integration (PORTING.md 1B): FXO passes whose bytecode has no hand-written program are
+// Track B integration (legacy docs/shaders/PORTING.md 1B): FXO passes whose bytecode has no hand-written program are
 // translated by engine/shaderxlat (D3D9 SM1-2 -> SM6 HLSL -> SPIR-V through runtime DXC).
 //
 // Load time (EffectLibrary::load, no DXC): resolve_pass keeps the pass bytecode, computes the

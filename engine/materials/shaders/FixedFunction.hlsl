@@ -1,4 +1,4 @@
-// Fixed-function ubershader (PORTING.md 3.4): D3D9 FF vertex lighting (directional light 0 +
+// Fixed-function ubershader (legacy docs/shaders/PORTING.md 3.4): D3D9 FF vertex lighting (directional light 0 +
 // global ambient, material colour sources), texture-coordinate generation and transforms, and
 // a 3-stage texture-stage combiner, all driven by the per-draw FfDrawData record (set 0
 // binding 4) instead of compile-time keys, so one SPIR-V pair per vertex layout covers every
@@ -113,7 +113,7 @@ VSOut VSMain(VSIn v, uint iid : SV_InstanceID) {
         float4 ms = MaterialSource(f.Sources.y, f.MatSpecular, vcolor, hasColor, cv);
         float4 ma = MaterialSource(f.Sources.z, f.MatAmbient, vcolor, hasColor, cv);
         float4 me = MaterialSource(f.Sources.w, f.MatEmissive, vcolor, hasColor, cv);
-        // D3D9 FF lighting as the engine set it up (RENDER.md 1.4 step 3, 2.3): D3DRS_AMBIENT = 0,
+        // D3D9 FF lighting as the engine set it up (legacy docs/re/RENDER.md 1.4 step 3, 2.3): D3DRS_AMBIENT = 0,
         // three directional lights (sun + 2 fills), scene ambient on light 0 only:
         //   colour = Me + Ma * ambient + sum_i Md * Ld_i * max(N.L_i, 0)
         //   spec   = sum_i Ms * Ls_i * max(N.H_i, 0)^power   (N.L_i > 0, LOCALVIEWER = TRUE)

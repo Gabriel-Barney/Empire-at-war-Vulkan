@@ -186,7 +186,7 @@ void fill_frame_cb(const ViewMatrices& v, float t, materials::FrameCB& o) {
     o.eye_pos = {v.eye.x, v.eye.y, v.eye.z, 1.0f};
     const float w = static_cast<float>(v.width), h = static_cast<float>(v.height);
     o.resolution_constants = {w, h, 0.5f / w, 0.5f / h};
-    // FOG_VALS default start 10000 / end 15000 and DISTANCE_FADE_VALS "off" (RENDER.md 2.2).
+    // FOG_VALS default start 10000 / end 15000 and DISTANCE_FADE_VALS "off" (legacy docs/re/RENDER.md 2.2).
     o.fog_vals_fade_vals = {-0.0002f, 3.0f, -2e-5f, 3.0f};
     o.time_pad = {t, 0, 0, 0};
     o.light_ambient = {1, 1, 1, 1};

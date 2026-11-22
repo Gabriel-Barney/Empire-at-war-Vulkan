@@ -1,4 +1,4 @@
-// OI host (alamo_game): data-free feeds for the HUD widgets of docs/re/HUD_GAPS.md, computed from sim state on the host
+// OI host (alamo_game): data-free feeds for the HUD widgets of legacy docs/re/HUD_GAPS.md, computed from sim state on the host
 // side (presentation only, never read by the sim):
 //   day_cycle_fraction / galactic_cycle_fraction   §4: the fiscal-cycle (income) timer behind the 10 day pips:
 //                        (mode frame - cycle start frame) / round(30 x Fiscal_Cycle_Time_In_Secs), clamped 0..1; < 0
@@ -27,7 +27,7 @@
 //                        GalacticSim::buildable in type order; cost = build_cost_for (planet / player price modifiers,
 //                        corruption and tech-upgrade multipliers), block = can_enqueue's reason (galactic_build_block),
 //                        queued = the player's entries of the type in the planet's two queues; empty unless the player owns
-//                        the planet; space = not a land-tab type (ui4 t12, §5.1.1: Build_Cost_Credits > 0 and a required
+//                        the planet; space = not a land-tab type (§5.1.1: Build_Cost_Credits > 0 and a required
 //                        ground base level or a ground structure). Const reads only.
 //   droid_log_rows       ui4 t11 (P4_SIM_SYSTEMS §2.7.2): the three Droid Log rows of an advisor line shown in galactic mode -
 //                        TEXT_LOG_CYCLE_01 with "##0" = the galactic cycle, the line's text, TEXT_HELP_SEPERATOR. There is no
@@ -81,7 +81,7 @@ ui::HudOrderButtons order_buttons(std::span<const OrderUnitState> selection, int
 // dial = fraction, a 0 shown as 1.0 (§9.3 rule 4: a skirmish before its first run is disabled with a full dial); ready:
 // no dial [port, §9.9 item 1].
 ui::HudBombingRunButton bombing_run_button(bool land, bool controls_locked, bool available, float fraction);
-// ui1 t04 (HUD_GAPS §9.1, 0x317d00; [port] shown / hidden rule, backlog b0238): the space b_special_weapon. `space` = a
+// ui1 t04 (HUD_GAPS §9.1, 0x317d00; [port] shown / hidden rule): the space b_special_weapon. `space` = a
 // space battle (else not driven); `icon` = the local player's weapon (its Special_Weapon_Index, a station 2), < 0 = none:
 // hidden; ready = readiness >= 1, allowed (SpecialWeaponsAllowed, else tooltip 4) and controls not locked; the dial =
 // readiness while not ready.

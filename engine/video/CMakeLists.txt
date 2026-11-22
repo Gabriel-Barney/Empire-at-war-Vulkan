@@ -1,9 +1,9 @@
-# P3 - video: Bink movie playback (docs/PHASE4.md P3).
+# P3 - video: Bink movie playback (legacy docs/PHASE4.md P3).
 #
 # FFmpeg 8.1.3 Bink-only LGPL v2.1+ shared build (approved by Gabriel 2026-10-27) from toolchain\9_ffmpeg_bink.cmd
 # into toolchain\ffmpeg-8.1.3: avcodec-62 / avformat-62 / avutil-60 DLLs + headers. Nothing links against it:
 # src/ffmpeg_api.cpp loads the DLLs at run time (LoadLibrary) and takes the function pointers, so the
-# MSVC and clang (MSVC ABI) builds both use the same MSVC-built DLLs, and swapping the DLLs for a
+# engine uses the MSVC-built DLLs as shipped, and swapping the DLLs for a
 # user-built LGPL FFmpeg needs no relink. Only the headers are used at build time (SYSTEM include dir).
 # Skipped when the FFmpeg tree is absent so the rest of the engine still builds.
 set(ALAMO_FFMPEG_DIR "${PROJECT_SOURCE_DIR}/toolchain/ffmpeg-8.1.3" CACHE PATH "FFmpeg Bink build (toolchain\\9_ffmpeg_bink.cmd)")

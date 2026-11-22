@@ -1,4 +1,4 @@
-// Staggered, parallel scheduled collections of script VMs (OPT2 t04): see alamo/lua/gc_schedule.hpp.
+// Staggered, parallel scheduled collections of script VMs: see alamo/lua/gc_schedule.hpp.
 #include "alamo/lua/gc_schedule.hpp"
 
 #include <algorithm>

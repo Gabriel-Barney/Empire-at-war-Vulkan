@@ -1,4 +1,4 @@
-// S10-int / R3 hookup: the sim-owned animation state (docs/re/ANIM_PARTICLES.md §A, R3 integration asks).
+// S10-int / R3 hookup: the sim-owned animation state (legacy docs/re/ANIM_PARTICLES.md §A, R3 integration asks).
 //
 // One anim::AnimWorld per mode primary store (rows = objects whose type has a model with a skeleton or clips),
 // driven from the SimHost's T5 slot (SimHost::set_object_animation_hook, step "T5.anim", right after the
@@ -11,7 +11,7 @@
 // Behaviours that play clips (the S10 battle: weapon Attack, locomotor Move / Walk, idle fidgets; Lua later)
 // use world(mode) directly in their own tick slot. Only the top mode is synced / advanced (only it ticks).
 // Worlds of modes that left the stack are dropped at the next service.
-// [port] (listed in docs/PHASE4.md): model creation happens at the sync after the spawning step, not inside
+// [port] (listed in legacy docs/PHASE4.md): model creation happens at the sync after the spawning step, not inside
 // the spawn call, so the start-frame draw sits after that tick's battle draws; hardpoints are flat combat
 // sub-records (no own models / rows); the T6 scene models (hardpoint Model_To_Attach models, not sim objects) are posed
 // render-side (alamo/render/scene_anim.hpp), so the host's T6 slot advances nothing here. Secondary stores
@@ -25,8 +25,8 @@
 // R3 behaviours (anim::AnimBehaviors, one per mode next to the world; anim_behaviors.hpp has the rules):
 //   * hit()          flinch on a projectile hit (the battle's HitEvents, event order);
 //   * service_idle() the idle behaviour incl. idle while engaged (the battle's locomotor step: service_locomotor runs it
-//                    every frame the moving gate lets it, s78k t02 / s78l t03); its TARGETING lookup is the caller's
-//                    LocomotorInput::target (the battle fills it); objects without IDLE get none (s78l t03). The IDLE
+//                    every frame the moving gate lets it); its TARGETING lookup is the caller's
+//                    LocomotorInput::target (the battle fills it); objects without IDLE get none. The IDLE
 //                    attach draw (first fidget frame, synced Get_Int(210, 450)) is made at the row creation;
 //   * begin_death()  Die + DeathBehavior: death clip, or removal at once (Remove_Upon_Death without a clip). Called
 //                    by the battle BEFORE it destroys the unit; the unit's row then lives on as a CORPSE row
@@ -34,14 +34,14 @@
 //                    anim::Corpse record holding the type / owner / position / facing captured at death);
 //   * death_clone_spawned()  a Death_Clone object runs its own death sequence (its type's Specific_Death_Anim_*,
 //                    else the clip of the killing damage kind) right after its model is created at the next sync [port:
-//                    clones die at once]; refix t01: also the dying type's own clone (0x29f270 always makes one);
-//                    refixf t04: with the plan the battle made (plan_clone_death: spin / death type / variant already drawn,
+//                    clones die at once]; also the dying type's own clone (0x29f270 always makes one);
+//                    with the plan the battle made (plan_clone_death: spin / death type / variant already drawn,
 //                    so the service draws nothing for it). The battle owns the clone's REMOVAL (from the same plan, with or
 //                    without this service); the service never destroys store objects, its corpse row only follows;
-//   * corpse_clone() refix t03, the infantry corpse path (S9_DEATH_CLONE_SHIELDS.md §1.6 [L]): no clone object; the
+//   * corpse_clone() refix t03, the infantry corpse path (legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §1.6 [L]): no clone object; the
 //                    dying unit's row becomes a corpse of the clone type's model running the clone's death sequence;
 //   * service: before the advance, flinch holds end and the corpse countdown runs (Death_Persistence_Duration
-//     after the death clip, then Death_Fade_Time); a finished corpse loses its row. refixf t04: a death clone's store
+//     after the death clip, then Death_Fade_Time); a finished corpse loses its row. a death clone's store
 //     object is removed by the battle at the frame plan_death gives (the same frame as this countdown when both read the
 //     same model); a corpse row whose store object went first lives on detached until its countdown ends (render only).
 // Rows whose store object left are removed unless they are corpses (then marked detached).
@@ -91,7 +91,7 @@ public:
     SimAnimation(const SimAnimation&) = delete;
     SimAnimation& operator=(const SimAnimation&) = delete;
 
-    // mcx4 t11: the blend times (configuration, not saved or hashed) for every world made from now on and every existing
+    // the blend times (configuration, not saved or hashed) for every world made from now on and every existing
     // one. The battle sets the GameConstants blends when it binds the service (TacticalBattle::set_animation).
     const anim::AnimTunables& tunables() const { return tunables_; }
     void set_tunables(const anim::AnimTunables& t);
@@ -129,7 +129,7 @@ public:
     // One IDLE service (incl. idle while engaged; s78k t02 rules in anim_behaviors.hpp) of a battle unit with
     // IdleTarget::NoTarget. s78l t03 (b): nothing for an object without IDLE.
     bool service_idle(const GameMode& mode, ObjectId id, SimRng& rng, uint64_t frame);
-    // s78l t03: the same with the host's gate inputs - `gated`: the moving gate (TACTICAL_COMBAT slot 47 "s78l t03" (a))
+    // the same with the host's gate inputs - `gated`: the moving gate (TACTICAL_COMBAT slot 47 "s78l t03" (a))
     // stops the service (the idle records are cleared, no draw); `target`: the TARGETING lookup; `presence`: the
     // default idle type's presence step (null: none).
     bool service_idle(const GameMode& mode, ObjectId id, bool gated, anim::IdleTarget target, SimRng& rng, uint64_t frame,
@@ -139,15 +139,15 @@ public:
     anim::DeathResult begin_death(const GameMode& mode, ObjectId id, SimRng& rng, uint64_t frame, uint8_t damage_kind = 1);
     // A Death_Clone object was spawned: its death sequence runs after its model creation at the next sync.
     // `damage_kind` = the killing hit's kind (the death clip when the clone type sets no Specific_Death_Anim_*).
-    // `plan` (refixf t04): the battle's plan_clone_death result - played as planned, no draws; null = drawn at the sync.
+    // `plan`: the battle's plan_clone_death result - played as planned, no draws; null = drawn at the sync.
     void death_clone_spawned(const GameMode& mode, ObjectId clone, uint8_t damage_kind = 1, const anim::DeathPlan* plan = nullptr);
-    // refixf t04: anim::plan_death for a clone of `type` in `mode` (the type's DeathBehavior fields, the model model_for
+    // anim::plan_death for a clone of `type` in `mode` (the type's DeathBehavior fields, the model model_for
     // gives: the same clip data the clone's row plays). Draws on `rng` like the death would. Usable without attach().
     // mcx4 tac2 (MCX4_T10_RE_ANSWERS §16 / §18, 0x29f270 [H]): `persistence_override` (null: none) replaces the type's
     // Death_Persistence_Duration - the battle passes GC Override_Death_Persistence_Duration for an Infantry dying type.
     anim::DeathPlan plan_clone_death(objects::TypeIndex type, objects::ModeKind mode, uint8_t damage_kind, SimRng& rng,
                                      const float* persistence_override = nullptr);
-    // refix t03: infantry corpse path (S9 §1.6 [L]: the clone goes to a lighter corpse list, not the sim store). Call
+    // infantry corpse path (S9 §1.6 [L]: the clone goes to a lighter corpse list, not the sim store). Call
     // before the battle destroys `dying`: its row (created when absent) gets `clone_type`'s model without a clip (no
     // draw), then the clone type's death sequence starts with the CorpseInfo of `clone_type`, so the row lives on as a
     // detached corpse drawn with the clone's model. RemoveNow / no model: nothing stays (the row is dropped).
@@ -160,18 +160,18 @@ public:
     std::span<const anim::Corpse> corpses(const GameMode& mode) const;
 
     // Locomotor clip selection of a unit (AnimBehaviors::service_locomotor with the type's parameters) and then its IDLE
-    // service (s78k t02) with the caller's in.target; s78l t03: in.has_idle = the object has IDLE (no idle service without),
+    // service with the caller's in.target; in.has_idle = the object has IDLE (no idle service without),
     // in.on_path is the caller's moving gate; in.allow_idle_when_moving comes from the type (Allow_Idle_When_Moving);
     // `presence` = the default idle type's presence step (null: none). `walk_ratio` / `min_ratio`: the battle's tunables.
     uint32_t service_locomotor(const GameMode& mode, ObjectId id, anim::LocomotorInput in, float walk_ratio, float min_ratio, SimRng& rng,
                                uint64_t frame, const anim::PresenceIdleFn* presence = nullptr);
-    // s78l t02: the Walk arrival turn popped its path (MOVEMENT 3.5.1 step 6): the default idle type (with `presence`, the
+    // the Walk arrival turn popped its path (MOVEMENT 3.5.1 step 6): the default idle type (with `presence`, the
     // records as they are), index 0, loop Loop_Idle_Anim_00, idle blend, speed 1 - unless the current clip is idle-class
     // (0x27b5e0). No draw. True if it played.
     bool play_default_idle(const GameMode& mode, ObjectId id, uint64_t frame, const anim::PresenceIdleFn* presence = nullptr);
     // Deploy / undeploy clip (Deployment_Anim_Rate). True if a clip started.
     bool deploy(const GameMode& mode, ObjectId id, bool undeploy, SimRng& rng, uint64_t frame);
-    // s78n t26.1: the Deploy clip on its last frame (a walk that ends deployed, AnimBehaviors::deploy_at_end).
+    // the Deploy clip on its last frame (a walk that ends deployed, AnimBehaviors::deploy_at_end).
     bool deploy_at_end(const GameMode& mode, ObjectId id, uint64_t frame);
     // Berserker ability state (AnimWorld::set_berserker).
     void set_berserker(const GameMode& mode, ObjectId id, bool active);
@@ -226,7 +226,7 @@ private:
         struct PendingClone {
             ObjectId id = 0;
             uint8_t kind = 1;      // the killing damage kind
-            bool planned = false;  // refixf t04: `plan` holds the battle's spin / type / variant
+            bool planned = false;  // `plan` holds the battle's spin / type / variant
             anim::DeathPlan plan;
         };
         std::vector<PendingClone> pending_clones;  // request order

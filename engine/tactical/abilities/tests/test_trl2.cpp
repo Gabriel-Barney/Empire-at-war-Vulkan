@@ -1,5 +1,5 @@
-// trl2 t03: Earthquake_Attack / Force_Telekinesis target gates and the target behaviour's ramp state
-// (docs/re/TACTICAL_GAPS.md §2.3.4). Hand-computed frames on the OI sandbox.
+// Earthquake_Attack / Force_Telekinesis target gates and the target behaviour's ramp state
+// (legacy docs/re/TACTICAL_GAPS.md §2.3.4). Hand-computed frames on the OI sandbox.
 #include "test_abilities_common.hpp"
 
 namespace bo3split {

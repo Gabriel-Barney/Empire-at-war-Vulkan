@@ -1,6 +1,6 @@
 // L1 final (roadmap L1: the last 13 globals / 50 methods of logs/lua_binding_coverage.txt): host contract of the
-// "remaining" binding family (src/bind_script_remaining.cpp). Specs: docs/re/LUA_API.md (error strings),
-// L1_S4_REMAINING.md (RE, in progress), AI_TACTICAL.md, AI_GALACTIC.md, TACTICAL_COMBAT.md, OBJECT_TYPES.md.
+// "remaining" binding family (src/bind_script_remaining.cpp). Specs: legacy docs/re/LUA_API.md (error strings),
+// legacy docs/re/L1_S4_REMAINING.md (RE, in progress), legacy docs/re/AI_TACTICAL.md, legacy docs/re/AI_GALACTIC.md, legacy docs/re/TACTICAL_COMBAT.md, legacy docs/re/OBJECT_TYPES.md.
 //
 // Bound by the family (vm_internal.hpp impl_script_remaining):
 //   globals  Are_On_Opposite_Sides_Of_Shield, Find_Best_Local_Threat_Center, Find_Nearest_Space_Field, Force_Weather,
@@ -33,7 +33,7 @@
 //   * GlobalValueStore (below) - the session-wide GlobalValue table for VMs without an AI host;
 //   * ScriptWrapperHost (below) - the VMs a LuaScriptWrapper refers to.
 // Error discipline: as script_gaps.hpp ("SCRIPT ERROR: ..." / "SCRIPT WARNING: ..." messages, nil result) where the
-// original logs; the argument errors LUA_API.md lists as raising helpers are script errors too
+// original logs; the argument errors legacy docs/re/LUA_API.md lists as raising helpers are script errors too
 // (Call::script_error_stop, no Lua error: q6 t11, the rule of every family).
 #pragma once
 #include <cstdint>
@@ -110,13 +110,13 @@ struct RemainingScriptHooks {
     // Lock_Build_Pad_Contents(lock): the host's pad state. The flag is always kept in the family state too.
     std::function<void(objects::ObjectHandle pad, bool lock)> lock_build_pad;
     // ---- garrisons (S4 garrison system) ----
-    // Can_Garrison_Fire of a holder. Unset: the type's Property_Flags GarrisonCanFire (OBJECT_TYPES.md 9.1.2) [port].
+    // Can_Garrison_Fire of a holder. Unset: the type's Property_Flags GarrisonCanFire (legacy docs/re/OBJECT_TYPES.md 9.1.2) [port].
     std::function<bool(objects::ObjectHandle holder)> can_garrison_fire;
     // ---- combat (tactical combat system) ----
-    // (cu8 t08: Enable_Behavior needs no hook: it drives the store's behaviour disable counter directly, §2.6.)
-    // (cu8f t04: Set_Targeting_Stickiness_Time_Threshold needs no hook: it writes the battle's CombatSystem through
+    // (Enable_Behavior needs no hook: it drives the store's behaviour disable counter directly, §2.6.)
+    // (Set_Targeting_Stickiness_Time_Threshold needs no hook: it writes the battle's CombatSystem through
     // ObjectBridge::abilities (set_stickiness_override, TD +0x158); Set_Prefer_Ground_Over_Space writes the player
-    // world's GalacticSim (set_prefer_ground_over_space), read by the galactic AI's auto-land. CU8F_T04_T06_RE.md.)
+    // world's GalacticSim (set_prefer_ground_over_space), read by the galactic AI's auto-land. legacy docs/re/CU8F_T04_T06_RE.md.)
     // Every projectile type the unit can fire (weapon and hard points, the combat system's order). Unset: the data
     // fallback [port] = the type's Projectile_Types (hard point data is not in GameObjectTypes).
     std::function<std::vector<objects::TypeIndex>(objects::ObjectHandle unit)> projectile_types;
@@ -138,7 +138,7 @@ struct RemainingScriptHooks {
     // (binding-effect in bind_script_remaining.cpp), the task-force form asks the AI host first.
     std::function<double(objects::ObjectHandle unit, objects::ObjectHandle other)> ai_power_vs;
     // ---- galactic ----
-    // (cu8 t08: Force_Test_Space_Conflict needs no hook: it runs the arrival test on the players family's GalacticSim
+    // (Force_Test_Space_Conflict needs no hook: it runs the arrival test on the players family's GalacticSim
     // and its conflict hooks.)
     // Give_Random_Sliceable_Tech(player) -> the chosen type (kNone = none). Unset: §2.9 on the players world.
     // hook-optional: the binding's own §2.9 path on the players world is the rule.
@@ -169,7 +169,7 @@ inline constexpr int32_t kBlockBombingRun = 5;
 
 // Per-object script state of the family (ObjectBridge::remaining_state, ordered by id).
 struct RemainingObjectState {
-    bool dynamic_lod = true;              // Enable_Dynamic_LOD (model +0x198, default on: RENDER.md)
+    bool dynamic_lod = true;              // Enable_Dynamic_LOD (model +0x198, default on: legacy docs/re/RENDER.md)
     bool build_pad_locked = false;        // Lock_Build_Pad_Contents
     int8_t prefer_ground = -1;            // Set_Prefer_Ground_Over_Space; -1 = never set (record only)
     float stickiness = -1.0f;             // last Set_Targeting_Stickiness_Time_Threshold value; record only (the live

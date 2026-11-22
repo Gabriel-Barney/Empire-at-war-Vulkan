@@ -50,7 +50,7 @@ static std::string run(LuaVm& vm, const std::string& code) {
     if (!vm.run(code, "test", &err)) return err.empty() ? "error" : err;
     return {};
 }
-// q6 t11 (docs/re/LUA_API.md "Binding error model across all bindings"): a binding error does not unwind; it logs
+// q6 t11 (legacy docs/re/LUA_API.md "Binding error model across all bindings"): a binding error does not unwind; it logs
 // "SCRIPT ERROR: ..." and sets the script's stop flag. run_stop() reports those lines as its result (a Lua error as
 // before) and clears the flag, so the next snippet runs on a live script.
 static std::string run_stop(LuaVm& vm, const std::string& code) {
@@ -111,7 +111,7 @@ struct Db {
         std::error_code ec;
         remove_all_long(root, ec);
         write_file(root / "Data/XML/GameObjectFiles.xml", "<L><File>S.xml</File></L>");
-        // r1b t01: the hardpoint data list, so a type's HardPoints resolve (Take_Damage(n, name) checks the name there).
+        // the hardpoint data list, so a type's HardPoints resolve (Take_Damage(n, name) checks the name there).
         write_file(root / "Data/XML/HardPointDataFiles.xml", "<L><File>HP.xml</File></L>");
         write_file(root / "Data/XML/HP.xml", "<R><HardPoint Name=\"HP_Gun\"/></R>");
         write_file(root / "Data/XML/S.xml",
@@ -142,7 +142,7 @@ struct Db {
                    "<GalacticFleet Name=\"Fleet\"><Behavior>FLEET</Behavior></GalacticFleet>\n"
                    "<HardPoint Name=\"HP_Gun\"><Tactical_Health>30</Tactical_Health></HardPoint>\n"
                    "<StarBase Name=\"Station\"><Tactical_Health>5000</Tactical_Health></StarBase>\n"
-                   // mcx1 t09: Get_Space_Station goes by DUMMY_STAR_BASE (without CAPTURE_POINT), not the element tag.
+                   // Get_Space_Station goes by DUMMY_STAR_BASE (without CAPTURE_POINT), not the element tag.
                    "<Orbital_Thing Name=\"Odd_Station\"><Behavior>DUMMY_STAR_BASE</Behavior></Orbital_Thing>\n"
                    "<Orbital_Thing Name=\"Capture_Station\"><Behavior>DUMMY_STAR_BASE, CAPTURE_POINT</Behavior></Orbital_Thing>\n"
                    "<GroundStructure Name=\"Bunker\"><Behavior>GARRISON_STRUCTURE</Behavior>"
@@ -215,7 +215,7 @@ struct Scene {
         marker1 = make(store, db.t("Marker_Generic"), -1, {100, 0, 0});
         marker2 = make(store, db.t("Marker_Generic"), -1, {200, 0, 0});
         gun = make(store, db.t("HP_Gun"), 2, {5, 1, 0}, tank);
-        // A hinted object has the HINT behaviour (Q6_T30_FIND_HINT_ORDER.md §3: a hint implies HINT); Find_Hint sees only those.
+        // A hinted object has the HINT behaviour (legacy docs/re/Q6_T30_FIND_HINT_ORDER.md §3: a hint implies HINT); Find_Hint sees only those.
         store.add_behavior(marker1, objects::beh::Hint);
         store.add_behavior(marker2, objects::beh::Hint);
         bridge.set_hint(store.id(marker1), "spawnpoint");
@@ -289,7 +289,7 @@ static void test_find(const Db& db) {
     CHECK(contains(run_stop(vm, "Find_All_Objects_With_Hint(1)"), "invalid type for parameter 1. Expected string."));
     CHECK(run(vm, "gh = Find_Hint('Marker_Generic', 'spawnpoint').Get_Hint() gn = tostring(t1.Get_Hint())") == "");
     CHECK(gstr(vm, "gh") == "SpawnPoint" && gstr(vm, "gn") == "nil");
-    // q6 t28: map hints (.ted 0x482) come from the host's map_hint hook; a script-set hint wins over it.
+    // map hints (.ted 0x482) come from the host's map_hint hook; a script-set hint wins over it.
     {
         const objects::ObjectId tank_id = s.store.id(s.tank), m1 = s.store.id(s.marker1);
         s.store.add_behavior(s.tank, objects::beh::Hint);  // a map hint implies HINT (from the type or the record's 0x4B7)
@@ -307,12 +307,12 @@ static void test_find(const Db& db) {
     // Find_First_Object: newest first, case-insensitive type name.
     CHECK(run(vm, "f1 = Find_First_Object('trooper').Get_Object_ID() f2 = tostring(Find_First_Object('Nope'))") == "");
     CHECK(gnum(vm, "f1") == 2.0 && gstr(vm, "f2") == "nil");
-    // refixf t03: errors log and return nothing (no unwind); category names are not type names.
+    // errors log and return nothing (no unwind); category names are not type names.
     CHECK(run(vm, "fe = Find_First_Object(3) fe = tostring(fe) fc = tostring(Find_First_Object('Infantry'))") == "" &&
           gstr(vm, "fe") == "nil" && gstr(vm, "fc") == "nil");
     CHECK(run(vm, "Find_First_Object(3)") == "" && last_message_has(vm, "FindPlanet -- Parameter 1 is not a valid string"));
     CHECK(run(vm, "Find_First_Object()") == "" && last_message_has(vm, "FindPlanet -- No planet name set"));
-    // Find_Nearest (refixf t03): type filter, enemies of a player, owned by a player, category, property. Candidates are
+    // Find_Nearest: type filter, enemies of a player, owned by a player, category, property. Candidates are
     // UNIT_AI objects of players (the markers are ownerless, the gun has no UNIT_AI and no CategoryMask).
     CHECK(run(vm, "n1 = Find_Nearest(t1, 'Tank').Get_Object_ID() "
                   "n2 = Find_Nearest(t1, p1, false).Get_Object_ID() "     // enemies of p1: tank @5
@@ -331,7 +331,7 @@ static void test_find(const Db& db) {
           last_message_has(vm, "Find_Nearest - unknown game object type, properties mask or catefory NoSuchThing."));
     CHECK(run(vm, "Find_Nearest()") == "" && last_message_has(vm, "Expected between 1 and 4, got 0."));
     CHECK(run(vm, "Find_Nearest(5)") == "" && last_message_has(vm, "invalid type for parameter 1; expected game object"));
-    // modc t06: a nil filter (a mod's category helper returning nil) is not a filter, the player is then read at slot 2;
+    // a nil filter (a mod's category helper returning nil) is not a filter, the player is then read at slot 2;
     // a non-player there is a null player (no player filter), a non-bool flag keeps true. No error in any of these.
     {
         const size_t before = vm.messages().size();
@@ -358,7 +358,7 @@ static void test_find(const Db& db) {
     CHECK(contains(run_stop(vm, "Create_Position(1, 2, 'a')"), "LuaCreatePosition -- Invalid parameter, expected 3 floats"));
 }
 
-// Stage 3: proximity events (q6, OBJECT_SCRIPTS.md §4.3: synchronous callbacks), reinforcements, Get_Space_Station.
+// Stage 3: proximity events (q6, legacy docs/re/OBJECT_SCRIPTS.md §4.3: synchronous callbacks), reinforcements, Get_Space_Station.
 static void test_stage3(const Db& db) {
     Scene s(db);
     LuaVm& vm = *s.vm;
@@ -399,7 +399,7 @@ static void test_stage3(const Db& db) {
     CHECK(run(vm, "hits = '' t1.Event_Object_In_Range(Prox, 20) t1.Service_Wrapper() t1.Cancel_Event_Object_In_Range(Prox)") == "");
     CHECK(gstr(vm, "hits") == "1>3,");
     s.bridge.objects_in_range = nullptr;
-    // q6 t12: the proximity bindings on a dead wrapper (an object script's own unit killed under it) are silent no-ops,
+    // the proximity bindings on a dead wrapper (an object script's own unit killed under it) are silent no-ops,
     // not the generic "this object is dead!" thread error (§4.3: the exe has no dead-object string for these).
     CHECK(run(vm, "hits = '' dead = Create_Generic_Object('Trooper', Create_Position(50, 0, 0), p2) dead.Despawn() "
                   "dead.Event_Object_In_Range(Prox, 5) dead.Service_Wrapper() dead.Cancel_Event_Object_In_Range(Prox)") == "");
@@ -469,7 +469,7 @@ static void test_stage3(const Db& db) {
     CHECK(run(vm, "sn2 = table.getn(Spawn_From_Reinforcement_Pool('Tank', tank, p1))") == "" && gnum(vm, "sn2") == 0.0);
     s.bridge.spawn_from_pool = nullptr;
     CHECK(contains(run_stop(vm, "Spawn_From_Reinforcement_Pool('Tank', tank)"), "Expected 3, got 2"));
-    // Get_Space_Station (mcx1 t09, docs/re/MCX1_RE_ANSWERS.md "Get_Space_Station"): nil outside space mode.
+    // Get_Space_Station (legacy docs/re/MCX1_RE_ANSWERS.md "Get_Space_Station"): nil outside space mode.
     CHECK(run(vm, "ssl = tostring(p2.Get_Space_Station())") == "" && gstr(vm, "ssl") == "nil");
     {
         // In space: an allied object with DUMMY_STAR_BASE and not CAPTURE_POINT, whatever its element; a <StarBase> element
@@ -493,7 +493,7 @@ static void test_stage3(const Db& db) {
     CHECK(vm.errors().empty());
 }
 
-// refixf t03 (docs/re/LUA_API.md "Find_All_Objects_Of_Type and the sibling finders"): the string chain (properties
+// refixf t03 (legacy docs/re/LUA_API.md "Find_All_Objects_Of_Type and the sibling finders"): the string chain (properties
 // mask, category mask, type name), "A | B" masks, AND-combined filters, the owner filter, newest-first order, the
 // error cases (nothing returned), the representative type (ObjectBridge::representative_type), death clones / killed
 // objects, Find_Nearest's fog test.
@@ -603,7 +603,7 @@ static void test_queries(const Db& db) {
                   "pr2 = tank.Has_Property('Fodder') and 1 or 0 sh = tank.Get_Shield() sh2 = t1.Get_Shield() "
                   "st = tank.Get_Game_Scoring_Type().Get_Name() sel = t1.Is_Selectable() and 1 or 0 "
                   "mv = t1.Can_Move() and 1 or 0 mv2 = tank.Can_Move() and 1 or 0 tr = t1.Is_Transport() and 1 or 0") == "");
-    // mcx8 t12: Get_Name is the ship name ("" without one), never the type name.
+    // Get_Name is the ship name ("" without one), never the type name.
     CHECK(gstr(vm, "nm") == "" && gnum(vm, "c1") == 1.0 && gnum(vm, "c2") == 0.0 && gnum(vm, "c3") == 0.0);
     CHECK(gnum(vm, "pr") == 1.0 && gnum(vm, "pr2") == 0.0 && gnum(vm, "sh") == 1.0 && gnum(vm, "sh2") == 0.0);
     CHECK(gstr(vm, "st") == "TANK" && gnum(vm, "sel") == 1.0 && gnum(vm, "mv") == 1.0 && gnum(vm, "mv2") == 0.0 && gnum(vm, "tr") == 0.0);
@@ -767,7 +767,7 @@ static void test_spawn_and_state(const Db& db) {
     CHECK(run(vm, "team.Despawn() alive = team.Is_Valid() and 1 or 0 m1 = members[1].Is_Valid() and 1 or 0 "
                   "m2 = members[2].Is_Valid() and 1 or 0 cnt2 = team.Get_Contained_Object_Count()") == "");
     CHECK(gnum(vm, "alive") == 1.0 && gnum(vm, "m1") == 0.0 && gnum(vm, "m2") == 0.0 && gnum(vm, "cnt2") == 0.0);
-    {  // q6 t12: a host that lays out companies (ObjectBridge::spawn_company) takes a company; a plain type is not
+    {  // a host that lays out companies (ObjectBridge::spawn_company) takes a company; a plain type is not
        // offered; a null answer falls back to the store container + members.
         int calls = 0;
         objects::TypeIndex asked = objects::kNone;
@@ -799,9 +799,9 @@ static void test_spawn_and_state(const Db& db) {
                   "h2 = tank.Get_Hull() tank.Make_Invulnerable(false) tank.Set_Cannot_Be_Killed(true) tank.Take_Damage(10000) "
                   "h3 = tank.Get_Health() v3 = tank.Is_Valid() and 1 or 0 tank.Take_Damage(15, 'HP_Gun') "
                   "gun = Find_First_Object('HP_Gun') gh = gun.Get_Hull() tank.Take_Damage(-100000) hmax = tank.Get_Hull()") == "");
-    // q6 t12: Take_Damage is damage kind 0, which passes invulnerability (OBJECT_SCRIPTS §6.1 step 4): h2 drops too.
+    // Take_Damage is damage kind 0, which passes invulnerability (OBJECT_SCRIPTS §6.1 step 4): h2 drops too.
     CHECK(gnum(vm, "h0") == 1.0 && gnum(vm, "h1") == 0.75 && gnum(vm, "h2") == 0.5 && gnum(vm, "h3") == 1.0 / 400.0);
-    // r1b t01: a HardPoints name goes to the host's hardpoint record; none here, so nothing (the attached object untouched).
+    // a HardPoints name goes to the host's hardpoint record; none here, so nothing (the attached object untouched).
     CHECK(gnum(vm, "v3") == 1.0 && gnum(vm, "gh") == 1.0 && gnum(vm, "hmax") == 1.0);
     {  // r1b t01 / mcx8 t12 (MCX8_BINDINGS_OBJECTS §Take_Damage [H]): the name is looked up in the global HardPoint type
        // table, case-insensitively; a match is handed to the host with the record's own name, also for an object that does
@@ -832,7 +832,7 @@ static void test_spawn_and_state(const Db& db) {
     }
     CHECK(run(vm, "tank.Set_Cannot_Be_Killed(false) tank.Take_Damage(1000) v4 = tank.Is_Valid() and 1 or 0") == "");
     CHECK(gnum(vm, "v4") == 0.0);
-    {  // q6 t12: a host damage system takes Take_Damage(amount) (not the hardpoint form); refused -> the store path
+    {  // a host damage system takes Take_Damage(amount) (not the hardpoint form); refused -> the store path
         objects::ObjectHandle hit{};
         float amount = 0.0f;
         bool cannot = false, accept = true;
@@ -864,7 +864,7 @@ static void test_spawn_and_state(const Db& db) {
                   "t1.Disable_Capture(true) t1.Set_Garrison_Spawn(true) t1.Set_Check_Contested_Space(false) "
                   "b = t1.Play_Animation('Cinematic', false, 2) pf = b.IsFinished() and 1 or 0 "
                   "sel = t1.Is_Selectable() and 1 or 0 mv = t1.Can_Move() and 1 or 0 Hide_Object(t2, 1)") == "");
-    {  // ui2 t02: Highlight / Highlight_Small also record an event the host draws (receiver, on, z offset)
+    {  // Highlight / Highlight_Small also record an event the host draws (receiver, on, z offset)
         PresentationLog plog;
         attach_presentation(vm, &plog);
         CHECK(run(vm, "t1.Highlight(true, 25) t1.Highlight_Small(true)") == "");
@@ -881,7 +881,7 @@ static void test_spawn_and_state(const Db& db) {
     CHECK(st.capture_disabled && st.garrison_spawn && st.contested_check_off && st.animation == "Cinematic" &&
           !st.animation_loop && st.animation_index == 2);
     CHECK(s.bridge.state(2).hidden && gnum(vm, "pf") == 1.0 && gnum(vm, "sel") == 0.0 && gnum(vm, "mv") == 0.0);
-    // modc t43: the hyperspace-in arrival shows the model again, ending a Lua hide (the EAW-Remake's arriving ships).
+    // the hyperspace-in arrival shows the model again, ending a Lua hide (the EAW-Remake's arriving ships).
     CHECK(run(vm, "t2.Cinematic_Hyperspace_In(1)") == "" && !s.bridge.state(2).hidden && s.bridge.state(1).hidden);
     CHECK(run(vm, "Hide_Object(t2, 1)") == "" && s.bridge.state(2).hidden);  // hidden again for the no-bridge check below
     CHECK(run(vm, "t1.Override_Max_Speed(false) t1.Unlock_Current_Orders()") == "" && s.bridge.state(1).max_speed_override < 0.0f &&
@@ -913,7 +913,7 @@ static void test_spawn_and_state(const Db& db) {
         CHECK(run(vm, "t2.Teleport(Create_Position(1, 2, 3))") == "");
         CHECK(moved == s.trooper2 && to.x == 1.0f && to.y == 2.0f && to.z == 3.0f && face.x == f2.x && face.y == f2.y);
         CHECK(s.store.position(s.trooper2).x == 7.0f);  // the host moved it (here: nothing did)
-        // q6 t19: Teleport_And_Face goes through the same hook, with the target's position and facing.
+        // Teleport_And_Face goes through the same hook, with the target's position and facing.
         moved = {};
         s.store.set_facing(s.trooper1, {0.0f, -1.0f, 0.0f});
         const Vec3 p1 = s.store.position(s.trooper1);
@@ -966,14 +966,14 @@ static void test_dead_handles(const Db& db) {
     CHECK(run(vm, "victim = t2") == "");
     s.bridge.state(2).hidden = true;
     CHECK(s.store.destroy(s.trooper2));
-    // q6 t03: the unit order bindings handle a dead caller themselves (LUA_API.md "Unit order bindings"): Move_To is a
+    // the unit order bindings handle a dead caller themselves (legacy docs/re/LUA_API.md "Unit order bindings"): Move_To is a
     // script error (no unwind, the exited flag), Attack_Target returns nothing.
     CHECK(run(vm, "r = 1 r = victim.Move_To(t1) rn = r == nil and 1 or 0") == "" &&
           last_message_has(vm, "SCRIPT ERROR: GameObjectWrapper::Move_To -- this object is already dead"));
     CHECK(gnum(vm, "rn") == 1.0 && vm.exit_requested());
     reset_script_threads(vm);
     CHECK(run(vm, "r = 1 r = victim.Attack_Target(t1) rn = r == nil and 1 or 0") == "" && gnum(vm, "rn") == 1.0 && !vm.exit_requested());
-    // q6 t11: a dead caller is silent in most methods (nothing returned, no message, no stop); the WarnNothing ones log
+    // a dead caller is silent in most methods (nothing returned, no message, no stop); the WarnNothing ones log
     // "SCRIPT WARNING: GameObjectWrapper::<m> -- this object is dead!" and go on.
     for (const char* m : {"Get_Position()", "Hide(true)", "Get_Hull()", "Is_Category('Infantry')", "Activate_Ability('SPRINT', true)"}) {
         const size_t m0 = vm.messages().size();
@@ -1128,7 +1128,7 @@ static void test_galactic(const Db& db) {
     LuaHost host;
     host.store = &st;
     host.types = &db.types;
-    GameRandom rng(1234u, 99u);  // mcx8 t12: Destroy_Contained_Objects draws its victims from the synced stream
+    GameRandom rng(1234u, 99u);  // Destroy_Contained_Objects draws its victims from the synced stream
     host.rng = &rng;
     LuaVm vm(host);
     ObjectBridge bridge;
@@ -1140,7 +1140,7 @@ static void test_galactic(const Db& db) {
     });
     bridge.pipeline = &pipe;
     attach_object_bridge(vm, &bridge);
-    // refixf t03: FindPlanet is Find_First_Object (one class): no planet test, so a fleet type name finds the fleet.
+    // FindPlanet is Find_First_Object (one class): no planet test, so a fleet type name finds the fleet.
     CHECK(run(vm, "px = FindPlanet('planet_x') py = FindPlanet('Planet_Y') pn = FindPlanet('Fleet').Get_Object_ID() "
                   "all = FindPlanet.Get_All_Planets() an = table.getn(all) a1 = all[1].Get_Object_ID() "
                   "ship = Find_First_Object('Hero_Ship') loc = ship.Get_Planet_Location().Get_Object_ID() "
@@ -1312,7 +1312,7 @@ static void test_wave1(const Db& db) {
                   "cg1 = t2.Can_Garrison(Bunker) cg2 = tank.Can_Garrison(Bunker) cg3 = Inside.Can_Garrison(t2) "
                   "pc = Inside.Get_Parent_Object() == Bunker n = Bunker.Get_Contained_Object_Count() "
                   "bf = BlockForever().IsFinished()") == "");
-    // mcx8 t12: none of these units has GARRISON_UNIT -> false (test_mcx8_garrison has the full rule).
+    // none of these units has GARRISON_UNIT -> false (test_mcx8_garrison has the full rule).
     CHECK(gtrue(vm, "g1") && !gtrue(vm, "g2") && gtrue(vm, "h1") && !gtrue(vm, "h2") && gnum(vm, "gl") == 2.0 && gtrue(vm, "gf"));
     CHECK(!gtrue(vm, "cg1") && !gtrue(vm, "cg2") && !gtrue(vm, "cg3") && gtrue(vm, "pc") && gnum(vm, "n") == 2.0 && !gtrue(vm, "bf"));
     const uint32_t before = s.bridge.orders_issued;
@@ -1324,7 +1324,7 @@ static void test_wave1(const Db& db) {
     CHECK(s.store.alive(inside) && s.store.alive(tank_in));
 }
 
-// q6 t11 (docs/re/LUA_API.md "Binding error model across all bindings").
+// q6 t11 (legacy docs/re/LUA_API.md "Binding error model across all bindings").
 static size_t messages_with(LuaVm& vm, const char* text) {
     size_t n = 0;
     for (const std::string& m : vm.messages()) n += m.find(text) != std::string::npos ? 1u : 0u;
@@ -1435,7 +1435,7 @@ static void test_binding_error_model(const Db& db) {
     }
 }
 
-// mcx8 t12 (docs/re/MCX8_BINDINGS_OBJECTS.md): the object bindings whose retail behaviour differed from the port's guess,
+// mcx8 t12 (legacy docs/re/MCX8_BINDINGS_OBJECTS.md): the object bindings whose retail behaviour differed from the port's guess,
 // one block per binding (tactical scene).
 static void test_mcx8_bindings(const Db& db) {
     Scene s(db);

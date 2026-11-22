@@ -1,5 +1,5 @@
 // Mod check, files family (mod_check_detail.hpp): the mod layers' files per Data folder, files the data names that no
-// layer has (list entries, object type models), the submod hint (modc t16) and the base-EaW heuristic (mcx3 t03).
+// layer has (list entries, object type models), the submod hint and the base-EaW heuristic.
 #include "mod_check_detail.hpp"
 
 #include <algorithm>
@@ -148,7 +148,7 @@ void check_submod(const GameData& d, ModCheckReport& r, const ModCheckOptions& o
 
 namespace {
 
-// ---- mcx3 t03: base-EaW heuristic (design 5.4) ----
+// ---- base-EaW heuristic (design 5.4) ----
 
 // The entries of `list`'s copies in the base layers: FoC's (FoC loose or a FoC MEG) and EaW's (an EaW MEG or the EaW
 // GameData fallback). A copy counts once per side, the highest one; false when either side has none.

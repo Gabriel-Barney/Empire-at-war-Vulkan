@@ -1,16 +1,16 @@
-// G0-3 stage 2: the original's command ("event") catalogue, from docs/re/COMMANDS.md §1-§3.
+// G0-3 stage 2: the original's command ("event") catalogue, from legacy docs/re/COMMANDS.md §1-§3.
 //
 // Every order is one event of a type id 0..58 (6 bits on the wire). 54 ids have a class: 50 scheduled
 // (synced, executed at a frame) and 4 non-scheduled (FrameInfo 0, Chat 16, PerformanceMetrics 18,
 // Taunt 50: executed on receipt, never sim state). Ids 23, 24, 27, 41, 44 are dead (names only).
 // Id 63 is the port's own PortExtension event (59..62 unused).
-// (COMMANDS.md §1.1 says 56 classes / 52 scheduled; its payload table and the 54 factories give the
+// (legacy docs/re/COMMANDS.md §1.1 says 56 classes / 52 scheduled; its payload table and the 54 factories give the
 // 54 ids above - the two extra classes have no type id and cannot appear on the wire.)
 //
 // Each type's payload is a list of fields (the original's wire order). Field kinds
 // (widths are the original's bit-packed network wire, which is not ported - CU7; they bound valid values):
 //   Bits n     unsigned n-bit value (n <= 32)
-//   Id         32-bit object id (kNoObject = 0x3FFFFF = none; OBJECT_RUNTIME.md id space)
+//   Id         32-bit object id (kNoObject = 0x3FFFFF = none; legacy docs/re/OBJECT_RUNTIME.md id space)
 //   Player     player id (PlayerList index)
 //   Quant i    float quantized with table entry i (§3.2); stored as the integer code
 //   List n     n-bit element count, then that many Id
@@ -134,7 +134,7 @@ std::string_view event_name(uint8_t type) noexcept;  // "Unknown" for dead/out o
 // Field index by name, or -1.
 int field_index(EventType t, std::string_view name) noexcept;
 
-// ---- float quantizers (COMMANDS.md §3.2) -----------------------------------------------------------
+// ---- float quantizers (legacy docs/re/COMMANDS.md §3.2) -----------------------------------------------------------
 // Entry i: {min, max, bits}; effective step = (max - min) / (2^bits - 2). Encode clamps to [min, max]
 // and stores trunc((v - min) / step + 0.5); decode gives code * step + min, snapped to exactly 0 when
 // its magnitude is below step. Entry 0 is the raw 32-bit float pattern. Arithmetic is IEEE double,

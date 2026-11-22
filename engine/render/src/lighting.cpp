@@ -29,10 +29,10 @@ Lighting Lighting::from_environment(const Environment& e, bool space) {
         lights[i]->color = {e.light_color[i][0], e.light_color[i][1], e.light_color[i][2]};
         lights[i]->intensity = e.intensity[i];
         lights[i]->direction = light_direction(e.yaw[i], e.elevation[i]);
-        lights[i]->specular = {0, 0, 0};  // fills get specular 0 (TERRAIN_WATER_POST.md 5.3)
+        lights[i]->specular = {0, 0, 0};  // fills get specular 0 (legacy docs/re/TERRAIN_WATER_POST.md 5.3)
     }
     l.sun.specular = {e.sun_specular[0], e.sun_specular[1], e.sun_specular[2]};
-    if (space) l.fill[0].intensity = l.fill[1].intensity = 0.0f;  // RENDER.md 1.2
+    if (space) l.fill[0].intensity = l.fill[1].intensity = 0.0f;  // legacy docs/re/RENDER.md 1.2
     l.ambient = {e.ambient[0], e.ambient[1], e.ambient[2]};
     l.clear_color = {e.clear_color[0], e.clear_color[1], e.clear_color[2]};
     l.shadow_color = {e.shadow_color[0], e.shadow_color[1], e.shadow_color[2]};
@@ -61,7 +61,7 @@ Lighting Lighting::engine_default() {
 }
 
 Lighting Lighting::space_default() {
-    Environment e;  // _MP_SPACE_KUAT env 0 (TERRAIN_WATER_POST.md 5.4)
+    Environment e;  // _MP_SPACE_KUAT env 0 (legacy docs/re/TERRAIN_WATER_POST.md 5.4)
     e.name = "Kuat (built-in)";
     e.light_color[0][0] = 0.918f;
     e.light_color[0][1] = 1.000f;
@@ -85,7 +85,7 @@ Lighting Lighting::space_default() {
 }
 
 Lighting Lighting::land_default() {
-    Environment e;  // _MP_LAND_ENDOR "Sunrise_Clear" (TERRAIN_WATER_POST.md 5.4)
+    Environment e;  // _MP_LAND_ENDOR "Sunrise_Clear" (legacy docs/re/TERRAIN_WATER_POST.md 5.4)
     e.name = "Endor Sunrise_Clear (built-in)";
     const float sun[3] = {1.000f, 0.729f, 0.357f}, f1[3] = {0.745f, 0.733f, 0.851f}, f2[3] = {0.851f, 0.808f, 0.733f};
     for (int k = 0; k < 3; ++k) {
@@ -171,7 +171,7 @@ assets::Float3 sph_irradiance(const SphMatrices& m, const assets::Float3& n) {
 
 SceneLightConstants scene_light_constants(const Lighting& l) {
     SceneLightConstants s;
-    // vis1 t01: the lightning flash joins the fills (sph_matrices skips a light of intensity 0).
+    // the lightning flash joins the fills (sph_matrices skips a light of intensity 0).
     const DirLight fills[3] = {l.fill[0], l.fill[1], l.flash};
     s.sph_fill = sph_matrices(fills, 3, l.ambient);
     const DirLight all[4] = {l.fill[0], l.fill[1], l.sun, l.flash};
@@ -180,7 +180,7 @@ SceneLightConstants scene_light_constants(const Lighting& l) {
 }
 
 namespace {
-// DIR_LIGHT_*_n (RENDER.md 2.2): vector towards the light (w 0), diffuse = colour x intensity (w 1),
+// DIR_LIGHT_*_n (legacy docs/re/RENDER.md 2.2): vector towards the light (w 0), diffuse = colour x intensity (w 1),
 // specular = specular x 2 x intensity (w 0). A light with intensity 0 (space fills) is all zero.
 void light_constants(const DirLight& l, materials::float4& vec, materials::float4& dif, materials::float4& spec) {
     if (l.intensity <= 0.0f) {
@@ -226,7 +226,7 @@ assets::Mat3x4 skydome_transform(const Lighting& l, int k) {
 }
 
 bool scene_fog_vals(const Lighting& l, float& x, float& y) {
-    x = -0.0002f;  // RENDER.md 2.2 default (start 10000, end 15000)
+    x = -0.0002f;  // legacy docs/re/RENDER.md 2.2 default (start 10000, end 15000)
     y = 3.0f;
     if (!l.fog_enabled) return false;
     float start = l.fog_start;

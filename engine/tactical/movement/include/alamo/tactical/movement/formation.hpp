@@ -9,11 +9,11 @@
 //   (Standard recruits Standard; SameOrder needs SameOrder with an equal FormationOrder), the
 //   `compatible` callback agrees (the host's tests: same locomotor kind, the seed and the candidate both
 //   zone-connected to the destination) and the candidate is within the recruitment distance (60 infantry not in a
-//   team, else 100) of the nearest member (3-D, mov2 t03), which the `reach` callback (seed, candidate, d_min) then
+//   team, else 100) of the nearest member (3-D), which the `reach` callback (seed, candidate, d_min) then
 //   tests: a straight passable line candidate -> seed, or a path <= 1.4 x d_min (MOVEMENT §4.2 step 2 item 7 test 12
 //   [H]). Teams: a candidate on a team already in the formation joins at once (test 1). Movement masks need not agree: a formation's class is
 //   the 0x4779e0 class of the members' mask intersection (MovementSystem), so infantry and vehicles share formations.
-//   With `double_click_speed_ratio` > 0 (order flag 0x80, P1_DOUBLE_CLICK_MOVE.md §4.2) a candidate with a non-zero
+//   With `double_click_speed_ratio` > 0 (order flag 0x80, legacy docs/re/P1_DOUBLE_CLICK_MOVE.md §4.2) a candidate with a non-zero
 //   max speed s_c is also rejected when max(s_c, s_seed) / min(s_c, s_seed) > the ratio (DoubleClickMoveMaxSpeedRatio;
 //   symmetric; a zero-speed seed rejects every moving candidate); rejected units seed later formations, so the
 //   selection splits into speed bands. PROVISIONAL [M]: the engagement-distance test is not modelled.
@@ -21,7 +21,7 @@
 //   "Correction, s78n t19" [H]), so the shortest range goes in front; keys within tolerance T are one rank, T (in key
 //   units) starting at 0 and growing by 15 while >= 4 ranks remain, cap 4 steps [L]; equal keys by case-insensitive
 //   type name, then object id - the stable replacement of the retail unstable std::sort, §7. Space formations
-//   use the same key since bkm1 t05 (b0037); RankKey::MaxSpeed has no game caller), rows built front to back (a row = one rank, candidates ordered by
+//   use the same key since bkm1 t05; RankKey::MaxSpeed has no game caller), rows built front to back (a row = one rank, candidates ordered by
 //   forward projection descending, taken while the cumulative width <= 2 * half-width, overflow
 //   returned to the front, kept members re-sorted by lateral projection so units keep their
 //   left/right order), lateral placement gap = (2hw - sum widths) / (count + 1), rows stepping back
@@ -67,10 +67,10 @@ struct FormationMember {
     // Solo_Attack_Range of the target) recruits nobody, as a Solo seed
     bool solo_attack = false;
     // s78n t25 fix (MOVEMENT §4.2 item 6 / item 4 first bullet): otherwise a short-range seed (d < E_r x
-    // Short_Range_Attack_Formation_Coefficient) recruits only units of its own exact type (bkm1 t04, §4.2 step 2 item 7
+    // Short_Range_Attack_Formation_Coefficient) recruits only units of its own exact type (§4.2 step 2 item 7
     // test 3; it recruited nobody before)
     bool short_range_attack = false;
-    // bkm1 t04 (b0036, MOVEMENT §4.2 step 2 item 7 test 9 [H]): E = the engagement range 0x4f6e40 (a move: the attack
+    // bkm1 t04 (MOVEMENT §4.2 step 2 item 7 test 9 [H]): E = the engagement range 0x4f6e40 (a move: the attack
     // range; an attack: LandAttackUnit::engage) and K = min(E, Targeting_Min_Attack_Distance), 0 under a guard block. A
     // candidate C joins seed S only when K(C) <= E(S) and K(S) <= E(C).
     float engage = 0.0f;

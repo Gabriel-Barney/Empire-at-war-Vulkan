@@ -1,4 +1,4 @@
-// Shared fixtures and helpers of test_gui_screens*.cpp (split from test_gui_screens.cpp, PAF t08). Test bodies live in the part files.
+// Shared fixtures and helpers of test_gui_screens*.cpp (split from test_gui_screens.cpp). Test bodies live in the part files.
 #pragma once
 
 // alamo_ui_screens_tests (P4 completion, CPU): in-game screens (message boxes, battle end, campaign score, retreat ->

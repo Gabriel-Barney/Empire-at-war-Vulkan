@@ -1,4 +1,4 @@
-// alamo_render - per-model LOD / ALT mesh selection (docs/re/RENDER.md 5, SPACE_AND_OPEN.md B.4):
+// alamo_render - per-model LOD / ALT mesh selection (legacy docs/re/RENDER.md 5, legacy docs/re/SPACE_AND_OPEN.md B.4):
 //   mesh LOD index = digit after "_LOD" in the mesh name (assets MeshInfo::lod, -1 if absent);
 //   detail d = min(LOD_Bias x coverage, (MeshDetail + 1) / 2) (lod_detail()), LOD_Bias = the
 //   GameObjectType's value (default 4.0);
@@ -19,7 +19,7 @@ namespace alamo::render {
 int max_lod(std::span<const assets::MeshInfo> meshes);  // -1 when no mesh has a _LOD suffix
 // detail in [0,1] (1 = most detailed, the Mesh Detail option or screen-size factor).
 int choose_lod(int max_lod_index, float detail);
-// SPACE_AND_OPEN.md B.4: d = min(lod_bias x coverage, (mesh_detail + 1) / 2).
+// legacy docs/re/SPACE_AND_OPEN.md B.4: d = min(lod_bias x coverage, (mesh_detail + 1) / 2).
 constexpr float kDefaultLodBias = 4.0f;  // GameObjectType LOD_Bias default
 inline float lod_detail(float lod_bias, float coverage, float mesh_detail) {
     const float a = lod_bias * coverage, b = 0.5f * (mesh_detail + 1.0f);
@@ -34,7 +34,7 @@ struct MeshSelection {
     std::vector<uint8_t> mesh_visible;  // per ModelAsset::meshes entry
     uint32_t damage_hidden = 0;         // meshes hidden by the damage rule
 };
-// Meshes hidden at model setup (SPACE_AND_OPEN.md B.9 [H]): for each hardpoint of the object's type the
+// Meshes hidden at model setup (legacy docs/re/SPACE_AND_OPEN.md B.9 [H]): for each hardpoint of the object's type the
 // mesh whose name equals its Damage_Decal (case-insensitive, e.g. HP_F-L_BLAST; shown again when the
 // hardpoint is destroyed), and every mesh whose name contains STEALTH, buildup or charged
 // (case-insensitive substring). The type's hardpoints come from the XML (GameTypeResolver::render_info,
@@ -71,7 +71,7 @@ std::vector<uint8_t> hidden_mesh_mask(const assets::ModelAsset& model, DamageDec
 // hardpoints.hpp (HardpointVisibility).
 uint32_t set_hardpoint_destroyed(std::vector<uint8_t>& mask, const assets::ModelAsset& model, std::string_view damage_decal,
                                  bool destroyed);
-// RENDER.md 5 screen coverage of a world AABB: max squared NDC distance between the projected
+// legacy docs/re/RENDER.md 5 screen coverage of a world AABB: max squared NDC distance between the projected
 // centre and the centre offset by each half-extent, x 3.5 pi, clamped to [0, 1]. view_proj rows
 // as in camera.hpp (column vectors).
 float screen_coverage(const float (&view_proj)[4][4], const assets::Aabb& world_box);

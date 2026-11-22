@@ -1,4 +1,4 @@
-// SP5 (docs/SIM_PARALLEL_DESIGN.md §4.3): deferred writes committed in a canonical order.
+// SP5 (docs/SIMULATION.md "Deferred writes in canonical order"): deferred writes committed in a canonical order.
 //
 // Inside a parallel phase a job never writes shared state: it appends records to the buffer of the worker range it
 // runs (one Lane per ParallelFor range, or per index), each record tagged with a canonical key. commit() merges every

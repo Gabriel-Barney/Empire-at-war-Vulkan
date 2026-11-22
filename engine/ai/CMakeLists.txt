@@ -5,7 +5,7 @@ add_library(alamo_ai STATIC
   src/perception_equations.cpp
   src/galactic_perception.cpp
   src/galactic_seed.cpp
-  src/ai_path_finder.cpp  # per-AI all-pairs path finder (GALACTIC.md §4, Lua Find_Path)
+  src/ai_path_finder.cpp  # per-AI all-pairs path finder (legacy docs/re/GALACTIC.md §4, Lua Find_Path)
   src/ai_free_store_path.cpp  # free-store Get_Next_Hop, AI request flags, reachability flood (FIXPASS_GALACTIC §1)
   # A2 AI framework (shared with the tactical AI, A1): ai_*.hpp
   src/ai_definitions.cpp
@@ -36,9 +36,8 @@ endif()
 
 add_executable(alamo_ai_tests tests/test_ai.cpp)
 target_link_libraries(alamo_ai_tests PRIVATE alamo_ai alamo_objects Threads::Threads alamo_test_support)
-# Coverage reports for the shipped equations go to <project>/logs/ai_perception_coverage_<game>.txt.
-target_compile_definitions(alamo_ai_tests PRIVATE "ALAMO_AI_LOG_DIR=\"${PROJECT_SOURCE_DIR}/logs\""
-                                                  "ALAMO_AI_GOLDEN_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/tests/golden\"")
+# Coverage reports for the shipped equations go to the entry's artifact folder (alamo::test::artifact_dir()).
+target_compile_definitions(alamo_ai_tests PRIVATE "ALAMO_AI_GOLDEN_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/tests/golden\"")
 # Real data (ALAMO_FOC_DATA / ALAMO_EAW_DATA) is read through the VFS (loose folders or MEG installs).
 if(TARGET alamo_vfs)
   target_link_libraries(alamo_ai_tests PRIVATE alamo_vfs)
@@ -48,7 +47,7 @@ if(TARGET alamo_jobs)
   target_link_libraries(alamo_ai_tests PRIVATE alamo_jobs)
   target_compile_definitions(alamo_ai_tests PRIVATE ALAMO_AI_HAVE_JOBS=1)
 endif()
-# cu5 t01: the seed options come from galactic::load_factions (alamo_galactic_sim).
+# the seed options come from galactic::load_factions (alamo_galactic_sim).
 if(TARGET alamo_galactic_sim)
   target_link_libraries(alamo_ai_tests PRIVATE alamo_galactic_sim)
   target_compile_definitions(alamo_ai_tests PRIVATE ALAMO_AI_HAVE_GALACTIC_SIM=1)
@@ -74,19 +73,18 @@ if(TARGET alamo_lua AND TARGET alamo_lua_vm AND TARGET alamo_galactic_sim)
   add_executable(alamo_ai_galactic_tests tests/test_ai_galactic.cpp tests/test_ai_galactic_part1.cpp tests/test_ai_galactic_part2.cpp tests/test_ai_galactic_part3.cpp)
   target_link_libraries(alamo_ai_galactic_tests PRIVATE alamo_ai_galactic Threads::Threads alamo_test_support)
   target_compile_definitions(alamo_ai_galactic_tests PRIVATE
-                             "ALAMO_AI_GOLDEN_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/tests/golden\""
-                             "ALAMO_AI_LOG_DIR=\"${PROJECT_SOURCE_DIR}/logs\"")
+                             "ALAMO_AI_GOLDEN_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/tests/golden\"")
   if(TARGET alamo_vfs)
     target_link_libraries(alamo_ai_galactic_tests PRIVATE alamo_vfs)
     target_compile_definitions(alamo_ai_galactic_tests PRIVATE ALAMO_AI_HAVE_VFS=1)
   endif()
   add_test(NAME alamo_ai_galactic_tests COMMAND alamo_ai_galactic_tests)
-  # mcx0 t05: alamo_ai_tests' perception coverage also checks the in-game resolver's token registry.
+  # alamo_ai_tests' perception coverage also checks the in-game resolver's token registry.
   target_link_libraries(alamo_ai_tests PRIVATE alamo_ai_galactic)
   target_compile_definitions(alamo_ai_tests PRIVATE ALAMO_AI_HAVE_GALACTIC_AI=1)
   set_tests_properties(alamo_ai_galactic_tests PROPERTIES TIMEOUT 900)
   # N1 save size guard: the whole FoC story campaign save, about twice the 2026-10-30 sizes (50 KB file, 334 KB of chunks).
-  # The same guard holds late in the game (N1f t08, below); mid-battle story saves: alamo_game_save_tests "Story battle".
+  # The same guard holds late in the game (below); mid-battle story saves: alamo_game_save_tests "Story battle".
   # alamo_headless is configured after this folder (engine/apps), so the check is on the module list.
   set(_ai_story_guard_needs apps vfs objects commands tactical terrain)
   set(_ai_story_guard ON)
@@ -100,7 +98,7 @@ if(TARGET alamo_lua AND TARGET alamo_lua_vm AND TARGET alamo_galactic_sim)
              COMMAND ${CMAKE_COMMAND} -DHEADLESS=$<TARGET_FILE:alamo_headless> -DOUT=${CMAKE_CURRENT_BINARY_DIR}/n1_story_size.alsv
                      -DMAX_FILE=120000 -DMAX_RAW=800000 -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/story_save_size.cmake)
     set_tests_properties(alamo_ai_story_save_size PROPERTIES TIMEOUT 300 SKIP_REGULAR_EXPRESSION "SKIP: ")
-    # N1f t08: late game, 2 h of game time (2026-10-31: 53775 bytes in the file, 356692 bytes of chunks; 4 h: 57848 / 384324).
+    # late game, 2 h of game time (2026-10-31: 53775 bytes in the file, 356692 bytes of chunks; 4 h: 57848 / 384324).
     add_test(NAME alamo_ai_story_save_size_late
              COMMAND ${CMAKE_COMMAND} -DHEADLESS=$<TARGET_FILE:alamo_headless> -DOUT=${CMAKE_CURRENT_BINARY_DIR}/n1_story_size_late.alsv
                      -DSAVE_AT=216000 -DMAX_FILE=120000 -DMAX_RAW=800000 -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/story_save_size.cmake)

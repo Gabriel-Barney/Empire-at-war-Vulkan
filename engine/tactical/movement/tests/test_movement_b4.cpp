@@ -182,7 +182,7 @@ void test_terrain_detour() {
     CHECK(s.detour_ok && s.rejoin_ahead >= ru + 42.0f - 1e-3f);
     CHECK(s.creep_ok && s.turn_frames >= 3 && s.turned_ok);
     CHECK(s.pop_frame > 0 && s.ended_ok && s.arrived);
-    // s78n t26.4: the creep's record and the later lane-term steps into the wall's corner on the order path (each failed
+    // the creep's record and the later lane-term steps into the wall's corner on the order path (each failed
     // step makes a record, MOVEMENT 5.4.7 item 1); every one detours
     CHECK(s.records >= 2 && s.detours == s.records && s.replans == 0);
     CHECK(s.crc == p.crc);
@@ -311,7 +311,7 @@ void test_terrain_waiting() {
                 sys.stats().terrain_stops_cell);
 }
 
-// ================================================================ bkm2 t07 (b0043): the missing b4 rule scenes
+// ================================================================ bkm2 t07: the missing b4 rule scenes
 
 // ---------------------------------------------------------------- (d) a corner-clipping Walk step commits
 // s78n t26.4 (MOVEMENT §3.5.2 C.10, §3.5 step 4): the walk tests only the point it would end on (0x50e280), never the
@@ -526,7 +526,7 @@ void test_terrain_container_start_turn() {
     CHECK(turn_frames >= 2 && !sys.view(100).has_goal && sys.view(100).arrived);
 }
 
-// (c2) MOVEMENT §3.5.2 C.4 / E, §5.4.7 item 1 (s78n t24, s78o b0054): a squad marching +x at speed 3 is halted (the path
+// (c2) MOVEMENT §3.5.2 C.4 / E, §5.4.7 item 1 (s78o b0054): a squad marching +x at speed 3 is halted (the path
 // stack cleared, the speed kept): the container coasts in End Move along its facing, braking by a = 0.05 a frame. A wall
 // stamped two cells ahead is met by a coast step: the point test refuses it (not forced: no order path), so the step is
 // not committed, the speed is zeroed and a Terrain record names the container - in the tick whose walk was a coast step.
@@ -575,7 +575,7 @@ void test_terrain_container_coast() {
     CHECK(sys.view(100).speed == 0.0f && sys.view(100).pos == at && at.x < static_cast<float>(wx) * kCellSize - kHalfCell);
 }
 
-// mov3 t06 (b0054 / b0094, MOVEMENT §5.4.7 item 1, §3.5.2 C.4 / E): which coast reports. A squad marching +x at speed 3
+// mov3 t06 (MOVEMENT §5.4.7 item 1, §3.5.2 C.4 / E): which coast reports. A squad marching +x at speed 3
 // under a forced order (flag 0x20: a straight path, no passability) is put into its End Move coast (debug_coast) with a
 // wall stamped two cells ahead. (a) Only the forced order path on the stack: the coast step is forced too - it is not
 // point-tested, no Terrain record, the container coasts on into the wall cells. (b) A push record walked to its end left
@@ -749,7 +749,7 @@ int main() {
     test_terrain_pushed_orderless();
     test_terrain_forced_path();
     test_terrain_waiting();
-    test_walk_corner_clip_step();    // bkm2 t07 (b0043)
+    test_walk_corner_clip_step();    // bkm2 t07
     test_walk_corner_clip_system();
     test_terrain_container_start_turn();
     test_terrain_container_coast();

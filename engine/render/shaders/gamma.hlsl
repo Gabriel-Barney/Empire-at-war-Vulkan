@@ -1,4 +1,4 @@
-// alamo_render output gamma [port] (the original sets the device gamma ramp, TERRAIN_WATER_POST.md 4.6: Options > Gamma;
+// alamo_render output gamma [port] (the original sets the device gamma ramp, legacy docs/re/TERRAIN_WATER_POST.md 4.6: Options > Gamma;
 // render/src/gamma.cpp). One full-screen triangle (no vertex buffer): copy of the finished frame -> frame, each colour
 // channel raised to Params.x (= 1 / gamma, > 1 darkens, < 1 brightens), alpha unchanged.
 struct GammaPush {

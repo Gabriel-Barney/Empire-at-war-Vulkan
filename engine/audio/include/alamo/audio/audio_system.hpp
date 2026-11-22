@@ -1,13 +1,13 @@
-// Audio event player: everything the original builds above Miles (docs/re/AUDIO.md §0): SFX event
+// Audio event player: everything the original builds above Miles (legacy docs/re/AUDIO.md §0): SFX event
 // gates and instance state machine, 2D/3D voice pools with priority stealing, 3D distance model,
 // listener, four buses with speech ducking, the music playlist/crossfade player with its mode
 // switches, and the speech FIFO. Backend-agnostic: the miniaudio backend plays sound, the null backend
 // simulates voice lengths so tests get a deterministic event log.
 //
-// Section references (§) are to docs/re/AUDIO.md. Tags: [port] = a choice of this port where the
+// Section references (§) are to legacy docs/re/AUDIO.md. Tags: [port] = a choice of this port where the
 // original differs or is silent; [M]/[L] = the spec's own confidence for the rule implemented.
 //
-// Threading: one owner thread (the main loop's audio step, MAIN_LOOP.md step 14: wall time, only while
+// Threading: one owner thread (the main loop's audio step, legacy docs/re/MAIN_LOOP.md step 14: wall time, only while
 // the application is active). Not thread-safe. Sim code may queue requests but never reads audio back
 // (§6.1); parallel sim jobs must submit their requests in index order.
 //
@@ -49,7 +49,7 @@ public:
     // Starts (or restarts) `voice` with `sample`. false = sample missing / undecodable.
     virtual bool start(uint32_t voice, const SampleRef& sample, const VoiceParams& p) = 0;
     // Loads (decodes / caches) `sample` without taking a voice. false = missing / undecodable: the SFX stage is skipped
-    // before a voice is taken or stolen (AUDIO.md §1.7, §5; b0282). Default: assume present (start() decides).
+    // before a voice is taken or stolen (legacy docs/re/AUDIO.md §1.7, §5). Default: assume present (start() decides).
     virtual bool load(const SampleRef& sample) {
         (void)sample;
         return true;
@@ -58,7 +58,7 @@ public:
     virtual void stop(uint32_t voice) = 0;
     // false once a non-looping voice reached its end (or was stopped / never started).
     virtual bool playing(uint32_t voice) const = 0;
-    // aud2 t04: holds (`paused`) or resumes a voice at its position; a held voice still counts as playing. Default: no-op.
+    // holds (`paused`) or resumes a voice at its position; a held voice still counts as playing. Default: no-op.
     virtual void pause(uint32_t voice, bool paused) {
         (void)voice;
         (void)paused;
@@ -119,7 +119,7 @@ public:
         double length = 0.0;    // seconds at pitch 1
         double position = 0.0;  // seconds of sample consumed
         bool active = false;
-        bool paused = false;    // aud2 t04: held by pause()
+        bool paused = false;    // held by pause()
     };
     const Voice* voice(uint32_t id) const;
     uint32_t active_count() const;
@@ -145,7 +145,7 @@ struct AudioConfig {
     // [port] Most entries the event log (log()) keeps; reaching it drops the oldest half, 0 keeps none. Unlimited by
     // default (tests read the whole log). The live game bounds it (kGameAudioLogLimit): every SFX start / reject / steal
     // is logged, about 60,000 entries per second in a space battle, and an unbounded log grew by 1.5x on the frame thread
-    // (copies of 100+ ms) and leaked about 540 MB per minute (docs/PERFORMANCE.md "Audio event log hitches").
+    // (copies of 100+ ms) and leaked about 540 MB per minute (legacy docs/PERFORMANCE.md "Audio event log hitches").
     size_t log_limit = static_cast<size_t>(-1);
 };
 
@@ -179,7 +179,7 @@ struct SfxPlay {
     float fade_in_seconds = 0.0f;  // callers starting loops pass Loop_Fade_In_Seconds (§1.6)
 };
 
-// Music modes (MusicEventManager +0xc, AUDIO.md §2.3, STRATEGIC_GAPS §7.4).
+// Music modes (MusicEventManager +0xc, legacy docs/re/AUDIO.md §2.3, STRATEGIC_GAPS §7.4).
 //   0 debug event list, 1 galactic, 4 production complete (Build_Music_Completed, resume previous), 5 battle
 //   pending, 6 tactical ambient (also Hutt Palace / Cantina selection, forced), 7 tactical battle, 8 tactical super
 //   weapon activation, 9 / 10 own / enemy object type music, 11 splash screen, 12 Lua Play_Music, 13 front-end
@@ -309,7 +309,7 @@ public:
     void resume_mode_based_music(bool force);
     void notify_combat(bool involves_local_player);  // Land/Space slot-76 notification (§2.3)
     void music_sim_tick();                           // peace counter, once per sim tick
-    // aud2 t04 (AUDIO.md §2.3, §6.1): the music manager's pause counter. Application deactivation (WndProc 0x60c60) raises
+    // aud2 t04 (legacy docs/re/AUDIO.md §2.3, §6.1): the music manager's pause counter. Application deactivation (WndProc 0x60c60) raises
     // it; while it is above 0 the music manager does not update. [port] The playing music voices are held at their
     // position (VoiceBackend::pause) on the first pause and resume on the last resume_music; play requests made meanwhile
     // queue and start with the first update after it. resume_music never takes the counter below 0.
@@ -343,7 +343,7 @@ public:
     }
 
     // ---- Streaming PCM voices (movie sound; pcm_stream.hpp). [port] the original plays Bink audio through
-    // Miles; its bus and ducking are not in AUDIO.md. Defaults: speech/dialog bus, and while the stream is
+    // Miles; its bus and ducking are not in legacy docs/re/AUDIO.md. Defaults: speech/dialog bus, and while the stream is
     // open SFX voices are capped exactly as during speech (§1.6 / §3.2, not with a modal dialog open).
     struct StreamParams {
         PcmStreamFormat format;           // source rate / channels (the backend resamples to the device)
@@ -474,7 +474,7 @@ private:
     bool music_enabled_ = true, music_lock_ = false;
     uint8_t music_mode_ = 0, base_music_mode_ = music_mode::kGalactic;
     uint32_t peace_ticks_ = 0;
-    uint32_t music_pause_ = 0;  // aud2 t04: pause counter
+    uint32_t music_pause_ = 0;  // pause counter
     std::vector<MusicEntry> music_queue_;
     std::map<uint32_t, uint32_t> music_file_counter_;  // event -> next file index (session-wide)
     Stream music_current_, music_previous_;

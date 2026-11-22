@@ -48,7 +48,7 @@ std::string_view media_param(const MediaParams& params, size_t i) {
     while (!v.empty() && static_cast<unsigned char>(v.back()) <= 0x20) v.remove_suffix(1);
     return v;
 }
-// ui2 t07 (STORY_PRESENTATION_REWARDS.md 1.3, 1.4, 6.2): the loop flag is atoi(P10) / atoi(P2), an empty one 0.
+// ui2 t07 (legacy docs/re/STORY_PRESENTATION_REWARDS.md 1.3, 1.4, 6.2): the loop flag is atoi(P10) / atoi(P2), an empty one 0.
 bool media_flag(const MediaParams& params, size_t i) {
     const std::string_view v = media_param(params, i);
     return !v.empty() && std::atoi(std::string(v).c_str()) != 0;
@@ -61,7 +61,7 @@ struct MediaHandler {
     std::string_view name;
     void (*fn)(const MediaParams& params, std::vector<StoryMediaCue>& out);
 };
-// ref5 t02: one handler per media reward name.
+// one handler per media reward name.
 constexpr MediaHandler kMediaHandlers[] = {
     {"START_MOVIE", [](const MediaParams& p, std::vector<StoryMediaCue>& out) { media_named(out, StoryMediaCue::Kind::Movie, p, 0); }},
     {"SPEECH", [](const MediaParams& p, std::vector<StoryMediaCue>& out) { media_named(out, StoryMediaCue::Kind::Speech, p, 0); }},
@@ -156,7 +156,7 @@ void StoryUiFeed::observe(const StoryUiView& v) {
         raise(E::ZoomIntoPlanet, now.zoom_planet, {});
     if (now.corruption_planet != 0 && now.corruption_planet != last_.corruption_planet)
         raise(E::OpenCorruption, now.corruption_planet, {});
-    // STY1 t03: STORY_GENERIC names the story plots wait on (b0333). Zoom ends are approximated by the zoom state change
+    // STORY_GENERIC names the story plots wait on. Zoom ends are approximated by the zoom state change
     // [port]; dialog names come from the special dialog that opened; drag names when a HUD drag begins.
     if (last_.zoomed && !now.zoomed) generic("zoomed_out");
     if (now.zoomed && !last_.zoomed) generic("zoomed_in");
@@ -206,7 +206,7 @@ uint64_t StoryUiFeed::raised_total() const {
     return t;
 }
 
-// --- story t13: LinkedBattleOverlay (story_ui.hpp) ---
+// --- LinkedBattleOverlay (story_ui.hpp) ---
 void LinkedBattleOverlay::begin(bool letterbox, bool input_block, uint32_t battle_frame) {
     reset();
     start_ = battle_frame;
@@ -223,7 +223,7 @@ void LinkedBattleOverlay::reset() {
     block_ = letterbox_hold_ = input_hold_ = blocked_ = false;
 }
 
-// ui2 t10: the script's own bars (Letter_Box_In / Out with their times) are the story box's (App::story_box_); this overlay
+// the script's own bars (Letter_Box_In / Out with their times) are the story box's (App::story_box_); this overlay
 // only ends its battle-start hold. A held bar stays up until the script's bars take over; Out drops it at once so the
 // two slides are not drawn on top of each other.
 void LinkedBattleOverlay::script_letterbox(bool in) {

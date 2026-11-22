@@ -15,7 +15,7 @@ namespace alamo::tactical::fog {
 namespace {
 
 constexpr uint32_t kFogGridSaveVersion = 1;
-constexpr uint32_t kFogSaveVersion = 2;  // 2: SetupPhaseCountdownSeconds and the setup manager (FOWF t05)
+constexpr uint32_t kFogSaveVersion = 2;  // 2: SetupPhaseCountdownSeconds and the setup manager
 
 // PackBits: control c < 128 -> c + 1 literal bytes; c >= 128 -> the next byte repeated c - 125 (3..130) times.
 // The encoder is deterministic (runs of >= 3 become repeat packets), so write -> read -> write is byte-identical.

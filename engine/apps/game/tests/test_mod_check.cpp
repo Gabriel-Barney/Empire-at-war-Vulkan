@@ -135,7 +135,7 @@ void test_fake_install() {
         const ModCheckReport r = alamo::game::check_mod_data(foc.string(), {"MODPATH=" + mod.string()}, o);
         CHECK(r.loaded && r.campaigns_checked == 0 && r.lua_scripts == 0 && r.error_count() == 0);
     }
-    {  // modc t05: a second mod with the report's other warnings - missing files, an unknown tag, Lua load errors
+    {  // a second mod with the report's other warnings - missing files, an unknown tag, Lua load errors
         const fs::path mod2 = root / "Mods" / "MC2";
         const fs::path x = mod2 / "Data/XML";
         write_file(x / "GameObjectFiles.xml",
@@ -148,7 +148,7 @@ void test_fake_install() {
                    "<SpaceUnit Name=\"MC2_Ok\"><Land_Model_Name>MC2_Present</Land_Model_Name><Toggle>Yes</Toggle>"
                    "<Lua_Script>MC2_Named</Lua_Script></SpaceUnit></Units>\n");
         write_file(mod2 / "Data/Art/Models/MC2_Present.alo", "x");  // no extension in the XML: .ALO tried
-        // modc t25: command bar components (every root child is an entry; tags match case-insensitively) and the
+        // command bar components (every root child is an entry; tags match case-insensitively) and the
         // walked RadarMap.xml (known tags at any depth, containers without text skipped).
         write_file(x / "CommandBarComponentFiles.xml", "<CommandBar_Component_Files><File>MC2Bar.xml</File></CommandBar_Component_Files>\n");
         write_file(x / "MC2Bar.xml",
@@ -161,15 +161,15 @@ void test_fake_install() {
                    "</Passability_Color_Settings></RadarMapSettings></RadarMap>\n");
         // The message carries a byte that is not UTF-8 (Lua \233 = 0xE9, Latin-1 e acute): the JSON must stay valid.
         write_file(mod2 / "Data/Scripts/Story/MC2_Errors.lua", "error(\"MC2 load error caf\\233\")\n");
-        // modc t24: a require of a script no layer has. MC2_Requires is the mod's own story script and nothing names it:
+        // a require of a script no layer has. MC2_Requires is the mod's own story script and nothing names it:
         // an unused-script lead (info). MC2_Named is a type's Lua_Script: loaded, so a warning.
         write_file(mod2 / "Data/Scripts/Story/MC2_Requires.lua", "require(\"MC2_No_Such_Library\")\n");
         write_file(mod2 / "Data/Scripts/GameObject/MC2_Named.lua", "-- comment\nrequire \"MC2_No_Such_Library\"\n");
-        // modc t21: .fx sources without a compiled .fxo (source_only), one model effect and one terrain effect.
+        // .fx sources without a compiled .fxo (source_only), one model effect and one terrain effect.
         write_file(mod2 / "Data/Art/Shaders/MC2Glow.fx", "// source only\n");
         write_file(mod2 / "Data/Art/Shaders/Terrain/MC2Ground.fx", "// source only\n");
         alamo::game::ModCheckOptions own_cache;
-        own_cache.fx_cache_dir = (root / "fx_cache_mc2").string();  // the .fx prebuild (modc t36) writes here, not to %LOCALAPPDATA%
+        own_cache.fx_cache_dir = (root / "fx_cache_mc2").string();  // the .fx prebuild writes here, not to %LOCALAPPDATA%
         const ModCheckReport r = alamo::game::check_mod_data(foc.string(), {"MODPATH=" + mod2.string()}, own_cache);
         CHECK(r.loaded && r.error_count() == 0);
         CHECK(r.shaders.fx_prebuild.ran && r.shaders.fx_prebuild.sources.size() == 2);
@@ -183,7 +183,7 @@ void test_fake_install() {
             CHECK(r.missing_files[1].path == "DATA\\XML\\MC2GHOST.XML");
             CHECK(r.missing_files[1].referenced_by.find("GAMEOBJECTFILES.XML") != std::string::npos);
         }
-        // modc t37: Toggle has rows only for CommandBarComponent, so on an object type it is not read (owner-strict).
+        // Toggle has rows only for CommandBarComponent, so on an object type it is not read (owner-strict).
         CHECK(r.unknown_xml_tags.size() == 4);
         const auto unknown_in = [&](std::string_view db, std::string_view tag) {
             for (const auto& t : r.unknown_xml_tags)
@@ -244,7 +244,7 @@ void test_fake_install() {
         CHECK(q.missing_files.empty() && q.unknown_xml_tags.empty() && q.lua_run == 0 && q.lua_run_errors.empty());
         CHECK(q.lua_scripts == 4);
     }
-    {  // modc t36: a mounted mod's .fx sources are compiled before the audit; the report lists each with its result
+    {  // a mounted mod's .fx sources are compiled before the audit; the report lists each with its result
         const fs::path mod3 = root / "Mods" / "MC3";
         write_file(mod3 / "Data/Art/Shaders/MC3Good.fx",
                    "float4 PS() : COLOR { return float4(1, 0, 0, 1); }\n"
@@ -297,7 +297,7 @@ void test_fake_install() {
         CHECK(!alamo::game::check_mod_data(foc.string(), args, off).shaders.fx_prebuild.ran);
         CHECK(!alamo::game::check_mod_data(foc.string(), {}, o).shaders.fx_prebuild.ran);  // no mod: no prebuild
     }
-    {  // mcx6 t08: a main chunk that never ends is stopped by the runaway guard: a run error and a ScriptRunaway issue
+    {  // a main chunk that never ends is stopped by the runaway guard: a run error and a ScriptRunaway issue
         const fs::path mod4 = root / "Mods" / "MC4";
         write_file(mod4 / "Data/Scripts/Story/MC4_Spin.lua", "mc4_spins = 0\nwhile true do mc4_spins = mc4_spins + 1 end\n");
         alamo::game::ModCheckOptions o;

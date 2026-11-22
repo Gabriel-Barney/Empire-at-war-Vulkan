@@ -1,4 +1,4 @@
-// alamo_ui_draw - HUD 3D models through an ortho camera (P2, docs/re/UI.md §1.7: "event models are drawn as 3D models
+// alamo_ui_draw - HUD 3D models through an ortho camera (P2, legacy docs/re/UI.md §1.7: "event models are drawn as 3D models
 // through an ortho camera"): the radar event .alo models (RadarMap.xml Event_Model_Name, TacticalHud::radar_models()).
 // Like ShellDrawer, everything goes through render::Renderer (upload_model / draw) - no engine/render change.
 //

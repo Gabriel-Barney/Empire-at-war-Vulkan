@@ -57,7 +57,7 @@ ModCheckReport check_mod_data(const std::string& root, const std::vector<std::st
                 r.base_eaw = true;
                 r.grade.blocking.push_back(m.key() + ": " + vfs::kBaseEawRefusal);
             }
-        if (options.compat) {  // ums4 t07: the findings of a load that stopped (VFS, then the loader steps that ran)
+        if (options.compat) {  // the findings of a load that stopped (VFS, then the loader steps that ran)
             r.issues.merge(d.vfs_issues);
             loader_issues(d, r);
         }
@@ -81,7 +81,7 @@ ModCheckReport check_mod_data(const std::string& root, const std::vector<std::st
     if (options.shaders) guarded("shaders", [&] { check_shaders(d, r, options.shader_compile, options.fx_cache_dir); });
     if (options.files && options.submod) guarded("submod", [&] { check_submod(d, r, options); });
     if (options.files) guarded("base-EaW heuristic", [&] { check_base_eaw_suspect(d, r); });
-    if (options.compat) {  // mcx0 t06: report version 4 (after the checks it reads)
+    if (options.compat) {  // report version 4 (after the checks it reads)
         // A throw here is not a load error (version 4 never changes errors / warnings): grade.check_errors, G3 stays open.
         const auto compat_guarded = [&](const char* what, auto&& fn) {
             try {

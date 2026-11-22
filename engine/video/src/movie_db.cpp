@@ -41,7 +41,7 @@ bool id_and_int(std::string_view t, std::string& id, int32_t& value) {
     return true;
 }
 
-// Caption_Frame / Caption_Duration of one <Movie> (ui5 t12): maps keyed by the text id, as retail keeps them.
+// Caption_Frame / Caption_Duration of one <Movie>: maps keyed by the text id, as retail keeps them.
 std::vector<MovieCaption> parse_captions(const data::XmlNode& m) {
     std::map<std::string, int32_t> frames, durations;
     std::string id;
@@ -94,7 +94,7 @@ const MovieEntry* find_movie(const std::vector<MovieEntry>& movies, std::string_
     return by_file;
 }
 
-// ---- storyb t13: StarWars3DTextCrawl.xml ----------------------------------------------------------------------------
+// ---- StarWars3DTextCrawl.xml ----------------------------------------------------------------------------
 
 namespace {
 std::vector<std::string> names(std::string_view t) {

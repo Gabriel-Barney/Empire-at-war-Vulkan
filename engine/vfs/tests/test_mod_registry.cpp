@@ -1,4 +1,4 @@
-// alamo_vfs_registry_tests (mcx3 t01-t03): the modinfo reader, mod folder descriptors, the registry scan and stack
+// alamo_vfs_registry_tests: the modinfo reader, mod folder descriptors, the registry scan and stack
 // resolution (mod_registry.hpp) on a synthetic install in its own temp folder. The modinfo shapes come from installed
 // workshop mods: variant files with one dependency each (subA / subB), a file with a missing comma before "tags", a
 // layout string first in "dependencies", a submod without any modinfo whose parent only the data shows.
@@ -57,7 +57,7 @@ void test_parse() {
                                      &w);
     CHECK(m.has_value());
     if (!m) return;
-    // JSON escapes in a name (the picker's old reader covered these, ums1 t03): \" \\ \uXXXX (a surrogate pair too), a BOM;
+    // JSON escapes in a name (the picker's old reader covered these): \" \\ \uXXXX (a surrogate pair too), a BOM;
     // a nested "name" (steamdata) is not the mod's.
     const auto esc = av::parse_modinfo("\xEF\xBB\xBF{\"steamdata\": {\"name\": \"inner\"}, \"name\": \"Outer \\\"Q\\\" \\u00e9\\\\ \\ud83d\\ude00\"}");
     CHECK(esc && esc->name == "Outer \"Q\" \xC3\xA9\\ \xF0\x9F\x98\x80");
@@ -86,7 +86,7 @@ void test_parse() {
     CHECK(av::parse_modinfo("{\"version\": \"1\"}", &w).has_value() && has(w, "no \"name\""));
     const auto num = av::parse_modinfo("{\"name\": \"N\", \"version\": 1.10}");
     CHECK(num.has_value() && num->version == "1.10");  // a number keeps its text
-    // ums3: "description" stands in for a missing "summary" (the Command Center's mods page showed either).
+    // "description" stands in for a missing "summary" (the Command Center's mods page showed either).
     const auto desc = av::parse_modinfo("{\"name\": \"D\", \"description\": \"About D\"}");
     CHECK(desc.has_value() && desc->summary == "About D");
     const auto both = av::parse_modinfo("{\"name\": \"D\", \"summary\": \"S\", \"description\": \"About D\"}");
@@ -187,7 +187,7 @@ void test_registry(const Fixture& f) {
     const av::ModDescriptor* e = r.find_arg("MODPATH=" + u8(f.T / "Elsewhere"), scratch);
     CHECK(e && e->kind == av::ModKind::Path && e->id == "Elsewhere");
 
-    // ums1 t02: the catalog keys (unique across kinds) name the same rows; names from modinfo say so.
+    // the catalog keys (unique across kinds) name the same rows; names from modinfo say so.
     std::vector<std::string> ckeys;
     for (const auto& m : r.mods) ckeys.push_back(m.catalog_key());
     CHECK(joined(ckeys) == "100 | 200 | 300 | 400 | 400:subA | 400:subB | 500 | 600:x | Mods\\AOW | Mods\\CycA | Mods\\CycB");
@@ -324,7 +324,7 @@ void test_resolve(const Fixture& f) {
     CHECK(!has(x.warnings, "is picked above"));
 }
 
-// ---- mcx3 t04: MEG tables as the game reads them (meg::Archive::lookup, docs/re/MCX3_MEG_LOOKUP.md) ----
+// ---- MEG tables as the game reads them (meg::Archive::lookup, legacy docs/re/MCX3_MEG_LOOKUP.md) ----
 
 struct Rec {
     uint32_t crc, index, name_index;
@@ -518,7 +518,7 @@ void test_meg() {
     fs::remove_all(T, ec);
 }
 
-// ums4 t06: a mod folder reached through a junction is one folder (vfs::folder_key follows it): one catalog row, and
+// a mod folder reached through a junction is one folder (vfs::folder_key follows it): one catalog row, and
 // find_root finds the row by either spelling. Skipped when mklink /J cannot make the junction.
 void test_junction(const Fixture& f) {
     alamo::test::section("folder identity through a junction");

@@ -289,8 +289,8 @@ bool GameAudioHost::init(const GameData& data, AudioBackendKind kind, uint32_t s
     }
     game_data_ = std::make_unique<audio::GameAudioData>();
     game_data_->load(*data.files);
-    // mcx4 t13: the health warning thresholds (MCX4_T13_RE_ANSWERS "GameObjectType.SFXEvent_Health_Low_Warning family").
-    health_low_ = data.db.constants().shared.health_low_percent_threshold.value_or(health_low_);  // ref4 t06: GameConstants::shared
+    // the health warning thresholds (MCX4_T13_RE_ANSWERS "GameObjectType.SFXEvent_Health_Low_Warning family").
+    health_low_ = data.db.constants().shared.health_low_percent_threshold.value_or(health_low_);  // GameConstants::shared
     health_critical_ = data.db.constants().get_float("Health_Critical_Percent_Threshold", health_critical_);
     audio::GameSampleConfig sc;
     if (data.vfs) sc.sfx_megs = audio::GameSampleSource::default_sfx_megs(*data.vfs, sc.language);
@@ -318,7 +318,7 @@ bool GameAudioHost::init(const GameData& data, AudioBackendKind kind, uint32_t s
         audio::AudioSystem::ObjectAudio a;
         a.position = it->second;
         a.audible = inaudible_.find(owner) == inaudible_.end();  // §3.5 item 8: fog / hidden / stealth mute, no stop
-        a.hidden = hidden_.find(owner) != hidden_.end();          // AUDIO.md §1.6 (b0280): a cinematic unmutes fog only
+        a.hidden = hidden_.find(owner) != hidden_.end();          // legacy docs/re/AUDIO.md §1.6: a cinematic unmutes fog only
         return a;
     });
     return true;
@@ -473,7 +473,7 @@ void GameAudioHost::battle_tick(const sim::TacticalBattle& battle, const objects
     // stealthed for the local player (running loops are muted, never stopped).
     const tactical::abilities::AbilitySystem& ab = battle.abilities();
     const float threshold = battle.engine_moving_threshold();
-    if (!super_weapon_types_ready_) {  // AUDIO.md §2.3 (b0286): the factions' Faction_Super_Weapon types
+    if (!super_weapon_types_ready_) {  // legacy docs/re/AUDIO.md §2.3: the factions' Faction_Super_Weapon types
         super_weapon_types_ready_ = true;
         for (const audio::FactionAudio& f : game_data_->factions()) {
             const objects::TypeIndex t = types.resolve_name(f.get("Faction_Super_Weapon"));
@@ -495,7 +495,7 @@ void GameAudioHost::battle_tick(const sim::TacticalBattle& battle, const objects
             ++stats_.spawned;
         }
         const bool hidden = ab.is_stealthed(id, battle.frame()) ||
-                            (script_hidden && script_hidden(id));  // q6 t19: Lua Hide(true) mutes the object's sound
+                            (script_hidden && script_hidden(id));  // Lua Hide(true) mutes the object's sound
         const bool fogged = battle.fog_object_hidden(local_player, id, false);
         if (hidden || fogged) inaudible_.insert(static_cast<uint64_t>(id));
         else inaudible_.erase(static_cast<uint64_t>(id));
@@ -513,7 +513,7 @@ void GameAudioHost::battle_tick(const sim::TacticalBattle& battle, const objects
     }
     super_weapon_report(super_weapon);
     // §3.3 engine-loop requests of the tick (TacticalBattle::engine_loop_requests, hangar::EngineLoops): mode enter,
-    // locomotor services, engines offline / online - start = fade-in, stop = fade-out. cu8g t01: HOLSTER_WEAPON / Saber_Throw
+    // locomotor services, engines offline / online - start = fade-in, stop = fade-out. HOLSTER_WEAPON / Saber_Throw
     // suppress (0x392410: every engine loop stopped with the request's fade, < 0 = the event's own) / unsuppress (0x393970)
     // and the draw / holster SFX attached to the hero.
     for (const tactical::hangar::EngineLoopRequest& r : battle.engine_loop_requests()) {
@@ -538,7 +538,7 @@ void GameAudioHost::battle_tick(const sim::TacticalBattle& battle, const objects
         }
         ++stats_.engine_loop_requests;
     }
-    // HARDPOINT_DISABLED.md §9.1: engines back online (an ENGINE hardpoint repaired): idle on (GameAudio::engines_online).
+    // legacy docs/re/HARDPOINT_DISABLED.md §9.1: engines back online (an ENGINE hardpoint repaired): idle on (GameAudio::engines_online).
     for (const objects::ObjectId id : battle.engines_restarted()) {
         game_->engines_online(static_cast<uint64_t>(id));
         ++stats_.engine_restarts;
@@ -576,7 +576,7 @@ void GameAudioHost::battle_tick(const sim::TacticalBattle& battle, const objects
         faction_sfx(ev);
         ++stats_.station_upgrades;
     }
-    // L1_S4_REMAINING §4.1 (b0289): a unit that actually entered a garrison this tick -> the local faction's
+    // L1_S4_REMAINING §4.1: a unit that actually entered a garrison this tick -> the local faction's
     // SFXEvent_Bunker_Garrisoned [M: played for the local player's own units only].
     for (const sim::TacticalBattle::StoryGarrisonEvent& e : battle.story_garrisoned()) {
         const std::string_view line = garrison_line(owner_of(e.unit), local_player);
@@ -795,7 +795,7 @@ void GameAudioHost::battle_tick(const sim::TacticalBattle& battle, const objects
             pad_loops_[static_cast<int64_t>(e.object)] = std::string(loop);
         }
     }
-    // HERO_CLASH §3.8 (b0300): a clash end plays the winner's First_ / Second_Hero_Win_Speech (speech queue).
+    // HERO_CLASH §3.8: a clash end plays the winner's First_ / Second_Hero_Win_Speech (speech queue).
     {
         const auto& ends = battle.hero_clashes().ended();
         const tactical::combat::HeroClashData* cd = battle.hero_clashes().data();
@@ -834,7 +834,7 @@ void GameAudioHost::battle_tick(const sim::TacticalBattle& battle, const objects
         }
         combat = combat || e.owner == local_player || (e.victim != tactical::combat::kNoObject && owner_of(e.victim) == local_player);
     }
-    // aud1 t04 (AUDIO.md §9.5): a new projectile's fire sound, 3D at the projectile's spawn position (fog test applies):
+    // aud1 t04 (legacy docs/re/AUDIO.md §9.5): a new projectile's fire sound, 3D at the projectile's spawn position (fog test applies):
     // a hardpoint shot plays the hardpoint type's Fire_SFXEvent, else the parent's SFXEvent_Fire; a unit weapon shot the
     // shooter's SFXEvent_Fire. The hardpoint comes from this tick's ShotEvents by projectile serial.
     // trl2 t08 (MCX4_T10_RE_ANSWERS §3, TACTICAL_COMBAT §2 step 11): a shot held by Projectile_Appearance_Delay_Frames
@@ -874,13 +874,13 @@ void GameAudioHost::battle_tick(const sim::TacticalBattle& battle, const objects
     });
     tsw_audio(tsw_cues(battle.special_weapon_events(), store), types);  // refix t06
     cue_lines(battle, store, types, local_player);                         // mcx4 t13 batch A
-    object_events(battle, store, types, player_factions_);  // aud1 t05: abilities, hyperspace, shields (AUDIO.md §9.6)
+    object_events(battle, store, types, player_factions_);  // abilities, hyperspace, shields (legacy docs/re/AUDIO.md §9.6)
     // aud1 t02 (L1_S4_REMAINING §3.2): the land weather's type and intensity after the tick -> the weather audio manager
     // and the faction's SFXEvent_Weather_Begin / _End lines (GameAudio::set_weather; unchanged values do nothing). Weather
     // off (no scenario, space) = CLEAR at 1.0, as retail's 0x323110(0, 1.0).
     weather(weather_name(battle.weather().active() ? static_cast<uint8_t>(battle.weather().type()) : uint8_t{0}),
             battle.weather().active() ? battle.weather().intensity() : 1.0f, local_player < 0 || ab.weather_affected(local_player));
-    // aud1 t08 (AUDIO.md §9.8): this tick's hits on the local player's (or a community-property ally's) base objects.
+    // aud1 t08 (legacy docs/re/AUDIO.md §9.8): this tick's hits on the local player's (or a community-property ally's) base objects.
     bool base_hit = false;
     if (local_player >= 0) {
         using namespace objects;
@@ -1156,7 +1156,7 @@ void GameAudioHost::cue_lines(const sim::TacticalBattle& battle, const objects::
             }
         }
     }
-    // Gravity control (MCX4_T13_RE_ANSWERS "Faction.SFXEvent_HUD_Gravity_Control_Generator_On family", TRU1_GRAVITY_FIELD.md
+    // Gravity control (MCX4_T13_RE_ANSWERS "Faction.SFXEvent_HUD_Gravity_Control_Generator_On family", legacy docs/re/TRU1_GRAVITY_FIELD.md
     // §1.2): a generator's power change plays the local faction's line, 2D, whoever owns the generator.
     for (const sim::TacticalBattle::GravityPowerEvent& e : battle.gravity_power_changes()) {
         // ledger: consumes Faction.SFXEvent_HUD_Gravity_Control_Generator_On
@@ -1233,7 +1233,7 @@ void GameAudioHost::cue_lines(const sim::TacticalBattle& battle, const objects::
     }
     // Retreat begin (MCX4_T13_RE_ANSWERS "Faction.Land_Retreat_Begin_SFXEvent family"): on the tick a retreat countdown
     // starts; 2D. A local retreater first tries its retreating units' SFXEvent_Retreat_Start ([port] the retreater's
-    // battle units in id order stand for the coordinator's list). Cancel lines: below (trl2 t04).
+    // battle units in id order stand for the coordinator's list). Cancel lines: below.
     if (const int32_t rp = battle.retreating_player(); rp != last_retreater_) {
         last_retreater_ = rp;
         if (rp >= 0 && local_player >= 0) {
@@ -1256,7 +1256,7 @@ void GameAudioHost::cue_lines(const sim::TacticalBattle& battle, const objects::
             if (played) ++stats_.retreat_lines;
         }
     }
-    // trl2 t04: retreat cancel lines (retreat_cancel_tag); 2D. The type line: the first unit of the retreat list whose
+    // retreat cancel lines (retreat_cancel_tag); 2D. The type line: the first unit of the retreat list whose
     // type sets SFXEvent_Retreat_Cancel. The space faction line is the retreater's faction's.
     if (local_player >= 0)
         for (const sim::TacticalBattle::RetreatCancel& c : battle.retreat_cancels()) {
@@ -1471,14 +1471,14 @@ double GameAudioHost::output_latency_seconds() const { return backend_ ? backend
 void GameAudioHost::set_volumes(float master, float sfx, float speech, float music) {
     if (!system_) return;
     system_->set_bus_level(audio::AudioBus::Master, master);
-    system_->save_master_volume();  // aud2 t02: the profile's master is what Lua Master_Volume_Restore restores
+    system_->save_master_volume();  // the profile's master is what Lua Master_Volume_Restore restores
     system_->set_bus_level(audio::AudioBus::Sfx, sfx);
     system_->set_bus_level(audio::AudioBus::Speech, speech);
     system_->set_bus_level(audio::AudioBus::Music, music);
 }
 
 void GameAudioHost::update(double dt) {
-    if (game_ && app_active_) game_->update(dt);  // aud2 t04: step 14 runs only while the application is active
+    if (game_ && app_active_) game_->update(dt);  // step 14 runs only while the application is active
 }
 
 void GameAudioHost::planet_revealed() {
@@ -1659,11 +1659,11 @@ std::string_view GameAudioHost::production_tag(Production kind) {
     return {};
 }
 
-// Shared by both builds (cu9 t09): the same bookkeeping with and without engine/audio (nothing reads it without).
+// Shared by both builds: the same bookkeeping with and without engine/audio (nothing reads it without).
 void GameAudioHost::battle_reset() {
     last_serial_ = 0;
     delayed_shots_.clear();   // trl2 t08
-    hardpoint_fire_.clear();  // aud1 t04: hardpoint indices are per battle
+    hardpoint_fire_.clear();  // hardpoint indices are per battle
     victory_seen_ = false;    // mcx4 t13 batch D
     last_retreater_ = -1;     // mcx4 t13 batch E
     base_shield_state_.clear();  // mcx4 t13 batch I
@@ -1680,7 +1680,7 @@ void GameAudioHost::battle_reset() {
     point_progress_.clear();     // mcx4 t13 batch U
     turret_turn_.clear();        // mcx4 t13
     ability_loop_.clear();       // mcx4 t13 (the battle's objects and their sounds go with it)
-    intro_decided_ = false;   // aud1 t07: a new battle decides its intro again
+    intro_decided_ = false;   // a new battle decides its intro again
     object_events_reset();    // aud1 t05
     intro_frame_ = 0;
     have_serial_ = false;

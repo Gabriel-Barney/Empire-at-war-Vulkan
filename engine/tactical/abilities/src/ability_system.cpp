@@ -19,7 +19,7 @@ namespace {
 
 constexpr float kDegToRad = 0.017453292519943295f;
 constexpr int32_t kAnimRevealBegin = 0x69, kAnimRevealLoop = 0x6a, kAnimRevealEnd = 0x6b;  // Force_Sight (§4.14)
-constexpr int32_t kAnimIdleBlockBlaster = 0x1e;  // r3h t06: Redirect_Blaster's block / redirect (0x709c90)
+constexpr int32_t kAnimIdleBlockBlaster = 0x1e;  // Redirect_Blaster's block / redirect (0x709c90)
 
 bool forwards_to_special(uint32_t t) {
     // 2.5: re-check the gates, then forward to the special ability named by the record.
@@ -100,7 +100,7 @@ void squad_joint_half_extents(std::span<const SquadSlot> slots, float jiggle, fl
 void AbilitySystem::reserve(uint32_t objects, uint32_t events) {
     objs_.reserve(objects);
     events_.reserve(events);
-    visuals_.reserve(events);  // vis1 t06 / aud1 t10: the presentation copies (kVisualKeepFrames of entries)
+    visuals_.reserve(events);  // the presentation copies (kVisualKeepFrames of entries)
     activations_.reserve(events);
 }
 
@@ -155,7 +155,7 @@ bool AbilitySystem::add_unit(const combat::UnitSpawn& s, uint32_t ability_desc, 
     // OI abilities: SAP init (first-due stagger draws, after the hardpoint draws [M]), automatic / event-driven
     // classes (auras give to the new unit), Active_By_Default (0x3a82a0, first two entries, §1.2 [H]).
     sap_init(n, frame, &rng);
-    // TRU1 t03: GRAVITY_CONTROL_FIELD first service, one synced Get_Int(0, interval - 1) as every behaviour with an interval
+    // GRAVITY_CONTROL_FIELD first service, one synced Get_Int(0, interval - 1) as every behaviour with an interval
     // >= 2 draws at attach (TACTICAL_GAPS §6.4) [port: drawn here, after the SAP draws].
     if (d.gravity_field) n.gravity_due = frame + static_cast<uint32_t>(rng.range_int(0, 59));
     update_emitter(n);
@@ -210,13 +210,13 @@ bool AbilitySystem::set_owner(ObjectId id, int32_t owner) {
 }
 
 void AbilitySystem::remove(ObjectId id) {
-    spawn_object_removed(id);  // mcx4 t06: a Spawn_Ability's bomber or target (the removal broadcast)
+    spawn_object_removed(id);  // a Spawn_Ability's bomber or target (the removal broadcast)
     const int32_t i = find(id);
     if (i < 0) return;
     Obj& o = objs_[static_cast<size_t>(i)];
     for (SpecialState& sp : o.specials)
         if (sp.applied) remove_special(o, sp, 0);
-    gravity_unit_dying(o, 0);  // TRU1 t03: a removed generator releases its units, a removed victim leaves the list
+    gravity_unit_dying(o, 0);  // a removed generator releases its units, a removed victim leaves the list
     const bool unit = o.combat_unit != 0;
     objs_.erase(objs_.begin() + i);
     for (Obj& c : objs_) {
@@ -426,10 +426,10 @@ void AbilitySystem::event(AbilityEventKind k, uint8_t type, ObjectId id, ObjectI
     e.target = target;
     e.frame = frame;
     events_.push_back(e);
-    if (k == AbilityEventKind::EffectOn) {  // aud1 t10: the presentation copy (never read by the sim)
+    if (k == AbilityEventKind::EffectOn) {  // the presentation copy (never read by the sim)
         if (!activations_.empty() && activations_.front().frame + kVisualKeepFrames < frame)
             std::erase_if(activations_, [frame](const AbilityActivation& v) { return v.frame + kVisualKeepFrames < frame; });
-        uint32_t special = 0xFFFFFFFFu;  // mcx4 t15: the special the unit ability forwarded to (light effects)
+        uint32_t special = 0xFFFFFFFFu;  // the special the unit ability forwarded to (light effects)
         if (const Obj* o = obj(id))
             for (const SpecialState& sp : o->specials)
                 if (sp.trigger == type) {
@@ -489,7 +489,7 @@ bool AbilitySystem::set_active(Obj& o, uint32_t t, bool on, uint32_t frame, Obje
         if (!can(o, t, false, true, frame)) return false;
         if (active_state(o, t) && t != kBarrage) return false;
     }
-    // cmb3 t05 (b0451, TRU1_GRAVITY_FIELD §2, ABILITIES_HARDPOINTS §2.5 [H]): 0x38a350 has no case for FIRE_LOBBING_SUPERWEAPON (47); its default
+    // cmb3 t05 (TRU1_GRAVITY_FIELD §2, ABILITIES_HARDPOINTS §2.5 [H]): 0x38a350 has no case for FIRE_LOBBING_SUPERWEAPON (47); its default
     // returns false with nothing done (no handler, no active byte, no recharge, no event). The shot is command 25's alone. A
     // team container fails too: every forwarded member returns false, which fails the whole call (review).
     if (t == kFireLobbingSuperweapon) return false;
@@ -540,7 +540,7 @@ void AbilitySystem::handler(Obj& o, uint32_t t, bool on, uint32_t frame, ObjectI
             return;
         case kMissileShield:
             if (on) {
-                // 0x4261f0 always, then the lock with Disable_Movement (A1_READINGS §28.9). cu8l t02: 0x4261f0 leaves every
+                // 0x4261f0 always, then the lock with Disable_Movement (A1_READINGS §28.9). 0x4261f0 leaves every
                 // coordinator (kStopLeave), so the first lock adopts: one draw (CU8K_T02_T06_RE §3 rule 6).
                 stop_order(o.id, frame, kStopLeave);
                 if (rec && rec->disable_movement) immobilize(o, +1, frame);
@@ -595,7 +595,7 @@ void AbilitySystem::handler(Obj& o, uint32_t t, bool on, uint32_t frame, ObjectI
                 start_recharge(o, t);
             }
             return;
-        case kFowRevealPing:  // fog follow-up (FOG_OF_WAR.md §3.3): the host spawns Spawned_Object_Type [M]
+        case kFowRevealPing:  // fog follow-up (legacy docs/re/FOG_OF_WAR.md §3.3): the host spawns Spawned_Object_Type [M]
         case kTargetedInvulnerability:  // OI abilities: the instant-effect handler 0x3a3e20 (§2.1)
         case kAreaEffectStun:
         case kAreaEffectHeal:
@@ -637,7 +637,7 @@ void AbilitySystem::handler(Obj& o, uint32_t t, bool on, uint32_t frame, ObjectI
             return;
         case kDetonateRemoteBomb:  // 0x280ec0: the player's remote bombs detonate (serial order [port] for list order)
             if (on) {
-                // LOB_SOLVER §3.5 (S8 t06): every live bomb of the player whose type has Friendly_Damage_Amount F > 0. One
+                // LOB_SOLVER §3.5: every live bomb of the player whose type has Friendly_Damage_Amount F > 0. One
                 // stuck to a garrisoned parent is skipped (stays armed); one stuck to an own unit first damages it (kind 1)
                 // and the other members of its team container (kind 0x15) by F; then the detonation at the bomb.
                 const auto find_bomb = [&](uint32_t serial) -> size_t {
@@ -751,7 +751,7 @@ void AbilitySystem::interdict(Obj& o, bool on, uint32_t frame) {
         if (o.gravity_well_destroyed) return;
         start_active(o, kInterdict);
         if (rec && rec->disable_movement) {  // stop (0x4261f0), then lock: the lock alone freezes nothing (§28.9)
-            stop_order(o.id, frame, kStopLeave);  // cu8l t02: 0x4261f0 leaves every coordinator; the first lock adopts
+            stop_order(o.id, frame, kStopLeave);  // 0x4261f0 leaves every coordinator; the first lock adopts
             immobilize(o, +1, frame);
         }
         event(AbilityEventKind::InterdictOn, kInterdict, o.id, kNoObject, frame);
@@ -791,7 +791,7 @@ void AbilitySystem::update_countdown(Obj& o, uint32_t frame) {
                     event(AbilityEventKind::Ready, static_cast<uint8_t>(t), o.id, kNoObject, frame);
             }
         } else if (o.cd.counter[t] < o.cd.maximum[t]) {  // [port] expiry fires once (X = 0 types stay at max)
-            // mcx7: in 64 bits, so a maximum near INT32_MAX (a huge mod duration) cannot overflow before the clamp
+            // in 64 bits, so a maximum near INT32_MAX (a huge mod duration) cannot overflow before the clamp
             o.cd.counter[t] = static_cast<int32_t>(std::min<int64_t>(int64_t{o.cd.counter[t]} + delta, o.cd.maximum[t]));
             if (o.cd.counter[t] == o.cd.maximum[t]) expire(o, t, frame);
             if (o.dead) return;
@@ -866,7 +866,7 @@ bool AbilitySystem::enabled(int32_t player, const SpecialAbilityDesc& s) const {
 }
 
 bool AbilitySystem::activate_by_name(Obj& o, uint32_t crc, ObjectId target, int32_t hp, uint32_t frame, uint8_t trigger) {
-    // SAP_Activate_By_Name (0x37b8a0): allowed in mode, enabled, apply. cu8f t01: nothing while SAP +0x28 is set.
+    // SAP_Activate_By_Name (0x37b8a0): allowed in mode, enabled, apply. Nothing while SAP +0x28 is set.
     if (o.sap_disabled) return false;
     SpecialState* sp = special_by_crc(o, crc);
     if (!sp) return false;
@@ -892,7 +892,7 @@ bool AbilitySystem::target_filter(const SpecialAbilityDesc& s, ObjectId target) 
 }
 
 bool AbilitySystem::in_range(const Obj& o, const SpecialAbilityDesc& s, ObjectId target, ObjectId container) const {
-    // s78m t08: Target_In_Range (0x48d820, slot 44) and not Must_Close_Range (0x48e100, slot 46), TACTICAL_COMBAT §5.4.2:
+    // Target_In_Range (0x48d820, slot 44) and not Must_Close_Range (0x48e100, slot 46), TACTICAL_COMBAT §5.4.2:
     // the weapon range test (TACTICAL_GAPS §3.1) with the ability's ranges swapped in, from the user's position P_U.
     // In range <=> d <= R + E (XY, float, non-strict; d = 0 passes): R = Activation_Max_Range when > 0, else the user's
     // max attack range (with its modifiers); E = the target's footprint half-extent along the line of sight (the
@@ -975,7 +975,7 @@ bool AbilitySystem::in_range(const Obj& o, const SpecialAbilityDesc& s, ObjectId
         const float r = override_set ? s.min_range : combat_->min_attack_distance(u);
         const bool lob = combat_->has_grenade_weapon(u);  // s78n t01
         const bool melee = combat_->melee_attacker(u);    // s78n t01
-        // s78n t01: the melee redirect (step 1) of a container X; X itself otherwise.
+        // the melee redirect (step 1) of a container X; X itself otherwise.
         ObjectId xr = target;
         if (melee && x && x->is_container) {
             const ObjectId m = nearest_member(x, pu);
@@ -986,7 +986,7 @@ bool AbilitySystem::in_range(const Obj& o, const SpecialAbilityDesc& s, ObjectId
         bool in_max = lob ? combat_->weapon_lob_reaches(u, pu, combat_->target_point(target)) : d <= R + E;
         bool too_close = r > 0.0f && too_close_to(xr, pu, r, override_set);  // s78n t02
         if (has_t) {  // T first: in range of T or of X; too close to T and to X
-            const ObjectId tm = melee ? nearest_member(obj(container), pu) : kNoObject;  // s78n t01: melee redirect
+            const ObjectId tm = melee ? nearest_member(obj(container), pu) : kNoObject;  // melee redirect
             float dm = 0.0f, Em = 0.0f;
             if (tm != kNoObject) (void)combat_->range_geometry_of(tm, pu, dm, Em);
             const float dt = combat::distance_xy(pu, tpos);
@@ -994,7 +994,7 @@ bool AbilitySystem::in_range(const Obj& o, const SpecialAbilityDesc& s, ObjectId
                               : tm != kNoObject ? dm <= R + Em
                                                 : dt <= R + 10.0f;
             in_max = t_in || in_max;
-            // s78n t02: T (a container, never a member: no step-4 retest) is too close when dt <= r + E_T; with the
+            // T (a container, never a member: no step-4 retest) is too close when dt <= r + E_T; with the
             // melee redirect, its nearest member's own test.
             if (too_close)
                 too_close = tm != kNoObject ? too_close_to(tm, pu, r, override_set) : dt <= r + container_min_extent(pu);
@@ -1013,7 +1013,7 @@ bool AbilitySystem::accepts(const Obj& o, const SpecialAbilityDesc& s, ObjectId 
         case SpecialClass::TractorBeam: {
             if (!alive_unit(target) || !combat_->is_enemy(o.owner, combat_->owner(target))) return false;
             if (!target_filter(s, target)) return false;
-            if (!combat_->clash_allows(o.id, target)) return false;  // s78n t06: 0x710540 pairing rule (HERO_CLASH §5.2)
+            if (!combat_->clash_allows(o.id, target)) return false;  // 0x710540 pairing rule (HERO_CLASH §5.2)
             if (combat_->flags(target) & combat::kUnitLocomotorBusy) return false;
             if (!can(o, kTractorBeam, false, true, frame)) return false;
             if (const Obj* to = obj(target))
@@ -1024,7 +1024,7 @@ bool AbilitySystem::accepts(const Obj& o, const SpecialAbilityDesc& s, ObjectId 
         case SpecialClass::LuckyShot:
         case SpecialClass::ConcentrateFire:
         case SpecialClass::EnergyWeapon:
-            // s78n t06: the pairing rule (HERO_CLASH §5.2: 0x704a80 / 0x706410 / 0x6eef00 / 0x6f9ca0)
+            // the pairing rule (HERO_CLASH §5.2: 0x704a80 / 0x706410 / 0x6eef00 / 0x6f9ca0)
             return alive_unit(target) && combat_->is_enemy(o.owner, combat_->owner(target)) && target_filter(s, target) &&
                    combat_->clash_allows(o.id, target);
         case SpecialClass::Unsupported: return false;
@@ -1183,7 +1183,7 @@ bool AbilitySystem::apply(Obj& o, SpecialState& sp, ObjectId target, int32_t hp,
         case SpecialClass::RedirectBlaster:
         case SpecialClass::AbsorbBlaster: return false;  // only through the Take_Damage trigger
         default: return class_apply(o, sp, target, hp, frame);  // OI abilities (ability_classes.cpp)
-        case SpecialClass::ForceSight: {  // fog follow-up: ForceSightAbilityClass 0x713ba0 (FOG_OF_WAR.md §3.3)
+        case SpecialClass::ForceSight: {  // fog follow-up: ForceSightAbilityClass 0x713ba0 (legacy docs/re/FOG_OF_WAR.md §3.3)
             // While channelling (Force_Sight_Duration_In_Secs [M]): Reveal_All for the owner; the recharge starts at
             // activation [port].
             {  // §4.14 gates: busy -> refused; Force_Revel_Begin / Loop -> already running; Force_Revel_End -> refused
@@ -1192,7 +1192,7 @@ bool AbilitySystem::apply(Obj& o, SpecialState& sp, ObjectId target, int32_t hp,
                 if (v.type == kAnimRevealBegin || v.type == kAnimRevealLoop) return true;
             }
             if (sp.applied) return false;
-            // OI abilities: the apply stops the unit (animation 0x69, §2.3.10); cu8j t02: Force Reveal begin 0x713a90 is a
+            // OI abilities: the apply stops the unit (animation 0x69, §2.3.10); Force Reveal begin 0x713a90 is a
             // stop-and-hold 0x3a9880 (MOVEMENT §4.7.2): one ctor draw.
             stop_order(o.id, frame, kStopHold);
             play_anim(o, kAnimRevealBegin, {}, kDrawVariant, false, 1.0f, kAnimHoldLoop, frame);  // §4.14: Begin, then the Loop
@@ -1413,7 +1413,7 @@ void AbilitySystem::update_special(Obj& o, SpecialState& sp, uint32_t frame) {
 }
 
 void AbilitySystem::sap_update(Obj& o, uint32_t frame) {
-    // 0x37da80: Abilities in list order; due ones updated, then rescheduled. cu8f t01: nothing while SAP +0x28 is set.
+    // 0x37da80: Abilities in list order; due ones updated, then rescheduled. Nothing while SAP +0x28 is set.
     if (o.sap_disabled) return;
     for (SpecialState& sp : o.specials) {
         if (o.dead) return;
@@ -1446,7 +1446,7 @@ void AbilitySystem::try_pending(Obj& o, uint32_t frame) {
 }
 
 void AbilitySystem::apply_automatic(Obj& o, uint32_t frame) {
-    // Automatic styles on unit add (3.1 event triggers) [M]; target = self. cu8f t01: none while SAP +0x28 is set.
+    // Automatic styles on unit add (3.1 event triggers) [M]; target = self. None while SAP +0x28 is set.
     if (o.sap_disabled) return;
     for (SpecialState& sp : o.specials) {
         const SpecialAbilityDesc& s = data_->specials[sp.desc];
@@ -1463,7 +1463,7 @@ void AbilitySystem::apply_automatic(Obj& o, uint32_t frame) {
             case SpecialClass::Weatherproof:
             case SpecialClass::RetreatPrevention:
             case SpecialClass::EnableAbility:
-            case SpecialClass::GarrisonUpgrade:  // tru3 t05: Ground_ / Space_Automatic on the upgrade object
+            case SpecialClass::GarrisonUpgrade:  // Ground_ / Space_Automatic on the upgrade object
             case SpecialClass::WeaponSwap:  // OI abilities: Permanent_Weapon_Swap (Ground_Automatic) [port: at unit add]
             case SpecialClass::StarbaseUpgrade:  // Skirmish_Automatic on the built upgrade object (HARDPOINT_DISABLED §3)
             case SpecialClass::ForceHealing: apply(o, sp, o.id, -1, frame); break;
@@ -1731,7 +1731,7 @@ const SpecialAbilityDesc* AbilitySystem::jamming_special(ObjectId id, float& rad
     return nullptr;
 }
 
-// vis1 t06: presentation-only reads and the visual record (no state the sim reads, hashes or saves).
+// presentation-only reads and the visual record (no state the sim reads, hashes or saves).
 void AbilitySystem::applied_specials(ObjectId id, std::vector<AppliedSpecialView>& out) const {
     out.clear();
     const Obj* o = obj(id);
@@ -1845,7 +1845,7 @@ bool AbilitySystem::has_force_ability(ObjectId id) const {
 void AbilitySystem::set_ion_storm(ObjectId id, uint32_t frame) {
     if (Obj* o = obj(id)) o->ion_storm_frame = frame;
 }
-// ---- L1 systems: space fields (L1_S4_REMAINING.md §3.3) ----
+// ---- L1 systems: space fields (legacy docs/re/L1_S4_REMAINING.md §3.3) ----
 void AbilitySystem::clear_nebula(ObjectId id) {
     if (Obj* o = obj(id)) o->nebula_frame = kNever;
 }
@@ -1879,7 +1879,7 @@ void AbilitySystem::set_locomotor_busy(ObjectId id, bool busy) {
     combat_->set_flag(id, combat::kUnitLocomotorBusy, busy);
 }
 void AbilitySystem::set_abilities_disabled(ObjectId id, bool off, uint32_t frame) {
-    // cu8f t01 (CU8F_T01_T02_T07_RE.md §1.2): SAP_Disable_All 0x37b9e0 / SAP_Enable_All 0x37d7f0.
+    // cu8f t01 (legacy docs/re/CU8F_T01_T02_T07_RE.md §1.2): SAP_Disable_All 0x37b9e0 / SAP_Enable_All 0x37d7f0.
     Obj* o = obj(id);
     if (!o || o->sap_disabled == (off ? 1 : 0)) return;
     const auto automatic = [](ActivationStyle st) {
@@ -2151,7 +2151,7 @@ bool AbilitySystem::damage_listener(ObjectId victim, ObjectId source, const comb
     // 4.6: style Take_Damage abilities of the victim, list order; the first that applies cancels.
     const int32_t projectile_desc = shot.projectile_desc;
     Obj* o = obj(victim);
-    if (!o || o->sap_disabled || o->specials.empty() || projectile_desc < 0 || !rng) return false;  // cu8f t01: SAP +0x28
+    if (!o || o->sap_disabled || o->specials.empty() || projectile_desc < 0 || !rng) return false;  // SAP +0x28
     const combat::ProjectileDesc& pd = combat_->data().projectiles[static_cast<size_t>(projectile_desc)];
     for (SpecialState& sp : o->specials) {
         const SpecialAbilityDesc& s = data_->specials[sp.desc];
@@ -2186,7 +2186,7 @@ bool AbilitySystem::damage_listener(ObjectId victim, ObjectId source, const comb
             // Redirect roll (< Projectile_Redirect_Chance_Modifier x Redirect_Chance): a new shot at the shooter; when the
             // roll fails or the shot cannot be made, the block roll: a new shot sent back with the
             // Max_Projectile_Redirection_Angle_In_Degrees spread. Either way the original shot is consumed.
-            // r3h t06: a redirect or block plays Idle_Blockblaster (0x1e), 0xFFFF, one-shot, blend 0.1, speed 2 when the
+            // a redirect or block plays Idle_Blockblaster (0x1e), 0xFFFF, one-shot, blend 0.1, speed 2 when the
             // primary clip is idle-like or a finished Idle_Blockblaster (the host tests that). A victim whose current clip
             // is Move (2) ends the listener "not handled" after the shot was sent on. cmb3 t08 (SAP_On_Take_Damage 0x37d160 ->
             // 0x37b580 [H]): the dispatcher then tries the victim's next Take_Damage ability; when none handles the hit, the
@@ -2280,7 +2280,7 @@ bool AbilitySystem::special_enabled(ObjectId id, uint32_t crc) const {
 }
 
 void AbilitySystem::hardpoint_online(ObjectId owner, uint32_t index, HardpointKind kind, uint32_t frame) {
-    // Set_System_Online(on) (0x384d00), ability side (HARDPOINT_DISABLED.md §9). No live-count check.
+    // Set_System_Online(on) (0x384d00), ability side (legacy docs/re/HARDPOINT_DISABLED.md §9). No live-count check.
     Obj* o = obj(owner);
     if (!o || o->dead) return;
     switch (kind) {
@@ -2353,7 +2353,7 @@ void AbilitySystem::units_removed() {
         ++w;
     }
     objs_.erase(objs_.begin() + static_cast<std::ptrdiff_t>(w), objs_.end());
-    for (Obj& g : objs_)  // TRU1 t03: removed units leave the gravity field lists
+    for (Obj& g : objs_)  // removed units leave the gravity field lists
         g.gravity_list.erase(std::remove_if(g.gravity_list.begin(), g.gravity_list.end(), [this](ObjectId m) { return find(m) < 0; }),
                              g.gravity_list.end());
     for (Obj& c : objs_) {
@@ -2434,7 +2434,7 @@ void AbilitySystem::hash(StateHasher& h) const {
             h.f32(sp.point.z);
             h.u32(static_cast<uint32_t>(sp.victims.size()));
             for (ObjectId v : sp.victims) h.i32(v);
-            if (sp.restore != kNoObject) {  // cu8f t01: only while a cancelled effect waits (keeps the old digests)
+            if (sp.restore != kNoObject) {  // only while a cancelled effect waits (keeps the old digests)
                 h.u32(0x52535452u);  // "RSTR"
                 h.i32(sp.restore);
             }
@@ -2457,11 +2457,11 @@ void AbilitySystem::hash(StateHasher& h) const {
             h.i32(o.troopers_deployed);
             h.u32(static_cast<uint32_t>(o.troopers.size()));
             for (ObjectId t : o.troopers) h.i32(t);
-            // cu8f t06: the squad numbers (CU8F_T04_T06_RE §3.2)
+            // the squad numbers (CU8F_T04_T06_RE §3.2)
             h.i32(o.squads_formed);
             for (const int32_t q : o.trooper_squads) h.i32(q);
         }
-        // r3g t02: the timed DEPLOY_TROOPERS machine and the rope landing, only while running
+        // the timed DEPLOY_TROOPERS machine and the rope landing, only while running
         if (o.troop_state != 0 || o.rope_state != 0) {
             h.u32(0x45504f52u);  // "ROPE"
             h.u8(o.troop_state);
@@ -2472,11 +2472,11 @@ void AbilitySystem::hash(StateHasher& h) const {
             h.f32(o.rope_z);
             h.i32(o.rope_owner);
         }
-        if (o.cable_holds != 0) {  // r3g t04: cables holding a walker
+        if (o.cable_holds != 0) {  // cables holding a walker
             h.u32(0x4c424143u);  // "CABL"
             h.u8(o.cable_holds);
         }
-        // TRU1 t03: gravity control field state, only for generators and slowed units (keeps the other digests)
+        // gravity control field state, only for generators and slowed units (keeps the other digests)
         if (desc(o).gravity_field || o.in_gravity_field != 0 || !o.gravity_list.empty()) {
             h.u32(0x56415247u);  // "GRAV"
             h.u32(o.gravity_due);
@@ -2485,7 +2485,7 @@ void AbilitySystem::hash(StateHasher& h) const {
             h.u32(static_cast<uint32_t>(o.gravity_list.size()));
             for (const ObjectId g : o.gravity_list) h.i32(g);
         }
-        // cu8f t06: the LURE data pack, only once used (keeps lure-less digests)
+        // the LURE data pack, only once used (keeps lure-less digests)
         if (o.lure_on != 0 || o.lure_pulses != 0 || o.lure_effect != kNoObject) {
             h.u32(0x4552554Cu);  // "LURE"
             h.u8(o.lure_on);
@@ -2517,7 +2517,7 @@ void AbilitySystem::hash(StateHasher& h) const {
         h.f32(m.trigger);
         h.u32(m.arm);
     }
-    if (!buzz_.empty()) {  // mcx4: hashed only while a cloud lives, so battles without one keep their CRCs
+    if (!buzz_.empty()) {  // hashed only while a cloud lives, so battles without one keep their CRCs
         h.u32(static_cast<uint32_t>(buzz_.size()));
         for (const BuzzCloud& c : buzz_) {
             h.u32(c.serial);

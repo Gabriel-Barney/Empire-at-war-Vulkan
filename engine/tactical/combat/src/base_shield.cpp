@@ -1,4 +1,4 @@
-// tru1 t02: base shields (docs/re/TRU1_A_RE_ANSWERS.md A1 - A5).
+// base shields (legacy docs/re/TRU1_A_RE_ANSWERS.md A1 - A5).
 //
 // A BASE_SHIELD generator turns its shield on and off every 15 frames (Evaluate_State 0x56bb00 / Set_State 0x56b540).
 // An AFFECTED_BY_SHIELD unit that straddles the wall of an active hostile shield is "in the shield" (service 0x502f70,
@@ -6,13 +6,13 @@
 // Base_Shield_Speed_Modifier x speed (host) and does not target or fire. Hostile projectiles that cross an active
 // dome stop there and hit the generator with the dome mesh's name, which Take_Damage step 15a absorbs in full.
 //
-// [port] choices, each listed in docs/PHASE4.md:
+// [port] choices, each listed in legacy docs/PHASE4.md:
 // - the dome is the ellipsoid of horizontal semi-axis R and vertical semi-axis kDomeHeight x R around the generator
 //   (A5 measured NB_BASESHIELDGEN.ALO), tested from both sides ([L] in the RE);
 // - the first evaluation of a new generator runs at its first tick (state 0, no on-delay), not inside add_unit, so a
 //   generator and its power source spawned in either order start the battle in the same state;
 // - the unit bound radius is the model's horizontal half extents (else Custom_Hard extents, else the radius);
-// - not modelled: the penetration particle (a render particle at base_shield_contact, vis1 t08),
+// - not modelled: the penetration particle (a render particle at base_shield_contact),
 //   the idle nudge (a move order: host), the SHIELD_ON / OFF animation and its variant draw, the HUD / loop SFX.
 #include "combat_system_internal.hpp"
 
@@ -85,7 +85,7 @@ void CombatSystem::evaluate_base_shield(Unit& s, uint32_t frame) {
         return;
     s.bshield_state = next;
     s.bshield_upgraded = up;
-    bshield_sets_.push_back({s.id, on});  // r3h t06: SHIELD_ON / SHIELD_OFF for the host (item 6)
+    bshield_sets_.push_back({s.id, on});  // SHIELD_ON / SHIELD_OFF for the host (item 6)
 }
 
 bool CombatSystem::dome_segment(const Unit& s, Vec3 a, Vec3 b, float& t) const {
@@ -234,7 +234,7 @@ void CombatSystem::service_base_shields(uint32_t frame) {
 }
 
 void CombatSystem::clear_removed_base_shields() {
-    // tru3 t04: signal 0x28 of a removed generator (handler 0x5026e0 -> leave 0x502ce0) for every unit storing it.
+    // signal 0x28 of a removed generator (handler 0x5026e0 -> leave 0x502ce0) for every unit storing it.
     for (Unit& u : units_) {
         if (u.bshield_in == kNoObject || find(u.bshield_in) >= 0) continue;
         u.bshield_in = kNoObject;

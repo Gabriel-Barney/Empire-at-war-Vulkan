@@ -1,4 +1,4 @@
-// alamo_ui_draw - command-bar shell models on the GPU (P2 stage 2, docs/re/UI.md §1.1 step 6, §2.2): the .alo
+// alamo_ui_draw - command-bar shell models on the GPU (P2 stage 2, legacy docs/re/UI.md §1.1 step 6, §2.2): the .alo
 // shells of a ShellSet (hud_shell.hpp) uploaded through render::Renderer and drawn at the HUD's ShellModels step
 // with the shell ortho camera (hud_ortho_view(canvas, kHudCameraShells)) through Renderer::draw - no engine/render
 // change. Each shell instance = translation by HudLayout::shell_offset (model origin -> its anchored canvas corner),

@@ -21,21 +21,21 @@ add_library(alamo_tactical_movement STATIC
   src/formation.cpp
   src/unit_params.cpp
   src/movement_system.cpp
-  src/movement_system_part2.cpp  # bo3 t03: split by position, shared code in movement_system_internal.hpp
+  src/movement_system_part2.cpp  # split by position, shared code in movement_system_internal.hpp
   src/movement_system_part3.cpp
   src/hyperspace.cpp  # L1 systems
   src/corridor.cpp            # REMAINING_GAPS 4.1
   src/special_locomotors.cpp  # REMAINING_GAPS 4.3-4.7 (pure rules)
   src/special_system.cpp      # REMAINING_GAPS 4.3-4.7 (MovementSystem integration)
-  src/deploy_system.cpp       # S8 t11: Walk locomotor deploy states (MOVEMENT 3.2)
+  src/deploy_system.cpp       # Walk locomotor deploy states (MOVEMENT 3.2)
   src/fighter.cpp             # FIGHTER_FLYING 1-5 (fighter primitives and cell grids)
-  src/fighter_formation.cpp   # s78f t02: fighter formation block stacks (FIGHTER_FLYING 4.11)
+  src/fighter_formation.cpp   # fighter formation block stacks (FIGHTER_FLYING 4.11)
   src/space_avoid.cpp         # SPACE_AVOIDANCE: avoidance tree members + precise model test (FighterAvoidFn rules)
   src/movement_save.cpp       # N1 stage 2: save / load of the battle movement state
-  src/fleet_placement.cpp     # cu8l t03: campaign space fleet placement layout (CU8K_T03_T08_T09_RE 1)
-  src/land_team.cpp           # s78n t03: land squad containers walk their own path, members steer to slots (MOVEMENT 3.7)
-  src/path_around.cpp         # s78n t20: relation code, swept box, ring search, the dynamic pathfinder's graph search (MOVEMENT 1.5.1)
-  src/attack_approach.cpp     # s78n t25.1: attack approach geometry: arc slots, rings, slot leg, fire trim (MOVEMENT 4.3.2)
+  src/fleet_placement.cpp     # campaign space fleet placement layout (CU8K_T03_T08_T09_RE 1)
+  src/land_team.cpp           # land squad containers walk their own path, members steer to slots (MOVEMENT 3.7)
+  src/path_around.cpp         # relation code, swept box, ring search, the dynamic pathfinder's graph search (MOVEMENT 1.5.1)
+  src/attack_approach.cpp     # attack approach geometry: arc slots, rings, slot leg, fire trim (MOVEMENT 4.3.2)
 )
 add_library(alamo::tactical_movement ALIAS alamo_tactical_movement)
 target_include_directories(alamo_tactical_movement PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -49,7 +49,7 @@ endif()
 
 add_executable(alamo_tactical_movement_tests tests/test_movement.cpp)
 target_link_libraries(alamo_tactical_movement_tests PRIVATE alamo_tactical_movement Threads::Threads alamo_test_support)
-# REF2 t07: test_land_tail_stages reads the stage table of docs/re/MOVEMENT.md §3.3.
+# test_land_tail_stages reads the stage table of docs/re/MOVEMENT.md §3.3.
 target_compile_definitions(alamo_tactical_movement_tests PRIVATE "ALAMO_DOCS_RE_DIR=\"${PROJECT_SOURCE_DIR}/docs/re\"")
 # Real-data tests (ALAMO_FOC_DATA): every shipped land / space map through the VFS.
 if("vfs" IN_LIST ALAMO_ENGINE_MODULES AND "terrain" IN_LIST ALAMO_ENGINE_MODULES)
@@ -83,7 +83,7 @@ add_executable(alamo_tactical_movement_b4_tests tests/test_movement_b4.cpp)
 target_link_libraries(alamo_tactical_movement_b4_tests PRIVATE alamo_tactical_movement Threads::Threads alamo_test_support)
 add_test(NAME alamo_tactical_movement_b4_tests COMMAND alamo_tactical_movement_b4_tests)
 set_tests_properties(alamo_tactical_movement_b4_tests PROPERTIES TIMEOUT 300)
-# s78n t25.1 (t20 batch 5): the attack approach geometry on land (MOVEMENT §4.3.2 items 2-4, 6, 7); s78n t25.2: the attack
+# s78n t25.1 (t20 batch 5): the attack approach geometry on land (MOVEMENT §4.3.2 items 2-4, 6, 7); the attack
 # block in MovementSystem (slots, attack plan, re-plan, solo rule).
 add_executable(alamo_tactical_movement_b5_tests tests/test_movement_b5.cpp)
 target_link_libraries(alamo_tactical_movement_b5_tests PRIVATE alamo_tactical_movement Threads::Threads alamo_test_support)
@@ -108,7 +108,7 @@ set_tests_properties(alamo_tactical_movement_bkm_tests PROPERTIES TIMEOUT 300)
 add_executable(alamo_tactical_movement_mcx4_tests tests/test_movement_mcx4.cpp)
 target_link_libraries(alamo_tactical_movement_mcx4_tests PRIVATE alamo_tactical_movement alamo_data alamo_test_support)
 add_test(NAME alamo_tactical_movement_mcx4_tests COMMAND alamo_tactical_movement_mcx4_tests)
-# s78n t26.1: walking while deployed (MOVEMENT 3.2.1), the move order's skip of deployed manual deployers (6.2).
+# walking while deployed (MOVEMENT 3.2.1), the move order's skip of deployed manual deployers (6.2).
 add_executable(alamo_tactical_movement_t26_tests tests/test_movement_t26.cpp)
 target_link_libraries(alamo_tactical_movement_t26_tests PRIVATE alamo_tactical_movement alamo_test_support)
 add_test(NAME alamo_tactical_movement_t26_tests COMMAND alamo_tactical_movement_t26_tests)
@@ -120,7 +120,7 @@ target_link_libraries(alamo_tactical_hyperspace_tests PRIVATE alamo_tactical_mov
 add_test(NAME alamo_tactical_hyperspace_tests COMMAND alamo_tactical_hyperspace_tests)
 set_tests_properties(alamo_tactical_hyperspace_tests PROPERTIES TIMEOUT 120)
 
-# cu8l t03: the campaign space fleet placement layout (fleet_placement.hpp): lists, grid / ring / row offsets, members.
+# the campaign space fleet placement layout (fleet_placement.hpp): lists, grid / ring / row offsets, members.
 add_executable(alamo_tactical_fleet_placement_tests tests/test_fleet_placement.cpp)
 target_link_libraries(alamo_tactical_fleet_placement_tests PRIVATE alamo_tactical_movement alamo_test_support)
 add_test(NAME alamo_tactical_fleet_placement_tests COMMAND alamo_tactical_fleet_placement_tests)

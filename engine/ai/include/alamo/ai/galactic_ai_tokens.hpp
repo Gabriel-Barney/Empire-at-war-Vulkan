@@ -1,9 +1,9 @@
-// Galactic AI: perception tokens read from the S3 GalacticSim (docs/re/AI_GALACTIC_TOKENS.md, AI_GALACTIC_2 §4;
+// Galactic AI: perception tokens read from the S3 GalacticSim (legacy docs/re/AI_GALACTIC_TOKENS.md, AI_GALACTIC_2 §4;
 // roadmap A2 stage 2).
 //
 // Every leaf follows the recovered rule of its evaluator (planet 0x65f7b0, planet force 0x6dcb70, galactic
 // player 0x66b9f0 / player 0x6e09c0, galactic game 0x66e380 / game 0x6e2170 / game force 0x6e3d40):
-//   * Leaf caches [H] (AI_GALACTIC_TOKENS §9.9, q6 t18): one cache per token node = (AI player's perception system,
+//   * Leaf caches [H] (AI_GALACTIC_TOKENS §9.9): one cache per token node = (AI player's perception system,
 //     evaluator instance = target planet / player / game, token path); an entry is keyed by the parameter set only
 //     (compared by value, order-free; Parameter_Category of the force leaves as its mask); Self is the system's player,
 //     Target / Enemy / Human are NOT in the key, so the contrast helper 0x5f2430, the equations, the normalisers and the
@@ -42,7 +42,7 @@
 
 #include "alamo/ai/galactic_perception.hpp"
 #include "alamo/ai/perception_equations.hpp"
-#include "alamo/ai/pp_marshallers.hpp"  // ref5 t05: PpContrastEntry and the shared contrast arithmetic
+#include "alamo/ai/pp_marshallers.hpp"  // PpContrastEntry and the shared contrast arithmetic
 #include "alamo/core/galaxy.hpp"
 
 namespace alamo {
@@ -104,7 +104,7 @@ struct GalacticAiTypeInfo {
     // Starting_Spawned_Units_Tech_0..5 (list order, repeated tags appended): the "per-tech members" a fleet unit, starbase or
     // ground structure adds to the force totals (AI_GALACTIC_TOKENS §2; 0x373f40 / 0x373e30 / 0x373d30).
     std::array<std::vector<SpawnMember>, kSpawnTechSlots> spawn_tech;
-    // mcx8 t07: planet types' Potential_Indigenous_Power ("Type, power" entries, repeated tags appended; type +0x20C8, 0x18-byte
+    // planet types' Potential_Indigenous_Power ("Type, power" entries, repeated tags appended; type +0x20C8, 0x18-byte
     // entries: type +8, power +0x10), read by Target.HasIndigenousUnits (AI_GALACTIC_TOKENS §1). `count` = the power.
     std::vector<SpawnMember> indigenous_power;
     // (terrain, restrictions, population: GalacticSim's A2 galactic queries / TypeInfo)
@@ -113,7 +113,7 @@ struct GalacticAiTypeInfo {
 
 // GameObjectCategoryType name -> bits; 0 if unknown. `categories` = the loaded enum (GameObjectTypes::enums(), so a mod's
 // renumbered / renamed categories resolve as the game resolves them); null = the vanilla FoC table (objects::EnumRegistry
-// fallback); a discarded converter converts nothing (0, OBJECT_TYPES §9.1, A2k t06). Vanilla data loads an enum equal to
+// fallback); a discarded converter converts nothing (0, OBJECT_TYPES §9.1). Vanilla data loads an enum equal to
 // that table.
 uint64_t ai_category_bit(std::string_view name, const objects::EnumConverter* categories = nullptr);
 // Fills category_mask of every entry from its category names (same enum rule).
@@ -163,11 +163,11 @@ double galactic_ai_enemy_strength(const galactic::GalacticSim& sim, std::span<co
                                   PlanetIndex planet, int32_t self, bool space, uint64_t mask,
                                   const objects::EnumConverter* categories = nullptr,
                                   const GalacticSimTokenResolver* leaves = nullptr);
-// A2k t02: the hull fraction 0x396df0 a PotentialPlan's P = AI_Combat_Power x hull uses (A2K_T02_RE_ANSWERS Q2(b)) [H]:
+// the hull fraction 0x396df0 a PotentialPlan's P = AI_Combat_Power x hull uses (A2K_T02_RE_ANSWERS Q2(b)) [H]:
 // health / the type's Tactical_Health; 1.0 when the type has no maximum or the stored health is not > 0 ([port] an
 // untyped store keeps health 0).
 double galactic_ai_hull_fraction(float health, float max_health);
-// a2m t09 (A2M_T08_T10_T14_RE.md t08) [H]: the AI clock leaves. spf = FrameSynchronizer +0x24 = 1.0f / (float)FPS, a
+// a2m t09 (legacy docs/re/A2M_T08_T10_T14_RE.md t08) [H]: the AI clock leaves. spf = FrameSynchronizer +0x24 = 1.0f / (float)FPS, a
 // float (0.033333335f). Game.Age (0x6e1f20) = (double)frame x (double)spf, one double multiply.
 // TimeSinceCorruptionChange (0x65f110) = (double)(float)((float)(uint32)(frame - stamp) x spf): the 32-bit difference is
 // converted as an unsigned value to float, multiplied in float, then widened. TimeSinceConversion / GroundConflict /
@@ -177,7 +177,7 @@ inline constexpr float kAiSecondsPerFrame = 1.0f / 30.0f;
 double galactic_ai_game_age(int32_t frame);
 double galactic_ai_time_since_corruption_change(int32_t frame, int32_t stamp);
 double galactic_ai_time_since_stamp(int32_t frame, int32_t stamp);
-// One entry of the PotentialPlan Contrast requirement list (0x5f1990); ref5 t05: the shape tactical shares (pp_marshallers.hpp).
+// One entry of the PotentialPlan Contrast requirement list (0x5f1990); the shape tactical shares (pp_marshallers.hpp).
 using GalacticContrastEntry = PpContrastEntry;
 // 0x5f1990 (AI_GALACTIC_TOKENS §9.2 layer order, AI_GALACTIC_2 Contrast Setup A) [H]: entry 0 = the ground total (0x5f2430
 // flag 1, mask 0), entry 1 = the space total (flag 0), then one row per `row_masks` entry for ground, then one per entry for
@@ -299,7 +299,7 @@ public:
 
     // Once per frame before evaluating: event stamps (signals 0x12 / 0x14 / 0x1A, corruption), neighbour lists.
     // `logic_frame` = the global logic frame (FrameSynchronizer +0, the host frame; it keeps counting while a battle
-    // runs), the clock of the player TimeSince*er tokens; < 0 = `frame`. q6 t03: the player conflict stamps (signals 0x11 /
+    // runs), the clock of the player TimeSince*er tokens; < 0 = `frame`. The player conflict stamps (signals 0x11 /
     // 0x13 of AI_GALACTIC_TOKENS §8.2) are taken after it by observe_conflicts.
     void refresh(int32_t frame, int64_t logic_frame = -1);
     void set_s2(const TokenResolver* s2) { s2_ = s2; }
@@ -346,7 +346,7 @@ public:
 
     bool resolve(const EvalContext& ctx, const TokenRef& token, double& out) const override;
     bool implements(Root root, std::span<const TokenId> path, const TokenTable& tokens) const override;
-    // mcx0 t05 (docs/MOD_COMPAT_DESIGN.md §9.4): the token path registry. path_registered: the root-relative, upper-case
+    // mcx0 t05 (docs/MODS.md "AI token coverage"): the token path registry. path_registered: the root-relative, upper-case
     // path ("ENEMYFORCE.SPACETOTAL", "HOMEPLANET.TYPE.TOKEN") is one a handler evaluates on that root; implements() and
     // the load report's ai.token_coverage use it (no sim needed). registered_paths: every listed path (player paths
     // under Root::Self, target / force paths under Root::Target).
@@ -379,7 +379,7 @@ public:
     // A load is a restore: it raises no visibility signal (the original refreshes every object at a load) [port].
     void write(ByteWriter& w) const;
     bool read(ByteReader& r);
-    // REF4 t02: the CRC of the saved state (GalacticAiWorld::hash adds it last): the fields write() saves after the version,
+    // the CRC of the saved state (GalacticAiWorld::hash adds it last): the fields write() saves after the version,
     // through the same list (visit_saved), the hit counter left out.
     void hash(StateHasher& h) const;
 

@@ -1,4 +1,4 @@
-// Corridor squeeze: formation path narrowing (docs/re/REMAINING_GAPS.md §4.1, 0x412210; MOVEMENT.md §4.3).
+// Corridor squeeze: formation path narrowing (legacy docs/re/REMAINING_GAPS.md §4.1, 0x412210; MOVEMENT.md §4.3).
 //
 // Runs once per land formation after its shape and path are known. Inputs: the formation path (world XY), the full
 // width W (world units, = 2 x half-width +0x254; 0 -> 20 x the cell width of the shape rule, the caller's job), the

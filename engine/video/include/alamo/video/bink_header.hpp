@@ -1,5 +1,5 @@
 // alamo_video - the Bink container header, read by the port itself (no FFmpeg) so that a movie the decoder cannot play
-// is named before FFmpeg's "not a Bink file" (mcx2 t05 / t08, docs/MOD_COMPAT_DESIGN.md 10.3).
+// is named before FFmpeg's "not a Bink file" (docs/MODS.md "Asset salvage and GUI fallback").
 //
 // Layout (little-endian u32 after the 4-byte signature): 'BIK' + revision letter (Bink 1, 'b'..'k') or 'KB2' +
 // revision (Bink 2); +4 file size - 8, +8 frame count, +12 largest frame bytes, +20 width, +24 height, +28 fps

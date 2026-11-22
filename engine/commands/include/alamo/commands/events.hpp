@@ -1,7 +1,7 @@
 // G0-3 event bus: results of commands (accepted / rejected with a reason) and a generic sim-event
 // channel, delivered to subscribers in a deterministic order.
 //
-// The original reports nothing back: an invalid command is a silent no-op at execution (COMMANDS.md
+// The original reports nothing back: an invalid command is a silent no-op at execution (legacy docs/re/COMMANDS.md
 // §6.2). CommandResult is a port DIAGNOSTIC channel (UI feedback, logs, tests) - sim code must never
 // branch on it, and it is never recorded.
 //

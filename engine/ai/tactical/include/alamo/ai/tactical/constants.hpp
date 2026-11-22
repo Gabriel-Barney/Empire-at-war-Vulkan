@@ -1,4 +1,4 @@
-// A1 - shared constants of the tactical AI (docs/re/AI_TACTICAL.md 3.2, 3.4, 6.3).
+// A1 - shared constants of the tactical AI (legacy docs/re/AI_TACTICAL.md 3.2, 3.4, 6.3).
 #pragma once
 #include <cstdint>
 
@@ -24,7 +24,7 @@ struct TacticalAiConstants {
     float high_threat_tolerance = 5000.0f;         // High_Threat_Reachability_Tolerance (+0x1584)
     float space_threat_decay_step = 0.05f;         // AI_SpaceThreatDecayStep (+0x10fc), DAMAGE_TRACKING decay
 
-    // Threat grid / perception (docs/re/AI_TACTICAL_PERCEPTION.md 3.3, 4). Defaults = shipped values;
+    // Threat grid / perception (legacy docs/re/AI_TACTICAL_PERCEPTION.md 3.3, 4). Defaults = shipped values;
     // the range caps are not in the shipped XML (constructor defaults 0x2c91c0).
     int32_t fog_cells_per_threat_cell = 4;         // AI_FogCellsPerThreatCell (+0x10f8)
     float desired_land_fow_cell_size = 15.0f;      // DesiredLandFOWCellSize (+0x11c0)
@@ -37,7 +37,7 @@ struct TacticalAiConstants {
     float land_threat_range_cap = 500.0f;          // AI_LandThreatRangeCap (+0x1108)
     bool ai_uses_fow_space = false;                // AIUsesFogOfWarSpace (+0x2ed), shipped False
     bool ai_uses_fow_land = false;                 // AIUsesFogOfWarLand (+0x2ee), shipped False
-    // A2 tactical (docs/re/AI_GALACTIC_3.md §3.1, §8): free-store eligibility and the tactical population caps.
+    // A2 tactical (legacy docs/re/AI_GALACTIC_3.md §3.1, §8): free-store eligibility and the tactical population caps.
     float health_low_percent_threshold = 0.33f;    // Health_Low_Percent_Threshold (+0x11B38)
     int32_t max_ground_forces_on_planet = 10;      // Max_Ground_Forces_On_Planet (+0x10C8)
     float allow_reinforcement_percentage = 0.0f;   // Allow_Reinforcement_Percentage_Normalized (+0x10CC)
@@ -45,7 +45,7 @@ struct TacticalAiConstants {
     bool use_reinforcement_points = true;          // Use_Reinforcement_Points (+0x118a0), True in FoC and TR
     // refixf t06 (TACTICAL_GAPS §4.2 space drop validity): the occupancy sweep length behind a space drop point.
     float space_reinforcement_collision_check_distance = 200.0f;  // Space_Reinforcement_Collision_Check_Distance (FoC 200, TR 150)
-    // A2g t06: the global factor of 0x371230 without a planet (0x140b15920; GALACTIC_ECONOMY §2.3 T0 [H]), read by the
+    // the global factor of 0x371230 without a planet (0x140b15920; GALACTIC_ECONOMY §2.3 T0 [H]), read by the
     // tactical AllowedTime base 0x6c0450 (tactical_nominal_time). Vanilla 1.0.
     float production_speed_factor = 1.0f;          // Production_Speed_Factor (+0x120)
 

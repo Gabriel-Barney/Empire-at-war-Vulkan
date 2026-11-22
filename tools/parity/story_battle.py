@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Story-mission battle trace reader (roadmap story t04; docs/re/STORY_T04_KESSEL_RUN.md). Standard library only.
+"""Story-mission battle trace reader (legacy docs/re/STORY_T04_KESSEL_RUN.md). Standard library only.
 
   story_battle.py <run dir | trace.q2t> [--port-trace port.q2t] [--json out.json]
 
@@ -9,7 +9,7 @@ prints what a hands-off battle does: players, object census by owner at battle f
 battle-frame window. With --port-trace (an `alamo_headless --economy --galactic-ai --story --battles fight --trace-out`
 state trace of the same campaign) it adds the port's draws over the same windows, battle frame k = the k-th host tick
 after the first one with a tactical mode on top. The port's galactic state trace holds no battle objects, so only the
-draws and the battle's start and end compare (STORY_T04_KESSEL_RUN.md §4).
+draws and the battle's start and end compare (legacy docs/re/STORY_T04_KESSEL_RUN.md §4).
 """
 import argparse
 import collections

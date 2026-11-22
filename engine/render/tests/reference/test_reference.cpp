@@ -7,7 +7,7 @@
 //     reference model (tolerance 2/255).
 //   Data (ALAMO_FOC_DATA = FoC "corruption" folder): the real FXOs for the GPU comparison; the
 //     Royal Guard (and Dark Trooper if present) skinned against the Phase 1 glTF export
-//     (docs/formats/examples) on the CPU, and rendered for silhouette IoU against the reference
+//     (extracted/format_examples, local) on the CPU, and rendered for silhouette IoU against the reference
 //     PNGs -> logs/reference/<name>_<frame>.png.
 #include <algorithm>
 #include <array>
@@ -41,7 +41,7 @@
 #include "alamo/vfs/vfs.hpp"
 #include "alamo/test/support.hpp"
 #include "alamo/render/test/gpu.hpp"
-#include "renderer_core.hpp"  // REF3 t07: RendererCore inspection points (src/, target alamo_render_internal)
+#include "renderer_core.hpp"  // RendererCore inspection points (src/, target alamo_render_internal)
 #include "ff_reference.hpp"
 #include "gltf.hpp"
 #include "png_decode.hpp"
@@ -80,7 +80,7 @@ void test_reference_model() {
     CHECK(std::fabs(out[3] - 0.5 * 0.5) < 1e-9);  // alpha: 0.5 * 0.5 + 0 * 0.5
 }
 
-// alPrimVert: RENDER.md 1.4 dynamic FVF buffers (XYZ|DIFFUSE|TEX1 24 B, XYZ|NORMAL|DIFFUSE|TEX1 36 B).
+// alPrimVert: legacy docs/re/RENDER.md 1.4 dynamic FVF buffers (XYZ|DIFFUSE|TEX1 24 B, XYZ|NORMAL|DIFFUSE|TEX1 36 B).
 void test_prim_vertex_layout() {
     const materials::VertexLayoutDesc a = materials::vertex_layout_desc(materials::VertexLayout::PrimVert);
     CHECK(a.stride == 24 && a.attributes.size() == 3);
@@ -536,7 +536,7 @@ struct SkinFrame {
     const char* model;
     const char* anim;      // nullptr = bind
     int frame;
-    const char* ref_png;   // docs/formats/examples/...
+    const char* ref_png;   // extracted/format_examples/...
     bool gltf;             // compare positions against EI_ROYALGAURD.gltf (bind + its animation)
 };
 
@@ -626,7 +626,7 @@ double silhouette_iou(const Mask& ref, const Mask& ours) {
 }
 
 void run_skinning(Gpu* g, const vfs::Vfs& files) {
-    const std::string examples = kSrcDir + "/docs/formats/examples/";
+    const std::string examples = kSrcDir + "/extracted/format_examples/";
     Gltf gltf;
     std::string err;
     const bool have_gltf = gltf.load(examples + "EI_ROYALGAURD.gltf", &err);
@@ -653,7 +653,7 @@ void run_skinning(Gpu* g, const vfs::Vfs& files) {
         if (!rr->init(g->ctx, g->alloc, g->up, rd)) rr.reset();
     }
     std::map<std::string, render::GpuModel> uploaded;
-    std::filesystem::create_directories(kSrcDir + "/logs/reference");
+    std::filesystem::create_directories(::alamo::test::artifact_dir() + "/reference");
 
     for (const SkinFrame& f : frames) {
         const auto model = cache.model(f.model);
@@ -784,7 +784,7 @@ void run_skinning(Gpu* g, const vfs::Vfs& files) {
             o.destroy(*g);
         }
         std::printf("\n");
-        const std::string png = kSrcDir + "/logs/reference/" + f.model + "_" + f.label + ".png";
+        const std::string png = ::alamo::test::artifact_dir() + "/reference/" + f.model + "_" + f.label + ".png";
         CHECK(render::write_png_rgba(png, 3 * W, H, composite));
         std::printf("    wrote %s\n", png.c_str());
     }

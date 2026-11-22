@@ -1,6 +1,6 @@
 // galab (owner: galactic agent): the galactic abilities of roadmap group GALAB - Remove_Corruption_Ability,
 // Planet_Destruction_Ability (Death Star), Siphon_Credits_Ability, the planet owner bonuses Galaxy_Wide_Upgrade_Ability and
-// Reduce_Technology_Price_Ability, Political_Transition_Bonus_Ability, Neutralize_Hero_Ability and Hero_Protection_Ability. Behaviour: docs/re/GALAB_ABILITIES_RE.md (= GA).
+// Reduce_Technology_Price_Ability, Political_Transition_Bonus_Ability, Neutralize_Hero_Ability and Hero_Protection_Ability. Behaviour: legacy docs/re/GALAB_ABILITIES_RE.md (= GA).
 // Tables: special_data.hpp (SpecialRules::galab); the hero trigger walk is GalacticSim::ground_activated_trigger.
 #include <algorithm>
 
@@ -517,7 +517,7 @@ bool GalacticSim::neutralize_do(int32_t player, PlanetIndex planet, ObjectHandle
     }
     const int32_t target_owner = c.siphon ? p.siphon_player : store_->owner(target);
     const uint32_t counted = c.siphon ? p.siphon_type : static_cast<uint32_t>(store_->type(target));  // the real type
-    // storyb t14: the "neutralized" object signal (Galactic_Neutralized_Event) is raised before the despawn, while the
+    // the "neutralized" object signal (Galactic_Neutralized_Event) is raised before the despawn, while the
     // neutralizer is still on the map; the siphon entry counts without it [GAME_SCORING §3 lists the object signal only].
     if (!c.siphon && scoring_hooks_.neutralized) scoring_hooks_.neutralized(counted, neutralizer);
     if (!c.siphon) {

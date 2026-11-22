@@ -2,7 +2,7 @@
 // top of it (InputState: held / pressed / released, clicks, double clicks, drags, wheel) and rebindable
 // actions (Bindings).
 //
-// MAIN_LOOP.md step 3: window messages are pumped once per loop iteration, BEFORE any tick, so the host
+// legacy docs/re/MAIN_LOOP.md step 3: window messages are pumped once per loop iteration, BEFORE any tick, so the host
 // calls capture (window_input.hpp) once right after rhi::Window::pump(), then
 // InputState::update(), then the camera controllers and the OrderTranslator. Nothing here touches the
 // sim: orders leave as commands::EventData (orders.hpp).
@@ -64,7 +64,7 @@ struct InputFrame {
 
 // Thresholds. MinimumDragDistance (GameConstants, 4.0) is taken as pixels [port: unit not in the docs];
 // the double-click window is the Windows default 500 ms / 4 px [port].
-// Press-time double clicks (ButtonState::double_press) follow the Win32 WM_xBUTTONDBLCLK rule (P1_DOUBLE_CLICK_MOVE.md
+// Press-time double clicks (ButtonState::double_press) follow the Win32 WM_xBUTTONDBLCLK rule (legacy docs/re/P1_DOUBLE_CLICK_MOVE.md
 // §1.1): the second press of the same button within double_click_time of the first press and inside a
 // double_click_rect_w x double_click_rect_h rectangle centred on it (SM_CXDOUBLECLK / SM_CYDOUBLECLK, default 4 x 4).
 struct InputConfig {
@@ -97,7 +97,7 @@ struct ButtonState {
     int32_t dx = 0, dy = 0;   // mouse motion this frame while held
     // Win32 double click (WM_xBUTTONDBLCLK): this press is the second of a pair (press-time rule, InputConfig). A third
     // press starts a new pair. in_double_press stays set while that press is held and on its release (the release the
-    // original swallows: P1_DOUBLE_CLICK_MOVE.md §1.1), cleared by the next press.
+    // original swallows: legacy docs/re/P1_DOUBLE_CLICK_MOVE.md §1.1), cleared by the next press.
     bool double_press = false;
     bool in_double_press = false;
     // internal
@@ -162,11 +162,11 @@ struct KeyBinding {
     friend bool operator==(const KeyBinding&, const KeyBinding&) = default;
 };
 
-// Up to two bindings per action. Defaults = the default hotkey table (UI.md §4.3) through
+// Up to two bindings per action. Defaults = the default hotkey table (legacy docs/re/UI.md §4.3) through
 // HotkeyTable::apply_to_bindings: W A S D scroll with any modifier [port: Gabriel], arrows yaw / pitch and Numpad 4 / 6
 // roll, = / - zoom, Pause [port: Gabriel], End resets, Ctrl+Y select all (W A S D only move the camera), H stop (S
 // scrolls), digits recall control groups (Ctrl+digit assigns, Ctrl+Shift+digit adds: OrderTranslator reads the mods).
-// Modifier rule (P1_CAMERA_INPUT.md §6): kModNone matches only with Shift / Ctrl / Alt all up, a modified binding when
+// Modifier rule (legacy docs/re/P1_CAMERA_INPUT.md §6): kModNone matches only with Shift / Ctrl / Alt all up, a modified binding when
 // its modifiers are held (others ignored). The queue modifier (default Shift) [port: Gabriel] makes a right-click order
 // queued (orders.hpp).
 class Bindings {

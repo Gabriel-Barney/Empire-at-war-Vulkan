@@ -1,4 +1,4 @@
-// docs/re/GALACTIC_REVEAL_CORRUPTION.md (GRC) §2 on GalacticSim (declared in campaign.hpp): planet visibility masks.
+// legacy docs/re/GALACTIC_REVEAL_CORRUPTION.md (GRC) §2 on GalacticSim (declared in campaign.hpp): planet visibility masks.
 // The per-(planet, player) modifier lists PD +0x1B8 (stored entries: Ground_Activated spies, story
 // SET_PLANET_VISIBILITY_LEVEL, host adds; upsert by key, expiry in the planet service), the OR fold, and the derived
 // sources (baseline 0x3fa490, presence 0x3fd080, always-on System_Spy_Ability).
@@ -87,7 +87,7 @@ bool parse_visibility_level(std::string_view text, uint32_t* out) {
 
 uint32_t faction_default_visibility(std::string_view faction_name) {
     // GRC 2.3 baseline: "Rebel" 0x11, "Empire" 0, "Underworld" 0x11, other 0.
-    // [name-ok: retail by-name default in 0x3fa490, docs/re/GALACTIC_REVEAL_CORRUPTION.md "Baseline"]
+    // [name-ok: retail by-name default in 0x3fa490, legacy docs/re/GALACTIC_REVEAL_CORRUPTION.md "Baseline"]
     if (ascii_iequals(faction_name, "Rebel") || ascii_iequals(faction_name, "Underworld")) return kVisGoodDefault;
     return kVisEvilDefault;
 }

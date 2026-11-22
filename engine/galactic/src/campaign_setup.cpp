@@ -14,7 +14,7 @@ namespace {
 
 }  // namespace
 
-// mcx4 t01 / t07: the campaign rule fields MCX4_RE_ANSWERS_GALACTIC Q1 / Q7.4 / Q7.6 settle (campaign.hpp).
+// the campaign rule fields MCX4_RE_ANSWERS_GALACTIC Q1 / Q7.4 / Q7.6 settle (campaign.hpp).
 void read_campaign_rule_fields(const data::CampaignDef& c, const GalacticRules& rules, GalacticSetup& s,
                                std::vector<std::string>* diagnostics) {
     // mcx4 t01 (MCX4_RE_ANSWERS_GALACTIC Q1): Special_Case_Production "Faction, Planet, Type"; the faction is not read.
@@ -95,12 +95,12 @@ GalacticSetup build_campaign_setup(const data::GameDatabase& db, const GalacticR
     // REMAINING_GAPS 3.3 [inferred, probe 2026-10-29]: a Hostile player, so tactical maps' native objects (Hostile /
     // Sarlacc / Hutts owners) survive the battle's owner lookup. Retail campaigns hold a player per faction at its
     // faction index; Hostile's own entry was not logged. It takes no galactic part: no AI (no AI_Player_Control),
-    // no credits, not playable (income, victory and the Holocron skip it), owns nothing. modc t03: that faction by data
+    // no credits, not playable (income, victory and the Holocron skip it), owns nothing. That faction by data
     // (GalacticRules::native_owner_faction; FoC: Hostile), not by name.
     const uint32_t hostile = rules.native_owner_faction();
     if (hostile != kNoIndex) used[hostile] = 1;
     const std::vector<uint8_t> named = used;  // the campaign's own factions (+ Neutral, Hostile)
-    // bkc1 t03 (docs/re/BKC1_RE_ANSWERS.md Q2 [H], Create_Default_Players 0x293390): a campaign has no required-player
+    // bkc1 t03 (legacy docs/re/BKC1_RE_ANSWERS.md Q2 [H], Create_Default_Players 0x293390): a campaign has no required-player
     // list, so retail creates one player for EVERY faction of the faction table, in table order, with no Is_Playable /
     // Is_Neutral filter: player index = faction index (FoC: 0 Rebel, 1 Empire, 2 Pirates, 3 Neutral, 4 Hostile, 5 Sarlacc,
     // 6 Underworld, 7 Hutts; the UM01 trace has 8 players, human Underworld at 6). The factions the campaign names only
@@ -132,14 +132,14 @@ GalacticSetup build_campaign_setup(const data::GameDatabase& db, const GalacticR
         if (fields.size() < 2) continue;
         const uint32_t f = rules.find_faction(fields[0]);
         if (f != kNoIndex && player_of[f] != kNoPlayer)
-            s.players[static_cast<size_t>(player_of[f])].credits = data::xml_values::float_or(data::trim(fields[1]), 0.0f);  // atof (mcx1 t02)
+            s.players[static_cast<size_t>(player_of[f])].credits = data::xml_values::float_or(data::trim(fields[1]), 0.0f);  // atof
     }
     for (const std::string& r : c->starting_tech_level) {
         const std::vector<std::string_view> fields = data::split_fields(r);
         if (fields.size() < 2) continue;
         const uint32_t f = rules.find_faction(fields[0]);
         if (f != kNoIndex && player_of[f] != kNoPlayer)
-            s.players[static_cast<size_t>(player_of[f])].tech_level = data::xml_values::int_or(data::trim(fields[1]), 1);  // atoi (mcx1 t02)
+            s.players[static_cast<size_t>(player_of[f])].tech_level = data::xml_values::int_or(data::trim(fields[1]), 1);  // atoi
     }
     for (const std::string& r : c->max_tech_level) {  // REMAINING_GAPS 1.4 (0x4af2d0)
         const std::vector<std::string_view> fields = data::split_fields(r);
@@ -155,7 +155,7 @@ GalacticSetup build_campaign_setup(const data::GameDatabase& db, const GalacticR
         if (f != kNoIndex && player_of[f] != kNoPlayer && s.players[static_cast<size_t>(player_of[f])].home == kInvalidPlanet)
             s.players[static_cast<size_t>(player_of[f])].home = p;
     }
-    // GRC 0: campaign default true. mcx1 t02 / t03: bool code 0x0 ("1" or a first Y / T), the last occurrence wins
+    // GRC 0: campaign default true. Bool code 0x0 ("1" or a first Y / T), the last occurrence wins
     // (MCX1_RE_ANSWERS Q1 / Q2; raw_values holds no empty or TBD value).
     for (std::string_view v : c->raw_values("Planet_Auto_Reveal")) s.planet_auto_reveal = data::xml_values::to_bool(v);
     for (const std::string& r : c->starting_forces) {
@@ -171,7 +171,7 @@ GalacticSetup build_campaign_setup(const data::GameDatabase& db, const GalacticR
         s.forces.push_back({player_of[f], p, t});
     }
     read_campaign_rule_fields(*c, rules, s, diagnostics);  // mcx4 t01 / t07
-    // q6 t22: the victory conditions; the Human_ list goes to the human's faction (Starting_Active_Player, or the
+    // the victory conditions; the Human_ list goes to the human's faction (Starting_Active_Player, or the
     // faction the player picked).
     s.victory = load_victory_rules(db, campaign, s.map, nullptr, human);  // diagnostics: not collected (as before)
     return s;

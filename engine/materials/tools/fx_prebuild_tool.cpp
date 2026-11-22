@@ -1,5 +1,5 @@
 // alamo_fx_prebuild - compiles every effect source (`<name>.fx`) a game + mod set ships into the FxCache, so
-// the loader takes it in place of the `.fxo` like the original (roadmap modc t23, docs/MODS.md 4.1).
+// the loader takes it in place of the `.fxo` like the original (docs/MODS.md "Effects and shaders in mods").
 //
 //   alamo_fx_prebuild <FoC dir with Data\> [MODPATH=<dir>]... [FALLBACKPATH=<dir>]... [--fxc <fxc.exe>]
 //                     [--cache <dir>] [--force] [--json <file>|-]

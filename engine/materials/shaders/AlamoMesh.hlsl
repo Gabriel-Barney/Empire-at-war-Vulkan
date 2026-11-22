@@ -1,4 +1,4 @@
-// AlamoMesh ubershader: Mesh* / RSkin* / Tree (PORTING.md section 5). Reference: the lifted
+// AlamoMesh ubershader: Mesh* / RSkin* / Tree (legacy docs/shaders/PORTING.md section 5). Reference: the lifted
 // MESHBUMPCOLORIZE, RSKINBUMPCOLORIZE, MESHGLOSS, MESHGLOSSCOLORIZE, TREE, MESHADDITIVE code
 // in docs/shaders/shaders_decompiled.zip (best technique of each effect).
 //

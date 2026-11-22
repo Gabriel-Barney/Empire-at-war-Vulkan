@@ -151,7 +151,7 @@ bool ObjectTypeDatabase::load(const FileProvider& provider, std::vector<std::str
     }
 
     std::unordered_map<std::string, uint32_t> file_by_path;  // normalize_path -> files_ index (lookup only)
-    for (const data::ListedXmlEntry& entry : data::listed_xml_entries(list)) {  // cu5 t02: list order, duplicates kept
+    for (const data::ListedXmlEntry& entry : data::listed_xml_entries(list)) {  // list order, duplicates kept
         const std::string_view listed = entry.name;
         ++stats_.list_entries;
         const std::string& path = entry.path;
@@ -294,7 +294,7 @@ std::optional<std::string_view> ObjectTypeDatabase::get_text(TypeIndex t, std::s
     return fields_.text[f];
 }
 
-// mcx1 t02 (MCX1_RE_ANSWERS Q2, OBJECT_TYPES.md §4.5): retail's converters. A bool is "1" or a first letter Y / T, anything
+// mcx1 t02 (MCX1_RE_ANSWERS Q2, legacy docs/re/OBJECT_TYPES.md §4.5): retail's converters. A bool is "1" or a first letter Y / T, anything
 // else false; ints are C atoi (prefix, clamped), floats C atof (prefix, no number = 0). An empty or TBD value is no value.
 std::optional<bool> ObjectTypeDatabase::get_bool(TypeIndex t, std::string_view tag) const {
     const auto v = get_text(t, tag);

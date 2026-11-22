@@ -1,7 +1,7 @@
 # G0-3 - command/event pipeline: typed commands with a canonical binary format, a tick scheduler with a
 # deterministic drain order, an event bus, a recorder/replayer and a per-tick batch CRC hook.
-# Stage 2: the original's event catalogue (docs/re/COMMANDS.md). The bit-packed network wire codec and the lockstep /
-# network scheduler paths were removed in CU7 (2026-11-07): multiplayer is out of scope (docs/DECISIONS.md).
+# Stage 2: the original's event catalogue (legacy docs/re/COMMANDS.md). The bit-packed network wire codec and the lockstep /
+# network scheduler paths were removed in CU7 (2026-11-07): multiplayer is out of scope (docs/DECISIONS.md "Multiplayer code removed").
 add_library(alamo_commands STATIC
   src/event_types.cpp
   src/command.cpp

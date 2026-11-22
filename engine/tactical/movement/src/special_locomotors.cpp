@@ -120,7 +120,7 @@ float bike_lean(float lean, int32_t turn_anim, float rate, float bank) {
     return std::clamp(lean, -bank, bank);
 }
 
-// ---------------------------------------------------------------- FLYING_LOCOMOTOR (FIGHTER_FLYING.md §6)
+// ---------------------------------------------------------------- FLYING_LOCOMOTOR (legacy docs/re/FIGHTER_FLYING.md §6)
 // The §1.1 / §1.2 primitives (k, the tiny-angle sin / cos, s(x), wrap, angles) are the fighter ones (fighter.hpp).
 namespace {
 constexpr float kFlyDegToRad = kFighterDegToRad;  // k (§1.1)

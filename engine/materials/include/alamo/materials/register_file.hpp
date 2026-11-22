@@ -1,4 +1,4 @@
-// CTAB-driven D3D9 register-file fill for translated SM1-3 shaders (PORTING.md 1, interface
+// CTAB-driven D3D9 register-file fill for translated SM1-3 shaders (legacy docs/shaders/PORTING.md 1, interface
 // convention): what ID3DXEffect::CommitChanges did. Build a plan once per shader, then fill the
 // VSConstants / PSConstants image per draw.
 #pragma once

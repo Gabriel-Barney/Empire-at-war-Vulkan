@@ -2,7 +2,7 @@
 // generated from docs/re/lua_api.json (engine/lua/tools/gen_bindings.py -> src/binding_table.inc):
 // 143 globals + 323 wrapper methods.
 //
-// How the original exposes them (docs/re/LUA_API.md, "How the engine registers Lua bindings"), and
+// How the original exposes them (legacy docs/re/LUA_API.md, "How the engine registers Lua bindings"), and
 // how the port mirrors it:
 //   * every engine global is a userdata object (one C++ LuaUserVar subclass per function); calling it
 //     invokes its call operator. Here: a full userdata whose shared metatable (the global
@@ -26,7 +26,7 @@ namespace alamo::lua {
 
 enum class BindingKind : uint8_t { Global, Method };
 
-// What a binding does in the port compared with retail (docs/MOD_COMPAT_DESIGN.md §9.1, roadmap mcx0 t04), found from
+// What a binding does in the port compared with retail (docs/MODS.md "Binding effect ledger"), found from
 // the code by gen_bindings.py: Recorded = appends a PresentationOp (BindingInfo::consumer = the alamo_game file that
 // handles it, "" = none, "invisible: <reason>" = nothing to show by design); NoopRetail / NoopGap / Partial = an
 // annotation "binding-effect:" in engine/lua/src (consumer = its spec or reason); Full = everything else.
@@ -40,7 +40,7 @@ struct BindingInfo {
     uint32_t calls;    // call sites in the RE corpora (vanilla FoC + TR 3.3), for prioritising
     BindingEffect effect = BindingEffect::Full;
     const char* consumer = "";  // see BindingEffect
-    // ref5 t04: the bridge hooks the binding reads, "Struct.hook" space separated (Struct = ObjectBridge,
+    // the bridge hooks the binding reads, "Struct.hook" space separated (Struct = ObjectBridge,
     // RemainingScriptHooks or TacticalScriptHooks), found from the code by gen_bindings.py; "" = none.
     const char* hooks = "";
 };
@@ -51,7 +51,7 @@ bool binding_effect_gap(const BindingInfo& b);
 // The generated table: globals sorted by name, then methods sorted by (class, name).
 std::span<const BindingInfo> binding_table();
 
-// ref5 t04: every hook of the three hook structs between the bindings and the sim (generated: src/bridge_hooks.inc), with
+// every hook of the three hook structs between the bindings and the sim (generated: src/bridge_hooks.inc), with
 // an is-set test; `hooks` points at a struct of type `bridge`.
 class ObjectBridge;
 struct RemainingScriptHooks;
@@ -75,7 +75,7 @@ std::vector<std::string> unwired_full_binding_hooks(const BridgeHookSets& sets);
 
 // Host-set value globals (see above).
 bool is_host_value_global(std::string_view name);
-// mcx8 t12: table globals the exe does not register (lua_api.json "registered": false; Declare_Goal_Type). The VM
+// table globals the exe does not register (lua_api.json "registered": false; Declare_Goal_Type). The VM
 // leaves them nil, as retail; their row counts as implemented (the retail behaviour - nil - is what the port does).
 bool is_unregistered_global(std::string_view name);
 // True when the port implements this binding (the rest are "unbound" stubs).

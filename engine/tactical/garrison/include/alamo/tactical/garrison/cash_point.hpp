@@ -1,5 +1,5 @@
-// mcx4 t05 - cash points: CASH_POINT objects (MARKERS.XML Cash_Point_Small / _Medium / _Large) pay credits to the player
-// that holds them in a land battle. Spec: docs/re/MCX4_RE_ANSWERS_TACTICAL.md §5 (CASH_POINT service 0x621370) [H unless
+// cash points: CASH_POINT objects (MARKERS.XML Cash_Point_Small / _Medium / _Large) pay credits to the player
+// that holds them in a land battle. Spec: legacy docs/re/MCX4_RE_ANSWERS_TACTICAL.md §5 (CASH_POINT service 0x621370) [H unless
 // tagged]. Per point, every service, with n = the frames since the last service and FPS = 30:
 //   1. Controller scan: players in list order; a player counts when one of its influencers (host-filtered: a battle
 //      object of that player, alive, not garrisoned, type Influences_Cash_Point) lies within the XY Cash_Point_Radius of

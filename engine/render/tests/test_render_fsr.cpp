@@ -208,7 +208,7 @@ bool save_crop(const std::string& path, const std::vector<uint8_t>& img, uint32_
     return render::write_png_rgba(path, cw * k, ch * k, out);
 }
 
-void land_map(Gpu& g, const std::string& src_dir, const char* root) {
+void land_map(Gpu& g, [[maybe_unused]] const std::string& src_dir, const char* root) {
     vfs::VfsConfig cfg;
     cfg.foc_root = root;
     std::string err;
@@ -303,9 +303,9 @@ void land_map(Gpu& g, const std::string& src_dir, const char* root) {
                         ++timed[pass];
                     }
                 }
-                CHECK(save_png(src_dir + "/logs/render_" + names[pass] + ".png", last[pass], W, H));
-                CHECK(save_crop(src_dir + "/logs/render_" + names[pass] + "_crop.png", last[pass], W, 0, 0, 240, 135, 4));
-                CHECK(save_crop(src_dir + "/logs/render_" + names[pass] + "_crop2.png", last[pass], W, 800, 380, 200, 140, 4));
+                CHECK(save_png(::alamo::test::artifact_dir() + "/render_" + names[pass] + ".png", last[pass], W, H));
+                CHECK(save_crop(::alamo::test::artifact_dir() + "/render_" + names[pass] + "_crop.png", last[pass], W, 0, 0, 240, 135, 4));
+                CHECK(save_crop(::alamo::test::artifact_dir() + "/render_" + names[pass] + "_crop2.png", last[pass], W, 800, 380, 200, 140, 4));
             }
             CHECK(rw[0] == W && rh[0] == H && rw[1] == 853 && rh[1] == 480 && rw[2] == 640 && rh[2] == 360);
             for (int pass = 0; pass < 3; ++pass) {
@@ -466,7 +466,7 @@ int run_gpu(const std::string& src_dir) {
 
 int main() {
     test_cpu();
-    run_gpu(ALAMO_RENDER_SOURCE_DIR);
+    if (run_gpu(ALAMO_RENDER_SOURCE_DIR) != 0) ++g_fail;  // a GPU failure (e.g. no context with validation required)
     std::printf("%s (%d failures)\n", g_fail ? "FAILED" : "PASSED", g_fail);
     return g_fail ? 1 : 0;
 }

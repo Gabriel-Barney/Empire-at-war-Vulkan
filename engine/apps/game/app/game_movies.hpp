@@ -53,12 +53,12 @@ public:
     // the game mode is paused from the movie's start to its stop.
     bool pauses_game() const { return pause_game_; }
     bool halt_music() const { return halt_music_; }
-    // ui5 t02 / t12 (AUDIO.md §3.4): the open movie's Movies.xml captions, stepped by update() on the movie's frame
+    // ui5 t02 / t12 (legacy docs/re/AUDIO.md §3.4): the open movie's Movies.xml captions, stepped by update() on the movie's frame
     // clock. `shows` is the text check (false for a missing text or "[TBL]"; unset: every caption shows). caption() is the
     // text id on screen now ("" = none); drawing it, and only with the subtitles option on, is the host's.
     void set_caption_filter(std::function<bool(std::string_view)> shows) { caption_shows_ = std::move(shows); }
     std::string_view caption() const;
-    // storyb t13: the open movie's Movies.xml Text_Crawl_Name ("" = none) and the movie frame counted from its
+    // the open movie's Movies.xml Text_Crawl_Name ("" = none) and the movie frame counted from its
     // Text_Crawl_Start_Frame (-1 before that frame, or without a crawl).
     const std::string& text_crawl() const { return crawl_name_; }
     int32_t text_crawl_frame() const;
@@ -74,7 +74,7 @@ private:
     bool alpha_ = false;
     bool cannot_skip_ = false;
     bool has_credits_ = false, halt_music_ = false;
-    bool pause_game_ = false;  // mcx4 t14: Pause_Game_While_Playing
+    bool pause_game_ = false;  // Pause_Game_While_Playing
     bool music_started_ = false;                    // this slot told the audio host a movie began (stop() ends it)
     GameAudioHost* audio_ = nullptr;                // valid between open() and stop()
     struct Cue {

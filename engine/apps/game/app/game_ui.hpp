@@ -50,7 +50,7 @@ public:
     ui::GuiManager gui;
     ui::GuiImagePages pages;
     // GUI image pages served from memory instead of the data files, by the name the dialog asked for (the staging map
-    // preview's embedded image, UI.md 9.6); upload_pages checks it before the asset cache.
+    // preview's embedded image, legacy docs/re/UI.md 9.6); upload_pages checks it before the asset cache.
     std::map<std::string, std::shared_ptr<const assets::TextureAsset>> memory_textures;
     ui::FrontEnd front;
     ui::LoadScreen load;

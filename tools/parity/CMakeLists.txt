@@ -1,9 +1,9 @@
-# Q4 parity harness (tools/parity/README.md, roadmap q4h).
+# Q4 parity harness (legacy tools/parity/README.md, roadmap q4h).
 #   parity_harness_selftest           synthetic fixtures, no game data (fast tier)
 #   parity_harness_<scenario>         the Q2 reference runs against an alamo_headless run of the same scenario, checked
 #                                     against baseline.json: fails only when a metric that passed in the baseline fails
 #                                     now. Skips (exit 77) without ALAMO_FOC_DATA or the reference runs. Label slow.
-#   parity_harness_<scenario>_seeds   distribution mode (parity tier 2, docs/DECISIONS.md "Parity tiers"): the port over
+#   parity_harness_<scenario>_seeds   distribution mode (parity tier 2, docs/SIMULATION.md "Parity tiers"): the port over
 #                                     10 seeds against every retail run, per-metric means and spreads, checked against
 #                                     baseline_seeds.json the same way. Own output folder (out_seeds). Label slow.
 find_program(ALAMO_PARITY_PYTHON NAMES python PATHS ${CMAKE_SOURCE_DIR}/toolchain/venv/Scripts NO_DEFAULT_PATH)
@@ -14,7 +14,7 @@ endif()
 set(_parity ${CMAKE_CURRENT_SOURCE_DIR}/parity_harness.py)
 add_test(NAME parity_harness_selftest COMMAND ${ALAMO_PARITY_PYTHON} -I ${_parity} selftest)
 set_tests_properties(parity_harness_selftest PROPERTIES TIMEOUT 60)
-# bkc1 t08 (backlog b0027): the galactic auto-resolve against the retail battles of autoresolve_refs.json, over 200 seeds
+# the galactic auto-resolve against the retail battles of autoresolve_refs.json, over 200 seeds
 # (autoresolve_check.py; its selftest needs no data). Skips (77) without ALAMO_FOC_DATA.
 add_test(NAME parity_autoresolve_selftest COMMAND ${ALAMO_PARITY_PYTHON} -I ${CMAKE_CURRENT_SOURCE_DIR}/autoresolve_check.py selftest)
 set_tests_properties(parity_autoresolve_selftest PROPERTIES TIMEOUT 60)

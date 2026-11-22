@@ -1,4 +1,4 @@
-// Audio event player, following docs/re/AUDIO.md (section numbers in comments). See audio_system.hpp.
+// Audio event player, following legacy docs/re/AUDIO.md (section numbers in comments). See audio_system.hpp.
 #include "alamo/audio/audio_system.hpp"
 
 #include <algorithm>
@@ -608,7 +608,7 @@ VoiceParams AudioSystem::voice_params(const Instance& in) const {
     g *= in.fade_in_level;
     if (in.type == 3 && !in.audible) g = 0.0f;  // visibility factor
     if (in.is3d()) g *= scale_3d_ * (attract_ ? 0.0f : 1.0f);
-    // §1.6 / §3.2 ducking (+ movie streams): the cap applies to the voice gain the game hands Miles; aud2 t06: the 3D
+    // §1.6 / §3.2 ducking (+ movie streams): the cap applies to the voice gain the game hands Miles; the 3D
     // distance attenuation (Miles' own rolloff in the original) comes on top of the capped gain.
     if (ducking_active() && !modal_dialog_) g = std::min(g, cfg_.speech_duck_cap);
     if (in.is3d()) {
@@ -716,7 +716,7 @@ std::string AudioSystem::pick_sample(Instance& in, int stage) {
 // Starts stage 3 (pre), 5 (primary) or 7 (post). false = no voice (the cycle's rest is skipped).
 bool AudioSystem::start_stage(Instance& in, int stage) {
     const std::string sample = pick_sample(in, stage);
-    // §1.7 / §5 (b0282): the sample is loaded before a voice is taken; a missing / undecodable one skips the stage
+    // §1.7 / §5: the sample is loaded before a voice is taken; a missing / undecodable one skips the stage
     // without taking, stealing or counting a voice (the wait state sees no voice and moves on).
     const SampleRef ref{in.is3d() ? Bus::Sfx3D : Bus::Sfx2D, sample};
     if (!backend_->load(ref)) {
@@ -894,7 +894,7 @@ void AudioSystem::update_sfx(int64_t dt_us) {
             if (in.state == 0 || in.owner == 0) continue;
             if (auto o = object_query_(in.owner)) {
                 in.pos = o->position;
-                // §1.6 (b0280): a cinematic skips only the fog test; hidden / stealthed / garrisoned objects stay muted.
+                // §1.6: a cinematic skips only the fog test; hidden / stealthed / garrisoned objects stay muted.
                 in.audible = !o->hidden && (o->audible || cinematic_);
             }
         }
@@ -1070,7 +1070,7 @@ void AudioSystem::resume_music() {
 }
 
 void AudioSystem::update_music(int64_t dt_us) {
-    if (music_pause_ > 0) return;  // aud2 t04: the paused manager does not update (§2.3)
+    if (music_pause_ > 0) return;  // the paused manager does not update (§2.3)
     const double secs = static_cast<double>(dt_us) / kUsPerSecond;
     // Playlist manager (§2.2): 1 start file -> 2 playing -> 3 ended.
     for (int guard = 0; guard < 4 && !music_queue_.empty(); ++guard) {
@@ -1131,7 +1131,7 @@ void AudioSystem::resume_mode_based_music(bool force) {
 void AudioSystem::notify_combat(bool involves_local_player) {
     if (!involves_local_player) return;
     peace_ticks_ = 0;
-    // aud1 t06 (AUDIO.md §9.2, 0x28f020): the unforced battle switch refuses in modes 7, 8 (TSW), 11 (splash), 12 (Lua
+    // aud1 t06 (legacy docs/re/AUDIO.md §9.2, 0x28f020): the unforced battle switch refuses in modes 7, 8 (TSW), 11 (splash), 12 (Lua
     // Play_Music), 13 (front end) and during the attract demo; mode 16 (battle end) is not excluded. The peace counter is
     // reset either way.
     if (music_mode_ == music_mode::kTacticalBattle || music_mode_ == music_mode::kSuperWeapon || music_mode_ == music_mode::kSplash ||

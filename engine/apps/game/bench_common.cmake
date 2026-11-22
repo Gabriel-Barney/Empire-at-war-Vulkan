@@ -1,4 +1,4 @@
-# Shared by bench_check.cmake and bench_scenario_check.cmake (cu9 t10).
+# Shared by bench_check.cmake and bench_scenario_check.cmake.
 
 # ${out_var} = the report's top-level `key` (string(JSON GET); a missing key is an error).
 function(json_field report key out_var)

@@ -67,12 +67,12 @@ bool load_common(GameData& out, std::string* err) {
         out.catalog = std::make_unique<sim::BattleCatalog>(out.types, out.files.get(), &out.db.constants(), &diag);
         return true;
     });
-    load_faction_skirmish_data(out);  // q6 t08: no stage of its own (the Q5 stage list stays as it was)
+    load_faction_skirmish_data(out);  // no stage of its own (the Q5 stage list stays as it was)
     return true;
 }
 
 void load_faction_skirmish_data(GameData& out) {
-    out.skirmish_forces = load_skirmish_forces(out.rules.factions);  // cu5 t01: the galactic rules' faction parse
+    out.skirmish_forces = load_skirmish_forces(out.rules.factions);  // the galactic rules' faction parse
 #ifdef ALAMO_GAME_HAVE_GALACTIC_AI
     out.basic_ai = ai::load_faction_basic_ai(out.rules.factions);
 #endif
@@ -126,7 +126,7 @@ bool load_game_data(const std::string& root, const std::vector<std::string>& arg
             ts->defs = &a->defs;
             ts->equations = &a->equations;
             ts->files = out.files.get();
-            sim::load_tactical_ai_data(*ts, *out.files, &out.db.constants(), lister);  // a2h t05: plans, difficulties, GameConstants
+            sim::load_tactical_ai_data(*ts, *out.files, &out.db.constants(), lister);  // plans, difficulties, GameConstants
             if (!ts->space_plans.empty() || !ts->land_plans.empty()) a->tactical = std::move(ts);
 #endif
             out.ai = std::move(a);
@@ -196,7 +196,7 @@ SkirmishSetup resolve_skirmish_factions(const galactic::GalacticRules& rules, Sk
     const auto known = [&rules](const std::string& f) { return !f.empty() && rules.find_faction(f) != galactic::kNoIndex; };
     if (!known(s.human_faction)) s.human_faction = default_skirmish_faction(rules, false);
     if (!known(s.ai_faction)) s.ai_faction = default_skirmish_faction(rules, true, s.human_faction);
-    for (SkirmishSetup::ExtraSlot& x : s.extra_slots)  // skm2 t02: an AI slot's default
+    for (SkirmishSetup::ExtraSlot& x : s.extra_slots)  // an AI slot's default
         if (!known(x.faction)) x.faction = default_skirmish_faction(rules, true, s.human_faction);
     return s;
 }
@@ -233,7 +233,7 @@ bool make_skirmish_galaxy(const GameData& data, const SkirmishSetup& setup, gala
                         std::string(human.faction == galactic::kNoIndex ? "human" : "AI") + " slot";
         return false;
     }
-    // skm2 t02: the extra slots' AI players (slot k = player k), as the AI slot.
+    // the extra slots' AI players (slot k = player k), as the AI slot.
     const int32_t slots = skirmish_slot_count(s);
     std::vector<galactic::PlayerSetup> extras;
     for (int32_t k = 2; k < slots; ++k) {
@@ -250,14 +250,14 @@ bool make_skirmish_galaxy(const GameData& data, const SkirmishSetup& setup, gala
     }
     uint32_t planet = galactic::kNoIndex;
     if (!s.planet_type.empty()) planet = rules.find_type(s.planet_type);
-    if (planet == galactic::kNoIndex) planet = skirmish_galaxy_planet(rules, {}, s.land);  // modc t19: from the data
+    if (planet == galactic::kNoIndex) planet = skirmish_galaxy_planet(rules, {}, s.land);  // from the data
     if (planet == galactic::kNoIndex) {
         if (err) *err = "skirmish: no planet type";
         return false;
     }
     GalaxyMap& m = g.map;
     m.campaign_name = "Alamo_Skirmish";
-    const uint32_t planets = 3u + static_cast<uint32_t>(extras.size());  // skm2 t02: one more per extra slot
+    const uint32_t planets = 3u + static_cast<uint32_t>(extras.size());  // one more per extra slot
     for (uint32_t i = 0; i < planets; ++i) {
         m.planets.add(std::string("ALAMO_SKIRMISH_P") + std::to_string(i));
         m.planets.position[i] = {static_cast<float>(i) * 60.0f, 0.0f, 0.0f};
@@ -276,7 +276,7 @@ bool make_skirmish_galaxy(const GameData& data, const SkirmishSetup& setup, gala
     // S10 map owners [probe 2026-10-29]: retail skirmish has Neutral and Hostile players besides the slots; map objects
     // resolve their owner by faction (TacticalBattle::bt_map_owner), natives without a player go to Hostile.
     galactic::PlayerSetup hostile;
-    hostile.faction = rules.native_owner_faction();  // modc t03: by data (FoC: Hostile)
+    hostile.faction = rules.native_owner_faction();  // by data (FoC: Hostile)
     bool hostile_slot = hostile.faction == human.faction || hostile.faction == ai.faction;
     for (const galactic::PlayerSetup& x : extras) hostile_slot = hostile_slot || hostile.faction == x.faction;
     if (hostile.faction != galactic::kNoIndex && !hostile_slot) g.players.push_back(hostile);
@@ -319,7 +319,7 @@ bool make_skirmish_galaxy(const GameData& data, const SkirmishSetup& setup, gala
         if (err) *err = "skirmish: no known unit type in the " + std::string(nh == 0 ? "human" : "AI") + " fleet";
         return false;
     }
-    // skm2 t02: each extra slot's forces on its own planet (its fleet in space, its ground forces on land), as the AI slot's.
+    // each extra slot's forces on its own planet (its fleet in space, its ground forces on land), as the AI slot's.
     for (int32_t k = 2; k < slots; ++k) {
         const SkirmishSetup::ExtraSlot& x = s.extra_slots[static_cast<size_t>(k - 2)];
         const uint32_t n = s.land ? add(k, skirmish_slot_planet(k), x.ground, x.faction, true) : add(k, skirmish_slot_planet(k), x.units, x.faction);
@@ -371,7 +371,7 @@ std::vector<std::string> skirmish_space_maps(const GameData& data) {
 namespace {
 constexpr std::string_view kOfficialDir = "DATA\\ART\\MAPS\\";
 
-// The header of one candidate through the normal lookup (UI.md 9.1 / 9.3).
+// The header of one candidate through the normal lookup (legacy docs/re/UI.md 9.1 / 9.3).
 SkirmishMapEntry read_map_entry(const FileProvider& files, const std::string& path) {
     SkirmishMapEntry e;
     e.path = path;
@@ -394,7 +394,7 @@ SkirmishMapEntry read_map_entry(const FileProvider& files, const std::string& pa
     e.players = terrain::find_mini(md.info.raw, 0x02) ? md.info.counts[0] : 1u;
     e.custom = md.info.flag_0b == 1;
     e.name_key = md.info.name_key;
-    e.mode_tag = md.info.text_0a;  // UI.md 9.3: stored upper-cased
+    e.mode_tag = md.info.text_0a;  // legacy docs/re/UI.md 9.3: stored upper-cased
     std::transform(e.mode_tag.begin(), e.mode_tag.end(), e.mode_tag.begin(),
                    [](char c) { return c >= 'a' && c <= 'z' ? static_cast<char>(c - 'a' + 'A') : c; });
     return e;
@@ -423,7 +423,7 @@ SkirmishMapPreview read_skirmish_map_preview(const FileProvider& files, std::str
         for (uint32_t i = 0; i < n; ++i) {
             float xy[2];
             std::memcpy(xy, k.payload.data() + 4 + 8 * static_cast<size_t>(i), 8);
-            // UI.md 9.6.1: space maps are first shifted by half the world size (centred on the origin), land maps not
+            // legacy docs/re/UI.md 9.6.1: space maps are first shifted by half the world size (centred on the origin), land maps not
             // (origin at the lower-left corner); fx = x / width, fy = y / height, each clamped to 0..1; image y = 1 - fy.
             const float fx = space ? (xy[0] + w * 0.5f) / w : xy[0] / w, fy = space ? (xy[1] + h * 0.5f) / h : xy[1] / h;
             pv.starts.emplace_back(std::clamp(fx, 0.0f, 1.0f), 1.0f - std::clamp(fy, 0.0f, 1.0f));

@@ -1,4 +1,4 @@
-// Precompiled header shared by every engine target (roadmap bo1 t02): the standard headers most files include. Only
+// Precompiled header shared by every engine target: the standard headers most files include. Only
 // declarations; nothing here changes behaviour or the determinism flags.
 #pragma once
 #include <algorithm>

@@ -2,11 +2,11 @@
 // replayed into a scheduler. Together with the initial state + seed this reproduces the run exactly.
 //
 // The original's replay is the same idea: seed + settings + players + the scheduled command stream
-// (COMMANDS.md §7.3). AI/Lua orders are not in it: they run identically on replay.
+// (legacy docs/re/COMMANDS.md §7.3). AI/Lua orders are not in it: they run identically on replay.
 //
 // STREAM FILE v2 (little-endian, no padding; v1 = stage-1 typed orders, no longer readable):
 //   u8[4] magic "ACMD" | u16 version (= kWireVersion) | u16 flags (0, or kStreamFromSave)
-//   u32 delay | u8 max_players (bits 0-7) | u8 late_policy | u8 mode | u8 max_players bits 8-15 (mcx5 t01; was reserved 0)
+//   u32 delay | u8 max_players (bits 0-7) | u8 late_policy | u8 mode | u8 max_players bits 8-15 (was reserved 0)
 //   | u32 turn | u32 max_ahead
 //     (late_policy / mode / turn / max_ahead: retired lockstep bytes, always 0 / 0 / 1 / 2 - scheduler.hpp)
 //   u64 seed | u64 first_tick | u64 end_tick (first tick NOT covered; 0 = unknown)

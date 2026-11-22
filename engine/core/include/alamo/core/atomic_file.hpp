@@ -1,4 +1,4 @@
-// Atomic whole-file replace for on-disk caches (CU2 t11: shaderxlat ShaderCache, materials FxCache,
+// Atomic whole-file replace for on-disk caches (shaderxlat ShaderCache, materials FxCache,
 // rhi PipelineCache). The data goes to a unique temp file beside the target, which is then renamed over
 // the target, so a reader sees the old file or the new one, never a partial write. Readers should use
 // read_host_file (file_provider.hpp): it opens with FILE_SHARE_DELETE, so it never blocks a replace.

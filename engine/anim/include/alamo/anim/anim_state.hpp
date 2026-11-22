@@ -1,4 +1,4 @@
-// R3 per-object animation state (docs/re/ANIM_PARTICLES.md §A.3-§A.8). Animation is SIMULATION state:
+// R3 per-object animation state (legacy docs/re/ANIM_PARTICLES.md §A.3-§A.8). Animation is SIMULATION state:
 // behaviours read the current clip / variant / frame / mode / crossfade (idle timing, flinch, weapon gate,
 // death removal, move-clip phase, Walk_Transition) and gameplay reads animated bone transforms. Everything
 // here is deterministic: fixed float sequences (no FMA, anim_math.hpp), RNG draws only through the SimRng
@@ -21,12 +21,12 @@
 //   pose       alHModel::vf15 0x12c7c0: bind / one clip / crossfade (+ overlay), nlerp with the retail fast
 //              inverse square root, local x parent world in bone order.
 //
-// PORT CHOICES ([port] = not settled by the RE, picked here and listed in docs/PHASE4.md R3 open items):
+// PORT CHOICES ([port] = not settled by the RE, picked here and listed in legacy docs/PHASE4.md R3 open items):
 //   * sim time is kept in double (frame / 30.0); dt = float(t - last) feeds the float frame advance;
 //   * crossfade blend modes 2/3 rescale `remaining` when a fade is running, then duration = blend;
 //   * an unbound clip (bone mismatch) poses as the bind pose; as the previous slot it is ignored;
 //   * the idle behaviour's first fidget timer is 0 (a fidget may play on the first idle service) unless the caller sets
-//     it (set_idle_timer: SimAnimation does at the IDLE attach, s78l t03).
+//     it (set_idle_timer: SimAnimation does at the IDLE attach).
 #pragma once
 #include <cstdint>
 #include <functional>
@@ -140,7 +140,7 @@ public:
     PlayResult switch_preserving_phase(ObjectId id, int32_t type, uint32_t index, bool loop, float blend, float speed, uint64_t frame);
     void set_frozen(ObjectId id, bool frozen);  // object +0x3a7: advance skipped [L]
     bool frozen(ObjectId id) const;
-    // Berserker ability active (§A.4 item 1, r3h t03): play() ignores Idle / Attack / Attack Idle requests while a
+    // Berserker ability active (§A.4 item 1): play() ignores Idle / Attack / Attack Idle requests while a
     // SpinMove runs short of its end (frame < count - 2 - speed) and otherwise turns them into SpinMove (speed 1, frame
     // 1, the request's index / loop / blend); other requests play unchanged (retail ends the ability first: the host's
     // job). The caller (the battle, from AbilitySystem::is_active(BERSERKER)) keeps the flag current.

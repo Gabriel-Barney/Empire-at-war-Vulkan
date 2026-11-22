@@ -1,4 +1,4 @@
-// alamo_render - scene lighting per docs/re/RENDER.md 2.2 / 2.3:
+// alamo_render - scene lighting per legacy docs/re/RENDER.md 2.2 / 2.3:
 //   * one directional "sun" (light 0) -> DIR_LIGHT_VEC_0 (world, towards the light),
 //     DIR_LIGHT_DIFFUSE_0 = colour x intensity, DIR_LIGHT_SPECULAR_0 = specular x 2 x intensity;
 //   * two fill lights + ambient folded into 3rd-order spherical harmonics:
@@ -36,7 +36,7 @@ struct Lighting {
     DirLight sun;                       // light 0
     DirLight fill[2];                   // lights 1, 2 (intensity 0 in space)
     assets::Float3 ambient{0, 0, 0};
-    // Scene post / clear values that come with an environment (TERRAIN_WATER_POST.md 5.2).
+    // Scene post / clear values that come with an environment (legacy docs/re/TERRAIN_WATER_POST.md 5.2).
     assets::Float3 clear_color{0.3f, 0.3f, 0.7f};
     assets::Float3 shadow_color{0.5f, 0.5f, 0.5f};
     float bloom_strength = 1.0f, bloom_cutoff = 0.9f, bloom_size = 0.25f;
@@ -50,12 +50,12 @@ struct Lighting {
     std::string skydome[2];
     float skydome_scale[2] = {1, 1};
     float skydome_angle[2][2] = {{0, 0}, {0, 0}};
-    // vis1 t01 (TERRAIN_WATER_POST 5.3 item 1, docs/re/WEATHER_VISUALS.md §2): the lightning flash of this frame, a white
+    // vis1 t01 (TERRAIN_WATER_POST 5.3 item 1, legacy docs/re/WEATHER_VISUALS.md §2): the lightning flash of this frame, a white
     // directional light added to the spherical harmonics (SPH_LIGHT_FILL and SPH_LIGHT_ALL) only; intensity 0 = no flash.
     // Set per frame by the battle host from render::LightningFlash; environments never set it.
     DirLight flash{{0, 0, 1}, {1, 1, 1}, {0, 0, 0}, 0.0f};
 
-    // Built-in defaults from TERRAIN_WATER_POST.md 5.4 (real first environment records):
+    // Built-in defaults from legacy docs/re/TERRAIN_WATER_POST.md 5.4 (real first environment records):
     //   space_default(): _MP_SPACE_KUAT "Environment 1" (sun (0.918,1,0.988) x 0.646 at yaw 217.1,
     //                    elev 12.5 deg, specular (0.455,0.667,0.796), ambient (0.027,0.051,0.055), fills off)
     //   land_default():  _MP_LAND_ENDOR "Sunrise_Clear" with its two fills.
@@ -63,7 +63,7 @@ struct Lighting {
     static Lighting space_default();
     static Lighting land_default();
     static Lighting engine_default();
-    // From a decoded TEE record; space = true zeroes the fill intensities (RENDER.md 1.2).
+    // From a decoded TEE record; space = true zeroes the fill intensities (legacy docs/re/RENDER.md 1.2).
     static Lighting from_environment(const Environment& e, bool space);
     // Set the sun from the space-environment angles (radians).
     void set_sun_angles(float yaw, float elevation);
@@ -87,7 +87,7 @@ void fill_frame_lights(const Lighting& l, materials::FrameCB& cb);
 // angle and about X by the second (TEE 1D/1F, 1E/20, degrees). The renderer adds the camera position.
 assets::Mat3x4 skydome_transform(const Lighting& l, int k);
 // The one scene fog state every draw path uses (hot set, FF, translated, terrain / post). Returns
-// l.fog_enabled; x / y = FOG_VALS = (1/(start-end), -end/(start-end)), or the RENDER.md 2.2 default
+// l.fog_enabled; x / y = FOG_VALS = (1/(start-end), -end/(start-end)), or the legacy docs/re/RENDER.md 2.2 default
 // (-0.0002, 3) when fog is off. Degenerate range (start == end, e.g. a TEE record with both 0): fog is
 // still on, as a STEP at that distance - clear up to end - w, fully fogged from `end` on, w =
 // max(kFogStepWidth, 1e-5 |end|) world units (the original's 1/(start-end) would be infinite).

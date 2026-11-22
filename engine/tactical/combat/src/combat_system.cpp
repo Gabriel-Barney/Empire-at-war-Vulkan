@@ -72,12 +72,12 @@ CombatSystem::CombatSystem(const CombatData& data, CombatConfig config, std::vec
 }
 
 void apply_game_constants(CombatConfig& c, const data::GameConstants& gc) {
-    c.low_health_threshold = gc.shared.health_low_percent_threshold.value_or(c.low_health_threshold);  // ref4 t06: GameConstants::shared
+    c.low_health_threshold = gc.shared.health_low_percent_threshold.value_or(c.low_health_threshold);  // GameConstants::shared
     c.turn_multiplier_space = gc.shared.object_max_speed_multiplier_space.value_or(c.turn_multiplier_space);  // S9 t05
     c.turn_multiplier_land = gc.shared.object_max_speed_multiplier_land.value_or(c.turn_multiplier_land);
     c.short_range_cutoff = gc.get_float("Melee_Cutoff_Range", c.short_range_cutoff);
     c.opportunity_recharge_cutoff = gc.get_float("Hardpoint_Recharge_Cutoff_For_Opportunity_Fire", c.opportunity_recharge_cutoff);
-    // cu8 t03: the remaining data-backed knobs (FoC: only Base_Shield_Vulnerability_Modifier 2.0f differs from the
+    // the remaining data-backed knobs (FoC: only Base_Shield_Vulnerability_Modifier 2.0f differs from the
     // defaults; AITestGameConstants changes the shield / energy ones).
     c.base_shield_vulnerability = gc.get_float("Base_Shield_Vulnerability_Modifier", c.base_shield_vulnerability);
     c.base_shield_delay_time = gc.get_float("Base_Shield_Delay_Time", c.base_shield_delay_time);  // tru1 t02
@@ -158,7 +158,7 @@ void CombatSystem::reserve(uint32_t units, uint32_t projectiles, uint32_t candid
     shot_events_.reserve(projectiles);  // OI fog
     effect_scratch_.reserve(units);     // OI abilities
     survivor_events_.reserve(16);
-    attack_events_.reserve(units);  // s78f t08: at most one signal 0x1E per unit and tick
+    attack_events_.reserve(units);  // at most one signal 0x1E per unit and tick
     leaders_.reserve(units);
     team_heads_.reserve(units);  // OI tactical
     team_members_.reserve(units);  // cu8f t04a
@@ -201,12 +201,12 @@ bool CombatSystem::add_unit(const UnitSpawn& s, uint32_t frame, SimRng& rng) {
     u.damage_team = s.team != 0 ? s.team : s.damage_team;  // s78g t06
     u.damage_parent = s.damage_parent;
     u.flags = s.flags & ~(kUnitDead | kUnitRemoved);
-    if (u.flags & kUnitInfected) u.infect_attached = 1;  // refix t02: spawned infected = the behaviour, no parameters
+    if (u.flags & kUnitInfected) u.infect_attached = 1;  // spawned infected = the behaviour, no parameters
     u.pos = s.position;
     u.last_pos = s.position;
     u.prev_pos = s.position;  // OI tactical
     u.facing = s.facing;
-    u.lob_tpitch = ud.turret_rest_pitch;  // s78f t04: the TURRET starts at Turret_Rest_Angle
+    u.lob_tpitch = ud.turret_rest_pitch;  // the TURRET starts at Turret_Rest_Angle
     u.lob_tyaw = ud.turret_rest_yaw;
     u.next_scan = frame;  // first scan due at once [L]
     u.mods.reserve(4);  // host / ability inserts stay allocation-free for the usual few entries
@@ -258,7 +258,7 @@ bool CombatSystem::add_unit(const UnitSpawn& s, uint32_t frame, SimRng& rng) {
         nu.weapon_pulses = ud.weapon_pulse_count;
     }
     if (ud.base_shield) {
-        // tru1 t02: BASE_SHIELD initialise vf9 0x56aca0 -> 0x4c2f90, interval 15 > 1: one synced Get_Int(0, 14) for the
+        // BASE_SHIELD initialise vf9 0x56aca0 -> 0x4c2f90, interval 15 > 1: one synced Get_Int(0, 14) for the
         // service phase (TACTICAL_GAPS §6.4). The first evaluation runs at the unit's first tick (base_shield.cpp).
         nu.bshield_next = frame + static_cast<uint32_t>(rng.range_int(0, 14));
     }
@@ -315,7 +315,7 @@ void CombatSystem::set_flag(ObjectId id, uint32_t flag, bool on) {
     Unit* u = unit(id);
     if (!u) return;
     flag &= ~(kUnitDead | kUnitRemoved);
-    if (flag & kUnitInfected) {  // refix t02: the flag mirrors the INFECTION behaviour (attach + active / suspended)
+    if (flag & kUnitInfected) {  // the flag mirrors the INFECTION behaviour (attach + active / suspended)
         flag &= ~kUnitInfected;
         if (on) {
             u->infect_attached = 1;
@@ -357,7 +357,7 @@ void CombatSystem::order_attack(ObjectId attacker, ObjectId target, int32_t hard
         w.ordered_target = target;
         w.ordered_hp = hardpoint;
         w.locked = 0;
-        w.aim_target = kNoObject;  // refixf t06: the order re-aims the hardpoints
+        w.aim_target = kNoObject;  // the order re-aims the hardpoints
         w.aim_hp = -1;
         w.auto_target = kNoObject;  // an order drops the auto target (0x565e50)
         w.auto_hp = -1;
@@ -406,7 +406,7 @@ void CombatSystem::clear_order(ObjectId attacker) {
     }
 }
 
-// ---- refixf t06: Attack_Move on an object (TACTICAL_COMBAT §2.8) ----
+// ---- Attack_Move on an object (TACTICAL_COMBAT §2.8) ----
 void CombatSystem::set_attack_goal(ObjectId attacker, ObjectId target, int32_t hardpoint) {
     if (Unit* u = unit(attacker)) {
         u->goal_target = target;
@@ -457,7 +457,7 @@ bool CombatSystem::order_attack_issue(ObjectId attacker, ObjectId target, int32_
     if (!u || !live(t)) return false;
     // C step 1: refusals.
     if (!is_enemy(u->owner, t->owner)) return false;
-    if ((t->flags & kUnitHeroClash) || !clash_allows(u->id, t->id)) return false;  // s78n t06: Set_Target / pairing
+    if ((t->flags & kUnitHeroClash) || !clash_allows(u->id, t->id)) return false;  // Set_Target / pairing
     if ((t->flags & kUnitStealthed) && !desc_of(*u).target_stealth_units && u->owner != t->owner) return false;
     if (t->flags & kUnitContained) return false;
     if (hover_refused(*u, *t)) return false;  // s78n t20 batch 2: the can-attack test 0x38d730 (MOVEMENT §5.3)
@@ -503,7 +503,7 @@ bool CombatSystem::inside_min_range(ObjectId attacker, ObjectId target) const {
     const Unit* a = unit(attacker);
     const Unit* t = unit(target);
     if (!a || !t) return false;
-    return min_range_hit(*t, a->pos, desc_of(*a).min_attack_distance);  // s78n t02: slot 46, not slot 43's E
+    return min_range_hit(*t, a->pos, desc_of(*a).min_attack_distance);  // slot 46, not slot 43's E
 }
 
 bool CombatSystem::inside_min_range_of(ObjectId attacker, ObjectId target, float r) const {
@@ -537,7 +537,7 @@ bool CombatSystem::has_grenade_weapon(ObjectId id) const {
 }
 
 bool CombatSystem::weapon_lob_reaches(ObjectId id, Vec3 from, Vec3 to) const {
-    // s78n t01: as lob_in_range (one pass at Max_Speed decides the yes / no, LOB_SOLVER §2.3).
+    // as lob_in_range (one pass at Max_Speed decides the yes / no, LOB_SOLVER §2.3).
     const Unit* u = unit(id);
     const ProjectileDesc* gw = u ? grenade_weapon(*u) : nullptr;
     if (!gw) return false;
@@ -713,7 +713,7 @@ float CombatSystem::hp_fraction(const Unit& u) const {
 }
 
 bool CombatSystem::hp_out(const Hardpoint& h) const {
-    // HARDPOINT_DISABLED.md §5: every gate tests (Is_Destroyable && health <= 0) || disabled.
+    // legacy docs/re/HARDPOINT_DISABLED.md §5: every gate tests (Is_Destroyable && health <= 0) || disabled.
     return h.destroyed || h.disabled || (data_->hardpoints[h.desc].destroyable && !(h.health > 0.0f));
 }
 
@@ -723,7 +723,7 @@ bool CombatSystem::hp_dead(const Hardpoint& h) const {
 
 int32_t CombatSystem::mesh_hardpoint(const Unit& v, Vec3 impact) const {
     // TACTICAL_COMBAT §2.9 Q1 steps 1 / 4 (port difference 1) [port]: retail names the render sub-object the precise model
-    // test struck and damages the hardpoint whose Collision_Mesh it is (refixf t07: hardpoint_by_mesh, when the host's
+    // test struck and damages the hardpoint whose Collision_Mesh it is (hardpoint_by_mesh, when the host's
     // precise test supplied the hit). Without a precise test (no model data / synthetic runs): the closest
     // (3D, first in list order on ties) hardpoint that is not (destroyable and dead) stands in, when its bone is within
     // CombatConfig::hardpoint_mesh_radius of the impact point; else no name (hull). A non-destroyable match routes to
@@ -814,7 +814,7 @@ void CombatSystem::set_system_online(Unit& v, uint32_t index, bool online, bool 
         }
         if (hd.kind == HardpointKind::ShieldGenerator && last) {
             // 0x549550 -> 0x549810(beh, obj, 0): pool 0, depletion frame := now unless the depleted lockout is already
-            // running, then the regen block +0x131 := 1 (HARDPOINT_DISABLED.md §9.2) [H].
+            // running, then the regen block +0x131 := 1 (legacy docs/re/HARDPOINT_DISABLED.md §9.2) [H].
             v.shield = 0.0f;
             if (!(v.shield_depleted &&
                   shield_lockout_active(frame, v.shield_depleted_frame, cfg_.fps, cfg_.depleted_shield_disable_time))) {
@@ -832,7 +832,7 @@ void CombatSystem::set_system_online(Unit& v, uint32_t index, bool online, bool 
         if (hd.kind == HardpointKind::ShieldGenerator) v.regen_blocked = 0;
         if (hooks_) hooks_->hardpoint_online(v.id, index, hd.kind, frame);
     }
-    // Tail, every call (HARDPOINT_DISABLED.md §4): allied players' special-weapon flag := online.
+    // Tail, every call (legacy docs/re/HARDPOINT_DISABLED.md §4): allied players' special-weapon flag := online.
     if (hd.allows_special_weapon_use) {
         const auto n = static_cast<int32_t>(sw_hp_enabled_.size());
         for (int32_t p = 0; p < n; ++p)
@@ -1072,7 +1072,7 @@ const CombatSystem::Unit* CombatSystem::team_head(const Unit& u) const {
 }
 
 CombatSystem::Unit* CombatSystem::team_head_of(uint32_t team) {
-    // s78h t06: team_head() for the team itself (no member needed): the container when it is a live combat unit, else
+    // team_head() for the team itself (no member needed): the container when it is a live combat unit, else
     // the live team_leader member (team_heads_, kept current by hand_over_team).
     if (team == 0) return nullptr;
     if (team <= static_cast<uint32_t>(kNoObject)) {
@@ -1087,7 +1087,7 @@ CombatSystem::Unit* CombatSystem::team_head_of(uint32_t team) {
 
 bool CombatSystem::targeting_idle(const Unit& u, uint32_t frame) const {
     // OI abilities: a stunned unit's targeting is suspended (0x647290); Requires_Base_Power units do not act without base
-    // power (0x632270). S7 t14: the jetpack suspends TARGETING; S8 t25: targeting suspended.
+    // power (0x632270). The jetpack suspends TARGETING; targeting suspended.
     const bool idle = u.stun_end > frame || (desc_of(u).requires_base_power && !has_base_power(u.owner));
     // s78n t06 (HERO_CLASH §3.1): a hero in a clash has TARGETING suspended (slot 9) while +0x3b4 is set.
     return idle || (u.flags & (kUnitWeaponsSuspended | kUnitTargetingSuspended | kUnitHeroClash | kUnitScriptNoFire |
@@ -1111,7 +1111,7 @@ float CombatSystem::team_mod_multiplier(uint32_t team, ModKind kind) const {
 }
 
 void CombatSystem::hand_over_team(const Unit& d) {
-    // s78f t07 / s78g t06: a dead team_leader hands the role to its team's first live member (ascending id), so the team
+    // a dead team_leader hands the role to its team's first live member (ascending id), so the team
     // keeps its head (TeamTargeting copy, Mod_Multiplier squad rule, team scoring) while any member lives. [port] The
     // original's head is the container, which outlives its members (TACTICAL_COMBAT §3.1.1 "Team targeting copies":
     // TeamTargeting runs on the container; A1_READINGS §29.6: a team counts until the container dies). So the hand-over
@@ -1216,7 +1216,7 @@ const CombatSystem::Unit* CombatSystem::stickiness_type_unit(const Unit& u) cons
 }
 
 float CombatSystem::time_to_dead(const Unit& t, uint32_t frame) const {
-    // cu8f t04a: 0x58ba40 [H] - health = the sum of max(0, health) of the destroyable hard points when the unit has any
+    // 0x58ba40 [H] - health = the sum of max(0, health) of the destroyable hard points when the unit has any
     // (destroyed ones count, at <= 0), else the hull; + shield (0x396420); / the damage rate; rate 0 -> 1e18. [port]
     // Every combat unit has DAMAGE_TRACKING (damage_rate: the 5 s window).
     const float rate = damage_rate(t, frame);
@@ -1234,7 +1234,7 @@ float CombatSystem::time_to_dead(const Unit& t, uint32_t frame) const {
 }
 
 bool CombatSystem::sticky(const Unit& u, const Unit& t, uint32_t frame) const {
-    // cu8f t04a: Is_Target_Sticky 0x569000 (CU8F_T04_T06_RE §1.2) [H]. Threshold = the owner's TD +0x158 (spawn 0.0); only
+    // Is_Target_Sticky 0x569000 (CU8F_T04_T06_RE §1.2) [H]. Threshold = the owner's TD +0x158 (spawn 0.0); only
     // a negative value is replaced by the type's Targeting_Stickiness_Time_Threshold, read now (a TEAM owner: its first
     // member's type; no member -> not sticky). Time to kill = the target's time-to-dead, or for a TEAM container target
     // the sum of its live members' (team order; none: 0). Sticky <=> time to kill <= threshold. Both halves are pure, so
@@ -1386,7 +1386,7 @@ uint16_t CombatSystem::aim_point_count(const Unit& t) const {
 bool CombatSystem::candidate_ok(const Unit& a, const Unit& t, float range) const {
     // Filters of section 2.3 (all must pass, so their order does not change the result; fog [4] is tested last
     // because it is the most expensive).
-    // 1 (s78n t05: kUnitIncognito is +0x3a1 & 0x10 too), 3 (s78n t06: +0x3b4 is kUnitHeroClash)
+    // 1 (kUnitIncognito is +0x3a1 & 0x10 too), 3 (+0x3b4 is kUnitHeroClash)
     if (t.flags & (kUnitSkipTargeting | kUnitIncognito | kUnitDead | kUnitContained | kUnitHeroClash)) return false;
     if (hover_refused(a, t)) return false;  // s78n t20 batch 2: a raised hover unit and a melee attacker (Scan_Player)
     const UnitDesc& ad = desc_of(a);
@@ -1397,7 +1397,7 @@ bool CombatSystem::candidate_ok(const Unit& a, const Unit& t, float range) const
         return false;  // 5
     if (ad.attack_category_restrictions & td.category_mask) return false;  // 6
     // 7: the attacker OR ITS SQUAD LEADER (OI tactical team targeting) has a non-hardpoint weapon or a weapon
-    // hardpoint allowed to fire at the target (S8 t08: Does_Weapon_State_Allow_Firing_At 0x384850 in full).
+    // hardpoint allowed to fire at the target (Does_Weapon_State_Allow_Firing_At 0x384850 in full).
     const Unit* head = team_head(a);
     auto has_weapon = [&](const Unit& s) {
         if (desc_of(s).weapon_projectile >= 0) return true;
@@ -1410,10 +1410,10 @@ bool CombatSystem::candidate_ok(const Unit& a, const Unit& t, float range) const
     // 45 "inside min range" (d <= Targeting_Min_Attack_Distance + E, types with a min distance only); E = the target's
     // footprint half-extent along the line of sight. OR the target is the container's (squad head's) current target
     // (team targeting, filter 9 [H]). S8 t04 (LOB_SOLVER §3.1): a grenade weapon's slot 44 is the lob solver alone (no R,
-    // E, FireRange modifier or LAND_OBSTACLE walk); slot 45 is unchanged. s78n t02: slot 45 is slot 46 in full
+    // E, FireRange modifier or LAND_OBSTACLE walk); slot 45 is unchanged. Slot 45 is slot 46 in full
     // (min_range_hit: its own E, no aim walk, the nearest-member retest), not slot 43's d / E.
     const ProjectileDesc* gw = grenade_weapon(a);
-    const Vec3 ap = scan_pos(a);  // s78n t03: a land team head tests from its container
+    const Vec3 ap = scan_pos(a);  // a land team head tests from its container
     float d = 0.0f, E = 0.0f;
     if (!gw) range_geometry(t, ap, d, E);  // OI tactical: + the LAND_OBSTACLE aim walk
     const bool head_target = head && current_target(head->id) == t.id;
@@ -1463,7 +1463,7 @@ void CombatSystem::gather(uint32_t index, QueryContext& ctx) {
     if (!unit_can_attack(u)) return;  // no TargetingBehavior work without a weapon
     // s78n t05 (HERO_CLASH §8.2, targeting services 0x634810 / 0x633ae0): an incognito unit (+0x3a1 & 0x10) does not
     // auto-acquire. [port] no scan is due, so the scan draws are not made either; an ordered target is kept (above).
-    if (u.flags & (kUnitIncognito | kUnitInLimbo)) return;  // STY1 t01: a limbo unit does not auto-acquire either
+    if (u.flags & (kUnitIncognito | kUnitInLimbo)) return;  // a limbo unit does not auto-acquire either
     u.scan_due = 1;
     const float range = fire_range(base_attack_range(u), mod_r(u, ModList::FireRange));
     // Current target kept when still valid and sticky or scored exactly 1.0 (section 2.1).
@@ -1473,7 +1473,7 @@ void CombatSystem::gather(uint32_t index, QueryContext& ctx) {
         if (cur_valid && (u.target_score == 1.0f || sticky(u, *cur, frame_))) return;
     }
     u.needs_scan = 1;
-    // S8 t17: Get_Scan_Range 0x566f50 (FIGHTER_FLYING §4.10 A) - R + Rr while the unit's formation answers 0x4160a0(F, u,
+    // Get_Scan_Range 0x566f50 (FIGHTER_FLYING §4.10 A) - R + Rr while the unit's formation answers 0x4160a0(F, u,
     // none) != 0, else R. cmb1 t03 (BKR1 Q8 [H]): on land a kUnitScanQuery unit (one with a formation, not deployed) whose
     // formation does not answer scans R only with a TURRET slot, else 0 (step 4) - and a cube <= 0 scans nothing, so a
     // still-valid current target is kept (the keep / switch step finds no other) and an invalid one is dropped.
@@ -1490,7 +1490,7 @@ void CombatSystem::gather(uint32_t index, QueryContext& ctx) {
         u.needs_scan = cur_valid ? 0 : 1;
         return;
     }
-    const Vec3 up = scan_pos(u);  // s78n t03: a land team scans around its container (§2.2 box centre)
+    const Vec3 up = scan_pos(u);  // a land team scans around its container (§2.2 box centre)
     const Aabb box{{up.x - half, up.y - half, up.z - half}, {up.x + half, up.y + half, up.z + half}};
     const auto np = static_cast<int32_t>(std::min<uint32_t>(player_count(), trees_->player_count()));
     for (int32_t p = 0; p < np; ++p) {
@@ -1522,14 +1522,14 @@ bool CombatSystem::clash_allows(ObjectId u, ObjectId x) const {
     const bool fb = b && (b->flags & kUnitHeroClash);
     if (!fa && !fb) return true;  // the callers only ask 0x39a540 when U or X has +0x3b4
     if (!fa || !fb) return false;
-    // 0x39a540: the first running clash involving U must also involve X (s78n t06; start order = the manager list).
+    // 0x39a540: the first running clash involving U must also involve X (start order = the manager list).
     for (const auto& [h1, h2] : clash_pairs_)
         if (h1 == u || h2 == u) return h1 == x || h2 == x;
     return false;  // flagged with no clash (the snap quirk, §3.8): nothing may act on it, it acts on nothing
 }
 
 bool CombatSystem::lock_holds(const Unit& u, const Unit& t) const {
-    // §2.8 B "while locked" [H]: dropped when the target is garrisoned, +0x3b4 (s78n t06), stealthed for an attacker
+    // §2.8 B "while locked" [H]: dropped when the target is garrisoned, +0x3b4, stealthed for an attacker
     // without Target_Stealth_Units, or hidden by fog for the attacker's player (0x35f470, force 1). Dying / dead: live().
     if (t.flags & (kUnitContained | kUnitHeroClash)) return false;
     if ((t.flags & kUnitStealthed) && !desc_of(u).target_stealth_units) return false;
@@ -1546,22 +1546,22 @@ bool CombatSystem::promote_goal(Unit& u) {
         return false;
     }
     if (t == &u || !is_enemy(u.owner, t->owner)) return false;  // hostile to the unit's owner (relation table == 1)
-    // 0x5680b0 (A1_READINGS §33.2.1, q6 t19): type half (TEAM / Collidable_By_Projectile_Living + Is_Valid_Target,
+    // 0x5680b0 (A1_READINGS §33.2.1): type half (TEAM / Collidable_By_Projectile_Living + Is_Valid_Target,
     // SPECIAL_WEAPON only on a DUMMY_STAR_BASE) from the desc; not garrisoned / hidden (+0x3a7), not dead (+0x3a0 0x40);
-    // [port] no transports in battles; +0x3b4 is kUnitHeroClash (s78n t06). kUnitSkipTargeting (the port's untargetable
+    // [port] no transports in battles; +0x3b4 is kUnitHeroClash. kUnitSkipTargeting (the port's untargetable
     // marker) kept.
     if (t->flags & (kUnitSkipTargeting | kUnitDead | kUnitContained | kUnitHeroClash)) return false;
     if (!desc_of(*t).target_test_type) return false;
     float d = 0.0f, E = 0.0f;
-    const Vec3 up = scan_pos(u);  // s78n t03: a land team head's pre-check runs from its container
+    const Vec3 up = scan_pos(u);  // a land team head's pre-check runs from its container
     range_geometry(*t, up, d, E);
     if (const ProjectileDesc* gw = grenade_weapon(u)) {
-        if (!lob_in_range(u, *gw, *t)) return false;  // slot 44, grenade weapon (S8 t04: LOB_SOLVER §3.1)
+        if (!lob_in_range(u, *gw, *t)) return false;  // slot 44, grenade weapon (LOB_SOLVER §3.1)
     } else {
         const float range = fire_range(base_attack_range(u), mod_r(u, ModList::FireRange));
         if (!(d <= range + E)) return false;  // slot 44
     }
-    if (min_range_hit(*t, up, desc_of(u).min_attack_distance)) return false;  // slot 45 -> 46 (s78n t02)
+    if (min_range_hit(*t, up, desc_of(u).min_attack_distance)) return false;  // slot 45 -> 46
     int32_t hp = -1;
     if (u.goal_hp >= 0 && static_cast<uint32_t>(u.goal_hp) < t->hp_count && !hp_dead(hps_[t->hp_begin + static_cast<uint32_t>(u.goal_hp)]))
         hp = u.goal_hp;  // no goal hardpoint: none pushed (§2.9 Q3; the space formation step fills it in)
@@ -1671,7 +1671,7 @@ done:
         }
         u.auto_target = best->id;
         u.target_score = best->score;
-        u.aim_target = kNoObject;  // refixf t06: Order_Attack(unit, pick, ordered 0) re-aims the hardpoints (§2.8 C)
+        u.aim_target = kNoObject;  // Order_Attack(unit, pick, ordered 0) re-aims the hardpoints (§2.8 C)
         u.aim_hp = -1;
         u.acquired = 1;  // OI abilities: Issue_Auto_Target for the acquired target (the autofire driver, abilities)
         if (team_pick) share_target(u, best->id, best->score);
@@ -1714,7 +1714,7 @@ int32_t CombatSystem::choose_target_hardpoint(const Unit& a, const Unit& t) cons
         const Hardpoint& h = hps_[t.hp_begin + i];
         const HardpointDesc& hd = data_->hardpoints[h.desc];
         if (!hd.destroyable || hp_dead(h)) continue;
-        const float rank = hardpoint_rank(set, static_cast<int32_t>(hd.kind));  // refixf t06: by HardPointType
+        const float rank = hardpoint_rank(set, static_cast<int32_t>(hd.kind));  // by HardPointType
         if (rank < 0.0f) continue;
         const Vec3 d = hp_world(t, hd) - from;
         const float d2 = dot(d, d);
@@ -1819,7 +1819,7 @@ void CombatSystem::update_weapons(Unit& u, uint32_t frame, SimRng& rng, bool sus
     // S8 t12 (MOVEMENT §3.2): a locomotor swap suspends TARGETING / WEAPON / SPECIAL_WEAPON only - the own weapon is not
     // serviced and no target is pushed; the hardpoints keep counting down and firing at their last target.
     if (desc_of(u).weapon_projectile >= 0 && !suspended) fire_unit_weapon(u, frame, rng);
-    // S8 t26: LOBBING_SUPERWEAPON's service follows WEAPON's (vanilla LandBehavior list order): a charge completed here
+    // LOBBING_SUPERWEAPON's service follows WEAPON's (vanilla LandBehavior list order): a charge completed here
     // fires on the next WEAPON service.
     if (desc_of(u).lobbing_superweapon) lobbing_service(u, frame);
     const bool transition = deploy_transition(u);
@@ -1831,7 +1831,7 @@ void CombatSystem::update_weapons(Unit& u, uint32_t frame, SimRng& rng, bool sus
             h.target = tgt;  // HP_Set_Target: owner's target + chosen sub-hardpoint
             h.target_hp = sub;
         }
-        // Update_Weapon (0x387400): gates (S8 t08: none in a deploy transition), then the cooldown countdown, then the
+        // Update_Weapon (0x387400): gates (none in a deploy transition), then the cooldown countdown, then the
         // weapon-state gate 0x384850 against the primary target (a refusal skips Fire_At and opportunity fire), Fire_At.
         if (!cfg_.weapons_enabled || hp_out(h) || transition) continue;
         h.cooldown -= 1;
@@ -1896,7 +1896,7 @@ bool CombatSystem::in_attack_range(const Unit& u, Vec3 from, const Unit& t) cons
 CanHit CombatSystem::range_test(const Unit& u, Vec3 from, const Unit& t) const {
     // Slot 44 && !slot 45 (TACTICAL_COMBAT §3.1.1 "Gate details" step 7, LOB_SOLVER §8 item 22): In_Max_Range (XY distance
     // <= R + E with the LAND_OBSTACLE aim walk; for a grenade weapon the lob solver alone, LOB_SOLVER §3.1) and not inside
-    // Targeting_Min_Attack_Distance + E, from the targeting object's position (s78n t02: slot 46's own E, min_range_hit).
+    // Targeting_Min_Attack_Distance + E, from the targeting object's position (slot 46's own E, min_range_hit).
     const UnitDesc& ud = desc_of(u);
     const ProjectileDesc* gw = grenade_weapon(u);
     float d = 0.0f, E = 0.0f;
@@ -1955,7 +1955,7 @@ CanHit CombatSystem::line_of_fire_from(ObjectId attacker, Vec3 from, ObjectId ta
 }
 
 CanHit CombatSystem::fire_line(const Unit& src, Vec3 from, const Unit& tu, const Vec3* to) const {
-    Vec3 b = to ? *to : tu.pos;  // bkt1 t06: the trim's G when given
+    Vec3 b = to ? *to : tu.pos;  // the trim's G when given
     b.z = b.z + desc_of(tu).ranged_target_z_adjust;
     return fire_line_to(src, from, b);
 }
@@ -2117,7 +2117,7 @@ void CombatSystem::set_tstate(Unit& u, uint8_t s, ObjectId target) {
     // Slot 31 0x568c80 [H]: s = 4 is not written (the old state stays) while the type has Is_Stationary_When_Attacking and
     // the locomotor is moving, or (s78f t08 [H]) while a pending ability (TD +0x148 / +0x150, slot 38) targets the
     // current target (each replaced by its container): a unit not attacking yet holds fire until the ability fires.
-    // s78f t08: the first entry to 4 raises signal 0x1E (AttackStateEvent) - for a member of a team, only the team's
+    // the first entry to 4 raises signal 0x1E (AttackStateEvent) - for a member of a team, only the team's
     // first member, on the container [port: the first live combat member in ascending id; a land team head standing in
     // for its container counts as the member].
     bool hold = s == 4 && desc_of(u).stationary_when_attacking && (u.flags & kUnitMoving) != 0;
@@ -2235,7 +2235,7 @@ void CombatSystem::targeting_service(Unit& u, uint32_t frame, SimRng& rng) {
     if (cfg_.mode != GameMode::Land) {
         // Space: no TURRET -> 4; TURRET: aimed 4 / not yet 3 ([port] the host's aim state; cannot aim: not modelled).
         // Slot 48 is not used. Out of range: 2.
-        // s78f t08: the host's -2 (cannot aim) drops the target, as in 0x633ae0. Last, the hold-fire rule.
+        // the host's -2 (cannot aim) drops the target, as in 0x633ae0. Last, the hold-fire rule.
         uint8_t s = 2;
         if (in_range && ud.turret && hooks_) {
             const int8_t a = hooks_->turret_aim_state(u.id);
@@ -2320,7 +2320,7 @@ void CombatSystem::team_targeting_service(Unit& head, uint32_t frame, SimRng& rn
     // moving: no member needs to turn -> every member's facing is snapped to the target, 4; else slot 47(0) on the
     // members, 3, the turn request ([port] one turn step on each member that needs it), 4 when none needs to turn any
     // more. No TURRET branch. Out of range: 2. State 4 -> slot 47(1) on each member (each draws its own blend).
-    // SP5: land_team_head(m) can be the head only when m.team is the head's id (the container) or a team whose first
+    // land_team_head(m) can be the head only when m.team is the head's id (the container) or a team whose first
     // team_heads_ entry is the head (team_head); the exact test runs on those units only, the rest are skipped by their
     // team value (was: the exact test on every unit, O(teams x units) per tick). Taken now: hand_over_team may have
     // changed team_heads_ earlier in this walk.
@@ -2340,10 +2340,10 @@ void CombatSystem::team_targeting_service(Unit& head, uint32_t frame, SimRng& rn
     uint8_t s = 0;
     if (live(t)) {
         // Slot 44 / 45 from the container's position with its projectile (slot 42: [port] the head's weapon, else the
-        // first member's; s78n t20: team_weapon_source, shared with can_hit).
+        // first member's; team_weapon_source, shared with can_hit).
         const Unit* src = &team_weapon_source(head);
         s = 2;
-        if (in_attack_range(*src, scan_pos(head), *t)) {  // s78n t03: P_U = the container
+        if (in_attack_range(*src, scan_pos(head), *t)) {  // P_U = the container
             if (head.flags & kUnitMoving) {
                 s = ability_type_active(head, 7) ? uint8_t{4} : uint8_t{2};
             } else {
@@ -2383,7 +2383,7 @@ void CombatSystem::team_targeting_service(Unit& head, uint32_t frame, SimRng& rn
         if (desc_of(head).weapon_projectile >= 0) attack_idle(head, true, frame, rng, ordered);  // [port] a member standing in
         for (Unit* m : members) attack_idle(*m, true, frame, rng, ordered);
     }
-    // s78f t08: the hold-fire rule last (slot 31(2) through the override: the members get the raw 2 as well).
+    // the hold-fire rule last (slot 31(2) through the override: the members get the raw 2 as well).
     if (s == 4 && live(t)) {
         hold_fire(head, tid);
         if (head.tstate == 2)
@@ -2408,7 +2408,7 @@ int32_t CombatSystem::model_alt(ObjectId id) const {
 }
 
 bool CombatSystem::host_fire_bones(const Unit& h, std::vector<GarrisonFireBone>& out) const {
-    // LOB_SOLVER §5.1 "Garrison pick inputs" (s78f t03) [H unless tagged]: the bones of the host model's current ALT entry
+    // LOB_SOLVER §5.1 "Garrison pick inputs" [H unless tagged]: the bones of the host model's current ALT entry
     // (model +0xc4, from Land_Damage_Thresholds / _Alternates: model_alt_of), table order i = 0 .. Num_Garrison_Guns - 1,
     // missing bones skipped; each as its 3x4 world matrix of the current pose (0x12d2c0): translation = the launch point,
     // x axis (column 0) -> yaw = atan2(m4, m0) in [0, 360) (0x20acd0). [port] The bind pose x the host transform (position
@@ -2507,7 +2507,7 @@ bool CombatSystem::hp_state_allows(const Unit& u, const Hardpoint& h, const Unit
 }
 
 bool CombatSystem::opportunity_allowed(const Unit& /*u*/, const HardpointDesc& hd, bool idle) const {
-    // 0x385620 corrected (ABILITIES_HARDPOINTS.md 4.2): the idle rule holds for every player.
+    // 0x385620 corrected (legacy docs/re/ABILITIES_HARDPOINTS.md 4.2): the idle rule holds for every player.
     if (hd.allow_opportunity_fire_when_targeting) return true;
     if (!idle) return false;
     return hd.max_recharge <= cfg_.opportunity_recharge_cutoff || hd.allow_opportunity_fire_when_idle;
@@ -2516,9 +2516,9 @@ bool CombatSystem::opportunity_allowed(const Unit& /*u*/, const HardpointDesc& h
 bool CombatSystem::opportunity_valid(const Unit& u, const Hardpoint& h, const Unit& t) const {
     // "can still be fired at" [M]: live enemy, candidate flags, stealth, Fire_Category_Restrictions,
     // fire range (XY + target radius from the hardpoint) and the fire cone.
-    // s78n t05: the hardpoint pick 0x385190 skips an incognito target (+0x3a1 & 0x10, HERO_CLASH §8.2)
+    // the hardpoint pick 0x385190 skips an incognito target (+0x3a1 & 0x10, HERO_CLASH §8.2)
     if (!live(&t) || (t.flags & (kUnitSkipTargeting | kUnitIncognito | kUnitContained))) return false;
-    if (!clash_allows(u.id, t.id)) return false;  // s78n t06: the hardpoint pick's pairing rule (HERO_CLASH §5.2)
+    if (!clash_allows(u.id, t.id)) return false;  // the hardpoint pick's pairing rule (HERO_CLASH §5.2)
     if (!is_enemy(u.owner, t.owner)) return false;
     const HardpointDesc& hd = data_->hardpoints[h.desc];
     const UnitDesc& td = desc_of(t);

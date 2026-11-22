@@ -1,4 +1,4 @@
-// Fog of war hookup of TacticalBattle (owner: fog agent; docs/re/FOG_OF_WAR.md, engine/tactical/fog).
+// Fog of war hookup of TacticalBattle (owner: fog agent; legacy docs/re/FOG_OF_WAR.md, engine/tactical/fog).
 // Kept in its own file so the other battle hooks (A1, L1/S4) stay separate. Fog never draws RNG and is not hashed
 // into the frame CRC.
 #include "alamo/sim/tactical_battle.hpp"
@@ -13,7 +13,7 @@
 #include "alamo/objects/game_object_types.hpp"
 
 #ifdef ALAMO_LUA_HAVE_FOG
-#include "alamo/lua/fog_bridge.hpp"  // ref3 t06: bind_script_fog
+#include "alamo/lua/fog_bridge.hpp"  // bind_script_fog
 #endif
 
 namespace alamo::sim {
@@ -21,7 +21,7 @@ namespace alamo::sim {
 namespace fw = alamo::tactical::fog;
 
 tactical::Aabb TacticalBattle::map_extents(const TacticalMode& mode, ExtentsUse use) const {
-    if (use == ExtentsUse::Perception && !kPerceptionTracedExtents) return mode.bounds();  // ref2 t05: until mapx1 t01
+    if (use == ExtentsUse::Perception && !kPerceptionTracedExtents) return mode.bounds();  // until mapx1 t01
     // Land (0x3b8020): the terrain box, x / y = [0, W x 20] x [0, H x 20] with W, H the vertex grid size; z = [zmin, zmax]
     // over every vertex height, both started at 0. Space (0x4d7780): the playable box. [port] A land map without terrain
     // (synthetic test maps) keeps the playable box instead of retail's zero box (no grids).
@@ -46,11 +46,11 @@ void TacticalBattle::fog_begin(TacticalMode& mode, uint32_t players) {
     fog_team_beh_ = objects::beh::Team;
     fw::FogSetup s;
     s.mode = space_ ? fw::FogMode::Space : fw::FogMode::Land;
-    // [port] The playable box stands in for the mode's map extents (vf +0x1f8). Traced (FOG_OF_WAR §1.2 [H], FOWF t01):
+    // [port] The playable box stands in for the mode's map extents (vf +0x1f8). Traced (FOG_OF_WAR §1.2 [H]):
     // space uses the playable box, land the whole terrain box [0, 20 W] x [0, 20 H]. The land switch waits for the AI
     // threat grid, which must use the same box (AI_TACTICAL_PERCEPTION §4.1): switching the fog alone stalled the FoC
-    // Utapau skirmish on 4 of 5 seeds (2026-11-01); switching both (bkt1 t08, 2026-11-12) slows the Rebel win on foc-land
-    // seed 7 from 23121 to 42347 frames (Burn_Units_Land fails every pass from about frame 15000; backlog). ref2 t05: both
+    // Utapau skirmish on 4 of 5 seeds (2026-11-01); switching both (2026-11-12) slows the Rebel win on foc-land
+    // seed 7 from 23121 to 42347 frames (Burn_Units_Land fails every pass from about frame 15000; backlog). both
     // read map_extents(mode, Perception), which answers the playable box until mapx1 t01 switches it.
     const tactical::Aabb b = map_extents(mode, ExtentsUse::Perception);
     s.box = {b.min.x, b.min.y, b.max.x, b.max.y};
@@ -74,7 +74,7 @@ void TacticalBattle::fog_begin(TacticalMode& mode, uint32_t players) {
                 fog_.set_relation(static_cast<int32_t>(a), static_cast<int32_t>(o),
                                   combat_->is_enemy(static_cast<int32_t>(a), static_cast<int32_t>(o)) ? 1 : 0);
     fog_on_ = true;
-    // FOWF t03: the setup reveal's "powered" = the target player's base power (TACTICAL_GAPS §7.3, Base_Power_Ability).
+    // the setup reveal's "powered" = the target player's base power (TACTICAL_GAPS §7.3, Base_Power_Ability).
     fog_.set_base_power([this](int32_t player) { return combat_ && combat_->has_base_power(player); });
     // fog follow-up (S9): Force Sight channelling = Reveal_All for the owner, undone at its end (FOG_OF_WAR §3.3).
     fog_pings_.clear();
@@ -99,7 +99,7 @@ void TacticalBattle::fog_after_deploy(TacticalMode& mode) {
     const fw::BattleScaleSides sides = fw::battle_scale_sides(fog_.mode(),req_.info.attacker, req_.info.defender);
     std::vector<float> mods;
     for (const objects::ObjectHandle h : store.all_objects()) {
-        if (!store.active(h)) continue;  // refix t01: death clones skipped
+        if (!store.active(h)) continue;  // death clones skipped
         const objects::TypeIndex t = store.type(h);
         if (t >= types.size()) continue;
         if (obstacle != objects::kNoBehavior && store.has_behavior(h, obstacle) &&
@@ -129,7 +129,7 @@ fw::FogObject TacticalBattle::fog_object_of(const objects::ObjectStore& store, o
     o.z = p.z;
     if (t < types.size()) {
         // Land: Land_FOW_Reveal_Range x weather factor (Int-final: the L1 weather system's Sight_Range_Modifier for the
-        // type's Weather_Category, 1.0 while I <= 0.5 / no weather; cu8 t01: 1.0 too when the owner is not
+        // type's Weather_Category, 1.0 while I <= 0.5 / no weather; 1.0 too when the owner is not
         // weather-affected, FOG_OF_WAR §3.1.1 / TACTICAL_GAPS §7.4); space: Space_FOW_Reveal_Range.
         const bool weather = !abilities_ || abilities_->weather_affected(o.owner);
         o.sight_range = space_ ? types.columns().space_fow_reveal_range[t]
@@ -166,7 +166,7 @@ fw::FogObject TacticalBattle::fog_object_of(const objects::ObjectStore& store, o
 }
 
 // FOWF t02 (FOG_OF_WAR §5.2 [H]): the 8 points of the oriented 2-D footprint rectangle 0x38de80 of Multisample_FOW_Check.
-// Half extents 0x396850 (s78n t10, TACTICAL_COMBAT §5.4.6 port spec item 3). 0x371be0: Scale_Factor x
+// Half extents 0x396850 (TACTICAL_COMBAT §5.4.6 port spec item 3). 0x371be0: Scale_Factor x
 // Custom_Hard_X/YExtent when both > 0; else a type without a model name for the mode -> (0, 0), even with one custom
 // set; else each non-positive one from the type model's |collision bound half extent| x Scale_Factor. A Deploys walker
 // in Walk state 0x18 / 0x19 takes the 0x371d20 pair (deployed_half_extents; no FoC effect). Centre = position + the
@@ -190,7 +190,7 @@ void TacticalBattle::fog_footprint_samples(const objects::ObjectStore& store, ob
     } else {
         if (!(ex > 0.0f) || !(ey > 0.0f)) {
             if (catalog_->files() && ascii_trim(types.get(t, space_ ? objects::tags::Space_Model_Name : objects::tags::Land_Model_Name)).empty()) {
-                hx = hy = 0.0f;  // s78n t10: no model for the mode (0x3729f0 null)
+                hx = hy = 0.0f;  // no model for the mode (0x3729f0 null)
             } else {
                 float mx = 0.0f, my = 0.0f;
                 const TacticalMode::ModelRef m = fog_mode_->model_ref(t, false);
@@ -208,7 +208,7 @@ void TacticalBattle::fog_footprint_samples(const objects::ObjectStore& store, ob
                 if (!(ey > 0.0f)) hy = scale * my;
             }
         }
-        deployed_half_extents(t, store.id(h), hx, hy);  // s78n t10: 0x371d20 while deploying / deployed
+        deployed_half_extents(t, store.id(h), hx, hy);  // 0x371d20 while deploying / deployed
     }
     const Vec3 f = store.facing(h);
     float ax = 1.0f, ay = 0.0f;
@@ -299,10 +299,10 @@ void TacticalBattle::fog_service(TacticalMode& mode) {
         fog_.source_fired(fog_object_of(store, sh), e.target_owner);
     }
     fog_service_sources(store);
-    // a1h t01: REVEAL (0x18) is a behaviour of the object, serviced every frame whether or not it is a battle unit
+    // REVEAL (0x18) is a behaviour of the object, serviced every frame whether or not it is a battle unit
     // (FOG_OF_WAR §3.2): map markers and capture points such as Reinforcement_Point (REVEAL, Land_FOW_Reveal_Range 275)
     // reveal for their owner's allies too. A live non-unit REVEAL object without a source joins the list below.
-    // SP5: the scan is const reads into per-object marks (in parallel on large scenes), the new pings appended in store
+    // the scan is const reads into per-object marks (in parallel on large scenes), the new pings appended in store
     // order afterwards.
     if (fog_reveal_beh_ != objects::kNoBehavior) {
         const std::span<const objects::ObjectHandle> all = store.all_objects();
@@ -366,7 +366,7 @@ bool TacticalBattle::fog_point_fogged(int32_t player, float x, float y, bool for
     return fog_on_ && fog_.point_fogged(player, x, y, force);
 }
 
-// ref3 t06: the story VMs' fog handle and Reward_Enable_FOW (TacticalBattle::fog() is read-only).
+// the story VMs' fog handle and Reward_Enable_FOW (TacticalBattle::fog() is read-only).
 #ifdef ALAMO_LUA_HAVE_FOG
 void TacticalBattle::bind_script_fog(lua::FogScriptHooks& out) { out.fog = fog_rw(); }
 #else
@@ -396,7 +396,7 @@ bool TacticalBattle::fog_object_hidden(int32_t player, objects::ObjectId id, boo
     q.z = p.z;
     const objects::TypeIndex t = store.type(h);
     q.multisample = t < catalog_->types().size() && catalog_->types().get(t, objects::tags::Multisample_FOW_Check);
-    if (q.multisample) fog_footprint_samples(store, h, q.corners.data());  // FOWF t02: the footprint rectangle (z = 0)
+    if (q.multisample) fog_footprint_samples(store, h, q.corners.data());  // the footprint rectangle (z = 0)
     return fog_.object_hidden(player, q, force);
 }
 
@@ -430,7 +430,7 @@ std::vector<fw::FogSetupObject> TacticalBattle::fog_setup_objects() const {
     const objects::GameObjectTypes& types = catalog_->types();
     const objects::BehaviorTypeId powered = objects::behavior_type_id("POWERED");
     for (const objects::ObjectHandle h : store.all_objects()) {
-        if (!store.active(h)) continue;  // refix t01: death clones skipped
+        if (!store.active(h)) continue;  // death clones skipped
         const objects::TypeIndex t = store.type(h);
         if (t >= types.size()) continue;
         fw::FogSetupObject so;
@@ -441,7 +441,7 @@ std::vector<fw::FogSetupObject> TacticalBattle::fog_setup_objects() const {
         so.has_locomotor = store.has_behavior(h, objects::beh::Locomotor);
         so.has_reveal = fog_reveal_beh_ != objects::kNoBehavior && store.has_behavior(h, fog_reveal_beh_);
         so.reinforcement_prevention_radius = types.get(t, objects::tags::Reinforcement_Prevention_Radius);
-        // FOWF t03: obj +0x341 (POWERED slot); the base power itself is the target player's (set_base_power in fog_begin).
+        // obj +0x341 (POWERED slot); the base power itself is the target player's (set_base_power in fog_begin).
         so.has_powered = powered != objects::kNoBehavior && store.has_behavior(h, powered);
         out.push_back(so);
     }
@@ -466,7 +466,7 @@ void TacticalBattle::fog_end_setup_phase() {
 
 bool TacticalBattle::fog_setup_phase() const { return fog_on_ && fog_.setup_phase(); }
 
-// FOWF t05: the setup manager's end test, common-tick step 11 (after the GOM service): every human ready, or the countdown
+// the setup manager's end test, common-tick step 11 (after the GOM service): every human ready, or the countdown
 // expired.
 void TacticalBattle::fog_setup_tick() {
     if (fog_on_ && fog_.setup_end_due(frame_)) fog_end_setup_phase();
@@ -513,7 +513,7 @@ void TacticalBattle::fog_remove_reveal_modifier(int32_t player, uint64_t source)
 
 // ---- OI fog: space reinforcement sampler -----------------------------------------------------------------------
 
-// GOM list +0x2f0 (FOWF t04, FOG_OF_WAR §9 item 10 [H]): the objects registered in the store whose type has a
+// GOM list +0x2f0 (FOG_OF_WAR §9 item 10 [H]): the objects registered in the store whose type has a
 // Reinforcement_Enabling / Prevention / Base_Shield radius > 0, until their flush (dead objects not yet flushed and death
 // clones included); the prevention test keeps those with a prevention radius > 0. GOM order.
 std::vector<fw::PreventionCircle> TacticalBattle::fog_prevention_circles() const {

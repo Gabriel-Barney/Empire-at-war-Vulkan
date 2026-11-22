@@ -247,8 +247,8 @@ void GameAudioData::parse_factions_xml(std::string_view xml, std::string_view fi
         f.name = std::string(data::trim(n.attribute("Name")));
         for (XmlNode c : n.children()) {
             const std::string_view tag = c.name();
-            // + Faction_Super_Weapon: picks the _Super_Weapon music variants (AUDIO.md §2.3, b0286); + Is_Neutral: the
-            // capture point control lines skip a neutral owner (mcx4 t13).
+            // + Faction_Super_Weapon: picks the _Super_Weapon music variants (legacy docs/re/AUDIO.md §2.3); + Is_Neutral: the
+            // capture point control lines skip a neutral owner.
             if (contains_ci(tag, "SFX") || contains_ci(tag, "Music") || contains_ci(tag, "Speech") ||
                 iequals(tag, "Faction_Super_Weapon") || iequals(tag, "Is_Neutral"))
                 f.fields.emplace_back(std::string(tag), std::string(c.text_trimmed()));
@@ -279,7 +279,7 @@ bool GameAudioData::load(const FileProvider& files, GameAudioLoadReport* report)
     } else {
         diag(r, "AmbientMapSounds.xml", 0, "missing");
     }
-    {  // cu5 t02: the shared list walk (list order; every entry is opened, an empty one fails to)
+    {  // the shared list walk (list order; every entry is opened, an empty one fails to)
         data::ListedXmlOptions lo;
         lo.keep_empty_entries = true;
         lo.visit_missing = true;

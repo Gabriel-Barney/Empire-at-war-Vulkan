@@ -4,7 +4,7 @@
 // scheduler (scheduler.hpp) and applied at their scheduled tick: a sim run is a pure function of
 // (initial state, seed, drained command batches) - the lockstep model.
 //
-// Floats are stored as their quantizer codes (COMMANDS.md §3.2), so a value is canonical from the
+// Floats are stored as their quantizer codes (legacy docs/re/COMMANDS.md §3.2), so a value is canonical from the
 // moment it is set: issuer, receivers and replays see bit-identical numbers (the original gets the
 // same by re-quantizing in Execute). Object references are 32-bit wire ids (kNoObject = none).
 //
@@ -12,13 +12,13 @@
 //       command := u16 type | u8 player | u8 source | u32 sequence | u64 issue_tick | u64 scheduled_tick
 //                  | u32 payload_len | payload                                         (28-byte header)
 //       player byte: bits 0-7 of the player id
-//       source byte: bits 0-1 CommandSource, bits 2-6 player id bits 8-12 (mcx5 t01; 0 for every id below 256, so
+//       source byte: bits 0-1 CommandSource, bits 2-6 player id bits 8-12 (0 for every id below 256, so
 //                    streams written before keep their bytes), bit 7 EventData::queued() [port: Gabriel, queueable actions]
 //       payload := for each present field, in wire order:
 //                  Bits/Id/Player/Quant -> u32 | List/CountedIds -> u32 count, u32 ids
 //                  Str/Opaque -> u32 len, bytes | WStr -> u32 len, u16 units
-// The original's bit-packed network wire format (COMMANDS.md §1.2) is not ported: multiplayer is out of
-// scope (docs/DECISIONS.md, CU7).
+// The original's bit-packed network wire format (legacy docs/re/COMMANDS.md §1.2) is not ported: multiplayer is out of
+// scope (docs/DECISIONS.md "Multiplayer code removed").
 #pragma once
 #include <cstddef>
 #include <cstdint>
@@ -33,7 +33,7 @@ namespace alamo::commands {
 
 inline constexpr uint16_t kWireVersion = 2;  // canonical format (v1 = stage-1 typed orders, retired)
 inline constexpr size_t kCommandHeaderBytes = 28;
-// PlayerList id bound of the command wire (the original keeps a vector with no fixed cap, MODS.md §10.4). mcx5 t01: a
+// PlayerList id bound of the command wire (the original keeps a vector with no fixed cap, legacy docs/MODS.md §10.4). a
 // guard far above any real mod (Age of Legends' sandbox campaigns have 50 players): 13 id bits, the player byte plus
 // bits 2-6 of the source byte. Sessions size their per-player state from the player count, not from this.
 inline constexpr uint16_t kMaxPlayerSlots = 8192;  // limit: guard (13-bit wire id)
@@ -44,7 +44,7 @@ inline constexpr uint32_t kMaxPayloadBytes = 1u << 20;  // decode guard
 
 // Who produced the order. Player goes through the scheduler (Network: the original's peer source, kept as a
 // canonical value; multiplayer is not ported, CU7); AI/Script use the direct path
-// (CommandPipeline::execute_direct) like the original (COMMANDS.md §5).
+// (CommandPipeline::execute_direct) like the original (legacy docs/re/COMMANDS.md §5).
 enum class CommandSource : uint8_t { Player = 0, AI = 1, Script = 2, Network = 3 };
 inline constexpr uint8_t kCommandSourceCount = 4;
 inline constexpr uint8_t kCommandQueuedBit = 0x80;  // [port: Gabriel] canonical source byte: EventData::queued()
@@ -95,7 +95,7 @@ public:
     // Player fields are not range-checked here (the scheduler checks the issuing player).
     bool valid() const;
 
-    // [port: Gabriel] Queueable unit actions (docs/PHASE4.md): true = the order runs after the units' current
+    // [port: Gabriel] Queueable unit actions (legacy docs/PHASE4.md): true = the order runs after the units' current
     // orders instead of replacing them (shift+click). Not a payload field of the original: the canonical
     // format carries it as bit 7 of the header's source byte (kCommandQueuedBit; unqueued commands encode
     // byte-identically to before).
@@ -142,14 +142,14 @@ std::vector<uint8_t> encode_command(const Command& c);
 DecodeError decode_command(std::span<const uint8_t> in, size_t& pos, Command& out);
 
 // Canonical drain order: scheduled tick, then player id (PlayerList index), then arrival sequence.
-// Matches the original executor (COMMANDS.md §4.5).
+// Matches the original executor (legacy docs/re/COMMANDS.md §4.5).
 inline bool drain_order_less(const CommandHeader& a, const CommandHeader& b) noexcept {
     if (a.scheduled_tick != b.scheduled_tick) return a.scheduled_tick < b.scheduled_tick;
     if (a.player != b.player) return a.player < b.player;
     return a.sequence < b.sequence;
 }
 
-// ---- builders for common orders (fields as COMMANDS.md §2; "Sel" = issuer's selection) ----------
+// ---- builders for common orders (fields as legacy docs/re/COMMANDS.md §2; "Sel" = issuer's selection) ----------
 namespace ev {
 EventData move_to_position(float x, float y, float z, uint8_t flags = 0);  // moves Sel
 EventData move_to_object(ObjectId target, std::vector<ObjectId> movers = {});  // empty = Sel

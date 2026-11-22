@@ -10,7 +10,7 @@
 #include "alamo/core/ascii.hpp"
 #include "alamo/core/sim_rng.hpp"
 #include "alamo/data/game_database.hpp"
-#include "alamo/galactic/economy.hpp"  // FactionRules (cu5 t01)
+#include "alamo/galactic/economy.hpp"  // FactionRules
 #ifdef ALAMO_AI_HAVE_GALACTIC_SIM
 #include "alamo/galactic/galactic_rules.hpp"  // q6: galactic_unit_kind (the galactic role rule)
 #endif
@@ -45,7 +45,7 @@ void build_csr(uint32_t n, const std::vector<std::vector<UnitPresence>>& per, Ga
 
 }  // namespace
 
-// The galactic role rule (mcx1 t05, D4; MCX1_RE_ANSWERS Q7.2): a type's role is its first DUMMY_* behaviour of the
+// The galactic role rule (D4; MCX1_RE_ANSWERS Q7.2): a type's role is its first DUMMY_* behaviour of the
 // generic Behavior list in retail's order (galactic::galactic_dummy), whatever its element tag. StarBase -> starbase
 // (space, Base_Level), GroundStructure -> structure (ground), SpaceUnit / Squadron -> space, GroundUnit -> ground. A type
 // with no role is not created at a planet in the original ("Unknown type"), so it is not a valid starting force here

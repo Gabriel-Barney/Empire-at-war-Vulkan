@@ -69,7 +69,7 @@ bool GoalSystem::proposable(uint32_t goal_type) const {
 
 void GoalSystem::service(int64_t now) {
     now_ = now;
-    if (pending_ready_ >= 0) {  // OPT2 t10: a slice's solves are in flight
+    if (pending_ready_ >= 0) {  // a slice's solves are in flight
         if (now < pending_ready_) return;
         apply_pending();
         if (std::exchange(pending_pass_done_, false)) {
@@ -97,7 +97,7 @@ void GoalSystem::service(int64_t now) {
         }
     }
     if (!proposal_slice(now)) return;
-    if (pending_ready_ >= 0) {  // OPT2 t10: Commit once the last slice's solves are applied
+    if (pending_ready_ >= 0) {  // Commit once the last slice's solves are applied
         pending_pass_done_ = true;
         return;
     }
@@ -122,7 +122,7 @@ bool GoalSystem::skip(uint32_t goal_type, int32_t target) {
 }
 
 bool GoalSystem::proposal_slice(int64_t now) {
-    // OPT2 t10: slice_end() on every return path.
+    // slice_end() on every return path.
     struct SliceScope {
         GoalModeHooks* h;
         explicit SliceScope(GoalModeHooks* x) : h(x) { h->slice_begin(); }
@@ -156,7 +156,7 @@ bool GoalSystem::proposal_slice(int64_t now) {
         g.target = target;
         g.desire = g.priority = clamp_desire(desire);
         g.created = now;
-        if (batch_accept) {  // OPT2 t10: pending until the slice's solves are applied
+        if (batch_accept) {  // pending until the slice's solves are applied
             if (!hooks_->accept_prepare(g, static_cast<uint32_t>(pending_.size()))) {
                 hooks_->drop_potential_plan(g);
                 return;
@@ -173,8 +173,8 @@ bool GoalSystem::proposal_slice(int64_t now) {
         }
         accept_tail(std::move(g));
     };
-    // OPT2 t03: batched values (header comment): the walk only records the candidates; flush() evaluates and commits them.
-    // OPT2 t10: batched accept walks the same way (with no candidate_pf every value is evaluated in place in flush()).
+    // batched values (header comment): the walk only records the candidates; flush() evaluates and commits them.
+    // batched accept walks the same way (with no candidate_pf every value is evaluated in place in flush()).
     const ParallelFor* pf = hooks_->candidate_pf();
     batch_.clear();
     auto visit = [&](uint32_t src, int32_t target) {
@@ -343,7 +343,7 @@ void GoalSystem::block_proposals(uint32_t goal_serial) {
         p.clear();
     }
     block_list_.push_back(goal_serial);
-    if (!pending_.empty()) {  // OPT2 t10: proposals made before the block are dropped with the proposed set
+    if (!pending_.empty()) {  // proposals made before the block are dropped with the proposed set
         for (Goal& g : pending_) hooks_->drop_potential_plan(g);
         pending_.clear();
         hooks_->accept_cancel();
@@ -378,7 +378,7 @@ void GoalSystem::purge(int32_t keep_running) {
 // ---------------------------------------------------------------- commit / resolve
 
 // 0x692860(G, 0) [H]: no PP -> 0 + Time_Limit; else (0x6c0450(PP) + 0) x Build_Time_Delay_Tolerance (A2F_RE_READS §1.4
-// item 2, A2f t09). 0x6c0450 is Goal::nominal_time (the selection's nominal build time x the mode's Build_Time_Multiplier),
+// item 2). 0x6c0450 is Goal::nominal_time (the selection's nominal build time x the mode's Build_Time_Multiplier),
 // not the PP ETA: the accept test (0x6b8660), Resolve's time_ok (0x6c8970) and maintenance compare it with the ETA.
 // [port] Without GoalSystemConfig::nominal_allowed_time the base stays the PP ETA (both AIs set it since A2g t06).
 float GoalSystem::allowed_time(const Goal& g) const {
@@ -658,7 +658,7 @@ void GoalSystem::hash(StateHasher& h) const {
     h.u32(evals_pass_);
     h.u32(evals_last_);
     h.u32(next_serial_);
-    const bool nominal = cfg_.nominal_allowed_time;  // A2f t09: hashed only where it is read (galactic, tactical since A2g t06)
+    const bool nominal = cfg_.nominal_allowed_time;  // hashed only where it is read (galactic, tactical since A2g t06)
     auto goal = [&h, nominal](const Goal& g) {
         h.u32(g.serial);
         h.u32(g.type);
@@ -681,7 +681,7 @@ void GoalSystem::hash(StateHasher& h) const {
     for (const int32_t x : exclusion_) h.i32(x);
     h.u32(static_cast<uint32_t>(block_list_.size()));
     for (const uint32_t x : block_list_) h.u32(x);
-    if (pending_ready_ >= 0) {  // OPT2 t10: only while solves are pending (nothing extra in the original order)
+    if (pending_ready_ >= 0) {  // only while solves are pending (nothing extra in the original order)
         h.i64(pending_ready_);
         h.boolean(pending_pass_done_);
         h.u32(static_cast<uint32_t>(pending_.size()));

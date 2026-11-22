@@ -44,7 +44,7 @@ public:
     // each written name (normalised) maps to the first existing candidate, and every name that
     // resolves to the same file (`W.TGA`, `W.DDS`, `Data\Art\Textures\w.tga` -> one file) shares a
     // single decode / GPU copy. Deviation: the original keys textures by the lower-case base name
-    // cut at the first '.' (SPACE_AND_OPEN.md B.2 step 1), so `x.tga` and `x.dds` always share an
+    // cut at the first '.' (legacy docs/re/SPACE_AND_OPEN.md B.2 step 1), so `x.tga` and `x.dds` always share an
     // entry and the first request decides which file it holds; with concurrent loads that would
     // depend on thread timing. Keying by the resolved file gives the same sharing whenever the
     // names find the same file and stays independent of request order. A missing name is recorded

@@ -1,4 +1,4 @@
-// alamo_game host, ref6 t04: one settings module per options page. A page names the settings struct its dialog fills and
+// alamo_game host, one settings module per options page. A page names the settings struct its dialog fills and
 // reads (alamo/ui/gui_menus.hpp), owns its keys in the options file (game_options.txt, OptionsProfile in game_display.hpp)
 // and has one apply hook on the App (App::apply_<page>, app_options.cpp), called both when the dialog is accepted and when
 // the profile is loaded. The two game setup pages (campaign advanced options, skirmish options) are not kept between runs:
@@ -70,7 +70,7 @@ struct KeysPage {
     static void save(std::ostream& out, const Settings& s);
 };
 
-// modc t47: the skirmish staging dialog's local slot (faction, colour), kept as retail's profile keeps them. Keys
+// the skirmish staging dialog's local slot (faction, colour), kept as retail's profile keeps them. Keys
 // skirmish_faction, skirmish_colour (clamped -1..8); written only once set.
 struct SkirmishSlotPage {
     using Settings = ui::SkirmishProfile;
@@ -78,14 +78,14 @@ struct SkirmishSlotPage {
     static void save(std::ostream& out, const Settings& s);
 };
 
-// ui1 t06: IDD_CAMPAIGN_ADVANCED_OPTIONS_DIALOG. Not kept between runs: an accepted dialog (set) becomes the campaign
+// IDD_CAMPAIGN_ADVANCED_OPTIONS_DIALOG. Not kept between runs: an accepted dialog (set) becomes the campaign
 // start's options, else the campaign's own (CampaignOptions::set false).
 struct CampaignOptionsPage {
     using Settings = ui::GameOptionsSetup;
     static CampaignOptions session_options(const Settings& s);
 };
 
-// skm1 t02: the skirmish staging screen's options dialog. Not kept between runs: an accepted dialog becomes the battle's
+// the skirmish staging screen's options dialog. Not kept between runs: an accepted dialog becomes the battle's
 // skirmish options (credits at least 0, the win condition as its byte), else GameSession takes the MP_Default_* values.
 struct SkirmishOptionsPage {
     using Settings = ui::SkirmishOptionsSetup;

@@ -76,7 +76,7 @@ bool land_obstacle_footprint(const objects::GameObjectTypes& types, uint32_t t, 
     // S8 t13 (§1.3 "A type without Land_Model_Name"): fine-tune on, no proxy, no land model -> the stamper returns before
     // its loop and "stamped" stays clear (retried every service; the port's model data is const: never stamped).
     if (fine && rm == StampRayModel::None && !proxied) return false;
-    // OI tactical: model-bbox footprint (§1.3). S8 t13: each size getter (0x372d80 ... 0x372f60) uses its XML value when it
+    // OI tactical: model-bbox footprint (§1.3). Each size getter (0x372d80 ... 0x372f60) uses its XML value when it
     // is non-zero, else the model box (0 without a model).
     float hx = 0.0f, hy = 0.0f, hz = 0.0f;
     const bool have_model = hooks && hooks->model_half_extents && hooks->model_half_extents(f, hx, hy, hz);
@@ -136,7 +136,7 @@ uint32_t stamp_map_obstacles(PassabilityGrid& grid, const terrain::MapData& map,
 }
 
 V2 space_obstacle_center(const objects::GameObjectTypes& types, uint32_t t, V2 position, V2 f) {
-    // S7 t07: + Space_Obstacle_Offset, x along the facing, y to its left [M: rotation sense].
+    // + Space_Obstacle_Offset, x along the facing, y to its left [M: rotation sense].
     if (t >= types.size()) return position;
     const std::array<float, 4> off = types.get(t, objects::tags::Space_Obstacle_Offset);
     return {position.x + off[0] * f.x - off[1] * f.y, position.y + off[0] * f.y + off[1] * f.x};

@@ -300,7 +300,7 @@ TooltipConfig tooltip_config_from(const data::XmlNode& root) {
     if (const std::string_view t = root.child_text("Encyclopedia_Min_Display_Time"); !t.empty())
         cfg.encyclopedia_min_display =
             static_cast<double>(data::parse_float_or(t, static_cast<float>(cfg.encyclopedia_min_display)));
-    // mcx4 t14: the encyclopedia pop-up layout (HUD_GAPS §2.2).
+    // the encyclopedia pop-up layout (HUD_GAPS §2.2).
     const auto num = [&root](std::string_view tag, float& out) {
         if (const std::string_view t = root.child_text(tag); !t.empty()) out = data::parse_float_or(t, out);
     };
@@ -398,7 +398,7 @@ std::string TooltipState::key(const HudButtons& buttons, const ComponentTable& t
     const ButtonRuntime* r = buttons.find_state(static_cast<uint32_t>(component_));
     const int32_t i = r ? r->tooltip_index : 0;
     if (i < 0) return {};
-    if (r && !r->tooltip_key.empty()) return r->tooltip_key;  // ui3 t07: ability / unit text
+    if (r && !r->tooltip_key.empty()) return r->tooltip_key;  // ability / unit text
     if (c.tooltip_text.empty()) return {};
     return *pick(c.tooltip_text, i);
 }
@@ -410,7 +410,7 @@ bool TooltipState::draw(HudDrawList& dl, const TextureAtlas& atlas, FontCache& f
     const ButtonRuntime* rt = component_ >= 0 ? buttons.find_state(static_cast<uint32_t>(component_)) : nullptr;
     const std::u32string literal = rt ? rt->tooltip_text : std::u32string();  // [port] a player-given name
     if (k.empty() && literal.empty()) return false;
-    // ui3 t07: a runtime tooltip_key may list several keys separated by spaces (ability name + description): one line each.
+    // a runtime tooltip_key may list several keys separated by spaces (ability name + description): one line each.
     std::u32string body;
     size_t at = 0;
     while (at < k.size()) {

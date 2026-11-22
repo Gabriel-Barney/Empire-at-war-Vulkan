@@ -112,13 +112,13 @@ add_dependencies(alamo_materials alamo_materials_spirv)
 target_include_directories(alamo_materials PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_include_directories(alamo_materials PRIVATE ${_mat_gen_dir})
 # Track B translator (engine/shaderxlat). engine/CMakeLists.txt configures it before materials; a module
-# build without it (build_module.cmd materials = core;materials) pulls it in here.
+# build without it (configured with -DALAMO_ENGINE_MODULES="core;materials") pulls it in here.
 if(NOT TARGET alamo_shaderxlat)
   add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../shaderxlat ${CMAKE_BINARY_DIR}/engine/shaderxlat)
 endif()
 target_link_libraries(alamo_materials PUBLIC alamo_core alamo_fx2 alamo_shaderxlat)
 
-# ---------------------------------------------------------------- .fx prebuild (roadmap modc t23)
+# ---------------------------------------------------------------- .fx prebuild
 # fxc.exe of the project toolchain's Windows SDK (toolchain\2_setup.cmd installs it with MSVC); the newest
 # SDK version folder wins. Only the prebuild tool, the audit tool and the tests run it, never the engine.
 file(GLOB _mat_fxc_candidates "${PROJECT_SOURCE_DIR}/toolchain/msvc/Windows Kits/10/bin/*/x64/fxc.exe")
@@ -144,7 +144,7 @@ endif()
 alamo_shaderxlat_copy_dxc(alamo_materials_tests)  # runtime dxcompiler.dll for the translation sweep
 add_test(NAME alamo_materials_tests COMMAND alamo_materials_tests)
 
-# ---------------------------------------------------------------- effect audit tool (docs/MODS.md shader section)
+# ---------------------------------------------------------------- effect audit tool (docs/MODS.md "Effects and shaders in mods")
 #   alamo_effect_audit <FoC dir> [MODPATH=<dir>]... [--no-dxc] [--json <file>|-]
 if(TARGET alamo_vfs)
   add_executable(alamo_effect_audit tools/effect_audit_tool.cpp)

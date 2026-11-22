@@ -1,11 +1,11 @@
 // One script VM (the original's LuaScriptClass: one lua_State per script - story plots, AI plans,
-// GameObject scripts, evaluators, free stores; docs/re/SUBSYSTEMS.md "lua_script").
+// GameObject scripts, evaluators, free stores; legacy docs/re/SUBSYSTEMS.md "lua_script").
 //
 // Threading: a LuaVm is owned by ONE thread (the sim thread that created it, or the last one to
 // call claim_ownership() between frames). Every entry point checks it and aborts on a foreign
 // thread; no job-system worker may touch a VM. Lua itself is not thread-safe and scripts draw from
 // the synchronized RNG, so script execution is part of the sim's single-threaded semantic order.
-// One exception (OPT2 t04): collect_detached() runs a collection on a worker while the owner waits
+// One exception: collect_detached() runs a collection on a worker while the owner waits
 // for it (gc_schedule.hpp); it runs no Lua code.
 //
 // Determinism (rule 3):
@@ -23,7 +23,7 @@
 //     engine/core;
 //   * script threads are resumed in thread-id order (creation order), once per service.
 //
-// Script threads (Create_Thread / Thread.*, docs/re/LUA_API.md): Lua coroutines started from a
+// Script threads (Create_Thread / Thread.*, legacy docs/re/LUA_API.md): Lua coroutines started from a
 // global function by name. service_threads() resumes each live thread once; a thread that yields
 // `false` (PGBase ScriptExit) or returns ends; a Lua error ends it and is reported. Threads created
 // while servicing first run on the NEXT service (PROVISIONAL: the original's start point is not
@@ -34,7 +34,7 @@
 // Object handles: a GameObjectWrapper userdata holds an ObjectHandle of the host's current store
 // plus the object id. Is_Valid() is false once the object is dead (destroyed, even before the
 // flush) or gone; every other method then raises "GameObjectWrapper::<Method> -- this object is
-// dead!" (docs/re/OBJECT_RUNTIME.md §1.5). One script gets the same userdata for the same object
+// dead!" (legacy docs/re/OBJECT_RUNTIME.md §1.5). One script gets the same userdata for the same object
 // (cache keyed by object id, never iterated for logic; an entry lives as long as the VM [port]).
 #pragma once
 #include <cstdint>
@@ -73,10 +73,10 @@ struct LuaVmOptions {
     std::string script_name = "Script";  // tostring(Script)
     bool math_library = false;           // expose the dmath-backed 'math' table (not in the original)
     // GameObjectTypeWrapper.Get_Name returns the upper-cased name, as the original (it stores type names upper-cased,
-    // OBJECT_TYPES §3.1) in every VM: object scripts (q6), story and AI scripts (modc t45: FotR's PlanetTable keys are
+    // OBJECT_TYPES §3.1) in every VM: object scripts (q6), story and AI scripts (FotR's PlanetTable keys are
     // upper-case planet type names). Off only for tests that need the name as written.
     bool upper_type_names = true;
-    // mcx6 t08 (docs/MOD_COMPAT_DESIGN.md §10, P6) [port]: Lua instructions one resume of a script thread, or one host
+    // mcx6 t08 (docs/MODS.md "Fault containment and the no-abort rule", P6) [port]: Lua instructions one resume of a script thread, or one host
     // call into the VM (a chunk run, a global call, an AI or story event), may run before the script is stopped with
     // a "script_runaway" error. Retail hangs on a script that never yields; far above any normal script, and a pure
     // count, so deterministic. 0 = no limit.
@@ -118,9 +118,9 @@ public:
     bool require(std::string_view name, std::string* err = nullptr);
     // Calls a global function with no arguments (not as a thread: it must not yield).
     bool call(std::string_view global_function, std::string* err = nullptr);
-    // True when the global `name` is a function (raw lookup, no metamethods; q6 t06: optional engine calls).
+    // True when the global `name` is a function (raw lookup, no metamethods; optional engine calls).
     bool has_function(std::string_view name);
-    // q6 t09 (GAME_SCORING.md §2 ServiceRate / LastService): a global number by raw lookup. get_number is false (out
+    // q6 t09 (legacy docs/re/GAME_SCORING.md §2 ServiceRate / LastService): a global number by raw lookup. get_number is false (out
     // unchanged) when the global is not a Lua number (nil, a string, ...); set_number writes a new number global.
     bool get_number(std::string_view name, double& out);
     void set_number(std::string_view name, double value);
@@ -134,7 +134,7 @@ public:
     size_t thread_count() const;
     bool thread_active(int32_t id) const;
     bool exit_requested() const;
-    // q6 t19 (docs/re/LUA_SAVE.md §2.1, the thread records): every thread record in id order (= service order), killed
+    // q6 t19 (legacy docs/re/LUA_SAVE.md §2.1, the thread records): every thread record in id order (= service order), killed
     // ones that the next service will reap included, and the id the next Create_Thread gets.
     struct ThreadInfo {
         int32_t id = 0;
@@ -146,7 +146,7 @@ public:
     std::vector<ThreadInfo> thread_list() const;
     int32_t next_thread_id() const;
     const LuaVmOptions& options() const;
-    // q6 t19 (LUA_SAVE.md §4.1, the from-save instance): true while none of run / require / call / create_thread /
+    // q6 t19 (legacy docs/re/LUA_SAVE.md §4.1, the from-save instance): true while none of run / require / call / create_thread /
     // service_threads / read has been called on this VM - only the constructor's libraries, globals and commands exist
     // (bridges and host values may be attached). Bindings that run code through state() directly are not tracked.
     bool fresh() const;
@@ -159,7 +159,7 @@ public:
     // Sets a host value global (Object, Target, ...) to the wrapper of `h` (null handle -> nil).
     void set_object_global(std::string_view name, objects::ObjectHandle h);
 
-    // ---- q6 script pool (docs/re/OBJECT_SCRIPTS.md §1.3, §1.4, §2.3; the host is engine/apps/sim object_scripts) ----
+    // ---- q6 script pool (legacy docs/re/OBJECT_SCRIPTS.md §1.3, §1.4, §2.3; the host is engine/apps/sim object_scripts) ----
     // Release steps 1-3 of 0x2488e0: the exit flag set, every thread killed and removed (thread ids restart at 0, as the
     // original's thread vector is emptied), the ThreadValue table and the GetEvent queue cleared. Globals are untouched:
     // the caller runs Flush_G() / Base_Definitions() next.
@@ -178,7 +178,7 @@ public:
     // ---- diagnostics ----
     const std::vector<std::string>& messages() const;  // _ScriptMessage / _OuputDebug / print lines
     const std::vector<std::string>& errors() const;    // thread errors
-    // mcx6 t08: scripts stopped by LuaVmOptions::script_budget (their errors() / error text says "script_runaway").
+    // scripts stopped by LuaVmOptions::script_budget (their errors() / error text says "script_runaway").
     uint32_t runaway_count() const;
     // lua_pcall(L, nargs, nresults, 0) on this VM's state or one of its threads, under the runaway guard: run / call /
     // require and the host's other calls into Lua (AI events, story triggers, callbacks) go through it. A call made from
@@ -213,7 +213,7 @@ public:
     };
     HeapInfo heap_info() const;
 
-    // ---- garbage collection (OPT2 t04, scheduled by alamo/lua/gc_schedule.hpp) ----
+    // ---- garbage collection (scheduled by alamo/lua/gc_schedule.hpp) ----
     // True while a Lua call runs in this VM (a script, a binding, a service): no scheduled collection then.
     bool gc_busy() const;
     // One full collection (Lua 5.0.2's own mark and sweep and new threshold, the latter then scaled by
@@ -224,7 +224,7 @@ public:
     void collect_detached(uint32_t threshold_percent = 100);
     // Runs the finalizers the last collect_detached() queued, if any (owner thread, between services).
     void run_finalizers();
-    // Teardown (OPT3 t11): runs on the owner thread the Lua code lua_close would run - the __gc finalizers of every
+    // Teardown: runs on the owner thread the Lua code lua_close would run - the __gc finalizers of every
     // finalizable userdata, with lua_close's own steps (upvalues closed, finalizers separated, errors retried) - so
     // that destroying the VM afterwards only frees this VM's memory and may run on another thread
     // (destroy_detached, gc_schedule.hpp). No Lua code may run in the VM after it. Requires !gc_busy().

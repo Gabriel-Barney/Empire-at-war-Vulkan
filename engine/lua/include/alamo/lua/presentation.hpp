@@ -10,11 +10,11 @@
 // per-log sequence number; arguments are recorded by value (numbers as Lua doubles, objects by id),
 // so two runs of the same scripts produce identical logs on every machine (digest()). Durations
 // given to scripts in seconds are converted to whole sim frames at the fixed 30 Hz step
-// (docs/re/MAIN_LOOP.md: "The simulation step is always 1/30 s"): frames = ceil(seconds * 30).
+// (legacy docs/re/MAIN_LOOP.md: "The simulation step is always 1/30 s"): frames = ceil(seconds * 30).
 //
 // Blocking: in the original only two calls of this family return a block status that scripts wait on
 // with PGBase's BlockOnCommand: Play_Bink_Movie (BinkMovieBlockStatus) and Play_Lightning_Effect
-// (LightningEffectBlockStatus) (docs/re/LUA_API.md, BlockingStatus.IsFinished overrides; shipped
+// (LightningEffectBlockStatus) (legacy docs/re/LUA_API.md, BlockingStatus.IsFinished overrides; shipped
 // scripts: BlockOnCommand(Play_Bink_Movie(...)), BlockOnCommand(Play_Lightning_Effect(...))). Fades,
 // letterbox and camera transitions return nothing; scripts wait for them with Sleep(t). Here a block
 // finishes at a fixed sim frame (start + duration frames), or earlier when the host / a script stops
@@ -124,8 +124,8 @@ enum class PresentationOp : uint16_t {
     ResumeHyperspaceIn,             // Resume_Hyperspace_In()
     ObjectShowEmitter,              // GameObjectWrapper.Show_Emitter(name, bool)
     ObjectPlayCinematicEngineFlyby, // GameObjectWrapper.Play_Cinematic_Engine_Flyby(...)
-    ObjectHighlight,                // ui2 t02: GameObjectWrapper.Highlight(on [, z offset]) -> args: receiver, on, z offset
-    ObjectHighlightSmall,           // ui2 t02: GameObjectWrapper.Highlight_Small(on [, z offset]), same args
+    ObjectHighlight,                // GameObjectWrapper.Highlight(on [, z offset]) -> args: receiver, on, z offset
+    ObjectHighlightSmall,           // GameObjectWrapper.Highlight_Small(on [, z offset]), same args
     Count
 };
 std::string_view op_name(PresentationOp op);  // the Lua name ("Fade_Screen_In", "GameObjectWrapper.Play_SFX_Event")
@@ -207,9 +207,9 @@ struct PresentationState {
     std::map<int32_t, bool> in_end_cinematic;
     std::map<std::string, bool> emitters;
 
-    // The original's "cinematic rate lock" (FS +0x37, docs/re/MAIN_LOOP.md §1.5): set while a
+    // The original's "cinematic rate lock" (FS +0x37, legacy docs/re/MAIN_LOOP.md §1.5): set while a
     // cinematic camera or cinematic mode is active; it pins pacing to 30 Hz and selects the parity
-    // CRC inversion (COMMANDS.md §7.1 step 6). The HOST reads it and passes it to
+    // CRC inversion (legacy docs/re/COMMANDS.md §7.1 step 6). The HOST reads it and passes it to
     // ParityFrameOptions::invert; it is not hashed as presentation state.
     bool cinematic_rate_lock() const { return camera == CameraMode::Cinematic || cinematic_mode; }
 };

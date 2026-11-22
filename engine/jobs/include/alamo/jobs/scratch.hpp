@@ -1,4 +1,4 @@
-// Per-thread scratch (bump) arena. Fixes the allocator contention noted in docs/re/HOTSPOTS.md
+// Per-thread scratch (bump) arena. Fixes the allocator contention noted in legacy docs/re/HOTSPOTS.md
 // (perception contexts, goal candidates and cull-query vectors heap-allocate per evaluation and
 // serialize on the process heap lock).
 //

@@ -1,4 +1,4 @@
-// P2 HUD canvas (docs/re/UI.md §2.4, §1.2, §3.4): the 1024 x 768 virtual canvas every HUD layer is laid
+// P2 HUD canvas (legacy docs/re/UI.md §2.4, §1.2, §3.4): the 1024 x 768 virtual canvas every HUD layer is laid
 // out in, its Hor+ widening, the three orthographic HUD cameras rebuilt on every resolution change, the
 // pixel <-> canvas conversions and the font pixel-size rule.
 //
@@ -39,7 +39,7 @@ struct Vec2f {
     friend bool operator==(const Vec2f&, const Vec2f&) = default;
 };
 
-// One HUD orthographic camera (UI.md §2.4): spans +-half_width x +-half_height, near / far planes.
+// One HUD orthographic camera (legacy docs/re/UI.md §2.4): spans +-half_width x +-half_height, near / far planes.
 struct HudOrthoCamera {
     float half_width = kHudBaseWidth * 0.5f, half_height = kHudBaseHeight * 0.5f;
     float znear = 0.1f, zfar = 40.0f;
@@ -81,11 +81,11 @@ struct HudCanvas {
     // Snap a canvas point to the pixel grid (text, Pixel_Align): round the pixel position (half-pixel bias).
     Vec2f snap_to_pixel(Vec2f c) const;
     // Pixel lengths -> canvas lengths.
-    // Wrapped text width factor: 0.95 at exactly 800 pixels wide, else 1 (UI.md §2.4, 0x2df0c0).
+    // Wrapped text width factor: 0.95 at exactly 800 pixels wide, else 1 (legacy docs/re/UI.md §2.4, 0x2df0c0).
     float text_wrap_factor() const { return screen_width == 800 ? 0.95f : 1.0f; }
 };
 
-// Font em height in pixels for a point size at a screen height (UI.md §3.4 [H]):
+// Font em height in pixels for a point size at a screen height (legacy docs/re/UI.md §3.4 [H]):
 // point * (screenH * 96 / 600) / 72. Returned unrounded; font_pixel_height_int rounds to nearest [port]
 // (CreateFont takes an int; rounding mode not in the doc), at least 1.
 float font_pixel_height(float point_size, uint32_t screen_height);

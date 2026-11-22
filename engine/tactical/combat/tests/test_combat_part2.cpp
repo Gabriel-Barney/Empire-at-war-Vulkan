@@ -1,4 +1,4 @@
-// Part 2 of test_combat (bo3 t03: split by position; see test_combat_common.hpp).
+// Part 2 of test_combat (split by position; see test_combat_common.hpp).
 #include "alamo/test/engagement_fns.hpp"
 #include "test_combat_common.hpp"
 
@@ -69,7 +69,7 @@ void test_hull_hardpoint_coupling() {
 
 namespace bo3split {
 
-// refixf t06: Choose_Target_Hardpoint (TACTICAL_COMBAT 2.6 [H]) ranks the target's live destroyable hardpoints by the
+// Choose_Target_Hardpoint (TACTICAL_COMBAT 2.6 [H]) ranks the target's live destroyable hardpoints by the
 // position of their TYPE in the attacker's Hard_Point_Priorities (Lua override first, then the type's set), skips the
 // Hard_Point_Exclusions, unlisted types rank 1e18 with ties to the closest in 3D; without a set, the closest targetable.
 void test_choose_target_hardpoint_by_type() {
@@ -196,7 +196,7 @@ void test_hardpoint_disabled() {
 
 namespace bo3split {
 
-// HARDPOINT_DISABLED.md §3-§5: station-upgrade copy, functioning counts, offline effects of a disabled hardpoint,
+// legacy docs/re/HARDPOINT_DISABLED.md §3-§5: station-upgrade copy, functioning counts, offline effects of a disabled hardpoint,
 // the per-player special-weapon flag (Allows_Special_Weapon_Use), re-enable on repair to max.
 void test_station_upgrade_copy() {
     World w(3);
@@ -465,7 +465,7 @@ void test_save_load() {
     CHECK(load_battle(b, saved, rng_w.bytes(), a.w.frame));
     CHECK(combat_bytes(*b.w.sys) == saved);  // write -> read -> write: identical bytes
     CHECK(combat_digest(*a.w.sys, a.w.rng) == combat_digest(*b.w.sys, b.w.rng));
-    // cmb3 t04 (b0439): the last tick's shot events keep their firing hardpoint and projectile serial (the host's
+    // the last tick's shot events keep their firing hardpoint and projectile serial (the host's
     // Fire_SFXEvent lookup on the first post-load tick)
     {
         const auto ea = a.w.sys->shot_events(), eb = b.w.sys->shot_events();
@@ -487,7 +487,7 @@ void test_save_load() {
         b.w.tick(pf4);
         shots += static_cast<uint32_t>(a.w.sys->shot_events().size());
         deaths += static_cast<uint32_t>(a.w.sys->deaths().size());
-        // aud1 t04: a shot's serial names the projectile it spawned (same shooter) while that projectile still flies, and
+        // a shot's serial names the projectile it spawned (same shooter) while that projectile still flies, and
         // a hardpoint shot names a valid CombatData::hardpoints entry.
         for (const ShotEvent& e : a.w.sys->shot_events()) {
             CHECK(e.hardpoint < 0 || static_cast<size_t>(e.hardpoint) < a.w.sys->data().hardpoints.size());
@@ -506,7 +506,7 @@ void test_save_load() {
     }
     CHECK(diverged == 0);
     CHECK(shots > 0 && deaths > 0);  // the continuation really fought
-    CHECK(shot_links > 0);           // aud1 t04: shots were linked to their projectiles
+    CHECK(shot_links > 0);           // shots were linked to their projectiles
     CHECK(combat_bytes(*a.w.sys) == combat_bytes(*b.w.sys));
     std::printf("combat save: %zu bytes at frame %u, %u ticks continued identically (%u shots, %u deaths)\n", saved.size(),
                 kBefore, kAfter, shots, deaths);
@@ -873,7 +873,7 @@ namespace bo3split {
 // ================================================================================================
 
 // ================================================================================================
-// refixf t01: ROCKET / MPTL_ROCKET spline flight (docs/re/S9_DEATH_CLONE_SHIELDS.md §2.4)
+// ROCKET / MPTL_ROCKET spline flight (legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §2.4)
 // ================================================================================================
 
 float dist3(Vec3 a, Vec3 b) {
@@ -1417,7 +1417,7 @@ void test_rocket_flight_system() {
         CHECK(combat_bytes(*a.w.sys) == combat_bytes(*b.w.sys));
     }
     {  // a rocket type without curve data (Projectile_Rocket_Curve_Distance absent = 0): spline flight, but no legs and no
-       // draws; the path is not buildable, so the rocket expires on its first flight step (refixf t01: no straight fallback)
+       // draws; the path is not buildable, so the rocket expires on its first flight step (no straight fallback)
         CombatData d;
         ProjectileDesc rk;
         rk.max_speed = 10.0f;
@@ -1958,7 +1958,7 @@ void test_garrison_fire_bones() {
         CHECK(!l.empty() && same(l.back(), wf));
         Vec3 hp;
         std::vector<GarrisonFireBone> bones;
-        // s78f t03: the world position and the x-axis yaw of the current pose (host facing +y: local yaw 0 -> world 90)
+        // the world position and the x-axis yaw of the current pose (host facing +y: local yaw 0 -> world 90)
         CHECK(g.w.sys->garrison_fire_bones(3, hp, bones) && bones.size() == 1 && same(bones[0].pos, wf) && same(hp, Vec3{0, 0, 0}));
         CHECK(bones.size() == 1 && std::fabs(bones[0].yaw_deg - 90.0f) < 1e-4f);
         g.w.sys->set_health(3, 200.0f);  // 0.2: ALT 2 = M -> no garrison bones
@@ -2221,7 +2221,7 @@ void test_fire_at_position() {
         const std::vector<uint32_t> again = o->shot_frames(200);
         CHECK(again.size() == 1 && !again.empty() && again[0] == f1 + 91);
     }
-    {  // S8 t30: the presentation events - chargeup when the turret is aimed (stamp), charged at the end of the charge-up
+    {  // the presentation events - chargeup when the turret is aimed (stamp), charged at the end of the charge-up
         auto o = make(true, 90, 0.2f);
         const Vec3 at{150, 40, 0};
         CHECK(o->w.sys->order_fire_at_position(1, at));
@@ -2430,7 +2430,7 @@ void test_foc_data() {
         }
         CHECK(fighter->property_exclusions != 0);
     }
-    // refixf t06: Capital_Attack_Move's Hard_Point_Priorities "Shield_Generator, Engine, FIGHTER_BAY, WEAPON_LASER,
+    // Capital_Attack_Move's Hard_Point_Priorities "Shield_Generator, Engine, FIGHTER_BAY, WEAPON_LASER,
     // WEAPON_ION_CANNON, TRACTOR_BEAM" are HardPointType values in list order; no hard-point name is unknown.
     const PrioritySet* cam = nullptr;
     for (const PrioritySet& s : sets)

@@ -18,7 +18,7 @@ bool clickable(GuiGadgetType t) {
     return t == GuiGadgetType::PushButton || t == GuiGadgetType::CheckBox || t == GuiGadgetType::RadioButton;
 }
 
-// UI5 t06 (UI.md §3.6, the gadget classes' input handlers): GUI_Common_Dialog_Button_Hilight when the cursor enters an
+// UI5 t06 (legacy docs/re/UI.md §3.6, the gadget classes' input handlers): GUI_Common_Dialog_Button_Hilight when the cursor enters an
 // enabled push button, check box, radio button, combo box (its field), trackbar slider or a list's scroll bar.
 bool hover_sound(GuiGadgetType t) {
     return clickable(t) || t == GuiGadgetType::ComboBox || t == GuiGadgetType::TrackbarSlider;
@@ -27,7 +27,7 @@ bool hover_sound(GuiGadgetType t) {
 constexpr uint32_t kPopupLayer = 12;
 constexpr float kScrollWidth = 12.0f;  // [port] list scroll bar column width (canvas units) when no texture size
 constexpr float kFieldInset = 5.0f;    // [port] QA D8 / D10: left padding of edit and closed combo text (canvas units)
-constexpr float kListTextGap = 3.0f;   // UI.md §3.7.3: listbox rows are cut to the row width less 3 / 1024 of the screen width
+constexpr float kListTextGap = 3.0f;   // legacy docs/re/UI.md §3.7.3: listbox rows are cut to the row width less 3 / 1024 of the screen width
 constexpr float kCheckGlyph = 13.0f;   // [port] QA D8: one check box size; the shipped rows are 10 to 23 units tall
 
 }  // namespace
@@ -288,7 +288,7 @@ void GuiManager::place(GuiDialog& d) const {
     const float h = d.height();
     if (h > canvas_.height || h > kHudBaseHeight) {
         // Menu column (taller than the base canvas; a UI-scaled canvas may be taller than the column itself): top edge, right edge on the screen's right edge (base 20.jpg at 16:9: the buttons end ~1 % from the
-        // right edge; UI.md §3.3 at 4:3). Its IDC_MENU_PETRO_LOGO hotspot follows the stretched backdrop (build()).
+        // right edge; legacy docs/re/UI.md §3.3 at 4:3). Its IDC_MENU_PETRO_LOGO hotspot follows the stretched backdrop (build()).
         d.origin_ = {0.5f * canvas_.width - w, 0.5f * canvas_.height};
     } else {
         d.origin_ = {std::round(-0.5f * w), std::round(0.5f * h)};  // centred [port]
@@ -439,7 +439,7 @@ int32_t GuiManager::visible_rows(const GuiDialog& d, size_t i) const {
 float GuiManager::combo_field_height(const GuiDialog& d, size_t i) const {
     if (!skin_) return 15.0f;
     const GuiImage b = image(skin_->texture(d.name(), d[i].id(), "Combo_Box_Popdown_Button"));
-    return b.valid && b.size.y > 0.0f ? b.size.y : 15.0f;  // UI.md §3.7.1: 22 x 25 button, 2 x 25 caps
+    return b.valid && b.size.y > 0.0f ? b.size.y : 15.0f;  // legacy docs/re/UI.md §3.7.1: 22 x 25 button, 2 x 25 caps
 }
 
 GuiRect GuiManager::combo_field(const GuiDialog& d, size_t i) const {
@@ -1014,7 +1014,7 @@ void GuiManager::update(const InputFrame& raw, const RoutedInput& routed, double
     }
     // Hover.
     const int32_t hc = target && raw.mouse_inside ? target->control_at(cursor_) : -1;
-    // UI5 t06: a list's scroll bar is its own gadget in retail (GUIGadgetVScrollbarClass): entering it is a hover too,
+    // a list's scroll bar is its own gadget in retail (GUIGadgetVScrollbarClass): entering it is a hover too,
     // and so is the open drop-down's scroll bar. A combo box plays its hover only on entering its field rect (0x1e8970),
     // also when the cursor comes back onto the field from its open drop-down.
     bool in_scroll = false, in_field = false;
@@ -1068,11 +1068,11 @@ void GuiManager::update(const InputFrame& raw, const RoutedInput& routed, double
             consumed = true;
             const ScrollBar sb = scroll_bar(*target, i);
             if (const ScrollPart part = scroll_part_at(sb, cursor_); part != ScrollPart::None) {
-                sfx("GUI_Common_Dialog_Button_Press", static_cast<int32_t>(i));  // UI5 t06: the scroll bar gadget's press
+                sfx("GUI_Common_Dialog_Button_Press", static_cast<int32_t>(i));  // the scroll bar gadget's press
                 scroll_press(*target, i, part, now);  // the drop-down's scroll bar: stays open
                 continue;
             }
-            // UI5 t06 (UI.md §3.6): the click on the field that closes the drop-down is a press too.
+            // UI5 t06 (legacy docs/re/UI.md §3.6): the click on the field that closes the drop-down is a press too.
             if (combo_field(*target, i).contains(cursor_)) sfx("GUI_Common_Dialog_Button_Press", static_cast<int32_t>(i));
             const GuiRect lr = combo_list(*target, i);
             if (lr.contains(cursor_)) {
@@ -1095,7 +1095,7 @@ void GuiManager::update(const InputFrame& raw, const RoutedInput& routed, double
                 }
                 const GuiRect r = target->control_rect(i);
                 switch (c.type) {
-                    // UI5 t06 (UI.md §3.6): GUI_Common_Dialog_Button_Press on the mouse-down of a slider, a combo box's
+                    // UI5 t06 (legacy docs/re/UI.md §3.6): GUI_Common_Dialog_Button_Press on the mouse-down of a slider, a combo box's
                     // field (it opens / closes the drop-down), an edit box and a list's scroll bar.
                     case GuiGadgetType::TrackbarSlider:
                         sfx("GUI_Common_Dialog_Button_Press", hc);
@@ -1606,10 +1606,10 @@ void GuiManager::draw_control(HudDrawList& dl, uint32_t layer, const GuiDialog& 
                              c.enabled ? Rgba8{255, 255, 255, 255} : Rgba8{255, 255, 255, 128});
                         tr.min.x += rh;
                     }
-                    // UI.md §3.7.1: an item colour recolours the item's text (flat), also on a disabled control.
+                    // legacy docs/re/UI.md §3.7.1: an item colour recolours the item's text (flat), also on a disabled control.
                     const Rgba8* ic = ri < c.item_colors.size() ? &c.item_colors[ri] : nullptr;
                     const Rgba8* tc = ic ? ic : ri < c.item_text_colors.size() && c.item_text_colors[ri].a > 0 ? &c.item_text_colors[ri] : nullptr;
-                    // UI.md §3.7.3: a row wider than the box drops trailing characters (no ellipsis, no squeeze) until it
+                    // legacy docs/re/UI.md §3.7.3: a row wider than the box drops trailing characters (no ellipsis, no squeeze) until it
                     // fits the row less a 3-unit gap; the item keeps its whole text.
                     std::u32string_view txt = c.items[ri];
                     const float avail = tr.width() - kListTextGap;
@@ -1638,7 +1638,7 @@ void GuiManager::draw_control(HudDrawList& dl, uint32_t layer, const GuiDialog& 
                 fill(dl, layer, {{f.max.x - bw, f.min.y}, f.max}, style_.fallback_button);
             if (focused) fill(dl, layer, f, style_.focus);
             if (c.selected >= 0 && static_cast<size_t>(c.selected) < c.items.size()) {
-                // UI.md §3.7.1: the text is centred in the field left of the pop-down button (left-justified: the field's
+                // legacy docs/re/UI.md §3.7.1: the text is centred in the field left of the pop-down button (left-justified: the field's
                 // left edge plus a small inset); when wider than the field less 2 x padding trailing characters are dropped.
                 const size_t sel = static_cast<size_t>(c.selected);
                 const Rgba8* ic = sel < c.item_colors.size() ? &c.item_colors[sel] : nullptr;
@@ -1713,7 +1713,7 @@ void GuiManager::draw_control(HudDrawList& dl, uint32_t layer, const GuiDialog& 
         }
         case GuiGadgetType::CustomImage:
             if (!c.image.empty()) quad(dl, layer, c.image, r, c.tint);
-            {  // UI.md 9.6.1: each label centred on its point, in the control's font, inside the rect inset by 5 %
+            {  // legacy docs/re/UI.md 9.6.1: each label centred on its point, in the control's font, inside the rect inset by 5 %
                 const float ax = r.min.x + 0.05f * r.width(), ay = r.max.y - 0.05f * r.height();
                 const float aw = 0.9f * r.width(), ah = 0.9f * r.height();
                 for (const GuiMarker& m : c.markers) {

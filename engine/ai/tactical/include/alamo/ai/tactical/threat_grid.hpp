@@ -1,5 +1,5 @@
 // A1 stage 1b - TacticalPerceptionGridClass, the tactical threat grid
-// (docs/re/AI_TACTICAL_PERCEPTION.md section 4; consumers 3.3, 4.5, 4.6, 5).
+// (legacy docs/re/AI_TACTICAL_PERCEPTION.md section 4; consumers 3.3, 4.5, 4.6, 5).
 //
 // Geometry [H]: nFow = ceil(extent / DesiredFOWCellSize) clamped 0..512 per axis (0x22f9f0 rounds away from
 // zero: ceil for x >= 0, floor below; A1_READINGS 13 [H]);
@@ -120,7 +120,7 @@ UnitAiStamps draw_unit_ai_stamps(SimRng& rng, uint32_t frame);
 
 class TacticalPerceptionGrid;
 
-// mcx6 t06 (docs/re/LUA_API.md "Attack position 0x4f5390" [H for the flow]): the four d x d squares whose corners are
+// mcx6 t06 (legacy docs/re/LUA_API.md "Attack position 0x4f5390" [H for the flow]): the four d x d squares whose corners are
 // (x, y), (x - d, y), (x - d, y - d), (x, y - d) of the target point `t` (each square spans corner .. corner + d); the
 // enemy force of `self` in each (0x654290: the cells overlapping the square, cells_force with every category, enemy,
 // attenuator 0, no exclusion, no faction [M: these query parameters]); the lowest wins (strict <, so the first on a tie).

@@ -100,7 +100,7 @@ add_library(alamo_render STATIC
   ${_render_ssao_headers}
 )
 add_library(alamo::render ALIAS alamo_render)
-# REF3 t07: the renderer's private headers (src/renderer_core.hpp and friends) for engine/render's own tests and the
+# the renderer's private headers (src/renderer_core.hpp and friends) for engine/render's own tests and the
 # alamo_render tool app; every other module uses the public alamo/render headers only.
 add_library(alamo_render_internal INTERFACE)
 target_include_directories(alamo_render_internal INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -152,7 +152,7 @@ target_sources(alamo_render PRIVATE src/taa.cpp ${_render_taa_headers})
 add_dependencies(alamo_render alamo_render_taa_shaders)
 
 # ---------------------------------------------------------------- [port] FSR upscaling (src/fsr.cpp, src/upscale.cpp)
-# AMD FidelityFX SDK 2.4.0 (approved by Gabriel 2026-11-13, docs/DECISIONS.md): the C API headers and the two signed
+# AMD FidelityFX SDK 2.4.0 (approved by Gabriel 2026-11-13, docs/DECISIONS.md "FSR upscaling"): the C API headers and the two signed
 # Vulkan DLLs fetched by toolchain\11_fidelityfx.cmd (SHA-256 pinned there). Without the headers the renderer builds
 # without FSR (Upscaler::Fsr frames fall back to TAA). The DLLs are loaded at run time from the executable's folder;
 # alamo_render_copy_ffx(<target>) copies them (and the SDK licence) there.
@@ -297,7 +297,7 @@ set_target_properties(alamo_render_app PROPERTIES OUTPUT_NAME alamo_render)
 # when MSVC pulls formats' COMDATs first (LNK2005; same workaround as alamo_headless).
 target_link_libraries(alamo_render_app PRIVATE alamo_core alamo_render alamo_render_internal)
 target_compile_definitions(alamo_render_app PRIVATE "ALAMO_RENDER_SOURCE_DIR=\"${PROJECT_SOURCE_DIR}\"")
-# app/app_common.hpp: helpers shared by main.cpp and the sim / galactic / particles sub-mains (CU4 t03).
+# app/app_common.hpp: helpers shared by main.cpp and the sim / galactic / particles sub-mains.
 target_include_directories(alamo_render_app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/app)
 if(WIN32)
   target_link_libraries(alamo_render_app PRIVATE user32)
@@ -312,7 +312,7 @@ add_test(NAME alamo_render_app_sync COMMAND alamo_render_app --clear --frame-gra
 set_tests_properties(alamo_render_app_sync PROPERTIES TIMEOUT 120 ENVIRONMENT "VK_KHRONOS_VALIDATION_VALIDATE_SYNC=true")
 
 # ---------------------------------------------------------------- tests
-# CU4 t02: header-only GPU test scaffolding (GpuCore, GpuOffscreen over alamo/render/offscreen.hpp) for the render-side
+# header-only GPU test scaffolding (GpuCore, GpuOffscreen over alamo/render/offscreen.hpp) for the render-side
 # test exes here, in galactic/ and particles/ and in engine/ui; brings alamo_test_support (CHECK, env helpers).
 add_library(alamo_render_test_support INTERFACE)
 target_include_directories(alamo_render_test_support INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/test_support/include)
@@ -327,7 +327,7 @@ alamo_shaderxlat_copy_dxc(alamo_render_tests)
 add_test(NAME alamo_render_tests COMMAND alamo_render_tests)
 set_tests_properties(alamo_render_tests PROPERTIES TIMEOUT 600)
 
-# Space background scene order on real data (planets vs nebula domes, SPACE_AND_OPEN.md D.7 3); PNGs to logs\.
+# Space background scene order on real data (planets vs nebula domes, legacy docs/re/SPACE_AND_OPEN.md D.7 3); PNGs to logs\.
 add_executable(alamo_render_space_tests tests/test_render_space.cpp)
 target_link_libraries(alamo_render_space_tests PRIVATE alamo_render alamo_render_internal alamo_render_test_support)
 target_compile_definitions(alamo_render_space_tests PRIVATE "ALAMO_RENDER_SOURCE_DIR=\"${PROJECT_SOURCE_DIR}\"")

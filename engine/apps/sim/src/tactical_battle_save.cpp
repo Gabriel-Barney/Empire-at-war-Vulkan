@@ -37,7 +37,7 @@ bool get_system(ByteReader& r, T* s) {
     return !s || get_section(r, [s](ByteReader& sub) { return read_system(*s, sub); });
 }
 
-// REF2 t01: an archive that moves no data and notes the bytes of each field state_io hands it (a record list: the
+// an archive that moves no data and notes the bytes of each field state_io hands it (a record list: the
 // vector object itself), for TacticalBattle::check_save_ledger.
 class LedgerProbe {
 public:
@@ -106,13 +106,13 @@ void TacticalBattle::state_io(Ar& a, Self& b) {
     a(b.anchor_[0], b.anchor_[1], b.facing_[0], b.facing_[1], b.placed_[0], b.placed_[1]);
     a(b.drop_facing_[0], b.drop_facing_[1]);  // a1h t06
     for (size_t s = 2; s < TacticalBattle::kMaxSides; ++s) a(b.anchor_[s], b.facing_[s], b.placed_[s], b.drop_facing_[s]);  // skm2 t02 (17)
-    a.seq(b.landings_, [](auto& x, auto& l) {  // a1i t04: landing objects (state version 3)
+    a.seq(b.landings_, [](auto& x, auto& l) {  // landing objects (state version 3)
         x(l.id, l.h, l.participant, l.state, l.timed, l.timer_start, l.timer_len, l.unloaded, l.next_offset, l.remove_frame);
         x(l.anim_start, l.anim_count, l.anim_rate);  // r3g t01 (state version 16)
         x(l.targets, l.units);
     });
     a(b.frame_, b.retreat_allowed_frame_, b.retreat_side_, b.retreat_done_frame_, b.retreat_complete_, b.finished_);
-    // story t06: victory monitor
+    // victory monitor
     a(b.vm_declared_, b.vm_decl_.type, b.vm_decl_.player, b.vm_decl_.countdown, b.vm_decl_.silent, b.vm_countdown_, b.vm_hold_);
     a(b.vm_queue_, b.vm_tsw_seen_, b.vm_declared_frame_);
     a(b.vm_cp_armed_, b.vm_cp_timer_, b.vm_cp_player_);  // ccpgt t02 (state version 9)
@@ -174,27 +174,27 @@ void TacticalBattle::state_io(Ar& a, Self& b) {
     a(b.hg_orphans_, b.prod_used_, b.hg_tech_bonus_);
     a.seq(b.hg_upgrades_, [](auto& x, auto& u) { x(u.old_station, u.new_station, u.owner); });
     a(b.hg_launches_, b.hg_used_);
-    // S7 t22: fighter formations
-    a.seq(b.fformations_, [](auto& x, auto& f) { x(f.key, f.flags, f.goal, f.goal_object); });  // s78f t02: no `pushed` (v6)
-    // cu8k t01: Saber_Throw thrower machines (state version 10)
+    // fighter formations
+    a.seq(b.fformations_, [](auto& x, auto& f) { x(f.key, f.flags, f.goal, f.goal_object); });  // no `pushed` (v6)
+    // Saber_Throw thrower machines (state version 10)
     a.seq(b.sabers_, [](auto& x, auto& t) { x(t.thrower, t.target, t.aim, t.throw_frame, t.serial, t.projectile, t.catch_dist, t.end_frame); });
-    // cu8l t03: the start fleet's hyperspace arrivals (state version 11; a version 10 battle has none)
+    // the start fleet's hyperspace arrivals (state version 11; a version 10 battle has none)
     a.seq(b.arrivals_, [](auto& x, auto& r) { x(r.id, r.container, r.timer, r.composes, r.reinforce); });  // reinforce: v21
     // s78n t20 stage A: the land attack blocks (state version 12)
     a.seq(b.attack_blocks_, [](auto& x, auto& r) { x(r.mover, r.target, r.flags, r.next, r.gx, r.gy, r.ox, r.oy, r.oz, r.retry, r.hp); });  // ox..oz: v18, retry / hp: v19
     // [port] fleet cohesion per player (state version 13)
     for (auto& c : b.fleet_cohesion_) a(c);
-    // TRU1 t06: the space retreat jump-out flight (state version 14)
+    // the space retreat jump-out flight (state version 14)
     a(b.rt_.state, b.rt_.counter, b.rt_.release, b.rt_.sound, b.rt_.wait, b.rt_.dir, b.rt_.list);
-    // TRU1 t05 / t07: indigenous spawners and debris pieces (state version 14)
+    // indigenous spawners and debris pieces (state version 14)
     a.seq(b.sp_spawners_, [](auto& x, auto& s) { x(s.id, s.state, s.next, s.spawned); });
     a.seq(b.sp_debris_, [](auto& x, auto& d) { x(d.id, d.particle, d.expiry, d.roll, d.pitch, d.yaw); });
     a(b.sp_scanned_, b.sp_used_);
     a(b.sp_indigenous_);  // tru2 t01
     a.seq(b.sp_homes_, [](auto& x, auto& e) { x(e.id, e.home, e.leash); });
-    // skm1 t07: the skirmish slots' start-force re-delivery (state version 15)
+    // the skirmish slots' start-force re-delivery (state version 15)
     a.seq(b.sk_garrisons_, [](auto& x, auto& g) { x(g.player, g.types, g.ids, g.timer, g.pending); });
-    // cmb1 t01: the land formation records (state version 18; `locked` is derived each tick)
+    // the land formation records (state version 18; `locked` is derived each tick)
     a.seq(b.lformations_, [](auto& x, auto& r) { x(r.mover, r.flags, r.goal, r.goal_object, r.pushed, r.next, r.seen); });
     // ref2 t01 (state version 20): STY1 t06 BOMBARD_DELAY, a story reward on the running battle; the map load's lookups by
     // object id - q6 t28 hints (Find_Hint), map1 t04 marker names, AI_GALACTIC_TOKENS 9.4 pad base levels - which a
@@ -332,11 +332,11 @@ bool TacticalBattle::read_part(SavePart p, ByteReader& r) {
             }
             const std::vector<uint32_t> types_used = types_used_, descs = descs_;
             save_io::In in(r);
-            arrivals_.clear();  // cu8l t03: not in a version 10 state
+            arrivals_.clear();  // not in a version 10 state
             state_io_version_ = version;
             state_io(in, *this);
             state_io_version_ = 0;
-            // q6 t12: types a game-object script added mid-battle (script_add_types) follow the rebuilt setup's list; they
+            // types a game-object script added mid-battle (script_add_types) follow the rebuilt setup's list; they
             // are built onto the rebuilt tables again (same append order -> the same descriptor indices).
             const bool same = types_used_ == types_used && descs_ == descs;
             const bool extended = !same && types_used_.size() > types_used.size() && descs_.size() == types_used_.size() &&
@@ -347,7 +347,7 @@ bool TacticalBattle::read_part(SavePart p, ByteReader& r) {
                 if (u.participant >= parts_.size() || (u.container != 0xFFFFFFFFu && u.container >= containers_.size())) ok = false;
             for (size_t i = 1; i < attack_blocks_.size(); ++i)  // s78n t20 review: one block per mover, ascending (lower_bound)
                 if (!(attack_blocks_[i - 1].mover < attack_blocks_[i].mover)) ok = false;
-            for (size_t i = 1; i < lformations_.size(); ++i)  // cmb1 t01: one record per mover, ascending
+            for (size_t i = 1; i < lformations_.size(); ++i)  // one record per mover, ascending
                 if (!(lformations_[i - 1].mover < lformations_[i].mover)) ok = false;
             if (ok && extended) {
                 const std::vector<uint32_t> saved_descs = descs_;
@@ -367,7 +367,7 @@ bool TacticalBattle::read_part(SavePart p, ByteReader& r) {
             // draws and one advance [M]) are not modelled.
             if (!set_environment(static_cast<int32_t>(map_.environments.start_index))) env_index_ = 0;
             l1_weather_env_ = env_index_;
-            env_saved_ = 0xFFFFFFFFu;  // ui2 t08: a Set_Cinematic_Environment(true) of the saving run is not remembered
+            env_saved_ = 0xFFFFFFFFu;  // a Set_Cinematic_Environment(true) of the saving run is not remembered
             // The combat hooks' tick context (the synced RNG + the global frame of the last battle tick) is used by
             // command-phase hooks before the next battle tick: as in the saving run.
             resume_tick_context();
@@ -384,14 +384,14 @@ bool TacticalBattle::read_part(SavePart p, ByteReader& r) {
         case SavePart::Combat:
             l1_weather_.set_data(l1_weather_data_.get());  // the saved scenario resolves in it (weather starts on the first service)
             if (!(get_system(r, combat_.get()) && get_system(r, &l1_weather_))) return false;
-            // s78n t06: the running hero clashes (part version 2; a version 1 battle has none). The manager's entries and
+            // the running hero clashes (part version 2; a version 1 battle has none). The manager's entries and
             // resolved types are the host's (set_hero_clash_data), so the saved entry indices resolve against them.
             hero_clash_.clear();
             if (version >= 2u && !get_system(r, &hero_clash_)) return false;
             if (!r.done()) return false;
             (void)hero_clash_.take_changed();
             hero_clash_sync();
-            attach_rocket_terrain();  // refixf t01: the host terrain is not part of the save
+            attach_rocket_terrain();  // the host terrain is not part of the save
             share_groups_sync();  // derived, not saved (State and Movement are read before Combat)
             return true;
         case SavePart::Abilities:
@@ -409,7 +409,7 @@ bool TacticalBattle::read_part(SavePart p, ByteReader& r) {
             if (has_captures && !captures_) s4_init();
             if (has_captures != (captures_ != nullptr)) return false;
             if (captures_ && !get_section(r, [this](ByteReader& sub) { return read_system(*captures_, sub); })) return false;
-            if (version >= 3u) {  // mcx4 t05: the cash points (an older battle had none)
+            if (version >= 3u) {  // the cash points (an older battle had none)
                 const bool has_cash = r.boolean();
                 if (!r.ok() || (has_cash && !cashes_)) return false;
                 if (has_cash && !get_section(r, [this](ByteReader& sub) { return read_system(*cashes_, sub); })) return false;

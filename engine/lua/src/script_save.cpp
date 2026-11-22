@@ -1,4 +1,4 @@
-// q6 t19: the shared script block (include/alamo/lua/script_save.hpp, docs/re/LUA_SAVE.md §2).
+// the shared script block (include/alamo/lua/script_save.hpp, legacy docs/re/LUA_SAVE.md §2).
 //
 // Layout (little-endian): u32 version, u64 FNV-1a 64 of the rest, then: str name, u8 option flags (bit 0 math library,
 // bit 1 upper-cased type names), u8 saved, str save error, u32 thread count, per thread (id order) i32 id, str start

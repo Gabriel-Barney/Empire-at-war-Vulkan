@@ -1,4 +1,4 @@
-// S6 - the set of spatial trees GameObjectManager keeps (docs/re/TACTICAL_COMBAT.md 1.5):
+// S6 - the set of spatial trees GameObjectManager keeps (legacy docs/re/TACTICAL_COMBAT.md 1.5):
 //   player(p)       GOM+0xd0 + p*0x38: player p's projectile-collidable objects (targeting,
 //                   opportunity fire, area damage, projectile hits, auras, AI threat queries)
 //   all()           GOM+0xd8: projectile-collidable objects of every owner (radius query with
@@ -50,7 +50,7 @@ public:
     bool add(EntityHandle id, const Aabb& box, uint32_t mask, const TreeMembership& m);
     bool remove(EntityHandle id);
     bool update(EntityHandle id, const Aabb& box);
-    // SP5: the same as update() for each entry in order (invalid boxes and unknown ids skipped); returns how many were
+    // the same as update() for each entry in order (invalid boxes and unknown ids skipped); returns how many were
     // applied. The trees are independent, so with a parallel pf each tree takes its own entries in entry order on one
     // worker: every tree ends exactly as after the serial calls.
     struct BoxUpdate {

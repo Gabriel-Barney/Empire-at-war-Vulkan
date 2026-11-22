@@ -31,7 +31,7 @@ public:
     // Model-space pose of `id` (per skeleton bone, assets::Mat3x4 layout) when its skeleton has `bones` bones and it
     // played a bound clip at the last update; empty otherwise (draw the bind pose).
     std::span<const assets::Mat3x4> pose(objects::ObjectId id, size_t bones) const;
-    // R3 per-bone "animated visible" bits of the same evaluation (ANIM_PARTICLES.md A.6: 0 = the clip hides the bone's
+    // R3 per-bone "animated visible" bits of the same evaluation (legacy docs/re/ANIM_PARTICLES.md A.6: 0 = the clip hides the bone's
     // sub-objects; crossfade = either clip visible; overlay bones use the overlay clip's bit). Same span rules as pose();
     // empty when every bone is visible (nothing to hide). For SimInstanceBuilder::set_visibility_source.
     std::span<const uint8_t> visibility(objects::ObjectId id, size_t bones) const;

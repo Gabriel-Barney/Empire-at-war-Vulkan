@@ -1,4 +1,4 @@
-// SP5 (docs/SIM_PARALLEL_DESIGN.md §5, "Services chain"): the phase graph of a tick's services.
+// SP5 (docs/SIMULATION.md "Services chain"): the phase graph of a tick's services.
 //
 // Each service declares the components (bits of a 64-bit set, named by the host) it reads and writes. build() places
 // the services in phases: a service goes into the first phase after every EARLIER-declared service it conflicts with

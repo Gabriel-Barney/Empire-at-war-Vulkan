@@ -1,4 +1,4 @@
-// Binding family: fog of war (fog follow-up, L1; docs/re/FOG_OF_WAR.md §6). Host contract, error discipline and the
+// Binding family: fog of war (fog follow-up, L1; legacy docs/re/FOG_OF_WAR.md §6). Host contract, error discipline and the
 // snapshot rules: alamo/lua/fog_bridge.hpp. [H] rules are the doc's; port choices are marked [port].
 //
 // Determinism: no RNG; the snapshots live in FogScriptCells (a vector in ascending handle id). FogOfWar itself is
@@ -66,7 +66,7 @@ bool object_arg(Call& c, int i, ObjectHandle& out) {
     return true;
 }
 
-// ref5 t03: position arguments convert through detail::position_arg (vm_internal.hpp): a region AI target or a task
+// position arguments convert through detail::position_arg (vm_internal.hpp): a region AI target or a task
 // force is a position here too, as in every family.
 using detail::PosArg;
 using detail::position_arg;
@@ -114,7 +114,7 @@ int m_reveal_all(Call& c) {
     if (!player) return c.script_error_stop("%s -- Expected player object as first parameter.", kName);
     FogScriptHooks* hk = fog_hooks(c);
     if (!hk || !hk->fog) return c.script_error_stop("%s -- Command only valid in a tactical game", kName);
-    if (hk->lane_write) {  // sp3: applied by the host at the due tick
+    if (hk->lane_write) {  // applied by the host at the due tick
         hk->lane_write(1, player->id, ObjectHandle{}, 0.0f);
         return 0;
     }
@@ -131,7 +131,7 @@ int m_temporary_reveal(Call& c) {
     if (c.has(3) && !c.is_number(3)) return c.script_error_stop("%s -- Expected number as 3rd parameter.", kName);
     FogScriptHooks* hk = fog_hooks(c);
     if (!hk || !hk->fog) return c.script_error_stop("%s -- Command only valid in a tactical game", kName);
-    if (hk->lane_write) {  // sp3: applied by the host at the due tick (it takes the object's fog view then)
+    if (hk->lane_write) {  // applied by the host at the due tick (it takes the object's fog view then)
         hk->lane_write(2, player->id, h, c.has(3) ? static_cast<float>(c.number(3)) : 0.0f);
         return 0;
     }
@@ -197,7 +197,7 @@ constexpr detail::ImplEntry kImpl[] = {
 
 std::span<const detail::ImplEntry> detail::impl_fog() { return kImpl; }
 
-// refixf t03: FOW_Object_Hidden 0x35f470 for Find_Nearest (fog_bridge.hpp FogScriptHooks::object_hidden). False
+// FOW_Object_Hidden 0x35f470 for Find_Nearest (fog_bridge.hpp FogScriptHooks::object_hidden). False
 // without fog hooks or a fog (outside tactical modes, builds without the fog library).
 bool detail::object_fogged_for(Call& c, int32_t player, ObjectHandle h, bool force) {
 #ifdef ALAMO_LUA_HAVE_FOG

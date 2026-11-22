@@ -1,4 +1,4 @@
-// Shared GPU scaffolding of the render-side test exes (CU4 t02): engine/render/tests, render/galactic/tests,
+// Shared GPU scaffolding of the render-side test exes: engine/render/tests, render/galactic/tests,
 // render/particles/tests and the ui draw tests. Header-only (INTERFACE target alamo_render_test_support), so exes built
 // from several TUs define nothing twice. With alamo/test/support.hpp (CHECK, env_or_empty, data roots).
 #pragma once

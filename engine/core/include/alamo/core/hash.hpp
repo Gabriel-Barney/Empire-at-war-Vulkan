@@ -24,7 +24,7 @@ bool iequals(std::string_view a, std::string_view b);
 constexpr uint64_t kFnv1a64Offset = 0xcbf29ce484222325ull;
 constexpr uint64_t kFnv1a64Prime = 0x100000001b3ull;
 uint64_t fnv1a64(const void* data, size_t len, uint64_t seed = kFnv1a64Offset);
-// Same algorithm and values, usable in constant expressions (CU2 t09).
+// Same algorithm and values, usable in constant expressions.
 constexpr uint64_t fnv1a64(std::string_view s, uint64_t seed = kFnv1a64Offset) noexcept {
     uint64_t h = seed;
     for (const char c : s) {

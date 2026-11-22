@@ -1,0 +1,168 @@
+# The required check for every pull request into main (docs/GROUND_UP_WORKFLOW_DESIGN.md "Evidence and integration").
+# One aggregate status, "landing", succeeds only when the jobs the change needs report success for this candidate:
+#   docs-only change  -> docs   (doc-reference lint)
+#   anything else     -> engine (pinned MSVC toolchain, dev.cmd doctor, dev.cmd check --preset fast = build with /WX
+#                                and the synthetic suite)
+# Retail, Vulkan and trace evidence is a recorded local run, never hosted CI (docs/DECISIONS.md "Retail and GPU
+# evidence is a recorded local run").
+name: landing
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: landing-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  classify:
+    runs-on: windows-2025
+    outputs:
+      code: ${{ steps.paths.outputs.code }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: paths
+        name: Classify changed paths
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" != "pull_request" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"; echo "not a pull request: full check"; exit 0
+          fi
+          files=$(git diff --name-only "$BASE...$HEAD")
+          if [ -z "$files" ]; then
+            echo "::error::no changed files between $BASE and $HEAD"; exit 1
+          fi
+          code=false
+          while IFS= read -r f; do
+            # Prose only: top-level and docs/*.md, docs/agents. docs/re/*.md feeds the tag-ledger lint, so it is code.
+            if [[ "$f" =~ ^(README|AGENTS|CLAUDE)\.md$ || "$f" =~ ^docs/[^/]+\.md$ || "$f" =~ ^docs/agents/[^/]+\.md$ ]]; then
+              echo "docs: $f"
+            else
+              echo "code: $f"; code=true
+            fi
+          done <<< "$files"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+  docs:
+    needs: classify
+    if: needs.classify.outputs.code == 'false'
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.15"
+      - name: Doc-reference lint
+        run: |
+          python -I tools/lint/check_doc_refs.py --root .
+          python -I tools/lint/check_doc_refs.py --selftest
+
+  engine:
+    needs: classify
+    if: needs.classify.outputs.code == 'true'
+    runs-on: windows-2025
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+      - id: python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.15"
+      # The pinned toolchain (MSVC 14.51, SDK 28000, CMake, Ninja, Vulkan headers, DXC, validation layers, Lua,
+      # miniaudio, FFmpeg, FidelityFX, XeSS; no Rust) is keyed on the setup scripts and the Python that owns the venv.
+      - id: toolchain
+        uses: actions/cache/restore@v6
+        with:
+          path: toolchain
+          key: toolchain-engine-${{ steps.python.outputs.python-version }}-${{ hashFiles('toolchain/*.cmd', 'toolchain/*.sh', 'toolchain/*.py') }}
+      - name: Install the pinned toolchain
+        if: steps.toolchain.outputs.cache-hit != 'true'
+        shell: cmd
+        # --accept-msvc-license: the Visual Studio license is accepted for CI installs (approved by Gabriel, 2026-11-21).
+        run: |
+          call toolchain\2_setup.cmd --engine-only --accept-msvc-license || exit /b 1
+          if exist toolchain\downloads rmdir /s /q toolchain\downloads
+      - name: Save the toolchain
+        if: steps.toolchain.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: toolchain
+          key: ${{ steps.toolchain.outputs.cache-primary-key }}
+      - name: Register the validation layer for the elevated Vulkan loader
+        shell: pwsh
+        # Hosted runners run elevated, and the Vulkan loader ignores VK_LAYER_PATH in an elevated process, so the GPU
+        # tests' strict "the pinned layer must load" check failed. Register the pinned layer where an elevated loader
+        # looks (HKLM ExplicitLayers); the runner is discarded after the job.
+        run: |
+          $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+          $loader = Get-Item "$env:WINDIR\System32\vulkan-1.dll" -ErrorAction SilentlyContinue
+          Write-Host "elevated: $admin; system Vulkan loader: $(if ($loader) { $loader.VersionInfo.FileVersion } else { 'none' })"
+          $json = Join-Path $env:GITHUB_WORKSPACE 'toolchain\vvl\bin\VkLayer_khronos_validation.json'
+          if (-not (Test-Path $json)) { throw "missing $json" }
+          $key = 'HKLM:\SOFTWARE\Khronos\Vulkan\ExplicitLayers'
+          New-Item -Path $key -Force | Out-Null
+          New-ItemProperty -Path $key -Name $json -Value 0 -PropertyType DWord -Force | Out-Null
+          Write-Host "registered $json"
+      - name: dev.cmd doctor
+        shell: cmd
+        run: call .\dev.cmd doctor --engine-only
+      - name: dev.cmd check --preset fast
+        shell: cmd
+        run: call .\dev.cmd check --preset fast
+      - name: Report
+        if: always()
+        shell: bash
+        run: |
+          for f in build/test-results/report-synthetic.md build/logs/dev-last.json; do
+            [ -f "$f" ] || continue
+            echo "### $f" >> "$GITHUB_STEP_SUMMARY"
+            if [[ "$f" == *.json ]]; then echo '```json' >> "$GITHUB_STEP_SUMMARY"; cat "$f" >> "$GITHUB_STEP_SUMMARY"; echo '```' >> "$GITHUB_STEP_SUMMARY"
+            else cat "$f" >> "$GITHUB_STEP_SUMMARY"; fi
+          done
+      - name: Upload test results and logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: landing-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            build/test-results/
+            build/logs/
+          if-no-files-found: warn
+          retention-days: 14
+
+  landing:
+    needs: [classify, docs, engine]
+    if: always()
+    runs-on: windows-2025
+    steps:
+      - name: Aggregate result
+        shell: bash
+        env:
+          CLASSIFY: ${{ needs.classify.result }}
+          CODE: ${{ needs.classify.outputs.code }}
+          DOCS: ${{ needs.docs.result }}
+          ENGINE: ${{ needs.engine.result }}
+        run: |
+          echo "classify=$CLASSIFY code=$CODE docs=$DOCS engine=$ENGINE"
+          [ "$CLASSIFY" = success ] || { echo "::error::path classification did not succeed"; exit 1; }
+          if [ "$CODE" = true ]; then
+            [ "$ENGINE" = success ] || { echo "::error::engine check is $ENGINE"; exit 1; }
+          elif [ "$CODE" = false ]; then
+            [ "$DOCS" = success ] || { echo "::error::docs check is $DOCS"; exit 1; }
+          else
+            echo "::error::unknown classification '$CODE'"; exit 1
+          fi

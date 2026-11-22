@@ -1,16 +1,15 @@
-// REF4 t02: the save ledger of StorySession. Every data member is listed once:
+// the save ledger of StorySession. Every data member is listed once:
 //   SAVED(member, hashed)    written by write() / a write_* chunk, restored by read() / read_* and walked by hash() or a
 //                            hash_* section;
 //   SAVED(member, unhashed)  written and restored, outside the CRC;
 //   REBUILT(member, "why")   set again by the host or the constructor (StoryStart) before read();
 //   DERIVED(member, "why")   recomputed from saved state, scratch, or a request the host takes in the same frame;
 //   CHECKED(member, "why")   not restored, but the save functions read it.
-// tools/lint/check_battle_ledger.py (build_agent.cmd, ctest alamo_sim_battle_ledger_lint) checks it against
+// tools/lint/check_battle_ledger.py (ctest alamo_sim_battle_ledger_lint) checks it against
 // story_session.hpp and the bodies of write* / read* / hash* / register_crc in engine/apps/sim/src.
 // Order: the declaration order in story_session.hpp. Read by the lint only (not compiled).
 #pragma once
 
-// clang-format off
 #define ALAMO_STORY_SESSION_LEDGER(SAVED, REBUILT, DERIVED, CHECKED) \
     REBUILT(self_, "a2k t12: the handle the sim's spawn hook reaches this session through") \
     REBUILT(sim_, "the GalacticSim handed to the constructor") \
@@ -65,4 +64,3 @@
     SAVED(lines_, unhashed) \
     SAVED(frame_, unhashed) \
     SAVED(seconds_, unhashed)
-// clang-format on

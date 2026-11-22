@@ -1,4 +1,4 @@
-// test_combat: main() (bo3 t03: tests live in test_combat_partN.cpp, shared code in test_combat_common.hpp).
+// test_combat: main() (tests live in test_combat_partN.cpp, shared code in test_combat_common.hpp).
 #include "test_combat_common.hpp"
 
 void* operator new(std::size_t n) {
@@ -77,7 +77,7 @@ int main(int argc, char** argv) {
     test_hardpoint_state_gate();
     test_weapon_suspend_elapse();  // S7 t15 A2
     test_muzzle_bones();  // S8 t06 B4
-    test_own_weapon_targeting_state();  // S8 t10 - t12
+    test_own_weapon_targeting_state();  // t12
     test_own_weapon_gate_steps();
     test_hardpoints_fire_while_suspended();
     test_first_service();

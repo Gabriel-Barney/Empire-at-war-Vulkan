@@ -260,7 +260,7 @@ bool RendererCore::xt_prepare(XTemplate& t, rhi::Frame& frame, uint32_t thread, 
 
 namespace {
 // Items i and j (j = i + 1) form one instanced draw: everything but their DrawData (and, translated, their per-draw
-// register images) equal, not in a back-to-front bucket (SPACE_AND_OPEN.md D.1: only the sorted buckets keep strict
+// register images) equal, not in a back-to-front bucket (legacy docs/re/SPACE_AND_OPEN.md D.1: only the sorted buckets keep strict
 // per-object order by depth; merging there is not done even though the order would be kept).
 bool same_draw(const RendererCore::Built::Item& a, const RendererCore::Built::Item& b, const std::vector<RendererCore::Built::Group>& groups) {
     if (a.pipeline != b.pipeline || a.bucket != b.bucket || a.pass != b.pass || a.fading != b.fading) return false;
@@ -408,7 +408,7 @@ bool RendererCore::build(rhi::Frame& frame, const ViewMatrices& view, std::span<
         mm.resolved = done;
     }
     // Effect ranks and material-hash ranks of the build's models, both order-preserving, so the packed 64-bit
-    // sort key below orders exactly like (effect, pass, material hash). Effect order = SPACE_AND_OPEN.md D.1: the
+    // sort key below orders exactly like (effect, pass, material hash). Effect order = legacy docs/re/SPACE_AND_OPEN.md D.1: the
     // original's global effect list in first-creation order (GpuSubmesh::effect_order), effects outside the list
     // after it by name. Pure function of the model set + installed shader files (deterministic); recomputed only
     // when the set of models changes.
@@ -510,7 +510,7 @@ bool RendererCore::build(rhi::Frame& frame, const ViewMatrices& view, std::span<
     };
     // Shadow-volume and Heat passes have no unlit stand-in, in any draw mode: while their pipelines compile
     // (Lit) or always (Unlit) they are skipped. An unlit draw would put them into Opaque / Transparent (a
-    // shadow volume drawn white through the hull); Heat is never remapped, SPACE_AND_OPEN.md B.6.
+    // shadow volume drawn white through the hull); Heat is never remapped, legacy docs/re/SPACE_AND_OPEN.md B.6.
     auto no_fallback = [&](const GpuSubmesh& g) {
         return g.effect && (g.bucket == PhaseBucket::Heat || g.bucket == PhaseBucket::Shadow);
     };
@@ -528,8 +528,8 @@ bool RendererCore::build(rhi::Frame& frame, const ViewMatrices& view, std::span<
                 ++o.st.culled;
                 continue;
             }
-            // Culling frustum far plane = Object_Fade_End (RENDER.md 3.4 / camera +0x3c).
-            // mcx4 t15: an Exclude_From_Distance_Fade type is never faded / culled by distance.
+            // Culling frustum far plane = Object_Fade_End (legacy docs/re/RENDER.md 3.4 / camera +0x3c).
+            // an Exclude_From_Distance_Fade type is never faded / culled by distance.
             if (opts.frustum_cull && fade_end_ > 0.0f && !in.no_distance_fade && box.valid() && beyond_depth(view.view, box, fade_end_)) {
                 ++o.st.culled;
                 continue;
@@ -643,7 +643,7 @@ bool RendererCore::build(rhi::Frame& frame, const ViewMatrices& view, std::span<
     });
     const auto t1 = clock::now();
 
-    // ---- C: RENDER.md 1.4 order with integer keys: buckets in enum order; Transparent/Heat back-to-front;
+    // ---- C: legacy docs/re/RENDER.md 1.4 order with integer keys: buckets in enum order; Transparent/Heat back-to-front;
     // the others by effect (D.1 creation-order rank), pass, material. A stable sort over the instance-ordered list keeps
     // ties in instance order, so the result is identical for any thread count.
     // Packed form: one 64-bit key per item (bucket 4 bits | depth-writing 1 | effect rank | pass + 1 | material
@@ -1072,7 +1072,7 @@ bool RendererCore::build(rhi::Frame& frame, const ViewMatrices& view, std::span<
     if (!out.set0) return false;
     const rhi::BufferRange sto[rhi::kHotStorageBuffers] = {draws_r, mats_r, bones_r, ff_r};
     rhi::write_hot_buffers(*ctx_, out.set0, frame_cb, sto);
-    // Shadow bucket: camera z-bias 0.001 (near and far both moved by -0.001 near, RENDER.md 3.3).
+    // Shadow bucket: camera z-bias 0.001 (near and far both moved by -0.001 near, legacy docs/re/RENDER.md 3.3).
     bool any_shadow = false;
     for (const Item& itm : items) any_shadow = any_shadow || itm.bucket == PhaseBucket::Shadow;
     if (any_shadow) {
@@ -1151,7 +1151,7 @@ void RendererCore::record_range(VkCommandBuffer cmd, const Built& b, size_t begi
             i += count;
             continue;
         }
-        // Shadow volumes use the z-biased frame constants (RENDER.md 3.3).
+        // Shadow volumes use the z-biased frame constants (legacy docs/re/RENDER.md 3.3).
         const VkDescriptorSet want = it.bucket == PhaseBucket::Shadow && b.set0_shadow ? b.set0_shadow : b.set0;
         if (want != hot_bound) {
             const VkDescriptorSet sets[2] = {want, bindless_};
@@ -1177,7 +1177,7 @@ void RendererCore::record_range(VkCommandBuffer cmd, const Built& b, size_t begi
             pc.alpha_func = g.unlit_alpha_func;
             pc.alpha_ref = g.unlit_alpha_ref;
         }
-        // Scene fog (D3DRS_FOGENABLE per scene) unless the pass sets FogEnable = FALSE (RENDER.md 2.4).
+        // Scene fog (D3DRS_FOGENABLE per scene) unless the pass sets FogEnable = FALSE (legacy docs/re/RENDER.md 2.4).
         pc.flags &= ~materials::kPushFog;
         if (b.fog && !fog_off) pc.flags |= materials::kPushFog;
         // Instanced run: items i .. run_end - 1 (clamped to the range) in one call; instance k reads

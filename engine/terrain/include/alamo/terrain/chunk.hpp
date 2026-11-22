@@ -1,4 +1,4 @@
-// alamo_terrain - bounds-checked chunk / mini-chunk walker for .ted maps (SPEC.md 1).
+// alamo_terrain - bounds-checked chunk / mini-chunk walker for .ted maps (legacy docs/formats/SPEC.md 1).
 //
 //   chunk: u32 id, u32 size (bit 31 = payload is child chunks), payload[size]
 //   mini : u8 id, u8 size, payload[size]   (fills a leaf exactly)

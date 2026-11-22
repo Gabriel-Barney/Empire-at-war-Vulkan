@@ -164,7 +164,7 @@ bool apply_display_mode(void* hwnd, const DisplayMode& m, std::string* log, ui::
         want.dmPelsWidth = reg.dmPelsWidth;
         want.dmPelsHeight = reg.dmPelsHeight;
         want.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY;
-        if (mode == ui::WindowMode::Fullscreen || (windowed && !fits)) {  // UI5 t01: full screen always takes the mode's resolution
+        if (mode == ui::WindowMode::Fullscreen || (windowed && !fits)) {  // full screen always takes the mode's resolution
             want.dmPelsWidth = m.width;
             want.dmPelsHeight = m.height;
         }
@@ -473,7 +473,7 @@ std::string default_options_profile_path() {
     return (std::filesystem::path(la) / "alamo" / "game_options.txt").string();
 }
 
-// ref6 t04: each options page reads and writes its own keys (options_pages.hpp); the file keeps the pages in this order.
+// each options page reads and writes its own keys (options_pages.hpp); the file keeps the pages in this order.
 bool load_options_profile(const std::string& path, OptionsProfile& p) {
     std::ifstream f(path);
     if (path.empty() || !f) return false;
@@ -612,7 +612,7 @@ void apply_detail_options(render::RecordOptions& o, const ui::AdvancedVideoSetti
     if (!s.heat_distortion) o.heat_amount = 0.0f;
 }
 
-// modc t08: CreateProcessW on GetModuleFileNameW; `args` is already quoted (mod_picker.hpp windows_command_line). The
+// CreateProcessW on GetModuleFileNameW; `args` is already quoted (mod_picker.hpp windows_command_line). The
 // arguments came from main's narrow argv / the file system's narrow paths: the ANSI code page.
 bool relaunch_self(const std::string& args, std::string* err) {
     std::wstring exe(32768, L'\0');

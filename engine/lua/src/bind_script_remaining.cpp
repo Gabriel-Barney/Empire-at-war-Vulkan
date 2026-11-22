@@ -1,6 +1,6 @@
 // Binding family: L1 final - the last unbound globals and methods of the RE binding table (alamo/lua/script_remaining.hpp
-// has the list, the host contract and the error discipline). Specs: LUA_API.md (error strings), L1_S4_REMAINING.md,
-// AI_TACTICAL.md, AI_GALACTIC.md, TACTICAL_COMBAT.md, OBJECT_TYPES.md, FOG_OF_WAR.md. Port choices are marked [port];
+// has the list, the host contract and the error discipline). Specs: legacy docs/re/LUA_API.md (error strings), legacy docs/re/L1_S4_REMAINING.md,
+// legacy docs/re/AI_TACTICAL.md, legacy docs/re/AI_GALACTIC.md, legacy docs/re/TACTICAL_COMBAT.md, legacy docs/re/OBJECT_TYPES.md, legacy docs/re/FOG_OF_WAR.md. Port choices are marked [port];
 // the docs' [H] / [M] / [L] keep their mark.
 //
 // Determinism: walks use the store's insertion lists and the task forces' unit lists (host order); picks that need a
@@ -32,7 +32,7 @@
 #include "vm_internal.hpp"
 
 #if ALAMO_LUA_HAVE_ABILITIES
-#include "alamo/tactical/abilities/ability_system.hpp"  // cu8f t04a: the battle's CombatSystem
+#include "alamo/tactical/abilities/ability_system.hpp"  // the battle's CombatSystem
 #endif
 #if ALAMO_LUA_PLAYERS
 #include "alamo/galactic/campaign.hpp"
@@ -55,17 +55,17 @@ constexpr char kAiScriptKey[] = "alamo.ai.script";          // bind_ai.cpp: the 
 
 // ---------------------------------------------------------------- small helpers
 
-using detail::push_nil;  // ref5 t03: vm_internal.hpp
-using detail::push_bool;  // ref5 t03: vm_internal.hpp
+using detail::push_nil;  // vm_internal.hpp
+using detail::push_bool;  // vm_internal.hpp
 int push_num(Call& c, double d) {
     lua_pushnumber(c.L, d);
     return 1;
 }
-using detail::is_bool;  // ref5 t03: vm_internal.hpp
+using detail::is_bool;  // vm_internal.hpp
 bool to_bool(const Call& c, int i) { return lua_toboolean(c.L, c.idx(i)) != 0; }
 bool is_table(const Call& c, int i) { return c.has(i) && lua_type(c.L, c.idx(i)) == LUA_TTABLE; }
 
-// Errors and warnings: Call::script_error_stop / Call::script_warning (the original's helpers, SCRIPT_GAPS.md
+// Errors and warnings: Call::script_error_stop / Call::script_warning (the original's helpers, legacy docs/re/SCRIPT_GAPS.md
 // conventions: logged, no unwind, nil result).
 uint32_t cls_of(const char* name) { return detail::class_id(name); }
 using detail::cls_position;
@@ -148,7 +148,7 @@ std::vector<ObjectHandle> tf_units(Call& c, int32_t tf) {
     return out;
 }
 
-using detail::PosArg;  // ref5 t03: vm_internal.hpp
+using detail::PosArg;  // vm_internal.hpp
 using detail::position_arg;
 
 using detail::ai_arg;  // any wrapper argument -> AiArg (bind_ai.cpp's rule)
@@ -201,7 +201,7 @@ struct FieldHit {
     float radius = 0.0f;
     uint32_t kind = 0;
 };
-// The space-field objects of the mode (insertion order) matching `mask` [port: FOG_OF_WAR.md dense-mask rule].
+// The space-field objects of the mode (insertion order) matching `mask` [port: legacy docs/re/FOG_OF_WAR.md dense-mask rule].
 std::vector<FieldHit> space_fields(Call& c, uint32_t mask) {
     std::vector<FieldHit> out;
     const objects::ObjectStore* st = store(c);
@@ -641,7 +641,7 @@ bool pad_rule(Call& c, ObjectHandle pad) {
 // Build(type [, check_rules]) on a build pad (§2.2).
 int m_build(Call& c) {
     constexpr const char* kName = "GameObjectWrapper::Build";
-    // mcx8 t01: the message texts are retail's (0x5739c0's strings, two spaces after a full stop, "invaid" sic).
+    // the message texts are retail's (0x5739c0's strings, two spaces after a full stop, "invaid" sic).
     if (c.nargs != 1 && c.nargs != 2) return c.script_error_stop("%s -- invaid number of parameters.  Expected 1 or 2, got %d.", kName, c.nargs);
     std::string name;
     const TypeIndex t = type_arg(c, 1, name);
@@ -873,7 +873,7 @@ double power_weight(Call& c, ObjectHandle u, ObjectHandle other) {
     return 1.0;  // [port] no power-versus table
 }
 // Get_AI_Power_Vs_Unit(target) (§2.12 [M]): P_s x H_s x M_s - P_t x H_t x M_t.
-// binding-effect: GameObjectWrapper.Get_AI_Power_Vs_Unit partial no host sets RemainingScriptHooks::ai_power_vs: the power-versus weight M is 1 [port] (ref5 t04)
+// binding-effect: GameObjectWrapper.Get_AI_Power_Vs_Unit partial no host sets RemainingScriptHooks::ai_power_vs: the power-versus weight M is 1 [port]
 int m_get_ai_power_vs_unit(Call& c) {
     if (c.nargs != 1) return c.script_error_stop("Get_AI_Power_Vs_Unit -- invalid number of parameters. Expected 1, got %d.", c.nargs);
     const AiArg other = ai_arg(c, 1);
@@ -1043,7 +1043,7 @@ int m_release(Call& c) {
     lua_pushstring(L, detail::store_tag_of(*c.self) == detail::kParentStoreTag ? "alamo.objcache.parent" : "alamo.objcache");
     lua_rawget(L, LUA_REGISTRYINDEX);
     if (lua_type(L, -1) == LUA_TTABLE) {
-        const lua_Number key = detail::object_cache_key(*c.self);  // refix t04: member views have their own key
+        const lua_Number key = detail::object_cache_key(*c.self);  // member views have their own key
         lua_pushnumber(L, key);
         lua_rawget(L, -2);
         const bool same = lua_touserdata(L, -1) == static_cast<const void*>(c.self);
@@ -1465,7 +1465,7 @@ int m_tf_fire_orbital_bombardment(Call& c) {
     return 0;
 }
 
-// Refit_To_Definition(planet, n) (§2.12, AI_GALACTIC.md 2.4): the AI host's refit; returns its status.
+// Refit_To_Definition(planet, n) (§2.12, legacy docs/re/AI_GALACTIC.md 2.4): the AI host's refit; returns its status.
 int m_tf_refit_to_definition(Call& c) {
     if (c.nargs != 2) return c.script_error_stop("Refit_To_Definition: Invalid number of parameters. Expected 2, got %d.", c.nargs);
     const Ud* planet = c.userdata(1, detail::cls_game_object());
@@ -1655,7 +1655,7 @@ int m_script_call_function(Call& c) {
         return c.script_error_stop("LuaScriptWrapper::Call_Function -- %s is not a function", std::string(c.string(1)).c_str());
     }
     for (int i = 2; i <= c.nargs; ++i) copy_value(c.L, *c.vm, c.idx(i), T, *ti, 0);
-    if (vm->protected_call(T, c.nargs - 1, LUA_MULTRET) != 0) {  // mcx6 t08: runaway guard
+    if (vm->protected_call(T, c.nargs - 1, LUA_MULTRET) != 0) {  // runaway guard
         const std::string msg = lua_tostring(T, -1) ? lua_tostring(T, -1) : "error";
         lua_settop(T, top);
         return c.script_error_stop("LuaScriptWrapper::Call_Function -- %s", msg.c_str());

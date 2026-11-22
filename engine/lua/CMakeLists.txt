@@ -1,12 +1,12 @@
 # L1 - Lua bridge, stage 1: the original's VM (Lua 5.0.2, approved by Gabriel 2026-10-27) plus the
-# engine bindings (docs/re/LUA_API.md, docs/re/lua_api.json).
+# engine bindings (legacy docs/re/LUA_API.md, docs/re/lua_api.json).
 #
 # Vendored VM: the pristine lua.org tarball unpacked by toolchain\7_lua.cmd into toolchain\lua-5.0.2
 # (SHA-256 pinned there). It is NOT copied into engine/: at configure time the sources are copied into
 # the build dir, the determinism patches below are applied to the copies (each one verified), and the
 # copies are compiled AS C++ with the same compiler as the engine:
 #   * one language/ABI: no C compiler needed by the build scripts, no extern "C" seams;
-#   * /fp:precise (MSVC) or -ffp-contract=off (clang) like every engine target (rule 3);
+#   * /fp:precise like every engine target (rule 3);
 #   * third-party warnings are silenced for this target only (/W0, -w); the include dir is SYSTEM.
 # Built: core VM + lauxlib + base (incl. coroutine), string and table libs - what the original's
 # scripts can reach. NOT built: lmathlib (the original exposes no math table; an optional dmath-backed
@@ -53,18 +53,18 @@ alamo_lua_patch(lstring.c "  ts->tsv.marked = 0;\n" "  ts->tsv.marked = 0;\n  ts
 # Portability (same value): C++ forbids a direct pointer -> 32-bit integer cast on 64-bit targets.
 alamo_lua_patch(llimits.h "#define IntPoint(p)  ((lu_hash)(p))\n" "#define IntPoint(p)  ((lu_hash)(size_t)(p))\n")
 # Toolchain workaround (not a semantic change): MSVC 14.51 at /O2 miscompiles ltable.c computesizes
-# (rehash sizing) - stock 5.0.2 crashes in luaopen_base; /Od, /O1, /d2SSAOptimizer- and clang /O2 are
-# fine. Optimisation is switched off for that one cold function on MSVC only.
+# (rehash sizing) - stock 5.0.2 crashes in luaopen_base; /Od, /O1 and /d2SSAOptimizer- are fine.
+# Optimisation is switched off for that one cold function.
 alamo_lua_patch(ltable.c
   "static void computesizes  (int nums[], int ntotal, int *narray, int *nhash) {\n"
-  "#if defined(_MSC_VER) && !defined(__clang__)\n#pragma optimize(\"\", off)  /* alamo: MSVC 14.51 /O2 miscompiles this function */\n#endif\nstatic void computesizes  (int nums[], int ntotal, int *narray, int *nhash) {\n")
+  "#if defined(_MSC_VER)\n#pragma optimize(\"\", off)  /* alamo: MSVC 14.51 /O2 miscompiles this function */\n#endif\nstatic void computesizes  (int nums[], int ntotal, int *narray, int *nhash) {\n")
 alamo_lua_patch(ltable.c
   "  lua_assert(na <= *narray && na >= *narray/2);\n}\n"
-  "  lua_assert(na <= *narray && na >= *narray/2);\n}\n#if defined(_MSC_VER) && !defined(__clang__)\n#pragma optimize(\"\", on)\n#endif\n")
+  "  lua_assert(na <= *narray && na >= *narray/2);\n}\n#if defined(_MSC_VER)\n#pragma optimize(\"\", on)\n#endif\n")
 alamo_lua_patch(ltable.c
   "      return hashpointer(t, gcvalue(key));\n"
   "      return hashmod(t, cast(lu_hash, gcvalue(key)->gch.alamo_serial));  /* alamo: serial, not address */\n")
-# Robustness (mcx2 t08, found by alamo_fuzz_smoke; not a semantic change for any chunk stock 5.0.2 loads safely): a
+# Robustness (found by alamo_fuzz_smoke; not a semantic change for any chunk stock 5.0.2 loads safely): a
 # precompiled chunk (.lc in a mod) is read without bounds. lu_mem is 32-bit on Win64, so a string length or vector count
 # from the file whose byte size passes 4 GB wraps the allocation, and the read then writes past it (stock 5.0.2 and so
 # retail's Lua crash on such a file). Lengths above MAX_INT and counts whose vector does not fit lu_mem or an int read
@@ -79,7 +79,7 @@ alamo_lua_patch(lundump.c " n=LoadInt(S);\n f->locvars=" " n=LoadCount(S,sizeof(
 alamo_lua_patch(lundump.c " int size=LoadInt(S);\n f->lineinfo=" " int size=LoadCount(S,sizeof(int));\n f->lineinfo=")
 alamo_lua_patch(lundump.c " n=LoadInt(S);\n f->k=" " n=LoadCount(S,sizeof(TObject));\n f->k=")
 # The header's test number is compared as (long)x: a NaN or out-of-range number from the file makes that cast undefined
-# (UBSan in alamo_fuzz_smoke, nightly gate 2026-11-20; wr0 t04). Such a number is refused first. Same outcome as retail:
+# (UBSan in alamo_fuzz_smoke, nightly gate 2026-11-20). Such a number is refused first. Same outcome as retail:
 # on x86 the cast gives LONG_MIN there, which never equals (long)TEST_NUMBER, so stock 5.0.2 refuses the chunk too.
 # long is 32-bit (Windows x64 only).
 alamo_lua_patch(lundump.c
@@ -106,7 +106,7 @@ alamo_lua_patch(lbaselib.c "      sprintf(buff, \"thread: %p\", (void *)lua_toth
 # gcinfo / collectgarbage / weak tables ([port], no patch needed): the collector runs when Lua's own byte count
 # (requested sizes, lstate.h nblocks) reaches the threshold, so collection points - and therefore weak-table
 # clearing and gcinfo() - are a function of the VM's allocation history only: identical across runs and worker
-# counts, and across MSVC / clang (same x64 ABI, same struct sizes). Tested against a golden in test_lua.cpp.
+# counts. Tested against a golden in test_lua.cpp.
 # end OI lua
 # OI lua (UB fixes, clang ASan/UBSan 2026-10-28; upstream 5.0.2 UB, not our patches or C API use). Each one keeps the
 # value the shipped x64 code already computes, so behaviour, results and CRCs are unchanged:
@@ -224,7 +224,7 @@ add_library(alamo_lua STATIC
   src/lua_vm.cpp
   src/gc_schedule.cpp
   src/bindings.cpp
-  src/bridge_hooks.cpp  # ref5 t04: the hook table (generated bridge_hooks.inc) and the wiring check
+  src/bridge_hooks.cpp  # the hook table (generated bridge_hooks.inc) and the wiring check
   src/bind_engine.cpp
   src/bind_registry.cpp
   src/bind_objects.cpp
@@ -256,7 +256,7 @@ target_sources(alamo_lua PRIVATE src/story_model.cpp)
 target_sources(alamo_lua PRIVATE src/bind_script_gaps.cpp)
 # --- end L1/S4 wave 2b ---
 # --- fog follow-up (owner: fog follow-up agent): FogOfWar.* / LuaFOWCellsClass.Undo_Reveal, include/alamo/lua/fog_bridge.hpp
-#     (docs/re/FOG_OF_WAR.md §6) on engine/tactical/fog (configured before lua); without it the bindings answer as
+#     (legacy docs/re/FOG_OF_WAR.md §6) on engine/tactical/fog (configured before lua); without it the bindings answer as
 #     outside a tactical mode. Test exe alamo_lua_fog_tests (family loop below). ---
 target_sources(alamo_lua PRIVATE src/bind_fog.cpp)
 if(TARGET alamo_tactical_fog)
@@ -282,13 +282,13 @@ endif()
 #     and declarations are third-party code). Test exe alamo_lua_save_tests (family loop below). ---
 target_sources(alamo_lua PRIVATE src/vm_persist.cpp)
 target_include_directories(alamo_lua SYSTEM PRIVATE "${_lua_out}")
-# q6 t19 (docs/re/LUA_SAVE.md): the per-owner script block (include/alamo/lua/script_save.hpp) on top of LuaVm::write /
+# q6 t19 (legacy docs/re/LUA_SAVE.md): the per-owner script block (include/alamo/lua/script_save.hpp) on top of LuaVm::write /
 # read, shared by the story, GameScoring and object-script saves. Test exe alamo_lua_script_save_tests (family loop).
 target_sources(alamo_lua PRIVATE src/script_save.cpp)
 # --- end N1 save / load ---
 # --- L1 stage 2, family OBJECTS (owner: objects agent) -------------------------------------------
 # src/bind_objects.cpp + include/alamo/lua/object_bridge.hpp: Lua orders are EventData run through
-# engine/commands' CommandPipeline::execute_direct (COMMANDS.md §5). Without engine/commands the
+# engine/commands' CommandPipeline::execute_direct (legacy docs/re/COMMANDS.md §5). Without engine/commands the
 # object bindings still work; orders are then not issued (ALAMO_LUA_HAVE_COMMANDS unset).
 if(TARGET alamo_commands)
   target_link_libraries(alamo_lua PUBLIC alamo_commands)
@@ -311,8 +311,6 @@ target_link_libraries(alamo_lua PUBLIC alamo_objects alamo_core alamo_engine_fla
 
 add_executable(alamo_lua_tests tests/test_lua.cpp)
 target_link_libraries(alamo_lua_tests PRIVATE alamo_lua alamo_lua_vm Threads::Threads alamo_test_support)
-# Binding coverage / script compile reports go to <project>/logs/lua_*.txt.
-target_compile_definitions(alamo_lua_tests PRIVATE "ALAMO_LUA_LOG_DIR=\"${PROJECT_SOURCE_DIR}/logs\"")
 if(TARGET alamo_vfs)
   target_link_libraries(alamo_lua_tests PRIVATE alamo_vfs)
   target_compile_definitions(alamo_lua_tests PRIVATE ALAMO_LUA_HAVE_VFS=1)
@@ -332,7 +330,7 @@ foreach(_fam objects players story presentation tactical script_gaps fog script_
   add_test(NAME alamo_lua_${_fam}_tests COMMAND alamo_lua_${_fam}_tests)
   set_tests_properties(alamo_lua_${_fam}_tests PROPERTIES TIMEOUT 120)
 endforeach()
-# OPT2 t04: the GC schedule test checks 0 / 1 / 4 / 16 workers on engine/jobs (configured before lua) when it is built.
+# the GC schedule test checks 0 / 1 / 4 / 16 workers on engine/jobs (configured before lua) when it is built.
 if(TARGET alamo_jobs)
   target_link_libraries(alamo_lua_gc_tests PRIVATE alamo_jobs)
   target_compile_definitions(alamo_lua_gc_tests PRIVATE ALAMO_LUA_HAVE_JOBS=1)

@@ -1,4 +1,4 @@
-// TRU1 t06: the space retreat coordinator's jump-out flight (docs/re/TRU1_C_RE.md §2; tactical_battle.hpp "TRU1 t06").
+// the space retreat coordinator's jump-out flight (legacy docs/re/TRU1_C_RE.md §2; tactical_battle.hpp "TRU1 t06").
 // Between the retreat countdown's end and complete_retreat (coordinator state 3) the listed units are lined up at the
 // ATTACKER ENTRY POSITION marker and fly off one by one while the retreat cinematic runs. Serial code, no synced draws.
 #include "tactical_battle_internal.hpp"
@@ -128,7 +128,7 @@ bool TacticalBattle::rt_flight_tick(TacticalMode& mode) {
         } else {
             objects::ObjectStore& st = mode.primary();
             if (rt_.release == rt_.sound) {
-                // The released unit's jump sound (AUDIO.md §9.6; presentation log). [port] obj +0x3a0 bits 0x40 / 0x80 are
+                // The released unit's jump sound (legacy docs/re/AUDIO.md §9.6; presentation log). [port] obj +0x3a0 bits 0x40 / 0x80 are
                 // not modelled.
                 if (rt_.release >= 0 && rt_.release < n)
                     if (const Unit* u = unit_by_id(rt_.list[static_cast<size_t>(rt_.release)]); u && u->alive && !u->retreated && st.alive(u->h))

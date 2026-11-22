@@ -1,4 +1,4 @@
-// Hangar tests (docs/re/STATION_HANGARS_SOUND.md §1-§3): SPAWN_SQUADRON service (first-due draw, one launch per
+// Hangar tests (legacy docs/re/STATION_HANGARS_SOUND.md §1-§3): SPAWN_SQUADRON service (first-due draw, one launch per
 // service and delay, the three synced draws, bay bone placement, escort vs move order), loss / timer rules, reserves,
 // can-spawn gates (cinematic, corruption, hyperspace, DEFEND, planet restriction, +0x3CB, bays), DEPLOY_SQUAD state 4,
 // tech slots, community property and pending deliveries, carrier death; the station upgrade driven through the
@@ -477,7 +477,7 @@ void test_engine_loops() {
     expect({{5, L::Idle, false, 10}});
     e.engines_online(5, 11);
     expect({{5, L::Idle, true, 11}});
-    // cu8g t01: suppress = one Suppress request with the fade (the audio side stops every loop), flags off, blocked.
+    // suppress = one Suppress request with the fade (the audio side stops every loop), flags off, blocked.
     e.suppress(5, 12, 0.0f);
     CHECK(e.requests().size() == 1 && e.requests()[0].fade == 0.0f);
     expect({{5, L::Idle, false, 12, EngineLoopOp::Suppress}});
@@ -498,7 +498,7 @@ void test_engine_loops() {
     expect({{6, L::Moving, false, 16}, {6, L::Idle, true, 16}});
 }
 
-// cu8g t01 (CU8F_T01_T02_T07_RE.md §2.3): HOLSTER_WEAPON.
+// cu8g t01 (legacy docs/re/CU8F_T01_T02_T07_RE.md §2.3): HOLSTER_WEAPON.
 void test_holster_weapon() {
     using Op = EngineLoopOp;
     using L = EngineLoop;
@@ -1492,7 +1492,7 @@ void test_hangar_save() {
     bad.push_back(0);
     CHECK(rejected(bad));
     bad = hg_bytes;
-    bad[0] = 3;  // r3g t03: versions 1 and 2 are read; 3 is unknown
+    bad[0] = 3;  // versions 1 and 2 are read; 3 is unknown
     CHECK(rejected(bad));
     bad = hg_bytes;
     bad[4] = 3;  // descriptor count 3, the battle has 2
@@ -1546,7 +1546,7 @@ void test_contents_production_loops_save() {
     tp.enqueue(0, 3, 9, 0.1f, 0, 1);
     for (uint32_t f = 1; f <= 10; ++f) tp.update(f);
     CHECK(tp.completed().size() == 2);
-    {  // mcx4 t04: a version 1 production (no queue byte, no counts) still loads
+    {  // a version 1 production (no queue byte, no counts) still loads
         ByteWriter w1;
         w1.u32(1).u32(5).u32(1).u32(1);
         w1.u32(4).i32(0).i32(1).i32(7).u32(30).u32(20).u32(0);  // one order, v1 layout
@@ -1595,7 +1595,7 @@ void test_contents_production_loops_save() {
     e.locomotor_service(5, 20.0f, false, 2);
     e.mode_enter(3, 2);
     e.suppress(3, 3, 0.25f);
-    // cu8g t01: a holster hero mid draw transition (version 2: holster state, request op / fade)
+    // a holster hero mid draw transition (version 2: holster state, request op / fade)
     HolsterDesc hd;
     hd.transition_frames = 5;
     hd.min_drawn_frames = 450;
@@ -1641,7 +1641,7 @@ void test_contents_production_loops_save() {
     bad[4 + 4 + 132 + 4 + 4] = 9;
     ByteReader reb(bad);
     CHECK(accepted == 0 && !e3.read(reb) && bytes_of(e3) == e3_before);
-    // cu8i t01: version 2 (no catch frame) still reads, with no saber in flight; cu8j t03: version 3 (the catch frame 40:
+    // version 2 (no catch frame) still reads, with no saber in flight; version 3 (the catch frame 40:
     // in flight up to it, which is also the end) too; other versions do not.
     for (const uint32_t version : {2u, 3u, 1u, 5u}) {
         ByteWriter w2;

@@ -1,6 +1,6 @@
-// --- skai (q2f t04): skirmish map battles. A skirmish started straight on its _MP_ map (CampaignBattles::start_map_battle with
-// BattleConfig::skirmish, TacticalBattle::skirmish_map): the Income_Stream_Ability credit trickle (docs/re/SKIRMISH_SETUP.md).
-// The skirmish victory types 0x13 / 0x16 are the victory monitor's (tactical_battle_victory.cpp, story t06). Serial code, no
+// --- skai: skirmish map battles. A skirmish started straight on its _MP_ map (CampaignBattles::start_map_battle with
+// BattleConfig::skirmish, TacticalBattle::skirmish_map): the Income_Stream_Ability credit trickle (legacy docs/re/SKIRMISH_SETUP.md).
+// The skirmish victory types 0x13 / 0x16 are the victory monitor's (tactical_battle_victory.cpp). Serial code, no
 // synced draws; credits go through the host's credit hooks.
 #include <algorithm>
 #include <span>
@@ -31,7 +31,7 @@ float to_f(std::string_view v) { return static_cast<float>(std::atof(std::string
 BattleConfig::SkirmishOptions skirmish_option_defaults(const data::GameConstants& gc) {
     BattleConfig::SkirmishOptions o;
     o.set = true;
-    o.credits = gc.shared.mp_default_credits.value_or(o.credits);  // ref4 t06: GameConstants::shared
+    o.credits = gc.shared.mp_default_credits.value_or(o.credits);  // GameConstants::shared
     o.heroes = gc.get_bool("MP_Default_Allow_Heroes", o.heroes);
     o.starting_units = gc.get_bool("MP_Default_Free_Starting_Units", o.starting_units);
     o.super_weapons = gc.get_bool("MP_Default_Allow_SuperWeapons", o.super_weapons);
@@ -78,7 +78,7 @@ uint8_t skirmish_win_condition(uint8_t want, bool space, uint8_t land_default, u
 
 void TacticalBattle::refresh_ai_difficulty(int32_t player) {
     if (!combat_ || player < 0 || static_cast<uint32_t>(player) >= combat_->player_count()) return;
-    const galactic::DifficultyRules* d = galaxy_->ai_difficulty(player);  // as the construction (cu8 t03): none = 1.0
+    const galactic::DifficultyRules* d = galaxy_->ai_difficulty(player);  // as the construction: none = 1.0
     combat_->set_player_difficulty(player, d ? d->damage_multiplier : 1.0f, d ? d->health_multiplier : 1.0f, d ? d->shield_multiplier : 1.0f);
 }
 
@@ -97,7 +97,7 @@ void TacticalBattle::apply_skirmish_start_credits() {
 void TacticalBattle::sk_garrison_setup() {
     sk_garrisons_.clear();
     if (!skirmish_map()) return;
-    for (int32_t s = 0; s < skirmish_slot_count(); ++s) {  // skm2 t02: every slot
+    for (int32_t s = 0; s < skirmish_slot_count(); ++s) {  // every slot
         const int32_t p = skirmish_slot_player(s);
         if (p < 0) continue;
         SkGarrison g;
@@ -155,7 +155,7 @@ void TacticalBattle::sk_garrison_tick() {
         if (g.timer >= 0 && static_cast<int32_t>(frame_) >= g.timer) {
             // 0x287e70: on expiry with nothing pending, the start-force list is delivered again.
             g.timer = -1;
-            sk_redelivered_.push_back(g.player);  // mcx4 t13: Reinforcements_Ready_SFXEvent for a local player
+            sk_redelivered_.push_back(g.player);  // Reinforcements_Ready_SFXEvent for a local player
             if (space_) {
                 g.pending = g.types;
             } else {
@@ -326,7 +326,7 @@ void TacticalBattle::sk_income(const TacticalMode& mode) {
     for (const Unit& u : units_) {
         if (!u.alive || u.retreated || !st.alive(u.h)) continue;
         const int32_t owner = st.owner(u.h);
-        if (owner < 0 || skirmish_slot_of(owner) < 0) continue;  // skm2 t02: every slot
+        if (owner < 0 || skirmish_slot_of(owner) < 0) continue;  // every slot
         const IncomeStreamDef& in = sk_income_of(u.type);
         if (in.value <= 0.0f || in.interval <= 0.0f) continue;
         // MCX4_T09_RE_ANSWERS Q10 [H] (0x7038b0): without Split_Income_With_Allies the owner only; with it the players allied

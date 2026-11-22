@@ -162,7 +162,7 @@ static std::string sty1_plot() {
     p += ev("Move_Enemy", "MOVE_FLEET", {"PlanetD", "PlanetB", "FILTER_ENEMY_ONLY"});
     p += ev("No_Direct", "DISABLE_DIRECT_INVASION", {});
     p += ev("Spawn_Noop", "SET_PLANET_SPAWN", {"PlanetA"});
-    p += ev("Load", "LOAD_CAMPAIGN", {"Tutorial_Campaign", "1", "2", "7"});  // modc t45: P3 kept (0..2), P4 7 dropped (0..5)
+    p += ev("Load", "LOAD_CAMPAIGN", {"Tutorial_Campaign", "1", "2", "7"});  // P3 kept (0..2), P4 7 dropped (0..5)
     p += ev("Tut_Player", "TUTORIAL_PLAYER", {"Empire"});
     p += ev("Tut_Done", "FINISHED_TUTORIAL", {"Tutorial_One"});
     p += ev("Tut_Done2", "FINISHED_TUTORIAL", {"Tutorial_One"}, "Tut_Done");
@@ -183,7 +183,7 @@ static std::string sty1_plot() {
     p += ev("Own_SB", "CHANGE_OWNER", {"SB1", "Underworld"});
     p += ev("Ai_Flag", "TRIGGER_AI", {"Flag_X", "Underworld", "PlanetC"});
     p += ev("Ai_Flag_Bad", "TRIGGER_AI", {"Flag_Y"});
-    p += ev("Ai_Flag_None", "TRIGGER_AI", {"Flag_Z", "Underworld"});  // storyb t10: no planet
+    p += ev("Ai_Flag_None", "TRIGGER_AI", {"Flag_Z", "Underworld"});  // no planet
     return p + "</Story>\n";
 }
 
@@ -199,7 +199,7 @@ static fs::path make_root(const char* name, std::unique_ptr<DirectoryProvider>& 
     write_file(root / "Data/XML/GameObjectFiles.xml", "<GameObjectFiles><File>S.xml</File></GameObjectFiles>\n");
     write_file(root / "Data/XML/S.xml",
                "<S><SpaceUnit Name=\"Sim_Dummy\"><Tactical_Health>10</Tactical_Health></SpaceUnit>\n"
-               // mcx4 t09: indigenous spawners for the sandbox objectives (test_sandbox_spawner_reward)
+               // indigenous spawners for the sandbox objectives (test_sandbox_spawner_reward)
                "<GroundStructure Name=\"Sim_Hut\"><LandBehavior>SPAWN_INDIGENOUS_UNITS</LandBehavior>"
                "<Enemy_Spawn_Text>TEXT_SIM_HUT</Enemy_Spawn_Text></GroundStructure>\n"
                "<GroundStructure Name=\"Sim_Den\"><LandBehavior>SPAWN_INDIGENOUS_UNITS</LandBehavior>"
@@ -283,7 +283,7 @@ static void test_sty1_rewards() {
         CHECK(taken && !ss->pending_load_campaign() && taken->difficulty == 2 && taken->tech == -1);
         // DISABLE_REINFORCEMENTS (Underworld only).
         CHECK(!ss->reinforcements_enabled(pUnder) && ss->reinforcements_enabled(pEmpire));
-        // DISABLE_RETREAT (ui2 t06): P1 faction, P2 flag; Underworld only.
+        // DISABLE_RETREAT: P1 faction, P2 flag; Underworld only.
         CHECK(!ss->retreat_enabled(pUnder) && ss->retreat_enabled(pEmpire));
         // Galactic DESTROY_OBJECT / CHANGE_OWNER (first instance): Barracks gone, SB1 handed over.
         CHECK(gs->store().find_all_of_type(static_cast<objects::TypeIndex>(tBarracks)).empty());
@@ -294,7 +294,7 @@ static void test_sty1_rewards() {
             CHECK(ss->model(0).check_ai_flag(pUnder, "Flag_X", loc, true) && !ss->model(0).check_ai_flag(pUnder, "Flag_X", loc, false));
             CHECK(!ss->model(0).check_ai_flag(pUnder, "Flag_Y", 0, false));
         }
-        {  // storyb t10: a TRIGGER_AI without a planet is found by Check_Story_Flag with a nil location (-1)
+        {  // a TRIGGER_AI without a planet is found by Check_Story_Flag with a nil location (-1)
             CHECK(ss->model(0).check_ai_flag(pUnder, "Flag_Z", -1, true) && !ss->model(0).check_ai_flag(pUnder, "Flag_Z", 0, false));
         }
         // Save: a deterministic image; hash identical across worker counts.
@@ -308,7 +308,7 @@ static void test_sty1_rewards() {
         std::snprintf(buf, sizeof buf, "%016llx", static_cast<unsigned long long>(h1.digest()));
         if (first_hash.empty()) first_hash = buf;
         CHECK(first_hash == buf);
-        {  // ui2 t06: the DISABLE_RETREAT switch survives a save (v5) and moves the story hash (a 0 alone would not).
+        {  // the DISABLE_RETREAT switch survives a save (v5) and moves the story hash (a 0 alone would not).
             ByteReader rd(w1.bytes());
             CHECK(ss->read(rd));
             CHECK(!ss->retreat_enabled(pUnder) && ss->retreat_enabled(pEmpire));
@@ -350,7 +350,7 @@ static void test_sty1_gate_refusals() {
 }
 
 
-// ref5 t02: every Session and Model row of the coverage table has a handler registered by its owner, and every registered
+// every Session and Model row of the coverage table has a handler registered by its owner, and every registered
 // name is a row of that owner (no handler for a name the table gives to someone else); names register once. The Ui rows
 // are checked by the game's tests (alamo_game_story_present_tests), which link the presenter.
 static void test_reward_handlers_registered() {
@@ -395,7 +395,7 @@ static void test_session_rows_have_handlers() {
         const std::string name = "E" + std::to_string(n++);
         plot += ev(name.c_str(), std::string(row.name).c_str(), {});
     }
-    plot += ev("EUnknown", "STORYB_NOT_A_REWARD", {});  // storyb t12: an unknown Reward_Type is logged, not silent
+    plot += ev("EUnknown", "STORYB_NOT_A_REWARD", {});  // an unknown Reward_Type is logged, not silent
     plot += "</Story>\n";
     write_file(root / "Data/XML/Story_Sty1.xml", plot);
     jobs::JobSystem js(jobs::JobSystemConfig{0});
@@ -427,7 +427,7 @@ static void test_session_rows_have_handlers() {
     remove_all_long(root, ec);
 }
 
-// mcx6 (docs/re/STORY_REWARDS_GALACTIC.md §1.10 - §1.21): the former Missing rewards in the galactic mode, their save (v6)
+// mcx6 (legacy docs/re/STORY_REWARDS_GALACTIC.md §1.10 - §1.21): the former Missing rewards in the galactic mode, their save (v6)
 // and hash, at 0 and 4 workers. The battle side (FORCE_RETREAT accepted / refused, SET_HEALTH, SET_SPAWN, SET_PLANET_SPAWN)
 // is in test_battle_tru1.cpp.
 static std::string mcx6_plot() {
@@ -769,7 +769,7 @@ static void test_coverage() {
             std::printf("    MISSING %s\n", r.c_str());
             continue;
         }
-        CHECK(row->owner != StoryRewardOwner::Missing);  // mcx0 t05: base data uses no reward the port lacks
+        CHECK(row->owner != StoryRewardOwner::Missing);  // base data uses no reward the port lacks
         const std::string_view owner = story_reward_owner_name(row->owner);
         std::printf("    %-34s %-8.*s %.*s\n", r.c_str(), static_cast<int>(owner.size()), owner.data(),
                     static_cast<int>(row->note.size()), row->note.data());
@@ -780,7 +780,7 @@ static void test_coverage() {
     std::printf("\n");
 }
 
-// mcx0 t05: the story ledger. Every name of retail's Reward_Type enum has a row; every row is a retail name or a Retail
+// the story ledger. Every name of retail's Reward_Type enum has a row; every row is a retail name or a Retail
 // (ignored) one; the Missing rows are exactly the not-yet-implemented rewards (the list only shrinks: mcx6). Events: one
 // row per retail event type, codes unique.
 static void test_story_ledger() {
@@ -796,7 +796,7 @@ static void test_story_ledger() {
         if (row.owner == StoryRewardOwner::Missing) ++missing;
         if (row.owner != StoryRewardOwner::Retail) CHECK(find_retail_story_reward(row.name) != nullptr);
     }
-    CHECK(missing == 0);  // mcx6: every retail reward is implemented (the list started at 18, docs/MOD_COMPAT_DESIGN.md §9.3)
+    CHECK(missing == 0);  // every retail reward is implemented (the list started at 18, docs/MODS.md "Story ledger")
     CHECK(find_story_reward("SWITCH_SIDES") && find_story_reward("SWITCH_SIDES")->owner == StoryRewardOwner::Session);
     CHECK(find_story_reward("INFORMATION") && find_story_reward("INFORMATION")->owner == StoryRewardOwner::Retail);
     for (const char* ui : {"SFX", "FLASH_TERRAIN", "FLASH_UNIT", "DUAL_FLASH"})
@@ -807,7 +807,7 @@ static void test_story_ledger() {
     for (const StoryEventRow& e : story_event_table()) CHECK(codes.insert(e.code).second);
     CHECK(story_event_table().size() == 60);
     const StoryEventRow* win = find_story_event("story_win_battles");
-    CHECK(win && win->state == StoryEventState::Full && win->note.empty());  // mcx6 t03: the orbit record
+    CHECK(win && win->state == StoryEventState::Full && win->note.empty());  // the orbit record
     for (const StoryEventRow& e : story_event_table()) CHECK(e.state != StoryEventState::Partial);
     const StoryEventRow* inc = find_story_event("STORY_CORRUPTION_INCREASED");
     CHECK(inc && inc->state == StoryEventState::Retail);
@@ -823,7 +823,7 @@ static objects::ObjectHandle spawn_at(objects::ObjectStore& st, objects::TypeInd
     return st.create(sp);
 }
 
-// mcx4 t09 (docs/re/MCX4_GAL2_RE_ANSWERS.md Q5): the sandbox plot's spawner objectives in a campaign land battle. At story
+// mcx4 t09 (legacy docs/re/MCX4_GAL2_RE_ANSWERS.md Q5): the sandbox plot's spawner objectives in a campaign land battle. At story
 // time 2 s each spawner type hostile to the local player with an Enemy_Spawn_Text gets its CHECK_DESTROYED /
 // STORY_TRIGGER pair; once no live spawner of the type is left, Indigenous_Spawn_Destruction_Reward goes to the local
 // player, once per type. A type without the text and every space battle pay nothing.

@@ -1,4 +1,4 @@
-// ref5 t04: ship names (docs/re/MCX8_BINDINGS_OBJECTS.md §"Ship names"). GameConstants ShipNameTextFiles maps object
+// ship names (legacy docs/re/MCX8_BINDINGS_OBJECTS.md §"Ship names"). GameConstants ShipNameTextFiles maps object
 // types to name lists (UTF-16LE text files); every SELECTABLE object of the serviced mode gets one name once: the
 // parent-mode object's when that one has a name, else the next name of its type's shuffled list (drawn without
 // replacement; a list that ran out starts over with a Roman numeral). Start_Game resets the cursors. Lua

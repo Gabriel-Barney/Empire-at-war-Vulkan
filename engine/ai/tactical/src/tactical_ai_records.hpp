@@ -1,4 +1,4 @@
-// The tactical AI world's state records (tactical_ai.cpp) and their field lists (REF1 t03): one visit() per record
+// The tactical AI world's state records (tactical_ai.cpp) and their field lists: one visit() per record
 // drives the save writer, the save reader and the CRC hasher (tactical_save_io.hpp, "one field list per record"). Not
 // installed; the world tests include it for the record round-trip and hash checks.
 //
@@ -63,12 +63,12 @@ struct StatusRec {
     objects::ObjectHandle unit{};  // L1 final: a one-unit Move status (GameObjectWrapper.Explore_Area), tf = -1
     int32_t target = -1;           // object id (attack / guard)
     Vec3f dest;                    // SpaceReinforce: the ring centre T (+0x68, z = 0)
-    // refixf t06 - SpaceReinforceBlockStatus (AI_TACTICAL §7.4): timeout frame (+0x74, -1 none), ring radius R (+0x7c),
+    // SpaceReinforceBlockStatus (AI_TACTICAL §7.4): timeout frame (+0x74, -1 none), ring radius R (+0x7c),
     // T inside a non-allied prevention radius at creation (R resets to 1000, else 0).
     int64_t timeout = -1;
     float ring = 0.0f;
     bool prevent = false;
-    // S7 t21 - SpaceAmbushBlockStatus (§7.3.1): direction (+0x50: 0 front, 1 left, 2 right, 3 back), minDist (+0x54),
+    // SpaceAmbushBlockStatus (§7.3.1): direction (+0x50: 0 front, 1 left, 2 right, 3 back), minDist (+0x54),
     // threat tolerance (+0x58), mode frame of the last plan (+0x40), lists created (first plan); `members` (+0x68) and
     // `moving` (+0x60) as object ids in list order; `target` = the target object, -1 once it died; last_order = the AI
     // frame of the last group move. S7 t15 A1 - AbilityBlockStatus: `members` = the activated units still pending.
@@ -77,7 +77,7 @@ struct StatusRec {
     uint32_t plan_frame = 0;
     bool lists = false;
     std::vector<int32_t> members, moving;
-    // a1j t01 - land ReinforceBlockStatus (A1_READINGS §36): the landings in flight as (pool key, company type), order
+    // land ReinforceBlockStatus (A1_READINGS §36): the landings in flight as (pool key, company type), order
     // issued (in-flight count +0x40 = its size); the plan's removable flag saved at the order (+0x44), restored when the
     // last landing reports; Result = `result` set at the order (+0x45: every pending unit placed).
     std::vector<std::pair<int32_t, int32_t>> landings;
@@ -115,7 +115,7 @@ struct TacPpRec {
     // byte PP +0x4c as the running-plan re-test leaves it (false once the contrast re-test failed).
     bool layer_space = false, layer_ground = false;
     bool contrast_failed = false;
-    // mcx6 t06 (LUA_API.md "Release_Reinforcements() (0x6e8a70)"): pool keys a Lua Release_Reinforcements freed from this
+    // mcx6 t06 (legacy docs/re/LUA_API.md "Release_Reinforcements() (0x6e8a70)"): pool keys a Lua Release_Reinforcements freed from this
     // reserved PP (ascending); its next Commit (reserve_pp, 0x6c2b20) takes back the ones still free, then the list empties.
     std::vector<int32_t> lua_released;
 };
@@ -128,7 +128,7 @@ struct PendingBonus {
     int64_t deadline = 0;
 };
 
-// mcx6 t06 (LUA_API.md "Task force: Enable_Attack_Positioning and Release_Reinforcements"): the UnitAI data pack's
+// mcx6 t06 (legacy docs/re/LUA_API.md "Task force: Enable_Attack_Positioning and Release_Reinforcements"): the UnitAI data pack's
 // attack-positioning fields of an object a land task force's Enable_Attack_Positioning reached.
 struct AttackPositioning {
     bool flag = false;     // +0x38
@@ -243,14 +243,14 @@ void visit(Ar& ar, R& s) {
 
 // Without its id (the map key). The save keeps the Lua-released pool keys in a block of their own (the last block of
 // TacticalAiWorld::write, version 18 / 19); the CRC reads them here, after a marker, only when there are any, and the
-// re-test byte as a marker only when set (skai t15, so runs whose re-tests all pass keep their CRC stream).
+// re-test byte as a marker only when set (so runs whose re-tests all pass keep their CRC stream).
 template <class Ar, Of<TacPpRec> R>
 void visit(Ar& ar, R& pp) {
     ar.field(pp.player);
     ar.field(pp.plan);
     ar.field(pp.reserved);
     if (pp.contrast_failed) ar.hash_tag(0xC7);
-    if (!pp.lua_released.empty()) {  // mcx6 t06: only after a Lua Release_Reinforcements (none in shipped scripts)
+    if (!pp.lua_released.empty()) {  // only after a Lua Release_Reinforcements (none in shipped scripts)
         ar.hash_tag(0xC8);
         ar.vec(pp.lua_released, In::Hash);
     }
@@ -280,7 +280,7 @@ void visit(Ar& ar, R& b) {
     ar.field(b.deadline, In::Save);
 }
 
-// A pending slot-10 solve's result (OPT2 t10); saved only.
+// A pending slot-10 solve's result; saved only.
 template <class Ar, Of<TacticalPpResult> R>
 void visit(Ar& ar, R& o) {
     ar.field(o.ok, In::Save);

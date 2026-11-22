@@ -1,4 +1,4 @@
-// ref2 t02: per-tick presentation events - what the battle did this tick that only the presentation (audio, HUD) reacts
+// per-tick presentation events - what the battle did this tick that only the presentation (audio, HUD) reacts
 // to, as a list the host drains, instead of the host polling sim state for edges.
 //
 // Contract (determinism rule 3; the GalacticEvent stream's, galactic_events.hpp): TacticalBattle appends from serial code

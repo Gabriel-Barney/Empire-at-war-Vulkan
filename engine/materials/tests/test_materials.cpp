@@ -1027,7 +1027,7 @@ std::filesystem::path unique_temp_dir(const char* tag) {
     return std::filesystem::temp_directory_path(ec) / name;
 }
 
-// docs/MODS.md shader section (modc t11): .fx sources, the issue record and audit_effects().
+// docs/MODS.md "Effects and shaders in mods": .fx sources, the issue record and audit_effects().
 void test_shader_issues() {
     struct ModShaders final : FileProvider {
         bool read(std::string_view p, std::vector<uint8_t>& out) const override {
@@ -1054,7 +1054,7 @@ void test_shader_issues() {
         std::string origin(std::string_view) const override { return {}; }
     } files;
     LoadOptions iso;
-    iso.fx_cache_dir = unique_temp_dir("issues");  // empty cache: the sources count as not compiled (modc t23)
+    iso.fx_cache_dir = unique_temp_dir("issues");  // empty cache: the sources count as not compiled
     EffectLibrary lib(files, iso);
     CHECK(!lib.find_effect_path("SrcOnly.fx") && lib.find_effect_source("SrcOnly.fx").has_value());
     CHECK(lib.fx_source_status("SrcOnly") == FxSourceState::NotCompiled && lib.fx_source_status("Broken") == FxSourceState::None);
@@ -1103,7 +1103,7 @@ void test_shader_issues() {
 }
 
 #ifdef ALAMO_MATERIALS_HAVE_VFS
-// modc t23: .fx sources (fx_source.hpp), the FxCache, the loader's choice and the fxc prebuild (fx_compile.hpp).
+// .fx sources (fx_source.hpp), the FxCache, the loader's choice and the fxc prebuild (fx_compile.hpp).
 struct MapFiles final : FileProvider {
     std::map<std::string, std::string> f;  // normalize_path -> contents
     void put(std::string_view p, std::string t) { f[normalize_path(p)] = std::move(t); }
@@ -1174,11 +1174,11 @@ void test_fx_sources() {
     CHECK(!cache.load(key, r));
     CHECK(fx_log_summary("w\n\nfoo.fx(3,1): error X3004: undeclared identifier 'k'\n") ==
           "foo.fx(3,1): error X3004: undeclared identifier 'k'");
-    // modc t36: the X4717 deprecation warning every fx_2_0 compile prints is not the summary of an error-free failure.
+    // the X4717 deprecation warning every fx_2_0 compile prints is not the summary of an error-free failure.
     CHECK(fx_log_summary("warning X4717: Effects deprecated for D3DCompiler_47\nID3DXEffectCompiler: There were no techniques\n") ==
           "ID3DXEffectCompiler: There were no techniques");
 
-    // 3. The loader: a compiled source wins over the .fxo (RENDER.md 6); a failed or missing entry keeps the
+    // 3. The loader: a compiled source wins over the .fxo (legacy docs/re/RENDER.md 6); a failed or missing entry keeps the
     //    .fxo (t11 fallback); use_fx_sources = false is the t11 behaviour.
     MapFiles g;
     g.put("Data\\Art\\Shaders\\Both.fx", "technique T { pass P { } }\n");

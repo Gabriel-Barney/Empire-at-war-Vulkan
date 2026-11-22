@@ -1,4 +1,4 @@
-// ui4 t04: the FoC galactic planet map ("Base Layout", docs/re/GALACTIC_PLANET_MAP.md) - pure layout rules the host feeds
+// the FoC galactic planet map ("Base Layout", legacy docs/re/GALACTIC_PLANET_MAP.md) - pure layout rules the host feeds
 // into ui::GalacticPlanetMap: marker classes (§4.1), pad groups (§4.2), structures on the pads (§4.4), landed units on the
 // unit pads (§4.5) and the ground-force stacks in orbit (§5). No sim or render state is read here.
 #pragma once

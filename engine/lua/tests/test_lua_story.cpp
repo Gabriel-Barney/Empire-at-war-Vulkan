@@ -101,7 +101,7 @@ static void run_synthetic(StoryModel& m, std::string* trace) {
     std::string err;
     CHECK(m.add_plot("Story_Test.xml", kPlot, true, "Story_Test", &err) == 0);
     CHECK(m.warnings().size() == 1);  // unknown prereq "Never"
-    m.update(0, 0.0);  // A2i t01: the first T9 only records the prereq-less ELAPSED 0's start (0x454980)
+    m.update(0, 0.0);  // the first T9 only records the prereq-less ELAPSED 0's start (0x454980)
     CHECK(m.fired().empty());
     m.update(0, 0.0);
     *trace += "u0:" + fired_names(m) + "\n";
@@ -134,7 +134,7 @@ static void test_synthetic() {
     StoryModel m;
     std::string trace;
     run_synthetic(m, &trace);
-    // docs/re/STORY.md: TRIGGER dependants fire inside their prereq's Fire (Set_Flag, Obj_Add, Tick in the
+    // legacy docs/re/STORY.md: TRIGGER dependants fire inside their prereq's Fire (Set_Flag, Obj_Add, Tick in the
     // dependants' table order); a perpetual TRIGGER with prereqs disarms after firing and waits for its
     // prereq to fire again (u1 empty); And_Or's second group names an unknown event, so it is an EMPTY group
     // (satisfied) and And_Or fires as soon as Notify fires; FLAG events are polled at T9 (Flag_Won at u2,
@@ -186,7 +186,7 @@ static void test_synthetic() {
         CHECK(copy_b.add_plot("Story_Test.xml", kPlot, true, "Story_Test", &err) == 0 && copy_b.read(rb));
         copy_a.reset_plot(0);
         copy_b.reset_plot(0);
-        copy_a.update(3, 6.0);  // the reset cleared Begin's timer (q6 t03): this T9 only records its start (A2i t01)
+        copy_a.update(3, 6.0);  // the reset cleared Begin's timer: this T9 only records its start
         copy_b.update(3, 6.0);
         copy_a.update(4, 6.0);
         copy_b.update(4, 6.0);
@@ -225,7 +225,7 @@ static void test_synthetic() {
         std::printf("  t9 timer: ELAPSED 2 fired at frame %u\n", fired_at);
         CHECK(fired_at == 61 && t.fired().size() == 1);
     }
-    // bkc1 t04 (backlog b0012; Q6_T15_RETAIL_RUN.md row 3 [H]): a Perpetual prereq-less ELAPSED T driven by the host's T9
+    // bkc1 t04 (legacy docs/re/Q6_T15_RETAIL_RUN.md row 3 [H]): a Perpetual prereq-less ELAPSED T driven by the host's T9
     // series. Retail: T = 2 repeats every 61 frames (T x 30 + 1: the re-arm's next T9 only records LastTime), T = 0.7
     // alternates 22 / 23 frames (T x 30 = 21 is not a whole frame count in float time).
     {
@@ -259,7 +259,7 @@ static void test_synthetic() {
         std::printf("  perpetual ELAPSED: T=2 %zu periods, T=0.7 %u x 22 + %u x 23 frames\n", two.size(), n22, n23);
         CHECK(n22 > 0 && n23 > 0);  // both lengths occur
     }
-    // A2i t01 (A2I_T01_FRAME_ORDER.md §6, 0x454980): a prereq-less ELAPSED 0 only records its start at its first T9 and
+    // A2i t01 (legacy docs/re/A2I_T01_FRAME_ORDER.md §6, 0x454980): a prereq-less ELAPSED 0 only records its start at its first T9 and
     // fires at the second (tick 2 of the host); a prereq-armed ELAPSED 0 was initialised at its arming (vf7) and fires at
     // the first T9 after it, the same frame.
     {
@@ -281,8 +281,8 @@ static void test_synthetic() {
         CHECK(fired_names(z) == "Zero,Go,Armed_Zero,");
     }
 
-    // Reset (§2.3): nothing fires at the reset; the prereq-less ELAPSED Begin has its timer cleared (q6 t03, 0x45e550),
-    // so its next T9 only records LastTime (A2i t01, 0x454980) and it fires again at the T9 after; events with prereqs
+    // Reset (§2.3): nothing fires at the reset; the prereq-less ELAPSED Begin has its timer cleared (0x45e550),
+    // so its next T9 only records LastTime (0x454980) and it fires again at the T9 after; events with prereqs
     // wait for Begin.
     const uint32_t begin = m.find_event(0, "Begin");
     m.reset_plot(0);
@@ -299,7 +299,7 @@ static void test_synthetic() {
 }
 
 // ------------------------------------------------------------------------------------------
-// docs/re/STORY.md rules one by one (§1.4 prereq-less TRIGGER, §5 matching, §6 rewards, §4.6 Perpetual).
+// legacy docs/re/STORY.md rules one by one (§1.4 prereq-less TRIGGER, §5 matching, §6 rewards, §4.6 Perpetual).
 
 static const char kRulesA[] = R"(<Story>
   <Event Name="Jump"><Event_Type>STORY_TRIGGER</Event_Type><Reward_Type>STORY_ELEMENT</Reward_Type><Reward_Param1>Rules_B</Reward_Param1></Event>
@@ -377,7 +377,7 @@ static void test_story_rules() {
     m.trigger_event_by_name("Jump");
     CHECK(m.plot(1).active && fired("B_Start") == 0);
     m.update(2, 2.0);
-    CHECK(fired("B_Start") == 0);  // A2i t01: the first T9 after activation records the start only (0x454980)
+    CHECK(fired("B_Start") == 0);  // the first T9 after activation records the start only (0x454980)
     m.update(3, 2.0 + 1.0 / 30.0);
     CHECK(fired("B_Start") == 1);
 }
@@ -404,7 +404,7 @@ static void test_plots_file() {
     CHECK(m.plot_count() == 2 && m.plot(0).lua_script == "Script_A" && m.plot(1).lua_script.empty());
     CHECK(m.plot(0).active && !m.plot(1).active && m.find_plot("B.xml") == 1 && m.find_plot("b.XML") == 0xFFFFFFFFu);
     m.update(0, 0);
-    CHECK(fired_names(m).empty());  // A2i t01: ELAPSED 0 records its start at the first T9 (0x454980)
+    CHECK(fired_names(m).empty());  // ELAPSED 0 records its start at the first T9 (0x454980)
     m.update(1, 1.0 / 30.0);
     CHECK(fired_names(m) == "A1,");  // the prereq-less STORY_TRIGGER A_Jump never fires by itself
     m.set_plot_active(1, true);
@@ -415,7 +415,7 @@ static void test_plots_file() {
     CHECK(fired_names(m) == "A1,B1,");  // second T9 after activation
     StoryModel bad;
     CHECK(!bad.load_plots(dp, "Missing.xml", &err) && !err.empty());
-    // modc t39 (STORY.md §2.1): a listed plot file that does not exist is skipped with a warning; the others load, and its
+    // modc t39 (legacy docs/re/STORY.md §2.1): a listed plot file that does not exist is skipped with a warning; the others load, and its
     // pending Lua_Script does not pass to the next plot.
     write_file(root / "Data/XML/Story_Plots_M.xml", "<Story_Mode_Plots><Lua_Script>Gone_Script</Lua_Script>"
                                                     "<Active_Plot>Not_Shipped.xml</Active_Plot><Active_Plot>B.xml</Active_Plot>"
@@ -438,7 +438,7 @@ static void test_plots_file() {
     CHECK(sub.load_plots(dp2, "Conquests\\Sub\\Story_Plots_S.xml", &err));
     CHECK(sub.plot_count() == 2 && sub.find_plot("Conquests\\Sub\\S1.xml") == 0 &&
           sub.find_plot("Nowhere/B.xml") == 1 && sub.find_plot("S1.xml") == 0xFFFFFFFFu);
-    // modc t06: the root element's name is not checked, for the plots file and for the story file (a mod uses another
+    // the root element's name is not checked, for the plots file and for the story file (a mod uses another
     // root tag for both).
     write_file(root / "Data/XML/Story_Plots_R.xml",
                "<Mod_Files><Lua_Script>Script_R</Lua_Script><Active_Plot>R.xml</Active_Plot></Mod_Files>");
@@ -490,12 +490,12 @@ static void test_bindings() {
     attach_story(vm, &m);
     CHECK(attached_story(vm) == &m);
     m.update(0, 0.0);
-    m.update(0, 0.0);  // A2i t01: the prereq-less ELAPSED 0 Begin fires at the second T9 (0x454980)
+    m.update(0, 0.0);  // the prereq-less ELAPSED 0 Begin fires at the second T9 (0x454980)
     vm.set_object_global("Object", planet);
 
     CHECK(run(vm, "Story_Event('GO_NOW')") == "");
     CHECK(m.flag("Mission_Win") == 1);
-    // q6 t03: the plot name matches case-sensitively (STORY.md §2.1: CRC of the name as passed); not found -> a warning
+    // the plot name matches case-sensitively (legacy docs/re/STORY.md §2.1: CRC of the name as passed); not found -> a warning
     // and no value.
     const size_t msgs0 = vm.messages().size();
     CHECK(run(vm, "wrong = Get_Story_Plot('story_test.XML') wrong = tostring(wrong)") == "" && gstr(vm, "wrong") == "nil");
@@ -520,13 +520,13 @@ static void test_bindings() {
     const uint32_t enter = m.find_event(0, "Enter");
     const StoryEventDef& def = m.plot(0).events[enter];
     const int32_t planet_id = store.id(planet);
-    // story t02: index 0 = Event_Param1; the planet object is stored as its type NAME, upper-cased (q6 t03: the converter
+    // index 0 = Event_Param1; the planet object is stored as its type NAME, upper-cased (the converter
     // 0x73e610 gives the representative type's +0xf8 name); numbers as rounded "%d".
     CHECK(def.event_params[0].kind == StoryParam::Kind::Text && def.event_params[0].text == "KUAT");
     CHECK(def.reward_params.size() == 2 && def.reward_params[1].text == "7" && def.reward_type == "SCREEN_TEXT");
-    // q6 t03: Add_Dialog_Text appends the formatted line (no text table: ids show as themselves).
+    // Add_Dialog_Text appends the formatted line (no text table: ids show as themselves).
     CHECK(def.dialog.size() == 1 && def.dialog[0] == "TEXT_B");
-    // mcx8 t12 (MCX8_BINDINGS_PLAYERS_STORY.md "Add_Radar_Blip"): galactic Add_Radar_Blip(planet) = the planet's
+    // mcx8 t12 (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "Add_Radar_Blip"): galactic Add_Radar_Blip(planet) = the planet's
     // highlight on (twice = once); Remove_Radar_Blip(planet) turns it off; a non-planet or the tactical form is an error.
     CHECK(m.blips().size() == 1 && m.blips()[0].name.empty() && m.blips()[0].object_id == planet_id);
     vm.set_object_global("Rock", rock_object);
@@ -551,7 +551,7 @@ static void test_bindings() {
     bool entered = false;
     for (const StoryFired& f : m.fired()) entered = entered || f.event_name == "Enter";
     CHECK(entered);
-    // Event parameter index (q6 t03, LUA_API.md: the binding does not range-check, vf2 ignores what it has no parameter
+    // Event parameter index (legacy docs/re/LUA_API.md: the binding does not range-check, vf2 ignores what it has no parameter
     // for): [port] outside 0..63 nothing happens, no error.
     const size_t params_before = def.event_params.size();
     CHECK(run(vm, "Get_Story_Plot('Story_Test.xml').Get_Event('Enter').Set_Event_Parameter(-1, 1)") == "");
@@ -582,7 +582,7 @@ static void test_bindings() {
     CHECK(run(vm, "Get_Story_Plot('Story_Test.xml').Get_Event('Enter').Set_Dialog()") == "" &&
           last_msg_has("Set_Dialog -- invalid number of parameters. Expected 1, got 0."));
     CHECK(run(vm, "Check_Story_Flag(1, 'F', nil, true)") == "" && vm.exit_requested() && last_msg_has("Expected player"));
-    reset_script_threads(vm);  // q6 t11: the binding errors above stopped the script; a live script for what follows
+    reset_script_threads(vm);  // the binding errors above stopped the script; a live script for what follows
 
     // StoryPlotWrapper.Reset / Suspend / Activate.
     CHECK(run(vm, "p = Get_Story_Plot('Story_Test.xml') p.Suspend()") == "" && !m.plot(0).active);
@@ -599,7 +599,7 @@ static void test_bindings() {
     const size_t n = m.deliver_script_triggers(0, vm, &err);
     CHECK(n == m.fired().size() && gstr(vm, "got") == expect);
     CHECK(m.deliver_script_triggers(0, vm) == 0);
-    // q6 t11 (LUA_API.md "Binding error model across all bindings"): a binding error stops the plot script; its events
+    // q6 t11 (legacy docs/re/LUA_API.md "Binding error model across all bindings"): a binding error stops the plot script; its events
     // still fire, but Story_Event_Trigger is not called any more (the queued names are dropped).
     {
         const auto fire_one = [&m] {  // an enabled event of plot 0
@@ -617,7 +617,7 @@ static void test_bindings() {
               gstr(vm, "got") == fired_names(m, fired1));
     }
 
-    // story t02: parameters set from Lua take the event type's own rule (the shipped Intervention_Build_Units /
+    // parameters set from Lua take the event type's own rule (the shipped Intervention_Build_Units /
     // Empire Act IV patterns): a type + count on STORY_CONSTRUCT counts down, a reward amount lands in Reward_Param1, a
     // planet object in SPACE_TACTICAL Param2 is matched by its type name.
     CHECK(m.add_plot("Story_Lua.xml",
@@ -654,7 +654,7 @@ static void test_bindings() {
         battle.planet = "KUAT";
         CHECK(m.dispatch("STORY_SPACE_TACTICAL", battle) == 1 && count("Raid") == 1);
     }
-    // l1s3 t01: Activate / Suspend return no values (STRATEGIC_GAPS 4 [H]).
+    // Activate / Suspend return no values (STRATEGIC_GAPS 4 [H]).
     CHECK(run(vm, "function nvals(...) return arg.n end\n"
                   "na = nvals(lp.Suspend()) ns = tostring(lp.Is_Valid()) nb = nvals(lp.Activate())") == "");
     CHECK(gstr(vm, "na") == "0" && gstr(vm, "nb") == "0" && m.plot(1).active);
@@ -665,7 +665,7 @@ static void test_bindings() {
     fs::remove_all(root, ec);
 }
 
-// q6 t03 (STORY.md §2.1 / §2.4 [H]): one plot table per game mode, every player's plot set in it (StoryTable).
+// q6 t03 (legacy docs/re/STORY.md §2.1 / §2.4 [H]): one plot table per game mode, every player's plot set in it (StoryTable).
 // Get_Story_Plot finds a plot of another player's set by its exact name (Thrawn's Revenge GCPlayerAgnostic, in the
 // Independent_Forces set, asks for "Conquests\\Factions\\Story_Generic_EMPIRE.xml", which the Empire's set loads) and the
 // wrapper then acts on that set; Lua Story_Event reaches every ACTIVE plot of every set; TRIGGER_EVENT fires the event
@@ -755,7 +755,7 @@ static void test_story_table() {
           gstr(vm, "q") == "nil");
 }
 
-// q6 t03 (LUA_API.md "StoryEventWrapper dialog and parameter setters" [H]): Add_Dialog_Text slots and formatting, the
+// q6 t03 (legacy docs/re/LUA_API.md "StoryEventWrapper dialog and parameter setters" [H]): Add_Dialog_Text slots and formatting, the
 // error / silent-abort cases, Clear_Dialog_Text, the shared converter of Set_Event_Parameter / Set_Reward_Parameter, and
 // the silent return of every method when the wrapper's event is gone.
 static void test_dialog_setters() {
@@ -834,7 +834,7 @@ static void test_dialog_setters() {
     // Set_Dialog: the event's Story_Dialog only.
     CHECK(run(vm, "ev.Add_Dialog_Text('X') ev.Set_Dialog('Intervention_Dialog')") == "" &&
           def.story_dialog == "Intervention_Dialog" && def.dialog.size() == 1);
-    // ... and loads that dialog script at the call (q6 t14, GALACTIC_DIALOGS §2.8).
+    // ... and loads that dialog script at the call (GALACTIC_DIALOGS §2.8).
     CHECK(!m.dialog_loads().empty() && m.dialog_loads().back() == "Intervention_Dialog");
     // An event wrapper whose event is gone: every method returns silently, before any argument check.
     StoryModel empty;
@@ -846,7 +846,7 @@ static void test_dialog_setters() {
     fs::remove_all(root, ec);
 }
 
-// q6 t14 (STORY.md §1.6, §6.2; GALACTIC_DIALOGS §2.8): Fire step 6 and the holocron list.
+// q6 t14 (legacy docs/re/STORY.md §1.6, §6.2; GALACTIC_DIALOGS §2.8): Fire step 6 and the holocron list.
 static void test_holocron() {
     StoryModel m;
     std::string err;
@@ -945,7 +945,7 @@ static void test_ai_flags() {
     attach_story(vm, &m);
     m.raise_ai_flag(2, "Attack_Here", -1);
     // PlayerWrapper userdata come from the players family; use the C++ API for the flag itself.
-    // mcx8 t12 (MCX8_BINDINGS_PLAYERS_STORY.md "Check_Story_Flag"): the name is compared exactly (case kept).
+    // mcx8 t12 (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "Check_Story_Flag"): the name is compared exactly (case kept).
     CHECK(!m.check_ai_flag(1, "Attack_Here", -1, false));
     CHECK(!m.check_ai_flag(2, "ATTACK_HERE", -1, false) && !m.check_ai_flag(2, "attack_here", -1, true));
     CHECK(m.check_ai_flag(2, "Attack_Here", -1, false));
@@ -953,7 +953,7 @@ static void test_ai_flags() {
     CHECK(!m.check_ai_flag(2, "Attack_Here", -1, true));
 }
 
-// mcx8 t12 (docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "Add_Radar_Blip", "Add_Objective"): the tactical Add_Radar_Blip appends
+// mcx8 t12 (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "Add_Radar_Blip", "Add_Objective"): the tactical Add_Radar_Blip appends
 // (the same name twice = two blips), takes any position source (a PositionWrapper gives a fixed blip) and
 // Remove_Radar_Blip(name) removes the oldest blip of that name; Add_Objective keeps its section boolean.
 static void test_mcx8_t12_tactical() {
@@ -1019,7 +1019,7 @@ static void test_mcx8_t12_tactical() {
 }
 
 // ------------------------------------------------------------------------------------------
-// Story event semantics (roadmap STORY "story" t01-t03, "l1s3" t01-t03): one check per rule of docs/re/STORY.md.
+// Story event semantics (roadmap STORY "story" t01-t03, "l1s3" t01-t03): one check per rule of legacy docs/re/STORY.md.
 
 static uint32_t fired_count(const StoryModel& m, const char* name) {
     uint32_t n = 0;
@@ -1027,7 +1027,7 @@ static uint32_t fired_count(const StoryModel& m, const char* name) {
     return n;
 }
 
-// story t01: Prereq OR / AND (§3), STORY_ELAPSED arming (§4.7), Perpetual has no once-per-frame limit (§4.6).
+// Prereq OR / AND (§3), STORY_ELAPSED arming (§4.7), Perpetual has no once-per-frame limit (§4.6).
 static const char kSemantics[] = R"(<Story>
   <Event Name="A"><Event_Type>STORY_AI_NOTIFICATION</Event_Type><Event_Param2>A</Event_Param2></Event>
   <Event Name="B"><Event_Type>STORY_AI_NOTIFICATION</Event_Type><Event_Param2>B</Event_Param2></Event>
@@ -1056,7 +1056,7 @@ static void test_prereqs_elapsed_perpetual() {
     // stays armed.
     CHECK(m.story_event("ping") == 1 && m.story_event("PING") == 1 && fired_count(m, "Perp_Note") == 2);
     CHECK(m.story_event("B") == 2 && fired_count(m, "AB_Or_C") == 1);  // B, then AB_Or_C inside B's Fire
-    // Perpetual ELAPSED (q6 t03, STORY.md §4.7 [H]): the re-arm runs vf4, which clears the accumulator and the
+    // Perpetual ELAPSED (legacy docs/re/STORY.md §4.7 [H]): the re-arm runs vf4, which clears the accumulator and the
     // initialised flag; the next T9 only re-records LastTime, so it fires again T seconds after that T9.
     m.update(4, 4.5);
     CHECK(fired_count(m, "Perp_Clock") == 0);
@@ -1112,7 +1112,7 @@ static void test_prereqs_elapsed_perpetual() {
     CHECK(fired_count(g, "Gap_Wait") == 1);
 }
 
-// story t02: no count / threshold on the generic rule - a pushed value equal to the parameter matches, a larger one
+// no count / threshold on the generic rule - a pushed value equal to the parameter matches, a larger one
 // does not; the modelled types keep their own counters (CONQUER per-name counts, CONQUER_COUNT, thresholds).
 static void test_exact_params() {
     StoryModel m;
@@ -1128,7 +1128,7 @@ static void test_exact_params() {
     CHECK(m.push_trigger("STORY_SELECT_PLANET", fondor) == 0 && m.push_trigger("STORY_SELECT_PLANET", kuat) == 1);
 }
 
-// story t03: RESET_BRANCH (exact branch compare, re-check, Param2, depth 3), DISABLE_BRANCH (Param2 required, kept by
+// RESET_BRANCH (exact branch compare, re-check, Param2, depth 3), DISABLE_BRANCH (Param2 required, kept by
 // resets).
 static const char kBranches[] = R"(<Story>
   <Event Name="Start"><Event_Type>STORY_AI_NOTIFICATION</Event_Type><Event_Param2>START</Event_Param2><Branch>Br</Branch></Event>
@@ -1173,7 +1173,7 @@ static void test_branches() {
     CHECK(fired_count(m, "Loop") == 4 && m.plot(0).state[m.find_event(0, "Loop")].fire_count == 4);
 }
 
-// l1s3 t01 / t02, storyb t17: Timeout expiry cancels the timeout and fires nothing (STORY.md §8 item 4 [M]); the event
+// Timeout expiry cancels the timeout and fires nothing (legacy docs/re/STORY.md §8 item 4 [M]); the event
 // stays armed for its own trigger. The T9 paused flag stops ELAPSED accumulation.
 static void test_timeouts_and_pause() {
     StoryModel m;
@@ -1218,8 +1218,8 @@ static void test_timeouts_and_pause() {
     CHECK(p.fired().size() == 1);
 }
 
-// l1s3 t03: CONQUER_COUNT counts every dispatched conquest (no filter, any new owner); plot lookups match the name
-// byte for byte (q6 t03, STORY.md §2.1 [H]); the story flag table is shared (STORY.md §0).
+// CONQUER_COUNT counts every dispatched conquest (no filter, any new owner); plot lookups match the name
+// byte for byte (legacy docs/re/STORY.md §2.1 [H]); the story flag table is shared (legacy docs/re/STORY.md §0).
 static void test_conquer_count_plots_flags() {
     StoryModel m;
     std::string err;
@@ -1317,7 +1317,7 @@ static void test_foc_campaigns() {
     std::printf("  FoC Underworld: %zu events, %zu load warnings\n", uw.plot(0).events.size(), uw.warnings().size());
     CHECK(uw.warnings().empty());  // "A, B, C" prereq lists resolve
     uw.update(0, 0.0);
-    CHECK(uw.fired().empty());  // A2i t01: the first T9 records the ELAPSED 0 start only (0x454980)
+    CHECK(uw.fired().empty());  // the first T9 records the ELAPSED 0 start only (0x454980)
     uw.update(1, 1.0 / 30.0);
     CHECK(!uw.fired().empty() && uw.fired()[0].event_name == "Underworld_Campaign_Begin");
     CHECK(uw.has_flag("Underworld_Mission_01_Win") && uw.flag("Underworld_Mission_01_Win") == 0);
@@ -1396,7 +1396,7 @@ static void test_foc_campaigns() {
     }
 }
 
-// q6 t03 (STORY.md §1.1, §3): Thrawn's Revenge's Thrawn_Empire plot names a prereq `Unlock_Wayland` that no event
+// q6 t03 (legacy docs/re/STORY.md §1.1, §3): Thrawn's Revenge's Thrawn_Empire plot names a prereq `Unlock_Wayland` that no event
 // defines (the event is `Trigger_Unlock_Wayland`; the other plot of the set and the plot's Lua do not define it either).
 // The name is dropped from its group with a warning, so the event is nobody's dependant and never arms, however many
 // other events fire; a definition in another plot does not resolve it. Only a RESET_BRANCH re-check arms it (its now
@@ -1441,7 +1441,7 @@ static void test_unknown_prereq() {
     CHECK(fired_count(m, "Jump_Camera_Wayland") == 1 && fired_count(m, "Flash_Wayland") == 0);
 }
 
-// q6 t03: Thrawn's Revenge (workshop 1125571106, next to a Steam FoC install) plot sets load; their load warnings are
+// Thrawn's Revenge (workshop 1125571106, next to a Steam FoC install) plot sets load; their load warnings are
 // printed. Thrawn_Empire's Empire set has the two `Unlock_Wayland` warnings (a data error in the mod, see above).
 static void test_tr_campaign_plots() {
 #ifdef ALAMO_LUA_HAVE_VFS
@@ -1478,7 +1478,7 @@ static void test_tr_campaign_plots() {
 #endif
 }
 
-// mcx6 t03: one event of `type` with Event_Param1.. (nullptr = absent) in a fresh model whose plot player is `player`;
+// one event of `type` with Event_Param1.. (nullptr = absent) in a fresh model whose plot player is `player`;
 // the number of events one dispatch of `n` fires.
 static uint32_t one_event_fires(const char* type, std::initializer_list<const char*> params, const StoryNotification& n,
                                 int32_t player = 0) {
@@ -1497,7 +1497,7 @@ static uint32_t one_event_fires(const char* type, std::initializer_list<const ch
     return m.dispatch(type, n);
 }
 
-// mcx6 t03 (docs/re/STORY.md §5 WIN/LOSE_BATTLES row and the note "Battle composition", mcx6 Q14): the location parse
+// mcx6 t03 (legacy docs/re/STORY.md §5 WIN/LOSE_BATTLES row and the note "Battle composition", mcx6 Q14): the location parse
 // and the space-only Ship_Class composition test of the retail match 0x455a50.
 static void test_battle_composition_rules() {
     StoryNotification space;
@@ -1552,7 +1552,7 @@ static void test_battle_composition_rules() {
     CHECK(one(W, {"1", nullptr, "FILTER_FRIENDLY_AND_ENEMY CLASS_SUPER"}, nowhere) == 0);
 }
 
-// mcx6 t03 (docs/re/STORY.md §5 Enter family row and the note "Enter family match"): P5 hidden fleets count too, P6
+// mcx6 t03 (legacy docs/re/STORY.md §5 Enter family row and the note "Enter family match"): P5 hidden fleets count too, P6
 // exact composition, P7 raid fleets only, P4 any unit in orbit, no planet = nothing, no P1 = only the hidden test.
 static void test_enter_family_rules() {
     StoryNotification f;

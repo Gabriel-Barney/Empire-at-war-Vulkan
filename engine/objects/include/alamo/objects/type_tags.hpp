@@ -1,4 +1,4 @@
-// ref6 t01: typed object-type field handles. Engine code outside engine/objects reads a type's tags through these instead
+// typed object-type field handles. Engine code outside engine/objects reads a type's tags through these instead
 // of a tag string (GameObjectTypes::get_float(t, "Tag") gives 0 on a typo and lets every reader carry its own default):
 //   types.get(t, tags::Guard_Chase_Range)        the effective value (the XML value, else the tag's one default)
 //   types.name(t)                                the type's name
@@ -42,7 +42,6 @@ struct SubObjectsTag {
 
 // X(kind, Name, default): kind Float / Int / Bool / Text / Vec / List / Ref / Mask / Sub; the default is used by
 // Float / Int / Bool / Text and is 0 for the others (their unset value is fixed).
-// clang-format off
 #define ALAMO_TYPE_TAGS(X)                                                                                            \
     /* chase ranges (FIGHTER_FLYING §4.10 A; BKR1 Q8): tactical_battle_chase.cpp */                                   \
     X(Float, Guard_Chase_Range, 0.0f)                                                                                 \
@@ -574,7 +573,6 @@ struct SubObjectsTag {
     X(Bool, Initial_State_Visible_Under_FOW, false)                                                                   \
     X(Bool, Is_Dummy, false)                                                                                          \
     X(Int, Population_Value, 0)
-// clang-format on
 
 namespace tags {
 #define ALAMO_TYPE_TAG_DECL_Float(name, def) inline constexpr FloatTag name{#name, def};

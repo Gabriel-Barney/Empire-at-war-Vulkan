@@ -1,4 +1,4 @@
-// STY1 lane B t06: the tactical story rewards the battle host applies to the running battle (docs/re/STORY_REWARDS_GALACTIC.md
+// STY1 lane B t06: the tactical story rewards the battle host applies to the running battle (legacy docs/re/STORY_REWARDS_GALACTIC.md
 // §4): DISABLE_REINFORCEMENTS (per-player switch), CHANGE_OWNER, DESTROY_OBJECT, BOMBARD_DELAY; mcx6 (§1.11, §1.12, §1.20):
 // FORCE_RETREAT, SET_HEALTH, DISABLE_SPECIAL_STRUCTURE (SET_SPAWN is in tactical_battle_spawners.cpp).
 #include <algorithm>

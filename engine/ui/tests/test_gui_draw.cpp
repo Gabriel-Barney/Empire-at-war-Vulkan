@@ -224,13 +224,13 @@ void test_synthetic(Gpu& g, render::Renderer& rr, const std::string& src_dir) {
     const uint8_t* p90 = pixel(px, 1024, 768, gui.canvas().canvas_to_pixel(pr.min.x + 0.9f * pr.width(), cy));
     CHECK(p30[2] > 200 && p90[2] < 100);
     CHECK(hs.quads > 20 && hs.page_uploads >= 1);
-    CHECK(render::write_png_rgba(src_dir + "/logs/ui_gui_synthetic_1024x768.png", 1024, 768, px));
+    CHECK(render::write_png_rgba(::alamo::test::artifact_dir() + "/ui_gui_synthetic_1024x768.png", 1024, 768, px));
     std::printf("wrote %s/logs/ui_gui_synthetic_1024x768.png\n", src_dir.c_str());
     g.hud.clear_image_page(ui::kHudPageImageBase);
 }
 
 #ifdef ALAMO_UI_HAVE_VFS
-void test_real(Gpu& g, const std::string& src_dir) {
+void test_real(Gpu& g, [[maybe_unused]] const std::string& src_dir) {
     const char* root = std::getenv("ALAMO_FOC_DATA");
     if (!root || !*root) {
         std::printf("real gui: ALAMO_FOC_DATA not set, skipped\n");
@@ -321,7 +321,7 @@ void test_real(Gpu& g, const std::string& src_dir) {
         const std::vector<uint8_t> px = render_frame(g, rr, W, H, gui.canvas(), empty, &dl, fonts, {}, {}, &hs);
         std::printf("real gui %s: %u quads, %u batches; dialogs %s\n", name, hs.quads, hs.batches,
                     gui.open_count() ? gui.open_names().back().c_str() : "-");
-        const std::string path = src_dir + "/logs/ui_gui_" + name + ".png";
+        const std::string path = ::alamo::test::artifact_dir() + "/ui_gui_" + name + ".png";
         CHECK(render::write_png_rgba(path, W, H, px));
         std::printf("wrote %s\n", path.c_str());
         return px;
@@ -944,7 +944,7 @@ void test_real(Gpu& g, const std::string& src_dir) {
         const double cov = coverage(px2, W, H, {0.0f, static_cast<float>(H) * 0.85f}, {static_cast<float>(W) * 0.5f, static_cast<float>(H)});
         std::printf("real galactic: bottom-left coverage %.1f%%\n", 100.0 * cov);
         CHECK(cov > 0.3);
-        const std::string path = src_dir + "/logs/ui_gui_galactic_hud.png";
+        const std::string path = ::alamo::test::artifact_dir() + "/ui_gui_galactic_hud.png";
         CHECK(render::write_png_rgba(path, W, H, px2));
         std::printf("wrote %s\n", path.c_str());
 
@@ -969,7 +969,7 @@ void test_real(Gpu& g, const std::string& src_dir) {
             CHECK(hud.stats().battle_prompt && hud.stats().battle_graphs == 2 && hud.stats().screen_text_lines == 2);
             render::DrawStats ps{};
             const std::vector<uint8_t> px3 = render_shells(hud.draw_list(), galactic_shells, [&] { drawer.make_resident(rr); }, ps);
-            const std::string ppath = src_dir + "/logs/ui_gui_galactic_prompt.png";
+            const std::string ppath = ::alamo::test::artifact_dir() + "/ui_gui_galactic_prompt.png";
             CHECK(render::write_png_rgba(ppath, W, H, px3));
             std::printf("wrote %s\n", ppath.c_str());
             hud.build(f);
@@ -1085,7 +1085,7 @@ void test_real(Gpu& g, const std::string& src_dir) {
         const double mcov = coverage(px3, W, H, hud.canvas().canvas_to_pixel(lo2.x, hi2.y), hud.canvas().canvas_to_pixel(hi2.x, lo2.y));
         std::printf("real panels: market coverage %.1f%%\n", 100.0 * mcov);
         CHECK(mcov > 0.3);
-        const std::string ppath = src_dir + "/logs/ui_gui_panels.png";
+        const std::string ppath = ::alamo::test::artifact_dir() + "/ui_gui_panels.png";
         CHECK(render::write_png_rgba(ppath, W, H, px3));
         std::printf("wrote %s\n", ppath.c_str());
         // P4 completion 2: hack shell, a fleet being dragged onto a planet, and the mouse cursor (POINTER_DROP) drawn at
@@ -1202,7 +1202,7 @@ void test_real(Gpu& g, const std::string& src_dir) {
             }
             std::printf("real hack: shell draws %u (pending %u), hack hits %zu\n", hs.draws, hs.pending_pipeline, hack.hit_boxes().size());
             CHECK(hs.pending_pipeline == 0 && hack.hit_boxes().size() >= 2);
-            const std::string hpath = src_dir + "/logs/ui_gui_hack_cursor.png";
+            const std::string hpath = ::alamo::test::artifact_dir() + "/ui_gui_hack_cursor.png";
             CHECK(render::write_png_rgba(hpath, W, H, px4));
             std::printf("wrote %s\n", hpath.c_str());
             // Release over the planet -> MoveObjectToObject for the dragged unit.

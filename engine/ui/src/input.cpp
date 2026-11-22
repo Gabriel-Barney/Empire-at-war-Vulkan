@@ -116,7 +116,7 @@ uint8_t current_mods(const InputState& in) {
 }
 
 Bindings::Bindings() {
-    // The defaults are the default hotkey table (UI.md §4.3, hotkeys.hpp) as HotkeyTable::apply_to_bindings maps it, so a
+    // The defaults are the default hotkey table (legacy docs/re/UI.md §4.3, hotkeys.hpp) as HotkeyTable::apply_to_bindings maps it, so a
     // host that never loads a profile gets the same keys:
     // [port: Gabriel] W A S D scroll with any modifier (nothing else uses them; the original scrolls on the arrows).
     bind(Action::ScrollLeft, 0, {vk::key('A'), kModAny});
@@ -143,7 +143,7 @@ Bindings::Bindings() {
 }
 
 namespace {
-// Hotkey modifier rule (P1_CAMERA_INPUT.md §6, `0x2127f0`): an unmodified binding matches only with Shift, Ctrl and Alt
+// Hotkey modifier rule (legacy docs/re/P1_CAMERA_INPUT.md §6, `0x2127f0`): an unmodified binding matches only with Shift, Ctrl and Alt
 // all up; a modified one when its modifier(s) are held, whatever else is. kModAny [port: Gabriel] matches always.
 bool mods_match(uint8_t want, uint8_t have) {
     if ((want & kModAny) != 0) return true;

@@ -248,7 +248,7 @@ void test_emitter_desc() {
     CHECK(particle::emitter_field(0x3D) && std::string(particle::emitter_field(0x3D)->name) == "is_weather_particle");
 }
 
-// mcx2 t03: ALA salvage replays retail's read (frame * declared block + index) into a valid animation.
+// ALA salvage replays retail's read (frame * declared block + index) into a valid animation.
 std::vector<std::uint8_t> salvage_ala(std::uint32_t frames, std::uint32_t rot_block, std::uint16_t rot_index,
                                       const std::vector<std::int16_t>& rot, bool with_rot_chunk) {
     auto info = chunk(0x1001, cat({mini(1, bytes_of(frames)), mini(2, bytes_of(30.f)), mini(3, bytes_of(1u)),
@@ -302,7 +302,7 @@ void test_anim_salvage() {
     CHECK(notes.empty() && a.rotation_block == 4);
 }
 
-// mcx2 t03: ALO salvage (alo.hpp) for the defects retail draws (compat_assets run 3).
+// ALO salvage (alo.hpp) for the defects retail draws (compat_assets run 3).
 void test_alo_salvage() {
     std::vector<SalvageNote> notes;
     const ParseOptions salvage{true, &notes};

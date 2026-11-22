@@ -1,4 +1,4 @@
-// mcx2 t01: the `assets` section of the mod load report (asset_audit.hpp).
+// the `assets` section of the mod load report (asset_audit.hpp).
 #include "alamo/game/asset_audit.hpp"
 
 #include <algorithm>
@@ -59,17 +59,17 @@ constexpr FamilyGlob kGlobs[] = {
 };
 
 // Rejections retail shares: the reason text (substring) and the docs/re finding that says retail does not show the
-// asset either. Filled from the compat_assets probe (docs/re/MCX2_T02_ASSET_SALVAGE.md); an entry here is a claim
+// asset either. Filled from the compat_assets probe (legacy docs/re/MCX2_T02_ASSET_SALVAGE.md); an entry here is a claim
 // about retail and needs that citation.
 struct RetailEquivalent {
     const char* reason_part;
     const char* citation;
 };
 constexpr RetailEquivalent kRetailEquivalent[] = {
-    {"no connections chunk 0x600", "retail does not draw a model without its connections chunk (docs/re/MCX2_T02_ASSET_SALVAGE.md 3, run 2)"},
-    {"DX10-header DDS", "retail's d3dx9_43 reads no DX10-header DDS (docs/re/MCX2_T02_ASSET_SALVAGE.md 4)"},
-    {"mesh without info chunk 0x402", "retail freezes when it creates a model whose mesh has no info chunk (docs/re/MCX2_T02_ASSET_SALVAGE.md 3, runs 1-3)"},
-    {"Photoshop PSD content", "retail's d3dx9_43 reads no PSD (docs/re/MCX2_T02_ASSET_SALVAGE.md 4)"},
+    {"no connections chunk 0x600", "retail does not draw a model without its connections chunk (legacy docs/re/MCX2_T02_ASSET_SALVAGE.md 3, run 2)"},
+    {"DX10-header DDS", "retail's d3dx9_43 reads no DX10-header DDS (legacy docs/re/MCX2_T02_ASSET_SALVAGE.md 4)"},
+    {"mesh without info chunk 0x402", "retail freezes when it creates a model whose mesh has no info chunk (legacy docs/re/MCX2_T02_ASSET_SALVAGE.md 3, runs 1-3)"},
+    {"Photoshop PSD content", "retail's d3dx9_43 reads no PSD (legacy docs/re/MCX2_T02_ASSET_SALVAGE.md 4)"},
 };
 
 bool retail_equivalent_reason(const std::string& reason, std::string* citation) {
@@ -393,7 +393,7 @@ void save_cache(const std::string& dir, const Cache& c) {
 }
 
 // True when `v` serves `path` from a mod: a mod's loose Data tree, or a MEG a mod owns (its host file lies in the mod's
-// folder; ums4 t01: read from the layer table, vfs::Layer::mod).
+// folder; read from the layer table, vfs::Layer::mod).
 bool served_by_mod(const vfs::Vfs& v, const std::string& path) {
     const auto r = v.resolve(path);
     if (!r) return false;
@@ -477,7 +477,7 @@ int audit_asset_bytes(const std::string& family_in, const std::vector<uint8_t>& 
     if (bytes.empty()) {
         // A 0-byte file: mods blank a base file this way (Thrawn's Revenge empties 50 base maps to drop them). There is
         // nothing to decode, for retail either; the EMPTY probe slot: retail draws nothing and runs on (docs/re 3).
-        if (rule_out) *rule_out = "empty file (0 bytes) [retail-equivalent: nothing to decode; retail shows nothing (docs/re/MCX2_T02_ASSET_SALVAGE.md 3, EMPTY)]";
+        if (rule_out) *rule_out = "empty file (0 bytes) [retail-equivalent: nothing to decode; retail shows nothing (legacy docs/re/MCX2_T02_ASSET_SALVAGE.md 3, EMPTY)]";
         if (retail_equivalent_out) *retail_equivalent_out = true;
         return kRejected;
     }

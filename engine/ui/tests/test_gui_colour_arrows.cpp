@@ -1,4 +1,4 @@
-// alamo_ui_colour_arrows_tests (p4ui t03, CPU): colour combos draw the item text in the item colour (docs/re/UI.md
+// alamo_ui_colour_arrows_tests (CPU): colour combos draw the item text in the item colour (legacy docs/re/UI.md
 // §3.7.1: no filled box, glyph through the control font, centred / left-justified field text, trailing characters
 // dropped when too wide), the tech-tree arrow art, icon tints, the battle-end arrows and the fleet summary dividers
 // (§3.7.2).
@@ -240,7 +240,7 @@ void test_list_box_colours() {
     for (Rgba8 col : {kRed, kBlue}) CHECK(!any_colour(list_quads(dl, HudList::Alpha), col));
 }
 
-// UI.md §3.7.3 (modc t38): a row wider than the list box drops trailing characters until it fits; the glyphs keep their
+// legacy docs/re/UI.md §3.7.3: a row wider than the list box drops trailing characters until it fits; the glyphs keep their
 // width (no squeeze) and the item keeps its whole text.
 void test_list_box_long_row() {
     Fix f;

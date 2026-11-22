@@ -92,7 +92,7 @@ void apply_galactic_fallback_layout(const ComponentTable& table, const HudCanvas
         std::snprintf(n, sizeof n, "b_Create_%02d", k);
         put(n, -W + 307.0f + 54.0f * static_cast<float>(k / 2), -H + (k % 2 == 0 ? 92.0f : 37.0f));
     }
-    // ui4 t12: the build tabs' bones of i_galactic_controls.alo, in the same frame as b_Create_00 (bone 332 -> 307).
+    // the build tabs' bones of i_galactic_controls.alo, in the same frame as b_Create_00 (bone 332 -> 307).
     put("b_space_tab", -W + 257.0f, -H + 92.6f);
     put("b_planet_tab", -W + 258.0f, -H + 34.7f);
     for (int k = 0; k < 10; ++k) {
@@ -221,10 +221,10 @@ void GalacticHud::init(const ComponentTable& table, const TextureAtlas& atlas, F
                 std::snprintf(n, sizeof n, "q%d_%02d%02d", fl + 1, r, c);
                 const int32_t i = table.find(n);
                 if (i < 0) continue;
-                if (r == 0 && c == 0) pathfinder_[static_cast<size_t>(fl)] = i;  // UI.md §7.4: the header pad is no unit pad
+                if (r == 0 && c == 0) pathfinder_[static_cast<size_t>(fl)] = i;  // legacy docs/re/UI.md §7.4: the header pad is no unit pad
                 else fleet_[static_cast<size_t>(fl)].push_back(i);
             }
-    // ui4 t04: the planet map's components (map_shell = planetary_mode.alo).
+    // the planet map's components (map_shell = planetary_mode.alo).
     map_window_ = f("map_window");
     radar_adv_ = f("radar_galactic_adv_map");
     map_name_ = f("Planet_name_text");
@@ -613,7 +613,7 @@ void GalacticHud::build_bar(const GalacticHudFrame& f) {
     }
     if (space_tab_ >= 0) buttons_.state(static_cast<uint32_t>(space_tab_)).selected = build_space_tab_;
     if (dial_ >= 0) buttons_.state(static_cast<uint32_t>(dial_)).alt = build_space_tab_ ? 0 : 1;
-    if (land_fleet_text_ >= 0) {  // ui4 t10: the organiser's "Base Layout" caption
+    if (land_fleet_text_ >= 0) {  // the organiser's "Base Layout" caption
         ButtonRuntime& r = buttons_.state(static_cast<uint32_t>(land_fleet_text_));
         r.hidden = f.planet_destroyed;
         r.text = text_or("TEXT_BASE_LAYOUT", U"Base Layout");
@@ -717,7 +717,7 @@ void GalacticHud::build_bar(const GalacticHudFrame& f) {
         if (c.type != ComponentType::Button && c.type != ComponentType::TextButton && c.type != ComponentType::Icon) continue;
         const ComponentPlacement& p = layout_.placement(i);
         if (!p.placed) continue;
-        if (map_open_ && !p.from_bone) continue;  // ui4 t04: the command bar is hidden; no fallback-placed component shows
+        if (map_open_ && !p.from_bone) continue;  // the command bar is hidden; no fallback-placed component shows
         const ButtonRuntime* r = buttons_.find_state(i);
         if (r ? r->hidden : c.hidden) continue;
         const bool has_art = !c.blank_texture.empty() || !c.icon_texture.empty() || !c.icon_alternate_texture.empty() ||
@@ -771,7 +771,7 @@ void GalacticHud::build_bar(const GalacticHudFrame& f) {
         ButtonRuntime& r = buttons_.state(static_cast<uint32_t>(ci));
         r.icon_override = o.icon;
         r.disabled = !o.enabled || o.production_disabled || o.block != HudBuildOption::Block::None;
-        // ui4 t02: the Tooltip_Text entry by block reason (as the tactical Build_NN pads); an enabled pad has none.
+        // the Tooltip_Text entry by block reason (as the tactical Build_NN pads); an enabled pad has none.
         switch (o.block) {
             case HudBuildOption::Block::QueueFull: r.tooltip_index = 0; break;
             case HudBuildOption::Block::PopCap: r.tooltip_index = 1; break;
@@ -796,7 +796,7 @@ void GalacticHud::build_bar(const GalacticHudFrame& f) {
             HudTextStyle st;
             st.font = font_of(ci);
             if (st.font < 0) continue;
-            // ui4 t02: the colour says affordable or not (Funds, or a host without a block reason that disabled it).
+            // the colour says affordable or not (Funds, or a host without a block reason that disabled it).
             const bool unaffordable = o.production_disabled || o.block == HudBuildOption::Block::Funds ||
                                       (!o.enabled && o.block == HudBuildOption::Block::None);
             st.color = unaffordable ? kCostUnaffordable : kCostAffordable;
@@ -849,7 +849,7 @@ void GalacticHud::build_fleets(const GalacticHudFrame& f) {
         if (f.providers.fleets) f.providers.fleets(sel->planet, fleets);
         if (f.providers.land_forces) f.providers.land_forces(sel->planet, land);
     }
-    // UI.md §7.2: pane k = frame q{k+1}; a fleet's pane comes from its orbit slot, not from the provider order. Orbit owner
+    // legacy docs/re/UI.md §7.2: pane k = frame q{k+1}; a fleet's pane comes from its orbit slot, not from the provider order. Orbit owner
     // = the local player (the planet's orbit_local): slot k -> pane k, every slot-0 fleet merged into pane 0, non-local fleets
     // (allied ones too) not shown. Otherwise every
     // non-local fleet -> pane 0 (merged), slot 1 -> pane 1, slots 0 and 2 -> pane 2 (merged) [M]. The same rule as the map's
@@ -887,7 +887,7 @@ void GalacticHud::build_fleets(const GalacticHudFrame& f) {
         const auto u = static_cast<uint32_t>(ci);
         ButtonRuntime& r = buttons_.state(u);
         r.hidden = false;
-        r.disabled = false;  // ui4 t04: the planet map may have left land_fleet_NN disabled
+        r.disabled = false;  // the planet map may have left land_fleet_NN disabled
         r.icon_override = s.icon;
         r.selected = s.selected;
         r.text = s.count > 1 ? num32(s.count) : std::u32string();
@@ -933,11 +933,11 @@ void GalacticHud::build_fleets(const GalacticHudFrame& f) {
         }
         const uint32_t pane_fleet = fd ? fd->fleet : 0;
         const bool pane_foreign = fd && fd->enemy;
-        // UI.md §7.4: q{n}_0000 ("Fleet PF", the pathfinder) is the header pad, not a unit pad; the unit pads are q{n}_0001
+        // legacy docs/re/UI.md §7.4: q{n}_0000 ("Fleet PF", the pathfinder) is the header pad, not a unit pad; the unit pads are q{n}_0001
         // upward. It is always shown, empty (no unit is a pathfinder until flagship battles exist), and inert [port]: no
         // drag, click or drop (a foreign-style empty pad).
         if (pathfinder_[fl] >= 0) draw_slot(pathfinder_[fl], GalacticFleetSlot{}, {}, fi, pane_fleet, 0, true, true);
-        // UI.md §7.2: the pane's units, grouped per fleet and type into stacks (one pad each, the count as text), fill the unit
+        // legacy docs/re/UI.md §7.2: the pane's units, grouped per fleet and type into stacks (one pad each, the count as text), fill the unit
         // pads upward, fleet after fleet; further stacks are not drawn. Dragging a stack takes its first unit.
         struct Stack {
             const GalacticFleet* fleet;
@@ -969,13 +969,13 @@ void GalacticHud::build_fleets(const GalacticHudFrame& f) {
                 ++stats_.fleet_slots;
             ++next;
         }
-        // UI.md §7.3: the pads without a stack show (empty, as drop targets) only while something is dragged.
+        // legacy docs/re/UI.md §7.3: the pads without a stack show (empty, as drop targets) only while something is dragged.
         for (; next < slots.size(); ++next) {
             if (drag_.active) draw_slot(slots[next], GalacticFleetSlot{}, {}, fi, pane_fleet, 0, pane_foreign, true);
             else buttons_.state(static_cast<uint32_t>(slots[next])).hidden = true;
         }
     }
-    for (size_t k = 0; k < land_.size() && !map_open_; ++k) {  // ui4 t04: the planet map owns land_fleet_NN while open
+    for (size_t k = 0; k < land_.size() && !map_open_; ++k) {  // the planet map owns land_fleet_NN while open
         if (k >= land.size()) {
             buttons_.state(static_cast<uint32_t>(land_[k])).hidden = true;
             continue;
@@ -1037,7 +1037,7 @@ bool GalacticHud::slot_drop(const StackHit& sh, std::vector<commands::EventData>
     return true;
 }
 
-// The slot a drop on an empty organiser pane addresses: the selected planet's slot of that pane (UI.md §7.2, pane k = slot k).
+// The slot a drop on an empty organiser pane addresses: the selected planet's slot of that pane (legacy docs/re/UI.md §7.2, pane k = slot k).
 GalacticHud::StackHit GalacticHud::pane_hit(const PadSlot& pad) const {
     StackHit h;
     h.component = pad.component;
@@ -1197,13 +1197,13 @@ bool GalacticHud::drop(std::vector<commands::EventData>* out) {
         if (out) out->push_back(std::move(e));
         return true;
     };
-    if (drag_.fleet_index >= kMapOrbitIndex) return map_drop(out);  // ui4 t04: a planet-map drag
+    if (drag_.fleet_index >= kMapOrbitIndex) return map_drop(out);  // a planet-map drag
     const PadSlot* over = pad_of(drag_.over_component);
     const bool from_fleet = drag_.fleet_index >= 0;
     const uint32_t unit = drag_.unit != 0 ? drag_.unit : kNone;
     if (over && over->fleet_index >= 0) {  // onto a fleet pad
-        if (over->foreign) return false;  // a foreign pad is no drop target (UI.md §7.2)
-        if (over->empty && over->fleet == 0)  // an empty pane k: a new fleet in slot k (UI.md §7.2, §7.3)
+        if (over->foreign) return false;  // a foreign pad is no drop target (legacy docs/re/UI.md §7.2)
+        if (over->empty && over->fleet == 0)  // an empty pane k: a new fleet in slot k (legacy docs/re/UI.md §7.2, §7.3)
             return selected_id_ != 0 && slot_drop(pane_hit(*over), out);
         if (over->fleet == drag_.fleet) return false;
         if (from_fleet) return emit(fleet_management_event(commands::kFleetMerge, over->fleet, drag_.fleet, unit));
@@ -1365,13 +1365,13 @@ void GalacticHud::build_radar(const GalacticHudFrame& f) {
     // in the original is the faction faceplate (Empire/Rebel/Underworld_Faceplate_ALT<n>, MeshAlpha,
     // i_galactic_dashboard_wide*.tga), whose texels over the whole 175 x 175 radar rectangle have alpha 255 (checked on
     // the vanilla DDS). The HUD draws an opaque (PrimOpaque list) rectangle of the radar size on layer 0, i.e. before the
-    // shell models (UI.md §1.1 step 5i < 6): with the faceplate drawn it is covered and invisible; without it (shells not
+    // shell models (legacy docs/re/UI.md §1.1 step 5i < 6): with the faceplate drawn it is covered and invisible; without it (shells not
     // loaded / not drawn) it still stops the world from showing through. Blips (layer 3) and the view rectangle (layer 4)
     // draw over both. [port] colour = the faceplate's dark radar ground.
     add_atlas_quad(dl_, 0, HudList::Opaque, *atlas_, {}, rc_at, {}, 1.0f, kGalacticRadarBackdrop, size);
     stats_.radar_backdrop = true;
     radar_half_ = 0.0f;
-    hit(radar, static_cast<uint32_t>(std::max(0, rc.base_layer)), rc_at, size);  // ui4 t07: the radar takes clicks
+    hit(radar, static_cast<uint32_t>(std::max(0, rc.base_layer)), rc_at, size);  // the radar takes clicks
     if (f.planets.empty()) return;
     float x0 = f.planets[0].position.x, x1 = x0, y0 = f.planets[0].position.y, y1 = y0, z = 0.0f;
     for (const GalacticPlanetInfo& p : f.planets) {
@@ -1736,7 +1736,7 @@ void GalacticHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
     auto act = [&](HudAction a) {
         if (actions) actions->push_back(std::move(a));
     };
-    // ui4 t02: a left click on a greyed build pad (HudButtons drops clicks on disabled components) is refused here with
+    // a left click on a greyed build pad (HudButtons drops clicks on disabled components) is refused here with
     // the GUI negative feedback instead of a Production command the sim would refuse silently.
     if (!dropped)
         for (const HudPointerEvent& e : routed.hud) {
@@ -1759,11 +1759,11 @@ void GalacticHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
         for (const PadSlot& s : pads_) {
             if (s.component != k.component) continue;
             handled = true;
-            if (s.foreign) break;  // UI.md §7.2 [port]: a foreign fleet's pads are drawn, not clickable
+            if (s.foreign) break;  // legacy docs/re/UI.md §7.2 [port]: a foreign fleet's pads are drawn, not clickable
             if (s.is_queue) {
                 if (k.button == Button::Left) {
                     out.push_back(commands::ev::production(s.queue.type_index, s.queue.location, true, s.queue.queue, s.queue.index));
-                    buttons_.play_sfx("GUI_Cancel_SFX", k.component);  // UI5 t06: CommandBarClass::Cancel_Production (UI.md §3.6)
+                    buttons_.play_sfx("GUI_Cancel_SFX", k.component);  // CommandBarClass::Cancel_Production (legacy docs/re/UI.md §3.6)
                 }
             } else if (!s.select.empty()) {
                 HudAction a;

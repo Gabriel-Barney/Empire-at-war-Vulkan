@@ -1,4 +1,4 @@
-// Galactic AI (roadmap A2; docs/re/AI_GALACTIC.md §2, framework §1). Library alamo_ai_lua (needs engine/lua).
+// Galactic AI (roadmap A2; legacy docs/re/AI_GALACTIC.md §2, framework §1). Library alamo_ai_lua (needs engine/lua).
 //
 // GalacticAiWorld owns, for one galactic session: the AI players' per-mode galactic contexts
 // (ai_context.hpp), the shared AI data (definitions, plan library), the plan runtime (pooled Lua plan
@@ -10,17 +10,17 @@
 //     services the player's galactic context only when the galactic mode is on top (§1.3: the galactic AI
 //     does not run during a tactical battle). The first call of a frame also refreshes perception.
 //   * AI orders are EventData handed to the order sink, which must execute them DIRECTLY at the current
-//     frame (SimHost::execute_direct / GalacticSim::execute; COMMANDS.md §5, AI_GALACTIC.md §1.12). Fleet
+//     frame (SimHost::execute_direct / GalacticSim::execute; legacy docs/re/COMMANDS.md §5, legacy docs/re/AI_GALACTIC.md §1.12). Fleet
 //     launch / land / form / detach / merge are FleetManagement events (A2 galactic, AI_GALACTIC_2 §5.4).
 //   * The budget's income ticks come from GalacticSim's income-tick listener (registered by start()).
 //   * Everything runs on the sim thread; the only RNG is the session's synced stream, drawn in the
 //     documented order (§1.13). AI state is hashed by hash() ("ai.goals" CRC system, port-only diagnostic).
 //
-// STAGE 2 (docs/re/AI_GALACTIC_2.md): the PotentialPlan solver runs the nine galactic marshallers in the
+// STAGE 2 (legacy docs/re/AI_GALACTIC_2.md): the PotentialPlan solver runs the nine galactic marshallers in the
 // recovered order and rules (§1, galactic_pp.cpp), with the ETA / queue reservations of §2.1-2.2; Produce_Force
 // creates AIBuildTasks bid on by the per-planet AIPlanetBuildQueue market (§2.3, galactic_build.cpp); the budget
-// is §3 verbatim (ai_budget.hpp); perception tokens follow AI_GALACTIC_TOKENS.md. Remaining port stand-ins are
-// marked [port] in the sources and listed in docs/PHASE4.md (A2 open items). STAGE 3 (docs/re/AI_GALACTIC_3.md):
+// is §3 verbatim (ai_budget.hpp); perception tokens follow legacy docs/re/AI_GALACTIC_TOKENS.md. Remaining port stand-ins are
+// marked [port] in the sources and listed in legacy docs/PHASE4.md (A2 open items). STAGE 3 (legacy docs/re/AI_GALACTIC_3.md):
 // hero records vetoed as the binary does, galactic pop cap (AI only with AI_Uses_Galactic_Pop_Cap), MagicPlan spawn,
 // the market inside GalacticSim's production-service hook, TerrainType, K = 1, FleetManagement orders.
 #pragma once
@@ -95,16 +95,16 @@ struct GalacticAiConfig {
     const galactic::ContrastTable* contrast = nullptr;
     // Fan-out for the per-AI all-pairs recompute (AiPathFinder); any value gives identical matrices.
     ParallelFor path_pf = serial_for;
-    // OPT2 t02: the path finders' cadence recomputes run on `background` (latency_job.hpp; empty = inline at the kick,
+    // the path finders' cadence recomputes run on `background` (latency_job.hpp; empty = inline at the kick,
     // same results) and are applied `path_latency` galactic frames after the kick (0 = the original timing).
     uint32_t path_latency = galactic::kDefaultAllPairsLatency;
     BackgroundStart background;
-    // OPT2 t01: each AI player's Perception / Goal / Planning / Execution / Learning clocks start on a fixed per-player
+    // each AI player's Perception / Goal / Planning / Execution / Learning clocks start on a fixed per-player
     // phase (AiContext::set_stagger). false = every player on the same frames (the original timing, AI_GALACTIC §1.3).
     // a2m r4: off by default; the 2-frame goal-pass shift moved the Underworld's random-driven outcomes (parity tier 2),
     // so the galactic AI keeps the original timing and the phase is a benchmark knob only (alamo_headless --ai-stagger).
     bool stagger = false;
-    // OPT2 t04: fan-out for the per-frame scheduled Lua collections of this world's VMs (lua/gc_schedule.hpp); any
+    // fan-out for the per-frame scheduled Lua collections of this world's VMs (lua/gc_schedule.hpp); any
     // value gives identical results.
     ParallelFor lua_gc_pf = serial_for;
     // GameConstants AIUsesFogOfWarGalactic (GC +0x2EC, shipped False). On: the S2 perception's remembered values follow
@@ -140,7 +140,7 @@ public:
     // T7 entry point (see the header comment). `galactic_on_top`: the galactic mode is the top mode;
     // `auto_resolve_busy`: an auto-resolve runs (Planning-only exception).
     void update_player(int32_t player, int64_t now, bool galactic_on_top, bool auto_resolve_busy);
-    // q6 t07: Player::Set_AI_Type during the session (AI_GALACTIC §1.2; the story reward SWITCH_CONTROL, which Thrawn's
+    // Player::Set_AI_Type during the session (AI_GALACTIC §1.2; the story reward SWITCH_CONTROL, which Thrawn's
     // Revenge uses to turn its campaigns' "None" players into real AIs). "Human" deletes the player's AI; an unknown type
     // adds "Unrecognized AI player type <name>" to `diagnostics` and changes nothing [port: the old AI stays]; any other
     // type replaces the player's AI with a fresh one of that type at `difficulty` (0 Easy, 1 Normal, 2 Hard), which
@@ -159,7 +159,7 @@ public:
     // requests only while galactic mode is on top: aitac t01, TacticalAiWorld::attach_story_world).
     // Null detaches. The world must outlive this object (or be detached first).
     void attach_story_world(lua::LuaPlayerWorld* world);
-    // storyb t10 (docs/re/STORYB_T10_TRIGGER_AI.md): the story's plot table and a model for the plan scripts. Every plan VM
+    // storyb t10 (legacy docs/re/STORYB_T10_TRIGGER_AI.md): the story's plot table and a model for the plan scripts. Every plan VM
     // created afterwards gets them (Get_Story_Plot, plot.Activate, Set_Reward_Parameter: the Intervention plans arm their
     // TRIGGER_AI events; Check_Story_Flag / Wait_On_Flag read the flags), and the StoryTrigger perception reads the AI story
     // flags (no target [port: the planet-root variant's target is not passed]). Null detaches; they must outlive this.
@@ -167,7 +167,7 @@ public:
     // Int-final: the session-wide GlobalValue table (L1_S4_REMAINING §1.5) for every AI VM's GlobalValue.Get / Set;
     // null (default) = the world's own map (its CRC section). Hosts attach SimHost::global_values().
     void set_global_values(lua::GlobalValueStore* store);
-    // q6 t03: the session's conflict manager, read (never written) once per frame for the player tokens
+    // the session's conflict manager, read (never written) once per frame for the player tokens
     // TimeSince{Space,Ground}{Defender,Attacker} (AI_GALACTIC_TOKENS §8.2; GalacticSimTokenResolver::observe_conflicts).
     // Null (default) = the manager installed as the sim's conflict hooks when it is one (no story gate in front), else no
     // conflict is seen (the tokens stay at 1e18). It must outlive this object (or be detached first).
@@ -200,7 +200,7 @@ public:
     bool is_ai_player(int32_t player) const;
     const AiContext* context(int32_t player) const;
     size_t running_plans() const;
-    // OPT2 t02: background path recomputes in flight (save tests: --save-when scheduled).
+    // background path recomputes in flight (save tests: --save-when scheduled).
     size_t background_jobs_in_flight() const;
     size_t running_plans(int32_t player) const;
     const std::vector<AiDecision>& decision_log() const;
@@ -234,7 +234,7 @@ public:
     size_t planet_queue_slots(PlanetIndex p, uint32_t queue) const;
     float planet_queue_wait(PlanetIndex p, uint32_t queue) const;
 
-    // Free store (docs/re/FIXPASS_GALACTIC.md §1), tests / diagnostics. These act like the player's free-store script:
+    // Free store (legacy docs/re/FIXPASS_GALACTIC.md §1), tests / diagnostics. These act like the player's free-store script:
     //   free_store_move   = FreeStore.Move_Object(unit, planet): false when refused (§1.2); a true return with no
     //                       pending move means the move finished at once (already there, no path, orbit check);
     //   reachable_target  = FindTarget.Reachable_Target(PlayerObject, perception, application, reachability, p
@@ -264,7 +264,7 @@ public:
                              double max_distance = -1.0);
     std::vector<PlanetIndex> reach_planets(int32_t player, int level);
 
-    // ---- AI execution path finder (GALACTIC.md §4, ai_path_finder.hpp) ----
+    // ---- AI execution path finder (legacy docs/re/GALACTIC.md §4, ai_path_finder.hpp) ----
     // One AiPathFinder per AI player: created at the context's first service (Execution slot 6: one recompute, then
     // the Q11 stagger with slot = player index and K = players - humans), recomputed by the Execution service when
     // the galactic mode frame (GalacticSim::frame) reaches next (then next = frame + 90, before the free store).
@@ -274,7 +274,7 @@ public:
     // next = 0). Empty for a non-AI player, an unknown planet or no path; src == dst gives [src, src].
     std::vector<PlanetIndex> path(int32_t player, PlanetIndex from, PlanetIndex to);
     const AiPathFinder* path_finder(int32_t player) const;  // null for non-AI players
-    // Lua _FindStageArea(player, planet, tf) (A2k t02, A2K_T02_RE_ANSWERS Q1) at AI level `level` (the TF's goal
+    // Lua _FindStageArea(player, planet, tf) (A2K_T02_RE_ANSWERS Q1) at AI level `level` (the TF's goal
     // Reachability; 0 without a TF): the first planet held by the player or an ally in the target's per-target
     // reachability list (ai_stage_flood, cached 10 s per target and level); the target at level 4; kInvalidPlanet
     // (nil) for level > 5, an empty list or a non-AI player.

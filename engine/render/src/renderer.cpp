@@ -44,7 +44,7 @@ const Mat3x4& bone_or_identity(std::span<const Mat3x4> world, uint32_t b) {
 
 }  // namespace
 
-// ---- ALO bone billboards (docs/formats/SPEC.md 2.2 modes; SPACE_AND_OPEN.md C.4 planet Glow = sun_glow, star-dome
+// ---- ALO bone billboards (legacy docs/formats/SPEC.md 2.2 modes; legacy docs/re/SPACE_AND_OPEN.md C.4 planet Glow = sun_glow, star-dome
 // sun_billboard = sun). Applied to the world matrix of a static submesh attached to a billboard bone. Axis convention
 // [port]: billboard geometry is authored facing -Y (the 3ds Max front view, e.g. the planet Glow disc in the XZ plane),
 // so the facing modes map local +X -> camera right, local +Z -> camera up and local -Y -> towards the camera; the
@@ -276,7 +276,7 @@ uint32_t RendererCore::aniso_cap() const {
 uint32_t RendererCore::anisotropy() const { return ctx_ ? (aniso_ & 0xFFu) : anisotropy_level(aniso_request_, 16); }
 
 bool RendererCore::write_engine_samplers(uint32_t level) {
-    // Described as materials keys and converted; the linear pair is the engine quality sampler (8x, PORTING.md
+    // Described as materials keys and converted; the linear pair is the engine quality sampler (8x, legacy docs/shaders/PORTING.md
     // 3.3), raised by the anisotropy setting like any material key ([port]).
     materials::SamplerKey wrap_linear;
     wrap_linear.max_anisotropy = 8;

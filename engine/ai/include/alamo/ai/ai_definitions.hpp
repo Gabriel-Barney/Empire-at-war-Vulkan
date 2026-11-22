@@ -1,4 +1,4 @@
-﻿// AI framework: the AI XML definitions (docs/re/AI_GALACTIC.md Â§1.2, Â§1.4, Â§1.7):
+﻿// AI framework: the AI XML definitions (legacy docs/re/AI_GALACTIC.md Â§1.2, Â§1.4, Â§1.7):
 //   Data\XML\Enum\AIGoalCategoryType.xml   goal categories (DynamicEnum; list order = XML order)
 //   Data\XML\AI\Goals\*.xml                goal types (element name = type)
 //   Data\XML\AI\GoalFunctions\*.xml        goal function sets (set name = file base name) [M]
@@ -137,7 +137,7 @@ std::string file_base_name(std::string_view path);
 std::string ai_player_control_type(const std::vector<std::string>& pairs, std::string_view faction);
 // Faction.Basic_AI of every <Faction> definition (galactic::load_factions: the files Data\XML\FactionFiles.xml lists, list
 // order; the first definition with a Basic_AI wins; upper-cased faction name -> AIPlayerType name, factions without
-// Basic_AI omitted). cu5 t01: from the one faction parse, not a second read of the XML.
+// Basic_AI omitted). From the one faction parse, not a second read of the XML.
 std::map<std::string, std::string> load_faction_basic_ai(const std::vector<galactic::FactionRules>& factions);
 // The AIPlayerType for a campaign player of `faction`: the AI_Player_Control pair, else (with `fill_unassigned`, for
 // AI-vs-AI hosts [port]) the faction's Basic_AI; empty = no AI ("Human" or nothing found).

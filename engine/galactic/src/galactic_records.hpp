@@ -1,6 +1,6 @@
-// REF4 t02: one field list per galactic record (PlayerState, PlanetState, FleetState, ConflictInfo, ConflictLogEntry)
+// one field list per galactic record (PlayerState, PlanetState, FleetState, ConflictInfo, ConflictLogEntry)
 // for the N1 save writer (galactic_save.cpp), its reader and the per-tick CRC (GalacticSim::hash_state, campaign.cpp;
-// ConflictManager::hash, conflicts.cpp), as the tactical AI records do (ref1 t03, tactical_save_io.hpp). Before, the
+// ConflictManager::hash, conflicts.cpp), as the tactical AI records do (tactical_save_io.hpp). Before, the
 // save and the CRC listed the fields by hand in two places and drifted (3584b6ff, 32dccdff).
 //
 // A visit(Ar&, R&) walks the record's fields in the save's byte order; R is const for the writer and the hasher. Each
@@ -441,7 +441,7 @@ void visit(Ar& ar, R& p) {
 
 // ---- FleetState (every fleet in the save, dead ones too: indices are stable references; only live fleets in the CRC,
 // which reads no `alive` byte). The slot choice is saved only (hash_slots hashes the slots in their own section); the
-// sticky story auto-resolve lock is saved in its own list (version 11) and adds a CRC marker once set (mcx4 t20).
+// sticky story auto-resolve lock is saved in its own list (version 11) and adds a CRC marker once set.
 template <class Ar, Of<FleetState> R>
 void visit(Ar& ar, R& f) {
     ar.b(f.alive, In::Save);

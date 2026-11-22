@@ -9,7 +9,7 @@ if(NOT TARGET alamo_sim OR NOT TARGET alamo_tactical_movement OR NOT TARGET alam
   return()
 endif()
 
-# ums4 t05: the stack resolver and the submod hint (mod_resolve.hpp): only the VFS and the XML list reader, so alamo_play
+# the stack resolver and the submod hint (mod_resolve.hpp): only the VFS and the XML list reader, so alamo_play
 # (Play.exe) links it without alamo_game_core.
 add_library(alamo_mod_resolve STATIC src/mod_resolve.cpp include/alamo/game/mod_resolve.hpp)
 target_include_directories(alamo_mod_resolve PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -35,7 +35,7 @@ add_library(alamo_game_core STATIC
   src/story_camera.cpp
   src/script_cinematics.cpp
   src/save_games.cpp
-  src/mod_check.cpp           # ref3 t04: check_mod_data; one file per check family (mod_check_detail.hpp)
+  src/mod_check.cpp           # check_mod_data; one file per check family (mod_check_detail.hpp)
   src/mod_check_files.cpp
   src/mod_check_content.cpp
   src/mod_check_xml_tags.cpp
@@ -57,9 +57,9 @@ add_library(alamo_game_core STATIC
 )
 target_include_directories(alamo_game_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(alamo_game_core PUBLIC alamo_sim alamo_vfs alamo_data alamo_core alamo_engine_flags)
-target_link_libraries(alamo_game_core PUBLIC alamo_mod_resolve)  # ums4 t05: the picker and alamo_mod_check resolve through it
-target_link_libraries(alamo_game_core PUBLIC alamo_game_open)  # ref4 t05: open_game_data (game/open)
-target_link_libraries(alamo_game_core PUBLIC alamo_game_rules)  # q6 t03: skirmish rules shared with alamo_headless (rules/)
+target_link_libraries(alamo_game_core PUBLIC alamo_mod_resolve)  # the picker and alamo_mod_check resolve through it
+target_link_libraries(alamo_game_core PUBLIC alamo_game_open)  # open_game_data (game/open)
+target_link_libraries(alamo_game_core PUBLIC alamo_game_rules)  # skirmish rules shared with alamo_headless (rules/)
 if(TARGET alamo_ai_galactic)  # A2 galactic AI for the AI players (needs engine/ai + engine/lua)
   target_link_libraries(alamo_game_core PUBLIC alamo_ai_galactic)
   target_compile_definitions(alamo_game_core PUBLIC ALAMO_GAME_HAVE_GALACTIC_AI=1)
@@ -67,7 +67,7 @@ endif()
 if(TARGET alamo_ui)  # pause_event (orders.hpp)
   target_link_libraries(alamo_game_core PUBLIC alamo_ui)
   target_compile_definitions(alamo_game_core PUBLIC ALAMO_GAME_HAVE_UI=1)
-  target_sources(alamo_game_core PRIVATE src/world_pick.cpp)  # refixf t08: tactical world pick tests (world_pick.hpp)
+  target_sources(alamo_game_core PRIVATE src/world_pick.cpp)  # tactical world pick tests (world_pick.hpp)
 endif()
 if(TARGET alamo_ui_hud)  # OI host: hotkey table + menus (game_controls.hpp)
   target_link_libraries(alamo_game_core PUBLIC alamo_ui_hud)
@@ -81,7 +81,7 @@ endif()
 if(TARGET alamo_materials AND TARGET alamo_assets)  # modc t21 mod check: effect audit + model materials (mod_check.cpp)
   target_link_libraries(alamo_game_core PRIVATE alamo_materials alamo_assets)
   target_compile_definitions(alamo_game_core PRIVATE ALAMO_GAME_HAVE_MATERIALS=1)
-  # modc t36: the .fx prebuild when a mod is mounted (prebuild_mod_effects: alamo_game before the renderer loads effects,
+  # the .fx prebuild when a mod is mounted (prebuild_mod_effects: alamo_game before the renderer loads effects,
   # alamo_mod_check before the audit); runs fxc.exe ($ALAMO_FXC, a test build's fxcxc.exe, else the toolchain SDK's).
   target_link_libraries(alamo_game_core PRIVATE alamo_fxbuild)
 endif()
@@ -119,14 +119,14 @@ add_test(NAME alamo_game_save_export_tests COMMAND alamo_game_save_export_tests)
 set_tests_properties(alamo_game_save_export_tests PROPERTIES TIMEOUT 600)
 alamo_label_slow(alamo_game_save_export_tests)
 
-# p4ui t06 (UI.md section 9): the skirmish map catalog (official / custom / mod-folder maps) on a fake install in its own temp
+# p4ui t06 (legacy docs/re/UI.md section 9): the skirmish map catalog (official / custom / mod-folder maps) on a fake install in its own temp
 # folder; with ALAMO_FOC_DATA also the shipped data (24 land + 24 space official rows, no custom).
 add_executable(alamo_game_skirmish_maps_tests tests/test_skirmish_maps.cpp)
 target_link_libraries(alamo_game_skirmish_maps_tests PRIVATE alamo_core alamo_game_core alamo_test_support)
 add_test(NAME alamo_game_skirmish_maps_tests COMMAND alamo_game_skirmish_maps_tests)
 set_tests_properties(alamo_game_skirmish_maps_tests PROPERTIES TIMEOUT 120)
 
-# ref2 t03: the one SessionSpec builder (session_spec.hpp), one check per game kind; data-free.
+# the one SessionSpec builder (session_spec.hpp), one check per game kind; data-free.
 add_executable(alamo_game_session_spec_tests tests/test_session_spec.cpp)
 target_link_libraries(alamo_game_session_spec_tests PRIVATE alamo_core alamo_game_core alamo_test_support)
 add_test(NAME alamo_game_session_spec_tests COMMAND alamo_game_session_spec_tests)
@@ -169,7 +169,7 @@ target_link_libraries(alamo_game_audio_host_tests PRIVATE alamo_core alamo_game_
 add_test(NAME alamo_game_audio_host_tests COMMAND alamo_game_audio_host_tests)
 set_tests_properties(alamo_game_audio_host_tests PROPERTIES TIMEOUT 120)
 
-# Data-free (refixf t08): the tactical world pick (HUD_GAPS §2.2; world_pick.hpp + engine/ui pick_world) on a SpaceMode
+# Data-free: the tactical world pick (HUD_GAPS §2.2; world_pick.hpp + engine/ui pick_world) on a SpaceMode
 # with hand-built model collision data: mesh hit, box-but-not-mesh miss, Mouse_Collide_Override_Sphere_Radius, nearest hit.
 if(TARGET alamo_ui)
   add_executable(alamo_game_world_pick_tests tests/test_world_pick.cpp)
@@ -178,14 +178,14 @@ if(TARGET alamo_ui)
   set_tests_properties(alamo_game_world_pick_tests PROPERTIES TIMEOUT 120)
 endif()
 
-# Data-free (refix t06, refixf t05): the tactical super weapon's presentation cues (battle_fx.hpp), the cinematic camera
-# (TSW firing shot, explosion shake, letterbox; TSW_PLANET_DESTROY.md §11) and GameAudioHost::tsw_audio on a synthetic type set / audio tree with the null backend.
+# Data-free: the tactical super weapon's presentation cues (battle_fx.hpp), the cinematic camera
+# (TSW firing shot, explosion shake, letterbox; legacy docs/re/TSW_PLANET_DESTROY.md §11) and GameAudioHost::tsw_audio on a synthetic type set / audio tree with the null backend.
 add_executable(alamo_game_battle_fx_tests tests/test_battle_fx.cpp)
 target_link_libraries(alamo_game_battle_fx_tests PRIVATE alamo_core alamo_game_core alamo_test_support)
 add_test(NAME alamo_game_battle_fx_tests COMMAND alamo_game_battle_fx_tests)
 set_tests_properties(alamo_game_battle_fx_tests PROPERTIES TIMEOUT 120)
 
-# ref6 t05: the screen rule table (app/screen_flow.hpp) without a window or a GPU.
+# the screen rule table (app/screen_flow.hpp) without a window or a GPU.
 add_executable(alamo_game_screen_flow_tests tests/test_screen_flow.cpp app/screen_flow.cpp)
 target_link_libraries(alamo_game_screen_flow_tests PRIVATE alamo_core alamo_engine_flags alamo_test_support)
 add_test(NAME alamo_game_screen_flow_tests COMMAND alamo_game_screen_flow_tests)
@@ -198,24 +198,24 @@ target_link_libraries(alamo_mod_check PRIVATE alamo_core alamo_game_core)
 if(WIN32)
   target_link_libraries(alamo_mod_check PRIVATE shell32)  # ums3: CommandLineToArgvW (UTF-8 arguments)
 endif()
-if(COMMAND alamo_shaderxlat_copy_dxc)  # modc t21: the runtime DXC compiles the audited shader passes
+if(COMMAND alamo_shaderxlat_copy_dxc)  # the runtime DXC compiles the audited shader passes
   alamo_shaderxlat_copy_dxc(alamo_mod_check)
 endif()
-# q6 t02: alamo_session_run starts a GameSession (campaign or skirmish) on any data set (MODPATH=..) and ticks it, no window.
+# alamo_session_run starts a GameSession (campaign or skirmish) on any data set (MODPATH=..) and ticks it, no window.
 add_executable(alamo_session_run tools/session_run_main.cpp)
 target_link_libraries(alamo_session_run PRIVATE alamo_core alamo_game_core)
 add_executable(alamo_game_mod_check_tests tests/test_mod_check.cpp)
 target_link_libraries(alamo_game_mod_check_tests PRIVATE alamo_core alamo_game_core alamo_test_support)
 add_test(NAME alamo_game_mod_check_tests COMMAND alamo_game_mod_check_tests)
 set_tests_properties(alamo_game_mod_check_tests PROPERTIES TIMEOUT 300)
-# mcx2 t01: the mod asset audit (asset_audit.hpp) on a fake install with a mod folder in its own temp folder; data-free.
+# the mod asset audit (asset_audit.hpp) on a fake install with a mod folder in its own temp folder; data-free.
 add_executable(alamo_game_asset_audit_tests tests/test_asset_audit.cpp)
 target_link_libraries(alamo_game_asset_audit_tests PRIVATE alamo_core alamo_game_core alamo_vfs alamo_test_support)
 add_test(NAME alamo_game_asset_audit_tests COMMAND alamo_game_asset_audit_tests)
-# modc t07: the synthetic mod of testdata/mod_fixture (a new faction, unit, planet, campaign and a Lua override) through
+# the synthetic mod of testdata/mod_fixture (a new faction, unit, planet, campaign and a Lua override) through
 # the real MODPATH= route, no game data; read only (no fixture path shared with any other test). The second entry runs the
-# exe itself and checks its JSON summary (docs/MODS.md section 5.1).
-# ref4 t06: every shared GameConstants tag read once (GameConstants::shared); a temp mod over the fixture reaches each user.
+# exe itself and checks its JSON summary (docs/MODS.md "Load report (alamo.mod_report)").
+# every shared GameConstants tag read once (GameConstants::shared); a temp mod over the fixture reaches each user.
 add_executable(alamo_game_shared_constants_tests tests/test_shared_constants.cpp)
 target_link_libraries(alamo_game_shared_constants_tests PRIVATE alamo_core alamo_game_core alamo_test_support)
 if(TARGET alamo_ai_tactical)
@@ -224,7 +224,7 @@ if(TARGET alamo_ai_tactical)
 endif()
 add_test(NAME alamo_game_shared_constants_tests COMMAND alamo_game_shared_constants_tests ${CMAKE_CURRENT_SOURCE_DIR}/testdata/mod_fixture)
 set_tests_properties(alamo_game_shared_constants_tests PROPERTIES TIMEOUT 120)
-# ref4 t05: open_game_data on the synthetic mod fixture (accepted, refused, no data, VFS error).
+# open_game_data on the synthetic mod fixture (accepted, refused, no data, VFS error).
 add_executable(alamo_game_open_tests tests/test_open_game_data.cpp)
 target_link_libraries(alamo_game_open_tests PRIVATE alamo_game_open alamo_test_support)
 add_test(NAME alamo_game_open_tests COMMAND alamo_game_open_tests ${CMAKE_CURRENT_SOURCE_DIR}/testdata/mod_fixture)
@@ -239,7 +239,7 @@ set_tests_properties(alamo_mod_check_fixture PROPERTIES TIMEOUT 120
                      PASS_REGULAR_EXPRESSION "\"result\": \"ok\",[^{]*\"errors\": 0,"
                      FAIL_REGULAR_EXPRESSION "\"run_errors\": \\[[^]]")
 
-# mcx1 t07: the conformance mod `values` (testdata/conformance/values: retail value kinds, repeated tags per class, element-tag
+# the conformance mod `values` (testdata/conformance/values: retail value kinds, repeated tags per class, element-tag
 # independence, several roots, UTF-16) through the real MODPATH= route, no game data; read only (its own fixture folder).
 add_executable(alamo_game_conformance_values_tests tests/test_conformance_values.cpp)
 target_link_libraries(alamo_game_conformance_values_tests PRIVATE alamo_core alamo_game_core alamo_test_support)
@@ -247,9 +247,9 @@ add_test(NAME alamo_game_conformance_values_tests
          COMMAND alamo_game_conformance_values_tests ${CMAKE_CURRENT_SOURCE_DIR}/testdata/conformance/values)
 set_tests_properties(alamo_game_conformance_values_tests PROPERTIES TIMEOUT 120)
 
-# mcx3 t07: the conformance mods stack_dep, stack_cycle and eaw_only (testdata/conformance/stacks: declared and hinted
+# the conformance mods stack_dep, stack_cycle and eaw_only (testdata/conformance/stacks: declared and hinted
 # parents, a cycle, two total conversions, a base-EaW tag and the base-EaW heuristic); read only (its own fixture folder).
-# ums1 t06: also the launch-argument table across the picker, alamo_play's resolver and the alamo_mod_check exe (its JSON
+# also the launch-argument table across the picker, alamo_play's resolver and the alamo_mod_check exe (its JSON
 # in its own binary-dir folder).
 add_executable(alamo_game_conformance_stacks_tests tests/test_conformance_stacks.cpp)
 target_link_libraries(alamo_game_conformance_stacks_tests PRIVATE alamo_core alamo_game_core alamo_play_launch alamo_test_support)
@@ -258,7 +258,7 @@ add_test(NAME alamo_game_conformance_stacks_tests
                  $<TARGET_FILE:alamo_mod_check> ${CMAKE_CURRENT_BINARY_DIR}/conformance_stacks_tests)
 set_tests_properties(alamo_game_conformance_stacks_tests PROPERTIES TIMEOUT 120)
 
-# mcx7 t02 / t03: the corpus runner (tools/modcorpus) without game data: grade.py's rules, check-stage sweeps of the
+# the corpus runner (tools/modcorpus) without game data: grade.py's rules, check-stage sweeps of the
 # conformance mods `stacks` and of mod_fixture (alamo_mod_check --list-mods / --resolve), and a deliberately broken copy
 # of FixtureMod that must drop a grade and make the runner exit 1. Writes only below its own binary-dir folder.
 if(ALAMO_GOLDEN_PYTHON)
@@ -268,7 +268,7 @@ if(ALAMO_GOLDEN_PYTHON)
   set_tests_properties(alamo_modcorpus_tests PROPERTIES TIMEOUT 300)
 endif()
 
-# modc t08: the mod picker's data side (mod_picker.hpp) on the same read-only fixture (ums1 t03: the rows are catalog rows).
+# the mod picker's data side (mod_picker.hpp) on the same read-only fixture (the rows are catalog rows).
 add_executable(alamo_game_mod_picker_tests tests/test_mod_picker.cpp)
 target_link_libraries(alamo_game_mod_picker_tests PRIVATE alamo_core alamo_game_core alamo_test_support)
 add_test(NAME alamo_game_mod_picker_tests COMMAND alamo_game_mod_picker_tests ${CMAKE_CURRENT_SOURCE_DIR}/testdata/mod_fixture)
@@ -282,7 +282,7 @@ if(WIN32)
   target_include_directories(alamo_play_launch PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/launcher)
   target_link_libraries(alamo_play_launch PUBLIC alamo_engine_flags PRIVATE alamo_vfs)
   add_executable(alamo_play WIN32 launcher/play_main.cpp)
-  target_link_libraries(alamo_play PRIVATE alamo_play_launch alamo_mod_resolve alamo_vfs alamo_core shell32 ole32 user32)  # ums4 t05: the resolver only
+  target_link_libraries(alamo_play PRIVATE alamo_play_launch alamo_mod_resolve alamo_vfs alamo_core shell32 ole32 user32)  # the resolver only
   set_target_properties(alamo_play PROPERTIES OUTPUT_NAME Play)
   add_executable(alamo_play_tests tests/test_play_launch.cpp)
   target_link_libraries(alamo_play_tests PRIVATE alamo_play_launch alamo_test_support)
@@ -290,7 +290,7 @@ if(WIN32)
   set_tests_properties(alamo_play_tests PROPERTIES TIMEOUT 60)
 endif()
 
-# q6 t08: AI player types (Basic_AI / AI_Player_Control) and default skirmish forces for mod factions on synthetic data in its
+# AI player types (Basic_AI / AI_Player_Control) and default skirmish forces for mod factions on synthetic data in its
 # own temp folder; with ALAMO_FOC_DATA also the shipped factions (they resolve as the port's hard-coded tables).
 add_executable(alamo_game_mod_faction_tests tests/test_mod_factions.cpp)
 target_link_libraries(alamo_game_mod_faction_tests PRIVATE alamo_core alamo_game_core alamo_test_support)
@@ -342,12 +342,12 @@ function(alamo_game_add_exe)
   if(COMMAND alamo_render_copy_xess)
     alamo_render_copy_xess(alamo_game)  # [port] XeSS upscaling runtime (libxess.dll)
   endif()
-  # ref3 t05: the flag list the Command Center reads (alamo_game --list-flags --json) == its recorded test copy.
+  # the flag list the Command Center reads (alamo_game --list-flags --json) == its recorded test copy.
   add_test(NAME alamo_game_list_flags
            COMMAND ${CMAKE_COMMAND} -DGAME=$<TARGET_FILE:alamo_game> -DEXPECTED=${PROJECT_SOURCE_DIR}/launcher/src/testdata/game_flags.json
                    -DOUT=${CMAKE_CURRENT_BINARY_DIR}/game_flags.json -P ${_dir}/list_flags_check.cmake)
   set_tests_properties(alamo_game_list_flags PROPERTIES TIMEOUT 60)
-  # bm2d t01: a scenario whose save does not load is "scenario changed, not comparable", exit 3 (needs a window and a GPU, data-free).
+  # a scenario whose save does not load is "scenario changed, not comparable", exit 3 (needs a window and a GPU, data-free).
   add_test(NAME alamo_game_bench_stale_scene COMMAND alamo_game_benchmark_tests --stale-exe $<TARGET_FILE:alamo_game>)
   set_tests_properties(alamo_game_bench_stale_scene PROPERTIES TIMEOUT 120)
   # [port] video options helpers (game_display.cpp): mode list text, selection, options file, detail options mapping.
@@ -360,7 +360,7 @@ function(alamo_game_add_exe)
   # Smoke tests (need ALAMO_FOC_DATA; exit 0 "skipped" without it): scripted input through the real menus, PNGs to
   # <build>/smoke_out (Int-final: one folder per build, so the three compilers' runs never overwrite each other), per-tick
   # CRC of the run == a fresh presentation-off replay of its command stream, 0 validation messages.
-  # wr1 t07: the run's CRC log, command recording and screenshots across commits are the scenarios game_smoke_<kind> of
+  # the run's CRC log, command recording and screenshots across commits are the scenarios game_smoke_<kind> of
   # tools/goldens/scenarios.json (nightly tier; no stored .crc / .rec / baseline PNGs). compare_smoke.cmake still compares
   # two logs of one build (the screens run against the campaign run; -DHEADLESS for checkpoint logs).
   set(_smoke_headless "")
@@ -370,7 +370,7 @@ function(alamo_game_add_exe)
   set(_smoke_out ${CMAKE_BINARY_DIR}/smoke_out)
   file(MAKE_DIRECTORY ${_smoke_out})
   # cu8g t02 (2026-11-08): the land smoke runs seed 2. With the map-load environment pick (one synced draw on its 2-environment
-  # map, docs/re/CU8G_T02_ENV_PICK_RE.md) seed 1's AI retreats before the forces meet; seeds 2-5 all reach combat.
+  # map, legacy docs/re/CU8G_T02_ENV_PICK_RE.md) seed 1's AI retreats before the forces meet; seeds 2-5 all reach combat.
   # cu8i t02 (2026-11-08): seed 3. With the FormationClass ctor draws (one per land formation and the Load_Map-tail pass)
   # seeds 1, 2 and 6 retreat before the forces meet; seeds 3-5 reach combat.
   # s78n t20 batch A (2026-11-10): seed 2. With the destination check, Path Around detours and the walked StoppedVsStopped
@@ -385,7 +385,7 @@ function(alamo_game_add_exe)
     add_test(NAME alamo_game_smoke_${_k} COMMAND alamo_game --smoke ${_k} --hidden --audio null ${_seed_args} --png-dir ${_smoke_out})
     set_tests_properties(alamo_game_smoke_${_k} PROPERTIES TIMEOUT 1800 FIXTURES_SETUP alamo_game_smoke_${_k}_run)
   endforeach()
-  # QA t12: the campaign smoke with the per-screen shots (victory, unit tooltip, video dialog: game_campaign_screen_*.png in
+  # the campaign smoke with the per-screen shots (victory, unit tooltip, video dialog: game_campaign_screen_*.png in
   # smoke_out/screens) and pseudo-localized text. Nothing reads the PNGs: look at them for overflow. Its CRC log and command
   # recording must equal the normal campaign run's (the text and the screens never reach the sim).
   set(_screens_out ${_smoke_out}/screens)
@@ -438,7 +438,7 @@ function(alamo_game_add_exe)
                    -P ${PROJECT_SOURCE_DIR}/engine/apps/game/bench_scenario_check.cmake)
   set_tests_properties(alamo_game_bench_scenario PROPERTIES TIMEOUT 1800 FIXTURES_REQUIRED alamo_game_smoke_saveload_run)
   alamo_label_slow(alamo_game_bench_scenario)
-  # bm2c t03: the same on a TAA recipe (testdata/bench_orbit_taa.abench: bm-high, run at 640x360; run b redraws every 3rd
+  # the same on a TAA recipe (testdata/bench_orbit_taa.abench: bm-high, run at 640x360; run b redraws every 3rd
   # settled frame): a fixed-frames scenario with TAA gives identical PNGs in both runs (bench_scenario_check.cmake -DTAA=1).
   add_test(NAME alamo_game_bench_scenario_taa
            COMMAND ${CMAKE_COMMAND} -DGAME=$<TARGET_FILE:alamo_game> -DSAVE=${_smoke_out}/saveload_saves/smoke_battle.alsv
@@ -448,7 +448,7 @@ function(alamo_game_add_exe)
   alamo_label_slow(alamo_game_bench_scenario_taa)
   # bm3: the committed rendered scenes (tests/benchmark/*.abench with `host game`): each runs 120 ticks hidden and its fingerprint
   # matches (bench_scene_check.cmake; skipped without ALAMO_FOC_DATA). One entry per scene, each with its own output folder.
-  # wr1 t06: the scene is the one made from its recipe for this build (fixture alamo_bench_scenario_<scene>, engine/apps).
+  # the scene is the one made from its recipe for this build (fixture alamo_bench_scenario_<scene>, engine/apps).
   foreach(_scene space_battle_game nebula_battle water_battle)
     if(EXISTS ${PROJECT_SOURCE_DIR}/tests/benchmark/${_scene}.abench)
       add_test(NAME alamo_game_bench_scene_${_scene}

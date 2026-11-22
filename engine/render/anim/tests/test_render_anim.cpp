@@ -170,7 +170,7 @@ void test_real_data() {
 
     // GPU: the render app with unit animation on (CRC on == off, 0 validation messages, PNG).
 #if defined(ALAMO_RENDER_APP) && defined(ALAMO_RENDER_APP_HAS_SIM)
-    const std::string logs = ALAMO_RENDER_ANIM_LOG_DIR;
+    const std::string logs = ::alamo::test::artifact_dir();
     int rc = run_app("--sim-headless-check --map _LAND_PLANET_BYSS_KIDNAPPING --ticks 90 --png \"" + logs + "/render_anim_byss_land.png\"");
     std::printf("alamo_render land check exit %d\n", rc);
     CHECK(rc == 0);

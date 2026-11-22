@@ -1,5 +1,5 @@
 // alamo_ui_hud_ui3_tests (ui3, UIART "Tactical HUD controls"): the hotkey slot -> ability mapping and the keyboard
-// dialog's edit-box -> slot mapping (UI.md §4.3: the retail edit-name table is in slot order), the ability hotkey as a
+// dialog's edit-box -> slot mapping (legacy docs/re/UI.md §4.3: the retail edit-name table is in slot order), the ability hotkey as a
 // click on the matching ability button, the order-button enable query, the b_retreat / b_reinforcement / beacon / movie
 // mode state and the reinforcement texts (HUD_GAPS §5.1), the land Tooltip_Text entry 1 and the ability tooltip keys
 // (HUD_GAPS §2.1), and the objectives box toggle.

@@ -1,4 +1,4 @@
-# BM1 t07: the benchmark end to end on a short synthetic scenario (no game data needed).
+# the benchmark end to end on a short synthetic scenario (no game data needed).
 #   cmake -DEXE=<alamo_headless> -DWORK=<dir> -P check_bench.cmake
 # 1. --bench-make: the synthetic save session (save at tick 150, 150 ticks, orders recorded, fingerprint per tick).
 # 2. --bench: 1 warm-up + 2 timed runs, every run matches the fingerprint, JSON written with the required fields.

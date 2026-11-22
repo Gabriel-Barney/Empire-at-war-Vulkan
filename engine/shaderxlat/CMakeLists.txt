@@ -1,4 +1,4 @@
-# shaderxlat - PORTING.md track B: D3D9 SM1-2 shader bytecode -> SM6 HLSL -> SPIR-V.
+# shaderxlat - legacy docs/shaders/PORTING.md track B: D3D9 SM1-2 shader bytecode -> SM6 HLSL -> SPIR-V.
 # The library depends on alamo_core only. DXC is used at run time through dxcompiler.dll /
 # libdxcompiler.so loaded dynamically (approved by Gabriel 2026-10-26); nothing links against it.
 # Tests additionally use alamo_fx2 (FXO parsing), alamo_vfs (real-install corpus, ALAMO_FOC_DATA /

@@ -1,5 +1,5 @@
-// AI travel planning all-pairs (GALACTIC.md section 4, AIExecutionPathFinderClass), exact to
-// docs/re/PHASE2_ANSWERS.md Q7-Q10.
+// AI travel planning all-pairs (legacy docs/re/GALACTIC.md section 4, AIExecutionPathFinderClass), exact to
+// legacy docs/re/PHASE2_ANSWERS.md Q7-Q10.
 //
 //   reference_all_pairs : the original's Floyd-Warshall (Q9), uint32 wrapping arithmetic, O(N^3).
 //                         Optionally parallel over rows i for a fixed k (exact: row k and column

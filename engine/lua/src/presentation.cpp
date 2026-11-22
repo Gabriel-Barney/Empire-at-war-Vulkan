@@ -17,7 +17,7 @@ namespace alamo::lua {
 
 uint32_t seconds_to_frames(double seconds) {
     if (!(seconds > 0.0)) return 0;  // also NaN
-    // ref4 t03: alamo/core/frames.hpp; out of int32 range the x86 0x80000000, read unsigned.
+    // alamo/core/frames.hpp; out of int32 range the x86 0x80000000, read unsigned.
     return static_cast<uint32_t>(frames_ceil(seconds * static_cast<double>(kSimFramesPerSecond)));
 }
 

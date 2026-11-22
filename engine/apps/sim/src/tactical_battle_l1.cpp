@@ -1,6 +1,6 @@
 // --- L1 systems (owner: tactical-systems agent): the battle side of special weapons, the tactical superweapon,
 // hyperspace departures, timed engine disables, teleport, ground height and clip lengths (tactical_battle.hpp
-// "L1 systems" block; docs/re/SCRIPT_GAPS.md §1-§3). Serial code only; the synced RNG is drawn by the departure
+// "L1 systems" block; legacy docs/re/SCRIPT_GAPS.md §1-§3). Serial code only; the synced RNG is drawn by the departure
 // timers (HyperspaceDepartures) and nothing else here.
 #include <algorithm>
 #include <utility>
@@ -148,7 +148,7 @@ void TacticalBattle::l1_fields(uint32_t frame, SimRng& rng) {
                 r.amount = l1_k_.asteroid_field_damage;
                 r.damage_type = asteroid_damage_type;
                 combat_->take_damage(r, frame);
-                l1_asteroid_hits_.push_back(u.id);  // mcx4 t13: presentation feed
+                l1_asteroid_hits_.push_back(u.id);  // presentation feed
                 // One Asteroid_Damage_Hit_Particles entry (synced int); [port] no skeleton: the model centre + 90 z,
                 // no bone draw.
                 const auto list = types.get(st.type(h), objects::tags::Asteroid_Damage_Hit_Particles);
@@ -207,7 +207,7 @@ uint32_t TacticalBattle::l1_desc_of(int32_t type) {
     d.pulse_delay_seconds = types.get(ti, objects::tags::Projectile_Fire_Pulse_Delay_Seconds);
     for (size_t i = 0; i < types_used_.size(); ++i)  // the weapon projectile from the battle tables
         if (static_cast<int32_t>(types_used_[i]) == type && descs_[i] < tables_->combat.units.size())
-            d.projectile = tables_->combat.units[descs_[i]].listed_projectile;  // S8 t08: with or without WEAPON
+            d.projectile = tables_->combat.units[descs_[i]].listed_projectile;  // with or without WEAPON
     d.valid_targets = types.get(ti, objects::tags::Special_Weapon_Valid_Targets);
     d.requires_base_power = types.get(ti, objects::tags::Requires_Base_Power);
     d.target_action_index = types.get(ti, objects::tags::Special_Weapon_Target_Action_Index);
@@ -475,7 +475,7 @@ bool TacticalBattle::disable_engines(objects::ObjectId id, float seconds) {
 }
 
 void TacticalBattle::energy_drain_engines(objects::ObjectId id, float seconds) {
-    // cu8f t02 (CU8F_T01_T02_T07_RE.md §2.4), after EnergyPool::Absorb took energy > 0: 1. with a locomotor,
+    // cu8f t02 (legacy docs/re/CU8F_T01_T02_T07_RE.md §2.4), after EnergyPool::Absorb took energy > 0: 1. with a locomotor,
     // Locomotor_Set_Engines(destroyed 0, t) (EngineControl::disable keeps the 0x5545a0 gate and the max expiry), then the
     // current move stops (0x422040); 2. signal 0x16; 3. moving loop off, then idle loop off.
     // cu8g t01 [port]: 0x422040 keeps the move when its last waypoint has flag 0x10 [M meaning]; the port's paths carry no
@@ -531,7 +531,7 @@ uint32_t TacticalBattle::clip_finish_frames(uint32_t frames, float fps) {
 bool TacticalBattle::anim_clip_info(const TacticalMode& mode, objects::ObjectId id, int32_t anim_type, uint32_t& frames,
                                     float& fps, uint32_t variant) const {
 #ifdef ALAMO_SIM_HAVE_ANIM
-    // r3g: static clip data, the same with and without the animation service (refixf t04's rule for death clones): the
+    // static clip data, the same with and without the animation service (refixf t04's rule for death clones): the
     // attached service's models, else the clone-model source, else the battle's own loader over the catalog's files.
     SimAnimation* src = anim_ ? anim_ : clone_models_;
     if (!src && catalog_->files()) {
@@ -591,7 +591,7 @@ void TacticalBattle::l1_force_disable(const TacticalMode& mode) {
         for (objects::TypeIndex t = 0; t < types.size(); ++t)
             force_disable_range_[t] = types.get(t, objects::tags::Disable_Force_Abilities_Range);  // read as a float [M]
     }
-    // cu8f t07 (CU8F_T01_T02_T07_RE.md §3.1): DisableForceAbilitiesBehaviorClass (0x52) Service 0x636260, interval 1, so
+    // cu8f t07 (legacy docs/re/CU8F_T01_T02_T07_RE.md §3.1): DisableForceAbilitiesBehaviorClass (0x52) Service 0x636260, interval 1, so
     // every frame. Only objects that carry DISABLE_FORCE_ABILITIES in their current mode's list emit (FoC: Ysalamiri_Tree,
     // Underworld_Ysalamiri_Cage, land only; Rebel_Mobile_Shield_Generator's range tag is dead data). Query 0x2a9ff0:
     // SELECTABLE objects of every player but the emitter's owner (allies and neutral included), 3-D distance² < r².
@@ -636,7 +636,7 @@ void TacticalBattle::l1_motion(TacticalMode& mode, SimRng& rng) {
         mode.trees().update(static_cast<tactical::EntityHandle>(u.id), mode.bounds_of(u.h));
     }
     for (const mv::HyperspaceEvent& e : l1_jumps_.events()) {
-        if (e.kind == mv::HyperspaceEvent::Kind::Jumped) {  // aud1 t05 (AUDIO.md §9.6): the jump sound (presentation log)
+        if (e.kind == mv::HyperspaceEvent::Kind::Jumped) {  // aud1 t05 (legacy docs/re/AUDIO.md §9.6): the jump sound (presentation log)
             if (const Unit* j = unit_by_id(e.id); j && j->alive && !j->retreated && st.alive(j->h))
                 hyperspace_sfx_.push_back({HyperspaceSfx::Kind::Depart, j->id, j->type, st.owner(j->h), st.position(j->h)});
         }
@@ -665,7 +665,7 @@ void TacticalBattle::l1_weapons(TacticalMode& mode, SimRng& rng) {
     l1_sw_events_.clear();    l1_damage_stats();
     l1_tsw_kill_owner_ = -1;  // this tick's TSW planet kill (read by the battle host after the tick)
     l1_strikes(mode, rng);
-    // S8 t30: the lobbing charge-up events of this tick's combat step (presentation, ascending id per combat order).
+    // the lobbing charge-up events of this tick's combat step (presentation, ascending id per combat order).
     if (combat_)
         for (const tc::LobEvent& e : combat_->lob_events()) {
             ta::SpecialWeaponEvent ev;
@@ -746,8 +746,8 @@ void TacticalBattle::l1_weather_tick(SimRng& rng) {
     if (space_ || !l1_weather_data_) return;
     const uint32_t env_now = environment_index();
     if (!l1_weather_started_ || l1_weather_env_ != env_now) {
-        // Re-init (0x468a50): the first service starts the active environment's scenario (cu8g t02: the map-load pick);
-        // cu8g t03: a changed environment index (Set_New_Environment) restarts the weather with the new environment's
+        // Re-init (0x468a50): the first service starts the active environment's scenario (the map-load pick);
+        // a changed environment index (Set_New_Environment) restarts the weather with the new environment's
         // scenario, and a missing scenario / no phases turns it off (§3.2). An unchanged index re-inits nothing. A start
         // with phases costs 2 synced draws (WeatherSystem::start, CU8G_T02_ENV_PICK_RE §4).
         const bool restart = l1_weather_started_;
@@ -782,7 +782,7 @@ void TacticalBattle::l1_weather_note_fow() {
         if (e.kind == tactical::combat::WeatherEvent::Kind::FowDirty) fog_weather_dirty_ = true;
 }
 
-// cu8g t03: mode vf25 (0x276ff0): index := clamp(arg, 0, n - 1), no draw. The weather follows on its next service.
+// mode vf25 (0x276ff0): index := clamp(arg, 0, n - 1), no draw. The weather follows on its next service.
 bool TacticalBattle::set_environment(int32_t index) {
     const size_t n = map_.environments.environments.size();
     if (n == 0) return false;  // [port] retail's clamp to n - 1 = -1 is not modelled: nothing changes
@@ -807,7 +807,7 @@ bool TacticalBattle::set_cinematic_environment(bool on) {
     return set_environment(static_cast<int32_t>(back));
 }
 
-// cu8g t02: 0x277030 (CU8G_T02_ENV_PICK_RE §1). [port] n == 0 (a map without environments; retail keeps the ctor's
+// 0x277030 (CU8G_T02_ENV_PICK_RE §1). [port] n == 0 (a map without environments; retail keeps the ctor's
 // default record, n = 1) -> 0 without a draw.
 uint32_t TacticalBattle::pick_environment(const terrain::EnvironmentSet& envs, SimRng& rng) {
     const std::vector<terrain::Environment>& e = envs.environments;
@@ -819,7 +819,7 @@ uint32_t TacticalBattle::pick_environment(const terrain::EnvironmentSet& envs, S
     return i;
 }
 
-// cu8g t03: mode vf27 (0x2770e0, CU8G_T02_ENV_PICK_RE §5): no Cinematic skip in the typed branch.
+// mode vf27 (0x2770e0, CU8G_T02_ENV_PICK_RE §5): no Cinematic skip in the typed branch.
 bool TacticalBattle::set_environment_of_weather_type(uint32_t type, SimRng& rng) {
     const std::vector<terrain::Environment>& envs = map_.environments.environments;
     const uint32_t n = static_cast<uint32_t>(envs.size());
@@ -847,7 +847,7 @@ float TacticalBattle::weather_sight_modifier(objects::ObjectId id) const {
     const objects::ObjectStore& st = l1_mode_->primary();
     const objects::ObjectHandle h = st.find(id);
     if (!st.exists(h)) return 1.0f;
-    if (abilities_ && !abilities_->weather_affected(st.owner(h))) return 1.0f;  // cu8 t01: Weatherproof owner
+    if (abilities_ && !abilities_->weather_affected(st.owner(h))) return 1.0f;  // Weatherproof owner
     return l1_weather_.sight_modifier(catalog_->types().get(st.type(h), objects::tags::Weather_Category));
 }
 
@@ -1001,7 +1001,7 @@ objects::TypeIndex TacticalBattle::current_projectile(objects::ObjectId id) cons
     objects::ObjectHandle h = st.find(id);
     for (size_t c = 0; c < containers_.size(); ++c)
         if (containers_[c].id == id) {
-            bool member = false;  // S8 t12: a team container answers for its first member; an empty team: nothing
+            bool member = false;  // a team container answers for its first member; an empty team: nothing
             for (const Unit& u : units_)
                 if (u.container == c && u.alive && !u.retreated) {
                     h = u.h;
@@ -1112,7 +1112,7 @@ std::vector<float> load_retreat_flight_increments(const galactic::GalacticRules&
     return out;
 }
 
-// ref3 t06: StoryHooks::station_fire (the tactical story VMs' space-station special weapon).
+// StoryHooks::station_fire (the tactical story VMs' space-station special weapon).
 bool TacticalBattle::station_special_weapon_fire(objects::ObjectId station, objects::ObjectId target) {
     return abilities_->combat().special_weapon_fire(station, target);
 }

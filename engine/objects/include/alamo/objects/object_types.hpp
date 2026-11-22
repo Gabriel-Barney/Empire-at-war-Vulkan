@@ -3,7 +3,7 @@
 // in the XML is dropped -- known fields get a schema row and a typed parse status, unknown ones
 // are still stored and reported.
 //
-// Loading (stage 1, before docs/re/OBJECT_TYPES.md; rules taken from docs/re/PHASE2_ANSWERS.md Q13
+// Loading (stage 1, before legacy docs/re/OBJECT_TYPES.md; rules taken from legacy docs/re/PHASE2_ANSWERS.md Q13
 // as implemented by alamo_data):
 //   * Data\XML\GameObjectFiles.xml is read through the FileProvider (VFS rules apply); each <File>
 //     is "Data\XML\<name>", in LIST ORDER; a file listed twice is parsed (walked) twice; a listed
@@ -13,7 +13,7 @@
 //   * duplicate names: every definition gets a TypeIndex; find() returns the FIRST definition and
 //     later ones carry `first_definition` != themselves.
 //   * Variant_Of_Existing_Type is recorded (text + resolved first definition, forward references
-//     allowed) but NOT merged yet: field inheritance waits for OBJECT_TYPES.md.
+//     allowed) but NOT merged yet: field inheritance waits for legacy docs/re/OBJECT_TYPES.md.
 //
 // Stable order: TypeIndex = load order (list order, then document order); TagId = first-seen order;
 // FieldIndex = load order, preorder within a type. Nothing depends on hash order.

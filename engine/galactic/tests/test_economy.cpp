@@ -715,7 +715,7 @@ std::pair<std::vector<GalacticEvent>, uint64_t> event_scenario(bool emit) {
     std::vector<GalacticEvent> all;
     CHECK(s.launch_units(pUnder, rD, std::vector<ObjectHandle>{w.planet(rD).surface[0]}) == RejectReason::None);
     const uint32_t f = w.fleet(rD, pUnder);
-    w.run(1);  // frame 0 (no fiscal cycle: the first is on frame 1350, q2f t02)
+    w.run(1);  // frame 0 (no fiscal cycle: the first is on frame 1350)
     CHECK(s.move_fleet(pUnder, f, rC) == RejectReason::None);
     for (int i = 0; i < 3000 && w.fl(f).moving; ++i) w.run(1);
     CHECK(s.invade(pUnder, rC, {}) == RejectReason::None);
@@ -743,7 +743,7 @@ void test_event_stream() {
     CHECK(event_digest(again.first) == event_digest(evs));
     using K = GalacticEventKind;
     // GalacticDayPassed: one per paid fiscal cycle, on frames 1350, 2700, ... with the day after the increment (the
-    // frame-0 cycle runs before the galaxy exists and emits nothing, q2f t02). The other events in order:
+    // frame-0 cycle runs before the galaxy exists and emits nothing). The other events in order:
     std::vector<GalacticEvent> o;
     int32_t days = 0;
     for (const GalacticEvent& e : evs) {
@@ -795,7 +795,7 @@ void test_a2_income_hook() {
     });
     CHECK(id != 0 && s.last_income(pUnder) == 0.0f && s.last_income(99) == 0.0f);
     const float under0 = s.credits(pUnder);
-    w.run(1);  // frame 0: no fiscal cycle (the first is on frame 1350, q2f t02), so no tick
+    w.run(1);  // frame 0: no fiscal cycle (the first is on frame 1350), so no tick
     CHECK(ticks.empty() && s.last_income(pUnder) == 0.0f);
     while (s.frame() < s.next_cycle_frame()) w.run(1);
     CHECK(s.credits(pUnder) == under0);
@@ -824,7 +824,7 @@ void test_a2_income_hook() {
     std::vector<IncomeTick> at;
     t.add_income_hook([&at](const IncomeTick& k) { at.push_back(k); });
     t.add_credits(pEmpire, 79990.0f - t.credits(pEmpire));
-    a.run(1351);  // frames 0..1350: the first fiscal cycle (q2f t02)
+    a.run(1351);  // frames 0..1350: the first fiscal cycle
     CHECK(at.size() == 2 && t.credits(pEmpire) == 80000.0f);
     if (at.size() == 2) CHECK(at[0].player == pEmpire && at[0].gain == 45.0f && at[1].player == pUnder);
     // An AI player with no income this cycle (Underworld owns nothing here): no Add_Credits and no tick.
@@ -921,7 +921,7 @@ void test_a2_spawn_convert() {
     CHECK(s.blockaded(rA, pEmpire) && s.blockaded(rA, pUnder) && !s.blockaded(rB, pEmpire) && !s.blockaded(rCore, pEmpire));
 }
 
-// a2j t06 (docs/re/A2J_T03_INCOME.md §2): a derived-owner change (0x3fb040) keeps the owner of a starbase that outlives
+// a2j t06 (legacy docs/re/A2J_T03_INCOME.md §2): a derived-owner change (0x3fb040) keeps the owner of a starbase that outlives
 // it; GE 4.1 step 3 then hands the planet back to the starbase owner when the ground units are gone.
 void test_a2j_starbase_owner() {
     World w({{pEmpire, rA, tSB1}, {pEmpire, rA, tInfantry}, {pUnder, rE, tSB1}});
@@ -942,7 +942,7 @@ void test_a2j_starbase_owner() {
     CHECK(w.planet(rE).starbase_level == 0 && w.planet(rE).starbase_owner == kNoPlayer);
 }
 
-// ---- A2 gal t04 / t05 / t06 (docs/re/A2GAL_READINGS.md §2-§4) -------------------------------------------------------
+// ---- A2 gal t04 / t05 / t06 (legacy docs/re/A2GAL_READINGS.md §2-§4) -------------------------------------------------------
 
 void test_a2gal_population() {
     // §2: the starbase counts through its planet (once, its Population_Value is not "used"); the non-human skip is
@@ -986,7 +986,7 @@ void test_a2gal_population() {
         CHECK(s.fleets()[fl[0]].moving && s.fleets()[fl[0]].planet == kInvalidPlanet);
         CHECK(s.population_used(pUnder, false) == 3 && s.population_capacity(pUnder) == 2);
     }
-    // refix t05: starbase_type() (0x3f8b40) is the planet's starbase object's type, kNoIndex without one; a starbase
+    // starbase_type() (0x3f8b40) is the planet's starbase object's type, kNoIndex without one; a starbase
     // removed behind the sim's back (a direct store destroy) adds nothing and is cleared at the next update (level 0,
     // owner none, StarbaseLevelChanged), like destroy_object.
     CHECK(s.starbase_type(rA) == tSB1 && s.starbase_type(rC) == kNoIndex && s.starbase_type(kInvalidPlanet) == kNoIndex);
@@ -1032,7 +1032,7 @@ void test_a2gal_steal_order() {
     const ObjectHandle at_dest = s.spawn_unit(pEmpire, rA, tFrigate);
     CHECK(s.steal_unit(pEmpire, tFrigate, rA, false) && !w.store.alive(f1) && w.store.alive(at_dest));
     CHECK(!s.steal_unit(pEmpire, tFrigate, rA, false) && s.steal_unit(pEmpire, tFrigate, rA, true));  // hero rule
-    // refix t04: the match is GalacticSim::representative_type (= the store type in the port model; a fleet object's
+    // the match is GalacticSim::representative_type (= the store type in the port model; a fleet object's
     // own type, never a member's type).
     const ObjectHandle rep = s.spawn_unit(pEmpire, rB, tFrigate);
     CHECK(s.representative_type(rep) == static_cast<uint32_t>(tFrigate));
@@ -1041,7 +1041,7 @@ void test_a2gal_steal_order() {
     CHECK(s.representative_type(ObjectHandle{}) == kNoIndex);
 }
 
-// mcx4 t09 (docs/re/MCX4_GAL2_RE_ANSWERS.md Q3): the fleet visibility vote 0x433090 for the local (Empire) player. An
+// mcx4 t09 (legacy docs/re/MCX4_GAL2_RE_ANSWERS.md Q3): the fleet visibility vote 0x433090 for the local (Empire) player. An
 // Underworld (AI) fleet orbits B (60 from the Empire's A). It shows when a revealer of the local player (a type with
 // Hyperspace_Fleet_Reveal_Range, here planet A at 150) or a Bribery planet (Bribery_Fleet_Reveal_Range, any owner, while a
 // Benefits_From_Corruption player exists) is within range, strict, and the AI owner's destination planet is revealed. An
@@ -1158,7 +1158,7 @@ void test_a2_population_terrain() {
     CHECK(terrain_id("desert") == 2 && terrain_id("Space") == 7 && terrain_id("Moon") == -1);
 }
 
-// q6 t21 / t22 (Q6_T15_RETAIL_RUN.md "ELIM C", "q6 t25"; STRATEGIC_GAPS 1.4): the victory records and the event-driven tests.
+// q6 t21 / t22 (legacy docs/re/Q6_T15_RETAIL_RUN.md "ELIM C", "q6 t25"; STRATEGIC_GAPS 1.4): the victory records and the event-driven tests.
 VictoryRules vic_rules() {
     VictoryRules r;
     r.starting_active_faction = "Empire";
@@ -1451,7 +1451,7 @@ void test_diplomacy_and_build_locks() {
     CHECK(s.enqueue(pEmpire, rA, tCorvette) == RejectReason::None);
 }
 
-// ---- OI galactic: docs/re/STRATEGIC_GAPS.md (SG) ----------------------------------------------------------------------
+// ---- OI galactic: legacy docs/re/STRATEGIC_GAPS.md (SG) ----------------------------------------------------------------------
 
 enum OiType : uint32_t {
     tShuttle = tTypeCount, tCompany, tSmuggler, tOrbitCompany, tDeathStar, tKiller, tStructA, tStructB, tStructC, tGated,
@@ -1777,7 +1777,7 @@ void test_oi_company_transports() {
     CHECK(fm(kFleetMoveNew, w.pid(rA), none, w.id(s0), w.pid(rB)) == RejectReason::None);
     const uint32_t mover = s.fleet_containing(s0);
     CHECK(mover != kNoFleet && mover != of && w.fl(mover).moving && w.fl(mover).to == rB);
-    // ui4 t13: a surface unit launched by op 6 into a new fleet at its own planet (the planet map's launch) runs the launch
+    // a surface unit launched by op 6 into a new fleet at its own planet (the planet map's launch) runs the launch
     // reveal (REMAINING_GAPS 6.1) as op 4 does.
     {
         const ObjectHandle s1 = w.planet(rA).surface[0];
@@ -1838,7 +1838,7 @@ void test_oi_stealth() {
     SimRng expect = before;
     expect.range_float(0.0f, 1.0f);
     CHECK(w.rng == expect);  // exactly one draw
-    // mcx4 t06 (docs/re/MCX4_T09_RE_ANSWERS.md Q11): r1 < chance draws r2 even at evade 0.0; r2 < evade cancels.
+    // mcx4 t06 (legacy docs/re/MCX4_T09_RE_ANSWERS.md Q11): r1 < chance draws r2 even at evade 0.0; r2 < evade cancels.
     // ledger: verifies Siphon_Credits_Ability.Evade_Detection_Chance
     before = w.rng;
     CHECK(s.detect_stealthed(det, 1.5f) == 1);  // draw < chance, r2 not below evade 0.0
@@ -1904,7 +1904,7 @@ void test_oi_base_info() {
     CHECK(h0.digest() == h1.digest());
 }
 
-// mcx4 t01 (docs/re/MCX4_RE_ANSWERS_GALACTIC.md Q1): Special_Case_Production fills the planet's initial-placement list
+// mcx4 t01 (legacy docs/re/MCX4_RE_ANSWERS_GALACTIC.md Q1): Special_Case_Production fills the planet's initial-placement list
 // (PD +0x110) at start, keeping only Build_Requires_Initial_Placement types, file order, no duplicates; can-build step 24
 // passes a flagged type only on a listed planet. The list is saved (v10); a v9 save keeps the session's start() list.
 // ledger: verifies Campaign.Special_Case_Production
@@ -1952,7 +1952,7 @@ void test_special_case_production() {
     }
 }
 
-// mcx4 t07 (docs/re/MCX4_RE_ANSWERS_GALACTIC.md Q7.4): Corruption_Level_Override corrupts the first planet of the
+// mcx4 t07 (legacy docs/re/MCX4_RE_ANSWERS_GALACTIC.md Q7.4): Corruption_Level_Override corrupts the first planet of the
 // named type with Racketeering at campaign start when the value is >= 1 (no transition timer); a value below 1 leaves it.
 // ledger: verifies Campaign.Corruption_Level_Override
 void test_corruption_level_override() {
@@ -1970,7 +1970,7 @@ void test_corruption_level_override() {
     CHECK(a.corruption == kCorruptionRacketeering && a.corrupting_player == a.owner && a.owner == pEmpire);
     CHECK(!a.corruption_protected && !a.corruption_removing && a.corruption_end == 0u);
     CHECK(s.planets()[rB].corruption == kCorruptionNone);
-    // mcx4 t09 (docs/re/MCX4_T09_RE_ANSWERS.md Q1): both campaign-start paths pay the type-3 slot's
+    // mcx4 t09 (legacy docs/re/MCX4_T09_RE_ANSWERS.md Q1): both campaign-start paths pay the type-3 slot's
     // Corruption_1_Success_Credit_Bonus to the planet owner - the override (an Empire owner) and the first-owner instant
     // path 0x3fb040 (an Underworld start planet, Benefits_From_Corruption).
     const auto start_credits = [](float bonus) {
@@ -1998,7 +1998,7 @@ void test_corruption_level_override() {
     const auto [e0, u0] = start_credits(0.0f);
     const auto [e1, u1] = start_credits(400.0f);
     CHECK(e1 - e0 == 400.0f && u1 - u0 == 240.0f);  // the Underworld is a Hard AI: Add_Credits x Credit_Multiplier 1.2
-    // mcx4 t21 (docs/re/MCX4_GAL2_RE_ANSWERS.md Q2): the override runs first (load, L14), then the planet's first political
+    // mcx4 t21 (legacy docs/re/MCX4_GAL2_RE_ANSWERS.md Q2): the override runs first (load, L14), then the planet's first political
     // update (tick 1); neither tests the current type. On an Underworld planet an override >= 1 pays the bonus twice, and
     // an override below 1 does not keep it clean.
     const auto under_override = [](int32_t value, float bonus) {
@@ -2025,7 +2025,7 @@ void test_corruption_level_override() {
     CHECK(under_override(0, 100.0f) - base == 120.0f);  // only the first political update pays
 }
 
-// mcx4 t07 (docs/re/MCX4_RE_ANSWERS_GALACTIC.md Q7.4 / Q7.6): the campaign's auto-resolve rules on the sim.
+// mcx4 t07 (legacy docs/re/MCX4_RE_ANSWERS_GALACTIC.md Q7.4 / Q7.6): the campaign's auto-resolve rules on the sim.
 // Is_Autoresolve_Allowed false starts the global lock; Autoresolve_Exclusion_Locations pairs lock (planet, land / space)
 // only in an Is_Story_Campaign campaign and leave the list when the local player wins a fought battle there. Saved (v10).
 // ledger: verifies Campaign.Is_Autoresolve_Allowed
@@ -2059,7 +2059,7 @@ void test_campaign_autoresolve_rules() {
     }
 }
 
-// mcx4 t05 (docs/re/MCX4_RE_ANSWERS_GALACTIC.md Q5.1, MoveThroughObjects 0x3c4460 -> 0x4313e0): a Benefits_From_Corruption
+// mcx4 t05 (legacy docs/re/MCX4_RE_ANSWERS_GALACTIC.md Q5.1, MoveThroughObjects 0x3c4460 -> 0x4313e0): a Benefits_From_Corruption
 // mover pays, at every intermediate planet whose orbit controller is not the mover, Cheap_Bribe_Cost per unit when the
 // planet owner's faction is Easily_Bribed, else Expensive_Bribe_Cost; an AI mover's planet sum is scaled by its
 // difficulty's Bribe_Cost_Multiplier, truncated. The planet owner receives the toll; a toll above the credits drops the move.
@@ -2107,7 +2107,7 @@ void test_route_bribe_toll() {
     }
 }
 
-// mcx4 t01 / t07: the XML-to-setup step of the campaign rule fields (read_campaign_rule_fields), from a hand-built
+// the XML-to-setup step of the campaign rule fields (read_campaign_rule_fields), from a hand-built
 // campaign definition: value shapes, pair order, land / space matching, unresolved names dropped, last bool wins.
 void test_campaign_rule_fields_parse() {
     std::printf("  mcx4: campaign rule fields parse\n");
@@ -2137,7 +2137,7 @@ void test_campaign_rule_fields_parse() {
     CHECK(d.autoresolve_allowed && !d.story_campaign && d.special_case_production.empty() && d.autoresolve_exclusions.empty());
 }
 
-// mcx4 t07 (docs/re/MCX4_RE_ANSWERS_GALACTIC.md Q7.2): the faction's tactical corruption factors for a campaign battle at a
+// mcx4 t07 (legacy docs/re/MCX4_RE_ANSWERS_GALACTIC.md Q7.2): the faction's tactical corruption factors for a campaign battle at a
 // planet - pad price: entry 1 only, when corrupted (entry 0 never read); production price / time: entry (corrupted ? 1 : 0);
 // an index past the list's end reads 1.0. The battle host multiplies the pad price (truncated) and the production time.
 // Lists: Corruption_Tactical_Build_Pad_Price_Multipliers, Corruption_Tactical_Production_Price_Multipliers,
@@ -2206,7 +2206,7 @@ void test_oi_buildability() {
     w.rules.types[tPlanetA].ground_structure_slots = 4;  // barracks, StructB, StructC present
     CHECK(s.build_check(pEmpire, rA, tStructA).ok && s.enqueue(pEmpire, rA, tStructA) == RejectReason::None);
     CHECK(s.build_check(pEmpire, rA, tStructA).step == 18);
-    // A2f t08: the ground base level counts ground-family structures only (an orbital one does not).
+    // the ground base level counts ground-family structures only (an orbital one does not).
     {
         const int32_t gbl = s.ground_base_level(rA);
         CHECK(gbl == 3);
@@ -2267,7 +2267,7 @@ private:
 void test_unit_roles() {
     std::printf("  q6: unit roles\n");
     CHECK(unit_kind_from_dummy(0) == UnitKind::Other && unit_kind_from_dummy(kDummyStarBase) == UnitKind::StarBase);
-    CHECK(unit_kind_from_dummy(kDummyGroundBase) == UnitKind::Other &&  // mcx1 t11: never created at a planet
+    CHECK(unit_kind_from_dummy(kDummyGroundBase) == UnitKind::Other &&  // never created at a planet
           unit_kind_from_dummy(kDummyGroundStructure) == UnitKind::GroundStructure &&
           unit_kind_from_dummy(kDummyOrbitalStructure) == UnitKind::GroundStructure);
     CHECK(unit_kind_from_dummy(kDummyGroundCompany) == UnitKind::GroundUnit &&
@@ -2311,7 +2311,7 @@ void test_unit_roles() {
     CHECK(kind("Syn_Golan") == UnitKind::GroundStructure);
     CHECK(kind("Syn_Ship") == UnitKind::SpaceUnit);
     CHECK(kind("Syn_Company") == UnitKind::GroundUnit);
-    CHECK(kind("Syn_Base") == UnitKind::Other);           // DUMMY_GROUND_BASE: never created (mcx1 t11)
+    CHECK(kind("Syn_Base") == UnitKind::Other);           // DUMMY_GROUND_BASE: never created
     CHECK(kind("Syn_Orbital") == UnitKind::GroundStructure);
     CHECK(kind("Syn_Hero_Squadron") == UnitKind::Squadron);
     CHECK(kind("Syn_Fighter") == UnitKind::Other);       // no DUMMY_*: no role, whatever the SpaceUnit tag
@@ -2352,7 +2352,7 @@ void test_oi_victory() {
     CHECK(s.victory_claims().size() == 1 && s.victory_claims()[0].type == 3 && s.victory_claims()[0].countdown == 5);
     VictoryRules vr;
     vr.ai.conditions = {VictoryCondition::SuperWeaponDestruction};
-    s.set_victory_rules(vr);  // q6 t22: the claim counts once the player has a record of its type
+    s.set_victory_rules(vr);  // the claim counts once the player has a record of its type
     CHECK(check_victory(s).winner == kNoPlayer);
     w.run(5);
     CHECK(check_victory(s).winner == pUnder && check_victory(s).how == VictoryCondition::SuperWeaponDestruction);
@@ -2984,7 +2984,7 @@ void test_oi_foc(const FocData& d) {
     }
     std::printf("  oi FoC: planets with starbase stealth %d, ground-base stealth %d\n", sb_stealth, gb_stealth);
     CHECK(sb_stealth == 1 && gb_stealth == 7);
-    // mcx1 t05: every role comes from the behaviours (no type with a DUMMY_* behaviour is left without a role).
+    // every role comes from the behaviours (no type with a DUMMY_* behaviour is left without a role).
     int32_t with_role = 0, kept_other = 0;
     for (objects::TypeIndex t = 0; t < d.types.size(); ++t) {
         const TypeInfo& ti = r.types[t];
@@ -2995,7 +2995,7 @@ void test_oi_foc(const FocData& d) {
     CHECK(with_role > 0 && kept_other == 0);
     // Pinned D4 role changes (MCX1_RE_ANSWERS Q7.2 [H], A2K_T07_STORY_LOAD_RE §2): a tactical build-pad satellite lists
     // DUMMY_ORBITAL_STRUCTURE only under SpaceBehavior -> no galactic role; a ground base (DUMMY_GROUND_BASE) is never
-    // created at a planet (mcx1 t11); a starbase keeps its role.
+    // created at a planet; a starbase keeps its role.
     for (const char* n : {"Empire_Defense_Satellite_Laser", "Empire_Mineral_Extractor", "Pirate_Ground_Base_1", "Rebel_Ground_Base_3"}) {
         const uint32_t t = r.find_type(n);
         CHECK(t != kNoIndex && r.types[t].kind == UnitKind::Other);
@@ -3167,7 +3167,7 @@ void test_foc_corellia_kuat_hop(const FocData& d) {
                 static_cast<double>(orig_ticks) / 30.0, t == orig_ticks ? "" : "  [port differs: strategic.cpp kApplyModeSpeedMultiplier]");
 }
 
-// a2j t03 (docs/re/A2J_T03_INCOME.md): the Empire's first fiscal payment in Sandbox_Heart_Of_The_Maw_Rebel is retail's 667.5
+// a2j t03 (legacy docs/re/A2J_T03_INCOME.md): the Empire's first fiscal payment in Sandbox_Heart_Of_The_Maw_Rebel is retail's 667.5
 // (a2f t07 probe: 14.8333/s, 7 cycles with the four starting planets). Per planet (GALACTIC_ECONOMY 1.4): Corellia base 105 +
 // trade 105 (Corellia_Kuat, Corellia_Tatooine at 0.5) + mining 210 (Empire_Mining_Income_Bonus, 2 x base, no mining colony)
 // = 420; Kuat 75 + 75 = 150; Kashyyyk 30 + 15 = 45 (Felucia / NalHutta are Underworld); Tatooine 35 + 17.5 = 52.5.
@@ -3243,7 +3243,7 @@ void test_foc_hotm_political_target(const FocData& d) {
     }
 }
 
-// mcx4 t01 / t07: the campaign fields from FoC's own files (MCX4_RE_ANSWERS_GALACTIC Q1, Q7.4).
+// the campaign fields from FoC's own files (MCX4_RE_ANSWERS_GALACTIC Q1, Q7.4).
 void test_foc_campaign_fields(const FocData& d) {
     std::printf("  FoC campaign fields (mcx4 t01 / t07)\n");
     const GalacticSetup hotm = build_campaign_setup(d.db, d.rules, "Sandbox_Heart_Of_The_Maw_Empire");
@@ -3374,7 +3374,7 @@ void test_oi_thrawns_revenge() {
     CHECK(or_chains > 0);
     std::printf("  Thrawn's Revenge: %zu types, M %.2f, %d OR chains\n", rules.types.size(),
                 static_cast<double>(rules.constants.fleet_speed_multiplier), or_chains);
-    // q6 t03: TR's own element tags take their DUMMY_* behaviour's role.
+    // TR's own element tags take their DUMMY_* behaviour's role.
     const uint32_t miytil = rules.find_type("Miytil_Fighter_Squadron_Buildable"), golan = rules.find_type("Secondary_Golan_Two");
     CHECK(miytil != kNoIndex && rules.types[miytil].kind == UnitKind::Squadron);
     CHECK(golan != kNoIndex && rules.types[golan].kind == UnitKind::GroundStructure);
@@ -3397,7 +3397,7 @@ void test_oi_thrawns_revenge() {
                 std::printf("    %s: %s\n", name, m.c_str());
             }
         std::printf("  q6 TR %s: %zu starting forces, %d without a galactic role\n", name, setup.forces.size(), dropped);
-        // mcx1 t05: a starting force whose type has no DUMMY_* behaviour is dropped, as retail creates nothing for it
+        // a starting force whose type has no DUMMY_* behaviour is dropped, as retail creates nothing for it
         // ("Unknown type", MCX1_RE_ANSWERS Q7.2); the count is printed above, not pinned.
         CHECK(!setup.forces.empty() && dropped < static_cast<int32_t>(setup.forces.size()));
     }
@@ -3428,7 +3428,7 @@ void test_foc_campaign() {
     CHECK(uw != kNoIndex && d.rules.factions[uw].benefits_from_corruption && d.rules.factions[uw].hyperspace_speed_factor == 0.07f);
     const uint32_t emp = d.rules.find_faction("Empire");
     CHECK(emp != kNoIndex && d.rules.factions[emp].corruption_price_mult[1] == 0.9f);
-    // A2h t03: Maintenance_Cost (faction +0x3AC, type +0x798; variants inherit), read only by the AI upkeep tokens.
+    // Maintenance_Cost (faction +0x3AC, type +0x798; variants inherit), read only by the AI upkeep tokens.
     CHECK(emp != kNoIndex && d.rules.factions[emp].maintenance_cost == 0.25f && d.rules.factions[uw].maintenance_cost == 0.25f);
     const uint32_t tartan = d.rules.find_type("Tartan_Patrol_Cruiser"), vic = d.rules.find_type("Victory_Destroyer");
     const uint32_t accuser = d.rules.find_type("Accuser_Star_Destroyer"), sb_e1 = d.rules.find_type("Empire_Star_Base_1");

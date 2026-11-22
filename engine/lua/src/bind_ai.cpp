@@ -1,7 +1,7 @@
 // Binding family: AI plans and free stores (roadmap A2; alamo/lua/ai_bridge.hpp). Every binding forwards to
 // the AiScriptHost attached to the VM (engine/ai implements it); without a host the bindings answer as an
 // empty AI would (no task force, nil statuses). Argument checks follow the vm_internal.hpp error discipline
-// (Call::script_error_stop, never lua_error). Validation strings are the port's own unless LUA_API.md gives one.
+// (Call::script_error_stop, never lua_error). Validation strings are the port's own unless legacy docs/re/LUA_API.md gives one.
 //
 // Methods NOT in the RE binding table (intentional, counted as "extra" by binding_coverage):
 //   * Is_Pool_Safe -> false on TaskForceClass, AIBlockingStatus, AITargetLocationWrapper, BudgetWrapper,
@@ -115,14 +115,14 @@ int push_status(Call& c, int32_t status) {
     detail::push_engine_userdata(c.L, ud);
     return 1;
 }
-using detail::push_nil;  // ref5 t03: vm_internal.hpp
-using detail::push_bool;  // ref5 t03: vm_internal.hpp
+using detail::push_nil;  // vm_internal.hpp
+using detail::push_bool;  // vm_internal.hpp
 int push_num(Call& c, double d) {
     lua_pushnumber(c.L, d);
     return 1;
 }
 
-using detail::is_bool;  // ref5 t03: vm_internal.hpp
+using detail::is_bool;  // vm_internal.hpp
 bool to_bool(const Call& c, int i) { return lua_toboolean(c.L, c.idx(i)) != 0; }
 
 // Any wrapper argument -> AiArg.
@@ -151,7 +151,7 @@ int tf_flag(Call& c, AiTfFlag flag, const char* name) {
 int m_tf_set_plan_result(Call& c) { return tf_flag(c, AiTfFlag::PlanResult, "Set_Plan_Result"); }
 int m_tf_set_removable(Call& c) { return tf_flag(c, AiTfFlag::Removable, "Set_As_Goal_System_Removable"); }
 int m_tf_test_target_contrast(Call& c) { return tf_flag(c, AiTfFlag::TestTargetContrast, "Test_Target_Contrast"); }
-// Block_Goal_Proposal / Unblock_Goal_Proposal: arguments not analysed (AI_GALACTIC.md open item 9).
+// Block_Goal_Proposal / Unblock_Goal_Proposal: arguments not analysed (legacy docs/re/AI_GALACTIC.md open item 9).
 int m_tf_block_goal_proposal(Call& c) {
     if (AiScriptHost* h = host_of(c.L)) h->tf_set_flag(c.self->id, AiTfFlag::BlockGoalProposal, true);
     return 0;
@@ -160,7 +160,7 @@ int m_tf_unblock_goal_proposal(Call& c) {
     if (AiScriptHost* h = host_of(c.L)) h->tf_set_flag(c.self->id, AiTfFlag::BlockGoalProposal, false);
     return 0;
 }
-// 0x5fe240 (a2m t05, A2M_T04_RE_ANSWERS Q4.1) [H]: a Lua nil counts as a present argument. Argument 1, when present,
+// 0x5fe240 (A2M_T04_RE_ANSWERS Q4.1) [H]: a Lua nil counts as a present argument. Argument 1, when present,
 // must be a game object or an AI target that resolves to a planet; anything else (nil, a bool, a number, a non-planet
 // object) is the script error below: no status, no build tasks, the script stops. Argument 2, when present, must be a
 // bool (the sync flag; the exe's message has the "Prioduce" typo). So argument 1 cannot be skipped.
@@ -216,7 +216,7 @@ int m_tf_force_test_space_conflict(Call& c) {
 // P4_SIM_SYSTEMS 6.1, L1P4_LUA_GAPS 1): only the host, which fires the Ground_Activated trigger per member (the trigger
 // tries every Ground_Activated ability; shipped galactic plans pass no argument); the optional argument is an object
 // type (galactic_ability_type_arg) whose name the host gets as `ability`; like Activate_Ability_Galactic it returns no
-// values (refix t04, L1P4_LUA_GAPS 1.2 item 4: the host's status id is dropped). Other task forces: the host gets the
+// values (L1P4_LUA_GAPS 1.2 item 4: the host's status id is dropped). Other task forces: the host gets the
 // name, the on flag and the target (AiScriptHost::tf_activate_ability).
 int m_tf_activate_ability(Call& c) {
     AiScriptHost* h = host_of(c.L);
@@ -415,7 +415,7 @@ std::string string_arg(Call& c, int i) { return c.is_string(i) ? std::string(c.s
 // FindTarget(source, perception, application, probability [, max distance]) [arguments per PGTaskForce /
 // PGCommands call sites].
 int g_find_target(Call& c) {
-    // q6 t11 (LUA_API.md "Count messages that are stale"): the code takes 3 to 5 arguments (the message says 2 or 3).
+    // q6 t11 (legacy docs/re/LUA_API.md "Count messages that are stale"): the code takes 3 to 5 arguments (the message says 2 or 3).
     if (c.nargs < 3 || c.nargs > 5)
         return c.script_error_stop("FindTarget -- invalid number of parameters. Expected 2 or 3, got %d.", c.nargs);
     if (!c.is_string(2) || !c.is_string(3)) return c.script_error_stop("FindTarget -- invalid type for parameters 2/3. Expected strings.");
@@ -427,7 +427,7 @@ int g_find_target(Call& c) {
     if (c.is_number(5)) r.max_distance = c.number(5);
     AiScriptHost* h = host_of(c.L);
     const int32_t t = h ? h->find_target(script_of(c.L), r) : -1;
-    // A1 (tiny marked fix): a unit target is returned as its game object (AI_TACTICAL.md 6.1).
+    // A1 (tiny marked fix): a unit target is returned as its game object (legacy docs/re/AI_TACTICAL.md 6.1).
     if (h && t >= 0)
         if (const objects::ObjectHandle o = h->find_target_object(t)) {
             detail::push_object(c.L, *c.vm, o);
@@ -453,7 +453,7 @@ int m_reachable_target(Call& c) {
     push_target(c.L, h ? h->find_target(script_of(c.L), r) : -1);
     return 1;
 }
-// _FindStageArea(player, target [, taskforce]) (docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "_FindStageArea") [H]: the first
+// _FindStageArea(player, target [, taskforce]) (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "_FindStageArea") [H]: the first
 // stage of the target's reachability list (host find_stage_area). An AI target argument returns the stage as an AI
 // target; a game object argument returns the stage's game object (PGTaskForce / PathBonus pass it to Find_Path).
 // [port] the host's "no parent planet" case returns nil without the original's error text.
@@ -812,7 +812,7 @@ void set_nil_global(LuaVm& vm, std::string_view name) {
     set_global(L, name);
 }
 
-// b0173 (docs/re/B0173_RE_ANSWERS.md Q1, 0x5f7090 -> 0x5751d0): one wrapper per VM (key 0 of the game-object row of the
+// b0173 (legacy docs/re/B0173_RE_ANSWERS.md Q1, 0x5f7090 -> 0x5751d0): one wrapper per VM (key 0 of the game-object row of the
 // wrapper cache, which push_object does not use). Handle 0 / id -1: object_alive is false for it on every store.
 void set_objectless_global(LuaVm& vm, std::string_view name) {
     lua_State* L = vm.state();
@@ -855,8 +855,8 @@ bool dispatch_task_force_event(LuaVm& vm, int32_t tf, AiTaskForceKind kind, std:
     }
     push_tf(L, tf, kind);
     for (const AiEventArg& a : args) push_arg(L, *impl, a);
-    const detail::ExecZone zone;  // OPT2 t08: lua.exec
-    const int st = vm.protected_call(L, static_cast<int>(args.size()) + 1, 0);  // mcx6 t08: runaway guard
+    const detail::ExecZone zone;  // lua.exec
+    const int st = vm.protected_call(L, static_cast<int>(args.size()) + 1, 0);  // runaway guard
     bool ok = true;
     if (st != 0) {
         if (err) *err = lua_tostring(L, -1) ? lua_tostring(L, -1) : "error";
@@ -873,7 +873,7 @@ bool call_global_function(LuaVm& vm, std::string_view name, const std::vector<Ai
     const int top = lua_gettop(L);
     if (!push_global_function(L, name)) return false;
     for (const AiEventArg& a : args) push_arg(L, *impl, a);
-    const detail::ExecZone zone;  // OPT2 t08: lua.exec
+    const detail::ExecZone zone;  // lua.exec
     const int st = vm.protected_call(L, static_cast<int>(args.size()), 0);
     bool ok = true;
     if (st != 0) {
@@ -892,7 +892,7 @@ bool call_global_number(LuaVm& vm, std::string_view name, const std::vector<AiEv
     const int top = lua_gettop(L);
     if (!push_global_function(L, name)) return false;
     for (const AiEventArg& a : args) push_arg(L, *impl, a);
-    const detail::ExecZone zone;  // OPT2 t08: lua.exec
+    const detail::ExecZone zone;  // lua.exec
     const int st = vm.protected_call(L, static_cast<int>(args.size()), 1);
     bool ok = false;
     if (st != 0) {
@@ -913,7 +913,7 @@ bool call_global_value(LuaVm& vm, std::string_view name, const std::vector<AiEve
     const int top = lua_gettop(L);
     if (!push_global_function(L, name)) return false;
     for (const AiEventArg& a : args) push_arg(L, *impl, a);
-    const detail::ExecZone zone;  // OPT2 t08: lua.exec
+    const detail::ExecZone zone;  // lua.exec
     const int st = vm.protected_call(L, static_cast<int>(args.size()), 1);
     bool ok = false;
     if (st != 0) {

@@ -1,4 +1,4 @@
-// BM1: a small JSON value for the benchmark result files (write, and read back a baseline to compare against).
+// a small JSON value for the benchmark result files (write, and read back a baseline to compare against).
 // Objects keep their member order, so a written file is stable. Not a general-purpose JSON library: UTF-8 text is
 // passed through, \uXXXX escapes are decoded only for code points below U+0080 (others become '?').
 #pragma once

@@ -115,11 +115,11 @@ public:
     void add_static(ObjectId id, V2 center, float radius, uint32_t bits = kSpaceStatic);
     bool remove_static(ObjectId id);
     bool has_static(ObjectId id) const;
-    // S7 t13: moves static entry `from` to id `to` unchanged (a map placement's entry, ted_grid.hpp map_stamp_id, handed to
+    // moves static entry `from` to id `to` unchanged (a map placement's entry, ted_grid.hpp map_stamp_id, handed to
     // the object spawned for it; space_obstacles_sync removes it when that object is a battle unit that left). False (nothing changes) when `from` has no entry, `to`
     // already has one, or from == to.
     bool rekey_static(ObjectId from, ObjectId to);
-    // S8 t09: the static entry ids, ascending (map placements' negative ids first). Hosts remove the objects that left.
+    // the static entry ids, ascending (map placements' negative ids first). Hosts remove the objects that left.
     std::vector<ObjectId> static_ids() const;
     // The static entry of `id` (centre, radius, SpaceCollisionType bits); false when there is none.
     bool static_entry(ObjectId id, V2& center, float& radius, uint32_t& bits) const;
@@ -129,7 +129,7 @@ public:
 
     // OR of the bits of every entry the circle (radius) swept a -> b over absolute frames [t0, t1]
     // touches. `layer`: tracks of that layer are tested; statics are tested when `with_static`, with the circle's radius
-    // grown by `static_bonus` (mcx4 t11: SpaceStaticObstacleAvoidanceBonusDistance in the planner, MOVEMENT §2.2).
+    // grown by `static_bonus` (SpaceStaticObstacleAvoidanceBonusDistance in the planner, MOVEMENT §2.2).
     uint32_t query_segment(V2 a, V2 b, float t0, float t1, float radius, uint32_t layer, ObjectId self, bool with_static,
                            uint32_t now, float static_bonus = 0.0f) const;
     uint32_t query_point(V2 p, float t, float radius, uint32_t layer, ObjectId self, uint32_t now) const {
@@ -137,7 +137,7 @@ public:
     }
     // Static entries only (no time).
     uint32_t query_static(V2 a, V2 b, float radius) const;
-    // OPT3 t12: builds the uniform-grid index query_segment uses to visit only the entries near the query. Call it from one
+    // builds the uniform-grid index query_segment uses to visit only the entries near the query. Call it from one
     // thread before parallel queries; every mutation drops it and query_segment falls back to the full scan. Each entry
     // that can pass the per-entry test is visited exactly once, with the same test, and the result is an OR of bits, so the
     // index changes no result. Derived state: never saved or hashed.
@@ -156,7 +156,7 @@ private:
         float r;
         uint32_t bits;
     };
-    // OPT3 t06: query_segment's per-piece values (start / end frame, start point, velocity, bit) formed once in set_track
+    // query_segment's per-piece values (start / end frame, start point, velocity, bit) formed once in set_track
     // with the same float expressions the query used to form per call, plus the waypoints' bounding box for a cull.
     struct Piece {
         float ps = 0.0f, pe = 0.0f;
@@ -173,7 +173,7 @@ private:
         V2 lo, hi;                  // waypoint bounding box
     };
     static void make_pieces(Track& t);
-    // OPT3 t06: id-sorted contiguous arrays (ascending id, the order the std::maps had) instead of tree nodes: the
+    // id-sorted contiguous arrays (ascending id, the order the std::maps had) instead of tree nodes: the
     // planner's inner loop walks every entry per query.
     template <class T>
     using IdVec = std::vector<std::pair<ObjectId, T>>;
@@ -199,7 +199,7 @@ private:
         v.erase(it);
         return true;
     }
-    // OPT3 t12: uniform grid over the entries' boxes (statics: centre +- radius + margin; tracks: waypoint box +- radius +
+    // uniform grid over the entries' boxes (statics: centre +- radius + margin; tracks: waypoint box +- radius +
     // margin). Per kind, the entries overlapping each cell (CSR, entry index order) and each entry's first cell.
     struct Index {
         bool valid = false;
@@ -266,7 +266,7 @@ struct SpaceScratch {
         float g;
         bool closed;
     };
-    // OPT3 t12: the visited states, an open-addressing table (probed only, never iterated, so the layout cannot change a
+    // the visited states, an open-addressing table (probed only, never iterated, so the layout cannot change a
     // result; it replaced a std::unordered_map whose per-node allocations and clear() were a large part of a long search).
     class VisitTable {
     public:

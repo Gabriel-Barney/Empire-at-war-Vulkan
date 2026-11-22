@@ -72,14 +72,14 @@ struct SimInstanceStats {
     uint32_t fog_faded_out = 0;     // R5: not drawn because their fog alpha fell below kFogHideAlpha
     uint32_t alt_nonzero = 0;       // R4: drawn with a damage alternate (Instance::alt != 0)
     uint32_t bone_hidden_meshes = 0;  // R3: meshes hidden by the clip's per-bone visibility
-    uint32_t script_hidden_meshes = 0;  // mcx6 t04: meshes hidden by Hide_Sub_Object
+    uint32_t script_hidden_meshes = 0;  // meshes hidden by Hide_Sub_Object
     uint32_t hardpoint_events = 0;  // R5: hardpoint destructions applied from the frame's events
     uint32_t contained = 0;         // R3: kSnapContained objects (not drawn)
-    uint32_t script_hidden = 0;     // q6 t19: Lua Hide(true) objects (SnapshotObject::script_hidden: not drawn, no ghost)
+    uint32_t script_hidden = 0;     // Lua Hide(true) objects (SnapshotObject::script_hidden: not drawn, no ghost)
     uint32_t ghosts = 0;            // R5: last-seen ghosts drawn this frame
     uint32_t muzzle_meshes = 0;     // R3: sub-objects shown by muzzle state
-    uint32_t engine_glow_changed = 0;  // bkx1 t05: instances whose engine glow proxies changed visibility
-    uint32_t script_emitters = 0;      // mcx6 t05: instances whose particle proxies a Show_Emitter override changed
+    uint32_t engine_glow_changed = 0;  // instances whose engine glow proxies changed visibility
+    uint32_t script_emitters = 0;      // instances whose particle proxies a Show_Emitter override changed
     uint32_t attachment_posed = 0;  // R3 T6: Model_To_Attach instances posed by the scene-model source
     uint32_t stealthed = 0;         // R5: drawn with the stealth mesh swap (kSnapStealthMeshes)
     uint32_t stealth_tinted = 0;    // R5: drawn with the Stealth_Color multiply (spring value > 0.01)
@@ -109,18 +109,18 @@ public:
     // stay valid until the frame's render. Model_To_Attach attachments follow the posed bone. Unset = bind pose.
     using PoseSource = std::function<std::span<const Mat3x4>(objects::ObjectId id, const GpuModel& model)>;
     void set_pose_source(PoseSource fn) { pose_ = std::move(fn); }
-    // R3 per-bone visibility of the object's current clip (ANIM_PARTICLES.md A.6: every sub-object takes the "animated
+    // R3 per-bone visibility of the object's current clip (legacy docs/re/ANIM_PARTICLES.md A.6: every sub-object takes the "animated
     // visible" bit of its bone; in a crossfade a bone is visible if either clip says so). One byte per skeleton bone
     // (0 = hidden), empty = everything visible. A mesh is drawn only when its hardpoint bit is clear AND its bone is
     // visible. Same call rules as the pose source.
     using VisibilitySource = std::function<std::span<const uint8_t>(objects::ObjectId id, const GpuModel& model)>;
     void set_visibility_source(VisibilitySource fn) { visibility_ = std::move(fn); }
-    // mcx6 t04: Lua Hide_Sub_Object (STORYB_T17_HIDDEN_UNITS.md §1.1): the mesh names (upper case) hidden on one object;
+    // Lua Hide_Sub_Object (legacy docs/re/STORYB_T17_HIDDEN_UNITS.md §1.1): the mesh names (upper case) hidden on one object;
     // a mesh of the drawn model with one of those names (any case) is not drawn, so the render, shadow and selection
     // passes, which share the instance's mesh mask, leave it out. Empty span = none. Same call rules as the pose source.
     using HiddenMeshSource = std::function<std::span<const std::string>(objects::ObjectId id)>;
     void set_hidden_mesh_source(HiddenMeshSource fn) { hidden_meshes_ = std::move(fn); }
-    // mcx6 t05: Lua Show_Emitter (0x581120 -> 0x265ae0, BKX1_RENDER_RE §1.1): per object, the particle prefix groups
+    // Lua Show_Emitter (0x581120 -> 0x265ae0, BKX1_RENDER_RE §1.1): per object, the particle prefix groups
     // (particle_emitter_groups bits) a script showed / hid. Every particle proxy of the drawn model in a hidden group is
     // hidden, else in a shown group shown, on top of the hardpoint / bone mask (a hide wins when a proxy is in both). On a
     // SimpleSpace engine-glow unit the pe / pte groups are left to the glow rule, which retail's locomotor service
@@ -172,7 +172,7 @@ public:
     std::span<const uint8_t> mesh_mask(objects::ObjectId id) const;
     size_t tracked_objects() const { return states_.size(); }
 
-    // R3 T6 scene models (ANIM_PARTICLES.md A.5: non-object scene models are advanced in tick step T6 with t = frame /
+    // R3 T6 scene models (legacy docs/re/ANIM_PARTICLES.md A.5: non-object scene models are advanced in tick step T6 with t = frame /
     // 30): the Model_To_Attach models of hardpoints play their own idle clip. Source = model-space pose of `model` at
     // sim tick `tick` (e.g. SceneModelAnimator::pose); empty = bind pose. Unset = bind pose (as before).
     using AttachmentPoseSource = std::function<std::span<const Mat3x4>(const GpuModel& model, uint64_t tick)>;
@@ -222,8 +222,8 @@ private:
     EmitterSource emitters_;          // mcx6 t05
     float fog_smooth_time_ = kFogSpringTime;  // R5
     int32_t blob_detail_ = -1;                 // vis1 t02
-    objects::ObjectId hover_ = objects::kNoObjectId;  // mcx4 t14: set_hover
-    const std::map<uint64_t, LightPulse>* pulses_ = nullptr;  // mcx4 t15: set_light_pulses
+    objects::ObjectId hover_ = objects::kNoObjectId;  // set_hover
+    const std::map<uint64_t, LightPulse>* pulses_ = nullptr;  // set_light_pulses
     double pulse_now_ = 0.0;
     float hover_scale_ = 1.5f;
     AttachmentPoseSource attach_pose_;  // R3 T6
@@ -236,7 +236,7 @@ private:
     std::map<std::pair<objects::TypeIndex, uint64_t>, HardpointLayoutPtr> layouts_;  // (type, GpuModel::uid)
 };
 
-// Projectiles (CombatSystem flat table, SimSnapshot::projectiles), PROJECTILE_NEBULA_DRAW.md 1:
+// Projectiles (CombatSystem flat table, SimSnapshot::projectiles), legacy docs/re/PROJECTILE_NEBULA_DRAW.md 1:
 //   * Projectile_Custom_Render 1 / 2: a procedural laser (projectile_laser -> SimInstanceBuilder::lasers(), drawn by
 //     Renderer::set_lasers); the type's ALO is never loaded or drawn;
 //   * otherwise the type's Space_ / Land_Model_Name drawn like an object: projectile_transform (local X = flight direction,

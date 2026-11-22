@@ -11,10 +11,10 @@
 //         ability, host-fed stamps, state bytes, the ion / lucky shot slots, special-ability states (with their victim
 //         lists), OI behaviour state, the autofire map and the trooper list;
 //         then the animation record (i32 type, u32 start, f32 rate, f32 end, u8 loop / then) and the u8 lock pairs;
-//         v4 (cu8f t06): u32 + trooper squad numbers, i32 squads formed, u8 LURE running, i32 pulses, u32 next pulse,
+//         v4: u32 + trooper squad numbers, i32 squads formed, u8 LURE running, i32 pulses, u32 next pulse,
 //         i32 effect object
 //   (only kAbilitySaveVersion is read, cu6)
-//   u32 + spawn requests (v4: + i32 trooper squad), mines, Battlefield_Modifier player entries (cu8f t06: the Enable_*
+//   u32 + spawn requests (v4: + i32 trooper squad), mines, Battlefield_Modifier player entries (the Enable_*
 //   gate lists use list numbers 4..6, same layout), interdict / retreat / weatherproof entries,
 //   remote bombs, v8 (mcx4): u32 + buzz-droid clouds (u32 serial, i32 id, u32 made / end, f32 chase / radius / own /
 //   enemy, vec3 point), events, v7 (r3h): queued animation plays (i32 id, i32 type, u32 variant, u8 loop / direct /
@@ -49,7 +49,7 @@ namespace {
 // DEPLOY_TROOPERS machine and the rope landing, r3g t04 the cable hold count; 7: r3h the queued animation plays (a
 // play queued after the host drained the queue - AI / Lua activations, damage listeners, deaths - waits for the next
 // tick). Only the current version is read (cu6).
-constexpr uint32_t kAbilitySaveVersion = 8;  // mcx4: + buzz-droid clouds
+constexpr uint32_t kAbilitySaveVersion = 8;  // + buzz-droid clouds
 constexpr uint32_t kSpecialWeaponSaveVersion = 1;
 constexpr uint32_t kSpaceFieldSaveVersion = 1;
 
@@ -113,10 +113,10 @@ void AbilitySystem::write(ByteWriter& w) const {
         w.u32(o.confuse_end).i32(o.barrage_dummy).u8(o.pending_direct).i32(o.troopers_deployed);
         put_ids(w, o.troopers);
         w.i32(o.anim_type).u32(o.anim_start).f32(o.anim_rate).f32(o.anim_end).u8(o.anim_loop).u8(o.anim_then).u8(o.lock_flags);
-        w.u32(static_cast<uint32_t>(o.trooper_squads.size()));  // v4 (cu8f t06)
+        w.u32(static_cast<uint32_t>(o.trooper_squads.size()));  // v4
         for (const int32_t q : o.trooper_squads) w.i32(q);
         w.i32(o.squads_formed).u8(o.lure_on).i32(o.lure_pulses).u32(o.lure_next).i32(o.lure_effect);
-        w.u32(o.gravity_due).u8(o.gravity_on).u8(o.in_gravity_field);  // v5 (TRU1 t03)
+        w.u32(o.gravity_due).u8(o.gravity_on).u8(o.in_gravity_field);  // v5
         put_ids(w, o.gravity_list);
         w.u8(o.troop_state).u8(o.troop_deploy).u32(o.troop_end).u8(o.rope_state).u32(o.rope_end).f32(o.rope_z).i32(o.rope_owner);  // v6
         w.u8(o.cable_holds);  // v6
@@ -152,7 +152,7 @@ void AbilitySystem::write(ByteWriter& w) const {
         put_vec3(w, e.point);
         w.i32(e.value);
     }
-    w.u32(static_cast<uint32_t>(anim_plays_.size()));  // r3h: plays still waiting for the host
+    w.u32(static_cast<uint32_t>(anim_plays_.size()));  // plays still waiting for the host
     for (const AbilityAnimPlay& p : anim_plays_)
         w.i32(p.id).i32(p.type).u32(p.variant).u8(p.loop).u8(p.direct).u8(p.only_from_idle).f32(p.blend).f32(p.speed).u32(p.frame);
     w.u32(static_cast<uint32_t>(overrides_.size()));
@@ -299,7 +299,7 @@ bool AbilitySystem::read(ByteReader& r) {
         o.gravity_on = r.u8();
         o.in_gravity_field = r.u8();
         if (!r.ok() || !get_ids(r, o.gravity_list)) return false;
-        o.troop_state = r.u8();  // v6 (r3g t02)
+        o.troop_state = r.u8();  // v6
         o.troop_deploy = r.u8();
         o.troop_end = r.u32();
         o.rope_state = r.u8();
@@ -325,7 +325,7 @@ bool AbilitySystem::read(ByteReader& r) {
         s.fuse_seconds = r.f32();
         s.bone = r.i32();
         s.squad = r.i32();
-        if (!r.ok() || purpose > static_cast<uint8_t>(SpawnPurpose::Bomber)) return false;  // mcx4 t06: + Bomber (older saves hold none)
+        if (!r.ok() || purpose > static_cast<uint8_t>(SpawnPurpose::Bomber)) return false;  // + Bomber (older saves hold none)
         s.purpose = static_cast<SpawnPurpose>(purpose);
     }
     if (!r.count(n, 38)) return false;
@@ -441,8 +441,8 @@ bool AbilitySystem::read(ByteReader& r) {
     buzz_ = std::move(buzz);
     events_ = std::move(events);
     anim_plays_ = std::move(anim_plays);  // r3h
-    visuals_.clear();  // vis1 t06: presentation only, not saved (the serial keeps counting)
-    activations_.clear();  // aud1 t10: likewise
+    visuals_.clear();  // presentation only, not saved (the serial keeps counting)
+    activations_.clear();  // likewise
     overrides_ = std::move(overrides);
     type_overrides_ = std::move(type_overrides);
     bm_blocked_ = std::move(bm_blocked);

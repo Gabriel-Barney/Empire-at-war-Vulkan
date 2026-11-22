@@ -1,10 +1,10 @@
 // The mod check's JSON report writer: one writer (Json below) and the four documents the Command Center and the corpus
 // runner read. Schemas, each with a `schema` / `version` pair; keys are written in the order listed there:
-//   alamo.mod_report  v5  format_mod_report_json   docs/MODS.md §5.1 (the load report, alamo_mod_check [--resolve] --json)
-//   alamo.mod_list    v1  format_mod_list_json     docs/MODS.md §5.1.1 (alamo_mod_check --list-mods: the corpus runner)
-//   alamo.mod_catalog v1  format_mod_catalog_json  docs/MODS.md §5.1.1, mod_check.hpp (alamo_mod_check --list: launcher catalog.rs)
-//   alamo.mod_conflicts v1 format_conflicts_json   docs/MODS.md §5.1.1, mod_conflicts.hpp (--conflicts: launcher conflicts.rs)
-// A key is never removed or changed in meaning without raising that document's version (docs/MODS.md §5.1).
+//   alamo.mod_report  v5  format_mod_report_json   docs/MODS.md "Load report (alamo.mod_report)" (the load report, alamo_mod_check [--resolve] --json)
+//   alamo.mod_list    v1  format_mod_list_json     docs/MODS.md "Every JSON document the tools write" (alamo_mod_check --list-mods: the corpus runner)
+//   alamo.mod_catalog v1  format_mod_catalog_json  docs/MODS.md "Every JSON document the tools write", mod_check.hpp (alamo_mod_check --list: launcher catalog.rs)
+//   alamo.mod_conflicts v1 format_conflicts_json   docs/MODS.md "Every JSON document the tools write", mod_conflicts.hpp (--conflicts: launcher conflicts.rs)
+// A key is never removed or changed in meaning without raising that document's version (docs/MODS.md "Load report (alamo.mod_report)").
 #include "alamo/game/mod_check.hpp"
 #include "alamo/game/mod_conflicts.hpp"
 
@@ -279,11 +279,11 @@ std::string format_mod_catalog_json(const vfs::ModCatalog& catalog, const vfs::I
             j.close('}');
         }
         j.close(']');
-        std::vector<std::string> dependency_roots;  // ums4: the installed folders the declared dependencies name
+        std::vector<std::string> dependency_roots;  // the installed folders the declared dependencies name
         for (const vfs::ModDependency& dep : m.dependencies)
             if (const vfs::ModDescriptor* p = catalog.find_dependency(dep)) dependency_roots.push_back(p->root);
         j.strings("dependency_roots", dependency_roots);
-        j.strings("modinfo_numbers", m.modinfo_numbers);  // ums4: the digit runs of its modinfo.json (submod mentions)
+        j.strings("modinfo_numbers", m.modinfo_numbers);  // the digit runs of its modinfo.json (submod mentions)
         j.strings("warnings", m.warnings);
         j.close('}');
     }
@@ -367,7 +367,7 @@ std::string format_mod_report_json(const ModCheckReport& r) {
     j.open('{');
     j.key("schema");
     j.str("alamo.mod_report");
-    count(j, "version", 5);  // ums4 t02: files.vfs_warnings gone (the VFS findings are `issues` records)
+    count(j, "version", 5);  // files.vfs_warnings gone (the VFS findings are `issues` records)
     j.key("result");
     j.str(r.error_count() ? "errors" : "ok");
     count(j, "errors", r.error_count());
@@ -379,7 +379,7 @@ std::string format_mod_report_json(const ModCheckReport& r) {
     j.boolean(r.loaded);
     j.key("load_error");
     j.str(r.error);
-    // mcx3: the mounted mods' descriptors and, with --resolve, the stack resolution.
+    // the mounted mods' descriptors and, with --resolve, the stack resolution.
     j.key("mods");
     j.open('[');
     for (const vfs::ModDescriptor& m : r.mods) {
@@ -410,7 +410,7 @@ std::string format_mod_report_json(const ModCheckReport& r) {
     j.key("resolved");
     j.boolean(r.resolved);
     j.strings("args", r.resolved ? r.stack.args : std::vector<std::string>{});
-    // ums1 t04: what a launch starts (vfs::ModStack::launch_args; empty when refused), the picker's and alamo_play's list.
+    // what a launch starts (vfs::ModStack::launch_args; empty when refused), the picker's and alamo_play's list.
     j.strings("launch_args", r.resolved ? r.stack.launch_args() : std::vector<std::string>{});
     j.key("mods");
     j.open('[');
@@ -657,7 +657,7 @@ std::string format_mod_report_json(const ModCheckReport& r) {
 
     j.strings("check_errors", r.check_errors);
 
-    // ---- version 4 (mcx0 t06, docs/MOD_COMPAT_DESIGN.md §12.1) ----
+    // ---- version 4 (docs/MODS.md "Load report (alamo.mod_report)") ----
     j.key("honour_gaps");
     j.open('[');
     for (const HonourGap& g : r.honour_gaps) {
@@ -789,7 +789,7 @@ std::string format_mod_report_json(const ModCheckReport& r) {
         j.close('}');
     }
     j.close(']');
-    if (r.assets.ran) {  // mcx2 t01 (asset_audit.hpp, MODS.md 5.1)
+    if (r.assets.ran) {  // mcx2 t01 (asset_audit.hpp, docs/MODS.md "Load report (alamo.mod_report)")
         const AssetAudit& a = r.assets;
         j.key("assets");
         j.open('{');
@@ -849,7 +849,7 @@ std::string format_mod_report_json(const ModCheckReport& r) {
     j.strings("blocking", r.grade.blocking);
     j.strings("check_errors", r.grade.check_errors);
     j.close('}');
-    // ums2 t03: every CompatIssue record in first-add order (the version 4 lists above are views of it, plus the VFS's
+    // every CompatIssue record in first-add order (the version 4 lists above are views of it, plus the VFS's
     // findings). layer: the owning mod's index in the search list, "base", or "none".
     j.key("issues");
     j.open('[');

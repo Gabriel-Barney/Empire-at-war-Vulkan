@@ -1,4 +1,4 @@
-// trn1 t01 / t02: terrain cover and the SurfaceFX terrain modifiers (docs/re/TRN1_TERRAIN_GAMEPLAY.md §1 - §2).
+// terrain cover and the SurfaceFX terrain modifiers (legacy docs/re/TRN1_TERRAIN_GAMEPLAY.md §1 - §2).
 //
 // SurfaceFXBehavior (vtable 0x8b3428) update vf6 0x6450b0 -> per instance 0x5efe50 -> modifier step 0x5ee820:
 // - the first update only creates the instances (one per SurfaceFX_Name entry); evaluation starts at the next one;
@@ -8,7 +8,7 @@
 // - damage ground / lava: entering sets the object's timer (amount, next = now + int(fps x delay), delay); every later
 //   update on the same surface deals the amount once next <= now (next += int(fps x delay)); leaving zeroes the
 //   timer unless the new surface is one of 4, 6, 8, 12, 14, 15 (mask 0xf150).
-// [port] choices (docs/PHASE4.md "trn1"): the service runs at the start of CombatSystem::tick, serially in unit order,
+// [port] choices (legacy docs/PHASE4.md "trn1"): the service runs at the start of CombatSystem::tick, serially in unit order,
 // for land battles only (space: no terrain, surface 0 - the update would only take entries off); instances whose
 // SurfaceFX has no sim term are not kept (they would only repeat the timer zeroing at the same frame).
 #include "alamo/tactical/combat/surface_fx.hpp"
@@ -144,7 +144,7 @@ void CombatSystem::service_surface_fx(uint32_t frame) {
             continue;
         }
         const uint32_t s = surface_.surface(units_[k].pos.x, units_[k].pos.y);
-        const auto n = static_cast<uint32_t>(d.surface_fx.size());  // mcx4 t17: every instance
+        const auto n = static_cast<uint32_t>(d.surface_fx.size());  // every instance
         for (uint32_t i = 0; i < n && !(units_[k].flags & kUnitDead); ++i) surface_fx_step(units_[k], d.surface_fx[i], i, s, frame);
     }
 }
@@ -152,7 +152,7 @@ void CombatSystem::service_surface_fx(uint32_t frame) {
 void CombatSystem::surface_fx_step(Unit& u, uint16_t def_index, uint32_t slot, uint32_t s, uint32_t frame) {
     if (def_index >= data_->surface_fx.size() || s >= kSurfaceTypeCount) return;
     const SurfaceFxDef& def = data_->surface_fx[def_index];
-    // mcx4 t17: instances past the fixed slots live in sfx_prev_more, grown on first use (0, as the fixed slots start)
+    // instances past the fixed slots live in sfx_prev_more, grown on first use (0, as the fixed slots start)
     const auto more_slot = [&u](uint32_t i) -> uint8_t& {
         const size_t k = i - kSurfaceFxFixedSlots;
         if (u.sfx_prev_more.size() <= k) u.sfx_prev_more.resize(k + 1, 0);

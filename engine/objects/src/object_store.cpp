@@ -405,7 +405,7 @@ void ObjectStore::hash_state(StateHasher& hs) const {
     std::vector<uint32_t> slots;
     slots.reserve(all_.size());
     for (ObjectHandle h : all_)
-        if ((flags_[h.slot()] & kFlagMapDecoration) == 0) slots.push_back(h.slot());  // storyb t16: not hashed
+        if ((flags_[h.slot()] & kFlagMapDecoration) == 0) slots.push_back(h.slot());  // not hashed
     std::sort(slots.begin(), slots.end(), [this](uint32_t a, uint32_t b) { return id_[a] < id_[b]; });
     auto id_of = [this](ObjectHandle r) { return exists(r) ? id_[r.slot()] : kNoObjectId; };
     hs.i32(ids_->next());
@@ -437,7 +437,7 @@ void ObjectStore::hash_state(StateHasher& hs) const {
         hs.u32(d.p.type);
         hs.i32(d.p.owner);
     }
-    // a1h t08: the carried types (id order), only when an object has one.
+    // the carried types (id order), only when an object has one.
     uint32_t carried = 0;
     for (uint32_t s : slots) carried += carried_type_[s] != kNone ? 1u : 0u;
     if (carried != 0) {
@@ -448,7 +448,7 @@ void ObjectStore::hash_state(StateHasher& hs) const {
                 hs.u32(carried_type_[s]);
             }
     }
-    // a1i t05: the persist flags (id order), only when an object has one.
+    // the persist flags (id order), only when an object has one.
     uint32_t persist = 0;
     for (uint32_t s : slots) persist += landing_persist_[s] != 0 ? 1u : 0u;
     if (persist != 0) {
@@ -476,8 +476,8 @@ void ObjectStore::hash_state(StateHasher& hs) const {
 //   u32 n, per entry: u32 due | u32 type | i32 owner | f32 x3 position | f32 x3 facing | i32 parent-mode id
 //                     | u64 container | u64 attach parent                     delayed creations (queue order)
 //   u32 n + u64 handles        dead objects pending the flush (destroy order)
-//   u32 n, per entry: u32 slot | u32 type       carried types (a1h t08), slot ascending, objects that have one
-//   u32 n + u32 slots          landing persist flags (a1i t05, version 3), slot ascending, objects that have it
+//   u32 n, per entry: u32 slot | u32 type       carried types, slot ascending, objects that have one
+//   u32 n + u32 slots          landing persist flags (version 3), slot ascending, objects that have it
 namespace {
 
 constexpr size_t kSlotMinBytes = 4 + 1 + 4 + 4 + 4 + 4 + 7 * 4 + 1 + 1 + 8 + 8 + 4;

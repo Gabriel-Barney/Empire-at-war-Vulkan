@@ -55,7 +55,7 @@ void shield(MovementSystem& sys, int32_t x0, int32_t x1, int32_t y0, int32_t y1)
 }
 
 // Any shield cell on the unit's planned path polyline (sampled every 2 units)?
-// min_cx: only samples in cells x >= min_cx count (mov3 t02: a start cell on the band does not make a crossing)
+// min_cx: only samples in cells x >= min_cx count (a start cell on the band does not make a crossing)
 bool path_crosses_shield(const MovementSystem& sys, ObjectId id, int32_t min_cx = -1) {
     const std::span<const V2> p = sys.land_path(id);
     for (size_t i = 0; i + 1 < p.size(); ++i) {
@@ -85,7 +85,7 @@ void plan(MovementSystem& sys, const std::vector<ObjectId>& ids, V2 dest, SimRng
     }
 }
 
-// ---------------------------------------------------------------- b0035: the class without the Shield bit
+// ---------------------------------------------------------------- the class without the Shield bit
 // MOVEMENT §4.3.1 item 7 (c) [H]: 0x414720 plans for the best class without the Shield bit 0x40 (0x477b00) when the goal
 // is zone-connected to the lead for it. A Wheeled vehicle at cell (10, 20) ordered to (40, 20) across a shield band x = 24
 // .. 27, y = 10 .. 30: (a) the band leaves a way round, so the path keeps out of it (WheeledNoShield); (b) the band spans
@@ -121,7 +121,7 @@ void test_shield_class() {
         CHECK(sys.add_unit(vehicle(1, cell_center(10, 20))));
         SimRng rng(7);
         plan(sys, {1}, cell_center(40, 20), rng);
-        // mov3 t02 (b0166): not vacuous - the path crosses the band well past the start cell (x >= 20), going straight
+        // not vacuous - the path crosses the band well past the start cell (x >= 20), going straight
         // through where WheeledNoShield would have to go round (the band leaves a way round, y 10 .. 30)
         CHECK(path_crosses_shield(sys, 1, 20));
     }
@@ -168,7 +168,7 @@ void test_attack_plan_class_goal() {
     CHECK(pathed && !crosses);
 }
 
-// ---------------------------------------------------------------- b0055: an unplanned order survives the old path's stop
+// ---------------------------------------------------------------- an unplanned order survives the old path's stop
 // MOVEMENT §3.5.2 G, §4.6.2: between a land order and its plan the old order path stays on the stack (the stack reset
 // 0x554480 comes with the path set), so a moving unit walks on along it. When that walk meets a terrain stamp, the
 // TerrainCollision record (§5.4.7) runs Path Around on the old path (it is the kind-1 record) or, failing, Stops the
@@ -212,7 +212,7 @@ void test_unplanned_order_kept() {
     CHECK(v.arrived && distance(v.pos, o2.destination) < 25.0f);
 }
 
-// ---------------------------------------------------------------- b0095: lane segments pass the member's class
+// ---------------------------------------------------------------- lane segments pass the member's class
 // MOVEMENT §3.5.2 D (0x413340 tests each lane point) with port choice (1) of PHASE4 s78p: retail keeps the formation path
 // and steers toward the lane, so a member never walks a lane segment that crosses ground its class cannot enter; the port
 // walks the lane, so every segment of a member's lane path must pass the static line test 0x5a4c10 for its class. Two
@@ -265,7 +265,7 @@ void test_lane_segments() {
     }
 }
 
-// ---------------------------------------------------------------- b0036: engagement compatibility in the recruitment
+// ---------------------------------------------------------------- engagement compatibility in the recruitment
 // MOVEMENT §4.2 step 2 item 7 test 9 [H]: C joins S only when K(C) <= E(S) and K(S) <= E(C), E = the engagement range (a
 // move order: the attack range), K = min(E, Targeting_Min_Attack_Distance). Three vehicles in a row 30 apart; unit 1 is
 // SPMAT-like (E 500, min 220), unit 2 E 200, unit 3 E 500 with no minimum. The seed is the one nearest the centroid, unit
@@ -295,7 +295,7 @@ void test_engagement_recruit() {
     }
 }
 
-// ---------------------------------------------------------------- b0096: where a formation member stops
+// ---------------------------------------------------------------- where a formation member stops
 // MOVEMENT §4.3.3 items 2 - 5 [H]: a member stops on the formation path's last waypoint line moved along the last segment
 // d1 by its depth: G - d1 x depth + d1_perp x lateral, the front row (depth 0) on G's line, the rear rows behind it; not
 // snapped, not reserved. Four vehicles in a 2 x 2 block ordered east on open ground, two of attack range 100 (the front
@@ -339,7 +339,7 @@ void test_member_stop() {
 }
 
 
-// bkm1 t06 (b0051, MOVEMENT §3.5.2 "waypoint z" items 4-5): C.11's rest is the 3-D sum of the stored waypoints, and the
+// bkm1 t06 (MOVEMENT §3.5.2 "waypoint z" items 4-5): C.11's rest is the 3-D sum of the stored waypoints, and the
 // pathfinder stores z = 0, so an ordinary path is exactly 2-D (the walk step reads no terrain); only a slot-leg path's last
 // waypoint (G with the target's height, LandMotion::end_z keyed to its point) adds sqrt(l^2 + z^2) on that segment.
 // v^2 / (2a) = 17.5 between the 2-D rest 17 and the 3-D rest 7 + sqrt(10^2 + 6^2) = 18.66.
@@ -374,7 +374,7 @@ void test_stored_z_rest() {
 }
 
 
-// bkm1 t08 (b0050, MOVEMENT §3.5.3): UseSecondaryFacing. (a) The move step's B2 = clamp(delta2 / SecondaryTurnAngle x f,
+// bkm1 t08 (MOVEMENT §3.5.3): UseSecondaryFacing. (a) The move step's B2 = clamp(delta2 / SecondaryTurnAngle x f,
 // Min, Max) x R from the error between Y2 and the primary target, the body yaw untouched; (b) within the lookahead of
 // the segment end Y2 aims at the next segment (B2 = Min x R: delta2 is measured to the primary target); (c) the arrival
 // turn ends when Y2 lands at r x SecondaryTurnInPlaceROTCoefficient - with 0.5 a 90-degree turn at 30 / frame lasts
@@ -462,7 +462,7 @@ void test_secondary_facing() {
 }
 
 
-// bkm3 t01 (b0076, MOVEMENT §4.2 step 2 "Destination"): the composition pass validates an attack order's point (the target's
+// bkm3 t01 (MOVEMENT §4.2 step 2 "Destination"): the composition pass validates an attack order's point (the target's
 // goal point C) against each formation seed's zone with 0x50f480 as it does a position order's; the result is used only
 // for position goals, but a failure ends the pass - that formation and every later one of the order get no move. Unit 1
 // stands in a sealed pen (cells 3..9) more than 30 cells from the target at cell (52, 52), so its validation fails; unit 2
@@ -548,7 +548,7 @@ void test_object_goal_validation() {
 }
 
 
-// mov3 t02 (b0166, MOVEMENT §4.2 step 2 item 7 tests 9 / 10 and "Scan" [H]): the recruitment rules test_engagement_recruit
+// mov3 t02 (MOVEMENT §4.2 step 2 item 7 tests 9 / 10 and "Scan" [H]): the recruitment rules test_engagement_recruit
 // does not reach, on split_into_formations directly. Members in a row 30 apart (seed = the one nearest the centroid).
 void test_mov3_recruit_rules() {
     ::alamo::test::section("mov3_recruit_rules");
@@ -595,15 +595,15 @@ void test_mov3_recruit_rules() {
 
 int main() {
     std::setvbuf(stdout, nullptr, _IONBF, 0);  // unbuffered: a crash keeps the log
-    test_shield_class();  // bkm1 t03 (b0035)
+    test_shield_class();  // bkm1 t03
     test_attack_plan_class_goal();  // cmb2 t05
-    test_unplanned_order_kept();  // bkm1 t07 (b0055)
-    test_lane_segments();         // bkm1 t01 (b0095)
-    test_engagement_recruit();    // bkm1 t04 (b0036)
-    test_member_stop();           // bkm1 t02 (b0096)
-    test_stored_z_rest();         // bkm1 t06 (b0051)
-    test_secondary_facing();      // bkm1 t08 (b0050)
-    test_attack_validation_failure();  // bkm3 t01 (b0076)
+    test_unplanned_order_kept();  // bkm1 t07
+    test_lane_segments();         // bkm1 t01
+    test_engagement_recruit();    // bkm1 t04
+    test_member_stop();           // bkm1 t02
+    test_stored_z_rest();         // bkm1 t06
+    test_secondary_facing();      // bkm1 t08
+    test_attack_validation_failure();  // bkm3 t01
     test_object_goal_validation();  // mov2 t06
     test_mov3_recruit_rules();  // mov3 t02
     return ::alamo::test::report("alamo_tactical_movement_bkm_tests");

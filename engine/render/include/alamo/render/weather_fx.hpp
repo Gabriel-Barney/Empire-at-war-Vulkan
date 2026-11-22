@@ -1,4 +1,4 @@
-// alamo_render - vis1 t01: the presentation side of tactical weather (docs/re/WEATHER_VISUALS.md; the sim side is
+// alamo_render - vis1 t01: the presentation side of tactical weather (legacy docs/re/WEATHER_VISUALS.md; the sim side is
 // tactical::combat::WeatherSystem, L1_S4_REMAINING §3.2). The sim exposes per tick the weather's emitter intensity,
 // lightning intensity and fog-plane alpha; the battle host turns them into
 //   * the scenario's weather emitter (emitter_name) in the particle world, its intensity as the system Detail scalar

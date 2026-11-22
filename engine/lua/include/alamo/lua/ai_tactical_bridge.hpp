@@ -1,4 +1,4 @@
-// Lua bridge, tactical AI family (roadmap A1 stage 2; docs/re/AI_TACTICAL.md §6, §7): the land / space
+// Lua bridge, tactical AI family (roadmap A1 stage 2; legacy docs/re/AI_TACTICAL.md §6, §7): the land / space
 // task-force orders, the tactical query globals and the tactical perception entry (src/bind_ai_tactical.cpp).
 // The plan-generic bindings (TaskForceClass, AITargetLocationWrapper, FindTarget, free stores, statuses) are
 // A2's family (ai_bridge.hpp); a tactical AI host implements both interfaces and attaches both.
@@ -86,7 +86,7 @@ public:
     virtual int32_t tf_bombing_run(int32_t /*tf*/, const AiArg& /*target*/, const AiPoint& /*point*/) { return -2; }
     virtual int32_t tf_orbital_bombardment(int32_t /*tf*/, const AiArg& /*target*/, const AiPoint& /*point*/) { return -2; }
 
-    // ---- S7 t21: Prepare_Ambush(target, direction, minDist, threat [, useZonePath]) (AI_TACTICAL §7.3.1) ----
+    // ---- Prepare_Ambush(target, direction, minDist, threat [, useZonePath]) (AI_TACTICAL §7.3.1) ----
     // Called after the binding's argument checks: `target` = a live game object or an AI target, `direction` 0 front /
     // 1 left / 2 right / 3 back, `min_dist` > 0. Returns a status id; -1 = nil (no message); kAmbushTargetDead = "Target
     // object is already dead"; kAmbushTargetRegion = "Target %s is invalid: AI targets must represent game objects"
@@ -97,7 +97,7 @@ public:
         return -1;
     }
 
-    // ---- mcx6 t06 (docs/re/LUA_API.md "Task force: Enable_Attack_Positioning and Release_Reinforcements") ----
+    // ---- mcx6 t06 (legacy docs/re/LUA_API.md "Task force: Enable_Attack_Positioning and Release_Reinforcements") ----
     // LandTaskForceClass.Enable_Attack_Positioning(flag) (0x6eaa80), after the binding's argument checks: `on` becomes the
     // UnitAI attack-positioning flag of every unit in the task force now (list order) that has UNIT_AI. Default: nothing.
     // (The space method is retail's shared no-op 0x17d070 and never reaches the host.)

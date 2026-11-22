@@ -1,5 +1,5 @@
-// Mod check, shaders family (mod_check_detail.hpp): the effect audit with the model cross-reference (modc t21) and the
-// .fx prebuild of a mounted mod (prebuild_mod_effects, modc t36).
+// Mod check, shaders family (mod_check_detail.hpp): the effect audit with the model cross-reference and the
+// .fx prebuild of a mounted mod (prebuild_mod_effects).
 #include "mod_check_detail.hpp"
 
 #include <algorithm>
@@ -18,14 +18,14 @@
 #include "alamo/materials/effect_audit.hpp"
 #include "alamo/materials/effect_loader.hpp"
 #include "alamo/shaderxlat/dxc.hpp"
-#include "fx_compile.hpp"  // materials/tools: the .fx prebuild (alamo_fxbuild, modc t36)
+#include "fx_compile.hpp"  // materials/tools: the .fx prebuild (alamo_fxbuild)
 #endif
 
 namespace alamo::game::mod_check_detail {
 
 namespace {
 
-// ---- modc t21: shaders ----
+// ---- shaders ----
 // "DATA\ART\SHADERS\TERRAIN\X.FX" -> "terrain"; ...\ENGINE\... -> "engine"; else "models".
 [[maybe_unused]] std::string_view shader_drawn_by(std::string_view path) {
     const std::string p = normalize_name(path);

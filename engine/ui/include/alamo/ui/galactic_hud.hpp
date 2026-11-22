@@ -1,4 +1,4 @@
-// P4 galactic HUD (docs/re/UI.md §1.6, §2.2-2.3): the galactic command bar shell (i_main_commandbar =
+// P4 galactic HUD (legacy docs/re/UI.md §1.6, §2.2-2.3): the galactic command bar shell (i_main_commandbar =
 // i_galactic_controls.alo), the fleet organiser (i_main_organize = i_galactic_organize.alo), per-planet labels, the
 // selected planet's info, build buttons and queue, fleet / land-force pads and the story objectives panel.
 //
@@ -133,7 +133,7 @@ struct GalacticPlanetInfo {
     int32_t enemy_hero = -1;
     std::u32string corruption_text;
 };
-// ui4 t03: the galactic map filters (GALAXY_MAP_PRESENTATION §1.1, HUD +0x21c4 bits 0x3cd120): b_filters0 credit value,
+// the galactic map filters (GALAXY_MAP_PRESENTATION §1.1, HUD +0x21c4 bits 0x3cd120): b_filters0 credit value,
 // b_filters1 base level (ground / space level pips), b_filters2 ability / weather, b_filters3 hero (the fleet button's
 // representative icon prefers the hero). Toggles, all off at start.
 inline constexpr uint32_t kFilterCredit = 1, kFilterBaseLevel = 2, kFilterAbilityWeather = 4, kFilterHero = 8;
@@ -144,14 +144,14 @@ struct GalacticFleetSlot {
     std::string icon;
     uint32_t count = 1;
     bool selected = false;
-    // UI.md §7.2: units of one fleet with the same type share one organiser pad (a stack with a count). Host: the unit's
+    // legacy docs/re/UI.md §7.2: units of one fleet with the same type share one organiser pad (a stack with a count). Host: the unit's
     // object type index; kNoSlotType = its own stack. Land-force slots ignore it.
     uint32_t type = kNoSlotType;
     // [port: Gabriel, 2026-11-13] the unit's player-given name (galactic GalacticSim::object_name; "" = none): shown as the
     // pad's tooltip; a named unit gets a pad of its own (never merged into a type stack).
     std::u32string name{};
 };
-// One fleet in orbit at the selected planet, as the organiser sees it (UI.md §7.2). The HUD, not the host, decides which
+// One fleet in orbit at the selected planet, as the organiser sees it (legacy docs/re/UI.md §7.2). The HUD, not the host, decides which
 // of the three panes q1 / q2 / q3 it fills, from `slot`, `enemy` and the planet's GalacticPlanetInfo::orbit_local; the
 // provider order only breaks ties. Several fleets can share a pane (own slot-0 fleets, every foreign fleet): their stacks
 // follow each other from the pane's first pad.
@@ -173,14 +173,14 @@ struct GalacticBuildOption {
     // bar 0x3145c0, not by buildability). Host: GalacticSim::production_disabled(player, type). Listed greyed, clicks
     // ignored, no tooltip line (GALACTIC_DIALOGS §5.1.1).
     bool production_disabled = false;
-    // GALACTIC_DIALOGS §5.1.1 (ui4 t12): the build tab the option is listed on - land when Build_Cost_Credits > 0 and it
+    // GALACTIC_DIALOGS §5.1.1: the build tab the option is listed on - land when Build_Cost_Credits > 0 and it
     // needs a ground base level or is a DUMMY_GROUND_STRUCTURE, space otherwise (host rule). Only the current tab's
     // options take pads; every pad is drawn on the tab's Blank_Texture_Name (land amber, space blue).
     bool space = false;
     // §5.1.1: GUI_Row 0 -> row 0 = the odd pads b_Create_01, 03 .. (lower row); any other GUI_Row -> row 1 = the even pads
     // b_Create_00, 02 .. (upper row). Each row fills from the left in list order; options past its 13 pads are dropped.
     uint8_t row = 1;
-    // ui4 t02: why the pad is greyed (GalacticSim::can_enqueue at the planet). != None -> disabled; the b_Create_NN
+    // why the pad is greyed (GalacticSim::can_enqueue at the planet). != None -> disabled; the b_Create_NN
     // Tooltip_Text entry follows the reason (0 TEXT_PRODUCTION_QUEUE_FULL, 1 _POP_CAP_REACHED, 2 _INSUFFICIENT_FUNDS; other
     // reasons: no tooltip) and a left click plays the GUI negative feedback (HudAction::BuildRefused) instead of sending
     // a Production command the sim would refuse. Host: also set enabled = (block == None).
@@ -211,7 +211,7 @@ struct GalacticSpecialAbility {
 struct GalacticProviders {
     std::function<void(uint32_t planet, std::vector<GalacticBuildOption>& out)> build_options;
     std::function<void(std::vector<HudQueueEntry>& out)> build_queue;
-    // Organiser (UI.md §7): every fleet in orbit at the planet that the local player may see (own, allied, or visible and
+    // Organiser (legacy docs/re/UI.md §7): every fleet in orbit at the planet that the local player may see (own, allied, or visible and
     // not stealthed), each with its slot and enemy flag; any number, the HUD places them in the three panes.
     std::function<void(uint32_t planet, std::vector<GalacticFleet>& out)> fleets;
     std::function<void(uint32_t planet, std::vector<GalacticFleetSlot>& out)> land_forces;  // max 20
@@ -265,7 +265,7 @@ struct GalacticShellVisibility {
     bool visible = false;
 };
 
-// ui4 t04: the FoC planet map ("Base Layout", docs/re/GALACTIC_PLANET_MAP.md), drawn while GalacticHudFrame::
+// the FoC planet map ("Base Layout", legacy docs/re/GALACTIC_PLANET_MAP.md), drawn while GalacticHudFrame::
 // advanced_map_open. The host feeds the pads (placed by the planet's land-map UI markers, game::planet_map_pads), the
 // ground forces in orbit and the caps; the HUD draws map_shell's components and turns drags into commands.
 struct GalacticMapPad {
@@ -276,7 +276,7 @@ struct GalacticMapPad {
     int32_t alt = -1;           // Icon_Alternate_Texture_Name index (§4.2 build_pad40..79: 0 bunker, 1 build pad); -1 = faction
     uint32_t object = 0;        // the structure or landed unit on it (0: empty or a structure type): drag source
     uint8_t tag = 0;            // §4.2 pad data slot 3: 1 In / Out, 3 Specific
-    int32_t marker = -1;        // the pad's UI marker id (SetMarkerID target of the drops, ui4 t13)
+    int32_t marker = -1;        // the pad's UI marker id (SetMarkerID target of the drops)
     bool dimmed = false;        // §4.4 step 2: tint (255, 255, 255, 192)
     float shield = 0.0f;        // §4.4: shield_range.tga diameter as a fraction of the map width (0 = none)
 };
@@ -331,7 +331,7 @@ struct GalacticHudFrame {
     // destroyed planet.
     bool planet_destroyed = false, ground_forces_unknown = false;
     bool paused = false;          // [port: Gabriel] b_play_pause look; a click emits pause_event(!paused) (orders.hpp)
-    // Day pips (docs/re/HUD_GAPS.md §4): the fiscal-cycle (income) timer as 10 balance_pip clones from the bone fight_bar_g
+    // Day pips (legacy docs/re/HUD_GAPS.md §4): the fiscal-cycle (income) timer as 10 balance_pip clones from the bone fight_bar_g
     // of i_main_commandbar, left to right, pip width apart (Pixel_Align: snapped to the pixel centre). k = floor(10 x
     // cycle_fraction) clamped 0..9: pips 0..k alternate texture 1 (i_bar_fight_blue), k+1..9 texture 0 (i_bar_fight_red);
     // pip k shows the Selected (i_bar_fight_flash) art while day_pip_flash. Host: cycle_fraction = (galactic mode frame -
@@ -342,7 +342,7 @@ struct GalacticHudFrame {
     // (planetary_mode.alo) instead of fight_bar_g (HUD_GAPS §4.2). Host: map_shell's bones must be in layout() (ShellSet
     // load of "map_shell" + apply); [port] without that bone the pips stay on fight_bar_g.
     bool advanced_map_open = false;
-    // ui4 t04: what the open planet map shows (GALACTIC_PLANET_MAP §1.2-§7). While advanced_map_open the command bar and
+    // what the open planet map shows (GALACTIC_PLANET_MAP §1.2-§7). While advanced_map_open the command bar and
     // organiser shells are hidden (shell_visibility), the planet labels, ability rows, build pads and queue are not
     // drawn, the radar moves to radar_galactic_adv_map, and only components on a shell bone are drawn.
     GalacticPlanetMap planet_map;
@@ -361,7 +361,7 @@ struct GalacticHudFrame {
 };
 
 // Fleet drag and drop (P4 completion; CommandBarComponents Drag_And_Drop on q{n}_fleet, q{n}_RRCC, land_fleet_NN).
-// FleetManagement ops per AI_GALACTIC.md / AI_GALACTIC_2.md §5.4 (op names [M]): 0 form fleet, 2 detach, 3 merge,
+// FleetManagement ops per legacy docs/re/AI_GALACTIC.md / legacy docs/re/AI_GALACTIC_2.md §5.4 (op names [M]): 0 form fleet, 2 detach, 3 merge,
 // 4 launch, 5 land. [port] payload use: target = destination fleet / planet, fleet = source fleet (kNoObject = none /
 // new), unit = the dragged unit (kNoObject = the whole fleet).
 // The op codes and the event come from engine/commands (commands::FleetOp, commands::fleet_management_event), shared
@@ -442,7 +442,7 @@ struct GalacticHudStats {
     uint32_t battle_graphs = 0, screen_text_lines = 0;
     bool advisor_movie = false;  // Movie_galactic drew the advisor loop this frame
     bool organize_shown = false;                       // §4 organiser shell active this build
-    bool planet_map = false, map_picture = false;      // ui4 t04: the planet map drawn / its land-map picture resolved
+    bool planet_map = false, map_picture = false;      // the planet map drawn / its land-map picture resolved
     uint32_t map_pads = 0, map_stacks = 0, map_shields = 0;
     bool fleet_slots_shown = false;                    // slot ovals shown this build
     uint32_t empty_slots = 0, slot_highlights = 0;     // fleet_empty ovals drawn / mouse-over frames on slots
@@ -482,7 +482,7 @@ public:
     // it. set_build_tab is the same switch for the host (a loaded game, a story click).
     bool build_space_tab() const { return build_space_tab_; }
     void set_build_tab(bool space);
-    // ui4 t03: the filter bits (kFilter*) of the b_filters0..3 toggles now on (the host feeds the hero bit back into the
+    // the filter bits (kFilter*) of the b_filters0..3 toggles now on (the host feeds the hero bit back into the
     // fleet buttons' representative icon).
     uint32_t filter_bits() const;
     int32_t hit_test(int32_t px, int32_t py) const;
@@ -501,7 +501,7 @@ public:
     const GalacticDrag& drag() const { return drag_; }
     // A draggable pad of the last build (cursor CAN_GRAB).
     bool draggable(int32_t component) const;
-    // ui1 t03: the g_planet_fleet / g_planet_land_forces button under pixel (px, py) of the last build: its fleet id (0 =
+    // the g_planet_fleet / g_planet_land_forces button under pixel (px, py) of the last build: its fleet id (0 =
     // none or an empty slot) and whether it is the land-forces button.
     uint32_t stack_under(float px, float py, bool& land) const;
     // ui4 t07 (HUD_GAPS §2.2): what the encyclopedia pop-up of a hovered pad of the last build shows - a build pad or a
@@ -561,13 +561,13 @@ private:
     // Component ids.
     int32_t name_ = -1, value_ = -1, control_ = -1, ground_ = -1, space_ = -1, conflict_ = -1, hero_ = -1, smuggler_ = -1,
             bounty_ = -1, ring_ = -1, credit_filter_ = -1;
-    // ui4 t03: b_filters0..3 and the extra planet-label components.
+    // b_filters0..3 and the extra planet-label components.
     int32_t filters_[4] = {-1, -1, -1, -1};
     int32_t ground_pips_ = -1, space_pips_ = -1, ground_icon_ = -1, land_fleet_text_ = -1;  // ui4 t10
-    // ui4 t07: the radar mapping of the last build (canvas centre / size, galaxy centre and half extent; half 0 = none).
+    // the radar mapping of the last build (canvas centre / size, galaxy centre and half extent; half 0 = none).
     Vec2f radar_at_{}, radar_size_{};
     float radar_cx_ = 0.0f, radar_cy_ = 0.0f, radar_half_ = 0.0f;
-    // ui4 t12: build tabs.
+    // build tabs.
     int32_t space_tab_ = -1, planet_tab_ = -1, dial_ = -1, scroll_left_ = -1, scroll_right_ = -1;
     bool build_space_tab_ = false;
     bool land_tab_allowed_ = true;
@@ -579,7 +579,7 @@ private:
     int32_t obj_back_ = -1, obj_header_ = -1, obj_text_ = -1, obj_icon_ = -1, commandbar_ = -1, organize_ = -1;
     int32_t pause_ = -1;
     int32_t balance_pip_ = -1, map_shell_ = -1;
-    // ui4 t04: the planet map (map_shell components) and its state of the last build.
+    // the planet map (map_shell components) and its state of the last build.
     bool map_open_ = false, map_foreign_ = false, map_surface_full_ = false;
     uint32_t map_planet_ = 0;
     int32_t map_window_ = -1, radar_adv_ = -1, map_name_ = -1, map_allegiance_ = -1, map_day_ = -1, map_income_ = -1,
@@ -600,8 +600,8 @@ private:
     };
     std::vector<AbilityRow> ability_rows_;
     std::vector<int32_t> build_pad_, create_, queue_, land_;
-    std::vector<std::vector<int32_t>> fleet_;  // [fleet][slot] unit pads q{n}_0001 .. q{n}_0406 (UI.md §7.2)
-    std::vector<int32_t> pathfinder_;          // [fleet] the header pad q{n}_0000 (UI.md §7.4), -1 if absent
+    std::vector<std::vector<int32_t>> fleet_;  // [fleet][slot] unit pads q{n}_0001 .. q{n}_0406 (legacy docs/re/UI.md §7.2)
+    std::vector<int32_t> pathfinder_;          // [fleet] the header pad q{n}_0000 (legacy docs/re/UI.md §7.4), -1 if absent
     struct PadSlot {
         int32_t component = -1;
         GalacticBuildOption option;
@@ -611,13 +611,13 @@ private:
         // drag and drop
         bool draggable = false;
         int32_t fleet_index = -1;      // 0..2 organiser pane, -1 land forces
-        bool foreign = false;          // organiser pad of a non-local fleet: no drag, no click, no drop target (UI.md §7.2)
+        bool foreign = false;          // organiser pad of a non-local fleet: no drag, no click, no drop target (legacy docs/re/UI.md §7.2)
         uint32_t fleet = 0, unit = 0;  // unit 0 = fleet header; a stack: its first unit (a drag takes that one unit)
-        bool empty = false;            // an empty organiser pad shown while dragging (UI.md §7.3): fleet 0 = a pane without a fleet
+        bool empty = false;            // an empty organiser pad shown while dragging (legacy docs/re/UI.md §7.3): fleet 0 = a pane without a fleet
         std::string icon;
         std::u32string name;           // [port] the fleet's (header) or the unit's (stack of one) name, "" = none
-        uint8_t map_tag = 0;           // ui4 t04: a planet-map build pad's tag (GalacticMapPad::tag)
-        int32_t map_marker = -1;       // ui4 t13: a planet-map pad's marker id (GalacticMapPad::marker)
+        uint8_t map_tag = 0;           // a planet-map build pad's tag (GalacticMapPad::tag)
+        int32_t map_marker = -1;       // a planet-map pad's marker id (GalacticMapPad::marker)
     };
     // [port: Gabriel] double click on an own organiser pad -> HudAction::Rename
     int32_t last_pad_click_ = -1;

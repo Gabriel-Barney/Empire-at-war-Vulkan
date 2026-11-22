@@ -1,4 +1,4 @@
-// modc t08: the mod picker's data side (mod_picker.hpp).
+// the mod picker's data side (mod_picker.hpp).
 #include "alamo/game/mod_picker.hpp"
 
 #include <algorithm>
@@ -37,7 +37,7 @@ std::vector<std::string> relaunch_args(std::span<const std::string> args, std::s
 
 std::vector<std::string> mod_launch_args(const vfs::ModDescriptor& mod, const ModCheckReport* report) {
     if (report && (report->base_eaw || (report->resolved && report->stack.base_eaw))) return {};  // D1: refused
-    if (report && report->resolved) return report->stack.launch_args();  // ums1 t04: the one resolver's list
+    if (report && report->resolved) return report->stack.launch_args();  // the one resolver's list
     if (report && report->submod.likely && !report->submod.stacked_args.empty()) {
         std::vector<std::string> out;
         for (const std::string& a : report->submod.stacked_args)
@@ -73,7 +73,7 @@ std::vector<std::string> mod_report_summary(const ModCheckReport& r) {
             if (e.find(vfs::kBaseEawRefusal) != std::string::npos) out.push_back("Refused (FoC mods only): " + e);
         return out;
     }
-    if (r.resolved) {  // mcx3 t06: the stack Launch starts
+    if (r.resolved) {  // the stack Launch starts
         std::string chain;
         for (const vfs::StackMod& m : r.stack.mods) chain += (chain.empty() ? "" : " > ") + m.mod.name;
         if (r.stack.mods.size() > 1) out.push_back("Stack: " + chain);
@@ -104,7 +104,7 @@ std::vector<std::string> mod_report_summary(const ModCheckReport& r) {
     out.push_back(fmt("Lua: %llu scripts, %llu do not compile, %llu main-chunk errors", r.lua_scripts, r.lua_errors.size(),
                       r.lua_run_errors.size()));
     if (!r.unbound_lua_calls.empty()) out.push_back(fmt("%llu engine call(s) the port does not bind", r.unbound_lua_calls.size()));
-    if (r.shaders.checked)  // report v3 (modc t21): the effect audit
+    if (r.shaders.checked)  // report v3: the effect audit
         out.push_back(fmt("Shaders: %llu effects (%llu from the mod), %llu issue(s)", r.shaders.effects, r.shaders.mod_effects,
                           r.shaders.issues.size()));
     const SubmodHint& h = r.submod;

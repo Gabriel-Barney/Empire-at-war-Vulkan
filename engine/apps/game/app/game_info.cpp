@@ -240,7 +240,7 @@ ui::TechTreeInfo Holocron::tech_tree(const galactic::GalacticSim& g, const GameD
                                      int32_t player, bool space) const {
     ui::TechTreeInfo t;
     const uint32_t f = g.players()[static_cast<size_t>(player)].faction;
-    // modc t20: the faction's own Tech_Tree_Dialog_Name (FoC IDD_TECH_TREE_REBEL / _EMPIRE / _BLACKMARKET), not its name.
+    // the faction's own Tech_Tree_Dialog_Name (FoC IDD_TECH_TREE_REBEL / _EMPIRE / _BLACKMARKET), not its name.
     t.dialog = f < d.rules.factions.size() ? d.rules.factions[f].tech_tree_dialog : std::string();
     t.space = space;
     const int32_t level = g.players()[static_cast<size_t>(player)].tech_level;
@@ -589,7 +589,7 @@ SpecialPanelData special_panel(const galactic::GalacticSim& g, const GameData& d
                 if (!it.localized_description.empty()) m.description = text_or(text, it.localized_description);
                 m.cost = static_cast<int32_t>(std::lround(o.price));
                 m.enabled = !o.purchased && o.price <= credits;
-                // modc t20: the item faction's Tech_Level_Icon_Name picks the market_tech_level alternate (by prefix).
+                // the item faction's Tech_Level_Icon_Name picks the market_tech_level alternate (by prefix).
                 m.tech_icon = it.faction < g.rules().factions.size() ? g.rules().factions[it.faction].tech_level_icon : std::string();
                 out.market.push_back(std::move(m));
             }

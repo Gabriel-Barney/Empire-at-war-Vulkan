@@ -1,4 +1,4 @@
-// Render targets for the post chain (docs/re/RENDER.md 1.5, TERRAIN_WATER_POST.md 3.5 / 4):
+// Render targets for the post chain (legacy docs/re/RENDER.md 1.5, legacy docs/re/TERRAIN_WATER_POST.md 3.5 / 4):
 // SceneTexture / DistortionTexture / transition (1.0 x back buffer), bloom A/B (0.25 x), water
 // reflection/refraction (absolute N x N + shared D24S8). A RenderTarget owns a colour image and/or a
 // depth-stencil image, tracks their ImageState, and is recreated when the reference size changes.

@@ -97,7 +97,7 @@ std::vector<std::vector<uint32_t>> split_into_formations(std::span<const Formati
         remaining.erase(remaining.begin() + static_cast<std::ptrdiff_t>(si));
         std::vector<uint32_t> f{seed};
         const FormationMember& s = m[seed];
-        // s78n t25.2: the attack solo rule (MOVEMENT §4.2 item 6). bkm1 t04 (§4.2 step 2 item 7 test 3 [H]): a short-range
+        // the attack solo rule (MOVEMENT §4.2 item 6). bkm1 t04 (§4.2 step 2 item 7 test 3 [H]): a short-range
         // seed recruits only units of its own exact type (corrects the s78n t25 fix, which recruited nobody)
         if (s.grouping != kGroupingSolo && !s.solo_attack) {
             // mov2 t03 (§4.2 step 2 item 7 "Seed side" / tests 1, 7 [H]): the joined-teams list starts with the seed's team
@@ -141,7 +141,7 @@ std::vector<std::vector<uint32_t>> split_into_formations(std::span<const Formati
                         const float hi = std::max(o.max_speed, s.max_speed), lo = std::min(o.max_speed, s.max_speed);
                         ok = lo > 0.0f && !(hi / lo > double_click_speed_ratio);
                     }
-                    // bkm1 t04 (b0036, §4.2 step 2 item 7 test 9 [H]): the engagement compatibility, both ways, no tolerance
+                    // bkm1 t04 (§4.2 step 2 item 7 test 9 [H]): the engagement compatibility, both ways, no tolerance
                     if (ok) ok = !(o.min_engage > s.engage) && !(s.min_engage > o.engage);
                     // test 10 [H]: on an attack order a candidate that is solo by item 6 (melee, in max range, or within
                     // r + E + Solo_Attack_Range of the target) is skipped - it seeds its own formation

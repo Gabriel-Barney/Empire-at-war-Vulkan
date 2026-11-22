@@ -1,4 +1,4 @@
-// q6 t19: the per-owner script block (alamo/lua/script_save.hpp, docs/re/LUA_SAVE.md §2 / §4).
+// the per-owner script block (alamo/lua/script_save.hpp, legacy docs/re/LUA_SAVE.md §2 / §4).
 //   * a plot-style script saved mid-run - `main` waiting in Sleep, a second thread waiting for an event that is still in
 //     the GetEvent queue at save time, a table graph with shared references and cycles, a closure with an upvalue,
 //     tables keyed by object / player wrappers - is restored into a FROM-SAVE instance (constructed, bridges attached,

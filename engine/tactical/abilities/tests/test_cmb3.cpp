@@ -5,7 +5,7 @@
 namespace bo3split {
 
 void test_cmb3_lobbing_mode_is_inert() {
-    // cmb3 t05 (b0451, ABILITIES_HARDPOINTS §2.5 [H]): 0x38a350 has no case for 47, so a command 43 (mode on or off) that
+    // cmb3 t05 (ABILITIES_HARDPOINTS §2.5 [H]): 0x38a350 has no case for 47, so a command 43 (mode on or off) that
     // passes Can_Activate does nothing: no active byte, no recharge, no Activated / Unhandled event. (Lua Activate_Ability
     // refuses 47 as an unsupported unit ability before any command.)
     OiWorld w;
@@ -29,7 +29,7 @@ void test_cmb3_lobbing_mode_is_inert() {
 }
 
 void test_cmb3_gravity_field_carried_units() {
-    // cmb3 t06 (b0452, TRU1_GRAVITY_FIELD §1.5 [H]): the field query skips an object inside a container (garrisoned or
+    // cmb3 t06 (TRU1_GRAVITY_FIELD §1.5 [H]): the field query skips an object inside a container (garrisoned or
     // transported, obj +0x3a7) in both branches. A carried enemy in range is not slowed; once out it is. A slowed unit
     // that is carried keeps its slow while carried, even when its owner turns friendly (the release branch skips it too).
     OiWorld w;

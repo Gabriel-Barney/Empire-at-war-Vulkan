@@ -1,4 +1,4 @@
-// alamo_galactic_galab_tests: the galactic abilities of roadmap group GALAB (docs/re/GALAB_ABILITIES_RE.md = GA), on a
+// alamo_galactic_galab_tests: the galactic abilities of roadmap group GALAB (legacy docs/re/GALAB_ABILITIES_RE.md = GA), on a
 // synthetic galaxy with hand-computed expectations:
 //   1. Remove_Corruption_Ability: accept (own corrupted planet, no transition), cost = base x multiplier, credit refusal,
 //      the removal transition with Corruption_Removal_Time_In_Secs, its completion;
@@ -214,7 +214,7 @@ GalacticSetup make_setup() {
     };
     s.players = {player(0, false, 5000.0f), player(1, false, 5000.0f), player(2, false, 5000.0f), player(3, false, 0.0f)};
     s.players[3].ai = false;
-    s.players[0].home = rA;  // galab t06: Home_Location
+    s.players[0].home = rA;  // Home_Location
     // Owners: A Empire, B Rebel, C Underworld, D Empire, E Rebel (a frigate holds each).
     s.forces = {{pEmp, rA, tFrigate}, {pReb, rB, tFrigate}, {pUnd, rC, tFrigate}, {pEmp, rD, tFrigate}, {pReb, rE, tFrigate}};
     return s;

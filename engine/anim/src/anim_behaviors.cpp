@@ -11,7 +11,7 @@ namespace alamo::anim {
 
 uint64_t seconds_to_frames(float seconds) {
     if (!(seconds > 0.0f)) return 0;
-    // ref4 t03: x86 truncation (alamo/core/frames.hpp); out of int32 range 0x80000000 frames, read unsigned.
+    // x86 truncation (alamo/core/frames.hpp); out of int32 range 0x80000000 frames, read unsigned.
     return static_cast<uint32_t>(frames_trunc(seconds * static_cast<float>(kSimTicksPerSecond)));
 }
 
@@ -163,7 +163,7 @@ bool AnimBehaviors::yaw_changed(ObjectId id, float yaw_deg) const {
 
 bool AnimBehaviors::service_idle(AnimWorld& w, ObjectId id, const IdleParams& idle_in, IdleTarget target, SimRng& rng, uint64_t frame,
                                  bool crouch_changed) {
-    // IdleBehavior service 0x62e570 from step 3 (s78k t02; the moving / deploying early returns are the caller's).
+    // IdleBehavior service 0x62e570 from step 3 (the moving / deploying early returns are the caller's).
     if (is_corpse(id) || !w.contains(id)) return false;
     const SlotView cur = w.slot(id);
     const AnimModel* m = w.model(id);
@@ -180,14 +180,14 @@ bool AnimBehaviors::service_idle(AnimWorld& w, ObjectId id, const IdleParams& id
         // attack-like / Attack / Attack Idle clip (no draw for that play). Nothing else.
         Entry& e = entry(id);
         e.idle_countdown = kEngagedBaseFrames + static_cast<uint64_t>(rng.range_int(0, kEngagedRandomFrames));
-        e.records.clear();  // s78l t03: the record list goes with a target
+        e.records.clear();  // the record list goes with a target
         if (from_attack && finished && m && m->variant_count(kAnimAttackIdle) > 0) return w.play(id, r, nullptr, frame) == PlayResult::Played;
         return false;
     }
     // Step 5: no target. The records and the countdown age; nothing more during a flinch or while the clip plays.
     Entry* e = find(id);
     if (e) {
-        size_t keep = 0;  // s78l t03: every value - 1, a record below 1 erased (order kept)
+        size_t keep = 0;  // every value - 1, a record below 1 erased (order kept)
         for (IdleRecord& rec : e->records) {
             if (--rec.frames >= 1) e->records[keep++] = rec;
         }
@@ -272,9 +272,9 @@ uint32_t AnimBehaviors::service_locomotor(AnimWorld& w, ObjectId id, const Locom
     const bool moving = in.movable && in.speed > 0.0f;
     IdleParams ip = p.idle;
     ip.idle_type = default_idle_type(m, in, p.idle);
-    // s78l t03: the presence step comes after the crouch test and the garrison override (0x395920).
+    // the presence step comes after the crouch test and the garrison override (0x395920).
     if (in.crouched || in.idle_type != kNoAnimType) ip.presence = nullptr;
-    // s78k t02 / s78l t03: the IDLE service (0x62e570) after the locomotor's play, every call for an object with IDLE
+    // the IDLE service (0x62e570) after the locomotor's play, every call for an object with IDLE
     // unless the moving gate stops it (step 1: the locomotor has a path - in.on_path - and no Allow_Idle_When_Moving;
     // then the records are cleared). Plays started: the locomotor's + the idle's. A crouch change forces the idle clip only
     // when the locomotor started none this call ([port]: its stop / turn clip already follows the state).
@@ -286,7 +286,7 @@ uint32_t AnimBehaviors::service_locomotor(AnimWorld& w, ObjectId id, const Locom
         }
         return plays + (service_idle(w, id, ip, in.target, rng, frame, crouch_changed && plays == 0) ? 1u : 0u);
     };
-    // bkx1 t04 (b0059, BKX1_RENDER_RE §2.1 / §2.2 [H]): the Walk_Transition clips follow the locomotor. MOVESTART (16, state
+    // bkx1 t04 (BKX1_RENDER_RE §2.1 / §2.2 [H]): the Walk_Transition clips follow the locomotor. MOVESTART (16, state
     // 0x12) and the end clip (17..20, state 0x14) start when the locomotor starts them: variant 0 ([port] no variant draw,
     // vanilla ships only _00), one-shot, at the locomotor's frame and rate; MOVESTART blends in over the move blend ([port]
     // retail's blend global 0x140b39904 is unread), an end clip is a hard cut. A missing clip changes nothing (§2.3: the
@@ -361,7 +361,7 @@ uint32_t AnimBehaviors::service_locomotor(AnimWorld& w, ObjectId id, const Locom
             return then_idle(w.play(id, r, &rng, frame) == PlayResult::Played ? 1u : 0u);
         }
     }
-    if (is_move_family(cur) || is_walk_transition_clip(cur)) {  // bkx1 t04: also after an end clip (0x15 -> the idle, §2.2)
+    if (is_move_family(cur) || is_walk_transition_clip(cur)) {  // also after an end clip (0x15 -> the idle, §2.2)
         PlayRequest r;  // stopped: back to the idle (then the idle behaviour); the records before this frame's aging
         r.type = presence_idle_type(m, id, ip, e.records);
         r.loop = p.idle.loop_idle;
@@ -433,7 +433,7 @@ DeathPlan plan_death(const AnimModel* m, const DeathParams& p, uint8_t damage_ki
         d.lifetime = seconds_to_frames(p.spin_away_seconds);
         return d;
     }
-    (void)damage_kind;  // r3g t07: the kind never picks the death clip (DeathBehavior 0x58cdb0 plays +0xd98 / +0xd9c)
+    (void)damage_kind;  // the kind never picks the death clip (DeathBehavior 0x58cdb0 plays +0xd98 / +0xd9c)
     const int32_t type = p.type;
     uint32_t index = p.index;
     const uint32_t count = m ? m->variant_count(type) : 0u;

@@ -63,8 +63,8 @@ add_library(alamo_engine_flags INTERFACE)
 if(MSVC)
   # /fp:precise + no FMA contraction keeps float results identical between builds (lockstep CRC).
   target_compile_options(alamo_engine_flags INTERFACE /W4 /fp:precise /utf-8 /permissive-)
-  # Off-by-default MSVC warnings that stand in for clang's -Wconversion family per change, since clang checks nightly
-  # only (docs/DECISIONS.md, "Clang runs nightly only"; backlog b0547): signed/unsigned conversion (C4365) and
+  # Off-by-default MSVC warnings for the conversion family (docs/DECISIONS.md "MSVC is the only compiler"):
+  # signed/unsigned conversion (C4365) and
   # comparison (C4388), int to float (C5219), narrowing to smaller ints and bit fields (C4242, C4254), sign extension
   # (C4826), int to bool (C4800), constant-range checks (C4287, C4296), non-virtual destructors (C4265) and unhandled
   # enum cases (C4062). C++ only (the vendored C sources keep /W4); angle-bracket includes (the STL, the SDK) are
@@ -72,14 +72,19 @@ if(MSVC)
   target_compile_options(alamo_engine_flags INTERFACE
     "$<$<COMPILE_LANGUAGE:CXX>:/w44365;/w44388;/w45219;/w44242;/w44254;/w44826;/w44800;/w44287;/w44296;/w44265;/w44062>"
     "$<$<COMPILE_LANGUAGE:CXX>:/external:anglebrackets;/external:W0>")
-else()
-  target_compile_options(alamo_engine_flags INTERFACE -Wall -Wextra -Wpedantic -ffp-contract=off)
+  # Warnings are errors in project code (docs/GROUND_UP_WORKFLOW_DESIGN.md "MSVC build and verification"). Vendored
+  # code is exempt where it is built: Lua with /W0, miniaudio / VMA / FFmpeg behind #pragma warning(push, 0), SDK and
+  # STL headers through /external:W0. -DALAMO_WARNINGS_AS_ERRORS=OFF to look at a backlog without stopping.
+  option(ALAMO_WARNINGS_AS_ERRORS "Compile project code with /WX" ON)
+  if(ALAMO_WARNINGS_AS_ERRORS)
+    target_compile_options(alamo_engine_flags INTERFACE /WX)
+  endif()
 endif()
 target_compile_features(alamo_engine_flags INTERFACE cxx_std_20)
 
 find_package(Threads REQUIRED)
 
-# Shared precompiled header (roadmap bo1 t02). alamo_pch is a tiny static library that owns the PCH; every engine target
+# Shared precompiled header. alamo_pch is a tiny static library that owns the PCH; every engine target
 # created below reuses it (CMAKE_PRECOMPILE_HEADERS_REUSE_FROM), so the standard headers are parsed once per tree instead of
 # once per target (the loop at the end of this file points every target at it). -DALAMO_PCH=OFF builds without it. A target whose flags differ (vendored Lua) opts out in its own file.
 # Default: ON only when no compiler cache is active. sccache cannot cache a compile that uses /Fp (measured 2026-11-13:
@@ -99,7 +104,7 @@ if(ALAMO_PCH)
 endif()
 
 # Test tiers: tests that take more than a few seconds carry the ctest label "slow". The inner loop runs the fast tier
-# (ctest -LE slow, what build_agent.cmd / build_module.cmd do by default); the gate scripts run everything. Call from the
+# (dev.cmd suite synthetic --fast, or dev.cmd test -LE slow); dev.cmd suite all runs everything. Call from the
 # directory that created the tests (set_property(TEST) only sees tests of the current directory). Labels a test that
 # does not exist as a no-op, so a list can name tests that are only built with some modules.
 function(alamo_label_slow)
@@ -110,7 +115,7 @@ function(alamo_label_slow)
   endforeach()
 endfunction()
 
-# Worker-count check (OPT3 t07; docs/BUILD.md "Worker-count check"): one scenario at 0 / 1 / 4 / 16 workers and the
+# Worker-count check (docs/SIMULATION.md "Worker-count check"): one scenario at 0 / 1 / 4 / 16 workers and the
 # machine default (hardware threads - 1), per-tick CRCs compared. One ctest entry per count so a long run's counts go side
 # by side under ctest -j: <name> runs `--workers 0 --crc-out <bin>/<name>_w0.crc` (FIXTURES_SETUP <name>_w0) and
 # <name>_w<N> runs `--workers N --golden <that file>` (FIXTURES_REQUIRED <name>_w0). The command must accept
@@ -118,7 +123,7 @@ endfunction()
 #   alamo_add_worker_count_check(<name> COMMAND <exe> [arg...]
 #       [SETUP_ARGS arg...]   extra args for the 0-worker entry only (e.g. --golden <checked-in file>, an --expect check)
 #       [CHECK_ARGS arg...]   extra args for the other entries only
-#       [WORKERS n...]        counts besides 0 (default 1 4 16 and the machine default; duplicates and 0 dropped)
+#       [WORKERS n...]        counts besides 0 (default 1 4 16, plus <name>_wmax at the machine default; duplicates and 0 dropped)
 #       [TIMEOUT s] [SLOW]    TIMEOUT for every entry; SLOW labels them all "slow" (do it for runs over ~5 s)
 #       [PROPERTIES p v...])  more test properties for every entry (e.g. SKIP_RETURN_CODE 77)
 # More entries can compare against the same log: FIXTURES_REQUIRED <name>_w0 and --golden <bin>/<name>_w0.crc
@@ -129,10 +134,16 @@ function(alamo_add_worker_count_check name)
   if(NOT _wc_COMMAND)
     message(FATAL_ERROR "alamo_add_worker_count_check(${name}): COMMAND is required")
   endif()
+  # The machine default gets a fixed name, <name>_wmax, so the entry list (tests/required_synthetic.txt) is the same on
+  # every machine whatever its core count.
+  set(_max "")
   if(NOT _wc_WORKERS)
     cmake_host_system_information(RESULT _cores QUERY NUMBER_OF_LOGICAL_CORES)
-    math(EXPR _default "${_cores} - 1")
-    set(_wc_WORKERS 1 4 16 ${_default})
+    math(EXPR _max "${_cores} - 1")
+    if(_max LESS 1)
+      set(_max 1)
+    endif()
+    set(_wc_WORKERS 1 4 16)
   endif()
   list(REMOVE_DUPLICATES _wc_WORKERS)
   list(REMOVE_ITEM _wc_WORKERS 0)
@@ -146,12 +157,22 @@ function(alamo_add_worker_count_check name)
   endif()
   add_test(NAME ${name} COMMAND ${_wc_COMMAND} --workers 0 --crc-out ${_crc} ${_wc_SETUP_ARGS})
   set_tests_properties(${name} PROPERTIES FIXTURES_SETUP ${name}_w0 ${_props})
+  set(_entries "")
   foreach(_w IN LISTS _wc_WORKERS)
-    add_test(NAME ${name}_w${_w} COMMAND ${_wc_COMMAND} --workers ${_w} --golden ${_crc} ${_wc_CHECK_ARGS})
-    set_tests_properties(${name}_w${_w} PROPERTIES FIXTURES_REQUIRED ${name}_w0 ${_props})
-    set_property(TEST ${name}_w${_w} APPEND PROPERTY LABELS determinism)
+    list(APPEND _entries "${_w}:${_w}")
   endforeach()
-  # flaky_retry.py never retries a determinism check (wr3 t05)
+  if(_max)
+    list(APPEND _entries "max:${_max}")
+  endif()
+  foreach(_e IN LISTS _entries)
+    string(REPLACE ":" ";" _e "${_e}")
+    list(GET _e 0 _suffix)
+    list(GET _e 1 _w)
+    add_test(NAME ${name}_w${_suffix} COMMAND ${_wc_COMMAND} --workers ${_w} --golden ${_crc} ${_wc_CHECK_ARGS})
+    set_tests_properties(${name}_w${_suffix} PROPERTIES FIXTURES_REQUIRED ${name}_w0 ${_props})
+    set_property(TEST ${name}_w${_suffix} APPEND PROPERTY LABELS determinism)
+  endforeach()
+  # tools/test_suite.py never retries a determinism check: a second run of one proves nothing
   set_property(TEST ${name} APPEND PROPERTY LABELS determinism)
   set(${name}_CRC ${_crc} PARENT_SCOPE)
 endfunction()
@@ -169,7 +190,7 @@ function(_alamo_collect_targets dir out)
   set(${out} ${_t} PARENT_SCOPE)
 endfunction()
 
-# Module list and its dependencies (wr3 t06, 2026-11-21). Every "Cannot open include file" failure of 2026-11-14 to 21
+# Module list and its dependencies (2026-11-21). Every "Cannot open include file" failure of 2026-11-14 to 21
 # (54 records) came from a module list that left out a module another one links (core, ai for apps, assets for terrain)
 # or held a name that is not a module (game, tactical_combat, a PowerShell --%), which used to be dropped silently; a
 # link to a missing alamo_* target then counts as a plain library file and the include directories are just absent.
@@ -246,7 +267,7 @@ if(_alamo_unknown)
   message(FATAL_ERROR "Links to alamo_* targets that no configured module defines: ${_alamo_unknown}. The module that defines it was configured without what that target needs: add those modules to the list, or use all.")
 endif()
 
-# Point every engine library / executable at the shared PCH (roadmap bo1 t02). Done here, after all subdirectories, so no
+# Point every engine library / executable at the shared PCH. Done here, after all subdirectories, so no
 # module file needs to know about it. Targets that opted out (DISABLE_PRECOMPILE_HEADERS) or already have their own PCH stay.
 if(ALAMO_PCH)
   _alamo_collect_targets(${CMAKE_CURRENT_SOURCE_DIR} _alamo_all_targets)

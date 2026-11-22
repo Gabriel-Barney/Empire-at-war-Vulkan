@@ -1,18 +1,18 @@
-﻿// S5 / G0 game host: the main loop around the mode stack (docs/re/MAIN_LOOP.md Â§1, Â§6), the command
+﻿// S5 / G0 game host: the main loop around the mode stack (legacy docs/re/MAIN_LOOP.md Â§1, Â§6), the command
 // pipeline (engine/commands), synced randomness and the per-tick CRC (Q1).
 //
-// ONE TICK (tick_once), in the original's order (MAIN_LOOP.md Â§1.2 T1..T14):
+// ONE TICK (tick_once), in the original's order (legacy docs/re/MAIN_LOOP.md Â§1.2 T1..T14):
 //   T1  Begin_Tick: global frame += 1
 //   T2  scheduled commands with frame <= new frame: CommandPipeline::begin_tick(frame) (drain in
 //       tick -> player -> sequence order, batch CRC hook, recording/replay, handler per command)
 //   T4  TreeCull: rebuild dirty spatial trees of the top tactical mode (sim time = frame / 30)
-//   T5  GameModeManager::Update: the GameScoring Service (q6 t09, set_scoring_script), then ONLY the top mode's tick
+//   T5  GameModeManager::Update: the GameScoring Service (set_scoring_script), then ONLY the top mode's tick
 //   T6  scene animations [stub]
 //   T7  PlayerList update: per player in index order, the player's controller (AI / script stand-ins
 //       issue orders through execute_direct here, like the original AI)
 //   T8  global Lua [stub]
 //   T9  story (S4): StorySession::service when start_story ran (story_session.hpp); trace step
-//       "T9.story" only then; then the GameScoring galactic event calls (q6 t09; "T9.scoring" only with a script)
+//       "T9.story" only then; then the GameScoring galactic event calls ("T9.scoring" only with a script)
 //   T10-T11 tutorial, campaign end [stubs]
 //   T12 Post_Tick: top mode frame += 1 unless paused
 //   T13 End_Tick: event bus delivery, then the CRC record of this frame (CrcRecorder)
@@ -27,7 +27,7 @@
 // COMMANDS. Wire ids are 32-bit object ids (commands::kNoObject = 0x3FFFFF = none) resolved in the
 // top mode's primary store at execution time (wire_id / resolve). Handled events: Select,
 // SelectAll, MoveToPosition, MoveToObject, Attack, StopMovement (others -> Unhandled). Rules
-// (COMMANDS.md Â§6.2): resolve at execution, missing / dying / foreign units are silently skipped,
+// (legacy docs/re/COMMANDS.md Â§6.2): resolve at execution, missing / dying / foreign units are silently skipped,
 // orders act on the issuer's current selection (synced per-player state) when the event says so,
 // results never depend on the local player. AI / Lua call execute_direct (no queue, no recording).
 //
@@ -74,7 +74,7 @@
 #include "alamo/sim/ship_names.hpp"
 #include "alamo/sim/story_session.hpp"
 #ifdef ALAMO_SIM_HAVE_STORY
-#include "alamo/lua/lua_vm.hpp"           // q6 t06: the GameScoring script VM
+#include "alamo/lua/lua_vm.hpp"           // the GameScoring script VM
 #include "alamo/lua/script_remaining.hpp"  // Int-final: GlobalValueStore
 #endif
 
@@ -96,7 +96,7 @@ struct GalacticSetup;
 namespace alamo::sim {
 
 // Q6: SimConfig::players for a galactic session over a setup with `setup_players` players: at least 8 (the default, so
-// stock FoC sessions keep their CRC), else the setup's count (mcx5 t01: no 64 cap). Above the kMaxPlayers guard it stays
+// stock FoC sessions keep their CRC), else the setup's count (no 64 cap). Above the kMaxPlayers guard it stays
 // at the guard, and start_galactic refuses the setup.
 inline uint32_t session_players(size_t setup_players) {
     return static_cast<uint32_t>(setup_players < 8 ? 8 : setup_players > kMaxPlayers ? kMaxPlayers : setup_players);
@@ -108,7 +108,7 @@ struct SimConfig {
     uint32_t players = 8;                                       // PlayerList size (<= kMaxPlayers); see session_players
     commands::SchedulerConfig scheduler = commands::SchedulerConfig::single_player();
     bool story_crc = false;                                     // register the "story" CRC system (S4)
-    // q6: game-object Lua scripts (object_scripts.hpp, docs/re/OBJECT_SCRIPTS.md). Off by default: the attach and the
+    // q6: game-object Lua scripts (object_scripts.hpp, legacy docs/re/OBJECT_SCRIPTS.md). Off by default: the attach and the
     // first-pump draws change the synced stream, so sessions without it keep their CRC streams and goldens.
     bool object_scripts = false;
 };
@@ -146,7 +146,7 @@ public:
     // hosts, the galactic AI (GalacticAiWorld::set_global_values). Hashed at the end of the "frame" CRC section only
     // while it is non-empty (sessions that never set a GlobalValue keep their CRC stream). Null without engine/lua.
     lua::GlobalValueStore* global_values();
-    // q6 t06 (docs/re/GAME_SCORING.md): the GameScoring script (GameConstants Game_Scoring_Script_Name), re-created at
+    // q6 t06 (legacy docs/re/GAME_SCORING.md): the GameScoring script (GameConstants Game_Scoring_Script_Name), re-created at
     // every new session in start_game (empty stack): after the GlobalValue clear, before start_galactic sets the
     // players up and before start_story loads the plots, a fresh VM runs the file's top level and Base_Definitions()
     // and gets its main thread. Mods set session globals there (Thrawn's Revenge: GlobalValue MOD_ID, which its plot
@@ -171,7 +171,7 @@ public:
     //     new != old (a missing player = the neutral player); ProductionBegin / Canceled -> Galactic_Production_Begin_ /
     //     _Canceled_Event(planet, type); ProductionCompleted -> Galactic_Production_End_Event(planet, object (its team
     //     container), else the type); StarbaseLevelChanged -> Galactic_Starbase_Level_Change(planet, old type, new type)
-    //     (storyb t14; each nil when absent).
+    //     (each nil when absent).
     //   * storyb t14, at the signal moment (GalacticSim::ScoringHooks, any galactic session): Galactic_Unit_Destroyed_Event
     //     (object, killer) for every object GalacticSim::destroy_object removes, before it leaves the store [port: the
     //     killer is not tracked in galactic mode: the neutral player]; Galactic_Neutralized_Event(hero type, neutralizer).
@@ -183,13 +183,13 @@ public:
     const lua::LuaVm* scoring_vm() const;
     // "<frame> GameScoring: <what>" lines: load / Base_Definitions errors and the script's own messages.
     const std::vector<std::string>& scoring_messages() const { return scoring_messages_; }
-    // q6 t09: map_name of the galactic Game_Mode_Starting_Event (the campaign name); empty = SessionDescriptor::campaign.
+    // map_name of the galactic Game_Mode_Starting_Event (the campaign name); empty = SessionDescriptor::campaign.
     void set_scoring_campaign(std::string name) { scoring_campaign_ = std::move(name); }
-    // q6 t09: the battle host, once a tactical mode is set up (map loaded): queues Game_Mode_Starting_Event.
+    // the battle host, once a tactical mode is set up (map loaded): queues Game_Mode_Starting_Event.
     void scoring_mode_started(ModeKind kind, std::string map_name);
-    // q6 t09: Reset_Tactical_Stats() at auto-resolve begin (BATTLE_TRANSITIONS §"auto-resolve").
+    // Reset_Tactical_Stats() at auto-resolve begin (BATTLE_TRANSITIONS §"auto-resolve").
     void scoring_reset_tactical_stats();
-    // mcx6 t07 (GAME_SCORING.md §9.1): a skirmish map battle (CampaignBattles::start_map_battle) runs over the session's
+    // mcx6 t07 (legacy docs/re/GAME_SCORING.md §9.1): a skirmish map battle (CampaignBattles::start_map_battle) runs over the session's
     // galaxy as scaffolding only [port]; retail's skirmish has no galactic mode, so its script sees only the tactical mode.
     // From this call to the end of the session the galactic mode is hidden from the script: its queued
     // Game_Mode_Starting_Event("Galactic", ...) is dropped, and neither its Game_Mode_Ending_Event nor the galaxy's
@@ -197,7 +197,7 @@ public:
     // ran while the session had none, every later call sees them). Not saved: a load's session setup calls it again.
     void scoring_map_battle();
     bool scoring_scaffold() const { return scoring_scaffold_; }
-    // storyb t14 (GAME_SCORING.md §3, death signal 0x25 in a tactical mode): Tactical_Unit_Destroyed_Event(object,
+    // storyb t14 (legacy docs/re/GAME_SCORING.md §3, death signal 0x25 in a tactical mode): Tactical_Unit_Destroyed_Event(object,
     // killer player) for `object` of the battle's store `store`, called by the battle host before the object leaves the
     // store. killer < 0 (unknown) -> the neutral player of the galactic campaign under the battle (nil without one).
     // When the scoring VM runs on another store (a campaign battle: the galactic store), the object is passed as a
@@ -207,7 +207,7 @@ public:
     // storyb t14 (signal 0x22, a tactical build finished): Tactical_Production_End_Event(type, player, nil location);
     // the battle host calls it for TacticalBattle::production_done after its tick (land builds go to the pool).
     void scoring_tactical_production(uint32_t type, int32_t player);
-    // ui1 t05 (GAME_SCORING.md §7, 0x485760): the statistics dialog's value for `control_id`
+    // ui1 t05 (legacy docs/re/GAME_SCORING.md §7, 0x485760): the statistics dialog's value for `control_id`
     // (IDC_MILITARY_EFFICIENCY_STATIC, IDC_CONQUEST_EFFICIENCY_STATIC, IDC_KILL_EFFICIENCY_STATIC, IDC_TITLE_STATIC, ...):
     // Get_Game_Stat_For_Control_ID(PlayerWrapper, control_id, tactical) of the scoring script, its first result as a
     // number or a string. False without a script / function or when the call fails. UI thread between ticks (the
@@ -226,7 +226,7 @@ public:
     ObjectScriptHost* object_scripts() { return object_scripts_.get(); }
     const ObjectScriptHost* object_scripts() const { return object_scripts_.get(); }
     void set_object_script_files(const FileProvider* files);
-    // ref5 t04: ship names (ship_names.hpp; MCX8_BINDINGS_OBJECTS §"Ship names"). set_ship_names installs the lists the
+    // ship names (ship_names.hpp; MCX8_BINDINGS_OBJECTS §"Ship names"). set_ship_names installs the lists the
     // game session read (never for the attract demo: no names there) and the "ship_names" save chunk; the host names
     // the top mode's SELECTABLE objects after each T5 update and resets the cursors at every Start_Game. ship_name_of
     // is what every Lua object bridge's ship_name answers ("" without names).
@@ -250,7 +250,7 @@ public:
     // Headless: `ticks` ticks back to back. Returns ticks run.
     uint64_t run_fast(uint64_t ticks);
     // One main-loop iteration at wall time now_ms: pacing test, at most one tick, then the
-    // per-frame update with d = 0.03 per tick done (MAIN_LOOP.md Â§1.4 R1). True if it ticked.
+    // per-frame update with d = 0.03 per tick done (legacy docs/re/MAIN_LOOP.md Â§1.4 R1). True if it ticked.
     bool loop_iteration(uint32_t now_ms);
     // Real-time loop until `ticks` ticks ran: now_ms() is the wall clock (timeGetTime-style ms),
     // sleep_ms(n) waits; the FPS cap (floor(1000/cap) - 1 ms per iteration) paces iterations.
@@ -289,7 +289,7 @@ public:
     CrcRegistry& crc_registry() { return registry_; }
     const CrcLog& crc_log() const { return recorder_->log(); }
     CrcLog& crc_log() { return recorder_->log(); }
-    // SIMP sp2 (docs/SIM_PARALLEL_DESIGN.md 4.5): CRC capture cadence. every == 1 (the default: headless, tests,
+    // SIMP sp2 (docs/SIMULATION.md "Checksums"): CRC capture cadence. every == 1 (the default: headless, tests,
     // --crc-out) records every tick. every > 1 records the initial state, the ticks with tick % every == 0 and on-demand
     // captures (capture_crc_now: on save, at a benchmark's end, before a compare), and the log is a checkpoint log
     // (CrcLog::checkpoint = every, so first_divergence compares stored ticks). ring > 0 keeps at most about `ring` records
@@ -344,12 +344,12 @@ public:
     // the auto-resolve dialog's Withdrawl 49); the hook's answer is then the command's result.
     using PortEventHook = std::function<commands::RejectReason(SimHost& host, uint8_t player, const commands::EventData& ev)>;
     void set_port_event_hook(PortEventHook hook) { port_hook_ = std::move(hook); }
-    // Control groups (COMMANDS.md ControlGroup 30, UI.md 4.4) in tactical modes: assign = the issuer's synced selection
+    // Control groups (legacy docs/re/COMMANDS.md ControlGroup 30, legacy docs/re/UI.md 4.4) in tactical modes: assign = the issuer's synced selection
     // replaces group n (add: appended, ascending id); recall = the selection becomes the group's live owned members.
     // Per player, 10 groups; cleared with the selection at a new session. In the "players" CRC section once any group
     // was assigned (sessions without control groups keep their CRC stream).
     const std::vector<ObjectId>& control_group(uint8_t player, uint8_t group) const { return groups_.at(player).at(group % 10u); }
-    // STATION_HANGARS_SOUND.md §1.2 step 6 (skirmish station upgrade S -> S'): per player in index order, S' joins the
+    // legacy docs/re/STATION_HANGARS_SOUND.md §1.2 step 6 (skirmish station upgrade S -> S'): per player in index order, S' joins the
     // selection when S is in it (appended) and every control group holding S (ascending id). S itself leaves with its
     // removal (the selection / groups drop dead objects as before).
     void station_replaced(ObjectId old_station, ObjectId new_station);
@@ -419,13 +419,13 @@ private:
     std::vector<ObjectHandle> owned_units(uint8_t player, const std::vector<uint32_t>& ids) const;
     void register_crc();
     // --- S4 (owner: S4 agent): accepted human move / guard orders of the order hook -> STORY_COMMAND_UNIT /
-    // STORY_GUARD_UNIT (SCRIPT_GAPS.md §4.3 / §4.4): per unit of the order (selection order) owned by the issuer, when
+    // STORY_GUARD_UNIT (legacy docs/re/SCRIPT_GAPS.md §4.3 / §4.4): per unit of the order (selection order) owned by the issuer, when
     // the issuer is the tactical plot set's player. MoveToPosition / MoveToPositionFacing / MoveToRay / MoveToRayFacing -> UnitCommanded
     // with the destination (ray events: the plane point b); Escort (the guard order) -> UnitGuarding with the guarded object. MoveToObject / Attack do not
     // dispatch (only the four move-order executors and the guard order do). ---
     void story_order_feed(uint8_t player, const commands::EventData& ev, const std::vector<ObjectId>& selection);
     void step(const char* name) {
-        profile::lap(name);  // OPT1: time of the phase that just finished (wall clock; never read by the sim)
+        profile::lap(name);  // time of the phase that just finished (wall clock; never read by the sim)
         if (trace_) trace_->emplace_back(name);
     }
 
@@ -446,13 +446,13 @@ private:
     std::vector<PlayerController> controllers_;     // per player (cfg_.players)
     CrcRegistry registry_;
     std::unique_ptr<jobs::CrcRecorder> recorder_;
-    // cu9 t13: a fresh recorder (CRC hashers on the job system; the old parallel_crc switch was never off).
+    // a fresh recorder (CRC hashers on the job system; the old parallel_crc switch was never off).
     void make_recorder() {
         recorder_ = std::make_unique<jobs::CrcRecorder>(*js_, registry_, true);
         recorder_->log().checkpoint = crc_every_ > 1 ? crc_every_ : 0;
     }
-    void record_crc();  // sp2: capture this frame, then trim to the ring
-    uint32_t crc_every_ = 1;  // sp2: CRC capture cadence (set_crc_cadence)
+    void record_crc();  // capture this frame, then trim to the ring
+    uint32_t crc_every_ = 1;  // CRC capture cadence (set_crc_cadence)
     size_t crc_ring_ = 0;
     std::vector<std::string>* trace_ = nullptr;
     ModeUpdateHook after_mode_update_;  // S10
@@ -471,7 +471,7 @@ private:
 #ifdef ALAMO_SIM_HAVE_STORY
     lua::GlobalValueStore global_values_;  // Int-final
 #endif
-    // q6 t06: the GameScoring script
+    // the GameScoring script
     const FileProvider* scoring_files_ = nullptr;
     std::string scoring_name_;
     std::vector<std::string> scoring_messages_;
@@ -480,11 +480,11 @@ private:
     std::string scoring_campaign_;
     std::vector<std::pair<std::string, std::string>> scoring_starts_;  // (mode, map) waiting for the next Service
     std::vector<galactic::GalacticEvent> scoring_events_;              // tapped from the story drains, delivered after T9
-    objects::ObjectStore* scoring_store_ = nullptr;                     // storyb t14: the store the scoring VM runs on
-    std::shared_ptr<lua::ObjectBridge> scoring_battle_bridge_;  // storyb t14: parent_store = the battle's store (shared: incomplete type here)
+    objects::ObjectStore* scoring_store_ = nullptr;                     // the store the scoring VM runs on
+    std::shared_ptr<lua::ObjectBridge> scoring_battle_bridge_;  // parent_store = the battle's store (shared: incomplete type here)
     int32_t scoring_neutral_player() const;                             // storyb t14
     bool scoring_failed_ = false;  // the original's exited flag: a Lua error in an event call / thread
-    bool scoring_scaffold_ = false;  // mcx6 t07: scoring_map_battle() ran this session
+    bool scoring_scaffold_ = false;  // scoring_map_battle() ran this session
     size_t scoring_seen_messages_ = 0, scoring_seen_errors_ = 0;
     uint64_t scoring_services_ = 0, scoring_calls_ = 0, scoring_releases_ = 0;
     void service_scoring();
@@ -511,7 +511,7 @@ private:
     bool read_globals(ByteReader& r);
     void write_spatial(ByteWriter& w) const;
     bool read_spatial(ByteReader& r);
-    // q6 t19: "scoring" (the GameScoring script, LUA_SAVE.md) while a scoring script is configured; "object_scripts"
+    // "scoring" (the GameScoring script, legacy docs/re/LUA_SAVE.md) while a scoring script is configured; "object_scripts"
     // (ObjectScriptHost::write / read) while the object-script host exists. Write: false (+ *err) when a VM's Lua state
     // cannot be saved.
     bool scoring_configured() const;
@@ -523,11 +523,11 @@ private:
     uint32_t load_base_depth_ = 0;
     void read_chunks(const SaveFile& in, LoadReport& rep);
 #ifdef ALAMO_SIM_HAVE_STORY
-    // q6 t03: the scoring VM's own player world while no story session runs (start_galactic; GAME_SCORING.md: the
+    // the scoring VM's own player world while no story session runs (start_galactic; legacy docs/re/GAME_SCORING.md: the
     // script reaches the session's players in every session). Replaced by the story's world in start_story, dropped
     // with the VM. Before scoring_vm_, so destroyed after it. Null without the players family.
     std::shared_ptr<lua::LuaPlayerWorld> scoring_players_;
-    // q6 t06: last member, so it is destroyed before the stores, the RNG and the GlobalValue table it points to.
+    // last member, so it is destroyed before the stores, the RNG and the GlobalValue table it points to.
     std::unique_ptr<lua::LuaVm> scoring_vm_;
 #endif
     // q6 object scripts: after the stores, the RNG and the GlobalValue table (destroyed before them); the player world

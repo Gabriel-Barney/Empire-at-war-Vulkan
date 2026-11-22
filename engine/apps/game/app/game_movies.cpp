@@ -1,6 +1,6 @@
 #include "game_movies.hpp"
 
-#include "alamo/game/hud_feeds.hpp"  // mcx4 t13: movie_frame_cue
+#include "alamo/game/hud_feeds.hpp"  // movie_frame_cue
 
 #include <cstdio>
 
@@ -146,7 +146,7 @@ bool MovieSlot::open(const GameData& data, GameAudioHost& audio, std::string_vie
     speech_frames_ = std::move(speech_frames);
     speech_events_ = std::move(speech_events);
     cue_frame_ = 0;
-    captions_ = std::make_unique<video::CaptionTrack>();  // ui5 t12: Caption_Frame / Caption_Duration
+    captions_ = std::make_unique<video::CaptionTrack>();  // Caption_Frame / Caption_Duration
     captions_->reset(entry.captions);
     caption_frame_ = 0;  // the first step covers (0, 1], so a caption on frame 1 shows
     fps_ = info.fps_num > 0 && info.fps_den > 0 ? static_cast<double>(info.fps_num) / static_cast<double>(info.fps_den) : 30.0;
@@ -203,7 +203,7 @@ bool MovieSlot::update(double dt, ui::HudRenderer& hud, uint16_t page) {
         if (next_cue_ > 0 && frame < cues_[next_cue_ - 1].frame) next_cue_ = 0;
         while (next_cue_ < cues_.size() && cues_[next_cue_].frame <= frame) audio_->movie_cue(cues_[next_cue_++].event);
     }
-    if (audio_ && (!sfx_frames_.empty() || !speech_frames_.empty())) {  // mcx4 t13: Bink frame numbers count from 1
+    if (audio_ && (!sfx_frames_.empty() || !speech_frames_.empty())) {  // Bink frame numbers count from 1
         const int64_t frame = static_cast<int64_t>(std::floor(player_->time_s() * fps_)) + 1;
         if (frame < cue_frame_) cue_frame_ = 0;  // a loop went back to the start
         if (frame > cue_frame_) {
@@ -216,7 +216,7 @@ bool MovieSlot::update(double dt, ui::HudRenderer& hud, uint16_t page) {
             cue_frame_ = frame;
         }
     }
-    if (captions_ && !captions_->empty()) {  // ui5 t12 (AUDIO.md §3.4): Bink frame numbers count from 1
+    if (captions_ && !captions_->empty()) {  // ui5 t12 (legacy docs/re/AUDIO.md §3.4): Bink frame numbers count from 1
         const int64_t frame = static_cast<int64_t>(std::floor(player_->time_s() * fps_)) + 1;
         if (frame < caption_frame_) {  // a loop went back to the start
             captions_->restart();

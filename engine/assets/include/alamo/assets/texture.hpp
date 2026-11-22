@@ -4,8 +4,8 @@
 // 24-bit RGB, 16-bit 565/1555/4444/X1555/X4444 (expanded to BGRA8), L8, A8, A8L8 (kept as R8 / R8G8
 // with a component swizzle), legacy D3DFMT FourCC codes for those, full mip chains (truncated chains are cut to the levels present, with a warning), and
 // cubemaps (a partial cubemap keeps the faces it has, the others black, with a warning).
-// Mod formats (mcx2 t04, docs/MOD_COMPAT_DESIGN.md 10.3), converted on load:
-// DX10-header DDS files are refused (mcx2 t11): retail's d3dx9_43 cannot read them, so retail shows them as missing.
+// Mod formats (docs/MODS.md "Asset salvage and GUI fallback"), converted on load:
+// DX10-header DDS files are refused: retail's d3dx9_43 cannot read them, so retail shows them as missing.
 //   ATI1 / BC4U -> R8 (R,0,0,1); ATI2 / BC5U -> R8G8 (R,G,0,1) (software decode; identity
 //   mapping, Vulkan fills the missing components); V8U8 -> RGBA8_SNORM (U,V,1,1); Q8W8V8U8 -> RGBA8_SNORM;
 //   CxV8U8 -> RGBA8_SNORM (U,V,sqrt(1-U^2-V^2),1):
@@ -136,7 +136,7 @@ bool decode_texture(std::vector<std::uint8_t> file, TextureAsset& out, std::stri
 // Returns false (texture untouched) for block-compressed and float formats or when mips already exist.
 bool generate_mips(TextureAsset& t);
 
-// Texture lookup (docs/re/SPACE_AND_OPEN.md B.2, alGraphicsDriver::Load_Texture). On the
+// Texture lookup (legacy docs/re/SPACE_AND_OPEN.md B.2, alGraphicsDriver::Load_Texture). On the
 // normalised name (alamo::normalize_path: upper-case, '\\' separators; VFS reads are
 // case-insensitive):
 //   AsNamed       : the name as written (mod paths, loose files, MEGs - whatever the VFS resolves)
@@ -164,7 +164,7 @@ bool load_texture(const FileProvider& files, std::string_view name, TextureAsset
 
 // Fallbacks for missing/broken textures (RGBA8):
 //   Color  : the original returns one shared 256x256 texture built from an image embedded in the
-//            exe (SPACE_AND_OPEN.md B.2 step 5); its contents are not recovered. Here: 256x256
+//            exe (legacy docs/re/SPACE_AND_OPEN.md B.2 step 5); its contents are not recovered. Here: 256x256
 //            magenta/black checker of 32x32-texel squares, alpha 255, full box-filtered mip
 //            chain (9 levels) [inferred content].
 //   Normal : 4x4 flat tangent-space normal (128,128,255) with alpha 0 (no specular mask), 1 mip

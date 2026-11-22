@@ -1,4 +1,4 @@
-// P4 mouse cursor (docs/re/UI.md §3.1 MousePointers.xml, §1.1 step 9 "2D scene #2: mouse cursor, topmost"): the cursor
+// P4 mouse cursor (legacy docs/re/UI.md §3.1 MousePointers.xml, §1.1 step 9 "2D scene #2: mouse cursor, topmost"): the cursor
 // set from Data\XML\MousePointers.xml (53 <MousePointer Name="POINTER_*"> entries: Base_Texture, Hot_X / Hot_Y,
 // Anim_Frame_Delay; the names map to an engine enumeration in data order), the context -> cursor choice and the draw
 // data. Host API: fill a CursorContext each frame, `MouseCursor::update(choose_pointer(ctx), now)`, then
@@ -17,7 +17,7 @@
 //     by target kind and validity, special weapon, beacon, reinforcement point, bombing run, tactical build / sell,
 //     waypoint, guard, barrage, repair, garrison, attack-move, move-only, attack-only); then the hovered object: enemy
 //     with a selection -> ATTACK (ATTACK_OUT_OF_RANGE / CANT_ATTACK), a garrisonable own / friendly / neutral object with
-//     a selection -> GARRISON_IN (ui1 t01), own selectable -> SELECT; ground with a selection -> MOVE / CANT_MOVE; else NORMAL.
+//     a selection -> GARRISON_IN, own selectable -> SELECT; ground with a selection -> MOVE / CANT_MOVE; else NORMAL.
 #pragma once
 #include <cstdint>
 #include <functional>

@@ -36,7 +36,7 @@ materials::LoadOptions EffectCache::default_options() {
     // Track B on: passes without a hand-written program reach ProgramStatus::Translated and are
     // translated on demand (renderer worker jobs), instead of falling back to the FF technique.
     o.ff_fallback_for_untranslated = false;
-    o.engine_sampler.max_anisotropy = 8;  // engine quality sampler (PORTING.md 3.3)
+    o.engine_sampler.max_anisotropy = 8;  // engine quality sampler (legacy docs/shaders/PORTING.md 3.3)
     return o;
 }
 

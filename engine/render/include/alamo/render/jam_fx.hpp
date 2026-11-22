@@ -1,4 +1,4 @@
-// alamo_render (lib alamo_render_sim) - R5 sensor jamming visual (docs/re/ABILITY_VISUALS.md section 3, finding 6.3 "Jamming").
+// alamo_render (lib alamo_render_sim) - R5 sensor jamming visual (legacy docs/re/ABILITY_VISUALS.md section 3, finding 6.3 "Jamming").
 // Render-side only: it reads InterpolatedFrame::jamming (filled by apply_battle_jamming from the sim's const state) and draws:
 //   * Jammer WITHOUT Owner_Particle_Effect (the two Underworld jammer structures): a radius blob = a square of side 2 x radius
 //     centred on the jammer, no rotation, material Blob_Material_Name (ShadowBlobMaterials.xml; vanilla Sensor_Jamming_Blob =

@@ -1,12 +1,12 @@
 ﻿// Story plots (roadmap L1 "story" family; S4 "Story & campaign events").
 //
 // One StoryModel = one story manager's plot set (the original keeps one story manager per game mode;
-// TheStoryMode::Load_Plots loads one plot set per faction, docs/re/MAIN_LOOP.md 5.2). It holds the
+// TheStoryMode::Load_Plots loads one plot set per faction, legacy docs/re/MAIN_LOOP.md 5.2). It holds the
 // plots (Data\XML\Story_*.xml: <Story><Event Name=..> with Event_Type, Event_ParamN, Reward_Type,
 // Reward_ParamN, Reward_Param_List, Prereq, Branch, Perpetual, Timeout, Inactive_Delay, Multiplayer),
 // the story flags, objectives, radar blips and planet highlights, and a log of fired events.
 //
-// Behaviour follows docs/re/STORY.md (section numbers below); port choices are marked [port],
+// Behaviour follows legacy docs/re/STORY.md (section numbers below); port choices are marked [port],
 // guesses the doc marks [M]/[L] keep that mark.
 //
 //   * Arming (§1): an event is ARMED ("active") at load iff it has no <Prereq> tag. Afterwards it is
@@ -59,7 +59,7 @@ class LuaVm;
 
 // A story event / reward parameter: XML text, or text set from Lua (Set_Event_Parameter stores objects and types as
 // their type name, numbers formatted like Lua's tostring).
-// Only Kind::Text exists (cu14 t03, cu14f). The save record and the state hash still write the old layout's constant
+// Only Kind::Text exists (cu14f). The save record and the state hash still write the old layout's constant
 // bytes (kind u8 0, then an i32 -1 after the text) so the story save bytes and the state hash did not change.
 struct StoryParam {
     enum class Kind : uint8_t { Text };
@@ -75,15 +75,15 @@ enum class StoryObjectiveState : uint8_t { Active, Complete, Failed };
 struct StoryObjective {
     std::string text;  // text id (TEXT_OBJECTIVE_...)
     StoryObjectiveState state = StoryObjectiveState::Active;
-    // mcx8 t12 (docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "Add_Objective") [H]: the objectives panel section - true = a
+    // mcx8 t12 (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "Add_Objective") [H]: the objectives panel section - true = a
     // "battle info" line (TEXT_TEST_BATTLE_INFO_HEADER; Lua Add_Objective(text, true), the planetary-bonus lines), false =
     // a numbered objective (TEXT_TEST_OBJECTIVE_HEADER; Add_Objective(text, false), the ADD_OBJECTIVE reward).
     bool battle_info = false;
 };
 
 // A radar blip (Add_Radar_Blip). Tactical: `name` is the script's name; the blip follows `object_id` when it is >= 0,
-// else it stays at (x, y, z) (an AI target, task force or position argument; mcx8 t12). Galactic: `name` is empty and
-// `object_id` is the planet whose highlight is on (MCX8_BINDINGS_PLAYERS_STORY.md "Add_Radar_Blip").
+// else it stays at (x, y, z) (an AI target, task force or position argument). Galactic: `name` is empty and
+// `object_id` is the planet whose highlight is on (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "Add_Radar_Blip").
 struct StoryBlip {
     std::string name;
     int32_t object_id = -1;
@@ -126,7 +126,7 @@ struct StoryEventDef {
     double inactive_delay = 0.0;   // <Inactive_Delay> seconds, 0 = none
     bool in_table = true;          // false: a duplicate name (never visited)
     std::vector<std::string> dialog;  // the Add_Dialog_Text line list (event +0x2C0, LUA_API; Clear_Dialog_Text empties it)
-    // Story dialog / chapter fields (STORY.md §1.6 field map): Story_Dialog (+0x230, a Lua Set_Dialog replaces it),
+    // Story dialog / chapter fields (legacy docs/re/STORY.md §1.6 field map): Story_Dialog (+0x230, a Lua Set_Dialog replaces it),
     // Story_Chapter (+0x250), Story_Var (+0x258), Story_Tag (+0x278), Story_Dialog_Popup (+0x2B8), Story_Dialog_SFX (+0x2B9).
     // Story_Incoming (+0x298) is not read by Fire step 6 and not kept. Fire step 6 uses them (StoryHolocron).
     std::string story_dialog, story_tag, story_var;
@@ -136,7 +136,7 @@ struct StoryEventDef {
 };
 
 // One Fire step 6 presentation record (an event with a Story_Dialog fired), in firing order: what the UI shows for it
-// (STORY.md §1.6 step 3: Popup false -> holocron flash, transmission text, SFX only when `sfx`; Popup true -> the summary
+// (legacy docs/re/STORY.md §1.6 step 3: Popup false -> holocron flash, transmission text, SFX only when `sfx`; Popup true -> the summary
 // at this chapter). Not hashed, not saved (presentation).
 struct StoryDialogEntry {
     uint32_t frame = 0;
@@ -152,7 +152,7 @@ struct StoryDialogEntry {
 
 class StoryModel;
 
-// GALACTIC_DIALOGS §2.8 / STORY.md §1.6: the holocron list (0x140a2a4c8). ONE list for the whole game: every plot set of
+// GALACTIC_DIALOGS §2.8 / legacy docs/re/STORY.md §1.6: the holocron list (0x140a2a4c8). ONE list for the whole game: every plot set of
 // every mode adds to it (StoryModel::share_holocron). Records are inserted at index 0 (newest first), with no
 // de-duplication. A record keeps a REFERENCE to its event's Add_Dialog_Text list (not a copy), so later Add / Clear calls
 // show up in it; lines() reads through that reference. REMOVE_STORY_GOAL removes and STORY_GOAL_COMPLETED completes the
@@ -221,7 +221,7 @@ struct StoryEventState {
     double timeout_at = -1.0;      // < 0: no timeout registered
     double inactive_start = -1.0;  // < 0: inactivity timer not started
     // STORY_ELAPSED / OBJECTIVE_TIMEOUT timer (§4.7): vf4 (Perpetual re-arm, Lua Reset, RESET_EVENT, RESET_BRANCH) clears
-    // timer_acc and timer_init (q6 t03, 0x45e550 [H]); the next evaluation re-records timer_last.
+    // timer_acc and timer_init (0x45e550 [H]); the next evaluation re-records timer_last.
     bool timer_init = false;
     double timer_last = 0.0;
     double timer_acc = 0.0;
@@ -237,7 +237,7 @@ struct StoryPlot {
     std::string name;        // file name as listed, e.g. "Story_Campaign_Underworld.xml"
     std::string lua_script;  // <Lua_Script> paired with this plot ("" = none)
     bool active = false;     // false = suspended
-    // q6 t03 (STORY.md §2.1): false when a later-loaded plot of the same file name (same model, or a later model of the
+    // q6 t03 (legacy docs/re/STORY.md §2.1): false when a later-loaded plot of the same file name (same model, or a later model of the
     // StoryTable) replaced it in the story manager's table: no walk, dispatch, T9 service or name lookup reaches it.
     bool in_table = true;
     std::vector<StoryEventDef> events;
@@ -255,7 +255,7 @@ struct StoryNotification {
     bool owner_neutral = false;      // that owner is the neutral player
     std::string planet;              // planet (Enter family, CONSTRUCT_LEVEL, battles); "" = no planet
     std::vector<std::string> units;  // fleet contents, unit type names (Enter family, MOVE)
-    // mcx6 t03, Enter family (STORY.md §5 "Enter family match"): the dispatched fleet. no_fleet = the dispatch carried none
+    // mcx6 t03, Enter family (legacy docs/re/STORY.md §5 "Enter family match"): the dispatched fleet. no_fleet = the dispatch carried none
     // (P2 filter, P3 / P6 / P7 then not tested). fleet_hidden = 0x3a9760 (it has contents and all of them are hidden);
     // fleet_raid = the Raid_Force_* test 0x432e20; fleet_direct = its direct content count (P6). orbit_units = the type
     // names of every content of every fleet in orbit of the planet, any owner (P4).
@@ -267,7 +267,7 @@ struct StoryNotification {
     double value = 0.0;              // level / credits / count
     int32_t category = -1;           // CONSTRUCT_LEVEL: 0 ground base (GROUND), 1 starbase (SPACE); value = its Base_Level
     std::vector<StoryParam> params;  // generic rule for types without a modelled evaluator
-    // Battles (WIN/LOSE_BATTLES Param2 / Param3, STORY.md §5 and its note "Battle composition", mcx6 t03):
+    // Battles (WIN/LOSE_BATTLES Param2 / Param3, legacy docs/re/STORY.md §5 and its note "Battle composition"):
     int32_t location = 0;            // 1 land, 2 space (the S10 battle event's value); 0 unknown
     // The two Ship_Class lists the story manager recorded at the last space conflict decision (-1 = a type without
     // Ship_Class): the local player's side and everything else; local_player = the machine's local player (FRIENDLY_*
@@ -278,14 +278,14 @@ struct StoryNotification {
     // Tactical notifications (COMMAND_UNIT / GUARD_UNIT): the target / guarded object's type name, distance.
     std::string target;
     double distance = -1.0;          // < 0 unknown
-    // L1/S4 wave 2b (SCRIPT_GAPS.md §4): COMMAND_UNIT data2 = the order's destination; DESTROY data2 = the planet the
+    // L1/S4 wave 2b (legacy docs/re/SCRIPT_GAPS.md §4): COMMAND_UNIT data2 = the order's destination; DESTROY data2 = the planet the
     // dead object was in (filter on the planet's owner); CORRUPTION_* use `value` = the corruption type (-1 none).
     bool has_position = false;
     double x = 0.0, y = 0.0, z = 0.0;
     bool has_planet = false;         // DESTROY: the object was inside a container chain reaching `planet`
     int32_t planet_owner = -1;
     bool planet_owner_neutral = false;
-    // S4 (docs/re/L1_S4_REMAINING.md §4.2): CAPTURE_STRUCTURE data2 = the new owner's faction name.
+    // S4 (legacy docs/re/L1_S4_REMAINING.md §4.2): CAPTURE_STRUCTURE data2 = the new owner's faction name.
     std::string faction;
 };
 
@@ -311,7 +311,7 @@ public:
     // T9 step 2: STORY_ELAPSED for every active plot.
     void service_elapsed();
     // T9 step 3 (after the plot's Lua service): for an ACTIVE plot, inactivity timers, the STORY_FLAG
-    // poll and Timeout expiry [L: an expired Timeout fires the event, STORY.md §7.1].
+    // poll and Timeout expiry [L: an expired Timeout fires the event, legacy docs/re/STORY.md §7.1].
     void service_plot(uint32_t plot);
     // T9 step 5: OBJECTIVE_TIMEOUT (UNIT_PROXIMITY / CHECK_DESTROYED: the host's poll() below, wave 2a; FOG
     // reveals have no source yet).
@@ -325,7 +325,7 @@ public:
     // Dispatches a game notification of `type` (e.g. "STORY_CONQUER") to every armed, unfired, enabled
     // event of that type in the active plots. Returns the number of events fired (cascades included).
     uint32_t dispatch(std::string_view type, const StoryNotification& n);
-    // The same for one plot (q6 t03: StoryTable walks for the dispatches that reach every player's plots).
+    // The same for one plot (StoryTable walks for the dispatches that reach every player's plots).
     uint32_t dispatch_plot(uint32_t plot, std::string_view type, const StoryNotification& n);
     // Lua Story_Event(name [, object]): STORY_AI_NOTIFICATION (`object_type` = the object's type name). This model's
     // plots only; with a StoryTable, Lua goes through StoryTable::story_event (every player's plots).
@@ -338,7 +338,7 @@ public:
     // TRIGGER_EVENT semantics: fires every event named `name` in all plots of this model (table order). The TRIGGER_EVENT
     // reward itself uses the StoryTable when the model is in one (every player's plots).
     uint32_t trigger_event_by_name(std::string_view name);
-    // Host poll of a self-evaluated type (STORY.md 1.3 / 4.1 steps 4-5: UNIT_PROXIMITY, CHECK_DESTROYED; L1/S4
+    // Host poll of a self-evaluated type (legacy docs/re/STORY.md 1.3 / 4.1 steps 4-5: UNIT_PROXIMITY, CHECK_DESTROYED; L1/S4
     // wave 2a): walks the active plots and events in table order like dispatch and fires every armed, unfired,
     // enabled event of `type` whose definition `match` accepts. Returns the number fired (cascades included).
     uint32_t poll(std::string_view type, const std::function<bool(const StoryEventDef&)>& match);
@@ -353,7 +353,7 @@ public:
     size_t deliver_script_triggers(uint32_t plot, LuaVm& vm, std::string* err = nullptr);
 
     // ---- host reward hook ----
-    // ref5 t02: the Reward_Type names the model applies itself (exact, upper case), in registration order; the sim's coverage
+    // the Reward_Type names the model applies itself (exact, upper case), in registration order; the sim's coverage
     // test checks them against its story reward table's Model rows.
     static bool has_reward_handler(std::string_view name);
     static std::vector<std::string_view> reward_names();
@@ -384,19 +384,19 @@ public:
     void undo_changes(const std::vector<ParamChange>& changes);
     // Drops the last plot (a plot add_plot appended, mcx6 RANDOM_STORY undone on a load). False when there is none.
     bool remove_last_plot();
-    // L1/S4 wave 2b: player -> faction index (FILTER_* compare factions, SCRIPT_GAPS.md §4.5); unset or < 0 = compare
+    // L1/S4 wave 2b: player -> faction index (FILTER_* compare factions, legacy docs/re/SCRIPT_GAPS.md §4.5); unset or < 0 = compare
     // players. objects_within(type name, x, y, z, range): some live object of that type in the mode is strictly
     // within `range` (3D) of the point (COMMAND_UNIT §4.3); unset = the notification's target / distance stand in.
     std::function<int32_t(int32_t player)> faction_of;
     std::function<bool(std::string_view type, double x, double y, double z, double range)> objects_within;
-    // S4 (L1_S4_REMAINING.md §4.4, LOAD_TACTICAL_MAP Param2 entry i): the i-th object of that type in the current store
+    // S4 (legacy docs/re/L1_S4_REMAINING.md §4.4, LOAD_TACTICAL_MAP Param2 entry i): the i-th object of that type in the current store
     // has the battle planet as its first planet ancestor. Unset: no Param2 entry matches.
     std::function<bool(std::string_view type, size_t index)> load_map_hero;
-    // q6 t03: the game text table (MasterTextFile, 0x140a7bc58) for Add_Dialog_Text: true + the text of `id`, false when
+    // the game text table (MasterTextFile, 0x140a7bc58) for Add_Dialog_Text: true + the text of `id`, false when
     // the id has no entry (it then shows as itself). Unset [port: the headless sim has no text table]: every id shows as
     // itself. Its results land in the hashed dialog lines, so a host that sets it must give every peer the same table.
     std::function<bool(std::string_view id, std::string& out)> text_lookup;
-    // q6 t03 (STORY.md §2.4): the story manager's table this model's plot set belongs to (StoryTable::assign sets it);
+    // q6 t03 (legacy docs/re/STORY.md §2.4): the story manager's table this model's plot set belongs to (StoryTable::assign sets it);
     // TRIGGER_EVENT, STORY_ELEMENT and DISABLE_STORY_EVENT with Param3 then reach every player's plots. nullptr = this
     // model is the whole table.
     StoryTable* table() const { return table_; }
@@ -405,7 +405,7 @@ public:
     size_t plot_count() const { return plots_.size(); }
     const StoryPlot& plot(uint32_t i) const { return plots_[i]; }
     StoryPlot& plot(uint32_t i) { return plots_[i]; }
-    // q6 t03 (STORY.md §2.1 [H]): by the CRC-32 of the name as passed - case-sensitive, path included, no ".xml" added -
+    // q6 t03 (legacy docs/re/STORY.md §2.1 [H]): by the CRC-32 of the name as passed - case-sensitive, path included, no ".xml" added -
     // among the plots in the table (in_table). UINT32_MAX if absent.
     uint32_t find_plot(std::string_view name) const;
     uint32_t find_event(uint32_t plot, std::string_view name) const;  // UINT32_MAX if absent
@@ -419,7 +419,7 @@ public:
     bool has_flag(std::string_view name) const;
     void set_flag(std::string_view name, int32_t value);  // no evaluation (FLAG events are polled)
     const std::map<std::string, int32_t>& flags() const { return *flags_; }  // upper-case names
-    // Story flags are ONE global table shared by every plot and player (STORY.md §0 [H]; the tactical missions' SET_FLAG
+    // Story flags are ONE global table shared by every plot and player (legacy docs/re/STORY.md §0 [H]; the tactical missions' SET_FLAG
     // ..._WIN is read by the galactic campaign's STORY_FLAG). A model starts with a table of its own; a host with several
     // plot sets (one per faction, the tactical story) makes them use one table. hash() / write() cover the table in each
     // model; read() replaces its contents (so every sharing model sees the loaded flags).
@@ -452,7 +452,7 @@ public:
     void add_highlight(std::string_view name, int32_t object_id);
     bool remove_highlight(std::string_view name);
     // AI story flags (Check_Story_Flag(player, name, location, reset)), raised by the host (TRIGGER_AI). Keyed by
-    // (player, name as given - case kept, location object id or -1); MCX8_BINDINGS_PLAYERS_STORY.md "Check_Story_Flag".
+    // (player, name as given - case kept, location object id or -1); legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "Check_Story_Flag".
     void raise_ai_flag(int32_t player, std::string_view name, int32_t location_id);
     bool check_ai_flag(int32_t player, std::string_view name, int32_t location_id, bool reset);
 
@@ -465,7 +465,7 @@ public:
     // Canonical state for the per-tick CRC (CrcRegistry system "story").
     void hash(StateHasher& h) const;
 
-    // ---- save / load (OI lua: STORY.md §7 item 8; STRATEGIC_GAPS §4 [H]) ----
+    // ---- save / load (OI lua: legacy docs/re/STORY.md §7 item 8; STRATEGIC_GAPS §4 [H]) ----
     // The original saves per plot the active flag, the owning player, every event's own state (triggered / active /
     // disabled, counters, ELAPSED LastTime / accumulated / initialised, parameters) and the plot script's state. Here
     // [port: the new-engine save layout, not the original's chunks] everything hash() covers is written, plus the fired
@@ -474,7 +474,7 @@ public:
     // truncated data; after a successful read hash() equals the saved model's.
     void write(ByteWriter& w) const;
     bool read(ByteReader& r);
-    // OI lua: STORY.md §7 item 3 [H] - the T9 time argument = (float)(current mode frame) x seconds-per-frame (a float,
+    // OI lua: legacy docs/re/STORY.md §7 item 3 [H] - the T9 time argument = (float)(current mode frame) x seconds-per-frame (a float,
     // 0x140b0a344), computed in float. Hosts pass it to set_clock / update.
     static double t9_seconds(uint64_t mode_frame, float seconds_per_frame) {
         return static_cast<double>(static_cast<float>(mode_frame) * seconds_per_frame);
@@ -495,7 +495,7 @@ private:
     bool same_side(int32_t owner) const;  // FILTER "friendly": same faction (faction_of) / player
     bool tick_timer(StoryEventState& st, double threshold);
     void apply_reward(uint32_t p, uint32_t e);
-    // ref5 t02: the rewards the model applies itself, one handler per Reward_Type name (story_model.cpp reward_handlers()).
+    // the rewards the model applies itself, one handler per Reward_Type name (story_model.cpp reward_handlers()).
     using RewardFn = void (StoryModel::*)(uint32_t p, uint32_t e, const std::string& type, const std::vector<StoryParam>& rp);
     struct RewardHandler {
         std::string_view name;
@@ -542,11 +542,11 @@ private:
     double time_ = 0.0;
     bool paused_ = false;
     uint32_t fire_depth_ = 0;   // recursion guard (cascades, TRIGGER_EVENT)
-    const StoryNotification* firing_ = nullptr;  // mcx6: firing_notification()
+    const StoryNotification* firing_ = nullptr;  // firing_notification()
     uint32_t reset_depth_ = 0;  // RESET_BRANCH depth limit 3 (§4.5)
 };
 
-// q6 t03 (STORY.md §2.1 / §2.4 [H]): one story manager's plot table. The original has no per-player plot sets: every
+// q6 t03 (legacy docs/re/STORY.md §2.1 / §2.4 [H]): one story manager's plot table. The original has no per-player plot sets: every
 // player's plots of a game mode sit in ONE table (Load_Plots loads Rebel_Story_Name, Empire_Story_Name,
 // Underworld_Story_Name, then the Story_Name pairs, into the mode's manager). The port keeps one StoryModel per plot set
 // (player: rewards, filters, the log) and a StoryTable over them for the lookups that reach every player's plots:
@@ -592,7 +592,7 @@ private:
 // attachment.
 void attach_story(LuaVm& vm, StoryModel* model);
 StoryModel* attached_story(LuaVm& vm);
-// q6 t03: the story manager's table the VM's own model belongs to (the session's galactic plot sets): Get_Story_Plot and
+// the story manager's table the VM's own model belongs to (the session's galactic plot sets): Get_Story_Plot and
 // Story_Event then act on every player's plots (StoryTable). Plot / event wrappers of another set's plot remember that
 // set's index in the table, so the table must keep its order for the VM's lifetime (and across a load). nullptr detaches
 // (the VM's own model is then the whole table). The table and its models must outlive the attachment.

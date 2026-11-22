@@ -1,4 +1,4 @@
-// OI galactic: the strategic gaps of docs/re/STRATEGIC_GAPS.md (SG) on GalacticSim (declared in campaign.hpp, "OI
+// OI galactic: the strategic gaps of legacy docs/re/STRATEGIC_GAPS.md (SG) on GalacticSim (declared in campaign.hpp, "OI
 // galactic"): fleet speed multiplier M (SG 2.1), company transports (SG 1.7), buildability 0x2804d0 (SG 1.3), galactic
 // stealth and detection (SG 2.2) and the event-driven victory claims (SG 1.4).
 //
@@ -532,7 +532,7 @@ bool GalacticSim::contested_space(PlanetIndex planet, int32_t attacker) const {
 bool GalacticSim::super_weapon_destroy_planet(PlanetIndex planet, int32_t attacker, bool check_contested_space) {
     // 0x707670: leader test (no name list) -> claim 7, then the shared routine only (+ the visual refresh, presentation).
     if (!valid_planet(planet) || planets_[planet].destroyed) return false;
-    if (check_contested_space && contested_space(planet, attacker)) return false;  // STY1 t01: refused, nothing destroyed
+    if (check_contested_space && contested_space(planet, attacker)) return false;  // refused, nothing destroyed
     if (valid_player(attacker) && super_weapon_leader_hit(planet)) claim_victory(attacker, 7, 30);
     return planet_destroy_core(planet, attacker);
 }
@@ -579,7 +579,7 @@ void GalacticSim::hash_oi(StateHasher& h) const {
         h.u32(0x56484C44u);  // "VHLD"
         h.i32(victory_hold_);
     }
-    if (!victory_deferred_.empty()) {  // q6 t21: deferred victory tests (only once used, so older captures keep their CRC)
+    if (!victory_deferred_.empty()) {  // deferred victory tests (only once used, so older captures keep their CRC)
         h.u32(0x56444652u);  // "VDFR"
         h.u32(static_cast<uint32_t>(victory_deferred_.size()));
         for (const auto& e : victory_deferred_) {
@@ -587,7 +587,7 @@ void GalacticSim::hash_oi(StateHasher& h) const {
             h.u8(e.second);
         }
     }
-    {  // cu8f t04b: live units with Prefer_Ground_Over_Space false (only once used, so older captures keep their CRC)
+    {  // live units with Prefer_Ground_Over_Space false (only once used, so older captures keep their CRC)
         uint32_t shy = 0;
         for (int32_t id : ground_shy_) shy += store_->alive(store_->find(static_cast<objects::ObjectId>(id))) ? 1u : 0u;
         if (shy != 0) {

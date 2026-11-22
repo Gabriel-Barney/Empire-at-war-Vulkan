@@ -36,7 +36,7 @@ namespace alamo::render {
 // variant has no model of its own; Scale_Factor likewise.
 // Render-relevant fields of a GameObjectType (variant chain followed like the model).
 struct TypeRenderInfo {
-    float lod_bias = kDefaultLodBias;             // <LOD_Bias> (SPACE_AND_OPEN.md B.4)
+    float lod_bias = kDefaultLodBias;             // <LOD_Bias> (legacy docs/re/SPACE_AND_OPEN.md B.4)
     bool hardpoints_known = false;                // the hardpoint XML was loaded (else: name-rule fallback)
     std::vector<std::string> hardpoints;          // <HardPoints> names in order
     std::vector<std::string> hardpoint_decal;     // per hardpoints entry: its <Damage_Decal> ("" if none / unknown)
@@ -46,12 +46,12 @@ struct TypeRenderInfo {
     int32_t hardpoint_index(std::string_view name) const;
     bool has_no_colorization = false;             // the type's own <No_Colorization_Color>
     materials::float4 no_colorization{1, 1, 1, 1};
-    bool in_background = false;                   // <In_Background> (space: background scene, SPACE_AND_OPEN.md A.3)
+    bool in_background = false;                   // <In_Background> (space: background scene, legacy docs/re/SPACE_AND_OPEN.md A.3)
     bool loop_idle = false;                       // <Loop_Idle_Anim_00>
     float idle_rate = 1.0f;                       // <Idle_Anim_00_Rate_Mod> (0 = frozen at frame 0)
 };
 
-// The 9 MP colours (SPACE_AND_OPEN.md B.3, GameConstants MP_Color_Blue, Red, Green, Orange, Cyan,
+// The 9 MP colours (legacy docs/re/SPACE_AND_OPEN.md B.3, GameConstants MP_Color_Blue, Red, Green, Orange, Cyan,
 // Purple, Yellow, Gray, Eight; byte RGB / 255, alpha 1).
 inline constexpr uint32_t kMpPaletteSize = 9;
 struct MpPalette {
@@ -79,7 +79,7 @@ public:
     const HardpointDef* hardpoint(std::string_view name) const;
     // GameConstants MP_Color_* (doc values for absent tags).
     MpPalette palette() const;
-    // mcx4 t15: GameConstants Water_Render_Target_Resolution / Water_Clip_Plane_Offset (TERRAIN_WATER_POST.md, the
+    // GameConstants Water_Render_Target_Resolution / Water_Clip_Plane_Offset (legacy docs/re/TERRAIN_WATER_POST.md, the
     // reflection pass; an absent resolution keeps 512, an absent clip plane offset is the record default 10).
     terrain::WaterOptions water_options() const;
     // Factions in FactionFiles.xml order. A map placement's owner (0x4B0 mini 02) is read as an index into
@@ -92,7 +92,7 @@ public:
     };
     const std::vector<Faction>& factions() const { return factions_; }
     bool owner_neutral(uint32_t owner) const { return owner < factions_.size() && factions_[owner].neutral; }
-    // SPACE_AND_OPEN.md B.3 colour choice: owner faction not neutral -> the owner's player colour (here the MP
+    // legacy docs/re/SPACE_AND_OPEN.md B.3 colour choice: owner faction not neutral -> the owner's player colour (here the MP
     // palette entry of the owner index; no lobby); neutral -> the type's No_Colorization_Color when set, else
     // the faction's.
     materials::float4 owner_color(uint32_t owner, const TypeRenderInfo& t, const MpPalette& palette) const;
@@ -117,7 +117,7 @@ struct MapSceneStats {
     terrain::TerrainMeshStats mesh;
     uint32_t water_patches = 0;
     uint64_t water_triangles = 0;
-    // Decorations built at load (DECORATIONS.md): map tracks with a ribbon, decals with geometry.
+    // Decorations built at load (legacy docs/re/DECORATIONS.md): map tracks with a ribbon, decals with geometry.
     uint32_t tracks = 0, tracks_built = 0, water_tracks = 0, decals = 0, decals_built = 0;
     uint64_t decoration_triangles = 0;
     double decoration_ms = 0;
@@ -134,17 +134,17 @@ struct MapSceneStats {
 // world units per second; a land map without environments: the record ctor default (0 deg, 2.0) [port]. Space: (0, 0, 0)
 // (space mode never writes it). Set once at map load; nothing re-applies it per frame, and neither weather phases nor
 // Set_Cinematic_Environment change it. Presentation only (CRT cos / sin; the sim never reads it).
-// cu8g t03: rewritten after Set_New_Environment / the typed environment pick (land only): the two-argument form is the
+// rewritten after Set_New_Environment / the typed environment pick (land only): the two-argument form is the
 // wind of environment `env_index` (clamped like the active environment, see active_environment).
 Float3 scene_wind(const terrain::MapData& map);
 Float3 scene_wind(const terrain::MapData& map, uint32_t env_index);
-// cu8g t03: the map's environment `index` clamped to n - 1 (null without environments) - the active environment of a
+// the map's environment `index` clamped to n - 1 (null without environments) - the active environment of a
 // scene whose index came from the sim (TacticalBattle::environment_index; the mode itself clamps, this guards a stale
 // or out-of-range start index the way EnvironmentSet::start() does).
 const terrain::Environment* active_environment(const terrain::MapData& map, uint32_t index);
 
 // Land maps: terrain + water + decorations (map tracks, decals; per-frame dynamic tracks and shadow blobs) + fog
-// of war. Space maps (SpaceMapDesc, SPACE_AND_OPEN.md A): no terrain; placements of In_Background types and the
+// of war. Space maps (SpaceMapDesc, legacy docs/re/SPACE_AND_OPEN.md A): no terrain; placements of In_Background types and the
 // environment skydomes (at the origin, type Scale_Factor, TEE 1D/1F and 1E/20 angles) form the background scene
 // (sky(); draw with RecordOptions::space), the rest the main scene; Space_Mode camera; black clear.
 class MapScene {
@@ -174,10 +174,10 @@ public:
     // (skydomes + In_Background placements, world space).
     std::span<const Instance> sky() const { return space_ ? std::span<const Instance>(background_) : std::span<const Instance>(sky_instances_); }
     bool space() const { return space_; }
-    // Frame clear colour: the environment's (TEE 15) on land, black in space (SPACE_AND_OPEN.md 0 item 3).
+    // Frame clear colour: the environment's (TEE 15) on land, black in space (legacy docs/re/SPACE_AND_OPEN.md 0 item 3).
     Float3 clear_color() const { return space_ ? Float3{0, 0, 0} : lighting_.clear_color; }
-    Float3 scene_wind() const { return render::scene_wind(map_, env_index_); }  // cu8f t05 / cu8g t03: the active environment's
-    // ---- cu8g t02 / t03: the battle's environment (CU8G_T02_ENV_PICK_RE §1 / §5) ----
+    Float3 scene_wind() const { return render::scene_wind(map_, env_index_); }  // the active environment's
+    // ---- the battle's environment (CU8G_T02_ENV_PICK_RE §1 / §5) ----
     // Active environment index (load: the map's start index; then set_environment's) and its record (null: none).
     uint32_t environment_index() const { return env_index_; }
     const terrain::Environment* environment() const { return active_environment(map_, env_index_); }
@@ -192,7 +192,7 @@ public:
     // RecordOptions for this map (space flag).
     void apply(RecordOptions& o) const { o.space = space_; }
 
-    // ---- Fog of war (DECORATIONS.md 2): grid over the playable box (land 15, space 100 units per cell).
+    // ---- Fog of war (legacy docs/re/DECORATIONS.md 2): grid over the playable box (land 15, space 100 units per cell).
     terrain::FowGrid& fow() { return fow_; }
     // Border / blur / palette (land: kLandFowVisible / kLandFowColor, space: kSpaceFowVisible / kSpaceFowColor)
     // over fow().intensity(), then uploads (after start()). False before start or on an empty grid.
@@ -211,16 +211,16 @@ public:
     const MapSceneStats& stats() const { return stats_; }
     // The tactical start camera: TacticalCameras.xml Land_Mode pitch 50 / distance 460 / FOV 55 (4:3) / near
     // 10 / far 7000 (or the map's 0x10C minis 12 / 14 / 15 when plausible, a mapping inferred from their
-    // values), looking north at the centre of the playable box on the terrain surface (RENDER.md 3.4).
+    // values), looking north at the centre of the playable box on the terrain surface (legacy docs/re/RENDER.md 3.4).
     // distance_override > 0 replaces the distance (alamo_render --camera-distance).
     OrbitCamera tactical_camera(float aspect, float distance_override = -1.0f) const;
     static constexpr float kNear = 10.0f, kFar = 7000.0f;
     static constexpr float kLandPitch = 50.0f, kLandDistance = 460.0f, kLandFov = 55.0f;
     static constexpr float kLandObjectFadeBegin = 1100.0f, kLandObjectFadeEnd = 1300.0f;  // Object_Fade_Begin / End
-    // Space_Mode (SPACE_AND_OPEN.md A.2): FOV 55, pitch 50, distance 1000, near 10 / far 7000, fade 6000 -> 7000.
+    // Space_Mode (legacy docs/re/SPACE_AND_OPEN.md A.2): FOV 55, pitch 50, distance 1000, near 10 / far 7000, fade 6000 -> 7000.
     static constexpr float kSpacePitch = 50.0f, kSpaceDistance = 1000.0f, kSpaceFov = 55.0f;
     static constexpr float kSpaceObjectFadeBegin = 6000.0f, kSpaceObjectFadeEnd = 7000.0f;
-    // Fog always comes from the active (start) environment (SPACE_AND_OPEN.md B.1 [H]); the map's 0x100/2
+    // Fog always comes from the active (start) environment (legacy docs/re/SPACE_AND_OPEN.md B.1 [H]); the map's 0x100/2
     // scene-fog block is parsed by engine/terrain but never used.
     // Before start(): no environment skydome objects (main pass and sky cube; --no-sky).
     void set_sky_enabled(bool on) { sky_enabled_ = on; }
@@ -253,11 +253,11 @@ public:
     // Placements per owner slot (ascending slot) - diagnostics for the team-colour rule.
     std::vector<OwnerCount> owner_histogram() const;
 
-    // ---- Background idle animation (SPACE_AND_OPEN.md D.7 4, RENDER.md 4). Space background placements and
+    // ---- Background idle animation (legacy docs/re/SPACE_AND_OPEN.md D.7 4, legacy docs/re/RENDER.md 4). Space background placements and
     // skydomes play their model's `<model>_IDLE_00` clip at clip time idle_anim_seconds(tick,
     // Idle_Anim_00_Rate_Mod), looped per Loop_Idle_Anim_00. Frames advance only on 30 Hz sim ticks. Frame thread,
     // outside Renderer builds; poses are updated in place (Instance::bone_world of sky()).
-    // R3 (ANIM_PARTICLES.md A.5 / A.9, corrects D.7 4): loops wrap at frame count - 1 and the last stored frame is
+    // R3 (legacy docs/re/ANIM_PARTICLES.md A.5 / A.9, corrects D.7 4): loops wrap at frame count - 1 and the last stored frame is
     // never sampled, so a 240-frame 1 fps planet clip (frame 239 = frame 0) turns once per 239 s, not 240 s;
     // one-shots hold frame count - 2. Sampled with alamo_anim's rules when engine/anim is configured.
     void set_sim_tick(uint64_t tick);
@@ -304,8 +304,8 @@ private:
     std::vector<terrain::DynamicTrackParams> track_fx_;
     terrain::FowGrid fow_;
     bool started_ = false;
-    uint32_t env_index_ = 0;                          // cu8g t03: active environment
-    bool env_dirty_ = false;                          // cu8g t03: GPU re-apply pending (next update())
+    uint32_t env_index_ = 0;                          // active environment
+    bool env_dirty_ = false;                          // GPU re-apply pending (next update())
     float sky_scale_[2] = {1, 1};                    // skydome type Scale_Factor (space)
     std::vector<Instance> bg_placements_;              // space: In_Background placement instances
     // Per type: render info (LOD_Bias, Damage_Decal names, No_Colorization_Color) - looked up by key only.

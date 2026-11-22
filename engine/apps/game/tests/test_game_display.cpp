@@ -390,7 +390,7 @@ void detail_mappings() {
     CHECK(dp.detail == 40);
 }
 
-// ui1 t02: the options file round trip and the game speed index.
+// the options file round trip and the game speed index.
 void options_round_trip() {
     const std::filesystem::path dir = std::filesystem::temp_directory_path() / "alamo_game_display_tests";
     std::filesystem::create_directories(dir);
@@ -434,7 +434,7 @@ void options_round_trip() {
           game::game_speed_index(62) == 2 && game::game_speed_index(63) == 3 && game::game_speed_index(-5) == 0);
 }
 
-// ref6 t04: each options page reads and writes its own keys (options_pages.hpp); the setup pages convert an accepted
+// each options page reads and writes its own keys (options_pages.hpp); the setup pages convert an accepted
 // dialog and leave a dialog that was never accepted at the session's defaults.
 void options_pages() {
     std::ostringstream out;

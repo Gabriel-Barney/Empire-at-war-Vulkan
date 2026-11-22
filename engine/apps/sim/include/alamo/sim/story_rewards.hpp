@@ -1,4 +1,4 @@
-// STY1: where every story Reward_Type of the shipped FoC / EaW story XML is handled (the exit test's coverage table).
+// where every story Reward_Type of the shipped FoC / EaW story XML is handled (the exit test's coverage table).
 //
 // One row per reward name the shipped data uses. `owner` says which code applies it:
 //   Session  StorySession::apply_reward (galactic / tactical game state: this lane's rewards and the older ones)
@@ -8,10 +8,10 @@
 //   Retail   retail itself ignores the name (a misspelling in the shipped data, an unused enum); the port ignores it too
 //   Missing  a name of retail's Reward_Type enum that the port does not implement yet: skipped with a log line
 // The coverage test (tests/test_story_rewards.cpp) reads the shipped XML, looks each name up here and fails for a name with no row.
-// ref5 t02: each owner registers its handlers by name (StorySession::reward_names, lua::StoryModel::reward_names,
+// each owner registers its handlers by name (StorySession::reward_names, lua::StoryModel::reward_names,
 // game::StoryPresenter::reward_names and game::story_reward_media_names); test_reward_handlers_registered (Session, Model) and
 // alamo_game_story_present_tests (Ui) fail for a row whose owner has no handler for it.
-// mcx0 t05 (story ledger, docs/MOD_COMPAT_DESIGN.md §9.3): the table also has a row for every name of retail's enum
+// mcx0 t05 (story ledger, docs/MODS.md "Story ledger"): the table also has a row for every name of retail's enum
 // (retail_story_rewards()), and story_event_table() lists retail's event types with how far the port dispatches each.
 // The load report (alamo_mod_check v4 `story`) reads both: a mod's Missing reward is a reward_missing issue, a name in
 // neither table is retail-equivalent (retail's dispatcher ignores it too).
@@ -35,7 +35,7 @@ std::span<const StoryRewardRow> story_reward_table();
 const StoryRewardRow* find_story_reward(std::string_view name);
 std::string_view story_reward_owner_name(StoryRewardOwner owner);
 
-// retail's Reward_Type enum (the reward records of the story enum table, docs/re/STORY_REWARDS_GALACTIC.md §0.1).
+// retail's Reward_Type enum (the reward records of the story enum table, legacy docs/re/STORY_REWARDS_GALACTIC.md §0.1).
 struct RetailStoryReward {
     std::string_view name;  // upper case
     uint8_t code = 0;
@@ -43,7 +43,7 @@ struct RetailStoryReward {
 std::span<const RetailStoryReward> retail_story_rewards();
 const RetailStoryReward* find_retail_story_reward(std::string_view name);  // case-insensitive; nullptr if not retail's
 
-// Story event types (docs/re/STORY.md §0.1): Full = dispatched as retail does; Partial = dispatched with a documented
+// Story event types (legacy docs/re/STORY.md §0.1): Full = dispatched as retail does; Partial = dispatched with a documented
 // gap (note); Retail = retail drops the event too.
 enum class StoryEventState : uint8_t { Full, Partial, Retail };
 struct StoryEventRow {

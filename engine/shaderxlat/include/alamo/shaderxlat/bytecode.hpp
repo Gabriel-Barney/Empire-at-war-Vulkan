@@ -2,7 +2,7 @@
 // The parser is bounds-checked and validates every register reference against the shader model,
 // so the emitter and the interpreter can index fixed-size register files without further checks.
 // It parses untrusted mod FXO contents: malformed or truncated input returns false + an error
-// message, never undefined behaviour. SM3 (modc t22): outputs o0-o11 / ps_3_0 inputs v0-v9 carry a
+// message, never undefined behaviour. SM3: outputs o0-o11 / ps_3_0 inputs v0-v9 carry a
 // dcl usage, vPos / vFace, texldl; the translator covers what translate.cpp's SM3 table lists and
 // rejects the rest with a message (relative addressing of v# / o#, vertex texture fetch, ...).
 //

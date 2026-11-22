@@ -1,18 +1,18 @@
 // alamo_tactical_movement_t26_tests (no framework; non-zero exit on failure).
-// s78n t26.1: walking while deployed (docs/re/MOVEMENT.md §3.2.1): the cap test 0x3ac100 at a path start, the 0x19 walk
+// walking while deployed (docs/re/MOVEMENT.md §3.2.1): the cap test 0x3ac100 at a path start, the 0x19 walk
 // branch with the Deployed_Walk_Speed cap, the 0x16 idle rules (the flag cleared at the stop; an auto-deployer with
 // M > 0 and no DEPLOY ability deploys), Deploy(false) from the flag, the move order's skip of deployed manual deployers
 // (§6.2) and the gate of deploying ones, the push / StoppedVsStopped refusal for M <= 0, Take_Damage's deploy, a
 // lowering hover host's deploy and the walk-out arrivals reported to the garrison host.
-// s78n t26.2: the path record's speed fractions and turn-done byte, the speed controller B (corner cap, brake-ahead, End
+// the path record's speed fractions and turn-done byte, the speed controller B (corner cap, brake-ahead, End
 // Move T = a) and the start rule A with the 3.5.1 turn in place (MOVEMENT 3.5.2 A / B, 3.5.1 "Arrival turn, details"
 // items 3-5).
-// s78n t26.3: the corner-speed pass D (MOVEMENT 3.5.2 D with the RE 2 corrections): corner speeds, the merge and the aim
+// the corner-speed pass D (MOVEMENT 3.5.2 D with the RE 2 corrections): corner speeds, the merge and the aim
 // point, the probe step-downs, the brake pass, and Min_Speed_Fraction_For_Turn on an order path.
-// s78n t26.4: the Walk move step C (MOVEMENT 3.5.2 C, G, 3.5.1 0x15): the turn first, the travel along the facing to the
+// the Walk move step C (MOVEMENT 3.5.2 C, G, 3.5.1 0x15): the turn first, the travel along the facing to the
 // waypoint line, the tau = 0 skip, the End Move coast along the last displacement, the point test, the pop into the path
 // below, 0x15 within 5 / restart, no snap, the unaligned new order's coast, and a save inside the coast.
-// s78n t26.5: the land team container's move step (MOVEMENT 3.5.2 E): the budget without f, the coast and travel along the
+// the land team container's move step (MOVEMENT 3.5.2 E): the budget without f, the coast and travel along the
 // facing, the re-lays at the waypoints stepped and after a pop, and a new order behind a marching squad.
 #include <algorithm>
 #include <cmath>
@@ -313,7 +313,7 @@ void test_manual_deployers() {
     CHECK(sys.add_unit(walker(4, b, false)));  // a second AT-AT
     SimRng rng(2603);
     sys.tick(1, rng);
-    // TRU1 t03: a unit in a gravity control field (the host's deploy_block hook) ignores Deploy(true); state unchanged
+    // a unit in a gravity control field (the host's deploy_block hook) ignores Deploy(true); state unchanged
     sys.set_deploy_block_fn([](ObjectId id) { return id == 3; });
     const LocoState before = sys.deploy_state(3);
     CHECK(sys.deploy(3, true, 2) == MovementSystem::DeployResult::Ignored && sys.deploy_state(3) == before);
@@ -576,7 +576,7 @@ void test_released_inside() {
 }
 
 
-// ---------------------------------------------------------------- s78n t26.2: the speed controller B (pure)
+// ---------------------------------------------------------------- the speed controller B (pure)
 void test_t26_controller() {
     ::alamo::test::section("t26_controller");
     // B.4 the corner cap: 0x20afe0 is |wrap(yaw - wanted)| < |R| (strict): an error of exactly R is capped, R - 0.01 not
@@ -650,7 +650,7 @@ void test_t26_controller() {
                 static_cast<double>(far_v), static_cast<double>(near_v));
 }
 
-// ---------------------------------------------------------------- s78n t26.3: the corner-speed pass D (pure)
+// ---------------------------------------------------------------- the corner-speed pass D (pure)
 // MOVEMENT §3.5.2 D items 2-7 with the RE 2 corrections (L_turn and the third speed term take sin|theta|). vmax 3, R 6
 // degrees / frame (omega 0.1047198), facing 0, no probe callbacks (open ground) unless stated.
 CornerPassIn corner_in(float f_min, float decel) {
@@ -744,7 +744,7 @@ void test_t26_corner_pass() {
     for (const V2 q : pr) max_x = std::max(max_x, q.x);
     CHECK(pr.size() > 3 && pr.front().x == 100.0f && pr.front().y == 0.0f && pr.back().x == 100.0f && pr.back().y == 40.0f &&
           near(max_x, 120.0f, 0.05f));
-    // s78o (b0088): a tiny positive turn rate (custom Max_Rate_Of_Turn) or a corner near pi: the point count is capped
+    // s78o: a tiny positive turn rate (custom Max_Rate_Of_Turn) or a corner near pi: the point count is capped
     // (kCornerArcProbeMaxPoints + P_j + A at most) instead of ~1e7 points or a cast past UINT32_MAX; a non-finite count
     // takes the cap too
     for (const float om : {1.0e-9f, 1.0e-30f, 0.0f}) {
@@ -763,7 +763,7 @@ void test_t26_corner_pass() {
                 static_cast<double>(d[1]));
 }
 
-// ---------------------------------------------------------------- s78n t26.2: the start rule A (pure walk_step)
+// ---------------------------------------------------------------- the start rule A (pure walk_step)
 struct StartOut {
     WalkResult r;
     LandMotion m;
@@ -802,7 +802,7 @@ void test_t26_start_rule() {
                 b.r.turn ? 1 : 0, static_cast<double>(b.r.want), c.r.moved ? 1 : 0);
 }
 
-// ---------------------------------------------------------------- s78n t26.2: the start turn in place (system)
+// ---------------------------------------------------------------- the start turn in place (system)
 struct StartTurnOut {
     uint32_t turn_ticks = 0, first_step = 0, clip_hold = 0, begin_plays = 0;
     std::vector<float> yaws;
@@ -886,7 +886,7 @@ void test_t26_start_turn() {
     // leg with rate left over (reached) and moves in the same tick (hand): 12 turn ticks before it, 2 begin plays
     const StartTurnOut d = start_turn_case(-90.0f, 10.0f, 0.0f, 30.0f, true);
     CHECK(d.begin_plays == 2 && d.clip_hold == 8 && d.turn_ticks == 12 && d.first_step == 21 && !d.exact && d.end_yaw == 0.0f);
-    // s78n t26.3: the corner pass on the order path. Facing 90 off a 20-long leg (goal (420, 400)), R 6, vmax 2, CE 180:
+    // the corner pass on the order path. Facing 90 off a 20-long leg (goal (420, 400)), R 6, vmax 2, CE 180:
     // corner 0 v = min(2, w 20 = 2.094395, 20 w / 2 = 1.047198) -> f 0.523599 (hand). Min_Speed_Fraction_For_Turn 0.5 keeps
     // it and start rule A moves at once (within CE, fraction > 0); 0.55 writes 0 and the unit turns in place first: 15
     // turn ticks of 6 degrees (exact landing, no rate left), the step on tick 16
@@ -901,7 +901,7 @@ void test_t26_start_turn() {
                 a.turn_ticks, a.first_step, b.turn_ticks, b.first_step, c.turn_ticks, d.begin_plays, d.clip_hold, d.turn_ticks);
 }
 
-// ---------------------------------------------------------------- s78n t26.4: the Walk move step C (pure walk_step)
+// ---------------------------------------------------------------- the Walk move step C (pure walk_step)
 // R 10, v held at vmax 2 (acc = a = 1), path (0, 0), (10, 0), (10, 10), start (4, 0), yaw 30, state 0x13, lane term off.
 // The unit turns first and travels along its facing up to the waypoint line (x + y = 10, the bisector normal), s' = D /
 // tau (MOVEMENT 3.5.2 C.6 - C.11); on tick 3 it reaches yaw 0 exactly, crosses line 1 with s - s' left, and the facing
@@ -1178,7 +1178,7 @@ void test_t26_end_move() {
     CHECK(kept);
 }
 
-// s78n t26.5: the land team container's move step 0x5adfb0 (MOVEMENT 3.5.2 E, FIGHTER_FLYING 7.7 item 7, 7.2 caller 3): C with
+// the land team container's move step 0x5adfb0 (MOVEMENT 3.5.2 E, FIGHTER_FLYING 7.7 item 7, 7.2 caller 3): C with
 // the budget R and no f scaling, the coast and the travel along the facing, the re-lay at each waypoint stepped; and the
 // new order while moving (3.5.2 G, FIGHTER_FLYING 7.7 item 5): the old path until the plan, then the coast at the rate.
 void test_t26_container_step() {
@@ -1245,7 +1245,7 @@ void test_t26_container_step() {
         CHECK(w.second == 1.5f && c.second == 1.5f && flee == 2.0f);
         CHECK(w.first == 85.0f && c.first == 80.0f && fl.first == 70.0f);
     }
-    // s78o (b0053): the coast step team_walk runs (no top path) with a straggler cap 0.05 below a = 0.5, at once (cap_now):
+    // s78o: the coast step team_walk runs (no top path) with a straggler cap 0.05 below a = 0.5, at once (cap_now):
     // in End Move B.7 sets T := a over the cap - v 2 -> a = 0.5 (at once); a step left in 0x13 would take the cap - v 2 ->
     // 0.05, below a (so the next End Move tick would stop it a tick early). team_walk
     // now enters End Move before the first coast step (a new order's path set leaves a marching container in 0x13).
@@ -1551,7 +1551,7 @@ void test_t26_walk_transition() {
             }
         }
     }
-    // s78o (b0087): a MOVE clip at a huge, infinite or NaN frame (a damaged save) wraps with one fmod / restarts at 0
+    // s78o: a MOVE clip at a huge, infinite or NaN frame (a damaged save) wraps with one fmod / restarts at 0
     // instead of looping ~2^24 x count times, and a negative frame in End Move picks an end clip in 17 .. 20, never an
     // index below MOVE_ENDONE
     for (const float bad : {3.0e38f, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN(), -50.0f}) {
@@ -1616,7 +1616,7 @@ void test_t26_walk_transition() {
     }
 }
 
-// ---------------------------------------------------------------- bkm2 t03 (b0045): corner cap and brake-ahead in the system
+// ---------------------------------------------------------------- corner cap and brake-ahead in the system
 // MOVEMENT §3.5.2 B.4 / B.5 on a real order path (the land pathfinder's, through the corner pass D at the plan), observed
 // through the public views only. An L-shaped wall (cells x >= 30, y <= 59) bends the path from below the wall's corner to
 // the right of it (the planned path has several short bends at the corner). The expected corner speeds v_k = f_k x vmax
@@ -1817,7 +1817,7 @@ void test_bkm2_corner_system() {
     }
 }
 
-// ---------------------------------------------------------------- bkm2 t04 (b0046): a goal just behind a moving unit
+// ---------------------------------------------------------------- a goal just behind a moving unit
 // MOVEMENT §3.5.2 A / G (CloseEnoughAngleForMoveStart 180: a goal behind a moving unit is "aligned", the path starts at
 // once and the unit turns on the move), B.5 / C.11 (the rest is shorter than the brake length: End Move), §3.5.1 item 1
 // (0x15: within 5 of the last line along its segment arrives, else restart from state 0 at speed 0). Infantry speed and
@@ -2043,8 +2043,8 @@ int main() {
     test_t26_container_step();  // s78n t26.5
     test_t26_formation_side_step();  // s78n t26 closing review
     test_t26_walk_transition();      // s78n t26 closing review
-    test_bkm2_corner_system();       // bkm2 t03 (b0045)
-    test_bkm2_goal_behind();         // bkm2 t04 (b0046)
+    test_bkm2_corner_system();       // bkm2 t03
+    test_bkm2_goal_behind();         // bkm2 t04
     test_bkm3_undeploy_start_turn();  // bkm3 t03 (b0052 item 1)
     test_bkm3_unstarted_walk_states();  // bkm3 t03 (b0052 items 1 / 3)
     test_bkm3_deployed_reorder_behind();  // bkm3 review: the 0x19 branch starts the path

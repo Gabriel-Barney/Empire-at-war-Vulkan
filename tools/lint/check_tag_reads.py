@@ -1,4 +1,4 @@
-"""String tag reads outside engine/objects in sim code (roadmap ref6 t01, 2026-11-20).
+"""String tag reads outside engine/objects in sim code (2026-11-20).
 
 Object-type tags are read through the typed handles of engine/objects (alamo/objects/type_tags.hpp: one default per
 tag, GameObjectTypes::get(t, tags::X), name(t), sub_objects(t, tags::X)). A string read - types.get_float(t, "Tag"),

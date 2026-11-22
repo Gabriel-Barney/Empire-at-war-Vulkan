@@ -1,24 +1,24 @@
 // alamo_mod_check - Q5 / modc t05 mod load report (alamo/game/mod_check.hpp): loads the data as alamo_game does and
 // reports files, loader steps, content counts, campaign maps, missing files, unknown XML tags, Lua compile / load errors
-// unbound engine calls and shader issues; optionally the machine-readable summary (docs/MODS.md §5.1).
+// unbound engine calls and shader issues; optionally the machine-readable summary (docs/MODS.md "Load report (alamo.mod_report)").
 //
 //   alamo_mod_check [--game DIR] [MODPATH=..] [STEAMMOD=..] [FALLBACKPATH=..] [--out FILE] [--json FILE|-] [--verbose]
 //                   [--no-campaigns] [--no-lua] [--no-lua-run] [--no-files] [--no-xml-tags] [--no-submod]
 //                   [--no-shaders] [--no-dxc] [--no-fx-prebuild]
 //   --game defaults to ALAMO_FOC_DATA. --json - writes the JSON to stdout instead of the text report.
 //   STEAMMOD=<id> is found in the Steam library folders (alamo/vfs/steam_workshop.hpp); the workshop items of the same
-//   folders and <game>\Mods\* are the parents the submod check considers (modc t16).
-//   --no-shaders skips the effect audit (modc t21); --no-dxc keeps it to translation (no runtime DXC compile).
-//   With a mod mounted the audit first compiles the mod's .fx sources with fxc into the FxCache (modc t36);
+//   folders and <game>\Mods\* are the parents the submod check considers.
+//   --no-shaders skips the effect audit; --no-dxc keeps it to translation (no runtime DXC compile).
+//   With a mod mounted the audit first compiles the mod's .fx sources with fxc into the FxCache;
 //   --no-fx-prebuild skips that (the audit then sees only what an earlier prebuild left in the cache).
-//   mcx2 t01: every asset the mod layers serve is decoded (the report's `assets`); --no-assets skips it, --strict counts
+//   every asset the mod layers serve is decoded (the report's `assets`); --no-assets skips it, --strict counts
 //   salvaged assets as rejected, --corpus-cache DIR keeps a content-hash cache so a recheck decodes nothing new.
-//   mcx3 t02: --resolve treats the mod arguments as the picked mods and checks the stack resolve_mod_stack builds from
+//   --resolve treats the mod arguments as the picked mods and checks the stack resolve_mod_stack builds from
 //   them (declared modinfo dependencies, the submod hint's likely parent, cycle / base-EaW errors, conflict warnings);
 //   --resolve-only prints the stack and stops (exit 1 on a stack error).
-//   mcx7 t01: --list-mods writes the installed mods (the registry: workshop items, then <game>\Mods folders, one entry
+//   --list-mods writes the installed mods (the registry: workshop items, then <game>\Mods folders, one entry
 //   per modinfo variant) as alamo.mod_list JSON to --json FILE|- (default stdout) and stops: the corpus runner's discovery.
-//   ums1 t05: --list writes the install and the mod catalog (one row per folder and modinfo variant, keyed by catalog
+//   --list writes the install and the mod catalog (one row per folder and modinfo variant, keyed by catalog
 //   key) as alamo.mod_catalog JSON; --conflicts writes which mod wins each shared file of the given load order (the
 //   VFS's lookup, MEG records included) as alamo.mod_conflicts JSON. Both to --json FILE|- (default stdout) and stop.
 //   --mod-dir DIR (repeatable) adds a user mod folder (one mod, or a folder of mods); --no-hash skips content hashes.
@@ -101,7 +101,7 @@ std::vector<std::string> utf8_args(int argc, char** argv) {
 int main(int raw_argc, char** raw_argv) {
     const std::vector<std::string> argv = utf8_args(raw_argc, raw_argv);
     const size_t argc = argv.size();
-    alamo::vfs::install_steam_workshop_lookup();  // modc t10: STEAMMOD= from the Steam library folders
+    alamo::vfs::install_steam_workshop_lookup();  // STEAMMOD= from the Steam library folders
     std::string game, out, json;
     std::vector<std::string> args;
     bool verbose = false, resolve = false, resolve_only = false, list_mods = false, list = false, conflicts = false, hash = true;
@@ -137,7 +137,7 @@ int main(int raw_argc, char** raw_argv) {
     }
     if (game.empty())
         if (const char* env = std::getenv("ALAMO_FOC_DATA")) game = env;
-    if (list || conflicts) {  // ums1 t05: the catalog / conflicts JSON, for the Command Center
+    if (list || conflicts) {  // the catalog / conflicts JSON, for the Command Center
         alamo::vfs::InstallLocations where;
         if (!game.empty()) {
             where = alamo::vfs::default_install_at(game);
@@ -195,7 +195,7 @@ int main(int raw_argc, char** raw_argv) {
             }
             return stack.errors.empty() ? 0 : 1;
         }
-        args = stack.launch_args();  // ums1 t04: what a launch starts (each folder once)
+        args = stack.launch_args();  // what a launch starts (each folder once)
     }
 
     alamo::game::ModCheckReport report = alamo::game::check_mod_data(game, args, opt);

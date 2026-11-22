@@ -1,4 +1,4 @@
-// BM3: game-made benchmark saves and the map listing (benchmark_save.hpp).
+// game-made benchmark saves and the map listing (benchmark_save.hpp).
 #include "alamo/game/benchmark_save.hpp"
 
 #include <algorithm>
@@ -100,7 +100,7 @@ bool make_bench_save(const GameData& data, jobs::JobSystem& js, const BenchNewSa
         return false;
     }
     const bool land = !probe.is_space();
-    // ref2 t03: a front-end skirmish through the one builder; the options are alamo_game's (27000-frame battle limit,
+    // a front-end skirmish through the one builder; the options are alamo_game's (27000-frame battle limit,
     // kBattleEndHoldFrames) with the benchmark's seed.
     SessionChoice choice;
     choice.kind = GameKind::Skirmish;

@@ -2,7 +2,7 @@
 //
 // The original resolves `require` / script names with LUA_PATH "./?.lua;./?.lc" followed by "R?.lua;R?.lc" for each
 // script root R in registration order: Data\Scripts\{Library, GameObject, FreeStore, Miscellaneous, Story, AI,
-// AI\SpaceMode, AI\LandMode, AI\StoryArc, Interventions, Evaluators}\ (mcx6 t07, docs/re/LUA_API.md "Script lookup and
+// AI\SpaceMode, AI\LandMode, AI\StoryArc, Interventions, Evaluators}\ (legacy docs/re/LUA_API.md "Script lookup and
 // require" [H]; the order of the AI and Evaluators roots [M]). lua_load accepts source and Lua 5.0 bytecode alike
 // (signature "\033Lua"); retail 32-bit bytecode is rejected by a 64-bit VM's header check, which is why the x64 patch
 // ships plain sources (every FoC script in 64Patch.meg / extracted/foc_data_text.zip is text).

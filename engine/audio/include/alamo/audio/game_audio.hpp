@@ -1,12 +1,12 @@
 // GameAudio: the per-frame event-hook API a game host (engine/apps/game) calls. It turns game happenings
-// into AUDIO.md behaviour on top of AudioSystem (SFX / music / speech player), AmbienceManager (weather and
+// into legacy docs/re/AUDIO.md behaviour on top of AudioSystem (SFX / music / speech player), AmbienceManager (weather and
 // map ambience) and ConversationPlayer (speech sequences). STABLE API: P3 published 2026-10-27; additions
 // only.
 //
 // Ownership: the host owns AudioDatabase, GameAudioData, the VoiceBackend, the free RNG and AudioSystem;
 // GameAudio keeps references (they must outlive it) and owns the ambience and conversation managers.
 //
-// Threading / determinism (AUDIO.md §0.2, §6.1): call everything from the one audio/main thread. Audio
+// Threading / determinism (legacy docs/re/AUDIO.md §0.2, §6.1): call everything from the one audio/main thread. Audio
 // only uses GameRandom::free() and never writes sim state. Sim-side happenings (weapon fire, impacts,
 // deaths, combat notifications) are collected by the host during the tick and forwarded here after the
 // tick, in a stable order (object index / event order), so the free-RNG consumption is repeatable.
@@ -43,7 +43,7 @@
 
 namespace alamo::audio {
 
-// Unit orders that have a response line (GameObject SFXEvent_* tags, AUDIO.md §3.3).
+// Unit orders that have a response line (GameObject SFXEvent_* tags, legacy docs/re/AUDIO.md §3.3).
 enum class UnitOrder : uint8_t {
     Select, Move, FleetMove, Attack, Guard, Defend, Stop, Deploy, Undeploy, MoveOpposite,
     GroupMove, GroupAttack, AssistMove, AssistAttack, Count
@@ -142,7 +142,7 @@ public:
     void battle_load_screen(bool open);
     // Tactical mode started/resumed: listener mode land/space, ambient music (mode 6), weather/map ambience.
     void enter_tactical(const TacticalSetup& setup);
-    // §2.3 (b0286): whether any player has its faction super weapon on the map; mode 6 / 7 music then picks the faction's
+    // §2.3: whether any player has its faction super weapon on the map; mode 6 / 7 music then picks the faction's
     // Music_Event_<Land/Space>_<Ambient/Battle>_Super_Weapon. `restart_music`: the battle's first report (the host learns
     // the start forces one tick after enter_tactical) - a change restarts the current mode's music with the new choice;
     // otherwise the flag is read at the next mode switch, as retail reads it when it picks the event.
@@ -167,7 +167,7 @@ public:
     void set_camera(const CameraState& camera);
     // Current weather from the sim (tactical): CLEAR/RAIN/SNOW/SANDSTORM/ASH and 0..1 intensity. Also plays the local
     // faction's SFXEvent_Weather_Begin / _End line for the current type when the intensity rises from 0 / falls to 0
-    // (AUDIO.md §9.3; not for CLEAR, not on a type change, not when `local_affected` is false = Weatherproof).
+    // (legacy docs/re/AUDIO.md §9.3; not for CLEAR, not on a type change, not when `local_affected` is false = Weatherproof).
     void set_weather(std::string_view weather, float intensity, bool local_affected = true);
     void sim_tick();                  // once per sim tick (music peace counter, announcement delays)
     void update(double wall_dt_seconds);
@@ -209,7 +209,7 @@ public:
     // killed at once without fade (§1.5) and the object is forgotten (later calls for it do nothing).
     void object_removed(uint64_t object);
 
-    // ---------------- engine loops (STATION_HANGARS_SOUND.md §3)
+    // ---------------- engine loops (legacy docs/re/STATION_HANGARS_SOUND.md §3)
     // Two slots per object, idle and moving, each with a requested-state flag. Set_Engine_*_Loop(on) (§3.2):
     // nothing while the object is dead or its engine audio is suppressed; on with flag 0 starts the event
     // attached with its Loop_Fade_In_Seconds, off with flag 1 stops it with Loop_Fade_Out_Seconds. The flag

@@ -1,4 +1,4 @@
-// s78n t06 - hero clashes (docs/re/HERO_CLASH.md §1-§6; TACTICAL_COMBAT §5.4.3 item 3). Land mode only.
+// hero clashes (legacy docs/re/HERO_CLASH.md §1-§6; TACTICAL_COMBAT §5.4.3 item 3). Land mode only.
 //   * HEROCLASH.XML (§1): one entry per <Hero_Clash>, file order, duplicate names kept (the loader 0x4814d0 does not
 //     check them). Action_Driven entries and their Clash_Actions are parsed; they start only with a host that carries
 //     out the action runner's effects (HeroClashHost::action_clashes; shipped Clash_Range 0.0, so retail never starts
@@ -319,7 +319,7 @@ public:
         return c;
     }
     std::vector<EndEvent> take_ended() { return std::exchange(ended_, {}); }
-    // Every end since the last clear / load / take_ended, end order (the audio host reads new ones by count, b0300).
+    // Every end since the last clear / load / take_ended, end order (the audio host reads new ones by count).
     const std::vector<EndEvent>& ended() const { return ended_; }
     uint32_t started_total() const { return started_; }
 

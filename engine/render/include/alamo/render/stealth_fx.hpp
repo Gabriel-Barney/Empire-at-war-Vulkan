@@ -1,5 +1,5 @@
 // alamo_render - R5 render-only springs: the stealth tint spring and the HideWhenFogged alpha spring
-// (docs/re/ABILITY_VISUALS.md 1.1 / 1.2 / 1.3 / 1.4, 6). Presentation only: never in a CRC, stepped by the instance builder
+// (legacy docs/re/ABILITY_VISUALS.md 1.1 / 1.2 / 1.3 / 1.4, 6). Presentation only: never in a CRC, stepped by the instance builder
 // once per sim tick with dt = 1/30 (as the retail special-ability / behaviour updates run on sim frames).
 //
 // The spring (0x592e80 / 0x714b40, HideWhenFogged 0x53ddc0) is the usual critically damped "smooth damp" approximation:

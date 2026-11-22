@@ -1,4 +1,4 @@
-// Fog of war tests (docs/re/FOG_OF_WAR.md): hand-computed rules for the grid, the reveal circle (incl. the
+// Fog of war tests (legacy docs/re/FOG_OF_WAR.md): hand-computed rules for the grid, the reveal circle (incl. the
 // top-edge quirk), counting, decay cadence, dense mask, REVEAL sources, queries, Lua semantics, setup phase,
 // overrun, and order independence.
 #include <algorithm>
@@ -567,7 +567,7 @@ void test_setup_overrun() {
     CHECK(ls.scaled == 8 && ls.summed == 4 && ss.scaled == 4 && ss.summed == 8);
 }
 
-// ---- FOWF t03 / t05: setup reveal conditions, base power, setup manager (FOG_OF_WAR §3.4) ----------------------
+// ---- setup reveal conditions, base power, setup manager (FOG_OF_WAR §3.4) ----------------------
 
 void test_setup_manager() {
     const int32_t p4 = 0, p8 = 1;
@@ -729,7 +729,7 @@ void test_order_independence() {
 
 }  // namespace
 
-// SP5: FogOfWar::service_sources (cell lists in parallel, grid changes in op order) gives exactly the state of the same ops
+// FogOfWar::service_sources (cell lists in parallel, grid changes in op order) gives exactly the state of the same ops
 // as source_remove / source_service calls, serially and at 4 / 8 threads, over many frames of moving, contained, removed
 // and re-added sources of allied and enemy owners, with a dense mask (both reveal_dense passes) and decay.
 void test_batch_sources() {

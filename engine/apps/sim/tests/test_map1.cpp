@@ -114,7 +114,7 @@ void test_land(const Data& d) {
     squad.hint = "squadhint";
     terrain::ObjectPlacement::ExtraBehavior e;
     e.name_crc = name_crc("HINT");
-    squad.extra_behaviors.push_back(e);  // q6 t31: the company object has HINT (its hint pack), as an editor-written hint implies
+    squad.extra_behaviors.push_back(e);  // the company object has HINT (its hint pack), as an editor-written hint implies
     m.objects.push_back(squad);
     terrain::ObjectPlacement one = place("S10_Trooper", 450.0f, 850.0f, 0);  // t04 / t05: extra HINT, marker name, byte 0
     one.extra_behaviors.push_back(e);
@@ -349,7 +349,7 @@ void every_map(const char* label, vfs::VfsConfig vc, EveryMapTotals& tot) {
                 std::printf("    %s %s: %u placements, unknown %u, companies %u (%u members), hangar off %u, HINT %u, names %u\n", label,
                             name.c_str(), s.placements, s.unknown_types, s.companies, s.company_members, s.hangar_off, s.extra_behaviors,
                             s.marker_names);
-            // q6 t32: Find_Hint walks HINT objects only (Q6_T30 §2 [H]) and the reader keeps a 0x482 hint only on an object
+            // Find_Hint walks HINT objects only (Q6_T30 §2 [H]) and the reader keeps a 0x482 hint only on an object
             // with HINT (§3), so every object that got a map hint has HINT; the skipped hints are counted (FoC: 2, on
             // _SPACE_PLANET_AETENII_PIRACY: a Star_Destroyer and a Calamari_Cruiser hinted "pointguard").
             tot.hints_skipped += s.hints_skipped;

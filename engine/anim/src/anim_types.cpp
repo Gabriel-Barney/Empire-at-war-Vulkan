@@ -13,7 +13,7 @@ struct TypeEntry {
     std::string_view suffix;
 };
 
-// docs/re/ANIM_PARTICLES.md §A.1, in id order.
+// legacy docs/re/ANIM_PARTICLES.md §A.1, in id order.
 constexpr std::array<TypeEntry, kAnimTypeCount> kTypes{{
     {"Idle", "IDLE"},
     {"Space Idle", "SPACE_IDLE"},

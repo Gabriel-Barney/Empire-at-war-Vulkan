@@ -1,6 +1,6 @@
 // alamo_render - R5 runtime terrain decorations: SurfaceFX.xml / TerrainDecalFX.xml / DynamicTrackFX.xml data, the
-// terrain surface type of a point, and the runtime decal list (docs/re/DECORATIONS.md §4.2-§4.4, §5.2; SPEC.md §14
-// surface_type; TERRAIN_WATER_POST.md §1.7). Render-side only: nothing here is read by the sim; random choices draw
+// terrain surface type of a point, and the runtime decal list (legacy docs/re/DECORATIONS.md §4.2-§4.4, §5.2; legacy docs/formats/SPEC.md §14
+// surface_type; legacy docs/re/TERRAIN_WATER_POST.md §1.7). Render-side only: nothing here is read by the sim; random choices draw
 // from this module's own generator, never the sim RNG.
 //
 // SurfaceFX.xml: <SurfaceFX name="TRIGGER"> (name = a SurfaceFXTriggerType, e.g. Generic_Track, EXPLOSION_SCORCH_MARK_

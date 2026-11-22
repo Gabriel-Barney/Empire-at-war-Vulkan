@@ -1,4 +1,4 @@
-// test_gui_screens: tests split from test_gui_screens.cpp (PAF t08).
+// test_gui_screens: tests split from test_gui_screens.cpp.
 #include "test_gui_screens_common.hpp"
 
 namespace test_gui_screens_t {
@@ -429,7 +429,7 @@ void test_panels() {
     bf.title = U"Black Market";
     bf.items = items;
     bm.build(bf);
-    // modc t20: the item's Tech_Level_Icon_Name prefix picks the market_tech_level alternate (i_button_e_ = index 1);
+    // the item's Tech_Level_Icon_Name prefix picks the market_tech_level alternate (i_button_e_ = index 1);
     // no prefix, no tech icon.
     int32_t tech_alt0 = -1, tech_slots = 0;
     for (const PanelSlot& s : bm.slots())
@@ -599,7 +599,7 @@ void test_info_screens() {
         is.update(env.click(dlg::kStory, "IDC_STORY_DIALOG_ACCEPT"), acts);
         CHECK(acts.size() == 1 && acts[0].tag == "timed" && !is.update_story(13.0, &due));
     }
-    // ui2 t02: IDD_TUTORIAL_DIALOG - text in the list, Continue only when asked, Continue / Quit / Esc actions, one instance.
+    // IDD_TUTORIAL_DIALOG - text in the list, Continue only when asked, Continue / Quit / Esc actions, one instance.
     {
         acts.clear();
         CHECK(is.show_tutorial({U"Click the planet."}, true) && !is.show_tutorial({U"again"}, false) && is.tutorial_open());
@@ -734,7 +734,7 @@ void test_info_screens() {
     CHECK(acts.size() == 3 && acts[0].kind == ScreenAction::Kind::SummarySort && acts[0].tag == "IDC_BUTTON_POP_CAP" &&
           acts[2].kind == ScreenAction::Kind::InfoClosed && is.info_dialog().empty() && env.gui.open_count() == 0);
     CHECK(tech_tree_dialog("IDD_TECH_TREE_BLACKMARKET", true) == "IDD_TECH_TREE_BLACKMARKET_SPACE");
-    CHECK(tech_tree_dialog("", true).empty());  // modc t20: a faction without Tech_Tree_Dialog_Name has no tech tree
+    CHECK(tech_tree_dialog("", true).empty());  // a faction without Tech_Tree_Dialog_Name has no tech tree
 }
 
 }  // namespace test_gui_screens_t

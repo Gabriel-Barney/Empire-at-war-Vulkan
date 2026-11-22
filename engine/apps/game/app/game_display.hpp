@@ -62,7 +62,7 @@ void restore_display_mode();
 // restore_window() shows a minimized window again (apply_display_mode then sets the full-screen mode once more).
 void minimize_window(void* hwnd);
 void restore_window(void* hwnd);
-// UI5 t04: the Windows clipboard as UTF-32 text for the dialog edit boxes (GuiManager::set_clipboard). Empty when it
+// the Windows clipboard as UTF-32 text for the dialog edit boxes (GuiManager::set_clipboard). Empty when it
 // holds no text or cannot be opened.
 std::u32string clipboard_text();
 void set_clipboard_text(std::u32string_view text);
@@ -78,15 +78,15 @@ struct OptionsProfile {
     ui::CameraSettings camera;
     bool tactical_fov_set = false;
     ui::HotkeyProfile keys;  // empty: the bindings were never stored
-    ui::SkirmishProfile skirmish;  // modc t47: the local skirmish slot's faction and colour (keys skirmish_faction / _colour)
+    ui::SkirmishProfile skirmish;  // the local skirmish slot's faction and colour (keys skirmish_faction / _colour)
 };
 std::string default_options_profile_path();  // "" when %LOCALAPPDATA% is unset
 bool load_options_profile(const std::string& path, OptionsProfile& p);
 bool save_options_profile(const std::string& path, const OptionsProfile& p);
-// ui1 t02 (MAIN_LOOP.md 1.5): the game speed sliders (0..100, default 50) as speed table indices 0..4 (default 2).
+// ui1 t02 (legacy docs/re/MAIN_LOOP.md 1.5): the game speed sliders (0..100, default 50) as speed table indices 0..4 (default 2).
 uint32_t game_speed_index(int32_t slider);
 
-// [port] The video options kept between runs (the original keeps them in its registry profile, MAIN_LOOP.md §2 step 9;
+// [port] The video options kept between runs (the original keeps them in its registry profile, legacy docs/re/MAIN_LOOP.md §2 step 9;
 // the port writes a key = value text file, %LOCALAPPDATA%/alamo/video_options.txt). `mode` 0 x 0 = not stored.
 struct VideoProfile {
     DisplayMode mode;
@@ -123,7 +123,7 @@ std::string default_video_profile_path();  // "" when %LOCALAPPDATA% is unset
 bool load_video_profile(const std::string& path, VideoProfile& p);
 bool save_video_profile(const std::string& path, const VideoProfile& p);
 // The original's advanced detail options that map onto the renderer's frame options, applied on top of the view's own
-// options: Mesh detail -> RecordOptions::lod_detail (slider / 100, RENDER.md §5), Shadow detail 0 -> no shadow volumes
+// options: Mesh detail -> RecordOptions::lod_detail (slider / 100, legacy docs/re/RENDER.md §5), Shadow detail 0 -> no shadow volumes
 // [inferred: the dialog has no separate Shadow volumes check], Bloom (off: strength 0), Heat distortions (off: distortion
 // amount 0), Soft shadows -> RecordOptions::soft_shadows (the checkbox now turns them on as well as off; they need shadows;
 // playtest 3 fixed the darkened frame in Renderer::render), Shader detail -> RecordOptions::shader_detail (0..3, 0 = no
@@ -183,7 +183,7 @@ ui::AdvancedVideoSettings detail_preset(const ui::AdvancedVideoSettings& s, int3
 void enable_dpi_awareness();
 // [port] Frame-time scaling (2026-11-14): the process runs at ABOVE_NORMAL priority class (above = true) so background
 // processes at normal priority (a parallel build, other apps) yield to the sim / render thread and the job workers instead of
-// taking their timeslices; under a fully loaded CPU this halved the benchmark scenes' frame p99 (docs/PERFORMANCE.md).
+// taking their timeslices; under a fully loaded CPU this halved the benchmark scenes' frame p99 (docs/DECISIONS.md "alamo_game runs at above-normal process priority").
 // false restores NORMAL. No-op when the call is refused. Never read by sim code (scheduling only, no effect on results).
 void set_process_priority(bool above);
 // Resizes the window `hwnd` (HWND) so its client area is w x h; false when the call fails. A framed window that fits
@@ -218,7 +218,7 @@ private:
 // host hides it while the game draws its own cursor.
 void set_os_cursor_hidden(bool hidden);
 
-// modc t08: starts this executable again with the command-line arguments `args` (argv[1..] already quoted: the mod
+// starts this executable again with the command-line arguments `args` (argv[1..] already quoted: the mod
 // picker's relaunch with other MODPATH= / STEAMMOD= arguments), in the current working folder. False + err when the
 // process could not be created; the caller then keeps running.
 bool relaunch_self(const std::string& args, std::string* err = nullptr);

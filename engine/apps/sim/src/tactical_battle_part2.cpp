@@ -32,7 +32,7 @@ cmd::RejectReason TacticalBattle::order_move(TacticalMode& mode, uint8_t player,
     if (ids.empty()) return R::None;
     if (!queued) {
         clear_queues(ids);
-        raise_order_replaced(ids);  // S7 t31: signal 0xb
+        raise_order_replaced(ids);  // signal 0xb
         exec_move(mode, ids, x, y, rng, facing_deg, attack_move, move_flags, switch_locomotor, kNoObjectId, false,
                   cohesion_for(player, move_flags));
         return R::None;
@@ -81,7 +81,7 @@ cmd::RejectReason TacticalBattle::order_move(TacticalMode& mode, uint8_t player,
     q.attack_move = attack_move;
     q.flags = move_flags;
     const std::vector<objects::ObjectId> now = enqueue(ids, q);
-    raise_order_replaced(now);  // S7 t31: the units that start it now
+    raise_order_replaced(now);  // the units that start it now
     if (!now.empty())
         exec_move(mode, now, q.x, q.y, rng, q.facing, attack_move, move_flags, false, kNoObjectId, false,
                   cohesion_for(player, move_flags));
@@ -131,7 +131,7 @@ cmd::RejectReason TacticalBattle::order_attack(TacticalMode& mode, uint8_t playe
         for (const objects::ObjectId id : ids) abilities_->order_cancel(id, frame_);
     if (!queued) {
         clear_queues(ids);
-        raise_order_replaced(ids);  // S7 t31: signal 0xb
+        raise_order_replaced(ids);  // signal 0xb
         team_attack_drop(ids);  // q6
         exec_attack(mode, ids, target, hp, rng);
         return R::None;
@@ -173,7 +173,7 @@ cmd::RejectReason TacticalBattle::order_move_to_object(TacticalMode& mode, uint8
     q.y = p.y;
     q.attack_move = attack_move;
     const std::vector<objects::ObjectId> now = enqueue(ids, q);
-    raise_order_replaced(now);  // S7 t31: the MoveToObject executor raises 0xb
+    raise_order_replaced(now);  // the MoveToObject executor raises 0xb
     if (!now.empty()) exec_move(mode, now, p.x, p.y, rng, mv::kNoFacing, attack_move);
     return R::None;
 }
@@ -194,7 +194,7 @@ cmd::RejectReason TacticalBattle::order_stop(TacticalMode& mode, uint8_t player,
     }
     clear_queues(all);  // [port: Gabriel] Stop clears the queue
     team_attack_drop(all);  // q6
-    fighter_order_clear(all);  // S7 t22: Stop leaves the formation [M]
+    fighter_order_clear(all);  // Stop leaves the formation [M]
     if (!movers.empty()) movement_->stop(movers);
     return R::None;
 }
@@ -262,7 +262,7 @@ void TacticalBattle::fleet_tick(const TacticalMode& mode) {
     fleet_.regulate(info, [this](objects::ObjectId id, float s) { movement_->set_speed_factor(id, movement_->speed_factor(id) * s); });
 }
 
-// ---- P host (owner: game host agent): human reinforcements (Reinforce, COMMANDS.md id 12) ------------------------------
+// ---- P host (owner: game host agent): human reinforcements (Reinforce, legacy docs/re/COMMANDS.md id 12) ------------------------------
 
 float TacticalBattle::population_used(int32_t player) const {
     if (!space_) {
@@ -341,7 +341,7 @@ cmd::RejectReason TacticalBattle::reinforce_block(int32_t player, objects::Objec
     using R = cmd::RejectReason;
     for (const Participant& p : parts_) {
         if (p.galactic_id != galactic_id || p.owner != player || !p.reserve || p.deployed) continue;
-        if (reinforcements_off(player)) return R::NotAllowed;  // STY1 t06: DISABLE_REINFORCEMENTS
+        if (reinforcements_off(player)) return R::NotAllowed;  // DISABLE_REINFORCEMENTS
         if (finished_ || !movement_ || retreat_side_ == static_cast<int32_t>(p.side) || arrival_held()) return R::NotAllowed;
         if (space_) {
             const uint32_t f = galaxy_->players()[static_cast<size_t>(player)].faction;
@@ -378,9 +378,9 @@ cmd::RejectReason TacticalBattle::order_reinforce(TacticalMode& mode, uint8_t pl
     for (uint32_t i = 0; i < parts_.size(); ++i) {
         Participant& p = parts_[i];
         if (p.galactic_id != galactic_id || p.owner != static_cast<int32_t>(player) || !p.reserve || p.deployed) continue;
-        if (reinforcements_off(static_cast<int32_t>(player))) return R::NotAllowed;  // STY1 t06: DISABLE_REINFORCEMENTS
+        if (reinforcements_off(static_cast<int32_t>(player))) return R::NotAllowed;  // DISABLE_REINFORCEMENTS
         if (retreat_side_ == static_cast<int32_t>(p.side)) return R::NotAllowed;
-        if (arrival_held()) return R::NotAllowed;  // story t12: the hyperspace hold (space only)
+        if (arrival_held()) return R::NotAllowed;  // the hyperspace hold (space only)
         if (space_) {  // the unit cap rule (BattleAi::execute_order Reinforce); land: no tactical cap in the S10 battle
             const uint32_t f = galaxy_->players()[static_cast<size_t>(player)].faction;
             float used = 0.0f;
@@ -497,7 +497,7 @@ cmd::RejectReason TacticalBattle::order_reinforce(TacticalMode& mode, uint8_t pl
                 return R::None;
             }
         }
-        if (space_ && p.other_type < 0) {  // a1i t05: Find_Free_Placement per member (A1_READINGS §35.4 item 4)
+        if (space_ && p.other_type < 0) {  // Find_Free_Placement per member (A1_READINGS §35.4 item 4)
             std::vector<Vec3> spots;
             if (space_member_spots(mode, p, x, y, spots)) {
                 drop_pos_ = std::move(spots);
@@ -655,7 +655,7 @@ LandDropLayout land_drop_layout(const LandDropShape& shape, float px, float py, 
             const Off2 m = drop_rotate(drop_yaw_of(o[0], o[1]), team[j][0], team[j][1]);  // each team faces its offset
             local[i] = {o[0] + m[0], o[1] + m[1]};
         }
-        for (uint32_t t = 0; t < teams; ++t) {  // a1i t04: one exit target per team (0x643130)
+        for (uint32_t t = 0; t < teams; ++t) {  // one exit target per team (0x643130)
             const Off2 r = drop_rotate(yaw_deg, offs[t][0], offs[t][1]);
             out.group_x.push_back(px + r[0]);
             out.group_y.push_back(py + r[1]);
@@ -868,7 +868,7 @@ bool TacticalBattle::mv_squad_add(TacticalMode& mode, size_t ci, uint32_t object
         (void)movement_->remove_unit(ct.id);
         return false;
     }
-    for (const Unit* u : mem) mv_team_shape(*u);  // s78n t14: the layout's per-member half-extents
+    for (const Unit* u : mem) mv_team_shape(*u);  // the layout's per-member half-extents
     const mv::UnitView v = movement_->view(ct.id);
     if (v.pos.x != p.x || v.pos.y != p.y)  // the free-position search moved it off a blocked centroid
         mode.primary().set_position(ct.h, Vec3{v.pos.x, v.pos.y, map_.terrain.sample_height(v.pos.x, v.pos.y)});
@@ -886,7 +886,7 @@ void TacticalBattle::mv_team_shape(const Unit& u) {
 }
 
 float TacticalBattle::drop_yaw(uint8_t side) const {
-    if (side >= side_count()) return 0.0f;  // third players: no record written (skm2 t02: skirmish slots 2.. have one)
+    if (side >= side_count()) return 0.0f;  // third players: no record written (skirmish slots 2.. have one)
     const Vec3 f = drop_facing_[side];
     return f.x == 0.0f && f.y == 0.0f ? 0.0f : yaw_of(f);
 }
@@ -925,7 +925,7 @@ TacticalBattle::Landing TacticalBattle::spawn_landing(TacticalMode& mode, const 
     sp.position = {x, y, map_.terrain.sample_height(x, y) + types.get(l, objects::tags::Hover_Offset)};
     const Vec3 f = p.side < kMaxSides ? drop_facing_[p.side] : Vec3{};
     sp.facing = f.x == 0.0f && f.y == 0.0f ? facing_of_yaw(0.0f) : f;
-    sp.parent_mode_id = p.built ? objects::kNoObjectId : p.galactic_id;  // q6 t19: tactical production pool entries
+    sp.parent_mode_id = p.built ? objects::kNoObjectId : p.galactic_id;  // tactical production pool entries
     const objects::ObjectHandle h = mode.spawn(sp, 1.0f);
     objects::ObjectStore& st = mode.primary();
     st.add_behavior(h, objects::beh::TransportLanding);
@@ -1017,11 +1017,11 @@ bool TacticalBattle::landing_locked(objects::ObjectId id) const {
 // a1i t04 (A1_READINGS §35.2, timed mode): state 4 waits (hidden) until no other landing in state 1 / 2 overlaps its
 // footprint (drop_half_extents box along the yaw [port: the footprint AABB with z +-100 of 0x38de80 as an oriented box; only
 // this battle's landings are seen]); state 1 plays Land (anim 0x2b) at 1.15 and turns into state 2 with the step timer once
-// the clip passes 98 % (r3g t01, §35.2 service; [port] a model without the clip passes at once);
+// the clip passes 98 % (§35.2 service; [port] a model without the clip passes at once);
 // each expiry spawns one team chunk (min(k, members left)) or one vehicle at the landing position (deploy member range)
 // and sends it on a group move to its exit target [port: no forced-move flag in the movement system], locked
 // (landing_locked); after the last member the next expiry finishes: unlock, the signal 0x19 record (landings_unloaded),
-// state 3 and the take-off: Takeoff (0x2c) at 1.15, removed once it passes 98 % (r3g t01; [port] no clip: at once; the dust
+// state 3 and the take-off: Takeoff (0x2c) at 1.15, removed once it passes 98 % ([port] no clip: at once; the dust
 // particle that goes at 50 % is not simulated). Untimed landings are only removed at their frame.
 // Clip progress p = n x rate / count, n = sim frames since the play, rate = clip fps / 30 x 1.15 (the sim animation's clock,
 // as the cinematic transports read it) [port: not clamped at the one-shot's last frame count - 2; every shipped Land /
@@ -1048,7 +1048,7 @@ void TacticalBattle::landing_service(TacticalMode& mode, SimRng& rng) {
         rec.units = l.units;
         landings_unloaded_.push_back(std::move(rec));
     };
-    // r3g t01: start clip `anim` at 1.15 on the landing (0 count: none) and read its progress.
+    // start clip `anim` at 1.15 on the landing (0 count: none) and read its progress.
     constexpr float kLandingClipSpeed = 1.15f;
     const auto start_clip = [&](Landing& l, int32_t anim) {
         uint32_t count = 0;
@@ -1095,7 +1095,7 @@ void TacticalBattle::landing_service(TacticalMode& mode, SimRng& rng) {
             l.state = 1;  // 0x642c70: shown, landing dust [port: no particle]
             start_clip(l, kAnimLand);  // [port] the attach's play, rewound while blocked: it runs from the clearance
         }
-        if (l.state == 1 && clip_passed(l, 0.98f)) {  // r3g t01: the Land clip passes 98 %
+        if (l.state == 1 && clip_passed(l, 0.98f)) {  // the Land clip passes 98 %
             l.state = 2;
             l.timer_start = frame_;
             l.timer_len = landing_step_frames(P.owner);
@@ -1108,7 +1108,7 @@ void TacticalBattle::landing_service(TacticalMode& mode, SimRng& rng) {
             l.units.clear();  // unlocked
             l.state = 3;
             l.remove_frame = frame_;
-            start_clip(l, kAnimTakeoff);  // r3g t01: 0x644330 plays Takeoff at 1.15; removed past 98 %
+            start_clip(l, kAnimTakeoff);  // 0x644330 plays Takeoff at 1.15; removed past 98 %
             continue;
         }
         // 0x644330: one team chunk or one vehicle at the landing position.
@@ -1568,8 +1568,8 @@ bool TacticalBattle::retreat_prevented(int32_t player) const {
     // cu8 t01 (TACTICAL_GAPS §1.5, BATTLE_TRANSITIONS §3.4 request check): an interdict / Retreat_Prevention entry that
     // targets the player refuses the request (0x282750 space / 0x2825e0 land).
     if (abilities_ && abilities_->retreat_blocked(player)) return true;
-    if (retreat_off(player)) return true;  // ui2 t06: the story's DISABLE_RETREAT
-    // cu8f t07 (CU8F_T01_T02_T07_RE.md §3.2): space only, the fallback query 0x2a9ff0 - behaviour 0x2C
+    if (retreat_off(player)) return true;  // the story's DISABLE_RETREAT
+    // cu8f t07 (legacy docs/re/CU8F_T01_T02_T07_RE.md §3.2): space only, the fallback query 0x2a9ff0 - behaviour 0x2C
     // TACTICAL_SUPER_WEAPON in the requesting player's own object list, no distance or hostility test: a player who owns
     // such an object in the battle (FoC: Death_Star, Death_Star_II) cannot retreat (reason 6). Land has no such query.
     // [port] live (not dead, not retreated) battle units, current owner.
@@ -1702,7 +1702,7 @@ void TacticalBattle::unit_gone(TacticalMode& mode, Unit& u) {
     if (c.alive > 0) --c.alive;
     if (c.alive == 0 && !c.removed) {
         c.removed = true;
-        if (movement_) (void)movement_->remove_unit(c.id);  // s78n t03: a squad container's own mover
+        if (movement_) (void)movement_->remove_unit(c.id);  // a squad container's own mover
         // battle host: the container leaves with its last member (ref2 t04 review: a Despawn is no loss)
         bt_removals_.push_back({c.owner, c.type, c.type, u.retreated || despawning_});
         hg_unit_removed(c.id);  // hangars: a launched squadron container is gone
@@ -1736,7 +1736,7 @@ void TacticalBattle::complete_retreat(TacticalMode& mode, uint8_t side) {
             }
         }
         for (const Unit& u : units_) {
-            if (u.side != side || !u.alive || u.retreated || rt_listed(u.id)) continue;  // TRU1 t06: flown out
+            if (u.side != side || !u.alive || u.retreated || rt_listed(u.id)) continue;  // flown out
             if (!space_ && st->alive(u.h) && st->has_behavior(u.h, objects::beh::Transport)) continue;
             const bool listed = u.movable || (!space_ && garrison_.garrisoned(u.id));
             if (listed && rp_held) continue;
@@ -1751,7 +1751,7 @@ void TacticalBattle::complete_retreat(TacticalMode& mode, uint8_t side) {
         // battle host: retreat attrition victims stay to be killed at this tick's combat phase D (§4.9)
         if (std::find(bt_attrition_ids_.begin(), bt_attrition_ids_.end(), u.id) != bt_attrition_ids_.end()) continue;
         u.retreated = true;
-        // aud1 t05 / TRU1 t06 (AUDIO.md §9.6, TRU1_C_RE §2.3): the jump sound plays when the flight releases the unit
+        // aud1 t05 / TRU1 t06 (legacy docs/re/AUDIO.md §9.6, TRU1_C_RE §2.3): the jump sound plays when the flight releases the unit
         // (rt_flight_tick), not here; without the retreat cinematic nothing flies and no jump sound plays.
         hg_unit_removed(u.id);     // hangars / engine loops: the object leaves the battle
         abilities_->remove(u.id);  // combat unit removed too
@@ -1769,8 +1769,8 @@ void TacticalBattle::complete_retreat(TacticalMode& mode, uint8_t side) {
         if (cfg_.end_hold_frames > 0) mode.destroy(u.h);
     }
     retreat_complete_ = true;
-    rt_.state = 0;                           // TRU1 t06: coordinator state 3 (rt_listed is false from here on)
-    vm_retreat_complete(side_player(side));  // story t06: 0x340750 (holds released, 0xc tested)
+    rt_.state = 0;                           // coordinator state 3 (rt_listed is false from here on)
+    vm_retreat_complete(side_player(side));  // 0x340750 (holds released, 0xc tested)
 }
 
 void TacticalBattle::service_damage_tracking() {
@@ -1796,7 +1796,7 @@ void TacticalBattle::finish(int32_t winner, uint8_t victory, int32_t retreated) 
         const Participant& p = parts_[pi];
         if (p.built || !p.deployed || p.spawned == 0) continue;  // battle host: pad objects have no galactic object
         if (p.alive > 0) {
-            // mcx4 t05 (docs/re/MCX4_RE_ANSWERS_TACTICAL.md §9 / §13): a company whose dead members include one with
+            // mcx4 t05 (legacy docs/re/MCX4_RE_ANSWERS_TACTICAL.md §9 / §13): a company whose dead members include one with
             // Respawn_Whole_Team_When_Killed loses the whole team at the battle end (0x48eb10's TRANSPORT branch kills
             // every active content, then the company), so the galaxy removes it and schedules its respawn.
             if (p.starbase) continue;
@@ -1946,7 +1946,7 @@ void TacticalBattle::apply_speed_factors() {
     const auto nt = static_cast<uint32_t>(team_speed.size());
     const auto team_fill = [&](uint32_t b, uint32_t e) {
         for (uint32_t i = b; i < e; ++i) {
-            // trn1 t06: the pursuit factor is part of the container's own chain (its owner = its members' owner)
+            // the pursuit factor is part of the container's own chain (its owner = its members' owner)
             const auto team = static_cast<objects::ObjectId>(team_speed[i].first);
             team_speed[i].second = combat_->team_mod_multiplier(team_speed[i].first, tc::ModKind::Speed) *
                                    pursue_of(combat_->has_unit(team) ? combat_->owner(team) : container_owner(team));
@@ -1959,7 +1959,7 @@ void TacticalBattle::apply_speed_factors() {
                                          [](const std::pair<uint32_t, float>& e, uint32_t t) { return e.first < t; });
         return it->second;  // every team asked for is in the list
     };
-    // SP5: the container types' raw Max_Speed (-1: no tag), looked up once per type (type data does not change in a battle)
+    // the container types' raw Max_Speed (-1: no tag), looked up once per type (type data does not change in a battle)
     // instead of twice per unit and once per container per tick; filled here, serially, for every type the loops below read.
     const objects::GameObjectTypes& types = catalog_->types();
     if (sp_type_max_speed_.size() < types.size()) sp_type_max_speed_.resize(types.size(), kMaxSpeedUnread);
@@ -1976,14 +1976,14 @@ void TacticalBattle::apply_speed_factors() {
     // else a member's - members read their head's target), ascending container id.
     const auto n = static_cast<uint32_t>(units_.size());
     std::vector<uint8_t> targets(n, 0);
-    refresh_script_control();  // STY1 t01: serial; the parallel fill only reads script_ctl_
+    refresh_script_control();  // serial; the parallel fill only reads script_ctl_
     const bool scripted = !script_ctls_.empty() && script_ctl_.size() == n;
     const auto unit_fill = [&](uint32_t b, uint32_t e) {
         for (uint32_t i = b; i < e; ++i) {
             const Unit& u = units_[i];
             if (!u.alive || u.retreated || !u.movable) continue;
-            // MOVEMENT §3.4 (0x376990) order: Mod_Multiplier SPEED, engines, retreat pursuit (trn1 t06), (1 + list 5), base
-            // shield (tru1 t02), burning (trn1 t05: On_Fire_Speed_Modifier while +0x3a1 bit 2).
+            // MOVEMENT §3.4 (0x376990) order: Mod_Multiplier SPEED, engines, retreat pursuit, (1 + list 5), base
+            // shield, burning (On_Fire_Speed_Modifier while +0x3a1 bit 2).
             float f = combat_->mod_multiplier(u.id, tc::ModKind::Speed);
             if (u.engines_offline || l1_engines_off(u.id)) f = f * engines;  // L1 systems: + timed engine disables
             if (!rt_listed(u.id)) f = f * pursue_of(combat_->owner(u.id));
@@ -1994,7 +1994,7 @@ void TacticalBattle::apply_speed_factors() {
             // stop it first and new move orders skip it (movement_locked).
             if (combat_->stunned(u.id, frame_)) f = 0.0f;  // OI abilities: land stun suspends the locomotor (0x647290)
             movement_->set_speed_factor(u.id, f);
-            // OI host: Berserker_Speed (-1 = none); STY1 t01: Override_Max_Speed (the lower of the two caps)
+            // OI host: Berserker_Speed (-1 = none); Override_Max_Speed (the lower of the two caps)
             float ov = abilities_->speed_override(u.id);
             if (scripted) {
                 const ScriptUnitControl& sc = script_ctl_[i];
@@ -2019,9 +2019,9 @@ void TacticalBattle::apply_speed_factors() {
     for (uint32_t i = 0; i < n; ++i)
         if (targets[i]) targeted.push_back(containers_[units_[i].container].id);
     std::sort(targeted.begin(), targeted.end());
-    // s78n t03: a movement-backed land squad container walks at the team speed - the same value its members' set_team
+    // a movement-backed land squad container walks at the team speed - the same value its members' set_team
     // carries (the members' minimum with its own Max_Speed, x its factor).
-    // SP5: each container writes only its own movement entry, so the containers run side by side.
+    // each container writes only its own movement entry, so the containers run side by side.
     const auto nc = static_cast<uint32_t>(containers_.size());
     const auto container_fill = [&](uint32_t b, uint32_t e) {
         for (uint32_t i = b; i < e; ++i) {
@@ -2154,7 +2154,7 @@ void TacticalBattle::feed_collision_info(const objects::ObjectStore& store) {
 // parallel; space keeps the serial loop (feed_fighter_target updates the host's formation records).
 void TacticalBattle::feed_attack_targets(const objects::ObjectStore& store) {
     if (space_ && movement_) {
-        // ref5 t08: the chase ranges of each fighter formation's type, filled serially before the combat tick, so the
+        // the chase ranges of each fighter formation's type, filled serially before the combat tick, so the
         // parallel scan (fighter_scan_range) reads the cache instead of the tag lookups (the same values either way).
         for (const FighterFormationRecord& r : fformations_) {
             const mv::FighterSquad* sq = fighter_squad_c(r.key);
@@ -2226,7 +2226,7 @@ void TacticalBattle::fighter_sync() {
         if (ct.squad_type < types.size()) d.chase = mv::fighter_chase_ranges_from_type(types, ct.squad_type);
         movement_->set_fighter_squad(d);
     }
-    // S7 t22: a formation goes with its squadron (or fighter).
+    // a formation goes with its squadron (or fighter).
     std::erase_if(fformations_, [this](const FighterFormationRecord& r) {
         if (movement_->fighter_squad(r.key)) return false;
         const Unit* x = unit_by_id(r.key);
@@ -2340,7 +2340,7 @@ void TacticalBattle::fighter_formation_hooks() {
 //   1. the ordered combat target (Attack / Attack_Target, the set path of a task-force Attack_Move, path B's lock, the
 //      locomotor's own Provoke / Retarget orders) [port: the ordered slot stands for the order's object block and the
 //      locked team target; while it is set the team target is locked, so §4.9 step 2 pushes no auto block];
-//   2. else the newest pushed auto attack block that is live and hostile (S7 t22: §4.9 step 2, fighter_push - the only
+//   2. else the newest pushed auto attack block that is live and hostile (§4.9 step 2, fighter_push - the only
 //      way an auto target moves a squadron; it is newer than the order's own block);
 //   3. else the attack goal (the order's object block: Attack_Move(object)) when hostile to the leader's owner;
 //   4. else none: 0x41a2e0 finds no object (a position, guard or no formation) and the squadron keeps Moving (§4.1) or
@@ -2401,7 +2401,7 @@ objects::ObjectId TacticalBattle::fighter_key(const Unit& u) const {
 
 // A move / attack order replaces the formation of every fighter squadron it names (one record per squadron).
 void TacticalBattle::fighter_order(std::span<const objects::ObjectId> ids, uint8_t flags, Vec3 goal, objects::ObjectId goal_object) {
-    if (!space_) {  // cmb1 t01 / t03: the land formation records (LandFormationRecord) take the same order paths
+    if (!space_) {  // the land formation records (LandFormationRecord) take the same order paths
         land_order(ids, flags, goal, goal_object);
         return;
     }
@@ -2425,7 +2425,7 @@ void TacticalBattle::fighter_order(std::span<const objects::ObjectId> ids, uint8
 }
 
 void TacticalBattle::fighter_order_clear(std::span<const objects::ObjectId> ids) {
-    if (!space_) {  // cmb1 t01: Stop leaves the land formation too
+    if (!space_) {  // Stop leaves the land formation too
         land_order_clear(ids);
         return;
     }
@@ -2516,7 +2516,7 @@ objects::ObjectId TacticalBattle::fighter_push(const Unit& leader, objects::Obje
             }
         }
     }
-    // ref5 t08: the one chase-input builder (tactical_battle_chase.cpp), the squadron's inputs for the auto target t.
+    // the one chase-input builder (tactical_battle_chase.cpp), the squadron's inputs for the auto target t.
     chase_ranges_fill(fighter_chase_type(leader, sq != nullptr));
     const FighterChaseFacts chase = fighter_chase_order(*r, leader, members, store, combat_->attack_range(leader.id));
     FighterChaseInputs ci = chase_inputs(chase.order);

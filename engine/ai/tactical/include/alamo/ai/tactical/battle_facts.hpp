@@ -1,4 +1,4 @@
-// ref5 t07 - BattleFacts: what the tactical AI reads from its battle, in one object the battle host owns and the AI world
+// BattleFacts: what the tactical AI reads from its battle, in one object the battle host owns and the AI world
 // reads (TacticalAiHost::facts()). Header-only; library alamo_ai_tactical.
 //
 // Each fact family has ONE rule, written by the host from the battle. The object answers a read in one of two modes:
@@ -65,7 +65,7 @@ struct OpportunityTargetEvent {
     int32_t hardpoint_type = -1;  // HardPointType of the hard point (5..10 for weapons)
 };
 
-// s78f t08 - signal 0x1E (TACTICAL_COMBAT §3.1.1 "s78f t08 answers" 4): a unit's targeting state entered 4 (attacking)
+// signal 0x1E (TACTICAL_COMBAT §3.1.1 "s78f t08 answers" 4): a unit's targeting state entered 4 (attacking)
 // for the first time. `unit` = the object the signal is raised on (a team member's: its container), `target` = its
 // formation attack target, else its current target. Object ids.
 struct AttackStateSignal {
@@ -73,7 +73,7 @@ struct AttackStateSignal {
     int32_t target = -1;
 };
 
-// skai t15 - signal 0x18 (SKAI_T15_UNIT_DAMAGED §1): one applied damage instance, raised by Take_Damage 0x3a9e30 through
+// signal 0x18 (SKAI_T15_UNIT_DAMAGED §1): one applied damage instance, raised by Take_Damage 0x3a9e30 through
 // the UNIT_AI behaviour 0x4f59d0. `unit` = the UNIT_AI holder (the victim, else its container: a squad's TEAM container),
 // `attacker` = the shooter (a TEAM member replaced by its container), `deliberate` = the attacker's current attack
 // target (formation target first) was `unit`. Object ids, in the battle's damage order.
@@ -83,7 +83,7 @@ struct UnitDamagedSignal {
     bool deliberate = false;
 };
 
-// a1j t01 - signal 0x19 "reinforcements unloaded" (ReinforcementsUnloadedDataClass, A1_READINGS §32.1 / §36): a land
+// signal 0x19 "reinforcements unloaded" (ReinforcementsUnloadedDataClass, A1_READINGS §32.1 / §36): a land
 // landing object finished its unload (0x6438a0) or was removed while unloading (detach vf15 0x6442d0). `key` = the
 // Reinforce event's unit field (the pool entry); `units` = the unloaded object ids in spawn order.
 struct ReinforcementsUnloaded {
@@ -116,10 +116,10 @@ struct FrameEvents {
     // STRATEGIC_GAPS §5.3: opportunity-fire acquisitions. A task force holding the owner (or its team container) raises plan
     // event 17 Hardpoint_Opportunity_Target_Acquired (unit, target) when it subscribed that HardPointType.
     std::vector<OpportunityTargetEvent> opportunity;
-    // s78f t08: signal 0x1E. A task force holding the unit (TaskForceClass::Add_Force 0x5f9a90 subscribes every unit it
+    // signal 0x1E. A task force holding the unit (TaskForceClass::Add_Force 0x5f9a90 subscribes every unit it
     // takes; handler 0x5fe5d0 case 0x1E) raises plan event 12 Target_In_Range (unit, target) when the target is live.
     std::vector<AttackStateSignal> attack_states;
-    // skai t15: signal 0x18, in damage order. A land / space task force holding the unit (Add_Force 0x6e9240 / 0x6e4e30
+    // signal 0x18, in damage order. A land / space task force holding the unit (Add_Force 0x6e9240 / 0x6e4e30
     // subscribe) queues plan event 14 Unit_Damaged (unit, attacker, deliberate), at most one waiting per task force
     // (0x5fd250). Free-store units never get it.
     std::vector<UnitDamagedSignal> damaged;
@@ -128,9 +128,9 @@ struct FrameEvents {
     // scripts' object bridge (blocking GameObjectWrapper.Activate_Ability), finishes the task-force AbilityBlockStatus
     // counts and raises plan event 19 <TF>_Unit_Ability_Finished(tf, unit) for task-force members that are not dying.
     std::vector<int32_t> ability_finished;
-    // a1j t01: the signal 0x19 records of the tick just run, in the order they were sent.
+    // the signal 0x19 records of the tick just run, in the order they were sent.
     std::vector<ReinforcementsUnloaded> unloaded;
-    // q6 t19: land tactical builds completed in the tick just run, in completion order (hosts whose builds spawn objects:
+    // land tactical builds completed in the tick just run, in completion order (hosts whose builds spawn objects:
     // none; those are claimed when they appear).
     std::vector<ProductionCompleted> produced;
     // The lists by bit (TacticalAiHost::frame_events), in the order the world handles them.
@@ -231,17 +231,17 @@ public:
     bool can_reinforce(int32_t player) const { return reinforce_ok.get(snapshot_, player); }  // 0x2b03e0
     float population_cap(int32_t player) const { return pop_cap.get(snapshot_, player); }           // < 0: no cap
     float population_used(int32_t player) const { return pop_used.get(snapshot_, player); }
-    // refixf t06 - space TF.Reinforce ring search (AI_TACTICAL §7.4): the player's entry facing and the playable box (false:
+    // space TF.Reinforce ring search (AI_TACTICAL §7.4): the player's entry facing and the playable box (false:
     // facing 0, no box).
     bool space_drop_frame(int32_t player, SpaceDropFrame& out) const {
         const std::optional<SpaceDropFrame> f = drop_frame.get(snapshot_, player);
         if (f) out = *f;
         return f.has_value();
     }
-    // S7 t21 - the unit's movement lock (0x39ad40: ability share, script lock, suspended locomotor; A1_READINGS §28.9): a
+    // the unit's movement lock (0x39ad40: ability share, script lock, suspended locomotor; A1_READINGS §28.9): a
     // locked member does not join a SpaceAmbushBlockStatus (AI_TACTICAL §7.3.1).
     bool movement_locked(int32_t object_id) const { return locked.get(snapshot_, object_id); }
-    // a1j t01 - land TF.Reinforce with a timed landing (ReinforceBlockStatus, A1_READINGS §36): the Reinforce of pool entry
+    // land TF.Reinforce with a timed landing (ReinforceBlockStatus, A1_READINGS §36): the Reinforce of pool entry
     // `key` just executed for `player` put the company in a landing object that has not finished its unload.
     bool reinforce_in_flight(int32_t player, int32_t key) const { return in_flight.get(snapshot_, {player, key}); }
     // A2 tactical: the free store's builder list (free store +0x120, AI_GALACTIC_3 §1.8 / §1.11 [M]) for `type`: ids of the
@@ -261,7 +261,7 @@ public:
     // skai t17 (STATION_HANGARS_SOUND §1.2 steps 7-8, 0x497460): the live object that replaced builder `id` (following
     // repeated station upgrades), -1 when none.
     int32_t replaced_builder(int32_t id) const { return replaced.get(snapshot_, id); }
-    // refixf t06 - space_prevention_hit (0x4d8d10): `p` lies inside the Reinforcement_Prevention_Radius (2-D, strict) of a
+    // space_prevention_hit (0x4d8d10): `p` lies inside the Reinforcement_Prevention_Radius (2-D, strict) of a
     // live object whose owner is not allied with `player`. space_drop_ok (SpaceMode vf80 0x4d6fd0, force 0): `p` is inside
     // the playable box, not fogged for `player` (force 1), outside every non-allied prevention radius, and the occupancy
     // sweep of pool entry `key`'s type from p - sweep x (cos, sin)(facing) to p over frames [now, now + 115] on its
@@ -274,12 +274,12 @@ public:
     // A1_READINGS §30.7): can pool entry `key` of `player` land at spot `p` (the company layout's centre)? A refused spot
     // sends the unit to the next ring spot.
     bool land_drop_ok(int32_t player, int32_t key, const Vec3f& p) const { return land_drop.get(snapshot_, player, key, p); }
-    // mcx6 t06 (LUA_API.md "Attack position 0x4f5390", terrain check 0x4f48a0 [M]): the land terrain line test 0x5a4c10 for
+    // mcx6 t06 (legacy docs/re/LUA_API.md "Attack position 0x4f5390", terrain check 0x4f48a0 [M]): the land terrain line test 0x5a4c10 for
     // the movement class of `object_id` (a TEAM container: its first member's) from `a` to `b`, 2-D.
     bool attack_position_line_clear(int32_t object_id, const Vec3f& a, const Vec3f& b) const {
         return line_clear.get(snapshot_, object_id, a, b);
     }
-    // S7 t27 - the land sight factor 0x3722a0 of land Prepare_Ambush (AI_TACTICAL §7.3.3 item 5): the weather
+    // the land sight factor 0x3722a0 of land Prepare_Ambush (AI_TACTICAL §7.3.3 item 5): the weather
     // Sight_Range_Modifier for the Weather_Category of `type` (the target's company type), for the object `object_id`; 1.0
     // without strong weather / no entry.
     float sight_weather_factor(int32_t type, int32_t object_id) const { return weather.get(snapshot_, type, object_id); }

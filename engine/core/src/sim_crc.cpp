@@ -111,7 +111,7 @@ CrcRegistry::SystemId CrcRegistry::add(std::string name, HashFn fn) {
     for (const auto& s : systems_)
         if (s.name == name) throw std::invalid_argument("CrcRegistry::add: duplicate system '" + name + "'");
     if (!fn) throw std::invalid_argument("CrcRegistry::add: empty hasher for '" + name + "'");
-    // OPT3 t05: each system's hasher is a profiler zone (crc.<name>), so --profile splits the T13 CRC capture.
+    // each system's hasher is a profiler zone (crc.<name>), so --profile splits the T13 CRC capture.
     const profile::ZoneId zone = profile::register_zone(("crc." + name).c_str());
     systems_.push_back(System{std::move(name), std::move(fn), zone});
     return static_cast<SystemId>(systems_.size() - 1);

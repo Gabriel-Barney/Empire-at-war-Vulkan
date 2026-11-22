@@ -45,7 +45,7 @@
 #include "alamo/game/story_script.hpp"
 #include "alamo/game/story_ui.hpp"
 #include "alamo/jobs/crc_recorder.hpp"
-#include "alamo/sim/l1_loaders.hpp"  // skm1: skirmish_option_defaults
+#include "alamo/sim/l1_loaders.hpp"  // skirmish_option_defaults
 #include "alamo/sim/save_session.hpp"
 #include "alamo/sim/tactical_battle.hpp"
 #include "alamo/vfs/vfs.hpp"
@@ -132,7 +132,7 @@ const char* kFactions = R"(<Factions>
 </Factions>
 )";
 
-// modc t18: the DEMO_CONTROLLER marker's Lua_Script for the attract tests. A test stand-in written here (the shipped
+// the DEMO_CONTROLLER marker's Lua_Script for the attract tests. A test stand-in written here (the shipped
 // Demo_Attract_Controller.lua needs the PG library scripts; real data runs it in attract_demo_real_test): the same engine
 // calls in the same order - FogOfWar.Reveal_All for the three players (results kept, as the shipped script keeps them),
 // then every unit of each player Attack_Moves to a GameRandom(1, 3) zone of its side.
@@ -216,7 +216,7 @@ game::SessionSpec spec_for(const std::shared_ptr<terrain::MapData>& map) {
     s.seed = 7;
     s.battle_max_frames = 900;
     s.ask_battle_choice = true;
-    s.skirmish_hop = true;  // skm1 t01: these runs test the galactic conflict flows (battle choice, auto-resolve, retreat)
+    s.skirmish_hop = true;  // these runs test the galactic conflict flows (battle choice, auto-resolve, retreat)
     return s;
 }
 
@@ -225,7 +225,7 @@ struct RunResult {
     uint64_t ticks = 0;
 };
 
-// The fleet retreat destination rule of docs/re/TACTICAL_GAPS.md §4.5, written out for this galaxy: planets newest
+// The fleet retreat destination rule of legacy docs/re/TACTICAL_GAPS.md §4.5, written out for this galaxy: planets newest
 // first (reverse row order), skipping the battle planet and unowned (-1) planets, smallest squared 3-D distance
 // (double, strict <) under the first filter that has a candidate: (1) orbit controller = R (the starbase owner at
 // starbase level > 0, else the owner of the first idle fleet in orbit with a live unit - every fleet here is a combat
@@ -404,7 +404,7 @@ bool live_run(const game::GameData& data, const game::SessionSpec& spec, command
     if (reserve != 0) {
         for (const uint32_t id : mine) CHECK(store.alive(store.find(static_cast<objects::ObjectId>(id))));  // the cap is full
         drop_point();
-        // ui3 t04: the HUD's read of the same gate (the pad entry is disabled while the cap is full); an unknown key is
+        // the HUD's read of the same gate (the pad entry is disabled while the cap is full); an unknown key is
         // not a reserve.
         if (const sim::TacticalBattle* bt = s.battle()) {
             CHECK(bt->reinforce_block(s.local_player(), static_cast<objects::ObjectId>(reserve)) == commands::RejectReason::QueueFull);
@@ -498,7 +498,7 @@ bool live_run(const game::GameData& data, const game::SessionSpec& spec, command
         if (const sim::TacticalBattle* bt = s.battle()) CHECK(bt->reserves(s.local_player()).empty());
     }
     // (The retreat dialog's Autoresolve ends the battle: battle_auto_resolve_run.)
-    // The human's withdrawn fleet goes where the retreat destination finder (TACTICAL_GAPS.md §4.5) points: the rule
+    // The human's withdrawn fleet goes where the retreat destination finder (legacy docs/re/TACTICAL_GAPS.md §4.5) points: the rule
     // computed here from the galaxy as it stands during the battle, cross-checked with GalacticSim's finder.
     PlanetIndex retreat_to = kInvalidPlanet;
     if (const galactic::GalacticSim* g = s.galaxy()) {
@@ -654,7 +654,7 @@ bool auto_resolve_run(const game::GameData& data, const game::SessionSpec& spec,
     for (int i = 0; i < 3; ++i) s.tick();
     t += 3;
     CHECK(s.port_stats().withdraw == early + 1 && s.port_stats().withdraw_dropped == 1 && s.host().commands_rejected() == rej0);
-    // bkc1 t01: without a cinematic camera (here: no story session) Esc is the host's (pause menu); a story Esc command
+    // without a cinematic camera (here: no story session) Esc is the host's (pause menu); a story Esc command
     // sent anyway is applied at the command phase for the local player and offers nothing (no story).
     CHECK(!s.story_esc() && s.port_stats().story_esc == 0);
     CHECK(s.submit(game::story_esc_event()).ok());
@@ -682,7 +682,7 @@ bool battle_auto_resolve_run(const game::GameData& data, const game::SessionSpec
     }
     CHECK(s.in_battle());
     if (!s.in_battle()) return false;
-    // ui3 t03: the b_retreat state - reason 2 and a partial dial while the retreat-allowed countdown runs.
+    // the b_retreat state - reason 2 and a partial dial while the retreat-allowed countdown runs.
     if (const sim::TacticalBattle* bt = s.battle()) {
         CHECK(bt->retreat_block(s.local_player()) == 2 && bt->retreat_allowed_progress() < 1.0f && bt->retreat_countdown_progress() < 0.0f);
         CHECK(bt->retreat_block(-5) == 1);
@@ -862,12 +862,12 @@ bool special_run(const game::GameData& data, const game::SessionSpec& spec, comm
     return true;
 }
 
-// story t13: the P10 bars are fully in from the first frame and stay until a script letterbox op (or the fallback); the
+// the P10 bars are fully in from the first frame and stay until a script letterbox op (or the fallback); the
 // P11 block holds until a script control op (or the fallback), then follows the scripts' lock; a plain battle holds nothing
 // but still draws the scripts' letterbox.
-// mcx4 t19 (docs/re/MCX5_RE_ANSWERS.md Q3.1, 0x292590 [H]): the custom options' start / max tech get -1 for a faction
+// mcx4 t19 (legacy docs/re/MCX5_RE_ANSWERS.md Q3.1, 0x292590 [H]): the custom options' start / max tech get -1 for a faction
 // with a non-zero Displayed_Tech_Level_Adjustment (FoC Rebel +1), 0 otherwise or without a faction.
-// mcx4 t14 (docs/re/SKIRMISH_SETUP.md §0, 0x4acf00 / 0x4ad000): a chosen condition the kind's set holds is kept; else the
+// mcx4 t14 (legacy docs/re/SKIRMISH_SETUP.md §0, 0x4acf00 / 0x4ad000): a chosen condition the kind's set holds is kept; else the
 // kind's default (MP_Default_Land_Tactical_Win_Condition / MP_Default_Space_Tactical_Win_Condition), stepped to the next
 // valid value (wrapping to 0x12) when it is not valid.
 // ledger: verifies GameConstants.MP_Default_Land_Tactical_Win_Condition
@@ -886,15 +886,15 @@ void skirmish_win_condition_test() {
           sim::parse_skirmish_victory_type("") == -1 && sim::parse_skirmish_victory_type("999") == -1);
 }
 
-// mcx4 t14 (docs/re/GALACTIC_DIALOGS.md §5.1.1, 0x3145c0 step 1): any one Build_Tab_* flag lists a type; none hides it.
+// mcx4 t14 (legacy docs/re/GALACTIC_DIALOGS.md §5.1.1, 0x3145c0 step 1): any one Build_Tab_* flag lists a type; none hides it.
 // ledger: verifies GameObjectType.Build_Tab_Special_Structures
 // ledger: verifies GameObjectType.Build_Tab_Heroes
 // ledger: verifies GameObjectType.Build_Tab_Outpost
 // ledger: verifies GameObjectType.Build_Tab_Space_Station
-// mcx4 t14 (docs/re/MCX4_T14_RE_ANSWERS.md "GameObjectType.MP_Encyclopedia_Text"): skirmish battles use the MP text
+// mcx4 t14 (legacy docs/re/MCX4_T14_RE_ANSWERS.md "GameObjectType.MP_Encyclopedia_Text"): skirmish battles use the MP text
 // when the type has one.
 // ledger: verifies GameObjectType.MP_Encyclopedia_Text
-// mcx4 t13 (docs/re/MCX4_T13_RE_ANSWERS.md "Movie.SFXEvent_Frame family"): Movie SFXEvent_Frame / SpeechEvent_Frame cues
+// mcx4 t13 (legacy docs/re/MCX4_T13_RE_ANSWERS.md "Movie.SFXEvent_Frame family"): Movie SFXEvent_Frame / SpeechEvent_Frame cues
 // fire on the step whose frame range (prev, now] holds them, the first in list order only.
 // ledger: verifies Movie.SFXEvent_Frame
 // ledger: verifies Movie.SpeechEvent_Frame
@@ -905,10 +905,10 @@ void movie_frame_cue_test() {
     CHECK(game::movie_frame_cue(frames, 0, 1) == -1 && game::movie_frame_cue(frames, 89, 95) == 3);
 }
 
-// mcx4 t14 (docs/re/MCX4_T14_RE_ANSWERS.md "GameObjectType.Show_Hero_Head family"): Show_Hero_Head puts a non-hero
+// mcx4 t14 (legacy docs/re/MCX4_T14_RE_ANSWERS.md "GameObjectType.Show_Hero_Head family"): Show_Hero_Head puts a non-hero
 // type (Generic_Field_Commander, Underworld_Saboteur) in the battle hero roster.
 // ledger: verifies GameObjectType.Show_Hero_Head
-// mcx4 t14 (docs/re/MCX4_T14_RE_ANSWERS.md "Faction.Victory_Text family"): the game over screen's text and image from the
+// mcx4 t14 (legacy docs/re/MCX4_T14_RE_ANSWERS.md "Faction.Victory_Text family"): the game over screen's text and image from the
 // local faction: Victory_Text / Land_Win_Image / Space_Win_Image on a win, Defeat_Text / Land_Lose_Image /
 // Space_Lose_Image on a loss.
 // ledger: verifies Faction.Victory_Text
@@ -929,7 +929,7 @@ void game_over_art_test() {
     CHECK(game::game_over_art(true, true, "", "", "", "s.tga", "", "").image == "s.tga");  // a missing land image: space
 }
 
-// mcx4 t14 (docs/re/MCX4_T14_RE_ANSWERS.md): a planet's Encyclopedia_Weather_Name and Encyclopedia_Weather_Info text ids.
+// mcx4 t14 (legacy docs/re/MCX4_T14_RE_ANSWERS.md): a planet's Encyclopedia_Weather_Name and Encyclopedia_Weather_Info text ids.
 // ledger: verifies GameObjectType.Encyclopedia_Weather_Name
 // ledger: verifies GameObjectType.Encyclopedia_Weather_Info
 void planet_weather_lines_test() {
@@ -938,7 +938,7 @@ void planet_weather_lines_test() {
     CHECK(game::planet_weather_lines("", "  ").name.empty() && game::planet_weather_lines("", "  ").info.empty());
 }
 
-// mcx4 t14 (docs/re/MCX4_T14_RE_ANSWERS.md "Faction.Infantry_Icon_Name family"): the battle pending side icon without a
+// mcx4 t14 (legacy docs/re/MCX4_T14_RE_ANSWERS.md "Faction.Infantry_Icon_Name family"): the battle pending side icon without a
 // hero is the faction's Infantry_Icon_Name (land) or Fighter_Icon_Name (space).
 // ledger: verifies Faction.Infantry_Icon_Name
 // ledger: verifies Faction.Fighter_Icon_Name
@@ -957,7 +957,7 @@ void commander_icon_test() {
     CHECK(s.icon == "i_hero.tga");  // no faction icon: unchanged
 }
 
-// mcx4 t14 (docs/re/MCX4_T14_RE_ANSWERS.md "GameConstants.Corruption_Choice_Name family"): Corruption_Choice_Icon_Name,
+// mcx4 t14 (legacy docs/re/MCX4_T14_RE_ANSWERS.md "GameConstants.Corruption_Choice_Name family"): Corruption_Choice_Icon_Name,
 // Corruption_Choice_Name, Corruption_Choice_Benefit and Corruption_Mission_Requirement_Icon_Name are lists indexed by
 // corruption type.
 // ledger: verifies GameConstants.Corruption_Choice_Icon_Name
@@ -974,10 +974,10 @@ void corruption_choice_art_test() {
     CHECK(A::at(a.requirement_icon, 0).empty() && A::at(a.icon, -1).empty() && A::at(a.icon, 2).empty());
 }
 
-// mcx4 t14 (docs/re/MCX4_T14_RE_ANSWERS.md): End_Control_Transition_Radar_Event on an owner change seen by a listener
+// mcx4 t14 (legacy docs/re/MCX4_T14_RE_ANSWERS.md): End_Control_Transition_Radar_Event on an owner change seen by a listener
 // friendly to either side.
 // ledger: verifies GameObjectType.End_Control_Transition_Radar_Event
-// mcx4 t14 (docs/re/MCX4_PRES_RE_ANSWERS_2.md Q1): "label 010.933" and "label 01:05".
+// mcx4 t14 (legacy docs/re/MCX4_PRES_RE_ANSWERS_2.md Q1): "label 010.933" and "label 01:05".
 void countdown_numbers_test() {
     CHECK(game::retreat_countdown_number(328.0f / 30.0f) == " 010.933");
     CHECK(game::retreat_countdown_number(0.0f) == " 000.000" && game::retreat_countdown_number(-1.0f) == " 000.000");
@@ -995,7 +995,7 @@ void shows_hero_head_test() {
     static_assert(!game::shows_hero_head(false, false));
 }
 
-void win_lose_banner_text_test() {  // mcx4 t14: docs/re/MCX4_T14_RE_ANSWERS.md "GameConstants.Win_Lose_Message_Font"
+void win_lose_banner_text_test() {  // legacy docs/re/MCX4_T14_RE_ANSWERS.md "GameConstants.Win_Lose_Message_Font"
     CHECK(game::win_lose_banner_text(true, false) == "TEXT_WIN_TACTICAL" && game::win_lose_banner_text(false, false) == "TEXT_LOSE_TACTICAL");
     CHECK(game::win_lose_banner_text(true, true) == "TEXT_WIN_CORRUPTION_MISSION");
     CHECK(game::win_lose_banner_text(false, true) == "TEXT_LOSE_CORRUPTION_MISSION");
@@ -1111,7 +1111,7 @@ void story_script_test() {
 
 // q6 t14 (GALACTIC_DIALOGS §2.8): the dialog script cache (exact names, rejected files not cached) and the summary fill
 // (rows = the tab's records, label = the chapter's first TEXT, colour / dim, selection, EXTRA_TEXT lines as stored).
-// mcx4 t14 (docs/re/MCX4_T14_RE_ANSWERS.md "Campaign.Show_Completed_Tab"): False hides the Completed tab.
+// mcx4 t14 (legacy docs/re/MCX4_T14_RE_ANSWERS.md "Campaign.Show_Completed_Tab"): False hides the Completed tab.
 // ledger: verifies Campaign.Show_Completed_Tab
 void completed_tab_shown_test() {
     CHECK(!game::completed_tab_shown("False", true) && !game::completed_tab_shown(" no ", true));  // Show_Completed_Tab False
@@ -1216,7 +1216,7 @@ void replay_run(const game::GameData& data, const game::SessionSpec& spec, const
 // --- OI host ---
 // Cinematic rate lock: the same session run twice, the second with the lock forced on for host frames [50, 80) (the
 // after-T9 hook reads the source inside the tick): the ordered per-system CRCs are identical, the parity CRC differs on
-// exactly the locked ticks (no XOR, COMMANDS.md §7.1 step 6), the pacing is pinned to 30 ticks/s under the lock even in
+// exactly the locked ticks (no XOR, legacy docs/re/COMMANDS.md §7.1 step 6), the pacing is pinned to 30 ticks/s under the lock even in
 // fast mode, and fast mode itself is wall-clock only.
 void rate_lock_test(const game::GameData& data, const game::SessionSpec& spec) {
     constexpr uint64_t kTicks = 120, kFrom = 50, kTo = 80;
@@ -1262,7 +1262,7 @@ void rate_lock_test(const game::GameData& data, const game::SessionSpec& spec) {
     CHECK(combined_diff == 0 && parity_diff == kTo - kFrom && outside_same);
 }
 
-// OI host: the attract demo's DEMO_CONTROLLER (its Lua_Script through the object-script host, modc t18) on a map that
+// OI host: the attract demo's DEMO_CONTROLLER (its Lua_Script through the object-script host) on a map that
 // places one. Factions
 // in order Empire 0, Rebel 1, Neutral 2, Underworld 3 (= map owners = players); the controller and three zones of each type
 // owned by Neutral, two Empire frigates, two Rebel corvettes, one Underworld frigate. Once the battle runs: the three
@@ -1309,7 +1309,7 @@ void attract_demo_script_test(const game::GameData& data, const game::SessionSpe
         for (const std::string& d : diag) std::printf("  attract script diag: %s\n", d.c_str());
         if (!s.started()) return;
         const sim::ObjectScriptHost* scripts = s.host().object_scripts();
-        CHECK(scripts != nullptr);  // on in the attract demo (modc t18)
+        CHECK(scripts != nullptr);  // on in the attract demo
         if (!scripts) return;
         const auto revealed = [&s] {
             const sim::TacticalBattle* b = s.battle();
@@ -1325,7 +1325,7 @@ void attract_demo_script_test(const game::GameData& data, const game::SessionSpe
         }
         CHECK(revealed());  // the controller's FogOfWar.Reveal_All for the three players
         CHECK(scripts->stats().attached == 1 && scripts->stats().pumps >= 1 && scripts->error_total() == 0);
-        // modc t32: the map-placed controller attached (Base_Definitions ran) with the battle's object bridge bound.
+        // the map-placed controller attached (Base_Definitions ran) with the battle's object bridge bound.
         CHECK(scripts->stats().attached_no_bridge == 0);
         for (const std::string& m : scripts->messages()) std::printf("  attract script: %s\n", m.c_str());
         const sim::TacticalBattle* b = s.battle();
@@ -1383,9 +1383,9 @@ void attract_session_test(const game::GameData& data, const game::SessionSpec& b
             ++t;
         }
         CHECK(s.skirmish_over());
-        // No DEMO_CONTROLLER (the only scripted type of the test data) on this map: nothing attaches (modc t18).
+        // No DEMO_CONTROLLER (the only scripted type of the test data) on this map: nothing attaches.
         CHECK(s.host().object_scripts() && s.host().object_scripts()->stats().attached == 0);
-        // Traced rule (MAIN_MENU_BACKGROUND.md §4a): the demo view never draws fog (cinematic camera clears the FOW render
+        // Traced rule (legacy docs/re/MAIN_MENU_BACKGROUND.md §4a): the demo view never draws fog (cinematic camera clears the FOW render
         // option), yet the demo's sim keeps its fog grids for the AI and targeting (presentation only).
         CHECK(!s.view_draws_fog());
         fought = s.battles() ? s.battles()->battles_fought() : 0;
@@ -1451,7 +1451,7 @@ void attract_rec_test() {
 // at 4 degrees per second, so every hull was seen nose-on or tail-on (view within 30 degrees of its facing) for a third of
 // the time, in stretches of 15 s; the side-view camera keeps the view near broadside.
 void attract_camera_pure_test() {
-    {  // mcx4 (docs/re/MCX4_T11_T12_RE_ANSWERS.md §C2): GameConstants Saliency_Size, Saliency_Power, Saliency_X,
+    {  // mcx4 (legacy docs/re/MCX4_T11_T12_RE_ANSWERS.md §C2): GameConstants Saliency_Size, Saliency_Power, Saliency_X,
        // Saliency_Y, Saliency_Health, Saliency_Targets and Saliency_Speed weight the min-max normalised features; the
        // highest score is the interesting object.
         // ledger: verifies GameConstants.Saliency_Size
@@ -1546,7 +1546,7 @@ void attract_camera_pure_test() {
 }
 
 // modc t18 on real data (ALAMO_FOC_DATA, else skipped): Demo_Attract_Geonosis, the one demo map that places a
-// DEMO_CONTROLLER (MAIN_MENU_BACKGROUND.md §4), runs the shipped Demo_Attract_Controller.lua through the object-script
+// DEMO_CONTROLLER (legacy docs/re/MAIN_MENU_BACKGROUND.md §4), runs the shipped Demo_Attract_Controller.lua through the object-script
 // host: the controller gets its script, State_Init reveals the map for the Empire, Rebel and Underworld players and the
 // script reports no error; a 0-worker run matches a 2-worker one.
 void attract_demo_real_test() {
@@ -1619,7 +1619,7 @@ void attract_demo_real_test() {
     CHECK(!d.diverged && a.records.size() == b.records.size());
 }
 
-// ref5 t04 (docs/re/MCX8_BINDINGS_OBJECTS.md §"Ship names") on real data (ALAMO_FOC_DATA, else skipped): the shipped
+// ref5 t04 (legacy docs/re/MCX8_BINDINGS_OBJECTS.md §"Ship names") on real data (ALAMO_FOC_DATA, else skipped): the shipped
 // ShipNameTextFiles lists load (12 files, EaW GameData\Data through the fallback), the skirmish battle's capital ships get
 // quoted names, and the attract demo names nothing.
 void ship_names_real_test() {
@@ -1762,7 +1762,7 @@ void attract_controller_test(const game::GameData& data) {
     const game::AttractConfig cfg = game::load_attract_config(data.db.constants());
     CHECK(cfg.enabled && cfg.start_timeout_s == 3600.0 && cfg.maps.size() == 2 && cfg.cycle_delay_s.size() == 2);
     if (cfg.maps.size() == 2) CHECK(cfg.maps[0] == "Demo_Attract_Kamino" && cfg.maps[1] == "GS_SPACE");
-    // MAIN_MENU_BACKGROUND.md §3: started when the menu opens, never stopped by input, idle pause, idle-gated cycling.
+    // legacy docs/re/MAIN_MENU_BACKGROUND.md §3: started when the menu opens, never stopped by input, idle pause, idle-gated cycling.
     using R = game::AttractController::Request;
     using D = game::AttractController::Dialogs;
     game::AttractController c(cfg);
@@ -1854,7 +1854,7 @@ void skirmish_map_real_test() {
         spec.skirmish.ai_faction = "Rebel";
         spec.seed = 3;
         spec.skirmish_options = sim::skirmish_option_defaults(data.db.constants());
-        // mcx4 t14 (docs/re/SKIRMISH_SETUP.md §0, 0x4acf00): the kinds' default conditions are GameConstants
+        // mcx4 t14 (legacy docs/re/SKIRMISH_SETUP.md §0, 0x4acf00): the kinds' default conditions are GameConstants
         // MP_Default_Land_Tactical_Win_Condition / _Space_ (FoC 0x13 base components, 0x16 star base).
         CHECK(spec.skirmish_options.land_default_win == 0x13 && spec.skirmish_options.space_default_win == 0x16);
         spec.skirmish_options.credits = 4000;
@@ -1999,7 +1999,7 @@ void skirmish_four_slot_real_test() {
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
         if (const sim::BattleAi* ai = s.battles()->tactical_ai()) {
             for (int32_t k = 1; k < 4; ++k) CHECK(ai->world().is_ai_player(k));
-            // skm2 t03: the perception's IsDifficulty input per slot (Easy / Hard / Normal), none for the human; team mates
+            // the perception's IsDifficulty input per slot (Easy / Hard / Normal), none for the human; team mates
             // are allies (relation 0) there too.
             const auto& pw = ai->world().world();
             if (pw.players.size() >= 4) {
@@ -2401,7 +2401,7 @@ void hud_feeds_test(const game::GameData& data, const game::SessionSpec& spec) {
     CHECK(cd.present && cd.disabled && cd.dial == 0.25f);
     const ui::HudBombingRunButton fresh = game::bombing_run_button(true, false, false, 0.0f);
     CHECK(fresh.disabled && fresh.dial == 1.0f);
-    // ui1 t04: the space special-weapon button - hidden without a weapon; icon / tooltip = the weapon's index; not allowed
+    // the space special-weapon button - hidden without a weapon; icon / tooltip = the weapon's index; not allowed
     // -> tooltip 4 (requires comm array), disabled; recharging -> disabled with the readiness dial; ready -> enabled.
     CHECK(!game::space_weapon_button(false, 0, true, false, 1.0f).present);
     const ui::HudBombingRunButton no_weapon = game::space_weapon_button(true, -1, true, false, 0.0f);
@@ -2445,7 +2445,7 @@ void hud_feeds_test(const game::GameData& data, const game::SessionSpec& spec) {
     CHECK(heroes.size() <= 11 && named == heroes.size());
     const std::vector<ui::HeroEntry> none = game::galactic_hero_entries(*s.galaxy(), s.local_player(), [](uint32_t) { return std::string(); }, {}, 11);
     CHECK(none.empty());
-    // ui4 t08: the announcer tags of galactic events for the local player.
+    // the announcer tags of galactic events for the local player.
     {
         const galactic::GalacticSim& gg = *s.galaxy();
         const int32_t me = s.local_player();
@@ -2453,7 +2453,7 @@ void hud_feeds_test(const game::GameData& data, const game::SessionSpec& spec) {
         for (int32_t p = 0; p < static_cast<int32_t>(gg.players().size()); ++p)
             if (p != me && !gg.allied(me, p)) other = p;
         PlanetIndex mine = kInvalidPlanet;
-        bool guarded = false;  // ui4 t11: a local fleet orbits `mine` (the enemy-approach announcer needs one)
+        bool guarded = false;  // a local fleet orbits `mine` (the enemy-approach announcer needs one)
         for (PlanetIndex i = 0; i < gg.planets().size(); ++i)
             if (gg.planets()[i].owner == me) {
                 bool g2 = false;
@@ -2630,7 +2630,7 @@ void save_files_test() {
     CHECK(game::list_saves(path_to_utf8(dir / "none")).empty());
     remove_all_long(dir, ec);
 
-    // ui5 t13: names and folders outside the ANSI code page (Greek kappa + CJK, UTF-8 escapes): a typed name keeps its
+    // names and folders outside the ANSI code page (Greek kappa + CJK, UTF-8 escapes): a typed name keeps its
     // valid UTF-8, a broken byte becomes '_', the length cap cuts at a character boundary; the folder and the save list,
     // load (header), exist and delete without the old std::system_error from path::string().
     const std::string kappa = "\xCE\x9A", cjk = "\xE6\xB8\xAC";  // U+039A, U+6E2C
@@ -2703,7 +2703,7 @@ void save_load_test(const game::GameData& data, game::SessionSpec spec) {
         CHECK(why.empty() && a.check_save().empty());
         const game::SaveMeta meta = a.save_meta("x", 1);
         CHECK(meta.kind == "skirmish" && meta.campaign == "GS_SPACE" && meta.faction == "Rebel" && meta.tick == a.host().frame() && meta.week == 0);
-        CHECK(meta.game_seconds == 0);  // no battle yet (N1f t06)
+        CHECK(meta.game_seconds == 0);  // no battle yet
         CHECK(game::save_game(a, d, "Skirmish: test", "", game::unix_now(), &path, &err));
         if (!err.empty()) std::printf("  save: %s\n", err.c_str());
         save_tick = a.host().frame();
@@ -2725,7 +2725,7 @@ void save_load_test(const game::GameData& data, game::SessionSpec spec) {
         std::printf("save / load: in battle at tick %" PRIu64 ": %s\n", a.host().frame(),
                     in_battle.empty() ? "saveable (stage 2)" : in_battle.c_str());
         CHECK(in_battle.empty() && a.in_battle());
-        // N1f t06: a skirmish's save label shows the battle clock, not the galactic one (which ran through the fleet's hop).
+        // a skirmish's save label shows the battle clock, not the galactic one (which ran through the fleet's hop).
         const game::SaveMeta battle_meta = a.save_meta("x", 0);
         const uint64_t battle_seconds = a.battle()->frame() / 30u, galactic_seconds = static_cast<uint64_t>(a.galaxy()->frame()) / 30u;
         std::printf("save / load: skirmish clock: battle %" PRIu64 " s, galaxy %" PRIu64 " s, label %s\n", battle_seconds, galactic_seconds,
@@ -2872,7 +2872,7 @@ static void story_ui_test() {
     v.zoomed = true;  // zoom planet unknown -> the selected planet
     f.observe(v);
     out = f.take();
-    // STY1 t03: the zoom state change also raises GENERIC zoomed_in / zoomed_out
+    // the zoom state change also raises GENERIC zoomed_in / zoomed_out
     CHECK(kinds(out) == (std::vector<E>{E::ZoomIntoPlanet, E::Generic}) && out[0].object == 100 && out[1].name == "zoomed_in");
     f.observe(v);
     CHECK(f.take().empty());
@@ -2894,7 +2894,7 @@ static void story_ui_test() {
     v.corruption_planet = 0;
     f.observe(v);
     CHECK(f.take().empty());  // deselect / close raise nothing
-    // STY1 t03: special dialogs and HUD drags raise their STORY_GENERIC names once per opening / drag
+    // special dialogs and HUD drags raise their STORY_GENERIC names once per opening / drag
     v.special_kind = galactic::kSpecialBlackMarket;
     v.drag = 1;
     f.observe(v);
@@ -2938,7 +2938,7 @@ static void story_ui_test() {
     n.name.assign(400, 'x');
     CHECK(game::read_story_ui_event(game::story_ui_event(n), back) && back.name.size() == game::kStoryUiMaxName);
     CHECK(!game::read_story_ui_event(game::tactical_auto_resolve_event(), back));
-    // bkc1 t01: the story Esc command is a data-free PortExtension of its own subtype, not a story UI event.
+    // the story Esc command is a data-free PortExtension of its own subtype, not a story UI event.
     CHECK(game::story_esc_event().type() == commands::EventType::PortExtension &&
           game::story_esc_event().u("subtype") == game::kStoryEscSubtype && game::story_esc_event().bytes_view("data").empty());
     CHECK(!game::read_story_ui_event(game::story_esc_event(), back));
@@ -2991,7 +2991,7 @@ static void story_ui_test() {
     game::story_reward_media("STOP_COMMANDBAR_MOVIE", {}, media);
     CHECK(media.size() == 2 && media[0].kind == game::StoryMediaCue::Kind::AdvisorMovie && media[0].name == "Tyber_loop" && !media[0].loop &&
           media[1].kind == game::StoryMediaCue::Kind::AdvisorStop);
-    // ui2 t07: P10 / P2 are the loop flag (atoi, empty = 0); SPEECH P1 and COMMANDBAR_MOVIE P1 are cues; the head's name is not tested.
+    // P10 / P2 are the loop flag (atoi, empty = 0); SPEECH P1 and COMMANDBAR_MOVIE P1 are cues; the head's name is not tested.
     media.clear();
     game::story_reward_media("MULTIMEDIA", {"T", "-1", "", "", "", "", "", "", "Han_Loop", "1"}, media);
     game::story_reward_media("MULTIMEDIA", {"T", "-1", "", "", "", "", "", "", "Han_Loop", "0"}, media);
@@ -3100,7 +3100,7 @@ void radar_feed_test() {
 }
 #endif
 
-// mcx3 t05 (D3, docs/MOD_COMPAT_DESIGN.md 15): a save from an older stack. The save is made on data whose stack says
+// mcx3 t05 (D3, docs/MODS.md "Saves, mod versions and the launcher"): a save from an older stack. The save is made on data whose stack says
 // "Stack Sub" 1.0; the current data has one value changed (the type list unchanged) and says 1.1. The load is refused
 // with the mod and both versions named and marked as a data difference; allowed, it loads and the session is marked.
 static void different_data_save_test(const std::string& data_dir, game::SessionSpec spec) {

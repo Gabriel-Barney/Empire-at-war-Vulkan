@@ -1,9 +1,8 @@
 """AI-vs-AI outcome sweeps: one skirmish scenario over seeds 1..N, judged by the share of seeds, not by one seed.
 
-Standard library only; `parity_harness.py outcome` is the command line, this module the reader and the judge (ref4 t04,
-2026-11-19). Before, every "battle ends" ctest in engine/apps/CMakeLists.txt was pinned to one hand-picked seed and
+Standard library only; `parity_harness.py outcome` is the command line, this module the reader and the judge (2026-11-19). Before, every "battle ends" ctest in engine/apps/CMakeLists.txt was pinned to one hand-picked seed and
 re-pinned whenever a sim change moved that seed's battle (21 re-pins in two weeks); a random-driven outcome is tier 2
-(docs/DECISIONS.md "Parity tiers"): its distribution over seeds is what must hold. Determinism is proved by the CRC
+(docs/SIMULATION.md "Parity tiers"): its distribution over seeds is what must hold. Determinism is proved by the CRC
 golden runs (one fixed seed each), not here.
 
 A scenario (tools/parity/outcomes.json) is the alamo_headless arguments without --seed, the seed count and what must
@@ -12,16 +11,16 @@ hold over those seeds:
   min_end_share   the share of seeds whose battle ends with a winner before the tick limit (default 0: no end needed);
   end_frames      [lo, hi]: the end frame of every ended seed lies in this range;
   max_lua_seeds   seeds allowed to log a Lua error that is not one of retail's documented errors (default 0;
-                  skirmish_run.cpp kRetailLuaErrors, docs/DECISIONS.md "Retail Lua errors in the skai exit test");
+                  skirmish_run.cpp kRetailLuaErrors, docs/SIMULATION.md "Retail Lua errors in outcome tests");
   fielded         [{"label", "types", "min_seeds", "why"} (+ "min_walked", default 1)]: the run's --report-fielded lines
-                  (skirmish_run.cpp, tst2 t04): at least min_seeds seeds must field one of `types` (unit type names, any
+                  (skirmish_run.cpp): at least min_seeds seeds must field one of `types` (unit type names, any
                   case, either slot) whose units walk min_walked or more in all (2-D distance summed over those types), so a
                   movement scenario keeps the unit kinds it was made for (Walk_Transition walkers, Destroyer droids);
   known_lua       [{"text", "group", "why"}]: a Lua error containing text is a known port bug that the open roadmap
                   group owns: reported with its group, not counted against max_lua_seeds; drop the entry when the
                   group lands its fix (any other non-retail error still fails);
-  retail          [[run, end frame or null], ...]: the skai exit test (docs/DECISIONS.md "skai exit test as a tier-2
-                  distribution", formerly tools/probe_mod/q2_traces/analysis/skai_exit.py): the port's end rate
+  retail          [[run, end frame or null], ...]: the skai exit test (docs/SIMULATION.md "skai exit
+                  test", formerly tools/probe_mod/q2_traces/analysis/skai_exit.py): the port's end rate
                   against retail's by a two-sided Fisher exact test (pass while p >= 0.05), and, when both sides have
                   ended games, the median port end frame >= retail's earliest end frame - 3000 (one-sided: the tick cap
                   cuts the late side, and a port that ends too late ends too rarely, which the rate test sees).
@@ -283,7 +282,7 @@ def selftest(check):
     sk = {"args": ["--ticks", "36000"], "seeds": 10, "why": "t", "retail": rt}
     check(not judge("x", sk, runs([18000] * 10))[0], "outcome: retail frames - every port end too early fails")
     check(judge("x", sk, runs([24000] * 6 + [None] * 4))[0], "outcome: retail rate and frames pass")
-    # tst2 t04: --report-fielded lines and the fielded judgement.
+    # --report-fielded lines and the fielded judgement.
     fl = "  fielded p0 Empire AT_ST_WALKER x2 walked 950\n  fielded p1 Underworld Destroyer_Droid x3 walked 40\n"
     r = parse_run(head % 0 + fl, 36000)
     check(r["fielded"] == {"AT_ST_WALKER": [2, 950], "DESTROYER_DROID": [3, 40]}, "outcome: fielded lines")

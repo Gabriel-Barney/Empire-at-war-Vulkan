@@ -1,4 +1,4 @@
-// GameObjectType field set and converters (docs/re/OBJECT_TYPES.md §4).
+// GameObjectType field set and converters (legacy docs/re/OBJECT_TYPES.md §4).
 //
 // The type's descriptor table = the rows of xml_field_tables.md table 0 whose segment owner is
 // GameObjectType, SpaceProp or HeroUnit (894 rows, offsets 0x10..0x2948 inside the 0x2950-byte

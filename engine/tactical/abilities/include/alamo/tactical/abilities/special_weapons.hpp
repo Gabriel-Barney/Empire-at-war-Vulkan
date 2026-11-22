@@ -1,6 +1,6 @@
 // L1 systems - tactical special weapons, lobbing superweapons and tactical superweapons (the systems behind the Lua
 // hooks lua::TacticalScriptHooks weapon_readiness / begin_targeting / fire_at_object / fire_lobbing_at / tsw_state /
-// tsw_fire). Spec: docs/re/SCRIPT_GAPS.md §1 (conventions, §1.1, §1.2, §1.6) and docs/re/L1_S4_REMAINING.md.
+// tsw_fire). Spec: legacy docs/re/SCRIPT_GAPS.md §1 (conventions, §1.1, §1.2, §1.6) and legacy docs/re/L1_S4_REMAINING.md.
 //
 // OBJECTS
 //   * SPECIAL_WEAPON (behaviour 0x2f, e.g. Ground_Ion_Cannon / Hypervelocity gun in space): a data pack (obj +0x158)
@@ -176,7 +176,7 @@ struct SpecialWeaponWorld {
     std::function<void(ObjectId id, Vec3 position, Vec3 facing)> place;  // move the TSW (store, combat, trees)
     std::function<bool(int32_t owner)> is_battle_attacker;          // 0x28aec0 [M] (unset: false)
     std::function<uint32_t(ObjectId target)> debris_choices;        // the target dummy's Death_Explosions count (unset: 0)
-    // S8 t30: hand a lobbing order to the weapon's own WeaponBehavior (true = taken: no volley is queued here).
+    // hand a lobbing order to the weapon's own WeaponBehavior (true = taken: no volley is queued here).
     std::function<bool(ObjectId id, Vec3 point)> fire_at_position;
 };
 

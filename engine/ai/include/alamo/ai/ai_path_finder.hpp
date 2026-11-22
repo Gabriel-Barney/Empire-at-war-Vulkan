@@ -1,5 +1,5 @@
 // Per-AI galactic execution path finder (AIExecutionPathFinderClass / GalacticExecutionPathFinderClass,
-// docs/re/GALACTIC.md §4, PHASE2_ANSWERS Q7-Q11). One per AI player, owned by its execution system
+// legacy docs/re/GALACTIC.md §4, PHASE2_ANSWERS Q7-Q11). One per AI player, owned by its execution system
 // (GalacticAiWorld, galactic_ai.hpp); answers Lua Find_Path (0x69da70) and the AI's own Get_Path queries.
 //
 //   matrices  : galactic::compute_all_pairs (Floyd-Warshall reference, or the provably identical fast path),
@@ -57,7 +57,7 @@ uint64_t matrices_digest(const galactic::AllPairsMatrices& m);
 
 class AiPathFinder {
 public:
-    // OPT2 t02: cadence recomputes run in the background and are applied `latency` frames later (0 = at once, the
+    // cadence recomputes run in the background and are applied `latency` frames later (0 = at once, the
     // original timing). `bg` empty = inline at the kick (same results). Call before create().
     void set_background(uint32_t latency, BackgroundStart bg = {}) {
         latency_ = latency;
@@ -81,7 +81,7 @@ public:
         else kick(frame, graph, make_input(), pf);
         return true;
     }
-    // OPT2 t02: applies the in-flight recompute when `frame` reached its ready frame (once per frame, before anything
+    // applies the in-flight recompute when `frame` reached its ready frame (once per frame, before anything
     // reads the matrices). True when a result was applied.
     bool publish(int32_t frame);
     bool pending() const { return job_.in_flight(); }
@@ -102,20 +102,20 @@ public:
     // The all-pairs value W[from][to] (galactic::kUnlinked when unknown / unreachable).
     uint32_t weight(PlanetIndex from, PlanetIndex to) const;
 
-    // created, next, recompute count, digest of the matrices (taken at each recompute); OPT2 t02: the in-flight
+    // created, next, recompute count, digest of the matrices (taken at each recompute); the in-flight
     // recompute's ready frame (only while one is in flight).
     void hash(StateHasher& h) const;
 
     // N1 save / load: created, next, run counters, digest and the INPUTS of the last applied recompute (node values /
     // costs, fog mask, z offsets); the matrices are not saved but rebuilt from those inputs on `graph` (the session's
-    // static planet graph). OPT3 t04: an in-flight background recompute is saved as its kick / ready frame and input;
+    // static planet graph). An in-flight background recompute is saved as its kick / ready frame and input;
     // read() recomputes it inline and applies it on that ready frame (publish). read() fails (unchanged) when the rebuilt
     // matrices' digest differs from the saved one; it keeps this finder's set_background().
     void write(ByteWriter& w) const;
     bool read(ByteReader& r, const galactic::PlanetGraph& graph, const ParallelFor& pf = serial_for);
 
 private:
-    // One recompute's input, owned (N1: the matrices are rebuilt from it on load; OPT2 t02: a background job's copy).
+    // One recompute's input, owned (N1: the matrices are rebuilt from it on load; a background job's copy).
     struct Input {
         std::vector<double> value;
         galactic::Bitset revealed;

@@ -1,4 +1,4 @@
-// alamo_render - procedural laser projectiles (docs/re/PROJECTILE_NEBULA_DRAW.md 1). See lasers.hpp.
+// alamo_render - procedural laser projectiles (legacy docs/re/PROJECTILE_NEBULA_DRAW.md 1). See lasers.hpp.
 #include "alamo/render/lasers.hpp"
 
 #include <algorithm>

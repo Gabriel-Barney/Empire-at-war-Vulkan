@@ -12,7 +12,7 @@
 // When the owning systems exist (selection, combat, abilities) these fields move there.
 //
 // Orders (Move_To, Attack_Target, Guard_Target, Stop, Activate_Ability, ...) are built as EventData and
-// run through CommandPipeline::execute_direct (docs/re/COMMANDS.md §5: AI/Lua orders bypass the
+// run through CommandPipeline::execute_direct (legacy docs/re/COMMANDS.md §5: AI/Lua orders bypass the
 // queue) at tick = the VM frame (LuaVm::set_frame), issuer = the ordered object's owner (0 if none),
 // source CommandSource::Script. Orders that have a per-object event in the original catalogue use it
 // (MoveToObject, Attack, Facing, Garrison, SetUnitAbilityMode, SetAbilityAutofire, TacticalSell); the
@@ -29,7 +29,7 @@
 //
 // L1/S4 wave 2a additions (tactical hosts): `abilities` (S9 AbilitySystem) and `anim` (R3 AnimWorld). With
 // an AbilitySystem that knows the object, the ability bindings act on it directly, as the original executes
-// them immediately (ABILITIES_HARDPOINTS.md §2.9 / §5; no command queue, no script-state copy):
+// them immediately (legacy docs/re/ABILITIES_HARDPOINTS.md §2.9 / §5; no command queue, no script-state copy):
 //   Has_Ability / Is_Ability_Active / Is_Ability_Ready / Is_Ability_Autofire -> has_ability / is_active /
 //   is_ready / is_autofire; Activate_Ability by argument family (§2.9 table: toggle / optional target ->
 //   set_unit_ability_mode, object target -> targeted_ability (command 40), position -> targeted_ability on
@@ -91,7 +91,7 @@ enum class LuaOrder : uint8_t {
 };
 inline constexpr size_t kLuaOrderPayloadBytes = 24;
 
-// ---- sp3 (AI lane, docs/SIM_PARALLEL_DESIGN.md 5.1 / 11.6): the ability / combat state the bindings read off the
+// ---- sp3 (AI lane, docs/SIMULATION.md "AI lane cycle", "AI lane boundary rules"): the ability / combat state the bindings read off the
 // critical lane, and the writes they queue there ----
 // One ability type of a captured object (AbilitySystem answers at the capture frame): has_ability, is_ready,
 // can_activate(t, true, true), is_active, is_autofire, and the dry runs the lane's same-call answers predict from
@@ -158,7 +158,7 @@ struct LaneWrite {
 std::vector<uint8_t> encode_lane_write(const LaneWrite& w);
 bool decode_lane_write(std::span<const uint8_t> bytes, LaneWrite& out);  // false on malformed bytes
 class ObjectBridge;
-struct ScriptLockFact;  // sp3: below ObjectBridge
+struct ScriptLockFact;  // below ObjectBridge
 // The host's two halves (with ALAMO_LUA_HAVE_ABILITIES; without, an empty view and nothing applied): the capture of every
 // object of `a` and of its combat system at `frame` (on the critical lane, at the AI slot), and the apply of a queued
 // write at the due tick's `frame` through the calls the binding makes live. `host` = the VMs' bridge (its
@@ -180,7 +180,7 @@ struct ScriptObjectState {
     bool prevent_ai_usage = false;
     bool prevent_all_fire = false;
     bool prevent_opportunity_fire = false;
-    bool invulnerable = false;        // Make_Invulnerable (Take_Damage is kind 0 and passes it, q6 t12)
+    bool invulnerable = false;        // Make_Invulnerable (Take_Damage is kind 0 and passes it)
     bool cannot_be_killed = false;    // Set_Cannot_Be_Killed: Take_Damage cannot reach 0
     bool locomotor_suspended = false;
     bool highlighted = false, highlighted_small = false;
@@ -199,7 +199,7 @@ struct ScriptObjectState {
     float max_speed_override = -1.0f; // Override_Max_Speed; < 0 = none
     float shield = -1.0f;             // shield fraction 0..1; < 0 = full (1 if the type has shields, else 0)
     float highlight_offset = 0.0f;
-    // storyb t17: the Object_Highlight effect a Highlight(true) made ([port] not saved; Highlight(false) after a load finds
+    // the Object_Highlight effect a Highlight(true) made ([port] not saved; Highlight(false) after a load finds
     // the effect attached to the object).
     objects::ObjectId highlight_effect = objects::kNoObjectId;
     int32_t importance = 0;
@@ -208,7 +208,7 @@ struct ScriptObjectState {
     std::string animation;            // Play_Animation (name, loop, index): for the presentation side
     bool animation_loop = false;
     int32_t animation_index = -1;
-    std::map<uint8_t, AbilityState> abilities;  // by UnitAbilityType id (OBJECT_TYPES.md §9.1.4)
+    std::map<uint8_t, AbilityState> abilities;  // by UnitAbilityType id (legacy docs/re/OBJECT_TYPES.md §9.1.4)
 };
 
 // q6 (OBJECT_SCRIPTS §10.1): the outcome of Prevent_AI_Usage on the owner's AI free store. The warnings log and go on; the
@@ -287,29 +287,29 @@ public:
     std::function<Vec3(int32_t player)> reinforce_facing;
     // Spawn_From_Reinforcement_Pool(type, position, player): the host takes the unit out of the player's
     // tactical reinforcement pool and spawns it; returns the new top-level objects (empty = none in the
-    // pool). Without a hook [inferred stand-in]: created directly like Spawn_Unit. Facing (s78i t02): toward the world
+    // pool). Without a hook [inferred stand-in]: created directly like Spawn_Unit. Facing: toward the world
     // origin, as Spawn_Unit, in every mode (TACTICAL_COMBAT §3.1.1 "other spawns"); a host hook applies the same rule.
     std::function<std::vector<objects::ObjectHandle>(objects::TypeIndex type, int32_t player, Vec3 position)>
         spawn_from_pool;
-    // q6 object scripts (OBJECT_SCRIPTS.md §6.1 step 3): Spawn_Unit / Create_Generic_Object-style direct creation
+    // q6 object scripts (legacy docs/re/OBJECT_SCRIPTS.md §6.1 step 3): Spawn_Unit / Create_Generic_Object-style direct creation
     // (bind_objects.cpp spawn(): the unit and each Company_Units member) through the host, which links the object into
     // its systems (a tactical battle: trees, and combat / movement when the type is in the battle tables). Returns the
     // new object, or a null handle to fall back to ObjectStore::create. Unset (default): ObjectStore::create.
     std::function<objects::ObjectHandle(const objects::SpawnParams& p)> spawn_unit;
-    // q6 t12: Spawn_Unit of a company type (one with Company_Units) when the host lays out companies itself (a tactical
+    // Spawn_Unit of a company type (one with Company_Units) when the host lays out companies itself (a tactical
     // battle: its members as battle units plus their TEAM containers, TacticalBattle::script_spawn_company). Returns the
     // object Spawn_Unit hands to Lua; null = not handled (the binding creates the company and its members itself, each
     // through spawn_unit). Unset (default): the binding's own layout.
     std::function<objects::ObjectHandle(const objects::SpawnParams& p)> spawn_company;
-    // ref2 t04: an effect object a binding creates for presentation (detail::spawn_attached_effect: Highlight's
+    // an effect object a binding creates for presentation (detail::spawn_attached_effect: Highlight's
     // Object_Highlight) through the host (a tactical battle: the mode's trees and the L1 systems, never a battle unit).
     // Used only with battle_lifecycle; unset there: refused.
     std::function<objects::ObjectHandle(const objects::SpawnParams& p)> spawn_effect;
-    // q6 t12: Take_Damage(amount) without a hardpoint name through the host's damage system (a tactical battle: the
+    // Take_Damage(amount) without a hardpoint name through the host's damage system (a tactical battle: the
     // combat Take_Damage with kind 0, TacticalBattle::script_damage); `cannot_die` = the object's Set_Cannot_Be_Killed.
     // True = applied by the host (the death, if any, processed there); false or unset: the store-only health change.
     std::function<bool(objects::ObjectHandle unit, float amount, bool cannot_die)> take_damage;
-    // r1b t01: Take_Damage(amount, name) with a name of the type's HardPoints (checked by the binding): the host damages that
+    // Take_Damage(amount, name) with a name of the type's HardPoints (checked by the binding): the host damages that
     // hardpoint record (a tactical battle: combat Take_Damage kind 0 with the hardpoint index, shield first). True = applied;
     // false or unset: no damage (hardpoints are combat records, there is no object to damage).
     std::function<bool(objects::ObjectHandle unit, float amount, bool cannot_die, std::string_view hardpoint)> take_hardpoint_damage;
@@ -317,7 +317,7 @@ public:
     // INVULNERABLE behaviour (a tactical battle: the combat gate that drops every damage kind but 0 and 13; a TEAM
     // container passes it to its members). Unset: only the flag is stored.
     std::function<void(objects::ObjectHandle, bool on)> invulnerable_changed;
-    // STY1 t01 (docs/re/STY1_OBJECT_SETTERS_RE_ANSWERS.md §1): Prevent_Opportunity_Fire(on), after the flag is stored: the host
+    // STY1 t01 (legacy docs/re/STY1_OBJECT_SETTERS_RE_ANSWERS.md §1): Prevent_Opportunity_Fire(on), after the flag is stored: the host
     // writes the "incognito" bit (obj +0x3a1 & 0x10) on the object and its TEAM members. An edge, not a level (retail's
     // Take_Damage clears the bit on the first hit). Unset: only the flag is stored.
     std::function<void(objects::ObjectHandle, bool on)> opportunity_fire_changed;
@@ -330,7 +330,7 @@ public:
     // q6 (OBJECT_SCRIPTS §10.4 step 2): Spawn_Unit's facing for a point in this mode (a tactical battle: toward the map
     // origin). Unset: the location object's facing, else +X.
     std::function<Vec3(Vec3 position)> spawn_facing;
-    // refixf t03: the representative type 0x3973b0 (docs/re/LUA_API.md "Find_All_Objects_Of_Type and the sibling
+    // the representative type 0x3973b0 (legacy docs/re/LUA_API.md "Find_All_Objects_Of_Type and the sibling
     // finders"; A1_READINGS §29) that Find_All_Objects_Of_Type and Find_Nearest match on: a team container -> the
     // company's Create_Team_Type, else the company type; a transport -> its company type; a squadron fleet -> its
     // squadron type; else the object's own type. Unset, or kNone returned: the object's store type, which is the
@@ -341,14 +341,14 @@ public:
     // Get_Hint and Find_All_Objects_With_Hint read ScriptObjectState::hint when a script set one (Create_Cinematic_Transport),
     // else this. Unset or "": no map hint.
     std::function<std::string_view(objects::ObjectHandle)> map_hint;
-    // mcx8 t12 (docs/re/MCX8_BINDINGS_OBJECTS.md §Get_Name): the object's ship name as stored (SelectionDataPack +0x40: a
+    // mcx8 t12 (legacy docs/re/MCX8_BINDINGS_OBJECTS.md §Get_Name): the object's ship name as stored (SelectionDataPack +0x40: a
     // random name from the GameConstants ShipNameTextFiles lists, or the parent-mode object's). Get_Name drops its first
     // and last character when it is longer than 2. Unset or "": no ship name (Get_Name answers "").
     std::function<std::string_view(objects::ObjectHandle)> ship_name;
     // mcx8 t12 (§Get_Game_Scoring_Type): a TEAM container's company type (team data +0x58, e.g. Imperial_Stormtrooper_Squad
     // for a Stormtrooper_Team container). Unset or kNone: the binding uses the representative type.
     std::function<objects::TypeIndex(objects::ObjectHandle)> team_company_type;
-    // ref2 t04: set by a tactical battle's bridge factory (sim make_object_bridge, battle_object_bridge.hpp): the battle owns
+    // set by a tactical battle's bridge factory (sim make_object_bridge, battle_object_bridge.hpp): the battle owns
     // its objects' lifecycle, so spawn_unit / spawn_company / take_damage / change_owner / destroy_object are the only
     // way a binding creates, damages, re-owns or removes one. A hook that declines (or is unset) is a refusal: no object,
     // no damage, no owner change, no removal - never the bare ObjectStore write the bindings fall back to otherwise.
@@ -455,7 +455,7 @@ public:
             it = store.find(it->first) ? std::next(it) : hidden_sub_objects_.erase(it);
     }
     size_t state_count() const { return states_.size(); }
-    // mcx6 t04: Hide_Sub_Object (STORYB_T17_HIDDEN_UNITS.md §1.1: the named sub-mesh of an object is hidden): per object
+    // Hide_Sub_Object (legacy docs/re/STORYB_T17_HIDDEN_UNITS.md §1.1: the named sub-mesh of an object is hidden): per object
     // the hidden mesh names, upper case, sorted. Presentation only: drawn by the renderer (render, shadow and selection
     // passes), saved with the bridge (version 3 and up), kept apart from the per-object script states so it is not in the
     // state hash (it adds no ScriptObjectState entry). Empty span: nothing hidden.
@@ -464,7 +464,7 @@ public:
         const auto it = hidden_sub_objects_.find(id);
         return it == hidden_sub_objects_.end() ? std::span<const std::string>() : std::span<const std::string>(it->second);
     }
-    // sp3: every object with a script lock or a Divert (ascending id; struct ScriptLockFact below).
+    // every object with a script lock or a Divert (ascending id; struct ScriptLockFact below).
     std::vector<ScriptLockFact> script_lock_facts() const;
 
     // ---- diagnostics ----
@@ -489,7 +489,7 @@ private:
     std::map<uint32_t, ReinforceState> reinforcements_;
     uint32_t next_reinforcement_ = 1;
     std::map<objects::ObjectId, uint32_t> ability_signals_;  // S7 t15 A1: watched units' signal 0x29 counts
-    std::map<objects::ObjectId, std::vector<std::string>> hidden_sub_objects_;  // mcx6 t04: never empty lists
+    std::map<objects::ObjectId, std::vector<std::string>> hidden_sub_objects_;  // never empty lists
 };
 
 // sp3 (AI lane): script_movement_locked's inputs for one object - Lock_Current_Orders, and a Divert with its goal. A host
@@ -526,7 +526,7 @@ inline bool script_movement_locked(const ObjectBridge& b, objects::ObjectId id,
 void attach_object_bridge(LuaVm& vm, ObjectBridge* bridge);
 ObjectBridge* attached_object_bridge(LuaVm& vm);  // nullptr when none is attached
 
-// UnitAbilityType names (OBJECT_TYPES.md §9.1.4 = engine/tactical/abilities AbilityType). With
+// UnitAbilityType names (legacy docs/re/OBJECT_TYPES.md §9.1.4 = engine/tactical/abilities AbilityType). With
 // ALAMO_LUA_HAVE_ABILITIES the lookup is S9's ability_type_from_name (one table for the engine); the local
 // table below is the fallback for builds without it, and the tests check both tables agree.
 uint8_t unit_ability_id(std::string_view name);  // case-insensitive, 0 if unknown

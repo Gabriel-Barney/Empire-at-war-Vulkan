@@ -151,7 +151,7 @@ void check_database_tags(const GameData& d, const XmlDatabase& db, ModCheckRepor
     }
 }
 
-// modc t37: tags with a field_schema() row that is not one of the hand-verified tables of another class, lower case.
+// tags with a field_schema() row that is not one of the hand-verified tables of another class, lower case.
 // objects::find_field_schema falls back to any owner's row (the loader keeps that), so the report checks the owner here:
 // a tag whose only rows are in the CommandBarComponent table (0xa38dd0: Hidden, Toggle, ...) or the RadarMapClass table
 // (0xa39c50) is not read on an object type; each owner's Parse_Database_Entry reads only its own table

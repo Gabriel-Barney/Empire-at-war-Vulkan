@@ -1,4 +1,4 @@
-// Part 2 of test_abilities (bo3 t03: split by position; see test_abilities_common.hpp).
+// Part 2 of test_abilities (split by position; see test_abilities_common.hpp).
 #include "test_abilities_common.hpp"
 
 namespace bo3split {
@@ -146,7 +146,7 @@ void test_oi_stun_over_water() {
 
 namespace bo3split {
 
-// OI t03: ticks from the order to the Hack's owner change; count > 0: animation 0x5a has `count` frames at `fps`.
+// ticks from the order to the Hack's owner change; count > 0: animation 0x5a has `count` frames at `fps`.
 int oi_hack_timing(uint32_t count, float fps) {
     OiWorld w;
     SpecialAbilityDesc hk = oi_special("Hack", SpecialClass::Hack, ActivationStyle::UserInput);
@@ -336,7 +336,7 @@ void test_r3g_deploy_troopers_timed() {
     r3g_troopers_run(2);
 }
 
-// r3g t08: ticks from the order to the Repair's heal; the model has HACKING 0x5a (`hack` frames) and REPAIRING 0x5b
+// ticks from the order to the Repair's heal; the model has HACKING 0x5a (`hack` frames) and REPAIRING 0x5b
 // (`repair` frames, 0 = missing), both 30 fps. Repair times on 0x5b only (RepairAbility 0x70c580 / 0x70cb90).
 int oi_repair_timing(uint32_t hack, uint32_t repair) {
     OiWorld w;
@@ -373,7 +373,7 @@ int oi_repair_timing(uint32_t hack, uint32_t repair) {
 
 namespace bo3split {
 
-// OI t03: enemy health lost to a 2 s Berserker (Damage 10 per pass); count > 0: animation 0x68 has `count` frames (30 fps).
+// enemy health lost to a 2 s Berserker (Damage 10 per pass); count > 0: animation 0x68 has `count` frames (30 fps).
 float oi_berserker_damage(uint32_t count) {
     OiWorld w;
     SpecialAbilityDesc b = oi_special("Berserk", SpecialClass::Berserker, ActivationStyle::UserInput);
@@ -433,12 +433,12 @@ void test_oi_anim_timings() {
     CHECK(oi_hack_timing(32, 30.0f) == hack60 - 30);
     CHECK(oi_hack_timing(32, 60.0f) == hack60 - 45);
     CHECK(oi_hack_timing(33, 60.0f) == hack60 - 44);  // 31 / 2 rounds up to 16
-    // r3g t08: Repair reads REPAIRING (0x5b), never HACKING: a 92-frame 0x5a changes nothing, the 0x5b length does.
+    // Repair reads REPAIRING (0x5b), never HACKING: a 92-frame 0x5a changes nothing, the 0x5b length does.
     const int rep60 = oi_repair_timing(92, 0);  // no 0x5b clip: the 60-frame fallback
     CHECK(rep60 > 60);
     CHECK(oi_repair_timing(92, 32) == rep60 - 30);
     CHECK(oi_repair_timing(0, 32) == rep60 - 30);
-    // r3g t04: the tow cable. Drop + Pull = 250 services, then 31 wrapping services: a walking walker dies (kind 8, the
+    // the tow cable. Drop + Pull = 250 services, then 31 wrapping services: a walking walker dies (kind 8, the
     // speeder's kill) at the same service where a stopped one is locked; that lock lasts max(Paralyze, 70) services.
     const CableRun trip = oi_cable_run(true, 300.0f);
     const CableRun hold = oi_cable_run(false, 300.0f);
@@ -928,7 +928,7 @@ void test_foc_data() {
     CHECK(bad == 0);
     CHECK(mod_diag == 0);
     CHECK(records == 329);
-    // Vanilla FoC counts of ABILITIES_HARDPOINTS.md 2.1, except DEFEND / TRACTOR_BEAM: the doc says 9 / 10,
+    // Vanilla FoC counts of legacy docs/re/ABILITIES_HARDPOINTS.md 2.1, except DEFEND / TRACTOR_BEAM: the doc says 9 / 10,
     // the vanilla XML has 8 / 8 <Unit_Ability> elements (outside comments) of these types.
     CHECK(per_type[kDefend] == 8 && per_type[kPowerToWeapons] == 21 && per_type[kSpreadOut] == 29);
     CHECK(per_type[kHunt] == 25 && per_type[kTractorBeam] == 8 && per_type[kIonCannonShot] == 10);

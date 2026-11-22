@@ -1,4 +1,4 @@
-// Part 3 of test_combat (bo3 t03: split by position; see test_combat_common.hpp).
+// Part 3 of test_combat (split by position; see test_combat_common.hpp).
 #include "test_combat_common.hpp"
 
 namespace bo3split {
@@ -112,7 +112,7 @@ void test_team_handover_and_damage() {
         for (const ObjectId id : {ObjectId{10}, ObjectId{11}, ObjectId{12}}) CHECK_F(b.sys->health(id), w.sys->health(id));
         CHECK(combat_bytes(*b.sys) == combat_bytes(*w.sys));
     }
-    // Review (s78g t06): a phase-D death. Leader 10's due scan would keep its target 2 (scored 1.0); a closer fighter 40
+    // Review: a phase-D death. Leader 10's due scan would keep its target 2 (scored 1.0); a closer fighter 40
     // (0.5, better) appeared since. Ally 30 (higher index, serviced first) kills 10 in its unit_begin in the tick the
     // team's scan is due. The heir 11 is re-gathered on the copied record, so it runs the keep test and keeps 2, as the
     // container would; the member's own gather (always due, no target to keep) would have rescanned and taken 40.
@@ -627,7 +627,7 @@ void test_s78n_review_combat() {
         CHECK(w.sys->deaths().size() == 2 && w.sys->deaths()[1].killer == 2);
         CHECK(w.sys->damage_events().back().source == 2 && w.sys->damage_events().back().source_owner == 1);
     }
-    // s78n t19: a self hit (STIM_PACK shape) redirected to / shared with teammates stays the user's own damage - the
+    // a self hit (STIM_PACK shape) redirected to / shared with teammates stays the user's own damage - the
     // teammates it kills have no killer and their damage events name no source; another unit's hit on the same team keeps
     // its credit and its source.
     for (const bool share : {false, true}) {
@@ -1556,7 +1556,7 @@ void test_hero_clash_fight() {
         r.step();  // the start frame runs the update too: approach -> fight
         for (int i = 0; i < 10; ++i) r.step();
         CHECK(r.rng.draws() == 11 && r.host.damage_calls == 0);  // 11 updates since the fight
-        CHECK(r.host.plays.empty());  // r3h t02: nothing played
+        CHECK(r.host.plays.empty());  // nothing played
     }
     {  // two model variants: one extra synced int draw per exchange
         ClashRig r;

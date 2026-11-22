@@ -1,9 +1,9 @@
-// ui1 t03: the front end's credits roll (MenuAction ShowCredits: IDC_MENU_CREDITS, UI.md §3.4 / §3.5).
-// Data: Data\Text\CreditsText_<LANGUAGE>.DAT (docs/formats/SPEC.md §7: an unsorted DAT whose record order is the roll
+// the front end's credits roll (MenuAction ShowCredits: IDC_MENU_CREDITS, legacy docs/re/UI.md §3.4 / §3.5).
+// Data: Data\Text\CreditsText_<LANGUAGE>.DAT (legacy docs/formats/SPEC.md §7: an unsorted DAT whose record order is the roll
 // order; keys HEADER = a heading line, CENTER = a centred name line, value "[TBL]" = an empty line) and the GameConstants
 // Credits_* entries: Credits_Font / Credits_Font_Size, Credits_Header_Top_Color / _Bottom_Color and Credits_Top_Color /
 // _Bottom_Color (0..1 RGB gradients), Credits_Spacing, Credits_Margin and Credits_Scroll_Rate.
-// [port] how the original uses them is not recovered (backlog, ui1 t03): spacing = the line pitch as a fraction of the
+// [port] how the original uses them is not recovered (backlog): spacing = the line pitch as a fraction of the
 // screen height; margin = the top and bottom bands (fraction of the height) where the lines fade; scroll rate = screen
 // heights per second, negative = upwards (the shipped file lists the tag twice, -0.05 then -0.10: the last one counts,
 // as for every repeated GameConstants tag); the roll starts below the screen and ends when the last line has left the
@@ -43,7 +43,7 @@ struct CreditsStyle {
 };
 CreditsStyle credits_style(const data::GameConstants& gc);
 
-// The DAT records in file order (SPEC.md §7). False on a malformed file.
+// The DAT records in file order (legacy docs/formats/SPEC.md §7). False on a malformed file.
 bool parse_credits(std::span<const uint8_t> bytes, std::vector<CreditsLine>& out);
 // "Data\Text\CreditsText_<LANGUAGE>.DAT".
 std::string credits_path(std::string_view language);

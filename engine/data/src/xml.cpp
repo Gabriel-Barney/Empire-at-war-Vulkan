@@ -12,7 +12,7 @@ namespace {
 inline bool is_space(char c) { return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\v' || c == '\f'; }
 
 // Unlike XML 1.0, a digit may start an element name: the original loads `<80s_Visor_Man>` / `<181st>` root elements
-// and the types inside them (modc t14 probe, docs/re/MODC_LOADER.md section 3). So "<5" is markup, "< 5" stays text.
+// and the types inside them (modc t14 probe, legacy docs/re/MODC_LOADER.md section 3). So "<5" is markup, "< 5" stays text.
 inline bool is_name_start(char c) {
     const auto u = static_cast<unsigned char>(c);
     return (u >= 'a' && u <= 'z') || (u >= 'A' && u <= 'Z') || (u >= '0' && u <= '9') || u == '_' || u == ':' ||
@@ -193,8 +193,8 @@ public:
         uint32_t roots = 0;
         for (uint32_t c = doc_.nodes_[0].first_child; c; c = doc_.nodes_[c].next_sibling) ++roots;
         // mcx1 t04 (xml_extra_root; MCX1_RE_ANSWERS Q4): the original shows "file has multiple root nodes" and drops the
-        // whole file; the port keeps the first root and reports the rest (docs/MOD_COMPAT_DESIGN.md §7.1, [port]
-        // docs/PHASE4.md "mcx1").
+        // whole file; the port keeps the first root and reports the rest (docs/MODS.md "Tag ledger and value semantics", [port]
+        // legacy docs/PHASE4.md "mcx1").
         if (roots > 1)
             warn(begin_ + doc_.nodes_[doc_.nodes_[doc_.nodes_[0].first_child].next_sibling].offset,
                  "more than one top-level element (xml_extra_root): only the first is read; the original game drops the "

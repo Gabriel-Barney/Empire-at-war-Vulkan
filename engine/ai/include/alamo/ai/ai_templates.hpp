@@ -1,4 +1,4 @@
-// AI framework: AITemplateSystemClass (docs/re/AI_GALACTIC.md §1.7).
+// AI framework: AITemplateSystemClass (legacy docs/re/AI_GALACTIC.md §1.7).
 //
 // The player type's template list for the mode; element 0 is the base template: always active, never
 // un-triggered. Trigger fires when its equation is > 0; un-trigger when Un_Trigger > 0 if present, else

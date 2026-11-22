@@ -1,8 +1,8 @@
-// alamo_game_conformance_stacks_tests (mcx3 t07): the conformance mods stack_dep, stack_cycle and eaw_only
+// alamo_game_conformance_stacks_tests: the conformance mods stack_dep, stack_cycle and eaw_only
 // (testdata/conformance/stacks, README there) through resolve_mod_stack, load_game_data and check_mod_data, no game data.
-// Expectations follow docs/MOD_COMPAT_DESIGN.md 5.2 (stack resolution), 5.4 / D1 (base-EaW refusal) and docs/MODS.md 3.1
+// Expectations follow docs/MODS.md "Stack resolution" (stack resolution), 5.4 / D1 (base-EaW refusal) and docs/MODS.md "Command line switches"
 // (the command line is mounted as written, earliest wins). Nothing is written to the fixture.
-// ums1 t06: the launch-argument table across the three surfaces (the in-game picker, alamo_play, alamo_mod_check
+// the launch-argument table across the three surfaces (the in-game picker, alamo_play, alamo_mod_check
 // --resolve-only run as an exe) for stack_dep, stack_cycle, eaw_only and the AOW -> Legacy HD -> TR shape, and the
 // picker rows == catalog rows == alamo_mod_check --list rows. The exe's JSON goes to <work dir>.
 //   alamo_game_conformance_stacks_tests <testdata/conformance/stacks> <alamo_mod_check exe> <work dir>
@@ -90,7 +90,7 @@ void test_stack_dep(const std::string& root) {
     const vfs::ModStack w = game::resolve_mod_stack(root, {"MODPATH=Mods\\StackParent", "MODPATH=Mods\\StackSub"}, o.workshop_libraries);
     CHECK(joined(w.args) == "MODPATH=Mods\\StackSub | MODPATH=Mods\\StackParent");
     CHECK(has(w.warnings, "Mods\\StackParent is picked above its submod Mods\\StackSub"));
-    // ...but an explicit command line is mounted as written (earliest wins, MODS.md 3.1).
+    // ...but an explicit command line is mounted as written (earliest wins, docs/MODS.md "Command line switches").
     const game::ModCheckReport e = game::check_mod_data(root, {"MODPATH=Mods\\StackParent", "MODPATH=Mods\\StackSub"}, o);
     CHECK(e.mods.size() == 2 && e.mods[0].name == "Stack Parent" && e.mods[1].name == "Stack Sub");
 
@@ -142,7 +142,7 @@ void test_eaw_only(const std::string& root) {
     CHECK(game::check_mod_data(root, {}, light()).base_eaw_suspect.empty());
 }
 
-// The picker's side (mod_picker.hpp, mcx3 t03 / t06 / t09) on resolved reports, as App::check_mod builds them.
+// The picker's side (mod_picker.hpp) on resolved reports, as App::check_mod builds them.
 game::ModCheckReport resolved_report(const std::string& root, const std::string& arg) {
     const game::ModCheckOptions o = light();
     vfs::ModStack s = game::resolve_mod_stack(root, {arg}, o.workshop_libraries);
@@ -185,7 +185,7 @@ void test_picker(const std::string& root) {
     CHECK(game::mod_language_warnings(t, "GERMAN").size() == 1);  // StackTop and StackHinted have no modinfo.json
 }
 
-// ---- ums1 t06: the three launch surfaces start the same list ----
+// ---- the three launch surfaces start the same list ----
 
 // The strings of the first `"<key>": [ ... ]` array in a JSON text (JSON escapes \\ and \" decoded); nullopt when absent.
 std::optional<std::vector<std::string>> json_strings(const std::string& text, const std::string& key) {
@@ -225,7 +225,7 @@ void test_launch_surfaces(const std::string& fixture, const std::string& root, c
     game::ModCheckOptions o = light();
     o.workshop_libraries = where.steam_libraries;
     const vfs::ModCatalog catalog = vfs::scan_mod_catalog(where, false);
-    const std::vector<vfs::ModDescriptor>& rows = catalog.mods;  // ums4 t01: the picker's rows are the catalog's
+    const std::vector<vfs::ModDescriptor>& rows = catalog.mods;  // the picker's rows are the catalog's
 
     // Picker rows (catalog rows) == alamo_mod_check --list rows.
     const std::string list = run_mod_check(mod_check_exe, "--game \"" + root + "\" --list --no-hash", work / "list.json");
@@ -259,7 +259,7 @@ void test_launch_surfaces(const std::string& fixture, const std::string& root, c
         {"stack_cycle", "Mods\\CycleA", "MODPATH=Mods\\CycleA | MODPATH=Mods\\CycleB"},
         {"eaw_only", "Mods\\EawOnly", ""},
         // AOW -> Legacy HD -> TR: the shape (nothing declared, two hint rounds); the real three are not installed here
-        // (docs/MODS.md 10.4).
+        // (legacy docs/MODS.md 10.4).
         {"AOW -> Legacy HD -> TR", "Mods\\StackTop", "MODPATH=Mods\\StackTop | MODPATH=Mods\\StackHinted | MODPATH=Mods\\StackParent"},
         {"workshop variant subA", "900000201:subA", "STEAMMOD=900000201 | MODPATH=Mods\\StackParent"},
         {"workshop variant subB", "900000201:subB", "STEAMMOD=900000201 | MODPATH=Mods\\OtherTc"},
@@ -310,7 +310,7 @@ void test_launch_surfaces(const std::string& fixture, const std::string& root, c
     // The cycle still launches (an order exists), with its error shown beside it.
     CHECK(has(game::check_picked_mod(root, "Mods\\CycleA", o).stack.errors, "dependency cycle"));
 
-    // ums1 t05: conflicts through the VFS's lookup, in-process and as the exe's JSON.
+    // conflicts through the VFS's lookup, in-process and as the exe's JSON.
     {
         const std::vector<std::string> wrong = {"MODPATH=Mods\\StackParent", "MODPATH=Mods\\StackSub"};
         const game::ConflictReport w = game::mod_conflicts(catalog, wrong, {});

@@ -7,12 +7,12 @@ checked in; rerun after lua_api.json changes or after a binding's effect changes
     toolchain\\venv\\Scripts\\python.exe -I engine\\lua\\tools\\gen_bindings.py
 
 Row: { kind, owner class (methods) / impl class (globals), name, call sites in the RE corpora, effect, consumer, hooks }.
-hooks (ref5 t04): the bridge hooks ("Struct.hook", space separated) the binding reads, found from the code (binding_hook_reads);
+hooks: the bridge hooks ("Struct.hook", space separated) the binding reads, found from the code (binding_hook_reads);
 src/bridge_hooks.inc lists every hook of the three hook structs with an is-set test.
 Globals without a recovered class get the class whose methods they expose (GameRandom ->
 LuaGameRandom, ...) or "" (a plain function / host-set value).
 
-Effect column (docs/MOD_COMPAT_DESIGN.md §9.1, roadmap mcx0 t04), found from the code:
+Effect column (docs/MODS.md "Binding effect ledger"), found from the code:
   recorded     the binding appends a lua::PresentationOp (its op_name() in src/presentation.cpp names it); consumer =
                the first alamo_game source (engine/apps/game, ui, render, audio, video; tests excluded) that handles
                that op (`PresentationOp::X`, `Op::X` or `P::X`, or a comment "binding-consumer: <Name or Class.Name>"
@@ -44,7 +44,7 @@ EFFECTS = {"full": "Full", "recorded": "Recorded", "noop-retail": "NoopRetail", 
 ANNOTATION = re.compile(r"binding-effect:\s*([A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)?)\s+(full|recorded|noop-retail|noop-gap|partial)"
                         r"\s+(.+)")
 
-# Globals whose registration class was not recovered but whose methods are known (LUA_API.md).
+# Globals whose registration class was not recovered but whose methods are known (legacy docs/re/LUA_API.md).
 GLOBAL_CLASS_OVERRIDES = {
     "GameRandom": "LuaGameRandom",
     "GetCurrentTime": "LuaGetTime",
@@ -135,7 +135,7 @@ MACRO_DEF = re.compile(r"#define\s+([A-Za-z_]\w*)\(K\)")
 
 def inferred_sites():
     """{binding key ("Name" / "Class.Name"): "file:line"} of the bindings whose implementing function, or the comment block
-    right above it, carries an "[inferred]" marker (behaviour the port guessed, MOD_COMPAT_DESIGN.md §9.1: partial).
+    right above it, carries an "[inferred]" marker (behaviour the port guessed, docs/MODS.md "Binding effect ledger": partial).
     Registration entries {G|M, class, name, fn}; a class given as a constant or as the K of a registration macro is
     resolved from the same file. An entry whose class is not resolved counts for the name's rows no explicit entry claims."""
     out, unresolved = {}, {}
@@ -198,7 +198,7 @@ def inferred_sites():
     return out, unresolved, claimed
 
 
-# ---- ref5 t04: the bridge hooks each binding reads ----------------------------------------------------------------------
+# ---- the bridge hooks each binding reads ----------------------------------------------------------------------
 # The three hook structs between the bindings and the sim (nullable std::function members). A binding row names the hooks
 # its implementing function, or a lua/src function it calls (BINDING_HOOK_DEPTH levels down), reads as `->hook` / `.hook`;
 # hook names are unique across the structs. bridge_hooks.inc lists every hook with a "is it set" test, which the host test

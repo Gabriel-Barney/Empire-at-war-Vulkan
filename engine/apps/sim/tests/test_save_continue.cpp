@@ -1,4 +1,4 @@
-// alamo_sim_save_continue_tests (roadmap ref2 t01, serves map3): save and continue on every battle fixture.
+// alamo_sim_save_continue_tests (serves map3): save and continue on every battle fixture.
 // Each fixture (battle_test_fixture.hpp sessions: a space battle, a land invasion, a space battle with a retreat, a land
 // battle whose map carries placement records - hints, a company with a hint, a marker name, a build pad with a base
 // level on a planet with a ground structure - roadmap map3) runs twice from the same start:
@@ -22,7 +22,7 @@
 
 namespace {
 
-constexpr uint64_t kCheckpoint = 64;  // the golden checkpoint interval (docs/status/golden-checkpoints.md)
+constexpr uint64_t kCheckpoint = 64;  // the golden checkpoint interval (docs/SIMULATION.md "CRC log formats")
 
 struct Fixture {
     const char* name;
@@ -48,7 +48,7 @@ terrain::ObjectPlacement placement(const char* type, float x, float y, uint32_t 
     return p;
 }
 
-// The land map with placement records (map1 t03 / t04, q6 t28): a company with a hint (its members inherit it), a
+// The land map with placement records: a company with a hint (its members inherit it), a
 // trooper with an extra HINT, a hint and a marker name, and a hinted trooper of the attacker.
 terrain::MapData records_map() {
     terrain::MapData m = land_map();

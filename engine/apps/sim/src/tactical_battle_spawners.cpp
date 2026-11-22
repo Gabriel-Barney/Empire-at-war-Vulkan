@@ -1,4 +1,4 @@
-// TRU1 t05 / t07: SPAWN_INDIGENOUS_UNITS (behaviour 0x1b) and DEBRIS (behaviour 0x28), docs/re/TRU1_C_RE.md §1 / §3;
+// SPAWN_INDIGENOUS_UNITS (behaviour 0x1b) and DEBRIS (behaviour 0x28), legacy docs/re/TRU1_C_RE.md §1 / §3;
 // tactical_battle.hpp "TRU1 t05 / t07". Serial code; synced draws in the order the original makes them, objects in
 // ascending id order.
 #include "tactical_battle_internal.hpp"
@@ -12,7 +12,7 @@ namespace {
 
 constexpr objects::BehaviorTypeId kSpawnerBehavior = 0x1B;     // SPAWN_INDIGENOUS_UNITS
 constexpr objects::BehaviorTypeId kDebrisBehavior = 0x28;      // DEBRIS
-constexpr objects::BehaviorTypeId kIndigenousBehavior = 0x20;  // INDIGENOUS_UNIT (tru2 t01)
+constexpr objects::BehaviorTypeId kIndigenousBehavior = 0x20;  // INDIGENOUS_UNIT
 // tru2 t01 (MCX4_T11_T12_RE_ANSWERS "Max_Distance_From_Spawner" step 5): the wander step bounds (max, min), .data
 // 0x140a442c8 / cc, and while burning 0x140a442d0 / d4.
 constexpr float kWanderStepMax = 400.0f, kWanderStepMin = 50.0f;
@@ -182,7 +182,7 @@ void TacticalBattle::sp_tick(TacticalMode& mode, SimRng& rng) {
         st.set_behavior_next_service(h, bi, mf + std::max<uint32_t>(1u, st.behavior_interval(h, bi)));
         sp_service(mode, rng, i);
     }
-    // 5. tru2 t01: INDIGENOUS_UNIT services (ascending id).
+    // 5. INDIGENOUS_UNIT services (ascending id).
     sp_wander(mode, rng);
 }
 
@@ -315,7 +315,7 @@ void TacticalBattle::sp_debris_expire(TacticalMode& mode, SimRng& rng, const Deb
     }
     const objects::TypeIndex ex = first_type_of_list(catalog_->types(), t, objects::tags::Death_Explosions);
     if (ex != objects::kNone) {
-        const int32_t neutral = galaxy_ ? galaxy_->neutral_player() : -1;  // storyb t17: the clone's owner
+        const int32_t neutral = galaxy_ ? galaxy_->neutral_player() : -1;  // the clone's owner
         spawn_death_explosion(mode, static_cast<int32_t>(ex), at, neutral >= 0 ? neutral : owner);
     }
 }

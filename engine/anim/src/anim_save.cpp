@@ -15,7 +15,7 @@ namespace {
 
 // 2: frame_changed column dropped (write-only flag)
 constexpr uint32_t kAnimWorldVersion = 2;
-// s78k t02: the u64 is the idle countdown (1: a combat-timer frame); 3: s78l t03 idle records per entry
+// the u64 is the idle countdown (1: a combat-timer frame); 3: s78l t03 idle records per entry
 constexpr uint32_t kAnimBehaviorsVersion = 3;
 
 // Lower bounds of one saved record (corrupted-count guard: a count larger than the bytes left can hold fails before

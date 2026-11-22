@@ -29,7 +29,7 @@ namespace alamo::shaderxlat::test {
 namespace {
 
 bool g_write_golden = false;
-std::string g_golden_out;  // wr1 t05: --golden-out DIR writes the golden HLSL into DIR
+std::string g_golden_out;  // --golden-out DIR writes the golden HLSL into DIR
 std::string g_dump_dir;
 std::string g_exe;   // argv[0], for the multi-process cache test
 
@@ -233,7 +233,7 @@ void test_parser_malformed() {
         Translation t;
         return translate(q, TranslateOptions{}, t, &err);
     };
-    // Shader model 3 (modc t22): what the translator does not cover is rejected with a message.
+    // Shader model 3: what the translator does not cover is rejected with a message.
     CHECK(tr("vs_3_0\ndcl_position v0\ndcl_position o0\nmov o0, v0\n"));
     CHECK(!tr("vs_3_0\ndcl_position v0\ndcl_position o0\nmov o1, v0\n"));                  // o1 without dcl
     CHECK(!tr("vs_3_0\ndcl_position v0\ndcl_normal o1\nmov o1, v0\n"));                    // no varying slot
@@ -463,7 +463,7 @@ void test_emitter(const std::vector<Blob>& syn) {
         if (f.samplers.size() == 3) CHECK(f.samplers[1].dim == TextureDim::Cube);
     }
 
-    // Emitted HLSL across commits: the scenario shaderxlat_emitter (tools/goldens/scenarios.json; wr1 t07: no stored
+    // Emitted HLSL across commits: the scenario shaderxlat_emitter (tools/goldens/scenarios.json; no stored
     // golden). --write-golden / --golden-out write it.
     if (!g_write_golden) return;
     const std::filesystem::path gdir =

@@ -84,7 +84,7 @@ struct ResolvedPass {
     ApplyReport report;
 
     // Picks the PSO variant for the current LIGHT_SCALE.w (the only state expression that
-    // changes the pipeline, PORTING.md 3.2).
+    // changes the pipeline, legacy docs/shaders/PORTING.md 3.2).
     const PsoKey& select(float light_scale_w) const { return pso[(fade_dynamic && light_scale_w < 1.0f) ? 1 : 0]; }
 
     // Per-draw evaluation of the ALPHABLENDENABLE expression itself (any mod expression, not
@@ -114,7 +114,7 @@ struct EffectMetadata {
     int bones_per_vertex = 0;
 };
 
-// Built-in default effect (SPACE_AND_OPEN.md D.3): the original compiles a fixed-function effect
+// Built-in default effect (legacy docs/re/SPACE_AND_OPEN.md D.3): the original compiles a fixed-function effect
 // `TNoShader` from a source string in the exe and draws with it whenever an effect is missing or
 // fails to load: solid opaque green (material ambient/diffuse/specular/emissive = (0,1,0,1),
 // stage 0 colour/alpha = DIFFUSE, stage 1 disabled, no blend, no texture), bucket 3 (Opaque), no
@@ -268,7 +268,7 @@ using EffectRemap = std::map<std::string, std::string, std::less<>>;
 const EffectRemap& compat_missing_effect_remap();
 
 struct LoadOptions {
-    // Engine sampler defaults for states the effect leaves at D3D9 defaults (PORTING.md 3.3).
+    // Engine sampler defaults for states the effect leaves at D3D9 defaults (legacy docs/shaders/PORTING.md 3.3).
     SamplerKey engine_sampler{};
     // When the best technique has no hot-set program but a FIXEDFUNCTION technique exists, use
     // the FF technique through the FF ubershader. Off by default: such passes are now
@@ -308,11 +308,11 @@ public:
     // The compiled .fxo of the effect: a game path, never a .fx source (nullopt if none).
     std::optional<std::string> find_effect_path(std::string_view effect) const;
     // HLSL source `<name>.fx` of the same name, same search order (nullopt if none). The original
-    // compiles it with D3DX at run time and prefers it over the .fxo (RENDER.md 6). The port loads it
+    // compiles it with D3DX at run time and prefers it over the .fxo (legacy docs/re/RENDER.md 6). The port loads it
     // when alamo_fx_prebuild has compiled it into the FxCache (fx_source_status() == Compiled; the
     // effect's path is then the .fx); otherwise the .fxo is loaded, and without one load() fails and
     // load_or_default() returns the green default under the effect's name (EffectFallback::Failed,
-    // the original's result when its compile fails). docs/MODS.md, shader section.
+    // the original's result when its compile fails). docs/MODS.md "Effects and shaders in mods".
     std::optional<std::string> find_effect_source(std::string_view effect) const;
     // What load() does with the effect's .fx (None without one). Reads the source, its includes and
     // the cache entry each call; Compiled also means the compiled effect parses. *detail: the fxc

@@ -259,7 +259,7 @@ void test_force_sight_no_end() {
 #endif
 }
 
-// ---- tru3 t06: Pad_Sell at a skirmish start without pre-build ----
+// ---- Pad_Sell at a skirmish start without pre-build ----
 #ifdef ALAMO_SIM_HAVE_ANIM
 std::string pad_patch(std::string t) {
     // An Empire / Underworld build pad whose Multiplayer row lists an under-construction turret (the pre-placed type the

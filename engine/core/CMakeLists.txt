@@ -11,11 +11,11 @@ add_library(alamo_core STATIC
   # N1: engine save files (header + named chunks), packed with the in-house LZ77 + Huffman codec.
   src/save_file.cpp
   src/compress.cpp
-  # OPT1: tick profiler (wall-clock data, never read by sim logic).
+  # tick profiler (wall-clock data, never read by sim logic).
   src/profile.cpp
-  # CU2 t11: atomic whole-file replace for the tool / render caches (never read by sim logic).
+  # atomic whole-file replace for the tool / render caches (never read by sim logic).
   src/atomic_file.cpp
-  # mcx0 t01: mod compatibility issue sink (docs/MOD_COMPAT_DESIGN.md §11.1; diagnostics only, never read by sim logic).
+  # mod compatibility issue sink (docs/MODS.md "Fault containment and the no-abort rule"; diagnostics only, never read by sim logic).
   src/compat_issue.cpp
 )
 add_library(alamo::core ALIAS alamo_core)
@@ -39,20 +39,20 @@ target_link_libraries(alamo_core_save_tests PRIVATE alamo_core alamo_test_suppor
 add_test(NAME alamo_core_save_tests COMMAND alamo_core_save_tests)
 set_tests_properties(alamo_core_save_tests PROPERTIES TIMEOUT 60)
 
-# CU2 t11: write_file_atomic (temp file + rename) and its retry / failure results. Own temp dir per run.
+# write_file_atomic (temp file + rename) and its retry / failure results. Own temp dir per run.
 add_executable(alamo_core_atomic_file_tests tests/test_atomic_file.cpp)
 target_link_libraries(alamo_core_atomic_file_tests PRIVATE alamo_core alamo_test_support)
 add_test(NAME alamo_core_atomic_file_tests COMMAND alamo_core_atomic_file_tests)
 set_tests_properties(alamo_core_atomic_file_tests PROPERTIES TIMEOUT 60)
 
-# mcx0 t01: IssueSink de-duplication, counts and index-order merge.
+# IssueSink de-duplication, counts and index-order merge.
 add_executable(alamo_core_compat_issue_tests tests/test_compat_issue.cpp)
 target_link_libraries(alamo_core_compat_issue_tests PRIVATE alamo_core alamo_test_support)
 add_test(NAME alamo_core_compat_issue_tests COMMAND alamo_core_compat_issue_tests)
 set_tests_properties(alamo_core_compat_issue_tests PROPERTIES TIMEOUT 60)
 
-# Q1: dmath accuracy vs the CRT. Bit-identical outputs across commits and MSVC / clang: the scenario dmath of
-# tools/goldens/scenarios.json (--write-golden <file>; wr1 t07: no stored digests).
+# Q1: dmath accuracy vs the CRT. Bit-identical outputs across commits: the scenario dmath of
+# tools/goldens/scenarios.json (--write-golden <file>; no stored digests).
 add_executable(alamo_core_dmath_tests tests/test_dmath.cpp)
 target_link_libraries(alamo_core_dmath_tests PRIVATE alamo_core alamo_test_support)
 add_test(NAME alamo_core_dmath_tests
@@ -69,9 +69,10 @@ add_test(NAME alamo_core_sim_math_lint_selftest
                  -P ${PROJECT_SOURCE_DIR}/tools/lint/check_sim_math.cmake)
 set_tests_properties(alamo_core_sim_math_lint_selftest PROPERTIES WILL_FAIL TRUE)
 
-# modc t04: no mod / faction name literals in engine/ sim code (tools/lint/check_mod_names.py, docs/status/modc-audit.md). The
-# self-test checks the lint against its fixture (tools/lint/fixture_mod_names). build_gate.cmd runs both again
-# (tools/lint/gate_summary.py). Python: the project venv first, as the golden checks.
+# no mod / faction name literals in engine/ sim code (tools/lint/check_mod_names.py, legacy docs/status/modc-audit.md). The
+# self-test checks the lint against its fixture (tools/lint/fixture_mod_names). Python: the project venv first, as the
+# golden checks. Without python these lints are not registered, and tools/test_suite.py fails a synthetic run because
+# tests/required_synthetic.txt lists them.
 find_program(ALAMO_LINT_PYTHON NAMES python PATHS ${PROJECT_SOURCE_DIR}/toolchain/venv/Scripts NO_DEFAULT_PATH)
 find_program(ALAMO_LINT_PYTHON NAMES python python3)
 if(ALAMO_LINT_PYTHON)
@@ -80,21 +81,30 @@ if(ALAMO_LINT_PYTHON)
   add_test(NAME alamo_core_mod_names_lint_selftest
            COMMAND ${ALAMO_LINT_PYTHON} ${PROJECT_SOURCE_DIR}/tools/lint/check_mod_names.py --selftest)
   set_tests_properties(alamo_core_mod_names_lint alamo_core_mod_names_lint_selftest PROPERTIES TIMEOUT 120)
-  # mcx5 t05: every integer limit in sim code carries a // limit: retail|data|dynamic|guard tag (tools/lint/check_limits.py,
-  # docs/MOD_COMPAT_DESIGN.md §8).
+  # every integer limit in sim code carries a // limit: retail|data|dynamic|guard tag (tools/lint/check_limits.py,
+  # docs/MODS.md "Limits policy").
   add_test(NAME alamo_core_limits_lint
            COMMAND ${ALAMO_LINT_PYTHON} ${PROJECT_SOURCE_DIR}/tools/lint/check_limits.py --engine ${PROJECT_SOURCE_DIR}/engine)
   add_test(NAME alamo_core_limits_lint_selftest
            COMMAND ${ALAMO_LINT_PYTHON} ${PROJECT_SOURCE_DIR}/tools/lint/check_limits.py --selftest)
   set_tests_properties(alamo_core_limits_lint alamo_core_limits_lint_selftest PROPERTIES TIMEOUT 120)
-  # ums4 t03: no Vfs::mod_dirs() call outside engine/vfs, no modinfo.json reader outside the mod catalog, no removed shim
-  # name (tools/lint/check_mod_system.py, docs/MODS.md 3.2).
+  # no Vfs::mod_dirs() call outside engine/vfs, no modinfo.json reader outside the mod catalog, no removed shim
+  # name (tools/lint/check_mod_system.py, docs/MODS.md "File resolution order").
   add_test(NAME alamo_core_mod_system_lint
            COMMAND ${ALAMO_LINT_PYTHON} ${PROJECT_SOURCE_DIR}/tools/lint/check_mod_system.py --root ${PROJECT_SOURCE_DIR})
   add_test(NAME alamo_core_mod_system_lint_selftest
            COMMAND ${ALAMO_LINT_PYTHON} ${PROJECT_SOURCE_DIR}/tools/lint/check_mod_system.py --selftest)
   set_tests_properties(alamo_core_mod_system_lint alamo_core_mod_system_lint_selftest PROPERTIES TIMEOUT 120)
-  # ref4 t03: sim code turns data-driven seconds into frame counts only through alamo/core/frames.hpp (no plain
+  # Doc references: every cited docs/...md exists or is listed in docs/LEGACY_DOCS.md (tools/lint/check_doc_refs.py).
+  add_test(NAME alamo_core_doc_refs_lint
+           COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/lint/check_doc_refs.py --root ${PROJECT_SOURCE_DIR})
+  add_test(NAME alamo_core_doc_refs_lint_selftest
+           COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/lint/check_doc_refs.py --selftest)
+  # The dev.cmd implementation's own unit tests (diagnostic extraction, presets, argument handling).
+  add_test(NAME alamo_dev_selftest COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/dev.py selftest)
+  set_tests_properties(alamo_dev_selftest PROPERTIES TIMEOUT 120)
+  set_tests_properties(alamo_core_doc_refs_lint alamo_core_doc_refs_lint_selftest PROPERTIES TIMEOUT 120)
+  # sim code turns data-driven seconds into frame counts only through alamo/core/frames.hpp (no plain
   # static_cast of seconds x FPS to an integer outside engine/core; tools/lint/check_frame_casts.py).
   add_test(NAME alamo_core_frame_casts_lint
            COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/lint/check_frame_casts.py --root ${PROJECT_SOURCE_DIR})
@@ -102,10 +112,11 @@ if(ALAMO_LINT_PYTHON)
            COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/lint/check_frame_casts.py --selftest)
   set_tests_properties(alamo_core_frame_casts_lint alamo_core_frame_casts_lint_selftest PROPERTIES TIMEOUT 120)
 else()
-  message(STATUS "python not found: alamo_core_mod_names_lint not registered (build_gate.cmd still runs it)")
+  message(WARNING "python not found: the lint tests (alamo_core_mod_names_lint, ...) are not registered; dev.cmd suite "
+                  "synthetic will report them missing. Run toolchain\\2_setup.cmd to create toolchain\\venv.")
 endif()
 
-# OPT1: profiler zones / laps / ring / report.
+# profiler zones / laps / ring / report.
 add_executable(alamo_core_profile_tests tests/test_profile.cpp)
 target_link_libraries(alamo_core_profile_tests PRIVATE alamo_core alamo_test_support)
 add_test(NAME alamo_core_profile_tests COMMAND alamo_core_profile_tests)

@@ -24,7 +24,7 @@
   q2trace.py selftest-fake --bin <dir with q2reader.exe and fake_game.exe> --out <dir>
       End-to-end test: runs fake_game.exe, traces it with the reader, validates the result.
 
-Trace format: tools/probe_mod/q2_traces/README.md "Trace format".
+Trace format: legacy tools/probe_mod/q2_traces/README.md "Trace format".
 """
 import argparse
 import json
@@ -34,7 +34,7 @@ import subprocess
 import sys
 import zlib
 
-# The Q2TRACE 1 reader, the LCG step counter and the CRC v1 reader live in tools/parity/trace_parsers.py (ref3 t02).
+# The Q2TRACE 1 reader, the LCG step counter and the CRC v1 reader live in tools/parity/trace_parsers.py.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "parity"))
 from trace_parsers import Frame, lcg_steps, parse, read_crc_v1  # noqa: E402,F401
 
@@ -441,7 +441,7 @@ def selftest_fake(bindir, outdir):
             print("FAKE skirmish: expected light samples with --object-budget-ms 0")
             rc = 1
         if scen == "skirmish":
-            # storyb t09: a trace cut mid-line (reader killed) still validates: the cut frame is dropped, no digest error
+            # a trace cut mid-line (reader killed) still validates: the cut frame is dropped, no digest error
             with open(trace, "rb") as fh:
                 data = fh.read()
             cut_at = data.rfind(b"\nO ", 0, len(data) * 2 // 3) + 5
@@ -502,9 +502,9 @@ def run_port(a, trace_path, parity):
     cmd = [a.port_exe, "--economy", "--galactic-ai", "--campaign", campaign, "--human", human, "--seed", str(seed),
            "--ticks", str(ticks), "--workers", str(a.port_workers), "--quiet", "--crc-out", crc, "--ai-log", ai]
     if a.port_story:
-        cmd += ["--story"]  # q2f t03: the retail sandbox runs the campaign's story plots (start-of-game hero spawns)
+        cmd += ["--story"]  # the retail sandbox runs the campaign's story plots (start-of-game hero spawns)
     if a.port_state_trace:
-        cmd += ["--trace-out", q2t]  # q2f t05: per-tick port state trace (owners, objects, credits, cycles)
+        cmd += ["--trace-out", q2t]  # per-tick port state trace (owners, objects, credits, cycles)
     print("port run: " + " ".join(cmd))
     r = subprocess.run(cmd, capture_output=True, text=True, check=False)
     with open(os.path.join(a.port_out, "port_run.txt"), "w", encoding="utf-8", newline="\n") as fh:

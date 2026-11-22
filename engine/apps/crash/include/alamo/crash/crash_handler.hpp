@@ -1,6 +1,6 @@
 #pragma once
 // [port] Crash minidumps for the port's executables (alamo_game, alamo_headless). Not game behaviour: a crash in a playtest
-// becomes a .dmp an agent can open in WinDbg (toolchain\re) instead of a description. docs/BUILD.md, "Crash dumps".
+// becomes a .dmp an agent can open in WinDbg (toolchain\re) instead of a description. legacy docs/BUILD.md, "Crash dumps".
 //
 // install() sets the process's unhandled-exception filter plus the CRT's terminate / abort / invalid-parameter / pure-call
 // handlers. On a crash the failing thread hands its exception record to a dump thread created at install time (Microsoft's

@@ -360,7 +360,7 @@ bool around_search(const PassabilityGrid& grid, const MovementConstants& k, cons
     std::vector<Box> obox(q.obstacles.size());
     for (size_t i = 0; i < q.obstacles.size(); ++i) obox[i] = rect_aabb(rect_grown(q.obstacles[i].shape, grow2));
     const CellBox base = around_window(q.start, q.goal, k.dynamic_avoidance_rectangle_bound, q.giant, gw, gh);
-    // mov2 t08 (docs/re/MOV2_T05_TERRAIN_STOPS.md [H]): the window's obstacles (0x677340's tracker) are reported for a
+    // mov2 t08 (legacy docs/re/MOV2_T05_TERRAIN_STOPS.md [H]): the window's obstacles (0x677340's tracker) are reported for a
     // goal that fails before the graph too - the caller's next goals are accepted against them
     const auto window_obstacles = [&](const CellBox& w) {
         const Box wb = cell_box_world(w);
@@ -450,7 +450,7 @@ bool around_search(const PassabilityGrid& grid, const MovementConstants& k, cons
         std::vector<FootRect> rect1(win.size());
         for (size_t i = 0; i < win.size(); ++i) rect1[i] = rect_grown(q.obstacles[win[i]].shape, q.grow);
         std::vector<Vertex> vs;
-        // (i) terrain corners (mov1 t03, b0180, BKR1_RE_ANSWERS Q4 [H]): 0x677e40's mask, candidates and prunes over the
+        // (i) terrain corners (BKR1_RE_ANSWERS Q4 [H]): 0x677e40's mask, candidates and prunes over the
         // window (outside the window = blocked), at the cell centre, row-major
         open.assign(reach.size(), 0);
         for (int32_t cy = w.y0; cy <= w.y1; ++cy)
@@ -502,7 +502,7 @@ bool around_search(const PassabilityGrid& grid, const MovementConstants& k, cons
             }
             if (from == nv) return false;  // no vertex to start from
         }
-        out.graph = true;  // s78n t24: the graph and the A* run once for this goal
+        out.graph = true;  // the graph and the A* run once for this goal
         // ---- edges 0x678e80 and costs 0x67a3d0 (edge_class), evaluated on demand: 1 none, 2 plain, 3 crossing
         std::vector<uint8_t> edges(static_cast<size_t>(nv) * nv, 0);
         std::vector<FootRect> tracker(win.size());

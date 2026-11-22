@@ -1,4 +1,4 @@
-// Mod compatibility issue sink (docs/MOD_COMPAT_DESIGN.md §11.1, roadmap mcx0 t01).
+// Mod compatibility issue sink (docs/MODS.md "Fault containment and the no-abort rule").
 //
 // One record type for every finding where the port does less than retail, or where retail itself refuses or ignores
 // something: an unread or unhonoured tag, an unconsumed Lua binding, a story reward the port lacks, a perception token
@@ -42,7 +42,7 @@ enum class IssueKind : uint8_t {
     MissingFile,        // a file the data names that no layer has
     XmlExtraRoot,       // an XML file with more than one top-level element
     TextSalvaged,       // a text database read up to a bad record
-    LoaderDiagnostic,   // a data loader's diagnostic line (GameData::diagnostics; ums4 t07), with the layer of the file it names
+    LoaderDiagnostic,   // a data loader's diagnostic line (GameData::diagnostics), with the layer of the file it names
     Count
 };
 // "unread_tag", "honour_gap", ... (the spelling the JSON report uses); "" for Count.

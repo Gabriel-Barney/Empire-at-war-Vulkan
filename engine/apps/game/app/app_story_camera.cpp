@@ -1,4 +1,4 @@
-// alamo_game App: the story script's screen and camera calls (ui2 t03 / t04 / t05; docs/re/STORY_PRESENTATION_LUA.md):
+// alamo_game App: the story script's screen and camera calls (legacy docs/re/STORY_PRESENTATION_LUA.md):
 // Fade_Screen_In / _Out and Fade_On / _Off, Letter_Box_*, the cinematic camera (Start / End_Cinematic_Camera, the key
 // calls, Transition_To_Tactical_Camera, Cinematic_Zoom), Start / End_Cinematic_Mode, and the RTS camera moves
 // (Point_Camera_At, Scroll_Camera_To, Camera_To_Follow, Rotate_Camera_By / _To, Zoom_Camera) plus the camera commands of
@@ -239,7 +239,7 @@ void App::story_script_mode_check() {
         story_cam_.end();
         story_moves_ = {};
         story_lua_mode_ = false;
-        story_lightning_.clear();  // ui2 t08: the effects and fog switches belong to the mode
+        story_lightning_.clear();  // the effects and fog switches belong to the mode
         story_fog_master_ = story_fog_distance_ = true;
     }
 }
@@ -274,7 +274,7 @@ void App::story_script_frame() {
         }
     }
     story_camera_commands();
-    if (screen() == Screen::Battle && bview_.active()) {  // ui2 t08: the script's lightning bolts and fog switches go to the scene
+    if (screen() == Screen::Battle && bview_.active()) {  // the script's lightning bolts and fog switches go to the scene
         const uint32_t now = story_frame();
         std::erase_if(story_lightning_, [now](const StoryLightning& l) { return now >= l.to; });
         std::vector<render::BeamInstance> beams;
@@ -297,7 +297,7 @@ void App::story_script_frame() {
     }
 }
 
-// The camera commands of the rewards (STORY_PRESENTATION_REWARDS.md §5): POSITION_CAMERA / SCROLL_CAMERA at an object type's
+// The camera commands of the rewards (legacy docs/re/STORY_PRESENTATION_REWARDS.md §5): POSITION_CAMERA / SCROLL_CAMERA at an object type's
 // first instance + an offset, ZOOM_IN / ZOOM_OUT / SELECT_PLANET on the galactic map, the pause rewards.
 void App::story_camera_commands() {
     for (const StoryCameraCommand& c : story_present_.take_camera_commands()) {

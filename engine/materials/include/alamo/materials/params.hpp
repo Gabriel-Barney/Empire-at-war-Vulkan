@@ -1,4 +1,4 @@
-// Effect parameter values, material records and their deduplication (PORTING.md 2.3).
+// Effect parameter values, material records and their deduplication (legacy docs/shaders/PORTING.md 2.3).
 #pragma once
 #include <cstdint>
 #include <functional>

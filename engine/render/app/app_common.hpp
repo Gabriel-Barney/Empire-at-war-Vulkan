@@ -1,4 +1,4 @@
-// Shared bits of the alamo_render.exe sub-mains (CU4 t03): main.cpp, sim_main.cpp (--sim), galactic/app/galactic_main.cpp
+// Shared bits of the alamo_render.exe sub-mains: main.cpp, sim_main.cpp (--sim), galactic/app/galactic_main.cpp
 // (--galactic) and particles/app/particles_main.cpp (--particles), which used to carry their own copies. Header-only;
 // all four TUs are in one exe, so everything here is inline.
 //   Offscreen        alamo/render/offscreen.hpp (PNG captures; a debug name and the swapchain format as parameters)

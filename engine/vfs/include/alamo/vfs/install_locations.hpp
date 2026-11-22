@@ -1,4 +1,4 @@
-// Install locations (ums1 t01, Stage 10 unified mod system): where this machine keeps Forces of Corruption, the EaW
+// Install locations (Stage 10 unified mod system): where this machine keeps Forces of Corruption, the EaW
 // folder next to it, the Steam client and library folders and the folders the user named, found once and handed to
 // every launch surface (alamo_game's mod picker, alamo_play, alamo_mod_check). Before ums1 each surface walked Steam on
 // its own (find_steam_libraries call sites, play::find_game's library loop).

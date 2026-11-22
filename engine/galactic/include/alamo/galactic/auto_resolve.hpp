@@ -1,4 +1,4 @@
-// S10 "Battle transitions": the galactic auto-resolve (docs/re/BATTLE_TRANSITIONS.md §4, AutoResolveClass).
+// S10 "Battle transitions": the galactic auto-resolve (legacy docs/re/BATTLE_TRANSITIONS.md §4, AutoResolveClass).
 //
 // Pure computation on a prepared combatant list; the conflict manager (conflicts.hpp) builds the list from
 // the galaxy and applies the result. Order of everything below = the list order given (defender units,

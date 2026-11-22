@@ -290,7 +290,7 @@ void HardpointVisibility::recompute() {
     }
 }
 
-// ---- bkx1 t05: engine glow groups (BKX1_RENDER_RE §1) ----------------------------------------------------------------
+// ---- engine glow groups (BKX1_RENDER_RE §1) ----------------------------------------------------------------
 
 uint8_t particle_glow_group(std::string_view n) {
     const auto starts = [&](std::string_view p) {

@@ -1,4 +1,4 @@
-// s78n t03: land squad containers (TACTICAL_COMBAT §5.4.4 item 2, MOVEMENT §3.7, FIGHTER_FLYING §7). The container is a
+// land squad containers (TACTICAL_COMBAT §5.4.4 item 2, MOVEMENT §3.7, FIGHTER_FLYING §7). The container is a
 // unit of the system (UnitDesc::team_container) that walks its own path; its members steer to their slots around it
 // (LandTeamInfantry 0x62d620). See MovementSystem::set_land_team in movement_system.hpp.
 #include <algorithm>
@@ -17,7 +17,7 @@ namespace {
 constexpr float kRecoveryDistance = 4.0f;  // 0x140a4431c (FIGHTER_FLYING §7 item 9, MOVEMENT §3.7)
 
 // s78n t14 part B: the passability probe 0x5a4c10 of the members' steering vector for a movement class: every cell the
-// segment touches passes the mask (the start cell included). (s78n t26.5: the container's own step is point-tested, 0x50e280.)
+// segment touches passes the mask (the start cell included). (the container's own step is point-tested, 0x50e280.)
 bool steer_probe_ok(const PassabilityGrid& grid, V2 a, V2 b, uint32_t mask) { return line_passable(grid, a, b, mask); }
 
 }  // namespace
@@ -87,7 +87,7 @@ void MovementSystem::team_ix_rebuild() {
         if (u.anchor >= 0) team_ix_.push_back(entry(u, u.anchor, u.tindex, u.tslot, V2{}, 0));
     }
     std::sort(team_ix_.begin(), team_ix_.end(), by_index);
-    // s78n t18: the TEAM entry lists - the steering members and the parked records. A record whose unit is still in the
+    // the TEAM entry lists - the steering members and the parked records. A record whose unit is still in the
     // system is a member suspended for a hero clash (its live shape); else the member is absent (the record's copies).
     team_all_ = team_ix_;
     for (const LandTeamSlot& p : parked_) {
@@ -183,7 +183,7 @@ void MovementSystem::park_record(const Unit& u) {
     p.member = member;
     p.slot = u.tslot;
     p.off = k ? u.m.pos - k->m.pos : V2{};
-    // s78n t18: the member stays a TEAM entry while it is out of the system - its shape and speed data for the joint box
+    // the member stays a TEAM entry while it is out of the system - its shape and speed data for the joint box
     // and the rate 0x5ab540
     p.hx = u.team_hx;
     p.hy = u.team_hy;
@@ -436,7 +436,7 @@ bool MovementSystem::set_team_member_shape(ObjectId member, float hx, float hy, 
     u->team_hy = hy;
     u->team_thx = type_hx;
     u->team_thy = type_hy;
-    if (u->anchor >= 0 || u->team_suspended) team_ix_rebuild();  // s78n t18: the entry copies and the joint box follow
+    if (u->anchor >= 0 || u->team_suspended) team_ix_rebuild();  // the entry copies and the joint box follow
     return true;
 }
 
@@ -524,10 +524,10 @@ float MovementSystem::steer_radius(const Unit& u) const {
 void MovementSystem::team_steer_recs(std::vector<SteerRec>& out) const {
     // The id-keyed collision hash (+0x80) gives a participant's active collision objects in list order (the port's
     // collision list is insertion order). vf +0x30 weights: MovingVsMoving 1, MovingVsStopped 2, StoppedVsStopped 3. vf
-    // +0x38 (s78n t18, FIGHTER_FLYING §7.5 corrections): MovingVsStopped - the obstacle side in every state, the mover
-    // side only in Repulsion (state 2); MovingVsMoving - both sides in Repulse (state 3) and state 11 (s78n t23);
-    // StoppedVsStopped (s78n t20, 0x686f80) - only the unit being moved, while the record is Resolving (state 1);
-    // TerrainCollision (s78n t24, MOVEMENT §5.4.7 item 2) - weight 4, a zero vector in every state.
+    // +0x38 (FIGHTER_FLYING §7.5 corrections): MovingVsStopped - the obstacle side in every state, the mover
+    // side only in Repulsion (state 2); MovingVsMoving - both sides in Repulse (state 3) and state 11;
+    // StoppedVsStopped (0x686f80) - only the unit being moved, while the record is Resolving (state 1);
+    // TerrainCollision (MOVEMENT §5.4.7 item 2) - weight 4, a zero vector in every state.
     out.clear();
     for (const CollisionObject& c : coll_.list()) {
         if (c.kind == CollisionKind::Terrain) {
@@ -651,7 +651,7 @@ V2 MovementSystem::pair_side_step(ObjectId a, ObjectId b, V2 dir) const {
 V2 MovementSystem::team_member_avoid(ObjectId member, V2 dir) const {
     const Unit* u = unit_ptr(member);
     if (!u || u->d.team_container || (u->anchor >= 0 && !unit_ptr(u->anchor))) return {};
-    const ObjectId key = u->anchor >= 0 ? u->anchor : u->d.id;  // s78n t18: a Walk unit that is no member reads its own
+    const ObjectId key = u->anchor >= 0 ? u->anchor : u->d.id;  // a Walk unit that is no member reads its own
     std::vector<SteerRec> recs;
     team_steer_recs(recs);
     const auto lo = std::lower_bound(recs.begin(), recs.end(), key, [](const SteerRec& e, ObjectId c) { return e.container < c; });
@@ -769,7 +769,7 @@ WalkResult MovementSystem::team_walk(Unit& u, uint32_t frame) const {
     const float vmax = u.speed_factor > 0.0f ? cap * flee : 0.0f;
     const float a = (u.team_accel > 0.0f ? u.team_accel : cap) * flee;  // 0x5ab540, else full speed in one frame
     const float rate = u.lp.turn_rate * flee;
-    // s78n t26.5: the old order path under a new order not planned yet (the composition / the re-plan) - walked on while moving
+    // the old order path under a new order not planned yet (the composition / the re-plan) - walked on while moving
     const bool old_path = !top_push && !order_ok && !u.coast && u.has_goal && (u.need_path || frame < u.start_frame) &&
                           u.path_started && m.speed > 0.0f && !m.path.empty() &&
                           (m.state == LocoState::WalkMoving || m.state == LocoState::WalkEndMove);
@@ -806,7 +806,7 @@ WalkResult MovementSystem::team_walk(Unit& u, uint32_t frame) const {
             c.pos = m.pos;
             c.yaw = m.yaw;
             c.speed = m.speed;
-            // s78o (b0053, C.1 / FIGHTER_FLYING §7.7 item 4): the move step with the top path not started is End Move
+            // s78o (C.1 / FIGHTER_FLYING §7.7 item 4): the move step with the top path not started is End Move
             // from its first tick - a new order's path set leaves a marching container in 0x13, and with it B.7 (T := a)
             // would not apply, so a straggler cap or an at-once hold below a slowed or stopped it a tick early
             c.state = m.state == LocoState::WalkMoving || m.state == LocoState::WalkStartMove ? LocoState::WalkEndMove : m.state;
@@ -814,7 +814,7 @@ WalkResult MovementSystem::team_walk(Unit& u, uint32_t frame) const {
             WalkExtras x;
             x.container = true;
             x.cap_now = u.coll_now;
-            // s78n t24 (MOVEMENT §5.4.7 item 1): the coast reports unless forced; s78o (b0054): the top record decides -
+            // s78n t24 (MOVEMENT §5.4.7 item 1): the coast reports unless forced; s78o: the top record decides -
             // a push / detour record on the stack (also one walked to its end) reports, only the forced order path does not
             x.forced = !u.pushed && u.has_goal && u.forced;
             x.vmax_u = vmax;
@@ -845,7 +845,7 @@ WalkResult MovementSystem::team_walk(Unit& u, uint32_t frame) const {
     if (top_push) {
         std::swap(m.path, u.push_path);
         std::swap(m.next, u.push_next);
-        std::swap(m.frac, u.push_frac);  // s78n t26.2: the record's fractions and turn-done byte
+        std::swap(m.frac, u.push_frac);  // the record's fractions and turn-done byte
         std::swap(m.turn_done, u.push_turn_done);
         m.escape_until = 0;
     }
@@ -925,7 +925,7 @@ WalkResult MovementSystem::team_walk(Unit& u, uint32_t frame) const {
         }
         m.yaw = wrap_deg(desired);
         m.state = LocoState::WalkMoving;
-        m.turn_done = true;  // s78n t26.2: the turn left rate over (P +0x6c)
+        m.turn_done = true;  // the turn left rate over (P +0x6c)
     }
     if (m.state == LocoState::WalkEndMove && !(m.speed > a)) {  // 0x15 (0x5adb50)
         m.speed = 0.0f;
@@ -944,7 +944,7 @@ WalkResult MovementSystem::team_walk(Unit& u, uint32_t frame) const {
                 m.yaw = turn_toward(m.yaw, want, rate);
             } else {
                 m.state = LocoState::WalkStopped;
-                r.arrived = !old_path;  // s78n t26.5: the old order path's end is not the new order's arrival
+                r.arrived = !old_path;  // the old order path's end is not the new order's arrival
             }
         } else {
             m.state = LocoState::WalkStopped;  // stopped short: the same path restarts on the next tick

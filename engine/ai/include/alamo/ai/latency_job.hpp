@@ -1,6 +1,6 @@
-// OPT2 t02 - fixed-latency background jobs for AI work: start on tick N, apply the result on tick N + k.
+// fixed-latency background jobs for AI work: start on tick N, apply the result on tick N + k.
 //
-// The pattern (docs/PERFORMANCE.md "AI scheduling"): on the kick tick the sim thread copies everything the computation reads
+// The pattern (docs/SIMULATION.md "AI scheduling"): on the kick tick the sim thread copies everything the computation reads
 // (a plain snapshot) and starts the job; the result is applied on the tick the caller fixed at the kick (ready frame),
 // never earlier even when it finished early, and the sim thread blocks on that tick when it is late. So what the sim
 // sees depends on tick numbers only, never on the worker count or wall-clock time: rule 3 holds for any host.
@@ -11,7 +11,7 @@
 // the 0-worker job system), which gives the same results: only the thread changes. engine/jobs backs it with
 // make_background_start (job_system.hpp).
 //
-// Save rule (OPT3 t04): a caller keeps the inputs of its in-flight job and writes them with the ready frame; a load
+// Save rule: a caller keeps the inputs of its in-flight job and writes them with the ready frame; a load
 // kicks the job again from those inputs (inline) with the saved ready frame. The computation is a pure function of the
 // inputs, so the loaded run applies the same result on the same tick as the uninterrupted one.
 #pragma once

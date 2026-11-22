@@ -499,7 +499,7 @@ void test_crouch_move_fire_cone() {
 }
 
 void test_out_of_range_mod_values() {
-    // mcx8 t11 (docs/MOD_COMPAT_DESIGN.md §13.3): mod values whose frame count is out of int32 range convert the x86 way
+    // mcx8 t11 (docs/MODS.md "Determinism with mods"): mod values whose frame count is out of int32 range convert the x86 way
     // (cvttss2si: INT32_MIN), so the MSVC and clang builds give the same result (both run this test). A mod's 99999999999 s
     // pulse delay, stun or modifier duration: before mcx8 t11 a static_cast here was undefined behaviour.
     CHECK(weapon_pulse_delay(99999999999.0f, 1.0f, 30) == INT32_MIN);

@@ -2,7 +2,7 @@
 #include "game_app.hpp"
 
 #include "alamo/assets/texture.hpp"
-#include "alamo/sim/map_spawn.hpp"  // ui4 t04: TypeCrcIndex for the land-map UI markers
+#include "alamo/sim/map_spawn.hpp"  // TypeCrcIndex for the land-map UI markers
 #include "alamo/terrain/ted.hpp"
 
 namespace alamo_game_app {
@@ -10,14 +10,14 @@ namespace alamo_game_app {
 // ------------------------------------------------------------------------------------------------ HUD frames
 // g_planet_fleet faction-emblem index of `player`: GALAXY_MAP_PRESENTATION §1.4, 0x3d18f0 maps the faction NAME to the
 // Icon_Alternate list - Rebel 0, Empire 1, Pirate 2, Underworld 3, any other faction 4 (a retail hard-code, so a mod's
-// factions get emblem 4 as in the original; modc t20: exact names, any case, instead of the port's old substring match;
+// factions get emblem 4 as in the original; exact names, any case, instead of the port's old substring match;
 // [M] which of the strings "Pirate" / "Pirates" 0x3d18f0 compares - both are in the string table). -1 = no player.
 int32_t App::galactic_faction_icon(const galactic::GalacticSim& g, int32_t player) const {
     if (player < 0 || static_cast<size_t>(player) >= g.players().size()) return -1;
     const uint32_t fi = g.players()[static_cast<size_t>(player)].faction;
     if (fi >= g.rules().factions.size()) return -1;
     const std::string_view n = g.rules().factions[fi].name;
-    // [name-ok-begin: retail hard-code, GALAXY_MAP_PRESENTATION.md §1.4 0x3d18f0 (emblem index by faction name)]
+    // [name-ok-begin: retail hard-code, legacy docs/re/GALAXY_MAP_PRESENTATION.md §1.4 0x3d18f0 (emblem index by faction name)]
     if (ascii_iequals(n, "Rebel")) return 0;
     if (ascii_iequals(n, "Empire")) return 1;
     if (ascii_iequals(n, "Pirate") || ascii_iequals(n, "Pirates")) return 2;
@@ -26,7 +26,7 @@ int32_t App::galactic_faction_icon(const galactic::GalacticSim& g, int32_t playe
     return 4;
 }
 
-// R2 t01: the owner faction's colour from the Factions.xml table (render::load_faction_colors), not a guess: text = true
+// the owner faction's colour from the Factions.xml table (render::load_faction_colors), not a guess: text = true
 // -> <Display_Font_Color> (planet labels / Planet Info name: GALACTIC_DIALOGS §9.2 [H] reads faction +0xb8..+0xc4;
 // that the map labels use it too is [M]), else <Color> (pancake secondary colour, ring / selection tint). An unowned
 // planet or a player of the Neutral faction takes the Neutral faction's entry; `fallback` when the table has none.
@@ -46,7 +46,7 @@ ui::Rgba8 App::faction_rgba(const galactic::GalacticSim& g, int32_t player, bool
 // planet (surface and orbit), and one stack per fleet (count = members, 1..5) plus one land-force stack per owner.
 // GALAXY_MAP_PRESENTATION §1.4 (0x3d15b0): the representative unit of a fleet / land force - every unit competes on max
 // tactical health (Tactical_Health; a hero needs >=, a non-hero >); with the hero filter (b_filters3) on, the hero with the
-// lowest Ranking_In_Category wins (ui4 t03: GalacticHud::filter_bits fed back as hero_filter_); transports'
+// lowest Ranking_In_Category wins (GalacticHud::filter_bits fed back as hero_filter_); transports'
 // cargo is already in the fleet contents.
 std::string App::representative_icon(std::span<const objects::ObjectHandle> units, bool hero_filter) const {
     const galactic::GalacticSim* g = galaxy();
@@ -146,7 +146,7 @@ void App::planet_icons(const galactic::GalacticSim& g, PlanetIndex row, ui::Gala
         s.owner_color = faction_rgba(g, owner, false, ui::Rgba8{});  // §1.4 secondary colour (white when the table has none)
         s.units = contents ? static_cast<uint32_t>(live.size()) : 1u;
         s.count = std::clamp<uint32_t>(s.units, 1, 5);
-        if (contents || most_powerful) s.icon = representative_icon(live, hero_filter_);  // ui4 t03: b_filters3
+        if (contents || most_powerful) s.icon = representative_icon(live, hero_filter_);  // b_filters3
         // ui4 t03 g_enemy_hero: a seen enemy hero in orbit too [port] (Icon_Alternate 1 = i_icon_empire_hero).
         if (contents && !friendly(owner) && out.enemy_hero < 0)
             for (const objects::ObjectHandle m : live)
@@ -223,7 +223,7 @@ bool App::local_benefits_from_corruption(const galactic::GalacticSim& g) const {
     return fx < g.rules().factions.size() && g.rules().factions[fx].benefits_from_corruption;
 }
 
-// ---- ui4 t04: the planet map (GALACTIC_PLANET_MAP) -------------------------------------------------------------------
+// ---- the planet map (GALACTIC_PLANET_MAP) -------------------------------------------------------------------
 // §1.1: a selected planet in galactic mode with an accessible surface; for a planet the local player does not own, ground
 // the local player may see (GroundCompanyContents: the corruption bypass, the Planet_Groundbase_Stealth gate, the
 // visibility bit) - then `foreign` is set.
@@ -320,7 +320,7 @@ void App::planet_map_feed(ui::GalacticPlanetMap& m) {
             if (const objects::TypeIndex x = data_.types.resolve_name(ascii_trim(tok)); x != objects::kNone) s.additional.push_back(x);
         structures.push_back(std::move(s));
     }
-    std::vector<game::MapMarkerSend> sends;  // ui4 t13: the SetMarkerID commands of this rebuild (§4.4 step 3, §4.5)
+    std::vector<game::MapMarkerSend> sends;  // the SetMarkerID commands of this rebuild (§4.4 step 3, §4.5)
     game::place_map_structures(
         pads, structures,
         [this](uint32_t t) {
@@ -454,7 +454,7 @@ ui::PlanetInfoData App::planet_info_data(const galactic::GalacticSim& g, PlanetI
     if (own >= 0 && static_cast<size_t>(own) < g.players().size()) {
         const uint32_t fx = g.players()[static_cast<size_t>(own)].faction;
         if (fx < g.rules().factions.size() && fx != g.rules().neutral_faction()) {
-            // R2 t01: <Display_Font_Color> (faction +0xb8..+0xc4, GALACTIC_DIALOGS §9.2 [H]), was <Color>.
+            // <Display_Font_Color> (faction +0xb8..+0xc4, GALACTIC_DIALOGS §9.2 [H]), was <Color>.
             d.name_color = faction_rgba(g, own, true, d.name_color);
         }
     }
@@ -508,8 +508,8 @@ std::u32string App::battle_place_name(PlanetIndex planet) const {
     return g && planet < g->planets().size() ? planet_label(data_, ui_.text, *g, planet) : std::u32string();
 }
 
-// QA t16 (UI.md §5.1 step 1, §5.2): fills the load dialog from the planet type's text, as IDD_PLANET_INFO (GALACTIC_DIALOGS
-// §9.2) [inferred: the same fields; the fill function of the load dialog is not traced field by field]. QA t11: the sim
+// QA t16 (legacy docs/re/UI.md §5.1 step 1, §5.2): fills the load dialog from the planet type's text, as IDD_PLANET_INFO (GALACTIC_DIALOGS
+// §9.2) [inferred: the same fields; the fill function of the load dialog is not traced field by field]. The sim
 // is held until it has been presented (end_load_intro_frame); no load moved off this thread.
 bool App::open_battle_load(PlanetIndex planet, bool space, bool mission) {
     if (ui_.load.is_open()) return true;
@@ -526,7 +526,7 @@ bool App::open_battle_load(PlanetIndex planet, bool space, bool mission) {
             if (const uint32_t pt = display_planet_type(*g, planet); pt < g->rules().types.size())
                 d.planet_icon = render::planet_portrait_name(g->rules().types[pt].name);
     }
-    // UI.md §5.1 step 1: the land or space picture by battle kind; IDD_PLANET_INFO's land map on a space battle would show
+    // legacy docs/re/UI.md §5.1 step 1: the land or space picture by battle kind; IDD_PLANET_INFO's land map on a space battle would show
     // the wrong place [inferred: Space_Tactical_Map, hidden when its .dds does not exist].
     if (space) {
         d.map_icon.clear();
@@ -558,7 +558,7 @@ bool App::open_battle_load(PlanetIndex planet, bool space, bool mission) {
     info.map_icon = std::move(d.map_icon);
     info.native_icon = std::move(d.native_icon);
     info.begin_button = !session_->spec().attract;  // OI host: the attract demo starts as soon as it is loaded
-    // UI.md §5.1 "Which dialog" (ui5 t10): `mission` (a SET_TACTICAL_MAP override or a save taken in the battle) takes the
+    // legacy docs/re/UI.md §5.1 "Which dialog": `mission` (a SET_TACTICAL_MAP override or a save taken in the battle) takes the
     // Mission pair (a skirmish save too: retail's load path clears the skirmish flag), a skirmish start the skirmish
     // dialog, every other battle the Battle pair.
     const ui::LoadScreenKind kind = mission    ? (space ? ui::LoadScreenKind::SpaceMission : ui::LoadScreenKind::LandMission)
@@ -598,7 +598,7 @@ void App::build_galactic_hud(ui::GalacticHudFrame& f, std::vector<ui::GalacticPl
     const uint32_t w = targets_.width, h = targets_.height;
     const galactic::GalacticSim* g = galaxy();
     f.view = ui::make_view(gview_.camera_params(w, h), w, h);
-    f.objectives_open = story_present_.objectives_shown();  // ui2 t06: ENABLE_OBJECTIVE_DISPLAY
+    f.objectives_open = story_present_.objectives_shown();  // ENABLE_OBJECTIVE_DISPLAY
     planets.clear();
     for (const render::GalacticPlanetSnap& p : gview_.frame().planets) {
         if (!(p.flags & render::kGalPlanet) || (p.flags & render::kGalHidden) || p.id == objects::kNoObjectId) continue;
@@ -614,7 +614,7 @@ void App::build_galactic_hud(ui::GalacticHudFrame& f, std::vector<ui::GalacticPl
         i.name = txt ? ui::utf16_to_utf32(*txt) : ui::utf8_to_utf32(row);
         auto to8 = [](float v) { return static_cast<uint8_t>(std::lround(std::clamp(v, 0.0f, 1.0f) * 255.0f)); };
         i.owner_color = {to8(p.team_color.x), to8(p.team_color.y), to8(p.team_color.z), 255};
-        // R2 t01: the name in the owner faction's Factions.xml <Display_Font_Color> (Neutral faction's for an unowned planet);
+        // the name in the owner faction's Factions.xml <Display_Font_Color> (Neutral faction's for an unowned planet);
         // the palette colour stays the fallback when the table has no such faction. [M: that the map labels read
         // Display_Font_Color is inferred from GALACTIC_DIALOGS §9.2; these values replace the ones read off a screenshot.]
         if (g && p.row < g->planets().size()) {
@@ -731,7 +731,7 @@ void App::build_galactic_hud(ui::GalacticHudFrame& f, std::vector<ui::GalacticPl
     if (choice_open_) {
         f.battle.active = true;
         f.battle.single = prompt_.story_pending || prompt_.no_autoresolve;
-        f.battle.color = hud_consts_.battle_pending_color;  // mcx4 t15: Battle_Pending_Message_Color
+        f.battle.color = hud_consts_.battle_pending_color;  // Battle_Pending_Message_Color
         f.battle.space = !prompt_.land;
         f.battle.planet = prompt_.planet_name;
         f.battle.left = {prompt_.left.icon, prompt_.left.units, static_cast<int32_t>(prompt_.left.stacks)};
@@ -769,7 +769,7 @@ void App::build_galactic_hud(ui::GalacticHudFrame& f, std::vector<ui::GalacticPl
     }
     const GameSession* s = session_.get();
     const std::vector<ui::HudTypeInfo>* types = &ui_.hud_types;
-    // UI.md §7.5: every fleet in orbit that the local player may see, with its slot and enemy flag; the ui places them in the
+    // legacy docs/re/UI.md §7.5: every fleet in orbit that the local player may see, with its slot and enemy flag; the ui places them in the
     // three panes. The visibility is the map stacks' rule (planet_icons): own and allied fleets always, others with
     // FleetPresence and not all-stealthed, their units only with FleetContents (else one blank unit, as the map's single stack).
     f.providers.fleets = [s, types](uint32_t planet, std::vector<ui::GalacticFleet>& out) {
@@ -808,7 +808,7 @@ void App::build_galactic_hud(ui::GalacticHudFrame& f, std::vector<ui::GalacticPl
         }
     };
     // OI host: build bar = GalacticSim::buildable (type-index order) at the planet for the local player; cost =
-    // GalacticSim::build_cost_for at the planet (ui4 t02, A2K_T01 §1: planet / player price modifiers such as the Emperor's
+    // GalacticSim::build_cost_for at the planet (A2K_T01 §1: planet / player price modifiers such as the Emperor's
     // discount, the corruption price multiplier, the tech-upgrade multiplier), block = GalacticSim::can_enqueue's reason
     // (queue full, pop cap, funds; const reads, no side effects), enabled = no block, queued = the local player's entries of
     // the type in the planet's queues; structure = ground / orbital structure or starbase (b_Create_NN);
@@ -898,7 +898,7 @@ void App::build_tactical_hud() {
     hf.world.view = ui::make_view(bview_.camera_params(w, h), w, h);
     hf.world.land = !bview_.space();
     hf.world.local_player = local_player();
-    // UI.md selection circle: the owner faction's Land_ / Space_Mode_Selection_Blob_Material_Name (modc t20: by data).
+    // legacy docs/re/UI.md selection circle: the owner faction's Land_ / Space_Mode_Selection_Blob_Material_Name (by data).
     if (const galactic::GalacticSim* gs = galaxy())
         hf.world.selection_material = [gs](int32_t owner, bool land, bool) {
             if (owner < 0 || static_cast<size_t>(owner) >= gs->players().size()) return std::string();
@@ -970,7 +970,7 @@ void App::build_tactical_hud() {
     if (!radar_.empty()) hf.radar_image = &radar_;
     hf.radar_events = &radar_events_;
     hf.radar_settings = &radar_settings_;
-    hf.radar_colorize_selected = hud_consts_.radar_colorize_selected;  // mcx4 t15: Radar_Colorize_Selected_Units
+    hf.radar_colorize_selected = hud_consts_.radar_colorize_selected;  // Radar_Colorize_Selected_Units
     hf.radar_selected_color = hud_consts_.radar_selected_color;        // Radar_Selected_Units_Color
     hf.radar_event_models = ui_.radar_models_ok;  // the event .alo models go through ui_.radar_drawer (Models2 step)
     radar_events_.update(dt_);
@@ -1031,7 +1031,7 @@ void App::build_tactical_hud() {
     // Movement path lines (HudWaypointLine dots): every selected local unit with queued move points - its position, its
     // current movement goal, then those points (sim const reads between ticks). [port] goal height = the unit's.
     // [port] A plain move draws no line (playtest video R1: with a whole fleet selected, one 3 px dotted line per fighter
-    // covered the battle and read as laser fire); the original's waypoint line belongs to the Alt-queued path (UI.md 1.5).
+    // covered the battle and read as laser fire); the original's waypoint line belongs to the Alt-queued path (legacy docs/re/UI.md 1.5).
     // [port: Gabriel, 2026-11-13] With Camera and Controls > Show Unit Path Lines on, every moving unit of the local
     // player, selected or not, gets a line along its planned path (land: the walked path at terrain height; space: the
     // flown curve of its waypoint track at the unit's height; no path yet: straight to the goal), then its queued move
@@ -1098,13 +1098,13 @@ void App::build_tactical_hud() {
             e.unit = static_cast<uint32_t>(r.galactic_id);
             e.icon = r.type < htypes->size() ? (*htypes)[r.type].icon_name : std::string();
             e.count = r.units;
-            e.available = reinforce_available(r.galactic_id);  // ui3 t04: the unit cap / retreat / hold gate of order_reinforce
+            e.available = reinforce_available(r.galactic_id);  // the unit cap / retreat / hold gate of order_reinforce
             out.push_back(std::move(e));
         }
     };
     // Tactical buy bar: the first selected own builder with production options (skirmish space stations), its options
     // with price / queued count / block reason, anchored at the builder's projected pixel.
-    // q6 [port]: the buttons are the i_build_buttons model at the builder in the world (UI.md: tactical build pads), so a
+    // q6 [port]: the buttons are the i_build_buttons model at the builder in the world (legacy docs/re/UI.md: tactical build pads), so a
     // builder behind the camera shows none. Before, ui::TacticalHud put them at its no-anchor stand-in point near the
     // screen centre, where they took the right clicks meant for the world (Thrawn's Revenge land smoke: a select-all
     // holding the Rebel barracks, the camera on an enemy). A builder in front of the camera is drawn as before.
@@ -1131,7 +1131,7 @@ void App::build_tactical_hud() {
                 e.cost = o.cost;
                 e.queued = o.queued;
                 e.block = static_cast<ui::HudBuildOption::Block>(o.block);
-                // ui3 t07: a buyable option's tooltip = the type's name text (Text_ID) [port: the original's unit tooltip
+                // a buyable option's tooltip = the type's name text (Text_ID) [port: the original's unit tooltip
                 // also draws the price / icon rows of tooltip_price / tooltip_icon]
                 if (static_cast<size_t>(o.type) < data_.types.size())
                     e.tooltip_key = std::string(ascii_trim(data_.types.get_string(static_cast<objects::TypeIndex>(o.type), "Text_ID")));
@@ -1197,7 +1197,7 @@ void App::build_tactical_hud() {
         }
     }
     fill_wings(hf);            // [port: Gabriel] squadron wing buttons
-    fill_command_buttons(hf);  // ui3 t03 / t04: b_retreat / b_reinforcement / beacon / movie mode, reinforcement texts
+    fill_command_buttons(hf);  // b_retreat / b_reinforcement / beacon / movie mode, reinforcement texts
     hud_units_ = units;
     // FIXPASS_GALACTIC §4.2: the advisor *_LOOP Bink in Movie_tactical (the HUD's own component), only while it plays.
     hf.advisor_page = advisor_loop_shown() ? static_cast<int32_t>(kAdvisorPage) : -1;
@@ -1206,7 +1206,7 @@ void App::build_tactical_hud() {
     if (ui_.tactical_hud.stats().reticles > 0) ++reticle_frames_;
 }
 
-// HUD_GAPS §1.1 / §2.2: the hovered unit = the world pick 0x36600 (refixf t08: pick_world with world_pick_tests(), the
+// HUD_GAPS §1.1 / §2.2: the hovered unit = the world pick 0x36600 (pick_world with world_pick_tests(), the
 // precise model test then the Mouse_Collide_Override_Sphere_Radius sphere, the same [port] rules as the order picks;
 // neutral objects skipped), replaced by the owner of the reticle under the cursor (the last build's reticles: what the
 // player sees) so the set does not flicker; nothing over the HUD or a dialog. Then the hovered ship's hard-point
@@ -1264,7 +1264,7 @@ void App::tactical_hover(ui::TacticalHudFrame& hf, std::vector<ui::HudUnit>& uni
     const ui::Vec3 facing = cs.facing(id);
     for (uint32_t hp = 0; hp < n; ++hp) {
         if (!cs.hardpoint_targetable(id, hp)) continue;  // destroyed or not Is_Targetable (§1.2)
-        const bool disabled = cs.hardpoint_disabled(id, hp);  // HARDPOINT_DISABLED.md: grey / Friendly_Disabled
+        const bool disabled = cs.hardpoint_disabled(id, hp);  // legacy docs/re/HARDPOINT_DISABLED.md: grey / Friendly_Disabled
         if (enemy && disabled) continue;                       // §1.2: no reticle for an enemy ship's disabled hard point
         ui::Vec3 offset{};
         if (desc < cd.units.size() && hp < cd.units[desc].hardpoints.size() && cd.units[desc].hardpoints[hp] < cd.hardpoints.size())

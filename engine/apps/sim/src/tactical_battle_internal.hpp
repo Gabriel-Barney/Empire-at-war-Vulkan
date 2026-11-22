@@ -15,7 +15,7 @@
 #include "alamo/galactic/special_data.hpp"  // P4 tactical: special_name_crc (Black Market gate)
 #include "alamo/objects/game_object_types.hpp"
 #include "alamo/sim/map_spawn.hpp"
-#include "alamo/tactical/movement/land_path.hpp"  // bkt1 t01: zone_connected (the staging search)
+#include "alamo/tactical/movement/land_path.hpp"  // zone_connected (the staging search)
 #include "alamo/tactical/movement/space_avoid.hpp"
 #include "alamo/tactical/movement/ted_grid.hpp"
 #include "alamo/tactical/movement/special_locomotors.hpp"
@@ -39,7 +39,7 @@ namespace bo3split {
 
 #ifdef ALAMO_SIM_HAVE_AI_TACTICAL
 inline constexpr objects::BehaviorTypeId kDamageTrackingBehavior = 0x3E;  // DAMAGE_TRACKING (serviced, interval 30)
-inline constexpr objects::BehaviorTypeId kWallBehavior = 0x17;            // WALL (S8 t13: EmpireWall stamp bit)
+inline constexpr objects::BehaviorTypeId kWallBehavior = 0x17;            // WALL (EmpireWall stamp bit)
 inline constexpr uint32_t kDamageTrackingInterval = 30;
 #endif
 inline constexpr uint32_t kNoContainer = 0xFFFFFFFFu;
@@ -54,8 +54,8 @@ Vec3 sv(tactical::Vec3 v);
 // the model bounding box (BattleCatalog::model_half_extents) and the Fine_Tune_Occupied_Passability ray against the type's
 // Land_Model_Name collision data (BattleCatalog::avoid_model(type, false)). Ray model: no model files in this run (pure
 // headless) -> Unknown, untrimmed [port]; an empty Land_Model_Name -> None (the footprint rules for a type without a land
-// model, S8 t13); a model that loads -> Model, even without collision meshes (then no sample is hit: retail's ray query
-// hits only collision-flagged meshes); a named model that does not load -> Unknown [port]. The ray (S8 t13, vf +0x80 mode
+// model); a model that loads -> Model, even without collision meshes (then no sample is hit: retail's ray query
+// hits only collision-flagged meshes); a named model that does not load -> Unknown [port]. The ray (vf +0x80 mode
 // 0 mask 1: mv::avoid_ray_any) is the segment (x, y, -1000) -> (x, y, +1000) against the collision-flagged meshes whose bone
 // is visible, through the model placed by space_avoid's transform (position, facing Rz(yaw) (0, -1), scale). Const data.
 inline mv::MapStampHooks land_stamp_hooks(const BattleCatalog* cat) {
@@ -114,7 +114,7 @@ public:
         kind_ = kind;
     }
     anim::AnimWorld* world() const { return world_; }
-    uint64_t global_frame() const { return gframe_; }  // s78k t05: test_play_clip
+    uint64_t global_frame() const { return gframe_; }  // test_play_clip
     // --- R3 anim: behaviour hand-offs (SimAnimation: flinch on hits, death clip / corpse, death clones) ---
     void set_anim_mode(const GameMode* mode) { mode_ = mode; }
     void anim_hit(const tc::HitEvent& e) {
@@ -146,7 +146,7 @@ public:
         anim_->death_clone_spawned(*mode_, mode_->primary().id(clone), kind, plan);
         return true;
     }
-    // refix t03: the infantry corpse path - the dying unit's row becomes the clone type's corpse (no clone object).
+    // the infantry corpse path - the dying unit's row becomes the clone type's corpse (no clone object).
     bool anim_corpse_clone(objects::ObjectId dying, int32_t clone_type, uint8_t kind, const float* persistence_override = nullptr) {
         if (!anim_ || !mode_ || !rng_ || clone_type < 0) return false;
         return anim_->corpse_clone(*mode_, dying, static_cast<objects::TypeIndex>(clone_type), *rng_, gframe_, kind,
@@ -160,7 +160,7 @@ public:
         b_->l1_fields(frame, rng);  // L1 systems: nebula / ion storm / asteroid field behaviours (phase D start)
         b_->oi_apply_crush(frame);  // OI tactical: crush damage (movement CrushEvents of this tick)
         b_->bt_apply_attrition(frame);  // battle host: retreat attrition victims (TACTICAL_GAPS §4.9)
-        b_->hero_clash_apply_hits(frame);  // s78n t06: the hero-clash exchange damage of this tick (HERO_CLASH §3.6)
+        b_->hero_clash_apply_hits(frame);  // the hero-clash exchange damage of this tick (HERO_CLASH §3.6)
         a_->before_units(frame, rng);
     }
     void unit_begin(tc::ObjectId id, uint32_t frame, SimRng& rng) override { a_->unit_begin(id, frame, rng); }
@@ -201,18 +201,18 @@ public:
         (void)id, (void)arg, (void)rng;
 #endif
     }
-    // s78f t03: the facing snap / [port] turn step of the targeting service moves the locomotor's yaw (combat's facing is
+    // the facing snap / [port] turn step of the targeting service moves the locomotor's yaw (combat's facing is
     // re-read from the movement view before each tick).
     void facing_set(tc::ObjectId id, tactical::Vec3 f) override {
         if (b_->movement_ && b_->movement_->has_unit(id)) b_->movement_->snap_yaw(id, dmath::atan2(f.y, f.x) * (180.0f / dmath::kPiF));
     }
-    // s78f t03 / t08: the TURRET aim of a land turret unit (MovementSystem S8 t24 model, one frame behind the combat
+    // the TURRET aim of a land turret unit (MovementSystem S8 t24 model, one frame behind the combat
     // target; -2 beyond the rotate extent); units without the model (no movement unit, space) answer -1 (treated as aimed).
     int8_t turret_aim_state(tc::ObjectId id) const override {
         if (!b_->movement_ || !b_->movement_->has_unit(id)) return -1;
         return b_->movement_->view(id).turret_aim;
     }
-    // s78f t08: the pending targeted ability (TD +0x148: AbilitySystem's pending order) and the deploy request 0x391260
+    // the pending targeted ability (TD +0x148: AbilitySystem's pending order) and the deploy request 0x391260
     // (the Walk locomotor's Deploy(true), as the DEPLOY ability's; the change reaches the abilities through oi_deploy_sync).
     tc::ObjectId pending_ability_target(tc::ObjectId id) const override {
         return b_->abilities_ ? b_->abilities_->pending_target(id) : tc::kNoObject;
@@ -269,7 +269,7 @@ public:
         return false;
 #endif
     }
-    // HARDPOINT_DISABLED.md §9: Set_System_Online offline (destroyed or disabled) / online (repaired to max).
+    // legacy docs/re/HARDPOINT_DISABLED.md §9: Set_System_Online offline (destroyed or disabled) / online (repaired to max).
     void hardpoint_offline(tc::ObjectId owner, uint32_t index, tc::HardpointKind kind, bool last_of_kind, bool destroyed,
                            uint32_t frame) override {
         a_->hardpoint_offline(owner, index, kind, last_of_kind, destroyed, frame);
@@ -285,7 +285,7 @@ public:
     bool occupied_build_pad(tc::ObjectId id) const override {
         return b_->pads_used_ && b_->pad_occupied(id);
     }
-    // cu8f t02: energy-pool engine disable (ion projectiles, CU8F_T01_T02_T07_RE.md §2.4).
+    // energy-pool engine disable (ion projectiles, legacy docs/re/CU8F_T01_T02_T07_RE.md §2.4).
     void engines_drained(tc::ObjectId id, float seconds, uint32_t /*frame*/) override { b_->energy_drain_engines(id, seconds); }
     void units_removed() override { a_->units_removed(); }
     // OI abilities: detonation effects / land stuns (TACTICAL_GAPS §1.10)
@@ -453,7 +453,7 @@ bool drop_token_is(std::string_view list, std::string_view token);
 }  // namespace
 using namespace bo3split;
 
-// ---- S7 fighter host (FIGHTER_FLYING.md §2-§5) -------------------------------------------------------------------------
+// ---- S7 fighter host (legacy docs/re/FIGHTER_FLYING.md §2-§5) -------------------------------------------------------------------------
 
 namespace bo3split {
 // [port] squadron slot offsets (team list +0x78; its writer is untraced): the leader at 0, the others line abreast in

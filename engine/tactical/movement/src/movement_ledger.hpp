@@ -1,16 +1,15 @@
-// REF4 t02: the save ledger of MovementSystem. Every data member is listed once:
+// the save ledger of MovementSystem. Every data member is listed once:
 //   SAVED(member, hashed)    written by write(), restored by read() and walked by a hash_* function;
 //   SAVED(member, unhashed)  written and restored, outside the CRC;
 //   REBUILT(member, "why")   set again by the host or setup when a load rebuilds the battle;
 //   DERIVED(member, "why")   recomputed from saved state, a cache, scratch or the records of one tick;
 //   CHECKED(member, "why")   not restored, but write() / read() read it (a fingerprint read() checks).
-// tools/lint/check_battle_ledger.py (build_agent.cmd, ctest alamo_sim_battle_ledger_lint) checks it against
+// tools/lint/check_battle_ledger.py (ctest alamo_sim_battle_ledger_lint) checks it against
 // movement_system.hpp and the bodies of write / read / hash_* / register_crc. Scope: the members of MovementSystem; a
 // field of Unit, FighterSquad, ... is walked field by field (io_unit, io_squad) and is not seen here.
 // Order: the declaration order in movement_system.hpp. Read by the lint only (not compiled).
 #pragma once
 
-// clang-format off
 #define ALAMO_MOVEMENT_LEDGER(SAVED, REBUILT, DERIVED, CHECKED) \
     CHECKED(cfg_, "set by the battle at construction; write() stores the mode, read() refuses another") \
     SAVED(grid_, hashed) \
@@ -63,4 +62,3 @@
     DERIVED(devents_, "records of one tick, drained by the battle (take_deploy_events) in the same tick") \
     DERIVED(exit_arrivals_, "records of one tick, drained by the battle (take_exit_arrivals) in the same tick") \
     DERIVED(tevents_, "records of one tick, drained by the battle (take_turn_clip_events) in the same tick")
-// clang-format on

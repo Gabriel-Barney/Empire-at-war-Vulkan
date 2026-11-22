@@ -42,9 +42,6 @@ namespace fs = std::filesystem;
 
 using ::alamo::test::g_fail;
 
-#ifndef ALAMO_LUA_LOG_DIR
-#define ALAMO_LUA_LOG_DIR "logs"
-#endif
 
 // Runs `code`; returns the error text ("" on success).
 static std::string run(LuaVm& vm, const std::string& code) {
@@ -53,7 +50,7 @@ static std::string run(LuaVm& vm, const std::string& code) {
     return {};
 }
 
-// q6 t11 (docs/re/LUA_API.md "Binding error model across all bindings"): `code` runs without a Lua error, a binding
+// q6 t11 (legacy docs/re/LUA_API.md "Binding error model across all bindings"): `code` runs without a Lua error, a binding
 // error logged "SCRIPT ERROR: ...<text>..." and set the stop flag; the flag (and the threads) are then reset.
 static bool stopped(LuaVm& vm, const std::string& code, const char* text) {
     const size_t m0 = vm.messages().size();
@@ -88,8 +85,7 @@ using ::alamo::test::write_file;
 
 static void write_log(const std::string& name, const std::string& text) {
     std::error_code ec;
-    fs::create_directories(ALAMO_LUA_LOG_DIR, ec);
-    std::ofstream(fs::path(ALAMO_LUA_LOG_DIR) / name, std::ios::binary) << text;
+    std::ofstream(fs::path(::alamo::test::artifact_dir()) / name, std::ios::binary) << text;
 }
 
 // ------------------------------------------------------------------------------------------
@@ -286,7 +282,7 @@ static void test_random_and_math() {
     }
     lua_pop(L, 1);
     std::printf("  numeric digest %016llx\n", static_cast<unsigned long long>(digest));
-    CHECK(digest == 0x5C4BB890FC69E99Eull);  // golden: MSVC 14.51 build; GCC / Clang must match
+    CHECK(digest == 0x5C4BB890FC69E99Eull);  // golden: MSVC 14.51 build
 
     // pairs() order over table / userdata keys is reproducible (keys hash by creation serial, not
     // address): two VMs, the second created after unrelated allocations, give the same order.
@@ -340,7 +336,7 @@ static void test_gc_determinism() {
     uint32_t survivors = 0;
     for (char ch : gstr(v1, "surv")) survivors += ch == ',' ? 1u : 0u;
     CHECK(survivors == 20 && gnum(v1, "nv") == 0.0);
-    // Golden (MSVC 14.51 build; clang must match) on a bare patched VM (base library only, so engine binding
+    // Golden (MSVC 14.51 build) on a bare patched VM (base library only, so engine binding
     // changes do not move it): tostring names, pairs order over the surviving table keys, the automatic
     // collection points and gcinfo are fixed by creation serials and Lua's own byte accounting, not addresses.
     lua_State* B = lua_open();
@@ -389,7 +385,7 @@ static void test_threads() {
               "main_id = GetThreadID()\n") == "");
     CHECK(gnum(vm, "a") == 0.0 && gnum(vm, "b") == 1.0 && gnum(vm, "main_id") == -1.0);
     CHECK(vm.thread_count() == 2 && vm.thread_active(0) && vm.thread_active(1));
-    {  // q6 t11: a script error (the stop flag), so in a VM of its own to keep this one's threads
+    {  // a script error (the stop flag), so in a VM of its own to keep this one's threads
         LuaVm v2(LuaHost{});
         CHECK(stopped(v2, "Create_Thread('NoSuchFunction')", "LuaCreateThread"));
     }
@@ -502,17 +498,17 @@ static void test_objects() {
                   "peq = (all[1].Get_Owner() == again[1].Get_Owner()) and 1 or 0") == "");
     CHECK(gstr(vm, "k1") == "o" && gstr(vm, "k2") == "t" && gstr(vm, "k3") == "p" && gstr(vm, "k4") == "nil");
     CHECK(gnum(vm, "pid") == 1.0 && gnum(vm, "peq") == 1.0);
-    // refixf t03: the original's script error helper logs and returns nothing (no unwind).
+    // the original's script error helper logs and returns nothing (no unwind).
     CHECK(run(vm, "bad = Find_All_Objects_Of_Type(5) bad = tostring(bad)") == "" && gstr(vm, "bad") == "nil" &&
           vm.messages().back().find("unknown filter parameter 1") != std::string::npos);
     CHECK(run(vm, "Find_All_Objects_Of_Type()") == "" &&
           vm.messages().back().find("Expected a filter parameter") != std::string::npos);
 
-    // Dead object: Is_Valid false immediately (before the flush); q6 t11 (LUA_API.md "Dead or null wrappers"): other
+    // Dead object: Is_Valid false immediately (before the flush); q6 t11 (legacy docs/re/LUA_API.md "Dead or null wrappers"): other
     // methods return nothing, silently (no message, no stop flag).
     CHECK(store.destroy(t2));
     CHECK(run(vm, "v1 = victim.Is_Valid() and 1 or 0") == "" && gnum(vm, "v1") == 0.0);
-    reset_script_threads(vm);  // the filter errors above stopped the script (q6 t11)
+    reset_script_threads(vm);  // the filter errors above stopped the script
     const size_t m_dead = vm.messages().size();
     const std::string e_dead = run(vm, "nt = (function(...) return arg.n end)(victim.Get_Type()) np = (function(...) return arg.n end)(victim.Get_Position())");
     if (!e_dead.empty()) std::printf("  dead: %s\n", e_dead.c_str());
@@ -585,7 +581,7 @@ static void test_static_scan() {
 }
 
 // ------------------------------------------------------------------------------------------
-// mcx6 t07 (docs/re/LUA_API.md "Script lookup and require"): LUA_PATH order and stock 5.0.2 require.
+// mcx6 t07 (legacy docs/re/LUA_API.md "Script lookup and require"): LUA_PATH order and stock 5.0.2 require.
 
 namespace {
 class MapFiles final : public FileProvider {

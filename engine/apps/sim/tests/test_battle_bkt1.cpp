@@ -1,7 +1,7 @@
-// tst2 t03 (backlog b0168): bkt1 test coverage, the cases the 2026-11-12 review found untested. Expected values come
+// bkt1 test coverage, the cases the 2026-11-12 review found untested. Expected values come
 // from the specs, not from the code: BKT1_ATTACK_RE §1.1 / §1.2 (engagement range 0x4f6e40, staging 0x40e260, the
 // stand-off search 0x440f90), FIGHTER_FLYING §4.11 C 3 / G 1 / G 3 (land guard follow, attack formation lead) and the
-// recorded [port] choices of docs/PHASE4.md "BKT1" (t03 lead skips locked members, all locked waits; t07 third parties
+// recorded [port] choices of legacy docs/PHASE4.md "BKT1" (t03 lead skips locked members, all locked waits; t07 third parties
 // idle). Synthetic S10 data (no game data needed):
 //   * staging (t01): the ring slide at the map edge (the on-line spot is off the map: the stand-off point turns
 //     counter-clockwise around M, >= d from T, inside the map), the open-ground control (on the T -> M line, overshooting
@@ -61,7 +61,7 @@ std::string bkt1_types(std::string t) {
     std::string add;
     add += land_unit("S10_Ranger", 100.0f, 250.0f, "WALK_LOCOMOTOR", "<Is_Squashable>Yes</Is_Squashable>");
     add += land_unit("S10_Far", 100.0f, 2000.0f, "WALK_LOCOMOTOR", "");
-    // cmb3 t02: a target the fog's object test can hide (HIDE_WHEN_FOGGED; a plain vehicle is never hidden)
+    // a target the fog's object test can hide (HIDE_WHEN_FOGGED; a plain vehicle is never hidden)
     add += land_unit("S10_Lurker", 0.0f, 250.0f, "WALK_LOCOMOTOR, HIDE_WHEN_FOGGED", "");
     add += land_unit("S10_Crusher", 100.0f, 250.0f, "WALK_LOCOMOTOR, SQUASH", "<Is_Squashable_By_Supercrusher>Yes</Is_Squashable_By_Supercrusher>");
     // hard half extents 5 x 2 (soft radius 3): the engage-clause target, so min(hx, hy) = 2 is told apart from the others
@@ -428,9 +428,9 @@ void test_staging(const Data& d) {
     CHECK(ready && ci == cases.size());
 }
 
-// ---- cmb3 t02: the fire trim's gate is the object hidden test ------------------------------------------------------
+// ---- the fire trim's gate is the object hidden test ------------------------------------------------------
 
-// cmb3 t02 (b0196, BKR2 Q6 [H]): 0x410e90's gate is FOW_Object_Hidden(members[0]'s owner, T, force 1) and the stealth test.
+// cmb3 t02 (BKR2 Q6 [H]): 0x410e90's gate is FOW_Object_Hidden(members[0]'s owner, T, force 1) and the stealth test.
 // An attack plan of one S10_Ranger (range 250) on an enemy S10_Lurker (HIDE_WHEN_FOGGED) 900 away, fog on: while
 // the target object is hidden for player 0 the plan is not trimmed (the formation walks to the target's point); revealed,
 // the same plan is trimmed.

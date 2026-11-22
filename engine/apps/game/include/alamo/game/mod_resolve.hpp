@@ -1,16 +1,16 @@
-// The stack resolver every launch surface starts (ums1 t04; ums4 t05: its own library, alamo_mod_resolve, which needs
+// The stack resolver every launch surface starts (its own library, alamo_mod_resolve, which needs
 // only the VFS and the XML list reader, so alamo_play (Play.exe) links it without alamo_game_core):
 //   resolve_mod_stack    the picked mods' vfs::ModStack: declared dependencies (modinfo.json), then likely parents from the
 //                        files (the submod hint below); the in-game picker, alamo_play and alamo_mod_check --resolve
 //   play_launch_args     alamo_play's resolver (play::stack_mod_args gets it): the stack's launch list
 //                        (vfs::ModStack::launch_args)
-//   submod_hint          the likely parent of a stack from its files alone (modc t16): the Data\XML files the mods' own
+//   submod_hint          the likely parent of a stack from its files alone: the Data\XML files the mods' own
 //                        list files name that no layer has, and the installed mods outside the stack that have them.
 //                        The load report (mod_check.hpp, `submod`) gives the same answer for a stack whose data loads:
 //                        it runs find_submod_parents on its own missing-file list (the same files, read during its
 //                        check). For a stack whose data does not load the report has no `submod`, while this still
-//                        hints (docs/MODS.md 3.1.2).
-// No faction or mod name is known here (docs/MODS.md §1).
+//                        hints (docs/MODS.md "One catalog and one resolver").
+// No faction or mod name is known here (docs/MODS.md "The agnostic-loading rule").
 #pragma once
 #include <cstdint>
 #include <optional>
@@ -27,7 +27,7 @@ struct ModStack;
 
 namespace alamo::game {
 
-// An installed mod outside the stack that has files the checked mod's own data names but no layer has (modc t16).
+// An installed mod outside the stack that has files the checked mod's own data names but no layer has.
 struct ModParentCandidate {
     std::string id;           // workshop id (the item folder's name) or the <game>\Mods folder name
     bool workshop = false;    // a Steam workshop item (else a <game>\Mods folder)

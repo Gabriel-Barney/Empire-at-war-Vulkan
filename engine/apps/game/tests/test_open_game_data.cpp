@@ -1,4 +1,4 @@
-// alamo_game_open_tests (ref4 t05): open_game_data (open_game_data.hpp), the one way alamo_game and every alamo_headless
+// alamo_game_open_tests: open_game_data (open_game_data.hpp), the one way alamo_game and every alamo_headless
 // runner open the game's data, on the synthetic mod fixture (testdata/mod_fixture, no game data): accepted (with and
 // without a mod), refused (a base-EaW mod, written to a temp folder of this test), no folder (neither a directory nor
 // ALAMO_FOC_DATA) and a folder that does not open.

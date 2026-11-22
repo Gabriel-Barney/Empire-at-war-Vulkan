@@ -1,4 +1,4 @@
-// Part 3 of test_ai_galactic (bo3 t03: split by position; see test_ai_galactic_common.hpp).
+// Part 3 of test_ai_galactic (split by position; see test_ai_galactic_common.hpp).
 #include "test_ai_galactic_common.hpp"
 
 gal::GalacticRules uw_rules() {
@@ -288,7 +288,7 @@ void test_underworld_special() {
     CHECK(base.sabotage_p2 >= 1);                              // Sabotage_Planet: a structure of the corrupted P2
     CHECK(base.purchased >= 1);                                // Black_Market_Purchase at the Black_Market planet
     CHECK(base.p3_destroyed && base.ds_locked && !base.ds_alive);  // Hack_Super_Weapon through Land_Units
-    // a2k t08 (docs/re/A2K_T08_RE_QUESTIONS.md §1): the AI corruption cost is not reserved or charged through the AI
+    // a2k t08 (legacy docs/re/A2K_T08_RE_QUESTIONS.md §1): the AI corruption cost is not reserved or charged through the AI
     // budget. Retail HotM Rebel (a2j probe 074145): 800 credits (Intimidation at Naboo) left the Underworld's credits
     // between frames 585 and 616 while its Offensive / Infrastructure pools stayed as they were. Here: the update that
     // applies the Black_Market corruption (500) takes exactly its cost from the credits, and no budget pool or
@@ -538,7 +538,7 @@ void test_save_synthetic() {
     check_save_load(in, "synthetic", 30 * 90, 30 * 240, 48, false);
 }
 
-// q6 t07: Variable_Target.Type.IsType on a planet reads the planet's own type name (Thrawn's Revenge picks planets by
+// Variable_Target.Type.IsType on a planet reads the planet's own type name (Thrawn's Revenge picks planets by
 // name with it). ParityWorld: P2 is SynPlanetRestricted, the others SynPlanet.
 void test_planet_type_is_type() {
     ParityWorld pw(false, {"BuildBarracks"});
@@ -679,7 +679,7 @@ void test_player_conflict_tokens() {
     }
 }
 
-// storyb t10 (STORYB_T10_TRIGGER_AI.md §3.2): the player-root StoryTrigger reads the attached story's AI flag of the
+// storyb t10 (legacy docs/re/STORYB_T10_TRIGGER_AI.md §3.2): the player-root StoryTrigger reads the attached story's AI flag of the
 // evaluated player with no target and never clears it; without a story (or after detaching) it is 0.
 void test_story_trigger_token() {
     ParityWorld pw(false, {"HeroAttach"});
@@ -852,8 +852,8 @@ void test_budget_allocation_token() {
     CHECK(!ok);
 }
 
-// q6 t03: the AI's GameObjectCategoryType name -> bit lookup reads the loaded enum (Thrawn's Revenge inserts Gunship at 0x8
-// and moves Corvette..SpaceHero up); null = the vanilla table, a discarded converter converts nothing (A2k t06).
+// the AI's GameObjectCategoryType name -> bit lookup reads the loaded enum (Thrawn's Revenge inserts Gunship at 0x8
+// and moves Corvette..SpaceHero up); null = the vanilla table, a discarded converter converts nothing.
 void test_loaded_category_enum() {
     objects::EnumConverter tr;
     tr.enum_name = "GameObjectCategoryType";
@@ -878,7 +878,7 @@ void test_loaded_category_enum() {
     CHECK(ti[0].category_mask == 0x8 && ti[1].category_mask == 0x80);
 }
 
-// q6 t07: GalacticAiWorld::set_ai_type (the SWITCH_CONTROL story reward, AI_GALACTIC §1.2). A player with no AI gets
+// GalacticAiWorld::set_ai_type (the SWITCH_CONTROL story reward, AI_GALACTIC §1.2). A player with no AI gets
 // one mid-game and plays; an unknown type is refused and logged; "Human" removes the AI; the N1 save carries the AI
 // player types, so a loader's world rebuilt from the starting configuration takes the switched players back.
 void test_ai_type_switch() {
@@ -1051,11 +1051,11 @@ void test_foc_data() {
                                     ai_iequal(fac, "Empire") ? "BasicEmpire" : (ai_iequal(fac, "Rebel") ? "BasicRebel" : "AI_Player_Underworld"), 1});
         }
     gcfg.difficulties = load_ai_difficulties(*v);
-    // A2 t03: the starbases' Starting_Spawned_Units_Tech_0 lists (type, count; repeated tags appended) reach the AI type
+    // the starbases' Starting_Spawned_Units_Tech_0 lists (type, count; repeated tags appended) reach the AI type
     // info, so the typed force rows hold squadrons instead of the starbase's own AI_Combat_Power.
     const std::vector<GalacticAiTypeInfo> foc_tinfo = make_galactic_ai_type_info(types);
     {
-        // A2k t06: the masks come from the shipped Data\XML\Enum\GameObjectCategoryType.xml and equal the built-in table's
+        // the masks come from the shipped Data\XML\Enum\GameObjectCategoryType.xml and equal the built-in table's
         // bit for bit (so no golden moves); the converted CategoryMask field (whole-value conversion) is reported.
         CHECK(types.enums().get(objects::EnumId::GameObjectCategory).from_file);
         std::vector<GalacticAiTypeInfo> builtin = foc_tinfo;
@@ -1179,7 +1179,7 @@ void test_foc_data() {
         std::printf("FoC player %zu AI path finder: %u recomputes, %u pairs, %u reachable (A* stand-in %u), %u identical to A*\n",
                     p, f->recomputes(), pairs, reachable, astar_reachable, same);
         CHECK(reachable > 0);
-        // A2k t02: the Lua _FindStageArea stage is list[0] of the target's per-target reachability list at the TF level
+        // the Lua _FindStageArea stage is list[0] of the target's per-target reachability list at the TF level
         // (held by the player or an ally), the target at level 4, nil above 5 and at levels 0 / 1 for a target not held.
         uint32_t staged = 0;
         const gal::PlayerView sv = sim.player_view(pi);
@@ -1213,7 +1213,7 @@ void test_foc_data() {
         CHECK(world.reach_planets(pi, 5).size() >= r0.size());
         for (const char* fn : {"Space_Priority_Defense_Score", "Low_Space_Defense_Score", "Ground_Priority_Defense_Score", "One"}) {
             const int32_t t = world.reachable_target(pi, fn, "Friendly", "Friendly_Only", 0.1);
-            // a2l t03: no argument 6, so no reachability test; the Friendly application alone keeps it held.
+            // no argument 6, so no reachability test; the Friendly application alone keeps it held.
             CHECK(t == -1 || gal::PlayerView::bit(view.held_by_ally, static_cast<PlanetIndex>(t), false));
         }
         uint32_t pairs = 0, pass = 0, blocked = 0;
@@ -1316,7 +1316,7 @@ void test_save_foc() {
 }
 #endif
 
-// A2k t06: the type side of a category test (GalacticAiTypeInfo::category_mask, the Capital structure default) uses the
+// the type side of a category test (GalacticAiTypeInfo::category_mask, the Capital structure default) uses the
 // data-loaded GameObjectCategoryType converter, so a mod category gets its bit and a renumbered vanilla name its new bits.
 void test_category_masks_from_enum_files() {
     MemoryFiles mf;
@@ -1365,7 +1365,7 @@ void test_category_masks_from_enum_files() {
     }
 }
 
-// A2k t06: GameObjectTypes loads Data\XML\Enum\GameObjectCategoryType.xml through the provider and
+// GameObjectTypes loads Data\XML\Enum\GameObjectCategoryType.xml through the provider and
 // make_galactic_ai_type_info / GalacticAiWorld take the mask bits from it (a mod category gets its bit, a renumbered Capital
 // its new bits, also as the structure-mask default).
 void test_type_info_mod_categories() {
@@ -1401,7 +1401,7 @@ void test_type_info_mod_categories() {
     CHECK(ai_category_bit("Mod_Walker", cat) == walker && ai_category_bit("Mod_Walker") == 0);
 }
 
-// tst2 t01 (b0137): ParityWorld's GameObjectTypes is never built. GameObjectTypes::raw() then answers an empty database,
+// ParityWorld's GameObjectTypes is never built. GameObjectTypes::raw() then answers an empty database,
 // so Find_All_Objects_Of_Type called by a plan thread does not crash: the player filter returns the player's store
 // objects (no company member views: no type has Company_Units), and a type-name filter finds no type, so the binding logs
 // its "unknown filter parameter" error and returns nothing.

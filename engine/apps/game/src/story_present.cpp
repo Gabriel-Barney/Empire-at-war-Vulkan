@@ -144,7 +144,7 @@ void StoryPresenter::add_arrow(StoryArrow a) {
     arrows_.push_back(std::move(a));
 }
 
-// ref5 t02: the presentation rewards, one handler per Reward_Type name (the Ui rows of the sim's story reward table that
+// the presentation rewards, one handler per Reward_Type name (the Ui rows of the sim's story reward table that
 // this class draws or obeys; the media rewards are story_reward_media's). The game's coverage test fails for a Ui row that
 // neither registers.
 namespace {
@@ -453,7 +453,7 @@ void StoryPresenter::update(double now, bool hints_blocked) {
     std::erase_if(object_flashes_, [&](const StoryObjectFlash& f) { return now >= f.until; });
     std::erase_if(map_flashes_, [&](const StoryObjectFlash& f) { return now >= f.until; });
     if (hint_shown_ && now >= shown_.start + shown_.seconds + kHintFadeSeconds) hint_shown_ = false;
-    if (!hint_up(now) && !hints_blocked && !hint_queue_.empty()) {  // q6 t36: a fading text is replaced at once
+    if (!hint_up(now) && !hints_blocked && !hint_queue_.empty()) {  // a fading text is replaced at once
         shown_.hint = std::move(hint_queue_.front());
         hint_queue_.erase(hint_queue_.begin());
         shown_.start = now;
@@ -507,7 +507,7 @@ const std::vector<StoryTextLine>& StoryPresenter::lines(double now) const {
 
 bool StoryPresenter::component_flashing(std::string_view component, double now) const {
     for (const StoryComponentFlash& f : flashes_)
-        if (f.component == component && now >= f.start && now < f.until) return true;  // ref5 t02: a held DUAL_FLASH step starts later
+        if (f.component == component && now >= f.start && now < f.until) return true;  // a held DUAL_FLASH step starts later
     return false;
 }
 
@@ -521,10 +521,10 @@ std::vector<StoryCameraCommand> StoryPresenter::take_camera_commands() { return 
 std::vector<StoryTutorialDialog> StoryPresenter::take_dialogs() { return std::exchange(dialogs_, {}); }
 std::vector<std::string> StoryPresenter::take_forced_clicks() { return std::exchange(forced_clicks_, {}); }
 
-// ---- ref4 t01: save / read ----
+// ---- save / read ----
 namespace {
 
-constexpr uint32_t kPresenterSaveVersion = 2;  // 2 (ref5 t02): + the DUAL_FLASH state at the end; 1 still reads
+constexpr uint32_t kPresenterSaveVersion = 2;  // 2: + the DUAL_FLASH state at the end; 1 still reads
 
 void put_u32s(ByteWriter& w, std::u32string_view s) {
     w.u32(static_cast<uint32_t>(s.size()));

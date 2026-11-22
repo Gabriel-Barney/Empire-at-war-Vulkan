@@ -1,4 +1,4 @@
-// The engine tests' std::thread-backed alamo::ParallelFor (CU4 t04 / t05: one copy for every module; the real backend
+// The engine tests' std::thread-backed alamo::ParallelFor (one copy for every module; the real backend
 // lives in engine/jobs). A persistent pool of `threads - 1` workers plus the calling thread; chunks of `grain` indices
 // are claimed atomically, so which thread runs which chunk varies run to run - results must not (the 1 / 4 / N-thread
 // CRC tests check it). A call made from inside a running body (nested) runs serially on that thread.

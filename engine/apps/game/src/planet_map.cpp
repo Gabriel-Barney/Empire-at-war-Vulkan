@@ -1,4 +1,4 @@
-// ui4 t04: planet map layout rules (planet_map.hpp, docs/re/GALACTIC_PLANET_MAP.md §4-5).
+// planet map layout rules (planet_map.hpp, legacy docs/re/GALACTIC_PLANET_MAP.md §4-5).
 #include "alamo/game/planet_map.hpp"
 
 #include <algorithm>

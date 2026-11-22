@@ -1,4 +1,4 @@
-// Private to the mod check (ref3 t04): the check families behind check_mod_data (mod_check.hpp), one file each, and the
+// Private to the mod check: the check families behind check_mod_data (mod_check.hpp), one file each, and the
 // helpers more than one family uses. check_mod_data (mod_check.cpp) calls them in its order; each fills its part of the
 // ModCheckReport and reads only what loaded (GameData). Nothing here is part of alamo_game_core's interface.
 //
@@ -40,7 +40,7 @@ bool in_mod_layer(const vfs::Vfs& v, std::string_view path);
 // upper-case base name). mod_check_shaders.cpp.
 std::string effect_base(std::string_view name);
 
-// modc t15: the XML databases besides the object types that the port loads. Per database: where its entries are (the
+// the XML databases besides the object types that the port loads. Per database: where its entries are (the
 // <File> entries of a Data\XML list, as the loader reads them, or one Data\XML file), the entry element below the root
 // (or the root itself), and which child tags count as read: the rows of the original's descriptor table for the class
 // (docs/re/xml_field_tables.md through objects::field_schema(), by segment owner) plus the tags the port's loader reads
@@ -79,12 +79,12 @@ void check_lua(const GameData& d, ModCheckReport& r, bool run_chunks, int script
 void check_shaders(const GameData& d, ModCheckReport& r, bool compile, const std::string& fx_cache_dir);  // shaders
 void check_submod(const GameData& d, ModCheckReport& r, const ModCheckOptions& o);                         // files
 void check_base_eaw_suspect(const GameData& d, ModCheckReport& r);             // files
-// Report version 4 (mcx0 t06, docs/MOD_COMPAT_DESIGN.md §12.1), after the checks they read:
+// Report version 4 (docs/MODS.md "Load report (alamo.mod_report)"), after the checks they read:
 void check_honour_gaps(const GameData& d, ModCheckReport& r);                  // honour gaps
 void check_story(const GameData& d, ModCheckReport& r);                        // story
 void check_token_coverage(const GameData& d, ModCheckReport& r);               // token coverage
 void retail_equivalent_from_checks(ModCheckReport& r);                         // grade
 void compat_issues_and_grade(ModCheckReport& r, const vfs::Vfs* v, const alamo::IssueSink& vfs_issues);  // grade
-void loader_issues(const GameData& d, ModCheckReport& r);                      // grade (ums4 t07)
+void loader_issues(const GameData& d, ModCheckReport& r);                      // grade
 
 }  // namespace alamo::game::mod_check_detail

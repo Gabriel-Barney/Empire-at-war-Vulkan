@@ -1,4 +1,4 @@
-// A1 - FindTarget / FindTarget.Reachable_Target selection (docs/re/AI_TACTICAL.md 6.1, 6.2, 10).
+// A1 - FindTarget / FindTarget.Reachable_Target selection (legacy docs/re/AI_TACTICAL.md 6.1, 6.2, 10).
 //
 // Scoring (perception evaluation with Self / Enemy / Human / Target bound) is stage 2; this file is
 // the pure part: candidate filtering in list order and the best-or-weighted pick.

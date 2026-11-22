@@ -1,6 +1,6 @@
 // Binding family: players, factions, credits, AI and perception (L1 stage 2). State and backing are
 // described in alamo/lua/players.hpp (with the list of [inferred] behaviour); argument checks use the
-// original's own validation strings (docs/re/LUA_API.md "Binding map"). Implementations follow the
+// original's own validation strings (legacy docs/re/LUA_API.md "Binding map"). Implementations follow the
 // error discipline of vm_internal.hpp (Call::script_error_stop, never lua_error).
 //
 // Needs the S3 galactic sim (alamo_galactic_sim) and the perception evaluator (alamo_ai); without them
@@ -396,8 +396,8 @@ using detail::Ud;
 
 namespace {
 
-using detail::push_nil;  // ref5 t03: vm_internal.hpp
-using detail::push_bool;  // ref5 t03: vm_internal.hpp
+using detail::push_nil;  // vm_internal.hpp
+using detail::push_bool;  // vm_internal.hpp
 int push_num(Call& c, double d) {
     lua_pushnumber(c.L, d);
     return 1;
@@ -407,7 +407,7 @@ int push_str(Call& c, std::string_view s) {
     return 1;
 }
 
-using detail::is_bool;  // ref5 t03: vm_internal.hpp
+using detail::is_bool;  // vm_internal.hpp
 bool to_bool(const Call& c, int i) { return lua_toboolean(c.L, c.idx(i)) != 0; }
 bool is_table(const Call& c, int i) { return c.has(i) && lua_type(c.L, c.idx(i)) == LUA_TTABLE; }
 
@@ -425,7 +425,7 @@ LuaPlayerWorld* self_world(Call& c) {
     LuaPlayerWorld* w = world_of(c.L);
     return (w && w->valid(c.self->id)) ? w : nullptr;
 }
-// q6 t11 (LUA_API.md "Dead or null wrappers"): a PlayerWrapper without a player (+0x28 null; here: no player world, or
+// q6 t11 (legacy docs/re/LUA_API.md "Dead or null wrappers"): a PlayerWrapper without a player (+0x28 null; here: no player world, or
 // an id the world does not have) returns nothing, silently.
 int bad_player(Call&, const char*) { return 0; }
 
@@ -529,7 +529,7 @@ int g_find_player(Call& c) {
     const LuaPlayerWorld* w = world_of(c.L);
     if (!w) return push_nil(c);
     const std::string_view name = c.string(1);
-    // q6 t11 (LUA_API.md "Lookups"): a name that is not a faction is a script error; a faction without a player is nil.
+    // q6 t11 (legacy docs/re/LUA_API.md "Lookups"): a name that is not a faction is a script error; a faction without a player is nil.
     const bool local = ascii_iequals(name, "local");
     if (!local && w->faction_known(name) == 0)
         return c.script_error_stop("Find_Player -- unknown faction %s.", std::string(name).c_str());
@@ -699,7 +699,7 @@ int m_get_clan_id(Call& c) {
 int m_release_credits_for_tactical(Call& c) {
     LuaPlayerWorld* w = self_world(c);
     if (!w) return bad_player(c, "Release_Credits_For_Tactical");
-    if (const TacticalGalacticContext* tg = w->tactical_galactic()) {  // a1j t07: 0x603c70 [H] (A1_READINGS §38)
+    if (const TacticalGalacticContext* tg = w->tactical_galactic()) {  // 0x603c70 [H] (A1_READINGS §38)
         if (!tg->land)
             return c.script_error_stop("PlayerWrapper::Release_Credits_For_Tactical - this script function is only valid in land tactical");
         if (c.nargs > 1)
@@ -725,7 +725,7 @@ int m_release_credits_for_tactical(Call& c) {
 }
 
 // One boolean switch; `missing_style`: the "Missing required parameter." contract instead of the count one.
-// `ok` (optional): set when the switch was stored (q6 t11: an error returns 0 like a success).
+// `ok` (optional): set when the switch was stored (an error returns 0 like a success).
 int bool_switch(Call& c, const char* name, bool missing_style, bool LuaPlayerState::*field, bool* ok = nullptr) {
     if (ok) *ok = false;
     LuaPlayerWorld* w = self_world(c);
@@ -814,19 +814,19 @@ int g_purge_goals(Call& c) {
     return 0;
 }
 
-// GiveDesireBonus(player, goal, target, bonus, seconds) (MCX8_BINDINGS_PLAYERS_STORY.md "GiveDesireBonus") [H]: returns
+// GiveDesireBonus(player, goal, target, bonus, seconds) (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "GiveDesireBonus") [H]: returns
 // the blocking status of the bonus (finished true when the bonus was added to a matching proposal, false at its deadline
 // NOW + (int)(FPS x seconds)) through the attached AI host (AiScriptHost::give_desire_bonus), so BlockOnCommand waits.
 // [port] without an AI host that takes it (story VMs, tests) the request is queued on the player world, returns nil.
 int g_give_desire_bonus(Call& c) {
-    // q6 t11 (LUA_API.md "Count messages that are stale"): the code takes exactly 5 (the message says 4).
+    // q6 t11 (legacy docs/re/LUA_API.md "Count messages that are stale"): the code takes exactly 5 (the message says 4).
     if (c.nargs != 5)
         return c.script_error_stop("Give_Desire_Bonus : invalid number of parameters. Expected 4, got %d.", c.nargs);
     LuaPlayerWorld* w = world_of(c.L);
     const int32_t p = player_arg(c, 1, w);
     if (p < 0) return c.script_error_stop("Give_Desire_Bonus : invalid type for parameter 1. Expected player.");
     if (!c.is_string(2)) return c.script_error_stop("Give_Desire_Bonus : invalid type for parameter 2. Expected string.");
-    // mcx8 t12 (MCX8_BINDINGS_PLAYERS_STORY.md "GiveDesireBonus") [H]: argument 3 is a game object or an AI target (its
+    // mcx8 t12 (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "GiveDesireBonus") [H]: argument 3 is a game object or an AI target (its
     // game object here [port]); the last three type errors say parameters 2 / 3 / 4, as the original's.
     objects::ObjectHandle h = object_arg(c, 3);
     if (!h)
@@ -850,11 +850,11 @@ int g_give_desire_bonus(Call& c) {
     return push_nil(c);
 }
 
-// Declare_Goal_Type: not registered (MCX8_BINDINGS_PLAYERS_STORY.md "Declare_Goal_Type") [H]. The exe has no such global,
+// Declare_Goal_Type: not registered (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "Declare_Goal_Type") [H]. The exe has no such global,
 // so `if Declare_Goal_Type then` in PGInterventions.lua is false; the port leaves the global nil too
 // (bindings.cpp is_unregistered_global).
 
-// Budget.Flush_Category(category) (MCX8_BINDINGS_PLAYERS_STORY.md "Flush_Category") [H]: the category's available
+// Budget.Flush_Category(category) (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "Flush_Category") [H]: the category's available
 // credits of the owning AI's budget go to 0. [port] queued for the AI budget of the script's PlayerObject (drained after
 // the plan's service, galactic_ai.cpp); a category name the AI definitions do not know is a script error.
 int m_budget_flush_category(Call& c) {
@@ -881,7 +881,7 @@ int m_budget_flush_category(Call& c) {
 
 // ---------------------------------------------------------------- perception
 
-// Target binding of a perception evaluation (MCX8_BINDINGS_PLAYERS_STORY.md "Perception Target binding") [H]: argument
+// Target binding of a perception evaluation (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "Perception Target binding") [H]: argument
 // i must be a live game object or an AI target (its game object [port]); a planet object of the galactic sim binds its
 // planet row, any other object its object id. False (the caller's script error) for a dead or wrong-type argument.
 // [port] an AI target without a game object (a region / marker target) binds nothing (-1).
@@ -946,7 +946,7 @@ int g_evaluate_perception(Call& c) {
     return evaluate_perception(c, w, w->perception(), c.string(1), p, target);
 }
 
-// a1j t07: 0x69e1b0 in a tactical mode with a parent galaxy (players.hpp TacticalGalacticContext, A1_READINGS §38).
+// 0x69e1b0 in a tactical mode with a parent galaxy (players.hpp TacticalGalacticContext, A1_READINGS §38).
 int evaluate_in_parent_galaxy(Call& c, const LuaPlayerWorld* w, const TacticalGalacticContext& tg) {
     if (c.nargs != 2)
         return c.script_error_stop("Evaluate_In_Galactic_Context: Invalid number of parameters.  Expected 2, got %d.", c.nargs);
@@ -974,7 +974,7 @@ int evaluate_in_parent_galaxy(Call& c, const LuaPlayerWorld* w, const TacticalGa
     return push_num(c, r.value);
 }
 
-// Evaluate_In_Galactic_Context (MCX8_BINDINGS_PLAYERS_STORY.md "Evaluate_In_Galactic_Context") [H]: only a tactical mode
+// Evaluate_In_Galactic_Context (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "Evaluate_In_Galactic_Context") [H]: only a tactical mode
 // spawned from a campaign (a parent galaxy, set by the battle host: evaluate_in_parent_galaxy) evaluates; without one -
 // every plain galactic game included - the original warns and returns nothing, before any argument check.
 int g_evaluate_in_galactic_context(Call& c) {
@@ -986,7 +986,7 @@ int g_evaluate_in_galactic_context(Call& c) {
 
 int m_list_create(Call& c) { return new_instance(c, cls_weighted_list()); }
 
-// A WeightedTypeList entry name resolved as the original's Parse does (MCX8_BINDINGS_PLAYERS_STORY.md
+// A WeightedTypeList entry name resolved as the original's Parse does (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md
 // "WeightedTypeListClass.Parse") [H]: a GameObjectCategoryType mask, else a GameObjectPropertiesType mask (the second
 // enum, 0x140b31068 [M]), else an object type name; None when nothing takes it. The list keeps the name; EvaluateTypeList
 // resolves it again by the same rule.
@@ -1011,7 +1011,7 @@ ListEntry resolve_list_entry(const objects::GameObjectTypes* ty, std::string_vie
     return e;
 }
 
-// Parse(names, weights) (MCX8_BINDINGS_PLAYERS_STORY.md "WeightedTypeListClass.Parse") [H]: clears the list, then per
+// Parse(names, weights) (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "WeightedTypeListClass.Parse") [H]: clears the list, then per
 // names[i]: no weights[i] -> "Types and Weights are mismatched!" and stop (the entries added so far stay); a weight that
 // is not a number -> an error naming the 0-based index, the entry skipped; else the entry is appended and its name
 // resolved (resolve_list_entry), an unknown name an error (the entry stays). A non-string name is taken as the empty
@@ -1066,7 +1066,7 @@ int m_list_parse(Call& c) {
     return 0;
 }
 
-// EvaluateTypeList(player, target, list) -> {bool, ...} (MCX8_BINDINGS_PLAYERS_STORY.md "EvaluateTypeList") [H for the
+// EvaluateTypeList(player, target, list) -> {bool, ...} (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "EvaluateTypeList") [H for the
 // flow, M for the leaves]. Argument 2 must be an AI target: anything else (a game object included) returns nothing with
 // no message, a defunct target is an error. Per list entry (resolve_list_entry, list order): whether an ENEMY unit of
 // argument 1 at the target matches it - a type entry by its type, a category / properties entry by any bit of the
@@ -1257,12 +1257,12 @@ PlanetIndex planet_row(const galactic::GalacticSim* sim, objects::ObjectHandle h
 }
 
 // Find_Path(player, from planet, to planet): the planets of the player's path, source first; nil when there
-// is no path. The original (0x69da70) answers from the player's AI execution path finder (GALACTIC.md 4 / 5:
+// is no path. The original (0x69da70) answers from the player's AI execution path finder (legacy docs/re/GALACTIC.md 4 / 5:
 // Get_Path on the AI all-pairs matrices; src == dst -> [src, src]) and rejects players without an AI ("can't
 // do this from the point of view of non-ai players"; the test is PlayerState::ai [M]).
 //   * attached ai::AiPathQuery (LuaPlayerWorld::attach_ai_paths) that knows the player: its Get_Path, exact.
 //   * otherwise (no query, or the player has no finder yet): fallback approximation = GalacticSim graph + fleet
-//     A*, all request flags set, with the all-pairs fog rule (GRC 1.1, GALACTIC.md 4 step 2): non-human AI
+//     A*, all request flags set, with the all-pairs fog rule (GRC 1.1, legacy docs/re/GALACTIC.md 4 step 2): non-human AI
 //     players get the Is_Planet_Revealed gate (auto-reveal honoured, flag 5); the human single-player hop gate
 //     on the raw revealed byte never applies to Lua.
 int g_find_path(Call& c) {
@@ -1302,7 +1302,7 @@ int g_find_path(Call& c) {
     return 1;
 }
 
-// GetCurrentTime.Galactic_Time() (MCX8_BINDINGS_PLAYERS_STORY.md "LuaGetTime.Galactic_Time") [H]: the galactic mode's
+// GetCurrentTime.Galactic_Time() (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "LuaGetTime.Galactic_Time") [H]: the galactic mode's
 // frame x the float seconds-per-frame (1/30), multiplied in float and widened; nothing without a galactic mode.
 int m_galactic_time(Call& c) {
     const LuaPlayerWorld* w = world_of(c.L);
@@ -1367,7 +1367,7 @@ int g_assemble_fleet(Call& c) {
 
 // GameObjectWrapper.Invade() (0x57ada0, A1_READINGS §31; Story_Campaign_Underworld.lua): an Invade event issued by the
 // LOCAL player (LuaPlayerWorld::local_player(), the event ctor's player), not the fleet's owner, executed on the direct
-// path through the attached ObjectBridge's pipeline (COMMANDS.md 5). Refusals in 0x57ada0's order, as script warnings
+// path through the attached ObjectBridge's pipeline (legacy docs/re/COMMANDS.md 5). Refusals in 0x57ada0's order, as script warnings
 // with nothing issued: not a fleet ([port] a warning; the original raises an error), not at a planet (moving), the
 // planet owner not an enemy of the FLEET owner, no ground units in the fleet. Units = the fleet's ground units owned by
 // the issuer (the executor 0x48ff50 keeps only those), content order, at most 127; none left (an AI fleet seen from a
@@ -1488,7 +1488,7 @@ int g_get_next_starbase_type(Call& c) { return g_get_next_base_type(c, true); }
 int g_get_next_groundbase_type(Call& c) { return g_get_next_base_type(c, false); }
 int m_get_next_starbase_type(Call& c) { return next_base_type(c, detail::object_handle(*c.self), true); }
 
-// Get_Is_Planet_AI_Usable() (MCX8_BINDINGS_PLAYERS_STORY.md "Get_Is_Planet_AI_Usable") [H]: Is_Planet_Revealed of the
+// Get_Is_Planet_AI_Usable() (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "Get_Is_Planet_AI_Usable") [H]: Is_Planet_Revealed of the
 // planet (GalacticSim::is_planet_revealed, 0x3fa420: takes no player - the local human's reveal state, also for the AI;
 // destroyed is not tested). An object that is not a planet is a script error (its type name), no value; a PLANET object
 // without galactic planet data is false.
@@ -1504,7 +1504,7 @@ int m_get_is_planet_ai_usable(Call& c) {
     return c.script_error_stop("GameObjectWrapper::Get_Is_Planet_AI_Usable -- object %s is not a planet.", name.c_str());
 }
 
-// Can_Land_On_Planet(planet) (MCX8_BINDINGS_PLAYERS_STORY.md "Can_Land_On_Planet") [H]: true when the argument is a live
+// Can_Land_On_Planet(planet) (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "Can_Land_On_Planet") [H]: true when the argument is a live
 // planet, this object is a galactic land unit itself (the TRANSPORT slot: a ground unit or company, not a fleet), the
 // planet's surface is accessible, its terrain does not forbid this unit's type (planet_restricts) and the planet holds
 // fewer than Max_Ground_Forces_On_Planet ground units (surface_forces, any owner). No hidden / destroyed test
@@ -1621,7 +1621,7 @@ bool detail::galactic_block_finished(Call& c) {
 //     company type) is the argument's;
 //   - a unit in a fleet at a planet (a company object = the original's transport: its cargo): that unit, the argument
 //     is not applied;
-//   - a company member view (refix t04: a unit inside a transport): silently nothing;
+//   - a company member view (a unit inside a transport): silently nothing;
 //   - a fleet in transit, a planet or a free object: "is not at a planet"; a unit on the surface: "is landed"; nothing.
 // Returns no values (the caller pushes none).
 bool detail::galactic_activate_ability(Call& c) {

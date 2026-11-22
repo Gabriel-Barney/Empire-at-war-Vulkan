@@ -1,8 +1,8 @@
-// alamo_game_mod_fixture_tests (modc t07): the synthetic mod of testdata/mod_fixture (README there) loaded through the real
+// alamo_game_mod_fixture_tests: the synthetic mod of testdata/mod_fixture (README there) loaded through the real
 // MODPATH= route - load_game_data -> vfs::parse_command_line (relative to the FoC folder) -> the VFS mod layer - with no
-// game data. Checks the load report summary (mod_check.hpp, docs/MODS.md §5.1) with and without the mod, and that the
+// game data. Checks the load report summary (mod_check.hpp, docs/MODS.md "Load report (alamo.mod_report)") with and without the mod, and that the
 // mod's faction, unit, planet, campaign and Lua override reach the loaded data. Two more fixture mods cover the report's
-// findings: FixtureChecks (unknown tags in the non-object databases, modc t15; a main chunk that fails only for want of
+// findings: FixtureChecks (unknown tags in the non-object databases; a main chunk that fails only for want of
 // session state and one that really fails, t12) and FixtureSub (a submod of FixtureMod, t16; fake Steam library under
 // testdata/mod_fixture/steamlib). Read only: nothing is written anywhere.
 //   alamo_game_mod_fixture_tests <testdata/mod_fixture>
@@ -94,8 +94,8 @@ void test_mod(const std::string& foc) {
         const std::string js = alamo::game::format_mod_report_json(r);
         CHECK(contains(js, "\"schema\": \"alamo.mod_report\""));
         CHECK(contains(js, "\"version\": 5"));
-        CHECK(!contains(js, "\"vfs_warnings\""));  // ums4 t02: version 5 drops files.vfs_warnings (the issues hold them)
-        // ums4 t07: every distinct loader diagnostic is a loader_diagnostic issue with its step; a line naming a file
+        CHECK(!contains(js, "\"vfs_warnings\""));  // version 5 drops files.vfs_warnings (the issues hold them)
+        // every distinct loader diagnostic is a loader_diagnostic issue with its step; a line naming a file
         // that no layer has (the fixture's missing enum files) carries no layer.
         size_t loader = 0, unplaced = 0;
         for (const alamo::CompatIssue& i : r.issues.issues()) {
@@ -109,7 +109,7 @@ void test_mod(const std::string& foc) {
         distinct.erase(std::unique(distinct.begin(), distinct.end()), distinct.end());
         CHECK(loader == distinct.size() && loader > 0 && unplaced > 0);
         CHECK(contains(js, "\"kind\": \"loader_diagnostic\""));
-        // mcx0 t06: the version 4 keys are there (FixtureChecks' story and binding findings: test_compat_checks).
+        // the version 4 keys are there (FixtureChecks' story and binding findings: test_compat_checks).
         for (const char* k : {"\"honour_gaps\":", "\"retail_equivalent\":", "\"bindings\":", "\"story\":", "\"token_coverage\":",
                               "\"limits\":", "\"grade\":"})
             CHECK(contains(js, k));
@@ -136,7 +136,7 @@ void test_mod(const std::string& foc) {
         CHECK(contains(js, "\"run_errors\": []"));
         CHECK(contains(js, "\"session_errors\": []"));
         CHECK(contains(js, "\"unused_scripts\": []"));  // modc t24
-        CHECK(contains(js, "\"shaders\": {"));           // modc t21: the fixture ships no effect
+        CHECK(contains(js, "\"shaders\": {"));           // the fixture ships no effect
         CHECK(r.shaders.checked && r.shaders.effects == 0 && r.shaders.issues.empty());
         CHECK(contains(js, "\"likely\": false"));
         CHECK(contains(js, "\"chunks_run\": 2"));
@@ -162,7 +162,7 @@ void test_mod(const std::string& foc) {
     bool warned = false;
     for (const auto& w : none.vfs_warnings) warned |= contains(w, "no Data folder");
     CHECK(warned);
-    // ums2 t03: the same finding is a CompatIssue on the mod's layer (search position 0), listed in the JSON's issues,
+    // the same finding is a CompatIssue on the mod's layer (search position 0), listed in the JSON's issues,
     // and it changes no grade.
     const alamo::CompatIssue* nd = nullptr;
     for (const alamo::CompatIssue& i : none.issues.issues())
@@ -179,7 +179,7 @@ const alamo::game::UnknownXmlTag* unknown_tag(const ModCheckReport& r, const std
     return nullptr;
 }
 
-// modc t12 / t15: FixtureChecks.
+// FixtureChecks.
 void test_checks(const std::string& foc) {
     const ModCheckReport r = alamo::game::check_mod_data(foc, {"MODPATH=Mods\\FixtureChecks"});
     CHECK(r.loaded && r.error_count() == 0);
@@ -242,7 +242,7 @@ const alamo::game::RetailEquivalentFinding* retail_eq(const ModCheckReport& r, c
     return nullptr;
 }
 
-// mcx0 t06: the report version 4 findings of FixtureChecks - ChecksStory.xml (a reward the port lacks, an event type it
+// the report version 4 findings of FixtureChecks - ChecksStory.xml (a reward the port lacks, an event type it
 // dispatches partly, a reward retail does not know, a commented-out event) and Checks_Scoring.lua (a call to a binding
 // whose effect the port partly guessed).
 void test_compat_checks(const std::string& foc) {
@@ -250,16 +250,16 @@ void test_compat_checks(const std::string& foc) {
     CHECK(r.loaded && r.error_count() == 0);
     CHECK(r.story.files == 1);
     CHECK(r.story.rewards_used == 2 && r.story.events_used == 2);  // the commented-out event is not counted
-    // mcx6 t01: SWITCH_SIDES is implemented now (the story ledger has no missing reward left).
+    // SWITCH_SIDES is implemented now (the story ledger has no missing reward left).
     CHECK(r.story.rewards_missing.empty());
-    // mcx6 t03: WIN/LOSE_BATTLES' Param3 composition is retail's now (the orbit record): no event type is partial any more.
+    // WIN/LOSE_BATTLES' Param3 composition is retail's now (the orbit record): no event type is partial any more.
     CHECK(r.story.events_partial.empty());
     const auto* unknown = retail_eq(r, "unknown_reward", "CHECKS_NO_SUCH_REWARD");
     CHECK(unknown && unknown->in_mod);
     CHECK(retail_eq(r, "unread_tag", "factions: Checks_Unread_Faction_Tag") != nullptr);  // retail ignores it too
 
     const auto bg = std::find_if(r.binding_gaps.begin(), r.binding_gaps.end(),
-                                 // mcx8 t12: StringCompare is Full now; EvaluateTypeList is the binding still Partial.
+                                 // StringCompare is Full now; EvaluateTypeList is the binding still Partial.
                                  [](const alamo::game::BindingGapCall& b) { return b.name == "EvaluateTypeList"; });
     CHECK(bg != r.binding_gaps.end());
     if (bg != r.binding_gaps.end()) {
@@ -291,7 +291,7 @@ void test_failed_load(const std::string& fixture) {
     CHECK(r.grade.grade == "G0");
 }
 
-// modc t16: FixtureSub's lists name ModObjects.xml and ModFactions.xml, which FixtureMod has; workshop item 900000001
+// FixtureSub's lists name ModObjects.xml and ModFactions.xml, which FixtureMod has; workshop item 900000001
 // (named in FixtureSub's modinfo.json) has ModFactions.xml only.
 void test_submod(const std::string& fixture, const std::string& foc) {
     alamo::game::ModCheckOptions opt;
@@ -351,7 +351,7 @@ void test_campaign_levels() {
 
 }  // namespace
 
-// ums4 t07: the file a loader diagnostic names (its issue's source, which gives the layer).
+// the file a loader diagnostic names (its issue's source, which gives the layer).
 void test_diagnostic_file() {
     using alamo::game::loader_diagnostic_file;
     CHECK(loader_diagnostic_file("Data\\XML\\TradeRoutes.xml(1765): duplicate trade route", nullptr) == "DATA\\XML\\TRADEROUTES.XML");

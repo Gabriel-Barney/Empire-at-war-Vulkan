@@ -1,4 +1,4 @@
-// mcx6 t05: the story script's cinematic object calls, host side (alamo/game/script_cinematics.hpp).
+// the story script's cinematic object calls, host side (alamo/game/script_cinematics.hpp).
 #include "alamo/game/script_cinematics.hpp"
 
 #include <algorithm>

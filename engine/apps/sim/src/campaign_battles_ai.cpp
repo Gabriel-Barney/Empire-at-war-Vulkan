@@ -16,7 +16,7 @@ void CampaignBattles::ai_begin(SimHost& host, GameMode& mode) {
         ai_.reset();
     }
     for (std::string& d : diag) log_.push_back("tactical AI: " + d);
-    if (ai_) {  // ref5 t04: Get_Name in the AI's scripts (the host's ship names)
+    if (ai_) {  // Get_Name in the AI's scripts (the host's ship names)
         SimHost* h = &host;
         ai_->world().object_bridge().ship_name = [h](objects::ObjectHandle o) {
             const TacticalMode* tm = h->tactical();
@@ -24,13 +24,13 @@ void CampaignBattles::ai_begin(SimHost& host, GameMode& mode) {
         };
     }
 #ifdef ALAMO_SIM_HAVE_STORY
-    // aitac t01: the story's Suspend_AI / GiveDesireBonus / Purge_Goals reach the tactical AI of the running battle.
+    // the story's Suspend_AI / GiveDesireBonus / Purge_Goals reach the tactical AI of the running battle.
     if (ai_ && host.story()) ai_->world().attach_story_world(host.story()->player_world());
 #endif
 }
 
 void CampaignBattles::ai_update() {
-    ALAMO_PROFILE_SCOPE("tac.ai");  // OPT2 t08: the battle's tactical AI (inside T5.battles)
+    ALAMO_PROFILE_SCOPE("tac.ai");  // the battle's tactical AI (inside T5.battles)
     if (ai_) ai_->update();
 }
 
@@ -42,7 +42,7 @@ void CampaignBattles::ai_end() {
     for (const ai::tactical::TacticalAiDecision& d : ai_->world().decision_log())
         ai_log_.push_back("  " + std::to_string(d.frame) + " p" + std::to_string(d.player) + " " + d.text);
     for (const auto& [k, n] : ai_->world().stats()) ai_log_.push_back("  stat " + k + " " + std::to_string(n));
-    // OPT3 t11: the AI's Lua VMs are freed by a background job instead of inside the battle-end tick.
+    // the AI's Lua VMs are freed by a background job instead of inside the battle-end tick.
     if (lua_close_wait_) lua_close_wait_();
     lua_close_wait_ = ai_->world().release_scripts();
     ai_.reset();

@@ -11,9 +11,9 @@
 //   set 1 (once, update-after-bind): bindless textures (slot 0 = white = materials::kNoTexture)
 //         + the 4 engine samplers;
 //   push constants: the pass's PushConstants (alpha test, fog) with the draw index.
-// Draw order (RENDER.md 1.3/1.4): the 12 phase buckets in enum order; Transparent and Heat
+// Draw order (legacy docs/re/RENDER.md 1.3/1.4): the 12 phase buckets in enum order; Transparent and Heat
 // back-to-front by the submesh's world AABB centre; the others grouped by effect (the original's global
-// effect list in first-creation order, SPACE_AND_OPEN.md D.1; names outside it after, by name), pass,
+// effect list in first-creation order, legacy docs/re/SPACE_AND_OPEN.md D.1; names outside it after, by name), pass,
 // material, with meshes in submission (instance) order inside a group.
 // Submeshes without a usable effect (missing, untranslated without FF technique, vertex-layout
 // family mismatch) and passes whose pipeline is still being created draw with the renderer-owned
@@ -22,7 +22,7 @@
 //
 // Unlit path (C2b, DrawMode::Unlit / alamo_render --unlit): every submesh with the unlit shader.
 //
-// Transforms (RENDER.md, SPEC.md 2.6): static submesh World = instance x bone_world[attach_bone];
+// Transforms (legacy docs/re/RENDER.md, legacy docs/formats/SPEC.md 2.6): static submesh World = instance x bone_world[attach_bone];
 // skinned palette[i] = instance x bone_world[b] x inverse_bind_world[b], b = bone_palette[i].
 //
 // Threading: upload_model() may run on worker jobs; make_resident(), draw(), destroy_model() run on
@@ -71,10 +71,10 @@ BlendMode blend_mode_for_key(const materials::PsoKey& k);
 // role is Color (assets::texture_role_for_param). "" if none.
 std::string diffuse_texture_name(const assets::MaterialRef& m);
 
-// SHADOW_EXTRUSION_DISTANCE: a constant 200 world units in the original (SPACE_AND_OPEN.md B.5 [H]).
+// SHADOW_EXTRUSION_DISTANCE: a constant 200 world units in the original (legacy docs/re/SPACE_AND_OPEN.md B.5 [H]).
 inline constexpr float kShadowExtrusionDistance = 200.0f;
 
-// RENDER.md 1.3 bucket order.
+// legacy docs/re/RENDER.md 1.3 bucket order.
 enum class PhaseBucket : uint8_t {
     Terrain = 0, TerrainMesh, Fissure, Opaque, Occluded, OpaqueNonOccluding, Shadow, Water, Transparent, Lasers,
     Bloom, Heat, Count
@@ -100,7 +100,7 @@ struct GpuPass {
     bool ff = false;
     bool translated = false;            // ProgramStatus::Translated (track B, translated on demand)
     // The pass (or its phase baseline) sets D3DRS_FOGENABLE = FALSE: no scene fog on its draws. Passes that
-    // leave it alone inherit the scene's fog enable (RENDER.md 2.4); expression values count as not set.
+    // leave it alone inherit the scene's fog enable (legacy docs/re/RENDER.md 2.4); expression values count as not set.
     bool fog_off = false;
     struct XSlot {                      // translated: combined sampler s_n <- texture parameter + sampler state
         uint8_t slot = 0;
@@ -200,14 +200,14 @@ struct Instance {
     std::span<const Mat3x4> bone_world;          // per skeleton bone for the current pose; empty = bind
     materials::float4 light_scale{1, 1, 1, 1};   // LIGHT_SCALE (.w = fade alpha)
     // Per-instance Colorization (team colour): written as (player RGB, 1) into the instance's copy of every
-    // material with a Colorization parameter (SPACE_AND_OPEN.md B.3).
+    // material with a Colorization parameter (legacy docs/re/SPACE_AND_OPEN.md B.3).
     bool team_color_override = false;
     materials::float4 team_color{1, 1, 1, 1};
     float lod_bias = kDefaultLodBias;            // GameObjectType LOD_Bias (B.4)
     // Per ModelAsset::meshes entry, 1 = hidden (hidden_mesh_mask / set_hardpoint_destroyed). Empty: the
     // model's default GpuModel::mesh_hidden. Must outlive the frame's build.
     std::span<const uint8_t> mesh_hidden;
-    // R4 damage state: current model alternate (RENDER.md 5 / TERRAIN_WATER_POST 1.6). Meshes named "_ALTn" draw only
+    // R4 damage state: current model alternate (legacy docs/re/RENDER.md 5 / TERRAIN_WATER_POST 1.6). Meshes named "_ALTn" draw only
     // when n == alt; meshes without an _ALT suffix always draw. Every alternate is uploaded (GpuSubmesh::alt), so the
     // swap is per instance and per frame. Default 0 = the undamaged model.
     int alt = 0;
@@ -245,11 +245,11 @@ struct RecordOptions {
     // Heat) drawn as one instanced call (DrawData[draw_index + SV_InstanceID]); false = one call per item (tests:
     // the output is identical).
     bool instancing = true;
-    // Frame graph (render() only; RENDER.md 1.4/1.5, TERRAIN_WATER_POST.md 4).
+    // Frame graph (render() only; legacy docs/re/RENDER.md 1.4/1.5, legacy docs/re/TERRAIN_WATER_POST.md 4).
     bool post = true;             // heat + bloom after the Transparent bucket
     bool shadows = true;          // stencil shadow volumes + darken (never in space, needs a stencil format)
     bool soft_shadows = false;    // StencilDarkenToAlpha + back-buffer copy + StencilDarkenFinalBlur
-    bool galactic = false;        // galactic mode: no bloom / heat (TERRAIN_WATER_POST.md 4.5)
+    bool galactic = false;        // galactic mode: no bloom / heat (legacy docs/re/TERRAIN_WATER_POST.md 4.5)
     float heat_amount = -1.0f;    // SceneHeat DistortionAmount override (< 0: FXO default 0.25)
     float bloom_strength = -1.0f; // BloomStrength override (< 0: the environment's TEE 23)
     // Mirrored camera (water reflection, sky-cube faces): the view has determinant -1, so every
@@ -260,7 +260,7 @@ struct RecordOptions {
     // every other blended pass (additive glows, modulate) leaves alpha alone; opaque passes are unchanged. The
     // colour is then premultiplied relative to the clear (the caller turns additive light into alpha).
     bool coverage_alpha = false;
-    // Space frame (SPACE_AND_OPEN.md A.3-A.5): render()'s `sky` list is the background scene - drawn at the
+    // Space frame (legacy docs/re/SPACE_AND_OPEN.md A.3-A.5): render()'s `sky` list is the background scene - drawn at the
     // objects' own transforms (not camera-relative) with near 10 / far 100000, no distance fade, no fog, the
     // lighting's fill lights zeroed and its Shadow / Bloom / Heat items skipped (bucket mask 0xbbf, no heat there) - then a depth-only clear, then the main
     // scene with the full lighting (fills on) and stencil shadows (when `shadows`).
@@ -306,9 +306,9 @@ struct RecordOptions {
     // sample 0) before the post chain; the soft-shadow blur and SSAO resolve it first where they read it. Water reflection /
     // refraction and the sky cube stay single-sample. "msaa" GPU timer scope (the resolves).
     uint32_t msaa = 1;
-    // [port] The video options' Shader / Water detail on top of the frame graph (RENDER.md 1.5, 6; both default to the
+    // [port] The video options' Shader / Water detail on top of the frame graph (legacy docs/re/RENDER.md 1.5, 6; both default to the
     // maximum = nothing changes). Shader detail 0..3: 0 is the fixed-function path - no shadow volumes, no soft shadows (the
-    // StencilDarken variant, TERRAIN_WATER_POST.md 4.3) - and it caps Water detail: < 3 -> 1, < 1 -> 0. Water detail 0..2:
+    // StencilDarken variant, legacy docs/re/TERRAIN_WATER_POST.md 4.3) - and it caps Water detail: < 3 -> 1, < 1 -> 0. Water detail 0..2:
     // 2 = reflection + refraction targets recorded, 1 = reflection only (the DX8 technique), 0 = neither (the water
     // samples its default textures). The port keeps the effects' best technique at every level; only these passes change.
     int shader_detail = 3;
@@ -342,7 +342,7 @@ struct RendererDesc {
     EffectCache* effects = nullptr;             // null: unlit only
     jobs::JobSystem* js = nullptr;              // pipeline creation jobs (null: synchronous)
     std::filesystem::path pipeline_cache_dir;   // empty: no persistence
-    // Default hidden meshes of a model without type information (lod.hpp, SPACE_AND_OPEN.md B.9): the
+    // Default hidden meshes of a model without type information (lod.hpp, legacy docs/re/SPACE_AND_OPEN.md B.9): the
     // fallback name rule (*_BLAST*) + STEALTH/buildup/charged. Instances with the type's hardpoint XML
     // override it (Instance::mesh_hidden). false = draw them (alamo_render --show-damage).
     bool hide_damage_decals = true;
@@ -466,7 +466,7 @@ public:
     // samplers are picked per frame / generation, and the hot set's engine samplers (8x already) are rewritten by
     // the first draw()/render() of a later frame after an idle wait. Old samplers stay alive in the sampler cache.
     void set_anisotropy(uint32_t level);
-    // [port] Texture detail (the original's "texture reduction", RENDER.md 6): the number of top mip levels the scene's
+    // [port] Texture detail (the original's "texture reduction", legacy docs/re/RENDER.md 6): the number of top mip levels the scene's
     // samplers skip (0..3, 0 = off: the default, every sampler keeps its state). It travels with the anisotropy setting:
     // same latch and same sampler set (meshes, terrain, water, decorations with linear minification and mips; never the
     // HUD, post or prim samplers). A texture with fewer levels samples its last one.
@@ -505,7 +505,7 @@ public:
     // image, SceneTexture, DistortionTexture, 1/4 bloom pair) and is copied into target.color at the
     // end (target.depth is not used). `sky`: background objects (TEE 19/1A skydomes) drawn first with
     // a camera-relative transform (translation = eye) and the background camera (near 10, far 100000),
-    // then depth is cleared (RENDER.md 1.2).
+    // then depth is cleared (legacy docs/re/RENDER.md 1.2).
     bool render(rhi::Frame& frame, VkCommandBuffer primary, const PassTarget& target, const ViewMatrices& view,
                 std::span<const Instance> instances, DrawMode mode, const RecordOptions& opts, DrawStats* stats = nullptr,
                 DrawTiming* timing = nullptr, std::span<const Instance> sky = {});
@@ -514,7 +514,7 @@ public:
     // Detaching (or switching) also drops the world's CLOUD_TEXTURE / FOW_TEXTURE views, slots and matrices.
     void set_world(WorldRenderer* w);
     WorldRenderer* world() const;
-    // Object distance fade (TacticalCameras.xml Object_Fade_Begin / End, RENDER.md 3.4): DISTANCE_FADE_VALS
+    // Object distance fade (TacticalCameras.xml Object_Fade_Begin / End, legacy docs/re/RENDER.md 3.4): DISTANCE_FADE_VALS
     // in the FOG_VALS form, and instances entirely beyond `end` (view depth) are culled. end <= 0: off.
     void set_object_fade(float begin, float end);
     // R4: effects drawn by render() in buckets 7 / 8 / 11 (SceneHook). Not owned; null detaches.
@@ -543,13 +543,13 @@ public:
     std::string upscaler_status(Upscaler u = Upscaler::Fsr) const;
 
     // ---- Lasers and ability beams of the frame.
-    // Laser projectiles (lasers.hpp, PROJECTILE_NEBULA_DRAW.md 1): init_lasers loads W_Laser_Pill.tga /
+    // Laser projectiles (lasers.hpp, legacy docs/re/PROJECTILE_NEBULA_DRAW.md 1): init_lasers loads W_Laser_Pill.tga /
     // p_particle_master.tga through `textures` and Engine\PrimAdditive; set_lasers gives the frame's lasers (copied),
     // drawn by render() in the Transparent bucket after its mesh items (and the hook's transparent draws) with the frame's
     // camera. Main scene only; no effect without init_lasers.
     bool init_lasers(const TextureSource& textures);
     void set_lasers(std::span<const Laser> lasers, const LaserConstants& constants = {});
-    // Ability beams (beams.hpp, ABILITY_VISUALS.md 2 / 4): init_beams loads Engine\PrimAdditive and the textures on demand
+    // Ability beams (beams.hpp, legacy docs/re/ABILITY_VISUALS.md 2 / 4): init_beams loads Engine\PrimAdditive and the textures on demand
     // (w_galaxy_dot.tga, lightning_default.tga, each beam's ribbon texture) through `textures`; `lightning` (optional,
     // copied) = the LightningEffectTypes.xml effects (default: the shipped Tractor_Beam / Piet_Energy_Weapon). set_beams
     // gives the frame's beams (world endpoints) and the sim tick the frame shows: the per-beam animation (scroll, dots,
@@ -577,7 +577,7 @@ public:
         double translate_ms = 0;  // summed job time
     };
     TranslationStats translation_stats() const;
-    // Shader issues met so far (docs/MODS.md shader section): desc.effects->issues() plus one TranslateFailed
+    // Shader issues met so far (docs/MODS.md "Effects and shaders in mods"): desc.effects->issues() plus one TranslateFailed
     // per failed translation job (effect, path, translator / DXC message; the submesh draws unlit). Sorted by
     // (effect, kind); a load report or debug overlay lists them. Thread-safe.
     std::vector<materials::ShaderIssue> shader_issues() const;
@@ -628,9 +628,12 @@ private:
     std::deque<std::unique_ptr<Entry>> entries_;
 };
 
+// Points VK_LAYER_PATH at the project's validation layers (toolchain/vvl) when it is unset. Returns true ("strict":
+// validation must be on, so a missing device is a failure) when the layers are found, false otherwise and whenever
+// VK_LOADER_DRIVERS_DISABLE is set (the synthetic test suite hides every driver; there is no device to require).
 bool setup_validation_env(const std::string& source_dir);
 
-// ALO bone billboard (docs/formats/SPEC.md 2.2): the world matrix `world` (instance x bone) of a static submesh on a bone
+// ALO bone billboard (legacy docs/formats/SPEC.md 2.2): the world matrix `world` (instance x bone) of a static submesh on a bone
 // with billboard `mode` re-oriented for the camera (eye, right / up / forward axes) and `sun` (towards the light). 1
 // parallel, 2 face, 3 z_axis_view, 5 z_axis_light; 6 sun_glow = parent origin + sun x bone_distance (model units, x the
 // parent's scale), 7 sun = eye + sun x bone_distance; 0 / 4 (wind) unchanged. Facing modes turn local -Y towards the

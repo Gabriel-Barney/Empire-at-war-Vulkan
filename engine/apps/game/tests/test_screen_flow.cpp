@@ -1,4 +1,4 @@
-// ref6 t05: the screen rule table without a window or a GPU (app/screen_flow.hpp).
+// the screen rule table without a window or a GPU (app/screen_flow.hpp).
 #include <cstdio>
 #include <cstring>
 

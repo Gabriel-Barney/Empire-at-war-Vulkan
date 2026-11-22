@@ -1,4 +1,4 @@
-// Fog of war: one player's FOW grid (docs/re/FOG_OF_WAR.md §1, §2, §4; original FOWGrid, 0x58 bytes).
+// Fog of war: one player's FOW grid (legacy docs/re/FOG_OF_WAR.md §1, §2, §4; original FOWGrid, 0x58 bytes).
 //
 // Per cell: a STATE byte (0 = fogged for game logic; 1..15 fading; 16..238 seen recently, regrowing;
 // 239..255 currently revealed), a u16 REVEAL COUNT (saturating at 0xFFFF, clamped at 0 on undo) and a
@@ -94,7 +94,7 @@ public:
     void reveal(float x, float y, float radius, CellList* out, const RevealFlags& f, uint32_t frame);
     // 0x4c0ec0: ordinary cells within rNormal, dense cells within rDense (one list, passes never overlap).
     void reveal_dense(float x, float y, float r_normal, float r_dense, CellList& out, uint32_t frame);
-    // SP5: the cells reveal_dense would count, in the same order, without counting (const: safe in a parallel loop).
+    // the cells reveal_dense would count, in the same order, without counting (const: safe in a parallel loop).
     // reveal_dense == dense_cells then count_cells of the list.
     void dense_cells(float x, float y, float r_normal, float r_dense, CellList& out) const;
     void collect_circle(float x, float y, float radius, CellList& out, bool unmasked_ok = true, bool masked_ok = true);

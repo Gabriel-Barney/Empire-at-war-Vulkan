@@ -1,4 +1,4 @@
-// ums2 t01: vfs::ModEnvironment on a synthetic install - the mount plan from the command line, one descriptor per
+// vfs::ModEnvironment on a synthetic install - the mount plan from the command line, one descriptor per
 // mounted mod, layer owners, owner_of, the VFS findings in the caller's IssueSink and the base-EaW refusal (D1).
 #include <algorithm>
 #include <cstdint>

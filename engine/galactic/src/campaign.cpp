@@ -243,7 +243,7 @@ bool GalacticSim::start(const GalacticSetup& setup, std::vector<std::string>* di
     claims_.clear();
     victory_hold_ = 0;  // story t11
     victory_deferred_.clear();  // q6 t21
-    victory_records_.clear();   // q6 t22: built from setup.victory once the players exist (below)
+    victory_records_.clear();   // built from setup.victory once the players exist (below)
     victory_side_.clear();
     frame_ = pause_ = last_cycle_frame_ = next_cycle_frame_ = cycle_counter_ = 0;
     linked_battle_pending_ = false;
@@ -263,7 +263,7 @@ bool GalacticSim::start(const GalacticSetup& setup, std::vector<std::string>* di
         p.account.credits = ps.credits;
         p.tech_level = ps.tech_level;
         p.max_tech_level = ps.max_tech_level;
-        p.home = ps.home;  // galab t06: player +0x188 (0x4af240 at campaign setup)
+        p.home = ps.home;  // player +0x188 (0x4af240 at campaign setup)
         players_.push_back(p);
     }
     last_income_.assign(players_.size(), 0.0f);
@@ -299,7 +299,7 @@ bool GalacticSim::start(const GalacticSetup& setup, std::vector<std::string>* di
         p.black_market_influences = ti.black_market_influences;
         SpawnParams sp;
         sp.type = t;
-        sp.owner = kNoPlayer;  // planets report their owner from the data pack (OBJECT_RUNTIME.md)
+        sp.owner = kNoPlayer;  // planets report their owner from the data pack (legacy docs/re/OBJECT_RUNTIME.md)
         sp.position = p.position;
         p.object = store_->create(sp);
         store_->add_behavior(p.object, beh::Planet);
@@ -377,7 +377,7 @@ bool GalacticSim::start(const GalacticSetup& setup, std::vector<std::string>* di
     last_cycle_frame_ = 0;
     next_cycle_frame_ = econ::fiscal_period_frames(rules_->constants.fiscal_cycle_seconds);
     cycle_counter_ = 1;
-    // q6 t22: the victory records (setup 0x289a90, per player) once the galaxy is built: the first ownership pass above
+    // the victory records (setup 0x289a90, per player) once the galaxy is built: the first ownership pass above
     // tests nothing anyway (a planet's first owner assignment never does, Q6_T15 "ELIM C").
     set_victory_rules(setup.victory);
     return true;
@@ -635,7 +635,7 @@ int32_t GalacticSim::physical_owner(PlanetIndex planet) const {
 // (5 when absent or below lo). FoC data sets every Political_Control and route gain to 0 and lists no maximum, so an owned
 // planet gets max(1, ground-base level, starbase level, troops). The leaning sign and the orbit sum s use the physical
 // owner (0x3f3830), so neutral troops count as an owner and no physical owner gives +v. [port] The residual-influence
-// owner rule is not modelled (derive_owner keeps the leaning owner on an emptied planet, backlog b0158): such a planet
+// owner rule is not modelled (derive_owner keeps the leaning owner on an emptied planet): such a planet
 // counts as owned (lo = 1, orbital-claim entry 1), as retail's residual-influence entry gives it.
 int32_t GalacticSim::target_political_control(PlanetIndex planet, int32_t derived) const {
     const PlanetState& p = planets_[planet];
@@ -721,7 +721,7 @@ void GalacticSim::apply_ownership(PlanetIndex planet, int32_t derived) {
         p.owner = derived;
         p.control = p.target_control;
         // The Benefits_From_Corruption type-3 start is first_political_corruption, run by start() after the
-        // Corruption_Level_Override loop (mcx4 t21, MCX4_GAL2_RE_ANSWERS Q2).
+        // Corruption_Level_Override loop (MCX4_GAL2_RE_ANSWERS Q2).
         return;
     }
     // galab t07 (GA §6.1): an adverse update (a new owner, or a target below the current control; tested before the
@@ -738,7 +738,7 @@ void GalacticSim::apply_ownership(PlanetIndex planet, int32_t derived) {
     // Ramp (0x4adab0), one elapsed frame per service.
     const TypeInfo& ti = rules_->types[p.type];
     const ForceSide side = valid_player(p.owner) ? faction_of(p.owner).force_alignment : ForceSide::Neutral;
-    // galab t07: Tarkin's Political_Transition_Bonus entries multiply in (0x4adab0 product over categories) [M: the
+    // Tarkin's Political_Transition_Bonus entries multiply in (0x4adab0 product over categories) [M: the
     // alignment factor is taken as its own category].
     const float m = econ::influence_alignment_factor(side, ti.the_force, ti.force_strength, c.influence_alignment_bonus,
                                                      c.influence_alignment_penalty) *
@@ -808,7 +808,7 @@ void GalacticSim::on_owner_change(PlanetIndex planet, int32_t old_owner) {
     // GE 2.8: the space queue is re-evaluated at level 0 [M]. The ground queue's entries of other players are dropped
     // without refund ([L]: 0x2bff60 not traced).
     reevaluate_queue(planet, kSpaceQueue, 0);
-    // a2j t06 (A2J_T03_INCOME.md §2) [M]: the starbase owner D +0x13c is reset only together with the starbase handle
+    // a2j t06 (legacy docs/re/A2J_T03_INCOME.md §2) [M]: the starbase owner D +0x13c is reset only together with the starbase handle
     // (0x4bda40, BATTLE_TRANSITIONS §3.3a; Change_Owner 0x3f7280 and the revolt 0x3f98a0 call it, GE 2.8 / 4.2). The
     // derived-owner change 0x3fb040 (GE 4.2 "On an owner change") does not touch it, so a starbase that outlives the
     // owner change keeps its owner. Without a starbase object the field is already -1 (every destroy path clears it).
@@ -1230,7 +1230,7 @@ uint32_t GalacticSim::create_fleet(int32_t player, PlanetIndex planet) {
     return idx;
 }
 
-// mcx4 t20 (docs/re/MCX4_T09_RE_ANSWERS.md Q5): the fleet add-member functions 0x430d90 / 0x430f30 set fleet data +0x95
+// mcx4 t20 (legacy docs/re/MCX4_T09_RE_ANSWERS.md Q5): the fleet add-member functions 0x430d90 / 0x430f30 set fleet data +0x95
 // when the joining unit's type has Prevents_Story_Campaign_Autoresolve; nothing clears it, so the fleet keeps the lock
 // after the unit leaves.
 void GalacticSim::fleet_member_joined(uint32_t fleet, ObjectHandle unit) {
@@ -1753,10 +1753,10 @@ void GalacticSim::arrive(uint32_t fleet) {
 // ---- frame --------------------------------------------------------------------------------------------------
 
 void GalacticSim::update() {
-    sync_starbases();  // refix t05: no planet keeps a starbase level without its starbase object
+    sync_starbases();  // no planet keeps a starbase level without its starbase object
     reveal_prestep();  // GRC 1.3: first in the galactic frame, also while paused (step 2 tests the pause)
     if (paused()) {  // 0x4b2360: the pause counter or the story block; mode frame frozen, behaviours not serviced [H]
-        // A1_READINGS §31.7 (a1j t05): 0x2be640 gates the hero spawn lists (0x3fc750) on the counter alone, so they run
+        // A1_READINGS §31.7: 0x2be640 gates the hero spawn lists (0x3fc750) on the counter alone, so they run
         // under the story block only.
         if (pause_ == 0) service_respawns();
         // S10: the conflict tail still runs; the story block's skip of the state machines is the hook's (0x2be640 step 2).
@@ -1831,7 +1831,7 @@ void GalacticSim::update() {
 // ---- commands -----------------------------------------------------------------------------------------------
 
 RejectReason GalacticSim::handle_command(uint64_t /*tick*/, const commands::Command& cmd) {
-    if (cmd.header.player > 0xFFu) return RejectReason::InvalidPlayer;  // mcx5 t01: galactic player ids are uint8_t (sim guard)
+    if (cmd.header.player > 0xFFu) return RejectReason::InvalidPlayer;  // galactic player ids are uint8_t (sim guard)
     return execute(static_cast<uint8_t>(cmd.header.player), cmd.payload);
 }
 
@@ -2288,7 +2288,7 @@ void GalacticSim::hash_state(StateHasher& h) const {
     h.i32(last_cycle_frame_);
     h.i32(next_cycle_frame_);
     h.i32(cycle_counter_);
-    // REF4 t02: the records' CRC fields from the save's field lists (galactic_records.hpp), in the CRC's historical order.
+    // the records' CRC fields from the save's field lists (galactic_records.hpp), in the CRC's historical order.
     records::Hasher rec(h, *store_, &fleets_);
     h.u32(static_cast<uint32_t>(players_.size()));
     for (const PlayerState& p : players_) records::visit(rec, p);
@@ -2299,7 +2299,7 @@ void GalacticSim::hash_state(StateHasher& h) const {
     h.u32(live);
     for (const FleetState& f : fleets_)
         if (f.alive) records::visit(rec, f);
-    if (!company_survivors_.empty()) {  // mcx4 t22: hashed only once a company lost members
+    if (!company_survivors_.empty()) {  // hashed only once a company lost members
         h.u32(0x43535631u);  // "CSV1"
         h.u32(static_cast<uint32_t>(company_survivors_.size()));
         for (const auto& [id, members] : company_survivors_) {
@@ -2315,7 +2315,7 @@ void GalacticSim::hash_state(StateHasher& h) const {
     if (!reveal_state_default()) hash_reveal(h);  // GRC: local player, auto-reveal, revealed bytes, transitions
     if (!visibility_state_default()) hash_visibility(h);  // GRC 2: stored visibility modifier entries
     if (!galab_state_default()) hash_galab(h);  // galab: planet bonus holders, siphon sources, neutralized counts
-    // map1 t06: structure marker memory of live objects only (the save keeps only those, so a loaded session hashes alike)
+    // structure marker memory of live objects only (the save keeps only those, so a loaded session hashes alike)
     uint32_t live_slots = 0;
     for (const StructureSlot& e : structure_slots_) live_slots += store_->alive(store_->find(e.object)) ? 1u : 0u;
     if (live_slots != 0) {

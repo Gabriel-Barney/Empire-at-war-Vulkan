@@ -1,4 +1,4 @@
-// REF2 t01: the battle save ledger. Every data member of TacticalBattle is listed here once, as
+// the battle save ledger. Every data member of TacticalBattle is listed here once, as
 //   SAVED(member, how)      written to a save: `state` by state_io, `part` by write_part (a module system), `chunk` by a
 //                           save chunk of its own (fleet groups: write_fleet_groups);
 //   REBUILT(member, "why")  set again from the same inputs when a load rebuilds the battle (the host, setup(), the map
@@ -6,7 +6,7 @@
 //   DERIVED(member, "why")  recomputed from saved state, a per-type cache, scratch, or the records of one tick.
 // A member that is none of these is the bug the seven earlier "forgotten state" fixes repaired (111b08b0, e203c759,
 // 32dccdff, 3cc0db7b, dcab66a0, 81a0907b, 5b1b6c24). Checks:
-//   - tools/lint/check_battle_ledger.py (build_agent.cmd, ctest alamo_sim_battle_ledger_lint): every member is listed
+//   - tools/lint/check_battle_ledger.py (ctest alamo_sim_battle_ledger_lint): every member is listed
 //     once, every state_io field is SAVED(.., state), every SAVED(.., state) is in state_io and every SAVED(.., part)
 //     in write_part;
 //   - TacticalBattle::check_save_ledger (tactical_battle_save.cpp): state_io, run on a probe archive, walks exactly the
@@ -21,7 +21,6 @@
 // Included only by tactical_battle_save.cpp.
 #pragma once
 
-// clang-format off
 #define ALAMO_TACTICAL_BATTLE_LEDGER(SAVED, REBUILT, DERIVED) \
     DERIVED(land_obstacle_none_, "per-type cache (filled from type data on first use)") \
     DERIVED(drop_pos_, "scratch inside one call or tick") \
@@ -278,4 +277,3 @@
 #else
 #define ALAMO_TACTICAL_BATTLE_LEDGER_AI(SAVED, REBUILT, DERIVED)
 #endif
-// clang-format on

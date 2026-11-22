@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""build_reports.py - turn docs/assets/catalog.json into CATALOG.md and produce the
+"""build_reports.py - turn docs/assets/catalog.json into a catalog page (formerly legacy docs/assets/CATALOG.md) and produce the
 merged (load-order applied) extraction of text/config/shader content.
 
   build_reports.py catalog-md <catalog.json> <CATALOG.md>

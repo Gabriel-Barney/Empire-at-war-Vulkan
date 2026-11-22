@@ -9,7 +9,7 @@
 #include <map>
 #include <span>
 
-#include "alamo/commands/pipeline.hpp"  // a1h t04: INVADE_PLANET
+#include "alamo/commands/pipeline.hpp"  // INVADE_PLANET
 #include "alamo/core/ascii.hpp"
 #include "alamo/core/log.hpp"
 #include "alamo/core/sim_crc.hpp"
@@ -23,7 +23,7 @@
 #include "alamo/lua/object_bridge.hpp"
 #include "alamo/lua/presentation.hpp"
 #include "alamo/lua/script_remaining.hpp"  // Int-final: attach_global_values
-#include "alamo/lua/script_save.hpp"       // q6 t19: story.lua v4 script blocks
+#include "alamo/lua/script_save.hpp"       // story.lua v4 script blocks
 #include "alamo/lua/story_model.hpp"
 #include "alamo/objects/game_object_types.hpp"
 #include "alamo/sim/save_session.hpp"  // N1: write_system
@@ -85,7 +85,7 @@ bool same_type(const objects::GameObjectTypes& types, const galactic::GalacticRu
     return ty < rules.types.size() && ty < types.raw().type_count() && ascii_iequals(types.name(ty), rules.types[ty].name);
 }
 
-// Wave 2b: player -> faction index (StoryModel::faction_of; FILTER_* compare factions, SCRIPT_GAPS.md §4.5).
+// Wave 2b: player -> faction index (StoryModel::faction_of; FILTER_* compare factions, legacy docs/re/SCRIPT_GAPS.md §4.5).
 std::function<int32_t(int32_t)> faction_resolver(const galactic::GalacticSim& sim) {
     const galactic::GalacticSim* s = &sim;
     return [s](int32_t p) -> int32_t {
@@ -136,7 +136,7 @@ struct StorySession::Families {
 #endif
     lua::ObjectBridge bridge;
     lua::PresentationLog presentation;
-    // q6 t03: the galactic mode's plot table over the galactic sets' models in load order (STORY.md §2.4: Get_Story_Plot,
+    // the galactic mode's plot table over the galactic sets' models in load order (legacy docs/re/STORY.md §2.4: Get_Story_Plot,
     // STORY_ELEMENT, TRIGGER_EVENT and Lua Story_Event reach every player's plots). Outlives the sets' VMs.
     lua::StoryTable table;
 };
@@ -152,7 +152,7 @@ struct StorySession::Set {
     float last_credits = 0.0f;
 };
 
-// Wave 2a: the last battle begun (begin_battle), for the INVASION_BOUNCED routing. (mcx6 t03: WIN/LOSE_BATTLES read the
+// Wave 2a: the last battle begun (begin_battle), for the INVASION_BOUNCED routing. (WIN/LOSE_BATTLES read the
 // orbit record instead; the snapshot's CategoryMask list and base flag went, a version 6 save still carries them.)
 struct StorySession::Battle {
     PlanetIndex planet = kInvalidPlanet;
@@ -219,7 +219,7 @@ std::string StoryLogEntry::text() const {
 }
 
 std::vector<StoryPlotSet> campaign_plot_sets(const data::CampaignDef& campaign, const galactic::GalacticSim& sim) {
-    // q6 t03 (STORY.md §2.1 [H], TheStoryMode::Load_Plots): every plot set goes into the mode's one plot table in this
+    // q6 t03 (legacy docs/re/STORY.md §2.1 [H], TheStoryMode::Load_Plots): every plot set goes into the mode's one plot table in this
     // order: Rebel_Story_Name, Empire_Story_Name, Underworld_Story_Name (the campaign's three fields), each only when that
     // faction's player exists, then every <Story_Name> "Faction, plot file" pair in list order (campaign field type 0x1b,
     // as Thrawn's Revenge writes it; a faction may get several sets). [port] a pair whose faction has no player is
@@ -234,7 +234,7 @@ std::vector<StoryPlotSet> campaign_plot_sets(const data::CampaignDef& campaign, 
     };
     std::vector<StoryPlotSet> out;
     // [name-ok: retail campaign fields Rebel_ / Empire_ / Underworld_Story_Name (+0x48 / +0x68 / ...) read by
-    // TheStoryMode::Load_Plots for those factions' players, docs/re/STORY.md §2 "One plot table"]
+    // TheStoryMode::Load_Plots for those factions' players, legacy docs/re/STORY.md §2 "One plot table"]
     for (const char* faction : {"Rebel", "Empire", "Underworld"}) {
         const int32_t player = player_of(faction);
         if (player < 0) continue;
@@ -272,7 +272,7 @@ StorySession::StorySession(galactic::GalacticSim& sim, objects::ObjectStore& sto
         return world->valid(a) && world->valid(b) && world->relation(a, b) == lua::PlayerRelation::Enemy;
     };
 #endif
-    // A2k t12 (A2K_T07_STORY_LOAD_RE.md §4): every spawn_unit creation (story spawn rewards, Lua Spawn_Unit, AI
+    // A2k t12 (legacy docs/re/A2K_T07_STORY_LOAD_RE.md §4): every spawn_unit creation (story spawn rewards, Lua Spawn_Unit, AI
     // HIJACK_UNIT) raises CONSTRUCT inside the creating call. The sim may outlive this session: a stale hook does nothing.
     self_ = std::make_shared<StorySession*>(this);
     sim.set_spawn_hook([w = std::weak_ptr<StorySession*>(self_)](int32_t, PlanetIndex planet, uint32_t type) {
@@ -284,12 +284,12 @@ StorySession::StorySession(galactic::GalacticSim& sim, objects::ObjectStore& sto
     lua_->bridge.container_of = [gs](objects::ObjectHandle h) { return gs->container_of(h); };
     lua_->bridge.contents_of = [gs](objects::ObjectHandle h) { return gs->contents_of(h); };
     lua_->bridge.destroy_object = [gs](objects::ObjectHandle h) { return gs->destroy_object(h); };
-    // refixf t03: the Lua finders' representative type (in the port model the store type of every galactic object).
+    // the Lua finders' representative type (in the port model the store type of every galactic object).
     lua_->bridge.representative_type = [gs](objects::ObjectHandle h) {
         const uint32_t t = gs->representative_type(h);
         return t == galactic::kNoIndex ? objects::kNone : static_cast<objects::TypeIndex>(t);
     };
-    // a1f t08: BlockOnCommand(fleet.Move_To(planet)) waits until the fleet has stopped (arrived, stopped short or gone:
+    // BlockOnCommand(fleet.Move_To(planet)) waits until the fleet has stopped (arrived, stopped short or gone:
     // merged into a fleet in orbit, destroyed). [inferred] from the shipped story scripts, which test
     // fleet.Get_Planet_Location() == target right after the block (Story_Campaign_Underworld.lua Empire_Attack /
     // rebel retaliation, then Invade()), and from the task-force Move_To's MovementBlockStatus, which ends at arrival
@@ -333,7 +333,7 @@ void StorySession::notify_ui(const StoryUiNotification& n) {
         if (n.kind == StoryUiEvent::SelectUnit) k = TacticalStoryEvent::SelectUnit;
         else if (n.kind == StoryUiEvent::ClickGui) k = TacticalStoryEvent::ClickGui;
         else if (n.kind == StoryUiEvent::SpeechDone) k = TacticalStoryEvent::SpeechDone;
-        else if (n.kind == StoryUiEvent::Generic) k = TacticalStoryEvent::Generic;  // STY1 t03: the battle plot set hears it too
+        else if (n.kind == StoryUiEvent::Generic) k = TacticalStoryEvent::Generic;  // the battle plot set hears it too
         const bool attached = tactical_ && tactical_->set && (n.player < 0 || n.player == tactical_->set->player);
         if (attached && k != TacticalStoryEvent::Count) {
             TacticalStoryNotification tn;
@@ -411,7 +411,7 @@ void StorySession::poll_planets(std::vector<StoryTrigger>& batch) {
 }
 
 StorySession::~StorySession() {
-    *self_ = nullptr;  // a2k t12: the sim's spawn hook stops here
+    *self_ = nullptr;  // the sim's spawn hook stops here
     tactical_.reset();  // VMs before the families (and the bridge) they point to
     sets_.clear();
 }
@@ -469,7 +469,7 @@ bool StorySession::start(const StoryStart& st, std::vector<std::string>* diagnos
         note("story: no file provider");
         return false;
     }
-    // a2j t05: the starting forces as the galaxy was built (before any plot script runs Base_Definitions).
+    // the starting forces as the galaxy was built (before any plot script runs Base_Definitions).
     const std::vector<LoadConstruct> forces = starting_forces();
     for (const StoryPlotSet& ps : st.plot_sets) {
         auto set = std::make_unique<Set>();
@@ -483,13 +483,13 @@ bool StorySession::start(const StoryStart& st, std::vector<std::string>* diagnos
         }
         for (const std::string& w : set->model.warnings()) note("story " + ps.plots_file + ": " + w);
         if (!sets_.empty()) {
-            set->model.share_flags(sets_.front()->model);     // one global flag table (STORY.md §0)
+            set->model.share_flags(sets_.front()->model);     // one global flag table (legacy docs/re/STORY.md §0)
             set->model.share_holocron(sets_.front()->model);  // one holocron list (GALACTIC_DIALOGS §2.8)
         }
         set->model.set_player(ps.player);
         set->model.faction_of = faction_resolver(*sim_);        // wave 2b: FILTER_* compare factions
         Set* raw = set.get();
-        // Rewards the model leaves to the game, applied synchronously at Fire step 5 (STORY.md §6.1).
+        // Rewards the model leaves to the game, applied synchronously at Fire step 5 (legacy docs/re/STORY.md §6.1).
         set->model.on_reward = [this, raw](uint32_t, uint32_t, const std::string& type,
                                            const std::vector<lua::StoryParam>& params) {
             std::vector<std::string> rp;
@@ -498,7 +498,7 @@ bool StorySession::start(const StoryStart& st, std::vector<std::string>* diagnos
         };
         sets_.push_back(std::move(set));
     }
-    // q6 t03 (STORY.md §2.4): one plot table for the galactic mode, every player's plot set in load order. A plot listed
+    // q6 t03 (legacy docs/re/STORY.md §2.4): one plot table for the galactic mode, every player's plot set in load order. A plot listed
     // again by a later set replaces the earlier one (StoryPlot::in_table), whose script is then not started [port].
     std::vector<lua::StoryModel*> models;
     for (const auto& s : sets_) models.push_back(&s->model);
@@ -542,14 +542,14 @@ bool StorySession::start(const StoryStart& st, std::vector<std::string>* diagnos
     return true;
 }
 
-// A2i t01 (A2I_T01_FRAME_ORDER.md §1, §6): retail's campaign load sets every player's starting tech level after the plots
+// A2i t01 (legacy docs/re/A2I_T01_FRAME_ORDER.md §1, §6): retail's campaign load sets every player's starting tech level after the plots
 // are loaded (L10, PlayerList order), and Player::Set_Tech_Level raises STORY_TECH_LEVEL synchronously, so the tech-level
 // events (HotM: Empire_Enters_Tech_01..03 -> Spawn_Piett, the Rebel hero spawns) and their STORY_TRIGGER dependants fire
 // during the load, before tick 1. Mode frame 0 / time 0, not paused; rewards through on_reward -> apply_reward (the T9
 // code). The tech level is read per player at its turn (an earlier player's SET_TECH_LEVEL reward is seen).
-// a2j t05 (A2J_T05_STORY_LOAD.md; A2I_T01 §2 L8, §3.3, §6 "Related differences"): first the starting forces' CONSTRUCT /
+// a2j t05 (legacy docs/re/A2J_T05_STORY_LOAD.md; A2I_T01 §2 L8, §3.3, §6 "Related differences"): first the starting forces' CONSTRUCT /
 // CONSTRUCT_LEVEL (retail raises them inside the creation path 0x400b40 during L8, with the plots already loaded, so before
-// L10's tech pass). A2k t12 (A2K_T07_STORY_LOAD_RE.md §1, §5): at L8 no planet has its owner yet (0x3fa160 sets it after
+// L10's tech pass). A2k t12 (legacy docs/re/A2K_T07_STORY_LOAD_RE.md §1, §5): at L8 no planet has its owner yet (0x3fa160 sets it after
 // all starting forces), so the CONSTRUCT filter judges every starting force as built on a neutral planet. A SPAWN_HERO /
 // UNIQUE_UNIT reward's objects raise CONSTRUCT inside the reward call (spawn hook), filtered on the planet's owner.
 // After each step the galactic events the load rewards raised are routed at once (route_load_events), not at T9 of tick 1.
@@ -573,7 +573,7 @@ void StorySession::load_pass(const std::vector<LoadConstruct>& forces) {
 }
 
 // The galactic objects the galaxy build created (starting forces): every live unit / structure / starbase that sits at a
-// planet (starbase, ground structures, surface, orbit fleets). A2k t12 (A2K_T07_STORY_LOAD_RE.md §1): retail's L8 walks the
+// planet (starbase, ground structures, surface, orbit fleets). A2k t12 (legacy docs/re/A2K_T07_STORY_LOAD_RE.md §1): retail's L8 walks the
 // planets in <Locations> order (= PlanetIndex order) and, per planet, the <Starting_Forces> entries in file order; the port
 // creates GalacticSetup::forces in entry order (ObjectStore::all_objects keeps it), so a stable sort by planet gives the
 // same order. A starbase replaced by a later starting-force starbase on the same planet is gone and raises nothing here.
@@ -610,7 +610,7 @@ int32_t StorySession::planet_owner(PlanetIndex planet) const {
     return planet < sim_->planets().size() ? sim_->planets()[planet].owner : galactic::kNoPlayer;
 }
 
-// A2k t12 (A2K_T07_STORY_LOAD_RE.md §3, §5; 0x326cd0): CONSTRUCT with no player scope, judged by the planet's owner
+// A2k t12 (legacy docs/re/A2K_T07_STORY_LOAD_RE.md §3, §5; 0x326cd0): CONSTRUCT with no player scope, judged by the planet's owner
 // `owner` (never the creating player); then CONSTRUCT_LEVEL only for a starbase type (DUMMY_STAR_BASE; the port creates
 // no ground-base type, and 0x5B raises nothing), carrying the type's Base_Level, not the planet's level. A ground
 // structure raises CONSTRUCT only.
@@ -710,7 +710,7 @@ std::string StorySession::planet_type_name(uint32_t planet) const {
     return planet < names.size() ? names[planet] : std::string();
 }
 
-// Galactic event -> the story notifications the original raises for it (STORY.md §5 dispatch rows;
+// Galactic event -> the story notifications the original raises for it (legacy docs/re/STORY.md §5 dispatch rows;
 // [port] where the doc gives no dispatcher). Planets are named by their TYPE name (CONQUER dispatch:
 // "name = conquered planet's type name"); FoC map planet names are the planet type names.
 std::vector<std::pair<std::string, lua::StoryNotification>> StorySession::notifications(const StoryTrigger& t) const {
@@ -724,7 +724,7 @@ std::vector<std::pair<std::string, lua::StoryNotification>> StorySession::notifi
     n.planet = planet_type_name(e.planet);
     if (t.kind == "PlanetDestroyed") {  // wave 1 poll: Enter family, planet = its type name
         n.has_object = true;
-        n.no_fleet = true;  // mcx6 t03: no fleet comes with it [M]
+        n.no_fleet = true;  // no fleet comes with it [M]
         orbit_names(e.planet, n.orbit_units);
         out.emplace_back("STORY_PLANET_DESTROYED", n);
         return out;
@@ -770,7 +770,7 @@ std::vector<std::pair<std::string, lua::StoryNotification>> StorySession::notifi
             out.emplace_back("STORY_CONQUER_COUNT", n);
             break;
         case K::ProductionCompleted:
-            // A2k t12: filtered on the planet's owner now (the stream is routed at the start of T9, after the creation;
+            // filtered on the planet's owner now (the stream is routed at the start of T9, after the creation;
             // retail raises it inside the creation) [port].
             construct_notifications(planet_owner(e.planet), e.planet, e.type, out);
             break;
@@ -778,7 +778,7 @@ std::vector<std::pair<std::string, lua::StoryNotification>> StorySession::notifi
         case K::FleetBounced: {
             if (e.kind == K::FleetArrived && e.value == galactic::kArrivePassThrough) break;  // [port] stopping arrivals only
             n.has_object = true;
-            // mcx6 t03: the Enter-family fleet fields; the fleets are translate()'s (the same T9: the stream is routed as
+            // the Enter-family fleet fields; the fleets are translate()'s (the same T9: the stream is routed as
             // it is drained).
             std::vector<uint32_t> fleets;
             if (e.fleet < sim_->fleets().size() && sim_->fleets()[e.fleet].alive) fleets.push_back(e.fleet);
@@ -803,7 +803,7 @@ std::vector<std::pair<std::string, lua::StoryNotification>> StorySession::notifi
                     if (sim_->store().alive(u) && sim_->store().owner(u) == e.player) mine.push_back(u);
                 const size_t k = std::min(mine.size(), static_cast<size_t>(e.value));
                 for (size_t i = mine.size() - k; i < mine.size(); ++i) add_unit_names(mine[i], n.units);
-                n.fleet_direct = static_cast<int32_t>(k);  // mcx6 t03: the landed units stand for the fleet [port]
+                n.fleet_direct = static_cast<int32_t>(k);  // the landed units stand for the fleet [port]
             }
             orbit_names(e.planet, n.orbit_units);
             out.emplace_back("STORY_LAND_ON", n);
@@ -813,7 +813,7 @@ std::vector<std::pair<std::string, lua::StoryNotification>> StorySession::notifi
         case K::ObjectDestroyed: {
             n.name = t.type;
             n.has_object = true;
-            // Wave 2b (SCRIPT_GAPS.md §4.5): DESTROY only for objects inside a container chain reaching a planet;
+            // Wave 2b (legacy docs/re/SCRIPT_GAPS.md §4.5): DESTROY only for objects inside a container chain reaching a planet;
             // data2 = that planet (Param2 planet list, the filter tests the planet's owner).
             if (e.planet < sim_->planets().size()) {
                 lua::StoryNotification d = n;
@@ -843,7 +843,7 @@ std::vector<std::pair<std::string, lua::StoryNotification>> StorySession::notifi
             n.value = e.value;  // wave 2b: the corruption type (§4.7 vf3 compares it with the Param2 keyword)
             out.emplace_back("STORY_CORRUPTION_CHANGED", n);
             break;
-        // STY1 t08: the timed corruption transition began -> STORY_GENERIC "increase_corruption" / "decrease_corruption"
+        // the timed corruption transition began -> STORY_GENERIC "increase_corruption" / "decrease_corruption"
         // (retail wrappers 0x3f6810 / 0x3f6770, GRC 4.3); routed like StoryUiEvent::Generic (String family, every plot set).
         case K::CorruptionStarted:
             n.name = e.value != 0 ? "increase_corruption" : "decrease_corruption";
@@ -852,7 +852,7 @@ std::vector<std::pair<std::string, lua::StoryNotification>> StorySession::notifi
         // S10 battle results (BattleWon / BattleLost / BattleRetreat, posted by the conflict manager); routed
         // player-scoped (route()): the winner's / loser's / retreating player's plot sets only [inferred].
         // RETREAT: Retreat class, generic rule with Param1 = the planet's type name [inferred].
-        // WIN/LOSE_BATTLES (STORY.md §5, mcx6 t03): the location = the event's value (1 land / 2 space) and the orbit
+        // WIN/LOSE_BATTLES (legacy docs/re/STORY.md §5): the location = the event's value (1 land / 2 space) and the orbit
         // record's two Ship_Class lists with the local player (record_battle_composition; the dispatch itself passes
         // no composition), for fought and auto-resolved battles alike.
         case K::BattleWon:
@@ -892,7 +892,7 @@ std::vector<std::pair<std::string, lua::StoryNotification>> StorySession::notifi
             n.params.push_back(lua::StoryParam::of_text(n.planet));
             out.emplace_back("STORY_RETREAT", n);
             break;
-        // --- P4 lua (P4_SIM_SYSTEMS 1.4 / 2.4, STORY.md String class: Param1 empty or names `name`) ---
+        // --- P4 lua (P4_SIM_SYSTEMS 1.4 / 2.4, legacy docs/re/STORY.md String class: Param1 empty or names `name`) ---
         // BUY_BLACK_MARKET 0x38 is not derived from the executed BlackMarketPurchase: the dialog raises it at click time
         // (L1P4_LUA_GAPS 2.1), so the host sends StoryUiEvent::BuyBlackMarket from its buy handler.
         // GALACTIC_SABOTAGE 0x39: the command executor and the SABOTAGE_STRUCTURE reward, structure type name; every plot
@@ -909,7 +909,7 @@ std::vector<std::pair<std::string, lua::StoryNotification>> StorySession::notifi
 
 void StorySession::route(const StoryTrigger& t) {
     const auto list = notifications(t);
-    // Player-scoped dispatches (STORY.md 1.3: the optional player argument): UI notifications and the S10
+    // Player-scoped dispatches (legacy docs/re/STORY.md 1.3: the optional player argument): UI notifications and the S10
     // battle results go to the acting / winning / losing / retreating player's plot sets only.
     using K = galactic::GalacticEventKind;
     const bool battle = t.event.kind == K::BattleWon || t.event.kind == K::BattleLost || t.event.kind == K::BattleRetreat;
@@ -934,7 +934,7 @@ void StorySession::poll(size_t si) {
     n.value = sim_->players()[static_cast<size_t>(s.player)].tech_level;
     s.model.dispatch("STORY_TECH_LEVEL", n);
     collect(si, "poll");
-    s.model.dispatch("STORY_BEGIN_ERA", n);  // wave 1: same BeginEra evaluator (STORY.md 0.1 / 5)
+    s.model.dispatch("STORY_BEGIN_ERA", n);  // wave 1: same BeginEra evaluator (legacy docs/re/STORY.md 0.1 / 5)
     collect(si, "poll");
     const float credits = sim_->credits(s.player);
     if (!s.credits_seen || credits != s.last_credits) {
@@ -971,11 +971,11 @@ void StorySession::invade_planet_reward(int32_t plot_player, PlanetIndex planet,
                 continue;
             }
             const int32_t issuer = sim_->local_player();
-            if (issuer < 0 || issuer > 0xFF) return;  // mcx5: the galactic sim's player ids are uint8_t (refuse, never truncate)
+            if (issuer < 0 || issuer > 0xFF) return;  // the galactic sim's player ids are uint8_t (refuse, never truncate)
             commands::EventData ev(commands::EventType::Invade);
             ev.set("planet", static_cast<uint32_t>(store.id(ps.object)));
             ev.set_ids("units", {static_cast<uint32_t>(store.id(u))});
-            gates_.script_invade = true;  // STY1: the story's own invasion is not refused by its invasion locks
+            gates_.script_invade = true;  // the story's own invasion is not refused by its invasion locks
             sync_gates();
             if (lua_->bridge.pipeline)
                 lua_->bridge.pipeline->execute_direct(frame_, static_cast<uint16_t>(issuer), commands::CommandSource::Script, ev);
@@ -988,7 +988,7 @@ void StorySession::invade_planet_reward(int32_t plot_player, PlanetIndex planet,
     }
 }
 
-// ref5 t02: the rewards the session applies, one handler per Reward_Type name (story_rewards.hpp: the Session rows; the
+// the rewards the session applies, one handler per Reward_Type name (story_rewards.hpp: the Session rows; the
 // coverage test fails for a Session row without one). Names are unique, so the table order is not a dispatch order. The STY1
 // families' handlers are in story_rewards_apply.cpp.
 std::span<const StorySession::RewardHandler> StorySession::reward_handlers() {
@@ -1083,7 +1083,7 @@ std::vector<std::string_view> StorySession::reward_names() {
 }
 
 void StorySession::apply_reward(Set& s, const std::string& type, const std::vector<std::string>& params) {
-    {  // mcx6: the dispatcher's second argument (STATISTIC_CHANGE): the planet of the notification firing this event
+    {  // the dispatcher's second argument (STATISTIC_CHANGE): the planet of the notification firing this event
         const lua::StoryNotification* fn = s.model.firing_notification();
         reward_firing_planet_ = fn ? fn->planet : std::string();
     }
@@ -1095,9 +1095,9 @@ void StorySession::apply_reward(Set& s, const std::string& type, const std::vect
     if (const StoryRewardRow* row = find_story_reward(type); row && row->owner == StoryRewardOwner::Session) {
         note("reward " + type + " has no handler");  // the coverage table says the session owns it: a table / handler mismatch
     } else if (row && row->owner == StoryRewardOwner::Missing) {
-        note("reward " + type + " not implemented (story ledger: missing)");  // mcx0 t05: retail acts, the port skips it
+        note("reward " + type + " not implemented (story ledger: missing)");  // retail acts, the port skips it
     } else if (!row) {
-        // storyb t12: a Reward_Type the coverage table does not know (a mod's, or a typo) is logged instead of falling off
+        // a Reward_Type the coverage table does not know (a mod's, or a typo) is logged instead of falling off
         // silently; nothing is applied [port: retail's dispatcher ignores an unknown type, 0x456970 default case [M]].
         note("reward " + type + " unknown (no row in the story reward table)");
     }
@@ -1128,14 +1128,14 @@ void StorySession::reward_link_tactical(Set& s, const std::string& /*type*/, con
     linked_.push_back(std::move(l));
 }
 
-// ENABLE_FOW: fog follow-up (FOG_OF_WAR.md §6.6): no Param1 -> FOW off; atoi(P1) 0 -> off + hidden
+// ENABLE_FOW: fog follow-up (legacy docs/re/FOG_OF_WAR.md §6.6): no Param1 -> FOW off; atoi(P1) 0 -> off + hidden
 void StorySession::reward_enable_fow(Set& /*s*/, const std::string& /*type*/, const std::vector<std::string>& params) {
     const auto at = [&params](size_t i) { return i < params.size() ? params[i] : std::string(); };
     const std::string p1 = std::string(ascii_trim(at(0)));
     if (enable_fow_) enable_fow_(!p1.empty(), static_cast<int32_t>(std::atoi(p1.c_str())));
 }
 
-// SWITCH_CONTROL: q6 (AI_GALACTIC.md §1.2, reward case 0x30): the host's AI (header)
+// SWITCH_CONTROL: q6 (legacy docs/re/AI_GALACTIC.md §1.2, reward case 0x30): the host's AI (header)
 void StorySession::reward_switch_control(Set& s, const std::string& /*type*/, const std::vector<std::string>& params) {
     const auto at = [&params](size_t i) { return i < params.size() ? params[i] : std::string(); };
     StorySwitchControl sw;
@@ -1161,10 +1161,10 @@ void StorySession::reward_enable_victory(Set& s, const std::string& type, const 
         enable_victory_(!p1.empty(), static_cast<int32_t>(std::atoi(p1.c_str())));
     else if (tactical && type == "VICTORY" && victory_)
         victory_(p1, std::atoi(p2.c_str()) != 0);
-    else if (!tactical && type == "ENABLE_VICTORY" && !p1.empty()) {  // story t11: the galactic monitor
+    else if (!tactical && type == "ENABLE_VICTORY" && !p1.empty()) {  // the galactic monitor
         if (std::atoi(p1.c_str()) == 0) sim_->victory_hold_raise();
         else sim_->victory_hold_release();
-    } else if (!tactical && type == "VICTORY") {  // story t11: campaign end (0x462b70 on the galactic monitor)
+    } else if (!tactical && type == "VICTORY") {  // campaign end (0x462b70 on the galactic monitor)
         const int32_t player = sim_->player_of_faction(p1);
         if (player < 0) lua_messages_.push_back(std::to_string(frame_) + " story: Unable to find faction " + p1 + " to force victory");
         else sim_->story_victory(player, std::atoi(p2.c_str()) != 0);
@@ -1174,7 +1174,7 @@ void StorySession::reward_enable_victory(Set& s, const std::string& type, const 
 // SET_TACTICAL_MAP
 void StorySession::reward_set_tactical_map(Set& /*s*/, const std::string& /*type*/, const std::vector<std::string>& params) {
     const auto at = [&params](size_t i) { return i < params.size() ? params[i] : std::string(); };
-    // S4 (L1_S4_REMAINING.md §4.4, 0x461d90): Reward_Param1 = map file; Reward_Param2 location via the CRC keyword map
+    // S4 (legacy docs/re/L1_S4_REMAINING.md §4.4, 0x461d90): Reward_Param1 = map file; Reward_Param2 location via the CRC keyword map
     // (SPACE 1 -> space slot; 0 / missing -> land slot; anything else: "invalid location (GROUND/SPACE)", ignored);
     // Reward_Param3 = a faction name kept with the slot (forced faction [M], not applied by the port).
     const std::string loc_text = at(1);
@@ -1292,7 +1292,7 @@ void StorySession::reward_remove_corruption(Set& /*s*/, const std::string& /*typ
     }
 }
 
-// --- GRC reveal (docs/re/GALACTIC_REVEAL_CORRUPTION.md §1.5, 0x456970) ---
+// --- GRC reveal (legacy docs/re/GALACTIC_REVEAL_CORRUPTION.md §1.5, 0x456970) ---
 // REVEAL_PLANET
 void StorySession::reward_reveal_planet(Set& /*s*/, const std::string& /*type*/, const std::vector<std::string>& params) {
     const auto at = [&params](size_t i) { return i < params.size() ? params[i] : std::string(); };
@@ -1400,7 +1400,7 @@ void StorySession::reward_unique_unit(Set& s, const std::string& type, const std
     const int32_t copies = ascii_trim(p3).empty() ? 1 : to_int(p3, 1);
     if (pl >= 0 && type_index != galactic::kNoIndex && row != kInvalidPlanet) {
         // Each created copy raises CONSTRUCT inside the creation call (spawn hook), as 0x400b40 does (A2I_T01 §3.3,
-        // A2K_T07_STORY_LOAD_RE.md §4): at load and at T9 alike.
+        // legacy docs/re/A2K_T07_STORY_LOAD_RE.md §4): at load and at T9 alike.
         for (int32_t k = 0; k < copies; ++k) sim_->spawn_unit(pl, row, type_index);
     } else if (!ascii_trim(p1).empty()) {
         lua_messages_.push_back(std::to_string(frame_) + " story: " + type + " failed for '" + p1 + "' at '" + p2 + "'");
@@ -1455,7 +1455,7 @@ void StorySession::reward_trigger_ai(Set& /*s*/, const std::string& /*type*/, co
         if (player < 0) {
             note("TRIGGER_AI failed: unknown faction " + faction);
         } else {
-            int32_t loc = -1;  // storyb t10: "no target", the value Check_Story_Flag looks up for a nil location
+            int32_t loc = -1;  // "no target", the value Check_Story_Flag looks up for a nil location
             if (params.size() > 2 && !ascii_trim(params[2]).empty()) {
                 const PlanetIndex row = reward_planet(std::string(ascii_trim(params[2])));
                 if (row == kInvalidPlanet) note("TRIGGER_AI: Unable to find planet " + std::string(ascii_trim(params[2])));
@@ -1476,7 +1476,7 @@ void StorySession::reward_random_story(Set& s, const std::string& /*type*/, cons
     random_story(s);  // mcx6 (§1.15)
 }
 
-// --- mcx6: PICK_PLANET and RANDOM_STORY (docs/re/STORY_REWARDS_GALACTIC.md §1.15, §1.16) ---
+// --- mcx6: PICK_PLANET and RANDOM_STORY (legacy docs/re/STORY_REWARDS_GALACTIC.md §1.15, §1.16) ---
 namespace {
 constexpr uint32_t kRandomStorySalt = 0x52414e44u;  // "RAND": the RANDOM_STORY stream's seed = synced state ^ this
 }  // namespace
@@ -1566,7 +1566,7 @@ bool StorySession::apply_definition_edit(const DefinitionEdit& e, std::vector<Ed
         return false;
     }
     if (!e.tactical) {
-        std::vector<lua::StoryModel*> models;  // the new plot joins the galactic plot table (q6 t03)
+        std::vector<lua::StoryModel*> models;  // the new plot joins the galactic plot table
         for (const auto& sp : sets_) models.push_back(&sp->model);
         lua_->table.assign(std::move(models));
     }
@@ -1681,7 +1681,7 @@ bool StorySession::autoresolve_locked(PlanetIndex planet) const {
 }
 // --- end OI galactic ---
 
-// --- mcx6 t03 (docs/re/STORY.md §5 "Battle composition" / "Enter family match") ---
+// --- mcx6 t03 (legacy docs/re/STORY.md §5 "Battle composition" / "Enter family match") ---
 void StorySession::record_battle_composition(PlanetIndex planet) {
     comp_local_.clear();
     comp_other_.clear();
@@ -1720,7 +1720,7 @@ void StorySession::orbit_names(PlanetIndex planet, std::vector<std::string>& out
 }
 // --- end mcx6 t03 ---
 
-// --- S4 (owner: S4 agent): STORY_LOAD_TACTICAL_MAP / SET_TACTICAL_MAP (L1_S4_REMAINING.md §4.4) ---
+// --- S4 (owner: S4 agent): STORY_LOAD_TACTICAL_MAP / SET_TACTICAL_MAP (legacy docs/re/L1_S4_REMAINING.md §4.4) ---
 void StorySession::load_tactical_map(PlanetIndex planet, bool space, uint64_t frame) {
     frame_ = frame;
     StoryTrigger t;
@@ -1770,8 +1770,8 @@ void StorySession::collect(size_t set, std::string_view via) { collect_set(*sets
 
 void StorySession::collect_set(Set& s, uint32_t number, std::string_view via) {
     collect_one(s, number, via);
-    // q6 t03: a galactic set's Lua Story_Event / TRIGGER_EVENT / STORY_ELEMENT reaches the other galactic sets' plots
-    // (one plot table, STORY.md §2.4): their fires are logged with the same cause, after this set's, in set order.
+    // a galactic set's Lua Story_Event / TRIGGER_EVENT / STORY_ELEMENT reaches the other galactic sets' plots
+    // (one plot table, legacy docs/re/STORY.md §2.4): their fires are logged with the same cause, after this set's, in set order.
     if (number < sets_.size() && sets_[number].get() == &s)
         for (size_t i = 0; i < sets_.size(); ++i)
             if (i != number) collect_one(*sets_[i], static_cast<uint32_t>(i), via);
@@ -1799,7 +1799,7 @@ void StorySession::collect_one(Set& s, uint32_t number, std::string_view via) {
     errs.clear();
 }
 
-// q6 [port reading] (header comment, docs/re/STORY.md §8 item 9): one resume of the new script's threads at load, so a
+// q6 [port reading] (header comment, legacy docs/re/STORY.md §8 item 9): one resume of the new script's threads at load, so a
 // PGStoryMode state machine is in its first state's PumpEvents (CurrentState == NextState) before the first story event
 // can fire. Not a Service: LastService / the rate gate are untouched, the first T9 still services the script.
 void StorySession::start_threads_at_load(Set& s, uint32_t number, Script& sc, double seconds) {
@@ -1844,7 +1844,7 @@ void StorySession::service_script_in(Set& s, uint32_t si, Script& sc, uint64_t f
     collect_set(s, si, "lua");
 }
 
-// T9 (STORY.md §4.1): [the port's stand-in for the synchronous game notifications of this tick:
+// T9 (legacy docs/re/STORY.md §4.1): [the port's stand-in for the synchronous game notifications of this tick:
 // the galactic stream and host events, then the player-scoped polls] -> STORY_ELAPSED -> per plot in
 // table order: Lua service, then (active plots) inactivity timers, FLAG poll, timeouts ->
 // OBJECTIVE_TIMEOUT. UNIT_PROXIMITY, CHECK_DESTROYED, FOG reveals and GENERIC battle_end_closed have
@@ -1856,7 +1856,7 @@ double StorySession::t9_seconds(uint64_t mode_frame) {
 void StorySession::service(uint64_t frame, double mode_seconds) {
     frame_ = frame;
     seconds_ = mode_seconds;
-    {  // OPT2 t04: staggered scheduled Lua collections, before any plot script of this service runs
+    {  // staggered scheduled Lua collections, before any plot script of this service runs
         std::vector<lua::LuaVm*> vms;  // galactic sets, then the tactical set, scripts in set order (saved orders)
         for (const auto& s : sets_)
             for (const Script& sc : s->scripts) vms.push_back(sc.vm.get());
@@ -1864,7 +1864,7 @@ void StorySession::service(uint64_t frame, double mode_seconds) {
             for (const Script& sc : tactical_->set->scripts) vms.push_back(sc.vm.get());
         lua::collect_scheduled(vms, frame, lua_gc_pf_);
     }
-    // l1s3 t02: the T9 "paused" argument = the galactic pause / battle-pending counter 0x140b1540c > 0 (STORY.md 4.1
+    // the T9 "paused" argument = the galactic pause / battle-pending counter 0x140b1540c > 0 (legacy docs/re/STORY.md 4.1
     // step 2, STRATEGIC_GAPS 4 [H]) - the counter only: the story block (GalacticSim::story_block) freezes the mode frame
     // too but is not this argument. Only galactic story time is ever paused (the tactical T9 passes false).
     const bool paused = sim_->pause_count() > 0;
@@ -1874,7 +1874,7 @@ void StorySession::service(uint64_t frame, double mode_seconds) {
         scratch_.clear();
         sim_->drain_events(scratch_);
         if (drain_tap_ && !scratch_.empty()) drain_tap_(round, scratch_);  // OI host: presentation tap (read-only)
-        if (scoring_tap_ && !scratch_.empty()) scoring_tap_(scratch_);      // q6 t09: GameScoring events (copied)
+        if (scoring_tap_ && !scratch_.empty()) scoring_tap_(scratch_);      // GameScoring events (copied)
         std::vector<StoryTrigger> batch;
         batch.reserve(scratch_.size() + pending_host_.size() + pending_ui_.size());
         for (const galactic::GalacticEvent& e : scratch_)
@@ -1917,7 +1917,7 @@ void StorySession::service(uint64_t frame, double mode_seconds) {
     lua_->bridge.prune(*store_);
     // Wave 2a: the tactical story's T9, then the planet owners for the next INVASION_BOUNCED test.
     if (tactical_ && tactical_->set) service_tactical(frame);
-    if (tactical_) service_sandbox(frame);  // mcx4 t09: with or without tactical plots
+    if (tactical_) service_sandbox(frame);  // with or without tactical plots
     const auto planets = sim_->planets();
     owner_seen_.resize(planets.size(), -1);
     for (size_t i = 0; i < planets.size(); ++i) owner_seen_[i] = planets[i].owner;
@@ -1962,7 +1962,7 @@ void StorySession::hash(StateHasher& h) const {
         h.str(tactical_map_[1]);
     }
     hash_sty1(h);  // STY1 lane B: only once a rule reward changed something
-    if (!def_edits_.empty() || random_story_count_ != 0) {  // mcx6: PICK_PLANET / RANDOM_STORY (absent otherwise)
+    if (!def_edits_.empty() || random_story_count_ != 0) {  // PICK_PLANET / RANDOM_STORY (absent otherwise)
         h.u32(0x4d435836u);  // "MCX6"
         h.u32(random_story_count_);
         h.u32(static_cast<uint32_t>(def_edits_.size()));
@@ -1975,7 +1975,7 @@ void StorySession::hash(StateHasher& h) const {
         }
         if (random_story_count_ != 0) random_story_rng_.hash(h);
     }
-    if (!comp_local_.empty() || !comp_other_.empty()) {  // mcx6 t03: the orbit record (absent while empty)
+    if (!comp_local_.empty() || !comp_other_.empty()) {  // the orbit record (absent while empty)
         h.u32(0x434f4d50u);  // "COMP"
         for (const std::vector<int32_t>* v : {&comp_local_, &comp_other_}) {
             h.u32(static_cast<uint32_t>(v->size()));
@@ -2010,7 +2010,7 @@ bool StorySession::battle_attached() const { return tactical_ != nullptr; }
 bool StorySession::esc_goes_to_story() const {
     const lua::PresentationLog& log = lua_->presentation;
     const lua::PresentationState& p = log.state();
-    // tst2 t02: a Bink movie plays until Stop_Bink_Movie or until its block finishes (PresentationConfig::movie_frames);
+    // a Bink movie plays until Stop_Bink_Movie or until its block finishes (PresentationConfig::movie_frames);
     // Play_Bink_Movie's name stays in the state after a natural end, so the block decides. Blocks count in the frames of the
     // story VMs, the host frame of the last service (frame_). Without this the Kessel UM01 intro (BlockOnCommand on two
     // Binks, then Start_Cinematic_Camera) never handed an Esc to Story_Handle_Esc.
@@ -2062,7 +2062,7 @@ bool StorySession::begin_battle(const StoryBattleStart& s, uint64_t frame, std::
         const TacticalResume res = std::move(*resume_tactical_);
         resume_tactical_.reset();
         attach_tactical(s, frame);
-        // mcx4 t09: the saved sandbox state (v9); an older save: from the saved battle's kind ([port] a LINK_TACTICAL
+        // the saved sandbox state (v9); an older save: from the saved battle's kind ([port] a LINK_TACTICAL
         // battle of a v8 save is not recognised).
         if (res.has_sandbox) {
             tactical_->sandbox = res.sandbox;
@@ -2111,7 +2111,7 @@ bool StorySession::begin_battle(const StoryBattleStart& s, uint64_t frame, std::
             if (p >= 0 && std::find(participants.begin(), participants.end(), p) == participants.end()) participants.push_back(p);
     }
     const bool space = b->kind == static_cast<int32_t>(galactic::ConflictKind::Space);
-    // Trigger line + STORY_SPACE/LAND_TACTICAL to the participants' galactic plot sets, at once (STORY.md 4.1).
+    // Trigger line + STORY_SPACE/LAND_TACTICAL to the participants' galactic plot sets, at once (legacy docs/re/STORY.md 4.1).
     StoryTrigger t;
     t.frame = frame;
     t.index = static_cast<uint32_t>(triggers_.size());
@@ -2132,12 +2132,12 @@ bool StorySession::begin_battle(const StoryBattleStart& s, uint64_t frame, std::
     std::string plots = s.plots_file;
     int32_t owner = s.local_player;
     int32_t named_by = -1;
-    bool linked = false;  // mcx4 t09: the plots came from a LINK_TACTICAL reward (the story's linked battle, state 9)
+    bool linked = false;  // the plots came from a LINK_TACTICAL reward (the story's linked battle, state 9)
     if (s.request) {
         lua::StoryNotification n;
         n.planet = planet_type_name(b->planet);
         n.location = b->kind;
-        // Wave 2b (SCRIPT_GAPS.md §4.1): single player only; Param2 planets or no battle planet; Param1 = the plots
+        // Wave 2b (legacy docs/re/SCRIPT_GAPS.md §4.1): single player only; Param2 planets or no battle planet; Param1 = the plots
         // file for the plot's player (the first one fired names the tactical set [port: one tactical plot set]).
         for (size_t si = 0; si < sets_.size() && !s.multiplayer; ++si) {
             Set& set = *sets_[si];
@@ -2225,7 +2225,7 @@ bool StorySession::load_tactical(const std::string& plots, int32_t player, std::
     }
     if (diagnostics)
         for (const std::string& w : set->model.warnings()) diagnostics->push_back("story " + plots + ": " + w);
-    // The tactical story shares the galactic flag table (STORY.md §0 [H]): a mission's SET_FLAG <mission>_WIN is what the
+    // The tactical story shares the galactic flag table (legacy docs/re/STORY.md §0 [H]): a mission's SET_FLAG <mission>_WIN is what the
     // campaign plot's STORY_FLAG waits for.
     if (!sets_.empty()) {
         set->model.share_flags(sets_.front()->model);
@@ -2233,7 +2233,7 @@ bool StorySession::load_tactical(const std::string& plots, int32_t player, std::
     }
     set->model.set_player(player);
     set->model.faction_of = faction_resolver(*sim_);  // wave 2b
-    // Wave 2b: COMMAND_UNIT (SCRIPT_GAPS.md §4.3) - a live object of that type strictly within range of the point.
+    // Wave 2b: COMMAND_UNIT (legacy docs/re/SCRIPT_GAPS.md §4.3) - a live object of that type strictly within range of the point.
     set->model.objects_within = [this](std::string_view type, double x, double y, double z, double range) {
         const objects::ObjectStore* st = tactical_ ? tactical_->store : nullptr;
         if (!st) return false;
@@ -2320,7 +2320,7 @@ void StorySession::end_battle(int32_t winner, uint64_t frame) {
     route_corruption_mission(winner, frame);  // wave 2b
     // The tactical plots go: holocron records of their events keep a copy of their dialog lines [port].
     if (tactical_->set) tactical_->set->model.holocron().detach(&tactical_->set->model);
-    drop_tactical_edits();  // mcx6: the battle's PICK_PLANET / RANDOM_STORY edits go with its plot set
+    drop_tactical_edits();  // the battle's PICK_PLANET / RANDOM_STORY edits go with its plot set
     tactical_.reset();
 }
 
@@ -2329,7 +2329,7 @@ void StorySession::set_corruption_mission(int32_t player, int32_t corruption_typ
     corruption_type_ = player < 0 ? -1 : corruption_type;
 }
 
-// Wave 2b (SCRIPT_GAPS.md §4.7, GMM battle end 0x28bf10): a pending corruption mission ends with the battle - the
+// Wave 2b (legacy docs/re/SCRIPT_GAPS.md §4.7, GMM battle end 0x28bf10): a pending corruption mission ends with the battle - the
 // corrupting player won: corruption applied (0x3f6810) + STORY_CORRUPTION_TACTICAL_COMPLETE, else _FAILED; both with
 // (battle planet, type) to the galactic story manager; then the mission is cleared. [port] the player stat and the
 // local-player message are not modelled.
@@ -2461,7 +2461,7 @@ void StorySession::route_tactical(uint64_t frame) {
         n.y = p.y;
         n.z = p.z;
         const std::string via = "trigger:" + p.trigger.kind + "#" + std::to_string(p.trigger.index);
-        // S4 (L1_S4_REMAINING.md §4.2): CAPTURE_STRUCTURE data1 = the structure, data2 = the new owner's faction.
+        // S4 (legacy docs/re/L1_S4_REMAINING.md §4.2): CAPTURE_STRUCTURE data1 = the structure, data2 = the new owner's faction.
         if (p.kind == TacticalStoryEvent::StructureCaptured) n.faction = faction_name(p.owner);
         if (p.kind == TacticalStoryEvent::BaseDestroyed || p.kind == TacticalStoryEvent::LoadTacticalMap)
             n.params.push_back(lua::StoryParam::of_text(n.name));  // generic rule, Param1 = the name
@@ -2476,7 +2476,7 @@ void StorySession::route_tactical(uint64_t frame) {
     }
 }
 
-// Tactical T9 (STORY.md 4.1 on the tactical story manager): queued notifications, ELAPSED, per plot Lua +
+// Tactical T9 (legacy docs/re/STORY.md 4.1 on the tactical story manager): queued notifications, ELAPSED, per plot Lua +
 // timers + FLAG, UNIT_PROXIMITY, CHECK_DESTROYED, OBJECTIVE_TIMEOUT.
 void StorySession::service_tactical(uint64_t frame) {
     Tactical& tac = *tactical_;
@@ -2539,8 +2539,8 @@ void StorySession::service_sandbox(uint64_t frame) {
     }
 }
 
-// UNIT_PROXIMITY (STORY.md 4.1 step 4) and CHECK_DESTROYED (step 5) polls - wave 2b: the original rules
-// (SCRIPT_GAPS.md §4.8), see the comments inside.
+// UNIT_PROXIMITY (legacy docs/re/STORY.md 4.1 step 4) and CHECK_DESTROYED (step 5) polls - wave 2b: the original rules
+// (legacy docs/re/SCRIPT_GAPS.md §4.8), see the comments inside.
 void StorySession::poll_tactical() {
     Tactical& tac = *tactical_;
     Set& s = *tac.set;
@@ -2630,7 +2630,7 @@ void StorySession::poll_tactical() {
         return count == 0 || (count == 1 && dying);
     });
     collect_set(s, s.number, "poll");
-    // Wave 2b: STORY_FOG_POSITION_REVEAL / STORY_FOG_OBJECT_REVEAL through the fog hooks (FOG_OF_WAR.md §6.6).
+    // Wave 2b: STORY_FOG_POSITION_REVEAL / STORY_FOG_OBJECT_REVEAL through the fog hooks (legacy docs/re/FOG_OF_WAR.md §6.6).
     if (tac.fog_point_visible) {
         s.model.poll("STORY_FOG_POSITION_REVEAL", [&](const lua::StoryEventDef& d) {
             double v[3] = {0.0, 0.0, 0.0};
@@ -2662,11 +2662,11 @@ void StorySession::poll_tactical() {
 // (owner: n1-host) SimHost chunks "story", "story.lua", "story.bridge", "story.players" (story_session.hpp).
 namespace {
 
-// 2 (stage 2): + the attached tactical story; 3 (q6 t14): + the holocron list (GALACTIC_DIALOGS §2.8). 1 and 2 still load
+// 2 (stage 2): + the attached tactical story; 3: + the holocron list (GALACTIC_DIALOGS §2.8). 1 and 2 still load
 // (with an empty holocron); 3 loads with default STY1 state.
-constexpr uint32_t kStorySaveVersion = 9;  // 9 (mcx4 t09): the tactical story's sandbox spawner objectives after its bridge; 8 (mcx6 review): each definition edit's tactical flag, the RANDOM_STORY stream after the edits; 7 (mcx6 t03): the battle snapshot without its CategoryMask list / base flag, + the orbit record's Ship_Class lists after the STY1 block; 6 (mcx6): + the definition edits after the clock, the mcx6 story gates at the end of the STY1 block; 5 (ui2 t06): + the DISABLE_RETREAT switches at the end of the STY1 block; 4 (STY1 lane B): + the story rule gates / tutorial state / reinforcement switches
-// "story.lua" (write_scripts): 1 galactic sets, 2 + the tactical set, 3 = 2 (it followed kStorySaveVersion), 4 (q6 t19):
-// each script's Lua state is a script block (alamo/lua/script_save.hpp, LUA_SAVE.md §2) instead of a bare LuaVm image.
+constexpr uint32_t kStorySaveVersion = 9;  // 9: the tactical story's sandbox spawner objectives after its bridge; 8 (mcx6 review): each definition edit's tactical flag, the RANDOM_STORY stream after the edits; 7: the battle snapshot without its CategoryMask list / base flag, + the orbit record's Ship_Class lists after the STY1 block; 6 (mcx6): + the definition edits after the clock, the mcx6 story gates at the end of the STY1 block; 5: + the DISABLE_RETREAT switches at the end of the STY1 block; 4 (STY1 lane B): + the story rule gates / tutorial state / reinforcement switches
+// "story.lua" (write_scripts): 1 galactic sets, 2 + the tactical set, 3 = 2 (it followed kStorySaveVersion), 4:
+// each script's Lua state is a script block (alamo/lua/script_save.hpp, legacy docs/re/LUA_SAVE.md §2) instead of a bare LuaVm image.
 constexpr uint32_t kStoryScriptsVersion = 4;
 // limit: guard save decode: counts, refuses
 constexpr uint32_t kMaxSaveCount = 1u << 24;
@@ -2817,7 +2817,7 @@ void StorySession::write(ByteWriter& w) const {
             });
         });
     write_sty1(w);  // v4: the story rule gates / tutorial state / reinforcement switches (STY1 lane B)
-    // v7 (mcx6 t03): the orbit record (record_battle_composition), local list then the other list.
+    // v7: the orbit record (record_battle_composition), local list then the other list.
     for (const std::vector<int32_t>* v : {&comp_local_, &comp_other_}) {
         w.u32(static_cast<uint32_t>(v->size()));
         for (const int32_t c : *v) w.i32(c);
@@ -2843,7 +2843,7 @@ void StorySession::write(ByteWriter& w) const {
     }
     w.boolean(t.own_bridge != nullptr);
     if (t.own_bridge) put_section(w, [&t](ByteWriter& sub) { write_system(*t.own_bridge, sub); });
-    // v9 (mcx4 t09): the sandbox spawner objectives.
+    // v9: the sandbox spawner objectives.
     w.boolean(t.sandbox).boolean(t.sandbox_built).i32(t.sandbox_player).u32(static_cast<uint32_t>(t.sandbox_types.size()));
     for (size_t i = 0; i < t.sandbox_types.size(); ++i)
         w.u32(static_cast<uint32_t>(t.sandbox_types[i])).u8(i < t.sandbox_paid.size() ? t.sandbox_paid[i] : uint8_t{0});
@@ -2857,7 +2857,7 @@ bool StorySession::read(ByteReader& r) {
     uint32_t random_story_count = 0;
     std::vector<DefinitionEdit> def_edits;
     SimRng random_story_rng;
-    if (version >= 6) {  // mcx6: the definition edits, applied below once every check passed (they add plots: counts)
+    if (version >= 6) {  // the definition edits, applied below once every check passed (they add plots: counts)
         random_story_count = r.u32();
         const uint32_t n = read_count(r);
         for (uint32_t i = 0; i < n && r.ok(); ++i) {
@@ -3009,7 +3009,7 @@ bool StorySession::read(ByteReader& r) {
     }
     Sty1Save sty1;
     if (version >= 4 && !read_sty1(r, sty1, version)) return false;
-    std::vector<int32_t> comp[2];  // v7 (mcx6 t03): the orbit record; older saves: none recorded
+    std::vector<int32_t> comp[2];  // v7: the orbit record; older saves: none recorded
     if (version >= 7)
         for (std::vector<int32_t>& v : comp) {
             v.resize(read_count(r));
@@ -3079,7 +3079,7 @@ bool StorySession::read(ByteReader& r) {
     if (!r.ok() || !r.done()) return false;
     if (tactical_ && (!has_tac || has_set != (tactical_->set != nullptr) || has_own != (tactical_->own_bridge != nullptr)))
         return false;  // a battle the save does not have, or another tactical story
-    // mcx6: every check passed - the session's definition edits become the save's (the differing ones undone newest first,
+    // every check passed - the session's definition edits become the save's (the differing ones undone newest first,
     // then the save's applied in order), before the models read their state.
     {
         std::vector<std::vector<EditChange>> undo(def_edits.size());
@@ -3256,7 +3256,7 @@ bool StorySession::read_scripts(ByteReader& r) {
     }
     if (!r.ok() || !r.done()) return false;
     if (tactical_ && tactical_->set && !has_tac) return false;  // a tactical story the save does not have
-    // Each read is all-or-nothing (see read() for a later refusal). v4: the script block (LUA_SAVE.md §2 / §4): it names
+    // Each read is all-or-nothing (see read() for a later refusal). v4: the script block (legacy docs/re/LUA_SAVE.md §2 / §4): it names
     // the script and its thread records; the session's rebuilt VM (Base_Definitions and main already ran at start())
     // is replaced whole, keeping only its host attachments (ScriptLoad::Any). Earlier versions hold the bare image.
     for (size_t i = 0; i < in.size(); ++i)

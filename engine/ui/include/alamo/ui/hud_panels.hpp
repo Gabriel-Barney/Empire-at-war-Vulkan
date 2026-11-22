@@ -1,4 +1,4 @@
-// P4 HUD panels (docs/re/UI.md Â§2.2 shells, Â§2.3 tooltips / encyclopedia, CommandBarComponents.xml): the encyclopedia
+// P4 HUD panels (legacy docs/re/UI.md Â§2.2 shells, Â§2.3 tooltips / encyclopedia, CommandBarComponents.xml): the encyclopedia
 // pop-up, the hero roster and the FoC black-market / sabotage / corruption shells. Same host API as the galactic HUD:
 // plain data in (a frame struct), a HudDrawList + hit boxes out, clicks -> HudAction out. Nothing
 // here reads or writes sim state.
@@ -20,7 +20,7 @@
 //                    corrupt_cost_x, corrupt_text00x..04x, corrupt_icon_00x..07x (requirements); corrupt_planet_title00/01,
 //                    corrupt_planet_defiler_00/01, corrupt_close, i_corrupt_encycl
 // Clicks: hero slot -> HudAction::HeroSelect{unit}; black-market item -> HudAction::BlackMarketBuy{unit = item id, ids =
-// {planet}, value = row} (the host answers with the SpecialAbility kind-4 purchase command, docs/re/P4_SIM_SYSTEMS.md
+// {planet}, value = row} (the host answers with the SpecialAbility kind-4 purchase command, legacy docs/re/P4_SIM_SYSTEMS.md
 // §1.4); sabotage target -> HudAction::SabotageTarget{unit = target, ids = {planet}}; corruption choice ->
 // HudAction::CorruptionChoice{unit = planet, value = corruption type}; *_close -> HudAction::PanelClose{name = shell}.
 // Right click on a panel = PanelClose [port].
@@ -293,7 +293,7 @@ struct BlackMarketItem {
     std::u32string name, description;
     int32_t cost = -1;
     bool enabled = true;       // affordable / allowed
-    // modc t20: the item faction's Tech_Level_Icon_Name (FoC i_button_r_tech_upgrade_ / _e_): market_tech_levelNN shows the
+    // the item faction's Tech_Level_Icon_Name (FoC i_button_r_tech_upgrade_ / _e_): market_tech_levelNN shows the
     // first of its Icon_Alternate_Texture_Name entries that starts with it (any case); "" or no match: hidden.
     std::string tech_icon;
 };
@@ -382,7 +382,7 @@ private:
 
 // ---- Corruption choice (FoC) ----------------------------------------------------------------------------------
 struct CorruptionOption {
-    int32_t corruption_type = -1;  // CorruptionTypeEnum (OBJECT_TYPES.md: Intimidation 0 .. Bonded_Citizens 7)
+    int32_t corruption_type = -1;  // CorruptionTypeEnum (legacy docs/re/OBJECT_TYPES.md: Intimidation 0 .. Bonded_Citizens 7)
     std::string icon;
     std::u32string title;
     int32_t cost = -1;

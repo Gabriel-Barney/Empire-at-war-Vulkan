@@ -56,7 +56,7 @@ struct FrameConsts {
     uint32_t counts[4];
     float fog_color[4];  // scene fog (set_scene_fog)
     float fog_vals[4];   // FOG_VALS x, y
-    float ground[4];     // vis1 t05: terrain grid width, height, spacing, enabled (1 / 0)
+    float ground[4];     // terrain grid width, height, spacing, enabled (1 / 0)
 };
 static_assert(sizeof(FrameConsts) == 208);
 struct Push {
@@ -66,7 +66,7 @@ struct Push {
 enum : uint32_t {
     kFObjectSpace = 1u, kFObjectSpaceAccel = 2u, kFWind = 4u, kFRotationFixed = 8u, kFRandomDirection = 16u,
     kFColorUniform = 32u, kFWeather = 64u, kFTail = 128u, kFAdditiveFade = 256u, kFTriangle = 512u,
-    kFGroundKill = 1024u, kFGroundBounce = 2048u,  // vis1 t05: ground behaviour 1 / 2
+    kFGroundKill = 1024u, kFGroundBounce = 2048u,  // ground behaviour 1 / 2
 };
 enum : uint32_t { kEParent = 1u, kESorted = 2u };
 

@@ -3,7 +3,7 @@
 //     auto unit = [](auto& a, auto& u) { a(u.id, u.h, u.alive); };
 //     save_io::Out o(w); o.seq(units_, unit);         // write
 //     save_io::In i(r);  i.seq(units_, unit);         // read
-//     save_io::Hash h(hasher); h.seq(units_, unit);   // the CRC (REF4 t02), the same list
+//     save_io::Hash h(hasher); h.seq(units_, unit);   // the CRC, the same list
 // save_only(fields...) / save_only_seq(...) are written and read but not hashed (statistics, a digest hashed elsewhere).
 // Encoding: ByteWriter primitives (floats as bit patterns), enums as their underlying type, ObjectHandle as u64,
 // Vec3 as 3 x f32, vectors / maps as u32 count + elements, pairs as first then second. In fails (ByteReader::fail) on
@@ -117,7 +117,7 @@ private:
     ByteWriter& w_;
 };
 
-// REF4 t02: Out's encoding into the per-tick CRC, so the field list a save writes is the list the CRC walks. Fields given
+// Out's encoding into the per-tick CRC, so the field list a save writes is the list the CRC walks. Fields given
 // to save_only / save_only_seq are skipped. Strings use StateHasher::str.
 class Hash {
 public:

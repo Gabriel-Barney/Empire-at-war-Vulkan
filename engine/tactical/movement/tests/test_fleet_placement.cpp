@@ -1,4 +1,4 @@
-// cu8l t03: the campaign space fleet placement layout (fleet_placement.hpp; docs/re/CU8K_T03_T08_T09_RE.md §1.2 - §1.8).
+// the campaign space fleet placement layout (fleet_placement.hpp; legacy docs/re/CU8K_T03_T08_T09_RE.md §1.2 - §1.8).
 // Hand-computed lists, row counts, grid / ring / row offsets and member positions; the placement order is the order of
 // the adopt draws (one per placed object).
 #include <cmath>

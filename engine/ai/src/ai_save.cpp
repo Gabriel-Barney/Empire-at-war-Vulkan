@@ -20,7 +20,7 @@ using save::put;
 using save::put_vec;
 
 namespace {
-// kGoalsVersion 4 (cu12 t15): the blocked byte (= !block_list_.empty()) removed.
+// kGoalsVersion 4: the blocked byte (= !block_list_.empty()) removed.
 constexpr uint32_t kGoalsVersion = 4, kTemplatesVersion = 1, kLearningVersion = 1, kBudgetVersion = 2, kContextVersion = 1,
                    kGateVersion = 1, kPathVersion = 2, kPerceptionVersion = 1, kSnapshotVersion = 1;
 
@@ -419,7 +419,7 @@ bool AiPathFinder::Input::read(ByteReader& r) {
     return r.ok() && save::get_bitset(r, revealed) && get_vec(r, zoff);
 }
 
-// Version 2 (OPT2 t02 / OPT3 t04): + the in-flight background recompute (kick and ready frame, its input).
+// Version 2: + the in-flight background recompute (kick and ready frame, its input).
 void AiPathFinder::write(ByteWriter& w) const {
     w.u32(kPathVersion);
     w.boolean(created_);

@@ -1,5 +1,5 @@
 #pragma once
-// Split out of test_ai_galactic.cpp (bo3 t03): shared includes, types and helpers; the tests live in test_ai_galactic_partN.cpp.
+// Split out of test_ai_galactic.cpp: shared includes, types and helpers; the tests live in test_ai_galactic_partN.cpp.
 // A2 tests: AI framework rules (cadence, quota, desire, plan pick, solver, templates, budget, commit) and the
 // galactic AI on the Lua bridge: a synthetic AI-vs-AI campaign (no game data; per-frame CRCs identical for
 // 1/2/4/15 threads, golden tests/golden/ai_galactic_synthetic_crc.txt) and, with ALAMO_FOC_DATA, the shipped
@@ -49,7 +49,7 @@
 #include "alamo/lua/script_remaining.hpp"
 #include "alamo/objects/game_object_types.hpp"
 #include "alamo/objects/object_store.hpp"
-#include "alamo/objects/object_types.hpp"  // A2k t06: ObjectTypeDatabase (mod-category type table)
+#include "alamo/objects/object_types.hpp"  // ObjectTypeDatabase (mod-category type table)
 #include "alamo/test/support.hpp"
 #include "../src/galactic_goal_time.hpp"
 #include "../src/galactic_slots.hpp"
@@ -68,7 +68,7 @@ using ::alamo::test::g_checks;
 using ::alamo::test::g_fail;
 
 inline bool g_write_golden = false;
-// wr1 t05: --golden-out DIR writes the goldens into DIR instead of ALAMO_AI_GOLDEN_DIR.
+// --golden-out DIR writes the goldens into DIR instead of ALAMO_AI_GOLDEN_DIR.
 inline std::string g_golden_out;
 inline std::string ai_golden_dir() { return g_golden_out.empty() ? std::string(ALAMO_AI_GOLDEN_DIR) : g_golden_out; }
 void test_cadence();
@@ -423,7 +423,7 @@ function BaseForce_Production_Failed(tf, t)
 end
 )";
 
-// A2f t02: a category-mask team (CORVETTE is a GameObjectCategoryType name, AI_GALACTIC_2 §1.3).
+// a category-mask team (CORVETTE is a GameObjectCategoryType name, AI_GALACTIC_2 §1.3).
 inline const char* kPlanMaskCorvette = R"(
 require("SynAICommands")
 function Definitions()
@@ -634,7 +634,7 @@ function MainForce_Thread()
   ScriptExit()
 end
 )";
-// tst2 t01 (b0137): a plan thread that calls Find_All_Objects_Of_Type through ParityWorld, whose GameObjectTypes is
+// a plan thread that calls Find_All_Objects_Of_Type through ParityWorld, whose GameObjectTypes is
 // empty (never built). The player filter walks the store; a type-name string finds no type in the empty table, so the
 // binding logs "unknown filter parameter" and returns nothing (before t01 the name lookup dereferenced a null raw()).
 inline const char* kPlanFindAll = R"(
@@ -816,7 +816,7 @@ struct LateHooks final : GoalModeHooks {
     int64_t now = 0, ended = -1, created = -1;
     bool removable = true;
     float eta = 10.0f;
-    float nominal = -1.0f;  // Goal::nominal_time (A2f t09); < 0 = the ETA
+    float nominal = -1.0f;  // Goal::nominal_time; < 0 = the ETA
     LateMode mode = LateMode::Stalled;
     uint32_t target_count() override { return 1; }
     bool applies(int32_t, uint32_t) override { return true; }
@@ -872,7 +872,7 @@ void test_goal_nominal_time_resolve();
 // ================================================================ a2g t05 (b): Resolve's time_ok (0x6c8970) on its own
 //
 // Resolve_Category (AI_GALACTIC §1.6): a candidate passes plan_activatable (0x6c4a50) and fundable, then time_ok: AllowedTime
-// (nominal_time x Build_Time_Delay_Tolerance, A2f t09) >= ETA, or AllowedTime <= 0. A failure in the greedy phase records an
+// (nominal_time x Build_Time_Delay_Tolerance) >= ETA, or AllowedTime <= 0. A failure in the greedy phase records an
 // activation failure and stops it; the weighted phase then draws the goal, fails it again and releases it. Tolerance 2.0
 // keeps the products exact; ETA 10.
 inline const char* kResolveGoals = R"(<Goals>
@@ -954,7 +954,7 @@ void test_prefer_ground_auto_land();
 // through GalacticSim::ground_activated_trigger (Activate_Ability / Land_Units): the saboteur corrupts a clean planet
 // (corruption_ai_pick) and sabotages a corrupted one, Tyber Zann buys on the black market of the planet he corrupted,
 // IG-88 hacks the Death Star II orbiting a corrupted planet. Per-frame CRCs identical for 0 / 1 / 4 / 15 workers and
-// against tests/golden/ai_underworld_crc.txt (MSVC and clang check the same file).
+// against tests/golden/ai_underworld_crc.txt.
 inline const char* kUwLibrary = R"(
 require("SynAICommands")
 function AssembleForce(taskforce)
@@ -1086,7 +1086,7 @@ struct UwResult {
     size_t purchased = 0;
     bool p3_destroyed = false, ds_locked = false, ds_alive = true;
     float uw_credits = 0.0f;
-    // a2k t08: the AI update in which the first corruption applied: credits and Σ category pools / available before
+    // the AI update in which the first corruption applied: credits and Σ category pools / available before
     // and after it (frame -1: no corruption applied).
     int32_t corr_frame = -1;
     float corr_credits_before = 0.0f, corr_credits_after = 0.0f;

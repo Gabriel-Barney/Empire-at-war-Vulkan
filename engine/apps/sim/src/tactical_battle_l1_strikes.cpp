@@ -1,4 +1,4 @@
-// --- L1 systems (owner: tactical-systems agent): land strikes - orbital bombardment (docs/re/L1_S4_REMAINING.md §3.8)
+// --- L1 systems (owner: tactical-systems agent): land strikes - orbital bombardment (legacy docs/re/L1_S4_REMAINING.md §3.8)
 // and bombing runs (§3.7) of a campaign land battle (tactical_battle.hpp "land strikes"). Serial code; synced draws:
 // the bombardment start (distribution cursor) and its scattered shots (angle, radius). [port] choices are marked.
 #include <algorithm>
@@ -56,12 +56,12 @@ TacticalBattle::L1Constants load_l1_constants(const data::GameConstants& gc) {
         static_cast<int32_t>(gc.get_float("Bombing_Run_Reduction_Per_Squadron_Percent", static_cast<float>(k.bombing_run_reduction_per_squadron)));
     k.max_bombard_interval = gc.get_float("Max_Bombard_Interval_Seconds", k.max_bombard_interval);
     k.min_bombard_interval = gc.get_float("Min_Bombard_Interval_Seconds", k.min_bombard_interval);
-    if (const auto v = gc.get("MP_Default_Allow_SuperWeapons")) {  // cu9h t01: the skirmish special-weapons option default
+    if (const auto v = gc.get("MP_Default_Allow_SuperWeapons")) {  // the skirmish special-weapons option default
         const std::string_view t = ascii_trim(*v);
         if (ascii_iequals(t, "yes") || ascii_iequals(t, "true") || t == "1") k.skirmish_superweapons = true;
         else if (ascii_iequals(t, "no") || ascii_iequals(t, "false") || t == "0") k.skirmish_superweapons = false;
     }
-    if (const auto v = gc.get("In_Game_Cinematics")) {  // cu8l t03: a gate of the start fleet's hyperspace arrival
+    if (const auto v = gc.get("In_Game_Cinematics")) {  // a gate of the start fleet's hyperspace arrival
         const std::string_view t = ascii_trim(*v);
         if (ascii_iequals(t, "yes") || ascii_iequals(t, "true") || t == "1") k.in_game_cinematics = true;
         else if (ascii_iequals(t, "no") || ascii_iequals(t, "false") || t == "0") k.in_game_cinematics = false;
@@ -105,7 +105,7 @@ TacticalBattle::L1Constants load_l1_constants(const data::GameConstants& gc) {
 
 std::vector<TacticalBattle::L1Faction> load_l1_factions(const galactic::GalacticRules& rules) {
     std::vector<TacticalBattle::L1Faction> out(rules.factions.size());
-    for (const galactic::FactionRules& n : rules.factions) {  // every definition, list order (cu5 t01)
+    for (const galactic::FactionRules& n : rules.factions) {  // every definition, list order
         const uint32_t fi = rules.find_faction(n.name);
         if (fi >= out.size()) continue;
         TacticalBattle::L1Faction& f = out[fi];
@@ -124,7 +124,7 @@ std::vector<TacticalBattle::L1Faction> load_l1_factions(const galactic::Galactic
 }
 
 // The Bombardment_Projectile types are not unit weapons, so the unit build does not reach them: each is added at setup
-// through the catalog's one projectile builder (ref5 t01: BattleCatalog::extend_projectile, the same ProjectileDesc and
+// through the catalog's one projectile builder (BattleCatalog::extend_projectile, the same ProjectileDesc and
 // visuals as a unit-fired projectile of that type; a type a unit already fires keeps its entry).
 void TacticalBattle::l1_add_strike_projectiles() {
     if (space_) return;
@@ -254,7 +254,7 @@ bool TacticalBattle::l1_base_shield_covers(Vec3 p) const {
     const objects::ObjectStore& st = l1_mode_->primary();
     for (const objects::ObjectHandle h : st.all_objects()) {
         if (!st.active(h) || kBaseShield == objects::kNoBehavior || !st.has_behavior(h, kBaseShield)) continue;
-        // tru1 t02: the shield must be on (combat's BASE_SHIELD state machine; TRU1_A_RE_ANSWERS A1)
+        // the shield must be on (combat's BASE_SHIELD state machine; TRU1_A_RE_ANSWERS A1)
         if (combat_->has_unit(st.id(h)) && !combat_->base_shield_active(st.id(h))) continue;
         const float r = catalog_->types().get(st.type(h), objects::tags::Base_Shield_Radius);
         const Vec3 c = st.position(h);
@@ -274,7 +274,7 @@ bool TacticalBattle::bombing_run_target_valid(int32_t player, Vec3 target) const
     const objects::ObjectStore& st = l1_mode_->primary();
     for (const objects::ObjectHandle h : st.all_objects()) {  // Bombing_Run_Prevention_Radius of objects not the player's
         if (!st.active(h) || st.owner(h) == player) continue;
-        const float r = catalog_->types().get(st.type(h), objects::tags::Bombing_Run_Prevention_Radius);  // float field (bkc1 t07)
+        const float r = catalog_->types().get(st.type(h), objects::tags::Bombing_Run_Prevention_Radius);  // float field
         if (!(r > 0.0f)) continue;
         const Vec3 c = st.position(h);
         const float dx = target.x - c.x, dy = target.y - c.y, dz = target.z - c.z;
@@ -284,7 +284,7 @@ bool TacticalBattle::bombing_run_target_valid(int32_t player, Vec3 target) const
 }
 
 namespace {
-// cu8f t06: the key of the Lua Disable_Bombing_Run / Disable_Orbital_Bombardment entry (0x1407ff8a8 in the original) [port].
+// the key of the Lua Disable_Bombing_Run / Disable_Orbital_Bombardment entry (0x1407ff8a8 in the original) [port].
 constexpr uint32_t kLuaGateKey = 0x407ff8a8u;
 }  // namespace
 
@@ -297,7 +297,7 @@ bool TacticalBattle::player_gate_allows(int32_t player, tactical::abilities::Pla
 }
 
 bool TacticalBattle::bombardment_available(int32_t player) const {
-    // [port] the service's list gate (0x52a110) is also applied here, so a Lua disable takes effect at once. cu8f t06: the
+    // [port] the service's list gate (0x52a110) is also applied here, so a Lua disable takes effect at once. the
     // record's `disabled` byte mirrors the Lua entry (kept for older saves, which have no list entry).
     for (const L1Bombard& r : l1_bombard_)
         if (r.player == player)
@@ -307,7 +307,7 @@ bool TacticalBattle::bombardment_available(int32_t player) const {
 }
 
 bool TacticalBattle::bombing_run_available(int32_t player) const {
-    // 0x494410: in a skirmish only with the special-weapons option (cu9h t01; skm1 t02: the session's option when set).
+    // 0x494410: in a skirmish only with the special-weapons option (the session's option when set).
     if (cfg_.skirmish && !(cfg_.skirmish_options.set ? cfg_.skirmish_options.super_weapons : l1_k_.skirmish_superweapons)) return false;
     for (const L1BombingRun& r : l1_runs_)
         if (r.player == player)
@@ -317,7 +317,7 @@ bool TacticalBattle::bombing_run_available(int32_t player) const {
 }
 
 void TacticalBattle::set_bombardment_disabled(int32_t player, bool disabled) {
-    // Disable_Orbital_Bombardment: one keyed entry in tactical list +0x250, value = !disabled [M high] (cu8f t06).
+    // Disable_Orbital_Bombardment: one keyed entry in tactical list +0x250, value = !disabled [M high].
     for (L1Bombard& r : l1_bombard_)
         if (r.player == player) r.disabled = disabled;
     if (abilities_) abilities_->set_player_gate_entry(player, tactical::abilities::PlayerGate::Bombardment, kLuaGateKey, !disabled);
@@ -328,7 +328,7 @@ void TacticalBattle::remove_bombardment(int32_t player, bool removed) {
 }
 void TacticalBattle::set_bombing_run_disabled(int32_t player, bool disabled) {
     // Disable_Bombing_Run (0x601aa0): one keyed entry in tactical list +0x1c8 (the list Enable_Bombing_Runs writes), value
-    // = !disabled [M high] (cu8f t06, CU8F_T04_T06_RE §3.3).
+    // = !disabled [M high] (CU8F_T04_T06_RE §3.3).
     for (L1BombingRun& r : l1_runs_)
         if (r.player == player) r.disabled = disabled;
     if (abilities_) abilities_->set_player_gate_entry(player, tactical::abilities::PlayerGate::BombingRuns, kLuaGateKey, !disabled);
@@ -406,7 +406,7 @@ bool TacticalBattle::start_bombardment(TacticalMode& mode, int32_t player, Vec3 
         r.shot = r.salvo = 0;
         r.target = target;
         const uint32_t init = static_cast<uint32_t>(frames_trunc(30.0f * f.initial_delay));
-        // BOMBARD_DELAY (STY1 t06, §4.3): a story override above 0 replaces the faction's initial delay. [port] the extra time
+        // BOMBARD_DELAY (§4.3): a story override above 0 replaces the faction's initial delay. [port] the extra time
         // over the faction value is not applied to the first particle.
         const uint32_t d = bombard_delay_override_ > 0.0f ? static_cast<uint32_t>(frames_trunc(30.0f * bombard_delay_override_)) : init;
         r.next_shot = frame_ + static_cast<uint32_t>(frames_trunc(30.0f * f.shot_delay)) + d;
@@ -417,7 +417,7 @@ bool TacticalBattle::start_bombardment(TacticalMode& mode, int32_t player, Vec3 
             if (pt != objects::kNone) spawn_particle(*l1_mode_, static_cast<int32_t>(pt), target, player);
         }
         r.deferred = -1;
-        {  // mcx4 t13: presentation feed (SFXEvent_Bombard_Incoming)
+        {  // presentation feed (SFXEvent_Bombard_Incoming)
             StrikeEvent e;
             e.player = player;
             e.bombard = true;
@@ -481,7 +481,7 @@ bool TacticalBattle::start_bombing_run(TacticalMode& mode, int32_t player, Vec3 
             r.bombers.push_back(bm);
         }
         r.total = static_cast<uint32_t>(r.bombers.size());
-        // mcx4 t13: presentation feed (SFXEvent_Bombing_Run_Begin_Crosstalk on the first bomber)
+        // presentation feed (SFXEvent_Bombing_Run_Begin_Crosstalk on the first bomber)
         strike_starts_.push_back({player, false, r.bombers.empty() ? objects::kNoObjectId : r.bombers.front().id, bt});
         return true;
     }

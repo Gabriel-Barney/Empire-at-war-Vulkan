@@ -253,7 +253,7 @@ bool save_crop(const std::string& path, const std::vector<uint8_t>& img, uint32_
     return render::write_png_rgba(path, cw * k, ch * k, out);
 }
 
-void land_map(Gpu& g, const std::string& src_dir, const char* root) {
+void land_map(Gpu& g, [[maybe_unused]] const std::string& src_dir, const char* root) {
     vfs::VfsConfig cfg;
     cfg.foc_root = root;
     std::string err;
@@ -348,13 +348,13 @@ void land_map(Gpu& g, const std::string& src_dir, const char* root) {
                     if (pass) t_on = t;
                 }
             }
-            CHECK(save_png(src_dir + "/logs/render_taa_off.png", last[0], W, H));
-            CHECK(save_png(src_dir + "/logs/render_taa_on.png", last[1], W, H));
+            CHECK(save_png(::alamo::test::artifact_dir() + "/render_taa_off.png", last[0], W, H));
+            CHECK(save_png(::alamo::test::artifact_dir() + "/render_taa_on.png", last[1], W, H));
             // 4x crops of the start-camera view's silhouettes: the building at the top left, the landing pad right of centre.
-            CHECK(save_crop(src_dir + "/logs/render_taa_off_crop.png", last[0], W, 0, 0, 240, 135, 4));
-            CHECK(save_crop(src_dir + "/logs/render_taa_on_crop.png", last[1], W, 0, 0, 240, 135, 4));
-            CHECK(save_crop(src_dir + "/logs/render_taa_off_crop2.png", last[0], W, 800, 380, 200, 140, 4));
-            CHECK(save_crop(src_dir + "/logs/render_taa_on_crop2.png", last[1], W, 800, 380, 200, 140, 4));
+            CHECK(save_crop(::alamo::test::artifact_dir() + "/render_taa_off_crop.png", last[0], W, 0, 0, 240, 135, 4));
+            CHECK(save_crop(::alamo::test::artifact_dir() + "/render_taa_on_crop.png", last[1], W, 0, 0, 240, 135, 4));
+            CHECK(save_crop(::alamo::test::artifact_dir() + "/render_taa_off_crop2.png", last[0], W, 800, 380, 200, 140, 4));
+            CHECK(save_crop(::alamo::test::artifact_dir() + "/render_taa_on_crop2.png", last[1], W, 800, 380, 200, 140, 4));
             const double e_off = edge_energy(last[0], W, H), e_on = edge_energy(last[1], W, H);
             double mean_diff = 0;
             for (size_t i = 0; i + 3 < bytes; i += 4) mean_diff += std::fabs(luma(&last[0][i]) - luma(&last[1][i]));
@@ -385,9 +385,9 @@ void land_map(Gpu& g, const std::string& src_dir, const char* root) {
                     CHECK(st.smaa && !st.taa);
                 }
                 const std::vector<uint8_t> smaa_img(o.data(), o.data() + bytes);
-                CHECK(save_png(src_dir + "/logs/render_smaa_on.png", smaa_img, W, H));
-                CHECK(save_crop(src_dir + "/logs/render_smaa_on_crop.png", smaa_img, W, 0, 0, 240, 135, 4));
-                CHECK(save_crop(src_dir + "/logs/render_smaa_on_crop2.png", smaa_img, W, 800, 380, 200, 140, 4));
+                CHECK(save_png(::alamo::test::artifact_dir() + "/render_smaa_on.png", smaa_img, W, H));
+                CHECK(save_crop(::alamo::test::artifact_dir() + "/render_smaa_on_crop.png", smaa_img, W, 0, 0, 240, 135, 4));
+                CHECK(save_crop(::alamo::test::artifact_dir() + "/render_smaa_on_crop2.png", smaa_img, W, 800, 380, 200, 140, 4));
                 const double e_smaa = edge_energy(smaa_img, W, H);
                 double smaa_diff = 0;
                 for (size_t i = 0; i + 3 < bytes; i += 4) smaa_diff += std::fabs(luma(&last[0][i]) - luma(&smaa_img[i]));
@@ -431,9 +431,9 @@ void land_map(Gpu& g, const std::string& src_dir, const char* root) {
                     CHECK(settled && st.msaa == n);
                     const std::vector<uint8_t> img(o.data(), o.data() + bytes);
                     const std::string tag = "msaa" + std::to_string(n);
-                    CHECK(save_png(src_dir + "/logs/render_" + tag + "_on.png", img, W, H));
-                    CHECK(save_crop(src_dir + "/logs/render_" + tag + "_on_crop.png", img, W, 0, 0, 240, 135, 4));
-                    CHECK(save_crop(src_dir + "/logs/render_" + tag + "_on_crop2.png", img, W, 800, 380, 200, 140, 4));
+                    CHECK(save_png(::alamo::test::artifact_dir() + "/render_" + tag + "_on.png", img, W, H));
+                    CHECK(save_crop(::alamo::test::artifact_dir() + "/render_" + tag + "_on_crop.png", img, W, 0, 0, 240, 135, 4));
+                    CHECK(save_crop(::alamo::test::artifact_dir() + "/render_" + tag + "_on_crop2.png", img, W, 800, 380, 200, 140, 4));
                     const double e_ms = edge_energy(img, W, H);
                     double diff = 0;
                     for (size_t i = 0; i + 3 < bytes; i += 4) diff += std::fabs(luma(&one[i]) - luma(&img[i]));
@@ -549,11 +549,11 @@ void land_map(Gpu& g, const std::string& src_dir, const char* root) {
                     CHECK(mover_draws > 0);               // the keyed run drew velocity
                     CHECK(d_move - d_still < 2.0);        // measured 0.85 with the depth rejection (RX 9070 XT); more than 2 = a trail
                     CHECK(d_key < d_move);                // measured 5.55 vs 5.80: motion vectors beat the depth rejection alone
-                    CHECK(save_crop(src_dir + "/logs/render_taa_move_off.png", off_move, W, bx0, by0, std::min(bx1 - bx0, 300u),
+                    CHECK(save_crop(::alamo::test::artifact_dir() + "/render_taa_move_off.png", off_move, W, bx0, by0, std::min(bx1 - bx0, 300u),
                                     std::min(by1 - by0, 200u), 3));
-                    CHECK(save_crop(src_dir + "/logs/render_taa_move_on.png", on_move, W, bx0, by0, std::min(bx1 - bx0, 300u),
+                    CHECK(save_crop(::alamo::test::artifact_dir() + "/render_taa_move_on.png", on_move, W, bx0, by0, std::min(bx1 - bx0, 300u),
                                     std::min(by1 - by0, 200u), 3));
-                    CHECK(save_crop(src_dir + "/logs/render_taa_move_keyed.png", key_move, W, bx0, by0, std::min(bx1 - bx0, 300u),
+                    CHECK(save_crop(::alamo::test::artifact_dir() + "/render_taa_move_keyed.png", key_move, W, bx0, by0, std::min(bx1 - bx0, 300u),
                                     std::min(by1 - by0, 200u), 3));
 
                     // BM2b provisional frames: the keyed slide with TAA, plain, and with a provisional frame before every other
@@ -773,7 +773,7 @@ int run_gpu(const std::string& src_dir) {
 
 int main() {
     test_cpu();
-    run_gpu(ALAMO_RENDER_SOURCE_DIR);
+    if (run_gpu(ALAMO_RENDER_SOURCE_DIR) != 0) ++g_fail;  // a GPU failure (e.g. no context with validation required)
     std::printf("%s (%d failures)\n", g_fail ? "FAILED" : "PASSED", g_fail);
     return g_fail ? 1 : 0;
 }

@@ -98,7 +98,7 @@ std::vector<ShaderIssue> effect_load_issues(const EffectLibrary& lib, std::strin
     const std::optional<std::string> src = lib.find_effect_source(effect);
     std::string src_why;
     const FxSourceState st = src ? lib.fx_source_status(effect, &src_why) : FxSourceState::None;
-    const bool from_src = st == FxSourceState::Compiled;  // modc t23: the compiled .fx is what load() reads
+    const bool from_src = st == FxSourceState::Compiled;  // the compiled .fx is what load() reads
     if (src && !from_src) {
         // The original compiles this .fx; the port has no compiled copy of it (why: not prebuilt, fxc error, off).
         const std::string reason = st == FxSourceState::Disabled ? std::string("HLSL .fx compilation is off") : src_why;

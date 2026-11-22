@@ -94,7 +94,7 @@ std::vector<uint32_t> find_crush_victims(std::span<const Box2> crusher_boxes, st
     return out;
 }
 
-// ---------------------------------------------------------------- s78n t18: footprint rectangles (MOVEMENT §5.3.1)
+// ---------------------------------------------------------------- footprint rectangles (MOVEMENT §5.3.1)
 float foot_extent(const FootRect& r, V2 n) {
     if (r.round) return r.hx;
     const V2 b = perp_left(r.a);
@@ -311,7 +311,7 @@ uint32_t CollisionLayer::add(CollisionKind kind, ObjectId a, ObjectId b, uint32_
 }
 
 void CollisionLayer::drop_pair(const CollisionObject& c) {
-    if (c.participants < 2) return;  // s78n t24: a Terrain record has no pair key
+    if (c.participants < 2) return;  // a Terrain record has no pair key
     auto it = std::lower_bound(pairs_.begin(), pairs_.end(), collision_pair_key(c.a, c.b));
     if (it != pairs_.end() && *it == collision_pair_key(c.a, c.b)) pairs_.erase(it);
 }

@@ -22,7 +22,7 @@
 #include "alamo/galactic/campaign.hpp"
 #include "alamo/galactic/conflicts.hpp"
 #include "alamo/galactic/galactic_rules.hpp"
-#include "alamo/game/skirmish_rules.hpp"  // q6 t03: AI types, default forces, map planet type (shared with alamo_headless)
+#include "alamo/game/skirmish_rules.hpp"  // AI types, default forces, map planet type (shared with alamo_headless)
 #include "alamo/objects/game_object_types.hpp"
 #include "alamo/objects/object_types.hpp"
 #include "alamo/sim/battle_catalog.hpp"
@@ -60,14 +60,14 @@ struct AiData {
 #endif
 };
 #endif
-// resolve_ai_type: alamo/game/skirmish_rules.hpp (q6 t03, modc t03).
+// resolve_ai_type: alamo/game/skirmish_rules.hpp.
 
 struct GameData {
     std::string root;                      // game folder (FoC "corruption") or synthetic data folder
     std::unique_ptr<FileProvider> files;   // the ModEnvironment for real data, DirectoryProvider for synthetic data
-    vfs::ModEnvironment* env = nullptr;    // ums2: = files for real data (mounted mods, layer owners), else null
+    vfs::ModEnvironment* env = nullptr;    // = files for real data (mounted mods, layer owners), else null
     vfs::Vfs* vfs = nullptr;               // = &env->vfs() for real data (audio archives, map lists), else null
-    alamo::IssueSink vfs_issues;           // ums2: the findings ModEnvironment::open recorded (VFS, with their layer)
+    alamo::IssueSink vfs_issues;           // the findings ModEnvironment::open recorded (VFS, with their layer)
     data::GameDatabase db;
     objects::ObjectTypeDatabase raw;
     objects::GameObjectTypes types;
@@ -75,9 +75,9 @@ struct GameData {
     galactic::ConflictRules crules;
     std::unique_ptr<sim::BattleCatalog> catalog;
     std::shared_ptr<AiData> ai;  // null: no AI data / built without engine/ai galactic AI
-    // q6 t08: Faction.Basic_AI (ai::load_faction_basic_ai: upper-case faction name -> AIPlayerType; empty without engine/ai).
+    // Faction.Basic_AI (ai::load_faction_basic_ai: upper-case faction name -> AIPlayerType; empty without engine/ai).
     std::map<std::string, std::string> basic_ai;
-    // q6 t08: Faction Space_ / Land_Skirmish_AI_Default_Forces (SKIRMISH_SETUP §2 step 4) as written, per upper-case faction
+    // Faction Space_ / Land_Skirmish_AI_Default_Forces (SKIRMISH_SETUP §2 step 4) as written, per upper-case faction
     // name (FactionFiles.xml order; the last definition with a list wins, as alamo_headless's skirmish host).
     SkirmishForceTable skirmish_forces;  // skirmish_rules.hpp load_skirmish_forces
     std::vector<std::string> diagnostics;
@@ -91,7 +91,7 @@ struct GameData {
     };
     std::vector<LoadStage> stages;
     std::vector<std::string> args;  // N1 / t09: the VFS command line the data was loaded with (save descriptors)
-    // mcx3: one descriptor per mounted mod folder, Vfs::mod_dirs() order (ModEnvironment::mounted(): name, version,
+    // one descriptor per mounted mod folder, Vfs::mod_dirs() order (ModEnvironment::mounted(): name, version,
     // content hash, game tag). Saves store them; nothing in gameplay reads them.
     std::vector<vfs::ModDescriptor> mods;
     // N1 / t09: sim::fingerprint_types of `types`, computed on first use (saves / loads only; one process-wide cache).
@@ -109,7 +109,7 @@ bool load_game_data(const std::string& root, const std::vector<std::string>& arg
 // Any folder with Data\XML (tests: synthetic data written by the test). False + err.
 bool load_game_data_dir(const std::string& dir, GameData& out, std::string* err = nullptr);
 
-// Skirmish galaxy (see the file comment). Players: 0 = human (`human_faction`), 1 = AI (`ai_faction`), then (skm2 t02) one
+// Skirmish galaxy (see the file comment). Players: 0 = human (`human_faction`), 1 = AI (`ai_faction`), then one
 // AI player per extra slot (slot k = player k, its forces on planet skirmish_slot_planet(k)), then the first neutral
 // faction, then the native-owner faction (GalacticRules::native_owner_faction). An empty faction name is the
 // default slot faction (default_skirmish_faction). `units_human` / `units_ai` = type names of the starting fleets (unknown names are skipped);
@@ -120,24 +120,24 @@ bool load_game_data_dir(const std::string& dir, GameData& out, std::string* err 
 // the human's ground forces ride a fleet (one space unit + the ground units launched at session start) that hops to
 // planet 1 and invades on arrival (the session submits the Invade order): the land battle on the chosen land map.
 struct SkirmishSetup {
-    std::string human_faction, ai_faction;  // "" = default_skirmish_faction (modc t03: from the data, not by name)
+    std::string human_faction, ai_faction;  // "" = default_skirmish_faction (from the data, not by name)
     std::vector<std::string> units_human, units_ai;    // space fleets ("" = default_skirmish_fleet)
     bool land = false;
     // Land: ground forces ("" = default_skirmish_ground). Space (P4 host, tests): a non-empty ground_human stands on the
     // human's planet surface (FleetManagement launch / land); empty = none, as before.
     std::vector<std::string> ground_human, ground_ai;
     std::string planet_type;
-    // p4uia t02: the colour index (0..8, GameConstants MP_Color_* entry) of player 0 (human) and 1 (AI) chosen on the
+    // the colour index (0..8, GameConstants MP_Color_* entry) of player 0 (human) and 1 (AI) chosen on the
     // staging screen; players without an entry keep their index. Presentation only: the setup and the sim ignore it.
     std::vector<uint8_t> colors;
     // q6 t02 [port]: no starting forces and no "unknown unit" failure - the attract demo clears the forces anyway (every unit
     // comes from its map), and a mod's Underworld may have no default fleet (Thrawn's Revenge). Not saved (the demo is never).
     bool no_forces = false;
-    // modc t48: a slot whose forces name no known unit type starts empty instead of failing the setup. GameSession sets it
+    // a slot whose forces name no known unit type starts empty instead of failing the setup. GameSession sets it
     // for the skirmish map battle (no opening hop needs a fleet): retail starts a slot with nothing when its faction has no
     // default forces (Age of Legends' land skirmish, modc t09 A4). Derived from the session kind, not saved.
     bool empty_slots_ok = false;
-    // ccpgt t02: the staging screen's Capture Control Points game type (4) on a land map: the battle's win condition is 0x15
+    // the staging screen's Capture Control Points game type (4) on a land map: the battle's win condition is 0x15
     // CONTROL_POINT_DOMINATION (sim::BattleConfig::control_point_domination, SKIRMISH_SETUP §4.2). Saved.
     bool control_points = false;
     // skm2 t02 (SKIRMISH_SETUP §1, staging slots 2..7 opened as AI players): the slots after the human (0) and the AI (1),
@@ -148,14 +148,14 @@ struct SkirmishSetup {
         std::vector<std::string> units, ground;  // space fleet / land forces
     };
     std::vector<ExtraSlot> extra_slots;
-    // skm2 t02: per slot (0, 1, then extra_slots) its team (IDC_PLAYER_TEAM_n - 1); missing / negative = the slot's own index
+    // per slot (0, 1, then extra_slots) its team (IDC_PLAYER_TEAM_n - 1); missing / negative = the slot's own index
     // (every slot its own team). Saved.
     std::vector<int32_t> teams;
     // skm2 t02 (SKIRMISH_SETUP §1: slot +0x158 -> player +0x3bc): per slot its AI difficulty 0..2 (slot 0, the human, unused);
     // missing / negative = SessionSpec::difficulty. Saved.
     std::vector<int32_t> difficulties;
 };
-// skm2 t02: the slot count (2 + extra_slots, at most 8), a slot's team (SkirmishSetup::teams, else the slot) and its galaxy
+// the slot count (2 + extra_slots, at most 8), a slot's team (SkirmishSetup::teams, else the slot) and its galaxy
 // planet (slot 0 kSkirmishHumanPlanet, 1 kSkirmishBattlePlanet, k >= 2 planet k + 1).
 int32_t skirmish_slot_count(const SkirmishSetup& s);
 int32_t skirmish_slot_team(const SkirmishSetup& s, int32_t slot);
@@ -171,8 +171,8 @@ std::string default_skirmish_faction(const galactic::GalacticRules& rules, bool 
 const data::CampaignDef* load_campaign_target(const GameData& data, std::string_view name, int32_t side);
 // `s` with its empty slot factions replaced by default_skirmish_faction.
 SkirmishSetup resolve_skirmish_factions(const galactic::GalacticRules& rules, SkirmishSetup s);
-// q6 t08: the default forces make_skirmish_galaxy uses, as type names the data defines (skirmish_rules.hpp
-// skirmish_default_forces with the alamo_game option hyperspace leader). modc t17: every faction alike, base FoC included
+// the default forces make_skirmish_galaxy uses, as type names the data defines (skirmish_rules.hpp
+// skirmish_default_forces with the alamo_game option hyperspace leader). Every faction alike, base FoC included
 // (FoC: two squadrons of fighters in space, two infantry squads on land, as retail):
 //   every faction                     the faction's Space_ / Land_Skirmish_AI_Default_Forces (SKIRMISH_SETUP §2 step 4),
 //                                     names the data does not define, and types the galaxy cannot hold (space: not a
@@ -186,14 +186,14 @@ std::vector<std::string> default_skirmish_fleet(const GameData& data, const std:
 std::vector<std::string> default_skirmish_ground(const GameData& data, const std::string& faction);
 inline constexpr PlanetIndex kSkirmishHumanPlanet = 2, kSkirmishBattlePlanet = 1;
 
-// Space skirmish maps of the data (Data\Art\Maps\_MP_SPACE_*.ted through the VFS), sorted by name (modc t19: no map
+// Space skirmish maps of the data (Data\Art\Maps\_MP_SPACE_*.ted through the VFS), sorted by name (no map
 // is moved to the front). Empty without a VFS. [port] Both lists leave out a map whose loose file (through
 // the normal lookup) is empty or cannot be sized (Thrawn's Revenge ships a 0-byte _MP_SPACE_KUAT.ted); MEG entries are kept,
 // so vanilla lists are unchanged.
 std::vector<std::string> skirmish_space_maps(const GameData& data);
 // Land skirmish maps (Data\Art\Maps\_MP_LAND_*.ted), sorted. Empty without a VFS.
 std::vector<std::string> skirmish_land_maps(const GameData& data);
-// ---- Skirmish map catalog (docs/re/UI.md section 9, roadmap p4ui t06) --------------------------------------------------
+// ---- Skirmish map catalog (legacy docs/re/UI.md section 9) --------------------------------------------------
 // The menu's map table: three scans over the layers, each map's header (top chunk 0 of the .ted) read through the normal
 // VFS lookup (mod > FoC loose > MEGs > fallbacks, so a mod's copy of an official map name decides its header).
 //   official      Data\Art\Maps\*.TED   from the FoC-loose and MEG layers; every entry kept, readable or not
@@ -208,7 +208,7 @@ struct SkirmishMapEntry {
     uint32_t players = 1;  // mini 02, 1 when absent
     bool custom = false;   // mini 0B == 1: the Custom tab shows it, else the Official tab
     std::string name_key;  // mini 08 (UTF-8 text key), "" when absent
-    std::string mode_tag;  // ccpgt t02: mini 0A (the game-mode tag), upper-cased as retail stores it; "" when absent
+    std::string mode_tag;  // mini 0A (the game-mode tag), upper-cased as retail stores it; "" when absent
     bool readable = false; // the file was read and its map-info chunk decoded
 };
 struct SkirmishMapCatalog {
@@ -219,12 +219,12 @@ struct SkirmishMapCatalog {
 SkirmishMapCatalog build_skirmish_map_catalog(const vfs::Vfs& vfs);
 SkirmishMapCatalog build_skirmish_map_catalog(const GameData& data);
 // The skirmish list of one tab: entries of `official` then `custom_scan` with kind 1 or 2, players >= 2 and
-// custom == `custom_tab` (UI.md 9.4); a logical path listed in both lists appears once.
+// custom == `custom_tab` (legacy docs/re/UI.md 9.4); a logical path listed in both lists appears once.
 std::vector<SkirmishMapEntry> skirmish_map_rows(const SkirmishMapCatalog& catalog, bool custom_tab);
 // The entry for a map id (a stem, a file name or a path: the terrain::map_path rule, case-insensitive), nullptr when absent.
 const SkirmishMapEntry* find_skirmish_map(const SkirmishMapCatalog& catalog, std::string_view map);
 
-// p4uim t03 (UI.md 9.3 / 9.6): what the staging preview needs from a map file, read through the normal VFS lookup.
+// p4uim t03 (legacy docs/re/UI.md 9.3 / 9.6): what the staging preview needs from a map file, read through the normal VFS lookup.
 struct SkirmishMapPreview {
     bool found = false;                    // the file was read
     std::vector<uint8_t> embedded_image;   // top chunk 0x13 (a TGA file), empty = none

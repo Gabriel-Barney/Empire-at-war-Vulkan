@@ -41,7 +41,7 @@ ScriptStep step_wait(std::string name, std::function<bool(App&)> cond, uint32_t 
 }
 
 // Clicks a control of `dialog` once it is the top dialog: at its centre, or (`first_row`) 6 px above its bottom edge in
-// canvas units, the first row of a list (the skirmish staging game type list: row 0 = Land). cu9 t07: one body for both.
+// canvas units, the first row of a list (the skirmish staging game type list: row 0 = Land). One body for both.
 ScriptStep step_click_in(std::string name, std::string dialog, std::string control, bool first_row) {
     auto st = std::make_shared<ClickState>();
     auto px = std::make_shared<std::pair<int32_t, int32_t>>(0, 0);
@@ -89,7 +89,7 @@ ScriptStep step_select_row(std::string dialog, std::string control, std::functio
                     const ui::GuiRect r = d->control_rect(static_cast<size_t>(i));
                     const float cx = 0.5f * (r.min.x + r.max.x);
                     float cy = r.max.y - 6.0f;
-                    // q6 t02: a mod layout can put another control over the list's top row (Thrawn's Revenge: the game type list
+                    // a mod layout can put another control over the list's top row (Thrawn's Revenge: the game type list
                     // covers the staging map list's first row): click lower, on the first point the list itself owns.
                     // Vanilla layouts leave the top row free, so the point is unchanged there.
                     for (int32_t k = 0; k < 64 && cy > r.min.y + 6.0f; ++k) {
@@ -116,7 +116,7 @@ ScriptStep step_select_row(std::string dialog, std::string control, std::functio
             2000};
 }
 
-// modc t34: a mod's skirmish staging dialog may have no game-type list (Age of Legends' layout): the dialog keeps the type it
+// a mod's skirmish staging dialog may have no game-type list (Age of Legends' layout): the dialog keeps the type it
 // opened on and the run plays that type's first map. These steps note that instead of waiting for a row that cannot exist.
 bool staging_has_game_types(App& a) {
     ui::GuiDialog* d = a.ui_.gui.find("IDD_SKIRMISH_STAGING_DIALOG");
@@ -340,7 +340,7 @@ ScriptStep step_encyclopedia(std::string name) {
                 // run stay independent of the machine's speed (the CRC log compares across compilers).
                 a.hold_sim_ = true;
                 if (*shown0 == ~uint64_t{0}) *shown0 = a.ency_shown_;
-                // modc t43: in a battle, while nothing is under the cursor 60 frames after an aim, aim at the next local unit
+                // in a battle, while nothing is under the cursor 60 frames after an aim, aim at the next local unit
                 // (a mod's first local unit can be one the pick cannot hit: the Remake's and FotR's start fighters sit in the
                 // station's hangar). The camera only; the sim stays held.
                 if (*aimed && a.screen() == Screen::Battle && a.hover_ship_ == 0 && a.ency_shown_ <= *shown0 && ++*since_aim >= 60) *aimed = false;
@@ -381,7 +381,7 @@ ScriptStep step_encyclopedia(std::string name) {
                     return false;
                 }
                 if (a.ency_shown_ <= *shown0 + 2) {
-                    if (++*waited == 600) {  // modc t43: what the hover sees when the pop-up does not come
+                    if (++*waited == 600) {  // what the hover sees when the pop-up does not come
                         uint32_t hover_type = ~0u;
                         for (const ui::HudUnit& u : a.hud_units_)
                             if (u.id == a.hover_ship_) hover_type = u.type;
@@ -527,7 +527,7 @@ ScriptStep step_victory_screen(std::string file) {
             },
             1400};
 }
-// modc t40: ALAMO_SMOKE_SKIRMISH_FACTION=<row> plays that row of slot 0's faction combo (default: the dialog's own
+// ALAMO_SMOKE_SKIRMISH_FACTION=<row> plays that row of slot 0's faction combo (default: the dialog's own
 // choice, row 0 on a fresh profile as in retail, SKIRMISH_SETUP 2.8). A mod whose row 0 is a list header with nothing to
 // field (Age of Legends) names a real faction row; retail kept the faction picked last in the player profile.
 ScriptStep step_skirmish_faction() {
@@ -546,9 +546,9 @@ ScriptStep step_skirmish_faction() {
             },
             120};
 }
-// Ctrl+Y (the SelectAll hotkey slot's default). modc t40: a mod's start forces can arrive later than the base game's (they
+// Ctrl+Y (the SelectAll hotkey slot's default). a mod's start forces can arrive later than the base game's (they
 // hyperspace in): while the press selected nothing, it is pressed again every 30 frames until a unit is selected.
-// modc t40: with `none`, a press that still selects nothing after 1500 frames sets *none (a mod start without local units,
+// with `none`, a press that still selects nothing after 1500 frames sets *none (a mod start without local units,
 // Age of Legends' land skirmish in retail too, modc t09 A4) and the step passes.
 ScriptStep step_select_all(std::shared_ptr<bool> none = nullptr) {
     auto st = std::make_shared<int>(0);
@@ -561,13 +561,13 @@ ScriptStep step_select_all(std::shared_ptr<bool> none = nullptr) {
                 if (++*st <= 3) return false;
                 const std::vector<objects::ObjectId>* sel =
                     a.session_ ? &a.session_->host().selection(static_cast<uint8_t>(a.local_player())) : nullptr;
-                // modc t49: a selection of static objects only (Fall of the Republic's start defense stations, its bought
+                // a selection of static objects only (Fall of the Republic's start defense stations, its bought
                 // ships arriving later) is pressed again until a unit that can move is in it; after 300 frames it is kept.
                 bool moves = !sel;
                 if (sel)
                     for (const objects::ObjectId id : *sel) moves = moves || a.unit_moves(id);
                 const bool any = !sel || (!sel->empty() && (moves || *st >= 300));
-                // modc t49: only static objects after 300 frames (Fall of the Republic with free starting units off: the
+                // only static objects after 300 frames (Fall of the Republic with free starting units off: the
                 // slots hold only the map's pre-built base): the unit steps need units that move and are skipped.
                 if (any && !moves && none) {
                     *none = true;
@@ -598,7 +598,7 @@ ScriptStep step_attack_enemy(bool shift = false) {
                 if (!a.session_ || !a.bview_.active() || a.screen() != Screen::Battle) return false;
                 const render::InterpolatedFrame& fr = a.bview_.frame();
                 const render::SnapshotObject* t = nullptr;
-                // modc t43: only an enemy the mouse can pick (not Lua-hidden or contained: the EAW-Remake hides helper objects).
+                // only an enemy the mouse can pick (not Lua-hidden or contained: the EAW-Remake hides helper objects).
                 const ui::WorldPickTests* pt = a.world_pick_tests();
                 for (const render::SnapshotObject& o : fr.objects)
                     if (*target == 0 ? (o.owner >= 0 && o.owner != a.local_player() && (o.flags & render::kSnapDying) == 0 &&
@@ -620,7 +620,7 @@ ScriptStep step_attack_enemy(bool shift = false) {
                     const ui::View v = ui::make_view(a.bview_.camera_params(a.targets_.width, a.targets_.height), a.targets_.width, a.targets_.height);
                     float sx = 0, sy = 0;
                     if (!ui::project(v, {t->position.x, t->position.y, t->position.z}, sx, sy)) return false;
-                    // modc t43: the hull may not cover its own centre (the EAW-Remake's enemy base is a shield-gate ring):
+                    // the hull may not cover its own centre (the EAW-Remake's enemy base is a shield-gate ring):
                     // try the centre, then rings around it, one pixel a frame with the sim held, until the hover is the
                     // target; none found: the centre as before. Vanilla hulls are hovered at the centre (one extra frame).
                     constexpr int32_t kRings[] = {0, 16, 32, 56, 88};
@@ -647,7 +647,7 @@ ScriptStep step_attack_enemy(bool shift = false) {
                 const bool done = click_at(*st, f, px->first, px->second, ui::Button::Right, shift);
                 if (done) {
                     a.hold_sim_ = false;
-                    std::string ty = "?";  // modc t43: what was clicked (the attack must route; a miss shows here)
+                    std::string ty = "?";  // what was clicked (the attack must route; a miss shows here)
                     for (const ui::HudUnit& u : a.hud_units_)
                         if (u.id == *target && u.type < a.ui_.hud_types.size()) ty = a.ui_.hud_types[u.type].name;
                     std::printf("script: enemy click - target %u %s at pixel %d,%d, hovered %u, hud component %d\n", *target, ty.c_str(),
@@ -684,7 +684,7 @@ void camera_on_local_units(App& a) {
     if (n) a.bview_.camera().jump_to({static_cast<float>(x / n), static_cast<float>(y / n), 0.0f});
 }
 
-// modc t49: a buy row the smoke can move: not a SpaceStructure (the category the mods' own scripts test with Is_Category;
+// a buy row the smoke can move: not a SpaceStructure (the category the mods' own scripts test with Is_Category;
 // Fall of the Republic's static defense stations carry a Max_Speed).
 bool smoke_unit_moves(App& a, const std::string& type) {
     const objects::TypeIndex t = a.data_.types.resolve_name(type);
@@ -694,7 +694,7 @@ bool smoke_unit_moves(App& a, const std::string& type) {
     return true;
 }
 
-// modc t40: steps [from, end) of the script pass at once while *skip is set (a mod whose start leaves nothing for them to do).
+// steps [from, end) of the script pass at once while *skip is set (a mod whose start leaves nothing for them to do).
 void gate_steps(std::vector<ScriptStep>& s, size_t from, const std::shared_ptr<bool>& skip) {
     for (size_t k = from; k < s.size(); ++k) {
         auto run = std::move(s[k].run);
@@ -703,7 +703,7 @@ void gate_steps(std::vector<ScriptStep>& s, size_t from, const std::shared_ptr<b
 }
 
 // Battle: right-click the ground next to the local units (MoveToPosition). The pixel is (w / 2, h / 3) unless the world
-// pick (HUD_GAPS §2.2, refixf t08: precise model test, then the override sphere) finds an object there, which would turn
+// pick (HUD_GAPS §2.2, precise model test, then the override sphere) finds an object there, which would turn
 // the click into an Attack or a MoveToObject: then the camera goes back to the local units and the click takes the first
 // pixel of a fixed spiral around (w / 2, h / 3), inside the middle of the screen, that picks nothing. Fixed for the whole
 // click. refixf t08 check: with the model pick the plain ground click finds that pixel free in every smoke run, but the
@@ -996,7 +996,7 @@ ScriptStep step_combat(bool land) {
                     if (an->stats().muzzle_flashes == 0) a.notes_.push_back("combat: no muzzle flash");
                 }
 #endif
-                // q6 t02: a mod may draw its bolts as projectile models (Thrawn's Revenge: Proj_Space_Laser_*.alo) instead of
+                // a mod may draw its bolts as projectile models (Thrawn's Revenge: Proj_Space_Laser_*.alo) instead of
                 // procedural lasers; only a battle with neither is noted. Vanilla lines unchanged.
                 if (!land && a.bview_.stats().lasers_peak == 0)
                     a.notes_.push_back(a.bview_.stats().model_projectiles_peak > 0
@@ -1240,7 +1240,7 @@ ScriptStep step_galactic_attack() {
             30000};
 }
 
-// q6 t03: `inner`, except that a battle prompt for a conflict the local player did not start (an AI attack; a pending
+// `inner`, except that a battle prompt for a conflict the local player did not start (an AI attack; a pending
 // battle holds the galaxy, so a fleet in flight never arrives) is answered Auto-Resolve first and its result screen
 // closed with Continue. Thrawn's Revenge's Thrawn_Empire AI attacks within the first galactic minutes; in the vanilla
 // smoke no such prompt is open during these steps, so the step runs exactly as `inner` there.
@@ -1414,13 +1414,13 @@ void App::make_script() {
         return;
     }
     s.push_back(step_shot("game_main_menu.png"));
-    // mcx7: with a mod mounted the picker's active row is that mod, and its background check (minutes for a large mod)
+    // with a mod mounted the picker's active row is that mod, and its background check (minutes for a large mod)
     // never gives the base game report the steps below wait for; the no-mod smoke (and its golden) covers the picker.
     const bool no_mod_mounted = std::none_of(opt_.game_args.begin(), opt_.game_args.end(), [](const std::string& a) { return vfs::is_mod_arg(a); });
     if (opt_.smoke == "skirmish" && !no_mod_mounted)
         std::printf("script: mod picker steps left out (a mod is mounted: the picker would check it in the background)\n");
     if (opt_.smoke == "skirmish" && no_mod_mounted) {
-        // modc t08: the mod picker from the main menu's Mods button: the rows (base game first, then whatever mods this
+        // the mod picker from the main menu's Mods button: the rows (base game first, then whatever mods this
         // machine has), the base game's load report once its check finished, PNG, Back. Never launches anything; the
         // skirmish session (and its golden) starts afresh later.
         s.push_back(step_click_control("IDD_MAIN_MENU_DIALOG", "IDC_PORT_MAIN_MENU_MODS"));
@@ -1444,7 +1444,7 @@ void App::make_script() {
         }, 120));
     }
     if (opt_.smoke == "skirmish") {
-        // OI host: the attract demo behind the main menu (MAIN_MENU_BACKGROUND.md; started here as the menu-open path would,
+        // OI host: the attract demo behind the main menu (legacy docs/re/MAIN_MENU_BACKGROUND.md; started here as the menu-open path would,
         // scripted runs never start it on their own): its battle world is drawn under the menu (world draws > 0, no
         // tactical HUD) and keeps ticking under the menu and its sub-dialogs (input never stops it); the skirmish's start
         // ends it. Its own session: the skirmish's session, CRC log and recording start afresh afterwards.
@@ -1541,7 +1541,7 @@ void App::make_script() {
                 const auto& st = a.demo_stats_;
                 std::printf("script: attract camera (%s) - %u frames, followed hull nose-on/tail-on in %u (longest run %u frames), nearby hulls %u / %u nose-on/tail-on\n",
                             a.demo_side_view_ ? "side view" : "first stand-in", st.frames, st.target_nose_on, st.longest_run, st.hulls_nose_on, st.hulls);
-                // q6 t02: a demo map without combat units (Thrawn's Revenge's End_Demo_Attract_* place only props) has
+                // a demo map without combat units (Thrawn's Revenge's End_Demo_Attract_* place only props) has
                 // nothing to follow: noted, not a failure. Vanilla demos always follow a hull (frames > 0).
                 const sim::TacticalBattle* b = a.session_->battle();
                 bool any_unit = false;
@@ -1592,7 +1592,7 @@ void App::make_script() {
                      },
                      600});
         s.push_back(step_ticks("battle settles", 30));
-        // modc t40: a mod can start a skirmish with no local units at all (Age of Legends' land skirmish has none in retail
+        // a mod can start a skirmish with no local units at all (Age of Legends' land skirmish has none in retail
         // either, modc t09 A4): select all then passes after its wait and the unit steps up to the battle end are skipped.
         auto no_units = std::make_shared<bool>(false);
         s.push_back(step_select_all(no_units));
@@ -1613,7 +1613,7 @@ void App::make_script() {
         if (env_or_empty("ALAMO_SMOKE_DRAG_BOX") == "1") s.push_back(step_drag_box(prefix + "_drag_box.png"));
         s.push_back(step_move_ground());
         s.push_back(step_wait("move routed", [](App& a) {
-            static uint32_t waits = 0;  // modc t49: what was selected when the move did not route
+            static uint32_t waits = 0;  // what was selected when the move did not route
             if (a.session_ && a.session_->order_stats().moves >= 1) return true;
             if (a.session_ && ++waits == 300) {
                 std::printf("script: move not routed after 300 frames - %llu rejected; selection:",
@@ -1675,10 +1675,10 @@ void App::make_script() {
     auto buy_steps = [&s](const std::string& prefix) {
         // Row 0; the space skirmish buys corvettes (kSmokeSkirmishBuyType, a cap-counted combat ship) when the list has them.
         const bool space_buy = prefix == "game_skirmish";
-        // modc t40: the buy screen is a [port] feature (SKIRMISH_SETUP §2.7: retail has none); a faction with nothing to buy
+        // the buy screen is a [port] feature (SKIRMISH_SETUP §2.7: retail has none); a faction with nothing to buy
         // (Age of Legends' list-header faction) passes it with nothing bought instead of stopping the smoke.
         auto empty = std::make_shared<bool>(false);
-        auto skipped = std::make_shared<bool>(false);  // modc t49: no buy screen (free starting units off): nothing to click
+        auto skipped = std::make_shared<bool>(false);  // no buy screen (free starting units off): nothing to click
         s.push_back({"buy list read", [empty, skipped, space_buy](App& a, ui::InputFrame&) {
                          if (!a.ui_.gui.find(ui::dlg::kBuyUnits)) {
                              if (!a.session_) return false;
@@ -1687,7 +1687,7 @@ void App::make_script() {
                              std::printf("script: buy screen skipped - free starting units off\n");
                              return true;
                          }
-                         // modc t49: a row counts when it is affordable and, in the space smoke, can move (Max_Speed > 0);
+                         // a row counts when it is affordable and, in the space smoke, can move (Max_Speed > 0);
                          // with none the default start force plays (Fall of the Republic's start credits buy only static
                          // stations). Land rows are companies (no Max_Speed of their own): affordable is enough.
                          bool any = false;
@@ -1705,7 +1705,7 @@ void App::make_script() {
                      120});
         const size_t buy_from = s.size();
         s.push_back(step_select_row(ui::dlg::kBuyUnits, "IDC_SKIRMISH_BUY_FORCES_LISTBOX", [space_buy](App& a) {
-            // q6 t02: data without the stock corvette (mods): ALAMO_SMOKE_BUY_TYPE names the type; else the first listed
+            // data without the stock corvette (mods): ALAMO_SMOKE_BUY_TYPE names the type; else the first listed
             // *_Corvette, else the first row that is not Build_Initially_Locked (Thrawn's Revenge lists a locked cheat unit
             // first). Vanilla always finds kSmokeSkirmishBuyType.
             const std::string want = env_or_empty("ALAMO_SMOKE_BUY_TYPE");
@@ -1715,9 +1715,9 @@ void App::make_script() {
             if (!space_buy) return size_t{0};
             for (size_t i = 0; i < u.size(); ++i)
                 if (u[i].type == kSmokeSkirmishBuyType) return i;
-            // modc t39: the mod fallbacks take only rows the player can buy now (Fall of the Republic lists its most
+            // the mod fallbacks take only rows the player can buy now (Fall of the Republic lists its most
             // expensive ships first: the first corvette row cost more than the start credits, so Buy did nothing).
-            // modc t49: and that can move (Max_Speed > 0): Fall of the Republic's cheapest affordable row is a static
+            // and that can move (Max_Speed > 0): Fall of the Republic's cheapest affordable row is a static
             // defense station, which the smoke's move order cannot use.
             auto affordable = [&a, &u](size_t i) {
                 if (!(u[i].can_buy && u[i].cost >= 0 && u[i].cost <= a.buy_.credits)) return false;
@@ -1752,7 +1752,7 @@ void App::make_script() {
     };
     if (opt_.smoke == "land") {  // land skirmish: the first land map of the list (rows after the space maps)
         s.push_back(step_click_control("IDD_SINGLE_PLAYER_GAMES_MENU_DIALOG", "IDC_SKIRMISH_GAMES_BUTTON"));
-        // p4uim t01: the Land game type (ccpgt t02: its row, the rows are sorted by text).
+        // the Land game type (its row, the rows are sorted by text).
         s.push_back(step_select_game_type(ui::kSkirmishGameLand));
         s.push_back(step_wait("land game type listed", [](App& a) { return !a.ui_.front.skirmish_space_type() || !staging_has_game_types(a); }, 60));
         s.push_back(step_select_row("IDD_SKIRMISH_STAGING_DIALOG", "IDC_STAGING_MAP_LIST", [](App& a) {
@@ -1772,8 +1772,8 @@ void App::make_script() {
         s.push_back(step_wait("land skirmish over", [](App& a) { return a.session_ && a.skirmish_ended_ && a.screen() == Screen::Menu; }, 20000));
     } else if (opt_.smoke == "skirmish") {
         s.push_back(step_click_control("IDD_SINGLE_PLAYER_GAMES_MENU_DIALOG", "IDC_SKIRMISH_GAMES_BUTTON"));
-        // The dialog opens on Land (UI.md 9.7): select the Space game type (its row; ccpgt t02: the rows are sorted by text); the
-        // run starts on its row 0 (modc t19).
+        // The dialog opens on Land (legacy docs/re/UI.md 9.7): select the Space game type (its row; the rows are sorted by text); the
+        // run starts on its row 0.
         s.push_back(step_select_game_type(ui::kSkirmishGameSpace));
         s.push_back(step_wait("space game type listed", [](App& a) {
             return a.ui_.front.skirmish_space_type() || !staging_has_game_types(a);
@@ -1803,8 +1803,8 @@ void App::make_script() {
                          },
                          2000});
         };
-        // q6 t02: ALAMO_SMOKE_CAMPAIGN_SET=<Campaign_Set> plays that custom set instead of the list's first one (a mod's
-        // first set can be a scripted menu: Thrawn's Revenge's GCMenu). q6 t03: a New Campaign (story) set, or one campaign
+        // ALAMO_SMOKE_CAMPAIGN_SET=<Campaign_Set> plays that custom set instead of the list's first one (a mod's
+        // first set can be a scripted menu: Thrawn's Revenge's GCMenu). a New Campaign (story) set, or one campaign
         // of such a set (Thrawn's Revenge: Thrawn_Empire), is played through New Campaign: its row, then the faction button
         // of that campaign (the set's first faction for a set name). A mod menu without the New Campaign button (Thrawn's
         // Revenge reaches its historical campaigns through the GCMenu set's story selector) gets the StartCampaign action
@@ -1871,7 +1871,7 @@ void App::make_script() {
             auto n = std::make_shared<int>(0);
             s.push_back({"holocron updated", [n](App& a, ui::InputFrame&) { return a.holocron_updates_ > 0 || ++*n > 300; }, 400});
         }
-        // q6 t03: without a chapter (Thrawn's Revenge's historical campaigns add none) the summary is not opened, so its shot
+        // without a chapter (Thrawn's Revenge's historical campaigns add none) the summary is not opened, so its shot
         // and close steps are skipped. Vanilla campaigns always have one.
         auto no_summary = std::make_shared<bool>(false);
         s.push_back(step_wait("holocron button opens the story summary", [no_summary](App& a) {
@@ -1904,7 +1904,7 @@ void App::make_script() {
         add_pause_steps(s);  // galactic pause / resume
         s.push_back(step_encyclopedia("encyclopedia over a planet"));
         s.push_back(step_shot("game_campaign_encyclopedia.png"));
-        // q6 t13: the fleet steps below (hops, attacks, the battle, the second attack and its auto-resolve) need a fleet of
+        // the fleet steps below (hops, attacks, the battle, the second attack and its auto-resolve) need a fleet of
         // the local player. A campaign that gives it none (Thrawn's Revenge's only custom set, GCMenu_Rebel, is the mod's
         // scripted selection menu: two planets, no starting forces) skips them with a log line; the pause, encyclopedia,
         // options, video modes, black market, holocron, story summary and campaign score checks before and after still run.
@@ -1965,7 +1965,7 @@ void App::make_script() {
         for (size_t k = fleet_steps; k < s.size(); ++k) s[k] = needs_fleet(std::move(s[k]));
         // The galaxy stands still from here (presentation-only hold: no AI conflict interrupts the screen checks).
         s.push_back(step_wait("hold the galaxy", [](App& a) { return a.script_hold_ = true; }, 10));
-        // In-game options (MAIN_LOOP.md §1.5): the HUD's options button opens the game menu, which pauses the session; the
+        // In-game options (legacy docs/re/MAIN_LOOP.md §1.5): the HUD's options button opens the game menu, which pauses the session; the
         // options and their video page keep it paused (the video page lists the display modes); Esc x3 closes them all and
         // the session runs again. The galaxy is held already (no tick moves).
         s.push_back(step_wait("options button opens the game menu", [](App& a) {

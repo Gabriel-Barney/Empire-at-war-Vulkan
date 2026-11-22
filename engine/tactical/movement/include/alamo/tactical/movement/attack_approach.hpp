@@ -1,4 +1,4 @@
-// s78n t25.1: the attack approach on land, pure geometry (docs/re/MOVEMENT.md §4.3.2 items 2-4, 6 and 7) [H unless tagged].
+// the attack approach on land, pure geometry (docs/re/MOVEMENT.md §4.3.2 items 2-4, 6 and 7) [H unless tagged].
 //
 // The attack slots 0x438c10 give every formation that cannot fire yet a polar slot (theta, rho) around the target point
 // C: rings laid out from the shortest engagement range R inward (0x43d380), the formations of one ring spread by chord

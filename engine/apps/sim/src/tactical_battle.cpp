@@ -2,8 +2,8 @@
 #include "tactical_battle_internal.hpp"
 #include "alamo/core/frames.hpp"
 
-#include "alamo/objects/type_fields.hpp"            // mcx4 t11: find_type_field (snap_move_point)
-#include "alamo/tactical/movement/formation.hpp"    // mcx4 t11: snap_order_center
+#include "alamo/objects/type_fields.hpp"            // find_type_field (snap_move_point)
+#include "alamo/tactical/movement/formation.hpp"    // snap_order_center
 
 namespace alamo::sim {
 
@@ -44,7 +44,7 @@ TacticalBattle::TacticalBattle(const BattleCatalog& catalog, const galactic::Gal
     : catalog_(&catalog), galaxy_(&galaxy), rules_(&rules), req_(std::move(request)), cfg_(cfg) {
     space_ = req_.info.kind == galactic::ConflictKind::Space;
     for (const galactic::BattleForces& f : req_.forces) {
-        const uint8_t side = owner_side(f.player);  // skm2 t02: a skirmish slot k >= 2 is side k
+        const uint8_t side = owner_side(f.player);  // a skirmish slot k >= 2 is side k
         for (objects::ObjectHandle h : f.start) add_participant(h, f.player, side, false, false, false);
         for (objects::ObjectHandle h : f.reserve) add_participant(h, f.player, side, true, false, false);
     }
@@ -93,8 +93,8 @@ TacticalBattle::TacticalBattle(const BattleCatalog& catalog, const galactic::Gal
 }
 
 void TacticalBattle::tables_extend() {
-    // OPT3 t09: setup appends types several times; each step builds only the new ones (BattleCatalog::extend_battle) instead
-    // of rebuilding every type from the start. Same tables and descriptor indices either way. cu9 t12: the constructor
+    // setup appends types several times; each step builds only the new ones (BattleCatalog::extend_battle) instead
+    // of rebuilding every type from the start. Same tables and descriptor indices either way. The constructor
     // always makes the build and keeps it for the battle's life, so there is no full-rebuild fallback.
     catalog_->extend_battle(*tables_build_, types_used_, descs_);
 }
@@ -119,7 +119,7 @@ void TacticalBattle::add_participant(objects::ObjectHandle g, int32_t owner, uin
     p.starbase = starbase;
     p.structure = structure;
     const galactic::ConflictTypeInfo& ti = rules_->type(p.type);
-    p.pop = participant_pop(ti);  // trl2 t02: pop(T, mode) 0x373500, land / space override
+    p.pop = participant_pop(ti);  // pop(T, mode) 0x373500, land / space override
     const auto& types = galaxy_->rules().types;
     p.power = p.type < types.size() ? types[p.type].ai_combat_power : 0.0f;
     for (const auto& [mt, n] : ti.members)
@@ -130,7 +130,7 @@ void TacticalBattle::add_participant(objects::ObjectHandle g, int32_t owner, uin
 std::vector<uint32_t> TacticalBattle::spawn_types(const Participant& p) const {
     std::vector<uint32_t> out;
     const galactic::ConflictTypeInfo& ti = rules_->type(p.type);
-    // mcx4 t22: a company that lost members in an earlier battle spawns its survivors only.
+    // a company that lost members in an earlier battle spawns its survivors only.
     if (!ti.members.empty() && galaxy_ && p.galactic)
         if (const std::vector<uint32_t>* s = galaxy_->company_survivors(p.galactic)) return *s;
     if (ti.members.empty()) {
@@ -246,7 +246,7 @@ bool TacticalBattle::mv_first_lock(const TacticalMode& mode, objects::ObjectId i
     }
     for (size_t ci = 0; ci < containers_.size(); ++ci) {
         if (containers_[ci].id != id || containers_[ci].removed) continue;
-        if (movement_->has_unit(id)) {  // s78n t03: a land squad container is a mover with its own coordinator
+        if (movement_->has_unit(id)) {  // a land squad container is a mover with its own coordinator
             if (movement_->split_from_formation(id, rng)) return true;
             if (movement_->coordinator_hold(id) != Hold::None) return false;
             return mv_adopt(mode, containers_[ci].h, rng);
@@ -400,13 +400,13 @@ void TacticalBattle::setup(TacticalMode& mode, terrain::MapData map, SimRng& rng
     bt_add_pad_types(map_);    // battle host: the map's pad UC / constructed types join the tables (before combat exists)
     oi_add_ability_types();    // OI abilities: ability-spawned / survivor types join the tables (before combat exists)
     hg_add_types();            // hangars: launched squadrons / ships and the station chain join the tables
-    ga_add_types();            // galab t03: the battle players' planet-bonus upgrade types join the tables
-    sp_add_types();            // TRU1 t05: the map spawners' indigenous units (and pack teams) join the tables
-    // b0417: hg_add_types adds the skirmish production lists, so the ability / survivor types of those units join now
+    ga_add_types();            // the battle players' planet-bonus upgrade types join the tables
+    sp_add_types();            // the map spawners' indigenous units (and pack teams) join the tables
+    // hg_add_types adds the skirmish production lists, so the ability / survivor types of those units join now
     // (Pirate_Skiff_U's Destruction_Survivors pilot was created as a prop: no combat, no movement, never used by the AI).
     oi_add_ability_types();
 #ifdef ALAMO_SIM_HAVE_ASSETS
-    // OPT3 t05 / t09: the model files of the map's placements (after the prepass: a land skirmish's team markers are its pads
+    // the model files of the map's placements (after the prepass: a land skirmish's team markers are its pads
     // now) and the participants load in parallel here instead of one type at a time inside the spawns and stamps below
     // (the first battle tick's largest cost); results unchanged.
     if (catalog_->files()) {
@@ -439,7 +439,7 @@ void TacticalBattle::setup(TacticalMode& mode, terrain::MapData map, SimRng& rng
         anchor_[1] = {cx - 0.45f * hx, cy, 0.0f};
         facing_[0] = {-1.0f, 0.0f, 0.0f};
         facing_[1] = {1.0f, 0.0f, 0.0f};
-        drop_facing_[0] = drop_facing_[1] = Vec3{};  // a1h t06: mode +0x288 starts zeroed (no marker -> yaw 0)
+        drop_facing_[0] = drop_facing_[1] = Vec3{};  // mode +0x288 starts zeroed (no marker -> yaw 0)
         // skm2 t02 [port]: a skirmish map's slots 2.. without a spawn marker: +-45% of the box on Y, then the corners, facing
         // the centre.
         const float hy = 0.5f * (mx[1] - mn[1]);
@@ -455,12 +455,12 @@ void TacticalBattle::setup(TacticalMode& mode, terrain::MapData map, SimRng& rng
     // Movement world.
     mv::MovementConfig mc;
     mc.mode = space_ ? mv::MoveMode::Space : mv::MoveMode::Land;
-    mc.constants = catalog_->movement_constants();  // mcx4 t11: the movement GameConstants (mods)
+    mc.constants = catalog_->movement_constants();  // the movement GameConstants (mods)
     movement_ =std::make_unique<mv::MovementSystem>(mc);
     // cu8j t01 (MOVEMENT §4.6.2): the movement coordinator update runs at the end of the tick (TacticalBattle::tick), after
     // the object services, as retail's common tick step 10; the movement tick does not run it.
     movement_->set_deferred_composition(true);
-    // ref6 t02: the engagement questions movement asks (crush hostility = the combat relation, MOVEMENT.md 5.5; attack
+    // the engagement questions movement asks (crush hostility = the combat relation, MOVEMENT.md 5.5; attack
     // ranges; the land fire test; the turret aim point; the arrival lock) come from the battle's one EngagementQueries
     // (tactical_battle_engagement.cpp), also handed to combat below.
     engagement_.mode = &mode;
@@ -495,9 +495,9 @@ void TacticalBattle::setup(TacticalMode& mode, terrain::MapData map, SimRng& rng
         if (!c || !c->clip || c->clip->fps <= 0.0f) return 0u;
         return static_cast<uint32_t>(frames_ceil(static_cast<double>(c->clip->frame_count) * 30.0 / static_cast<double>(c->clip->fps)));
     });
-    // b0173: a deployed build pad (Mobile Defense Unit) with something on it does not undeploy.
+    // a deployed build pad (Mobile Defense Unit) with something on it does not undeploy.
     movement_->set_undeploy_block_fn([this](objects::ObjectId id) { return pad_occupied(id); });
-    // TRU1 t03: a unit in a gravity control field does not start a deploy (Walk Deploy(true), every route).
+    // a unit in a gravity control field does not start a deploy (Walk Deploy(true), every route).
     movement_->set_deploy_block_fn([this](objects::ObjectId id) { return abilities_ && abilities_->in_gravity_field(id); });
     // S8 t11 (MOVEMENT §3.2): the Walk deploy clips (anim 0x19 / 0x1A, variant 0 [port]: retail draws a synced variant).
     movement_->set_deploy_clip_fn([this](objects::ObjectId id, int32_t type, uint32_t& frames, float& fps) {
@@ -530,9 +530,9 @@ void TacticalBattle::setup(TacticalMode& mode, terrain::MapData map, SimRng& rng
     } else {
         mv::PassabilityGrid grid = mv::grid_from_map(map_);
         // battle host: model bounds for the LAND_OBSTACLE footprints without Obstacle_Width / _Height and the
-        // Fine_Tune_Occupied_Passability ray (MOVEMENT 1.3; S8 t09: the same hooks as land_obstacle_attach).
+        // Fine_Tune_Occupied_Passability ray (MOVEMENT 1.3; the same hooks as land_obstacle_attach).
         const mv::MapStampHooks stamp_hooks = land_stamp_hooks(catalog_);
-        mv::stamp_map_obstacles(grid, map_, types, &stamp_hooks, pf);  // OPT3 t11: footprints sampled in parallel
+        mv::stamp_map_obstacles(grid, map_, types, &stamp_hooks, pf);  // footprints sampled in parallel
         movement_->set_grid(std::move(grid), pf);
         movement_->air().set_box({mn[0], mn[1]}, {mx[0], mx[1]});  // REMAINING_GAPS §4.3-4.6: air units plan in the playable box
         const terrain::MapData* m = &map_;
@@ -564,7 +564,7 @@ void TacticalBattle::setup(TacticalMode& mode, terrain::MapData map, SimRng& rng
     std::vector<tc::PlayerInfo> infos(players);
     for (uint32_t p = 0; p < players && p < galaxy_->players().size(); ++p) {
         infos[p].ai = !galaxy_->players()[p].human;
-        // cu8 t03: the AI difficulty adjustment (TACTICAL_COMBAT §3.6 step 12 / §4.3) and the faction's retreat damage
+        // the AI difficulty adjustment (TACTICAL_COMBAT §3.6 step 12 / §4.3) and the faction's retreat damage
         // factor for this mode (§3.6 step 9).
         if (const galactic::DifficultyRules* d = galaxy_->ai_difficulty(static_cast<int32_t>(p))) {
             infos[p].ai_damage_multiplier = d->damage_multiplier;
@@ -574,7 +574,7 @@ void TacticalBattle::setup(TacticalMode& mode, terrain::MapData map, SimRng& rng
         const galactic::ConflictFactionInfo& fi = rules_->faction(galaxy_->players()[p].faction);
         infos[p].retreat_damage_mod = space_ ? fi.space_retreat_damage_mod : fi.land_retreat_damage_mod;
         if (const uint32_t f = galaxy_->players()[p].faction; f < galaxy_->rules().factions.size())
-            infos[p].faction = name_crc(galaxy_->rules().factions[f].name);  // tru1 t04: Projectile_Blast_Area_Immune_Faction
+            infos[p].faction = name_crc(galaxy_->rules().factions[f].name);  // Projectile_Blast_Area_Immune_Faction
         // TACTICAL_COMBAT §2.2: the target scan skips players whose faction is Is_Neutral (player +0x68 -> faction +0x108).
         infos[p].active = !bt_owner_neutral(static_cast<int32_t>(p));
     }
@@ -590,10 +590,10 @@ void TacticalBattle::setup(TacticalMode& mode, terrain::MapData map, SimRng& rng
                                    bt_relation(static_cast<int32_t>(p), static_cast<int32_t>(q)) == 1);
     combat_->reserve(256, 2048, 32, 256);
     attach_rocket_terrain();  // refixf t01
-    combat_->set_trees(&mode.trees());  // S8 t06: between-tick detonations (also right after a load)
+    combat_->set_trees(&mode.trees());  // between-tick detonations (also right after a load)
     if (!space_) {
         // S8 t01 (TACTICAL_GAPS 3.1 slot 43): LAND_OBSTACLE targets' aim walk over the cells their stamp occupies (map
-        // placements' stamps move to the spawned objects in bt_map_load; S8 t02: objects spawned later are stamped by
+        // placements' stamps move to the spawned objects in bt_map_load; objects spawned later are stamped by
         // land_obstacles_sync). The cell centre is always written (ObstacleCellFn contract). A stamp with no cells (water
         // rule / Fine_Tune / off the grid) answers Free: retail gates the walk on the LAND_OBSTACLE behaviour (obj +0x346),
         // not on the cell count, so the walk starts on an unoccupied cell, snaps to it and uses E = sqrt(200). NoFootprint
@@ -660,7 +660,7 @@ void TacticalBattle::setup(TacticalMode& mode, terrain::MapData map, SimRng& rng
             return tc::PreciseOutcome::Miss;
         });
     }
-    combat_->set_engagement(&engagement_);  // ref6 t02: the scan-range query and the land shield-sides test
+    combat_->set_engagement(&engagement_);  // the scan-range query and the land shield-sides test
     combat_->bind_rng(&rng);  // Take_Damage listeners called outside the tick (host damage) draw here
     hg_setup(mode);           // hangars: SPAWN_SQUADRON descriptors and the HangarSystem (before any unit exists)
     oi_install(mode, rng);    // OI abilities: AbilityHost hooks, the abilities' RNG, repair credit hooks
@@ -670,7 +670,7 @@ void TacticalBattle::setup(TacticalMode& mode, terrain::MapData map, SimRng& rng
 #endif
     retreat_allowed_frame_ = static_cast<uint32_t>(frames_trunc((space_ ? rules_->space_retreat_allowed : rules_->land_retreat_allowed) * 30.0f));
     fog_begin(mode, players);  // fog of war: grids (owner: fog agent)
-    if (before_map_load_) {  // modc t32: the host binds the object bridge before the map objects attach their scripts
+    if (before_map_load_) {  // the host binds the object bridge before the map objects attach their scripts
         const std::function<void()> fn = std::move(before_map_load_);
         before_map_load_ = nullptr;
         fn();
@@ -693,17 +693,17 @@ void TacticalBattle::setup(TacticalMode& mode, terrain::MapData map, SimRng& rng
     bt_skirmish_base(mode);      // t50: the land skirmish's pre-built base
     l1_setup(mode);            // L1 systems: special weapons / hyperspace / engines (before the deploys)
     bt_place_forces(mode, rng, pf);  // §3.2: starbase, structures, defender / attacker start forces
-    sk_garrison_setup();             // skm1 t07: the skirmish slots' garrison (start-force) lists
+    sk_garrison_setup();             // the skirmish slots' garrison (start-force) lists
     bt_landing_points(mode);     // §3.3: the attacker's map-owned reinforcement points
     ga_spawn_upgrades(mode);     // galab t03 (0x2a1eb0 -> 0x2afc10): planet-bonus upgrade objects, after the start forces
-    bt_sky_domes(mode);          // storyb t16: the post-load start's sky dome objects (the last ids of the setup)
+    bt_sky_domes(mode);          // the post-load start's sky dome objects (the last ids of the setup)
     mode.finish_load(pf);
-    space_obstacles_sync(mode);  // refixf t02: the starbase / structures as space static entries (MOVEMENT §2.2)
-    land_obstacles_sync(mode, pf);   // S8 t02: LAND_OBSTACLE objects spawned during the setup (MOVEMENT §1.3)
+    space_obstacles_sync(mode);  // the starbase / structures as space static entries (MOVEMENT §2.2)
+    land_obstacles_sync(mode, pf);   // LAND_OBSTACLE objects spawned during the setup (MOVEMENT §1.3)
     bt_shield_stamps(mode);  // battle host: base-shield secondary occupants (land)
     fog_after_deploy(mode);  // fog of war: dense mask, battle scale (owner: fog agent)
-    vm_setup(mode);          // story t06: victory monitor records (§2.5) and the start's victory-relevant objects
-    // OPT3 t09: the setup's tables are complete. q6 t12: the build is kept (serial preload from now on) so a type first
+    vm_setup(mode);          // victory monitor records (§2.5) and the start's victory-relevant objects
+    // the setup's tables are complete. The build is kept (serial preload from now on) so a type first
     // spawned by a game-object script can join the live tables (script_add_types); nothing else extends them after setup.
     tables_build_->pf = serial_for;
 }
@@ -721,7 +721,7 @@ void TacticalBattle::share_groups_sync() {
 }
 
 void TacticalBattle::attach_rocket_terrain() {
-    // refixf t01 (S9_DEATH_CLONE_SHIELDS.md §2.4.5 mode 1, §2.4.6): land spline rockets follow the heightmap and stay
+    // refixf t01 (legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §2.4.5 mode 1, §2.4.6): land spline rockets follow the heightmap and stay
     // inside its extent box (0x1320d0: centre (W c / 2, H c / 2), half sizes W c / 2, H c / 2). [M] W c, H c are taken as
     // the port grid's covered extent ((width - 1) x kVertexSpacing, origin 0: the frame of Terrain::sample_height).
     // Space battles and maps without a heightmap: flat ground at z 0, no box. Not saved: re-attached after a load.
@@ -738,7 +738,7 @@ void TacticalBattle::attach_rocket_terrain() {
         rt.cy = 0.5f * h;
         rt.hx = 0.5f * w;
         rt.hy = 0.5f * h;
-        // S8 t06 (LOB_SOLVER.md §6.6): the grid for the projectile ground test (cell triangles + water plane), in the
+        // S8 t06 (legacy docs/re/LOB_SOLVER.md §6.6): the grid for the projectile ground test (cell triangles + water plane), in the
         // same frame (origin 0, kVertexSpacing cells, int16 heights x kHeightScale).
         rt.grid.cell = terrain::kVertexSpacing;
         rt.grid.width = tr.width;
@@ -749,7 +749,7 @@ void TacticalBattle::attach_rocket_terrain() {
         rt.grid.water_type = static_cast<uint32_t>(tr.header.water_type);
     }
     combat_->set_rocket_terrain(std::move(rt));
-    // trn1 t01 / t02 (docs/re/TRN1_TERRAIN_GAMEPLAY.md §1 - §2): the cover cell test and the SurfaceFX surface reading.
+    // trn1 t01 / t02 (legacy docs/re/TRN1_TERRAIN_GAMEPLAY.md §1 - §2): the cover cell test and the SurfaceFX surface reading.
     // Land maps with a heightmap only; not saved (re-attached after a load, like the rocket terrain).
     tc::SurfaceQueries sq;
     if (!space_ && tr.present && tr.width >= 2 && tr.height >= 2) {
@@ -803,7 +803,7 @@ Vec3 TacticalBattle::snap_passable(Vec3 p, uint32_t mask, bool always) const {
 
 void TacticalBattle::deploy(TacticalMode& mode, uint32_t pi, SimRng& rng, uint32_t member_first, uint32_t member_count) {
     Participant& P = parts_[pi];
-    const bool range = member_first != 0 || member_count != 0xFFFFFFFFu;  // a1i t04: one landing unload step
+    const bool range = member_first != 0 || member_count != 0xFFFFFFFFu;  // one landing unload step
     if (P.deployed && !range) return;
     P.deployed = true;
     const objects::GameObjectTypes& types = catalog_->types();
@@ -824,7 +824,7 @@ void TacticalBattle::deploy(TacticalMode& mode, uint32_t pi, SimRng& rng, uint32
         Vec3 face = facing_[side];
         // s78i t02 (TACTICAL_COMBAT §3.1.1 "other spawns"): a reserve drop (0x2b5fe0 land / 0x2bf2d0 space) gives every
         // object it creates the owner's entry-facing record (mode +0x288; yaw 0 when unset). A landing object's company
-        // takes the per-member unload facing of drop_face_ (s78j t01).
+        // takes the per-member unload facing of drop_face_.
         if (P.reserve && !range && !deploy_unload_) {
             const Vec3 df = side < kMaxSides ? drop_facing_[side] : Vec3{};  // as spawn_landing: the participant's side record
             face = df.x == 0.0f && df.y == 0.0f ? facing_of_yaw(0.0f) : df;
@@ -840,7 +840,7 @@ void TacticalBattle::deploy(TacticalMode& mode, uint32_t pi, SimRng& rng, uint32
         } else if (lead_sw) {
             pos = bt_ds_pos_;  // battle host: the spawned super-weapon at DEATH_STAR_POSITION (TACTICAL_GAPS §4.8) [M]
         } else if (!drop_pos_.empty()) {  // a1g t04 follow-up: order_reinforce's land drop layout (member order)
-            // a1h t06: the slots passed land_drop_valid, so they are used as they are (no clamp, no nearest-cell move).
+            // the slots passed land_drop_valid, so they are used as they are (no clamp, no nearest-cell move).
             const size_t k = mk;
             if (k < drop_pos_.size()) {
                 pos = drop_pos_[k];
@@ -856,7 +856,7 @@ void TacticalBattle::deploy(TacticalMode& mode, uint32_t pi, SimRng& rng, uint32
         sp.owner = P.owner;
         sp.position = pos;
         sp.facing = face;
-        sp.parent_mode_id = P.built ? objects::kNoObjectId : P.galactic_id;  // q6 t19: a pool entry from tactical production
+        sp.parent_mode_id = P.built ? objects::kNoObjectId : P.galactic_id;  // a pool entry from tactical production
         const objects::ObjectHandle h = mode.spawn(sp, 1.0f);
         if (lead_sw) {  // battle host: lead object +0x28 = the spawned super-weapon's id
             bt_lead_ = mode.primary().id(h);
@@ -890,7 +890,7 @@ void TacticalBattle::deploy(TacticalMode& mode, uint32_t pi, SimRng& rng, uint32
         ++P.alive;
         ++stats_.spawned;
         if (P.reserve) story_reinforced_.push_back(u.id);  // L1/S4 wave 2b story hook (STORY_REINFORCE)
-        // aud1 t05 [port] (AUDIO.md §9.6): a space reinforcement's arrival sound at its deploy (presentation log).
+        // aud1 t05 [port] (legacy docs/re/AUDIO.md §9.6): a space reinforcement's arrival sound at its deploy (presentation log).
         if (P.reserve && space_) hyperspace_sfx_.push_back({HyperspaceSfx::Kind::Arrive, u.id, u.type, P.owner, pos});
     }
     // 2. REMAINING_GAPS §3.4 team helper 0x2a5a60 (start placement 0x2a00b0): it runs when the first spawned member's type
@@ -1008,7 +1008,7 @@ void TacticalBattle::deploy(TacticalMode& mode, uint32_t pi, SimRng& rng, uint32
     // cu8l t01 (CU8K_T02_T06_RE §1.5, §4 rules 1 / 3) [port interim rule, untraced: the space skirmish trace is still
     // missing]: a ship whose locomotor is SimpleSpace registers itself at creation like a land container (0x625090): no
     // draw now, one space composition (0x5d58f0) at the next step 10, in unit order. [port] Not for a SimpleSpace team
-    // member [L: whether its own registration survives joining the team is not read]. cu8l t03: the campaign start forces
+    // member [L: whether its own registration survives joining the team is not read]. The campaign start forces
     // too - the fleet placement then teleports (the pending composition empties: no draw) and re-adopts every placed
     // object, so only an unplaced ship composes; and the campaign spawn's adopt below finds it in that coordinator (no
     // draw: retail traced no 0x2a1bcd adopt for the Kashyyyk ships).
@@ -1018,7 +1018,7 @@ void TacticalBattle::deploy(TacticalMode& mode, uint32_t pi, SimRng& rng, uint32
                 const objects::ObjectId one[] = {units_[i].id};
                 (void)movement_->hold_from_birth(one);
             }
-    // cu8j t02: the campaign spawn 0x2a00b0 (start forces of a galactic battle) then adopts each member not in a team, one
+    // the campaign spawn 0x2a00b0 (start forces of a galactic battle) then adopts each member not in a team, one
     // draw each (land vehicles, heroes, ...). Skirmish start forces and reinforcements do not.
     if (!cfg_.skirmish && !P.reserve && !deploy_script_ && !range)
         for (size_t i = first; i < units_.size(); ++i)
@@ -1034,14 +1034,14 @@ void TacticalBattle::deploy(TacticalMode& mode, uint32_t pi, SimRng& rng, uint32
 // an Attack_Move / Move_To on it (one order per task-force unit) sent each ship to its exact centre, the ships stacked on one
 // point and Project_By_Unit_Range gave nil (foc-station seeds 1 and 4). [port] attach = the first sync (end of setup, end of
 // each tick) with the unit live, detach = the first sync after it died or retreated; footprint as space_from_map (radius) at
-// the attach position + Space_Obstacle_Offset rotated by the facing [M: rotation sense]. S7 t07: a type without an XML radius
+// the attach position + Space_Obstacle_Offset rotated by the facing [M: rotation sense]. a type without an XML radius
 // gets its space model's collision-bound extent (MOVEMENT §2.2); the model's collide switch is not consulted (SPACE_AVOIDANCE
 // §5.5).
 void TacticalBattle::space_obstacles_sync(const TacticalMode& mode) {
     if (!space_ || !movement_) return;
     mv::SpaceOccupancy& occ = movement_->space();
     const objects::ObjectStore& st = mode.primary();
-    // S8 t09: an entry re-keyed by bt_map_load to an object that is not a battle unit (an asteroid / prop with
+    // an entry re-keyed by bt_map_load to an object that is not a battle unit (an asteroid / prop with
     // SPACE_OBSTACLE) leaves with that object, as land_obstacles_sync does for stamps (ascending id).
     for (const mv::ObjectId id : occ.static_ids())
         if (id > 0 && !st.alive(st.find(id))) occ.remove_static(id);
@@ -1081,7 +1081,7 @@ bool TacticalBattle::space_obstacle_attach(const TacticalMode& mode, objects::Ob
 // structures), end of each tick (the next tick's pathing and targeting see the change). Gone first (ascending id), then new
 // (the store's LAND_OBSTACLE attach order); footprint as stamp_map_obstacles at the object's position, yaw (facing = Rz(yaw)
 // (0, -1), as map placements) and height, with the same hooks (land_stamp_hooks: Obstacle_Proxy_Type and the
-// Fine_Tune_Occupied_Passability ray apply to every stamp, S8 t09). A death clone is in the LAND_OBSTACLE table iff it kept
+// Fine_Tune_Occupied_Passability ray apply to every stamp). A death clone is in the LAND_OBSTACLE table iff it kept
 // the behaviour through TacticalMode::spawn_death_clone's strip (Death_Clone_Is_Obstacle, MOVEMENT §1.3 [H]). Placement
 // stamps never stay under a placement id here: bt_map_load hands each to its object or unstamps it (skipped company,
 // no-spawn placeholder).
@@ -1115,7 +1115,7 @@ bool TacticalBattle::land_obstacle_attach(const TacticalMode& mode, objects::Obj
     // S8 t13 (MOVEMENT §1.3 "proxy bits"): the bits come from the object's own live behaviours (0x397350), never the proxy.
     fp.bits = mv::land_obstacle_bits(static_cast<uint32_t>(types.get(t, objects::tags::OverridePassability)), true,
                                      st.has_behavior(h, kWallBehavior));
-    // OPT3 t12: the Fine_Tune rays (a whole-mesh test per 10-unit sample; a skirmish base structure has ~400 samples on
+    // the Fine_Tune rays (a whole-mesh test per 10-unit sample; a skirmish base structure has ~400 samples on
     // ~14k triangles) run through pf. The hook is const catalog data (as stamp_map_obstacles).
     movement_->grid().stamp(st.id(h), fp, pf);
     return true;
@@ -1133,8 +1133,8 @@ float TacticalBattle::side_power(uint8_t side) const {
 }
 
 void TacticalBattle::reinforce(TacticalMode& mode, SimRng& rng, bool force_empty_sides) {
-    if (arrival_held()) return;  // story t12: reinforcements wait in hyperspace
-    for (uint8_t side = 0; side < side_count(); ++side) {  // skm2 t02: a skirmish map's slots 2.. too
+    if (arrival_held()) return;  // reinforcements wait in hyperspace
+    for (uint8_t side = 0; side < side_count(); ++side) {  // a skirmish map's slots 2.. too
         bool empty = true;
         float live_pop = 0.0f;
         std::vector<uint8_t> counted(parts_.size(), 0);
@@ -1157,7 +1157,7 @@ void TacticalBattle::reinforce(TacticalMode& mode, SimRng& rng, bool force_empty
         for (uint32_t i = 0; i < parts_.size(); ++i) {
             Participant& p = parts_[i];
             if (p.side != side || !p.reserve || p.deployed) continue;
-            if (reinforcements_off(p.owner)) continue;  // STY1 t06: DISABLE_REINFORCEMENTS
+            if (reinforcements_off(p.owner)) continue;  // DISABLE_REINFORCEMENTS
             if (!empty && commanded_by_player(p.owner)) continue;  // P host: a human player's reserves deploy by Reinforce commands
             const bool fits = !space_ || live_pop + p.pop <= cap;
             if (!fits && !(empty && first)) continue;  // [port] an empty side always gets its next pool unit
@@ -1169,20 +1169,20 @@ void TacticalBattle::reinforce(TacticalMode& mode, SimRng& rng, bool force_empty
     }
 }
 
-// REF1 t02 [port]: the one S10 stand-in (BattleAi::standin_orders calls it on its own cadence; docs/PHASE4.md, "REF1 t02").
+// REF1 t02 [port]: the one S10 stand-in (BattleAi::standin_orders calls it on its own cadence; legacy docs/PHASE4.md, "REF1 t02").
 void TacticalBattle::issue_orders(TacticalMode& mode, SimRng& rng, const std::function<bool(int32_t)>& skip_owner) {
     const objects::ObjectStore& store = mode.primary();
     for (const Unit& u : units_) {
         if (!u.alive || u.retreated || !u.movable) continue;
         if (skip_owner && skip_owner(store.owner(u.h))) continue;  // another orderer drives this owner (BattleAi: its AI)
         if (commanded_by_player(store.owner(u.h))) continue;  // integration fixes: human units take commands only
-        if (!standin_owner(store.owner(u.h))) continue;  // bkt1 t07 (b0084) / aitac t08: third parties idle, land and space
+        if (!standin_owner(store.owner(u.h))) continue;  // third parties idle, land and space
         const Vec3 up = store.position(u.h);
         const Unit* best = nullptr;
         float best_d2 = 0.0f;
         for (const Unit& e : units_) {
             if (!e.alive || e.retreated || e.side == u.side) continue;
-            // skm2 t02: more than two skirmish sides - only an enemy of the unit's owner (allied slots are other sides)
+            // more than two skirmish sides - only an enemy of the unit's owner (allied slots are other sides)
             if (side_count() > 2 && combat_ && !combat_->is_enemy(store.owner(u.h), store.owner(e.h))) continue;
             // s78n t25.3 [port]: on land the pick is an enemy of the unit's owner (the auto-attack push 0x41fd30 names what
             // the targeting scan picked, never a neutral object)
@@ -1201,7 +1201,7 @@ void TacticalBattle::issue_orders(TacticalMode& mode, SimRng& rng, const std::fu
         // in range: hold, combat fires. s78n t20 stage A [port] (FIGHTER_FLYING §4.11 A, arrived re-check only): an arrived
         // unit that cannot hit its nearest enemy from where it stands approaches again (no land stop here).
         if (dist <= 0.8f * range && !standin_recheck(u, best->id)) continue;
-        // OI follow-up t03: a locked unit keeps its order (§28.9); land and space alike, and it is no order (REF1 t02)
+        // OI follow-up t03: a locked unit keeps its order (§28.9); land and space alike, and it is no order
         if (movement_locked(u.id)) continue;
         if (!(dist > 0.0f)) continue;  // s78n t20 review: on the enemy's position there is no approach line
         const Vec3 ep = store.position(best->h);
@@ -1219,7 +1219,7 @@ void TacticalBattle::issue_orders(TacticalMode& mode, SimRng& rng, const std::fu
         const tactical::Aabb& b = mode.bounds();
         o.destination.x = std::clamp(o.destination.x, b.min.x, b.max.x);
         o.destination.y = std::clamp(o.destination.y, b.min.y, b.max.y);
-        if (dist <= 0.8f * range) {  // s78n t20 (REF1 t02): a re-check approach whose goal is where the unit stands is skipped
+        if (dist <= 0.8f * range) {  // a re-check approach whose goal is where the unit stands is skipped
             const float ex = o.destination.x - up.x, ey = o.destination.y - up.y;
             if (ex * ex + ey * ey < 10.0f * 10.0f) continue;
         }
@@ -1243,7 +1243,7 @@ bool TacticalBattle::script_movement_locked(objects::ObjectId id) const {
     return false;
 }
 
-// ---- STY1 t01: Lua object-state setters that change the sim ---------------------------------------------------------
+// ---- Lua object-state setters that change the sim ---------------------------------------------------------
 
 void TacticalBattle::set_script_unit_control(const void* key, std::function<ScriptUnitControl(objects::ObjectId)> fn) {
     std::erase_if(script_ctls_, [key](const auto& e) { return e.first == key; });
@@ -1299,7 +1299,7 @@ bool TacticalBattle::movement_locked(objects::ObjectId id) const {
     if (abilities_ && abilities_->immobilize_count(id) > 0) return true;
     // s78n t06 (HERO_CLASH §3.2): a hero in a clash has its movement orders locked (0x3a8e50(h, 1) with +0x3b4).
     if (hero_clash_locked(id)) return true;
-    if (!landings_.empty() && landing_locked(id)) return true;  // a1i t04: the unload exit move (§35.2)
+    if (!landings_.empty() && landing_locked(id)) return true;  // the unload exit move (§35.2)
     return script_movement_locked(id);
 }
 
@@ -1325,7 +1325,7 @@ void TacticalBattle::drop_locked(std::vector<objects::ObjectId>& ids) const {
 
 bool TacticalBattle::standin_owner(int32_t player) const {
     if (req_.info.attacker < 0 && req_.info.defender < 0) return player >= 0;  // a battle built without sides: everyone
-    // aitac t08: a skirmish map battle's slot players are sides too (slots 2.. besides the defender 0 / attacker 1 pair;
+    // a skirmish map battle's slot players are sides too (slots 2.. besides the defender 0 / attacker 1 pair;
     // each AI slot has its own tactical AI, skm2 t02, so this reaches only a slot without one).
     return player >= 0 && (player == req_.info.attacker || player == req_.info.defender || (skirmish_map() && skirmish_slot_of(player) >= 0));
 }
@@ -1395,10 +1395,10 @@ void TacticalBattle::exec_move(TacticalMode& mode, std::span<const objects::Obje
     const tactical::Aabb& bb = mode.bounds();
     mv::MoveOrder o;
     o.units.assign(ids.begin(), ids.end());
-    // P1_DOUBLE_CLICK_MOVE.md §3.2: the event flags, unchanged; s78f t10: plus the attack-move bit, as the queued path and
+    // legacy docs/re/P1_DOUBLE_CLICK_MOVE.md §3.2: the event flags, unchanged; plus the attack-move bit, as the queued path and
     // the host's formation record (fighter_order below) carry it, so the fighter leash reads the same block.
     o.flags = static_cast<uint8_t>(flags | (attack_move ? mv::kMoveFlagAttackMove : 0));
-    o.switch_locomotor = switch_locomotor;  // S7 t10: MoveToPosition's 1-bit (MOVEMENT §6.2)
+    o.switch_locomotor = switch_locomotor;  // MoveToPosition's 1-bit (MOVEMENT §6.2)
     if (!space_ && goal_object == objects::kNoObjectId) snap_move_point(mode.primary(), *catalog_, map_, x, y);  // mcx4 t11
     o.destination = {std::clamp(x, bb.min.x, bb.max.x), std::clamp(y, bb.min.y, bb.max.y)};
     if (std::isfinite(facing_deg)) o.facing_deg = facing_deg;
@@ -1414,14 +1414,14 @@ void TacticalBattle::exec_move(TacticalMode& mode, std::span<const objects::Obje
         if (const Unit* mu = attack_move || !space_ ? nullptr : unit_by_id(id);
             mu && mu->container < containers_.size() && movement_->fighter_squad(containers_[mu->container].id))
             combat_->clear_targets(id);
-        combat_->set_attack_goal(id, tc::kNoObject);  // refixf t06: a position block has no attack goal (§2.8)
+        combat_->set_attack_goal(id, tc::kNoObject);  // a position block has no attack goal (§2.8)
     }
-    // S7 t22: the squadrons' formation (block flags: 0x01 attack-move, 0x02 guard-move; P1_DOUBLE_CLICK §3.3)
+    // the squadrons' formation (block flags: 0x01 attack-move, 0x02 guard-move; P1_DOUBLE_CLICK §3.3)
     fighter_order(o.units, static_cast<uint8_t>((attack_move ? mv::kMoveFlagAttackMove : 0) | flags), Vec3{o.destination.x, o.destination.y, 0.0f});
 }
 
 // Attack rule of BattleAi::execute_order: order_attack, then (space) a move into 70 % of max(range, 100) beyond 80 %, or
-// (land, s78n t25.3) one attack-block order per resolved target (land_attack_order).
+// (land) one attack-block order per resolved target (land_attack_order).
 uint32_t TacticalBattle::exec_attack(TacticalMode& mode, std::span<const objects::ObjectId> ids, objects::ObjectId target, int32_t hp,
                                      SimRng& rng) {
     const objects::ObjectStore& st = mode.primary();
@@ -1455,7 +1455,7 @@ uint32_t TacticalBattle::exec_attack(TacticalMode& mode, std::span<const objects
         }
         if (ct) team_attack_set(u->id, ct->id, tu->id, false);
         const objects::ObjectId block = ct && movement_->fighter_squad(ct->id) ? ct->id : tu->id;
-        if (!movement_locked(u->id))  // S7 t22: an object block (flags 0); a locked unit keeps its formation (as Move_To)
+        if (!movement_locked(u->id))  // an object block (flags 0); a locked unit keeps its formation (as Move_To)
             fighter_order(std::span<const objects::ObjectId>(&u->id, 1), 0, tp, block);
         ++n;
         if (space_) {
@@ -1496,7 +1496,7 @@ void TacticalBattle::attack_approach(TacticalMode& mode, const Unit& u, Vec3 tp,
         o.destination = {std::clamp(up.x + dx * k, bb.min.x, bb.max.x), std::clamp(up.y + dy * k, bb.min.y, bb.max.y)};
         if (fighter) o.goal_object = goal;
         // s78n t20 (MOVEMENT §4.3.1 item 2): the approach stands for an object-goal block - no destination check (space;
-        // s78n t25.3: land attack approaches are the attack block above)
+        // land attack approaches are the attack block above)
         o.skip_destination_check = true;
         movement_->move(o, rng, frame_);
     } else if (fighter) {
@@ -1573,7 +1573,7 @@ void TacticalBattle::team_attack_service(TacticalMode& mode, SimRng& rng) {
         const Container* ct = team_target(r.container);
         if (!ct) {
             // The container left with its last member: the order ends with it. A land team member runs no scan of its own
-            // (s78f t03, TeamTargeting is the container's), so nothing else drops the dead member it still names.
+            // (TeamTargeting is the container's), so nothing else drops the dead member it still names.
             if (combat_->ordered_target(u->id) == r.member && !live_unit(unit_by_id(r.member))) {
                 combat_->clear_order(u->id);
                 if (r.goal) combat_->set_attack_goal(u->id, tc::kNoObject);
@@ -1609,7 +1609,7 @@ void TacticalBattle::team_attack_service(TacticalMode& mode, SimRng& rng) {
             const Vec3 tp = st.position(unit_by_id(m)->h);
             if (!movement_locked(u->id) && !movement_->fighter_squad(ct->id))
                 fighter_order(std::span<const objects::ObjectId>(&u->id, 1), 0, tp, m);
-            attack_approach(mode, *u, tp, rng, objects::kNoObjectId, m, true);  // s78n t25.3: land - a re-plan (slot kept)
+            attack_approach(mode, *u, tp, rng, objects::kNoObjectId, m, true);  // land - a re-plan (slot kept)
         }
         return true;
     };
@@ -1706,7 +1706,7 @@ bool TacticalBattle::pending_ability_ranges(objects::ObjectId unit, float& min_r
 
 Vec3 TacticalBattle::attack_stage_goal(const TacticalMode& mode, std::span<const objects::ObjectId> ids, objects::ObjectId target,
                                        Vec3 tp, size_t movers) {
-    // bkt1 t01 (b0068; 0x40e260, BKT1_ATTACK_RE §1.2 [H], TACTICAL_COMBAT §2.8; the AI's Attack_Move staging and stage
+    // bkt1 t01 (0x40e260, BKT1_ATTACK_RE §1.2 [H], TACTICAL_COMBAT §2.8; the AI's Attack_Move staging and stage
     // A's per-plan staging merged). M = the first unit with the largest minimum range: its type's
     // Targeting_Min_Attack_Distance, or its pending targeted ability's Activation_Min_Range when > 0. Only when M is inside
     // that min range of T is G moved:
@@ -1772,7 +1772,7 @@ Vec3 TacticalBattle::attack_stage_goal(const TacticalMode& mode, std::span<const
             if (d > dist3(q, tp)) continue;
             if (q.x < box.min.x || q.x > box.max.x || q.y < box.min.y || q.y > box.max.y) continue;
             if (!movement_ || !mv::zone_connected(movement_->regions(), mask, {mp.x, mp.y}, {q.x, q.y})) continue;
-            return q;  // land_attack_order reads its x / y; the fire trim's end height is C's (bkt1 t06)
+            return q;  // land_attack_order reads its x / y; the fire trim's end height is C's
         }
         R += step;
         step = std::min(step + 0.8f, max_step);
@@ -1825,14 +1825,14 @@ TacticalBattle::AttackPlan TacticalBattle::land_attack_order(TacticalMode& mode,
     }
     // s78n t25.4, cmb1 t05 retag [H] (BKR1 Q7): a guard block is not staged (G = C; 0x40e260 acts only on a top whose flag 0x02
     // is clear)
-    // cmb3 t01 (a) (b0169, BKR2 Q6 / BKT1_ATTACK_RE §1.2.1 [H]): T's goal point is clamped to the playable box (0x583680)
+    // cmb3 t01 (a) (BKR2 Q6 / BKT1_ATTACK_RE §1.2.1 [H]): T's goal point is clamped to the playable box (0x583680)
     // before the staging; a staged sample already passed the staging's map-box test (land vf +0x1f8: the whole terrain,
     // FOG_OF_WAR §1.2) and is taken as found, so one in the strip outside the playable box is not moved onto its edge
     const tactical::Aabb& bb = mode.bounds();
     const Vec3 tcl{std::clamp(tp.x, bb.min.x, bb.max.x), std::clamp(tp.y, bb.min.y, bb.max.y), tp.z};
     const Vec3 g = guard ? tcl : attack_stage_goal(mode, o.units, target, tcl, movers.size());
     o.destination = {g.x, g.y};  // (review: a staged sample passed the zone test 0x50eeb0 for M's class, so a path reaches it)
-    o.flags = static_cast<uint8_t>(flags & ~kAttackBlockNoLock);  // bkt1 t05: the host-only bit stays here
+    o.flags = static_cast<uint8_t>(flags & ~kAttackBlockNoLock);  // the host-only bit stays here
     o.goal_object = -1;  // land: the block's object is attack.target
     o.attack.target = target;
     o.attack.c = {tp.x, tp.y};
@@ -1867,7 +1867,7 @@ TacticalBattle::AttackPlan TacticalBattle::land_attack_order(TacticalMode& mode,
             e.range = combat_->attack_range(lead);  // 0x3749d0 (Get_Base_Attack_Range)
             // 0x4f6e40 (§4.3.2 item 1; bkt1 t01, BKT1_ATTACK_RE §1.1 [H]): a pending targeted ability with an
             // Activation_Max_Range > 0 gives min(range, that range) - no extent, no guard cap; else + min(hx, hy) of the
-            // target's extents, or (cmb2 t04, the block names a hard point) + 0x397780(T): the joint-box diagonal of a land
+            // target's extents, or (the block names a hard point) + 0x397780(T): the joint-box diagonal of a land
             // squad container, else Scale_Factor x the soft footprint radius (CombatSystem::target_radius)
             float amin = 0.0f, amax = 0.0f;
             objects::ObjectId on = objects::kNoObjectId;
@@ -1878,10 +1878,10 @@ TacticalBattle::AttackPlan TacticalBattle::land_attack_order(TacticalMode& mode,
                 // s78n t25.4 (item 1): a guard block's engagement range is capped at Land_Guard_Range (GC +0x11ec4)
                 if (guard) e.engage = std::min(e.engage, movement_->constants().land_guard_range);
             }
-            const tc::CanHit c = attack_can_hit_at(lead, target, tp);  // cmb2 t06: a marker by geometry
+            const tc::CanHit c = attack_can_hit_at(lead, target, tp);  // a marker by geometry
             e.in_range = c == tc::CanHit::Yes || c == tc::CanHit::LineBlocked;  // slots 44 / 45: range only
             e.melee = combat_->melee_attacker(lead);
-            // s78o (b0071): TARGETING - a weapon range, or a grenade arc (can_hit answers more than NoTarget)
+            // s78o: TARGETING - a weapon range, or a grenade arc (can_hit answers more than NoTarget)
             e.targeting = e.range > 0.0f || c != tc::CanHit::NoTarget;
         } else {
             e.targeting = false;  // not a combat unit: no TARGETING
@@ -1929,10 +1929,10 @@ void TacticalBattle::attack_block_service(TacticalMode& mode, SimRng& rng) {
     if (attack_blocks_.empty() || space_ || !combat_ || !movement_) return;
     const objects::ObjectStore& st = mode.primary();
     const auto live = [&](const Unit* x) { return x && x->alive && !x->retreated && st.alive(x->h) && combat_->has_unit(x->id); };
-    struct Checked {  // s78n t25.3: this pass's checked blocks (ascending mover)
+    struct Checked {  // this pass's checked blocks (ascending mover)
         objects::ObjectId mover, lead, tid;
         bool due, plan, halted;
-        bool locked = false;                   // bkt1 t03: the block's lead is movement-locked (not a formation lead)
+        bool locked = false;                   // the block's lead is movement-locked (not a formation lead)
         bool repath = false, dropped = false;  // s78n t26 review round 3: a moving formation's re-path (G 5); C 3's drop
         bool at_p = false;                     // C 3: the plan goes toward p (an unseen target after arrival)
         Vec3 p{};
@@ -1975,7 +1975,7 @@ void TacticalBattle::attack_block_service(TacticalMode& mode, SimRng& rng) {
             lead = unit_by_id(r.mover);
             tid = names(lead);
         }
-        // bkt1 t05 (b0075, BKT1_ATTACK_RE §3 [H]): a unit Attack_Move on a non-hostile object - no unit's order names it
+        // bkt1 t05 (BKT1_ATTACK_RE §3 [H]): a unit Attack_Move on a non-hostile object - no unit's order names it
         // (nothing locks it), the block stands for the movement's object block alone: lead = the mover (a squad through
         // its first live member), C = the object
         if ((r.flags & kAttackBlockNoLock) != 0 && !ct) {
@@ -1992,7 +1992,7 @@ void TacticalBattle::attack_block_service(TacticalMode& mode, SimRng& rng) {
             bool h = false, s = false;
             attack_target_unseen(st, *lead, tid, h, s);
             const Unit* ou = unit_by_id(tid);
-            const objects::ObjectHandle oh = ou ? ou->h : st.find(tid);  // cmb2 t06: a marker is a store object
+            const objects::ObjectHandle oh = ou ? ou->h : st.find(tid);  // a marker is a store object
             if (!h && !s && st.alive(oh)) {
                 // cmb2 t04 (FIGHTER_FLYING §4.11 D 7): a block naming a hard point reads the hard point's position
                 Vec3 p = st.position(oh);
@@ -2005,7 +2005,7 @@ void TacticalBattle::attack_block_service(TacticalMode& mode, SimRng& rng) {
                 r.oz = p.z;
             }
         }
-        // s78n t26 review round 2: the checks are the attack formation's (below); here the timer gate only. bkt1 t03: a
+        // s78n t26 review round 2: the checks are the attack formation's (below); here the timer gate only. a
         // locked lead no longer suspends its formation here - the formation's lead is picked below among unlocked members.
         checked.push_back({r.mover, lead->id, tid, frame_ >= r.next, false, false, movement_locked(lead->id), false, false, false, Vec3{}});
         return true;
@@ -2028,7 +2028,7 @@ void TacticalBattle::attack_block_service(TacticalMode& mode, SimRng& rng) {
     //   - arrived (no member has a goal), no member on a collision-owned top record, and not c -> plan again (0x410a60);
     //   - moving, c, not stopping and D <= R -> the land stop: every member with a goal halts at once;
     //   - moving and (stopping and not c, or D > R) -> plan again.
-    // bkt1 t03 (b0073, FIGHTER_FLYING §4.11 G 3 [H]): F's lead = the member nearest the 3-D centroid L of F's movers
+    // bkt1 t03 (FIGHTER_FLYING §4.11 G 3 [H]): F's lead = the member nearest the 3-D centroid L of F's movers
     // (summed in member order; strict <, first wins) among the movers that stand off their goal point (the unit their
     // lead's order names, tid: D 5's tested member of a TEAM container target), [port] skipping movement-locked ones (hero clash, immobilize, landing, Lua lock:
     // they keep their order, A1_READINGS §28.9); fallback the first unlocked member. Every member locked: F is not
@@ -2069,7 +2069,7 @@ void TacticalBattle::attack_block_service(TacticalMode& mode, SimRng& rng) {
                 if (first_free == checked.size()) first_free = j;
                 const Vec3 q = pos3(checked[j].mover);
                 const Unit* tu = unit_by_id(checked[j].tid);
-                const Vec3 tc = st.position(tu ? tu->h : st.find(checked[j].tid));  // cmb2 t06: a marker
+                const Vec3 tc = st.position(tu ? tu->h : st.find(checked[j].tid));  // a marker
                 if (q.x == tc.x && q.y == tc.y && q.z == tc.z) continue;  // its goal point is where it stands
                 const float dx = q.x - L.x, dy = q.y - L.y, dz = q.z - L.z;
                 const float dd = (dx * dx + dy * dy) + dz * dz;
@@ -2150,7 +2150,7 @@ void TacticalBattle::attack_block_service(TacticalMode& mode, SimRng& rng) {
         }
         if (!checked[i].due) continue;
         for (const size_t j : g) bi(checked[j].mover)->next = frame_ + 30u;
-        // cmb3 t01 (c) (b0169, FIGHTER_FLYING §4.11 E [H]): c (0x40edd0) and the re-path test 0x4165f0 take the fog / stealth
+        // cmb3 t01 (c) (FIGHTER_FLYING §4.11 E [H]): c (0x40edd0) and the re-path test 0x4165f0 take the fog / stealth
         // terms from members[0] (its owner, its type's Target_Stealth_Units) - [port] the formation's first mover's block
         // lead, as land_attack_order's trim gate takes the first unit - while C 3 above reads the lead (0x41a9b0). They
         // differ only in a formation that mixes types with and without Target_Stealth_Units.
@@ -2161,7 +2161,7 @@ void TacticalBattle::attack_block_service(TacticalMode& mode, SimRng& rng) {
                 attack_target_unseen(st, *m0, checked[g.front()].tid, hidden0, stealthed0);
         bool can = true;
         for (const size_t j : g) {
-            const tc::CanHit c = attack_can_hit_at(checked[j].lead, checked[j].tid, tp);  // cmb2 t06: a marker by geometry
+            const tc::CanHit c = attack_can_hit_at(checked[j].lead, checked[j].tid, tp);  // a marker by geometry
             can = can && (c == tc::CanHit::Yes || c == tc::CanHit::NoTarget);  // NoTarget: nothing tested (0x40edd0 true)
         }
         const float gx = tp.x - ri->gx, gy = tp.y - ri->gy, R = 0.5f * lead->range;
@@ -2200,7 +2200,7 @@ void TacticalBattle::attack_block_service(TacticalMode& mode, SimRng& rng) {
         const objects::ObjectId target = ri->target;
         const uint8_t flags = ri->flags;
         const uint32_t form = movement_->view(checked[i].mover).atk_form;
-        const Vec3 tp = checked[i].at_p ? checked[i].p : Vec3{ri->ox, ri->oy, ri->oz};  // cmb1 t06: the last-observed point
+        const Vec3 tp = checked[i].at_p ? checked[i].p : Vec3{ri->ox, ri->oy, ri->oz};  // the last-observed point
         std::vector<objects::ObjectId> leads;
         for (size_t j = 0; j < checked.size(); ++j) {
             if (done[j] || checked[j].halted || checked[j].dropped) continue;

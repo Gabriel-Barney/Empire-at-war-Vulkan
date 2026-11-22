@@ -175,7 +175,7 @@ int story_run(const MapRunOptions& opt, const std::string& data_dir, const std::
         if (opt.scoring)  // q6 t06
             if (const auto scoring = db.constants().get("Game_Scoring_Script_Name"))
                 host.set_scoring_script(files.get(), std::string(*scoring));
-        host.set_scoring_campaign(name);  // q6 t09: Game_Mode_Starting_Event("Galactic", campaign)
+        host.set_scoring_campaign(name);  // Game_Mode_Starting_Event("Galactic", campaign)
         galactic::GalacticSim* gs = host.start_galactic(rules, setup);
         if (!gs) return false;
         sim::StoryStart st;

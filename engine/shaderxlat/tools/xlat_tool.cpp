@@ -1,5 +1,5 @@
 // alamo_shaderxlat_tool - offline batch translation of FXO shader bytecode (build-time path of
-// PORTING.md track B). For every VS/PS blob of the given effects it writes
+// legacy docs/shaders/PORTING.md track B). For every VS/PS blob of the given effects it writes
 //   <out>/<EFFECT>_<hash16>.asm    D3D9 disassembly (also written when the translation fails)
 //   <out>/<EFFECT>_<hash16>.hlsl   translated HLSL (entry VSMain / PSMain)
 //   <out>/<EFFECT>_<hash16>.json   interface description (ShaderInterface::to_json)

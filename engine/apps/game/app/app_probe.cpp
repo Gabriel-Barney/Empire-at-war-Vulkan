@@ -1,4 +1,4 @@
-// alamo_game host, ref6 t05: the App's AppProbe answers (app_probe.hpp) for the smoke script.
+// alamo_game host, the App's AppProbe answers (app_probe.hpp) for the smoke script.
 #include "game_app.hpp"
 
 namespace alamo_game_app {

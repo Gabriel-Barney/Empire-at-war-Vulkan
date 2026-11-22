@@ -3,7 +3,7 @@
 //     rules (incl. the lowest-index quad rule, full coverage, not rendered), texcoord/rotation and
 //     blend-UV maths, normals, water mesh/shore alpha/constants, placements, fuzzing.
 //   * Real data (ALAMO_FOC_DATA = FoC "corruption" folder; built with vfs/data/jobs): every map in
-//     the VFS, the TERRAIN_WATER_POST.md 1.9 table, space maps, Endor/Dagobah/Hoth mesh stats and
+//     the VFS, the legacy docs/re/TERRAIN_WATER_POST.md 1.9 table, space maps, Endor/Dagobah/Hoth mesh stats and
 //     determinism, Endor object placements resolved through the GameDatabase.
 #include <algorithm>
 #include <chrono>
@@ -232,8 +232,8 @@ void test_chunks() {
 
 void test_round_trip() {
     MapData m = make_map(2, 1);
-    if (m.objects.size() > 1) m.objects[1].hint = "falcongear1";  // q6 t28: 0x482 hint name
-    if (m.objects.size() > 1) {  // map1 t04: 0x46E marker name (empty but present on object 0) and 0x4B7 extra behaviours
+    if (m.objects.size() > 1) m.objects[1].hint = "falcongear1";  // 0x482 hint name
+    if (m.objects.size() > 1) {  // 0x46E marker name (empty but present on object 0) and 0x4B7 extra behaviours
         m.objects[0].has_marker_name = true;
         m.objects[1].has_marker_name = true;
         m.objects[1].marker_name = "inf4";
@@ -360,7 +360,7 @@ void test_bilinear_height() {
     CHECK(t.under_water(50.0f, 50.0f));
 }
 
-// trn1 (docs/re/TRN1_TERRAIN_GAMEPLAY.md §1, §2.1): the gameplay surface type of a world point - the nearest vertex's
+// trn1 (legacy docs/re/TRN1_TERRAIN_GAMEPLAY.md §1, §2.1): the gameplay surface type of a world point - the nearest vertex's
 // material (floor(w / 20 + 0.5), clamped), the water types under the plane (more than 0.5 below it).
 void test_surface_types() {
     Terrain t = tiny_terrain();
@@ -731,7 +731,7 @@ void test_hardening() {
     std::string err;
     CHECK(!parse_ted(b, r, &err) && r.terrain.heights.empty() && r.passability.empty());
     std::printf("48-byte 1985^2 map rejected: %s\n", err.c_str());
-    // mcx5 t03: a side above the kMaxGridVerts guard is refused by the header check (retail bounds neither side,
+    // a side above the kMaxGridVerts guard is refused by the header check (retail bounds neither side,
     // MCX5_RE_ANSWERS Q2.1; the guard keeps size products in 32 bits).
     for (size_t i = 0; i < 2; ++i) {
         const size_t at = 24 + 6 * i + 2;  // mini 00 / 01 values
@@ -1017,7 +1017,7 @@ void test_decal_geometry() {
           render_mode_from_u32(99) == RenderMode::Opaque);
 }
 
-// Atlas UVs against the rule captured from the original (g1f t05, DECORATIONS 4.3): with
+// Atlas UVs against the rule captured from the original (DECORATIONS 4.3): with
 // X^ = (cos t, sin t), Y^ = X^ turned +90 deg about +z, lx = (P - C).X^, ly = (P - C).Y^:
 // u = (col + 0.5 + lx/w)/4 - 1, v = (row + 0.5 - ly/h)/4 - 1, compared mod 1 (WRAP addressing).
 float wrap_diff(float a, float b) {
@@ -1591,7 +1591,7 @@ std::string model_of(const alamo::data::GameDatabase& db, const alamo::data::Gam
     return {};
 }
 
-// DECORATIONS.md 6: decals / tracks over every map the FoC VFS sees, UM11 decal geometry, the
+// legacy docs/re/DECORATIONS.md 6: decals / tracks over every map the FoC VFS sees, UM11 decal geometry, the
 // decoration XML, space maps and FOW grids.
 template <class V>
 void test_real_decorations(V& vfs, const std::vector<std::string>& maps, const alamo::meg::Archive* maps_meg) {
@@ -1671,7 +1671,7 @@ void test_real_decorations(V& vfs, const std::vector<std::string>& maps, const a
                 static_cast<long long>(doc_adjust));
     CHECK(decals == 65 && decal_maps == 1);
     // VFS view (what the game loads; it also mounts the EaW GameData maps): 24 maps, 509 tracks.
-    // DECORATIONS.md 6 (491 = 363/107/21) counts _MP_LAND_UTAPAU from maps.meg (no tracks)
+    // legacy docs/re/DECORATIONS.md 6 (491 = 363/107/21) counts _MP_LAND_UTAPAU from maps.meg (no tracks)
     // instead of its Patch2 copy (18 height-mode-1 tracks): both are reproduced.
     CHECK(tracks == 509 && track_maps == 24 && foc_maps == 23 && geo_ok == tracks);
     CHECK(hmode[0] == 107 && hmode[1] == 381 && hmode[2] == 21);
@@ -1807,12 +1807,12 @@ void test_real_data() {
             continue;
         }
         ++ok;
-        {  // q6 t28: 0x482 hint names (TERRAIN_WATER_POST 1.6)
+        {  // 0x482 hint names (TERRAIN_WATER_POST 1.6)
             uint32_t n = 0;
             for (const ObjectPlacement& o : m.objects) n += o.hint.empty() ? 0u : 1u;
             hints += n;
             hint_maps += n ? 1u : 0u;
-            uint32_t x = 0;  // map1 t04: 0x4B7 extra behaviours (every shipped one is HINT), 0x46E marker names
+            uint32_t x = 0;  // 0x4B7 extra behaviours (every shipped one is HINT), 0x46E marker names
             for (const ObjectPlacement& o : m.objects) {
                 x += static_cast<uint32_t>(o.extra_behaviors.size());
                 marker_names += o.has_marker_name ? 1u : 0u;
@@ -1854,7 +1854,7 @@ void test_real_data() {
     CHECK(ok == maps.size() && ok > 0);
     std::printf("map hints (0x482): %u in %u maps\n", hints, hint_maps);
     CHECK(hints > 2000 && hint_maps > 50);  // TERRAIN_WATER_POST 1.6 counts maps.meg alone (2741 in 155 maps)
-    // map1 t04: FoC + EaW maps.meg hold 3954 HINT entries in 182 maps and 6820 0x46E chunks (scan 2026-11-17); the VFS serves
+    // FoC + EaW maps.meg hold 3954 HINT entries in 182 maps and 6820 0x46E chunks (scan 2026-11-17); the VFS serves
     // the patched copies, so the counts are bounds.
     std::printf("map extra behaviours (0x4B7): %u in %u maps; marker names (0x46E): %u\n", extra, extra_maps, marker_names);
     CHECK(extra > 1500 && extra_maps > 50 && marker_names > 2000);

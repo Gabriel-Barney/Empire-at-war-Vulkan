@@ -37,7 +37,7 @@ struct BehaviorCoverage {
     std::string_view name;            // first spelling seen
     uint32_t occurrences = 0, types = 0;
     uint32_t tag_mask = 0;            // bit i = i-th behavior-list tag in first-seen order (tags below)
-    uint32_t id = 0;                  // behavior_type_id (OBJECT_RUNTIME.md §4.3); 0 = unknown name
+    uint32_t id = 0;                  // behavior_type_id (legacy docs/re/OBJECT_RUNTIME.md §4.3); 0 = unknown name
 };
 
 struct CoverageReport {

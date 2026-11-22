@@ -20,27 +20,27 @@
 //              and a static scan of every script for engine functions / methods the port does not bind yet. A main
 //              chunk that fails after reading a GlobalValue key that is unset here but that some script sets
 //              (GlobalValue.Set with that literal key, e.g. in a Base_Definitions the session calls at startup) depends
-//              on session state: it is listed apart (lua_session_errors), not as a load warning (modc t12). A main chunk
+//              on session state: it is listed apart (lua_session_errors), not as a load warning. A main chunk
 //              that fails on a require of a script no layer has fails in retail too (stock Lua 5.0.2 require raises
-//              "could not load package"; docs/re/MODC_LOADER.md section 6): a warning when the data loads the script, an
-//              unused-script lead (lua_unused_scripts, info) when it is a mod's own script that nothing names (modc t24)
-//   shaders    with a mod mounted, first the .fx prebuild (prebuild_mod_effects, modc t36: per source compiled or why
+//              "could not load package"; legacy docs/re/MODC_LOADER.md section 6): a warning when the data loads the script, an
+//              unused-script lead (lua_unused_scripts, info) when it is a mod's own script that nothing names
+//   shaders    with a mod mounted, first the .fx prebuild (prebuild_mod_effects, per source compiled or why
 //              not); then materials::audit_effects over every effect the shader directories reach (mod or base): each
-//              materials::ShaderIssue (docs/MODS.md section 4.1) with, for a Data\Art\Shaders\ effect, how many of the
-//              object types' models name it in a material, so the report says whether anything draws it (modc t21)
+//              materials::ShaderIssue (docs/MODS.md "Effects and shaders in mods") with, for a Data\Art\Shaders\ effect, how many of the
+//              object types' models name it in a material, so the report says whether anything draws it
 //   submod     a mod whose own data names files no layer has, while an installed mod (Steam workshop item or
 //              <game>\Mods folder) outside the stack has most of them: likely a submod meant to be stacked on that
-//              parent (modc t16). Found from the files only; a modinfo.json naming the parent's workshop id is noted
+//              parent. Found from the files only; a modinfo.json naming the parent's workshop id is noted
 // Every finding of the xml tags, missing files and lua sections says whether it comes from a file in a mod folder (in_mod),
 // so a mod's own problems can be told from the base game's (base FoC itself names missing cinematic models and unread tags).
 // It does not run a session: run-time gaps past a script's main chunk (functions the session calls later) show up in
 // alamo_headless --story / --galactic-ai runs.
-//   compat     (version 4, mcx0 t06; docs/MOD_COMPAT_DESIGN.md §12.1) what the port does less than retail for this data:
+//   compat     (version 4; docs/MODS.md "Load report (alamo.mod_report)") what the port does less than retail for this data:
 //              honour gaps (tags the data sets that the tag ledger says the port does not act on), calls to bindings
 //              with an effect gap, story rewards the port lacks and event types it dispatches partly, perception token
 //              paths its galactic resolver does not evaluate, the findings retail shares (retail_equivalent), and the
 //              static part of the compatibility grade. None of it counts as a warning.
-// format_mod_report_json: the machine-readable summary, schema "alamo.mod_report" version 4 (docs/MODS.md §5.1).
+// format_mod_report_json: the machine-readable summary, schema "alamo.mod_report" version 4 (docs/MODS.md "Load report (alamo.mod_report)").
 // Used by alamo_mod_check (tools/mod_check_main.cpp) and its tests. Render-free.
 #pragma once
 #include <cstdint>
@@ -52,7 +52,7 @@
 #include "alamo/core/compat_issue.hpp"
 #include "alamo/game/asset_audit.hpp"
 #include "alamo/game/game_data.hpp"
-#include "alamo/game/mod_resolve.hpp"  // SubmodHint (ums4 t05)
+#include "alamo/game/mod_resolve.hpp"  // SubmodHint
 #include "alamo/vfs/vfs.hpp"
 
 namespace alamo::vfs {
@@ -72,18 +72,18 @@ struct ModCheckOptions {
     bool xml_tags = true;   // unknown XML tags of the object types and the other databases
     bool submod = true;     // look for the parent of a mod whose own data names missing files
     bool shaders = true;    // audit every effect (materials::audit_effects; needs the materials module)
-    bool compat = true;     // mcx0 t06: honour gaps, story ledger, perception token coverage, grade (report version 4)
-    bool assets = true;     // with compat: decode every asset the mod layers serve (mcx2 t01, asset_audit.hpp)
+    bool compat = true;     // honour gaps, story ledger, perception token coverage, grade (report version 4)
+    bool assets = true;     // with compat: decode every asset the mod layers serve (asset_audit.hpp)
     bool strict = false;    // --strict: an asset that loads only under a salvage rule counts as rejected (mod authors)
     std::string asset_cache_dir;  // --corpus-cache: the asset audit's content-hash cache folder; "" = none
     bool shader_compile = true;  // with shaders: also compile each translated pass with the runtime DXC when it loads
-    bool fx_prebuild = true;     // with shaders and a mod mounted: prebuild_mod_effects first (modc t36)
+    bool fx_prebuild = true;     // with shaders and a mod mounted: prebuild_mod_effects first
     std::string fx_cache_dir;    // the FxCache the prebuild and the audit use; empty = the default (tests set their own)
     // Steam library folders searched for installed workshop items (submod parents), e.g.
     // vfs::default_install_at(game).steam_libraries (install_locations.hpp). Empty: no workshop item is considered (tests).
     // <game>\Mods\* is always searched.
     std::vector<std::string> workshop_libraries;
-    // ums4: the install's catalog when the caller has it (the picker and --resolve scan it once for the resolver and the
+    // the install's catalog when the caller has it (the picker and --resolve scan it once for the resolver and the
     // report); null: the submod check scans <root> with workshop_libraries itself. Not owned; must outlive the check.
     const vfs::ModCatalog* catalog = nullptr;
 };
@@ -119,7 +119,7 @@ struct LuaIssue {
     // it was unset (the first such key, by byte order, that a script sets) and the first script (path order) setting it.
     std::string global_value;
     std::string set_by;
-    // Run errors only (modc t24): the script name of a require that found no file (the innermost one when a required
+    // Run errors only: the script name of a require that found no file (the innermost one when a required
     // library requires it; "" for other errors), and the first place that names the failing script so the data loads
     // it: "<xml file> (<tag>)" for an XML script tag, "require in <script>", "AI plan folder" (scripts the original
     // enumerates), "base script" (the path is also in a base layer), "" when nothing does.
@@ -143,7 +143,7 @@ struct ModFolderStats {
     uint32_t overrides = 0;  // a lower layer has the path: the mod's file wins
 };
 
-// A materials::ShaderIssue of the effect audit (modc t21) and what draws the effect.
+// A materials::ShaderIssue of the effect audit and what draws the effect.
 struct ShaderIssueEntry {
     std::string kind;      // materials::shader_issue_kind_name(): source_only, source_shadowed, load_failed, ...
     std::string effect;    // upper-case base name
@@ -157,7 +157,7 @@ struct ShaderIssueEntry {
     uint32_t models = 0;   // drawn_by "models": object-type models whose materials name the effect
     std::string first_model;  // the first of them (model path order)
 };
-// modc t36: the .fx prebuild that runs when a mod is mounted (prebuild_mod_effects; docs/MODS.md §4.1 "Effect sources").
+// the .fx prebuild that runs when a mod is mounted (prebuild_mod_effects; docs/MODS.md "Effect sources and the fx prebuild").
 struct FxPrebuildSource {
     std::string path;      // game path of the .fx the loader takes
     bool ok = false;       // compiled now or found compiled in the FxCache: the loader takes it in place of the .fxo
@@ -180,7 +180,7 @@ FxPrebuild prebuild_mod_effects(const GameData& d, const std::string& fx_cache_d
 
 struct ShaderCheck {
     bool checked = false;  // the audit ran (built with the materials module and ModCheckOptions::shaders)
-    FxPrebuild fx_prebuild;  // modc t36: run before the audit (ModCheckOptions::fx_prebuild)
+    FxPrebuild fx_prebuild;  // run before the audit (ModCheckOptions::fx_prebuild)
     size_t effects = 0, mod_effects = 0, loaded = 0, translated_passes = 0, translated_ok = 0;  // materials::EffectAudit
     bool compiled = false;    // the runtime DXC compiled the translated passes
     size_t fx_sources = 0, fx_sources_compiled = 0;  // EffectAudit::sources / sources_compiled (modc t23 FxCache)
@@ -188,7 +188,7 @@ struct ShaderCheck {
     std::vector<ShaderIssueEntry> issues;  // audit order: by effect, then kind
 };
 
-// ---- mcx0 t06: report version 4 (docs/MOD_COMPAT_DESIGN.md §12.1). Not counted in errors / warnings: the findings
+// ---- report version 4 (docs/MODS.md "Load report (alamo.mod_report)"). Not counted in errors / warnings: the findings
 // below are what the port does less than retail (or what retail refuses too), and feed the compatibility grade.
 // first_file / first_script of a finding with in_mod is the first file in a mod folder (a light mod's finding cites the
 // mod's file even when base FoC sets the tag earlier in load order); without in_mod, the first file.
@@ -281,7 +281,7 @@ struct ModCheckReport {
         size_t official_maps = 0, custom_maps = 0;
         bool ai = false;  // AI data loaded
     } counts;
-    // mcx7 t01: the skirmish rows (skirmish_map_rows, menu order: the Official tab, then the Custom tab) for the corpus
+    // the skirmish rows (skirmish_map_rows, menu order: the Official tab, then the Custom tab) for the corpus
     // runner's map pick.
     struct SkirmishMap {
         std::string map;      // SkirmishMapEntry::map
@@ -293,10 +293,10 @@ struct ModCheckReport {
     std::vector<SkirmishMap> skirmish_maps;
     size_t campaigns_checked = 0;
     // No Locations / no planet resolves. Retail lists such a campaign in the Galactic Conquest menu (a header or notice
-    // row; docs/re/MODC_LOADER.md section 4), so it is a warning: a menu entry that cannot be started. An error only
+    // row; legacy docs/re/MODC_LOADER.md section 4), so it is a warning: a menu entry that cannot be started. An error only
     // when no checked campaign has planets (no_startable_campaign()).
     std::vector<std::string> campaigns_without_planets;
-    std::vector<std::string> campaigns_startable;  // mcx7 t01: the checked campaigns with planets, database order
+    std::vector<std::string> campaigns_startable;  // the checked campaigns with planets, database order
     std::vector<std::string> campaign_warnings;  // build_galaxy_map diagnostics, one line per message with its campaigns
     size_t campaign_warning_count = 0;           // the diagnostics behind campaign_warnings (per campaign)
     std::vector<MissingFile> missing_files;      // sorted by path
@@ -310,7 +310,7 @@ struct ModCheckReport {
     std::vector<UnboundLuaCall> unbound_lua_calls;  // most call sites first, then by name
     ShaderCheck shaders;                         // effect audit issues (warnings)
     SubmodHint submod;                           // empty unless the mod's own data names missing files
-    // mcx3 (docs/MOD_COMPAT_DESIGN.md 5): the mounted mods (GameData::mods, mod_dirs order) and, when `args` came from
+    // mcx3 (docs/MODS.md "Mod descriptors and modinfo.json"): the mounted mods (GameData::mods, mod_dirs order) and, when `args` came from
     // resolve_mod_stack (mod_resolve.hpp; alamo_mod_check --resolve), that resolution (resolved = true): its errors count as errors, its
     // warnings as warnings.
     std::vector<vfs::ModDescriptor> mods;
@@ -331,8 +331,8 @@ struct ModCheckReport {
     std::vector<BindingGapCall> binding_gaps;      // most call sites first
     StoryCheck story;
     TokenCoverage token_coverage;
-    std::vector<LimitHit> limits;                  // mcx5 t05: data that reaches a guard (factions > sim::kMaxPlayers)
-    AssetAudit assets;                             // mcx2 t01: the `assets` section (ran = false when not checked)
+    std::vector<LimitHit> limits;                  // data that reaches a guard (factions > sim::kMaxPlayers)
+    AssetAudit assets;                             // the `assets` section (ran = false when not checked)
     CompatGrade grade;
 
     // Errors: the load failed or a step threw / failed, no campaign has planets (one error), a check threw. Warnings:
@@ -347,7 +347,7 @@ struct ModCheckReport {
 };
 
 ModCheckReport check_mod_data(const std::string& root, const std::vector<std::string>& args, const ModCheckOptions& options = {});
-// ums4 t07: the game file a loader diagnostic line names (its `loader_diagnostic` issue's source): the first "Data\..."
+// the game file a loader diagnostic line names (its `loader_diagnostic` issue's source): the first "Data\..."
 // path (any case and separator, also the Data folder inside an absolute host path; up to ':', ',', ';', a quote, a
 // bracket or white space, a trailing full stop dropped), else a bare "<name>.xml" that `v` has as Data\XML\<name>.
 // Normalised; "" when the line names none.
@@ -369,7 +369,7 @@ std::string format_mod_catalog_json(const vfs::ModCatalog& catalog, const vfs::I
 // Human-readable report (sections in the order of the file comment). verbose: every diagnostic, else the first 20 of each
 // step and campaign / Lua list.
 std::string format_mod_report(const ModCheckReport& report, bool verbose = false);
-// The machine-readable summary (docs/MODS.md §5.1): one JSON object, every list complete, keys in a fixed order.
+// The machine-readable summary (docs/MODS.md "Load report (alamo.mod_report)"): one JSON object, every list complete, keys in a fixed order.
 std::string format_mod_report_json(const ModCheckReport& report);
 
 }  // namespace alamo::game

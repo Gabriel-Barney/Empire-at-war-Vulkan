@@ -59,13 +59,13 @@ void GameMode::common_tick(const ModeTickContext& ctx) {
             if (p % 16u == static_cast<uint32_t>(frame_ % 16u)) ++fow_updates_;
         trace(ctx, "common.fow");
     }
-    // 8. GOM service: primary store, then secondary store (OBJECT_RUNTIME.md §5.3).
+    // 8. GOM service: primary store, then secondary store (legacy docs/re/OBJECT_RUNTIME.md §5.3).
     const auto mode_frame = static_cast<uint32_t>(frame_);
     primary_.update(
         mode_frame, [this, &ctx](objects::ObjectStore& s, ObjectHandle h) { service_object(s, h, ctx); },
         [this, &ctx](objects::ObjectStore& s) { pre_service(s, ctx); });
     trace(ctx, "common.store.primary");
-    if (ctx.object_scripts && !paused()) {  // q6: object scripts after the store update (OBJECT_SCRIPTS.md §3.1) [port]
+    if (ctx.object_scripts && !paused()) {  // q6: object scripts after the store update (legacy docs/re/OBJECT_SCRIPTS.md §3.1) [port]
         ctx.object_scripts(*this);
         trace(ctx, "common.object_scripts");
     }
@@ -144,8 +144,8 @@ void GalacticMode::tick(const ModeTickContext& ctx) {
         trace(ctx, "galactic.end");
         return;
     }
-    // No GalacticSim attached (tests only): the common tick FIRST in galactic mode (MAIN_LOOP.md §3.2), nothing else
-    // (cu9 t14 / cu9f t01: the pre-S3 income stand-in and its hashed / saved state are gone; GalacticSim owns the fiscal cycle).
+    // No GalacticSim attached (tests only): the common tick FIRST in galactic mode (legacy docs/re/MAIN_LOOP.md §3.2), nothing else
+    // (the pre-S3 income stand-in and its hashed / saved state are gone; GalacticSim owns the fiscal cycle).
     common_tick(ctx);
     trace(ctx, "galactic.end");
 }
@@ -287,7 +287,7 @@ constexpr objects::BehaviorTypeId kCloneKeepHideWhenFogged = 0x19, kCloneKeepImp
 }  // namespace
 
 ObjectHandle TacticalMode::spawn_death_clone(const objects::SpawnParams& p) {
-    // q6 (OBJECT_SCRIPTS.md §1.2): a death clone's script is released at once, so it never runs; [port] the create hook
+    // q6 (legacy docs/re/OBJECT_SCRIPTS.md §1.2): a death clone's script is released at once, so it never runs; [port] the create hook
     // is held back for the clone (no attach at all, so its Base_Definitions does not run either).
     auto created_hook = std::move(primary_.on_created);
     primary_.on_created = nullptr;
@@ -328,7 +328,7 @@ bool TacticalMode::destroy(ObjectHandle h) {
 }
 
 void TacticalMode::finish_load(const ParallelFor& pf) {
-    models_dirty_ = true;  // refixf t07: the loaded objects' types resolve at the next resolve_models()
+    models_dirty_ = true;  // the loaded objects' types resolve at the next resolve_models()
     trees_.rebuild_all_with_threshold(tactical::SpatialTreeConfig{}.large_threshold, pf);
 }
 
@@ -569,8 +569,8 @@ bool TacticalMode::read_state(ByteReader& r) {
 }
 
 void LandMode::mode_specific(const ModeTickContext& ctx) {
-    // Trace step only (cu9 t15): the land weather service runs in the battle (TacticalBattle::l1_weather_tick, before
-    // the common tick, with its synced draws), then the hero clashes (TacticalBattle::hero_clash_tick, s78n t06).
+    // Trace step only: the land weather service runs in the battle (TacticalBattle::l1_weather_tick, before
+    // the common tick, with its synced draws), then the hero clashes (TacticalBattle::hero_clash_tick).
     trace(ctx, "land.weather");
 }
 
@@ -614,7 +614,7 @@ const TacticalMode* GameModeManager::top_tactical() const {
 }
 
 void GameModeManager::update(const ModeTickContext& ctx) {
-    // 1. countdown [stub]; 2. scoring-manager service (q6 t09: ModeTickContext::scoring); 3. ONLY the current mode ticks.
+    // 1. countdown [stub]; 2. scoring-manager service (ModeTickContext::scoring); 3. ONLY the current mode ticks.
     if (ctx.scoring) ctx.scoring();
     if (ctx.trace) ctx.trace->emplace_back("gmm.scoring");
     if (GameMode* t = top()) t->tick(ctx);

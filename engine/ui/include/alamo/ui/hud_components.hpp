@@ -1,4 +1,4 @@
-// P2 command-bar data (docs/re/UI.md §2.1-2.2, §3.5; docs/formats SPEC.md §5 MTD, DAT):
+// P2 command-bar data (legacy docs/re/UI.md §2.1-2.2, §3.5; docs/formats legacy docs/formats/SPEC.md §5 MTD, DAT):
 //   * CommandBarComponents.xml -> ComponentTable (one entry per component, file order, lookup by name);
 //   * the MT_CommandBar MTD atlas (texture name -> pixel rectangle in the atlas texture);
 //   * MasterTextFile_<LANGUAGE>.DAT string tables (key CRC-32 lookup, UTF-16 values, English fallback);
@@ -7,7 +7,7 @@
 //
 // Shipped data note: the vanilla file stores components as <CommandBarComponent Name="..."> elements (the
 // Name attribute is the component / bone name); a child whose tag is not CommandBarComponent is accepted
-// with its tag as the name (UI.md §2.1 wording).
+// with its tag as the name (legacy docs/re/UI.md §2.1 wording).
 #pragma once
 #include <cstdint>
 #include <map>
@@ -35,7 +35,7 @@ struct Rgba8 {
 
 enum class ComponentType : uint8_t { Unknown = 0, Shell, Button, TextButton, Bar, Icon };
 
-// Number of HUD layers (UI.md §0 item 4) and the per-layer sub-lists (§2.5).
+// Number of HUD layers (legacy docs/re/UI.md §0 item 4) and the per-layer sub-lists (§2.5).
 inline constexpr uint32_t kHudLayers = 13;
 
 struct CommandBarComponent {
@@ -51,7 +51,7 @@ struct CommandBarComponent {
         disabled_texture, flash_texture, build_texture, bar_texture, bar_overlay, lower_effect_texture,
         upper_effect_texture, overlay_texture, overlay2_texture;
     // placement
-    int32_t base_layer = 0;  // 0..10 in data; HUD layer = base_layer [port: identity mapping, UI.md §6]
+    int32_t base_layer = 0;  // 0..10 in data; HUD layer = base_layer [port: identity mapping, legacy docs/re/UI.md §6]
     bool has_size = false;
     Vec2f size{};            // Size (canvas units; "171 175" for the radar)
     float scale = 1.0f;
@@ -106,7 +106,7 @@ private:
     std::map<std::string, uint32_t> index_;  // upper-cased name -> index (lookup only)
 };
 
-// ---- MTD atlas (SPEC.md §5): u32 count, then count x { char name[64]; u32 x, y, w, h; u8 alpha } (81 bytes).
+// ---- MTD atlas (legacy docs/formats/SPEC.md §5): u32 count, then count x { char name[64]; u32 x, y, w, h; u8 alpha } (81 bytes).
 struct AtlasEntry {
     std::string name;
     uint32_t x = 0, y = 0, width = 0, height = 0;
@@ -138,7 +138,7 @@ std::string atlas_key(std::string_view texture_name);  // upper-case, no directo
 class TextDatabase {
 public:
     // A DAT whose string counts do not fit the file (one bad count, a truncated tail) keeps the entries before the first
-    // record that does not fit (mcx2 t06, `text_salvaged`): when the values overrun, the keys are taken from the file's
+    // record that does not fit (`text_salvaged`): when the values overrun, the keys are taken from the file's
     // tail (the key block ends the file); when only the keys overrun, from right after the values. *error then names
     // what was kept and parse returns true. [port] retail's reader trusts the counts (GALACTIC_DIALOGS 2.7).
     bool parse(std::span<const uint8_t> bytes, std::string* error = nullptr);
@@ -182,10 +182,10 @@ private:
 // wrapping still works) make it 35 % longer (30-40 % from 10 UTF-16 units on; shorter strings grow by at least the brackets).
 // printf specs (%d, %.0f, %ls, %%), ##N inserts and \n-style escapes are kept. No ASCII letter: returned unchanged.
 std::u16string pseudo_localize(std::u16string_view s);
-// Data\Text\MasterTextFile_<LANGUAGE>.DAT, falling back to ENGLISH (UI.md §3.5). False if neither exists.
+// Data\Text\MasterTextFile_<LANGUAGE>.DAT, falling back to ENGLISH (legacy docs/re/UI.md §3.5). False if neither exists.
 bool load_master_text(const FileProvider& files, std::string_view language, TextDatabase& out, std::string* log = nullptr);
 std::string master_text_path(std::string_view language);
-// Retail's text language for a Windows LANGID (docs/re/MCX2_T02_ASSET_SALVAGE.md 5, mcx2 t06): GERMAN, FRENCH, SPANISH, ITALIAN, POLISH or
+// Retail's text language for a Windows LANGID (legacy docs/re/MCX2_T02_ASSET_SALVAGE.md 5): GERMAN, FRENCH, SPANISH, ITALIAN, POLISH or
 // RUSSIAN for the LANGIDs retail's table lists, else ENGLISH (Japanese, Korean, Chinese and Thai are overridden to
 // English, as retail does).
 std::string retail_language_for_langid(uint16_t langid);
@@ -262,7 +262,7 @@ private:
     std::vector<ComponentPlacement> placements_;
 };
 
-// Model -> canvas translation of a shell (UI.md §2.2 [M]; rule fixed against the real models, [port]): on an axis
+// Model -> canvas translation of a shell (legacy docs/re/UI.md §2.2 [M]; rule fixed against the real models, [port]): on an axis
 // with Model_Offset_X / _Y the model origin sits on the canvas edge the bones extend away from (mean bone
 // coordinate > +1 unit: left / bottom edge; < -1: right / top edge; in between: centre); on an axis without
 // the flag the origin is the canvas centre. At 4:3 the tactical bar's origin is (-512, -384). Dialog_Scene shells

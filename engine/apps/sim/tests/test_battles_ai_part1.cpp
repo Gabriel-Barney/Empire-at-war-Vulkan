@@ -1,4 +1,4 @@
-// Part 1 of test_battles_ai (bo3 t03: split by position; see test_battles_ai_common.hpp).
+// Part 1 of test_battles_ai (split by position; see test_battles_ai_common.hpp).
 #include "test_battles_ai_common.hpp"
 #include "tactical_battle_test_access.hpp"  // ref3 t06
 
@@ -114,10 +114,10 @@ void test_battle_ai_orders(const Data& d) {
 namespace bo3split {
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
 
-// refixf t02: no two space units on one exact point (foc-station seeds 1 / 4 stacked the rebel fleet on the station's centre):
+// no two space units on one exact point (foc-station seeds 1 / 4 stacked the rebel fleet on the station's centre):
 //   * a SPACE_OBSTACLE star base is a static entry of the space occupancy from the battle start (MOVEMENT §2.2) and leaves it
 //     when it dies;
-//   * the tactical AI's task-force Attack_Move on the station (refixf t06: one PortExtension group order, the further units
+//   * the tactical AI's task-force Attack_Move on the station (one PortExtension group order, the further units
 //     after the 24-byte block) is one group move (MOVEMENT §6.3): every goal outside the station's footprint and no two goals
 //     on one point;
 //   * no two live movable units share a position at the start, after the orders or while they fly in and fight.
@@ -201,7 +201,7 @@ void test_space_obstacle_orders() {
             CHECK((occ.query_static({sp.x + 300.0f, sp.y}, {sp.x + 300.0f, sp.y}, 1.0f) & mv::kSpaceStatic) == 0);
             CHECK(stacked(*b, st) == 0);  // the start placement
             BattleAi ai(*b, *tm, host, setup);
-            {  // as the tactical AI's issue_move (refixf t06): ONE group order for the task force, further units after the block
+            {  // as the tactical AI's issue_move: ONE group order for the task force, further units after the block
                 std::vector<uint8_t> pay;
                 auto put = [&pay](uint32_t v) {
                     for (int i = 0; i < 4; ++i) pay.push_back(static_cast<uint8_t>(v >> (8 * i)));
@@ -247,7 +247,7 @@ void test_space_obstacle_orders() {
             station_died = true;
             std::printf("  station died at frame %u\n", b->frame());
         }
-        if (!station_died) {  // refixf t06: the ordered attack damages the ordered hardpoint and the hull
+        if (!station_died) {  // the ordered attack damages the ordered hardpoint and the hull
             hp_hit = hp_hit || b->combat().hardpoint_health(station, 0) < hp_max;
             hull_hit = hull_hit || b->combat().health(station) < hull_max;
         }
@@ -455,7 +455,7 @@ namespace bo3split {
 
 // t48: the battle mode reaches the perception (Game.IsCampaignGame, IsDefender, the start markers) and so do both land BaseLevel
 // inputs: campaign = the conflict planet's structures, skirmish = each player's DUMMY_GROUND_STRUCTURE objects.
-// ccpgu t03: Game.IsLandControlGame is set only in a land skirmish with the control-point win condition (game type 4).
+// Game.IsLandControlGame is set only in a land skirmish with the control-point win condition (game type 4).
 void test_battle_ai_land_mode(bool skirmish, bool control_points) {
     auto d = make_data(false, false, true);
     jobs::JobSystem js(jobs::JobSystemConfig{0});
@@ -510,7 +510,7 @@ void test_battle_ai_land_mode(bool skirmish, bool control_points) {
         std::vector<ai::tactical::TacticalAiObject> facts;
         ai.fill(w, facts);
         CHECK(w.campaign == !skirmish);  // t50: a land skirmish runs the skirmish rules too (it has its skirmish base now)
-        CHECK(w.land_control == (skirmish && control_points));  // ccpgu t03; skai t15: not every land skirmish
+        CHECK(w.land_control == (skirmish && control_points));  // not every land skirmish
         CHECK(w.conflict_ground_structures == 1);  // set in both modes; the token picks by mode
         int own = 0, other = 0;
         for (const ai::tactical::PerceptionObject& o : w.objects)
@@ -532,7 +532,7 @@ void test_battle_ai_land_mode(bool skirmish, bool control_points) {
 namespace bo3split {
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
 
-// refixf t03: Find_All_Objects_Of_Type matches the representative type (LUA_API.md "Find_All_Objects_Of_Type and the
+// Find_All_Objects_Of_Type matches the representative type (legacy docs/re/LUA_API.md "Find_All_Objects_Of_Type and the
 // sibling finders"): in a land battle (team_types) a script's 'S10_Squad' finds the squads' TEAM containers (store type
 // "Team") through the battle's ObjectBridge::representative_type hook, and 'Team' finds none. Without the hook the store
 // type is matched instead.
@@ -697,7 +697,7 @@ void test_battle_ai_lifecycle() {
         BattleAi ai(*b, *tm, host, ts);
         lua::ObjectBridge& br = ai.world().object_bridge();
         CHECK(br.battle_lifecycle && br.spawn_unit && br.spawn_company && br.take_damage && br.destroy_object && br.change_owner);
-        CHECK(br.tactical && br.tactical->face_immediate && br.tactical->spawn);  // aitac t03: Face_Immediate, cinematic transport
+        CHECK(br.tactical && br.tactical->face_immediate && br.tactical->spawn);  // Face_Immediate, cinematic transport
         if (!br.spawn_unit || !br.take_damage || !br.destroy_object) break;
         // Spawn_Unit's hook: an adopted battle unit.
         objects::SpawnParams sp;
@@ -754,7 +754,7 @@ void test_battle_ai_lifecycle() {
         CHECK(n1 + 1 == n0 && n2 == n1);
         CHECK(b->adoption_violations(*tm).empty());  // the despawned unit left combat / movement too
         lua::attach_object_bridge(vm, nullptr);
-        // ref2 t06: the AI orders that used to fall out of BattleAi::execute_order as Unhandled reach the battle's order
+        // the AI orders that used to fall out of BattleAi::execute_order as Unhandled reach the battle's order
         // interface (TacticalBattle::apply_order): Turn_To_Face, the Garrison family, Sell; Cancel_Hyperspace is a refusal.
         uint32_t mine = commands::kNoObject;  // a trooper of the AI player 1
         for (const objects::ObjectId id : troopers())
@@ -813,7 +813,7 @@ void test_battle_map_hints() {
                                     p.position[0] = x;
                                     p.position[1] = 400.0f;
                                     p.hint = hint;
-                                    // q6 t32: an editor-written hint comes with HINT (Q6_T30 §3: the record's 0x4B7 list
+                                    // an editor-written hint comes with HINT (Q6_T30 §3: the record's 0x4B7 list
                                     // when the type lacks it); Find_Hint sees only objects with HINT.
                                     if (*hint) {
                                         terrain::ObjectPlacement::ExtraBehavior e;
@@ -1139,9 +1139,9 @@ void test_land_team_targeting() {
 namespace bo3split {
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
 
-// s78j t03 / t04: a land team's SPEED and Change_Owner in a battle (sprint_types: TEAM containers whose troopers carry
+// a land team's SPEED and Change_Owner in a battle (sprint_types: TEAM containers whose troopers carry
 // SPRINT, SPEED x 1.5).
-//  * t03 (TACTICAL_COMBAT §4.4, MOVEMENT §3.4 item 4; s78k t03): the team locomotor runs at the container's speed - the
+//  * t03 (TACTICAL_COMBAT §4.4, MOVEMENT §3.4 item 4): the team locomotor runs at the container's speed - the
 //    minimum member Max_Speed x the container's SPEED value (CombatSystem::team_mod_multiplier) - while every member
 //    keeps its own product: one sprinting member (own factor 1.5) leaves the team cap at 1.0 x Max_Speed (the others
 //    cap the minimum) and walks no faster than that; every member sprinting raises the cap to 1.5 x.
@@ -1230,7 +1230,7 @@ void test_team_speed_and_owner() {
         if (stage == 1) {
             CHECK(alamo::sim::TacticalBattleTestAccess::abilities(*b).is_active(members[0], sprint) && !alamo::sim::TacticalBattleTestAccess::abilities(*b).is_active(members[1], sprint));
             CHECK(tm_speed == 1.0f);  // the non-sprinting members cap the team
-            CHECK(ms.speed_factor(members[0]) == 1.5f);  // s78k t03: the sprinter keeps its own product
+            CHECK(ms.speed_factor(members[0]) == 1.5f);  // the sprinter keeps its own product
             for (size_t k = 1; k < members.size(); ++k) CHECK(ms.speed_factor(members[k]) == 1.0f);
             // The team cap = min Max_Speed x mult x 1.0 = a plain member's max speed, below the sprinter's own.
             const float cap = ms.view(members[1]).max_speed;
@@ -1351,7 +1351,7 @@ void test_land_squad_container() {
     std::vector<std::pair<mv::ObjectId, mv::V2>> slots;
     Vec3 start{}, goal{};
     bool collided = false;  // the container had a collision object during the move
-    bool detoured = false, have_prev = false;  // s78n t20: it walked a Path Around detour (a record on top of its path)
+    bool detoured = false, have_prev = false;  // it walked a Path Around detour (a record on top of its path)
     float max_step = 0.0f;
     mv::V2 prev_pos{};
     // s78n t20 item 6 (MOVEMENT 4.3.1): after the checks above, the squad is ordered onto another standing squad
@@ -1363,7 +1363,7 @@ void test_land_squad_container() {
     float off_line = 0.0f, off_path = 0.0f, max_lead = 0.0f, team_speed = 0.0f, late_along = 0.0f, settle_err = 0.0f;
     uint32_t store_mismatch = 0, moving_frames = 0, recover_frames = 0, box_mismatch = 0;
     float start_error = -1.0f, recovered_error = -1.0f;
-    std::vector<float> along_ref;  // s78n t14: each member's along error 120 frames into the move
+    std::vector<float> along_ref;  // each member's along error 120 frames into the move
     bool settle_target = false;    // a member has a target when the team stopped (no recovery, §7.3 item 6)
     for (uint64_t t = 0; t < 8000 && !(done && onto >= 2); ++t) {
         host.tick_once();
@@ -1481,7 +1481,7 @@ void test_land_squad_container() {
         const Vec3 p = st.position(th);
         if (p.x != k.pos.x || p.y != k.pos.y) ++store_mismatch;  // every reader takes the store position: the mover's
         const float c = std::cos(k.yaw * 0.017453292f), s = std::sin(k.yaw * 0.017453292f);
-        // s78n t14: a member's live slot (the Rows layout re-lays at the move start and at waypoints)
+        // a member's live slot (the Rows layout re-lays at the move start and at waypoints)
         const auto live_slot = [&](size_t m) {
             mv::ObjectId lc = -1;
             mv::V2 sl = slots[m].second;
@@ -1568,7 +1568,7 @@ void test_land_squad_container() {
                         along_ref.resize(members.size());
                         along_ref[m] = along;
                     } else if (b->frame() > order_frame + 120 && m < along_ref.size() && !collided) {
-                        // (s78n t18: once the container has a collision object its members side-step - the vector 0x509810 -
+                        // (once the container has a collision object its members side-step - the vector 0x509810 -
                         // and their along errors move with that; measured only before the first object)
                         late_along = std::max(late_along, std::fabs(along - along_ref[m]));
                     }
@@ -1604,9 +1604,9 @@ void test_land_squad_container() {
     if (!done) return;
     CHECK(store_mismatch == 0);
     CHECK(start_error > 4.0f && recovered_error >= 0.0f && recovered_error <= 4.0f);  // idle recovery (> 4.0 from the slot)
-    // s78n t18: the container walks its own planned path (never re-centred on its members) and stays on it through its
+    // the container walks its own planned path (never re-centred on its members) and stays on it through its
     // collision objects: no nudge off the path, no repath against infantry (before t18 a MovingVsMoving object with another
-    // squad's container side-stepped it up to about 16 off the path). s78n t20: against a standing vehicle it walks a
+    // squad's container side-stepped it up to about 16 off the path). Against a standing vehicle it walks a
     // Path Around detour (the record on top of its path stack) and then resumes toward its next ordered waypoint; it
     // never moves farther in one step than its team speed.
     CHECK(moving_frames > 60 && off_path < 0.5f);
@@ -1629,7 +1629,7 @@ void test_land_squad_container() {
     CHECK(box_mismatch == 0);  // s78n t18 review: squad_joint_slots and team_joint_box agreed on every moving frame
     CHECK(max_lead > 1.0f);   // the container leads (its members steer from its start-of-tick state)
     CHECK(along_ref.size() == members.size() && late_along < 4.0f);  // and the members hold the formation
-    CHECK(settle_target || settle_err <= 4.0f);  // s78n t14: they recover to their slots only while the team has no target
+    CHECK(settle_target || settle_err <= 4.0f);  // they recover to their slots only while the team has no target
 }
 #endif
 }  // namespace bo3split
@@ -1688,10 +1688,10 @@ void test_land_squad_garrison() {
     std::vector<std::pair<mv::ObjectId, mv::V2>> slots;
     float box_x = 0.0f, box_y = 0.0f, exit_gap = -1.0f, walked = 0.0f, settle_err = -1.0f, in_gap = -1.0f, off_err = -1.0f;
     float out_gap = -1.0f;
-    bool settle_target = false;  // s78n t14: a member has a target when the squad stopped (no recovery, §7.3 item 6)
+    bool settle_target = false;  // a member has a target when the squad stopped (no recovery, §7.3 item 6)
     bool inside_ok = false, rejoined = false, ordered = false, store_ok = true, teleported = false, walking_out = false;
-    bool tele_members = false;  // s78n t18: the container's teleport moved its members with it
-    uint32_t partial_frames = 0;  // s78n t18: frames with the squad partly inside its host
+    bool tele_members = false;  // the container's teleport moved its members with it
+    uint32_t partial_frames = 0;  // frames with the squad partly inside its host
     std::vector<std::pair<mv::ObjectId, mv::V2>> in_slots;  // each member's slot when it went in (team_slot)
     std::vector<mv::V2> in_off;                            // and its offset from the container (parked_offset)
     Vec3 exit_x{};
@@ -1807,7 +1807,7 @@ void test_land_squad_garrison() {
             walked = std::sqrt((wp.x - walker_at.x) * (wp.x - walker_at.x) + (wp.y - walker_at.y) * (wp.y - walker_at.y));
             const objects::ObjectId one_m[] = {members.front()};  // one member's leave takes the whole squad out
             CHECK(b->order_leave_garrison(*tm, 0, one_m) == commands::RejectReason::None);
-            // mcx4 t13: the presentation feed of units leaving a garrison (SFXEvent_Bunker_Vacated reads it) keeps an exit
+            // the presentation feed of units leaving a garrison (SFXEvent_Bunker_Vacated reads it) keeps an exit
             // ordered between ticks for the next tick's readers.
             CHECK(!b->story_vacated().empty() && b->story_vacated().back().holder == walker);
             exit_x = b->garrison().exit_point(walker, wp, st.facing(st.find(walker)));
@@ -1896,7 +1896,7 @@ void test_land_squad_garrison() {
         }
         if (b->frame() < stage_frame + 2) continue;
         const Vec3 p = st.position(th);
-        // s78n t18: the members went with the container (each at its offset), so the squad stands as it stood
+        // the members went with the container (each at its offset), so the squad stands as it stood
         teleported = k.pos.x == tele_to.x && k.pos.y == tele_to.y && p.x == tele_to.x && p.y == tele_to.y && tele_members;
         done = true;
     }
@@ -1914,7 +1914,7 @@ void test_land_squad_garrison() {
     CHECK(inside_ok && walked > 100.0f && rejoined && ordered && store_ok);
     CHECK(partial_frames == 0);
     CHECK(exit_gap >= 0.0f && exit_gap < 80.0f);  // the container came out with its squad, not left at the old approach point
-    CHECK(settle_target || settle_err <= 4.0f);  // s78n t14: no recovery while the team has a target
+    CHECK(settle_target || settle_err <= 4.0f);  // no recovery while the team has a target
     CHECK(teleported);
 }
 #endif
@@ -2031,7 +2031,7 @@ void test_team_hack_bribe(bool bribe) {
     const uint32_t slicer_co = type_of(*d, "S10_Slicer_Co"), slicer_t = type_of(*d, "S10_Slicer");
     CHECK(slicer_co < d->types.size() && slicer_t < d->types.size());
     setup.forces.push_back({0, 1, slicer_co});  // the Empire's defenders: S10_Squad + the slicer
-    if (!setup.players.empty()) setup.players[0].credits = 5000.0f;  // s78l t05: the bribing Empire pays the cost
+    if (!setup.players.empty()) setup.players[0].credits = 5000.0f;  // the bribing Empire pays the cost
     galactic::GalacticSim* gs = host.start_galactic(d->rules, setup);
     CHECK(gs != nullptr);
     if (!gs) return;
@@ -2151,7 +2151,7 @@ void test_team_hack_bribe(bool bribe) {
     CHECK(ordered && changed && stage == 3 && mismatches == 0);
     if (bribe) CHECK(change_frame <= order_frame + 2u);  // Tactical_Bribe changes the owner at once (no animation wait)
     else CHECK(change_frame >= order_frame + 60u);       // Hack: at the end of its animation [port: 60 frames without a clip]
-    // s78l t05: the bribe was paid from the Empire's credits (Tactical_Bribe_Cost x modifier); the hack costs nothing.
+    // the bribe was paid from the Empire's credits (Tactical_Bribe_Cost x modifier); the hack costs nothing.
     std::printf("  team %s: credits %.1f at the order, %.1f at the owner change\n", bribe ? "bribe" : "hack",
                 static_cast<double>(credits_at_order), static_cast<double>(credits_at_change));
     if (bribe) CHECK(credits_at_order > 0.0f && credits_at_change < credits_at_order);
@@ -2275,7 +2275,7 @@ void test_vehicle_thief(int variant) {
             stage = 1;
             continue;
         }
-        if (stage == 1 && variant != 0) {  // s78n t12: no clone type - the thief is inside the original speeder
+        if (stage == 1 && variant != 0) {  // no clone type - the thief is inside the original speeder
             if (b->garrison_holder_of(thief) != speeder) {
                 if (b->frame() >= order_frame + 60u) break;
                 continue;

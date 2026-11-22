@@ -1,4 +1,4 @@
-// SP5 (docs/SIM_PARALLEL_DESIGN.md §4.4): counter-based random streams for services.
+// SP5 (docs/SIMULATION.md "Counter-based random streams"): counter-based random streams for services.
 //
 // The synced SimRng is drawn in call order, which forces the services that draw to run one after another. A service
 // converted to streams draws instead from a SimRng seeded per (session seed, tick, stream id, entity id): the seed is a

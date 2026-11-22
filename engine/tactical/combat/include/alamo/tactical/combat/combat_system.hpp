@@ -1,5 +1,5 @@
 // S8 - CombatSystem: targeting, weapons, projectiles, damage and both modifier systems for one
-// tactical battle (docs/re/TACTICAL_COMBAT.md sections 2-4; section 5 only as far as damage routing
+// tactical battle (legacy docs/re/TACTICAL_COMBAT.md sections 2-4; section 5 only as far as damage routing
 // needs it - S9 owns hardpoint systems and abilities).
 //
 // DATA MODEL
@@ -23,7 +23,7 @@
 // order, so results are identical for any worker count:
 //   A  modifiers   [parallel per unit] purge expired object entries (player sets serially first),
 //                  refresh the reduced-value cache and the Mod_Multiplier products (every unit keeps its own;
-//                  the squad value is team_mod_multiplier, s78h t03); [serial] team heads and team slots.
+//                  the squad value is team_mod_multiplier); [serial] team heads and team slots.
 //   B  upkeep      [serial] delayed-damage countdowns (queue order); [parallel per unit] shield
 //                  regeneration, hull <-> hardpoint 0.2 coupling.
 //   C  gather      [parallel per unit due a target scan] tree queries per enemy player (cube of
@@ -33,7 +33,7 @@
 //                  reschedule draw, start-player draw, per-candidate aim-point draws, selection rule
 //                  2.4; then each weapon hardpoint in HardPoints order (Update_Weapon / Fire_At:
 //                  muzzle, lead, inaccuracy, spawn, recharge draws), then the non-hardpoint weapon.
-//                  s78h t06: a land team's TeamTargeting (its head's decide + team_targeting_service)
+//                  a land team's TeamTargeting (its head's decide + team_targeting_service)
 //                  runs once per tick at the team's container slot, just before the team's highest
 //                  phase-A index in this walk (even if that unit died earlier in the walk), on the
 //                  team's current live head (the heir after an in-tick hand-over); the head's own
@@ -47,7 +47,7 @@
 // Projectiles spawned in D are first stepped on the next tick (objects created during the service
 // loop are serviced next frame, OBJECT_RUNTIME 5.3).
 //
-// S9 additions (docs/re/ABILITIES_HARDPOINTS.md): CombatHooks (installed by the ability system) are
+// S9 additions (legacy docs/re/ABILITIES_HARDPOINTS.md): CombatHooks (installed by the ability system) are
 // called from the serial parts only: begin_tick after A; in D per unit countdown -> burning ->
 // targeting -> pending ability / special abilities -> weapons (opportunity fire, ion / lucky
 // projectile override, shot hooks) -> converted-unit decay; in F missile-shield deflection (emitters
@@ -60,7 +60,7 @@
 // replaces linear lead in Fire_At / WeaponBehavior / host launches; straight tracks keep linear lead bit-for-bit),
 // team targeting (members score with their squad head's priority set, filter 7 accepts the head's weapon, filter 9
 // accepts the head's current target out of range).
-// S8 t04 (docs/re/LOB_SOLVER.md): category-3 (grenade) shots - slot 44 = the lob solver finds an arc; the launch solves
+// S8 t04 (legacy docs/re/LOB_SOLVER.md): category-3 (grenade) shots - slot 44 = the lob solver finds an arc; the launch solves
 // from the launch point to the un-led target point (lead / inaccuracy turn the yaw only), no solution = no shot;
 // hardpoint grenades leave straight at the aim point; the flight is the closed-form parabola, detonating on the land
 // ground test (On_Detonate at the hit) or an object hit; sticky grenades attach / rest; lifetime-only expiry.
@@ -127,7 +127,7 @@ inline bool is_weapon(HardpointKind k) {
 }
 
 // tDamageType kinds known so far (section 3.6, [M]). 6 = owner death killing its hardpoints, 15 =
-// no death clone, 0x11 = converted-unit decay (ABILITIES_HARDPOINTS.md 1.3, 4.9, 4.10).
+// no death clone, 0x11 = converted-unit decay (legacy docs/re/ABILITIES_HARDPOINTS.md 1.3, 4.9, 4.10).
 enum DamageKind : uint8_t {
     kKindDebug = 0,
     kKindNormal = 1,
@@ -138,12 +138,12 @@ enum DamageKind : uint8_t {
     kKindVehicleThief = 13,
     kKindNoDeathClone = 15,
     kKindConvertedDecay = 0x11,
-    kKindTerrain = 0x13,  // trn1 t02: SurfaceFX Terrain_Damage (damage ground / lava), 0x5ee820 [M name]
+    kKindTerrain = 0x13,  // SurfaceFX Terrain_Damage (damage ground / lava), 0x5ee820 [M name]
     kKindInfection = 0x14,
     kKindBypassShield = 22,
 };
 
-// Projectile_Category (0x469280) [H] (ABILITIES_HARDPOINTS.md 4.3).
+// Projectile_Category (0x469280) [H] (legacy docs/re/ABILITIES_HARDPOINTS.md 4.3).
 enum class ProjectileCategory : uint8_t {
     Default = 0,
     Missile = 1,
@@ -167,14 +167,14 @@ struct ProjectileDesc {
     bool does_hitpoint_damage = true;      // Projectile_Does_Hitpoint_Damage
     bool homing = false;                   // Projectile_Category 1 [L: re-aims at the target each step]
     bool lobbed = false;                   // Projectile_Category 3 (range = Max_Speed^2 / (gravity x lob mod))
-    // S8 t04 (docs/re/LOB_SOLVER.md §1.1): G = Projectile_Grenade_Gravity (+0x1e80) x Projectile_Grenade_Gravity_Lob_Mod
+    // S8 t04 (legacy docs/re/LOB_SOLVER.md §1.1): G = Projectile_Grenade_Gravity (+0x1e80) x Projectile_Grenade_Gravity_Lob_Mod
     // (+0x1e84); constructor defaults 1.05 / 5.02, an XML 0 is kept (G = 0). Category-3 shots (`lobbed`) launch on the
     // lob solver's arc (formulas.hpp lob_solve; hardpoint shots straight at the aim point) and fly lob_position.
     float lob_mod = 5.02f;
     float grenade_gravity = 1.05f;
     bool can_lob_slower = false;           // Projectile_Grenade_Can_Lob_Slower (+0x4a): the 0.8 speed steps
     bool sticks_on_collision = false;      // Projectile_Grenade_Sticks_On_Collision (+0x4b): attach / rest, no damage
-    // S8 t06: Friendly_Damage_Amount (+0x23ec). > 0: the sweep also tests the own player (TACTICAL_COMBAT §3.4 step 3),
+    // Friendly_Damage_Amount (+0x23ec). > 0: the sweep also tests the own player (TACTICAL_COMBAT §3.4 step 3),
     // and DETONATE_REMOTE_BOMB detonates such bombs, damaging an own parent by it (LOB_SOLVER §3.5).
     float friendly_damage_amount = 0.0f;
     float max_flight_distance = 0.0f;      // Projectile_Max_Flight_Distance
@@ -195,7 +195,7 @@ struct ProjectileDesc {
     bool damages_random_hardpoints = false;  // Projectile_Damages_Random_Hard_Points
     // ---- S9 ----
     ProjectileCategory category = ProjectileCategory::Default;  // flight dispatch + missile-shield test
-    // Ion stun on detonation (behaviour 0x45, ABILITIES_HARDPOINTS.md 4.4) [H].
+    // Ion stun on detonation (behaviour 0x45, legacy docs/re/ABILITIES_HARDPOINTS.md 4.4) [H].
     bool ion_stun = false;                  // Projectile_Ion_Stun_On_Detonation
     float ion_stun_duration = 0.0f;         // seconds
     float ion_stun_speed_reduction = 0.0f;  // list 5 entry = -value
@@ -206,13 +206,13 @@ struct ProjectileDesc {
     // Energy pool (4.7) [H]
     float energy_per_shot = 0.0f;           // Projectile_Energy_Per_Shot
     bool does_energy_damage = false;        // Projectile_Does_Energy_Damage
-    // cu8f t02 (CU8F_T01_T02_T07_RE.md §2.4): any energy absorbed from the victim's pool -> CombatHooks::engines_drained.
+    // cu8f t02 (legacy docs/re/CU8F_T01_T02_T07_RE.md §2.4): any energy absorbed from the victim's pool -> CombatHooks::engines_drained.
     bool disables_engines_when_drained = false;  // Projectile_Disables_Engines_When_Power_Drained
     float disable_engines_duration = 0.0f;       // Projectile_Disable_Engines_Duration (seconds)
     // Saber/redirect listeners (TACTICAL_COMBAT 3.8) [M]
     float redirect_chance_modifier = 1.0f;  // Projectile_Redirect_Chance_Modifier
     float block_chance_modifier = 1.0f;     // Projectile_Block_Chance_Modifier
-    // S9 t05 (S9_DEATH_CLONE_SHIELDS.md §2.3): Max_Rate_Of_Turn (type +0x38c, type default 2.3) in degrees per flight
+    // S9 t05 (legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §2.3): Max_Rate_Of_Turn (type +0x38c, type default 2.3) in degrees per flight
     // step, x the mode's Object_Max_Speed_Multiplier (CombatConfig). Homing steering and the missile-shield turn are
     // limited by it; 0 (vanilla lasers) = never turned.
     float max_rate_of_turn = 2.3f;
@@ -245,7 +245,7 @@ struct ProjectileDesc {
     uint8_t combat_mod = 0;                  // Projectile_Combat_Mod: ModList index + 1 (code 0x52 enum), 0 none
     float combat_mod_seconds = 0.0f, combat_mod_value = 0.0f;
     uint64_t combat_mod_mask = 0;
-    // ---- refixf t01: ROCKET / MPTL_ROCKET spline flight (S9_DEATH_CLONE_SHIELDS.md §2.4, rocket.hpp) ----
+    // ---- ROCKET / MPTL_ROCKET spline flight (legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §2.4, rocket.hpp) ----
     // The three distances: type +0x1fec / +0x1ff0 / +0x1ff4 (schema "int", read by the float converter 0x8); floats here.
     float rocket_straight_distance = 0.0f;  // Projectile_Rocket_Straight_Distance (space initial plan)
     // Projectile_Rocket_Curve_Distance. Every ROCKET / MPTL_ROCKET flies the spline; 0 (the XML default) builds no legs.
@@ -254,7 +254,7 @@ struct ProjectileDesc {
     bool target_point_on_terrain = false;          // Projectile_Target_Point_On_Terrain (type +0x7f)
     bool explode_when_reached_target_radius = false;  // Explode_When_Reached_Target_Radius (type +0x7e)
 
-    bool operator==(const ProjectileDesc&) const = default;  // ref5 t01: every field (catalog vs strike builder test)
+    bool operator==(const ProjectileDesc&) const = default;  // every field (catalog vs strike builder test)
 };
 
 struct InaccuracyEntry {
@@ -269,7 +269,7 @@ struct WeaponDelayEntry {
 struct HardpointDesc {
     std::string name;
     uint32_t name_crc = 0;  // name_crc(name)
-    std::string collision_mesh;  // refixf t07: Collision_Mesh (type +0xa0), upper case; "" = none (§2.9 Q1 step 4)
+    std::string collision_mesh;  // Collision_Mesh (type +0xa0), upper case; "" = none (§2.9 Q1 step 4)
     HardpointKind kind = HardpointKind::DummyArt;
     float health = 0.0f;
     bool destroyable = false, targetable = false, turret = false;  // ctor defaults false [M]
@@ -325,7 +325,7 @@ struct HardpointDesc {
     // OI abilities: hardpoint repair (command 45, TACTICAL_GAPS §1.12): per repairer per frame.
     float repair_cost_per_frame = 0.0f;    // Repair_Cost_Per_Frame (hp type +0x470)
     float repair_amount_per_frame = 3.0f;  // Repair_Amount_Per_Frame (+0x474; ctor default 3.0, TACTICAL_COMBAT 5.1)
-    // Allows_Special_Weapon_Use (type +0x3d8, HARDPOINT_DISABLED.md §4): every Set_System_Online of this hardpoint
+    // Allows_Special_Weapon_Use (type +0x3d8, legacy docs/re/HARDPOINT_DISABLED.md §4): every Set_System_Online of this hardpoint
     // writes the allied players' special-weapon flag (CombatSystem::special_weapon_hp_enabled).
     bool allows_special_weapon_use = false;
     // ENABLE_SPECIAL_ABILITY (11) hardpoints: Special_Ability_Name (type +0x450) as name_crc, 0 = empty (no effect).
@@ -341,7 +341,7 @@ struct HardpointDesc {
     std::vector<uint8_t> no_fire_modes;
 };
 
-// Death_Clone entry (S9_DEATH_CLONE_SHIELDS.md §1.4): key -> clone object type (host TypeIndex). The key is the
+// Death_Clone entry (legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §1.4): key -> clone object type (host TypeIndex). The key is the
 // tDamageType value of the XML name, else 0x18 + the name's index in GameConstants Damage_Types. A repeated key
 // appends to that key's list (list order = entry order here).
 struct DeathCloneEntry {
@@ -350,7 +350,7 @@ struct DeathCloneEntry {
 };
 inline constexpr int32_t kDeathCloneSubKeyBase = 0x18;
 
-// refix t02: the Infection_Ability parameters (xml_field_tables "fields of Infection_Ability objects"; vanilla IG-88:
+// the Infection_Ability parameters (xml_field_tables "fields of Infection_Ability objects"; vanilla IG-88:
 // Distance_To_Infect 70, Seconds_To_Infect 2, Duration_Of_Infection 30, Damage_Per_Second 2, Infection_CategoryMask
 // Infantry). An INFECTION behaviour started by a Causes_Infection hit of a unit whose type has them (and every behaviour
 // spread from it) runs with them; `has` false = none (the behaviour then only marks the unit infected).
@@ -361,7 +361,7 @@ struct InfectionDesc {
     float duration_secs = 0.0f;        // Duration_Of_Infection (<= 0: no expiry)
     float damage_per_second = 0.0f;    // Damage_Per_Second
     // Infection_CategoryMask: the spread's victim filter (candidate type CategoryMask & mask != 0, so 0 spreads to
-    // nothing); a direct Causes_Infection hit is not filtered (cu8f t06, CU8F_T04_T06_RE §3.5 [H]).
+    // nothing); a direct Causes_Infection hit is not filtered (CU8F_T04_T06_RE §3.5 [H]).
     uint64_t category_mask = 0;
 };
 
@@ -416,14 +416,14 @@ struct UnitDesc {
     // the own weapon's distance branch takes the first entry whose mask hits the target's CategoryMask.
     std::vector<InaccuracyEntry> fire_inaccuracy;
     int32_t priority_set = -1;                  // Targeting_Priority_Set (index into CombatData)
-    // Targeting_Stickiness_Time_Threshold (seconds, type +0x528). cu8f t04a: read only through a unit's negative override
+    // Targeting_Stickiness_Time_Threshold (seconds, type +0x528). Read only through a unit's negative override
     // (Unit::stickiness, TD +0x158) and written into it by a task-force release (reset_stickiness).
     float stickiness_threshold = 0.0f;
     uint64_t category_mask = 0, property_flags = 0, attack_category_restrictions = 0;
     uint32_t space_layer = 0;  // Space_Layer (short-range attackers only)
     bool target_stealth_units = false;
     bool is_valid_target = true;
-    // q6 t19: the type half of the target test 0x5680b0 (A1_READINGS §33.2.1 tests 1 / 6; the host computes it), read
+    // the type half of the target test 0x5680b0 (A1_READINGS §33.2.1 tests 1 / 6; the host computes it), read
     // by the path-B goal promotion (§2.8 B step 3). Default true (hosts without type data).
     bool target_test_type = true;
     bool destroy_when_all_hardpoints_destroyed = false;  // type +0xa8
@@ -439,7 +439,7 @@ struct UnitDesc {
     // list order; type +0xc48). The object's weapon index obj +0x324 picks the entry the weapon fires (L1_S4_REMAINING
     // §2.1 Get_Current_Projectile_Type, TACTICAL_GAPS §3.1 slot 44). Empty: `weapon_projectile` only (index ignored).
     std::vector<int32_t> weapon_projectiles;
-    // S8 t08: Projectile_Types[0] (ProjectileDesc index, -1 none) whether or not the type has the WEAPON behaviour - not
+    // Projectile_Types[0] (ProjectileDesc index, -1 none) whether or not the type has the WEAPON behaviour - not
     // fired by combat; read by the host's special weapons (SPECIAL_WEAPON / lobbing superweapons / TSW take their shot
     // from the list without a WEAPON behaviour).
     int32_t listed_projectile = -1;
@@ -459,7 +459,7 @@ struct UnitDesc {
     std::vector<Vec3> muzzle_bones;
     std::array<int32_t, 2> abilities{-1, -1};  // first two Unit_Abilities_Data slots
     uint8_t hit_particle_count = 0, shield_hit_particle_count = 0;  // list sizes (synced pick draws)
-    // ---- S9 (ABILITIES_HARDPOINTS.md 1.3, 4.3, 4.7-4.10) ----
+    // ---- S9 (legacy docs/re/ABILITIES_HARDPOINTS.md 1.3, 4.3, 4.7-4.10) ----
     bool combustible = false;               // Is_Combustible: kind-7 hit ignites instead of damaging
     float burning_damage_per_second = 0.0f; // Burning_Damage_Per_Second
     float energy_capacity = 0.0f;           // Energy_Capacity (> 0 = EnergyPoolBehavior)
@@ -469,7 +469,7 @@ struct UnitDesc {
     bool damaged_smoke = false;             // Damaged_Smoke_Asset_Name set: smoke events at 75 % / 50 %
     std::vector<DeathCloneEntry> death_clones;    // Death_Clone
     std::vector<int32_t> death_projectiles;       // Death_Projectiles (ProjectileDesc indices)
-    // Ranged_Target_Z_Adjust. ref6 t01: 0 is the synthetic-table default only; the battle catalog fills the type value,
+    // Ranged_Target_Z_Adjust. 0 is the synthetic-table default only; the battle catalog fills the type value,
     // whose one default (6.0, LOB_SOLVER §1.1) lives in objects::tags::Ranged_Target_Z_Adjust.
     float ranged_target_z_adjust = 0.0f;
     float converted_die_time = 0.0f;              // Converted_To_Enemy_Die_Time_Seconds
@@ -479,13 +479,13 @@ struct UnitDesc {
     float friendly_damage_amount = 0.0f;
     bool named_hero = false;
     bool has_locomotor = true;                    // jamming victims need a locomotor
-    // cu8g t05: the object has a model (obj +0x2a0, the ModelClass made from the mode's model at creation; never made when
+    // the object has a model (obj +0x2a0, the ModelClass made from the mode's model at creation; never made when
     // the type names none, MOVEMENT §2 / SPACE_AVOIDANCE). Battle host: the type names a model for the battle's mode
     // (Land_Model_Name / Space_Model_Name) [port: named, the file is not checked]; true without model data. Read by the
     // INFECTION spread candidate test 0x6cc790 (CU8F_T04_T06_RE §3.5).
     bool has_model = true;
-    bool deploys = false;                         // Deploys (type +0xd1): the death-clone deploy remap (S9 t04)
-    InfectionDesc infection;                      // refix t02: this type's Infection_Ability (the infector's side)
+    bool deploys = false;                         // Deploys (type +0xd1): the death-clone deploy remap
+    InfectionDesc infection;                      // this type's Infection_Ability (the infector's side)
     // HUD repair cursor (HUD_GAPS §1.4): the object has behaviour 0x5C DUMMY_STAR_BASE (behaviour slot obj +0x38e =
     // +0x332 + 0x5C, OBJECT_RUNTIME §4.3). Static type data; read by can_repair_hardpoints, not hashed.
     bool repairs_hardpoints = false;
@@ -500,11 +500,11 @@ struct UnitDesc {
     bool stunnable = false;                       // has STUNNABLE (0x38)
     bool earthquake_target = false;               // has EARTHQUAKE_TARGET (0x31): Earthquake_Attack accepts it
     bool telekinesis_target = false;              // has TELEKINESIS_TARGET (0x30): Force_Telekinesis accepts it
-    // ---- tru1 t02 (docs/re/TRU1_A_RE_ANSWERS.md A1 - A5): base shields ----
+    // ---- tru1 t02 (legacy docs/re/TRU1_A_RE_ANSWERS.md A1 - A5): base shields ----
     // BASE_SHIELD (0x39) with Base_Shield_Radius (+0x21f4) > 0: a shield generator; its state machine runs every 15
     // frames (CombatSystem::service_base_shields). Always_Off types never join the shield list. requires_power is
     // Shield_Requires_Base_Power read for this behaviour, which defaults to TRUE (type ctor 0x367100; only the mobile
-    // shield generator sets it to no). cmb3 t07: its only reader is the base shield (SHIELDED regeneration 0x549250 reads
+    // shield generator sets it to no). Its only reader is the base shield (SHIELDED regeneration 0x549250 reads
     // no base power).
     bool base_shield = false;
     float base_shield_radius = 0.0f;
@@ -538,7 +538,7 @@ struct UnitDesc {
     bool auto_deploys = false;                    // Auto_Deploys (+0xd0)
     bool must_face_target_when_deployed = false;  // Must_Face_Target_To_Attack_When_Deployed (+0xa6)
     bool stationary_when_attacking = false;       // Is_Stationary_When_Attacking (+0x26): no state 4 while moving
-    // s78f t08: Should_Attacker_Hold_Fire_For_Special_Ability (+0x9e) - an attacker whose pending ability targets this
+    // Should_Attacker_Hold_Fire_For_Special_Ability (+0x9e) - an attacker whose pending ability targets this
     // type drops from state 4 to 2 (the services' hold-fire rule). Should_Cause_Limited_Turrets_To_Turn (+0x80) - a
     // TURRET unit that cannot aim at this type (beyond its rotate extent) turns its body instead of dropping it.
     bool hold_fire_for_special_ability = false;
@@ -562,11 +562,11 @@ struct UnitDesc {
     float deployed_turret_elevate_extent = 180.0f;
     bool turret_xy_only = false;
     float turret_rest_pitch = 0.0f, turret_rest_yaw = 0.0f;
-    // ---- trn1 (docs/re/TRN1_TERRAIN_GAMEPLAY.md) ----
+    // ---- trn1 (legacy docs/re/TRN1_TERRAIN_GAMEPLAY.md) ----
     // t01: Surface_Type_Cover_Damage_Shield (+0x1e48): Get_Damage_Multiplier's factor on cover cells (surface 9-11), land.
     float cover_damage_shield = 1.0f;
     // t02: the SURFACE_FX instances of a type with the SURFACE_FX behaviour in the battle's mode: CombatData::surface_fx
-    // indices of its SurfaceFX_Name entries that have a sim term (list order; mcx4 t17: every entry, as retail builds one
+    // indices of its SurfaceFX_Name entries that have a sim term (list order; every entry, as retail builds one
     // instance per entry, TRN1_TERRAIN_GAMEPLAY §2).
     std::vector<uint16_t> surface_fx;
     // t05: On_Fire_Speed_Modifier (+0x2040): the speed factor while burning (obj +0x3a1 bit 2); 1 when unset.
@@ -574,9 +574,9 @@ struct UnitDesc {
     // t04: Destroy_When_Stunned_Over_Water (+0xe6; FoC: MAL_Rocket_Vehicle): ABILITIES_HARDPOINTS §4.12 RE reading.
     bool destroy_when_stunned_over_water = false;
 };
-// mcx4 t17: the per-instance surface memory keeps its first kSurfaceFxFixedSlots slots in a fixed array (the save / hash
+// the per-instance surface memory keeps its first kSurfaceFxFixedSlots slots in a fixed array (the save / hash
 // layout from trn1 t02; base FoC types have at most 3 entries); later instances (mod types) use Unit::sfx_prev_more.
-// limit: dynamic the first 4 instances in a fixed array, later ones in Unit::sfx_prev_more (mcx4 t17)
+// limit: dynamic the first 4 instances in a fixed array, later ones in Unit::sfx_prev_more
 inline constexpr uint32_t kSurfaceFxFixedSlots = 4;
 
 struct CombatData {
@@ -586,16 +586,16 @@ struct CombatData {
     std::vector<HardpointDesc> hardpoints;
     std::vector<UnitAbilityDesc> abilities;
     std::vector<UnitDesc> units;
-    std::vector<SurfaceFxDef> surface_fx;  // trn1 t02: SURFACEFX.XML (surface_fx.hpp)
+    std::vector<SurfaceFxDef> surface_fx;  // SURFACEFX.XML (surface_fx.hpp)
 };
 
-// trn1 t01 / t02: the host's terrain surface queries (land battles; unset = no cover, no SurfaceFX). Both take world
+// the host's terrain surface queries (land battles; unset = no cover, no SurfaceFX). Both take world
 // (x, y): cell_surface = the cell material's surface type (Terrain::cell_surface_type), surface = the same with the
 // under-water test (Terrain::surface_type_at). Const and thread-safe.
 struct SurfaceQueries {
     std::function<uint32_t(float, float)> cell_surface;
     std::function<uint32_t(float, float)> surface;
-    // trn1 t04: a water plane exists and the terrain at (x, y) lies more than 0.5 below it (Terrain::under_water).
+    // a water plane exists and the terrain at (x, y) lies more than 0.5 below it (Terrain::under_water).
     std::function<bool(float, float)> under_water;
 };
 
@@ -603,7 +603,7 @@ struct SurfaceQueries {
 struct PlayerInfo {
     bool active = true;
     bool ai = false;
-    // cu8 t03: the AI player's DifficultyAdjustments entry (AI_GALACTIC §1.2 GetAdj: player +0x360 -> +0x50 / +0x54,
+    // the AI player's DifficultyAdjustments entry (AI_GALACTIC §1.2 GetAdj: player +0x360 -> +0x50 / +0x54,
     // TACTICAL_COMBAT §3.6 step 12 / §4.3); 1.0 for humans and players without an adjustment.
     float ai_damage_multiplier = 1.0f;  // Damage_Multiplier (AI attackers)
     float ai_accuracy = 1.0f;           // land inaccuracy factor input
@@ -612,7 +612,7 @@ struct PlayerInfo {
     // cu8 t03 (TACTICAL_COMBAT §3.6 step 9): the player's faction Space_ / Land_Retreat_Units_Damaged_Mod_Factor
     // (faction +0x20b8 / +0x2198) for the battle's mode; damage to its retreating units is multiplied by it.
     float retreat_damage_mod = 1.0f;
-    // tru1 t04: name_crc of the player's faction name (0 = none), matched against ProjectileDesc::blast_immune_faction.
+    // name_crc of the player's faction name (0 = none), matched against ProjectileDesc::blast_immune_faction.
     uint32_t faction = 0;
     // OI abilities: base power is no longer a player flag - see CombatSystem::add_base_power (TACTICAL_GAPS §7.3: a
     // per-player list of Base_Power_Ability entries; an empty list = no base power).
@@ -639,12 +639,12 @@ struct CombatConfig {
     float hull_vs_hardpoints_constraint = 0.2f;    // Hull_Vs_Hard_Points_Health_Constraint
     float depleted_shield_regen_cap = 0.25f;       // GameConstants +0x1183c (absolute points)
     float depleted_shield_disable_time = 5.0f;     // Depleted_Shield_Disable_Time
-    float depleted_shield_damage_increment = 0.0f;  // mcx4 t10: Depleted_Shield_Damage_Increment (GC +0x11838)
+    float depleted_shield_damage_increment = 0.0f;  // Depleted_Shield_Damage_Increment (GC +0x11838)
     float shield_recharge_interval_secs = 3.0f;    // ShieldRechargeIntervalInSecs
     float under_construction_damage_multiplier = 2.0f;  // Under_Construction_Damage_Multiplier
     float base_shield_vulnerability = 1.0f;        // Base_Shield_Vulnerability_Modifier (FoC 2.0)
-    float base_shield_delay_time = 10.0f;          // tru1 t02: Base_Shield_Delay_Time (GC +0x1189c): off -> on wait
-    float base_shield_speed = 0.5f;                // tru1 t02: Base_Shield_Speed_Modifier (GC +0x11840): straddling speed
+    float base_shield_delay_time = 10.0f;          // Base_Shield_Delay_Time (GC +0x1189c): off -> on wait
+    float base_shield_speed = 0.5f;                // Base_Shield_Speed_Modifier (GC +0x11840): straddling speed
     float max_secs_for_ae_delayed_damage = 0.0f;   // Max_Secs_For_AE_Delayed_Damage
     // refixf t06 (TACTICAL_COMBAT §2.9 Q1 step 1, port difference 1) [port]: a space hit on a non-target keeps the render
     // mesh it struck; the port has no collision meshes, so the hit goes to the closest live hardpoint whose bone lies
@@ -655,13 +655,13 @@ struct CombatConfig {
     // value); empty = 1.0.
     std::vector<std::pair<float, float>> diminishing_firepower;
     // Global gates of the original (TACTICAL_COMBAT §3.6 step 3, weapon fire); their writers are not in docs/re, so no
-    // host changes them (cu8 t03).
+    // host changes them.
     bool weapons_enabled = true;
     bool damage_enabled = true;      // global flag: only kinds 0, 8, 13 pass when false
     bool inaccuracy_enabled = true;  // debug flag 0x140b3934d
     uint32_t grain = 64;             // parallel grain (results never depend on it)
     // ---- S9 ----
-    // Opportunity fire (TACTICAL_COMBAT 2.6 with the ABILITIES_HARDPOINTS.md 4.2 correction: the
+    // Opportunity fire (TACTICAL_COMBAT 2.6 with the legacy docs/re/ABILITIES_HARDPOINTS.md 4.2 correction: the
     // idle rule applies to every player). The S8 regression battle turns it off to keep its golden.
     bool opportunity_fire = true;
     float opportunity_recharge_cutoff = 3.0f;    // Hardpoint_Recharge_Cutoff_For_Opportunity_Fire
@@ -669,7 +669,7 @@ struct CombatConfig {
     float energy_to_shield_exchange_rate = 5.0f; // EnergyToShieldExchangeRate
     float sensor_jamming_time = 0.5f;            // Sensor_Jamming_Time
     bool death_clones = true;                    // tactical mode: Die spawns death clones (kind != 15)
-    // S9 t05: Object_Max_Speed_Multiplier_Space / _Land (GC +0x15c0 / +0x15c4; FoC 1.2 / 1.56), the factor on a
+    // Object_Max_Speed_Multiplier_Space / _Land (GC +0x15c0 / +0x15c4; FoC 1.2 / 1.56), the factor on a
     // projectile's Max_Rate_Of_Turn (0x372560). apply_game_constants reads both; the mode picks one.
     float turn_multiplier_space = 1.0f;
     float turn_multiplier_land = 1.0f;
@@ -681,7 +681,7 @@ struct CombatConfig {
 
 // OI tactical (TACTICAL_GAPS 3.2 / 3.3): the GameConstants fields combat reads - Health_Low_Percent_Threshold
 // (low_health_threshold), Melee_Cutoff_Range (short_range_cutoff), Hardpoint_Recharge_Cutoff_For_Opportunity_Fire,
-// Diminishing_Firepower (flat number list read as (x, y) pairs); cu8 t03: Base_Shield_Vulnerability_Modifier,
+// Diminishing_Firepower (flat number list read as (x, y) pairs); Base_Shield_Vulnerability_Modifier,
 // Hull_Vs_Hard_Points_Health_Constraint, Under_Construction_Damage_Multiplier, Depleted_Shield_Regen_Cap,
 // Depleted_Shield_Disable_Time, ShieldRechargeIntervalInSecs, EnergyRechargeIntervalInSecs, EnergyToShieldExchangeRate,
 // Sensor_Jamming_Time, Max_Secs_For_AE_Delayed_Damage (TACTICAL_COMBAT §3.6 / §3.7). Absent tags keep the current values.
@@ -713,7 +713,7 @@ using PreciseHitFn = std::function<PreciseOutcome(const PreciseQuery&, PreciseRe
 // formation (its squadron's, or its own). candidate = kNoObject: c = none (the scan cube). `range` = the unit's own
 // Get_Max_Attack_Range R. Returns 0 (no response) or non-zero with rr = the response range Rr. Called from the parallel
 // gather phase: must be read-only and thread-safe.
-// ref6 t02: asked through EngagementQueries::has_scan_range / scan_range (CombatSystem::set_engagement).
+// asked through EngagementQueries::has_scan_range / scan_range (CombatSystem::set_engagement).
 
 // S8 t01 (TACTICAL_GAPS 3.1 slot 43): answer of the host's obstacle-cell query for a LAND_OBSTACLE target.
 enum class ObstacleCell : uint8_t {
@@ -731,7 +731,7 @@ enum class CanHit : uint8_t { Yes = 0, NoTarget, OutOfMaxRange, InsideMinRange, 
 // The land line-of-fire test 0x3b5ad0 (L1_S4_REMAINING §1.2): an active base shield holds exactly one of the two
 // points. `shield_damage` false: one of the attacker's projectiles does no shield damage (only shields whose pack +0xc
 // is set count [port: none]). Called from serial host code only.
-// ref6 t02: asked through EngagementQueries::has_shield_sides / opposite_shield_sides.
+// asked through EngagementQueries::has_shield_sides / opposite_shield_sides.
 
 // mcx4 t23 (MCX4_T10_RE_ANSWERS §12 / §12a): the projectile behind a Take_Damage hit, for the damage listeners. `flight`:
 // the shot's impact point, unit flight direction and damage are known (a direct hit); a queued Damage_Delay hit and a
@@ -783,7 +783,7 @@ public:
         return 1.0f;
     }
     // Take_Damage step 13 (style Take_Damage special abilities): true cancels the damage. `rng` is
-    // null outside a tick unless bind_rng() was called; listeners that need draws then do nothing. mcx4 t23: `shot` is the
+    // null outside a tick unless bind_rng() was called; listeners that need draws then do nothing. `shot` is the
     // projectile behind the hit (projectile_desc -1: not a projectile hit); a listener may launch_projectile from here
     // (Redirect_Blaster's redirected / blocked shot): the projectile step works on a copy of the hit projectile.
     virtual bool damage_listener(ObjectId /*victim*/, ObjectId /*source*/, const ListenerShot& /*shot*/, uint32_t /*frame*/,
@@ -798,11 +798,11 @@ public:
     // inaccuracy radius of its own weapon (unscaled; the ability override too). Serial fire step. Default: never.
     virtual bool corrupt_inaccuracy(ObjectId /*shooter*/, float& /*radius*/) const { return false; }
     // Set_System_Online(hp, offline) (0x384d00), after the combat-side offline effects. `destroyed` = the hardpoint
-    // was shot down (else disabled by the station-upgrade copy, HARDPOINT_DISABLED.md §3). `last_of_kind` = no
+    // was shot down (else disabled by the station-upgrade copy, legacy docs/re/HARDPOINT_DISABLED.md §3). `last_of_kind` = no
     // functioning hardpoint of the kind remains (Count_Functioning_Hardpoints 0x397c10). Default: nothing.
     virtual void hardpoint_offline(ObjectId /*owner*/, uint32_t /*index*/, HardpointKind /*kind*/, bool /*last_of_kind*/,
                                    bool /*destroyed*/, uint32_t /*frame*/) {}
-    // Set_System_Online(hp, online) (0x384d00, HARDPOINT_DISABLED.md §9): a hardpoint was repaired to max health
+    // Set_System_Online(hp, online) (0x384d00, legacy docs/re/HARDPOINT_DISABLED.md §9): a hardpoint was repaired to max health
     // (the only online caller), after the combat-side online effects (shield regen block cleared). No live-count
     // check: any one hardpoint of the kind runs it.
     virtual void hardpoint_online(ObjectId /*owner*/, uint32_t /*index*/, HardpointKind /*kind*/, uint32_t /*frame*/) {}
@@ -812,13 +812,13 @@ public:
     virtual void ion_stunned(ObjectId /*id*/, uint32_t /*frame*/) {}
     // After dead units were compacted away (end of tick, remove_unit).
     virtual void units_removed() {}
-    // Fog of war (FOG_OF_WAR.md §5.2 FOW_Object_Hidden for `player`, with `force`): true = `target` is hidden. The
+    // Fog of war (legacy docs/re/FOG_OF_WAR.md §5.2 FOW_Object_Hidden for `player`, with `force`): true = `target` is hidden. The
     // host fills it from its FogOfWar (the battle: TacticalBattle::fog_object_hidden). Unlike the hooks above this
     // query is ALSO called from the PARALLEL gather phase C (targeting filter step 4, TACTICAL_COMBAT 2.3, force 1
     // since OI tactical - TACTICAL_GAPS 5.8: AI shooters too) and from const queries (special-weapon can-fire,
     // force 1): it must be read-only and thread-safe. Default: nothing is hidden (no fog).
     virtual bool target_hidden(int32_t /*player*/, ObjectId /*target*/, bool /*force*/) const { return false; }
-    // L1 systems (L1_S4_REMAINING.md §3.3): the victim's ion-storm lockout - its shields absorb nothing (0x549ac0).
+    // L1 systems (legacy docs/re/L1_S4_REMAINING.md §3.3): the victim's ion-storm lockout - its shields absorb nothing (0x549ac0).
     // Called from Take_Damage (serial phases / host calls). Default: never.
     virtual bool ion_storm_shields_down(ObjectId /*victim*/, uint32_t /*frame*/) const { return false; }
     // s78n t05 (HERO_CLASH §7, 0x395c10 step 6): `id` is a build pad whose under-construction or finished content is set
@@ -828,7 +828,7 @@ public:
     // cu8 t01 (L1_S4_REMAINING §3.2, TACTICAL_GAPS §7.4): `player` is weather-affected (no Weatherproof entry). The land
     // weather accuracy factor applies only to shooters of such players. Called from the fire step (serial). Default: yes.
     virtual bool weather_affected(int32_t /*player*/) const { return true; }
-    // cu8f t02 (CU8F_T01_T02_T07_RE.md §2.4, EnergyPool::Absorb 0x56c230): a projectile with Projectile_Does_Energy_Damage
+    // cu8f t02 (legacy docs/re/CU8F_T01_T02_T07_RE.md §2.4, EnergyPool::Absorb 0x56c230): a projectile with Projectile_Does_Energy_Damage
     // and Projectile_Disables_Engines_When_Power_Drained took energy > 0 from `victim`'s pool (Take_Damage step 15, after
     // the shield steps). The host disables the engines for `seconds` (Locomotor_Set_Engines(destroyed 0, t): expiry =
     // max(old, now + int(FPS x t))), stops the current move and turns the moving, then the idle engine loop off. Called
@@ -861,7 +861,7 @@ public:
     virtual void request_deploy(ObjectId /*id*/, uint32_t /*frame*/) {}
 };
 
-// s78f t08: signal 0x1E (slot 31 entering targeting state 4 the first time) - its only listener is the AI task force
+// signal 0x1E (slot 31 entering targeting state 4 the first time) - its only listener is the AI task force
 // (TaskForceClass::Add_Force 0x5f9a90 -> 0x5fe5d0 case 0x1E: task-force Lua event 12 Target_In_Range(unit, target),
 // raised synchronously). `unit` = the object the signal is raised on (a team member's: its container), `target` = the
 // formation attack target when it has one, else the current target.
@@ -883,18 +883,18 @@ enum UnitFlag : uint32_t {
     // Base_Shield_Vulnerability_Modifier, and TARGETING / WEAPON / TURRET are suspended (the unit is idle).
     kUnitInBaseShield = 1u << 6,
     // [port] the untargetable marker of the port's dummy targets (never a scan candidate, skipped by the port-only
-    // victim filters). s78n t12: no longer the +0x3a1 & 0x10 stand-in - Blast sets kUnitIncognito, and Take_Damage's
+    // victim filters). No longer the +0x3a1 & 0x10 stand-in - Blast sets kUnitIncognito, and Take_Damage's
     // CAUSE_DAMAGE rule reads only that bit.
     kUnitSkipTargeting = 1u << 7,
     kUnitGarrisoned = 1u << 8,
     kUnitConverted = 1u << 9,          // obj +0x3a2 bit 4: converted-unit decay (4.10)
     kUnitLocomotorBusy = 1u << 10,     // locomotor vfunc +0x2b0 (hyperspace jump ...): no ion stun
-    // S9 t04 (S9_DEATH_CLONE_SHIELDS.md §1.2): deploy pending (locomotor pack +0x2b3) or Deployed (walk state 0x19).
+    // S9 t04 (legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §1.2): deploy pending (locomotor pack +0x2b3) or Deployed (walk state 0x19).
     // Set by the ability system's DEPLOY [port: on = deploying / deployed]. S8 t11 (TACTICAL_COMBAT §3.1.1 "Step 3
     // correction"): Is_Deployed_Or_Deploying = pending or Walk state 0x19 only, so a unit in a deploy transition
     // (kUnitDeployTransition: 0x18 / 0x1A) does not count as deployed (deployed_or_deploying, the death-clone remap).
     kUnitDeploying = 1u << 11,
-    // S9 t04 (§1.5): an active INFECTION behaviour (0x54, suspend counter 0). refix t02: mirrors the behaviour state
+    // S9 t04 (§1.5): an active INFECTION behaviour (0x54, suspend counter 0). Mirrors the behaviour state
     // (attached by a Causes_Infection hit or a spread, cleared while suspended); set_flag(kUnitInfected) attaches /
     // suspends it like the behaviour calls. Read by the death-clone remap.
     kUnitInfected = 1u << 12,
@@ -908,7 +908,7 @@ enum UnitFlag : uint32_t {
     kUnitWeaponsSuspended = 1u << 13,
     // S8 t08 (TACTICAL_COMBAT §3.1.1): the walk locomotor is in a deploy transition (state 0x18 Deploying or 0x1A
     // Undeploying, 0x39a400 / 0x39b2a0) - a Deploys unit with a locomotor neither fires its own weapon nor counts its
-    // weapon hardpoints down. Set by the ability system from the Walk deploy window (S8 t11, TacticalBattle::oi_deploy_sync).
+    // weapon hardpoints down. Set by the ability system from the Walk deploy window (TacticalBattle::oi_deploy_sync).
     kUnitDeployTransition = 1u << 14,
     // S8 t11 (TACTICAL_COMBAT §3.1.1 "Gate details" step 6), mirrored by the host from the locomotor before each tick:
     // locomotor state 0x1C (fighter Idle) - the own weapon holds fire unless Can_Fighter_Fire_When_Idle; and state 0x16
@@ -921,7 +921,7 @@ enum UnitFlag : uint32_t {
     // are also read directly. Derived state: not hashed.
     kUnitRocketAttack = 1u << 17,
     // S8 t17 (FIGHTER_FLYING §4.10 A, TACTICAL_COMBAT §2.2): the unit's formation answers the response-range test
-    // 0x4160a0 (a space fighter / squadron member with a formation record; cmb1 t03: a land unit or squad container with a
+    // 0x4160a0 (a space fighter / squadron member with a formation record; a land unit or squad container with a
     // land formation record, not deployed): its scan asks the engagement scan_range for the cube R + Rr (land: else R with a
     // TURRET, else 0) and for candidates beyond R. Mirrored by the host before every tick; derived state, not hashed.
     kUnitScanQuery = 1u << 18,
@@ -972,12 +972,12 @@ enum UnitFlag : uint32_t {
     // serviced, as for a stunned unit; orders and targets are kept, the recharge still elapses. Mirrored by the host from
     // the script bridge before every tick; derived state, not hashed.
     kUnitScriptNoFire = 1u << 28,
-    // STY1 t01 (docs/re/STY1_OBJECT_SETTERS_RE_ANSWERS.md §4): Lua Set_In_Limbo - obj +0x3a7 written alone (no model hide, no
+    // STY1 t01 (legacy docs/re/STY1_OBJECT_SETTERS_RE_ANSWERS.md §4): Lua Set_In_Limbo - obj +0x3a7 written alone (no model hide, no
     // weapon suspend, no list removal). Wherever retail reads +0x3a7 as "contained / hidden" the port reads kUnitContained
     // (garrisoned or limbo): no damage, not a candidate / valid target / attack order target, no collision, no infection. Set
     // by the host from the script bridge before every tick; saved and hashed with the other flags.
     kUnitInLimbo = 1u << 29,
-    // mcx6 (docs/re/STORY_REWARDS_GALACTIC.md §1.20): the story reward DISABLE_SPECIAL_STRUCTURE's bit (obj +0x3a1 bit 0x04).
+    // mcx6 (legacy docs/re/STORY_REWARDS_GALACTIC.md §1.20): the story reward DISABLE_SPECIAL_STRUCTURE's bit (obj +0x3a1 bit 0x04).
     // A BASE_SHIELD generator with it set is off at its next base-shield service (Evaluate_State 0x56bb00); cleared, it
     // comes back after Base_Shield_Delay_Time. Saved and hashed with the other flags.
     kUnitShieldStoryOff = 1u << 30,
@@ -1014,7 +1014,7 @@ struct DamageRequest {
     uint8_t kind = kKindNormal;
     ObjectId source = kNoObject;
     bool source_is_projectile = false;
-    // s78n t19: set by the team recursion of a self hit (source == victim: STIM_PACK) that is redirected to / shared with
+    // set by the team recursion of a self hit (source == victim: STIM_PACK) that is redirected to / shared with
     // teammates - the teammates' hits stay the user's own damage: no kill credit, no damage-record source, no final-blow
     // owner for it ([port], as for the self hit itself). Callers leave it false.
     bool self_origin = false;
@@ -1027,7 +1027,7 @@ struct DamageRequest {
     bool no_team = false;
     bool has_impact = false;  // impact point known (projectile hits): lucky-shot hull re-route
     Vec3 impact;
-    // mcx4 t23: a direct projectile hit's flight direction (unit) and the shot's own damage, for the damage listeners
+    // a direct projectile hit's flight direction (unit) and the shot's own damage, for the damage listeners
     // (ListenerShot; Redirect_Blaster's arc and re-launch). has_flight false: none (delayed and non-projectile hits).
     bool has_flight = false;
     Vec3 shot_dir;
@@ -1053,10 +1053,10 @@ struct DeathEvent {
     ObjectId id = kNoObject;
     ObjectId killer = kNoObject;
     uint8_t kind = kKindNormal;  // damage kind of the killing hit
-    // Death_Clone type to spawn (host; consumes an id), -1 none (kind 15, death clones off). S9 t04: when no list
+    // Death_Clone type to spawn (host; consumes an id), -1 none (kind 15, death clones off). When no list
     // matched this is the dying unit's own UnitDesc::object_type (0x29f270 clones the dying type).
     int32_t death_clone = -1;
-    // refix t03: the final death-clone key K of Die step 8 (after the remap and the existence check), -1 when no clone.
+    // the final death-clone key K of Die step 8 (after the remap and the existence check), -1 when no clone.
     // The host's infantry corpse path (S9 §1.6) reads it (K != 4).
     int32_t clone_key = -1;
     int32_t death_projectile = -1;  // Death_Projectiles entry fired (ProjectileDesc index), -1 none
@@ -1131,7 +1131,7 @@ struct HitEvent {
     // Projectile_Ground_Detonation_Particle at `position`; false with no victim = an expiry or a commanded
     // detonation (Projectile_Lifetime_Detonation_Particle). No fallback between the two particles.
     bool ground = false;
-    // tru1 t08: no victim, a commanded detonation 0x4caea0 (detonate_projectile: the laser-defense zap 0x716230, the
+    // no victim, a commanded detonation 0x4caea0 (detonate_projectile: the laser-defense zap 0x716230, the
     // remote bomb) - the lifetime particle; the renderer's zap detection does not count it as a hit.
     bool commanded = false;
 };
@@ -1181,14 +1181,14 @@ struct ProjectileView {
     // 0 for an armed bomb) and the spawn frame.
     float speed = 0.0f;
     uint32_t spawn_frame = 0;
-    // S8 t04: a grenade (category 3) flying the closed-form parabola (pos / dir are the last step's point and chord;
+    // a grenade (category 3) flying the closed-form parabola (pos / dir are the last step's point and chord;
     // speed = the launch speed s), and a sticky grenade that stopped: attached to `stuck_to` (kNoObject: resting).
     bool lob = false;
     bool stuck = false;
     ObjectId stuck_to = kNoObject;
 };
 
-// refixf t01: a spline rocket's flight state (projectile data pack fields of S9_DEATH_CLONE_SHIELDS.md §2.4.1).
+// a spline rocket's flight state (projectile data pack fields of legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §2.4.1).
 struct RocketView {
     bool planned = false;      // +0x30 set (the initial plan ran)
     float s = 0.0f;            // +0x38 RocketDistanceAlongSpline
@@ -1227,7 +1227,7 @@ struct ProjectileLaunch {
     Vec3 dir{1.0f, 0.0f, 0.0f};
 };
 
-// cu8k t01 (CU8F_T01_T02_T07_RE.md §2.7 items 1-3): Saber_Throw's thrown saber, a category-8 LIGHT_SABER projectile.
+// cu8k t01 (legacy docs/re/CU8F_T01_T02_T07_RE.md §2.7 items 1-3): Saber_Throw's thrown saber, a category-8 LIGHT_SABER projectile.
 // Spawned at `from` (the throw), owned by the thrower; FireAtPosition = `fire_at` (the target point recorded at the
 // activation: a target that moves later does not bend the path); MaxTravelDistance = Projectile_Max_Flight_Distance +
 // the target's radius + |fire_at.z - from.z|. First step on the next frame: the two-leg spline plan (P0 -> T, T -> the
@@ -1268,7 +1268,7 @@ public:
 
     // ---- units (host) ----
     // Ids must be strictly increasing. Draws: one synced Get_Int per weapon hardpoint (first
-    // cooldown, HardPoints order) [H], then one for a non-hardpoint weapon's initial delay (S8 t12: Get_Int(0, int(FPS x
+    // cooldown, HardPoints order) [H], then one for a non-hardpoint weapon's initial delay (Get_Int(0, int(FPS x
     // Projectile_Fire_Recharge_Seconds)), attach vf9 0x54c210 [H]).
     bool add_unit(const UnitSpawn& s, uint32_t frame, SimRng& rng);
     bool remove_unit(ObjectId id);  // host removal (e.g. retreat); deaths are removed by tick()
@@ -1291,7 +1291,7 @@ public:
     void clear_order(ObjectId attacker);
     ObjectId ordered_target(ObjectId id) const;
     int32_t ordered_hardpoint(ObjectId id) const;
-    // ---- refixf t06: Attack_Move on an object (TACTICAL_COMBAT §2.8) ----
+    // ---- Attack_Move on an object (TACTICAL_COMBAT §2.8) ----
     // The unit formation's attack goal (Formation_Attack_Target(F, &hp, 0) 0x41a2e0: the current movement block's object
     // when the block is not a guard). The host sets it with every move order of the unit (kNoObject: a position, guard or
     // stop). Path B (decide, before the scan): while the unit holds no ordered target, a goal that is an enemy, passes
@@ -1301,8 +1301,8 @@ public:
     // is cleared (the formation goal became a position).
     void set_attack_goal(ObjectId unit, ObjectId target, int32_t hardpoint = -1);
     ObjectId attack_goal(ObjectId unit) const;
-    int32_t attack_goal_hardpoint(ObjectId unit) const;  // mcx6 t06: the goal's hard point index (-1 none)
-    // mcx6 t06 (LUA_API.md "Task force: Enable_Attack_Positioning", attack position 0x4f5390): the object's 2-D extent
+    int32_t attack_goal_hardpoint(ObjectId unit) const;  // the goal's hard point index (-1 none)
+    // mcx6 t06 (legacy docs/re/LUA_API.md "Task force: Enable_Attack_Positioning", attack position 0x4f5390): the object's 2-D extent
     // (0x3982b0) as the length of its XY footprint half-extents (footprint_extents) [M]; 0 for an unknown id.
     float extent_2d(ObjectId id) const;
     // Order_Attack (0x38d730, §2.8 C) with ordered = 1, as a task-force movement block issues it at order time (path A).
@@ -1323,7 +1323,7 @@ public:
     // Slot 45 "inside min range" (TACTICAL_GAPS §3.1): types with a min distance only; false for unknown ids. s78n t02:
     // slot 46 in full (TACTICAL_COMBAT §5.4.4 item 1, min_range_hit).
     bool inside_min_range(ObjectId attacker, ObjectId target) const;
-    bool inside_min_range_of(ObjectId attacker, ObjectId target, float r) const;  // bkt1 t01: slot 46 with min range r
+    bool inside_min_range_of(ObjectId attacker, ObjectId target, float r) const;  // slot 46 with min range r
     // s78n t20 (FIGHTER_FLYING §4.11 E "c" per member, 0x40edd0; the same three tests as the fire trim 0x410e90,
     // MOVEMENT §4.3.2 item 7): can `attacker` hit `target` from where it stands / from `from`? Outside max range (slot
     // 43), inside min range (slot 46), then on land a blocked line of fire (0x3b5ad0: the two points on opposite sides
@@ -1332,7 +1332,7 @@ public:
     // the same position with the same weapon - a land team member answers for its team (the container's position, the
     // head's weapon, else the first member's with one; 0x40edd0 tests a team container through its first member).
     CanHit can_hit(ObjectId attacker, ObjectId target) const;
-    // bkt1 t06 (b0079, MOVEMENT §4.3.2 item 7): `to` (when given) is the line of fire's end point before T's
+    // bkt1 t06 (MOVEMENT §4.3.2 item 7): `to` (when given) is the line of fire's end point before T's
     // Ranged_Target_Z_Adjust (the fire trim's goal G); else T's position. The range tests always measure to T.
     CanHit can_hit_from(ObjectId attacker, Vec3 from, ObjectId target, const Vec3* to = nullptr) const;
     // cmb2 t06 (BKT1_ATTACK_RE §3.2 [H]): TARGETING slots 43 - 46 against a point that is not a combat unit (a story marker,
@@ -1346,7 +1346,7 @@ public:
     CanHit line_of_fire_from(ObjectId attacker, Vec3 from, ObjectId target, const Vec3* to = nullptr) const;  // (no TARGETING: NoTarget)
     // The position can_hit measures from (the unit's, or its land team container's).
     Vec3 can_hit_origin(ObjectId attacker) const;
-    // ref6 t02: the land shield-sides test is EngagementQueries::opposite_shield_sides (set_engagement).
+    // the land shield-sides test is EngagementQueries::opposite_shield_sides (set_engagement).
     // s78n t02 (TACTICAL_COMBAT §5.4.4 item 1, slot 46 steps 6 / 7): the centre distance D (XY) from `from` to the target
     // and the min-range target term E: 0 for a LAND_OBSTACLE target (no aim walk, no sqrt(200)); else the X footprint
     // half-extent, or the Y half-extent when U's offset along X's facing (unnormalised, |f . (from - X)|) is <= 0.7071.
@@ -1378,7 +1378,7 @@ public:
     uint32_t team(ObjectId id) const;
     ObjectId unit_id_at(size_t index) const;  // ascending id order (index < unit_count())
     uint32_t hardpoint_count(ObjectId id) const;
-    // r1b t01: the index of the unit's first hardpoint (HardPoints order) whose type name equals `name` ASCII
+    // the index of the unit's first hardpoint (HardPoints order) whose type name equals `name` ASCII
     // case-insensitively (Lua Take_Damage(n, name), R1_T01_HARDPOINT_RUN); -1 for none / an unknown unit.
     int32_t hardpoint_by_name(ObjectId id, std::string_view name) const;
     HardpointKind hardpoint_kind(ObjectId id, uint32_t hp) const;
@@ -1392,7 +1392,7 @@ public:
     int32_t choose_target_hardpoint(ObjectId attacker, ObjectId target) const;  // 0x394610
     int32_t closest_hardpoint(ObjectId target, Vec3 from, bool targetable_only) const;  // 0x394a80
     bool can_attack(ObjectId id) const;  // has a live weapon
-    // ---- fog follow-up: space-station special weapon (SCRIPT_GAPS.md §1.1 step 5; Lua Fire_Special_Weapon on a
+    // ---- fog follow-up: space-station special weapon (legacy docs/re/SCRIPT_GAPS.md §1.1 step 5; Lua Fire_Special_Weapon on a
     // DUMMY_STAR_BASE through lua::TacticalScriptHooks::station_readiness / station_fire) ----
     // The special-weapon hard point: the first WEAPON_SPECIAL hardpoint in HardPoints order (0x394e60), -1 none.
     int32_t special_weapon_hardpoint(ObjectId station) const;
@@ -1412,7 +1412,7 @@ public:
     // shot overwrites the point). The caller checks readiness / base power and restarts the special-weapon pack (the
     // battle host: SpecialWeaponSystem::fire_lobbing_at). False unless `id` is a live LOBBING_SUPERWEAPON unit with an own
     // weapon. The lobbing service (after the WEAPON service, every tick) waits for the turret aim (TURRET + a lob
-    // solution from the next fire bone; s78f t04: the turret slews Turret_Rotate_Speed degrees per service from its
+    // solution from the next fire bone; the turret slews Turret_Rotate_Speed degrees per service from its
     // current angles, within the undeployed extents), stamps the frame on the service the aim is reached, and
     // Lobbing_Superweapon_Chargeup_Frames later sets "charged" (+0x3d). The WEAPON service then skips its recharge wait,
     // fires at the point with no target object and clears the order after a successful spawn (a failed one retries).
@@ -1421,39 +1421,39 @@ public:
     uint8_t fire_at_position_state(ObjectId id, Vec3* point = nullptr) const;
     // True for a live LOBBING_SUPERWEAPON unit with an own weapon (the units order_fire_at_position accepts).
     bool fires_at_position(ObjectId id) const;
-    std::span<const LobEvent> lob_events() const { return lob_events_; }  // S8 t30: this tick's (cleared at tick start)
-    // s78f t08: this tick's signal 0x1E raises (AttackStateEvent), in service order (cleared at tick start).
+    std::span<const LobEvent> lob_events() const { return lob_events_; }  // this tick's (cleared at tick start)
+    // this tick's signal 0x1E raises (AttackStateEvent), in service order (cleared at tick start).
     std::span<const AttackStateEvent> attack_state_events() const { return attack_events_; }
     // ---- L1 systems ----
     // A host-launched projectile (ProjectileLaunch). Max travel = the 3-D distance to the aim point (+ the target's
     // radius for a unit target), so a point shot detonates at the point (expiry: area damage / ion stun). It is
     // first stepped on the next tick, as weapon shots. False for an unknown projectile or a dead / missing target.
-    // S8 t04: a category-3 projectile (LOB_SOLVER §5.1 / §5.2) leaves from `from` toward the un-led target point (the
+    // a category-3 projectile (LOB_SOLVER §5.1 / §5.2) leaves from `from` toward the un-led target point (the
     // target's position + its Ranged_Target_Z_Adjust, or `point`) on the solver's arc and speed, the yaw from the led aim;
     // no solution -> nothing is spawned, false.
     bool launch_projectile(const ProjectileLaunch& l, uint32_t frame);
-    // cu8k t01: spawn a thrown saber (SaberLaunch); returns its serial, 0 when the projectile index is invalid.
+    // spawn a thrown saber (SaberLaunch); returns its serial, 0 when the projectile index is invalid.
     uint32_t launch_saber(const SaberLaunch& l, uint32_t frame);
-    // cu8k t01: the saber's position while it flies (alive); false once it expired / detonated or for an unknown serial.
+    // the saber's position while it flies (alive); false once it expired / detonated or for an unknown serial.
     bool saber_position(uint32_t serial, Vec3& out) const;
     // S8 t04 (LOB_SOLVER §2, §3): the lob solver for ProjectileDesc `projectile` (category 3 only; G = gravity x lob
     // mod, Can_Lob_Slower) from `from` to `to`; false = no arc (or not a grenade). `out` may be null.
     bool lob_solution(uint32_t projectile, Vec3 from, Vec3 to, LobSolution* out = nullptr) const;
     // 0x398440: the unit's position + its type's Ranged_Target_Z_Adjust (z); the origin for an unknown id.
     Vec3 target_point(ObjectId id) const;
-    // cu8j t03: the unit's target radius (UnitDesc::radius, as the projectile max travel reads it); 0 for an unknown id.
+    // the unit's target radius (UnitDesc::radius, as the projectile max travel reads it); 0 for an unknown id.
     float target_radius(ObjectId id) const;
-    // refixf t01: land rocket terrain (heightmap h(x, y) and its extent box, S9_DEATH_CLONE_SHIELDS.md §2.4.4 mode 1,
-    // §2.4.6 ground points). Read in the serial commit phase only; S8 t04: also the land grenade ground test (LOB_SOLVER
+    // land rocket terrain (heightmap h(x, y) and its extent box, legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §2.4.4 mode 1,
+    // §2.4.6 ground points). Read in the serial commit phase only; also the land grenade ground test (LOB_SOLVER
     // §6.2). Unset [port]: flat ground at z 0, no box.
     void set_rocket_terrain(RocketTerrain t) { rocket_terrain_ = std::move(t); }
-    // trn1 t01 / t02: the terrain surface queries (land; not saved: the host re-attaches them, like the rocket terrain).
+    // the terrain surface queries (land; not saved: the host re-attaches them, like the rocket terrain).
     void set_surface_queries(SurfaceQueries q) { surface_ = std::move(q); }
-    // trn1 t02: the surface type under a live unit (the SurfaceFX reading: water types under water); 0 in space / unset.
+    // the surface type under a live unit (the SurfaceFX reading: water types under water); 0 in space / unset.
     uint32_t surface_type(ObjectId id) const;
     // trn1 t05 (MOVEMENT §3.4 item 9, 0x376990): On_Fire_Speed_Modifier while the unit burns, else 1.
     float burn_speed_factor(ObjectId id) const;
-    // S8 t06: the host's tree set for detonations it triggers between ticks (DETONATE_REMOTE_BOMB). Set at setup so a
+    // the host's tree set for detonations it triggers between ticks (DETONATE_REMOTE_BOMB). Set at setup so a
     // detonation before the first tick after a load queries the same trees as an uninterrupted run; tick() also sets it.
     void set_trees(const TreeSet* trees) { last_trees_ = trees; }
     // Spline-rocket state of projectile i (serial order); false when it is not a spline rocket.
@@ -1475,7 +1475,7 @@ public:
     float shield_fraction(ObjectId id) const;  // Lua Get_Shield: current / max, [0, 1]; 0 without shields
     bool shield_lockout(ObjectId id, uint32_t frame) const;  // depleted-shield lockout (0x380ad0)
     // Shield regen block (CD +0x131): set when the last functioning generator went offline, cleared when a generator
-    // is repaired to max (HARDPOINT_DISABLED.md §9.2). DEFEND's shield gate (0x549460) reads it.
+    // is repaired to max (legacy docs/re/HARDPOINT_DISABLED.md §9.2). DEFEND's shield gate (0x549460) reads it.
     bool shield_regen_blocked(ObjectId id) const;
     void force_regen_service(ObjectId id);  // DEFEND: shield and energy behaviours service next frame
     // Stealth (0x592ae0 target drop): clears the auto/ordered target and every hardpoint target.
@@ -1506,13 +1506,13 @@ public:
     uint32_t ion_stun_end(ObjectId id) const;
     float energy(ObjectId id) const;
     bool burning(ObjectId id) const;
-    // refix t02: INFECTION behaviour (0x54, S9_DEATH_CLONE_SHIELDS.md §1.5). infection_attached: the unit has the
+    // INFECTION behaviour (0x54, legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §1.5). infection_attached: the unit has the
     // behaviour (active or suspended); infection_suspend_count: its suspend counter (+0x3c; 0 = active = kUnitInfected).
     // suspend_infection = vfunc +0xc0 (counter + 1), resume_infection = vfunc +0xb8 (counter - 1, floored at 0); both
     // are no-ops without the behaviour (the Lua behaviour switch 0x393570 ignores a missing behaviour).
     bool infection_attached(ObjectId id) const;
     uint32_t infection_suspend_count(ObjectId id) const;
-    // cu8f t06: the pack's frames left (0 without the behaviour) and a unit's spread counter as a candidate (-1 = never
+    // the pack's frames left (0 without the behaviour) and a unit's spread counter as a candidate (-1 = never
     // counted).
     int32_t infection_frames_left(ObjectId id) const;
     int32_t infection_spread_count(ObjectId id) const;
@@ -1529,10 +1529,10 @@ public:
     // unit_dying hook) and raises its DeathEvent with kind kKindNoDeathClone, and 0x391310's Tactical_Respawn /
     // Destruction_Survivors run; but no hardpoint dies (no HardpointEvent), and there is no death clone, no death
     // projectile and no DeathBehavior draw.
-    // (s78n t19: named apart from remove_unit(id), the host's removal of a unit from the combat system.)
+    // (named apart from remove_unit(id), the host's removal of a unit from the combat system.)
     void remove_from_world(ObjectId id, ObjectId killer, uint32_t frame);
     std::span<const HardpointEvent> hardpoint_events() const { return hp_events_; }  // this tick
-    // vis1 t08: the stun visuals of the last kStunVisualKeepFrames frames (presentation only; record order).
+    // the stun visuals of the last kStunVisualKeepFrames frames (presentation only; record order).
     static constexpr uint32_t kStunVisualKeepFrames = 64;
     std::span<const StunVisualEvent> stun_visual_events() const { return stun_visuals_; }
     // vis1 t08 (TRU1_A A2 step 3, presentation only, const): where the unit's straddle segment crosses the dome of the
@@ -1552,7 +1552,7 @@ public:
     void add_base_power(int32_t player, ObjectId source);
     void remove_base_power(int32_t player, ObjectId source);  // every entry of `source` for the player
     bool has_base_power(int32_t player) const;
-    // ---- tru1 t02: base shields (docs/re/TRU1_A_RE_ANSWERS.md) ----
+    // ---- base shields (legacy docs/re/TRU1_A_RE_ANSWERS.md) ----
     // Base_Shield_Upgrade (A1 step 6): per player a list of entries keyed by the source object and the ability's name
     // CRC (Battlefield_Modifier_Ability with Base_Shield_Upgrade); "upgraded" = the list is non-empty. tru3 t03 (A1 step 6,
     // apply 0x6f02c0 / remove 0x6f13b0 [H]): the add appends without a duplicate test, the remove deletes every entry
@@ -1585,7 +1585,7 @@ public:
     uint32_t hardpoint_repairers(ObjectId id, uint32_t hp) const;
     // `player` is in the hardpoint's repairer list (hp +0x78; HUD "being repaired by the local player" blink).
     bool hardpoint_repaired_by(ObjectId id, uint32_t hp, int32_t player) const;
-    // Hardpoint disabled flag (hp +0x6e, HARDPOINT_DISABLED.md), independent of destroyed. A hardpoint is "out"
+    // Hardpoint disabled flag (hp +0x6e, legacy docs/re/HARDPOINT_DISABLED.md), independent of destroyed. A hardpoint is "out"
     // (non-functional) when (Is_Destroyable && health <= 0) || disabled: its weapon does not count down or fire
     // (Update_Weapon 0x387400), it fails targeting filter 7 (Does_Weapon_State_Allow_Firing_At 0x384850), the aim
     // dry-run and unit_can_attack, it is not counted by live_hardpoints (Count_Functioning_Hardpoints 0x397c10) nor
@@ -1599,7 +1599,7 @@ public:
     // offline effects, CombatHooks::hardpoint_offline, special-weapon flag). Internal setter; the game's only
     // caller is the station-upgrade copy (always on = true). No-op for an unknown unit / index.
     void set_hardpoint_disabled(ObjectId id, uint32_t hp, bool on);
-    // Station upgrade hardpoint copy (Starbase_Upgrade_Copy_Hardpoints 0x70ec70, HARDPOINT_DISABLED.md §3), by index
+    // Station upgrade hardpoint copy (Starbase_Upgrade_Copy_Hardpoints 0x70ec70, legacy docs/re/HARDPOINT_DISABLED.md §3), by index
     // i < min(old count, new count), in list order:
     //   old has repairers -> new disabled; new health := old health (Is_Destroyable types; clamped); the old
     //                        repairers re-added to the new hardpoint in list order;
@@ -1610,7 +1610,7 @@ public:
     // The host (Starbase_Upgrade_Ability, not in the port yet) spawns `new_station` (Next_Level_Base) first and removes
     // the old station after. False when either unit is unknown.
     bool copy_upgrade_hardpoints(ObjectId old_station, ObjectId new_station);
-    // Player tactical data +0x2f0 (HARDPOINT_DISABLED.md §4): starts 1; written by every Set_System_Online of an
+    // Player tactical data +0x2f0 (legacy docs/re/HARDPOINT_DISABLED.md §4): starts 1; written by every Set_System_Online of an
     // Allows_Special_Weapon_Use hardpoint (:= online, for every player allied to the owner) and by the upgrade copy.
     // Skirmish SpecialWeaponsAllowed (0x527620) ANDs it (host). [port] allied = the player itself or not an enemy
     // (is_enemy). True for an unknown player. Hashed in "<p>.ext" only once some player's flag is 0.
@@ -1626,19 +1626,19 @@ public:
     // (targeting scan, inside_min_range, formation goal promotion). Unset, or NoFootprint for the target: the
     // half-extent rule. Not saved (the host installs it at setup).
     void set_obstacle_cell_query(ObstacleCellFn query) { obstacle_cell_ = std::move(query); }
-    // ---- S8 t10: garrison fire (LOB_SOLVER §5.1 "Garrison fire bones in detail") ----
+    // ---- garrison fire (LOB_SOLVER §5.1 "Garrison fire bones in detail") ----
     // The garrison host of a garrisoned unit (obj +0x2b0: the parent, the grandparent for a team member), kNoObject when
     // not inside. Read in the serial unit phase only. Unset: no garrison fire bones (the shooter's own muzzle bone).
     // Not saved (the host installs it at setup).
     void set_garrison_host_query(std::function<ObjectId(ObjectId unit)> fn) { garrison_host_ = std::move(fn); }
     // The model ALT the unit shows (Land_Damage_Thresholds / _Alternates over its hull fraction); 0 for an unknown id.
     int32_t model_alt(ObjectId id) const;
-    // The gun bones of `host`'s current ALT entry in the host's current pose (s78f t03: world position and x-axis yaw,
+    // The gun bones of `host`'s current ALT entry in the host's current pose (world position and x-axis yaw,
     // LOB_SOLVER §5.1 "Garrison pick inputs"; valid bones only, gun order) and the host's position; false when the host
     // has no table, its ALT is outside 0..M-1 or the entry is empty (AbilityHost garrison_fire_bones, the Remote_Bomb
     // toss). A bone is a candidate when |wrap(yaw_deg - yaw(host -> target))| <= 60.
     bool garrison_fire_bones(ObjectId host, Vec3& host_pos, std::vector<GarrisonFireBone>& bones) const;
-    // ---- S8 t10 / t11, s78f t03: targeting states (TACTICAL_COMBAT §3.1.1 "Targeting states, slots 47 / 48") ----
+    // ---- targeting states (TACTICAL_COMBAT §3.1.1 "Targeting states, slots 47 / 48") ----
     // TD +0x18 of the unit: 0 no target, 1 target just set, 2 out of range / moving with Attack clips, 3 in range but
     // the turret or the facing is not on the target yet, 4 attacking. Written by the targeting service of phase D (the
     // TeamTargeting copy for a land team member); the own weapon fires only in state 4. attacking() = state 4 for the
@@ -1648,15 +1648,15 @@ public:
     // Slot 48 (0x568230, "needs to turn"): the land facing is off the yaw toward the current target by more than half a
     // frame of turn. False without a live target, a turn rate or a locomotor ([port]).
     bool needs_turn(ObjectId id) const;
-    // refixf t07: the projectile segment query's per-entry test (precise model test, then the Collision_Box_Modifier
+    // the projectile segment query's per-entry test (precise model test, then the Collision_Box_Modifier
     // sphere). Unset: every tree-box hit is a hit (synthetic data without models).
     void set_precise_hit(PreciseHitFn fn) { precise_hit_ = std::move(fn); }
-    // ---- S8 t17: squadron targeting (FIGHTER_FLYING §4.10 A / B, TACTICAL_COMBAT §2.1 / §2.2) ----
+    // ---- squadron targeting (FIGHTER_FLYING §4.10 A / B, TACTICAL_COMBAT §2.1 / §2.2) ----
     // Scan cube Get_Scan_Range 0x566f50: a unit flagged kUnitScanQuery whose formation answers fn(unit, none) != 0 scans
     // the cube R + Rr, and accepts a candidate beyond R (filter 9) when fn(unit, candidate) != 0. cmb1 t03 (BKR1 Q8 [H]):
     // a land kUnitScanQuery unit whose formation answers 0 scans R with a TURRET slot (UnitDesc::turret), else nothing (a
     // cube of 0: a valid current target is kept). Every other unit: R. Unset: R. Not saved (the host installs it at setup).
-    // ref6 t02: the scan-range query and the shield-sides test come from the battle host's EngagementQueries (one object,
+    // the scan-range query and the shield-sides test come from the battle host's EngagementQueries (one object,
     // also handed to movement); null = the defaults of a world without a host (no_engagement: R for every unit, no
     // shield). The object must outlive the system. Not saved (the host installs it at setup).
     void set_engagement(const tactical::EngagementQueries* q) { eng_ = q ? q : &tactical::no_engagement(); }
@@ -1732,7 +1732,7 @@ public:
 
     ModifierSet* unit_modifiers(ObjectId id);  // nullptr if unknown
     ModifierSet& player_modifiers(int32_t player);
-    // REF4 t07: named modifier entries, the calls AbilitySystem changes modifiers through (it holds no ModifierSet of
+    // named modifier entries, the calls AbilitySystem changes modifiers through (it holds no ModifierSet of
     // combat's). An entry is named by its source: the source object id and the source CRC. Each call is the ModifierSet
     // operation of the same meaning (modifiers.hpp: insert, set_by_source, remove_source, remove_source_in_list) on the
     // unit's or player's set, so the entries end up in the order a direct call gives. A unit call on an unknown unit
@@ -1757,7 +1757,7 @@ public:
     const CombatStats& stats() const { return stats_; }
     size_t unit_count() const { return units_.size(); }
     size_t projectile_count() const { return projectiles_.size(); }
-    // r1b t10: a hardpoint's turret pose in degrees (pitch, yaw; yaw 0 = the turret frame's centre); false for an unknown
+    // a hardpoint's turret pose in degrees (pitch, yaw; yaw 0 = the turret frame's centre); false for an unknown
     // unit or index. Presentation may turn the turret bone with it.
     bool hardpoint_turret_pose(ObjectId id, uint32_t hp, float& pitch, float& yaw) const;
     ProjectileView projectile(size_t i) const;  // serial order
@@ -1782,7 +1782,7 @@ public:
     // that is != 1 (only when the container is a combat unit; the port's containers have no abilities, so 1.0), else
     // the minimum over ALL live members' own products (the team_leader stand-in and 1.0-valued members included), 1.0
     // when the team has no live member. Only container-level readers use it (a team locomotor's SPEED [M]); every
-    // per-unit reader (mod_multiplier, weapons, shields, damage) reads the unit's own product. Caller (s78k t03): the
+    // per-unit reader (mod_multiplier, weapons, shields, damage) reads the unit's own product. Caller: the
     // host's speed factors pass this SPEED value as the container's factor of the movement layer's team locomotor cap
     // (land teams and space squadrons; MovementSystem::set_team). Pure function of the current state.
     float team_mod_multiplier(uint32_t team, ModKind kind) const;
@@ -1836,7 +1836,7 @@ private:
         ObjectId opp_target = kNoObject;
         int32_t opp_hp = -1;
         uint32_t opp_next_scan = 0;
-        // r1b t10: the turret pose (+0xa0 pitch / +0xa4 yaw, degrees, yaw 0 = the turret frame's centre) and the last aim
+        // the turret pose (+0xa0 pitch / +0xa4 yaw, degrees, yaw 0 = the turret frame's centre) and the last aim
         // (+0xb4 / +0xb8, held by a Requires_Manual_Target_Assignment turret). Saved; the pose is hashed in
         // hash_extended for turret hardpoints.
         float turret_pitch = 0.0f, turret_yaw = 0.0f;
@@ -1848,7 +1848,7 @@ private:
         int32_t owner = -1;
         uint32_t team = 0;
         uint8_t team_leader = 0;
-        uint32_t damage_team = 0;  // s78g t06: Take_Damage step 2's team (= team, or UnitSpawn::damage_team); not hashed
+        uint32_t damage_team = 0;  // Take_Damage step 2's team (= team, or UnitSpawn::damage_team); not hashed
         ObjectId damage_parent = kNoObject;
         uint32_t flags = 0;
         Vec3 pos, last_pos, facing;
@@ -1901,20 +1901,20 @@ private:
         uint8_t ever_jammed = 0;
         uint8_t regen_blocked = 0;      // CD +0x130/+0x131: last shield generator destroyed
         float emitter_radius = 0.0f;    // missile-shield emitter (0 = none)
-        // ---- refix t02: INFECTION behaviour (hash_extended only while attached) ----
+        // ---- INFECTION behaviour (hash_extended only while attached) ----
         uint8_t infect_attached = 0;
         uint32_t infect_suspend = 0;           // suspend counter (+0x3c)
         int32_t infect_desc = -1;              // UnitDesc whose InfectionDesc drives it (-1 none: flag only)
         int32_t infect_player = -1;            // the infecting player
         ObjectId infect_source = kNoObject;    // the infecting unit (damage source)
-        int32_t infect_left = 0;               // cu8f t06: infection pack +8, frames left (int(FPS x Duration) at infect)
+        int32_t infect_left = 0;               // infection pack +8, frames left (int(FPS x Duration) at infect)
         // cu8f t06 (CU8F_T04_T06_RE §3.5): the spread's per-candidate consecutive-frame counter on the candidate's TD
         // (+0x114 last counted frame, 0xFFFFFFFF = never; +0x118 count). Hashed once set.
         uint32_t infect_seen = 0xFFFFFFFFu;
         int32_t infect_count = 0;
         // ---- OI abilities (hash_extended) ----
         int32_t priority_override = -1;  // Lua Set_Targeting_Priorities (data pack +0x160)
-        float stickiness = 0.0f;         // cu8f t04a: TD +0x158 stickiness threshold (< 0: the type's value)
+        float stickiness = 0.0f;         // TD +0x158 stickiness threshold (< 0: the type's value)
         uint32_t stun_end = 0;           // STUNNABLE end frame (stunned while > frame)
         uint32_t invuln_end = 0;         // INVULNERABLE behaviour end frame
         uint32_t emitter_entries = 0;    // Add_Emitter registrations (multiset count)
@@ -1938,7 +1938,7 @@ private:
         // ---- trn1 t02 (SurfaceFX terrain modifiers; saved, hashed under tag 0x5B when not at the spawn values) ----
         uint8_t sfx_ready = 0;  // the instances exist (first update done); evaluated from the next update
         std::array<uint8_t, kSurfaceFxFixedSlots> sfx_prev{};  // per instance the surface of its last update (+0xc)
-        std::vector<uint8_t> sfx_prev_more;  // mcx4 t17: instances kSurfaceFxFixedSlots.. (saved / hashed only when present)
+        std::vector<uint8_t> sfx_prev_more;  // instances kSurfaceFxFixedSlots.. (saved / hashed only when present)
         float terrain_damage = 0.0f;  // data pack +0x188: Terrain_Damage of the surface being stood on
         uint32_t terrain_next = 0;    // +0x18c: frame of the next terrain damage
         float terrain_delay = 0.0f;   // +0x190: Terrain_Damage_Delay (seconds)
@@ -1948,10 +1948,10 @@ private:
         uint32_t mod_ver = 0, player_ver = 0;
         uint8_t mod_valid = 0;
         std::array<float, kModKindCount> own_mult{};
-        std::array<float, kModKindCount> mult{};  // s78h t03: = own_mult (a member never takes the squad value)
+        std::array<float, kModKindCount> mult{};  // = own_mult (a member never takes the squad value)
         uint8_t needs_scan = 0;  // phase C output
         uint8_t scan_due = 0;
-        ObjectId share_group = kNoObject;  // S8 t17: squadron of the shared team target (host, per tick)
+        ObjectId share_group = kNoObject;  // squadron of the shared team target (host, per tick)
     };
     struct Candidate {
         ObjectId id;
@@ -1980,7 +1980,7 @@ private:
         uint8_t ever_jammed = 0;
         // S8 t04 (LOB_SOLVER §5.3 / §6): grenade flight (category 3). `lob` set: N(t) = launch + speed t lob_dir -
         // 1/2 gravity t^2 z with t = frame - spawn_frame (the pack's launch point, InitialFacing forward and G). A sticky
-        // grenade that hit something stops: `stuck`, attached to `stuck_to` at `stuck_offset` (S8 t06: in the parent's
+        // grenade that hit something stops: `stuck`, attached to `stuck_to` at `stuck_offset` (in the parent's
         // frame, turned with its facing) or resting (kNoObject). Hashed in hash_extended for grenades only.
         uint8_t lob = 0;
         uint8_t stuck = 0;
@@ -1990,9 +1990,9 @@ private:
         // OI abilities: BOMB timer (seconds; < 0 none), hashed when set. Without `lob` the shot sits where it was placed
         // (armed bomb); a tossed grenade (ProjectileLaunch::toss) flies with it running.
         float fuse = -1.0f;
-        uint8_t rocket = 0;  // refixf t01: spline rocket (state in rockets_, same serial); hashed in hash_extended. cu8k t01: 2 = thrown saber
+        uint8_t rocket = 0;  // spline rocket (state in rockets_, same serial); hashed in hash_extended. 2 = thrown saber
     };
-    // refixf t01: spline-rocket flight state, one per Projectile with rocket != 0, serial order (S9 §2.4.1 pack fields).
+    // spline-rocket flight state, one per Projectile with rocket != 0, serial order (S9 §2.4.1 pack fields).
     struct Rocket {
         uint32_t serial = 0;
         uint8_t planned = 0;  // +0x30 non-null
@@ -2002,7 +2002,7 @@ private:
         Vec3 launch;          // +0x80
         Vec3 last_vel;        // +0x98
         RocketSpline path;
-        ObjectId thrower = kNoObject;  // cu8k t01: a thrown saber's thrower (the return leg's end)
+        ObjectId thrower = kNoObject;  // a thrown saber's thrower (the return leg's end)
     };
     struct RocketNext {  // phase E output per projectile: the next spline point N (sample at s + speed)
         Vec3 n;
@@ -2025,14 +2025,14 @@ private:
         int32_t hardpoint;
         ObjectId projectile_target;  // s78n t12 (combat save 15)
     };
-    // mesh_hp (refixf t07): the hardpoint the struck mesh names (§2.9 Q1 step 4), -1 none (hull), kMeshUnknown when
+    // mesh_hp: the hardpoint the struck mesh names (§2.9 Q1 step 4), -1 none (hull), kMeshUnknown when
     // the hit came without a precise test (the mesh_hardpoint stand-in decides).
     static constexpr int32_t kMeshUnknown = -2;
     struct SweepHit {
         ObjectId id;
         float t;
         int32_t mesh_hp = kMeshUnknown;
-        bool ground = false;  // A1j t03: a straight shot's land ground test (0x4d0630) hit the terrain / water at gh
+        bool ground = false;  // a straight shot's land ground test (0x4d0630) hit the terrain / water at gh
         GroundHit gh = {};
     };
 
@@ -2056,7 +2056,7 @@ private:
     float hp_max(const Unit& u, const Hardpoint& h) const;
     float hp_fraction(const Unit& u) const;  // destroyable hardpoints: sum cur / sum max (0 if all dead)
     bool hp_out(const Hardpoint& h) const;  // (Is_Destroyable && health <= 0) || destroyed || disabled
-    bool hp_dead(const Hardpoint& h) const;  // refixf t06: Is_Destroyable && (destroyed || health <= 0)
+    bool hp_dead(const Hardpoint& h) const;  // Is_Destroyable && (destroyed || health <= 0)
     // refixf t06 (TACTICAL_COMBAT §2.9 Q1 port difference 1) [port]: the hardpoint standing in for the struck mesh.
     int32_t mesh_hardpoint(const Unit& v, Vec3 impact) const;
     // refixf t06 (§2.9 Q2 step 3, 0x383f70): the aim point without a target hardpoint; false = no shot.
@@ -2071,7 +2071,7 @@ private:
     Vec3 velocity(const Unit& u) const;
     // OI tactical: Compute_Lead_Point (0x399450): circular lead over the three-position history (formulas.hpp).
     Vec3 lead_point(const Unit& t, Vec3 muzzle, Vec3 aim0, float projectile_speed) const;
-    // S8 t04: category 3 (Projectile_Category 3 / `lobbed`) and its G = gravity x lob mod (may be <= 0 from XML).
+    // category 3 (Projectile_Category 3 / `lobbed`) and its G = gravity x lob mod (may be <= 0 from XML).
     static bool grenade(const ProjectileDesc& pd) { return pd.lobbed || pd.category == ProjectileCategory::Grenade; }
     static float lob_g(const ProjectileDesc& pd) { return pd.grenade_gravity * pd.lob_mod; }
     // Slot 44 for a grenade weapon (LOB_SOLVER §3.1): an arc from the attacker to the target point exists.
@@ -2084,26 +2084,26 @@ private:
     Vec3 lob_target_point(const Unit& t) const;
     // §6 grenade flight: the step's end point N (from the closed form) and the land ground test of P -> N.
     Vec3 lob_next(const Projectile& p, uint32_t frame) const;
-    bool ground_hit(Vec3 a, Vec3 b, GroundHit& out) const;  // S8 t06: 0x135840 (rocket.hpp ground_segment)
-    bool straight_ground_test(const Projectile& p, Vec3 delta) const;  // A1j t03: 0x4d0630's mode / category / target gate
-    // The straight step's move P -> P + delta for a move made on `frame` (mcx4 t18: a falling bomb's drop included).
+    bool ground_hit(Vec3 a, Vec3 b, GroundHit& out) const;  // 0x135840 (rocket.hpp ground_segment)
+    bool straight_ground_test(const Projectile& p, Vec3 delta) const;  // 0x4d0630's mode / category / target gate
+    // The straight step's move P -> P + delta for a move made on `frame` (a falling bomb's drop included).
     Vec3 straight_delta(const Projectile& p, uint32_t frame) const;
-    float bomb_drop(const Projectile& p, uint32_t frame) const;  // mcx4 t18: that move's fall (0 = none)
-    Vec3 stuck_local(const Unit& v, Vec3 world) const;     // S8 t06: world point -> v's frame (inverse local_to_world)
-    uint32_t bomb_frame(float seconds, uint32_t armed_frame) const;  // S8 t06: BOMB arm 0x58f030 detonation frame
+    float bomb_drop(const Projectile& p, uint32_t frame) const;  // that move's fall (0 = none)
+    Vec3 stuck_local(const Unit& v, Vec3 world) const;     // world point -> v's frame (inverse local_to_world)
+    uint32_t bomb_frame(float seconds, uint32_t armed_frame) const;  // BOMB arm 0x58f030 detonation frame
     void lob_step(uint32_t i, uint32_t frame, SimRng& rng);
     // OI tactical (team targeting, TACTICAL_COMBAT 2.3 / 2.4): the unit's squad "container" - the unit whose id is
     // its team id when that is a combat unit, else the team's team_leader member; nullptr when none / itself.
     const Unit* team_head(const Unit& u) const;
-    // s78g t06: a dying team_leader hands the head role (and the team's targeting record) to its team's first live
+    // a dying team_leader hands the head role (and the team's targeting record) to its team's first live
     // member at once, so the team is never without a head while a member lives (the original's head is the container).
     void hand_over_team(const Unit& dead);
     float target_extent(const Unit& t, Vec3 from) const;  // OI tactical: TACTICAL_GAPS 3.1 footprint half-extent E
     // TACTICAL_GAPS 3.1 slot 43 range geometry: XY distance from `from` to the aim point and the slack E.
     void range_geometry(const Unit& t, Vec3 from, float& d, float& E) const;
-    // s78n t02: the footprint half-extents (Custom_Hard_X/YExtent, model collision bound (s78n t08f), radius fallback)
+    // the footprint half-extents (Custom_Hard_X/YExtent, model collision bound, radius fallback)
     // shared by slots 43 and 46;
-    // false when the unit has neither hard extents nor model data (both are then the radius). s78n t11: a deploying /
+    // false when the unit has neither hard extents nor model data (both are then the radius). a deploying /
     // deployed Deploys unit takes its _Deployed extent on each axis that sets one (0x371f30 / 0x372100).
     bool footprint_extents(const Unit& t, float& ex, float& ey) const;
     // s78n t02 (TACTICAL_COMBAT §5.4.4 item 1): slot 46 steps 6 / 7 (min_range_geometry_of) and the whole weapon min
@@ -2116,7 +2116,7 @@ private:
     const Unit* nearest_team_member(uint32_t team, Vec3 p) const;
     int32_t fired_weapon_projectile(const Unit& u) const;  // OI abilities: Projectile_Types[obj +0x324]
     bool sticky(const Unit& u, const Unit& target, uint32_t frame) const;
-    // cu8f t04a: time-to-dead 0x58ba40 of one unit (destroyable hard points' health when it has any, else the hull; +
+    // time-to-dead 0x58ba40 of one unit (destroyable hard points' health when it has any, else the hull; +
     // shield; / damage rate; 1e18 at rate 0) and the unit whose type gives an owner's type values (itself, or a TEAM
     // owner's first live member; nullptr: a TEAM owner without one).
     float time_to_dead(const Unit& t, uint32_t frame) const;
@@ -2135,30 +2135,30 @@ private:
     void gather(uint32_t unit_index, QueryContext& ctx);
     void decide(Unit& u, std::vector<Candidate>& cands, uint32_t frame, SimRng& rng);  // decide_target + space hp step
     void decide_target(Unit& u, std::vector<Candidate>& cands, uint32_t frame, SimRng& rng);
-    bool lock_holds(const Unit& u, const Unit& t) const;  // refixf t06: §2.8 B "while locked" drop rules
+    bool lock_holds(const Unit& u, const Unit& t) const;  // §2.8 B "while locked" drop rules
     bool hover_refused(const Unit& a, const Unit& t) const;  // s78n t20 batch 2: melee attacker vs a raised hover unit
-    bool promote_goal(Unit& u);                           // refixf t06: §2.8 B promotion
-    void share_target(const Unit& u, ObjectId t, float score);  // S8 t17: team target 0x406370 (scan writer)
+    bool promote_goal(Unit& u);                           // §2.8 B promotion
+    void share_target(const Unit& u, ObjectId t, float score);  // team target 0x406370 (scan writer)
     bool ability_type_active(const Unit& u, int32_t type) const;
     int32_t choose_target_hardpoint(const Unit& a, const Unit& t) const;
     int32_t closest_hardpoint(const Unit& t, Vec3 from, bool targetable_only) const;
     uint16_t aim_point_count(const Unit& t) const;
 
     // weapons
-    // `suspended` (S8 t12, MOVEMENT §3.2 "A locomotor swap undeploys"): TARGETING and WEAPON are suspended (jetpack
+    // `suspended` (MOVEMENT §3.2 "A locomotor swap undeploys"): TARGETING and WEAPON are suspended (jetpack
     // flight), the hardpoints are not - they keep their last target (nothing new is pushed) and still count down / fire.
     void update_weapons(Unit& u, uint32_t frame, SimRng& rng, bool suspended = false);
-    // S8 t10: slot 44 && !slot 45 for target `t` measured from `from` (the targeting object's position; a team's from its
+    // slot 44 && !slot 45 for target `t` measured from `from` (the targeting object's position; a team's from its
     // head), with `u`'s weapon and range.
     bool in_attack_range(const Unit& u, Vec3 from, const Unit& t) const;
-    // s78n t20: the same test with its reason (Yes / OutOfMaxRange / InsideMinRange), max range first.
+    // the same test with its reason (Yes / OutOfMaxRange / InsideMinRange), max range first.
     CanHit range_test(const Unit& u, Vec3 from, const Unit& t) const;
-    CanHit fire_line(const Unit& src, Vec3 from, const Unit& t, const Vec3* to = nullptr) const;  // s78n t25.4: can_hit_from's line-of-fire term
-    CanHit fire_line_to(const Unit& src, Vec3 from, Vec3 b) const;  // cmb2 t06: fire_line to a point (b's z adjusted)
-    // s78n t20: the unit whose weapon a land team's range test uses (slot 42: the head's, else the first member's that
+    CanHit fire_line(const Unit& src, Vec3 from, const Unit& t, const Vec3* to = nullptr) const;  // can_hit_from's line-of-fire term
+    CanHit fire_line_to(const Unit& src, Vec3 from, Vec3 b) const;  // fire_line to a point (b's z adjusted)
+    // the unit whose weapon a land team's range test uses (slot 42: the head's, else the first member's that
     // has one, team list order; the head itself when none has).
     const Unit& team_weapon_source(const Unit& head) const;
-    // s78f t03: the targeting service (Service_Land 0x634810 / Service_Space 0x633ae0 after the scan; the TeamTargeting
+    // the targeting service (Service_Land 0x634810 / Service_Space 0x633ae0 after the scan; the TeamTargeting
     // service 0x62eeb0 for a land team head) and its helpers.
     void targeting_service(Unit& u, uint32_t frame, SimRng& rng);
     void team_targeting_service(Unit& head, uint32_t frame, SimRng& rng);
@@ -2167,29 +2167,29 @@ private:
     float turn_step(const Unit& u) const;                    // 0x372560: Max_Rate_Of_Turn x the land multiplier
     void face_toward(Unit& u, Vec3 p, float max_step);      // snap (max_step < 0) or [port] turn step; facing_set hook
     void attack_idle(Unit& u, bool arg, uint32_t frame, SimRng& rng, bool ordered);  // slot 47 (ordered: TD +0xf4)
-    bool auto_deploy_check(const Unit& u, ObjectId target) const;  // s78f t08: 0x568e60
-    void hold_fire(Unit& u, ObjectId target);                      // s78f t08: the services' last rule
-    ObjectId container_or_self(ObjectId id) const;                 // s78f t08: a team member -> its container
-    const Unit* land_team_head(const Unit& u) const;  // s78f t03: the head of a land team member (no TARGETING of its own)
-    Unit* team_head_of(uint32_t team);  // s78h t06: a team's current live head (container unit, else team_leader), or null
-    // s78i t03: the head of u's land team, u itself when u is that head (the container unit, or the team_leader stand-in,
+    bool auto_deploy_check(const Unit& u, ObjectId target) const;  // 0x568e60
+    void hold_fire(Unit& u, ObjectId target);                      // the services' last rule
+    ObjectId container_or_self(ObjectId id) const;                 // a team member -> its container
+    const Unit* land_team_head(const Unit& u) const;  // the head of a land team member (no TARGETING of its own)
+    Unit* team_head_of(uint32_t team);  // a team's current live head (container unit, else team_leader), or null
+    // the head of u's land team, u itself when u is that head (the container unit, or the team_leader stand-in,
     // members or not); null outside a land team. A team keeps TeamTargeting while its head lives, even with no member left.
     const Unit* land_team_lead(const Unit& u) const;
-    Vec3 scan_pos(const Unit& u) const;  // s78n t03: a land team head's container position (set_team_position), else u.pos
-    uint32_t convert_container(const Unit& v) const;  // s78i t04: v's 0x39b1a0 team container id (v's own when it is one), else 0
+    Vec3 scan_pos(const Unit& u) const;  // a land team head's container position (set_team_position), else u.pos
+    uint32_t convert_container(const Unit& v) const;  // v's 0x39b1a0 team container id (v's own when it is one), else 0
     bool targeting_idle(const Unit& u, uint32_t frame) const;  // phase D: stunned, unpowered or targeting suspended
-    void drop_clash_targets();  // s78n t06: before phase D, targets of / at units in a hero clash dropped
+    void drop_clash_targets();  // before phase D, targets of / at units in a hero clash dropped
     void drop_target(Unit& u);                        // slot 27: the order and scan targets are dropped
-    bool lob_turret_aim(Unit& u);  // s78f t04: 0x631fe0 toward the lobbing order's point (one slew step)
+    bool lob_turret_aim(Unit& u);  // 0x631fe0 toward the lobbing order's point (one slew step)
     // r1b t10 (TACTICAL_COMBAT §2.9 Q2 "Hardpoint turret slew"): the turret frame of a hardpoint (origin, x, y, z; the
     // centre is -y), one HP_Update slew step (0x381ff0 with the aim 0x383650), and Fire_At's barrel pre-check (step 2).
     void turret_frame(const Unit& u, const HardpointDesc& hd, Vec3& o, Vec3& x, Vec3& y, Vec3& z) const;
     void turret_slew(const Unit& u, Hardpoint& h);
     bool turret_on_target(const Unit& u, const Hardpoint& h, Vec3 target) const;
     int32_t model_alt_of(const Unit& u) const;
-    // S8 t10: Spawn_Projectile's garrison branch - a synced pick among the host's gun bones within 60 degrees of the target.
+    // Spawn_Projectile's garrison branch - a synced pick among the host's gun bones within 60 degrees of the target.
     bool garrison_muzzle(const Unit& shooter, Vec3 target, SimRng& rng, Vec3& out) const;
-    // s78f t03: the gun bones of `host`'s current ALT entry in its current pose (garrison_muzzle, garrison_fire_bones);
+    // the gun bones of `host`'s current ALT entry in its current pose (garrison_muzzle, garrison_fire_bones);
     // false = no table / ALT outside the table / empty entry.
     bool host_fire_bones(const Unit& host, std::vector<GarrisonFireBone>& out) const;
     bool fire_hardpoint(Unit& u, Hardpoint& h, uint32_t frame, SimRng& rng);
@@ -2200,25 +2200,25 @@ private:
     bool deployed_or_deploying(const Unit& u) const;
     bool deploy_transition(const Unit& u) const;
     bool unit_weapon_allowed(const Unit& u) const;
-    bool crouch_fire_cone(const Unit& u, Vec3 target) const;  // mcx4: |target yaw - facing yaw| <= the crouch cutoff
+    bool crouch_fire_cone(const Unit& u, Vec3 target) const;  // |target yaw - facing yaw| <= the crouch cutoff
     bool hp_state_allows(const Unit& u, const Hardpoint& h, const Unit* t) const;
     bool opportunity_allowed(const Unit& u, const HardpointDesc& hd, bool idle) const;
     bool opportunity_fire(Unit& u, Hardpoint& h, uint32_t frame, SimRng& rng);
     bool opportunity_valid(const Unit& u, const Hardpoint& h, const Unit& t) const;
     float weapon_delay(const Unit& u, const HardpointDesc* hd) const;
     float fire_rate(const Unit& u) const;
-    // `lob` (S8 t04): the solver's result for a WeaponBehavior grenade (launch from `muzzle`, speed / pitch from it, yaw
+    // `lob`: the solver's result for a WeaponBehavior grenade (launch from `muzzle`, speed / pitch from it, yaw
     // from `aim`; `q_point` = the un-led Q for the travel budget); nullptr: straight at `aim` (hardpoints - a
     // category-3 hardpoint shot still flies the parabola at Max_Speed).
-    // `target` nullptr (S8 t26): a ground-point shot (no target object, no radius term in the travel budget).
+    // `target` nullptr: a ground-point shot (no target object, no radius term in the travel budget).
     void spawn(const Unit& shooter, const ProjectileDesc& pd, uint32_t pdesc, float damage, uint16_t damage_type,
                Vec3 muzzle, Vec3 aim, const Unit* target, int32_t target_hp, float range, uint32_t frame,
                const LobSolution* lob = nullptr, Vec3 q_point = {});
     // S8 t27 (TACTICAL_COMBAT §3.1.1 "Own-weapon aim point", 0x54a270 steps 2-4): the un-led aim point of an own-weapon
     // shot at `t` (the member already chosen for a team container; `hp` = the shooter's target hardpoint index, -1 none).
     Vec3 own_aim_point(const Unit& t, int32_t hp, SimRng& rng) const;
-    void lobbing_service(Unit& u, uint32_t frame);  // S8 t26: LobbingSuperweaponBehavior 0x4ea6f0 charge-up
-    bool own_launch_point(const Unit& u, Vec3& out) const;  // S8 t26: the turret aim's launch point [port]
+    void lobbing_service(Unit& u, uint32_t frame);  // LobbingSuperweaponBehavior 0x4ea6f0 charge-up
+    bool own_launch_point(const Unit& u, Vec3& out) const;  // the turret aim's launch point [port]
 
     // projectiles / damage
     void sweep(uint32_t pi, QueryContext& ctx);
@@ -2227,7 +2227,7 @@ private:
     void process_hit(Projectile& p, Unit& victim, float t, uint32_t frame, SimRng& rng, const Vec3* segment = nullptr,
                      int32_t mesh_hp = kMeshUnknown);
     int32_t hardpoint_by_mesh(const Unit& v, const std::string& mesh) const;  // §2.9 Q1 step 4 (0x394d40)
-    // 3.3 expiry: detonation at the projectile's position; ground = the land ground / water hit 0x4cb070 (tru1 t08)
+    // 3.3 expiry: detonation at the projectile's position; ground = the land ground / water hit 0x4cb070
     void expire_projectile(uint32_t i, uint32_t frame, bool ground = false);
     void area_damage(const Projectile& p, Vec3 center, ObjectId direct, uint32_t frame);
     // tru1 t08 (TRU1_A_RE_ANSWERS B1): which detonation path runs the effects. Ground hits skip the weaken effect,
@@ -2247,14 +2247,14 @@ private:
     void hardpoint_damage(Unit& v, Hardpoint& h, float x, ObjectId source, DamageResult& out, uint32_t frame,
                           bool owner_dying = false, int32_t sub_key = -1);
     void kill(Unit& v, ObjectId killer, uint8_t kind, uint32_t frame, int32_t sub_key = -1, bool removal = false);
-    // S9 t04: Pick_Death_Clone (0x3718f0) with index -1; one synced draw for a list of >= 2. -1 when no entry.
+    // Pick_Death_Clone (0x3718f0) with index -1; one synced draw for a list of >= 2. -1 when no entry.
     int32_t pick_death_clone(const UnitDesc& vd, int32_t key, int32_t sub_key);
-    // S9 t05: Missile_Shield_Deflect_Test (0x4c6e30): true + the outward direction for the first qualifying emitter
+    // Missile_Shield_Deflect_Test (0x4c6e30): true + the outward direction for the first qualifying emitter
     // (ascending id) whose sphere holds the projectile.
     bool shield_away(const Projectile& p, Vec3& away) const;
-    // refixf t01: one flight step of a spline rocket (0x4cfc40, §2.4.2), serial commit phase.
+    // one flight step of a spline rocket (0x4cfc40, §2.4.2), serial commit phase.
     void rocket_step(uint32_t i, uint32_t frame, SimRng& rng);
-    void saber_step(uint32_t i, uint32_t frame, SimRng& rng);  // cu8k t01: rocket == 2
+    void saber_step(uint32_t i, uint32_t frame, SimRng& rng);  // rocket == 2
     bool spline_rocket(const ProjectileDesc& pd) const;
     void add_rocket(const Projectile& p, Vec3 fire_at, Vec3 launch);
     Rocket* find_rocket(uint32_t serial);
@@ -2263,7 +2263,7 @@ private:
     bool has_energy_pool(const Unit& u) const { return desc_of(u).energy_capacity > 0.0f; }
     float unit_max_energy(const Unit& u) const;
     void burning_service(Unit& u, uint32_t frame);
-    // refix t02: INFECTION update (0x636ae0) of one unit, and attaching / resuming the behaviour on a victim.
+    // INFECTION update (0x636ae0) of one unit, and attaching / resuming the behaviour on a victim.
     void infection_service(Unit& u, uint32_t frame, SimRng& rng);
     void infect(Unit& v, int32_t desc, int32_t player, ObjectId source, uint32_t frame);
     void converted_decay(Unit& u, uint32_t frame, SimRng& rng);
@@ -2290,7 +2290,7 @@ private:
     std::vector<Delayed> delayed_;
     std::vector<DeathEvent> deaths_;
     std::vector<HardpointEvent> hp_events_;
-    std::vector<StunVisualEvent> stun_visuals_;  // vis1 t08: presentation only (not hashed / saved)
+    std::vector<StunVisualEvent> stun_visuals_;  // presentation only (not hashed / saved)
     uint32_t stun_visual_serial_ = 0;
     std::vector<SmokeEvent> smoke_events_;
     std::vector<DamageEvent> damage_events_;
@@ -2301,25 +2301,25 @@ private:
     // ---- OI abilities ----
     std::vector<SurvivorEvent> survivor_events_;
     std::vector<std::pair<int32_t, ObjectId>> base_power_;  // (player, source), insertion order
-    struct ShieldUpgrade {  // tru1 t02 / tru3 t03: one Base_Shield_Upgrade entry
+    struct ShieldUpgrade {  // one Base_Shield_Upgrade entry
         int32_t player;
         ObjectId source;
         uint32_t crc;  // the ability's name CRC (the key's second half)
     };
     std::vector<ShieldUpgrade> shield_upgrade_;  // insertion order
-    std::vector<uint32_t> bshields_;  // tru1 t02: the shield list (live, not Always_Off), unit order; rebuilt each tick
-    std::vector<BaseShieldSetState> bshield_sets_;  // r3h t06: this tick's Set_State calls (base_shield_set_states)
+    std::vector<uint32_t> bshields_;  // the shield list (live, not Always_Off), unit order; rebuilt each tick
+    std::vector<BaseShieldSetState> bshield_sets_;  // this tick's Set_State calls (base_shield_set_states)
     std::vector<Repairer> repairs_;
     ObstacleCellFn obstacle_cell_;                              // OI tactical / S8 t01: LAND_OBSTACLE aim walk
-    const tactical::EngagementQueries* eng_ = &tactical::no_engagement();  // ref6 t02: scan range, shield sides (host)
-    PreciseHitFn precise_hit_;                                  // refixf t07: projectile segment entry test
-    std::function<ObjectId(ObjectId)> garrison_host_;           // S8 t10: garrison host query
+    const tactical::EngagementQueries* eng_ = &tactical::no_engagement();  // scan range, shield sides (host)
+    PreciseHitFn precise_hit_;                                  // projectile segment entry test
+    std::function<ObjectId(ObjectId)> garrison_host_;           // garrison host query
     std::function<float(int32_t)> credits_get_;
     std::function<void(int32_t, float)> credits_add_;
     void service_repairs(Unit& u, uint32_t frame);
-    // ---- tru1 t02: base shields (base_shield.cpp) ----
+    // ---- base shields (base_shield.cpp) ----
     void service_base_shields(uint32_t frame);
-    void clear_removed_base_shields();  // tru3 t04: after flush() removed units (signal 0x28)
+    void clear_removed_base_shields();  // after flush() removed units (signal 0x28)
     // trn1 (surface_fx.cpp): the cover term of Get_Damage_Multiplier and the SURFACE_FX service.
     float cover_factor(const Unit& victim) const;
     void service_surface_fx(uint32_t frame);
@@ -2334,30 +2334,30 @@ private:
     void dome_sweep(const Projectile& p, const ProjectileDesc& pd, Vec3 delta, SweepHit& best) const;
     void death_spawns(Unit& v, uint32_t frame);  // Die step 7 (respawn, Destruction_Survivors)
     bool effect_match(const Unit& v, uint64_t mask, const std::vector<int32_t>* types) const;
-    // s78n t05: the convert projectile's victim test 0x395c10 (TACTICAL_COMBAT §3.5 step 2, HERO_CLASH §7.3), in order.
+    // the convert projectile's victim test 0x395c10 (TACTICAL_COMBAT §3.5 step 2, HERO_CLASH §7.3), in order.
     bool convert_victim_ok(const Unit& v, uint64_t mask) const;
     void effect_victims(int32_t owner, bool enemies, Vec3 center, float radius, std::vector<Unit*>& out);
     std::vector<Unit*> effect_scratch_;
     void record_damage(const DamageRequest& r, const Unit& v, const Unit* src, int32_t hp, const DamageResult& out,
                        uint32_t frame);
     std::vector<uint32_t> emitters_;  // unit indices with emitter_radius > 0 (ascending id), phase F scratch
-    std::vector<Rocket> rockets_;          // refixf t01: spline-rocket state, serial order
-    std::vector<RocketNext> rocket_next_;  // refixf t01: phase E per-projectile scratch
+    std::vector<Rocket> rockets_;          // spline-rocket state, serial order
+    std::vector<RocketNext> rocket_next_;  // phase E per-projectile scratch
     SurfaceQueries surface_;               // trn1: host terrain surface queries (not saved)
-    RocketTerrain rocket_terrain_;         // refixf t01: host terrain (not saved: the host re-attaches it)
+    RocketTerrain rocket_terrain_;         // host terrain (not saved: the host re-attaches it)
     CombatHooks* hooks_ = nullptr;
     SimRng* bound_rng_ = nullptr;
     SimRng* tick_rng_ = nullptr;
     std::vector<Hardpoint> flush_hps_;
     std::vector<std::pair<uint32_t, uint32_t>> leaders_;  // (team, unit index) scratch
     std::vector<std::pair<uint32_t, ObjectId>> team_heads_;  // OI tactical: (team, team_leader id), built in phase A
-    std::vector<std::pair<uint32_t, Vec3>> team_pos_;  // s78n t03: (team, container position), ascending team; host-set
-    std::vector<std::pair<ObjectId, ObjectId>> clash_pairs_;  // s78n t06: running hero clashes (host-set, not saved)
-    // cu8f t04a: (team, unit id) of every live unit with a team, sorted; built in phase A and on read (not saved: a pure
+    std::vector<std::pair<uint32_t, Vec3>> team_pos_;  // (team, container position), ascending team; host-set
+    std::vector<std::pair<ObjectId, ObjectId>> clash_pairs_;  // running hero clashes (host-set, not saved)
+    // (team, unit id) of every live unit with a team, sorted; built in phase A and on read (not saved: a pure
     // function of the units; units that died or left since are skipped at read time).
     std::vector<std::pair<uint32_t, ObjectId>> team_members_;
-    std::vector<ObjectId> land_heads_;  // s78f t03: ground team heads (TeamTargeting), phase A scratch read in phase D
-    // s78h t06: one TeamTargeting service per land team per tick at the team's container slot = the team's highest unit
+    std::vector<ObjectId> land_heads_;  // ground team heads (TeamTargeting), phase A scratch read in phase D
+    // one TeamTargeting service per land team per tick at the team's container slot = the team's highest unit
     // index (head included), reached first in phase D's descending walk. Built in phase A, slot descending (ties: team).
     struct LandTeamSlot {
         uint32_t slot = 0;     // units_ index the service runs just before
@@ -2372,7 +2372,7 @@ private:
     CombatStats stats_;
     // per-tick parameters for the parallel phases (lambdas capture `this` only)
     const TreeSet* trees_ = nullptr;
-    // S8 t06: the host's tree set (set_trees, and each tick), for detonations the host triggers between ticks
+    // the host's tree set (set_trees, and each tick), for detonations the host triggers between ticks
     const TreeSet* last_trees_ = nullptr;
     std::mutex ctx_mutex_;
     std::vector<std::unique_ptr<QueryContext>> ctx_all_;

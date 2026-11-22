@@ -1,4 +1,4 @@
-// L1 systems - tactical weather (land only; docs/re/L1_S4_REMAINING.md §3.2). Data: WeatherScenarios.xml (scenario ->
+// L1 systems - tactical weather (land only; legacy docs/re/L1_S4_REMAINING.md §3.2). Data: WeatherScenarios.xml (scenario ->
 // phases) and WeatherModifiers.xml (per weather type: weapon accuracy by projectile category, speed and sight by
 // Weather_Category). WeatherSystem is the global weather state of one land battle (0x140b30b40):
 //   * init (0x468a50) with the map environment's scenario: phase 0 current, phase 1 next (phase 0 when alone), type /

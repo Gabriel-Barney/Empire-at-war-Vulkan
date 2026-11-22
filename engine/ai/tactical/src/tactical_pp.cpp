@@ -1,5 +1,5 @@
-// A2 tactical - the tactical PotentialPlan marshallers (tactical_pp.hpp). Rules: docs/re/AI_GALACTIC_2.md §1.2-1.4
-// (shared marshallers, tactical branches) and docs/re/AI_GALACTIC_3.md §1-3 (Reinforcement, TacticalBuild, tactical
+// A2 tactical - the tactical PotentialPlan marshallers (tactical_pp.hpp). Rules: legacy docs/re/AI_GALACTIC_2.md §1.2-1.4
+// (shared marshallers, tactical branches) and legacy docs/re/AI_GALACTIC_3.md §1-3 (Reinforcement, TacticalBuild, tactical
 // hero attach, tactical population cap). [M] / [L] / [port] mark what the docs do not fix.
 #include "alamo/ai/tactical/tactical_pp.hpp"
 
@@ -19,7 +19,7 @@ namespace {
 
 constexpr float kVeto = kAiBigFloat;
 
-// A contrast list entry (ref5 t05: the galactic shape, so both modes share the 0x72ac70 / 0x72b940 arithmetic in
+// A contrast list entry (the galactic shape, so both modes share the 0x72ac70 / 0x72b940 arithmetic in
 // pp_marshallers.hpp). Which list an entry is in follows from its index (esc_base).
 using ContrastEntry = PpContrastEntry;
 
@@ -114,7 +114,7 @@ struct TacPp {
     const TaskForceDef& tf_def(uint32_t tf) const { return def.task_forces[tf]; }
     const TeamDef& team_def(const PpSlot& s) const { return def.task_forces[s.tf].teams[s.team]; }
 
-    // ---- ref5 t05: the hooks of the shared marshallers (alamo/ai/pp_marshallers.hpp) ----
+    // ---- the hooks of the shared marshallers (alamo/ai/pp_marshallers.hpp) ----
     void pp_begin_slots() { slot_types.clear(); }
     void pp_init_slot(PpSlot&, uint32_t tf, uint32_t team) {
         const TaskForceDef& d = def.task_forces[tf];
@@ -169,7 +169,7 @@ struct TacPp {
     }
 
     // ---- contrast (0x72ac70 / 0x6c4b20) ----
-    // a2k t11: the AI PotentialPlan weight 0x5f1f90 (ContrastTable::ai_weight, A2K_T02_RE_ANSWERS Q2(b)) [H], as the galactic
+    // the AI PotentialPlan weight 0x5f1f90 (ContrastTable::ai_weight, A2K_T02_RE_ANSWERS Q2(b)) [H], as the galactic
     // solve (galactic_pp.cpp weight()): the solver 0x6c3da0 is shared by both modes.
     float weight(int32_t t, int32_t row) const {
         if (!in.contrast || row < 0) return 0.0f;
@@ -186,7 +186,7 @@ struct TacPp {
         const size_t b = std::min(list_begin(escort), remaining.size()), e = std::min(list_end(escort), remaining.size());
         return std::span<const double>(remaining).subspan(b, e - b);
     }
-    // 0x72ac70 in float (ref5 t05, AI_GALACTIC_TOKENS §9.8 item 4 / §9.8a), shared with galactic.
+    // 0x72ac70 in float (AI_GALACTIC_TOKENS §9.8 item 4 / §9.8a), shared with galactic.
     bool layer_satisfied(bool space, bool escort = false) const {
         return pp_contrast_layer_satisfied(list(escort), list_remaining(escort), space, tolerance);
     }
@@ -223,7 +223,7 @@ struct TacPp {
     }
     // 0x6c4b20 (AI_GALACTIC_TOKENS §9.10): remaining lists from scratch, then the flags. No escort list: every selection
     // subtracts from the main list (selection order) and the escort flag is set (empty escort remaining list). With an
-    // escort list (q6 t19, tactical): the task-force slots in order, each assigned selection into the escort list when
+    // escort list (tactical): the task-force slots in order, each assigned selection into the escort list when
     // its slot is an escort slot or the main contrast is already met at that point of the walk (re-tested after each
     // main-list unit, false at the start), else into the main list; then the unplaced selections into the main list.
     void recompute_remaining() {
@@ -319,8 +319,8 @@ private:
     TacPp& p_;
 };
 
-using TechTreeM = TechTreeMarshaller<TacPp>;  // ref5 t05: 0x729190, shared with galactic
-using PlanM = PlanMarshaller<TacPp>;          // ref5 t05: 0x72a3b0 .. 0x72a060, shared with galactic
+using TechTreeM = TechTreeMarshaller<TacPp>;  // 0x729190, shared with galactic
+using PlanM = PlanMarshaller<TacPp>;          // 0x72a3b0 .. 0x72a060, shared with galactic
 
 // Reinforcement (AI_GALACTIC_3 §1.3-1.5) [H]: pool units score 2.0 and replace a free unit of the same type unless that
 // unit is already at the stage (key < 300); no pool entry and no free unit -> veto (not permanent). No RNG.
@@ -530,7 +530,7 @@ public:
         // Untyped totals by their layer: the main list's with 0x528 && rec+0xB0, the escort list's with 0x525 && 0x529 && rec+0xB1.
         if (p_.main_met && r.non_escort && p_.total_open(false, r.space, r.ground)) return 0.0f;
         if (p_.has_escort_list && p_.escort_met && r.escort && p_.total_open(true, r.space, r.ground)) return 0.0f;
-        if (pp_contrast_still_needed(p_, r, p_.mask_of(r.type))) return 0.0f;  // ref5 t05: shared with galactic
+        if (pp_contrast_still_needed(p_, r, p_.mask_of(r.type))) return 0.0f;  // shared with galactic
         return kVeto;
     }
     void commit(uint32_t) override {
@@ -539,7 +539,7 @@ public:
     }
     void finalize(bool& success) override {  // 0x72af80
         if (p_.def.ignore_target || p_.entries.empty()) return;
-        for (const bool escort : {false, true}) {  // q6 t19: both lists (entries 0 and 1 of each)
+        for (const bool escort : {false, true}) {  // both lists (entries 0 and 1 of each)
             if (escort && !p_.has_escort_list) continue;
             const size_t base = escort ? p_.esc_base : 0;
             for (const bool space : {true, false}) {

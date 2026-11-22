@@ -4,7 +4,7 @@
 namespace bo3split {
 
 void test_shield_regen_gate() {
-    // cmb3 t07 (b0454, TACTICAL_COMBAT §3.7, 0x549250 [H]): SHIELDED regeneration reads no base power (its player has none
+    // cmb3 t07 (TACTICAL_COMBAT §3.7, 0x549250 [H]): SHIELDED regeneration reads no base power (its player has none
     // here) and is skipped while the unit's ION_STUN_EFFECT runs. Regeneration is due every 90 frames (frames 90, 180, ...).
     World w;
     ProjectileDesc ion;

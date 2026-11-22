@@ -1,9 +1,9 @@
 // Where audio files come from.
 //
 //   SFX samples   : bare leaf names (EGL_MDU_1.WAV) inside Data\Audio\SFX\sfx2d_<language>.meg,
-//                   sfx2d_non_localized.meg and sfx3d_non_localized.meg (docs/assets/CATALOG.md: these
+//                   sfx2d_non_localized.meg and sfx3d_non_localized.meg (legacy docs/assets/CATALOG.md: these
 //                   archives store bare names and are NOT listed in MegaFiles.xml, so the VFS does not
-//                   mount them). aud2 t05 (AUDIO.md §5: loose files override): the loose Data\Audio\SFX\<name>
+//                   mount them). aud2 t05 (legacy docs/re/AUDIO.md §5: loose files override): the loose Data\Audio\SFX\<name>
 //                   through the file layer first (mod, then FoC loose), then the archives in sfx_megs order:
 //                   FoC 2D-localized, 2D, 3D (each: every mod copy, then FoC's), then the same for EaW (fallback
 //                   for EaW-only names), whatever the event kind [port: the archive order].

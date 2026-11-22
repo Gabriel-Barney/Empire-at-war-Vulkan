@@ -1,10 +1,10 @@
-// q6 t03: skirmish rules shared by alamo_game (alamo_game_core, game_data.hpp) and alamo_headless's skirmish host
+// skirmish rules shared by alamo_game (alamo_game_core, game_data.hpp) and alamo_headless's skirmish host
 // (headless/skirmish_run.cpp), which does not link alamo_game_core (it pulls in UI / audio). Data in, names / types out:
 // no UI, audio, session or sim code. The hosts' deliberate differences are SkirmishForceOptions fields.
 //   AI type       resolve_ai_type (SKIRMISH_SETUP §2.1, AI_GALACTIC §1.2): the faction's Basic_AI / campaign pairs.
 //   forces        the faction's Space_ / Land_Skirmish_AI_Default_Forces (SKIRMISH_SETUP §2 step 4) and the [port]
-//                 cheapest-buildable fallback, for base FoC and mods alike (modc t17).
-// modc t03 / t17 / t19 (docs/MODS.md §1 rule 4): nothing here tests a faction, unit, planet or map name to pick a rule.
+//                 cheapest-buildable fallback, for base FoC and mods alike.
+// modc t03 / t17 / t19 (docs/MODS.md "The agnostic-loading rule"): nothing here tests a faction, unit, planet or map name to pick a rule.
 //   map planet    skirmish_map_planet_type (the planet type a _MP_SPACE_ / _MP_LAND_ map stands for) and
 //                 skirmish_galaxy_planet (the planet type of the port's skirmish galaxy).
 #pragma once
@@ -33,7 +33,7 @@ class AiDefinitions;
 namespace alamo::game {
 
 // Faction Space_ / Land_Skirmish_AI_Default_Forces as written, per upper-case trimmed faction name (FactionFiles.xml
-// order; per list, the last definition that has one wins). cu5 t01: from the faction definitions galactic::load_factions
+// order; per list, the last definition that has one wins). From the faction definitions galactic::load_factions
 // parsed (FactionRules::xml_fields), not a second read of the XML.
 struct SkirmishForces {
     std::vector<std::string> space, land;
@@ -48,7 +48,7 @@ SkirmishForceTable load_skirmish_forces(const std::vector<galactic::FactionRules
 //   skirmish (campaign_control null)   the faction's Basic_AI (SKIRMISH_SETUP §2.1: AI slots get Faction.Basic_AI).
 //   campaign (campaign_control set)    ai::campaign_ai_type(*campaign_control, basic_ai, faction, false): the campaign's
 //                                      AI_Player_Control pair (AI_GALACTIC §1.2); no pair = no AI (only the pairs call
-//                                      Set_AI_Type [M]). Base FoC and mods alike (modc t17: FoC's "Empire, None" /
+//                                      Set_AI_Type [M]). Base FoC and mods alike (FoC's "Empire, None" /
 //                                      "Rebel, BasicRebel_NoOpenings" ... are read as written).
 // "Human" = no AI. A type `defs` does not define is no AI (Set_AI_Type: "Unrecognized AI player type"); defs null = not
 // checked.
@@ -68,7 +68,7 @@ struct SkirmishForceOptions {
     // Optional notes: dropped names, the fallback's picks (faction first, no host prefix).
     std::vector<std::string>* diag = nullptr;
 };
-// The default forces of `faction`, as type names (modc t17: every faction alike, base FoC included):
+// The default forces of `faction`, as type names (every faction alike, base FoC included):
 //   the list                                        the faction's Space_ / Land_Skirmish_AI_Default_Forces; names the data
 //                                                   does not define, and types the galaxy cannot hold (space: not a
 //                                                   SpaceUnit / Squadron kind; land: not a GroundUnit kind), dropped.
@@ -117,7 +117,7 @@ struct SkirmishBuyOptions {
 std::vector<uint32_t> skirmish_buy_list(const galactic::GalacticRules& rules, const objects::GameObjectTypes& types, uint32_t faction,
                                         bool land, const SkirmishBuyOptions& options = {});
 
-// mcx4 t04: the Buy button of IDD_SKIRMISH_BUY_UNITS_DIALOG before the game (SKIRMISH_SETUP §2.7 "Buy limits 0xf0920"):
+// the Buy button of IDD_SKIRMISH_BUY_UNITS_DIALOG before the game (SKIRMISH_SETUP §2.7 "Buy limits 0xf0920"):
 // type (a type index of `rules`) costs at most `budget`, and a Can_Be_Only_One type is refused when `bought` (its entries
 // in the bought list) is > 0. [port] The in-battle branch (a type the local player already owns) has no port screen.
 bool skirmish_buy_allowed(const galactic::GalacticRules& rules, const objects::GameObjectTypes& types, uint32_t type, uint32_t bought,

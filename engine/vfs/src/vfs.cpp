@@ -309,7 +309,7 @@ struct Vfs::Impl {
         warnings.push_back(std::move(msg));
     }
 
-    // ums2 t03: a VFS finding is a warnings() line and, when create() was given a sink, a CompatIssue with its layer
+    // a VFS finding is a warnings() line and, when create() was given a sink, a CompatIssue with its layer
     // (compat_issue.hpp: the owning mod's index, kBaseLayer, or kNoLayer when no layer is concerned).
     void finding(IssueKind kind, IssueSeverity severity, std::string subject, std::string source, uint16_t layer, std::string msg,
                  bool retail_equivalent = false) {
@@ -446,7 +446,7 @@ struct Vfs::Impl {
             const auto add = [&](K kind, uint32_t count, const std::string& first, const std::string& what) {
                 meg_issues.push_back(Vfs::MegIssue{kind, host, count, first});
                 std::string msg = std::string(Vfs::MegIssue::kind_name(kind)) + ": MEG '" + host + "': " + what;
-                // The game reads the table the same way (MODS.md §3.2): retail-equivalent. Index has no issue kind of its
+                // The game reads the table the same way (docs/MODS.md "File resolution order"): retail-equivalent. Index has no issue kind of its
                 // own: a warnings() line only.
                 if (kind == K::Index) {
                     warn(std::move(msg));
@@ -726,7 +726,7 @@ std::string Vfs::origin(std::string_view path) const {
 std::vector<std::string> Vfs::list(std::string_view glob) const { return list(glob, kLayerAll); }
 
 std::vector<std::string> Vfs::list(std::string_view glob, uint32_t layers) const {
-    // mcx3 t13 (MCX4_GAL2_RE_ANSWERS Q6, UI.md §9.2) [H]: the order of the MEG-aware find 0x217e80 / 0x218e40 - loose
+    // mcx3 t13 (MCX4_GAL2_RE_ANSWERS Q6, legacy docs/re/UI.md §9.2) [H]: the order of the MEG-aware find 0x217e80 / 0x218e40 - loose
     // files first, then every mounted MEG in mount order (first mounted first), each archive's records in stored order,
     // names through the record's name index, normalised; a path already returned is skipped (a per-search set), and
     // nothing is filtered through the CRC lookup. A loose tree is listed in upper-case byte order, NTFS's directory

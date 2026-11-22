@@ -4,7 +4,7 @@
 // calls capture(tick) and gets a CrcRecord: one 64-bit digest per system (registration order)
 // plus a combined digest. A CrcLog is the sequence of records of a run; two logs are compared
 // with first_divergence(), which names the first diverging tick and system. The same harness
-// backs worker-count checks (0/1/4/N), cross-compiler checks (MSVC/clang/gcc golden files),
+// backs worker-count checks (0/1/4/N), golden files,
 // replays, saves and parity runs.
 //
 // HASHER CONTRACT (what a system feeds its StateHasher):
@@ -29,7 +29,7 @@
 //     h = rotl64(h + w * P2, 31) * P1          (h0 = seed + P5)
 // then the final partial word (zero-padded, may be empty) is absorbed the same way, h ^= length,
 // and the murmur3 fmix64 finaliser is applied. P1/P2/P5 are the xxHash64 primes. It is a
-// checksum, not a cryptographic hash. The typed feeds (u8..u64, f32, f64, value) are inline (OPT3 t05): they append to
+// checksum, not a cryptographic hash. The typed feeds (u8..u64, f32, f64, value) are inline: they append to
 // the pending word without a call per field, which is what the per-field hashers of the big systems spend their time on.
 #pragma once
 #include <algorithm>
@@ -141,7 +141,7 @@ private:
     const ParallelFor* pf_ = nullptr;  // sp6: not part of the hashed state
 };
 
-// ---- Tree hash of a per-item loop (SIMP sp6, docs/SIM_PARALLEL_DESIGN.md 4.5) ------------------------------------------
+// ---- Tree hash of a per-item loop (SIMP sp6, docs/SIMULATION.md "Checksums") ------------------------------------------
 // hash_blocks(h, count, fn): the items [0, count) in fixed blocks of kCrcBlockItems; fn(bh, begin, end) feeds block
 // [begin, end) into its own StateHasher bh (seed 0, fresh per block); the blocks run in parallel through h.parallel()
 // when it is set; then h receives u32(count) and every block's digest (u64), in block order. So the digest is the same for
@@ -206,7 +206,7 @@ void hash_blocks(StateHasher& h, uint32_t count, Fn&& fn, CrcBlockCache* cache) 
     if (cache) cache->valid_ = true;
 }
 
-// ---- Parity CRC: the original's frame CRC (docs/re/COMMANDS.md §7.1, OBJECT_RUNTIME.md §5/§8) --------
+// ---- Parity CRC: the original's frame CRC (legacy docs/re/COMMANDS.md §7.1, legacy docs/re/OBJECT_RUNTIME.md §5/§8) --------
 // Calculate_Frame_CRC, per tick:
 //   1. GOM = wrapping sum of per-object CRCs over the mode's primary store (dead objects skipped):
 //      order-independent;  2. RND = crc32_raw(synced RNG state, 4 bytes LE);  3. PLR = player term
@@ -249,7 +249,7 @@ private:
 // one running CRC). The locomotor-data term is debug-only and omitted.
 // PROVISIONAL: the raw CRC form (init 0, no inversion, as for the RND term) is assumed for objects too.
 uint32_t parity_object_crc(const float pos[3], const float facing[3], float health) noexcept;
-// RND term (COMMANDS.md §7.1 step 2): crc32_raw of the 4 state bytes, little-endian.
+// RND term (legacy docs/re/COMMANDS.md §7.1 step 2): crc32_raw of the 4 state bytes, little-endian.
 uint32_t parity_rng_crc(uint32_t rng_state) noexcept;
 
 // One tick's CRCs: systems[i] belongs to the registry's system i; parity = retail-shaped frame CRC.
@@ -312,7 +312,7 @@ uint64_t combine_crcs(std::span<const std::string> names, std::span<const uint64
 //     parity <count> <part0> <part1> ...
 //     # free comment lines (meta: seed, stream, workers ...) - ignored by compare
 //     <tick> <combined:16 hex> <parity:8 hex> <crc0:16 hex> <crc1:16 hex> ...
-//   v2, a checkpoint log (checked-in goldens; docs/status/golden-checkpoints.md): same header, then
+//   v2, a checkpoint log (checked-in goldens; docs/SIMULATION.md "CRC log formats"): same header, then
 //     ALAMO_CRC 2
 //     systems ... / parity ...
 //     checkpoint <N>                    (N > 0)

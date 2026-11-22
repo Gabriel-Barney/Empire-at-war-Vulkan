@@ -1,4 +1,4 @@
-// engine/lua fog follow-up: the FogOfWar family (bind_fog.cpp, alamo/lua/fog_bridge.hpp; spec docs/re/FOG_OF_WAR.md §6):
+// engine/lua fog follow-up: the FogOfWar family (bind_fog.cpp, alamo/lua/fog_bridge.hpp; spec legacy docs/re/FOG_OF_WAR.md §6):
 // Reveal (object form: own sight / enemy footprint; position form with radius / dense radius), the LuaFOWCellsClass
 // snapshot and Undo_Reveal (second call a no-op, other epochs ignored), Reveal_All (returns nothing), Temporary_Reveal
 // (flash), Disable_Rendering (fog off for game logic; carried flags outside a battle), the error messages, recount
@@ -241,7 +241,7 @@ static void test_others(const Db& db) {
     CHECK(run(vm, "keep.Undo_Reveal() ok = true") == "" && gtrue(vm, "ok"));
 }
 
-// ref5 t03: an AI host with one region target (6, a position and no object) and one task force (3, its units).
+// an AI host with one region target (6, a position and no object) and one task force (3, its units).
 struct RegionAi final : AiScriptHost {
     std::vector<objects::ObjectHandle> units;
     bool tf_valid(int32_t tf) override { return tf == 3; }
@@ -280,7 +280,7 @@ struct RegionAi final : AiScriptHost {
     void set_global_value(std::string_view, const AiGlobalValue&) override {}
 };
 
-// ref5 t03: FogOfWar converts its position argument by the one rule every binding family uses (detail::position_arg):
+// FogOfWar converts its position argument by the one rule every binding family uses (detail::position_arg):
 // a region AI target reveals around its position, a task force around its first live unit, an empty task force is a
 // dead argument.
 static void test_ai_positions(const Db& db) {

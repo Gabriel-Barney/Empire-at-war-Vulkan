@@ -1,11 +1,11 @@
 // alamo_assets - small float math used by the asset data (no dependency on tools/formats headers,
 // so renderer code that includes alamo/assets/* never sees the alamo_formats types).
 //
-// Conventions (docs/formats/SPEC.md 2.2):
+// Conventions (legacy docs/formats/SPEC.md 2.2):
 //   * Alamo is right-handed, Z-up; triangles are CCW with respect to the stored normals.
 //   * Mat3x4 is row-major 3x4 with column vectors: p'[r] = m[r][0]*x + m[r][1]*y + m[r][2]*z + m[r][3].
 //     Its memory layout (12 floats, row by row) is exactly an HLSL `float3x4` row-major / GLSL
-//     `mat3x4` with row_major, i.e. 48 bytes per bone in the skin palette (PORTING.md 2.4).
+//     `mat3x4` with row_major, i.e. 48 bytes per bone in the skin palette (legacy docs/shaders/PORTING.md 2.4).
 //   * a * b applies b first.
 //   * Quat is (x, y, z, w), Hamilton convention, as stored in ALA files.
 // Rendering math only: plain IEEE single, no determinism guarantee is needed or given.

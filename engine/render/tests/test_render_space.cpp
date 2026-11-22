@@ -1,6 +1,6 @@
 // alamo_render_space_tests - space background scene ordering (no framework; non-zero exit on failure).
 //   * Real data (ALAMO_FOC_DATA, skipped without it or without a Vulkan 1.3 device): _MP_SPACE_ENDOR's background
-//     scene (SPACE_AND_OPEN.md D.7 3: planets occlude the nebula / star domes by depth). Each planet is drawn alone and
+//     scene (legacy docs/re/SPACE_AND_OPEN.md D.7 3: planets occlude the nebula / star domes by depth). Each planet is drawn alone and
 //     then with the whole background scene; inside the planet's disc the full scene must match the planet alone (the
 //     additive nebula dome lies behind it). PNGs: logs\render_space_order_*.png.
 #include <algorithm>
@@ -29,7 +29,7 @@
 #include "alamo/vfs/vfs.hpp"
 #include "alamo/test/support.hpp"
 #include "alamo/render/test/gpu.hpp"
-#include "renderer_core.hpp"  // REF3 t07: RendererCore inspection points (src/, target alamo_render_internal)
+#include "renderer_core.hpp"  // RendererCore inspection points (src/, target alamo_render_internal)
 
 using namespace alamo;
 
@@ -158,7 +158,7 @@ static double masked_diff(const std::vector<uint8_t>& mask, const std::vector<ui
     return n ? static_cast<double>(bad) / static_cast<double>(n) : 0.0;
 }
 
-// Nebula.fx (PROJECTILE_NEBULA_DRAW.md 2.3): the translated vertex shader, run by the interpreter on real vertices with
+// Nebula.fx (legacy docs/re/PROJECTILE_NEBULA_DRAW.md 2.3): the translated vertex shader, run by the interpreter on real vertices with
 // the register images draws upload, gives colour = vertex RGB x LIGHT_SCALE x (2 n_z^8 + 0.1), n_z = z of the
 // normalised view-space normal; alpha = the same factor.
 static void check_nebula_vs(render::Renderer& rr, const render::Instance& in, const render::ViewMatrices& vm) {
@@ -234,9 +234,9 @@ static void check_nebula_vs(render::Renderer& rr, const render::Instance& in, co
 //      whole background scene must leave the body unchanged (D.7 3: planets occlude the star / nebula domes by depth);
 //   3. the main scene over the background (the frame as the game draws it) and the main-scene Nebula.fx props alone;
 //      reports how much of each planet body the main scene changes (main-scene objects follow a depth-only clear,
-//      RENDER.md 1.2, so they draw over the background scene).
+//      legacy docs/re/RENDER.md 1.2, so they draw over the background scene).
 static void space_map_order(Gpu& g, render::Renderer& rr, Offscreen& o, vfs::Vfs& files, render::GameTypeResolver& resolver,
-                            assets::AssetCache& cache, jobs::JobSystem& js, const char* map, const std::string& src_dir, bool required) {
+                            assets::AssetCache& cache, jobs::JobSystem& js, const char* map, [[maybe_unused]] const std::string& src_dir, bool required) {
     std::string err;
     render::ModelStreamer streamer(rr, cache, js);
     render::MapScene scene;
@@ -289,7 +289,7 @@ static void space_map_order(Gpu& g, render::Renderer& rr, Offscreen& o, vfs::Vfs
     // 2. Background order.
     CHECK(settle(g, rr, o, vm, {}, ro, sky, clear, st));
     const std::vector<uint8_t> background = o.pixels();
-    write_png(src_dir + "/logs/render_space_order_" + stem_lower(map) + "_background.png", o.w, o.h, background);
+    write_png(::alamo::test::artifact_dir() + "/render_space_order_" + stem_lower(map) + "_background.png", o.w, o.h, background);
     std::vector<std::vector<uint8_t>> bodies;  // per planet: body mask
     for (size_t pi : planets) {
         const render::GpuModel* m = sky[pi].model;
@@ -314,13 +314,13 @@ static void space_map_order(Gpu& g, render::Renderer& rr, Offscreen& o, vfs::Vfs
     // 3. Main scene over the background.
     CHECK(settle(g, rr, o, vm, main, ro, sky, clear, st));
     const std::vector<uint8_t> frame = o.pixels();
-    write_png(src_dir + "/logs/render_space_order_" + stem_lower(map) + "_frame.png", o.w, o.h, frame);
+    write_png(::alamo::test::artifact_dir() + "/render_space_order_" + stem_lower(map) + "_frame.png", o.w, o.h, frame);
     CHECK(settle(g, rr, o, vm, others, ro, sky, clear, st));
     const std::vector<uint8_t> no_nebula = o.pixels();
-    write_png(src_dir + "/logs/render_space_order_" + stem_lower(map) + "_frame_no_nebula.png", o.w, o.h, no_nebula);
+    write_png(::alamo::test::artifact_dir() + "/render_space_order_" + stem_lower(map) + "_frame_no_nebula.png", o.w, o.h, no_nebula);
     if (!nebulae.empty()) {
         CHECK(settle(g, rr, o, vm, nebulae, ro, {}, clear, st));
-        write_png(src_dir + "/logs/render_space_order_" + stem_lower(map) + "_nebulae.png", o.w, o.h, o.pixels());
+        write_png(::alamo::test::artifact_dir() + "/render_space_order_" + stem_lower(map) + "_nebulae.png", o.w, o.h, o.pixels());
     }
     if (!nebulae.empty()) check_nebula_vs(rr, nebulae.front(), vm);
     for (size_t k = 0; k < planets.size(); ++k) {
@@ -352,7 +352,7 @@ static render::ViewMatrices laser_camera(uint32_t w, uint32_t h, float distance 
     return render::make_view(cam, w, h, 10.0f, 7000.0f);
 }
 
-// PROJECTILE_NEBULA_DRAW.md 1.2 / 1.3 worked numbers (CPU geometry).
+// legacy docs/re/PROJECTILE_NEBULA_DRAW.md 1.2 / 1.3 worked numbers (CPU geometry).
 static void test_laser_geometry() {
     const render::ViewMatrices v = laser_camera(1280, 720);
     float zn = 0, zf = 0;
@@ -423,7 +423,7 @@ static void test_laser_geometry() {
 // GPU: the same lasers drawn by Renderer::set_lasers with the shipped textures (W_Laser_Pill.tga / p_particle_master.tga)
 // next to the port's previous look (W_LASER_*.ALO stretched to W x L x W, head at the position). PNGs:
 // logs\render_lasers_before.png / logs\render_lasers_after.png.
-static void test_lasers_gpu(Gpu& g, const std::string& src_dir) {
+static void test_lasers_gpu(Gpu& g, [[maybe_unused]] const std::string& src_dir) {
     const std::string root = env_or_empty("ALAMO_FOC_DATA");
     if (root.empty()) {
         std::printf("lasers gpu: ALAMO_FOC_DATA not set, skipped\n");
@@ -502,7 +502,7 @@ static void test_lasers_gpu(Gpu& g, const std::string& src_dir) {
                 st.laser_pending, render::renderer_core(rr).last_laser_geometry().beam_vertices.size(), render::renderer_core(rr).last_laser_geometry().kite_vertices.size());
     CHECK(st.laser_beams == 9 && st.laser_kites == 6 && st.laser_pending == 0);
     const std::vector<uint8_t> after = o.pixels();
-    write_png(src_dir + "/logs/render_lasers_after.png", o.w, o.h, after);
+    write_png(::alamo::test::artifact_dir() + "/render_lasers_after.png", o.w, o.h, after);
     // Lit pixels around each laser: green kites green-dominant, red kites red-dominant.
     auto region_rgb = [&](const std::vector<uint8_t>& px, const render::Laser& l, double (&sum)[3]) {
         const render::Float4 c = v.view_proj * render::Float4{l.position.x, l.position.y, l.position.z, 1.0f};
@@ -578,7 +578,7 @@ static void test_lasers_gpu(Gpu& g, const std::string& src_dir) {
         rr.wait_translations();
         rr.wait_pipelines();
     }
-    write_png(src_dir + "/logs/render_lasers_before.png", o.w, o.h, o.pixels());
+    write_png(::alamo::test::artifact_dir() + "/render_lasers_before.png", o.w, o.h, o.pixels());
     std::printf("lasers gpu: before (stretched ALOs): %zu instances, %u draws\n", inst.size(), st.draws);
     g.ring.wait_idle();
     for (auto& m : models) rr.destroy_model(*m);

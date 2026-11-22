@@ -30,7 +30,7 @@
 #include "alamo/ai/tactical/target_list.hpp"
 #include "alamo/ai/tactical/zone_reachability.hpp"
 #include "alamo/commands/pipeline.hpp"
-#include "alamo/core/dmath.hpp"  // refixf t06: space reinforcement ring directions
+#include "alamo/core/dmath.hpp"  // space reinforcement ring directions
 #include "alamo/core/file_provider.hpp"
 #include "alamo/core/hash.hpp"  // A2 tactical: crc32 (perception '#' reseed)
 #include "alamo/core/profile.hpp"
@@ -39,7 +39,7 @@
 #include "alamo/data/xml.hpp"
 #include "alamo/galactic/auto_resolve.hpp"
 #include "alamo/galactic/cadence.hpp"  // PHASE2_ANSWERS Q11 all-pairs cadence (land path finder)
-#include "alamo/galactic/economy.hpp"  // A2g t06: econ::build_time_t0 (0x371230 without a planet)
+#include "alamo/galactic/economy.hpp"  // econ::build_time_t0 (0x371230 without a planet)
 #include "alamo/lua/ai_bridge.hpp"
 #include "alamo/lua/ai_tactical_bridge.hpp"
 #include "alamo/lua/gc_schedule.hpp"  // OPT2 t04
@@ -48,7 +48,7 @@
 #include "alamo/lua/script_remaining.hpp"  // L1 final
 #include "alamo/objects/behaviors.hpp"
 #include "alamo/objects/game_object_types.hpp"
-#include "tactical_ai_records.hpp"  // state records, N1 save / load and CRC field lists (REF1 t03)
+#include "tactical_ai_records.hpp"  // state records, N1 save / load and CRC field lists
 #include "tactical_save_io.hpp"  // N1 save / load
 
 namespace alamo::ai::tactical {
@@ -69,7 +69,7 @@ constexpr size_t kTfGroupOrderMaxUnits = 4096;       // [port] ids in one group 
 
 int32_t target_id(int32_t player, int32_t slot) { return (player << kSlotBits) | slot; }
 
-// OPT2 t10: the seed of a slot-10 candidate's own RNG stream, a function of (session seed, frame, player, goal source,
+// the seed of a slot-10 candidate's own RNG stream, a function of (session seed, frame, player, goal source,
 // target) only (splitmix64 finaliser chain).
 uint64_t pp_mix(uint64_t x) {
     x += 0x9E3779B97F4A7C15ull;
@@ -116,7 +116,7 @@ cmd::EventData lua_order_event(lua::LuaOrder order, std::span<const uint32_t> un
     return ev;
 }
 
-// S7 t27: a threat tolerance as the Lua MoveTo order's argument word (float bits; BattleAi reads 0 as "no threshold", so a
+// a threat tolerance as the Lua MoveTo order's argument word (float bits; BattleAi reads 0 as "no threshold", so a
 // tolerance of +0.0 is sent as the smallest positive float [port]) and its decision-log suffix.
 uint32_t threat_bits(float t) { return t == 0.0f ? 1u : std::bit_cast<uint32_t>(t); }
 std::string threat_text(float t) {
@@ -156,27 +156,27 @@ struct TacticalAiWorld::Impl final : lua::AiScriptHost, lua::AiTacticalScriptHos
         return c.ai_lane ? GameRandom(synced, free) : GameRandom();
     }
 
-    // sp3 t02: with the lane on, `store` is the snapshot store (a copy of the battle store taken at each publish());
+    // with the lane on, `store` is the snapshot store (a copy of the battle store taken at each publish());
     // live_store is the battle store it copies (read only by publish()).
     std::unique_ptr<objects::ObjectStore> snap_store;
     const objects::ObjectStore* live_store;
     objects::ObjectStore& store;
     const objects::GameObjectTypes* types;
     const FileProvider* files;
-    GameRandom own_rng;  // sp3: the AI-owned stream of an AI-lane world (unused with the lane off)
+    GameRandom own_rng;  // the AI-owned stream of an AI-lane world (unused with the lane off)
     GameRandom& rng;     // the session's GameRandom, or own_rng with the lane on
     const AiDefinitions& defs;
     const EquationSet& eqs;
     TacticalAiHost& host;
     TacticalAiConfig cfg;
-    uint64_t space_categories = tactical_space_categories(types);  // q6 t03: PotentialPlan space layer (loaded enum)
+    uint64_t space_categories = tactical_space_categories(types);  // PotentialPlan space layer (loaded enum)
 
     // perception
     PerceptionWorld w;
     std::vector<TacticalAiObject> facts;
-    // sp3 t02: the host event lists publish() captured for think()
+    // the host event lists publish() captured for think()
     FrameEvents lane_in;
-    // ref5 t07: what the AI reads from the battle (TacticalAiHost::facts(); live, or the lane's capture during think())
+    // what the AI reads from the battle (TacticalAiHost::facts(); live, or the lane's capture during think())
     const BattleFacts& battle() const { return host.facts(); }
     std::vector<std::pair<int32_t, int32_t>> prev;  // (id, owner) of the last snapshot, ascending id
     // q6 (OBJECT_SCRIPTS §10.1): ids a script took out of the AI before this world perceived them (ascending); their
@@ -184,11 +184,11 @@ struct TacticalAiWorld::Impl final : lua::AiScriptHost, lua::AiTacticalScriptHos
     std::vector<int32_t> unadmit_pending;
     TacticalPerception perc;
     ZoneGraph zones;
-    std::vector<uint8_t> eq_script_free;  // OPT2 t03: per equation, 0 not known yet, 1 being checked, 2 Script_-free, 3 not
+    std::vector<uint8_t> eq_script_free;  // per equation, 0 not known yet, 1 being checked, 2 Script_-free, 3 not
 
     // Lua
     lua::LuaPlayerWorld world;
-    lua::LuaPlayerWorld* story_world = nullptr;  // aitac t01: the story session's world (attach_story_world)
+    lua::LuaPlayerWorld* story_world = nullptr;  // the story session's world (attach_story_world)
     lua::ObjectBridge bridge;
     cmd::CommandPipeline pipeline;
     PlanLibrary library;
@@ -231,7 +231,7 @@ struct TacticalAiWorld::Impl final : lua::AiScriptHost, lua::AiTacticalScriptHos
     int32_t next_pp = 0;
     std::map<int32_t, int32_t> pool_reserved;  // reinforcement pool key -> PP handle
     std::map<int32_t, int32_t> pad_reserved;   // pad id -> PP handle
-    // mcx6 t06 (LUA_API.md "Task force: Enable_Attack_Positioning and Release_Reinforcements"): the UnitAI data pack's
+    // mcx6 t06 (legacy docs/re/LUA_API.md "Task force: Enable_Attack_Positioning and Release_Reinforcements"): the UnitAI data pack's
     // attack-positioning fields of the objects a land task force's Enable_Attack_Positioning reached (object id ->
     // record; dropped when the object leaves the snapshot). Every other UNIT_AI object has the constructor's values (flag
     // 0, the drawn +0x34 stamp, TacticalAiObject::attack_position_stamp), which nothing reads while the flag is 0.
@@ -245,30 +245,30 @@ struct TacticalAiWorld::Impl final : lua::AiScriptHost, lua::AiTacticalScriptHos
     uint64_t saved_types_digest = 0;
     // first_solve: Init at proposal (PP+0x104 == 0, FreeStore Setup A ignores +0x30); else the re-solve at accept.
     bool solve_pp(PlayerAi& p, uint32_t plan, const Goal& g, TacticalPpResult& out, bool first_solve);
-    // The solve's input (no RNG set). snapshot (OPT2 t10): the host / world callbacks are replaced by their answers
+    // The solve's input (no RNG set). snapshot: the host / world callbacks are replaced by their answers
     // (can_build_now for the plan's team types, enemy_strength for the masks the Contrast marshaller asks), so the solve
     // reads nothing that changes after this call and may run on any thread, now or frames later.
     void pp_input(PlayerAi& p, uint32_t plan, const Goal& g, bool first_solve, bool snapshot, TacticalPpInput& in);
     bool resolve_pp(PlayerAi& p, const Goal& g);          // 0x6c4a50: re-solve at accept (A1_READINGS §28.6 step 3)
-    float pp_nominal_time(const PlayerAi& p, const std::vector<TacticalPpPick>& picks) const;  // A2g t06: 0x6c0450(PP)
+    float pp_nominal_time(const PlayerAi& p, const std::vector<TacticalPpPick>& picks) const;  // 0x6c0450(PP)
     void reserve_pp(int32_t handle);                      // 0x6c2d60 (+ 0x6c2b20)
     void suspend_pp(int32_t handle);                      // 0x6c0be0's +0x30 part (Commit step 4)
     bool pp_stolen(int32_t handle);                       // 0x6c45e0
-    bool pp_retest_failed(PlayerAi& p, const Goal& g);     // 0x6c47c0 step 2 (skai t15), sticky
+    bool pp_retest_failed(PlayerAi& p, const Goal& g);     // 0x6c47c0 step 2, sticky
     void pp_unit_left(int32_t handle, int32_t unit);      // 0x6c27d0 (the unit's re-admission is the caller's)
     void release_pp(int32_t handle, int32_t tf_def = -1, bool free_store = true);
     TacticalFreeStore* pp_store(int32_t handle);
     void reinforce_joined(const TfRec& t, int32_t unit, int32_t type);  // 0x6bf3d0 for a land TF.Reinforce delivery
-    // q6 t19: `exclude` = an object left out (the escort list of a unit target, AI_TACTICAL §7.7.1), -1 none.
+    // `exclude` = an object left out (the escort list of a unit target, AI_TACTICAL §7.7.1), -1 none.
     double enemy_strength_at(int32_t player, const Vec3f& at, int32_t zone, uint64_t mask, int32_t exclude = -1) const;
-    // OPT2 t10: enemy_strength_at for several masks in one pass (each sum in the same object order: identical values).
+    // enemy_strength_at for several masks in one pass (each sum in the same object order: identical values).
     std::vector<double> enemy_strengths_at(int32_t player, const Vec3f& at, int32_t zone, std::span<const uint64_t> masks,
                                            int32_t exclude = -1) const;
     // The shared object filter of both: `o`'s type when it is a live object hostile to `player` in the target's area
     // (header comment of enemy_strength_at) and not `exclude`, else null. The category mask is the caller's test.
     const PerceptionType* enemy_in_area(const PerceptionObject& o, int32_t player, const Vec3f& at, int32_t zone,
                                         int32_t exclude) const;
-    // OPT2 t10: the host answers every first solve of one player's proposal slice reads (build pads, reinforcement pool,
+    // the host answers every first solve of one player's proposal slice reads (build pads, reinforcement pool,
     // population). They only change in the battle tick or through an executed order, and no order runs between a
     // slice's candidates (an order a Script_ evaluator might issue clears the cache), so the slice asks the host once
     // per answer instead of once per candidate (BattleAi::build_pads scans every object per pad). player < 0: no slice
@@ -292,7 +292,7 @@ struct TacticalAiWorld::Impl final : lua::AiScriptHost, lua::AiTacticalScriptHos
     // --- end A2 tactical ---
 
     // ---- helpers ----
-    // REF1 t04: decision-log lines and stats keys are diagnostics, built only while the log is on (cfg.log_decisions). A
+    // decision-log lines and stats keys are diagnostics, built only while the log is on (cfg.log_decisions). A
     // text argument is a string or a callable that makes one; the callable runs only then.
     bool logging() const { return cfg.log_decisions; }
     template <class Text>
@@ -348,13 +348,13 @@ struct TacticalAiWorld::Impl final : lua::AiScriptHost, lua::AiTacticalScriptHos
         const EvalResult r = perc.evaluate(eqs, e, c, w);
         ++eval_count;
         if (!r.ok) {
-            stat([&] { return "eval FAIL " + fn + " at " + eval_failure_site(eqs, r); });  // modc t44: which leaf failed
+            stat([&] { return "eval FAIL " + fn + " at " + eval_failure_site(eqs, r); });  // which leaf failed
             return false;
         }
         out = r.value;
         return true;
     }
-    // OPT2 t03: an equation with no Script_ reference (itself or through its Function_ references) evaluates const and
+    // an equation with no Script_ reference (itself or through its Function_ references) evaluates const and
     // re-entrantly (perception_equations.hpp, tactical_perception.hpp), so goal candidates may evaluate it on any thread.
     // Serial (sim thread): resolves `fn` and memoises the answer per equation.
     bool concurrent_equation(const std::string& fn) {
@@ -444,7 +444,7 @@ struct TacticalAiWorld::Impl final : lua::AiScriptHost, lua::AiTacticalScriptHos
     }
     void prune_tf(TfRec& t) {
         auto& u = t.units;
-        // a1k t01: a member taken by another player leaves through 0x5ff610 too (its targeting data reset).
+        // a member taken by another player leaves through 0x5ff610 too (its targeting data reset).
         for (const ObjectHandle h : u)
             if (store.alive(h) && store.owner(h) != t.player) left_task_force(id_of(h));
         u.erase(std::remove_if(u.begin(), u.end(), [this, &t](ObjectHandle h) { return !unit_ok(h, t.player); }), u.end());
@@ -464,7 +464,7 @@ struct TacticalAiWorld::Impl final : lua::AiScriptHost, lua::AiTacticalScriptHos
     }
     // a1h t02 (A1_READINGS §33.3): a newer task-force order collects every TF unit and raises signal 0xb on it, so each
     // older movement / attack / guard status of that TF loses all its units and finishes (Result nil); it never acts
-    // again. Unit-level orders on a TF member take only that unit out (aitac t05, movement_block_signal).
+    // again. Unit-level orders on a TF member take only that unit out (movement_block_signal).
     void supersede(int32_t tf) {
         for (auto& [id, s] : statuses)
             if (s.tf == tf && !s.finished && (s.kind == StatusKind::Move || s.kind == StatusKind::Guard || s.kind == StatusKind::AttackTarget)) {
@@ -535,7 +535,7 @@ struct TacticalAiWorld::Impl final : lua::AiScriptHost, lua::AiTacticalScriptHos
     }
 
     // ---- object signals / free store ----
-    void refresh(bool fill = true);  // sp3 t02: fill false = publish() already filled w / facts
+    void refresh(bool fill = true);  // fill false = publish() already filled w / facts
     void admit(PlayerAi& p, size_t index, bool call_lua);
     // A task force releases `u` (TaskForce vf49 0x5ff610): 0x6c27d0 with the plan's PP `pp` (-1 none), re-admission.
     void release_to_free_store(int32_t player, ObjectHandle u, int32_t pp);
@@ -557,16 +557,16 @@ struct TacticalAiWorld::Impl final : lua::AiScriptHost, lua::AiTacticalScriptHos
     // entry failed. When nothing is left (no unit, no pending reinforcement, no build in progress [M: the TF +0x60 entry
     // vector's type-flag test]) plan event 7 No_Units_Remaining is queued to the plan (dispatched by its next PumpEvents).
     void units_lost(TfRec& t);
-    bool counted_entry_type(int32_t type) const;  // S7 t26: an entry type that keeps the task force (not hero / SW)
+    bool counted_entry_type(int32_t type) const;  // an entry type that keeps the task force (not hero / SW)
     // S7 t15 A1 / S7 t21: per-frame object signals of the ambush / ability statuses (deaths, target death, movement
     // finished) and the host's "unit ability finished" signals (0x29).
     void status_signals();
     void ability_signals(const std::vector<int32_t>& ids);
-    // S7 t26: signal 0xb on a unit (and its team container): the blocks waiting on it end (no plan event).
+    // signal 0xb on a unit (and its team container): the blocks waiting on it end (no plan event).
     void order_signal(int32_t oid);
-    // S7 t26: the ability blocks waiting on `oid` (or its team `team_id`) lose that unit (any of 0x29 / 0xb / 0x10).
+    // the ability blocks waiting on `oid` (or its team `team_id`) lose that unit (any of 0x29 / 0xb / 0x10).
     void ability_block_signal(int32_t oid, int32_t team_id);
-    // aitac t05: the movement / guard blocks listening on `oid` (A1_READINGS §33.2 signal 0xb rows, §33.3).
+    // the movement / guard blocks listening on `oid` (A1_READINGS §33.2 signal 0xb rows, §33.3).
     void movement_block_signal(int32_t oid, int32_t team_id);
     // aitac t07 (L1_S4_REMAINING §2.3.1): ExploreAreaBlockStatus - create (one pick at once), pick, poll.
     int32_t explore_status(int32_t plan, int32_t tf, ObjectHandle unit, std::vector<ObjectHandle> units, int32_t target);
@@ -579,14 +579,14 @@ struct TacticalAiWorld::Impl final : lua::AiScriptHost, lua::AiTacticalScriptHos
     bool ambush_point(const StatusRec& s, int32_t player, Vec3f& out, bool* no_walk = nullptr) const;
     void ambush_plan(StatusRec& s, bool first);
     void opportunity_events(const std::vector<OpportunityTargetEvent>& events);  // STRATEGIC_GAPS §5.3
-    void target_in_range_events(const std::vector<AttackStateSignal>& events);   // s78f t08: signal 0x1E
-    void unit_damaged_events(const std::vector<UnitDamagedSignal>& events);      // skai t15: signal 0x18
+    void target_in_range_events(const std::vector<AttackStateSignal>& events);   // signal 0x1E
+    void unit_damaged_events(const std::vector<UnitDamagedSignal>& events);      // signal 0x18
     void service_statuses(int32_t player);
     bool step_status(StatusRec& s);
     bool step_object_block(StatusRec& s, const TfRec& t);
     void block_end_log(const StatusRec& s, const TfRec& t, const char* why);
-    void space_reinforce_poll(StatusRec& s);  // refixf t06: SpaceReinforceBlockStatus IsFinished (AI_TACTICAL §7.4)
-    void reinforcements_unloaded(const std::vector<ReinforcementsUnloaded>& recs);  // a1j t01: signal 0x19 (0x6a1440)
+    void space_reinforce_poll(StatusRec& s);  // SpaceReinforceBlockStatus IsFinished (AI_TACTICAL §7.4)
+    void reinforcements_unloaded(const std::vector<ReinforcementsUnloaded>& recs);  // signal 0x19 (0x6a1440)
     // q6 t19 (SKIRMISH_SETUP §3.1, AI_GALACTIC_3 §1.11): signal 0x22 of land builds that went to the pool - the first
     // task force (id order) of the player producing the type drops that entry (first entry of the type).
     void production_completed(const std::vector<TacticalAiHost::ProductionCompleted>& recs) {
@@ -620,7 +620,7 @@ struct TacticalAiWorld::Impl final : lua::AiScriptHost, lua::AiTacticalScriptHos
     // entry of the type) joins that task force instead of the free store (AI_GALACTIC_3 §1.11: the build task registers
     // the unit with the plan). True when claimed.
     bool claim_produced(const PerceptionObject& o, ObjectHandle h) {
-        // q6 t19: land builds go to the reinforcement pool (production_completed), so a new land object of the type is a
+        // land builds go to the reinforcement pool (production_completed), so a new land object of the type is a
         // drop, never the build's result.
         if (!h || o.owner < 0 || cfg.mode == TacticalMode::Land) return false;
         for (auto& [id, t] : tfs) {
@@ -638,7 +638,7 @@ struct TacticalAiWorld::Impl final : lua::AiScriptHost, lua::AiTacticalScriptHos
     }
 
     // ---- tactical orders ----
-    // S7 t27: `threat` (MoveTo only) = the group move's threat tolerance (MOVEMENT REMAINING_GAPS §4.2 threshold T), sent
+    // `threat` (MoveTo only) = the group move's threat tolerance (MOVEMENT REMAINING_GAPS §4.2 threshold T), sent
     // as the Lua MoveTo group order; without one the MoveToPositionFacing group move.
     int32_t issue_move(TfRec& t, AiTacticalOrder order, const Vec3f& dest, int32_t target_object,
                        std::optional<float> threat = std::nullopt);
@@ -681,7 +681,7 @@ struct TacticalAiWorld::Impl final : lua::AiScriptHost, lua::AiTacticalScriptHos
         const std::vector<ObjectHandle> gone(t->units.begin(), t->units.begin() + static_cast<std::ptrdiff_t>(n));
         t->units.erase(t->units.begin(), t->units.begin() + static_cast<std::ptrdiff_t>(n));
         for (const ObjectHandle u : gone) release_to_free_store(t->player, u, pp_of_tf(*t));
-        if (n > 0) units_lost(*t);  // S7 t20: Release_Unit path (0x5ff2d0)
+        if (n > 0) units_lost(*t);  // Release_Unit path (0x5ff2d0)
     }
     void tf_release_unit(int32_t tf, ObjectHandle unit) override {
         TfRec* t = tf_rec(tf);
@@ -691,7 +691,7 @@ struct TacticalAiWorld::Impl final : lua::AiScriptHost, lua::AiTacticalScriptHos
         if (it == u.end()) return;
         u.erase(it);
         release_to_free_store(t->player, unit, pp_of_tf(*t));
-        units_lost(*t);  // S7 t20: Release_Unit (0x5ff2d0)
+        units_lost(*t);  // Release_Unit (0x5ff2d0)
     }
     std::vector<ObjectHandle> tf_units(int32_t tf) override {
         TfRec* t = tf_rec(tf);
@@ -818,13 +818,13 @@ struct TacticalAiWorld::Impl final : lua::AiScriptHost, lua::AiTacticalScriptHos
         if (!t || !arg_position(other, point, b)) return -1.0;
         prune_tf(*t);
         // S7 t27 (AI_TACTICAL §7.3.2): Get_Distance takes the task-force position (vf46), so an empty task force measures
-        // from (0, 0, 0) like every other position-convertible use (S7 t20), not nil.
+        // from (0, 0, 0) like every other position-convertible use, not nil.
         return dist3(tf_center(*t), b);
     }
     void tf_set_targeting_priorities(int32_t tf, std::string_view set) override {
         if (TfRec* t = tf_rec(tf)) t->priorities = std::string(set);  // [port] recorded; combat priority sets not switched
     }
-    // mcx6 t06 (LUA_API.md "Task force: Enable_Attack_Positioning and Release_Reinforcements").
+    // mcx6 t06 (legacy docs/re/LUA_API.md "Task force: Enable_Attack_Positioning and Release_Reinforcements").
     void tf_enable_attack_positioning(int32_t tf, bool on) override;
     void tf_release_reinforcements(int32_t tf) override;
     // S7 t21 Prepare_Ambush (AI_TACTICAL §7.3.1), after the binding's argument checks.
@@ -934,7 +934,7 @@ struct PlayerAi final : GoalModeHooks, ContextModeServices {
     };
     std::map<std::pair<int32_t, uint8_t>, FloodSet> floods;
     float contrast_mult = 1.0f;  // A2 tactical: Land_ / Space_AI_Contrast_Multiplier of the difficulty
-    float build_time_mult = 1.0f;  // A2g t06: Land_ / Space_Build_Time_Multiplier of the difficulty (AllowedTime base)
+    float build_time_mult = 1.0f;  // Land_ / Space_Build_Time_Multiplier of the difficulty (AllowedTime base)
     // Land execution path finder (TACTICAL_GAPS §6.1): the player's own zone graph (node costs from its threat grid),
     // created at Execution slot 6 (first service) and recomputed on the PHASE2_ANSWERS Q11 cadence.
     ZoneGraph paths;
@@ -945,7 +945,7 @@ struct PlayerAi final : GoalModeHooks, ContextModeServices {
         paths.recompute_with_threat(w->perc.grid().valid() ? w->perc.zone_threat_fn(w->w, player) : ZoneThreatFn{});
         w->stat("land path finder recomputes");
     }
-    // OPT2 t02: a cadence recompute in the background (TacticalAiConfig::path_latency): the node costs are taken from the
+    // a cadence recompute in the background (TacticalAiConfig::path_latency): the node costs are taken from the
     // threat grid on the kick frame, the all-pairs runs on the host's background hook (ZoneGraph::compute reads only
     // the static zones and links) and is applied on kick + latency (publish_paths, start of the update). Declared after
     // `paths`, so it is destroyed (waited for) first; `paths` is only replaced with no job in flight.
@@ -1066,7 +1066,7 @@ struct PlayerAi final : GoalModeHooks, ContextModeServices {
     bool evaluate(const std::string& function, int32_t target, double& out) override {
         return w->evaluate(player, function, target_handle(target), out);
     }
-    // OPT2 t03: batched goal values (ai_goals.hpp) on the host's job system.
+    // batched goal values (ai_goals.hpp) on the host's job system.
     const ParallelFor* candidate_pf() override { return &w->cfg.pf; }
     bool prepare_evaluation(const std::string& function) override { return w->concurrent_equation(function); }
     bool evaluate_prepared(const std::string& function, int32_t target, double& out) const override {
@@ -1077,7 +1077,7 @@ struct PlayerAi final : GoalModeHooks, ContextModeServices {
     void slice_end() override { w->pp_slice.player = -1; }
     bool accept(Goal& g) override {
         // Slot 10 (0x6b8850, land and space): Find_Plan_For_Goal only - one synced draw (§4.4).
-        ALAMO_PROFILE_SCOPE("tac.ai.accept");  // OPT2 t10: slot 10 (plan pick + first PotentialPlan solve)
+        ALAMO_PROFILE_SCOPE("tac.ai.accept");  // slot 10 (plan pick + first PotentialPlan solve)
         std::vector<double> ratio;
         if (!plan_candidates(g, ratio)) return false;
         const uint32_t plan = pp_cand[pick_weighted(ratio, w->rng.synced())];
@@ -1118,7 +1118,7 @@ struct PlayerAi final : GoalModeHooks, ContextModeServices {
         rec.picks = std::move(pp.picks);
         rec.layer_space = pp.layer_space;
         rec.layer_ground = pp.layer_ground;
-        g.nominal_time = w->pp_nominal_time(*this, rec.picks);  // A2g t06: AllowedTime base 0x6c0450(PP)
+        g.nominal_time = w->pp_nominal_time(*this, rec.picks);  // AllowedTime base 0x6c0450(PP)
         w->pps.emplace(h, std::move(rec));
         g.pp_handle = h;
         // --- end A2 tactical ---
@@ -1130,7 +1130,7 @@ struct PlayerAi final : GoalModeHooks, ContextModeServices {
         g.eta = 0.0f;
         return true;
     }
-    // ---- OPT2 t10: batched accept (ai_goals.hpp; TacticalAiConfig::pp_streams / pp_latency) ----
+    // ---- batched accept (ai_goals.hpp; TacticalAiConfig::pp_streams / pp_latency) ----
     // pp_solves: the slice's prepared solves (inputs with their own RNG stream); pp_plans: their plans (kept for the
     // apply); pp_out: their results once known; pp_job: the slice's solves in the background (pp_latency > 0). A save
     // waits for pp_job and writes pp_out (fetch_pp), so a loaded run applies the same results on the same frame.
@@ -1147,7 +1147,7 @@ struct PlayerAi final : GoalModeHooks, ContextModeServices {
         out.assign(s.size(), TacticalPpResult{});
         const auto body = [&s, &out](uint32_t b, uint32_t e) {
             for (uint32_t i = b; i < e; ++i) {
-                ALAMO_PROFILE_SCOPE("tac.ai.pp");  // OPT2 t10: one solve (any thread)
+                ALAMO_PROFILE_SCOPE("tac.ai.pp");  // one solve (any thread)
                 s[i].in.rng = &s[i].rng;
                 solve_tactical_pp(s[i].in, out[i]);
             }
@@ -1265,7 +1265,7 @@ struct PlayerAi final : GoalModeHooks, ContextModeServices {
         }
         ctx.budget.weigh(raw, member);
     }
-    // b0421: Commit 0x6c8710 is the goal system's own, in every mode (AI_GALACTIC §1.6 step 3, BKG3_RE_ANSWERS Q6 [H]):
+    // Commit 0x6c8710 is the goal system's own, in every mode (AI_GALACTIC §1.6 step 3, BKG3_RE_ANSWERS Q6 [H]):
     // categories in descending normalised budget weight (budget_weights above, rewritten every pass before Commit), equal
     // weights in category order. Test_Land's Map_Control (Medium_High, 35) therefore resolves before Tactical_Targeted
     // (Game.ForceVisibility, at most 1): retail's Empire AI on Utapau gives its four starting squads to two
@@ -1293,7 +1293,7 @@ struct PlayerAi final : GoalModeHooks, ContextModeServices {
     // A2h t06 (A2H_T06_TACTICAL_ETA §4) [H]: retail skips the maintenance time-drop outside galactic mode, so 0 is exact,
     // not a stand-in (the goal system's time-drop never fires: uses_budget() false and this 0).
     float elapsed_eta(const Goal&) override { return 0.0f; }
-    int32_t quota_players() override {  // the goal quota's N - H (bkx1 t01: the host's global PlayerList count)
+    int32_t quota_players() override {  // the goal quota's N - H (the host's global PlayerList count)
         return w->cfg.quota_players >= 0 ? w->cfg.quota_players : perception_players();
     }
     int32_t perception_players() const {  // the battle's players - humans (the zone recompute's K, PHASE2_ANSWERS Q11)
@@ -1302,7 +1302,7 @@ struct PlayerAi final : GoalModeHooks, ContextModeServices {
             ++n;
             humans += p.is_human ? 1 : 0;
         }
-        return std::max(n, w->cfg.player_list_size) - humans;  // skai t12: N = the whole PlayerList
+        return std::max(n, w->cfg.player_list_size) - humans;  // N = the whole PlayerList
     }
 
     // ---- ContextModeServices ----
@@ -1464,7 +1464,7 @@ void TacticalAiWorld::Impl::refresh(bool fill) {
     if (fill) host.fill(w, facts);
     ALAMO_PROFILE_STEP(steps, "tac.perc.fill");
     if (facts.size() != w.objects.size()) facts.resize(w.objects.size());
-    // refix t01: dying / removing objects (death clones: +0x3a0 |= 0xc0, S9_DEATH_CLONE_SHIELDS.md §1.6) are not
+    // dying / removing objects (death clones: +0x3a0 |= 0xc0, legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §1.6) are not
     // perceived - the perception adds (AI_TACTICAL §2 slot 11), the FreeStore base test and the target lists all skip
     // +0x3a0 bits 0x40 / 0x80. A host whose store walk lists them is filtered here (order of the rest kept).
     {
@@ -1483,7 +1483,7 @@ void TacticalAiWorld::Impl::refresh(bool fill) {
     ALAMO_PROFILE_STEP(steps, "tac.perc.dying");
     w.frame = mode_frame;
     w.index();
-    gate.suspend(world.ai_suspended() || (story_world && story_world->ai_suspended()));  // aitac t01: story Suspend_AI
+    gate.suspend(world.ai_suspended() || (story_world && story_world->ai_suspended()));  // story Suspend_AI
     ALAMO_PROFILE_STEP(steps, "tac.perc.index");
     // Object signals by snapshot comparison (header comment).
     std::vector<std::pair<int32_t, int32_t>> cur;
@@ -1498,7 +1498,7 @@ void TacticalAiWorld::Impl::refresh(bool fill) {
     // removed (ascending id)
     for (const auto& [id, owner] : prev) {
         if (in(cur, id)) continue;
-        attack_pos.erase(id);  // mcx6 t06: the data pack goes with the object
+        attack_pos.erase(id);  // the data pack goes with the object
         perc.grid().on_object_destroyed(id);
         perc.on_object_destroyed(id);
         for (auto& pa : ai)
@@ -1542,7 +1542,7 @@ void TacticalAiWorld::Impl::refresh(bool fill) {
     ALAMO_PROFILE_STEP(steps, "tac.perc.diff");
     // UNIT_AI service (every frame, registration order).
     perc.grid().service_all(w, mode_frame);
-    // mcx6 t06: the same service's attack-positioning step (0x4f6070 -> 0x4f6470) of the objects whose flag is set.
+    // the same service's attack-positioning step (0x4f6070 -> 0x4f6470) of the objects whose flag is set.
     if (!attack_pos.empty()) attack_positioning_step();
     ALAMO_PROFILE_STEP(steps, "tac.perc.grid");
     // Order completion for the AI VMs' object states [port]: idle units lose Has_Active_Orders and the order lock;
@@ -1597,7 +1597,7 @@ void TacticalAiWorld::Impl::units_lost(TfRec& t) {
         if (counted_entry_type(e.type)) return;
     for (const auto& [type, builder] : t.producing)
         if (counted_entry_type(type)) return;
-    // a1j t01: a company still in its landing (0x6ee010 put its type entries on the TF +0x60 vector at the order, 0x5f9fd0).
+    // a company still in its landing (0x6ee010 put its type entries on the TF +0x60 vector at the order, 0x5f9fd0).
     for (const auto& [id, s] : statuses)
         if ((s.kind == StatusKind::Reinforce || s.kind == StatusKind::SpaceReinforce) && !s.finished && s.tf == t.id)
             for (const auto& [key, type] : s.landings)
@@ -1640,7 +1640,7 @@ void TacticalAiWorld::Impl::service_free_store(PlayerAi& p) {
         lua::set_number_global(vm, "LastUnitService", p.sched.last_unit_service);
     }
     drain_world_requests(p.player, -1);
-    append_script_errors(vm, "free store " + std::to_string(p.player) + ": ", errors);  // S7 t27: with SCRIPT ERROR lines
+    append_script_errors(vm, "free store " + std::to_string(p.player) + ": ", errors);  // with SCRIPT ERROR lines
     lua::clear_script_logs(vm);
 }
 
@@ -1805,7 +1805,7 @@ void TacticalAiWorld::Impl::claim_force(TfRec& t) {
                 }
             }
         }
-        // skai t22: with keep_members_on_free_store, a task force's members keep their free-store reservation (above).
+        // with keep_members_on_free_store, a task force's members keep their free-store reservation (above).
         release_pp(pit->second.pp, static_cast<int32_t>(t.def), !cfg.keep_members_on_free_store(cfg.mode));
     }
     decide(t.player, [&] { return "tf " + t.name + " produce: " + std::to_string(t.units.size()) + " units, " + std::to_string(t.pending.size()) +
@@ -1816,7 +1816,7 @@ void TacticalAiWorld::Impl::claim_force(TfRec& t) {
         const TfRec copy = t;
         tf_event(copy, "Production_Failed", {a});
     }
-    if (!failed.empty()) units_lost(t);  // S7 t20: the production-failed path (§7.3.2)
+    if (!failed.empty()) units_lost(t);  // the production-failed path (§7.3.2)
 }
 
 // ---- A2 tactical: the PotentialPlan solve (slot 10) and its reservations ----
@@ -1920,7 +1920,7 @@ void TacticalAiWorld::Impl::pp_input(PlayerAi& p, uint32_t plan, const Goal& g, 
         }
         in.free_units.push_back(u);
     }
-    // OPT2 t10: inside a proposal slice the first solves share the host's answers (PpSliceHost).
+    // inside a proposal slice the first solves share the host's answers (PpSliceHost).
     PpSliceHost& sh = pp_slice;
     const bool shared = first_solve && sh.player == p.player;
     if (shared && !sh.pool_ok) {
@@ -2097,7 +2097,7 @@ bool TacticalAiWorld::Impl::resolve_pp(PlayerAi& p, const Goal& g) {
     return true;
 }
 
-// skai t15 - the running-plan contrast re-test, 0x6c47c0 step 2 (SKAI_T15_PLAN_RETEST §1, §2.3) [H]: for a running PP
+// the running-plan contrast re-test, 0x6c47c0 step 2 (SKAI_T15_PLAN_RETEST §1, §2.3) [H]: for a running PP
 // (PP +0x100) of a plan that is not IgnoreTarget, the contrast lists are rebuilt from the current perception and recent
 // failures, the stored selection is committed (a live selected unit at its health, a dead / captured / not yet arrived one at
 // full type power; a unit that left the task force is no longer in the selection, pp_unit_left), and the contrast Finalize
@@ -2131,7 +2131,7 @@ bool TacticalAiWorld::Impl::pp_retest_failed(PlayerAi& p, const Goal& g) {
     return true;
 }
 
-// A2g t06: 0x6c0450(PP) of one of p's PotentialPlans (tactical_nominal_time), the goal's AllowedTime base. A2h t06
+// 0x6c0450(PP) of one of p's PotentialPlans (tactical_nominal_time), the goal's AllowedTime base. A2h t06
 // (A2H_T06_TACTICAL_ETA §3) [H]: retail reads the galactic Build_Time_Seconds (+0x890) in every mode, never
 // Tactical_Build_Time_Seconds (+0xA00), x Production_Speed_Factor (truncated) x the Land_ / Space_Build_Time_Multiplier; keep it so.
 float TacticalAiWorld::Impl::pp_nominal_time(const PlayerAi& p, const std::vector<TacticalPpPick>& picks) const {
@@ -2152,7 +2152,7 @@ void TacticalAiWorld::Impl::reserve_pp(int32_t handle) {
         if (first && k.source == PpSource::Reinforcement) pool_reserved[k.ref] = handle;
         if (first && k.source == PpSource::Build) pad_reserved[k.ref] = handle;
     }
-    // mcx6 t06: the pool slots a Lua Release_Reinforcements freed are reserved again (vf +0xe0: a slot another PP took in
+    // the pool slots a Lua Release_Reinforcements freed are reserved again (vf +0xe0: a slot another PP took in
     // between stays its; the result is ignored). [port] the port holds a PP's pool slots from its first reserve on rather
     // than re-reserving PP +0x120 at every Commit, so only the Lua-released ones come back here.
     if (it->second.lua_released.empty()) return;
@@ -2217,14 +2217,14 @@ void TacticalAiWorld::Impl::release_pp(int32_t handle, int32_t tf_def, bool free
         if (!m) continue;
         const auto r = m->find(k.ref);
         if (r != m->end() && r->second == handle) m->erase(r);
-        if (k.source == PpSource::Reinforcement) {  // mcx6 t06: released for good, not taken back at the next Commit
+        if (k.source == PpSource::Reinforcement) {  // released for good, not taken back at the next Commit
             auto& lr = it->second.lua_released;
             lr.erase(std::remove(lr.begin(), lr.end(), k.ref), lr.end());
         }
     }
 }
 
-// a1g t04 + t01 - 0x6bf3d0 (PP, unit) from ReinforceBlockStatus (A1_READINGS §28.4): a unit a land TF.Reinforce
+// 0x6bf3d0 (PP, unit) from ReinforceBlockStatus (A1_READINGS §28.4): a unit a land TF.Reinforce
 // delivered joins its plan's PP+0x108 (reinforce_join_pp) and is reserved by that PP (+0x30 = PP). [port] The port keeps
 // task-force units off the free store (0x4d5000 erases the node when a task force takes a unit), so the delivered unit is
 // not admitted: +0x30 = PP is set only if it is on the store. The new object is not perceived until the next refresh, so
@@ -2252,7 +2252,7 @@ void TacticalAiWorld::Impl::reinforce_joined(const TfRec& t, int32_t unit, int32
 }
 
 // ================================================================ mcx6 t06: attack positioning, Release_Reinforcements
-// docs/re/LUA_API.md "Task force: Enable_Attack_Positioning and Release_Reinforcements (mcx6 Q11)".
+// legacy docs/re/LUA_API.md "Task force: Enable_Attack_Positioning and Release_Reinforcements (mcx6 Q11)".
 
 // 0x6eaa80 after the binding's checks: the task force's unit list in list order; each object with UNIT_AI gets the flag
 // (0x4f6450, data pack +0x38). Land Add_Force / removal never touch it, so a later member does not get it and a released
@@ -2331,7 +2331,7 @@ bool step_toward(Vec3f& p, const Vec3f& to, float s) {
 // 0x4f5390 (+ the land terrain check 0x4f48a0). T = the formation target point (the hard point's world position when the
 // attack names one); d = min(T's 2-D extent, half the unit's max attack range). Only with a threat grid (else `pos`
 // keeps its old value): pos = the centre of the lowest-threat d x d square around T (attack_position_square, threat_grid.hpp).
-// Land mode, [M] / [port] (LUA_API.md gives the shape, not the walk): while the terrain line test pos -> T fails, pos moves
+// Land mode, [M] / [port] (legacy docs/re/LUA_API.md gives the shape, not the walk): while the terrain line test pos -> T fails, pos moves
 // 30 units toward T (at most to T); then while the line test unit -> pos fails, pos moves 30 units back toward the unit
 // (at most to the unit). Keep_Moving_In_Battle's corner variant is not modelled (unset in FoC).
 void TacticalAiWorld::Impl::attack_position(const PerceptionObject& o, const TacticalAiObject& f, Vec3f& pos) {
@@ -2355,7 +2355,7 @@ void TacticalAiWorld::Impl::attack_position(const PerceptionObject& o, const Tac
 // formation and walks there (+0x24 := 1). [port] The detach (0x424850) and the pushed position block (0x41fd30) are one
 // MoveToPositionFacing order for the unit alone through the AI pipeline (a TEAM container: its live members): the port has
 // no block stack, so the move replaces the formation's attack block instead of sitting above it; the unit then fires
-// through its own targeting (LUA_API.md "Net effect"). The +0x24 attack branch needs Keep_Moving_In_Battle (unset in FoC):
+// through its own targeting (legacy docs/re/LUA_API.md "Net effect"). The +0x24 attack branch needs Keep_Moving_In_Battle (unset in FoC):
 // not modelled.
 void TacticalAiWorld::Impl::attack_positioning_step() {
     struct Move {
@@ -2496,7 +2496,7 @@ void TacticalAiWorld::Impl::end_plan(int32_t id, bool by_goal_system) {
     decide(pi.player, [&] { return "plan " + std::to_string(id) + " " + library.plans[pi.plan].name + " ended " + (pi.result ? "success" : "failure") +
                           (by_goal_system ? " (released)" : ""); });
     if (pi.vm) {
-        append_script_errors(*pi.vm, library.plans[pi.plan].name + ": ", errors);  // S7 t27: with SCRIPT ERROR lines
+        append_script_errors(*pi.vm, library.plans[pi.plan].name + ": ", errors);  // with SCRIPT ERROR lines
         runtime->release(pi.plan, std::move(pi.vm));
     }
     plans.erase(it);
@@ -2601,7 +2601,7 @@ void TacticalAiWorld::Impl::unit_damaged_events(const std::vector<UnitDamagedSig
 }
 
 void TacticalAiWorld::Impl::drain_world_requests(int32_t player, int32_t plan) {
-    // aitac t01: the story session's requests first (the story ran before this AI service in the tick), then the AI's own.
+    // the story session's requests first (the story ran before this AI service in the tick), then the AI's own.
     if (story_world) drain_requests(*story_world, -1);
     drain_requests(world, plan);
     world.budget_flushes.clear();     // no tactical budget (§4.1)
@@ -2685,7 +2685,7 @@ void TacticalAiWorld::Impl::service_statuses(int32_t player) {
     }
     for (auto s = statuses.begin(); s != statuses.end();)
         s = (s->second.finished && plans.find(s->second.plan) == plans.end()) ? statuses.erase(s) : std::next(s);
-    // S7 t20: No_Units_Remaining is raised from the removal signals (refresh, release, production failure), not polled here.
+    // No_Units_Remaining is raised from the removal signals (refresh, release, production failure), not polled here.
 }
 
 bool TacticalAiWorld::Impl::step_status(StatusRec& s) {
@@ -2702,12 +2702,12 @@ bool TacticalAiWorld::Impl::step_status(StatusRec& s) {
             if (!t) return finish(false);
             prune_tf(*t);
             // AI_GALACTIC_3 §1.11 / §1.11.1: a started tactical build registers the unit with the plan and waits for it.
-            // A finished build (signal 0x22, production_completed) ends its entry with no event. aitac t05: an entry whose
+            // A finished build (signal 0x22, production_completed) ends its entry with no event. An entry whose
             // builder is gone is the queue cancel (signal 3, re-validation 0x497140): Production_Failed(tf, type), then
             // the No_Units_Remaining test. [port] The other cancel causes (build limit, prerequisites lost) are not seen
             // here, and the TF's wanted-list erase quirk of 0x5fdd90 is not modelled (the port keeps no wanted list).
             if (const size_t before = t->producing.size(); before > 0) {
-                // skai t17: a builder replaced by a station upgrade keeps the entry, at the new station (the host
+                // a builder replaced by a station upgrade keeps the entry, at the new station (the host
                 // retargets the queue, STATION_HANGARS_SOUND §1.2 steps 7-8).
                 for (auto& e : t->producing)
                     if (!store.alive(store.find(e.second)))
@@ -2725,7 +2725,7 @@ bool TacticalAiWorld::Impl::step_status(StatusRec& s) {
                     const TfRec copy = *t;
                     tf_event(copy, "Production_Failed", {a});
                 }
-                if (t->producing.size() < before) units_lost(*t);  // S7 t20: a build entry failed
+                if (t->producing.size() < before) units_lost(*t);  // a build entry failed
             }
             if (!t->producing.empty()) return false;
             return finish(true);  // §1.11.1: ProduceForceBlockStatus Result is the base true, finished or cancelled
@@ -2745,14 +2745,14 @@ bool TacticalAiWorld::Impl::step_status(StatusRec& s) {
             if (s.target >= 0) return step_object_block(s, *t);
             if (now <= s.started) return false;
             for (const ObjectHandle u : t->units) {
-                if (!listed(s, id_of(u))) continue;  // aitac t05: taken out by signal 0xb (or joined after the order)
+                if (!listed(s, id_of(u))) continue;  // taken out by signal 0xb (or joined after the order)
                 const TacticalAiObject* f = fact(id_of(u));
                 if (f && f->moving) return false;
             }
             return finish(true);
         }
-        case StatusKind::SpaceReinforce: return false;  // refixf t06: advanced only by the Lua poll (status_finished)
-        case StatusKind::Reinforce: return false;       // a1j t01: advanced by the signal 0x19 records (reinforcements_unloaded)
+        case StatusKind::SpaceReinforce: return false;  // advanced only by the Lua poll (status_finished)
+        case StatusKind::Reinforce: return false;       // advanced by the signal 0x19 records (reinforcements_unloaded)
         case StatusKind::Explore: {
             // aitac t07 (§2.3.1): 0x10 / 0x1a of a unit (dead, or another owner) take it out of the list; signal 10 (the
             // formation arrived) asks for a new pick, made at this poll (IsFinished 0x6b04a0); Result is true.
@@ -2815,7 +2815,7 @@ bool TacticalAiWorld::Impl::step_status(StatusRec& s) {
             }
             if (now <= s.started) return false;
             for (const ObjectHandle u : t->units) {
-                if (!listed(s, id_of(u))) continue;  // aitac t05: taken out by signal 0xb (or joined after the order)
+                if (!listed(s, id_of(u))) continue;  // taken out by signal 0xb (or joined after the order)
                 const TacticalAiObject* f = fact(id_of(u));
                 if (f && f->moving) return false;
             }
@@ -2835,8 +2835,8 @@ void TacticalAiWorld::Impl::block_end_log(const StatusRec& s, const TfRec& t, co
 }
 
 // An Attack_Move to an OBJECT (0x73c4f0; Move_To keeps no object, tf_tactical_order) - A1_READINGS §33.2 modes 0 / 1,
-// §33.2.1 / §33.2.2, AI_TACTICAL §7.7.3 item 1. Passive (a1h t02: the battle host's movement follows the object, §33.4).
-// q6 t19: Result is nil in every case (0x17d070), target death included. It finishes
+// §33.2.1 / §33.2.2, AI_TACTICAL §7.7.3 item 1. Passive (the battle host's movement follows the object, §33.4).
+// Result is nil in every case (0x17d070), target death included. It finishes
 //   * at once when the object dies (signal 0x10) or its owner changed and it is no longer hostile (0x1a with the attack
 //     flag, which every TF Attack_Move on an object sets) [port: the owner change is polled once per status service];
 //   * when every unit of its all-units list (`members`, the TF units at the order) has left the task force;
@@ -2951,7 +2951,7 @@ int32_t TacticalAiWorld::Impl::issue_move(TfRec& t, AiTacticalOrder kind, const 
         statuses[id].target_owner = store.owner(th);  // q6: the 0x1a owner-change stand-in compares against this
     {
         // q6 t19 (§33.2.2): all-units list = the TF units at the order; pending = the moved units, without those whose
-        // attack order the host refused (they stay in the all-units list). aitac t05: a position move / guard keeps the
+        // attack order the host refused (they stay in the all-units list). a position move / guard keeps the
         // lists too (signal 0xb of a unit takes it out: land 0x73ce80 §33.2, space 0x739890 §33.2.3).
         StatusRec& s = statuses[id];
         const std::vector<int32_t> refused = target_object >= 0 ? battle().attack_order_refused() : std::vector<int32_t>{};
@@ -3104,7 +3104,7 @@ int32_t TacticalAiWorld::Impl::tf_tactical_order(int32_t tf, lua::AiTacticalOrde
     return issue_move(*t, k, p, target_object);
 }
 
-// ---- S7 t21: Prepare_Ambush (AI_TACTICAL §7.3.1) ----
+// ---- Prepare_Ambush (AI_TACTICAL §7.3.1) ----
 
 float land_ambush_step(float land_fow_reveal_range, float weather_sight_factor, float max_attack_range) {
     const float sight = land_fow_reveal_range * weather_sight_factor;  // 0x3722a0
@@ -3338,7 +3338,7 @@ void TacticalAiWorld::Impl::order_signal(int32_t oid) {
 void TacticalAiWorld::Impl::movement_block_signal(int32_t oid, int32_t team_id) {
     const auto gone = [oid, team_id](int32_t m) { return m == oid || (team_id >= 0 && m == team_id); };
     for (auto& [id, s] : statuses) {
-        if (s.kind == StatusKind::Explore) {  // aitac t07: 0xb takes the unit out; the status does not finish here
+        if (s.kind == StatusKind::Explore) {  // 0xb takes the unit out; the status does not finish here
             if (!s.finished && !in_world_order) std::erase_if(s.members, gone);  // its own moves raise 0xb too [port: collect 0]
             continue;
         }
@@ -3507,7 +3507,7 @@ int32_t TacticalAiWorld::Impl::tf_attack_target(int32_t tf, const lua::AiArg& ta
     return id;
 }
 
-// a1g t04 - land TF.Reinforce placement (header comments of reinforce_points / reinforce_ring / reinforce_place).
+// land TF.Reinforce placement (header comments of reinforce_points / reinforce_ring / reinforce_place).
 std::vector<ReinforcePoint> reinforce_points(const PerceptionWorld& w, const std::vector<TacticalAiObject>& facts, int32_t player,
                                              const Vec3f& dest, const ReinforcePointRank& rank) {
     std::vector<ReinforcePoint> out;
@@ -3581,10 +3581,10 @@ int32_t TacticalAiWorld::Impl::tf_reinforce(int32_t tf, const lua::AiArg& target
     if (!t) return -1;
     if (t->pending.empty()) return -2;
     if (cfg.mode == TacticalMode::Space) {
-        // refixf t06 - SpaceReinforceBlockStatus (0x6e8620 / init 0x7235c0, AI_TACTICAL §7.4 [H]): the target T is the centre
+        // SpaceReinforceBlockStatus (0x6e8620 / init 0x7235c0, AI_TACTICAL §7.4 [H]): the target T is the centre
         // of a ring search (z := 0), not a drop point; the units are placed by the status's IsFinished, one per Lua poll
         // (space_reinforce_poll). Optional max wait in seconds -> timeout frame. R = 1000 when T lies inside a non-allied
-        // Reinforcement_Prevention_Radius, else 0. skm1 t03: in a skirmish (0x28afb0) the player needs a live allied
+        // Reinforcement_Prevention_Radius, else 0. In a skirmish (0x28afb0) the player needs a live allied
         // DUMMY_STAR_BASE, else the call is refused with nil (-3: "Rule Change: ..." message, no status).
         Vec3f p;
         if (!arg_position(target, point, p)) return -1;
@@ -3608,7 +3608,7 @@ int32_t TacticalAiWorld::Impl::tf_reinforce(int32_t tf, const lua::AiArg& target
     if (!battle().can_reinforce(t->player) || (cap >= 0.0f && remaining < 1.0f)) return new_status(t->plan, tf, StatusKind::Failed);
     Vec3f p;
     if (!arg_position(target, point, p)) return -1;
-    // a1g t04 - land TF.Reinforce placement (0x6eaf60, AI_TACTICAL §7.4, A1_READINGS §25.3 / §30.7 [H]). The destination
+    // land TF.Reinforce placement (0x6eaf60, AI_TACTICAL §7.4, A1_READINGS §25.3 / §30.7 [H]). The destination
     // zone: a region target's zone, else the zone at the position. Points in a zone outside the destination's flood set
     // at the TF goal's Reachability are dropped; the rest are keyed (float) by the slot-7 path cost from their zone at
     // that level (a failed path = 1e18, sorted last); a point without a zone keys by its 2-D distance (the original's
@@ -3659,7 +3659,7 @@ int32_t TacticalAiWorld::Impl::tf_reinforce(int32_t tf, const lua::AiArg& target
         return r.type < 0 || std::none_of(pool.begin(), pool.end(), [&r](const TacticalReinforcement& e) { return e.key == r.key; });
     };
     uint32_t spawned = 0;
-    std::vector<std::pair<int32_t, int32_t>> in_flight;  // a1j t01: (key, type) of the timed landings this call issued
+    std::vector<std::pair<int32_t, int32_t>> in_flight;  // (key, type) of the timed landings this call issued
     auto land = [&](const TacticalReinforcement& r, const Vec3f& spot) {
         // a1g t04 follow-up: the mode's drop validity (TacticalAiHost::land_drop_ok); a refused spot is not ordered.
         if (!battle().land_drop_ok(t->player, r.key, spot)) {
@@ -3694,7 +3694,7 @@ int32_t TacticalAiWorld::Impl::tf_reinforce(int32_t tf, const lua::AiArg& target
     };
     const bool placed_all = reinforce_place(points, t->pending, cap >= 0.0f ? remaining : HUGE_VALF, is_null, land);
     if (in_flight.empty()) return new_status(t->plan, tf, placed_all ? StatusKind::Done : StatusKind::Failed);
-    // a1j t01 - ReinforceBlockStatus init 0x6a1120 / IsFinished 0x6a11d0 / Result 0x6a1a50 (A1_READINGS §36): unfinished
+    // ReinforceBlockStatus init 0x6a1120 / IsFinished 0x6a11d0 / Result 0x6a1a50 (A1_READINGS §36): unfinished
     // while a landing is in flight; Result = every pending unit placed (0x6eaf60's return, kept at the order). While it
     // waits the plan is not goal-system removable (+0x44 = the plan's flag, then cleared); the last landing restores it.
     const int32_t id = new_status(t->plan, tf, StatusKind::Reinforce);
@@ -3708,7 +3708,7 @@ int32_t TacticalAiWorld::Impl::tf_reinforce(int32_t tf, const lua::AiArg& target
     return id;
 }
 
-// a1j t01 - the ReinforceBlockStatus signal handler 0x6a1440 (A1_READINGS §32.1 / §36) for each signal 0x19 record of the
+// the ReinforceBlockStatus signal handler 0x6a1440 (A1_READINGS §32.1 / §36) for each signal 0x19 record of the
 // tick, in order. The status that issued the landing of `key` for `player` drops it from its in-flight list; when its owner
 // is a live task force each unloaded unit in list order joins it (Add_Force, land 0x6e9240: off the free store) and its
 // plan's PP (0x6bf3d0). When the list empties the status finishes with the Result set at the order and the plan's
@@ -3769,7 +3769,7 @@ bool reinforce_join_pp(std::vector<TacticalPpPick>& picks, int32_t unit, int32_t
     return false;
 }
 
-// refixf t06 - SpaceReinforceBlockStatus IsFinished (vf19 0x7236f0 -> placement 0x722e80, AI_TACTICAL §7.4 [H]): one placement
+// SpaceReinforceBlockStatus IsFinished (vf19 0x7236f0 -> placement 0x722e80, AI_TACTICAL §7.4 [H]): one placement
 // attempt per Lua poll, then the finish test.
 //   1. The TF's LAST pending entry [port: the TF list itself, not a copy taken at creation; a pool entry that left the
 //      host's pool is dropped].
@@ -3779,7 +3779,7 @@ bool reinforce_join_pp(std::vector<TacticalPpPick>& picks, int32_t unit, int32_t
 //   4. All failed -> R += 500 (the next poll tries the next ring). Pass -> the Reinforce event at P (the host spawns the
 //      unit), the entry is popped, its spawned objects join the TF, R resets (1000 inside a prevention radius, else 0).
 // Finished = timed out (0 <= timeout <= now) or (no pending entry left and none in flight); result = every entry placed.
-// aitac t05: a drop whose units are still arriving (host reinforce_in_flight) is in flight (status landings, +0x78) until
+// a drop whose units are still arriving (host reinforce_in_flight) is in flight (status landings, +0x78) until
 // the host's 0x19 record (reinforcements_unloaded), when its units join the TF.
 void TacticalAiWorld::Impl::space_reinforce_poll(StatusRec& s) {
     TfRec* t = tf_rec(s.tf);
@@ -4119,8 +4119,8 @@ TacticalAiWorld::TacticalAiWorld(objects::ObjectStore& store, const objects::Gam
     Impl& w = *impl_;
     w.world.set_players(w.cfg.lua_players);
     w.pipeline.set_handler([&w](uint64_t, const cmd::Command& c) {
-        w.pp_slice.clear();  // OPT2 t10: an order may change what the host answers
-        if (c.header.player > 0xFFu) return cmd::RejectReason::InvalidPlayer;  // mcx5: uint8_t sim ids; refuse, never truncate
+        w.pp_slice.clear();  // an order may change what the host answers
+        if (c.header.player > 0xFFu) return cmd::RejectReason::InvalidPlayer;  // uint8_t sim ids; refuse, never truncate
         const auto player = static_cast<uint8_t>(c.header.player);
         const cmd::RejectReason r = w.host.execute(player, c.payload);
         ++w.orders;
@@ -4168,7 +4168,7 @@ TacticalAiWorld::TacticalAiWorld(objects::ObjectStore& store, const objects::Gam
     w.gate.start_game();
     // Shared perception: threat grid over the map, evaluator handles; land zone graph.
     TacticalPerceptionConfig pcfg;
-    pcfg.category_mask = tactical_category_resolver(w.types);  // q6 t03: the loaded category enum (mods renumber it)
+    pcfg.category_mask = tactical_category_resolver(w.types);  // the loaded category enum (mods renumber it)
     w.perc.init(w.cfg.mode, w.cfg.constants, w.cfg.map, static_cast<uint32_t>(std::max<size_t>(w.cfg.lua_players.size(), 1)), w.cfg.zones,
                 pcfg);
     if (w.cfg.mode == TacticalMode::Land && !w.cfg.zones.empty()) w.zones.build(w.cfg.zones);
@@ -4224,7 +4224,7 @@ bool TacticalAiWorld::load_plans(std::vector<std::string>* diagnostics) {
 
 bool TacticalAiWorld::start(std::vector<std::string>* diagnostics) {
     Impl& w = *impl_;
-    if (w.snap_store) *w.snap_store = *w.live_store;  // sp3: the start scripts read the battle as it is now (critical lane)
+    if (w.snap_store) *w.snap_store = *w.live_store;  // the start scripts read the battle as it is now (critical lane)
     if (w.cfg.ai_lane) w.refresh_gv_view();
     const AiMode mode = ai_mode_of(w.cfg.mode);
     const auto mi = static_cast<size_t>(mode);
@@ -4272,7 +4272,7 @@ bool TacticalAiWorld::start(std::vector<std::string>* diagnostics) {
         GoalSystemConfig gcfg;
         // Slot 11: Land_ / Space_AI_Goal_Cycle_Sleep_Duration x FPS after a commit (Easy 15 s, §4.5).
         gcfg.sleep_frames = frames_trunc(static_cast<float>(kAiFps) * sleep);
-        // A2g t06: AllowedTime with a PP = Goal::nominal_time (0x6c0450, tactical_nominal_time) x Build_Time_Delay_Tolerance,
+        // AllowedTime with a PP = Goal::nominal_time (0x6c0450, tactical_nominal_time) x Build_Time_Delay_Tolerance,
         // as galactic (A2F_RE_READS §1.4 item 2) [H]. Tactical goals carry ETA 0 (accept_result) [H, A2H_T06_TACTICAL_ETA
         // §2.1], so the time tests (accept, Resolve time_ok: 0 < AllowedTime < ETA) never fail (§4); the value is hashed and
         // saved with the goal.
@@ -4281,13 +4281,13 @@ bool TacticalAiWorld::start(std::vector<std::string>* diagnostics) {
         // (default 2) in every mode: retail's first land skirmish commit starts two scouts and two Secure_Contestable
         // plans (SKAI_T06_LAND_RUNS §7); the config default 1 started one of each.
         gcfg.extra_goals_per_category = type->goal_set_extension_size;
-        // skai t17 / t20: Resolve may accept an old candidate again (GoalSystemConfig::reaccept_old_candidates) [H] in
+        // Resolve may accept an old candidate again (GoalSystemConfig::reaccept_old_candidates) [H] in
         // both tactical modes (retail Geonosis keeps its first build plan when a Build_Refinery_Space goal outranks it;
         // the land and space goal systems share Resolve).
         gcfg.reaccept_old_candidates = true;
         // skai t15 (SKAI_T15_TARGET_CHOICE Q3 [H]): a failed re-evaluation keeps the incumbent's desire; land only for now [port].
         gcfg.keep_desire_on_failed_eval = w.cfg.mode == TacticalMode::Land;
-        // bkx1 t01 (b0123, BKX1_CADENCE_RE §1 / §3 [H]): the battle goal systems run the galactic cadence (Service 0x6cacd0,
+        // bkx1 t01 (BKX1_CADENCE_RE §1 / §3 [H]): the battle goal systems run the galactic cadence (Service 0x6cacd0,
         // Init 0x6ca1f0): the first quota seeded from sources x max(1, targets), each slice ends at the quota.
         gcfg.retail_cadence = w.cfg.retail_cadence;
         // aitac t04 (BKG3_RE_ANSWERS Q4 [H]): the Is_Like like-set lookup 0x721a50 serves land (slot 9 0x6b8710) and space
@@ -4296,7 +4296,7 @@ bool TacticalAiWorld::start(std::vector<std::string>* diagnostics) {
         gcfg.like_sets = true;
         p.ctx.goals.init(w.defs, std::move(sources), &p, &p.ctx.learning, &p.ctx.templates, &w.rng.synced(), gcfg);
         p.ctx.attach(&p, [&w, &p](const std::string& eq, double& out) { return w.evaluate(p.player, eq, -1, out); });
-        if (w.cfg.stagger) {  // OPT2 t01: a fixed planning phase from the player's AI ordinal (players in index order)
+        if (w.cfg.stagger) {  // a fixed planning phase from the player's AI ordinal (players in index order)
             int32_t ordinal = 0;
             for (const TacticalAiPlayerConfig& o : w.cfg.players) ordinal += o.player < pc.player ? 1 : 0;
             p.ctx.set_stagger(ordinal, static_cast<int32_t>(w.cfg.players.size()));
@@ -4342,7 +4342,7 @@ void TacticalAiWorld::publish(int64_t now, uint32_t mode_frame) {
     w.now = now;
     w.mode_frame = mode_frame;
     {
-        ALAMO_PROFILE_SCOPE("tac.ai.publish");  // sp3: the critical lane's share (fill, event lists, snapshot store)
+        ALAMO_PROFILE_SCOPE("tac.ai.publish");  // the critical lane's share (fill, event lists, snapshot store)
         if (w.snap_store) *w.snap_store = *w.live_store;
         w.refresh_gv_view();  // slice 4e (part 3)
         w.host.fill(w.w, w.facts);
@@ -4356,9 +4356,9 @@ namespace {
 void run_update(TacticalAiWorld::Impl& w, bool lane) {
     const int64_t now = w.now;
     const uint32_t mode_frame = w.mode_frame;
-    for (auto& pa : w.ai)  // OPT2 t02: background land path recomputes due on this mode frame
+    for (auto& pa : w.ai)  // background land path recomputes due on this mode frame
         if (pa) pa->publish_paths(static_cast<int64_t>(mode_frame));
-    {  // OPT2 t04: staggered scheduled Lua collections, once per update before any script of this world runs
+    {  // staggered scheduled Lua collections, once per update before any script of this world runs
         std::vector<lua::LuaVm*> vms;  // free stores by player, plans by id, evaluators by name (saved orders)
         for (const auto& pa : w.ai)
             if (pa && pa->fs_vm) vms.push_back(pa->fs_vm.get());
@@ -4369,10 +4369,10 @@ void run_update(TacticalAiWorld::Impl& w, bool lane) {
         lua::collect_scheduled(vms, static_cast<uint64_t>(now), w.cfg.lua_gc_pf);
     }
     {
-        ALAMO_PROFILE_SCOPE("tac.ai.perception");  // OPT2 t08: snapshot, threat grid, signals
+        ALAMO_PROFILE_SCOPE("tac.ai.perception");  // snapshot, threat grid, signals
         w.refresh(!lane);
         profile::Steps steps;  // sp0: the signal passes after refresh()
-        // sp3 t02: with the lane on, the lists publish() captured (same order); lane off, each list is taken right before
+        // with the lane on, the lists publish() captured (same order); lane off, each list is taken right before
         // it is handled (a task-force event handler may give orders in between)
         FrameEvents now_events;
         const auto take = [&](uint32_t kind) -> const FrameEvents& {
@@ -4381,16 +4381,16 @@ void run_update(TacticalAiWorld::Impl& w, bool lane) {
             return now_events;
         };
         w.opportunity_events(take(FrameEvents::kOpportunity).opportunity);            // STRATEGIC_GAPS §5.3
-        w.target_in_range_events(take(FrameEvents::kAttackStates).attack_states);     // s78f t08: signal 0x1E
-        w.unit_damaged_events(take(FrameEvents::kDamaged).damaged);                   // skai t15: signal 0x18
+        w.target_in_range_events(take(FrameEvents::kAttackStates).attack_states);     // signal 0x1E
+        w.unit_damaged_events(take(FrameEvents::kDamaged).damaged);                   // signal 0x18
         w.ability_signals(take(FrameEvents::kAbilityFinished).ability_finished);      // S7 t15 A1: signal 0x29
-        w.reinforcements_unloaded(take(FrameEvents::kUnloaded).unloaded);             // a1j t01: signal 0x19
-        w.production_completed(take(FrameEvents::kProduced).produced);                // q6 t19: signal 0x22
+        w.reinforcements_unloaded(take(FrameEvents::kUnloaded).unloaded);             // signal 0x19
+        w.production_completed(take(FrameEvents::kProduced).produced);                // signal 0x22
         w.status_signals();                                  // S7 t21 / S7 t15 A1: ambush / ability status signals
         ALAMO_PROFILE_STEP(steps, "tac.perc.signals");
     }
     const bool enabled = w.gate.enabled(ai_mode_of(w.cfg.mode));
-    // OPT2 t08: one zone per AI player's service (goals, plans, free store; their Lua is also in lua.exec).
+    // one zone per AI player's service (goals, plans, free store; their Lua is also in lua.exec).
     static const profile::ZoneId kPlayerZone[] = {
         profile::register_zone("tac.ai.p0"), profile::register_zone("tac.ai.p1"), profile::register_zone("tac.ai.p2"),
         profile::register_zone("tac.ai.p3"), profile::register_zone("tac.ai.p4"), profile::register_zone("tac.ai.p5"),
@@ -4488,7 +4488,7 @@ size_t TacticalAiWorld::free_store_size(int32_t player) const {
 size_t TacticalAiWorld::background_jobs_in_flight() const {
     size_t n = 0;
     for (const auto& a : impl_->ai) n += (a && a->path_job.in_flight()) ? 1u : 0u;
-    for (const auto& a : impl_->ai) n += (a && a->ctx.goals.accept_pending()) ? 1u : 0u;  // OPT2 t10: slot-10 solves
+    for (const auto& a : impl_->ai) n += (a && a->ctx.goals.accept_pending()) ? 1u : 0u;  // slot-10 solves
     return n;
 }
 size_t TacticalAiWorld::live_targets(int32_t player) const {
@@ -4503,7 +4503,7 @@ const std::vector<TacticalAiDecision>& TacticalAiWorld::decision_log() const { r
 std::vector<std::string> TacticalAiWorld::lua_errors() const {
     std::vector<std::string> e = impl_->errors;
     for (const auto& [id, p] : impl_->plans)
-        if (p.vm) append_script_errors(*p.vm, impl_->library.plans[p.plan].name + ": ", e);  // S7 t27: with SCRIPT ERROR lines
+        if (p.vm) append_script_errors(*p.vm, impl_->library.plans[p.plan].name + ": ", e);  // with SCRIPT ERROR lines
     for (const auto& a : impl_->ai)
         if (a && a->fs_vm) append_script_errors(*a->fs_vm, "free store " + std::to_string(a->player) + ": ", e);
     return e;
@@ -4597,7 +4597,7 @@ std::string TacticalAiWorld::diagnostic_holdings(int32_t player) const {
     return out;
 }
 
-// The records' CRC fields come from their field lists (tactical_ai_records.hpp, REF1 t03); the order of the blocks
+// The records' CRC fields come from their field lists (tactical_ai_records.hpp); the order of the blocks
 // below is the CRC's own (the save's differs).
 void TacticalAiWorld::hash(StateHasher& h) const {
     const Impl& w = *impl_;
@@ -4645,11 +4645,11 @@ void TacticalAiWorld::hash(StateHasher& h) const {
     w.bridge.hash(h);
     h.u64(w.orders);
     h.u64(w.rejected);
-    if (!w.attack_pos.empty()) {  // mcx6 t06: only once a land Enable_Attack_Positioning ran (base FoC never calls it)
+    if (!w.attack_pos.empty()) {  // only once a land Enable_Attack_Positioning ran (base FoC never calls it)
         h.u8(0xA7);
         records(w.attack_pos);
     }
-    if (w.cfg.ai_lane) {  // sp3: the AI-owned stream is AI state (both instances: the free one drives AI decisions too)
+    if (w.cfg.ai_lane) {  // the AI-owned stream is AI state (both instances: the free one drives AI decisions too)
         h.u32(w.cfg.k_ai);
         w.own_rng.synced().hash(h);
         w.own_rng.free().hash(h);
@@ -4664,13 +4664,13 @@ void TacticalAiWorld::register_crc(CrcRegistry& registry, const std::string& nam
 
 namespace {
 
-constexpr uint32_t kTacticalAiSaveVersionNoPad = 12, kTacticalAiLaneSaveVersionNoPad = 13;  // still loaded (b0416)
-// skai t15: 16 / 17 add the PP contrast entries, layer flags and re-test byte; 14 / 15 still load (re-test state empty).
+constexpr uint32_t kTacticalAiSaveVersionNoPad = 12, kTacticalAiLaneSaveVersionNoPad = 13;  // still loaded
+// 16 / 17 add the PP contrast entries, layer flags and re-test byte; 14 / 15 still load (re-test state empty).
 constexpr uint32_t kTacticalAiSaveVersionNoRetest = 14, kTacticalAiLaneSaveVersionNoRetest = 15;
-// mcx6 t06: 18 / 19 add the attack-positioning records and the PPs' Lua-released pool keys (the last block); 16 / 17 still
+// 18 / 19 add the attack-positioning records and the PPs' Lua-released pool keys (the last block); 16 / 17 still
 // load (none of either).
 constexpr uint32_t kTacticalAiSaveVersionNoAttackPos = 16, kTacticalAiLaneSaveVersionNoAttackPos = 17;
-constexpr uint32_t kTacticalAiLaneSaveVersion = 19;  // sp3: kTacticalAiSaveVersion plus the AI-lane block (13 before b0416) (k_ai, the AI-owned GameRandom)
+constexpr uint32_t kTacticalAiLaneSaveVersion = 19;  // kTacticalAiSaveVersion plus the AI-lane block (13 before b0416) (k_ai, the AI-owned GameRandom)
 constexpr uint32_t kTacticalAiSaveVersion = 18;  // 18: mcx6 t06 attack positioning; 16: skai t15 PP re-test state; 14: b0416 pad_occupied fact (12 before); 2: six space free-store facts; 3: re-projection stamp; 4: flood sets;
                                                  // 5: refixf t06 space reinforcement status fields; 6: a1g t01 PP+0x100,
                                                  // entry +0x30 moved into the free store; 7: S7 t20/t21/t15 A1 (no had_units /
@@ -4776,9 +4776,9 @@ void rebind_vm(TacticalAiWorld::Impl& m, lua::LuaVm& vm, int32_t script_id) {
 
 void TacticalAiWorld::write(ByteWriter& w) const {
     const Impl& m = *impl_;
-    // The records' fields come from their field lists (tactical_ai_records.hpp, REF1 t03).
+    // The records' fields come from their field lists (tactical_ai_records.hpp).
     io::SaveWriter out(w, &m.store);
-    // sp3: an AI-lane world writes version 15 with its lane block; with the lane off the bytes are version 14's.
+    // an AI-lane world writes version 15 with its lane block; with the lane off the bytes are version 14's.
     w.u32(m.cfg.ai_lane ? kTacticalAiLaneSaveVersion : kTacticalAiSaveVersion);
     if (m.cfg.ai_lane) {
         w.u32(m.cfg.k_ai);
@@ -4931,17 +4931,17 @@ void TacticalAiWorld::write(ByteWriter& w) const {
 
 bool TacticalAiWorld::read(ByteReader& r) {
     Impl& m = *impl_;
-    // sp3 t02: the snapshot store is refreshed from the restored battle store (battle.ai is read last), so the saved
+    // the snapshot store is refreshed from the restored battle store (battle.ai is read last), so the saved
     // handles resolve against it; it is not saved state (every publish() copies it again).
     if (m.snap_store) *m.snap_store = *m.live_store;
     const size_t lib = m.library.plans.size();
     const size_t goal_types = m.defs.goals.size();
     const auto mi = static_cast<size_t>(ai_mode_of(m.cfg.mode));
-    // sp3: version 15 = an AI-lane world (its lane block follows) and loads only into one; version 14 (lane off) also
+    // version 15 = an AI-lane world (its lane block follows) and loads only into one; version 14 (lane off) also
     // loads into an AI-lane world, which then keeps its configured k_ai and its stream from the start seeds (the bench
     // and harness saves).
     const uint32_t version = r.u32();
-    // b0416: versions 12 / 13 (the same layout without the pad_occupied fact) still load: stored benchmark scenarios hold them.
+    // versions 12 / 13 (the same layout without the pad_occupied fact) still load: stored benchmark scenarios hold them.
     const bool lane_image = version == kTacticalAiLaneSaveVersion || version == kTacticalAiLaneSaveVersionNoPad ||
                             version == kTacticalAiLaneSaveVersionNoRetest || version == kTacticalAiLaneSaveVersionNoAttackPos;
     const bool has_attack_pos = version == kTacticalAiSaveVersion || version == kTacticalAiLaneSaveVersion;  // mcx6 t06
@@ -4950,7 +4950,7 @@ bool TacticalAiWorld::read(ByteReader& r) {
     if (!r.ok() || !(version == kTacticalAiSaveVersion || version == kTacticalAiSaveVersionNoPad || version == kTacticalAiSaveVersionNoRetest ||
                      version == kTacticalAiSaveVersionNoAttackPos || (m.cfg.ai_lane && lane_image)))
         return io::bad(r);
-    // The records' fields come from their field lists (tactical_ai_records.hpp, REF1 t03); older images lack some.
+    // The records' fields come from their field lists (tactical_ai_records.hpp); older images lack some.
     io::Features features;
     features.pad_fact = has_pad_fact;
     features.retest = has_retest;
@@ -5245,7 +5245,7 @@ bool TacticalAiWorld::read(ByteReader& r) {
         }
     }
     if (!r.ok()) return false;
-    // ---- mcx6 t06: attack-positioning records, Lua-released pool keys (absent before version 18 / 19: none) ----
+    // ---- attack-positioning records, Lua-released pool keys (absent before version 18 / 19: none) ----
     std::map<int32_t, AttackPositioning> new_attack_pos;
     if (has_attack_pos) {
         const uint32_t n = io::count(r, 4 + 1 + 4 + 1 + 12);
@@ -5336,8 +5336,8 @@ bool TacticalAiWorld::read(ByteReader& r) {
         pa.path_job.cancel();
         pa.paths = sp.paths_built ? std::move(sp.paths) : ZoneGraph{};
         pa.path_pend = std::move(sp.path_pend);
-        if (sp.path_in_flight) pa.start_paths_job(sp.path_kick, sp.path_ready, {});  // OPT3 t04: again, inline
-        pa.accept_cancel();  // OPT2 t10: the saved results stand in for the solves
+        if (sp.path_in_flight) pa.start_paths_job(sp.path_kick, sp.path_ready, {});  // again, inline
+        pa.accept_cancel();  // the saved results stand in for the solves
         pa.pp_plans = std::move(sp.pp_plans);
         pa.pp_out = std::move(sp.pp_out);
         pa.pp_out_ready = sp.pp_pending;
@@ -5355,7 +5355,7 @@ bool TacticalAiWorld::read(ByteReader& r) {
         for (const int32_t hp : list) m.tf_opportunity_fire_subscription(t, 0, hp);
     m.runtime->restore_pools(std::move(pools), static_cast<size_t>(created), std::move(legacy));
     m.scripts.restore(std::move(evals), std::move(missing));
-    if (m.cfg.ai_lane) {  // sp3: the saved k_ai and stream position
+    if (m.cfg.ai_lane) {  // the saved k_ai and stream position
         m.cfg.k_ai = saved_k_ai;
         m.own_rng = saved_lane_rng;
     }

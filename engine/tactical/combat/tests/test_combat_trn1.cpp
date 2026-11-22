@@ -1,4 +1,4 @@
-// trn1 tests: terrain cover (t01) and the SurfaceFX terrain modifiers (t02); docs/re/TRN1_TERRAIN_GAMEPLAY.md.
+// trn1 tests: terrain cover (t01) and the SurfaceFX terrain modifiers (t02); legacy docs/re/TRN1_TERRAIN_GAMEPLAY.md.
 #include "alamo/data/xml.hpp"
 #include "test_combat_common.hpp"
 
@@ -57,7 +57,7 @@ struct SurfaceWorld {
         plain = push_unit(w.data, p);
         u.surface_fx = {0, 1};  // Infantry_Terrain_Modifier + High_Ground (the one FoC type with both)
         both = push_unit(w.data, u);
-        u.surface_fx = {2, 2, 2, 2, 1};  // mcx4 t17: a mod type whose 5th SurfaceFX_Name entry is High_Ground
+        u.surface_fx = {2, 2, 2, 2, 1};  // a mod type whose 5th SurfaceFX_Name entry is High_Ground
         five = push_unit(w.data, u);
         CombatConfig cfg;
         cfg.mode = mode;

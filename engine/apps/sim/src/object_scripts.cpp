@@ -1,4 +1,4 @@
-// q6: game-object Lua scripts (object_scripts.hpp, docs/re/OBJECT_SCRIPTS.md).
+// q6: game-object Lua scripts (object_scripts.hpp, legacy docs/re/OBJECT_SCRIPTS.md).
 #include "alamo/core/ascii.hpp"
 #include "alamo/sim/object_scripts.hpp"
 
@@ -20,7 +20,7 @@
 namespace alamo::sim {
 
 float first_pump_draw_hi(double service_rate) {
-    // [port] OBJECT_SCRIPTS.md §8 item 1: hi = ServiceRate (best guess; the decompile does not show xmm2).
+    // [port] legacy docs/re/OBJECT_SCRIPTS.md §8 item 1: hi = ServiceRate (best guess; the decompile does not show xmm2).
     if (!(service_rate >= 0.0) || service_rate > 1.0e30) return 0.0f;
     return static_cast<float>(service_rate);
 }
@@ -532,7 +532,7 @@ void ObjectScriptHost::service(GameMode& mode) {
 #endif
 }
 
-// ------------------------------------------------------------------ q6 t19: save / load (§2.6, header "SAVES")
+// ------------------------------------------------------------------ save / load (§2.6, header "SAVES")
 //
 // Layout (kSaveVersion 1): u8 types loaded; the 11 Stats counters (u64, declaration order); u32 pool count, per pool
 // (ascending name) str name, u32 instance count, per instance (list order) an INSTANCE record; u32 store count, per

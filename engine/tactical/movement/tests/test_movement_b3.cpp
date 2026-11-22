@@ -93,7 +93,7 @@ void squad(MovementSystem& sys, ObjectId cid, V2 at, int32_t owner, float cmax =
 }
 
 // ---------------------------------------------------------------- step 0: t21 review follow-ups
-// halt() keeps the speed: no order and no path record left (s78n t26.4: the t20 End Move brake stub is gone) - the walk
+// halt() keeps the speed: no order and no path record left (the t20 End Move brake stub is gone) - the walk
 // goes to End Move at T = a and coasts along its last frame's displacement (MOVEMENT 3.5.2 C.1 / C.4), v falling by a per
 // frame to a, then 0x15: v - a + v - 2a + ... + a = v^2 / (2a) - v / 2 along the facing.
 void test_step0_halt_brake() {
@@ -385,7 +385,7 @@ void test_t20_mvm_try_again() {
     ::alamo::test::section("t20_mvm_try_again");
     MovementSystem sys{MovementConfig{}};
     land_system(sys, 100);
-    // s78n t26.4: halted, each coasts v^2 / (2a) - v / 2 = 1.56^2 / (2 x 0.00615 x 1.56) - 0.78 = 126 (MOVEMENT 3.5.2
+    // halted, each coasts v^2 / (2a) - v / 2 = 1.56^2 / (2 x 0.00615 x 1.56) - 0.78 = 126 (MOVEMENT 3.5.2
     // C.4, B.7) from about 259 apart, so they meet still moving and come to rest face to face in contact (0.004 coasted
     // them through each other)
     UnitDesc w = vehicle(1, cell_center(20, 50), 0);
@@ -636,7 +636,7 @@ void test_t23_chooser_rows() {
         for (; f < 600 && distance(sys.view(1).pos, sys.view(2).pos) > 260.0f; ++f) sys.tick(f, rng, serial_for);
         const ObjectId both[] = {1, 2};
         sys.halt(both, f);
-        // s78o (b0066): halt() keeps each unit's formation id - two separate orders, two formations
+        // s78o: halt() keeps each unit's formation id - two separate orders, two formations
         CHECK(sys.view(1).form_id != 0 && sys.view(2).form_id != 0 && sys.view(1).form_id != sys.view(2).form_id);
         const Decided d = run_pair(sys, rng, 1, 2, f, f + 400, [](uint32_t, const CollisionObject*) {});
         CHECK(d.state == CollisionState::TryAgainLater && d.master == 1);
@@ -647,7 +647,7 @@ void test_t23_chooser_rows() {
 }
 
 // Same formation (MOVEMENT 5.4.6 chooser step 3): one order for a column of two heading east, the rear one slower and with
-// the shorter attack range, so it ranks into the front row (MOVEMENT §4.3 correction [H]: the shortest range leads; s78n t26
+// the shorter attack range, so it ranks into the front row (MOVEMENT §4.3 correction [H]: the shortest range leads
 // review round 2, the rank key was the max speed before) and its goal lies past the faster one's. Vehicles of one type ->
 // state 13: the two swap goals and the record ends in its decision frame (so state 13 is never seen between ticks);
 // Infantry -> state 11 with the front-slot unit as M.
@@ -736,7 +736,7 @@ void test_t23_save_try_again() {
 // ahead), so it and the rear one are Speed Slave Only with M = the front one; a crawler of another order (max speed
 // 0.02, below the 0.05 acceleration default) ahead of it caps it below its acceleration (Moving With Speed Only: it
 // does not overtake). The rear one, answered below its own acceleration, starves: 30 frames later it becomes M of state
-// 15. Case 1: one rear unit, which also has a record with the crawler - two records; mov1 t01 (b0176, BKR1_RE_ANSWERS Q1
+// 15. Case 1: one rear unit, which also has a record with the crawler - two records; mov1 t01 (BKR1_RE_ANSWERS Q1
 // [H]): 0x505630 counts only the state-15 records whose master is M, so the crawler record does not count and M detours
 // (state 16) in the same frame (before mov1 every record of M counted and it stood). Case 2: a Giant leads two rear
 // units side by side, each with that one record - state 16 in the same frame, a detour around the Giant.
@@ -1179,7 +1179,7 @@ void test_mov3_svs_speed_zero() {
 }
 
 
-// mov3 t03 (b0174, MOVEMENT §5.4.7 "Rejoin candidates of a kind-3 Path Around" [H]): the generator rules through the
+// mov3 t03 (MOVEMENT §5.4.7 "Rejoin candidates of a kind-3 Path Around" [H]): the generator rules through the
 // rejoin_goals accessor. A vehicle walking east on open ground: (a) the path points from progress + D + 2 in steps of 10,
 // at most 11 goals; near the end (a) gives out and (b) steps past the end follow (up to LandTemporaryDestinationProximity
 // 20), then (c) the ring, which resumes after each goal; a wall right past the end fails (b)'s path-length test at its
@@ -1244,7 +1244,7 @@ void test_mov3_rejoin_goals() {
 }
 
 
-// mov3 t06 (b0065, MOVEMENT §5.4.7 "Rejoin candidates" item 2 [H]): the forced object of a flag-1 Path Around is an
+// mov3 t06 (MOVEMENT §5.4.7 "Rejoin candidates" item 2 [H]): the forced object of a flag-1 Path Around is an
 // obstacle to every goal spot before the relation test. Vehicle 1 (speed 1) walks east; vehicle 2 (speed 2, its own order)
 // walks the same way ahead of it, inside the window of 1's (a) goals: same way and not slower, so not an obstacle by the
 // relation - the goals run 10 apart through its place. Named as the forced object, the goals its rectangle overlaps are
@@ -1313,7 +1313,7 @@ void test_t24_role_slots() {
     CHECK(s.master == 0 && s.speed_a == 1.0f && s.speed_b == 2.0f);
 }
 
-// mov1 t02 (b0179, BKR1_RE_ANSWERS Q3 [H]): the head-on tie-break of two equal-class formations compares 0x41a5c0. Two
+// mov1 t02 (BKR1_RE_ANSWERS Q3 [H]): the head-on tie-break of two equal-class formations compares 0x41a5c0. Two
 // small vehicles (half extents 10 x 6) in one formation against one long vehicle (40 x 6) alone: by member count the pair
 // would be M; by 0x41a5c0 the pair is max(2 x (0 + 20 / 20) + 0.25, sqrt(1.8 x 2 x 1 x 0.6)) = 2.25 and the long one
 // max(1 x 4 + 0.25, sqrt(1.8 x 4 x 0.6)) = 4.25 - the long one is M (it walks on, the small one detours).
@@ -1346,7 +1346,7 @@ void test_mov1_head_on_extent() {
     CHECK(decided == CollisionState::PathAround && master == 3);
 }
 
-// mov1 t05 (b0186, BKR1_RE_ANSWERS Q3 [H]): within one coordinator the overtake 0x683260 needs rank_b > rank_a. One order
+// mov1 t05 (BKR1_RE_ANSWERS Q3 [H]): within one coordinator the overtake 0x683260 needs rank_b > rank_a. One order
 // with a fast rear vehicle and a slow front one, each its own formation (their footprint area makes two k-means buckets),
 // a long way: the time test passes (before mov1: Pass), but the front formation's goal lies ahead (rank 0) of the rear's
 // (rank 1), so the rear one is slaved (Moving With Speed Only).
@@ -1388,7 +1388,7 @@ void test_mov1_overtake_rank() {
     CHECK(q1.coord_id == v1.coord_id && q2.coord_id == v2.coord_id && q1.form_rank == 1 && q2.form_rank == 0);
 }
 
-// mov1 t06 (b0189, BKR2_RE_ANSWERS Q3 [H]): MovingVsStopped step 10's 0x685490. A corridor five cells wide is closed by
+// mov1 t06 (BKR2_RE_ANSWERS Q3 [H]): MovingVsStopped step 10's 0x685490. A corridor five cells wide is closed by
 // two standing vehicles, b in its upper half (on the mover's line) and c in its lower half. Retail's Path Around crosses
 // an obstacle in its second pass, so the scene's own decision detours (state 1); the probe is run through the test seam on
 // the live record: its search (flags 2) keeps b (it shares the record) and ignores c (no record with the mover), so its
@@ -1427,7 +1427,7 @@ void test_mov1_step10_attack() {
     }
 }
 
-// mov2 t04 (b0187, BKR1_RE_ANSWERS Q6 [H]): retail's plans read the tracker flags of the update before this frame's walks,
+// mov2 t04 (BKR1_RE_ANSWERS Q6 [H]): retail's plans read the tracker flags of the update before this frame's walks,
 // so a unit that arrives in a walk still counts as Moving for the next plans' corridor test. The port's snapshot is taken
 // after the plans, before the walk: in the tick whose walk ends the unit's move the flag still says Moving (taken before
 // that walk); the next tick's snapshot says Static.

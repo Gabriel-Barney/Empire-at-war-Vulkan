@@ -1,7 +1,7 @@
-// alamo_vfs_steam_tests (modc t10): the STEAMMOD= resolver without the Steam API (steam_workshop.hpp) on a synthetic
+// alamo_vfs_steam_tests: the STEAMMOD= resolver without the Steam API (steam_workshop.hpp) on a synthetic
 // Steam layout in its own temp folder: a client folder whose libraryfolders.vdf lists two more libraries, the FoC
 // install inside one library, workshop items spread over the libraries. No real Steam folder is read (the process-wide
-// lookup is installed with explicit roots). ums1 t01: InstallLocations (install_locations.hpp) on the same layout.
+// lookup is installed with explicit roots). InstallLocations (install_locations.hpp) on the same layout.
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -143,7 +143,7 @@ void test_layout() {
             CHECK(v->describe().find("STEAMMOD=222") != std::string::npos);
         }
     }
-    // ums1 t01: InstallLocations. MegaFiles.xml makes it a FoC folder; a GameData folder beside it is the EaW install.
+    // InstallLocations. MegaFiles.xml makes it a FoC folder; a GameData folder beside it is the EaW install.
     write_file(foc / "Data" / "MegaFiles.xml", "<Mega_Files/>");
     write_file(foc.parent_path() / "GameData" / "Data" / "XML" / "x.xml", "EAW");
     {

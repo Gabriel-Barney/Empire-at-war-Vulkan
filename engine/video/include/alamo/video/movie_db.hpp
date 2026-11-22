@@ -1,4 +1,4 @@
-// Movies.xml (docs/re/STRATEGIC_GAPS.md §7.3 [H]: Movie_File, Commandbar_Offset, Alpha, Cannot_Skip, Loop) for the
+// Movies.xml (legacy docs/re/STRATEGIC_GAPS.md §7.3 [H]: Movie_File, Commandbar_Offset, Alpha, Cannot_Skip, Loop) for the
 // movie players: which movies have an alpha plane (decoded with OpenOptions::alpha, drawn with straight alpha on
 // PrimAlpha - ui::add_movie_quad(..., alpha = true)) and which are opaque (PrimOpaque). Built only with engine/data.
 #pragma once
@@ -22,7 +22,7 @@ std::vector<MovieEntry> parse_movies(const data::XmlNode& movies_root);
 // file name, e.g. "pirate_loop2"); nullptr if none.
 const MovieEntry* find_movie(const std::vector<MovieEntry>& movies, std::string_view name_or_file);
 
-// storyb t13: one <TextScroll name> of Data\XML\StarWars3DTextCrawl.xml (the 3D story text crawl: Star_Wars_Intro,
+// one <TextScroll name> of Data\XML\StarWars3DTextCrawl.xml (the 3D story text crawl: Star_Wars_Intro,
 // Star_Wars_Intro_Underworld, Underworld_Prolog_Text ...), fields of the Data_Specifications table (xml_field_tables.md
 // "fields of `Data_Specifications` objects"). Unset ints are -1, unset floats 1 (stretch) / 0, unset strings "".
 struct TextCrawlSpec {

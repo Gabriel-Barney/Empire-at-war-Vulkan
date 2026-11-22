@@ -1,7 +1,7 @@
 // a2m r2: the bounty value of an object type (shared by the galactic auto-resolve bounty and the game's auto-resolve
 // results screen, apps/game battle_summary.hpp).
 //
-// Rule (docs/re/A2M_R2_RE_B.md §2.2 [H]; values traced in A2M_R2_UW_BOUNTY_TRACE.md §1): the type's float
+// Rule (legacy docs/re/A2M_R2_RE_B.md §2.2 [H]; values traced in legacy docs/re/A2M_R2_UW_BOUNTY_TRACE.md §1): the type's float
 // Override_Bounty_SP when it is >= 0 (0 stays 0), else (absent or negative) the LARGEST GameConstants
 // Default_Bounty_By_Category_SP amount over the category bits of the type's CategoryMask, floored at 0. The result is
 // rounded half away from zero (0x22f9c0), as the bounty payment rounds it per object.

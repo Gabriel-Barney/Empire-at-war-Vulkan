@@ -1,4 +1,4 @@
-// alamo_render_sim - vis1 t06 ability target / status particles (docs/re/ABILITY_PARTICLES.md). Presentation only.
+// alamo_render_sim - vis1 t06 ability target / status particles (legacy docs/re/ABILITY_PARTICLES.md). Presentation only.
 //
 // Retail creates these as particle GameObjects attached to the target; the port draws them as render particles
 // (ABILITY_VISUALS §6.4 decision, ABILITY_PARTICLES §10): SnapshotEffect entries the particle attachment syncs.
@@ -69,7 +69,7 @@ public:
     size_t live() const { return live_.size(); }
 
     // apply_battle_ability_fx: the serial of the last AbilitySystem::visual_events entry taken, and of the last
-    // CombatSystem::stun_visual_events entry (vis1 t08).
+    // CombatSystem::stun_visual_events entry.
     uint32_t visual_serial = 0;
     uint32_t stun_serial = 0;
 

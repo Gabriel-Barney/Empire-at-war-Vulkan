@@ -50,21 +50,21 @@ using save::get_vec;
 using save::put_vec;
 
 namespace {
-// 2: pristine pooled VMs by reference; 3: AI player types (q6 t07); 4 (cu12 t14): the status records' orders_out byte
-// removed (never set or read); 5 (A2k t02): per-target stage lists; 6 (a2l t03): the per-frame reachability cache
+// 2: pristine pooled VMs by reference; 3: AI player types; 4: the status records' orders_out byte
+// removed (never set or read); 5: per-target stage lists; 6: the per-frame reachability cache
 // removed (galactic blocked() reads the per-target lists), the task force's stage area (TF +0x100) after its stage;
-// 7 (q2f t09): the task force's sync gather state after its stage area; 8 (a2m t02): the task force's FleetObject (TF
+// 7: the task force's sync gather state after its stage area; 8: the task force's FleetObject (TF
 // +0x120) after its sync state, the MoveTo status's fleet after its mode.
-// 9 (mcx4 t05): + each build task's claim frame; 10 (mcx8 t12): + each pending desire bonus's blocking status.
+// 9: + each build task's claim frame; 10: + each pending desire bonus's blocking status.
 constexpr uint32_t kWorldVersion = 10;
-// 2: logic frame, player conflict stamps, conflict observer (q6 t03); 3: leaf cache keyed by (leaf, instance, system player,
-// parameter set) with each entry's parameters, the 0xE visible flags and the last seen surface units (q6 t18); 4 (ref4
+// 2: logic frame, player conflict stamps, conflict observer; 3: leaf cache keyed by (leaf, instance, system player,
+// parameter set) with each entry's parameters, the 0xE visible flags and the last seen surface units; 4 (ref4
 // t02): + each cached parameter's converted enum value (ParamValue::enum_value: the category mask a 0xE recompute reads).
 // Version 3 still loads, its parameters' enum values 0 as before.
 constexpr uint32_t kResolverVersion = 4;
 constexpr uint32_t kResolverVersionNoEnumValue = 3;
 
-// REF4 t02: ByteWriter's calls into a StateHasher, so a write list is also a CRC list (GalacticSimTokenResolver).
+// ByteWriter's calls into a StateHasher, so a write list is also a CRC list (GalacticSimTokenResolver).
 class HashWriter {
 public:
     explicit HashWriter(StateHasher& h) : h_(h) {}
@@ -367,7 +367,7 @@ bool valid_planet_or_none(PlanetIndex p, size_t planets) { return p == kInvalidP
 
 // ================================================================ GalacticSimTokenResolver
 
-// REF4 t02: write() and hash() walk one list (visit_saved); before, the resolver (its leaf cache included) had no CRC.
+// write() and hash() walk one list (visit_saved); before, the resolver (its leaf cache included) had no CRC.
 void GalacticSimTokenResolver::write(ByteWriter& w) const {
     w.u32(kResolverVersion);
     visit_saved(w);
@@ -399,7 +399,7 @@ void GalacticSimTokenResolver::visit_saved(W& w) const {
         for (const Param& p : e.params) put_param(w, p);
     }
     save_only(w, hits_);  // a statistic (cache_hits)
-    // version 2 (q6 t03)
+    // version 2
     w.i32(logic_frame_);
     for (const std::vector<int32_t>& s : player_stamps_) {
         w.u32(static_cast<uint32_t>(s.size()));
@@ -413,7 +413,7 @@ void GalacticSimTokenResolver::visit_saved(W& w) const {
     w.i32(active_.defender);
     w.u8(static_cast<uint8_t>((active_.linked ? 1u : 0u) | (active_.space_stamped ? 2u : 0u) | (active_.ground_stamped ? 4u : 0u) |
                               (active_.in_battle ? 8u : 0u)));
-    // version 3 (q6 t18)
+    // version 3
     w.u32(static_cast<uint32_t>(visible_.size()));
     for (const std::vector<uint32_t>& row : visible_) {
         w.u32(static_cast<uint32_t>(row.size()));
@@ -543,7 +543,7 @@ void GalacticAiWorld::write(ByteWriter& w) const {
     // ---- shape ----
     w.u32(static_cast<uint32_t>(m.ai.size()));
     for (const auto& a : m.ai) w.boolean(a != nullptr);
-    for (const auto& a : m.ai)  // q6 t07: types may differ from the session's start (set_ai_type)
+    for (const auto& a : m.ai)  // types may differ from the session's start (set_ai_type)
         if (a) {
             w.str(a->type->name);
             w.i32(a->difficulty);
@@ -818,7 +818,7 @@ bool GalacticAiWorld::read(ByteReader& r) {
     std::vector<uint8_t> present(m.ai.size());
     for (uint8_t& b : present) b = r.boolean() ? 1 : 0;
     if (!r.ok()) return false;
-    // q6 t07: the saved AI players' types. A player whose type / difficulty differs from this world's (set_ai_type ran
+    // the saved AI players' types. A player whose type / difficulty differs from this world's (set_ai_type ran
     // in the saved session) gets a fresh staged AI player of the saved type, built as set_ai_type builds it.
     std::vector<GalacticAiPlayerConfig> saved_cfg;
     for (size_t i = 0; i < present.size(); ++i) {
@@ -1287,7 +1287,7 @@ bool GalacticAiWorld::read(ByteReader& r) {
     m.world.tactical_releases = std::move(world.releases);
     m.world.budget_flushes = std::move(world.flushes);
     m.globals = std::move(globals);
-    for (size_t i = 0; i < m.ai.size(); ++i) {  // q6 t07: the saved AI player set (fresh players replace changed ones)
+    for (size_t i = 0; i < m.ai.size(); ++i) {  // the saved AI player set (fresh players replace changed ones)
         if (!present[i]) m.ai[i].reset();
         else if (fresh[i]) m.ai[i] = std::move(fresh[i]);
     }
@@ -1301,7 +1301,7 @@ bool GalacticAiWorld::read(ByteReader& r) {
         pa.known = std::move(sp.known);
         pa.bonuses = std::move(sp.bonuses);
         pa.paths = std::move(sp.paths);
-        pa.paths.set_background(m.cfg.path_latency, m.cfg.background);  // OPT2 t02: this world's settings
+        pa.paths.set_background(m.cfg.path_latency, m.cfg.background);  // this world's settings
         pa.sources = std::move(sp.sources);
         pa.stage_lists = std::move(sp.stage_lists);
         if (!sp.has_fs) pa.fs_vm.reset();

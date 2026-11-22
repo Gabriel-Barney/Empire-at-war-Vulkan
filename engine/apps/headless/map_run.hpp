@@ -22,11 +22,11 @@ struct MapRunOptions {
     bool expect_battle_end = false;  // --skirmish-ai: fail unless the battle ends with a winner before the frame limit
     bool expect_skirmish_base = false;  // --skirmish-ai foc-land (t50): fail unless both sides start with their pre-built base and fight
     std::string human;          // --skirmish-ai foc-land / skirmish (skai): the faction whose slot is an idle human
-    // q6 t02: --skirmish-ai foc-land / skirmish --ai FACTION[,FACTION]: the slots' factions (empty = Empire, Rebel). Two names:
+    // --skirmish-ai foc-land / skirmish --ai FACTION[,FACTION]: the slots' factions (empty = Empire, Rebel). Two names:
     // slot 0, slot 1 (--human may name one of them); one name: the AI slot (slot 1) beside the --human faction (slot 0).
     std::string ai_factions;
-    bool fail_on_lua_errors = false;  // --skirmish-ai: fail on any tactical AI Lua error (foc-station always does), a1j t07
-    // tst2 t04 (b0188): --skirmish-ai --report-fielded: after the run, per slot player and unit type (objects with a locomotor)
+    bool fail_on_lua_errors = false;  // --skirmish-ai: fail on any tactical AI Lua error (foc-station always does)
+    // --skirmish-ai --report-fielded: after the run, per slot player and unit type (objects with a locomotor)
     // the number fielded in the battle and the 2-D distance they walked, one "  fielded ..." line each (read-only, never hashed;
     // tools/parity outcome sweeps judge it with their "fielded" key).
     bool report_fielded = false;
@@ -40,14 +40,14 @@ struct MapRunOptions {
     // the original) and --pp-latency F (frames from a slice to the apply of its solves, default
     // ai::tactical::kDefaultPpLatency). Not recorded in saves.
     bool pp_streams = true;
-    bool plan_retest = true;  // skai t15 / t18: --no-plan-retest (TacticalAiConfig::plan_retest)
+    bool plan_retest = true;  // --no-plan-retest (TacticalAiConfig::plan_retest)
     int64_t pp_latency = -1;  // < 0: the default
     // q6 t06 (--story, --galactic-ai): --scoring runs the GameConstants Game_Scoring_Script_Name script at the session start
     // (SimHost::set_scoring_script) as the game does. Off by default: its GlobalValue writes enter the frame CRC.
     bool scoring = false;
-    // q6 (--skirmish-ai): SimConfig::object_scripts (game-object Lua scripts, OBJECT_SCRIPTS.md) and the GameScoring script
+    // q6 (--skirmish-ai): SimConfig::object_scripts (game-object Lua scripts, legacy docs/re/OBJECT_SCRIPTS.md) and the GameScoring script
     // (mods set GlobalValue MOD_ID there, which their object scripts read). q6 t23 (2026-11-13): on by default, as the game
-    // (retail runs vanilla object scripts, Q6_T15_RETAIL_RUN.md row 2b); --no-object-scripts turns both off.
+    // (retail runs vanilla object scripts, legacy docs/re/Q6_T15_RETAIL_RUN.md row 2b); --no-object-scripts turns both off.
     bool object_scripts = true;
     // ccpgt t02 (--skirmish-ai foc-land / skirmish on a land map): --control-points, the Capture Control Points game type
     // (BattleConfig::control_point_domination). Not recorded in saves.

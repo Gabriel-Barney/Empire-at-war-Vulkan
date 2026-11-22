@@ -1,4 +1,4 @@
-// cu8l t03 - the campaign space fleet placement 0x4fbb10 (docs/re/CU8K_T03_T08_T09_RE.md §1.2 - §1.8, §4 items 1-3): the
+// the campaign space fleet placement 0x4fbb10 (legacy docs/re/CU8K_T03_T08_T09_RE.md §1.2 - §1.8, §4 items 1-3): the
 // pure layout of one anchor group. The host (TacticalBattle) registers the spawned objects, splits them into groups (group k
 // on marker k mod count), describes each object (class, cull-box half extents, squadron offsets) and applies the result
 // (orientation := the anchor's, teleport, leave + adopt, the squadron members).

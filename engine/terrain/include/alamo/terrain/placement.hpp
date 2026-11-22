@@ -1,4 +1,4 @@
-// alamo_terrain - map object placements resolved to models (TERRAIN_WATER_POST.md 1.6).
+// alamo_terrain - map object placements resolved to models (legacy docs/re/TERRAIN_WATER_POST.md 1.6).
 //
 // A placement stores the CRC-32 of the upper-cased GameObjectType name (alamo::name_crc), never
 // the name. Resolving it needs the game database, which this library does not depend on: callers

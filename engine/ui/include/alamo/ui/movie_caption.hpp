@@ -1,4 +1,4 @@
-// ui5 t02 / t12: the full-screen movie player's captions (docs/re/AUDIO.md §3.4 "Movie subtitles"): with the
+// the full-screen movie player's captions (legacy docs/re/AUDIO.md §3.4 "Movie subtitles"): with the
 // IDC_USE_MOVIE_SUBTITLES option on, a Movies.xml Caption_Frame's text is drawn over the movie in GameConstants
 // Bink_Player_Caption_Font_Name / _Font_Size, white, each line centred, the last line's top at 0.95 of the screen height
 // and the lines above it one font line apart. Which caption shows when is video::CaptionTrack's job; this only draws.

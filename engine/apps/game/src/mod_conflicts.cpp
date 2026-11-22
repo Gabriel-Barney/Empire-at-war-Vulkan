@@ -75,7 +75,7 @@ ConflictReport mod_conflicts(const vfs::ModCatalog& catalog, std::span<const std
     ConflictReport r;
     r.game = catalog.game;
     r.args.assign(args.begin(), args.end());
-    // ums2: opened through ModEnvironment like every other surface (the same mount plan; findings are not reported here).
+    // opened through ModEnvironment like every other surface (the same mount plan; findings are not reported here).
     vfs::ModEnvironmentOptions opt;
     opt.steam_resolver = vfs::make_steam_workshop_resolver(std::vector<std::string>(workshop_libraries.begin(), workshop_libraries.end()));
     opt.hash = false;
@@ -93,7 +93,7 @@ ConflictReport mod_conflicts(const vfs::ModCatalog& catalog, std::span<const std
     }
 
     // The mods as mounted (the VFS's resolved search list), each with its files: its loose files from the VFS's own index
-    // of the mod layer (ums2 t10: no second walk of the folder), then its MEGs below.
+    // of the mod layer (no second walk of the folder), then its MEGs below.
     std::vector<Layered> mods;
     for (const vfs::Layer& layer : v->layers()) {  // the mod layers come first, in search order
         if (layer.kind != vfs::Layer::Kind::Mod) break;
@@ -129,7 +129,7 @@ ConflictReport mod_conflicts(const vfs::ModCatalog& catalog, std::span<const std
     std::map<std::pair<size_t, size_t>, ConflictPair> pairs;
     std::vector<size_t> replaced(mods.size(), 0), base_wins(mods.size(), 0);
     for (const auto& [path, who] : providers) {
-        // ums2 t10: a path one mod alone has as a loose file is that mod's (loose mod layers come first in the resolution
+        // a path one mod alone has as a loose file is that mod's (loose mod layers come first in the resolution
         // order); only the others need the VFS's lookup.
         if (who.size() == 1 && mods[who[0]].loose.count(path)) continue;
         const std::optional<vfs::Vfs::Resolution> res = v->resolve(path);

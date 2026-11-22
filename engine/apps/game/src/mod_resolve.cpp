@@ -1,4 +1,4 @@
-// ums1 t04 / ums4 t05: the stack resolver and the submod hint (mod_resolve.hpp).
+// the stack resolver and the submod hint (mod_resolve.hpp).
 #include "alamo/game/mod_resolve.hpp"
 
 #include <algorithm>

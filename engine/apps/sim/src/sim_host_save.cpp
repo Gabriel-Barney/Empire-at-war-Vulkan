@@ -7,7 +7,7 @@
 #include "alamo/core/log.hpp"
 #ifdef ALAMO_SIM_HAVE_STORY
 #include "alamo/lua/script_remaining.hpp"  // GlobalValueStore, process_global_values
-#include "alamo/lua/script_save.hpp"       // q6 t19: the GameScoring script block
+#include "alamo/lua/script_save.hpp"       // the GameScoring script block
 #if defined(ALAMO_LUA_PLAYERS)
 #include "alamo/lua/players.hpp"
 #endif
@@ -18,7 +18,7 @@ namespace alamo::sim {
 namespace {
 
 constexpr uint32_t kChunkVersion = 1;  // envelope version of every host chunk (sub-systems version their own bytes)
-// "frame" chunk version (chunk header and its leading u32). 2 (cu9f t01): GalacticMode::write_state no longer carries the
+// "frame" chunk version (chunk header and its leading u32). 2: GalacticMode::write_state no longer carries the
 // pre-S3 income cadence (u32 interval, u64 next income frame, u64 income events); a version-1 save is refused.
 constexpr uint32_t kFrameChunkVersion = 2;
 // limit: guard save decode: counts, refuses
@@ -27,7 +27,7 @@ constexpr uint32_t kMaxCount = 1u << 24;
 // Host chunk names in save / load order (a story session adds its four after "globals").
 constexpr const char* kHostChunks[] = {"frame", "objects", "galactic.state", "players", "rng", "commands", "globals"};
 constexpr const char* kStoryChunks[] = {"story", "story.lua", "story.bridge", "story.players", "story.presentation"};
-// "spatial" (stage 2) follows "objects" while a tactical mode is on the stack; q6 t19: "scoring" (a GameScoring script
+// "spatial" (stage 2) follows "objects" while a tactical mode is on the stack; "scoring" (a GameScoring script
 // is configured) and "object_scripts" (the object-script host exists) follow the story chunks.
 constexpr const char* kReserved[] = {"session", "spatial", "scoring", "object_scripts"};
 constexpr uint32_t kScoringSaveVersion = 1;  // the "scoring" chunk's own bytes
@@ -98,7 +98,7 @@ bool SimHost::save_allowed(std::string* why) const {
         const std::string b = story_->save_blocker();
         if (!b.empty()) return no(b);
     }
-    // q6 t19: game-object Lua scripts are saved ("object_scripts", OBJECT_SCRIPTS.md §2.6), so they no longer block.
+    // game-object Lua scripts are saved ("object_scripts", legacy docs/re/OBJECT_SCRIPTS.md §2.6), so they no longer block.
     for (const SaveParticipant& p : participants_)
         if (p.blocker) {
             const std::string b = p.blocker();
@@ -270,7 +270,7 @@ bool SimHost::read_globals(ByteReader& r) {
 #endif
 }
 
-// "scoring" (q6 t19, LUA_SAVE.md; GAME_SCORING.md §6): u32 envelope, u32 kScoringSaveVersion, str script name, u8 has VM
+// "scoring" (legacy docs/re/LUA_SAVE.md; legacy docs/re/GAME_SCORING.md §6): u32 envelope, u32 kScoringSaveVersion, str script name, u8 has VM
 // (false: released before the save); with a VM: u32 length + the lua::write_script_block bytes, u8 own player world
 // (+ u32 length + LuaPlayerWorld::write: the world start_galactic gives the VM while no story runs); then the queued
 // Game_Mode_Starting_Event (mode, map) pairs, the tapped galactic events not delivered yet, the failed flag and the
@@ -537,7 +537,7 @@ bool SimHost::load(const SaveFile& in, std::string* err, LoadReport* report) {
         if (report) *report = rep;
         return ok;
     };
-    loaded_with_different_data_ = false;  // mcx3 t05: set again below only when this load goes ahead that way
+    loaded_with_different_data_ = false;  // set again below only when this load goes ahead that way
     if (modes_.empty()) {
         rep.descriptor_error = "no session to load into (rebuild the saved session first)";
         return finish(false);

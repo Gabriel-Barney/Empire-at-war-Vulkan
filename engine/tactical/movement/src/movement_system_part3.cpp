@@ -8,7 +8,7 @@ void MovementSystem::tick_space(uint32_t frame, const ParallelFor& pf) {
     for (uint32_t i = 0; i < units_.size(); ++i)
         if (units_[i].need_path && frame >= units_[i].start_frame) req.push_back(i);
     if (!req.empty()) {
-        space_.build_index();  // OPT3 t12: the parallel planners' occupancy queries visit only nearby entries
+        space_.build_index();  // the parallel planners' occupancy queries visit only nearby entries
         std::vector<SpacePath> out(req.size());
         pf(static_cast<uint32_t>(req.size()), 1, [&](uint32_t b, uint32_t e) {
             SpaceScratch sc;
@@ -31,7 +31,7 @@ void MovementSystem::tick_space(uint32_t frame, const ParallelFor& pf) {
                 q.threat_threshold = u.threat;
                 q.space_layer_type = u.d.space_layer_type;
                 q.threat = tf ? &tf : nullptr;
-                plan_space_path(space_, k, q, sc, out[r], &pf);  // sp2: retries in parallel, same result
+                plan_space_path(space_, k, q, sc, out[r], &pf);  // retries in parallel, same result
             }
         });
         for (size_t r = 0; r < req.size(); ++r) {
@@ -150,13 +150,13 @@ void MovementSystem::hash_units(StateHasher& h) const {
             bh.u32(u.start_frame);
             bh.u32(u.pend);            // cu8j t01
             bh.boolean(u.adopted);     // cu8j t02
-            // s78n t24: Unit::blocked_frames / replans are gone (the blocked-frames re-plan); mov1 t04 hashes the
+            // Unit::blocked_frames / replans are gone (the blocked-frames re-plan); mov1 t04 hashes the
             // approximation byte and countdown in their place (0 in space: the format and the space goldens are unchanged)
             bh.u32(u.near_end ? 1u : 0u);
             bh.u32(static_cast<uint32_t>(u.approx_countdown));
             bh.u32(u.path_change);  // s78n t18 (in the place of the dropped Unit::waits; 0 in space: the format is unchanged)
             bh.i32(u.check_countdown);
-            // s78n t23: Unit::speed_cap / hold_until / nudge_frames are gone (the MovingVsMoving stand-in); their constants
+            // Unit::speed_cap / hold_until / nudge_frames are gone (the MovingVsMoving stand-in); their constants
             // keep the hash format (the space goldens do not move)
             bh.f32(3.0e38f);
             bh.u32(0);
@@ -171,9 +171,9 @@ void MovementSystem::hash_units(StateHasher& h) const {
                 bh.f32(w.time);
             }
             bh.boolean(u.turning);
-            if (u.aturn != LocoState::None) {  // s78l t02: the arrival turn state, hashed only while a turn runs
+            if (u.aturn != LocoState::None) {  // the arrival turn state, hashed only while a turn runs
                 bh.u8(static_cast<uint8_t>(u.aturn));
-                if (u.aturn_start) bh.u8(0xE9);  // s78n t26.2: a start turn in place
+                if (u.aturn_start) bh.u8(0xE9);  // a start turn in place
                 bh.f32(u.aturn_rate);
                 bh.i32(u.tclip);
                 bh.u32(u.tclip_start);
@@ -182,7 +182,7 @@ void MovementSystem::hash_units(StateHasher& h) const {
             bh.f32(u.jiggle.x);  // OI tactical
             bh.f32(u.jiggle.y);
             bh.boolean(u.in_formation);
-            if (u.d.team_container) {  // s78n t03: appended only for squad containers and their members
+            if (u.d.team_container) {  // appended only for squad containers and their members
                 bh.u8(0xC7);
                 bh.boolean(u.laid_out);  // s78n t14
                 bh.f32(u.lay_dir.x);
@@ -198,10 +198,10 @@ void MovementSystem::hash_units(StateHasher& h) const {
                 bh.f32(u.tslot.x);
                 bh.f32(u.tslot.y);
                 bh.u32(u.tindex);
-                bh.u8(u.recovery);  // s78n t14: the recovery state (was a bool)
+                bh.u8(u.recovery);  // the recovery state (was a bool)
                 bh.u32(u.start_delay);  // s78n t14
             }
-            if (u.exit_host >= 0) {  // s78n t18: the garrison-host gate of a unit that left, only while set
+            if (u.exit_host >= 0) {  // the garrison-host gate of a unit that left, only while set
                 bh.u8(0xE7);
                 bh.i32(u.exit_host);
             }
@@ -209,7 +209,7 @@ void MovementSystem::hash_units(StateHasher& h) const {
                 bh.u8(0xD1);
                 bh.boolean(u.d.death_clone_obstacle);
             }
-            if (!u.m.frac.empty() || u.m.turn_done) {  // s78n t26.2: the order path's fractions / turn-done byte (land only)
+            if (!u.m.frac.empty() || u.m.turn_done) {  // the order path's fractions / turn-done byte (land only)
                 bh.u8(0xEA);
                 bh.boolean(u.m.turn_done);
                 bh.u32(static_cast<uint32_t>(u.m.frac.size()));
@@ -233,18 +233,18 @@ void MovementSystem::hash_units(StateHasher& h) const {
                 bh.f32(u.prev_pos.y);
                 bh.boolean(u.m.started);
             }
-            if (u.hover != 0 || u.hover_off != 0.0f) {  // s78n t18: the hover state, only once it left the ground
+            if (u.hover != 0 || u.hover_off != 0.0f) {  // the hover state, only once it left the ground
                 bh.u8(0xE8);
                 bh.u8(u.hover);
                 bh.f32(u.hover_off);
             }
-            if (!u.around.empty()) {  // s78n t18: the top path's id list (decision step 3), only while any
+            if (!u.around.empty()) {  // the top path's id list (decision step 3), only while any
                 bh.u8(0xD7);
                 bh.u32(u.around_frame);
                 bh.u32(static_cast<uint32_t>(u.around.size()));
                 for (const ObjectId id : u.around) bh.i32(id);
             }
-            if (u.form_id != 0 || u.self_arrive) {  // s78n t20: the formation of the last land order (land only)
+            if (u.form_id != 0 || u.self_arrive) {  // the formation of the last land order (land only)
                 bh.u8(0xF7);
                 bh.u32(u.form_id);
                 bh.f32(u.form_slot.x);
@@ -265,7 +265,7 @@ void MovementSystem::hash_units(StateHasher& h) const {
                 bh.f32(u.lane_d);
                 if (u.lane_z != 0.0f) bh.f32(u.lane_z);  // bkm1 t06
             }
-            if (!u.lane.empty() || u.slot_on) {  // mov2 t01: the slot shape the plan / the walk reads
+            if (!u.lane.empty() || u.slot_on) {  // the slot shape the plan / the walk reads
                 bh.u8(0x1B);
                 bh.boolean(u.slot_on);
                 bh.f32(u.mslot.left);
@@ -294,25 +294,25 @@ void MovementSystem::hash_units(StateHasher& h) const {
                 bh.f32(u.m.end_at.x);
                 bh.f32(u.m.end_at.y);
             }
-            if (u.atk_rho > 0.0f || u.atk_form != 0) {  // s78n t25.2: the attack block of a land attack order (land only)
+            if (u.atk_rho > 0.0f || u.atk_form != 0) {  // the attack block of a land attack order (land only)
                 bh.u8(0xA5);
                 bh.f32(u.atk_theta);
                 bh.f32(u.atk_rho);
                 bh.u32(u.atk_form);
                 bh.i32(u.atk_target);
             }
-            if (u.pushed) {  // a1k t03: hashed only while a collision-owned record is on top of the stack
+            if (u.pushed) {  // hashed only while a collision-owned record is on top of the stack
                 if (u.push_flee) bh.u8(0x07);  // s78n t14 part B: a crush-flee path (kind 7)
                 bh.u32(u.push_next);
-                bh.u32(u.push_turn_done ? 1u : 0u);  // s78n t26.2: the record's turn-done byte (in the place of push_turn_first)
+                bh.u32(u.push_turn_done ? 1u : 0u);  // the record's turn-done byte (in the place of push_turn_first)
                 bh.u32(static_cast<uint32_t>(u.push_path.size()));
                 for (const V2& p : u.push_path) {
                     bh.f32(p.x);
                     bh.f32(p.y);
                 }
-                bh.u32(static_cast<uint32_t>(u.push_frac.size()));  // s78n t26.2: the record's speed fractions
+                bh.u32(static_cast<uint32_t>(u.push_frac.size()));  // the record's speed fractions
                 for (const float f : u.push_frac) bh.f32(f);
-                bh.u8(u.push_kind);  // s78n t20: the record's kind, owner, weight, resume index and hold tags
+                bh.u8(u.push_kind);  // the record's kind, owner, weight, resume index and hold tags
                 bh.u8(u.push_weight);
                 bh.u32(u.push_owner);
                 bh.u32(u.push_resume);
@@ -338,7 +338,7 @@ void MovementSystem::hash_units(StateHasher& h) const {
         h.u32(static_cast<uint32_t>(push_kills_.size()));
         for (const ObjectId id : push_kills_) h.i32(id);
     }
-    if (!formation_attacks_.empty()) {  // mov1 t06: the formation attack blocks of this tick, only while any
+    if (!formation_attacks_.empty()) {  // the formation attack blocks of this tick, only while any
         h.u32(static_cast<uint32_t>(formation_attacks_.size()));
         for (const FormationAttack& e : formation_attacks_) {
             h.i32(e.mover);
@@ -376,8 +376,8 @@ void MovementSystem::hash_units(StateHasher& h) const {
     if (cfg_.mode == MoveMode::Land) coll_.hash(h);  // S7 collision layer (land only: the space format is unchanged)
     hash_special(h);  // §4.2-4.7: appended only when used (the format is unchanged otherwise)
     hash_fighters(h);  // FIGHTER_FLYING: appended only with space fighters / squadrons
-    hash_deploy(h);    // S8 t11: appended only while a Walk is in a deploy state / has a deploy clip
-    hash_turrets(h);   // S8 t24: appended only when a Deploys unit has a TURRET
+    hash_deploy(h);    // appended only while a Walk is in a deploy state / has a deploy clip
+    hash_turrets(h);   // appended only when a Deploys unit has a TURRET
 }
 
 void MovementSystem::register_crc(CrcRegistry& registry, const std::string& name) const {
@@ -400,7 +400,7 @@ bool MovementSystem::set_speed_factor(ObjectId id, float factor) {
     return true;
 }
 
-// ---------------------------------------------------------------- s78k t01: land arrival turn
+// ---------------------------------------------------------------- land arrival turn
 // MOVEMENT §3.5.1 (0x61d890 -> 0x61ca90): the wanted orientation on the last waypoint = its facing (the move's final
 // facing), through Movement_Directions_Count: 1 -> that yaw; <= 0 -> the current yaw; N -> of the N yaws spaced 360 / N
 // from the wanted one, the closest to the current yaw (first on ties).
@@ -423,7 +423,7 @@ float MovementSystem::land_wanted_yaw(const Unit& u) const {
 
 // State 0x15 on the last waypoint: a move with a final facing turns when the yaw is more than the threshold off (state
 // 0xf / 0x10), else it keeps its arrival yaw. [port] Walk locomotor (LocomotorKind::Default) only. The threshold is 10
-// degrees, or R when R <= 10 and the current waypoint's cap is 0 (s78n t26.2: cap_zero reads the path's fractions; the
+// degrees, or R when R <= 10 and the current waypoint's cap is 0 (cap_zero reads the path's fractions; the
 // waypoint behind an arrived unit is the last, (1, 1), so an order arrival uses 10). A move without a final facing ends on the arrival heading (0x61d570's 1e18 triple:
 // no turn). The turn itself starts on the next tick (arrival_turn_frame).
 void MovementSystem::land_arrival_turn(Unit& u) const {
@@ -545,7 +545,7 @@ bool MovementSystem::turn_clip_play(Unit& u, int32_t anim, float speed, float bl
 // s78l t02 (MOVEMENT §3.5.1 "Arrival turn, details" steps 3-6): one frame of the Walk arrival turn. Every handler
 // either ends the frame or runs the next state at once (0x0F -> 0x10 -> 0x11 -> 0x12 -> 0x15 in one frame).
 // [port] "the current clip" A is the clip this turn last played (kAnimNone before the first play: idle-class, not a
-// turn clip); the band threshold T is 10 (ordinary path). bkm1 t08 (b0050, MOVEMENT §3.5.3 items 2 / 5): with
+// turn clip); the band threshold T is 10 (ordinary path). bkm1 t08 (MOVEMENT §3.5.3 items 2 / 5): with
 // UseSecondaryFacing, 0x10 also steps Y2 toward the same w at r x SecondaryTurnInPlaceROTCoefficient, and the arrival turn
 // (not a start turn) is reached when Y2 lands with rate left; 0x15's re-test reads the primary yaw only.
 void MovementSystem::arrival_turn_frame(Unit& u, uint32_t frame) const {
@@ -700,7 +700,7 @@ bool MovementSystem::forced_spot(const Unit& u, V2 d, V2& out) const {
     return false;
 }
 
-// ---------------------------------------------------------------- s78k t03: team locomotor
+// ---------------------------------------------------------------- team locomotor
 bool MovementSystem::set_team(ObjectId id, ObjectId team, float container_factor, float container_max_speed) {
     Unit* u = unit_ptr(id);
     if (!u) return false;
@@ -713,7 +713,7 @@ bool MovementSystem::set_team(ObjectId id, ObjectId team, float container_factor
 
 float MovementSystem::team_base_speed(const Unit& u) const {
     // 0x4049e0: the members' raw Max_Speed (+0x37c), not their own speed overrides or factors; x the mode multiplier as
-    // configure() applies it, so a team of one type with factor-1 members gets exactly their lp.max_speed. s78l t01: the
+    // configure() applies it, so a team of one type with factor-1 members gets exactly their lp.max_speed. the
     // container's own Max_Speed (set_team) caps it: min(b, team_max x mult).
     const float mult = mode_mult();
     const float b = std::max(u.d.max_speed, 0.0f) * mult;
@@ -727,7 +727,7 @@ void MovementSystem::team_caps() {
     // order (no hashed container); a min is order-independent anyway.
     std::vector<std::pair<ObjectId, float>> mins;
     for (const Unit& u : units_) {
-        // s78n t03: a squad container (set_team on itself) takes its members' minimum; it is not one of them.
+        // a squad container (set_team on itself) takes its members' minimum; it is not one of them.
         if (u.team < 0 || u.d.team_container) continue;
         const float b = team_base_speed(u);  // the container's own Max_Speed included
         auto it = std::lower_bound(mins.begin(), mins.end(), u.team,
@@ -785,10 +785,10 @@ void MovementSystem::register_speed_crc(CrcRegistry& registry, const std::string
     registry.add(name, [this](StateHasher& h) { hash_speed(h); });
 }
 
-// ================================================================ space fighters (FIGHTER_FLYING.md §2-§5)
+// ================================================================ space fighters (legacy docs/re/FIGHTER_FLYING.md §2-§5)
 // Serial in ascending id (tick_fighters). Getters (§1.4): turn / roll / lift = the configured rates (mode multiplier
 // applied), thrust = FighterParams::max_thrust (raw), minspeed = SpecialParams::min_speed, maxspeed = the effective
-// max speed. s78f t02: avoid_speed() / formation_speed_or_max() read the fighter formation (fform_speed_read: F +0x21c
+// max speed. avoid_speed() / formation_speed_or_max() read the fighter formation (fform_speed_read: F +0x21c
 // under a guard top with an object, FIGHTER_FLYING §4.11 F), else minspeed / maxspeed; the squadron's "container path" is its
 // leader's path; the land clamp §3.7 is not modelled (space only: it is the identity there); the modifier events
 // (Out_Of_Combat_Defense_Adjustment, §4.1 step 1) belong to combat and are not raised here.
@@ -806,7 +806,7 @@ const MovementSystem::Unit* MovementSystem::unit_ptr(ObjectId id) const {
 std::vector<uint32_t> MovementSystem::order_indices(const MoveOrder& order) const {
     std::vector<uint32_t> idx;
     for (const ObjectId id : order.units) {
-        const int32_t i = find(order_id(id));  // s78n t03: a steering member's order goes to its container
+        const int32_t i = find(order_id(id));  // a steering member's order goes to its container
         if (i < 0 || std::find(idx.begin(), idx.end(), static_cast<uint32_t>(i)) != idx.end()) continue;
         idx.push_back(static_cast<uint32_t>(i));
     }
@@ -1143,7 +1143,7 @@ void MovementSystem::f_moving(Unit& u) {
             return;
         }
     }
-    // formation_speed_or_max() (s78f t02, FIGHTER_FLYING §4.11 F: F +0x21c of the container's / own formation while its
+    // formation_speed_or_max() (FIGHTER_FLYING §4.11 F: F +0x21c of the container's / own formation while its
     // top is a guard with an object and it has a path, so a solo fighter is capped too); path kind 1 is not produced
     f_follow(u, fformation_speed(u), u.d.layer_z);
     f_commit(u);
@@ -1511,7 +1511,7 @@ void MovementSystem::fighter_order(Unit& u) {
 // S7 t28 / t35 (A1_READINGS §33.4.1 step 3, 0x40dbc0, FIGHTER_FLYING §4.10 E): the guard's path copy. The whole path is
 // copied and every member's waypoint index is set to the object's, so the escort joins at the object's progress.
 // [port] the object's index = the start of its current segment by playback time (a space ship's path has no pass index;
-// FighterState::idx is the last passed waypoint, the segment start). S7 t37: t35 used the segment end, so a two-point
+// FighterState::idx is the last passed waypoint, the segment start). t35 used the segment end, so a two-point
 // path was complete at once (the escort went idle instead of flying it).
 bool MovementSystem::fighter_copy_path(ObjectId squad, ObjectId from, uint32_t frame) {
     if (cfg_.mode != MoveMode::Space) return false;
@@ -1555,7 +1555,7 @@ bool MovementSystem::fighter_copy_path(ObjectId squad, ObjectId from, uint32_t f
 // A unit (any kind) or squadron leaves: fighters drop it from their squadron, the grids and their locks; targets that
 // name it become dying ([port]: the retail death signals, 0x220e90 / 0x220eb0).
 void MovementSystem::fighter_removed(ObjectId id) {
-    fform_removed(id);  // S7 t37 / s78f t02: the formation's own end, or its objects' (listener 0x4f77e0)
+    fform_removed(id);  // the formation's own end, or its objects' (listener 0x4f77e0)
     if (Unit* u = unit_ptr(id); u && is_fighter(*u)) {
         if (FighterSquad* c = fsquad(*u)) {
             for (size_t n = 0; n < c->members.size(); ++n)
@@ -1635,7 +1635,7 @@ bool MovementSystem::set_fighter_squad(const FighterSquadDesc& desc) {
     s->guard_follow = desc.guard_follow;  // S7 t37
     for (ObjectId m : s->members) unit_ptr(m)->fs.squad = desc.id;
     s->chase = desc.chase;              // s78f t02
-    // S7 t37 / s78f t02: a formation given to the members before their squadron was registered (a hangar launch orders
+    // a formation given to the members before their squadron was registered (a hangar launch orders
     // the spawned fighters in the same frame) is the squadron's: the first member's (team index order) moves to the
     // container; the members' own formations go.
     if (!fforms_.empty()) {
@@ -1787,7 +1787,7 @@ void MovementSystem::hash_fighters(StateHasher& h) const {
         hash_cell(h, s.park);
         hash_f3(h, s.dest);
         hash_target(h, s.target);
-        if (!s.guard_follow) h.u8(0x47);  // S7 t37: only when not following (format unchanged otherwise)
+        if (!s.guard_follow) h.u8(0x47);  // only when not following (format unchanged otherwise)
     }
     h.u32(static_cast<uint32_t>(fevents_.size()));
     for (const FighterEvent& e : fevents_) {

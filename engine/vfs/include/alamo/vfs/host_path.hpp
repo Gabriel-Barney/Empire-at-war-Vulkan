@@ -1,4 +1,4 @@
-// Host path keys and UTF-8 host paths for the mod system (ums4 t04 / t06, Stage 10): one comparison rule for every place
+// Host path keys and UTF-8 host paths for the mod system (Stage 10): one comparison rule for every place
 // that asks "is this the same folder" (the catalog's find_root, the stack's launch list, the Steam library list, the
 // submod hint's candidates) and one UTF-8 conversion for the launchers. Before ums4 the catalog, the install search, the
 // Steam lookup and alamo_play each kept their own copy.

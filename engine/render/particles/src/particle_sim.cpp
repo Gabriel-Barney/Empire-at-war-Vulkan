@@ -466,7 +466,7 @@ void ParticleWorld::step_system(SystemState& s, float d, UpdatePacket* pkt) {
                 ++sc.events;
                 emitted_zero_interval = true;
                 const float pre_age = static_cast<float>(static_cast<double>(a1) - t);
-                // vis1 t04: spawn source 3 - one particle per parent-mesh vertex for each of the event's particles, the
+                // spawn source 3 - one particle per parent-mesh vertex for each of the event's particles, the
                 // vertices in a shuffled order [port: the free RNG, not CRT rand()]; sources 1 / 2 take a point each.
                 const bool on_mesh = s.mesh && parent_slot < 0 && ed.spawn_source >= 1 && ed.spawn_source <= 3;
                 const uint32_t per_vertex = on_mesh && ed.spawn_source == 3 ? static_cast<uint32_t>(s.mesh->positions.size()) : 1u;

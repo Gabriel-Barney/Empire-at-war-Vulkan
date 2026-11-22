@@ -1,4 +1,4 @@
-// Pipeline-state keys (PORTING.md 3.2 / 3.3 / 3.4), API-neutral.
+// Pipeline-state keys (legacy docs/shaders/PORTING.md 3.2 / 3.3 / 3.4), API-neutral.
 //
 // The enum values of the key fields are chosen to equal the corresponding Vulkan enum values
 // (VkBlendFactor, VkBlendOp, VkCompareOp, VkStencilOp, VkCullModeFlagBits, VkPolygonMode,
@@ -10,7 +10,7 @@
 // so Vulkan's winding equals the on-screen winding D3D9 saw (y up in NDC, image upright).
 // Evidence for which on-screen winding is the outside of a mesh:
 //   - ALO triangles wind counter-clockwise around their normals (assets SPEC 2.6) and the game
-//     uses a right-handed view + D3DXMatrixPerspectiveFovRH (docs/re/RENDER.md 3.2), so outward
+//     uses a right-handed view + D3DXMatrixPerspectiveFovRH (legacy docs/re/RENDER.md 3.2), so outward
 //     faces appear COUNTER-CLOCKWISE on screen;
 //   - the z-fail shadow volumes confirm it: t0_2pass p0 sets CULLMODE = CCW with STENCILZFAIL =
 //     INCR (z-fail increments on back faces, so the surviving clockwise faces are back faces),
@@ -55,7 +55,7 @@ enum class AddressMode : uint8_t { Repeat = 0, MirroredRepeat, ClampToEdge, Clam
 enum class VertexLayout : uint8_t {
     Unknown = 0, N, NU2, NU2C, NU2U3U3, NU2U3U3C, RSkinNU2, RSkinNU2C, RSkinNU2U3U3, PrimVert,
     Terrain,
-    PrimVertLit,  // dynamic FVF XYZ|NORMAL|DIFFUSE|TEX1 (36 B); PrimVert = XYZ|DIFFUSE|TEX1 (24 B), RENDER.md 1.4
+    PrimVertLit,  // dynamic FVF XYZ|NORMAL|DIFFUSE|TEX1 (36 B); PrimVert = XYZ|DIFFUSE|TEX1 (24 B), legacy docs/re/RENDER.md 1.4
     Count
 };
 VertexLayout vertex_layout_from_name(const char* alamo_vertex_type);  // "alD3dVertNU2" ...
@@ -127,7 +127,7 @@ struct DynamicState {
     float depth_bias = 0.0f, slope_scaled_depth_bias = 0.0f;  // D3D9 units (bias in depth range)
 };
 
-// Push-constant block shared by every hand-written and FF shader (PORTING.md 3.4), 16 bytes.
+// Push-constant block shared by every hand-written and FF shader (legacy docs/shaders/PORTING.md 3.4), 16 bytes.
 struct PushConstants {
     uint32_t draw_index = 0;   // base index into the DrawData SSBO (+ SV_InstanceID)
     uint32_t alpha_func = static_cast<uint32_t>(CompareOp::Always);  // CompareOp; Always = no test

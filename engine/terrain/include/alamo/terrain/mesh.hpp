@@ -1,4 +1,4 @@
-// alamo_terrain - terrain patch meshes + per-material splat passes (TERRAIN_WATER_POST.md 2).
+// alamo_terrain - terrain patch meshes + per-material splat passes (legacy docs/re/TERRAIN_WATER_POST.md 2).
 //
 // Output is GPU-ready CPU data (no Vulkan). Per patch (31x31 quads = 32x32 vertices, patch (i, j)
 // covers vertices x in [31i, 31i+31], y in [31j, 31j+31], patches stored row-major):

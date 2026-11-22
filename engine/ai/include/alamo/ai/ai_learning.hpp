@@ -1,4 +1,4 @@
-// AI framework: AILearningSystemClass (docs/re/AI_GALACTIC.md §1.11).
+// AI framework: AILearningSystemClass (legacy docs/re/AI_GALACTIC.md §1.11).
 //
 // Lifetime attempt/success counters keyed by (goal type, target), goal type and plan; recent records
 // {success, expiry} keyed by (plan, target) (+0x148), (goal type, target) (+0x188) and activations

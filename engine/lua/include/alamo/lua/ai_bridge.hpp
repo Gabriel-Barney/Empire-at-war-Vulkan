@@ -1,4 +1,4 @@
-// Lua bridge, AI family (roadmap A2; docs/re/AI_GALACTIC.md §1.9-1.10, §2.5, §2.8): the plan-facing
+// Lua bridge, AI family (roadmap A2; legacy docs/re/AI_GALACTIC.md §1.9-1.10, §2.5, §2.8): the plan-facing
 // bindings - TaskForce / GalacticTaskForce methods, AITarget wrappers, the plan's Budget, the free store,
 // FindTarget, _FindStageArea and the AI blocking statuses (src/bind_ai.cpp). WaitForStarbase /
 // WaitForGroundbase belong to the players family (bind_players.cpp).
@@ -84,7 +84,7 @@ public:
     virtual void tf_set_flag(int32_t tf, AiTfFlag flag, bool value) = 0;
     // Produce_Force([stage], [synchronized]) -> status id (-1 = nil). `stage.present` is false only with no argument (the
     // binding raises the script error for nil / non-wrapper values). kAiNotAPlanet: the argument resolved to no planet,
-    // so the binding raises "Expected a planet object for parameter 1" (a2m t05, A2M_T04_RE_ANSWERS Q4.1).
+    // so the binding raises "Expected a planet object for parameter 1" (A2M_T04_RE_ANSWERS Q4.1).
     virtual int32_t tf_produce_force(int32_t tf, const AiArg& stage, bool synchronized) = 0;
     virtual int32_t tf_get_stage(int32_t tf) = 0;  // target id, -1 = nil
     virtual bool tf_all_on_free_store(int32_t tf) = 0;
@@ -96,7 +96,7 @@ public:
     virtual std::vector<objects::ObjectHandle> tf_units(int32_t tf) = 0;
     virtual std::string tf_goal_type_name(int32_t tf) = 0;
     // Collect_All_Free_Units([category]) (0x5fc040): `category_mask` = the GameObjectCategoryType bits of the argument,
-    // ~0 without one (a1k t01, A1_READINGS §39.3). The host takes the free units whose type matches.
+    // ~0 without one (A1_READINGS §39.3). The host takes the free units whose type matches.
     virtual bool tf_collect_free_units(int32_t tf, uint64_t category_mask) = 0;
 
     // ---- blocking statuses ----
@@ -125,12 +125,12 @@ public:
 
     // ---- globals ----
     virtual int32_t find_target(int32_t script, const AiFindTargetRequest& request) = 0;  // target id, -1 = nil
-    // A1 (tiny marked fix): plain FindTarget returns the GAME OBJECT of a unit target (AI_TACTICAL.md 6.1).
+    // A1 (tiny marked fix): plain FindTarget returns the GAME OBJECT of a unit target (legacy docs/re/AI_TACTICAL.md 6.1).
     // Hosts return the object for such targets; null (the default, galactic) keeps the AITargetLocationWrapper.
     virtual objects::ObjectHandle find_target_object(int32_t /*target*/) { return {}; }
     // _FindStageArea(player, target, taskforce) -> target id (-1 = nil).
     virtual int32_t find_stage_area(int32_t script, const AiArg& player, const AiArg& target, const AiArg& tf) = 0;
-    // mcx8 t12 (docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "GiveDesireBonus") [H]: GiveDesireBonus(player, goal, target,
+    // mcx8 t12 (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "GiveDesireBonus") [H]: GiveDesireBonus(player, goal, target,
     // bonus, seconds) taken by the host - the bonus waits for a matching proposal until NOW + (int)(FPS x seconds) - and
     // its blocking status id (finished true when the bonus was added, false at the deadline). -1 (the default): not taken;
     // the binding queues the request on the player world and returns nil.
@@ -167,7 +167,7 @@ public:
         const auto it = opportunity_fire_.find(tf);
         return it == opportunity_fire_.end() ? nullptr : &it->second;
     }
-    // GalacticTaskForceClass.Refit_To_Definition(planet, budget) (AI_GALACTIC.md 2.4, L1_S4_REMAINING §2.12): status
+    // GalacticTaskForceClass.Refit_To_Definition(planet, budget) (legacy docs/re/AI_GALACTIC.md 2.4, L1_S4_REMAINING §2.12): status
     // id; -1 = nil, -3 = the TF definition is not percentage based (script error).
     virtual int32_t tf_refit(int32_t /*tf*/, objects::ObjectHandle /*planet*/, double /*budget*/) { return -1; }
     // FindTarget.Best_Of(tf, targets, perception): index into `targets` of the best one (-1 = nil).
@@ -223,15 +223,15 @@ void set_bool_global(LuaVm& vm, std::string_view name, bool value);
 void set_nil_global(LuaVm& vm, std::string_view name);
 // A GameObjectWrapper that holds no object (a userdata, not nil; TestValid false; a task force Move_To to it answers nil
 // with no message): the plan global `Target` of a goal whose AI target has no live game object, or of a goal without a
-// target (docs/re/B0173_RE_ANSWERS.md Q1).
+// target (legacy docs/re/B0173_RE_ANSWERS.md Q1).
 void set_objectless_global(LuaVm& vm, std::string_view name);
 
-// Task-force event dispatch (AI_GALACTIC.md §1.9.4 "Events"): the handler <tf_name>_<event>, else
+// Task-force event dispatch (legacy docs/re/AI_GALACTIC.md §1.9.4 "Events"): the handler <tf_name>_<event>, else
 // Default_<event>; arguments [task force, args...]. queued: appended to the VM's GetEvent queue (run by
 // the next PumpEvents); else called at once (protected). Skipped when the script is exiting. Returns
 // false when no handler exists. Errors go to *err.
 struct AiEventArg {
-    // ParentObject (storyb t14): `object` of the attached ObjectBridge's parent_store (push_parent_object; nil without one).
+    // ParentObject: `object` of the attached ObjectBridge's parent_store (push_parent_object; nil without one).
     enum Kind : uint8_t { Nil, Number, Boolean, String, Player, Object, TaskForce, Type, ParentObject } kind = Nil;
     double number = 0.0;
     bool boolean = false;
@@ -239,9 +239,9 @@ struct AiEventArg {
     int32_t id = -1;  // player / task force id
     objects::ObjectHandle object;
     AiTaskForceKind tf_kind = AiTaskForceKind::Galactic;
-    uint32_t type = 0xFFFFFFFFu;  // Type: GameObjectTypeWrapper of this type index (out of range -> nil; q6 t09)
+    uint32_t type = 0xFFFFFFFFu;  // Type: GameObjectTypeWrapper of this type index (out of range -> nil)
 };
-// `coalesce` (skai t15, SKAI_T15_UNIT_DAMAGED §2.2, queued only): the event is dropped, returning true, while one of the
+// `coalesce` (SKAI_T15_UNIT_DAMAGED §2.2, queued only): the event is dropped, returning true, while one of the
 // same name for the same task force is still waiting in the queue.
 bool dispatch_task_force_event(LuaVm& vm, int32_t tf, AiTaskForceKind kind, std::string_view tf_name,
                                std::string_view event, const std::vector<AiEventArg>& args, bool queued,
@@ -253,17 +253,17 @@ bool call_global_function(LuaVm& vm, std::string_view name, const std::vector<Ai
 // the call succeeded and the first result is a Lua number.
 bool call_global_number(LuaVm& vm, std::string_view name, const std::vector<AiEventArg>& args, double& out,
                         std::string* err = nullptr);
-// ui1 t05 (GAME_SCORING.md §7, Get_Game_Stat_For_Control_ID 0x485760): the first result as a number (`is_number`) or a
+// ui1 t05 (legacy docs/re/GAME_SCORING.md §7, Get_Game_Stat_For_Control_ID 0x485760): the first result as a number (`is_number`) or a
 // string; false when the call failed or the result is neither.
 bool call_global_value(LuaVm& vm, std::string_view name, const std::vector<AiEventArg>& args, double& number, std::string& text,
                        bool& is_number, std::string* err = nullptr);
 
-// Script pool support (AI_GALACTIC.md §1.9.1 "Script pool"): kills every thread of the VM, clears the
+// Script pool support (legacy docs/re/AI_GALACTIC.md §1.9.1 "Script pool"): kills every thread of the VM, clears the
 // exit flag, the message / error logs and the GetEvent queue state the host owns. Owner thread only.
 void reset_script_threads(LuaVm& vm);
 void clear_script_logs(LuaVm& vm);
 
-// Reading the plan definition globals after Base_Definitions (AI_GALACTIC.md §1.9.1).
+// Reading the plan definition globals after Base_Definitions (legacy docs/re/AI_GALACTIC.md §1.9.1).
 bool global_is_nil(LuaVm& vm, std::string_view name);
 bool global_bool(LuaVm& vm, std::string_view name, bool fallback);
 double global_number(LuaVm& vm, std::string_view name, double fallback);

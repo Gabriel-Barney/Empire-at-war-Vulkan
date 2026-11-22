@@ -2,10 +2,10 @@
 // part the tests drive (alamo_play_tests); play_main.cpp adds the Windows side (folder dialog, process, message boxes).
 //   find_game      the Forces of Corruption "corruption" folder, in Play.cmd's order (launcher.ps1 Find-Game): the
 //                  saved game_path.txt, ALAMO_FOC_DATA, the Steam libraries, a few fixed install folders; the search
-//                  itself is vfs::find_install (ums1 t01, install_locations.hpp), shared with every launch surface
+//                  itself is vfs::find_install (install_locations.hpp), shared with every launch surface
 //   game_args      alamo_game's arguments: --game, --cache-dir, then the user's own (a dropped mod folder becomes
 //                  MODPATH=<folder>, as Play_Mod.cmd does for a dragged folder)
-//   stack_mod_args the mod arguments replaced by their resolved stack (ums1 t04: the in-game picker's list)
+//   stack_mod_args the mod arguments replaced by their resolved stack (the in-game picker's list)
 //   command_line   one CreateProcessW command line (CommandLineToArgvW quoting)
 // Launcher only: nothing here is read by the engine or the sim.
 #pragma once
@@ -38,8 +38,7 @@ struct FindInputs {
 };
 
 // The game folder, or empty when none of the inputs names one. `steam_libraries` (when given) receives the Steam library
-// folders the search found (UTF-8, vfs::InstallLocations::steam_libraries), so the caller does not walk Steam again
-// (ums2 t07).
+// folders the search found (UTF-8, vfs::InstallLocations::steam_libraries), so the caller does not walk Steam again.
 std::filesystem::path find_game(const FindInputs& in, std::vector<std::string>* steam_libraries = nullptr);
 
 // --game <game> --cache-dir <cache>, then `user` in order; an argument that is a folder holding a Data folder (or a
@@ -47,7 +46,7 @@ std::filesystem::path find_game(const FindInputs& in, std::vector<std::string>* 
 std::vector<std::wstring> game_args(const std::filesystem::path& game, const std::filesystem::path& cache,
                                     const std::vector<std::wstring>& user);
 
-// ums1 t04: resolves the picked mods to the stack every launch surface starts (play_main passes
+// resolves the picked mods to the stack every launch surface starts (play_main passes
 // game::play_launch_args, the resolver the in-game picker and alamo_mod_check --resolve use). Gets the mod arguments in
 // command-line order (UTF-8); returns the launch list, or nullopt when the stack is refused (a base-EaW mod, D1).
 using ModStackResolver = std::function<std::optional<std::vector<std::string>>(const std::vector<std::string>& picked)>;

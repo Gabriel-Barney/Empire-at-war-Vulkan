@@ -1,4 +1,4 @@
-// P2 stage 2: command-bar button behaviour (docs/re/UI.md §2.1 "textures (state)", "behaviour", "animation";
+// P2 stage 2: command-bar button behaviour (legacy docs/re/UI.md §2.1 "textures (state)", "behaviour", "animation";
 // §2.3 tooltips; §3.6 UI sounds).
 //
 // Per component the host / Lua sets a ButtonRuntime (hidden, disabled, selected, flash, blink, icon / text
@@ -43,7 +43,7 @@ namespace alamo::ui {
 
 class FontCache;
 
-// UI SFX hook point (UI.md §3.6): `event` is the SFXEventsGUI.xml name (Mouse_Over_SFX, Click_SFX, ...).
+// UI SFX hook point (legacy docs/re/UI.md §3.6): `event` is the SFXEventsGUI.xml name (Mouse_Over_SFX, Click_SFX, ...).
 using HudSfxHook = std::function<void(std::string_view event, int32_t component)>;
 
 struct ButtonRuntime {
@@ -52,7 +52,7 @@ struct ButtonRuntime {
     double blink_start = -1.0;     // < 0: not blinking (Lua Blink / host): started at this time
     int32_t alt = -1;              // alternate texture index (-1: the HUD's faction index)
     int32_t tooltip_index = 0;     // Tooltip_Text entry (< 0: no tooltip)
-    std::string tooltip_key;       // ui3 t07: replaces the Tooltip_Text entry (ability / unit text); "" = data
+    std::string tooltip_key;       // replaces the Tooltip_Text entry (ability / unit text); "" = data
     std::u32string tooltip_text;   // [port] literal tooltip text (a player-given fleet / ship name), shown after the key text
     std::string icon_override;     // replaces the icon texture ("" = data)
     std::u32string text;           // drawn with the component's font ("" = none)
@@ -91,7 +91,7 @@ public:
     ButtonRuntime& state(uint32_t component);
     const ButtonRuntime* find_state(uint32_t component) const;
     void set_sfx_hook(HudSfxHook hook) { sfx_ = std::move(hook); }
-    void play_sfx(std::string_view event, int32_t component) const {  // a HUD's own sound (UI5 t06: GUI_Cancel_SFX)
+    void play_sfx(std::string_view event, int32_t component) const {  // a HUD's own sound (GUI_Cancel_SFX)
         if (sfx_) sfx_(event, component);
     }
     // Can_Animate frame animation (anim_frame): start (restarts when already playing) / stop.
@@ -120,10 +120,10 @@ private:
     double hover_since_ = 0.0;
 };
 
-// Blink alpha factor 0..1 for a component's Blink_* fields started at `start` (UI.md §2.1 animation, [port]).
+// Blink alpha factor 0..1 for a component's Blink_* fields started at `start` (legacy docs/re/UI.md §2.1 animation, [port]).
 float blink_alpha(const CommandBarComponent& c, double start, double now);
 
-// Can_Animate frame animation (UI.md §2.1 "animation"; [port] rules): the frames are the component's
+// Can_Animate frame animation (legacy docs/re/UI.md §2.1 "animation"; [port] rules): the frames are the component's
 // Icon_Alternate_Texture_Name list played at Anim_FPS (<= 0: 10) from `start`; Animate_Back plays forward then back
 // (ping-pong, the end frames once per turn); Loop_Anim (or the runtime's anim_loop, e.g. Lua Play_Anim) repeats, else
 // the animation ends after one pass and the button shows its normal icon again. Returns the frame index, or -1 when
@@ -152,10 +152,10 @@ struct TooltipConfig {
 // Encyclopedia_Min_Display_Time (s) from a parsed GameConstants root.
 TooltipConfig tooltip_config_from(const data::XmlNode& game_constants_root);
 
-// mcx4 t14 / t15: HUD values the host copies into the frames (GameConstants; defaults = FoC's values).
+// HUD values the host copies into the frames (GameConstants; defaults = FoC's values).
 struct HudConstants {
-    float health_bar_spacing = 2.0f;               // Health_Bar_Spacing (pixels between stacked bars, UI.md §1.2)
-    bool radar_colorize_selected = true;           // Radar_Colorize_Selected_Units (UI.md §1.7)
+    float health_bar_spacing = 2.0f;               // Health_Bar_Spacing (pixels between stacked bars, legacy docs/re/UI.md §1.2)
+    bool radar_colorize_selected = true;           // Radar_Colorize_Selected_Units (legacy docs/re/UI.md §1.7)
     Rgba8 radar_selected_color{209, 255, 209, 255};  // Radar_Selected_Units_Color
     Rgba8 battle_pending_color{255, 32, 32, 240};  // Battle_Pending_Message_Color (GALACTIC_DIALOGS §1.3)
     // mcx4 t14 (P4_SIM_SYSTEMS §2.7.2): the Droid Log's "Day N" and separator rows.
@@ -167,9 +167,9 @@ struct HudConstants {
     float win_lose_font_size = 24.0f;                 // Win_Lose_Message_Font_Size
     Rgba8 win_message_color{223, 243, 255, 255};      // Win_Message_Color
     Rgba8 lose_message_color{255, 244, 223, 255};     // Lose_Message_Color
-    int32_t cb_flash_count = 4;                       // mcx4 t14: CB_Flash_Count (b_reinforcement flashes on a pool add)
-    DefaultFonts fonts;                               // mcx4 t14: the GameConstants default fonts (FontCache::set_defaults)
-    float text_reveal_rate = 120.0f;                  // mcx4 t14: Text_Reveal_Rate (story text typewriter, chars / s)
+    int32_t cb_flash_count = 4;                       // CB_Flash_Count (b_reinforcement flashes on a pool add)
+    DefaultFonts fonts;                               // the GameConstants default fonts (FontCache::set_defaults)
+    float text_reveal_rate = 120.0f;                  // Text_Reveal_Rate (story text typewriter, chars / s)
     // mcx4 t14 (MCX4_PRES_RE_ANSWERS_3 Q2): Num_Structures_For_Medium_Planet_Name / _Large_ (planet_label_class)
     int32_t medium_planet_structures = 3, large_planet_structures = 5;
     // mcx4 t14 (MCX4_PRES_RE_ANSWERS_2 Q1): the countdown timer column. One font for every timer (empty name: Arial; FoC

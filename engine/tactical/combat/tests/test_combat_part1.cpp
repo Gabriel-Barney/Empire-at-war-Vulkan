@@ -1,4 +1,4 @@
-// Part 1 of test_combat (bo3 t03: split by position; see test_combat_common.hpp).
+// Part 1 of test_combat (split by position; see test_combat_common.hpp).
 #include "alamo/test/engagement_fns.hpp"
 #include "test_combat_common.hpp"
 
@@ -316,7 +316,7 @@ void test_priority_sets() {
     CHECK_F(priority_score(s, 3, 0, 0x1000), -1.0f);      // property exclusion
     CHECK_F(priority_score(s, 9, 0x1, 0), -1.0f);         // unit exclusion
     CHECK_F(priority_score(s, 3, 0, 0), 1e18f);           // nothing matched
-    // refixf t06: the hard-point lists hold HardPointType values (Shield_Generator, Engine, ...), not hardpoint names.
+    // the hard-point lists hold HardPointType values (Shield_Generator, Engine, ...), not hardpoint names.
     const auto hk = [](HardpointKind k) { return static_cast<int32_t>(k); };
     s.hardpoint_priorities = {hk(HardpointKind::ShieldGenerator), hk(HardpointKind::Engine)};
     s.hardpoint_exclusions = {hk(HardpointKind::FighterBay)};
@@ -324,7 +324,7 @@ void test_priority_sets() {
     CHECK_F(hardpoint_rank(s, hk(HardpointKind::Engine)), 2.0f);
     CHECK_F(hardpoint_rank(s, hk(HardpointKind::FighterBay)), -1.0f);
     CHECK_F(hardpoint_rank(s, hk(HardpointKind::WeaponLaser)), 1e18f);
-    // HardPointType names (TACTICAL_COMBAT §2.4, refixf t06): short names only, trimmed, case-insensitive; value 11 has
+    // HardPointType names (TACTICAL_COMBAT §2.4): short names only, trimmed, case-insensitive; value 11 has
     // no name; the HardPoint XML's HARD_POINT_ spelling does not resolve.
     CHECK(hardpoint_type_value("Shield_Generator") == hk(HardpointKind::ShieldGenerator));
     CHECK(hardpoint_type_value(" Engine ") == hk(HardpointKind::Engine));
@@ -426,7 +426,7 @@ void inaccuracy_case(GameMode mode, float accuracy, float fixed_radius, float ov
 
 namespace bo3split {
 
-// A1j t03: own-weapon inaccuracy 0x549f80 (TACTICAL_COMBAT §3.1.2). A shooter with its own weapon (no hardpoints, no
+// own-weapon inaccuracy 0x549f80 (TACTICAL_COMBAT §3.1.2). A shooter with its own weapon (no hardpoints, no
 // muzzle bones) at the origin and a stationary capital 500 away; the first shot's direction must be the target plus
 // the first `xyz_draws` draws of the firing tick in (-expect_r, expect_r) (2: X and Y only, 0: no offset). [The tick's
 // draw count is not checked: the recharge's range_int(0, 10) takes a state-dependent number of draws.]
@@ -625,7 +625,7 @@ void test_circular_lead() {
 namespace bo3split {
 
 void test_turn_toward() {
-    // S9 t05 (S9_DEATH_CLONE_SHIELDS.md §2.3): Turn_Toward clamps the yaw and pitch deltas separately; rate 0 keeps
+    // S9 t05 (legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §2.3): Turn_Toward clamps the yaw and pitch deltas separately; rate 0 keeps
     // the heading bit for bit (vanilla lasers vs missile shields).
     const Vec3 fwd{1, 0, 0};
     const Vec3 a = turn_toward(fwd, Vec3{-1, 0, 0}, 0.0f);
@@ -730,7 +730,7 @@ void test_lob_solver() {
 
 namespace bo3split {
 
-// cu8k t01 (CU8F_T01_T02_T07_RE.md §2.7 item 3): a thrown saber (category 8, Max_Speed 8, MFD 250, Projectile_Damage 13,
+// cu8k t01 (legacy docs/re/CU8F_T01_T02_T07_RE.md §2.7 item 3): a thrown saber (category 8, Max_Speed 8, MFD 250, Projectile_Damage 13,
 // Projectile_Stun_Radius 23). Thrower at the origin (Ranged_Target_Z_Adjust 7), target 150 units east (radius 5.25,
 // as Rebel_Trooper): max travel = 250 + 5.25 + |7 - 7| = 255.25, so the saber dies at step ceil(255.25 / 8) = 32, on its
 // way back. Not stepped on its spawn frame; the first step plans the two jittered legs (n1 = n2 = ceil(150 / 55) = 3:
@@ -913,7 +913,7 @@ void test_lob_weapon_flight() {
 
 namespace bo3split {
 
-// S8 t06: a heightmap grid (20-unit cells, height scale 1/16) of w x h vertices at `level` raw units everywhere.
+// a heightmap grid (20-unit cells, height scale 1/16) of w x h vertices at `level` raw units everywhere.
 GroundGrid flat_grid(uint32_t w, uint32_t h, int16_t level) {
     GroundGrid g;
     g.cell = 20.0f;
@@ -1385,7 +1385,7 @@ void test_team_targeting() {
         while (t.w.frame <= due) t.w.tick();
         CHECK(t.w.sys->auto_target(11) == (in_team ? 2 : kNoObject));
     }
-    // s78f t07: a dead team_leader hands the role to the team's first live member (ascending id). Leader 10 has no set;
+    // a dead team_leader hands the role to the team's first live member (ascending id). Leader 10 has no set;
     // after it is removed, member 11 (capital first) leads, so member 12 (no set of its own) scores with 11's set and
     // takes the farther capital. Without the hand-over 12 would have no head and take the closer fighter (all 1.0).
     for (const bool remove_leader : {true, false}) {
@@ -1437,7 +1437,7 @@ void test_gaps_constants() {
               "<Object_Max_Speed_Multiplier_Space> 1.2 </Object_Max_Speed_Multiplier_Space>"
               "<Object_Max_Speed_Multiplier_Land> 1.56 </Object_Max_Speed_Multiplier_Land>"
               "<Diminishing_Firepower>0, 0.6, 0.3, 0.7, 0.9, 0.9, 1, 1, 2, 1</Diminishing_Firepower>"
-              // cu8 t03: the remaining data-backed knobs (FoC writes the vulnerability as "2.0f")
+              // the remaining data-backed knobs (FoC writes the vulnerability as "2.0f")
               "<Base_Shield_Vulnerability_Modifier>2.0f</Base_Shield_Vulnerability_Modifier>"
               "<Base_Shield_Delay_Time>7.5</Base_Shield_Delay_Time><Base_Shield_Speed_Modifier>0.4</Base_Shield_Speed_Modifier>"
               "<Hull_Vs_Hard_Points_Health_Constraint>0.3</Hull_Vs_Hard_Points_Health_Constraint>"
@@ -1748,7 +1748,7 @@ void test_s78n_can_hit() {
         CHECK(calls == (land ? 1 : 0));
         if (land) CHECK(qa.z == 5.0f && qb.z == 2.0f && qd);
         CHECK(w.sys->can_hit_from(1, Vec3{100, 0, 0}, 2) == CanHit::Yes);  // both points on one side
-        // bkt1 t06 (b0079, MOVEMENT §4.3.2 item 7): an end point G given - the line of fire ends there (raised by T's
+        // bkt1 t06 (MOVEMENT §4.3.2 item 7): an end point G given - the line of fire ends there (raised by T's
         // Ranged_Target_Z_Adjust), the range tests still measure to T
         const Vec3 g{40.0f, 0.0f, 7.0f};
         CHECK(w.sys->can_hit_from(1, Vec3{0, 0, 0}, 2, &g) == CanHit::Yes);  // G on the attacker's side of the edge
@@ -1867,7 +1867,7 @@ void test_land_obstacle_and_weapon_index() {
         c = Vec3{std::floor(p.x / 20.0f) * 20.0f + 10.0f, std::floor(p.y / 20.0f) * 20.0f + 10.0f, p.z};
         return std::fabs(p.x - 1250.0f) < 200.0f && std::fabs(p.y) < 200.0f ? ObstacleCell::Occupied : ObstacleCell::Free;
     };
-    {  // S8 t01: the host reports no footprint (not stamped): the half-extent rule, E = radius 300 -> taken
+    {  // the host reports no footprint (not stamped): the half-extent rule, E = radius 300 -> taken
         TargetWorld t;
         const uint32_t bd = building(t);
         t.w.make();
@@ -1912,7 +1912,7 @@ void test_land_obstacle_and_weapon_index() {
         CHECK(t.w.sys->auto_target(1) == 2);
     }
 #ifdef ALAMO_COMBAT_TESTS_HAVE_MOVEMENT
-    {  // S8 t01: the walk over a real PassabilityGrid stamp (the battle host's query: PassabilityGrid::occupies)
+    {  // the walk over a real PassabilityGrid stamp (the battle host's query: PassabilityGrid::occupies)
         namespace mv = alamo::tactical::movement;
         mv::PassabilityGrid g;
         g.init(96, 24);
@@ -1960,14 +1960,14 @@ void test_land_obstacle_and_weapon_index() {
         run(40.0f, 1210.0f, taken, inside);
         CHECK(!taken && inside);  // max: 1000 in range; min: centre 1210 <= 1210 inside -> rejected
         run(40.0f, 1000.0f, taken, inside);
-        CHECK(taken && !inside);  // s78n t02: centre 1210 > 1000 (the walked cell and sqrt(200) are slot 43 only)
+        CHECK(taken && !inside);  // centre 1210 > 1000 (the walked cell and sqrt(200) are slot 43 only)
         run(60.0f, 950.0f, taken, inside);
         CHECK(taken && !inside);  // centre 1190: in max range (980 walked), outside 950
         // Attacker on the far side (x = 1500): the walk goes +x to cell 74 (centre 1480), d = 20; the centre is 250 away.
         run(1500.0f, 250.0f, taken, inside);
         CHECK(!taken && inside);  // 250 <= 250
         run(1500.0f, 10.0f, taken, inside);
-        CHECK(taken && !inside);  // s78n t02: 250 > 10 (before: walked 20 <= 10 + 14.14)
+        CHECK(taken && !inside);  // 250 > 10 (before: walked 20 <= 10 + 14.14)
         // [port] attacker inside the footprint (x = 1300, len 50): steps 1250 / 1270 / 1290 / 1310, then walked 60 > 50
         // stops on an occupied cell (66, centre 1320): d = 20. The min range reads the centre, 50 away.
         run(1300.0f, 50.0f, taken, inside);
@@ -2167,7 +2167,7 @@ void test_attack_move_object() {
     UnitDesc f = c;
     f.category_mask = kCatFighter;
     const uint32_t fighter = push_unit(w.data, f);
-    UnitDesc nt = c;  // q6 t19: fails the type half of 0x5680b0 (e.g. no Collidable_By_Projectile_Living)
+    UnitDesc nt = c;  // fails the type half of 0x5680b0 (e.g. no Collidable_By_Projectile_Living)
     nt.target_test_type = false;
     const uint32_t not_target = push_unit(w.data, nt);
     w.make();
@@ -2381,7 +2381,7 @@ void test_hardpoint_fire_routing() {
 
 namespace bo3split {
 
-// refixf t07: the host's precise test decides each Query_Ray entry (TACTICAL_COMBAT §3.4); a hit's mesh name routes the
+// the host's precise test decides each Query_Ray entry (TACTICAL_COMBAT §3.4); a hit's mesh name routes the
 // damage to the hardpoint whose Collision_Mesh it is (§2.9 Q1 step 4), no name -> the hull.
 void test_precise_hit_hook() {
     World w;

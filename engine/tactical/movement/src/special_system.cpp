@@ -1,4 +1,4 @@
-// MovementSystem: special locomotors (docs/re/REMAINING_GAPS.md §4.2-4.7). See movement_system.hpp and
+// MovementSystem: special locomotors (legacy docs/re/REMAINING_GAPS.md §4.2-4.7). See movement_system.hpp and
 // special_locomotors.hpp for the contract.
 #include <algorithm>
 #include <cmath>
@@ -40,7 +40,7 @@ void MovementSystem::special_idle(Unit& u) {
     u.sm.airborne = k == LocomotorKind::Flying || k == LocomotorKind::LandBomber;
 }
 
-// S7 t06 / t14: the Uses_Multiple_Locomotors swap 0x3a9910 (MOVEMENT §3.1.1) - a set, not a toggle. [port] land only
+// the Uses_Multiple_Locomotors swap 0x3a9910 (MOVEMENT §3.1.1) - a set, not a toggle. [port] land only
 // (every vanilla user is a land unit; the jetpack is land-only); JETPACK secondaries only (UnitDesc::
 // has_secondary_locomotor), so "on the secondary" (retail: the active locomotor is a JetPack, vf96 = 0) is on_secondary.
 // Engine audio loops off (STATION_HANGARS_SOUND §3.3) and the weapon behaviours (step 6) are the host's.
@@ -77,7 +77,7 @@ bool MovementSystem::swap_locomotor(Unit& u, bool secondary) {
         u.in_formation = false;
         u.jiggle = V2{};
         u.formation_speed = 3.0e38f;  // alone
-        u.form_rank = 0;  // mov1 t05: it leaves its coordinator
+        u.form_rank = 0;  // it leaves its coordinator
         u.coord_id = 0;
         end_push(u);  // a1k t03 [port]
         if (u.has_goal) {
@@ -247,7 +247,7 @@ void MovementSystem::step_jetpack(Unit& u, uint32_t frame) {
             s.turn_left = err > 0.0f;
             if (u.sp.has_pre_turn_anim && std::fabs(err) > 0.0f)
                 anim_play(u, err > 0.0f && err < 180.0f ? kAnimTurnLeftBegin : kAnimTurnRightBegin, false);
-            s.turn_band_rate = 0.0f;  // S7 t15: 0xF clears +0xe8 right before 0x10 (the first turn frame turns at R)
+            s.turn_band_rate = 0.0f;  // 0xF clears +0xe8 right before 0x10 (the first turn frame turns at R)
             s.state = LocoState::WalkTurning;
             break;
         }
@@ -692,7 +692,7 @@ void MovementSystem::hash_special(StateHasher& h) const {
         const SpecialMotion& s = u.sm;
         h.i32(u.d.id);
         h.u8(static_cast<uint8_t>(u.d.locomotor));
-        if (u.on_secondary) h.u8(0xA5);  // S7 t06: secondary locomotor active (only then: other formats unchanged)
+        if (u.on_secondary) h.u8(0xA5);  // secondary locomotor active (only then: other formats unchanged)
         h.f32(u.threat);
         h.u8(static_cast<uint8_t>(s.state));
         h.i32(s.anim.id);
@@ -701,7 +701,7 @@ void MovementSystem::hash_special(StateHasher& h) const {
         h.boolean(s.anim.loop);
         h.boolean(s.airborne);
         h.boolean(s.turn_left);
-        if (s.turn_band_rate != 0.0f) h.f32(s.turn_band_rate);  // S7 t15: only during a Has_Pre_Turn_Anim take-off turn
+        if (s.turn_band_rate != 0.0f) h.f32(s.turn_band_rate);  // only during a Has_Pre_Turn_Anim take-off turn
         h.f32(s.lean);
         h.u32(s.idle_frames);
         h.boolean(s.turn_back);
@@ -712,8 +712,8 @@ void MovementSystem::hash_special(StateHasher& h) const {
         h.f32(s.clock);
         h.f32(s.pass_z);
         h.f32(u.path_lag);
-        if (s.facing_lookahead != 0.0f) h.f32(s.facing_lookahead);  // mcx4 t11: bombers only (other formats unchanged)
-        if (s.lateral != 0.0f) h.f32(s.lateral);                    // mcx4 t11: a LateralAcceleration bike only
+        if (s.facing_lookahead != 0.0f) h.f32(s.facing_lookahead);  // bombers only (other formats unchanged)
+        if (s.lateral != 0.0f) h.f32(s.lateral);                    // a LateralAcceleration bike only
         if (u.d.locomotor == LocomotorKind::Flying) {  // FIGHTER_FLYING §6 (flying units only: other formats unchanged)
             h.f32(s.pitch);
             h.f32(s.vel.x);

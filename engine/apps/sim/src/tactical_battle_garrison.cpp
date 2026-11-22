@@ -1,5 +1,5 @@
 // S4 garrisons + structure capture hookup of TacticalBattle (owner: S4 agent; engine/tactical/garrison; rules:
-// docs/re/L1_S4_REMAINING.md §3.5, §4.1, §4.2). Kept in its own file so the other battle hooks (fog, A1, L1 systems) stay
+// legacy docs/re/L1_S4_REMAINING.md §3.5, §4.1, §4.2). Kept in its own file so the other battle hooks (fog, A1, L1 systems) stay
 // separate. Serial code; the only RNG uses are the
 // MovementSystem moves of the garrison approach (order_garrison, its re-issue and corrective move; same rule as
 // order_move) and the hosts' stop-and-hold adopts. Host-side [port] choices:
@@ -216,7 +216,7 @@ void TacticalBattle::s4_capture_reset(TacticalMode& mode, objects::ObjectId pad)
         store.set_owner(h, neutral);
         mode.trees().set_owner(static_cast<tactical::EntityHandle>(pad), neutral);
         garrison_.set_owner(pad, neutral, store.position(h), store.facing(h), frame_);
-        fog_owner_changed(mode, h, old);  // a1h t01: REVEAL vf18 of a non-unit point
+        fog_owner_changed(mode, h, old);  // REVEAL vf18 of a non-unit point
     }
     captures_->reset(pad, neutral);
 }
@@ -292,7 +292,7 @@ void TacticalBattle::s4_set_owner(TacticalMode& mode, objects::ObjectId id, int3
         store.set_owner(h, owner);
         mode.trees().set_owner(static_cast<tactical::EntityHandle>(id), owner);
         garrison_.set_owner(id, owner, store.position(h), store.facing(h), frame_);
-        fog_owner_changed(mode, h, old);  // a1h t01: REVEAL vf18 of a non-unit point (FOG_OF_WAR §3.2)
+        fog_owner_changed(mode, h, old);  // REVEAL vf18 of a non-unit point (FOG_OF_WAR §3.2)
     }
     if (captures_ && captures_->is_point(id) && captures_->owner(id) != owner) captures_->set_owner(id, owner);
     if (cashes_ && cashes_->is_point(id)) cashes_->set_owner(id, owner);
@@ -333,7 +333,7 @@ void TacticalBattle::s4_leave(TacticalMode& mode, objects::ObjectId unit, Vec3 a
 }
 
 // s78n review (TACTICAL_COMBAT §5.4.4 item 2, L1_S4_REMAINING §3.5): a land squad member leaving a garrison steers to its
-// old slot around its container again (MovementSystem::rejoin_land_team). s78n t14: where the squad leaves is placed by
+// old slot around its container again (MovementSystem::rejoin_land_team). Where the squad leaves is placed by
 // s4_squad_leave (the squad leaves as one); the member's layout shape is set again (a fresh mover).
 void TacticalBattle::s4_rejoin_squad(TacticalMode&, const Unit& u, Vec3) {
     if (space_ || !movement_ || u.container >= containers_.size()) return;
@@ -452,7 +452,7 @@ void TacticalBattle::s4_apply(TacticalMode& mode) {
     objects::ObjectStore& store = mode.primary();
     std::vector<tg::GarrisonEvent> events(garrison_.events().begin(), garrison_.events().end());
     garrison_.clear_events();
-    std::vector<SquadExit> outs;  // s78n t14: the squads leaving in this batch (s4_squad_leave)
+    std::vector<SquadExit> outs;  // the squads leaving in this batch (s4_squad_leave)
     // s78n t18 (FIGHTER_FLYING §7.4): a squad enters as one object - its container is stopped once and the host's hold
     // is drawn once per squad and event kind in a batch, not once per member.
     std::vector<std::pair<objects::ObjectId, tg::GarrisonEventKind>> squad_done;
@@ -464,7 +464,7 @@ void TacticalBattle::s4_apply(TacticalMode& mode) {
         squad_done.push_back(key);
         return true;
     };
-    // s78n t14: index loop - a squad leave appends its members' exits (and [port] any other event pending then).
+    // index loop - a squad leave appends its members' exits (and [port] any other event pending then).
     for (size_t ei = 0; ei < events.size(); ++ei) {
         const tg::GarrisonEvent e = events[ei];
         switch (e.kind) {
@@ -522,7 +522,7 @@ void TacticalBattle::s4_apply(TacticalMode& mode) {
                 // s78n review: a land squad member keeps its team place (container, slot, team index) for the leave.
                 // s78n t26.1 review: the Walk deploy state is kept for the leave (retail keeps the locomotor pack)
                 (void)movement_->garrison_remove(e.unit, frame_);
-                s4_squad_enter(mode, *u, e.position);  // s78n t14: the last member in takes the container in
+                s4_squad_enter(mode, *u, e.position);  // the last member in takes the container in
                 store.set_position(u->h, e.position);
                 mode.trees().update(static_cast<tactical::EntityHandle>(e.unit), mode.bounds_of(u->h));
                 if (combat_->has_unit(e.unit)) {
@@ -536,12 +536,12 @@ void TacticalBattle::s4_apply(TacticalMode& mode) {
                 if (abilities_->has_object(e.holder))
                     abilities_->set_garrison_count(e.holder, static_cast<int32_t>(garrison_.occupants(e.holder).size()));
                 story_garrisoned_.push_back({e.unit, e.holder});
-                if (garrison_.reserved(e.holder) == 0) s4_host_undeploy(e.holder);  // s78n t26.1: host +0xf0 (0x636090)
+                if (garrison_.reserved(e.holder) == 0) s4_host_undeploy(e.holder);  // host +0xf0 (0x636090)
                 break;
             }
             case tg::GarrisonEventKind::Exited:
             case tg::GarrisonEventKind::Ejected:
-                s4_leave(mode, e.unit, s4_squad_leave(mode, e, outs, events), e.holder);  // s78n t14: a squad leaves as one
+                s4_leave(mode, e.unit, s4_squad_leave(mode, e, outs, events), e.holder);  // a squad leaves as one
                 story_vacated_.push_back({e.unit, e.holder});
                 if (abilities_->has_object(e.holder))
                     abilities_->set_garrison_count(e.holder, static_cast<int32_t>(garrison_.occupants(e.holder).size()));
@@ -563,7 +563,7 @@ void TacticalBattle::s4_apply(TacticalMode& mode) {
                 // the cancel 0x443560): host vf +0xf8 only when the state was 2 (or 4: not modelled)
                 if (e.was != 2) break;
                 if (objects::ObjectId k = objects::kNoObjectId; squad_first(e.unit, e.kind, k)) s4_hold(mode, e.holder);
-                s4_host_undeploy(e.holder);  // s78n t26.1: the same +0xf8 runs the cap test (0x6360b0)
+                s4_host_undeploy(e.holder);  // the same +0xf8 runs the cap test (0x6360b0)
                 break;
         }
     }
@@ -588,7 +588,7 @@ void TacticalBattle::s4_apply(TacticalMode& mode) {
         const std::vector<tg::CaptureEvent> caps(captures_->events().begin(), captures_->events().end());
         captures_->clear_events();
         for (const tg::CaptureEvent& c : caps) {
-            vm_cp_capture(c.point, c.new_owner);  // ccpgt t02: 0x360d90 runs before the owner is written
+            vm_cp_capture(c.point, c.new_owner);  // 0x360d90 runs before the owner is written
             s4_set_owner(mode, c.point, c.new_owner);
             story_captured_.push_back({c.point, c.old_owner, c.new_owner});
         }
@@ -662,7 +662,7 @@ void TacticalBattle::s4_tick(TacticalMode& mode, SimRng& rng) {
         bt_capture_anims(rng, tick_.global_frame);
         s4_apply(mode);
     }
-    // 4. mcx4 t05: cash points (CASH_POINT service 0x621370, every frame). Influencers: live, non-retreated, non-garrisoned
+    // 4. Cash points (CASH_POINT service 0x621370, every frame). Influencers: live, non-retreated, non-garrisoned
     //    battle units with an owner whose type has Influences_Cash_Point (default true) [port: battle units stand in for
     //    the player tree's objects].
     if (cashes_ && cashes_->point_count() > 0) {
@@ -761,7 +761,7 @@ void TacticalBattle::s4_hash(StateHasher& h) const {
     garrison_.hash(h);
     h.boolean(captures_ != nullptr);
     if (captures_) captures_->hash(h);
-    if (cashes_ && cashes_->point_count() > 0) cashes_->hash(h);  // mcx4 t05: only with cash points
+    if (cashes_ && cashes_->point_count() > 0) cashes_->hash(h);  // only with cash points
 }
 
 bool TacticalBattle::can_garrison(objects::ObjectId unit, objects::ObjectId holder) const {
@@ -786,7 +786,7 @@ cmd::RejectReason TacticalBattle::order_garrison(TacticalMode& mode, uint8_t pla
     objects::ObjectStore& store = mode.primary();
     const objects::ObjectHandle hh = store.find(holder);
     if (!store.alive(hh) || !garrison_.is_holder(holder)) return R::InvalidTarget;
-    // s78n t19: a vehicle a thief boarded is no garrison (HolderKind::VehicleThief: entered only through the boarding) and
+    // a vehicle a thief boarded is no garrison (HolderKind::VehicleThief: entered only through the boarding) and
     // a board-only unit (no GARRISON_UNIT: kBoardOnlyValue) takes no garrison order. Both are refused here, before the
     // queues are cleared and the units are sent walking (GarrisonSystem::order_enter would refuse them only after that).
     if (const tg::HolderDesc* thd = garrison_.holder_desc(holder); thd && thd->kind == tg::HolderKind::VehicleThief) return R::InvalidTarget;
@@ -819,10 +819,10 @@ cmd::RejectReason TacticalBattle::order_garrison(TacticalMode& mode, uint8_t pla
     }
     if (ids.empty()) return refused_host ? R::InvalidTarget : R::InvalidUnit;  // InvalidTarget: hostile host
     clear_queues(ids);
-    raise_order_replaced(ids);  // S7 t31: garrison enter (A1_READINGS §33.3 [M: raised at the order])
+    raise_order_replaced(ids);  // garrison enter (A1_READINGS §33.3 [M: raised at the order])
     const uint32_t n = s4_approach(mode, ids, holder, rng, false);
     // s78n t18 / t20 batch 2 (MOVEMENT §5.3 "Hover in full", GARRISON_HOVER vf +0xe0 0x635ee0): a hover transport whose
-    // slot a unit reserves is stopped (0x3a9880: s4_approach's reservation hold), lowers and (s78n t26.1) deploys.
+    // slot a unit reserves is stopped (0x3a9880: s4_approach's reservation hold), lowers and deploys.
     if (n > 0)
         if (const tg::HolderDesc* hd = garrison_.holder_desc(holder); hd && hd->kind == tg::HolderKind::Hover) s4_hover_lower(holder);
     return n > 0 ? R::None : R::InvalidTarget;  // hostile host
@@ -834,7 +834,7 @@ cmd::RejectReason TacticalBattle::order_garrison(TacticalMode& mode, uint8_t pla
 // Garrison_Enter_Dist, else half the 3-D length of the host box's half-extent vector), bone -1 - then an ordinary group
 // move (kind 1, flags 0: [port] the UI's flags 4 are not read; never 0x20, so the order-time destination check may
 // displace the goal off the host's footprint) and 0x444310 (state 1, the bone index). [port] The keys with the same bone
-// share one group move, in the order of their first unit. The reservation's host hold (cu8l t02, CU8K_T02_T06_RE §2 rows
+// share one group move, in the order of their first unit. The reservation's host hold (CU8K_T02_T06_RE §2 rows
 // 0x635efb / 0x635f7b) once per key at the order; a reissue keeps its reservation (0x444310 runs only from state 0).
 uint32_t TacticalBattle::s4_approach(TacticalMode& mode, std::span<const objects::ObjectId> ids, objects::ObjectId holder, SimRng& rng,
                                      bool reissue) {
@@ -925,9 +925,9 @@ cmd::RejectReason TacticalBattle::order_leave_garrison(TacticalMode& mode, uint8
         const Vec3 f = store.exists(hh) ? store.facing(hh) : Vec3{1.0f, 0.0f, 0.0f};
         if (garrison_.order_exit(id, p, f, frame_)) {
             ++n;
-            raise_order_replaced(id);  // S7 t31: garrison exit (A1_READINGS §33.3)
+            raise_order_replaced(id);  // garrison exit (A1_READINGS §33.3)
             // s78n t18 / t20 batch 2 (GARRISON_HOVER vf +0xe8 0x635fc0, MOVEMENT §5.3 "Hover in full"): a hover
-            // transport asked to eject is stopped (0x3a9880), lowers and (s78n t26.1) deploys.
+            // transport asked to eject is stopped (0x3a9880), lowers and deploys.
             if (const tg::HolderDesc* hd = garrison_.holder_desc(holder); movement_ && hd && hd->kind == tg::HolderKind::Hover) {
                 s4_hold(mode, holder);
                 s4_hover_lower(holder);
@@ -945,7 +945,7 @@ uint32_t TacticalBattle::eject_garrison(TacticalMode& mode, objects::ObjectId ho
     if (!store.exists(hh)) return 0;
     const uint32_t n = garrison_.eject_all(holder, store.position(hh), store.facing(hh), frame_);
     // s78n t18 / t20 batch 2 (GARRISON_HOVER vf +0xe8 0x635fc0): a hover transport asked to eject is stopped, lowers and
-    // (s78n t26.1) deploys
+    // deploys
     if (const tactical::garrison::HolderDesc* hd = garrison_.holder_desc(holder); n > 0 && movement_ && hd && hd->kind == tactical::garrison::HolderKind::Hover) {
         s4_hold(mode, holder);
         s4_hover_lower(holder);

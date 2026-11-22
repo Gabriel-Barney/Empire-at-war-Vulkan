@@ -21,19 +21,19 @@
 //   Land_Model_Name) -> fine-tune on without a proxy: NOT STAMPED (false: retail returns before the loop and retries every
 //   service; the port's model data is const, so hosts treat it like "no footprint"); fine-tune off: only the explicit XML
 //   rectangle (zero samples when a size is 0); a proxy without a model: no ray (every sample stamps). Unknown (no model data
-//   in this run, no hook) -> untrimmed, and false when F lacks an XML width or height [port]. S8 t02: hosts stamp LAND_OBSTACLE objects spawned at run time
+//   in this run, no hook) -> untrimmed, and false when F lacks an XML width or height [port]. Hosts stamp LAND_OBSTACLE objects spawned at run time
 //   with it under their object id (LandObstacleBehaviorClass stamps on its first service, unstamps on detach), and re-stamp
 //   a Map_Load_Spawn_Table placement with the type actually spawned.
 // space_from_map: playable box (0x103 04/05) and SPACE_OBSTACLE placements as static entries;
-//   radius = first positive Custom_Soft_Footprint_Radius / Space_Obstacle_Radius, else (S7 t07, MOVEMENT §2.2) the larger
+//   radius = first positive Custom_Soft_Footprint_Radius / Space_Obstacle_Radius, else (MOVEMENT §2.2) the larger
 //   x / y half extent of the type's space-model collision bound from `hooks.model_half_extents`, x Scale_Factor
 //   (PROVISIONAL [M]: the retail getter's "2R/20" conversion is unexplained and not applied). Centre = placement position +
 //   Space_Obstacle_Offset (x along the placement facing Rz(yaw) (0, -1), y to its left [M: rotation sense], as the host's
-//   space_obstacles_sync does for units). Entry ids are map_stamp_id(placement) (S7 t13: a host that spawns an object for
+//   space_obstacles_sync does for units). Entry ids are map_stamp_id(placement) (a host that spawns an object for
 //   the placement moves the entry to the object id, SpaceOccupancy::rekey_static; removed when it is a battle unit that left).
 // space_obstacle_center: that centre for an object at `position` facing the unit XY direction `facing`.
 // space_obstacle_footprint: that static entry's radius and SpaceCollisionType bits for one type; false when the type has no
-//   SPACE_OBSTACLE behaviour, or no positive radius and no model extent. refixf t02: hosts use it for SPACE_OBSTACLE objects
+//   SPACE_OBSTACLE behaviour, or no positive radius and no model extent. Hosts use it for SPACE_OBSTACLE objects
 //   spawned at run time (MOVEMENT §2.2: SpaceObstacleBehaviorClass inserts the object as a static entry on attach, removes
 //   it on detach). The model's collide switch is not consulted (SPACE_AVOIDANCE §5.5: capture points and orbital props
 //   stay planner obstacles).
@@ -70,30 +70,30 @@ struct MapStampHooks {
     // Model-space bounding box of type `type`'s land model (before Scale_Factor): x / y half extents and the z extent
     // (max - min, the water rule's "model bbox z" [inferred]); false when unknown.
     std::function<bool(uint32_t type, float& half_x, float& half_y, float& height_z)> model_half_extents;
-    // S8 t09: Fine_Tune_Occupied_Passability (MOVEMENT §1.3). ray_model(type): does type `type` have a land model to test
+    // Fine_Tune_Occupied_Passability (MOVEMENT §1.3). ray_model(type): does type `type` have a land model to test
     // (unset hook: Unknown)? mesh_ray_hit: does the vertical segment (x, y, -1000) -> (x, y, +1000) at `world_xy` hit the
     // collision mesh of type `model_type`'s land model placed at `pose`? Called only when ray_model gave Model.
     std::function<StampRayModel(uint32_t type)> ray_model;
     std::function<bool(uint32_t model_type, const StampPose& pose, V2 world_xy)> mesh_ray_hit;
 };
-// OPT3 t11: the footprints' cells are sampled through `pf` (PassabilityGrid::stamp_all), so the hooks' mesh_ray_hit must
+// the footprints' cells are sampled through `pf` (PassabilityGrid::stamp_all), so the hooks' mesh_ray_hit must
 // then be safe to call concurrently; any value gives the same grid.
 uint32_t stamp_map_obstacles(PassabilityGrid& grid, const terrain::MapData& map, const objects::GameObjectTypes& types,
                              const MapStampHooks* hooks = nullptr, const ParallelFor& pf = serial_for);
-// S8 t02 / t09: the LAND_OBSTACLE footprint of one object (rules above). `out.fine_tune` (when set) holds copies of the
+// the LAND_OBSTACLE footprint of one object (rules above). `out.fine_tune` (when set) holds copies of the
 // hooks it needs, so it stays valid after `hooks` is gone.
 bool land_obstacle_footprint(const objects::GameObjectTypes& types, uint32_t type, V2 position, float yaw_deg, float terrain_z,
                              const MapStampHooks* hooks, ObstacleFootprint& out);
 // S8 t13 (MOVEMENT §1.3 "proxy bits"): the passability bits of an object from its OWN type and behaviours: the type's
 // OverridePassability when non-zero, else LAND_OBSTACLE -> Obstacle (4) | WALL -> EmpireWall (0x10).
 uint32_t land_obstacle_bits(uint32_t override_bits, bool land_obstacle, bool wall);
-// S8 t09: the footprint type of `type`: its Obstacle_Proxy_Type when that names a type, else `type`.
+// the footprint type of `type`: its Obstacle_Proxy_Type when that names a type, else `type`.
 uint32_t land_obstacle_footprint_type(const objects::GameObjectTypes& types, uint32_t type);
-// S8 t01: the stamp id stamp_map_obstacles gives map placement `placement` (index into MapData::objects). A host that
+// the stamp id stamp_map_obstacles gives map placement `placement` (index into MapData::objects). A host that
 // spawns an object for the placement moves the stamp to the object id (PassabilityGrid::rekey), so the per-object cell
 // query (PassabilityGrid::occupies) answers for that object.
 inline ObjectId map_stamp_id(size_t placement) { return -static_cast<ObjectId>(placement) - 1; }
-// S7 t07: host-supplied model data for SPACE_OBSTACLE footprints (deterministic, const data).
+// host-supplied model data for SPACE_OBSTACLE footprints (deterministic, const data).
 struct SpaceObstacleHooks {
     // Half x / y extents of the collision bound of type `type`'s space model (bind-pose union of the collision-enabled
     // meshes, 1 / 1 when it has none; before Scale_Factor); false when the model is unknown.

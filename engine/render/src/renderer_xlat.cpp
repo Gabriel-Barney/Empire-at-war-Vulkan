@@ -175,7 +175,7 @@ void RendererCore::translated_pixel_offset(uint32_t width, uint32_t height, floa
 namespace detail {
 
 // DISTANCE_FADE_VALS in the FOG_VALS form from the camera's fade begin / end; the off default (-2e-5, 3) when
-// either is <= -1 or the pair is empty (RENDER.md 2.2).
+// either is <= -1 or the pair is empty (legacy docs/re/RENDER.md 2.2).
 void distance_fade_vals(float begin, float end, float& x, float& y) {
     if (begin <= -1.0f || end <= -1.0f || end <= 0.0f || end == begin) {
         x = -2e-5f;
@@ -331,7 +331,7 @@ bool engine_write(const EngineParams& e, const materials::ParamStore* store, con
     case Src::FowV: return write_vec(f.fow_v, out), true;
     case Src::Zero: return std::fill(out.begin(), out.end(), 0.0f), true;
     case Src::Skin: {
-        // Rigid skinning palette (RENDER.md 4): world-space bone matrices, D3DX row-major per element.
+        // Rigid skinning palette (legacy docs/re/RENDER.md 4): world-space bone matrices, D3DX row-major per element.
         std::fill(out.begin(), out.end(), 0.0f);
         const uint32_t rows = std::max(1u, p.type.rows), cols = std::max(1u, p.type.columns);
         const size_t per = static_cast<size_t>(rows) * cols;
@@ -374,7 +374,7 @@ materials::ParamLookup draw_lookup(const DrawLookupCtx* c) {
     };
 }
 
-// World / palette of a translated draw (skinned effects: WORLD = identity and a world-space palette, RENDER.md 4)
+// World / palette of a translated draw (skinned effects: WORLD = identity and a world-space palette, legacy docs/re/RENDER.md 4)
 // into e (palette storage in `pal`).
 void translated_draw_params(const Instance& inst, const GpuSubmesh& g, const ViewMatrices& view, const EngineFrame& f,
                             std::vector<Mat3x4>& pal, EngineParams& e) {
@@ -579,7 +579,7 @@ void RendererCore::engine_frame(const ViewMatrices& v, const SceneLightConstants
     const float t4[4] = {time_, time_, time_, time_};
     std::copy(t4, t4 + 4, f.time4);
     const float w = static_cast<float>(v.width), h = static_cast<float>(v.height);
-    const float res[4] = {w, h, 0.5f / w, 0.5f / h};  // size of the bound render target (TERRAIN_WATER_POST.md 4)
+    const float res[4] = {w, h, 0.5f / w, 0.5f / h};  // size of the bound render target (legacy docs/re/TERRAIN_WATER_POST.md 4)
     std::copy(res, res + 4, f.resolution);
     (void)scene_fog_vals(lighting_, f.fog[0], f.fog[1]);  // the hot set's FOG_VALS (default pair when fog is off)
     f.fade[0] = -2e-5f;

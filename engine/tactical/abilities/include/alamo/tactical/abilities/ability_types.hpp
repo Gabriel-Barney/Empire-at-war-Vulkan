@@ -1,5 +1,5 @@
 // S9 - unit-ability type enum, its static per-type info table and the special-ability enums
-// (docs/re/ABILITIES_HARDPOINTS.md 2.1, 3.1). Pure data, no state.
+// (legacy docs/re/ABILITIES_HARDPOINTS.md 2.1, 3.1). Pure data, no state.
 #pragma once
 #include <cstdint>
 #include <string_view>
@@ -155,10 +155,10 @@ enum class SpecialClass : uint8_t {
     LaserDefense,     // Laser_Defense_Ability (3.10)
     RedirectBlaster,  // Redirect_Blaster_Ability (4.6, TACTICAL 3.8)
     AbsorbBlaster,    // Absorb_Blaster_Ability (4.6) [L]
-    ForceSight,       // Force_Sight_Ability (FOG_OF_WAR.md §3.3: Reveal_All for the owner while channelling)
-    // ---- OI abilities (TACTICAL_GAPS.md §2.3, TACTICAL_COMBAT §4.3) ----
+    ForceSight,       // Force_Sight_Ability (legacy docs/re/FOG_OF_WAR.md §3.3: Reveal_All for the owner while channelling)
+    // ---- OI abilities (legacy docs/re/TACTICAL_GAPS.md §2.3, TACTICAL_COMBAT §4.3) ----
     CombatBonus,          // Combat_Bonus_Ability (aura: object ModifierSet entries, event-driven)
-    EnhanceDefense,       // Enhance_Defense_Ability: permanent per-player list-0 entries (s78n t04, TACTICAL_COMBAT §5.4.4 3c)
+    EnhanceDefense,       // Enhance_Defense_Ability: permanent per-player list-0 entries (TACTICAL_COMBAT §5.4.4 3c)
     BattlefieldModifier,  // Battlefield_Modifier_Ability (player-level lists, §2.3.11)
     ForceHealing,         // Force_Healing_Ability (§2.3.1)
     Berserker,            // Berserker_Ability (§2.3.2)
@@ -201,7 +201,7 @@ enum class SpecialClass : uint8_t {
     Weatherproof,         // Weatherproof_Ability (§7.4)
     CancelSpecial,        // Cancel_Special_Ability
     Cable,                // Cable_Ability
-    // Starbase_Upgrade_Ability (STATION_HANGARS_SOUND.md §1.1, update 0x70ec20): the skirmish station upgrade. Service
+    // Starbase_Upgrade_Ability (legacy docs/re/STATION_HANGARS_SOUND.md §1.1, update 0x70ec20): the skirmish station upgrade. Service
     // interval 2 (first due = synced Get_Int(now, now + 2) at the SAP init); on the first service it asks the host for
     // the station's Next_Level_Base (SpawnPurpose::StationUpgrade) and then for the upgrade object's silent removal
     // (AbilityEventKind::RemoveSilently), whether or not a station was found. One-shot.

@@ -1,6 +1,6 @@
 // Decoding of the shipped audio formats through miniaudio's built-in decoders: RIFF WAV (dr_wav: PCM,
 // IEEE float, MS/IMA ADPCM, A-law, mu-law) and MP3 (dr_mp3). The shipped corpus is 16-bit PCM WAV
-// (SFX, 44.1 kHz mono) and MP3 (music, speech) - docs/assets/CATALOG.md.
+// (SFX, 44.1 kHz mono) and MP3 (music, speech) - legacy docs/assets/CATALOG.md.
 #pragma once
 #include <cstdint>
 #include <optional>

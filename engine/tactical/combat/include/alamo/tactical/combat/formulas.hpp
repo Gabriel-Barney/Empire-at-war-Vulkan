@@ -1,4 +1,4 @@
-// S8 - the reference formulas of docs/re/TACTICAL_COMBAT.md sections 2-4 as pure functions, so tests
+// S8 - the reference formulas of legacy docs/re/TACTICAL_COMBAT.md sections 2-4 as pure functions, so tests
 // can check them against hand-computed values and the CombatSystem uses exactly one implementation.
 // Confidence tags follow the doc: [H] read and cross-checked (four of them verified in disassembly,
 // marked [H, disasm]), [M] read once / partly inferred, [L] port guess.
@@ -95,7 +95,7 @@ inline constexpr float kLeadMaxCircleRadius = 1000.0f;
 inline constexpr float kLeadRootLo = 0.1f, kLeadRootHi = 1000.0f, kLeadRootTolerance = 0.001f;
 inline constexpr int kLeadRootIterations = 15;
 
-// ---- lob solver (S8 t04, docs/re/LOB_SOLVER.md §2, 0x54a6f0) [H] -------------------------------------------------
+// ---- lob solver (legacy docs/re/LOB_SOLVER.md §2, 0x54a6f0) [H] -------------------------------------------------
 // The closed-form HIGH arc from `from` to `to` at launch speed v (Max_Speed, per frame) under G = gravity x lob mod
 // (per frame^2), in the code's float order: d = sqrt((P.x - Q.x)^2 + (P.y - Q.y)^2), h = Q.z - P.z, dd = d or 0.0001
 // when d == 0; per speed: v2 = v v, disc = (v2 v2 - ((G 2) h) v2) - ((G G) dd) dd (< 0: none), den = ((h h) / (dd dd)
@@ -119,7 +119,7 @@ Vec3 lob_position(Vec3 launch, Vec3 f, float speed, float G, float t);
 // [port] A heading without an XY part keeps yaw 0.
 Vec3 lob_forward(Vec3 heading, float angle);
 
-// ---- projectile turn (Turn_Toward 0x3abe40 with rate -1, S9_DEATH_CLONE_SHIELDS.md §2.3) [H] -------------------
+// ---- projectile turn (Turn_Toward 0x3abe40 with rate -1, legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §2.3) [H] -------------------
 // Turns the unit heading `dir` toward `goal` (any length): yaw (atan2(y, x)) and pitch (atan2(z, |xy|)) deltas, each
 // wrapped to (-180, 180], are clamped SEPARATELY to +-max_degrees; the result is the unit vector of the new yaw / pitch.
 // max_degrees <= 0 (a Max_Rate_Of_Turn of 0: vanilla lasers) or a zero goal returns `dir` unchanged, bit for bit.

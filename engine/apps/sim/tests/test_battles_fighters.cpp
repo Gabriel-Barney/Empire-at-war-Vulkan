@@ -1,5 +1,5 @@
-// alamo_sim_battle_fighter_tests: S10 battle transitions, host side (docs/re/BATTLE_TRANSITIONS.md): fighter squadrons in battles (formation push, chase rule, escorts, hangar guards, fog toggle).
-// Split out of test_battles.cpp (WF1b t01); the fixture (synthetic data, maps, run_campaign) is battle_test_fixture.hpp.
+// alamo_sim_battle_fighter_tests: S10 battle transitions, host side (legacy docs/re/BATTLE_TRANSITIONS.md): fighter squadrons in battles (formation push, chase rule, escorts, hangar guards, fog toggle).
+// Split out of test_battles.cpp; the fixture (synthetic data, maps, run_campaign) is battle_test_fixture.hpp.
 
 #include "battle_test_fixture.hpp"
 #include "alamo/core/host_fs.hpp"
@@ -15,7 +15,7 @@
 // attack on the frigate starts Directed_Combat at once (an ordered target is the formation attack target).
 void test_fighter_move_past_enemy() {
     namespace mv = tactical::movement;
-    {  // the pure rule (S7 t22: no auto-target input - an auto target reaches the squadron only as a pushed block)
+    {  // the pure rule (no auto-target input - an auto target reaches the squadron only as a pushed block)
         FighterTargetInputs in;
         CHECK(fighter_formation_target(in) == kNoObjectId);  // a position block / no formation: no object, keep Moving
         in.goal = 9;
@@ -133,7 +133,7 @@ void test_fighter_move_past_enemy() {
     CHECK(attack_frame != 0 && attacked);
 }
 
-// a1i t04 / t05: a land Reinforce of a company with a Company_Transport_Unit spawns its landing object (the transport's
+// a land Reinforce of a company with a Company_Transport_Unit spawns its landing object (the transport's
 // Landing_Transport_Variant at the drop point, z + Hover_Offset, TRANSPORT_LANDING, carried type = the company).
 // Untimed ([port] option): the members spawn at the 3.0-factor unload offsets at the order, the unloaded record is posted
 // and the landing object leaves after (teams + 1) x 2 s. Timed (BattleConfig::landing_unload_timed, the default since a1j
@@ -412,7 +412,7 @@ void test_fighter_auto_push() {
                 b_dc = b_dc || v.loco_state == mv::LocoState::FighterDirectedCombat;
                 if (b->frame() >= since + 300) {
                     Vec3 lp = st.position(st.find(lead));
-                    // S8 t17: the attack-move's scan cube R + Rr (FIGHTER_FLYING §4.10 A) engages earlier, so the stop can
+                    // the attack-move's scan cube R + Rr (FIGHTER_FLYING §4.10 A) engages earlier, so the stop can
                     // leave the squadron beyond R + Idle_Chase_Range of the enemy: the idle move ends 700 from it.
                     if (const objects::ObjectHandle eh = st.find(enemy); st.alive(eh)) {
                         const Vec3 ep = st.position(eh);
@@ -481,7 +481,7 @@ void test_fighter_auto_push() {
 // chase range is Guard_Chase_Range around the carrier; when the carrier moves away, the squadron re-paths to it (at most
 // once per 30 frames, when the carrier is more than half the leader's attack range from the recorded goal) and keeps the
 // guard record (flags, goal object). S7 t28 / t35 (A1_READINGS §33.4.1): while the carrier moves the squadron, within
-// R = min(range / 2, Space_Guard_Range 750) of it, flies a copy of its path at most twice its speed (s78f t02: only while
+// R = min(range / 2, Space_Guard_Range 750) of it, flies a copy of its path at most twice its speed (only while
 // the squadron's formation moves, FIGHTER_FLYING §4.11 A; the leader's goal reaches the carrier's destination). A new
 // order of the squadron ends the follow (a plain move record, a position block).
 void test_hangar_escort_guard() {
@@ -517,7 +517,7 @@ void test_hangar_escort_guard() {
                 if (!s.members.empty() && r && r->goal_object == carrier) {
                     squad = s.id;
                     members = s.members;
-                    // S7 t37 / s78f t02: the movement layer's formation holds the guard block as its only block.
+                    // the movement layer's formation holds the guard block as its only block.
                     const mv::FighterFormation* fg = b->movement().fighter_formation(s.id);
                     guard_record = r->flags == mv::kMoveFlagGuardMove && b->fighter_pushed(s.id).empty() && fg && fg->blocks.size() == 1 &&
                                    fg->blocks[0].kind == mv::kFighterBlockObject && fg->blocks[0].object == carrier &&
@@ -540,7 +540,7 @@ void test_hangar_escort_guard() {
         if (!r || members.empty() || !b->movement().has_unit(members.front())) break;
         kept = kept && r->flags == mv::kMoveFlagGuardMove && r->goal_object == carrier;
         const mv::UnitView v = b->movement().view(members.front());
-        // S7 t28 / s78f t02: while the carrier moves, the squadron formation's speed (F +0x21c) is capped at min(its own speed,
+        // while the carrier moves, the squadron formation's speed (F +0x21c) is capped at min(its own speed,
         // 2 x the carrier's speed) and, its centre within R of the carrier, it flies a copy of the carrier's path (its goal =
         // the carrier's goal point).
         const mv::UnitView cv = b->movement().view(carrier);
@@ -552,7 +552,7 @@ void test_hangar_escort_guard() {
             copied = true;
             copy_frame = b->frame();
         }
-        // s78f t02: the follow is the path copy / re-path of the formation (FIGHTER_FLYING §4.11 A): the leader's goal moved
+        // the follow is the path copy / re-path of the formation (FIGHTER_FLYING §4.11 A): the leader's goal moved
         // with the carrier to its destination while the guard block stays the formation's only block.
         const mv::FighterFormation* ff = b->movement().fighter_formation(squad);
         const bool guard_kept = ff && ff->blocks.size() == 1 && ff->blocks[0].object == carrier;
@@ -732,7 +732,7 @@ void test_escort_attack_in_range() {
     CHECK(squad != objects::kNoObjectId && two && in_range && attack_stack && attack_record);
 }
 
-// s78f t10: the AI order paths give the movement layer the same block as the host record. A Lua Guard_Target of the
+// the AI order paths give the movement layer the same block as the host record. A Lua Guard_Target of the
 // carrier by the squadron (BattleAi, as the tactical AI's group order): the movement stack holds one guard object block
 // (flags 0x02, the carrier) and the record matches; the carrier then moves and the squadron's formation keeps that block
 // (the follow service no longer re-issues a flags-0 position move to fighters with an object block). Then an AI Attack on
@@ -807,7 +807,7 @@ void test_ai_fighter_blocks() {
             CHECK(b->order_move(*tm, 0, cid, cp.x, cp.y + (cp.y > 0.0f ? -1500.0f : 1500.0f), fb.host->random().synced()) == R::None);
             continue;
         }
-        // The follow service (a1h t02) runs in update(); the stand-in frames (every 60th, BattleAi::standin_orders: plain moves
+        // The follow service runs in update(); the stand-in frames (every 60th, BattleAi::standin_orders: plain moves
         // of the uncontrolled players' units) are skipped so only the follow re-issues moves.
         if ((b->frame() - 1u) % 60u != 0u) ai->update();
         if (b->frame() < guard_frame + 600u) {
@@ -1145,7 +1145,7 @@ void test_fleet_placement_campaign() {
     CHECK(ends_frame >= start_frame + 130 && ends_frame <= start_frame + 145);
 }
 
-// SP5 t03 (docs/SIM_PARALLEL_DESIGN.md §4.4): hangar services on counter-based streams (ServiceRunDefaults::streams, bit
+// SP5 t03 (docs/SIMULATION.md "Counter-based random streams"): hangar services on counter-based streams (ServiceRunDefaults::streams, bit
 // StreamId::Hangar). The carrier gets two bays and two hangar entries, so every launch draws (entry and bay picks). Off:
 // the synced draws (the default; every other test). On: each carrier draws from its own stream - the run differs from
 // the synced one and is identical at 0 / 1 / 4 / 15 workers (rule 3 with the flag on).
@@ -1238,7 +1238,7 @@ void test_hangar_streams() {
 }
 
 namespace {
-// trl2 t06: the distinct S10_TIE ids seen in the first 1500 ticks of the carrier battle at planet 1 (S10_B, owned by the
+// the distinct S10_TIE ids seen in the first 1500 ticks of the carrier battle at planet 1 (S10_B, owned by the
 // Empire player 0), with the battle planet's corruption set to `corruption` (-1 none) before the battle.
 uint32_t carrier_fighters_seen(int8_t corruption) {
     FighterBattle fb;

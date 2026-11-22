@@ -250,7 +250,7 @@ void write_object(ChunkWriter& w, const ObjectPlacement& o) {
         w.mini_leaf(0, m);
     }
     w.end();
-    if (!o.extra_behaviors.empty()) {  // map1 t04: 0x4B7 after 0x4BA, as the shipped maps order it
+    if (!o.extra_behaviors.empty()) {  // 0x4B7 after 0x4BA, as the shipped maps order it
         w.begin(0x4B7);
         for (const ObjectPlacement::ExtraBehavior& e : o.extra_behaviors) {
             std::vector<RawMini> m;
@@ -260,7 +260,7 @@ void write_object(ChunkWriter& w, const ObjectPlacement& o) {
         w.end();
     }
     w.end();  // 0x459
-    if (o.has_marker_name) {  // map1 t04: 0x46E between 0x459 and 0x482, as the shipped maps order it
+    if (o.has_marker_name) {  // 0x46E between 0x459 and 0x482, as the shipped maps order it
         w.begin(0x46E);
         const RawMini m[] = {mk_string(1, o.marker_name)};
         w.mini_leaf(0, m);

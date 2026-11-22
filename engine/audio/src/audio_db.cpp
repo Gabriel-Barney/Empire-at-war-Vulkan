@@ -257,7 +257,7 @@ void parse_events(std::string_view xml, std::string_view file, std::string_view 
         e.line = c.line();
         fill(c, e);
         const std::string key = normalize_name(e.name);
-        if (index.count(key) != 0) {  // AUDIO.md §1.1: the first definition wins
+        if (index.count(key) != 0) {  // legacy docs/re/AUDIO.md §1.1: the first definition wins
             ++dups;
             diag(r, file, e.line, "duplicate " + std::string(type) + " '" + e.name + "' ignored");
             continue;
@@ -287,7 +287,7 @@ void AudioDatabase::parse_sfx_xml(std::string_view xml, std::string_view file, A
     const std::string use_preset_key = normalize_name("Use_Preset");
     parse_events<SfxEvent>(xml, file, "SFXEvent", r, sfx_, sfx_index_, r.sfx_events, r.sfx_duplicates,
                            [&](XmlNode n, SfxEvent& e) {
-                               // AUDIO.md §1.1: Use_Preset copies every field of the preset at that point
+                               // legacy docs/re/AUDIO.md §1.1: Use_Preset copies every field of the preset at that point
                                // of parsing (earlier tags are overwritten), later tags override.
                                for (XmlNode c : n.children()) {
                                    if (normalize_name(c.name()) != use_preset_key) {
@@ -370,11 +370,11 @@ bool AudioDatabase::load(const FileProvider& files, AudioLoadReport* report) {
     AudioLoadReport local;
     AudioLoadReport& r = report ? *report : local;
     std::string text;
-    // MAIN_LOOP.md startup: TheAudioConstants before the XML databases.
+    // legacy docs/re/MAIN_LOOP.md startup: TheAudioConstants before the XML databases.
     if (read_text(files, "Data\\XML\\Audio.xml", text)) parse_audio_xml(text, "Audio.xml", r);
     else diag(r, "Audio.xml", 0, "missing");
 
-    // cu5 t02: the shared list walk (list order, empty entries skipped, a missing file reported here).
+    // the shared list walk (list order, empty entries skipped, a missing file reported here).
     data::ListedXmlOptions lo;
     lo.visit_missing = true;
     const data::ListStatus st = data::for_each_listed_file(files, "Data\\XML\\SFXEventFiles.xml",

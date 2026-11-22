@@ -1,4 +1,4 @@
-// alamo_render - procedural laser projectiles (docs/re/PROJECTILE_NEBULA_DRAW.md 1).
+// alamo_render - procedural laser projectiles (legacy docs/re/PROJECTILE_NEBULA_DRAW.md 1).
 //
 // Projectile types with Projectile_Custom_Render 1 or 2 never draw their ALO. The original builds a render object per
 // projectile instead:
@@ -33,7 +33,7 @@ struct LaserConstants {
 };
 // Reads the two factors from GameConstants.xml bytes (missing tags keep `out`'s values). False: not parseable.
 bool parse_laser_constants(std::span<const uint8_t> xml, LaserConstants& out);
-// cu5 t04: the same from the parsed <GameConstants> root (GameDatabase::constants().element); false for a null root.
+// the same from the parsed <GameConstants> root (GameDatabase::constants().element); false for a null root.
 bool parse_laser_constants(const data::XmlNode& game_constants_root, LaserConstants& out);
 
 // One projectile of the frame. `position` = the projectile (render object origin), `direction` = its flight direction

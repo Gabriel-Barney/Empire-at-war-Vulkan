@@ -1,4 +1,4 @@
-// P4 menus (docs/re/UI.md §3.2 "Screens by dialog"): the front end and the in-game menu as a flow over the GUI
+// P4 menus (legacy docs/re/UI.md §3.2 "Screens by dialog"): the front end and the in-game menu as a flow over the GUI
 // dialogs, emitting MenuActions for the host (start / load / save / quit, settings). Nothing here touches the sim or
 // the save format (N1): save / load are requests.
 //
@@ -246,7 +246,7 @@ struct CameraSettings {
     uint8_t queue_mods = kModShift;
     // [port: Gabriel, 2026-11-13] IDC_PORT_SHOW_PATH_LINES: draw the planned route (the sim's path, unit to destination)
     // of every moving unit of the local player, one line per squadron / company, in tactical battles (space and land), as in the "Empire at War Remake" mod. Off by default: the original
-    // only draws the line of a queued waypoint path (UI.md 1.5).
+    // only draws the line of a queued waypoint path (legacy docs/re/UI.md 1.5).
     bool show_path_lines = false;
     friend bool operator==(const CameraSettings&, const CameraSettings&) = default;
 };
@@ -256,7 +256,7 @@ inline constexpr float kGalacticFovMinDeg = 15.0f, kGalacticFovMaxDeg = 60.0f, k
 // [port: Gabriel] the port's own dialog IDD_PORT_CAMERA_CONTROLS_DIALOG (FOV sliders, key capture for Pause and the
 // camera yaw / pitch / roll hotkey slots, queue-modifier combo). Merge it into the script after GUIDialogs.rc
 // (DialogScript::merge); the options menus then show it in the slot of the hidden Mods / Network option.
-// modc t08: the same script holds IDD_PORT_MODS_DIALOG, the mod picker (installed mods left, the selected one's load
+// the same script holds IDD_PORT_MODS_DIALOG, the mod picker (installed mods left, the selected one's load
 // report right, Back / Launch), opened by the port's IDC_PORT_MAIN_MENU_MODS button that kPortDialogExtensionsRc adds to
 // the main menu under Exit (shown when MenuProviders::mods is set and the dialog is merged).
 extern const char* const kPortDialogsRc;
@@ -279,7 +279,7 @@ inline constexpr const char* kPortModsDialog = "IDD_PORT_MODS_DIALOG";
 extern const char* const kPortDialogExtensionsRc;
 
 // IDC_SCROLL_SPEED_SLIDER: the dialog slider runs 0..100; the original option is 0..3 with Defaults = 1.0
-// (P1_CAMERA_INPUT.md §2.1, §3.1). The port maps it piecewise linearly so the default position is exactly 1.0:
+// (legacy docs/re/P1_CAMERA_INPUT.md §2.1, §3.1). The port maps it piecewise linearly so the default position is exactly 1.0:
 // 0..kDefaultScrollSpeedSlider -> 0..1, kDefaultScrollSpeedSlider..100 -> 1..3 (clamped). Feed the result to
 // CameraTuning::scroll_speed_option (the camera uses at least 0.1).
 inline constexpr int32_t kDefaultScrollSpeedSlider = 33;
@@ -292,7 +292,7 @@ struct GameplaySettings {
     bool ask_autoresolve = true, delay_tooltips = false, absolute_scroll = true, alternate_mouse = false,
          right_button_scroll = false, both_buttons_rotate = false, simplified_colors = false, abilities_autofire = false;
 };
-// ui1 t06: IDD_CAMPAIGN_ADVANCED_OPTIONS_DIALOG = the game options record (SKIRMISH_SETUP.md, GMM+0xbc: +0 start credits,
+// IDD_CAMPAIGN_ADVANCED_OPTIONS_DIALOG = the game options record (legacy docs/re/SKIRMISH_SETUP.md, GMM+0xbc: +0 start credits,
 // +4 start tech, +8 max tech, +0xc auto-resolve 0 always / 1 never / 2 ask / 3 overwhelming odds (BATTLE_TRANSITIONS §1.6),
 // flag 0x10 random events); defaults GameConstants MP_Default_Credits / _Start_Tech_Level / _Max_Tech_Level /
 // _Allow_Auto_Resolve / _Allow_Random_Events. [port] the credits slider runs Min_Skirmish_Credits..Max_Skirmish_Credits
@@ -318,8 +318,8 @@ struct GameOptionsSetup {
     bool set = false;
     friend bool operator==(const GameOptionsSetup&, const GameOptionsSetup&) = default;
 };
-// skm1 t02: IDD_INTERNET_STAGING_DIALOG_ADVANCED_SKIRMISH_OPTIONS (opened by the skirmish staging screen's Select Options,
-// retail 0xea8d0) = the skirmish part of the game options record (SKIRMISH_SETUP.md §0, UI.md 9.7): start credits, the win
+// IDD_INTERNET_STAGING_DIALOG_ADVANCED_SKIRMISH_OPTIONS (opened by the skirmish staging screen's Select Options,
+// retail 0xea8d0) = the skirmish part of the game options record (legacy docs/re/SKIRMISH_SETUP.md §0, legacy docs/re/UI.md 9.7): start credits, the win
 // condition (0x12 all units, 0x13 all base structures, 0x14 command HQ, 0x15 control points, 0x16 star base; the rows a game
 // type offers: Land 0x12..0x14, Space 0x12 / 0x16, Capture Control Points 0x15 only), and the flags heroes (0x1), free starting
 // units (0x2), super weapons (0x4), pre-built base (0x8). Defaults GameConstants MP_Default_* (host). The HQ condition forces
@@ -327,7 +327,7 @@ struct GameOptionsSetup {
 struct SkirmishOptionsSetup {
     int32_t credits = 6000;
     int32_t win_condition = 0;  // 0 = the game type's default (MP_Default_Land / Space_Tactical_Win_Condition: 0x13 / 0x16)
-    int32_t land_default_win = 0x13, space_default_win = 0x16;  // mcx4 t14: those defaults (host: GameConstants)
+    int32_t land_default_win = 0x13, space_default_win = 0x16;  // those defaults (host: GameConstants)
     bool heroes = true, starting_units = true, super_weapons = true, prebuilt_base = true;
     int32_t min_credits = 2000, max_credits = 8000;  // the slider range (host: Min_ / Max_Skirmish_Credits)
     bool set = false;  // Accept was pressed (else the host's defaults)
@@ -350,22 +350,22 @@ struct SaveGameInfo {
 };
 struct SkirmishMapInfo {
     std::string map;       // map file / id (what StartSkirmish carries)
-    std::u32string label;  // list text; empty = the row text is built from name_key / players / map (FrontEnd, UI.md 9.3 / 9.4)
+    std::u32string label;  // list text; empty = the row text is built from name_key / players / map (FrontEnd, legacy docs/re/UI.md 9.3 / 9.4)
     uint32_t max_players = 2;
-    // p4ui t06 (docs/re/UI.md section 9). The skirmish staging list shows the rows of one tab (`custom`), space maps first.
+    // p4ui t06 (legacy docs/re/UI.md section 9). The skirmish staging list shows the rows of one tab (`custom`), space maps first.
     std::string name_key{}; // the map's name text key (UTF-8, mini 08), "" = none: the row shows the file name
     uint32_t players = 0;   // player count for the "(N) " prefix, 0 = use max_players
     bool custom = false;    // Custom tab (true) or Official tab (false)
-    bool space = false;     // a space map: listed under the Space game type, else under Land (p4uim t01)
-    // ccpgt t02 (UI.md 9.4 / 9.7): a land map whose game-mode tag (mini 0A) is CONTROL: also listed under Capture Control Points.
+    bool space = false;     // a space map: listed under the Space game type, else under Land
+    // ccpgt t02 (legacy docs/re/UI.md 9.4 / 9.7): a land map whose game-mode tag (mini 0A) is CONTROL: also listed under Capture Control Points.
     bool control = false;
 };
-// The skirmish game types of IDC_GAME_TYPE_LIST (UI.md 9.4 / 9.7: the retail item data).
+// The skirmish game types of IDC_GAME_TYPE_LIST (legacy docs/re/UI.md 9.4 / 9.7: the retail item data).
 inline constexpr int32_t kSkirmishGameLand = 2, kSkirmishGameSpace = 3, kSkirmishGameControl = 4;
-// p4uim t03 (docs/re/UI.md section 9.6): what IDC_IMAGE shows for the selected map. `texture` is the image the host chose
+// p4uim t03 (legacy docs/re/UI.md section 9.6): what IDC_IMAGE shows for the selected map. `texture` is the image the host chose
 // (<stem>.tga, else the map's embedded image, else Generic_Space / Generic_Land.tga; "" = none); `starts` are the start
 // positions as 0..1 fractions of the image (x right, y down), drawn over it as the numbers 1..N when the map has them
-// (mini 12, UI.md 9.6.1).
+// (mini 12, legacy docs/re/UI.md 9.6.1).
 struct SkirmishPreview {
     std::string texture;
     std::vector<Vec2f> starts;
@@ -399,12 +399,12 @@ struct MenuAction {
     std::string campaign, faction, map, save;
     std::string mod;  // CheckMod / LaunchMod
     std::vector<std::string> factions;
-    // StartSkirmish (p4uia t02): the colour index (0..8, a GameConstants MP_Color_* entry) of each player, in player order.
+    // StartSkirmish: the colour index (0..8, a GameConstants MP_Color_* entry) of each player, in player order.
     std::vector<int32_t> colors;
-    // StartSkirmish (ui1 t07): per playing slot in slot order, its team (1-based); factions / colors list the same slots
+    // StartSkirmish: per playing slot in slot order, its team (1-based); factions / colors list the same slots
     // (slot 0 = the local player, 1 = the first AI, then the AI slots the player opened).
     std::vector<int32_t> teams;
-    // StartSkirmish (ccpgt t02): the game type selected (kSkirmishGameLand / Space / Control).
+    // StartSkirmish: the game type selected (kSkirmishGameLand / Space / Control).
     int32_t game_type = kSkirmishGameLand;
     int32_t difficulty = 1;
     AudioVolumes audio;
@@ -412,16 +412,16 @@ struct MenuAction {
     GameplaySettings gameplay;
     AdvancedVideoSettings advanced;
     CameraSettings camera;
-    GameOptionsSetup game_options;  // ui1 t06: StartCampaign / StartSkirmish (set = Accepted on the advanced options)
-    // StartSkirmish (skm1 t02): the skirmish options dialog's values (set = false: never accepted, the host's defaults).
+    GameOptionsSetup game_options;  // StartCampaign / StartSkirmish (set = Accepted on the advanced options)
+    // StartSkirmish: the skirmish options dialog's values (set = false: never accepted, the host's defaults).
     SkirmishOptionsSetup skirmish_options;
-    // StartSkirmish (skm1 t06): per playing slot (same order as factions), the AI difficulty 0 Easy / 1 Medium / 2 Hard of
+    // StartSkirmish: per playing slot (same order as factions), the AI difficulty 0 Easy / 1 Medium / 2 Hard of
     // the slot combo (TEXT_EASY / MEDIUM / HARD_AI_PLAYER; slot 0, the local player, carries 1). `difficulty` = slot 1's.
     std::vector<int32_t> difficulties;
 };
 const char* menu_action_name(MenuAction::Kind k);
 
-// modc t08: one row of the mod picker (IDD_PORT_MODS_DIALOG). The host lists the base game first (id "") and every
+// one row of the mod picker (IDD_PORT_MODS_DIALOG). The host lists the base game first (id "") and every
 // installed mod (alamo_game: the rows of vfs::ModCatalog).
 struct ModPickerEntry {
     std::string id;         // what CheckMod / LaunchMod report ("" = the base game, no mod)
@@ -440,33 +440,33 @@ struct SkirmishProfile {
 };
 struct MenuProviders {
     std::function<std::vector<SaveGameInfo>()> saves;
-    std::function<SkirmishProfile()> skirmish_profile;  // modc t47: null = a fresh profile
+    std::function<SkirmishProfile()> skirmish_profile;  // null = a fresh profile
     // N1 / t09: save_blocker = "" when the game can be saved now, else why not (asked when the Save dialog opens);
     // save_exists = a save of this name exists (Save then asks to overwrite). Null: always allowed / never asks.
     std::function<std::u32string()> save_blocker;
     std::function<bool(const std::string&)> save_exists;
     std::function<std::vector<SkirmishMapInfo>()> skirmish_maps;
-    // p4uia t01: the 9 GameConstants MP_Color_* entries (the host palette) the skirmish colour combos offer; null / empty:
+    // the 9 GameConstants MP_Color_* entries (the host palette) the skirmish colour combos offer; null / empty:
     // the combos stay hidden.
     std::function<std::vector<Rgba8>()> player_colors;
-    // p4uim t03: the preview of a map row (null: no image). Called when the selection changes; the host caches.
+    // the preview of a map row (null: no image). Called when the selection changes; the host caches.
     std::function<SkirmishPreview(const SkirmishMapInfo&)> skirmish_preview;
     std::function<AudioVolumes()> audio;
     std::function<VideoSettings()> video;
     std::function<GameplaySettings()> gameplay;
-    GameOptionsSetup game_option_defaults;  // ui1 t06: the advanced options' defaults and slider range (host: GameConstants)
-    SkirmishOptionsSetup skirmish_option_defaults;  // skm1 t02: the skirmish options' defaults and slider range (host)
+    GameOptionsSetup game_option_defaults;  // the advanced options' defaults and slider range (host: GameConstants)
+    SkirmishOptionsSetup skirmish_option_defaults;  // the skirmish options' defaults and slider range (host)
     std::function<AdvancedVideoSettings()> advanced_video;  // null: defaults
     std::function<CameraSettings()> camera_settings;        // [port: Gabriel] null: defaults
     HotkeyTable* hotkeys = nullptr;  // edited by the keyboard dialogs (Accept)
     Bindings* bindings = nullptr;    // synced with apply_to_bindings on Accept
-    // modc t20: the skirmish staging faction combos. The host fills it from the data (alamo_game: the Is_Playable,
+    // the skirmish staging faction combos. The host fills it from the data (alamo_game: the Is_Playable,
     // non-neutral factions in FactionFiles.xml order, each with its Text_ID); empty = the combos stay empty and the
     // StartSkirmish action names no faction (the host's default_skirmish_faction).
     std::vector<SkirmishFaction> skirmish_factions;
-    // mcx4 t19: a faction's Displayed_Tech_Level_Adjustment (Factions.xml, +0x2FB0) by name; null = 0 for every faction.
+    // a faction's Displayed_Tech_Level_Adjustment (Factions.xml, +0x2FB0) by name; null = 0 for every faction.
     std::function<int32_t(std::string_view faction)> tech_adjustment;
-    // modc t08: the mod picker's rows; null = no Mods button on the main menu.
+    // the mod picker's rows; null = no Mods button on the main menu.
     std::function<std::vector<ModPickerEntry>()> mods;
     bool demo = false;               // show IDC_MAIN_MENU_PLAY_DEMO instead of Single Player
 };
@@ -478,7 +478,7 @@ std::u32string hotkey_label(const HotkeyBinding& b);
 // UI5 t05 [port]: an English name for a hotkey slot (its hotkeys.cpp name with "Ability_" / "FoC" dropped and spaces
 // between words: "Ability_SpreadOut" -> "Spread Out", "Taunt1" -> "Taunt 1"), for the "already in use" question.
 std::u32string hotkey_action_label(uint16_t slot);
-// UI5 t09: the retail label text id of a slot ("TEXT_SELECT_LIKE"; a derived group slot gives its group's), nullptr for
+// the retail label text id of a slot ("TEXT_SELECT_LIKE"; a derived group slot gives its group's), nullptr for
 // the port's own slots 153..
 const char* hotkey_action_text_id(uint16_t slot);
 
@@ -504,22 +504,22 @@ public:
     // N1 / t09: re-reads the saves provider into an open save / load dialog (the host deleted or wrote a save).
     void refresh_saves();
     double resolution_confirm_remaining() const { return res_confirm_ ? std::max(0.0, res_deadline_ - now_) : 0.0; }
-    // p4ui t06: the row of `map` (its SkirmishMapInfo::map, case-insensitive) in the skirmish staging list as shown now
+    // the row of `map` (its SkirmishMapInfo::map, case-insensitive) in the skirmish staging list as shown now
     // (active tab, sorted), -1 when that map is not listed there. Valid while the skirmish dialog is open.
     int32_t skirmish_map_row(std::string_view map) const;
     // Which tab the skirmish staging list shows: false Official (the dialog's state when it opens), true Custom.
     bool skirmish_custom_tab() const { return custom_tab_; }
-    // p4uim t01: the game type IDC_GAME_TYPE_LIST selects (the list shows the maps of that type): true Space, false Land
+    // the game type IDC_GAME_TYPE_LIST selects (the list shows the maps of that type): true Space, false Land
     // or Capture Control Points. A dialog opened for the first time starts on Land; later on the type selected last,
-    // remembered at once (UI.md 9.7).
+    // remembered at once (legacy docs/re/UI.md 9.7).
     bool skirmish_space_type() const { return game_type_ == kSkirmishGameSpace; }
-    // ccpgt t02: the selected game type (kSkirmishGameLand / Space / Control) and the IDC_GAME_TYPE_LIST row of `type`
-    // (the rows are sorted by their text, LBS_SORT, UI.md 9.7), -1 when not listed.
+    // the selected game type (kSkirmishGameLand / Space / Control) and the IDC_GAME_TYPE_LIST row of `type`
+    // (the rows are sorted by their text, LBS_SORT, legacy docs/re/UI.md 9.7), -1 when not listed.
     int32_t skirmish_game_type() const { return game_type_; }
     int32_t skirmish_game_type_row(int32_t type) const;
-    // p4uia t01: the colour index shown in skirmish slot `slot` (0..7), -1 when the slot is not shown.
+    // the colour index shown in skirmish slot `slot` (0..7), -1 when the slot is not shown.
     int32_t skirmish_colour(int32_t slot) const;
-    // modc t08: the load report of picker row `id` (lines as the host formats them). Kept per id; shown when that row is
+    // the load report of picker row `id` (lines as the host formats them). Kept per id; shown when that row is
     // selected, and Launch is enabled once the selected row has one (never for the active row).
     void set_mod_report(std::string_view id, std::vector<std::u32string> lines);
     // The picker row selected now ("" = the base game or no picker open).
@@ -537,7 +537,7 @@ private:
     void fill_campaign_select(GuiDialog& d);
     void fill_custom_staging(GuiDialog& d);
     void fill_skirmish(GuiDialog& d);
-    void fill_skirmish_slots(GuiDialog& d);  // ui1 t07: the player rows for the selected map's player count
+    void fill_skirmish_slots(GuiDialog& d);  // the player rows for the selected map's player count
     void fill_game_options(GuiDialog& d, const GameOptionsSetup& o);  // ui1 t06
     void fill_skirmish_options(GuiDialog& d, const SkirmishOptionsSetup& o);  // skm1 t02
     SkirmishOptionsSetup read_skirmish_options(const GuiDialog& d) const;
@@ -548,7 +548,7 @@ private:
     void fill_skirmish_game_types(GuiDialog& d);
     void fill_skirmish_colours(GuiDialog& d);
     void fill_skirmish_preview(GuiDialog& d);  // IDC_IMAGE and its start numbers; IDC_SCENARIO_DESCRIPTION_TEXT_BOX stays hidden
-    void resolve_skirmish_colours(GuiDialog& d);  // the colour clash rule (UI.md 9.7), slot order
+    void resolve_skirmish_colours(GuiDialog& d);  // the colour clash rule (legacy docs/re/UI.md 9.7), slot order
     std::u32string skirmish_row_text(const SkirmishMapInfo& m) const;
     void fill_saves(GuiDialog& d);
     void fill_audio(GuiDialog& d, const AudioVolumes& v);
@@ -559,7 +559,7 @@ private:
     CameraSettings read_port_controls(const GuiDialog& d) const;
     void fill_gameplay(GuiDialog& d, const GameplaySettings& g);
     void fill_keyboard(GuiDialog& d);
-    void fill_mods(GuiDialog& d);         // modc t08: rows from MenuProviders::mods, the selected row's report
+    void fill_mods(GuiDialog& d);         // rows from MenuProviders::mods, the selected row's report
     void show_mod_report(GuiDialog& d);   // the report list and Launch state of mod_selected_
     AudioVolumes read_audio(const GuiDialog& d) const;
     GameplaySettings read_gameplay(const GuiDialog& d) const;
@@ -578,12 +578,12 @@ private:
     AudioVolumes audio_before_;
     HotkeyTable keys_work_;  // keyboard dialogs edit a copy; Accept writes it back
     bool keys_dirty_ = false;
-    // UI5 t05: a key the capture field took that another slot already uses waits for the "already in use" answer.
+    // a key the capture field took that another slot already uses waits for the "already in use" answer.
     int32_t rebind_slot_ = -1, rebind_other_ = -1;
     HotkeyBinding rebind_key_{};
     void apply_keys(std::vector<MenuAction>& out);
     void refill_keys();
-    void show_hint(GuiDialog& d, std::string_view control);  // UI5 t08: IDC_HINT_LIST of the single-player menu
+    void show_hint(GuiDialog& d, std::string_view control);  // IDC_HINT_LIST of the single-player menu
     std::vector<SaveGameInfo> saves_;
     // [port: Gabriel] the saved games tree: one entry per list row, a save (index into saves_) or a group (save = -1, its
     // key path); the open groups' key paths (kept across refills).
@@ -601,21 +601,21 @@ private:
     std::vector<size_t> map_view_;   // skirmish list rows -> index into maps_ (active tab, sorted)
     bool custom_tab_ = false;        // skirmish list: Custom tab active
     int32_t game_type_ = kSkirmishGameLand;
-    int32_t skirmish_slots_ = 2;  // ui1 t07: player rows shown (the selected map's players, 2..8)
-    std::vector<std::u32string> skirmish_factions_;  // ui1 t07: the faction combo rows
-    int32_t local_faction_row_ = 0;  // modc t47: the profile's faction row for slot 0 (0 = none stored or not in the list)
-    SkirmishOptionsSetup skirmish_options_;   // skm1 t02: the skirmish options accepted last (set = false until then)
-    std::vector<int32_t> skirmish_win_rows_;  // skm1 t02: the win condition of each IDC_WIN_CONDITION_COMBO row
-    GameOptionsSetup game_options_;  // ui1 t06: the advanced options accepted last (set = false until then)
-    TechSliderRange tech_range_;     // mcx4 t19: the open advanced dialog's tech slider range (custom staging selection)
-    bool game_options_stored_ = false;  // mcx8 t10: the dialog was accepted once (it then shows game_options_)
-    bool options_changed_ = false;      // mcx8 t10: the open advanced dialog's flag 0x20 (see GameOptionsSetup::set)  // skirmish list: the game type selected last (UI.md 9.7)
+    int32_t skirmish_slots_ = 2;  // player rows shown (the selected map's players, 2..8)
+    std::vector<std::u32string> skirmish_factions_;  // the faction combo rows
+    int32_t local_faction_row_ = 0;  // the profile's faction row for slot 0 (0 = none stored or not in the list)
+    SkirmishOptionsSetup skirmish_options_;   // the skirmish options accepted last (set = false until then)
+    std::vector<int32_t> skirmish_win_rows_;  // the win condition of each IDC_WIN_CONDITION_COMBO row
+    GameOptionsSetup game_options_;  // the advanced options accepted last (set = false until then)
+    TechSliderRange tech_range_;     // the open advanced dialog's tech slider range (custom staging selection)
+    bool game_options_stored_ = false;  // the dialog was accepted once (it then shows game_options_)
+    bool options_changed_ = false;      // the open advanced dialog's flag 0x20 (see GameOptionsSetup::set)  // skirmish list: the game type selected last (legacy docs/re/UI.md 9.7)
     std::vector<int32_t> game_type_rows_;    // IDC_GAME_TYPE_LIST rows -> game type (sorted by row text)
-    // The map selected last [0 land, 1 space] ("" = none yet; UI.md 9.5 / 9.7: retail keeps one land key for types 2 and 4).
+    // The map selected last [0 land, 1 space] ("" = none yet; legacy docs/re/UI.md 9.5 / 9.7: retail keeps one land key for types 2 and 4).
     std::string last_map_[2];
     std::vector<Rgba8> colour_palette_;   // the host palette read when the skirmish dialog opened
     int32_t slot_colour_[8] = {0, 1, 2, 3, 4, 5, 6, 7};  // colour index of each skirmish slot (default = the slot index)
-    std::string quit_action_;  // "exit" / "main"; N1 / t09: "overwrite" / "delete" (confirm_save_); UI5 t05: "rebind" / "keys"
+    std::string quit_action_;  // "exit" / "main"; N1 / t09: "overwrite" / "delete" (confirm_save_); "rebind" / "keys"
     std::string confirm_save_;  // the save an overwrite / delete confirmation is about
     bool save_blocked_ = false; // the open Save dialog's save_blocker refused
     bool video_status_stale_ = false;  // an ApplyVideo went out: re-read IDC_PORT_DISPLAY_INFO once the host has handled it
@@ -623,7 +623,7 @@ private:
     double res_deadline_ = 0.0, now_ = 0.0;
     int32_t res_shown_ = -1;    // seconds last written into the countdown line
     VideoSettings res_keep_, res_revert_;
-    std::vector<ModPickerEntry> mods_;  // modc t08: the picker's rows as opened
+    std::vector<ModPickerEntry> mods_;  // the picker's rows as opened
     std::string mod_selected_;
     bool mod_chosen_ = false;  // mod_selected_ names a row (set by the first fill; the base row's id is "")
     std::vector<std::pair<std::string, std::vector<std::u32string>>> mod_reports_;  // per id, in arrival order

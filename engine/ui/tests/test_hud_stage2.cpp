@@ -380,7 +380,7 @@ void test_hotkeys() {
     CHECK2(fired == (std::vector<uint16_t>{static_cast<uint16_t>(hotkey_slot("Ability_StimPack"))}));
     d.pressed(keys_frame({kOemPlus}, false, false, true), fired);
     CHECK2(fired == (std::vector<uint16_t>{static_cast<uint16_t>(hotkey_slot("Ability_ForceSight"))}));
-    // P1_CAMERA_INPUT.md §6: a modified slot fires when its modifier is held, others ignored; the first match wins.
+    // legacy docs/re/P1_CAMERA_INPUT.md §6: a modified slot fires when its modifier is held, others ignored; the first match wins.
     d.pressed(keys_frame({kOemPeriod}, true, true), fired);  // Shift+Ctrl+. -> Ctrl+. (stim pack)
     CHECK2(fired == (std::vector<uint16_t>{static_cast<uint16_t>(hotkey_slot("Ability_StimPack"))}));
     d.pressed(keys_frame({'1'}, true, true), fired);  // Shift+Ctrl+1 -> assign (slot 123 before add 133)
@@ -442,7 +442,7 @@ void test_hotkeys() {
     CHECK2(b.binding(Action::Stop, 0).key == 'G' && b.binding(Action::Stop, 0).mods == kModNone);
     CHECK2(b.binding(Action::ControlGroup1, 0).key == 'Z' && b.binding(Action::SelectAll, 0).mods == kModCtrl &&
            b.binding(Action::ScrollUp, 0).mods == kModAny && b.binding(Action::ScrollUp, 0).key == 'W');
-    // OrderTranslator leaves the keyboard to the dispatcher (cu13 t01): the SelectAll key emits nothing.
+    // OrderTranslator leaves the keyboard to the dispatcher: the SelectAll key emits nothing.
     OrderTranslator ot;
     OrderContext ctx;
     ot.update(keys_frame({'Y'}, false, true), Bindings{}, ctx);
@@ -591,7 +591,7 @@ void test_buttons() {
     const TooltipConfig c2 = tooltip_config_from(gc.root());
     CHECK2(near2(static_cast<float>(c2.delay), 0.5f) && near2(static_cast<float>(c2.encyclopedia_delay), 0.9f) &&
            near2(static_cast<float>(c2.long_encyclopedia_delay), 4.0f));
-    // mcx4 t14 / t15: the encyclopedia layout (HUD_GAPS §2.2) and the HUD values (UI.md §1.2 / §1.7, GALACTIC_DIALOGS §1.3).
+    // the encyclopedia layout (HUD_GAPS §2.2) and the HUD values (legacy docs/re/UI.md §1.2 / §1.7, GALACTIC_DIALOGS §1.3).
     // ledger: verifies GameConstants.Encyclopedia_Population_Offset
     // ledger: verifies GameConstants.Encyclopedia_Name_Offset
     // ledger: verifies GameConstants.Encyclopedia_Cost_Offset
@@ -624,7 +624,7 @@ void test_buttons() {
         // P4_SIM_SYSTEMS §2.7.2: the Droid Log date / separator row colours (FoC 255 0 0 / 128 128 128).
         CHECK2((h0.droid_date_color == Rgba8{255, 0, 0, 255}) && (h0.droid_separator_color == Rgba8{128, 128, 128, 255}));
         CHECK2((h3.droid_date_color == Rgba8{10, 20, 30, 255}) && (h3.droid_separator_color == Rgba8{40, 50, 60, 70}));
-        // mcx4 t14 / t15 (docs/re/MCX4_T14_RE_ANSWERS.md "GameConstants.Win_Lose_Message_Font"): the banner font, the last
+        // mcx4 t14 / t15 (legacy docs/re/MCX4_T14_RE_ANSWERS.md "GameConstants.Win_Lose_Message_Font"): the banner font, the last
         // Win_Lose_Message_Font_Size wins, and the Win_Message_Color / Lose_Message_Color pair.
         // ledger: verifies GameConstants.Win_Lose_Message_Font
         // ledger: verifies GameConstants.Win_Lose_Message_Font_Size
@@ -642,7 +642,7 @@ void test_buttons() {
         // ledger: verifies GameConstants.CB_Flash_Count
         const data::XmlDocument g5 = data::XmlDocument::parse(std::string_view("<GameConstants><CB_Flash_Count>7</CB_Flash_Count></GameConstants>"));
         CHECK2(h0.cb_flash_count == 4 && hud_constants_from(g5.root()).cb_flash_count == 7);  // CB_Flash_Count (FoC 4)
-        // mcx4 t14 (docs/re/MCX4_PRES_RE_ANSWERS_2.md Q1): the countdown column - Game_Play_UI_Countdown_Font_Name (default
+        // mcx4 t14 (legacy docs/re/MCX4_PRES_RE_ANSWERS_2.md Q1): the countdown column - Game_Play_UI_Countdown_Font_Name (default
         // empty), Game_Play_UI_Countdown_Font_Size (12), GUI_Tactical_Countdown_Timers_Screen_X / GUI_Tactical_Countdown_Timers_Screen_Y,
         // GUI_Strategic_Countdown_Timers_Screen_X / GUI_Strategic_Countdown_Timers_Screen_Y and
         // GUI_Strategic_Countdown_Timers_Screen_Spacing.
@@ -661,7 +661,7 @@ void test_buttons() {
             "0.125</GUI_Strategic_Countdown_Timers_Screen_X><GUI_Strategic_Countdown_Timers_Screen_Y>0.75</GUI_Strategic_Countdown_Timers_Screen_Y>"
             "<GUI_Strategic_Countdown_Timers_Screen_Spacing>0.0625</GUI_Strategic_Countdown_Timers_Screen_Spacing></GameConstants>"));
         const HudConstants h6 = hud_constants_from(g6.root());
-        {  // mcx4 t14 (docs/re/MCX4_T14_RE_ANSWERS.md font families): Command_Bar_Default_Font_Name / Command_Bar_Default_Font_Size,
+        {  // mcx4 t14 (legacy docs/re/MCX4_T14_RE_ANSWERS.md font families): Command_Bar_Default_Font_Name / Command_Bar_Default_Font_Size,
            // Text_Button_Default_Font_Name / Text_Button_Default_Font_Size, Game_Object_Name_Font_Name /
            // Game_Object_Name_Font_Size, Tool_Tip_Font_Name / Tool_Tip_Font_Size; FoC EmpireAtWar-Medium 7 / Arial 7.
             // ledger: verifies GameConstants.Command_Bar_Default_Font_Name
@@ -675,7 +675,7 @@ void test_buttons() {
             CHECK2(h0.fonts.text_face == "EmpireAtWar-Medium" && near2(h0.fonts.text_size, 7.0f) && h0.fonts.tooltip_face == "Arial");
             // ledger: verifies GameConstants.Text_Reveal_Rate
             CHECK2(near2(h0.text_reveal_rate, 120.0f));  // Text_Reveal_Rate (FoC 120)
-            // mcx4 t14 (docs/re/MCX4_PRES_RE_ANSWERS_3.md Q2): Num_Structures_For_Medium_Planet_Name 3 /
+            // mcx4 t14 (legacy docs/re/MCX4_PRES_RE_ANSWERS_3.md Q2): Num_Structures_For_Medium_Planet_Name 3 /
             // Num_Structures_For_Large_Planet_Name 5 pick the g_planet_name Alternate_Font_Name entry.
             // ledger: verifies GameConstants.Num_Structures_For_Medium_Planet_Name
             // ledger: verifies GameConstants.Num_Structures_For_Large_Planet_Name
@@ -736,7 +736,7 @@ void test_radar() {
     CHECK2(click && near2(click->duration, 0.8f) && click->model == "I_minimap_default_click.alo" && !click->single_instance);
     const RadarEventType* inter = s.event("Interdict_Activated");
     CHECK2(inter && inter->persistent && inter->single_instance);
-    // modc t30: the Event_* scratch values carry over (Interdict_Activated has no Event_Duration: Default_Click's .8).
+    // the Event_* scratch values carry over (Interdict_Activated has no Event_Duration: Default_Click's .8).
     CHECK2(inter && near2(inter->duration, 0.8f) && near2(inter->scale, 0.001f));
     {  // whole-file walk: no path check, known tags at any depth; a fresh record keeps 0.0125 / 2.0 until an Event_* field
         const char* walk = R"(<Mod_Radar><Radar_Map_Event name="A"><Event_Model_Name>a.alo</Event_Model_Name></Radar_Map_Event>
@@ -1145,7 +1145,7 @@ void test_order_buttons() {
     CHECK2(!shown(2) && shown(3) && !enabled(3) && enabled(4) && hud.stats().buttons == 5);
 }
 
-// HUD_GAPS §9.2 (cu9g t03): b_special_weapon in land is the bombing-run button: never hidden, disabled from the feed,
+// HUD_GAPS §9.2: b_special_weapon in land is the bombing-run button: never hidden, disabled from the feed,
 // alternate icon 3, tooltip 3, the cooldown on the Build_Texture_Name dial; a frame without the land feed leaves it alone.
 void test_bombing_run_button() {
     const std::string xml =
@@ -1335,7 +1335,7 @@ void test_tactical_stage2() {
     CHECK2(st.panel_slots == 2 && st.ability_buttons == 2 && st.queue_entries == 1 && st.reinforcements == 1 && st.radar_events == 1);
     CHECK2(st.buttons >= 2);  // b_retreat, b_option_t (b_hidden_t stays hidden)
     CHECK2(st.radar_blips == 3 && st.radar_icons == 0 && hud.radar_models().empty());  // no settings: the ring stand-in
-    {  // Radar_Icon_Name per type, Is_Visible_On_Enemy_Radar, radar event models (UI.md §1.7)
+    {  // Radar_Icon_Name per type, Is_Visible_On_Enemy_Radar, radar event models (legacy docs/re/UI.md §1.7)
         std::vector<HudTypeInfo> rt = types;
         rt[1].radar_icon = "i_icon_unit.tga";
         rt[1].radar_icon_size = {0.1f, 0.1f};
@@ -1361,7 +1361,7 @@ void test_tactical_stage2() {
             for (const HudQuad& q : hud.draw_list().items(l, HudList::Alpha))
                 icon_sized = icon_sized || near2(q.max.x - q.min.x, 0.05f * hud.radar_view().size.x, 0.01f);
         CHECK2(icon_sized);
-        {  // mcx4 t14 (docs/re/MCX4_T14_RE_ANSWERS.md): Radar_Icon_Scale_Land / Radar_Icon_Scale_Space multiply the icon
+        {  // mcx4 t14 (legacy docs/re/MCX4_T14_RE_ANSWERS.md): Radar_Icon_Scale_Land / Radar_Icon_Scale_Space multiply the icon
            // size in that mode.
             // ledger: verifies GameObjectType.Radar_Icon_Scale_Land
             // ledger: verifies GameObjectType.Radar_Icon_Scale_Space
@@ -1380,7 +1380,7 @@ void test_tactical_stage2() {
             }
             hud.build(f2, ru, rt);
         }
-        {  // mcx4 t14 (docs/re/MCX4_PRES_RE_ANSWERS_3.md Q12): the turned quad and the Radar_Rotate_Icon UV shift
+        {  // mcx4 t14 (legacy docs/re/MCX4_PRES_RE_ANSWERS_3.md Q12): the turned quad and the Radar_Rotate_Icon UV shift
             // ledger: verifies GameObjectType.Radar_Rotate_Icon
             const TextureAtlas no_atlas;
             HudDrawList td;
@@ -1393,7 +1393,7 @@ void test_tactical_stage2() {
             CHECK2(tq.size() == 2 && near2(tq[1].corners[0].x, 12.0f) && near2(tq[1].corners[0].y, 11.0f) &&
                    near2(tq[1].corners[3].x, 8.0f) && near2(tq[1].corners[3].y, 11.0f));
         }
-        {  // mcx4 t14: Radar_Register_As_Foreground_Object puts the blip one layer above the rest
+        {  // Radar_Register_As_Foreground_Object puts the blip one layer above the rest
             // ledger: verifies GameObjectType.Radar_Register_As_Foreground_Object
             std::vector<HudTypeInfo> fg_types = rt;
             fg_types[1].radar_foreground = true;
@@ -1508,7 +1508,7 @@ void test_tactical_stage2() {
         hud.build(fr, units, types);  // back to the enabled buttons for the clicks below
     }
     {
-        std::vector<std::string> cancel_sfx;  // UI5 t06: Cancel_Production plays GUI_Cancel_SFX
+        std::vector<std::string> cancel_sfx;  // Cancel_Production plays GUI_Cancel_SFX
         hud.set_sfx_hook([&](std::string_view e, int32_t) { cancel_sfx.emplace_back(e); });
         auto [cmds, acts] = click("tqueue00", Button::Left);
         CHECK2(cmds.empty() && acts.size() == 1 && acts[0].kind == HudAction::Kind::TacticalCancel && acts[0].unit == 900 &&
@@ -1527,7 +1527,7 @@ void test_tactical_stage2() {
         const ButtonRuntime* b0 = hud.buttons().find_state(static_cast<uint32_t>(t.find("Build_00")));
         const ButtonRuntime* b1 = hud.buttons().find_state(static_cast<uint32_t>(t.find("Build_01")));
         CHECK2(b0 && b1 && b0->text2 == U"1200" && !b0->disabled && b0->tooltip_index == 0 && b0->tooltip_key.empty() &&
-               b1->disabled && b1->tooltip_index == 2 && b1->text == U"2" && b1->tooltip_key.empty());  // ui3 t07: index 0 + key
+               b1->disabled && b1->tooltip_index == 2 && b1->text == U"2" && b1->tooltip_key.empty());  // index 0 + key
         auto buy_click = [&](const char* name, Button b) {
             const int32_t ci = t.find(name);
             Vec2f c{-1e9f, -1e9f};

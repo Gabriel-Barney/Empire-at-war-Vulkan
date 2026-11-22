@@ -1,7 +1,7 @@
-// alamo_game_battle_fx_tests (refix t06 / refixf t05, data-free): the tactical super weapon's presentation cues
+// alamo_game_battle_fx_tests (data-free): the tactical super weapon's presentation cues
 // (battle_fx.hpp) on a synthetic type set and object store - Firing / AttackAnim at the TSW, PlanetDestroyed at the target
 // dummy while it is dead but not flushed, nothing without a dummy or for other events -, the cinematic camera of
-// TSW_PLANET_DESTROY.md §11 (improved noise / fBm, ease and accel profiles, the explosion shake for J = 1 / D = 100, its
+// legacy docs/re/TSW_PLANET_DESTROY.md §11 (improved noise / fBm, ease and accel profiles, the explosion shake for J = 1 / D = 100, its
 // ease-out envelope, the gate outside the cinematic, the firing shot's key frames at 0 / 300 / 315 / 765, the cut, input
 // cancel, camera save / restore, letterbox), and GameAudioHost::tsw_audio on a synthetic audio tree with the null backend
 // (activation voice + power-up SFX, mode 8 music, SFXEvent_Fire, the dummy's Death_SFXEvent_Start_Die).
@@ -177,7 +177,7 @@ void test_tsw_cues() {
     CHECK(tsw_cues({}, st).empty());
 }
 
-// S8 t31: a LOBBING_SUPERWEAPON unit (Fx_Magnepulse) in `w`'s store.
+// a LOBBING_SUPERWEAPON unit (Fx_Magnepulse) in `w`'s store.
 objects::ObjectId add_lobber(World& w) {
     objects::SpawnParams p;
     p.type = w.types.resolve_name("Fx_Magnepulse");
@@ -545,7 +545,7 @@ void test_tsw_audio() {
     h.tsw_audio(bads, w->types);
     CHECK(h.stats().tsw_planet_deaths == 1);
 
-    // S8 t31: the lobbing charge-up / charged sounds.
+    // the lobbing charge-up / charged sounds.
     const objects::ObjectId lob = add_lobber(*w);
     evs = {ev(ta::SwEventKind::LobChargeup, lob)};
     h.tsw_audio(tsw_cues(evs, st), w->types);

@@ -1,16 +1,16 @@
 // alamo_vfs - virtual file system implementing the verified Data\ resolution order
-// (docs/PHASE2.md, docs/re/SUBSYSTEMS.md "File lookup priority", docs/re/FALLBACK_CAMPAIGNS.md).
+// (docs/MODS.md "File resolution order", legacy docs/re/SUBSYSTEMS.md "File lookup priority", legacy docs/re/FALLBACK_CAMPAIGNS.md).
 //
 // Lookup of a game-relative path, first match wins:
 //   1. Mod  : one search list, <dir>\Data\<rest>, earliest entry wins. MODPATH= and STEAMMOD=
-//             are interleaved in command-line order (PHASE2_ANSWERS.md Q14: the original adds
+//             are interleaved in command-line order (legacy docs/re/PHASE2_ANSWERS.md Q14: the original adds
 //             each token to the same search vector as it parses it). See VfsConfig::mod_search.
 //             Only for paths starting with Data\ (after normalisation).
 //   2. Base : FoC loose <foc_root>\Data\<rest>.
 //   3. Meg  : mounted MEG archives, newest-mounted first. Evidence: statically, Add_Megafile
 //             appends the archive at the TAIL of its list, so newest-wins depends on Open_File
-//             iterating in reverse, which was not verified statically (PHASE2_ANSWERS.md,
-//             "Corrections", SUBSYSTEMS.md MEG list); in-game probe v2 confirmed at runtime that
+//             iterating in reverse, which was not verified statically (legacy docs/re/PHASE2_ANSWERS.md,
+//             "Corrections", legacy docs/re/SUBSYSTEMS.md MEG list); in-game probe v2 confirmed at runtime that
 //             the later-listed MEG wins. Mount order (later wins):
 //             <EaW>\Data\MegaFiles.xml entries (file order), <EaW>\Data\Patch.meg, patch2.meg,
 //             64Patch.meg, then FoC Data\MegaFiles.xml entries, then FoC Data\Patch.meg,
@@ -72,7 +72,7 @@ struct VfsConfig {
                                                // sweaw.exe), "" = no EaW, else explicit GameData dir
     bool mount_megs = true;
     // Resolves SteamWorkshop entries of mod_search when the Vfs is created. Unset: the process-wide
-    // Steam library lookup if an app installed it (steam_workshop.hpp, modc t10), else those entries
+    // Steam library lookup if an app installed it (steam_workshop.hpp), else those entries
     // are skipped with the warning "no workshop resolver".
     SteamModResolver steam_resolver;
 };
@@ -83,11 +83,11 @@ struct VfsConfig {
 // backslashes are converted for the host. Unknown arguments are ignored. Returns false if a
 // recognised switch had an empty value (the other switches are still applied).
 bool parse_command_line(std::span<const std::string> args, VfsConfig& cfg);
-// A mod argument: MODPATH= or STEAMMOD= (any case). FALLBACKPATH= is not one. The one copy of this test (ums4 t04): the
+// A mod argument: MODPATH= or STEAMMOD= (any case). FALLBACKPATH= is not one. The one copy of this test: the
 // picker, alamo_play and the conflicts check use it.
 bool is_mod_arg(std::string_view arg);
 
-// One layer of the resolution order and where it came from (ums0, docs/MODS.md §3.2 "Layers and provenance"). Every
+// One layer of the resolution order and where it came from (ums0, docs/MODS.md "Layers and provenance"). Every
 // Vfs::Resolution names exactly one layer (Vfs::layer_of); code that asks "did this file come from a mod, and which one"
 // reads Layer::mod instead of comparing host paths with the mod folders.
 struct Layer {
@@ -144,7 +144,7 @@ public:
     std::string origin(std::string_view path) const override;  // Resolution::location or ""
 
     std::optional<Resolution> resolve(std::string_view path) const;
-    // The n-th copy of `path` in resolution order (mcx2 t07): n = 0 is what read() returns, n = 1 the copy the next
+    // The n-th copy of `path` in resolution order: n = 0 is what read() returns, n = 1 the copy the next
     // layer down holds (a mod's file -> the base game's), and so on. False (out empty) when fewer copies exist or the
     // read fails. `where`, when given, receives the copy's layer and location. For a fallback when a mod's copy of a
     // file fails to load; normal reads never use it.
@@ -158,12 +158,12 @@ public:
     const std::vector<Layer>& layers() const;
     // The layer a resolution came from; nullptr when `r` names none (an index out of range).
     const Layer* layer_of(const Resolution& r) const;
-    // The logical paths one layer holds (ums2 t08), normalised: a loose layer's Data tree in byte order, a MEG's records in
+    // The logical paths one layer holds, normalised: a loose layer's Data tree in byte order, a MEG's records in
     // stored order, only the names the game's lookup reaches (meg::Archive::lookup). Empty for a layer of another Vfs.
     std::vector<std::string> layer_files(const Layer& layer) const;
 
     // Union of all logical paths matching `glob` over every layer, each once, normalised
-    // (upper-case, '\\'), in retail's find order (mcx3 t13): the mod trees, the base tree (each in byte order), then
+    // (upper-case, '\\'), in retail's find order: the mod trees, the base tree (each in byte order), then
     // every MEG in mount order with its records in stored order, then the fallback trees; the first occurrence of a
     // path stays. Glob: '*' and '?' do not cross '\\'; '**' does.
     // Example: list("Data\\Scripts\\AI\\*.lua").
@@ -189,7 +189,7 @@ public:
     // (unresolved STEAMMOD ids dropped). Resolution::layer_index indexes this.
     const std::vector<std::string>& mod_dirs() const;
     const std::vector<std::string>& warnings() const;
-    // mcx3 t04: malformed MEG tables found at mount (meg::Archive::table_issues); lookups follow the game's rule
+    // malformed MEG tables found at mount (meg::Archive::table_issues); lookups follow the game's rule
     // (meg::Archive::lookup), so what the game loses is lost here too, and each finding is also a warnings() line.
     struct MegIssue {
         enum class Kind : uint8_t { Unsorted, Duplicate, NameMismatch, Index };
@@ -220,7 +220,7 @@ static_assert(static_cast<int>(Layer::Kind::Mod) == Vfs::Resolution::Mod && stat
 // UTF-8/ASCII or UTF-16LE with BOM). Exposed for tests/diagnostics.
 std::vector<std::string> parse_megafiles_xml(std::span<const uint8_t> bytes);
 
-// The host apps' common mount (CU2 t10): cfg.foc_root = foc_root, then parse_command_line(game_args) (its result is
+// The host apps' common mount: cfg.foc_root = foc_root, then parse_command_line(game_args) (its result is
 // ignored, as every host did: switches with an empty value are skipped, the rest apply), then Vfs::create. eaw_root is
 // VfsConfig::eaw_root, set before the switches are parsed: nullopt = auto-detect (<foc_root>\..\GameData), "" = no EaW,
 // else that folder. Which hosts pass an explicit EaW tier (the ALAMO_EAW_DATA environment route of the galactic AI and

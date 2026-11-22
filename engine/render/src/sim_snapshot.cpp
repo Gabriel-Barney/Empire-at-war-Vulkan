@@ -93,7 +93,7 @@ bool parse_float(std::string_view s, float& v) {
 
 bool yes_text(const std::string& s) { return data::parse_type_bool(s); }
 
-// The leading integer of a text, 0 when it has none (vis1 t02: Blob_Shadow_Below_Detail_Level "99r" reads 99).
+// The leading integer of a text, 0 when it has none (Blob_Shadow_Below_Detail_Level "99r" reads 99).
 int32_t leading_int(std::string_view s) {
     while (!s.empty() && (s.front() == ' ' || s.front() == '	')) s.remove_prefix(1);
     int32_t v = 0;
@@ -158,7 +158,7 @@ void SnapshotTypeTable::build(const GameObjectTypes& types, objects::ModeKind mo
         ti.surface_fx = type_tokens(types, t, "SurfaceFX_Name");
         ti.scorch_mark = type_text(types, t, "Explosion_Scorch_Mark");
         ti.spin_away_explosion = type_text(types, t, "Spin_Away_On_Death_Explosion");
-        {  // vis1 t02: blob shadow fields (defaults of the type constructor: size 1 x 1, intensity 1, level 0)
+        {  // blob shadow fields (defaults of the type constructor: size 1 x 1, intensity 1, level 0)
             ti.blob_material = type_text(types, t, "Blob_Shadow_Material_Name");
             float v = 0.0f;
             const std::vector<std::string> sz = type_tokens(types, t, "Blob_Shadow_Scale");
@@ -543,7 +543,7 @@ void append_snapshot_effects(SimSnapshot& snap, std::span<const SnapshotEffect> 
 }
 
 // R1: the combat source is authoritative for the objects it tracks (same hardpoint count as the type's list): their
-// bits are its destroyed states; objects it does not track keep none (r1b t02: the provisional attach-child rule is
+// bits are its destroyed states; objects it does not track keep none (the provisional attach-child rule is
 // gone - battle hardpoints are combat records, not objects). (The instance builder keeps destroyed hardpoints sticky:
 // B.10, no repair visuals.)
 void apply_hardpoint_source(SimSnapshot& snap, const std::function<uint32_t(ObjectId)>& count,
@@ -728,7 +728,7 @@ void apply_battle_state(const sim::TacticalBattle& battle, SimSnapshot& snap, co
         if (stealth_applied) o.flags = static_cast<uint8_t>(o.flags | kSnapStealthMeshes);
         else if (stealth_broken) o.stealth_time = kStealthBreakFade;
     }
-    // bkx1 t05 (b0019 / b0020, BKX1_RENDER_RE §1.2): the engine glow inputs of every space unit with a locomotor other than
+    // bkx1 t05 (BKX1_RENDER_RE §1.2): the engine glow inputs of every space unit with a locomotor other than
     // the fighters' (the SimpleSpace service runs for corvettes, frigates, capitals and transports): engines off (a
     // destroyed engine hard point or a disable), the timed disable's frames left, ion stun, v / V.
     if (battle.is_space()) {
@@ -773,7 +773,7 @@ void apply_battle_state(const sim::TacticalBattle& battle, SimSnapshot& snap, co
         return !o || combat.hardpoint_count(e.id) != o->hardpoint_count;
     });
     set_snapshot_hardpoint_events(snap, hp);
-    // S7 t05: fighter / flyer roll and pitch (bike lean) from the movement system.
+    // fighter / flyer roll and pitch (bike lean) from the movement system.
     apply_snapshot_attitude(snap, [&battle](ObjectId id, float& r, float& p) { return battle.unit_attitude(id, r, p); });
     apply_battle_beams(battle, snap, beam_styles);  // R5 ability beams
 }
@@ -882,7 +882,7 @@ void apply_beam_zaps(const tactical::abilities::AbilitySystem& ab, const tactica
             const float reach = 2.0f * p->speed + 2.0f;
             bool hit = false;
             for (const tactical::combat::HitEvent& e : combat.hit_events()) {
-                // tru1 t08: a commanded detonation's event is the zap itself (its lifetime particle), not a hit
+                // a commanded detonation's event is the zap itself (its lifetime particle), not a hit
                 if (e.commanded || e.shooter != p->shooter || e.projectile_desc != p->desc) continue;
                 const float ex = e.position.x - at.x, ey = e.position.y - at.y, ez = e.position.z - at.z;
                 if (ex * ex + ey * ey + ez * ez <= reach * reach) {
@@ -1070,7 +1070,7 @@ void interpolate(const SimSnapshot* prev, const SimSnapshot& curr, float alpha, 
         const SnapshotObject& a = p[j];
         if (a.id != o.id || a.type != o.type) continue;  // new this tick (or id reuse guard): current state
         o.position = interp_lerp(a.position, o.position, alpha);
-        // S7 t05: a fighter's pitch fold (yaw + 180, roll + 180 near the vertical) is not blended (current attitude).
+        // a fighter's pitch fold (yaw + 180, roll + 180 near the vertical) is not blended (current attitude).
         const bool flip = (a.pitch != 0.0f || o.pitch != 0.0f) &&
                           a.facing.x * o.facing.x + a.facing.y * o.facing.y + a.facing.z * o.facing.z < 0.0f;
         if (!flip) {

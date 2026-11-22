@@ -1,8 +1,8 @@
 #pragma once
-// Split out of test_abilities.cpp (bo3 t03): shared includes, types and helpers; the tests live in test_abilities_partN.cpp.
-// S9 tests: hardpoints & abilities (docs/re/ABILITIES_HARDPOINTS.md). Hand-computed checks per rule,
+// Split out of test_abilities.cpp: shared includes, types and helpers; the tests live in test_abilities_partN.cpp.
+// S9 tests: hardpoints & abilities (legacy docs/re/ABILITIES_HARDPOINTS.md). Hand-computed checks per rule,
 // a scripted space battle with abilities and hardpoint kills (CRC log identical for 1/4/N threads,
-// golden file shared by MSVC / clang / gcc), a per-tick allocation count and FoC data checks.
+// golden file written by MSVC), a per-tick allocation count and FoC data checks.
 //   alamo_tactical_abilities_tests [--golden <file>] [--write-golden <file>]
 #include <algorithm>
 #include <array>
@@ -43,13 +43,6 @@ inline std::atomic<uint64_t> g_allocs{0};
 inline std::atomic<bool> g_count{false};
 }  // namespace
 using namespace bo3split;
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmismatched-new-delete"
-#endif
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
 
 using namespace alamo;
 using namespace alamo::tactical;
@@ -259,7 +252,7 @@ void test_energy();
 void test_ion_stun();
 
 struct ShieldWorld : World {
-    // S9 t05: `turn_rate` = the projectile's Max_Rate_Of_Turn, `turn_mult` = Object_Max_Speed_Multiplier_Space.
+    // `turn_rate` = the projectile's Max_Rate_Of_Turn, `turn_mult` = Object_Max_Speed_Multiplier_Space.
     ShieldWorld(ProjectileCategory cat, bool passive_only, float turn_rate, float turn_mult = 1.0f) {
         ProjectileDesc p;
         p.name = "P";
@@ -268,7 +261,7 @@ struct ShieldWorld : World {
         p.category = cat;
         p.max_flight_distance = 3000.0f;
         p.max_rate_of_turn = turn_rate;
-        if (cat == ProjectileCategory::Rocket) {  // refixf t01: spline flight (S9_DEATH_CLONE_SHIELDS.md §2.4)
+        if (cat == ProjectileCategory::Rocket) {  // spline flight (legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §2.4)
             p.rocket_curve_distance = 50.0f;
             p.rocket_curve_offset = 10.0f;
         }
@@ -305,7 +298,7 @@ struct ShieldWorld : World {
     // change of one projectile between two consecutive ticks (degrees); changed: some heading changed at all (bits).
     bool seen_inside = false, changed = false;
     float max_turn = 0.0f;
-    float closest = 1e9f;  // refixf t01: smallest distance of a projectile from the emitter centre
+    float closest = 1e9f;  // smallest distance of a projectile from the emitter centre
     void run(int ticks) {
         std::map<uint32_t, Vec3> prev;
         for (int i = 0; i < ticks; ++i) {
@@ -536,7 +529,7 @@ void test_stealth_jamming_laser();
 void test_black_market_specials();
 
 // ================================================================================================
-// OI abilities (docs/re/TACTICAL_GAPS.md §1, §2, §7): hand-computed rules and draws
+// OI abilities (legacy docs/re/TACTICAL_GAPS.md §1, §2, §7): hand-computed rules and draws
 // ================================================================================================
 
 // A sandbox with configurable players / mode, a host map rectangle and an event log.
@@ -649,7 +642,7 @@ void test_oi_weapon_swap();
 void test_oi_berserker_speed();
 void test_oi_stun_over_water();
 
-// OI t03: ticks from the order to the Generic_Attack hit and to its removal (Damage_Frame_Number 10); count > 0: the
+// ticks from the order to the Generic_Attack hit and to its removal (Damage_Frame_Number 10); count > 0: the
 // host reports a POUND_ATTACK clip of `count` frames at `fps` for the attacker.
 inline std::array<int, 2> oi_generic_timing(uint32_t count, float fps, float speedup) {
     OiWorld w;
@@ -875,7 +868,7 @@ void test_cmb3_redirect_moving_next_listener();  // cmb3 t08 (test_cmb3.cpp)
 }  // namespace
 using namespace bo3split;
 
-// HARDPOINT_DISABLED.md §9: Set_System_Online offline (disabled vs destroyed) and online (repair to max) per type.
+// legacy docs/re/HARDPOINT_DISABLED.md §9: Set_System_Online offline (disabled vs destroyed) and online (repair to max) per type.
 inline void test_hardpoint_online_effects() {
     OiWorld w;
     HardpointDesc hp;
@@ -939,11 +932,11 @@ inline void test_hardpoint_online_effects() {
     CHECK(w.sys->shield(1) > 0.0f && w.sys->shield(1) < 200.0f);  // regen resumes from 0
 }
 
-// refix t02 (S9_DEATH_CLONE_SHIELDS.md §1.5): the INFECTION behaviour - Infection_Ability fields parsed and linked, the
+// refix t02 (legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §1.5): the INFECTION behaviour - Infection_Ability fields parsed and linked, the
 // hit attaches it with the shooter's parameters, spread after Seconds_To_Infect x FPS consecutive frames in range (enemy
 // of the infecting player, Infection_CategoryMask, Distance_To_Infect), Damage_Per_Second once a second, expiry after
 // Duration_Of_Infection (suspend), resume by a spread / the API, the death-clone key 20 only while active, save round trip.
-// S8 t04 (docs/re/LOB_SOLVER.md §3.4 / §3.5, TACTICAL_GAPS §2.3.5): Grenade_Attack and Remote_Bomb need a lob solution
+// S8 t04 (legacy docs/re/LOB_SOLVER.md §3.4 / §3.5, TACTICAL_GAPS §2.3.5): Grenade_Attack and Remote_Bomb need a lob solution
 // to apply, and both toss their (sticky) projectile from the unit through the spawner's grenade branch.
 inline ProjectileDesc lob_sticky_bomb() {
     ProjectileDesc g;
@@ -1052,7 +1045,7 @@ inline void test_lob_abilities() {
     }
 }
 
-// S8 t06 (docs/re/LOB_SOLVER.md §3.5): Remote_Bomb world - bomber 1 (player 0; Remote_Bomb with Toss_Anim BOMBTOSS,
+// S8 t06 (legacy docs/re/LOB_SOLVER.md §3.5): Remote_Bomb world - bomber 1 (player 0; Remote_Bomb with Toss_Anim BOMBTOSS,
 // Spawn_Frame 12, Spawn_Bone MuzzleB_00; Force_Lightning), the bomb target 2 (player 1, health 1000) at `at`, trooper 3
 // (player 1) for the lightning. `clips`: BOMBTOSS (id 77) 30 frames and FL_Attack (0x28) 32 frames at 30 fps, and the
 // bone MuzzleB_00 at the bomber + (1, 2, 8). Two warm-up ticks align the services (the update runs every frame).
@@ -1416,7 +1409,7 @@ inline void test_infection() {
         for (int i = 0; i < 100; ++i) z.tick();
         CHECK(z.sys->infection_attached(10) && !z.sys->infection_attached(11) && z.sys->infection_spread_count(11) == -1);
     }
-    // cu8g t05: a candidate without a model (obj +0x2a0 null: UnitDesc::has_model false) is never counted; a parameterless
+    // a candidate without a model (obj +0x2a0 null: UnitDesc::has_model false) is never counted; a parameterless
     // infection (the flag only: no pack, frames left 0) is serviced and expires at its first service (suspended).
     {
         World z;
@@ -1560,7 +1553,7 @@ inline void test_s8_apply_facing_marker_deploy() {
         const uint32_t both = kUnitDeploying | kUnitDeployTransition;
         w.ab->set_deploy_state(1, 0x18);  // Deploying: both weapon sources hold fire (the transition gate)
         CHECK((w.sys->flags(1) & both) == kUnitDeployTransition && !w.ab->deployed(1) && !w.ab->is_active(1, kDeploy));
-        CHECK((w.sys->flags(1) & kUnitDeployingIn) != 0u);  // s78n t11: 0x18 alone (the _Deployed range extents)
+        CHECK((w.sys->flags(1) & kUnitDeployingIn) != 0u);  // 0x18 alone (the _Deployed range extents)
         w.ab->set_deploy_state(1, 0x19);  // Deployed
         CHECK((w.sys->flags(1) & both) == kUnitDeploying && w.ab->deployed(1) && w.ab->is_active(1, kDeploy));
         CHECK((w.sys->flags(1) & kUnitDeployingIn) == 0u);
@@ -1613,7 +1606,7 @@ inline BribeRun oi_bribe(const AbilityObjectDesc& target, int32_t target_owner, 
             out.paid = cost;
             return true;
         };
-        // s78n t05: the host's occupied-build-pad query (pad 1: the target is a pad holding a live object)
+        // the host's occupied-build-pad query (pad 1: the target is a pad holding a live object)
         if (pad >= 0) h.occupied_build_pad = [pad](ObjectId id) { return pad == 1 && id == 2; };
         w.ab->set_host(std::move(h));
     }
@@ -1630,7 +1623,7 @@ inline BribeRun oi_bribe(const AbilityObjectDesc& target, int32_t target_owner, 
 }
 
 inline void test_cu8f_abilities_disabled() {
-    // cu8f t01 (CU8F_T01_T02_T07_RE.md §1): Cancel_Special_Ability disables the TARGET's special-ability manager (SAP +0x28)
+    // cu8f t01 (legacy docs/re/CU8F_T01_T02_T07_RE.md §1): Cancel_Special_Ability disables the TARGET's special-ability manager (SAP +0x28)
     // on apply and enables it on remove; set cancels the target's automatic effects, clear re-staggers interval specials
     // with one synced draw each (list order) and restores the cancelled effects; every entry point and gate 5 are blocked.
     OiWorld w;
@@ -1647,7 +1640,7 @@ inline void test_cu8f_abilities_disabled() {
     AbilityObjectDesc hero;
     hero.unit_abilities = {rec(kSprint, 2.0f, 4.0f)};
     hero.specials = {as, ld, eq};
-    hero.apply_self_on_creation = true;  // s78n t04: the aura reaches its own source only with this type flag
+    hero.apply_self_on_creation = true;  // the aura reaches its own source only with this type flag
     const uint32_t hd = push(w.cd, w.ad, oi_unit("Hero", 100.0f), hero);
     w.make();
     w.add(1, ud, 0, {0, 0, 0});
@@ -1693,7 +1686,7 @@ inline void test_cu8f_abilities_disabled() {
     w.sys->kill_unit(1, kNoObject, kKindNormal, w.frame);
     CHECK(!w.ab->abilities_disabled(2) && w.sys->modifier(2, ModList::Damage) == 0.25f);
 
-    // cu8f t07: the Force-disable lockout (gate 3 / 0x380b10) with Force_Ability_Disable_Time 0.0 at 30 FPS: locked on the
+    // the Force-disable lockout (gate 3 / 0x380b10) with Force_Ability_Disable_Time 0.0 at 30 FPS: locked on the
     // stamp frame and the two after it, usable again on the 3rd frame after the last stamp.
     OiWorld f;
     AbilityObjectDesc jedi;
@@ -1833,8 +1826,8 @@ struct BribeRangeCase {
     Vec3 xp{0, 0, 0}, tp{0, 0, 0}, mate{900, 900, 0};
     float ex = 3.0f, ey = 3.0f, min_range = 0.0f, user_min = 0.0f;
     bool squad = false, hook = false;
-    bool melee = false;  // s78n t01: Tyber's Targeting_Max_Attack_Distance 40 (<= Melee_Cutoff_Range 51), else 90
-    // s78n t02: the host reports container 25's slot layout (slots along +/-6, member half-extents 3, MaxJiggleDistance
+    bool melee = false;  // Tyber's Targeting_Max_Attack_Distance 40 (<= Melee_Cutoff_Range 51), else 90
+    // the host reports container 25's slot layout (slots along +/-6, member half-extents 3, MaxJiggleDistance
     // 1, facing +x): joint box half-extents X 10, Y 4.
     bool slots = false;
 };
@@ -2005,8 +1998,8 @@ struct HackRangeCase {
     Vec3 user{0, 0, 0}, xp{0, 0, 0};
     float max_range = 100.0f, min_range = 0.0f, user_min = 0.0f, ex = 4.0f, ey = 2.0f;
     bool grenade = false;
-    bool obstacle = false;  // s78n t02: X has LAND_OBSTACLE
-    // s78n t11: X's Custom_Hard_YExtent_Deployed x Scale_Factor, whether its type Deploys, and its combat flags
+    bool obstacle = false;  // X has LAND_OBSTACLE
+    // X's Custom_Hard_YExtent_Deployed x Scale_Factor, whether its type Deploys, and its combat flags
     float dep_y = 0.0f;
     bool deploys = false;
     uint32_t x_flags = 0;
@@ -2127,7 +2120,7 @@ inline void test_hack_repair_range() {
     CHECK(!hack_range_applies(g));
 }
 
-// s78n t07: the per-player writers Base_Power (TACTICAL_GAPS §7.3, 0x39a2c0), Weatherproof (§7.4), Enable_Ability (§2
+// the per-player writers Base_Power (TACTICAL_GAPS §7.3, 0x39a2c0), Weatherproof (§7.4), Enable_Ability (§2
 // table [M]) and Battlefield_Modifier (CU8F_T04_T06_RE §3.3, 0x6f1130) take the owner and the players allied with it by
 // the relation-0 test (the host's allied_players): a neutral player (relation 2: not an enemy, not allied) gets nothing.
 // Cancel_Special (0x6f4060) accepts a neutral target. Without the hook the fallback "not an enemy" counts the neutral.
@@ -2631,7 +2624,7 @@ inline void test_cu8f_lure() {
     t.sys->kill_unit(31, kNoObject, kKindNormal, t.frame);
     t.collect();
     CHECK(t.count(AbilityEventKind::RemoveSilently, 95) == 1 && !t.ab->lure_running(31));
-    // cu8g t05: switched off (or its owner gone) before the host bound the effect: bind_spawn refuses it (the host then
+    // switched off (or its owner gone) before the host bound the effect: bind_spawn refuses it (the host then
     // removes the new object silently) and the lure keeps no effect.
     for (const bool kill : {false, true}) {
         OiWorld u;
@@ -2789,7 +2782,7 @@ inline void test_cu8f_enable_gates() {
     SpecialAbilityDesc rv = oi_special("Reverse", SpecialClass::BattlefieldModifier, ActivationStyle::SpaceAutomatic);
     rv.enable_bombardment = true;
     rv.reverse_logic = true;
-    rv.reinforcement_time_multiplier = 2.0f;  // cu8g t05: the float lists swap too (Slower_Reinforcements)
+    rv.reinforcement_time_multiplier = 2.0f;  // the float lists swap too (Slower_Reinforcements)
     const uint32_t rs = add_special(w.ad, rv);
     AbilityObjectDesc ha, ra;
     ha.specials = {bs};

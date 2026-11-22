@@ -901,7 +901,7 @@ bool RendererCore::world_prepass(rhi::Frame& frame, VkCommandBuffer cmd, const V
         }
         return drawn;
     };
-    // Water detail (RecordOptions::water_detail) capped by shader detail (RENDER.md 1.5): 2 both targets, 1 reflection only, 0 none.
+    // Water detail (RecordOptions::water_detail) capped by shader detail (legacy docs/re/RENDER.md 1.5): 2 both targets, 1 reflection only, 0 none.
     int water_detail = std::clamp(opts.water_detail, 0, 2);
     if (opts.shader_detail < 3) water_detail = std::min(water_detail, 1);
     if (opts.shader_detail < 1) water_detail = 0;

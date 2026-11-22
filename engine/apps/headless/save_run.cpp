@@ -145,7 +145,7 @@ struct Session {
     }
 };
 
-// sp3: an AI-lane session (--ai-lane) records it (options "ai_lane", "k_ai"; absent = off, so other descriptors are unchanged).
+// an AI-lane session (--ai-lane) records it (options "ai_lane", "k_ai"; absent = off, so other descriptors are unchanged).
 void record_ai_lane([[maybe_unused]] sim::SessionDescriptor& d) {
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
     if (!sim::ai_lane_defaults().on) return;
@@ -234,7 +234,7 @@ const char* const kPlot =
     " <Event Name=\"Ack_Flag\"><Event_Type>STORY_FLAG</Event_Type><Event_Param1>Acked</Event_Param1>"
     "<Event_Param2>1</Event_Param2></Event>\n"
     "</Story>\n";
-// Script state across the save: a service counter (global), a coroutine (main's loop) and a GlobalValue; q6 t19: a
+// Script state across the save: a service counter (global), a coroutine (main's loop) and a GlobalValue; a
 // thread sleeping on GetCurrentTime (PGBase Sleep inline), a thread waiting for an event the story delivers later
 // (Ten_Seconds / Twenty_Seconds), a closure counter (upvalue), a cycle and a shared table. Every GlobalValue write is in
 // the frame CRC.
@@ -251,7 +251,7 @@ const char* const kScript =
     "tostring(graph.ring.next.back == ring)) end\n"
     "function main() Create_Thread(\"Sleeper\") Create_Thread(\"Waiter\") while true do services = services + 1 "
     "GlobalValue.Set(\"Save_Test_Services\", services) coroutine.yield(true) end end\n";
-// q6 t19: the GameScoring script (SimHost::set_scoring_script; its state is the "scoring" chunk): services, the planet
+// the GameScoring script (SimHost::set_scoring_script; its state is the "scoring" chunk): services, the planet
 // owner changes it is told about (planet wrappers kept in a table), the mode-start event.
 const char* const kScoring =
     "function Base_Definitions() ServiceRate = 0.3 changes = {} count = 0 end\n"
@@ -260,7 +260,7 @@ const char* const kScoring =
     "GlobalValue.Set(\"Save_Test_Scoring_Changes\", count .. \"/\" .. tostring(changes[count] == planet)) end\n"
     "function main() local n = 0 while true do n = n + 1 GlobalValue.Set(\"Save_Test_Scoring_Pumps\", n) "
     "coroutine.yield(true) end end\n";
-// q6 t19: a game-object script on the Corvette (attached at the galaxy setup) and the Fighters (attached as they are
+// a game-object script on the Corvette (attached at the galaxy setup) and the Fighters (attached as they are
 // built): its state is the "object_scripts" chunk; one first-pump draw each, a GlobalValue per pump.
 const char* const kObjectScript =
     "function Base_Definitions() ServiceRate = 1 pumps = 0 end\n"
@@ -450,7 +450,7 @@ public:
         cfg.seed = seed;
         cfg.story_crc = story_;
         cfg.players = sim::session_players(setup_.players.size());
-        cfg.object_scripts = story_;  // q6 t19: the story session also runs a GameScoring and game-object scripts
+        cfg.object_scripts = story_;  // the story session also runs a GameScoring and game-object scripts
         s->host = std::make_unique<sim::SimHost>(types_, *s->js, cfg);
         sim::SimHost& host = *s->host;
         if (story_) {
@@ -521,7 +521,7 @@ public:
         args_ = game_args;
         game::OpenGameDataOptions gopt;  // ref4 t05; no content hash (headless writes no GameData save)
         if (game_dir.empty()) gopt.eaw_root = game::eaw_data_from_env();  // as ai_run.cpp: ALAMO_EAW_DATA on the environment route
-        IssueSink issues;  // ums2: the VFS findings (nothing reads them here yet)
+        IssueSink issues;  // the VFS findings (nothing reads them here yet)
         game::OpenedGameData opened = game::open_game_data(game_dir, args_, issues, std::move(gopt));
         root_ = opened.root;
         if (opened.status == game::OpenedGameData::Status::NoData) return 0;
@@ -558,7 +558,7 @@ public:
         const uint32_t normal = rules_.find_difficulty("Normal_Default");
         gcfg_.difficulties = ai::load_ai_difficulties(*files_);
         gcfg_.contrast = &crules_.contrast;
-        gcfg_.ai_uses_fog_galactic = db_.constants().shared.ai_uses_fog_of_war_galactic.value_or(gcfg_.ai_uses_fog_galactic);  // ref4 t06: GameConstants::shared (shipped False)
+        gcfg_.ai_uses_fog_galactic = db_.constants().shared.ai_uses_fog_of_war_galactic.value_or(gcfg_.ai_uses_fog_galactic);  // GameConstants::shared (shipped False)
         const data::CampaignDef* cdef = db_.find_campaign(campaign_);
         const std::vector<std::string> no_pairs;
         const std::vector<std::string>& control = cdef ? cdef->ai_player_control : no_pairs;
@@ -579,7 +579,7 @@ public:
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
         if (ho_.battles != "auto") {  // N1 stage 2: the tactical AI of fought battles (as skirmish_run.cpp foc_session)
             tai_ = std::make_shared<sim::TacticalAiSetup>();
-            sim::load_tactical_ai_data(*tai_, *files_, &db_.constants(), lister);  // a2h t05: plans, difficulties, GameConstants
+            sim::load_tactical_ai_data(*tai_, *files_, &db_.constants(), lister);  // plans, difficulties, GameConstants
             tai_->defs = &defs_;
             tai_->equations = &eqs_;
             tai_->files = files_.get();
@@ -636,7 +636,7 @@ public:
         bo.tactical_ai = tai_;
 #endif
         sim::load_tactical_systems(*files_, rules_, &db_.constants(), bo);
-        // cu8f t03: the random map picker's candidate table (CU8F_T03_T05_RE §1.1), built on the first pick [port].
+        // the random map picker's candidate table (CU8F_T03_T05_RE §1.1), built on the first pick [port].
         bo.map_candidate_source = sim::map_candidate_source(*files_, [v = &files_->vfs()](std::string_view g, bool mod) {
             return v->list(g, mod ? vfs::Vfs::kLayerMod : vfs::Vfs::kLayerBase | vfs::Vfs::kLayerMeg);
         });
@@ -671,14 +671,14 @@ public:
         };
         sim::SimHost* hp = &host;
         ai::GalacticAiConfig wcfg = gcfg_;
-        wcfg.lua_gc_pf = host.parallel_for();  // OPT2 t04: scheduled Lua collections on the host's job system
-        wcfg.background = jobs::make_background_start(host.jobs());  // OPT2 t02: background path recomputes
+        wcfg.lua_gc_pf = host.parallel_for();  // scheduled Lua collections on the host's job system
+        wcfg.background = jobs::make_background_start(host.jobs());  // background path recomputes
         s->world = std::make_unique<ai::GalacticAiWorld>(
             *s->gs, host.galactic_mode()->primary(), &types_, files_.get(), host.random(), defs_, eqs_, tinfo_,
             [hp](uint8_t p, const commands::EventData& ev) { return hp->execute_direct(p, commands::CommandSource::AI, ev); }, wcfg);
         ai::GalacticAiWorld& world = *s->world;
-        world.set_conflicts(&s->battles->conflicts());  // q6 t03: TimeSince*Defender/Attacker stamps
-        // storyb t10: the plan scripts see the story (Get_Story_Plot, Check_Story_Flag); before load_plans builds their VMs.
+        world.set_conflicts(&s->battles->conflicts());  // TimeSince*Defender/Attacker stamps
+        // the plan scripts see the story (Get_Story_Plot, Check_Story_Flag); before load_plans builds their VMs.
 #ifdef ALAMO_SIM_HAVE_STORY
         if (host.story()) world.attach_story(host.story()->galactic_story_table(), host.story()->first_story_model());
 #endif
@@ -897,7 +897,7 @@ bool run_to_save(Session& s, uint64_t at, const std::string& when, SaveFile& sav
             why = "no conflict pending";
             return false;
         }
-        if (when == "scheduled" && s.ai_jobs_in_flight() == 0) {  // OPT3 t04: a save with AI work in flight
+        if (when == "scheduled" && s.ai_jobs_in_flight() == 0) {  // a save with AI work in flight
             why = "no AI background job in flight";
             return false;
         }
@@ -991,7 +991,7 @@ std::unique_ptr<Harness> harness_for_save(const sim::SessionDescriptor& d, const
     ho.anim = d.option("anim") == "1";
     if (d.kind == "skirmish") ho.map = d.option("map");
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
-    if (d.option("ai_lane") == "1") {  // sp3: a save of an AI-lane session loads into one (its worlds keep the saved k_ai)
+    if (d.option("ai_lane") == "1") {  // a save of an AI-lane session loads into one (its worlds keep the saved k_ai)
         sim::ai_lane_defaults().on = true;
         if (const std::string k = d.option("k_ai"); !k.empty()) sim::ai_lane_defaults().k_ai = static_cast<uint32_t>(std::stoul(k));
     }

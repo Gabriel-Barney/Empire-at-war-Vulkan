@@ -1,4 +1,4 @@
-// alamo_galactic_conflict_tests: S10 battle transitions, galactic side (docs/re/BATTLE_TRANSITIONS.md).
+// alamo_galactic_conflict_tests: S10 battle transitions, galactic side (legacy docs/re/BATTLE_TRANSITIONS.md).
 //   1. contrast table parsed from PGAICommands-style Lua text;
 //   2. auto-resolve hand-computed cases (exchange of fire, winner, budgets, survival-roll RNG order,
 //      degenerate space case, Super rule, transports, starbase downgrade);
@@ -103,7 +103,7 @@ void test_contrast_parse() {
         CHECK(t.contrast(0, "X", 2 | 1) == 0.25f);  // Bomber listed before Fighter
         CHECK(t.contrast(1, "some_unit", 0) == 2.5f);  // type-name entry, case-insensitive
         CHECK(t.contrast(1, "Other", 2) == 0.0f);
-        // A2k t02: the AI weight 0x5f1f90 (mean of the matching weights != 1.0; 1.0 if only 1.0 entries match; 0 none).
+        // the AI weight 0x5f1f90 (mean of the matching weights != 1.0; 1.0 if only 1.0 entries match; 0 none).
         CHECK(t.ai_weight(0, "X", 4) == 4.0f);
         CHECK(t.ai_weight(0, "X", 2 | 1) == 0.25f);       // Bomber 0.25 + Fighter 1.0 match: mean of {0.25}
         CHECK(t.ai_weight(0, "X", 4 | 2 | 1) == 2.125f);  // mean of {4.0, 0.25}
@@ -163,7 +163,7 @@ void test_auto_resolve_basic() {
 
 std::pair<uint8_t, float> sb(int bit, float factor) { return {static_cast<uint8_t>(bit), factor}; }
 
-// mcx4 t06: the auto-resolve unit strength bonus (docs/re/MCX4_T09_RE_ANSWERS.md Q9).
+// the auto-resolve unit strength bonus (legacy docs/re/MCX4_T09_RE_ANSWERS.md Q9).
 // ledger: verifies Ability_Base.Unit_Strength_Category
 // ledger: verifies Ability_Base.Unit_Strength_Factor
 // ArCombatant::strength_bonus holds the (Unit_Strength_Category bit, Unit_Strength_Factor) pairs of the type's abilities.
@@ -555,7 +555,7 @@ void test_ai_auto_resolve() {
     CHECK(w.digest() == w2.digest());
 }
 
-// mcx4 t05 (docs/re/MCX4_RE_ANSWERS_TACTICAL.md §13): a named hero killed by an auto-resolve or in a fought battle
+// mcx4 t05 (legacy docs/re/MCX4_RE_ANSWERS_TACTICAL.md §13): a named hero killed by an auto-resolve or in a fought battle
 // schedules its respawn (Default_Hero_Respawn_Time) at the conflict planet; Respawn_Whole_Team_When_Killed is read into
 // the conflict type info for the tactical battle end.
 void test_hero_respawn_after_battle() {
@@ -666,7 +666,7 @@ void test_cargo_losses() {
     CHECK(e.attacker_losses == dead_att && e.defender_losses == dead_def);
 }
 
-// a2m r2 (docs/re/A2M_R2_RE_B.md §2): the galactic auto-resolve bounty. The Underworld (Benefits_From_Corruption) attacks
+// a2m r2 (legacy docs/re/A2M_R2_RE_B.md §2): the galactic auto-resolve bounty. The Underworld (Benefits_From_Corruption) attacks
 // the Empire at B. Each dying object pays its killer (the other side) its own rounded type bounty, then one bounty per
 // squadron member, then a carried company's transport, one add_credits per object, notify 0:
 // - case A: the killer's faction benefits from corruption and the battle planet is Racketeering-corrupted (mode 1); a
@@ -812,7 +812,7 @@ void test_overrun_strength() {
                 "multiple 3 auto-resolves a human battle\n");
 }
 
-// mcx4 t09 (docs/re/MCX4_T09_RE_ANSWERS.md Q3, Q5): the banner's one-button test 0x3ca480. AlwaysBypassAutoResolve locks
+// mcx4 t09 (legacy docs/re/MCX4_T09_RE_ANSWERS.md Q3, Q5): the banner's one-button test 0x3ca480. AlwaysBypassAutoResolve locks
 // every conflict, land and space, in any campaign; Prevents_Story_Campaign_Autoresolve on a unit of either side in orbit
 // (or a squadron member of one) locks only a space conflict and only in an Is_Story_Campaign campaign. Neither is the
 // story lock, so neither suppresses the overrun check.
@@ -848,7 +848,7 @@ void test_autoresolve_bypass_rules() {
         CHECK(w.cm->autoresolve_locked(sp) && w.cm->autoresolve_locked(lp));
         CHECK(!w.cm->story_locked(sp) && !w.cm->story_locked(lp));
         w.crules.always_bypass_autoresolve = false;
-        // mcx4 t20 (docs/re/MCX4_T09_RE_ANSWERS.md Q5, fleet data +0x95): a flagged unit that joins the defender's fleet
+        // mcx4 t20 (legacy docs/re/MCX4_T09_RE_ANSWERS.md Q5, fleet data +0x95): a flagged unit that joins the defender's fleet
         // sets the fleet's lock; the lock stays after the unit is gone (the frigate's fleet still holds the lock).
         w.rules.types[tCorvette].prevents_story_autoresolve = true;
         const uint32_t fb = w.fleet(rB, pEmpire);
@@ -869,7 +869,7 @@ void test_autoresolve_bypass_rules() {
     }
 }
 
-// mcx4 t22 (docs/re/MCX4_RE_ANSWERS_TACTICAL.md §13, the battle end 0x2b5360 removes the members marked lost): a
+// mcx4 t22 (legacy docs/re/MCX4_RE_ANSWERS_TACTICAL.md §13, the battle end 0x2b5360 removes the members marked lost): a
 // company that survives a fought battle with members dead keeps only its survivors (BattleResult::survivors -> the
 // galaxy's record, saved in galactic v12, hashed once set, dropped when the company dies; the full list clears it).
 void test_company_survivors() {
@@ -919,7 +919,7 @@ void test_company_survivors() {
     CHECK(w.sim.destroy_object(co) && w.sim.company_survivors(co) == nullptr);
 }
 
-// mcx4 t05 (docs/re/MCX4_T10_RE_ANSWERS.md §8, 0x48eb10 step 1): a type with Respawn_Tied_To_Structure respawns only
+// mcx4 t05 (legacy docs/re/MCX4_T10_RE_ANSWERS.md §8, 0x48eb10 step 1): a type with Respawn_Tied_To_Structure respawns only
 // while its owner has more live objects of that structure type than of its own type.
 // ledger: verifies GameObjectType.Respawn_Tied_To_Structure
 void test_respawn_tied_to_structure() {
@@ -1339,7 +1339,7 @@ void test_story_block_freezes_frame() {
     std::printf("story block: frame frozen, hero spawn lists serviced; pause counter: frozen, spawn lists wait\n");
 }
 
-// a1j t05: without the story block (no linked battle record) a queued conflict of the local player leaves the frame
+// without the story block (no linked battle record) a queued conflict of the local player leaves the frame
 // running, and the frame stops as soon as the record is queued.
 void test_story_block_not_frozen() {
     World w({{pEmpire, rB, tInfantry}, {pUnder, rB, tInfantry}, {pUnder, rC, tFrigate}}, true);

@@ -1,6 +1,6 @@
 // P host: story dialog scripts (Data\Scripts\Story\<Story_Dialog>.txt, one [CHAPTER n] section per Story_Chapter). Plain
 // parse, no text lookup, no UI: the game host turns the result into the story dialog (game_info.cpp). Format and keyword
-// table: docs/re/GALACTIC_DIALOGS.md §2.6 (parser 0x47eac0, table 0xa2a1d0).
+// table: legacy docs/re/GALACTIC_DIALOGS.md §2.6 (parser 0x47eac0, table 0xa2a1d0).
 //
 // The file is one token stream (delimiters space, tab, CR, LF and ']'; line breaks carry no meaning, so an argument may
 // sit on the next line). A token starting with '#' skips the rest of its line; ';' and '//' are not comments. Keywords

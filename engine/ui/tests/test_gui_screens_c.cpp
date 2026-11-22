@@ -1,4 +1,4 @@
-// test_gui_screens: tests split from test_gui_screens.cpp (PAF t08).
+// test_gui_screens: tests split from test_gui_screens.cpp.
 #include "test_gui_screens_common.hpp"
 #include "alamo/ui/credits_roll.hpp"
 #include "alamo/ui/movie_caption.hpp"
@@ -7,7 +7,7 @@
 namespace test_gui_screens_t {
 
 // ---- mouse cursor ---------------------------------------------------------------------------------------------------
-// ui1 t03: CreditsText DAT (SPEC.md §7: records in file order, HEADER / CENTER keys, "[TBL]" blank) and the roll.
+// CreditsText DAT (legacy docs/formats/SPEC.md §7: records in file order, HEADER / CENTER keys, "[TBL]" blank) and the roll.
 void test_credits_roll() {
     std::vector<uint8_t> b;
     auto u32le = [&](uint32_t v) {
@@ -53,7 +53,7 @@ void test_credits_roll() {
     dl.clear();
     CHECK(!roll.build(dl, fonts, cv, 100.0 + roll.duration() + 0.1) && !roll.active());
 
-    // storyb t13: the text crawl - nothing before its lines reach the screen, lines once it scrolled, the header first and
+    // the text crawl - nothing before its lines reach the screen, lines once it scrolled, the header first and
     // larger at the start, all yellow, alpha following Fadein, nothing once every line passed the horizon.
     {
         HudDrawList cl;
@@ -79,7 +79,7 @@ void test_credits_roll() {
         std::printf("text crawl: %u lines at 1 s, %u at 8 s\n", early, mid);
     }
 
-    // ui5 t12 (AUDIO.md §3.4): a movie caption - white, centred, the last line's top at 0.95 of the screen height, the
+    // ui5 t12 (legacy docs/re/AUDIO.md §3.4): a movie caption - white, centred, the last line's top at 0.95 of the screen height, the
     // line above one font line higher; nothing for an empty text.
     dl.clear();
     MovieCaptionStyle cs;
@@ -138,7 +138,7 @@ void test_cursor() {
     c.can_attack = false;
     CHECK(choose_pointer(c) == Pointer::CantAttack);
     c.can_attack = c.in_range = true;
-    // ui1 t01: own -> SELECT, garrisonable own / friendly / neutral with a selection -> GARRISON_IN.
+    // own -> SELECT, garrisonable own / friendly / neutral with a selection -> GARRISON_IN.
     c.hover = CursorContext::Hover::Own;
     CHECK(choose_pointer(c) == Pointer::Select);
     c.garrisonable = true;
@@ -281,7 +281,7 @@ void test_anim_hack_drag() {
             if (h.component == c) return hud.canvas().canvas_to_pixel(0.5f * (h.min.x + h.max.x), 0.5f * (h.min.y + h.max.y));
         return Vec2f{-1, -1};
     };
-    // cu13 t07: GalacticHud::drag_update takes drag().valid from a dry run of drop(), so the highlight (valid) and the drop
+    // GalacticHud::drag_update takes drag().valid from a dry run of drop(), so the highlight (valid) and the drop
     // (commands emitted) cannot disagree; every drag below is checked against that.
     bool drag_valid = false;
     auto drag = [&](std::string_view from, Vec2f to, int32_t to_component) {
@@ -733,7 +733,7 @@ void test_controls() {
         CHECK(keys.binding(hk::kPause).key == 0x78 && binds.binding(Action::Pause, 0).key == 0x78 && binds.queue_mods() == kModCtrl);
         CHECK(env.gui.find(kPortControlsDialog) == nullptr);
     }
-    // modc t08: the mod picker. The port's main-menu Mods button (shown only with a mods provider), the rows (the active one
+    // the mod picker. The port's main-menu Mods button (shown only with a mods provider), the rows (the active one
     // marked and selected first), a selection asks the host for the row's report (CheckMod), the report arriving enables
     // Launch (not for the active row), Launch reports the row, Back / Esc return to the main menu.
     {
@@ -835,7 +835,7 @@ void test_controls() {
         CHECK(fe.top() == "IDD_GAME_OPTIONS_DIALOG");
     }
 
-    // 2b. Gameplay options defaults (P1_CAMERA_INPUT.md Â§3.1): absolute scrolling on, scroll speed 1.0 at the default
+    // 2b. Gameplay options defaults (legacy docs/re/P1_CAMERA_INPUT.md Â§3.1): absolute scrolling on, scroll speed 1.0 at the default
     //     slider position; the Defaults button restores them. GalacticCameraController::set_tuning keeps the pose.
     {
         const GameplaySettings g;

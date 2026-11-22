@@ -118,17 +118,17 @@ public:
 
     // Dynamic stamping (§1.3). stamp() replaces a previous stamp of the same id. Returns the
     // number of distinct cells stamped. A footprint that lands on no cell (water rule, Fine_Tune, off the grid, an empty
-    // grid) is still recorded: stamped(id) is true with no cells (S8 t02: the object is a LAND_OBSTACLE occupant of nothing; its
-    // slot-43 aim walk finds no occupied cell, TACTICAL_GAPS 3.1). OPT3 t12: with a fine_tune the samples' rays run through
+    // grid) is still recorded: stamped(id) is true with no cells (the object is a LAND_OBSTACLE occupant of nothing; its
+    // slot-43 aim walk finds no occupied cell, TACTICAL_GAPS 3.1). With a fine_tune the samples' rays run through
     // `pf` (fine_tune must then be safe to call concurrently); same cells for any `pf`.
     uint32_t stamp(ObjectId id, const ObstacleFootprint& fp, const ParallelFor& pf = serial_for);
-    // OPT3 t11: stamp() for each entry in list order, with the cells of every entry sampled through `pf` first (the
+    // stamp() for each entry in list order, with the cells of every entry sampled through `pf` first (the
     // sampling reads only the base grid and the footprint, so the footprints' fine_tune must be safe to call
     // concurrently). Same grid and stamps as the stamp() loop. Returns each entry's stamp() count, list order.
     std::vector<uint32_t> stamp_all(std::span<const std::pair<ObjectId, ObstacleFootprint>> list, const ParallelFor& pf = serial_for);
     bool unstamp(ObjectId id);
     bool stamped(ObjectId id) const { return stamps_.find(id) != stamps_.end(); }
-    // S8 t02: the stamped ids, ascending (map placements' negative ids first). Hosts unstamp the objects that left.
+    // the stamped ids, ascending (map placements' negative ids first). Hosts unstamp the objects that left.
     std::vector<ObjectId> stamped_ids() const;
     // S8 t01 (TACTICAL_GAPS 3.1 slot 43, MOVEMENT §1.3 0x59efa0): is cell (x, y) one of the cells stamp `id` occupies
     // (the object is in that cell's hard-occupant list)? False for an unknown id or an out-of-range cell. Read-only
@@ -137,7 +137,7 @@ public:
     bool occupies_world(ObjectId id, V2 p) const { return occupies(id, world_to_cell(p.x), world_to_cell(p.y)); }
     // The distinct cells (row-major indices, ascending) stamp `id` occupies; empty for an unknown id.
     std::span<const uint32_t> stamp_cells(ObjectId id) const;
-    // S8 t01: moves stamp `from` to id `to` unchanged (cells, bits, effective values and version() stay): a map
+    // moves stamp `from` to id `to` unchanged (cells, bits, effective values and version() stay): a map
     // placement's stamp (ted_grid.hpp map_stamp_id) handed to the object spawned for it, so occupies() answers for that
     // object. False (nothing changes) when `from` is not stamped, `to` already is, or from == to.
     bool rekey(ObjectId from, ObjectId to);

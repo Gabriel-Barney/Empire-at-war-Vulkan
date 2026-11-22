@@ -1,4 +1,4 @@
-// Host path keys (ums4 t04 / t06). See include/alamo/vfs/host_path.hpp.
+// Host path keys. See include/alamo/vfs/host_path.hpp.
 #include "alamo/vfs/host_path.hpp"
 
 #include <system_error>

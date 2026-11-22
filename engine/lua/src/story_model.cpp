@@ -1,4 +1,4 @@
-// Story plot model (include/alamo/lua/story_model.hpp). Behaviour: docs/re/STORY.md (section numbers
+// Story plot model (include/alamo/lua/story_model.hpp). Behaviour: legacy docs/re/STORY.md (section numbers
 // in the comments); port choices [port], the doc's own uncertainty marks [M]/[L] kept.
 #include "alamo/lua/story_model.hpp"
 
@@ -132,7 +132,7 @@ int32_t enum_value(std::string_view s) {
     return parse_int(s, 0);
 }
 
-// FILTER semantics (0x455ce0). L1/S4 wave 2b (SCRIPT_GAPS.md §4.5): the comparison is by FACTION - the plot player's
+// FILTER semantics (0x455ce0). L1/S4 wave 2b (legacy docs/re/SCRIPT_GAPS.md §4.5): the comparison is by FACTION - the plot player's
 // faction vs the object owner's (StoryModel::faction_of); without that hook, by player.
 bool filter_ok(int32_t filter, bool friendly, bool neutral) {
     switch (filter) {
@@ -159,7 +159,7 @@ bool compare(double a, int32_t op, double b) {
     }
 }
 
-// Corruption type keyword (the CRC-keyed story keyword map 0x140b30728, SCRIPT_GAPS.md §4.7; exact, not upper-cased):
+// Corruption type keyword (the CRC-keyed story keyword map 0x140b30728, legacy docs/re/SCRIPT_GAPS.md §4.7; exact, not upper-cased):
 // CORRUPTION_NONE -1, INTIMIDATION 0 .. BONDED_CITIZENS 7, CORRUPTION_ANY 8; unknown -> 0. Empty -> the ctor default 8.
 int32_t corruption_keyword(std::string_view s) {
     static constexpr std::string_view kNames[] = {"INTIMIDATION",    "PIRACY",  "KIDNAPPING",   "RACKETEERING",
@@ -199,10 +199,10 @@ std::vector<std::string> raw_list(std::string_view s) {
     return out;
 }
 
-// mcx6 t03: the story keyword map (0x140b30728; 0x45c3f0, and inline in the WIN/LOSE_BATTLES parse 0x466f40) for the
+// the story keyword map (0x140b30728; 0x45c3f0, and inline in the WIN/LOSE_BATTLES parse 0x466f40) for the
 // battle words, exact names (the map is keyed by the CRC of the text as written): location GROUND 0, SPACE 1, EITHER 2;
 // composition FRIENDLY_CONTAINS 1, FRIENDLY_ONLY_CONTAINS 2, ENEMY_CONTAINS 3, ENEMY_ONLY_CONTAINS 4; CLASS_FIGHTER 0 ..
-// CLASS_SUPER 6 (STORY.md §5). Any other word goes through enum_value (the map's other names; numbers as themselves
+// CLASS_SUPER 6 (legacy docs/re/STORY.md §5). Any other word goes through enum_value (the map's other names; numbers as themselves
 // [port]); unknown -> 0.
 int32_t battle_keyword(std::string_view s) {
     static constexpr std::pair<std::string_view, int32_t> kNames[] = {
@@ -216,7 +216,7 @@ int32_t battle_keyword(std::string_view s) {
     return enum_value(s);
 }
 
-// WIN/LOSE_BATTLES (STORY.md §5 row and its note "Battle composition", mcx6 Q14; match 0x455a50, parse 0x466f40): true =
+// WIN/LOSE_BATTLES (legacy docs/re/STORY.md §5 row and its note "Battle composition", mcx6 Q14; match 0x455a50, parse 0x466f40): true =
 // the battle counts. Param2 = the location (absent: EITHER, the ctor default; an unknown word reads 0 = GROUND, so the
 // shipped "Land" means land and "BASE_SPACE" reads GROUND). Param3 = the composition test, on only with 2 or more values:
 // the first is the test (keyword), the rest Ship_Class values. Only a SPACE battle tests it: with the test on and no
@@ -329,8 +329,8 @@ std::vector<uint32_t> table_order(const std::vector<uint32_t>& keys, std::vector
 
 uint32_t StoryModel::add_plot(std::string_view plot_name, std::string_view xml, bool active, std::string_view lua_script,
                               std::string* err) {
-    // modc t06: the root element's name is not checked (STORY.md §2.1 note; the original's XML databases read the
-    // root's children whatever the root is called, OBJECT_TYPES.md §0 item 2). A mod ships its story and plot files
+    // the root element's name is not checked (legacy docs/re/STORY.md §2.1 note; the original's XML databases read the
+    // root's children whatever the root is called, legacy docs/re/OBJECT_TYPES.md §0 item 2). A mod ships its story and plot files
     // with another root tag.
     const data::XmlDocument doc = data::XmlDocument::parse(xml, std::string(plot_name));
     if (!doc.ok()) {
@@ -376,7 +376,7 @@ uint32_t StoryModel::add_plot(std::string_view plot_name, std::string_view xml, 
                 def.story_chapter = parse_int(text, -1);
             } else if (ascii_iequals(tag, "Story_Dialog_Popup")) {
                 def.story_dialog_popup = ascii_iequals(text, "true") || ascii_iequals(text, "yes") || text == "1";
-            } else if (ascii_iequals(tag, "Story_Dialog_SFX")) {  // STORY.md §1.6 (+0x2B9); no shipped event sets it
+            } else if (ascii_iequals(tag, "Story_Dialog_SFX")) {  // legacy docs/re/STORY.md §1.6 (+0x2B9); no shipped event sets it
                 def.story_dialog_sfx = ascii_iequals(text, "true") || ascii_iequals(text, "yes") || text == "1";
             } else if (ascii_iequals(tag, "Story_Var")) {  // +0x258: the printf argument of the chapter's TEXT lines
                 def.story_var = std::string(text);
@@ -445,7 +445,7 @@ uint32_t StoryModel::add_plot(std::string_view plot_name, std::string_view xml, 
     return static_cast<uint32_t>(plots_.size() - 1);
 }
 
-// q6 t03 (STORY.md §2.1 [H]): the plot table is a unique map keyed by the CRC-32 of the file name as written; a later
+// q6 t03 (legacy docs/re/STORY.md §2.1 [H]): the plot table is a unique map keyed by the CRC-32 of the file name as written; a later
 // plot of the same key takes the node of the first one (its place in the walk) and the earlier plot leaves the table.
 // Plots a StoryTable marked replaced (a later plot set lists the same file) leave it too.
 void StoryModel::build_plot_order() {
@@ -480,7 +480,7 @@ bool StoryModel::load_plots(const FileProvider& files, std::string_view plots_fi
         return false;
     }
     const data::XmlDocument doc = data::XmlDocument::parse(bytes, path);
-    if (!doc.ok()) {  // modc t06: any root name (see add_plot)
+    if (!doc.ok()) {  // any root name (see add_plot)
         if (err) *err = path + ": not a well-formed <Story_Mode_Plots> file";
         return false;
     }
@@ -496,7 +496,7 @@ bool StoryModel::load_plots(const FileProvider& files, std::string_view plots_fi
         const bool active = tag == "Active_Plot";  // Â§2.1: exactly this tag; any other tag loads suspended
         std::vector<uint8_t> plot_bytes;
         if (read_xml_file(files, text, plot_bytes).empty()) {
-            // modc t39 (STORY.md §2.1, 0x329aa0): the original logs "Story mode unable to open listed XML file" and
+            // modc t39 (legacy docs/re/STORY.md §2.1, 0x329aa0): the original logs "Story mode unable to open listed XML file" and
             // creates no plot for the entry; the other entries load (Fall of the Republic lists a CIS plot it does not ship).
             warnings_.push_back("Story mode unable to open listed XML file 'Data\\XML\\" + std::string(text) + "' (listed in " +
                                 path + ")");
@@ -516,7 +516,7 @@ bool StoryModel::load_plots(const FileProvider& files, std::string_view plots_fi
 
 // ------------------------------------------------------------------------------------------ lookup
 
-// q6 t03 (STORY.md §2.1 / §2.4 [H]): one hash lookup by the CRC-32 of the name as passed - no upper-casing, no trim, no
+// q6 t03 (legacy docs/re/STORY.md §2.1 / §2.4 [H]): one hash lookup by the CRC-32 of the name as passed - no upper-casing, no trim, no
 // ".xml" added, the path included - so the name must match the Story_Plots text byte for byte. At most one plot of the
 // table has that key.
 uint32_t StoryModel::find_plot(std::string_view name) const {
@@ -570,7 +570,7 @@ bool StoryModel::prereqs_hold(uint32_t p, uint32_t e) const {
 }
 
 // vf4: an event with prereq groups disarms (timeout cancelled); counters restored. ELAPSED / OBJECTIVE_TIMEOUT override
-// it (0x45e550, q6 t03, STORY.md §2.3 / §4.7 [H]): the base reset, then accumulated = 0 and initialised = 0, so the timer
+// it (0x45e550, q6 t03, legacy docs/re/STORY.md §2.3 / §4.7 [H]): the base reset, then accumulated = 0 and initialised = 0, so the timer
 // restarts at its next evaluation (vf7 re-records LastTime only when prereqs arm the event again). Shared by Fire's
 // Perpetual step, Lua Reset, RESET_EVENT and RESET_BRANCH.
 void StoryModel::reset_event(uint32_t p, uint32_t e) {
@@ -613,7 +613,7 @@ void StoryModel::call_script(uint32_t p, const std::string& name) {
         plot.pending_script_triggers.push_back(name);
         return;
     }
-    // q6 t11 (LUA_API.md "Binding error model across all bindings"): a binding error set the plot script's stop flag;
+    // q6 t11 (legacy docs/re/LUA_API.md "Binding error model across all bindings"): a binding error set the plot script's stop flag;
     // the script has ended, so its Story_Event_Trigger is not called any more (the event itself still fires).
     if (vm->exit_requested()) return;
     // Synchronous (0x52f920). A fresh Lua thread, so the call is safe while one of the VM's script
@@ -624,7 +624,7 @@ void StoryModel::call_script(uint32_t p, const std::string& name) {
     lua_rawget(T, LUA_GLOBALSINDEX);
     if (lua_type(T, -1) == LUA_TFUNCTION) {
         lua_pushlstring(T, name.data(), name.size());
-        if (vm->protected_call(T, 1, 0) != 0) {  // mcx6 t08: runaway guard
+        if (vm->protected_call(T, 1, 0) != 0) {  // runaway guard
             const char* m = lua_tostring(T, -1);
             script_errors_.push_back("Story_Event_Trigger(" + name + "): " + (m ? m : "error"));
             lua_pop(T, 1);
@@ -670,7 +670,7 @@ bool StoryModel::fire(uint32_t p, uint32_t e, bool forced) {
         st.last_fire_frame = frame_;
     }
     apply_reward(p, e);
-    // Step 6 (STORY.md §1.6), only with a Story_Dialog: the tag (Story_Tag, else "<dialog>_<chapter>" + the auto-tag flag),
+    // Step 6 (legacy docs/re/STORY.md §1.6), only with a Story_Dialog: the tag (Story_Tag, else "<dialog>_<chapter>" + the auto-tag flag),
     // a holocron record that references this event's Add_Dialog_Text list, and the presentation record for the UI.
     if (const StoryEventDef& def = plots_[p].events[e]; !def.story_dialog.empty()) {
         StoryHolocronEntry h;
@@ -723,7 +723,7 @@ void StoryModel::add_objective(std::string_view text, bool battle_info) {
     objectives_.push_back(StoryObjective{std::string(text), StoryObjectiveState::Active, battle_info});
 }
 
-// Reward application (0x456970), §6. ref5 t02: one handler per Reward_Type name the model applies itself (the Model rows of
+// Reward application (0x456970), §6. One handler per Reward_Type name the model applies itself (the Model rows of
 // the sim's story reward table; the coverage test fails for a row without one); any other name goes to on_reward.
 std::span<const StoryModel::RewardHandler> StoryModel::reward_handlers() {
     static constexpr RewardHandler kHandlers[] = {
@@ -865,7 +865,7 @@ void StoryModel::reward_disable_story_event(uint32_t p, uint32_t /*e*/, const st
     const bool disable = parse_int(p2, 0) != 0;
     const bool all = parse_int(p3, 0) != 0;
     if (all && table_) {
-        table_->set_event_enabled(p1, !disable);  // every plot of the table (q6 t03, §6.2)
+        table_->set_event_enabled(p1, !disable);  // every plot of the table (§6.2)
     } else {
         for (uint32_t q = 0; q < plots_.size(); ++q) {
             if (!all && q != p) continue;
@@ -899,7 +899,7 @@ void StoryModel::reward_story_goal_completed(uint32_t /*p*/, uint32_t /*e*/, con
 bool StoryModel::tick_timer(StoryEventState& st, double threshold) {
     if (!st.timer_init) {
         // First evaluation (prereq-less): LastTime = now, initialised, and return without the accumulator test (0x454980,
-        // A2I_T01_FRAME_ORDER.md §6 [H]). So a prereq-less ELAPSED 0 fires at its second T9 (tick 2 for an Active_Plot),
+        // legacy docs/re/A2I_T01_FRAME_ORDER.md §6 [H]). So a prereq-less ELAPSED 0 fires at its second T9 (tick 2 for an Active_Plot),
         // not its first. A prereq-armed timer was initialised by arm() (vf7) and never takes this branch.
         st.timer_init = true;
         st.timer_last = time_;
@@ -913,7 +913,7 @@ bool StoryModel::tick_timer(StoryEventState& st, double threshold) {
     return st.timer_acc >= threshold;
 }
 
-// FILTER "friendly" side (wave 2b, SCRIPT_GAPS.md §4.5): same faction as the plot player (faction_of), else same player.
+// FILTER "friendly" side (wave 2b, legacy docs/re/SCRIPT_GAPS.md §4.5): same faction as the plot player (faction_of), else same player.
 bool StoryModel::same_side(int32_t owner) const {
     if (owner < 0 || player_ < 0) return false;
     if (faction_of) {
@@ -928,7 +928,7 @@ bool StoryModel::evaluate(uint32_t p, uint32_t e, std::string_view type, const S
     const StoryEventDef& def = plots_[p].events[e];
     StoryEventState& st = plots_[p].state[e];
     const auto& ep = def.event_params;
-    // Lua's Set_Event_Parameter stores objects and types as their type name (bind_story.cpp, story t02), so those take
+    // Lua's Set_Event_Parameter stores objects and types as their type name (bind_story.cpp), so those take
     // the type's own rule below like XML text.
     if (is_single_object_name(type)) {
         const std::vector<std::string> names = name_list(text_at(ep, 0));
@@ -949,7 +949,7 @@ bool StoryModel::evaluate(uint32_t p, uint32_t e, std::string_view type, const S
     }
     if (type == "STORY_CONQUER_COUNT") return ++st.count >= parse_int(text_at(ep, 0), 1);
     if (type == "STORY_CONSTRUCT_LEVEL") {
-        // A2k t12 (A2K_T07_STORY_LOAD_RE.md §3.1, 0x4543b0 / 0x455db0): Param1 planets; Param3 story enum GROUND = 0 (ground
+        // A2k t12 (legacy docs/re/A2K_T07_STORY_LOAD_RE.md §3.1, 0x4543b0 / 0x455db0): Param1 planets; Param3 story enum GROUND = 0 (ground
         // base), SPACE = 1 (starbase), anything else no category test (absent / unknown value [L]); fires when Param2 <=
         // the constructed type's Base_Level (unsigned compare). No owner filter; Param4+ ignored.
         if (!list_has(name_list(text_at(ep, 0)), n.planet)) return false;
@@ -959,7 +959,7 @@ bool StoryModel::evaluate(uint32_t p, uint32_t e, std::string_view type, const S
         return static_cast<uint32_t>(parse_int(text_at(ep, 1), 0)) <= static_cast<uint32_t>(static_cast<int32_t>(n.value));
     }
     if (is_enter_family(type)) {
-        // mcx6 t03 (STORY.md §5 "Enter family match", 0x454a90 / 0x465380 / 0x451e20 / 0x452170). P5 / P6 / P7 are
+        // mcx6 t03 (legacy docs/re/STORY.md §5 "Enter family match", 0x454a90 / 0x465380 / 0x451e20 / 0x452170). P5 / P6 / P7 are
         // atoi(value) != 0 ("True" reads 0): P5 only when it has exactly one value, P6 / P7 from the first value.
         if (n.planet.empty()) return false;  // no planet in the dispatch
         const std::vector<std::string> p5 = raw_list(text_at(ep, 4)), p6 = raw_list(text_at(ep, 5)), p7 = raw_list(text_at(ep, 6));
@@ -1004,7 +1004,7 @@ bool StoryModel::evaluate(uint32_t p, uint32_t e, std::string_view type, const S
         const std::vector<std::string> planets = name_list(text_at(ep, 3));
         return st.count >= parse_int(text_at(ep, 0), 1) && (planets.empty() || list_has(planets, n.planet));
     }
-    // L1/S4 wave 2b: the original vf3 bodies (docs/re/SCRIPT_GAPS.md §4; replaces the wave-2a [inferred] rules).
+    // L1/S4 wave 2b: the original vf3 bodies (legacy docs/re/SCRIPT_GAPS.md §4; replaces the wave-2a [inferred] rules).
     // [port] every evaluation fires at most once (the original calls Fire inside its loops, so a list that matches
     // twice fires twice; no shipped event has such a list).
     //   SPACE/LAND_TACTICAL (§4.1, 0x455710): Param1 = Story_Plots file loaded by the host for the plot's player;
@@ -1043,7 +1043,7 @@ bool StoryModel::evaluate(uint32_t p, uint32_t e, std::string_view type, const S
             if (ascii_iequals(units[i], n.name) && i < guarded.size() && ascii_iequals(guarded[i], n.target)) return true;
         return false;
     }
-    // S4 (docs/re/L1_S4_REMAINING.md §4.2, 0x4540b0): CAPTURE_STRUCTURE fires when the structure's type name is in Param1
+    // S4 (legacy docs/re/L1_S4_REMAINING.md §4.2, 0x4540b0): CAPTURE_STRUCTURE fires when the structure's type name is in Param1
     //   AND the new owner's faction (n.faction) is the Param2 faction (resolved at parse time; empty Param1 or Param2 ->
     //   never). No filter, no counter.
     if (type == "STORY_CAPTURE_STRUCTURE") {
@@ -1144,10 +1144,10 @@ namespace {
 std::string dispatched_type(std::string_view type_in) {
     std::string type = ascii_upper(ascii_trim(type_in));
     if (type == "STORY_TRIGGER") return {};  // nobody dispatches STORY_TRIGGER (Â§1.3)
-    // L1/S4 wave 2b (SCRIPT_GAPS.md §4.6): no call site dispatches STORY_DIFFICULTY_LEVEL in 1.121 - parsed, never
+    // L1/S4 wave 2b (legacy docs/re/SCRIPT_GAPS.md §4.6): no call site dispatches STORY_DIFFICULTY_LEVEL in 1.121 - parsed, never
     // evaluated.
     if (type == "STORY_DIFFICULTY_LEVEL") return {};
-    // S4 (docs/re/L1_S4_REMAINING.md §4.3): no call site dispatches STORY_CAPTURE_HERO (0x11) in 1.121 either.
+    // S4 (legacy docs/re/L1_S4_REMAINING.md §4.3): no call site dispatches STORY_CAPTURE_HERO (0x11) in 1.121 either.
     if (type == "STORY_CAPTURE_HERO") return {};
     return type;
 }
@@ -1167,7 +1167,7 @@ void StoryModel::dispatch_in(uint32_t p, const std::string& type, const StoryNot
     for (const uint32_t e : walk) {
         if (plots_[p].events[e].type != type || !gated(p, e)) continue;
         if (!evaluate(p, e, type, n)) continue;
-        const StoryNotification* outer = firing_;  // mcx6: firing_notification() for the rewards of this fire
+        const StoryNotification* outer = firing_;  // firing_notification() for the rewards of this fire
         firing_ = &n;
         fire(p, e);
         firing_ = outer;
@@ -1283,7 +1283,7 @@ uint32_t StoryModel::trigger_event_by_name(std::string_view name) {
     return static_cast<uint32_t>(fired_.size() - before);
 }
 
-// ------------------------------------------------------------------------------------------ StoryTable (q6 t03)
+// ------------------------------------------------------------------------------------------ StoryTable
 
 void StoryTable::clear() {
     for (StoryModel* m : models_) {
@@ -1438,7 +1438,7 @@ void StoryModel::service_plot(uint32_t p) {
             }
         }
     }
-    // Timeouts (storyb t17, STORY.md §8 item 4 [M]): an expired Timeout is cancelled and fires nothing; the event stays
+    // Timeouts (legacy docs/re/STORY.md §8 item 4 [M]): an expired Timeout is cancelled and fires nothing; the event stays
     // armed for its own trigger. Retail evidence: in the two hands-off UM01 runs the mission's 50 SPEECH_DONE events armed
     // by Underworld_A01M01_Begin reach their 60 s default together; firing them there takes the plot script's one pending
     // state slot (PGStoryMode Story_Event_Trigger) in the frame a dialog line ends, so CINE_Start_Mission_B waits for ever,
@@ -1479,7 +1479,7 @@ bool StoryModel::has_flag(std::string_view name) const { return flags_->count(as
 
 void StoryModel::set_flag(std::string_view name, int32_t value) { (*flags_)[ascii_upper(ascii_trim(name))] = value; }
 
-// mcx8 t12 (MCX8_BINDINGS_PLAYERS_STORY.md "Add_Radar_Blip") [H]: the add always appends (no lookup of the name); the
+// mcx8 t12 (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "Add_Radar_Blip") [H]: the add always appends (no lookup of the name); the
 // remove takes the first (oldest) blip with that name.
 void StoryModel::add_blip(const StoryBlip& blip) { blips_.push_back(blip); }
 
@@ -1528,7 +1528,7 @@ bool StoryModel::remove_highlight(std::string_view name) {
 
 namespace {
 std::string ai_flag_key(int32_t player, std::string_view name, int32_t location) {
-    // mcx8 t12 (MCX8_BINDINGS_PLAYERS_STORY.md "Check_Story_Flag") [H]: the name as given, case kept.
+    // mcx8 t12 (legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md "Check_Story_Flag") [H]: the name as given, case kept.
     return std::to_string(player) + "|" + std::string(name) + "|" + std::to_string(location);
 }
 }  // namespace
@@ -1553,7 +1553,7 @@ size_t StoryModel::deliver_script_triggers(uint32_t plot, LuaVm& vm, std::string
     lua_State* L = vm.state();
     size_t n = 0;
     for (const std::string& name : queue) {
-        if (vm.exit_requested()) break;  // q6 t11: a stopped plot script gets no more triggers (as call_script)
+        if (vm.exit_requested()) break;  // a stopped plot script gets no more triggers (as call_script)
         lua_pushstring(L, "Story_Event_Trigger");
         lua_rawget(L, LUA_GLOBALSINDEX);
         if (lua_type(L, -1) != LUA_TFUNCTION) {
@@ -1561,7 +1561,7 @@ size_t StoryModel::deliver_script_triggers(uint32_t plot, LuaVm& vm, std::string
             continue;
         }
         lua_pushlstring(L, name.data(), name.size());
-        if (vm.protected_call(L, 1, 0) != 0) {  // mcx6 t08: runaway guard
+        if (vm.protected_call(L, 1, 0) != 0) {  // runaway guard
             if (err) {
                 const char* m = lua_tostring(L, -1);
                 *err += std::string("Story_Event_Trigger(") + name + "): " + (m ? m : "error") + "\n";
@@ -1576,7 +1576,7 @@ size_t StoryModel::deliver_script_triggers(uint32_t plot, LuaVm& vm, std::string
 // ------------------------------------------------------------------------------------------ save / load (OI lua)
 
 namespace {
-constexpr uint32_t kSaveVersion = 3;  // 2 (q6 t03): + Story_Dialog of a Lua-edited event (Set_Dialog); 3 (mcx8 t12): + blip
+constexpr uint32_t kSaveVersion = 3;  // 2: + Story_Dialog of a Lua-edited event (Set_Dialog); 3: + blip
                                        // position; 1 and 2 still read
 // limit: guard save decode: counts / string lengths, refuses
 constexpr uint32_t kSaveMaxCount = 1u << 24;  // sanity bound for counts / string lengths
@@ -1638,7 +1638,7 @@ bool get_bool(ByteReader& r) { return r.u8() != 0; }
 // Layout (little endian): u32 version, clock (frame, time, paused), player; flags, objectives, blips, highlights, AI flags;
 // u32 plot count, per plot (load order): name (checked), active, u32 event count, per event (index order): name (checked),
 // state (the hash() fields in order), Lua-edited definition fields; pending script triggers; then the fired log.
-// REF4 t02: the record lists write() and hash() share (the event state of each event, then the flag / objective / blip /
+// the record lists write() and hash() share (the event state of each event, then the flag / objective / blip /
 // highlight / AI flag tables and the fired log). Each archive keeps its stream's encoding (the save's put_str strings and
 // bytes for bools, StateHasher's own strings); a field marked Save is saved, not hashed. read() decodes the save layout
 // (with its versions) on its own.
@@ -1718,7 +1718,7 @@ void visit(Ar& a, const StoryEventState& st) {
 }
 
 // The tables after the plots in the CRC (before them in the save): flags, objectives, blips (a fixed position in the CRC
-// only for a blip with no object, mcx8 t12), highlights, AI flags.
+// only for a blip with no object), highlights, AI flags.
 template <class Ar>
 void visit_tables(Ar& a, const std::map<std::string, int32_t>& flags, const std::vector<StoryObjective>& objectives,
                   const std::vector<StoryBlip>& blips, const std::vector<StoryHighlight>& highlights,
@@ -1809,7 +1809,7 @@ void StoryModel::write(ByteWriter& w) const {
     w.f64(time_);
     w.u8(paused_ ? 1 : 0);
     w.i32(player_);
-    story_records::Writer a(w);  // REF4 t02: the record lists hash() walks too
+    story_records::Writer a(w);  // the record lists hash() walks too
     story_records::visit_tables(a, *flags_, objectives_, blips_, highlights_, ai_flags_);
     w.u32(static_cast<uint32_t>(plots_.size()));
     for (const StoryPlot& plot : plots_) {
