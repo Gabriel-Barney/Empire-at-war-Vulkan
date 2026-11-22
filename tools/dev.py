@@ -10,6 +10,8 @@
                                             fast  build\\       suite synthetic (--quick: without slow tests;
                                                                --target T: only T and the tests named T*)
                                             full  build-full\\  fresh configure, clean build, suite all
+                                            analyze  build-analyze\\  build with MSVC /analyze, then fail on a
+                                                     finding not in tests\\analyze_baseline.txt (no suite)
   dev.cmd test [--preset P] [CTEST ARGS]  run CTest on the preset's tree with any CTest options
   dev.cmd suite [NAME] [--preset P] [tools/test_suite.py options] [-- CTEST ARGS]
   dev.cmd launcher | launcher-test        build or test the Rust Command Center launcher
@@ -355,18 +357,36 @@ def cmd_check(r: Runner, args: list[str]) -> None:
             quick = True
         else:
             raise SystemExit(f"dev.cmd check: unknown argument '{a}'")
-    if preset not in ("fast", "full"):
-        raise SystemExit(f"dev.cmd check: preset '{preset}' has no check yet (fast, full)")
+    plan = check_plan(preset, target, quick)
     r.env = msvc_env()
+    bdir = configure(r, preset, fresh=plan["fresh"])
+    build(r, bdir, target, clean=plan["clean"])
+    if plan["analyze"]:
+        py = os.path.join(TOOLCHAIN, "venv", "Scripts", "python.exe")
+        try:
+            r.run("analyze findings", [py, "-I", os.path.join(ROOT, "tools", "analyze_report.py"), "check", "--build",
+                                       bdir], r.env)
+        except StepFailed as e:
+            e.remediation = ("fix the new /analyze findings (or, for a finding accepted on purpose, add it to "
+                             "tests/analyze_baseline.txt)")
+            raise
+    if plan["suite"] is not None:
+        test_suite(r, bdir, plan["suite"])
+
+
+def check_plan(preset: str, target: str | None, quick: bool) -> dict:
+    """What dev.cmd check does for a preset: fresh configure, clean build, the suite arguments, the /analyze report."""
+    if preset == "analyze":
+        return {"fresh": False, "clean": False, "suite": None, "analyze": True}
+    if preset not in ("fast", "full"):
+        raise SystemExit(f"dev.cmd check: preset '{preset}' has no check yet (fast, full, analyze)")
     full = preset == "full"
-    bdir = configure(r, preset, fresh=full)
-    build(r, bdir, target, clean=full)
-    suite_args = ["all"] if full else ["synthetic"]
+    suite = ["all"] if full else ["synthetic"]
     if quick:
-        suite_args.append("--fast")
+        suite.append("--fast")
     if target:
-        suite_args += ["--", "-R", "^" + re.escape(target)]
-    test_suite(r, bdir, suite_args)
+        suite += ["--", "-R", "^" + re.escape(target)]
+    return {"fresh": full, "clean": full, "suite": suite, "analyze": False}
 
 
 def cmd_test(r: Runner, args: list[str]) -> None:
@@ -446,6 +466,24 @@ class _Tests(unittest.TestCase):
         lines = ["+ ctest.EXE --test-dir build --output-on-failure --no-tests=error -L ^synthetic$",
                  "Total: 204 passed, 0 failed, 0 skipped, 3 required entries missing"]
         self.assertTrue(first_diagnostic(lines).startswith("Total: 204 passed"))
+
+    def test_check_plan_per_preset(self):
+        self.assertEqual(check_plan("fast", None, False),
+                         {"fresh": False, "clean": False, "suite": ["synthetic"], "analyze": False})
+        self.assertEqual(check_plan("fast", "alamo_x_tests", True)["suite"],
+                         ["synthetic", "--fast", "--", "-R", "^alamo_x_tests"])
+        self.assertEqual(check_plan("full", None, False),
+                         {"fresh": True, "clean": True, "suite": ["all"], "analyze": False})
+        # analyze: an incremental /analyze build compared with the baseline; no suite (the binaries are fast's).
+        self.assertEqual(check_plan("analyze", None, False),
+                         {"fresh": False, "clean": False, "suite": None, "analyze": True})
+        with self.assertRaises(SystemExit):
+            check_plan("nope", None, False)
+
+    def test_analyze_preset_has_its_own_build_folder(self):
+        presets = load_presets()
+        self.assertEqual(presets["analyze"], os.path.join(ROOT, "build-analyze"))
+        self.assertEqual(len(set(presets.values())), len(presets))
 
     def test_take_preset(self):
         self.assertEqual(take_preset(["--preset", "full", "-R", "x"]), ("full", ["-R", "x"]))

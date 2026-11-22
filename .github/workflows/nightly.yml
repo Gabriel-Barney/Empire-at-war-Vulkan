@@ -1,0 +1,96 @@
+# The expensive MSVC checks, nightly and on demand (docs/DECISIONS.md "MSVC is the only compiler"; #10 decision 3).
+# Not required on pull requests. Each preset's dated last-passing commit is kept in the issue titled
+# "Nightly checks: last passing" (tools/nightly_record.py); a failed run leaves that row as it was and fails here.
+#   analyze -> dev.cmd check --preset analyze: build with MSVC /analyze, fail on a finding not in
+#              tests/analyze_baseline.txt (tools/analyze_report.py)
+name: nightly
+
+on:
+  schedule:
+    - cron: "17 6 * * *"  # 06:17 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+jobs:
+  analyze:
+    runs-on: windows-2025
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v7
+      - id: python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.15"
+      # The same pinned toolchain and cache key as landing.yml, so this restores the entry main's landing run saved.
+      - id: toolchain
+        uses: actions/cache/restore@v6
+        with:
+          path: toolchain
+          key: toolchain-engine-${{ steps.python.outputs.python-version }}-${{ hashFiles('toolchain/*.cmd', 'toolchain/*.sh', 'toolchain/*.py') }}
+      - name: Install the pinned toolchain
+        if: steps.toolchain.outputs.cache-hit != 'true'
+        shell: cmd
+        # --accept-msvc-license: the Visual Studio license is accepted for CI installs (approved by Gabriel, 2026-11-21).
+        run: |
+          call toolchain\2_setup.cmd --engine-only --accept-msvc-license || exit /b 1
+          if exist toolchain\downloads rmdir /s /q toolchain\downloads
+      - name: dev.cmd doctor
+        shell: cmd
+        run: call .\dev.cmd doctor --engine-only
+      - name: dev.cmd check --preset analyze
+        shell: cmd
+        run: call .\dev.cmd check --preset analyze
+      - name: Report
+        if: always()
+        shell: bash
+        run: |
+          f=build/logs/dev-last.json
+          [ -f "$f" ] || exit 0
+          { echo "### analyze: $f"; echo '```json'; cat "$f"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nightly-analyze-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/logs/
+          if-no-files-found: warn
+          retention-days: 30
+
+  record:
+    needs: [analyze]
+    if: always()
+    runs-on: windows-2025
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.15"
+      - name: Update "Nightly checks: last passing"
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RESULTS: analyze=${{ needs.analyze.result }}
+          SHA: ${{ github.sha }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          title="Nightly checks: last passing"
+          n=$(gh issue list --state all --search "\"$title\" in:title" --json number,title -q ".[] | select(.title == \"$title\") | .number" | head -1)
+          if [ -z "$n" ]; then
+            n=$(gh issue create --title "$title" --body "" | awk -F/ '{print $NF}')
+          fi
+          gh issue view "$n" --json body -q .body > "$RUNNER_TEMP/body.md"
+          python -I tools/nightly_record.py update --body-file "$RUNNER_TEMP/body.md" --results "$RESULTS" \
+            --sha "$SHA" --date "$(date -u +%F)" --run "$RUN" > "$RUNNER_TEMP/new.md"
+          gh issue edit "$n" --body-file "$RUNNER_TEMP/new.md"
+          echo "updated #$n ($RESULTS)"; cat "$RUNNER_TEMP/new.md" >> "$GITHUB_STEP_SUMMARY"

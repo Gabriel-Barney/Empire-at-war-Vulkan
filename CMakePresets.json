@@ -1,6 +1,10 @@
 {
   "version": 6,
-  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
   "configurePresets": [
     {
       "name": "base",
@@ -22,6 +26,16 @@
       "displayName": "Release, fresh configure and clean build",
       "inherits": "base",
       "binaryDir": "${sourceDir}/build-full"
+    },
+    {
+      "name": "analyze",
+      "displayName": "Release with MSVC /analyze, without the PCH (nightly)",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build-analyze",
+      "cacheVariables": {
+        "ALAMO_ANALYZE": "ON",
+        "ALAMO_PCH": "OFF"
+      }
     }
   ]
 }

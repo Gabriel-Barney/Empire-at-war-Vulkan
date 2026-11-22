@@ -8,6 +8,7 @@ alamo_ai_tactical_records_tests
 alamo_ai_tactical_tests
 alamo_ai_tactical_world_tests
 alamo_ai_tests
+alamo_analyze_report_selftest
 alamo_anim_tests
 alamo_assets_tests
 alamo_audio_game_tests
@@ -105,6 +106,7 @@ alamo_lua_tests
 alamo_materials_tests
 alamo_mod_check_fixture
 alamo_modcorpus_tests
+alamo_nightly_record_selftest
 alamo_objects_tag_ledger_lint
 alamo_objects_tag_ledger_lint_selftest
 alamo_objects_tag_ledger_tests

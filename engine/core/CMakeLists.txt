@@ -108,8 +108,14 @@ if(ALAMO_LINT_PYTHON)
   add_test(NAME alamo_skills_selftest COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/skills.py selftest)
   # The landing gate's path classification and verdict (tools/landing_gate.py; .github/workflows/landing.yml).
   add_test(NAME alamo_landing_gate_selftest COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/landing_gate.py selftest)
+  # The nightly analyze check's baseline comparison and the nightly record (tools/analyze_report.py,
+  # tools/nightly_record.py; .github/workflows/nightly.yml).
+  add_test(NAME alamo_analyze_report_selftest
+           COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/analyze_report.py selftest)
+  add_test(NAME alamo_nightly_record_selftest
+           COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/nightly_record.py selftest)
   set_tests_properties(alamo_dev_selftest alamo_landing_gate_selftest alamo_skills_check alamo_skills_selftest
-                       PROPERTIES TIMEOUT 120)
+                       alamo_analyze_report_selftest alamo_nightly_record_selftest PROPERTIES TIMEOUT 120)
   set_tests_properties(alamo_core_doc_refs_lint alamo_core_doc_refs_lint_selftest PROPERTIES TIMEOUT 120)
   # sim code turns data-driven seconds into frame counts only through alamo/core/frames.hpp (no plain
   # static_cast of seconds x FPS to an integer outside engine/core; tools/lint/check_frame_casts.py).
