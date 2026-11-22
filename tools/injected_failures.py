@@ -24,6 +24,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -33,29 +34,32 @@ sys.path.insert(0, HERE)  # python -I leaves the script's folder off sys.path
 import dev  # noqa: E402
 
 
-def _workdir() -> str:
-    return tempfile.mkdtemp(prefix="alamo_injected_", dir=os.path.join(ROOT, "build", "tmp")
-                            if os.path.isdir(os.path.join(ROOT, "build")) else None)
+class _InjectedCase(unittest.TestCase):
+    def setUp(self):
+        tmp = os.path.join(ROOT, "build", "tmp")  # where tests write (dev.test_env)
+        os.makedirs(tmp, exist_ok=True)
+        self.work = tempfile.mkdtemp(prefix="alamo_injected_", dir=tmp)
+        self.addCleanup(shutil.rmtree, self.work, True)
+        self.env = dev.msvc_env()
+        self.bdir = os.path.join(self.work, "build")
 
 
-class CompileFailure(unittest.TestCase):
+class CompileFailure(_InjectedCase):
     def test_compile_error_fails_at_the_build_step_with_the_compiler_diagnostic(self):
-        work = _workdir()
-        self.addCleanup(shutil.rmtree, work, True)
-        dev.LOG_DIR = os.path.join(work, "logs")
-        r = dev.Runner("check", ["--injected-compile-failure"])
-        r.env = dev.msvc_env()
-        bdir = os.path.join(work, "build")
+        logs = os.path.join(self.work, "logs")
         out = io.StringIO()
-        with contextlib.redirect_stdout(out):
-            r.run("configure (injected)", ["cmake", "-G", "Ninja", "-S", os.path.join(FIXTURES, "compile"), "-B", bdir],
-                  r.env)
+        # The injected run's dev.cmd logs and dev-last.json go to the work folder, not build\logs.
+        with mock.patch.object(dev, "LOG_DIR", logs), contextlib.redirect_stdout(out):
+            r = dev.Runner("check", ["--injected-compile-failure"])
+            r.env = self.env
+            failure = None
             try:
-                dev.build(r, bdir, None)
-                failure = None
+                r.run("configure (injected)", ["cmake", "-G", "Ninja", "-S", os.path.join(FIXTURES, "compile"), "-B",
+                                               self.bdir], r.env)
+                dev.build(r, self.bdir, None)
             except dev.StepFailed as e:
                 failure = e
-            code = r.finish(failure)
+            code = r.finish(failure)  # closes the log even when configure failed
         text = out.getvalue()
         self.assertIsNotNone(failure, "the broken fixture built:\n" + text)
         self.assertNotEqual(code, 0)
@@ -63,28 +67,28 @@ class CompileFailure(unittest.TestCase):
         first = next(line for line in text.splitlines() if "first diagnostic:" in line)
         self.assertRegex(first, r"error C\d{4}")
         self.assertIn("injected_compile_failure", first)
-        last = json.load(open(os.path.join(dev.LOG_DIR, "dev-last.json"), encoding="utf-8"))
+        with open(os.path.join(logs, "dev-last.json"), encoding="utf-8") as f:
+            last = json.load(f)
         self.assertEqual((last["ok"], last["failed_step"]), (False, "build all"))
         self.assertRegex(last["first_diagnostic"], r"error C\d{4}")
 
 
-class WrongResult(unittest.TestCase):
+class WrongResult(_InjectedCase):
     def test_wrong_result_fails_the_suite_and_names_the_test(self):
-        work = _workdir()
-        self.addCleanup(shutil.rmtree, work, True)
-        env = dev.msvc_env()
-        bdir = os.path.join(work, "build")
-        subprocess.run(dev.resolve(["cmake", "-G", "Ninja", "-S", os.path.join(FIXTURES, "wrong_result"), "-B", bdir],
-                                   env), env=env, check=True, capture_output=True)
-        p = subprocess.run([sys.executable, "-I", os.path.join(HERE, "test_suite.py"), "--build", bdir,
+        subprocess.run(dev.resolve(["cmake", "-G", "Ninja", "-S", os.path.join(FIXTURES, "wrong_result"), "-B",
+                                    self.bdir], self.env), env=self.env, check=True, capture_output=True)
+        p = subprocess.run([sys.executable, "-I", os.path.join(HERE, "test_suite.py"), "--build", self.bdir,
                             "--suite", "synthetic", "--", "-R", "^alamo_injected_"],
-                           env=env, capture_output=True, text=True)
+                           env=self.env, capture_output=True, text=True)
         self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
-        report = open(os.path.join(bdir, "test-results", "report-synthetic.md"), encoding="utf-8").read()
-        self.assertIn("| synthetic | 1 | 1 |", report)
-        failed = report.split("## Failed", 1)[1].split("##", 1)[0]
-        self.assertIn("alamo_injected_wrong_result", failed)
-        self.assertNotIn("alamo_injected_right_result", failed)
+        with open(os.path.join(self.bdir, "test-results", "report-synthetic.md"), encoding="utf-8") as f:
+            report = f.read()
+        # The report file and the console summary both carry the counts and name the failed test, and only it.
+        for text in (report, p.stdout):
+            self.assertIn("| synthetic | 1 | 1 |", text)
+            failed = text.split("## Failed", 1)[1].split("##", 1)[0]
+            self.assertIn("alamo_injected_wrong_result", failed)
+            self.assertNotIn("alamo_injected_right_result", failed)
 
 
 def main(argv: list[str]) -> int:
