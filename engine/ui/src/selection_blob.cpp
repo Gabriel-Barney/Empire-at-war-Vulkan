@@ -81,6 +81,7 @@ render::Instance selection_blob_instance(const render::GpuModel& model, const Se
     in.transform.m[0][3] = blob.center.x;
     in.transform.m[1][3] = blob.center.y;
     in.transform.m[2][3] = blob.center.z + kSpaceBlobLift;
+    in.light_scale.w = blob.alpha;
     return in;
 }
 

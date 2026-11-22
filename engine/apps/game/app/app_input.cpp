@@ -1309,6 +1309,18 @@ void App::battle_input() {
     if (!drop_click && !targeted && !world_blocked && !bombing_click && !bombing_targeting_ && !sw_click &&
         sw_weapon_ == objects::kNoObjectId)
         orders_.update(input_, ui_.bindings, ctx);
+    // [port: Gabriel, #179] fleet groups: the slots the aimed ground move would give the selection's locked groups.
+    fleet_goals_.clear();
+    if (const sim::TacticalBattle* fb = battle(); fb && session_ && session_->spec().fleet_groups && fb->fleet_groups_enabled())
+        if (const std::optional<ui::MoveAim> aim = orders_.move_aim(input_, ctx)) {
+            std::vector<objects::ObjectId> sel;
+            for (const uint32_t id : orders_.selection()) sel.push_back(static_cast<objects::ObjectId>(id));
+            const float facing = aim->has_facing ? aim->facing_deg : tactical::movement::kNoFacing;
+            for (const sim::FleetGroups::LockedMove& m :
+                 fb->fleet_move_preview(*tm, static_cast<uint8_t>(local_player()), sel, aim->anchor.x, aim->anchor.y, facing))
+                for (const sim::FleetGroups::MemberGoal& g : m.goals)
+                    fleet_goals_.push_back(ui::HudFleetGoal{static_cast<uint32_t>(g.id), g.goal.x, g.goal.y});
+        }
     // Orders carry their queued flag (shift: queueable actions) into the command stream; voice per command (UiOrder::voice).
     std::vector<uint8_t> voice(cmds.size(), 1);
     for (ui::UiOrder& o : orders_.take_orders()) {

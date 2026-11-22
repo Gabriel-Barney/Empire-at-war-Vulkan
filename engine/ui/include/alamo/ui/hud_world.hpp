@@ -145,6 +145,7 @@ struct SelectionBlob {
     float radius = 0.0f;   // Select_Box_Scale x Scale_Factor (blob half-size)
     bool land = false;     // land: terrain shadow blob; space: flat blob
     std::string material;  // ShadowBlobMaterials.xml name
+    float alpha = 1.0f;    // [port] fade (Instance LIGHT_SCALE.w); < 1 for the fleet group move preview (#179)
 };
 
 struct WorldHudContext {

@@ -229,6 +229,27 @@ void OrderTranslator::right_double(const InputState& in, const OrderContext& ctx
     ground_move(in, ctx, in.mouse_x(), in.mouse_y(), true);
 }
 
+std::optional<MoveAim> OrderTranslator::move_aim(const InputState& in, const OrderContext& ctx) const {
+    if (ctx.mode == UiMode::Galactic || sel_.empty()) return std::nullopt;
+    const ButtonState& rb = in.button(alternate_ ? Button::Left : Button::Right);  // the order button
+    if (!rb.down) return std::nullopt;
+    MoveAim aim;
+    if (!ground_point(ctx, rb.drag.x0, rb.drag.y0, aim.anchor)) return std::nullopt;
+    if (ctx.trees && !toggle_force_move_) {  // a press on an object is an object order, not a ground move
+        tactical::QueryContext q = qctx_;
+        if (pick_world(ctx.trees->all(), ctx.view, pixel_ray(ctx.view, rb.drag.x0, rb.drag.y0), ctx.pick_filter, q, ctx.pick_tests))
+            return std::nullopt;
+    }
+    const int32_t ddx = rb.drag.x1 - rb.drag.x0, ddy = rb.drag.y1 - rb.drag.y0;
+    const int32_t cheb = std::max(ddx < 0 ? -ddx : ddx, ddy < 0 ? -ddy : ddy);
+    Vec3 p;
+    if (static_cast<float>(cheb) > in.config().drag_threshold_px && ground_point(ctx, rb.drag.x1, rb.drag.y1, p)) {
+        aim.has_facing = true;
+        aim.facing_deg = dmath::atan2(p.y - aim.anchor.y, p.x - aim.anchor.x) * (180.0f / 3.14159265358979323846f);
+    }
+    return aim;
+}
+
 // `0x3b360`: one move order at pixel (px, py), its flags and its acknowledgement (spec §2).
 void OrderTranslator::ground_move(const InputState& in, const OrderContext& ctx, int32_t px, int32_t py, bool dbl) {
     const ButtonState& rb = in.button(alternate_ ? Button::Left : Button::Right);  // the order button

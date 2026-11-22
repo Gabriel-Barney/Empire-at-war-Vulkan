@@ -564,6 +564,24 @@ void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> 
             if (u.selected && std::binary_search(frame.fleet_groups[k].members.begin(), frame.fleet_groups[k].members.end(), u.id))
                 ++fleet_selected_[k];
     build_fleet_outlines(frame, units, types);
+    if (frame.fleet_groups_on && !frame.world.targeting_active && !frame.world.cinematic)
+        for (const HudFleetGoal& g : frame.fleet_preview) {  // #179: a faint circle per destination slot
+            const auto it = std::lower_bound(units.begin(), units.end(), g.id, [](const HudUnit& u, uint32_t v) { return u.id < v; });
+            if (it == units.end() || it->id != g.id) continue;
+            static const HudTypeInfo kNoType{};
+            const HudTypeInfo& t = it->type < types.size() ? types[it->type] : kNoType;
+            SelectionBlob sb;
+            sb.id = g.id;
+            sb.center = {g.x, g.y, it->position.z + t.select_box_z_adjust};
+            sb.radius = t.select_box_scale > 0.0f ? t.select_box_scale * t.scale : 10.0f;
+            sb.land = frame.world.land;
+            if (!t.selection_blob_material.empty()) sb.material = t.selection_blob_material;
+            else if (frame.world.selection_material)
+                sb.material = frame.world.selection_material(frame.world.local_player, frame.world.land, t.is_hero);
+            sb.alpha = 0.4f;
+            blobs_.push_back(std::move(sb));
+            ++stats_.fleet_preview;
+        }
     // ui3 t07 (HUD_GAPS §2.1): Tooltip_Text entry 1 in tactical land mode when the component has a second entry, else
     // entry 0; the groups that pick an entry by state (buy buttons, the bombing-run button) override it below.
     for (uint32_t i = 0; i < table_->size(); ++i)

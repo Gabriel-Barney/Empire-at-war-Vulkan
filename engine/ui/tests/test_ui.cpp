@@ -1290,6 +1290,29 @@ void test_double_click_move() {
     s.up(Button::Right);
     o = run(land, mark);
     CHECK(o.size() == 1 && o[0].event.type() == T::MoveToPositionFacing);
+    {  // #179 [port: Gabriel] the move being aimed: anchor at the press, facing once the drag passes the threshold
+        Vec3 a, b;
+        ray_plane_z(pixel_ray(land.view, 500, 400), 0.0f, a);
+        ray_plane_z(pixel_ray(land.view, 560, 420), 0.0f, b);
+        CHECK(!ot.move_aim(in, land));  // button up: nothing aimed
+        pause();
+        size_t m2 = s.frames.size();
+        s.move(500, 400);
+        s.down(Button::Right);
+        CHECK(run(land, m2).empty());
+        const std::optional<MoveAim> held = ot.move_aim(in, land);
+        CHECK(held && !held->has_facing && near(held->anchor.x, a.x) && near(held->anchor.y, a.y));
+        m2 = s.frames.size();
+        s.move(560, 420);
+        CHECK(run(land, m2).empty());
+        const std::optional<MoveAim> dragged = ot.move_aim(in, land);
+        CHECK(dragged && dragged->has_facing && near(dragged->anchor.x, a.x) &&
+              std::fabs(dragged->facing_deg - std::atan2(b.y - a.y, b.x - a.x) * 57.29578f) <= 0.1f);
+        m2 = s.frames.size();
+        s.up(Button::Right);
+        run(land, m2);
+        CHECK(!ot.move_aim(in, land));
+    }
     if (o.size() == 1) {
         Vec3 a, b;
         ray_plane_z(pixel_ray(land.view, 500, 400), 0.0f, a);
