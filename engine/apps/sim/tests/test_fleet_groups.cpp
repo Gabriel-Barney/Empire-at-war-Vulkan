@@ -48,6 +48,10 @@ void test_commands() {
     rn.name = std::string(50, 'x');  // cut to kFleetGroupNameMax when encoded
     const auto cut = cmd::parse_fleet_group(cmd::fleet_group_event(rn).bytes_view("data"));
     CHECK(cut && cut->name.size() == cmd::kFleetGroupNameMax);
+    // #176: 31 ASCII bytes then a two-byte character: the character is left out whole (31 bytes), never split.
+    rn.name = std::string(31, 'y') + "\xC3\x89";
+    const auto boundary = cmd::parse_fleet_group(cmd::fleet_group_event(rn).bytes_view("data"));
+    CHECK(boundary && boundary->name == std::string(31, 'y'));
     const uint8_t bad1[] = {9}, bad2[] = {0, 1}, bad3[] = {3, 2}, bad4[] = {4, 1, 0, 5, 'a'};
     CHECK(!cmd::parse_fleet_group({}) && !cmd::parse_fleet_group(bad1) && !cmd::parse_fleet_group(bad2) &&
           !cmd::parse_fleet_group(bad3) && !cmd::parse_fleet_group(bad4));

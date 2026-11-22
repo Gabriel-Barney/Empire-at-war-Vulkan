@@ -399,6 +399,16 @@ void test_rename_prompt() {
     p.open(900, true, "Home Fleet");
     p.build(open, fonts, canvas, 0.0);
     CHECK(closed.total() == 0 && open.total() > 0);
+    // #176: a fleet group's prompt keeps the name within kFleetGroupNameMax UTF-8 bytes (whole characters only).
+    p.open_fleet_group(7, "Vanguard");
+    CHECK(p.active() && p.fleet_group() && !p.fleet() && p.object() == 7 && p.text() == U"Vanguard");
+    CHECK(p.update(U"", false, false, true) == R::Cancel && !p.active());
+    p.open_fleet_group(7, "");
+    CHECK(p.update(std::u32string(40, U'\u00C9'), false, false, false) == R::None && p.text().size() == 16 &&
+          p.utf8().size() == commands::kFleetGroupNameMax);
+    CHECK(p.update(U"", false, true, false) == R::Submit && !p.active());
+    p.open(900, true, "Home Fleet");
+    CHECK(!p.fleet_group() && p.fleet());
 }
 
 }  // namespace

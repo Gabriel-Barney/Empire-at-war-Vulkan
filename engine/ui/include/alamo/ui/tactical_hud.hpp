@@ -167,6 +167,9 @@ struct HudAction {
         // [port]. Host: select them (shift: the selection plus them); a second click within the double-click time also
         // centres the camera on the wing.
         WingSelect,
+        // [port: Gabriel] appended 2026-11-22 (#176): a right click on a fleet group's header tab in the selected-unit bar:
+        // value = the group id, name = its name (UTF-8). Host: open the rename prompt for the group.
+        FleetGroupRename,
     };
     Kind kind = Kind::Button;
     int32_t component = -1;
@@ -504,6 +507,7 @@ private:
     // [port: Gabriel] fleet groups (#174): every member per header tab of the last build, and each drawn panel slot's
     // rectangle (centre, size, layer; size 0 = not drawn).
     std::vector<std::vector<uint32_t>> fleet_tab_ids_;
+    std::vector<std::pair<uint16_t, std::string>> fleet_tab_group_;  // per tab: the group id and name (UTF-8)
     struct SlotRect {
         Vec2f center{}, size{};
         uint32_t layer = 0;

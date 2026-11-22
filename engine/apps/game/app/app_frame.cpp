@@ -463,15 +463,24 @@ void App::frame() {
     std::u32string typed = printable(win_.take_text());
     if (bench_active()) typed.clear();
     // [port: Gabriel] The fleet / ship rename prompt takes the keyboard while open (typed text, Backspace, Enter, Esc): no
-    // key reaches the camera, the hotkeys, the dialogs or the pause menu. It closes when the galactic screen does.
+    // key reaches the camera, the hotkeys, the dialogs or the pause menu. It closes when its screen does (galactic for
+    // fleets and ships, the battle for a fleet group, #176).
     if (rename_.active()) {
-        if (screen() != Screen::Galactic || !session_ || ui_.gui.has_focus()) {
+        if (screen() != (rename_.fleet_group() ? Screen::Battle : Screen::Galactic) || !session_ || ui_.gui.has_focus()) {
             rename_.close();
         } else {
             const ui::RenamePrompt::Result r =
                 rename_.update(typed, raw.keys_pressed.test(ui::vk::kBack), raw.keys_pressed.test(ui::vk::kReturn),
                                raw.keys_pressed.test(ui::vk::kEscape));
-            if (r == ui::RenamePrompt::Result::Submit) submit(commands::rename_object_event(rename_.object(), rename_.utf8()), false);
+            if (r == ui::RenamePrompt::Result::Submit && rename_.fleet_group()) {
+                commands::FleetGroupCommand c;
+                c.op = commands::FleetGroupOp::Rename;
+                c.group = static_cast<uint16_t>(rename_.object());
+                c.name = rename_.utf8();
+                submit(commands::fleet_group_event(c), false);
+            } else if (r == ui::RenamePrompt::Result::Submit) {
+                submit(commands::rename_object_event(rename_.object(), rename_.utf8()), false);
+            }
             typed.clear();
             raw.keys_pressed = {};
             raw.keys_down = {};
