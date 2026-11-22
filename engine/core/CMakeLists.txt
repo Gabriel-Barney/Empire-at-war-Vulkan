@@ -114,8 +114,12 @@ if(ALAMO_LINT_PYTHON)
            COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/analyze_report.py selftest)
   add_test(NAME alamo_nightly_record_selftest
            COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/nightly_record.py selftest)
+  # The old roadmap import's selection and idempotence (tools/roadmap_import.py, #32).
+  add_test(NAME alamo_roadmap_import_selftest
+           COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/roadmap_import.py selftest)
   set_tests_properties(alamo_dev_selftest alamo_landing_gate_selftest alamo_skills_check alamo_skills_selftest
-                       alamo_analyze_report_selftest alamo_nightly_record_selftest PROPERTIES TIMEOUT 120)
+                       alamo_analyze_report_selftest alamo_nightly_record_selftest alamo_roadmap_import_selftest
+                       PROPERTIES TIMEOUT 120)
   # Temporary: the two-PR race demonstration's invariant (tools/race_demo.py; tests/fixtures/race_demo/README.md, #17).
   add_test(NAME alamo_race_demo COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/race_demo.py)
   # Machine-wide test slots: a second job waits for the holder, names it, and gets the slot when the holder exits or

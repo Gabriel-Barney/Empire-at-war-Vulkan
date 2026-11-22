@@ -132,6 +132,7 @@ alamo_render_tests
 alamo_render_xess_tests slow
 alamo_rhi_gpu_tests
 alamo_rhi_tests
+alamo_roadmap_import_selftest
 alamo_shaderxlat_gpu_tests
 alamo_shaderxlat_tests
 alamo_sim_battle_ai_hero_clash
