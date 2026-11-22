@@ -87,6 +87,7 @@ alamo_headless_skirmish_plan_retest
 alamo_headless_skirmish_trace
 alamo_jobs_crc_tests
 alamo_jobs_tests
+alamo_landing_gate_selftest
 alamo_lua_binding_effects_tests
 alamo_lua_fog_tests
 alamo_lua_gc_tests
