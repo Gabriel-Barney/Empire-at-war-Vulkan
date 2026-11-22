@@ -655,7 +655,8 @@ void test_music_modes_gaps() {
     CHECK(a.current_music() == "Build_Done" && a.music_mode() == music_mode::kBuildComplete && a.music_mode() == 4);
     run(35.0);
     CHECK(a.current_music() == "Gal_Rebel" && a.music_mode() == music_mode::kGalactic);
-    // Movie music (14): a looping playlist stops after one pass (2 files) and resumes the previous event.
+    // Movie music (14): a looping playlist stops after one pass (2 files); queued with resume previous, the previous
+    // event comes back.
     g.movie_music("Movie_Music");
     CHECK(a.current_music() == "Movie_Music" && a.music_mode() == music_mode::kMovie && a.music_mode() == 14);
     run(35.0);
