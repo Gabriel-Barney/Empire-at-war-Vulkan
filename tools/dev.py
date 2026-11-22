@@ -377,6 +377,8 @@ def cmd_check(r: Runner, args: list[str]) -> None:
 def check_plan(preset: str, target: str | None, quick: bool) -> dict:
     """What dev.cmd check does for a preset: fresh configure, clean build, the suite arguments, the /analyze report."""
     if preset == "analyze":
+        if target or quick:
+            raise SystemExit("dev.cmd check: --target and --quick do not apply to --preset analyze")
         return {"fresh": False, "clean": False, "suite": None, "analyze": True}
     if preset not in ("fast", "full"):
         raise SystemExit(f"dev.cmd check: preset '{preset}' has no check yet (fast, full, analyze)")
@@ -477,8 +479,9 @@ class _Tests(unittest.TestCase):
         # analyze: an incremental /analyze build compared with the baseline; no suite (the binaries are fast's).
         self.assertEqual(check_plan("analyze", None, False),
                          {"fresh": False, "clean": False, "suite": None, "analyze": True})
-        with self.assertRaises(SystemExit):
-            check_plan("nope", None, False)
+        for bad in (("nope", None, False), ("analyze", "alamo_x_tests", False), ("analyze", None, True)):
+            with self.assertRaises(SystemExit):
+                check_plan(*bad)
 
     def test_analyze_preset_has_its_own_build_folder(self):
         presets = load_presets()

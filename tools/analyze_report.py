@@ -7,12 +7,16 @@
 
 MSVC writes one <object>.nativecodeanalysis.xml per compiled file, rewritten when the file recompiles, so the findings
 of an incremental build are complete. A finding is keyed by warning code, source path and function (lambda numbers
-dropped), not by line, so unrelated edits do not churn the baseline. Standard library only.
+dropped), not by line, so unrelated edits do not churn the baseline; the price is that fixing one finding while adding
+another of the same code in the same function goes unnoticed. Logs of sources no longer in build.ninja are ignored, a
+log that does not parse fails, and no logs at all fails (the build did not run /analyze). Standard library only.
 """
 
 from __future__ import annotations
 
 import collections
+import contextlib
+import io
 import os
 import re
 import sys
@@ -31,23 +35,51 @@ def _function(name: str) -> str:
     return re.sub(r"<lambda_\d+>", "<lambda>", name or "")
 
 
-def collect(build_dir: str, root: str = ROOT) -> tuple[collections.Counter, dict[Key, list[str]]]:
-    """The findings in build_dir's analysis logs: a count per key, and 'path(line): description' per key."""
+class AnalyzeError(Exception):
+    pass
+
+
+_LOG = ".nativecodeanalysis.xml"
+
+
+def current_objects(build_dir: str) -> set[str] | None:
+    """The object files build.ninja builds now (normalised, relative to build_dir), or None without a build.ninja.
+    An analysis log whose object is not among them belongs to a deleted or renamed source and is ignored."""
+    path = os.path.join(build_dir, "build.ninja")
+    if not os.path.isfile(path):
+        return None
+    with open(path, encoding="utf-8", errors="replace") as f:
+        return {os.path.normcase(os.path.normpath(m.group(1).replace("$ ", " ").replace("$:", ":")))
+                for m in re.finditer(r"^build ((?:[^:$\n]|\$.)+\.obj):", f.read(), flags=re.M)}
+
+
+def collect(build_dir: str, root: str = ROOT) -> tuple[collections.Counter, dict[Key, list[str]], int]:
+    """The findings in build_dir's analysis logs: a count per key, 'path(line): description' per key, and the number
+    of logs read. A log that is not empty and does not parse raises AnalyzeError."""
     seen: set[tuple] = set()  # a header's finding appears once per file that includes it
     where: dict[Key, list[str]] = collections.defaultdict(list)
     count: collections.Counter = collections.Counter()
     root_n = os.path.normcase(os.path.abspath(root)) + os.sep
+    objects = current_objects(build_dir)
+    logs = 0
     for dirpath, _, names in os.walk(build_dir):
         for name in names:
-            if not name.endswith(".nativecodeanalysis.xml"):
+            if not name.endswith(_LOG):
                 continue
+            log = os.path.join(dirpath, name)
+            obj = os.path.normcase(os.path.normpath(os.path.relpath(log, build_dir)[:-len(_LOG)] + ".obj"))
+            if objects is not None and obj not in objects:
+                continue  # stale: its source is no longer built
+            logs += 1
+            if os.path.getsize(log) == 0:
+                continue  # no findings
             try:
-                tree = ET.parse(os.path.join(dirpath, name))
-            except ET.ParseError:
-                continue  # an empty log: the file has no findings
+                tree = ET.parse(log)
+            except ET.ParseError as e:
+                raise AnalyzeError(f"cannot read the analysis log {log}: {e}") from None
             for d in tree.getroot().iter("DEFECT"):
                 sfa = d.find("SFA")
-                if sfa is None:
+                if sfa is None or not sfa.findtext("FILENAME", ""):
                     continue
                 full = os.path.abspath(os.path.join(sfa.findtext("FILEPATH", ""), sfa.findtext("FILENAME", "")))
                 if not os.path.normcase(full).startswith(root_n):
@@ -62,7 +94,7 @@ def collect(build_dir: str, root: str = ROOT) -> tuple[collections.Counter, dict
                 key = (code, rel, func)
                 count[key] += 1
                 where[key].append(f"{rel}({line}): {code}: {d.findtext('DESCRIPTION', '').strip()}")
-    return count, where
+    return count, where, logs
 
 
 def load_baseline(path: str = BASELINE) -> collections.Counter:
@@ -96,7 +128,14 @@ def main(argv: list[str]) -> int:
     if len(argv) != 3 or argv[0] not in ("check", "write-baseline") or argv[1] != "--build":
         print(__doc__)
         return 2
-    found, where = collect(argv[2])
+    try:
+        found, where, logs = collect(argv[2])
+    except AnalyzeError as e:
+        print(f"error: {e}")
+        return 1
+    if logs == 0:  # /analyze did not run: a pass here would be vacuous
+        print(f"error: no {_LOG} analysis logs under {argv[2]}: was it built with the analyze preset (ALAMO_ANALYZE)?")
+        return 1
     if argv[0] == "write-baseline":
         print(f"analyze_report: wrote {write_baseline(found)} findings to {os.path.relpath(BASELINE, ROOT)}")
         return 0
@@ -106,7 +145,8 @@ def main(argv: list[str]) -> int:
         return 1
     new, gone = compare(found, load_baseline())
     total = sum(found.values())
-    print(f"analyze_report: {total} findings, {sum(new.values())} not in the baseline, {sum(gone.values())} fixed")
+    print(f"analyze_report: {logs} analysis logs, {total} findings, {sum(new.values())} not in the baseline, "
+          f"{sum(gone.values())} fixed")
     for key in sorted(gone):
         print(f"  fixed (remove from tests/analyze_baseline.txt): {' '.join(key)}")
     for key in sorted(new):
@@ -144,10 +184,30 @@ class _Tests(unittest.TestCase):
                 "b.cpp": [(src, "h.hpp", 5, 6262, "g"), (src, "a.cpp", 20, 6011, "f::<lambda_7>::()")],
                 "empty.cpp": None,
             })
-            found, where = collect(bdir, root)
+            found, where, logs = collect(bdir, root)
             self.assertEqual(found, collections.Counter({("C6011", "engine/x/a.cpp", "f::<lambda>::()"): 2,
                                                          ("C6262", "engine/x/h.hpp", "g"): 1}))
+            self.assertEqual(logs, 3)
             self.assertIn("engine/x/a.cpp(20): C6011: desc", where[("C6011", "engine/x/a.cpp", "f::<lambda>::()")])
+
+    def test_stale_logs_of_sources_no_longer_built_are_ignored(self):
+        with tempfile.TemporaryDirectory() as root:
+            src = os.path.join(root, "engine", "x") + os.sep
+            bdir = self.build(root, {"a.cpp": [(src, "a.cpp", 1, 6011, "f")], "gone.cpp": [(src, "gone.cpp", 1, 6011, "g")]})
+            with open(os.path.join(bdir, "build.ninja"), "w", encoding="utf-8") as f:
+                f.write("build obj\\a.cpp.obj: CXX_COMPILER E$:\\x\\a.cpp\n")
+            found, _, logs = collect(bdir, root)
+            self.assertEqual((list(found), logs), ([("C6011", "engine/x/a.cpp", "f")], 1))
+
+    def test_corrupt_log_fails_and_no_logs_fail_the_check(self):
+        with tempfile.TemporaryDirectory() as root:
+            bdir = self.build(root, {"a.cpp": []})
+            with open(os.path.join(bdir, "obj", "a.cpp" + _LOG), "w", encoding="utf-8") as f:
+                f.write("<DEFECTS><DEFECT>")  # truncated
+            with self.assertRaises(AnalyzeError):
+                collect(bdir, root)
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main(["check", "--build", os.path.join(root, "empty")]), 1)
 
     def test_new_and_fixed_findings(self):
         a, b, c = ("C6011", "p.cpp", "f"), ("C6262", "q.cpp", "g"), ("C6326", "r.cpp", "h")

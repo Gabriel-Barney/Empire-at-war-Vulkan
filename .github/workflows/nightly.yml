@@ -62,9 +62,10 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
+  # Only main's commits are recorded: a manual run on another branch checks it but does not touch the record.
   record:
     needs: [analyze]
-    if: always()
+    if: always() && github.ref == 'refs/heads/main'
     runs-on: windows-2025
     permissions:
       contents: read
@@ -85,7 +86,7 @@ jobs:
         run: |
           set -euo pipefail
           title="Nightly checks: last passing"
-          n=$(gh issue list --state all --search "\"$title\" in:title" --json number,title -q ".[] | select(.title == \"$title\") | .number" | head -1)
+          n=$(gh issue list --state all --limit 1000 --search "\"$title\" in:title" --json number,title -q ".[] | select(.title == \"$title\") | .number" | head -1)
           if [ -z "$n" ]; then
             n=$(gh issue create --title "$title" --body "" | awk -F/ '{print $NF}')
           fi
