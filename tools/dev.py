@@ -15,8 +15,9 @@
   dev.cmd selftest                        this script's own unit tests
 
 dev.cmd loads dev.local.cmd (machine settings such as ALAMO_FOC_DATA) and passes every argument here unchanged.
-Arguments reach CMake, CTest and tools/test_suite.py as exact argument lists. Quote shell metacharacters (| & < >)
-for the shell you type in, e.g. dev.cmd test -R "^(a|b)$".
+Arguments reach CMake, CTest and tools/test_suite.py as exact argument lists. cmd reads | & < > before this script
+does, so the double quotes around such an argument must reach cmd: in cmd, dev.cmd test -R "^(a|b)$"; in PowerShell,
+.\\dev.cmd test -R '"^(a|b)$"'.
 
 Every step's output goes to the console and to build\\logs\\dev-<time>-<command>.log. A failed step prints the step,
 the first meaningful diagnostic, the toolchain and source identity, a reproduction command, the elapsed time and the

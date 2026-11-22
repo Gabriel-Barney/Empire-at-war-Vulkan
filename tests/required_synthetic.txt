@@ -162,6 +162,8 @@ alamo_sim_story_rewards_tests
 alamo_sim_tests
 alamo_sim_trl2_tests
 alamo_sim_tru1_tests
+alamo_skills_check
+alamo_skills_selftest
 alamo_tactical_abilities_tests
 alamo_tactical_combat_tests
 alamo_tactical_fleet_placement_tests
