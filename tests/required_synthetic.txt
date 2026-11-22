@@ -115,6 +115,7 @@ alamo_objects_tag_ledger_tests
 alamo_objects_tag_reads_lint
 alamo_objects_tag_reads_lint_selftest
 alamo_objects_tests
+alamo_package_smoke_selftest
 alamo_play_tests
 alamo_render_anim_tests
 alamo_render_beams_tests
