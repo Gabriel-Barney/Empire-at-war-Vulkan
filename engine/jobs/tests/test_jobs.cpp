@@ -986,14 +986,25 @@ static void test_critical_between_ai_chunks() {
     CHECK(chunks.load() == kChunks);
 }
 
+// A clock that never moves: every loop measures as no work, so a site runs inline from its second call on whatever the
+// machine load (#161: on the wall clock a preempted or late-joining thread could keep a tiny loop forking).
+static int64_t frozen_clock() noexcept { return 0; }
+
+static JobSystemConfig frozen_estimates(int32_t workers) {
+    JobSystemConfig cfg;
+    cfg.workers = workers;
+    cfg.estimate_clock = &frozen_clock;
+    return cfg;
+}
+
 static void test_inline_small_forks() {
     section("sp1: small loops run inline, large ones fork");
     {
-        JobSystem js({4});
+        JobSystem js(frozen_estimates(4));
         std::atomic<uint32_t> sum{0};
         for (int r = 0; r < 20; ++r) js.parallel_for(64, 1, [&](uint32_t b, uint32_t e) { sum.fetch_add(e - b); });
         CHECK(sum.load() == 20u * 64u);
-        CHECK(js.inline_forks() >= 15);  // the first call measures; tiny work runs inline after that
+        CHECK(js.inline_forks() == 19);  // the first call measures; tiny work runs inline after that
     }
     {
         JobSystemConfig cfg;
@@ -1004,6 +1015,7 @@ static void test_inline_small_forks() {
         CHECK(js.inline_forks() == 0);
     }
     {
+        // The real clock: load only lengthens the measured sleeps, so this loop can never look small.
         JobSystem js({4});
         for (int r = 0; r < 3; ++r) {
             const auto before = js.executed_per_slot();
@@ -1018,7 +1030,7 @@ static void test_inline_small_forks() {
     {
         // An inline loop still throws the lowest failing chunk and runs nothing after it (serial semantics). The site is
         // warmed without a throw first (a failed loop does not update the estimate), so the throwing calls run inline.
-        JobSystem js({4});
+        JobSystem js(frozen_estimates(4));
         bool fail = false;
         std::atomic<uint32_t> highest{0};
         const auto body = [&](uint32_t b, uint32_t) {
@@ -1028,7 +1040,7 @@ static void test_inline_small_forks() {
         };
         for (int r = 0; r < 3; ++r) js.parallel_for(16, 1, body);
         const uint64_t warm = js.inline_forks();
-        CHECK(warm >= 1);
+        CHECK(warm == 2);  // the first call measures
         fail = true;
         for (int r = 0; r < 5; ++r) {
             highest = 0;

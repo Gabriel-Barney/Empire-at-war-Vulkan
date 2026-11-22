@@ -40,9 +40,9 @@
 //     thread never runs AI or background jobs, an AI thread runs critical and AI jobs, a background thread any.
 //
 // Small forks run inline (sp1): every parallel_for call site (its RangeRef target, or for make_parallel_for the
-// std::function's target type) keeps an estimate of its work per item, measured on the wall clock (inline: the loop's
-// time; forked: the loop's time x the threads that ran chunks). A loop estimated below kInlineWorkNs runs on the caller
-// alone, and a larger one asks for at most one thread per kMinThreadWorkNs of work. Results never depend on this
+// std::function's target type) keeps an estimate of its work per item, measured on the wall clock or
+// JobSystemConfig::estimate_clock (inline: the loop's time; forked: the loop's time x the threads that ran chunks). A
+// loop estimated below kInlineWorkNs runs on the caller alone, and a larger one asks for at most one thread per kMinThreadWorkNs of work. Results never depend on this
 // (core/parallel.hpp: results must not depend on how ranges were split); only where and when chunks run changes.
 //
 // Waits (sp1, J2): a waiting thread spins with _mm_pause for a few microseconds, then sleeps with std::atomic::wait on
@@ -115,6 +115,9 @@ struct JobSystemConfig {
     bool cpu_sets = true;
     // sp1: run small parallel_for loops inline (see the header comment). Off: every loop forks (tests of the fork path).
     bool inline_small = true;
+    // sp1: the clock the inline-fork work estimates are measured on (ns); null = profile::now_ns. Tests pass a fixed
+    // clock so the inline decision does not depend on machine load (#161).
+    int64_t (*estimate_clock)() noexcept = nullptr;
 };
 
 // sp1 tuning (wall clock only; nothing the sim reads depends on them).
@@ -264,6 +267,7 @@ private:
     uint32_t bg_cap_ = 0;
     bool pinned_ = false;
     bool inline_small_ = true;
+    int64_t (*estimate_clock_)() noexcept = nullptr;  // sp1: never null after construction
     std::atomic<uint32_t> bg_running_{0};       // top-level background jobs running on workers
     std::vector<std::unique_ptr<Slot>> slots_;  // size workers_ + 1
     std::mutex for_pool_mutex_;
