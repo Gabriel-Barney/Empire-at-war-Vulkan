@@ -267,6 +267,7 @@ BEGIN
     RTEXT           "Queue Orders With",IDC_STATIC,16,302,200,18
     COMBOBOX        IDC_PORT_QUEUE_MODIFIER,226,302,150,80,CBS_DROPDOWNLIST | WS_TABSTOP
     CONTROL         "Show Unit Path Lines",IDC_PORT_SHOW_PATH_LINES,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,226,332,310,23
+    CONTROL         "Fleet Groups (new games)",IDC_PORT_FLEET_GROUPS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,226,358,310,23
     PUSHBUTTON     "TEXT_BUTTON_CANCEL",IDC_CANCEL_BUTTON,14,398,160,24
     PUSHBUTTON      "TEXT_BUTTON_DEFAULTS",IDC_DEFAULTS_BUTTON,200,398,160,24
     PUSHBUTTON      "TEXT_BUTTON_ACCEPT",IDC_BUTTON_ACCEPT,386,398,160,24
@@ -438,6 +439,7 @@ void FrontEnd::fill_port_controls(GuiDialog& d, const CameraSettings& s) {
     d.set_items("IDC_PORT_QUEUE_MODIFIER", std::move(mods), sel);
     use_ui_font(d, {"IDC_PORT_QUEUE_MODIFIER"});
     d.set_checked("IDC_PORT_SHOW_PATH_LINES", s.show_path_lines);
+    d.set_checked("IDC_PORT_FLEET_GROUPS", s.fleet_groups);
     fill_keyboard(d);
 }
 
@@ -448,6 +450,7 @@ CameraSettings FrontEnd::read_port_controls(const GuiDialog& d) const {
     if (const GuiControl* c = d.get("IDC_PORT_QUEUE_MODIFIER"); c && c->selected >= 0 && c->selected < 4)
         s.queue_mods = kQueueModChoices[c->selected];
     if (const GuiControl* c = d.get("IDC_PORT_SHOW_PATH_LINES")) s.show_path_lines = c->checked;
+    if (const GuiControl* c = d.get("IDC_PORT_FLEET_GROUPS")) s.fleet_groups = c->checked;
     return s;
 }
 

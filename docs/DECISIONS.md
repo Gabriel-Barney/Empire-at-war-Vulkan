@@ -174,8 +174,11 @@ retail behaviour. Design: the claude.ai doc "Fleet groups design" (2026-11-13). 
 
 - **Off by default** (`[port]` option; `alamo_game --fleet-groups`, `SessionSpec::fleet_groups`,
   `TacticalBattle::enable_fleet_groups`). Off, no group can exist: every tier-1 rule, tier-2 distribution and golden CRC
-  is unchanged. Group state enters the tick CRC and the save (`battle.fleet_groups` chunk) only once a group exists; a
-  save made with it on loads only in a session with it on.
+  is unchanged. With it on, the save carries the `battle.fleet_groups` chunk in every battle, and group state enters
+  the tick CRC only once a group exists; a save made with it on loads only in a session with it on. The player turns it
+  on with "Fleet Groups (new games)" in the port's Camera and Controls dialog (profile key `fleet_groups`, 2026-11-22):
+  it applies to games started afterwards, while a game in progress and a loaded save keep the setting they started
+  with. `--fleet-groups` turns it on whatever the option says. (The retail Gameplay dialog takes no port controls.)
 - Groups are shown inside the retail selected-unit bar (a framed run of portraits per group), not as a separate strip. Layout (2026-11-22):
   groups first in creation order, each a framed run of per-type portraits under a header tab (number, name, a lock
   when locked; a tab click selects the whole group), then the ungrouped units by type; past the last slot one "+N"

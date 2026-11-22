@@ -20,6 +20,12 @@
 
 namespace alamo::game {
 
+// [port: Gabriel, #175] whether a new game has fleet groups: the --fleet-groups switch or the port controls option.
+// A loaded save keeps the setting it was made with (spec.fleet_groups in the save).
+inline bool new_game_fleet_groups(bool command_line, const ui::CameraSettings& camera) {
+    return command_line || camera.fleet_groups;
+}
+
 // The options file's key = value lines: blank lines and '#' comments skipped, key and value trimmed. A key with an empty
 // value counts as missing.
 class OptionsKeys {

@@ -114,6 +114,7 @@ void CameraPage::load(const OptionsKeys& k, Settings& s) {
     if (const auto v = k.flag("tactical_fov_set")) s.tactical_fov_set = *v;
     if (const std::string* v = k.find("queue_mods")) s.camera.queue_mods = static_cast<uint8_t>(std::strtoul(v->c_str(), nullptr, 10) & 0xFFu);
     if (const auto v = k.flag("show_path_lines")) s.camera.show_path_lines = *v;
+    if (const auto v = k.flag("fleet_groups")) s.camera.fleet_groups = *v;
 }
 void CameraPage::save(std::ostream& out, const Settings& s) {
     out << "galactic_fov=" << options_real(s.camera.galactic_fov_deg) << "\n";
@@ -121,6 +122,7 @@ void CameraPage::save(std::ostream& out, const Settings& s) {
     out << "tactical_fov_set=" << (s.tactical_fov_set ? 1 : 0) << "\n";
     out << "queue_mods=" << static_cast<unsigned>(s.camera.queue_mods) << "\n";
     out << "show_path_lines=" << (s.camera.show_path_lines ? 1 : 0) << "\n";
+    out << "fleet_groups=" << (s.camera.fleet_groups ? 1 : 0) << "\n";
 }
 
 // ---- Keyboard ----

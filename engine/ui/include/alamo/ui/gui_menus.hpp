@@ -248,6 +248,9 @@ struct CameraSettings {
     // of every moving unit of the local player, one line per squadron / company, in tactical battles (space and land), as in the "Empire at War Remake" mod. Off by default: the original
     // only draws the line of a queued waypoint path (legacy docs/re/UI.md 1.5).
     bool show_path_lines = false;
+    // [port: Gabriel, 2026-11-22, #175] IDC_PORT_FLEET_GROUPS: fleet groups in the tactical battles of games started
+    // afterwards (docs/DECISIONS.md "Fleet groups: exception to the current focus"). Off by default.
+    bool fleet_groups = false;
     friend bool operator==(const CameraSettings&, const CameraSettings&) = default;
 };
 inline constexpr float kGalacticFovMinDeg = 15.0f, kGalacticFovMaxDeg = 60.0f, kTacticalFovMinDeg = 30.0f,

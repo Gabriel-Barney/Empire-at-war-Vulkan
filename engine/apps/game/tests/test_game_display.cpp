@@ -408,6 +408,7 @@ void options_round_trip() {
     p.camera.tactical_fov_deg = 70.0f;
     p.camera.queue_mods = 2;
     p.camera.show_path_lines = true;
+    p.camera.fleet_groups = true;  // #175
     p.tactical_fov_set = true;
     ui::HotkeyTable t;
     ui::HotkeyBinding b = t.binding(20);
@@ -425,7 +426,13 @@ void options_round_trip() {
     CHECK(q.gameplay.game_speed == 75 && q.gameplay.strategic_speed == 0 && q.gameplay.alternate_mouse &&
           q.gameplay.abilities_autofire && !q.gameplay.ask_autoresolve && q.gameplay.difficulty == 2 && q.gameplay.absolute_scroll);
     CHECK(std::fabs(q.camera.tactical_fov_deg - 70.0f) < 1e-3f && q.camera.queue_mods == 2 && q.tactical_fov_set &&
-          q.camera.show_path_lines);
+          q.camera.show_path_lines && q.camera.fleet_groups);
+    CHECK(!game::OptionsProfile{}.camera.fleet_groups);  // off by default
+    // #175: a new game has fleet groups when the option or --fleet-groups says so.
+    ui::CameraSettings off, on;
+    on.fleet_groups = true;
+    CHECK(!game::new_game_fleet_groups(false, off) && game::new_game_fleet_groups(false, on) &&
+          game::new_game_fleet_groups(true, off) && game::new_game_fleet_groups(true, on));
     CHECK(q.keys == p.keys);
     ui::HotkeyTable u;
     CHECK(u.load(q.keys) && u.binding(20).key == 'Q');

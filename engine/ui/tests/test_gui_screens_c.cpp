@@ -704,6 +704,7 @@ void test_controls() {
         p.bindings = &binds;
         CameraSettings cs;
         cs.tactical_fov_deg = 70.0f;
+        cs.fleet_groups = true;  // #175
         p.camera_settings = [&] { return cs; };
         fe.init(env.gui, {}, p);
         std::vector<MenuAction> acts;
@@ -713,6 +714,9 @@ void test_controls() {
         CHECK(d && d->get("IDC_PORT_TACTICAL_FOV_SLIDER")->value == 70 && d->get("IDC_PORT_GALACTIC_FOV_SLIDER")->value == 27 &&
               d->get("IDC_PORT_TACTICAL_FOV_SLIDER")->range_max == 110 && d->get("IDC_EDIT_PORT_PAUSE")->text == U"Pause" &&
               d->get("IDC_EDIT_PORT_SCROLL_UP")->text == U"W" && d->get("IDC_PORT_QUEUE_MODIFIER")->selected == 0);
+        // #175: the fleet groups checkbox shows the setting; unticked here, so Accept reports it off.
+        CHECK(d && d->get("IDC_PORT_FLEET_GROUPS") && d->get("IDC_PORT_FLEET_GROUPS")->checked);
+        if (d && d->get("IDC_PORT_FLEET_GROUPS")) d->set_checked("IDC_PORT_FLEET_GROUPS", false);
         // Slider moves update the value label; key capture rebinds Pause to F9; the queue modifier becomes Ctrl.
         d->set_value("IDC_PORT_GALACTIC_FOV_SLIDER", 35);
         fe.update(std::vector<GuiEvent>{event(GuiEvent::Kind::ValueChanged, kPortControlsDialog, "IDC_PORT_GALACTIC_FOV_SLIDER", 35)},
@@ -728,7 +732,7 @@ void test_controls() {
         acts.clear();
         fe.update(std::vector<GuiEvent>{event(GuiEvent::Kind::Clicked, kPortControlsDialog, "IDC_BUTTON_ACCEPT")}, InputFrame{}, acts);
         CHECK(acts.size() == 2 && acts[0].kind == MenuAction::Kind::ApplyCamera && acts[0].camera.galactic_fov_deg == 35.0f &&
-              acts[0].camera.tactical_fov_deg == 70.0f && acts[0].camera.queue_mods == kModCtrl &&
+              acts[0].camera.tactical_fov_deg == 70.0f && acts[0].camera.queue_mods == kModCtrl && !acts[0].camera.fleet_groups &&
               acts[1].kind == MenuAction::Kind::KeybindingsChanged);
         CHECK(keys.binding(hk::kPause).key == 0x78 && binds.binding(Action::Pause, 0).key == 0x78 && binds.queue_mods() == kModCtrl);
         CHECK(env.gui.find(kPortControlsDialog) == nullptr);
