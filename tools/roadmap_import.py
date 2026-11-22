@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
-"""Imports the open tier-1 and tier-2 work of the old roadmap store as issues (#32; #27 decision 7).
+"""Imports all open work of the old roadmap store as issues, retiring the store (#32; #27 decision 7, amended
+2026-11-22 from "tier 1 and 2 only" to everything open).
 
 The store (the private repository Gabriel-Barney/Empire-Vulkan-Brenach, checked out locally) holds groups in
 data/items/<id>.json (each with tasks t01..., every task with a status s and often a tier) and findings in
 data/backlog/<id>.json. What is imported:
 
-  group     status "partly" with at least one open (todo) tier-1 or tier-2 task: one issue for the group, listing
-            every open task with its tier. The group's tier is its lowest open task tier.
-  backlog   status "open", tier 1 or 2: one issue each. (A promoted entry became a group's task.)
+  group     any status, with at least one open (todo) task: one issue for the group, listing every open task with
+            its tier. The group's tier is its lowest open task tier; a group that is not "partly" (parked, gab)
+            names its store status.
+  backlog   status "open": one issue each. (A promoted entry became a group's task.)
 
-Everything else open stays in the store, counted with the reason: parked or waiting-for-Gabriel groups, groups whose
-open tasks are all tier 3 or untiered, tier-3 and untiered backlog entries ("Current focus: parity tiers 1 and 2
-only" in docs/DECISIONS.md).
+The title starts with the tier ([T1], [T2], [T3] or [no tier]), so "Current focus: parity tiers 1 and 2 only"
+(docs/DECISIONS.md) still decides what is worked on; importing an item does not put it in focus.
 
 Each issue is labelled `imported` and `needs-triage` and carries a hidden marker with the old id, so running the import
 again creates no duplicates. Its body names the old id, the store commit and the old repository's source commit.
 
-  roadmap_import.py plan  --store DIR    what would be imported and left behind (no network)
+  roadmap_import.py plan  --store DIR    what would be imported (no network)
   roadmap_import.py apply --store DIR    create the missing issues with gh (needs the store at a clean commit)
   roadmap_import.py selftest
 
@@ -45,51 +46,51 @@ def tier_of(x: dict) -> int | None:
     return int(t) if t in ("1", "2", "3") else None
 
 
-def plan(groups: dict[str, dict], backlog: dict[str, dict]) -> tuple[list[dict], list[tuple[str, str]]]:
-    """(imports, left behind as (old id, reason)). Imports are sorted by tier, then group order or backlog id."""
-    imports, left = [], []
+def plan(groups: dict[str, dict], backlog: dict[str, dict]) -> list[dict]:
+    """Every group with an open task and every open backlog entry, sorted by tier (untiered last), groups before
+    backlog, active groups before parked ones, then group order or backlog id."""
+    imports = []
     for gid, g in groups.items():
         open_tasks = {tid: t for tid, t in g.get("tasks", {}).items() if t.get("s") == "todo"}
-        if not open_tasks:
-            continue
-        tiers = {tier_of(t) for t in open_tasks.values()}
-        if g.get("status") != "partly":
-            left.append((gid, f"group {g.get('status')}"))
-        elif not tiers & {1, 2}:
-            left.append((gid, "no open tier-1 or tier-2 task"))
-        else:
-            imports.append({"id": gid, "kind": "group", "tier": min(tiers & {1, 2}), "order": g.get("order", 0),
-                            "data": g, "tasks": open_tasks})
+        if open_tasks:
+            tiers = {tier_of(t) for t in open_tasks.values()} - {None}
+            imports.append({"id": gid, "kind": "group", "tier": min(tiers) if tiers else None,
+                            "order": g.get("order", 0), "data": g, "tasks": open_tasks})
     for bid, b in backlog.items():
-        if b.get("s") != "open":
-            continue
-        tier = tier_of(b)
-        if tier in (1, 2):
-            imports.append({"id": bid, "kind": "backlog", "tier": tier, "order": 0, "data": b})
-        else:
-            left.append((bid, f"backlog tier {tier or 'none'}"))
-    imports.sort(key=lambda i: (i["tier"], i["kind"] != "group", i["order"], i["id"]))
-    left.sort()
-    return imports, left
+        if b.get("s") == "open":
+            imports.append({"id": bid, "kind": "backlog", "tier": tier_of(b), "order": 0, "data": b})
+    imports.sort(key=lambda i: (i["tier"] or 4, i["kind"] != "group", i["data"].get("status", "partly") != "partly",
+                                i["order"], i["id"]))
+    return imports
+
+
+def tier_text(i: dict) -> str:
+    return f"tier {i['tier']}" if i["tier"] else "no tier"
+
+
+def tag(i: dict) -> str:
+    return f"[T{i['tier']}]" if i["tier"] else "[no tier]"
 
 
 def title(i: dict) -> str:
     d = i["data"]
     if i["kind"] == "group":
-        return f"[T{i['tier']}] {d.get('title', i['id'])}"
+        return f"{tag(i)} {d.get('title', i['id'])}"
     text = re.sub(r"\s+", " ", d.get("t", "")).strip()
-    return f"[T{i['tier']}] {i['id']}: " + (text if len(text) <= 90 else text[:87].rstrip() + "...")
+    return f"{tag(i)} {i['id']}: " + (text if len(text) <= 90 else text[:87].rstrip() + "...")
 
 
 def body(i: dict, store_commit: str) -> str:
     d = i["data"]
     path = f"data/{'items' if i['kind'] == 'group' else 'backlog'}/{i['id']}.json"
     lines = [
-        f"Imported from the old roadmap (#32): {i['kind']} `{i['id']}`, tier {i['tier']}.",
+        f"Imported from the old roadmap (#32): {i['kind']} `{i['id']}`, {tier_text(i)}.",
         "",
         f"- Old id: `{i['id']}` ({path} in the private roadmap store, commit `{store_commit[:12]}`)",
         f"- Old repository: [`{OLD_COMMIT[:8]}`](https://github.com/{OLD_REPO}/tree/{OLD_COMMIT})",
     ]
+    if i["kind"] == "group" and d.get("status", "partly") != "partly":
+        lines.append(f"- Store status: {d['status']}")
     for key, label in (("node", "Node"), ("mod", "Modules"), ("cat", "Category"), ("sev", "Severity"),
                        ("kind", "Kind")):
         if d.get(key) and not (i["kind"] == "group" and key == "kind"):
@@ -136,15 +137,12 @@ def gh(args: list[str], stdin: str | None = None) -> str:
     return p.stdout
 
 
-def summary(imports: list[dict], left: list[tuple[str, str]]) -> list[str]:
-    def count(items, key):
-        out = {}
-        for x in items:
-            out[key(x)] = out.get(key(x), 0) + 1
-        return ", ".join(f"{v} {k}" for k, v in sorted(out.items()))
-
-    return [f"import: {len(imports)} ({count(imports, lambda i: 'tier-%d %s' % (i['tier'], i['kind']))})",
-            f"left in the store: {len(left)} ({count(left, lambda x: x[1])})"]
+def summary(imports: list[dict]) -> str:
+    counts = {}
+    for i in imports:
+        k = f"{tier_text(i)} {i['kind']}"
+        counts[k] = counts.get(k, 0) + 1
+    return f"import: {len(imports)} (" + ", ".join(f"{v} {k}" for k, v in sorted(counts.items())) + ")"
 
 
 def main(argv: list[str]) -> int:
@@ -158,13 +156,11 @@ def main(argv: list[str]) -> int:
     commit = subprocess.run(["git", "-C", store, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
     if not commit:
         raise SystemExit(f"roadmap_import.py: {store} is not a git checkout of {STORE_REPO}")
-    imports, left = plan(*load_store(store))
+    imports = plan(*load_store(store))
     if argv[0] == "plan":
         for i in imports:
-            print(f"T{i['tier']} {i['kind']:7} {i['id']:8} {title(i)}")
-        for old, why in left:
-            print(f"left    {old:8} {why}")
-        print("\n".join(summary(imports, left)))
+            print(f"{tag(i):9} {i['kind']:7} {i['id']:8} {title(i)}")
+        print(summary(imports))
         return 0
     if subprocess.run(["git", "-C", store, "status", "--porcelain"], capture_output=True, text=True).stdout.strip():
         raise SystemExit("roadmap_import.py: the store checkout has local changes; import from a clean commit")
@@ -183,7 +179,7 @@ def main(argv: list[str]) -> int:
         print(f"{i['id']}: {url}", flush=True)
         created += 1
     print(f"created {created}, already imported {len(imports) - created}")
-    print("\n".join(summary(imports, left)))
+    print(summary(imports))
     return 0
 
 
@@ -206,18 +202,22 @@ class _Tests(unittest.TestCase):
         "b0005": {"s": "dropped", "tier": "2", "t": "Dropped"},
     }
 
-    def test_open_tier_1_and_2_work_is_imported_in_order(self):
-        imports, _ = plan(self.GROUPS, self.BACKLOG)
-        self.assertEqual([(i["id"], i["tier"]) for i in imports], [("a1", 1), ("b0001", 1), ("b2", 2)])
+    def test_all_open_work_is_imported_in_tier_order(self):
+        imports = plan(self.GROUPS, self.BACKLOG)
+        self.assertEqual([(i["id"], i["tier"]) for i in imports],
+                         [("a1", 1), ("d4", 1), ("b0001", 1), ("b2", 2), ("c3", 3), ("b0003", 3), ("b0004", None)])
         self.assertEqual(sorted(imports[0]["tasks"]), ["t02", "t03"])  # every open task, done ones left out
 
-    def test_the_rest_is_left_behind_with_a_reason(self):
-        _, left = plan(self.GROUPS, self.BACKLOG)
-        self.assertEqual(left, [("b0003", "backlog tier 3"), ("b0004", "backlog tier none"),
-                                ("c3", "no open tier-1 or tier-2 task"), ("d4", "group parked")])
+    def test_a_parked_or_untiered_item_says_so(self):
+        imports = {i["id"]: i for i in plan(self.GROUPS, self.BACKLOG)}
+        self.assertIn("- Store status: parked", body(imports["d4"], "0" * 40))
+        self.assertNotIn("Store status", body(imports["a1"], "0" * 40))
+        self.assertIn("backlog `b0004`, no tier.", body(imports["b0004"], "0" * 40))
+        self.assertEqual(title(imports["b0004"]), "[no tier] b0004: No tier")
+        self.assertEqual(title(imports["c3"]), "[T3] C3")
 
     def test_body_carries_the_old_id_both_commits_and_the_tier(self):
-        imports, _ = plan(self.GROUPS, self.BACKLOG)
+        imports = plan(self.GROUPS, self.BACKLOG)
         b = body(imports[0], "b094710a56f3036007f87a353a77de642d2ff729")
         self.assertIn("group `a1`, tier 1", b)
         self.assertIn("`b094710a56f3`", b)
@@ -225,12 +225,12 @@ class _Tests(unittest.TestCase):
         self.assertIn("- [ ] `a1/t03` (tier 1, S2, Parity): z", b)
         self.assertTrue(b.rstrip().endswith("<!-- imported: a1 -->"))
         self.assertEqual(title(imports[0]), "[T1] A1 Thing")
-        self.assertEqual(title(imports[1]), "[T1] b0001: Open finding")
+        self.assertEqual(title(imports[2]), "[T1] b0001: Open finding")
 
     def test_a_second_run_finds_what_was_imported(self):
-        imports, _ = plan(self.GROUPS, self.BACKLOG)
+        imports = plan(self.GROUPS, self.BACKLOG)
         bodies = [body(i, "0" * 40) for i in imports] + ["unrelated", None]
-        self.assertEqual(imported_ids(bodies), {"a1", "b0001", "b2"})
+        self.assertEqual(imported_ids(bodies), {"a1", "d4", "b0001", "b2", "c3", "b0003", "b0004"})
 
     def test_long_backlog_titles_are_cut(self):
         i = {"id": "b9", "kind": "backlog", "tier": 2, "data": {"t": "word " * 40}}
