@@ -296,7 +296,9 @@ switched in its own commit only after the parity harness shows the new path insi
 Gabriel, 2026-11-13 and 2026-11-19.
 
 The shared PCH (`engine/pch`) holds std headers only and defaults ON only when no compiler cache is active (sccache
-cannot cache `/Fp` compiles). Hosted CI builds through sccache with the PCH off (2026-11-21). Rejected as no gain: lld-link, removing `-U ALAMO_ENGINE_MODULES`. A header diet beyond
+cannot cache `/Fp` compiles). Hosted CI builds through sccache with the PCH off (2026-11-21), except a pull request with no compiler cache to
+restore, which builds with the PCH and without sccache: a cold sccache build took ~37 min, the PCH build ~22 min
+(2026-11-21). Rejected as no gain: lld-link, removing `-U ALAMO_ENGINE_MODULES`. A header diet beyond
 the bo3 split is out of scope: not to be re-added without a new decision here.
 
 ## One development entry point

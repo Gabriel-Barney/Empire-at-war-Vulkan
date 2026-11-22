@@ -2,7 +2,8 @@
 # One aggregate status, "landing", succeeds only when the jobs the change needs report success for this candidate:
 #   docs-only change  -> docs   (doc-reference lint)
 #   anything else     -> engine (pinned MSVC toolchain, dev.cmd doctor, dev.cmd check --preset fast = build with /WX
-#                                through sccache and the synthetic suite)
+#                                through sccache, or with the shared PCH when a pull request has no cache to restore,
+#                                and the synthetic suite)
 # Retail, Vulkan and trace evidence is a recorded local run, never hosted CI (docs/DECISIONS.md "Retail and GPU
 # evidence is a recorded local run").
 name: landing
@@ -80,11 +81,10 @@ jobs:
     timeout-minutes: 180
     # sccache caches compiles across runs; CMake reads the launcher variables from the environment at configure time,
     # and dev.cmd passes the environment through. With a launcher set, the shared PCH defaults OFF (docs/DECISIONS.md
-    # "Build speed").
+    # "Build speed"). The check step sets the launcher only when the "mode" step chooses sccache.
     env:
-      CMAKE_C_COMPILER_LAUNCHER: sccache
-      CMAKE_CXX_COMPILER_LAUNCHER: sccache
       SCCACHE_CACHE_SIZE: 3G
+      ALAMO_SCCACHE_VERSION: v0.19.0
     steps:
       - uses: actions/checkout@v7
       # The runner context is not available in a job's env, so SCCACHE_DIR is set here.
@@ -93,15 +93,30 @@ jobs:
         run: echo "SCCACHE_DIR=$RUNNER_TEMP\\sccache" >> "$GITHUB_ENV"
       - uses: mozilla-actions/sccache-action@v0.0.11
         with:
-          version: v0.19.0
+          version: ${{ env.ALAMO_SCCACHE_VERSION }}
       # One cache entry per commit. A run restores its own ref's newest entry, else main's; caches saved on a pull
       # request are visible only to that pull request, so main's push runs are what seed every new pull request.
+      # The key carries the sccache version and the toolchain setup scripts' hash: after either changes, an old cache
+      # would only miss, so nothing is restored and the "mode" step can see that the build is cold.
       - id: sccache
         uses: actions/cache/restore@v6
         with:
           path: ${{ runner.temp }}\sccache
-          key: sccache-engine-${{ github.sha }}-${{ github.run_attempt }}
-          restore-keys: sccache-engine-
+          key: sccache-engine-${{ env.ALAMO_SCCACHE_VERSION }}-${{ hashFiles('toolchain/*.cmd', 'toolchain/*.sh', 'toolchain/*.py') }}-${{ github.sha }}-${{ github.run_attempt }}
+          restore-keys: sccache-engine-${{ env.ALAMO_SCCACHE_VERSION }}-${{ hashFiles('toolchain/*.cmd', 'toolchain/*.sh', 'toolchain/*.py') }}-
+      # A cold sccache build (every compile a miss, PCH off) took ~37 min on the hosted runner; the PCH build without
+      # sccache takes ~22 min. So a pull request with nothing to restore builds with the PCH and saves no compiler
+      # cache. A push to main always builds through sccache, even cold, because its cache seeds every pull request.
+      - id: mode
+        name: Choose sccache or the shared PCH
+        shell: bash
+        env:
+          MATCHED: ${{ steps.sccache.outputs.cache-matched-key }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ -n "$MATCHED" ] || [ "$EVENT" = push ]; then use=true; else use=false; fi
+          echo "sccache=$use" >> "$GITHUB_OUTPUT"
+          echo "restored: ${MATCHED:-nothing}; event: $EVENT; build through sccache: $use"
       - id: python
         uses: actions/setup-python@v7
         with:
@@ -146,7 +161,14 @@ jobs:
         run: call .\dev.cmd doctor --engine-only
       - name: dev.cmd check --preset fast
         shell: cmd
-        run: call .\dev.cmd check --preset fast
+        env:
+          USE_SCCACHE: ${{ steps.mode.outputs.sccache }}
+        run: |
+          if "%USE_SCCACHE%"=="true" (
+            set "CMAKE_C_COMPILER_LAUNCHER=sccache"
+            set "CMAKE_CXX_COMPILER_LAUNCHER=sccache"
+          )
+          call .\dev.cmd check --preset fast
       - name: Report
         if: always()
         shell: bash
@@ -159,12 +181,14 @@ jobs:
           done
       # Stopping the server flushes the cache directory before it is saved, and prints the hit rate.
       - name: sccache stats
-        if: always()
+        if: ${{ always() && steps.mode.outputs.sccache == 'true' }}
         shell: bash
         run: |
           { echo '### sccache'; echo '```'; sccache --stop-server || true; echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+      # A PCH build leaves the cache directory empty; saving it would hand the pull request's next run an empty cache
+      # that counts as restored, so that run would build cold through sccache.
       - name: Save the compiler cache
-        if: ${{ !cancelled() && steps.sccache.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.sccache.outcome == 'success' && steps.mode.outputs.sccache == 'true' }}
         uses: actions/cache/save@v6
         with:
           path: ${{ runner.temp }}\sccache
