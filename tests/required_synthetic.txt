@@ -70,6 +70,7 @@ alamo_game_skirmish_maps_tests
 alamo_game_story_camera_tests
 alamo_game_story_present_tests
 alamo_game_world_pick_tests
+alamo_gate_selftest
 alamo_goldens_convert_selftest
 alamo_headless_bench_synthetic
 alamo_headless_crc_checkpoint
