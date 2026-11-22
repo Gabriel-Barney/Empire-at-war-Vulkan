@@ -58,7 +58,7 @@ The roadmap page is https://gabriel-barney.github.io/Empire-at-war-Vulkan/docs/r
 
 - **The work** is the GitHub issues. An issue belongs to a box through its `roadmap:<box id>` label (`docs\agents\triage-labels.md`). A box's progress counts its closed issues and the `- [ ]` / `- [x]` checklist items in their bodies. The tier comes from the title's `[T1]`, `[T2]`, `[T3]` or `[no tier]`.
 - **The chart** is `docs\roadmap\flow.json`, which lists the stages, the boxes in each stage and the arrows between boxes. A solid arrow means the earlier box is needed first, and a dashed one means it feeds into the later box. Edit the file by hand, then run `python -I tools\roadmap_flow.py check` (CTest runs it too). After adding a box, run `python -I tools\roadmap_flow.py labels` to create its label.
-- **Publishing:** GitHub Pages publishes `main` as it is, so a merge that changes `docsoadmap\` is live a minute or two later.
+- **Publishing:** GitHub Pages publishes `main` as it is, so a merge that changes `docs\roadmap\` is live a minute or two later.
 - **Without network:** to view the page locally, serve the folder with `python -m http.server` and add `?issues=<file>` to read a saved copy of the issue list (the page source says how to make one). Unsigned GitHub reads are limited to 60 an hour per address, so the page keeps the last read for five minutes and falls back to it.
 
 The old roadmap store (`Empire-Vulkan-Brenach`) is no longer updated. Its open items became issues #44–#163 (`tools\roadmap_import.py`).
