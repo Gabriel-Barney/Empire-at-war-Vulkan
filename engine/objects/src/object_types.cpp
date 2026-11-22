@@ -223,7 +223,7 @@ bool ObjectTypeDatabase::load(const FileProvider& provider, std::vector<std::str
             types_.first_definition.push_back(first);
             types_.field_begin.push_back(static_cast<FieldIndex>(fields_.size()));
             if (const uint32_t deep = walk(t, e, kNone, 1, e.name()); deep != 0)
-                warn(where(sf, e.line()) + ": <" + std::string(e.name()) + "> has elements nested deeper than " +
+                warn("limit_hit: " + where(sf, e.line()) + ": <" + std::string(e.name()) + "> has elements nested deeper than " +
                      std::to_string(kMaxFieldDepth) + " levels (first at line " + std::to_string(deep) + "); they are skipped");
             types_.field_end.push_back(static_cast<FieldIndex>(fields_.size()));
             const FieldIndex v = last_field(t, kVariantTag);

@@ -40,8 +40,9 @@ using FieldIndex = uint32_t;
 using TagId = uint32_t;
 inline constexpr uint32_t kNone = 0xFFFFFFFFu;
 // Deepest field kept below a type element (1 = a direct child). Real files nest a handful of levels; a deeper element is
-// skipped with a warning, so a malformed mod file cannot exhaust the loader's stack (#99).
-inline constexpr uint16_t kMaxFieldDepth = 64;
+// skipped with a limit_hit warning, so a malformed mod file cannot exhaust the loader's stack (#99).
+// limit: guard [port] XML nesting below a type element (stack bound; far above any real file)
+inline constexpr uint16_t kMaxFieldDepth = 256;
 
 enum class ParseStatus : uint8_t {
     Untyped,  // no schema row, or a Raw-kind row: text kept as is
