@@ -990,7 +990,7 @@ static void test_critical_between_ai_chunks() {
 // machine load (#161: on the wall clock a preempted or late-joining thread could keep a tiny loop forking).
 static int64_t frozen_clock() noexcept { return 0; }
 
-static JobSystemConfig frozen_estimates(int32_t workers) {
+static JobSystemConfig frozen_clock_config(int32_t workers) {
     JobSystemConfig cfg;
     cfg.workers = workers;
     cfg.estimate_clock = &frozen_clock;
@@ -1000,7 +1000,7 @@ static JobSystemConfig frozen_estimates(int32_t workers) {
 static void test_inline_small_forks() {
     section("sp1: small loops run inline, large ones fork");
     {
-        JobSystem js(frozen_estimates(4));
+        JobSystem js(frozen_clock_config(4));
         std::atomic<uint32_t> sum{0};
         for (int r = 0; r < 20; ++r) js.parallel_for(64, 1, [&](uint32_t b, uint32_t e) { sum.fetch_add(e - b); });
         CHECK(sum.load() == 20u * 64u);
@@ -1017,20 +1017,30 @@ static void test_inline_small_forks() {
     {
         // The real clock: load only lengthens the measured sleeps, so this loop can never look small.
         JobSystem js({4});
+        const auto caller = std::this_thread::get_id();
         for (int r = 0; r < 3; ++r) {
-            const auto before = js.executed_per_slot();
-            js.parallel_for(32, 1, [](uint32_t, uint32_t) { std::this_thread::sleep_for(std::chrono::milliseconds(1)); });
-            const auto after = js.executed_per_slot();
-            uint64_t helped = 0;
-            for (size_t s = 1; s < after.size(); ++s) helped += after[s] - before[s];
-            CHECK(helped > 0);  // ~32 ms of work: never inline
+            std::atomic<bool> helped{false};
+            bool waited = false;  // only the caller's own chunks touch it
+            js.parallel_for(32, 1, [&](uint32_t, uint32_t) {
+                if (std::this_thread::get_id() != caller) {
+                    helped = true;
+                } else if (!waited) {
+                    // The caller's first chunk waits (5 s at most) for a helper to run one, so workers the OS starves
+                    // cannot leave every chunk to the caller. Load-proof (no timing bound).
+                    waited = true;
+                    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+                    while (!helped.load() && std::chrono::steady_clock::now() < until) std::this_thread::yield();
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            });
+            CHECK(helped.load());  // ~32 ms of work: never inline
         }
         CHECK(js.inline_forks() == 0);
     }
     {
         // An inline loop still throws the lowest failing chunk and runs nothing after it (serial semantics). The site is
         // warmed without a throw first (a failed loop does not update the estimate), so the throwing calls run inline.
-        JobSystem js(frozen_estimates(4));
+        JobSystem js(frozen_clock_config(4));
         bool fail = false;
         std::atomic<uint32_t> highest{0};
         const auto body = [&](uint32_t b, uint32_t) {
