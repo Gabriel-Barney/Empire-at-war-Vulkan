@@ -1,0 +1,47 @@
+name: Change
+description: A feature, improvement or port task. One issue owns one outcome.
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: What is true when this is done, in the project's terms (GLOSSARY.md, docs/DECISIONS.md).
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance examples
+      description: One or two observable examples that show it works.
+      placeholder: "- In a land skirmish on _MP_LAND_UTAPAU, ... (alamo_headless --skirmish-ai ...)"
+    validations:
+      required: true
+  - type: textarea
+    id: seam
+    attributes:
+      label: Test seam or manual evidence
+      description: The public interface, headless scenario or fixture that checks it, or the manual evidence if none fits.
+    validations:
+      required: true
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Risk
+      description: Does the change touch any of these? (docs/GROUND_UP_WORKFLOW_DESIGN.md "Evidence and integration")
+      multiple: true
+      options:
+        - None of these
+        - Simulation or determinism contract
+        - Save format
+        - Shared interface between modules
+        - Build, CI or dependency configuration
+        - Game data, GPU or mod compatibility
+        - Release or packaging
+    validations:
+      required: true
+  - type: textarea
+    id: blockers
+    attributes:
+      label: Blockers and open decisions
+      description: Issues this waits on, and anything that needs the maintainer's decision first.

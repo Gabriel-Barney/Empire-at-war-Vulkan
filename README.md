@@ -6,7 +6,7 @@ A Windows x64 port of the Empire at War engine. The C++20 engine uses MSVC and V
 
 Open PowerShell in the project root. This checkout has a local toolchain. On a fresh checkout, install 64-bit Python 3.10 or newer and run `.\toolchain\2_setup.cmd`. Initial setup downloads the compiler, Windows SDK, CMake, Ninja, Rust and engine dependencies. The installer prompts for the Microsoft license when installing MSVC.
 
-`dev.cmd` is the one development command; `.\dev.cmd help` lists everything. It is a thin shim over `tools\dev.py`, which passes your arguments to CMake, CTest and the suite runner unchanged. Quote `|`, `&`, `<` and `>` for the shell you type in. Build trees come from `CMakePresets.json`: `fast` is `build\` (the default) and `full` is `build-full\`.
+`dev.cmd` is the one development command; `.\dev.cmd help` lists everything. It is a thin shim over `tools\dev.py`, which passes your arguments to CMake, CTest and the suite runner unchanged. `cmd` reads `|`, `&`, `<` and `>` in an argument before `dev.py` sees it, so keep double quotes around such an argument all the way to `cmd`. In PowerShell, wrap the double-quoted argument in single quotes: `.\dev.cmd test -R '"alamo_skills|alamo_dev_selftest"'`. In `cmd`, plain double quotes are enough. Build trees come from `CMakePresets.json`: `fast` is `build\` (the default) and `full` is `build-full\`.
 
 | Command | Result |
 | --- | --- |

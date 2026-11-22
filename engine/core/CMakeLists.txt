@@ -102,7 +102,11 @@ if(ALAMO_LINT_PYTHON)
            COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/lint/check_doc_refs.py --selftest)
   # The dev.cmd implementation's own unit tests (diagnostic extraction, presets, argument handling).
   add_test(NAME alamo_dev_selftest COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/dev.py selftest)
-  set_tests_properties(alamo_dev_selftest PROPERTIES TIMEOUT 120)
+  # Project skills: .claude/skills and .agents/skills match workflow/skills, their metadata parses, every skill
+  # reference resolves and no name is taken twice (tools/skills.py; docs/GROUND_UP_WORKFLOW_DESIGN.md).
+  add_test(NAME alamo_skills_check COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/skills.py check)
+  add_test(NAME alamo_skills_selftest COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/skills.py selftest)
+  set_tests_properties(alamo_dev_selftest alamo_skills_check alamo_skills_selftest PROPERTIES TIMEOUT 120)
   set_tests_properties(alamo_core_doc_refs_lint alamo_core_doc_refs_lint_selftest PROPERTIES TIMEOUT 120)
   # sim code turns data-driven seconds into frame counts only through alamo/core/frames.hpp (no plain
   # static_cast of seconds x FPS to an integer outside engine/core; tools/lint/check_frame_casts.py).

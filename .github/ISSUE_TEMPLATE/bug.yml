@@ -1,0 +1,55 @@
+name: Bug
+description: Something the engine, tools or launcher does wrong. One issue owns one outcome.
+labels: ["bug", "needs-triage"]
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: What goes wrong, and what should happen instead
+      description: The observable behaviour now and the behaviour that would fix it.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: >-
+        The smallest reproduction you have: a dev.cmd command, a CTest entry, an alamo_headless run or replay, or steps in
+        the game. Name the commit, the game data it needs (FoC, EaW, a mod) and any seed or worker count.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance examples
+      description: One or two observable checks that pass once it is fixed.
+      placeholder: "- dev.cmd test -R alamo_galactic_tests passes with the new case for ..."
+    validations:
+      required: true
+  - type: textarea
+    id: seam
+    attributes:
+      label: Test seam or manual evidence
+      description: Where the regression test belongs (a module's tests, a headless scenario, a fixture), or the manual check if none fits.
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Risk
+      description: Does the fix touch any of these? (docs/GROUND_UP_WORKFLOW_DESIGN.md "Evidence and integration")
+      multiple: true
+      options:
+        - None of these
+        - Simulation or determinism contract
+        - Save format
+        - Shared interface between modules
+        - Build, CI or dependency configuration
+        - Game data, GPU or mod compatibility
+        - Release or packaging
+    validations:
+      required: true
+  - type: textarea
+    id: blockers
+    attributes:
+      label: Blockers
+      description: Issues this waits on, or decisions that are still open.
