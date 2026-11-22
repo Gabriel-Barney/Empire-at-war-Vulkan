@@ -15,6 +15,7 @@
 /tools/probe_mod/q2_traces/out/
 __pycache__/
 *.pyc
-/.claude/
+/.claude/*
+!/.claude/skills/
 /.codex/
 *.actual

@@ -1,0 +1,113 @@
+{
+  "upstream": {
+    "repo": "mattpocock/skills",
+    "revision": "abeeaf95660ba9e8b7c753eb38f441ca707a8823",
+    "license": "MIT (workflow/skills/upstream/LICENSE)"
+  },
+  "prefix": "eaw-",
+  "skills": {
+    "setup-matt-pocock-skills": {
+      "path": "skills/engineering/setup-matt-pocock-skills",
+      "invocation": "user",
+      "adaptations": [
+        {"file": "SKILL.md", "append": "## In this repository\n\nThis repository is already set up: `docs/agents/issue-tracker.md` (GitHub Issues), `docs/agents/triage-labels.md` (the five default labels) and `docs/agents/domain.md` exist, and `AGENTS.md` has the `## Agent skills` block. Decisions are sections of `docs/DECISIONS.md`, not files under `docs/adr/` (`docs/DECISIONS.md` \"Decisions live in DECISIONS.md\"), so never create `docs/adr/`. Re-run this skill only to change the tracker or the label names, and edit the existing files in place."}
+      ]
+    },
+    "triage": {"path": "skills/engineering/triage", "invocation": "user"},
+    "grill-with-docs": {"path": "skills/engineering/grill-with-docs", "invocation": "user"},
+    "grilling": {"path": "skills/productivity/grilling", "invocation": "model"},
+    "domain-modeling": {
+      "path": "skills/engineering/domain-modeling",
+      "invocation": "model",
+      "adaptations": [
+        {"file": "ADR-FORMAT.md",
+         "find": "ADRs live in `docs/adr/` and use sequential numbering: `0001-slug.md`, `0002-slug.md`, etc.\n\nCreate the `docs/adr/` directory lazily: only when the first ADR is needed.",
+         "replace": "In this repository an ADR is a `## Title` section of `docs/DECISIONS.md` (`docs/DECISIONS.md` \"Decisions live in DECISIONS.md\"), in the format its introduction gives: who decided and when, the rule, then why. There is no `docs/adr/` directory. Only Gabriel adds or changes a decision, so offer the section and write it once they agree."},
+        {"file": "ADR-FORMAT.md",
+         "find": "Scan `docs/adr/` for the highest existing number and increment by one.",
+         "replace": "Sections are not numbered. Give each a unique heading, and never rename a heading that code cites."},
+        {"file": "SKILL.md", "append": "## In this repository\n\nRead `docs/agents/domain.md` first. Decisions are sections of `docs/DECISIONS.md`, not files under `docs/adr/`; simulation and determinism rules are in `docs/SIMULATION.md`, mod rules in `docs/MODS.md`. Wherever this skill says to create or update an ADR, offer a `docs/DECISIONS.md` section instead (see ADR-FORMAT.md)."}
+      ]
+    },
+    "research": {"path": "skills/engineering/research", "invocation": "model"},
+    "prototype": {"path": "skills/engineering/prototype", "invocation": "model"},
+    "wayfinder": {"path": "skills/engineering/wayfinder", "invocation": "user"},
+    "to-spec": {
+      "path": "skills/engineering/to-spec",
+      "invocation": "user",
+      "adaptations": [
+        {"file": "SKILL.md",
+         "find": "1. Explore the repo to understand the current state of the codebase, if you haven't already. Use the project's domain glossary vocabulary throughout the spec, and respect any ADRs in the area you're touching.",
+         "replace": "1. Do the preplanning in `docs/agents/preplanning.md` first, unless the issue already has a current `## Preplanning` record. If the record leaves open decisions, stop and bring them to the user instead of writing the spec. Use the project's domain glossary vocabulary throughout the spec, and respect the decisions in `docs/DECISIONS.md` (this repository's ADRs) in the area you're touching."}
+      ]
+    },
+    "codebase-design": {"path": "skills/engineering/codebase-design", "invocation": "model"},
+    "to-tickets": {
+      "path": "skills/engineering/to-tickets",
+      "invocation": "user",
+      "adaptations": [
+        {"file": "SKILL.md",
+         "find": "### 2. Explore the codebase (optional)\n\nIf you have not already explored the codebase, do so to understand the current state of the code. Ticket titles and descriptions should use the project's domain glossary vocabulary, and respect ADRs in the area you're touching.",
+         "replace": "### 2. Preplanning\n\nDo the preplanning in `docs/agents/preplanning.md` first, unless the spec or issue already has a current `## Preplanning` record. If the record leaves open decisions, stop and bring them to the user instead of drafting tickets. Ticket titles and descriptions should use the project's domain glossary vocabulary, and respect the decisions in `docs/DECISIONS.md` (this repository's ADRs) in the area you're touching."}
+      ]
+    },
+    "implement": {
+      "path": "skills/engineering/implement",
+      "invocation": "user",
+      "adaptations": [
+        {"file": "SKILL.md",
+         "find": "Run typechecking regularly, single test files regularly, and the full test suite once at the end.",
+         "replace": "Build and test as you go with `dev.cmd check --target <target> --quick` (MSVC builds with `/WX`, so the compiler is the typechecker), and run `dev.cmd check` once at the end: it is the check every change needs (`AGENTS.md`). When the change has a game-data or GPU part, also run `dev.cmd suite retail` or `dev.cmd suite vulkan` and record the result on the pull request (`docs/DECISIONS.md` \"Retail and GPU evidence is a recorded local run\")."}
+      ]
+    },
+    "tdd": {
+      "path": "skills/engineering/tdd",
+      "invocation": "model",
+      "adaptations": [
+        {"file": "SKILL.md",
+         "find": "and respect ADRs in the area you're touching.",
+         "replace": "and respect the decisions in `docs/DECISIONS.md` (this repository's ADRs) in the area you're touching."},
+        {"file": "SKILL.md", "append": "## In this repository\n\n- Seams are CTest entries: a module's test executable (`engine/<module>/tests/`, registered in that module's `CMakeLists.txt`), a headless scenario (`alamo_headless`), or a fixture.\n- Red: `dev.cmd check --target <test target> --quick`, and confirm the test fails for the intended reason. Green: the same command passes. Finish with `dev.cmd check`.\n- A test with a game-data or GPU part gets a line in `tests/test_suites.txt` (README.md \"Test suites\"). Simulation results must be identical for every worker count; a long scenario uses `alamo_add_worker_count_check` (`docs/SIMULATION.md` \"Worker-count check\").\n- Expected values come from an independent source: the retail specification, a worked example, or a golden written by MSVC, never recomputed the way the code computes them."}
+      ]
+    },
+    "diagnosing-bugs": {
+      "path": "skills/engineering/diagnosing-bugs",
+      "invocation": "model",
+      "adaptations": [
+        {"file": "SKILL.md", "append": "## In this repository\n\n- Feedback loops, roughly in this order: one CTest entry (`dev.cmd test -R <name>`), a headless run or replay (`alamo_headless`, for example `--replay <stream.acmd>`), a worker-count check, then the game itself.\n- A build or test failure: start from the first diagnostic `dev.cmd` prints and the log it names; `build\\logs\\dev-last.json` holds the last result.\n- A simulation divergence: compare per-tick CRC logs; `first_divergence` names the first diverging tick and system (`docs/SIMULATION.md` \"Checksums\").\n- The regression test goes through the same seam as the loop, and the fix lands with `dev.cmd check` passing."}
+      ]
+    },
+    "code-review": {
+      "path": "skills/engineering/code-review",
+      "invocation": "model",
+      "adaptations": [
+        {"file": "SKILL.md", "append": "## In this repository\n\n- Standards sources: `AGENTS.md`, `docs/DECISIONS.md`, `docs/SIMULATION.md` (determinism rules) and `docs/MODS.md`. A breach of one of them is a hard violation; cite the heading.\n- `/WX`, the lints in `tools/lint/` and `dev.cmd check` already enforce what they cover; skip those findings.\n- The spec is the GitHub issue the branch or pull request names (`docs/agents/issue-tracker.md`)."}
+      ]
+    },
+    "pr": {
+      "path": "skills/engineering/pr",
+      "invocation": "model",
+      "adaptations": [
+        {"file": "SKILL.md", "append": "## In this repository\n\nLink the issue the pull request closes. Evidence names the commit and where each check ran: `landing` on the pull request, and for a change with a game-data or GPU part, the counts and skip reasons of the local `dev.cmd suite retail` or `vulkan` run (`docs/DECISIONS.md` \"Retail and GPU evidence is a recorded local run\"). For a simulation change, say which scenarios and systems change behaviour, or that none do."}
+      ]
+    },
+    "handoff": {
+      "path": "skills/productivity/handoff",
+      "invocation": "user",
+      "adaptations": [
+        {"file": "SKILL.md", "append": "## In this repository\n\nThe temporary file holds private session notes. When the work has an issue or a draft pull request, also put the durable, sanitized facts there as a comment, with the user's go-ahead: the last command run and its result, the next step, and the branch and last checked commit (`docs/agents/issue-tracker.md`)."}
+      ]
+    },
+    "retro": {"path": "skills/engineering/retro", "invocation": "user"},
+    "improve-codebase-architecture": {
+      "path": "skills/engineering/improve-codebase-architecture",
+      "invocation": "user",
+      "adaptations": [
+        {"file": "SKILL.md",
+         "find": "ADRs in `docs/adr/` record decisions this command should not re-litigate.",
+         "replace": "the sections of `docs/DECISIONS.md` (this repository's ADRs) record decisions this command should not re-litigate."}
+      ]
+    },
+    "writing-for-agents": {"path": "skills/productivity/writing-for-agents", "invocation": "model"}
+  }
+}
