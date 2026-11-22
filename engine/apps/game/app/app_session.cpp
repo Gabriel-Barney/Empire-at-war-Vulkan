@@ -604,8 +604,7 @@ bool App::start_session(const SessionSpec& spec) {
         return false;
     }
     loaded_save_.clear();
-    if (!spec.attract) std::printf("session: seed %u (replay with --seed %u)
-", spec.seed, spec.seed);  // gal1 t05
+    if (!spec.attract) std::printf("session: seed %u (replay with --seed %u)\n", spec.seed, spec.seed);  // gal1 t05
     session_started(diag);
     prev_pop_used_ = 0;
     countdown_speech_seen_.clear();  // mcx4 t13
