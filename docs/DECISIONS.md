@@ -340,6 +340,19 @@ its introduction says; there is no `docs/adr/` folder. Simulation and mod rules 
 Why: code already cites these headings and `tools/lint/check_doc_refs.py` checks them, so one file keeps every
 decision findable by its heading.
 
+## Pull requests land squashed without an up-to-date rule
+
+Gabriel, 2026-11-21.
+
+The `main` ruleset requires `landing` to pass but not that the branch be up to date with `main`. Pull requests land
+by squash only, with linear history, and the branch is deleted after the merge. A break between two changes that
+landed close together shows up in the `landing` run on the push to `main` and is fixed by a follow-up pull request.
+
+Why: with the up-to-date rule, every landing forced a merge of `main` into each other open pull request and another
+full `landing` run. The pull request run already tests the merge with `main` as it was then, so for one maintainer
+the extra merges cost more than the rare break they catch. A merge queue would cover both, but GitHub offers it only
+to repositories owned by an organization.
+
 ## Big-file splits are by position, with named-namespace helpers
 
 Gabriel, 2026-11-13 (roadmap bo3).
