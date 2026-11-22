@@ -1,0 +1,44 @@
+# Publishes the roadmap page (docs/roadmap/, README.md "Roadmap") to GitHub Pages. The page reads the issues live, so
+# it only needs publishing again when the page or its flowchart file changes.
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths: [docs/roadmap/**, .github/workflows/pages.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}roadmap/
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.15"
+      - name: Check the flowchart file
+        run: python -I tools/roadmap_flow.py check
+      - name: Stage the site
+        run: |
+          mkdir -p site/roadmap
+          cp docs/roadmap/index.html docs/roadmap/flow.json site/roadmap/
+          printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=roadmap/"><title>Roadmap</title><a href="roadmap/">Roadmap</a>\n' > site/index.html
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4

@@ -13,3 +13,6 @@ repo's GitHub issues. Adapted from the `setup-matt-pocock-skills` seed (`mattpoc
 
 Category roles use GitHub's `bug` and `enhancement` labels. Every triaged issue carries exactly one category and one
 state label.
+
+Each issue also gets one `roadmap:<box>` label, the box of the roadmap flowchart it belongs to (README.md "Roadmap"). An
+issue with no box shows under "Not on the chart" on the roadmap page. Imported issues also carry `imported`.
