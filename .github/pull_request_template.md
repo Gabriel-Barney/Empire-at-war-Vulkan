@@ -13,7 +13,9 @@ Closes #<issue>. <!-- What is now true, in one or two sentences. -->
 
 ## Behaviour
 
-<!-- Simulation changes: the scenarios and systems whose behaviour changes and the test that shows it, or "none". -->
+<!-- Required when the change touches a path in tests/simulation_paths.txt (landing fails without it): one line,
+     "Behaviour: none", or "Behaviour: " and the scenarios and systems whose behaviour changes, with the test that
+     shows it (docs/SIMULATION.md "Declared behaviour changes"). Write the line outside this comment. -->
 
 ## Merge danger
 

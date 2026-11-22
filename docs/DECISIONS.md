@@ -352,6 +352,20 @@ its introduction says; there is no `docs/adr/` folder. Simulation and mod rules 
 Why: code already cites these headings and `tools/lint/check_doc_refs.py` checks them, so one file keeps every
 decision findable by its heading.
 
+## Simulation changes are declared
+
+Gabriel, 2026-11-21 (#10).
+
+A pull request that changes a path listed in `tests/simulation_paths.txt` has a `Behaviour:` line in its description,
+`none` or the scenarios and systems whose behaviour changes, and `landing` fails one without it
+(`docs/SIMULATION.md` "Declared behaviour changes"). This replaces the `Behaviour:` trailers on the head commit that
+`docs/GROUND_UP_WORKFLOW_DESIGN.md` first proposed. The list is the definition of simulation code; a pull request that
+moves code into or out of the simulation updates it.
+
+Why: pull requests land squashed, and the squashed commit takes the pull request's title and description, not the head
+commit's trailers. The description is where the declaration survives and where a reviewer reads it. A checked-in path
+list can be checked against the diff; the issue's Risk field cannot.
+
 ## Pull requests land squashed without an up-to-date rule
 
 Gabriel, 2026-11-21.

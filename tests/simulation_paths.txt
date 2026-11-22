@@ -1,0 +1,43 @@
+# Simulation code: a pull request that changes one of these paths declares its behaviour change with a 'Behaviour:'
+# line in its description, and landing fails without one (tools/landing_gate.py; docs/SIMULATION.md "Declared
+# behaviour changes"; docs/DECISIONS.md "Simulation changes are declared").
+#
+# One pattern per line, repository-relative with forward slashes. A pattern ending in / is a folder; otherwise it is
+# an fnmatch pattern in which * also matches /. A line starting with ! removes the paths it matches. When code moves
+# into or out of the simulation, update this list in the same pull request.
+
+# Game logic: tick, jobs, commands, objects, tactical and galactic play, AI, Lua bindings and scripts, game data.
+engine/ai/
+engine/commands/
+engine/data/
+engine/galactic/
+engine/jobs/
+engine/lua/
+engine/objects/
+engine/tactical/
+engine/terrain/
+engine/apps/sim/
+engine/apps/game/rules/
+
+# Deterministic math, random streams and the per-tick CRC.
+engine/core/include/alamo/core/dmath.hpp
+engine/core/include/alamo/core/frames.hpp
+engine/core/include/alamo/core/sim_*.hpp
+engine/core/src/dmath.cpp
+engine/core/src/sim_*.cpp
+engine/core/include/alamo/core/parallel.hpp
+engine/core/include/alamo/core/x86_int.hpp
+
+# The galaxy model and the save file: state the simulation reads and writes.
+engine/core/include/alamo/core/galaxy.hpp
+engine/core/src/galaxy.cpp
+engine/core/include/alamo/core/save_file.hpp
+engine/core/src/save_file.cpp
+
+# Stored goldens: changing one is a declared behaviour change.
+tests/goldens/
+
+# Tests check behaviour and benchmarks measure it; build tooling generates code but is not run by the game.
+!*/tests/*
+!*/bench/*
+!*/tools/*
