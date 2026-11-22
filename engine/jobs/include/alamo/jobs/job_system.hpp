@@ -40,10 +40,11 @@
 //     thread never runs AI or background jobs, an AI thread runs critical and AI jobs, a background thread any.
 //
 // Small forks run inline (sp1): every parallel_for call site (its RangeRef target, or for make_parallel_for the
-// std::function's target type) keeps an estimate of its work per item, measured on the wall clock (inline: the loop's
-// time; forked: the loop's time x the threads that ran chunks). A loop estimated below kInlineWorkNs runs on the caller
-// alone, and a larger one asks for at most one thread per kMinThreadWorkNs of work. Results never depend on this
-// (core/parallel.hpp: results must not depend on how ranges were split); only where and when chunks run changes.
+// std::function's target type) keeps an estimate of its work per item, measured on the wall clock or
+// JobSystemConfig::estimate_clock (inline: the loop's time; forked: the loop's time x the threads that ran chunks). A
+// loop estimated below kInlineWorkNs runs on the caller alone, and a larger one asks for at most one thread per
+// kMinThreadWorkNs of work. Results never depend on this (core/parallel.hpp: results must not depend on how ranges were
+// split); only where and when chunks run changes.
 //
 // Waits (sp1, J2): a waiting thread spins with _mm_pause for a few microseconds, then sleeps with std::atomic::wait on
 // an epoch that pushes and completions bump (no std::this_thread::yield, no mutex / condition variable). Idle workers
@@ -105,6 +106,9 @@ namespace alamo::jobs {
 using JobFn = void (*)(void* ctx, uint32_t a, uint32_t b);
 using RangeRef = FunctionRef<void(uint32_t, uint32_t)>;
 
+// sp1: the clock inline-fork work estimates are measured on (ns).
+using EstimateClock = int64_t (*)() noexcept;
+
 // Strict order: Critical (Normal) > Ai > Background. Normal is the old name of Critical.
 enum class Priority : uint8_t { Critical = 0, Normal = 0, Ai = 1, Background = 2 };
 
@@ -115,6 +119,9 @@ struct JobSystemConfig {
     bool cpu_sets = true;
     // sp1: run small parallel_for loops inline (see the header comment). Off: every loop forks (tests of the fork path).
     bool inline_small = true;
+    // sp1: null = profile::now_ns. Tests pass a fixed clock so the inline decision does not depend on machine load
+    // (#161).
+    EstimateClock estimate_clock = nullptr;
 };
 
 // sp1 tuning (wall clock only; nothing the sim reads depends on them).
@@ -264,6 +271,7 @@ private:
     uint32_t bg_cap_ = 0;
     bool pinned_ = false;
     bool inline_small_ = true;
+    EstimateClock estimate_clock_ = nullptr;    // sp1: never null after construction
     std::atomic<uint32_t> bg_running_{0};       // top-level background jobs running on workers
     std::vector<std::unique_ptr<Slot>> slots_;  // size workers_ + 1
     std::mutex for_pool_mutex_;

@@ -151,6 +151,7 @@ JobSystem::JobSystem(JobSystemConfig config) {
                                   : std::min(static_cast<uint32_t>(config.workers), kMaxWorkers);
     bg_cap_ = workers_ == 0 ? 0u : std::max(1u, workers_ / 2u);
     inline_small_ = config.inline_small;
+    estimate_clock_ = config.estimate_clock ? config.estimate_clock : &profile::now_ns;
     sites_ = std::make_unique<SiteCost[]>(kSites);
     const PoolPlan& plan = machine_pool();
     pinned_ = workers_ > 0 && config.cpu_sets && cpu_sets_allowed() && plan.cores > 0 &&
@@ -636,16 +637,16 @@ void JobSystem::parallel_for_ref(uint32_t count, uint32_t grain, RangeRef fn, ui
             const double est = static_cast<double>(per_item) * static_cast<double>(count);
             if (est < static_cast<double>(kInlineWorkNs)) {
                 inline_forks_.fetch_add(1, std::memory_order_relaxed);
-                const int64_t t0 = profile::now_ns();
+                const int64_t t0 = estimate_clock_();
                 run_inline();  // throws like the serial loop: the lowest failing chunk, nothing after it
-                update_estimate(cost->ns_per_item, static_cast<double>(profile::now_ns() - t0), count);
+                update_estimate(cost->ns_per_item, static_cast<double>(estimate_clock_() - t0), count);
                 return;
             }
             const auto threads = static_cast<uint64_t>(est / static_cast<double>(kMinThreadWorkNs));
             helpers = static_cast<uint32_t>(std::min<uint64_t>(helpers, std::max<uint64_t>(threads, 2) - 1));
         }
     }
-    const int64_t t0 = cost ? profile::now_ns() : 0;
+    const int64_t t0 = cost ? estimate_clock_() : 0;
 
     // Helpers claim chunks dynamically; one per worker at most. Helpers inherit the caller's priority (AI /
     // background). The state is shared with the helper jobs (refs), so a helper that starts after the caller
@@ -675,7 +676,7 @@ void JobSystem::parallel_for_ref(uint32_t count, uint32_t grain, RangeRef fn, ui
     if (cost && !error) {
         // Work = wall time x the threads that ran chunks (an over-estimate when a helper joined late: errs on forking).
         const uint32_t threads = std::max(1u, st->participants.load(std::memory_order_relaxed));
-        update_estimate(cost->ns_per_item, static_cast<double>(profile::now_ns() - t0) * threads, count);
+        update_estimate(cost->ns_per_item, static_cast<double>(estimate_clock_() - t0) * threads, count);
     }
     release_for_ref(st);
     if (error) std::rethrow_exception(error);
