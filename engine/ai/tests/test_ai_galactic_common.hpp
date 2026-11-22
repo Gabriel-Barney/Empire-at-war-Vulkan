@@ -634,6 +634,31 @@ function MainForce_Thread()
   ScriptExit()
 end
 )";
+// #122: the task force holds the hero and the starting frigate and builds a second frigate; the test then destroys the
+// hero and takes the build planet, so the sim step fails the build (planet lost) and the handler's Get_Force_Count
+// finds the hero gone (queued for Unit_Destroyed at the next drain).
+inline const char* kPlanLossSave = R"(
+require("SynAICommands")
+function Definitions()
+  Category = "Conquer_Planet"
+  TaskForce = { { "MainForce", "DenyHeroAttach", "HeroShip = 1", "Frigate = 2" } }
+end
+function MainForce_Thread()
+  MainForce.Set_As_Goal_System_Removable(false)
+  local st = MainForce.Produce_Force(MainForce.Get_Stage())
+  while MainForce.Get_Force_Count() < 2 do Sleep(1) end
+  GlobalValue.Set("ls_ready", 1)
+  BlockOnCommand(st)
+  while true do Sleep(1) end
+end
+function MainForce_Production_Failed(tf, t)
+  GlobalValue.Set("ls_failed", 1)
+  GlobalValue.Set("ls_count", MainForce.Get_Force_Count())
+end
+function MainForce_Unit_Destroyed(tf, unit)
+  GlobalValue.Set("ls_destroyed", (GlobalValue.Get("ls_destroyed") or 0) + 1)
+end
+)";
 // a plan thread that calls Find_All_Objects_Of_Type through ParityWorld, whose GameObjectTypes is
 // empty (never built). The player filter walks the store; a type-name string finds no type in the empty table, so the
 // binding logs "unknown filter parameter" and returns nothing (before t01 the name lookup dereferenced a null raw()).
@@ -677,6 +702,8 @@ struct ParityWorld {
     std::unique_ptr<GalacticAiWorld> world;
     uint32_t hero = 0, planet_r = 0;
     std::vector<std::string> orders;
+    std::vector<GalacticAiTypeInfo> tinfo;
+    GalacticAiConfig cfg;
 
     // only: the plan files to load (by base name), empty = all. rules_tweak: applied to the rules before the sim starts;
     // eq_first: equations added before the synthetic ones (a name added here wins: the first definition is kept);
@@ -708,6 +735,7 @@ struct ParityWorld {
         files.add("Data\\Scripts\\AI\\A2mCancel.lua", kPlanA2mCancel);
         files.add("Data\\Scripts\\AI\\A2mT03Plain.lua", kPlanA2mT03Plain);
         files.add("Data\\Scripts\\AI\\Tst2FindAll.lua", kPlanFindAll);
+        files.add("Data\\Scripts\\AI\\LossSave.lua", kPlanLossSave);
         plan_files = list_plan_files([this](std::string_view glob) {
             const std::string g(glob);
             return files.list(g.substr(0, g.find('*')));
@@ -747,7 +775,7 @@ struct ParityWorld {
         s.planet_type[2] = planet_r;       // P2 restricts Corvettes
         if (tweak) tweak(s);
         CHECK(sim->start(s));
-        std::vector<GalacticAiTypeInfo> tinfo(rules.types.size());
+        tinfo.assign(rules.types.size(), GalacticAiTypeInfo{});
         tinfo[tFrigate].categories = {"FRIGATE"};
         tinfo[tCorvette].categories = {"CORVETTE"};
         tinfo[tInfantry].categories = {"INFANTRY"};
@@ -756,10 +784,13 @@ struct ParityWorld {
         tinfo[tCorvette].unit_ai = true;            // STRATEGIC_GAPS §1.1 removal feed filter
         tinfo[tInfantry].company_first = tCorvette; // (synthetic) company-leader substitution for the survival key
         if (tinfo_tweak) tinfo_tweak(tinfo);
-        GalacticAiConfig cfg;
         cfg.players = {{0, "SynEmpire", 1}};
         cfg.difficulties = {{"Normal_Default", 1.1f, 0.0f}};
         if (cfg_tweak) cfg_tweak(cfg);
+        make_world();
+    }
+    // A new AI world on this sim, as a loader builds it before reading a save (the old one must be gone first).
+    void make_world() {
         world = std::make_unique<GalacticAiWorld>(
             *sim, *store, &types, &files, *rng, defs, eqs, tinfo,
             [this](uint8_t p, const commands::EventData& ev) {
@@ -1246,6 +1277,7 @@ void test_save_foc();
 #endif
 void test_category_masks_from_enum_files();
 void test_status_hash_covers_move_to();  // #119
+void test_lost_members_survive_save();  // #122
 void test_type_info_mod_categories();
 
 // Test functions (defined in the part files)

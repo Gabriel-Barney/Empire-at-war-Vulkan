@@ -3037,7 +3037,9 @@ void hash_status(StateHasher& h, const StatusRec& s) {
 
 void GalacticAiWorld::hash(StateHasher& h) const {
     const Impl& w = *impl_;
-    assert(w.lost_tfs.empty() && w.lost_members.empty());  // bkg2 b0099: not hashed, drained within the frame
+    // bkg2 b0099: not hashed. The CRC is taken after the frame's update_player calls, whose drains empty the queue (a
+    // save may still hold one taken between the sim step and the drain, #122).
+    assert(w.lost_tfs.empty() && w.lost_members.empty());
     h.u32(static_cast<uint32_t>(w.ai.size()));
     for (const auto& a : w.ai) {
         h.boolean(a != nullptr);
