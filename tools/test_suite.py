@@ -168,7 +168,10 @@ def main(argv: list[str]) -> int:
         print(f"test_suite.py: no tests selected ({' '.join(filters) or 'no filter'}): configure and build first")
         return 1
 
-    results_dir = os.path.join(build, "test-results")
+    latest_dir = os.path.join(build, "test-results")
+    # With --archive (dev.cmd: <build>\test-results\runs\<run>) this run writes its JUnit and report there, then
+    # copies them up as the latest, so concurrent runs on one tree never read each other's files.
+    results_dir = opt("--archive") or latest_dir
     os.makedirs(results_dir, exist_ok=True)
     junit = os.path.join(results_dir, f"{suite}.xml")
     env = dict(os.environ)
@@ -194,7 +197,7 @@ def main(argv: list[str]) -> int:
                        "^(" + "|".join(re.escape(n) for n in retry) + ")$"], env)
             again = parse_junit(junit2)
             now = datetime.datetime.now().isoformat(timespec="seconds")
-            with open(os.path.join(results_dir, "flaky.jsonl"), "a", encoding="utf-8") as f:
+            with open(os.path.join(latest_dir, "flaky.jsonl"), "a", encoding="utf-8") as f:
                 for n in retry:
                     if again.get(n, {}).get("status") == "passed":
                         flaky.append(n)
@@ -216,8 +219,9 @@ def main(argv: list[str]) -> int:
         f.write("\n".join(lines) + "\n")
     print("\n" + "\n".join(lines))
     print(f"\n(report: {path})")
-    if opt("--archive"):
-        print(f"(this run's copy: {archive_results(results_dir, opt('--archive'), suite)})")
+    if results_dir != latest_dir:
+        publish_latest(results_dir, latest_dir, suite)
+        print(f"(this run's own copy: {results_dir})")
     bad = any(r["status"] == "failed" for r in results.values()) or missing
     return 1 if bad else 0
 
@@ -294,15 +298,12 @@ def show_all_labels():
 _BUILD = [os.path.join(ROOT, "build")]
 
 
-def archive_results(results_dir: str, archive: str, suite: str) -> str:
-    """Copies this run's report and JUnit files into archive (dev.cmd passes <build>\\test-results\\runs\\<run>), so a
-    later run on the same build tree does not overwrite them."""
-    os.makedirs(archive, exist_ok=True)
+def publish_latest(run_dir: str, latest_dir: str, suite: str) -> None:
+    """Copies a run's report and JUnit files from its own folder to <build>\test-results, the latest run's place."""
     for name in (f"report-{suite}.md", f"{suite}.xml", f"{suite}-retry.xml"):
-        src = os.path.join(results_dir, name)
+        src = os.path.join(run_dir, name)
         if os.path.isfile(src):
-            shutil.copy2(src, os.path.join(archive, name))
-    return archive
+            shutil.copy2(src, os.path.join(latest_dir, name))
 
 
 def selftest() -> int:
@@ -336,18 +337,18 @@ def selftest() -> int:
     ok("gone_test" in rep, "missing required entry listed")
     import tempfile
     with tempfile.TemporaryDirectory() as d:
-        results = os.path.join(d, "test-results")
-        os.makedirs(results)
-        for name in ("report-synthetic.md", "synthetic.xml"):
-            with open(os.path.join(results, name), "w", encoding="utf-8") as f:
-                f.write(name)
-        run1 = archive_results(results, os.path.join(results, "runs", "r1"), "synthetic")
-        with open(os.path.join(results, "report-synthetic.md"), "w", encoding="utf-8") as f:
-            f.write("second run")
-        archive_results(results, os.path.join(results, "runs", "r2"), "synthetic")
-        with open(os.path.join(run1, "report-synthetic.md"), encoding="utf-8") as f:
-            ok(f.read() == "report-synthetic.md", "the first run's archived report survives the second run")
-        ok(os.path.isfile(os.path.join(results, "runs", "r2", "synthetic.xml")), "JUnit archived")
+        latest = os.path.join(d, "test-results")
+        for run, text in (("r1", "first"), ("r2", "second")):
+            run_dir = os.path.join(latest, "runs", run)
+            os.makedirs(run_dir)
+            for name in ("report-synthetic.md", "synthetic.xml"):
+                with open(os.path.join(run_dir, name), "w", encoding="utf-8") as f:
+                    f.write(text)
+            publish_latest(run_dir, latest, "synthetic")
+        with open(os.path.join(latest, "runs", "r1", "report-synthetic.md"), encoding="utf-8") as f:
+            ok(f.read() == "first", "the first run's own report survives the second run")
+        with open(os.path.join(latest, "synthetic.xml"), encoding="utf-8") as f:
+            ok(f.read() == "second", "the latest run's JUnit is published")
     for b in bad:
         print("test_suite selftest FAIL: " + b)
     if bad:

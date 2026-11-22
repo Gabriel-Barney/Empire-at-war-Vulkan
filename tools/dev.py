@@ -15,6 +15,9 @@
   dev.cmd launcher | launcher-test        build or test the Rust Command Center launcher
   dev.cmd selftest                        this script's own unit tests
 
+check, test and suite run their tests inside one of the machine's test slots (tools\\test_slots.py,
+ALAMO_TEST_SLOTS; README.md "Test slots"): a second job waits and says which job it waits for.
+
 dev.cmd loads dev.local.cmd (machine settings such as ALAMO_FOC_DATA) and passes every argument here unchanged.
 Arguments reach CMake, CTest and tools/test_suite.py as exact argument lists. cmd reads | & < > before this script
 does, so the double quotes around such an argument must reach cmd: in cmd, dev.cmd test -R "^(a|b)$"; in PowerShell,
@@ -269,20 +272,31 @@ def build(r: Runner, bdir: str, target: str | None, clean: bool = False) -> None
     r.run(f"build {target or 'all'}", cmd, r.env)
 
 
-# The commands whose CTest run takes one of this machine's test slots (tools/test_slots.py; README.md "Test slots").
-SLOT_COMMANDS = ("check", "suite", "test")
-
-
 def run_results_dir(bdir: str, run_id: str) -> str:
     """Where a run's own copy of its reports goes; <build>\\test-results keeps the latest run's."""
     return os.path.join(bdir, "test-results", "runs", run_id)
 
 
+_RUN_ID = re.compile(r"^\d{8}-\d{6}-\d+$")
+
+
+def prune_runs(parent: str, keep: int = 20) -> None:
+    """Removes all but the newest `keep` run folders (named <date>-<time>-<pid>) under parent."""
+    try:
+        runs = sorted(n for n in os.listdir(parent) if _RUN_ID.match(n) and os.path.isdir(os.path.join(parent, n)))
+    except OSError:
+        return
+    for n in runs[:-keep] if len(runs) > keep else []:
+        shutil.rmtree(os.path.join(parent, n), ignore_errors=True)
+
+
 @contextlib.contextmanager
-def test_slot(r: Runner):
-    """Holds a machine-wide test slot while the tests run, so concurrent jobs wait instead of timing each other out."""
-    assert r.command in SLOT_COMMANDS, r.command
+def test_slot(r: Runner, bdir: str):
+    """Holds one of the machine's test slots while the tests run, so concurrent jobs wait instead of timing each other
+    out (dev.cmd check, test and suite; tools/test_slots.py; README.md "Test slots"). Prunes old run folders."""
     slot = test_slots.acquire(f"dev.cmd {subprocess.list2cmdline([r.command, *r.argv])}")
+    prune_runs(os.path.join(ROOT, "build", "tmp"))
+    prune_runs(os.path.join(bdir, "test-results", "runs"))
     try:
         yield
     finally:
@@ -293,7 +307,7 @@ def test_suite(r: Runner, bdir: str, args: list[str]) -> None:
     py = os.path.join(TOOLCHAIN, "venv", "Scripts", "python.exe")
     suite = args[0] if args and not args[0].startswith("-") else "synthetic"
     rest = args[1:] if args and not args[0].startswith("-") else args
-    with test_slot(r):
+    with test_slot(r, bdir):
         r.run(f"suite {suite}", [py, "-I", os.path.join(ROOT, "tools", "test_suite.py"), "--build", bdir,
                                  "--suite", suite, "--archive", run_results_dir(bdir, r.run_id), *rest],
               test_env(r.env or {}, r.run_id))
@@ -402,7 +416,7 @@ def cmd_test(r: Runner, args: list[str]) -> None:
     if not os.path.isfile(os.path.join(bdir, "CTestTestfile.cmake")):
         raise SystemExit(f"dev.cmd: {bdir} is not configured. Run dev.cmd build first.")
     r.env = msvc_env()
-    with test_slot(r):
+    with test_slot(r, bdir):
         r.run("ctest", ["ctest", "--test-dir", bdir, "--output-on-failure", "--no-tests=error", *rest],
               test_env(r.env, r.run_id))
 
@@ -484,8 +498,15 @@ class _Tests(unittest.TestCase):
         self.assertEqual(run_results_dir("E:\\b", "20261122-010203-111"),
                          os.path.join("E:\\b", "test-results", "runs", "20261122-010203-111"))
 
-    def test_test_commands_hold_a_slot_and_others_do_not(self):
-        self.assertEqual(sorted(SLOT_COMMANDS), ["check", "suite", "test"])
+    def test_old_run_folders_are_pruned(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            names = [f"20261122-0000{i:02d}-{100 + i}" for i in range(25)] + ["keep-me"]
+            for n in names:
+                os.makedirs(os.path.join(d, n))
+            prune_runs(d, keep=20)
+            left = sorted(os.listdir(d))
+            self.assertEqual(left, sorted(names[5:]))  # the 5 oldest runs go; a folder not named like a run stays
 
     def test_take_preset(self):
         self.assertEqual(take_preset(["--preset", "full", "-R", "x"]), ("full", ["-R", "x"]))
