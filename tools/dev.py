@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """The development command behind dev.cmd (docs/DECISIONS.md "One development entry point").
 
-  dev.cmd doctor [--engine-only]          toolchain, SDK, dependencies and game data, with remediation
+  dev.cmd doctor [--engine-only]          toolchain, SDK, dependencies and game data, with remediation;
+                                          warns when the shell is elevated
   dev.cmd configure [--preset P]          configure the preset's build tree (CMakePresets.json; default: fast)
   dev.cmd build [TARGET] [--preset P]     configure, check TARGET exists, build it (default: everything)
   dev.cmd check [--preset P] [--target T] [--quick]
@@ -273,9 +274,31 @@ def test_suite(r: Runner, bdir: str, args: list[str]) -> None:
 
 # ------------------------------------------------------------------------------------------------- commands
 
+def is_elevated() -> bool:
+    try:
+        import ctypes
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except (AttributeError, OSError):
+        return False
+
+
+def elevation_warning(elevated: bool) -> str:
+    """What doctor prints about an elevated shell, given whether it runs elevated."""
+    if not elevated:
+        return ""
+    return ("warning: this shell is elevated (Administrator). The Vulkan loader ignores VK_LAYER_PATH in an elevated\n"
+            "  process, so the pinned validation layer in toolchain\\vvl\\bin cannot be enabled and the GPU tests'\n"
+            "  validation-layer check fails (alamo_rhi_gpu_tests, alamo_shaderxlat_gpu_tests).\n"
+            "  Fix: run dev.cmd from an unelevated shell, or register toolchain\\vvl\\bin\\VkLayer_khronos_validation.json\n"
+            "  under HKLM\\SOFTWARE\\Khronos\\Vulkan\\ExplicitLayers (as .github/workflows/landing.yml does).")
+
+
 def cmd_doctor(r: Runner, args: list[str]) -> None:
     engine_only = "--engine-only" in args
     print(f"python: {sys.version.split()[0]} ({sys.executable})")
+    warning = elevation_warning(is_elevated())
+    if warning:
+        print(warning)
     check = [os.path.join(TOOLCHAIN, "2_setup.cmd"), "--check", *(["--engine-only"] if engine_only else [])]
     try:
         r.run("toolchain check", check)
@@ -440,6 +463,16 @@ class _Tests(unittest.TestCase):
         exe = os.path.splitext(os.path.basename(sys.executable))[0]
         self.assertEqual(os.path.normcase(resolve([exe, "-V"], env)[0]), os.path.normcase(sys.executable))
         self.assertEqual(resolve(["C:\\x\\y.exe"], env), ["C:\\x\\y.exe"])
+
+    def test_elevation_warning_names_cause_and_both_fixes(self):
+        text = elevation_warning(True)
+        self.assertIn("warning", text.lower())
+        self.assertIn("VK_LAYER_PATH", text)
+        self.assertIn("unelevated", text)
+        self.assertIn("HKLM\\SOFTWARE\\Khronos\\Vulkan\\ExplicitLayers", text)
+
+    def test_no_elevation_warning_in_a_normal_shell(self):
+        self.assertEqual(elevation_warning(False), "")
 
     def test_unknown_command_and_usage(self):
         self.assertEqual(main(["no-such-command"]), 2)
