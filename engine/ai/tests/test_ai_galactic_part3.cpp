@@ -1,5 +1,34 @@
 // Part 3 of test_ai_galactic (split by position; see test_ai_galactic_common.hpp).
 #include "test_ai_galactic_common.hpp"
+#include "galactic_ai_impl.hpp"  // StatusRec, hash_status (#119)
+
+// #119: a MoveTo status's destination, movement mode and fleet are in the galactic AI CRC, so two runs whose MoveTo
+// differs only there diverge in the CRC log. Statuses of other kinds hash as before (their CRCs do not move).
+void test_status_hash_covers_move_to() {
+    const auto digest = [](const StatusRec& s) {
+        StateHasher h;
+        hash_status(h, s);
+        return h.digest();
+    };
+    StatusRec move;
+    move.kind = StatusKind::MoveTo;
+    move.dest = 3;
+    move.mode = 1;
+    move.fleet = 4;
+    StatusRec fleet = move, dest = move, mode = move;
+    fleet.fleet = 5;
+    dest.dest = 2;
+    mode.mode = 2;
+    CHECK(digest(move) == digest(StatusRec(move)));
+    CHECK(digest(fleet) != digest(move));
+    CHECK(digest(dest) != digest(move));
+    CHECK(digest(mode) != digest(move));
+    StatusRec produce;
+    produce.kind = StatusKind::ProduceForce;
+    StatusRec produce_dest = produce;
+    produce_dest.dest = 3;
+    CHECK(digest(produce) == digest(produce_dest));
+}
 
 gal::GalacticRules uw_rules() {
     gal::GalacticRules r;

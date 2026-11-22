@@ -158,6 +158,9 @@ struct StatusRec {
     double amount = 0.0;
 };
 
+// A blocking status's part of GalacticAiWorld::hash (after its id).
+void hash_status(StateHasher& h, const StatusRec& s);
+
 // A solved PotentialPlanClass (0x210 B): the selection and the results Init copies to the goal.
 struct PpSelection {
     uint32_t type = gal::kNoIndex;

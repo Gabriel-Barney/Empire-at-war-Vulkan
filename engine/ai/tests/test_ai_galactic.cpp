@@ -89,6 +89,7 @@ int main(int argc, char** argv) {
     test_mcx8_t07_tokens();          // mcx8 t07
     test_loaded_category_enum();     // q6 t03
     test_ai_type_switch();
+    test_status_hash_covers_move_to();  // #119
 #ifdef ALAMO_AI_HAVE_VFS
     test_foc_data();
     test_save_foc();
