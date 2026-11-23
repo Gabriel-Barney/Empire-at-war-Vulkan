@@ -118,6 +118,12 @@ struct TacPpRec {
     // mcx6 t06 (legacy docs/re/LUA_API.md "Release_Reinforcements() (0x6e8a70)"): pool keys a Lua Release_Reinforcements freed from this
     // reserved PP (ascending); its next Commit (reserve_pp, 0x6c2b20) takes back the ones still free, then the list empties.
     std::vector<int32_t> lua_released;
+    // b0147 (legacy docs/re/BKG1_RE_ANSWERS.md §6 "b0138", AI purchase path): `net` = PP +0x44, the solve's TacticalBuild
+    // cost, taken from the credits at the first reserve (0x6c2d60) and then 0; `escrow` = PP +0x1A4, what the plan holds;
+    // `buys` = the TacticalBuild picks (PP +0x138 types / +0x150 pads: (type, pad id), pad -1 for a to-be-produced pick) that
+    // a TF Build match or a Production enqueue (0x6c1e80) consumes once.
+    float net = 0.0f, escrow = 0.0f;
+    std::vector<std::pair<int32_t, int32_t>> buys;
 };
 // --- end A2 tactical ---
 
@@ -241,9 +247,10 @@ void visit(Ar& ar, R& s) {
     ar.field(s.target_owner, In::Save);  // q6 land end chain
 }
 
-// Without its id (the map key). The save keeps the Lua-released pool keys in a block of their own (the last block of
-// TacticalAiWorld::write, version 18 / 19); the CRC reads them here, after a marker, only when there are any, and the
-// re-test byte as a marker only when set (so runs whose re-tests all pass keep their CRC stream).
+// Without its id (the map key). The save keeps the Lua-released pool keys (version 18 / 19) and the escrow fields
+// (version 20 / 21) in blocks of their own (the last blocks of TacticalAiWorld::write); the CRC reads them here, after a
+// marker, only when there are any, and the re-test byte as a marker only when set (so runs whose re-tests all pass keep
+// their CRC stream).
 template <class Ar, Of<TacPpRec> R>
 void visit(Ar& ar, R& pp) {
     ar.field(pp.player);
@@ -253,6 +260,14 @@ void visit(Ar& ar, R& pp) {
     if (!pp.lua_released.empty()) {  // only after a Lua Release_Reinforcements (none in shipped scripts)
         ar.hash_tag(0xC8);
         ar.vec(pp.lua_released, In::Hash);
+    }
+    // b0147: the escrow fields, hashed only for a PP that buys something, so plans without TacticalBuild picks keep their
+    // CRC stream. The save keeps them in a block of their own (the last block of TacticalAiWorld::write, version 20 / 21).
+    if (pp.net != 0.0f || pp.escrow != 0.0f || !pp.buys.empty()) {
+        ar.hash_tag(0xC9);
+        ar.field(pp.net, In::Hash);
+        ar.field(pp.escrow, In::Hash);
+        ar.list(pp.buys, In::Hash, kPairBytes, pair_fields(In::Hash));
     }
     ar.list(pp.picks, In::Both, kPickBytes, visit_each);
     if (ar.since(Feature::Retest)) {
@@ -291,6 +306,7 @@ void visit(Ar& ar, R& o) {
         ar.field(o.layer_space, In::Save);
         ar.field(o.layer_ground, In::Save);
     }
+    if (ar.since(Feature::Escrow)) ar.field(o.net, In::Save);  // b0147
 }
 
 // The last update's per-object facts; saved only (the CRC reads the snapshot through the perception).

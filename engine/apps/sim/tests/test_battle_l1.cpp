@@ -141,6 +141,15 @@ const char* kTypes = R"(<L1>
   <Custom_Hard_XExtent>6</Custom_Hard_XExtent></GroundInfantry>
  <GroundCompany Name="L1_Deploy_Wide_Squad"><Company_Units>L1_Deploy_Wide, L1_Bare</Company_Units>
   <Hyperspace>Yes</Hyperspace><Hyperspace_Speed>1.5</Hyperspace_Speed><Population_Value>1</Population_Value></GroundCompany>
+ <SpecialStructure Name="L1_Paid_Pad"><Victory_Relevant>Yes</Victory_Relevant><Behavior>TACTICAL_BUILD_OBJECTS</Behavior><Capture_Point_Radius>100</Capture_Point_Radius>
+  <Tactical_Buildable_Objects_Campaign>Empire, L1_Paid_UC, Underworld, L1_Paid_UC</Tactical_Buildable_Objects_Campaign>
+  <Tactical_Buildable_Objects_Multiplayer>Empire, L1_Paid_UC_MP, Underworld, L1_Paid_UC_MP</Tactical_Buildable_Objects_Multiplayer></SpecialStructure>
+ <SpecialStructure Name="L1_Paid_UC"><Victory_Relevant>Yes</Victory_Relevant><Tactical_Health>100</Tactical_Health><Tactical_Build_Time_Seconds>2</Tactical_Build_Time_Seconds>
+  <Behavior>TACTICAL_UNDER_CONSTRUCTION</Behavior><Tactical_Build_Cost_Campaign>300</Tactical_Build_Cost_Campaign><Tactical_Build_Cost_Multiplayer>999</Tactical_Build_Cost_Multiplayer>
+  <Tactical_Buildable_Constructed>L1_Turret</Tactical_Buildable_Constructed></SpecialStructure>
+ <SpecialStructure Name="L1_Paid_UC_MP"><Victory_Relevant>Yes</Victory_Relevant><Tactical_Health>100</Tactical_Health><Tactical_Build_Time_Seconds>2</Tactical_Build_Time_Seconds>
+  <Behavior>TACTICAL_UNDER_CONSTRUCTION</Behavior><Tactical_Build_Cost_Multiplayer>200</Tactical_Build_Cost_Multiplayer>
+  <Tactical_Buildable_Constructed>L1_Turret</Tactical_Buildable_Constructed></SpecialStructure>
 </L1>
 )";
 
@@ -1759,6 +1768,15 @@ struct PadRun {
     bool run_available = false;
     float sight_clear = -1.0f, sight_rain = -1.0f;
     bool fog_on = false;
+    // b0147 (legacy docs/re/BKG1_RE_ANSWERS.md §6 "b0138"): the TacticalBuild charges on player 1's account. A human: the
+    // "Can't afford" refusal, then the pad price at the build; an AI (the TF Build path, ai_tactical_build): no charge at a
+    // started build, the base price back when the build started nothing.
+    float price = -1.0f;            // build_cost(uc_t, 1)
+    bool human_refused = false;     // CannotAfford with 0 credits, account unchanged
+    float human_paid = -1.0f;       // account drop of the human build
+    float ai_paid = -1.0f;          // account drop of the AI build that started
+    float ai_failed_back = -1.0f;   // account rise after an AI build on the occupied pad
+    float ai_failed_expect = -1.0f; // ... the base price through the credit hook (x Credit_Multiplier for an AI account)
     CrcLog crc;
 };
 
@@ -1861,6 +1879,30 @@ PadRun run_pads(const Data& d, int32_t workers, bool skirmish = false) {
                 out.pool_drop_refused = rr != commands::RejectReason::None && still;
             }
         }
+        if (f == 3) {  // b0147: who pays a TacticalBuild, and when
+            const auto paid_t = static_cast<objects::TypeIndex>(type_of(d, skirmish ? "L1_Paid_UC_MP" : "L1_Paid_UC"));
+            objects::SpawnParams sp;
+            sp.type = static_cast<objects::TypeIndex>(type_of(d, "L1_Paid_Pad"));
+            sp.owner = 1;
+            sp.position = {-1300.0f, -1600.0f, 0.0f};
+            const objects::ObjectId pa = st.id(tm->spawn(sp));
+            sp.position = {-1300.0f, -1400.0f, 0.0f};
+            const objects::ObjectId pb = st.id(tm->spawn(sp));
+            out.price = b->build_cost(paid_t, 1);
+            gs->add_credits(1, -gs->credits(1), false);
+            const commands::RejectReason hr = b->tactical_build(*tm, 1, pa, paid_t, host.random().synced(), false);
+            out.human_refused = hr == commands::RejectReason::CannotAfford &&
+                                gs->credits(1) == 0.0f && b->pad_contents(pa) == objects::kNoObjectId;
+            gs->add_credits(1, 1000.0f, false);
+            float c0 = gs->credits(1);
+            if (b->tactical_build(*tm, 1, pa, paid_t, host.random().synced(), false) == commands::RejectReason::None) out.human_paid = c0 - gs->credits(1);
+            c0 = gs->credits(1);
+            if (b->ai_tactical_build(*tm, 1, pb, paid_t, host.random().synced()) == commands::RejectReason::None) out.ai_paid = c0 - gs->credits(1);
+            c0 = gs->credits(1);
+            if (b->ai_tactical_build(*tm, 1, pb, paid_t, host.random().synced()) == commands::RejectReason::NotAllowed)  // UC present
+                out.ai_failed_back = gs->credits(1) - c0;
+            out.ai_failed_expect = gs->players()[1].ai ? out.price * gs->ai_credit_multiplier(1) : out.price;
+        }
         const objects::ObjectId c = b->pad_contents(pad);
         if (f > 1 && f < 60 && c != objects::kNoObjectId && st.alive(st.find(c)) && st.type(st.find(c)) == uc_t) out.uc_seen = true;
         if (!out.built && c != objects::kNoObjectId && st.alive(st.find(c)) && st.type(st.find(c)) == static_cast<objects::TypeIndex>(type_of(d, "L1_Turret"))) {
@@ -1912,6 +1954,20 @@ void test_pads(const Data& d) {
     std::printf("  pads q6 t19: built pool entry %d/%d, skirmish drop without a transport refused %d\n", a.pool_added, k.pool_added,
                 k.pool_drop_refused);
     CHECK(a.pool_added && k.pool_added && k.pool_drop_refused);
+    // b0147 (legacy docs/re/BKG1_RE_ANSWERS.md §6 "b0138" steps 4-5): campaign price Tactical_Build_Cost_Campaign 300,
+    // skirmish Tactical_Build_Cost_Multiplayer 200. A human pays at the build in both modes ("Can't afford" first); an AI
+    // build is never charged (its plan paid at accept, tactical_ai.cpp), in the campaign battle as in the skirmish, so the
+    // skirmish AI pays a pad once; an AI build that started nothing gets the base price back.
+    for (const PadRun* r : {&a, &k})
+        std::printf("  pads b0147 (%s): price %.0f, human refused %d paid %.0f, ai paid %.0f, ai failed build back %.0f (expect %.0f)\n",
+                    r == &a ? "campaign" : "skirmish", static_cast<double>(r->price), r->human_refused, static_cast<double>(r->human_paid),
+                    static_cast<double>(r->ai_paid), static_cast<double>(r->ai_failed_back), static_cast<double>(r->ai_failed_expect));
+    CHECK(a.price == 300.0f && k.price == 200.0f);
+    for (const PadRun* r : {&a, &k}) {
+        CHECK(r->human_refused && r->human_paid == r->price);
+        CHECK(r->ai_paid == 0.0f);
+        CHECK(r->ai_failed_back == r->ai_failed_expect && r->ai_failed_back > 0.0f);
+    }
     // a land skirmish gives every player of a playable faction with a Skirmish_Land_Bomber an enabled record (here
     // the Underworld players: L1_Bomber); the Empire (no skirmish bomber) and Neutral (not playable) get none. Interval =
     // int(30 x Max_Bombing_Run_Interval_Seconds 120) = 3600, ready = setup frame + 3600, last start -1: dial 0 (shown full).

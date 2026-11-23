@@ -283,14 +283,28 @@ float TacticalBattle::build_cost(objects::TypeIndex uc_type, int32_t player) con
     // any skirmish, land or space (0x28afb0).
     if (cfg_.skirmish) return static_cast<float>(std::max(0, types.get(uc_type, objects::tags::Tactical_Build_Cost_Multiplayer)));
     int32_t c = types.get(uc_type, objects::tags::Tactical_Build_Cost_Campaign);
-    if (c <= 0) c = types.get(uc_type, objects::tags::Tactical_Build_Cost_Multiplayer);
+    if (c < 1) c = types.get(uc_type, objects::tags::Tactical_Build_Cost_Multiplayer);  // 0x3743f0: "below 1" (int field)
     c = std::max(0, c);
-    if (player >= 0 && galaxy_) {  // mcx4 t07 (Q7.2): the corrupted battle planet's pad price factor, truncated
-        const float m = galaxy_->tactical_corruption_multiplier(req_.info.planet, player,
-                                                                galactic::GalacticSim::TacticalCorruption::PadPrice);
-        if (m != 1.0f) c = static_cast<int32_t>(static_cast<float>(c) * m);
-    }
+    // mcx4 t07 (Q7.2): the corrupted battle planet's pad price factor, truncated
+    if (const float m = pad_price_factor(player); m != 1.0f) c = static_cast<int32_t>(static_cast<float>(c) * m);
     return static_cast<float>(c);
+}
+
+float TacticalBattle::pad_price_factor(int32_t player) const {
+    if (cfg_.skirmish || player < 0 || !galaxy_) return 1.0f;
+    return galaxy_->tactical_corruption_multiplier(req_.info.planet, player, galactic::GalacticSim::TacticalCorruption::PadPrice);
+}
+
+cmd::RejectReason TacticalBattle::ai_tactical_build(TacticalMode& mode, uint8_t player, objects::ObjectId pad, objects::TypeIndex type,
+                                                    SimRng& rng) {
+    const cmd::RejectReason r = tactical_build(mode, player, pad, type, rng, true);
+    // b0147 (legacy docs/re/BKG1_RE_ANSWERS.md §6 "b0138" step 5): a TF Build whose build left no UC object raises signal
+    // 0x22 on the pad [port: not modelled] and credits the base price 0x3743f0 (no planet factor) back to the player,
+    // not to the plan's escrow (0x27f370, +cost, notify 0).
+    if (r != cmd::RejectReason::None && credits_add_) {
+        if (const float base = build_cost(type); base > 0.0f) credits_add_(static_cast<int32_t>(player), base);
+    }
+    return r;
 }
 
 cmd::RejectReason TacticalBattle::tactical_build(TacticalMode& mode, uint8_t player, objects::ObjectId pad, objects::TypeIndex type,
@@ -311,12 +325,12 @@ cmd::RejectReason TacticalBattle::tactical_build(TacticalMode& mode, uint8_t pla
     if (owner < 0 || !bt_allied(static_cast<int32_t>(player), owner)) return R::NotAllowed;  // "not owned by an ally"
     if (const PadState* s = pad_state(pad); s && s->cooldown_end > frame_) return R::NotAllowed;
     if (uc_behavior() == objects::kNoBehavior || !types.has_behavior(type, objects::BehaviorSet::Union, uc_behavior())) return R::InvalidUnit;
-    // skai t09 (SKAI_T06_LAND_RUNS 2 "Credits" [H, trace]): the AI pays a pad build in full when its under-construction object
-    // appears, like a human (retail Utapau: Mineral Processor -800, Ground Mining Facility -1300, AV turret + Mineral Processor
-    // -1650 in one frame). SKIRMISH_SETUP 3's "the AI is never charged" reading of 0x289050 does not hold for pad builds there.
-    // [port] Campaign land battles keep the free AI pad builds (L1_S4 3.6): no retail trace of an AI pad build there yet.
-    // a space skirmish AI pays too (retail Geonosis: the Rebel balance drops by the extractors it starts).
-    if (!ai || cfg_.skirmish) {
+    // b0147 (legacy docs/re/BKG1_RE_ANSWERS.md §6 "b0138" step 4, §7.3): 0x42edf0 charges only a human (the "Can't afford"
+    // test and the TacticalBuildEvent execute 0x5d78a0, charge 1, with 0x3744e0). An AI player builds with charge 0 in
+    // every mode: its plan paid the pad price at accept (0x6c2d60) into an escrow, which this build's TF Build drew down
+    // (tactical_ai.cpp). That accept charge is the single-frame drop of the retail skirmish traces (skai t09: Utapau AV
+    // turret + Mineral Processor -1650 in one frame; Geonosis extractors); campaign land battles pay the same way.
+    if (!ai) {
         const float cost = build_cost(type, static_cast<int32_t>(player));
         const float have = credits_get_ ? credits_get_(static_cast<int32_t>(player)) : 0.0f;
         if (cost > have) return R::CannotAfford;

@@ -132,6 +132,19 @@ double dist3(const Vec3f& a, const Vec3f& b) {
     return std::sqrt(dx * dx + dy * dy + dz * dz);
 }
 
+// b0147 (legacy docs/re/BKG1_RE_ANSWERS.md §6 "b0138" steps 1 / 3): the TacticalBuild lists of a solved PP, PP +0x138
+// (types) / +0x150 (pads): every selection the TacticalBuild Commit 0x728000 priced into the net cost (no free-store or
+// pool unit filled it, not a MagicPlan) as (type, pad id), pad -1 for a to-be-produced pick, in selection order.
+std::vector<std::pair<int32_t, int32_t>> pp_buys(const std::vector<TacticalPpPick>& picks, bool magic_plan) {
+    std::vector<std::pair<int32_t, int32_t>> out;
+    if (magic_plan) return out;
+    for (const TacticalPpPick& k : picks) {
+        if (k.source == PpSource::Build) out.emplace_back(k.type, k.ref);
+        else if (k.source == PpSource::Produce) out.emplace_back(k.type, -1);
+    }
+    return out;
+}
+
 }  // namespace
 
 std::pair<uint32_t, uint32_t> ai_lane_seeds(uint32_t game_seed) {
@@ -252,7 +265,9 @@ struct TacticalAiWorld::Impl final : lua::AiScriptHost, lua::AiTacticalScriptHos
     bool resolve_pp(PlayerAi& p, const Goal& g);          // 0x6c4a50: re-solve at accept (A1_READINGS §28.6 step 3)
     float pp_nominal_time(const PlayerAi& p, const std::vector<TacticalPpPick>& picks) const;  // 0x6c0450(PP)
     void reserve_pp(int32_t handle);                      // 0x6c2d60 (+ 0x6c2b20)
-    void suspend_pp(int32_t handle);                      // 0x6c0be0's +0x30 part (Commit step 4)
+    void pp_draw_escrow(const TfRec& t, int32_t type, int32_t pad);  // b0147: 0x6c1e80 (escrow -= base price)
+    void pp_refund_escrow(int32_t handle);                // b0147: plan end 0x5f6a50 (the remaining escrow back)
+    void suspend_pp(int32_t handle);                     // 0x6c0be0's +0x30 part (Commit step 4)
     bool pp_stolen(int32_t handle);                       // 0x6c45e0
     bool pp_retest_failed(PlayerAi& p, const Goal& g);     // 0x6c47c0 step 2, sticky
     void pp_unit_left(int32_t handle, int32_t unit);      // 0x6c27d0 (the unit's re-admission is the caller's)
@@ -1118,6 +1133,8 @@ struct PlayerAi final : GoalModeHooks, ContextModeServices {
         rec.picks = std::move(pp.picks);
         rec.layer_space = pp.layer_space;
         rec.layer_ground = pp.layer_ground;
+        rec.net = pp.net;  // b0147: PP +0x44 (the accept re-solve replaces it)
+        rec.buys = pp_buys(rec.picks, w->library.plans[plan].magic_plan);
         g.nominal_time = w->pp_nominal_time(*this, rec.picks);  // AllowedTime base 0x6c0450(PP)
         w->pps.emplace(h, std::move(rec));
         g.pp_handle = h;
@@ -1783,6 +1800,9 @@ void TacticalAiWorld::Impl::claim_force(TfRec& t) {
                             break;
                         }
                         t.producing.emplace_back(k.type, builder);
+                        // b0147 (legacy docs/re/BKG1_RE_ANSWERS.md §7.3 item 3): the enqueue charges an AI player nothing
+                        // (0x289050); the accepted entry draws the plan's escrow down instead (0x6c1e80, pad none).
+                        pp_draw_escrow(t, k.type, -1);
                         break;
                     }
                     // MagicPlan HIJACK_UNIT, tactical with parent (AI_GALACTIC_3 §4.3): the host spawns the unit in the
@@ -1838,6 +1858,7 @@ void TacticalAiWorld::Impl::pp_input(PlayerAi& p, uint32_t plan, const Goal& g, 
     if (w.is_player(p.player)) {
         in.faction = w.players[static_cast<size_t>(p.player)].faction;
         in.credits = w.players[static_cast<size_t>(p.player)].credits;
+        in.pad_price_factor = w.players[static_cast<size_t>(p.player)].pad_price_factor;  // b0147
         in.player_tech = static_cast<int32_t>(w.players[static_cast<size_t>(p.player)].tech_level);
     }
     in.time_limit = g.type < defs.goals.size() ? defs.goals[g.type].time_limit : -1.0f;
@@ -2094,6 +2115,10 @@ bool TacticalAiWorld::Impl::resolve_pp(PlayerAi& p, const Goal& g) {
     it->second.picks = std::move(out.picks);
     it->second.layer_space = out.layer_space;
     it->second.layer_ground = out.layer_ground;
+    if (!it->second.reserved) {  // b0147: the solve reset clears PP +0x44 and the TacticalBuild lists, Commit refills them
+        it->second.net = out.net;
+        it->second.buys = pp_buys(it->second.picks, library.plans[it->second.plan].magic_plan);
+    }
     return true;
 }
 
@@ -2139,14 +2164,30 @@ float TacticalAiWorld::Impl::pp_nominal_time(const PlayerAi& p, const std::vecto
 }
 
 // 0x6c2d60 (A1_READINGS §28.4): +0x30 = PP (0x6c2b20, overwriting any owner) for every PP+0x108 unit still on the
-// free store; the first call (PP+0x100) also reserves the reinforcement-pool and build-pad slots [port: the tactical
-// credits reservation is not modelled].
+// free store; the first call (PP+0x100) also reserves the reinforcement-pool and build-pad slots and, b0147
+// (legacy docs/re/BKG1_RE_ANSWERS.md §6 "b0138" step 2, tactical branch PP +0x198 != 0, every mode), takes the net cost
+// PP +0x44 from the player's credits (0x27f370, -net, notify 1) and holds it as the plan's escrow PP +0x1A4 (net := 0). A kept
+// goal's later calls charge nothing.
 void TacticalAiWorld::Impl::reserve_pp(int32_t handle) {
     const auto it = pps.find(handle);
     TacticalFreeStore* fs = pp_store(handle);
     if (it == pps.end() || !fs) return;
     const bool first = !it->second.reserved;
     it->second.reserved = true;
+    if (first && it->second.net != 0.0f) {
+        TacPpRec& rec = it->second;
+        const float net = rec.net;
+        host.add_credits(rec.player, -net);
+        // the AI's own view of its credits follows at once: a later solve of this Commit tests the cheaper balance
+        // (Add_Credits clamps at 0) [port: the snapshot is refreshed at the next fill].
+        if (w.is_player(rec.player)) {
+            float& c = w.players[static_cast<size_t>(rec.player)].credits;
+            c = std::max(0.0f, c - net);
+        }
+        rec.escrow = net;
+        rec.net = 0.0f;
+        decide(rec.player, [&] { return "pp " + std::to_string(handle) + " pays " + std::to_string(static_cast<int64_t>(net)) + " into its escrow"; });
+    }
     for (const TacticalPpPick& k : it->second.picks) {
         if (k.source == PpSource::FreeStore) fs->reserve(k.ref, handle);
         if (first && k.source == PpSource::Reinforcement) pool_reserved[k.ref] = handle;
@@ -2161,6 +2202,34 @@ void TacticalAiWorld::Impl::reserve_pp(int32_t handle) {
     decide(it->second.player, [&] { return "pp " + std::to_string(handle) + " takes back " + std::to_string(back) + " of " +
                                   std::to_string(it->second.lua_released.size()) + " released pool slot(s)"; });
     it->second.lua_released.clear();
+}
+
+// b0147 (legacy docs/re/BKG1_RE_ANSWERS.md §6 "b0138" step 3, §7.3): 0x6c1e80(PP, T, pad) from a TF Build / Build_All that
+// passed its friendly / rules / cooldown checks (pad = the pad) or from an accepted Production enqueue (BUILD_TASK_LIST
+// 0x648980, pad = none): when (T, pad) is in the PP's TacticalBuild lists it leaves them and the escrow drops by the base
+// price 0x3743f0 (no planet factor), clamped at 0. No match: nothing. The build itself charges an AI player nothing.
+void TacticalAiWorld::Impl::pp_draw_escrow(const TfRec& t, int32_t type, int32_t pad) {
+    const auto pi = plans.find(t.plan);
+    if (pi == plans.end() || pi->second.pp < 0) return;
+    const auto it = pps.find(pi->second.pp);
+    if (it == pps.end()) return;
+    TacPpRec& rec = it->second;
+    const auto b = std::find(rec.buys.begin(), rec.buys.end(), std::make_pair(type, pad));
+    if (b == rec.buys.end()) return;
+    rec.buys.erase(b);
+    const float base = type >= 0 && static_cast<size_t>(type) < w.types.size() ? w.types[static_cast<size_t>(type)].tactical_cost : 0.0f;
+    rec.escrow = std::max(0.0f, rec.escrow - base);
+}
+
+// b0147 (legacy docs/re/BKG1_RE_ANSWERS.md §6 "b0138" step 6): plan end 0x5f6a50 credits the remaining escrow PP +0x1A4
+// back (0x27f370, notify 1) before the PP is released.
+void TacticalAiWorld::Impl::pp_refund_escrow(int32_t handle) {
+    const auto it = pps.find(handle);
+    if (it == pps.end() || !(it->second.escrow > 0.0f)) return;
+    const float e = it->second.escrow;
+    it->second.escrow = 0.0f;
+    host.add_credits(it->second.player, e);
+    decide(it->second.player, [&] { return "pp " + std::to_string(handle) + " refunds its escrow " + std::to_string(static_cast<int64_t>(e)); });
 }
 
 // 0x6c0be0 at Commit start: the PP's +0x30 entries are cleared until 0x6c2d60 re-asserts them (§28.6 step 2).
@@ -2478,6 +2547,7 @@ void TacticalAiWorld::Impl::end_plan(int32_t id, bool by_goal_system) {
     if (it == plans.end() || it->second.ended) return;
     PlanInstance& pi = it->second;
     pi.ended = true;
+    if (pi.pp >= 0) pp_refund_escrow(pi.pp);  // b0147: 0x5f6a50 refunds the plan's escrow
     for (auto s = statuses.begin(); s != statuses.end();) s = s->second.plan == id ? statuses.erase(s) : std::next(s);
     for (const int32_t t : pi.tfs) {
         const auto tit = tfs.find(t);
@@ -3866,6 +3936,7 @@ int32_t TacticalAiWorld::Impl::tf_build_all(int32_t tf) {
             decide(t->player, [&] { return "build " + type_name(type) + " on pad " + std::to_string(pad) + " refused: " + why[static_cast<int>(c)]; });
             continue;
         }
+        pp_draw_escrow(*t, type, pad);  // b0147: 0x6c1e80 after the checks, before the build (a failed build: host refund)
         cmd::EventData ev(cmd::EventType::TacticalBuild);
         ev.set("pad", static_cast<uint32_t>(pad)).set("type_index", static_cast<uint32_t>(type)).set("player", static_cast<uint32_t>(t->player));
         if (order(t->player, ev, [&] { return "build " + type_name(type) + " on pad " + std::to_string(pad); }) == cmd::RejectReason::None) ++issued;
@@ -4670,8 +4741,11 @@ constexpr uint32_t kTacticalAiSaveVersionNoRetest = 14, kTacticalAiLaneSaveVersi
 // 18 / 19 add the attack-positioning records and the PPs' Lua-released pool keys (the last block); 16 / 17 still
 // load (none of either).
 constexpr uint32_t kTacticalAiSaveVersionNoAttackPos = 16, kTacticalAiLaneSaveVersionNoAttackPos = 17;
-constexpr uint32_t kTacticalAiLaneSaveVersion = 19;  // kTacticalAiSaveVersion plus the AI-lane block (13 before b0416) (k_ai, the AI-owned GameRandom)
-constexpr uint32_t kTacticalAiSaveVersion = 18;  // 18: mcx6 t06 attack positioning; 16: skai t15 PP re-test state; 14: b0416 pad_occupied fact (12 before); 2: six space free-store facts; 3: re-projection stamp; 4: flood sets;
+// 20 / 21 add the PPs' escrow block (b0147: net cost, escrow, TacticalBuild picks; the last block) and a pending solve's
+// net cost; 18 / 19 still load (nothing held).
+constexpr uint32_t kTacticalAiSaveVersionNoEscrow = 18, kTacticalAiLaneSaveVersionNoEscrow = 19;
+constexpr uint32_t kTacticalAiLaneSaveVersion = 21;  // kTacticalAiSaveVersion plus the AI-lane block (13 before b0416) (k_ai, the AI-owned GameRandom)
+constexpr uint32_t kTacticalAiSaveVersion = 20;  // 20: b0147 PP escrow; 18: mcx6 t06 attack positioning; 16: skai t15 PP re-test state; 14: b0416 pad_occupied fact (12 before); 2: six space free-store facts; 3: re-projection stamp; 4: flood sets;
                                                  // 5: refixf t06 space reinforcement status fields; 6: a1g t01 PP+0x100,
                                                  // entry +0x30 moved into the free store; 7: S7 t20/t21/t15 A1 (no had_units /
                                                  // no_units_sent; ambush / ability status fields); 8: a1j t01 land
@@ -4927,6 +5001,18 @@ void TacticalAiWorld::write(ByteWriter& w) const {
             w.i32(id);
             io::put_vec(w, pp.lua_released);
         }
+    // ---- b0147 (version 20 / 21): PPs with a net cost, an escrow or TacticalBuild picks (ascending id) ----
+    uint32_t held = 0;
+    for (const auto& [id, pp] : m.pps) held += pp.net != 0.0f || pp.escrow != 0.0f || !pp.buys.empty() ? 1u : 0u;
+    io::put_count(w, held);
+    for (const auto& [id, pp] : m.pps)
+        if (pp.net != 0.0f || pp.escrow != 0.0f || !pp.buys.empty()) {
+            w.i32(id);
+            w.f32(pp.net);
+            w.f32(pp.escrow);
+            io::put_count(w, pp.buys.size());
+            for (const auto& [type, pad] : pp.buys) w.i32(type).i32(pad);
+        }
 }
 
 bool TacticalAiWorld::read(ByteReader& r) {
@@ -4943,15 +5029,18 @@ bool TacticalAiWorld::read(ByteReader& r) {
     const uint32_t version = r.u32();
     // versions 12 / 13 (the same layout without the pad_occupied fact) still load: stored benchmark scenarios hold them.
     const bool lane_image = version == kTacticalAiLaneSaveVersion || version == kTacticalAiLaneSaveVersionNoPad ||
-                            version == kTacticalAiLaneSaveVersionNoRetest || version == kTacticalAiLaneSaveVersionNoAttackPos;
-    const bool has_attack_pos = version == kTacticalAiSaveVersion || version == kTacticalAiLaneSaveVersion;  // mcx6 t06
+                            version == kTacticalAiLaneSaveVersionNoRetest || version == kTacticalAiLaneSaveVersionNoAttackPos ||
+                            version == kTacticalAiLaneSaveVersionNoEscrow;
+    const bool has_escrow = version == kTacticalAiSaveVersion || version == kTacticalAiLaneSaveVersion;  // b0147
+    const bool has_attack_pos = has_escrow || version == kTacticalAiSaveVersionNoEscrow || version == kTacticalAiLaneSaveVersionNoEscrow;  // mcx6 t06
     const bool has_retest = has_attack_pos || version == kTacticalAiSaveVersionNoAttackPos || version == kTacticalAiLaneSaveVersionNoAttackPos;
     const bool has_pad_fact = has_retest || version == kTacticalAiSaveVersionNoRetest || version == kTacticalAiLaneSaveVersionNoRetest;
     if (!r.ok() || !(version == kTacticalAiSaveVersion || version == kTacticalAiSaveVersionNoPad || version == kTacticalAiSaveVersionNoRetest ||
-                     version == kTacticalAiSaveVersionNoAttackPos || (m.cfg.ai_lane && lane_image)))
+                     version == kTacticalAiSaveVersionNoAttackPos || version == kTacticalAiSaveVersionNoEscrow || (m.cfg.ai_lane && lane_image)))
         return io::bad(r);
     // The records' fields come from their field lists (tactical_ai_records.hpp); older images lack some.
     io::Features features;
+    features.escrow = has_escrow;
     features.pad_fact = has_pad_fact;
     features.retest = has_retest;
     io::SaveReader in(r, &m.store, features);
@@ -5268,6 +5357,29 @@ bool TacticalAiWorld::read(ByteReader& r) {
                 return io::bad(r);
             last = id;
             pit->second.lua_released = std::move(keys);
+        }
+        if (!r.ok()) return false;
+    }
+    // ---- b0147: the PPs' escrow block (absent before version 20 / 21: nothing held) ----
+    if (has_escrow) {
+        const uint32_t ne = io::count(r, 4 + 4 + 4 + 4);
+        int32_t last = -1;
+        for (uint32_t i = 0; i < ne && r.ok(); ++i) {
+            const int32_t id = r.i32();
+            const float net = r.f32(), escrow = r.f32();
+            std::vector<std::pair<int32_t, int32_t>> buys(io::count(r, 8));
+            for (auto& [type, pad] : buys) {
+                type = r.i32();
+                pad = r.i32();
+            }
+            const auto pit = new_pps.find(id);
+            const bool picks_ok = std::all_of(buys.begin(), buys.end(), [](const auto& b) { return b.first >= 0 && b.second >= -1; });
+            if (!r.ok() || id <= last || pit == new_pps.end() || !(escrow >= 0.0f) || !picks_ok || (net == 0.0f && escrow == 0.0f && buys.empty()))
+                return io::bad(r);
+            last = id;
+            pit->second.net = net;
+            pit->second.escrow = escrow;
+            pit->second.buys = std::move(buys);
         }
         if (!r.ok()) return false;
     }

@@ -57,7 +57,9 @@
 // are reserved; every Commit suspends the +0x30 entries and kept goals re-assert them; a plan whose unit another PP
 // reserved meanwhile is invalid; a unit a task force releases leaves its PP. The task force's Produce_Force gathers the
 // selection (free units join, pool entries become pending reinforcements, pads become Build reservations; nothing is
-// bought: AI_GALACTIC_3 §1.11).
+// bought: AI_GALACTIC_3 §1.11). b0147 (legacy docs/re/BKG1_RE_ANSWERS.md §6 "b0138", §7.3): the PP's TacticalBuild net cost
+// is paid at its first reserve (the accept) and held as the plan's escrow; each TF Build / Build_All pad match and each
+// accepted skirmish Production draws it down by the base price; plan end refunds the rest (TacticalAiHost::add_credits).
 // FIRST-CUT PARTS (legacy docs/PHASE4.md A1 open items): blocking-status
 // completion rules (open item 3) are this port's: move = every live unit without a movement goal (A2 tactical: an
 // Attack_Move to an object completes when the object dies, units re-ordered only when it moved), attack =
@@ -208,6 +210,11 @@ public:
     // (SetClassPriorities) lasts only while the unit is a member. Unconditional (no movement-lock test). Called during
     // the AI update, before unit_released. Default: nothing.
     virtual void unit_left_task_force(int32_t /*object_id*/) {}
+    // b0147 (legacy docs/re/BKG1_RE_ANSWERS.md §6 "b0138"): the tactical plan escrow's credit moves through Add_Credits
+    // 0x27f370 (notify 1): -net at the plan accept 0x6c2d60, +the remaining escrow at plan end 0x5f6a50. The host applies
+    // them to the player's account as its other battle credit changes (a positive amount for an AI player x its
+    // Credit_Multiplier). Called during the AI update. Default: nothing.
+    virtual void add_credits(int32_t /*player*/, float /*amount*/) {}
     using ProductionCompleted = ::alamo::ai::tactical::ProductionCompleted;
 };
 

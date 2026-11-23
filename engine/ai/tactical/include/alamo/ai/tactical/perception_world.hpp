@@ -135,6 +135,9 @@ struct PerceptionPlayerInfo {
     bool attacker = false;           // campaign battle: the attacker (0x28adf0)
     std::string ai_difficulty;       // AI difficulty name ("Easy" / "Normal" / "Hard"), empty = none / human
     float credits = 0.0f;            // float +0x70
+    // b0147: the faction planet factor of the pad price 0x3744e0 (TacticalPpInput::pad_price_factor); 1 in skirmish.
+    // Not saved or hashed: every fill() sets it again before a solve reads it.
+    float pad_price_factor = 1.0f;
     int32_t pop_cap = 0, pop_used = 0;
     bool can_retreat = false;        // retreat coordinator reports 0 for P
     bool is_retreating = false;      // [L]
