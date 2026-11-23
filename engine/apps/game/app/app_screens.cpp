@@ -88,10 +88,10 @@ bool App::skirmish_map_is_land(const std::string& map) const {
 }
 
 // Skirmish buy-units screen (IDD_SKIRMISH_BUY_UNITS_DIALOG). [port] a pre-battle screen (the original single-player
-// skirmish has none, SKIRMISH_SETUP §2.7): 10000 credits; bought units replace the default fleet, none bought = the
-// default fleet. The list is the original dialog's (game::skirmish_buy_list: cost > 0, Affiliation, Available_In_Skirmish
-// or the map kind's build tab, not cinematic-only, named heroes only with the heroes option, most expensive first, no cap:
-// the list box scrolls).
+// skirmish has none, legacy docs/re/SKIRMISH_SETUP.md §2.7): 10000 credits; bought units replace the default fleet, none
+// bought = the default fleet. The list is the original dialog's (game::skirmish_buy_list: cost > 0, Affiliation,
+// Available_In_Skirmish or the map kind's build tab, not cinematic-only, named heroes only with the heroes option, most
+// expensive first, no cap: the list box scrolls).
 void App::open_buy_units(const SessionSpec& spec) {
     // with the "free starting units" option off (Fall of the Republic sets MP_Default_Free_Starting_Units = no) the
     // slots start without forces (SKIRMISH_SETUP §2 step 4) and the original allows no starting purchase (the flag's control
