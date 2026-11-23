@@ -1677,10 +1677,17 @@ void AbilitySystem::class_update(Obj& o, SpecialState& sp, uint32_t frame) {
         }
 
         case C::Cable: {
-            // r3g t04 (CableAttackAbility service 0x6f2d50, states 3 / 4 / 5; interval 1). [port] the cable render object,
-            // its end points and the "user still circling" test (locomotor state 0x26, else cancel) are not modelled: the
-            // effect ends when the user or the walker is gone (or by Terminate_Effect_On_Move_Command).
+            // r3g t04 (CableAttackAbility service 0x6f2d50, states 3 / 4 / 5; interval 1). [port] the cable render object and
+            // its end points are not modelled. The effect ends when the user or the walker is gone (or by
+            // Terminate_Effect_On_Move_Command), or when the user stops circling while the cable drops / pulls (#44 t03).
             if (!alive_unit(sp.target) || o.dead) {
+                remove_special(o, sp, frame);
+                return;
+            }
+            // #44 t03 (0x6f3180 read 2026-11-23 [H]): each drop / pull service first checks the user's locomotor; one that
+            // is not circling (state 0x26) ends the cable (0x6f2a30, state 7: no trip, no hold). A user without a
+            // locomotor skips the check; the wrapping (0x6f3800) has none.
+            if (sp.phase == kCablePulling && host_.circling && !host_.circling(o.id)) {
                 remove_special(o, sp, frame);
                 return;
             }

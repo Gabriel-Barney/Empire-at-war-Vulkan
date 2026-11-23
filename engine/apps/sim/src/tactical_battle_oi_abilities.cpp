@@ -137,6 +137,21 @@ void TacticalBattle::oi_install(TacticalMode& mode, SimRng& rng) {
                 movement_->has_unit(u.id))
                 movement_->start_circling(u.id, target, r_min, r_max);
     };
+    // #44 t03 (0x6f3180): the cable user still circles (locomotor state 0x26). [port] a team container answers by its
+    // members (circling while any live member circles); a user with no mover answers true (no locomotor: no check).
+    h.circling = [this](tc::ObjectId user) {
+        if (!movement_) return true;
+        if (movement_->has_unit(user)) return movement_->view(user).loco_state == mv::LocoState::FlyCircling;
+        bool movers = false;
+        for (const Unit& u : units_) {
+            if (!u.alive || u.retreated || u.container >= containers_.size() || containers_[u.container].id != user ||
+                !movement_->has_unit(u.id))
+                continue;
+            movers = true;
+            if (movement_->view(u.id).loco_state == mv::LocoState::FlyCircling) return true;
+        }
+        return !movers;
+    };
     h.map_rect = [this](tactical::Vec3& lo, tactical::Vec3& hi) {
         float mn[2], mx[2];
         if (!map_.playable_box(mn, mx)) return false;
