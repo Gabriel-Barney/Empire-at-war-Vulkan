@@ -2627,6 +2627,9 @@ private:
     int32_t retreat_side_ = -1;        // side retreating (-1 none)
     uint32_t retreat_done_frame_ = 0;  // countdown end
     bool retreat_complete_ = false;
+    // #84 (TRL2_A_RE_ANSWERS Q3, land vf8 0x534d90 [H]): the land retreat list, taken at the request (saved, state version
+    // 24; hashed while non-empty). complete_retreat keeps only these units; a cancel or the completion clears it.
+    std::vector<objects::ObjectId> land_retreat_list_;
     // victory monitor state (saved; hashed once declared, held or queued)
     bool vm_declared_ = false;
     VmRecord vm_decl_;
