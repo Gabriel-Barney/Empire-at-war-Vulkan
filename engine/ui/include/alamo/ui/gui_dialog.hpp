@@ -248,6 +248,7 @@ struct GuiEvent {
                            // double click sends DoubleClicked instead)
         Hovered,           // the cursor entered an enabled push button / check box / radio button (retail dialog
                            // event 0x0d; the single-player menu's hint list reads it)
+        SliderReleased,    // #62 t01: a slider drag ended on the mouse-up (value; retail trackbar event 5, 0x1d6290)
     };
     Kind kind = Kind::Clicked;
     std::string dialog;

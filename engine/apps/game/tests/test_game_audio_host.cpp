@@ -739,6 +739,7 @@ const char* kAud1Sfx = R"(<?xml version="1.0"?>
   <SFXEvent Name="HP_Turbolaser"><Samples>TL.WAV</Samples><Max_Instances>8</Max_Instances></SFXEvent>
   <SFXEvent Name="Ship_Fire"><Samples>SF.WAV</Samples><Max_Instances>8</Max_Instances></SFXEvent>
   <SFXEvent Name="Hyper_Arrive"><Samples>HYPER.WAV</Samples><Max_Instances>8</Max_Instances></SFXEvent>
+  <SFXEvent Name="GUI_Audio_Options_SFX_Test"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Samples>SFXTEST.WAV</Samples></SFXEvent>
   <SFXEvent Name="SFX_Stealth_Reveal"><Is_2D>No</Is_2D><Is_3D>Yes</Is_3D><Samples>REVEAL.WAV</Samples><Max_Instances>4</Max_Instances></SFXEvent>
 </SFXEvents>
 )";
@@ -887,6 +888,15 @@ void test_battle_hookups_aud1() {
     // SFX_Stealth_Reveal by name, 2D (0x2d5010), whoever owns it. The fixture is 3D-only like the shipped event
     // (Preset_EXPC): the by-name 2D entry plays it 2D anyway.
     CHECK(h.stealth_reveal() != 0 && starts(h, "SFX_Stealth_Reveal") == 1 && h.stats().stealth_reveals == 1);
+    // #62 t01 (0x81c20 [H]): the options dialog's SFX test plays GUI_Audio_Options_SFX_Test by name, 2D; the speech test
+    // streams Test_Speech_ENG.MP3 (localized) on the speech bus.
+    CHECK(h.options_sfx_test() != 0 && starts(h, "GUI_Audio_Options_SFX_Test") == 1);
+    h.options_speech_test();  // the stream is requested (the test tree has no file: the null backend reports it missing)
+    {
+        bool streamed = false;
+        for (const audio::LogEntry& e : h.system()->log()) streamed = streamed || (e.op == audio::LogOp::SpeechStart && e.sample == "Test_Speech_ENG.MP3");
+        CHECK(streamed);
+    }
 }
 #endif
 

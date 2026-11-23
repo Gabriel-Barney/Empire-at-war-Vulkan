@@ -397,6 +397,9 @@ struct MenuAction {
         // modc t08 (IDD_PORT_MODS_DIALOG), appended:
         CheckMod,   // mod: the picker row selected (ModPickerEntry::id; "" = the base game) wants its load report
         LaunchMod,  // mod: restart with that mod (the host builds the MODPATH= / STEAMMOD= arguments)
+        // #62 t01 (options dialog 0x81c20, dialog event 5 [H]), appended: a released SFX / dialog volume slider
+        TestAudioSfx,     // play GUI_Audio_Options_SFX_Test
+        TestAudioSpeech,  // stream Test_Speech_ENG.MP3
     };
     Kind kind = Kind::ResumeGame;
     std::string campaign, faction, map, save;

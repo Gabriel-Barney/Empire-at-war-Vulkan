@@ -155,6 +155,11 @@ public:
     // SFXEvent_Sabotage_Success) and the GUI negative feedback (the special systems' local error SFX, [port]).
     void faction_sfx(std::string_view faction_tag);
     void negative_feedback();
+    // #62 t01 (the options dialog 0x81c20, dialog event 5 = a released volume slider [H]): the SFX slider plays
+    // GUI_Audio_Options_SFX_Test by name, 2D, unpumped (0x2d5010(name, 0, 0, 0)); the dialog slider streams
+    // Test_Speech_ENG.MP3 (AudioSystem::play_speech_file). Returns the SFX instance id / whether the stream started.
+    uint32_t options_sfx_test();
+    bool options_speech_test();
     // owner = the unit's player (-1 unknown): units of the battle's retreating player give no response (the mode's
     // "excluded set" = the retreat coordinator's retreating units, STRATEGIC_GAPS §7.4 [M]; stats().excluded).
     // mcx4 t13 (MCX4_T13_RE_ANSWERS "GameObjectType.SFXEvent_Move_Into_Asteroid_Field family" [H]): `dest_fields` = the

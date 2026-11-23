@@ -157,6 +157,10 @@ BEGIN
                     TBS_NOTICKS,287,125,242,15
     CONTROL         "",IDC_SLIDER_MUSIC_VOLUME,"msctls_trackbar32",TBS_BOTH |
                     TBS_NOTICKS,287,236,242,15
+    CONTROL         "",IDC_SLIDER_SOUND_EFFECTS_VOLUME,"msctls_trackbar32",TBS_BOTH |
+                    TBS_NOTICKS,287,162,242,15
+    CONTROL         "",IDC_SLIDER_DIALOG_VOLUME,"msctls_trackbar32",TBS_BOTH |
+                    TBS_NOTICKS,287,199,242,15
 END
 
 IDD_KEYBOARD_OPTIONS_DIALOG DIALOGEX 0, 0, 880, 542
@@ -602,8 +606,10 @@ void test_routing_and_controls() {
         CHECK(env.sfx.size() == 2 && env.sfx[1] == "GUI_Common_Dialog_Button_Press");
         ev = env.frame(left, true);
         CHECK(has_event(ev, GuiEvent::Kind::ValueChanged, "IDC_TEST_SLIDER", 0));
-        env.frame(left, false);
+        ev = env.frame(left, false);  // #62 t01: the drag ends on the mouse-up (retail trackbar event 5, 0x1d6290)
+        CHECK(has_event(ev, GuiEvent::Kind::SliderReleased, "IDC_TEST_SLIDER", 0));
         ev = env.frame(left, false, {vk::kRight});  // focused by the press
+        CHECK(!has_event(ev, GuiEvent::Kind::SliderReleased, "IDC_TEST_SLIDER", 1));  // a key moves it: no release
         CHECK(d->get("IDC_TEST_SLIDER")->value == 1);
         env.frame(left, false, {vk::kEnd});
         CHECK(d->get("IDC_TEST_SLIDER")->value == 100);
@@ -1168,6 +1174,26 @@ void test_menus() {
         step(env.frame(end, false));
     }
     CHECK(!acts.empty() && acts.back().kind == MenuAction::Kind::PreviewAudio && acts.back().audio.master == 1.0f);
+    // #62 t01 (0x81c20, dialog event 5 [H]): releasing the SFX slider asks for the SFX test, the dialog slider for the speech
+    // test; the master (and music) slider has none.
+    {
+        auto tests = [&] {
+            int n = 0;
+            for (const MenuAction& a : acts)
+                n += a.kind == MenuAction::Kind::TestAudioSfx ? 1 : a.kind == MenuAction::Kind::TestAudioSpeech ? 10 : 0;
+            return n;
+        };
+        CHECK(tests() == 0);
+        for (const char* s : {"IDC_SLIDER_SOUND_EFFECTS_VOLUME", "IDC_SLIDER_DIALOG_VOLUME"}) {
+            acts.clear();
+            const GuiRect r = au->control_rect(static_cast<size_t>(au->find(s)));
+            const Vec2f mid = env.gui.canvas().canvas_to_pixel(0.5f * (r.min.x + r.max.x), 0.5f * (r.min.y + r.max.y));
+            step(env.frame(mid, true));
+            CHECK(tests() == 0);  // the press and the drag only preview
+            step(env.frame(mid, false));
+            CHECK(tests() == (s[11] == 'S' ? 1 : 10));
+        }
+    }
     acts.clear();
     step(env.click(*au, "IDC_OK"));
     CHECK(acts.size() == 1 && acts[0].kind == MenuAction::Kind::ApplyAudio && acts[0].audio.master == 1.0f &&

@@ -938,6 +938,27 @@ void test_speech() {
     CHECK(a.speech_queue_size() == 0 && a.active_voices(Bus::Speech) == 0);
 }
 
+// #62 t01 (options dialog 0x81c20 -> 0x22d260 / 0x22cf30 [H]): the speech test streams the localized file at volume 1.0 on
+// the speech bus after stopping what the speech stream plays; a second test replaces the first; Stop_All_Speech stops it.
+void test_speech_file() {
+    AudioConfig cfg;
+    cfg.language = "German";
+    Rig rig(cfg);
+    AudioSystem& a = *rig.a;
+    CHECK(a.play_speech("Line_1"));
+    a.update(0.0);
+    CHECK(a.speech_playing());
+    CHECK(a.play_speech_file("Test_Speech_ENG.MP3"));
+    const LogEntry* s = last_op(a, LogOp::SpeechStart);
+    CHECK(s && s->sample == "Test_Speech_GER.MP3" && s->event.empty() && near(s->gain, a.bus_gain(AudioBus::Speech)));
+    const uint32_t v = s ? s->voice : 0;
+    CHECK(a.active_voices(Bus::Speech) == 1);  // the queued line's stream stopped; the test file plays
+    CHECK(a.play_speech_file("Test_Speech_ENG.MP3"));
+    CHECK(!rig.backend.playing(v) && a.active_voices(Bus::Speech) == 1);
+    a.stop_all_speech();
+    CHECK(a.active_voices(Bus::Speech) == 0);
+}
+
 // Scripted session: identical inputs -> identical logs; only the free RNG instance is drawn.
 std::string scripted_session(uint32_t seed, GameRandom& gr) {
     MemoryProvider tree = make_tree();
@@ -1797,6 +1818,7 @@ int main() {
     test_music();
     test_music_end_rules();
     test_speech();
+    test_speech_file();  // #62 t01
     test_determinism();
     test_decode_backend();
     test_streams();

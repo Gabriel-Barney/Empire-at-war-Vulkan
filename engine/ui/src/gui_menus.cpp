@@ -226,6 +226,8 @@ const char* menu_action_name(MenuAction::Kind k) {
         case MenuAction::Kind::ApplyCamera: return "ApplyCamera";
         case MenuAction::Kind::CheckMod: return "CheckMod";
         case MenuAction::Kind::LaunchMod: return "LaunchMod";
+        case MenuAction::Kind::TestAudioSfx: return "TestAudioSfx";
+        case MenuAction::Kind::TestAudioSpeech: return "TestAudioSpeech";
     }
     return "?";
 }
@@ -1798,6 +1800,10 @@ void FrontEnd::on_change(const GuiEvent& e, std::vector<MenuAction>& out) {
         MenuAction a = act(MenuAction::Kind::PreviewAudio);
         a.audio = read_audio(*d);
         out.push_back(std::move(a));
+    } else if (ascii_iequals(n, kAudio) && e.kind == GuiEvent::Kind::SliderReleased) {
+        // #62 t01 (0x81c20, dialog event 5 [H]): the released SFX / dialog volume slider plays its test sound
+        if (e.control == "IDC_SLIDER_SOUND_EFFECTS_VOLUME") out.push_back(act(MenuAction::Kind::TestAudioSfx));
+        else if (e.control == "IDC_SLIDER_DIALOG_VOLUME") out.push_back(act(MenuAction::Kind::TestAudioSpeech));
     } else if ((ascii_iequals(n, kSave) || ascii_iequals(n, kLoad)) && e.control == "IDC_SAVE_GAME_LIST" &&
                e.kind == GuiEvent::Kind::RowClicked) {
         toggle_save_group(*d, e.value);  // [port: Gabriel] a group row opens / closes
@@ -2305,6 +2311,9 @@ void FrontEnd::update(std::span<const GuiEvent> events, const InputFrame& raw, s
             case GuiEvent::Kind::SelectionChanged:
             case GuiEvent::Kind::DoubleClicked:
             case GuiEvent::Kind::ValueChanged: on_change(e, out); break;
+            case GuiEvent::Kind::SliderReleased:  // #62 t01: only the audio dialog's test sounds read it
+                if (ascii_iequals(e.dialog, kAudio)) on_change(e, out);
+                break;
             case GuiEvent::Kind::RowClicked:  // [port: Gabriel] only the saved games tree uses row clicks
                 if (ascii_iequals(e.dialog, kSave) || ascii_iequals(e.dialog, kLoad)) on_change(e, out);
                 break;

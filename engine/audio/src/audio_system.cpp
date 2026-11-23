@@ -1292,8 +1292,29 @@ void AudioSystem::update_speech() {
     // The next entry starts on the next update.
 }
 
+bool AudioSystem::play_speech_file(std::string_view file) {
+    if (speech_voice_) backend_->stop(speech_voice_);  // the queue entry ends at the next update (update_speech)
+    if (speech_file_voice_) backend_->stop(speech_file_voice_);
+    const std::string f = localize_file(file, cfg_.language);
+    speech_file_voice_ = next_voice_++;
+    VoiceParams vp;
+    vp.gain = bus_gain(AudioBus::Speech);  // volume 1.0
+    const bool ok = backend_->start(speech_file_voice_, SampleRef{Bus::Speech, f}, vp);
+    LogEntry le;
+    le.op = LogOp::SpeechStart;
+    le.sample = f;
+    le.voice = speech_file_voice_;
+    le.gain = vp.gain;
+    if (!ok) le.reason = "sample_missing";
+    push(std::move(le));
+    if (!ok) speech_file_voice_ = 0;
+    return ok;
+}
+
 void AudioSystem::stop_all_speech() {
     if (speech_voice_) backend_->stop(speech_voice_);
+    if (speech_file_voice_) backend_->stop(speech_file_voice_);
+    speech_file_voice_ = 0;
     speech_voice_ = 0;
     std::vector<std::string> killed;
     for (const SpeechEntry& q : speech_queue_) killed.push_back(db_->speech()[q.event].name);

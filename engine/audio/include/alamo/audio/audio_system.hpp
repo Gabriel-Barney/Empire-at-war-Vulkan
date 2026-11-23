@@ -347,6 +347,11 @@ public:
     // the done callbacks with killed = true. [port] the original only has Stop_All_Speech.
     void cancel_speech(uint32_t ticket);
     void stop_all_speech();
+    // #62 t01 (the options dialog's speech test, 0x81c20 -> 0x22d260 / 0x22cf30 [H]): the speech stream player stops
+    // what it streams and streams `file` (localized, §1.3) at volume 1.0 on the speech bus, outside the queue. [port] the
+    // queue's playing line is stopped too (the original's queue streams through the same player); its entry ends at the
+    // next update. Stop_All_Speech stops the file too. False when the stream did not start.
+    bool play_speech_file(std::string_view file);
     bool speech_playing() const { return speech_voice_ != 0; }
     std::string current_speech() const;
     size_t speech_queue_size() const { return speech_queue_.size(); }
@@ -506,6 +511,7 @@ private:
     };
     std::deque<SpeechEntry> speech_queue_;
     uint32_t speech_voice_ = 0;
+    uint32_t speech_file_voice_ = 0;  // #62 t01: play_speech_file's stream (0 = none)
     uint32_t next_speech_ticket_ = 1;
     std::optional<float> saved_master_;
     std::vector<std::function<void(const std::string&, bool)>> speech_done_;

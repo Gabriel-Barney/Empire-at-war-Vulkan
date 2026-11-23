@@ -1592,6 +1592,8 @@ void App::handle_menu_actions(const std::vector<ui::MenuAction>& acts) {
             case K::CheckMod: check_mod(a.mod); break;    // modc t08
             case K::LaunchMod: launch_mod(a.mod); break;
             case K::PreviewAudio: audio_.set_volumes(a.audio.master, a.audio.sfx, a.audio.speech, a.audio.music); break;
+            case K::TestAudioSfx: audio_.options_sfx_test(); break;  // #62 t01: a released SFX volume slider
+            case K::TestAudioSpeech: audio_.options_speech_test(); break;  // ... the dialog volume slider
             case K::ApplyAudio:  // the dialog opens with these and they are kept between runs
                 audio_opts_ = a.audio;
                 apply_audio_page();
