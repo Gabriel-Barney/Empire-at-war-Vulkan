@@ -245,15 +245,21 @@ CableRun oi_cable_run(bool walker_moving, float paralyze, int leave = -1) {
 // r3g t02 (REMAINING_GAPS §5.2, 0x591a90): the timed DEPLOY_TROOPERS machine with clip data - Drop Rope 31 frames, Deploy
 // Troopers 16, Lift Rope 31 on the walker, Rope Land 13 on each trooper (30 fps), bones at height 20 over flat ground 0
 // (5 slide services). Ticks from the order: Drop Rope finishes after 29 (state 4 at that service), the troopers spawn at
-// the next service (30); Deploy Troopers finishes 14 later (44): both troopers are released, each unlocked after its 5
-// slide services, the landing service and Rope Land's 11 frames (61); Lift Rope finishes 29 after the release (73): the
-// ability recharges and the walker is released. Without an anim_clip host the spawn stays instant (test_gaps_deploy_troopers).
+// the next service (30); Deploy Troopers finishes 14 later (44): both troopers are released, each slides for its 5
+// slide services and the landing service (the slide ends at 50: TrooperReleased's value) and is unlocked after Rope Land's
+// 11 frames (61); Lift Rope finishes 29 after the release (73): the ability recharges and the walker is released. Without
+// an anim_clip host the spawn stays instant (test_gaps_deploy_troopers).
+// #57 t02 (0x591a90 / 0x590730 / 0x58fb80 / 0x630fe0): the clips are played for the host - Drop Rope at the deployed
+// service (0), Deploy Troopers at the spawn (30), Lift Rope at the release (44), all blend 0; Rope Land on each trooper at
+// its slide end (50), blend 0.1; one-shots at speed 1, index 0xFFFF (variant 0: one variant each, no draw).
 // `cut` (review follow-up, [port]): 1 turns the ability off at tick 35 (troopers hanging), 2 kills the walker then; both
 // release the hanging troopers at their next rope service (TrooperReleased, unlocked there: no slide); 1 also unlocks
 // the walker at once.
 // `turn` (#44 t04, R3G_ANIM_TIMED_RE §2 step 1 [H]): the walker is still turning in place (speed 0, not moving) for the
 // first `turn` ticks; state 1 waits until it no longer moves or turns, so every time shifts by `turn`.
-void r3g_troopers_run(int cut, int turn = 0) {
+// `variants` (#57 t02): Drop Rope has two variants, 31 and 61 frames; the play draws one (index 0xFFFF) and the machine
+// is timed on it: the troopers spawn at 30 after variant 0, at 60 after variant 1 (61 frames finish after 59).
+void r3g_troopers_run(int cut, int turn = 0, bool variants = false) {
     OiWorld w;
     AbilityObjectDesc a;
     UnitAbilityRecord dt = rec(kDeployTroopers, 0.0f, 20.0f);
@@ -279,13 +285,18 @@ void r3g_troopers_run(int cut, int turn = 0) {
     h.moving = [](ObjectId) { return false; };
     const uint32_t order_frame = w.frame;
     h.turning = [&w, order_frame, turn](ObjectId id) { return id == 1 && w.frame < order_frame + static_cast<uint32_t>(turn); };
-    h.anim_clip = [](ObjectId id, int32_t type, std::string_view, uint32_t, uint32_t& n, float& f) {
+    h.anim_clip = [](ObjectId id, int32_t type, std::string_view, uint32_t variant, uint32_t& n, float& f) {
         f = 30.0f;
         n = 0;
-        if (id == 1) n = type == 0x61 ? 31u : type == 0x5e ? 16u : type == 0x62 ? 31u : 0u;
+        if (id == 1) n = type == 0x61 ? (variant == 1 ? 61u : 31u) : type == 0x5e ? 16u : type == 0x62 ? 31u : 0u;
         else if (type == 0x60) n = 13u;
         return n > 0;
     };
+    if (variants)
+        h.anim_variants = [](ObjectId id, int32_t type) -> uint32_t {
+            if (id == 1) return type == 0x61 ? 2u : (type == 0x5e || type == 0x62) ? 1u : 0u;
+            return type == 0x60 ? 1u : 0u;
+        };
     w.ab->set_host(std::move(h));
     w.add(1, ud, 0, {0, 0, 0}, {0, 1, 0});
     const ObjectId one[] = {1};
@@ -294,6 +305,8 @@ void r3g_troopers_run(int cut, int turn = 0) {
     int spawn = -1, released = -1, unlocked = -1, done = -1;
     int32_t rope_end = -1;
     const uint32_t f0 = w.frame;
+    std::string plays;  // "type@tick:id/variant/loop/blend" per play, in order
+    std::vector<AbilityAnimPlay> taken;
     for (int i = 0; i < 120; ++i) {
         // OiWorld::tick with the host's spawn pass between the ability tick and the event collection (which clears
         // the requests).
@@ -314,6 +327,15 @@ void r3g_troopers_run(int cut, int turn = 0) {
             }
         }
         w.collect();
+        w.ab->take_anim_plays(taken);
+        for (const AbilityAnimPlay& p : taken) {
+            char b[64];
+            std::snprintf(b, sizeof b, "%s%x@%d:%d/%u/%u/%.1f", plays.empty() ? "" : " ", static_cast<unsigned>(p.type),
+                          static_cast<int>(p.frame - f0), static_cast<int>(p.id), p.variant, static_cast<unsigned>(p.loop), p.blend);
+            if (p.speed != 1.0f) std::snprintf(b + std::strlen(b), sizeof b - std::strlen(b), "!speed");
+            plays += b;
+        }
+        taken.clear();
         ++w.frame;
         if (released < 0 && w.count(AbilityEventKind::TrooperReleased) == 2) {
             released = at;
@@ -322,15 +344,22 @@ void r3g_troopers_run(int cut, int turn = 0) {
         if (unlocked < 0 && w.count(AbilityEventKind::Released, 50) > 0 && w.count(AbilityEventKind::Released, 51) > 0) unlocked = at;
         if (done < 0 && w.count(AbilityEventKind::Released, 1) > 0) done = at;
     }
-    std::printf("r3g deploy troopers (cut %d, turn %d): spawn %d, released %d (rope end %d), unlocked %d, done %d\n", cut, turn,
-                spawn, released, rope_end, unlocked, done);
+    std::printf("r3g deploy troopers (cut %d, turn %d): spawn %d, released %d (rope end %d), unlocked %d, done %d; plays %s\n", cut,
+                turn, spawn, released, rope_end, unlocked, done, plays.c_str());
+    if (variants) {
+        const bool v1 = plays.rfind("61@0:1/1/", 0) == 0;
+        CHECK(v1 || plays.rfind("61@0:1/0/", 0) == 0);
+        CHECK(spawn == (v1 ? 60 : 30) && released == spawn + 14);
+        return;
+    }
     if (turn > 0) {
-        CHECK(spawn == 30 + turn && released == 44 + turn && rope_end == 61 + turn && unlocked == 61 + turn &&
+        CHECK(spawn == 30 + turn && released == 44 + turn && rope_end == 50 + turn && unlocked == 61 + turn &&
               done == 73 + turn);
         return;
     }
-    if (cut == 1) {
+    if (cut == 1) {  // released at once: no Rope Land
         CHECK(spawn == 30 && released == 35 && rope_end == 35 && unlocked == 35 && done == 35);
+        CHECK(plays == "61@0:1/0/0/0.0 5e@30:1/0/0/0.0");
         CHECK(!w.ab->is_active(1, kDeployTroopers) && w.ab->countdown_counter(1, kDeployTroopers) > 0);
         return;
     }
@@ -338,7 +367,9 @@ void r3g_troopers_run(int cut, int turn = 0) {
         CHECK(spawn == 30 && released == 35 && rope_end == 35 && unlocked == 35);
         return;
     }
-    CHECK(spawn == 30 && released == 44 && rope_end == 61 && unlocked == 61 && done == 73);
+    CHECK(spawn == 30 && released == 44 && rope_end == 50 && unlocked == 61 && done == 73);
+    const std::string walker_plays = "61@0:1/0/0/0.0 5e@30:1/0/0/0.0 62@44:1/0/0/0.0 ";  // the troopers' plays in either order
+    CHECK(plays == walker_plays + "60@50:50/0/0/0.1 60@50:51/0/0/0.1" || plays == walker_plays + "60@50:51/0/0/0.1 60@50:50/0/0/0.1");
     CHECK(w.count(AbilityEventKind::Immobilised, 50) == 1 && w.count(AbilityEventKind::Immobilised, 1) == 1);
     CHECK(!w.ab->is_active(1, kDeployTroopers) && w.ab->countdown_counter(1, kDeployTroopers) > 0);
     CHECK(w.ab->troopers_deployed(1) == 2);
@@ -349,6 +380,7 @@ void test_r3g_deploy_troopers_timed() {
     r3g_troopers_run(1);
     r3g_troopers_run(2);
     r3g_troopers_run(0, 5);  // #44 t04: a walker turning in place for 5 ticks deploys 5 ticks later
+    r3g_troopers_run(0, 0, true);  // #57 t02: timed on the drawn Drop Rope variant
 }
 
 // ticks from the order to the Repair's heal; the model has HACKING 0x5a (`hack` frames) and REPAIRING 0x5b
@@ -813,7 +845,7 @@ void test_save_load_mines() {
     bad.push_back(1);
     CHECK(rejected(bad));
     bad = saved.abilities;
-    bad[0] = 9;  // version
+    bad[0] = static_cast<uint8_t>(bad[0] + 1);  // version (one past the current)
     CHECK(rejected(bad));
     bad = saved.abilities;
     bad[4] = static_cast<uint8_t>(bad[4] + 1);  // AbilityData object count

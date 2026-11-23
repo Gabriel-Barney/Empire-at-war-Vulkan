@@ -1691,7 +1691,7 @@ void test_land_structures() {
         w.hg = std::make_unique<HangarSystem>(*w.sys, std::vector<HangarDesc>{d}, cfg);
         HangarHost h;
         if (clips)
-            h.clip = [played](ObjectId, int32_t anim, bool loop, uint32_t& fin) {
+            h.clip = [played](ObjectId, int32_t anim, bool loop, SimRng*, uint32_t& fin) {
                 if (played) played->push_back(anim);
                 fin = anim == 68 ? 40u : anim == 70 ? 25u : 0u;
                 return anim == 68 || anim == 70 || (anim == 69 && loop);

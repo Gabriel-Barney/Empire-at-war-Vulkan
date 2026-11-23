@@ -134,7 +134,8 @@ enum class AbilityEventKind : uint8_t {
     GravitySlow,
     // r3g t02 (REMAINING_GAPS §5.2, DEPLOY_TROOPERS 0x591a90 state 5): trooper `id` of owner `target` is released from its
     // Owner_Attachment_Bone (0x392160) and its LANDING behaviour starts (the rope slide down, Rope Land); the host drops
-    // the bone attachment. The trooper stays movement-locked until its landing ends (`value` = that frame).
+    // the bone attachment. The trooper stays movement-locked until its landing ends (`value` = the frame its slide ends
+    // and Rope Land starts; #57 t02: the clip's variant is drawn then, so the landing's end is not known yet).
     TrooperReleased,
     // mcx4 t13 (presentation; MCX4_T13_RE_ANSWERS "Tactical_Bribe_Ability.SFXEvent_Success family", 0x5b07c0): the bribe
     // was paid for and the target `target` is converted; `id` the user.
@@ -625,6 +626,12 @@ public:
     // Objects to create after this tick (cleared by clear_events()); bind_spawn tells which object a request became.
     std::span<const SpawnRequest> spawn_requests() const { return spawns_; }
     bool bind_spawn(uint32_t serial, ObjectId id);
+    // #57 t02: a clip the host starts on an object it has just created (DEPLOY_TROOPERS' Rope Slide), queued with the
+    // ability plays (variant already drawn, blend 0, speed 1): that object joins the animation world only at the next
+    // sync, and the queue is saved and played at its own frame. False (nothing queued) when the model lacks the clip.
+    bool queue_host_play(ObjectId id, int32_t type, uint32_t variant, bool loop, uint32_t frame) {
+        return queue_play(id, type, variant, loop, 0.0f, 1.0f, frame);
+    }
     // Active_By_Default (0x3a82a0, §1.2 [H]): the first two Unit_Abilities_Data entries with Active_By_Default are
     // switched on. add_unit / add_container call it at creation; the A1/A2 AI layer calls it when a script-locked
     // unit's order finishes (free store, after the lock is released) or a task force releases a unit whose movement
@@ -853,9 +860,10 @@ private:
                                    // Troopers, 8 Lift Rope (0x591a90 states; 6 / 7 folded into 5 -> 8 [port])
         uint8_t troop_deploy = 0;  // owner: this deploy asked the locomotor to deploy (undeployed at the end)
         uint32_t troop_end = 0;    // owner: the frame the playing clip reports finished
-        uint8_t rope_state = 0;    // trooper: 0 none, 1 hanging on the bone, 2 sliding down / Rope Land, 3 hanging, lock
-                                   // not taken yet (spawned this tick)
-        uint32_t rope_end = 0;     // trooper: the frame its LANDING ends (unlocked, joins the coordinator)
+        uint8_t rope_state = 0;    // trooper: 0 none, 1 hanging on the bone, 2 sliding down, 3 hanging, lock not taken yet
+                                   // (spawned this tick), 4 Rope Land playing
+        uint32_t rope_end = 0;     // trooper: the frame its slide ends (2), or its Rope Land (4: unlocked, joins the
+                                   // coordinator)
         float rope_z = 0.0f;       // trooper: the bone height it was created at
         ObjectId rope_owner = kNoObject;
         uint8_t cable_holds = 0;   // cables holding this walker paralyzed (kLockCable while > 0; 0x3a8e50 counts)
@@ -1030,7 +1038,10 @@ private:
     void deploy_troopers(Obj& o, const UnitAbilityRecord& r, uint32_t frame);  // §5.2 (state 4 -> 0x590730)
     void troopers_service(Obj& o, uint32_t frame);   // the timed DEPLOY_TROOPERS states
     void rope_service(Obj& t, uint32_t frame);       // a trooper's rope landing
-    uint32_t clip_finish(ObjectId id, int32_t anim_type) const;  // sim frames until a one-shot finishes (0 none)
+    // #57 t02: a one-shot rope clip played as Play_Animation(type, 0xFFFF, no loop, `blend`, speed 1): the variant drawn,
+    // the play queued for the host (AbilityAnimPlay), `finish` = sim frames until that variant finishes. False (no draw,
+    // finish 0) when the model lacks the clip.
+    bool rope_play(ObjectId id, int32_t anim_type, float blend, uint32_t frame, uint32_t& finish);
     void release_troopers(Obj& o, uint32_t frame);  // state 5's end (0x392160 + LANDING resume)
     void troopers_abort(Obj& o, uint32_t frame);    // the machine's end / abort (unlock, undeploy)
     void rope_release(Obj& t, uint32_t frame, uint32_t rope_end);  // off the bone, TrooperReleased

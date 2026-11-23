@@ -559,17 +559,27 @@ bool TacticalBattle::anim_clip_info(const TacticalMode& mode, objects::ObjectId 
 #endif
 }
 
+uint32_t TacticalBattle::clip_variant(const TacticalMode& mode, objects::ObjectId id, int32_t anim, SimRng* rng) const {
+    uint32_t frames = 0, n = 0;
+    float fps = 0.0f;
+    while (n < 2 && anim_clip_info(mode, id, anim, frames, fps, n)) ++n;
+    if (n < 2 || !rng) return 0;
+    while (n < 256 && anim_clip_info(mode, id, anim, frames, fps, n)) ++n;
+    return static_cast<uint32_t>(rng->range_int(0, static_cast<int32_t>(n) - 1));
+}
+
 bool TacticalBattle::play_clip(const TacticalMode& mode, objects::ObjectId id, uint8_t anim_type, float start_fraction, float speed,
-                               uint64_t global_frame) {
+                               uint64_t global_frame, bool loop, uint32_t variant) {
 #ifdef ALAMO_SIM_HAVE_ANIM
-    const uint32_t frames = anim_clip_frames(mode, id, anim_type);
-    if (!anim_ || frames == 0) return false;
+    uint32_t frames = 0;
+    float fps = 0.0f;
+    if (!anim_ || !anim_clip_info(mode, id, anim_type, frames, fps, variant)) return false;
     anim::AnimWorld& w = anim_->world(mode);
     if (!w.contains(id)) return false;
     anim::PlayRequest r;
     r.type = anim_type;
-    r.index = 0;
-    r.loop = false;
+    r.index = variant;
+    r.loop = loop;
     r.speed = speed;
     // Start frame int((frames - 1) x fraction) (TransportLandingBehavior 0x642c70).
     r.start_frame = static_cast<float>(static_cast<int32_t>(static_cast<float>(frames - 1) * std::clamp(start_fraction, 0.0f, 1.0f)));
@@ -577,7 +587,7 @@ bool TacticalBattle::play_clip(const TacticalMode& mode, objects::ObjectId id, u
     ++stats_.anim_plays;
     return true;
 #else
-    (void)mode, (void)id, (void)anim_type, (void)start_fraction, (void)speed, (void)global_frame;
+    (void)mode, (void)id, (void)anim_type, (void)start_fraction, (void)speed, (void)global_frame, (void)loop, (void)variant;
     return false;
 #endif
 }

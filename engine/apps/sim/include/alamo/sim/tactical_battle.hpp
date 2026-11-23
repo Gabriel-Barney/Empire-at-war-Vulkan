@@ -1054,9 +1054,14 @@ public:
     // static clip data, never the playing clock). False without a sim animation, model or clip.
     bool anim_clip_info(const TacticalMode& mode, objects::ObjectId id, int32_t anim, uint32_t& frames, float& fps,
                         uint32_t variant = 0) const;
-    // Plays clip `anim` of the object from `start_fraction` at `speed` (Create_Cinematic_Transport Land / Takeoff;
-    // sim animation only). False without a clip.
-    bool play_clip(const TacticalMode& mode, objects::ObjectId id, uint8_t anim, float start_fraction, float speed, uint64_t global_frame);
+    // Plays clip `anim` (index `variant`, looping or one-shot) of the object from `start_fraction` at `speed`
+    // (Create_Cinematic_Transport Land / Takeoff; sim animation only). False without a clip.
+    bool play_clip(const TacticalMode& mode, objects::ObjectId id, uint8_t anim, float start_fraction, float speed, uint64_t global_frame,
+                   bool loop = false, uint32_t variant = 0);
+    // #57 t02: Play_Animation's index 0xFFFF (0x3a92f0, ANIM_PARTICLES A.4 item 3): a synced Get_Int(0, n - 1) from `rng`
+    // when the object's model has n >= 2 variants of clip `anim`, else 0 with no draw (also with no `rng`). Counted on the
+    // static clip data (anim_clip_info), so the draws are the same with and without the animation service.
+    uint32_t clip_variant(const TacticalMode& mode, objects::ObjectId id, int32_t anim, SimRng* rng) const;
     // Space_Retreat_Unit_Increment_Wait_Frames per galactic faction index (load_retreat_increments below); 0 when unset.
     void set_retreat_increments(std::vector<int32_t> by_faction) { l1_retreat_increments_ = std::move(by_faction); }
     // Space_Retreat_Flight_Move_Increment per galactic faction index (the post-jump step); 500 [port] when unset.

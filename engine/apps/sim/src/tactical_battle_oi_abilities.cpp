@@ -727,7 +727,9 @@ void TacticalBattle::oi_events(TacticalMode& mode) {
                 // [port] locomotor vf +0x200 is the movement registration in oi_spawn_unit.
                 const objects::ObjectId id = oi_spawn_unit(mode, q.object_type, oi_sv(q.position), oi_sv(q.facing), q.owner);
                 if (id == objects::kNoObjectId) break;
-                play_clip(mode, id, 0x5f, 0.0f, 1.0f, oi_global_frame_);
+                // #57 t02: Rope Slide loops, index 0xFFFF (0x590730). The trooper joins the animation world at the next
+                // sync, so the play is queued with the ability plays (saved; played at the next pass, at this frame).
+                (void)abilities_->queue_host_play(id, 0x5f, clip_variant(mode, id, 0x5f, bt_rng_), true, frame_);
                 if (Unit* u = unit_by_id(id)) {
                     u->attached_to = q.source;
                     u->attach_bone = q.bone;

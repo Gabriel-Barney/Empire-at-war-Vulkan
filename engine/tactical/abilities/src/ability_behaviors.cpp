@@ -935,11 +935,24 @@ int32_t AbilitySystem::trooper_squads(ObjectId id) const {
 // and the troopers' LANDING (0x630fe0)
 // ================================================================================================
 
-uint32_t AbilitySystem::clip_finish(ObjectId id, int32_t anim_type) const {
-    // One-shot end on sim frames: the first frame n with n x rate >= max(count - 2, 0) (OI t03 clock); 0 without the clip.
-    const ClipTiming ct = clip_timing(id, anim_type, {});
-    if (!(ct.count > 0.0f) || !(ct.rate > 0.0f)) return 0;
-    return static_cast<uint32_t>(frames_ceil(ct.end / ct.rate));
+bool AbilitySystem::rope_play(ObjectId id, int32_t anim_type, float blend, uint32_t frame, uint32_t& finish) {
+    // One-shot end on sim frames: the first frame n with n x rate >= max(count - 2, 0) (OI t03 clock) of the drawn variant.
+    finish = 0;
+    if (variant_count(id, anim_type) == 0) return false;  // no clip: no draw
+    const uint32_t v = resolve_variant(id, anim_type, kDrawVariant);
+    const ClipTiming ct = clip_timing(id, anim_type, {}, v);
+    if (!(ct.count > 0.0f)) return false;
+    if (ct.rate > 0.0f) finish = static_cast<uint32_t>(frames_ceil(ct.end / ct.rate));
+    AbilityAnimPlay p;
+    p.id = id;
+    p.type = anim_type;
+    p.variant = v;
+    p.loop = 0;
+    p.blend = blend;
+    p.speed = 1.0f;
+    p.frame = frame;
+    anim_plays_.push_back(p);
+    return true;
 }
 
 void AbilitySystem::troopers_service(Obj& o, uint32_t frame) {
@@ -949,8 +962,10 @@ void AbilitySystem::troopers_service(Obj& o, uint32_t frame) {
     // trooper (0x392160, LANDING resumed). [port] states 6 / 7 (the troopers' squad grouping 0x590bb0 and 0x58fb80) are
     // folded: Lift Rope follows the release; at its end (state 8) the ability recharges and goes inactive and the walker
     // undeploys when this deploy deployed it (0x3ac100(obj, 0); the 0x39b950(obj, 45) test is not modelled). A clip the
-    // model lacks takes no time [port: retail's state 3 / 5 fail to state 10 then].
+    // model lacks takes no time [port: retail's state 3 / 5 fail to state 10 then]. #57 t02: the three clips are played
+    // (index 0xFFFF, one-shot, blend 0, speed 1: 0x591a90, 0x590730, 0x58fb80) and timed on the drawn variant.
     static constexpr int32_t kDropRope = 0x61, kTroopDrop = 0x5e, kLiftRope = 0x62;
+    uint32_t fin = 0;
     const UnitAbilityRecord* r = record_of(o, kDeployTroopers);
     if (!r) {
         o.behavior[kDeployTroopers] = 0;
@@ -965,7 +980,8 @@ void AbilitySystem::troopers_service(Obj& o, uint32_t frame) {
             [[fallthrough]];
         case 2:  // wait for deployed (0x39a390), then Drop Rope [port: a walker that cannot deploy counts as deployed]
             if (o.troop_deploy && !o.deployed) return;
-            o.troop_end = frame + clip_finish(o.id, kDropRope);
+            (void)rope_play(o.id, kDropRope, 0.0f, frame, fin);
+            o.troop_end = frame + fin;
             o.troop_state = 3;
             return;
         case 3:  // Drop Rope finished -> state 4 (the spawn runs on the next service)
@@ -974,16 +990,21 @@ void AbilitySystem::troopers_service(Obj& o, uint32_t frame) {
             return;
         case 4: {  // 0x590730: Deploy Troopers, the troopers at their bones
             const int32_t before = o.troopers_deployed;
+            (void)rope_play(o.id, kTroopDrop, 0.0f, frame, fin);  // before the spawn (0x590730)
+            o.troop_end = frame + fin;
             deploy_troopers(o, *r, frame);
-            o.troop_end = frame + clip_finish(o.id, kTroopDrop);
             o.troop_state = o.troopers_deployed > before ? 5 : 8;
-            if (o.troop_state == 8) o.troop_end = frame + clip_finish(o.id, kLiftRope);
+            if (o.troop_state == 8) {
+                (void)rope_play(o.id, kLiftRope, 0.0f, frame, fin);
+                o.troop_end = frame + fin;
+            }
             return;
         }
         case 5:  // Deploy Troopers finished: release them, then Lift Rope
             if (frame < o.troop_end) return;
             release_troopers(o, frame);
-            o.troop_end = frame + clip_finish(o.id, kLiftRope);
+            (void)rope_play(o.id, kLiftRope, 0.0f, frame, fin);
+            o.troop_end = frame + fin;
             o.troop_state = 8;
             return;
         case 8:  // Lift Rope finished: recharge 38, inactive, undeploy
@@ -1007,7 +1028,7 @@ void AbilitySystem::troopers_abort(Obj& o, uint32_t frame) {
 }
 
 void AbilitySystem::rope_release(Obj& t, uint32_t frame, uint32_t rope_end) {
-    // 0x392160: off the bone (the host clears the attachment on TrooperReleased), LANDING runs until `rope_end`.
+    // 0x392160: off the bone (the host clears the attachment on TrooperReleased), the slide runs until `rope_end`.
     if (t.rope_state == 3) lock_pair(t, kLockRope, true, frame);  // released before its first rope service
     t.rope_state = 2;
     t.rope_end = rope_end;
@@ -1023,10 +1044,8 @@ void AbilitySystem::rope_release(Obj& t, uint32_t frame, uint32_t rope_end) {
 
 void AbilitySystem::release_troopers(Obj& o, uint32_t frame) {
     // 0x392160 + LANDING (0x630fe0, every frame from the next one): while Rope Slide plays the trooper drops 3.9 per
-    // service until the ground is less than 3.9 below, then lands on it and plays Rope Land (0x60, blend 0.1); when that
-    // has finished it joins the coordinator (0x39bcb0) and LANDING ends. Without Rope Land it ends at the landing service.
+    // service until the ground is less than 3.9 below, then lands on it (rope_service plays Rope Land there).
     static constexpr float kRopeDrop = 3.9f;
-    static constexpr int32_t kRopeLand = 0x60;
     static constexpr float kMaxServices = 100000.0f;  // [port] bound of the slide (no terrain under the bone)
     for (const ObjectId id : o.troopers) {
         Obj* t = obj(id);
@@ -1036,14 +1055,20 @@ void AbilitySystem::release_troopers(Obj& o, uint32_t frame) {
         if (!(ground > -1.0e37f)) ground = t->rope_z;  // no terrain (the host's -3e38): no slide [port]
         const float drop = t->rope_z - ground;
         const uint32_t services = drop > 0.0f ? static_cast<uint32_t>(std::min(drop / kRopeDrop, kMaxServices)) + 1u : 1u;
-        const uint32_t land = clip_finish(id, kRopeLand);
-        const bool has_land = clip_timing(id, kRopeLand, {}).count > 0.0f;
-        rope_release(*t, frame, frame + services + (has_land ? std::max<uint32_t>(land, 1u) : 0u));
+        rope_release(*t, frame, frame + services);
     }
 }
 
 void AbilitySystem::rope_service(Obj& t, uint32_t frame) {
-    // A trooper still hanging when its walker is gone is released at once [port]; a landing trooper is unlocked at the end.
+    // A trooper still hanging when its walker is gone is released at once, with no slide and no Rope Land [port]. At the
+    // end of the slide (0x630fe0) Rope Land plays (0x60, index 0xFFFF, one-shot, blend 0.1, speed 1); when it has finished
+    // (at once without the clip) the trooper joins the coordinator (0x39bcb0), is unlocked and LANDING ends.
+    static constexpr int32_t kRopeLand = 0x60;
+    const auto land = [this, &t, frame] {
+        t.rope_state = 0;
+        t.rope_owner = kNoObject;
+        lock_pair(t, kLockRope, false, frame);
+    };
     if (t.rope_state == 3) {  // first service after the spawn: the rope lock (its Immobilised event in this tick)
         lock_pair(t, kLockRope, true, frame);
         t.rope_state = 1;
@@ -1052,12 +1077,19 @@ void AbilitySystem::rope_service(Obj& t, uint32_t frame) {
         const Obj* owner = obj(t.rope_owner);
         if (owner && !owner->dead && owner->troop_state != 0) return;
         rope_release(t, frame, frame);
+        land();
+        return;
     }
     if (t.rope_state == 2 && frame >= t.rope_end) {
-        t.rope_state = 0;
-        t.rope_owner = kNoObject;
-        lock_pair(t, kLockRope, false, frame);
+        uint32_t fin = 0;
+        if (!rope_play(t.id, kRopeLand, 0.1f, frame, fin)) {
+            land();
+            return;
+        }
+        t.rope_state = 4;
+        t.rope_end = frame + std::max<uint32_t>(fin, 1u);
     }
+    if (t.rope_state == 4 && frame >= t.rope_end) land();
 }
 
 // ================================================================================================
