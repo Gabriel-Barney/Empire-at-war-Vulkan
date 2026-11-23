@@ -313,11 +313,14 @@ def fleet_hops(trace_path, fac, max_tick=None):
 
 
 def galactic_metrics(trace_path, queue_path=None, ai_log=None, sample_ticks=(4500, 9000, 13500), max_tick=None,
-                     hop_max_tick=None):
+                     hop_max_tick=None, factory_reduced=None):
     """Metric values of one galactic run (retail trace or port state trace), {metric id: value}, plus notes. max_tick: only
     the mode frames up to this one (a reference run that went on longer than the scenario). hop_max_tick: the
-    cut for travel.hop_ticks alone (default max_tick); a reference run's later legs still measure fleet speeds."""
-    m = tp.trace_metrics(trace_path, max_tick=max_tick)
+    cut for travel.hop_ticks alone (default max_tick); a reference run's later legs still measure fleet speeds.
+    factory_reduced: {type: [structure types]} (scenario "factory_reduced"), the types whose build time the structures at
+    the planet divide."""
+    reducers = {str(k).upper(): [str(x).upper() for x in v] for k, v in (factory_reduced or {}).items()}
+    m = tp.trace_metrics(trace_path, max_tick=max_tick, count_types={x for v in reducers.values() for x in v} or None)
     fac = m["factions"]
     out, notes = {}, []
     # Travel: leg duration per route (departure = first moved sample, arrival = first sample of a stop, a pass through a
@@ -360,6 +363,16 @@ def galactic_metrics(trace_path, queue_path=None, ai_log=None, sample_ticks=(450
     # Production: retail queue starts (production.q2q) or port build orders (AI log); build time per type.
     builds = None
     durations = collections.defaultdict(list)
+
+    def build_key(t, planet, queued):
+        # #229: Build_Time_Reduced_By_Multiple_Factories divides the build time by the number of the type's required
+        # structures at the planet, any owner, when the item is queued (engine/galactic/src/campaign.cpp
+        # GalacticSim::build_time_for), an AI choice; a build under n >= 2 of them is keyed /n<n>, so it is only graded
+        # against builds under as many.
+        k = "%s@%s" % (t, planet)
+        req = reducers.get(str(t).upper())
+        n = tp.structure_count(m, queued, str(planet).upper(), req) if req else 0
+        return k + "/n%d" % n if n >= 2 else k
     if queue_path and os.path.exists(queue_path):
         tp.queue_metrics(queue_path, m, max_tick)
         builds = [(e["start"], e["faction"], e["type"]) for e in m["queue_entries"]]
@@ -371,7 +384,7 @@ def galactic_metrics(trace_path, queue_path=None, ai_log=None, sample_ticks=(450
         for e in m["queue_entries"]:
             d = e["done"] - e["last_start"]
             if e["restarts"] == 0 and (e["created"] is not None or e["last"] < end) and d >= e["frames"]:
-                durations["%s@%s" % (e["type"], e["planet"])].append(d)
+                durations[build_key(e["type"], e["planet"], e["seen"])].append(d)  # seen: the first frame it is listed
     elif ai_log and os.path.exists(ai_log):
         o = tp.port_metrics(None, ai_log)
         orders = [(tk, f, at_, t) for tk, f, at_, d in o["production"] for t in d]
@@ -384,7 +397,7 @@ def galactic_metrics(trace_path, queue_path=None, ai_log=None, sample_ticks=(450
                 if j in used or ctk < tk or cf != f or ct != t or (at_ and cat and cat != at_):
                     continue
                 used.add(j)
-                durations["%s@%s" % (t, cat or at_)].append(ctk - tk)
+                durations[build_key(t, cat or at_, tk)].append(ctk - tk)
                 break
     else:
         notes.append("no production data (no production.q2q and no AI log): build metrics left out")
@@ -953,7 +966,8 @@ def retail_metrics(scen, run_dir):
         return story_metrics(trace)
     if scen["kind"] == "galactic":
         return galactic_metrics(trace, os.path.join(run_dir, "production.q2q"), max_tick=scen.get("max_tick"),
-                                hop_max_tick=scen.get("hop_max_tick", scen.get("max_tick")))
+                                hop_max_tick=scen.get("hop_max_tick", scen.get("max_tick")),
+                                factory_reduced=scen.get("factory_reduced"))
     return skirmish_retail_metrics(trace, set(scen["frames"]))
 
 
@@ -1028,7 +1042,8 @@ def run_port(scen, exe, out_dir, ref_info, reuse, seed=None):
     if scen["kind"] == "story":
         m, notes, info = story_metrics(os.path.join(out_dir, "port.q2t"))
     elif scen["kind"] == "galactic":
-        m, notes, info = galactic_metrics(os.path.join(out_dir, "port.q2t"), ai_log=os.path.join(out_dir, "port_ai.txt"))
+        m, notes, info = galactic_metrics(os.path.join(out_dir, "port.q2t"), ai_log=os.path.join(out_dir, "port_ai.txt"),
+                                          factory_reduced=scen.get("factory_reduced"))
     else:
         m, notes, info = skirmish_port_metrics(os.path.join(out_dir, "port_ai.txt"), set(scen["frames"]), scen["ticks"] + 1, text)
         trace = os.path.join(out_dir, "port.q2t")
@@ -1338,11 +1353,13 @@ def _f(x):
     return "%08x" % struct.unpack("<I", struct.pack("<f", float(x)))[0]
 
 
-def _galactic_fixture(path, hop_len=26, income=667.5, new_obj_at=40, capture_at=45, queue_path=None, start=20):
+def _galactic_fixture(path, hop_len=26, income=667.5, new_obj_at=40, capture_at=45, queue_path=None, start=20, factories=()):
     """A tiny HotM-like trace: planets KUAT (Empire, x=0) and CORELLIA (Rebel, x=100), an Empire fleet hopping KUAT ->
     CORELLIA (departs tick 10, parks after hop_len ticks), a fiscal cycle at tick 30, a Rebel X-wing built at new_obj_at
-    and CORELLIA captured by the Empire at capture_at."""
-    types = {1: "KUAT", 2: "CORELLIA", 3: "STAR_DESTROYER", 4: "REBEL_X-WING_SQUADRON", 5: "GALACTIC_FLEET"}
+    and CORELLIA captured by the Empire at capture_at. factories: the ticks at which an R_GROUND_LIGHT_VEHICLE_FACTORY
+    appears at CORELLIA, one each."""
+    types = {1: "KUAT", 2: "CORELLIA", 3: "STAR_DESTROYER", 4: "REBEL_X-WING_SQUADRON", 5: "GALACTIC_FLEET",
+             6: "R_GROUND_LIGHT_VEHICLE_FACTORY"}
     L = ["Q2TRACE 1", "meta scenario galactic", "meta campaign Sandbox_Fixture_Empire", "seed 00000000 00000000 0",
          "end_header", "start 0 0 0 00000000"]
     cred = {0: 1000.0, 1: 5000.0}
@@ -1363,9 +1380,10 @@ def _galactic_fixture(path, hop_len=26, income=667.5, new_obj_at=40, capture_at=
                 (20, 1, 5, fleet_x)]
         if t >= new_obj_at:
             objs.append((12, 0, 4, 100.0))
+        objs += [(30 + k, 0, 6, 100.0) for k, at in enumerate(factories) if t >= at]
         for oid, own, ty, x in objs:
             L.append("O %d %d %d %s %s 00000000 00000000 00000000 00000000 %s 1 4194303 %d 4194303 00000000 00000000" % (
-                oid, own, ty, _f(x), _f(0.0), _f(100.0), 2 if ty == 4 else 4194303))
+                oid, own, ty, _f(x), _f(0.0), _f(100.0), 2 if ty in (4, 6) else 4194303))
         if t == 0:
             L += ["G 1 00000000 0 0 0 0 0 0", "G 2 00000000 0 0 0 0 0 0"]
         if t == 30:
@@ -1566,6 +1584,33 @@ def selftest():
         check(res["travel.hop_ticks[Empire:KUAT->CORELLIA]"]["status"] == "FAIL", "slower port hop fails")
         check(res["econ.income_cycle1[Empire]"]["status"] == "FAIL", "smaller port income fails")
         check(res["build.ticks[REBEL_X-WING_SQUADRON@CORELLIA]"]["status"] == "PASS", "build 22 vs 20 within 3")
+        # #229: a factory-reduced type's build time is keyed by the factory count at the planet when the build starts
+        # (Build_Time_Reduced_By_Multiple_Factories divides it by the count, an AI choice): /n<count> from 2 factories on.
+        fr = {"REBEL_X-WING_SQUADRON": ["R_GROUND_LIGHT_VEHICLE_FACTORY"]}
+        key, key2 = "build.ticks[REBEL_X-WING_SQUADRON@CORELLIA]", "build.ticks[REBEL_X-WING_SQUADRON@CORELLIA/n2]"
+        ret2 = os.path.join(tmp, "retail_f2.q2t")
+        _galactic_fixture(ret2, queue_path=os.path.join(tmp, "retail_f2.q2q"), factories=(0, 5))
+        r2 = galactic_metrics(ret2, os.path.join(tmp, "retail_f2.q2q"), sample_ticks=(59,), factory_reduced=fr)[0]
+        check(r2.get(key2) == 20 and key not in r2, "retail build under 2 factories keyed /n2 (%s)" % sorted(
+            k for k in r2 if k.startswith("build.ticks")))
+        check(galactic_metrics(ret2, os.path.join(tmp, "retail_f2.q2q"), sample_ticks=(59,))[0].get(key) == 20,
+              "without the map the build stays unkeyed")
+        ret3 = os.path.join(tmp, "retail_f3.q2t")
+        _galactic_fixture(ret3, queue_path=os.path.join(tmp, "retail_f3.q2q"), factories=(0, 30))
+        r3 = galactic_metrics(ret3, os.path.join(tmp, "retail_f3.q2q"), sample_ticks=(59,), factory_reduced=fr)[0]
+        check(r3.get(key) == 20 and key2 not in r3, "a factory finished after the start (tick 30 > 20) does not count")
+        port1 = os.path.join(tmp, "port_f1.q2t")
+        _galactic_fixture(port1, hop_len=31, income=600.0, capture_at=50, factories=(0,))
+        p1 = galactic_metrics(port1, ai_log=ai, sample_ticks=(59,), factory_reduced=fr)[0]
+        check(p1.get(key) == 22 and key2 not in p1, "port build under 1 factory keeps the plain key (%s)" % sorted(
+            k for k in p1 if k.startswith("build.ticks")))
+        res = {r["metric"]: r for r in compare({}, tols, [("retail", r2)], p1)}
+        check(key not in res and key2 not in res, "different factory counts are not graded against each other")
+        port2 = os.path.join(tmp, "port_f2.q2t")
+        _galactic_fixture(port2, hop_len=31, income=600.0, capture_at=50, factories=(0, 0))
+        p2 = galactic_metrics(port2, ai_log=ai, sample_ticks=(59,), factory_reduced=fr)[0]
+        res = {r["metric"]: r for r in compare({}, tols, [("retail", r2)], p2)}
+        check(res.get(key2, {}).get("status") == "PASS", "the same factory count is graded: 22 vs 20 within 3")
         check(res["outcome.planets_final[Empire]"]["status"] == "PASS", "same final owners pass")
         check(res["econ.cycle_tick[1]"]["status"] == "PASS", "same cycle tick passes")
         same = {r["metric"]: r for r in compare({}, tols, [("retail", rm)], rm)}
