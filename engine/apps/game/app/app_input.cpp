@@ -58,7 +58,20 @@ void App::special_feedback() {
     using K = galactic::GalacticEventKind;
     auto type_name = [this](uint32_t t) { return t < data_.rules.types.size() ? data_.rules.types[t].name.c_str() : "?"; };
     bool unlock_sfx = false;
-    for (const galactic::GalacticEvent& e : session_->take_special_events()) {
+    const std::vector<galactic::GalacticEvent> batch = session_->take_special_events();
+    // #62 t06: the activation presentation 0x48e4d0 of this batch's successful applies (GameAudioHost::galactic_activations).
+    if (const galactic::GalacticSim* g = session_->galaxy()) {
+        const auto class_of = [g](uint32_t ref) { return g->special_def(ref).cls; };
+        for (const GameAudioHost::GalacticActivation& a : GameAudioHost::galactic_activations(batch, class_of, local_player())) {
+            if (a.planet >= g->planets().size() || a.type >= data_.types.size()) continue;
+            const galactic::PlanetState& p = g->planets()[a.planet];
+            const uint64_t planet = g->store().exists(p.object) ? static_cast<uint64_t>(g->store().id(p.object)) : 0u;
+            if (audio_.galactic_ability_effect(data_.types, static_cast<objects::TypeIndex>(a.type), g->special_def(a.ability).name,
+                                               static_cast<uint64_t>(a.hero), planet, p.position) != 0)
+                ++special_sfx_;
+        }
+    }
+    for (const galactic::GalacticEvent& e : batch) {
         const bool local = e.player == local_player();
         switch (e.kind) {
             case K::SpecialError:
@@ -81,18 +94,6 @@ void App::special_feedback() {
                 if (local) {
                     audio_.faction_sfx("SFXEvent_Hack_Success");
                     ++special_sfx_;
-                }
-                break;
-            case K::SpecialApplied:  // #62 t06: the activation presentation 0x48e4d0 (GameAudioHost::galactic_activation_presented)
-                if (const galactic::GalacticSim* g = session_->galaxy(); g && e.planet < g->planets().size() && e.type < data_.types.size()) {
-                    const galactic::SpecialAbilityDef& a = g->special_def(static_cast<uint32_t>(e.value));
-                    if (GameAudioHost::galactic_activation_presented(a.cls, local)) {
-                        const galactic::PlanetState& p = g->planets()[e.planet];
-                        const uint64_t planet = g->store().exists(p.object) ? static_cast<uint64_t>(g->store().id(p.object)) : 0u;
-                        if (audio_.galactic_ability_effect(data_.types, static_cast<objects::TypeIndex>(e.type), a.name,
-                                                           static_cast<uint64_t>(e.object), planet, p.position) != 0)
-                            ++special_sfx_;
-                    }
                 }
                 break;
             case K::HeroRespawned:

@@ -1,6 +1,8 @@
 // ability, shield and hyperspace object SFX (GameAudioHost; rules: legacy docs/re/AUDIO.md §9.6).
 #include "alamo/game/game_audio_host.hpp"
 
+#include <algorithm>
+
 #include "alamo/core/ascii.hpp"
 #include "alamo/sim/tactical_battle.hpp"
 #include "alamo/tactical/abilities/ability_types.hpp"
@@ -87,11 +89,30 @@ bool GameAudioHost::galactic_activation_presented(galactic::SpecialAbilityClass 
     switch (cls) {
         case C::Sabotage:          // 0x5b1920
         case C::Hack:              // 0x61b520
-        case C::Corruption:        // 0x6f6120
+        case C::SystemSpy:         // 0x70f510
         case C::SiphonCredits: return true;  // 0x70e440
         case C::RemoveCorruption: return local_user;  // 0x5b13c0: the hero's owner is the local player
         default: return false;
     }
+}
+
+std::vector<GameAudioHost::GalacticActivation> GameAudioHost::galactic_activations(
+    std::span<const galactic::GalacticEvent> batch, const std::function<galactic::SpecialAbilityClass(uint32_t)>& class_of,
+    int32_t local_player) {
+    using K = galactic::GalacticEventKind;
+    std::vector<int32_t> caught;  // heroes of this batch's SabotageVigilance events
+    for (const galactic::GalacticEvent& e : batch)
+        if (e.kind == K::SabotageVigilance) caught.push_back(e.object);
+    std::vector<GalacticActivation> out;
+    for (const galactic::GalacticEvent& e : batch) {
+        if (e.kind != K::SpecialApplied || !class_of) continue;
+        const galactic::SpecialAbilityClass cls = class_of(static_cast<uint32_t>(e.value));
+        if (!galactic_activation_presented(cls, e.player == local_player)) continue;
+        if (cls == galactic::SpecialAbilityClass::Sabotage && std::find(caught.begin(), caught.end(), e.object) != caught.end())
+            continue;
+        out.push_back({static_cast<uint32_t>(e.value), e.type, e.object, static_cast<uint32_t>(e.planet)});
+    }
+    return out;
 }
 
 std::string_view GameAudioHost::unit_ability_line(const objects::GameObjectTypes& types, objects::TypeIndex t, uint8_t ability_type,
