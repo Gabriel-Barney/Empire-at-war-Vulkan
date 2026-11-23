@@ -1463,6 +1463,9 @@ void GameAudioHost::music(MusicScene scene, std::string_view faction, bool space
     pending_played_ = false;
     ++stats_.scenes;
     if (before == MusicScene::Battle || before == MusicScene::Galactic) game_->leave_mode();
+    // aud8 t05: object positions are fed only during battles; the battle's are dropped with it, so a later Lua
+    // Play_SFX_Event (galactic, front end) is not placed where its object id was in the battle.
+    if (before == MusicScene::Battle) positions_.clear();
     switch (scene) {
         case MusicScene::None: game_->leave_mode(); break;
         case MusicScene::MainMenu: game_->enter_front_end(); break;
