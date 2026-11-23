@@ -680,6 +680,7 @@ void App::session_started(const std::vector<std::string>& diag) {
     planet_map_markers_.clear();
     map_marker_sent_.clear();
     story_cursor_ = 0;
+    corruption_speech_seen_ = 0;  // #62 t05: a new battles host
     story_ui_.reset();  // L1/S4 wave 1: a new session's UI state
     reward_cursor_.clear();  // ... and its story reward media from the start
     story_present_story_ = nullptr;  // the presenter starts afresh (a reused story address must not keep the old locks)

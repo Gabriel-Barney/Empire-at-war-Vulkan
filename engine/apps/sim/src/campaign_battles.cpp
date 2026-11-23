@@ -1169,6 +1169,7 @@ CampaignBattles::CorruptionStart CampaignBattles::start_corruption(PlanetIndex p
         gs.begin_corruption_gain(planet, type, player, 5.0f);
         gs.count_corruption(player, type);  // P4 sim: completed-corruption counter (0x2820a0)
         log_.push_back("corruption: type " + std::to_string(type) + " started (5 s)");
+        corruption_speech_.push_back({CorruptionSpeechNote::Kind::Success, planet, player, type});  // #62 t05: 0x52bf50
         return CorruptionStart::Applied;
     }
     // story t08 (L1_S4_REMAINING §4.5 mission path): 0x28bd70 writes the record, 0x28f590 starts it at once (no normal
@@ -1482,6 +1483,7 @@ void CampaignBattles::corruption_push() {
         const CorruptionMission c = corruption_queued_[i];  // battle host: a copy (the element is erased below; ASan container-overflow)
         if (c.planet != pending_req_.info.planet || c.player != pending_req_.info.attacker || c.kind != pending_req_.info.kind) continue;
         corruption_active_ = c;
+        corruption_speech_.push_back({CorruptionSpeechNote::Kind::Commencing, c.planet, c.player, c.type});  // #62 t05
         corruption_queued_.erase(corruption_queued_.begin() + static_cast<std::ptrdiff_t>(i));
         log_.push_back("corruption: mission battle for type " + std::to_string(c.type));
         return;
@@ -1494,6 +1496,7 @@ void CampaignBattles::corruption_end(int32_t winner) {
     corruption_active_ = CorruptionMission{};
     const bool won = winner == c.player;
     log_.push_back(std::string("corruption: mission ") + (won ? "won" : "lost"));
+    corruption_speech_.push_back({won ? CorruptionSpeechNote::Kind::Success : CorruptionSpeechNote::Kind::Failure, c.planet, c.player, c.type});
     if (won)  // P4 sim: a won mission counts as a completed corruption [M] (P4_SIM_SYSTEMS §5.2 / §8 item 8)
         if (GalacticMode* gm = host_->galactic_mode(); gm && gm->sim()) gm->sim()->count_corruption(c.player, c.type);
 #ifdef ALAMO_SIM_HAVE_STORY

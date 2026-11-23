@@ -827,6 +827,8 @@ public:
     void show_credits();
     void fill_cursor_hover(ui::CursorContext& c);  // hovered object -> cursor context (battle)
     void update_radar();
+    void corruption_speech_feedback();  // #62 t05
+    size_t corruption_speech_seen_ = 0;  // CampaignBattles::corruption_speech read position (reset per session)
     ui::RadarFieldPaint radar_world_box() const;  // the top tactical mode's bounds (unset: RadarFieldPaint's default box)
     void build_radar_terrain();                   // radar_terrain_ for the current battle (#69 t04)
 

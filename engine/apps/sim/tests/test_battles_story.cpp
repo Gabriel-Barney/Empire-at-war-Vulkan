@@ -971,6 +971,7 @@ struct S4Run {
     uint32_t garrisoned_frames = 0;
     int mission = -1, piracy = -1;
     int32_t winner = -2;
+    std::vector<CampaignBattles::CorruptionSpeechNote> speech;  // #62 t05: the corruption speech feed at the end
     size_t mission_units = 99;          // galactic units in the mission battle's request (start + reserve)
     uint64_t mission_tick = 0, battle_tick = 0;
     int32_t corruption_b = -2, corruption_a = -2;
@@ -1238,7 +1239,20 @@ S4Run run_s4_battle(const Data& d, const FileProvider& files, int32_t workers, i
         out.lua = host.story()->lua_messages();
     }
     out.battles = battles.log();
+    out.speech.assign(battles.corruption_speech().begin(), battles.corruption_speech().end());
     out.crc = host.crc_log();
+    return out;
+}
+
+// #62 t05: the corruption speech feed of an S4 run, as "kind planet player type" lines (C commencing, S success, F failure).
+std::vector<std::string> speech_lines(const S4Run& r) {
+    std::vector<std::string> out;
+    for (const CampaignBattles::CorruptionSpeechNote& n : r.speech) {
+        const char k = n.kind == CampaignBattles::CorruptionSpeechNote::Kind::Commencing ? 'C'
+                       : n.kind == CampaignBattles::CorruptionSpeechNote::Kind::Success  ? 'S'
+                                                                                          : 'F';
+        out.push_back(std::string(1, k) + " " + std::to_string(n.planet) + " " + std::to_string(n.player) + " " + std::to_string(n.type));
+    }
     return out;
 }
 
@@ -1334,6 +1348,7 @@ void test_s4_battle(const Data& d) {
           a.bunker_taken && a.post_taken);
     // The AI Underworld's corruption applies directly (no mission option at S10_A anyway).
     CHECK(a.piracy == static_cast<int>(CampaignBattles::CorruptionStart::Applied) && a.corruption_a == 1 && fired("Pirated"));
+    CHECK(speech_lines(a) == std::vector<std::string>{"S 0 1 1"});  // #62 t05: a direct corruption speaks its success
     // Determinism: the story log and the per-tick CRCs (story system included) for 0 / 1 / 4 / 15 workers.
     for (const int32_t w : {1, 4, 15}) {
         const S4Run b = run_s4_battle(d, files, w, 0);
@@ -1371,6 +1386,8 @@ void test_s4_battle(const Data& d) {
     CHECK(c.log.find("CorruptionMission") != std::string::npos);
     CHECK(c.piracy == static_cast<int>(CampaignBattles::CorruptionStart::Applied) && fired_in(c.log, "Pirated"));
     CHECK(c.mission_units == 0);  // not sandbox, the map and the mission plots supply every unit
+    // #62 t05: the mission battle's push (Commencing), its end by the winner, then S10_A's direct Piracy (Success).
+    CHECK((speech_lines(c) == std::vector<std::string>{"C 1 1 2", c.winner == 1 ? "S 1 1 2" : "F 1 1 2", "S 0 1 1"}));
     // no Underworld unit anywhere near S10_B - the mission starts at once through the linked record (BT §2.9.3,
     // L1_S4_REMAINING §4.5), its battle is pushed at the next hook and the mission's story events follow its winner.
     const S4Run n = run_s4_battle(d, files, 0, 3);
@@ -1399,6 +1416,7 @@ void test_s4_battle(const Data& d) {
     CHECK(f.mission == static_cast<int>(CampaignBattles::CorruptionStart::MissionQueued) && (f.winner == 0 || f.winner == 1));
     CHECK(fired_in(f.log, "Corrupt_Failed") == (f.winner != 1) && fired_in(f.log, "Corrupt_Done") == (f.winner == 1) &&
           (f.winner == 1 ? f.corruption_b == 2 : f.corruption_b == -1));
+    CHECK(speech_lines(f).size() >= 2 && speech_lines(f)[0] == "C 1 1 2" && speech_lines(f)[1] == (f.winner == 1 ? "S 1 1 2" : "F 1 1 2"));
     // Int-final: the human corruption command (SpecialAbility kind 6) through the command stream -> start_corruption.
     {
         uint32_t dd = 0, pp = 0;
