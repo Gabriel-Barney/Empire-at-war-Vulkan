@@ -2,8 +2,6 @@
 #include "test_ai_galactic_common.hpp"
 #include "galactic_ai_impl.hpp"  // StatusRec, hash_status (#119)
 
-// #119: a MoveTo status's destination, movement mode and fleet are in the galactic AI CRC, so two runs whose MoveTo
-// differs only there diverge in the CRC log. Statuses of other kinds hash as before (their CRCs do not move).
 // #242 (legacy docs/re/BKG1_RE_ANSWERS.md §A.2 [H]): the galactic AI VMs' GetCurrentTime() (0x5428b0) is
 // (double)((float)(int32)mode frame x 0.033333335f), a float multiply: frame 3 -> 0.10000000894069672, frame 150 ->
 // 5.000000476837158 (a double divide gives 0.1 and 5.0, so a Sleep can end a frame later than retail's).
@@ -25,6 +23,8 @@ void test_lua_clock_float_multiply() {
     CHECK(seen[3] == 0.10000000894069672 && seen[30] == 1.0 && seen[150] == 5.000000476837158);
 }
 
+// #119: a MoveTo status's destination, movement mode and fleet are in the galactic AI CRC, so two runs whose MoveTo
+// differs only there diverge in the CRC log. Statuses of other kinds hash as before (their CRCs do not move).
 void test_status_hash_covers_move_to() {
     const auto digest = [](const StatusRec& s) {
         StateHasher h;

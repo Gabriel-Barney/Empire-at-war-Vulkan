@@ -1179,6 +1179,8 @@ static std::string pump_entries(const std::string& log) {
 
 // The shared part of the q6 t09 test scripts: Log() appends to GlobalValue Scoring_Log; main logs every pump.
 static const char* kScoringCommon =
+    "-- the pump frame: GetCurrentTime.Frame() is game seconds (#242), x 30 rounded\n"
+    "function FrameNo() return string.format(\"%d\", GetCurrentTime.Frame() * 30 + 0.5) end\n"
     "ScriptPoolCount = 0\n"
     "function Log(s) ScoringLog = (ScoringLog or \"\") .. s .. \";\" GlobalValue.Set(\"Scoring_Log\", ScoringLog) end\n"
     "function Game_Mode_Starting_Event(mode, map) Log(\"S:\" .. mode .. \":\" .. tostring(map)) end\n"
@@ -1194,15 +1196,15 @@ static void test_scoring_service(const World& w) {
     auto script = [&root](const char* name, const std::string& body) {
         write_file(root / "Data/Scripts/Miscellaneous" / (std::string(name) + ".lua"), std::string(kScoringCommon) + body);
     };
-    // Pump timing at ServiceRate 1 (30 frames, float rounding) and the mode events around a tactical push. The pumps log
-    // their frame: GetCurrentTime.Frame() is game seconds (#242), x 30 rounded.
+    // Pump timing at ServiceRate 1 (30 frames, float rounding) and the mode events around a tactical push.
     script("Scoring_Rate",
            "function Base_Definitions() ServiceRate = 1 end\n"
-           "function main() while true do Log(\"P\" .. string.format(\"%d\", GetCurrentTime.Frame() * 30 + 0.5)) coroutine.yield(true) end end\n");
+           "function main() while true do Log(\"P\" .. FrameNo()) coroutine.yield(true) end end\n");
     // ServiceRate 0: every frame (now grows by 1/30 each frame).
     script("Scoring_Every",
            "function Base_Definitions() ServiceRate = 0 end\n"
-           "function main() while true do Log(\"P\" .. string.format(\"%d\", GetCurrentTime.Frame() * 30 + 0.5)) coroutine.yield(true) end end\n");
+           "function main() while true do Log(\"P\" .. FrameNo()) Log(\"T\" .. string.format(\"%.17g\", GetCurrentTime())) "
+           "coroutine.yield(true) end end\n");  // #242: the script's GetCurrentTime() is the float multiply
     script("Scoring_Exit",
            "function Base_Definitions() ServiceRate = 0 n = 0 end\n"
            "function main() while true do n = n + 1 Log(\"P\" .. n) if n == 3 then _ScriptExit() end coroutine.yield(true) end end\n");
@@ -1285,6 +1287,8 @@ static void test_scoring_service(const World& w) {
         Session s = start("Scoring_Every");
         s.host->run_fast(10);
         CHECK(pump_entries(s.log()) == expected_pumps(0.0, 10) && s.host->scoring_services() == 10);
+        // #242: at frame 3 the script reads (double)(3.0f * 0.033333335f), not the gate's (double)(3.0f / 30.0f) = 0.10000000149011612
+        CHECK(s.log().find("P3;T0.10000000894069672;") != std::string::npos);
     }
     {  // ScriptExit in the third pump: released right after it, nothing later.
         Session s = start("Scoring_Exit");
@@ -1364,7 +1368,7 @@ static void test_scoring_service(const World& w) {
 // galactic event calls arrive in stream order after T9, and the run is identical for every worker count (rule 3).
 static const char* kScoringStory =
     "function Base_Definitions() ServiceRate = 0.1 end\n"
-    "function main() while true do Log(\"P\" .. string.format(\"%d\", GetCurrentTime.Frame() * 30 + 0.5)) GameRandom(1, 6) coroutine.yield(true) end end\n"
+    "function main() while true do Log(\"P\" .. FrameNo()) GameRandom(1, 6) coroutine.yield(true) end end\n"
     "function Galactic_Production_Begin_Event(planet, t) Log(\"PB:\" .. tostring(planet ~= nil) .. tostring(t ~= nil)) end\n"
     "function Galactic_Production_Canceled_Event(planet, t) Log(\"PC\") end\n"
     "function Galactic_Production_End_Event(planet, o) Log(\"PE:\" .. tostring(planet ~= nil) .. tostring(o ~= nil)) end\n"
@@ -1778,7 +1782,7 @@ static std::unique_ptr<OsWorld> make_os_world() {
            "while true do coroutine.yield(true) end end\n");
     script(r, "Os_Gate",
            "function Base_Definitions() ServiceRate = 1 end\n"
-           "function main() while true do GlobalValue.Set('Gate', (GlobalValue.Get('Gate') or '') .. string.format(\"%d\", GetCurrentTime.Frame() * 30 + 0.5) .. ';') "
+           "function main() while true do GlobalValue.Set('Gate', (GlobalValue.Get('Gate') or '') .. string.format('%d', GetCurrentTime.Frame() * 30 + 0.5) .. ';') "
            "coroutine.yield(true) end end\n");
     script(r, "Os_NoRate", "function main() GlobalValue.Set('NoRate', 1) end\n");
     script(r, "Os_Exit",

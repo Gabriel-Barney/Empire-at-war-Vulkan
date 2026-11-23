@@ -374,7 +374,7 @@ static void test_get_current_time_frame() {
     vm.set_frame(3);
     vm.set_time(0.25);
     CHECK(run(vm, "f = GetCurrentTime.Frame() t = GetCurrentTime()") == "");
-    CHECK(gnum(vm, "f") == static_cast<double>(3.0f / 30.0f) && gnum(vm, "t") == 0.25);
+    CHECK(gnum(vm, "f") == 0.10000000149011612 && gnum(vm, "t") == 0.25);  // (double)(3.0f / 30.0f); a multiply gives ...894069672
     vm.set_frame(150);
     CHECK(run(vm, "f = GetCurrentTime.Frame()") == "" && gnum(vm, "f") == static_cast<double>(150.0f / 30.0f));
 }
