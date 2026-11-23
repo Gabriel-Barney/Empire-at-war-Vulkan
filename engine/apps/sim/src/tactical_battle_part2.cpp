@@ -1153,8 +1153,13 @@ void TacticalBattle::landing_service(TacticalMode& mode, SimRng& rng) {
         // unless the landing owner's player has a Disable_Reinforcement_Vulnerability entry; a single-object step always.
         const bool vuln = !team || !reinforcement_vulnerability_disabled(parts_[lr.participant].owner);
         mv::MoveOrder o;
+        // #84: the cargo of a landing on the land retreat list counts as listed (retail lists transported units).
+        const bool listed_cargo =
+            !land_retreat_list_.empty() &&
+            std::find(land_retreat_list_.begin(), land_retreat_list_.end(), lr.id) != land_retreat_list_.end();
         for (size_t u = first; u < units_.size(); ++u) {
             lr.units.push_back(units_[u].id);
+            if (listed_cargo) land_retreat_list_.push_back(units_[u].id);
             if (units_[u].movable) o.units.push_back(units_[u].id);
             if (vuln) apply_elevated_vulnerability(units_[u].id);
         }
@@ -1610,6 +1615,20 @@ bool TacticalBattle::request_retreat(int32_t player) {
     retreat_done_frame_ = frame_ + static_cast<uint32_t>(frames_trunc(secs * 30.0f));
     for (const Unit& u : units_)
         if (u.side == side && u.alive) combat_->set_flag(u.id, tc::kUnitRetreating, true);
+    // #84 (TRL2_A_RE_ANSWERS Q3, land vf8 0x534d90 [H]): the land retreat list is taken now, so units made during the
+    // countdown are not on it. [port] The listing rule: the side's live movers (team members included) and garrisoned
+    // units (retail: the player's objects with a locomotor plus Stay_In_Transport_During_Ground_Battle objects). Retail
+    // also lists the units inside a transport; the port spawns a landing's cargo while it unloads, so the side's landings
+    // that have not taken off are listed too, and their units join the list as they unload (landing_service).
+    land_retreat_list_.clear();
+    if (!space_) {
+        for (const Unit& u : units_)
+            if (u.side == side && u.alive && !u.retreated && (u.movable || garrison_.garrisoned(u.id)))
+                land_retreat_list_.push_back(u.id);
+        for (const Landing& l : landings_)
+            if (l.state != 3 && l.participant < parts_.size() && parts_[l.participant].side == side)
+                land_retreat_list_.push_back(l.id);
+    }
     // tru2 t02 (TRU1_C_RE §2.1, TRL2_A_RE_ANSWERS Q4; space vf14 0x533080 -> 0x533220 [H]): every unit of the retreat list
     // (vf8: the player's live movers that are not team members) gets a turn in place to the reverse of the ATTACKER ENTRY
     // POSITION marker's yaw (locomotor vf +0x218), so the ships turn away during the countdown. The marker query walks the
@@ -1653,6 +1672,7 @@ bool TacticalBattle::cancel_retreat(int32_t player, bool by_player) {
     if (movement_ && !stop.empty()) movement_->stop(stop);
     retreat_side_ = -1;
     retreat_done_frame_ = 0;
+    land_retreat_list_.clear();  // #84
     retreat_cancels_.push_back(std::move(rec));
     return true;
 }
@@ -1731,8 +1751,8 @@ void TacticalBattle::complete_retreat(TacticalMode& mode, uint8_t side) {
     // the listed units (a locomotor: the side's movers, team members and garrisoned units included) are kept only while
     // the retreating player or an ally holds an object with Reinforcement_Enabling_Radius > 0, else they die too;
     // everything else of the player (structures, turrets, pads, captured points, markers) dies with the normal death.
-    // [port] The list is the side's movers at the completion (retail: at the start; units made during the countdown are
-    // not listed there); units with destroyed engines still count as retreatable.
+    // #84: the list was taken at the request (land_retreat_list_), so units made during the countdown are not listed;
+    // units with destroyed engines still count as retreatable.
     {
         const objects::ObjectStore* st = &mode.primary();
         bool rp_held = space_;
@@ -1750,7 +1770,9 @@ void TacticalBattle::complete_retreat(TacticalMode& mode, uint8_t side) {
         for (const Unit& u : units_) {
             if (u.side != side || !u.alive || u.retreated || rt_listed(u.id)) continue;  // flown out
             if (!space_ && st->alive(u.h) && st->has_behavior(u.h, objects::beh::Transport)) continue;
-            const bool listed = u.movable || (!space_ && garrison_.garrisoned(u.id));
+            const bool listed = space_ ? u.movable
+                                       : std::find(land_retreat_list_.begin(), land_retreat_list_.end(), u.id) !=
+                                             land_retreat_list_.end();
             if (listed && rp_held) continue;
             if (std::find(bt_attrition_ids_.begin(), bt_attrition_ids_.end(), u.id) == bt_attrition_ids_.end()) {
                 bt_attrition_ids_.push_back(u.id);
@@ -1781,6 +1803,7 @@ void TacticalBattle::complete_retreat(TacticalMode& mode, uint8_t side) {
         if (cfg_.end_hold_frames > 0) mode.destroy(u.h);
     }
     retreat_complete_ = true;
+    land_retreat_list_.clear();              // #84: used
     rt_.state = 0;                           // coordinator state 3 (rt_listed is false from here on)
     vm_retreat_complete(side_player(side));  // 0x340750 (holds released, 0xc tested)
 }

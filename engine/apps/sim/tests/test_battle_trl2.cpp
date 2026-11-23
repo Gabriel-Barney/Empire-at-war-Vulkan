@@ -392,36 +392,66 @@ std::string bunker_patch(std::string t) {
 struct RetreatEndRun {
     bool adopted = false, requested = false, completed = false;
     int lander_left = 0, troopers_left = 0, bunker_dead = 0, lander_dead = 0, troopers_dead = 0;
+    bool late_spawned = false, late_left = false, saved = false;  // #84
 };
 
-// Player 1 (the attacker) gets a bunker and a transport (and with `rp` a reinforcement point), then retreats.
-RetreatEndRun run_retreat_end(Data& d, bool rp) {
+// Battle state save / load in place while the land retreat list is held: the state hash must survive.
+bool retreat_state_round_trip(TacticalBattle& b) {
+    StateHasher h0;
+    b.hash(h0);
+    ByteWriter w;
+    b.write_part(TacticalBattle::SavePart::State, w);
+    ByteReader r(w.bytes());
+    if (!b.read_part(TacticalBattle::SavePart::State, r)) return false;
+    StateHasher h1;
+    b.hash(h1);
+    return h0.digest() == h1.digest();
+}
+
+// Player 1 (the attacker) gets a bunker and a transport (and with `rp` a reinforcement point), then retreats. With `late`
+// (#84) a trooper is script-spawned on the tick after the request, during the countdown.
+RetreatEndRun run_retreat_end(Data& d, bool rp, bool late = false) {
     RetreatEndRun out;
     const uint32_t bunker_t = type_of(d, "T_Bunker"), lander_t = type_of(d, "S10_Lander"), trooper_t = type_of(d, "S10_Trooper"),
                    rp_t = type_of(d, "T_RP");
     std::vector<TacticalBattle::RemovalRecord> removals;
+    uint32_t request_frame = 0;
+    objects::ObjectHandle late_h{};
     land_battle(
         d, 4000,
         [&](TacticalBattle& b, TacticalMode& tm, SimHost&) {
+            namespace mv = alamo::tactical::movement;
+            const auto spawn_h = [&](uint32_t type, int32_t cx) {
+                objects::SpawnParams sp;
+                sp.type = static_cast<objects::TypeIndex>(type);
+                sp.owner = 1;
+                const mv::V2 c = mv::cell_center(cx, 50);
+                sp.position = Vec3{c.x, c.y, 0.0f};
+                sp.facing = Vec3{1.0f, 0.0f, 0.0f};
+                return b.script_spawn(tm, sp);
+            };
             if (b.frame() == 1) {  // script spawns (real battle units)
-                namespace mv = alamo::tactical::movement;
                 objects::ObjectStore& st = tm.primary();
                 const auto spawn = [&](uint32_t type, int32_t cx) {
-                    objects::SpawnParams sp;
-                    sp.type = static_cast<objects::TypeIndex>(type);
-                    sp.owner = 1;
-                    const mv::V2 c = mv::cell_center(cx, 50);
-                    sp.position = Vec3{c.x, c.y, 0.0f};
-                    sp.facing = Vec3{1.0f, 0.0f, 0.0f};
-                    const objects::ObjectHandle h = b.script_spawn(tm, sp);
+                    const objects::ObjectHandle h = spawn_h(type, cx);
                     return st.alive(h) && b.combat().has_unit(st.id(h));
                 };
                 out.adopted = spawn(bunker_t, 50) && spawn(lander_t, 54) && (!rp || spawn(rp_t, 46));
             }
-            if (!out.requested && out.adopted && b.retreat_block(1) == 0) out.requested = b.request_retreat(1);
+            if (!out.requested && out.adopted && b.retreat_block(1) == 0) {
+                out.requested = b.request_retreat(1);
+                request_frame = b.frame();
+            }
+            if (late && out.requested && !out.late_spawned && b.frame() == request_frame + 1 && b.retreating_player() == 1) {
+                objects::ObjectStore& st = tm.primary();
+                late_h = spawn_h(trooper_t, 58);  // made during the countdown: not on the retreat list
+                out.late_spawned = st.alive(late_h) && b.combat().has_unit(st.id(late_h));
+                out.saved = retreat_state_round_trip(b);
+            }
             if (out.requested && !out.completed && b.retreating_player() < 0) {  // the retreat completed this tick
                 out.completed = true;
                 objects::ObjectStore& st = tm.primary();
+                out.late_left = late && st.alive(late_h) && !st.dying(late_h);
                 for (const objects::ObjectHandle h : st.owned_by(1)) {
                     if (!st.alive(h) || st.dying(h)) continue;
                     if (static_cast<uint32_t>(st.type(h)) == lander_t) ++out.lander_left;
@@ -460,6 +490,15 @@ void test_land_retreat_end() {
         if (rp) CHECK(r.troopers_left > 0 && r.troopers_dead == 0);
         else CHECK(r.troopers_left == 0 && r.troopers_dead > 0);
     }
+    // #84 (TRL2_A_RE_ANSWERS Q3, vf8 0x534d90 [H]): the list is taken at the request, so a trooper script-spawned during the
+    // countdown is not on it and dies at completion even with a held reinforcement point, while the listed troopers
+    // retreat. A state save / load during the countdown keeps the list.
+    const RetreatEndRun late = run_retreat_end(*d, true, true);
+    std::printf("  #84 late spawn: spawned %d, saved %d, completed %d; late unit left %d, troopers left %d / died %d\n",
+                late.late_spawned, late.saved, late.completed, late.late_left, late.troopers_left, late.troopers_dead);
+    CHECK(late.late_spawned && late.saved && late.completed);
+    CHECK(!late.late_left && late.troopers_dead == 1 && late.troopers_left > 0);
+    CHECK(late.bunker_dead == 1 && late.lander_left == 1);
 }
 
 // ---- trl2 t02 ----

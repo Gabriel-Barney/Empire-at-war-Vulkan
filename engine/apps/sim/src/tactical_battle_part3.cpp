@@ -1566,6 +1566,10 @@ void TacticalBattle::hash(StateHasher& h) const {
     h.i32(retreat_side_);
     h.u32(retreat_done_frame_);
     h.boolean(retreat_complete_);
+    if (!land_retreat_list_.empty()) {  // #84: only during a land retreat countdown
+        h.u32(static_cast<uint32_t>(land_retreat_list_.size()));
+        for (const objects::ObjectId id : land_retreat_list_) h.i32(id);
+    }
     if (sp_used_) {  // indigenous spawners and debris pieces (absent until one exists)
         h.u32(static_cast<uint32_t>(sp_scanned_));
         h.u32(static_cast<uint32_t>(sp_spawners_.size()));
