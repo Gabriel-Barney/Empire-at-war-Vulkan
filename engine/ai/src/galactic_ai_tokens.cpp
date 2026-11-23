@@ -2399,7 +2399,15 @@ struct GalacticSimTokenResolver::Impl {
     // ---------------- game ----------------
     bool resolve_game(std::string_view k, std::span<const Param> params, double& out) const {
         if (k == "AGE") return out = galactic_ai_game_age(static_cast<int32_t>(sim.frame())), true;  // 0x6e1f20, a2m t09 [H]
-        if (k == "TIMELINE") return out = 0.0, true;  // mode +0x9C [port: unknown, 0]
+        if (k == "TIMELINE") {
+            // #243: 0x6e2140 = the current mode's int +0x9C, the highest tech level (+0x84) over the whole player list
+            // (A2I_T01_FRAME_ORDER §3.1; written by 0x490580 at the end of the common tick 0x3639d0, after the T5 GOM
+            // service; T9 only reads it; the era of TEXT_CURRENT_TIME_ERA). [port] read live: a tech change later in the
+            // same frame (AI, Lua, a story SET_TECH_LEVEL at T9) shows one frame early; tier 1 (HotM parity unmoved).
+            int32_t era = 0;
+            for (const gal::PlayerState& p : sim.players()) era = std::max(era, p.tech_level);
+            return out = static_cast<double>(era), true;
+        }
         if (k == "ISSETUPPHASE" || k == "ISLANDCONTROLGAME") return out = 0.0, true;
         if (k == "ISCAMPAIGNGAME") return out = 1.0, true;  // galactic mode
         if (k == "ISSTORYCAMPAIGN") return out = b2d(r.hooks_.story_campaign), true;

@@ -100,6 +100,7 @@ int main(int argc, char** argv) {
     test_budget_allocation_token();  // q6 t03
     test_story_trigger_token();      // storyb t10
     test_mcx8_t07_tokens();          // mcx8 t07
+    test_game_timeline_token();      // #243
     test_loaded_category_enum();     // q6 t03
     test_ai_type_switch();
     test_status_hash_covers_move_to();  // #119

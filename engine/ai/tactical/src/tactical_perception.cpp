@@ -1065,7 +1065,15 @@ struct Eval {
                 return true;
             }
             case Leaf::InterventionsEnabled: out = w.interventions_enabled ? 1.0 : 0.0; return true;  // mcx8 t09
-            case Leaf::Timeline: case Leaf::TimeSinceStoryPopup: case Leaf::ActiveStoryGoalCount:
+            case Leaf::Timeline: {
+                // #243: 0x6e2140 = mode +0x9C, the highest tech level over the player list (0x490580 in every mode's common
+                // tick). [port] read from the perception snapshot, as the galactic leaf (tier 1).
+                float era = 0.0f;
+                for (const PerceptionPlayerInfo& pl : w.players) era = std::max(era, pl.tech_level);
+                out = static_cast<double>(era);
+                return true;
+            }
+            case Leaf::TimeSinceStoryPopup: case Leaf::ActiveStoryGoalCount:
                 out = 0.0;  // [L] story / galactic
                 return true;
             default: return false;

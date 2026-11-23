@@ -764,6 +764,31 @@ void test_story_trigger_token() {
 
 // mcx8 t07 (AI_GALACTIC_TOKENS §1 / §4, STORYB_T10_TRIGGER_AI §3.2): the three galactic tokens base FoC equations use that
 // the resolver did not evaluate. Expected values from the retail leaves 0x65eb10, 0x65c4e0 and 0x6e1fb0.
+// #243: Game.Timeline (0x6e2140) reads the current mode's +0x9C, which T9 sets to the highest tech level among the
+// players (A2I_T01_FRAME_ORDER §3.1 [H call, M argument]; shown as TEXT_CURRENT_TIME_ERA "Era %d", 0x1104a0).
+void test_game_timeline_token() {
+    ParityWorld pw(false, {"HeroAttach"});
+    pw.run(2);
+    const auto timeline = [&pw]() {
+        EquationSet e;
+        e.add("T", "Game.Timeline");
+        e.link();
+        EvalContext c;
+        c.self = 0;
+        c.enemy = 1;
+        c.human = 1;
+        const EvalResult r = evaluate(e, e.find("T"), c, pw.world->resolver());
+        CHECK(r.ok);
+        return r.value;
+    };
+    int32_t top = 0;
+    for (size_t p = 0; p < pw.sim->players().size(); ++p) top = std::max(top, pw.sim->players()[p].tech_level);
+    CHECK(top >= 1 && timeline() == static_cast<double>(top));
+    pw.sim->set_tech_level(1, top + 2);  // one player ahead: the era follows it, whoever asks
+    CHECK(timeline() == static_cast<double>(top + 2));
+    std::printf("Game.Timeline: %g, then %g after player 1 reaches %d\n", static_cast<double>(top), timeline(), top + 2);
+}
+
 void test_mcx8_t07_tokens() {
     auto evaluator = [](ParityWorld& pw) {
         return [&pw](const std::string& text, int32_t self, int32_t target, bool& ok) {

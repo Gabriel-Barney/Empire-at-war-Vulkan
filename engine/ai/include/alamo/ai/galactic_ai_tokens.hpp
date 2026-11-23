@@ -21,8 +21,8 @@
 // structures are the types' Starting_Spawned_Units_Tech_N lists (galactic_ai_member_force); the force leaves hold
 // members only (galactic_ai_planet_force), the helper 0x5f2430 adds the matching structures' own AI_Combat_Power to every
 // contrast row (galactic_ai_enemy_strength, with the 0x4b8000 persisted built objects); the structure mask +0x1658 is
-// Garrison_Category, Capital when 0 (galactic_ai_structure_mask); the planet-type garrison list +0x20C8 is not modelled;
-// Timeline = 0; black market = GalacticSim's item table (P4 ai); Hints = the Galactic_Hints defaults (no Markup_Filename
+// Garrison_Category, Capital when 0 (galactic_ai_structure_mask); Timeline is read live (retail: as of the common tick);
+// black market = GalacticSim's item table (P4 ai); Hints = the Galactic_Hints defaults (no Markup_Filename
 // file is read); island paths are hop-count shortest paths.
 // Determinism: refresh(frame) runs once per frame on the sim thread (event stamps, neighbour lists);
 // resolve() reads the sim and the leaf cache (mutex) and draws no RNG (Script_ references may, through
@@ -152,7 +152,8 @@ double galactic_ai_member_force(const galactic::GalacticSim& sim, std::span<cons
 //     +0x1658 (galactic_ai_structure_mask: Capital when 0) (A2I_TOKENS_RE §2.1);
 //   * ground: per surface unit of that side, its type's power if its mask meets `mask`; if the planet's owner is on
 //     that side: the per-tech members of every ground structure (orbital ones skipped) with the structure owner's tech
-//     (NOT their own power) [port: the Enemy planet-type list +0x20C8 not modelled].
+//     (NOT their own power); for Enemy with a total > 0, + the planet type's Potential_Indigenous_Power (+0x20C8) entries
+//     affiliated with a player hostile to Self (mcx8 t08).
 // `categories`: the enum that resolves the Capital default (galactic_ai_structure_mask).
 double galactic_ai_planet_force(const galactic::GalacticSim& sim, std::span<const GalacticAiTypeInfo> types,
                                 PlanetIndex planet, int32_t self, bool enemy, bool space, uint64_t mask,

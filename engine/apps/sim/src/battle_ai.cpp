@@ -1409,6 +1409,8 @@ void BattleAi::fill(at::PerceptionWorld& w, std::vector<at::TacticalAiObject>& o
                 pi.is_human = g.players()[a].human;
             }
             pi.attacker = static_cast<int32_t>(a) == b_->req_.info.attacker;
+            // #243: the player's tech level (+0x84: galactic tech + the battle's upgrade bonus) for TechLevel and Timeline.
+            pi.tech_level = static_cast<float>(b_->battle_tech_level(static_cast<int32_t>(a)));
             // skm2 t03 (AI_TACTICAL_PERCEPTION IsDifficulty 0x6e0620): the AI player's difficulty (AIPlayer +0x58); none for a
             // human or a player without a tactical AI here.
             static constexpr const char* kLevels[3] = {"Easy", "Normal", "Hard"};

@@ -424,6 +424,12 @@ void test_battle_ai_station_level(bool skirmish) {
         ai::tactical::PerceptionWorld w;
         std::vector<ai::tactical::TacticalAiObject> facts;
         ai.fill(w, facts);
+        // #243: each player's tech level (player +0x84: the galactic tech plus the battle's upgrade bonus) reaches the
+        // perception, so Self.TechLevel and Game.Timeline (their maximum) are not 0 in a battle.
+        CHECK(w.players.size() >= 2);
+        for (size_t p = 0; p < w.players.size(); ++p)
+            CHECK(w.players[p].tech_level == static_cast<float>(b->battle_tech_level(static_cast<int32_t>(p))));
+        CHECK(w.players[0].tech_level >= 1.0f);
         int stations = 0, others = 0;
         for (const ai::tactical::PerceptionObject& o : w.objects) {
             if (o.dummy_star_base) {
