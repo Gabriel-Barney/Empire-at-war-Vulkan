@@ -21,7 +21,7 @@ namespace alamo::sim {
 namespace fw = alamo::tactical::fog;
 
 tactical::Aabb TacticalBattle::map_extents(const TacticalMode& mode, ExtentsUse use) const {
-    if (use == ExtentsUse::Perception && !kPerceptionTracedExtents) return mode.bounds();  // until mapx1 t01
+    if (use == ExtentsUse::Perception && !kPerceptionTracedExtents) return mode.bounds();  // the pre-#54 stand-in
     // Land (0x3b8020): the terrain box, x / y = [0, W x 20] x [0, H x 20] with W, H the vertex grid size; z = [zmin, zmax]
     // over every vertex height, both started at 0. Space (0x4d7780): the playable box. [port] A land map without terrain
     // (synthetic test maps) keeps the playable box instead of retail's zero box (no grids).
@@ -46,12 +46,9 @@ void TacticalBattle::fog_begin(TacticalMode& mode, uint32_t players) {
     fog_team_beh_ = objects::beh::Team;
     fw::FogSetup s;
     s.mode = space_ ? fw::FogMode::Space : fw::FogMode::Land;
-    // [port] The playable box stands in for the mode's map extents (vf +0x1f8). Traced (FOG_OF_WAR §1.2 [H]):
-    // space uses the playable box, land the whole terrain box [0, 20 W] x [0, 20 H]. The land switch waits for the AI
-    // threat grid, which must use the same box (AI_TACTICAL_PERCEPTION §4.1): switching the fog alone stalled the FoC
-    // Utapau skirmish on 4 of 5 seeds (2026-11-01); switching both (2026-11-12) slows the Rebel win on foc-land
-    // seed 7 from 23121 to 42347 frames (Burn_Units_Land fails every pass from about frame 15000; backlog). both
-    // read map_extents(mode, Perception), which answers the playable box until mapx1 t01 switches it.
+    // The mode's map extents (vf +0x1f8, FOG_OF_WAR §1.2 [H]): space the playable box, land the whole terrain box
+    // [0, 20 W] x [0, 20 H]. The BattleAi threat grid reads the same box (AI_TACTICAL_PERCEPTION §4.1): both take
+    // map_extents(mode, Perception). #54 switched them together; the foc-land AI sweep is recorded on the issue.
     const tactical::Aabb b = map_extents(mode, ExtentsUse::Perception);
     s.box = {b.min.x, b.min.y, b.max.x, b.max.y};
     s.constants = catalog_->fog_constants();
