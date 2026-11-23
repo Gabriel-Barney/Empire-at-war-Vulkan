@@ -620,7 +620,6 @@ void test_music_modes() {
     CHECK(a.current_music() == "Bat_Space_DS");
 }
 
-// STRATEGIC_GAPS §7.4: modes 4, 8, 11, 13 (lock), 14, 17.
 // aud8 t02 (legacy docs/re/AUDIO.md §1.7): mode activation sets the mode's 3D saturation / rolloff mods, mode shutdown
 // resets both to 1.0, and the front end has no mode. A mod's non-default galactic mods show the difference.
 void test_3d_mods_reset() {
@@ -630,6 +629,8 @@ void test_3d_mods_reset() {
   <Audio_Galactic_3D_Saturation_Distance_Mod> 2.0 </Audio_Galactic_3D_Saturation_Distance_Mod>
   <Audio_Galactic_3D_Rolloff_Distance_Mod> 3.0 </Audio_Galactic_3D_Rolloff_Distance_Mod>
   <Audio_Land_3D_Rolloff_Distance_Mod> 10.0 </Audio_Land_3D_Rolloff_Distance_Mod>
+  <Audio_Space_3D_Saturation_Distance_Mod> 1.5 </Audio_Space_3D_Saturation_Distance_Mod>
+  <Audio_Space_3D_Rolloff_Distance_Mod> 4.0 </Audio_Space_3D_Rolloff_Distance_Mod>
 </Audio>
 )");
     AudioDatabase db;
@@ -655,11 +656,18 @@ void test_3d_mods_reset() {
     CHECK(near(a.attenuation(300.0f, 100.0f), 100.0f / (100.0f + 10.0f * 200.0f), 1e-6f));  // land 1.0 / 10.0
     g.leave_mode();
     CHECK(near(a.attenuation(300.0f, 100.0f), plain, 1e-6f));
+    TacticalSetup space;
+    space.land = false;
+    g.enter_tactical(space);
+    CHECK(near(a.attenuation(300.0f, 100.0f), 150.0f / (150.0f + 4.0f * 150.0f), 1e-6f));  // space 1.5 / 4.0
+    g.leave_mode();
+    CHECK(near(a.attenuation(300.0f, 100.0f), plain, 1e-6f));
     g.enter_galactic();
     g.enter_front_end();  // back to the main menu without a mode shutdown in between
     CHECK(near(a.attenuation(300.0f, 100.0f), plain, 1e-6f));
 }
 
+// STRATEGIC_GAPS §7.4: modes 4, 8, 11, 13 (lock), 14, 17.
 void test_music_modes_gaps() {
     Rig rig;
     AudioSystem& a = *rig.a;
