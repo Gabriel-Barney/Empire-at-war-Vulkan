@@ -33,7 +33,7 @@ cmd::RejectReason TacticalBattle::order_move(TacticalMode& mode, uint8_t player,
     if (!queued) {
         clear_queues(ids);
         raise_order_replaced(ids);  // signal 0xb
-        exec_move(mode, ids, x, y, rng, facing_deg, attack_move, move_flags, switch_locomotor, kNoObjectId, false,
+        exec_move(mode, ids, x, y, rng, facing_deg, attack_move, move_flags, switch_locomotor, kNoObjectId,
                   cohesion_for(player, move_flags));
         return R::None;
     }
@@ -83,7 +83,7 @@ cmd::RejectReason TacticalBattle::order_move(TacticalMode& mode, uint8_t player,
     const std::vector<objects::ObjectId> now = enqueue(ids, q);
     raise_order_replaced(now);  // the units that start it now
     if (!now.empty())
-        exec_move(mode, now, q.x, q.y, rng, q.facing, attack_move, move_flags, false, kNoObjectId, false,
+        exec_move(mode, now, q.x, q.y, rng, q.facing, attack_move, move_flags, false, kNoObjectId,
                   cohesion_for(player, move_flags));
     return R::None;
 }
@@ -1533,7 +1533,7 @@ void TacticalBattle::advance_queues(TacticalMode& mode, SimRng& rng) {
                                    (static_cast<uint64_t>(o.group) << 8) | static_cast<uint64_t>(pass), rng, own);
             switch (o.kind) {
                 case QueuedOrder::Kind::Move:  // [port] fleet cohesion: the player's setting when the move starts
-                    exec_move(mode, s.ids, o.x, o.y, srng, o.facing, o.attack_move, o.flags, false, kNoObjectId, false,
+                    exec_move(mode, s.ids, o.x, o.y, srng, o.facing, o.attack_move, o.flags, false, kNoObjectId,
                               cohesion_for(o.player, o.flags));
                     break;
                 case QueuedOrder::Kind::MoveToObject: {
