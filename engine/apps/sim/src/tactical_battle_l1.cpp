@@ -1,7 +1,8 @@
 // --- L1 systems (owner: tactical-systems agent): the battle side of special weapons, the tactical superweapon,
 // hyperspace departures, timed engine disables, teleport, ground height and clip lengths (tactical_battle.hpp
 // "L1 systems" block; legacy docs/re/SCRIPT_GAPS.md §1-§3). Serial code only; the synced RNG is drawn by the departure
-// timers (HyperspaceDepartures) and nothing else here.
+// timers (HyperspaceDepartures) and the special weapons' TSW service (or, with the Weapons stream on, each pack's own
+// stream; #128) and nothing else here.
 #include <algorithm>
 #include <utility>
 #include <array>
@@ -13,6 +14,7 @@
 #include "alamo/objects/type_fields.hpp"
 #include "alamo/sim/l1_loaders.hpp"
 #include "alamo/sim/tactical_battle.hpp"
+#include "alamo/tactical/services/stream_rng.hpp"  // #128 Weapons stream
 #ifdef ALAMO_SIM_HAVE_ANIM
 #include "alamo/sim/sim_anim.hpp"
 #endif
@@ -694,7 +696,17 @@ void TacticalBattle::l1_weapons(TacticalMode& mode, SimRng& rng) {
     if (l1_sw_.empty()) return;
     objects::ObjectStore& st = mode.primary();
     l1_sw_.prune([&st](tc::ObjectId id) { return st.alive(st.find(id)); });
-    l1_sw_.tick(frame_, rng, l1_world(mode));
+    // #128: with the Weapons stream on, each pack's TSW draws come from its own stream (keyed by the pack id; the
+    // bombardment records use keys above 2^32, so the two never share a stream).
+    if (svc_streams_ & (1u << static_cast<uint32_t>(tactical::services::StreamId::Weapons))) {
+        const ta::SpecialWeaponSystem::StreamOf own = [this](tc::ObjectId pack) {
+            return tactical::services::stream_rng(cfg_.session_seed, frame_, tactical::services::StreamId::Weapons,
+                                                  static_cast<uint64_t>(static_cast<uint32_t>(pack)));
+        };
+        l1_sw_.tick(frame_, rng, l1_world(mode), &own);
+    } else {
+        l1_sw_.tick(frame_, rng, l1_world(mode));
+    }
     for (const ta::SpecialWeaponShot& s : l1_sw_.shots()) {
         const objects::ObjectHandle wh = st.find(s.weapon);
         if (!st.alive(wh) || s.projectile < 0) continue;

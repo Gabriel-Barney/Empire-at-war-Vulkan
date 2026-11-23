@@ -227,7 +227,10 @@ public:
 
     // ---- per tick (serial, after the combat events) ----
     // Due pulses -> shots(), readiness / TSW events -> events(). Outputs are cleared at the start of each tick.
-    void tick(uint32_t frame, SimRng& rng, const SpecialWeaponWorld& w);
+    // #128 (docs/SIMULATION.md "Counter-based random streams"): with `stream_of`, each pack's TSW draws come from
+    // stream_of(pack id) - a counter-based stream of its own - instead of `rng`.
+    using StreamOf = std::function<SimRng(ObjectId pack)>;
+    void tick(uint32_t frame, SimRng& rng, const SpecialWeaponWorld& w, const StreamOf* stream_of = nullptr);
     std::span<const SpecialWeaponShot> shots() const { return shots_; }
     std::span<const SpecialWeaponEvent> events() const { return events_; }
     void clear_outputs() {

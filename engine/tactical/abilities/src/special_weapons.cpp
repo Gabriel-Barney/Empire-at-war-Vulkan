@@ -358,7 +358,7 @@ bool SpecialWeaponSystem::tsw_spent(ObjectId id) const {
 
 // ---- tick ----
 
-void SpecialWeaponSystem::tick(uint32_t frame, SimRng& rng, const SpecialWeaponWorld& w) {
+void SpecialWeaponSystem::tick(uint32_t frame, SimRng& rng, const SpecialWeaponWorld& w, const StreamOf* stream_of) {
     clear_outputs();
     for (size_t i = 0; i < packs_.size(); ++i) {
         Pack& p = packs_[i];
@@ -383,7 +383,14 @@ void SpecialWeaponSystem::tick(uint32_t frame, SimRng& rng, const SpecialWeaponW
             p.ready_signalled = 1;
             event(SwEventKind::Ready, p, frame);
         }
-        if (p.tsw >= 0) tsw_service(p, d, frame, rng, w);
+        if (p.tsw >= 0) {
+            if (stream_of && *stream_of) {  // this pack's own stream
+                SimRng own = (*stream_of)(p.id);
+                tsw_service(p, d, frame, own, w);
+            } else {
+                tsw_service(p, d, frame, rng, w);
+            }
+        }
     }
 }
 
