@@ -636,22 +636,55 @@ void TacticalCameraController::update(const InputState& in, const Bindings& keys
     step(dt);
 }
 
-CameraParams TacticalCameraController::params(float aspect) const {
-    const Pose e = effective_pose();
-    float pitch = e.pitch;
-    if (height_ && c_.min_height_above_terrain > 0.0f && e.distance > 0.0f) {
-        // [port] Raise the pitch until the eye clears the terrain under it (the eye moves as the pitch changes).
-        for (int it = 0; it < 8; ++it) {
-            const CameraParams q = make_params(look_, yaw_, pitch, e.distance);
-            const float floor_z = height_(q.eye.x, q.eye.y) + c_.min_height_above_terrain;
-            if (q.eye.z >= floor_z - 1e-3f) break;
-            const float s = (floor_z - look_.z) / e.distance;
-            const float need = s >= 0.999f ? 88.0f : std::asin(clampf(s, -1.0f, 1.0f)) / kDegToRad + 0.01f;
-            if (need <= pitch) break;
-            pitch = need;
+void TacticalCameraController::bound_delta(Vec3 look, float aspect, float& dx, float& dy) const {
+    float m = 0.0f;
+    if (land_) {  // 0x2d0df0: no margin in space (mode type 2)
+        const Pose e = effective_pose();
+        const float pr = e.pitch * kDegToRad, sp = std::sin(pr);
+        float v = (aspect > 0.0f ? e.fov / aspect : e.fov) * kDegToRad;
+        if (aspect > 4.0f / 3.0f) v *= 1.25f;
+        const float q = pr + 0.5f * v, sq = std::sin(q);
+        // [port] retail pitches stay in (0, 90): free rotation past them (or a degenerate FOV) gets no margin.
+        if (sp > 1e-3f && pr <= 0.5f * kPi && q < kPi && sq > 1e-6f) {
+            const float h = e.distance * sp;  // eye.z - look.z (make_params)
+            m = std::max(0.0f, h * std::cos(pr) / sp - h * std::cos(q) / sq);  // h / tan p - h / tan(p + v / 2)
         }
     }
-    CameraParams p = make_params(look_, yaw_, pitch, e.distance);
+    const float yr = yaw_ * kDegToRad;
+    const float px = look.x + 0.5f * m * std::sin(yr), py = look.y + 0.5f * m * std::cos(yr);
+    float lo_x = box_.min_x + c_.side_bounds_buffer + m, hi_x = box_.max_x - c_.side_bounds_buffer - m;
+    float lo_y = box_.min_y + c_.bottom_bounds_buffer + m, hi_y = box_.max_y - c_.top_bounds_buffer - m;
+    // [port] a box narrower than its margins collapses to its centre, as limits() does (retail's high-first test would
+    // move the look-at between the two bounds on alternate passes).
+    if (lo_x > hi_x) lo_x = hi_x = 0.5f * (box_.min_x + box_.max_x);
+    if (lo_y > hi_y) lo_y = hi_y = 0.5f * (box_.min_y + box_.max_y);
+    dx = px > hi_x ? hi_x - px : (px < lo_x ? lo_x - px : 0.0f);
+    dy = py > hi_y ? hi_y - py : (py < lo_y ? lo_y - py : 0.0f);
+}
+
+void TacticalCameraController::bound_look_at(float aspect) {
+    float dx = 0.0f, dy = 0.0f;
+    bound_delta(look_, aspect, dx, dy);
+    look_.x += dx;
+    look_.y += dy;
+}
+
+CameraParams TacticalCameraController::params(float aspect) const {
+    const Pose e = effective_pose();
+    const float pitch = e.pitch;
+    Vec3 look = look_;
+    float dx = 0.0f, dy = 0.0f;
+    bound_delta(look, aspect, dx, dy);
+    look.x += dx;
+    look.y += dy;
+    CameraParams p = make_params(look, yaw_, pitch, e.distance);
+    if (land_ && height_) {  // 0x2d0df0: lift the eye and the target straight up by the clearance deficit
+        const float lift = height_(p.eye.x, p.eye.y) + c_.min_height_above_terrain - p.eye.z;
+        if (lift > 0.0f) {
+            p.eye.z += lift;
+            p.target.z += lift;
+        }
+    }
     p.fov_x = tactical_fov_x(e.fov, aspect);
     // [port: Gabriel] up vector of a rolled camera or one pitched past the vertical (orbit up = sin p * forward + cos p * Z,
     // perpendicular to the view, then rotated by the roll about the view direction).

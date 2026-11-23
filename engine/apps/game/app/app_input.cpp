@@ -1148,6 +1148,7 @@ void App::battle_input() {
     const uint32_t w = targets_.width, h = targets_.height;
     bview_.camera().set_scroll_locked(story_present_.scroll_locked() || story_present_.controls_locked());  // the story's SCROLL_LOCK reward
     if (!opt_.hidden || !opt_.smoke.empty()) bview_.camera().update(input_, ui_.bindings, dt_);
+    bview_.camera().bound_look_at(static_cast<float>(w) / static_cast<float>(std::max(1u, h)));  // #297 (0x2d0df0)
     const ui::CameraParams cp = bview_.camera_params(w, h);
     ui::OrderContext ctx;
     ctx.mode = bview_.space() ? ui::UiMode::Space : ui::UiMode::Land;

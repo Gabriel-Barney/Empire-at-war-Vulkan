@@ -292,7 +292,22 @@ public:
     float scroll_velocity_x() const { return scroll_vx_; }
     void stop_scroll() { scroll_vx_ = scroll_vy_ = 0.0f; }
 
-    // Pose for the renderer / picking; pitch raised so the eye clears the terrain by Min_Height_Above_Terrain.
+    // #297 (pose build 0x2d0df0 [H]): a land camera (mode type 1; space is type 2) bounds its look-at by the view and lifts
+    // the eye over the terrain. Set by the battle host; default off (space).
+    void set_land_mode(bool land) { land_ = land; }
+    bool land_mode() const { return land_; }
+    // Land: the look-at bound of the view at `aspect` (0x2d0df0). m = h/tan(p) - h/tan(p + v/2) with h = the eye's height
+    // over the look-at, p = the pose pitch, v = FOV / aspect (x 1.25 when wider than 4:3); the point m/2 ahead of the
+    // look-at (along the heading) is clamped to the limits shrunk by m, high side first, and the correction moves the
+    // stored look-at. Space: the plain limits. Idempotent; the host runs it once a frame after update(). [port] p, the FOV
+    // and the distance are the effective pose (overview blend, FOV setting, free rotation); no margin outside pitch
+    // (0, 90] (free rotation) and never a negative one; bounds narrower than 2 m collapse to the box centre.
+    // The record flag +0x8c (x margin x aspect, no forward shift, z 0) is not traced [L] and taken as off.
+    void bound_look_at(float aspect);
+
+    // Pose for the renderer / picking, with the look-at bound of the view (bound_look_at). Land with terrain: when the eye
+    // is less than Min_Height_Above_Terrain over the terrain under it, the eye and the view target are lifted by the
+    // deficit (0x2d0df0 [H]: the pitch is kept, the stored look-at keeps its z).
     CameraParams params(float aspect) const;
 
 private:
@@ -304,6 +319,7 @@ private:
         void snap(float v) { value = target = v, vel = 0; }
     };
     Pose normal_pose() const;
+    void bound_delta(Vec3 look, float aspect, float& dx, float& dy) const;  // #297: the 0x2d0df0 correction
     Pose level_pose(int32_t level) const;
     Pose effective_pose() const;
     void overview_click(float notches);
@@ -315,6 +331,7 @@ private:
     CameraBox box_;
     Vec3 look_{};
     Vec3 home_{};  // #47 t11: the look-at saved at map load
+    bool land_ = false;  // #297: land camera (view-dependent look-at bound, terrain clearance)
     float yaw_ = 0, pitch_ = 50;
     Smoothed dist_, fov_, spl_, height_s_;
     Drag drag_ = Drag::None;
