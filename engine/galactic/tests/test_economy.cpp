@@ -784,6 +784,30 @@ std::pair<std::vector<GalacticEvent>, uint64_t> event_scenario(bool emit) {
     return {all, h.digest()};
 }
 
+// #67 t04 (0x403770 / 0x4035d0 / 0x403900 [H]): only a queue cancel is voiced; the wipes (clear_queue after a won battle,
+// the re-evaluation) are silent ProductionCanceled events.
+void test_cancel_voicing() {
+    World w({{pEmpire, rA, tSB1}, {pEmpire, rA, tBarracks}});
+    GalacticSim& s = w.sim;
+    s.set_emit_events(true);
+    for (int i = 0; i < 3; ++i) CHECK(s.enqueue(pEmpire, rA, tInfantry) == RejectReason::None);
+    CHECK(s.cancel(pEmpire, rA, kGroundQueue, 2) == RejectReason::None);  // voiced
+    s.reevaluate_queue(rA, kGroundQueue, -1);  // every entry needs more: the walk deletes the tail, then the head
+    CHECK(w.planet(rA).queue[kGroundQueue].empty());
+    CHECK(s.enqueue(pEmpire, rA, tInfantry) == RejectReason::None);
+    s.clear_queue(rA, kGroundQueue);  // the battle-end wipe
+    std::vector<GalacticEvent> all;
+    s.drain_events(all);
+    uint32_t voiced = 0, silent = 0;
+    for (const GalacticEvent& e : all) {
+        if (e.kind != GalacticEventKind::ProductionCanceled) continue;
+        if (cancel_voiced(e)) ++voiced;
+        else ++silent;
+    }
+    std::printf("  cancel voicing: %u voiced, %u silent\n", voiced, silent);
+    CHECK(voiced == 1 && silent == 3);
+}
+
 void test_event_stream() {
     const auto [evs, digest] = event_scenario(true);
     const auto [none, digest_off] = event_scenario(false);
@@ -824,6 +848,7 @@ void test_event_stream() {
         CHECK(o[6].value == kCorruptionRacketeering && o[6].player == pUnder);
         CHECK(o[7].type == tTechUp && o[7].value == kSpaceQueue && o[8].type == tInfantry);
         CHECK(o[9].type == tInfantry && o[9].other_player == 1);
+        CHECK(cancel_voiced(o[9]));  // #67 t04: the command cancel voices the build-cancelled line
         CHECK(o[10].type == tTechUp && o[10].object == 0 && o[11].value == 2 && o[11].other_player == 1);
         CHECK(o[12].planet == rB && o[12].value == kCorruptionPiracy);
         CHECK(o[13].type == tFrigate && o[13].planet == rA && o[14].type == kNoIndex);
@@ -3562,6 +3587,7 @@ int main(int argc, char** argv) {
         test_ownership();
         test_residual_influence();  // gal1 t01
         test_event_stream();
+        test_cancel_voicing();  // #67 t04
         test_a2_income_hook();
         test_a2_production_queries();
         test_a2_fleet_management();

@@ -728,7 +728,9 @@ bool GalacticSim::apply_sabotage(const SpecialAbilityDef& a, ObjectHandle sabote
         auto& g = p.queue[kGroundQueue];
         for (size_t i = g.size(); i-- > 0;)
             if (rules_->types[g[i].type].kind == UnitKind::GroundStructure) {
-                emit_production(GalacticEventKind::ProductionCanceled, planet, kGroundQueue, g[i], 0);
+                // #67 t04: 0x5b1d40 cancels through 0x4035d0, which voices the line. Retail cancels one entry (the last of
+                // the base-upgrade type, with a refund); the [port] above drops every queued structure, so it plays per entry.
+                emit_cancel(planet, kGroundQueue, g[i], false, true);
                 g.erase(g.begin() + static_cast<std::ptrdiff_t>(i));
                 if (i == 0 && !g.empty()) restart_head(g[0]);
             }

@@ -180,8 +180,10 @@ void App::announcer_feedback() {
         }
         // the local player's production begin / cancel / complete -> the built type's SFXEvent_Build_* (and
         // Build_Music_Completed). Galactic production types index the object type table (as HeroRespawned).
+        // #67 t04: a cancel only when a queue cancel removed it (galactic::cancel_voiced), not a queue wipe; so every
+        // ProductionCanceled reaching the kind mapping below is a voiced one.
         if (me >= 0 && e.player == me && e.type < data_.types.size() &&
-            (e.kind == K::ProductionBegin || e.kind == K::ProductionCanceled || e.kind == K::ProductionCompleted)) {
+            (e.kind == K::ProductionBegin || galactic::cancel_voiced(e) || e.kind == K::ProductionCompleted)) {
             const GameAudioHost::Production kind = e.kind == K::ProductionBegin      ? GameAudioHost::Production::Begin
                                                    : e.kind == K::ProductionCanceled ? GameAudioHost::Production::Cancel
                                                                                      : GameAudioHost::Production::Complete;

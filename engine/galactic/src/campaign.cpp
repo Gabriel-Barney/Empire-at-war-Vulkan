@@ -847,7 +847,7 @@ void GalacticSim::on_owner_change(PlanetIndex planet, int32_t old_owner) {
     auto& g = p.queue[kGroundQueue];
     const bool head_gone = !g.empty() && g[0].player != now_owner;
     for (const BuildEntry& e : g)
-        if (e.player != now_owner) emit_production(GalacticEventKind::ProductionCanceled, planet, kGroundQueue, e, 0);
+        if (e.player != now_owner) emit_cancel(planet, kGroundQueue, e, false, false);  // owner-change wipe: silent
     g.erase(std::remove_if(g.begin(), g.end(), [now_owner](const BuildEntry& e) { return e.player != now_owner; }),
             g.end());
     if (head_gone && !g.empty()) restart_head(g[0]);
@@ -1051,7 +1051,8 @@ RejectReason GalacticSim::cancel(int32_t player, PlanetIndex planet, uint32_t qu
     if (refund)  // through Add_Credits with notify: AI refunds get Credit_Multiplier again (quirk) [H]
         add_credits(e.player, econ::refund_amount(pays_as_you_go(e.player), e.remaining, e.build_time, e.cost), true);
     if (index == 0 && !qv.empty()) restart_head(qv[0]);
-    emit_production(GalacticEventKind::ProductionCanceled, planet, queue, e, refund ? 1 : 0);
+    // #67 t04: a queue cancel (0x403770 / 0x403900: the command, the AI, the production sabotage) voices the line
+    emit_cancel(planet, queue, e, refund, true);
     return RejectReason::None;
 }
 
@@ -1063,7 +1064,7 @@ void GalacticSim::reevaluate_queue(PlanetIndex planet, uint32_t queue, int32_t l
         const TypeInfo& t = rules_->types[e.type];
         const int32_t required = queue == kGroundQueue ? t.required_ground_base : t.required_star_base;
         if (required <= level && valid_player(e.player) && prerequisites_met(e.player, planet, t, false)) continue;
-        emit_production(GalacticEventKind::ProductionCanceled, planet, queue, e, 0);
+        emit_cancel(planet, queue, e, false, false);  // re-evaluation (0x402490 / 0x402660): silent
         qv.erase(qv.begin() + static_cast<std::ptrdiff_t>(i));  // no refund [M]
         if (i == 0) {
             if (!qv.empty()) restart_head(qv[0]);
@@ -1109,13 +1110,13 @@ void GalacticSim::service_production(PlanetIndex planet) {
         const TypeInfo& t = rules_->types[e.type];
         // 1. starbase upgrade head without an owned starbase: dropped, no refund, the service returns [H/M].
         if (t.kind == UnitKind::StarBase && t.base_level > 1 && p.starbase_owner != e.player) {
-            emit_production(GalacticEventKind::ProductionCanceled, planet, q, e, 0);
+            emit_cancel(planet, q, e, false, false);  // the service drops the head: silent
             pop_head(planet, q);
             return;
         }
         // 2. starbase in production with an enemy fleet in orbit (planet not in battle) [H].
         if (t.kind == UnitKind::StarBase && !p.in_battle && enemy_fleet_in_orbit(planet, e.player)) {
-            emit_production(GalacticEventKind::ProductionCanceled, planet, q, e, 0);
+            emit_cancel(planet, q, e, false, false);  // the service drops the head: silent
             pop_head(planet, q);
             return;
         }
@@ -1315,8 +1316,20 @@ void GalacticSim::emit_production(GalacticEventKind kind, PlanetIndex planet, ui
     ev.planet = planet;
     ev.type = e.type;
     ev.value = static_cast<int32_t>(queue);
-    if (kind == GalacticEventKind::ProductionCanceled) ev.other_player = extra;
     if (kind == GalacticEventKind::ProductionCompleted) ev.object = extra;
+    emit(ev);
+}
+
+void GalacticSim::emit_cancel(PlanetIndex planet, uint32_t queue, const BuildEntry& e, bool refunded, bool voiced) {
+    if (!emit_events_) return;
+    GalacticEvent ev;
+    ev.kind = GalacticEventKind::ProductionCanceled;
+    ev.player = e.player;
+    ev.planet = planet;
+    ev.type = e.type;
+    ev.value = static_cast<int32_t>(queue);
+    ev.other_player = refunded ? 1 : 0;
+    ev.object = voiced ? kCancelVoiced : 0;
     emit(ev);
 }
 
@@ -2258,7 +2271,7 @@ void GalacticSim::clear_queue(PlanetIndex planet, uint32_t queue) {
     if (!valid_planet(planet) || queue > 1) return;
     auto& qv = planets_[planet].queue[queue];
     while (!qv.empty()) {
-        emit_production(GalacticEventKind::ProductionCanceled, planet, queue, qv.back(), 0);
+        emit_cancel(planet, queue, qv.back(), false, false);  // battle-end wipe: silent
         qv.pop_back();
     }
 }

@@ -738,7 +738,9 @@ void test_synthetic() {
     };
     sc.drive = drive_synthetic;
     sc.full_prefix_limit = 1u << 20;  // every prefix
-    sc.pin = 0x67e4152092046d2eull;  // before the records' field lists
+    // #67 t04: the saved pending ProductionCanceled events of a command cancel carry object = kCancelVoiced. Only the save
+    // part of the pin moves (galactic and conflict digests unchanged; with the flag at 0 the pin is the old 0x67e4152092046d2e).
+    sc.pin = 0xc6c75997ff12a0c3ull;  // before the records' field lists
     run_scenario(sc);
 }
 
@@ -1108,7 +1110,8 @@ void test_foc() {
         }
         drive_conflicts(s, cm, st, t);
     };
-    sc.pin = 0x3823a3d7aeba6b5eull;  // before the records' field lists (FoC data)
+    // #67 t04: as the synthetic pin, only the save part moves (with the voiced flag at 0 the pin is the old 0x3823a3d7aeba6b5e).
+    sc.pin = 0xe7bb9e7deedbbeccull;  // before the records' field lists (FoC data)
     run_scenario(sc);
 }
 

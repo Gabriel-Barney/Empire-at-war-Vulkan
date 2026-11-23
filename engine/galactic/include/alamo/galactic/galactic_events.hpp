@@ -41,7 +41,8 @@ enum class GalacticEventKind : uint8_t {
     FleetArrived,            // fleet/object, player = owner, planet, value = kArrive* reason
     FleetBounced,            // fleet/object, player = owner, planet = inaccessible planet, other_planet = back to
     ProductionBegin,         // player, planet, type, value = queue (0 ground, 1 space)
-    ProductionCanceled,      // player, planet, type, value = queue, other_player = 1 if refunded
+    ProductionCanceled,      // player, planet, type, value = queue, other_player = 1 if refunded, object = kCancelVoiced
+                             // when a queue cancel removed it (cancel_voiced), else 0 (a silent queue wipe)
     ProductionCompleted,     // player, planet, type, object = created object (0 = none: tech upgrade)
     StarbaseLevelChanged,    // player, planet, value = new level (0 = destroyed), type = new starbase type (level 0: none),
                              // other_player = the old starbase type, -1 none (Galactic_Starbase_Level_Change)
@@ -117,5 +118,16 @@ struct GalacticEvent {
     int32_t object = 0;            // ObjectId (0 = none)
     int32_t value = 0;
 };
+
+// #67 t04 (retail 0x403770 / 0x4035d0 / 0x403900 [H]): ProductionCanceled.object when one of the three queue-cancel
+// functions removed the entry. Only they voice the built type's SFXEvent_Build_Cancelled (tactical:
+// SFXEvent_Tactical_Build_Cancelled), for the local player. Their callers: the command cancel (0x5242c0), the AI cancel
+// (0x53ba60) and the sabotage applies (0x5b1d40 ground base, 0x5b2f50 production); here GalacticSim::cancel and the
+// ground-base sabotage. The queue wipes (owner change, battle end, re-evaluation 0x402490 / 0x402660, the service's
+// drops) call none of them, so they are silent.
+inline constexpr int32_t kCancelVoiced = 1;
+inline bool cancel_voiced(const GalacticEvent& e) {
+    return e.kind == GalacticEventKind::ProductionCanceled && e.object == kCancelVoiced;
+}
 
 }  // namespace alamo::galactic

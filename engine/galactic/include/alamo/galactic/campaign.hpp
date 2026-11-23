@@ -1454,6 +1454,9 @@ private:
         events_.push_back(e);
     }
     void emit_production(GalacticEventKind kind, PlanetIndex planet, uint32_t queue, const BuildEntry& e, int32_t extra);
+    // ProductionCanceled for `e`. `voiced`: removed by a queue cancel (retail 0x403770 / 0x4035d0 / 0x403900, kCancelVoiced in
+    // galactic_events.hpp), which plays the build-cancelled line; false for a silent queue wipe. Every site says which.
+    void emit_cancel(PlanetIndex planet, uint32_t queue, const BuildEntry& e, bool refunded, bool voiced);
     PlanetIndex location_of(ObjectHandle object) const;  // planet of a unit / structure / starbase / fleet
     // P4 sim (src/special_systems.cpp)
     const SpecialRules& special() const { return rules_->special; }
