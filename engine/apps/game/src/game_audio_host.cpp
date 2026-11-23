@@ -1647,7 +1647,7 @@ bool GameAudioHost::corruption_speech(CorruptionSpeech kind, std::span<const Cor
             faction_sfx("SFXEvent_Tactical_Corruption_Mission_Commencing");
             return true;
         }
-        game_->conversations().cancel_all();  // the SFX and speech conversations, then all speech (AUDIO.md §9.7)
+        game_->conversations().cancel_all();  // the SFX and speech conversations, then all speech (legacy docs/re/AUDIO.md §9.7)
         system_->stop_all_speech();
     }
     if (event.empty()) return false;

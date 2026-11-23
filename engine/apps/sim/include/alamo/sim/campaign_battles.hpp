@@ -219,8 +219,8 @@ public:
     // mcx4 t13 (presentation read): the running battle's corruption mission player, -1 when it is not one.
     int32_t active_corruption_player() const { return corruption_active_.player; }
     // #62 t05 (presentation feed: not saved, not hashed, nothing in the sim reads it): the corruption speech moments, in
-    // order - a mission battle pushed (Commencing: retail Initiate_Space_Conflict 0x2af7c0 / Land_Invade 0x2b0520, legacy
-    // docs/re/AUDIO.md §9.7), a mission's end (Success when the corrupter won, else Failure: 0x28bf10) and a direct
+    // order - a mission battle pushed (Commencing: retail Initiate_Space_Conflict 0x2af7c0 / Land_Invade 0x2b0520,
+    // legacy docs/re/AUDIO.md §9.7), a mission's end (Success when the corrupter won, else Failure: 0x28bf10) and a direct
     // corruption (Success: 0x52bf50). Every player's; the host voices the local corrupter's and keeps its own read position.
     struct CorruptionSpeechNote {
         enum class Kind : uint8_t { Commencing, Success, Failure };

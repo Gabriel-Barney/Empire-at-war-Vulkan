@@ -31,6 +31,7 @@
     SAVED(log_, unhashed) \
     DERIVED(last_losses_, "the last battle's removal records for the host, read in the frame the battle ends") \
     DERIVED(last_end_, "ui3 t05: presentation of the last battle end") \
+    DERIVED(corruption_speech_, "#62 t05: presentation records of the corruption speech moments for the host; not kept over a load") \
     SAVED(fought_, unhashed) \
     DERIVED(rebuilding_, "true only inside rebuild()") \
     SAVED(fog_active_, unhashed) \
