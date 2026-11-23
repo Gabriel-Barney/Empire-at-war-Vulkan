@@ -142,6 +142,8 @@ std::u32string hud_thousands(int64_t v) {
     return o;
 }
 
+std::u32string hud_credits_text(int64_t credits) { return U"$ " + hud_thousands(credits); }
+
 commands::EventData reinforce_event(uint32_t unit, Vec3 p) {
     commands::EventData e(commands::EventType::Reinforce);
     e.set("unit", unit).set_f("x", p.x).set_f("y", p.y).set_f("z", p.z);
@@ -711,7 +713,7 @@ void TacticalHud::build_skeleton(const TacticalHudFrame& f) {
         st.outline = true;
         st.align = c && c->right_justified ? TextAlign::Right : TextAlign::Left;
         const Vec2f off = c ? c->text_offset : Vec2f{};
-        add_text(dl_, layer, HudList::Text, *fonts_, canvas_, hud_thousands(f.credits), {at.x + off.x, at.y - off.y}, st);
+        add_text(dl_, layer, HudList::Text, *fonts_, canvas_, hud_credits_text(f.credits), {at.x + off.x, at.y - off.y}, st);
         if (credits_ >= 0 && c && !c->tooltip_text.empty()) {
             const Vec2f sz = p.size.x > 0 ? p.size : Vec2f{90, 20};
             hit(credits_, layer, p.size.x > 0 ? p.rect_center : at, sz);
