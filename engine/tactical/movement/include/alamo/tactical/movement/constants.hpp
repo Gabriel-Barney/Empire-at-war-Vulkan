@@ -85,8 +85,8 @@ struct MovementConstants {
     uint32_t max_waypoints_per_path = 6;
     // s78n t25.2 (MOVEMENT §4.3.2 item 2, §4.2 item 6): Base_Land_Targeting_Arc_Angle_Coefficient (GC +0x154c), the first
     // coefficient try of the attack slots; Solo_Attack_Range (GC +0x1548), the solo rule's margin; and
-    // Short_Range_Attack_Formation_Coefficient (GC +0x1544; [port] parsed, unused: the recruitment's "engagement distance
-    // is compatible" test is not in the spec).
+    // Short_Range_Attack_Formation_Coefficient (GC +0x1544): a non-solo seed closer than its engagement distance x this is
+    // short-range and recruits only units of its own exact type (land attack formation build, §4.2 step 2 item 7).
     float base_land_targeting_arc_angle_coefficient = 0.2f;
     float solo_attack_range = 60.0f;
     float short_range_attack_formation_coefficient = 1.6f;

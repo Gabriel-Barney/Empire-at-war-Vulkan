@@ -2094,7 +2094,8 @@ bool CombatSystem::auto_deploy_check(const Unit& u, ObjectId target) const {
     // deployed / deploying; else true when the target is ordered (TD +0xf4), the owner is an AI player that is not human
     // (player +0x360 / +0x62; [port] PlayerInfo::ai of an active player), or the target is the formation's attack target
     // and Max_Dist_Walk_While_Deployed > 0 [port: the "current formation block has the attack-move / guard flag" term is
-    // not modelled - land formation blocks carry no flags in the movement layer].
+    // not read here - the block flags live on the movement order (kMoveFlagAttackMove / kMoveFlagGuardMove), which the
+    // combat layer does not see].
     const UnitDesc& ud = desc_of(u);
     if (!ud.deploys || !ud.auto_deploys || ud.fire_weapon_when_undeployed || deployed_or_deploying(u) || deploy_transition(u))
         return false;

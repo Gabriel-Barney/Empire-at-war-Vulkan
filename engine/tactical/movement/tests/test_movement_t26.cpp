@@ -619,7 +619,8 @@ void test_t26_controller() {
     fo.formation = 0.0f;
     CHECK(walk_speed(fo).end_move);
     // B.5 the brake-ahead on (0, 0), (100, 0), (100, 400) with the fractions set by hand to (1, 0.698132, 1) (the t26.3
-    // corner speed of a 90-degree corner at R 6: v 2.094395, f 0.698132), vmax 3, a 0.05: vn = 2.094396, brake distance
+    // corner speed of a 90-degree corner at R 6 whose next leg is 40 long: v 2.094395, f 0.698132, test_t26_corner_pass;
+    // this path's 400-long leg would give 1), vmax 3, a 0.05: vn = 2.094396, brake distance
     // (9 - vn^2) / 0.1 = 46.135 (hand). Line(1) is the bisector line through (100, 0): D = 100 - x along +x.
     const V2 n1 = normalize_retail(normalize_retail(V2{100.0f, 0.0f}) + normalize_retail(V2{0.0f, 400.0f}));
     CHECK(near(line_distance_along({54.0f, 0.0f}, {1.0f, 0.0f}, {100.0f, 0.0f}, n1), 46.0f, 1e-3f));
