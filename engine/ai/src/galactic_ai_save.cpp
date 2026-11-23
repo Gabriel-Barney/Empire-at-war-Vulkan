@@ -742,6 +742,8 @@ void GalacticAiWorld::write(ByteWriter& w) const {
             w.i32(q.current);
             w.i32(q.current_queue_id);
             w.u32(q.current_type);
+            // #196: by position, empty slots included (owner -1, type kNoIndex; same layout). The flag is not saved: a
+            // live slot's is 0 between commits, an empty slot's is never read.
             w.u32(static_cast<uint32_t>(q.reservations.size()));
             for (const QueueReservation& res : q.reservations) {
                 w.i32(res.pp);

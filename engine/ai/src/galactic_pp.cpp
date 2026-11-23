@@ -1172,35 +1172,108 @@ void GalacticAiWorld::Impl::release_pp(int32_t handle) {
         if (r != unit_reserved.end() && r->second == handle) unit_reserved.erase(r);
     }
     it->second.reserved_units.clear();
-    for (auto& pq : planet_queues)  // 0x6c2320
-        for (PlanetBuildQueue& q : pq)
-            q.reservations.erase(std::remove_if(q.reservations.begin(), q.reservations.end(),
-                                                [handle](const QueueReservation& r) { return r.pp == handle; }),
-                                 q.reservations.end());
+    // The queue slots: 0x6c2520 (from the PP destructor 0x6bec20), not the free-store unreserve 0x6c2320 above
+    // (legacy docs/re/BKG1_RE_ANSWERS.md §5 b0122 port consequence (c)).
+    for (auto& pq : planet_queues)
+        for (PlanetBuildQueue& q : pq) q.release_slots(handle);
     it->second.queues_reserved = false;
+}
+
+// ---- AIPlanetBuildQueue slots (#196, legacy docs/re/BKG1_RE_ANSWERS.md §5 b0122) [H] ----
+// The vector is positional: a slot keeps its index for its whole life, removal clears (type, owner) in place and only
+// 0x53bda0's tail cut shrinks it. Retail links a PP to its slots by index (PP+0x168[i]) and every write by index checks
+// "in range, live, owner == this PP" (0x53bee0 / 0x53c730); the port finds a PP's slots by owner instead. That is the
+// same set: only 0x53b810 writes an owner, always for the PP that stores the index, and nothing moves a live slot, so
+// the PP's live slots are exactly the ones its indices still reach (a slot the cut removed and another PP reused at the
+// same index has another owner and is left alone, as retail's owner check leaves it).
+
+// 0x53b810 (Q, type, PP): the first empty slot, else a new one at the end; flag 0. Returns the index.
+size_t PlanetBuildQueue::reserve_slot(int32_t pp, uint32_t type, float time) {
+    const QueueReservation slot{pp, type, time, false};
+    for (size_t i = 0; i < reservations.size(); ++i)
+        if (!reservations[i].live()) {
+            reservations[i] = slot;
+            return i;
+        }
+    reservations.push_back(slot);
+    return reservations.size() - 1;
+}
+
+// A slot cleared in place: type := 0 and owner := 0; the flag byte stays (no reader looks at an empty slot's flag, and
+// 0x53b810 writes 0 when it reuses the slot).
+static void clear_slot(QueueReservation& r) {
+    r.type = gal::kNoIndex;
+    r.pp = -1;
+    r.time = 0.0f;
+}
+
+// The PP destructor 0x6bec20 -> 0x6c2520(PP, 0) -> 0x53c730(source queue, index, PP) for each selection's slot.
+void PlanetBuildQueue::release_slots(int32_t pp) {
+    for (QueueReservation& r : reservations)
+        if (r.live() && r.pp == pp) clear_slot(r);
+}
+
+// Market step 5 (0x53cd60, the production start): this queue's first slot of (type, PP), cleared in place.
+bool PlanetBuildQueue::consume_slot(uint32_t type, int32_t pp) {
+    for (QueueReservation& r : reservations)
+        if (r.live() && r.type == type && r.pp == pp) {
+            clear_slot(r);
+            return true;
+        }
+    return false;
+}
+
+// 0x53bee0 (Q, index, PP, flag) for each of the PP's slots: writes only a live slot that PP owns.
+void PlanetBuildQueue::flag_slots(int32_t pp, bool suspended) {
+    for (QueueReservation& r : reservations)
+        if (r.live() && r.pp == pp) r.suspended = suspended;
+}
+
+// 0x53bda0's sum: the build times of the live flag-0 slots.
+float PlanetBuildQueue::counted_time(float t) const {
+    for (const QueueReservation& r : reservations)
+        if (r.live() && !r.suspended) t += r.time;
+    return t;
+}
+
+// 0x53bda0's cut (0x53d530, a plain resize): when a live flag-0 slot exists, the vector ends after the last one, so
+// trailing empty and trailing flag-1 slots are gone for good (a later 0x53bee0 of their PP fails its range / owner
+// check). Nothing is cut without a live flag-0 slot.
+void PlanetBuildQueue::cut_tail() {
+    for (size_t i = reservations.size(); i-- > 0;)
+        if (reservations[i].live() && !reservations[i].suspended) {
+            reservations.resize(i + 1);
+            return;
+        }
+}
+
+size_t PlanetBuildQueue::live_slots() const {
+    size_t n = 0;
+    for (const QueueReservation& r : reservations) n += r.live() ? 1 : 0;
+    return n;
 }
 
 // a2m r4: 0x6c2d60 makes the PP's AIPlanetBuildQueue slots at accept, inside Resolve_Category (A1_READINGS §28.6
 // step 3; it is the PP function that calls the slot insert 0x53b810, 0x6c0be0 calls only the flag 0x53bee0). They were
 // made at the next Commit's step 4 before, after the plan had started, so the production start (market step 5,
 // AI_GALACTIC_2 §2.3) could not clear them and a finished build kept counting for the goal's whole life. Once per PP
-// (PP+0x100); a later 0x6c2d60 of the kept goal only re-flags its slots 0 (reserve_pp).
+// (PP+0x100); a later 0x6c2d60 of the kept goal only re-flags its slots 0 (reserve_pp). #196: each slot goes into the
+// queue's first empty slot (0x53b810).
 void GalacticAiWorld::Impl::reserve_pp_queues(int32_t handle) {
     const auto it = pps.find(handle);
     if (it == pps.end() || it->second.queues_reserved) return;
     it->second.queues_reserved = true;
     for (const PpSelection& s : it->second.sel) {
         if (s.unit || s.source == kInvalidPlanet || s.source >= planet_queues.size()) continue;
-        planet_queues[s.source][s.queue].reservations.push_back({handle, s.type, s.btime, false});
+        planet_queues[s.source][s.queue].reserve_slot(handle, s.type, s.btime);
     }
 }
 
 // 0x53bee0(slot, flag) over the PP's slots: 1 at Commit start (0x6c0be0), 0 when 0x6c2d60 re-asserts the kept goal.
+// A slot a re-solve's tail cut removed in between is not restored (#196).
 static void flag_pp_slots(std::vector<std::array<PlanetBuildQueue, 2>>& queues, int32_t handle, bool flag) {
     for (auto& pq : queues)
-        for (PlanetBuildQueue& q : pq)
-            for (QueueReservation& r : q.reservations)
-                if (r.pp == handle) r.suspended = flag;
+        for (PlanetBuildQueue& q : pq) q.flag_slots(handle, flag);
 }
 
 void GalacticAiWorld::Impl::reserve_pp(int32_t handle) {
@@ -1228,17 +1301,26 @@ float GalacticAiWorld::Impl::production_queue_time(PlanetIndex p, uint32_t q) co
     return t;
 }
 
-float GalacticAiWorld::Impl::planet_queue_time(PlanetIndex p, uint32_t q) const {
+float GalacticAiWorld::Impl::planet_queue_base_time(PlanetIndex p, uint32_t q) const {
     if (!valid_planet(p) || q > 1) return 0.0f;
     float t = production_queue_time(p, q);
-    const PlanetBuildQueue& pq = planet_queues[p][q];
-    for (const int32_t id : pq.tasks) {
+    for (const int32_t id : planet_queues[p][q].tasks) {
         const auto it = builds.find(id);
         if (it != builds.end() && it->second.state == BuildState::Queued)
             t += btime_at(it->second.player, it->second.type, p);
     }
-    for (const QueueReservation& r : pq.reservations)  // 0x53bda0: flag-1 slots left out [M, a2m r4]
-        if (!r.suspended) t += r.time;
+    return t;
+}
+
+// 0x53bb20(Q, 1, 0) = Q's time + 0x53bda0(Q). Only the re-solves read it (GalPp::first_solve false: the accept re-solve
+// 0x6c4a50 clears the first-solve byte 0x140b3a524, Init 0x6c0d00 sets it), never a first solve
+// (legacy docs/re/BKG1_RE_ANSWERS.md §5 b0122 "Who reads the flag"). #196: 0x53bda0 is not const; after the sum it cuts
+// the vector after the last live flag-0 slot (PlanetBuildQueue::cut_tail).
+float GalacticAiWorld::Impl::planet_queue_time(PlanetIndex p, uint32_t q) {
+    if (!valid_planet(p) || q > 1) return 0.0f;
+    PlanetBuildQueue& pq = planet_queues[p][q];
+    const float t = pq.counted_time(planet_queue_base_time(p, q));  // 0x53bda0: flag-1 slots left out [M, a2m r4]
+    pq.cut_tail();
     return t;
 }
 

@@ -551,14 +551,9 @@ void GalacticAiWorld::Impl::market_planet(PlanetIndex p) {
             if (!pick) continue;
             BuildTask& b = *pick;
             b.queue_id = next_queue_id++;
-            // Clear the matching reservation slot (type and goal).
-            const PlanInstance* plan = plan_of_script(b.plan);
-            auto& slots = Q.reservations;
-            for (auto r = slots.begin(); r != slots.end(); ++r)
-                if (r->type == b.type && plan && r->pp == plan->pp) {
-                    slots.erase(r);
-                    break;
-                }
+            // Clear the matching reservation slot (type and goal): this queue's first (type, PP) slot, in place (#196,
+            // legacy docs/re/BKG1_RE_ANSWERS.md §5 b0122 "Removed by" 1); another planet's slot of the PP stays.
+            if (const PlanInstance* plan = plan_of_script(b.plan)) Q.consume_slot(b.type, plan->pp);
             int32_t before = 0;
             for (const gal::BuildEntry& e : sim.queue_of(p, qi)) before += e.type == b.type && e.player == owner ? 1 : 0;
             cmd::EventData ev(cmd::EventType::Production);

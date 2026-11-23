@@ -229,10 +229,19 @@ public:
     float potential_plan_nominal_time(int32_t pp_handle) const;
     // a2k t01, tests / diagnostics: a live PotentialPlan's net cost (PP +0x44) and ETA (PP +0x48); false for an unknown handle.
     bool potential_plan_cost(int32_t pp_handle, float* net, float* eta) const;
-    // a2m r4, tests / diagnostics: the AIPlanetBuildQueue slots (0x6c2d60 reservations) of a planet's queue 0 / 1 and
-    // that queue's re-solve wait 0x53bb20(Q, 1, 0) (planet_queue_time); 0 for an unknown planet or queue.
+    // a2m r4, tests / diagnostics: the live AIPlanetBuildQueue slots (0x6c2d60 reservations) of a planet's queue 0 / 1 and
+    // that queue's re-solve wait 0x53bb20(Q, 1, 0) (planet_queue_time, read without its tail cut); 0 for an unknown
+    // planet or queue.
     size_t planet_queue_slots(PlanetIndex p, uint32_t queue) const;
     float planet_queue_wait(PlanetIndex p, uint32_t queue) const;
+    // #196, tests / diagnostics: the same queue's slot vector by position (the 0x53b810 index), empty slots included
+    // (owner -1, type galactic::kNoIndex); empty for an unknown planet or queue.
+    struct PlanetQueueSlot {
+        int32_t pp = -1;
+        uint32_t type = 0xFFFFFFFFu;
+        bool suspended = false;
+    };
+    std::vector<PlanetQueueSlot> planet_queue_slot_list(PlanetIndex p, uint32_t queue) const;
 
     // Free store (legacy docs/re/FIXPASS_GALACTIC.md §1), tests / diagnostics. These act like the player's free-store script:
     //   free_store_move   = FreeStore.Move_Object(unit, planet): false when refused (§1.2); a true return with no
