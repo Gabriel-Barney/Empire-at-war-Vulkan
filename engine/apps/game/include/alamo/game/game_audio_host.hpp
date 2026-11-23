@@ -155,13 +155,6 @@ public:
     // SFXEvent_Sabotage_Success) and the GUI negative feedback (the special systems' local error SFX, [port]).
     void faction_sfx(std::string_view faction_tag);
     void negative_feedback();
-    // #62 t07 (the selection response 0x44890 [H]): a selected object of the local player whose type is
-    // Ground_Hutt_Palace_E / _R or Ground_Cantina_E / _R (the type name, case-insensitive) starts
-    // Structure_Hutt_Palace_Music_Event / Structure_Cantina_Music_Event, only while both Alt and Shift are held
-    // (GetKeyState 0x12 and 0x10). The music plays forced in the music manager's current mode, or mode 6 (tactical
-    // ambient) when there is none: 0x2d21f0(event, mode, 0, 1). True when the music started. The app passes the
-    // object a click newly added to the selection (App::respond) and the keys' state.
-    bool structure_music(std::string_view type_name, bool alt, bool shift);
     // owner = the unit's player (-1 unknown): units of the battle's retreating player give no response (the mode's
     // "excluded set" = the retreat coordinator's retreating units, STRATEGIC_GAPS §7.4 [M]; stats().excluded).
     // mcx4 t13 (MCX4_T13_RE_ANSWERS "GameObjectType.SFXEvent_Move_Into_Asteroid_Field family" [H]): `dest_fields` = the
@@ -191,6 +184,13 @@ public:
     // galactic_resume: back to the galactic mode music after an auto-resolve's battle-end screen (the scene stayed Galactic).
     void battle_pending(bool land);
     void galactic_resume();
+    // #62 t07 (the selection response 0x44890 [H]): a selected object of the local player whose type is
+    // Ground_Hutt_Palace_E / _R or Ground_Cantina_E / _R (the type name, case-insensitive) starts
+    // Structure_Hutt_Palace_Music_Event / Structure_Cantina_Music_Event, only while both Alt and Shift are held
+    // (GetKeyState 0x12 and 0x10). The music plays forced in the music manager's current mode, or mode 6 (tactical
+    // ambient) when there is none: 0x2d21f0(event, mode, 0, 1). True when the music started. The app passes the
+    // object a click newly added to the selection (App::respond) and the keys' state.
+    bool structure_music(std::string_view type_name, bool alt, bool shift);
     // Movie music (STRATEGIC_GAPS §7.3 / §7.4), called by MovieSlot for the movie's Movies.xml flags: movie_started with the
     // movie-music flag (Has_Credits, +0xD0) starts mode 14 music (kCreditsMusicEvent [M for the name]; one pass, then the
     // previous music resumes), with Halt_Game_Music (+0xD4) stops the game's music; movie_cue = a MusicEvent_Frame cue
