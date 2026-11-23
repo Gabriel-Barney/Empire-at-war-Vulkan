@@ -1719,6 +1719,8 @@ void test_unit_responses_50() {
     </Unit_Abilities_Data></SpaceUnit>
   <SpaceUnit Name="Plain"><SFXEvent_Move> Pl_Move </SFXEvent_Move></SpaceUnit>
   <SpaceUnit Name="Squad_Team"><Behavior>TEAM</Behavior></SpaceUnit>
+  <SpaceUnit Name="Wingman"><SFXEvent_Assist_Move> Wm_Assist_Move </SFXEvent_Assist_Move>
+    <SFXEvent_Assist_Attack> Wm_Assist_Attack </SFXEvent_Assist_Attack></SpaceUnit>
 </SpaceUnits>
 )");
     objects::ObjectTypeDatabase raw;
@@ -1746,6 +1748,26 @@ void test_unit_responses_50() {
     const std::vector<uint32_t> two = {a, b}, one = {a}, gone = {a, 0x7FFFFFF0u}, with_team = {a, team};
     CHECK(H::group_count(store, two) == 2 && H::group_count(store, one) == 1 && H::group_count(store, gone) == 1);
     CHECK(H::group_count(store, with_team) == 1);
+    // pick_assist (0x44547 / 0x44753 [H]): no draw for an empty selection or the speaker alone; a null entry and the
+    // speaker are drawn again; more than 50 speaker draws give up.
+    const objects::TypeIndex wing = types.resolve_name("Wingman");
+    CHECK(wing != objects::kNone);
+    using C = H::AssistCandidate;
+    SimRng rng;
+    rng.seed(7);
+    const C speaker{5, bs, false}, other{9, wing, false}, null_entry{};
+    CHECK(H::pick_assist({}, 5, rng) == SIZE_MAX && H::pick_assist(std::vector<C>{speaker}, 5, rng) == SIZE_MAX);
+    CHECK(rng.draws() == 0);
+    for (int i = 0; i < 20; ++i) {
+        CHECK(H::pick_assist(std::vector<C>{speaker, other}, 5, rng) == 1);
+        CHECK(H::pick_assist(std::vector<C>{null_entry, speaker, other, null_entry}, 5, rng) == 2);
+    }
+    CHECK(rng.draws() > 40);
+    const uint64_t before = rng.draws();
+    CHECK(H::pick_assist(std::vector<C>{speaker, speaker}, 5, rng) == SIZE_MAX);
+    CHECK(rng.draws() - before == 51);  // int(0, 1) never rejects a step: 51 speaker draws, then none
+    CHECK(H::pick_assist(std::vector<C>{other}, 5, rng) == 0);  // one entry that is not the speaker
+    CHECK(H::pick_assist(std::vector<C>{null_entry, null_entry}, 5, rng) == SIZE_MAX);  // [port] retail would draw forever
 #ifdef ALAMO_GAME_HAVE_AUDIO
     auto tree = make_tree(true);
     tree->add("Data\\XML\\SFXEventsTest.xml", R"(<?xml version="1.0"?>
@@ -1755,6 +1777,8 @@ void test_unit_responses_50() {
   <SFXEvent Name="Bs_Group_Attack"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Max_Instances>8</Max_Instances><Samples>G.WAV</Samples></SFXEvent>
   <SFXEvent Name="Bs_Barrage"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Max_Instances>8</Max_Instances><Samples>B.WAV</Samples></SFXEvent>
   <SFXEvent Name="Pl_Move"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Max_Instances>8</Max_Instances><Samples>P.WAV</Samples></SFXEvent>
+  <SFXEvent Name="Wm_Assist_Move"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Max_Instances>8</Max_Instances><Samples>WM.WAV</Samples></SFXEvent>
+  <SFXEvent Name="Wm_Assist_Attack"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Max_Instances>8</Max_Instances><Samples>WA.WAV</Samples></SFXEvent>
 </SFXEvents>
 )");
     GameData data;
@@ -1772,6 +1796,36 @@ void test_unit_responses_50() {
     CHECK(starts(h, "Bs_Move") == 1);
     h.unit_response(types, plain, 6, UnitResponse::Move, false, 0, 0, -1, true);  // no variant set: the plain line
     CHECK(starts(h, "Pl_Move") == 1);
+    // The assist step: B's line follows the response, attached to the speaker; not for a B of the speaker's type, a
+    // vehicle thief, a B type without the line, or a Select.
+    const auto settle = [&h] {
+        for (int i = 0; i < 6; ++i) h.update(1.0);
+        h.update(0.0);
+    };
+    const auto chained = [&h](std::string_view ev, uint64_t owner) {
+        int n = 0;
+        for (const audio::LogEntry& e : h.system()->log())
+            n += e.op == audio::LogOp::SfxChain && e.event == ev && e.owner == owner ? 1 : 0;
+        return n;
+    };
+    settle();
+    const std::vector<C> with_wing = {speaker, other};
+    h.unit_response(types, bs, 5, UnitResponse::Attack, true, 0, 0, -1, false, with_wing);
+    settle();
+    CHECK(starts(h, "Bs_Group_Attack") == 2 && chained("Wm_Assist_Attack", 5) == 1 && starts(h, "Wm_Assist_Attack") == 1);
+    CHECK(h.stats().assists == 1);
+    h.unit_response(types, bs, 5, UnitResponse::Move, true, 0, 0, -1, false, with_wing);
+    settle();
+    CHECK(chained("Wm_Assist_Move", 5) == 1);
+    h.unit_response(types, bs, 5, UnitResponse::Move, true, 0, 0, -1, false, std::vector<C>{speaker, C{6, bs, false}});
+    h.unit_response(types, bs, 5, UnitResponse::Move, true, 0, 0, -1, false, std::vector<C>{speaker, C{9, wing, true}});
+    h.unit_response(types, bs, 5, UnitResponse::Move, true, 0, 0, -1, false, std::vector<C>{speaker, C{6, plain, false}});
+    h.unit_response(types, bs, 5, UnitResponse::Select, false, 0, 0, -1, false, with_wing);
+    settle();
+    CHECK(chained("Wm_Assist_Move", 5) == 1 && h.stats().assists == 2);
+    h.unit_response(types, plain, 5, UnitResponse::Attack, false, 0, 0, -1, false, with_wing);  // no lead line: no assist
+    settle();
+    CHECK(h.stats().assists == 2);
 #endif
 }
 

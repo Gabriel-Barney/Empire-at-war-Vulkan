@@ -565,6 +565,9 @@ void App::respond(const commands::EventData& ev) {
     const bool group = top->tactical() && (kind == UnitResponse::Move || kind == UnitResponse::Attack) &&
                        GameAudioHost::group_count(st, ids) > 1;
     bool non_hero = false;
+    // #50 t02 (0x44547 / 0x44753 [H]): a tactical move or attack offers its whole selection to the assist pick; an id
+    // that no longer names a live object is a null entry.
+    std::vector<GameAudioHost::AssistCandidate> assist;
     if (top->tactical())
         if (const sim::TacticalBattle* b = session_->battle()) {
             const tactical::abilities::AbilitySystem& ab = b->abilities();
@@ -575,9 +578,21 @@ void App::respond(const commands::EventData& ev) {
             const objects::ObjectHandle mh = st.find(m);
             if (st.exists(mh))
                 non_hero = GameAudioHost::non_hero_variant_active(data_.types, st.type(mh), [&ab, m](uint8_t t) { return ab.is_active(m, t); });
+            if (kind == UnitResponse::Move || kind == UnitResponse::Attack) {
+                assist.reserve(ids.size());
+                for (const uint32_t c : ids) {
+                    const objects::ObjectHandle ch = st.find(static_cast<objects::ObjectId>(c));
+                    if (!st.active(ch)) {
+                        assist.emplace_back();
+                        continue;
+                    }
+                    const objects::ObjectId cid = st.id(ch);
+                    assist.push_back({static_cast<uint64_t>(cid), st.type(ch), ab.has_ability(cid, tactical::abilities::kEjectVehicleThief)});
+                }
+            }
         }
     audio_.unit_response(data_.types, st.type(h), static_cast<uint64_t>(st.id(h)), kind, group, top->tactical() ? st.owner(h) : -1,
-                         fields, hp_kind, non_hero);
+                         fields, hp_kind, non_hero, assist);
 }
 
 void App::submit(commands::EventData ev, bool voice) {

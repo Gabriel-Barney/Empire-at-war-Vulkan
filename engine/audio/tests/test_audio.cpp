@@ -596,6 +596,28 @@ void test_state_machine() {
         rig.a->play_sfx("Boom3D", at(0.0f));
         for (int i = 0; i < 3; ++i) rig.a->update(1.0);
         CHECK(count_op(*rig.a, LogOp::SfxEnd, "Boom3D") == 1 && count_op(*rig.a, LogOp::SfxChain) == 0);
+        // #50 t02 (0x2d4200 -> instance +0x78, read at the end 0x2d8b63 [H]): a chain override replaces the event's own
+        // chain and plays attached to the instance's object; an unknown event or a finished instance is refused.
+        rig.a->clear_log();
+        const uint32_t lead = rig.a->play_sfx("Bomb_1", on_object(3));
+        CHECK(!rig.a->set_chain_override(lead, "No_Such_Event") && rig.a->set_chain_override(lead, "Panned"));
+        for (int i = 0; i < 10; ++i) rig.a->update(1.0);
+        CHECK(count_op(*rig.a, LogOp::SfxChain, "Panned") == 1 && count_op(*rig.a, LogOp::SfxChain, "Bomb_2") == 0);
+        CHECK(last_op(*rig.a, LogOp::SfxChain) && last_op(*rig.a, LogOp::SfxChain)->owner == 3);
+        CHECK(count_op(*rig.a, LogOp::SfxStart, "Panned") == 1);
+        CHECK(!rig.a->set_chain_override(lead, "Panned"));
+        // A 3D override replaces the own chain too, and then nothing chains (2D events only).
+        rig.a->clear_log();
+        const uint32_t lead3 = rig.a->play_sfx("Bomb_1", on_object(3));
+        CHECK(rig.a->set_chain_override(lead3, "Boom3D"));
+        for (int i = 0; i < 10; ++i) rig.a->update(1.0);
+        CHECK(count_op(*rig.a, LogOp::SfxEnd, "Bomb_1") == 1 && count_op(*rig.a, LogOp::SfxChain) == 0);
+        // A 3D instance never chains, whatever its override.
+        rig.a->clear_log();
+        const uint32_t boom = rig.a->play_sfx("Boom3D", at(0.0f));
+        CHECK(rig.a->set_chain_override(boom, "Panned"));
+        for (int i = 0; i < 3; ++i) rig.a->update(1.0);
+        CHECK(count_op(*rig.a, LogOp::SfxEnd, "Boom3D") == 1 && count_op(*rig.a, LogOp::SfxChain) == 0);
     }
     {  // Sequential pre/primary/post counters stay aligned.
         Rig rig;
