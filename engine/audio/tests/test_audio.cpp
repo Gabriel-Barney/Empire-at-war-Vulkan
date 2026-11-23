@@ -1068,6 +1068,14 @@ void test_decode_backend() {
     CHECK(peak > 0.1f && peak < 0.3f);  // 16000/32768 x 0.5 gain x pan law
     CHECK(be->read_mix(mix.data(), 4410) == 4410);  // 0.2 s pulled > 0.1 s tone
     CHECK(!be->playing(1));
+    // #227: a voice that ended before a pause (the window deactivated) does not start over when it is released.
+    be->pause(1, true);
+    be->pause(1, false);
+    CHECK(!be->playing(1));
+    CHECK(be->read_mix(mix.data(), 4410) == 4410);
+    float after = 0.0f;
+    for (float s : mix) after = std::max(after, std::fabs(s));
+    CHECK(after == 0.0f && !be->playing(1));
     // Music / speech voices stream through their own decoder over the same bounded reader: the fuzz-hang inputs above
     // fail to start (they used to hang inside start()), an empty file too, and a valid WAV still streams, looped.
     ms.files[normalize_name("HANG_CB.WAV")] = hangs[0];

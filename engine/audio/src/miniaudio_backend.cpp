@@ -245,7 +245,7 @@ void MiniaudioBackend::pause(uint32_t voice, bool paused) {
     Voice& v = *it->second;
     v.paused = paused;
     if (paused) ma_sound_stop(&v.sound);  // the cursor stays: ma_sound_start resumes from it
-    else ma_sound_start(&v.sound);
+    else if (!ma_sound_at_end(&v.sound)) ma_sound_start(&v.sound);  // #227: a sound at its end would start over
 }
 
 void MiniaudioBackend::advance(double) {}
