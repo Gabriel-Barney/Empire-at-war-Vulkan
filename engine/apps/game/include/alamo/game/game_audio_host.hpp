@@ -159,7 +159,8 @@ public:
     // Ground_Hutt_Palace_E / _R or Ground_Cantina_E / _R (the type name, case-insensitive) starts
     // Structure_Hutt_Palace_Music_Event / Structure_Cantina_Music_Event, only while both Alt and Shift are held
     // (GetKeyState 0x12 and 0x10). The music plays forced in the music manager's current mode, or mode 6 (tactical
-    // ambient) when there is none: 0x2d21f0(event, mode, 0, 1). True when the music started.
+    // ambient) when there is none: 0x2d21f0(event, mode, 0, 1). True when the music started. The app passes the
+    // object a click newly added to the selection (App::respond) and the keys' state.
     bool structure_music(std::string_view type_name, bool alt, bool shift);
     // owner = the unit's player (-1 unknown): units of the battle's retreating player give no response (the mode's
     // "excluded set" = the retreat coordinator's retreating units, STRATEGIC_GAPS §7.4 [M]; stats().excluded).

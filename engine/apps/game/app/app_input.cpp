@@ -491,12 +491,15 @@ void App::respond(const commands::EventData& ev) {
     const sim::GameMode* top = session_->host().modes().top();
     if (!top) return;
     const objects::ObjectStore& st = top->primary();
-    // #62 t07 (the selection response 0x44890 [H]): each selected object of the local player may start its structure
-    // music while Alt and Shift are held (GameAudioHost::structure_music).
-    if (kind == UnitResponse::Select && input_.alt() && input_.shift())
-        for (const uint32_t c : ids) {
-            const objects::ObjectHandle ch = st.find(static_cast<objects::ObjectId>(c));
-            if (st.active(ch) && st.owner(ch) == local_player()) audio_.structure_music(data_.types.name(st.type(ch)), true, true);
+    // #62 t07 (the selection add 0x3a1b0 -> 0x44890 [H]): only the object a click newly added to the selection
+    // (OrderTranslator::take_click_added) may start its structure music (GameAudioHost::structure_music): the other
+    // selected objects, a box select, a deselect and the HUD / hotkey selects never do. The original also returns early
+    // for an object in the retreat set (0x3400c0); a structure never retreats, so that check is left out.
+    if (kind == UnitResponse::Select)
+        if (const uint32_t added = orders_.take_click_added(); added != 0 && std::find(ids.begin(), ids.end(), added) != ids.end()) {
+            const objects::ObjectHandle ah = st.find(static_cast<objects::ObjectId>(added));
+            if (st.active(ah) && st.owner(ah) == local_player())
+                audio_.structure_music(data_.types.name(st.type(ah)), input_.alt(), input_.shift());
         }
     // mcx4 (MCX4_T11_T12_RE_ANSWERS §C3, 0x38290): the best-ranked unit of the selection by
     // Unit_Command_Rankings_By_Category speaks. [port] equal ranks: the lowest id (the port's order before).

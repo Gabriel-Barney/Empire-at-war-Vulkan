@@ -807,6 +807,7 @@ void test_orders() {
     auto out = ot.take();
     CHECK(out.size() == 1 && out[0].type() == commands::EventType::Select);
     if (out.size() == 1) CHECK((out[0].ids("ids") == std::vector<uint32_t>{5}));
+    CHECK(ot.take_click_added() == 5 && ot.take_click_added() == 0);  // #62 t07: the click added 5 (cleared by the call)
     // shift click on 3 adds; ids sorted
     s.key(vk::kShift, true);
     w.screen({0, 0, 0}, x, y);
@@ -817,6 +818,17 @@ void test_orders() {
     out = ot.take();
     CHECK(out.size() == 1 && (out[0].ids("ids") == std::vector<uint32_t>{3, 5}));
     CHECK((ot.selection() == std::vector<uint32_t>{3, 5}));
+    CHECK(ot.take_click_added() == 3);  // #62 t07: only the newly added object, not the whole selection
+    // #62 t07: a second Shift click on 3 deselects it (nothing added), a third adds it back.
+    for (const bool again : {false, true}) {
+        mark = s.frames.size();
+        for (int i = 0; i < 40; ++i) s.idle();
+        s.click(Button::Left, x, y);
+        feed(in, ot, keys, c, s, mark);
+        out = ot.take();
+        CHECK(out.size() == 1 && out[0].ids("ids") == (again ? std::vector<uint32_t>{3, 5} : std::vector<uint32_t>{5}));
+        CHECK(ot.take_click_added() == (again ? 3u : 0u));
+    }
     s.key(vk::kShift, false);
     in.update(s.frames.back());
 

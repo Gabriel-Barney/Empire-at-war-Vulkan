@@ -424,12 +424,14 @@ void GameAudioHost::movie_ended() {
 
 bool GameAudioHost::structure_music(std::string_view type_name, bool alt, bool shift) {
     if (!system_ || !alt || !shift) return false;
-    const auto is = [&](const char* a, const char* b) { return ascii_iequals(type_name, a) || ascii_iequals(type_name, b); };
+    const auto type_is = [&](const char* a, const char* b) { return ascii_iequals(type_name, a) || ascii_iequals(type_name, b); };
     // [name-ok: the original compares these literal type and event names in 0x44890; the shipped data has no field for them]
-    const char* event = is("Ground_Hutt_Palace_E", "Ground_Hutt_Palace_R") ? "Structure_Hutt_Palace_Music_Event"
-                        : is("Ground_Cantina_E", "Ground_Cantina_R")      ? "Structure_Cantina_Music_Event"
-                                                                            : nullptr;
+    const char* event = type_is("Ground_Hutt_Palace_E", "Ground_Hutt_Palace_R") ? "Structure_Hutt_Palace_Music_Event"
+                        : type_is("Ground_Cantina_E", "Ground_Cantina_R")      ? "Structure_Cantina_Music_Event"
+                                                                                 : nullptr;
     if (!event) return false;
+    // [port] tier 3: the original's "no mode" is -1 and its mode 0 (the debug list) is a real mode; the port's mode 0
+    // means none. The debug list never plays in a game, so both read as "none" here.
     const uint8_t m = system_->music_mode();
     return system_->play_music(event, m == audio::music_mode::kNone ? audio::music_mode::kTacticalAmbient : m, false, true);
 }

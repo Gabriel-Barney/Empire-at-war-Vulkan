@@ -114,6 +114,7 @@ void test_structure_music() {
     CHECK(h.structure_music("ground_cantina_r", true, true));  // _stricmp
     CHECK(cur(h) == "Structure_Cantina_Music_Event" && mode(h) == audio::music_mode::kGalactic);
     CHECK(h.structure_music("Ground_Hutt_Palace_R", true, true) && cur(h) == "Structure_Hutt_Palace_Music_Event");
+    CHECK(h.structure_music("Ground_Hutt_Palace_E", true, true));  // forced: the playing event restarts
     CHECK(h.structure_music("Ground_Cantina_E", true, true) && cur(h) == "Structure_Cantina_Music_Event");
     CHECK(!h.structure_music("Ground_Cantina_X", true, true) && !h.structure_music("Ground_Hutt_Palace", true, true));
     CHECK(cur(h) == "Structure_Cantina_Music_Event");
