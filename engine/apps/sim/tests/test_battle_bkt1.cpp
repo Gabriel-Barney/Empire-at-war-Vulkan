@@ -436,10 +436,6 @@ void test_staging(const Data& d) {
 
 // ---- the fire trim's gate is the object hidden test ------------------------------------------------------
 
-// cmb3 t02 (BKR2 Q6 [H]): 0x410e90's gate is FOW_Object_Hidden(members[0]'s owner, T, force 1) and the stealth test.
-// An attack plan of one S10_Ranger (range 250) on an enemy S10_Lurker (HIDE_WHEN_FOGGED) 900 away, fog on: while
-// the target object is hidden for player 0 the plan is not trimmed (the formation walks to the target's point); revealed,
-// the same plan is trimmed.
 // The target goes to a point player 0 has fogged (this map's start reveals part of it), the attacker `r` 700 from it along
 // an axis, inside the playable box. (review) Both spots passable and in one region for the attacker's class, so the plan
 // has a path.
@@ -467,6 +463,10 @@ bool trim_gate_spots(TacticalBattle& b, const TacticalMode& tm, objects::ObjectI
     return spot;
 }
 
+// cmb3 t02 (BKR2 Q6 [H]): 0x410e90's gate is FOW_Object_Hidden(members[0]'s owner, T, force 1) and the stealth test.
+// An attack plan of one S10_Ranger (range 250) on an enemy S10_Lurker (HIDE_WHEN_FOGGED) 900 away, fog on: while
+// the target object is hidden for player 0 the plan is not trimmed (the formation walks to the target's point); revealed,
+// the same plan is trimmed.
 void test_trim_gate_hidden(const Data& d) {
     CampaignBattleOptions opt;
     opt.conflict.human_choice = galactic::BattleChoice::Fight;
@@ -630,6 +630,8 @@ void test_trim_gate_hidden_stealthed(const Data& d) {
             kept = kept && has && dist2d(p, frozen) < 0.5f && b->stats().attack_unseen_drops == drops0;
             lead_gap = dist2d(st.position(st.find(r)), frozen);
             ++frames;
+            // 60: a multiple of the block's 30-frame check, so the control's read (2 frames on) lands before the next check,
+            // which (stealthed, far) would re-plan toward the lead and could let C 3 drop the block first
             if (b->frame() < stage_frame + 60) continue;
             bool h = false, sl = false;
             TA::target_unseen(*b, st, r, e, h, sl);
