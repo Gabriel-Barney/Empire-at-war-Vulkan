@@ -945,6 +945,28 @@ void test_foc() {
     }
     test_foc_weapon_sources(types, catalog);  // S8 t08 / S8 t06 B4
     test_foc_auto_deploy(types, catalog);  // s78n t26.1 review 5
+    {  // #44 t02 (R3G_ANIM_TIMED_RE §3, 0x594dc0): the land spawn bones' x axes, the fly-out direction in the unit frame
+        uint32_t listed = 0, found = 0, forward = 0;
+        std::string line;
+        for (uint32_t t = 0; t < types.size(); ++t) {
+            const auto bones = types.get_list(t, "Spawned_Squadron_Location_Bones");
+            if (bones.empty()) continue;
+            ++listed;
+            float ax = 0.0f, ay = 0.0f;
+            if (!catalog.bone_x_axis(t, false, true, bones[0], ax, ay)) continue;
+            ++found;
+            forward += ax > 0.0f && std::fabs(ay) < 0.02f * ax ? 1u : 0u;
+            char buf[96];
+            std::snprintf(buf, sizeof buf, "%s%s %.1f", line.empty() ? "" : ", ", std::string(types.raw().types().name[t]).c_str(),
+                          static_cast<double>(std::atan2(ay, ax) * 57.29578f));
+            if (line.size() < 900) line += buf;
+        }
+        std::printf("foc land spawn bones: %u types list them, %u resolve (yaw of the bone x axis, deg): %s\n", listed, found,
+                    line.c_str());
+        // 17 FoC types list SPAWN_00 and 13 resolve it; most bones point out of the front (yaw 0), E / R barracks, Droid
+        // Works and the Hutt palace do not (9, -45, 90, 90): their units leave along the bone, not the structure's facing
+        CHECK(listed >= 15 && found >= 12 && forward >= 8 && forward < found);
+    }
     {  // --- S4 (owner: S4 agent): shipped corruption options (PLANETS.XML) and garrison / capture descriptors ---
         const std::vector<galactic::CorruptionChoiceDef>& ae = rules.special.type(types.resolve_name("AetenII")).corruption;
         size_t missions = 0, options = 0;

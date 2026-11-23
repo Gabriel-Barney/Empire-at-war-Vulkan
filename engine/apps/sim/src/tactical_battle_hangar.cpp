@@ -206,8 +206,26 @@ void TacticalBattle::hg_setup(TacticalMode& mode) {
         const int32_t di = hangar_desc_[st.type(oh)];
         if (di < 0 || static_cast<size_t>(di) >= hg_land_bones_.size() || bone >= hg_land_bones_[static_cast<size_t>(di)].size()) return false;
         Vec3 p{};
-        if (model_bone_point(st, oh, hg_land_bones_[static_cast<size_t>(di)][bone], p) <= 0) return false;
-        const Vec3 f = st.facing(oh);
+        const std::string& name = hg_land_bones_[static_cast<size_t>(di)][bone];
+        if (model_bone_point(st, oh, name, p) <= 0) return false;
+        Vec3 f = st.facing(oh);
+        // #44 t02 (R3G_ANIM_TIMED_RE §3, 0x594dc0 [H]): the spawn facing is the bone's world x axis (its matrix column 0
+        // turned into Euler angles), not the structure's facing. Bind pose [M]: retail reads the live model instance, which
+        // may be playing Structure Open. A bone axis with no planar part keeps the structure's facing.
+        float ax = 0.0f, ay = 0.0f;
+        if (catalog_->bone_x_axis(static_cast<uint32_t>(st.type(oh)), space_, true, name, ax, ay)) {
+            float fx = f.x, fy = f.y;
+            const float len2 = fx * fx + fy * fy;
+            if (len2 > 0.0f) {
+                const float inv = 1.0f / dmath::sqrt(len2);
+                fx *= inv;
+                fy *= inv;
+            } else {
+                fx = 1.0f;
+                fy = 0.0f;
+            }
+            f = Vec3{fx * ax - fy * ay, fy * ax + fx * ay, 0.0f};  // unit-local (x forward, y left) -> world
+        }
         pos = tactical::Vec3{p.x, p.y, p.z};
         facing = tactical::Vec3{f.x, f.y, 0.0f};
         return true;

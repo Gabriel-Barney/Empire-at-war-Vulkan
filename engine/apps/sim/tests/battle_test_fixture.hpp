@@ -66,6 +66,9 @@ inline std::string (*g_types_patch)(std::string) = nullptr;
 inline std::string (*g_bay_patch)(std::string) = nullptr;
 // mcx4 tac2: extra GameConstants children make_data inserts before </GameConstants> (null: none).
 inline const char* g_constants_extra = nullptr;
+// #44 t02: extra files make_data writes under the data root before it indexes the tree (binary models; null: none).
+// Set and reset like g_types_patch.
+inline void (*g_data_extra)(const std::filesystem::path& root) = nullptr;
 
 namespace battle_fixture {
 
@@ -837,6 +840,7 @@ inline std::unique_ptr<Data> make_data(bool fog = false, bool anim = false, bool
                                          : "") +
                    std::string(g_constants_extra ? g_constants_extra : "") + "</GameConstants>\n");
     write_file(d->root / "Data/Scripts/Library/PGAICommands.lua", kLua);
+    if (g_data_extra) g_data_extra(d->root);
     d->files = std::make_unique<DirectoryProvider>(path_to_utf8(d->root));
     std::vector<std::string> diag;
     CHECK(d->db.load(*d->files, {}, &diag));

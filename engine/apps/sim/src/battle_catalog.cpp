@@ -1355,6 +1355,18 @@ bool BattleCatalog::entry_bones(uint32_t type, bool space, std::vector<tactical:
     return true;
 }
 
+bool BattleCatalog::bone_x_axis(uint32_t type, bool space, bool fallback, std::string_view bone, float& ax, float& ay) const {
+    const ModelInfo* m = model_info(type, space, fallback);
+    if (!m) return false;
+    const int32_t b = m->find(ascii_upper(ascii_trim(bone)));
+    if (b < 0 || static_cast<size_t>(b) >= m->bone_rot.size()) return false;
+    // ALO model space (nose -Y, left +X) -> the unit-local frame, as garrison_bones: column 0 (r[0], r[3]) -> (-r[3], r[0]).
+    const auto& r = m->bone_rot[static_cast<size_t>(b)];
+    ax = -r[3];
+    ay = r[0];
+    return ax != 0.0f || ay != 0.0f;
+}
+
 bool BattleCatalog::garrison_bones(uint32_t type, bool space, int32_t guns,
                                    std::vector<std::vector<tactical::combat::GarrisonBone>>& out) const {
     out.clear();
