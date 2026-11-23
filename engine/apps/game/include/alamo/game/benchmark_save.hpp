@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 
+#include "alamo/game/benchmark.hpp"
 #include "alamo/game/game_data.hpp"
 #include "alamo/jobs/job_system.hpp"
 
@@ -39,6 +40,8 @@ struct BenchNewSave {
 
 // Parses the flag at args[i] (advancing i past its value). 1 = consumed, 0 = not one of these flags, -1 = bad value.
 int parse_bench_new_arg(std::span<const std::string> args, size_t& i, BenchNewSave& o, std::string* err = nullptr);
+// #148: the flags parse_bench_new_arg reads (BenchFlag, benchmark.hpp): the table it dispatches through.
+std::span<const BenchFlag> bench_new_flags();
 // "" when the request can run, else why not.
 std::string check_bench_new_save(const BenchNewSave& o);
 

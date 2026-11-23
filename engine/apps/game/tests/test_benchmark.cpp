@@ -38,6 +38,69 @@ int parse_all(const std::vector<std::string>& args, BenchmarkOptions& o, std::ve
     return 0;
 }
 
+// #148: each benchmark parser dispatches through a flag table that alamo_game --list-flags prints. The expected rows
+// are the documented flags (benchmark.hpp parse_benchmark_arg, benchmark_save.hpp BenchNewSave); every row is
+// consumed with a valid value (its value flag taking exactly one argument), and a --bench-* name outside the table is not.
+void test_flag_tables() {
+    // the full rows (name, value, one_of, positive), in the listed order. Positive: a count the option check refuses at 0
+    // (check_benchmark_options: --bench-ticks, --bench-frames-per-tick, --bench-max-unsettled; --bench-scale 1..16);
+    // --bench-settle, --bench-png-every, --bench-redraw-every, --bench-trace, --bench-save-after and --bench-seed take 0.
+    struct Row {
+        const char* name;
+        bool value;
+        const char* one_of;
+        bool positive;
+    };
+    const Row bench[] = {{"--benchmark", true, "realtime|fixed", false}, {"--bench-save", true, "", false},
+                         {"--bench-preset", true, "", false},           {"--bench-ticks", true, "", true},
+                         {"--bench-frames-per-tick", true, "", true},   {"--bench-settle", true, "", false},
+                         {"--bench-max-unsettled", true, "", true},     {"--bench-report", true, "", false},
+                         {"--bench-crc-out", true, "", false},          {"--bench-png-dir", true, "", false},
+                         {"--bench-png-every", true, "", false},        {"--bench-no-verify", false, "", false},
+                         {"--bench-redraw-every", true, "", false},     {"--bench-trace", true, "", false}};
+    const Row bench_new[] = {{"--bench-new-save", true, "", false}, {"--bench-map", true, "", false},
+                             {"--bench-human", true, "", false},    {"--bench-ai", true, "", false},
+                             {"--bench-scale", true, "", true},     {"--bench-save-after", true, "", false},
+                             {"--bench-seed", true, "", false},     {"--bench-maps", false, "", false}};
+    const auto same = [](std::span<const BenchFlag> t, std::span<const Row> want) {
+        if (t.size() != want.size()) return false;
+        for (size_t k = 0; k < t.size(); ++k)
+            if (t[k].name != want[k].name || t[k].value != want[k].value || t[k].one_of != want[k].one_of || t[k].positive != want[k].positive)
+                return false;
+        return true;
+    };
+    CHECK(same(benchmark_flags(), bench));
+    CHECK(same(bench_new_flags(), bench_new));
+    // every row is consumed by its own parser and by no other
+    for (const BenchFlag& f : benchmark_flags()) {
+        std::string v = f.one_of.empty() ? "1" : std::string(f.one_of.substr(0, f.one_of.find('|')));
+        const std::vector<std::string> a = f.value ? std::vector<std::string>{std::string(f.name), v, "--hidden"}
+                                                   : std::vector<std::string>{std::string(f.name), "--hidden"};
+        BenchmarkOptions o;
+        BenchNewSave n;
+        std::string err;
+        size_t i = 0, j = 0;
+        CHECK(parse_benchmark_arg(a, i, o, &err) == 1 && i == (f.value ? 1u : 0u));
+        CHECK(parse_bench_new_arg(a, j, n, &err) == 0 && j == 0);
+    }
+    for (const BenchFlag& f : bench_new_flags()) {
+        const std::vector<std::string> a = f.value ? std::vector<std::string>{std::string(f.name), "1", "--hidden"}
+                                                   : std::vector<std::string>{std::string(f.name), "--hidden"};
+        BenchmarkOptions o;
+        BenchNewSave n;
+        std::string err;
+        size_t i = 0, j = 0;
+        CHECK(parse_bench_new_arg(a, j, n, &err) == 1 && j == (f.value ? 1u : 0u));
+        CHECK(parse_benchmark_arg(a, i, o, &err) == 0 && i == 0);
+    }
+    // a --bench-* name in neither table: left to the main loop (which prints the usage)
+    const std::vector<std::string> bogus = {"--bench-bogus", "1"};
+    BenchmarkOptions o;
+    BenchNewSave n;
+    size_t i = 0;
+    CHECK(parse_benchmark_arg(bogus, i, o) == 0 && parse_bench_new_arg(bogus, i, n) == 0 && i == 0);
+}
+
 void test_flags() {
     BenchmarkOptions o;
     CHECK(!o.active());
@@ -473,6 +536,7 @@ int main(int argc, char** argv) {
         return g_fail ? 1 : 0;
     }
     test_flags();
+    test_flag_tables();  // #148
     test_presets();
     test_fixed_clock();
     test_stats();
