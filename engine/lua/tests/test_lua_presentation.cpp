@@ -793,9 +793,14 @@ static void test_camera_ai_target() {
     if (ev.size() == 3) {
         CHECK(ev[0].op == PresentationOp::PointCameraAt && ev[0].args.size() == 5 && ev[0].args[1].text == "@pos" &&
               ev[0].args[2].number == 700.0 && ev[0].args[3].number == 300.0 && ev[0].args[4].number == 0.0);
-        CHECK(ev[1].args.size() == 5 && ev[1].args[1].text == "@pos" && ev[1].args[2].number == -5.0 && ev[1].args[3].number == 3.0);
+        CHECK(ev[1].op == PresentationOp::ScrollCameraTo && ev[1].args.size() == 5 && ev[1].args[1].text == "@pos" &&
+              ev[1].args[2].number == -5.0 && ev[1].args[3].number == 3.0 && ev[1].args[4].number == 0.0);
         CHECK(ev[2].op == PresentationOp::PointCameraAt && ev[2].args.size() == 1);
     }
+    // A unit target whose unit has died records no position (like a dead object).
+    CHECK(w.store->destroy(ai.unit));
+    CHECK(run(vm, "Point_Camera_At(Unit)") == "");
+    CHECK(log.events().size() == 4 && log.events().back().args.size() == 1);
     attach_ai_host(vm, nullptr, -1);
     attach_presentation(vm, nullptr);
     // Galactic: retail's tactical-mode gate, a script error and no event.

@@ -115,7 +115,9 @@ PresentationState& state(Call& c) { return log_of(c).mutable_state(); }
 // ui2 t03 (legacy docs/re/STORY_PRESENTATION_LUA.md 2.4): the position argument is resolved when the script calls, so the host that draws
 // the camera needs its coordinates: after the call's own arguments the event carries a String "@pos" and the three Number
 // coordinates (an object's position, the PositionWrapper's, or an AI target's: #51 t02, its object's position or the AI
-// host's target position, detail::ai_target_arg). Nothing is appended for a dead object or an invalid AI target.
+// host's target position, detail::ai_target_arg). Nothing is appended for a dead object, an invalid AI target or a unit
+// target whose unit has died (detail::position_arg would fall back to the host position there). The camera calls, the
+// cinematic camera keys and Play_Lightning_Effect's two ends all resolve through here.
 void append_position(Call& c, PresentationEvent& e, int i) {
     const detail::Ud* ud = engine_ud(c, i);
     if (!ud) return;
