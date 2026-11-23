@@ -48,8 +48,9 @@ namespace {
 // cu8f t06 trooper squads, LURE pack, spawn-request squad; 5: TRU1 t03 gravity control field state; 6: r3g t02 the timed
 // DEPLOY_TROOPERS machine and the rope landing, r3g t04 the cable hold count; 7: r3h the queued animation plays (a
 // play queued after the host drained the queue - AI / Lua activations, damage listeners, deaths - waits for the next
-// tick). Only the current version is read (cu6).
-constexpr uint32_t kAbilitySaveVersion = 8;  // + buzz-droid clouds
+// tick); 8: buzz-droid clouds; 9: #57 t02 the rope landing's Rope Land state (rope_state 4; in state 2 rope_end is the
+// slide's end). Only the current version is read (cu6).
+constexpr uint32_t kAbilitySaveVersion = 9;
 constexpr uint32_t kSpecialWeaponSaveVersion = 1;
 constexpr uint32_t kSpaceFieldSaveVersion = 1;
 
@@ -307,7 +308,7 @@ bool AbilitySystem::read(ByteReader& r) {
         o.rope_z = r.f32();
         o.rope_owner = r.i32();
         o.cable_holds = r.u8();  // r3g t04
-        if (!r.ok() || o.rope_state > 3) return false;
+        if (!r.ok() || o.rope_state > 4) return false;
     }
 
     if (!r.count(n, 55u)) return false;

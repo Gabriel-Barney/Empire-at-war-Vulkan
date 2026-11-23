@@ -518,7 +518,7 @@ void HangarSystem::land_service(Carrier& c, uint32_t frame, SimRng& rng) {
     switch (c.state) {
         case 0:
             if (!can_spawn(c, frame, rng)) return;
-            if (host_.clip && host_.clip(c.id, kAnimStructureOpen, false, fin)) {  // Structure Open -> state 1
+            if (host_.clip && host_.clip(c.id, kAnimStructureOpen, false, &rng, fin)) {  // Structure Open -> state 1
                 c.state = 1;
                 c.clip_end = to_frame(static_cast<int64_t>(frame) + fin);
                 return;
@@ -528,7 +528,7 @@ void HangarSystem::land_service(Carrier& c, uint32_t frame, SimRng& rng) {
         case 1:
             if (frame < c.clip_end) return;  // Open still playing (mode != finished)
             if (pick_spawn(c, frame, rng)) {
-                if (host_.clip) (void)host_.clip(c.id, kAnimStructureHold, true, fin);  // Hold, looping
+                if (host_.clip) (void)host_.clip(c.id, kAnimStructureHold, true, &rng, fin);  // Hold, looping
                 c.state = 2;
             }
             return;
@@ -546,7 +546,7 @@ void HangarSystem::land_close(Carrier& c, uint32_t frame) {
     c.leaving = kNoObject;
     c.leaving_serial = 0;
     uint32_t fin = 0;
-    if (host_.clip && host_.clip(c.id, kAnimStructureClose, false, fin)) {
+    if (host_.clip && host_.clip(c.id, kAnimStructureClose, false, nullptr, fin)) {
         c.state = 3;
         c.clip_end = to_frame(static_cast<int64_t>(frame) + fin);
         return;

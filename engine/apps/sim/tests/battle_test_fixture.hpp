@@ -943,9 +943,9 @@ inline std::unique_ptr<anim::AnimModel> synth_model(const char* base, std::initi
     m->skeleton.billboard_mode = {0u};
     m->skeleton.bind_local = {anim::Mat34{}};
     m->has_skeleton = true;
-    for (const auto& [type, frames] : clips) {
+    for (const auto& [type, frames] : clips) {  // a type listed again is its next variant
         auto c = std::make_shared<anim::Clip>();
-        c->name = anim::clip_file_name(m->base, type, 0);
+        c->name = anim::clip_file_name(m->base, type, static_cast<uint32_t>(m->clips[static_cast<size_t>(type)].size()));
         c->frame_count = frames;
         c->fps = 30.0f;
         anim::ClipRef r;

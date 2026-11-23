@@ -710,6 +710,9 @@ void r3j_troopers_models(const fs::path& root) {
 // attach_bone = their bone index), locked by the rope (Immobilised once, which the host turns into mv_first_lock: adopted,
 // coordinator hold NoFormation), are released 14 frames later (TrooperReleased clears both) and the ability ends 29
 // frames after that, as in the ability system's own timing (test_r3g_deploy_troopers_timed: 30 / 44 / 73).
+// #57 t02: the clips play on the battle's animation world - the walker shows Drop Rope from the order (it stands, so it is
+// deployed at once), Deploy Troopers from the spawn and Lift Rope from the release; each trooper shows Rope Slide looping
+// from its spawn and Rope Land (one-shot) after the release, once its slide has ended.
 void test_deploy_troopers_battle() {
 #ifdef ALAMO_SIM_HAVE_ANIM
     g_temp_prefix = "alamo_sim_r3g_tests_r3j_troopers";
@@ -723,7 +726,7 @@ void test_deploy_troopers_battle() {
     CHECK(walker_t != objects::kNone && trooper_t != objects::kNone);
     const uint32_t walker_co = type_of(*d, "R3J_Walker_Co");
     const auto walker_model = synth_model("R3J_WALKER", {{anim::kAnimIdle, 30u}, {0x61, 31u}, {0x5e, 16u}, {0x62, 31u}});
-    const auto trooper_model = synth_model("R3J_TROOPER", {{anim::kAnimIdle, 30u}, {0x60, 13u}});
+    const auto trooper_model = synth_model("R3J_TROOPER", {{anim::kAnimIdle, 30u}, {0x5f, 10u}, {0x60, 13u}});
     SimAnimation animation(d->types, *d->files);
     animation.set_model(walker_t, objects::ModeKind::Land, walker_model.get());
     animation.set_model(trooper_t, objects::ModeKind::Land, trooper_model.get());
@@ -734,7 +737,10 @@ void test_deploy_troopers_battle() {
         bool hung = false;
         int immobile = 0;              // the most Immobilised holds seen while it hangs (the rope lock)
         uint8_t hold_spawn = 99, hold_hung = 99;  // movement coordinator hold at the spawn and after a rope service
+        int slide_loop = -1, land = -1;           // #57 t02: Rope Slide looping (1) a frame after the spawn; Rope Land's first frame
     };
+    std::string walker_clips;  // #57 t02: "type@since" each time the walker's clip type changes
+    int32_t walker_type = -1;
     objects::ObjectId walker = objects::kNoObjectId;
     uint32_t order = 0;
     std::vector<objects::ObjectId> before;
@@ -759,6 +765,14 @@ void test_deploy_troopers_battle() {
                 return true;
             }
             const int since = static_cast<int>(b.frame() - order);
+            const anim::AnimWorld* aw = animation.find_world(tm);
+            const auto clip_of = [aw](objects::ObjectId id) { return aw && aw->contains(id) ? aw->slot(id) : anim::SlotView{}; };
+            if (const anim::SlotView wv = clip_of(walker); wv.type != walker_type) {
+                walker_type = wv.type;
+                char t[32];
+                std::snprintf(t, sizeof t, "%s%x@%d", walker_clips.empty() ? "" : " ", static_cast<unsigned>(wv.type), since);
+                walker_clips += t;
+            }
             for (const objects::ObjectHandle h : st.all_objects()) {
                 if (!st.alive(h) || st.type(h) != trooper_t || st.owner(h) != 0) continue;
                 const objects::ObjectId id = st.id(h);
@@ -772,6 +786,11 @@ void test_deploy_troopers_battle() {
                     x.hold_spawn = static_cast<uint8_t>(b.movement().coordinator_hold(id));
                     seen.push_back(x);
                 }
+            }
+            for (Seen& x : seen) {
+                const anim::SlotView tv = clip_of(x.id);
+                if (x.slide_loop < 0 && since == x.spawn + 1) x.slide_loop = tv.type == 0x5f && tv.mode == anim::SlotMode::Loop ? 1 : 0;
+                if (x.land < 0 && tv.type == 0x60 && tv.mode == anim::SlotMode::OneShot) x.land = since;
             }
             for (Seen& x : seen) {
                 objects::ObjectId to = objects::kNoObjectId;
@@ -794,8 +813,16 @@ void test_deploy_troopers_battle() {
     for (const Seen& x : seen)
         std::printf(" [bone %d spawn +%d released +%d, immobilised %d, hold %u -> %u]", x.bone, x.spawn, x.released, x.immobile,
                     static_cast<unsigned>(x.hold_spawn), static_cast<unsigned>(x.hold_hung));
-    std::printf(", ability done +%d\n", done);
+    std::printf(", ability done +%d; walker clips %s; troopers' Rope Slide looping / Rope Land", done, walker_clips.c_str());
+    for (const Seen& x : seen) std::printf(" %d / +%d", x.slide_loop, x.land);
+    std::printf("\n");
     CHECK(seen.size() == 2);
+    // #57 t02: Drop Rope 30 frames before the spawn (the ability test's 0 / 30 / 44), Deploy Troopers at the spawn, Lift
+    // Rope at the release (the walker's clips before the order, if any, are not these)
+    const std::string rope_clips = "61@2 5e@32 62@46";
+    CHECK(walker_clips.size() >= rope_clips.size() && walker_clips.compare(walker_clips.size() - rope_clips.size(), rope_clips.size(), rope_clips) == 0);
+    // Rope Land at the slide's end: the bones are 20 above the walker on flat ground, int(20 / 3.9) + 1 = 6 services
+    for (const Seen& x : seen) CHECK(x.slide_loop == 1 && x.land == x.released + 6);
     if (seen.size() == 2) {
         CHECK(seen[0].hung && seen[1].hung && seen[0].bone + seen[1].bone == 1);
         for (const Seen& x : seen) CHECK(x.released - x.spawn == 14);

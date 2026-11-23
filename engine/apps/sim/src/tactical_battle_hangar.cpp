@@ -188,13 +188,17 @@ void TacticalBattle::hg_setup(TacticalMode& mode) {
     if (skirmish_map()) h.pending_delivery = [this](int32_t p, bool pop) { return sk_pending_delivery(p, pop); };
     // the land structure clips (Structure Open / Hold / Close: static clip data from the model, the clip played on
     // the animation world when one is attached; the finish = one_shot_frames) and the spawn bones (bind-pose bone point
-    // and the bone's x axis as the spawn facing, #44 t02).
-    h.clip = [this](tc::ObjectId id, int32_t anim_type, bool loop, uint32_t& finish) {
+    // and the bone's x axis as the spawn facing, #44 t02). #57 t02: each play is index 0xFFFF (0x594880 / 0x593760), the
+    // variant drawn (clip_variant: from the service's RNG, else the tick's, else - between ticks, a Lua despawn - the
+    // host's synced RNG) and timed on that variant; Hold loops.
+    h.clip = [this](tc::ObjectId id, int32_t anim_type, bool loop, SimRng* rng, uint32_t& finish) {
         if (!hg_mode_) return false;
+        const auto oid = static_cast<objects::ObjectId>(id);
+        const uint32_t v = clip_variant(*hg_mode_, oid, anim_type, rng ? rng : tick_.rng ? tick_.rng : bt_rng_);
         uint32_t frames = 0;
         float fps = 0.0f;
-        if (!anim_clip_info(*hg_mode_, static_cast<objects::ObjectId>(id), anim_type, frames, fps) || !(fps > 0.0f)) return false;
-        (void)play_clip(*hg_mode_, static_cast<objects::ObjectId>(id), static_cast<uint8_t>(anim_type), 0.0f, 1.0f, tick_.global_frame);
+        if (!anim_clip_info(*hg_mode_, oid, anim_type, frames, fps, v) || !(fps > 0.0f)) return false;
+        (void)play_clip(*hg_mode_, oid, static_cast<uint8_t>(anim_type), 0.0f, 1.0f, tick_.global_frame, loop, v);
         finish = loop ? 0u : clip_finish_frames(frames, fps);
         return true;
     };

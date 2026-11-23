@@ -621,10 +621,12 @@ void test_land_spawn_bone(const Data& d, bool garrison) {
 // bone and ordered to the fly-out point (hg_land_launch), state 2; the trooper's move finishing (signal 10, hg_move_done:
 // the host calls unit_left that frame, 0x593760) plays Close at once, state 3; the first service at least Close's 20
 // frames later finds it finished, state 0. The trooper stays counted (live 1), so nothing launches again.
+// #57 t02 (0x594880, index 0xFFFF, loop): Structure Hold (two variants here) is still the spawner's clip, looping, more than
+// its 30 frames after the launch, and its variant is one of the two.
 void test_land_spawner_cycle(const Data& d) {
 #ifdef ALAMO_SIM_HAVE_ANIM
     const uint32_t trooper = type_of(d, "S10_Trooper"), bone_hangar = type_of(d, "M1_Bone_Hangar");
-    const auto model = synth_model("M1_SPAWNBONE", {{anim::kAnimIdle, 30u}, {68, 20u}, {69, 30u}, {70, 20u}});
+    const auto model = synth_model("M1_SPAWNBONE", {{anim::kAnimIdle, 30u}, {68, 20u}, {69, 30u}, {69, 30u}, {70, 20u}});
     SimAnimation animation(d.types, *d.files);
     animation.set_model(static_cast<objects::TypeIndex>(bone_hangar), objects::ModeKind::Land, model.get());
     terrain::MapData m = land_map();
@@ -666,6 +668,7 @@ void test_land_spawner_cycle(const Data& d) {
     uint32_t arrived = 0, launched = 0;
     bool at_flyout = false;
     int32_t live = -1;
+    int hold = -1;  // the spawner's clip 40 frames after the launch: 1 Hold looping (variant 0 / 1), 0 anything else
     for (uint64_t t = 0; t < 600; ++t) {
         host.tick_once();
         TacticalBattle* b = battles.battle();
@@ -692,6 +695,11 @@ void test_land_spawner_cycle(const Data& d) {
                     unit = st.id(h);
                     launched = b->frame();
                 }
+        if (hold < 0 && launched != 0 && b->frame() == launched + 40) {
+            const anim::AnimWorld* w = animation.find_world(*tm);
+            const anim::SlotView sv = w && w->contains(hangar) ? w->slot(hangar) : anim::SlotView{};
+            hold = sv.type == 69 && sv.mode == anim::SlotMode::Loop && sv.variant < 2 ? 1 : 0;
+        }
         if (unit != objects::kNoObjectId && arrived == 0 && !b->movement().view(unit).has_goal) {
             arrived = b->frame();
             const tactical::movement::UnitView v = b->movement().view(unit);
@@ -705,7 +713,8 @@ void test_land_spawner_cycle(const Data& d) {
     animation.detach(host);
     std::printf("  #44 t01 spawner cycle: states");
     for (const auto& [f, s] : states) std::printf(" %u@%u", static_cast<unsigned>(s), f);
-    std::printf("; launched %u, arrived %u (at the fly-out point %d), live %d\n", launched, arrived, at_flyout ? 1 : 0, live);
+    std::printf("; launched %u, arrived %u (at the fly-out point %d), live %d, Hold looping %d\n", launched, arrived, at_flyout ? 1 : 0,
+                live, hold);
     CHECK(states.size() >= 4);
     if (states.size() < 4) return;
     const size_t k = states.size() - 4;  // the last four: 1 opening, 2 out, 3 closing, 0
@@ -715,6 +724,7 @@ void test_land_spawner_cycle(const Data& d) {
     CHECK(at_flyout && arrived > out && close == arrived);  // signal 10 closes at once
     // the first service (30-frame steps from the first) at least 20 frames after Close started
     CHECK((idle - open) % 30 == 0 && idle - close >= 20 && idle - close < 50 && live == 1);
+    CHECK(arrived > launched + 40 && hold == 1);
 #else
     (void)d;
     std::printf("  #44 t01 spawner cycle: skipped (no engine/anim)\n");

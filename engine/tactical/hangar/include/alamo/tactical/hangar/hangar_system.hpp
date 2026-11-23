@@ -165,7 +165,9 @@ struct HangarHost {
     std::function<bool(ObjectId carrier)> defend_active;
     // r3g t03 (land): plays clip `anim` (68 Open / 69 Hold looping / 70 Close, random variant) on the spawner; true
     // when it played, with `finish_frames` = sim frames until the one-shot finishes. Unset / false: no such clip.
-    std::function<bool(ObjectId carrier, int32_t anim, bool loop, uint32_t& finish_frames)> clip;
+    // #57 t02: the variant is drawn from `rng` (the service's: the carrier's stream when the Hangar stream is on); null
+    // (Close from unit_left / squadron_removed): the host's synced RNG.
+    std::function<bool(ObjectId carrier, int32_t anim, bool loop, SimRng* rng, uint32_t& finish_frames)> clip;
     // r3g t03 (land): world position and facing (XY) of Spawned_Squadron_Location_Bones[bone] on the spawner. False:
     // [port] the spawner's position and facing.
     std::function<bool(ObjectId carrier, uint32_t bone, Vec3& pos, Vec3& facing)> land_bone;
