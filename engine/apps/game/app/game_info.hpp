@@ -137,6 +137,10 @@ struct SpecialPanelData {
 SpecialPanelData special_panel(const galactic::GalacticSim& g, const GameData& d, const ui::TextDatabase& text,
                                std::span<const ui::HudTypeInfo> hud_types, int32_t player, uint32_t kind, PlanetIndex planet,
                                uint32_t hero_id);
+// #71 t08: the IDD_NEUTRALIZE_HERO_DIALOG rows of the session's candidates (GameSession::neutralize_rows), in candidate
+// order: the target's (or the siphoner's) type name, the rounded price, pickable per neutralize_row_enabled.
+std::vector<ui::NeutralizeHeroRow> neutralize_dialog_rows(const GameData& d, const ui::TextDatabase& text,
+                                                          std::span<const galactic::NeutralizeCandidate> rows, float credits);
 
 // Campaign end (Int-verify): the host calls galactic::victory_outcome (victory.hpp; the sim holds the records)
 // instead of the former campaign_outcome stand-in.

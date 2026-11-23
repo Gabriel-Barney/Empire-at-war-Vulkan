@@ -859,6 +859,20 @@ bool GameSession::hack_super_weapon() {
     return submit_special(galactic::hack_super_weapon_event(dialog_.planet_id, dialog_.hero_id, g->hack_cost()));
 }
 
+const std::vector<galactic::NeutralizeCandidate>& GameSession::neutralize_rows() const {
+    static const std::vector<galactic::NeutralizeCandidate> kNone;
+    return dialog_open_ && dialog_.kind == galactic::kSpecialNeutralize ? neutralize_rows_ : kNone;
+}
+
+bool neutralize_row_enabled(const galactic::NeutralizeCandidate& c, float credits) { return c.eligible && c.price() <= credits; }
+
+bool GameSession::neutralize_hero(size_t row) {
+    const galactic::GalacticSim* g = galaxy();
+    const std::vector<galactic::NeutralizeCandidate>& rows = neutralize_rows();
+    if (!g || row >= rows.size() || !neutralize_row_enabled(rows[row], g->credits(local_player_))) return false;
+    return submit_special(galactic::neutralize_hero_event(dialog_.planet_id, dialog_.hero_id, rows[row]));
+}
+
 bool GameSession::corrupt_planet(int8_t type) {
     if (!dialog_open_ || dialog_.kind != galactic::kSpecialCorruption || type < 0 || type >= 8) return false;
     return submit_special(sim::corruption_command(dialog_.hero_id, dialog_.planet_id, type));
@@ -899,6 +913,19 @@ void GameSession::tap_event(const galactic::GalacticSim& gs, const galactic::Gal
                 dialog_.hero_id = static_cast<uint32_t>(e.object);
                 dialog_.respawn_seconds = commands::dequantize(galactic::kQuantDuration, static_cast<uint32_t>(e.value));
                 dialog_.frame = host_->frame();
+                dialog_open_ = true;
+            }
+            break;
+        case K::NeutralizeDialog:  // #71 t08: the panel, with the candidates the sim kept (neutralize_offer)
+            ++special_stats_.dialogs;
+            if (local && e.planet < gs.planets().size()) {
+                dialog_ = SpecialDialog{};
+                dialog_.kind = galactic::kSpecialNeutralize;
+                dialog_.planet = e.planet;
+                dialog_.planet_id = static_cast<uint32_t>(gs.store().id(gs.planets()[e.planet].object));
+                dialog_.hero_id = static_cast<uint32_t>(e.object);
+                dialog_.frame = host_->frame();
+                neutralize_rows_ = gs.neutralize_offer();
                 dialog_open_ = true;
             }
             break;

@@ -554,6 +554,21 @@ const char* corruption_name(int8_t t) {
 std::u32string fraction(const char* label, int32_t have, int32_t need) { return u32(label) + number(have) + U"/" + number(need); }
 }  // namespace
 
+std::vector<ui::NeutralizeHeroRow> neutralize_dialog_rows(const GameData& d, const ui::TextDatabase& text,
+                                                          std::span<const galactic::NeutralizeCandidate> rows, float credits) {
+    std::vector<ui::NeutralizeHeroRow> out;
+    for (size_t i = 0; i < rows.size(); ++i) {
+        const galactic::NeutralizeCandidate& c = rows[i];
+        ui::NeutralizeHeroRow r;
+        r.candidate = static_cast<int32_t>(i);
+        r.name = c.type < d.types.size() ? type_label(d, text, static_cast<objects::TypeIndex>(c.type)) : std::u32string();
+        r.price = static_cast<int32_t>(std::lround(c.price()));
+        r.enabled = neutralize_row_enabled(c, credits);
+        out.push_back(std::move(r));
+    }
+    return out;
+}
+
 SpecialPanelData special_panel(const galactic::GalacticSim& g, const GameData& d, const ui::TextDatabase& text,
                                std::span<const ui::HudTypeInfo> hud_types, int32_t player, uint32_t kind, PlanetIndex planet,
                                uint32_t hero_id) {

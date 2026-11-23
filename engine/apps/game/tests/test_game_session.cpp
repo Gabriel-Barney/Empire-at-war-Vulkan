@@ -100,6 +100,13 @@ const char* kTypes = R"(<GS>
   <Tech_Level>1</Tech_Level><Build_Initially_Locked>Yes</Build_Initially_Locked>
   <Build_Can_Be_Unlocked_By_Slicer>Yes</Build_Can_Be_Unlocked_By_Slicer><Slice_Cost_Credits>1500</Slice_Cost_Credits></SpaceUnit>
  <SpaceUnit Name="GS_DeathStar"><Variant_Of_Existing_Type>GS_Frigate</Variant_Of_Existing_Type></SpaceUnit>
+ <SpaceUnit Name="GS_Hunter"><Variant_Of_Existing_Type>GS_Corvette</Variant_Of_Existing_Type><Is_Generic_Hero>Yes</Is_Generic_Hero>
+  <Abilities SubObjectList="Yes"><Neutralize_Hero_Ability Name="GS_Hunter_Neutralize_Hero">
+   <Owner_Respawn_Time_In_Secs>120.0, 150.0</Owner_Respawn_Time_In_Secs><Target_Respawn_Time_In_Secs>240.0, 300.0</Target_Respawn_Time_In_Secs>
+   <Can_Neutralize_Minor_Heroes>Yes</Can_Neutralize_Minor_Heroes><Can_Neutralize_Major_Heroes>Yes</Can_Neutralize_Major_Heroes>
+  </Neutralize_Hero_Ability></Abilities></SpaceUnit>
+ <SpaceUnit Name="GS_Mark"><Variant_Of_Existing_Type>GS_Corvette</Variant_Of_Existing_Type><Is_Generic_Hero>Yes</Is_Generic_Hero>
+  <Neutralization_Cost>1200</Neutralization_Cost><Can_Be_Neutralized_By_Minor_Heroes>Yes</Can_Be_Neutralized_By_Minor_Heroes></SpaceUnit>
  <GroundStructure Name="GS_Cantina"><Victory_Relevant>Yes</Victory_Relevant><Tactical_Health>500</Tactical_Health><Sabotage_Cost_Credits>800</Sabotage_Cost_Credits></GroundStructure>
  <Marker Name="DEMO_CONTROLLER"><Is_Marker>Yes</Is_Marker><Lua_Script>Demo_Attract_Controller</Lua_Script></Marker>
  <Marker Name="Story_Trigger_Zone_00"><Is_Marker>Yes</Is_Marker></Marker>
@@ -747,6 +754,80 @@ SpecialIds special_setup(game::GameSession& s) {
     return ids;
 }
 
+// #71 t08 (legacy docs/re/GALAB_ABILITIES_RE.md §7.5): a human's Neutralize_Hero. Activate (kind 1) -> the NeutralizeDialog
+// event opens the panel with GalacticSim's candidates -> the pick sends SpecialAbility kind 3 -> the target is neutralized and
+// the price charged. Setup as special_setup, without the Death Star (it blocks Neutralize_Hero, galab §7.1): the human's
+// hunter and the AI's generic hero (Neutralization_Cost 1200) in the AI planet's orbit, 100000 credits.
+struct NeutralizeIds {
+    uint32_t planet = 0, hunter = 0, mark = 0;
+};
+NeutralizeIds neutralize_setup(game::GameSession& s) {
+    NeutralizeIds ids;
+    sim::GalacticMode* gm = s.host().galactic_mode();
+    galactic::GalacticSim* gs = gm ? gm->sim() : nullptr;
+    if (!gs) return ids;
+    const PlanetIndex p = game::kSkirmishBattlePlanet;
+    const int32_t me = s.local_player(), ai = gs->planets()[p].owner;
+    auto spawn = [&](int32_t player, const char* type) {
+        const objects::ObjectHandle h = gs->spawn_unit(player, p, gs->rules().find_type(type));
+        return gs->store().exists(h) ? static_cast<uint32_t>(gs->store().id(h)) : 0u;
+    };
+    ids.mark = spawn(ai, "GS_Mark");
+    ids.hunter = spawn(me, "GS_Hunter");
+    gs->add_credits(me, 100000.0f, false);
+    // A candidate must be visible (galab §7.1: the planet's fleet-contents information); spawn_unit gives no arrival
+    // presence, so the human gets the fleet-contents bit (0x40, 0x50b3f0) of the planet directly.
+    gs->add_visibility_modifier(p, me, galactic::VisibilityKey{static_cast<int32_t>(ids.hunter), 0, 0, 0}, 0x40, -1.0f);
+    ids.planet = static_cast<uint32_t>(gs->store().id(gs->planets()[p].object));
+    return ids;
+}
+
+bool neutralize_run(const game::GameData& data, const game::SessionSpec& spec, commands::CommandRecording& rec, RunResult& out) {
+    jobs::JobSystem js(jobs::JobSystemConfig{2});
+    game::GameSession s(data, js, spec);
+    CHECK(s.start(nullptr, nullptr, &rec));
+    if (!s.started()) return false;
+    const NeutralizeIds ids = neutralize_setup(s);
+    sim::GalacticMode* gm = s.host().galactic_mode();
+    galactic::GalacticSim* gs = gm ? gm->sim() : nullptr;
+    CHECK(gs != nullptr && ids.mark && ids.hunter);
+    if (!gs || !ids.mark || !ids.hunter) return false;
+    const PlanetIndex p = game::kSkirmishBattlePlanet;
+    const int32_t me = s.local_player();
+    const uint32_t mark = ids.mark, hunter = ids.hunter, planet = ids.planet;
+    auto run = [&](int n) {
+        for (int i = 0; i < n; ++i) s.tick();
+    };
+    auto alive = [&](uint32_t id) { return gs->store().alive(gs->store().find(static_cast<objects::ObjectId>(id))); };
+    CHECK(s.neutralize_rows().empty() && !s.neutralize_hero(0));  // no panel open: nothing sent
+    CHECK(s.activate_special(hunter, planet));
+    run(2);
+    const game::SpecialDialog* d = s.special_dialog();
+    CHECK(d && d->kind == galactic::kSpecialNeutralize && d->hero_id == hunter && d->planet == p);
+    const std::vector<galactic::NeutralizeCandidate>& rows = s.neutralize_rows();
+    CHECK(rows.size() == 1);
+    if (rows.size() != 1) return false;
+    CHECK(rows[0].object == static_cast<int32_t>(mark) && rows[0].eligible && rows[0].price() == 1200.0f);
+    CHECK(game::neutralize_row_enabled(rows[0], 1200.0f) && !game::neutralize_row_enabled(rows[0], 1199.0f));
+    const float price = rows[0].price(), c0 = gs->credits(me);
+    CHECK(!s.neutralize_hero(1) && s.special_dialog());  // not a row: nothing sent, the panel stays open
+    CHECK(s.neutralize_hero(0) && !s.special_dialog() && s.neutralize_rows().empty());
+    run(2);
+    std::printf("neutralize: target alive %d, hunter alive %d, credits %.3f -> %.3f\n", alive(mark) ? 1 : 0, alive(hunter) ? 1 : 0, c0,
+                gs->credits(me));
+    CHECK(!alive(mark) && gs->credits(me) == c0 - commands::requantize(galactic::kQuantAmount, price));
+    size_t dialogs = 0, neutralized = 0;
+    for (const galactic::GalacticEvent& e : s.take_special_events()) {
+        dialogs += e.kind == galactic::GalacticEventKind::NeutralizeDialog ? 1u : 0u;
+        neutralized += e.kind == galactic::GalacticEventKind::HeroNeutralized && e.object == static_cast<int32_t>(mark) ? 1u : 0u;
+    }
+    CHECK(dialogs == 1 && neutralized == 1 && s.special_stats().dialogs == 1);
+    run(30);
+    out.crc = s.host().crc_log();
+    out.ticks = s.ticks();
+    return true;
+}
+
 bool special_run(const game::GameData& data, const game::SessionSpec& spec, commands::CommandRecording& rec, RunResult& out) {
     jobs::JobSystem js(jobs::JobSystemConfig{2});
     game::GameSession s(data, js, spec);
@@ -1200,13 +1281,18 @@ void story_scripts_real_test() {
     std::printf("story scripts (real data): %zu / %zu load\n", ok, files.size());
 }
 
+// The live run's setup again (its direct GalacticSim operations come before the recorded commands).
+using RunSetup = void (*)(game::GameSession&);
+void special_setup_run(game::GameSession& s) { special_setup(s); }
+void neutralize_setup_run(game::GameSession& s) { neutralize_setup(s); }
+
 void replay_run(const game::GameData& data, const game::SessionSpec& spec, const commands::CommandRecording& rec, uint64_t ticks,
-                int32_t workers, RunResult& out, bool special = false, bool home_base = false) {
+                int32_t workers, RunResult& out, RunSetup setup = nullptr, bool home_base = false) {
     jobs::JobSystem js(jobs::JobSystemConfig{workers});
     game::GameSession s(data, js, spec);
     std::vector<std::string> diag;
     CHECK(s.start(&diag, &rec, nullptr));
-    if (special) special_setup(s);
+    if (setup) setup(s);
     if (home_base) home_base_setup(s);
     for (uint64_t i = 0; i < ticks; ++i) s.tick();
     out.crc = s.host().crc_log();
@@ -3269,7 +3355,7 @@ int main() {
         if (live_run(data, spec, rec, live)) {
             for (const int32_t w : {0, 4}) {
                 RunResult rp;
-                replay_run(data, spec, rec, live.ticks, w, rp, false, true);
+                replay_run(data, spec, rec, live.ticks, w, rp, nullptr, true);
                 const CrcDivergence d = first_divergence(live.crc, rp.crc);
                 std::printf("replay (%d workers) vs live: %zu vs %zu records: %s\n", w, rp.crc.records.size(), live.crc.records.size(),
                             d.message.c_str());
@@ -3278,10 +3364,10 @@ int main() {
         }
         // P4 host: auto-resolve choice + Withdraw, the battle's Autoresolve, the special systems; each replayed with 0 and
         // 4 workers.
-        auto replays = [&](const char* name, const commands::CommandRecording& r, const RunResult& live_run_result, bool special) {
+        auto replays = [&](const char* name, const commands::CommandRecording& r, const RunResult& live_run_result, RunSetup setup) {
             for (const int32_t w : {0, 4}) {
                 RunResult rp;
-                replay_run(data, spec, r, live_run_result.ticks, w, rp, special);
+                replay_run(data, spec, r, live_run_result.ticks, w, rp, setup);
                 const CrcDivergence d = first_divergence(live_run_result.crc, rp.crc);
                 std::printf("%s replay (%d workers) vs live: %s\n", name, w, d.message.c_str());
                 CHECK(!d.diverged && rp.crc.records.size() == live_run_result.crc.records.size());
@@ -3289,13 +3375,16 @@ int main() {
         };
         commands::CommandRecording rec2;
         RunResult ar;
-        if (auto_resolve_run(data, spec, rec2, ar)) replays("auto-resolve", rec2, ar, false);
+        if (auto_resolve_run(data, spec, rec2, ar)) replays("auto-resolve", rec2, ar, nullptr);
         commands::CommandRecording rec3;
         RunResult bar;
-        if (battle_auto_resolve_run(data, spec, rec3, bar)) replays("battle auto-resolve", rec3, bar, false);
+        if (battle_auto_resolve_run(data, spec, rec3, bar)) replays("battle auto-resolve", rec3, bar, nullptr);
         commands::CommandRecording rec4;
         RunResult sp;
-        if (special_run(data, spec, rec4, sp)) replays("special systems", rec4, sp, true);
+        if (special_run(data, spec, rec4, sp)) replays("special systems", rec4, sp, &special_setup_run);
+        commands::CommandRecording rec5;
+        RunResult nr;
+        if (neutralize_run(data, spec, rec5, nr)) replays("neutralize hero", rec5, nr, &neutralize_setup_run);
         // [port] skirmish map -> planet type: the name after _MP_SPACE_ / _MP_LAND_ when it is a PLANET type.
         CHECK(game::skirmish_map_planet_type(data.rules, "_MP_LAND_GS_PLANET") == "GS_Planet");
         CHECK(game::skirmish_map_planet_type(data.rules, "Data\\Art\\Maps\\_mp_space_gs_planet.ted") == "GS_Planet");

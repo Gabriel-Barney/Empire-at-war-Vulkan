@@ -8,6 +8,10 @@
 //   IDD_STORY_SUMMARY_DIALOG        goals + recap lists, Active / Completed radios -> StorySummaryFilter (host refills),
 //                                   Close; Abandon is permanently disabled and has no handler (retail: switched off at
 //                                   creation, no callback case; legacy docs/re/P4_SIM_SYSTEMS.md §9.1)
+//   IDD_NEUTRALIZE_HERO_DIALOG      #71 t08: a human's Neutralize_Hero pick (legacy docs/re/GALAB_ABILITIES_RE.md §7.5): the
+//                                   candidates in IDC_NEUTRALIZE_HERO_LISTBOX, sorted by name (the RC's LBS_SORT); the
+//                                   Neutralize button for a pickable row -> NeutralizeHero{button = candidate}; Cancel /
+//                                   Esc -> NeutralizeHeroCancelled
 //   (IDD_PLANET_INFO, GALACTIC_DIALOGS §9, is GameScreens::show_planet_info in gui_screens.hpp; IDD_PLANET_DIALOG is
 //   dead in the original and not ported)
 //   "holocron" pages (4 tab radios on every page: Droid log / Data chart / Tech tree / Summary; Close / Esc ->
@@ -52,6 +56,13 @@ struct BuyUnitEntry {
 struct BuyUnitsState {
     int64_t credits = 0;
     std::vector<BuyUnitEntry> units;
+};
+// #71 t08: one Neutralize_Hero candidate row. [port] the row reads "name  price" (retail's row text is not recovered).
+struct NeutralizeHeroRow {
+    int32_t candidate = -1;  // the host's candidate index (GameSession::neutralize_rows)
+    std::u32string name;
+    int32_t price = 0;
+    bool enabled = true;  // can be picked (eligible, affordable)
 };
 
 // A cue of a story dialog script played when the dialog's clock reaches `at` (seconds after the first update_story):
@@ -168,6 +179,7 @@ inline constexpr const char* kBuyUnits = "IDD_SKIRMISH_BUY_UNITS_DIALOG";
 inline constexpr const char* kStory = "IDD_STORY_DIALOG";
 inline constexpr const char* kStorySummary = "IDD_STORY_SUMMARY_DIALOG";
 inline constexpr const char* kTutorial = "IDD_TUTORIAL_DIALOG";  // ui2 t02
+inline constexpr const char* kNeutralizeHero = "IDD_NEUTRALIZE_HERO_DIALOG";  // #71 t08
 inline constexpr const char* kDroidLog = "IDD_DROID_LOG";
 inline constexpr const char* kDataChart = "IDD_DATA_CHART";
 inline constexpr const char* kSummaryProduction = "IDD_SUMMARY_SCREEN_PRODUCTION";
@@ -195,6 +207,11 @@ public:
     bool show_tutorial(const std::vector<std::u32string>& lines, bool continue_button);
     bool tutorial_open() const { return gui_ && gui_->find(dlg::kTutorial) != nullptr; }
     bool show_story_summary(const StorySummaryInfo& s);
+    // #71 t08: IDD_NEUTRALIZE_HERO_DIALOG with `rows` (sorted by name, the first row selected). A second call while it is
+    // open does nothing and returns false; close_neutralize is the host's close (its panel went away), with no action.
+    bool show_neutralize(std::vector<NeutralizeHeroRow> rows);
+    bool neutralize_open() const { return gui_ && gui_->find(dlg::kNeutralizeHero) != nullptr; }
+    void close_neutralize();
     // The holocron: data for every page, then open one (switching pages keeps the data).
     void set_droid_log(DroidLogInfo d) { droid_ = std::move(d); }
     void set_data_chart(DataChartInfo c) { chart_ = std::move(c); }
@@ -225,6 +242,8 @@ private:
     GuiDialog* go_info(const std::string& name);
     bool info_dialog(std::string_view n) const;
     void fill_buy(GuiDialog& d);
+    void fill_neutralize(GuiDialog& d);
+    const NeutralizeHeroRow* neutralize_selected(const GuiDialog& d) const;
     void fill_droid(GuiDialog& d);
     void fill_chart(GuiDialog& d);
     void fill_tech(GuiDialog& d);
@@ -237,6 +256,7 @@ private:
 
     GuiManager* gui_ = nullptr;
     BuyUnitsState buy_;
+    std::vector<NeutralizeHeroRow> neutralize_;  // #71 t08: the open dialog's rows, in list order
     std::string story_tag_;
     StoryDialogInfo story_;          // the open story dialog's script (lines revealed by update_story)
     double story_t0_ = -1.0;         // clock start (-1 = not started)
