@@ -39,6 +39,15 @@ struct TacticalBattleTestAccess {
         hidden = stealthed = false;
         if (const TacticalBattle::Unit* u = b.unit_by_id(viewer)) b.attack_target_unseen(st, *u, target, hidden, stealthed);
     }
+    // #91: the last-observed point (AttackBlock::ox / oy / oz) of mover `mover`'s land attack block (false: no block).
+    static bool attack_block_seen(const TacticalBattle& b, objects::ObjectId mover, Vec3& p) {
+        for (const TacticalBattle::AttackBlock& r : b.attack_blocks_)
+            if (r.mover == mover) {
+                p = Vec3{r.ox, r.oy, r.oz};
+                return true;
+            }
+        return false;
+    }
     // #222: a Production command as the battle AI issues it (BattleHost Production: hg_production_command with ai = true).
     static commands::RejectReason ai_production(TacticalBattle& b, TacticalMode& mode, uint8_t player, const commands::EventData& ev) {
         return b.hg_production_command(mode, player, ev, true);
