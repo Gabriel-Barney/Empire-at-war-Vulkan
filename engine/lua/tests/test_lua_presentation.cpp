@@ -69,6 +69,8 @@ static bool warned(LuaVm& vm, const std::string& code, const char* part) {
 
 // PGBase.lua-shaped helpers (same structure as the shipped Sleep / BlockOnCommand / PumpEvents).
 static const char* kHelpers =
+    "-- the frame: GetCurrentTime.Frame() is game seconds (#242), x 30 rounded\n"
+    "function FrameNo() return tonumber(string.format('%d', GetCurrentTime.Frame() * 30 + 0.5)) end\n"
     "function Pump() coroutine.yield(true) local ev = GetEvent() while ev do ev() ev = GetEvent() end end\n"
     "function Sleep(t) ThreadValue.Set('St', GetCurrentTime()) while GetCurrentTime() - ThreadValue('St') < t do Pump() end end\n"
     "function BlockOnCommand(block) Pump() if not block then return nil end\n"
@@ -411,11 +413,11 @@ static const char* kCinematic =
     "  SFXManager.Allow_Ambient_VO(false) trooper.Play_SFX_Event('Unit_Select', 2)\n"
     "  Play_Music('Cinematic_Empire_Intro_Music_Event_2') Game_Message('TEXT_X')\n"
     "  Sleep(2)\n"
-    "  marks = GetCurrentTime.Frame()\n"
+    "  marks = FrameNo()\n"
     "  Transition_To_Tactical_Camera(1) Letter_Box_Out(.5) Fade_Screen_In(.5)\n"
     "  Sleep(1)\n"
     "  End_Cinematic_Camera() Lock_Controls(0) Resume_Mode_Based_Music()\n"
-    "  marke = GetCurrentTime.Frame()\n"
+    "  marke = FrameNo()\n"
     "end\n";
 
 struct CinematicRun {
@@ -531,11 +533,11 @@ static void test_blocking() {
     CHECK(run(vm, std::string(kHelpers) + kFind +
                       "function Movie()\n"
                       "  local b = Play_Bink_Movie('Star_Wars_Intro')\n"
-                      "  started = GetCurrentTime.Frame() before = b.IsFinished() and 1 or 0\n"
+                      "  started = FrameNo() before = b.IsFinished() and 1 or 0\n"
                       "  res = BlockOnCommand(b)\n"
-                      "  movie_done = GetCurrentTime.Frame()\n"
+                      "  movie_done = FrameNo()\n"
                       "  BlockOnCommand(Play_Lightning_Effect('Hack_Electicity_Zaps', marker, trooper))\n"
-                      "  zap_done = GetCurrentTime.Frame()\n"
+                      "  zap_done = FrameNo()\n"
                       "  Play_Lightning_Effect('Other', marker, trooper)\n"  // not waited on
                       "end\n"
                       "Create_Thread('Movie')") == "");
@@ -550,8 +552,8 @@ static void test_blocking() {
 
     // Stop_Bink_Movie from another thread ends the block early; the waiter resumes on its next service.
     log.config().movie_frames = 1000;
-    CHECK(run(vm, "function Long() BlockOnCommand(Play_Bink_Movie('Long')) long_done = GetCurrentTime.Frame() end\n"
-                  "function Stopper() Sleep(1) Stop_Bink_Movie() stopped_at = GetCurrentTime.Frame() end\n"
+    CHECK(run(vm, "function Long() BlockOnCommand(Play_Bink_Movie('Long')) long_done = FrameNo() end\n"
+                  "function Stopper() Sleep(1) Stop_Bink_Movie() stopped_at = FrameNo() end\n"
                   "Create_Thread('Long') Create_Thread('Stopper')") == "");
     for (uint32_t f = 200; f <= 300; ++f) step(vm, f);
     const uint32_t stop = sleep_end_frame(200, 1.0);
@@ -611,7 +613,7 @@ static void test_save_load() {
     const std::string script = std::string(kHelpers) + kFind + kCinematic +
                                "function Movie() Sleep(0.5) Hide_Sub_Object(trooper, 1, 'gun') trooper.Show_Emitter('Engine', true)\n"
                                "  trooper.In_End_Cinematic(true) trooper.Attach_Particle_Effect('Trooper', 'Bone_A')\n"
-                               "  res = BlockOnCommand(Play_Bink_Movie('Mid_Movie')) movie_done = GetCurrentTime.Frame() end\n"
+                               "  res = BlockOnCommand(Play_Bink_Movie('Mid_Movie')) movie_done = FrameNo() end\n"
                                "Create_Thread('Intro') Create_Thread('Movie')";
     World w1;
     LuaHost h1 = w1.host();

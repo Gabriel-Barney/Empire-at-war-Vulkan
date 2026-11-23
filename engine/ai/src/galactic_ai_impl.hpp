@@ -43,8 +43,10 @@ inline constexpr int32_t kFreeStoreScriptBase = 1000000;  // script ids of free 
 inline constexpr double kPpInfinite = 1.0e18;
 inline constexpr uint32_t kAloneFleet = 0xFFFFFFFEu;  // launch_and_form: a fleet of its own
 
+// The AI VMs' Lua GetCurrentTime() (0x5428b0, legacy docs/re/BKG1_RE_ANSWERS.md §A.2 [H]): the mode frame as a signed int
+// converted to float, times the float seconds per frame (1/30 = 0.033333335f), widened: frame 150 -> 5.000000476837158.
 inline double now_seconds(const gal::GalacticSim& sim) {
-    return static_cast<double>(sim.frame()) / static_cast<double>(kAiFps);
+    return static_cast<double>(static_cast<float>(sim.frame()) * (1.0f / static_cast<float>(kAiFps)));
 }
 inline bool space_kind(gal::UnitKind k) { return k == gal::UnitKind::SpaceUnit || k == gal::UnitKind::Squadron; }
 inline bool ground_kind(gal::UnitKind k) { return k == gal::UnitKind::GroundUnit; }

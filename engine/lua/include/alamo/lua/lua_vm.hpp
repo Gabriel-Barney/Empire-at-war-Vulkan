@@ -153,7 +153,7 @@ public:
 
     // ---- host inputs ----
     void set_time(double seconds);  // GetCurrentTime()
-    void set_frame(uint32_t frame);  // GetCurrentTime.Frame()
+    void set_frame(uint32_t frame);  // the frame GetCurrentTime.Frame() turns into seconds (float divide by 30)
     // Queues an event for GetEvent(): the global function `name` (called by PGBase's PumpEvents).
     void post_event(std::string_view name);
     // Sets a host value global (Object, Target, ...) to the wrapper of `h` (null handle -> nil).

@@ -27,6 +27,13 @@ bool finite(float f) { return f - f == 0.0f; }
 // the process-wide CRC cadence new hosts start with (set_default_crc_cadence; alamo_game's main sets it once).
 std::atomic<uint32_t> g_crc_every{1};
 std::atomic<size_t> g_crc_ring{0};
+
+// The scoring scripts' Lua GetCurrentTime() (0x5428b0, legacy docs/re/BKG1_RE_ANSWERS.md §A.2 [H] for the function; [M] that
+// scoring sees it, consequence 4): the frame as a signed int to float, times the float 1/30, widened. The Service gate's
+// `now` (GAME_SCORING §2 step 3) stays the float divide. [port] the host frame stands for the current mode's frame.
+double scoring_lua_time(uint64_t frame) {
+    return static_cast<double>(static_cast<float>(static_cast<int32_t>(frame)) * (1.0f / static_cast<float>(kSimTicksPerSecond)));
+}
 }  // namespace
 
 SimHost::SimHost(const objects::GameObjectTypes& types, jobs::JobSystem& js, SimConfig cfg)
@@ -330,7 +337,7 @@ void SimHost::scoring_release(std::string_view why) {
 bool SimHost::scoring_call(std::string_view function, const std::vector<lua::AiEventArg>& args) {
 #ifdef ALAMO_SIM_HAVE_STORY
     if (!scoring_vm_ || !scoring_vm_->has_function(function)) return false;
-    scoring_vm_->set_time(static_cast<double>(static_cast<float>(frame_) / static_cast<float>(kSimTicksPerSecond)));
+    scoring_vm_->set_time(scoring_lua_time(frame_));
     scoring_vm_->set_frame(static_cast<uint32_t>(frame_));
     std::string err;
     ++scoring_calls_;
@@ -419,7 +426,7 @@ void SimHost::service_scoring() {
     double last = 0.0;
     if (vm.get_number("LastService", last) && !(now - last > rate)) return;
     if (!scoring_failed_ && !vm.exit_requested()) {
-        vm.set_time(now);
+        vm.set_time(scoring_lua_time(frame_));  // not `now`: the gate's divide is not the script's clock (#242)
         vm.set_frame(static_cast<uint32_t>(frame_));
         vm.service_threads();
         ++scoring_services_;

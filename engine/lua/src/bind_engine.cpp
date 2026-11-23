@@ -173,7 +173,9 @@ int m_get_float(Call& c) {
 // ---------------------------------------------------------------- time, threads, events
 
 int g_get_current_time(Call& c) { return push_num(c, c.vm->time); }
-int m_time_frame(Call& c) { return push_num(c, c.vm->frame); }
+// GetCurrentTime.Frame() (0x5406b0, legacy docs/re/BKG1_RE_ANSWERS.md §A.2 [H]): (double)((float)NOW / 30.0f), the game time in
+// seconds by a float divide (not GetCurrentTime()'s multiply); NOW = the frame the host set [M: retail's global frame].
+int m_time_frame(Call& c) { return push_num(c, static_cast<double>(static_cast<float>(c.vm->frame) / 30.0f)); }
 int g_get_thread_id(Call& c) { return push_num(c, c.vm->current_thread); }
 
 // Create_Thread("Function_Name", params...) / Thread.Create(...): returns the new thread id.

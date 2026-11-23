@@ -1402,6 +1402,7 @@ void test_save_foc();
 #endif
 void test_category_masks_from_enum_files();
 void test_status_hash_covers_move_to();  // #119
+void test_lua_clock_float_multiply();     // #242
 void test_lost_members_survive_save();  // #122
 void test_type_info_mod_categories();
 
