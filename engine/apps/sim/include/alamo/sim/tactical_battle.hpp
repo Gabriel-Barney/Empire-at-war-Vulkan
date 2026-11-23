@@ -2694,7 +2694,9 @@ private:
     // --- end fog ---
     // --- L1 systems (owner: tactical-systems agent; tactical_battle_l1.cpp) ---
     void l1_add_types(std::vector<uint32_t>& use) const;    // constructor: the mode's special-weapon types
-    void l1_setup(TacticalMode& mode);                       // setup(): the world callbacks
+    // #57 t05: setup(), before the map load: the SpecialWeaponSystem the map objects' deploys register into (l1_register)
+    void l1_create();
+    void l1_setup(TacticalMode& mode);                       // setup(), after the map load: strikes, space fields
     void l1_register(TacticalMode& mode, objects::ObjectHandle h, int32_t type);  // deploy / adopt_object
     void l1_motion(TacticalMode& mode, SimRng& rng);         // tick step 4 (after the movement commit)
     // cu8 t02 / cu8f t07 (TACTICAL_GAPS §2.3.1a, legacy docs/re/CU8F_T01_T02_T07_RE.md §3.1): every object carrying DISABLE_FORCE_ABILITIES
