@@ -12,6 +12,8 @@
 //     * #44 t02 (R3G_ANIM_TIMED_RE §3; 0x594dc0 / 0x593960 read 2026-11-23): a land SPAWN_SQUADRON structure with
 //       Spawned_Squadron_Location_Bones sends its unit along the spawn bone's x axis, not along the structure's facing;
 //       a Spawn_Garrison_On_Load one creates its garrison at the fly-out point, facing along the bone, with no order.
+//     * #57 t05: a map object that is a special weapon (LOBBING_SUPERWEAPON) keeps its SpecialWeaponSystem registration
+//       after the battle setup.
 //   --every-map (slow, ALAMO_FOC_DATA / ALAMO_EAW_DATA; skipped when unset): every retail .ted map (land and space) goes
 //     through the TacticalBattle map load (start_map_battle, first battle tick): no crash, no unknown type, every company
 //     placement expanded; per-map counts of companies, hangar-off placements, extra behaviours and marker names (t08).
@@ -440,7 +442,7 @@ int run_every_map() {
     return g_fail ? 1 : 0;
 }
 
-// #44 t05 / #57 t05 (L1_S4_REMAINING special weapons; the map1 t03 follow-up): a map object that is a special weapon is
+// #57 t05 (L1_S4_REMAINING special weapons; the map1 t03 follow-up): a map object that is a special weapon is
 // registered with the battle's SpecialWeaponSystem when the map load deploys it (l1_register), and that registration is
 // still there once the battle runs: the system is created before the map load, not again after it.
 void test_land_special_weapon(const Data& d) {
@@ -684,9 +686,9 @@ int main(int argc, char** argv) {
     test_land(*d);
     std::printf("map1: space start (starbase pick, escorts, camera focus)\n");
     test_space(*d);
-    std::printf("map1: land spawner fly-out along the spawn bone (#44 t02)\n");
     std::printf("map1: a map special weapon stays registered (#57 t05)\n");
     test_land_special_weapon(*d);
+    std::printf("map1: land spawner fly-out along the spawn bone (#44 t02)\n");
     test_land_spawn_bone(*d, false);
     test_land_spawn_bone(*d, true);
     std::printf("map1: land spawner Open / launch / Close cycle (#44 t01)\n");
