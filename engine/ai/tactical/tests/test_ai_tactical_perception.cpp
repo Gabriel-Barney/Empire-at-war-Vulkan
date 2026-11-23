@@ -414,6 +414,13 @@ static void test_grid_projection() {
     w.objects[1].no_owner_list = false;
     CHECK(k.is_registered(2) && k.player_objects(0).empty() && k.player_objects(1).empty());
     CHECK(!k.live_entries(tcell).empty() && k.threat(0, tcell) == h.threat(0, tcell));
+    // #65 t03 (SKAI_T22_SPACE_AI_RE Part 3.2 / 3.3 [H]): nor is its category ORed into the grid's mask (+0xc8): with no
+    // other object registered, an area query returns 0 at once although the object is in the cell; registered normally,
+    // the same query counts it.
+    GridQuery any;  // every category, player 1 (the owner) asking for its friendly force
+    any.self = 1;
+    CHECK(k.category_union() == 0 && k.cell_force(w, tcell, any) == 0.0f);
+    CHECK(h.category_union() != 0 && h.cell_force(w, tcell, any) > 0.0f);
 }
 
 // ---------------------------------------------------------------------------------- tokens
