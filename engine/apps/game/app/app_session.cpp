@@ -562,9 +562,11 @@ void App::shutdown() {
     sc_.shutdown();
 }
 
+// The battle map's raw environment type (TED map-info mini 06) for audio: TacticalBattle::terrain_type forces Space (7)
+// on space maps for music; the map ambience follows the raw type (#224, retail 0x364f00).
 std::string_view App::battle_terrain() const {
     const sim::TacticalBattle* b = session_ ? session_->battle() : nullptr;
-    return b ? GameAudioHost::terrain_name(b->terrain_type()) : std::string_view();
+    return b ? GameAudioHost::terrain_name(b->map().info.counts[4]) : std::string_view();
 }
 
 std::string App::local_faction() const {
