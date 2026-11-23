@@ -1711,9 +1711,12 @@ void TacticalBattle::bt_place_forces(TacticalMode& mode, SimRng& rng, const Para
     //    marker with that id) takes the structure's group pick still in pass 1, ahead of the structures without a memory
     //    (#70 follow-up, 0x2a1eb0 LAB_1402a3d19 [H]: the search falls through to the group cursor): a specific marker
     //    listing the type, else the Base_Position group (Orbital / In_Base / Out_Base; In_Base falls over to out-base and
-    //    vice versa); no group marker -> left to pass 0. Pass 0 places the rest: the same group pick, else any free
-    //    in-base then out-base marker; none left -> not spawned. Spawned for the record defender. On placement the structure remembers the slot (+0x3ac: [M] the marker's
-    //    index among the markers of its kind) and the marker (+0x3b0: [M] the marker's .ted object id, which the loader keeps
+    //    vice versa). [M] no group marker -> left to pass 0 (retail: such a structure goes to its unplaced list, placed
+    //    after both passes on the next in-base, else out-base marker with +0x3ac 0xff and no memory written; and retail
+    //    gates even a matched memory on the group being valid). Pass 0 places the rest: the same group pick, else any
+    //    free in-base then out-base marker; none left -> not spawned. Spawned for the record defender. On placement the
+    //    structure remembers the slot (+0x3ac: [M] the marker's index among the markers of its kind) and the marker
+    //    (+0x3b0: [M] the marker's .ted object id, which the loader keeps
     //    as the object's id) in the galactic memory. [M] the space special-weapon rule.
     auto slot_of = [this](size_t mi) {
         int32_t n = 0;
