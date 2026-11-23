@@ -2013,6 +2013,7 @@ void test_map_owners(const Data& d) {
                                 place("S4_Post", 900.0f, 1800.0f, 5);     // playable faction without a player -> dropped
                                 place("S4_Post", 1000.0f, 1800.0f, 3);    // Hostile -> player 3
                                 place("S4_Post", 1100.0f, 1800.0f, 9);    // no such faction -> dropped
+                                place("S4_Beacon", 1200.0f, 1800.0f, 1);  // attacker, MARKER in <Behavior>: kept (#70 t02)
                                 return true;
                             },
                             opt);
@@ -2037,6 +2038,8 @@ void test_map_owners(const Data& d) {
         CHECK(b->standin_owner(0) && b->standin_owner(1) && !b->standin_owner(2) && !b->standin_owner(-1));
         const objects::ObjectStore& st = host.tactical()->primary();
         const objects::TypeIndex post = d.types.resolve_name("S4_Post"), rp = d.types.resolve_name("S4_RPoint");
+        const objects::TypeIndex beacon = d.types.resolve_name("S4_Beacon");
+        int32_t beacon_owner = -9;
         std::map<int, int32_t> post_owner;  // x position -> owner
         int32_t near_owner = -9, far_owner = -9;
         objects::ObjectId near_id = objects::kNoObjectId;
@@ -2049,16 +2052,20 @@ void test_map_owners(const Data& d) {
                 near_id = st.id(h);
             }
             if (st.type(h) == rp && p.x > 1000.0f) far_owner = st.owner(h);
+            if (st.type(h) == beacon) beacon_owner = st.owner(h);
         }
         std::printf("  map owners: posts");
         for (const auto& [x, o] : post_owner) std::printf(" %d:%d", x, o);
-        std::printf("; landing point owner %d (far point %d), landing points %zu\n", near_owner, far_owner, b->landing_points().size());
+        std::printf("; landing point owner %d (far point %d), landing points %zu; beacon owner %d\n", near_owner, far_owner,
+                    b->landing_points().size(), beacon_owner);
         CHECK(post_owner.size() == 3);
         CHECK(post_owner.count(600) && post_owner[600] == 1);
         CHECK(!post_owner.count(700));  // the attacker's Is_Branched_Map_Discardable object (default Yes) is discarded
         CHECK(post_owner.count(800) && post_owner[800] == 3);
         CHECK(post_owner.count(1000) && post_owner[1000] == 3);
         CHECK(!post_owner.count(900) && !post_owner.count(1100));
+        // #70 t02 (0x2b0a20 -> 0x370320(type, 0x11 = MARKER, -1 -> the <Behavior> set) [H]): the attacker's beacon is kept
+        CHECK(beacon != objects::kNone && beacon_owner == 0);
         CHECK(near_owner == 0 && far_owner == 2);
         CHECK(b->landing_points().size() == 1 && b->landing_points()[0] == near_id);
         checked = true;
