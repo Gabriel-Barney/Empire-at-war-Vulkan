@@ -19,6 +19,9 @@
 #ifdef ALAMO_GAME_HAVE_AUDIO
 #include "alamo/audio/audio_system.hpp"
 #endif
+#ifdef ALAMO_AUDIO_HAVE_LUA
+#include "alamo/lua/presentation.hpp"  // aud8 t05
+#endif
 
 using namespace alamo;
 using namespace alamo::game;
@@ -1244,6 +1247,52 @@ void test_aud2() {
 // player's tactical production begin / cancel / complete play the built type's speech or SFXEvent_Tactical_Build_* line
 // (MCX4_T13_RE_ANSWERS "GameObjectType.SFXEvent_Tactical_Build_Started family"), no build music in a battle; another
 // player's events, a negative type and no local player play nothing.
+// aud8 t05: object positions are fed only during battles. Leaving the battle scene drops them, so a Lua Play_SFX_Event in
+// galactic mode is not placed at the position its object id had in the battle.
+void test_galactic_lua_sfx_position() {
+#if defined(ALAMO_GAME_HAVE_AUDIO) && defined(ALAMO_AUDIO_HAVE_LUA)
+    auto tree = make_tree(true);
+    tree->add("Data\\XML\\SFXEventsTest.xml", R"(<?xml version="1.0"?>
+<SFXEvents>
+  <SFXEvent Name="Lua_Boom"><Is_2D>No</Is_2D><Is_3D>Yes</Is_3D><Samples>BOOM.WAV</Samples></SFXEvent>
+</SFXEvents>
+)");
+    tree->add("Data\\Audio\\SFX\\BOOM.WAV", "RIFF");  // the null backend only asks whether the sample exists
+    GameData data;
+    data.files = std::move(tree);
+    GameAudioHost h;
+    CHECK(h.init(data, AudioBackendKind::Null, 13));
+    if (!h.active()) return;
+    uint32_t seq = 0;
+    const auto play = [&h, &seq](int32_t object) {
+        alamo::lua::PresentationEvent e;
+        e.seq = seq;
+        e.op = alamo::lua::PresentationOp::ObjectPlaySfxEvent;
+        alamo::lua::PresentationArg ev, obj;
+        ev.kind = alamo::lua::PresentationArg::Kind::String;
+        ev.text = "Lua_Boom";
+        obj.kind = alamo::lua::PresentationArg::Kind::Object;
+        obj.id = object;
+        e.args = {obj, ev};
+        h.apply_presentation({e}, &seq);
+        h.update(0.0);
+        const audio::LogEntry* v = nullptr;
+        for (const audio::LogEntry& l : h.system()->log())
+            if (l.op == audio::LogOp::SfxVoice && l.event == "Lua_Boom") v = &l;
+        return v ? v->gain : -1.0f;
+    };
+    // A space battle: object 7 is 20000 units from the listener, beyond the 3D max distance (15000): silent.
+    h.music(MusicScene::Battle, "Rebel", true, "Space");
+    h.set_listener(Vec3{0, -10, 0}, Vec3{0, 0, 0});
+    h.set_object_positions({{7, Vec3{20000.0f, 0.0f, 0.0f}}});
+    CHECK(play(7) == 0.0f);
+    // Back on the galactic map, the same id: not at the battle's position.
+    h.music(MusicScene::Galactic, "Rebel");
+    h.set_listener(Vec3{0, -10, 0}, Vec3{0, 0, 0});
+    CHECK(play(7) > 0.0f);  // before aud8 t05: 0, still 20000 units away
+#endif
+}
+
 void test_presentation_events_ref2() {
     using K = sim::PresentationEventKind;
     MemoryProvider files;
@@ -1333,6 +1382,7 @@ void test_presentation_events_ref2() {
 int main() {
     test_delayed_fire_sounds();  // trl2 t08
     test_object_sfx_t05();
+    test_galactic_lua_sfx_position();  // aud8 t05
     test_inactive();
     test_control_point_lines();
     test_garrison_and_clash_lines();
