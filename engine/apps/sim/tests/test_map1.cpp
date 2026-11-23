@@ -9,8 +9,9 @@
 //       (REMAINING_GAPS 3.2 step 4);
 //     * t07 space start: the DUMMY_STAR_BASE of the battle's starbase level for the defender, the start units'
 //       Space_Escort_Unit_Types, the defender's camera focus on the station marker (REMAINING_GAPS 3.2 steps 1 / 6).
-//     * #44 t02 (R3G_ANIM_TIMED_RE §3, the land launch 0x594dc0): a land SPAWN_SQUADRON structure with
-//       Spawned_Squadron_Location_Bones sends its unit along the spawn bone's x axis, not along the structure's facing.
+//     * #44 t02 (R3G_ANIM_TIMED_RE §3; 0x594dc0 / 0x593960 read 2026-11-23): a land SPAWN_SQUADRON structure with
+//       Spawned_Squadron_Location_Bones sends its unit along the spawn bone's x axis, not along the structure's facing;
+//       a Spawn_Garrison_On_Load one creates its garrison at the fly-out point, facing along the bone, with no order.
 //   --every-map (slow, ALAMO_FOC_DATA / ALAMO_EAW_DATA; skipped when unset): every retail .ted map (land and space) goes
 //     through the TacticalBattle map load (start_map_battle, first battle tick): no crash, no unknown type, every company
 //     placement expanded; per-map counts of companies, hangar-off placements, extra behaviours and marker names (t08).
@@ -42,6 +43,8 @@ std::string map1_types(std::string t) {
         "<Starting_Spawned_Units_Tech_0>S10_Trooper, 1</Starting_Spawned_Units_Tech_0>"
         "<Spawned_Squadron_Location_Bones>SPAWN_00</Spawned_Squadron_Location_Bones>"
         "<Spawned_Squadron_Location_Flyout_Distances>100.0</Spawned_Squadron_Location_Flyout_Distances></SpecialStructure>\n"
+        " <SpecialStructure Name=\"M1_Bone_Garrison\"><Variant_Of_Existing_Type>M1_Bone_Hangar</Variant_Of_Existing_Type>"
+        "<Spawn_Garrison_On_Load>True</Spawn_Garrison_On_Load></SpecialStructure>\n"
         " <SpaceUnit Name=\"M1_Escorted\"><Variant_Of_Existing_Type>S10_Frigate</Variant_Of_Existing_Type>"
         "<Space_Escort_Unit_Types>S10_Corvette, S10_Corvette</Space_Escort_Unit_Types></SpaceUnit>\n";
     t.insert(t.rfind("</S10>"), add);
@@ -475,22 +478,25 @@ void write_spawn_bone_model(const fs::path& root) {
     f.write(reinterpret_cast<const char*>(alo.data()), static_cast<std::streamsize>(alo.size()));
 }
 
-// #44 t02 (R3G_ANIM_TIMED_RE §3 [H], 0x594dc0 read 2026-11-23): with Spawned_Squadron_Location_Bones the launch takes the
-// bone's world x axis (matrix column 0) as the spawn facing and moves the unit to spawn point + that facing x the bone's
-// fly-out distance. M1_Bone_Hangar faces +x (map yaw 90); its SPAWN_00 bone sits 30 in front of the nose (model (0, -30, 0); ALO
-// model space: nose -Y, left +X) with its x axis at model (0.6, -0.8): 0.8 forward and 0.6 to the left. In the world:
-// origin = hangar + (30, 0), direction (0.8, 0.6), so the unit starts at hangar + (30, 0) and flies out to
-// hangar + (110, 60). Along the structure's facing (the port before t02) it went to hangar + (130, 0).
-void test_land_spawn_bone(const Data& d) {
-    const uint32_t trooper = type_of(d, "S10_Trooper"), bone_hangar = type_of(d, "M1_Bone_Hangar");
+// #44 t02 (R3G_ANIM_TIMED_RE §3 [H]; 0x594dc0 and 0x593960 read 2026-11-23): with Spawned_Squadron_Location_Bones the
+// spawn facing is the bone's world x axis (matrix column 0) and the fly-out point is spawn point + that facing x the bone's
+// fly-out distance. M1_Bone_Hangar faces +x (map yaw 90); its SPAWN_00 bone sits 30 in front of the nose (model
+// (0, -30, 0); ALO model space: nose -Y, left +X) with its x axis at model (0.6, -0.8): 0.8 forward and 0.6 to the left.
+// In the world: spawn point = hangar + (30, 0), facing (0.8, 0.6), fly-out point hangar + (110, 60); along the structure's
+// facing (the port before t02) it was hangar + (130, 0).
+//   * the launch (0x594dc0, `garrison` false): the unit starts at the spawn point and is ordered to the fly-out point;
+//   * Spawn_Garrison_On_Load (0x593960, M1_Bone_Garrison): the unit is created at the fly-out point itself, facing along
+//     the bone, with no order.
+void test_land_spawn_bone(const Data& d, bool garrison) {
+    const uint32_t trooper = type_of(d, "S10_Trooper"), bone_hangar = type_of(d, garrison ? "M1_Bone_Garrison" : "M1_Bone_Hangar");
     terrain::MapData m = land_map();
     m.objects.push_back(place("Defending Forces Position", 600.0f, 600.0f, 0));
     m.objects.push_back(place("Attacker Entry Position", 200.0f, 200.0f, 1));
-    terrain::ObjectPlacement hp = place("M1_Bone_Hangar", 1000.0f, 1000.0f, 0);
+    terrain::ObjectPlacement hp = place(garrison ? "M1_Bone_Garrison" : "M1_Bone_Hangar", 1000.0f, 1000.0f, 0);
     hp.rotation_deg[2] = 90.0f;  // the map yaw: 0 faces -y, 90 faces +x
     m.objects.push_back(hp);
-    // the battle as run_map_battle, ticked until a trooper of the hangar's owner has an order (Spawn_Garrison_On_Load: the
-    // first update after the structure is added)
+    // the battle as run_map_battle, ticked until the hangar's trooper shows up (the launch: ordered; the garrison: at the
+    // fly-out point)
     jobs::JobSystem js(jobs::JobSystemConfig{0});
     SimConfig cfg;
     cfg.seed = 2026;
@@ -516,20 +522,19 @@ void test_land_spawn_bone(const Data& d) {
     r.info.attacker = 1;
     r.info.map = r.map = "M1_Map";
     CHECK(battles.start_map_battle(std::move(r)));
-    uint32_t hangars = 0, launched = 0, on_bone = 0, frame = 0;
-    for (uint64_t t = 0; t < 200 && launched == 0; ++t) {
+    uint32_t hangars = 0, found = 0, right = 0;
+    for (uint64_t t = 0; t < 200 && found == 0; ++t) {
         host.tick_once();
         TacticalBattle* b = battles.battle();
         TacticalMode* tm = host.tactical();
         if (!b || !tm || b->frame() < 1) continue;
         const objects::ObjectStore& st = tm->primary();
-        Vec3 at{};
-        objects::ObjectId bone_id = objects::kNoObjectId;
+        Vec3 at{}, hf{};
         hangars = 0;
         for (const objects::ObjectHandle h : st.all_objects())
             if (st.alive(h) && static_cast<uint32_t>(st.type(h)) == bone_hangar) {
                 at = st.position(h);
-                bone_id = st.id(h);
+                hf = st.facing(h);
                 ++hangars;
             }
         for (const objects::ObjectHandle h : st.all_objects()) {
@@ -537,20 +542,30 @@ void test_land_spawn_bone(const Data& d) {
             const objects::ObjectId id = st.id(h);
             if (!b->movement().has_unit(id)) continue;
             const tactical::movement::UnitView v = b->movement().view(id);
-            if (!v.has_goal) continue;
-            ++launched;
-            frame = b->frame();
-            std::printf("  bone hangar at (%.1f, %.1f): trooper %d at (%.2f, %.2f) goal (%.2f, %.2f), frame %u\n",
-                        static_cast<double>(at.x), static_cast<double>(at.y), id, static_cast<double>(v.pos.x),
-                        static_cast<double>(v.pos.y), static_cast<double>(v.goal.x), static_cast<double>(v.goal.y), frame);
-            const Vec3 f = st.facing(st.find(bone_id));
-            on_bone += f.x > 0.999f && std::fabs(v.pos.x - (at.x + 30.0f)) < 0.5f && std::fabs(v.pos.y - at.y) < 0.5f &&
-                               std::fabs(v.goal.x - (at.x + 110.0f)) < 0.5f && std::fabs(v.goal.y - (at.y + 60.0f)) < 0.5f
-                           ? 1u
-                           : 0u;
+            const bool near_hangar = std::fabs(v.pos.x - at.x) < 200.0f && std::fabs(v.pos.y - at.y) < 200.0f;
+            if (!near_hangar || (!garrison && !v.has_goal)) continue;
+            ++found;
+            const Vec3 uf = st.facing(h);
+            std::printf("  %s at (%.1f, %.1f): trooper %d at (%.2f, %.2f) facing (%.3f, %.3f) goal %d (%.2f, %.2f), frame %u\n",
+                        garrison ? "bone garrison" : "bone hangar", static_cast<double>(at.x), static_cast<double>(at.y), id,
+                        static_cast<double>(v.pos.x), static_cast<double>(v.pos.y), static_cast<double>(uf.x),
+                        static_cast<double>(uf.y), v.has_goal ? 1 : 0, static_cast<double>(v.goal.x), static_cast<double>(v.goal.y),
+                        b->frame());
+            const bool facing_ok = std::fabs(uf.x - 0.8f) < 0.01f && std::fabs(uf.y - 0.6f) < 0.01f;
+            if (garrison) {
+                right += hf.x > 0.999f && facing_ok && !v.has_goal && std::fabs(v.pos.x - (at.x + 110.0f)) < 0.5f &&
+                                 std::fabs(v.pos.y - (at.y + 60.0f)) < 0.5f
+                             ? 1u
+                             : 0u;
+            } else {
+                right += hf.x > 0.999f && std::fabs(v.pos.x - (at.x + 30.0f)) < 0.5f && std::fabs(v.pos.y - at.y) < 0.5f &&
+                                 std::fabs(v.goal.x - (at.x + 110.0f)) < 0.5f && std::fabs(v.goal.y - (at.y + 60.0f)) < 0.5f
+                             ? 1u
+                             : 0u;
+            }
         }
     }
-    CHECK(hangars == 1 && launched == 1 && on_bone == 1);
+    CHECK(hangars == 1 && found == 1 && right == 1);
 }
 
 }  // namespace
@@ -570,7 +585,8 @@ int main(int argc, char** argv) {
     std::printf("map1: space start (starbase pick, escorts, camera focus)\n");
     test_space(*d);
     std::printf("map1: land spawner fly-out along the spawn bone (#44 t02)\n");
-    test_land_spawn_bone(*d);
+    test_land_spawn_bone(*d, false);
+    test_land_spawn_bone(*d, true);
     std::printf(g_fail ? "alamo_sim_map1_tests: %d failure(s)\n" : "alamo_sim_map1_tests: OK\n", g_fail);
     return g_fail ? 1 : 0;
 }
