@@ -8,6 +8,15 @@ namespace alamo::sim {
 
 struct TacticalBattleTestAccess {
     static tactical::abilities::AbilitySystem& abilities(TacticalBattle& b) { return *b.abilities_; }
+    // #44 t01: a unit's DEPLOY_TROOPERS attachment (the walker and the bone index; kNoObjectId / -1 when free). False for
+    // an unknown unit.
+    static bool attachment(TacticalBattle& b, objects::ObjectId id, objects::ObjectId& to, int32_t& bone) {
+        const TacticalBattle::Unit* u = b.unit_by_id(id);
+        if (!u) return false;
+        to = u->attached_to;
+        bone = u->attach_bone;
+        return true;
+    }
     // The battle's fog, mutable (null when fog is off or the battle is not set up).
     static tactical::fog::FogOfWar* fog(TacticalBattle& b) { return b.fog_rw(); }
 #ifdef ALAMO_SIM_HAVE_AI_TACTICAL
