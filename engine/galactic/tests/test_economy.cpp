@@ -791,9 +791,11 @@ void test_cancel_voicing() {
     GalacticSim& s = w.sim;
     s.set_emit_events(true);
     for (int i = 0; i < 3; ++i) CHECK(s.enqueue(pEmpire, rA, tInfantry) == RejectReason::None);
-    CHECK(s.cancel(pEmpire, rA, kGroundQueue, 2) == RejectReason::None);
+    CHECK(s.cancel(pEmpire, rA, kGroundQueue, 2) == RejectReason::None);  // voiced
     s.reevaluate_queue(rA, kGroundQueue, -1);  // every entry needs more: the walk deletes the tail, then the head
-    if (!w.planet(rA).queue[kGroundQueue].empty()) s.clear_queue(rA, kGroundQueue);
+    CHECK(w.planet(rA).queue[kGroundQueue].empty());
+    CHECK(s.enqueue(pEmpire, rA, tInfantry) == RejectReason::None);
+    s.clear_queue(rA, kGroundQueue);  // the battle-end wipe
     std::vector<GalacticEvent> all;
     s.drain_events(all);
     uint32_t voiced = 0, silent = 0;
@@ -803,7 +805,7 @@ void test_cancel_voicing() {
         else ++silent;
     }
     std::printf("  cancel voicing: %u voiced, %u silent\n", voiced, silent);
-    CHECK(voiced == 1 && silent == 2);
+    CHECK(voiced == 1 && silent == 3);
 }
 
 void test_event_stream() {
