@@ -106,7 +106,8 @@
 //       must give the original's per-tick CRCs.
 // any mode takes --svc-mode serial|parallel|reverse (the battle services graph; same results, reverse = order check)
 // and --svc-check (debug write check of the services' declared sets; violations printed to stderr), and
-// --svc-streams hangar|none (those services draw from counter-based streams; this MOVES per-seed outcomes), and
+// --svc-streams hangar,reinforce,landing|none (those services draw from counter-based streams; this MOVES per-seed
+// outcomes), and
 // --svc-parallel-min N (the per-unit service loops fork from N units, default 256; same results, a check of the forks).
 // BM1 benchmark (bench_run.hpp; scenario format alamo/sim/bench_scenario.hpp):
 //   alamo_headless --bench SCENARIO.abench [--runs R] [--warmup W] [--workers N] [--ticks K] [--bench-json FILE|-]
@@ -1367,9 +1368,19 @@ int main(int argc, char** argv) {
                 size_t end = list.find(',', at);
                 if (end == std::string::npos) end = list.size();
                 const std::string n = list.substr(at, end - at);
-                if (n == "hangar") d.streams |= 1u << static_cast<uint32_t>(alamo::tactical::services::StreamId::Hangar);
-                else if (!n.empty() && n != "none") {
-                    std::fprintf(stderr, "alamo_headless: --svc-streams: unknown service '%s' (hangar | none)\n", n.c_str());
+                using alamo::tactical::services::StreamId;
+                // #128: one name per converted service (StreamId)
+                static constexpr std::pair<const char*, StreamId> kNames[] = {
+                    {"hangar", StreamId::Hangar}, {"reinforce", StreamId::Reinforce}, {"landing", StreamId::Landing}};
+                bool known = n.empty() || n == "none";
+                for (const auto& [name, id] : kNames)
+                    if (n == name) {
+                        d.streams |= 1u << static_cast<uint32_t>(id);
+                        known = true;
+                    }
+                if (!known) {
+                    std::fprintf(stderr, "alamo_headless: --svc-streams: unknown service '%s' (hangar | reinforce | landing | none)\n",
+                                 n.c_str());
                     return 2;
                 }
                 at = end + 1;

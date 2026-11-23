@@ -592,6 +592,12 @@ objects::ObjectId TacticalBattle::hg_spawn(TacticalMode& mode, int32_t type, int
     return bound;
 }
 
+SimRng& TacticalBattle::svc_rng(uint32_t stream, uint64_t entity, SimRng& rng, SimRng& own) const {
+    if (!(svc_streams_ & (1u << stream))) return rng;
+    own = tactical::services::stream_rng(cfg_.session_seed, frame_, static_cast<tactical::services::StreamId>(stream), entity);
+    return own;
+}
+
 void TacticalBattle::hg_tick(TacticalMode& mode, SimRng& rng) {
     if (!hangars_) return;
     // with the Hangar stream on, each carrier's entry / bay draws come from its own counter-based stream.

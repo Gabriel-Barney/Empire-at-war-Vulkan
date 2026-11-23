@@ -1166,7 +1166,9 @@ void TacticalBattle::reinforce(TacticalMode& mode, SimRng& rng, bool force_empty
             if (!empty && commanded_by_player(p.owner)) continue;  // P host: a human player's reserves deploy by Reinforce commands
             const bool fits = !space_ || live_pop + p.pop <= cap;
             if (!fits && !(empty && first)) continue;  // [port] an empty side always gets its next pool unit
-            deploy(mode, i, rng);
+            // #128: with the Reinforce stream on, each participant's deploy draws from its own stream.
+            SimRng own;
+            deploy(mode, i, svc_rng(static_cast<uint32_t>(tactical::services::StreamId::Reinforce), i, rng, own));
             live_pop += p.pop;
             ++stats_.reinforcements;
             first = false;

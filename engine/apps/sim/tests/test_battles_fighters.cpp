@@ -291,7 +291,8 @@ struct FighterBattle {
 };
 
 // The S7 t12 fighter battle: the TIE squadron (player 0) joins the S10 space fight; no stand-in orders.
-bool start_fighter_battle(FighterBattle& fb, bool fog, bool carrier = false, uint32_t workers = 0) {
+// `reserves`: extra attacker corvettes over the unit cap (#128: reinforcement deploys during the battle).
+bool start_fighter_battle(FighterBattle& fb, bool fog, bool carrier = false, uint32_t workers = 0, uint32_t reserves = 0) {
     fb.d = make_data(fog, false, false, false, false, false, false, false, true);
     fb.js = std::make_unique<jobs::JobSystem>(jobs::JobSystemConfig{static_cast<int32_t>(workers)});
     SimConfig cfg;
@@ -301,6 +302,7 @@ bool start_fighter_battle(FighterBattle& fb, bool fog, bool carrier = false, uin
     galactic::GalacticSetup gsetup = make_setup(*fb.d, false);
     gsetup.forces.push_back({0, 1, type_of(*fb.d, "S10_TIE_Squadron")});
     if (carrier) gsetup.forces.push_back({0, 1, type_of(*fb.d, "S10_Carrier")});  // S7 t24
+    for (uint32_t i = 0; i < reserves; ++i) gsetup.forces.push_back({1, 2, type_of(*fb.d, "S10_Corvette")});
     fb.gs = fb.host->start_galactic(fb.d->rules, gsetup);
     CHECK(fb.gs != nullptr);
     if (!fb.gs) return false;
@@ -1173,24 +1175,38 @@ std::string second_bay(std::string t) {
 }
 struct StreamRun {
     uint64_t digest = 0;
-    uint32_t fighters = 0;  // live S10_TIE objects at the end
+    uint32_t fighters = 0;        // live S10_TIE objects at the end
+    uint32_t reinforcements = 0;  // #128: the battle's reinforcement deploys
 };
-StreamRun run_hangar_streams(uint32_t streams, uint32_t workers) {
+StreamRun run_hangar_streams(uint32_t streams, uint32_t workers, uint32_t reserves = 0,
+                             tactical::services::RunMode mode = TacticalBattle::service_run_defaults().mode) {
     const TacticalBattle::ServiceRunDefaults saved = TacticalBattle::service_run_defaults();
     TacticalBattle::ServiceRunDefaults d = saved;
     d.streams = streams;
+    d.mode = mode;
     TacticalBattle::set_service_run_defaults(d);
     StreamRun r;
     FighterBattle fb;
-    if (start_fighter_battle(fb, false, true, workers)) {
+    if (start_fighter_battle(fb, false, true, workers, reserves)) {
         StateHasher all;
         for (uint64_t t = 0; t < 1500; ++t) {
             fb.host->tick_once();
             TacticalBattle* b = fb.battles->battle();
             TacticalMode* tm = fb.host->tactical();
             if (!b || !tm) continue;
+            // #128: the attacker's deployed ships die at frame 300, so its reserves deploy through the reinforce service.
+            if (reserves && b->frame() == 300) {
+                auto& cs = const_cast<tactical::combat::CombatSystem&>(b->combat());
+                std::vector<objects::ObjectId> doomed;
+                for (size_t i = 0; i < cs.unit_count(); ++i) {
+                    const objects::ObjectHandle h = tm->primary().find(cs.unit_id_at(i));
+                    if (tm->primary().alive(h) && tm->primary().owner(h) == 1) doomed.push_back(cs.unit_id_at(i));
+                }
+                for (const objects::ObjectId id : doomed) cs.kill_unit(id, objects::kNoObjectId, 0, b->frame());
+            }
             const objects::ObjectStore& st = tm->primary();
             all.u64(t);
+            all.u32(fb.host->random().synced().state());  // #128: a draw that moved off the synced RNG shows here too
             for (const objects::ObjectHandle h : st.all_objects()) {
                 if (!st.alive(h)) continue;
                 const Vec3 p = st.position(h);
@@ -1202,6 +1218,7 @@ StreamRun run_hangar_streams(uint32_t streams, uint32_t workers) {
             }
         }
         r.digest = all.digest();
+        if (const TacticalBattle* b = fb.battles->battle()) r.reinforcements = b->stats().reinforcements;
         if (TacticalMode* tm = fb.host->tactical()) {
             const objects::ObjectStore& st = tm->primary();
             const auto tie = static_cast<objects::TypeIndex>(type_of(*fb.d, "S10_TIE"));
@@ -1231,6 +1248,35 @@ void test_hangar_streams() {
         CHECK(x.digest == on.digest);
         const StreamRun y = run_hangar_streams(0, w);  // the flag off stays worker-independent too
         CHECK(y.digest == off.digest);
+    }
+    g_types_patch = nullptr;
+    g_bay_patch = nullptr;
+    g_temp_prefix = prefix;
+}
+
+// #128 t01: the reinforce service on counter-based streams (bit StreamId::Reinforce): each participant's deploy draws from
+// its own stream. Off: the synced draws; on: the run differs and is identical at 0 / 1 / 4 / 15 workers.
+void test_reinforce_streams() {
+    const char* prefix = g_temp_prefix;
+    g_types_patch = two_bay_carrier;
+    g_bay_patch = second_bay;
+    g_temp_prefix = "alamo_sim_battle_fighter_tests_128";
+    const uint32_t bit = 1u << static_cast<uint32_t>(tactical::services::StreamId::Reinforce);
+    const StreamRun off = run_hangar_streams(0, 0, 6);
+    const StreamRun on = run_hangar_streams(bit, 0, 6);
+    std::printf("  reinforce streams: off digest %016llx (%u deploys), on %016llx (%u deploys)\n",
+                static_cast<unsigned long long>(off.digest), off.reinforcements, static_cast<unsigned long long>(on.digest),
+                on.reinforcements);
+    CHECK(off.reinforcements > 0 && on.reinforcements > 0);
+    CHECK(off.digest != on.digest);  // the draws moved
+    for (const uint32_t w : {1u, 4u, 15u}) {
+        const StreamRun x = run_hangar_streams(bit, w, 6);
+        std::printf("  reinforce streams on, workers %2u: %s\n", w, x.digest == on.digest ? "identical" : "DIFFERENT");
+        CHECK(x.digest == on.digest);
+    }
+    for (const auto m : {tactical::services::RunMode::Serial, tactical::services::RunMode::Reverse}) {  // every service run mode
+        const StreamRun x = run_hangar_streams(bit, 4, 6, m);
+        CHECK(x.digest == on.digest);
     }
     g_types_patch = nullptr;
     g_bay_patch = nullptr;
@@ -1359,6 +1405,7 @@ int main(int argc, char** argv) {
     test_compose_squadron_union();
     std::printf("SP5 t03: hangar services on counter-based streams (flag off / on, worker counts)\n");
     test_hangar_streams();
+    test_reinforce_streams();  // #128 t01
     std::printf("#50 t06: a single-ship hangar launch is a HangarLaunch presentation event\n");
     test_hangar_launch_presentation();
     std::printf("trl2 t06: hangar gates of the battle planet (Corruption_Bribery owner faction, Planet_Restricted_Unit_Types)\n");

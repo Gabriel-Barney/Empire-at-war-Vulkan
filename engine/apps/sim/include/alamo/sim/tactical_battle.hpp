@@ -3247,6 +3247,9 @@ private:
     tactical::services::RunMode svc_mode_ = service_run_defaults().mode;
     uint32_t svc_parallel_min_ = service_run_defaults().parallel_min;
     uint32_t svc_streams_ = service_run_defaults().streams;  // services on counter-based streams (bit per StreamId)
+    // #128: the draws of service `stream` for `entity` this tick: its counter-based stream (stream_rng(session_seed, frame,
+    // stream, entity)) in `own` when that service's bit is on, else the synced `rng`. `stream` is a StreamId value.
+    SimRng& svc_rng(uint32_t stream, uint64_t entity, SimRng& rng, SimRng& own) const;
     std::unique_ptr<tactical::services::Checker> svc_check_;
     // --- end SP5 ---
 };
