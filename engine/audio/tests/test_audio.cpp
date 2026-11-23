@@ -236,6 +236,21 @@ const char* kMusic = R"(<?xml version="1.0"?>
     <Fade_Out_Previous_Seconds>0.0</Fade_Out_Previous_Seconds>
     <Loop>No</Loop>
   </MusicEvent>
+  <MusicEvent Name="Movie">
+    <Files>MOVIE1.MP3, MOVIE2.MP3</Files>
+    <Volume_Percent>100</Volume_Percent>
+    <Fade_In_Seconds>0.0</Fade_In_Seconds>
+    <Fade_Out_Previous_Seconds>0.0</Fade_Out_Previous_Seconds>
+    <Loop>Yes</Loop>
+  </MusicEvent>
+  <MusicEvent Name="Stream">
+    <Files>STREAM.MP3</Files>
+    <Volume_Percent>100</Volume_Percent>
+    <Fade_In_Seconds>0.0</Fade_In_Seconds>
+    <Fade_Out_Previous_Seconds>0.0</Fade_Out_Previous_Seconds>
+    <Loop>No</Loop>
+    <MSS_Internal_Loop>Yes</MSS_Internal_Loop>
+  </MusicEvent>
 </MusicEvents>
 )";
 
@@ -351,7 +366,7 @@ void test_parse() {
     CHECK(r.unknown_tags.count("SFXEvent.Bogus_Tag") == 1);
     CHECK(r.unknown_tags.count("MusicEvent.Play_Sequentially") == 1);  // EaW-only tag, not in FoC's table
     CHECK(r.unknown_tags.count("Audio.Ambient_Map_Sounds") == 1);
-    CHECK(r.music_events == 3 && r.speech_events == 3);
+    CHECK(r.music_events == 5 && r.speech_events == 3);
 
     const SfxEvent& sel = db.sfx()[db.find_sfx("unit_select_a")];
     CHECK(sel.samples.size() == 3 && sel.samples[2] == "A3_ENG.WAV");
@@ -853,6 +868,46 @@ void test_music() {
     a.update(0.0);
     a.stop_all_music();
     CHECK(a.active_voices(Bus::Music) == 0 && a.current_music().empty());
+}
+
+// aud8 t03 (legacy docs/re/AUDIO.md §2.1, §2.2): an ended entry restarts the previous music only when it was queued with
+// resume previous; mode 14 only stops a looping playlist after one pass. An MSS_Internal_Loop stream that reports done is
+// restarted.
+void test_music_end_rules() {
+    for (const bool resume : {false, true}) {
+        Rig rig;
+        AudioSystem& a = *rig.a;
+        CHECK(a.play_music("Galactic", music_mode::kGalactic));
+        a.update(0.0);
+        CHECK(a.play_music("Movie", music_mode::kMovie, resume));
+        a.update(0.0);
+        a.update(10.5);  // MOVIE1 (10 s) ends: Loop -> MOVIE2
+        CHECK(a.current_music() == "Movie" && last_op(a, LogOp::MusicTrack)->sample == "MOVIE2.MP3");
+        a.update(10.5);  // MOVIE2 ends: one full pass in mode 14
+        if (resume) {
+            CHECK(a.current_music() == "Galactic" && a.music_mode() == music_mode::kGalactic);
+        } else {
+            CHECK(a.current_music().empty());
+            a.update(0.0);
+            CHECK(a.active_voices(Bus::Music) == 0);
+        }
+    }
+    {
+        Rig rig;
+        AudioSystem& a = *rig.a;
+        CHECK(a.play_music("Stream", music_mode::kLua));
+        a.update(0.0);
+        const uint32_t v = last_op(a, LogOp::MusicTrack)->voice;
+        CHECK(rig.backend.voice(v) && rig.backend.voice(v)->params.loop);
+        a.update(30.0);  // the looping stream plays on
+        CHECK(rig.backend.playing(v) && a.current_music() == "Stream");
+        rig.backend.stop(v);  // the stream reports done
+        a.update(0.0);
+        const LogEntry* t = last_op(a, LogOp::MusicTrack);
+        CHECK(a.current_music() == "Stream" && t && t->sample == "STREAM.MP3" && t->voice != v);
+        CHECK(rig.backend.playing(t->voice) && rig.backend.voice(t->voice)->params.loop);
+        CHECK(a.active_voices(Bus::Music) == 1);
+    }
 }
 
 void test_speech() {
@@ -1688,6 +1743,7 @@ int main() {
     test_state_machine();
     test_voices();
     test_music();
+    test_music_end_rules();
     test_speech();
     test_determinism();
     test_decode_backend();

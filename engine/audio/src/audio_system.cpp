@@ -1057,6 +1057,24 @@ void AudioSystem::start_music_file(MusicEntry& e) {
     e.state = 2;
 }
 
+bool AudioSystem::restart_music_stream(Stream& s) {
+    backend_->stop(s.voice);
+    s.voice = next_voice_++;
+    VoiceParams vp;
+    vp.gain = bus_gain(AudioBus::Music) * static_cast<float>(db_->music()[s.event].volume_percent) / 100.0f * s.level;
+    vp.loop = true;
+    const bool ok = backend_->start(s.voice, SampleRef{Bus::Music, s.file}, vp);
+    LogEntry le;
+    le.op = LogOp::MusicTrack;
+    le.event = db_->music()[s.event].name;
+    le.sample = s.file;
+    le.voice = s.voice;
+    le.gain = vp.gain;
+    le.reason = ok ? "restart" : "sample_missing";
+    push(std::move(le));
+    return ok;
+}
+
 void AudioSystem::pause_music() {
     if (music_pause_++ != 0) return;
     for (const Stream* s : {&music_previous_, &music_current_})
@@ -1082,6 +1100,8 @@ void AudioSystem::update_music(int64_t dt_us) {
         }
         if (e.state == 2) {
             if (music_current_.voice && backend_->playing(music_current_.voice)) break;
+            // §2.1: an MSS_Internal_Loop stream that reports done is restarted; its entry stays current.
+            if (music_current_.voice && music_current_.internal_loop && restart_music_stream(music_current_)) break;
             e.state = 3;
         }
         if (e.state == 3) {
@@ -1098,7 +1118,8 @@ void AudioSystem::update_music(int64_t dt_us) {
             le.event = m.name;
             le.reason = "ended";
             push(std::move(le));
-            if ((done.resume_previous || done.mode == music_mode::kOnePass) && done.prev_event != kNoEvent)
+            // §2.2: only an entry queued with resume previous restarts the previous event (mode 14 included).
+            if (done.resume_previous && done.prev_event != kNoEvent)
                 play_music(db_->music()[done.prev_event].name, done.prev_mode, false, true);
             break;
         }
