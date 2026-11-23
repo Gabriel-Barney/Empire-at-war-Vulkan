@@ -667,6 +667,29 @@ void test_3d_mods_reset() {
     CHECK(near(a.attenuation(300.0f, 100.0f), plain, 1e-6f));
 }
 
+// #224 (retail answer on #205, 0x364f00): a space battle's map ambience follows the map's raw environment type when it is
+// not Space (vanilla: _SPACE_PLANET_DATHOMIR_01, raw Desert); its music keeps the Space slot.
+void test_space_map_ambience() {
+    Rig rig;
+    AudioSystem& a = *rig.a;
+    GameAudio g(a, rig.data, rig.rng);
+    g.set_local_faction("Rebel");
+    TacticalSetup raw;
+    raw.land = false;
+    raw.environment = "Temperate";  // a space map whose raw type is not Space
+    g.enter_tactical(raw);
+    CHECK(g.ambience().active() && g.ambience().bed_count() == 1);  // Ambient_Map_Sounds_Temperate
+    CHECK(a.current_music() == "Amb_Space");
+    TacticalSetup space;
+    space.land = false;
+    space.environment = "Space";
+    g.enter_tactical(space);
+    CHECK(g.ambience().bed_count() == 0 && a.current_music() == "Amb_Space");
+    space.environment.clear();  // no environment given
+    g.enter_tactical(space);
+    CHECK(g.ambience().bed_count() == 0);
+}
+
 // STRATEGIC_GAPS §7.4: modes 4, 8, 11, 13 (lock), 14, 17.
 void test_music_modes_gaps() {
     Rig rig;
@@ -1518,6 +1541,7 @@ int main() {
     test_conversation();
     test_music_modes();
     test_music_modes_gaps();
+    test_space_map_ambience();  // #224
     test_3d_mods_reset();
     test_hooks();
     test_engine_loops();
