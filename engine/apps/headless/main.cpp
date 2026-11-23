@@ -106,7 +106,7 @@
 //       must give the original's per-tick CRCs.
 // any mode takes --svc-mode serial|parallel|reverse (the battle services graph; same results, reverse = order check)
 // and --svc-check (debug write check of the services' declared sets; violations printed to stderr), and
-// --svc-streams hangar,reinforce,landing|none (those services draw from counter-based streams; this MOVES per-seed
+// --svc-streams hangar,reinforce,landing,garrison,pads|none (those services draw from counter-based streams; this MOVES per-seed
 // outcomes), and
 // --svc-parallel-min N (the per-unit service loops fork from N units, default 256; same results, a check of the forks).
 // BM1 benchmark (bench_run.hpp; scenario format alamo/sim/bench_scenario.hpp):
@@ -1371,7 +1371,8 @@ int main(int argc, char** argv) {
                 using alamo::tactical::services::StreamId;
                 // #128: one name per converted service (StreamId)
                 static constexpr std::pair<const char*, StreamId> kNames[] = {
-                    {"hangar", StreamId::Hangar}, {"reinforce", StreamId::Reinforce}, {"landing", StreamId::Landing}};
+                    {"hangar", StreamId::Hangar},     {"reinforce", StreamId::Reinforce}, {"landing", StreamId::Landing},
+                    {"garrison", StreamId::Garrison}, {"pads", StreamId::Pads}};
                 bool known = n.empty() || n == "none";
                 for (const auto& [name, id] : kNames)
                     if (n == name) {
@@ -1379,7 +1380,7 @@ int main(int argc, char** argv) {
                         known = true;
                     }
                 if (!known) {
-                    std::fprintf(stderr, "alamo_headless: --svc-streams: unknown service '%s' (hangar | reinforce | landing | none)\n",
+                    std::fprintf(stderr, "alamo_headless: --svc-streams: unknown service '%s' (hangar | reinforce | landing | garrison | pads | none)\n",
                                  n.c_str());
                     return 2;
                 }

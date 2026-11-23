@@ -6,6 +6,7 @@
 
 #include "alamo/core/dmath.hpp"
 #include "alamo/core/frames.hpp"
+#include "alamo/tactical/services/stream_rng.hpp"  // #128
 #include "alamo/core/sim_crc.hpp"
 #include "alamo/core/ascii.hpp"
 #include "alamo/data/values.hpp"
@@ -270,7 +271,12 @@ void TacticalBattle::pads_tick(TacticalMode& mode) {
                     bh = mode.spawn(sp);
                     if (st.alive(bh)) {
                         hg_spawn_off_ = skirmish_land() || skirmish_map();  // bkg3 b0028: copied from the pad (0 in skirmish)
-                        bt_adopt_built(mode, bh, sp.owner, frac, bt_rng_);
+                        // #128: with the Pads stream on, the finished object's adoption draws from the pad's own stream.
+                        SimRng own;
+                        SimRng* prng = bt_rng_ ? &svc_rng(static_cast<uint32_t>(tactical::services::StreamId::Pads),
+                                                          static_cast<uint64_t>(static_cast<uint32_t>(s.pad)), *bt_rng_, own)
+                                               : nullptr;
+                        bt_adopt_built(mode, bh, sp.owner, frac, prng);
                         hg_spawn_off_ = false;
                     }
                 }

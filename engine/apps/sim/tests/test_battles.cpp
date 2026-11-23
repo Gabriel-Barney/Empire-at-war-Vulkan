@@ -15,6 +15,7 @@
 #include "alamo/core/parallel.hpp"
 #include "alamo/core/sim_crc.hpp"
 #include "alamo/core/host_fs.hpp"
+#include "alamo/tactical/services/stream_rng.hpp"  // #128
 #include "alamo/tactical/tree_set.hpp"
 
 namespace {
@@ -2167,6 +2168,119 @@ void test_control_point_domination(const Data& d, bool domination) {
     CHECK(ended && winner == 0 && end_frame >= declared_frame + 205 && end_frame <= declared_frame + 212);
 }
 
+// #128 t02: the garrison service's capture-point clips on counter-based streams (bit StreamId::Garrison). The ccpgt t02
+// battle with an animated S4_Post (two Idle and two Transition_Ownership variants, so every capture-point play draws a
+// variant): off the synced draws; on, each point draws from its own stream - the run differs and is identical at
+// 0 / 1 / 4 / 15 workers and in every service run mode.
+#ifdef ALAMO_SIM_HAVE_ANIM
+uint64_t run_capture_streams(const Data& d, uint32_t streams, uint32_t workers, tactical::services::RunMode run_mode, uint32_t& plays) {
+    const TacticalBattle::ServiceRunDefaults saved = TacticalBattle::service_run_defaults();
+    TacticalBattle::ServiceRunDefaults sd = saved;
+    sd.streams = streams;
+    sd.mode = run_mode;
+    TacticalBattle::set_service_run_defaults(sd);
+    jobs::JobSystem js(jobs::JobSystemConfig{static_cast<int32_t>(workers)});
+    SimConfig cfg;
+    cfg.seed = 2026;
+    cfg.players = 4;
+    SimHost host(d.types, js, cfg);
+    const auto model = synth_model("S128_POST", {{anim::kAnimIdle, 30u}, {anim::kAnimIdle, 30u}, {0x4b, 30u}, {0x4b, 30u}});
+    SimAnimation animation(d.types, *d.files);
+    animation.set_model(d.types.resolve_name("S4_Post"), objects::ModeKind::Land, model.get());
+    animation.attach(host, false);
+    galactic::GalacticSetup setup = make_setup(d, true);
+    std::swap(setup.players[0], setup.players[1]);
+    for (galactic::StartingForce& f : setup.forces) f.player = f.player == 0 ? 1 : f.player == 1 ? 0 : f.player;
+    galactic::GalacticSim* gs = host.start_galactic(d.rules, std::move(setup));
+    StateHasher all;
+    plays = 0;
+    if (gs) {
+        CampaignBattleOptions opt;
+        opt.conflict.human_choice = galactic::BattleChoice::Fight;
+        opt.battle.max_frames = 3000;
+        opt.battle.land_capture_countdown = 0.0f;
+        opt.animation = &animation;
+        CampaignBattles battles(host, d.crules, *d.catalog,
+                                [](const std::string& name, terrain::MapData& m) {
+                                    if (name != "S10_Land_B") return false;
+                                    m = land_map();
+                                    auto place = [&m](const char* type, float x, float y, uint32_t raw) {
+                                        terrain::ObjectPlacement p;
+                                        p.type_crc = name_crc(type);
+                                        p.owner = raw;
+                                        p.position[0] = x;
+                                        p.position[1] = y;
+                                        m.objects.push_back(p);
+                                    };
+                                    place("Defending Forces Position", 900.0f, 900.0f, 2);
+                                    place("Attacker Entry Position", 300.0f, 300.0f, 2);
+                                    place("S4_Post", 480.0f, 540.0f, 2);
+                                    return true;
+                                },
+                                opt);
+        CHECK(battles.attach(nullptr));
+        std::vector<objects::ObjectHandle> up;
+        for (objects::ObjectHandle h : gs->planets()[2].surface)
+            if (gs->store().owner(h) == 0) up.push_back(h);
+        CHECK(gs->launch_units(0, 2, up) == commands::RejectReason::None);
+        const std::vector<uint32_t> uf = gs->fleets_at(2, 0);
+        if (!uf.empty()) CHECK(gs->move_fleet(0, uf[0], 1) == commands::RejectReason::None);
+        bool invaded = false, seen = false;
+        for (uint64_t t = 0; t < 5000; ++t) {
+            host.tick_once();
+            if (!invaded && host.modes().depth() == 1) {
+                const std::vector<uint32_t> f = gs->fleets_at(1, 0);
+                if (!f.empty() && !gs->fleets()[f[0]].moving) invaded = gs->invade(0, 1, {}) == commands::RejectReason::None;
+            }
+            const TacticalBattle* b = battles.battle();
+            TacticalMode* tm = host.tactical();
+            if (!b || !tm) {
+                if (seen) break;
+                continue;
+            }
+            seen = true;
+            all.u32(b->frame());
+            all.u32(host.random().synced().state());
+            const objects::ObjectStore& st = tm->primary();
+            for (const objects::ObjectHandle h : st.all_objects()) {
+                if (!st.alive(h)) continue;
+                const Vec3 p = st.position(h);
+                all.u32(static_cast<uint32_t>(st.id(h)));
+                all.f32(p.x);
+                all.f32(p.y);
+            }
+            plays = b->stats().anim_plays;
+        }
+    }
+    animation.detach(host);
+    TacticalBattle::set_service_run_defaults(saved);
+    return all.digest();
+}
+#endif
+
+void test_capture_streams(const Data& d) {
+#ifdef ALAMO_SIM_HAVE_ANIM
+    const uint32_t bit = 1u << static_cast<uint32_t>(tactical::services::StreamId::Garrison);
+    const auto par = TacticalBattle::service_run_defaults().mode;
+    uint32_t p_off = 0, p_on = 0, p = 0;
+    const uint64_t off = run_capture_streams(d, 0, 0, par, p_off);
+    const uint64_t on = run_capture_streams(d, bit, 0, par, p_on);
+    std::printf("  garrison streams: off %016llx (%u plays), on %016llx (%u plays)\n", static_cast<unsigned long long>(off), p_off,
+                static_cast<unsigned long long>(on), p_on);
+    CHECK(p_off > 0 && p_on > 0);
+    CHECK(off != on);  // the draws moved
+    for (const uint32_t w : {1u, 4u, 15u}) {
+        CHECK(run_capture_streams(d, bit, w, par, p) == on);
+        CHECK(run_capture_streams(d, 0, w, par, p) == off);  // off stays worker-independent too
+    }
+    for (const auto m : {tactical::services::RunMode::Serial, tactical::services::RunMode::Reverse})
+        CHECK(run_capture_streams(d, bit, 4, m, p) == on);
+#else
+    (void)d;
+    std::printf("  garrison streams: skipped (no engine/anim)\n");
+#endif
+}
+
 // Campaign galaxy (build_campaign_setup of S10_GC): players Empire 0 (human), Underworld 1, Neutral 2 and the Hostile
 // player 3 the setup adds. `drop_hostile` removes it again (the galaxy before the change).
 galactic::GalacticSetup campaign_setup(const Data& d, bool drop_hostile) {
@@ -3824,6 +3938,7 @@ int main(int argc, char** argv) {
         std::printf("ccpgt t02: Capture Control Points (0x15 domination timer)\n");
         test_control_point_domination(*dmo, true);
         test_control_point_domination(*dmo, false);
+        test_capture_streams(*dmo);  // #128 t02
     }
     std::printf("skirmish station production: Production at the star base, upgrade object, station upgrade\n");
     test_station_production();

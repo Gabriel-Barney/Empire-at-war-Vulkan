@@ -150,6 +150,9 @@ counter, `create` refused). Rules:
   - hangars (`hangar`): per carrier (entry and bay picks).
   - reinforce (`reinforce`): per participant (its deploy).
   - landing (`landing`): per landing object (an unload step's deploy and exit move).
+  - garrisons (`garrison`): per control point (a capture's animation pick).
+  - pads (`pads`): per pad (the finished object's adoption draws: hardpoints, first-due ability and behaviour draws,
+    a hangar). A build order's under-construction object joins the battle through the build command, on the synced RNG.
 - Nothing to convert: expiry, fog and victory draw nothing.
 - Still on the synced RNG while a converted service runs (tier 3; deterministic either way, the services run in graph
   order): a combat listener's draws (the tick's RNG, `hooks_->set_tick`) and the first-due draw of each behaviour an
