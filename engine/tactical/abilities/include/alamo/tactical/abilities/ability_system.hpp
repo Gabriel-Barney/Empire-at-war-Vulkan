@@ -287,6 +287,9 @@ struct AbilityHost {
     // The mode's map rectangle (vf +0x1f8, else the playable box 0x2cea10); fallback: the units' bounding box.
     std::function<bool(Vec3& lo, Vec3& hi)> map_rect;
     std::function<bool(ObjectId id)> moving;     // locomotor moving (fallback: position changed since last tick)
+    // #44 t04 (R3G_ANIM_TIMED_RE §2 step 1, MOVEMENT §5.3 vf +0x1b0): turning in place (a Walk start / arrival turn, a
+    // container's final-facing turn) at speed 0; unset = never turning
+    std::function<bool(ObjectId id)> turning;
     std::function<float(float x, float y)> ground_height;  // terrain z for mines (fallback: the point's z)
     // Battlefield_Modifier list +0x1f8 (TacticalBattle::fog_add_reveal_multiplier / fog_remove_reveal_modifier).
     std::function<void(int32_t player, int32_t category, uint64_t source, float multiplier)> fow_reveal_add;
