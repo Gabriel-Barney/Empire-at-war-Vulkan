@@ -1381,6 +1381,41 @@ void test_galactic_lua_sfx_position() {
 #endif
 }
 
+// #226 (retail answer on #205): the SFX manager's GUI-only flag (gate 4, with a modal GUI dialog open) is set while the
+// attract demo runs (0x22f10 / 0x22bf0); a modal dialog alone (the in-game pause menu) refuses nothing.
+void test_gui_only_attract() {
+#ifdef ALAMO_GAME_HAVE_AUDIO
+    auto tree = make_tree(true);
+    tree->add("Data\\XML\\SFXEventsTest.xml", R"(<?xml version="1.0"?>
+<SFXEvents>
+  <SFXEvent Name="GUI_Click"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Is_GUI>Yes</Is_GUI><Max_Instances>9</Max_Instances><Samples>CLICK.WAV</Samples></SFXEvent>
+  <SFXEvent Name="Hud_Beep"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Max_Instances>9</Max_Instances><Samples>BEEP.WAV</Samples></SFXEvent>
+</SFXEvents>
+)");
+    GameData data;
+    data.files = std::move(tree);
+    GameAudioHost h;
+    CHECK(h.init(data, AudioBackendKind::Null, 17));
+    if (!h.active()) return;
+    h.set_flags(true, false);  // a modal dialog over a paused session (the pause menu)
+    CHECK(!h.gui_only());
+    h.ui("Hud_Beep");
+    CHECK(starts(h, "Hud_Beep") == 1);
+    h.set_flags(true, true);  // the attract demo with a modal dialog: GUI events only
+    CHECK(h.gui_only());
+    h.ui("Hud_Beep");
+    h.ui("GUI_Click");
+    CHECK(starts(h, "Hud_Beep") == 1 && starts(h, "GUI_Click") == 1);
+    h.set_flags(false, true);  // the attract demo without a modal dialog
+    h.ui("Hud_Beep");
+    CHECK(starts(h, "Hud_Beep") == 2);
+    h.set_flags(true, false);  // the demo ended
+    CHECK(!h.gui_only());
+    h.ui("Hud_Beep");
+    CHECK(starts(h, "Hud_Beep") == 3);
+#endif
+}
+
 // ref2 t02 (alamo/sim/presentation_events.hpp): one tick's presentation events -> GameAudioHost::on_events. The local
 // player's tactical production begin / cancel / complete play the built type's speech or SFXEvent_Tactical_Build_* line
 // (MCX4_T13_RE_ANSWERS "GameObjectType.SFXEvent_Tactical_Build_Started family"), no build music in a battle; another
@@ -1475,6 +1510,7 @@ int main() {
     test_delayed_fire_sounds();  // trl2 t08
     test_object_sfx_t05();
     test_galactic_lua_sfx_position();  // aud8 t05
+    test_gui_only_attract();           // #226
     test_inactive();
     test_control_point_lines();
     test_garrison_and_clash_lines();

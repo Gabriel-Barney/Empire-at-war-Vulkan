@@ -502,13 +502,19 @@ void test_gates() {
     forced.force = true;
     CHECK(a.play_sfx("GUI_Bad_Sound", forced) == 0 && last_reason(a) == "negative_feedback_in_cinematic");
     a.set_cinematic(false);
-    // GUI-only mode (gate 4): only Is_GUI events, never the negative feedback; force skips it.
+    // GUI-only mode (gate 4): flag +0x94 AND a modal GUI dialog open (#226): only Is_GUI events, never the negative
+    // feedback; force skips it.
     a.set_gui_only(true);
+    const uint32_t no_modal = a.play_sfx("Bomb_2");
+    CHECK(no_modal != 0);  // no modal dialog: the flag alone refuses nothing
+    a.stop_sfx(no_modal);
+    a.set_modal_dialog(true);
     CHECK(a.play_sfx("Bomb_2") == 0 && last_reason(a) == "gui_only");
     CHECK(a.play_sfx("GUI_Bad_Sound") == 0 && last_reason(a) == "gui_only");
     CHECK(a.play_sfx("Click") != 0);
     CHECK(a.play_sfx("Bomb_2", forced) != 0);
     a.set_gui_only(false);
+    a.set_modal_dialog(false);
     // HUD VO (gate 5): blocked by the tutorial flag and while speech plays.
     a.set_hud_vo_blocked(true);
     CHECK(a.play_sfx("HUD_Line") == 0 && last_reason(a) == "hud_vo_blocked");

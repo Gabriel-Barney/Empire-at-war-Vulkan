@@ -270,7 +270,7 @@ public:
     void allow_ambient_vo(bool on) { allow_ambient_vo_ = on; }
     // ---- Game state the gates and gain read.
     void set_cinematic(bool on) { cinematic_ = on; }              // gate 2, gate 9, visibility
-    void set_gui_only(bool on) { gui_only_ = on; }                // gate 4 (flag +0x94 AND modal dialog open)
+    void set_gui_only(bool on) { gui_only_ = on; }                // gate 4: flag +0x94, refuses only with a modal dialog open
     void set_modal_dialog(bool on) { modal_dialog_ = on; }        // disables speech ducking
     void set_hud_vo_blocked(bool on) { hud_vo_blocked_ = on; }    // gate 5 (tutorial flag in a tactical mode)
     void set_3d_scale(float s) { scale_3d_ = s; }                 // 0 behind the battle-load screen
