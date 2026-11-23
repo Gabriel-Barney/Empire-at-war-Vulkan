@@ -686,7 +686,7 @@ void AbilitySystem::h_deploy(Obj& o, bool on, uint32_t frame) {
         if (o.deployed == (on ? 1 : 0)) return;
         o.deployed = on ? 1 : 0;
         // the death-clone deploy remap reads "deploying or deployed" (legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §1.2) [port: the
-        // DEPLOY state stands in for the walk locomotor's deploy-pending flag / Deployed state].
+        // DEPLOY state stands in for the walk locomotor's Deployed state 0x19 or its walking-deployed flag, pack +0x2b3].
         combat_->set_flag(o.id, combat::kUnitDeploying, on);
     }
     AbilityEvent e;

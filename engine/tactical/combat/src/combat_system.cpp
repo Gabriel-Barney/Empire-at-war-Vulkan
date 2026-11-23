@@ -1852,7 +1852,7 @@ void CombatSystem::update_weapons(Unit& u, uint32_t frame, SimRng& rng, bool sus
 }
 
 bool CombatSystem::deployed_or_deploying(const Unit& u) const {
-    // 0x39a390 (S9_DEATH_CLONE_SHIELDS §1.2): Deploys, a locomotor, and deploy pending / Deployed (kUnitDeploying). S8 t11
+    // 0x39a390 (S9_DEATH_CLONE_SHIELDS §1.2): Deploys, a locomotor, and walking-deployed / Deployed (kUnitDeploying). S8 t11
     // (TACTICAL_COMBAT §3.1.1 "Step 3 correction"): the walk locomotor's vf +0x120 is state == 0x19 only, so Deploying
     // (0x18) and Undeploying (0x1A) - kUnitDeployTransition - do not count. s78n t26.1 (MOVEMENT §3.2.1): the walking-deployed
     // flag +0x2b3 keeps the movement state 0x19 (no deploy event), so a walking-deployed Destroyer Droid counts here. s78n
@@ -2094,7 +2094,8 @@ bool CombatSystem::auto_deploy_check(const Unit& u, ObjectId target) const {
     // deployed / deploying; else true when the target is ordered (TD +0xf4), the owner is an AI player that is not human
     // (player +0x360 / +0x62; [port] PlayerInfo::ai of an active player), or the target is the formation's attack target
     // and Max_Dist_Walk_While_Deployed > 0 [port: the "current formation block has the attack-move / guard flag" term is
-    // not modelled - land formation blocks carry no flags in the movement layer].
+    // not read here - the block flags live on the movement order (kMoveFlagAttackMove / kMoveFlagGuardMove), which the
+    // combat layer does not see].
     const UnitDesc& ud = desc_of(u);
     if (!ud.deploys || !ud.auto_deploys || ud.fire_weapon_when_undeployed || deployed_or_deploying(u) || deploy_transition(u))
         return false;

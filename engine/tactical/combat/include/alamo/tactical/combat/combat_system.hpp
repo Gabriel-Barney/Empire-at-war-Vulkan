@@ -889,10 +889,11 @@ enum UnitFlag : uint32_t {
     kUnitGarrisoned = 1u << 8,
     kUnitConverted = 1u << 9,          // obj +0x3a2 bit 4: converted-unit decay (4.10)
     kUnitLocomotorBusy = 1u << 10,     // locomotor vfunc +0x2b0 (hyperspace jump ...): no ion stun
-    // S9 t04 (legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §1.2): deploy pending (locomotor pack +0x2b3) or Deployed (walk state 0x19).
-    // Set by the ability system's DEPLOY [port: on = deploying / deployed]. S8 t11 (TACTICAL_COMBAT §3.1.1 "Step 3
-    // correction"): Is_Deployed_Or_Deploying = pending or Walk state 0x19 only, so a unit in a deploy transition
-    // (kUnitDeployTransition: 0x18 / 0x1A) does not count as deployed (deployed_or_deploying, the death-clone remap).
+    // S9 t04 (legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §1.2): walking-deployed (locomotor pack +0x2b3) or Deployed (walk
+    // state 0x19). Set by the ability system's DEPLOY [port: on = deploying / deployed]. S8 t11 (TACTICAL_COMBAT §3.1.1
+    // "Step 3 correction"): Is_Deployed_Or_Deploying = the walking-deployed flag or Walk state 0x19 only, so a unit in a
+    // deploy transition (kUnitDeployTransition: 0x18 / 0x1A) does not count as deployed (deployed_or_deploying, the
+    // death-clone remap).
     kUnitDeploying = 1u << 11,
     // S9 t04 (§1.5): an active INFECTION behaviour (0x54, suspend counter 0). Mirrors the behaviour state
     // (attached by a Causes_Infection hit or a spread, cleared while suspended); set_flag(kUnitInfected) attaches /
