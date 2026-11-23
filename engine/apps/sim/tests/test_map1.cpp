@@ -440,11 +440,12 @@ int run_every_map() {
         every_map("EaW", vc, tot);
     }
     std::printf("every map: %u maps (%u land, %u space), %u failed; %u placements, %u unknown types in %u maps, %u companies -> %u "
-                "members, %u hangar-off placements, %u extra behaviours, %u marker names (%u skipped: no MARKER), %u spawn-table picks, %u hinted objects (%u "
-                "without HINT), %u hints skipped (no HINT)\n",
+                "members, %u hangar-off placements, %u extra behaviours, %u marker names (%u skipped: no MARKER), %u spawn-table "
+                "picks, %u hinted objects (%u without HINT), %u hints skipped (no HINT)\n",
                 tot.maps, tot.land, tot.space, tot.failed, tot.placements, tot.unknown, tot.unknown_maps, tot.companies, tot.members,
                 tot.hangar_off, tot.extra, tot.names, tot.names_skipped, tot.picks, tot.hinted, tot.hinted_no_beh, tot.hints_skipped);
     CHECK(tot.maps > 300 && tot.failed == 0 && tot.unknown == tot.allowed);
+    CHECK(tot.names_skipped == 0);  // #70 t08: every shipped 0x46E name (36) is on an object with MARKER
     std::printf(g_fail ? "alamo_sim_map1_tests --every-map: %d failure(s)\n" : "alamo_sim_map1_tests --every-map: OK\n", g_fail);
     return g_fail ? 1 : 0;
 }

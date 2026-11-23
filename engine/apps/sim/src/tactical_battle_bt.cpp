@@ -1379,7 +1379,8 @@ Vec3 TacticalBattle::start_look_at(const TacticalMode& mode, int32_t player) con
 void TacticalBattle::bt_note_record(TacticalMode& mode, const terrain::ObjectPlacement& pl, objects::ObjectHandle h) {
     // map1 t04 (Q6_T30 3 [H]): the base record reader 0x39c3a0 -> 0x39cca0 reads chunk 0x4B7 and attaches each listed
     // behaviour to the object (every shipped entry is HINT: how types without HINT in XML carry one); chunk 0x46E goes into
-    // the object's marker data pack. A behaviour the object already has is not attached twice [port: ObjectStore::add_behavior].
+    // the object's marker data pack when it has one (MARKER, #70 t08 below). A behaviour the object already has is not
+    // attached twice [port: ObjectStore::add_behavior].
     objects::ObjectStore& st = mode.primary();
     if (!st.exists(h)) return;
     for (const terrain::ObjectPlacement::ExtraBehavior& e : pl.extra_behaviors) {
