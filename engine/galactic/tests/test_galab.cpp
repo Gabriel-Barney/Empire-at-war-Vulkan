@@ -313,7 +313,8 @@ void test_death_star() {
               s.victory_claims()[0].countdown == 30);
     }
     {
-        // #65 t05 (STY1_OBJECT_SETTERS_RE_ANSWERS §3, 0x707670): the contested-space refusal follows the shooter's flag
+        // #65 t05 (legacy docs/re/STY1_OBJECT_SETTERS_RE_ANSWERS.md §3, 0x707670): the contested-space refusal follows the
+        // shooter's flag
         // (Lua Set_Check_Contested_Space, set by default). The host's hook answers per shooter; none = always checked.
         World w;
         GalacticSim& s = w.sim;

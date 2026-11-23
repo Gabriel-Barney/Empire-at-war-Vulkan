@@ -1263,7 +1263,8 @@ public:
     // False when nothing was destroyed.
     // STY1 t01 (legacy docs/re/STY1_OBJECT_SETTERS_RE_ANSWERS.md §3): `check_contested_space` is the shooter's obj +0x3a2 & 0x40 (Lua
     // Set_Check_Contested_Space; set by default): while set, the shot is refused (false, nothing destroyed) when any live,
-    // non-hidden fleet in the planet's orbit is neither the attacker's nor an ally's.
+    // non-hidden fleet in the planet's orbit is neither the attacker's nor an ally's. The Death Star ability asks
+    // checks_contested_space(shooter) itself and passes false (#65 t05).
     bool super_weapon_destroy_planet(PlanetIndex planet, int32_t attacker, bool check_contested_space = true);
     bool contested_space(PlanetIndex planet, int32_t attacker) const;
     std::span<const VictoryClaim> victory_claims() const { return claims_; }
