@@ -2594,6 +2594,26 @@ void test_null_stage_and_plain_produce() {
     pw.world->set_global_values(nullptr);
 }
 
+// gai1 t05 (legacy docs/re/B0173_RE_ANSWERS.md Q1, 0x5f7090 -> 0x5751d0) [H]: a galactic plan's `Target` is always a
+// GameObjectWrapper. A goal without a target gives one with no object (a userdata: truthy, Is_Valid false), not nil; a
+// planet goal gives the planet's object (the AI target's game object).
+void test_plan_target_wrapper() {
+    ParityWorld pw(false, {"T05NoTarget", "T05Planet"}, own_p2);  // the setup of test_null_stage_and_plain_produce
+    lua::GlobalValueStore gv;
+    pw.world->set_global_values(&gv);
+    auto num = [&gv](const char* n) { const lua::AiGlobalValue v = gv.get(n); return v.kind == lua::AiGlobalValue::Number ? v.number : -1.0; };
+    for (int32_t f = 1; f <= 30 * 300 && (num("t05_nt_type") < 0.0 || num("t05_p_type") < 0.0); ++f) {
+        pw.sim->update();
+        pw.world->update_player(0, f, true, false);
+    }
+    std::printf("plan Target: no-target type %.0f truthy %.0f valid %.0f; planet type %.0f truthy %.0f valid %.0f is planet %.0f\n",
+                num("t05_nt_type"), num("t05_nt_truthy"), num("t05_nt_valid"), num("t05_p_type"), num("t05_p_truthy"),
+                num("t05_p_valid"), num("t05_p_planet"));
+    CHECK(num("t05_nt_type") == 1.0 && num("t05_nt_truthy") == 1.0 && num("t05_nt_valid") == 0.0);  // objectless wrapper
+    CHECK(num("t05_p_type") == 1.0 && num("t05_p_valid") == 1.0 && num("t05_p_planet") == 1.0);    // the target planet
+    pw.world->set_global_values(nullptr);
+}
+
 // a2m t02 (A2L_T01_RE_ANSWERS Q8.1 / Q8.2) [H]: Move_To moves the task force's FleetObject only (the parent fleet of
 // the first member added, TF +0x120); a member in another fleet stays where it is and is still counted.
 void test_move_to_fleet_object() {
