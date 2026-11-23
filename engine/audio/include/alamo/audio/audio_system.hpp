@@ -174,6 +174,7 @@ struct SfxPlay {
     Kind kind = Kind::Ui;
     uint64_t owner = 0;       // Object: game object id
     Vec3 position{};          // Position: the point; Object: initial position (updated via the object query)
+    uint64_t fog_parent = 0;  // #50 t08, Position: the parent object 0x2d5240 passes to gate 9 (0 = none: no fog test)
     bool force = false;       // skips gates 4..8
     uint32_t pump = 0;        // GUI entry points: run this many SFX updates now (same-frame clicks)
     float fade_in_seconds = 0.0f;  // callers starting loops pass Loop_Fade_In_Seconds (§1.6)
@@ -260,8 +261,11 @@ public:
         bool hidden = false;
     };
     void set_object_query(std::function<std::optional<ObjectAudio>(uint64_t owner)> q) { object_query_ = std::move(q); }
-    // Gate 9: 3D-positional starts fail when the point is under the local player's fog (not in cinematics).
-    void set_position_fogged(std::function<bool(const Vec3&)> f) { position_fogged_ = std::move(f); }
+    // Gate 9 (#50 t08, 0x2d5240 -> FOW_Object_Hidden 0x35f470 [H]): a 3D-positional start fails when the callback says
+    // its parent object (SfxPlay::fog_parent) is hidden from the local player by the fog of war; not in cinematics. The
+    // original tests the parent object, not the point, and a start without a parent is never fog-tested: the game's
+    // callback answers false for parent 0. The callback sees every positional start (tests observe the points).
+    void set_position_fogged(std::function<bool(const Vec3& position, uint64_t parent)> f) { position_fogged_ = std::move(f); }
 
     // ---- Permission flags (Lua SFXManager.Allow_*, default on; gate 3).
     void allow_localized_sfx(bool on) { allow_localized_ = on; }
@@ -494,7 +498,7 @@ private:
     };
     std::map<uint32_t, SeqCounters> sequential_;  // event -> counters (session-wide)
     std::function<std::optional<ObjectAudio>(uint64_t)> object_query_;
-    std::function<bool(const Vec3&)> position_fogged_;
+    std::function<bool(const Vec3&, uint64_t)> position_fogged_;
     bool allow_localized_ = true, allow_unit_response_vo_ = true, allow_hud_vo_ = true, allow_ambient_vo_ = true;
     bool cinematic_ = false, gui_only_ = false, modal_dialog_ = false, hud_vo_blocked_ = false, attract_ = false;
     float scale_3d_ = 1.0f;

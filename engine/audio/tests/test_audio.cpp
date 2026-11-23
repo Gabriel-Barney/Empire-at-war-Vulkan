@@ -529,11 +529,23 @@ void test_gates() {
     CHECK(a.play_sfx("Engine_Loop", on_object(5)) != 0);
     CHECK(a.play_sfx("Engine_Loop", on_object(5)) == 0 && last_reason(a) == "loop_already_attached");
     CHECK(a.play_sfx("Engine_Loop", on_object(6)) != 0);
-    // Gate 9: 3D-positional starts under fog fail (not in cinematics).
-    a.set_position_fogged([](const Vec3& p) { return p.x > 1000.0f; });
-    CHECK(a.play_sfx("Gun3D", at(2000.0f)) == 0 && last_reason(a) == "fogged");
-    a.set_cinematic(true);
+    // Gate 9 (#50 t08, 0x2d5240 [H]): a 3D-positional start fails when its parent object is fogged (not in cinematics);
+    // the callback gets the point and the parent, and a start without a parent is not refused.
+    std::vector<uint64_t> parents;
+    a.set_position_fogged([&parents](const Vec3&, uint64_t parent) {
+        parents.push_back(parent);
+        return parent == 7;
+    });
+    SfxPlay fogged = at(2000.0f);
+    fogged.fog_parent = 7;
+    CHECK(a.play_sfx("Gun3D", fogged) == 0 && last_reason(a) == "fogged");
+    SfxPlay seen = at(2000.0f);
+    seen.fog_parent = 8;
+    CHECK(a.play_sfx("Gun3D", seen) != 0);
     CHECK(a.play_sfx("Gun3D", at(2000.0f)) != 0);
+    CHECK((parents == std::vector<uint64_t>{7, 8, 0}));
+    a.set_cinematic(true);
+    CHECK(a.play_sfx("Gun3D", fogged) != 0);
     // GUI pump: plays in the same frame.
     a.set_cinematic(false);
     SfxPlay pump;

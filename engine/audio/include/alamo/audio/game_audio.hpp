@@ -179,7 +179,8 @@ public:
     // applies). Suppressed by Audio.xml Test_Disable_Weapon_Fire_SFX. Returns the instance id (0 = refused).
     uint32_t weapon_fire(uint64_t shooter, std::string_view event, const Vec3& position);
     // Projectile detonation / impact and explosions: 3D at a world position (fog gate 9 applies).
-    uint32_t impact(std::string_view event, const Vec3& position);
+    // `fog_parent`: the object gate 9 tests (#50 t08; 0 = none).
+    uint32_t impact(std::string_view event, const Vec3& position, uint64_t fog_parent = 0);
     uint32_t explosion(std::string_view event, const Vec3& position) { return impact(event, position); }
     // Death: every sound attached to the object is stopped (DeathBehavior, §1.5), then the death event
     // (Death_SFXEvent_Start_Die) plays at the death position [port: positional, so it survives the object's
@@ -249,8 +250,8 @@ public:
     void set_object_query(std::function<std::optional<AudioSystem::ObjectAudio>(uint64_t)> q) {
         audio_->set_object_query(std::move(q));
     }
-    // Gate 9: 3D-positional starts fail under the local player's fog of war.
-    void set_position_fogged(std::function<bool(const Vec3&)> f) { audio_->set_position_fogged(std::move(f)); }
+    // Gate 9 (AudioSystem::set_position_fogged): the callback gets each positional start's point and parent object.
+    void set_position_fogged(std::function<bool(const Vec3&, uint64_t)> f) { audio_->set_position_fogged(std::move(f)); }
 
     // ---------------- UI and local-player feedback (2D)
     // Unit response on a local selection or order (§3.3): `representative` is the one unit the UI picked

@@ -194,7 +194,19 @@ bool App::menu_dialog_open() const {
 
 // Audio game-state flags (GameAudioHost::set_flags): modal = a modal GUI dialog has the focus; attract = the attract demo
 // runs (it also sets the SFX GUI-only flag, #226).
-void App::audio_flags() { audio_.set_flags(ui_.gui.has_focus(), attract_.running()); }
+void App::audio_flags() {
+    audio_.set_flags(ui_.gui.has_focus(), attract_.running());
+    // #50 t08 gate 5: a tutorial player (story reward TUTORIAL_PLAYER) hears no HUD VO in a battle.
+    bool tutorial = false;
+#ifdef ALAMO_SIM_HAVE_STORY
+    if (screen() == Screen::Battle && session_)
+        if (const sim::StorySession* story = session_->host().story()) {
+            const std::vector<int32_t>& marked = story->tutorial().marked_players;
+            tutorial = std::find(marked.begin(), marked.end(), local_player()) != marked.end();
+        }
+#endif
+    audio_.set_tutorial_player(tutorial);
+}
 
 // The Lua presentation's camera is cinematic (listener at the camera, legacy docs/re/AUDIO.md §1.2).
 bool App::presentation_cinematic() const {

@@ -307,17 +307,19 @@ void GameAudio::update(double wall_dt_seconds) {
 
 // ---------------------------------------------------------------- battle events
 
-uint32_t GameAudio::weapon_fire(uint64_t /*shooter*/, std::string_view event, const Vec3& position) {
-    // legacy docs/re/AUDIO.md §9.5: 3D at the fixed muzzle / projectile position (0x2d5240), not attached; the fog test applies.
+uint32_t GameAudio::weapon_fire(uint64_t shooter, std::string_view event, const Vec3& position) {
+    // legacy docs/re/AUDIO.md §9.5: 3D at the fixed muzzle / projectile position (0x2d5240), not attached; the fog test
+    // applies to the shooter (#50 t08: 0x54d090 / 0x3825b0 pass it as the parent).
     if (event.empty() || audio_->database().constants().test_disable_weapon_fire_sfx) return 0;
-    return impact(event, position);
+    return impact(event, position, shooter);
 }
 
-uint32_t GameAudio::impact(std::string_view event, const Vec3& position) {
+uint32_t GameAudio::impact(std::string_view event, const Vec3& position, uint64_t fog_parent) {
     if (event.empty()) return 0;
     SfxPlay p;
     p.kind = SfxPlay::Kind::Position;
     p.position = position;
+    p.fog_parent = fog_parent;
     return audio_->play_sfx(event, p);
 }
 
@@ -333,7 +335,7 @@ uint32_t GameAudio::animation_sounds(uint64_t object, std::string_view animation
 
 uint32_t GameAudio::unit_death(uint64_t object, std::string_view event, const Vec3& position) {
     object_dead(object);
-    return impact(event, position);
+    return impact(event, position, object);  // #50 t08: 0x58cf90 passes the dying object to gate 9
 }
 
 uint32_t GameAudio::object_sfx(uint64_t object, std::string_view event, const Vec3& position, float fade_in_seconds) {

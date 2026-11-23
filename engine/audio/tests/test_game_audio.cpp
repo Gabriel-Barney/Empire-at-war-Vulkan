@@ -280,13 +280,15 @@ struct Rig {
     NullBackend backend{test_duration};
     SimRng rng{0xBEEFu};
     std::unique_ptr<AudioSystem> a;
-    std::vector<Vec3> positions;  // every 3D-positional start point (gate 9 callback)
+    std::vector<Vec3> positions;     // every 3D-positional start point (gate 9 callback)
+    std::vector<uint64_t> parents;   // and its parent object (#50 t08)
     Rig() {
         db.load(tree);
         data.load(tree, &report);
         a = std::make_unique<AudioSystem>(db, backend, rng);
-        a->set_position_fogged([this](const Vec3& p) {
+        a->set_position_fogged([this](const Vec3& p, uint64_t parent) {
             positions.push_back(p);
+            parents.push_back(parent);
             return false;
         });
     }
@@ -849,8 +851,9 @@ void test_hooks() {
 
     // Battle events.
     CHECK(g.weapon_fire(60, "Gun_Fire", p) != 0 && last_op(a, LogOp::SfxStart)->owner == 0);  // positional (§9.5)
+    CHECK(rig.parents.back() == 60);  // #50 t08: gate 9 tests the shooter (0x54d090)
     CHECK(g.weapon_fire(60, "", p) == 0);
-    CHECK(g.explosion("Impact_Boom", p) != 0 && rig.positions.back().x == 5.0f);
+    CHECK(g.explosion("Impact_Boom", p) != 0 && rig.positions.back().x == 5.0f && rig.parents.back() == 0);
     CHECK(g.object_sfx(61, "Ambient_Hum", p, 0.5f) != 0);
     g.stop_object_sfx(61, "Ambient_Hum");
     CHECK(last_op(a, LogOp::SfxStop, "Ambient_Hum")->owner == 61);
