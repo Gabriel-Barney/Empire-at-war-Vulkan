@@ -103,6 +103,7 @@ int main(int argc, char** argv) {
     test_loaded_category_enum();     // q6 t03
     test_ai_type_switch();
     test_status_hash_covers_move_to();  // #119
+    test_lua_clock_float_multiply();     // #242
     test_lost_members_survive_save();  // #122
 #ifdef ALAMO_AI_HAVE_VFS
     test_foc_data();

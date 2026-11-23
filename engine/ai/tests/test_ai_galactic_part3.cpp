@@ -4,6 +4,27 @@
 
 // #119: a MoveTo status's destination, movement mode and fleet are in the galactic AI CRC, so two runs whose MoveTo
 // differs only there diverge in the CRC log. Statuses of other kinds hash as before (their CRCs do not move).
+// #242 (legacy docs/re/BKG1_RE_ANSWERS.md §A.2 [H]): the galactic AI VMs' GetCurrentTime() (0x5428b0) is
+// (double)((float)(int32)mode frame x 0.033333335f), a float multiply: frame 3 -> 0.10000000894069672, frame 150 ->
+// 5.000000476837158 (a double divide gives 0.1 and 5.0, so a Sleep can end a frame later than retail's).
+void test_lua_clock_float_multiply() {
+    const gal::GalacticRules rules = syn_rules();
+    objects::GameObjectTypes types;
+    objects::IdCounter ids;
+    objects::ObjectStore store(objects::ModeKind::Galactic, objects::StoreKind::Primary, types, &ids);
+    GameRandom rng(4242u, 77u);
+    gal::GalacticSim sim(rules, store, rng.synced());
+    std::vector<std::string> diag;
+    CHECK(sim.start(syn_setup(), &diag));
+    std::map<int32_t, double> seen;
+    for (int32_t f = 1; f <= 150; ++f) {
+        sim.update();
+        seen[sim.frame()] = now_seconds(sim);
+    }
+    std::printf("lua clock: frame 3 %.17g, frame 30 %.17g, frame 150 %.17g\n", seen[3], seen[30], seen[150]);
+    CHECK(seen[3] == 0.10000000894069672 && seen[30] == 1.0 && seen[150] == 5.000000476837158);
+}
+
 void test_status_hash_covers_move_to() {
     const auto digest = [](const StatusRec& s) {
         StateHasher h;

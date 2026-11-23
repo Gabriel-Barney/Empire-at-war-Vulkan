@@ -365,6 +365,20 @@ static void test_gc_determinism() {
 
 // ------------------------------------------------------------------------------------------
 
+// #242 (legacy docs/re/BKG1_RE_ANSWERS.md §A.2 [H]): GetCurrentTime.Frame() (0x5406b0) is (double)((float)NOW / 30.0f), the
+// game time in seconds by a float divide (GameScoring.lua's GameStartTime / gametime), not the frame number; GetCurrentTime()
+// is the clock the host set.
+static void test_get_current_time_frame() {
+    LuaHost host;
+    LuaVm vm(host);
+    vm.set_frame(3);
+    vm.set_time(0.25);
+    CHECK(run(vm, "f = GetCurrentTime.Frame() t = GetCurrentTime()") == "");
+    CHECK(gnum(vm, "f") == static_cast<double>(3.0f / 30.0f) && gnum(vm, "t") == 0.25);
+    vm.set_frame(150);
+    CHECK(run(vm, "f = GetCurrentTime.Frame()") == "" && gnum(vm, "f") == static_cast<double>(150.0f / 30.0f));
+}
+
 static void test_threads() {
     LuaHost host;
     LuaVm vm(host);
@@ -792,6 +806,7 @@ int main() {
     test_random_and_math();
     test_gc_determinism();
     test_threads();
+    test_get_current_time_frame();
     test_objects();
     test_owner_thread();
     test_static_scan();
