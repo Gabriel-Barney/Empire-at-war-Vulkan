@@ -1304,9 +1304,9 @@ float GalacticAiWorld::Impl::planet_queue_base_time(PlanetIndex p, uint32_t q) c
 }
 
 // 0x53bb20(Q, 1, 0) = Q's time + 0x53bda0(Q). Only the re-solves read it (GalPp::first_solve false: the accept re-solve
-// 0x6c4a50 clears the first-solve byte 0x140b3a524, Init 0x6c0d00 sets it), never a first solve (legacy
-// docs/re/BKG1_RE_ANSWERS.md §5 b0122 "Who reads the flag"). #196: 0x53bda0 is not const; after the sum it cuts the
-// vector after the last live flag-0 slot (PlanetBuildQueue::cut_tail).
+// 0x6c4a50 clears the first-solve byte 0x140b3a524, Init 0x6c0d00 sets it), never a first solve
+// (legacy docs/re/BKG1_RE_ANSWERS.md §5 b0122 "Who reads the flag"). #196: 0x53bda0 is not const; after the sum it cuts
+// the vector after the last live flag-0 slot (PlanetBuildQueue::cut_tail).
 float GalacticAiWorld::Impl::planet_queue_time(PlanetIndex p, uint32_t q) {
     if (!valid_planet(p) || q > 1) return 0.0f;
     PlanetBuildQueue& pq = planet_queues[p][q];
