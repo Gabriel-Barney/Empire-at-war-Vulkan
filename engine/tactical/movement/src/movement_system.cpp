@@ -1689,8 +1689,19 @@ bool MovementSystem::set_heading(ObjectId id, float yaw_deg) {
 }
 
 bool MovementSystem::turn_in_place(ObjectId id, float yaw_deg, uint32_t frame) {
+    if (cfg_.mode != MoveMode::Space) return false;
+    if (const FighterSquad* s = squad_ptr(id)) {  // TEAM_LOCOMOTOR 0x62fe10: each member (the fighter locomotor accepts)
+        const std::vector<ObjectId> members = s->members;
+        for (const ObjectId m : members) (void)turn_in_place(m, yaw_deg, frame);
+        return true;
+    }
     Unit* u = unit_ptr(id);
-    if (!u || cfg_.mode != MoveMode::Space || is_fighter(*u)) return false;
+    if (!u) return false;
+    if (is_fighter(*u)) {  // FIGHTER_LOCOMOTOR 0x5cb490: Dead_Stop only - the heading is its stored orientation
+        if (u->sm.state != LocoState::FighterDeadStop) return false;
+        u->fs.stored = FAttitude{0.0f, 0.0f, fighter_wrap360(yaw_deg)};
+        return true;
+    }
     const ObjectId one[] = {id};
     stop(one);
     const float to = wrap_deg(yaw_deg);

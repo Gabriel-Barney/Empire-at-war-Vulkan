@@ -1646,13 +1646,23 @@ bool TacticalBattle::request_retreat(int32_t player) {
     // (vf8: the player's live movers that are not team members) gets a turn in place to the reverse of the ATTACKER ENTRY
     // POSITION marker's yaw (locomotor vf +0x218), so the ships turn away during the countdown. The marker query walks the
     // map markers in order: the first of that name, else the last one examined (retail quirk); no marker: no turn.
-    // [port] Fighters are not turned (retail: only a fighter in locomotor state 0x1f stores the heading).
+    // #88 (TRL2_A_RE_ANSWERS Q4.2 [H]): a solo fighter takes the heading only in Dead_Stop 0x1F (turn_in_place), and a
+    // squadron (a mover that is no team member: its container) forwards it to its members. [port] the squadrons come
+    // after the units, once each, in the order of their first live member (the call draws nothing, so the order changes
+    // nothing); a space team without a fighter squadron (no FighterSquad) is not turned.
     Vec3 mface{};
     if (space_ && movement_ && bt_retreat_marker_facing(mface)) {
         if (mface.x != 0.0f || mface.y != 0.0f) {
             const float heading = yaw_of(Vec3{-mface.x, -mface.y, 0.0f});
+            std::vector<uint8_t> squad_done(containers_.size(), 0);
             for (const Unit& u : units_)
                 if (retreat_listed(u, static_cast<uint8_t>(side))) (void)movement_->turn_in_place(u.id, heading, frame_);
+            for (const Unit& u : units_) {
+                if (u.container == kNoContainer || u.container >= containers_.size() || squad_done[u.container]) continue;
+                if (u.side != side || !u.alive || u.retreated || !u.movable || l1_jumps_.departing(u.id)) continue;
+                squad_done[u.container] = 1;
+                (void)movement_->turn_in_place(containers_[u.container].id, heading, frame_);
+            }
         }
     }
     return true;
@@ -1681,7 +1691,9 @@ bool TacticalBattle::cancel_retreat(int32_t player, bool by_player) {
         rec.units.push_back(u.id);
         if (space_) stop.push_back(u.id);
     }
-    // Space 0x532ee0: each unit of the retreat list gets a locomotor stop (the start's heading turn ends).
+    // Space 0x532ee0: each unit of the retreat list gets a locomotor stop (the start's heading turn ends). [port] a
+    // squadron is not stopped (retail's list holds its container; TEAM_LOCOMOTOR's stop forwarding is untraced), so a
+    // Dead_Stop member keeps the start's heading (#88; no battle path enters Dead_Stop yet).
     if (movement_ && !stop.empty()) movement_->stop(stop);
     retreat_side_ = -1;
     retreat_done_frame_ = 0;

@@ -3,7 +3,8 @@
 //     shares rounded up: a company member holds Population_Value / Company_Units count, a timed landing in flight the whole
 //     company (its unloaded members join at the unload's finish), and skirmish start forces never count.
 //   * tru2 t02 (TRU1_C_RE §2.1): at a space retreat request every listed ship turns in place (at its turn rate) to one
-//     common heading (the reverse of the attacker entry yaw); the star base does not turn.
+//     common heading (the reverse of the attacker entry yaw); the star base does not turn. #88: a squadron forwards it to
+//     its members, and a fighter takes it only in Dead_Stop (as its stored orientation).
 //   * trl2 t04 (MCX4_PRES_RE_ANSWERS_2 Q4.2): a player cancel during the countdown clears the retreat (a new request is
 //     accepted), stops the turning ships and posts a by_player cancel record; the retreat check turning non-zero during the
 //     countdown (DISABLE_RETREAT) cancels on its own (by_player false).
@@ -215,6 +216,51 @@ void test_retreat_heading() {
     std::printf("  tru2 t02: requested %d at %u, %zu ships, turned %d, all done %d, yaw spread %.3f, star base kept %d (%zu)\n",
                 requested, req, movers.size(), turned, done, static_cast<double>(spread), still_kept, still.size());
     CHECK(requested && movers.size() >= 2 && turned && done && same && still_kept);
+}
+
+// ---- #88 ----
+// TRL2_A_RE_ANSWERS Q4.2 [H]: the retreat start turn goes to a squadron too (TEAM_LOCOMOTOR forwards it to its members);
+// a fighter takes it only in Dead_Stop 0x1F, as its stored orientation (yaw = the retreat heading, 90 here). Player 0 has a
+// TIE squadron; two of its three members are put in Dead_Stop (retail's writer of 0x1F is untraced) just before the request.
+void test_retreat_heading_fighters() {
+    g_temp_prefix = "alamo_sim_trl2_tests_fighters";
+    auto d = make_data(false, false, false, false, false, false, false, false, true);
+    const uint32_t squad_t = type_of(*d, "S10_TIE_Squadron");
+    namespace mv = tactical::movement;
+    std::vector<objects::ObjectId> fighters;
+    std::vector<float> other0;
+    bool requested = false, stored_ok = false, other_kept = false;
+    space_battle(
+        *d, 3000,
+        [&](TacticalBattle& b, TacticalMode& tm, SimHost&) {
+            if (b.retreat_block(0) != 0) return true;
+            objects::ObjectStore& st = tm.primary();
+            for (const objects::ObjectHandle h : st.owned_by(0))
+                if (st.alive(h) && b.movement().has_unit(st.id(h)) && b.movement().view(st.id(h)).locomotor == mv::LocomotorKind::Fighter)
+                    fighters.push_back(st.id(h));
+            std::sort(fighters.begin(), fighters.end());
+            if (fighters.size() < 3) return false;
+            mv::MovementSystem& m = alamo::sim::TacticalBattleTestAccess::movement(b);
+            CHECK(m.fighter_dead_stop(fighters[0]) && m.fighter_dead_stop(fighters[1]));
+            // Dead_Stop stores the current orientation: it must not already be the heading, or the check below proves nothing
+            for (size_t i = 0; i < 2; ++i) CHECK(std::fabs(wrap180(b.movement().fighter_state(fighters[i])->stored.yaw - 90.0f)) > 5.0f);
+            for (size_t i = 2; i < fighters.size(); ++i) other0.push_back(b.movement().fighter_state(fighters[i])->stored.yaw);
+            requested = b.request_retreat(0);
+            stored_ok = true;
+            for (size_t i = 0; i < 2; ++i) {
+                const mv::FighterState* fs = b.movement().fighter_state(fighters[i]);
+                stored_ok = stored_ok && fs && std::fabs(wrap180(fs->stored.yaw - 90.0f)) < 0.05f && fs->stored.pitch == 0.0f &&
+                            fs->stored.roll == 0.0f;
+            }
+            other_kept = true;
+            for (size_t i = 2; i < fighters.size(); ++i)
+                other_kept = other_kept && b.movement().fighter_state(fighters[i])->stored.yaw == other0[i - 2];
+            return false;
+        },
+        60.0f, {{0, 1, squad_t}});
+    std::printf("  #88: %zu fighters, requested %d, Dead_Stop members took the heading %d, the other kept its own %d\n",
+                fighters.size(), requested, stored_ok, other_kept);
+    CHECK(fighters.size() == 3 && requested && stored_ok && other_kept);
 }
 
 // ---- trl2 t04 ----
@@ -653,6 +699,7 @@ int main() {
     test_ground_special_weapon();
     std::printf("tru2 t02: space retreat heading\n");
     test_retreat_heading();
+    test_retreat_heading_fighters();  // #88
     std::printf("trl2 t04: retreat cancel\n");
     test_retreat_cancel();
     std::printf("trl2 t05: land retreat end\n");

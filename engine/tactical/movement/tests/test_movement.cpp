@@ -3270,6 +3270,40 @@ static std::vector<ObjectId> fighter_squad(MovementSystem& sys, ObjectId contain
     return sq.members;
 }
 
+// #88 (TRL2_A_RE_ANSWERS Q4.2 [H]): the space retreat start turn (locomotor vf +0x218) on fighters. FIGHTER_LOCOMOTOR
+// 0x5cb490 stores the heading as the Dead_Stop orientation (roll 0, pitch 0, yaw in [0, 360)) only in state 0x1F and
+// otherwise does nothing; TEAM_LOCOMOTOR forwards the call to every member.
+static void test_fighter_retreat_turn() {
+    MovementSystem sys(fighter_cfg());
+    fighter_box(sys);
+    (void)fighter_squad(sys, 600, 1, {-800.0f, 0.0f}, 0.0f, 0, 3);
+    CHECK(sys.add_unit(fighter_desc(30, {500.0f, 500.0f}, 45.0f, 0)));
+    SimRng rng(88);
+    for (uint32_t f = 0; f < 5; ++f) sys.tick(f, rng);
+    // a solo fighter that is not in Dead_Stop: nothing (its stored orientation and state stay)
+    const FAttitude s30 = sys.fighter_state(30)->stored;
+    const LocoState l30 = sys.view(30).loco_state;
+    CHECK(!sys.turn_in_place(30, 120.0f, 5));
+    CHECK(sys.fighter_state(30)->stored.yaw == s30.yaw && sys.view(30).loco_state == l30);
+    // in Dead_Stop: the heading (-90 -> 270) is its stored orientation, roll and pitch 0
+    CHECK(sys.fighter_dead_stop(30));
+    CHECK(sys.turn_in_place(30, -90.0f, 5));
+    const FAttitude& a = sys.fighter_state(30)->stored;
+    CHECK(a.yaw == 270.0f && a.pitch == 0.0f && a.roll == 0.0f && sys.view(30).loco_state == LocoState::FighterDeadStop);
+    // the squadron: members 1 and 2 in Dead_Stop take 45, member 3 (not) keeps its own
+    CHECK(sys.fighter_dead_stop(1) && sys.fighter_dead_stop(2));
+    const FAttitude s3 = sys.fighter_state(3)->stored;
+    CHECK(sys.turn_in_place(600, 45.0f, 5));
+    CHECK(sys.fighter_state(1)->stored.yaw == 45.0f && sys.fighter_state(2)->stored.yaw == 45.0f &&
+          sys.fighter_state(3)->stored.yaw == s3.yaw);
+    // ... and Dead_Stop turns them toward it over the next frames (FIGHTER_FLYING §4.6: settled -> yaw steps to stored)
+    const float y0 = sys.view(30).yaw;
+    for (uint32_t f = 5; f < 40; ++f) sys.tick(f, rng);
+    std::printf("fighter retreat turn: solo fighter yaw %.1f -> %.1f (stored 270)\n", static_cast<double>(y0),
+                static_cast<double>(sys.view(30).yaw));
+    CHECK(std::fabs(fighter_wrap180(sys.view(30).yaw - 270.0f)) < std::fabs(fighter_wrap180(y0 - 270.0f)));
+}
+
 // §4.2 squadron idle: one parking cell, the leader orbits its centre at radius ~60, members hold their slots.
 static void test_fighter_orbit() {
     MovementSystem sys(fighter_cfg());
@@ -4267,6 +4301,7 @@ int main() {
     test_fighter_attack_run();
     test_fighter_dogfight();
     test_fighter_determinism();
+    test_fighter_retreat_turn();  // #88
     test_land_tail_stages();  // REF2 t07
 #ifdef ALAMO_MOVEMENT_HAVE_TERRAIN
     test_space_obstacle_footprint();  // S7 t07 / t08
