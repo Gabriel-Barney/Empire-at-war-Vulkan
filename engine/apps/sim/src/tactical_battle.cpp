@@ -675,6 +675,7 @@ void TacticalBattle::setup(TacticalMode& mode, terrain::MapData map, SimRng& rng
         before_map_load_ = nullptr;
         fn();
     }
+    l1_create();                // #57 t05: the special-weapon system the map objects register into
     bt_map_load(mode, rng);     // REMAINING_GAPS §3.1: map objects in map order (Map_Load_Spawn_Table draws)
     // cu8g t02 (CU8G_T02_ENV_PICK_RE §1 / §3 step 7): the environment pick, the map loader's last synced draw - after the
     // chunk-0x102 objects and their spawn-table draws, before every post-load step (skirmish base / start forces, the
@@ -691,7 +692,7 @@ void TacticalBattle::setup(TacticalMode& mode, terrain::MapData map, SimRng& rng
     }
     bt_pad_restore(mode);        // §6.5: persistent pad children
     bt_skirmish_base(mode);      // t50: the land skirmish's pre-built base
-    l1_setup(mode);            // L1 systems: special weapons / hyperspace / engines (before the deploys)
+    l1_setup(mode);            // L1 systems: strikes, space fields (before the start-force deploys)
     bt_place_forces(mode, rng, pf);  // §3.2: starbase, structures, defender / attacker start forces
     sk_garrison_setup();             // the skirmish slots' garrison (start-force) lists
     bt_landing_points(mode);     // §3.3: the attacker's map-owned reinforcement points

@@ -45,6 +45,8 @@ std::string map1_types(std::string t) {
         "<Spawned_Squadron_Location_Flyout_Distances>100.0</Spawned_Squadron_Location_Flyout_Distances></SpecialStructure>\n"
         " <SpecialStructure Name=\"M1_Bone_Garrison\"><Variant_Of_Existing_Type>M1_Bone_Hangar</Variant_Of_Existing_Type>"
         "<Spawn_Garrison_On_Load>True</Spawn_Garrison_On_Load></SpecialStructure>\n"
+        " <SpecialStructure Name=\"M1_Lobber\"><Tactical_Health>500</Tactical_Health><CategoryMask>Structure</CategoryMask>"
+        "<Behavior>SELECTABLE</Behavior><LandBehavior>LOBBING_SUPERWEAPON</LandBehavior></SpecialStructure>\n"
         " <SpaceUnit Name=\"M1_Escorted\"><Variant_Of_Existing_Type>S10_Frigate</Variant_Of_Existing_Type>"
         "<Space_Escort_Unit_Types>S10_Corvette, S10_Corvette</Space_Escort_Unit_Types></SpaceUnit>\n";
     t.insert(t.rfind("</S10>"), add);
@@ -438,6 +440,28 @@ int run_every_map() {
     return g_fail ? 1 : 0;
 }
 
+// #44 t05 / #57 t05 (L1_S4_REMAINING special weapons; the map1 t03 follow-up): a map object that is a special weapon is
+// registered with the battle's SpecialWeaponSystem when the map load deploys it (l1_register), and that registration is
+// still there once the battle runs: the system is created before the map load, not again after it.
+void test_land_special_weapon(const Data& d) {
+    const uint32_t lobber_t = type_of(d, "M1_Lobber");
+    terrain::MapData m = land_map();
+    m.objects.push_back(place("Defending Forces Position", 600.0f, 600.0f, 0));
+    m.objects.push_back(place("Attacker Entry Position", 200.0f, 200.0f, 1));
+    m.objects.push_back(place("M1_Lobber", 900.0f, 900.0f, 0));
+    run_map_battle(
+        d, true, m, make_setup(d, true), [](galactic::GalacticSim&, galactic::BattleRequest&) {},
+        [&](galactic::GalacticSim&, TacticalBattle& b, TacticalMode& tm) {
+            const objects::ObjectStore& st = tm.primary();
+            objects::ObjectId lobber = objects::kNoObjectId;
+            for (const objects::ObjectHandle h : st.all_objects())
+                if (st.alive(h) && static_cast<uint32_t>(st.type(h)) == lobber_t) lobber = st.id(h);
+            const bool registered = lobber != objects::kNoObjectId && b.special_weapons().has(lobber);
+            std::printf("  map lobber %d: registered %d\n", lobber, registered ? 1 : 0);
+            CHECK(lobber != objects::kNoObjectId && registered);
+        });
+}
+
 // g_data_extra: M1_Bone_Hangar's model, a root and SPAWN_00 (bind matrix rows: x axis column (0.6, -0.8, 0), at (0, -30, 0))
 void write_spawn_bone_model(const fs::path& root) {
     const std::vector<uint8_t> alo = skeleton_alo({{"Root", {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0}},
@@ -661,6 +685,8 @@ int main(int argc, char** argv) {
     std::printf("map1: space start (starbase pick, escorts, camera focus)\n");
     test_space(*d);
     std::printf("map1: land spawner fly-out along the spawn bone (#44 t02)\n");
+    std::printf("map1: a map special weapon stays registered (#57 t05)\n");
+    test_land_special_weapon(*d);
     test_land_spawn_bone(*d, false);
     test_land_spawn_bone(*d, true);
     std::printf("map1: land spawner Open / launch / Close cycle (#44 t01)\n");

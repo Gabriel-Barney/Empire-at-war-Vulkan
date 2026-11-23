@@ -2693,6 +2693,8 @@ private:
     // --- end fog ---
     // --- L1 systems (owner: tactical-systems agent; tactical_battle_l1.cpp) ---
     void l1_add_types(std::vector<uint32_t>& use) const;    // constructor: the mode's special-weapon types
+    // #57 t05: setup(), before the map load: the SpecialWeaponSystem the map objects' deploys register into (l1_register)
+    void l1_create();
     void l1_setup(TacticalMode& mode);                       // setup(): the world callbacks
     void l1_register(TacticalMode& mode, objects::ObjectHandle h, int32_t type);  // deploy / adopt_object
     void l1_motion(TacticalMode& mode, SimRng& rng);         // tick step 4 (after the movement commit)

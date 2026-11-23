@@ -66,12 +66,17 @@ void TacticalBattle::l1_add_types(std::vector<uint32_t>& use) const {
     }
 }
 
-void TacticalBattle::l1_setup(TacticalMode& mode) {
+void TacticalBattle::l1_create() {
+    // #57 t05: created before the map load. The map objects' deploys register with it (l1_register), so it must not be
+    // created again afterwards: l1_setup recreating it dropped every map special weapon's registration.
     ta::SpecialWeaponConfig cfg;
     cfg.fps = 30;
     cfg.space = space_;
     l1_sw_ = ta::SpecialWeaponSystem({}, cfg);
     l1_desc_cache_.clear();
+}
+
+void TacticalBattle::l1_setup(TacticalMode& mode) {
     l1_mode_ = &mode;
     l1_add_strike_projectiles();  // land strikes: Bombardment_Projectile types (before any shot)
     l1_strikes_setup(mode);
