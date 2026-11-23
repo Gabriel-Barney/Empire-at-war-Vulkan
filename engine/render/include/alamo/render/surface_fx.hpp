@@ -10,8 +10,8 @@
 // <Surface_Settings name="water"> blocks inside "default" (unclosed tags); they are read as siblings.
 // Object types name their triggers with SurfaceFX_Name (list) and, for PARTICLE types, Explosion_Scorch_Mark.
 //
-// Surface type of a terrain point: the material of the nearest grid vertex (TEM `14`); points under the map's water
-// plane report 4 water / 8 lava / 7 ice by water type. Names (SurfaceFX settings): 0 default, 1 grass, 2 dirt, 3 snow,
+// Surface type of a terrain point (terrain::Terrain::surface_type_at): the material of the nearest grid vertex (TEM `14`);
+// points whose bilinear height is more than 0.5 below the water height report 4 water / 8 lava / 7 ice by water type. Names (SurfaceFX settings): 0 default, 1 grass, 2 dirt, 3 snow,
 // 4 water, 5 concrete, 6 mud, 7 ice, 8 lava; others -> default. [port] names 1..8 inferred from SPEC §14 / texture
 // names; 9..11 (special cover types) are not mapped.
 //
