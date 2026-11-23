@@ -1893,7 +1893,9 @@ struct GalacticSimTokenResolver::Impl {
         if (k.substr(0, 6) == "HINTS.") {
             for (const std::string_view h : kGalacticHints)
                 if (k.substr(6) == h) {
-                    out = 0.0;  // hint-set default [port: Markup_Filename values not read]
+                    // #244 (0x6dee80): the AI player's campaign markup value for this planet, else the hint-set default
+                    out = 0.0;
+                    if (r.hooks_.hint) r.hooks_.hint(ctx.self, ip, h, out);
                     return true;
                 }
             return no_path();

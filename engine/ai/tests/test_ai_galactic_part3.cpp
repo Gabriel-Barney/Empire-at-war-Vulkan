@@ -741,6 +741,60 @@ void test_story_trigger_token() {
     pw.world->attach_story(nullptr, nullptr);
 }
 
+// #244 (AI_GALACTIC_TOKENS §1 Hints.X, HintPerceptualEvaluator 0x6dee80) [H]: Variable_Target.Hints.X is the value the
+// campaign's Markup_Filename file gives planet X of the AI player's faction ("Faction, File" pairs, files under
+// Data\XML\AI\GalacticMarkup), else the Galactic_Hints default 0. A hint outside the set fails.
+void test_campaign_hint_tokens() {
+    MemoryFiles files;
+    AiDefinitions defs;
+    EquationSet eqs;
+    std::vector<std::string> plan_files;
+    syn_data(files, defs, eqs, plan_files);
+    files.add("Data\\XML\\AI\\GalacticMarkup\\TestHints.xml",
+              "<?xml version=\"1.0\"?>\n<Galactic_Markup>\n <Planets HintSet=\"Galactic_Hints\">\n"
+              "  <p1> <PriorityTarget> 7.0 </PriorityTarget> <Chokepoint>1</Chokepoint> </p1>\n"
+              "  <P3> <OffenseDelaySpace>2.5</OffenseDelaySpace> </P3>\n"
+              " </Planets>\n</Galactic_Markup>\n");
+    const gal::GalacticRules rules = syn_rules();
+    objects::GameObjectTypes types;
+    objects::IdCounter ids;
+    objects::ObjectStore store(objects::ModeKind::Galactic, objects::StoreKind::Primary, types, &ids);
+    GameRandom rng(4242u, 77u);
+    gal::GalacticSim sim(rules, store, rng.synced());
+    std::vector<std::string> diag;
+    CHECK(sim.start(syn_setup(), &diag));
+    GalacticAiConfig cfg;
+    cfg.players = {{0, "SynEmpire", 1}, {1, "SynRebel", 1}};
+    cfg.difficulties = {{"Normal_Default", 1.1f, 0.0f}};
+    cfg.markup_files = {"Empire, TestHints"};  // the Rebel has no file
+    std::vector<GalacticAiTypeInfo> tinfo(tTypes);
+    GalacticAiWorld world(sim, store, &types, &files, rng, defs, eqs, tinfo,
+                          [&sim](uint8_t p, const commands::EventData& ev) { return sim.execute(p, ev); }, cfg);
+    auto token = [&world](const char* text, int32_t self, int32_t planet, bool& ok) {
+        EquationSet e;
+        e.add("T", text);
+        e.link();
+        EvalContext c;
+        c.self = self;
+        c.enemy = 1 - self;
+        c.human = 1;
+        c.target = planet;
+        const EvalResult r = evaluate(e, e.find("T"), c, world.resolver());
+        ok = r.ok;
+        return r.value;
+    };
+    bool ok = false;
+    CHECK(token("Variable_Target.Hints.PriorityTarget", 0, 1, ok) == 7.0 && ok);  // planet names match case-insensitively
+    CHECK(token("Variable_Target.Hints.Chokepoint", 0, 1, ok) == 1.0 && ok);
+    CHECK(token("Variable_Target.Hints.OffenseDelayGround", 0, 1, ok) == 0.0 && ok);  // not in the file: the default
+    CHECK(token("Variable_Target.Hints.OffenseDelaySpace", 0, 3, ok) == 2.5 && ok);
+    CHECK(token("Variable_Target.Hints.PriorityTarget", 0, 2, ok) == 0.0 && ok);  // a planet the file does not name
+    CHECK(token("Variable_Target.Hints.PriorityTarget", 1, 1, ok) == 0.0 && ok);  // the Rebel's AI reads no file
+    token("Variable_Target.Hints.High_Ground", 0, 1, ok);
+    CHECK(!ok);  // not a Galactic_Hints hint: the token fails
+    std::printf("campaign hints: Empire P1 PriorityTarget 7, Chokepoint 1, P3 OffenseDelaySpace 2.5; others 0\n");
+}
+
 // mcx8 t07 (AI_GALACTIC_TOKENS §1 / §4, STORYB_T10_TRIGGER_AI §3.2): the three galactic tokens base FoC equations use that
 // the resolver did not evaluate. Expected values from the retail leaves 0x65eb10, 0x65c4e0 and 0x6e1fb0.
 void test_mcx8_t07_tokens() {

@@ -272,6 +272,9 @@ struct GalacticAiWorld::Impl final : lua::AiScriptHost, lua::ScriptMarkupHost, A
     ScriptEvaluators scripts;
     // Apply_Markup accumulators per (player, planet) (+0x80 of the player's AI target).
     std::map<std::pair<int32_t, int32_t>, double> markup;
+    // #244 the campaign hint markup (GalacticAiConfig::markup_files) per upper-cased faction name, read at construction.
+    std::map<std::string, GalacticMarkup> hint_markup;
+    void load_hint_markup();
 
     // Lua
     lua::LuaPlayerWorld world;

@@ -45,7 +45,21 @@ GalacticAiWorld::Impl::Impl(gal::GalacticSim& s, objects::ObjectStore& st, const
     type_mask.assign(sim.rules().types.size(), 0u);
     for (size_t t = 0; t < type_mask.size() && t < tinfo.size(); ++t) type_mask[t] = tinfo[t].category_mask;
     init_queue_phases();  // the galaxy build's queue phases (A2J_RE_BUILD_MARKET §4; drawn by GalacticSim::start)
+    load_hint_markup();
     res.set_hooks(make_hooks());
+}
+
+// #244: each faction's Markup_Filename file, once (retail fills the hint leaves when the planet evaluator is built).
+// A missing or unreadable file leaves that faction's hints at their defaults.
+void GalacticAiWorld::Impl::load_hint_markup() {
+    if (!files || cfg.markup_files.empty()) return;
+    std::vector<uint8_t> bytes;
+    for (const gal::FactionRules& f : sim.rules().factions) {
+        const std::string path = galactic_markup_path(cfg.markup_files, f.name);
+        if (path.empty() || !files->read(path, bytes)) continue;
+        hint_markup[ai_upper_copy(ai_trim(f.name))] =
+            parse_galactic_markup(std::string_view(reinterpret_cast<const char*>(bytes.data()), bytes.size()), path);
+    }
 }
 
 GalacticSimTokenResolver::Hooks GalacticAiWorld::Impl::make_hooks() {
@@ -58,6 +72,19 @@ GalacticSimTokenResolver::Hooks GalacticAiWorld::Impl::make_hooks() {
     };
     h.interventions_enabled = cfg.interventions_enabled;  // mcx8 t07 Game.InterventionsEnabled
     h.active_goals = [this](int32_t p, std::string_view cat, int32_t& n) { return active_goals(p, cat, n); };
+    h.hint = [this](int32_t p, int32_t planet, std::string_view hint, double& out) {
+        if (hint_markup.empty() || p < 0 || static_cast<size_t>(p) >= sim.players().size()) return false;
+        const uint32_t fac = sim.players()[static_cast<size_t>(p)].faction;
+        if (fac >= sim.rules().factions.size()) return false;
+        const auto file = hint_markup.find(ai_upper_copy(ai_trim(sim.rules().factions[fac].name)));
+        if (file == hint_markup.end() || planet < 0 || static_cast<size_t>(planet) >= sim.map().planets.size()) return false;
+        const auto row = file->second.find(ai_upper_copy(ai_trim(sim.map().planets.name[static_cast<size_t>(planet)])));
+        if (row == file->second.end()) return false;
+        const auto v = row->second.find(std::string(hint));
+        if (v == row->second.end()) return false;
+        out = v->second;
+        return true;
+    };
     h.markup = [this](int32_t p, int32_t planet) {
         const auto it = markup.find({p, planet});
         return it == markup.end() ? 0.0 : it->second;

@@ -144,4 +144,15 @@ std::map<std::string, std::string> load_faction_basic_ai(const std::vector<galac
 std::string campaign_ai_type(const std::vector<std::string>& pairs, const std::map<std::string, std::string>& basic_ai,
                              std::string_view faction, bool fill_unassigned);
 
+// #244 campaign hint markup (AI_GALACTIC_TOKENS §1 Hints.X): a Data\XML\AI\GalacticMarkup file,
+//   <Galactic_Markup> <Planets HintSet="Galactic_Hints"> <PLANET_NAME> <Hint>value</Hint> ... </PLANET_NAME> </Planets>
+// Upper-cased planet name -> upper-cased hint name -> value (C atof of the trimmed text). Only groups of the galactic hint
+// set (HintSet "Galactic_Hints", the one the planet evaluator 0x65f7b0 reads) are kept; a repeated planet or hint: the
+// last one wins [port: not checked].
+using GalacticMarkup = std::map<std::string, std::map<std::string, double>>;
+GalacticMarkup parse_galactic_markup(std::string_view xml, const std::string& file);
+// The markup file a campaign's Markup_Filename "Faction, File" pairs give `faction`: "Data\XML\AI\GalacticMarkup\File.xml",
+// empty when no pair names it.
+std::string galactic_markup_path(const std::vector<std::string>& pairs, std::string_view faction);
+
 }  // namespace alamo::ai

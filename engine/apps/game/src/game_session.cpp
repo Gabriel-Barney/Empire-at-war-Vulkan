@@ -230,7 +230,11 @@ bool GameSession::start(std::vector<std::string>* diag, const commands::CommandR
         // skirmish gives only its AI slot (ps.ai) the faction's Basic_AI (SKIRMISH_SETUP §2.1). Base FoC too.
         const std::vector<std::string>* control = nullptr;
         if (spec_.kind == SessionKind::Campaign)
-            if (const data::CampaignDef* c = d.db.find_campaign(spec_.campaign)) control = &c->ai_player_control;
+            if (const data::CampaignDef* c = d.db.find_campaign(spec_.campaign)) {
+                control = &c->ai_player_control;
+                // #244: the campaign's Markup_Filename "Faction, File" pairs feed the AI's Hints.X tokens
+                for (const std::string_view v : c->raw_values("Markup_Filename")) gcfg.markup_files.emplace_back(v);
+            }
         const std::vector<std::string> no_pairs;
         if (spec_.kind == SessionKind::Campaign && !control) control = &no_pairs;
         for (size_t p = 0; p < setup_.players.size(); ++p) {
