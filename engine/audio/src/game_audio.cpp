@@ -111,7 +111,8 @@ uint32_t GameAudio::play_2d(std::string_view event, uint32_t pump) {
 void GameAudio::enter_front_end(std::string_view music_event) {
     tactical_ = false;
     ambience_.end(false);
-    audio_->set_mode(AudioMode::Galactic);
+    audio_->set_mode(AudioMode::Galactic);  // the listener pullback
+    audio_->end_mode();                     // aud8 t02 (§1.7): the front end has no mode, so the 3D mods are 1.0
     audio_->set_3d_scale(1.0f);
     if (!music_event.empty()) audio_->play_music(music_event, music_mode::kFrontEnd, false, false);
 }
@@ -254,6 +255,7 @@ void GameAudio::leave_mode() {
     ambience_.end(false);
     objects_.clear();
     tactical_ = false;
+    audio_->end_mode();  // aud8 t02 (legacy docs/re/AUDIO.md §1.7): mode shutdown resets the 3D mods to 1.0
 }
 
 // ---------------------------------------------------------------- per frame

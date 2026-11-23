@@ -620,6 +620,53 @@ void test_music_modes() {
     CHECK(a.current_music() == "Bat_Space_DS");
 }
 
+// aud8 t02 (legacy docs/re/AUDIO.md §1.7): mode activation sets the mode's 3D saturation / rolloff mods, mode shutdown
+// resets both to 1.0, and the front end has no mode. A mod's non-default galactic mods show the difference.
+void test_3d_mods_reset() {
+    MemoryProvider tree = make_tree();
+    tree.add("Data\\XML\\Audio.xml", R"(<?xml version="1.0"?>
+<Audio>
+  <Audio_Galactic_3D_Saturation_Distance_Mod> 2.0 </Audio_Galactic_3D_Saturation_Distance_Mod>
+  <Audio_Galactic_3D_Rolloff_Distance_Mod> 3.0 </Audio_Galactic_3D_Rolloff_Distance_Mod>
+  <Audio_Land_3D_Rolloff_Distance_Mod> 10.0 </Audio_Land_3D_Rolloff_Distance_Mod>
+  <Audio_Space_3D_Saturation_Distance_Mod> 1.5 </Audio_Space_3D_Saturation_Distance_Mod>
+  <Audio_Space_3D_Rolloff_Distance_Mod> 4.0 </Audio_Space_3D_Rolloff_Distance_Mod>
+</Audio>
+)");
+    AudioDatabase db;
+    CHECK(db.load(tree));
+    GameAudioData data;
+    data.load(tree);
+    NullBackend backend{test_duration};
+    SimRng rng{0x5EEDu};
+    AudioSystem a(db, backend, rng);
+    GameAudio g(a, data, rng);
+    g.set_local_faction("Rebel");
+    // An event with Volume_Saturation_Distance 100 heard from 300: 1.0 / 1.0 gives 100 / (100 + 200).
+    const float plain = 100.0f / 300.0f;
+    g.enter_front_end();
+    CHECK(near(a.attenuation(300.0f, 100.0f), plain, 1e-6f));  // no mode in the front end
+    g.enter_galactic();
+    CHECK(near(a.attenuation(300.0f, 100.0f), 200.0f / (200.0f + 3.0f * 100.0f), 1e-6f));  // galactic 2.0 / 3.0
+    g.leave_mode();
+    CHECK(near(a.attenuation(300.0f, 100.0f), plain, 1e-6f));  // mode shutdown
+    TacticalSetup land;
+    land.environment = "Temperate";
+    g.enter_tactical(land);
+    CHECK(near(a.attenuation(300.0f, 100.0f), 100.0f / (100.0f + 10.0f * 200.0f), 1e-6f));  // land 1.0 / 10.0
+    g.leave_mode();
+    CHECK(near(a.attenuation(300.0f, 100.0f), plain, 1e-6f));
+    TacticalSetup space;
+    space.land = false;
+    g.enter_tactical(space);
+    CHECK(near(a.attenuation(300.0f, 100.0f), 150.0f / (150.0f + 4.0f * 150.0f), 1e-6f));  // space 1.5 / 4.0
+    g.leave_mode();
+    CHECK(near(a.attenuation(300.0f, 100.0f), plain, 1e-6f));
+    g.enter_galactic();
+    g.enter_front_end();  // back to the main menu without a mode shutdown in between
+    CHECK(near(a.attenuation(300.0f, 100.0f), plain, 1e-6f));
+}
+
 // STRATEGIC_GAPS §7.4: modes 4, 8, 11, 13 (lock), 14, 17.
 void test_music_modes_gaps() {
     Rig rig;
@@ -1471,6 +1518,7 @@ int main() {
     test_conversation();
     test_music_modes();
     test_music_modes_gaps();
+    test_3d_mods_reset();
     test_hooks();
     test_engine_loops();
 #ifdef ALAMO_AUDIO_HAVE_LUA

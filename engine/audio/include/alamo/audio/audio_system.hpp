@@ -276,9 +276,16 @@ public:
     void set_3d_scale(float s) { scale_3d_ = s; }                 // 0 behind the battle-load screen
     void set_attract_mode(bool on) { attract_ = on; }             // 3D voices silent, no mode music
 
-    // ---- Listener + mode distance factors (§1.7, §1.8).
-    void set_mode(AudioMode m) { mode_ = m; }
+    // ---- Listener + mode distance factors (§1.7, §1.8). set_mode is the mode activation: the mode's 3D saturation /
+    // rolloff mods apply. end_mode is the mode shutdown: both mods are 1.0 until the next set_mode; mode() keeps the
+    // last mode (the listener pullback and the peace time still read it).
+    void set_mode(AudioMode m) {
+        mode_ = m;
+        mode_active_ = true;
+    }
+    void end_mode() { mode_active_ = false; }
     AudioMode mode() const { return mode_; }
+    bool mode_active() const { return mode_active_; }
     void set_listener(const Listener& l) { listener_ = l; }
     const Listener& listener() const { return listener_; }
 
@@ -455,6 +462,7 @@ private:
     SimRng* rng_;
     AudioConfig cfg_;
     AudioMode mode_ = AudioMode::Land;
+    bool mode_active_ = true;
     Listener listener_;
     int64_t now_us_ = 0;
     int64_t frame_dt_us_ = 0;  // wall time of the current SFX update

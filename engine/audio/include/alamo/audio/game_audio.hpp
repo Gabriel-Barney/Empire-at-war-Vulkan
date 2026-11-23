@@ -26,7 +26,7 @@
 //     tactical       : enter_tactical({land, "Temperate", super_weapon}) -> ambient music (6), ambience
 //     combat         : combat({local_involved, local_base_attacked})   -> battle music (7), announcements
 //     battle end     : battle_end({won, enemy_faction})     -> win/lose music (mode 16)
-//     leaving a mode : leave_mode()                         -> stop all SFX and speech (§1.5, §3.1)
+//     leaving a mode : leave_mode()                         -> stop all SFX and speech, 3D mods to 1.0 (§1.5, §1.7, §3.1)
 #pragma once
 #include <array>
 #include <cstdint>
