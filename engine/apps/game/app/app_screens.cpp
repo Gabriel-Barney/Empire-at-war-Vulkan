@@ -88,9 +88,10 @@ bool App::skirmish_map_is_land(const std::string& map) const {
 }
 
 // Skirmish buy-units screen (IDD_SKIRMISH_BUY_UNITS_DIALOG). [port] a pre-battle screen (the original single-player
-// skirmish has none, SKIRMISH_SETUP §2.7): 10000 credits; bought units replace the default fleet, none bought = the
-// default fleet. The list is the original dialog's (game::skirmish_buy_list: cost > 0, Affiliation, Available_In_Skirmish
-// or the map kind's build tab, not cinematic-only, named heroes hidden, most expensive first, no cap: the list box scrolls).
+// skirmish has none, legacy docs/re/SKIRMISH_SETUP.md §2.7): 10000 credits; bought units replace the default fleet, none
+// bought = the default fleet. The list is the original dialog's (game::skirmish_buy_list: cost > 0, Affiliation,
+// Available_In_Skirmish or the map kind's build tab, not cinematic-only, named heroes only with the heroes option, most
+// expensive first, no cap: the list box scrolls).
 void App::open_buy_units(const SessionSpec& spec) {
     // with the "free starting units" option off (Fall of the Republic sets MP_Default_Free_Starting_Units = no) the
     // slots start without forces (SKIRMISH_SETUP §2 step 4) and the original allows no starting purchase (the flag's control
@@ -109,7 +110,9 @@ void App::open_buy_units(const SessionSpec& spec) {
     const bool land = skirmish_map_is_land(spec.skirmish_map);
     const uint32_t fac = data_.rules.find_faction(spec.skirmish.human_faction);
     game::SkirmishBuyOptions bo;
-    bo.heroes = false;  // [port] the staging screen has no heroes option (0x140b154bc bit 0): named heroes stay hidden
+    // #65 t06 (legacy docs/re/SKIRMISH_SETUP.md §2.7 rows 0xef9f0 [H]): a named hero is listed only with the heroes option
+    // (0x140b154bc bit 0), the staging screen's (SessionSpec::skirmish_options, else the GameConstants defaults).
+    bo.heroes = opts.heroes;
     // [port interim rule, Gabriel 2026-11-04: mod-only port rules keep vanilla behaviour] with a mod layer (MODPATH=) only the
     // types some Tactical_Buildable_Objects_Multiplayer list names (drops Thrawn's Revenge's option / cheat / marker rows).
     bo.multiplayer_list_only = data_.vfs && vfs::has_mod_layer(*data_.vfs);
