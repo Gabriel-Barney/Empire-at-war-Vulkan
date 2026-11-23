@@ -184,7 +184,8 @@ struct SfxPlay {
 //   pending, 6 tactical ambient (also Hutt Palace / Cantina selection, forced), 7 tactical battle, 8 tactical super
 //   weapon activation, 9 / 10 own / enemy object type music, 11 splash screen, 12 Lua Play_Music, 13 front-end
 //   menus (refused while the attract lock is set, unless forced), 14 movie music (a looping playlist stops after one
-//   pass; like every mode, it resumes the previous event only when queued with resume previous), 15 battle load screen, 16 battle-end dialog (win / lose), 17 movie cues.
+//   pass; like every mode, it resumes the previous event only when queued with resume previous), 15 battle load
+//   screen, 16 battle-end dialog (win / lose), 17 movie cues.
 //   Unforced Resume_Mode_Based_Music does nothing in 8, 11 and 12.
 namespace music_mode {
 inline constexpr uint8_t kNone = 0, kDebugList = 0, kGalactic = 1, kBuildComplete = 4, kBattlePending = 5,
