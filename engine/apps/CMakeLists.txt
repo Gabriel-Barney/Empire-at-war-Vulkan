@@ -241,6 +241,7 @@ if(TARGET alamo_objects AND TARGET alamo_commands AND TARGET alamo_tactical AND 
   # STY1 lane B: story rewards (galactic / tutorial / Underworld / tactical) and the shipped-XML coverage table.
   add_executable(alamo_sim_story_rewards_tests sim/tests/test_story_rewards.cpp)
   target_link_libraries(alamo_sim_story_rewards_tests PRIVATE alamo_sim alamo_vfs alamo_test_support)
+  target_include_directories(alamo_sim_story_rewards_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/sim/src)  # #151: story_session_records.hpp
   add_test(NAME alamo_sim_story_rewards_tests COMMAND alamo_sim_story_rewards_tests)
   set_tests_properties(alamo_sim_story_rewards_tests PROPERTIES TIMEOUT 600)
   # ship names (sim/include/alamo/sim/ship_names.hpp), no game data.
