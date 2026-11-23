@@ -190,7 +190,7 @@ void App::handle_screen_actions(const std::vector<ui::ScreenAction>& acts) {
             case K::TutorialQuit: {  // IDC_QUIT_TO_MAIN asks TEXT_QUIT_SURE (yes / no); yes leaves the session
                 ui::MessageBoxSpec m;
                 m.tag = "tutorial_quit";
-                if (const std::u16string* s = ui_.text.find("TEXT_QUIT_SURE")) m.caption = ui::utf16_to_utf32(*s);
+                m.caption = txt("TEXT_QUIT_SURE", U"Quit Current Game?");
                 m.buttons = {txt("TEXT_YES", U"Yes"), txt("TEXT_NO", U"No")};
                 screens_.show_message(m);
                 break;
@@ -449,8 +449,8 @@ std::u32string App::faction_label(int32_t player) const {
     const uint32_t f = g->players()[static_cast<size_t>(player)].faction;
     if (f >= g->rules().factions.size()) return {};
     const galactic::FactionRules& fr = g->rules().factions[f];
-    if (fr.text_id.empty()) return ui::utf8_to_utf32(fr.name);
-    return txt(fr.text_id, ui::utf8_to_utf32(fr.name));
+    if (const std::u16string* s = fr.text_id.empty() ? nullptr : ui_.text.find(fr.text_id)) return ui::utf16_to_utf32(*s);
+    return ui::utf8_to_utf32(fr.name);  // a data name, shown as written
 }
 
 void App::screen_line(std::u32string text, ui::Rgba8 color) {
@@ -483,24 +483,25 @@ void App::save_message(std::u32string caption, const std::string& detail) {
             cut = rest.rfind(' ', 64);
             if (cut == std::string::npos || cut == 0) cut = 64;
         }
-        m.lines.push_back(ui::utf8_to_utf32(rest.substr(0, cut)));
+        m.lines.push_back(port_text(ui::utf8_to_utf32(rest.substr(0, cut))));  // the port's reason, in English
         rest.erase(0, std::min(rest.size(), cut + (cut < rest.size() && rest[cut] == ' ' ? 1u : 0u)));
     }
-    m.buttons = {txt("TEXT_BUTTON_OK", U"OK")};
+    m.buttons = {txt("TEXT_BUTTON_OK", U"Okay")};  // retail's English
     screens_.show_message(m);
 }
 
-// [port-text: TEXT_SAVE_FAILED's retail English, its stand-in]
+// [port-text: retail's English for TEXT_SAVE_FAILED, its stand-in (the key is on the lines that use it)]
 constexpr std::u32string_view kSaveFailed = U"Failed to save game. Check available disk space.";
+constexpr std::u32string_view kCannotSave = U"The game cannot be saved now";  // [port-text: no retail key]
 
 void App::save_game_as(const std::string& typed) {
     if (typed == kAutoSaveName) return;  // retail rejects the reserved name (the box is cleared, nothing saved)
-    if (!session_ || demo_session()) return save_message(port_text(U"The game cannot be saved now"), "no game is running");
+    if (!session_ || demo_session()) return save_message(port_text(kCannotSave), "no game is running");
     if (saves_dir_.empty()) return save_message(txt("TEXT_SAVE_FAILED", kSaveFailed), "no saved games folder");
     std::string path, err;
     if (!save_game(*session_, saves_dir_, typed, session_title(), unix_now(), &path, &err)) {
         const bool refused = !session_->check_save().empty();  // cached: no second save
-        save_message(refused ? port_text(U"The game cannot be saved now") : txt("TEXT_SAVE_FAILED", kSaveFailed), err);
+        save_message(refused ? port_text(kCannotSave) : txt("TEXT_SAVE_FAILED", kSaveFailed), err);
     } else {
         ++saves_written_;
         std::printf("saves: saved %s at tick %" PRIu64 "\n", path.c_str(), session_->host().frame());
@@ -529,10 +530,10 @@ bool App::load_save_file(const std::string& path, const commands::CommandRecordi
         std::string first = err.size() > 120 ? err.substr(0, 117) + "..." : err;
         const size_t cut = first.size() > 64 ? first.rfind(' ', 64) : std::string::npos;
         if (cut != std::string::npos && cut > 0) {
-            m.lines.push_back(ui::utf8_to_utf32(first.substr(0, cut)));
-            m.lines.push_back(ui::utf8_to_utf32(first.substr(cut + 1)));
+            m.lines.push_back(port_text(ui::utf8_to_utf32(first.substr(0, cut))));
+            m.lines.push_back(port_text(ui::utf8_to_utf32(first.substr(cut + 1))));
         } else {
-            m.lines.push_back(ui::utf8_to_utf32(first));
+            m.lines.push_back(port_text(ui::utf8_to_utf32(first)));
         }
         m.lines.push_back(port_text(U"Continuing an outdated save on a newer mod version is not supported."));
         m.buttons = {port_text(U"Load anyway"), txt("TEXT_BUTTON_CANCEL", U"Cancel")};

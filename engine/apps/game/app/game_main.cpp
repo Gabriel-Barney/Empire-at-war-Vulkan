@@ -284,13 +284,12 @@ bool App::init() {
             ui::SaveGameInfo i;
             i.name = e.name;
             if (!e.readable) {  // top level, so the player can still delete it
-                i.label = ui::utf8_to_utf32(e.name + "  -  (unreadable: " + e.error + ")");
+                i.label = ui::utf8_to_utf32(e.name) + port_text(U"  -  (unreadable: " + ui::utf8_to_utf32(e.error) + U")");
                 v.push_back(std::move(i));
                 continue;
             }
             if (e.name == kAutoSaveName) {  // retail shows [AutoSave] as TEXT_GUI_AUTO_SAVE, first, outside any tree
-                i.label = ui_.gui.text_db() && ui_.gui.text_db()->find("TEXT_GUI_AUTO_SAVE") ? ui_.gui.caption_text("TEXT_GUI_AUTO_SAVE")
-                                                                                              : std::u32string(U"Auto Save");
+                i.label = txt("TEXT_GUI_AUTO_SAVE", U"[Auto Save]");  // retail's English
                 v.insert(v.begin(), std::move(i));
                 continue;
             }
@@ -323,7 +322,7 @@ bool App::init() {
     mp.save_blocker = [this] {
         if (saves_dir_.empty()) return port_text(U"No saved games folder (%LOCALAPPDATA% is not set)");
         if (!session_ || demo_session()) return port_text(U"No game is running");
-        return ui::utf8_to_utf32(session_->check_save());
+        return port_text(ui::utf8_to_utf32(session_->check_save()));  // the session's reason, in English
     };
     mp.save_exists = [this](const std::string& name) { return game::save_exists(saves_dir_, name); };
     mp.skirmish_profile = [this] { return skirmish_profile_; };  // modc t47 (load_game_options fills it in live play)
