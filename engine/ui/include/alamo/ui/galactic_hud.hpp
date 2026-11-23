@@ -319,7 +319,7 @@ struct GalacticHudFrame {
     // player's Factions.xml <Color> (host); no base shot of another faction's ovals.
     Rgba8 empty_slot_color{255, 255, 255, 255};
     bool objectives_open = true;
-    std::u32string objectives_header;  // "" = TEXT_OBJECTIVES [port]
+    std::u32string objectives_header;  // "" = TEXT_TEST_OBJECTIVE_HEADER (#45 t08)
     double time = 0.0;
     Vec2f cursor_px{};
     GalacticProviders providers;

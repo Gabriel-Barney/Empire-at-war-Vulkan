@@ -342,6 +342,12 @@ void test_atlas_text() {
     files.put("Data\\Text\\MasterTextFile_GERMAN.DAT", make_dat({{"TEXT_BUTTON_BEGIN", u"Beginnen"}}));
     TextDatabase g2;
     CHECK(load_master_text(files, "German", g2) && g2.language == "GERMAN" && g2.text("TEXT_BUTTON_BEGIN") == u"Beginnen");
+    // #45 t08 text_or_port: the table's (German) entry; a key the table lacks shows the English stand-in, pseudo-localized
+    // with the table; no table: the English as written.
+    CHECK(text_or_port(&g2, "TEXT_BUTTON_BEGIN", U"Begin") == U"Beginnen" && text_or_port(&g2, "TEXT_NOPE", U"Begin") == U"Begin");
+    CHECK(text_or_port(nullptr, "TEXT_BUTTON_BEGIN", U"Begin") == U"Begin");
+    g2.pseudo_localize_all();
+    CHECK(text_or_port(&g2, "TEXT_NOPE", U"Begin") == utf16_to_utf32(pseudo_localize(u"Begin")));
     CHECK(utf16_to_utf32(u"a\U0001F600") == U"a\U0001F600" && utf8_to_utf32("x\xc3\xa9") == U"x\u00e9");
 }
 

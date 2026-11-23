@@ -157,17 +157,18 @@ def statement_lines(start, code_lines, src_lines):
     return out
 
 
-def allowed_lines(comments, code_lines, last_line, src_lines=()):
-    """Lines whose literals a marker allows, and marker errors."""
+def allowed_lines(comments, code_lines, last_line, src_lines=(), mark=MARK, mark_end=MARK_END, label='name-ok'):
+    """Lines whose literals a marker allows, and marker errors. mark / mark_end / label: another lint's marker
+    (check_ui_text.py's [port-text: ...])."""
     allowed, errors = set(), []
     region = None  # start line of an open region
     for line, end_line, body, starts_line in comment_blocks(comments):
-        for m in MARK.finditer(body):
+        for m in mark.finditer(body):
             if not m.group(2).strip():
                 errors.append((line, 'marker without a reason'))
             if m.group(1):  # begin
                 if region is not None:
-                    errors.append((line, f'name-ok-begin inside the region opened on line {region}'))
+                    errors.append((line, f'{label}-begin inside the region opened on line {region}'))
                 region = line
             else:
                 allowed.update(range(line, end_line + 1))
@@ -176,14 +177,14 @@ def allowed_lines(comments, code_lines, last_line, src_lines=()):
                     if nxt is not None:
                         allowed.update(statement_lines(nxt, code_lines, src_lines))
         line = end_line
-        if MARK_END.search(body):
+        if mark_end.search(body):
             if region is None:
-                errors.append((line, 'name-ok-end without name-ok-begin'))
+                errors.append((line, f'{label}-end without {label}-begin'))
             else:
                 allowed.update(range(region, line + 1))
                 region = None
     if region is not None:
-        errors.append((region, 'name-ok-begin without name-ok-end'))
+        errors.append((region, f'{label}-begin without {label}-end'))
         allowed.update(range(region, last_line + 1))
     return allowed, errors
 

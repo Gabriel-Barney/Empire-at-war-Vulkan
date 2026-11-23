@@ -81,6 +81,13 @@ if(ALAMO_LINT_PYTHON)
   add_test(NAME alamo_core_mod_names_lint_selftest
            COMMAND ${ALAMO_LINT_PYTHON} ${PROJECT_SOURCE_DIR}/tools/lint/check_mod_names.py --selftest)
   set_tests_properties(alamo_core_mod_names_lint alamo_core_mod_names_lint_selftest PROPERTIES TIMEOUT 120)
+  # #45 t08: no new English literals in the swept HUD / menu files: MasterTextFile keys, port_text() or a [port-text: reason]
+  # marker (tools/lint/check_ui_text.py; its SCOPE grows with each slice of the sweep).
+  add_test(NAME alamo_core_ui_text_lint
+           COMMAND ${ALAMO_LINT_PYTHON} ${PROJECT_SOURCE_DIR}/tools/lint/check_ui_text.py --engine ${PROJECT_SOURCE_DIR}/engine)
+  add_test(NAME alamo_core_ui_text_lint_selftest
+           COMMAND ${ALAMO_LINT_PYTHON} ${PROJECT_SOURCE_DIR}/tools/lint/check_ui_text.py --selftest)
+  set_tests_properties(alamo_core_ui_text_lint alamo_core_ui_text_lint_selftest PROPERTIES TIMEOUT 120)
   # every integer limit in sim code carries a // limit: retail|data|dynamic|guard tag (tools/lint/check_limits.py,
   # docs/MODS.md "Limits policy").
   add_test(NAME alamo_core_limits_lint

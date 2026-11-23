@@ -625,7 +625,7 @@ void GalacticHud::build_bar(const GalacticHudFrame& f) {
     // [port: Gabriel, original screenshot] "Day: 1" (TEXT_CYCLES), "Tech: 3" (TEXT_TECH), "13,000", income in
     // Text_Day_Credits (TEXT_TOOLTIP_TOTAL_INCOME).
     auto label = [&](const char* key, const char32_t* fallback, int64_t v, const char32_t* sep) {
-        std::u32string t = text_ && text_->find(key) ? utf16_to_utf32(*text_->find(key)) : std::u32string(fallback);
+        std::u32string t = text_or(key, fallback);
         while (!t.empty() && t.back() == U' ') t.pop_back();
         if (!t.empty() && t.back() != U':') t.push_back(U':');
         return t + sep + num32(v);
@@ -1251,8 +1251,10 @@ void GalacticHud::build_objectives(const GalacticHudFrame& f) {
     const float pad_x = back.offset.x, pad_y = back.offset.y;
     float y = tl.y - pad_y;
     std::u32string header = f.objectives_header;
-    if (header.empty())  // [port] TEXT_OBJECTIVES is not in the FoC MasterTextFile: English fallback
-        header = text_ && text_->find("TEXT_OBJECTIVES") ? utf16_to_utf32(*text_->find("TEXT_OBJECTIVES")) : std::u32string(U"Objectives");
+    // #45 t08: the objectives panel header TEXT_TEST_OBJECTIVE_HEADER (panel 0x2fdef0,
+    // legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md; the tactical HUD's header) [M for the galactic panel];
+    // TEXT_OBJECTIVES, which the port used before, is not in the FoC MasterTextFile.
+    if (header.empty()) header = text_or("TEXT_TEST_OBJECTIVE_HEADER", U"Mission Objectives");  // retail's English
     const float y_top = tl.y;
     // Lines first (to size the background).
     struct Line {
@@ -1488,9 +1490,7 @@ void GalacticHud::build_day_pips(const GalacticHudFrame& f) {
 }
 
 std::u32string GalacticHud::text_or(const char* key, std::u32string_view fallback) const {
-    if (text_)
-        if (const std::u16string* t = text_->find(key)) return utf16_to_utf32(*t);
-    return std::u32string(fallback);
+    return text_or_port(text_, key, fallback);  // #45 t08: the English stand-in is a port string (pseudo-loc)
 }
 
 namespace {
@@ -1498,33 +1498,30 @@ std::u32string replace_all(std::u32string s, std::u32string_view from, std::u32s
     for (size_t at = s.find(from); at != std::u32string::npos; at = s.find(from, at + to.size())) s.replace(at, from.size(), to);
     return s;
 }
-std::u32string lookup32(const TextDatabase* text, const char* key, std::u32string_view fallback) {
-    if (text)
-        if (const std::u16string* t = text->find(key)) return utf16_to_utf32(*t);
-    return std::u32string(fallback);
-}
 }  // namespace
 
 std::u32string auto_resolve_text(const TextDatabase* text, bool space, bool win, int32_t magnitude, std::u32string_view faction,
                                  std::u32string_view planet, int64_t losses) {
     static const char* const kMag[3] = {"MAJOR", "REGULAR", "MINOR"};
-    static const char32_t* const kMagText[3] = {U"major", U"", U"minor"};
     const int32_t m = std::clamp(magnitude, 0, 2);
     char key[48];
     std::snprintf(key, sizeof key, "TEXT_AR_%s_%s_%s", space ? "SPACE" : "LAND", win ? "WIN" : "LOSS", kMag[m]);
+    // [port-text-begin: the English stand-in of the TEXT_AR_* line when the table lacks it]
+    static const char32_t* const kMagText[3] = {U"major", U"", U"minor"};
     std::u32string fb = U"##0 ";
     if (*kMagText[m]) fb += std::u32string(kMagText[m]) + U" ";
     fb += space ? U"space " : U"land ";
     fb += win ? U"victory at ##1. " : U"defeat at ##1. ";
     fb += space ? U"Ships lost: ##2" : U"Units lost: ##2";
-    std::u32string s = lookup32(text, key, fb);
+    // [port-text-end]
+    std::u32string s = text_or_port(text, key, fb);
     s = replace_all(std::move(s), U"##0", faction);
     s = replace_all(std::move(s), U"##1", planet);
     return replace_all(std::move(s), U"##2", num32(losses));
 }
 
 std::u32string auto_resolve_hero_loss_text(const TextDatabase* text, std::u32string_view hero, std::u32string_view planet) {
-    std::u32string s = lookup32(text, "TEXT_AR_HERO_LOSS", U"##0 defeated at ##1");
+    std::u32string s = text_or_port(text, "TEXT_AR_HERO_LOSS", U"##0 defeated at ##1");
     s = replace_all(std::move(s), U"##0", hero);
     return replace_all(std::move(s), U"##1", planet);
 }
