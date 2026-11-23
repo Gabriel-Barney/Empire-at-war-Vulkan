@@ -592,9 +592,10 @@ public:
     // carries the heading; the walk ends it at once and runs the arrival turn): a Walk unit (LocomotorKind::Default, not
     // air, not a team container) takes `yaw_deg` as its final facing and the arrival turn (land_arrival_turn: no turn
     // within the threshold, otherwise 0x0F-0x11 at its turn rate from rest) - true. [port] only an idle one (no goal,
-    // not pushed, not deploying); a moving one is refused (retail would run the record on top of its path). The other
-    // land locomotors' slot is the empty stub 0x13b7d0 (false); the caller filters the tokens the port maps to Default
-    // (LAND_TEAM_INFANTRY_LOCOMOTOR). False when the unit is unknown. No draws.
+    // not pushed, not deploying); a moving one is refused (retail would run the record on top of its path). [port] a
+    // land team container (retail 0x5ad3f0: the same record plus vf +0x148(0)) is refused (false). Bike, Flying, JetPack
+    // and LandBomber have the empty stub 0x13b7d0 (false); so does LAND_TEAM_INFANTRY_LOCOMOTOR, which the port maps to
+    // Default - the caller filters that token. False when the unit is unknown. No draws.
     bool turn_in_place(ObjectId id, float yaw_deg, uint32_t frame);
     // S7 t06 / t14 (MOVEMENT §3.1.1, 0x3a9910): swap a Uses_Multiple_Locomotors unit to its secondary locomotor (true)
     // or back to its primary (false); see "multi" in the header comment. Returns false when the unit is unknown, the mode

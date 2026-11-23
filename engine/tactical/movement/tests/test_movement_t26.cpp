@@ -258,7 +258,7 @@ void test_pose_after_turn() {
 // ---------------------------------------------------------------- #90: the land facing order (locomotor vf +0x218)
 // Walk vf +0x218 0x61e4b0 [H]: a one-node kind-5 path record at the unit's position whose node carries the heading; the
 // walk ends it at once and its arrival turn (MOVEMENT 3.5.1 0x0F-0x11) turns to the heading at the Walk rate (15.5 a
-// frame here), so the turn spans several frames. The other land locomotors' slot is the empty stub 0x13b7d0.
+// frame here), so the turn spans several frames. Bike, Flying, JetPack and LandBomber have the empty stub 0x13b7d0.
 void test_land_turn_in_place() {
     ::alamo::test::section("#90: turn_in_place on land - an idle Walk unit turns at its rate, others ignore it");
     MovementSystem sys{MovementConfig{}};
@@ -294,7 +294,7 @@ void test_land_turn_in_place() {
     CHECK(sys.turn_in_place(1, 105.0f, f));
     for (const uint32_t end = f + 10; f < end; ++f) sys.tick(f, rng);
     CHECK(std::fabs(wrap_deg(sys.view(1).yaw - 100.0f)) < 1e-3f);
-    // another land locomotor (the stub 0x13b7d0): refused, the yaw stays
+    // a Bike (the stub 0x13b7d0): refused, the yaw stays
     const float yb = sys.view(2).yaw;
     CHECK(!sys.turn_in_place(2, 180.0f, f));
     for (const uint32_t end = f + 20; f < end; ++f) sys.tick(f, rng);

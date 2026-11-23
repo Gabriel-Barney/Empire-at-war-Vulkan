@@ -3043,7 +3043,8 @@ private:
     void hg_ability_host(tactical::abilities::AbilityHost& h);  // oi_install(): DEPLOY_SQUAD hooks
     // #90: AbilityHost::face_direction (Redirect_Blaster's Turn_To_Face_Unblockable_Shots): the locomotor's facing order
     // (vf +0x218, MovementSystem::turn_in_place) toward the level `dir` while `id`'s primary clip is idle-like; on land
-    // only for WALK_LOCOMOTOR (every other land locomotor's slot is the empty stub 0x13b7d0).
+    // only for WALK_LOCOMOTOR (Bike, Flying, JetPack, LandBomber and LandTeamInfantry: the empty stub 0x13b7d0; the
+    // land team container 0x5ad3f0 runs the order too - [port] not given, the victim is a unit, never a container).
     void ab_face_direction(objects::ObjectId id, tactical::Vec3 dir);
     int32_t hg_tech(int32_t player) const;
     void hg_raise_tech(int32_t player);  // Tactical_Build_Increments_Tech_Level (0x498170)

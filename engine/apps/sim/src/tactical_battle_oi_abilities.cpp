@@ -232,8 +232,9 @@ void TacticalBattle::oi_install(TacticalMode& mode, SimRng& rng) {
     // mcx4 t23 (MCX4_T10_RE_ANSWERS §12a): Redirect_Blaster's Turn_To_Face_Unblockable_Shots facing order, given only while
     // the victim's primary clip is idle-like (0x27b5e0); the victim's current clip (Move: the damage lands) is reported by
     // primary_clip. #90: the order is the locomotor's vf +0x218 (turn_in_place), turned at the locomotor's rate - space:
-    // the turn in place; land: WALK_LOCOMOTOR's arrival turn (0x61e4b0). Every other land locomotor's slot is the empty
-    // stub 0x13b7d0, LAND_TEAM_INFANTRY_LOCOMOTOR included (the port's movement maps that token to the Walk kind).
+    // the turn in place; land: WALK_LOCOMOTOR's arrival turn (0x61e4b0). Bike, Flying, JetPack, LandBomber and
+    // LAND_TEAM_INFANTRY_LOCOMOTOR (which the port's movement maps to the Walk kind) have the empty stub 0x13b7d0; see
+    // ab_face_direction.
     h.face_direction = [this](tc::ObjectId id, tactical::Vec3 dir) { ab_face_direction(id, dir); };
     // mcx4 (MCX4_T10_RE_ANSWERS §15, 0x3a8f90): a buzz-droid cloud's chase step puts it at the new point (yaw kept).
     h.place = [this](tc::ObjectId id, tactical::Vec3 p) {
