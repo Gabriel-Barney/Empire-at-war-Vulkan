@@ -449,7 +449,7 @@ uint32_t AudioSystem::play_sfx(uint32_t event_index, const SfxPlay& p) {
     if (e.is_ambient_vo && !allow_ambient_vo_) return fail("ambient_vo_off");
     if (!p.force) {
         // 4. GUI-only mode
-        if (gui_only_ && (!e.is_gui || negative)) return fail("gui_only");
+        if (gui_only_ && modal_dialog_ && (!e.is_gui || negative)) return fail("gui_only");
         // 5. HUD VO vs speech / tutorial
         if (e.is_hud_vo && (speech_playing() || hud_vo_blocked_)) return fail("hud_vo_blocked");
         // 6. Max_Instances (2D here; 3D at voice start, §1.7). Instances fading out are ignored by both the

@@ -539,10 +539,10 @@ public:
     // `cinematic` = a Lua cinematic camera is active (legacy docs/re/AUDIO.md §1.2 / §1.6: listener at the camera, gates 2 / 9).
     void set_listener(const Vec3& eye, const Vec3& look_at, bool cinematic = false);
     // OI host: the game-state flags the AudioSystem gates and gains read (legacy docs/re/AUDIO.md §1.1 gate 4, §1.6, §3), owned by the
-    // host. modal = a modal GUI dialog is open (speech ducking off); gui_only = gate 4's "flag +0x94 AND a modal dialog"
-    // (the flag's retail owner is open [legacy docs/re/AUDIO.md §8]; [port] the host sets it while the in-game pause menu / its option
-    // dialogs are up); attract = the main-menu attract demo runs (attract_mode.hpp). Each changes only on a new value.
-    void set_flags(bool modal, bool gui_only, bool attract);
+    // host. modal = a modal GUI dialog is open (speech ducking off, gate 4's dialog half); attract = the main-menu attract
+    // demo runs (attract_mode.hpp). The SFX manager's GUI-only flag +0x94 (gate 4: with a modal dialog open, only Is_GUI
+    // events) follows the attract demo (#226, retail answer on #205). Each changes only on a new value.
+    void set_flags(bool modal, bool attract);
     bool attract() const { return attract_; }
     bool gui_only() const { return gui_only_; }
     // OI host (P3 video item 3): the output device's buffering in seconds (period size x periods / rate; 0 for the

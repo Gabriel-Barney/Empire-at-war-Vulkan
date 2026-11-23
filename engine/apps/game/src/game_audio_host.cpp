@@ -1500,17 +1500,17 @@ void GameAudioHost::set_listener(const Vec3& eye, const Vec3& look_at, bool cine
 }
 
 // --- OI host: audio game-state flags and the device latency ---
-void GameAudioHost::set_flags(bool modal, bool gui_only, bool attract) {
-    if (modal == modal_ && gui_only == gui_only_ && attract == attract_) return;
+void GameAudioHost::set_flags(bool modal, bool attract) {
+    if (modal == modal_ && attract == attract_) return;
     if (attract && !attract_) ++stats_.attract_starts;
     const bool attract_changed = attract != attract_;
     modal_ = modal;
-    gui_only_ = gui_only;
+    gui_only_ = attract;  // #226 (retail answer on #205): the attract demo's start sets +0x94, its end clears it
     attract_ = attract;
     ++stats_.flag_changes;
     if (!system_) return;
     system_->set_modal_dialog(modal);
-    system_->set_gui_only(gui_only);
+    system_->set_gui_only(gui_only_);
     system_->set_attract_mode(attract);
     // STRATEGIC_GAPS §7.4: the music lock is set when the attract loop starts and cleared by the front-end action that
     // ends it [port: the attract demo ending]; while set, unforced front-end (mode 13) music is refused.
@@ -1653,11 +1653,11 @@ void GameAudioHost::music(MusicScene scene, std::string_view, bool, std::string_
     scene_ = scene;
 }
 void GameAudioHost::set_listener(const Vec3&, const Vec3&, bool) {}
-void GameAudioHost::set_flags(bool modal, bool gui_only, bool attract) {  // same bookkeeping as with audio
-    if (modal == modal_ && gui_only == gui_only_ && attract == attract_) return;
+void GameAudioHost::set_flags(bool modal, bool attract) {  // same bookkeeping as with audio
+    if (modal == modal_ && attract == attract_) return;
     if (attract && !attract_) ++stats_.attract_starts;
     modal_ = modal;
-    gui_only_ = gui_only;
+    gui_only_ = attract;
     attract_ = attract;
     ++stats_.flag_changes;
 }

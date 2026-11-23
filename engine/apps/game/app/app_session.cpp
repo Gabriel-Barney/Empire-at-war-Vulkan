@@ -192,12 +192,9 @@ bool App::menu_dialog_open() const {
     return false;
 }
 
-// Audio game-state flags (GameAudioHost::set_flags): modal = a modal GUI dialog has the focus; gui_only = [port] the
-// in-game pause menu (or its option dialogs) over a session; attract = the attract demo runs.
-void App::audio_flags() {
-    const bool modal = ui_.gui.has_focus();
-    audio_.set_flags(modal, modal && paused_ && session_ != nullptr, attract_.running());
-}
+// Audio game-state flags (GameAudioHost::set_flags): modal = a modal GUI dialog has the focus; attract = the attract demo
+// runs (it also sets the SFX GUI-only flag, #226).
+void App::audio_flags() { audio_.set_flags(ui_.gui.has_focus(), attract_.running()); }
 
 // The Lua presentation's camera is cinematic (listener at the camera, legacy docs/re/AUDIO.md §1.2).
 bool App::presentation_cinematic() const {
