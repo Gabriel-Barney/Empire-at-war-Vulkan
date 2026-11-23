@@ -1489,7 +1489,6 @@ int main() {
     test_delayed_fire_sounds();  // trl2 t08
     test_object_sfx_t05();
     test_galactic_lua_sfx_position();  // aud8 t05
-    test_object_mute();                // #225
     test_inactive();
     test_control_point_lines();
     test_garrison_and_clash_lines();
@@ -1518,6 +1517,7 @@ int main() {
     test_movie_music();
     test_missing_credits_event();
     test_super_weapon_music();
+    test_object_mute();  // #225
     test_battle_hookups_aud1();
 #endif
     std::printf(g_fail == 0 ? "game audio host tests passed\n" : "%d game audio host check(s) FAILED\n", g_fail);
