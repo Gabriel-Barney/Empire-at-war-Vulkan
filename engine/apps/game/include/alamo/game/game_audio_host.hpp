@@ -60,7 +60,9 @@ struct PresentationEvent;
 namespace alamo::game {
 
 enum class AudioBackendKind : uint8_t { Device = 0, Null = 1, Off = 2 };
-enum class UnitResponse : uint8_t { Select, Move, FleetMove, Attack, Guard, Stop };
+// #50 t02 [H]: retail plays no Stop, Defend, Deploy, Undeploy or Move_Opposite response (their readers are never called,
+// or there are none), so there is no kind for them.
+enum class UnitResponse : uint8_t { Select, Move, FleetMove, Attack, Guard };
 enum class MusicScene : uint8_t { None, MainMenu, Galactic, LoadScreen, Battle };
 
 struct GameAudioStats {
@@ -173,8 +175,21 @@ public:
     // mcx4 t13 (MCX4_T13_RE_ANSWERS "GameObjectType.SFXEvent_Attack_Hardpoint", 0x44590 / 0x44cd0 [H]): `hardpoint_kind` =
     // the HardPointType of an attack order's targeted hard point (-1 none); the type's SFXEvent_Attack_Hardpoint entry
     // for it ("HARD_POINT_*, Event" lines), when set, replaces the attack response.
+    // #50 t02: `group` = the tactical Move / Attack selection counts more than one object that is not a TEAM, FLEET or
+    // TRANSPORT (Group_Move / Group_Attack, checked before the resolver, 0x442f0 / 0x44590 [H]); `non_hero_ability` =
+    // non_hero_variant_active for the speaker (the resolvers' *_With_Non_Hero_Ability line). Neither plays the group or
+    // variant line when the type does not set it: the plain line does.
     void unit_response(const objects::GameObjectTypes& types, objects::TypeIndex type, uint64_t object, UnitResponse kind,
-                       bool group = false, int32_t owner = -1, uint32_t dest_fields = 0, int32_t hardpoint_kind = -1);
+                       bool group = false, int32_t owner = -1, uint32_t dest_fields = 0, int32_t hardpoint_kind = -1,
+                       bool non_hero_ability = false);
+    // #50 t02 (the response resolvers 0x3739a0 / 0x373700 / 0x3738b0, condition 0x39af50 [H]): the speaker resolved
+    // through its team container to the first member (`member_type`) has the first or second entry of its type's
+    // Unit_Abilities_Data active (`active(ability type)`, Is_Unit_Ability_Active 0x39b950). Only those two entries count.
+    static bool non_hero_variant_active(const objects::GameObjectTypes& types, objects::TypeIndex member_type,
+                                        const std::function<bool(uint8_t ability_type)>& active);
+    // #50 t02: the number of selected objects that count for Group_Move / Group_Attack (not TEAM, FLEET or TRANSPORT:
+    // their behaviour slots +0x348 / +0x336 / +0x337 are unset).
+    static size_t group_count(const objects::ObjectStore& store, std::span<const uint32_t> ids);
     // Asteroid field (bit 1) first, then nebula (bit 4); "" for neither.
     static std::string_view move_into_field_tag(uint32_t dest_fields);
     // Tactical win / lose music (GameAudio::tactical_result_music, modes 9 / 10): `won` = the local player is the

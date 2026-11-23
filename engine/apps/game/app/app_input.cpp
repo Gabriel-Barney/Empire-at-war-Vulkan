@@ -496,7 +496,7 @@ void App::respond(const commands::EventData& ev) {
             break;
         case T::Attack: kind = UnitResponse::Attack; ids = ev.ids("attackers").empty() ? orders_.selection() : ev.ids("attackers"); break;
         case T::Escort: kind = UnitResponse::Guard; ids = orders_.selection(); break;
-        case T::StopMovement: kind = UnitResponse::Stop; ids = orders_.selection(); break;
+        // #50 t02 [H]: no Stop response (its only reader 0x447a0 is never called).
         case T::MoveObjectToObject: kind = UnitResponse::FleetMove; ids = {ev.u("object")}; break;
         default: return;
     }
@@ -555,8 +555,29 @@ void App::respond(const commands::EventData& ev) {
     // an attack on a hard point (ref2 = 1 + HardPointType, legacy docs/re/COMMANDS.md 2) names its kind for the response.
     const uint32_t ref2 = ev.type() == T::Attack ? ev.u("ref2") : 0u;
     const int32_t hp_kind = ref2 > 0 && ref2 <= 13 ? static_cast<int32_t>(ref2) - 1 : -1;
-    audio_.unit_response(data_.types, st.type(h), static_cast<uint64_t>(st.id(h)), kind, false, top->tactical() ? st.owner(h) : -1,
-                         fields, hp_kind);
+    // #50 t02 (0x442f0 / 0x44590 [H]): Group_Move / Group_Attack when a tactical move or attack selection counts more than
+    // one object that is not a TEAM / FLEET / TRANSPORT; the non-hero-ability variant when the speaker's team's first
+    // member (a team speaker: its own first member) has its first or second unit ability active.
+    // Gaps (tier 1, #50 follow-ups): the Attack response's Attack_Override list step (0x373820, between Group_Attack and the
+    // resolver; no vanilla data sets it); the resolvers' exits for a structure dummy or a TACTICAL_BUILD_OBJECTS container
+    // (the plain line), a vehicle-thief capture (the Move line) and a team without members (nothing); and their read of
+    // the plain line from the member's type first (the port reads the speaker's).
+    const bool group = top->tactical() && (kind == UnitResponse::Move || kind == UnitResponse::Attack) &&
+                       GameAudioHost::group_count(st, ids) > 1;
+    bool non_hero = false;
+    if (top->tactical())
+        if (const sim::TacticalBattle* b = session_->battle()) {
+            const tactical::abilities::AbilitySystem& ab = b->abilities();
+            const objects::ObjectId sid = st.id(h);
+            const objects::ObjectId team = ab.container_of(sid);
+            const std::span<const objects::ObjectId> members = ab.members_of(team != tactical::abilities::kNoObject ? team : sid);
+            const objects::ObjectId m = members.empty() ? sid : members.front();
+            const objects::ObjectHandle mh = st.find(m);
+            if (st.exists(mh))
+                non_hero = GameAudioHost::non_hero_variant_active(data_.types, st.type(mh), [&ab, m](uint8_t t) { return ab.is_active(m, t); });
+        }
+    audio_.unit_response(data_.types, st.type(h), static_cast<uint64_t>(st.id(h)), kind, group, top->tactical() ? st.owner(h) : -1,
+                         fields, hp_kind, non_hero);
 }
 
 void App::submit(commands::EventData ev, bool voice) {

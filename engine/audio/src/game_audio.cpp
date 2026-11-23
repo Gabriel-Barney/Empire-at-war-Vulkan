@@ -7,10 +7,12 @@
 namespace alamo::audio {
 namespace {
 
+// #50 t02 [H]: Defend, Stop, Deploy, Undeploy and Move_Opposite are never played by retail (no reader, or readers that are
+// never called), so they are not read ("" slots).
 constexpr const char* kResponseTags[kUnitOrderCount] = {
     "SFXEvent_Select",       "SFXEvent_Move",        "SFXEvent_Fleet_Move",   "SFXEvent_Attack",
-    "SFXEvent_Guard",        "SFXEvent_Defend",      "SFXEvent_Stop",         "SFXEvent_Deploy",
-    "SFXEvent_Undeploy",     "SFXEvent_Move_Opposite", "SFXEvent_Group_Move", "SFXEvent_Group_Attack",
+    "SFXEvent_Guard",        "",                     "",                      "",
+    "",                      "",                     "SFXEvent_Group_Move",   "SFXEvent_Group_Attack",
     "SFXEvent_Assist_Move",  "SFXEvent_Assist_Attack",
 };
 
@@ -484,16 +486,16 @@ uint32_t GameAudio::unit_response(uint64_t representative, const UnitSounds& sou
     if (order == UnitOrder::Count) return 0;
     auto resp = [&](UnitOrder o) -> const std::string& { return sounds.response[static_cast<size_t>(o)]; };
     std::string event;
-    // [inferred] legacy docs/re/AUDIO.md §3.3: the non-hero-ability override first, then the group variants, then the order's
-    // own line; FleetMove falls back to Move.
-    if (non_hero_ability) {
+    // #50 t02 (0x442f0 / 0x44590, the resolvers 0x3739a0 / 0x373700 / 0x3738b0 [H]): the group line first (when the type
+    // sets it), then the resolver's non-hero-ability variant, then the order's own line; FleetMove falls back to Move.
+    if (group) {
+        if (order == UnitOrder::Move) event = resp(UnitOrder::GroupMove);
+        else if (order == UnitOrder::Attack) event = resp(UnitOrder::GroupAttack);
+    }
+    if (event.empty() && non_hero_ability) {
         if (order == UnitOrder::Select) event = sounds.select_with_non_hero_ability;
         else if (order == UnitOrder::Move) event = sounds.move_with_non_hero_ability;
         else if (order == UnitOrder::Attack) event = sounds.attack_with_non_hero_ability;
-    }
-    if (event.empty() && group) {
-        if (order == UnitOrder::Move) event = resp(UnitOrder::GroupMove);
-        else if (order == UnitOrder::Attack) event = resp(UnitOrder::GroupAttack);
     }
     if (event.empty()) event = resp(order);
     if (event.empty() && order == UnitOrder::FleetMove) event = resp(UnitOrder::Move);

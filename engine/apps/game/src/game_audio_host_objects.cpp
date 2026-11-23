@@ -115,6 +115,31 @@ std::vector<GameAudioHost::GalacticActivation> GameAudioHost::galactic_activatio
     return out;
 }
 
+bool GameAudioHost::non_hero_variant_active(const objects::GameObjectTypes& types, objects::TypeIndex member_type,
+                                            const std::function<bool(uint8_t)>& active) {
+    if (member_type >= types.size() || !active) return false;
+    const objects::ObjectTypeDatabase& db = types.raw();
+    const std::span<const objects::FieldIndex> recs = types.get_sub_objects(member_type, "Unit_Abilities_Data");
+    for (size_t i = 0; i < recs.size() && i < 2; ++i) {
+        const uint8_t t = tactical::abilities::ability_type_from_name(ascii_trim(child_text(db, recs[i], "Type")));
+        if (t != 0 && active(t)) return true;
+    }
+    return false;
+}
+
+size_t GameAudioHost::group_count(const objects::ObjectStore& store, std::span<const uint32_t> ids) {
+    size_t n = 0;
+    for (const uint32_t id : ids) {
+        const objects::ObjectHandle h = store.find(static_cast<objects::ObjectId>(id));
+        if (!store.alive(h)) continue;
+        if (store.has_behavior(h, objects::beh::Team) || store.has_behavior(h, objects::beh::Fleet) ||
+            store.has_behavior(h, objects::beh::Transport))
+            continue;
+        ++n;
+    }
+    return n;
+}
+
 std::string_view GameAudioHost::unit_ability_line(const objects::GameObjectTypes& types, objects::TypeIndex t, uint8_t ability_type,
                                                   std::string_view tag) {
     if (t >= types.size() || ability_type == 0) return {};
