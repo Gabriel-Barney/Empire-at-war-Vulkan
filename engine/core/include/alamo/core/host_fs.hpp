@@ -38,7 +38,10 @@ std::filesystem::path path_from_utf8(std::string_view utf8);
 std::string path_to_utf8(const std::filesystem::path& p);
 // #137: a host path string, UTF-8 first; a string that is not valid UTF-8 (a path in the ANSI code page, from a narrow
 // argv or environment) is read in the ANSI code page; an empty path when it is neither. Never throws. The whole-file
-// helpers (read_text_file / write_text_file, bytes.hpp) open their paths through it.
+// helpers (read_text_file / write_text_file, bytes.hpp; SaveFile read_file / write_file) open their paths through it.
+// Known limit: an ANSI string whose bytes also form valid UTF-8 is read as UTF-8 - next to never in a single-byte code
+// page (cp1252 needs a byte C2..F4 followed by 80..BF, two rare letters in a row), but possible for short names in a double-byte one (936 / 950 / 932). A
+// tool that reads its arguments as UTF-8 (alamo_game, host_text.hpp utf8_args) never hits it.
 std::filesystem::path path_from_host_string(std::string_view s);
 
 // Host path usable beyond MAX_PATH (260 characters). Windows: absolute, normalised ('/' -> '\\',

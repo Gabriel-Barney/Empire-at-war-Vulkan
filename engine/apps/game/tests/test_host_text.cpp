@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "alamo/game/host_text.hpp"
+#include "alamo/game/mod_picker.hpp"
 #include "alamo/test/support.hpp"
 
 #include <windows.h>
@@ -28,12 +29,21 @@ void command_line() {
     CHECK(a == want);
     // quotes inside an argument and an empty argument, as the C runtime reads them
     CHECK((game::utf8_command_line(L"x.exe \"a b\" \"\" c\\\"d") == std::vector<std::string>{"x.exe", "a b", "", "c\"d"}));
+    // the mod picker's relaunch line (windows_command_line, widened as UTF-8 by relaunch_self) splits back into the
+    // same UTF-8 arguments
+    const std::vector<std::string> args = {"alamo_game.exe", "MODPATH=C:\\Mods\\\xD7\x90 \xE4\xB8\xAD\\", "--saves-dir",
+                                           "C:\\a b\\\xD7\x90", "q\"t", ""};
+    const std::string line = game::windows_command_line(args);
+    const int n = MultiByteToWideChar(CP_UTF8, 0, line.c_str(), static_cast<int>(line.size()), nullptr, 0);
+    std::wstring wline(static_cast<size_t>(n > 0 ? n : 0), L'\0');
+    if (n > 0) MultiByteToWideChar(CP_UTF8, 0, line.c_str(), static_cast<int>(line.size()), wline.data(), n);
+    CHECK(game::utf8_command_line(wline) == args);
 }
 
 void paths() {
     CHECK(game::host_path("C:\\x\\\xD7\x90").native() == std::wstring(L"C:\\x\\\u05D0"));
     CHECK(game::host_utf8(fs::path(L"C:\\x\\\u05D0\u4E2D")) == "C:\\x\\\xD7\x90\xE4\xB8\xAD");
-    CHECK(game::host_path("caf\xE9") == fs::path(std::string("caf\xE9")));  // not UTF-8: the ANSI code page
+    if (GetACP() == 1252) CHECK(game::host_path("caf\xE9").native() == std::wstring(L"café"));  // not UTF-8: the ANSI code page
     CHECK(game::host_path("").empty());
 }
 

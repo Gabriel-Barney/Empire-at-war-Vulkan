@@ -19,8 +19,9 @@ std::filesystem::path host_path(std::string_view utf8);
 // form (a lone UTF-16 surrogate), so the caller can skip it instead of throwing.
 std::string host_utf8(const std::filesystem::path& p);
 
-// #137 t02: a wide command line split as the C runtime splits it (CommandLineToArgvW), each argument as UTF-8 and as
-// typed (no path conversion: a MODPATH= keeps its backslashes). Empty when it cannot be split.
+// #137 t02: a wide command line split by CommandLineToArgvW (the C runtime's rules, except a doubled "" inside quotes,
+// which windows_command_line never writes), each argument as UTF-8 and as typed (no path conversion: a MODPATH= keeps
+// its backslashes). Empty when it cannot be split.
 std::vector<std::string> utf8_command_line(std::wstring_view command_line);
 // The process's arguments as UTF-8, from the wide command line (GetCommandLineW), so a path outside the ANSI code page
 // arrives whole; the narrow argv only when the wide line cannot be split.

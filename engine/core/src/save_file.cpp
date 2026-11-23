@@ -5,6 +5,7 @@
 
 #include "alamo/core/ascii.hpp"
 #include "alamo/core/compress.hpp"
+#include "alamo/core/host_fs.hpp"
 #include "alamo/core/sim_crc.hpp"
 
 namespace alamo {
@@ -108,7 +109,7 @@ bool SaveFile::decode(std::span<const uint8_t> bytes, SaveFile& out, std::string
 
 bool SaveFile::write_file(const std::string& path, std::string* err) const {
     const std::vector<uint8_t> bytes = encode();
-    std::ofstream f(path, std::ios::binary | std::ios::trunc);
+    std::ofstream f(path_from_host_string(path), std::ios::binary | std::ios::trunc);  // #137: UTF-8 (else ANSI)
     if (!f) return fail(err, "cannot write " + path);
     f.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
     if (!f) return fail(err, "write failed: " + path);
@@ -116,7 +117,7 @@ bool SaveFile::write_file(const std::string& path, std::string* err) const {
 }
 
 bool SaveFile::read_file(const std::string& path, SaveFile& out, std::string* err) {
-    std::ifstream f(path, std::ios::binary | std::ios::ate);
+    std::ifstream f(path_from_host_string(path), std::ios::binary | std::ios::ate);  // #137: UTF-8 (else ANSI)
     if (!f) return fail(err, "cannot open " + path);
     const std::streamoff size = f.tellg();
     if (size < 0) return fail(err, "cannot read " + path);

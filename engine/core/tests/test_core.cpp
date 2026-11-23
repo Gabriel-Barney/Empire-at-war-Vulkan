@@ -279,7 +279,7 @@ int main() {
     // read_text_file / write_text_file take such strings, so a file named outside the ANSI code page (Hebrew and CJK:
     // U+05D0 = D7 90, U+4E2D = E4 B8 AD) round-trips under its own name.
     CHECK(alamo::path_from_host_string("a\xD7\x90").native() == std::wstring(L"aא"));
-    CHECK(alamo::path_from_host_string("caf\xE9") == fs::path(std::string("caf\xE9")));  // not UTF-8: ANSI
+    if (GetACP() == 1252) CHECK(alamo::path_from_host_string("caf\xE9").native() == std::wstring(L"café"));  // not UTF-8: ANSI
     CHECK(alamo::path_from_host_string("").empty());
     {
         fs::create_directories(tmp, tec);

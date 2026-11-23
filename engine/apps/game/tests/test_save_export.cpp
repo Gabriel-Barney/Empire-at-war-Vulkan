@@ -87,7 +87,8 @@ int main(int argc, char** argv) {
         std::printf("data load failed: %s\n", err.c_str());
         return 1;
     }
-    const fs::path dir = fs::temp_directory_path() / "alamo_game_save_export_tests";
+    // the --exe run (its own ctest) has its own folder, so the two can run at once
+    const fs::path dir = fs::temp_directory_path() / (exe_arg ? "alamo_game_save_export_tests_exe" : "alamo_game_save_export_tests");
     std::error_code ec;
     fs::remove_all(dir, ec);
     fs::create_directories(dir, ec);
@@ -166,7 +167,7 @@ int main(int argc, char** argv) {
         PROCESS_INFORMATION pi{};
         DWORD code = 99;
         if (CreateProcessW(nullptr, line.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi)) {
-            WaitForSingleObject(pi.hProcess, 300000);
+            if (WaitForSingleObject(pi.hProcess, 300000) != WAIT_OBJECT_0) TerminateProcess(pi.hProcess, 98);  // hung: not left running
             GetExitCodeProcess(pi.hProcess, &code);
             CloseHandle(pi.hThread);
             CloseHandle(pi.hProcess);
