@@ -63,7 +63,8 @@ enum class GalacticEventKind : uint8_t {
                              // SpecialAbility kind the panel answers with (4 black market / 5 sabotage / 6 corruption /
                              // 7 hack), value = q5 code of the black-market respawn time R (else 0)
     SpecialError,            // the local error SFX: player, planet, object = hero
-    SpecialApplied,          // a Ground_Activated apply succeeded (story LAND_ON 2 + DEPLOY 0xC): player, planet, object, type = unit
+    SpecialApplied,          // a Ground_Activated apply succeeded (story LAND_ON 2 + DEPLOY 0xC; not for a sabotage caught by
+                             // vigilance, 0x5b1920): player, planet, object, type = unit
                              // type, value = SpecialRules::abilities index (galab: kGalabRef | SpecialRules::galab index)
     BlackMarketPurchase,     // player, planet, object = hero, value = item index, other_player = 1 for a human buyer
                              // (story BUY_BLACK_MARKET 0x38 with the item Name [port: at execute time; humans only])

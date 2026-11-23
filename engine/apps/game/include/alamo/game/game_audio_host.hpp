@@ -355,8 +355,8 @@ public:
     static bool galactic_activation_presented(galactic::SpecialAbilityClass cls, bool local_user);
     // #62 t06: the SpecialApplied events of one special-event batch (GameSession::take_special_events) that present, in
     // order. `class_of` maps SpecialApplied.value (the ability ref) to its class. A sabotage caught by vigilance does not
-    // present: retail's vigilance branch of 0x5b1920 skips 0x48e4d0, while the port's apply reports the catch as applied
-    // (its SabotageVigilance for the same hero comes in the same batch).
+    // present: retail's vigilance branch of 0x5b1920 skips 0x48e4d0. The galactic sim no longer raises SpecialApplied for
+    // a catch (#62 follow-up, 0x3284c0 skipped there too); the SabotageVigilance filter stays as a guard.
     struct GalacticActivation {
         uint32_t ability = 0;  // SpecialApplied.value
         uint32_t type = 0;     // the hero's type
