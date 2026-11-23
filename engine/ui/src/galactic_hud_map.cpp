@@ -40,6 +40,7 @@ void GalacticHud::build_planet_map(const GalacticHudFrame& f) {
     if (ButtonRuntime* r = state(map_income_)) r->hidden = true;
     // §7 texts.
     const char* keys[4] = {"TEXT_GROUND_FORCES", "TEXT_DRAG_AND_DROP", "TEXT_UNIT_CAP", "TEXT_BUILDING_CAP"};
+    // [port-text: the English stand-ins of the four TEXT_* keys above, for a table without them]
     const char32_t* fallback[4] = {U"Ground forces in orbit", U"Drag and drop onto map", U"Unit Cap", U"Building Cap"};
     for (size_t k = 0; k < map_texts_.size() && k < 4; ++k)
         if (ButtonRuntime* r = state(map_texts_[k])) r->text = text_or(keys[k], fallback[k]);

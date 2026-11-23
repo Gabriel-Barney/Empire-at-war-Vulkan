@@ -427,6 +427,12 @@ std::u32string TextDatabase::port_text(std::u32string_view english) const {
     return utf16_to_utf32(pseudo_localize(s));
 }
 
+std::u32string text_or_port(const TextDatabase* text, const char* key, std::u32string_view english) {
+    if (!text) return std::u32string(english);
+    if (const std::u16string* t = text->find(key)) return utf16_to_utf32(*t);
+    return text->port_text(english);
+}
+
 std::u16string pseudo_localize(std::u16string_view s) {
     const auto is_digit = [](char16_t c) { return c >= u'0' && c <= u'9'; };
     const auto is_letter = [](char16_t c) { return (c >= u'a' && c <= u'z') || (c >= u'A' && c <= u'Z'); };

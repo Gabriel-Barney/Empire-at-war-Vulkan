@@ -34,6 +34,8 @@ alamo_core_sim_math_lint
 alamo_core_sim_math_lint_selftest
 alamo_core_sim_tests
 alamo_core_tests
+alamo_core_ui_text_lint
+alamo_core_ui_text_lint_selftest
 alamo_crash_tests
 alamo_data_tests
 alamo_dev_selftest
