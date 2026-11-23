@@ -559,7 +559,7 @@ void MovementSystem::tick_special(uint32_t frame, SimRng& rng) {
 }
 
 // ---------------------------------------------------------------- §4.5 BIKE_LOCOMOTOR (vf6 0x639e90)
-void MovementSystem::bike_frame(Unit& u, float yaw0, bool walked) const {
+void MovementSystem::bike_frame(Unit& u, float yaw0, float v0, bool walked) const {
     SpecialMotion& s = u.sm;
     if (s.anim.id != kAnimNone) ++s.anim.frames;
     const float dy = wrap_deg(u.m.yaw - yaw0);
@@ -568,39 +568,50 @@ void MovementSystem::bike_frame(Unit& u, float yaw0, bool walked) const {
     const LocoState prev = s.state;
     const bool was_moving =
         prev == LocoState::BikeStartMove || prev == LocoState::BikeMoving || prev == LocoState::BikeEndMove;
+    // anm1 t02 (BKR2 Q2 (d) [H]): with the clip hook the walk times the Bike's MOVESTART (WalkExtras::bike), so these
+    // states follow the walk's: 0x21 while it holds Start Move (also at speed 0: a capped or stunned start), 0x22 once it
+    // has left it; without the hook the clip mirror's own end ([port] the earlier rule)
+    const bool timed = static_cast<bool>(deploy_clip_);
+    const float vmax = u.lp.max_speed;
     if (walked && u.m.state == LocoState::WalkStartTurn) {
         s.state = LocoState::BikeTurningInPlace;
-    } else if (walked && u.m.speed > 0.0f && u.m.state != LocoState::WalkStopped) {
+    } else if (walked && u.m.state != LocoState::WalkStopped &&
+               (u.m.speed > 0.0f || (timed && u.m.state == LocoState::WalkStartMove))) {
+        const auto start = [&] {
+            s.state = LocoState::BikeStartMove;
+            anim_play(u, kAnimMoveStart, false);
+        };
         switch (prev) {
             case LocoState::BikeStartMove:
                 if (u.m.state == LocoState::WalkEndMove) {
                     s.state = LocoState::BikeEndMove;
-                    anim_play(u, kAnimMoveEnd, false);
-                } else if (s.anim.done()) {
+                } else if (timed ? u.m.state == LocoState::WalkMoving : s.anim.done()) {
                     s.state = LocoState::BikeMoving;
                     anim_play(u, kAnimMove, true);
                 }
                 break;
             case LocoState::BikeMoving:
-                if (u.m.state == LocoState::WalkEndMove) {
-                    s.state = LocoState::BikeEndMove;
-                    anim_play(u, kAnimMoveEnd, false);
-                }
+                if (u.m.state == LocoState::WalkEndMove) s.state = LocoState::BikeEndMove;
                 break;
             case LocoState::BikeEndMove:
-                if (u.m.speed <= u.sp.min_speed + 0.0001f) s.state = LocoState::BikePreStopped;
+                // 0x24 on speed <= deceleration + 0.0001 (after the move step); a walk that restarted holds 0x21 again
+                if (timed && u.m.state == LocoState::WalkStartMove) start();
+                else if (u.m.speed <= walk_decel(u, vmax) + 0.0001f) s.state = LocoState::BikePreStopped;
                 break;
-            default:
-                s.state = LocoState::BikeStartMove;
-                anim_play(u, kAnimMoveStart, false);
-                break;
+            default: start(); break;
         }
+        // 0x23: MOVE_ENDONE plays once the speed is below 0.55 V (0x140a44324), tested in a frame that starts in 0x23
+        // before its move step (v0), not on entry
+        if (prev == LocoState::BikeEndMove && s.state == LocoState::BikeEndMove && !s.anim.playing(kAnimMoveEnd) &&
+            v0 < 0.55f * vmax)
+            anim_play(u, kAnimMoveEnd, false);
     } else if (was_moving) {
         s.state = LocoState::BikePreStopped;  // 0x24 (0x63a8e0)
     } else if (prev == LocoState::BikePreStopped || prev == LocoState::None ||
                (prev == LocoState::BikeTurningInPlace && !u.has_goal)) {
         s.state = LocoState::BikeStopped;
         s.anim = AnimPlay{};
+        u.m.wt_f0 = 0.0f;  // anm1 t02: 0x25 clears +0xf0 (a stop mid-0x23 leaves the latch; the next 0x23 latches anew)
     }
 }
 

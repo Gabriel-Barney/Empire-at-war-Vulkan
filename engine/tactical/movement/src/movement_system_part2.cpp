@@ -1332,9 +1332,11 @@ float MovementSystem::accel_per_frame(const Unit& u) const {
 // derived from the model); no hook -> off (the unit keeps the OverrideAcceleration / OverrideDeceleration getters).
 void MovementSystem::walk_transition_fill(Unit& u) const {
     u.wt = WalkTransition{};
-    if (!u.d.walk_transition || !deploy_clip_ || cfg_.mode != MoveMode::Land) return;
-    if (u.d.locomotor != LocomotorKind::Default && u.d.locomotor != LocomotorKind::Bike) return;
-    u.wt.on = true;
+    if (!deploy_clip_ || cfg_.mode != MoveMode::Land) return;
+    // anm1 t02: a Bike's clips time its own states (0x21 holds MOVESTART) with or without Walk_Transition
+    const bool bike = u.d.locomotor == LocomotorKind::Bike;
+    if (!bike && (!u.d.walk_transition || u.d.locomotor != LocomotorKind::Default)) return;
+    u.wt.on = u.d.walk_transition;
     u.wt.states = u.d.locomotor == LocomotorKind::Default;
     u.wt.s = u.d.anim_scale_speed;
     for (size_t i = 0; i < std::size(kWtClips); ++i) {
@@ -2351,6 +2353,7 @@ void MovementSystem::tick_land(uint32_t frame, SimRng& rng, const ParallelFor& p
         }
         x.cap_now = u.coll_now;  // s78n t20 (MOVEMENT §3.5 step 2): the collision cap's "at once" flag
         if (u.wt.on) x.wt = &u.wt;  // s78n t26 closing review: Walk_Transition (MOVEMENT §3.4, §3.5.2 F)
+        if (u.d.locomotor == LocomotorKind::Bike && deploy_clip_) x.bike = &u.wt;  // anm1 t02: the Bike's clip data
         x.lane = u.has_goal;
         x.directions = u.d.movement_directions;
         x.side_error_min = cfg_.constants.formation_minimum_side_error;  // mcx4 t11
@@ -2382,6 +2385,7 @@ void MovementSystem::tick_land(uint32_t frame, SimRng& rng, const ParallelFor& p
         Unit& u = units_[i];
         const bool bike = u.d.locomotor == LocomotorKind::Bike;
         const float yaw0 = u.m.yaw;
+        const float v0 = u.m.speed;  // anm1 t02: the Bike's 0x23 clip test reads the speed before the step
         AvoidCtx actx{this, &u, u.lp.max_speed, {}, pos0};
         // a1k t03 (A1_READINGS §40.3): the collision-owned record is the top of the path stack; the order path waits
         // under it. s78n t20 (MOVEMENT §1.5.1 item 5): it is walked as the order path is - the collision records'
@@ -2448,7 +2452,7 @@ void MovementSystem::tick_land(uint32_t frame, SimRng& rng, const ParallelFor& p
                 std::swap(u.m.turn_done, u.push_turn_done);
             }
             start_turn_mark(u, res[i]);  // s78n t26.2
-            if (bike) bike_frame(u, yaw0, true);
+            if (bike) bike_frame(u, yaw0, v0, true);
             return;
         }
         // s78n t18 / t20 batch 2 (MOVEMENT §5.3 "Hover in full", Walk service 0x61e930): while rising (2) / lowering
@@ -2484,7 +2488,7 @@ void MovementSystem::tick_land(uint32_t frame, SimRng& rng, const ParallelFor& p
         // a Walk in a deploy state does not move (MovementSystem::deploy). s78n t26.1 (MOVEMENT §3.2.1 item 3):
         // but 0x19 with M > 0 and a path walks deployed.
         if (u.deploy != LocoState::None && !deploy_walks(u)) {
-            if (bike) bike_frame(u, yaw0, false);
+            if (bike) bike_frame(u, yaw0, v0, false);
             return;
         }
         // a team member walks at the team speed (team_caps) - the container's effective max speed
@@ -2513,7 +2517,7 @@ void MovementSystem::tick_land(uint32_t frame, SimRng& rng, const ParallelFor& p
                 res[i] = walk_step(u.m, lp, u.coll_speed, &grid_, &x);
                 res[i].arrived = false;
                 start_turn_mark(u, res[i]);
-                if (bike) bike_frame(u, yaw0, true);
+                if (bike) bike_frame(u, yaw0, v0, true);
                 return;
             }
             if (u.m.speed > 0.0f) {
@@ -2544,10 +2548,10 @@ void MovementSystem::tick_land(uint32_t frame, SimRng& rng, const ParallelFor& p
                 u.m.wt_rate = c.wt_rate;
                 u.m.wt_f4 = c.wt_f4;
                 u.m.wt_f0 = c.wt_f0;
-                if (bike) bike_frame(u, yaw0, true);
+                if (bike) bike_frame(u, yaw0, v0, true);
                 return;
             }
-            if (bike) bike_frame(u, yaw0, false);
+            if (bike) bike_frame(u, yaw0, v0, false);
             return;
         }
         if (deploy_branch(u)) return;
@@ -2576,7 +2580,7 @@ void MovementSystem::tick_land(uint32_t frame, SimRng& rng, const ParallelFor& p
         actx.vmax = lp.max_speed;
         res[i] = walk_step(u.m, lp, u.coll_speed, &grid_, &x);
         start_turn_mark(u, res[i]);  // s78n t26.2
-        if (bike) bike_frame(u, yaw0, true);  // §4.5: states 0x20-0x25 and the lean (writes only u)
+        if (bike) bike_frame(u, yaw0, v0, true);  // §4.5: states 0x20-0x25 and the lean (writes only u)
     };
     pf(static_cast<uint32_t>(units_.size()), 64, [&](uint32_t b, uint32_t e) {
         for (uint32_t i = b; i < e; ++i) {

@@ -1528,7 +1528,7 @@ private:
     void step_jetpack(Unit& u, uint32_t frame);
     void step_flying(Unit& u, uint32_t frame, SimRng& rng);
     void step_bomber(Unit& u);
-    void bike_frame(Unit& u, float yaw0, bool walked) const;
+    void bike_frame(Unit& u, float yaw0, float v0, bool walked) const;  // v0: the speed before this frame's walk
     SpacePose air_follow(Unit& u, uint32_t frame) const;
     float air_altitude(const Unit& u, uint32_t frame) const;
     float terrain(V2 p) const { return height_ ? height_(p.x, p.y) : 0.0f; }

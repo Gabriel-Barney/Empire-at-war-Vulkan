@@ -93,7 +93,8 @@ struct LandMotion {
     // without end clips, 2 MOVE, 16 MOVESTART, 17..20 the end clips), wt_pos its frame, wt_rate its play rate (clip frames
     // per sim frame = the clip's fps / 30 x wt_rate);
     // wt_f4 = pack +0xf4 (the frame handed from one clip to the next); wt_f0 = pack +0xf0 (the speed latched when the end
-    // clip starts, the deceleration's v0; 0 at 0x15). Every value stays at its default for any other unit.
+    // clip starts, the deceleration's v0; 0 at 0x15). anm1 t02: a Bike tracks MOVESTART (16) here in its 0x21 and
+    // latches wt_f0 in its 0x23 (cleared at 0x25). Every value stays at its default for any other unit.
     int32_t wt_clip = -1;
     float wt_pos = 0.0f;
     float wt_rate = 0.0f;
@@ -120,7 +121,8 @@ struct LandMotion {
 // kWtClips[i] - MOVE 2, MOVESTART 16, MOVE_ENDONE..END4 17..20 and (anm1 t01) IDLE 0, the 0x14 clip of a model with no
 // end clip ([port] the idle type is always IDLE: retail's 0x395920 picks 0x47 while crouched). on = the
 // unit has Walk_Transition and the host supplied clip data; states = the 0x12 / 0x13 / 0x14 clip states of F run (the
-// Walk locomotor; a Bike shares only the acceleration / deceleration getters, [L] its state handlers are unread);
+// Walk locomotor; a Bike shares only the acceleration / deceleration getters and runs its own states, anm1 t02 /
+// WalkExtras::bike - its clip data is filled with or without Walk_Transition, on stays off without it);
 // s = S = 0x372b90 = Scale_Factor x Movement_Animation_Speed.
 inline constexpr int32_t kWtClips[7] = {2, 16, 17, 18, 19, 20, 0};
 struct WalkTransition {
@@ -241,6 +243,10 @@ struct WalkExtras {
     bool container = false;           // s78n t26.5
     std::vector<V2>* relay = nullptr;  // s78n t26.5
     const WalkTransition* wt = nullptr;  // s78n t26 closing review: Walk_Transition clip data (null / !on: none)
+    // anm1 t02 (BKR2 Q2 (d) [H]): a BIKE_LOCOMOTOR unit's clip data (null: not a Bike, or no clip data). Its 0x21 (the Walk
+    // step's Start Move) plays MOVESTART at rate 1.0 with the speed set to 0 and holds until the clip has ended, the turn
+    // budget x v / V; its 0x23 (End Move) latches +0xf0 on its first frame and ends on speed <= deceleration + 0.0001.
+    const WalkTransition* bike = nullptr;
     // mcx4 t11 (MOVEMENT §4.4, 0x41dbb0): FormationMinimumSideError (GC +0x14cc) / FormationMaximumSideError (+0x14d0)
     float side_error_min = 0.1f, side_error_max = 30.0f;
     // mov2 t01 (MOVEMENT §4.3.3 items 1 - 3 [H]): slot_walk = the top record is a formation member's copy of the formation
