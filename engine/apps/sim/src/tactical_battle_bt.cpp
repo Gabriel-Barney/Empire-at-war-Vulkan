@@ -1698,7 +1698,12 @@ void TacticalBattle::bt_place_forces(TacticalMode& mode, SimRng& rng, const Para
         bt_used_ = true;
     }
     // 4. Other structures, two passes. Pass 1 places each structure that remembers a marker (+0x3b0, the
-    //    galactic memory GalacticSim::structure_slot of its galactic object) on that marker when it is still free; pass 0
+    //    galactic memory GalacticSim::structure_slot of its galactic object) on that marker when it is an In_Base or
+    //    Out_Base marker, in-base first (#70 t07 [H]: 0x2a1eb0 searches those two lists only, and reads no used flag there:
+    //    two structures that remember one marker share it). A memory of any other marker kind is not matched, so an
+    //    orbital structure falls to pass 0 (a specific marker, else the next free orbital marker). [M] a memory that
+    //    matches nothing: retail picks the structure's group marker still in pass 1 (0x2a1eb0 LAB_1402a3d19), ahead of
+    //    the structures without a memory; the port leaves it to pass 0 (#70 follow-up). Pass 0
     //    places the rest: a specific marker listing the type, else the Base_Position group (Orbital / In_Base / Out_Base;
     //    In_Base falls over to out-base and vice versa), else any free in-base then out-base marker; none left -> not
     //    spawned. Spawned for the record defender. On placement the structure remembers the slot (+0x3ac: [M] the marker's
@@ -1720,16 +1725,20 @@ void TacticalBattle::bt_place_forces(TacticalMode& mode, SimRng& rng, const Para
             if (!p.structure || p.starbase || p.other_type >= 0 || p.built || p.galactic_id == objects::kNoObjectId) continue;
             const galactic::GalacticSim::StructureSlot* mem = slot_memory_->structure_slot(p.galactic_id);
             if (!mem || mem->marker < 0) continue;
-            for (size_t i = 0; i < bt_markers_.size(); ++i) {
-                if (bt_markers_[i].used || bt_markers_[i].map_id != mem->marker) continue;
-                take(i, p);
-                p.owner = def >= 0 ? def : p.owner;
-                remember(p, i);
-                pass1[pi] = 1;
-                ++map_stats_.remembered_markers;
-                bt_used_ = true;
-                break;
-            }
+            // the in-base list first, then the out-base list (0x2a1eb0 order; it matters only when ids repeat); used or not
+            int64_t hit = -1;
+            for (const uint8_t k : {uint8_t{kMkInBase}, uint8_t{kMkOutBase}})
+                for (size_t i = 0; i < bt_markers_.size() && hit < 0; ++i)
+                    if (bt_markers_[i].kind == k && bt_markers_[i].map_id == mem->marker)
+                        hit = static_cast<int64_t>(i);
+            if (hit < 0) continue;
+            const size_t i = static_cast<size_t>(hit);
+            take(i, p);
+            p.owner = def >= 0 ? def : p.owner;
+            remember(p, i);
+            pass1[pi] = 1;
+            ++map_stats_.remembered_markers;
+            bt_used_ = true;
         }
     if (structure_markers)
         for (size_t pi = 0; pi < parts_.size(); ++pi) {
