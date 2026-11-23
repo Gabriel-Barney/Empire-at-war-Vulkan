@@ -229,8 +229,9 @@ struct PresentationConfig {
 // finished once all Number_Bolts bolts exist and have faded. Retail creates at most one bolt per update, the next one
 // U(Bolt_Creation_Interval_Min, _Max) seconds later, and each bolt fades over U(Fadeout_Time_Min, _Max) seconds, all drawn
 // on the free RNG in render time, so its length is not reproducible; with Replace_Faded the effect never ends.
-// [port] the deterministic stand-in: (Number_Bolts - 1) x the mean interval + Fadeout_Time_Max seconds, in 30 Hz frames
-// rounded up (Hack_Electicity_Zaps: 52, Kessel_Mouse_Droid_Hack: 360); Replace_Faded -> kLightningNeverEnds.
+// [port] tier 1 (a deterministic length inside retail's own random range, docs/SIMULATION.md "Parity tiers"): (Number_Bolts
+// - 1) x the mean interval + Fadeout_Time_Max seconds, in 30 Hz frames rounded up (Hack_Electicity_Zaps: 52,
+// Kessel_Mouse_Droid_Hack: 360); Replace_Faded -> kLightningNeverEnds.
 inline constexpr uint32_t kLightningNeverEnds = 0xFFFFFFFFu;
 uint32_t lightning_block_frames(int32_t bolts, float interval_min, float interval_max, float fade_max, bool replace_faded);
 

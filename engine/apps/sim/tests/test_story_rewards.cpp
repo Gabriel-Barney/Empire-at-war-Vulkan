@@ -231,14 +231,17 @@ static void test_lightning_block_table_51() {
                "<Fadeout_Time_Min>10</Fadeout_Time_Min><Fadeout_Time_Max>11</Fadeout_Time_Max></LightningEffect>\n"
                " <LightningEffect Name=\"Corruption_Line\"><Replace_Faded>Yes</Replace_Faded></LightningEffect>\n"
                " <LightningEffect Name=\"Bare\"></LightningEffect>\n"
+               " <LightningEffect Name=\"Prefix\"><Number_Bolts>2.7</Number_Bolts><Bolt_Creation_Interval_Min>1</Bolt_Creation_Interval_Min>"
+               "<Bolt_Creation_Interval_Max>1</Bolt_Creation_Interval_Max><Fadeout_Time_Max>1</Fadeout_Time_Max></LightningEffect>\n"
                "</LightningEffectTypes>\n");
     files = std::make_unique<DirectoryProvider>(path_to_utf8(root));  // the provider lists the folder when made
     const std::map<std::string, uint32_t> t = lightning_block_table(*files);
-    CHECK(t.size() == 4);
+    CHECK(t.size() == 5);
     CHECK(t.count("HACK_ELECTICITY_ZAPS") && t.at("HACK_ELECTICITY_ZAPS") == 52u);
     CHECK(t.count("KESSEL_MOUSE_DROID_HACK") && t.at("KESSEL_MOUSE_DROID_HACK") == 360u);
     CHECK(t.count("CORRUPTION_LINE") && t.at("CORRUPTION_LINE") == lua::kLightningNeverEnds);
-    CHECK(t.count("BARE") && t.at("BARE") == 30u);  // 1 bolt, Fadeout_Time_Max 1 s
+    CHECK(t.count("BARE") && t.at("BARE") == 30u);      // 1 bolt, Fadeout_Time_Max 1 s
+    CHECK(t.count("PREFIX") && t.at("PREFIX") == 60u);  // Number_Bolts "2.7" reads 2 (an integer prefix): 1 + 1 s
     jobs::JobSystem js(jobs::JobSystemConfig{0});
     SimConfig cfg;
     cfg.seed = 7;

@@ -489,8 +489,10 @@ std::map<std::string, uint32_t> lightning_block_table(const FileProvider& files)
             return {};
         };
         auto num = [&text](std::string_view tag, float fallback) { return data::parse_float(text(tag)).value_or(fallback); };
-        // The render library's defaults (render::LightningStyle) for a missing tag.
-        const int32_t bolts = static_cast<int32_t>(std::lround(num("Number_Bolts", 1.0f)));
+        // The render library's defaults (render::LightningStyle) for a missing tag. Number_Bolts is an integer: a C prefix
+        // parse (docs/MODS.md "Tag ledger and value semantics": "2.7" is 2).
+        const std::string_view bolts_text = text("Number_Bolts");
+        const int32_t bolts = bolts_text.empty() ? 1 : data::parse_int_prefix(bolts_text).value_or(0);
         out[ascii_upper(name)] = lua::lightning_block_frames(bolts, num("Bolt_Creation_Interval_Min", 0.0f),
                                                              num("Bolt_Creation_Interval_Max", 0.1f), num("Fadeout_Time_Max", 1.0f),
                                                              data::parse_bool_or(text("Replace_Faded"), false));

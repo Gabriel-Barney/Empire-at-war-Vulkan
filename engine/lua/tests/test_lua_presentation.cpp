@@ -572,6 +572,7 @@ static void test_blocking() {
     CHECK(lightning_block_frames(3, 0.5f, 0.5f, 11.0f, false) == 360u);    // Kessel_Mouse_Droid_Hack: 12 s exactly
     CHECK(lightning_block_frames(1, 0.0f, 0.1f, 1.0f, false) == 30u && lightning_block_frames(0, 5.0f, 5.0f, 0.0f, false) == 0u);
     CHECK(lightning_block_frames(4, 0.1f, 0.2f, 1.0f, true) == kLightningNeverEnds);
+    CHECK(lightning_block_frames(1, 0.0f, 0.0f, 0.6f, false) == 18u && lightning_block_frames(1, 0.0f, 0.0f, 0.1f, false) == 3u);
     // A never-ending block: no wrap past the frame counter, block_end reports it, and it is not finished much later.
     log.config().lightning_frames_of = [](std::string_view) { return kLightningNeverEnds; };
     CHECK(run(vm, "z = Play_Lightning_Effect('Corruption_Line', marker, trooper)") == "");

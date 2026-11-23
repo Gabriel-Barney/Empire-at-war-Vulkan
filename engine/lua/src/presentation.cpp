@@ -151,7 +151,8 @@ uint32_t lightning_block_frames(int32_t bolts, float interval_min, float interva
     const double mean = (static_cast<double>(interval_min) + static_cast<double>(interval_max)) * 0.5;
     const double seconds = std::max(0.0, gaps * std::max(0.0, mean) + std::max(0.0, static_cast<double>(fade_max)));
     if (seconds * 30.0 >= 2.0e9) return kLightningNeverEnds - 1;
-    return static_cast<uint32_t>(frames_ceil(seconds * 30.0 - 1e-9));  // a whole number of seconds stays exact (12 s -> 360)
+    // A 1e-4 frame margin absorbs the float tags' rounding (0.6f s is 18.0000007 frames: 18, not 19).
+    return static_cast<uint32_t>(frames_ceil(seconds * 30.0 - 1e-4));
 }
 
 namespace {
