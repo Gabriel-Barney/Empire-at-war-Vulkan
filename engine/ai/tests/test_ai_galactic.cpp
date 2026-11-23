@@ -85,6 +85,10 @@ int main(int argc, char** argv) {
     test_budget_reset_on_template_switch();  // a2g F2
     test_free_store_path_rules();
     test_free_store_world();
+    test_target_applies_owner_bits();    // gai1 t02
+    test_target_applies_allied_owner();  // gai1 t02
+    test_target_applies_revealed();      // gai1 t02
+    test_target_applies_contested();     // gai1 t02
     test_prefer_ground_auto_land();  // cu8f t04b
     test_underworld_special();
     test_save_synthetic();
