@@ -1681,8 +1681,8 @@ void GameAudioHost::movie_started(bool movie_music, bool halt_music) {  // same 
 }
 void GameAudioHost::movie_cue(std::string_view) {}
 void GameAudioHost::movie_ended() { movie_music_on_ = movie_halted_ = false; }
-void GameAudioHost::unit_response(const objects::GameObjectTypes&, objects::TypeIndex, uint64_t, UnitResponse, bool, int32_t, uint32_t, bool,
-                                  int32_t) {}
+void GameAudioHost::unit_response(const objects::GameObjectTypes&, objects::TypeIndex, uint64_t, UnitResponse, bool, int32_t, uint32_t,
+                                  int32_t, bool) {}
 void GameAudioHost::battle_tick(const sim::TacticalBattle&, const objects::ObjectStore&, const objects::GameObjectTypes&, int32_t,
                                 const std::function<bool(objects::ObjectId)>&) {}
 void GameAudioHost::battle_end(bool, std::string_view) {}

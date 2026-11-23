@@ -557,9 +557,11 @@ void App::respond(const commands::EventData& ev) {
     const int32_t hp_kind = ref2 > 0 && ref2 <= 13 ? static_cast<int32_t>(ref2) - 1 : -1;
     // #50 t02 (0x442f0 / 0x44590 [H]): Group_Move / Group_Attack when a tactical move or attack selection counts more than
     // one object that is not a TEAM / FLEET / TRANSPORT; the non-hero-ability variant when the speaker's team's first
-    // member (the speaker itself without a team) has its first or second unit ability active. [port] Not modelled: the
-    // resolvers' exits for a TACTICAL_BUILD_OBJECTS container (plain line) and a vehicle-thief capture (the Move line),
-    // and their read of the plain line from the member's type first (the port reads the speaker's).
+    // member (a team speaker: its own first member) has its first or second unit ability active.
+    // Gaps (tier 1, #50 follow-ups): the Attack response's Attack_Override list step (0x373820, between Group_Attack and the
+    // resolver; no vanilla data sets it); the resolvers' exits for a structure dummy or a TACTICAL_BUILD_OBJECTS container
+    // (the plain line), a vehicle-thief capture (the Move line) and a team without members (nothing); and their read of
+    // the plain line from the member's type first (the port reads the speaker's).
     const bool group = top->tactical() && (kind == UnitResponse::Move || kind == UnitResponse::Attack) &&
                        GameAudioHost::group_count(st, ids) > 1;
     bool non_hero = false;
@@ -568,8 +570,7 @@ void App::respond(const commands::EventData& ev) {
             const tactical::abilities::AbilitySystem& ab = b->abilities();
             const objects::ObjectId sid = st.id(h);
             const objects::ObjectId team = ab.container_of(sid);
-            const std::span<const objects::ObjectId> members =
-                team != tactical::abilities::kNoObject ? ab.members_of(team) : std::span<const objects::ObjectId>{};
+            const std::span<const objects::ObjectId> members = ab.members_of(team != tactical::abilities::kNoObject ? team : sid);
             const objects::ObjectId m = members.empty() ? sid : members.front();
             const objects::ObjectHandle mh = st.find(m);
             if (st.exists(mh))

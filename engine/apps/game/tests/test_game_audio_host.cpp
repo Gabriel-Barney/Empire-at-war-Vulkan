@@ -1671,6 +1671,7 @@ void test_unit_responses_50() {
       <Unit_Ability><Type>ENERGY_WEAPON</Type></Unit_Ability>
     </Unit_Abilities_Data></SpaceUnit>
   <SpaceUnit Name="Plain"><SFXEvent_Move> Pl_Move </SFXEvent_Move></SpaceUnit>
+  <SpaceUnit Name="Squad_Team"><Behavior>TEAM</Behavior></SpaceUnit>
 </SpaceUnits>
 )");
     objects::ObjectTypeDatabase raw;
@@ -1686,15 +1687,18 @@ void test_unit_responses_50() {
     CHECK(!H::non_hero_variant_active(types, bs, only(ta::kEnergyWeapon)));  // the third entry does not count
     CHECK(!H::non_hero_variant_active(types, bs, [](uint8_t) { return false; }) &&
           !H::non_hero_variant_active(types, plain, [](uint8_t) { return true; }));
-    // group_count: plain units count; an object with a TEAM behaviour does not (none in this fixture's types).
+    // group_count: plain units count; a TEAM container and an unknown id do not.
     objects::ObjectStore store(objects::ModeKind::Space, objects::StoreKind::Primary, types);
     objects::SpawnParams sp;
     sp.type = bs;
     sp.owner = 0;
     const uint32_t a = static_cast<uint32_t>(store.id(store.create(sp)));
     const uint32_t b = static_cast<uint32_t>(store.id(store.create(sp)));
-    const std::vector<uint32_t> two = {a, b}, one = {a}, gone = {a, 0x7FFFFFF0u};
+    sp.type = types.resolve_name("Squad_Team");
+    const uint32_t team = static_cast<uint32_t>(store.id(store.create(sp)));
+    const std::vector<uint32_t> two = {a, b}, one = {a}, gone = {a, 0x7FFFFFF0u}, with_team = {a, team};
     CHECK(H::group_count(store, two) == 2 && H::group_count(store, one) == 1 && H::group_count(store, gone) == 1);
+    CHECK(H::group_count(store, with_team) == 1);
 #ifdef ALAMO_GAME_HAVE_AUDIO
     auto tree = make_tree(true);
     tree->add("Data\\XML\\SFXEventsTest.xml", R"(<?xml version="1.0"?>
