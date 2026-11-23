@@ -102,7 +102,8 @@ struct PortEventStats {
 // panel answers (a SpecialAbility command) or closes. Presentation state: never hashed, never read by the sim.
 struct SpecialDialog {
     uint32_t kind = 0;                    // galactic::kSpecialSlice / kSpecialBlackMarket / kSpecialSabotage /
-                                          // kSpecialCorruption / kSpecialHack
+                                          // kSpecialCorruption / kSpecialHack / kSpecialNeutralize (#71 t08: the
+                                          // NeutralizeDialog event, hero = the neutralizer)
     PlanetIndex planet = kInvalidPlanet;  // planet row
     uint32_t planet_id = 0, hero_id = 0;  // galactic object ids (the hero = slicer / buyer / saboteur / defiler / hacker)
     float respawn_seconds = 0.0f;         // black market / slice: the R the apply drew (dequantized q5; 0 = default respawn)
@@ -122,6 +123,9 @@ uint32_t slicer_ability(const galactic::GalacticSim& g, objects::ObjectHandle he
 std::vector<galactic::SliceEntry> slice_rows(const galactic::GalacticSim& g, int32_t player, PlanetIndex planet, uint32_t hero_id);
 // A black-market dialog row can be clicked (L1P4_LUA_GAPS 2.3): not purchased and int(price + 0.5) <= int(credits + 0.5).
 bool black_market_row_enabled(const galactic::BlackMarketOffer& o, float credits);
+// #71 t08: a Neutralize_Hero panel row can be picked when the candidate is eligible and its price fits the credits - the
+// rows the AI may draw (0x2814d0, legacy docs/re/GALAB_ABILITIES_RE.md §7.5) and the executor's own checks [M].
+bool neutralize_row_enabled(const galactic::NeutralizeCandidate& c, float credits);
 
 class GameSession {
 public:
@@ -256,6 +260,12 @@ public:
     bool sabotage_structure(uint32_t structure_id);
     bool hack_super_weapon();
     bool corrupt_planet(int8_t type);
+    // #71 t08 (legacy docs/re/GALAB_ABILITIES_RE.md §7.5): the open Neutralize_Hero panel's candidates (GalacticSim's
+    // neutralize_offer when the NeutralizeDialog event came; empty while no such panel is open), and the pick: row `row`
+    // -> SpecialAbility kind 3 (neutralize_hero_event). False (nothing sent, the panel stays) for no panel, no such row or
+    // a row neutralize_row_enabled refuses.
+    const std::vector<galactic::NeutralizeCandidate>& neutralize_rows() const;
+    bool neutralize_hero(size_t row);
     // The P4 special events (SpecialDialog .. Slice, incl. TypeUnlocked) of every player since the last call, stream order, for the
     // presentation (SFX / messages). Collected right before T9 (the T2..T8 events), from every later batch the story
     // drains inside T9 (events raised by Lua / story rewards there, StorySession::set_drain_tap) and after each tick.
@@ -387,6 +397,9 @@ private:
     std::vector<galactic::GalacticEvent> announce_events_;  // ui4 t08
     SpecialDialog dialog_;
     bool dialog_open_ = false;
+    std::vector<galactic::NeutralizeCandidate> neutralize_rows_;  // #71 t08: the Neutralize_Hero panel's candidates
+    // The local player's special dialog `kind` from event `e` (planet, hero = e.object, this frame); false for a bad planet.
+    bool open_dialog(const galactic::GalacticSim& gs, const galactic::GalacticEvent& e, uint32_t kind);
     SpecialStats special_stats_;
     bool submit_special(commands::EventData ev);
     uint64_t ticks_ = 0;

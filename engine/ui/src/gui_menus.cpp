@@ -34,17 +34,6 @@ std::string map_file_label(std::string_view map) {
     return std::string(map);
 }
 
-// Case-insensitive row order (ASCII folded; other code points by value): the original's _stricmp.
-char32_t fold32(char32_t c) { return c >= U'A' && c <= U'Z' ? static_cast<char32_t>(c - U'A' + U'a') : c; }
-bool row_text_less(const std::u32string& a, const std::u32string& b) {
-    const size_t n = std::min(a.size(), b.size());
-    for (size_t i = 0; i < n; ++i) {
-        const char32_t x = fold32(a[i]), y = fold32(b[i]);
-        if (x != y) return x < y;
-    }
-    return a.size() < b.size();
-}
-
 constexpr const char* kMain = "IDD_MAIN_MENU_DIALOG";
 constexpr const char* kSingle = "IDD_SINGLE_PLAYER_GAMES_MENU_DIALOG";
 constexpr const char* kCampaignSelect = "IDD_CAMPAIGN_SELECTION_DIALOG";

@@ -92,8 +92,8 @@ enum class GalacticEventKind : uint8_t {
                              // (story generic "hero_neutralized"); a siphon entry: object = 0, type = the siphoner's type
     NeutralizeDialog,        // a human's Neutralize_Hero found candidates (0x3c8d90 panel): player, planet, object = the
                              // neutralizer, value = candidate count; the list is GalacticSim::neutralize_offer(), the pick
-                             // is SpecialAbility kind 3 (kSpecialNeutralize). [port] Kept apart from SpecialDialog until a
-                             // panel exists (backlog, GALAB §7.5).
+                             // is SpecialAbility kind 3 (kSpecialNeutralize). [port] Kept apart from SpecialDialog: the
+                             // host's GameSession opens IDD_NEUTRALIZE_HERO_DIALOG from it (#71 t08).
     NeutralizeVigilance,     // a generic neutralizer caught on Planet_Vigilance (killed): player, planet, object = the
                              // neutralizer, other_player = planet owner
     Count

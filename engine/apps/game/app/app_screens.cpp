@@ -177,6 +177,14 @@ void App::handle_screen_actions(const std::vector<ui::ScreenAction>& acts) {
                 break;
             }
             case K::BuyUnitsBack: open_main_menu(); break;
+            // #71 t08: SpecialAbility kind 3. [port] a pick GameSession refuses (the row stopped being pickable) closes the
+            // panel and sends nothing; retail sends it and its executor plays the error sound (GALAB §7.6).
+            case K::NeutralizeHero:
+                if (session_ && (a.button < 0 || !session_->neutralize_hero(static_cast<size_t>(a.button)))) session_->close_special_dialog();
+                break;
+            case K::NeutralizeHeroCancelled:
+                if (session_) session_->close_special_dialog();
+                break;
             case K::StoryClosed:  // the story / tutorial dialog's Continue / close (0x1243f0, 0x105190)
                 story_ui_.generic("Continue_Tutorial");
                 story_ui_.generic("close_story_dialog");
@@ -1348,6 +1356,22 @@ void App::build_panels(std::vector<ui::HudDrawList>& lists) {
         planet_id = dlg ? dlg->planet_id : preview_planet_;
         hero_id = dlg ? dlg->hero_id : 0;
         pi = dlg ? dlg->planet : planet_index(*g, preview_planet_);
+    }
+    // #71 t08: the Neutralize_Hero pick is the IDD_NEUTRALIZE_HERO_DIALOG GUI dialog, not a HUD panel; it is open while the
+    // session's kind-3 dialog is (its pick / Cancel answer through ScreenAction::NeutralizeHero / NeutralizeHeroCancelled).
+    // A new NeutralizeDialog (another frame) replaces the open one's rows; the rows' prices and pickable state follow the
+    // credits every frame.
+    if (galactic && dlg && dlg->kind == galactic::kSpecialNeutralize && g) {
+        std::vector<ui::NeutralizeHeroRow> rows = neutralize_dialog_rows(data_, ui_.text, session_->neutralize_rows(), g->credits(local_player()));
+        if (info_.neutralize_open() && neutralize_shown_ != dlg->frame) info_.close_neutralize();
+        if (!info_.neutralize_open()) {
+            info_.show_neutralize(std::move(rows));
+            neutralize_shown_ = dlg->frame;
+        } else {
+            info_.set_neutralize(rows);
+        }
+    } else if (info_.neutralize_open()) {
+        info_.close_neutralize();
     }
     SpecialPanelData pd;
     if (g && pi != kInvalidPlanet) pd = special_panel(*g, data_, ui_.text, ui_.hud_types, local_player(), kind, pi, hero_id);

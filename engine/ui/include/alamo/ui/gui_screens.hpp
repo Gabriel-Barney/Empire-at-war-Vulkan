@@ -145,6 +145,8 @@ struct ScreenAction {
         TutorialContinue,     // ui2 t02, appended: IDD_TUTORIAL_DIALOG's IDC_CONTINUE (the story's "Continue_Tutorial" trigger)
         TutorialClosed,       // Esc: the dialog closes, no trigger
         TutorialQuit,         // IDC_QUIT_TO_MAIN: the host asks TEXT_QUIT_SURE
+        NeutralizeHero,           // #71 t08, appended: IDD_NEUTRALIZE_HERO_DIALOG's pick (button = the candidate index)
+        NeutralizeHeroCancelled,  // its Cancel / Esc
     };
     Kind kind = Kind::MessageBoxResult;
     std::string tag, map;
