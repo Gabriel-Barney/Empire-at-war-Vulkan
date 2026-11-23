@@ -8,6 +8,8 @@ namespace alamo::sim {
 
 struct TacticalBattleTestAccess {
     static tactical::abilities::AbilitySystem& abilities(TacticalBattle& b) { return *b.abilities_; }
+    // #88: the battle's movement system, mutable (a test puts fighters in Dead_Stop, whose retail writer is untraced).
+    static tactical::movement::MovementSystem& movement(TacticalBattle& b) { return *b.movement_; }
     // #44 t01: a unit's DEPLOY_TROOPERS attachment (the walker and the bone index; kNoObjectId / -1 when free). False for
     // an unknown unit.
     static bool attachment(TacticalBattle& b, objects::ObjectId id, objects::ObjectId& to, int32_t& bone) {
