@@ -5,12 +5,14 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include "tactical_battle_test_access.hpp"  // ref3 t06
 #include <bit>
 #include <cinttypes>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -886,6 +888,72 @@ inline terrain::MapData land_map() {
 }
 
 inline uint32_t type_of(const Data& d, const char* name) { return static_cast<uint32_t>(d.types.resolve_name(name)); }
+
+// #44 t02: a skeleton-only ALO (chunk 0x200: header 0x201, one 0x202 per bone with its name 0x203 and 0x206 = parent,
+// visible, billboard, row-major 3 x 4 bind matrix; then an empty connections chunk 0x600).
+inline std::vector<uint8_t> skeleton_alo(const std::vector<std::pair<std::string, std::array<float, 12>>>& bones) {
+    using Bytes = std::vector<uint8_t>;
+    auto put = [](Bytes& b, const void* p, size_t n) { b.insert(b.end(), static_cast<const uint8_t*>(p), static_cast<const uint8_t*>(p) + n); };
+    auto chunk = [&put](uint32_t id, const Bytes& payload, bool children) {
+        Bytes b;
+        const uint32_t size = static_cast<uint32_t>(payload.size()) | (children ? 0x80000000u : 0u);
+        put(b, &id, 4);
+        put(b, &size, 4);
+        b.insert(b.end(), payload.begin(), payload.end());
+        return b;
+    };
+    Bytes hdr(128, 0);
+    const uint32_t count = static_cast<uint32_t>(bones.size());
+    std::memcpy(hdr.data(), &count, 4);
+    Bytes skel = chunk(0x201, hdr, false);
+    int32_t parent = -1;
+    for (const auto& [name, m] : bones) {
+        Bytes info;
+        const uint32_t visible = 1, billboard = 0;
+        put(info, &parent, 4);
+        put(info, &visible, 4);
+        put(info, &billboard, 4);
+        put(info, m.data(), 48);
+        Bytes nm(name.begin(), name.end());
+        nm.push_back(0);
+        Bytes bone = chunk(0x203, nm, false);
+        const Bytes i = chunk(0x206, info, false);
+        bone.insert(bone.end(), i.begin(), i.end());
+        const Bytes c = chunk(0x202, bone, true);
+        skel.insert(skel.end(), c.begin(), c.end());
+        parent = 0;  // every later bone hangs off the root
+    }
+    Bytes out = chunk(0x200, skel, true);
+    // connections 0x600: header 0x601 with mini chunks 1 (object count 0) and 4 (proxy count 0)
+    const Bytes conn = chunk(0x600, chunk(0x601, Bytes{1, 4, 0, 0, 0, 0, 4, 4, 0, 0, 0, 0}, false), true);
+    out.insert(out.end(), conn.begin(), conn.end());
+    return out;
+}
+
+#ifdef ALAMO_SIM_HAVE_ANIM
+// One-bone skeleton, clips without tracks: only the frame counts matter.
+inline std::unique_ptr<anim::AnimModel> synth_model(const char* base, std::initializer_list<std::pair<int32_t, uint32_t>> clips) {
+    auto m = std::make_unique<anim::AnimModel>();
+    m->model = std::string(base) + ".ALO";
+    m->base = base;
+    m->skeleton.names = {"Root"};
+    m->skeleton.parents = {-1};
+    m->skeleton.billboard_mode = {0u};
+    m->skeleton.bind_local = {anim::Mat34{}};
+    m->has_skeleton = true;
+    for (const auto& [type, frames] : clips) {
+        auto c = std::make_shared<anim::Clip>();
+        c->name = anim::clip_file_name(m->base, type, 0);
+        c->frame_count = frames;
+        c->fps = 30.0f;
+        anim::ClipRef r;
+        r.clip = c;
+        m->clips[static_cast<size_t>(type)].push_back(r);
+    }
+    anim::bind_clips(*m);
+    return m;
+}
+#endif
 
 inline galactic::GalacticSetup make_setup(const Data& d, bool land) {
     galactic::GalacticSetup s;

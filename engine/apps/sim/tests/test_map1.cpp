@@ -438,47 +438,6 @@ int run_every_map() {
     return g_fail ? 1 : 0;
 }
 
-// #44 t02: a skeleton-only ALO (chunk 0x200: header 0x201, one 0x202 per bone with its name 0x203 and 0x206 = parent,
-// visible, billboard, row-major 3 x 4 bind matrix; then an empty connections chunk 0x600).
-std::vector<uint8_t> skeleton_alo(const std::vector<std::pair<std::string, std::array<float, 12>>>& bones) {
-    using Bytes = std::vector<uint8_t>;
-    auto put = [](Bytes& b, const void* p, size_t n) { b.insert(b.end(), static_cast<const uint8_t*>(p), static_cast<const uint8_t*>(p) + n); };
-    auto chunk = [&put](uint32_t id, const Bytes& payload, bool children) {
-        Bytes b;
-        const uint32_t size = static_cast<uint32_t>(payload.size()) | (children ? 0x80000000u : 0u);
-        put(b, &id, 4);
-        put(b, &size, 4);
-        b.insert(b.end(), payload.begin(), payload.end());
-        return b;
-    };
-    Bytes hdr(128, 0);
-    const uint32_t count = static_cast<uint32_t>(bones.size());
-    std::memcpy(hdr.data(), &count, 4);
-    Bytes skel = chunk(0x201, hdr, false);
-    int32_t parent = -1;
-    for (const auto& [name, m] : bones) {
-        Bytes info;
-        const uint32_t visible = 1, billboard = 0;
-        put(info, &parent, 4);
-        put(info, &visible, 4);
-        put(info, &billboard, 4);
-        put(info, m.data(), 48);
-        Bytes nm(name.begin(), name.end());
-        nm.push_back(0);
-        Bytes bone = chunk(0x203, nm, false);
-        const Bytes i = chunk(0x206, info, false);
-        bone.insert(bone.end(), i.begin(), i.end());
-        const Bytes c = chunk(0x202, bone, true);
-        skel.insert(skel.end(), c.begin(), c.end());
-        parent = 0;  // every later bone hangs off the root
-    }
-    Bytes out = chunk(0x200, skel, true);
-    // connections 0x600: header 0x601 with mini chunks 1 (object count 0) and 4 (proxy count 0)
-    const Bytes conn = chunk(0x600, chunk(0x601, Bytes{1, 4, 0, 0, 0, 0, 4, 4, 0, 0, 0, 0}, false), true);
-    out.insert(out.end(), conn.begin(), conn.end());
-    return out;
-}
-
 // g_data_extra: M1_Bone_Hangar's model, a root and SPAWN_00 (bind matrix rows: x axis column (0.6, -0.8, 0), at (0, -30, 0))
 void write_spawn_bone_model(const fs::path& root) {
     const std::vector<uint8_t> alo = skeleton_alo({{"Root", {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0}},
@@ -579,6 +538,112 @@ void test_land_spawn_bone(const Data& d, bool garrison) {
     CHECK(hangars == 1 && found == 1 && right == 1);
 }
 
+// #44 t01 (STATION_HANGARS_SOUND §2.5 "Land" / §2.7, R3G_ANIM_TIMED_RE §3): M1_Bone_Hangar's cycle through the battle
+// host with Structure Open (20 frames), Hold and Close (20 frames) clips at 30 fps. The services run every 30 frames:
+// state 1 (opening) at the first service; at the first service where Open has finished the trooper is launched at the
+// bone and ordered to the fly-out point (hg_land_launch), state 2; the trooper's move finishing (signal 10, hg_move_done:
+// the host calls unit_left that frame, 0x593760) plays Close at once, state 3; the first service at least Close's 20
+// frames later finds it finished, state 0. The trooper stays counted (live 1), so nothing launches again.
+void test_land_spawner_cycle(const Data& d) {
+#ifdef ALAMO_SIM_HAVE_ANIM
+    const uint32_t trooper = type_of(d, "S10_Trooper"), bone_hangar = type_of(d, "M1_Bone_Hangar");
+    const auto model = synth_model("M1_SPAWNBONE", {{anim::kAnimIdle, 30u}, {68, 20u}, {69, 30u}, {70, 20u}});
+    SimAnimation animation(d.types, *d.files);
+    animation.set_model(static_cast<objects::TypeIndex>(bone_hangar), objects::ModeKind::Land, model.get());
+    terrain::MapData m = land_map();
+    m.objects.push_back(place("Defending Forces Position", 600.0f, 600.0f, 0));
+    m.objects.push_back(place("Attacker Entry Position", 200.0f, 200.0f, 1));
+    terrain::ObjectPlacement hp = place("M1_Bone_Hangar", 1000.0f, 1000.0f, 0);
+    hp.rotation_deg[2] = 90.0f;  // faces +x: the fly-out point is hangar + (110, 60) (test_land_spawn_bone)
+    m.objects.push_back(hp);
+    jobs::JobSystem js(jobs::JobSystemConfig{0});
+    SimConfig cfg;
+    cfg.seed = 2026;
+    cfg.players = 4;
+    SimHost host(d.types, js, cfg);
+    galactic::GalacticSim* gs = host.start_galactic(d.rules, make_setup(d, true));
+    CHECK(gs != nullptr);
+    if (!gs) return;
+    animation.attach(host, false);
+    CampaignBattleOptions opt;
+    opt.battle.max_frames = 0;
+    opt.animation = &animation;
+    CampaignBattles battles(host, d.crules, *d.catalog,
+                            [m](const std::string& name, terrain::MapData& out) {
+                                if (name != "M1_Map") return false;
+                                out = m;
+                                return true;
+                            },
+                            opt);
+    CHECK(battles.attach(nullptr));
+    galactic::BattleRequest r;
+    r.info.kind = galactic::ConflictKind::Land;
+    r.info.planet = 1;
+    r.info.defender = 0;
+    r.info.attacker = 1;
+    r.info.map = r.map = "M1_Map";
+    CHECK(battles.start_map_battle(std::move(r)));
+    std::vector<std::pair<uint32_t, uint8_t>> states;  // (frame, new state)
+    objects::ObjectId hangar = objects::kNoObjectId, unit = objects::kNoObjectId;
+    std::vector<objects::ObjectId> present;
+    uint32_t arrived = 0, launched = 0;
+    bool at_flyout = false;
+    int32_t live = -1;
+    for (uint64_t t = 0; t < 600; ++t) {
+        host.tick_once();
+        TacticalBattle* b = battles.battle();
+        TacticalMode* tm = host.tactical();
+        if (!b || !tm || b->frame() < 1 || !b->hangars()) continue;
+        const objects::ObjectStore& st = tm->primary();
+        Vec3 at{};
+        for (const objects::ObjectHandle h : st.all_objects())
+            if (st.alive(h) && static_cast<uint32_t>(st.type(h)) == bone_hangar) {
+                hangar = st.id(h);
+                at = st.position(h);
+            }
+        if (hangar == objects::kNoObjectId) continue;
+        if (states.empty())  // the troopers already on the map (start forces) are not the hangar's
+            for (const objects::ObjectHandle h : st.all_objects())
+                if (st.alive(h) && static_cast<uint32_t>(st.type(h)) == trooper) present.push_back(st.id(h));
+        const uint8_t s = b->hangars()->state(hangar);
+        if (states.empty() || states.back().second != s) states.push_back({b->frame(), s});
+        if (unit == objects::kNoObjectId)
+            for (const objects::ObjectHandle h : st.all_objects())
+                if (st.alive(h) && static_cast<uint32_t>(st.type(h)) == trooper && st.owner(h) == 0 &&
+                    std::find(present.begin(), present.end(), st.id(h)) == present.end() &&
+                    b->movement().has_unit(st.id(h)) && b->movement().view(st.id(h)).has_goal) {
+                    unit = st.id(h);
+                    launched = b->frame();
+                }
+        if (unit != objects::kNoObjectId && arrived == 0 && !b->movement().view(unit).has_goal) {
+            arrived = b->frame();
+            const tactical::movement::UnitView v = b->movement().view(unit);
+            at_flyout = std::fabs(v.pos.x - (at.x + 110.0f)) < 2.0f && std::fabs(v.pos.y - (at.y + 60.0f)) < 2.0f;
+        }
+        if (states.size() >= 4 && states.back().second == 0) {
+            live = b->hangars()->live(hangar, 0);
+            break;
+        }
+    }
+    animation.detach(host);
+    std::printf("  #44 t01 spawner cycle: states");
+    for (const auto& [f, s] : states) std::printf(" %u@%u", static_cast<unsigned>(s), f);
+    std::printf("; launched %u, arrived %u (at the fly-out point %d), live %d\n", launched, arrived, at_flyout ? 1 : 0, live);
+    CHECK(states.size() >= 4);
+    if (states.size() < 4) return;
+    const size_t k = states.size() - 4;  // the last four: 1 opening, 2 out, 3 closing, 0
+    CHECK(states[k].second == 1 && states[k + 1].second == 2 && states[k + 2].second == 3 && states[k + 3].second == 0);
+    const uint32_t open = states[k].first, out = states[k + 1].first, close = states[k + 2].first, idle = states[k + 3].first;
+    CHECK(out - open == 30 && launched == out);                   // Open (20) has finished at the next service
+    CHECK(at_flyout && arrived > out && close == arrived);  // signal 10 closes at once
+    // the first service (30-frame steps from the first) at least 20 frames after Close started
+    CHECK((idle - open) % 30 == 0 && idle - close >= 20 && idle - close < 50 && live == 1);
+#else
+    (void)d;
+    std::printf("  #44 t01 spawner cycle: skipped (no engine/anim)\n");
+#endif
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -598,6 +663,8 @@ int main(int argc, char** argv) {
     std::printf("map1: land spawner fly-out along the spawn bone (#44 t02)\n");
     test_land_spawn_bone(*d, false);
     test_land_spawn_bone(*d, true);
+    std::printf("map1: land spawner Open / launch / Close cycle (#44 t01)\n");
+    test_land_spawner_cycle(*d);
     std::printf(g_fail ? "alamo_sim_map1_tests: %d failure(s)\n" : "alamo_sim_map1_tests: OK\n", g_fail);
     return g_fail ? 1 : 0;
 }
