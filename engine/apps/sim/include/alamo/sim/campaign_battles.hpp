@@ -308,7 +308,10 @@ public:
     //                         records, now in the galactic save; a v1-3 save's records move to the planets on load), the
     //                         carried fog flags, corruption missions, LINK_TACTICAL records consumed, tactical AI log;
     //                         v2 adds the battle in flight: u8 0 none / 1 pending (accepted, pushed at the next hook:
-    //                         the map is loaded again through the MapLoader on read) / 2 running, + its BattleRequest.
+    //                         the map is loaded again through the MapLoader on read) / 2 running, + its BattleRequest;
+    //                         v3 adds the linked-battle state and the request's linked flag, v4 its sandbox flag (the pad
+    //                         records moved to the planets), v5 its story_map flag (#51 t04). Only a battle accepted inside
+    //                         the hook (a linked mission) is still pending between ticks.
     //                         Its SaveParticipant::rebuild pushes a running battle at load (save_session.hpp "LOADING A
     //                         SAVE TAKEN DURING A BATTLE"): the request staged by the pass-1 read, the map through the
     //                         MapLoader, then exactly the battle start of hook() (credit transfers, TacticalBattle +
