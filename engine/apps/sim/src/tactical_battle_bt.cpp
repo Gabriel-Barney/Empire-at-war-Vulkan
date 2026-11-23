@@ -1387,6 +1387,12 @@ void TacticalBattle::bt_note_record(TacticalMode& mode, const terrain::ObjectPla
         if (b != objects::kNoBehavior && st.add_behavior(h, b)) ++map_stats_.extra_behaviors;
     }
     if (pl.marker_name.empty()) return;
+    // #70 t08 (legacy docs/re/Q6_T30_FIND_HINT_ORDER.md §3 [H]): the marker data pack (obj +0x1b8) exists only when MARKER is
+    // attached, and the reader skips chunk 0x46E without it: an object without MARKER (type or 0x4B7) keeps no name.
+    if (!st.has_behavior(h, objects::beh::Marker)) {
+        ++map_stats_.marker_names_skipped;
+        return;
+    }
     ++map_stats_.marker_names;
     const objects::ObjectId id = st.id(h);
     const auto it = std::lower_bound(map_marker_names_.begin(), map_marker_names_.end(), id,

@@ -132,9 +132,17 @@ void test_land(const Data& d) {
     terrain::ObjectPlacement one = place("S10_Trooper", 450.0f, 850.0f, 0);  // t04 / t05: extra HINT, marker name, byte 0
     one.extra_behaviors.push_back(e);
     one.has_marker_name = true;
-    one.marker_name = "inf4";
+    one.marker_name = "inf4";  // #70 t08: no MARKER, so no marker data pack: the name is not kept
     one.placement_raw.push_back(terrain::RawMini{0x29, {0}});
     m.objects.push_back(one);
+    terrain::ObjectPlacement two = place("S10_Trooper", 470.0f, 870.0f, 0);  // #70 t08: HINT and MARKER from 0x4B7: kept
+    two.extra_behaviors.push_back(e);
+    terrain::ObjectPlacement::ExtraBehavior mk;
+    mk.name_crc = name_crc("MARKER");
+    two.extra_behaviors.push_back(mk);
+    two.has_marker_name = true;
+    two.marker_name = "inf5";
+    m.objects.push_back(two);
     terrain::ObjectPlacement hangar = place("M1_Hangar", 1100.0f, 1100.0f, 0);  // t05: a hangar placement with byte 0
     hangar.placement_raw.push_back(terrain::RawMini{0x29, {0}});
     m.objects.push_back(hangar);
@@ -156,14 +164,14 @@ void test_land(const Data& d) {
             [&](galactic::GalacticSim& gs, TacticalBattle& b, TacticalMode& tm) {
                 const objects::ObjectStore& st = tm.primary();
                 const MapLoadStats& s = b.map_load_stats();
-                std::printf("  land (remembered %d): placements %u, companies %u (%u members), extra behaviours %u, marker names %u, "
-                            "hangar off %u, unknown %u, remembered markers %u\n",
-                            remembered, s.placements, s.companies, s.company_members, s.extra_behaviors, s.marker_names, s.hangar_off,
-                            s.unknown_types, s.remembered_markers);
-                CHECK(s.companies == 1 && s.company_members == 4 && s.extra_behaviors == 1 && s.marker_names == 1 && s.hangar_off == 1 &&
-                      s.unknown_types == 0);
+                std::printf("  land (remembered %d): placements %u, companies %u (%u members), extra behaviours %u, marker names %u "
+                            "(%u skipped), hangar off %u, unknown %u, remembered markers %u\n",
+                            remembered, s.placements, s.companies, s.company_members, s.extra_behaviors, s.marker_names,
+                            s.marker_names_skipped, s.hangar_off, s.unknown_types, s.remembered_markers);
+                CHECK(s.companies == 1 && s.company_members == 4 && s.extra_behaviors == 3 && s.marker_names == 1 &&
+                      s.marker_names_skipped == 1 && s.hangar_off == 1 && s.unknown_types == 0);
                 // t03: four troopers stand at the squad's placement with its hint and HINT; t04: the single one has HINT and the name
-                uint32_t members = 0, hinted = 0, named = 0;
+                uint32_t members = 0, hinted = 0, named = 0, unnamed = 0;
                 for (const objects::ObjectHandle h : st.all_objects()) {
                     if (!st.alive(h) || static_cast<uint32_t>(st.type(h)) != trooper || st.owner(h) != 0) continue;
                     const Vec3 p = st.position(h);
@@ -172,13 +180,14 @@ void test_land(const Data& d) {
                         ++members;
                         hinted += b.map_hint(id) == "squadhint" && st.has_behavior(h, kHint) ? 1u : 0u;
                     }
-                    if (p.x == 450.0f && p.y == 850.0f) named += b.map_marker_name(id) == "inf4" && st.has_behavior(h, kHint) ? 1u : 0u;
+                    if (p.x == 450.0f && p.y == 850.0f) unnamed += b.map_marker_name(id).empty() && st.has_behavior(h, kHint) ? 1u : 0u;
+                    if (p.x == 470.0f && p.y == 870.0f) named += b.map_marker_name(id) == "inf5" && st.has_behavior(h, kHint) ? 1u : 0u;
                     if (std::getenv("MAP1_DEBUG"))
                         std::printf("    trooper %d at (%.2f, %.2f) hint '%s' HINT %d name '%s'\n", id, static_cast<double>(p.x),
                                     static_cast<double>(p.y), std::string(b.map_hint(id)).c_str(), st.has_behavior(h, kHint) ? 1 : 0,
                                     std::string(b.map_marker_name(id)).c_str());
                 }
-                CHECK(members == 4 && hinted == 4 && named == 1);
+                CHECK(members == 4 && hinted == 4 && named == 1 && unnamed == 1);
                 // q6 t31 (Q6_T30 §1-§2 [H]): the company object itself is not findable: it is removed after expansion
                 const uint32_t squad_type = type_of(d, "S10_Squad");
                 uint32_t squads = 0;
@@ -265,7 +274,8 @@ void test_space(const Data& d) {
 
 struct EveryMapTotals {
     uint32_t maps = 0, land = 0, space = 0, failed = 0, placements = 0, unknown = 0, unknown_maps = 0, companies = 0, members = 0;
-    uint32_t hangar_off = 0, extra = 0, names = 0, picks = 0, allowed = 0, hinted = 0, hinted_no_beh = 0, hints_skipped = 0;
+    uint32_t hangar_off = 0, extra = 0, names = 0, names_skipped = 0, picks = 0, allowed = 0, hinted = 0, hinted_no_beh = 0,
+             hints_skipped = 0;
 };
 
 // Placements whose type is in no shipped XML or script of FoC or EaW (searched 2026-11-17: the CRCs match no name in the
@@ -368,6 +378,7 @@ void every_map(const char* label, vfs::VfsConfig vc, EveryMapTotals& tot) {
             tot.hangar_off += s.hangar_off;
             tot.extra += s.extra_behaviors;
             tot.names += s.marker_names;
+            tot.names_skipped += s.marker_names_skipped;
             tot.picks += s.spawn_table_picks;
             if (s.unknown_types || s.companies || s.hangar_off)
                 std::printf("    %s %s: %u placements, unknown %u, companies %u (%u members), hangar off %u, HINT %u, names %u\n", label,
@@ -429,10 +440,10 @@ int run_every_map() {
         every_map("EaW", vc, tot);
     }
     std::printf("every map: %u maps (%u land, %u space), %u failed; %u placements, %u unknown types in %u maps, %u companies -> %u "
-                "members, %u hangar-off placements, %u extra behaviours, %u marker names, %u spawn-table picks, %u hinted objects (%u "
+                "members, %u hangar-off placements, %u extra behaviours, %u marker names (%u skipped: no MARKER), %u spawn-table picks, %u hinted objects (%u "
                 "without HINT), %u hints skipped (no HINT)\n",
                 tot.maps, tot.land, tot.space, tot.failed, tot.placements, tot.unknown, tot.unknown_maps, tot.companies, tot.members,
-                tot.hangar_off, tot.extra, tot.names, tot.picks, tot.hinted, tot.hinted_no_beh, tot.hints_skipped);
+                tot.hangar_off, tot.extra, tot.names, tot.names_skipped, tot.picks, tot.hinted, tot.hinted_no_beh, tot.hints_skipped);
     CHECK(tot.maps > 300 && tot.failed == 0 && tot.unknown == tot.allowed);
     std::printf(g_fail ? "alamo_sim_map1_tests --every-map: %d failure(s)\n" : "alamo_sim_map1_tests --every-map: OK\n", g_fail);
     return g_fail ? 1 : 0;

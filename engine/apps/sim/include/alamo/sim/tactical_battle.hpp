@@ -249,7 +249,8 @@ struct MapLoadStats {
     uint32_t companies = 0, company_members = 0;        // company placements expanded, members created
     uint32_t hangar_off = 0;        // SPAWN_SQUADRON placements with mini 0x29 = 0 (no Starting_Spawned_Units)
     uint32_t extra_behaviors = 0;   // 0x4B7 behaviours attached
-    uint32_t marker_names = 0;      // placements with a non-empty 0x46E marker name
+    uint32_t marker_names = 0;      // placements with a non-empty 0x46E marker name kept (the object has MARKER)
+    uint32_t marker_names_skipped = 0;  // #70 t08: 0x46E names on objects without MARKER (retail reads none)
     uint32_t hints_skipped = 0;
     uint32_t decorations = 0;
     uint32_t neutral_teams = 0;
