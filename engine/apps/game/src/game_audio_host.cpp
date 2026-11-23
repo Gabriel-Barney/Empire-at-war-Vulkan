@@ -1432,7 +1432,8 @@ void GameAudioHost::cue_lines(const sim::TacticalBattle& battle, const objects::
         tactical::Vec3 hp_pos{};
         const Vec3 at = cs.hardpoint_world(e.owner, static_cast<int32_t>(e.index), hp_pos) ? v3(hp_pos)
                                                                                            : position_of(static_cast<uint64_t>(e.owner));
-        if (game_->impact(boom, at)) ++stats_.hardpoint_explosions;
+        // #50 t08: gate 9 tests the hard point's parent ship (0x386660 / 0x384a30 pass it).
+        if (game_->impact(boom, at, static_cast<uint64_t>(e.owner))) ++stats_.hardpoint_explosions;
     }
 }
 

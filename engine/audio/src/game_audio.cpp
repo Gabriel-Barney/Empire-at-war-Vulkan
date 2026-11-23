@@ -335,7 +335,9 @@ uint32_t GameAudio::animation_sounds(uint64_t object, std::string_view animation
 
 uint32_t GameAudio::unit_death(uint64_t object, std::string_view event, const Vec3& position) {
     object_dead(object);
-    return impact(event, position, object);  // #50 t08: 0x58cf90 passes the dying object to gate 9
+    // #50 t08: 0x58cf90 passes the dying object to gate 9. The port's fog test (TacticalBattle::fog_object_hidden)
+    // reads live objects only, and the death runs after the sim destroyed the object, so a death sound is not fogged yet.
+    return impact(event, position, object);
 }
 
 uint32_t GameAudio::object_sfx(uint64_t object, std::string_view event, const Vec3& position, float fade_in_seconds) {

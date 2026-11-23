@@ -178,7 +178,9 @@ public:
     // Weapon / hard point fire: 3D at `position` = the new projectile's position (§9.5; not attached, fog gate 9
     // applies). Suppressed by Audio.xml Test_Disable_Weapon_Fire_SFX. Returns the instance id (0 = refused).
     uint32_t weapon_fire(uint64_t shooter, std::string_view event, const Vec3& position);
-    // Projectile detonation / impact and explosions: 3D at a world position (fog gate 9 applies).
+    // Projectile detonation / impact and explosions: 3D at a world position. Gate 9 tests `fog_parent` only (#50 t08).
+    // Gap (#50 follow-up, tier 1): retail passes the projectile as the detonation's parent (0x4c7050 family); the port's
+    // projectiles are not store objects, so a detonation under fog still plays.
     // `fog_parent`: the object gate 9 tests (#50 t08; 0 = none).
     uint32_t impact(std::string_view event, const Vec3& position, uint64_t fog_parent = 0);
     uint32_t explosion(std::string_view event, const Vec3& position) { return impact(event, position); }
