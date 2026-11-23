@@ -323,6 +323,11 @@ void test_manual_deployers() {
     uint32_t f = settle_deployed(sys, rng, 1, 2, 80);
     f = settle_deployed(sys, rng, 3, f, 120);
     CHECK(sys.move_skips(1) && !sys.move_skips(2) && !sys.move_skips(3));
+    // #57 t01 (MOVEMENT §3.2, Deploy(false)'s pad blocker 0x42e3b0 / 0x42e3d0): a deployed unit whose build pad is
+    // occupied (the host's undeploy_block hook, TacticalBattle::pad_occupied) ignores Deploy(false) and stays deployed
+    sys.set_undeploy_block_fn([](ObjectId id) { return id == 1; });
+    CHECK(sys.deploy(1, false, f) == MovementSystem::DeployResult::Ignored && sys.deploy_state(1) == LocoState::WalkDeployed);
+    sys.set_undeploy_block_fn({});
 
     // all deployed manual: no move at all (no goal, not failed)
     order(sys, rng, {1}, a + V2{200.0f, 0.0f}, f);

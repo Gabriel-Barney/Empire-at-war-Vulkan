@@ -127,6 +127,11 @@ const char* kTypes = R"(<L1>
   <Hyperspace>Yes</Hyperspace><Hyperspace_Speed>1.5</Hyperspace_Speed><Population_Value>1</Population_Value></GroundCompany>
  <GroundInfantry Name="L1_Deploy_Trooper"><Variant_Of_Existing_Type>S10_Trooper</Variant_Of_Existing_Type>
   <Unit_Abilities_Data SubObjectList="Yes"><Unit_Ability><Type>DEPLOY</Type></Unit_Ability></Unit_Abilities_Data></GroundInfantry>
+ <GroundInfantry Name="L1_MDU_Trooper"><Variant_Of_Existing_Type>L1_Deploy_Trooper</Variant_Of_Existing_Type>
+  <Behavior>SELECTABLE, TACTICAL_BUILD_OBJECTS</Behavior>
+  <Tactical_Buildable_Objects_Campaign>Empire, L1_UC_Turret, Underworld, L1_UC_Turret</Tactical_Buildable_Objects_Campaign></GroundInfantry>
+ <GroundCompany Name="L1_MDU_Squad"><Company_Units>L1_MDU_Trooper, L1_MDU_Trooper</Company_Units>
+  <Hyperspace>Yes</Hyperspace><Hyperspace_Speed>1.5</Hyperspace_Speed><Population_Value>1</Population_Value></GroundCompany>
  <GroundCompany Name="L1_Deploy_Squad"><Company_Units>L1_Deploy_Trooper, L1_Deploy_Trooper</Company_Units>
   <Hyperspace>Yes</Hyperspace><Hyperspace_Speed>1.5</Hyperspace_Speed><Population_Value>1</Population_Value></GroundCompany>
  <GroundInfantry Name="L1_Team_Trooper"><Variant_Of_Existing_Type>S10_Trooper</Variant_Of_Existing_Type><Create_Team>Yes</Create_Team></GroundInfantry>
@@ -1472,10 +1477,14 @@ void test_jet(const Data& d) {
 // nothing and raises nothing.
 struct DeployRun {
     bool fought = false, deployed = false, undeployed = false, repeat_refused = false;
+    // #57 t01 (`pad`): the unit is also a build pad (L1_MDU_Trooper, an MDU stand-in); something is built on it once it is
+    // deployed (unless `build` is off: the control run), and the accepted undeploy request finds it still deployed
+    // (Deploy(false)'s pad blocker, TacticalBattle::pad_occupied)
+    bool pad_built = false, pad_held = false, off_accepted = false;
     uint32_t on_frame = 0, off_frame = 0, signals = 0, signal_on = 0, signal_off = 0, other_signals = 0;
     uint32_t deployed_at = 0, undeployed_at = 0;  // the frames Is_Active flipped (the clip ends)
 };
-DeployRun run_deploy(const Data& d) {
+DeployRun run_deploy(const Data& d, bool pad = false, bool build = true) {
     DeployRun out;
     jobs::JobSystem js(jobs::JobSystemConfig{0});
     SimConfig cfg;
@@ -1483,7 +1492,7 @@ DeployRun run_deploy(const Data& d) {
     cfg.players = 4;
     SimHost host(d.types, js, cfg);
     galactic::GalacticSetup s = make_setup(d);
-    const uint32_t sq = type_of(d, "S10_Squad"), fr = type_of(d, "S10_Frigate"), dsq = type_of(d, "L1_Deploy_Squad");
+    const uint32_t sq = type_of(d, "S10_Squad"), fr = type_of(d, "S10_Frigate"), dsq = type_of(d, pad ? "L1_MDU_Squad" : "L1_Deploy_Squad");
     s.forces = {{0, 1, sq}, {1, 2, fr}, {1, 2, dsq}};
     galactic::GalacticSim* gs = host.start_galactic(d.rules, std::move(s));
     CHECK(gs != nullptr);
@@ -1509,7 +1518,8 @@ DeployRun run_deploy(const Data& d) {
     CHECK(!uf.empty());
     if (!uf.empty()) CHECK(gs->move_fleet(1, uf[0], 1) == commands::RejectReason::None);
     bool invaded = false;
-    const auto dep_t = static_cast<objects::TypeIndex>(type_of(d, "L1_Deploy_Trooper"));
+    const auto dep_t = static_cast<objects::TypeIndex>(type_of(d, pad ? "L1_MDU_Trooper" : "L1_Deploy_Trooper"));
+    const auto uc_t = static_cast<objects::TypeIndex>(type_of(d, "L1_UC_Turret"));
     objects::ObjectId dep = objects::kNoObjectId;
     namespace ab = tactical::abilities;
     for (uint64_t t = 0; t < 6000; ++t) {
@@ -1559,11 +1569,16 @@ DeployRun run_deploy(const Data& d) {
             out.deployed = out.deployed && alamo::sim::TacticalBattleTestAccess::abilities(*b).is_active(dep, ab::kDeploy);
             out.repeat_refused = alamo::sim::TacticalBattleTestAccess::abilities(*b).set_unit_ability_mode(ids, ab::kDeploy, true, f) == 0;
         }
+        if (pad && build && f == 25) out.pad_built = b->pad_build(*tm, dep, uc_t, false) == 1;
         if (f == 30) {
             out.undeployed = alamo::sim::TacticalBattleTestAccess::abilities(*b).set_unit_ability_mode(ids, ab::kDeploy, false, f) == 1;
+            out.off_accepted = out.undeployed;
             out.off_frame = f;
         }
-        if (f == 40) out.undeployed = out.undeployed && !alamo::sim::TacticalBattleTestAccess::abilities(*b).is_active(dep, ab::kDeploy);
+        if (f == 40) {
+            out.undeployed = out.undeployed && !alamo::sim::TacticalBattleTestAccess::abilities(*b).is_active(dep, ab::kDeploy);
+            out.pad_held = b->movement().deploy_state(dep) == tactical::movement::LocoState::WalkDeployed;
+        }
         if (f >= 60) break;
     }
     return out;
@@ -1745,6 +1760,15 @@ void test_deploy(const Data& d) {
                 r.signal_on, r.signal_off, r.other_signals);
     CHECK(r.fought && r.deployed && r.repeat_refused && r.undeployed);
     CHECK(r.signals == 2 && r.signal_on == 1 && r.signal_off == 1 && r.deployed_at > r.on_frame && r.undeployed_at > r.off_frame);
+    // #57 t01 (MOVEMENT §3.2, 0x42e3b0 / 0x42e3d0): a deployed unit that is a build pad with something built on it does
+    // not undeploy (the MDU case: Abstract_Mobile_Defense_Unit is the one vanilla Deploys type with TACTICAL_BUILD_OBJECTS)
+    // ... and with nothing built on it, the same unit undeploys (the control: the pad holds it, not its type)
+    const DeployRun p = run_deploy(d, true);
+    const DeployRun c = run_deploy(d, true, false);
+    std::printf("  deploy on a pad: deployed %d, built on it %d, undeploy accepted %d, still deployed %d; nothing built: still "
+                "deployed %d\n", p.deployed, p.pad_built, p.off_accepted, p.pad_held, c.pad_held);
+    CHECK(p.fought && p.deployed && p.pad_built && p.off_accepted && p.pad_held);
+    CHECK(c.fought && c.deployed && !c.pad_built && c.off_accepted && !c.pad_held);
 }
 
 // ---- Int-final: build pads (L1_S4_REMAINING §3.6) and the weather factor of the fog sight (FOG_OF_WAR §3.1.1) ----
