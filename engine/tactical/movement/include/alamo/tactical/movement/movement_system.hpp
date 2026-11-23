@@ -774,8 +774,9 @@ public:
     void tick(uint32_t frame, SimRng& rng, const ParallelFor& pf = serial_for);
     // the land tick's stages after the walk, as named stages run in list order (tick_land walks
     // land_tail_stages(); each pass serial, ascending id). The order is the table in docs/re/MOVEMENT.md §3.3 ("Port land
-    // tick: the stages after the walk"), which alamo_tactical_movement_tests checks against this list: a reorder (anm1
-    // t03, the deploy-at-stop tick) changes both.
+    // tick: the stages after the walk"), which alamo_tactical_movement_tests checks against this list: a reorder changes
+    // both. anm1 t03 (0x61fc30 [H]): the arrival pop's 0x16 ends the frame, so deploy before commit gives retail's
+    // deploy-at-stop tick (the frame after the arrival).
     enum class LandStage : uint8_t { Special, Deploy, Turrets, Commit, Crush, Despawn, Count };
     struct LandStageInfo {
         LandStage stage;
