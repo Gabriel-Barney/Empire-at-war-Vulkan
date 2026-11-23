@@ -1335,10 +1335,21 @@ void test_aud2() {
     h.update(1.0);
     h.update(1.0);
     CHECK(h.system()->log().size() == log_inactive);  // no update ran: no voice ended, no music step
+    // #227 (retail answer on #205): the SFX and speech managers are paused too, so a GUI SFX raised while inactive is
+    // queued (the GUI pump runs no update) and gets its voice with the first update after reactivation.
+    CHECK(h.system()->sfx_speech_paused());
+    auto voices = [&h](std::string_view ev) {
+        int n = 0;
+        for (const audio::LogEntry& e : h.system()->log()) n += e.op == audio::LogOp::SfxVoice && e.event == ev ? 1 : 0;
+        return n;
+    };
+    const int mo_starts = starts(h, "GUI_Planet_Mouse_Over"), mo_voices = voices("GUI_Planet_Mouse_Over");
+    h.ui("GUI_Planet_Mouse_Over");
+    CHECK(starts(h, "GUI_Planet_Mouse_Over") == mo_starts + 1 && voices("GUI_Planet_Mouse_Over") == mo_voices);
     h.set_app_active(true);
-    CHECK(h.app_active() && !h.system()->music_paused());
+    CHECK(h.app_active() && !h.system()->music_paused() && !h.system()->sfx_speech_paused());
     h.update(0.0);
-    CHECK(cur(h) == "Gal_Rebel");
+    CHECK(cur(h) == "Gal_Rebel" && voices("GUI_Planet_Mouse_Over") == mo_voices + 1);
 
     // t08 / mcx4 t13 (legacy docs/re/MCX4_T13_RE_ANSWERS.md "Faction.Music_Event_Strategic_Win family"): campaign won / lost ->
     // Audio.xml Music_Event_Battle_End_Summary_Screen_Win / _Lose in mode 16; the faction's Music_Event_Strategic_* rows

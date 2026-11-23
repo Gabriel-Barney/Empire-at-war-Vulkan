@@ -1074,6 +1074,14 @@ void test_decode_backend() {
     CHECK(peak > 0.1f && peak < 0.3f);  // 16000/32768 x 0.5 gain x pan law
     CHECK(be->read_mix(mix.data(), 4410) == 4410);  // 0.2 s pulled > 0.1 s tone
     CHECK(!be->playing(1));
+    // #227: a voice that ended before a pause (the window deactivated) does not start over when it is released.
+    be->pause(1, true);
+    be->pause(1, false);
+    CHECK(!be->playing(1));
+    CHECK(be->read_mix(mix.data(), 4410) == 4410);
+    float after = 0.0f;
+    for (float s : mix) after = std::max(after, std::fabs(s));
+    CHECK(after == 0.0f && !be->playing(1));
     // Music / speech voices stream through their own decoder over the same bounded reader: the fuzz-hang inputs above
     // fail to start (they used to hang inside start()), an empty file too, and a valid WAV still streams, looped.
     ms.files[normalize_name("HANG_CB.WAV")] = hangs[0];
@@ -1618,6 +1626,44 @@ void test_aud2_mixer() {
         CHECK(a.music_paused());
         a.resume_music();
         CHECK(!a.music_paused());
+    }
+    {  // #227 (retail answer on #205, WndProc 0x60c60): deactivation also pauses the SFX and speech managers and holds
+       // their voices; a GUI entry's pump runs no update meanwhile, so its event starts after the last resume.
+        Rig rig;
+        AudioSystem& a = *rig.a;
+        const uint32_t sfx = a.play_sfx("Click");
+        CHECK(a.play_speech("Line_1"));
+        a.update(0.0);
+        a.update(0.25);
+        const uint32_t sv = voice_of(a, sfx);
+        const uint32_t pv = last_op(a, LogOp::SpeechStart)->voice;
+        CHECK(sv != 0 && pv != 0 && !a.sfx_speech_paused());
+        const auto held = [&rig](uint32_t v) {
+            const auto* p = rig.backend.voice(v);
+            return p && p->paused;
+        };
+        const auto position = [&rig](uint32_t v) {
+            const auto* p = rig.backend.voice(v);
+            return p ? p->position : -1.0;
+        };
+        const double sfx_pos = position(sv), speech_pos = position(pv);
+        a.pause_sfx_speech();
+        a.pause_sfx_speech();  // a counter
+        CHECK(a.sfx_speech_paused() && held(sv) && held(pv));
+        a.update(5.0);  // past both samples: held, nothing ends
+        CHECK(position(sv) == sfx_pos && position(pv) == speech_pos);
+        CHECK(a.sfx_live(sfx) && a.speech_playing());
+        SfxPlay gui;
+        gui.pump = 1;  // the GUI entry point's immediate update
+        const uint32_t click = a.play_sfx("Click", gui);
+        CHECK(click != 0 && voice_of(a, click) == 0);  // queued, no voice
+        a.resume_sfx_speech();
+        CHECK(a.sfx_speech_paused() && voice_of(a, click) == 0);
+        a.resume_sfx_speech();
+        a.resume_sfx_speech();  // never below 0
+        CHECK(!a.sfx_speech_paused() && !held(sv) && !held(pv) && position(sv) == sfx_pos);
+        a.update(0.0);
+        CHECK(voice_of(a, click) != 0);  // starts with the first update after the last resume
     }
 }
 
