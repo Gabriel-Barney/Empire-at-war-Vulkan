@@ -96,6 +96,8 @@ const char* screen_action_name(ScreenAction::Kind k) {
         case ScreenAction::Kind::TutorialQuit: return "TutorialQuit";
         case ScreenAction::Kind::NeutralizeHero: return "NeutralizeHero";
         case ScreenAction::Kind::NeutralizeHeroCancelled: return "NeutralizeHeroCancelled";
+        case ScreenAction::Kind::Slice: return "Slice";
+        case ScreenAction::Kind::SliceCancelled: return "SliceCancelled";
     }
     return "?";
 }

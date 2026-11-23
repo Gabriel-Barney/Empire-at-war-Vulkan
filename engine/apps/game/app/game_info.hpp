@@ -120,13 +120,9 @@ HolocronSummaryView holocron_summary(const GameSession& s, const StoryDialogCach
 //   corruption    corruption_choices (slot order): cost, the requirement rows "n/m" of corruption_requirements (missions,
 //                 units, planets) and the mission map line, enabled = all four checks (P4 5.2: the dialog's rule)
 //   hack          hack_find_super_weapon target, Hack_Super_Weapon_Cost, enabled = a target and the credits
-//   slice         slice_rows (GalacticSim::slice_entries, candidate order, every entry) in `slice` (ui::SlicePanel, OI
-//                 2026-10-28): type, name / icon of the type, price, chance (the panel prints "Chance n%"), enabled =
-//                 affordable; title TEXT_SLICE_DIALOG_TITLE, subtitle TEXT_SLICE_DIALOG_DESCRIPTION
 struct SpecialPanelData {
     std::u32string title, subtitle, hero;
     std::vector<ui::BlackMarketItem> market;
-    std::vector<ui::SliceRow> slice;
     std::vector<ui::SabotageTarget> sabotage;
     std::vector<ui::CorruptionOption> corruption;
     uint32_t hack_target = 0;
@@ -141,6 +137,10 @@ SpecialPanelData special_panel(const galactic::GalacticSim& g, const GameData& d
 // order: the target's (or the siphoner's) type name, the rounded price, pickable per neutralize_row_enabled.
 std::vector<ui::NeutralizeHeroRow> neutralize_dialog_rows(const GameData& d, const ui::TextDatabase& text,
                                                           std::span<const galactic::NeutralizeCandidate> rows, float credits);
+// #71 t01: the IDD_SLICE_DIALOG rows for the slicer `hero_id` of `player` at `planet` (slice_rows: every slice entry,
+// candidate order): the type's name, the rounded price, the chance, pickable when the price fits the credits.
+std::vector<ui::SliceDialogRow> slice_dialog_rows(const galactic::GalacticSim& g, const GameData& d, const ui::TextDatabase& text,
+                                                  int32_t player, PlanetIndex planet, uint32_t hero_id);
 
 // Campaign end (Int-verify): the host calls galactic::victory_outcome (victory.hpp; the sim holds the records)
 // instead of the former campaign_outcome stand-in.

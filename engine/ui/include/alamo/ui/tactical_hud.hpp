@@ -145,8 +145,6 @@ struct HudAction {
         PanelClose,             // *_close button / right click: name = the panel's shell component
         HackConfirm,            // hack_shell hack_hack button: unit = the hacked target, ids = {planet}
         BlackMarketBuy,         // P4 host, appended: black-market item: unit = item id, ids = {planet}, value = row
-        SliceSelect,            // OI 2026-10-28, appended: slice dialog row (hud_panels.hpp SlicePanel): unit = type,
-                                // ids = {planet, slicer}, value = row index in SliceFrame::rows
         ResumeGame,             // OI 2026-10-28, appended: "Resume Game" on the tactical Game Paused banner (pause_shell,
                                 // attack_button): the host unpauses (pause_event(false)); name = "attack_button"
         BattleBegin,            // GALACTIC_DIALOGS §1.5, appended: "Begin" on the battle-pending prompt (choice_button_left /
