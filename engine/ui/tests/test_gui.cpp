@@ -1221,12 +1221,12 @@ void test_menus() {
     CHECK(fe.top() == "IDD_DIALOG_BOX_QUIT_CONFIRM" && kb->get("IDC_EDIT_STOP")->text == U"J");
     {
         GuiDialog* qb = env.gui.top();
-        CHECK(qb->get("IDC_USER_TEXT_STRING_1")->text == U"Ctrl+Q is already assigned to the game command Select Like." &&
+        CHECK(qb->get("IDC_USER_TEXT_STRING_1")->text == U"Ctrl + Q is already assigned to the game command Select Like." &&
               qb->get("IDC_USER_TEXT_STRING_1")->visible);
-        CHECK(qb->get("IDC_USER_TEXT_STRING_2")->text == U"Do you want to re-assign Ctrl+Q to game command Stop?");
+        CHECK(qb->get("IDC_USER_TEXT_STRING_2")->text == U"Do you want to re-assign Ctrl + Q to game command Stop?");
         step(env.click(*qb, "IDC_DIALOG_BOX_BUTTON_LEFT"));  // OK: the key moves here
     }
-    CHECK(fe.top() == "IDD_KEYBOARD_OPTIONS_DIALOG" && kb->get("IDC_EDIT_STOP")->text == U"Ctrl+Q");
+    CHECK(fe.top() == "IDD_KEYBOARD_OPTIONS_DIALOG" && kb->get("IDC_EDIT_STOP")->text == U"Ctrl + Q");
     acts.clear();
     step(env.click(*kb, "IDC_APPLY"));
     CHECK(acts.size() == 1 && acts[0].kind == MenuAction::Kind::KeybindingsChanged);
@@ -1235,8 +1235,23 @@ void test_menus() {
     CHECK(binds.binding(Action::Stop, 0).key == 'Q' && binds.binding(Action::Stop, 0).mods == kModCtrl);
     CHECK(keyboard_edit_slot("IDC_EDIT_GROUP_0_SELECT") == 9 && keyboard_edit_slot("IDC_EDIT_GROUP_1_SELECT") == 0 &&
           keyboard_edit_slot("IDC_EDIT_SCROLL_UP") == hk::kScrollUp && keyboard_edit_slot("IDC_EDIT_IP") == -1);
-    CHECK(hotkey_label({0x7B, HotkeyMod::None}) == U"F12" && hotkey_label({0x6D, HotkeyMod::None}) == U"Numpad -" &&
-          hotkey_label({'1', HotkeyMod::Shift}) == U"Shift+1");
+    // #45 t08 (the retail key-label builder FUN_1400aa720 [M]): the TEXT_KEY_* names; without a table, retail's English.
+    CHECK(hotkey_label({0x7B, HotkeyMod::None}) == U"F12" && hotkey_label({0x6D, HotkeyMod::None}) == U"Subtract" &&
+          hotkey_label({'1', HotkeyMod::Shift}) == U"Shift + 1" && hotkey_label({0x65, HotkeyMod::Ctrl}) == U"Ctrl + Numpad 5");
+    CHECK(hotkey_label({-1, HotkeyMod::None}) == U"Not Set!" && hotkey_label({0x91, HotkeyMod::None}) == U"Scrlk" &&
+          hotkey_label({0x90, HotkeyMod::None}) == U"Numlock" && hotkey_label({0x14, HotkeyMod::Alt}) == U"Alt + Caps Lock");
+    CHECK(hotkey_label({0x13, HotkeyMod::None}) == U"Pause" && hotkey_label({0x1B, HotkeyMod::None}) == U"Esc" &&
+          hotkey_label({0x07, HotkeyMod::None}) == U"Key 7" && hotkey_label({0xDC, HotkeyMod::None}) == U"\\");  // [port]
+    {
+        TextDatabase de;  // a German table
+        de.add("TEXT_KEY_PAGE_UP", u"Bild auf");
+        de.add("TEXT_KEY_SHIFT_MODIFIER", u"Umschalt + ");
+        de.add("TEXT_KEY_UNDEFINED", u"Nicht belegt!");
+        de.add("TEXT_KEY_F12", u"F12");
+        CHECK(hotkey_label({0x21, HotkeyMod::Shift}, &de) == U"Umschalt + Bild auf" && hotkey_label({-1, HotkeyMod::None}, &de) == U"Nicht belegt!");
+        CHECK(hotkey_label({0x22, HotkeyMod::None}, &de) == U"Page Down");  // not in this table: the English stand-in
+        CHECK(hotkey_label({0x7B, HotkeyMod::None}, &de) == U"F12" && hotkey_label({'Q', HotkeyMod::None}, &de) == U"Q");
+    }
 
     // UI5 t09 (legacy docs/re/UI.md §4.3 Capture): Delete / Backspace bind like any key, Tab is a key (focus stays), a conflict can be
     // refused (Cancel), Back closes without applying or asking, Esc on a field in capture restores its applied key.
@@ -1263,7 +1278,7 @@ void test_menus() {
         return k;
     };
     kb = open_keys();
-    CHECK(fe.top() == "IDD_KEYBOARD_OPTIONS_DIALOG" && kb->get("IDC_EDIT_STOP")->text == U"Ctrl+Q");
+    CHECK(fe.top() == "IDD_KEYBOARD_OPTIONS_DIALOG" && kb->get("IDC_EDIT_STOP")->text == U"Ctrl + Q");
     step(env.frame({0, 0}, false, {vk::kDelete}));  // a key like any other
     CHECK(kb->get("IDC_EDIT_STOP")->text == U"Delete" && keys.binding(hk::kStop).key == 'Q');
     step(env.frame({0, 0}, false, {vk::kTab}));  // Tab: MissionHolocron's key -> asks; focus stays on the field
@@ -1272,7 +1287,7 @@ void test_menus() {
     CHECK(fe.top() == "IDD_KEYBOARD_OPTIONS_DIALOG" && kb->get("IDC_EDIT_STOP")->text == U"Delete" &&
           kb->focus_index() == kb->find("IDC_EDIT_STOP"));
     step(env.frame({0, 0}, false, {vk::kEscape}));  // Esc on the field in capture: back to the applied key, focus gone
-    CHECK(fe.top() == "IDD_KEYBOARD_OPTIONS_DIALOG" && kb->get("IDC_EDIT_STOP")->text == U"Ctrl+Q" && kb->focus_index() < 0);
+    CHECK(fe.top() == "IDD_KEYBOARD_OPTIONS_DIALOG" && kb->get("IDC_EDIT_STOP")->text == U"Ctrl + Q" && kb->focus_index() < 0);
     step(env.click(*kb, "IDC_EDIT_STOP"));
     step(env.frame({0, 0}, false, {vk::kBack}));
     CHECK(kb->get("IDC_EDIT_STOP")->text == U"Backspace");
@@ -1281,7 +1296,7 @@ void test_menus() {
     CHECK(fe.top() != "IDD_KEYBOARD_OPTIONS_DIALOG" && fe.top() != "IDD_DIALOG_BOX_QUIT_CONFIRM" && acts.empty() &&
           keys.binding(hk::kStop).key == 'Q');
     kb = open_keys();
-    CHECK(kb->get("IDC_EDIT_STOP")->text == U"Ctrl+Q");  // the dropped edit is gone
+    CHECK(kb->get("IDC_EDIT_STOP")->text == U"Ctrl + Q");  // the dropped edit is gone
     // Esc with no field in capture closes the page the same way.
     step(env.frame({0, 0}, false, {vk::kEscape}));
     step(env.frame({0, 0}, false, {vk::kEscape}));

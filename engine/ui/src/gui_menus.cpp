@@ -537,63 +537,71 @@ const char* hotkey_action_text_id(uint16_t slot) {
     return slot < 123 ? kIds[slot] : nullptr;
 }
 
-std::u32string hotkey_label(const HotkeyBinding& b) {
-    if (b.key < 0) return {};
-    std::string s;
-    if (b.mod == HotkeyMod::Shift) s = "Shift+";
-    if (b.mod == HotkeyMod::Ctrl) s = "Ctrl+";
-    if (b.mod == HotkeyMod::Alt) s = "Alt+";
+namespace {
+// The key names of FUN_1400aa720 (TEXT_KEY_*) with retail's English text, by virtual key.
+struct KeyName {
+    int32_t vk;
+    const char* key;
+    const char32_t* english;
+};
+constexpr KeyName kKeyNames[] = {
+    {0x08, "TEXT_KEY_BACKSPACE", U"Backspace"}, {0x09, "TEXT_KEY_TAB", U"Tab"},           {0x0D, "TEXT_KEY_ENTER", U"Enter"},
+    {0x14, "TEXT_KEY_CAPITAL", U"Caps Lock"},    {0x20, "TEXT_KEY_SPACE", U"Space"},       {0x21, "TEXT_KEY_PAGE_UP", U"Page Up"},
+    {0x22, "TEXT_KEY_PAGE_DOWN", U"Page Down"},  {0x23, "TEXT_KEY_END", U"End"},           {0x24, "TEXT_KEY_HOME", U"Home"},
+    {0x25, "TEXT_KEY_LEFT_ARROW", U"Left"},      {0x26, "TEXT_KEY_UP_ARROW", U"Up"},       {0x27, "TEXT_KEY_RIGHT_ARROW", U"Right"},
+    {0x28, "TEXT_KEY_DOWN_ARROW", U"Down"},      {0x2D, "TEXT_KEY_INSERT", U"Insert"},     {0x2E, "TEXT_KEY_DELETE", U"Delete"},
+    {0x6A, "TEXT_KEY_MULTIPLY", U"Multiply"},    {0x6B, "TEXT_KEY_ADD", U"Add"},           {0x6C, "TEXT_KEY_SEPERATOR", U"Separate"},
+    {0x6D, "TEXT_KEY_SUBTRACT", U"Subtract"},    {0x6E, "TEXT_KEY_DECIMAL", U"Decimal"},   {0x6F, "TEXT_KEY_DIVIDE", U"Divide"},
+    {0x90, "TEXT_KEY_NUMLOCK", U"Numlock"},      {0x91, "TEXT_KEY_SCROLL", U"Scrlk"},
+};
+}  // namespace
+
+std::u32string hotkey_label(const HotkeyBinding& b, const TextDatabase* text) {
+    if (b.key < 0) return text_or_port(text, "TEXT_KEY_UNDEFINED", U"Not Set!");
+    std::u32string s;
+    if (b.mod == HotkeyMod::Shift) s = text_or_port(text, "TEXT_KEY_SHIFT_MODIFIER", U"Shift + ");
+    if (b.mod == HotkeyMod::Ctrl) s = text_or_port(text, "TEXT_KEY_CTRL_MODIFIER", U"Ctrl + ");
+    if (b.mod == HotkeyMod::Alt) s = text_or_port(text, "TEXT_KEY_ALT_MODIFIER", U"Alt + ");
+    // A port string (no retail key): pseudo-localised with the table, as written without one.
+    const auto port_only = [text](const std::u32string& english) { return text ? text->port_text(english) : english; };
     const int32_t k = b.key;
-    char buf[16];
-    if ((k >= '0' && k <= '9') || (k >= 'A' && k <= 'Z')) {
-        s.push_back(static_cast<char>(k));
-    } else if (k >= 0x70 && k <= 0x87) {
-        std::snprintf(buf, sizeof buf, "F%d", k - 0x6F);
-        s += buf;
-    } else if (k >= 0x60 && k <= 0x69) {
-        std::snprintf(buf, sizeof buf, "Numpad %d", k - 0x60);
-        s += buf;
-    } else {
-        switch (k) {
-            case 0x08: s += "Backspace"; break;
-            case 0x09: s += "Tab"; break;
-            case 0x0D: s += "Enter"; break;
-            case 0x13: s += "Pause"; break;
-            case 0x1B: s += "Esc"; break;
-            case 0x20: s += "Space"; break;
-            case 0x21: s += "Page Up"; break;
-            case 0x22: s += "Page Down"; break;
-            case 0x23: s += "End"; break;
-            case 0x24: s += "Home"; break;
-            case 0x25: s += "Left"; break;
-            case 0x26: s += "Up"; break;
-            case 0x27: s += "Right"; break;
-            case 0x28: s += "Down"; break;
-            case 0x2D: s += "Insert"; break;
-            case 0x2E: s += "Delete"; break;
-            case 0x6A: s += "Numpad *"; break;
-            case 0x6B: s += "Numpad +"; break;
-            case 0x6D: s += "Numpad -"; break;
-            case 0x6E: s += "Numpad ."; break;
-            case 0x6F: s += "Numpad /"; break;
-            case 0x91: s += "Scroll Lock"; break;
-            case 0xBA: s += ";"; break;
-            case 0xBB: s += "="; break;
-            case 0xBC: s += ","; break;
-            case 0xBD: s += "-"; break;
-            case 0xBE: s += "."; break;
-            case 0xBF: s += "/"; break;
-            case 0xC0: s += "`"; break;
-            case 0xDB: s += "["; break;
-            case 0xDC: s += "\\"; break;
-            case 0xDD: s += "]"; break;
-            case 0xDE: s += "'"; break;
-            default:
-                std::snprintf(buf, sizeof buf, "Key %d", k);
-                s += buf;
-        }
+    char text_key[24];  // a TEXT_KEY_* name built from the key code
+    if ((k >= '0' && k <= '9') || (k >= 'A' && k <= 'Z')) return s + static_cast<char32_t>(k);
+    if (k >= 0x70 && k <= 0x87) {  // TEXT_KEY_F1 .. TEXT_KEY_F24
+        std::snprintf(text_key, sizeof text_key, "TEXT_KEY_F%d", k - 0x6F);
+        return s + text_or_port(text, text_key, ascii32("F" + std::to_string(k - 0x6F)));
     }
-    return ascii32(s);
+    if (k >= 0x60 && k <= 0x69) {  // TEXT_KEY_NUMPAD_0 .. _9
+        std::snprintf(text_key, sizeof text_key, "TEXT_KEY_NUMPAD_%d", k - 0x60);
+        return s + text_or_port(text, text_key, ascii32("Numpad " + std::to_string(k - 0x60)));
+    }
+    for (const KeyName& n : kKeyNames)
+        if (n.vk == k) return s + text_or_port(text, n.key, n.english);
+    // [port-text-begin: keys FUN_1400aa720 has no name for (TEXT_KEY_ESCAPE exists but the builder does not reference it)]
+    const char32_t* port = nullptr;
+    switch (k) {
+        case 0x13: port = U"Pause"; break;
+        case 0x1B: port = U"Esc"; break;
+        default: break;
+    }
+    // [port-text-end]
+    if (port) return s + port_only(port);
+    // The OEM symbol keys: the character itself.
+    switch (k) {
+        case 0xBA: return s + U";";
+        case 0xBB: return s + U"=";
+        case 0xBC: return s + U",";
+        case 0xBD: return s + U"-";
+        case 0xBE: return s + U".";
+        case 0xBF: return s + U"/";
+        case 0xC0: return s + U"`";
+        case 0xDB: return s + U"[";
+        case 0xDC: return s + U"\\";
+        case 0xDD: return s + U"]";
+        case 0xDE: return s + U"'";
+        default: break;
+    }
+    return s + port_only(ascii32("Key " + std::to_string(k)));  // [port-text: a key with no retail name]
 }
 
 // ---- Campaign menu -------------------------------------------------------------------------------------------
@@ -1494,7 +1502,7 @@ void FrontEnd::fill_keyboard(GuiDialog& d) {
         const int32_t slot = keyboard_edit_slot(c.id());
         c.read_only = true;
         c.key_capture = slot >= 0;
-        c.text = slot >= 0 ? hotkey_label(keys_work_.binding(static_cast<uint16_t>(slot))) : std::u32string();
+        c.text = slot >= 0 ? hotkey_label(keys_work_.binding(static_cast<uint16_t>(slot)), gui_->text_db()) : std::u32string();
         if (slot < 0) c.enabled = false;
     }
 }
@@ -1625,7 +1633,7 @@ void FrontEnd::setup(GuiDialog& d) {
                 for (size_t at = s.find(tag); at != std::u32string::npos; at = s.find(tag, at + v.size())) s.replace(at, tag.size(), v);
                 return s;
             };
-            const std::u32string key = hotkey_label(rebind_key_);
+            const std::u32string key = hotkey_label(rebind_key_, gui_->text_db());
             d.set_text("IDC_USER_TEXT_STRING_1",
                        fill(fill(text_or("TEXT_KEYBIND_WARNING_0", U"##0 is already assigned to the game command ##1."), U"##0", key),
                             U"##1", action(rebind_other_)));
