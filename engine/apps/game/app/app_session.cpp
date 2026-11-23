@@ -583,6 +583,10 @@ std::string App::local_faction() const {
 SessionOptions App::session_options() const {
     SessionOptions o;
     o.seed = opt_.seed;
+    // gal1 t05 (docs/DECISIONS.md "Each new game draws its own seed"): without --seed a new game draws its seed from
+    // the wall clock; smoke and bench runs keep the fixed seed so their tests stay deterministic.
+    if (!opt_.seed_given && opt_.smoke.empty() && !bench_active())
+        o.seed_clock = static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
     o.battle_max_frames = opt_.battle_max_frames;
     o.fleet_groups = new_game_fleet_groups(opt_.fleet_groups, camera_);  // [port] --fleet-groups or the option (#175)
     return o;
@@ -600,6 +604,7 @@ bool App::start_session(const SessionSpec& spec) {
         return false;
     }
     loaded_save_.clear();
+    if (!spec.attract) std::printf("session: seed %u (replay with --seed %u)\n", spec.seed, spec.seed);  // gal1 t05
     session_started(diag);
     prev_pop_used_ = 0;
     countdown_speech_seen_.clear();  // mcx4 t13

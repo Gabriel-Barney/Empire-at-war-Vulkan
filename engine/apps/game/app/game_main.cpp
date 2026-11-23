@@ -657,7 +657,7 @@ static const GameFlag kGameFlags[] = {
          t.opt.audio = kKinds[i];
          return true;
      }},
-    {"--seed", true, "", false, [](FT& t, const GF&, FV v) { t.opt.seed = to_u32(v); return true; }},
+    {"--seed", true, "", false, [](FT& t, const GF&, FV v) { t.opt.seed = to_u32(v); t.opt.seed_given = true; return true; }},
     {"--workers", true, "", false,
      [](FT& t, const GF&, FV v) { t.opt.workers = static_cast<int32_t>(std::strtol(v.c_str(), nullptr, 10)); return true; }},
     {"--priority", true, "above|normal", false,

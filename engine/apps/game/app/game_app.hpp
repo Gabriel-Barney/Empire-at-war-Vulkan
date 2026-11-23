@@ -141,6 +141,7 @@ struct Options {
     bool hidden = false;
     AudioBackendKind audio = AudioBackendKind::Device;
     uint32_t seed = 1;
+    bool seed_given = false;  // --seed: every new game uses `seed` (else each draws its own: gal1 t05)
     int32_t workers = -1;
     // --priority above|normal: process priority class (game_display.hpp set_process_priority). Unset: above, except
     // --smoke runs (tests that share the machine with builds stay at normal).

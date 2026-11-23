@@ -448,3 +448,15 @@ All open work of the old roadmap store became GitHub issues (#44-#163), and the 
 page (README.md "Roadmap") draws the flowchart from `docs/roadmap/flow.json` and reads the issues live, joining them to
 boxes through `roadmap:<box>` labels; it is published with GitHub Pages. Importing an item does not put it in focus:
 "Current focus: parity tiers 1 and 2 only" still decides what is worked on.
+
+## Each new game draws its own seed
+
+Gabriel, 2026-11-22 (#192, relayed by the #58 planning session).
+
+Without `--seed`, alamo_game seeds each new front-end campaign or skirmish from the wall clock and logs the seed
+(`session: seed N (replay with --seed N)`), as retail seeds the synced RNG per session. `--seed N` gives every new game N.
+`--smoke` and benchmark runs keep their fixed seed, and so does the attract demo (the run's seed plus its start count). A
+story LOAD_CAMPAIGN reuses the running game's seed, and a loaded save keeps the seed it was saved with. The clock is read
+once by the host before the session starts, so this is an input to the session, not a wall-clock value the sim sees
+(`docs/SIMULATION.md` "Scheduling by tick number"). Why: identical choices should not replay identical AI, combat and
+auto-resolve outcomes, while tests and replays stay deterministic.

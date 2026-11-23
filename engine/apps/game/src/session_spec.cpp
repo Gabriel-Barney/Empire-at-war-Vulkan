@@ -38,6 +38,14 @@ CampaignOptions campaign_options_of(const SessionSpec& s) {
 
 namespace {
 
+// gal1 t05: a 32-bit seed from a clock value (the splitmix64 finalizer, so neighbouring clock values spread).
+uint32_t seed_from_clock(uint64_t t) {
+    t += 0x9E3779B97F4A7C15ull;
+    t = (t ^ (t >> 30)) * 0xBF58476D1CE4E5B9ull;
+    t = (t ^ (t >> 27)) * 0x94D049BB133111EBull;
+    return static_cast<uint32_t>(t ^ (t >> 31));
+}
+
 void apply_options(SessionSpec& s, const SessionOptions& o) {
     s.seed = o.seed;
     s.battle_max_frames = o.battle_max_frames;
@@ -81,6 +89,7 @@ SessionSpec make_session_spec(const SessionChoice& c, const SessionOptions& o) {
             s.campaign = c.campaign;
             s.faction = c.faction;
             apply_campaign_options(s, c.game_options);
+            if (o.seed_clock) s.seed = seed_from_clock(*o.seed_clock);  // gal1 t05: a new game's own seed
             break;
         case GameKind::StoryCampaign:
             s.kind = SessionKind::Campaign;
@@ -93,6 +102,7 @@ SessionSpec make_session_spec(const SessionChoice& c, const SessionOptions& o) {
         case GameKind::Skirmish:
             apply_skirmish(s, c);
             s.ask_battle_choice = false;
+            if (o.seed_clock) s.seed = seed_from_clock(*o.seed_clock);  // gal1 t05
             break;
         case GameKind::Attract:
             apply_skirmish(s, c);

@@ -5,6 +5,9 @@
 //                      kind's fields.
 //   SessionOptions     the host's run options every session of one run shares (alamo_game: --seed, --battle-max-frames,
 //                      --fleet-groups; the benchmark save: --bench-seed). session_options_of(spec) reads them back.
+//                      gal1 t05: with seed_clock set (alamo_game without --seed), a new front-end campaign or skirmish
+//                      draws its own seed from that clock value; the attract demo, a story LOAD_CAMPAIGN (reads the
+//                      running game's options back, no clock) and a loaded save keep theirs.
 //   make_session_spec  choice + options -> SessionSpec. The front end's campaign / tutorial and skirmish, the attract demo,
 //                      a story LOAD_CAMPAIGN reward, a loaded save (GameSession::spec_from_save) and the benchmark save
 //                      all go through it, so a new spec field (gal1 t05's per-session seed, gai1 t06's difficulty names)
@@ -14,6 +17,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "alamo/game/game_data.hpp"
@@ -90,6 +94,8 @@ int32_t clamp_difficulty(int32_t difficulty);  // 0..2
 // The host's run options (see the top). Defaults = a SessionSpec's, except the end hold (alamo_game's).
 struct SessionOptions {
     uint32_t seed = 1;
+    // gal1 t05 (#192): a wall-clock value; set = Campaign and Skirmish choices draw their seed from it, not `seed`.
+    std::optional<uint64_t> seed_clock;
     uint32_t battle_max_frames = 27000;
     uint32_t battle_end_hold_frames = kBattleEndHoldFrames;
     uint32_t aggressor_period = 600;

@@ -546,6 +546,7 @@ int main(int argc, char** argv) {
         game::SessionSpec s;
         CHECK(SaveFile::read_file(path, f, &err) && game::GameSession::spec_from_save(f, s, &err));
         CHECK(s.interventions_enabled());  // default options, no spec.interventions_off key
+        CHECK(s.seed == 11);  // gal1 t05: the game's own seed comes back with the save
         s.seed += 1;
         game::GameSession r(data, js, s);
         const bool ok = r.start_from_save(f, &err);
