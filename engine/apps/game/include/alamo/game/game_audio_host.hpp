@@ -71,6 +71,7 @@ struct GameAudioStats {
     uint64_t flag_changes = 0, attract_starts = 0;  // OI host: set_flags changes / attract demo starts
     uint64_t excluded = 0, battle_end_music = 0;    // responses skipped for retreating units / battle_end calls
     uint64_t battle_pending = 0;                    // GALACTIC_DIALOGS §1.3 battle prompt sound + music
+    uint64_t assists = 0;                           // #50 t02: assist lines set to follow a response
     uint64_t engine_loop_requests = 0, removed = 0, station_upgrades = 0;  // STATION_HANGARS_SOUND §1.2 / §3
     uint64_t movie_music = 0, movie_halts = 0, movie_cues = 0, movie_restores = 0;  // movie music modes 14 / 17 (STRATEGIC_GAPS §7.4)
     uint64_t tsw_activations = 0, tsw_fires = 0, tsw_planet_deaths = 0;  // tsw_audio cues played
@@ -179,9 +180,22 @@ public:
     // TRANSPORT (Group_Move / Group_Attack, checked before the resolver, 0x442f0 / 0x44590 [H]); `non_hero_ability` =
     // non_hero_variant_active for the speaker (the resolvers' *_With_Non_Hero_Ability line). Neither plays the group or
     // variant line when the type does not set it: the plain line does.
+    // #50 t02 (the assist step 0x44547 / 0x44753 [H]): `assist` = a tactical Move / Attack selection. Once the response
+    // has started, pick_assist draws one selected object B; when B's type differs from the speaker's, B is no vehicle
+    // thief and B's type sets SFXEvent_Assist_Move / SFXEvent_Assist_Attack, that line plays when the response ends
+    // (AudioSystem::set_chain_override), attached to the speaker.
+    struct AssistCandidate {
+        uint64_t id = 0;  // 0: a null entry
+        objects::TypeIndex type = objects::kNone;
+        bool vehicle_thief = false;  // has unit ability 46 EJECT_VEHICLE_THIEF (0x3986b0, which also checks team members)
+    };
     void unit_response(const objects::GameObjectTypes& types, objects::TypeIndex type, uint64_t object, UnitResponse kind,
                        bool group = false, int32_t owner = -1, uint32_t dest_fields = 0, int32_t hardpoint_kind = -1,
-                       bool non_hero_ability = false);
+                       bool non_hero_ability = false, std::span<const AssistCandidate> assist = {});
+    // The assist pick with the free RNG (0x1ffb40 on the Probability gate's generator [H]): int(0, n - 1) over the whole
+    // selection, drawn again on a null entry (not counted) or on the speaker (more than 50 speaker draws: none). None
+    // without a draw for an empty selection or the speaker alone. Returns the index, or SIZE_MAX for none.
+    static size_t pick_assist(std::span<const AssistCandidate> selection, uint64_t speaker, SimRng& rng);
     // #50 t02 (the response resolvers 0x3739a0 / 0x373700 / 0x3738b0, condition 0x39af50 [H]): the speaker resolved
     // through its team container to the first member (`member_type`) has the first or second entry of its type's
     // Unit_Abilities_Data active (`active(ability type)`, Is_Unit_Ability_Active 0x39b950). Only those two entries count.

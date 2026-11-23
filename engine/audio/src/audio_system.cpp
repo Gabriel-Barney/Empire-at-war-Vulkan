@@ -600,6 +600,17 @@ bool AudioSystem::sfx_live(uint32_t handle) const {
     return false;
 }
 
+bool AudioSystem::set_chain_override(uint32_t handle, std::string_view event) {
+    const uint32_t idx = db_->find_sfx(event);
+    if (idx == kNoEvent) return false;
+    for (Instance& in : instances_)
+        if (in.handle == handle && in.state != 0) {
+            in.chain_override = idx;
+            return true;
+        }
+    return false;
+}
+
 // ---------------------------------------------------------------- SFX: voices (§1.6, §1.7)
 
 VoiceParams AudioSystem::voice_params(const Instance& in) const {
@@ -872,13 +883,14 @@ void AudioSystem::run_instance(Instance& in, std::vector<std::pair<uint32_t, Sfx
                 le.handle = in.handle;
                 le.owner = in.owner;
                 push(std::move(le));
-                // Chain: 2D instances only, and only to a 2D event.
-                if (in.type <= 1 && e.chained_index != kNoEvent && !db_->sfx()[e.chained_index].is_3d) {
+                // Chain: 2D instances only, and only to a 2D event. A chain override replaces the event's own.
+                const uint32_t chain = in.chain_override != kNoEvent ? in.chain_override : e.chained_index;
+                if (in.type <= 1 && chain != kNoEvent && !db_->sfx()[chain].is_3d) {
                     SfxPlay cp;
                     cp.kind = in.type == 1 ? SfxPlay::Kind::Object : SfxPlay::Kind::Ui;
                     cp.owner = in.owner;
                     cp.position = in.pos;
-                    chains.emplace_back(e.chained_index, cp);
+                    chains.emplace_back(chain, cp);
                 }
                 in.state = 0;
                 return;

@@ -251,6 +251,10 @@ public:
     void object_removed(uint64_t owner);  // death/deletion kills every attached instance (§1.5)
     void stop_all_sfx();                  // mode push/pop, load, quit
     bool sfx_live(uint32_t handle) const;
+    // #50 t02 (0x2d4200 stores the event at instance +0x78, read when the instance ends at 0x2d8b63 [H]): when the live
+    // instance `handle` finishes its last cycle, `event` plays in place of its own Chained_SFXEvent, under the chain's
+    // rules (a 2D instance, a 2D event, attached to the same object). False for an unknown event or a finished instance.
+    bool set_chain_override(uint32_t handle, std::string_view event);
 
     // Object position/visibility for attached instances, queried every update (§1.4, §1.6).
     struct ObjectAudio {
@@ -427,6 +431,7 @@ private:
         uint64_t owner = 0;
         Vec3 pos{};
         bool audible = true;
+        uint32_t chain_override = kNoEvent;  // set_chain_override: replaces the event's Chained_SFXEvent
         std::string language;
         int state = 1;
         int64_t delay_us = 0;

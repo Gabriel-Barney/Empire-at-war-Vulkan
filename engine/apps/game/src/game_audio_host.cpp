@@ -450,7 +450,8 @@ void GameAudioHost::negative_feedback() {
 }
 
 void GameAudioHost::unit_response(const objects::GameObjectTypes& types, objects::TypeIndex type, uint64_t object, UnitResponse kind,
-                                  bool group, int32_t owner, uint32_t dest_fields, int32_t hardpoint_kind, bool non_hero_ability) {
+                                  bool group, int32_t owner, uint32_t dest_fields, int32_t hardpoint_kind, bool non_hero_ability,
+                                  std::span<const AssistCandidate> assist) {
     if (!game_) return;
     // The mode's "excluded set" = the retreat coordinator's retreating units (STRATEGIC_GAPS §7.4 [M]): no response.
     if (owner >= 0 && owner == retreating_player_) {
@@ -458,6 +459,8 @@ void GameAudioHost::unit_response(const objects::GameObjectTypes& types, objects
         return;
     }
     const audio::UnitOrder order = order_of(kind);
+    uint32_t lead = 0;   // the response's instance (0: none started)
+    bool tried = false;  // a hard point or field line was chosen: it replaces the rest of the chain, started or not
     // ledger: consumes GameObjectType.SFXEvent_Attack_Hardpoint
     if (kind == UnitResponse::Attack && hardpoint_kind >= 0 && hardpoint_kind < 13 && type != objects::kNone && type < types.size())
         if (const std::string_view ev = hardpoint_kind_event(types.get_list(type, "SFXEvent_Attack_Hardpoint"),
@@ -465,17 +468,29 @@ void GameAudioHost::unit_response(const objects::GameObjectTypes& types, objects
             !ev.empty()) {
             audio::UnitSounds s = sounds(types, type);  // step 1 of the response chain: the hard point line first
             s.response[static_cast<size_t>(order)] = std::string(ev);
-            if (game_->unit_response(object, s, order, position_of(object), false)) ++stats_.responses;  // replaces the chain
-            return;
+            lead = game_->unit_response(object, s, order, position_of(object), false);  // replaces the chain
+            tried = true;
         }
-    if (const std::string_view tag = kind == UnitResponse::Move ? move_into_field_tag(dest_fields) : std::string_view(); !tag.empty())
-        if (const std::string_view ev = types.get_string(type, tag); !ev.empty()) {
-            audio::UnitSounds s = sounds(types, type);  // the field line replaces the move response (0x3738b0)
-            s.response[static_cast<size_t>(order)] = std::string(ev);
-            if (game_->unit_response(object, s, order, position_of(object), false)) ++stats_.responses;  // before the group line
-            return;
-        }
-    if (game_->unit_response(object, sounds(types, type), order, position_of(object), group, non_hero_ability)) ++stats_.responses;
+    if (!tried && kind == UnitResponse::Move)
+        if (const std::string_view tag = move_into_field_tag(dest_fields); !tag.empty())
+            if (const std::string_view ev = types.get_string(type, tag); !ev.empty()) {
+                audio::UnitSounds s = sounds(types, type);  // the field line replaces the move response (0x3738b0)
+                s.response[static_cast<size_t>(order)] = std::string(ev);
+                lead = game_->unit_response(object, s, order, position_of(object), false);  // before the group line
+                tried = true;
+            }
+    if (!tried) lead = game_->unit_response(object, sounds(types, type), order, position_of(object), group, non_hero_ability);
+    if (lead == 0) return;
+    ++stats_.responses;
+    // #50 t02 (0x44547 / 0x44753 [H]): the assist step, after whichever line started.
+    if (kind != UnitResponse::Move && kind != UnitResponse::Attack) return;
+    const size_t b = pick_assist(assist, object, rng_);
+    if (b == SIZE_MAX) return;
+    const AssistCandidate& c = assist[b];
+    if (c.type == type || c.vehicle_thief || c.type == objects::kNone || c.type >= types.size()) return;
+    const audio::UnitOrder assist_order = kind == UnitResponse::Move ? audio::UnitOrder::AssistMove : audio::UnitOrder::AssistAttack;
+    const std::string& line = sounds(types, c.type).response[static_cast<size_t>(assist_order)];
+    if (!line.empty() && system_->set_chain_override(lead, line)) ++stats_.assists;
 }
 
 void GameAudioHost::battle_end(bool won, std::string_view other_faction) {
@@ -1698,7 +1713,7 @@ void GameAudioHost::movie_started(bool movie_music, bool halt_music) {  // same 
 void GameAudioHost::movie_cue(std::string_view) {}
 void GameAudioHost::movie_ended() { movie_music_on_ = movie_halted_ = false; }
 void GameAudioHost::unit_response(const objects::GameObjectTypes&, objects::TypeIndex, uint64_t, UnitResponse, bool, int32_t, uint32_t,
-                                  int32_t, bool) {}
+                                  int32_t, bool, std::span<const AssistCandidate>) {}
 void GameAudioHost::battle_tick(const sim::TacticalBattle&, const objects::ObjectStore&, const objects::GameObjectTypes&, int32_t,
                                 const std::function<bool(objects::ObjectId)>&) {}
 void GameAudioHost::battle_end(bool, std::string_view) {}
