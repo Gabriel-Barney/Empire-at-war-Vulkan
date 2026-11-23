@@ -97,6 +97,14 @@ struct GalacticAiTypeInfo {
     bool company_member = false;   // flag +0x2A: listed in some type's Company_Units
     bool dummy_base = false;       // behaviour 0x5C DUMMY_STAR_BASE or 0x5B DUMMY_GROUND_BASE (generic base-level type)
     bool super_category = false;   // CategoryMask contains "Super" (0x375270: never MagicPlan-spawned)
+    // A non-empty Space_Model_Name (+0x200, after variant inheritance): the type has a space model (0x3729f0(T, 2) is
+    // type +0x2a8, loaded from that name; [port] a non-empty name counts as a loaded model). A named hero with one is never
+    // MagicPlan-spawned (rule f of 0x726010, legacy docs/re/BKG1_RE_ANSWERS.md §2.1).
+    bool space_model = false;
+    // A squadron's Hyperspace (+0x24): the last resolved Squadron_Units member's flag (0x377500 step 4, OBJECT_TYPES §6.2
+    // [H]), 0 / 1; -1 = not a squadron (or no member resolved): the type's own Hyperspace. Rule k of 0x726010 reads it.
+    // [port] gal::TypeInfo::hyperspace keeps the squadron's own tag (false in FoC data, no squadron sets it).
+    int8_t squadron_hyperspace = -1;
     bool unit_ai = false;          // a UNIT_AI behaviour (object-removal survival feed filter, 0x3a8380)
     bool stealth_company = false;  // Is_Stealth_Company (+0x2B): AI delivery path class 5 (REMAINING_GAPS §6.2)
     uint32_t company_first = 0xFFFFFFFFu;  // first Company_Units member (survival leader substitution, §1.1)

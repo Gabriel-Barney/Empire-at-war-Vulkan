@@ -60,6 +60,10 @@ int main(int argc, char** argv) {
     test_find_all_objects_empty_types();  // tst2 t01
     test_structure_eta_queue_wait();  // a2m r2
     test_production_disabled_and_delivery();
+    test_magic_spawn_hero_veto();         // gai1 t01
+    test_magic_spawn_required_veto();     // gai1 t01
+    test_magic_spawn_hyperspace_veto();   // gai1 t01
+    test_magic_spawn_space_model_info();  // gai1 t01
     test_ground_structure_slots();
     test_fleet_distance_tokens();
     test_connectivity_tokens();

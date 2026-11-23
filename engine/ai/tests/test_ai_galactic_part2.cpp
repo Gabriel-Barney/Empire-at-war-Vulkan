@@ -315,6 +315,137 @@ void test_production_disabled_and_delivery() {
     }
 }
 
+// gai1 t01 (legacy docs/re/BKG1_RE_ANSWERS.md §2.1, Production marshaller Score 0x726010 [H]): the MagicPlan vetoes f, j, k.
+// MagicSpace asks for "Corvette = 1" and the Empire holds no Corvette, so the Corvette is the solve's only candidate: a
+// spawnable one is selected after two synced draws (Score's float 0x5324d0, then the Contrast marshaller's IgnoreTarget
+// draw), a vetoed one fails the solve with no draw at all (the veto returns before the float and ends the candidate's
+// scoring).
+namespace {
+struct MagicSolve {
+    bool ok = false;
+    bool corvette = false;
+    uint64_t draws = 0;
+};
+MagicSolve magic_solve(const std::function<void(gal::GalacticRules&)>& rules_tweak,
+                       const std::function<void(std::vector<GalacticAiTypeInfo>&)>& tinfo_tweak,
+                       const std::function<void(gal::GalacticSetup&)>& tweak = {}) {
+    ParityWorld pw(false, {"MagicSpace"}, tweak, rules_tweak, {}, tinfo_tweak);
+    pw.run(2);  // first service: templates, budget
+    MagicSolve m;
+    const uint64_t d0 = pw.rng->synced().draws();
+    const std::vector<uint32_t> sel = pw.world->solve_potential_plan(0, "MagicSpace", "Build_Space_Forces", 0, &m.ok);
+    m.draws = pw.rng->synced().draws() - d0;
+    m.corvette = pw.has(sel, tCorvette);
+    return m;
+}
+bool spawnable(const MagicSolve& m) { return m.ok && m.corvette && m.draws == 2; }
+bool vetoed(const MagicSolve& m) { return !m.ok && !m.corvette && m.draws == 0; }
+void print_solve(const char* what, const MagicSolve& m) {
+    std::printf("magic spawn vetoes: %s -> %s, corvette %s, %llu draws\n", what, m.ok ? "solved" : "failed",
+                m.corvette ? "yes" : "no", static_cast<unsigned long long>(m.draws));
+}
+}  // namespace
+
+// Rule f: a named hero with a space model is never spawned, whether or not the player owns one (not a presence test);
+// a named hero without a space model passes rule f.
+void test_magic_spawn_hero_veto() {
+    const MagicSolve plain = magic_solve({}, {});
+    print_solve("plain Corvette", plain);
+    CHECK(spawnable(plain));
+    const MagicSolve space_hero = magic_solve({}, [](std::vector<GalacticAiTypeInfo>& ti) {
+        ti[tCorvette].hero = true;
+        ti[tCorvette].space_model = true;
+    });
+    print_solve("named hero with a space model, none owned", space_hero);
+    CHECK(vetoed(space_hero));
+    const MagicSolve land_hero = magic_solve({}, [](std::vector<GalacticAiTypeInfo>& ti) { ti[tCorvette].hero = true; });
+    print_solve("named hero without a space model", land_hero);
+    CHECK(spawnable(land_hero));
+    const MagicSolve model_only = magic_solve({}, [](std::vector<GalacticAiTypeInfo>& ti) { ti[tCorvette].space_model = true; });
+    print_solve("space model, not a named hero", model_only);
+    CHECK(spawnable(model_only));
+    // The whole plan: no spawn of the space hero over a minute.
+    ParityWorld pw(false, {"MagicSpace"}, {}, {}, {}, [](std::vector<GalacticAiTypeInfo>& ti) {
+        ti[tCorvette].hero = true;
+        ti[tCorvette].space_model = true;
+    });
+    pw.run(30 * 60);
+    bool spawned = false;
+    for (const AiDecision& d : pw.world->decision_log()) spawned = spawned || d.text.find("magic spawn Corvette") != std::string::npos;
+    std::printf("magic spawn vetoes: space hero Corvette spawned %s\n", spawned ? "yes" : "no");
+    CHECK(!spawned);
+}
+
+// Rule j: a non-empty Required_Planets or Required_Orbiting_Units list vetoes the type.
+void test_magic_spawn_required_veto() {
+    const MagicSolve planets = magic_solve([](gal::GalacticRules& r) { r.types[tCorvette].required_planets = {tPlanet}; }, {});
+    print_solve("Required_Planets", planets);
+    CHECK(vetoed(planets));
+    const MagicSolve orbiting =
+        magic_solve([](gal::GalacticRules& r) { r.types[tCorvette].required_orbiting_units = {tFrigate}; }, {});
+    print_solve("Required_Orbiting_Units", orbiting);
+    CHECK(vetoed(orbiting));
+}
+
+// Rule k: no Hyperspace, no Company_Units and not a ground / orbital structure vetoes the type; Company_Units lifts it.
+void test_magic_spawn_hyperspace_veto() {
+    const MagicSolve bare = magic_solve([](gal::GalacticRules& r) { r.types[tCorvette].hyperspace = false; }, {});
+    print_solve("no Hyperspace, no Company_Units", bare);
+    CHECK(vetoed(bare));
+    const MagicSolve company = magic_solve([](gal::GalacticRules& r) {
+        r.types[tCorvette].hyperspace = false;
+        r.types[tCorvette].company_units = {tFrigate};
+    }, {});
+    print_solve("no Hyperspace, Company_Units", company);
+    CHECK(spawnable(company));
+    // A squadron's Hyperspace is its last member's (OBJECT_TYPES §6.2 step 4): FoC's squadrons set no Hyperspace of their
+    // own, their fighters do (Rebel_X-Wing_Squadron -> X-Wing Yes), so retail spawns them.
+    const auto no_own = [](gal::GalacticRules& r) { r.types[tCorvette].hyperspace = false; };
+    const MagicSolve squadron_hs = magic_solve(no_own, [](std::vector<GalacticAiTypeInfo>& ti) { ti[tCorvette].squadron_hyperspace = 1; });
+    print_solve("squadron, last member with Hyperspace", squadron_hs);
+    CHECK(spawnable(squadron_hs));
+    const MagicSolve squadron_no = magic_solve({}, [](std::vector<GalacticAiTypeInfo>& ti) { ti[tCorvette].squadron_hyperspace = 0; });
+    print_solve("squadron with its own Hyperspace, last member without", squadron_no);
+    CHECK(vetoed(squadron_no));
+}
+
+// The space-model flag comes from Space_Model_Name after variant inheritance (OBJECT_TYPES §3.2): Falcon-like variants
+// inherit Is_Named_Hero and Space_Model_Name from their parent; a land-only hero has no space model.
+void test_magic_spawn_space_model_info() {
+    MemoryFiles mf;
+    mf.add("Data\\XML\\GameObjectFiles.xml", "<L><File>Mod_Units.xml</File></L>");
+    mf.add("Data\\XML\\Mod_Units.xml",
+           "<R>\n <UniqueUnit Name=\"Mod_Falcon\"><Is_Named_Hero>Yes</Is_Named_Hero><Space_Model_Name>RV_MFalcon.ALO</Space_Model_Name>"
+           "<Land_Model_Name>RV_MFalcon_Land.ALO</Land_Model_Name></UniqueUnit>\n"
+           " <UniqueUnit Name=\"Mod_Falcon_Space\"><Variant_Of_Existing_Type>Mod_Falcon</Variant_Of_Existing_Type></UniqueUnit>\n"
+           " <UniqueUnit Name=\"Mod_Land_Hero\"><Is_Named_Hero>Yes</Is_Named_Hero><Land_Model_Name>Hero.ALO</Land_Model_Name></UniqueUnit>\n"
+           " <SpaceUnit Name=\"Mod_Wing\"><Hyperspace>Yes</Hyperspace></SpaceUnit>\n"
+           " <SpaceUnit Name=\"Mod_Tie\"><Hyperspace>No</Hyperspace></SpaceUnit>\n"
+           " <Squadron Name=\"Mod_Wing_Squadron\"><Squadron_Units>Mod_Tie, Mod_Wing</Squadron_Units></Squadron>\n"
+           " <Squadron Name=\"Mod_Tie_Squadron\"><Hyperspace>Yes</Hyperspace><Squadron_Units>Mod_Wing, Mod_Tie</Squadron_Units></Squadron>\n"
+           "</R>\n");
+    objects::ObjectTypeDatabase raw;
+    objects::GameObjectTypes types;
+    std::vector<std::string> diag;
+    CHECK(raw.load(mf, &diag) && types.build(raw, &mf, &diag));
+    const objects::TypeIndex falcon = raw.find("Mod_Falcon"), variant = raw.find("Mod_Falcon_Space"), land = raw.find("Mod_Land_Hero");
+    CHECK(falcon != objects::kNone && variant != objects::kNone && land != objects::kNone);
+    if (falcon == objects::kNone || variant == objects::kNone || land == objects::kNone) return;
+    const std::vector<GalacticAiTypeInfo> ti = make_galactic_ai_type_info(types);
+    std::printf("magic spawn vetoes: space model falcon %d, variant %d (hero %d), land hero %d\n", ti[falcon].space_model ? 1 : 0,
+                ti[variant].space_model ? 1 : 0, ti[variant].hero ? 1 : 0, ti[land].space_model ? 1 : 0);
+    CHECK(ti[falcon].hero && ti[falcon].space_model);
+    CHECK(ti[variant].hero && ti[variant].space_model);
+    CHECK(ti[land].hero && !ti[land].space_model);
+    // The squadron Hyperspace of rule k: the last member's; -1 for a type that is no squadron.
+    const objects::TypeIndex wing_sq = raw.find("Mod_Wing_Squadron"), tie_sq = raw.find("Mod_Tie_Squadron"), wing = raw.find("Mod_Wing");
+    CHECK(wing_sq != objects::kNone && tie_sq != objects::kNone && wing != objects::kNone);
+    if (wing_sq == objects::kNone || tie_sq == objects::kNone || wing == objects::kNone) return;
+    std::printf("magic spawn vetoes: squadron hyperspace wing %d, tie %d, fighter %d\n", ti[wing_sq].squadron_hyperspace,
+                ti[tie_sq].squadron_hyperspace, ti[wing].squadron_hyperspace);
+    CHECK(ti[wing_sq].squadron_hyperspace == 1 && ti[tie_sq].squadron_hyperspace == 0 && ti[wing].squadron_hyperspace == -1);
+}
+
 // A2 f t01 (1): ProductionM's ground-structure slot check is used slots 0x3f8af0 (ground structures, 0 without a
 // ground base) + queued < the planet type's Special_Structures_Land (0x372740, D+0x230), not the map's legacy
 // <Max_Ground_Base>; plus the per-planet cap Build_Max_Instances_Per_Planet (0x3f94f0). The same slot max feeds the
