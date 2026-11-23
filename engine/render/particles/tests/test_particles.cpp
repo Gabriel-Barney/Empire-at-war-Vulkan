@@ -1073,6 +1073,35 @@ static void test_sim_effects() {
     // Listed no more: released.
     st = sync_sim_frame(at, f, table, models, builder);
     CHECK(st.world == 0 && at.stats().released >= 1);
+    // #76 t08: an anchored world effect sits at its offset from the anchor's drawn position (object 11 at x 1100),
+    // pitched as given; a missing anchor skips it.
+    {
+        std::vector<render::SimWorldEffect> anc(2);
+        anc[0].key = 7;
+        anc[0].asset = "SYN_SPARKS";
+        anc[0].anchor = 11;
+        anc[0].position = {5, -3, 2};
+        anc[1].key = 8;
+        anc[1].asset = "SYN_SPARKS";
+        anc[1].anchor = 77;
+        f.objects[0].flags = static_cast<uint8_t>(f.objects[0].flags & ~render::kSnapContained);  // object 11 drawn again
+        builder.build(f, models, fg, bg);
+        st = sync_sim_frame(at, f, table, models, builder, nullptr, nullptr, anc);
+        CHECK(st.world == 1);
+        // the anchor's gate applies: a contained anchor hides its effect too
+        f.objects[0].flags = static_cast<uint8_t>(f.objects[0].flags | render::kSnapContained);
+        builder.build(f, models, fg, bg);
+        CHECK(sync_sim_frame(at, f, table, models, builder, nullptr, nullptr, anc).world == 0);
+        f.objects[0].flags = static_cast<uint8_t>(f.objects[0].flags & ~render::kSnapContained);
+        builder.build(f, models, fg, bg);
+        st = sync_sim_frame(at, f, table, models, builder, nullptr, nullptr, anc);
+        bool found = false;
+        pw.for_each([&](uint32_t, const SystemState& s) {
+            const auto t = s.cur.translation();
+            found = found || (t.x == 1105.0f && t.y == -3.0f && t.z == 2.0f);
+        });
+        CHECK(found);
+    }
     std::printf("sim world effects: OK\n");
 }
 

@@ -350,6 +350,13 @@ struct SimWorldEffect {
     Vec3 facing{1, 0, 0};
     // R4 scalar setter caller (STRATEGIC_GAPS §6.2, SurfaceFX 0x5ee570: index 0 = intensity, smoothing 0.1 s); < 0 = none.
     float intensity = -1.0f;
+    // #76 t08: an effect without an owner placed with retail Euler angles instead of `facing`: (roll, pitch, yaw) in
+    // degrees, drawn with terrain::placement_transform (R = Rz(yaw) Ry(pitch) Rx(roll), the map placements' rule).
+    bool use_rotation = false;
+    float rotation_deg[3] = {0.0f, 0.0f, 0.0f};
+    // #76 t08 [port]: != none (and no owner): `position` is an offset from this object's position, drawn from the
+    // object's interpolated position, so the effect does not lead the drawn unit by up to a tick. The orientation stays.
+    objects::ObjectId anchor = objects::kNoObjectId;
 };
 
 // A live projectile of the battle's CombatSystem (flat table, not store objects): CombatSystem::projectile(i) copied as
