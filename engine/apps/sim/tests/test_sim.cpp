@@ -2876,6 +2876,7 @@ static const char* kScript =
     "    if f then c.Change_Owner(Find_Player('Empire')) local g = c.Get_Parent_Object()\n"
     "      if c.Get_Owner() == Find_Player('Empire') and g and g ~= f and g.Get_Owner() == c.Get_Owner() then\n"
     "        Story_Event('OWNER_DONE') end\n"
+    "      c.Set_Check_Contested_Space(false)\n"  // #65 t05: the galactic sim sees the flag
     "      done = true end end\n"
     "  coroutine.yield(true) end end\n";
 
@@ -2956,6 +2957,11 @@ static Result run(const objects::GameObjectTypes& types, const FileProvider& fil
     CHECK(host.start_story(st));
     if (!host.story()) return {};
     StorySession& story = *host.story();
+    ObjectHandle corvette;  // the script's Find_First_Object('Corvette'): the newest corvette (the Underworld's at D)
+    for (const galactic::FleetState& fl : gs->fleets())
+        for (const ObjectHandle h : fl.contents)
+            if (gs->store().type(h) == story_test::tCorvette && (!corvette || gs->store().id(h) > gs->store().id(corvette))) corvette = h;
+    CHECK(corvette);
     host.tick_once();  // the script changes the corvette's owner at its first service
     // Underworld: infantry + hero team leave D for C and land; the hero team is destroyed there later.
     const std::vector<ObjectHandle> ground = gs->planets()[story_test::rD].surface;
@@ -3054,6 +3060,9 @@ static Result run(const objects::GameObjectTypes& types, const FileProvider& fil
         host.tick_once();
     }
     CHECK(landed && killed);
+    // #65 t05: the script's Set_Check_Contested_Space(false) reached the sim; an object no script touched keeps the default
+    CHECK(gs->store().alive(corvette) && !gs->checks_contested_space(corvette) &&
+          gs->checks_contested_space(gs->planets()[story_test::rA].object));
     out.log = story.log_text("S4 wave 1 story notifications");
     out.lua = story.lua_messages();
     const auto& d = story.model(0).dialog_log();

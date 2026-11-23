@@ -280,6 +280,16 @@ StorySession::StorySession(galactic::GalacticSim& sim, objects::ObjectStore& sto
     });
     // Story VMs run on the galactic store, whose ownership / membership the GalacticSim keeps (wave 1).
     galactic::GalacticSim* gs = sim_;
+    // #65 t05: the Death Star's contested-space check reads the object's Set_Check_Contested_Space bit, which lives in this
+    // session's script state (stored inverted; an object no script touched keeps the default, set). A stale hook
+    // answers set (checked). [port] The galactic AI VMs have no object bridge, so their Set_Check_Contested_Space does
+    // not reach it (no shipped AI script calls it).
+    sim.set_contested_check_hook([w = std::weak_ptr<StorySession*>(self_), gs](objects::ObjectHandle h) {
+        const auto p = w.lock();
+        if (!p || !*p) return true;
+        const lua::ScriptObjectState* s = (*p)->lua_->bridge.find_state(gs->store().id(h));
+        return s == nullptr || !s->contested_check_off;
+    });
     lua_->bridge.change_owner = [gs](objects::ObjectHandle h, int32_t owner) { return gs->change_owner(h, owner); };
     lua_->bridge.container_of = [gs](objects::ObjectHandle h) { return gs->container_of(h); };
     lua_->bridge.contents_of = [gs](objects::ObjectHandle h) { return gs->contents_of(h); };
