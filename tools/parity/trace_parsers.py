@@ -100,8 +100,10 @@ def empty_metrics(source):
 
 
 # ---- trace side ------------------------------------------------------------------------------------------------
-def trace_metrics(path, factions_override=None, max_tick=None):
-    """Metrics of a Q2TRACE 1 file (the original game, or a port run written in the same format)."""
+def trace_metrics(path, factions_override=None, max_tick=None, count_types=None):
+    """Metrics of a Q2TRACE 1 file (the original game, or a port run written in the same format). count_types: object
+    type names whose number per planet is recorded on every change, m["structure_counts"] = [(tick, {(planet, type):
+    count})]."""
     m = empty_metrics(os.path.abspath(path))
     types, meta, header = {}, {}, {}
     with open(path, "r", encoding="ascii") as fh:
@@ -127,6 +129,7 @@ def trace_metrics(path, factions_override=None, max_tick=None):
     first_obj_tick = None
     new_objs = []
     planet_names, credit_samples, player_flags = {}, {}, {}
+    counted, structure_counts = set(), []  # ids of count_types objects; their per-planet counts on each change
     mframe = 0
     in_header = True
     pending_sample = None
@@ -155,6 +158,10 @@ def trace_metrics(path, factions_override=None, max_tick=None):
         nonlocal owners_initial
         if not objs:
             return
+        if count_types:
+            c = dict(collections.Counter((planet_of(i), objs[i][1]) for i in counted if i in objs))
+            if not structure_counts or structure_counts[-1][1] != c:
+                structure_counts.append((tick, c))
         # New objects of this tick, grouped into one production batch per (owner, planet).
         batch = {}
         for tk, i in new_objs:
@@ -268,6 +275,8 @@ def trace_metrics(path, factions_override=None, max_tick=None):
                     objs.pop(i, None)
                     continue
                 objs[i] = ent
+                if count_types and ent[1] in count_types:
+                    counted.add(i)
                 if i not in seen:
                     seen.add(i)
                     # The start tick is that of the first object that is not art / fleet / particles: a run sampled
@@ -342,6 +351,8 @@ def trace_metrics(path, factions_override=None, max_tick=None):
         return cmap.get(k, "slot%d" % k) if cmap else fac(k)
     m["production"] = [(tk, fac(o), at, cnt) for tk, o, at, cnt in production]
     m["production_source"] = "new objects"
+    if count_types:
+        m["structure_counts"] = structure_counts
     m["object_counts"] = {tk: {"%s:%s" % (fac(o), n): c for (o, n), c in sorted(d.items())}
                           for tk, d in sorted(object_counts.items())} or None
     m["planet_names"] = dict(planet_names)
