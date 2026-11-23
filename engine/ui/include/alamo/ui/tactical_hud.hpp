@@ -472,6 +472,7 @@ private:
     WorldHud world_;
     HudButtons buttons_;
     TooltipState tooltip_;
+    bool tooltip_modal_ = false;  // #71 t06: the last build had a HUD modal up (no tooltip)
     TooltipConfig tooltip_cfg_;
     HudDrawList dl_;
     std::vector<SelectionBlob> blobs_;

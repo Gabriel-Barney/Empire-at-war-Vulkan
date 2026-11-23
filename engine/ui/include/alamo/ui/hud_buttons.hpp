@@ -191,6 +191,8 @@ public:
     void update(const HudButtons& buttons, const ComponentTable& table, const TooltipConfig& cfg, double now);
     bool active() const { return component_ >= 0; }
     int32_t component() const { return component_; }
+    // No tooltip this frame (a HUD modal is up). The hover time is the buttons', so the delay does not restart.
+    void clear() { component_ = -1; }
     // Text key for the hovered component (Tooltip_Text[tooltip index], clamped), "" when none.
     std::string key(const HudButtons& buttons, const ComponentTable& table) const;
     // Draws the tooltip near the cursor pixel. Returns false when nothing was drawn.

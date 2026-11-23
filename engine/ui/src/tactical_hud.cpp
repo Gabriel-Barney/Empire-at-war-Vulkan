@@ -534,7 +534,8 @@ void TacticalHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
         h.ctrl = k.ctrl;
         act(std::move(h));
     }
-    tooltip_.update(buttons_, *table_, tooltip_cfg_, now);
+    if (tooltip_modal_) tooltip_.clear();  // #71 t06: the last build's HUD modal (pause banner) holds it off
+    else tooltip_.update(buttons_, *table_, tooltip_cfg_, now);
 }
 
 void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> units, std::span<const HudTypeInfo> types,
@@ -668,9 +669,16 @@ void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> 
         build_pause_banner(frame);
         // legacy docs/re/UI.md §1.1 5h: the drag rectangle is queued with the main HUD pass (not while the interface is hidden).
         if (frame.drag_select) stats_.drag_box = add_drag_box(dl_, canvas_, frame.drag_rect) > 0;
-        tooltip_.update(buttons_, *table_, tooltip_cfg_, frame.time);
-        stats_.tooltip = tooltip_.draw(dl_, *atlas_, *fonts_, canvas_, *table_, buttons_, text_, frame.cursor_px,
-                                       frame.faction_alt, tooltip_cfg_);
+        // #71 t06 (legacy docs/re/HUD_GAPS.md §2.1 [H]): no component tooltip while a HUD modal is up (HUD +0x26a0 > 0: the
+        // pause shell - here the pause banner).
+        tooltip_modal_ = frame.paused && frame.pause_banner;
+        if (tooltip_modal_) {
+            tooltip_.clear();
+        } else {
+            tooltip_.update(buttons_, *table_, tooltip_cfg_, frame.time);
+            stats_.tooltip = tooltip_.draw(dl_, *atlas_, *fonts_, canvas_, *table_, buttons_, text_, frame.cursor_px,
+                                           frame.faction_alt, tooltip_cfg_);
+        }
     }
     stats_.hit_boxes = static_cast<uint32_t>(hits_.size());
     stats_.quads = static_cast<uint32_t>(dl_.total());

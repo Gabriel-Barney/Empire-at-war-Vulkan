@@ -1529,7 +1529,7 @@ const char* kGalacticDialogsXml = R"(<?xml version="1.0"?>
     <Font_Name>EmpireAtWar-Medium</Font_Name><Font_Point_Size>6</Font_Point_Size><Text_Outline>True</Text_Outline></CommandBarComponent>
   <CommandBarComponent Name="b_Create_01"><Type>TextButton</Type><Blank_Texture_Name>i_button_pad_rebel.tga i_button_pad_empire.tga</Blank_Texture_Name>
     <Font_Name>EmpireAtWar-Medium</Font_Name><Font_Point_Size>6</Font_Point_Size></CommandBarComponent>
-  <CommandBarComponent Name="queue00"><Type>TextButton</Type><Blank_Texture_Name>i_button_hologram.tga</Blank_Texture_Name></CommandBarComponent>
+  <CommandBarComponent Name="queue00"><Type>TextButton</Type><Blank_Texture_Name>i_button_hologram.tga</Blank_Texture_Name><Tooltip_Text>TEXT_TOOLTIP_PRODUCTION_QUEUE</Tooltip_Text></CommandBarComponent>
   <CommandBarComponent Name="queue01"><Type>Button</Type><Blank_Texture_Name>i_button_hologram.tga</Blank_Texture_Name></CommandBarComponent>
   <CommandBarComponent Name="queue02"><Type>Button</Type><Blank_Texture_Name>i_button_hologram.tga</Blank_Texture_Name></CommandBarComponent>
   <CommandBarComponent Name="queue03"><Type>Button</Type><Blank_Texture_Name>i_button_hologram.tga</Blank_Texture_Name></CommandBarComponent>
@@ -1699,6 +1699,30 @@ void test_galactic_dialogs() {
         for (const GalacticShellVisibility& v : hud.shell_visibility())
             org_off = org_off || (v.component == static_cast<uint32_t>(table.find("i_main_organize")) && !v.visible);
         CHECK(org_off);
+    }
+    // #71 t06 (legacy docs/re/HUD_GAPS.md §2.1 [H]): no component tooltip while a HUD modal is up (HUD +0x26a0 > 0: the
+    // battle-pending shells); it comes back once the modal is gone.
+    {
+        const int32_t tip = table.find("queue00");  // Tooltip_Text TEXT_TOOLTIP_PRODUCTION_QUEUE
+        CHECK(tip >= 0 && !table[static_cast<size_t>(tip)].tooltip_text.empty());
+        hud.build(f);  // the bar back (the block above left the advanced map open)
+        RoutedInput ri;
+        ri.hover_component = tip;
+        std::vector<commands::EventData> cmds;
+        hud.update_input(ri, false, false, 20.0, cmds);
+        hud.update_input(ri, false, false, 21.0, cmds);
+        GalacticHudFrame g = f;
+        g.time = 21.0;
+        hud.build(g);
+        CHECK(tip >= 0 && hud.tooltip().component() == tip && hud.stats().tooltip);
+        g.battle.active = true;
+        g.battle.planet = U"Kuat";
+        hud.build(g);
+        CHECK(!hud.tooltip().active() && !hud.stats().tooltip);
+        g.battle.active = false;
+        hud.build(g);
+        CHECK(tip >= 0 && hud.tooltip().component() == tip && hud.stats().tooltip);
+        hud.update_input(RoutedInput{}, false, false, 22.0, cmds);  // the cursor leaves
     }
     // §1 battle prompt: none by default.
     CHECK(!hud.stats().battle_prompt && !has_hit("choice_button_left"));
