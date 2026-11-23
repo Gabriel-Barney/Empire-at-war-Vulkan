@@ -61,6 +61,7 @@ target_link_libraries(alamo_game_core PUBLIC alamo_sim alamo_vfs alamo_data alam
 target_link_libraries(alamo_game_core PUBLIC alamo_mod_resolve)  # the picker and alamo_mod_check resolve through it
 target_link_libraries(alamo_game_core PUBLIC alamo_game_open)  # open_game_data (game/open)
 target_link_libraries(alamo_game_core PUBLIC alamo_game_rules)  # skirmish rules shared with alamo_headless (rules/)
+target_link_libraries(alamo_game_core PUBLIC shell32)  # #137: CommandLineToArgvW (host_text.cpp utf8_command_line)
 if(TARGET alamo_ai_galactic)  # A2 galactic AI for the AI players (needs engine/ai + engine/lua)
   target_link_libraries(alamo_game_core PUBLIC alamo_ai_galactic)
   target_compile_definitions(alamo_game_core PUBLIC ALAMO_GAME_HAVE_GALACTIC_AI=1)
@@ -131,6 +132,11 @@ set_tests_properties(alamo_game_skirmish_maps_tests PROPERTIES TIMEOUT 120)
 add_executable(alamo_game_session_spec_tests tests/test_session_spec.cpp)
 target_link_libraries(alamo_game_session_spec_tests PRIVATE alamo_core alamo_game_core alamo_test_support)
 add_test(NAME alamo_game_session_spec_tests COMMAND alamo_game_session_spec_tests)
+
+# #137: alamo_game's UTF-8 host strings (host_text.hpp): the wide command line, paths, the environment; data-free.
+add_executable(alamo_game_host_text_tests tests/test_host_text.cpp)
+target_link_libraries(alamo_game_host_text_tests PRIVATE alamo_core alamo_game_core alamo_test_support)
+add_test(NAME alamo_game_host_text_tests COMMAND alamo_game_host_text_tests)
 
 # Playtest 2 t13: auto-resolve results screen figures (battle time, bounty, efficiency): pure rules data-free, bounty data
 # on the FoC data (ALAMO_FOC_DATA, skipped without).
@@ -351,6 +357,10 @@ function(alamo_game_add_exe)
   # a scenario whose save does not load is "scenario changed, not comparable", exit 3 (needs a window and a GPU, data-free).
   add_test(NAME alamo_game_bench_stale_scene COMMAND alamo_game_benchmark_tests --stale-exe $<TARGET_FILE:alamo_game>)
   set_tests_properties(alamo_game_bench_stale_scene PROPERTIES TIMEOUT 120)
+  # #137 t02: alamo_game --export-save on a save in a folder named outside the ANSI code page (FoC data; skipped without).
+  add_test(NAME alamo_game_export_unicode_paths COMMAND alamo_game_save_export_tests --exe $<TARGET_FILE:alamo_game>)
+  set_tests_properties(alamo_game_export_unicode_paths PROPERTIES TIMEOUT 900)
+  alamo_label_slow(alamo_game_export_unicode_paths)
   # [port] video options helpers (game_display.cpp): mode list text, selection, options file, detail options mapping.
   add_executable(alamo_game_display_tests ${_dir}/tests/test_game_display.cpp ${_dir}/app/game_display.cpp ${_dir}/app/options_pages.cpp)
   target_link_libraries(alamo_game_display_tests PRIVATE alamo_core alamo_game_core alamo_render_sim alamo_ui_hud alamo_engine_flags alamo_test_support)

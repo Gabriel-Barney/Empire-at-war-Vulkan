@@ -4,6 +4,8 @@
 #include <fstream>
 #include <iterator>
 
+#include "alamo/core/host_fs.hpp"
+
 namespace alamo {
 namespace {
 bool fail(std::string* err, std::string msg) {
@@ -87,14 +89,14 @@ std::string ByteReader::str() {
 }
 
 bool read_text_file(const std::string& path, std::string& out, std::string* err) {
-    std::ifstream f(path, std::ios::binary);
+    std::ifstream f(path_from_host_string(path), std::ios::binary);  // #137: UTF-8 (else ANSI)
     if (!f) return fail(err, "cannot open " + path);
     out.assign(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>());
     return true;
 }
 
 bool write_text_file(const std::string& path, std::string_view text, std::string* err) {
-    std::ofstream f(path, std::ios::binary | std::ios::trunc);
+    std::ofstream f(path_from_host_string(path), std::ios::binary | std::ios::trunc);  // #137: UTF-8 (else ANSI)
     if (!f) return fail(err, "cannot write " + path);
     f.write(text.data(), static_cast<std::streamsize>(text.size()));
     if (!f) return fail(err, "write failed: " + path);

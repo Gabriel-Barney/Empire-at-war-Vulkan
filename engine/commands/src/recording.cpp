@@ -6,6 +6,7 @@
 #include <stdexcept>
 
 #include "alamo/core/bytes.hpp"
+#include "alamo/core/host_fs.hpp"
 #include "wire.hpp"
 
 namespace alamo::commands {
@@ -135,7 +136,7 @@ bool CommandRecording::from_bytes(std::span<const uint8_t> bytes, CommandRecordi
 
 bool CommandRecording::save(const std::string& path, std::string* err) const {
     const auto bytes = to_bytes();
-    std::ofstream f(path, std::ios::binary | std::ios::trunc);
+    std::ofstream f(path_from_host_string(path), std::ios::binary | std::ios::trunc);  // #137: UTF-8 (else ANSI)
     if (!f) return fail(err, "cannot write " + path);
     f.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
     if (!f) return fail(err, "write failed: " + path);
@@ -143,7 +144,7 @@ bool CommandRecording::save(const std::string& path, std::string* err) const {
 }
 
 bool CommandRecording::load(const std::string& path, CommandRecording& out, std::string* err) {
-    std::ifstream f(path, std::ios::binary);
+    std::ifstream f(path_from_host_string(path), std::ios::binary);  // #137: UTF-8 (else ANSI)
     if (!f) return fail(err, "cannot open " + path);
     const std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
     return from_bytes(bytes, out, err);

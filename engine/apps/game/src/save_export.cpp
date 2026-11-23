@@ -1,5 +1,6 @@
 // Launcher support: a saved game's galactic state as JSON (see save_export.hpp).
 #include "alamo/game/save_export.hpp"
+#include "alamo/game/host_text.hpp"
 
 #include <cmath>
 #include <cstdio>
@@ -310,15 +311,15 @@ bool export_save(const GameData& data, jobs::JobSystem& js, const std::string& s
     }
     std::string json;
     if (!export_session_json(data, *session, file, colors, json, err)) return false;
-    const fs::path out(out_path);
+    const fs::path out = host_path(out_path);  // #137: a UTF-8 path
     std::error_code ec;
     if (out.has_parent_path()) fs::create_directories(out.parent_path(), ec);
-    const fs::path tmp = fs::path(out_path + ".tmp");
+    const fs::path tmp = host_path(out_path + ".tmp");
     {
         std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
         f.write(json.data(), static_cast<std::streamsize>(json.size()));
         if (!f) {
-            if (err) *err = "cannot write " + tmp.string();
+            if (err) *err = "cannot write " + host_utf8(tmp);
             return false;
         }
     }

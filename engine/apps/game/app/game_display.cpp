@@ -615,8 +615,8 @@ void apply_detail_options(render::RecordOptions& o, const ui::AdvancedVideoSetti
     if (!s.heat_distortion) o.heat_amount = 0.0f;
 }
 
-// CreateProcessW on GetModuleFileNameW; `args` is already quoted (mod_picker.hpp windows_command_line). The
-// arguments came from main's narrow argv / the file system's narrow paths: the ANSI code page.
+// CreateProcessW on GetModuleFileNameW; `args` is already quoted (mod_picker.hpp windows_command_line). #137: the
+// arguments are UTF-8 (main's arguments come from the wide command line, host_text.hpp), the exe path stays wide.
 bool relaunch_self(const std::string& args, std::string* err) {
     std::wstring exe(32768, L'\0');
     const DWORD n = GetModuleFileNameW(nullptr, exe.data(), static_cast<DWORD>(exe.size()));
@@ -625,14 +625,14 @@ bool relaunch_self(const std::string& args, std::string* err) {
         return false;
     }
     exe.resize(n);
-    std::string narrow_exe(n * 4 + 1, '\0');
-    const int en = WideCharToMultiByte(CP_ACP, 0, exe.c_str(), static_cast<int>(n), narrow_exe.data(), static_cast<int>(narrow_exe.size()),
-                                       nullptr, nullptr);
-    narrow_exe.resize(static_cast<size_t>(std::max(en, 0)));
-    const std::string line = "\"" + narrow_exe + "\"" + (args.empty() ? std::string() : " " + args);
-    const int wn = MultiByteToWideChar(CP_ACP, 0, line.c_str(), static_cast<int>(line.size()), nullptr, 0);
-    std::wstring wline(static_cast<size_t>(std::max(wn, 0)) + 1, L'\0');
-    if (wn > 0) MultiByteToWideChar(CP_ACP, 0, line.c_str(), static_cast<int>(line.size()), wline.data(), wn);
+    std::wstring wargs;
+    if (!args.empty()) {
+        const int an = MultiByteToWideChar(CP_UTF8, 0, args.c_str(), static_cast<int>(args.size()), nullptr, 0);
+        wargs.assign(static_cast<size_t>(std::max(an, 0)), L'\0');
+        if (an > 0) MultiByteToWideChar(CP_UTF8, 0, args.c_str(), static_cast<int>(args.size()), wargs.data(), an);
+    }
+    std::wstring wline = L"\"" + exe + L"\"" + (wargs.empty() ? std::wstring() : L" " + wargs);
+    wline.push_back(L'\0');  // CreateProcessW's writable line, terminated
     STARTUPINFOW si{};
     si.cb = sizeof si;
     PROCESS_INFORMATION pi{};

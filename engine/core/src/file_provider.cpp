@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 
@@ -51,6 +52,18 @@ fs::path path_from_utf8(std::string_view utf8) {
 std::string path_to_utf8(const fs::path& p) {
     const std::u8string s = p.generic_u8string();
     return std::string(reinterpret_cast<const char*>(s.data()), s.size());
+}
+
+fs::path path_from_host_string(std::string_view s) {
+    try {
+        return path_from_utf8(s);
+    } catch (const std::exception&) {  // not valid UTF-8
+    }
+    try {
+        return fs::path(std::string(s));
+    } catch (const std::exception&) {  // not valid in the ANSI code page either (a double-byte code page)
+        return {};
+    }
 }
 
 namespace {

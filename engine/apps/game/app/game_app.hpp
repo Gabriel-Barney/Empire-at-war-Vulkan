@@ -29,6 +29,7 @@
 #include "alamo/game/battle_summary.hpp"
 #include "alamo/game/benchmark.hpp"
 #include "alamo/game/benchmark_save.hpp"
+#include "alamo/game/host_text.hpp"  // #137: UTF-8 host paths
 #include "alamo/game/benchmark_scenario.hpp"
 #include "alamo/game/game_audio_host.hpp"
 #include "alamo/game/game_controls.hpp"

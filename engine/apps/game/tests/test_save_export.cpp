@@ -2,7 +2,8 @@
 // path, on the real FoC data (ALAMO_FOC_DATA; skipped when unset). Checks: the export loads the save and matches the
 // session's galaxy (every planet row in order, routes, live fleets, the human player's faction and credits), the JSON is
 // well formed (brackets balance outside strings, no raw control characters), the same session exports the same text,
-// and a file that is not a save is refused without writing the output.
+// and a file that is not a save is refused without writing the output. With --exe ALAMO_GAME (#137 t02): alamo_game
+// --export-save on a save in a folder named outside the ANSI code page.
 #include <cinttypes>
 #include <cstdio>
 #include <cstdlib>
@@ -17,6 +18,8 @@
 #include "alamo/game/game_session.hpp"
 #include "alamo/game/save_export.hpp"
 #include "alamo/game/save_games.hpp"
+
+#include <windows.h>
 
 using namespace alamo;
 namespace fs = std::filesystem;
@@ -71,7 +74,8 @@ std::string quoted(const std::string& s) { return "\"" + s + "\""; }
 
 }  // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    const char* exe_arg = argc == 3 && std::string(argv[1]) == "--exe" ? argv[2] : nullptr;  // #137 t02
     const char* foc = std::getenv("ALAMO_FOC_DATA");
     if (!foc || !*foc) {
         std::printf("alamo_game_save_export_tests: ALAMO_FOC_DATA not set: skipped\n");
@@ -83,7 +87,8 @@ int main() {
         std::printf("data load failed: %s\n", err.c_str());
         return 1;
     }
-    const fs::path dir = fs::temp_directory_path() / "alamo_game_save_export_tests";
+    // the --exe run (its own ctest) has its own folder, so the two can run at once
+    const fs::path dir = fs::temp_directory_path() / (exe_arg ? "alamo_game_save_export_tests_exe" : "alamo_game_save_export_tests");
     std::error_code ec;
     fs::remove_all(dir, ec);
     fs::create_directories(dir, ec);
@@ -144,6 +149,35 @@ int main() {
         // Deterministic: the same session exports the same text.
         std::string again;
         CHECK(game::export_session_json(data, *loaded, file, colors, again, &err) && again == json);
+    }
+
+    // #137 t02 (--exe ALAMO_GAME): alamo_game --export-save on a save in a folder named outside the ANSI code page
+    // (Hebrew and CJK, which no single code page holds), the arguments passed wide (CreateProcessW) and the output
+    // written there too: the arguments reach the game as UTF-8 and the export opens and writes those paths.
+    if (exe_arg) {
+        const fs::path udir = dir / L"אב_中文";
+        fs::create_directories(udir, ec);
+        const fs::path usave = udir / L"א.alsv", uout = udir / L"中.json";
+        fs::copy_file(fs::path(save_path), usave, ec);
+        CHECK(!ec);
+        std::wstring line = L"\"" + fs::path(exe_arg).wstring() + L"\" --export-save \"" + usave.wstring() + L"\" --out \"" +
+                            uout.wstring() + L"\" --game \"" + fs::path(foc).wstring() + L"\"";
+        STARTUPINFOW si{};
+        si.cb = sizeof si;
+        PROCESS_INFORMATION pi{};
+        DWORD code = 99;
+        if (CreateProcessW(nullptr, line.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi)) {
+            if (WaitForSingleObject(pi.hProcess, 300000) != WAIT_OBJECT_0) TerminateProcess(pi.hProcess, 98);  // hung: not left running
+            GetExitCodeProcess(pi.hProcess, &code);
+            CloseHandle(pi.hThread);
+            CloseHandle(pi.hProcess);
+        }
+        const std::string ujson = read_all(uout);
+        std::printf("alamo_game --export-save outside the ANSI code page: exit %lu, %zu bytes\n", static_cast<unsigned long>(code),
+                    ujson.size());
+        CHECK(code == 0);
+        CHECK(ujson.rfind("{\"format\":1,", 0) == 0 && well_formed(ujson));
+        CHECK(ujson.find("\"name\":\"Export check\"") != std::string::npos);
     }
 
     // Not a save: refused, nothing written.

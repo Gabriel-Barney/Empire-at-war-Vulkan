@@ -238,17 +238,17 @@ void App::interface_hotkey(uint16_t slot) {
         save_game_as("QuickSave");
     } else if (slot == ui::hk::kQuickLoad) {
         std::error_code ec;
-        if (!saves_dir_.empty() && std::filesystem::exists(save_path(saves_dir_, "QuickSave"), ec)) load_saved_game("QuickSave");
+        if (!saves_dir_.empty() && std::filesystem::exists(host_path(save_path(saves_dir_, "QuickSave")), ec)) load_saved_game("QuickSave");
         else audio_.negative_feedback();
     } else if (slot == ui::hk::kScreenshot && shot_path_.empty() && !saves_dir_.empty()) {
         std::error_code ec;
-        const std::filesystem::path dir = std::filesystem::path(saves_dir_).parent_path() / "Screenshots";
+        const std::filesystem::path dir = host_path(saves_dir_).parent_path() / "Screenshots";  // #137: UTF-8 paths
         std::filesystem::create_directories(dir, ec);
         for (uint32_t i = 0; i < 10000; ++i) {
             char name[32];
             std::snprintf(name, sizeof name, "ScreenShot%04u.png", i);
             if (!std::filesystem::exists(dir / name, ec)) {
-                shot_path_ = (dir / name).string();
+                shot_path_ = host_utf8(dir / name);
                 break;
             }
         }

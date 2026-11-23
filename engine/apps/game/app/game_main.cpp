@@ -19,10 +19,14 @@
 //                   tools (save_export.hpp): no window, Vulkan or audio; exit 0, or 1 + a message on stderr.
 // Game data: --game DIR or ALAMO_FOC_DATA (the FoC "corruption" folder).
 #include "game_app.hpp"
+#include <filesystem>
+
+#include "alamo/core/bytes.hpp"  // write_text_file
 #include "alamo/crash/crash_handler.hpp"
 #include "alamo/vfs/steam_workshop.hpp"
 #include "alamo/jobs/topology.hpp"  // sp1: OS hints
 
+#include "alamo/game/host_text.hpp"  // #137: UTF-8 arguments and paths
 #include "alamo/game/open_game_data.hpp"  // game_data_root
 #include "alamo/game/save_export.hpp"
 #include "alamo/render/galactic/galactic_snapshot.hpp"
@@ -473,14 +477,8 @@ int App::run() {
         if (opt_.profile) {
             const std::string text = overlay_.report() + profile::format_report(profile::build_report(profile::snapshot(), opt_.profile_budget));
             std::printf("%s", text.c_str());
-            if (!opt_.profile_out.empty()) {
-                if (FILE* pf = std::fopen(opt_.profile_out.c_str(), "wb")) {
-                    std::fwrite(text.data(), 1, text.size(), pf);
-                    std::fclose(pf);
-                } else {
-                    std::fprintf(stderr, "cannot write %s\n", opt_.profile_out.c_str());
-                }
-            }
+            if (!opt_.profile_out.empty() && !write_text_file(opt_.profile_out, text))  // #137: a UTF-8 path
+                std::fprintf(stderr, "cannot write %s\n", opt_.profile_out.c_str());
         }
     }
     int rc = bench_active() ? bench_finish() : 0;
@@ -583,6 +581,12 @@ static int bench_new_main(const Options& opt) {
     }
     std::printf("bench-new-save: %s\n", summary.c_str());
     return 0;
+}
+
+// #137: deletes the file at UTF-8 path `path` (nothing for an empty path).
+static void remove_host_file(const std::string& path) {
+    std::error_code ec;
+    if (!path.empty()) std::filesystem::remove(game::host_path(path), ec);
 }
 
 // bm3 --bench-regen MANIFEST: loads the game data, makes the scenario's session again from its make line (benchmark_save.hpp) and turns the
@@ -765,8 +769,11 @@ int main(int argc, char** argv) {
     alamo::vfs::install_steam_workshop_lookup();  // STEAMMOD= from the Steam library folders
     enable_dpi_awareness();  // before any window: sizes and the video modes in physical pixels
     Options opt;
-    const std::vector<std::string> args(argv, argv + argc);
-    opt.argv.assign(args.begin() + (argc > 0 ? 1 : 0), args.end());
+    // #137 [port]: the arguments as UTF-8 from the wide command line (host_text.hpp), so a path outside the ANSI code page
+    // (--game, --saves-dir, --video-options, MODPATH= ...) arrives whole; every path string below is UTF-8.
+    const std::vector<std::string> args = game::utf8_args(argc, argv);
+    const int nargs = static_cast<int>(args.size());
+    opt.argv.assign(args.begin() + (nargs > 0 ? 1 : 0), args.end());
     std::string regen_save;  // --bench-regen S: the save made again from the scenario's make line (deleted at the end)
     {  // --bench-scenario / --bench-make FILE first; the flags below override what the file sets
         std::string serr;
@@ -778,14 +785,14 @@ int main(int argc, char** argv) {
             }
         if (load_bench_scenario_arg(scenario_args, opt.bench, &serr) < 0) {
             std::fprintf(stderr, "benchmark: %s\n", serr.c_str());
-            if (!regen_save.empty()) std::remove(regen_save.c_str());
+            remove_host_file(regen_save);
             return 2;
         }
         if (!regen_save.empty()) opt.bench.save = regen_save;
     }
     std::string export_in, export_out;  // --export-save / --out (save_export.hpp)
     FlagTarget target{opt, export_in, export_out};
-    for (int i = 1; i < argc; ++i) {
+    for (int i = 1; i < nargs; ++i) {
         {  // BM2a: the benchmark flags (benchmark.hpp)
             size_t bi = static_cast<size_t>(i);
             std::string berr;
@@ -812,9 +819,9 @@ int main(int argc, char** argv) {
                 continue;
             }
         }
-        const std::string a = argv[i];
+        const std::string a = args[static_cast<size_t>(i)];
         if (const GameFlag* f = find_game_flag(a)) {  // kGameFlags
-            const std::string v = f->value && i + 1 < argc ? argv[++i] : std::string();
+            const std::string v = f->value && i + 1 < nargs ? args[static_cast<size_t>(++i)] : std::string();
             if (!f->apply(target, *f, v)) return usage();
         } else if (a.find('=') != std::string::npos) {
             opt.game_args.push_back(a);
@@ -869,6 +876,6 @@ int main(int argc, char** argv) {
     if (above) (void)alamo::jobs::raise_current_thread_priority();
     App app(std::move(opt));
     const int rc = app.run();
-    if (!regen_save.empty()) std::remove(regen_save.c_str());  // --bench-regen's temporary save
+    remove_host_file(regen_save);  // --bench-regen's temporary save
     return rc;
 }

@@ -26,6 +26,7 @@
 #include <map>
 
 #include "game_app.hpp"
+#include "alamo/core/bytes.hpp"  // write_text_file
 
 namespace alamo_game_app {
 
@@ -76,7 +77,7 @@ bool App::bench_start() {
                 opt_.bench.save.c_str(), win_.width(), win_.height());
     if (!opt_.bench.png_dir.empty()) {
         std::error_code ec;
-        std::filesystem::create_directories(opt_.bench.png_dir, ec);  // a failure shows as FAILED PNG writes
+        std::filesystem::create_directories(host_path(opt_.bench.png_dir), ec);  // #137: UTF-8; a failure shows as FAILED PNG writes
     }
     if (!bench_scenario_start()) return true;  // the scenario's orders and the GPU timer (a failure is in the report)
     if (!load_save_file(opt_.bench.save, bench_replay())) {
@@ -353,14 +354,9 @@ int App::bench_finish() {
     std::printf("%s", json.c_str());
     std::printf("benchmark %s: %s, %" PRIu64 " ticks, %" PRIu64 " frames, frame ms median %.3f p99 %.3f worst %.3f, final CRC %016" PRIx64 "\n",
                 r.mode.c_str(), r.result.c_str(), r.ticks, r.frames, r.frame_ms.median, r.frame_ms.p99, r.frame_ms.worst, r.final_crc);
-    if (!opt_.bench.report.empty()) {
-        if (FILE* f = std::fopen(opt_.bench.report.c_str(), "wb")) {
-            std::fwrite(json.data(), 1, json.size(), f);
-            std::fclose(f);
-        } else {
-            std::fprintf(stderr, "benchmark: cannot write %s\n", opt_.bench.report.c_str());
-            return 1;
-        }
+    if (!opt_.bench.report.empty() && !write_text_file(opt_.bench.report, json)) {  // #137: a UTF-8 path
+        std::fprintf(stderr, "benchmark: cannot write %s\n", opt_.bench.report.c_str());
+        return 1;
     }
     return b.failed ? (bscen_.not_comparable ? 3 : 1) : 0;  // 3: scenario changed, not comparable (as alamo_headless --bench)
 }

@@ -1,5 +1,6 @@
 // BM1 scenario files in alamo_game, the render-free half (benchmark_scenario.hpp).
 #include "alamo/game/benchmark_scenario.hpp"
+#include "alamo/game/host_text.hpp"
 #include "alamo/core/sim_crc.hpp"
 
 #include <algorithm>
@@ -29,14 +30,14 @@ CrcLog until(const CrcLog& log, uint64_t last) {
 }
 
 bool read_bytes(const std::string& path, std::string& out) {
-    std::ifstream f(fs::path(path), std::ios::binary);
+    std::ifstream f(host_path(path), std::ios::binary);  // #137: UTF-8 paths
     if (!f) return false;
     out.assign(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>());
     return !f.bad();
 }
 
 bool write_bytes(const std::string& path, const std::string& bytes) {
-    std::ofstream f(fs::path(path), std::ios::binary | std::ios::trunc);
+    std::ofstream f(host_path(path), std::ios::binary | std::ios::trunc);
     return f && f.write(bytes.data(), static_cast<std::streamsize>(bytes.size())) && f.flush();
 }
 
@@ -75,14 +76,14 @@ int load_bench_scenario_arg(std::span<const std::string> args, BenchmarkOptions&
     if (o.make) {
         // A recipe, a full scenario (remade over itself) or nothing yet (a new scenario named after the file).
         std::error_code ec;
-        if (fs::exists(fs::path(o.scenario), ec)) {
+        if (fs::exists(host_path(o.scenario), ec)) {
             if (!bench::Scenario::load_recipe(o.scenario, *sc, &e)) {
                 fail(err, "--bench-make: " + e);
                 return -1;
             }
         } else {
-            sc->name = fs::path(o.scenario).stem().string();
-            sc->dir = fs::path(o.scenario).parent_path().string();
+            sc->name = host_utf8(host_path(o.scenario).stem());
+            sc->dir = host_utf8(host_path(o.scenario).parent_path());
             if (sc->name.empty() || sc->name.find_first_of(" \t") != std::string::npos) {
                 fail(err, "--bench-make: the scenario file name must be one word (" + o.scenario + ")");
                 return -1;
@@ -143,21 +144,21 @@ std::string check_bench_fingerprint(const bench::Scenario& sc, const CrcLog& run
 bool write_game_scenario(const std::string& path, const bench::Scenario* base, const std::string& save,
                          const commands::CommandRecording& orders, const CrcLog& log, uint64_t start_tick, uint64_t ticks,
                          const BenchmarkOptions& o, std::string* summary, std::string* err) {
-    const fs::path manifest(path);
+    const fs::path manifest = host_path(path);  // #137: UTF-8 paths in and out
     const fs::path dir = manifest.parent_path();
     std::error_code ec;
     if (!dir.empty()) fs::create_directories(dir, ec);
     bench::Scenario sc;
     if (base) sc = *base;  // name, description, camera, version
-    if (sc.name.empty()) sc.name = manifest.stem().string();
-    sc.dir = dir.string();
-    auto in_dir = [&](const std::string& f) { return (dir.empty() ? fs::path(f) : dir / f).string(); };
+    if (sc.name.empty()) sc.name = host_utf8(manifest.stem());
+    sc.dir = host_utf8(dir);
+    auto in_dir = [&](const std::string& f) { return host_utf8(dir.empty() ? host_path(f) : dir / host_path(f)); };
     const std::string save_name = sc.name + ".alsv", orders_name = sc.name + ".acmd", fp_name = sc.name + ".crc";
     const std::string tmp_save = in_dir(save_name + ".tmp"), tmp_orders = in_dir(orders_name + ".tmp"), tmp_fp = in_dir(fp_name + ".tmp");
     const std::string tmp_manifest = path + ".tmp";
     auto cleanup = [&] {
         std::error_code e2;
-        for (const std::string& p : {tmp_save, tmp_orders, tmp_fp, tmp_manifest}) fs::remove(fs::path(p), e2);
+        for (const std::string& p : {tmp_save, tmp_orders, tmp_fp, tmp_manifest}) fs::remove(host_path(p), e2);
     };
     std::string e;
     std::string save_bytes;
@@ -206,7 +207,7 @@ bool write_game_scenario(const std::string& path, const bench::Scenario* base, c
     // The files first, the manifest last: a failure before the moves leaves the old scenario untouched.
     for (auto [tmp, final_path] : {std::pair{tmp_save, in_dir(save_name)}, std::pair{tmp_orders, in_dir(orders_name)},
                                    std::pair{tmp_fp, in_dir(fp_name)}, std::pair{tmp_manifest, path}}) {
-        fs::rename(fs::path(tmp), fs::path(final_path), ec);
+        fs::rename(host_path(tmp), host_path(final_path), ec);
         if (ec) {
             fail(err, final_path + ": " + ec.message() + " (rerun --bench-make)");
             return false;
