@@ -1091,6 +1091,97 @@ void test_spin_and_self_destruct() {
 #endif
 }
 
+// #61 (DeathBehavior effects 0x58cf90 phase 2, run from its detach hook 0x58d830 when the object is deleted): a unit's
+// death plays its Death_SFXEvent_Start_Die, and the removal of its death clone plays the clone type's
+// Death_SFXEvent_End_Die afterwards - once per clone: a persisting clone when its countdown ends, a clone removed at
+// once, a clone flushed between two ticks; nothing for the clones the battle's end drops.
+// ledger: verifies GameObjectType.Death_SFXEvent_End_Die
+void test_death_end_sfx() {
+    MemoryProvider files;
+    files.add("Data\\XML\\GameObjectFiles.xml", "<L><File>D.xml</File></L>");
+    files.add("Data\\XML\\D.xml", R"(<?xml version="1.0"?>
+<GroundVehicles>
+  <GroundVehicle Name="Walker"><Death_SFXEvent_Start_Die>Walker_Start</Death_SFXEvent_Start_Die></GroundVehicle>
+  <GroundVehicle Name="Walker_Clone"><Death_SFXEvent_End_Die>Walker_End</Death_SFXEvent_End_Die></GroundVehicle>
+</GroundVehicles>
+)");
+    objects::ObjectTypeDatabase raw;
+    CHECK(raw.load(files));
+    objects::GameObjectTypes types;
+    CHECK(types.build(raw));
+    const objects::TypeIndex walker = types.resolve_name("Walker"), clone = types.resolve_name("Walker_Clone");
+    CHECK(walker != objects::kNone && clone != objects::kNone);
+    CHECK(types.get_string(clone, "Death_SFXEvent_End_Die") == "Walker_End");
+    objects::ObjectStore store(objects::ModeKind::Land, objects::StoreKind::Primary, types);
+    auto spawn = [&store](objects::TypeIndex t, Vec3 at, bool death_clone) {
+        objects::SpawnParams sp;
+        sp.type = t;
+        sp.owner = 0;
+        sp.position = at;
+        const objects::ObjectHandle h = store.create(sp);
+        if (death_clone) store.set_flag(h, objects::kFlagDeathClone);
+        return h;
+    };
+    const objects::ObjectHandle unit = spawn(walker, Vec3{5, 0, 0}, false);
+    const objects::ObjectHandle persisting = spawn(clone, Vec3{5, 0, 0}, true);
+    GameAudioHost off;  // inactive host: nothing
+    CHECK(off.unit_died(types, store.id(unit), walker, Vec3{5, 0, 0}) == 0);
+    CHECK(off.death_clone_ends(store, types, false) == 0);
+#ifdef ALAMO_GAME_HAVE_AUDIO
+    GameData data;
+    auto tree = make_tree(true);
+    tree->add("Data\\XML\\SFXEventsTest.xml", R"(<?xml version="1.0"?>
+<SFXEvents>
+  <SFXEvent Name="Walker_Start"><Is_3D>Yes</Is_3D><Samples>WALKER_START.WAV</Samples></SFXEvent>
+  <SFXEvent Name="Walker_End"><Is_3D>Yes</Is_3D><Samples>WALKER_END.WAV</Samples></SFXEvent>
+</SFXEvents>
+)");
+    data.files = std::move(tree);
+    GameAudioHost h;
+    CHECK(h.init(data, AudioBackendKind::Null, 3));
+    if (!h.active()) return;
+    h.set_listener(Vec3{0, 0, 100}, Vec3{0, 0, 0});
+    // the tick of the death: the unit's start-die line; its clone runs its death sequence (no end yet)
+    CHECK(h.unit_died(types, store.id(unit), walker, Vec3{5, 0, 0}) != 0);
+    store.destroy(unit);
+    CHECK(h.death_clone_ends(store, types, false) == 0);
+    CHECK(starts(h, "Walker_Start") == 1 && starts(h, "Walker_End") == 0);
+    h.update(1.0);
+    // the countdown ends: the clone is removed (dead until the next flush) - its end-die line, once
+    store.destroy(persisting);
+    CHECK(h.death_clone_ends(store, types, false) == 1);
+    CHECK(h.death_clone_ends(store, types, false) == 0);
+    store.flush();
+    CHECK(h.death_clone_ends(store, types, false) == 0);
+    CHECK(starts(h, "Walker_End") == 1 && h.stats().death_ends == 1);
+    int start_at = -1, end_at = -1, i = 0;
+    for (const audio::LogEntry& e : h.system()->log()) {
+        if (e.op == audio::LogOp::SfxStart && e.event == "Walker_Start" && start_at < 0) start_at = i;
+        if (e.op == audio::LogOp::SfxStart && e.event == "Walker_End" && end_at < 0) end_at = i;
+        ++i;
+    }
+    CHECK(start_at >= 0 && end_at > start_at);  // the end of the death after its start
+    // a clone removed at once (Remove_Upon_Death, no clip): seen dead on its first tick, still voiced
+    store.destroy(spawn(clone, Vec3{7, 0, 0}, true));
+    CHECK(h.death_clone_ends(store, types, false) == 1);
+    // a clone gone between two ticks (removed and flushed): voiced from its last known state
+    const objects::ObjectHandle quick = spawn(clone, Vec3{9, 0, 0}, true);
+    CHECK(h.death_clone_ends(store, types, false) == 0);
+    store.destroy(quick);
+    store.flush();
+    CHECK(h.death_clone_ends(store, types, false) == 1);
+    // a clone without the tag: nothing; the battle's end drops the clones left: nothing
+    store.destroy(spawn(walker, Vec3{}, true));
+    CHECK(h.death_clone_ends(store, types, false) == 0);
+    store.flush();
+    const objects::ObjectHandle left = spawn(clone, Vec3{}, true);
+    CHECK(h.death_clone_ends(store, types, false) == 0);
+    store.destroy(left);
+    CHECK(h.death_clone_ends(store, types, true) == 0);
+    CHECK(starts(h, "Walker_End") == 3 && h.stats().death_ends == 3);
+#endif
+}
+
 void test_aud2() {
     using H = GameAudioHost;
     CHECK(H::production_tag(H::Production::Begin) == "SFXEvent_Build_Started");
@@ -1356,6 +1447,7 @@ int main() {
     test_aud2();
     test_presentation_events_ref2();  // ref2 t02
     test_spin_and_self_destruct();  // mcx4 t13 batch Q
+    test_death_end_sfx();           // #61
 #ifdef ALAMO_GAME_HAVE_AUDIO
     test_movie_music();
     test_missing_credits_event();

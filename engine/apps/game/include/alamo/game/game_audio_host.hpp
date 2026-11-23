@@ -88,6 +88,7 @@ struct GameAudioStats {
     uint64_t strike_lines = 0;                                                     // mcx4 t13 batch M
     uint64_t sighting_lines = 0;                                                   // mcx4 t13 batch N
     uint64_t land_damage_sfx = 0;                                                  // mcx4 t13 batch O
+    uint64_t death_ends = 0;                                                       // #61: Death_SFXEvent_End_Die started
     uint64_t pad_lines = 0;                                                        // mcx4 t13 batch P
     uint64_t ability_lines = 0;                                                    // mcx4 t13 batch R
 };
@@ -228,6 +229,17 @@ public:
         Vec3 position{};
     };
     uint32_t spin_away_deaths(std::span<const SpinDeath> deaths, const objects::GameObjectTypes& types);
+    // A unit's death (battle_tick, one per CombatSystem death): every sound attached to it stops and its type's
+    // Death_SFXEvent_Start_Die plays at `position` (GameAudio::unit_death). Returns the instance id, 0 when none.
+    uint32_t unit_died(const objects::GameObjectTypes& types, objects::ObjectId object, objects::TypeIndex type, const Vec3& position);
+    // #61 (DeathBehavior effects 0x58cf90 phase 2): the end of a death sequence. Retail runs phase 2 from DeathBehavior's
+    // behaviour-detach hook (vtable slot 15, 0x58d830), which the object destructor calls for every behaviour (0x3893e0 ->
+    // 0x3a52f0); only death clones carry DEATH. So when a death clone is deleted - its countdown ended, or removed at once
+    // - its sounds stop and the clone type's Death_SFXEvent_End_Die plays at the clone (3D when Is_3D, else 2D, as
+    // Start_Die). battle_tick calls it every tick with the tactical store: a clone (kFlagDeathClone) seen dead, or gone
+    // since the last call, is voiced once. `battle_over`: the battle's end drops its clones silently [port]. Returns
+    // the number started.
+    uint32_t death_clone_ends(const objects::ObjectStore& store, const objects::GameObjectTypes& types, bool battle_over);
     // mcx4 t13 (MCX4_T13_RE_ANSWERS "GameObjectType.Selt_Destruct_SFXEvent_Start_Die"): this tick's counting-down units
     // (`event` = the type's Selt_Destruct_SFXEvent_Start_Die). A unit new to the list starts its event attached to it; a
     // unit that left the list (cancelled, blown up) has it stopped. battle_tick builds the list from the SELF_DESTRUCT
@@ -602,6 +614,12 @@ private:
     std::map<int64_t, int32_t> land_damage_stage_;            // mcx4 t13 batch O: object -> last stage (lookup only)
     std::map<int64_t, std::string> pad_loops_;                // mcx4 t13 batch P: UC object -> its building loop event
     std::set<uint64_t> spun_;                                 // mcx4 t13 batch Q: spin-away deaths already voiced
+    struct DeathClone {
+        objects::TypeIndex type = objects::kNone;
+        Vec3 position{};
+    };
+    std::map<objects::ObjectId, DeathClone> death_clones_;   // #61: living death clones by id (last seen type / position)
+    std::set<objects::ObjectId> death_clones_ended_;          // #61: clones voiced, still in the store until the flush
     std::map<int64_t, std::string> self_destructs_;           // mcx4 t13 batch Q: counting-down unit -> its started event
     struct TswApproach {
         float eta = 0.0f;
