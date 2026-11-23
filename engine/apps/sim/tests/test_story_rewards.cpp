@@ -32,6 +32,7 @@
 #include "alamo/lua/story_model.hpp"
 #include "alamo/sim/scenario.hpp"
 #include "alamo/sim/story_rewards.hpp"
+#include "alamo/lua/presentation.hpp"  // #51 t03
 #include "alamo/sim/story_session.hpp"
 #include "alamo/test/support.hpp"
 
@@ -211,6 +212,54 @@ static fs::path make_root(const char* name, std::unique_ptr<DirectoryProvider>& 
     files = std::make_unique<DirectoryProvider>(path_to_utf8(root));
     CHECK(w.db.load(*files) && w.types.build(w.db));
     return root;
+}
+
+// #51 t03: LightningEffectTypes.xml -> Play_Lightning_Effect block lengths (lua::lightning_block_frames), by upper-cased
+// name and case-insensitive tags; a missing tag takes the render library's default; the story session sets them as the
+// presentation log's lightning_frames_of (an unknown name keeps the config default).
+static void test_lightning_block_table_51() {
+    std::unique_ptr<DirectoryProvider> files;
+    TypesWorld w;
+    const fs::path root = make_root("alamo_sim_story_lightning_51", files, w);
+    write_file(root / "Data/XML/LightningEffectTypes.xml",
+               "<LightningEffectTypes>\n"
+               " <LightningEffect Name=\"Hack_Electicity_Zaps\"><Number_Bolts>23</Number_Bolts>"
+               "<Bolt_Creation_Interval_Min>0.0005</Bolt_Creation_Interval_Min><Bolt_Creation_Interval_Max>0.1</Bolt_Creation_Interval_Max>"
+               "<Fadeout_Time_Min>0.15</Fadeout_Time_Min><Fadeout_Time_Max>0.6</Fadeout_Time_Max></LightningEffect>\n"
+               " <LightningEffect Name=\"Kessel_Mouse_Droid_Hack\"><number_bolts>3</number_bolts>"
+               "<Bolt_Creation_Interval_Min>0.5</Bolt_Creation_Interval_Min><Bolt_Creation_Interval_Max>0.5</Bolt_Creation_Interval_Max>"
+               "<Fadeout_Time_Min>10</Fadeout_Time_Min><Fadeout_Time_Max>11</Fadeout_Time_Max></LightningEffect>\n"
+               " <LightningEffect Name=\"Corruption_Line\"><Replace_Faded>Yes</Replace_Faded></LightningEffect>\n"
+               " <LightningEffect Name=\"Bare\"></LightningEffect>\n"
+               " <LightningEffect Name=\"Prefix\"><Number_Bolts>2.7</Number_Bolts><Bolt_Creation_Interval_Min>1</Bolt_Creation_Interval_Min>"
+               "<Bolt_Creation_Interval_Max>1</Bolt_Creation_Interval_Max><Fadeout_Time_Max>1</Fadeout_Time_Max></LightningEffect>\n"
+               "</LightningEffectTypes>\n");
+    files = std::make_unique<DirectoryProvider>(path_to_utf8(root));  // the provider lists the folder when made
+    const std::map<std::string, uint32_t> t = lightning_block_table(*files);
+    CHECK(t.size() == 5);
+    CHECK(t.count("HACK_ELECTICITY_ZAPS") && t.at("HACK_ELECTICITY_ZAPS") == 52u);
+    CHECK(t.count("KESSEL_MOUSE_DROID_HACK") && t.at("KESSEL_MOUSE_DROID_HACK") == 360u);
+    CHECK(t.count("CORRUPTION_LINE") && t.at("CORRUPTION_LINE") == lua::kLightningNeverEnds);
+    CHECK(t.count("BARE") && t.at("BARE") == 30u);      // 1 bolt, Fadeout_Time_Max 1 s
+    CHECK(t.count("PREFIX") && t.at("PREFIX") == 60u);  // Number_Bolts "2.7" reads 2 (an integer prefix): 1 + 1 s
+    jobs::JobSystem js(jobs::JobSystemConfig{0});
+    SimConfig cfg;
+    cfg.seed = 7;
+    SimHost host(w.types, js, cfg);
+    const GalacticRules rules_keep = rules();
+    CHECK(host.start_galactic(rules_keep, setup()) != nullptr);
+    StoryStart st;
+    st.files = files.get();
+    st.plot_sets = {{pEmpire, "Story_Plots_Sty1.xml"}};
+    host.tick_once();
+    CHECK(host.start_story(st, nullptr) && host.story());
+    if (StorySession* ss = host.story()) {
+        const lua::PresentationConfig& pc = ss->presentation()->config();
+        CHECK(pc.lightning_frames_of && pc.lightning_frames_of("hack_electicity_zaps") == 52u);
+        CHECK(pc.lightning_frames_of && pc.lightning_frames_of("No_Such_Effect") == pc.lightning_frames);
+    }
+    std::error_code ec;
+    remove_all_long(root, ec);
 }
 
 static uint32_t fleet_of(const GalacticSim& gs, int32_t owner) {
@@ -944,6 +993,7 @@ int main() {
     log::set_min_level(log::Level::Error);
     story_test::test_sty1_gate_refusals();
     story_test::test_sty1_rewards();
+    story_test::test_lightning_block_table_51();  // #51 t03
     story_test::test_reward_handlers_registered();  // ref5 t02
     story_test::test_session_rows_have_handlers();
     story_test::test_mcx6_rewards();

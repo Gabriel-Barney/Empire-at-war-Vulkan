@@ -3,6 +3,7 @@
 #include "story_random_story.hpp"  // mcx6 RANDOM_STORY
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <iterator>
@@ -16,6 +17,8 @@
 #include "alamo/core/sim_rng.hpp"
 #include "alamo/core/dmath.hpp"
 #include "alamo/data/game_database.hpp"
+#include "alamo/data/values.hpp"  // #51 t03 lightning_block_table
+#include "alamo/data/xml.hpp"
 #include "alamo/galactic/campaign.hpp"
 #include "alamo/galactic/conflicts.hpp"
 #include "alamo/lua/gc_schedule.hpp"  // OPT2 t04
@@ -469,6 +472,34 @@ void StorySession::lua_note(const Script& sc, std::string_view what) {
     lua_messages_.push_back(std::to_string(frame_) + " " + sc.name + ": " + std::string(what));
 }
 
+std::map<std::string, uint32_t> lightning_block_table(const FileProvider& files) {
+    std::map<std::string, uint32_t> out;
+    std::vector<uint8_t> xml;
+    if (!files.read("Data\\XML\\LightningEffectTypes.xml", xml)) return out;
+    const data::XmlDocument doc = data::XmlDocument::parse(std::span<const uint8_t>(xml), "LightningEffectTypes.xml");
+    if (!doc.ok()) return out;
+    for (data::XmlNode e = doc.root().first_child(); e; e = e.next_sibling()) {
+        if (!ascii_iequals(e.name(), "LightningEffect")) continue;
+        std::string_view name = e.attribute("Name");
+        if (name.empty()) name = e.attribute("name");
+        if (name.empty()) continue;
+        auto text = [&e](std::string_view tag) -> std::string_view {
+            for (data::XmlNode c = e.first_child(); c; c = c.next_sibling())
+                if (ascii_iequals(c.name(), tag)) return c.text_trimmed();
+            return {};
+        };
+        auto num = [&text](std::string_view tag, float fallback) { return data::parse_float(text(tag)).value_or(fallback); };
+        // The render library's defaults (render::LightningStyle) for a missing tag. Number_Bolts is an integer: a C prefix
+        // parse (docs/MODS.md "Tag ledger and value semantics": "2.7" is 2).
+        const std::string_view bolts_text = text("Number_Bolts");
+        const int32_t bolts = bolts_text.empty() ? 1 : data::parse_int_prefix(bolts_text).value_or(0);
+        out[ascii_upper(name)] = lua::lightning_block_frames(bolts, num("Bolt_Creation_Interval_Min", 0.0f),
+                                                             num("Bolt_Creation_Interval_Max", 0.1f), num("Fadeout_Time_Max", 1.0f),
+                                                             data::parse_bool_or(text("Replace_Faded"), false));
+    }
+    return out;
+}
+
 bool StorySession::start(const StoryStart& st, std::vector<std::string>* diagnostics) {
     files_ = st.files;
     global_values_ = st.global_values;  // Int-final
@@ -479,6 +510,12 @@ bool StorySession::start(const StoryStart& st, std::vector<std::string>* diagnos
         note("story: no file provider");
         return false;
     }
+    // #51 t03: Play_Lightning_Effect blocks for the effect's data-driven length (the default for a name the data lacks).
+    lightning_frames_ = lightning_block_table(*files_);
+    lua_->presentation.config().lightning_frames_of = [this](std::string_view effect) -> uint32_t {
+        const auto it = lightning_frames_.find(ascii_upper(effect));
+        return it != lightning_frames_.end() ? it->second : lua_->presentation.config().lightning_frames;
+    };
     // the starting forces as the galaxy was built (before any plot script runs Base_Definitions).
     const std::vector<LoadConstruct> forces = starting_forces();
     for (const StoryPlotSet& ps : st.plot_sets) {

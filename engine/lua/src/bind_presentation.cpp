@@ -762,7 +762,9 @@ int g_play_lightning_effect(Call& c) {
     append_position(c, e, 3);
     const PresentationConfig& cfg = log.config();
     const uint32_t frames = cfg.lightning_frames_of ? cfg.lightning_frames_of(c.string(1)) : cfg.lightning_frames;
-    e.block = log.open_block(frame_of(c) + frames);
+    // #51 t03: a Replace_Faded effect never finishes (no wrap past the frame counter).
+    const uint32_t start = frame_of(c);
+    e.block = log.open_block(frames >= kLightningNeverEnds - start ? kLightningNeverEnds : start + frames);
     return push_block(c, e.block);
 }
 

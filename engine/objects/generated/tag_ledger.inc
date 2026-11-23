@@ -980,7 +980,7 @@
 {"LightningEffect", "Cycles_Per_Distance", 0x8, LedgerState::Consumed, "docs/re/xml_reference_index.md", 7, 1},
 {"LightningEffect", "Rotations_Per_Second", 0x8, LedgerState::Consumed, "", 7, 1},
 {"LightningEffect", "Update_All", 0x0, LedgerState::Consumed, "", 7, 1},
-{"LightningEffect", "Replace_Faded", 0x0, LedgerState::Unread, "docs/re/xml_reference_index.md", 1, 1},
+{"LightningEffect", "Replace_Faded", 0x0, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
 {"LightningEffect", "texture_name", 0x17, LedgerState::Consumed, "docs/re/xml_reference_index.md", 58, 1},
 {"DynamicTrack", "width", 0x8, LedgerState::Consumed, "docs/re/xml_reference_index.md", 17, 1},
 {"DynamicTrack", "opacity", 0x8, LedgerState::Consumed, "docs/re/xml_reference_index.md", 11, 1},
