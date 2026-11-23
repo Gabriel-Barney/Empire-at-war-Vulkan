@@ -1,6 +1,8 @@
 // ability, shield and hyperspace object SFX (GameAudioHost; rules: legacy docs/re/AUDIO.md §9.6).
 #include "alamo/game/game_audio_host.hpp"
 
+#include <algorithm>
+
 #include "alamo/core/ascii.hpp"
 #include "alamo/sim/tactical_battle.hpp"
 #include "alamo/tactical/abilities/ability_types.hpp"
@@ -65,6 +67,51 @@ GameAudioHost::AbilitySfx GameAudioHost::ability_sfx(const objects::GameObjectTy
     if (pick == objects::kNone) return out;
     out.activate = std::string(ascii_trim(child_text(db, pick, "SFXEvent_Activate")));
     out.target_affected = std::string(ascii_trim(child_text(db, pick, "SFXEvent_Target_Affected")));
+    return out;
+}
+
+GameAudioHost::AbilitySfx GameAudioHost::ability_sfx_named(const objects::GameObjectTypes& types, objects::TypeIndex t,
+                                                           std::string_view ability) {
+    AbilitySfx out;
+    if (t >= types.size() || ability.empty()) return out;
+    const objects::ObjectTypeDatabase& db = types.raw();
+    for (const objects::FieldIndex f : types.get_sub_objects(t, "Abilities"))
+        if (ascii_iequals(name_attr(db, f), ability)) {
+            out.activate = std::string(ascii_trim(child_text(db, f, "SFXEvent_Activate")));
+            out.target_affected = std::string(ascii_trim(child_text(db, f, "SFXEvent_Target_Affected")));
+            break;
+        }
+    return out;
+}
+
+bool GameAudioHost::galactic_activation_presented(galactic::SpecialAbilityClass cls, bool local_user) {
+    using C = galactic::SpecialAbilityClass;
+    switch (cls) {
+        case C::Sabotage:          // 0x5b1920
+        case C::Hack:              // 0x61b520
+        case C::SystemSpy:         // 0x70f510
+        case C::SiphonCredits: return true;  // 0x70e440
+        case C::RemoveCorruption: return local_user;  // 0x5b13c0: the hero's owner is the local player
+        default: return false;
+    }
+}
+
+std::vector<GameAudioHost::GalacticActivation> GameAudioHost::galactic_activations(
+    std::span<const galactic::GalacticEvent> batch, const std::function<galactic::SpecialAbilityClass(uint32_t)>& class_of,
+    int32_t local_player) {
+    using K = galactic::GalacticEventKind;
+    std::vector<int32_t> caught;  // heroes of this batch's SabotageVigilance events
+    for (const galactic::GalacticEvent& e : batch)
+        if (e.kind == K::SabotageVigilance) caught.push_back(e.object);
+    std::vector<GalacticActivation> out;
+    for (const galactic::GalacticEvent& e : batch) {
+        if (e.kind != K::SpecialApplied || !class_of) continue;
+        const galactic::SpecialAbilityClass cls = class_of(static_cast<uint32_t>(e.value));
+        if (!galactic_activation_presented(cls, e.player == local_player)) continue;
+        if (cls == galactic::SpecialAbilityClass::Sabotage && std::find(caught.begin(), caught.end(), e.object) != caught.end())
+            continue;
+        out.push_back({static_cast<uint32_t>(e.value), e.type, e.object, static_cast<uint32_t>(e.planet)});
+    }
     return out;
 }
 
@@ -276,6 +323,17 @@ uint32_t GameAudioHost::hyperspace_arrival(uint64_t object, std::string_view own
     return id;
 }
 
+uint32_t GameAudioHost::galactic_ability_effect(const objects::GameObjectTypes& types, objects::TypeIndex t, std::string_view ability,
+                                                uint64_t user, uint64_t planet, const Vec3& position) {
+    if (!game_) return 0;
+    const AbilitySfx s = ability_sfx_named(types, t, ability);
+    uint32_t n = 0;
+    if (!s.activate.empty() && game_->object_sfx(user, s.activate, position) != 0) ++n;
+    if (planet != 0 && !s.target_affected.empty() && game_->object_sfx(planet, s.target_affected, position) != 0) ++n;
+    ability_sfx_played_ += n;
+    return n;
+}
+
 uint32_t GameAudioHost::stealth_reveal() {
     if (!game_) return 0;
     const uint32_t id = game_->sfx_2d("SFX_Stealth_Reveal");  // 0x2d5010(name, 0, 0, 0): no extra SFX update
@@ -423,6 +481,10 @@ void GameAudioHost::object_events(const sim::TacticalBattle&, const objects::Obj
                                   std::span<const std::string>) {}
 uint32_t GameAudioHost::hyperspace_arrival(uint64_t, std::string_view, const Vec3&) { return 0; }
 uint32_t GameAudioHost::stealth_reveal() { return 0; }
+uint32_t GameAudioHost::galactic_ability_effect(const objects::GameObjectTypes&, objects::TypeIndex, std::string_view, uint64_t,
+                                                uint64_t, const Vec3&) {
+    return 0;
+}
 uint32_t GameAudioHost::cinematic_arrival(uint64_t, int32_t, const Vec3&) { return 0; }
 uint32_t GameAudioHost::cinematic_engine_flyby(const objects::GameObjectTypes&, objects::TypeIndex, uint64_t, const Vec3&) { return 0; }
 

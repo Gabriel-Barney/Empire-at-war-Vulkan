@@ -940,6 +940,113 @@ void test_battle_hookups_aud1() {
 // ledger: verifies Faction.SFXEvent_GUI_Toggle_Non_Hero_Ability_Off
 // ledger: verifies Faction.SFXEvent_GUI_Enemy_Toggle_Non_Hero_Ability_On
 // ledger: verifies Faction.SFXEvent_GUI_Enemy_Toggle_Non_Hero_Ability_Off
+// #62 t06 (the activation presentation 0x48e4d0 [H]): which galactic applies present it, the tags by ability name, and (with
+// engine/audio) the activation on the hero and the target sound on the planet.
+void test_galactic_activate_t06() {
+    using H = GameAudioHost;
+    using C = galactic::SpecialAbilityClass;
+    for (const bool local : {false, true}) {
+        CHECK(H::galactic_activation_presented(C::Sabotage, local) && H::galactic_activation_presented(C::Hack, local) &&
+              H::galactic_activation_presented(C::SystemSpy, local) && H::galactic_activation_presented(C::SiphonCredits, local));
+        CHECK(!H::galactic_activation_presented(C::BlackMarket, local) && !H::galactic_activation_presented(C::Slicer, local) &&
+              !H::galactic_activation_presented(C::Corruption, local) && !H::galactic_activation_presented(C::NeutralizeHero, local) &&
+              !H::galactic_activation_presented(C::PlanetDestruction, local) && !H::galactic_activation_presented(C::Other, local));
+    }
+    CHECK(H::galactic_activation_presented(C::RemoveCorruption, true) && !H::galactic_activation_presented(C::RemoveCorruption, false));
+    // One batch (local player 0): ability refs 0..4 = Sabotage, RemoveCorruption, Corruption, SystemSpy, Hack.
+    {
+        using K = galactic::GalacticEventKind;
+        const auto class_of = [](uint32_t ref) {
+            constexpr C kClass[] = {C::Sabotage, C::RemoveCorruption, C::Corruption, C::SystemSpy, C::Hack};
+            return ref < 5 ? kClass[ref] : C::Other;
+        };
+        auto ev = [](K k, int32_t player, int32_t hero, int32_t ability, uint32_t planet) {
+            galactic::GalacticEvent e;
+            e.kind = k;
+            e.player = player;
+            e.object = hero;
+            e.value = ability;
+            e.type = 7;
+            e.planet = planet;
+            return e;
+        };
+        const std::vector<galactic::GalacticEvent> batch = {
+            ev(K::SpecialApplied, 1, 10, 0, 2),     // the AI's sabotage: presents
+            ev(K::SabotageVigilance, 0, 11, 0, 3),  // the local saboteur 11 caught by vigilance ...
+            ev(K::SpecialApplied, 0, 11, 0, 3),     // ... its "applied" sabotage does not present
+            ev(K::SpecialApplied, 1, 12, 1, 4),     // the AI's Remove_Corruption: not presented
+            ev(K::SpecialApplied, 0, 13, 1, 4),     // the local one: presents
+            ev(K::SpecialApplied, 1, 14, 2, 5),     // Corruption_Ability: never
+            ev(K::SpecialApplied, 1, 15, 3, 6),     // the AI's system spy: presents
+            ev(K::SpecialError, 0, 16, 4, 6),       // other kinds: ignored
+        };
+        const std::vector<H::GalacticActivation> a = H::galactic_activations(batch, class_of, 0);
+        CHECK(a.size() == 3);
+        if (a.size() == 3) {
+            CHECK(a[0].hero == 10 && a[0].ability == 0 && a[0].planet == 2 && a[0].type == 7);
+            CHECK(a[1].hero == 13 && a[1].ability == 1 && a[1].planet == 4);
+            CHECK(a[2].hero == 15 && a[2].ability == 3 && a[2].planet == 6);
+        }
+        CHECK(H::galactic_activations(batch, nullptr, 0).empty());
+    }
+
+    MemoryProvider files;
+    files.add("Data\\XML\\GameObjectFiles.xml", "<L><File>T06.xml</File></L>");
+    files.add("Data\\XML\\T06.xml", R"(<?xml version="1.0"?>
+<SpaceUnits>
+  <SpaceUnit Name="Gal_Hero">
+    <Abilities SubObjectList="Yes">
+      <Remove_Corruption_Ability Name="Clean"><SFXEvent_Activate> Clean_Line </SFXEvent_Activate></Remove_Corruption_Ability>
+      <Galactic_Sabotage_Ability Name="Sab"><SFXEvent_Activate>Sab_Line</SFXEvent_Activate>
+        <SFXEvent_Target_Affected>Sab_Target</SFXEvent_Target_Affected></Galactic_Sabotage_Ability>
+    </Abilities>
+  </SpaceUnit>
+</SpaceUnits>
+)");
+    objects::ObjectTypeDatabase raw;
+    CHECK(raw.load(files));
+    objects::GameObjectTypes types;
+    CHECK(types.build(raw));
+    const objects::TypeIndex hero = types.resolve_name("Gal_Hero");
+    CHECK(hero != objects::kNone);
+    if (hero == objects::kNone) return;
+    H::AbilitySfx s = H::ability_sfx_named(types, hero, "sab");
+    CHECK(s.activate == "Sab_Line" && s.target_affected == "Sab_Target");
+    s = H::ability_sfx_named(types, hero, "Clean");
+    CHECK(s.activate == "Clean_Line" && s.target_affected.empty());
+    CHECK(H::ability_sfx_named(types, hero, "Other").activate.empty() &&
+          H::ability_sfx_named(types, objects::kNone, "Sab").activate.empty());
+    GameAudioHost off;  // never initialised: no-op
+    CHECK(off.galactic_ability_effect(types, hero, "Sab", 5, 9, Vec3{}) == 0);
+#ifdef ALAMO_GAME_HAVE_AUDIO
+    GameData data;
+    auto tree = make_tree(true);
+    tree->add("Data\\XML\\SFXEventsTest.xml", R"(<?xml version="1.0"?>
+<SFXEvents>
+  <SFXEvent Name="Sab_Line"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Max_Instances>2</Max_Instances><Samples>SAB.WAV</Samples></SFXEvent>
+  <SFXEvent Name="Sab_Target"><Is_3D>Yes</Is_3D><Samples>SABT.WAV</Samples></SFXEvent>
+  <SFXEvent Name="Clean_Line"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Samples>CLEAN.WAV</Samples></SFXEvent>
+</SFXEvents>
+)");
+    data.files = std::move(tree);
+    GameAudioHost h;
+    CHECK(h.init(data, AudioBackendKind::Null, 3));
+    if (!h.active()) return;
+    h.set_listener(Vec3{0, 0, 100}, Vec3{0, 0, 0});
+    CHECK(h.galactic_ability_effect(types, hero, "Sab", 5, 9, Vec3{10, 0, 0}) == 2);
+    bool user = false, target = false;
+    for (const audio::LogEntry& e : h.system()->log()) {
+        if (e.op != audio::LogOp::SfxStart) continue;
+        user = user || (e.event == "Sab_Line" && e.owner == 5);
+        target = target || (e.event == "Sab_Target" && e.owner == 9);
+    }
+    CHECK(user && target);
+    CHECK(h.galactic_ability_effect(types, hero, "Sab", 5, 0, Vec3{10, 0, 0}) == 1);  // no planet object: the activation only
+    CHECK(h.galactic_ability_effect(types, hero, "Clean", 5, 9, Vec3{}) == 1 && starts(h, "Clean_Line") == 1);
+    CHECK(h.galactic_ability_effect(types, hero, "Other", 5, 9, Vec3{}) == 0);
+#endif
+}
+
 // aud1 t05 (legacy docs/re/AUDIO.md §9.6): the ability tag pick through the type's Unit_Ability -> <Abilities> entry, the departure tag
 // pick, the shield transitions, and (with engine/audio) the activation playing on the user and the target.
 void test_object_sfx_t05() {
@@ -1577,6 +1684,7 @@ void test_presentation_events_ref2() {
 int main() {
     test_delayed_fire_sounds();  // trl2 t08
     test_object_sfx_t05();
+    test_galactic_activate_t06();  // #62 t06
     test_galactic_lua_sfx_position();  // aud8 t05
     test_gui_only_attract();           // #226
     test_inactive();

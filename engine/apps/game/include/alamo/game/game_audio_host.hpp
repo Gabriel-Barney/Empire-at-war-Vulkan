@@ -33,6 +33,7 @@
 #include "alamo/core/sim_rng.hpp"
 #include "alamo/game/battle_fx.hpp"
 #include "alamo/game/game_data.hpp"
+#include "alamo/galactic/special_data.hpp"  // #62 t06 SpecialAbilityClass
 #include "alamo/objects/object_store.hpp"
 #include "alamo/tactical/abilities/ability_system.hpp"  // AbilityActivation
 
@@ -301,6 +302,38 @@ public:
     // <Abilities> entry of that Name gives the tags. [port] No Unit_Ability of that Type (auto-style specials): the type's
     // only <Abilities> entry, if it has exactly one. Data-free tests drive it through objects::GameObjectTypes.
     static AbilitySfx ability_sfx(const objects::GameObjectTypes& types, objects::TypeIndex t, uint8_t ability_type);
+    // #62 t06: the tags of the type's <Abilities> entry named `ability` (case-insensitive); none when there is no such entry.
+    static AbilitySfx ability_sfx_named(const objects::GameObjectTypes& types, objects::TypeIndex t, std::string_view ability);
+    // #62 t06 (the activation presentation 0x48e4d0 [H]): whether a successful galactic apply of class `cls` presents its
+    // activation. The callers among the port's classes, each at its apply's success point (the port's SpecialApplied):
+    // the sabotage (0x5b1920), super-weapon hack (0x61b520), credit siphon (0x70e440, after its siphon record) and system
+    // spy (0x70f4a0 -> 0x70f510) applies, for any player's hero (`local_user` ignored); Remove_Corruption (0x5b13c0) only
+    // when the hero's owner is the local player. Not callers: Corruption_Ability (0x52b160 / 0x52bf50), the black
+    // market, slicer and Neutralize_Hero (0x616740) applies. Corrupt_Planet_Ability (0x6f6120) presents too, but the port
+    // has no class for it (no vanilla data uses it); the planet destruction ability presents from 0x707670 / 0x707b90,
+    // outside the port's special_apply. Neither is covered here.
+    static bool galactic_activation_presented(galactic::SpecialAbilityClass cls, bool local_user);
+    // #62 t06: the SpecialApplied events of one special-event batch (GameSession::take_special_events) that present, in
+    // order. `class_of` maps SpecialApplied.value (the ability ref) to its class. A sabotage caught by vigilance does not
+    // present: retail's vigilance branch of 0x5b1920 skips 0x48e4d0, while the port's apply reports the catch as applied
+    // (its SabotageVigilance for the same hero comes in the same batch).
+    struct GalacticActivation {
+        uint32_t ability = 0;  // SpecialApplied.value
+        uint32_t type = 0;     // the hero's type
+        int32_t hero = 0;      // ObjectId
+        uint32_t planet = 0;   // PlanetIndex
+    };
+    static std::vector<GalacticActivation> galactic_activations(std::span<const galactic::GalacticEvent> batch,
+                                                                const std::function<galactic::SpecialAbilityClass(uint32_t)>& class_of,
+                                                                int32_t local_player);
+    // #62 t06: plays that presentation: the ability's SFXEvent_Activate attached to the hero (`user`), its
+    // SFXEvent_Target_Affected attached to the planet object (`planet`, 0 = none). 2D or 3D as the event's data says
+    // (GameAudio::object_sfx; see ability_effect for the 2D [port]). Returns how many started.
+    // [port] tier 3: both start from the planet's position. A hero at a planet has no galactic position of its own in the
+    // port; it sits at that planet, so only where a 3D sound would stay if the hero left differs.
+    // Gap (follow-up): the light and particles of 0x48e4d0 are not played (no galactic ability visuals yet).
+    uint32_t galactic_ability_effect(const objects::GameObjectTypes& types, objects::TypeIndex t, std::string_view ability,
+                                     uint64_t user, uint64_t planet, const Vec3& position);
     // mcx4 t13 (MCX4_T13_RE_ANSWERS "Unit_Ability.SFXEvent_GUI_Unit_Ability_Activated family", 0x374b90): `tag` of the
     // type's Unit_Ability record for `ability_type`: the first record when the ability is the type's ability #0, else the
     // second. "" when the type has no record of that ability.
