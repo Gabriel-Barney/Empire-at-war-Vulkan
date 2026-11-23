@@ -78,7 +78,8 @@ folders: `ALAMO_STEAM_ROOT` (`;`-separated; when set, nothing else), else the re
 Every installed mod gets one `vfs::ModDescriptor` per (folder, variant), built before anything is read from it
 (`engine/vfs/include/alamo/vfs/mod_registry.hpp`): kind (workshop / `Mods\` / path), id (workshop id or folder name),
 name, version, summary, icon, languages, dependencies, Steam game tag, and a content hash (FNV-1a 64 over the sorted
-relative path, size and write time of every file under `Data`). `modinfo.json` follows the AlamoEngine-Tools
+relative path and size of every file under `Data`, plus each MEG's header and tables; write times are not hashed, so a
+copied or re-downloaded mod with the same bytes keeps its hash, and a same-size edit is not seen). `modinfo.json` follows the AlamoEngine-Tools
 `eaw.modinfo` spec and is read leniently: comments, trailing commas, a missing comma (warning), and
 `<variant>-modinfo.json` files (one descriptor each, the main file's values as defaults). Missing `languages` means
 English; `description` stands in for a missing `summary`. A malformed file is a warning and the folder name is used.
