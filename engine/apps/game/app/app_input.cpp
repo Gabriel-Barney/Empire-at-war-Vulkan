@@ -51,8 +51,6 @@ bool App::activate_special_here(uint32_t hero_id) {
     return false;
 }
 
-// SFX / messages of the special events (local player only, P4_SIM_SYSTEMS §1.4, §2.3, §2.4, §3.3, §6.2). The "local error
-// SFX" (0x140b301c8) is not identified: [port] the GUI negative feedback.
 // #62 t05: the local corrupter's corruption speech (CampaignBattles::corruption_speech -> GameAudioHost::corruption_speech),
 // read from the battle planet's type.
 void App::corruption_speech_feedback() {
@@ -74,6 +72,8 @@ void App::corruption_speech_feedback() {
     }
 }
 
+// SFX / messages of the special events (local player only, P4_SIM_SYSTEMS §1.4, §2.3, §2.4, §3.3, §6.2). The "local error
+// SFX" (0x140b301c8) is not identified: [port] the GUI negative feedback.
 void App::special_feedback() {
     if (!session_) return;
     using K = galactic::GalacticEventKind;
