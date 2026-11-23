@@ -510,7 +510,8 @@ bool BattleView::start(GpuCore& gpu, const GameData& data, const GameSession& se
     builder_->set_attachment_pose_source(
         [this](const render::GpuModel& m, uint64_t tick) { return scene_anim_->pose(m, tick); });
     // --- end R3/R5 render ---
-    // Camera: TacticalCameras.xml Land_Mode / Space_Mode, bounds = the mode's playable box, look at the local units.
+    // Camera: TacticalCameras.xml Land_Mode / Space_Mode, bounds = the mode's playable box, look at the battle's start point
+    // (TacticalBattle::start_look_at, #72 t01: a local space defender's station marker, else the local units).
     {
         std::vector<ui::TacticalCameraConstants> cams;
         const data::XmlDocument doc = read_xml(*data.files, "Data\\XML\\TacticalCameras.xml");
@@ -524,7 +525,6 @@ bool BattleView::start(GpuCore& gpu, const GameData& data, const GameSession& se
             const terrain::MapData* m = &scene_->map();
             camera_.set_terrain_height([m](float x, float y) { return m->terrain.sample_height(x, y); });
         }
-        // #72 t01: the battle's start focus (a local space defender: the chosen Space Station marker), else the local units.
         const Vec3 look = b->start_look_at(*tm, local_);
         camera_.set_look_at({look.x, look.y, look.z});
     }

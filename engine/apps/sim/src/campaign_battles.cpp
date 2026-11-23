@@ -893,6 +893,9 @@ void CampaignBattles::push_battle(SimHost& host) {
     if (!rebuilding_) battle_->apply_skirmish_start_credits();  // SKIRMISH_SETUP §2 step 3 (skirmish map battles)
     battle_->setup(static_cast<TacticalMode&>(m), std::move(pending_map_), host.random().synced(), host.players(),
                    host.parallel_for());
+    // #72 t01: a battle rebuilt by a save load is past its start, and its setup re-ran the station pick with the RNG at
+    // its saved state (the marker can differ from the starbase's): the loaded view looks at the local units.
+    if (rebuilding_) battle_->clear_start_camera_focus();
     pending_map_ = terrain::MapData{};
     ++fought_;
     corruption_push();  // S4: a corruption mission's battle (before the story attaches its plots)

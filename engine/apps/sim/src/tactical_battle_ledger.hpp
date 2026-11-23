@@ -203,9 +203,9 @@
     REBUILT(map_stats_, "made by the map load in setup(), the same on a rebuild") \
     REBUILT(slot_memory_, "set by the host that starts the battle, the same on a rebuild; relinked by CampaignBattles::read") \
     REBUILT(slot_memory_write_, "set by the host: on for a new battle, off for a rebuild; read only by setup()") \
-    REBUILT(have_focus_, "made by the map load in setup(), the same on a rebuild") \
-    REBUILT(focus_, "made by the map load in setup(), the same on a rebuild") \
-    REBUILT(focus_player_, "made by the map load in setup(), the same on a rebuild") \
+    REBUILT(have_focus_, "made by the map load in setup(); a save-load rebuild clears the focus (#72 t01)") \
+    REBUILT(focus_, "made by the map load in setup(); a save-load rebuild clears the focus (#72 t01)") \
+    REBUILT(focus_player_, "made by the map load in setup(); a save-load rebuild clears the focus (#72 t01)") \
     SAVED(bt_markers_, state) \
     REBUILT(bt_players_, "made by setup() from the battle inputs, the same on a rebuild") \
     REBUILT(pad_records_, "set by the host that starts the battle, the same on a rebuild; relinked by CampaignBattles::read") \
