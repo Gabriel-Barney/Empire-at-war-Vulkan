@@ -1,7 +1,8 @@
 // --- L1 systems (owner: tactical-systems agent): the battle side of special weapons, the tactical superweapon,
 // hyperspace departures, timed engine disables, teleport, ground height and clip lengths (tactical_battle.hpp
 // "L1 systems" block; legacy docs/re/SCRIPT_GAPS.md §1-§3). Serial code only; the synced RNG is drawn by the departure
-// timers (HyperspaceDepartures) and nothing else here.
+// timers (HyperspaceDepartures) and the special weapons' TSW service (or, with the Weapons stream on, each pack's own
+// stream; #128) and nothing else here.
 #include <algorithm>
 #include <utility>
 #include <array>
@@ -13,9 +14,9 @@
 #include "alamo/objects/type_fields.hpp"
 #include "alamo/sim/l1_loaders.hpp"
 #include "alamo/sim/tactical_battle.hpp"
+#include "alamo/tactical/services/stream_rng.hpp"  // #128 Weapons stream
 #ifdef ALAMO_SIM_HAVE_ANIM
 #include "alamo/sim/sim_anim.hpp"
-#include "alamo/tactical/services/stream_rng.hpp"  // #128 Weapons stream
 #endif
 
 namespace alamo::sim {
