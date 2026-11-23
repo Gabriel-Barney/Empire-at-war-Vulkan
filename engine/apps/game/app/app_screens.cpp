@@ -191,9 +191,7 @@ void App::handle_screen_actions(const std::vector<ui::ScreenAction>& acts) {
                 ui::MessageBoxSpec m;
                 m.tag = "tutorial_quit";
                 if (const std::u16string* s = ui_.text.find("TEXT_QUIT_SURE")) m.caption = ui::utf16_to_utf32(*s);
-                if (const std::u16string* y = ui_.text.find("TEXT_YES")) m.buttons.push_back(ui::utf16_to_utf32(*y));
-                if (const std::u16string* n = ui_.text.find("TEXT_NO")) m.buttons.push_back(ui::utf16_to_utf32(*n));
-                if (m.buttons.size() < 2) m.buttons = {U"Yes", U"No"};
+                m.buttons = {txt("TEXT_YES", U"Yes"), txt("TEXT_NO", U"No")};
                 screens_.show_message(m);
                 break;
             }
@@ -227,7 +225,7 @@ void App::handle_screen_actions(const std::vector<ui::ScreenAction>& acts) {
                 } else if (a.tag == "load_different_data") {  // Load anyway (button 0) / Cancel
                     const std::string path = std::exchange(pending_different_data_, std::string());
                     if (a.button == 0 && !path.empty() && load_save_file(path, nullptr, true))
-                        screen_line(U"Loaded with different data: continuing it is not supported", ui::Rgba8{255, 200, 64, 255});
+                        screen_line(port_text(U"Loaded with different data: continuing it is not supported"), ui::Rgba8{255, 200, 64, 255});
                 } else if (a.tag == "battle_choice") {  // [port] a scripted message-box prompt: button 1 = Auto-Resolve
                     answer_battle_prompt(a.button == 1);
                 } else if (a.tag == "retry") {  // Lua Activate_Retry_Dialog: Retry restarts the session, Quit leaves it
@@ -439,8 +437,10 @@ void App::add_loss_rows(ui::BattleEndInfo& info, const game::BattleLosses& lost,
 
 std::u32string App::txt(std::string_view id, std::u32string_view fallback) const {
     if (const std::u16string* s = ui_.text.find(id)) return ui::utf16_to_utf32(*s);
-    return std::u32string(fallback);
+    return ui_.text.port_text(fallback);
 }
+
+std::u32string App::port_text(std::u32string_view english) const { return ui_.text.port_text(english); }
 
 // [port] the faction's Text_ID (Factions.xml <Text_ID>; read, not built from the name), else its name.
 std::u32string App::faction_label(int32_t player) const {
@@ -490,14 +490,17 @@ void App::save_message(std::u32string caption, const std::string& detail) {
     screens_.show_message(m);
 }
 
+// [port-text: TEXT_SAVE_FAILED's retail English, its stand-in]
+constexpr std::u32string_view kSaveFailed = U"Failed to save game. Check available disk space.";
+
 void App::save_game_as(const std::string& typed) {
     if (typed == kAutoSaveName) return;  // retail rejects the reserved name (the box is cleared, nothing saved)
-    if (!session_ || demo_session()) return save_message(U"The game cannot be saved now", "no game is running");
-    if (saves_dir_.empty()) return save_message(txt("TEXT_SAVE_FAILED", U"Failed to save game."), "no saved games folder");
+    if (!session_ || demo_session()) return save_message(port_text(U"The game cannot be saved now"), "no game is running");
+    if (saves_dir_.empty()) return save_message(txt("TEXT_SAVE_FAILED", kSaveFailed), "no saved games folder");
     std::string path, err;
     if (!save_game(*session_, saves_dir_, typed, session_title(), unix_now(), &path, &err)) {
         const bool refused = !session_->check_save().empty();  // cached: no second save
-        save_message(refused ? std::u32string(U"The game cannot be saved now") : txt("TEXT_SAVE_FAILED", U"Failed to save game."), err);
+        save_message(refused ? port_text(U"The game cannot be saved now") : txt("TEXT_SAVE_FAILED", kSaveFailed), err);
     } else {
         ++saves_written_;
         std::printf("saves: saved %s at tick %" PRIu64 "\n", path.c_str(), session_->host().frame());
@@ -522,7 +525,7 @@ bool App::load_save_file(const std::string& path, const commands::CommandRecordi
         pending_different_data_ = path;
         ui::MessageBoxSpec m;
         m.tag = "load_different_data";
-        m.caption = U"This save was made with other mod data";
+        m.caption = port_text(U"This save was made with other mod data");
         std::string first = err.size() > 120 ? err.substr(0, 117) + "..." : err;
         const size_t cut = first.size() > 64 ? first.rfind(' ', 64) : std::string::npos;
         if (cut != std::string::npos && cut > 0) {
@@ -531,13 +534,13 @@ bool App::load_save_file(const std::string& path, const commands::CommandRecordi
         } else {
             m.lines.push_back(ui::utf8_to_utf32(first));
         }
-        m.lines.push_back(U"Continuing an outdated save on a newer mod version is not supported.");
-        m.buttons = {U"Load anyway", txt("TEXT_BUTTON_CANCEL", U"Cancel")};
+        m.lines.push_back(port_text(U"Continuing an outdated save on a newer mod version is not supported."));
+        m.buttons = {port_text(U"Load anyway"), txt("TEXT_BUTTON_CANCEL", U"Cancel")};
         screens_.show_message(m);
         return false;
     }
     if (!s) {
-        save_message(U"The saved game could not be loaded", path.empty() ? std::string("no save name") : err);
+        save_message(port_text(U"The saved game could not be loaded"), path.empty() ? std::string("no save name") : err);
         return false;
     }
     if (s->loaded_with_different_data()) {  // D3: the session is marked; bugs in it are not port bugs
@@ -560,7 +563,7 @@ bool App::load_save_file(const std::string& path, const commands::CommandRecordi
 
 void App::delete_saved_game(const std::string& name) {
     std::string err;
-    if (!delete_save(saves_dir_, name, &err)) save_message(U"The saved game could not be deleted", err);
+    if (!delete_save(saves_dir_, name, &err)) save_message(port_text(U"The saved game could not be deleted"), err);
     else std::printf("saves: deleted %s\n", name.c_str());
     ui_.front.refresh_saves();
 }
@@ -716,7 +719,7 @@ void App::add_holocron_chapter(const StoryDialogMeta& meta, size_t lines) {
     holocron_flash_ = true;
     std::string msg = "TEXT_ENCYCLOPEDIA_HOLOCRON_UPDATED";
     for (const data::GameObjectRecord* rec : data_.db.find_game_objects(local_faction()))
-        if (rec->type == "Faction") {
+        if (rec->type == "Faction") {  // [port-text: the XML element type, not shown]
             const std::string_view t = data::trim(rec->element.child_text("Default_Transmission_Message"));
             if (!t.empty()) msg = std::string(t);
             break;
@@ -1122,6 +1125,7 @@ void App::build_encyclopedia(ui::HudDrawList& dl, const ui::HudCanvas& canvas) {
         if (const galactic::GalacticSim* g = galaxy())
             if (const PlanetIndex pi = planet_index(*g, shown); pi != kInvalidPlanet &&
                 !g->can_see_planet_info(local_player(), pi, galactic::GalacticSim::PlanetInfo::CreditIncome))
+                // [port-text: matches game_info.cpp's income row label, not shown here]
                 std::erase_if(e.rows, [](const ui::EncyclopediaRow& r) { return r.left == U"Income"; });
     // HUD_GAPS §2.2: anchored at the hint bone of the HUD on screen (not the cursor).
     const ui::HudLayout& layout = screen() == Screen::Battle ? ui_.tactical_hud.layout() : ui_.galactic_hud.layout();

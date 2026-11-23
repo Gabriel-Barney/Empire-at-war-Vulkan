@@ -30,6 +30,8 @@ SCOPE = [
     'ui/src/galactic_hud_map.cpp',
     'ui/src/gui_menus.cpp',  # slice 2 (hotkey labels) and slice 3 (options and mods menus)
     'ui/include/alamo/ui/gui_menus.hpp',
+    'apps/game/app/app_screens.cpp',  # slice 4 (the app's screens and messages)
+    'apps/game/app/game_main.cpp',
 ]
 MARK = re.compile(r'\[port-text(-begin)?:\s*([^\]]*)\]')
 MARK_END = re.compile(r'\[port-text-end\]')

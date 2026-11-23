@@ -628,7 +628,10 @@ public:
     void auto_resolve_result(const galactic::GalacticSim& g, const galactic::ConflictLogEntry& e);
     void add_holocron_chapter(const StoryDialogMeta& meta, size_t lines);
     void screen_line(std::u32string text, ui::Rgba8 color);
+    // #45 t08: the key's MasterTextFile entry, else `fallback` as a port string (port_text).
     std::u32string txt(std::string_view id, std::u32string_view fallback) const;
+    // #45 t08: text the port adds (no retail key), pseudo-localised like the table (ui::TextDatabase::port_text).
+    std::u32string port_text(std::u32string_view english) const;
     std::u32string faction_label(int32_t player) const;
     uint64_t choices_ = 0, auto_resolves_ = 0, story_dialogs_ = 0, ency_shown_ = 0, retry_boxes_ = 0, story_cues_ = 0;
     uint64_t tactical_auto_resolves_ = 0, auto_results_ = 0;
