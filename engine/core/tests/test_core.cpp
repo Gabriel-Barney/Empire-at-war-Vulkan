@@ -10,6 +10,7 @@
 #include <span>
 #include <string>
 
+#include "alamo/core/bytes.hpp"
 #include "alamo/core/file_provider.hpp"
 #include "alamo/core/host_fs.hpp"
 #include "alamo/core/galaxy.hpp"
@@ -273,6 +274,22 @@ int main() {
     CHECK(!dp.read("Data\\XML\\missing.xml", buf) && buf.empty());
     alamo::remove_all_long(tmp, tec);
     CHECK(!tec);
+
+    // #137 t02: path_from_host_string - UTF-8 first; a string that is not valid UTF-8 is read in the ANSI code page.
+    // read_text_file / write_text_file take such strings, so a file named outside the ANSI code page (Hebrew and CJK:
+    // U+05D0 = D7 90, U+4E2D = E4 B8 AD) round-trips under its own name.
+    CHECK(alamo::path_from_host_string("a\xD7\x90").native() == std::wstring(L"aא"));
+    CHECK(alamo::path_from_host_string("caf\xE9") == fs::path(std::string("caf\xE9")));  // not UTF-8: ANSI
+    CHECK(alamo::path_from_host_string("").empty());
+    {
+        fs::create_directories(tmp, tec);
+        const fs::path wide = tmp / L"t137_א中.txt";
+        std::string text;
+        CHECK(alamo::write_text_file(alamo::path_to_utf8(tmp) + "/t137_\xD7\x90\xE4\xB8\xAD.txt", "hello"));
+        CHECK(fs::exists(wide, tec));
+        CHECK(alamo::read_text_file(alamo::path_to_utf8(wide), text) && text == "hello");
+        alamo::remove_all_long(tmp, tec);
+    }
 
     // long_path: forms, then a write / rename / read round trip in a folder deeper than 300 characters.
     CHECK(alamo::long_path(fs::path()).empty());

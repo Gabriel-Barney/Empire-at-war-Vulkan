@@ -118,6 +118,7 @@ alamo_ai_story_save_size_late            retail
 alamo_ai_tests_tr_seed_roles             retail
 alamo_game_save_tests                    retail
 alamo_game_save_export_tests             retail
+alamo_game_export_unicode_paths          retail
 # Registered only without extracted/foc_data_text.zip, in place of the limits runs below.
 alamo_headless_limits_conformance        retail:foc,file:extracted/foc_data_text.zip optional
 # Recipes with "host game" (tests/benchmark/*.abench) are made by alamo_game, which needs a GPU.

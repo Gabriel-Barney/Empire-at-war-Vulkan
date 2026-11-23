@@ -7,6 +7,10 @@
 
 #include "alamo/core/host_fs.hpp"
 
+#include <windows.h>
+
+#include <shellapi.h>
+
 namespace alamo::game {
 
 namespace fs = std::filesystem;
@@ -22,17 +26,7 @@ std::string env_utf8(const char* name) {
     return value.empty() ? std::string() : host_utf8(fs::path(value));
 }
 
-fs::path host_path(std::string_view utf8) {
-    try {
-        return path_from_utf8(utf8);
-    } catch (const std::exception&) {
-    }
-    try {
-        return fs::path(std::string(utf8));
-    } catch (const std::exception&) {  // not valid in the ANSI code page either (a double-byte code page)
-        return {};
-    }
-}
+fs::path host_path(std::string_view utf8) { return path_from_host_string(utf8); }
 
 std::string host_utf8(const fs::path& p) {
     try {
@@ -41,6 +35,30 @@ std::string host_utf8(const fs::path& p) {
     } catch (const std::exception&) {
         return {};
     }
+}
+
+std::vector<std::string> utf8_command_line(std::wstring_view command_line) {
+    std::vector<std::string> out;
+    const std::wstring line(command_line);
+    int argc = 0;
+    LPWSTR* argv = CommandLineToArgvW(line.c_str(), &argc);
+    if (!argv) return out;
+    for (int i = 0; i < argc; ++i) {  // as typed: WideCharToMultiByte, not a path conversion
+        const int len = WideCharToMultiByte(CP_UTF8, 0, argv[i], -1, nullptr, 0, nullptr, nullptr);
+        std::string s(len > 0 ? static_cast<size_t>(len) : size_t{1}, '\0');
+        if (len > 0) WideCharToMultiByte(CP_UTF8, 0, argv[i], -1, s.data(), len, nullptr, nullptr);
+        s.resize(s.size() - 1);  // the terminator
+        out.push_back(std::move(s));
+    }
+    LocalFree(argv);
+    return out;
+}
+
+std::vector<std::string> utf8_args(int argc, char** argv) {
+    std::vector<std::string> out = utf8_command_line(GetCommandLineW());
+    if (!out.empty()) return out;
+    for (int i = 0; i < argc; ++i) out.emplace_back(argv[i]);
+    return out;
 }
 
 }  // namespace alamo::game

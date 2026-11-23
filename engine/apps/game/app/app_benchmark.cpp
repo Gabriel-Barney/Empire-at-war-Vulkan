@@ -76,7 +76,7 @@ bool App::bench_start() {
                 opt_.bench.save.c_str(), win_.width(), win_.height());
     if (!opt_.bench.png_dir.empty()) {
         std::error_code ec;
-        std::filesystem::create_directories(opt_.bench.png_dir, ec);  // a failure shows as FAILED PNG writes
+        std::filesystem::create_directories(host_path(opt_.bench.png_dir), ec);  // #137: UTF-8  // a failure shows as FAILED PNG writes
     }
     if (!bench_scenario_start()) return true;  // the scenario's orders and the GPU timer (a failure is in the report)
     if (!load_save_file(opt_.bench.save, bench_replay())) {

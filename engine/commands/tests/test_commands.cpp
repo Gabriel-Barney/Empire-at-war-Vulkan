@@ -1,9 +1,11 @@
 // alamo_commands tests (no framework; non-zero exit on failure).
 // Semantics under test: legacy docs/re/COMMANDS.md (event catalogue §2, quantizers §3.2, scheduling §4).
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
+#include <filesystem>
 #include <limits>
 #include <span>
 #include <stdexcept>
@@ -21,6 +23,7 @@
 #include "alamo/commands/scheduler.hpp"
 #include "alamo/core/bytes.hpp"
 #include "alamo/core/hash.hpp"
+#include "alamo/core/host_fs.hpp"
 #include "alamo/test/support.hpp"
 
 using namespace alamo;
@@ -535,6 +538,16 @@ void test_pipeline_replay() {
     CHECK(CommandRecording::load(path, loaded, &err));
     std::remove(path.c_str());
     CHECK(loaded == rec && loaded.to_bytes() == rec.to_bytes());
+    {  // #137 t02: a UTF-8 path outside the ANSI code page (Hebrew and CJK: U+05D0 = D7 90, U+4E2D = E4 B8 AD)
+        const std::string tag = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+        const std::filesystem::path wide = std::filesystem::temp_directory_path() / (L"alamo_t137_א中_" + std::wstring(tag.begin(), tag.end()) + L".acmd");
+        const std::string utf8 = alamo::path_to_utf8(std::filesystem::temp_directory_path()) + "/alamo_t137_\xD7\x90\xE4\xB8\xAD_" + tag + ".acmd";
+        CommandRecording back;
+        std::error_code ec;
+        CHECK(rec.save(utf8, &err) && std::filesystem::exists(wide, ec));
+        CHECK(CommandRecording::load(utf8, back, &err) && back == rec);
+        std::filesystem::remove(wide, ec);
+    }
 
     ToySim replay;
     CommandPipeline p2(loaded.config);

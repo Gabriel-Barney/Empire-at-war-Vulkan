@@ -1,5 +1,6 @@
 // game-made benchmark saves and the map listing (benchmark_save.hpp).
 #include "alamo/game/benchmark_save.hpp"
+#include "alamo/game/host_text.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -165,7 +166,7 @@ bool make_bench_save(const GameData& data, jobs::JobSystem& js, const BenchNewSa
     d.data_root.clear();
     session.host().set_session(std::move(d));
     SaveFile file;
-    const SaveMeta meta = session.save_meta(sanitize_save_name(std::filesystem::path(o.out).stem().string()), 0);
+    const SaveMeta meta = session.save_meta(sanitize_save_name(host_utf8(host_path(o.out).stem())), 0);
     std::string e;
     if (!session.save(file, meta, &e) || !write_save_file(file, o.out, &e)) {
         fail(err, "cannot save: " + e);
@@ -205,8 +206,8 @@ bool bench_regen_save(const GameData& data, jobs::JobSystem& js, const std::stri
         fail(err, manifest + ": the make line must not name --bench-new-save (the output is chosen by --bench-regen)");
         return false;
     }
-    const std::filesystem::path dir = std::filesystem::path(manifest).parent_path();
-    o.out = (dir / (sc.name + ".regen.alsv")).string();
+    const std::filesystem::path dir = host_path(manifest).parent_path();  // #137: UTF-8 paths
+    o.out = host_utf8(dir / host_path(sc.name + ".regen.alsv"));
     if (!make_bench_save(data, js, o, summary, err)) return false;
     if (tmp_save) *tmp_save = o.out;
     return true;

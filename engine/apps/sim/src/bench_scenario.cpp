@@ -6,11 +6,13 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
 
 #include "alamo/core/hash.hpp"
+#include "alamo/core/host_fs.hpp"
 
 namespace alamo::sim::bench {
 
@@ -20,8 +22,19 @@ void fail(std::string* err, std::string msg) {
     if (err) *err = std::move(msg);
 }
 
+// #137: a path as UTF-8 with native separators (what path::string() gave, without the ANSI code page); "" when it has
+// no UTF-8 form.
+std::string native_utf8_of(const std::filesystem::path& p) {
+    try {
+        const std::u8string s = p.u8string();
+        return std::string(reinterpret_cast<const char*>(s.data()), s.size());
+    } catch (const std::exception&) {
+        return {};
+    }
+}
+
 bool read_bytes(const std::string& path, std::string& out) {
-    std::ifstream f(std::filesystem::path(path), std::ios::binary);
+    std::ifstream f(path_from_host_string(path), std::ios::binary);  // #137: UTF-8 (else ANSI)
     if (!f) return false;
     out.assign(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>());
     return !f.bad();
@@ -203,7 +216,7 @@ bool parse_hex64(std::string_view s, uint64_t& out) {
 
 std::string Scenario::resolve(const ScenarioFile& f) const {
     if (!f.present()) return {};
-    return (std::filesystem::path(dir.empty() ? std::string(".") : dir) / f.path).string();
+    return native_utf8_of(path_from_host_string(dir.empty() ? std::string(".") : dir) / path_from_host_string(f.path));
 }
 
 std::string Scenario::to_text() const {
@@ -348,14 +361,14 @@ bool load_impl(const std::string& path, Scenario& out, std::string* err, bool re
         if (err) *err = path + ": " + *err;
         return false;
     }
-    out.dir = std::filesystem::path(path).parent_path().string();
+    out.dir = native_utf8_of(path_from_host_string(path).parent_path());
     return true;
 }
 
 }  // namespace
 
 bool Scenario::save_manifest(const std::string& path, std::string* err) const {
-    std::ofstream f(std::filesystem::path(path), std::ios::binary | std::ios::trunc);
+    std::ofstream f(path_from_host_string(path), std::ios::binary | std::ios::trunc);  // #137
     const std::string t = to_text();
     if (!f || !f.write(t.data(), static_cast<std::streamsize>(t.size()))) {
         fail(err, "cannot write " + path);
