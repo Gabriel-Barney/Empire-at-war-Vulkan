@@ -870,6 +870,7 @@ void App::start_battle_view() {
     radar_fields_built_ = radar_fields_dirty_ = false;
     radar_terrain_.clear();  // map1 t02
     radar_terrain_built_ = false;
+    build_radar_terrain();  // #69 t04: at the battle's start, from the grid as the setup (or the save) left it
 }
 
 void App::end_battle() {

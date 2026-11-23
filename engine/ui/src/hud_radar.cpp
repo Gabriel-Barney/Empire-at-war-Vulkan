@@ -223,9 +223,7 @@ std::vector<uint8_t> radar_terrain_rgba(const RadarTerrainSource& src, const Pas
             if (x + half < 0.0f || y + half < 0.0f) continue;
             const auto cx = static_cast<uint32_t>((x + half) / src.cell), cy = static_cast<uint32_t>((y + half) / src.cell);
             if (cx >= src.gw || cy >= src.gh) continue;  // outside the grid: transparent
-            uint32_t bits = src.cells[static_cast<size_t>(cy) * src.gw + cx];
-            const float ccx = static_cast<float>(cx) * src.cell, ccy = static_cast<float>(cy) * src.cell;  // the cell's centre
-            if (src.has_box && (ccx < src.box_min_x || ccx > src.box_max_x || ccy < src.box_min_y || ccy > src.box_max_y)) bits |= 0x4u;
+            const uint32_t bits = src.cells[static_cast<size_t>(cy) * src.gw + cx];
             const Rgba8 c = palette[static_cast<size_t>(radar_cell_class(bits, src.water && src.water(x, y)))];
             uint8_t* px = &out[(static_cast<size_t>(row) * size + col) * 4];
             px[0] = c.r;

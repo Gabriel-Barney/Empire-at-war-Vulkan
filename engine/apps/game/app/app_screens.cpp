@@ -745,6 +745,34 @@ void App::add_holocron_chapter(const StoryDialogMeta& meta, size_t lines) {
     if (meta.sfx) audio_.faction_sfx("SFXEvent_Mission_Added");
 }
 
+ui::RadarFieldPaint App::radar_world_box() const {
+    ui::RadarFieldPaint box;
+    if (const sim::TacticalMode* tm = session_ ? session_->host().modes().top_tactical() : nullptr)
+        if (tm->bounds().max.x - tm->bounds().min.x < 1.0e5f) {
+            box.min_x = tm->bounds().min.x;
+            box.min_y = tm->bounds().min.y;
+            box.max_x = tm->bounds().max.x;
+            box.max_y = tm->bounds().max.y;
+        }
+    return box;
+}
+
+// map1 t02 (MAP1_RADAR_TERRAIN_RE): the land radar's passability picture, built once per battle in the RadarMap.xml colours
+// of the map's environment block (map info mini 0x06); no block (index >= 8) or a space battle: no picture. #69 t04: retail
+// builds it at the land mode's activation and never repaints it, from the cells' EFFECTIVE flags [H] (radar_land_terrain),
+// so begin_battle builds it from the grid as the setup left it, before any cinematic hides the HUD.
+void App::build_radar_terrain() {
+    const sim::TacticalBattle* b = battle();
+    if (!b) return;
+    radar_terrain_built_ = true;
+    radar_terrain_.clear();
+    const std::string_view biome = ui::radar_biome(b->terrain_type());
+    if (bview_.space() || b->is_space_battle() || biome.empty()) return;
+    const ui::RadarFieldPaint box = radar_world_box();
+    radar_terrain_ = radar_land_terrain(b->map(), b->movement().grid(), radar_settings_.palette(biome), kRadarTerrainSize, box.min_x,
+                                        box.min_y, box.max_x, box.max_y);
+}
+
 void App::update_radar() {
     const render::FogRenderer& fog = bview_.fog();
     if (!bview_.active()) return;
@@ -768,43 +796,13 @@ void App::update_radar() {
         if (static_cast<size_t>(w) * h != fog.processed().size()) return;
         vis = fog.processed();
     }
-    ui::RadarFieldPaint paint;  // the radar's world box (build_tactical_hud's map_min / max)
+    ui::RadarFieldPaint paint = radar_world_box();  // the radar's world box (build_tactical_hud's map_min / max)
     paint.fields = radar_fields_;
-    if (const sim::TacticalMode* tm = session_ ? session_->host().modes().top_tactical() : nullptr)
-        if (tm->bounds().max.x - tm->bounds().min.x < 1.0e5f) {
-            paint.min_x = tm->bounds().min.x;
-            paint.min_y = tm->bounds().min.y;
-            paint.max_x = tm->bounds().max.x;
-            paint.max_y = tm->bounds().max.y;
-        }
     paint.fill = radar_settings_.space_asteroid;
     paint.border = radar_settings_.space_asteroid_border;
-    // map1 t02 (MAP1_RADAR_TERRAIN_RE): the land radar's passability picture, built once per battle (retail builds it at the
-    // land mode's activation and never repaints it), in the RadarMap.xml colours of the map's environment block (map info
-    // mini 0x06); no block (index >= 8) or a space battle: no picture. #69 t04: the cells' EFFECTIVE flags [H] - the 0x10A
-    // bits OR the object footprints, Obstacle on whole cells outside the playable box - are the movement system's grid.
-    constexpr uint32_t kRadarSize = 128;
-    if (!radar_terrain_built_ && battle()) {
-        radar_terrain_built_ = true;
-        radar_terrain_.clear();
-        const sim::TacticalBattle* b = battle();
-        const std::string_view biome = b ? ui::radar_biome(b->terrain_type()) : std::string_view();
-        if (b && !bview_.space() && !b->is_space_battle() && !biome.empty() && b->map().passability_present) {
-            const terrain::MapData& md = b->map();
-            const tactical::movement::PassabilityGrid& grid = b->movement().grid();
-            ui::RadarTerrainSource src;
-            src.cells = grid.effective_values();  // has the playable box's Obstacle cells already (has_box stays false)
-            src.gw = grid.width();
-            src.gh = grid.height();
-            if (md.terrain.present && md.terrain.header.water_type != terrain::WaterType::None) {
-                const terrain::Terrain* tr = &md.terrain;
-                src.water = [tr](float x, float y) { return tr->header.water_height >= tr->sample_height(x, y); };
-            }
-            radar_terrain_ = ui::radar_terrain_rgba(src, radar_settings_.palette(biome), kRadarSize, paint.min_x, paint.min_y, paint.max_x, paint.max_y);
-        }
-    }
-    const uint32_t ts = radar_terrain_.empty() ? 0u : kRadarSize;
-    radar_.build(kRadarSize, radar_terrain_, ts, ts, vis, w, h, bview_.space() ? radar_settings_.space_fow : radar_settings_.land_fow, paint);
+    if (!radar_terrain_built_) build_radar_terrain();  // normally built by begin_battle
+    const uint32_t ts = radar_terrain_.empty() ? 0u : kRadarTerrainSize;
+    radar_.build(kRadarTerrainSize, radar_terrain_, ts, ts, vis, w, h, bview_.space() ? radar_settings_.space_fow : radar_settings_.land_fow, paint);
     if (!radar_.empty()) gpu_.hud.set_dynamic_page(ui::kHudPageRadar, radar_.width(), radar_.height(), radar_.rgba(), radar_.generation());
 }
 

@@ -104,21 +104,18 @@ std::string_view radar_biome(uint32_t index);
 Passability radar_cell_class(uint32_t bits, bool water_surface);
 struct RadarTerrainSource {
     // Per-cell EFFECTIVE bits, row-major (y * gw + x); cell index = (coord + 10) / 20 [H]: the static map bits OR the
-    // footprints of the objects on the cell (#69 t04: the battle's tactical::movement::PassabilityGrid::effective_values).
+    // footprints of the objects on the cell, Obstacle on the cells outside the playable box (#69 t04: the battle's
+    // tactical::movement::PassabilityGrid::effective_values, whose box test is the cell centre [M]; game::radar_land_terrain).
     std::span<const uint32_t> cells;
     uint32_t gw = 0, gh = 0;
     float cell = 20.0f;
-    // The playable box (.ted 0x103): a WHOLE cell whose centre (cx * cell, cy * cell) lies outside it reads Obstacle too [H]
-    // (the effective grid already has it; set it for static bits). has_box false: no such cells.
-    bool has_box = false;
-    float box_min_x = 0, box_min_y = 0, box_max_x = 0, box_max_y = 0;
     std::function<bool(float, float)> water;  // water surface at or above the terrain at (x, y); null = no water
 };
 // `size` x `size` RGBA over the world box [min, max], RadarImage's terrain convention (row 0 = min y, column 0 = min x).
 // Retail's texel (x, t) samples world (min_x + w x / W, max_y - h t / H) with t = 0 the max-Y row [H]; in RadarImage rows
 // row r = H - 1 - t samples min_y + h (r + 1) / H. The point is clamped into [min + 0.001, max - 10 - 0.001]; a texel whose
-// cell is outside the grid is transparent [H]. Not applied (#69 t04, needs-info): the opaque black outside the tactical
-// camera's bounding box - when the camera has one and where the box comes from are not recovered [L].
+// cell is outside the grid is transparent [H]. [port] Not applied (#69 t04, needs-info): the opaque black outside the
+// tactical camera's bounding box - when the camera has one and where the box comes from are not recovered [L].
 std::vector<uint8_t> radar_terrain_rgba(const RadarTerrainSource& src, const PassabilityPalette& palette, uint32_t size, float min_x,
                                         float min_y, float max_x, float max_y);
 

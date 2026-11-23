@@ -828,15 +828,9 @@ void test_radar() {
                at(2, 0) == temp[static_cast<size_t>(Passability::Water)]);
         CHECK2(at(0, 1) == temp[static_cast<size_t>(Passability::Obstacle)] && at(2, 1) == temp[static_cast<size_t>(Passability::Wall)]);
         CHECK2(at(3, 0).a == 0 && at(0, 2).a == 0);  // outside the grid: transparent
-        // #69 t04: a WHOLE cell whose centre (20 cx, 20 cy) lies outside the playable box reads Obstacle (MAP1 "Per-texel rule":
-        // the cells outside the box get Obstacle after loading), not each sample point: cell (0, 0) (centre 0, 0) is inside
-        // [-5, 15] x [-5, 100] although its sample (-9.999, -10) is not; cell (1, 1) (centre 20, 20) is outside although its
-        // sample (10, 10) is inside.
-        src.has_box = true;
-        src.box_min_x = src.box_min_y = -5.0f;
-        src.box_max_x = 15.0f;
-        src.box_max_y = 100.0f;
-        src.water = [](float x, float) { return x >= 25.0f; };  // the water surface reaches column 2
+        // The water surface (column 2 and on) overrides the cell bits. The playable box and the object footprints come in the
+        // cells themselves (game::radar_land_terrain, alamo_game_session_tests radar_feed_test).
+        src.water = [](float x, float) { return x >= 25.0f; };
         const std::vector<uint8_t> px2 = radar_terrain_rgba(src, temp, 4, -10.0f, -30.0f, 70.0f, 50.0f);
         const Rgba8 c00{px2[0], px2[1], px2[2], px2[3]};
         const Rgba8 c11{px2[(1 * 4 + 1) * 4], px2[(1 * 4 + 1) * 4 + 1], px2[(1 * 4 + 1) * 4 + 2], px2[(1 * 4 + 1) * 4 + 3]};
