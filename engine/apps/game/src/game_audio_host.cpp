@@ -459,37 +459,36 @@ void GameAudioHost::unit_response(const objects::GameObjectTypes& types, objects
         return;
     }
     const audio::UnitOrder order = order_of(kind);
-    uint32_t lead = 0;   // the response's instance (0: none started)
-    bool tried = false;  // a hard point or field line was chosen: it replaces the rest of the chain, started or not
+    uint32_t lead = 0;         // the response's instance (0: none started)
+    bool overridden = false;  // a hard point or field line was chosen: it replaces the rest of the chain, started or not
+    const auto play_override = [&](std::string_view line) {
+        audio::UnitSounds s = sounds(types, type);
+        s.response[static_cast<size_t>(order)] = std::string(line);
+        lead = game_->unit_response(object, s, order, position_of(object), false);
+        overridden = true;
+    };
     // ledger: consumes GameObjectType.SFXEvent_Attack_Hardpoint
     if (kind == UnitResponse::Attack && hardpoint_kind >= 0 && hardpoint_kind < 13 && type != objects::kNone && type < types.size())
         if (const std::string_view ev = hardpoint_kind_event(types.get_list(type, "SFXEvent_Attack_Hardpoint"),
                                                              static_cast<uint8_t>(hardpoint_kind));
-            !ev.empty()) {
-            audio::UnitSounds s = sounds(types, type);  // step 1 of the response chain: the hard point line first
-            s.response[static_cast<size_t>(order)] = std::string(ev);
-            lead = game_->unit_response(object, s, order, position_of(object), false);  // replaces the chain
-            tried = true;
-        }
-    if (!tried && kind == UnitResponse::Move)
+            !ev.empty())
+            play_override(ev);  // step 1 of the response chain: the hard point line first
+    if (!overridden && kind == UnitResponse::Move)
         if (const std::string_view tag = move_into_field_tag(dest_fields); !tag.empty())
-            if (const std::string_view ev = types.get_string(type, tag); !ev.empty()) {
-                audio::UnitSounds s = sounds(types, type);  // the field line replaces the move response (0x3738b0)
-                s.response[static_cast<size_t>(order)] = std::string(ev);
-                lead = game_->unit_response(object, s, order, position_of(object), false);  // before the group line
-                tried = true;
-            }
-    if (!tried) lead = game_->unit_response(object, sounds(types, type), order, position_of(object), group, non_hero_ability);
+            if (const std::string_view ev = types.get_string(type, tag); !ev.empty())
+                play_override(ev);  // the field line replaces the move response (0x3738b0), before the group line
+    if (!overridden) lead = game_->unit_response(object, sounds(types, type), order, position_of(object), group, non_hero_ability);
     if (lead == 0) return;
     ++stats_.responses;
     // #50 t02 (0x44547 / 0x44753 [H]): the assist step, after whichever line started.
     if (kind != UnitResponse::Move && kind != UnitResponse::Attack) return;
-    const size_t b = pick_assist(assist, object, rng_);
-    if (b == SIZE_MAX) return;
-    const AssistCandidate& c = assist[b];
-    if (c.type == type || c.vehicle_thief || c.type == objects::kNone || c.type >= types.size()) return;
+    const size_t pick = pick_assist(assist, object, rng_);
+    if (pick == SIZE_MAX) return;
+    const AssistCandidate& assistant = assist[pick];
+    if (assistant.type == type || assistant.vehicle_thief || assistant.type == objects::kNone || assistant.type >= types.size())
+        return;
     const audio::UnitOrder assist_order = kind == UnitResponse::Move ? audio::UnitOrder::AssistMove : audio::UnitOrder::AssistAttack;
-    const std::string& line = sounds(types, c.type).response[static_cast<size_t>(assist_order)];
+    const std::string& line = sounds(types, assistant.type).response[static_cast<size_t>(assist_order)];
     if (!line.empty() && system_->set_chain_override(lead, line)) ++stats_.assists;
 }
 

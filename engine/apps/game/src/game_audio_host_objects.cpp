@@ -129,7 +129,7 @@ bool GameAudioHost::non_hero_variant_active(const objects::GameObjectTypes& type
 
 size_t GameAudioHost::pick_assist(std::span<const AssistCandidate> selection, uint64_t speaker, SimRng& rng) {
     if (selection.empty() || (selection.size() == 1 && selection.front().id == speaker)) return SIZE_MAX;
-    // [port] a selection of null entries only: retail would draw forever.
+    // [port] tier 1: a selection of null entries only gives none, where retail would draw forever (a hang, fixed).
     if (std::none_of(selection.begin(), selection.end(), [](const AssistCandidate& c) { return c.id != 0; })) return SIZE_MAX;
     const int32_t last = static_cast<int32_t>(selection.size()) - 1;
     for (int speaker_draws = 0;;) {
