@@ -119,7 +119,7 @@ void test_land(const Data& d) {
     const uint32_t trooper = type_of(d, "S10_Trooper"), shield = type_of(d, "M1_Shield");
     static const objects::BehaviorTypeId kHint = objects::behavior_type_id("HINT");
     terrain::MapData m = land_map();
-    m.objects.push_back(place("Defending Forces Position", 600.0f, 600.0f, 0, 13));  // #70 t07: never a remembered marker
+    m.objects.push_back(place("Defending Forces Position", 600.0f, 600.0f, 0, 13));  // #70 t07: never matched by pass 1
     m.objects.push_back(place("Attacker Entry Position", 200.0f, 200.0f, 1));
     // #70 t07: an out-base marker with the in-base marker's id, first in map order: pass 1 still takes the in-base one
     m.objects.push_back(place("Out Base Special Structure Position", 1500.0f, 400.0f, 0, 12));
@@ -207,13 +207,48 @@ void test_land(const Data& d) {
                     if (st.alive(h) && static_cast<uint32_t>(st.type(h)) == shield) at = st.position(h);
                 const galactic::GalacticSim::StructureSlot* mem = gs.structure_slot(shield_gid);
                 CHECK(mem != nullptr);
-                if (remembered != 12) {
+                const bool matched = remembered == 12;  // 13 is a Defending Forces marker: not matched
+                if (!matched) {
                     CHECK(at.x == 500.0f && at.y == 400.0f && s.remembered_markers == 0 && mem && mem->marker == 11 && mem->slot == 0);
                 } else {
                     CHECK(at.x == 900.0f && at.y == 400.0f && s.remembered_markers == 1 && mem && mem->marker == 12 && mem->slot == 1);
                 }
             });
     }
+}
+
+// #70 t07 (0x2a1eb0 [H]): pass 1 reads no used flag, so two structures that remember the same in-base marker both stand
+// on it (the second does not fall over to the next free marker).
+void test_land_shared_memory(const Data& d) {
+    const uint32_t shield = type_of(d, "M1_Shield");
+    terrain::MapData m = land_map();
+    m.objects.push_back(place("Defending Forces Position", 600.0f, 600.0f, 0));
+    m.objects.push_back(place("Attacker Entry Position", 200.0f, 200.0f, 1));
+    m.objects.push_back(place("In Base Special Structure Position", 500.0f, 400.0f, 0, 11));
+    m.objects.push_back(place("In Base Special Structure Position", 900.0f, 400.0f, 0, 12));
+    galactic::GalacticSetup setup = make_setup(d, true);
+    setup.forces.push_back({0, 1, shield});
+    setup.forces.push_back({0, 1, shield});
+    run_map_battle(
+        d, true, m, setup,
+        [&](galactic::GalacticSim& gs, galactic::BattleRequest& r) {
+            const auto sh = galactic_of(gs, shield);
+            CHECK(sh.size() == 2);
+            r.structures = sh;
+            for (const objects::ObjectHandle h : sh) gs.set_structure_slot(gs.store().id(h), 1, 12);
+        },
+        [&](galactic::GalacticSim&, TacticalBattle& b, TacticalMode& tm) {
+            const objects::ObjectStore& st = tm.primary();
+            uint32_t on_12 = 0, n = 0;
+            for (const objects::ObjectHandle h : st.all_objects()) {
+                if (!st.alive(h) || static_cast<uint32_t>(st.type(h)) != shield) continue;
+                ++n;
+                on_12 += st.position(h).x == 900.0f && st.position(h).y == 400.0f ? 1u : 0u;
+            }
+            std::printf("  shared memory: %u shields, %u on the remembered marker, remembered markers %u\n", n, on_12,
+                        b.map_load_stats().remembered_markers);
+            CHECK(n == 2 && on_12 == 2 && b.map_load_stats().remembered_markers == 2);
+        });
 }
 
 void test_space(const Data& d) {
@@ -662,6 +697,7 @@ int main(int argc, char** argv) {
     g_data_extra = nullptr;
     std::printf("map1: land map load (companies, record data, hangar byte, structure memory)\n");
     test_land(*d);
+    test_land_shared_memory(*d);  // #70 t07
     std::printf("map1: space start (starbase pick, escorts, camera focus)\n");
     test_space(*d);
     std::printf("map1: land spawner fly-out along the spawn bone (#44 t02)\n");
