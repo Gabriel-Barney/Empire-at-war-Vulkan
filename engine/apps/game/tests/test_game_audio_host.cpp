@@ -1110,6 +1110,53 @@ void test_unit_lost_sighting_50() {
 #endif
 }
 
+// #50 t08 (0x2d5440 tests 5 and 9 [H]): with the tutorial flag set a HUD VO line is refused (a plain 2D line is not); the
+// fog test refuses a weapon fire whose shooter is hidden, never one without a parent object.
+void test_start_gates_50() {
+    using H = GameAudioHost;
+    H off;  // inactive host: no-ops
+    off.set_tutorial_player(true);
+    off.set_fog_test([](uint64_t) { return true; });
+#ifdef ALAMO_GAME_HAVE_AUDIO
+    auto tree = make_tree(true);
+    tree->add("Data\\XML\\SFXEventsTest.xml", R"(<?xml version="1.0"?>
+<SFXEvents>
+  <SFXEvent Name="Hud_Line"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Is_HUD_VO>Yes</Is_HUD_VO><Max_Instances>4</Max_Instances>
+    <Samples>HUD.WAV</Samples></SFXEvent>
+  <SFXEvent Name="Plain_Line"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Max_Instances>4</Max_Instances><Samples>PLAIN.WAV</Samples></SFXEvent>
+  <SFXEvent Name="Gun_Shot"><Is_3D>Yes</Is_3D><Max_Instances>8</Max_Instances><Samples>GUN.WAV</Samples></SFXEvent>
+</SFXEvents>
+)");
+    tree->add("Data\\XML\\Factions.xml", R"(<?xml version="1.0" ?>
+<Factions>
+  <Faction Name="Rebel"><SFXEvent_Hud_Test> Hud_Line </SFXEvent_Hud_Test><SFXEvent_Plain_Test> Plain_Line </SFXEvent_Plain_Test></Faction>
+</Factions>
+)");
+    GameData data;
+    data.files = std::move(tree);
+    H h;
+    CHECK(h.init(data, AudioBackendKind::Null, 3));
+    if (!h.active()) return;
+    h.music(MusicScene::Galactic, "Rebel");
+    h.set_listener(Vec3{0, 0, 100}, Vec3{0, 0, 0});
+    h.faction_sfx("SFXEvent_Hud_Test");
+    CHECK(starts(h, "Hud_Line") == 1);
+    h.set_tutorial_player(true);
+    h.faction_sfx("SFXEvent_Hud_Test");
+    h.faction_sfx("SFXEvent_Plain_Test");
+    CHECK(starts(h, "Hud_Line") == 1 && starts(h, "Plain_Line") == 1);  // the HUD VO line refused, the plain one plays
+    h.set_tutorial_player(false);
+    h.faction_sfx("SFXEvent_Hud_Test");
+    CHECK(starts(h, "Hud_Line") == 2);
+    // gate 9: object 7 is fogged; the shooter decides, a parent-less start (a land damage / impact) is not tested.
+    h.set_fog_test([](uint64_t object) { return object == 7; });
+    CHECK(h.weapon_fired(7, "Gun_Shot", "", Vec3{10, 0, 0}) == 0);
+    CHECK(h.weapon_fired(8, "Gun_Shot", "", Vec3{10, 0, 0}) != 0);
+    h.set_fog_test({});
+    CHECK(h.weapon_fired(7, "Gun_Shot", "", Vec3{10, 0, 0}) != 0);  // no test set: plays
+#endif
+}
+
 // aud1 t05 (legacy docs/re/AUDIO.md §9.6): the ability tag pick through the type's Unit_Ability -> <Abilities> entry, the departure tag
 // pick, the shield transitions, and (with engine/audio) the activation playing on the user and the target.
 void test_object_sfx_t05() {
@@ -1754,6 +1801,7 @@ void test_presentation_events_ref2() {
 int main() {
     test_delayed_fire_sounds();  // trl2 t08
     test_object_sfx_t05();
+    test_start_gates_50();  // #50 t08
     test_unit_lost_sighting_50();  // #50 t01 / t03
     test_galactic_activate_t06();  // #62 t06
     test_galactic_lua_sfx_position();  // aud8 t05

@@ -609,6 +609,15 @@ public:
     void set_object_positions(std::vector<std::pair<uint64_t, Vec3>> positions);
     // `cinematic` = a Lua cinematic camera is active (legacy docs/re/AUDIO.md §1.2 / §1.6: listener at the camera, gates 2 / 9).
     void set_listener(const Vec3& eye, const Vec3& look_at, bool cinematic = false);
+    // #50 t08, start gate 5 (0x2d5440 test 5 [H]): Is_HUD_VO events are refused in a tactical mode while the local player is
+    // a tutorial player (player +0x3c0; its only setter is the story reward TUTORIAL_PLAYER 0x456970, never cleared). The
+    // app passes "in a battle and the local player is marked" (StorySession::tutorial().marked_players).
+    void set_tutorial_player(bool on);
+    // #50 t08, start gate 9 (0x2d5240 -> FOW_Object_Hidden 0x35f470 [H]): `hidden(object)` = the object is hidden from the
+    // local player by the battle's fog of war (TacticalBattle::fog_object_hidden: land fog, TEAM / HIDE_WHEN_FOGGED objects).
+    // A weapon or hard point fire tests its shooter (0x54d090 / 0x3825b0), a death sound its dying object (0x58cf90); a
+    // start without a parent is never refused. Unset (galactic, menus): no fog test.
+    void set_fog_test(std::function<bool(uint64_t object)> hidden);
     // OI host: the game-state flags the AudioSystem gates and gains read (legacy docs/re/AUDIO.md §1.1 gate 4, §1.6, §3), owned by the
     // host. modal = a modal GUI dialog is open (speech ducking off, gate 4's dialog half); attract = the main-menu attract
     // demo runs (attract_mode.hpp). The SFX manager's GUI-only flag +0x94 (gate 4: with a modal dialog open, only Is_GUI

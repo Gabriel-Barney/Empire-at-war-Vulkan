@@ -366,6 +366,11 @@ bool App::init() {
     // Live play: the user's Windows double-click time / rectangle (legacy docs/re/P1_DOUBLE_CLICK_MOVE.md §0); smoke runs keep the defaults.
     if (live_input()) input_ = ui::InputState(ui::system_input_config());
     if (!audio_.init(data_, opt_.audio, opt_.seed ^ 0xA0D10u, &err)) std::fprintf(stderr, "audio: %s (continuing without)\n", err.c_str());
+    // #50 t08 gate 9: a positional start's parent object hidden by the running battle's fog (none outside a battle).
+    audio_.set_fog_test([this](uint64_t object) {
+        const sim::TacticalBattle* b = session_ ? session_->battle() : nullptr;
+        return b && b->fog_object_hidden(local_player(), static_cast<objects::ObjectId>(object), false);
+    });
     audio_.set_log_limit(kGameAudioLogLimit);  // [port] the newest few thousand events only (GameAudioHost::set_log_limit)
     ui_.gui.set_sfx_hook([this](std::string_view ev, int32_t) { audio_.ui(ev); });
     if (live_input()) ui_.gui.set_clipboard([] { return clipboard_text(); }, [](std::u32string_view t) { set_clipboard_text(t); });
