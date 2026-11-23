@@ -782,7 +782,9 @@ def grade_dist(metric_id, retail_vals, port_vals, tol, cfg, note=None):
     res = {"metric": metric_id, "category": cat, "status": None, "mode": "distribution", "tolerance": None, "detail": "",
            "retail_runs": len(rv), "port_runs": len(pv), "retail_total": len(retail_vals), "port_total": len(port_vals)}
     seen = "seen in %d/%d retail runs, %d/%d port seeds" % (len(rv), len(retail_vals), len(pv), len(port_vals))
-    if tol is None or tol.get("info"):
+    # info_seeds (#217): graded in a single run (grade), reported here: the metric follows a weighted random pick the
+    # retail reference runs draw only one way, so a port mean over seeds cannot match it.
+    if tol is None or tol.get("info") or tol.get("info_seeds"):
         res["status"] = "INFO"
         nums = [x for v in pv for x in (scalar_values(v) if not isinstance(v, collections.Counter) else [])]
         rnums = [x for v in rv for x in (scalar_values(v) if not isinstance(v, collections.Counter) else [])]
@@ -1413,6 +1415,10 @@ def selftest_distribution(check, tmp):
     check(g["status"] == "N/A" and "2/3 retail" in g["detail"], "dist: no port value is N/A (%s)" % g["detail"])
     g = grade_dist("diag.rng_draws_total", [10, 12], [99, 98], {"info": True}, cfg)
     check(g["status"] == "INFO", "dist: info metric not graded")
+    # #217: info_seeds = graded in a single run, reported but not graded over seeds (a weighted pick the retail runs
+    # draw only one way).
+    g = grade_dist("econ.income_cycle1[Rebel]", [634.2] * 8, [634.2, 817.5] * 5, {"abs": 1, "info_seeds": True}, cfg)
+    check(g["status"] == "INFO", "dist: info_seeds metric not graded over seeds (%s)" % g["detail"])
     mixes = [C(a=2, b=2), C(a=4)]
     g = grade_dist("ai.build_mix[Rebel]", mixes, [C(a=3, b=1), C(a=3, b=1)], {"min_overlap": 0.7}, cfg)
     check(g["status"] == "PASS" and g["score"] == 1.0, "dist: equal mean mixes overlap 1.0 (%s)" % g["detail"])
@@ -1494,6 +1500,8 @@ def selftest():
     check(grade("econ.income_mean[Empire]", [1000.0], 1030.0, {"rel": 0.02})["status"] == "FAIL", "rel tolerance 2% fail")
     check(grade("econ.cycle_tick[2]", [(2699, 2701), 2701], 2700, {"abs": 0})["status"] == "PASS", "window envelope")
     check(grade("diag.rng_draws_total", [10], 99, {"info": True})["status"] == "INFO", "info metric not graded")
+    check(grade("econ.income_cycle1[Rebel]", [634.2], 817.5, {"abs": 1, "info_seeds": True})["status"] == "FAIL",
+          "info_seeds metric graded in a single run")
     check(grade("combat.damage_taken[Rebel]", [10.0], None, {"abs": 1}, port_note="no hook")["status"] == "N/A", "N/A port")
     C = collections.Counter
     check(abs(overlap(C(a=2, b=1), C(a=1, b=1, c=1)) - 2 / 3) < 1e-9, "overlap value")
