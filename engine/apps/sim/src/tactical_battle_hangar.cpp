@@ -187,8 +187,8 @@ void TacticalBattle::hg_setup(TacticalMode& mode) {
     // the skirmish start-force re-delivery list (SKIRMISH_SETUP §2.4; skirmish map battles only).
     if (skirmish_map()) h.pending_delivery = [this](int32_t p, bool pop) { return sk_pending_delivery(p, pop); };
     // the land structure clips (Structure Open / Hold / Close: static clip data from the model, the clip played on
-    // the animation world when one is attached; the finish = one_shot_frames) and the spawn bones (bind-pose bone point,
-    // [port] the structure's facing: the bone's own yaw is not read).
+    // the animation world when one is attached; the finish = one_shot_frames) and the spawn bones (bind-pose bone point
+    // and the bone's x axis as the spawn facing, #44 t02).
     h.clip = [this](tc::ObjectId id, int32_t anim_type, bool loop, uint32_t& finish) {
         if (!hg_mode_) return false;
         uint32_t frames = 0;
@@ -206,8 +206,27 @@ void TacticalBattle::hg_setup(TacticalMode& mode) {
         const int32_t di = hangar_desc_[st.type(oh)];
         if (di < 0 || static_cast<size_t>(di) >= hg_land_bones_.size() || bone >= hg_land_bones_[static_cast<size_t>(di)].size()) return false;
         Vec3 p{};
-        if (model_bone_point(st, oh, hg_land_bones_[static_cast<size_t>(di)][bone], p) <= 0) return false;
-        const Vec3 f = st.facing(oh);
+        const std::string& name = hg_land_bones_[static_cast<size_t>(di)][bone];
+        if (model_bone_point(st, oh, name, p) <= 0) return false;
+        Vec3 f = st.facing(oh);
+        // #44 t02 (the launch 0x594dc0 and the bulk spawn 0x593960, read 2026-11-23 [H], recorded on #44; replaces
+        // R3G_ANIM_TIMED_RE §3's [port] note): the spawn facing is the bone's world x axis (its matrix column 0 turned into
+        // Euler angles), not the structure's facing. Bind pose [M]: retail reads the live model instance, which may be
+        // playing Structure Open. A bone axis with no planar part keeps the structure's facing.
+        float ax = 0.0f, ay = 0.0f;
+        if (catalog_->bone_x_axis(static_cast<uint32_t>(st.type(oh)), space_, true, name, ax, ay)) {
+            float fx = f.x, fy = f.y;
+            const float len2 = fx * fx + fy * fy;
+            if (len2 > 0.0f) {
+                const float inv = 1.0f / dmath::sqrt(len2);
+                fx *= inv;
+                fy *= inv;
+            } else {
+                fx = 1.0f;
+                fy = 0.0f;
+            }
+            f = Vec3{fx * ax - fy * ay, fy * ax + fx * ay, 0.0f};  // unit-local (x forward, y left) -> world
+        }
         pos = tactical::Vec3{p.x, p.y, p.z};
         facing = tactical::Vec3{f.x, f.y, 0.0f};
         return true;
@@ -622,13 +641,16 @@ void TacticalBattle::hg_tick(TacticalMode& mode, SimRng& rng) {
 void TacticalBattle::hg_land_launch(TacticalMode& mode, const tactical::hangar::LaunchRequest& r, SimRng& rng) {
     // r3g t03 (0x594dc0 land branch): the unit (or a company: its members at the spawn point, then the team container) at
     // the spawn point with the spawn facing, spawned flag, then a move to the fly-out point (along the facing).
+    // #44 t02 (Spawn_Garrison_On_Load, 0x593960 [H]): the bulk spawn (no leaving unit) creates its units at the fly-out
+    // point itself, with the same facing, and gives them no move.
+    const Vec3 at = r.leaving ? hg_sv(r.origin) : hg_sv(r.flyout);
     std::vector<objects::ObjectId> ordered;
     objects::ObjectId bound = objects::kNoObjectId;
     std::vector<int32_t> members;
     if (oi_company_members(r.type, members) && !members.empty()) {
-        bound = hg_spawn(mode, r.type, r.owner, hg_sv(r.origin), hg_sv(r.facing), hg_sv(r.origin), true, rng, ordered);
+        bound = hg_spawn(mode, r.type, r.owner, at, hg_sv(r.facing), at, true, rng, ordered);
     } else {
-        bound = oi_spawn_unit(mode, r.type, hg_sv(r.origin), hg_sv(r.facing), r.owner);
+        bound = oi_spawn_unit(mode, r.type, at, hg_sv(r.facing), r.owner);
         if (Unit* u = unit_by_id(bound)) {
             u->flags_3a2 = static_cast<uint8_t>(u->flags_3a2 | 2u);  // spawned (+0x3a2 |= 2)
             if (u->movable) ordered.push_back(bound);
@@ -637,7 +659,7 @@ void TacticalBattle::hg_land_launch(TacticalMode& mode, const tactical::hangar::
     if (bound == objects::kNoObjectId) return;
     hangars_->bind_launch(r.serial, bound);
     ++hg_launches_;
-    if (!ordered.empty()) exec_move(mode, ordered, r.flyout.x, r.flyout.y, rng, mv::kNoFacing, false);
+    if (r.leaving && !ordered.empty()) exec_move(mode, ordered, r.flyout.x, r.flyout.y, rng, mv::kNoFacing, false);
 }
 
 bool TacticalBattle::hg_move_done(objects::ObjectId id) const {
