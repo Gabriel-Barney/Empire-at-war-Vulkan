@@ -604,12 +604,51 @@ void test_land_population() {
     CHECK(s.landed == 2.0f && s.two_dead == 1.0f);
 }
 
+// #86: pop2_patch, and S10_Squad's four members become two S10_Troopers, an S10_Sitter (Stay_In_Transport_During_Ground_Battle)
+// and an S10_Hero (Unique_Ground_Unit S10_HeroWalker), each a trooper copy.
+std::string start_exclusions_patch(std::string t) {
+    t = pop2_patch(std::move(t));
+    const std::string units = "<Company_Units>S10_Trooper, S10_Trooper, S10_Trooper, S10_Trooper</Company_Units>";
+    if (const size_t p = t.find(units); p != std::string::npos)
+        t.replace(p, units.size(), "<Company_Units>S10_Trooper, S10_Trooper, S10_Sitter, S10_Hero</Company_Units>");
+    const std::string at = "<GroundInfantry Name=\"S10_Trooper\">";
+    const size_t a = t.find(at), e = a == std::string::npos ? a : t.find("</GroundInfantry>", a);
+    const size_t end = t.find("</S10>");
+    if (a == std::string::npos || e == std::string::npos || end == std::string::npos) return t;
+    const std::string body = t.substr(a + at.size(), e - (a + at.size()));
+    const auto copy = [&](const char* name, const std::string& extra) {
+        return std::string(" <GroundInfantry Name=\"") + name + "\">" + extra + body + "</GroundInfantry>\n";
+    };
+    t.insert(end, copy("S10_Sitter", "<Stay_In_Transport_During_Ground_Battle>Yes</Stay_In_Transport_During_Ground_Battle>") +
+                      copy("S10_Hero", "<Unique_Ground_Unit>S10_HeroWalker</Unique_Ground_Unit>") + copy("S10_HeroWalker", ""));
+    return t;
+}
+
+// #86 (TRL2_A_RE_ANSWERS Q2.2 [H]): 0x2a00b0 does not register the start-force contents its Unique_Ground_Unit and
+// Stay_In_Transport_During_Ground_Battle branches take. The defender's start squad (Population_Value 2, four members at 0.5)
+// counts its two troopers only: 1.0 (2.0 with both counted, 1.5 with either rule missing).
+// ledger: verifies GameObjectType.Stay_In_Transport_During_Ground_Battle
+void test_land_population_exclusions() {
+    g_temp_prefix = "alamo_sim_trl2_tests_pop_excl";
+    g_types_patch = start_exclusions_patch;
+    auto d = make_data(false, false, false, false, false, false, false, false, false, false, false, true);
+    g_types_patch = nullptr;
+    const PopRun c = run_population(*d, false);
+    std::printf("  #86 start exclusions: defender %.2f, attacker before %.2f (two troopers of four members at 0.5); reserve "
+                "drop landed %.2f\n",
+                static_cast<double>(c.defender), static_cast<double>(c.before), static_cast<double>(c.landed));
+    CHECK(c.defender == 1.0f && c.before == 1.0f);  // both sides' start squads
+    // the reserve drop (a reinforcement, not 0x2a00b0) still counts every member: the whole company, 2
+    CHECK(c.dropped && c.landed == c.before + 2.0f);
+}
+
 }  // namespace
 
 int main() {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
     std::printf("trl2 t02: land population shares\n");
     test_land_population();
+    test_land_population_exclusions();  // #86
     std::printf("trl2 t01: ground special weapon in space\n");
     test_ground_special_weapon();
     std::printf("tru2 t02: space retreat heading\n");

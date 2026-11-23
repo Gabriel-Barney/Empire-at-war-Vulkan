@@ -283,6 +283,18 @@ float TacticalBattle::population_used(int32_t player) const {
         // registered; campaign arrivals are (0x2a00b0). A timed landing in flight holds the whole company (0x2b5fe0) and
         // its unloaded members join only at the unload's finish (0x6438a0).
         const auto registered = [&](const Participant& P) { return P.owner == player && !(cfg_.skirmish && !P.reserve); };
+        // #86 (TRL2_A_RE_ANSWERS Q2.2 [H]): 0x2a00b0 places the start forces without registering the contents its special
+        // branches take - a Unique_Ground_Unit type (+0x1b60, the stand-in branch; [port] the hero is spawned as itself)
+        // and a Stay_In_Transport_During_Ground_Battle type (+0x2d, carried into a structure or the transport; [port] it
+        // stands on the field). Reinforcement unloads (0x6438a0) were not read for these branches: they count as before.
+        const objects::GameObjectTypes& types = catalog_->types();
+        // The branches take container contents only: a single object (no members) is registered at 0x2a1afa whatever its type.
+        const auto start_unregistered = [&](const Participant& P, uint32_t t) {
+            if (P.reserve || t >= types.size() || rules_->type(P.type).members.empty()) return false;
+            if (types.get(t, objects::tags::Stay_In_Transport_During_Ground_Battle)) return true;
+            const std::string_view name = ascii_trim(types.get(t, objects::tags::Unique_Ground_Unit));
+            return !name.empty() && types.resolve_name(name) != objects::kNone;
+        };
         std::vector<std::pair<objects::ObjectId, float>> list;
         std::vector<objects::ObjectId> held;
         for (const Landing& l : landings_) {
@@ -294,6 +306,7 @@ float TacticalBattle::population_used(int32_t player) const {
             if (!u.alive || u.retreated || u.participant >= parts_.size()) continue;
             const Participant& P = parts_[u.participant];
             if (!registered(P) || P.pop == 0.0f) continue;
+            if (start_unregistered(P, u.type)) continue;
             if (std::find(held.begin(), held.end(), u.id) != held.end()) continue;
             int32_t members = 0;
             for (const auto& [mt, n] : rules_->type(P.type).members) members += n;
