@@ -255,6 +255,59 @@ void test_pose_after_turn() {
     std::printf("pose after an arrival turn: turn until frame %u, pose at %u\n", turn_seen, pose_frame);
 }
 
+// ---------------------------------------------------------------- #90: the land facing order (locomotor vf +0x218)
+// Walk vf +0x218 0x61e4b0 [H]: a one-node kind-5 path record at the unit's position whose node carries the heading; the
+// walk ends it at once and its arrival turn (MOVEMENT 3.5.1 0x0F-0x11) turns to the heading at the Walk rate (15.5 a
+// frame here), so the turn spans several frames. Bike, Flying, JetPack and LandBomber have the empty stub 0x13b7d0.
+void test_land_turn_in_place() {
+    ::alamo::test::section("#90: turn_in_place on land - an idle Walk unit turns at its rate, others ignore it");
+    MovementSystem sys{MovementConfig{}};
+    land_system(sys);
+    const V2 p0 = cell_center(20, 50);
+    CHECK(sys.add_unit(tank(1, p0)));
+    UnitDesc bike = tank(2, cell_center(20, 60));
+    bike.type_name = "T26_BIKE";
+    bike.locomotor = LocomotorKind::Bike;
+    CHECK(sys.add_unit(bike));
+    CHECK(sys.add_unit(tank(3, cell_center(20, 70))));
+    SimRng rng(9001);
+    uint32_t f = 1;
+    for (; f < 5; ++f) sys.tick(f, rng);
+    CHECK(std::fabs(sys.view(1).yaw) < 1e-4f);
+    // a heading 100 degrees away: 100 / 15.5 -> 7 turn frames, never more than 15.5 a frame
+    CHECK(sys.turn_in_place(1, 100.0f, f));
+    float prev = sys.view(1).yaw;
+    uint32_t frames = 0;
+    bool seen_turn = false, rate_ok = true;
+    for (const uint32_t end = f + 30; f < end; ++f) {
+        sys.tick(f, rng);
+        const float y = sys.view(1).yaw;
+        if (sys.view(1).arrival_turn) seen_turn = true;
+        if (std::fabs(wrap_deg(y - prev)) > 15.5f + 1e-3f) rate_ok = false;
+        if (std::fabs(wrap_deg(y - prev)) > 1e-4f) ++frames;
+        prev = y;
+    }
+    std::printf("#90 land turn: 0 -> %.3f over %u frames\n", static_cast<double>(sys.view(1).yaw), frames);
+    CHECK(seen_turn && rate_ok && frames >= 7 && std::fabs(wrap_deg(sys.view(1).yaw - 100.0f)) < 1e-3f);
+    CHECK(!sys.view(1).arrival_turn && sys.view(1).speed == 0.0f && distance(sys.view(1).pos, p0) < 1e-3f);
+    // within the arrival threshold (10 degrees): no turn, as the arrival turn
+    CHECK(sys.turn_in_place(1, 105.0f, f));
+    for (const uint32_t end = f + 10; f < end; ++f) sys.tick(f, rng);
+    CHECK(std::fabs(wrap_deg(sys.view(1).yaw - 100.0f)) < 1e-3f);
+    // a Bike (the stub 0x13b7d0): refused, the yaw stays
+    const float yb = sys.view(2).yaw;
+    CHECK(!sys.turn_in_place(2, 180.0f, f));
+    for (const uint32_t end = f + 20; f < end; ++f) sys.tick(f, rng);
+    CHECK(sys.view(2).yaw == yb);
+    // [port] a moving Walk unit: refused, its walk goes on
+    order(sys, rng, {3}, cell_center(60, 70), f);
+    for (const uint32_t end = f + 10; f < end; ++f) sys.tick(f, rng);
+    CHECK(sys.view(3).speed > 1.0f);
+    CHECK(!sys.turn_in_place(3, 90.0f, f));
+    for (const uint32_t end = f + 200; f < end; ++f) sys.tick(f, rng);
+    CHECK(distance(sys.view(3).pos, cell_center(60, 70)) < 10.0f && std::fabs(wrap_deg(sys.view(3).yaw)) < 20.0f);
+}
+
 // ---------------------------------------------------------------- Deploy(false) while walking deployed; save round trip
 void test_freeze_and_save() {
     ::alamo::test::section("0x1A from a deployed walk freezes the unit; save mid deployed walk");
@@ -2292,5 +2345,6 @@ int main() {
     test_bkm3_undeploy_start_turn();  // bkm3 t03 (b0052 item 1)
     test_bkm3_unstarted_walk_states();  // bkm3 t03 (b0052 items 1 / 3)
     test_bkm3_deployed_reorder_behind();  // bkm3 review: the 0x19 branch starts the path
+    test_land_turn_in_place();            // #90
     return ::alamo::test::report("alamo_tactical_movement_t26_tests");
 }

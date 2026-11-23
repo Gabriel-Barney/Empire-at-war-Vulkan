@@ -1689,7 +1689,18 @@ bool MovementSystem::set_heading(ObjectId id, float yaw_deg) {
 }
 
 bool MovementSystem::turn_in_place(ObjectId id, float yaw_deg, uint32_t frame) {
-    if (cfg_.mode != MoveMode::Space) return false;
+    if (cfg_.mode != MoveMode::Space) {
+        // #90 (Walk vf +0x218 0x61e4b0 [H]): the kind-5 record ends at once into the arrival turn to its heading; the turn
+        // runs from the next tick (arrival_turn_frame). The special land locomotors: the stub 0x13b7d0. [port] idle units
+        // only; a team container (0x5ad3f0) is refused.
+        Unit* u = unit_ptr(id);
+        if (!u || u->d.locomotor != LocomotorKind::Default || is_air(*u) || u->d.team_container) return false;
+        if (u->has_goal || u->pushed || u->deploy != LocoState::None) return false;
+        u->final_facing = wrap_deg(yaw_deg);
+        land_arrival_turn(*u);
+        arrival_turn_rest(*u);
+        return true;
+    }
     if (const FighterSquad* s = squad_ptr(id)) {  // TEAM_LOCOMOTOR 0x62fe10: each member (the fighter locomotor accepts)
         const std::vector<ObjectId> members = s->members;
         for (const ObjectId m : members) (void)turn_in_place(m, yaw_deg, frame);

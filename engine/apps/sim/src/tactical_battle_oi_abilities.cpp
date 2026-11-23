@@ -230,18 +230,12 @@ void TacticalBattle::oi_install(TacticalMode& mode, SimRng& rng) {
         if (movement_) movement_->snap_yaw(id, yaw_deg);
     };
     // mcx4 t23 (MCX4_T10_RE_ANSWERS §12a): Redirect_Blaster's Turn_To_Face_Unblockable_Shots facing order, given only while
-    // the victim's primary clip is idle-like (0x27b5e0). [port] The movement system has no rate-limited facing order, so
-    // the yaw is snapped; the victim's current clip (Move: the damage lands) is reported by primary_clip.
-    h.face_direction = [this](tc::ObjectId id, tactical::Vec3 dir) {
-        if (!movement_ || !movement_->has_unit(id)) return;
-#ifdef ALAMO_SIM_HAVE_ANIM
-        if (anim::AnimWorld* w = anim_world_now(); w && w->contains(id)) {
-            const int32_t cur = w->current_type(id);
-            if (cur != anim::kNoAnimType && !anim::is_idle_like(cur)) return;
-        }
-#endif
-        movement_->snap_yaw(id, dmath::atan2(dir.y, dir.x) * (180.0f / dmath::kPiF));
-    };
+    // the victim's primary clip is idle-like (0x27b5e0); the victim's current clip (Move: the damage lands) is reported by
+    // primary_clip. #90: the order is the locomotor's vf +0x218 (turn_in_place), turned at the locomotor's rate - space:
+    // the turn in place; land: WALK_LOCOMOTOR's arrival turn (0x61e4b0). Bike, Flying, JetPack, LandBomber and
+    // LAND_TEAM_INFANTRY_LOCOMOTOR (which the port's movement maps to the Walk kind) have the empty stub 0x13b7d0; see
+    // ab_face_direction.
+    h.face_direction = [this](tc::ObjectId id, tactical::Vec3 dir) { ab_face_direction(id, dir); };
     // mcx4 (MCX4_T10_RE_ANSWERS §15, 0x3a8f90): a buzz-droid cloud's chase step puts it at the new point (yaw kept).
     h.place = [this](tc::ObjectId id, tactical::Vec3 p) {
         if (!movement_ || !movement_->has_unit(id)) return;
@@ -1109,6 +1103,22 @@ void TacticalBattle::oi_hash(StateHasher& h) const {
         h.f32(r.pos.y);
         h.f32(r.pos.z);
     }
+}
+
+// The Redirect_Blaster facing order (AbilityHost::face_direction; see oi_install).
+void TacticalBattle::ab_face_direction(objects::ObjectId id, tactical::Vec3 dir) {
+    if (!movement_ || !movement_->has_unit(id)) return;
+    if (!space_) {
+        const Unit* u = unit_by_id(id);
+        if (!u || !ascii_iequals(locomotor_token(u->type), "WALK_LOCOMOTOR")) return;
+    }
+#ifdef ALAMO_SIM_HAVE_ANIM
+    if (anim::AnimWorld* w = anim_world_now(); w && w->contains(id)) {
+        const int32_t cur = w->current_type(id);
+        if (cur != anim::kNoAnimType && !anim::is_idle_like(cur)) return;
+    }
+#endif
+    (void)movement_->turn_in_place(id, dmath::atan2(dir.y, dir.x) * (180.0f / dmath::kPiF), frame_);
 }
 
 }  // namespace alamo::sim

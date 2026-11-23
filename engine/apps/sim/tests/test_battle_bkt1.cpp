@@ -71,6 +71,8 @@ std::string bkt1_types(std::string t) {
                      "<Activation_Style>User_Input</Activation_Style></Stealth_Ability></Abilities>");
     // #106: the ranger with Target_Stealth_Units, for a formation that mixes types with and without it
     add += land_unit("S10_Seer", 100.0f, 250.0f, "WALK_LOCOMOTOR", "<Target_Stealth_Units>Yes</Target_Stealth_Units>");
+    // #90: a land unit whose locomotor slot is the empty stub (the port's movement maps the token to the Walk kind)
+    add += land_unit("S10_TeamInf", 100.0f, 250.0f, "LAND_TEAM_INFANTRY_LOCOMOTOR", "");
     add += land_unit("S10_Crusher", 100.0f, 250.0f, "WALK_LOCOMOTOR, SQUASH", "<Is_Squashable_By_Supercrusher>Yes</Is_Squashable_By_Supercrusher>");
     // hard half extents 5 x 2 (soft radius 3): the engage-clause target, so min(hx, hy) = 2 is told apart from the others
     add += land_unit("S10_Super", 100.0f, 250.0f, "WALK_LOCOMOTOR, SQUASH", "<Is_Supercrusher>Yes</Is_Supercrusher>", 5, 2);
@@ -138,6 +140,72 @@ Vec3 spec_stand_off(const TacticalBattle& b, objects::ObjectId m, Vec3 mp, Vec3 
         step = std::min(step + 0.8, max_step);
     }
     return tp;
+}
+
+// #90 (MCX4_T10_RE_ANSWERS §12a; Walk vf +0x218 0x61e4b0, the stub 0x13b7d0 [H]): Redirect_Blaster's facing order turns
+// an idle WALK_LOCOMOTOR unit at its turn rate over several frames; a LAND_TEAM_INFANTRY_LOCOMOTOR unit (the port's
+// movement gives it the Walk kind) is left as it is.
+void test_redirect_face_land(const Data& d) {
+    CampaignBattleOptions opt;
+    opt.conflict.human_choice = galactic::BattleChoice::Fight;
+    opt.battle.max_frames = 2000;
+    opt.battle.skip_human_units = true;
+    opt.battle.order_interval = 0;  // no stand-in orders
+    opt.battle.fog = false;
+    ClashSession s(d, 0, opt, {"S10_Ranger_Co", "S10_TeamInf_Co"}, {"S10_Ranger_Co"}, true);
+    if (!s.gs) return;
+    objects::ObjectId w = objects::kNoObjectId, ti = objects::kNoObjectId;
+    float want_w = 0.0f, want_ti = 0.0f, ti0 = 0.0f, prev = 0.0f;
+    uint32_t given = 0, steps = 0;
+    bool done = false, rate_ok = true, ti_still = true;
+    const auto wrap = [](float a) {
+        while (a > 180.0f) a -= 360.0f;
+        while (a <= -180.0f) a += 360.0f;
+        return a;
+    };
+    const auto dir_of = [](float deg) {
+        const float r = deg * 0.017453292f;
+        return tactical::Vec3{std::cos(r), std::sin(r), 0.0f};
+    };
+    for (uint64_t tk = 0; tk < 2000 && !done; ++tk) {
+        TacticalBattle* b = s.tick();
+        TacticalMode* tm = s.host->tactical();
+        if (!b || !tm || b->frame() < 3) {
+            if (given) break;
+            continue;
+        }
+        objects::ObjectStore& st = tm->primary();
+        const mv::MovementSystem& ms = b->movement();
+        if (!given) {
+            w = unit_of(*b, st, d, "S10_Ranger", 0);
+            ti = unit_of(*b, st, d, "S10_TeamInf", 0);
+            if ((w == objects::kNoObjectId || ti == objects::kNoObjectId) && b->frame() < 600) continue;
+            CHECK(w != objects::kNoObjectId && ti != objects::kNoObjectId);
+            if (w == objects::kNoObjectId || ti == objects::kNoObjectId) break;
+            if (ms.view(w).has_goal || ms.view(ti).has_goal || ms.view(w).arrival_turn) continue;  // idle first
+            invulnerable_all(*b);
+            want_w = wrap(ms.view(w).yaw + 100.0f);
+            ti0 = ms.view(ti).yaw;
+            want_ti = wrap(ti0 + 100.0f);
+            TA::face_direction(*b, w, dir_of(want_w));
+            TA::face_direction(*b, ti, dir_of(want_ti));
+            prev = ms.view(w).yaw;
+            given = b->frame();
+            continue;
+        }
+        const float y = ms.view(w).yaw;
+        const float step = std::fabs(wrap(y - prev));
+        if (step > 1e-4f) ++steps;
+        if (step > 45.0f) rate_ok = false;  // no snap
+        prev = y;
+        if (std::fabs(wrap(ms.view(ti).yaw - ti0)) > 1e-4f) ti_still = false;
+        done = b->frame() >= given + 120;
+    }
+    std::printf("  redirect facing order on land: walk %.1f (want %.1f) in %u turning frames; team infantry %.1f -> %.1f\n",
+                static_cast<double>(prev), static_cast<double>(want_w), steps, static_cast<double>(ti0),
+                static_cast<double>(want_ti));
+    CHECK(done && rate_ok && steps >= 2 && std::fabs(wrap(prev - want_w)) < 0.5f);
+    CHECK(ti_still);
 }
 
 // ---- staging and the engage clause -------------------------------------------------------------------------------
@@ -1329,6 +1397,8 @@ int main() {
     test_mixed_formation_stealth_terms(*d);  // #106
     std::printf("bkt1 t03: the attack formation lead skips movement-locked members; all locked waits\n");
     test_locked_lead(*d);
+    std::printf("#90: Redirect_Blaster's facing order on land - the Walk turn, not the stub\n");
+    test_redirect_face_land(*d);
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
     std::printf("bkt1 t02: land guard follow - Land_Guard_Range caps R; a hidden guarded object (C 3)\n");
     test_guard_r_cap();

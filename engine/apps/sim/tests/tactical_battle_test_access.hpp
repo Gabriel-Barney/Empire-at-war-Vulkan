@@ -21,6 +21,8 @@ struct TacticalBattleTestAccess {
     }
     // The battle's fog, mutable (null when fog is off or the battle is not set up).
     static tactical::fog::FogOfWar* fog(TacticalBattle& b) { return b.fog_rw(); }
+    // #90: the Redirect_Blaster facing order the battle installs as AbilityHost::face_direction.
+    static void face_direction(TacticalBattle& b, objects::ObjectId id, tactical::Vec3 dir) { b.ab_face_direction(id, dir); }
 #ifdef ALAMO_SIM_HAVE_AI_TACTICAL
     static ai::tactical::DamageTrackingStore& damage_tracking(TacticalBattle& b) { return b.damage_tracking_; }
 #endif
