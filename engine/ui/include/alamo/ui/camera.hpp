@@ -225,7 +225,22 @@ public:
     CameraBox limits() const;
 
     // Pitch / yaw / distance / FOV / spline fraction back to the XML defaults (snapped); the look-at point stays.
+    // The End key (hotkey slot 73, 0x2cf800(cam, 0)): retail restores the pose saved at map load (0x2d0770), value and
+    // target with zero velocity, which is these defaults except the space distance: retail saves the distance at spline
+    // fraction 1 (Distance_Max, 1900 vanilla) where this restores Distance_Default (1000) [M: nothing after the load traced].
     void reset();
+    // #47 t11 (legacy docs/re/P1_CAMERA_INPUT.md 4.4 [H]). The Centre key (slot 74, 0x2ce460): pitch, yaw, FOV and distance
+    // to the XML defaults (snapped), the look-at to the camera box centre on land or the origin in space, its height
+    // snapped to the terrain (0 without); the spline fraction and the overview level are kept. 0x2ce460 itself does not
+    // clamp; the pose build 0x2d0df0 clamps the look-at to the limits (4.6), done here at once by set_look_at.
+    void centre(bool space);
+    // The home look-at (0x2d0770, saved at map load from the map's 0x103 camera look-at): stored clamped to the current
+    // limits, z as given. Default the origin.
+    void set_home(Vec3 p);
+    Vec3 home_look_at() const { return home_; }
+    // The Home key (slot 75, tactical: 0x2cf800(cam, 1)): reset() (snapped, as retail writes value and target) plus the
+    // home look-at, the height snapped to its z (terrain following then moves it).
+    void home();
     void set_look_at(Vec3 p);  // clamped
     void set_yaw_deg(float y);
     void set_pitch_deg(float p);  // clamped; ignored while the land zoom spline drives pitch
@@ -299,6 +314,7 @@ private:
     CameraTuning t_;
     CameraBox box_;
     Vec3 look_{};
+    Vec3 home_{};  // #47 t11: the look-at saved at map load
     float yaw_ = 0, pitch_ = 50;
     Smoothed dist_, fov_, spl_, height_s_;
     Drag drag_ = Drag::None;

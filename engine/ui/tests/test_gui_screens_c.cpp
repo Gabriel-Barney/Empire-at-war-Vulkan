@@ -1084,26 +1084,39 @@ END
 void test_camera_hotkeys() {
     TacticalCameraController cam(space_mode_defaults());
     cam.set_bounds({-3000, -3000, 3000, 3000});
-    std::vector<HotkeyEvent> ev(4);
-    ev[0].slot = hk::kTacticalOverview;
+    cam.set_look_at({900, -900, 0});
+    cam.rotate(40.0f, 0.0f);
+    std::vector<HotkeyEvent> ev(5);
+    ev[0].slot = hk::kCameraCentre;  // #47 t11: space -> the origin, the record defaults
     ev[0].kind = HotkeyKind::Camera;
-    ev[1].slot = 2;  // second recall of group 3
-    ev[1].kind = HotkeyKind::SelectGroup;
-    ev[1].group = 3;
-    ev[1].camera_jump = true;
-    ev[2].slot = hk::kScreenshot;
-    ev[2].kind = HotkeyKind::Interface;
-    ev[3].slot = hk::kCameraCentre;
-    ev[3].kind = HotkeyKind::Camera;
+    ev[1].slot = hk::kTacticalOverview;
+    ev[1].kind = HotkeyKind::Camera;
+    ev[2].slot = 2;  // second recall of group 3
+    ev[2].kind = HotkeyKind::SelectGroup;
+    ev[2].group = 3;
+    ev[2].camera_jump = true;
+    ev[3].slot = hk::kScreenshot;
+    ev[3].kind = HotkeyKind::Interface;
+    ev[4].slot = hk::kCameraHome;  // #47 t11: the saved home look-at
+    ev[4].kind = HotkeyKind::Camera;
+    cam.set_home({-1200, 800, 0});
     CameraFocus focus;
+    focus.space = true;
     focus.group = [](int8_t g) -> std::optional<Vec3> {
         if (g != 3) return std::nullopt;
         const Vec3 pts[2] = {{100, 200, 0}, {300, 400, 0}};
         return focus_point(pts);
     };
-    const std::vector<uint16_t> handled = apply_camera_hotkeys(ev, cam, focus);
-    CHECK(handled.size() == 3 && handled[0] == hk::kTacticalOverview && handled[1] == 2 && handled[2] == hk::kCameraCentre);
+    std::vector<HotkeyEvent> centre_only(ev.begin(), ev.begin() + 1);
+    CHECK(apply_camera_hotkeys(centre_only, cam, focus) == std::vector<uint16_t>{hk::kCameraCentre});
+    CHECK(cam.look_at().x == 0.0f && cam.look_at().y == 0.0f && cam.yaw_deg() == space_mode_defaults().yaw_default);
+    std::vector<HotkeyEvent> no_home(ev.begin() + 1, ev.begin() + 4);
+    const std::vector<uint16_t> handled = apply_camera_hotkeys(no_home, cam, focus);
+    CHECK(handled.size() == 2 && handled[0] == hk::kTacticalOverview && handled[1] == 2);
     CHECK(cam.overview_level() == 1 && cam.look_at().x == 200.0f && cam.look_at().y == 300.0f);
+    std::vector<HotkeyEvent> home_only(ev.begin() + 4, ev.end());
+    CHECK(apply_camera_hotkeys(home_only, cam, focus) == std::vector<uint16_t>{hk::kCameraHome});
+    CHECK(cam.look_at().x == -1200.0f && cam.look_at().y == 800.0f && cam.overview_level() == 0);
     // HotkeyDispatcher marks the second recall within 1 s.
     HotkeyTable table;
     HotkeyDispatcher disp;

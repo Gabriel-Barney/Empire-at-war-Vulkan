@@ -171,13 +171,13 @@ int8_t hotkey_group(uint16_t slot);
 //   camera_jump (double recall / Alt+n)  -> jump_to(group(n))        (legacy docs/re/UI.md §4.4)
 //   kTacticalOverview (Insert)           -> toggle_overview()
 //   kCameraReset (End)                   -> reset()
-//   kCameraCentre (PgUp)                 -> jump_to(selection())     [port: centre on the selection]
-//   kCameraHome (Home)                   -> jump_to(home())          [port: the local player's start / base]
+//   kCameraCentre (PgUp)                 -> centre(space)            (#47 t11, P1_CAMERA_INPUT 4.4 [H]: box centre / origin)
+//   kCameraHome (Home)                   -> home()                   (#47 t11: the look-at saved at map load)
 // Returns the slots handled (ascending event order); the rest stay for the host.
 struct CameraFocus {
     std::function<std::optional<Vec3>(int8_t group)> group;
-    std::function<std::optional<Vec3>()> selection;
-    std::function<std::optional<Vec3>()> home;
+    std::function<std::optional<Vec3>()> selection;  // the host's camera tether ([port], ui3 t01)
+    bool space = false;                              // the Centre key looks at the origin in space
 };
 std::vector<uint16_t> apply_camera_hotkeys(std::span<const HotkeyEvent> events, TacticalCameraController& camera,
                                            const CameraFocus& focus);

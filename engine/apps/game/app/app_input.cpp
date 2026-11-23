@@ -1410,7 +1410,8 @@ void App::battle_input() {
         hotkeys_.set_fleet_groups(on, any && all_locked);
     }
     hotkeys_.update(input_, ui_.hotkeys, orders_.selection(), now_s_, cmds, hk);
-    // Camera hotkeys (P1): group / selection / home focus points from the battle snapshot.
+    // Camera hotkeys (P1): group / selection focus points from the battle snapshot; Centre / Home are the camera's own
+    // (#47 t11: the box centre or origin, the home look-at saved at battle setup).
     const render::InterpolatedFrame& fr = bview_.frame();
     auto centroid = [&fr](const std::function<bool(const render::SnapshotObject&)>& want) -> std::optional<ui::Vec3> {
         double x = 0, y = 0;
@@ -1428,7 +1429,7 @@ void App::battle_input() {
     const std::vector<uint32_t> sel = orders_.selection();
     const int32_t me = local_player();
     focus.selection = [&] { return centroid([&](const render::SnapshotObject& o) { return std::binary_search(sel.begin(), sel.end(), static_cast<uint32_t>(o.id)); }); };
-    focus.home = [&] { return centroid([me](const render::SnapshotObject& o) { return o.owner == me; }); };
+    focus.space = bview_.space();
     // Control groups live in the sim (SimHost::control_group, assigned / recalled by ControlGroup commands): const read.
     const sim::SimHost& host = session_->host();
     focus.group = [&](int8_t g) -> std::optional<ui::Vec3> {
