@@ -53,6 +53,12 @@ bool MovementSystem::unit_moving(const Unit& u) const {
     return u.m.speed > 0.0f || u.pushed || (u.has_goal && !u.need_path) || in_place_turn(u);
 }
 
+bool MovementSystem::turning_in_place(ObjectId id) const {
+    // vf +0x1b0 0x42cd30, the turning half of unit_moving
+    const Unit* u = unit_ptr(id);
+    return u && u->speed_factor > 0.0f && !u->d.no_locomotor && in_place_turn(*u);
+}
+
 namespace bo3split {
 
 uint8_t record_weight(CollisionKind k) {  // vf +0x30 (Terrain 4.0, the highest, MOVEMENT §5.4.7 item 2)

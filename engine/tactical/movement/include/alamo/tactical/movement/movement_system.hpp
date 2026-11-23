@@ -636,6 +636,9 @@ public:
     // order: not moved, not stopped, its orders kept (MovementSystem::move drops it; the host keeps its combat orders).
     bool move_skips(ObjectId id) const;
     bool walking_deployed(ObjectId id) const;  // the flag (pack +0x2b3)
+    // #44 t04 (MOVEMENT §5.3 "What Moving is", vf +0x1b0 0x42cd30): not suspended and turning in place (the Walk start
+    // turn, the arrival turn, a container's final-facing turn) - Moving at speed 0. False for an unknown id.
+    bool turning_in_place(ObjectId id) const;
     // The deploy state: None (also every non-Walk unit), WalkDeploying, WalkDeployed or WalkUndeploying.
     LocoState deploy_state(ObjectId id) const;
     // One deploy-state change (requests, clip ends and swaps), in the order they happen. `finished` = the change raises

@@ -959,7 +959,7 @@ void AbilitySystem::troopers_service(Obj& o, uint32_t frame) {
     }
     switch (o.troop_state) {
         case 1:  // wait until stopped (not moving / turning), then deploy (0x391260)
-            if (moving(o)) return;
+            if (moving(o) || (host_.turning && host_.turning(o.id))) return;
             o.troop_deploy = (host_.deploy && host_.deploy(o.id, true, frame)) ? 1 : 0;
             o.troop_state = 2;
             [[fallthrough]];

@@ -246,7 +246,9 @@ CableRun oi_cable_run(bool walker_moving, float paralyze) {
 // `cut` (review follow-up, [port]): 1 turns the ability off at tick 35 (troopers hanging), 2 kills the walker then; both
 // release the hanging troopers at their next rope service (TrooperReleased, unlocked there: no slide); 1 also unlocks
 // the walker at once.
-void r3g_troopers_run(int cut) {
+// `turn` (#44 t04, R3G_ANIM_TIMED_RE §2 step 1 [H]): the walker is still turning in place (speed 0, not moving) for the
+// first `turn` ticks; state 1 waits until it no longer moves or turns, so every time shifts by `turn`.
+void r3g_troopers_run(int cut, int turn = 0) {
     OiWorld w;
     AbilityObjectDesc a;
     UnitAbilityRecord dt = rec(kDeployTroopers, 0.0f, 20.0f);
@@ -270,6 +272,8 @@ void r3g_troopers_run(int cut) {
     };
     h.ground_height = [](float, float) { return 0.0f; };
     h.moving = [](ObjectId) { return false; };
+    const uint32_t order_frame = w.frame;
+    h.turning = [&w, order_frame, turn](ObjectId id) { return id == 1 && w.frame < order_frame + static_cast<uint32_t>(turn); };
     h.anim_clip = [](ObjectId id, int32_t type, std::string_view, uint32_t, uint32_t& n, float& f) {
         f = 30.0f;
         n = 0;
@@ -313,8 +317,13 @@ void r3g_troopers_run(int cut) {
         if (unlocked < 0 && w.count(AbilityEventKind::Released, 50) > 0 && w.count(AbilityEventKind::Released, 51) > 0) unlocked = at;
         if (done < 0 && w.count(AbilityEventKind::Released, 1) > 0) done = at;
     }
-    std::printf("r3g deploy troopers (cut %d): spawn %d, released %d (rope end %d), unlocked %d, done %d\n", cut, spawn, released,
-                rope_end, unlocked, done);
+    std::printf("r3g deploy troopers (cut %d, turn %d): spawn %d, released %d (rope end %d), unlocked %d, done %d\n", cut, turn,
+                spawn, released, rope_end, unlocked, done);
+    if (turn > 0) {
+        CHECK(spawn == 30 + turn && released == 44 + turn && rope_end == 61 + turn && unlocked == 61 + turn &&
+              done == 73 + turn);
+        return;
+    }
     if (cut == 1) {
         CHECK(spawn == 30 && released == 35 && rope_end == 35 && unlocked == 35 && done == 35);
         CHECK(!w.ab->is_active(1, kDeployTroopers) && w.ab->countdown_counter(1, kDeployTroopers) > 0);
@@ -334,6 +343,7 @@ void test_r3g_deploy_troopers_timed() {
     r3g_troopers_run(0);
     r3g_troopers_run(1);
     r3g_troopers_run(2);
+    r3g_troopers_run(0, 5);  // #44 t04: a walker turning in place for 5 ticks deploys 5 ticks later
 }
 
 // ticks from the order to the Repair's heal; the model has HACKING 0x5a (`hack` frames) and REPAIRING 0x5b

@@ -513,6 +513,7 @@ void test_terrain_container_start_turn() {
     CHECK(v.pushed && v.push_kind == 2 && c && c->state == CollisionState::Resolving);
     CHECK(std::fabs(wrap_deg(leg - b.yaw)) > 6.0f);
     CHECK(v.walk_state == LocoState::WalkStartTurn && v.speed == 0.0f && v.pos == b.pos && std::fabs(turned - 6.0f) < 1e-4f);
+    CHECK(sys.turning_in_place(100) && !sys.turning_in_place(1) && !sys.turning_in_place(999));  // #44 t04: Moving at speed 0
     // the turn goes on in place until the leg is within R; then the container walks the detour and the order arrives
     uint32_t turn_frames = 1;
     for (; f < 3000 && sys.view(100).pos == b.pos; ++f) {
@@ -524,6 +525,7 @@ void test_terrain_container_start_turn() {
                 turn_frames, sys.view(100).arrived ? 1 : 0, static_cast<double>(sys.view(100).pos.x),
                 static_cast<double>(sys.view(100).pos.y), sys.stats().terrain_records, sys.stats().terrain_detours);
     CHECK(turn_frames >= 2 && !sys.view(100).has_goal && sys.view(100).arrived);
+    CHECK(!sys.turning_in_place(100));  // #44 t04: arrived, no turn left
 }
 
 // (c2) MOVEMENT §3.5.2 C.4 / E, §5.4.7 item 1 (s78o b0054): a squad marching +x at speed 3 is halted (the path

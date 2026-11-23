@@ -149,6 +149,10 @@ void TacticalBattle::oi_install(TacticalMode& mode, SimRng& rng) {
         if (!u || !u->movable || !movement_) return false;
         return movement_->view(id).speed > 0.0f;
     };
+    h.turning = [this](tc::ObjectId id) {  // #44 t04: DEPLOY_TROOPERS waits for a turn in place to end
+        Unit* u = unit_by_id(id);
+        return u && u->movable && movement_ && movement_->turning_in_place(id);
+    };
     h.ground_height = [this](float x, float y) { return space_ ? 0.0f : ground_height(x, y); };
     // REMAINING_GAPS Â§5.1: the first occupant of the vehicle (EJECT_VEHICLE_THIEF).
     h.first_occupant = [this](tc::ObjectId vehicle) -> tc::ObjectId {
