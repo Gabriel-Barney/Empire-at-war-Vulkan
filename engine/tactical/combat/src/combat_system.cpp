@@ -1852,7 +1852,7 @@ void CombatSystem::update_weapons(Unit& u, uint32_t frame, SimRng& rng, bool sus
 }
 
 bool CombatSystem::deployed_or_deploying(const Unit& u) const {
-    // 0x39a390 (S9_DEATH_CLONE_SHIELDS §1.2): Deploys, a locomotor, and deploy pending / Deployed (kUnitDeploying). S8 t11
+    // 0x39a390 (S9_DEATH_CLONE_SHIELDS §1.2): Deploys, a locomotor, and walking-deployed / Deployed (kUnitDeploying). S8 t11
     // (TACTICAL_COMBAT §3.1.1 "Step 3 correction"): the walk locomotor's vf +0x120 is state == 0x19 only, so Deploying
     // (0x18) and Undeploying (0x1A) - kUnitDeployTransition - do not count. s78n t26.1 (MOVEMENT §3.2.1): the walking-deployed
     // flag +0x2b3 keeps the movement state 0x19 (no deploy event), so a walking-deployed Destroyer Droid counts here. s78n

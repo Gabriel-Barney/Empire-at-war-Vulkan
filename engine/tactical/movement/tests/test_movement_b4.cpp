@@ -83,8 +83,8 @@ void wall(MovementSystem& sys, int32_t x0, int32_t x1, int32_t y0, int32_t y1) {
 // (MOVEMENT §5.4.7 item 6, §3.5.2 A / B.4 / B.7, §3.5.1 item 1): the detour's waypoint 0 has speed fraction 0, so on
 // that tick the corner cap (turn-done clear, the facing off the leg) sends the unit to End Move, where T = a: one creep
 // step of min(acc, a) = 1 x 1.56 (accel / decel unset: the max speed, §3.4), turned by R first and taken along the new
-// facing (s78n t26.4), which also fails into the wall's clearance (a second record); on the next tick End Move at v <= a stops (0x15) and restarts: the start rule fails (fraction 0) and the
-// unit turns in place at speed 0 (state 0x10 at R = 6 x 1.56, no stopped rate) until a frame leaves rate over, landing on
+// facing (s78n t26.4), which also fails into the wall's clearance (a second record); on the next tick End Move at v <= a
+// stops (0x15) and restarts: the start rule fails (fraction 0) and the unit turns in place at speed 0 (state 0x10 at R = 6 x 1.56, no stopped rate) until a frame leaves rate over, landing on
 // the first leg exactly, then walks it in the same tick; the record ends at its first service after the detour is
 // popped; the order arrives with no re-plan. Serial and 4 workers give the same digest every tick.
 struct DetourOut {

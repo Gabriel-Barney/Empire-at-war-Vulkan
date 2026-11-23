@@ -229,9 +229,8 @@ struct MoveOrder {
     // shortcut are skipped. Land attack blocks carry `attack` below, where the slot test is modelled; the host sets this
     // for its other object goals: moves with a goal_object (Move_To an object, a hangar guard move, an ability's target
     // move), the AI's object-block moves and formation follows, and space attack approaches (the garrison approach is a
-    // plain move). mov2 t06 (MOVEMENT §4.2 step 2 [H]): the composition
-    // pass still zone-validates the destination per seed (0x50f480, unless kMoveFlagSkipValidation); a failure ends the
-    // pass, the validated point is not used.
+    // plain move). mov2 t06 (MOVEMENT §4.2 step 2 [H]): the composition pass still zone-validates the destination per
+    // seed (0x50f480, unless kMoveFlagSkipValidation); a failure ends the pass, the validated point is not used.
     bool skip_destination_check = false;
     // s78n t25.2 (MOVEMENT §4.3.2): the land attack block. With attack.target >= 0 (land) the order is an object goal:
     // no destination check and no single-member shortcut (as skip_destination_check), the attack slots 0x438c10 at a new
