@@ -568,6 +568,8 @@ inline std::string s4_types() {
                 // S10 map owners: a landing reinforcement point (REMAINING_GAPS §3.3 probe 2026-10-29)
                 " <Marker Name=\"S4_RPoint\"><Behavior>CAPTURE_POINT, REINFORCEMENT_POINT</Behavior><Capture_Point_Radius>100</Capture_Point_Radius>"
                 "<Capture_Point_Transition_Time_Seconds>1.0</Capture_Point_Transition_Time_Seconds></Marker>\n"
+                // #70 t02: MARKER in <Behavior> without Is_Marker: the branched-map discard keeps it (0x370320(type, 0x11, -1))
+                " <Marker Name=\"S4_Beacon\"><Behavior>MARKER</Behavior><Is_Marker>No</Is_Marker></Marker>\n"
                 "</S10>");
     return t;
 }
