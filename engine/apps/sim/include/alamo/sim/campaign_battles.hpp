@@ -321,6 +321,9 @@ public:
     // cells + epoch), battle.ai (BattleAi, while a tactical AI runs).
     // save_blocker(): a battle that has ended or was stopped for auto-resolve and is popped at the next hook.
     std::string save_blocker() const;
+    // An accepted battle waiting for the next hook to push it (the save's "battle in flight" 1).
+    bool battle_pending() const { return pending_; }
+    const galactic::BattleRequest& pending_request() const { return pending_req_; }
     void write_state(ByteWriter& w) const;
     bool read_state(ByteReader& r);
     // --- end N1 ---

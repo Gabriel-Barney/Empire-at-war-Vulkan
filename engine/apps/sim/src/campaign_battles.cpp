@@ -284,8 +284,9 @@ bool CampaignBattles::attach(std::vector<std::string>* diag) {
 
 // --- N1 save / load (owner: n1-host; stage 2 n2-host; campaign_battles.hpp) ---
 namespace {
-constexpr uint32_t kBattlesSaveVersion = 4;  // 2: + the battle in flight (stage 2); 3: + the linked-battle state;
-                                             // 4: the pad records moved to the planets (galactic save v2, q6)
+constexpr uint32_t kBattlesSaveVersion = 5;  // 2: + the battle in flight (stage 2); 3: + the linked-battle state;
+                                             // 4: the pad records moved to the planets (galactic save v2, q6);
+                                             // 5: + the battle in flight's story_map flag (#51 t04)
 constexpr uint32_t kBattleLevelVersion = 1;
 // limit: guard save decode: counts, refuses
 constexpr uint32_t kMaxBattlesCount = 1u << 24;
@@ -348,6 +349,7 @@ void CampaignBattles::write_state(ByteWriter& w) const {
         request_io(o, pending_req_);
         o(pending_req_.linked);   // v3
         o(pending_req_.sandbox);  // v4
+        o(pending_req_.story_map);  // v5: a pending linked battle keeps its SET_TACTICAL_MAP Mission load screen
     }
     write_linked(w);  // v3
 }
@@ -406,6 +408,7 @@ bool CampaignBattles::read_state(ByteReader& r) {
         request_io(in, req);
         if (version >= 3) in(req.linked);
         if (version >= 4) in(req.sandbox);
+        if (version >= 5) in(req.story_map);  // older saves: false (the Battle pair)
     }
     LinkedState linked_state;  // v3 (older saves: the defaults, no record)
     if (version >= 3) read_linked(r, linked_state);
