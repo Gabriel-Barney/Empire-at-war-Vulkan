@@ -1130,11 +1130,11 @@ bool MovementSystem::read_unit(ByteReader& r, Unit& u) {
     if (!(u.cohesion_speed > 0.0f)) return false;  // [port] fleet cohesion: a speed cap, 3e38 = none (NaN refused)
     // s78o: a damaged file must not hang or index out of bounds - the slot angle and radius are finite ([port]
     // no |theta| <= pi bound: Base_Land_Targeting_Arc_Angle_Coefficient is data), the Walk_Transition clip is none (-1),
-    // MOVE (2), MOVESTART (16) or an end clip (17 .. 20), its frame, rate, handed-on frame and latched speed finite (no
+    // the 0x14 idle (0), MOVE (2), MOVESTART (16) or an end clip (17 .. 20), its frame, rate, handed-on frame and latched speed finite (no
     // sign test: the end-clip phase pos - floor(pos / seg) seg may round a hair below 0 in a good file; the locomotor
     // clamps the clip index instead)
     if (!std::isfinite(u.atk_theta) || !std::isfinite(u.atk_rho)) return false;
-    if (u.m.wt_clip != -1 && u.m.wt_clip != 2 && (u.m.wt_clip < 16 || u.m.wt_clip > 20)) return false;
+    if (u.m.wt_clip != -1 && u.m.wt_clip != 0 && u.m.wt_clip != 2 && (u.m.wt_clip < 16 || u.m.wt_clip > 20)) return false;
     for (const float f : {u.m.wt_pos, u.m.wt_rate, u.m.wt_f4, u.m.wt_f0})
         if (!std::isfinite(f)) return false;
     // the top record - a kind 1 .. 3 with a weight 1 .. 4 exactly while one is on the stack, its walk index and

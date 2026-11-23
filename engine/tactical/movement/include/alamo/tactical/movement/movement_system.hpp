@@ -324,7 +324,8 @@ struct UnitView {
     // 0x39a390 reader sees it deployed); the walk runs with the Deployed_Walk_Speed cap and the host plays clip 115.
     bool walk_deployed = false;
     // bkx1 t04 (BKX1_RENDER_RE §2): a Walk_Transition unit's clip as the locomotor tracks it (LandMotion::wt_clip /
-    // wt_pos / wt_rate: -1 none, 2 MOVE, 16 MOVESTART, 17..20 the end clips; its frame and play rate). The host plays it.
+    // wt_pos / wt_rate: -1 none, 2 MOVE, 16 MOVESTART, 17..20 the end clips, 0 the 0x14 idle; its frame and play rate).
+    // The host plays it.
     int32_t wt_clip = -1;
     float wt_pos = 0.0f, wt_rate = 0.0f;
     // the TURRET's current elevation / yaw (degrees, relative to the body; UnitDesc::turret units only).

@@ -290,8 +290,8 @@ uint32_t AnimBehaviors::service_locomotor(AnimWorld& w, ObjectId id, const Locom
     // 0x12) and the end clip (17..20, state 0x14) start when the locomotor starts them: variant 0 ([port] no variant draw,
     // vanilla ships only _00), one-shot, at the locomotor's frame and rate; MOVESTART blends in over the move blend ([port]
     // retail's blend global 0x140b39904 is unread), an end clip is a hard cut. A missing clip changes nothing (§2.3: the
-    // current clip stays).
-    if (is_walk_transition_clip(in.wt_clip)) {
+    // current clip stays). anm1 t01 (BKR2 Q2 (c) [H]): with no end clip the locomotor plays the idle the same way.
+    if (is_walk_transition_clip(in.wt_clip) || in.wt_clip == kAnimIdle) {
         if (cur == in.wt_clip) {
             w.set_speed(id, in.wt_rate);
             return then_idle(0);
