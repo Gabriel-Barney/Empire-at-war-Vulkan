@@ -1561,12 +1561,69 @@ void test_camera_p1() {
     CHECK(!focus_point(std::span<const Vec3>{}));
 }
 
+// #47 t11 (legacy docs/re/P1_CAMERA_INPUT.md 4.4, re-read 2026-11-23 [H]): the Centre key (slot 74, 0x2ce460) puts pitch,
+// yaw, FOV and distance back to the record defaults and looks at the camera box centre (land) or the origin (space), the
+// spline fraction and the overview level kept; the Home key (slot 75, 0x2cf800(cam, 1)) is the End reset plus the look-at
+// saved at map load (0x2d0770: the map's 0x103 camera look-at, clamped), at the saved height, spline fraction 1.
+void test_camera_keys() {
+    TacticalCameraConstants lk = land_mode_defaults();
+    lk.yaw_default = 30.0f;
+    lk.bottom_bounds_buffer = 200.0f;  // the limits are y in [-800, 1000]
+    TacticalCameraController land(lk);
+    land.set_bounds({-1000, -1000, 3000, 1000});  // box centre (1000, 0)
+    land.set_terrain_height([](float x, float) { return 0.01f * x; });
+    land.set_look_at({2500, -2000, 0});  // clamped to (2500, -800)
+    land.set_home({2500, -2000, 7});
+    CHECK(near(land.home_look_at().x, 2500.0f) && near(land.home_look_at().y, -800.0f) && near(land.home_look_at().z, 7.0f));
+    land.set_look_at({-500, 600, 0});
+    land.rotate(45.0f, 0.0f);
+    land.zoom(2.0f);  // spline fraction target 1 - 2/15
+    settle(land);
+    land.toggle_overview();
+    land.roll(15.0f);  // [port: Gabriel] free rotation: Centre puts the default orientation back
+    CHECK(near(land.roll_deg(), 15.0f));
+    // Centre: defaults, look at (1000, 0), height snapped to the terrain there; zoom fraction and overview level kept.
+    land.centre(false);
+    CHECK(land.roll_deg() == 0.0f);
+    CHECK(near(land.look_at().x, 1000.0f) && near(land.look_at().y, 0.0f) && near(land.look_at().z, 10.0f));
+    CHECK(near(land.yaw_deg(), 30.0f) && near(land.target_distance(), 460.0f));
+    CHECK(near(land.spline_fraction_target(), 13.0f / 15.0f) && land.overview_level() == 1);
+    // Home: the saved look-at at its saved height, defaults, spline fraction 1, overview off (End's reset).
+    land.rotate(-20.0f, 0.0f);
+    land.home();
+    CHECK(near(land.look_at().x, 2500.0f) && near(land.look_at().y, -800.0f) && near(land.look_at().z, 7.0f));
+    CHECK(near(land.yaw_deg(), 30.0f) && near(land.spline_fraction_target(), 1.0f) && land.overview_level() == 0);
+    land.step(0.1f);  // then the height follows the terrain (25 at x 2500) from the saved 7
+    CHECK(land.look_at().z > 7.0f && land.look_at().z < 25.0f);
+    // End keeps the look-at.
+    land.set_look_at({0, 0, 0});
+    land.reset();
+    CHECK(near(land.look_at().x, 0.0f) && near(land.look_at().y, 0.0f));
+
+    // Space: Centre looks at the origin (not the box centre), z 0.
+    TacticalCameraController sp(space_mode_defaults());
+    sp.set_bounds({500, 500, 4000, 4000});  // space buffers -300: limits [200, 4300]
+    sp.set_look_at({3000, 3000, 0});
+    sp.centre(true);
+    CHECK(near(sp.look_at().x, 200.0f) && near(sp.look_at().y, 200.0f) && sp.look_at().z == 0.0f);  // the origin, clamped
+    TacticalCameraController sp0(space_mode_defaults());
+    sp0.set_bounds({-4000, -4000, 4000, 4000});
+    sp0.set_look_at({1500, -700, 0});
+    sp0.centre(true);
+    CHECK(near(sp0.look_at().x, 0.0f) && near(sp0.look_at().y, 0.0f));
+    // No home saved: the origin, clamped.
+    sp0.set_look_at({1500, -700, 0});
+    sp0.home();
+    CHECK(near(sp0.look_at().x, 0.0f) && near(sp0.look_at().y, 0.0f));
+}
+
 }  // namespace
 
 int main() {
     test_input();
     test_camera();
     test_camera_p1();
+    test_camera_keys();  // #47 t11
     test_parse();
     test_picking();
     test_orders();

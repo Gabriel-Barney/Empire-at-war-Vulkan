@@ -436,9 +436,9 @@ std::vector<uint16_t> apply_camera_hotkeys(std::span<const HotkeyEvent> events, 
         } else if (e.slot == hk::kCameraReset) {
             cam.reset();
         } else if (e.slot == hk::kCameraCentre) {
-            if (focus.selection) p = focus.selection();
+            cam.centre(focus.space);
         } else if (e.slot == hk::kCameraHome) {
-            if (focus.home) p = focus.home();
+            cam.home();
         } else {
             done = false;
         }

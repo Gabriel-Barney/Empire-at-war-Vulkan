@@ -379,6 +379,31 @@ void TacticalCameraController::reset() {
     pitch_free_ = roll_ = 0.0f;
 }
 
+void TacticalCameraController::centre(bool space) {
+    // 0x2ce460: the record defaults (value and target; [port] clamped as reset() does), the spline fraction kept.
+    yaw_ = clampf(c_.yaw_default, c_.yaw_min, c_.yaw_max);
+    pitch_ = clampf(c_.pitch_default, c_.pitch_min, c_.pitch_max);
+    dist_.snap(clampf(c_.distance_default, c_.distance_min, c_.distance_max));
+    fov_.snap(clampf(c_.fov_default, c_.fov_min, c_.fov_max));
+    pitch_free_ = roll_ = 0.0f;  // [port: Gabriel] free rotation: the orientation is the default one
+    const Vec3 c = space ? Vec3{0.0f, 0.0f, 0.0f} : Vec3{0.5f * (box_.min_x + box_.max_x), 0.5f * (box_.min_y + box_.max_y), 0.0f};
+    set_look_at(c);
+    // 0x2d0670(cam, 1): the height is the terrain's under the new look-at, snapped; 0 without terrain following.
+    look_.z = height_ && c_.location_follows_terrain ? height_(look_.x, look_.y) : 0.0f;
+    height_s_.snap(look_.z);
+}
+
+void TacticalCameraController::set_home(Vec3 p) {
+    const CameraBox l = limits();  // 0x2d0820 runs before the save
+    home_ = {clampf(p.x, l.min_x, l.max_x), clampf(p.y, l.min_y, l.max_y), p.z};
+}
+
+void TacticalCameraController::home() {
+    reset();
+    set_look_at(home_);
+    height_s_.snap(look_.z);  // 0x2cf800: height current and target = the saved z, velocity 0
+}
+
 void TacticalCameraController::set_look_at(Vec3 p) {
     const CameraBox l = limits();
     look_ = {clampf(p.x, l.min_x, l.max_x), clampf(p.y, l.min_y, l.max_y), p.z};

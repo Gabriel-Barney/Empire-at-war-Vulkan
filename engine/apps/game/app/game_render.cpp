@@ -525,6 +525,11 @@ bool BattleView::start(GpuCore& gpu, const GameData& data, const GameSession& se
             const terrain::MapData* m = &scene_->map();
             camera_.set_terrain_height([m](float x, float y) { return m->terrain.sample_height(x, y); });
         }
+        // #47 t11 (legacy docs/re/P1_CAMERA_INPUT.md 4.4, map loaders 0x3b8cd0 / 0x4d80b0 [H]): the map's 0x103 camera
+        // look-at (mini 03; the origin without one), clamped, is the Home key's look-at.
+        float home[3] = {0.0f, 0.0f, 0.0f};
+        (void)terrain::raw_f32x3(scene_->map().playable.raw, 0x03, home);
+        camera_.set_home({home[0], home[1], home[2]});
         const Vec3 look = b->start_look_at(*tm, local_);
         camera_.set_look_at({look.x, look.y, look.z});
     }
