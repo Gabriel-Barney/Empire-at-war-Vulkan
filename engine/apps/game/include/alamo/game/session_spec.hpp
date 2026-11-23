@@ -12,7 +12,8 @@
 //                      a story LOAD_CAMPAIGN reward, a loaded save (GameSession::spec_from_save) and the benchmark save
 //                      all go through it, so a new spec field (gal1 t05's per-session seed, gai1 t06's difficulty names)
 //                      is set in one place. Tests may still fill a SessionSpec by hand.
-//   difficulty_name    difficulty 0..2 -> the DifficultyAdjustments row name; the one table of those names.
+//   difficulty_name    difficulty 0..2 -> the fixed DifficultyAdjustments row name (alamo/game/difficulty_rules.hpp, with
+//                      difficulty_row: a player's row from its AIPlayerType).
 #pragma once
 #include <array>
 #include <cstdint>
@@ -20,6 +21,7 @@
 #include <optional>
 #include <string>
 
+#include "alamo/game/difficulty_rules.hpp"
 #include "alamo/game/game_data.hpp"
 #include "alamo/sim/tactical_battle.hpp"
 
@@ -85,11 +87,6 @@ struct SessionSpec {
 
 // [port] Playtest QA D1: alamo_game holds a won battle 5 s before the summary (the last break-up plays).
 inline constexpr uint32_t kBattleEndHoldFrames = 150;
-
-// Difficulty 0..2 -> DifficultyAdjustments name ([port] Easy_Default / Normal_Default / Hard_Default); out of range clamps.
-inline constexpr std::array<const char*, 3> kDifficultyNames = {"Easy_Default", "Normal_Default", "Hard_Default"};
-const char* difficulty_name(int32_t difficulty);
-int32_t clamp_difficulty(int32_t difficulty);  // 0..2
 
 // The host's run options (see the top). Defaults = a SessionSpec's, except the end hold (alamo_game's).
 struct SessionOptions {

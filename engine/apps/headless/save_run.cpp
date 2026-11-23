@@ -46,6 +46,7 @@
 #include "alamo/ai/perception_equations.hpp"
 #include "alamo/core/compat_issue.hpp"
 #include "alamo/data/game_database.hpp"
+#include "alamo/game/difficulty_rules.hpp"
 #include "alamo/game/open_game_data.hpp"  // ref4 t05
 #include "alamo/galactic/conflicts.hpp"
 #include "alamo/sim/campaign_battles.hpp"
@@ -554,8 +555,9 @@ public:
             return -1;
         }
         // As alamo_headless --economy --galactic-ai: every playable faction a galactic AI player (the campaign's
-        // AI_Player_Control pairs, else the faction's Basic_AI), difficulty Normal_Default [port].
-        const uint32_t normal = rules_.find_difficulty("Normal_Default");
+        // AI_Player_Control pairs, else the faction's Basic_AI), difficulty Normal [port]: the type's Normal
+        // Difficulty_Adjustments row (game::difficulty_row, gai1 t06; FoC: Normal_Default).
+        constexpr int32_t kNormal = 1;
         gcfg_.difficulties = ai::load_ai_difficulties(*files_);
         gcfg_.contrast = &crules_.contrast;
         gcfg_.ai_uses_fog_galactic = db_.constants().shared.ai_uses_fog_of_war_galactic.value_or(gcfg_.ai_uses_fog_galactic);  // GameConstants::shared (shipped False)
@@ -572,8 +574,9 @@ public:
             if (type.empty() || (ps.faction < rules_.factions.size() && rules_.factions[ps.faction].is_neutral)) continue;
             ps.human = false;
             ps.ai = true;
-            ps.difficulty = normal;
-            gcfg_.players.push_back({static_cast<int32_t>(p), type, 1});
+            const ai::AiPlayerTypeDef* def = defs_.find_player(type);
+            ps.difficulty = game::difficulty_row(rules_, def ? &def->difficulty : nullptr, kNormal);
+            gcfg_.players.push_back({static_cast<int32_t>(p), type, kNormal});
             ai_types_[p] = type;
         }
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
@@ -709,7 +712,7 @@ public:
         d.data_root = root_;
         d.data_args = args_;
         for (size_t p = 0; p < setup_.players.size(); ++p) d.setup.push_back(session_player(rules_, setup_.players[p], ai_types_[p]));
-        d.difficulty = "Normal_Default";
+        d.difficulty = game::difficulty_name(1);  // the run's (session) difficulty, Normal; each player's row is in d.setup
         d.set_option("galactic_ai", "all");
         d.set_option("battles", ho_.battles);
         if (ho_.anim) d.set_option("anim", "1");  // N1 stage 2 (absent = off: stage-1 descriptors unchanged)

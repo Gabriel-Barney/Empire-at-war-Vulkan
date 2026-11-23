@@ -3103,6 +3103,55 @@ void radar_feed_test() {
 // mcx3 t05 (D3, docs/MODS.md "Saves, mod versions and the launcher"): a save from an older stack. The save is made on data whose stack says
 // "Stack Sub" 1.0; the current data has one value changed (the type list unchanged) and says 1.1. The load is refused
 // with the mod and both versions named and marked as a data difference; allowed, it loads and the session is marked.
+#ifdef ALAMO_GAME_HAVE_GALACTIC_AI
+// gai1 t06 (legacy docs/re/AI_GALACTIC.md §1.2, GetAdj 0x4b0500): the sim's difficulty row of an AI player (economy and
+// combat read PlayerState::difficulty) is its AIPlayerType's Difficulty_Adjustments entry, here a mod's custom rows, not
+// the fixed Easy / Normal / Hard_Default names; the human has none. Synthetic data plus one AIPlayerType (no plans: the
+// galactic AI world does not start, the rows are set before it), at start and after a difficulty change.
+static void ai_type_difficulty_row_test(const std::string& data_dir, game::SessionSpec spec) {
+    game::GameData data;
+    std::string err;
+    CHECK(game::load_game_data_dir(data_dir, data, &err));
+    for (const char* n : {"Easy_Default", "Normal_Default", "Hard_Default", "Mod_Normal", "Mod_Hard"}) {
+        galactic::DifficultyRules r;
+        r.name = n;
+        data.rules.difficulties.push_back(r);
+    }
+    auto ai = std::make_shared<game::AiData>();
+    ai->defs.add_players(R"(<AIPlayer><Name>BasicEmpire</Name>
+  <Difficulty_Adjustments><Easy>Easy_Default</Easy><Normal>Mod_Normal</Normal><Hard>Mod_Hard</Hard></Difficulty_Adjustments>
+</AIPlayer>)", "BasicEmpire.xml");
+    data.ai = ai;
+    spec.animation = false;
+    spec.difficulty = 1;
+    jobs::JobSystem js(jobs::JobSystemConfig{0});
+    game::GameSession s(data, js, spec);
+    std::vector<std::string> diag;
+    CHECK(s.start(&diag, nullptr, nullptr));
+    const galactic::GalacticSim* g = s.galaxy();
+    CHECK(g != nullptr);
+    if (!g) return;
+    int32_t ai_player = -1, human = -1;
+    for (size_t p = 0; p < g->players().size(); ++p) {
+        const galactic::PlayerState& ps = g->players()[p];
+        if (ps.ai && !ps.human) ai_player = static_cast<int32_t>(p);
+        if (ps.human) human = static_cast<int32_t>(p);
+    }
+    CHECK(ai_player >= 0 && human >= 0);
+    if (ai_player < 0 || human < 0) return;
+    const auto row = [&](int32_t p) { return g->players()[static_cast<size_t>(p)].difficulty; };
+    std::printf("AI type difficulty row: AI player %d row %u (Mod_Normal %u), human %d row %u\n", ai_player, row(ai_player),
+                data.rules.find_difficulty("Mod_Normal"), human, row(human));
+    CHECK(row(ai_player) == data.rules.find_difficulty("Mod_Normal"));  // the type's Normal, not Normal_Default
+    CHECK(row(human) == galactic::kNoIndex);
+    // the Gameplay options difficulty: the type's Hard entry.
+    CHECK(s.set_ai_difficulty(2));
+    for (int i = 0; i < 4; ++i) s.tick();
+    CHECK(row(ai_player) == data.rules.find_difficulty("Mod_Hard"));
+    CHECK(row(human) == galactic::kNoIndex);
+}
+#endif
+
 static void different_data_save_test(const std::string& data_dir, game::SessionSpec spec) {
     spec.animation = false;
     const fs::path cur_dir = fs::temp_directory_path() / "alamo_game_session_tests_v2";
@@ -3267,6 +3316,9 @@ int main() {
         save_files_test();
         save_load_test(data, spec);
         different_data_save_test(dir, spec);  // mcx3 t05
+#ifdef ALAMO_GAME_HAVE_GALACTIC_AI
+        ai_type_difficulty_row_test(dir, spec);  // gai1 t06
+#endif
 #ifdef ALAMO_GAME_HAVE_CONTROLS
         controls_test();
         hud_feeds_test(data, spec);
