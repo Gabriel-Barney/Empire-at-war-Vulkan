@@ -130,6 +130,7 @@
     SAVED(retreat_side_, state) \
     SAVED(retreat_done_frame_, state) \
     SAVED(retreat_complete_, state) \
+    SAVED(land_retreat_list_, state) \
     SAVED(vm_declared_, state) \
     SAVED(vm_decl_, state) \
     SAVED(vm_countdown_, state) \

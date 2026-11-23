@@ -1148,8 +1148,9 @@ void TacticalBattle::reinforce(TacticalMode& mode, SimRng& rng, bool force_empty
             }
         const bool due = cfg_.reinforce_interval > 0 && frame_ % cfg_.reinforce_interval == 0;
         if (!due && !(force_empty_sides && empty)) continue;
-        // #84 [port]: no stand-in deploy for a side in a land retreat, as the Reinforce command refuses it (reinforce_block);
-        // the retreat list is taken at the request, so a unit deployed now would only die at the completion.
+        // #84: the stand-in follows the Reinforce command's rule (reinforce_block): once a side has started a land retreat
+        // (countdown or completed), its reserves do not deploy. The retreat list is taken at the request, so a unit
+        // deployed during the countdown would only die at the completion.
         if (!space_ && retreat_side_ == static_cast<int32_t>(side)) continue;
         const int32_t player = side_player(side);
         const uint32_t f = player >= 0 && static_cast<size_t>(player) < galaxy_->players().size()
