@@ -562,16 +562,18 @@ std::u32string hotkey_label(const HotkeyBinding& b, const TextDatabase* text) {
     if (b.mod == HotkeyMod::Shift) s = text_or_port(text, "TEXT_KEY_SHIFT_MODIFIER", U"Shift + ");
     if (b.mod == HotkeyMod::Ctrl) s = text_or_port(text, "TEXT_KEY_CTRL_MODIFIER", U"Ctrl + ");
     if (b.mod == HotkeyMod::Alt) s = text_or_port(text, "TEXT_KEY_ALT_MODIFIER", U"Alt + ");
+    // A port string (no retail key): pseudo-localised with the table, as written without one.
+    const auto port_only = [text](const std::u32string& english) { return text ? text->port_text(english) : english; };
     const int32_t k = b.key;
-    char key[24];
+    char text_key[24];  // a TEXT_KEY_* name built from the key code
     if ((k >= '0' && k <= '9') || (k >= 'A' && k <= 'Z')) return s + static_cast<char32_t>(k);
     if (k >= 0x70 && k <= 0x87) {  // TEXT_KEY_F1 .. TEXT_KEY_F24
-        std::snprintf(key, sizeof key, "TEXT_KEY_F%d", k - 0x6F);
-        return s + text_or_port(text, key, ascii32(std::string(key + 9)));
+        std::snprintf(text_key, sizeof text_key, "TEXT_KEY_F%d", k - 0x6F);
+        return s + text_or_port(text, text_key, ascii32("F" + std::to_string(k - 0x6F)));
     }
     if (k >= 0x60 && k <= 0x69) {  // TEXT_KEY_NUMPAD_0 .. _9
-        std::snprintf(key, sizeof key, "TEXT_KEY_NUMPAD_%d", k - 0x60);
-        return s + text_or_port(text, key, U"Numpad " + std::u32string(1, static_cast<char32_t>(U'0' + (k - 0x60))));
+        std::snprintf(text_key, sizeof text_key, "TEXT_KEY_NUMPAD_%d", k - 0x60);
+        return s + text_or_port(text, text_key, ascii32("Numpad " + std::to_string(k - 0x60)));
     }
     for (const KeyName& n : kKeyNames)
         if (n.vk == k) return s + text_or_port(text, n.key, n.english);
@@ -583,7 +585,7 @@ std::u32string hotkey_label(const HotkeyBinding& b, const TextDatabase* text) {
         default: break;
     }
     // [port-text-end]
-    if (port) return s + (text ? text->port_text(port) : std::u32string(port));
+    if (port) return s + port_only(port);
     // The OEM symbol keys: the character itself.
     switch (k) {
         case 0xBA: return s + U";";
@@ -599,8 +601,7 @@ std::u32string hotkey_label(const HotkeyBinding& b, const TextDatabase* text) {
         case 0xDE: return s + U"'";
         default: break;
     }
-    const std::u32string catch_all = ascii32("Key " + std::to_string(k));  // [port-text: a key with no retail name]
-    return s + (text ? text->port_text(catch_all) : catch_all);
+    return s + port_only(ascii32("Key " + std::to_string(k)));  // [port-text: a key with no retail name]
 }
 
 // ---- Campaign menu -------------------------------------------------------------------------------------------
