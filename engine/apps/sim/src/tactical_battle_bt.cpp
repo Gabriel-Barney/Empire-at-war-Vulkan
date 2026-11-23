@@ -1707,13 +1707,12 @@ void TacticalBattle::bt_place_forces(TacticalMode& mode, SimRng& rng, const Para
     // 4. Other structures, two passes. Pass 1 places each structure that remembers a marker (+0x3b0, the
     //    galactic memory GalacticSim::structure_slot of its galactic object) on that marker when it is an In_Base or
     //    Out_Base marker, in-base first (#70 t07 [H]: 0x2a1eb0 searches those two lists only, and reads no used flag there:
-    //    two structures that remember one marker share it). A memory of any other marker kind is not matched, so an
-    //    orbital structure falls to pass 0 (a specific marker, else the next free orbital marker). [M] a memory that
-    //    matches nothing: retail picks the structure's group marker still in pass 1 (0x2a1eb0 LAB_1402a3d19), ahead of
-    //    the structures without a memory; the port leaves it to pass 0 (#70 follow-up). Pass 0
-    //    places the rest: a specific marker listing the type, else the Base_Position group (Orbital / In_Base / Out_Base;
-    //    In_Base falls over to out-base and vice versa), else any free in-base then out-base marker; none left -> not
-    //    spawned. Spawned for the record defender. On placement the structure remembers the slot (+0x3ac: [M] the marker's
+    //    two structures that remember one marker share it). A memory that matches nothing (another marker kind, or no
+    //    marker with that id) takes the structure's group pick still in pass 1, ahead of the structures without a memory
+    //    (#70 follow-up, 0x2a1eb0 LAB_1402a3d19 [H]: the search falls through to the group cursor): a specific marker
+    //    listing the type, else the Base_Position group (Orbital / In_Base / Out_Base; In_Base falls over to out-base and
+    //    vice versa); no group marker -> left to pass 0. Pass 0 places the rest: the same group pick, else any free
+    //    in-base then out-base marker; none left -> not spawned. Spawned for the record defender. On placement the structure remembers the slot (+0x3ac: [M] the marker's
     //    index among the markers of its kind) and the marker (+0x3b0: [M] the marker's .ted object id, which the loader keeps
     //    as the object's id) in the galactic memory. [M] the space special-weapon rule.
     auto slot_of = [this](size_t mi) {
@@ -1724,6 +1723,24 @@ void TacticalBattle::bt_place_forces(TacticalMode& mode, SimRng& rng, const Para
     auto remember = [&](const Participant& p, size_t mi) {
         if (!slot_memory_ || !slot_memory_write_ || p.built || p.galactic_id == objects::kNoObjectId) return;
         slot_memory_->set_structure_slot(p.galactic_id, slot_of(mi), bt_markers_[mi].map_id);
+    };
+    auto first_free = [&](uint8_t k) -> int64_t {
+        for (size_t i = 0; i < bt_markers_.size(); ++i)
+            if (!bt_markers_[i].used && bt_markers_[i].kind == k) return static_cast<int64_t>(i);
+        return -1;
+    };
+    // a specific marker listing the type, else the Base_Position group (with the in-base / out-base fall-over); -1 none
+    auto group_pick = [&](const Participant& p) -> int64_t {
+        for (size_t i = 0; i < bt_markers_.size(); ++i) {
+            const MapMarker& m = bt_markers_[i];
+            if (!m.used && std::find(m.specific.begin(), m.specific.end(), static_cast<objects::TypeIndex>(p.type)) != m.specific.end())
+                return static_cast<int64_t>(i);
+        }
+        const std::string_view bp = ascii_trim(types.get(p.type, objects::tags::Base_Position));
+        if (iequal_trim(bp, "Orbital")) return first_free(kMkOrbital);
+        if (iequal_trim(bp, "In_Base")) return first_free(kMkInBase) >= 0 ? first_free(kMkInBase) : first_free(kMkOutBase);
+        if (iequal_trim(bp, "Out_Base")) return first_free(kMkOutBase) >= 0 ? first_free(kMkOutBase) : first_free(kMkInBase);
+        return -1;
     };
     std::vector<uint8_t> pass1(parts_.size(), 0);
     if (structure_markers && slot_memory_)
@@ -1738,36 +1755,22 @@ void TacticalBattle::bt_place_forces(TacticalMode& mode, SimRng& rng, const Para
                 for (size_t i = 0; i < bt_markers_.size() && hit < 0; ++i)
                     if (bt_markers_[i].kind == k && bt_markers_[i].map_id == mem->marker)
                         hit = static_cast<int64_t>(i);
+            const bool matched = hit >= 0;
+            if (!matched) hit = group_pick(p);  // #70 follow-up: the group cursor, still in pass 1
             if (hit < 0) continue;
             const size_t i = static_cast<size_t>(hit);
             take(i, p);
             p.owner = def >= 0 ? def : p.owner;
             remember(p, i);
             pass1[pi] = 1;
-            ++map_stats_.remembered_markers;
+            if (matched) ++map_stats_.remembered_markers;
             bt_used_ = true;
         }
     if (structure_markers)
         for (size_t pi = 0; pi < parts_.size(); ++pi) {
             Participant& p = parts_[pi];
             if (!p.structure || p.starbase || p.other_type >= 0 || (pi < pass1.size() && pass1[pi] != 0)) continue;
-            auto first_free = [&](uint8_t k) -> int64_t {
-                for (size_t i = 0; i < bt_markers_.size(); ++i)
-                    if (!bt_markers_[i].used && bt_markers_[i].kind == k) return static_cast<int64_t>(i);
-                return -1;
-            };
-            int64_t pick = -1;
-            for (size_t i = 0; i < bt_markers_.size() && pick < 0; ++i) {
-                const MapMarker& m = bt_markers_[i];
-                if (!m.used && std::find(m.specific.begin(), m.specific.end(), static_cast<objects::TypeIndex>(p.type)) != m.specific.end())
-                    pick = static_cast<int64_t>(i);
-            }
-            if (pick < 0) {
-                const std::string_view bp = ascii_trim(types.get(p.type, objects::tags::Base_Position));
-                if (iequal_trim(bp, "Orbital")) pick = first_free(kMkOrbital);
-                else if (iequal_trim(bp, "In_Base")) pick = first_free(kMkInBase) >= 0 ? first_free(kMkInBase) : first_free(kMkOutBase);
-                else if (iequal_trim(bp, "Out_Base")) pick = first_free(kMkOutBase) >= 0 ? first_free(kMkOutBase) : first_free(kMkInBase);
-            }
+            int64_t pick = group_pick(p);
             if (pick < 0) pick = first_free(kMkInBase) >= 0 ? first_free(kMkInBase) : first_free(kMkOutBase);
             if (pick < 0) {
                 p.unplaced = true;

@@ -264,6 +264,41 @@ void test_land_shared_memory(const Data& d) {
         });
 }
 
+// #70 follow-up (0x2a1eb0 LAB_1402a3d19 [H]): a structure whose memory matches no in-base / out-base marker still takes its
+// group marker in pass 1, ahead of the structures without a memory. Shield A (first, no memory) and shield B (second,
+// remembers the Defending Forces marker 13): B takes the first free in-base marker (11) in pass 1, A the next one (12).
+void test_land_unmatched_memory(const Data& d) {
+    const uint32_t shield = type_of(d, "M1_Shield");
+    terrain::MapData m = land_map();
+    m.objects.push_back(place("Defending Forces Position", 600.0f, 600.0f, 0, 13));
+    m.objects.push_back(place("Attacker Entry Position", 200.0f, 200.0f, 1));
+    m.objects.push_back(place("In Base Special Structure Position", 500.0f, 400.0f, 0, 11));
+    m.objects.push_back(place("In Base Special Structure Position", 900.0f, 400.0f, 0, 12));
+    galactic::GalacticSetup setup = make_setup(d, true);
+    setup.forces.push_back({0, 1, shield});
+    setup.forces.push_back({0, 1, shield});
+    objects::ObjectId a = objects::kNoObjectId, b = objects::kNoObjectId;
+    run_map_battle(
+        d, true, m, setup,
+        [&](galactic::GalacticSim& gs, galactic::BattleRequest& r) {
+            const auto sh = galactic_of(gs, shield);
+            CHECK(sh.size() == 2);
+            if (sh.size() != 2) return;
+            r.structures = sh;
+            a = gs.store().id(sh[0]);
+            b = gs.store().id(sh[1]);
+            gs.set_structure_slot(b, 0, 13);
+        },
+        [&](galactic::GalacticSim& gs, TacticalBattle& bt, TacticalMode&) {
+            const galactic::GalacticSim::StructureSlot* ma = gs.structure_slot(a);
+            const galactic::GalacticSim::StructureSlot* mb = gs.structure_slot(b);
+            std::printf("  unmatched memory: A on marker %d, B on marker %d, remembered markers %u\n", ma ? ma->marker : -1,
+                        mb ? mb->marker : -1, bt.map_load_stats().remembered_markers);
+            CHECK(ma && mb && mb->marker == 11 && mb->slot == 0 && ma->marker == 12 && ma->slot == 1);
+            CHECK(bt.map_load_stats().remembered_markers == 0);  // B's memory matched nothing
+        });
+}
+
 void test_space(const Data& d) {
     const uint32_t fr = type_of(d, "S10_Frigate"), co = type_of(d, "S10_Corvette"), sb = type_of(d, "S10_Star_Base_1"),
                    picked = type_of(d, "M1_Star_Base_E"), esc = type_of(d, "M1_Escorted");
@@ -746,6 +781,7 @@ int main(int argc, char** argv) {
     std::printf("map1: land map load (companies, record data, hangar byte, structure memory)\n");
     test_land(*d);
     test_land_shared_memory(*d);  // #70 t07
+    test_land_unmatched_memory(*d);  // #70 follow-up
     std::printf("map1: space start (starbase pick, escorts, camera focus)\n");
     test_space(*d);
     std::printf("map1: a map special weapon stays registered (#57 t05)\n");
