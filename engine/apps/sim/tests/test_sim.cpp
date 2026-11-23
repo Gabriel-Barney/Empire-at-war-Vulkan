@@ -1163,6 +1163,64 @@ static std::string expected_pumps(double rate, uint64_t ticks) {
     return out;
 }
 
+// #51 t05 (the story plot service 0x52f720 [H]): a plot script is serviced by its own Lua globals on the global frame
+// clock, the same rule as the scoring pump above: ServiceRate 0.2 gives host frames 1, 8, 15, ... (7-frame gaps, and
+// 6-frame ones where the float clock rounds up); a script without a numeric ServiceRate is never serviced (only the
+// port's one resume at load runs it); a battle on top stops the galactic plots' service.
+static void test_story_service_gate_51(const World& w) {
+    const fs::path root = fs::temp_directory_path() / "alamo_sim_story_service_51";
+    std::error_code ec;
+    remove_all_long(root, ec);
+    auto plot_set = [&root](const char* name, const char* body) {
+        write_file(root / "Data/XML" / (std::string("Story_Plots_") + name + ".xml"),
+                   std::string("<Story_Mode_Plots><Lua_Script>") + name + "</Lua_Script><Active_Plot>" + name +
+                       "_Plot.xml</Active_Plot><Suspended_Plot /></Story_Mode_Plots>\n");
+        write_file(root / "Data/XML" / (std::string(name) + "_Plot.xml"),
+                   "<Story><Event Name=\"Begin\"><Event_Type>STORY_ELAPSED</Event_Type><Event_Param1>0</Event_Param1></Event></Story>\n");
+        write_file(root / "Data/Scripts/Story" / (std::string(name) + ".lua"), body);
+    };
+    plot_set("Svc_Rate", "function Base_Definitions() ServiceRate = 0.2 end\n"
+                         "function main() while true do GlobalValue.Set(\"Svc_Rate\", (GlobalValue.Get(\"Svc_Rate\") or 0) + 1) "
+                         "coroutine.yield(true) end end\n");
+    plot_set("Svc_None", "function Base_Definitions() end\n"  // no ServiceRate: never serviced
+                         "function main() while true do GlobalValue.Set(\"Svc_None\", (GlobalValue.Get(\"Svc_None\") or 0) + 1) "
+                         "coroutine.yield(true) end end\n");
+    DirectoryProvider files(path_to_utf8(root));
+    jobs::JobSystem js(jobs::JobSystemConfig{0});
+    const GalacticRules r = rules();  // GalacticSim keeps a reference
+    SimHost host(w.types, js, SimConfig{});
+    CHECK(host.start_galactic(r, setup()) != nullptr);
+    StoryStart st;
+    st.files = &files;
+    st.plot_sets = {{pEmpire, "Story_Plots_Svc_Rate.xml"}, {pUnder, "Story_Plots_Svc_None.xml"}};
+    std::vector<std::string> diag;
+    CHECK(host.start_story(st, &diag));
+    for (const auto& d : diag) std::printf("  story diag: %s\n", d.c_str());
+    if (!host.story()) return;
+    const uint64_t ticks = 150;  // past host frame 132, a 6-frame gap
+    double seen = host.global_values()->get("Svc_Rate").number;  // the port's resume at load (not a service)
+    std::string serviced;
+    for (uint64_t t = 0; t < ticks; ++t) {
+        host.tick_once();
+        const double n = host.global_values()->get("Svc_Rate").number;
+        if (n != seen) serviced += "P" + std::to_string(host.frame()) + ";";
+        seen = n;
+    }
+    std::printf("  story service frames: %s\n", serviced.c_str());
+    CHECK(serviced == expected_pumps(0.2, ticks));
+    CHECK(host.global_values()->get("Svc_None").number <= 1.0);  // the load resume at most
+    // A battle on top: retail's T9 runs only the current mode's story manager, so the galactic plot is not serviced;
+    // after the pop it is serviced again on the same global clock (LastService from before the battle).
+    const double before_battle = host.global_values()->get("Svc_Rate").number;
+    host.start_game(ModeKind::Space);
+    for (int t = 0; t < 60; ++t) host.tick_once();
+    CHECK(host.global_values()->get("Svc_Rate").number == before_battle);
+    CHECK(host.end_game_mode());
+    host.tick_once();
+    CHECK(host.global_values()->get("Svc_Rate").number == before_battle + 1.0);  // overdue: serviced at once
+    for (const std::string& m : host.story()->lua_messages()) std::printf("  lua: %s\n", m.c_str());
+}
+
 // Only the "P<frame>;" entries of a scoring log.
 static std::string pump_entries(const std::string& log) {
     std::string out;
@@ -3618,6 +3676,7 @@ int main(int argc, char** argv) {
     story_test::test_many_players(*world);  // Q6
     story_test::test_scoring_script(*world);  // q6 t06
     story_test::test_scoring_service(*world);  // q6 t09
+    story_test::test_story_service_gate_51(*world);  // #51 t05
     story_test::test_scoring_story(*world);    // q6 t09
     story_test::test_scoring_deaths(*world);   // storyb t14
     story_test::test_story_handle_esc(*world);  // bkc1 t01
