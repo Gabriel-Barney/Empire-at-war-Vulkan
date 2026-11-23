@@ -519,6 +519,7 @@ bool BattleView::start(GpuCore& gpu, const GameData& data, const GameSession& se
         const ui::TacticalCameraConstants* c = ui::find_camera(cams, space_ ? "Space_Mode" : "Land_Mode");
         const ui::UiConstants uc = ui_constants(data);
         camera_ = ui::TacticalCameraController(c ? *c : (space_ ? ui::space_mode_defaults() : ui::land_mode_defaults()), uc.tactical);
+        camera_.set_land_mode(!space_);  // #297: the view-dependent look-at bound and the terrain clearance
         const tactical::Aabb& bb = tm->bounds();
         if (bb.max.x - bb.min.x < 1.0e5f) camera_.set_bounds({bb.min.x, bb.min.y, bb.max.x, bb.max.y});
         if (!space_) {  // land: the look-at follows the terrain (P1)

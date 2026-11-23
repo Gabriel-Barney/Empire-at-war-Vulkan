@@ -1532,8 +1532,10 @@ void test_camera_p1() {
     // jump clamps to the limits
     tf.jump_to({5000, 0, 0});
     CHECK(near(tf.look_at().x, 2000.0f));
-    // Eye clearance: a wall behind the camera (y < look.y - 100) 500 high forces a steeper pitch.
+    // Eye clearance (#297, 0x2d0df0 [H]): a wall behind the camera (y < look.y - 100) 500 high lifts the eye and the view
+    // target by the deficit, the pitch kept.
     TacticalCameraController wall(land_mode_defaults());
+    wall.set_land_mode(true);
     wall.set_bounds({-2000, -2000, 2000, 2000});
     wall.set_look_at({0, 0, 0});
     const CameraParams flat = wall.params(4.0f / 3.0f);
@@ -1541,9 +1543,12 @@ void test_camera_p1() {
     const CameraParams raised = wall.params(4.0f / 3.0f);
     CHECK(flat.eye.y < -100.0f && flat.eye.z < 520.0f);  // the default pose is inside the wall
     const float floor_z = (raised.eye.y < -100.0f ? 500.0f : 0.0f) + 20.0f;  // Min_Height_Above_Terrain 20
-    CHECK(raised.eye.z >= floor_z - 0.05f);
-    CHECK(raised.orbit_pitch > flat.orbit_pitch);
+    CHECK(near(raised.eye.z, floor_z, 0.01f));  // raised exactly to terrain + Min_Height_Above_Terrain
+    CHECK(raised.orbit_pitch == flat.orbit_pitch && raised.eye.x == flat.eye.x && raised.eye.y == flat.eye.y);
+    CHECK(near(raised.target.z - flat.target.z, raised.eye.z - flat.eye.z));
     CHECK(near(raised.distance, flat.distance));
+    // the stored look-at keeps its z
+    CHECK(wall.look_at().z == 0.0f);
     // consistent pose: eye = target + distance * (orbit direction)
     const float dz = raised.eye.z - raised.target.z;
     CHECK(near(dz, raised.distance * std::sin(raised.orbit_pitch), 1e-2f));
@@ -1617,12 +1622,73 @@ void test_camera_keys() {
     CHECK(near(sp0.look_at().x, 0.0f) && near(sp0.look_at().y, 0.0f));
 }
 
+// #297 (pose build 0x2d0df0 [H]): on land the look-at bound depends on the view. m = h/tan(p) - h/tan(p + v/2), h = the
+// eye's height over the look-at, v = FOV / aspect (x 1.25 wider than 4:3); the point half m ahead of the look-at stays m
+// inside the limits and the correction moves the stored look-at. Land defaults at zoom fraction 1: pitch 55, distance
+// 460, FOV 55; 16:9 gives m = 158.1836, 4:3 gives m = 167.2720 (worked from the formula).
+void test_camera_margin() {
+    const float wide = 16.0f / 9.0f;
+    TacticalCameraController land(land_mode_defaults());
+    land.set_land_mode(true);
+    land.set_bounds({-1000, -1000, 1000, 1000});  // buffers 0: limits = the box
+    land.set_look_at({2000, 2000, 0});            // yaw 0: ahead is +Y
+    CHECK(near(land.look_at().x, 1000.0f) && near(land.look_at().y, 1000.0f));
+    // the pose already uses the bound look-at
+    const CameraParams before = land.params(wide);
+    CHECK(near(before.target.x, 841.8164f, 0.01f) && near(before.target.y, 762.7245f, 0.01f));
+    land.bound_look_at(wide);
+    CHECK(near(land.look_at().x, 841.8164f, 0.01f) && near(land.look_at().y, 762.7245f, 0.01f));  // 1000 - m, 1000 - 1.5 m
+    land.bound_look_at(wide);  // idempotent
+    CHECK(near(land.look_at().y, 762.7245f, 0.01f));
+    // the near edge: half m ahead, so the look-at stops at -1000 + m/2
+    land.set_look_at({-2000, -2000, 0});
+    land.bound_look_at(wide);
+    CHECK(near(land.look_at().x, -841.8164f, 0.01f) && near(land.look_at().y, -920.9082f, 0.01f));
+    // 4:3: no x 1.25, v = 41.25 deg
+    land.set_look_at({2000, 0, 0});
+    land.bound_look_at(4.0f / 3.0f);
+    CHECK(near(land.look_at().x, 832.7280f, 0.01f) && near(land.look_at().y, 0.0f));
+    // yaw 90: ahead is +X, so x takes the 1.5 m and y the plain m
+    land.set_yaw_deg(90.0f);
+    land.set_look_at({2000, 2000, 0});
+    land.bound_look_at(wide);
+    CHECK(near(land.look_at().x, 762.7245f, 0.01f) && near(land.look_at().y, 841.8164f, 0.01f));
+    land.set_yaw_deg(0.0f);
+    // free rotation past the vertical: no margin (the plain limits), never a huge or negative one
+    land.rotate(0.0f, 105.0f);  // [port: Gabriel] free pitch on top of the spline's 55
+    CHECK(near(land.pitch_deg(), 160.0f));
+    land.set_look_at({2000, 2000, 0});
+    land.bound_look_at(wide);
+    CHECK(near(land.look_at().x, 1000.0f) && near(land.look_at().y, 1000.0f));
+    land.reset();
+    // a box narrower than 2 m: the centre, stable
+    TacticalCameraController narrow(land_mode_defaults());
+    narrow.set_land_mode(true);
+    narrow.set_bounds({0, 0, 200, 4000});  // 200 < 2 m
+    narrow.set_look_at({150, 2000, 0});
+    narrow.bound_look_at(wide);
+    const float nx = narrow.look_at().x;
+    narrow.bound_look_at(wide);
+    CHECK(near(nx, 100.0f) && narrow.look_at().x == nx);
+    // inside the bound: unchanged
+    land.set_look_at({100, -50, 0});
+    land.bound_look_at(wide);
+    CHECK(land.look_at().x == 100.0f && land.look_at().y == -50.0f);
+    // space (no land mode): no margin, the limits only
+    TacticalCameraController sp(space_mode_defaults());
+    sp.set_bounds({-1000, -1000, 1000, 1000});  // buffers -300: limits +-1300
+    sp.set_look_at({2000, 2000, 0});
+    sp.bound_look_at(wide);
+    CHECK(near(sp.look_at().x, 1300.0f) && near(sp.look_at().y, 1300.0f));
+}
+
 }  // namespace
 
 int main() {
     test_input();
     test_camera();
     test_camera_p1();
+    test_camera_margin();  // #297
     test_camera_keys();  // #47 t11
     test_parse();
     test_picking();
