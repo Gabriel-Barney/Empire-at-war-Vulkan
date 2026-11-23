@@ -166,8 +166,9 @@ struct LevelChoice {
     const char32_t* label;     // the English, or the stand-in of `key`
     const char* key = nullptr;  // #45 t08: a MasterTextFile key for the label where retail has one (TEXT_OFF / LOW / HIGH)
 };
-// [port-text-begin: the port's video-list labels (shown through level_items: the key's text, else port_text); Off, Low
-// and High carry retail's TEXT_OFF / TEXT_LOW / TEXT_HIGH, the table has no Medium, Ultra, On or upscaler names]
+// [port-text-begin: the port's video-list labels (shown through level_items: the key's text, else port_text; the upscale
+// ratios are numbers, appended as written); Off, Low and High carry retail's TEXT_OFF / TEXT_LOW / TEXT_HIGH, the table
+// has no Medium, Ultra, On or upscaler names]
 // [port: Gabriel 2026-11-13] Anti-aliasing: one list, one choice - Off, SMAA, TAA, MSAA 2x / 4x / 8x - each at one fixed
 // quality (game_display.hpp apply_aa_options; the original has no anti-aliasing option). The stored value is the mode below
 // (VideoSettings::anti_alias, profile key "aa_mode"). An MSAA count the device cannot do is drawn with the largest one it can

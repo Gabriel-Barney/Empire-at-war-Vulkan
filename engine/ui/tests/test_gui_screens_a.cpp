@@ -299,6 +299,7 @@ void test_resolution_confirm() {
 // ---- t47: port strings take the pseudo-localization path; the shipped sliders and their end captions give way to the lists ------
 void test_video_port_text() {
     Env env;
+    env.text.add("TEXT_OFF", u"Aus");  // #45 t08: the frame cap's Off is retail's TEXT_OFF
     env.text.pseudo_localize_all();
     CHECK(env.script.extend(kPortDialogExtensionsRc));
     CHECK(env.script.extend(R"RC(
@@ -329,6 +330,11 @@ END
     CHECK(d->get("IDC_PORT_VSYNC_MODE_TEXT")->text == pseudo(U"V-Sync Mode") && d->get("IDC_PORT_FRAME_CAP_TEXT")->text == pseudo(U"Frame Rate Cap"));
     CHECK(d->get("IDC_PORT_VSYNC_MODE")->items[1] == pseudo(U"Standard (FIFO)") && d->get("IDC_PORT_FRAME_CAP")->items[1] == pseudo(U"Display refresh rate"));
     CHECK(d->get("IDC_PORT_DISPLAY_INFO")->text == pseudo(U"160 Hz"));
+    CHECK(d->get("IDC_PORT_FRAME_CAP")->items[0] == pseudo(U"Aus"));
+    {
+        const std::u32string cap = utf8_to_utf32(std::to_string(d->get("IDC_PORT_FRAME_CAP_SLIDER")->value) + " fps");
+        CHECK(d->get("IDC_PORT_FRAME_CAP_VALUE")->text == pseudo(cap.c_str()));
+    }
     // [port: Gabriel] Display / Graphics split: the Anti-Aliasing and Detail Level rows (titles, sliders, end captions) and the
     // Advanced button are gone from Display; Gamma and the rows under it move up into Anti-Aliasing's place.
     CHECK(!d->get("IDC_ANTI_ALIAS_SLIDER")->visible && !d->get("IDC_DETAIL_LEVEL_SLIDER")->visible && !d->get("IDC_ANTI_ALIAS_OFF_STATIC")->visible &&

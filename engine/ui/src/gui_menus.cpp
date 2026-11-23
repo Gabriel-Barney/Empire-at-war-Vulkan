@@ -94,15 +94,8 @@ constexpr ButtonMove kInGameOptionsMoves[] = {{"IDC_IN_GAME_OPTIONS_VIDEO", 7.0f
 // under them (Gamma, the checks, the display line) close the gap.
 constexpr int32_t kDisplayMovedRowsTop = 240, kDisplayMovedRowsEnd = 290, kDisplayRowsBelowEnd = 400;
 constexpr float kDisplayRowsUp = 51.0f;  // Gamma takes Anti-Aliasing's row (297 -> 246)
-// The Detail Level list's rows (#45 t08: retail's TEXT_LOW / TEXT_HIGH where the table has them).
-struct QualityName {
-    const char* key;
-    const char32_t* english;
-};
-// [port-text-begin: the stand-ins of the keys, and the levels the table has no key for]
-constexpr QualityName kQualityNames[kQualityCount + 1] = {
-    {"TEXT_LOW", U"Low"}, {nullptr, U"Medium"}, {"TEXT_HIGH", U"High"}, {nullptr, U"Ultra"}, {nullptr, U"Custom"}};
-// [port-text-end]
+// The Detail Level list's rows: kLevels4's four levels (their names and #45 t08 keys), then Custom (no retail key).
+static_assert(std::size(kLevels4) == kQualityCount);
 struct AdvCheck {
     const char* id;
     bool AdvancedVideoSettings::*field;
@@ -357,13 +350,20 @@ END
 // [port-text-end]
 
 namespace {
-constexpr uint8_t kQueueModChoices[4] = {kModShift, kModCtrl, kModAlt, 0};
-// #45 t08: retail's key names TEXT_KEY_SHIFT / CONTROL / ALT; the table has no "None" [port].
-constexpr const char* kQueueModKeys[4] = {"TEXT_KEY_SHIFT", "TEXT_KEY_CONTROL", "TEXT_KEY_ALT", nullptr};
-constexpr const char32_t* kQueueModNames[4] = {U"Shift", U"Ctrl", U"Alt", U"None"};  // [port-text: their stand-ins]
+// The queue modifier list (docs/DECISIONS.md "Camera and controls"): the stored modifier bits and the row's name, retail's
+// key names TEXT_KEY_SHIFT / CONTROL / ALT (#45 t08); the table has no "None" [port].
+struct QueueModChoice {
+    uint8_t mods;
+    const char* key;
+    const char32_t* english;
+};
+// [port-text-begin: the keys' stand-ins, and None]
+constexpr QueueModChoice kQueueModChoices[] = {
+    {kModShift, "TEXT_KEY_SHIFT", U"Shift"}, {kModCtrl, "TEXT_KEY_CONTROL", U"Ctrl"}, {kModAlt, "TEXT_KEY_ALT", U"Alt"}, {0, nullptr, U"None"}};
+// [port-text-end]
 std::u32string fov_text(float deg) { return ascii32(std::to_string(static_cast<int>(std::lround(deg)))); }
 std::u32string value_text(int32_t v) { return ascii32(std::to_string(v)); }
-std::u32string fps_text(int32_t v) { return ascii32(std::to_string(v) + " fps"); }
+std::u32string fps_text(const GuiManager& gui, int32_t v) { return gui.port_text(ascii32(std::to_string(v) + " fps")); }
 // QA D8 [port]: the combos the port adds hold plain ASCII choices, so they read in the dialog's caption font. The shipped
 // combos keep the skin's Combo_Box font (GUIDialogs.xml: Arial Unicode MS, for translated text).
 void use_ui_font(GuiDialog& d, std::initializer_list<const char*> ids) {
@@ -450,10 +450,11 @@ void FrontEnd::fill_port_controls(GuiDialog& d, const CameraSettings& s) {
     d.set_text("IDC_PORT_GALACTIC_FOV_VALUE", fov_text(s.galactic_fov_deg));
     d.set_text("IDC_PORT_TACTICAL_FOV_VALUE", fov_text(s.tactical_fov_deg));
     std::vector<std::u32string> mods;
-    for (size_t i = 0; i < 4; ++i) mods.push_back(text_or_port(gui_->text_db(), kQueueModKeys[i], kQueueModNames[i]));
     int32_t sel = 0;
-    for (int32_t i = 0; i < 4; ++i)
-        if (kQueueModChoices[i] == s.queue_mods) sel = i;
+    for (const QueueModChoice& q : kQueueModChoices) {
+        if (q.mods == s.queue_mods) sel = static_cast<int32_t>(mods.size());
+        mods.push_back(text_or_port(gui_->text_db(), q.key, q.english));
+    }
     d.set_items("IDC_PORT_QUEUE_MODIFIER", std::move(mods), sel);
     use_ui_font(d, {"IDC_PORT_QUEUE_MODIFIER"});
     d.set_checked("IDC_PORT_SHOW_PATH_LINES", s.show_path_lines);
@@ -465,8 +466,8 @@ CameraSettings FrontEnd::read_port_controls(const GuiDialog& d) const {
     CameraSettings s = p_.camera_settings ? p_.camera_settings() : CameraSettings{};
     if (const GuiControl* c = d.get("IDC_PORT_GALACTIC_FOV_SLIDER")) s.galactic_fov_deg = static_cast<float>(c->value);
     if (const GuiControl* c = d.get("IDC_PORT_TACTICAL_FOV_SLIDER")) s.tactical_fov_deg = static_cast<float>(c->value);
-    if (const GuiControl* c = d.get("IDC_PORT_QUEUE_MODIFIER"); c && c->selected >= 0 && c->selected < 4)
-        s.queue_mods = kQueueModChoices[c->selected];
+    if (const GuiControl* c = d.get("IDC_PORT_QUEUE_MODIFIER"); c && c->selected >= 0 && static_cast<size_t>(c->selected) < std::size(kQueueModChoices))
+        s.queue_mods = kQueueModChoices[c->selected].mods;
     if (const GuiControl* c = d.get("IDC_PORT_SHOW_PATH_LINES")) s.show_path_lines = c->checked;
     if (const GuiControl* c = d.get("IDC_PORT_FLEET_GROUPS")) s.fleet_groups = c->checked;
     return s;
@@ -1367,12 +1368,12 @@ void FrontEnd::fill_video(GuiDialog& d) {
                  gui_->port_text(v.mailbox_available ? U"Low latency (Mailbox)" : U"Mailbox (not on this driver)")},
                 v.vsync ? static_cast<int32_t>(v.vsync_mode) + 1 : 0);
     // [port: Gabriel 2026-11-13] Off / Display refresh rate / Custom, the Custom cap picked with the slider under the list.
-    d.set_items("IDC_PORT_FRAME_CAP", {gui_->port_text(U"Off"), gui_->port_text(U"Display refresh rate"), gui_->port_text(U"Custom")},
+    d.set_items("IDC_PORT_FRAME_CAP", {text_or_port(gui_->text_db(), "TEXT_OFF", U"Off"), gui_->port_text(U"Display refresh rate"), gui_->port_text(U"Custom")},
                 v.frame_cap == 0 ? kFrameCapRowOff : v.frame_cap == kFrameCapDisplay ? kFrameCapRowDisplay : kFrameCapRowCustom);
     const int32_t custom_cap = std::clamp(v.frame_cap > 0 ? v.frame_cap : kFrameCapCustomDefault, kFrameCapCustomMin, kFrameCapCustomMax);
     d.set_range("IDC_PORT_FRAME_CAP_SLIDER", kFrameCapCustomMin, kFrameCapCustomMax);
     d.set_value("IDC_PORT_FRAME_CAP_SLIDER", custom_cap);
-    d.set_text("IDC_PORT_FRAME_CAP_VALUE", fps_text(custom_cap));
+    d.set_text("IDC_PORT_FRAME_CAP_VALUE", fps_text(*gui_, custom_cap));
     use_ui_font(d, {"IDC_PORT_VSYNC_MODE", "IDC_PORT_FRAME_CAP", "IDC_PORT_WINDOW_MODE", "IDC_PORT_UI_SCALE"});
     d.set_text("IDC_PORT_DISPLAY_INFO", gui_->port_text(v.display_info));
     // t47 [port]: the value column (143..175) sits inside the shipped caption box (41..187):
@@ -1396,7 +1397,8 @@ void FrontEnd::fill_advanced_video(GuiDialog& d, const AdvancedVideoSettings& s)
     d.set_text("IDC_STATIC_MEDIUM", gui_->port_text(U"Graphics"));
     d.show("IDC_AUTO_DETECT", false);
     std::vector<std::u32string> quality;
-    for (const QualityName& q : kQualityNames) quality.push_back(text_or_port(gui_->text_db(), q.key, q.english));
+    for (const LevelChoice& q : kLevels4) quality.push_back(text_or_port(gui_->text_db(), q.key, q.label));
+    quality.push_back(gui_->port_text(U"Custom"));
     d.set_items("IDC_PORT_DETAIL_LEVEL", std::move(quality), static_cast<int32_t>(quality_level(s)));
     const int32_t aa = p_.video ? p_.video().anti_alias : VideoSettings{}.anti_alias;
     d.set_items("IDC_PORT_ANTI_ALIASING", level_items(*gui_, kAntiAliasChoices), static_cast<int32_t>(level_index(kAntiAliasChoices, aa)));
@@ -1850,7 +1852,7 @@ void FrontEnd::on_change(const GuiEvent& e, std::vector<MenuAction>& out) {
     } else if (ascii_iequals(n, kVideo) && e.kind == GuiEvent::Kind::ValueChanged) {  // [port] the value beside the Gamma slider (U8)
         if (e.control == "IDC_GAMMA_SLIDER") d->set_text("IDC_PORT_GAMMA_VALUE", value_text(e.value));
         if (e.control == "IDC_PORT_FRAME_CAP_SLIDER") {  // [port: Gabriel] the custom cap: moving the slider picks Custom
-            d->set_text("IDC_PORT_FRAME_CAP_VALUE", fps_text(e.value));
+            d->set_text("IDC_PORT_FRAME_CAP_VALUE", fps_text(*gui_, e.value));
             d->set_selected("IDC_PORT_FRAME_CAP", kFrameCapRowCustom);
         }
     } else if (ascii_iequals(n, kAdvancedVideo) && e.kind == GuiEvent::Kind::SelectionChanged) {
