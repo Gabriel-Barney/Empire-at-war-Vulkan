@@ -343,7 +343,6 @@ const audio::UnitSounds& GameAudioHost::sounds(const objects::GameObjectTypes& t
             "SFXEvent_Group_Move", "SFXEvent_Group_Attack", "SFXEvent_Assist_Move", "SFXEvent_Assist_Attack"};
         for (size_t i = 0; i < audio::kUnitOrderCount; ++i) s->response[i] = std::string(types.get_string(t, kTags[i]));
         s->unit_lost = std::string(types.get_string(t, "SFXEvent_Unit_Lost"));
-        s->unit_under_attack = std::string(types.get_string(t, "SFXEvent_Unit_Under_Attack"));
         s->fire = std::string(types.get_string(t, "SFXEvent_Fire"));
         s->death_start = std::string(types.get_string(t, "Death_SFXEvent_Start_Die"));
         s->death_end = std::string(types.get_string(t, "Death_SFXEvent_End_Die"));
@@ -561,7 +560,9 @@ void GameAudioHost::battle_tick(const sim::TacticalBattle& battle, const objects
     for (const tactical::combat::DeathEvent& d : cs.deaths()) {
         const objects::ObjectHandle h = handle_of(d.id);
         if (!store.exists(h)) continue;
-        if (unit_died(types, static_cast<objects::ObjectId>(d.id), store.type(h), store.position(h))) ++stats_.deaths;
+        if (unit_died(types, static_cast<objects::ObjectId>(d.id), store.type(h), store.position(h),
+                      local_player >= 0 && store.owner(h) == local_player))
+            ++stats_.deaths;
         moving_.erase(static_cast<objects::ObjectId>(d.id));
         died.push_back(static_cast<objects::ObjectId>(d.id));
         combat = combat || store.owner(h) == local_player || owner_of(d.killer) == local_player;
@@ -978,9 +979,26 @@ uint32_t GameAudioHost::spin_away_deaths(std::span<const SpinDeath> deaths, cons
 }
 
 uint32_t GameAudioHost::unit_died(const objects::GameObjectTypes& types, objects::ObjectId object, objects::TypeIndex type,
-                                  const Vec3& position) {
+                                  const Vec3& position, bool local_owner) {
     if (!game_) return 0;
-    return game_->unit_death(static_cast<uint64_t>(object), sounds(types, type).death_start, position);
+    const audio::UnitSounds& s = sounds(types, type);
+    const uint32_t id = game_->unit_death(static_cast<uint64_t>(object), s.death_start, position);
+    if (local_owner && !s.unit_lost.empty() && game_->sfx_2d(s.unit_lost) != 0) ++stats_.unit_lost_lines;
+    return id;
+}
+
+bool GameAudioHost::unit_sighted(const objects::GameObjectTypes& types, objects::TypeIndex type, bool enemy) {
+    if (!game_ || type == objects::kNone || type >= types.size()) return false;
+    bool played = false;
+    // ledger: consumes GameObjectType.Play_SFXEvent_On_Sighting
+    if (types.get_bool(type, "Play_SFXEvent_On_Sighting") && spotted_types_.insert(static_cast<int32_t>(type)).second) {
+        played = game_->unit_type_spotted(types.raw().types().name[type]) != 0;
+    } else if (!enemy_spotted_done_ && enemy) {
+        enemy_spotted_done_ = true;
+        played = game_->enemy_spotted() != 0;
+    }
+    if (played) ++stats_.sighting_lines;
+    return played;
 }
 
 // #61: DeathBehavior's effects 0x58cf90 phase 2 (end of the death sequence): it spawns a Death_Explosions_End entry, stops
@@ -1187,14 +1205,7 @@ void GameAudioHost::cue_lines(const sim::TacticalBattle& battle, const objects::
             const int32_t o = store.owner(h);
             if (o < 0 || o == local_player || battle.fog_object_hidden(local_player, id, false)) continue;
             if (!sighted_.insert(static_cast<int64_t>(id)).second) continue;
-            const objects::TypeIndex t = store.type(h);
-            // ledger: consumes GameObjectType.Play_SFXEvent_On_Sighting
-            if (types.get_bool(t, "Play_SFXEvent_On_Sighting") && spotted_types_.insert(static_cast<int32_t>(t)).second) {
-                if (game_->unit_type_spotted(types.raw().types().name[t])) ++stats_.sighting_lines;
-            } else if (!enemy_spotted_done_ && cs.is_enemy(local_player, o)) {
-                enemy_spotted_done_ = true;
-                if (game_->enemy_spotted()) ++stats_.sighting_lines;
-            }
+            unit_sighted(types, store.type(h), cs.is_enemy(local_player, o));  // #50 t03
         }
     // Strike availability (MCX4_T13_RE_ANSWERS "Faction.SFXEvent_Bombard_Available family"): per manager, every player's
     // available flag is tracked; the first player (index order) whose flag went 0 -> 1 this tick is announced in that
@@ -1676,7 +1687,10 @@ void GameAudioHost::tsw_audio(std::span<const TswCue>, const objects::GameObject
 void GameAudioHost::sim_tick() {}
 uint32_t GameAudioHost::animation_sounds(std::span<const AnimSound>) { return 0; }
 uint32_t GameAudioHost::spin_away_deaths(std::span<const SpinDeath>, const objects::GameObjectTypes&) { return 0; }
-uint32_t GameAudioHost::unit_died(const objects::GameObjectTypes&, objects::ObjectId, objects::TypeIndex, const Vec3&) { return 0; }
+uint32_t GameAudioHost::unit_died(const objects::GameObjectTypes&, objects::ObjectId, objects::TypeIndex, const Vec3&, bool) {
+    return 0;
+}
+bool GameAudioHost::unit_sighted(const objects::GameObjectTypes&, objects::TypeIndex, bool) { return false; }
 uint32_t GameAudioHost::death_clone_ends(const objects::ObjectStore&, const objects::GameObjectTypes&, bool) { return 0; }
 uint32_t GameAudioHost::self_destruct_lines(std::span<const SelfDestructCue>) { return 0; }
 uint32_t GameAudioHost::weapon_fired(uint64_t, std::string_view, std::string_view, const Vec3&) { return 0; }

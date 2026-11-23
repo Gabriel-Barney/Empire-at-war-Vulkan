@@ -1047,6 +1047,69 @@ void test_galactic_activate_t06() {
 #endif
 }
 
+// #50 t01 (0x39bdb0 [H]): a local unit's death plays its SFXEvent_Unit_Lost (2D); another player's does not. t03: the
+// sighting lines (a Play_SFXEvent_On_Sighting type once per battle, else the first enemy sighting once per battle).
+void test_unit_lost_sighting_50() {
+    using H = GameAudioHost;
+    MemoryProvider files;
+    files.add("Data\\XML\\GameObjectFiles.xml", "<L><File>T50.xml</File></L>");
+    files.add("Data\\XML\\T50.xml", R"(<?xml version="1.0"?>
+<GroundVehicles>
+  <GroundVehicle Name="Tank"><SFXEvent_Unit_Lost> Tank_Lost </SFXEvent_Unit_Lost></GroundVehicle>
+  <GroundVehicle Name="Hero_Tank"><Play_SFXEvent_On_Sighting> Yes </Play_SFXEvent_On_Sighting></GroundVehicle>
+</GroundVehicles>
+)");
+    objects::ObjectTypeDatabase raw;
+    CHECK(raw.load(files));
+    objects::GameObjectTypes types;
+    CHECK(types.build(raw));
+    const objects::TypeIndex tank = types.resolve_name("Tank"), hero = types.resolve_name("Hero_Tank");
+    CHECK(tank != objects::kNone && hero != objects::kNone);
+    if (tank == objects::kNone || hero == objects::kNone) return;
+    H off;  // inactive host: nothing
+    CHECK(off.unit_died(types, 5, tank, Vec3{}, true) == 0 && !off.unit_sighted(types, tank, true));
+#ifdef ALAMO_GAME_HAVE_AUDIO
+    auto tree = make_tree(true);
+    tree->add("Data\\XML\\SFXEventsTest.xml", R"(<?xml version="1.0"?>
+<SFXEvents>
+  <SFXEvent Name="Tank_Lost"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Max_Instances>4</Max_Instances><Samples>LOST.WAV</Samples></SFXEvent>
+  <SFXEvent Name="Enemy_Seen"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Max_Instances>4</Max_Instances><Samples>SEEN.WAV</Samples></SFXEvent>
+  <SFXEvent Name="Hero_Seen"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Max_Instances>4</Max_Instances><Samples>HERO.WAV</Samples></SFXEvent>
+</SFXEvents>
+)");
+    tree->add("Data\\XML\\Factions.xml", R"(<?xml version="1.0" ?>
+<Factions>
+  <Faction Name="Rebel"><SFXEvent_Enemy_Spotted> Enemy_Seen </SFXEvent_Enemy_Spotted>
+    <SFXEvent_Unit_Type_Spotted> Hero_Tank, Hero_Seen </SFXEvent_Unit_Type_Spotted></Faction>
+</Factions>
+)");
+    GameData data;
+    data.files = std::move(tree);
+    H h;
+    CHECK(h.init(data, AudioBackendKind::Null, 3));
+    if (!h.active()) return;
+    h.music(MusicScene::Galactic, "Rebel");  // the local faction
+    // t01: another player's unit: its death line only; the local player's: SFXEvent_Unit_Lost too (2D).
+    h.unit_died(types, 5, tank, Vec3{10, 0, 0}, false);
+    CHECK(starts(h, "Tank_Lost") == 0 && h.stats().unit_lost_lines == 0);
+    h.unit_died(types, 6, tank, Vec3{10, 0, 0}, true);
+    CHECK(starts(h, "Tank_Lost") == 1 && h.stats().unit_lost_lines == 1);
+    h.unit_died(types, 7, hero, Vec3{10, 0, 0}, true);  // no Unit_Lost tag: nothing more
+    CHECK(h.stats().unit_lost_lines == 1);
+    // t03: an ally's ordinary unit says nothing; the enemy's first sighting says Enemy_Spotted once per battle.
+    CHECK(!h.unit_sighted(types, tank, false));
+    CHECK(h.unit_sighted(types, tank, true) && starts(h, "Enemy_Seen") == 1);
+    CHECK(!h.unit_sighted(types, tank, true) && starts(h, "Enemy_Seen") == 1);
+    // a Play_SFXEvent_On_Sighting type: its own line once per battle (an ally's too), then like any other unit.
+    CHECK(h.unit_sighted(types, hero, false) && starts(h, "Hero_Seen") == 1);
+    CHECK(!h.unit_sighted(types, hero, true) && starts(h, "Hero_Seen") == 1 && starts(h, "Enemy_Seen") == 1);
+    CHECK(h.stats().sighting_lines == 2);
+    h.battle_reset();  // a new battle: both announce again
+    CHECK(h.unit_sighted(types, hero, true) && starts(h, "Hero_Seen") == 2);
+    CHECK(h.unit_sighted(types, tank, true) && starts(h, "Enemy_Seen") == 2);
+#endif
+}
+
 // aud1 t05 (legacy docs/re/AUDIO.md §9.6): the ability tag pick through the type's Unit_Ability -> <Abilities> entry, the departure tag
 // pick, the shield transitions, and (with engine/audio) the activation playing on the user and the target.
 void test_object_sfx_t05() {
@@ -1292,7 +1355,7 @@ void test_death_end_sfx() {
     const objects::ObjectHandle unit = spawn(walker, Vec3{5, 0, 0}, false);
     const objects::ObjectHandle persisting = spawn(clone, Vec3{5, 0, 0}, true);
     GameAudioHost off;  // inactive host: nothing
-    CHECK(off.unit_died(types, store.id(unit), walker, Vec3{5, 0, 0}) == 0);
+    CHECK(off.unit_died(types, store.id(unit), walker, Vec3{5, 0, 0}, true) == 0);
     CHECK(off.death_clone_ends(store, types, false) == 0);
 #ifdef ALAMO_GAME_HAVE_AUDIO
     GameData data;
@@ -1309,7 +1372,7 @@ void test_death_end_sfx() {
     if (!h.active()) return;
     h.set_listener(Vec3{0, 0, 100}, Vec3{0, 0, 0});
     // the tick of the death: the unit's start-die line; its clone runs its death sequence (no end yet)
-    CHECK(h.unit_died(types, store.id(unit), walker, Vec3{5, 0, 0}) != 0);
+    CHECK(h.unit_died(types, store.id(unit), walker, Vec3{5, 0, 0}, false) != 0);
     store.destroy(unit);
     CHECK(h.death_clone_ends(store, types, false) == 0);
     CHECK(starts(h, "Walker_Start") == 1 && starts(h, "Walker_End") == 0);
@@ -1684,6 +1747,7 @@ void test_presentation_events_ref2() {
 int main() {
     test_delayed_fire_sounds();  // trl2 t08
     test_object_sfx_t05();
+    test_unit_lost_sighting_50();  // #50 t01 / t03
     test_galactic_activate_t06();  // #62 t06
     test_galactic_lua_sfx_position();  // aud8 t05
     test_gui_only_attract();           // #226

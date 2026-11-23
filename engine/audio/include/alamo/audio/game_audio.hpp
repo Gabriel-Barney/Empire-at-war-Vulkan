@@ -55,7 +55,7 @@ inline constexpr size_t kUnitOrderCount = static_cast<size_t>(UnitOrder::Count);
 struct UnitSounds {
     std::array<std::string, kUnitOrderCount> response;  // SFXEvent_Select, _Move, _Fleet_Move, ...
     std::string select_with_non_hero_ability, move_with_non_hero_ability, attack_with_non_hero_ability;
-    std::string unit_lost, unit_under_attack;            // SFXEvent_Unit_Lost / _Unit_Under_Attack
+    std::string unit_lost;  // SFXEvent_Unit_Lost (SFXEvent_Unit_Under_Attack has no retail reader: #50 t01)
     std::string fire;                                    // SFXEvent_Fire
     std::string death_start, death_end;                  // Death_SFXEvent_Start_Die / _End_Die
     std::string ambient_loop;                            // SFXEvent_Ambient_Loop

@@ -34,7 +34,6 @@ UnitSounds unit_sounds_from_xml(data::XmlNode type, const UnitSounds* base) {
     read_tag(type, "SFXEvent_Move_With_Non_Hero_Ability", s.move_with_non_hero_ability);
     read_tag(type, "SFXEvent_Attack_With_Non_Hero_Ability", s.attack_with_non_hero_ability);
     read_tag(type, "SFXEvent_Unit_Lost", s.unit_lost);
-    read_tag(type, "SFXEvent_Unit_Under_Attack", s.unit_under_attack);
     read_tag(type, "SFXEvent_Fire", s.fire);
     read_tag(type, "Death_SFXEvent_Start_Die", s.death_start);
     read_tag(type, "Death_SFXEvent_End_Die", s.death_end);
