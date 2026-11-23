@@ -1398,7 +1398,7 @@ public:
     }
     // Credits of the galactic player (campaign battles spend the galactic account). Unset: every player has 0 credits
     // and refunds are dropped. CampaignBattles installs GalacticSim::credits / add_credits. `add` is Add_Credits 0x27f370
-    // with the AI notify off; `add_notify` with it on (A2K_T10_CREDIT_NOTIFY_RE Q3: the tactical build cancel refund
+    // with the AI notify off; `add_notify` with it on (legacy docs/re/A2K_T10_CREDIT_NOTIFY_RE.md Q3: the cancel refund
     // 0x498820 and the AI plan's escrow charge 0x6c2d60 / refund 0x5f6a50). Unset, `add` serves both.
     void set_credit_hooks(std::function<float(int32_t)> get, std::function<void(int32_t, float)> add,
                           std::function<void(int32_t, float)> add_notify = {}) {
@@ -3113,8 +3113,9 @@ private:
     bool hg_buildable(const objects::ObjectStore& st, int32_t player, objects::ObjectId builder, objects::TypeIndex type) const {
         return hg_build_check(st, player, builder, type) == 0;
     }
-    // drops the order's charge record; pay = credit back 0x499000's amount (done = the order's built fraction)
-    void hg_refund(uint32_t order, bool pay, float done);
+    // a cancelled order: credits back 0x499000's amount (done = its built fraction) and drops its charge record
+    void hg_refund(uint32_t order, float done);
+    void hg_forget(uint32_t order);  // a completed order: drops its charge record
     void hg_remove_silently(objects::ObjectId id);  // RemoveSilently: contents / abilities bookkeeping of a non-unit
     struct HgOrderCost {
         uint32_t order = 0;

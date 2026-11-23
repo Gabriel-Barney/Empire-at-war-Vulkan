@@ -98,6 +98,10 @@ struct BuildOrder {
     uint32_t frames_left = 0;
     uint32_t issued = 0;
     uint8_t queue = 0;               // Tactical_Production_Queue - 2: 0 Tactical_Units, 1 Tactical_Upgrades (save v2)
+    // The built fraction 1 - remaining / total (the cancel refund 0x499000 clamps it to [0, 1]); a queued entry is 0.
+    float built_fraction() const {
+        return total_frames == 0 ? 0.0f : 1.0f - static_cast<float>(frames_left) / static_cast<float>(total_frames);
+    }
 };
 
 class TacticalProduction {

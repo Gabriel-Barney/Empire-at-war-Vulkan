@@ -2353,7 +2353,7 @@ bool goal_at(const mv::UnitView& v, const std::vector<Vec3>& points) {
     return false;
 }
 
-// #222 (A2K_T10_CREDIT_NOTIFY_RE Q1 / Q3 [H]): the AI plan's escrow charge 0x6c2d60 and plan-end refund 0x5f6a50 call
+// #222 (legacy docs/re/A2K_T10_CREDIT_NOTIFY_RE.md Q1 / Q3 [H]): the AI plan's escrow charge 0x6c2d60 and plan-end refund 0x5f6a50 call
 // Add_Credits with the AI notify on, and 0x4b0310 passes it to the galactic budget only when a galactic mode is under the
 // battle. In the S10 space battle, BattleAi's credit changes for the AI player 1 (-200, then +50 x its Credit_Multiplier)
 // raise GalacticSim's credit notification with the applied amounts; in a skirmish (no galactic mode) they raise none.

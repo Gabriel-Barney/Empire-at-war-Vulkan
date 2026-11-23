@@ -2683,7 +2683,7 @@ void test_station_production(float build_mult = 1.0f) {
 // As an AI player (the battle AI's Production path) the enqueue 0x496a20 charges nothing (the plan's escrow paid) and the
 // cancel 0x498820 refunds 0x499000's paid fraction clamp(1 - remaining / total, 0, 1) x 100. As a human the enqueue
 // charges 100 and the cancel refunds all of it. Both refunds go through the battle's notify hook (0x498820 calls
-// Add_Credits with the AI notify on, A2K_T10_CREDIT_NOTIFY_RE Q3); the human's charge does not (0x496a20, notify off).
+// Add_Credits with the AI notify on, legacy docs/re/A2K_T10_CREDIT_NOTIFY_RE.md Q3); the human's charge does not (0x496a20).
 void test_production_cancel_refund(bool ai) {
     auto d = make_data(false, false, false, false, true);
     jobs::JobSystem js(jobs::JobSystemConfig{0});
@@ -2748,8 +2748,7 @@ void test_production_cancel_refund(bool ai) {
             if (q.size() != 1) return;
             const tactical::hangar::BuildOrder o = q[0];
             CHECK(o.frames_left > 0 && o.frames_left < o.total_frames);  // mid-build
-            const float done = 1.0f - static_cast<float>(o.frames_left) / static_cast<float>(o.total_frames);
-            want = ai ? done * 100.0f : 100.0f;
+            want = ai ? o.built_fraction() * 100.0f : 100.0f;
             pre_cancel = gs->credits(0);
             commands::EventData ev(commands::EventType::Production);
             ev.set("cancel", 1u).set("index", 0u).set("location", static_cast<uint32_t>(station));
