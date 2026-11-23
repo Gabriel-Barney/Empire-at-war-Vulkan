@@ -387,7 +387,7 @@
 {"GameObjectType", "Death_Projectiles", 0x1e, LedgerState::Consumed, "docs/re/xml_reference_index.md", 4, 1},
 {"GameObjectType", "Death_By_TSW_Replacements", 0x1e, LedgerState::Consumed, "docs/re/xml_reference_index.md", 38, 1},
 {"GameObjectType", "Death_SFXEvent_Start_Die", 0x1f, LedgerState::Consumed, "docs/re/xml_reference_index.md", 739, 1},
-{"GameObjectType", "Death_SFXEvent_End_Die", 0x1f, LedgerState::Consumed, "docs/re/xml_reference_index.md", 18, 1},
+{"GameObjectType", "Death_SFXEvent_End_Die", 0x1f, LedgerState::Verified, "docs/re/xml_reference_index.md", 18, 1},
 {"GameObjectType", "Death_Clone", 0x3b, LedgerState::Consumed, "docs/re/xml_reference_index.md", 346, 1},
 {"GameObjectType", "Death_Leave_Hulk_Behind", 0x0, LedgerState::Consumed, "docs/re/xml_reference_index.md", 8, 1},
 {"GameObjectType", "Death_Clone_Is_Obstacle", 0x0, LedgerState::Consumed, "docs/re/xml_reference_index.md", 84, 1},

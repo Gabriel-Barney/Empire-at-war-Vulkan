@@ -547,11 +547,13 @@ void GameAudioHost::battle_tick(const sim::TacticalBattle& battle, const objects
     for (const tactical::combat::DeathEvent& d : cs.deaths()) {
         const objects::ObjectHandle h = handle_of(d.id);
         if (!store.exists(h)) continue;
-        if (game_->unit_death(static_cast<uint64_t>(d.id), sounds(types, store.type(h)).death_start, store.position(h))) ++stats_.deaths;
+        if (unit_died(types, static_cast<objects::ObjectId>(d.id), store.type(h), store.position(h))) ++stats_.deaths;
         moving_.erase(static_cast<objects::ObjectId>(d.id));
         died.push_back(static_cast<objects::ObjectId>(d.id));
         combat = combat || store.owner(h) == local_player || owner_of(d.killer) == local_player;
     }
+    // #61: the death clones deleted this tick (countdown ended, or removed at once) end their death: Death_SFXEvent_End_Die.
+    death_clone_ends(store, types, battle.finished());
     // Objects that left without dying (retreat / hyperspace out finished, silent removal): every attached instance
     // killed at once and the object forgotten; dead ones are forgotten too once gone from the battle.
     std::sort(live.begin(), live.end());
@@ -958,6 +960,53 @@ uint32_t GameAudioHost::spin_away_deaths(std::span<const SpinDeath> deaths, cons
         if (!ev.empty() && game_->object_sfx(d.object, ev, d.position) != 0) ++n;
     }
     stats_.anim_sounds += n;
+    return n;
+}
+
+uint32_t GameAudioHost::unit_died(const objects::GameObjectTypes& types, objects::ObjectId object, objects::TypeIndex type,
+                                  const Vec3& position) {
+    if (!game_) return 0;
+    return game_->unit_death(static_cast<uint64_t>(object), sounds(types, type).death_start, position);
+}
+
+// #61: DeathBehavior's effects 0x58cf90 phase 2 (end of the death sequence): it spawns a Death_Explosions_End entry, stops
+// every sound attached to the object (0x2d4250, as phase 0) and plays the type's Death_SFXEvent_End_Die (+0x12e0) - 3D at
+// the object's position when Is_3D, else 2D when Is_2D, the Start_Die call of phase 0. Its only caller is 0x58d830, slot 15
+// (+0x78) of DeathBehavior's vtable 0x8a2868: the behaviour-detach hook, which 0x3a52f0 calls for every behaviour of an
+// object from the object destructor (0x38a310 -> 0x3893e0) and 0x29f270 for the behaviours it strips from a new clone
+// (DEATH is attached after that strip). So End_Die plays when a death clone is deleted - after its persistence (an
+// AT-AT wreck: 15 s, then Huge_Explosion_Land and Unit_Corvette_Death_SFX), or at once (Remove_Upon_Death / no clip) - and
+// it is the CLONE type's tag (shipped: mostly *_Death_Clone types, else the dying type that is its own clone). [port] The port voices the clone on the tick it
+// is destroyed (dead until the next frame's flush; retail deletes it at the same frame's flush) or, when the host missed
+// that tick, on the first tick it is gone. [M] Nothing when the battle's end drops the clones (the mode pop stops every
+// sound, legacy docs/re/AUDIO.md §1.5); the infantry corpse path (no store clone) and Death_Explosions_End itself are
+// not modelled.
+uint32_t GameAudioHost::death_clone_ends(const objects::ObjectStore& store, const objects::GameObjectTypes& types, bool battle_over) {
+    if (!game_) return 0;
+    uint32_t n = 0;
+    auto end = [&](objects::ObjectId id, const DeathClone& c) {
+        if (battle_over) return;
+        // ledger: consumes GameObjectType.Death_SFXEvent_End_Die
+        if (game_->unit_death(static_cast<uint64_t>(id), sounds(types, c.type).death_end, c.position) != 0) ++n;
+    };
+    std::map<objects::ObjectId, DeathClone> living;
+    std::set<objects::ObjectId> ended;
+    for (const objects::ObjectHandle h : store.all_objects()) {
+        if ((store.flags(h) & objects::kFlagDeathClone) != objects::kFlagDeathClone) continue;
+        const objects::ObjectId id = store.id(h);
+        const DeathClone c{store.type(h), store.position(h)};
+        if (store.alive(h)) {
+            living.emplace(id, c);
+            continue;
+        }
+        ended.insert(id);  // destroyed, waiting for the flush: voiced on the first call that sees it
+        if (death_clones_ended_.find(id) == death_clones_ended_.end()) end(id, c);
+    }
+    for (const auto& [id, c] : death_clones_)  // gone since the last call without being seen dead
+        if (living.find(id) == living.end() && ended.find(id) == ended.end()) end(id, c);
+    death_clones_ = std::move(living);
+    death_clones_ended_ = std::move(ended);
+    stats_.death_ends += n;
     return n;
 }
 
@@ -1589,6 +1638,8 @@ void GameAudioHost::tsw_audio(std::span<const TswCue>, const objects::GameObject
 void GameAudioHost::sim_tick() {}
 uint32_t GameAudioHost::animation_sounds(std::span<const AnimSound>) { return 0; }
 uint32_t GameAudioHost::spin_away_deaths(std::span<const SpinDeath>, const objects::GameObjectTypes&) { return 0; }
+uint32_t GameAudioHost::unit_died(const objects::GameObjectTypes&, objects::ObjectId, objects::TypeIndex, const Vec3&) { return 0; }
+uint32_t GameAudioHost::death_clone_ends(const objects::ObjectStore&, const objects::GameObjectTypes&, bool) { return 0; }
 uint32_t GameAudioHost::self_destruct_lines(std::span<const SelfDestructCue>) { return 0; }
 uint32_t GameAudioHost::weapon_fired(uint64_t, std::string_view, std::string_view, const Vec3&) { return 0; }
 void GameAudioHost::weather(std::string_view, float, bool) {}
@@ -1675,6 +1726,8 @@ void GameAudioHost::battle_reset() {
     land_damage_stage_.clear();  // mcx4 t13 batch O
     pad_loops_.clear();          // mcx4 t13 batch P
     spun_.clear();               // mcx4 t13 batch Q
+    death_clones_.clear();       // #61
+    death_clones_ended_.clear();
     self_destructs_.clear();
     tsw_approach_.clear();       // mcx4 t13 batch S
     point_progress_.clear();     // mcx4 t13 batch U
