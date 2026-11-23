@@ -4,9 +4,9 @@
 # between ticks; the mission's handler starts IntroCineCleanup, whose spawns (MILLENNIUM_FALCON_LANDING, URAI_FEN, ...) appear
 # at frame 129 and whose despawns (the UMP_CINE_* objects) at 130. Hands-off the same objects come only at 5361 / 7542.
 # 1. The run must report that the story took the key: "pressed at battle frame 128, ..., 1 Story_Handle_Esc calls".
-# 2. The battle's tactical trace (tools/parity/story_battle.py --json) must show the cleanup within one story service of
-#    the Esc: spawns in 129..136, the mouse droid's removal in 130..137. [port] The port services the plot on its own
-#    phase (128, 135 here; retail 129), so its cleanup lands at 135 / 136: filed as a story service cadence difference.
+# 2. The battle's tactical trace (tools/parity/story_battle.py --json) must show retail's frames: the spawns at 129 and the
+#    mouse droid's removal at 130. #51 t05: the plot service gate (0x52f720) runs on the global frame clock with a strict
+#    `now - LastService > ServiceRate`, so the plot's next service after the Esc is battle frame 129, as in retail.
 file(REMOVE "${TRACE}")
 get_filename_component(_dir "${TRACE}" DIRECTORY)
 file(MAKE_DIRECTORY "${_dir}")
@@ -57,15 +57,15 @@ set(_bad "")
 foreach(_t MILLENNIUM_FALCON_LANDING URAI_FEN UMP_HANSOLO UMP_CHEWBACCA)
   first_frame(spawned_after_frame1 ${_t} _f)
   message(STATUS "spawn ${_t}: battle frame ${_f} (retail 129)")
-  if(_f LESS 129 OR _f GREATER 136)
+  if(NOT _f EQUAL 129)
     string(APPEND _bad " spawn ${_t} at ${_f};")
   endif()
 endforeach()
 first_frame(removed UMP_CINE_MOUSEDROID _f)
 message(STATUS "remove UMP_CINE_MOUSEDROID: battle frame ${_f} (retail 130)")
-if(_f LESS 130 OR _f GREATER 137)
+if(NOT _f EQUAL 130)
   string(APPEND _bad " remove UMP_CINE_MOUSEDROID at ${_f};")
 endif()
 if(_bad)
-  message(FATAL_ERROR "IntroCineCleanup not within one story service of the Esc:${_bad}")
+  message(FATAL_ERROR "IntroCineCleanup not at retail's frames (spawns 129, removal 130):${_bad}")
 endif()

@@ -1876,24 +1876,34 @@ void StorySession::service_script_in(Set& s, uint32_t si, Script& sc, uint64_t f
     s.model.deliver_script_triggers(sc.plot, *sc.vm, &err);  // only fires made before the VM existed
     if (!err.empty()) lua_note(sc, err);
     collect_set(s, si, "lua");
-    // Service gate: ServiceRate seconds since LastService (MAIN_LOOP 3.4) [inferred: first service at once].
-    if (sc.serviced && seconds - sc.last_service < sc.rate) return;
+    // #51 t05 service gate (0x52f720 [H]): the script's own Lua globals, read on every T9. No numeric ServiceRate: no
+    // service (PGStateMachine's Base_Definitions sets 0.2). A service when LastService is not a number (nil from
+    // Common_Base_Definitions: the first T9) or now - LastService > ServiceRate (strict, in double); then LastService := now.
+    // now = (double)((float)NOW / 30.0f), a float divide of the global logic frame (the host frame, counted from the
+    // session start and incremented before T9, not restarted for a battle), so galactic and tactical plots share one
+    // clock. The script's own time (Sleep, GetCurrentTime) stays `seconds`, the mode clock.
     lua_State* L = sc.vm->state();
-    lua_pushstring(L, "LastService");
-    lua_pushnumber(L, sc.serviced ? sc.last_service : seconds);
-    lua_rawset(L, LUA_GLOBALSINDEX);
+    auto global_number = [L](const char* name, double& out) {
+        lua_pushstring(L, name);
+        lua_rawget(L, LUA_GLOBALSINDEX);
+        const bool is_number = lua_type(L, -1) == LUA_TNUMBER;
+        if (is_number) out = lua_tonumber(L, -1);
+        lua_pop(L, 1);
+        return is_number;
+    };
+    double rate = 0.0, last = 0.0;
+    if (!global_number("ServiceRate", rate)) return;
+    const double now = static_cast<double>(static_cast<float>(frame) / 30.0f);
+    if (global_number("LastService", last) && !(now - last > rate)) return;
     sc.vm->set_time(seconds);
     sc.vm->set_frame(static_cast<uint32_t>(frame));
     sc.vm->service_threads();
-    sc.serviced = true;
-    sc.last_service = seconds;
-    lua_pushstring(L, "ServiceRate");
-    lua_rawget(L, LUA_GLOBALSINDEX);
-    if (lua_isnumber(L, -1)) {
-        const double r = lua_tonumber(L, -1);
-        sc.rate = r > 0.0 ? r : kDefaultServiceRate;
-    }
-    lua_pop(L, 1);
+    lua_pushstring(L, "LastService");
+    lua_pushnumber(L, now);
+    lua_rawset(L, LUA_GLOBALSINDEX);
+    sc.serviced = true;  // mirrors of the Lua gate (saved for older readers; not the gate)
+    sc.last_service = now;
+    sc.rate = rate;
     const auto& errors = sc.vm->errors();
     for (; sc.errors_seen < errors.size(); ++sc.errors_seen) lua_note(sc, errors[sc.errors_seen]);
     collect_set(s, si, "lua");
