@@ -265,6 +265,9 @@ public:
     uint32_t command_bar_sfx(UnitOrder order, bool attack_move = false, bool waypoint = false);
     // GUI sounds by name (Click_SFX, Mouse_Over_SFX, ...): 2D, pumped once so clicks play this frame (§1.2).
     uint32_t gui_sfx(std::string_view event);
+    // A sound by name, 2D, not pumped: the SFX manager's by-name 2D entry 0x2d5010 called from game code with pump 0 (§1.2),
+    // e.g. the stealth reveal (#67 t02). Returns the instance id (0 = refused).
+    uint32_t sfx_2d(std::string_view event) { return play_2d(event, 0); }
     void negative_feedback();  // Audio.xml SFXEvent_GUI_Negative_Feedback
     // Local faction announcement by its Faction tag (e.g. "SFXEvent_Planet_Gained_Control",
     // "Reinforcements_Enroute_SFXEvent"): 2D; HUD VO rules apply (refused while speech plays, §1.2 test 5).

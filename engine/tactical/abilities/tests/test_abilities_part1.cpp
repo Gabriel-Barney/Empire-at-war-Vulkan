@@ -1159,6 +1159,11 @@ void test_stealth_jamming_laser() {
     CHECK(!(w.sys->flags(1) & kUnitStealthed) && w.has_event(AbilityEventKind::StealthDetected, 1));
     // #67 t02 (0x592ae0 [H]): stealthed before the scan, not after: the reveal (SFX_Stealth_Reveal) is raised
     CHECK(w.has_event(AbilityEventKind::StealthRevealed, 1));
+    {  // #67 t02 review: a save holding the pending reveal event loads (saved event kinds up to the last one)
+        const SavedBattle s = save_battle(*w.sys, *w.ab, w.rng);
+        CHECK(load_battle(*w.sys, *w.ab, w.rng, s));
+        CHECK(w.has_event(AbilityEventKind::StealthRevealed, 1));
+    }
     w.ab->clear_events();
     w.move(2, {2000, 0, 0});
     w.tick();

@@ -278,7 +278,7 @@ uint32_t GameAudioHost::hyperspace_arrival(uint64_t object, std::string_view own
 
 uint32_t GameAudioHost::stealth_reveal() {
     if (!game_) return 0;
-    const uint32_t id = game_->gui_sfx("SFX_Stealth_Reveal");
+    const uint32_t id = game_->sfx_2d("SFX_Stealth_Reveal");  // 0x2d5010(name, 0, 0, 0): no extra SFX update
     if (id != 0) ++stats_.stealth_reveals;
     return id;
 }
