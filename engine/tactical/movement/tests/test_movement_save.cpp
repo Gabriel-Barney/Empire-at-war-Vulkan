@@ -1415,11 +1415,13 @@ void t25_attack_before(World& w, uint32_t f) {
 // a save round trip with the bkm1 stored heights and the secondary yaw live - the t25.2 attack approach
 // on sloped ground (z = x / 10: the slot leg's G carries the target's height, LandMotion::end_z, and the members' paths
 // Unit::lane_z) with unit 10 a UseSecondaryFacing type (its Y2 steps while it walks). Every resume point continues
-// identically.
-void test_mov3_heights_save() {
+// identically. Trim off, the path ends on G, whose stored height C z = 40 is end_z. #93: trim on with a fire range short of
+// the slot leg point Q', so the cut falls on the last segment Q' -> G and interpolates end_z by the 2-D fraction.
+void mov3_heights_save(bool trim, float fire_range) {
     Scenario sc;
-    sc.name = "land attack approach on a slope, UseSecondaryFacing (mov3 t02)";
-    sc.build = [](World& w) {
+    sc.name = trim ? "land attack approach on a slope, fire trim on the last segment (#93)"
+                   : "land attack approach on a slope, UseSecondaryFacing (mov3 t02)";
+    sc.build = [fire_range](World& w) {
         PassabilityGrid g;
         g.init(100, 60);
         w.sys.set_grid(std::move(g));
@@ -1437,10 +1439,10 @@ void test_mov3_heights_save() {
         t.owner = 2;
         CHECK(w.sys.add_unit(t));
         alamo::test::set_fire_test<V2>(alamo::test::engagement_of(w.sys),
-                                       [c](ObjectId, V2 p, ObjectId, bool, V2, float) { return distance(p, c) <= 255.0f; });
+                                       [c, fire_range](ObjectId, V2 p, ObjectId, bool, V2, float) { return distance(p, c) <= fire_range; });
     };
-    // the t25.2 order with the target's height C z = 40, no fire trim: the slot leg's G carries it
-    sc.before = [](World& w, uint32_t f) {
+    // the t25.2 order with the target's height C z = 40: the slot leg's G carries it
+    sc.before = [trim](World& w, uint32_t f) {
         if (f != 1) return;
         MoveOrder o;
         o.units = {10, 11};
@@ -1448,7 +1450,7 @@ void test_mov3_heights_save() {
         o.attack.target = 900;
         o.attack.c = o.attack.g = cell_center(55, 30);
         o.attack.cz = 40.0f;
-        o.attack.trim = false;  // the path ends on G (a trim at 255 cuts before the last segment: z 0)
+        o.attack.trim = trim;  // off: the path ends on G (a trim at 255 cuts before the last segment: z 0)
         o.attack.t_hx = o.attack.t_hy = 5.0f;
         for (const ObjectId id : o.units) {
             LandAttackUnit e;
@@ -1475,11 +1477,21 @@ void test_mov3_heights_save() {
         }
     }
     CHECK(moving_first > 0 && moving_last > moving_first + 50);
-    std::printf("mov3 t02 heights save: approach frames %u..%u, stored end z %.3f (C z 40), slot legs %u (refused %u)\n",
-                moving_first, moving_last, static_cast<double>(end_z), v.sys.stats().attack_legs, v.sys.stats().attack_leg_refused);
-    CHECK(end_z == 40.0f);  // non-zero: the save below carries it
+    std::printf("%s heights save: approach frames %u..%u, stored end z %.3f (C z 40), slot legs %u (refused %u), trims %u\n",
+                trim ? "#93 trim" : "mov3 t02", moving_first, moving_last, static_cast<double>(end_z), v.sys.stats().attack_legs,
+                v.sys.stats().attack_leg_refused, v.sys.stats().attack_trims);
+    if (trim) {  // the cut on the last segment: strictly between Q' (z 0) and G (z 40)
+        CHECK(v.sys.stats().attack_legs > 0 && v.sys.stats().attack_trims > 0 && end_z > 0.0f && end_z < 40.0f);
+        // MSVC golden 21.6665: the cut lies 2-D about 0.542 of the way from Q' to G; the inverted fraction would give 18.333
+        CHECK(std::fabs(end_z - 21.667f) < 0.01f);
+    } else {
+        CHECK(end_z == 40.0f);  // non-zero: the save below carries it
+    }
     for (const uint32_t at : {moving_first, (moving_first + moving_last) / 2, moving_last}) check_resume(sc, at, 0);
 }
+
+void test_mov3_heights_save() { mov3_heights_save(false, 255.0f); }
+void test_heights_trim_last_segment_save() { mov3_heights_save(true, 120.0f); }  // #93
 
 void test_t25_attack() {
     Scenario sc;
@@ -2109,6 +2121,7 @@ int main() {
     test_t20_states();              // s78n t20
     test_t25_attack();              // s78n t25.2
     test_mov3_heights_save();       // mov3 t02
+    test_heights_trim_last_segment_save();  // #93 (the mov3 t02 scenario with the fire trim)
     test_s78o_unit_rejections();    // s78o
     test_stale_team_entries();      // s78n t18 review
     test_hidden_after_load();       // s78n t18 review
