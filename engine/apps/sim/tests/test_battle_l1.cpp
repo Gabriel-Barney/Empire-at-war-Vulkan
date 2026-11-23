@@ -2195,6 +2195,43 @@ void test_pads_streams() {
         CHECK(!first_divergence(on.crc, run(bit, 4, m).crc).diverged);
 }
 
+// #128 t03: the weapons service on counter-based streams (bit StreamId::Weapons): a TSW pack's debris pick (the space
+// battle, run) and an orbital bombardment's scattered shots (the land battle, run_land) draw from their own streams. On:
+// the CRC log diverges from the off run and is identical at 1 / 4 / 15 workers and in every service run mode; off stays
+// worker-independent.
+void test_weapons_streams() {
+    // the planet prop with two Death_Explosions, so the TSW's debris pick draws (one entry draws nothing).
+    const auto dp = make_data("alamo_sim_l1_weapons_streams",
+                              " <Particle Name=\"L1_Boom_A\"></Particle>\n <Particle Name=\"L1_Boom_B\"></Particle>\n",
+                              {"<SpaceProp Name=\"L1_Planet_Prop\"><Behavior>DUMMY_SPECIAL_WEAPON_SOURCE, DUMMY_TACTICAL_SUPER_WEAPON_TARGET</Behavior></SpaceProp>",
+                               "<SpaceProp Name=\"L1_Planet_Prop\"><Behavior>DUMMY_SPECIAL_WEAPON_SOURCE, DUMMY_TACTICAL_SUPER_WEAPON_TARGET</Behavior>"
+                               "<Death_Explosions>L1_Boom_A, L1_Boom_B</Death_Explosions></SpaceProp>"});
+    const Data& d = *dp;
+    const TacticalBattle::ServiceRunDefaults saved = TacticalBattle::service_run_defaults();
+    const uint32_t bit = 1u << static_cast<uint32_t>(tactical::services::StreamId::Weapons);
+    for (const bool land : {false, true}) {
+        const auto go = [&](uint32_t streams, int32_t workers, tactical::services::RunMode m) {
+            TacticalBattle::ServiceRunDefaults sd = saved;
+            sd.streams = streams;
+            sd.mode = m;
+            TacticalBattle::set_service_run_defaults(sd);
+            CrcLog c = land ? run_land(d, workers).crc : run(d, workers).crc;
+            TacticalBattle::set_service_run_defaults(saved);
+            return c;
+        };
+        const CrcLog off = go(0, 0, saved.mode), on = go(bit, 0, saved.mode);
+        const CrcDivergence dv = first_divergence(off, on);
+        std::printf("  weapons streams (%s): on vs off %s\n", land ? "land bombardment" : "space TSW", dv.diverged ? "diverged" : "IDENTICAL");
+        CHECK(dv.diverged);  // the draws moved
+        for (const int32_t w : {1, 4, 15}) {
+            CHECK(!first_divergence(on, go(bit, w, saved.mode)).diverged);
+            CHECK(!first_divergence(off, go(0, w, saved.mode)).diverged);
+        }
+        for (const auto m : {tactical::services::RunMode::Serial, tactical::services::RunMode::Reverse})
+            CHECK(!first_divergence(on, go(bit, 4, m)).diverged);
+    }
+}
+
 using ::alamo::test::env_or_empty;
 
 // ---- command 25 SpecialWeaponFire (TACTICAL_COMBAT §3.1.1 "Fire-at-position order", LOB_SOLVER §9) ----
@@ -2818,6 +2855,7 @@ int main(int argc, char** argv) {
     test_environment(*d);     // cu8g t02 / t03
     test_pads(*d);  // Int-final
     test_pads_streams();  // #128 t02
+    test_weapons_streams();  // #128 t03
     test_persist(*d);  // q6: persisted tactical built objects
     test_jet(*d);   // S7 t10 / t14
     test_deploy(*d);  // S7 t26

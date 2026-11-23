@@ -15,6 +15,7 @@
 #include "alamo/sim/tactical_battle.hpp"
 #ifdef ALAMO_SIM_HAVE_ANIM
 #include "alamo/sim/sim_anim.hpp"
+#include "alamo/tactical/services/stream_rng.hpp"  // #128 Weapons stream
 #endif
 
 namespace alamo::sim {
@@ -694,7 +695,17 @@ void TacticalBattle::l1_weapons(TacticalMode& mode, SimRng& rng) {
     if (l1_sw_.empty()) return;
     objects::ObjectStore& st = mode.primary();
     l1_sw_.prune([&st](tc::ObjectId id) { return st.alive(st.find(id)); });
-    l1_sw_.tick(frame_, rng, l1_world(mode));
+    // #128: with the Weapons stream on, each pack's TSW draws come from its own stream (keyed by the pack id; the
+    // bombardment records use keys above 2^32, so the two never share a stream).
+    if (svc_streams_ & (1u << static_cast<uint32_t>(tactical::services::StreamId::Weapons))) {
+        const ta::SpecialWeaponSystem::StreamOf own = [this](tc::ObjectId pack) {
+            return tactical::services::stream_rng(cfg_.session_seed, frame_, tactical::services::StreamId::Weapons,
+                                                  static_cast<uint64_t>(static_cast<uint32_t>(pack)));
+        };
+        l1_sw_.tick(frame_, rng, l1_world(mode), &own);
+    } else {
+        l1_sw_.tick(frame_, rng, l1_world(mode));
+    }
     for (const ta::SpecialWeaponShot& s : l1_sw_.shots()) {
         const objects::ObjectHandle wh = st.find(s.weapon);
         if (!st.alive(wh) || s.projectile < 0) continue;

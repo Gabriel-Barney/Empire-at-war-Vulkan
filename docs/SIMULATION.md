@@ -154,6 +154,9 @@ counter, `create` refused). Rules:
     leaving, holding, a squad's walk-out, corrective and reissued moves) still draw from the synced RNG.
   - pads (`pads`): per pad (the finished object's adoption draws: hardpoints, first-due ability and behaviour draws,
     a hangar). A build order's under-construction object joins the battle through the build command, on the synced RNG.
+  - weapons (`weapons`): per special-weapon pack (a TSW's debris pick) and per player's bombardment record (the
+    scattered shots' angle and radius; keyed above 2^32, clear of the pack ids). A bombardment's start (its
+    distribution cursor) is a command, on the synced RNG.
 - Nothing to convert: expiry, fog and victory draw nothing.
 - Still on the synced RNG while a converted service runs (tier 3; deterministic either way, the services run in graph
   order): a combat listener's draws (the tick's RNG, `hooks_->set_tick`) and the first-due draw of each behaviour an

@@ -16,6 +16,7 @@
 #include "alamo/objects/type_fields.hpp"
 #include "alamo/sim/l1_loaders.hpp"
 #include "alamo/sim/tactical_battle.hpp"
+#include "alamo/tactical/services/stream_rng.hpp"  // #128 Weapons stream
 
 namespace alamo::sim {
 
@@ -509,8 +510,13 @@ void TacticalBattle::l1_strikes(TacticalMode& mode, SimRng& rng) {
         if (f.shots_per_salvo > 1 && !(r.salvo == 0 && r.shot == 0) && !l1_k_.bombardment_distribution.empty()) {
             const int32_t q = l1_k_.bombardment_distribution[r.cursor % l1_k_.bombardment_distribution.size()];
             r.cursor = (r.cursor + 1) % static_cast<uint32_t>(l1_k_.bombardment_distribution.size());
-            const float a = rng.range_float(static_cast<float>(q) * 90.0f, static_cast<float>(q + 1) * 90.0f - 1.0f);
-            const float rad = rng.range_float(0.0f, 100.0f);  // [port] the radius range is lost in the decompile [M]
+            // #128: with the Weapons stream on, the scatter draws come from the record's own stream (one shot per record
+            // per frame; keyed by the player above 2^32, clear of the special-weapon pack ids).
+            SimRng own;
+            SimRng& srng = svc_rng(static_cast<uint32_t>(tactical::services::StreamId::Weapons),
+                                   (uint64_t{1} << 32) | static_cast<uint32_t>(r.player), rng, own);
+            const float a = srng.range_float(static_cast<float>(q) * 90.0f, static_cast<float>(q + 1) * 90.0f - 1.0f);
+            const float rad = srng.range_float(0.0f, 100.0f);  // [port] the radius range is lost in the decompile [M]
             float s = 0.0f, c = 1.0f;
             dmath::sincos(a * (dmath::kPiF / 180.0f), s, c);
             aim.x = aim.x + c * rad;
