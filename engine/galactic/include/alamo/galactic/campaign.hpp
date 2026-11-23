@@ -804,6 +804,7 @@ public:
     float credits(int32_t player) const { return players_[static_cast<size_t>(player)].account.credits; }
     int32_t neutral_player() const { return neutral_player_; }
     int32_t player_of_faction(std::string_view faction) const;
+    int32_t player_of_faction(uint32_t faction) const;  // first player of that faction index, kNoPlayer when none
     uint32_t fleet_of(ObjectHandle object) const;    // kNoFleet if not a live fleet object
     PlanetIndex planet_of(ObjectHandle object) const;  // planet row of a planet object
     // Live fleets of `player` orbiting `planet`, orbit order.
@@ -818,6 +819,8 @@ public:
     int32_t planets_owned(int32_t player) const;
     int32_t derive_owner(PlanetIndex planet) const;  // GE 4.1 precedence (pure)
     int32_t physical_owner(PlanetIndex planet) const;  // GE 4.1 steps 1-5 only; kNoPlayer when none (bkg2 b0125)
+    int32_t residual_owner(PlanetIndex planet) const;  // gal1 t01: residual influence (0x3f3830 step 7); kNoPlayer when none
+    int32_t political_control_level(PlanetIndex planet) const;  // the planet's Political_Control v, 0..5 (story override first)
     // Target political control (bkg2 b0125, BKG1_RE_ANSWERS 9; 0x3f3830 / 0x3f6af0 / 0x3f6df0) [H] for the derived owner.
     int32_t target_political_control(PlanetIndex planet, int32_t derived) const;
     bool corrupted(PlanetIndex planet) const { return planets_[planet].corruption != kCorruptionNone; }

@@ -403,6 +403,7 @@ std::vector<TypeInfo> extract_type_info(const objects::GameObjectTypes& types, c
             !types.is_set(t, objects::tags::Planet_Surface_Accessible)
                 ? true  // ASSUMPTION: an unset Planet_Surface_Accessible means accessible
                 : types.get(t, objects::tags::Planet_Surface_Accessible);
+        i.retains_residual_influence = types.get(t, objects::tags::Planet_Retains_Residual_Influence);  // gal1 t01
         i.the_force = parse_force_side(types.get(t, objects::tags::The_Force));
         i.force_strength = types.get(t, objects::tags::Force_Strength);
         i.political_control = types.get(t, objects::tags::Political_Control);  // bkg2 b0125

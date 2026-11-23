@@ -114,9 +114,11 @@ bool GalacticSim::set_ai_difficulty(int32_t player, uint32_t difficulty) {
 }
 
 int32_t GalacticSim::player_of_faction(std::string_view faction) const {
-    const uint32_t f = rules_->find_faction(faction);
+    return player_of_faction(rules_->find_faction(faction));
+}
+int32_t GalacticSim::player_of_faction(uint32_t faction) const {
     for (size_t i = 0; i < players_.size(); ++i)
-        if (players_[i].faction == f) return static_cast<int32_t>(i);
+        if (players_[i].faction == faction) return static_cast<int32_t>(i);
     return kNoPlayer;
 }
 
@@ -593,12 +595,41 @@ void GalacticSim::fiscal_cycle() {
 
 // ---- ownership ----------------------------------------------------------------------------------------------
 
+// gal1 t01 (BKG1_RE_ANSWERS 9.1 step 7, 9.2 steps 4-5) [H]: after the physical sources come residual influence, then the
+// political leaning (only when the planet's Political_Control is above 0: its Political_Faction's player), then the first
+// neutral player.
 int32_t GalacticSim::derive_owner(PlanetIndex planet) const {
     const int32_t o = physical_owner(planet);
     if (o != kNoPlayer) return o;
+    const int32_t r = residual_owner(planet);
+    if (r != kNoPlayer) return r;
     const PlanetState& p = planets_[planet];
-    if (valid_player(p.leaning)) return p.leaning;  // 6. political leaning [L: updated on capture]
-    return neutral_player_;                         // 7.
+    if (political_control_level(planet) > 0) {
+        const int32_t l = player_of_faction(rules_->types[p.type].political_faction);
+        if (l != kNoPlayer) return l;
+    }
+    return neutral_player_;
+}
+
+// 0x3f3830 step 7 [H]: with no physical owner, the previous applied owner (D +0x6C) stays when the planet is not destroyed,
+// its type has Planet_Retains_Residual_Influence and that owner is set. [port] Before the first ownership pass D +0x6C is
+// the setup's starting owner (GalacticSetup::leaning, else the player of the planet's first starting force) [L], so a planet
+// held at the start only from orbit keeps that player.
+int32_t GalacticSim::residual_owner(PlanetIndex planet) const {
+    const PlanetState& p = planets_[planet];
+    const int32_t previous = p.initialised ? p.owner : (p.leaning != neutral_player_ ? p.leaning : kNoPlayer);
+    if (!valid_player(previous) || p.destroyed) return kNoPlayer;
+    if (p.type >= rules_->types.size() || !rules_->types[p.type].retains_residual_influence) return kNoPlayer;
+    return previous;
+}
+
+// 0x3f5710 [H]: the planet type's Political_Control (+0x79C) clamped to 0..5; mcx6 STATISTIC_CHANGE POLITICAL_CONTROL
+// (§1.17): the planet's written value (+0x22c, 0x3734d0) replaces the type's.
+int32_t GalacticSim::political_control_level(PlanetIndex planet) const {
+    const PlanetState& p = planets_[planet];
+    if (p.type >= rules_->types.size()) return 0;
+    const int32_t written = story_gates_.stat(story_gates_.political_control, planet);
+    return std::clamp(written != StoryGates::kUnsetStat ? written : rules_->types[p.type].political_control, 0, 5);
 }
 
 // Steps 1-5 of GE 4.1 (0x3f3830): the owner from a physical source, kNoPlayer when none (bkg2 b0125: the clamp floor of the
@@ -633,16 +664,17 @@ int32_t GalacticSim::physical_owner(PlanetIndex planet) const {
 //     control > 0, when both controls are >= 1.
 // lo = 1 with a physical owner (GE 4.1 steps 1-5), else 0; hi = the owner faction's Planet_Max_Political_Control_For_Faction
 // (5 when absent or below lo). FoC data sets every Political_Control and route gain to 0 and lists no maximum, so an owned
-// planet gets max(1, ground-base level, starbase level, troops). The leaning sign and the orbit sum s use the physical
-// owner (0x3f3830), so neutral troops count as an owner and no physical owner gives +v. [port] The residual-influence
-// owner rule is not modelled (derive_owner keeps the leaning owner on an emptied planet): such a planet
-// counts as owned (lo = 1, orbital-claim entry 1), as retail's residual-influence entry gives it.
+// planet gets max(1, ground-base level, starbase level, troops). The orbit sum s uses the physical owner (0x3f3830 step 6,
+// before residual influence), so neutral troops count as an owner; the leaning sign uses the physical or residual owner
+// (0x3f6af0 step 4 runs after 0x3f3830), and no such owner gives +v. A residual-influence owner (gal1 t01)
+// counts as owned: lo = 1 and the RESIDUAL_INFLUENCE presence entry 1; a leaning owner does not. [port] A residual owner that
+// is the neutral player does not, which keeps an empty neutral planet at 0 (BKG1_RE_ANSWERS 9.5).
 int32_t GalacticSim::target_political_control(PlanetIndex planet, int32_t derived) const {
     const PlanetState& p = planets_[planet];
     const TypeInfo* pt = p.type < rules_->types.size() ? &rules_->types[p.type] : nullptr;
     const int32_t physical = physical_owner(planet);
-    const int32_t owner = physical != kNoPlayer ? physical
-                          : (valid_player(derived) && derived != neutral_player_ ? derived : kNoPlayer);  // [port] residual
+    const int32_t residual = physical == kNoPlayer ? residual_owner(planet) : kNoPlayer;
+    const int32_t owner = physical != kNoPlayer ? physical : (residual != neutral_player_ ? residual : kNoPlayer);
     // group 1 presence
     int32_t presence = ground_base_level(planet);
     bool troops = false;
@@ -652,7 +684,7 @@ int32_t GalacticSim::target_political_control(PlanetIndex planet, int32_t derive
     const bool owned_on_ground = ground_base_level(planet) > 0 || troops || p.starbase_level > 0;
     bool from_ground = owned_on_ground;
     for (uint32_t q = 0; q < 2 && !from_ground; ++q) from_ground = !p.queue[q].empty();
-    if (!from_ground && owner != kNoPlayer) presence = std::max(presence, 1);  // ORBITAL_CONTROL (or residual [port])
+    if (!from_ground && owner != kNoPlayer) presence = std::max(presence, 1);  // ORBITAL_CONTROL or RESIDUAL_INFLUENCE
     int32_t s = 0;
     for (uint32_t f : p.orbit) {
         if (!fleets_[f].alive) continue;
@@ -667,11 +699,10 @@ int32_t GalacticSim::target_political_control(PlanetIndex planet, int32_t derive
     if (s >= 0) presence = std::max(presence, std::min(s, 1));  // CAPITAL_SHIPS
     // group 0 leaning
     if (pt) {
-        // mcx6 STATISTIC_CHANGE POLITICAL_CONTROL (§1.17): the planet's written value (+0x22c, 0x3734d0) replaces the type's.
-        const int32_t written = story_gates_.stat(story_gates_.political_control, planet);
-        const int32_t v = std::clamp(written != StoryGates::kUnsetStat ? written : pt->political_control, 0, 5);
+        const int32_t v = political_control_level(planet);
         if (v > 0) {
-            const bool other = valid_player(physical) && players_[static_cast<size_t>(physical)].faction != pt->political_faction;
+            const int32_t known = physical != kNoPlayer ? physical : residual;
+            const bool other = valid_player(known) && players_[static_cast<size_t>(known)].faction != pt->political_faction;
             sum += other ? -v : v;
         }
     }
@@ -770,7 +801,7 @@ void GalacticSim::first_political_corruption(PlanetIndex planet) {
 void GalacticSim::on_owner_change(PlanetIndex planet, int32_t old_owner) {
     PlanetState& p = planets_[planet];
     const int32_t now_owner = p.owner;
-    p.leaning = now_owner;  // ASSUMPTION [L]: the leaning follows applied captures (planets do not revert)
+    p.leaning = now_owner;  // [port] the last applied owner; derive_owner reads it only before the first pass
     // GE 4.2 order [H]: visibility (not modelled), store event + story event (S4 stream); 4. credit caps.
     {
         GalacticEvent ev;
@@ -1783,8 +1814,9 @@ void GalacticSim::update() {
             for (uint32_t i = b; i < e; ++i)
                 derived_[i].owner = planets_[i].is_planet ? derive_owner(i) : kNoPlayer;
         });
-        // A planet's derivation reads only its own structures / surface / starbase / queues / orbit, which no other
-        // planet's ownership or production step touches, so the precomputed owners stay valid while interleaved.
+        // A planet's derivation reads only its own structures / surface / starbase / queues / orbit / owner / destroyed
+        // flag, which no other planet's ownership or production step touches, plus the story Political_Control stat and
+        // the players' factions, which no planet step writes, so the precomputed owners stay valid while interleaved.
         for (ObjectHandle h : order) {
             const PlanetIndex p = planet_of(h);
             if (p == kInvalidPlanet || !store_->alive(h)) continue;

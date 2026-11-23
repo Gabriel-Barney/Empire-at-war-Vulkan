@@ -300,7 +300,9 @@ struct World {
     objects::ObjectStore store{objects::ModeKind::Galactic, objects::StoreKind::Primary, types, &ids};
     SimRng rng{0x1234u};
     GalacticSim sim{rules, store, rng};
-    explicit World(std::vector<StartingForce> forces, bool empire_ai = false) {
+    explicit World(std::vector<StartingForce> forces, bool empire_ai = false) { start(std::move(forces), empire_ai); }
+    World(std::vector<StartingForce> forces, GalacticRules r) : rules(std::move(r)) { start(std::move(forces), false); }
+    void start(std::vector<StartingForce> forces, bool empire_ai) {
         std::vector<std::string> diag;
         CHECK(sim.start(make_setup(std::move(forces), empire_ai), &diag));
         for (const std::string& d : diag) std::printf("  setup: %s\n", d.c_str());
@@ -688,6 +690,54 @@ void test_ownership() {
     CHECK(s.players()[pUnder].account.cap == 80000.0f);
     w.run(300);
     CHECK(w.planet(rC).corruption == kCorruptionNone && !s.corruption_transition_active(rC));
+}
+
+// gal1 t01 (legacy docs/re/BKG1_RE_ANSWERS.md 9 side finding, 0x3f3830 / 0x3f6af0) [H]: with no physical owner, a planet
+// keeps its previous owner only when its type has Planet_Retains_Residual_Influence (default true) and it is not
+// destroyed; else its Political_Faction's player when its Political_Control is above 0; else the neutral player.
+void test_residual_influence() {
+    constexpr uint32_t kEmpireFaction = 0;  // make_rules: Empire, Underworld, Neutral
+    // Underworld carries D's infantry to C, invades, then lifts the troops off C again: C has no physical owner left.
+    const auto capture_and_leave = [](World& w) {
+        GalacticSim& s = w.sim;
+        CHECK(s.launch_units(pUnder, rD, std::vector<ObjectHandle>{w.planet(rD).surface[0]}) == RejectReason::None);
+        const uint32_t f = w.fleet(rD, pUnder);
+        CHECK(s.move_fleet(pUnder, f, rC) == RejectReason::None);
+        for (int i = 0; i < 3000 && w.fl(f).moving; ++i) w.run(1);
+        CHECK(s.invade(pUnder, rC, {}) == RejectReason::None);
+        w.run(1);
+        CHECK(w.planet(rC).owner == pUnder);
+        CHECK(s.launch_units(pUnder, rC, std::vector<ObjectHandle>{w.planet(rC).surface[0]}) == RejectReason::None);
+        w.run(1);
+    };
+    {   // Planet_Retains_Residual_Influence false: the emptied planet turns neutral; D (default true) stays Underworld.
+        GalacticRules r = make_rules();
+        r.types[tPlanetC].retains_residual_influence = false;
+        World w({{pUnder, rD, tCorvette}, {pUnder, rD, tInfantry}}, std::move(r));
+        capture_and_leave(w);
+        CHECK(w.planet(rC).owner == pNeutral && w.planet(rC).target_control == 0.0f);
+        CHECK(w.planet(rD).owner == pUnder);
+    }
+    {   // A Political_Control leaning: the empty planet is its Political_Faction's from the start and reverts to it.
+        GalacticRules r = make_rules();
+        r.types[tPlanetC].retains_residual_influence = false;
+        r.types[tPlanetC].political_control = 2;
+        r.types[tPlanetC].political_faction = kEmpireFaction;
+        World w({{pUnder, rD, tCorvette}, {pUnder, rD, tInfantry}}, std::move(r));
+        CHECK(w.planet(rC).owner == pEmpire);
+        capture_and_leave(w);
+        // A leaning owner is not owned for the target (BKG1 9.2 steps 3-4): floor 0, no presence entry, +v.
+        CHECK(w.planet(rC).owner == pEmpire && w.planet(rC).target_control == 2.0f);
+    }
+    {   // Residual influence comes before the leaning: the emptied planet stays with its last owner.
+        GalacticRules r = make_rules();
+        r.types[tPlanetC].political_control = 2;
+        r.types[tPlanetC].political_faction = kEmpireFaction;
+        World w({{pUnder, rD, tCorvette}, {pUnder, rD, tInfantry}}, std::move(r));
+        capture_and_leave(w);
+        // A residual owner is owned (floor 1, RESIDUAL_INFLUENCE 1) and its faction is not the leaning's: -2 + 1 -> 1.
+        CHECK(w.planet(rC).owner == pUnder && w.planet(rC).target_control == 1.0f);
+    }
 }
 
 // ---- 2e. S4 story event stream ---------------------------------------------------------------------------------------
@@ -3510,6 +3560,7 @@ int main(int argc, char** argv) {
         test_production_modifiers();
         test_fleets();
         test_ownership();
+        test_residual_influence();  // gal1 t01
         test_event_stream();
         test_a2_income_hook();
         test_a2_production_queries();
