@@ -970,9 +970,10 @@ void TacticalBattle::bt_map_prepass() {
     // Player ID that no longer exists!"); the branched-map discard (single player, defender given, type
     // Is_Branched_Map_Discardable) keeps only owner = defender, Loads_When_Faction_Present and owner = attacker, an owner
     // faction without Can_Control_Planets, an Is_Marker type, or a type with MARKER in <Behavior> (#70 t02 [H]: 0x2b0a20
-    // calls 0x370320(type, 0x11, -1) at 0x2b0c85 / 0x2b0ceb; set -1 -> 4, BehaviorSet::Generic); a linked battle (the [M] global 0x140b155d8 != -1, [port] = BattleRequest::linked) also keeps
-    // owner = attacker (Kessel UM01's jailed UMP_TYBER_ZANN). The dropped placements leave map_ (no grid stamp, no spawn). The
-    // kept placements' selectable / mobile types and every Map_Load_Spawn_Table entry join the battle tables.
+    // calls 0x370320(type, 0x11, -1) at 0x2b0c85 / 0x2b0ceb; set -1 -> 4, BehaviorSet::Generic); a linked battle (the [M]
+    // global 0x140b155d8 != -1, [port] = BattleRequest::linked) also keeps owner = attacker (Kessel UM01's jailed
+    // UMP_TYBER_ZANN). The dropped placements leave map_ (no grid stamp, no spawn). The kept placements' selectable / mobile
+    // types and every Map_Load_Spawn_Table entry join the battle tables.
     const objects::GameObjectTypes& types = catalog_->types();
     const TypeCrcIndex index(types);
     const int32_t base = req_.base_level, def = req_.info.defender, att = req_.info.attacker;
