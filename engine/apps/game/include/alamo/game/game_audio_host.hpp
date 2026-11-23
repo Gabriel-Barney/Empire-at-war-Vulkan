@@ -91,6 +91,7 @@ struct GameAudioStats {
     uint64_t death_ends = 0;                                                       // #61: Death_SFXEvent_End_Die started
     uint64_t pad_lines = 0;                                                        // mcx4 t13 batch P
     uint64_t ability_lines = 0;                                                    // mcx4 t13 batch R
+    uint64_t stealth_reveals = 0;                                                  // #67 t02: SFX_Stealth_Reveal started
 };
 
 // trl2 t08 (legacy docs/re/AUDIO.md §9.5, MCX4_T10_RE_ANSWERS §3): the fire sounds of shots held by Projectile_Appearance_Delay_Frames.
@@ -355,6 +356,10 @@ public:
     // One hyperspace arrival (public for the scripted tests): the owner faction's SFXEvent_Arrive_From_Hyperspace attached
     // to the arriving object. Returns the instance id (0 = none / refused).
     uint32_t hyperspace_arrival(uint64_t object, std::string_view owner_faction, const Vec3& position);
+    // #67 t02 (legacy docs/re/ABILITY_VISUALS.md §1.4, 0x592ae0 [H]): a stealthed unit revealed by detection
+    // (AbilityEventKind::StealthRevealed) plays SFX_Stealth_Reveal by name, 2D (0x2d5010), whoever owns it. Public for
+    // the scripted tests; returns the instance id (0 = none / refused).
+    uint32_t stealth_reveal();
     // mcx6 t05 (legacy docs/re/MCX6_T05_CINEMATIC_BINDINGS.md): Lua Cinematic_Hyperspace_In's arrival sound (state 0x2c timer 45):
     // hyperspace_arrival with player `owner`'s faction (set_player_factions; none: nothing plays).
     uint32_t cinematic_arrival(uint64_t object, int32_t owner, const Vec3& position);

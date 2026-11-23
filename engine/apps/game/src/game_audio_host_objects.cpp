@@ -276,6 +276,13 @@ uint32_t GameAudioHost::hyperspace_arrival(uint64_t object, std::string_view own
     return id;
 }
 
+uint32_t GameAudioHost::stealth_reveal() {
+    if (!game_) return 0;
+    const uint32_t id = game_->sfx_2d("SFX_Stealth_Reveal");  // 0x2d5010(name, 0, 0, 0): no extra SFX update
+    if (id != 0) ++stats_.stealth_reveals;
+    return id;
+}
+
 uint32_t GameAudioHost::cinematic_arrival(uint64_t object, int32_t owner, const Vec3& position) {
     if (owner < 0 || static_cast<size_t>(owner) >= player_factions_.size()) return 0;
     return hyperspace_arrival(object, player_factions_[static_cast<size_t>(owner)], position);
@@ -338,6 +345,10 @@ void GameAudioHost::object_events(const sim::TacticalBattle& battle, const objec
     // family"): a laser-defense zap, a refused bribe and a paid bribe play the ability's line attached to the user; any owner.
     for (const tactical::abilities::AbilityEvent& e : battle.abilities().events()) {
         using K = tactical::abilities::AbilityEventKind;
+        if (e.kind == K::StealthRevealed) {  // #67 t02: by name, 2D, any owner (0x592ae0 -> 0x2d5010)
+            stealth_reveal();
+            continue;
+        }
         std::string_view element, field;
         if (e.kind == K::Zap) {
             element = "Laser_Defense_Ability";
@@ -411,6 +422,7 @@ void GameAudioHost::ability_button_line(const objects::GameObjectTypes&, objects
 void GameAudioHost::object_events(const sim::TacticalBattle&, const objects::ObjectStore&, const objects::GameObjectTypes&,
                                   std::span<const std::string>) {}
 uint32_t GameAudioHost::hyperspace_arrival(uint64_t, std::string_view, const Vec3&) { return 0; }
+uint32_t GameAudioHost::stealth_reveal() { return 0; }
 uint32_t GameAudioHost::cinematic_arrival(uint64_t, int32_t, const Vec3&) { return 0; }
 uint32_t GameAudioHost::cinematic_engine_flyby(const objects::GameObjectTypes&, objects::TypeIndex, uint64_t, const Vec3&) { return 0; }
 
