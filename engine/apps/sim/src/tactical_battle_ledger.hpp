@@ -215,6 +215,7 @@
     SAVED(bt_shields_, state) \
     REBUILT(credits_get_, "host callback, registered again on a rebuild") \
     REBUILT(credits_add_, "host callback, registered again on a rebuild") \
+    REBUILT(credits_add_notify_, "host callback, registered again on a rebuild") \
     REBUILT(arrival_hold_, "host callback, registered again on a rebuild") \
     REBUILT(scoring_death_, "host callback, registered again on a rebuild") \
     REBUILT(before_map_load_, "host callback, registered again on a rebuild") \

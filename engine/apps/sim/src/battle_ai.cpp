@@ -3516,12 +3516,13 @@ void BattleAi::add_credits(int32_t player, float amount) {
     add_credits_live(player, amount);
 }
 
-// b0147: Add_Credits 0x27f370 through the battle's credit hook ([port] notify off, as the battle's other credit changes;
-// a positive amount for an AI player is multiplied by its Credit_Multiplier there). Also after the battle finished: the
-// battle-end plan release (end()) refunds the escrows before the campaign's credit transfer back.
+// b0147: Add_Credits 0x27f370 through the battle's credit hook (a positive amount for an AI player is multiplied by its
+// Credit_Multiplier there). #222: with the AI notify on, as retail's escrow charge 0x6c2d60 and plan-end refund 0x5f6a50
+// (legacy docs/re/A2K_T10_CREDIT_NOTIFY_RE.md Q3 [H]). Also after the battle finished: the battle-end plan release (end()) refunds the
+// escrows before the campaign's credit transfer back.
 void BattleAi::add_credits_live(int32_t player, float amount) {
-    if (player < 0 || amount == 0.0f || !b_->credits_add_) return;
-    b_->credits_add_(player, amount);
+    if (player < 0 || amount == 0.0f) return;
+    b_->credits_add_notified(player, amount);
 }
 
 void BattleAi::unit_released_live(int32_t player, int32_t object_id, ai::tactical::TacticalAiHost::UnitRelease path) {

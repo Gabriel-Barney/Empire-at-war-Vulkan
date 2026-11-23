@@ -846,13 +846,24 @@ void CampaignBattles::push_battle(SimHost& host) {
         }
         battle_->set_galactic_upgrades(std::move(ups), !rebuilding_);
     }
-    {  // battle host: TacticalBuild charges / TacticalSell refunds spend the galactic account ([port] no AI notify)
+    {  // battle host: TacticalBuild charges / TacticalSell refunds spend the galactic account.
+        // #222 (legacy docs/re/A2K_T10_CREDIT_NOTIFY_RE.md): the second add hook is Add_Credits with the AI notify on
+        // (the production cancel refund, the AI plan's escrow charge and refund: notify 1 in Q3 [H]). The first passes it
+        // off: the build / enqueue charges and the failed-build credit-back are notify 0 in Q3 [H]; [port] the sell refund,
+        // repair, bribe, income streams and cash points are not in Q3 (retail unknown) and keep it off, which only a
+        // campaign battle's galactic AI budget could show (no parity metric reads it). The notify 0x4b0310 reaches only a
+        // galactic mode on the mode stack (Q1 [H]): none under a skirmish or a map battle, though the port's skirmish
+        // galaxy may run a galactic AI, so those pass it off too.
         galactic::GalacticSim* gsim = g->sim();
+        const bool galactic_mode = !opt_.battle.skirmish && !direct_;
+        auto make_add_hook = [gsim](bool notify) {
+            return [gsim, notify](int32_t p, float d) {
+                if (p >= 0 && static_cast<size_t>(p) < gsim->players().size()) gsim->add_credits(p, d, notify);
+            };
+        };
         battle_->set_credit_hooks(
             [gsim](int32_t p) { return p >= 0 && static_cast<size_t>(p) < gsim->players().size() ? gsim->credits(p) : 0.0f; },
-            [gsim](int32_t p, float d) {
-                if (p >= 0 && static_cast<size_t>(p) < gsim->players().size()) gsim->add_credits(p, d, false);
-            });
+            make_add_hook(false), make_add_hook(galactic_mode));
     }
     battle_->set_fog_globals(fog_active_, fog_render_);  // fog: the original's global flag survives battles
 #if defined(ALAMO_SIM_HAVE_STORY) && defined(ALAMO_LUA_PLAYERS)
