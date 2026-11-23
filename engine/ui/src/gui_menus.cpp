@@ -94,7 +94,15 @@ constexpr ButtonMove kInGameOptionsMoves[] = {{"IDC_IN_GAME_OPTIONS_VIDEO", 7.0f
 // under them (Gamma, the checks, the display line) close the gap.
 constexpr int32_t kDisplayMovedRowsTop = 240, kDisplayMovedRowsEnd = 290, kDisplayRowsBelowEnd = 400;
 constexpr float kDisplayRowsUp = 51.0f;  // Gamma takes Anti-Aliasing's row (297 -> 246)
-constexpr const char32_t* kQualityNames[kQualityCount + 1] = {U"Low", U"Medium", U"High", U"Ultra", U"Custom"};
+// The Detail Level list's rows (#45 t08: retail's TEXT_LOW / TEXT_HIGH where the table has them).
+struct QualityName {
+    const char* key;
+    const char32_t* english;
+};
+// [port-text-begin: the stand-ins of the keys, and the levels the table has no key for]
+constexpr QualityName kQualityNames[kQualityCount + 1] = {
+    {"TEXT_LOW", U"Low"}, {nullptr, U"Medium"}, {"TEXT_HIGH", U"High"}, {nullptr, U"Ultra"}, {nullptr, U"Custom"}};
+// [port-text-end]
 struct AdvCheck {
     const char* id;
     bool AdvancedVideoSettings::*field;
@@ -128,6 +136,7 @@ int32_t keyboard_page(std::string_view dialog) {
 float to01(int32_t v) { return static_cast<float>(std::clamp(v, 0, 100)) / 100.0f; }
 int32_t to100(float v) { return static_cast<int32_t>(std::lround(std::clamp(v, 0.0f, 1.0f) * 100.0f)); }
 
+// [port-text-begin: hotkey slot names (hotkeys.hpp ids), never shown]
 // IDC_EDIT_* (keyboard dialogs) -> hotkey slot name (hotkeys.hpp). The order is the retail one - the edit-name
 // string table (0x8063d0 .. 0x807310, stride 0x20, legacy docs/re/UI.md §4.3) lists the boxes in slot order, entry i = slot i
 // (alamo_ui_hud_ui3_tests checks every entry).
@@ -196,6 +205,7 @@ constexpr EditSlot kEditSlots[] = {
     {"IDC_EDIT_PORT_SCROLL_RIGHT", "ScrollRight"}, {"IDC_EDIT_PORT_ZOOM_IN", "CameraZoomIn"},
     {"IDC_EDIT_PORT_ZOOM_OUT", "CameraZoomOut"},
 };
+// [port-text-end]
 
 MenuAction act(MenuAction::Kind k) {
     MenuAction a;
@@ -233,6 +243,8 @@ const char* menu_action_name(MenuAction::Kind k) {
     return "?";
 }
 
+// [port-text-begin: the port's dialogs in GUIDialogs.rc syntax; a caption that is no TEXT_* key goes through
+// GuiManager::caption_text, which shows it as a port string]
 // [port: Gabriel] the port's camera / controls dialog, in the GUIDialogs.rc syntax (skinned by the Default skin).
 const char* const kPortDialogsRc = R"RC(
 IDD_PORT_CAMERA_CONTROLS_DIALOG DIALOGEX 0, 0, 560, 440
@@ -342,10 +354,13 @@ BEGIN
     CONTROL         "Ambient Occlusion",IDC_PORT_AMBIENT_OCCLUSION,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,33,385,215,23
 END
 )RC";
+// [port-text-end]
 
 namespace {
 constexpr uint8_t kQueueModChoices[4] = {kModShift, kModCtrl, kModAlt, 0};
-constexpr const char32_t* kQueueModNames[4] = {U"Shift", U"Ctrl", U"Alt", U"None"};
+// #45 t08: retail's key names TEXT_KEY_SHIFT / CONTROL / ALT; the table has no "None" [port].
+constexpr const char* kQueueModKeys[4] = {"TEXT_KEY_SHIFT", "TEXT_KEY_CONTROL", "TEXT_KEY_ALT", nullptr};
+constexpr const char32_t* kQueueModNames[4] = {U"Shift", U"Ctrl", U"Alt", U"None"};  // [port-text: their stand-ins]
 std::u32string fov_text(float deg) { return ascii32(std::to_string(static_cast<int>(std::lround(deg)))); }
 std::u32string value_text(int32_t v) { return ascii32(std::to_string(v)); }
 std::u32string fps_text(int32_t v) { return ascii32(std::to_string(v) + " fps"); }
@@ -370,7 +385,7 @@ void hide_slider(GuiDialog& d, const char* id) {
 // The items of a list of named levels, in the dialog's text path (pseudo-localization, translation).
 std::vector<std::u32string> level_items(const GuiManager& gui, std::span<const LevelChoice> choices) {
     std::vector<std::u32string> items;
-    for (const LevelChoice& c : choices) items.push_back(gui.port_text(c.label));
+    for (const LevelChoice& c : choices) items.push_back(text_or_port(gui.text_db(), c.key, c.label));
     return items;
 }
 // [port: Gabriel 2026-11-13] The Upscaler Quality list's rows for an upscaler: each level's name and that upscaler's ratio
@@ -435,7 +450,7 @@ void FrontEnd::fill_port_controls(GuiDialog& d, const CameraSettings& s) {
     d.set_text("IDC_PORT_GALACTIC_FOV_VALUE", fov_text(s.galactic_fov_deg));
     d.set_text("IDC_PORT_TACTICAL_FOV_VALUE", fov_text(s.tactical_fov_deg));
     std::vector<std::u32string> mods;
-    for (const char32_t* m : kQueueModNames) mods.push_back(gui_->port_text(m));
+    for (size_t i = 0; i < 4; ++i) mods.push_back(text_or_port(gui_->text_db(), kQueueModKeys[i], kQueueModNames[i]));
     int32_t sel = 0;
     for (int32_t i = 0; i < 4; ++i)
         if (kQueueModChoices[i] == s.queue_mods) sel = i;
@@ -651,8 +666,10 @@ CampaignMenu build_campaign_menu(std::span<const data::CampaignDef* const> sorte
             const std::string t = trimmed(v);
             listed = t == "1" || (!t.empty() && (t[0] == 'Y' || t[0] == 'y' || t[0] == 'T' || t[0] == 't'));
         }
+        // [port-text-begin: the Campaign_Set name prefix, not shown]
         if (custom && !listed && !ascii_istarts_with(set, "Tutorial")) continue;
         if (ascii_istarts_with(set, "Tutorial")) add(m.tutorials, *c, set, faction, custom);
+        // [port-text-end]
         else add(custom ? m.custom : m.story, *c, set, faction, custom);
     }
     return m;
@@ -1144,7 +1161,7 @@ void FrontEnd::fill_mods(GuiDialog& d) {
     std::vector<std::u32string> rows;
     int32_t sel = -1, active = -1;
     for (size_t i = 0; i < mods_.size(); ++i) {
-        rows.push_back(mods_[i].active ? mods_[i].label + U"  (running)" : mods_[i].label);
+        rows.push_back(mods_[i].active ? mods_[i].label + gui_->port_text(U"  (running)") : mods_[i].label);
         if (sel < 0 && mod_chosen_ && mods_[i].id == mod_selected_) sel = static_cast<int32_t>(i);
         if (active < 0 && mods_[i].active) active = static_cast<int32_t>(i);
     }
@@ -1379,7 +1396,7 @@ void FrontEnd::fill_advanced_video(GuiDialog& d, const AdvancedVideoSettings& s)
     d.set_text("IDC_STATIC_MEDIUM", gui_->port_text(U"Graphics"));
     d.show("IDC_AUTO_DETECT", false);
     std::vector<std::u32string> quality;
-    for (const char32_t* q : kQualityNames) quality.push_back(gui_->port_text(q));
+    for (const QualityName& q : kQualityNames) quality.push_back(text_or_port(gui_->text_db(), q.key, q.english));
     d.set_items("IDC_PORT_DETAIL_LEVEL", std::move(quality), static_cast<int32_t>(quality_level(s)));
     const int32_t aa = p_.video ? p_.video().anti_alias : VideoSettings{}.anti_alias;
     d.set_items("IDC_PORT_ANTI_ALIASING", level_items(*gui_, kAntiAliasChoices), static_cast<int32_t>(level_index(kAntiAliasChoices, aa)));
@@ -2149,6 +2166,7 @@ void FrontEnd::on_click(const GuiEvent& e, std::vector<MenuAction>& out) {
             pop();
         } else if (is("IDC_DEFAULTS_BUTTON")) {
             const HotkeyTable defaults;
+            // [port-text: hotkey slot names, not shown]
             for (const char* s : {"Pause", "CameraYawLeft", "CameraYawRight", "CameraPitchUp", "CameraPitchDown", "CameraRollLeft",
                                   "CameraRollRight", "ScrollUp", "ScrollDown", "ScrollLeft", "ScrollRight", "CameraZoomIn",
                                   "CameraZoomOut"}) {

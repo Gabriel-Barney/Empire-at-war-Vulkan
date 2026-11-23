@@ -184,7 +184,7 @@ private:
 std::u16string pseudo_localize(std::u16string_view s);
 // #45 t08: the key's MasterTextFile entry, else `english` as a port string (TextDatabase::port_text: pseudo-localized like
 // the table); `english` as written without a table. The English stand-in of a retail key whose table lacks it (a mod, a
-// test, EaW without the FoC key).
+// test, EaW without the FoC key). A null `key` is a port string with no retail key.
 std::u32string text_or_port(const TextDatabase* text, const char* key, std::u32string_view english);
 // Data\Text\MasterTextFile_<LANGUAGE>.DAT, falling back to ENGLISH (legacy docs/re/UI.md §3.5). False if neither exists.
 bool load_master_text(const FileProvider& files, std::string_view language, TextDatabase& out, std::string* log = nullptr);

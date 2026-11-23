@@ -348,6 +348,7 @@ void test_atlas_text() {
     CHECK(text_or_port(nullptr, "TEXT_BUTTON_BEGIN", U"Begin") == U"Begin");
     g2.pseudo_localize_all();
     CHECK(text_or_port(&g2, "TEXT_NOPE", U"Begin") == utf16_to_utf32(pseudo_localize(u"Begin")));
+    CHECK(text_or_port(&g2, nullptr, U"Begin") == utf16_to_utf32(pseudo_localize(u"Begin")));  // no retail key: a port string
     CHECK(utf16_to_utf32(u"a\U0001F600") == U"a\U0001F600" && utf8_to_utf32("x\xc3\xa9") == U"x\u00e9");
 }
 

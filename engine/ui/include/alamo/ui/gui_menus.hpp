@@ -163,13 +163,16 @@ inline constexpr int32_t kRenderScaleChoices[] = {50, 60, 67, 75, 85, 100};
 struct LevelChoice {
     int32_t value;
     int32_t from;
-    const char32_t* label;
+    const char32_t* label;     // the English, or the stand-in of `key`
+    const char* key = nullptr;  // #45 t08: a MasterTextFile key for the label where retail has one (TEXT_OFF / LOW / HIGH)
 };
+// [port-text-begin: the port's video-list labels (shown through level_items: the key's text, else port_text); Off, Low
+// and High carry retail's TEXT_OFF / TEXT_LOW / TEXT_HIGH, the table has no Medium, Ultra, On or upscaler names]
 // [port: Gabriel 2026-11-13] Anti-aliasing: one list, one choice - Off, SMAA, TAA, MSAA 2x / 4x / 8x - each at one fixed
 // quality (game_display.hpp apply_aa_options; the original has no anti-aliasing option). The stored value is the mode below
 // (VideoSettings::anti_alias, profile key "aa_mode"). An MSAA count the device cannot do is drawn with the largest one it can
 // (render::Renderer::msaa_samples), so the list is the same on every device.
-inline constexpr LevelChoice kAntiAliasChoices[] = {{kAaOff, kAaOff, U"Off"},       {kAaSmaa, kAaSmaa, U"SMAA"},
+inline constexpr LevelChoice kAntiAliasChoices[] = {{kAaOff, kAaOff, U"Off", "TEXT_OFF"}, {kAaSmaa, kAaSmaa, U"SMAA"},
                                                     {kAaTaa, kAaTaa, U"TAA"},       {kAaMsaa2, kAaMsaa2, U"MSAA 2x"},
                                                     {kAaMsaa4, kAaMsaa4, U"MSAA 4x"}, {kAaMsaa8, kAaMsaa8, U"MSAA 8x"}};
 // [port: Gabriel 2026-11-13] Upscaling, two lists apart from Anti-aliasing: the upscaler type (VideoSettings::upscaler, profile
@@ -179,7 +182,7 @@ inline constexpr LevelChoice kAntiAliasChoices[] = {{kAaOff, kAaOff, U"Off"},   
 // Quality list while it is off). Where the upscaler cannot run the frame is drawn at full resolution with TAA. The quality
 // levels have the same names for both; their ratios differ (kUpscaleRatioLabels).
 inline constexpr LevelChoice kUpscalerChoices[] = {
-    {kUpscalerOff, kUpscalerOff, U"Off"}, {kUpscalerFsr, kUpscalerFsr, U"AMD FSR"}, {kUpscalerXess, kUpscalerXess, U"Intel XeSS"}};
+    {kUpscalerOff, kUpscalerOff, U"Off", "TEXT_OFF"}, {kUpscalerFsr, kUpscalerFsr, U"AMD FSR"}, {kUpscalerXess, kUpscalerXess, U"Intel XeSS"}};
 inline constexpr LevelChoice kUpscaleQualityChoices[] = {{kUpscaleNative, kUpscaleNative, U"Native AA"},
                                                          {kUpscaleQuality, kUpscaleQuality, U"Quality"},
                                                          {kUpscaleBalanced, kUpscaleBalanced, U"Balanced"},
@@ -191,11 +194,13 @@ inline constexpr const char32_t* kUpscaleRatioLabels[2][5] = {{U"1x", U"1.5x", U
 // The seven detail options. Four levels where the renderer has four steps (Shader) or a continuous scale (Particle, Mesh,
 // Environment); three where it has three (Texture: top mips skipped 2 / 1 / 0, Water: reflection targets 0 / 1 / 2);
 // Shadow is on or off (any value above 0 draws shadows). Each list ends at the value the old slider's Max stood for.
-inline constexpr LevelChoice kLevels4[] = {{0, 0, U"Low"}, {40, 17, U"Medium"}, {75, 50, U"High"}, {100, 84, U"Ultra"}};
-inline constexpr LevelChoice kLevels3[] = {{0, 0, U"Low"}, {40, 25, U"Medium"}, {100, 75, U"High"}};
+inline constexpr LevelChoice kLevels4[] = {
+    {0, 0, U"Low", "TEXT_LOW"}, {40, 17, U"Medium"}, {75, 50, U"High", "TEXT_HIGH"}, {100, 84, U"Ultra"}};
+inline constexpr LevelChoice kLevels3[] = {{0, 0, U"Low", "TEXT_LOW"}, {40, 25, U"Medium"}, {100, 75, U"High", "TEXT_HIGH"}};
 inline constexpr LevelChoice kTextureChoices[] = {
     {0, 0, U"Low - quarter size"}, {40, 25, U"Medium - half size"}, {100, 75, U"High - full size"}};
-inline constexpr LevelChoice kShadowChoices[] = {{0, 0, U"Off"}, {100, 1, U"On"}};
+inline constexpr LevelChoice kShadowChoices[] = {{0, 0, U"Off", "TEXT_OFF"}, {100, 1, U"On"}};
+// [port-text-end]
 // The index of the level a stored value falls in.
 constexpr size_t level_index(std::span<const LevelChoice> choices, int32_t value) {
     size_t k = 0;

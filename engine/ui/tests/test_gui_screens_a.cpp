@@ -513,6 +513,10 @@ END
     applied.detail = advanced_detail_level(cur);
     p.advanced_video = [&] { return cur; };
     p.video = [&] { return applied; };
+    // #45 t08: a German table's TEXT_OFF / TEXT_LOW / TEXT_HIGH name those levels; the rest are the port's English.
+    env.text.add("TEXT_OFF", u"Aus");
+    env.text.add("TEXT_LOW", u"Niedrig");
+    env.text.add("TEXT_HIGH", u"Hoch");
     fe.init(env.gui, {}, p);
     std::vector<MenuAction> acts;
     const auto click = [&](const char* dialog, const char* id) { fe.update(std::vector<GuiEvent>{event(GuiEvent::Kind::Clicked, dialog, id)}, InputFrame{}, acts); };
@@ -533,6 +537,8 @@ END
     GuiControl* quality = d->get("IDC_PORT_DETAIL_LEVEL");
     CHECK(aa->selected == 4 && aa->items.size() == std::size(kAntiAliasChoices) && quality->selected == static_cast<int32_t>(kQualityCustom) &&
           quality->items.size() == kQualityCount + 1 && quality->items.back() == U"Custom" && aa->ui_font && quality->ui_font);
+    CHECK(aa->items[0] == U"Aus" && aa->items[1] == U"SMAA" && quality->items[0] == U"Niedrig" && quality->items[1] == U"Medium" &&
+          quality->items[2] == U"Hoch" && quality->items[3] == U"Ultra" && d->get("IDC_PORT_UPSCALER")->items[0] == U"Aus");
     // Untouched anti-aliasing sends nothing for it; a moved list sends an ApplyVideo with the display settings in force.
     click("IDD_ADVANCED_VIDEO_OPTIONS_DIALOG", "IDC_APPLY");
     CHECK(acts.size() == 1 && acts[0].kind == MenuAction::Kind::ApplyAdvancedVideo);
@@ -590,7 +596,9 @@ END
                   {"IDC_PORT_WATER_DETAIL", 3, 2},    {"IDC_PORT_SHADER_DETAIL", 4, 3}, {"IDC_PORT_SHADOW_DETAIL", 2, 1},
                   {"IDC_PORT_ENVIRONMENT_DETAIL", 4, 3}};
     for (const auto& e : expect) CHECK(d->get(e.id)->items.size() == e.items && d->get(e.id)->selected == e.selected);
-    CHECK(d->get("IDC_PORT_TEXTURE_DETAIL")->items[0] == U"Low - quarter size" && d->get("IDC_PORT_SHADOW_DETAIL")->items[0] == U"Off");
+    CHECK(d->get("IDC_PORT_TEXTURE_DETAIL")->items[0] == U"Low - quarter size" && d->get("IDC_PORT_SHADOW_DETAIL")->items[0] == U"Aus" &&
+          d->get("IDC_PORT_SHADOW_DETAIL")->items[1] == U"On" && d->get("IDC_PORT_MESH_DETAIL")->items[0] == U"Niedrig" &&
+          d->get("IDC_PORT_WATER_DETAIL")->items[2] == U"Hoch");
     CHECK(d->get("IDC_PORT_ANISOTROPY")->selected == 3 && d->get("IDC_PORT_ANISOTROPY")->items.size() == std::size(kAnisotropyChoices) &&
           d->get("IDC_PORT_ANISOTROPY")->items[4] == U"16x" && !d->get("IDC_PORT_AMBIENT_OCCLUSION")->checked);
     CHECK(!d->get("IDC_PARTICLE_DETAIL_SLIDER")->visible);
