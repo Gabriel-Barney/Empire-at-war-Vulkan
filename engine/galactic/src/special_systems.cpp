@@ -258,10 +258,10 @@ const SpecialAbilityDef& GalacticSim::special_def(uint32_t ref) const {
 
 bool GalacticSim::special_apply(uint32_t ability, ObjectHandle unit, int32_t owner, PlanetIndex planet) {
     const SpecialAbilityDef& a = special_def(ability);
-    bool applied = false;
+    bool applied = false, story = true;
     switch (a.cls) {
     case SpecialAbilityClass::BlackMarket: applied = apply_black_market(a, unit, owner, planet); break;
-    case SpecialAbilityClass::Sabotage: applied = apply_sabotage(a, unit, owner, planet); break;
+    case SpecialAbilityClass::Sabotage: applied = apply_sabotage(a, unit, owner, planet, &story); break;
     case SpecialAbilityClass::Hack: applied = apply_hack(unit, owner, planet); break;
     case SpecialAbilityClass::Corruption: applied = apply_corruption(unit, owner, planet); break;
     case SpecialAbilityClass::Slicer: applied = apply_slicer(a, unit, owner, planet); break;
@@ -274,8 +274,8 @@ bool GalacticSim::special_apply(uint32_t ability, ObjectHandle unit, int32_t own
     }
     // Story LAND_ON (2) + DEPLOY (0xC) for every successful apply (0x3284c0) [H]; type = the unit's type. galab: the
     // planet destruction ability does not call it (0x707670); Neutralize_Hero calls it inside its executor (0x616740),
-    // before the neutralizer leaves.
-    if (applied && a.cls != SpecialAbilityClass::PlanetDestruction && a.cls != SpecialAbilityClass::NeutralizeHero)
+    // before the neutralizer leaves. #62: a sabotage caught by vigilance returns true but skips it (0x5b1920 [H]).
+    if (applied && story && a.cls != SpecialAbilityClass::PlanetDestruction && a.cls != SpecialAbilityClass::NeutralizeHero)
         emit_special(GalacticEventKind::SpecialApplied, owner, planet, unit, static_cast<uint32_t>(store_->exists(unit) ? store_->type(unit) : kNoIndex),
                      static_cast<int32_t>(ability), -1);
     return applied;
@@ -698,7 +698,7 @@ void GalacticSim::destroy_structure_sabotage(PlanetIndex planet, ObjectHandle st
     if (story) emit_special(GalacticEventKind::GalacticSabotage, player, planet, {}, type, kSabotageSpecialStructure, -1);
 }
 
-bool GalacticSim::apply_sabotage(const SpecialAbilityDef& a, ObjectHandle saboteur, int32_t player, PlanetIndex planet) {
+bool GalacticSim::apply_sabotage(const SpecialAbilityDef& a, ObjectHandle saboteur, int32_t player, PlanetIndex planet, bool* story) {
     // vf30 0x5b1920 [H].
     const PlayerState& ps = players_[static_cast<size_t>(player)];
     if (!ps.human && !ps.ai) return false;  // 1. (a human is the local player in the port's SP model)
@@ -717,6 +717,7 @@ bool GalacticSim::apply_sabotage(const SpecialAbilityDef& a, ObjectHandle sabote
         const float r = rng_->inline_range_float(a.min_respawn, a.max_respawn);  // vf12: one synced draw
         if (r > 0.0f) schedule_hero_respawn(saboteur, planet, r);
         destroy_object(saboteur);  // killed (0x391310)
+        if (story) *story = false;  // #62: no 0x3284c0 on this branch (0x5b1920 [H])
         return true;
     }
     bool ok = false;

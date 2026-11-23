@@ -536,6 +536,9 @@ void test_sabotage() {
         CHECK(w.rng == expect && !w.store.alive(sab) && first_structure(w, rC, tSpecial) != ObjectHandle{} && s.sabotage_count(rC) == 0);
         CHECK(s.respawns_pending(rC).size() == 1 && s.respawns_pending(rC)[0].due == due_after(s.frame(), 5.0f));
         CHECK(w.count(GalacticEventKind::SabotageVigilance) == 1 && w.last(GalacticEventKind::SabotageVigilance)->other_player == pReb);
+        // #62 (0x5b1920 [H]): the vigilance branch skips the story LAND_ON / DEPLOY call 0x3284c0, which only the success
+        // branch makes - so no SpecialApplied, although the apply returns true (the trigger's respawn draw above).
+        CHECK(w.count(GalacticEventKind::SpecialApplied) == 0);
     }
     {
         World w;  // credit halt (option 4): faction pairing Underworld -> Empire; 10 s

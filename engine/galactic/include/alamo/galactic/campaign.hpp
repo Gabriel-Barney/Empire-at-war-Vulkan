@@ -1471,7 +1471,8 @@ private:
     bool apply_black_market(const SpecialAbilityDef& a, ObjectHandle hero, int32_t player, PlanetIndex planet);
     bool apply_slicer(const SpecialAbilityDef& a, ObjectHandle slicer, int32_t player, PlanetIndex planet);
     bool slice_accepts(int32_t player, PlanetIndex planet) const;
-    bool apply_sabotage(const SpecialAbilityDef& a, ObjectHandle saboteur, int32_t player, PlanetIndex planet);
+    // `story` (out): false when the apply skips the story LAND_ON / DEPLOY call (the vigilance catch, 0x5b1920).
+    bool apply_sabotage(const SpecialAbilityDef& a, ObjectHandle saboteur, int32_t player, PlanetIndex planet, bool* story = nullptr);
     bool apply_hack(ObjectHandle hacker, int32_t player, PlanetIndex planet);
     bool apply_corruption(ObjectHandle defiler, int32_t player, PlanetIndex planet);
     // galab (src/galab_abilities.cpp)
