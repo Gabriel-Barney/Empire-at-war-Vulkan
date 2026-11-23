@@ -343,7 +343,6 @@ const audio::UnitSounds& GameAudioHost::sounds(const objects::GameObjectTypes& t
             "SFXEvent_Group_Move", "SFXEvent_Group_Attack", "SFXEvent_Assist_Move", "SFXEvent_Assist_Attack"};
         for (size_t i = 0; i < audio::kUnitOrderCount; ++i) s->response[i] = std::string(types.get_string(t, kTags[i]));
         s->unit_lost = std::string(types.get_string(t, "SFXEvent_Unit_Lost"));
-        s->unit_under_attack = std::string(types.get_string(t, "SFXEvent_Unit_Under_Attack"));
         s->fire = std::string(types.get_string(t, "SFXEvent_Fire"));
         s->death_start = std::string(types.get_string(t, "Death_SFXEvent_Start_Die"));
         s->death_end = std::string(types.get_string(t, "Death_SFXEvent_End_Die"));

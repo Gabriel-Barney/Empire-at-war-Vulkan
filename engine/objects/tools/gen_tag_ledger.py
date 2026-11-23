@@ -215,6 +215,7 @@ RETAIL_UNUSED = {
     ("GameObjectType", "Projectile_Acceleration_Per_Frame"): "docs/re/xml_reference_index.md GameObjectType.Projectile_Acceleration_Per_Frame",
     ("GameObjectType", "Required_Timeline"): "docs/re/xml_reference_index.md GameObjectType.Required_Timeline",
     ("GameObjectType", "SFXEvent_Bombard_Select_Target"): "docs/re/xml_reference_index.md GameObjectType.SFXEvent_Bombard_Select_Target",
+    ("GameObjectType", "SFXEvent_Unit_Under_Attack"): "docs/re/xml_reference_index.md GameObjectType.SFXEvent_Unit_Under_Attack",
     ("GameObjectType", "Size_Value"): "docs/re/xml_reference_index.md GameObjectType.Size_Value",
     ("GameObjectType", "Space_Full_Stop_Command"): "docs/re/xml_reference_index.md GameObjectType.Space_Full_Stop_Command",
     ("GameObjectType", "SpaceAutoResolveHitRate"): "docs/re/xml_reference_index.md GameObjectType.SpaceAutoResolveHitRate",

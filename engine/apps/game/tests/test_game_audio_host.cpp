@@ -1055,8 +1055,7 @@ void test_unit_lost_sighting_50() {
     files.add("Data\\XML\\GameObjectFiles.xml", "<L><File>T50.xml</File></L>");
     files.add("Data\\XML\\T50.xml", R"(<?xml version="1.0"?>
 <GroundVehicles>
-  <GroundVehicle Name="Tank"><SFXEvent_Unit_Lost> Tank_Lost </SFXEvent_Unit_Lost>
-    <SFXEvent_Unit_Under_Attack> Tank_Hit </SFXEvent_Unit_Under_Attack></GroundVehicle>
+  <GroundVehicle Name="Tank"><SFXEvent_Unit_Lost> Tank_Lost </SFXEvent_Unit_Lost></GroundVehicle>
   <GroundVehicle Name="Hero_Tank"><Play_SFXEvent_On_Sighting> Yes </Play_SFXEvent_On_Sighting></GroundVehicle>
 </GroundVehicles>
 )");
@@ -1074,7 +1073,6 @@ void test_unit_lost_sighting_50() {
     tree->add("Data\\XML\\SFXEventsTest.xml", R"(<?xml version="1.0"?>
 <SFXEvents>
   <SFXEvent Name="Tank_Lost"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Max_Instances>4</Max_Instances><Samples>LOST.WAV</Samples></SFXEvent>
-  <SFXEvent Name="Tank_Hit"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Samples>HIT.WAV</Samples></SFXEvent>
   <SFXEvent Name="Enemy_Seen"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Max_Instances>4</Max_Instances><Samples>SEEN.WAV</Samples></SFXEvent>
   <SFXEvent Name="Hero_Seen"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Max_Instances>4</Max_Instances><Samples>HERO.WAV</Samples></SFXEvent>
 </SFXEvents>
@@ -1098,7 +1096,6 @@ void test_unit_lost_sighting_50() {
     CHECK(starts(h, "Tank_Lost") == 1 && h.stats().unit_lost_lines == 1);
     h.unit_died(types, 7, hero, Vec3{10, 0, 0}, true);  // no Unit_Lost tag: nothing more
     CHECK(h.stats().unit_lost_lines == 1);
-    CHECK(starts(h, "Tank_Hit") == 0);  // Unit_Under_Attack has no retail reader
     // t03: an ally's ordinary unit says nothing; the enemy's first sighting says Enemy_Spotted once per battle.
     CHECK(!h.unit_sighted(types, tank, false));
     CHECK(h.unit_sighted(types, tank, true) && starts(h, "Enemy_Seen") == 1);
