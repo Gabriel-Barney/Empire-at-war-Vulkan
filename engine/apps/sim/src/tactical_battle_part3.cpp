@@ -1202,8 +1202,8 @@ cmd::RejectReason TacticalBattle::handle_command(TacticalMode& mode, uint8_t pla
     if (finished_ || !abilities_) return R::NotAllowed;
     const T t = ev.type();
     if (t == T::Garrison || t == T::MoveToGarrison) return s4_command(mode, player, ev, rng);  // S4 garrisons
-    // battle host: TacticalBuildEvent (33) / TacticalSell (34) - L1_S4_REMAINING §3.6; AI players build without a charge in campaign
-    // battles and pay like a human in land skirmish (tactical_build).
+    // battle host: TacticalBuildEvent (33) / TacticalSell (34) - L1_S4_REMAINING §3.6; b0147: a non-human player's build is
+    // never charged (0x42edf0 charge 0: the AI pays at plan accept), a human pays at the build (tactical_build).
     if (t == T::Production) return hg_production_command(mode, player, ev);  // skirmish station production (else Unhandled)
     if (t == T::SetupPhaseMove || t == T::SetupPhaseTriggerEnd) return fog_setup_command(mode, player, ev);  // FOWF t05
     if (t == T::TacticalBuild) {

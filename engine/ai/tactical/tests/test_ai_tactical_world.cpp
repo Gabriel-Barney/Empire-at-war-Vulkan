@@ -761,6 +761,9 @@ float g_pop_cap = 6.0f;  // MockHost::population_cap
 // frame's start + 1); the mock's facts are captured once per AI frame and read from that capture during the update.
 bool g_room_for_one = false;
 bool g_frame_snapshot = false;
+// b0147 (test_pad_escrow): the mock's pad check passes and its TacticalBuild starts the build (the Empire pad), so Build_All
+// reaches the TF Build match; off: every pad check refuses (the golden runs).
+bool g_pad_ok = false;
 
 class MockHost final : public TacticalAiHost {
 public:
@@ -792,7 +795,7 @@ public:
         facts_.pop_used.set_rule([this](const int32_t& p) { return population_used(p); });
         facts_.damage_live = &dt_;
         facts_.contrast_table = &contrast_;
-        facts_.pad_check.live = [](int32_t, int32_t, int32_t) { return PadCheck::Blocked; };
+        facts_.pad_check.live = [](int32_t, int32_t, int32_t) { return g_pad_ok ? PadCheck::Ok : PadCheck::Blocked; };
         facts_.pads.live = [this](int32_t p) { return build_pads(p); };
         facts_.can_build.set_rule([this](const Key2& k) { return can_build_now(k.first, k.second); });
         facts_.builders.set_rule([this](const Key2& k) { return tactical_builders(k.first, k.second); });
@@ -993,9 +996,12 @@ public:
             w.players[1].id = 1;
             w.players[1].faction = "Rebel";
             w.players[1].attacker = true;
-            w.players[0].credits = w.players[1].credits = 1000.0f;  // A2 tactical: TacticalBuild affordability
             w.relation = {0, 1, 1, 0};
         }
+        // A2 tactical: TacticalBuild affordability; b0147: the mock's accounts (1000 each at the start), which the AI's
+        // escrow charges and refunds move (add_credits).
+        w.players[0].credits = account[0];
+        w.players[1].credits = account[1];
         w.objects.clear();
         f.clear();
         for (const MockUnit& u : units_) {
@@ -1129,6 +1135,10 @@ public:
                 break;
             }
             case T::Retreat: retreat_[player] = true; break;
+            case T::TacticalBuild:  // b0147 (g_pad_ok): the build starts; the mock never fills the pad
+                line += " type " + std::to_string(ev.u("type_index")) + " on " + std::to_string(ev.u("pad"));
+                r = g_pad_ok ? R::None : R::NotAllowed;
+                break;
             case T::Production: {
                 const int32_t at = static_cast<int32_t>(ev.u("location"));
                 line += " type " + std::to_string(ev.u("type_index")) + " at " + std::to_string(at);
@@ -1214,6 +1224,13 @@ public:
     }
     // a1k t01 (A1_READINGS §39.2): task-force leaves (0x5ff610), in call order with unit_released in `calls`.
     void unit_left_task_force(int32_t object_id) override { calls.emplace_back(build_frame_, object_id, 0); }
+    // b0147: the escrow's credit moves, in call order (frame, player, amount); the account clamps at 0 like Add_Credits.
+    void add_credits(int32_t player, float amount) override {
+        credit_log.emplace_back(build_frame_, player, amount);
+        if (player >= 0 && player < 2) account[player] = std::max(0.0f, account[player] + amount);
+    }
+    float account[2] = {1000.0f, 1000.0f};
+    std::vector<std::tuple<uint32_t, int32_t, float>> credit_log;
     // S7 t15 A1: signal 0x29 ids queued by the test for the next AI frame.
     std::vector<int32_t> ability_finished() {
         std::vector<int32_t> out = std::move(ability_signals);
@@ -1279,6 +1296,9 @@ public:
         builds_ = o.builds_;
         landings_ = o.landings_;
         unloaded_ = o.unloaded_;
+        account[0] = o.account[0];  // b0147
+        account[1] = o.account[1];
+        credit_log = o.credit_log;
         return true;
     }
     const DamageTrackingStore& damage_store() const { return dt_; }
@@ -1302,6 +1322,8 @@ public:
             h.f32(u.hp);
             h.i32(u.target);
         }
+        h.f32(account[0]);  // b0147: the accounts the escrow moves
+        h.f32(account[1]);
         if (g_landing > 0) {  // a1j t01 (not in the golden runs)
             h.u32(static_cast<uint32_t>(landings_.size()));
             for (const MockLanding& l : landings_) {
@@ -1441,6 +1463,8 @@ struct RunResult {
     int32_t lock_probe = -1;                            // the station a script lock was put on at frame 1 (-1: none)
     bool lock_kept = false;                             // ... still locked when frame 2 starts
     int32_t lock_released_frame = -1;                   // ... frame of its OrderLockDone call (-1: none)
+    std::vector<std::tuple<uint32_t, int32_t, float>> credit_log;  // b0147: MockHost::credit_log after end_battle()
+    float account0 = 0.0f;                                         // ... and player 0's account then
 };
 
 // variant 0: the golden skirmish; 1: only the opportunity-fire and MagicPlan plans, the host emits acquisitions and
@@ -1637,6 +1661,8 @@ RunResult run(int32_t frames, int32_t difficulty0, int variant = 0, std::vector<
     for (const auto& [k, v] : world.stats())  // A2 tactical: PotentialPlan outcomes (diagnostics)
         if (k.find("potential plan") != std::string::npos || k.find("accepted") != std::string::npos) out.pp_stats.push_back(k + " x" + std::to_string(v));
     world.end_battle();
+    out.credit_log = host.credit_log;
+    out.account0 = host.account[0];
     if (hijacks) *hijacks = host.hijacks;
     out.built = host.built;
     out.released = host.released;
@@ -1930,6 +1956,19 @@ void test_potential_plan() {
         in.pads = {{40, {0.0f, 0.0f, 0.0f}, {1}, false}, {41, {900.0f, 0.0f, 0.0f}, {4}, false}, {42, {120.0f, 0.0f, 0.0f}, {4}, false}};
         TacticalPpResult r;
         CHECK(solve_tactical_pp(in, r) && r.picks.size() == 1 && r.picks[0].source == PpSource::Build && r.picks[0].ref == 42);
+        // b0147 (legacy docs/re/BKG1_RE_ANSWERS.md §6 "b0138" step 1): Commit 0x728000 sums the pad price into the net
+        // cost PP+0x44; outside skirmish the price is the base price x the planet factor, truncated (0x3744e0), and the
+        // Score's affordability test uses that price; a MagicPlan keeps its pad pick and pays nothing.
+        CHECK(r.net == 100.0f);
+        in.pad_price_factor = 1.255f;  // 125.5 -> 125
+        CHECK(solve_tactical_pp(in, r) && r.picks.size() == 1 && r.net == 125.0f);
+        in.credits = 120.0f;  // 125 > 120: vetoed, though the base price 100 fits
+        CHECK(!solve_tactical_pp(in, r));
+        in.credits = 150.0f;
+        in.pad_price_factor = 1.0f;
+        f.def.magic_plan = true;
+        CHECK(solve_tactical_pp(in, r) && r.picks.size() == 1 && r.picks[0].source == PpSource::Build && r.net == 0.0f);
+        f.def.magic_plan = false;
         in.credits = 50.0f;
         CHECK(!solve_tactical_pp(in, r));
         in.credits = 150.0f;
@@ -1947,6 +1986,9 @@ void test_potential_plan() {
         CHECK(!solve_tactical_pp(in, r));
         in.can_build_now = [](int32_t t) { return t == 1; };
         CHECK(solve_tactical_pp(in, r) && r.picks.size() == 1 && r.picks[0].source == PpSource::Produce);
+        CHECK(r.net == 100.0f);  // b0147: PP+0x44 also sums a to-be-produced pick's tactical price (no planet factor)
+        in.pad_price_factor = 2.0f;
+        CHECK(solve_tactical_pp(in, r) && r.net == 100.0f);
     }
     // 4. IgnoreTarget: one synced contrast float per viable candidate per iteration.
     {
@@ -2275,6 +2317,76 @@ void test_tactical_production() {
     const RunResult again = run(30 * 60, 1, 2);
     CHECK(again.crc == r.crc && again.decisions == r.decisions && again.executed == r.executed);
 }
+
+// b0147 (legacy docs/re/BKG1_RE_ANSWERS.md §6 "b0138" AI purchase path, §7.3): the plan pays its TacticalBuild net cost
+// at the accept (first reserve 0x6c2d60) into an escrow; a TF Build / Build_All match and an accepted Production enqueue
+// (0x6c1e80) draw it down by the base price; plan end (0x5f6a50, also at battle end) refunds the rest. Every mode:
+// the synthetic battle is a skirmish-like world, the campaign flag plays no part in the rule.
+size_t count_lines(const std::vector<std::string>& v, const std::string& needle, const std::string& without = {}) {
+    size_t n = 0;
+    for (const std::string& d : v) n += d.find(needle) != std::string::npos && (without.empty() || d.find(without) == std::string::npos) ? 1u : 0u;
+    return n;
+}
+
+void test_pad_escrow() {
+    auto amounts = [](const RunResult& r, int32_t player) {
+        std::vector<float> v;
+        for (const auto& [f, p, a] : r.credit_log)
+            if (p == player) v.push_back(a);
+        return v;
+    };
+    // 1. Every pad check refuses (the golden mock): each Syn_Build plan pays the pad price 150 at its accept, never
+    //    builds, and gets the 150 back at its end: charge, refund, charge, refund, ...; the account ends where it began.
+    {
+        const RunResult r = run(30 * 120, 1);
+        const std::vector<float> v = amounts(r, 0);
+        bool paired = !v.empty() && v.size() % 2 == 0;
+        for (size_t i = 0; i < v.size(); ++i) paired = paired && v[i] == (i % 2 == 0 ? -150.0f : 150.0f);
+        std::printf("pad escrow (pads refused): %zu credit moves for player 0, account %.0f\n", v.size(), static_cast<double>(r.account0));
+        CHECK(paired && r.account0 == 1000.0f);
+        CHECK(amounts(r, 1).empty());  // the Rebel has no pad and buys nothing
+        CHECK(count_lines(r.decisions, "into its escrow") * 2 == v.size() && count_lines(r.decisions, "refunds its escrow") * 2 == v.size());
+        CHECK(!count_lines(r.executed, "TacticalBuild"));
+    }
+    // 2. The pad check passes: Build_All's match draws the 150 down to 0 before the build, so no refund follows; the
+    //    build itself is not charged (the host's contract: TacticalBattle::ai_tactical_build). Player 0 pays once per pad.
+    {
+        g_pad_ok = true;
+        const RunResult r = run(30 * 120, 1);
+        g_pad_ok = false;
+        const std::vector<float> v = amounts(r, 0);
+        const size_t builds = count_lines(r.executed, "p0 TacticalBuild", "REJECTED");
+        float sum = 0.0f;
+        size_t refunds = 0;
+        bool prices = true;
+        for (const float a : v) {
+            sum += a;
+            refunds += a > 0.0f ? 1u : 0u;
+            prices = prices && (a == -150.0f || a == 150.0f);
+        }
+        std::printf("pad escrow (pads open): %zu builds, %zu credit moves (%zu refunds), net %.0f\n", builds, v.size(), refunds,
+                    static_cast<double>(sum));
+        CHECK(builds > 0 && prices && sum == -150.0f * static_cast<float>(builds));
+        CHECK(refunds <= 1);  // only a plan still holding its escrow at the battle end
+        CHECK(r.account0 == 1000.0f + sum && r.errors.empty());
+    }
+    // 3. Skirmish production (variant 2): the plan pays the corvette's tactical price 100 at the accept; the Production
+    //    the station accepts draws it (the pad's refusal does not), so the enqueue is not paid a second time.
+    {
+        const RunResult r = run(30 * 60, 1, 2);
+        const std::vector<float> v = amounts(r, 0);
+        const size_t accepted = count_lines(r.executed, "p0 Production type 1", "REJECTED");
+        float sum = 0.0f;
+        bool prices = true;
+        for (const float a : v) {
+            sum += a;
+            prices = prices && (a == -100.0f || a == 100.0f);
+        }
+        std::printf("production escrow: %zu Production orders accepted, %zu credit moves, net %.0f\n", accepted, v.size(), static_cast<double>(sum));
+        CHECK(accepted > 0 && prices && sum == -100.0f * static_cast<float>(accepted));
+    }
+}
+
 
 // land TF.Reinforce placement (0x6eaf60, A1_READINGS §30.7 [H]): own / allied live reinforcement points sorted
 // stably by their float key, the units (LAST first) one per accepted spot on the r/2 ring of each point in turn.
@@ -2624,9 +2736,9 @@ uint32_t first_u32(const std::vector<uint8_t>& b) {
                                    (static_cast<uint32_t>(b[3]) << 24);
 }
 
-// sp3 (TacticalAiConfig::ai_lane): an AI-lane world draws from its own stream, not the session's, and saves it (version 19
-// since mcx6 t06, 17 since skai t15) so a load continues identically; a lane-off save (version 18) loads into a lane-on
-// world; a lane-on save does not load into a lane-off world; the lane-off bytes keep version 18.
+// sp3 (TacticalAiConfig::ai_lane): an AI-lane world draws from its own stream, not the session's, and saves it (version 21
+// since b0147, 19 since mcx6 t06) so a load continues identically; a lane-off save (version 20) loads into a lane-on
+// world; a lane-on save does not load into a lane-off world; the lane-off bytes keep version 20.
 void test_ai_lane_save() {
     const int32_t save_at = 30 * 35;
     g_ai_lane = false;
@@ -2638,13 +2750,13 @@ void test_ai_lane_save() {
         off_image = a.ai_bytes();
         off_session_draws = a.rng.synced().draws();
     }
-    CHECK(first_u32(off_image) == 18u);
+    CHECK(first_u32(off_image) == 20u);
     g_ai_lane = true;
     test_save_load(1, 30 * 30, 30 * 60);  // round trip and continuation with the lane on (variant 0's corruption offsets are v12's)
     SaveSession a(0);
     for (int32_t f = 1; f <= save_at; ++f) a.step(f);
     const std::vector<uint8_t> on_image = a.ai_bytes();
-    CHECK(first_u32(on_image) == 19u);
+    CHECK(first_u32(on_image) == 21u);
     // The AI's own draws left the session stream (what remains are the host's).
     CHECK(a.rng.synced().draws() < off_session_draws);
     {
@@ -2653,7 +2765,7 @@ void test_ai_lane_save() {
         SaveSession from(0);
         for (int32_t f = 1; f <= save_at; ++f) from.step(f);
         CHECK(b.restore_host(from) && b.load_ai(off_image));
-        CHECK(first_u32(b.ai_bytes()) == 19u);
+        CHECK(first_u32(b.ai_bytes()) == 21u);
     }
     {
         g_ai_lane = false;
@@ -2761,9 +2873,43 @@ void test_save_load(int variant, int32_t save_at, int32_t frames) {
     CHECK(corrupt(next_plan_at, {0, 0, 0, 0}));              // next plan id 0 (plan ids start at 1)
     CHECK(corrupt(perception_world_at, {9}));                // PerceptionWorld version (2 since a1g t03)
     CHECK(corrupt(perception_world_at + 4, {7}));            // PerceptionWorld mode
-    CHECK(corrupt(n - 1, {1}));                              // the last count (missing evaluators) past the data
+    // b0147: the last block is the PPs' escrow block: its count past the data (no entry), else a negative last pad id or
+    // escrow
+    CHECK(corrupt(n - 1, {0x80}));
     std::printf("  rejection: %zu truncated / corrupted AI chunks refused, reader unchanged\n", tried);
     CHECK(c->load_ai(image) && c->crc() == crc_at_save && c->ai_bytes() == image);  // control: the intact image loads
+}
+
+// b0147: a battle saved while a plan holds its escrow continues identically (the escrow, net cost and TacticalBuild picks
+// are saved: version 20 / 21; the CRC reads them).
+void test_escrow_save() {
+    SaveSession a(0);
+    int32_t save_at = -1;
+    for (int32_t f = 1; f <= 30 * 120 && save_at < 0; ++f) {
+        a.step(f);
+        std::vector<std::string> log;
+        for (const TacticalAiDecision& d : a.world->decision_log()) log.push_back(d.text);
+        if (count_lines(log, "into its escrow") > count_lines(log, "refunds its escrow")) save_at = f;
+    }
+    CHECK(save_at > 0);
+    if (save_at < 0) return;
+    const std::vector<uint8_t> image = a.ai_bytes();
+    CHECK(first_u32(image) == 20u);
+    SaveSession b(0);
+    CHECK(b.restore_host(a) && b.load_ai(image));
+    CHECK(b.crc() == a.crc() && b.ai_bytes() == image);
+    int32_t first_diff = -1;
+    for (int32_t f = save_at + 1; f <= save_at + 600; ++f) {
+        a.step(f);
+        b.step(f);
+        if (first_diff < 0 && a.crc() != b.crc()) first_diff = f;
+    }
+    a.world->end_battle();
+    b.world->end_battle();
+    std::printf("escrow save: saved at frame %d holding an escrow, %zu credit moves after 600 frames, %s\n", save_at,
+                a.host.credit_log.size(), first_diff < 0 ? "identical" : "DIVERGED");
+    CHECK(first_diff < 0 && b.host.credit_log == a.host.credit_log && a.host.credit_log.size() >= 2);
+    CHECK(a.host.account[0] == 1000.0f);  // refunded (pads refused)
 }
 
 // The damage-tracking store (the host saves it, TacticalAiHost::damage_tracking): round trip, write -> read -> write,
@@ -3841,6 +3987,7 @@ int main(int argc, char** argv) {
     scenario("space_reinforce_needs_starbase", test_space_reinforce_needs_starbase);  // skm1 t03 / t04
     scenario("facts_same_frame", test_facts_same_frame);  // ref5 t07
     scenario("tactical_production", test_tactical_production);
+    scenario("pad_escrow", test_pad_escrow);  // b0147
     scenario("reinforce_landing", test_reinforce_landing);
     scenario("script_evaluators", test_script_evaluators);
     // N1 stage 2: save / load mid-battle
@@ -3850,6 +3997,7 @@ int main(int argc, char** argv) {
     scenario("save_load_3", [] { test_save_load(3, 30 * 40, 30 * 80); });   // Script_ evaluator VMs
     scenario("pp_pending_save", test_pp_pending_save);  // OPT2 t10
     scenario("ai_lane_save", test_ai_lane_save);        // sp3
+    scenario("escrow_save", test_escrow_save);          // b0147
     scenario("order_results_bounded_0", [] { test_order_results_bounded(0, 30 * 120); });
     scenario("order_results_bounded_1", [] { test_order_results_bounded(1, 30 * 60); });  // with the opportunity-fire and HIJACK plans
     // S7 t20 / t21 / t15 A1

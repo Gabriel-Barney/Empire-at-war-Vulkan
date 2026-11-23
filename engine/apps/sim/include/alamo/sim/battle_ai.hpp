@@ -19,7 +19,11 @@
 //   40 / 43 / 57 / 58           -> TacticalBattle::handle_command (abilities)
 //   TacticalBuild               -> A2 tactical: the player build event 0x42edf0 refusals (UC / built present, pad
 //                                  fogged, not allied-owned, cooldown, type without TACTICAL_UNDER_CONSTRUCTION),
-//                                  then TacticalBattle::pad_build without charge (AI players build at once, §3.6)
+//                                  then TacticalBattle::pad_build without charge (AI players build at once, §3.6; b0147:
+//                                  the plan paid at accept into its escrow; a build that started nothing credits the
+//                                  base price back: TacticalBattle::ai_tactical_build)
+//   Production                  -> TacticalBattle::hg_production_command for an AI player: no charge at the enqueue
+//                                  (b0147: 0x289050, the plan's escrow pays)
 // Only units owned by the issuing player are ordered (legal orders: the human rules of the same handlers).
 // [port] The battle's stand-in orders are switched off by the host when the AI is on; BattleAi keeps the
 // stand-in (attack-move toward the nearest enemy every 60 frames) for sides without a tactical AI, except the
@@ -202,6 +206,10 @@ public:
     // set in the combat model). cu8f t04a (CU8F_T04_T06_RE §1.1): and its stickiness threshold, then each TEAM member's,
     // := the type's Targeting_Stickiness_Time_Threshold (CombatSystem::reset_stickiness).
     void unit_left_task_force(int32_t object_id) override;
+    // b0147 (legacy docs/re/BKG1_RE_ANSWERS.md §6 "b0138"): the tactical plan escrow's charge / refund on the player's
+    // battle account (TacticalBattle's credit hooks: the galactic account in a campaign battle); a batch command with the
+    // lane on, like the other host writes.
+    void add_credits(int32_t player, float amount) override;
     // a1g t04 follow-up - land TF.Reinforce drop validity: TacticalBattle::land_drop_valid (moved to the host so the
     // Reinforce command re-runs it) with this battle's mode. AI drops pass human = false (movers ignored, landing
     // transports block).
@@ -446,6 +454,7 @@ private:
     void apply_host_release(const commands::Command& c);
     void unit_released_live(int32_t player, int32_t object_id, ai::tactical::TacticalAiHost::UnitRelease path);
     void unit_left_task_force_live(int32_t object_id);
+    void add_credits_live(int32_t player, float amount);
     bool lane_drop_valid(const commands::Command& c);  // a lane Reinforce's drop test at its apply
     // sp3 slice 4b: the ability / combat records the AI VMs' bindings read with the lane on (ObjectBridge::lane_abilities,
     // set at each capture and cleared by a load: before the first capture the bindings act live, on the critical lane).

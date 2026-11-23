@@ -88,6 +88,10 @@ struct TacticalPpInput {
     std::vector<PpPoolEntry> pool;
     std::vector<PpPad> pads;
     float credits = 0.0f;            // player credits (+0x70; TacticalBuild affordability)
+    // b0147 (legacy docs/re/BKG1_RE_ANSWERS.md §6 "b0138"): the pad price 0x3744e0 outside skirmish is the base price
+    // (PerceptionType::tactical_cost, 0x3743f0) x the faction planet factor 0x33e440 of a corrupted battle planet,
+    // truncated; 1 in skirmish and on an uncorrupted planet. Only under-construction (pad) types take it.
+    float pad_price_factor = 1.0f;
     int32_t player_tech = 0;
     float pop_cap = -1.0f;           // < 0: no cap (AI_GALACTIC_3 §3.3)
     float pop_used = 0.0f;           // §3.2 (fractional shares rounded up by the host)
@@ -129,7 +133,15 @@ struct TacticalPpResult {
     std::string last_veto;  // marshaller whose Finalize failed the solve (diagnostics), "-" none
     // the contrast layer flags of the solve (PP +0x1a0 space / +0x1a1 ground, Setup C), read by the re-test.
     bool layer_space = false, layer_ground = false;
+    // b0147 (legacy docs/re/BKG1_RE_ANSWERS.md §6 "b0138", AI purchase path step 1): the plan's net cost PP +0x44, the
+    // TacticalBuild Commit 0x728000 sum of the pad prices 0x3744e0 and the tactical prices of the to-be-produced picks;
+    // 0 for a MagicPlan. The accept 0x6c2d60 takes it from the player's credits as the plan's escrow.
+    float net = 0.0f;
 };
+
+// b0147: the TacticalBuild price of type `t` for the Score / Commit (0x3744e0): tactical_cost, and for an
+// under-construction type x pad_price_factor truncated to an int when the factor is not 1 (TacticalBattle::build_cost).
+float tactical_build_price(const PerceptionType& t, float pad_price_factor);
 
 // skai t15 (legacy docs/re/SKAI_T15_PLAN_RETEST.md §1): one selection of a running plan's PotentialPlan as the re-test commits it.
 struct PpRetestPick {

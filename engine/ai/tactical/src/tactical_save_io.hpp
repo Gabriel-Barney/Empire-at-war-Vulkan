@@ -101,8 +101,9 @@ enum class In : uint8_t { Both, Save, Hash };
 struct Features {
     bool pad_fact = true;  // TacticalAiObject::pad_occupied (tactical AI save version 14 / 15)
     bool retest = true;    // pick contrast entries, PP layer flags and re-test byte (version 16 / 17)
+    bool escrow = true;    // b0147: PP net cost, escrow and TacticalBuild picks; a pending solve's net (version 20 / 21)
 };
-enum class Feature : uint8_t { PadFact, Retest };
+enum class Feature : uint8_t { PadFact, Retest, Escrow };
 
 template <class R, class T>
 concept Of = std::same_as<std::remove_const_t<R>, T>;
@@ -158,7 +159,7 @@ private:
 class SaveReader {
 public:
     explicit SaveReader(ByteReader& r, const objects::ObjectStore* st = nullptr, Features f = {}) : r_(r), st_(st), f_(f) {}
-    bool since(Feature x) const { return x == Feature::PadFact ? f_.pad_fact : f_.retest; }
+    bool since(Feature x) const { return x == Feature::PadFact ? f_.pad_fact : x == Feature::Retest ? f_.retest : f_.escrow; }
     bool ok() const { return r_.ok(); }
     template <class T>
     void field(T& v, In in = In::Both) {

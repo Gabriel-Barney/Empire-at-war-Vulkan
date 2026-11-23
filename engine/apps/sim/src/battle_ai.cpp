@@ -1385,8 +1385,9 @@ void BattleAi::fill(at::PerceptionWorld& w, std::vector<at::TacticalAiObject>& o
                 const objects::TypeIndex ft = types.resolve_name(types.get(ti, objects::tags::Tactical_Buildable_Constructed));
                 if (ft != objects::kNone && ft < types.size()) pt.constructed_type = static_cast<int32_t>(ft);
             }
-            // Pad price 0x3744e0 (_Campaign, else _Multiplayer; [port] skirmish too, no planet
-            // factor); other types: the same tags as their tactical price [M] (only TacticalBuild of build plans reads it).
+            // Pad base price 0x3743f0 (skirmish _Multiplayer; else _Campaign, _Multiplayer below 1; no planet factor: the
+            // Score / Commit price 0x3744e0 multiplies it by PerceptionPlayerInfo::pad_price_factor, b0147, and the escrow
+            // draw-down uses it as is); other types: the same tags as their tactical price [M] (only TacticalBuild of build plans reads it).
             // Skirmish production of non-UC types (station buy bar): Tactical_Build_Cost_Multiplayer.
             pt.tactical_cost = (!pt.under_construction && b_->cfg_.skirmish)
                                    ? static_cast<float>(std::max(0, types.get(ti, objects::tags::Tactical_Build_Cost_Multiplayer)))
@@ -1444,6 +1445,7 @@ void BattleAi::fill(at::PerceptionWorld& w, std::vector<at::TacticalAiObject>& o
     }
     for (uint32_t a = 0; a < players && a < w.players.size(); ++a) {
         w.players[a].credits = a < g.players().size() ? g.credits(static_cast<int32_t>(a)) : 0.0f;
+        w.players[a].pad_price_factor = b_->pad_price_factor(static_cast<int32_t>(a));  // b0147: the Score / Commit pad price
         w.players[a].pop_used = static_cast<int32_t>(population_used(static_cast<int32_t>(a)));
         const float cap = population_cap(static_cast<int32_t>(a));
         w.players[a].pop_cap = cap < 0.0f ? 0 : static_cast<int32_t>(cap);
@@ -2073,7 +2075,8 @@ bool BattleAi::lane_drop_valid(const cmd::Command& c) {
 
 namespace {
 constexpr uint16_t kLaneHostSubtype = 0x4148;  // "AH": ref5 t06, an AI host write (op, player, object, path)
-constexpr uint8_t kHostUnitReleased = 1, kHostUnitLeftTaskForce = 2;
+// kHostAddCredits (b0147): object_id carries the amount's float bits.
+constexpr uint8_t kHostUnitReleased = 1, kHostUnitLeftTaskForce = 2, kHostAddCredits = 3;
 }  // namespace
 
 void BattleAi::queue_host_release(uint8_t op, int32_t player, int32_t object_id, uint8_t path) {
@@ -2100,6 +2103,8 @@ void BattleAi::apply_host_release(const cmd::Command& c) {
         unit_released_live(player, id, static_cast<at::TacticalAiHost::UnitRelease>(path));
     else if (op == kHostUnitLeftTaskForce)
         unit_left_task_force_live(id);
+    else if (op == kHostAddCredits)
+        add_credits_live(player, std::bit_cast<float>(id));
 }
 
 // ---- order execution ----------------------------------------------------------------------------------------------
@@ -3013,17 +3018,17 @@ cmd::RejectReason BattleAi::execute_order(uint8_t player, const cmd::EventData& 
         }
         case T::Retreat: return b_->request_retreat(player) ? R::None : R::NotAllowed;
         case T::Production:  // skirmish station production (Produce_Force of non-UC types): the battle's Production handler
-            return b_->hg_production_command(*mode_, player, ev);
+            return b_->hg_production_command(*mode_, player, ev, true);  // b0147: not charged (the plan's escrow pays)
         case T::TacticalBuild: {
             // --- A2 tactical: TacticalBuildEvent 0x42edf0 for an AI player (L1_S4_REMAINING §3.6): refusals in order,
             // then the build starts at once (pad_build, check_rules false). ---
-            // battle host: the shared TacticalBuild hook (TacticalBattle::tactical_build, ai = true: same refusal order; no
-            // charge in a campaign battle, the full Tactical_Build_Cost_Multiplayer in land skirmish; the UC /
-            // constructed objects become battle combat units).
+            // battle host: the shared TacticalBuild hook (TacticalBattle::ai_tactical_build: tactical_build with ai = true,
+            // same refusal order, no charge in any mode - b0147: the plan paid at accept into its escrow -, and the base
+            // price back when the build left no UC object; the UC / constructed objects become battle combat units).
             const uint32_t pw = ev.u("pad");
             if (pw == commands::kNoObject || pw > 0x7FFFFFFFu) return R::InvalidTarget;
-            return b_->tactical_build(*mode_, player, static_cast<objects::ObjectId>(pw), static_cast<objects::TypeIndex>(ev.u("type_index")),
-                                      host_->random().synced(), true);
+            return b_->ai_tactical_build(*mode_, player, static_cast<objects::ObjectId>(pw), static_cast<objects::TypeIndex>(ev.u("type_index")),
+                                         host_->random().synced());
             // --- end A2 tactical ---
         }
         // every other event goes through the battle's validate-and-apply entry, as a human's would (Turn_To_Face
@@ -3502,6 +3507,21 @@ void BattleAi::unit_left_task_force(int32_t object_id) {
     lane_live_read("unit_left_task_force");
     facts_.wrote();  // ref5 t07
     unit_left_task_force_live(object_id);
+}
+
+void BattleAi::add_credits(int32_t player, float amount) {
+    if (lane_view()) return queue_host_release(kHostAddCredits, player, std::bit_cast<int32_t>(amount), 0);
+    lane_live_read("add_credits");
+    facts_.wrote();  // ref5 t07
+    add_credits_live(player, amount);
+}
+
+// b0147: Add_Credits 0x27f370 through the battle's credit hook ([port] notify off, as the battle's other credit changes;
+// a positive amount for an AI player is multiplied by its Credit_Multiplier there). Also after the battle finished: the
+// battle-end plan release (end()) refunds the escrows before the campaign's credit transfer back.
+void BattleAi::add_credits_live(int32_t player, float amount) {
+    if (player < 0 || amount == 0.0f || !b_->credits_add_) return;
+    b_->credits_add_(player, amount);
 }
 
 void BattleAi::unit_released_live(int32_t player, int32_t object_id, ai::tactical::TacticalAiHost::UnitRelease path) {

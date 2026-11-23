@@ -572,7 +572,8 @@ public:
         const PerceptionType* x = p_.ti(r.type);
         const bool uc = x && x->under_construction;
         if (!uc && (p_.def.allow_free_store_units || p_.def.magic_plan)) return 0.0f;
-        const float c = x ? x->tactical_cost : 0.0f;  // pad price 0x3744e0 / tactical price 0x496d80 (host)
+        // pad price 0x3744e0 (planet factor outside skirmish) / tactical price 0x496d80 (host)
+        const float c = x ? tactical_build_price(*x, p_.in.pad_price_factor) : 0.0f;
         if (!(c > 0.0f) || c + p_.net > p_.in.credits) return kVeto;
         if (!uc) return p_.in.can_build_now && p_.in.can_build_now(r.type) ? 1.0f : kVeto;
         if (!p_.in.has_target) return kVeto;
@@ -583,7 +584,8 @@ public:
     void commit(uint32_t i) override {  // 0x728000
         const PpRec& r = p_.recs[i];
         const PerceptionType* x = p_.ti(r.type);
-        if (!p_.def.magic_plan && p_.sel_unit.back() < 0 && p_.sel_pool.back() < 0) p_.net += x ? x->tactical_cost : 0.0f;
+        if (!p_.def.magic_plan && p_.sel_unit.back() < 0 && p_.sel_pool.back() < 0)
+            p_.net += x ? tactical_build_price(*x, p_.in.pad_price_factor) : 0.0f;
         if (!x || !x->under_construction) return;
         // The open pad accepting T nearest (2-D) to the goal target; strict <, first wins; removed from the list.
         int32_t best = -1;
@@ -736,7 +738,13 @@ bool solve_tactical_pp(const TacticalPpInput& in, TacticalPpResult& out) {
     }
     out.layer_space = pp.layer_active_space;
     out.layer_ground = pp.layer_active_ground;
+    out.net = pp.net;
     return out.ok;
+}
+
+float tactical_build_price(const PerceptionType& t, float pad_price_factor) {
+    if (!t.under_construction || pad_price_factor == 1.0f) return t.tactical_cost;
+    return static_cast<float>(static_cast<int32_t>(t.tactical_cost * pad_price_factor));  // 0x3744e0: int(c x f)
 }
 
 bool retest_tactical_pp(const TacticalPpInput& in, const std::vector<PpRetestPick>& picks, bool layer_space, bool layer_ground,

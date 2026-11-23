@@ -1315,20 +1315,27 @@ public:
     // one service's worth] and grows by max / build frames per frame; the constructed object carries the UC's health
     // fraction. tactical_build = TacticalBuildEvent 0x42edf0 (command 33) for `player`: refusals in order (UC present,
     // built present -> NotAllowed; pad fogged for the player or not allied-owned -> NotAllowed; cooldown -> NotAllowed;
-    // type without TACTICAL_UNDER_CONSTRUCTION -> InvalidUnit); `ai` (an AI player) in a campaign battle: built at once without
-    // a charge; otherwise (a human, or any player in land skirmish: skai t09) cost = build_cost(type) > credits -> CannotAfford,
-    // else charged (credit hooks) and started.
-    // The AI agent's TacticalBuild hook: call tactical_build(mode, player, pad, type, rng, /*ai=*/true).
+    // type without TACTICAL_UNDER_CONSTRUCTION -> InvalidUnit). A human: cost = build_cost(type, player) > credits ->
+    // CannotAfford, else charged (credit hooks, execute 0x5d78a0 charge 1) and started. `ai` (an AI player, every mode):
+    // never charged (0x42edf0 -> 0x42dbd0 charge 0: the plan paid its net cost into an escrow at accept, tactical_ai.hpp).
+    // The AI agent's TacticalBuild hook is ai_tactical_build = the TF Build / Build_All tail: tactical_build(..., ai = true),
+    // then, b0147 (legacy docs/re/BKG1_RE_ANSWERS.md §6 "b0138" step 5), when no UC object exists afterwards (any refusal or
+    // a failed start) the base price build_cost(type) (0x3743f0, no planet factor) is credited back to the player.
     // tactical_sell = TacticalSellBehavior 0x5248b0 (command 34): the built object of a pad owned by `player`; silently
     // refused (NotAllowed) while the pad is locked; refund = int(cost of the UC entry whose constructed type matches x
     // Tactical_Sell_Percentage), the pad is released without cooldown and the object killed.
     commands::RejectReason tactical_build(TacticalMode& mode, uint8_t player, objects::ObjectId pad, objects::TypeIndex type, SimRng& rng,
                                           bool ai);
+    commands::RejectReason ai_tactical_build(TacticalMode& mode, uint8_t player, objects::ObjectId pad, objects::TypeIndex type,
+                                             SimRng& rng);
     commands::RejectReason tactical_sell(TacticalMode& mode, uint8_t player, objects::ObjectId object);
-    // Pad price 0x3744e0 (campaign): Tactical_Build_Cost_Campaign, else Tactical_Build_Cost_Multiplayer when <= 0, then
+    // Pad price 0x3744e0 (campaign): Tactical_Build_Cost_Campaign, else Tactical_Build_Cost_Multiplayer when < 1 (int fields), then
     // for `player` (>= 0) at a corrupted battle planet (int)((float)cost x the faction's
     // Corruption_Tactical_Build_Pad_Price_Multipliers entry 1) (MCX4_RE_ANSWERS_GALACTIC Q7.2). Skirmish: no factor.
     float build_cost(objects::TypeIndex uc_type, int32_t player = -1) const;
+    // b0147: that factor alone (1 in skirmish, for player < 0 and on an uncorrupted planet): the tactical AI's
+    // PerceptionPlayerInfo::pad_price_factor, so its Score / Commit price equals build_cost(type, player).
+    float pad_price_factor(int32_t player) const;
     // t50: the land skirmish rules. A land skirmish (BattleConfig::skirmish, land map) prices pads from
     // Tactical_Build_Cost_Multiplayer and lists their buildable types from Tactical_Buildable_Objects_Multiplayer
     // (L1_S4_REMAINING §3.6: "skirmish ... Multiplayer", else Campaign), and gets the skirmish base (bt_skirmish_base).
@@ -3088,7 +3095,8 @@ private:
     void hg_hash(StateHasher& h) const;
     // station contents / tactical production
     void hg_production(TacticalMode& mode, SimRng& rng);  // tick(): before the object services
-    commands::RejectReason hg_production_command(TacticalMode& mode, uint8_t player, const commands::EventData& ev);
+    // ai: the tactical AI's Produce_Force order (BattleAi): no credit test, no charge (b0147, the plan's escrow pays).
+    commands::RejectReason hg_production_command(TacticalMode& mode, uint8_t player, const commands::EventData& ev, bool ai = false);
     objects::ObjectId hg_spawn(TacticalMode& mode, int32_t type, int32_t owner, Vec3 origin, Vec3 facing, Vec3 ring_center,
                                bool launched, SimRng& rng, std::vector<objects::ObjectId>& ordered);
     // 0 ok, 1 not buildable here, 4 prerequisite missing, 5 build limit reached (BuildOptionInfo::block values).

@@ -157,6 +157,9 @@ TacPpRec sample_pp(const Store&) {
     p.layer_ground = true;
     p.contrast_failed = true;
     p.lua_released = {1001, 1003};
+    p.net = 0.0f;  // b0147: paid into the escrow at the first reserve
+    p.escrow = 250.0f;
+    p.buys = {{3, 900}, {5, -1}};
     return p;
 }
 
@@ -186,6 +189,7 @@ TacticalPpResult sample_pp_result(const Store&) {
     o.last_veto = "Contrast";
     o.layer_space = true;
     o.layer_ground = true;
+    o.net = 150.0f;  // b0147
     return o;
 }
 
@@ -247,7 +251,12 @@ bool load(std::span<const uint8_t> bytes, const Store& s, R& out) {
 // Fields the world saves in a block of their own, not with the record (TacticalAiWorld::write reads them back there).
 template <class R>
 void restore_elsewhere(R&, const R&) {}
-void restore_elsewhere(TacPpRec& y, const TacPpRec& x) { y.lua_released = x.lua_released; }
+void restore_elsewhere(TacPpRec& y, const TacPpRec& x) {
+    y.lua_released = x.lua_released;
+    y.net = x.net;  // b0147: the escrow block
+    y.escrow = x.escrow;
+    y.buys = x.buys;
+}
 
 // write -> read -> write: same bytes, same CRC.
 template <class R, class Make>
@@ -426,6 +435,16 @@ void pin_pp(StateHasher& h, const TacPpRec& pp) {
         h.u32(static_cast<uint32_t>(pp.lua_released.size()));
         for (const int32_t k : pp.lua_released) h.i32(k);
     }
+    if (pp.net != 0.0f || pp.escrow != 0.0f || !pp.buys.empty()) {  // b0147: only a PP that buys something
+        h.u8(0xC9);
+        h.f32(pp.net);
+        h.f32(pp.escrow);
+        h.u32(static_cast<uint32_t>(pp.buys.size()));
+        for (const auto& [type, pad] : pp.buys) {
+            h.i32(type);
+            h.i32(pad);
+        }
+    }
     h.u32(static_cast<uint32_t>(pp.picks.size()));
     for (const TacticalPpPick& k : pp.picks) {
         h.i32(k.type);
@@ -507,6 +526,8 @@ void test_crc_pin(const Store& s) {
                                          TacPpRec p = sample_pp(st);
                                          p.contrast_failed = false;
                                          p.lua_released.clear();
+                                         p.escrow = 0.0f;  // b0147: a PP that buys nothing keeps the old stream
+                                         p.buys.clear();
                                          return p;
                                      },
                                      pin_pp, s) &&
@@ -600,6 +621,7 @@ void save_pp_result_old(ByteWriter& w, const TacticalPpResult& o, const Store&) 
     w.boolean(o.ok).u32(static_cast<uint32_t>(o.candidates)).str(o.last_veto).u32(static_cast<uint32_t>(o.picks.size()));
     for (const TacticalPpPick& k : o.picks) put_pick_old(w, k);
     w.boolean(o.layer_space).boolean(o.layer_ground);
+    w.f32(o.net);  // b0147 (version 20 / 21)
 }
 
 void save_fact_old(ByteWriter& w, const TacticalAiObject& f, const Store& s) {

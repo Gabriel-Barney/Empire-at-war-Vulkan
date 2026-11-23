@@ -836,7 +836,7 @@ void TacticalBattle::hg_refund(uint32_t order, bool pay) {
         }
 }
 
-commands::RejectReason TacticalBattle::hg_production_command(TacticalMode& mode, uint8_t player, const commands::EventData& ev) {
+commands::RejectReason TacticalBattle::hg_production_command(TacticalMode& mode, uint8_t player, const commands::EventData& ev, bool ai) {
     using R = commands::RejectReason;
     if (!production_enabled()) return R::Unhandled;  // campaign / land battles: no tactical production
     const objects::GameObjectTypes& types = catalog_->types();
@@ -864,7 +864,11 @@ commands::RejectReason TacticalBattle::hg_production_command(TacticalMode& mode,
     const auto type = static_cast<objects::TypeIndex>(ev.u("type_index"));
     if (!hg_buildable(st, p, builder, type)) return R::NotAllowed;
     if (hg_queue_full(p, type)) return R::NotAllowed;  // a human's queue holds Max_Build_Queue entries
-    const float cost = static_cast<float>(std::max(0, types.get(type, objects::tags::Tactical_Build_Cost_Multiplayer)));  // int field
+    // b0147 (legacy docs/re/BKG1_RE_ANSWERS.md §7.3 item 3): enqueue 0x496a20 tests and takes the full cost only when 0x289050
+    // is false (a FoC human); an AI player's entry is not charged here: its plan paid the price at accept into an escrow
+    // that this accepted enqueue draws down (tactical_ai.cpp). Its order carries cost 0, so a cancel refunds nothing [port:
+    // retail refunds an AI entry's progress fraction x cost, 0x499000].
+    const float cost = ai ? 0.0f : static_cast<float>(std::max(0, types.get(type, objects::tags::Tactical_Build_Cost_Multiplayer)));  // int field
     if (cost > 0.0f) {
         const float have = credits_get_ ? credits_get_(p) : 0.0f;
         if (have < cost) return R::CannotAfford;
