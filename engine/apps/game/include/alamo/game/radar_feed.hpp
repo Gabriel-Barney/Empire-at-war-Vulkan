@@ -17,10 +17,14 @@
 //                          footprints, Obstacle on the cells outside the playable box - and the map's water surface.
 //   RadarFeed::blips       Lua Add_Radar_Blip(object, name) / Remove_Radar_Blip(name): persistent named markers that follow
 //                          the object ([port] visual: gold ring; the original's blip art is not traced).
-// Not fed (no spec): the base-under-attack radar ping (legacy docs/re/AUDIO.md names no event), Interdict_Activated (a radar
-// map event at the generator, raised by its power-on 0x61c700 -> 0x355ca0), Default_Beacon_Placement
-// (multiplayer beacons, out of scope),
-// Galactic_Build_Complete_Planet_Ping (galactic radar).
+//   RadarFeed::gravity     #69 t06 (legacy docs/re/TRU1_GRAVITY_FIELD.md §1.2 [H], 0x61c700): a gravity control generator
+//                          that comes under base power raises Interdict_Activated at itself (0x355ca0); one that loses
+//                          it removes the event it holds (0x358630). Every player's radar: the doc traces no visibility
+//                          test on the raise (only the SFX is the local player's) [M]. [port] a held event whose
+//                          generator is gone (dead, or removed) is removed too; after reset() (a new battle or a load)
+//                          the generators already under power raise theirs.
+// Not fed: the base-under-attack radar ping (no RADARMAP.XML entry; legacy docs/re/AUDIO.md names no event),
+// Default_Beacon_Placement (multiplayer beacons, out of scope), Galactic_Build_Complete_Planet_Ping (galactic radar).
 // Needs engine/ui's alamo_ui_hud (ALAMO_GAME_HAVE_CONTROLS).
 #pragma once
 #ifdef ALAMO_GAME_HAVE_CONTROLS
@@ -68,6 +72,11 @@ struct RadarCapturePointNote {
     bool visible = true;
     std::string begin_event;  // the point type's Begin_Control_Transition_Radar_Event ("" = none)
 };
+struct RadarGravityNote {
+    objects::ObjectId generator = objects::kNoObjectId;
+    bool on = false;  // came under base power (true) or lost it
+    float x = 0, y = 0;
+};
 struct RadarBlipNote {
     std::string name;
     float x = 0, y = 0;
@@ -83,6 +92,9 @@ public:
     void capture_points(std::span<const RadarCapturePointNote> points, const ui::RadarSettings& settings, ui::RadarEvents& events);
     // Story blips: markers of the notes (upsert), markers no longer listed are removed.
     void blips(std::span<const RadarBlipNote> notes, ui::RadarEvents& events);
+    // Interdict_Activated: power-on adds the event at the generator and holds its id; power-off removes the held event.
+    void gravity(std::span<const RadarGravityNote> changes, const ui::RadarSettings& settings, ui::RadarEvents& events);
+    bool holds_gravity_event(objects::ObjectId generator) const { return gravity_events_.count(generator) != 0; }
 
     // One battle tick from the battle's const state (builds the notes above). `story` = the tactical story model (null:
     // none); `types` = ui::build_hud_type_table (Is_Visible_On_Radar).
@@ -95,6 +107,10 @@ public:
 
 private:
     std::map<objects::ObjectId, float> progress_;  // capture point -> progress at the last tick (ordered: lookups only)
+    std::map<objects::ObjectId, uint32_t> gravity_events_;  // generator -> its Interdict_Activated (obj +0x200; ordered)
+    bool gravity_synced_ = false;  // the generators already powered at the battle's start were read
+    // This tick's power changes as notes (plus, after reset(), every powered generator; plus the gone generators' offs).
+    std::vector<RadarGravityNote> gravity_notes(const sim::TacticalBattle& battle, const objects::ObjectStore& store);
     uint64_t death_pings_ = 0, transition_pings_ = 0;
 };
 

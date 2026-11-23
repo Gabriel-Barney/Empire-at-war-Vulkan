@@ -3126,6 +3126,7 @@ void radar_feed_test() {
         R"(<RadarMap><RadarMapEvents>
         <Radar_Map_Event name="Default_Unit_Die"><Event_Model_Name>I_minimap_death_target.alo</Event_Model_Name><Event_Duration>1.0</Event_Duration></Radar_Map_Event>
         <Radar_Map_Event name="Default_Control_Point_Transition"><Event_Model_Name>I_minimap_control_point.alo</Event_Model_Name><Event_Duration>1.0</Event_Duration></Radar_Map_Event>
+        <Radar_Map_Event name="Interdict_Activated"><Event_Model_Name>I_minimap_beacon.alo</Event_Model_Name><Event_Single_Instance>Yes</Event_Single_Instance><Event_Persistent>Yes</Event_Persistent></Radar_Map_Event>
         </RadarMapEvents></RadarMap>)"));
     ui::RadarSettings cfg;
     CHECK(cfg.parse(doc.root()));
@@ -3183,6 +3184,31 @@ void radar_feed_test() {
     CHECK(bl.items().size() == 1 && bl.items()[0].type == "objective_blip");
     feed.blips({}, bl);
     CHECK(bl.items().empty());
+
+    // #69 t06 (legacy docs/re/TRU1_GRAVITY_FIELD.md §1.2 [H]): a gravity control generator that comes under base power raises
+    // the persistent Interdict_Activated at itself; losing the power removes the event it holds. Single_Instance (RADARMAP.XML):
+    // a second generator's event replaces the first's, whose later power-off then has nothing left to remove.
+    {
+        ui::RadarEvents gv;
+        const game::RadarGravityNote on70{70, true, 300, 400};
+        feed.gravity(std::span<const game::RadarGravityNote>(&on70, 1), cfg, gv);
+        CHECK(gv.items().size() == 1 && gv.items()[0].type == "Interdict_Activated" && gv.items()[0].persistent &&
+              gv.items()[0].x == 300.0f && gv.items()[0].y == 400.0f && feed.holds_gravity_event(70));
+        gv.update(60.0f);
+        CHECK(gv.items().size() == 1);  // persistent: stays while the generator is powered
+        const game::RadarGravityNote off70{70, false, 300, 400};
+        feed.gravity(std::span<const game::RadarGravityNote>(&off70, 1), cfg, gv);
+        CHECK(gv.items().empty() && !feed.holds_gravity_event(70));
+        feed.gravity(std::span<const game::RadarGravityNote>(&off70, 1), cfg, gv);  // off without an event: nothing
+        CHECK(gv.items().empty());
+        const game::RadarGravityNote two[] = {{70, true, 300, 400}, {71, true, -50, 20}};
+        feed.gravity(two, cfg, gv);
+        CHECK(gv.items().size() == 1 && gv.items()[0].x == -50.0f);  // single instance: 71's replaced 70's
+        feed.gravity(std::span<const game::RadarGravityNote>(&off70, 1), cfg, gv);
+        CHECK(gv.items().size() == 1 && gv.items()[0].x == -50.0f);  // 70's event is gone already: 71's stays
+        feed.reset();
+        CHECK(!feed.holds_gravity_event(71));
+    }
 
     // #69 t04 (MAP1_RADAR_TERRAIN_RE "Per-texel rule"): the land picture reads the movement grid's EFFECTIVE flags - an object
     // footprint and the whole cells outside the playable box read Obstacle. 4 x 4 cells (centres 0, 20, 40, 60) on a 4 x 4
