@@ -1243,10 +1243,6 @@ void test_aud2() {
 #endif
 }
 
-// ref2 t02 (alamo/sim/presentation_events.hpp): one tick's presentation events -> GameAudioHost::on_events. The local
-// player's tactical production begin / cancel / complete play the built type's speech or SFXEvent_Tactical_Build_* line
-// (MCX4_T13_RE_ANSWERS "GameObjectType.SFXEvent_Tactical_Build_Started family"), no build music in a battle; another
-// player's events, a negative type and no local player play nothing.
 // aud8 t05: object positions are fed only during battles. Leaving the battle scene drops them, so a Lua Play_SFX_Event in
 // galactic mode is not placed at the position its object id had in the battle.
 void test_galactic_lua_sfx_position() {
@@ -1293,6 +1289,10 @@ void test_galactic_lua_sfx_position() {
 #endif
 }
 
+// ref2 t02 (alamo/sim/presentation_events.hpp): one tick's presentation events -> GameAudioHost::on_events. The local
+// player's tactical production begin / cancel / complete play the built type's speech or SFXEvent_Tactical_Build_* line
+// (MCX4_T13_RE_ANSWERS "GameObjectType.SFXEvent_Tactical_Build_Started family"), no build music in a battle; another
+// player's events, a negative type and no local player play nothing.
 void test_presentation_events_ref2() {
     using K = sim::PresentationEventKind;
     MemoryProvider files;
