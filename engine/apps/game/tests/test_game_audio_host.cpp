@@ -61,6 +61,8 @@ const char* kMusic = R"(<?xml version="1.0"?>
   <MusicEvent Name="Movie_Cue"><Files>CUE.MP3</Files></MusicEvent>
   <MusicEvent Name="Amb_Space"><Files>AS.MP3</Files><Loop>Yes</Loop></MusicEvent>
   <MusicEvent Name="Amb_Space_DS"><Files>ADS.MP3</Files><Loop>Yes</Loop></MusicEvent>
+  <MusicEvent Name="Structure_Hutt_Palace_Music_Event"><Files>HP1.MP3, HP2.MP3</Files></MusicEvent>
+  <MusicEvent Name="Structure_Cantina_Music_Event"><Files>CA1.MP3, CA2.MP3</Files></MusicEvent>
 </MusicEvents>
 )";
 const char* kFactions = R"(<?xml version="1.0" ?>
@@ -92,6 +94,31 @@ const char* kFactions = R"(<?xml version="1.0" ?>
 #ifdef ALAMO_GAME_HAVE_AUDIO
 std::string cur(GameAudioHost& h) { return h.system()->current_music(); }
 uint8_t mode(GameAudioHost& h) { return h.system()->music_mode(); }
+
+// #62 t07 (0x44890 [H]): Alt + Shift and a selected Hutt palace / cantina start its music, forced, in the current mode
+// (mode 6 when there is none).
+void test_structure_music() {
+    GameData data;
+    data.files = make_tree(true);
+    GameAudioHost h;
+    std::string err;
+    CHECK(h.init(data, AudioBackendKind::Null, 7, &err));
+    if (!h.active()) return;
+    CHECK(mode(h) == audio::music_mode::kNone);
+    CHECK(!h.structure_music("Ground_Hutt_Palace_E", true, false) && !h.structure_music("Ground_Hutt_Palace_E", false, true));
+    CHECK(cur(h).empty());
+    CHECK(h.structure_music("Ground_Hutt_Palace_E", true, true));
+    CHECK(cur(h) == "Structure_Hutt_Palace_Music_Event" && mode(h) == audio::music_mode::kTacticalAmbient);
+    h.music(MusicScene::Galactic, "Rebel");
+    CHECK(cur(h) == "Gal_Rebel" && mode(h) == audio::music_mode::kGalactic);
+    CHECK(h.structure_music("ground_cantina_r", true, true));  // _stricmp
+    CHECK(cur(h) == "Structure_Cantina_Music_Event" && mode(h) == audio::music_mode::kGalactic);
+    CHECK(h.structure_music("Ground_Hutt_Palace_R", true, true) && cur(h) == "Structure_Hutt_Palace_Music_Event");
+    CHECK(h.structure_music("Ground_Hutt_Palace_E", true, true));  // forced: the playing event restarts
+    CHECK(h.structure_music("Ground_Cantina_E", true, true) && cur(h) == "Structure_Cantina_Music_Event");
+    CHECK(!h.structure_music("Ground_Cantina_X", true, true) && !h.structure_music("Ground_Hutt_Palace", true, true));
+    CHECK(cur(h) == "Structure_Cantina_Music_Event");
+}
 
 void test_movie_music() {
     GameData data;
@@ -1578,6 +1605,7 @@ int main() {
     test_death_end_sfx();           // #61
 #ifdef ALAMO_GAME_HAVE_AUDIO
     test_movie_music();
+    test_structure_music();  // #62 t07
     test_missing_credits_event();
     test_super_weapon_music();
     test_object_mute();  // #225

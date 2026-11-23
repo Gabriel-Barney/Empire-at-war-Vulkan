@@ -30,6 +30,7 @@ void OrderTranslator::emit_select(std::vector<uint32_t> ids) {
     sort_unique(ids);
     if (ids.size() > kMaxSelect) ids.resize(kMaxSelect);
     sel_ = ids;
+    click_added_ = 0;  // the click paths that add set it after the call
     pending_.push_back(ev::select(std::move(ids)));
 }
 
@@ -111,14 +112,17 @@ void OrderTranslator::tactical(const InputState& in, const OrderContext& ctx) {
             } else if (in.shift()) {
                 std::vector<uint32_t> ids = sel_;
                 const auto it = std::find(ids.begin(), ids.end(), hit->id);
-                if (it != ids.end()) {
-                    ids.erase(it);
-                } else {
+                const bool add = it == ids.end();
+                if (add) {
                     ids.push_back(hit->id);
+                } else {
+                    ids.erase(it);
                 }
                 emit_select(std::move(ids));
+                if (add) click_added_ = hit->id;
             } else {
                 emit_select({hit->id});
+                click_added_ = hit->id;
             }
         } else if (alternate_ && !sel_.empty()) {
             // ui1 t02 [port] alternate scheme (P1_DOUBLE_CLICK_MOVE §1.2: ground orders on the left button): a left click

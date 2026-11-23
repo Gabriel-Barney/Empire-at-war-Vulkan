@@ -174,6 +174,10 @@ public:
     size_t submit(commands::CommandPipeline& pipe, uint8_t player);
 
     const std::vector<uint32_t>& selection() const { return sel_; }
+    // #62 t07 (the click path 0x3a0e0 -> the selection add 0x3a1b0 with the response flag [H]): the object the latest
+    // tactical left click newly added to the selection (a plain click, or a Shift click on an unselected object);
+    // 0 for every other selection order (a box, a double click, a Shift-click deselect, a clear). Cleared by the call.
+    uint32_t take_click_added() { return std::exchange(click_added_, 0u); }
     // [port: Gabriel, #179] While the order button is held after a press on the ground (tactical, a selection, no object
     // under the press point): the move it would give on release. nullopt otherwise. Reads only.
     std::optional<MoveAim> move_aim(const InputState& in, const OrderContext& ctx) const;
@@ -209,6 +213,7 @@ private:
     bool queue_ = false;  // queue modifier held during this update
     bool alternate_ = false;  // IDC_ALTERNATE_MOUSE_CONTROLS
     std::vector<uint32_t> sel_;
+    uint32_t click_added_ = 0;  // take_click_added
     std::optional<uint32_t> planet_zoom_;
     bool planet_deselect_ = false;
     tactical::QueryContext qctx_;
