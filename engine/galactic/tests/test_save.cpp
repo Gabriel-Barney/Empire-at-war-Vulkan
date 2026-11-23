@@ -1110,7 +1110,8 @@ void test_foc() {
         }
         drive_conflicts(s, cm, st, t);
     };
-    sc.pin = 0x3823a3d7aeba6b5eull;  // before the records' field lists (FoC data)
+    // #67 t04: as the synthetic pin, only the save part moves (with the voiced flag at 0 the pin is the old 0x3823a3d7aeba6b5e).
+    sc.pin = 0xe7bb9e7deedbbeccull;  // before the records' field lists (FoC data)
     run_scenario(sc);
 }
 
