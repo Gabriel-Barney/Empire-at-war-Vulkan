@@ -80,7 +80,7 @@ struct CameraState {
 struct TacticalSetup {
     bool land = true;                // false = space battle
     // The map's raw environment type (TED map-info mini 06): Temperate .. Urban, Space. Land music and every map's
-    // ambience use it; space music always uses Space (#224). Empty = Space.
+    // ambience use it; space music always uses Space (#224). Space or empty: no map ambience.
     std::string environment;
     bool super_weapon_present = false;  // any player has its faction super weapon on the map (§2.3 mode 6/7)
 };

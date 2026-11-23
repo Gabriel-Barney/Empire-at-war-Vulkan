@@ -191,8 +191,10 @@ void GameAudio::enter_tactical(const TacticalSetup& setup) {
     audio_->set_3d_scale(1.0f);
     audio_->set_base_music_mode(music_mode::kTacticalAmbient);
     // #224 (retail answer on #205, 0x364f00): the map ambience follows the map's raw environment type, also on a space
-    // map whose type is not Space; the music keeps the Space slot there (resolve_music).
-    ambience_.begin(environment_.empty() ? std::string_view("Space") : std::string_view(environment_));
+    // map whose type is not Space; the music keeps the Space slot there (resolve_music). Space (7) and unknown types
+    // (>= 8: no name) set no map ambience, whatever the data names for them.
+    const bool no_map_ambience = environment_.empty() || iequals(environment_, "Space");
+    ambience_.begin(no_map_ambience ? std::string_view() : std::string_view(environment_));
     audio_->resume_mode_based_music(true);  // [port] forced, see enter_galactic
 }
 
