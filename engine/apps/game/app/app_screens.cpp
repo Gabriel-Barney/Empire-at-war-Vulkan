@@ -177,7 +177,9 @@ void App::handle_screen_actions(const std::vector<ui::ScreenAction>& acts) {
                 break;
             }
             case K::BuyUnitsBack: open_main_menu(); break;
-            case K::NeutralizeHero:  // #71 t08: SpecialAbility kind 3; a refused pick (credits changed) closes the panel too
+            // #71 t08: SpecialAbility kind 3. [port] a pick GameSession refuses (the row stopped being pickable) closes the
+            // panel and sends nothing; retail sends it and its executor plays the error sound (GALAB §7.6).
+            case K::NeutralizeHero:
                 if (session_ && (a.button < 0 || !session_->neutralize_hero(static_cast<size_t>(a.button)))) session_->close_special_dialog();
                 break;
             case K::NeutralizeHeroCancelled:
@@ -1352,9 +1354,17 @@ void App::build_panels(std::vector<ui::HudDrawList>& lists) {
     }
     // #71 t08: the Neutralize_Hero pick is the IDD_NEUTRALIZE_HERO_DIALOG GUI dialog, not a HUD panel; it is open while the
     // session's kind-3 dialog is (its pick / Cancel answer through ScreenAction::NeutralizeHero / NeutralizeHeroCancelled).
+    // A new NeutralizeDialog (another frame) replaces the open one's rows; the rows' prices and pickable state follow the
+    // credits every frame.
     if (galactic && dlg && dlg->kind == galactic::kSpecialNeutralize && g) {
-        if (!info_.neutralize_open())
-            info_.show_neutralize(neutralize_dialog_rows(data_, ui_.text, session_->neutralize_rows(), g->credits(local_player())));
+        std::vector<ui::NeutralizeHeroRow> rows = neutralize_dialog_rows(data_, ui_.text, session_->neutralize_rows(), g->credits(local_player()));
+        if (info_.neutralize_open() && neutralize_shown_ != dlg->frame) info_.close_neutralize();
+        if (!info_.neutralize_open()) {
+            info_.show_neutralize(std::move(rows));
+            neutralize_shown_ = dlg->frame;
+        } else {
+            info_.set_neutralize(rows);
+        }
     } else if (info_.neutralize_open()) {
         info_.close_neutralize();
     }

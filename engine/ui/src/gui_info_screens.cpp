@@ -101,6 +101,12 @@ const NeutralizeHeroRow* InfoScreens::neutralize_selected(const GuiDialog& d) co
 }
 
 void InfoScreens::fill_neutralize(GuiDialog& d) {
+    const GuiControl* l = d.get("IDC_NEUTRALIZE_HERO_LISTBOX");
+    std::vector<std::u32string> items;
+    for (const NeutralizeHeroRow& r : neutralize_) items.push_back(r.name + U"  " + num32(r.price));  // [port] row text (not recovered)
+    // [port] the first row is selected when the dialog opens (retail's initial selection is not recovered).
+    const int32_t sel = l && l->selected >= 0 && static_cast<size_t>(l->selected) < items.size() ? l->selected : (items.empty() ? -1 : 0);
+    d.set_items("IDC_NEUTRALIZE_HERO_LISTBOX", std::move(items), sel);
     const NeutralizeHeroRow* r = neutralize_selected(d);
     d.enable("IDC_NEUTRALIZE_HERO_BUTTON", r && r->enabled);
 }
@@ -110,13 +116,23 @@ bool InfoScreens::show_neutralize(std::vector<NeutralizeHeroRow> rows) {
     GuiDialog* d = gui_->open(dlg::kNeutralizeHero);
     if (!d) return false;
     // The RC's listbox has LBS_SORT: the rows in name order (stable, so equal names keep the host's order).
-    std::stable_sort(rows.begin(), rows.end(), [](const NeutralizeHeroRow& a, const NeutralizeHeroRow& b) { return a.name < b.name; });
+    std::stable_sort(rows.begin(), rows.end(), [](const NeutralizeHeroRow& a, const NeutralizeHeroRow& b) { return row_text_less(a.name, b.name); });
     neutralize_ = std::move(rows);
-    std::vector<std::u32string> items;
-    for (const NeutralizeHeroRow& r : neutralize_) items.push_back(r.name + U"  " + num32(r.price));
-    d->set_items("IDC_NEUTRALIZE_HERO_LISTBOX", std::move(items), neutralize_.empty() ? -1 : 0);
+    d->set_items("IDC_NEUTRALIZE_HERO_LISTBOX", {}, -1);
     fill_neutralize(*d);
     return true;
+}
+
+void InfoScreens::set_neutralize(std::span<const NeutralizeHeroRow> rows) {
+    GuiDialog* d = gui_ ? gui_->find(dlg::kNeutralizeHero) : nullptr;
+    if (!d) return;
+    for (NeutralizeHeroRow& r : neutralize_)
+        for (const NeutralizeHeroRow& n : rows)
+            if (n.candidate == r.candidate) {
+                r.price = n.price;
+                r.enabled = n.enabled;
+            }
+    fill_neutralize(*d);
 }
 
 void InfoScreens::close_neutralize() {

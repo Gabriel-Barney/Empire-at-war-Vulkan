@@ -209,7 +209,9 @@ public:
     bool show_story_summary(const StorySummaryInfo& s);
     // #71 t08: IDD_NEUTRALIZE_HERO_DIALOG with `rows` (sorted by name, the first row selected). A second call while it is
     // open does nothing and returns false; close_neutralize is the host's close (its panel went away), with no action.
+    // set_neutralize refreshes the open dialog's rows (prices, pickable) by candidate, keeping the order and selection.
     bool show_neutralize(std::vector<NeutralizeHeroRow> rows);
+    void set_neutralize(std::span<const NeutralizeHeroRow> rows);
     bool neutralize_open() const { return gui_ && gui_->find(dlg::kNeutralizeHero) != nullptr; }
     void close_neutralize();
     // The holocron: data for every page, then open one (switching pages keeps the data).

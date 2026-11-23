@@ -891,6 +891,18 @@ std::vector<galactic::GalacticEvent> GameSession::take_announce_events() {
 }
 
 // One galactic event for the presentation tap (special events only; everything else is ignored).
+bool GameSession::open_dialog(const galactic::GalacticSim& gs, const galactic::GalacticEvent& e, uint32_t kind) {
+    if (e.planet >= gs.planets().size()) return false;
+    dialog_ = SpecialDialog{};
+    dialog_.kind = kind;
+    dialog_.planet = e.planet;
+    dialog_.planet_id = static_cast<uint32_t>(gs.store().id(gs.planets()[e.planet].object));
+    dialog_.hero_id = static_cast<uint32_t>(e.object);
+    dialog_.frame = host_->frame();
+    dialog_open_ = true;
+    return true;
+}
+
 void GameSession::tap_event(const galactic::GalacticSim& gs, const galactic::GalacticEvent& e) {
     using K = galactic::GalacticEventKind;
     if (e.kind == K::PlanetOwnerChanged || e.kind == K::CorruptionChanged || e.kind == K::FleetDeparted ||
@@ -905,29 +917,12 @@ void GameSession::tap_event(const galactic::GalacticSim& gs, const galactic::Gal
     switch (e.kind) {
         case K::SpecialDialog:
             ++special_stats_.dialogs;
-            if (local && e.planet < gs.planets().size()) {
-                dialog_ = SpecialDialog{};
-                dialog_.kind = static_cast<uint32_t>(e.other_player);
-                dialog_.planet = e.planet;
-                dialog_.planet_id = static_cast<uint32_t>(gs.store().id(gs.planets()[e.planet].object));
-                dialog_.hero_id = static_cast<uint32_t>(e.object);
+            if (local && open_dialog(gs, e, static_cast<uint32_t>(e.other_player)))
                 dialog_.respawn_seconds = commands::dequantize(galactic::kQuantDuration, static_cast<uint32_t>(e.value));
-                dialog_.frame = host_->frame();
-                dialog_open_ = true;
-            }
             break;
         case K::NeutralizeDialog:  // #71 t08: the panel, with the candidates the sim kept (neutralize_offer)
             ++special_stats_.dialogs;
-            if (local && e.planet < gs.planets().size()) {
-                dialog_ = SpecialDialog{};
-                dialog_.kind = galactic::kSpecialNeutralize;
-                dialog_.planet = e.planet;
-                dialog_.planet_id = static_cast<uint32_t>(gs.store().id(gs.planets()[e.planet].object));
-                dialog_.hero_id = static_cast<uint32_t>(e.object);
-                dialog_.frame = host_->frame();
-                neutralize_rows_ = gs.neutralize_offer();
-                dialog_open_ = true;
-            }
+            if (local && open_dialog(gs, e, galactic::kSpecialNeutralize)) neutralize_rows_ = gs.neutralize_offer();
             break;
         case K::SpecialError: ++special_stats_.errors; break;
         case K::SpecialApplied: ++special_stats_.applied; break;

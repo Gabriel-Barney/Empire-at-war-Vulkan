@@ -1801,4 +1801,14 @@ void GuiManager::build(HudDrawList& dl, double now) {
     }
 }
 
+bool row_text_less(const std::u32string& a, const std::u32string& b) {
+    const auto fold = [](char32_t c) { return c >= U'A' && c <= U'Z' ? static_cast<char32_t>(c - U'A' + U'a') : c; };
+    const size_t n = std::min(a.size(), b.size());
+    for (size_t i = 0; i < n; ++i) {
+        const char32_t x = fold(a[i]), y = fold(b[i]);
+        if (x != y) return x < y;
+    }
+    return a.size() < b.size();
+}
+
 }  // namespace alamo::ui

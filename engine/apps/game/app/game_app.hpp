@@ -741,6 +741,7 @@ public:
     // player); panel_preview_ = a presentation-only black-market preview of the smoke (no sim dialog, clicks ignored).
     uint32_t panel_kind() const;
     uint32_t panel_preview_ = 0;
+    uint64_t neutralize_shown_ = 0;  // #71 t08: the SpecialDialog::frame of the Neutralize_Hero dialog on screen
     uint32_t preview_planet_ = 0;
     uint64_t special_sfx_ = 0, special_msgs_ = 0, activations_ = 0;
     void galactic_message(std::string_view id);  // a message-callback text as a white screen-text line

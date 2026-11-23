@@ -618,16 +618,22 @@ void test_info_screens() {
     // Cancel / Esc -> NeutralizeHeroCancelled; one instance.
     {
         acts.clear();
-        const std::vector<NeutralizeHeroRow> rows = {{0, U"Zeb", 1200, true}, {1, U"Ana", 900, false}};
+        const std::vector<NeutralizeHeroRow> rows = {{0, U"Zeb", 1200, true}, {1, U"ana", 900, false}};
         CHECK(is.show_neutralize(rows) && is.neutralize_open() && !is.show_neutralize(rows));
         GuiDialog* nd = env.gui.find(dlg::kNeutralizeHero);
         const GuiControl* l = nd ? nd->get("IDC_NEUTRALIZE_HERO_LISTBOX") : nullptr;
-        CHECK((l && l->items == std::vector<std::u32string>{U"Ana  900", U"Zeb  1200"} && l->selected == 0));
+        CHECK((l && l->items == std::vector<std::u32string>{U"ana  900", U"Zeb  1200"} && l->selected == 0));  // LBS_SORT: no case
         CHECK(nd && !nd->get("IDC_NEUTRALIZE_HERO_BUTTON")->enabled);  // Ana cannot be picked
         is.update(env.click(dlg::kNeutralizeHero, "IDC_NEUTRALIZE_HERO_BUTTON"), acts);
         CHECK(acts.empty() && is.neutralize_open());
         if (nd) nd->set_selected("IDC_NEUTRALIZE_HERO_LISTBOX", 1);
         is.update(std::vector<GuiEvent>{event(GuiEvent::Kind::SelectionChanged, dlg::kNeutralizeHero, "IDC_NEUTRALIZE_HERO_LISTBOX", 1)}, acts);
+        CHECK(nd && nd->get("IDC_NEUTRALIZE_HERO_BUTTON")->enabled);
+        // The host's refresh (credits changed): Zeb no longer pickable, then pickable again; order and selection kept.
+        const std::vector<NeutralizeHeroRow> poorer = {{0, U"Zeb", 1300, false}, {1, U"ana", 900, false}};
+        is.set_neutralize(poorer);
+        CHECK((l && l->selected == 1 && l->items[1] == U"Zeb  1300" && !nd->get("IDC_NEUTRALIZE_HERO_BUTTON")->enabled));
+        is.set_neutralize(rows);
         CHECK(nd && nd->get("IDC_NEUTRALIZE_HERO_BUTTON")->enabled);
         is.update(env.click(dlg::kNeutralizeHero, "IDC_NEUTRALIZE_HERO_BUTTON"), acts);
         CHECK(acts.size() == 1 && acts[0].kind == ScreenAction::Kind::NeutralizeHero && acts[0].button == 0 && !is.neutralize_open());

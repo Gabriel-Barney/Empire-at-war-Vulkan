@@ -398,6 +398,8 @@ private:
     SpecialDialog dialog_;
     bool dialog_open_ = false;
     std::vector<galactic::NeutralizeCandidate> neutralize_rows_;  // #71 t08: the Neutralize_Hero panel's candidates
+    // The local player's special dialog `kind` from event `e` (planet, hero = e.object, this frame); false for a bad planet.
+    bool open_dialog(const galactic::GalacticSim& gs, const galactic::GalacticEvent& e, uint32_t kind);
     SpecialStats special_stats_;
     bool submit_special(commands::EventData ev);
     uint64_t ticks_ = 0;

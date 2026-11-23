@@ -459,4 +459,8 @@ private:
     Vec2f cursor_{};
 };
 
+// A sorted list's row order (an RC LISTBOX with LBS_SORT, and the menus' sorted lists): case-insensitive, ASCII folded,
+// other code points by value - the original's _stricmp.
+bool row_text_less(const std::u32string& a, const std::u32string& b);
+
 }  // namespace alamo::ui
