@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -143,5 +144,20 @@ std::map<std::string, std::string> load_faction_basic_ai(const std::vector<galac
 // AI-vs-AI hosts [port]) the faction's Basic_AI; empty = no AI ("Human" or nothing found).
 std::string campaign_ai_type(const std::vector<std::string>& pairs, const std::map<std::string, std::string>& basic_ai,
                              std::string_view faction, bool fill_unassigned);
+
+// #244 campaign hint markup (AI_GALACTIC_TOKENS §1 Hints.X): a Data\XML\AI\GalacticMarkup file,
+//   <Galactic_Markup> <Planets HintSet="Galactic_Hints"> <PLANET_NAME> <Hint>value</Hint> ... </PLANET_NAME> </Planets>
+// Upper-cased planet name -> upper-cased hint name -> value (C atof of the trimmed text). Only groups of the galactic hint
+// set (HintSet "Galactic_Hints", the set the shipped files name) are kept [port: retail keeps the file's own HintSet per
+// faction, 0x4e3670]; a repeated planet or hint: the last one wins [port: not checked]. nullopt = an unreadable document
+// or no Galactic_Hints group (the faction then has no hint set: Hints.X fails).
+using HintValues = std::map<std::string, double, std::less<>>;
+using GalacticMarkup = std::map<std::string, HintValues>;
+std::optional<GalacticMarkup> parse_galactic_markup(std::string_view xml, const std::string& file);
+// The markup file a campaign's Markup_Filename values give `faction`: each value is a flat comma list read two fields at a
+// time, (faction, file) [M: loader 0x4e3670], so "Empire, A, Rebel, B" in one tag names two files. Returns
+// "Data\XML\AI\GalacticMarkup\<file>.xml" for the first pair naming the faction (case-insensitive) [port: order not
+// checked], empty when none does.
+std::string galactic_markup_path(const std::vector<std::string>& values, std::string_view faction);
 
 }  // namespace alamo::ai

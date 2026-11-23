@@ -85,6 +85,9 @@ struct GalacticAiConfig {
     std::vector<GalacticAiPlayerConfig> players;
     std::vector<GalacticAiDifficulty> difficulties;  // by DifficultyAdjustments name (lookup by player type's names)
     bool story_campaign = false;    // Game.IsStoryCampaign
+    // #244: the campaign's Markup_Filename "Faction, File" pairs (CampaignDef raw values). Each AI player's Hints.X tokens
+    // read its faction's Data\XML\AI\GalacticMarkup\<File>.xml (AI_GALACTIC_TOKENS §1); empty = every hint at its default.
+    std::vector<std::string> markup_files;
     // mcx8 t07 Game.InterventionsEnabled (AI_GALACTIC_TOKENS §4): false only when the campaign started with changed advanced
     // game options and random events off (retail settings flags 0x20 set, 0x10 clear).
     bool interventions_enabled = true;

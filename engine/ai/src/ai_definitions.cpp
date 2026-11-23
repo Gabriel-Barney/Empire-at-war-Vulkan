@@ -502,6 +502,38 @@ std::string ai_player_control_type(const std::vector<std::string>& pairs, std::s
     return {};
 }
 
+std::optional<GalacticMarkup> parse_galactic_markup(std::string_view xml, const std::string& file) {
+    const data::XmlDocument doc = data::XmlDocument::parse(xml, file);
+    if (!doc.ok()) return std::nullopt;
+    std::optional<GalacticMarkup> out;
+    for (const data::XmlNode group : doc.root().children()) {
+        if (!ai_iequal(ai_trim(group.attribute("HintSet")), "Galactic_Hints")) continue;
+        if (!out) out.emplace();
+        for (const data::XmlNode planet : group.children()) {
+            HintValues& hints = (*out)[ai_upper_copy(ai_trim(planet.name()))];
+            for (const data::XmlNode hint : planet.children())
+                hints[ai_upper_copy(ai_trim(hint.name()))] = std::atof(std::string(hint.text_trimmed()).c_str());
+        }
+    }
+    return out;
+}
+
+std::string galactic_markup_path(const std::vector<std::string>& values, std::string_view faction) {
+    for (const std::string& v : values) {
+        std::vector<std::string_view> fields;
+        for (size_t start = 0;;) {
+            const size_t comma = v.find(',', start);
+            fields.push_back(ai_trim(std::string_view(v).substr(start, comma == std::string::npos ? comma : comma - start)));
+            if (comma == std::string::npos) break;
+            start = comma + 1;
+        }
+        for (size_t i = 0; i + 1 < fields.size(); i += 2)
+            if (ai_iequal(fields[i], ai_trim(faction)) && !fields[i + 1].empty())
+                return "Data\\XML\\AI\\GalacticMarkup\\" + std::string(fields[i + 1]) + ".xml";
+    }
+    return {};
+}
+
 std::map<std::string, std::string> load_faction_basic_ai(const std::vector<galactic::FactionRules>& factions) {
     std::map<std::string, std::string> out;
     for (const galactic::FactionRules& f : factions) {

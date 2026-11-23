@@ -177,6 +177,8 @@ int ai_campaign_run(const MapRunOptions& opt, const AiRunOptions& aopt) {
     const data::CampaignDef* cdef = db.find_campaign(name);
     const std::vector<std::string> no_pairs;
     const std::vector<std::string>& control = cdef ? cdef->ai_player_control : no_pairs;
+    if (cdef)  // #244: the campaign's Markup_Filename "Faction, File" pairs feed the AI's Hints.X tokens
+        for (const std::string_view v : cdef->raw_values("Markup_Filename")) gcfg.markup_files.emplace_back(v);
     const std::map<std::string, std::string> basic_ai = ai::load_faction_basic_ai(rules.factions);
     int32_t human = -1;
     for (size_t p = 0; p < setup.players.size(); ++p) {
