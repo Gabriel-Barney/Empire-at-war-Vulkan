@@ -347,12 +347,17 @@ public:
     // the done callbacks with killed = true. [port] the original only has Stop_All_Speech.
     void cancel_speech(uint32_t ticket);
     void stop_all_speech();
-    // #62 t01 (the options dialog's speech test, 0x81c20 -> 0x22d260 / 0x22cf30 [H]): the speech stream player stops
-    // what it streams and streams `file` (localized, §1.3) at volume 1.0 on the speech bus, outside the queue. [port] the
-    // queue's playing line is stopped too (the original's queue streams through the same player); its entry ends at the
-    // next update. Stop_All_Speech stops the file too. False when the stream did not start.
+    // #62 t01 (the options dialog's speech test, 0x81c20 -> 0x22d260 / 0x22cf30 [H]): the original has one speech stream
+    // player (audio system +0xf40), which the queue and this test share. play_speech_file stops what the player streams
+    // (the queue's playing line, whose entry then ends at the next update, or an earlier test file) and streams `file`
+    // (localize_file) at volume 1.0 on the speech bus, outside the queue. While it plays the queue's next entry waits,
+    // as the player refuses to open a second stream. False when the stream did not start. [port] tier 3: the test file
+    // is a voice of its own (speech_file_voice_), not a queue entry; nothing outside the audio system sees the split.
     bool play_speech_file(std::string_view file);
-    bool speech_playing() const { return speech_voice_ != 0; }
+    // #62 t01 (0x22d260 [H]): stops what the speech stream player streams (the queue's playing line or the test file);
+    // the closing options dialog calls it (0x81bd0). The queue's entry ends at the next update; waiting entries stay.
+    void stop_speech_stream();
+    bool speech_playing() const { return speech_voice_ != 0 || speech_file_voice_ != 0; }
     std::string current_speech() const;
     size_t speech_queue_size() const { return speech_queue_.size(); }
     // Called when a speech ends (killed = Stop_All_Speech / mode change).

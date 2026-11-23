@@ -228,6 +228,7 @@ const char* menu_action_name(MenuAction::Kind k) {
         case MenuAction::Kind::LaunchMod: return "LaunchMod";
         case MenuAction::Kind::TestAudioSfx: return "TestAudioSfx";
         case MenuAction::Kind::TestAudioSpeech: return "TestAudioSpeech";
+        case MenuAction::Kind::StopAudioTest: return "StopAudioTest";
     }
     return "?";
 }
@@ -1743,6 +1744,7 @@ void FrontEnd::on_cancel(const GuiEvent& e, std::vector<MenuAction>& out) {
     if (ascii_iequals(n, kAudio)) {
         out.push_back(act(MenuAction::Kind::PreviewAudio));
         out.back().audio = audio_before_;
+        out.push_back(act(MenuAction::Kind::StopAudioTest));  // #62 t01: dialog event 0 -> 0x81bd0
     }
     pop();  // sub-dialogs return to what opened them
 }
@@ -2013,11 +2015,13 @@ void FrontEnd::on_click(const GuiEvent& e, std::vector<MenuAction>& out) {
             MenuAction a = act(MenuAction::Kind::ApplyAudio);
             a.audio = read_audio(*d);
             out.push_back(std::move(a));
+            out.push_back(act(MenuAction::Kind::StopAudioTest));  // #62 t01: 0x81c20 IDC_OK -> 0x81bd0
             pop();
         } else if (is("IDC_CANCEL")) {
             MenuAction a = act(MenuAction::Kind::PreviewAudio);
             a.audio = audio_before_;
             out.push_back(std::move(a));
+            out.push_back(act(MenuAction::Kind::StopAudioTest));  // #62 t01: 0x81c20 IDC_CANCEL -> 0x81bd0
             pop();
         } else if (is("IDC_RESTORE_DEFAULT")) {
             fill_audio(*d, AudioVolumes{});

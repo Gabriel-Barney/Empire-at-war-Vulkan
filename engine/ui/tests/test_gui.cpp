@@ -1177,27 +1177,31 @@ void test_menus() {
     // #62 t01 (0x81c20, dialog event 5 [H]): releasing the SFX slider asks for the SFX test, the dialog slider for the speech
     // test; the master (and music) slider has none.
     {
-        auto tests = [&] {
+        auto count = [&](MenuAction::Kind k) {
             int n = 0;
-            for (const MenuAction& a : acts)
-                n += a.kind == MenuAction::Kind::TestAudioSfx ? 1 : a.kind == MenuAction::Kind::TestAudioSpeech ? 10 : 0;
+            for (const MenuAction& a : acts) n += a.kind == k ? 1 : 0;
             return n;
         };
-        CHECK(tests() == 0);
-        for (const char* s : {"IDC_SLIDER_SOUND_EFFECTS_VOLUME", "IDC_SLIDER_DIALOG_VOLUME"}) {
+        using K = MenuAction::Kind;
+        CHECK(count(K::TestAudioSfx) == 0 && count(K::TestAudioSpeech) == 0);  // the master slider's release
+        const struct {
+            const char* slider;
+            int sfx, speech;
+        } cases[] = {{"IDC_SLIDER_SOUND_EFFECTS_VOLUME", 1, 0}, {"IDC_SLIDER_DIALOG_VOLUME", 0, 1}};
+        for (const auto& c : cases) {
             acts.clear();
-            const GuiRect r = au->control_rect(static_cast<size_t>(au->find(s)));
+            const GuiRect r = au->control_rect(static_cast<size_t>(au->find(c.slider)));
             const Vec2f mid = env.gui.canvas().canvas_to_pixel(0.5f * (r.min.x + r.max.x), 0.5f * (r.min.y + r.max.y));
             step(env.frame(mid, true));
-            CHECK(tests() == 0);  // the press and the drag only preview
+            CHECK(count(K::TestAudioSfx) == 0 && count(K::TestAudioSpeech) == 0);  // the press and the drag only preview
             step(env.frame(mid, false));
-            CHECK(tests() == (s[11] == 'S' ? 1 : 10));
+            CHECK(count(K::TestAudioSfx) == c.sfx && count(K::TestAudioSpeech) == c.speech);
         }
     }
     acts.clear();
-    step(env.click(*au, "IDC_OK"));
-    CHECK(acts.size() == 1 && acts[0].kind == MenuAction::Kind::ApplyAudio && acts[0].audio.master == 1.0f &&
-          acts[0].audio.music == 0.25f);
+    step(env.click(*au, "IDC_OK"));  // closing stops the speech stream (0x81bd0)
+    CHECK(acts.size() == 2 && acts[0].kind == MenuAction::Kind::ApplyAudio && acts[0].audio.master == 1.0f &&
+          acts[0].audio.music == 0.25f && acts[1].kind == MenuAction::Kind::StopAudioTest);
 
     // Keyboard: the focused key-capture edit takes the next key; Accept writes the table and syncs Bindings.
     {

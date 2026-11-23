@@ -227,6 +227,7 @@ AudioSystem::~AudioSystem() {
     if (music_current_.voice) backend_->stop(music_current_.voice);
     if (music_previous_.voice) backend_->stop(music_previous_.voice);
     if (speech_voice_) backend_->stop(speech_voice_);
+    if (speech_file_voice_) backend_->stop(speech_file_voice_);
     for (const PcmStreamState& s : streams_) backend_->stop(s.voice);
 }
 
@@ -380,7 +381,7 @@ float AudioSystem::pan_for(const Vec3& pos) const {
 
 uint32_t AudioSystem::active_voices(Bus pool) const {
     if (pool == Bus::Music) return (music_current_.voice ? 1u : 0u) + (music_previous_.voice ? 1u : 0u);
-    if (pool == Bus::Speech) return speech_voice_ ? 1u : 0u;
+    if (pool == Bus::Speech) return (speech_voice_ ? 1u : 0u) + (speech_file_voice_ ? 1u : 0u);
     uint32_t n = 0;
     for (const Instance& in : instances_) n += (in.voice && (in.is3d() == (pool == Bus::Sfx3D))) ? 1u : 0u;
     return n;
@@ -892,6 +893,7 @@ void AudioSystem::pause_sfx_speech() {
     for (const Instance& in : instances_)
         if (in.voice) backend_->pause(in.voice, true);
     if (speech_voice_) backend_->pause(speech_voice_, true);
+    if (speech_file_voice_) backend_->pause(speech_file_voice_, true);
 }
 
 void AudioSystem::resume_sfx_speech() {
@@ -899,6 +901,7 @@ void AudioSystem::resume_sfx_speech() {
     for (const Instance& in : instances_)
         if (in.voice) backend_->pause(in.voice, false);
     if (speech_voice_) backend_->pause(speech_voice_, false);
+    if (speech_file_voice_) backend_->pause(speech_file_voice_, false);
 }
 
 void AudioSystem::update_sfx(int64_t dt_us) {
@@ -1240,9 +1243,21 @@ void AudioSystem::cancel_speech(uint32_t ticket) {
 }
 
 void AudioSystem::update_speech() {
-    if (sfx_speech_pause_ > 0 || speech_queue_.empty()) return;  // #227: paused with the SFX manager
+    if (sfx_speech_pause_ > 0) return;  // #227: paused with the SFX manager
+    if (speech_file_voice_) {  // #62 t01: the stream player is busy with the test file
+        if (backend_->playing(speech_file_voice_)) {
+            VoiceParams vp;
+            vp.gain = bus_gain(AudioBus::Speech);
+            backend_->set(speech_file_voice_, vp);
+        } else {
+            backend_->stop(speech_file_voice_);
+            speech_file_voice_ = 0;
+        }
+    }
+    if (speech_queue_.empty()) return;
     const SpeechEvent& s = db_->speech()[speech_queue_.front().event];
     if (speech_voice_ == 0) {
+        if (speech_file_voice_) return;  // the next entry opens once the test file ends (0x22cf30 refuses a second stream)
         if (s.files.empty()) {
             const std::string name = s.name;
             speech_queue_.pop_front();
@@ -1292,9 +1307,14 @@ void AudioSystem::update_speech() {
     // The next entry starts on the next update.
 }
 
-bool AudioSystem::play_speech_file(std::string_view file) {
+void AudioSystem::stop_speech_stream() {
     if (speech_voice_) backend_->stop(speech_voice_);  // the queue entry ends at the next update (update_speech)
     if (speech_file_voice_) backend_->stop(speech_file_voice_);
+    speech_file_voice_ = 0;
+}
+
+bool AudioSystem::play_speech_file(std::string_view file) {
+    stop_speech_stream();
     const std::string f = localize_file(file, cfg_.language);
     speech_file_voice_ = next_voice_++;
     VoiceParams vp;

@@ -400,6 +400,7 @@ struct MenuAction {
         // #62 t01 (options dialog 0x81c20, dialog event 5 [H]), appended: a released SFX / dialog volume slider
         TestAudioSfx,     // play GUI_Audio_Options_SFX_Test
         TestAudioSpeech,  // stream Test_Speech_ENG.MP3
+        StopAudioTest,    // the audio dialog closed (OK, Cancel, Esc): stop the speech stream (0x81bd0 -> 0x22d260 [H])
     };
     Kind kind = Kind::ResumeGame;
     std::string campaign, faction, map, save;
