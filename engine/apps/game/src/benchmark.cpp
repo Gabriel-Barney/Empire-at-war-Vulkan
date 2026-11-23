@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <iterator>
 
 #include "json_text.hpp"
 
@@ -73,6 +74,26 @@ std::string stats_json(const FrameTimeStats& s) {
 }  // namespace
 
 std::span<const BenchPreset> bench_presets() { return kPresets; }
+// #148: parse_benchmark_arg's flags, the table it dispatches through and alamo_game --list-flags prints. Positive: the
+// option check refuses 0 (check_benchmark_options); --bench-frames-per-tick is bounded to 64 there too.
+constexpr BenchFlag kBenchFlags[] = {
+    {"--benchmark", true, "realtime|fixed", false},
+    {"--bench-save", true, "", false},
+    {"--bench-preset", true, "", false},  // any name here; check_benchmark_options refuses an unknown preset
+    {"--bench-ticks", true, "", true},
+    {"--bench-frames-per-tick", true, "", true},
+    {"--bench-settle", true, "", false},
+    {"--bench-max-unsettled", true, "", true},
+    {"--bench-report", true, "", false},
+    {"--bench-crc-out", true, "", false},
+    {"--bench-png-dir", true, "", false},
+    {"--bench-png-every", true, "", false},
+    {"--bench-no-verify", false, "", false},
+    {"--bench-redraw-every", true, "", false},
+    {"--bench-trace", true, "", false},
+};
+
+std::span<const BenchFlag> benchmark_flags() { return kBenchFlags; }
 
 const BenchPreset* find_bench_preset(std::string_view name) {
     for (const BenchPreset& p : kPresets)
@@ -83,20 +104,16 @@ const BenchPreset* find_bench_preset(std::string_view name) {
 int parse_benchmark_arg(std::span<const std::string> args, size_t& i, BenchmarkOptions& o, std::string* err) {
     if (i >= args.size()) return 0;
     const std::string& a = args[i];
-    if (a.rfind("--bench", 0) != 0) return 0;
+    const auto f = std::find_if(std::begin(kBenchFlags), std::end(kBenchFlags), [&](const BenchFlag& r) { return r.name == a; });
+    if (f == std::end(kBenchFlags)) return 0;  // not a benchmark flag (kBenchFlags)
     auto fail = [&](std::string why) {
         if (err) *err = a + ": " + why;
         return -1;
     };
-    if (a == "--bench-no-verify") {
+    if (!f->value) {  // --bench-no-verify, the one switch
         o.verify = false;
         return 1;
     }
-    static constexpr std::array<std::string_view, 13> kValued = {"--benchmark",      "--bench-save",        "--bench-preset",  "--bench-ticks",
-                                                                 "--bench-frames-per-tick", "--bench-settle", "--bench-max-unsettled",
-                                                                 "--bench-report",   "--bench-crc-out",     "--bench-png-dir", "--bench-png-every",
-                                                                 "--bench-redraw-every", "--bench-trace"};
-    if (std::find(kValued.begin(), kValued.end(), std::string_view(a)) == kValued.end()) return 0;
     if (i + 1 >= args.size()) return fail("needs a value");
     const std::string& v = args[++i];
     uint64_t n = 0;

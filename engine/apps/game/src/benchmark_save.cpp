@@ -6,6 +6,7 @@
 #include <charconv>
 #include <cstdio>
 #include <filesystem>
+#include <iterator>
 #include <map>
 
 #include "alamo/game/game_session.hpp"
@@ -44,8 +45,23 @@ std::vector<std::string> repeated(const std::vector<std::string>& names, uint32_
 
 }  // namespace
 
+// #148: parse_bench_new_arg's flags, the table it dispatches through and alamo_game --list-flags prints.
+constexpr BenchFlag kBenchNewFlags[] = {
+    {"--bench-new-save", true, "", false},
+    {"--bench-map", true, "", false},
+    {"--bench-human", true, "", false},
+    {"--bench-ai", true, "", false},
+    {"--bench-scale", true, "", true},  // 1..kMaxScale
+    {"--bench-save-after", true, "", false},
+    {"--bench-seed", true, "", false},
+    {"--bench-maps", false, "", false},
+};
+
+std::span<const BenchFlag> bench_new_flags() { return kBenchNewFlags; }
+
 int parse_bench_new_arg(std::span<const std::string> args, size_t& i, BenchNewSave& o, std::string* err) {
     const std::string& a = args[i];
+    if (std::none_of(std::begin(kBenchNewFlags), std::end(kBenchNewFlags), [&](const BenchFlag& r) { return r.name == a; })) return 0;
     auto value = [&](std::string& out) -> bool {
         if (i + 1 >= args.size()) {
             fail(err, a + " needs a value");

@@ -361,7 +361,7 @@ starts with `schema` and `version`, and the versioning rule above applies to all
 | `alamo.mod_list` | 1 | `alamo_mod_check --list-mods` | corpus runner (discovery) |
 | `alamo.mod_catalog` | 1 | `alamo_mod_check --list [--mod-dir DIR] [--no-hash]` | Command Center (`catalog.rs`) |
 | `alamo.mod_conflicts` | 1 | `alamo_mod_check --conflicts <mod args>`: the winner of each file two mods share, by `Vfs::resolve`; findings `list_ignored`, `submod_order`, `no_effect`, `no_data` | Command Center (`conflicts.rs`) |
-| `alamo.game_flags` | 1 | `alamo_game --list-flags --json` (`print_flag_list` over `kGameFlags`): `flags` [{`flag`, `value`, `one_of`, `positive`}] | Command Center (`launch.rs`) |
+| `alamo.game_flags` | 1 | `alamo_game --list-flags --json` (`print_flag_list` over `kGameFlags`, then the benchmark parsers' `benchmark_flags()` and `bench_new_flags()`): `flags` [{`flag`, `value`, `one_of`, `positive`}] | Command Center (`launch.rs`) |
 | `alamo.effect_audit` | 1 | `alamo_effect_audit --json` | tools |
 
 ### The mod picker

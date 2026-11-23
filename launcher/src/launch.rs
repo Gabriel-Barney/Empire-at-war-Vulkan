@@ -358,6 +358,19 @@ mod tests {
     }
 
     #[test]
+    fn the_benchmark_flags_are_known() {
+        // #148: the game lists its benchmark families (benchmark.hpp, benchmark_save.hpp) after its own flags.
+        let f = flags();
+        let issues = |extra: &str| extra_arg_issues(extra, &f);
+        assert!(issues("--benchmark fixed --bench-save a.alsv --bench-preset bm-low --bench-ticks 600 --bench-no-verify").is_empty());
+        assert!(issues("--bench-new-save b.alsv --bench-map _MP_SPACE_KUAT --bench-scale 4 --bench-seed 9").is_empty());
+        assert!(issues("--bench-maps").is_empty());
+        assert_eq!(issues("--benchmark slow"), vec![ArgIssue::BadValue("--benchmark".into(), "slow".into(), "realtime or fixed".into())]);
+        assert_eq!(issues("--bench-ticks 0").len(), 1, "a count of at least 1");
+        assert_eq!(issues("--bench-bogus"), vec![ArgIssue::Unknown("--bench-bogus".into())]);
+    }
+
+    #[test]
     fn the_flag_list_comes_from_the_game() {
         assert!(parse_flags("{}").is_err());
         assert!(parse_flags("{\"schema\": \"alamo.game_flags\", \"version\": 1, \"flags\": []}").is_err());

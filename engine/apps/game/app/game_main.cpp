@@ -618,9 +618,10 @@ static int bench_regen_prepare(const Options& opt, const std::vector<std::string
 // `alamo_game --list-flags --json` prints it (schema alamo.game_flags v1, print_flag_list) for the Command Center
 // (launcher/src/launch.rs), so a flag added or renamed here reaches the launcher's argument check with no second copy.
 // A value flag takes the next argument, whatever it is ("" at the end of the line); an argument with '=' in it is a data
-// argument (MODPATH= ...); anything else prints the usage and exits with 2. The benchmark families (--benchmark,
-// --bench-save, ... in benchmark.hpp; --bench-new-save, --bench-maps, ... in benchmark_save.hpp) are read by their own
-// parsers before this table and are not listed; nor is --list-flags [--json] itself, read before anything else.
+// argument (MODPATH= ...); anything else prints the usage and exits with 2. The benchmark families are read by their
+// own parsers before this table, each through its own table (benchmark_flags(), benchmark.hpp; bench_new_flags(),
+// benchmark_save.hpp), which --list-flags prints after this one (#148). --list-flags [--json] itself is not listed: it
+// is read before anything else.
 struct FlagTarget {
     Options& opt;
     std::string& export_in;   // --export-save
@@ -714,22 +715,26 @@ static const GameFlag* find_game_flag(std::string_view name) {
     return nullptr;
 }
 
-// --list-flags [--json]: kGameFlags as alamo.game_flags v1 (keys in this order; a key is never removed or changed in
-// meaning without raising the version):
+// --list-flags [--json]: kGameFlags, then the benchmark flags (benchmark_flags(), bench_new_flags()), as
+// alamo.game_flags v1 (keys in this order; a key is never removed or changed in meaning without raising the version):
 //   { "schema": "alamo.game_flags", "version": 1,
 //     "flags": [ { "flag": "--audio", "value": true, "one_of": ["device", "null", "off"], "positive": false }, ... ] }
 // value: the next argument is the flag's value; one_of: the values it accepts ([] = any); positive: a whole number above
 // 0. Without --json, one flag per line. Names and values are plain ASCII with no quote or backslash: no escaping.
 static int print_flag_list(bool json) {
+    std::vector<BenchFlag> rows;  // the listed rows: (name, value, one_of, positive)
+    for (const GameFlag& f : kGameFlags) rows.push_back(BenchFlag{f.name, f.value, f.one_of, f.positive});
+    for (const BenchFlag& f : benchmark_flags()) rows.push_back(f);
+    for (const BenchFlag& f : bench_new_flags()) rows.push_back(f);
     if (!json) {
-        for (const GameFlag& f : kGameFlags)
+        for (const BenchFlag& f : rows)
             std::printf("%.*s%s%.*s\n", static_cast<int>(f.name.size()), f.name.data(), f.value ? " VALUE " : "",
                         static_cast<int>(f.one_of.size()), f.one_of.data());
         return 0;
     }
     std::string s = "{\n  \"schema\": \"alamo.game_flags\",\n  \"version\": 1,\n  \"flags\": [";
     bool first = true;
-    for (const GameFlag& f : kGameFlags) {
+    for (const BenchFlag& f : rows) {
         s += first ? "\n    {" : ",\n    {";
         first = false;
         s += "\"flag\": \"" + std::string(f.name) + "\", \"value\": " + (f.value ? "true" : "false") + ", \"one_of\": [";

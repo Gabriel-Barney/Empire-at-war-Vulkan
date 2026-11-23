@@ -85,6 +85,17 @@ struct BenchmarkOptions {
 // --bench-frames-per-tick, --bench-settle, --bench-max-unsettled, --bench-report, --bench-crc-out, --bench-png-dir,
 // --bench-png-every, --bench-no-verify, --bench-redraw-every.
 int parse_benchmark_arg(std::span<const std::string> args, size_t& i, BenchmarkOptions& o, std::string* err = nullptr);
+// #148: one flag a benchmark parser reads, with the alamo.game_flags v1 keys alamo_game --list-flags prints: `value` (the
+// next argument is its value), `one_of` (the values it accepts, '|'-separated; "" = any) and `positive` (a whole number
+// above 0; the parser's own check may bound it further).
+struct BenchFlag {
+    std::string_view name;
+    bool value;
+    std::string_view one_of;
+    bool positive;
+};
+// The flags parse_benchmark_arg reads: the table it dispatches through (a name not in it is never consumed).
+std::span<const BenchFlag> benchmark_flags();
 // After parsing: "" when the options can run, else why not (no save, unknown preset, a value out of range).
 std::string check_benchmark_options(const BenchmarkOptions& o);
 
