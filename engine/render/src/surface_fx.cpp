@@ -170,18 +170,9 @@ std::vector<std::string> SurfaceFxLibrary::track_textures() const {
 // ------------------------------------------------------------------------------------------- surface type
 uint32_t terrain_surface_type(const terrain::Terrain& t, float x, float y) {
     if (t.width < 2 || t.height < 2 || !std::isfinite(x) || !std::isfinite(y)) return 0;
-    if (t.header.water_type != terrain::WaterType::None && t.sample_height(x, y) < t.header.water_height) {
-        switch (t.header.water_type) {
-            case terrain::WaterType::Water: return 4;
-            case terrain::WaterType::Lava: return 8;
-            case terrain::WaterType::Ice: return 7;
-            default: break;
-        }
-    }
-    const float gx = std::clamp(x / terrain::kVertexSpacing, 0.0f, static_cast<float>(t.width - 1));
-    const float gy = std::clamp(y / terrain::kVertexSpacing, 0.0f, static_cast<float>(t.height - 1));
-    const uint8_t m = t.material_at(static_cast<int64_t>(gx + 0.5f), static_cast<int64_t>(gy + 0.5f));
-    return m < t.materials.size() ? t.materials[m].surface_type : 0u;
+    // #76 t07: the gameplay rule (SurfaceFX 0x5efe50, legacy docs/re/TRN1_TERRAIN_GAMEPLAY.md §2.1 [H]): under water only below the water
+    // height - 0.5 on the bilinear height, else the nearest vertex's material.
+    return t.surface_type_at(x, y);
 }
 
 std::string_view surface_type_name(uint32_t s) {

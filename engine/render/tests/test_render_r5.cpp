@@ -862,6 +862,12 @@ static void test_surface_data(render::SurfaceFxLibrary& lib) {
     wet.header.water_type = terrain::WaterType::Lava;
     wet.header.water_height = 5.0f;
     CHECK(render::terrain_surface_type(wet, 100, 100) == 8);
+    // #76 t07 (0x5efe50, legacy docs/re/TRN1_TERRAIN_GAMEPLAY.md §2.1 [H]): under water only below the water height - 0.5 (ground at 0).
+    wet.header.water_type = terrain::WaterType::Water;
+    wet.header.water_height = 0.3f;
+    CHECK(render::terrain_surface_type(wet, 100, 100) == 2);  // 0.3 below the water: the ground's type
+    wet.header.water_height = 0.6f;
+    CHECK(render::terrain_surface_type(wet, 100, 100) == 4);  // 0.6 below: water
 }
 
 static void test_runtime_decals(const render::SurfaceFxLibrary& lib) {
