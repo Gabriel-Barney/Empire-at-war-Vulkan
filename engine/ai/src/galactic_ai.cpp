@@ -1068,7 +1068,6 @@ int32_t GalacticAiWorld::Impl::instantiate(PlayerAi& p, Goal& g) {
     std::vector<PlanetIndex> stages;  // the stages of the earlier TFs (RequireUniqueStage / RequireMatchingStage)
     for (size_t i = 0; i < def.task_forces.size(); ++i) {
         TaskForceRec tf;
-        tf.id = next_tf++;
         tf.plan = pi.id;
         tf.player = p.player;
         tf.def = static_cast<uint32_t>(i);
@@ -1084,6 +1083,17 @@ int32_t GalacticAiWorld::Impl::instantiate(PlayerAi& p, Goal& g) {
             tf.area = st == kInvalidPlanet ? g.target : static_cast<int32_t>(st);
         }
         stages.push_back(tf.area >= 0 ? static_cast<PlanetIndex>(tf.area) : kInvalidPlanet);
+        // #200 (legacy docs/re/SKAI_T17_SPACE_BUILD_RE.md §1.1 / §1.5: 0x5f7090 -> 0x66fb30) [H]: a task force exists only
+        // when the PP placed a selection (free-store unit or unit to produce; galactic has no reinforcement pool) in one of
+        // its teams or its definition says TaskForceRequired. Otherwise: no task force, its Lua global reads nil, no
+        // <name>_Thread and no event handler. The plan still starts when none is created. Its stage above still counts
+        // for the later task forces (the solve's Setup A chose it per definition).
+        if (!def.task_forces[i].required &&
+            std::none_of(pp.sel.begin(), pp.sel.end(), [i](const PpSelection& s) { return s.tf == static_cast<int32_t>(i); })) {
+            lua::set_nil_global(*vm, tf.name);  // a pooled script keeps no earlier instance's task force
+            continue;
+        }
+        tf.id = next_tf++;
         // a2m t03 (A2M_T03_PRODUCE_FORCE_CLAIMS Q1) [H]: 0x66fb30 -> 0x6c0100 / 0x5f9fd0 gives the TF one wanted type
         // (TF +0x60) per selection, free or to be produced, and no members: the selected units stay on the free store,
         // reserved by the PP (+0x30), until a Produce_Force build task claims them (resolve_claim). The log keeps the
@@ -2621,6 +2631,10 @@ std::unique_ptr<PlayerAi> GalacticAiWorld::Impl::make_player(int32_t player, con
     gcfg.nominal_allowed_time = true;  // AllowedTime = 0x6c0450(PP) x tolerance (A2F_RE_READS §1.4 item 2) [H]
     gcfg.retail_cadence = true;        // a2m r2 (A2M_R2_RE_A §2.1): seeded first quota, slice ends at the quota
     gcfg.like_sets = true;             // bkg3 (BKG3_RE_ANSWERS Q4): Is_Like like-sets in the active tests
+    // #200 (AI_GALACTIC §1.6 steps 3-6, legacy docs/re/BKG3_RE_ANSWERS.md Q4: Resolve 0x6c8970) [H]: an old candidate is
+    // neither kept nor active, so the greedy and weighted phases may accept it again; its plan keeps running. Resolve is
+    // one function for every mode (the tactical AI sets it too).
+    gcfg.reaccept_old_candidates = true;
     p.ctx.goals.init(w.defs, std::move(sources), &p, &p.ctx.learning, &p.ctx.templates, &w.rng.synced(), gcfg);
     p.ctx.attach(&p, [&w, &p](const std::string& eq, double& out) { return w.evaluate(p.player, p.ctx.opponent, eq, -1, out); });
     if (w.cfg.stagger) {  // a fixed planning phase from the player's AI ordinal (players in index order)

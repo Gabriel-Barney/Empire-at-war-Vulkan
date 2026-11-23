@@ -222,8 +222,8 @@ struct GoalSystemConfig {
     // skai t17 (AI_GALACTIC §1.6 steps 3-6, BKG3_RE_ANSWERS Q4: 0x6c8970 / 0x721a50) [H]: an old candidate (a replaceable
     // incumbent with eff < best) is neither in this Resolve's kept set nor active, so the greedy and weighted phases may
     // accept it again (its plan keeps running; the accept test is the validity test only). Off: an old candidate is
-    // treated as kept or active and always released. [port] Only the tactical space AI sets it so far (lane skai-b: land
-    // and galactic goldens are other lanes'; follow-ups on the roadmap).
+    // treated as kept or active and always released. Retail's Resolve is one function for every mode: the tactical AI
+    // (land and space) and the galactic AI (#200) set it; the default serves the GoalSystem unit tests.
     bool reaccept_old_candidates = false;
     // skai t15 (SKAI_T15_TARGET_CHOICE Q3, 0x7222c0 [H]): Commit step 1 writes the re-evaluated desire only when the
     // evaluation succeeds; a failed one keeps the incumbent's old desire. Off: a failed evaluation sets it to 0. [port] Only

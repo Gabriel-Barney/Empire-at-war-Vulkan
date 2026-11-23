@@ -2644,6 +2644,108 @@ void test_goal_old_candidate_reaccept() {
     CHECK(!ended.old_active && ended.new_active);
 }
 
+// ================================================================ #200 (a): the galactic AI re-accepts an old candidate
+//
+// The same Resolve rule in a galactic world (AI_GALACTIC §1.6 steps 3-6, legacy docs/re/BKG3_RE_ANSWERS.md Q4 / Q5.1:
+// 0x6c8970 [H]): the global Build_Space_Forces goal (desire 10) runs its replaceable plan; a Conquer_Planet goal at P7
+// (desire 50 once the Empire is rich) then outranks it, so the incumbent becomes an old candidate. The greedy phase takes
+// the new goal, then the old candidate again (no like type on its target, the limit is 2 + 1): its first plan keeps
+// running and never restarts. Before #200 the galactic goal system released it (its plan ended by the goal system) and
+// the next Commit started a second plan for the same goal type.
+namespace {
+int32_t running_plan_of(ParityWorld& pw, uint32_t type) {
+    const AiContext* c = pw.world->context(0);
+    if (!c) return -1;
+    for (const auto& cat : c->goals.active())
+        for (const Goal& g : cat)
+            if (g.type == type && g.running >= 0) return g.running;
+    return -1;
+}
+}  // namespace
+
+void test_galactic_old_candidate_reaccept() {
+    // The Empire holds P0-P6, so P7 is the only Conquer_Planet target: one new proposal.
+    const auto map = [](gal::GalacticSetup& s) {
+        for (gal::StartingForce& f : s.forces)
+            if (f.planet == 6) f.player = 0;
+        for (PlanetIndex p = 2; p <= 5; ++p) s.forces.push_back({0, p, tInfantry});
+    };
+    ParityWorld pw(false, {"ReacceptOld", "ReacceptNew"}, map, {}, [](EquationSet& e) {
+        e.add("Allow_Space", "10");
+        e.add("Conquer_Desire", "50 * (Variable_Self.CreditsUnnormalized > 50000)");
+    });
+    lua::GlobalValueStore gv;
+    pw.world->set_global_values(&gv);
+    auto num = [&gv](const char* n) { const lua::AiGlobalValue v = gv.get(n); return v.kind == lua::AiGlobalValue::Number ? v.number : -1.0; };
+    const uint32_t old_type = pw.defs.find_goal("Build_Space_Forces"), new_type = pw.defs.find_goal("Conquer_Planet");
+    CHECK(old_type != kAiNone && new_type != kAiNone);
+    int32_t frame = 0;
+    auto step = [&] {
+        pw.sim->update();
+        pw.world->update_player(0, ++frame, true, false);
+    };
+    while (frame < 30 * 300 && running_plan_of(pw, old_type) < 0) step();
+    const int32_t first = running_plan_of(pw, old_type);
+    CHECK(first >= 0);
+    pw.sim->add_credits(0, 100000.0f);  // the Conquer_Planet desire turns on
+    while (frame < 30 * 600 && running_plan_of(pw, new_type) < 0) step();
+    const int32_t conquer = running_plan_of(pw, new_type);
+    CHECK(conquer >= 0);
+    const uint32_t commit = pw.world->context(0)->goals.commits();
+    while (frame < 30 * 900 && pw.world->context(0)->goals.commits() < commit + 2) step();
+    const int32_t after = running_plan_of(pw, old_type);
+    std::printf("galactic old candidate: Build_Space_Forces plan %d, Conquer_Planet plan %d, two commits later plan %d "
+                "(old starts %.0f, new starts %.0f, frame %d)\n",
+                first, conquer, after, num("ra_old_starts"), num("ra_new_starts"), frame);
+    CHECK(pw.world->context(0)->goals.commits() >= commit + 2);
+    CHECK(after == first && num("ra_old_starts") == 1.0);
+    CHECK(running_plan_of(pw, new_type) == conquer && num("ra_new_starts") == 1.0);
+    pw.world->set_global_values(nullptr);
+}
+
+// ================================================================ #200 (b): plan start creates only selected task forces
+//
+// legacy docs/re/SKAI_T17_SPACE_BUILD_RE.md §1.1 / §1.5 (0x5f7090 -> 0x66fb30) [H]: a task force exists only when the PP
+// placed a selection in one of its teams or its definition carries TaskForceRequired. EscortForce (Frigate = 0,1, no
+// selection) is not created: its global reads nil and EscortForce_Thread never runs. RequiredForce (the same team,
+// TaskForceRequired) is created with no wanted entry and its thread runs.
+void test_galactic_task_force_creation() {
+    // A locked Frigate (Build_Initially_Locked) is vetoed, so the solve places nothing in the two Frigate teams.
+    ParityWorld pw(false, {"TfCreation"}, {}, [](gal::GalacticRules& r) { r.types[tFrigate].build_initially_locked = true; });
+    lua::GlobalValueStore gv;
+    pw.world->set_global_values(&gv);
+    auto num = [&gv](const char* n) { const lua::AiGlobalValue v = gv.get(n); return v.kind == lua::AiGlobalValue::Number ? v.number : -1.0; };
+    const uint32_t type = pw.defs.find_goal("Build_Space_Forces");
+    int32_t frame = 0;
+    for (; frame < 30 * 300 && num("tfc_main_ran") < 0.0; ++frame) {
+        pw.sim->update();
+        pw.world->update_player(0, frame + 1, true, false);
+    }
+    for (const int32_t end = frame + 60; frame < end; ++frame) {  // two more seconds: every started thread has run
+        pw.sim->update();
+        pw.world->update_player(0, frame + 1, true, false);
+    }
+    std::vector<uint32_t> sel;
+    if (const AiContext* c = pw.world->context(0))
+        for (const auto& cat : c->goals.active())
+            for (const Goal& g : cat)
+                if (g.type == type && g.running >= 0) sel = pw.world->potential_plan_selection(g.pp_handle);
+    std::string line;
+    for (const AiDecision& d : pw.world->decision_log())
+        if (line.empty() && d.text.find(" TFCREATION ") != std::string::npos) line = d.text;
+    std::printf("task force creation: %zu selected (frigate %s): %s | escort global %s, thread %s; required global %s, thread %s\n",
+                sel.size(), pw.has(sel, tFrigate) ? "yes" : "no", line.c_str(),
+                num("tfc_escort_nil") == 1.0 ? "nil" : "set", num("tfc_escort_ran") == 1.0 ? "ran" : "not run",
+                num("tfc_required_nil") == 0.0 ? "set" : "nil", num("tfc_required_ran") == 1.0 ? "ran" : "not run");
+    CHECK(num("tfc_main_ran") == 1.0);
+    CHECK(pw.has(sel, tCorvette) && !pw.has(sel, tFrigate));  // no selection in either 0-minimum team
+    CHECK(num("tfc_escort_nil") == 1.0 && num("tfc_escort_ran") < 0.0);
+    CHECK(num("tfc_required_nil") == 0.0 && num("tfc_required_ran") == 1.0);
+    CHECK(line.find(" MainForce(") != std::string::npos && line.find(" RequiredForce(0+0)") != std::string::npos &&
+          line.find("EscortForce") == std::string::npos);
+    pw.world->set_global_values(nullptr);
+}
+
 // #122: a production failure raised in the sim step (the build planet is lost) whose handler reads its task force
 // queues the member it finds gone; Unit_Destroyed fires at the next update_player's drain. A save taken between the
 // two keeps the queue, so a world loaded from it raises the event exactly as the uninterrupted world does.

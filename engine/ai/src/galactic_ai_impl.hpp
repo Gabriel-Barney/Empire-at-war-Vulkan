@@ -726,6 +726,13 @@ struct PlayerAi final : GoalModeHooks, ContextModeServices {
     }
     bool accept(Goal& g) override;
     bool plan_activatable(Goal& g) override {
+        // #200 (legacy docs/re/BKG3_RE_ANSWERS.md Q5.1: 0x6c4a50 with PP +0x100 set) [H]: an old candidate taken from the
+        // pool (its PP was reserved at its accept) gets the validity test 0x6c45e0 only, no re-solve; cost and ETA stay.
+        if (g.state != GoalState::Proposed) {
+            if (!g.pp_valid || g.running < 0) return false;  // its plan ended: never re-accepted (GoalSystem's test too)
+            const auto it = w->plans.find(g.running);
+            return it != w->plans.end() && !it->second.ended && !w->pp_stolen(g.pp_handle);
+        }
         if (!(g.pp_valid && g.plan != kAiNone && ctx.templates.plan_value(g.plan) > 0 && w->resolve_pp(*this, g))) return false;
         // [M] the re-solve rewrites the PP's selection (+0x58), which AllowedTime (0x692860 -> 0x6c0450) reads live.
         // 0x6c4a50 also copies the re-solved net cost and ETA to the goal (G +0x78 := PP +0x44, G +0x7C := PP +0x48,
