@@ -728,8 +728,8 @@ void apply_battle_state(const sim::TacticalBattle& battle, SimSnapshot& snap, co
         if (stealth_applied) o.flags = static_cast<uint8_t>(o.flags | kSnapStealthMeshes);
         else if (stealth_broken) o.stealth_time = kStealthBreakFade;
     }
-    // bkx1 t05 (BKX1_RENDER_RE §1.2): the engine glow inputs of every space unit with a locomotor other than
-    // the fighters' (the SimpleSpace service runs for corvettes, frigates, capitals and transports): engines off (a
+    // bkx1 t05 (BKX1_RENDER_RE §1.2): the engine glow inputs of every space unit with the SimpleSpace locomotor
+    // (its service runs for corvettes, frigates, capitals and transports; #76 t01 checks the token): engines off (a
     // destroyed engine hard point or a disable), the timed disable's frames left, ion stun, v / V.
     if (battle.is_space()) {
         const tactical::movement::MovementSystem& mv = battle.movement();
@@ -738,6 +738,7 @@ void apply_battle_state(const sim::TacticalBattle& battle, SimSnapshot& snap, co
             if (on < 0 || !mv.has_unit(o.id)) continue;
             const tactical::movement::UnitView v = mv.view(o.id);
             if (v.locomotor == tactical::movement::LocomotorKind::Fighter) continue;
+            if (!engine_glow_locomotor(battle.locomotor_token(static_cast<uint32_t>(o.type)))) continue;  // #76 t01
             o.engine_flags = static_cast<uint8_t>(kEngineGlowUnit | (on == 0 ? kEngineGlowOff : 0) |
                                                   (combat.ion_stunned(o.id, battle.frame()) ? kEngineGlowIonStun : 0));
             const uint32_t re = battle.engines().reenable_frame(o.id);

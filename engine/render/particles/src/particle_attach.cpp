@@ -138,6 +138,14 @@ void ProxyAttachments::sync(uint64_t key, const Instance& inst, bool water, int 
         world_->set_visible(s.h, !hidden);
         world_->set_fade(s.h, inst.light_scale.w);
         world_->set_water(s.h, water);
+        if (s.proxy < inst.proxy_color.size()) {  // #76 t01: the engine glow tint (RGBA = (v, v, v, v))
+            const float v = inst.proxy_color[s.proxy];
+            if (v >= 0.0f && v != s.color) {
+                const float rgba[4] = {v, v, v, v};
+                world_->set_scalar(s.h, SystemScalar::Color, rgba, inst.proxy_color_seconds);
+                s.color = v;
+            }
+        }
         stats_.hidden += hidden ? 1u : 0u;
     }
     // Unresolved proxies (counted once per sync).

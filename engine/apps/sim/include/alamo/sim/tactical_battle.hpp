@@ -1035,6 +1035,8 @@ public:
     bool hyperspace_out(objects::ObjectId id, int32_t delay_frames, bool keep_parent_link);
     // Are_Engines_Online: 1 / 0 for battle units with a locomotor (destroyed engines, timed disables), -1 otherwise.
     int32_t engines_online(objects::ObjectId id) const;
+    // #76 t01: the type's active *_LOCOMOTOR behaviour token in this battle's mode (empty: none). Read-only.
+    std::string_view locomotor_token(uint32_t type) const { return mv_locomotor_token(type); }
     // Locomotor_Set_Engines: disable for `seconds` (< 0 indefinitely); enable_engines = repair (not after destruction).
     bool disable_engines(objects::ObjectId id, float seconds);
     // cu8f t02 (legacy docs/re/CU8F_T01_T02_T07_RE.md §2.4): the energy-pool path (CombatHooks::engines_drained, inside Take_Damage). With

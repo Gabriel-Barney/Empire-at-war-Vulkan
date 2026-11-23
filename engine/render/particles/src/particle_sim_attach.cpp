@@ -69,6 +69,8 @@ SimAttachStats sync_sim_frame(ProxyAttachments& attach, const InterpolatedFrame&
         in.transform = object_transform(o, scale0);
         in.light_scale = {1, 1, 1, g.fade};
         in.mesh_hidden = builder.mesh_mask(o.id);  // hardpoints + R3 bone visibility
+        in.proxy_color = builder.proxy_color(o.id);  // #76 t01: the engine glow tint of the G group's systems
+        in.proxy_color_seconds = builder.proxy_color_seconds(o.id);
         in.alt = builder.applied_alt(o.id, o.alt);  // R1: the alternate the model shows (0x12dca0 rule)
         if (pose && *pose) in.bone_world = (*pose)(o.id, *m);
         attach.sync(sim_owner_key(o.id), in, false, in.alt);
