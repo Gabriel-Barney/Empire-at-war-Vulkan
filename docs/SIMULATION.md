@@ -148,8 +148,11 @@ counter, `create` refused). Rules:
   - hangars (`hangar`): per carrier (entry and bay picks).
   - reinforce (`reinforce`): per participant (its deploy).
   - landing (`landing`): per landing object (an unload step's deploy and exit move).
-- Nothing to convert: expiry, fog and victory draw nothing. A combat listener that draws while a converted service runs
-  still draws from the tick's synced RNG (tier 3; deterministic either way).
+- Nothing to convert: expiry, fog and victory draw nothing.
+- Still on the synced RNG while a converted service runs (tier 3; deterministic either way, the services run in graph
+  order): a combat listener's draws (the tick's RNG, `hooks_->set_tick`) and the first-due draw of each behaviour an
+  object gets when it is spawned (`ObjectStore::attach`, the host's bound synced RNG). A service is fully independent of
+  the others only once those move too; until then the streams make a converted service's own draws independent.
 - The same pattern backs the plan-pick and PotentialPlan solve streams (`pp_streams`: seeded by session seed, frame,
   player, goal source and target; on by default) and the AI lane's own stream.
 

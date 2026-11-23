@@ -1273,6 +1273,7 @@ void test_reinforce_streams() {
         const StreamRun x = run_hangar_streams(bit, w, 6);
         std::printf("  reinforce streams on, workers %2u: %s\n", w, x.digest == on.digest ? "identical" : "DIFFERENT");
         CHECK(x.digest == on.digest);
+        CHECK(run_hangar_streams(0, w, 6).digest == off.digest);  // the flag off stays worker-independent too
     }
     for (const auto m : {tactical::services::RunMode::Serial, tactical::services::RunMode::Reverse}) {  // every service run mode
         const StreamRun x = run_hangar_streams(bit, 4, 6, m);
