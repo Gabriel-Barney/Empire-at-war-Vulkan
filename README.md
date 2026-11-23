@@ -82,6 +82,39 @@ diagnostics. It reads Workshop state from Steam's own files and contains no Valv
 - A repeatable benchmark with fixed saves, recorded orders and a scripted camera.
 - Lua 5.0.2, the same version the original uses, so scripts keep their behaviour.
 
+## Performance examples
+
+The simulation runs at 30 ticks per second, so one tick has 33.3 ms. The budget is a tick p99 below 16.7 ms (half a
+tick) and no tick above 33.3 ms. The p99 is far inside it in every test scenario (the worst is 2.2 ms). The one miss
+is the first tick of a battle, which does the one-off setup: 42 to 139 ms, down from 57 to 193 ms.
+
+| Example | Before | After |
+| --- | --- | --- |
+| Land battle, typical tick (p50) | 3.06 ms | 1.32 ms (2.3x faster) |
+| Land battle, tick p99 | 6.39 ms | 2.21 ms (2.9x better) |
+| 400-planet galaxy with 4 AIs, tick p99 | 2.99 ms | 1.53 ms (the first-frame route recompute now runs in the background) |
+| Land skirmish tick p99, after one slow AI lookup was fixed ¹ | 19.7 ms | 2.6 ms |
+| Tactical AI plan solve, p99 (now a background job) | 19 ms | 1.3-3.5 ms |
+| Land battle-end tick (AI scripts freed in the background) | 27.0 ms | 5.3 ms |
+| Land skirmish map obstacle setup (run in parallel) | 60 ms | 17 ms |
+| AI plan-script file reads per battle (read cache) | 98 ms | 25 ms |
+| Game frame p99 on a fully loaded CPU (above-normal process priority) | about 40 ms | about 18 ms |
+| Draw-list build / sort with 2,000 ships on screen | 0.88 / 0.19 ms | 0.67 / 0.09 ms |
+
+¹ One AI perception check scanned every unit type name for every open build pad, 66,749 times at about 0.38 ms each.
+It now looks the type up once per call, with no change in output. The skirmish's ticks above 33.3 ms went from 7 to 1
+(measured on a busy machine).
+
+The job system also scales: a large pathfinding search runs 7.9x faster on 8 workers and 12x faster on 15, with
+identical results at every worker count.
+
+How these were measured: the engine's own tick profiler (`alamo_headless --profile`) and benchmark scenes, on an AMD
+Ryzen 7 7800X3D (8 cores, 16 threads) with a Radeon RX 9070 XT, Windows 11, an MSVC release build, the median of 3 runs
+on a quiet machine unless noted. The numbers come from the project's earlier checkout (2026-10-30 to 2026-11-14) and
+compare the port with its own earlier builds. **There is no side-by-side benchmark against the original game yet.**
+The full measurement log, with every table and the fixes that were tried and not shipped, is
+[legacy docs/PERFORMANCE.md](https://github.com/Gabriel-Barney/Empire-at-war-vulkan-old/blob/7f911b51f0d12d0d10e8218e726af3d7ace5d9c5/docs/PERFORMANCE.md).
+
 ## Status
 
 **Work in progress, not yet a complete game.** The foundations are done: battles play through to an outcome, saves and
