@@ -2863,7 +2863,8 @@ static const char* kPlot =
     "<Event_Param2>2</Event_Param2><Event_Param4>PlanetC</Event_Param4></Event>\n"
     " <Event Name=\"Lost_One\"><Event_Type>STORY_LOSE_BATTLES</Event_Type><Event_Param1>1</Event_Param1></Event>\n"
     " <Event Name=\"Retreat_C\"><Event_Type>STORY_RETREAT</Event_Type><Event_Param1>PlanetC</Event_Param1></Event>\n"
-    // #65 t02 (STY1_GENERIC_AUTOSAVE §2, 0x616740): any player's neutralize raises STORY_GENERIC hero_neutralized
+    // #65 t02 (legacy docs/re/STY1_GENERIC_AUTOSAVE.md §2, 0x616740): any player's neutralize raises STORY_GENERIC
+    // hero_neutralized
     " <Event Name=\"Neutralized\"><Event_Type>STORY_GENERIC</Event_Type><Event_Param1>hero_neutralized</Event_Param1></Event>\n"
     "</Story>\n";
 // The script moves the Underworld corvette to the Empire (GalacticSim::change_owner: a new Empire fleet in
@@ -3024,7 +3025,7 @@ static Result run(const objects::GameObjectTypes& types, const FileProvider& fil
             neut.planet = story_test::rA;
             neut.type = tHeroUnit;
             neut.other_player = pEmpire;
-            neut.value = 2500;
+            neut.value = 2500;  // the credits charged (not read by STORY_GENERIC)
             gs->post_event(neut);
         }
         if (t == 400) gs->set_destroyed(story_test::rB, true);
