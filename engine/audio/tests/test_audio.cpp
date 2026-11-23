@@ -938,6 +938,47 @@ void test_speech() {
     CHECK(a.speech_queue_size() == 0 && a.active_voices(Bus::Speech) == 0);
 }
 
+// #62 t01 (options dialog 0x81c20 -> 0x22d260 / 0x22cf30 [H]): the speech test streams the localized file at volume 1.0 on
+// the speech bus after stopping what the speech stream plays; a second test replaces the first; Stop_All_Speech stops it.
+void test_speech_file() {
+    AudioConfig cfg;
+    cfg.language = "German";
+    Rig rig(cfg);
+    AudioSystem& a = *rig.a;
+    auto last_start = [&]() -> std::pair<uint32_t, std::string> {
+        const LogEntry* e = last_op(a, LogOp::SpeechStart);
+        return e ? std::pair{e->voice, e->event} : std::pair{0u, std::string()};
+    };
+    CHECK(a.play_speech("Line_1"));
+    a.update(0.0);
+    const uint32_t line = last_start().first;
+    CHECK(line != 0 && rig.backend.playing(line));
+    CHECK(a.play_speech("Line_1"));  // a second entry waits in the queue
+    CHECK(a.play_speech_file("Test_Speech_ENG.MP3"));
+    const LogEntry* s = last_op(a, LogOp::SpeechStart);
+    CHECK(s && s->sample == "Test_Speech_GER.MP3" && s->event.empty() && near(s->gain, a.bus_gain(AudioBus::Speech)));
+    const uint32_t v = s ? s->voice : 0;
+    // One stream player: the playing line stopped, the test file plays.
+    CHECK(!rig.backend.playing(line) && rig.backend.playing(v) && a.speech_playing());
+    a.update(0.0);
+    a.update(0.0);
+    // The stopped line's entry ended; the waiting entry does not open while the test file streams.
+    CHECK(last_op(a, LogOp::SpeechEnd) && a.speech_queue_size() == 1 && last_start().first == v &&
+          a.active_voices(Bus::Speech) == 1);
+    a.stop_speech_stream();  // the dialog closed (0x81bd0)
+    CHECK(!rig.backend.playing(v) && !a.speech_playing());
+    a.update(0.0);
+    CHECK(last_start().first != v && last_start().second == "Line_1" && a.speech_playing());
+    CHECK(a.play_speech_file("Test_Speech_ENG.MP3"));
+    const uint32_t v2 = last_start().first;
+    CHECK(a.play_speech_file("Test_Speech_ENG.MP3"));  // a second test replaces the first
+    CHECK(!rig.backend.playing(v2) && rig.backend.playing(last_start().first));
+    a.update(0.0);  // the stopped line's entry ends; only the test file streams
+    CHECK(a.active_voices(Bus::Speech) == 1 && a.speech_queue_size() == 0);
+    a.stop_all_speech();
+    CHECK(a.active_voices(Bus::Speech) == 0 && !a.speech_playing());
+}
+
 // Scripted session: identical inputs -> identical logs; only the free RNG instance is drawn.
 std::string scripted_session(uint32_t seed, GameRandom& gr) {
     MemoryProvider tree = make_tree();
@@ -1797,6 +1838,7 @@ int main() {
     test_music();
     test_music_end_rules();
     test_speech();
+    test_speech_file();  // #62 t01
     test_determinism();
     test_decode_backend();
     test_streams();

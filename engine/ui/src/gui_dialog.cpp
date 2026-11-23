@@ -1164,6 +1164,12 @@ void GuiManager::update(const InputFrame& raw, const RoutedInput& routed, double
         }
     }
     if (released && press_dialog_) {
+        // #62 t01 (trackbar 0x1d6290 [H]): the mouse-up of a slider drag sends the release (retail event 5) after the value.
+        // #62 t01: the original sends event 5 only when its drag flag (+0x90) is set, which looks like a press on the thumb
+    // [M]; the port's slider has no separate thumb or arrow parts, so any press on it ends in a release here.
+    if (slider_drag_ && press_control_ >= 0 && static_cast<size_t>(press_control_) < press_dialog_->controls_.size())
+            events.push_back(make_event(GuiEvent::Kind::SliderReleased, *press_dialog_, press_control_,
+                                        press_dialog_->controls_[static_cast<size_t>(press_control_)].value));
         if (press_dialog_ == hover_dialog_ && press_control_ == hover_control_ && press_control_ >= 0 && !slider_drag_ &&
             scroll_part_ == ScrollPart::None)
             click(*press_dialog_, static_cast<size_t>(press_control_), events, false);

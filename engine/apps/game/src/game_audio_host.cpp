@@ -422,6 +422,12 @@ void GameAudioHost::movie_ended() {
     }
 }
 
+uint32_t GameAudioHost::options_sfx_test() { return game_ ? game_->sfx_2d("GUI_Audio_Options_SFX_Test") : 0u; }
+bool GameAudioHost::options_speech_test() { return game_ && game_->audio().play_speech_file("Test_Speech_ENG.MP3"); }
+void GameAudioHost::options_test_stop() {
+    if (game_) game_->audio().stop_speech_stream();
+}
+
 void GameAudioHost::negative_feedback() {
     if (!game_) return;
     ++stats_.feedback;
@@ -1636,6 +1642,9 @@ void GameAudioHost::ui(std::string_view) {}
 void GameAudioHost::speech(std::string_view) {}
 void GameAudioHost::faction_sfx(std::string_view) {}
 void GameAudioHost::negative_feedback() {}
+uint32_t GameAudioHost::options_sfx_test() { return 0; }
+bool GameAudioHost::options_speech_test() { return false; }
+void GameAudioHost::options_test_stop() {}
 void GameAudioHost::battle_pending(bool) { pending_played_ = true; }  // same bookkeeping as with audio
 void GameAudioHost::galactic_resume() { pending_played_ = false; }
 void GameAudioHost::movie_started(bool movie_music, bool halt_music) {  // same bookkeeping as with audio (no music here)
