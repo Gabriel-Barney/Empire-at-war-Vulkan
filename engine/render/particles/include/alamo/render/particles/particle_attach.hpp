@@ -70,6 +70,7 @@ private:
         int alt = -1, lod = -1;
         bool finished = false;
         float intensity = -1.0f;  // last scalar-setter intensity (sync_effect)
+        float color = -1.0f;      // #76 t01: last Instance::proxy_color applied (-1 = none yet)
         int64_t mesh_sub = -1;    // the parent mesh's submesh (spawn sources 1-3), -1 = none
     };
     struct Owner {

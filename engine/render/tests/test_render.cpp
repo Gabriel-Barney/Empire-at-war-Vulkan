@@ -1068,6 +1068,10 @@ void test_engine_glow() {
     CHECK(render::engine_glow(unit, 0, 3.0f, false, false).tint == 1.0f);  // clamped
     const EngineGlow turbo = render::engine_glow(unit, 0, 1.0f, true, false);
     CHECK(turbo.show == render::kGlowPte && (turbo.hide & render::kGlowPe) != 0);
+    // #76 t01 (BKX1_RENDER_RE 1.3 [M]): SPOILER_LOCK active - pe shown by the service, pte left shown by the toggle.
+    const EngineGlow spoiler = render::engine_glow(unit, 0, 1.0f, false, false, true);
+    CHECK(spoiler.show == render::kGlowPe && (spoiler.hide & (render::kGlowPe | render::kGlowPte)) == 0);
+    CHECK((render::engine_glow(unit, 0, 1.0f, true, false, true).hide & render::kGlowPe) != 0);  // TURBO still hides pe
     const EngineGlow off = render::engine_glow(unit | render::kEngineGlowOff, 0, 0.0f, false, false);
     CHECK((off.hide & render::kGlowPe) != 0 && (off.show & render::kGlowPe) == 0 && off.tint < 0.0f);
     const EngineGlow timed = render::engine_glow(unit | render::kEngineGlowOff, 90, 0.0f, false, false);
@@ -1083,6 +1087,9 @@ void test_engine_glow() {
         const float t = render::engine_glow_flicker(f);
         CHECK(t >= 0.0f && t <= 0.2f);
     }
+    CHECK(render::engine_glow_locomotor("SIMPLE_SPACE_LOCOMOTOR") && render::engine_glow_locomotor(" simple_space_locomotor "));
+    CHECK(!render::engine_glow_locomotor("FIGHTER_LOCOMOTOR") && !render::engine_glow_locomotor("STARSHIP_LOCOMOTOR") &&
+          !render::engine_glow_locomotor(""));
 }
 
 void test_hardpoints() {

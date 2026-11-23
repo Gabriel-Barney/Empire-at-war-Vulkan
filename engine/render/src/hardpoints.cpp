@@ -326,11 +326,11 @@ float engine_glow_flicker(uint32_t timer_frames) {
     return (n * 0.5f + 0.5f) * 0.2f;
 }
 
-EngineGlow engine_glow(uint8_t flags, uint32_t timer_frames, float speed_ratio, bool turbo, bool dying) {
+EngineGlow engine_glow(uint8_t flags, uint32_t timer_frames, float speed_ratio, bool turbo, bool dying, bool spoiler_lock) {
     EngineGlow e;
     if ((flags & kEngineGlowUnit) == 0) return e;
     e.applies = true;
-    const uint8_t g = turbo ? kGlowPte : kGlowPe, other = turbo ? kGlowPe : kGlowPte;
+    const uint8_t g = turbo ? kGlowPte : kGlowPe, other = turbo ? kGlowPe : (spoiler_lock ? uint8_t{0} : kGlowPte);
     e.hide = other;
     e.tint_group = g;
     if (dying) {
@@ -349,5 +349,7 @@ EngineGlow engine_glow(uint8_t flags, uint32_t timer_frames, float speed_ratio, 
     else e.hide |= kGlowPi;
     return e;
 }
+
+bool engine_glow_locomotor(std::string_view t) { return ascii_iequals(ascii_trim(t), "SIMPLE_SPACE_LOCOMOTOR"); }
 
 }  // namespace alamo::render

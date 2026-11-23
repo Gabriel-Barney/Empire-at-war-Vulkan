@@ -207,6 +207,11 @@ struct Instance {
     // Per ModelAsset::meshes entry, 1 = hidden (hidden_mesh_mask / set_hardpoint_destroyed). Empty: the
     // model's default GpuModel::mesh_hidden. Must outlive the frame's build.
     std::span<const uint8_t> mesh_hidden;
+    // #76 t01: per ModelAsset::proxies entry, an RGBA brightness for that proxy's particle system (the engine glow tint:
+    // 0x265a60 -> the scalar setter index 4 = (v, v, v, v), BKX1_RENDER_RE 1.1 [H]), applied when it changes; < 0 or past
+    // the end leaves the system as it is. Must outlive the frame's build.
+    std::span<const float> proxy_color;
+    float proxy_color_seconds = 0.0f;  // its smoothing (0 = snap)
     // R4 damage state: current model alternate (legacy docs/re/RENDER.md 5 / TERRAIN_WATER_POST 1.6). Meshes named "_ALTn" draw only
     // when n == alt; meshes without an _ALT suffix always draw. Every alternate is uploaded (GpuSubmesh::alt), so the
     // swap is per instance and per frame. Default 0 = the undamaged model.

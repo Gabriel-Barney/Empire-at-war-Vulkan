@@ -84,6 +84,16 @@ std::span<const uint8_t> SimInstanceBuilder::mesh_mask(objects::ObjectId id) con
     return it->second.use_combined ? std::span<const uint8_t>(it->second.combined) : it->second.vis.mask();
 }
 
+std::span<const float> SimInstanceBuilder::proxy_color(objects::ObjectId id) const {
+    const auto it = states_.find(id);
+    return it == states_.end() ? std::span<const float>() : std::span<const float>(it->second.glow_color);
+}
+
+float SimInstanceBuilder::proxy_color_seconds(objects::ObjectId id) const {
+    const auto it = states_.find(id);
+    return it == states_.end() ? 0.0f : it->second.glow_seconds;
+}
+
 float SimInstanceBuilder::fog_alpha(objects::ObjectId id) const {
     const auto it = states_.find(id);
     return it == states_.end() ? 1.0f : it->second.fog_alpha;
@@ -392,13 +402,26 @@ void SimInstanceBuilder::build(const InterpolatedFrame& frame, SimModelSource& m
         // bkx1 t05 (BKX1_RENDER_RE §1): the SimpleSpace engine glow - the engine particle proxies by name
         // prefix (pe / pte / pi) hidden or shown on top of the mask above (engine_glow: TURBO picks pte over pe, engines
         // off hide G, ion stun shows pi). Only pi is ever un-hidden here: pe / pte keep the mask above, so a destroyed engine
-        // hard point's Hide_Engine_Particles stays. [port] the glow brightness (EngineGlow::tint, SystemScalar::Color) is
-        // not applied.
+        // hard point's Hide_Engine_Particles stays. #76 t01: the glow brightness (EngineGlow::tint) goes to the G group's
+        // particle systems as their RGBA (Instance::proxy_color, the scalar setter index 4).
+        // [port] retail's group walk also recurses into Model_To_Attach models (0x266790 / 0x266630 [H]); the port makes
+        // no particle systems for attached models' proxies (sync_sim_frame syncs the objects' own models), so there is
+        // nothing to switch there.
+        s.glow_color.clear();
+        s.glow_seconds = 0.0f;
         if ((o.engine_flags & kEngineGlowUnit) != 0 && m->asset && s.vis.layout()) {
-            const EngineGlow glow = engine_glow(o.engine_flags, o.engine_timer_frames, o.engine_speed_ratio,
-                                                o.ability_active(9), (o.flags & kSnapDying) != 0);  // 9: TURBO
+            const EngineGlow glow = engine_glow(o.engine_flags, o.engine_timer_frames, o.engine_speed_ratio, o.ability_active(9),
+                                                (o.flags & kSnapDying) != 0, o.ability_active(43));  // 9: TURBO, 43: SPOILER_LOCK
             const assets::ModelAsset& ma = *m->asset;
             const HardpointLayout& lay = *s.vis.layout();
+            if (glow.applies && glow.tint >= 0.0f) {
+                s.glow_color.assign(ma.proxies.size(), -1.0f);
+                for (size_t p = 0; p < ma.proxies.size(); ++p)
+                    if ((particle_glow_group(ma.proxies[p].name) & glow.tint_group) != 0) s.glow_color[p] = glow.tint;
+                s.glow_seconds = glow.tint_seconds;
+                in.proxy_color = s.glow_color;
+                in.proxy_color_seconds = glow.tint_seconds;
+            }
             if (glow.applies && (glow.hide | glow.show) != 0) {
                 if (!s.use_combined) {
                     const std::span<const uint8_t> base = s.vis.mask();
@@ -450,6 +473,8 @@ void SimInstanceBuilder::build(const InterpolatedFrame& frame, SimModelSource& m
             Instance at = in;
             at.model = am;
             at.mesh_hidden = {};
+            at.proxy_color = {};  // the owner's list is indexed by the owner's proxies
+            at.proxy_color_seconds = 0.0f;
             at.motion_id = motion_key(1, static_cast<uint64_t>(o.id), h + 1);
             at.bone_world = {};
             at.alt = 0;

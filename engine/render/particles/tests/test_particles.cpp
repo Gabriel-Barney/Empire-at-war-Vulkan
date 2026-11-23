@@ -464,6 +464,26 @@ static void test_attach() {
         x = s.cur.translation().x;
     });
     CHECK(systems == 4 && visible == 2 && x == 110.0f);  // owner x bone B1 (+10)
+    // #76 t01: a per-proxy colour (the engine glow tint) goes to that proxy's system as the RGBA scalar (0x265a60 ->
+    // 0x173220 index 4, (v, v, v, v)) with its smoothing; < 0 leaves the system alone.
+    {
+        const std::vector<float> tint = {0.5f, -1.0f, -1.0f, -1.0f, -1.0f};
+        in.proxy_color = tint;
+        in.proxy_color_seconds = 0.25f;
+        at.begin();
+        at.sync(5, in);
+        at.end();
+        std::vector<float> targets, rates;
+        w.for_each([&](uint32_t, const SystemState& s) {
+            targets.push_back(s.color_spring[0].target);
+            rates.push_back(s.color_spring[3].rate);
+            CHECK(s.color_spring[0].target == s.color_spring[3].target);
+        });
+        CHECK(targets.size() == 4 && targets[0] == 0.5f && targets[1] == 1.0f && targets[2] == 1.0f && targets[3] == 1.0f);
+        CHECK(rates.size() == 4 && rates[0] == 4.0f);  // rate = 1 / seconds
+        in.proxy_color = {};
+        in.proxy_color_seconds = 0.0f;
+    }
     // Hardpoint-style mask over meshes + proxies: proxy 0 hidden by its sub-object bit.
     const std::vector<uint8_t> mask = {0, 1, 0, 0, 0, 0};
     in.mesh_hidden = mask;
@@ -932,6 +952,57 @@ static void test_sim() {
     CHECK(ps.systems > 10 && ps.spawned > 1000);
 }
 
+// #76 t01: through the game's path (SimInstanceBuilder::build then sync_sim_frame), a SimpleSpace engine-glow unit's
+// pe proxy system takes the glow tint clamp(0.8 v / V + 0.2, 0, 1) as its RGBA; its other proxy keeps 1.
+static void test_sim_engine_glow() {
+    std::string err;
+    const fs::path dir = fs::temp_directory_path() / "alamo_render_particles_tests_glow";
+    std::error_code ec;
+    remove_all_long(dir, ec);
+    const auto w = render::make_synthetic_sim_world(path_to_utf8(dir), &err);
+    CHECK(w != nullptr);
+    if (!w) return;
+    render::SnapshotTypeTable table;
+    table.build(w->types, objects::ModeKind::Space);
+    const objects::TypeIndex frig = w->types.resolve_name("Sim_Frigate");
+    ParticleLibrary lib;
+    for (const SystemPtr& p : synthetic_systems()) lib.add(p);
+    auto glow_sys = std::make_shared<SystemDef>(*lib.get("SYN_FIRE"));  // an engine system named like a pe proxy
+    glow_sys->name = "PE_SYN_ENGINE";
+    lib.add(glow_sys);
+    auto box = render::debug_box_model(render::kSyntheticModel);
+    box->proxies = {{"PE_SYN_ENGINE", 0, false}, {"SYN_SMOKE", 0, false}};
+    render::GpuModel model;
+    model.uid = 4444;
+    model.asset = box;
+    ProxyBoxModels models;
+    models.model = &model;
+    models.table = &table;
+    render::SimInstanceBuilder builder(table);
+    ParticleWorld pw(1u << 18);
+    pw.set_throttle(false);
+    ProxyAttachments at(pw, lib);
+    render::InterpolatedFrame f;
+    render::SnapshotObject o;
+    o.id = 20;
+    o.type = frig;
+    o.engine_flags = render::kEngineGlowUnit;
+    o.engine_speed_ratio = 0.5f;  // 0.8 x 0.5 + 0.2 = 0.6
+    f.objects.push_back(o);
+    std::vector<render::Instance> fg, bg;
+    builder.build(f, models, fg, bg);
+    (void)sync_sim_frame(at, f, table, models, builder);
+    std::vector<float> targets;
+    pw.for_each([&](uint32_t, const SystemState& s) { targets.push_back(s.color_spring[0].target); });
+    CHECK(targets.size() == 2 && std::fabs(targets[0] - 0.6f) < 1e-6f && targets[1] == 1.0f);
+    f.objects[0].engine_speed_ratio = 1.0f;  // full speed: 1.0
+    builder.build(f, models, fg, bg);
+    (void)sync_sim_frame(at, f, table, models, builder);
+    targets.clear();
+    pw.for_each([&](uint32_t, const SystemState& s) { targets.push_back(s.color_spring[0].target); });
+    CHECK(targets.size() == 2 && targets[0] == 1.0f && targets[1] == 1.0f);
+}
+
 // Int-B: sim-attached effects (InterpolatedFrame::effects, damaged smoke) become systems per (object, percent) and are
 // released with their object.
 static void test_sim_effects() {
@@ -1120,6 +1191,7 @@ int main() {
 #if defined(ALAMO_PARTICLES_HAVE_SIM)
     test_sim();
     test_sim_effects();
+    test_sim_engine_glow();  // #76 t01
     test_sim_lua_effects();
 #else
     std::printf("sim: alamo_render_sim not configured, skipped\n");

@@ -190,7 +190,16 @@ struct EngineGlow {
     float tint = -1.0f;      // colour RGBA brightness (SystemScalar::Color), < 0 = none
     float tint_seconds = 0.0f;
 };
-EngineGlow engine_glow(uint8_t engine_flags, uint32_t timer_frames, float speed_ratio, bool turbo, bool dying);
+// #76 t01 (BKX1_RENDER_RE 1.3 [M]): SPOILER_LOCK's toggle shows pte and hides pe, and the service then shows G = pe, so
+// while it is active both groups stay. Here pte is only not hidden (the glow code un-hides pi alone, as for TURBO's pte),
+// and only for SimpleSpace units: the toggle on fighters (FIGHTER_LOCOMOTOR, no glow rule) is not modelled.
+EngineGlow engine_glow(uint8_t engine_flags, uint32_t timer_frames, float speed_ratio, bool turbo, bool dying,
+                       bool spoiler_lock = false);
 float engine_glow_flicker(uint32_t timer_frames);  // the timed-disable tint, in [0, 0.2]
+// #76 t01 (BKX1_RENDER_RE 1.2 [H]): the glow rule runs in the SimpleSpace locomotor service only, so a unit takes it only
+// when its type's locomotor token is SIMPLE_SPACE_LOCOMOTOR (case-insensitive). Vanilla's other space movers are fighters
+// and TEAM / FLEET containers, so this narrows only modded types (STARSHIP_LOCOMOTOR and the like).
+bool engine_glow_locomotor(std::string_view locomotor_token);
+
 
 }  // namespace alamo::render

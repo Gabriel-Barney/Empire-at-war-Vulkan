@@ -170,6 +170,10 @@ public:
     const HardpointVisibility* hardpoint_state(objects::ObjectId id) const;
     // Effective per-mesh hidden mask of the last build (hardpoints + bone visibility + muzzles); empty if none.
     std::span<const uint8_t> mesh_mask(objects::ObjectId id) const;
+    // #76 t01: the engine glow tint per model proxy of the last build (Instance::proxy_color) and its smoothing seconds;
+    // empty / 0 when the object has no tint this frame. sync_sim_frame hands them to the proxies' particle systems.
+    std::span<const float> proxy_color(objects::ObjectId id) const;
+    float proxy_color_seconds(objects::ObjectId id) const;
     size_t tracked_objects() const { return states_.size(); }
 
     // R3 T6 scene models (legacy docs/re/ANIM_PARTICLES.md A.5: non-object scene models are advanced in tick step T6 with t = frame /
@@ -203,6 +207,8 @@ private:
         int alt = 0;                      // R1: applied _ALT index (obj +0x300 / model +0xc4)
         std::vector<uint8_t> combined;    // R3: hardpoint mask & bone visibility & muzzles (storage for Instance::mesh_hidden)
         bool use_combined = false;
+        std::vector<float> glow_color;    // #76 t01: per proxy, the engine glow tint (storage for Instance::proxy_color)
+        float glow_seconds = 0.0f;        // #76 t01: its smoothing
         std::vector<std::vector<uint8_t>> attach_masks;  // R3: per hardpoint, muzzle mask of its Model_To_Attach
         bool have_last = false;           // R5: last visible state (ghost source)
         SnapshotObject last;

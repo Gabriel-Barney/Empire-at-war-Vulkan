@@ -2268,6 +2268,20 @@ static void test_script_emitters() {
     f.objects[0].engine_speed_ratio = 1.0f;
     b.build(f, models, main, bg, &st);
     CHECK(!hidden(0, 3) && st.script_emitters == 0);
+    // #76 t01 (BKX1_RENDER_RE 1.2 step 3 [H]): the pe group (PE_ENGINE and PEM_X, prefix length only) takes the glow tint
+    // clamp(0.8 v / V + 0.2, 0, 1) as its RGBA; PI_SPARK and the other object have none.
+    const auto tint = [&](size_t i, size_t proxy) { return main[i].proxy_color.size() > proxy ? main[i].proxy_color[proxy] : -2.0f; };
+    CHECK(tint(0, 0) == 1.0f && tint(0, 1) < 0.0f && tint(0, 2) == 1.0f && main[1].proxy_color.empty());
+    f.objects[0].engine_speed_ratio = 0.5f;  // 0.8 x 0.5 + 0.2
+    b.build(f, models, main, bg, &st);
+    CHECK(std::fabs(tint(0, 0) - 0.6f) < 1e-6f && std::fabs(tint(0, 2) - 0.6f) < 1e-6f && main[0].proxy_color_seconds == 0.0f);
+    f.objects[0].engine_flags = render::kEngineGlowUnit | render::kEngineGlowOff;  // destroyed engines: hidden, no tint
+    f.objects[0].engine_timer_frames = 0;
+    b.build(f, models, main, bg, &st);
+    CHECK(hidden(0, 3) && tint(0, 0) < 0.0f);
+    f.objects[0].engine_timer_frames = 1;  // the timed disable's last frame: 1.0 over 0.1 s
+    b.build(f, models, main, bg, &st);
+    CHECK(!hidden(0, 3) && tint(0, 0) == 1.0f && main[0].proxy_color_seconds == 0.1f);
 }
 
 int main() {
