@@ -21,6 +21,7 @@
 #include "alamo/sim/tactical_battle.hpp"
 #include "alamo/core/frames.hpp"
 #include "alamo/core/sim_crc.hpp"
+#include "alamo/tactical/services/stream_rng.hpp"  // #128
 
 #include "alamo/core/dmath.hpp"
 #include "alamo/objects/game_object_types.hpp"
@@ -727,7 +728,11 @@ void TacticalBattle::bt_capture_anims(SimRng& rng, uint64_t gframe) {
         r.speed = 1.0f;
         const anim::AnimModel* m = w->model(a.point);
         if (index == anim::kRandomVariant && m && m->variant_count(r.type) < 2) r.index = 0;  // one variant: no draw
-        if (w->play(a.point, r, &rng, gframe) == anim::PlayResult::Played) ++stats_.anim_plays;
+        // #128: with the Garrison stream on, each capture point's play draws from its own stream.
+        SimRng own;
+        SimRng& prng = svc_rng(static_cast<uint32_t>(tactical::services::StreamId::Garrison),
+                               static_cast<uint64_t>(static_cast<uint32_t>(a.point)), rng, own);
+        if (w->play(a.point, r, &prng, gframe) == anim::PlayResult::Played) ++stats_.anim_plays;
     }
 #else
     (void)rng, (void)gframe;

@@ -8,6 +8,7 @@
 // With ALAMO_FOC_DATA: the FoC special-weapon types join space / land battle tables; retreat increments from FactionFiles.
 #include <algorithm>
 #include "tactical_battle_test_access.hpp"  // ref3 t06
+#include "alamo/tactical/services/stream_rng.hpp"  // #128
 #include <cinttypes>
 #include <cmath>
 #include <cstdio>
@@ -190,7 +191,9 @@ struct Data {
 };
 
 // extra: more type entries for kTypes, in their own folder (the golden run's type table stays as it is).
-std::unique_ptr<Data> make_data(const char* folder = "alamo_sim_l1_tests", const char* extra = nullptr) {
+// replace: one kTypes text swapped for another before the extra types go in (a variant of an existing type).
+std::unique_ptr<Data> make_data(const char* folder = "alamo_sim_l1_tests", const char* extra = nullptr,
+                                std::pair<const char*, const char*> replace = {nullptr, nullptr}) {
     auto d = std::make_unique<Data>();
     d->root = fs::temp_directory_path() / folder;
     std::error_code ec;
@@ -198,6 +201,11 @@ std::unique_ptr<Data> make_data(const char* folder = "alamo_sim_l1_tests", const
     const fs::path x = d->root / "Data/XML";
     write_file(x / "GameObjectFiles.xml", "<GameObjectFiles><File>L1Types.xml</File></GameObjectFiles>\n");
     std::string types = kTypes;
+    if (replace.first) {
+        const size_t p = types.find(replace.first);
+        CHECK(p != std::string::npos);
+        if (p != std::string::npos) types.replace(p, std::string(replace.first).size(), replace.second);
+    }
     if (extra) types.insert(types.rfind("</L1>"), extra);
     write_file(x / "L1Types.xml", ::alamo::test::with_galactic_dummies(types));
     write_file(x / "HardPointDataFiles.xml", "<Hard_Point_Files><File>L1HardPoints.xml</File></Hard_Point_Files>\n");
@@ -2154,6 +2162,39 @@ void test_persist(const Data& d) {
     CHECK(k.fought && !k.restored && k.built && k.added_ok && k.filtered_ok && k.after == k.expect_after);
 }
 
+// #128 t02: run_persist's second pad finishes a turret (a pad spawned in the battle: the map pad puts L1_Turret in the
+// tables). The turret here carries a GRAVITY_CONTROL_FIELD (range 1), so its adoption makes the first-service draw
+// (AbilitySystem::add_unit) through the pads service's generator.
+void test_pads_streams() {
+    const auto dp = make_data("alamo_sim_l1_pads_streams", nullptr,
+                              {"<SpecialStructure Name=\"L1_Turret\"><Victory_Relevant>Yes</Victory_Relevant><Tactical_Health>500</Tactical_Health></SpecialStructure>",
+                               "<SpecialStructure Name=\"L1_Turret\"><Victory_Relevant>Yes</Victory_Relevant><Tactical_Health>500</Tactical_Health>"
+                               "<LandBehavior>GRAVITY_CONTROL_FIELD</LandBehavior><Gravity_Control_Field_Range>1</Gravity_Control_Field_Range>"
+                               "</SpecialStructure>"});
+    const Data& d = *dp;
+    const TacticalBattle::ServiceRunDefaults saved = TacticalBattle::service_run_defaults();
+    const auto run = [&](uint32_t streams, int32_t workers, tactical::services::RunMode m) {
+        TacticalBattle::ServiceRunDefaults sd = saved;
+        sd.streams = streams;
+        sd.mode = m;
+        TacticalBattle::set_service_run_defaults(sd);
+        PersistRun r = run_persist(d, workers, false);
+        TacticalBattle::set_service_run_defaults(saved);
+        return r;
+    };
+    const uint32_t bit = 1u << static_cast<uint32_t>(tactical::services::StreamId::Pads);
+    const PersistRun off = run(0, 0, saved.mode), on = run(bit, 0, saved.mode);
+    const CrcDivergence dv = first_divergence(off.crc, on.crc);
+    std::printf("  pads streams: pad built off %d on %d, on vs off %s\n", off.built, on.built, dv.diverged ? "diverged" : "IDENTICAL");
+    CHECK(off.built && on.built && dv.diverged);  // the draws moved
+    for (const int32_t w : {1, 4, 15}) {
+        CHECK(!first_divergence(on.crc, run(bit, w, saved.mode).crc).diverged);
+        CHECK(!first_divergence(off.crc, run(0, w, saved.mode).crc).diverged);  // off stays worker-independent too
+    }
+    for (const auto m : {tactical::services::RunMode::Serial, tactical::services::RunMode::Reverse})
+        CHECK(!first_divergence(on.crc, run(bit, 4, m).crc).diverged);
+}
+
 using ::alamo::test::env_or_empty;
 
 // ---- command 25 SpecialWeaponFire (TACTICAL_COMBAT §3.1.1 "Fire-at-position order", LOB_SOLVER §9) ----
@@ -2776,6 +2817,7 @@ int main(int argc, char** argv) {
     test_environment_pick();  // cu8g t02
     test_environment(*d);     // cu8g t02 / t03
     test_pads(*d);  // Int-final
+    test_pads_streams();  // #128 t02
     test_persist(*d);  // q6: persisted tactical built objects
     test_jet(*d);   // S7 t10 / t14
     test_deploy(*d);  // S7 t26
