@@ -83,6 +83,18 @@ void App::special_feedback() {
                     ++special_sfx_;
                 }
                 break;
+            case K::SpecialApplied:  // #62 t06: the activation presentation 0x48e4d0 (GameAudioHost::galactic_activation_presented)
+                if (const galactic::GalacticSim* g = session_->galaxy(); g && e.planet < g->planets().size() && e.type < data_.types.size()) {
+                    const galactic::SpecialAbilityDef& a = g->special_def(static_cast<uint32_t>(e.value));
+                    if (GameAudioHost::galactic_activation_presented(a.cls, local)) {
+                        const galactic::PlanetState& p = g->planets()[e.planet];
+                        const uint64_t planet = g->store().exists(p.object) ? static_cast<uint64_t>(g->store().id(p.object)) : 0u;
+                        if (audio_.galactic_ability_effect(data_.types, static_cast<objects::TypeIndex>(e.type), a.name,
+                                                           static_cast<uint64_t>(e.object), planet, p.position) != 0)
+                            ++special_sfx_;
+                    }
+                }
+                break;
             case K::HeroRespawned:
                 if (local && e.type < data_.types.size()) {
                     audio_.ui(data_.types.get_string(static_cast<objects::TypeIndex>(e.type), "SFXEvent_Hero_Respawned"));

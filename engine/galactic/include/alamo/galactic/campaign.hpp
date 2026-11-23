@@ -758,6 +758,9 @@ public:
 
     // ---- queries ----------------------------------------------------------------------------------------
     const GalacticRules& rules() const { return *rules_; }
+    // TypeSpecial::trigger_order entry (SpecialApplied.value) -> definition. Public for the app's activation
+    // presentation (#62 t06).
+    const SpecialAbilityDef& special_def(uint32_t ref) const;
     const objects::ObjectStore& store() const { return *store_; }
     const PlanetGraph& graph() const { return graph_; }
     const GalaxyMap& map() const { return map_; }
@@ -1472,7 +1475,6 @@ private:
     bool apply_hack(ObjectHandle hacker, int32_t player, PlanetIndex planet);
     bool apply_corruption(ObjectHandle defiler, int32_t player, PlanetIndex planet);
     // galab (src/galab_abilities.cpp)
-    const SpecialAbilityDef& special_def(uint32_t ref) const;  // TypeSpecial::trigger_order entry -> definition
     bool apply_remove_corruption(const SpecialAbilityDef& a, ObjectHandle hero, int32_t player, PlanetIndex planet);
     bool apply_planet_destruction(ObjectHandle shooter, int32_t player, PlanetIndex planet);
     bool apply_siphon(const SpecialAbilityDef& a, ObjectHandle hero, int32_t player, PlanetIndex planet);

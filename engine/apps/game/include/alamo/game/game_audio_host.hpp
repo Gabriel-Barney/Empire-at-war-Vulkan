@@ -33,6 +33,7 @@
 #include "alamo/core/sim_rng.hpp"
 #include "alamo/game/battle_fx.hpp"
 #include "alamo/game/game_data.hpp"
+#include "alamo/galactic/special_data.hpp"  // #62 t06 SpecialAbilityClass
 #include "alamo/objects/object_store.hpp"
 #include "alamo/tactical/abilities/ability_system.hpp"  // AbilityActivation
 
@@ -287,6 +288,22 @@ public:
     // <Abilities> entry of that Name gives the tags. [port] No Unit_Ability of that Type (auto-style specials): the type's
     // only <Abilities> entry, if it has exactly one. Data-free tests drive it through objects::GameObjectTypes.
     static AbilitySfx ability_sfx(const objects::GameObjectTypes& types, objects::TypeIndex t, uint8_t ability_type);
+    // #62 t06: the tags of the type's <Abilities> entry named `ability` (case-insensitive); none when there is no such entry.
+    static AbilitySfx ability_sfx_named(const objects::GameObjectTypes& types, objects::TypeIndex t, std::string_view ability);
+    // #62 t06 (the activation presentation 0x48e4d0 [H]): whether a successful galactic apply of class `cls` presents its
+    // activation. The callers: the sabotage (0x5b1920), super-weapon hack (0x61b520), corruption (0x6f6120) and credit
+    // siphon (0x70e440, after its siphon record) applies, for any player's hero (`local_user` ignored); Remove_Corruption
+    // (0x5b13c0) only when the hero's owner is the local player. The black market, slicer, system spy and Neutralize_Hero
+    // (0x616740) applies do not call it. The planet destruction ability calls it from 0x707b90, outside the port's
+    // special_apply; it is not covered here.
+    static bool galactic_activation_presented(galactic::SpecialAbilityClass cls, bool local_user);
+    // #62 t06: plays that presentation: the ability's SFXEvent_Activate attached to the hero (`user`), its
+    // SFXEvent_Target_Affected attached to the planet object (`planet`, 0 = none), both from the planet's position (a
+    // hero at a planet has no position of its own in the port). 2D or 3D as the event's data says (GameAudio::object_sfx;
+    // see ability_effect for the 2D [port]). Returns how many started. The light and particles of 0x48e4d0 are not
+    // played (no galactic ability visuals yet).
+    uint32_t galactic_ability_effect(const objects::GameObjectTypes& types, objects::TypeIndex t, std::string_view ability,
+                                     uint64_t user, uint64_t planet, const Vec3& position);
     // mcx4 t13 (MCX4_T13_RE_ANSWERS "Unit_Ability.SFXEvent_GUI_Unit_Ability_Activated family", 0x374b90): `tag` of the
     // type's Unit_Ability record for `ability_type`: the first record when the ability is the type's ability #0, else the
     // second. "" when the type has no record of that ability.
