@@ -1705,6 +1705,7 @@ void test_presentation_events_ref2() {
   <SFXEvent Name="TB_Cancel"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Samples>C.WAV</Samples></SFXEvent>
   <SFXEvent Name="TB_Done"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Samples>D.WAV</Samples></SFXEvent>
   <SFXEvent Name="Gal_Done"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Samples>G.WAV</Samples></SFXEvent>
+  <SFXEvent Name="HG_Enroute"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Max_Instances>4</Max_Instances><Samples>E.WAV</Samples></SFXEvent>
 </SFXEvents>
 )");
     tree->add("Data\\XML\\MusicEvents.xml", R"(<?xml version="1.0"?>
@@ -1715,7 +1716,8 @@ void test_presentation_events_ref2() {
 )");
     tree->add("Data\\XML\\Audio.xml", "<Audio/>");
     tree->add("Data\\XML\\FactionFiles.xml", "<Faction_Files><File>Factions.xml</File></Faction_Files>");
-    tree->add("Data\\XML\\Factions.xml", "<Factions><Faction Name=\"Rebel\"></Faction></Factions>");
+    tree->add("Data\\XML\\Factions.xml", "<Factions><Faction Name=\"Rebel\"><Reinforcements_Enroute_SFXEvent> HG_Enroute "
+                                          "</Reinforcements_Enroute_SFXEvent></Faction></Factions>");
     GameData data;
     data.files = std::move(tree);
     GameAudioHost h;
@@ -1739,6 +1741,11 @@ void test_presentation_events_ref2() {
     // An empty tick: nothing.
     h.on_events({}, types, 1);
     CHECK(h.stats().production_sfx == 4);
+    // #50 t06: the local player's single-ship hangar launch plays the faction's Reinforcements_Enroute_SFXEvent (2D);
+    // another player's does not.
+    h.music(MusicScene::Galactic, "Rebel");  // the local faction
+    h.on_events({ev(K::HangarLaunch, 0, fighter, 0), ev(K::HangarLaunch, 1, fighter, 0)}, types, 1);
+    CHECK(starts(h, "HG_Enroute") == 1 && h.stats().hangar_enroute_lines == 1 && h.stats().production_sfx == 4);
 #endif
 }
 

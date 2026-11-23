@@ -1052,6 +1052,7 @@ void CampaignBattles::hook(SimHost& host) {
         fog_active_ = f->fow_active();
         fog_render_ = f->render_option();
     }
+    if (opt_.battle_dropping) opt_.battle_dropping(*battle_);  // #50 t09: the last tick's presentation events
     remove_battle_chunks();  // N1 stage 2
     host.end_game_mode();
     battle_.reset();

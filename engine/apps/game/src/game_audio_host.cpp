@@ -1738,6 +1738,10 @@ void GameAudioHost::on_events(const sim::PresentationEvents& events, const objec
             case K::ProductionBegin: production(types, t, Production::Begin, true); break;
             case K::ProductionCanceled: production(types, t, Production::Cancel, true); break;
             case K::ProductionCompleted: production(types, t, Production::Complete, true); break;
+            case K::HangarLaunch:  // #50 t06 (STATION_HANGARS_SOUND §2.5 [H]): 2D, the local faction's line
+                faction_sfx("Reinforcements_Enroute_SFXEvent");
+                ++stats_.hangar_enroute_lines;
+                break;
         }
     }
 }

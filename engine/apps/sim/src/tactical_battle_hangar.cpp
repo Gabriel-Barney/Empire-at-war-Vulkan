@@ -617,12 +617,15 @@ void TacticalBattle::hg_tick(TacticalMode& mode, SimRng& rng) {
         if (bound == objects::kNoObjectId) continue;
         hangars_->bind_launch(r.serial, bound);
         ++hg_launches_;
+        std::vector<int32_t> squad_members;
+        const bool squadron = oi_company_members(r.type, squad_members) && !squad_members.empty();
+        // #50 t06 (§2.5 [H]): a single ship's launch (the faction's Reinforcements_Enroute_SFXEvent for the local player).
+        if (!squadron) present(PresentationEventKind::HangarLaunch, r.owner, bound, r.type, 0);
         // Initial order (STATION_HANGARS_SOUND §2.5): escort -> guard the carrier (order kind 3 with the carrier as target;
         // block flags 0x02, slot goal = the carrier, Guard_Chase_Range, followed by the movement layer); else (a
         // station, or the carrier already gone) a formation move to the flyout point. S7 t25 (FIGHTER_FLYING §4.10 E): a
         // single launched ship (no Squadron_Units) gets no move order.
-        std::vector<int32_t> squad_members;
-        if (!ordered.empty() && oi_company_members(r.type, squad_members) && !squad_members.empty()) {
+        if (!ordered.empty() && squadron) {
             const Unit* c = r.escort ? unit_by_id(r.carrier) : nullptr;
             if (c && c->alive && !c->retreated && store.alive(c->h)) {
                 const Vec3 to = store.position(c->h);
