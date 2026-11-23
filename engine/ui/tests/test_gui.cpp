@@ -1714,14 +1714,14 @@ void test_galactic_dialogs() {
         GalacticHudFrame g = f;
         g.time = 21.0;
         hud.build(g);
-        CHECK(tip >= 0 && hud.tooltip().component() == tip);
+        CHECK(tip >= 0 && hud.tooltip().component() == tip && hud.stats().tooltip);
         g.battle.active = true;
         g.battle.planet = U"Kuat";
         hud.build(g);
         CHECK(!hud.tooltip().active() && !hud.stats().tooltip);
         g.battle.active = false;
         hud.build(g);
-        CHECK(tip >= 0 && hud.tooltip().component() == tip);
+        CHECK(tip >= 0 && hud.tooltip().component() == tip && hud.stats().tooltip);
         hud.update_input(RoutedInput{}, false, false, 22.0, cmds);  // the cursor leaves
     }
     // §1 battle prompt: none by default.

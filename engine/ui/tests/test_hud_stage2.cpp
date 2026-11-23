@@ -1635,6 +1635,8 @@ void test_tactical_stage2() {
         fr.pause_banner = true;
         hud.build(fr, units, types);
         CHECK2(!hud.stats().tooltip && !hud.tooltip().active());
+        hud.update_input(ri, false, false, 10.6, cmds);  // input between builds keeps it off
+        CHECK2(!hud.tooltip().active());
         fr.paused = false;
         hud.build(fr, units, types);
         CHECK2(hud.stats().tooltip && hud.tooltip().component() == t.find("b_retreat"));

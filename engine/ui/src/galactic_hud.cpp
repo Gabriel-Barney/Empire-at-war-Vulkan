@@ -1718,7 +1718,7 @@ void GalacticHud::build(const GalacticHudFrame& f) {
     // #71 t06 (legacy docs/re/HUD_GAPS.md §2.1 [H]): no component tooltip while a HUD modal is up (HUD +0x26a0 > 0: the
     // battle-pending shells).
     if (f.battle.active) {
-        tooltip_ = TooltipState{};
+        tooltip_.clear();
     } else {
         tooltip_.update(buttons_, *table_, tooltip_cfg_, f.time);
         if (fonts_)
