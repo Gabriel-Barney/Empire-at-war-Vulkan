@@ -53,6 +53,7 @@ int main(int argc, char** argv) {
     test_stage_and_setup_a();
     test_null_stage_and_plain_produce();
     test_plan_target_wrapper();  // gai1 t05
+    test_collect_all_free_units_galactic();  // #81
     test_plain_produce_hands_back();
     test_move_to_fleet_object();
     test_fleet_object_reelection();

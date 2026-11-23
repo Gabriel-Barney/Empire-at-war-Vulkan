@@ -652,18 +652,10 @@ std::string GalacticAiWorld::Impl::tf_goal_type_name(int32_t tf) {
     return defs.goals[pit->second.goal_type].name;
 }
 
-// [port] every free unit, the category mask ignored: the galactic task force's slot 47 is a stub in the original (0x13b7d0
-// returns 0, so 0x5fc040 collects nothing there; A1_READINGS §39.3), not changed here.
-bool GalacticAiWorld::Impl::tf_collect_free_units(int32_t tf, uint64_t /*category_mask*/) {
-    const auto it = tfs.find(tf);
-    if (it == tfs.end()) return false;
-    for (const ObjectHandle u : free_units(it->second.player)) {
-        off_free_store(u);
-        tf_join(it->second, u);
-    }
-    if (!it->second.units.empty()) it->second.had_units = true;
-    return true;
-}
+// #81 (legacy docs/re/A1_READINGS.md §39.3) [H]: the galactic task force's slot 47 is a stub (0x13b7d0 returns 0), so
+// 0x5fc040 collects nothing in galactic mode: the free store and the task force stay as they are. (The tactical task force
+// collects by category: TacticalAiWorld::Impl::tf_collect_free_units.)
+bool GalacticAiWorld::Impl::tf_collect_free_units(int32_t /*tf*/, uint64_t /*category_mask*/) { return false; }
 
 double GalacticAiWorld::Impl::target_distance(int32_t target, const lua::AiArg& other) {
     if (!target_valid(target)) return -1.0;

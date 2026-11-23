@@ -96,7 +96,8 @@ public:
     virtual std::vector<objects::ObjectHandle> tf_units(int32_t tf) = 0;
     virtual std::string tf_goal_type_name(int32_t tf) = 0;
     // Collect_All_Free_Units([category]) (0x5fc040): `category_mask` = the GameObjectCategoryType bits of the argument,
-    // ~0 without one (A1_READINGS §39.3). The host takes the free units whose type matches.
+    // ~0 without one (legacy docs/re/A1_READINGS.md §39.3). The tactical host takes the free units whose type matches;
+    // the galactic host takes none (its task force's slot 47 is a stub, #81).
     virtual bool tf_collect_free_units(int32_t tf, uint64_t category_mask) = 0;
 
     // ---- blocking statuses ----

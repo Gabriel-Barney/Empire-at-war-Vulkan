@@ -756,6 +756,25 @@ function NewForce_Thread()
   while true do Sleep(1) end
 end
 )";
+// #81 (legacy docs/re/A1_READINGS.md §39.3) [H]: the galactic task force's Collect_All_Free_Units (slot 47) is a stub, so
+// the task force's unit count does not change (the port took every free unit). Records the count before and after.
+inline const char* kPlanCollectFree = R"(
+require("SynAICommands")
+function Definitions()
+  Category = "Build_Space_Forces"
+  IgnoreTarget = true
+  TaskForce = { { "MainForce", "DenyHeroAttach", "Frigate = 1" } }
+end
+local function units(tf) local n = 0 for _, u in pairs(tf.Get_Unit_Table()) do n = n + 1 end return n end
+function MainForce_Thread()
+  MainForce.Set_As_Goal_System_Removable(false)
+  GlobalValue.Set("cf_before", units(MainForce))
+  MainForce.Collect_All_Free_Units()
+  GlobalValue.Set("cf_after", units(MainForce))
+  MainForce.Set_Plan_Result(true)
+  ScriptExit()
+end
+)";
 // #200 (b): MainForce gets the selection; EscortForce (0 minimum) gets none; RequiredForce gets none but is
 // TaskForceRequired. MainForce_Thread reads the other two globals before anything else runs.
 inline const char* kPlanTfCreation = R"(
@@ -840,6 +859,7 @@ struct ParityWorld {
         files.add("Data\\Scripts\\AI\\ReacceptOld.lua", kPlanReacceptOld);
         files.add("Data\\Scripts\\AI\\ReacceptNew.lua", kPlanReacceptNew);
         files.add("Data\\Scripts\\AI\\TfCreation.lua", kPlanTfCreation);
+        files.add("Data\\Scripts\\AI\\CollectFree.lua", kPlanCollectFree);  // #81
         plan_files = list_plan_files([this](std::string_view glob) {
             const std::string g(glob);
             return files.list(g.substr(0, g.find('*')));
@@ -921,6 +941,7 @@ void test_ai_clock_precision();
 void test_stage_and_setup_a();
 void test_null_stage_and_plain_produce();
 void test_plan_target_wrapper();
+void test_collect_all_free_units_galactic();  // #81
 void test_move_to_fleet_object();
 void test_fleet_object_reelection();
 void test_produce_force_stage_launch();
