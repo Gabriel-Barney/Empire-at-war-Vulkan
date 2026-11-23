@@ -2656,10 +2656,10 @@ private:
     // the mode's map extents (vf +0x1f8; FOG_OF_WAR §1.2 [H]): land = the whole terrain [0, 20 W] x [0, 20 H],
     // space = the playable box. `Traced`: that box (the staging search's map test). `Perception` is the
     // one source of the land fog box (fog_begin) and the BattleAi threat grid, which must use the same box
-    // (AI_TACTICAL_PERCEPTION §4.1); it still answers bounds() (kPerceptionTracedExtents false: bkt1 t08 moved back,
-    // foc-land seed 7 slows from 23121 to 42347 frames with both switched). mapx1 t01 flips the constant (land goldens move).
+    // (AI_TACTICAL_PERCEPTION §4.1). #54: kPerceptionTracedExtents true, so it is the traced box too (false keeps the
+    // playable-box stand-in; the foc-land Burn_Units_Land comparison of the two is on the issue).
     enum class ExtentsUse : uint8_t { Traced, Perception };
-    static constexpr bool kPerceptionTracedExtents = false;
+    static constexpr bool kPerceptionTracedExtents = true;
     tactical::Aabb map_extents(const TacticalMode& mode, ExtentsUse use = ExtentsUse::Traced) const;
     void fog_after_deploy(TacticalMode& mode);              // setup(): dense mask, battle scale
     void fog_decay();                                       // tick(): step 4, before movement
