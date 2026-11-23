@@ -180,9 +180,11 @@ In Command Center, select `build\bin\alamo_game.exe` as the engine executable an
 
 ## Internal packages
 
-`.\dev.cmd package --commit <sha>` builds an internal test package of one exact commit. It refuses a commit other than `HEAD` and a tree with uncommitted or untracked changes. It configures the `package` preset (`build-package\`, Release with PDBs: `docs\DECISIONS.md` "Release symbols"), builds `alamo_game` and `alamo_headless`, and stages the package in `%LOCALAPPDATA%\alamo-dev\packages\` (`--out <folder>` picks another folder outside the checkout):
+`.\dev.cmd package --commit <sha>` builds an internal test package of one exact commit. It refuses a commit other than `HEAD` and a tree with uncommitted or untracked changes. It configures the `package` preset (`build-package\`, Release with PDBs: `docs\DECISIONS.md` "Release symbols"), builds `alamo_game`, `alamo_headless` and `alamo_play`, and stages the package in `%LOCALAPPDATA%\alamo-dev\packages\` (`--out <folder>` picks another folder outside the checkout):
 
-- `alamo-<sha>\` holds `alamo_game.exe`, `alamo_headless.exe`, the runtime DLLs (DXC, FFmpeg, FidelityFX, XeSS) and `licenses\`. It also holds `MANIFEST.json` (the commit, the toolchain, the dependency versions, and the SHA-256 and size of every file and PDB) and `SHA256SUMS`.
+- `alamo-<sha>\` holds `Play.exe`, `alamo_game.exe`, `alamo_headless.exe`, the runtime DLLs (DXC, FFmpeg, FidelityFX, XeSS) and `licenses\`. It also holds `MANIFEST.json` (the commit, the toolchain, the dependency versions, and the SHA-256 and size of every file and PDB) and `SHA256SUMS`.
+
+A tester double-clicks `Play.exe`. It finds Forces of Corruption (`game_path.txt` beside it, `ALAMO_FOC_DATA`, the Steam libraries), or asks for the folder once and keeps it in `game_path.txt`. It then starts `alamo_game.exe` with `--game`, writes the game's output to `alamo_game_log.txt`, and offers that log in a message box if the game exits with an error. `alamo_game.exe` started on its own needs `--game <corruption dir>` or `ALAMO_FOC_DATA`, and otherwise exits with only a console line.
 - `alamo-<sha>.zip` is that folder.
 - `alamo-<sha>-pdb.zip` holds the PDBs, which never go in the package.
 
