@@ -219,7 +219,6 @@ std::string LogEntry::to_string() const {
 AudioSystem::AudioSystem(const AudioDatabase& db, VoiceBackend& backend, SimRng& free_rng, AudioConfig cfg)
     : db_(&db), backend_(&backend), rng_(&free_rng), cfg_(std::move(cfg)) {
     for (BusState& b : buses_) b.level = b.target = cfg_.default_bus_level;
-    saved_master_ = cfg_.default_bus_level;
 }
 
 AudioSystem::~AudioSystem() {

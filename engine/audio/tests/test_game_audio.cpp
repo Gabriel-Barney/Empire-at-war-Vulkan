@@ -914,12 +914,32 @@ void test_hooks() {
     CHECK(a.live_instances() == 0 && !a.speech_playing() && a.speech_queue_size() == 0);
     CHECK(!g.conversations().active(conv) && !g.ambience().active() && !g.in_tactical());
 
-    // Master volume save / restore (Lua Master_Volume_Restore).
+}
+
+// #223 (retail answer on #205, 0x21cf60 / 0x21cfa0): Lua Master_Volume_Restore does nothing until a level is saved; a save
+// takes the master's current level (not a running ramp's target); a restore sets level and target at once and keeps the
+// saved level.
+void test_master_volume_restore() {
+    Rig rig;
+    AudioSystem& a = *rig.a;
+    GameAudio g(a, rig.data, rig.rng);
     a.set_bus_level(AudioBus::Master, 0.6f);
+    g.master_volume_restore();  // nothing saved
+    CHECK(near(a.bus_level(AudioBus::Master), 0.6f) && !a.saved_master_volume());
+    a.set_bus_level(AudioBus::Master, 0.2f, 1.0f);  // ramp 0.6 -> 0.2 over 1 s
+    a.update(0.5);
+    CHECK(near(a.bus_level(AudioBus::Master), 0.4f));
     a.save_master_volume();
-    a.set_bus_level(AudioBus::Master, 0.1f);
+    CHECK(a.saved_master_volume() && near(*a.saved_master_volume(), 0.4f));  // the current level, not the target 0.2
+    a.set_bus_level(AudioBus::Master, 0.9f, 2.0f);
+    a.update(0.5);
     g.master_volume_restore();
-    CHECK(near(a.bus_level(AudioBus::Master), 0.6f));
+    CHECK(near(a.bus_level(AudioBus::Master), 0.4f));  // at once
+    a.update(1.0);
+    CHECK(near(a.bus_level(AudioBus::Master), 0.4f));  // the ramp's target went with it
+    a.set_bus_level(AudioBus::Master, 0.1f);
+    g.master_volume_restore();  // the saved level stays
+    CHECK(near(a.bus_level(AudioBus::Master), 0.4f));
 }
 
 // legacy docs/re/STATION_HANGARS_SOUND.md §3: engine idle / moving loop slots, crossfade restarts, death / removal kills,
@@ -1184,6 +1204,7 @@ void test_lua_game() {
     add(PresentationOp::SfxAllowEnemySightedVo, {mgr, boolean(false)});
     add(PresentationOp::MasterVolumeRestore, {});
     add(PresentationOp::WeatherAudioPause, {});
+    a.save_master_volume();  // 0.8 (#223: nothing is saved at first)
     a.set_bus_level(AudioBus::Master, 0.2f);
     uint32_t next = 0;
     LuaAudioResult r = apply_presentation_audio(g, ev, &next);
@@ -1520,6 +1541,7 @@ int main() {
     test_music_modes_gaps();
     test_3d_mods_reset();
     test_hooks();
+    test_master_volume_restore();  // #223
     test_engine_loops();
 #ifdef ALAMO_AUDIO_HAVE_LUA
     test_lua_game();

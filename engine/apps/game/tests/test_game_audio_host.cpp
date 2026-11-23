@@ -1283,12 +1283,13 @@ void test_aud2() {
     CHECK(starts(h, "GUI_Planet_Mouse_Over") == 1 && h.stats().planet_reveals == 1);
     CHECK(starts(h, "SFXEvent_Planet_Revealed") == 0);
 
-    // t02: the profile's master is the saved level; Lua Master_Volume_Restore ramps back to it.
-    h.set_volumes(0.55f, 0.8f, 0.8f, 0.8f);
-    CHECK(h.system()->saved_master_volume() == 0.55f);
-    h.system()->set_bus_level(audio::AudioBus::Master, 0.1f);  // a Lua fade
+    // #223 (retail answer on #205): volume changes (profile load, options apply / preview) save no master level, so
+    // Lua Master_Volume_Restore after an options preview leaves the previewed master.
+    h.set_volumes(0.55f, 0.8f, 0.8f, 0.8f);  // the profile
+    h.set_volumes(0.3f, 0.8f, 0.8f, 0.8f);   // an options preview
+    CHECK(!h.system()->saved_master_volume());
     h.system()->master_volume_restore();
-    CHECK(h.system()->bus_level(audio::AudioBus::Master) == 0.55f);
+    CHECK(h.system()->bus_level(audio::AudioBus::Master) == 0.3f);
 
     // t03: begin / cancel / complete play the type's tags; a completion with Build_Music_Completed plays it in mode 4.
     CHECK(h.production(types, ship, H::Production::Begin) != 0 && starts(h, "HD_Build") == 1);
