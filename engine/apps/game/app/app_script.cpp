@@ -793,9 +793,12 @@ void gate_steps(std::vector<ScriptStep>& s, size_t from, const std::shared_ptr<b
 // pick (HUD_GAPS §2.2, precise model test, then the override sphere) finds an object there, which would turn
 // the click into an Attack or a MoveToObject: then the camera goes back to the local units and the click takes the first
 // pixel of a fixed spiral around (w / 2, h / 3), inside the middle of the screen, that picks nothing. Fixed for the whole
-// click. refixf t08 check: with the model pick the plain ground click finds that pixel free in every smoke run, but the
-// queued (shift) click still needs the fallback in the space runs: the enemy click before it aims the camera at the
-// enemy and (w / 2, h / 3) then lies on a real hull (skirmish: an Orbital_Construction_Pod mesh hit).
+// click. refixf t08 check: with the model pick the plain ground click finds that pixel free in the default smoke runs, but
+// the queued (shift) click still needs the fallback in the space runs: the enemy click before it aims the camera at the
+// enemy and (w / 2, h / 3) then lies on a real hull (skirmish: an Orbital_Construction_Pod mesh hit). #258: when the
+// spiral finds nothing free either (a hull larger than the view: the Empire smoke's Executor with the camera on it), the
+// camera steps across the view from where it looked, half its distance more each time and on alternate sides, and the
+// search runs again (step_move_ground, at most kGroundShifts steps; a note when they run out).
 bool ground_pixel_free(App& a, int32_t x, int32_t y) {
     const sim::TacticalMode* tm = a.session_ ? a.session_->host().modes().top_tactical() : nullptr;
     if (!tm) return true;
@@ -818,15 +821,15 @@ std::pair<int32_t, int32_t> free_ground_pixel(App& a) {
         }
     return base;
 }
-// #258: when the spiral finds nothing free (a hull larger than the view, e.g. the Empire smoke's Executor with the camera
-// on it), the camera steps sideways by half its distance at a time and the search runs again; at most kGroundShifts steps.
 ScriptStep step_move_ground(bool shift = false) {
-    static constexpr int kGroundShifts = 5;
+    static constexpr int kGroundShifts = 6;  // +-1, +-2, +-3 half distances: 10 + 6 x 9 settle frames fit the 100-frame step
     auto st = std::make_shared<ClickState>();
     auto px = std::make_shared<std::pair<int32_t, int32_t>>(0, 0);
     auto settle = std::make_shared<int>(0);
     auto shifts = std::make_shared<int>(0);
-    return {shift ? "shift+right-click the ground" : "right-click the ground", [st, px, settle, shifts, shift](App& a, ui::InputFrame& f) {
+    auto origin = std::make_shared<ui::Vec3>();
+    return {shift ? "shift+right-click the ground" : "right-click the ground",
+            [st, px, settle, shifts, origin, shift](App& a, ui::InputFrame& f) {
                 if (!a.bview_.active() || a.screen() != Screen::Battle) return false;
                 if (st->phase == 0) {
                     const int32_t bx = static_cast<int32_t>(a.targets_.width / 2), by = static_cast<int32_t>(a.targets_.height / 3);
@@ -837,13 +840,22 @@ ScriptStep step_move_ground(bool shift = false) {
                     }
                     if (*settle > 0 && ++*settle < 10) return false;  // let the camera settle
                     *px = free_ground_pixel(a);
-                    if (!ground_pixel_free(a, px->first, px->second) && *shifts < kGroundShifts) {
-                        ++*shifts;
+                    if (!ground_pixel_free(a, px->first, px->second)) {
                         ui::TacticalCameraController& cam = a.bview_.camera();
-                        const ui::Vec3 at = cam.look_at();
-                        cam.jump_to({at.x + cam.distance() * 0.5f, at.y, at.z});
-                        *settle = 1;
-                        return false;
+                        if (*shifts < kGroundShifts) {
+                            if (*shifts == 0) *origin = cam.look_at();
+                            ++*shifts;
+                            // across the view (perpendicular to the yaw heading), alternate sides, growing: +1, -1, +2, -2 ...
+                            const float yaw = cam.yaw_deg() * 3.14159265f / 180.0f;
+                            const float d = cam.distance() * 0.5f * static_cast<float>((*shifts + 1) / 2) * (*shifts % 2 ? 1.0f : -1.0f);
+                            cam.jump_to({origin->x - std::sin(yaw) * d, origin->y + std::cos(yaw) * d, origin->z});
+                            *settle = 1;
+                            return false;
+                        }
+                        if (*shifts == kGroundShifts) {
+                            ++*shifts;
+                            a.notes_.push_back("ground move: no free ground pixel after the camera steps (the click lands on an object)");
+                        }
                     }
                 }
                 return click_at(*st, f, px->first, px->second, ui::Button::Right, shift);
