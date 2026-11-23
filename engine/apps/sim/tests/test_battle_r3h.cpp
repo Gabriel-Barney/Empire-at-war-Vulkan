@@ -9,30 +9,6 @@
 
 namespace {
 
-#ifdef ALAMO_SIM_HAVE_ANIM
-// One-bone skeleton, clips without tracks: only the frame counts matter.
-std::unique_ptr<anim::AnimModel> synth_model(const char* base, std::initializer_list<std::pair<int32_t, uint32_t>> clips) {
-    auto m = std::make_unique<anim::AnimModel>();
-    m->model = std::string(base) + ".ALO";
-    m->base = base;
-    m->skeleton.names = {"Root"};
-    m->skeleton.parents = {-1};
-    m->skeleton.billboard_mode = {0u};
-    m->skeleton.bind_local = {anim::Mat34{}};
-    m->has_skeleton = true;
-    for (const auto& [type, frames] : clips) {
-        auto c = std::make_shared<anim::Clip>();
-        c->name = anim::clip_file_name(m->base, type, 0);
-        c->frame_count = frames;
-        c->fps = 30.0f;
-        anim::ClipRef r;
-        r.clip = c;
-        m->clips[static_cast<size_t>(type)].push_back(r);
-    }
-    anim::bind_clips(*m);
-    return m;
-}
-#endif
 
 // A land battle on S10_B (invaded by player 1's S10_Squad company from planet 2). `per_tick(b, tm, host)` runs after every
 // host tick once the battle exists; it returns false to stop. `animation` is attached (its CRC system too).

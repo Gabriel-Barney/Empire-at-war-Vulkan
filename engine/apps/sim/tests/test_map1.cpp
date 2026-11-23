@@ -574,6 +574,7 @@ void test_land_spawner_cycle(const Data& d) {
     CHECK(battles.start_map_battle(std::move(r)));
     std::vector<std::pair<uint32_t, uint8_t>> states;  // (frame, new state)
     objects::ObjectId hangar = objects::kNoObjectId, unit = objects::kNoObjectId;
+    std::vector<objects::ObjectId> present;
     uint32_t arrived = 0, launched = 0;
     bool at_flyout = false;
     int32_t live = -1;
@@ -590,11 +591,15 @@ void test_land_spawner_cycle(const Data& d) {
                 at = st.position(h);
             }
         if (hangar == objects::kNoObjectId) continue;
+        if (states.empty())  // the troopers already on the map (start forces) are not the hangar's
+            for (const objects::ObjectHandle h : st.all_objects())
+                if (st.alive(h) && static_cast<uint32_t>(st.type(h)) == trooper) present.push_back(st.id(h));
         const uint8_t s = b->hangars()->state(hangar);
         if (states.empty() || states.back().second != s) states.push_back({b->frame(), s});
         if (unit == objects::kNoObjectId)
             for (const objects::ObjectHandle h : st.all_objects())
                 if (st.alive(h) && static_cast<uint32_t>(st.type(h)) == trooper && st.owner(h) == 0 &&
+                    std::find(present.begin(), present.end(), st.id(h)) == present.end() &&
                     b->movement().has_unit(st.id(h)) && b->movement().view(st.id(h)).has_goal) {
                     unit = st.id(h);
                     launched = b->frame();

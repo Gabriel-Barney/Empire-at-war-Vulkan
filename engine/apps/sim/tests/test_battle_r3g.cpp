@@ -707,7 +707,8 @@ void r3j_troopers_models(const fs::path& root) {
 // #44 t01 (REMAINING_GAPS §5.2, R3G_ANIM_TIMED_RE §2): DEPLOY_TROOPERS through the battle host. The walker stands, so it
 // deploys at once; with the synthetic clips (Drop Rope 31, Deploy Troopers 16, Lift Rope 31 frames on the walker, Rope
 // Land 13 on the troopers, 30 fps) the two troopers spawn at their bones hanging from the walker (attached_to = the walker,
-// attach_bone = their bone index), are released 14 frames later (TrooperReleased clears both) and the ability ends 29
+// attach_bone = their bone index), locked by the rope (Immobilised once, which the host turns into mv_first_lock: adopted,
+// coordinator hold NoFormation), are released 14 frames later (TrooperReleased clears both) and the ability ends 29
 // frames after that, as in the ability system's own timing (test_r3g_deploy_troopers_timed: 30 / 44 / 73).
 void test_deploy_troopers_battle() {
 #ifdef ALAMO_SIM_HAVE_ANIM
@@ -731,6 +732,8 @@ void test_deploy_troopers_battle() {
         int spawn = -1, released = -1;
         int32_t bone = -2;
         bool hung = false;
+        int immobile = 0;              // the most Immobilised holds seen while it hangs (the rope lock)
+        uint8_t hold_spawn = 99, hold_hung = 99;  // movement coordinator hold at the spawn and after a rope service
     };
     objects::ObjectId walker = objects::kNoObjectId;
     uint32_t order = 0;
@@ -757,12 +760,18 @@ void test_deploy_troopers_battle() {
             }
             const int since = static_cast<int>(b.frame() - order);
             for (const objects::ObjectHandle h : st.all_objects()) {
-                if (!st.alive(h) || st.type(h) != trooper_t) continue;
+                if (!st.alive(h) || st.type(h) != trooper_t || st.owner(h) != 0) continue;
                 const objects::ObjectId id = st.id(h);
                 if (std::find(before.begin(), before.end(), id) != before.end()) continue;
                 bool known = false;
                 for (const Seen& x : seen) known = known || x.id == id;
-                if (!known) seen.push_back(Seen{id, since, -1, -2, false});
+                if (!known) {
+                    Seen x;
+                    x.id = id;
+                    x.spawn = since;
+                    x.hold_spawn = static_cast<uint8_t>(b.movement().coordinator_hold(id));
+                    seen.push_back(x);
+                }
             }
             for (Seen& x : seen) {
                 objects::ObjectId to = objects::kNoObjectId;
@@ -771,6 +780,8 @@ void test_deploy_troopers_battle() {
                 if (to == walker && bone >= 0) {
                     x.hung = true;
                     x.bone = bone;
+                    x.immobile = std::max(x.immobile, static_cast<int>(TA::abilities(b).immobilize_count(x.id)));
+                    if (since > x.spawn) x.hold_hung = static_cast<uint8_t>(b.movement().coordinator_hold(x.id));
                 } else if (x.hung && to == objects::kNoObjectId && bone == -1) {
                     x.released = since;
                 }
@@ -780,12 +791,17 @@ void test_deploy_troopers_battle() {
         },
         false, [walker_co](galactic::GalacticSetup& s) { s.forces.push_back({0, 1, walker_co}); });
     std::printf("  #44 t01 deploy troopers: %zu troopers", seen.size());
-    for (const Seen& x : seen) std::printf(" [bone %d spawn +%d released +%d]", x.bone, x.spawn, x.released);
+    for (const Seen& x : seen)
+        std::printf(" [bone %d spawn +%d released +%d, immobilised %d, hold %u -> %u]", x.bone, x.spawn, x.released, x.immobile,
+                    static_cast<unsigned>(x.hold_spawn), static_cast<unsigned>(x.hold_hung));
     std::printf(", ability done +%d\n", done);
     CHECK(seen.size() == 2);
     if (seen.size() == 2) {
         CHECK(seen[0].hung && seen[1].hung && seen[0].bone + seen[1].bone == 1);
         for (const Seen& x : seen) CHECK(x.released - x.spawn == 14);
+        // the rope lock (Immobilised, once) reaches mv_first_lock: the trooper, born without a coordinator hold, is adopted
+        // (CoordinatorHold::NoFormation) while it hangs (cu8l t02, CU8K_T02_T06_RE §3 rule 6)
+        for (const Seen& x : seen) CHECK(x.immobile == 1 && x.hold_spawn == 0 && x.hold_hung == 1);
         CHECK(done - seen[0].released == 29);
     }
 #else
@@ -795,11 +811,13 @@ void test_deploy_troopers_battle() {
 
 // #44 t01 (R3G_ANIM_TIMED_RE §4, CableAttackAbility 0x6f2d50): a cable trip through the battle host. The defender's
 // R3J_Speeder (FLYING_LOCOMOTOR, CABLE_ATTACK: drop 110, pull 140, paralyze 300) cables an R3J_Walker that is handed to
-// the neutral player and ordered across the map; it is still walking when the wrapping passes 30 services (about 282 frames
+// the attacker and ordered across the map (the S10 stand-in orderer is off, so nothing else orders either unit); it is
+// still walking when the wrapping passes 30 services (about 282 frames
 // after the order, the ability system's own timing), so it takes a kind-8 (Damage_Cable_Attack) kill for its health and
 // dies through its Damage_Cable_Attack death clone, R3J_Walker_CA_Clone (Specific_Death_Anim_Type CA_DIE).
 // `stop` (#44 t03, 0x6f3180): the speeder is stopped that many frames after the order (Stop leaves FlyCircling); inside
-// the drop / pull (< 250) that ends the cable and the walker walks on: no death by +600. -1: never stopped.
+// the drop / pull (< 250) that ends the cable: the walker is neither killed nor held (Immobilised) by +600. -1: never
+// stopped.
 void test_cable_trip_battle(int stop) {
     g_temp_prefix = "alamo_sim_r3g_tests_r3j_cable";
     g_types_patch = r3j_troopers_patch;
@@ -819,7 +837,7 @@ void test_cable_trip_battle(int stop) {
     uint8_t kind = 0;
     int32_t clone = -2;
     objects::ObjectId killer = objects::kNoObjectId;
-    Vec3 walk_to{};
+    int held = 0;  // the most Immobilised holds on the walker
     land_battle(
         *d, nullptr, 900,
         [&](TacticalBattle& b, TacticalMode& tm, SimHost& host) {
@@ -840,8 +858,8 @@ void test_cable_trip_battle(int stop) {
                 CHECK(b.change_owner(tm, wh, 1));
                 const Vec3 p = st.position(wh);
                 const objects::ObjectId walkers[] = {walker};
-                walk_to = Vec3{p.x > 600.0f ? p.x - 700.0f : p.x + 700.0f, p.y, 0.0f};
-                CHECK(b.order_move(tm, 1, walkers, walk_to.x, walk_to.y, host.random().synced()) == commands::RejectReason::None);
+                const float to_x = p.x > 600.0f ? p.x - 700.0f : p.x + 700.0f;
+                CHECK(b.order_move(tm, 1, walkers, to_x, p.y, host.random().synced()) == commands::RejectReason::None);
                 const objects::ObjectId users[] = {speeder};
                 CHECK(TA::abilities(b).targeted_ability(users, tactical::abilities::kCableAttack, walker, -1, b.frame()) == 1);
                 order = b.frame();
@@ -852,10 +870,7 @@ void test_cable_trip_battle(int stop) {
                 const objects::ObjectId users[] = {speeder};
                 CHECK(b.order_stop(tm, 0, users) == commands::RejectReason::None);
             }
-            if (since % 20 == 0 && b.combat().alive(walker)) {  // the S10 stand-in sends the walker at its nearest enemy: keep it walking
-                const objects::ObjectId walkers[] = {walker};
-                (void)b.order_move(tm, 1, walkers, walk_to.x, walk_to.y, host.random().synced());
-            }
+            held = std::max(held, static_cast<int>(TA::abilities(b).immobilize_count(walker)));
             for (const tactical::combat::DeathEvent& e : b.combat().deaths())
                 if (e.id == walker && died < 0) {
                     died = since;
@@ -870,16 +885,16 @@ void test_cable_trip_battle(int stop) {
             s.forces.push_back({0, 1, walker_co});
             s.forces.push_back({0, 1, speeder_co});
         },
-        // the S10 stand-in orderer ([port] TacticalBattle::issue_orders) would send the speeder at its nearest enemy, out of
-        // its circle: the human defender's units are skipped, and the walker goes to the neutral player (third parties idle)
-        [](CampaignBattleOptions& o) { o.battle.skip_human_units = true; });
-    std::printf("  #44 t01 cable (speeder stopped at %d): walker died +%d, kind %u, clone %d (CA clone %d), killer %d (speeder %d)\n",
-                stop, died, static_cast<unsigned>(kind), clone, static_cast<int>(clone_t), killer, speeder);
+        // the S10 stand-in orderer ([port] TacticalBattle::issue_orders) would send both units at their nearest enemy: off
+        [](CampaignBattleOptions& o) { o.battle.order_interval = 0; });
+    std::printf("  #44 t01 cable (speeder stopped at %d): walker died +%d, kind %u, clone %d (CA clone %d), killer %d (speeder %d), "
+                "held %d\n",
+                stop, died, static_cast<unsigned>(kind), clone, static_cast<int>(clone_t), killer, speeder, held);
     if (stop >= 0) {
-        CHECK(died < 0);
+        CHECK(died < 0 && held == 0);
         return;
     }
-    CHECK(died >= 280 && died <= 284 && kind == 8 && clone == static_cast<int32_t>(clone_t) && killer == speeder);
+    CHECK(died >= 280 && died <= 284 && held == 0 && kind == 8 && clone == static_cast<int32_t>(clone_t) && killer == speeder);
 }
 
 }  // namespace
