@@ -1480,10 +1480,13 @@ void mov3_heights_save(bool trim, float fire_range) {
     std::printf("%s heights save: approach frames %u..%u, stored end z %.3f (C z 40), slot legs %u (refused %u), trims %u\n",
                 trim ? "#93 trim" : "mov3 t02", moving_first, moving_last, static_cast<double>(end_z), v.sys.stats().attack_legs,
                 v.sys.stats().attack_leg_refused, v.sys.stats().attack_trims);
-    if (trim)  // the cut on the last segment: strictly between Q' (z 0) and G (z 40)
+    if (trim) {  // the cut on the last segment: strictly between Q' (z 0) and G (z 40)
         CHECK(v.sys.stats().attack_legs > 0 && v.sys.stats().attack_trims > 0 && end_z > 0.0f && end_z < 40.0f);
-    else
+        // MSVC golden 21.6665: the cut lies 2-D about 0.542 of the way from Q' to G; the inverted fraction would give 18.333
+        CHECK(std::fabs(end_z - 21.667f) < 0.01f);
+    } else {
         CHECK(end_z == 40.0f);  // non-zero: the save below carries it
+    }
     for (const uint32_t at : {moving_first, (moving_first + moving_last) / 2, moving_last}) check_resume(sc, at, 0);
 }
 
@@ -2118,7 +2121,7 @@ int main() {
     test_t20_states();              // s78n t20
     test_t25_attack();              // s78n t25.2
     test_mov3_heights_save();       // mov3 t02
-    test_heights_trim_last_segment_save();  // #93
+    test_heights_trim_last_segment_save();  // #93 (the mov3 t02 scenario with the fire trim)
     test_s78o_unit_rejections();    // s78o
     test_stale_team_entries();      // s78n t18 review
     test_hidden_after_load();       // s78n t18 review
