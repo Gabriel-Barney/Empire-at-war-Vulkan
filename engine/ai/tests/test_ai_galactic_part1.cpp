@@ -2614,6 +2614,22 @@ void test_plan_target_wrapper() {
     pw.world->set_global_values(nullptr);
 }
 
+// #81 (legacy docs/re/A1_READINGS.md 39.3, slot 47 stub 0x13b7d0) [H]: a galactic plan's Collect_All_Free_Units collects
+// nothing. The Empire has free units (the hero at P0, its frigates); the task force has none before and after the call.
+void test_collect_all_free_units_galactic() {
+    ParityWorld pw(false, {"CollectFree"});
+    lua::GlobalValueStore gv;
+    pw.world->set_global_values(&gv);
+    auto num = [&gv](const char* n) { const lua::AiGlobalValue v = gv.get(n); return v.kind == lua::AiGlobalValue::Number ? v.number : -1.0; };
+    for (int32_t f = 1; f <= 30 * 300 && num("cf_after") < 0.0; ++f) {
+        pw.sim->update();
+        pw.world->update_player(0, f, true, false);
+    }
+    std::printf("galactic Collect_All_Free_Units: task force units %.0f -> %.0f\n", num("cf_before"), num("cf_after"));
+    CHECK(num("cf_before") == 0.0 && num("cf_after") == 0.0);
+    pw.world->set_global_values(nullptr);
+}
+
 // a2m t02 (A2L_T01_RE_ANSWERS Q8.1 / Q8.2) [H]: Move_To moves the task force's FleetObject only (the parent fleet of
 // the first member added, TF +0x120); a member in another fleet stays where it is and is still counted.
 void test_move_to_fleet_object() {
