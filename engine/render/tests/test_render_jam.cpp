@@ -19,6 +19,7 @@
 #include "alamo/core/log.hpp"
 #include "alamo/render/ability_fx.hpp"
 #include "alamo/render/jam_fx.hpp"
+#include "alamo/terrain/placement.hpp"
 #include "alamo/render/sim_snapshot.hpp"
 #include "alamo/test/support.hpp"
 
@@ -278,6 +279,37 @@ static void test_heal_blobs_and_world_effects() {
     render::InterpolatedFrame out;
     render::interpolate(nullptr, s, 1.0f, render::InterpMode::Original, out);
     CHECK(out.world_effects.size() == 1 && out.world_effects[0].key == ((4ull << 8) | 2u) && out.jamming.heal_blobs.size() == 1);
+    // #76 t08: the pitch and the anchor take part in the digest once set
+    s.world_effects[0].use_rotation = true;
+    const uint64_t d3 = s.digest();
+    s.world_effects[0].anchor = 4;
+    CHECK(d3 != d2 && s.digest() != d3);
+}
+
+// #76 t08 (TRU1_A_RE_ANSWERS A2 [H]): the penetration particle takes the dome normal's angles (0x20acd0) with pitch + 90.
+static void test_shield_penetration_pose() {
+    using V3 = decltype(render::SimWorldEffect{}.facing);
+    float r[3] = {};
+    const auto pose = [&](V3 n) { render::shield_penetration_pose(n, r); };
+    const auto is = [&](float a, float b, float c) { return std::fabs(r[0] - a) < 1e-4f && std::fabs(r[1] - b) < 1e-4f && std::fabs(r[2] - c) < 1e-4f; };
+    pose({1, 0, 0});  // level along +X: yaw 0, pitch 0 + 90
+    CHECK(is(0, 90, 0));
+    pose({0, 0, 1});  // the dome top: yaw left 0 (x = y = 0), pitch -90 + 90
+    CHECK(is(0, 0, 0));
+    pose({0, -1, 0});  // x = z = 0: the pitch left 0, + 90; yaw -90 -> 270
+    CHECK(is(0, 90, 270));
+    const float h = 1.0f / std::sqrt(2.0f);
+    pose({h, 0, h});  // 45 degrees up: pitch -45 + 90
+    CHECK(is(0, 45, 0));
+    pose({-h, 0, -h});  // 45 degrees down, facing -X: yaw 180, pitch 45 + 90
+    CHECK(is(0, 135, 180));
+    // the drawn up axis (model +Z, column 2 of the placement transform) lies along the normal
+    for (const V3 n : {V3{1, 0, 0}, V3{h, 0, h}, V3{0, -0.8f, 0.6f}, V3{-0.6f, 0.0f, -0.8f}, V3{0.48f, 0.64f, 0.6f}}) {
+        pose(n);
+        const float o[3] = {0, 0, 0};
+        const assets::Mat3x4 m = terrain::placement_transform(o, r, 1.0f);
+        CHECK(std::fabs(m.m[0][2] - n.x) < 1e-5f && std::fabs(m.m[1][2] - n.y) < 1e-5f && std::fabs(m.m[2][2] - n.z) < 1e-5f);
+    }
 }
 
 int main() {
@@ -289,6 +321,7 @@ int main() {
     test_snapshot();
     test_ability_fx();
     test_heal_blobs_and_world_effects();  // vis1 t08
+    test_shield_penetration_pose();       // #76 t08
     if (g_fail) {
         std::printf("alamo_render_jam_tests: %d FAILED\n", g_fail);
         return 1;

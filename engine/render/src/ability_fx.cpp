@@ -201,7 +201,8 @@ void apply_battle_ability_fx(const sim::TacticalBattle& battle, AbilityFxTracker
         if (!infection.empty() && combat.infection_attached(o.id) && combat.infection_suspend_count(o.id) == 0)
             in.states.push_back({o.id, kEffectInfection, infection, std::string(status_bones)});
         // vis1 t08 Base_Shield_Penetration_Particle (§6): world-placed at the dome contact while the unit straddles a shield.
-        // [M] orientation: facing = the horizontal part of the dome normal (retail: the normal's angles with pitch + 90).
+        // #76 t08: oriented as retail (the normal's angles with pitch + 90, shield_penetration_pose) and anchored to the
+        // unit so it is drawn at the contact relative to the interpolated unit.
         // Not while the unit is fogged for the local player [port: retail's particle object fog rule not read].
         if (types && o.type < types->size() && (o.flags & kSnapFogHidden) == 0 &&
             combat.base_shield_straddled(o.id) != tactical::combat::kNoObject) {
@@ -211,9 +212,10 @@ void apply_battle_ability_fx(const sim::TacticalBattle& battle, AbilityFxTracker
                 SimWorldEffect w;
                 w.key = shield_penetration_key(o.id);
                 w.asset = particle_asset(pen, table);
-                w.position = Vec3{point.x, point.y, point.z};
-                const float h = std::sqrt(normal.x * normal.x + normal.y * normal.y);
-                w.facing = h > 1e-6f ? Vec3{normal.x / h, normal.y / h, 0.0f} : Vec3{1.0f, 0.0f, 0.0f};
+                w.position = Vec3{point.x - o.position.x, point.y - o.position.y, point.z - o.position.z};
+                w.anchor = o.id;
+                w.use_rotation = true;
+                shield_penetration_pose(Vec3{normal.x, normal.y, normal.z}, w.rotation_deg);
                 snap.world_effects.push_back(std::move(w));
             }
         }
@@ -260,5 +262,19 @@ void apply_battle_ability_fx(const sim::TacticalBattle& battle, AbilityFxTracker
     tracker.apply(in, snap, table);
 }
 #endif
+
+void shield_penetration_pose(Vec3 n, float (&rot)[3]) {
+    constexpr float kDeg = 57.295776f;
+    float yaw = 0.0f;
+    if (n.x != 0.0f || n.y != 0.0f) {  // 0x20acd0 leaves the yaw 0 when x and y are both equal
+        yaw = std::atan2(n.y, n.x) * kDeg;
+        if (yaw < 0.0f) yaw += 360.0f;
+    }
+    // the pitch only when z or x differs (otherwise 0)
+    const float pitch = (n.z != 0.0f || n.x != 0.0f) ? -std::atan2(n.z, std::sqrt(n.x * n.x + n.y * n.y)) * kDeg : 0.0f;
+    rot[0] = 0.0f;
+    rot[1] = pitch + 90.0f;
+    rot[2] = yaw;
+}
 
 }  // namespace alamo::render

@@ -90,6 +90,10 @@ private:
 std::vector<JamBlob> heal_range_blobs(const InterpolatedFrame& frame, std::span<const uint32_t> selected, int32_t local_player);
 // The world effect key of a unit's shield penetration particle (SimWorldEffect::key).
 inline uint64_t shield_penetration_key(objects::ObjectId id) { return (static_cast<uint64_t>(static_cast<uint32_t>(id)) << 8) | 0x02u; }
+// #76 t08 (TRU1_A_RE_ANSWERS A2 step 3 [H]): the penetration particle's angles = those of the dome hit normal (0x20acd0:
+// yaw = atan2(ny, nx) in [0, 360), 0 when nx = ny = 0; pitch = -atan2(nz, |n.xy|), 0 when nz = nx = 0; roll 0) with
+// pitch + 90: rotation_deg = (0, pitch + 90, yaw), for terrain::placement_transform. Its up axis then lies along n.
+void shield_penetration_pose(Vec3 normal, float (&rotation_deg)[3]);
 
 #ifdef ALAMO_SIM_HAVE_BATTLES
 // Fills the input from the battle (const reads between ticks): applied Earthquake / Telekinesis specials, active

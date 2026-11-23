@@ -4,6 +4,7 @@
 #include <string_view>
 
 #include "alamo/render/hardpoints.hpp"
+#include "alamo/terrain/placement.hpp"
 
 namespace alamo::render::particles {
 
@@ -152,7 +153,23 @@ SimAttachStats sync_sim_frame(ProxyAttachments& attach, const InterpolatedFrame&
             fade = g.fade;
             visible = !g.culled;
         } else {
-            xf = object_transform(w.position, w.facing, 1.0f);
+            Vec3 at = w.position;
+            if (w.anchor != objects::kNoObjectId) {  // #76 t08: an offset from the anchor's drawn position, its gate
+                const auto it = std::lower_bound(frame.objects.begin(), frame.objects.end(), w.anchor,
+                                                 [](const SnapshotObject& o, objects::ObjectId v) { return o.id < v; });
+                if (it == frame.objects.end() || it->id != w.anchor) continue;
+                Gate g;
+                if (!gate(*it, g, false)) continue;
+                fade = g.fade;
+                visible = !g.culled;
+                at = Vec3{it->position.x + w.position.x, it->position.y + w.position.y, it->position.z + w.position.z};
+            }
+            if (w.use_rotation) {
+                const float p[3] = {at.x, at.y, at.z};
+                xf = terrain::placement_transform(p, w.rotation_deg, 1.0f);
+            } else {
+                xf = object_transform(at, w.facing, 1.0f);
+            }
         }
         SystemPtr fx = attach.library().get(w.asset);
         if (!fx) {

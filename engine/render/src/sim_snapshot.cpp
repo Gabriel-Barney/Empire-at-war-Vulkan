@@ -432,6 +432,11 @@ uint64_t SimSnapshot::digest() const {
             if (!w.asset.empty()) h.bytes(w.asset.data(), w.asset.size());
             h.i32(w.owner);
             for (float v : {w.position.x, w.position.y, w.position.z, w.facing.x, w.facing.y, w.facing.z, w.intensity}) h.f32(v);
+            if (w.use_rotation || w.anchor != objects::kNoObjectId) {  // #76 t08 (hashed only when set)
+                h.u8(w.use_rotation ? 1 : 0);
+                for (float v : w.rotation_deg) h.f32(v);
+                h.i32(w.anchor);
+            }
         }
     }
     h.u8(fog ? 1 : 0);
