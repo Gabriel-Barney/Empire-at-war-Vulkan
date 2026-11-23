@@ -818,11 +818,15 @@ std::pair<int32_t, int32_t> free_ground_pixel(App& a) {
         }
     return base;
 }
+// #258: when the spiral finds nothing free (a hull larger than the view, e.g. the Empire smoke's Executor with the camera
+// on it), the camera steps sideways by half its distance at a time and the search runs again; at most kGroundShifts steps.
 ScriptStep step_move_ground(bool shift = false) {
+    static constexpr int kGroundShifts = 5;
     auto st = std::make_shared<ClickState>();
     auto px = std::make_shared<std::pair<int32_t, int32_t>>(0, 0);
     auto settle = std::make_shared<int>(0);
-    return {shift ? "shift+right-click the ground" : "right-click the ground", [st, px, settle, shift](App& a, ui::InputFrame& f) {
+    auto shifts = std::make_shared<int>(0);
+    return {shift ? "shift+right-click the ground" : "right-click the ground", [st, px, settle, shifts, shift](App& a, ui::InputFrame& f) {
                 if (!a.bview_.active() || a.screen() != Screen::Battle) return false;
                 if (st->phase == 0) {
                     const int32_t bx = static_cast<int32_t>(a.targets_.width / 2), by = static_cast<int32_t>(a.targets_.height / 3);
@@ -833,6 +837,14 @@ ScriptStep step_move_ground(bool shift = false) {
                     }
                     if (*settle > 0 && ++*settle < 10) return false;  // let the camera settle
                     *px = free_ground_pixel(a);
+                    if (!ground_pixel_free(a, px->first, px->second) && *shifts < kGroundShifts) {
+                        ++*shifts;
+                        ui::TacticalCameraController& cam = a.bview_.camera();
+                        const ui::Vec3 at = cam.look_at();
+                        cam.jump_to({at.x + cam.distance() * 0.5f, at.y, at.z});
+                        *settle = 1;
+                        return false;
+                    }
                 }
                 return click_at(*st, f, px->first, px->second, ui::Button::Right, shift);
             },

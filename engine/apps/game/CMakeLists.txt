@@ -385,6 +385,12 @@ function(alamo_game_add_exe)
     add_test(NAME alamo_game_smoke_${_k} COMMAND alamo_game --smoke ${_k} --hidden --audio null ${_seed_args} --png-dir ${_smoke_out})
     set_tests_properties(alamo_game_smoke_${_k} PROPERTIES TIMEOUT 1800 FIXTURES_SETUP alamo_game_smoke_${_k}_run)
   endforeach()
+  # the space skirmish smoke as the Empire (faction row 1): its buy list has no corvette the smoke names, so it buys the
+  # list's first unlocked row, the Executor, whose hull fills the view; the ground move must still find open space.
+  set(_empire_out ${_smoke_out}/empire)
+  file(MAKE_DIRECTORY ${_empire_out})
+  add_test(NAME alamo_game_smoke_skirmish_empire COMMAND alamo_game --smoke skirmish --hidden --audio null --png-dir ${_empire_out})
+  set_tests_properties(alamo_game_smoke_skirmish_empire PROPERTIES TIMEOUT 1800 ENVIRONMENT "ALAMO_SMOKE_SKIRMISH_FACTION=1")
   # the campaign smoke with the per-screen shots (victory, unit tooltip, video dialog: game_campaign_screen_*.png in
   # smoke_out/screens) and pseudo-localized text. Nothing reads the PNGs: look at them for overflow. Its CRC log and command
   # recording must equal the normal campaign run's (the text and the screens never reach the sim).
@@ -425,7 +431,7 @@ function(alamo_game_add_exe)
                      -DOUT=${_bench_out}/${_name} -DMODE=${_m} -DTAA=${_taa} -P ${PROJECT_SOURCE_DIR}/engine/apps/game/bench_check.cmake)
     set_tests_properties(alamo_game_bench_${_name} PROPERTIES TIMEOUT 1200 FIXTURES_REQUIRED alamo_game_smoke_saveload_run)
   endforeach()
-  alamo_label_slow(alamo_game_smoke_skirmish alamo_game_smoke_campaign alamo_game_smoke_land alamo_game_smoke_screens
+  alamo_label_slow(alamo_game_smoke_skirmish alamo_game_smoke_skirmish_empire alamo_game_smoke_campaign alamo_game_smoke_land alamo_game_smoke_screens
                    alamo_game_smoke_screens_golden alamo_game_smoke_saveload alamo_game_bench_fixed alamo_game_bench_fixed_galactic
                    alamo_game_bench_realtime alamo_game_bench_fixed_taa)
   # bm2: a scenario made with --bench-make from the battle save and the test recipe (testdata/bench_orbit.abench: fixed
