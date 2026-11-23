@@ -2241,6 +2241,7 @@ uint64_t run_capture_streams(const Data& d, uint32_t streams, uint32_t workers, 
             seen = true;
             all.u32(b->frame());
             all.u32(host.random().synced().state());
+            if (const anim::AnimWorld* aw = animation.find_world(*tm)) aw->hash_state(all);  // the clips the picks chose
             const objects::ObjectStore& st = tm->primary();
             for (const objects::ObjectHandle h : st.all_objects()) {
                 if (!st.alive(h)) continue;

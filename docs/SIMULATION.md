@@ -150,7 +150,8 @@ counter, `create` refused). Rules:
   - hangars (`hangar`): per carrier (entry and bay picks).
   - reinforce (`reinforce`): per participant (its deploy).
   - landing (`landing`): per landing object (an unload step's deploy and exit move).
-  - garrisons (`garrison`): per control point (a capture's animation pick).
+  - garrisons (`garrison`): per control point (a capture's animation pick). The garrison moves (`s4_apply`: entering,
+    leaving, holding, a squad's walk-out, corrective and reissued moves) still draw from the synced RNG.
   - pads (`pads`): per pad (the finished object's adoption draws: hardpoints, first-due ability and behaviour draws,
     a hangar). A build order's under-construction object joins the battle through the build command, on the synced RNG.
 - Nothing to convert: expiry, fog and victory draw nothing.

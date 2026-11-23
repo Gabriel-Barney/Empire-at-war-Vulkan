@@ -2019,9 +2019,14 @@ void test_pads(const Data& d) {
     CHECK(!k.run_available);
     for (const int32_t t : a.run_type) CHECK(t < 0);
 }
-// #128 t02: the pads service on counter-based streams (bit StreamId::Pads): a finished structure's adoption draws from its
-// pad's own stream. Off: the synced draws (test_pads); on: the CRC log diverges from the off run and is identical at
-// 0 / 1 / 4 / 15 workers and in every service run mode.
+// --- end Int-final ---
+
+// ---- q6: persisted tactical built objects (AI_GALACTIC_TOKENS §9.4) ----
+// P1 (Empire, player 0) is invaded by the Underworld (player 1). Before the battle two records are put on P1: R1 for the map
+// pad at (-1500, -1500) (a turret of player 0) and R2 at a spot without a pad (player 1). At setup R1's turret is recreated
+// on the pad for its owner; R2 creates nothing and stays. A second pad (spawned at frame 1, owned by player 1) builds a
+// turret: its completion appends a record {finished type, the object's position, base level 0, pad owner}. Selling R1's
+// turret removes R1. After the battle only the winner's records remain (0x2bff60). A land skirmish does none of it.
 struct PersistRun {
     bool fought = false, restored = false, restored_ok = false, built = false, added_ok = false, sold = false, sold_ok = false;
     // q6 t19 (AI_GALACTIC_TOKENS §9.11, AI_TACTICAL §7.5.1 item 5): the recreated child keeps the pad's owner (pad 0, the
@@ -2190,14 +2195,6 @@ void test_pads_streams() {
         CHECK(!first_divergence(on.crc, run(bit, 4, m).crc).diverged);
 }
 
-// --- end Int-final ---
-
-// ---- q6: persisted tactical built objects (AI_GALACTIC_TOKENS §9.4) ----
-// P1 (Empire, player 0) is invaded by the Underworld (player 1). Before the battle two records are put on P1: R1 for the map
-// pad at (-1500, -1500) (a turret of player 0) and R2 at a spot without a pad (player 1). At setup R1's turret is recreated
-// on the pad for its owner; R2 creates nothing and stays. A second pad (spawned at frame 1, owned by player 1) builds a
-// turret: its completion appends a record {finished type, the object's position, base level 0, pad owner}. Selling R1's
-// turret removes R1. After the battle only the winner's records remain (0x2bff60). A land skirmish does none of it.
 using ::alamo::test::env_or_empty;
 
 // ---- command 25 SpecialWeaponFire (TACTICAL_COMBAT §3.1.1 "Fire-at-position order", LOB_SOLVER §9) ----
