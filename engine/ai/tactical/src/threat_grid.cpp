@@ -283,7 +283,10 @@ bool TacticalPerceptionGrid::register_object(const PerceptionWorld& w, int32_t i
     for (size_t i = 0; i < hps.size(); ++i)
         if (is_grid_hard_point(hps[i])) hp_index.push_back(static_cast<int32_t>(i));
     if (hp_index.empty()) hp_index.push_back(-1);
-    if (const PerceptionType* t = w.type_of(*o)) category_union_ |= t->category;
+    // #65 t03 (SKAI_T22_SPACE_AI_RE Part 3.2 / 3.3 [H]): a start structure / start station (no_owner_list) reaches this
+    // grid only through its first service, which ORs no category into +0xc8; its entries are projected as usual below.
+    if (!o->no_owner_list)
+        if (const PerceptionType* t = w.type_of(*o)) category_union_ |= t->category;
     auto& rec = objects_.emplace(id, std::move(g)).first->second;
     for (const int32_t hi : hp_index) {
         const uint32_t ei = alloc_entry();
