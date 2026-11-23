@@ -975,6 +975,9 @@ struct S4Run {
     uint64_t mission_tick = 0, battle_tick = 0;
     int32_t corruption_b = -2, corruption_a = -2;
     float credits_before = -1.0f, credits_after = -1.0f;
+    // #51 t04: the "battles" chunk written and read back while a battle is pending across a tick (a galactic save taken
+    // between the SET_TACTICAL_MAP override and the battle start), and the started battle's story_map flag.
+    bool pending_saved = false, pending_reloaded = false, story_map = false;
 };
 
 terrain::MapData s4_map(bool sensor = false) {
@@ -1088,8 +1091,18 @@ S4Run run_s4_battle(const Data& d, const FileProvider& files, int32_t workers, i
             out.mission_tick = host.frame();
             invaded = true;
         }
+        // Only a battle accepted inside the hook (the linked corruption mission) is still pending between ticks: a
+        // conflict accepted in the mode update is pushed by the same tick's hook.
+        if (!out.pending_saved && battles.battle_pending()) {
+            ByteWriter w;
+            battles.write_state(w);
+            ByteReader r(w.bytes());
+            out.pending_reloaded = battles.read_state(r);  // the pending battle's map is loaded again (maps[1])
+            out.pending_saved = true;
+        }
         if (!out.battle_tick && battles.battle()) {
             out.battle_tick = host.frame();
+            out.story_map = battles.battle()->request().story_map;
             out.mission_units = 0;
             for (const galactic::BattleForces& bf : battles.conflicts().active_request().forces) out.mission_units += bf.start.size() + bf.reserve.size();
         }
@@ -1311,6 +1324,7 @@ void test_s4_battle(const Data& d) {
     CHECK(a.lua.empty());
     CHECK(fired("Go_Land") && fired("Map_Hook") && fired("Map_Hero") && !fired("Map_Space_Never") && !fired("Map_Hero_Never"));
     CHECK(a.maps.size() == 1 && a.maps[0] == "S4_Land_Alt");  // SET_TACTICAL_MAP replaced S10_Land_B
+    CHECK(!a.pending_saved && a.story_map);  // pushed in the tick that accepted it: no pending window
     CHECK(fired("Commanded") && fired("Commanded_Near_Post") && !fired("Commanded_Far_Never") && !fired("Commanded_Frigate_Never"));
     CHECK(fired("Guarded") && !fired("Guard_Bunker_Never"));
     CHECK(fired("Garrisoned") && !fired("Garrison_Enemy_Never"));
@@ -1370,6 +1384,10 @@ void test_s4_battle(const Data& d) {
     bool started_line = false;
     for (const std::string& m : n.battles) started_line = started_line || m == "corruption: mission land started";
     CHECK(started_line);
+    // #51 t04: the linked mission waits one tick pending with the SET_TACTICAL_MAP override; the "battles" chunk written and
+    // read back then loads the map again and keeps the story_map flag, so the battle-load screen is still the Mission pair.
+    CHECK(n.pending_saved && n.pending_reloaded && n.story_map);
+    CHECK(n.maps.size() == 2 && n.maps[0] == "S4_Land_Alt" && n.maps[1] == "S4_Land_Alt");
     const S4Run c4 = run_s4_battle(d, files, 4, 1);
     CHECK(c4.log == c.log && !first_divergence(c.crc, c4.crc).diverged);
     // The mission with the hero alone: the defenders win -> _FAILED, no corruption.

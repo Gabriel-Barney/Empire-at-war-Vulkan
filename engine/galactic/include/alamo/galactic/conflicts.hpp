@@ -198,8 +198,8 @@ struct BattleRequest {
     // persisted, nothing destroyed or sold there is removed from the planet's records.
     bool sandbox = false;
     // ui5 t10 (legacy docs/re/UI.md §5.1 "Which dialog"): a STORY_LOAD_TACTICAL_MAP + SET_TACTICAL_MAP override replaced `map` (the
-    // retail "story map" flag 0x140a61d3b): the battle-load screen is the Mission pair. Presentation only: not saved, not
-    // hashed.
+    // retail "story map" flag 0x140a61d3b): the battle-load screen is the Mission pair. Presentation only: not hashed; saved
+    // with the battle in flight ("battles" chunk v5, #51 t04).
     bool story_map = false;
 };
 struct BattleResult {
