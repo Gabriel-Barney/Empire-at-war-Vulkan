@@ -228,10 +228,12 @@ WalkResult walk_step(LandMotion& m, const LocomotorParams& p, float speed_cap, c
     // so it is taken afresh where it is used
     const WalkTransition* wt = x && x->wt && x->wt->on ? x->wt : nullptr;
     const bool wts = wt && wt->states;
+    const WalkTransition* bk = x && !wts ? x->bike : nullptr;  // anm1 t02: the Bike (0x639e90), its clip data
     const float acc = wt ? walk_transition_accel(*wt, vmax_u) : (p.accel > 0.0f ? p.accel : vmax);
     const float dec_p = p.decel > 0.0f ? p.decel : vmax;
     const auto dec_of = [&]() { return wt ? walk_transition_decel(*wt, vmax_u, m.speed, m.wt_f0) : dec_p; };
     if (wts) wt_advance(m, *wt);
+    if (bk) wt_advance(m, *bk);  // its MOVESTART, the one clip it tracks
     LandMotion* below = x ? x->below : nullptr;
     bool forced = x && x->forced;
     // mov2 t01 (MOVEMENT §4.3.3 item 3): the end shift of the record being walked - a formation member's order path only
@@ -248,7 +250,10 @@ WalkResult walk_step(LandMotion& m, const LocomotorParams& p, float speed_cap, c
     // clip, or the idle with no end clip) has ended, with no speed test; the end clip starts at a MOVE phase boundary
     bool to15 = false;
     if (m.state == LocoState::WalkEndMove) {
-        to15 = wts ? wt_end_move(m, *wt, vmax_u, dec_of()) : !(m.speed > dec_of());
+        // anm1 t02: a Bike's 0x23 latches +0xf0 := +0xec on its first frame (the deceleration's u stays fixed) and leaves on
+        // speed <= deceleration + 0.0001 ([port] tested before the move step, as the Walk's 0x14)
+        if (bk && m.wt_f0 == 0.0f) m.wt_f0 = m.speed;
+        to15 = wts ? wt_end_move(m, *wt, vmax_u, dec_of()) : !(m.speed > dec_of() + (bk ? 0.0001f : 0.0f));
     }
     if (to15) {
         m.speed = 0.0f;
@@ -305,7 +310,7 @@ WalkResult walk_step(LandMotion& m, const LocomotorParams& p, float speed_cap, c
         const float err = std::fabs(wrap_deg(desired - m.yaw));
         const float cur = wp_frac(m, m.next - 1);
         if (err <= p.turn_rate || (err <= p.close_enough_angle && cur > 0.0f)) {
-            m.state = wts ? LocoState::WalkStartMove : LocoState::WalkMoving;
+            m.state = wts || bk ? LocoState::WalkStartMove : LocoState::WalkMoving;
         } else {
             // bkm3 t03 (b0052 item 1, §3.2.1 item 3 "0x1A entered from a walk", §3.5.1 step 4): 0xf does not write the
             // speed; a unit that enters it moving (the stale v after an undeploy) turns at R in 0x10 and starts from v
@@ -314,7 +319,7 @@ WalkResult walk_step(LandMotion& m, const LocomotorParams& p, float speed_cap, c
             r.want = desired;
             return r;
         }
-    } else if (s0 == LocoState::WalkStartMove && !wts) {
+    } else if (s0 == LocoState::WalkStartMove && !wts && !bk) {
         // bkm3 t03 (b0052 item 3, §3.5.2 A 0x12): a path not started -> 0x15, whose entry zeroes +0xec / +0xf0; no
         // started path -> idle 0x16, the frame ends (not 0x13 -> 0x14 and a coast)
         if (!m.path.empty() && !m.started) {
@@ -353,6 +358,33 @@ WalkResult walk_step(LandMotion& m, const LocomotorParams& p, float speed_cap, c
             if (wt_ended(m, *wt)) m.state = LocoState::WalkMoving;
         }
     }
+    // anm1 t02 (BKR2 Q2 (d) [H], Bike 0x21): a started path: MOVESTART not current -> it plays (rate 1.0, [port] variant
+    // 0's frame count) and the speed := 0; MOVESTART current and ended -> 0x22 ([M] in the same frame); the move step runs
+    // every frame (the path's end goes to 0x23 there, C.4). A path not started -> 0x23 when MOVESTART is current, else
+    // 0x24 (idle). [port] a model without MOVESTART goes to 0x22 at once.
+    if (bk && m.state == LocoState::WalkStartMove) {
+        if (!(bk->count[1] > 0.0f)) {
+            m.state = LocoState::WalkMoving;
+        } else if (!m.path.empty() && !m.started) {
+            if (m.wt_clip == 16) {
+                m.state = LocoState::WalkEndMove;
+            } else {
+                m.speed = 0.0f;
+                m.wt_f0 = 0.0f;
+                m.wt_clip = -1;
+                m.state = LocoState::WalkStopped;
+                return r;
+            }
+        } else if (m.wt_clip != 16) {
+            m.wt_clip = 16;
+            m.wt_pos = 0.0f;
+            m.wt_rate = 1.0f;
+            m.speed = 0.0f;
+        } else if (wt_ended(m, *bk)) {
+            m.state = LocoState::WalkMoving;
+            m.wt_clip = -1;
+        }
+    }
     // 0x13 (0x61f840): a transition unit starts the MOVE clip at frame int(+0xf4)
     if (wts && m.state == LocoState::WalkMoving && m.wt_clip != 2) {
         m.wt_clip = 2;
@@ -375,7 +407,9 @@ WalkResult walk_step(LandMotion& m, const LocomotorParams& p, float speed_cap, c
     si.started = have_p && m.started;
     si.turn_done = m.turn_done;
     si.rate = p.turn_rate;
-    si.state = m.state;
+    // anm1 t02 (BKR2 Q2 (d), 0x638f40 [M]): a Bike's 0x21 speed step is its 0x22 one (the corner cap, the brake-ahead and
+    // the collision cap apply); only the Walk's 0x12 skips them
+    si.state = bk && m.state == LocoState::WalkStartMove ? LocoState::WalkMoving : m.state;
     if (si.started && m.next < m.path.size()) {
         si.yaw_err = std::fabs(wrap_deg(yaw_of(m) - m.yaw));
         si.frac_cur = wp_frac(m, m.next - 1);

@@ -1741,6 +1741,124 @@ void test_t26_walk_transition() {
     }
 }
 
+// ---------------------------------------------------------------- anm1 t02: the Bike's own states (BKR2 Q2 (d) [H])
+// BIKE_LOCOMOTOR 0x639e90: 0x21 plays MOVESTART (rate 1.0) with the speed set to 0 and holds until the clip has ended
+// (frame >= count - 2 - step), the turn budget x v / V; 0x23 latches +0xf0 on its first frame, plays MOVE_ENDONE once the
+// speed is below 0.55 V and leaves on speed <= deceleration + 0.0001.
+void test_t26_bike() {
+    ::alamo::test::section("t26_bike");
+    WalkTransition bk;  // a Bike's clip data: MOVESTART 20 frames at 30 fps (no Walk_Transition: on / states off)
+    bk.count[0] = 30.0f;
+    bk.count[1] = 20.0f;
+    bk.count[2] = 20.0f;
+    for (float& st : bk.step) st = 1.0f;
+    LocomotorParams p;
+    p.max_speed = 4.0f;
+    p.accel = p.decel = 0.2f;
+    p.turn_rate = 5.0f;
+    p.close_enough_angle = 180.0f;
+    WalkExtras x;
+    x.bike = &bk;
+    x.vmax_u = p.max_speed;
+    // 0x21: started 30 degrees off the path (within CE): MOVESTART plays, the speed is a (0, then the step), and the turn
+    // budget is R x v / V = 5 x 0.2 / 4 = 0.25 degrees; the clip ends at frame 17 >= 20 - 2 - 1 on the 18th call -> 0x22
+    {
+        LandMotion m;
+        m.path = {V2{0.0f, 0.0f}, V2{400.0f, 0.0f}};
+        m.next = 1;
+        m.yaw = 30.0f;
+        m.speed = 1.5f;  // a stale speed: zeroed at the MOVESTART play
+        m.state = LocoState::WalkStopped;
+        (void)walk_step(m, p, 3.0e38f, nullptr, &x);
+        CHECK(m.state == LocoState::WalkStartMove && m.wt_clip == 16 && near(m.speed, 0.2f, 1e-6f));
+        CHECK(near(30.0f - m.yaw, 0.25f, 1e-4f));
+        int to22 = 1;
+        for (int k = 2; k <= 30 && m.state == LocoState::WalkStartMove; ++k) {
+            (void)walk_step(m, p, 3.0e38f, nullptr, &x);
+            to22 = k;
+        }
+        std::printf("t26 bike: 0x21 until call %d\n", to22);
+        CHECK(to22 == 18 && m.state == LocoState::WalkMoving && m.wt_clip == -1);
+    }
+    // 0x23: +0xf0 := +0xec on its first frame; the exit at speed <= deceleration + 0.0001 (here 0.20005: out at once,
+    // where the Walk's test (speed <= deceleration) brakes one more frame)
+    {
+        LandMotion m;
+        m.path = {V2{0.0f, 0.0f}, V2{450.0f, 0.0f}};
+        m.next = 2;
+        m.started = true;
+        m.pos = {449.0f, 0.0f};
+        m.speed = 2.0f;
+        m.state = LocoState::WalkEndMove;
+        (void)walk_step(m, p, 3.0e38f, nullptr, &x);
+        CHECK(m.state == LocoState::WalkEndMove && m.wt_f0 == 2.0f && near(m.speed, 1.8f, 1e-6f));
+        LandMotion q = m;
+        q.speed = 0.20005f;
+        (void)walk_step(q, p, 3.0e38f, nullptr, &x);
+        CHECK(q.state == LocoState::WalkStopped && q.speed == 0.0f && q.wt_f0 == 0.0f);
+        LandMotion w = m;  // the same frame on the Walk (no Bike data): still braking
+        w.speed = 0.20005f;
+        WalkExtras xw = x;
+        xw.bike = nullptr;
+        (void)walk_step(w, p, 3.0e38f, nullptr, &xw);
+        CHECK(w.state == LocoState::WalkEndMove && w.speed > 0.0f);
+    }
+    // The system: a Bike ordered 600 ahead - 0x21 with MOVESTART (16) for 17 ticks from its first moving tick, 0x22 with
+    // MOVE, then 0x23 at the end; MOVE_ENDONE (17) first shows on the first tick that starts in 0x23 at a speed below
+    // 0.55 V (the speed the tick before ended with), the bike stops (0x24 / 0x25).
+    {
+        MovementSystem sys{MovementConfig{}};
+        land_system(sys);
+        sys.set_deploy_clip_fn([](ObjectId, int32_t type, uint32_t& n, float& fps) {
+            fps = 30.0f;
+            n = type == 2 ? 30u : type == 16 || type == 17 ? 20u : 0u;
+            return n != 0u;
+        });
+        sys.set_anim_length_fn([](ObjectId, int32_t type) { return type == 16 || type == 17 ? 20u : 30u; });
+        UnitDesc d = tank(1, cell_center(20, 50));
+        d.locomotor = LocomotorKind::Bike;
+        d.type_name = "T26_BIKE";
+        d.accel = d.decel = 0.2f;
+        CHECK(sys.add_unit(d));
+        SimRng rng(2613);
+        order(sys, rng, {1}, cell_center(20, 50) + V2{600.0f, 0.0f}, 1);
+        uint32_t first = 0, moving_at = 0, end_at = 0, endone_at = 0;
+        float endone_speed = 0.0f, vmax = 0.0f, prev_speed = 0.0f;
+        LocoState prev_loco = LocoState::None;
+        bool hold_ok = true, endone_late = true, stopped = false;
+        for (uint32_t f = 1; f < 600 && !stopped; ++f) {
+            sys.tick(f, rng);
+            const UnitView v = sys.view(1);
+            const float v_in = prev_speed;  // this tick's speed before its walk
+            const LocoState l_in = prev_loco;
+            prev_speed = v.speed;
+            prev_loco = v.loco_state;
+            vmax = v.max_speed;
+            if (first == 0 && v.speed > 0.0f) first = f;
+            if (first != 0 && moving_at == 0) {
+                if (v.walk_state == LocoState::WalkMoving) moving_at = f;
+                else hold_ok = hold_ok && v.walk_state == LocoState::WalkStartMove && v.loco_state == LocoState::BikeStartMove &&
+                               v.anim == 16;
+            }
+            if (end_at == 0 && v.walk_state == LocoState::WalkEndMove) end_at = f;
+            if (end_at != 0 && endone_at == 0) {
+                if (v.anim == 17) {
+                    endone_at = f;
+                    endone_speed = v_in;
+                    endone_late = endone_late && l_in == LocoState::BikeEndMove;
+                } else {
+                    endone_late = endone_late && !(v_in < 0.55f * vmax && l_in == LocoState::BikeEndMove);
+                }
+            }
+            stopped = v.loco_state == LocoState::BikeStopped && moving_at != 0;
+        }
+        std::printf("t26 bike system: first moving tick %u, 0x22 at %u, 0x23 at %u, MOVE_ENDONE at %u (speed %.3f of V %.3f)\n",
+                    first, moving_at, end_at, endone_at, static_cast<double>(endone_speed), static_cast<double>(vmax));
+        CHECK(first != 0 && hold_ok && moving_at == first + 17);
+        CHECK(end_at > moving_at && endone_at >= end_at && endone_late && endone_speed < 0.55f * vmax && stopped);
+    }
+}
+
 // ---------------------------------------------------------------- corner cap and brake-ahead in the system
 // MOVEMENT §3.5.2 B.4 / B.5 on a real order path (the land pathfinder's, through the corner pass D at the plan), observed
 // through the public views only. An L-shaped wall (cells x >= 30, y <= 59) bends the path from below the wall's corner to
@@ -2168,6 +2286,7 @@ int main() {
     test_t26_container_step();  // s78n t26.5
     test_t26_formation_side_step();  // s78n t26 closing review
     test_t26_walk_transition();      // s78n t26 closing review
+    test_t26_bike();                 // anm1 t02
     test_bkm2_corner_system();       // bkm2 t03
     test_bkm2_goal_behind();         // bkm2 t04
     test_bkm3_undeploy_start_turn();  // bkm3 t03 (b0052 item 1)
