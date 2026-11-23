@@ -557,8 +557,9 @@ public:
     // value (AudioConstants::sfx_planet_revealed; FoC GUI_Planet_Mouse_Over), 2D. Nothing when the constant is empty.
     void planet_revealed();
     // t04 (legacy docs/re/AUDIO.md §6.1, §2.3): whether this application is the active one (WM_ACTIVATEAPP). Inactive: update() does
-    // nothing (step 14 runs only while active) and the music manager's pause counter is raised (AudioSystem::pause_music);
-    // active again: the counter drops and updates resume. Only a change does anything. The host starts active.
+    // nothing (step 14 runs only while active) and the music, SFX and speech managers' pause counters are raised
+    // (AudioSystem::pause_music, pause_sfx_speech #227: their voices held, GUI SFX queued); active again: the counters drop
+    // and updates resume. Only a change does anything. The host starts active.
     void set_app_active(bool active);
     bool app_active() const { return app_active_; }
     // t03 (legacy docs/re/AUDIO.md §6.2, xml_field_tables GameObject +0x1450 / +0x1460 / +0x1470): a galactic production event of the

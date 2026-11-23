@@ -1546,8 +1546,13 @@ void GameAudioHost::set_app_active(bool active) {
     app_active_ = active;
     if (!active) ++stats_.deactivations;
     if (!system_) return;
-    if (active) system_->resume_music();
-    else system_->pause_music();
+    if (active) {
+        system_->resume_music();
+        system_->resume_sfx_speech();  // #227
+    } else {
+        system_->pause_music();
+        system_->pause_sfx_speech();  // #227 (retail answer on #205): SFX and speech voices held, GUI SFX queue
+    }
 }
 
 uint32_t GameAudioHost::production(const objects::GameObjectTypes& types, objects::TypeIndex type, Production kind, bool tactical) {

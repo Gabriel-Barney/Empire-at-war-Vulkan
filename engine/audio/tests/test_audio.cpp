@@ -1613,6 +1613,44 @@ void test_aud2_mixer() {
         a.resume_music();
         CHECK(!a.music_paused());
     }
+    {  // #227 (retail answer on #205, WndProc 0x60c60): deactivation also pauses the SFX and speech managers and holds
+       // their voices; a GUI entry's pump runs no update meanwhile, so its event starts after the last resume.
+        Rig rig;
+        AudioSystem& a = *rig.a;
+        const uint32_t sfx = a.play_sfx("Click");
+        CHECK(a.play_speech("Line_1"));
+        a.update(0.0);
+        a.update(0.25);
+        const uint32_t sv = voice_of(a, sfx);
+        const uint32_t pv = last_op(a, LogOp::SpeechStart)->voice;
+        CHECK(sv != 0 && pv != 0 && !a.sfx_speech_paused());
+        const auto held = [&rig](uint32_t v) {
+            const auto* p = rig.backend.voice(v);
+            return p && p->paused;
+        };
+        const auto position = [&rig](uint32_t v) {
+            const auto* p = rig.backend.voice(v);
+            return p ? p->position : -1.0;
+        };
+        const double sfx_pos = position(sv), speech_pos = position(pv);
+        a.pause_sfx_speech();
+        a.pause_sfx_speech();  // a counter
+        CHECK(a.sfx_speech_paused() && held(sv) && held(pv));
+        a.update(5.0);  // past both samples: held, nothing ends
+        CHECK(position(sv) == sfx_pos && position(pv) == speech_pos);
+        CHECK(a.sfx_live(sfx) && a.speech_playing());
+        SfxPlay gui;
+        gui.pump = 1;  // the GUI entry point's immediate update
+        const uint32_t click = a.play_sfx("Click", gui);
+        CHECK(click != 0 && voice_of(a, click) == 0);  // queued, no voice
+        a.resume_sfx_speech();
+        CHECK(a.sfx_speech_paused() && voice_of(a, click) == 0);
+        a.resume_sfx_speech();
+        a.resume_sfx_speech();  // never below 0
+        CHECK(!a.sfx_speech_paused() && !held(sv) && !held(pv) && position(sv) == sfx_pos);
+        a.update(0.0);
+        CHECK(voice_of(a, click) != 0);  // starts with the first update after the last resume
+    }
 }
 
 // aud2 t05 (legacy docs/re/AUDIO.md §5): SFX samples resolve by leaf name through the normal file layer, loose files first - a loose

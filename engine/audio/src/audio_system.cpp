@@ -888,7 +888,22 @@ void AudioSystem::run_instance(Instance& in, std::vector<std::pair<uint32_t, Sfx
     }
 }
 
+void AudioSystem::pause_sfx_speech() {
+    if (sfx_speech_pause_++ != 0) return;
+    for (const Instance& in : instances_)
+        if (in.voice) backend_->pause(in.voice, true);
+    if (speech_voice_) backend_->pause(speech_voice_, true);
+}
+
+void AudioSystem::resume_sfx_speech() {
+    if (sfx_speech_pause_ == 0 || --sfx_speech_pause_ != 0) return;
+    for (const Instance& in : instances_)
+        if (in.voice) backend_->pause(in.voice, false);
+    if (speech_voice_) backend_->pause(speech_voice_, false);
+}
+
 void AudioSystem::update_sfx(int64_t dt_us) {
+    if (sfx_speech_pause_ > 0) return;  // #227: the paused SFX manager does not update (0x2d72c0)
     frame_dt_us_ = dt_us;
     const double secs = static_cast<double>(dt_us) / kUsPerSecond;
     // Attached instances follow their object (§1.4) and take its visibility (§1.6).
@@ -1226,7 +1241,7 @@ void AudioSystem::cancel_speech(uint32_t ticket) {
 }
 
 void AudioSystem::update_speech() {
-    if (speech_queue_.empty()) return;
+    if (sfx_speech_pause_ > 0 || speech_queue_.empty()) return;  // #227: paused with the SFX manager
     const SpeechEvent& s = db_->speech()[speech_queue_.front().event];
     if (speech_voice_ == 0) {
         if (s.files.empty()) {

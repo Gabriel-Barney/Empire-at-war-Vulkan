@@ -324,6 +324,13 @@ public:
     void pause_music();
     void resume_music();
     bool music_paused() const { return music_pause_ > 0; }
+    // #227 (retail answer on #205): application deactivation (WndProc 0x60c60) also raises the audio system's and the SFX
+    // and speech managers' pause counters (0x21ca20, 0x2d7050). While paused, every SFX and speech voice is held at its
+    // position and neither manager updates, also not for a GUI entry's pump (SfxPlay::pump): play requests queue and
+    // start with the first update after the last resume, which releases the held voices. Never below 0.
+    void pause_sfx_speech();
+    void resume_sfx_speech();
+    bool sfx_speech_paused() const { return sfx_speech_pause_ > 0; }
     uint8_t music_mode() const { return music_mode_; }
     std::string current_music() const;
 
@@ -485,6 +492,7 @@ private:
     uint8_t music_mode_ = 0, base_music_mode_ = music_mode::kGalactic;
     uint32_t peace_ticks_ = 0;
     uint32_t music_pause_ = 0;  // pause counter
+    uint32_t sfx_speech_pause_ = 0;  // #227: the SFX / speech managers' pause counter
     std::vector<MusicEntry> music_queue_;
     std::map<uint32_t, uint32_t> music_file_counter_;  // event -> next file index (session-wide)
     Stream music_current_, music_previous_;
