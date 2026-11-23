@@ -780,8 +780,9 @@ void App::update_radar() {
     paint.fill = radar_settings_.space_asteroid;
     paint.border = radar_settings_.space_asteroid_border;
     // map1 t02 (MAP1_RADAR_TERRAIN_RE): the land radar's passability picture, built once per battle (retail builds it at the
-    // land mode's activation and never repaints it): the map's 0x10A cell bits in the RadarMap.xml colours of the map's
-    // environment block (map info mini 0x06); no block (index >= 8) or a space battle: no picture.
+    // land mode's activation and never repaints it), in the RadarMap.xml colours of the map's environment block (map info
+    // mini 0x06); no block (index >= 8) or a space battle: no picture. #69 t04: the cells' EFFECTIVE flags [H] - the 0x10A
+    // bits OR the object footprints, Obstacle on whole cells outside the playable box - are the movement system's grid.
     constexpr uint32_t kRadarSize = 128;
     if (!radar_terrain_built_ && battle()) {
         radar_terrain_built_ = true;
@@ -790,18 +791,11 @@ void App::update_radar() {
         const std::string_view biome = b ? ui::radar_biome(b->terrain_type()) : std::string_view();
         if (b && !bview_.space() && !b->is_space_battle() && !biome.empty() && b->map().passability_present) {
             const terrain::MapData& md = b->map();
+            const tactical::movement::PassabilityGrid& grid = b->movement().grid();
             ui::RadarTerrainSource src;
-            src.cells = md.passability;
-            src.gw = md.terrain.width;
-            src.gh = md.terrain.height;
-            float bmin[2] = {0.0f, 0.0f}, bmax[2] = {0.0f, 0.0f};
-            if (md.playable.has_box && md.playable_box(bmin, bmax)) {
-                src.has_box = true;
-                src.box_min_x = bmin[0];
-                src.box_min_y = bmin[1];
-                src.box_max_x = bmax[0];
-                src.box_max_y = bmax[1];
-            }
+            src.cells = grid.effective_values();  // has the playable box's Obstacle cells already (has_box stays false)
+            src.gw = grid.width();
+            src.gh = grid.height();
             if (md.terrain.present && md.terrain.header.water_type != terrain::WaterType::None) {
                 const terrain::Terrain* tr = &md.terrain;
                 src.water = [tr](float x, float y) { return tr->header.water_height >= tr->sample_height(x, y); };

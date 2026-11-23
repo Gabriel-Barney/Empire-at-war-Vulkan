@@ -219,12 +219,13 @@ std::vector<uint8_t> radar_terrain_rgba(const RadarTerrainSource& src, const Pas
     for (uint32_t row = 0; row < size; ++row)
         for (uint32_t col = 0; col < size; ++col) {
             const float x = std::clamp(min_x + w * static_cast<float>(col) / static_cast<float>(size), lo_x, hi_x);
-            const float y = std::clamp(min_y + h * static_cast<float>(row) / static_cast<float>(size), lo_y, hi_y);
+            const float y = std::clamp(min_y + h * static_cast<float>(row + 1) / static_cast<float>(size), lo_y, hi_y);
             if (x + half < 0.0f || y + half < 0.0f) continue;
             const auto cx = static_cast<uint32_t>((x + half) / src.cell), cy = static_cast<uint32_t>((y + half) / src.cell);
             if (cx >= src.gw || cy >= src.gh) continue;  // outside the grid: transparent
             uint32_t bits = src.cells[static_cast<size_t>(cy) * src.gw + cx];
-            if (src.has_box && (x < src.box_min_x || x > src.box_max_x || y < src.box_min_y || y > src.box_max_y)) bits |= 0x4u;
+            const float ccx = static_cast<float>(cx) * src.cell, ccy = static_cast<float>(cy) * src.cell;  // the cell's centre
+            if (src.has_box && (ccx < src.box_min_x || ccx > src.box_max_x || ccy < src.box_min_y || ccy > src.box_max_y)) bits |= 0x4u;
             const Rgba8 c = palette[static_cast<size_t>(radar_cell_class(bits, src.water && src.water(x, y)))];
             uint8_t* px = &out[(static_cast<size_t>(row) * size + col) * 4];
             px[0] = c.r;
