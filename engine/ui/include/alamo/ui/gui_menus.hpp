@@ -480,8 +480,11 @@ struct MenuProviders {
 
 // Keyboard dialogs: IDC_EDIT_* control -> hotkey slot (-1 when the port table has no entry).
 int32_t keyboard_edit_slot(std::string_view control_id);
-// "Ctrl+A", "F12", "Numpad -", "" for unbound.
-std::u32string hotkey_label(const HotkeyBinding& b);
+// #45 t08 (the retail key-label builder FUN_1400aa720, which references every TEXT_KEY_* name [M]): a binding's label from
+// the MasterTextFile key names, retail's English stand-in when `text` lacks one ("Ctrl + A", "F12", "Subtract"; an unbound
+// slot TEXT_KEY_UNDEFINED "Not Set!"). Letters, digits and symbols are the character itself; keys retail has no name for
+// are the port's English ("Pause", "Esc", "Key 7").
+std::u32string hotkey_label(const HotkeyBinding& b, const TextDatabase* text = nullptr);
 // UI5 t05 [port]: an English name for a hotkey slot (its hotkeys.cpp name with "Ability_" / "FoC" dropped and spaces
 // between words: "Ability_SpreadOut" -> "Spread Out", "Taunt1" -> "Taunt 1"), for the "already in use" question.
 std::u32string hotkey_action_label(uint16_t slot);
