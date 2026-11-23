@@ -1745,6 +1745,13 @@ public:
     // map1 t07 (REMAINING_GAPS §3.2 step 1): the local camera focus of the battle start - the chosen Space Station marker when
     // `player` is the defender of a space battle that placed its starbase there; false otherwise. [port] Read by the host.
     bool start_camera_focus(int32_t player, Vec3& out) const;
+    // #72 t01: where `player`'s camera looks at the battle start (z = 0): start_camera_focus when there is one
+    // (legacy docs/re/REMAINING_GAPS.md §3.2 step 1 [H]: mode +0xC0), else the centroid of the player's movable battle
+    // units, else the centre of the mode's playable box [port: retail's camera start without a focus is not traced;
+    // presentation only, no sim state or CRC, so no parity tier is involved].
+    Vec3 start_look_at(const TacticalMode& mode, int32_t player) const;
+    // A battle rebuilt by a save load drops the start focus (CampaignBattles): its setup re-ran the station pick.
+    void clear_start_camera_focus() { have_focus_ = false; }
     // map1 t06 (REMAINING_GAPS §3.2 step 4): the galaxy whose structure marker memory (GalacticSim::structure_slot) the
     // placement reads (pass 1) and, when `write`, updates after placing the planet's structures (null: none, the old
     // behaviour). A battle rebuilt by a save load passes write = false.
