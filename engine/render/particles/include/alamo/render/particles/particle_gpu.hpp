@@ -9,7 +9,9 @@
 //     instanced draw each (6 vertices x pool, dead slots degenerate): bucket 8 (Transparent), bucket 7 (Water) for
 //     systems flagged water, bucket 11 (Heat) for heat emitters (0x3B, drawn as PrimAlpha).
 // Blend states (SPEC 3.1): 0 opaque (z-write), 1/4 ONE/ONE (alpha fades RGB), 2/5/7/11/13 SRCALPHA/INVSRCALPHA,
-// 3/6 ZERO/SRCCOLOR. Soft depth sprites (4/5/6), the bump of mode 11 and scene fog are not reproduced (open items).
+// 3/6 ZERO/SRCCOLOR. Scene fog is applied (particles.hlsl PSMain, FOG_VALS; [port] the Prim* effects' fog state is
+// untraced). Not reproduced (open items): soft depth sprites (4/5/6) and the lit bump of mode 11 (PrimParticleBumpAlpha:
+// light vector + SH fill + specular, legacy docs/shaders decompiled/eaw/PRIMPARTICLEBUMPALPHA; #76 t04, daytime review).
 // GPU particle buffers persist across frames; per-frame data goes through the frame ring (alloc_storage / uniform).
 #pragma once
 #include <cstdint>
