@@ -110,7 +110,7 @@ int parse_benchmark_arg(std::span<const std::string> args, size_t& i, BenchmarkO
         if (err) *err = a + ": " + why;
         return -1;
     };
-    if (!f->value) {  // --bench-no-verify, the one switch
+    if (a == "--bench-no-verify") {  // the one switch
         o.verify = false;
         return 1;
     }

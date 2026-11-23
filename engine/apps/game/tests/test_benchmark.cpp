@@ -38,37 +38,39 @@ int parse_all(const std::vector<std::string>& args, BenchmarkOptions& o, std::ve
     return 0;
 }
 
-// #148: each benchmark parser dispatches through a flag table that alamo_game --list-flags prints. The expected names
-// are the documented flag lists (benchmark.hpp parse_benchmark_arg, benchmark_save.hpp BenchNewSave); every row is
+// #148: each benchmark parser dispatches through a flag table that alamo_game --list-flags prints. The expected rows
+// are the documented flags (benchmark.hpp parse_benchmark_arg, benchmark_save.hpp BenchNewSave); every row is
 // consumed with a valid value (its value flag taking exactly one argument), and a --bench-* name outside the table is not.
 void test_flag_tables() {
-    const auto names = [](std::span<const BenchFlag> t) {
-        std::set<std::string> s;
-        for (const BenchFlag& f : t) s.insert(std::string(f.name));
-        return s;
+    // the full rows (name, value, one_of, positive), in the listed order. Positive: a count the option check refuses at 0
+    // (check_benchmark_options: --bench-ticks, --bench-frames-per-tick, --bench-max-unsettled; --bench-scale 1..16);
+    // --bench-settle, --bench-png-every, --bench-redraw-every, --bench-trace, --bench-save-after and --bench-seed take 0.
+    struct Row {
+        const char* name;
+        bool value;
+        const char* one_of;
+        bool positive;
     };
-    const std::set<std::string> bench = {"--benchmark",        "--bench-save",         "--bench-preset",       "--bench-ticks",
-                                         "--bench-frames-per-tick", "--bench-settle",   "--bench-max-unsettled", "--bench-report",
-                                         "--bench-crc-out",    "--bench-png-dir",      "--bench-png-every",    "--bench-no-verify",
-                                         "--bench-redraw-every", "--bench-trace"};
-    const std::set<std::string> bench_new = {"--bench-new-save", "--bench-map",        "--bench-human", "--bench-ai",
-                                             "--bench-scale",    "--bench-save-after", "--bench-seed",  "--bench-maps"};
-    CHECK(names(benchmark_flags()) == bench && benchmark_flags().size() == bench.size());
-    CHECK(names(bench_new_flags()) == bench_new && bench_new_flags().size() == bench_new.size());
-    const auto row = [](std::span<const BenchFlag> t, std::string_view n) -> const BenchFlag* {
-        for (const BenchFlag& f : t)
-            if (f.name == n) return &f;
-        return nullptr;
+    const Row bench[] = {{"--benchmark", true, "realtime|fixed", false}, {"--bench-save", true, "", false},
+                         {"--bench-preset", true, "", false},           {"--bench-ticks", true, "", true},
+                         {"--bench-frames-per-tick", true, "", true},   {"--bench-settle", true, "", false},
+                         {"--bench-max-unsettled", true, "", true},     {"--bench-report", true, "", false},
+                         {"--bench-crc-out", true, "", false},          {"--bench-png-dir", true, "", false},
+                         {"--bench-png-every", true, "", false},        {"--bench-no-verify", false, "", false},
+                         {"--bench-redraw-every", true, "", false},     {"--bench-trace", true, "", false}};
+    const Row bench_new[] = {{"--bench-new-save", true, "", false}, {"--bench-map", true, "", false},
+                             {"--bench-human", true, "", false},    {"--bench-ai", true, "", false},
+                             {"--bench-scale", true, "", true},     {"--bench-save-after", true, "", false},
+                             {"--bench-seed", true, "", false},     {"--bench-maps", false, "", false}};
+    const auto same = [](std::span<const BenchFlag> t, std::span<const Row> want) {
+        if (t.size() != want.size()) return false;
+        for (size_t k = 0; k < t.size(); ++k)
+            if (t[k].name != want[k].name || t[k].value != want[k].value || t[k].one_of != want[k].one_of || t[k].positive != want[k].positive)
+                return false;
+        return true;
     };
-    // the schema keys: --benchmark takes realtime or fixed; the switches take no value; a count of at least 1 is positive
-    const BenchFlag* b = row(benchmark_flags(), "--benchmark");
-    CHECK(b && b->value && b->one_of == "realtime|fixed" && !b->positive);
-    CHECK(row(benchmark_flags(), "--bench-no-verify") && !row(benchmark_flags(), "--bench-no-verify")->value);
-    CHECK(row(bench_new_flags(), "--bench-maps") && !row(bench_new_flags(), "--bench-maps")->value);
-    for (const char* n : {"--bench-ticks", "--bench-frames-per-tick", "--bench-max-unsettled"})
-        CHECK(row(benchmark_flags(), n) && row(benchmark_flags(), n)->positive && row(benchmark_flags(), n)->value);
-    CHECK(row(bench_new_flags(), "--bench-scale") && row(bench_new_flags(), "--bench-scale")->positive);
-    CHECK(row(benchmark_flags(), "--bench-settle") && !row(benchmark_flags(), "--bench-settle")->positive);  // 0 allowed
+    CHECK(same(benchmark_flags(), bench));
+    CHECK(same(bench_new_flags(), bench_new));
     // every row is consumed by its own parser and by no other
     for (const BenchFlag& f : benchmark_flags()) {
         std::string v = f.one_of.empty() ? "1" : std::string(f.one_of.substr(0, f.one_of.find('|')));

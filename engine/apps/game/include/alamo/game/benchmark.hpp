@@ -83,7 +83,7 @@ struct BenchmarkOptions {
 // Parses the benchmark flag at args[i] (advancing i past its value). 1 = consumed, 0 = not a benchmark flag, -1 = bad
 // value (*err says why). Flags: --benchmark realtime|fixed, --bench-save, --bench-preset, --bench-ticks,
 // --bench-frames-per-tick, --bench-settle, --bench-max-unsettled, --bench-report, --bench-crc-out, --bench-png-dir,
-// --bench-png-every, --bench-no-verify, --bench-redraw-every.
+// --bench-png-every, --bench-no-verify, --bench-redraw-every, --bench-trace (benchmark_flags()).
 int parse_benchmark_arg(std::span<const std::string> args, size_t& i, BenchmarkOptions& o, std::string* err = nullptr);
 // #148: one flag a benchmark parser reads, with the alamo.game_flags v1 keys alamo_game --list-flags prints: `value` (the
 // next argument is its value), `one_of` (the values it accepts, '|'-separated; "" = any) and `positive` (a whole number
