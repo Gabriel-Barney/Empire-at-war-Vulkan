@@ -204,15 +204,24 @@ void test_droid() {
     CHECK(sys.view(1).pos == p1 && !sys.walking_deployed(1));
     float vmax = 0.0f;
     bool undeployed_seen = false, redeployed = false;
+    uint32_t arrived_at = 0, redeployed_at = 0;
     for (uint32_t end = f + 400; f < end && !redeployed; ++f) {
         sys.tick(f, rng);
         for (const DE& e : sys.take_deploy_events()) {
             if (e.to == LocoState::None && e.finished) undeployed_seen = true;
-            if (e.to == LocoState::WalkDeploying) redeployed = true;
+            if (e.to == LocoState::WalkDeploying) {
+                redeployed = true;
+                redeployed_at = f;
+            }
         }
+        if (arrived_at == 0 && sys.view(1).arrived) arrived_at = f;
         vmax = std::max(vmax, sys.view(1).speed);
     }
     CHECK(undeployed_seen && redeployed && sys.view(1).arrived && near(vmax, 3.6f * 1.56f, 1e-4f));
+    // anm1 t03 (0x61fc30 read 2026-11-23 [H]): the 0x15 pop branch sets 0x16 and returns "done for this frame", so the
+    // 0x16 handler - and with it the deploy at the stop - runs in the frame after the arrival
+    std::printf("droid over M: arrived on tick %u, deploy at the stop on tick %u\n", arrived_at, redeployed_at);
+    CHECK(arrived_at != 0 && redeployed_at == arrived_at + 1);
     std::printf("droid over M: undeploy, roll at %.3f, deploy at the stop (frame %u)\n", static_cast<double>(vmax), f);
 }
 

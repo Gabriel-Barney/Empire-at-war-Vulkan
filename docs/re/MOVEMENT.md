@@ -10,3 +10,7 @@
 | 5 | crush | `crush_pass` | crush (§5.5) |
 | 6 | despawn | `despawned_` | bombers dropped at their path end (REMAINING_GAPS §4.6) |
 <!-- land-tail-stages: end -->
+
+The deploy stage runs before commit because retail ends the arrival frame at 0x16. The 0x15 pop branch of `0x61fc30` sets
+0x16 and returns "done for this frame", so a Walk unit's 0x16 handler, a droid's deploy at the stop among them, runs in the
+frame after its arrival (anm1 t03, read 2026-11-23 [H]).
