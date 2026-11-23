@@ -312,6 +312,20 @@ void test_death_star() {
         CHECK(s.victory_claims().size() == 1 && s.victory_claims()[0].player == pEmp && s.victory_claims()[0].type == 7 &&
               s.victory_claims()[0].countdown == 30);
     }
+    {
+        // #65 t05 (STY1_OBJECT_SETTERS_RE_ANSWERS §3, 0x707670): the contested-space refusal follows the shooter's flag
+        // (Lua Set_Check_Contested_Space, set by default). The host's hook answers per shooter; none = always checked.
+        World w;
+        GalacticSim& s = w.sim;
+        const ObjectHandle ds = s.spawn_unit(pEmp, rD, tDeathStar);
+        const ObjectHandle other = s.spawn_unit(pEmp, rD, tDeathStar);
+        CHECK(s.checks_contested_space(ds) && s.checks_contested_space(other));  // no hook: the default bit
+        s.set_contested_check_hook([ds](ObjectHandle h) { return h != ds; });     // Set_Check_Contested_Space(false) on ds
+        CHECK(!s.checks_contested_space(ds) && s.checks_contested_space(other));
+        CHECK(!s.ground_activated_trigger(other, rB) && !w.planet(rB).destroyed);  // still checked: the Rebel frigate refuses
+        CHECK(s.ground_activated_trigger(ds, rB) && w.planet(rB).destroyed);       // not checked: fires through the fleet
+        CHECK(w.count(GalacticEventKind::PlanetDestroyed) == 1);
+    }
 }
 
 // ---- 3. Siphon_Credits_Ability -------------------------------------------------------------------------------------------

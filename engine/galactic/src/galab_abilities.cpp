@@ -55,11 +55,11 @@ bool GalacticSim::planet_destruction_accepts(int32_t player, PlanetIndex planet)
 }
 
 bool GalacticSim::apply_planet_destruction(ObjectHandle shooter, int32_t player, PlanetIndex planet) {
-    // vf30 0x707670 [H]: the accept again; the contested-space refusal (shooter +0x3a2 & 0x40, set by default; the Lua
-    // Set_Check_Contested_Space flag lives in the script layer and is not bridged here [port]: always checked); the
-    // leader test and claim 7; the destroy (0x3f76c0 value 1). No story LAND_ON for this class (special_apply).
+    // vf30 0x707670 [H]: the accept again; the contested-space refusal while the shooter's +0x3a2 & 0x40 is set (set by
+    // default; the Lua Set_Check_Contested_Space, #65 t05: checks_contested_space); the leader test and claim 7; the
+    // destroy (0x3f76c0 value 1). No story LAND_ON for this class (special_apply).
     if (!planet_destruction_accepts(player, planet)) return false;
-    if (contested_space(planet, player)) {
+    if (checks_contested_space(shooter) && contested_space(planet, player)) {
         emit_special(GalacticEventKind::SpecialError, player, planet, shooter, kNoIndex, 0, -1);
         return false;
     }

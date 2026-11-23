@@ -938,6 +938,13 @@ public:
         std::function<void(uint32_t hero_type, ObjectHandle neutralizer)> neutralized;
     };
     void set_scoring_hooks(ScoringHooks hooks) { scoring_hooks_ = std::move(hooks); }
+    // #65 t05 (legacy docs/re/STY1_OBJECT_SETTERS_RE_ANSWERS.md §3 [H]): whether `shooter` checks contested space before a
+    // Planet_Destruction shot, the object bit +0x3a2 & 0x40 the Lua Set_Check_Contested_Space writes (set on every new
+    // object). The bit lives with the script state, so the story session answers through the hook; no hook = set. Not
+    // saved or hashed here (the script state saves it).
+    using ContestedCheckHook = std::function<bool(ObjectHandle shooter)>;
+    void set_contested_check_hook(ContestedCheckHook hook) { contested_check_hook_ = std::move(hook); }
+    bool checks_contested_space(ObjectHandle shooter) const { return !contested_check_hook_ || contested_check_hook_(shooter); }
     const std::vector<GalacticEvent>& events() const { return events_; }
     // Moves the pending events to the end of `out` (stream order) and clears the stream.
     void drain_events(std::vector<GalacticEvent>& out);
@@ -1534,6 +1541,7 @@ private:
     bool destroy_auto_resolve_ = false;
     std::vector<std::pair<int32_t, std::vector<uint32_t>>> company_survivors_;  // (ObjectId, members), ascending id
     ScoringHooks scoring_hooks_;  // storyb t14
+    ContestedCheckHook contested_check_hook_;  // #65 t05
     ObjectHandle last_spawn_;  // newest object made by spawn() (event payloads only, never hashed)
     std::vector<GalacticEvent> events_;  // S4 stream (not hashed)
     ConflictHooks* conflicts_ = nullptr;  // S10 (not owned)
