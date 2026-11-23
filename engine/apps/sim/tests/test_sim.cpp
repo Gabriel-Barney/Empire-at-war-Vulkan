@@ -2863,6 +2863,8 @@ static const char* kPlot =
     "<Event_Param2>2</Event_Param2><Event_Param4>PlanetC</Event_Param4></Event>\n"
     " <Event Name=\"Lost_One\"><Event_Type>STORY_LOSE_BATTLES</Event_Type><Event_Param1>1</Event_Param1></Event>\n"
     " <Event Name=\"Retreat_C\"><Event_Type>STORY_RETREAT</Event_Type><Event_Param1>PlanetC</Event_Param1></Event>\n"
+    // #65 t02 (STY1_GENERIC_AUTOSAVE §2, 0x616740): any player's neutralize raises STORY_GENERIC hero_neutralized
+    " <Event Name=\"Neutralized\"><Event_Type>STORY_GENERIC</Event_Type><Event_Param1>hero_neutralized</Event_Param1></Event>\n"
     "</Story>\n";
 // The script moves the Underworld corvette to the Empire (GalacticSim::change_owner: a new Empire fleet in
 // orbit) and reports when the owner and the parent fleet changed.
@@ -3015,6 +3017,15 @@ static Result run(const objects::GameObjectTypes& types, const FileProvider& fil
             sab.type = story_test::tSB1;
             sab.value = kSabotageSpecialStructure;
             gs->post_event(sab);
+            // #65 t02: the Underworld neutralizes an Empire hero; the Empire's plot set hears it (no player scoping)
+            GalacticEvent neut;
+            neut.kind = GalacticEventKind::HeroNeutralized;
+            neut.player = pUnder;
+            neut.planet = story_test::rA;
+            neut.type = tHeroUnit;
+            neut.other_player = pEmpire;
+            neut.value = 2500;
+            gs->post_event(neut);
         }
         if (t == 400) gs->set_destroyed(story_test::rB, true);
         // S10 battle results: the Empire wins at A (counted, planet not listed), Underworld loses (not the
@@ -3087,7 +3098,7 @@ static void test_story_wave1() {
     CHECK(a.lua.empty());
     for (const char* ev : {"Deploy_C", "Hero_Lost", "Select_Infantry", "Select_A", "Zoom_B", "Zoom_Out", "Gui", "Speech", "Movie",
                            "Generic", "Lost", "Bought", "Sabotage", "Open_C", "Destroyed_B", "Era", "Owner_Done",
-                           "Won_Two_At_C", "Lost_One", "Retreat_C"})
+                           "Won_Two_At_C", "Lost_One", "Retreat_C", "Neutralized"})
         if (a.log.find(std::string(" ") + ev + " ") == std::string::npos) {
             std::printf("FAIL wave1 story event %s did not fire\n", ev);
             ++g_fail;

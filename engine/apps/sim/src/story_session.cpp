@@ -901,6 +901,13 @@ std::vector<std::pair<std::string, lua::StoryNotification>> StorySession::notifi
             n.name = t.type;
             out.emplace_back("STORY_GALACTIC_SABOTAGE", n);
             break;
+        // #65 t02: Neutralize_Hero's executor 0x616740 raises STORY_GENERIC "hero_neutralized" after its LAND_ON / DEPLOY
+        // story call, for any player's neutralize and the siphon entry alike (legacy docs/re/STY1_GENERIC_AUTOSAVE.md §2,
+        // GALAB_ABILITIES_RE §7.6 step 6 [H]); no player scoping (route()), as the other sim-raised generics.
+        case K::HeroNeutralized:
+            n.name = "hero_neutralized";
+            out.emplace_back("STORY_GENERIC", n);
+            break;
         // --- end P4 lua ---
         default: break;
     }
