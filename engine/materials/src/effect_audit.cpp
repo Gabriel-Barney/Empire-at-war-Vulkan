@@ -111,7 +111,13 @@ std::vector<ShaderIssue> effect_load_issues(const EffectLibrary& lib, std::strin
                        reason + "; the port loads " + *fxo + " in place of this .fx"});
     }
     if (!fxo && !from_src) return out;  // missing: the original's silent green default (D.3), not a shader issue
-    const std::string file = from_src ? *src : *fxo;
+    // An if, not `from_src ? *src : *fxo` (#24): MSVC 14.51 /O2 loads both arms of that conditional before choosing,
+    // and its STL poisons an empty std::optional's storage under /fsanitize=address (_INSERT_OPTIONAL_ANNOTATION), so
+    // ASan reported use-after-poison on the empty `src`. A false positive, not an engine bug: the speculative load reads
+    // live stack bytes and its value is discarded.
+    std::string file;
+    if (from_src) file = *src;
+    else file = *fxo;
     if (m.is_default_effect()) {
         const bool no_tech = m.name == kDefaultEffectName;
         out.push_back({no_tech ? ShaderIssueKind::NoTechnique : ShaderIssueKind::LoadFailed, name, file, false, std::string(err)});
