@@ -371,6 +371,13 @@ void TacticalBattle::build_service_graph() {
     g.build();
 }
 
+// #128 (docs/SIMULATION.md "Counter-based random streams"): service `stream`'s draws for `entity` this tick.
+SimRng& TacticalBattle::svc_rng(uint32_t stream, uint64_t entity, SimRng& rng, SimRng& own) const {
+    if (!(svc_streams_ & (1u << stream))) return rng;
+    own = tactical::services::stream_rng(cfg_.session_seed, frame_, static_cast<tactical::services::StreamId>(stream), entity);
+    return own;
+}
+
 void TacticalBattle::tick(TacticalMode& mode, SimRng& rng, const ParallelFor& pf, double sim_time, uint64_t global_frame) {
     if (finished_) {  // finished outside a tick (auto-resolve stop): the clones go before the mode pops
         if (!death_clones_.empty()) remove_death_clones(mode, true);

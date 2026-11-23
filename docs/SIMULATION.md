@@ -145,8 +145,16 @@ counter, `create` refused). Rules:
 - `StreamId` values are part of the outcome: never renumber.
 - Each converted service keeps its synced path behind its own bit of `TacticalBattle::ServiceRunDefaults::streams`
   (headless `--svc-streams`), default 0 (every service on the synced RNG). A save and its load use the same setting. The
-  first converted service is hangars (entry and bay picks per carrier). The default changes only per "Flag-gated tier-2
-  changes".
+  default changes only per "Flag-gated tier-2 changes".
+- Converted, with the entity each stream is keyed by (#128; `TacticalBattle::svc_rng` picks the stream or the synced RNG):
+  - hangars (`hangar`): per carrier (entry and bay picks).
+  - reinforce (`reinforce`): per participant (its deploy).
+  - landing (`landing`): per landing object (an unload step's deploy and exit move).
+- Nothing to convert: expiry, fog and victory draw nothing.
+- Still on the synced RNG while a converted service runs (tier 3; deterministic either way, the services run in graph
+  order): a combat listener's draws (the tick's RNG, `hooks_->set_tick`) and the first-due draw of each behaviour an
+  object gets when it is spawned (`ObjectStore::attach`, the host's bound synced RNG). A service is fully independent of
+  the others only once those move too; until then the streams make a converted service's own draws independent.
 - The same pattern backs the plan-pick and PotentialPlan solve streams (`pp_streams`: seeded by session seed, frame,
   player, goal source and target; on by default) and the AI lane's own stream.
 

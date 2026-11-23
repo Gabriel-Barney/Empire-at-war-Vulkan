@@ -1158,7 +1158,11 @@ void TacticalBattle::landing_service(TacticalMode& mode, SimRng& rng) {
         }
         const size_t first = units_.size();
         const uint32_t pi = l.participant;  // deploy may grow parts_-held state; keep the index
-        deploy(mode, pi, rng, i, cnt);
+        // #128: with the Landing stream on, a landing's unload step (its deploy and exit move) draws from its own stream.
+        SimRng own;
+        SimRng& srng = svc_rng(static_cast<uint32_t>(tactical::services::StreamId::Landing),
+                               static_cast<uint64_t>(static_cast<uint32_t>(l.id)), rng, own);
+        deploy(mode, pi, srng, i, cnt);
         drop_pos_.clear();
         drop_face_.clear();
         Landing& lr = landings_[li];
@@ -1184,7 +1188,7 @@ void TacticalBattle::landing_service(TacticalMode& mode, SimRng& rng) {
             // a team's block has none (+0x5c = 0) and keeps its travel heading.
             o.flags = mv::kMoveFlagSkipValidation;
             if (!team) o.final_facing_deg = yaw_of(psi);
-            movement_->move(o, rng, frame_);
+            movement_->move(o, srng, frame_);
             ++stats_.orders;
         }
         lr.unloaded += cnt;

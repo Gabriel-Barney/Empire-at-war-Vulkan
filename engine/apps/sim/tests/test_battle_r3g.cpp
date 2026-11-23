@@ -16,6 +16,7 @@
 #include "alamo/tactical/abilities/ability_types.hpp"
 #include "alamo/tactical/combat/combat_system.hpp"
 #include "alamo/tactical/movement/movement_system.hpp"
+#include "alamo/tactical/services/stream_rng.hpp"
 
 namespace {
 
@@ -26,8 +27,8 @@ namespace {
 template <class F>
 void land_battle(Data& d, SimAnimation* animation, uint32_t max_frames, F per_tick, bool skirmish = false,
                  const std::function<void(galactic::GalacticSetup&)>& edit = {},
-                 const std::function<void(CampaignBattleOptions&)>& opt_edit = {}) {
-    jobs::JobSystem js(jobs::JobSystemConfig{0});
+                 const std::function<void(CampaignBattleOptions&)>& opt_edit = {}, uint32_t workers = 0) {
+    jobs::JobSystem js(jobs::JobSystemConfig{static_cast<int32_t>(workers)});
     SimConfig cfg;
     cfg.seed = 2026;
     cfg.players = 4;
@@ -135,6 +136,77 @@ void test_landing_clips() {
 #else
     std::printf("  r3g landing clips: skipped (no engine/anim)\n");
 #endif
+}
+
+// #128 t01: the landing service on counter-based streams (bit StreamId::Landing): a landing's unload steps (their deploy
+// and exit move) draw from the landing's own stream. Off: the synced draws; on: the run differs and is identical at
+// 0 / 1 / 4 / 15 workers and in every service run mode.
+uint64_t run_landing_streams(Data& d, uint32_t streams, uint32_t workers, tactical::services::RunMode run_mode, uint32_t& spawned) {
+    namespace mv = alamo::tactical::movement;
+    const TacticalBattle::ServiceRunDefaults saved = TacticalBattle::service_run_defaults();
+    TacticalBattle::ServiceRunDefaults sd = saved;
+    sd.streams = streams;
+    sd.mode = run_mode;
+    TacticalBattle::set_service_run_defaults(sd);
+    StateHasher all;
+    bool dropped = false;
+    uint32_t drop = 0, before = 0;
+    spawned = 0;
+    land_battle(
+        d, nullptr, 900,
+        [&](TacticalBattle& b, TacticalMode& tm, SimHost& host) {
+            objects::ObjectStore& st = tm.primary();
+            if (!dropped) {
+                if (b.frame() != 1) return true;
+                const auto reserves = b.reserves(1);
+                if (reserves.empty()) return false;
+                before = b.stats().spawned;
+                if (b.fog()) alamo::sim::TacticalBattleTestAccess::fog(b)->reveal_all(1);
+                for (int32_t cy = 6; cy < 58 && !dropped; cy += 2)
+                    for (int32_t cx = 6; cx < 58 && !dropped; cx += 2) {
+                        const mv::V2 c = mv::cell_center(cx, cy);
+                        if (!b.land_drop_valid(tm, 1, reserves[0].galactic_id, c.x, c.y, false, false)) continue;
+                        if (b.order_reinforce(tm, 1, reserves[0].galactic_id, c.x, c.y, host.random().synced()) !=
+                            commands::RejectReason::None)
+                            continue;
+                        dropped = true;
+                        drop = b.frame();
+                    }
+                return dropped;
+            }
+            all.u32(b.frame());
+            all.u32(host.random().synced().state());
+            for (const objects::ObjectHandle h : st.all_objects()) {
+                if (!st.alive(h)) continue;
+                const Vec3 p = st.position(h);
+                all.u32(static_cast<uint32_t>(st.id(h)));
+                all.f32(p.x);
+                all.f32(p.y);
+            }
+            spawned = b.stats().spawned - before;
+            return b.frame() < drop + 400;
+        },
+        false, {}, {}, workers);
+    TacticalBattle::set_service_run_defaults(saved);
+    return all.digest();
+}
+
+void test_landing_streams() {
+    g_temp_prefix = "alamo_sim_r3g_tests_128";
+    auto d = make_data(false, false, false, false, false, false, false, false, false, false, false, true);
+    const uint32_t bit = 1u << static_cast<uint32_t>(tactical::services::StreamId::Landing);
+    const auto par = TacticalBattle::service_run_defaults().mode;
+    uint32_t n_off = 0, n_on = 0, n = 0;
+    const uint64_t off = run_landing_streams(*d, 0, 0, par, n_off);
+    const uint64_t on = run_landing_streams(*d, bit, 0, par, n_on);
+    std::printf("  landing streams: off %016llx (%u spawned), on %016llx (%u spawned)\n", static_cast<unsigned long long>(off), n_off,
+                static_cast<unsigned long long>(on), n_on);
+    CHECK(n_off >= 4 && n_on >= 4);  // every unload step ran
+    CHECK(off != on);                // the draws moved
+    for (const uint32_t w : {1u, 4u, 15u}) CHECK(run_landing_streams(*d, bit, w, par, n) == on);
+    for (const auto m : {tactical::services::RunMode::Serial, tactical::services::RunMode::Reverse})
+        CHECK(run_landing_streams(*d, bit, 4, m, n) == on);
+    CHECK(run_landing_streams(*d, 0, 4, par, n) == off);  // off stays worker-independent too
 }
 
 // ---- t05 ----
@@ -930,6 +1002,8 @@ int main() {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
     std::printf("r3g t01: landing Land / Takeoff clip timing\n");
     test_landing_clips();
+    std::printf("#128 t01: the landing service on counter-based streams\n");
+    test_landing_streams();
     std::printf("r3g t05: crush kind and Damage_Crush clones\n");
     test_crush_kind();
     std::printf("r3g t06: crouch under SPREAD_OUT\n");

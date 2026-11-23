@@ -20,6 +20,7 @@
 #include "alamo/tactical/movement/ted_grid.hpp"
 #include "alamo/tactical/movement/special_locomotors.hpp"
 #include "alamo/tactical/movement/unit_params.hpp"
+#include "alamo/tactical/services/stream_rng.hpp"  // #128: the services' counter-based streams
 #ifdef ALAMO_SIM_HAVE_ANIM
 #include <map>
 #include <utility>

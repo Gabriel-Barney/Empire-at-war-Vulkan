@@ -634,7 +634,8 @@ if(_alamo_sim)
   endforeach()
   # SP5 (docs/SIMULATION.md "Services chain"): the same check with the services' per-unit loops forced wide (--svc-parallel-min 1;
   # land_battle has ~200 units, below the 256-unit default) and, on the space scene, with the hangar services on counter-based
-  # streams too (--svc-streams hangar: moves draws, so its fingerprint only prints "not comparable"). Slow, FoC data.
+  # services' streams too (--svc-streams hangar,reinforce (#128): moves draws, so its fingerprint only prints "not
+  # comparable"; no landings happen on that scene). Slow, FoC data.
   if(EXISTS ${CMAKE_SOURCE_DIR}/tests/benchmark/land_battle.abench)
     alamo_add_worker_count_check(alamo_headless_bench_land_battle_svc
         COMMAND alamo_headless --bench ${ALAMO_BENCH_SCENARIOS}/land_battle.abench --runs 1 --warmup 0 --quiet --bench-allow-changed
@@ -645,7 +646,7 @@ if(_alamo_sim)
   if(EXISTS ${CMAKE_SOURCE_DIR}/tests/benchmark/space_battle.abench)
     alamo_add_worker_count_check(alamo_headless_bench_space_battle_svc_streams
         COMMAND alamo_headless --bench ${_bm_scenario} --runs 1 --warmup 0 --quiet --bench-allow-changed --svc-parallel-min 1
-                --svc-streams hangar
+                --svc-streams hangar,reinforce
         TIMEOUT 1800 SLOW)
     alamo_bench_needs(alamo_headless_bench_space_battle_svc_streams space_battle)
   endif()
