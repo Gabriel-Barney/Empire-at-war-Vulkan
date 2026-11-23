@@ -15,9 +15,6 @@
 #include "alamo/core/host_fs.hpp"
 #include "alamo/game/host_text.hpp"
 
-#ifdef _WIN32
-#include <cwchar>
-#endif
 
 namespace alamo::game {
 

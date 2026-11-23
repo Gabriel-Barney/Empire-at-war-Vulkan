@@ -505,7 +505,9 @@ void profiles_outside_ansi() {
     const bool had = _wdupenv_s(&old, &old_len, L"LOCALAPPDATA") == 0 && old;
     const std::wstring saved = had ? std::wstring(old) : std::wstring();
     std::free(old);
-    const std::filesystem::path root = std::filesystem::temp_directory_path() / L"alamo_t137_\u05D0\u05D1_\u4E2D\u6587";
+    // unique per run (two test runs at once must not share it)
+    const std::filesystem::path root = std::filesystem::temp_directory_path() /
+                                       (L"alamo_t137_\u05D0\u05D1_\u4E2D\u6587_" + std::to_wstring(GetCurrentProcessId()));
     std::error_code ec;
     std::filesystem::remove_all(root, ec);
     CHECK(_wputenv_s(L"LOCALAPPDATA", root.c_str()) == 0);
@@ -513,6 +515,15 @@ void profiles_outside_ansi() {
     // the UTF-8 name of the folder: "alamo_t137_" + U+05D0 U+05D1 + "_" + U+4E2D U+6587
     CHECK(vp.find("alamo_t137_\xD7\x90\xD7\x91_\xE4\xB8\xAD\xE6\x96\x87") != std::string::npos);
     CHECK(op.find("alamo_t137_\xD7\x90\xD7\x91_\xE4\xB8\xAD\xE6\x96\x87") != std::string::npos);
+    const auto restore = [&] {
+        if (had) (void)_wputenv_s(L"LOCALAPPDATA", saved.c_str());
+        else (void)_wputenv_s(L"LOCALAPPDATA", L"");
+        std::filesystem::remove_all(root, ec);
+    };
+    if (vp.find("alamo_t137_") == std::string::npos || op.find("alamo_t137_") == std::string::npos) {
+        restore();  // never write over the real profiles
+        return;
+    }
     game::VideoProfile v;
     v.mode = {1600, 900, 75};
     v.ui_scale = 125;
@@ -527,9 +538,7 @@ void profiles_outside_ansi() {
     CHECK(std::filesystem::exists(root / L"alamo" / L"game_options.txt", ec));
     game::OptionsProfile o2;
     CHECK(game::load_options_profile(op, o2) && o2.gameplay.difficulty == 2 && o2.audio.master == 0.5f);
-    if (had) (void)_wputenv_s(L"LOCALAPPDATA", saved.c_str());
-    else (void)_wputenv_s(L"LOCALAPPDATA", L"");
-    std::filesystem::remove_all(root, ec);
+    restore();
 }
 }  // namespace
 

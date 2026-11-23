@@ -12,7 +12,7 @@ namespace alamo::game {
 // keeps its name); "" when unset.
 std::string env_utf8(const char* name);
 // A host path from UTF-8. A string that is not valid UTF-8 (a path in the ANSI code page from an older caller) is read
-// as ANSI instead of throwing.
+// as ANSI instead of throwing; an empty path when it is not valid ANSI either. Never throws.
 std::filesystem::path host_path(std::string_view utf8);
 // UTF-8 with native separators ('\' on Windows), unlike path_to_utf8's generic form; "" for a name that has no UTF-8
 // form (a lone UTF-16 surrogate), so the caller can skip it instead of throwing.

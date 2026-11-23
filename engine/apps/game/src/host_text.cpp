@@ -12,7 +12,6 @@ namespace alamo::game {
 namespace fs = std::filesystem;
 
 std::string env_utf8(const char* name) {
-#ifdef _WIN32
     std::wstring wname;
     for (const char* c = name; *c; ++c) wname.push_back(static_cast<wchar_t>(static_cast<unsigned char>(*c)));  // ASCII names
     wchar_t* v = nullptr;
@@ -21,17 +20,17 @@ std::string env_utf8(const char* name) {
     if (_wdupenv_s(&v, &len, wname.c_str()) == 0 && v) value = v;
     std::free(v);
     return value.empty() ? std::string() : host_utf8(fs::path(value));
-#else
-    const char* v = std::getenv(name);
-    return v ? std::string(v) : std::string();
-#endif
 }
 
 fs::path host_path(std::string_view utf8) {
     try {
         return path_from_utf8(utf8);
     } catch (const std::exception&) {
+    }
+    try {
         return fs::path(std::string(utf8));
+    } catch (const std::exception&) {  // not valid in the ANSI code page either (a double-byte code page)
+        return {};
     }
 }
 
