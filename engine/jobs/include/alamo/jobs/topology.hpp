@@ -3,7 +3,8 @@
 // The pool is one worker per physical core (SMT siblings left to the OS, the render thread and audio), on the
 // performance cores only (hybrid CPUs: the highest EfficiencyClass), within one last-level-cache domain (dual-CCD parts:
 // the domain with the most such cores, then the larger L3, e.g. the V-cache CCD of an X3D part), minus the sim thread
-// and the AI thread. Windows CPU sets (GetSystemCpuSetInformation) give core, cache domain and efficiency class per
+// and the AI thread. #127: on a hybrid CPU the other cores (the lower efficiency classes, the E-cores) are a background-only
+// pool: one logical processor per physical core, for workers that take Priority::Background jobs only. Windows CPU sets (GetSystemCpuSetInformation) give core, cache domain and efficiency class per
 // logical processor; GetLogicalProcessorInformationEx gives the L3 sizes.
 //
 // Everything here is wall clock / scheduling only: no result the sim reads may depend on it (CLAUDE.md rule 3; results
@@ -43,6 +44,10 @@ struct PoolPlan {
     uint32_t domains = 0;             // last-level-cache domains holding performance cores
     uint32_t physical_total = 0;      // physical cores on the machine
     uint32_t logical_total = 0;
+    // #127: the E-cores of a hybrid CPU (every core below the highest efficiency class, any cache domain), one logical
+    // processor each (the lowest-numbered sibling), ascending; empty when not hybrid.
+    uint32_t background_cores = 0;
+    std::vector<uint32_t> background_cpu_set_ids;
     std::string describe() const;
 };
 

@@ -105,6 +105,8 @@ the work. Sim / render overlap is not done.
 - **Pool:** one worker per physical core on the performance cores (highest `EfficiencyClass`) of the largest last-level
   cache domain (then the larger L3), minus the sim thread and a reserved AI-thread slot. Workers are kept on the pool's
   cores only when they fit; `ALAMO_JOBS_CPUSETS=0` turns that off.
+- **Background-only workers (#127):** on a hybrid CPU, the automatic pool adds one worker per E-core that takes
+  `Priority::Background` jobs only (never critical or AI work, also while it waits), outside the background cap.
 - **Priorities, strict:** `Priority::Critical` (the tick's phase jobs) > `Ai` > `Background`. Only a loop's helpers run
   queued critical jobs between chunks, never its owner. A critical job never waits on an AI or background counter.
 - **Fork only when it pays:** each `parallel_for` call site keeps a measured work-per-item estimate; a loop estimated below

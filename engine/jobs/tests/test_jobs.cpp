@@ -1066,6 +1066,74 @@ static void test_inline_small_forks() {
     }
 }
 
+// #127: background-only workers (the E-cores of a hybrid CPU). They take background jobs only, outside the cap; their
+// waits never run critical or AI work. Every check here is timing-independent: the waits are hang guards, not judgements.
+static void test_background_workers() {
+    section("#127: background-only workers");
+    {
+        JobSystemConfig c;
+        c.workers = 2;
+        c.background_workers = 3;
+        JobSystem js(c);
+        CHECK(js.worker_count() == 2 && js.background_worker_count() == 3 && js.executed_per_slot().size() == 6);
+        CHECK(js.background_cap() == 1);  // the cap still counts the regular workers only
+        CHECK(JobSystem(JobSystemConfig{2}).background_worker_count() == 0);  // an explicit worker count: none by default
+        JobSystemConfig s;
+        s.workers = 0;
+        s.background_workers = 4;
+        CHECK(JobSystem(s).background_worker_count() == 0);  // serial mode stays serial
+    }
+    {
+        // The only regular worker is held inside a critical job (the main thread is not in the system, so nothing else
+        // may take it): a background job still runs, on a background slot.
+        JobSystemConfig c;
+        c.workers = 1;
+        c.background_workers = 2;
+        JobSystem js(c);
+        std::atomic<bool> held{false}, release{false}, bg_done{false};
+        std::atomic<uint32_t> crit_slot{99}, bg_slot{99};
+        JobCounter crit, bg;
+        js.spawn(crit, [&] {
+            crit_slot = js.current_slot();
+            held = true;
+            while (!release.load()) std::this_thread::yield();
+        });
+        for (int i = 0; i < 30000 && !held.load(); ++i) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        js.spawn(bg, [&] {
+            bg_slot = js.current_slot();
+            bg_done = true;
+        }, Priority::Background);
+        for (int i = 0; i < 30000 && !bg_done.load(); ++i) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        CHECK(held.load() && crit_slot.load() == 1);
+        CHECK(bg_done.load() && (bg_slot.load() == 2 || bg_slot.load() == 3));
+        release = true;
+        js.wait(crit);
+        js.wait(bg);
+    }
+    {
+        // Critical and AI work never runs on a background slot, also while background jobs there wait on their own
+        // nested loops (their waits help with background work only).
+        JobSystemConfig c;
+        c.workers = 2;
+        c.background_workers = 4;
+        c.inline_small = false;  // every loop forks: the helpers are queued whatever the machine's speed
+        JobSystem js(c);
+        std::atomic<uint32_t> wrong{0}, bg_ran{0};
+        JobCounter bg, fg;
+        for (int i = 0; i < 8; ++i)
+            js.spawn(bg, [&] {
+                js.parallel_for(64, 1, [&](uint32_t, uint32_t) { bg_ran.fetch_add(1); });
+            }, Priority::Background);
+        for (int i = 0; i < 200; ++i) js.spawn(fg, [&] { wrong += js.current_slot() > 2 ? 1u : 0u; });
+        for (int i = 0; i < 200; ++i) js.spawn(fg, [&] { wrong += js.current_slot() > 2 ? 1u : 0u; }, Priority::Ai);
+        js.parallel_for(256, 1, [&](uint32_t, uint32_t) { wrong += js.current_slot() > 2 ? 1u : 0u; });
+        js.wait(fg);
+        js.wait(bg);
+        CHECK(wrong.load() == 0 && bg_ran.load() == 8u * 64u);
+        CHECK(js.executed_per_slot().size() == 7);
+    }
+}
+
 static void test_pool_plan() {
     section("sp1: pool plan from a topology");
     auto make = [](uint32_t cores, uint32_t smt, uint8_t eff, uint32_t llc, uint32_t core_base, uint32_t id_base) {
@@ -1088,6 +1156,7 @@ static void test_pool_plan() {
         const PoolPlan p = plan_pool(t);
         CHECK(p.cores == 8 && p.workers == 6 && p.physical_total == 8 && p.logical_total == 16 && !p.hybrid);
         CHECK(p.cpu_set_ids.size() == 8 && p.cpu_set_ids[0] == 256 && p.cpu_set_ids[1] == 258);
+        CHECK(p.background_cores == 0 && p.background_cpu_set_ids.empty());  // #127: no E-cores
     }
     {
         CpuTopology t;  // hybrid: 8 P-cores with SMT (class 1) + 16 E-cores (class 0), one L3
@@ -1096,6 +1165,10 @@ static void test_pool_plan() {
         t.cpus.insert(t.cpus.end(), e.begin(), e.end());
         const PoolPlan p = plan_pool(t);
         CHECK(p.hybrid && p.cores == 8 && p.workers == 6 && p.physical_total == 24);
+        // #127: the 16 E-cores are the background-only pool, one logical processor each, the P pool unchanged
+        CHECK(p.background_cores == 16 && p.background_cpu_set_ids.size() == 16 && p.background_cpu_set_ids[0] == 272 &&
+              p.background_cpu_set_ids[15] == 287);
+        CHECK(p.cpu_set_ids.size() == 8 && p.cpu_set_ids[0] == 256 && p.cpu_set_ids[7] == 270);
     }
     {
         CpuTopology t;  // dual CCD: 8 + 8 cores, the second L3 larger (V-cache)
@@ -1114,6 +1187,7 @@ static void test_pool_plan() {
         t.cpus.insert(t.cpus.end(), e.begin(), e.end());
         const PoolPlan p = plan_pool(t);
         CHECK(p.hybrid && p.cores == 2 && p.workers == 3);
+        CHECK(p.background_cores == 8 && p.background_cpu_set_ids.size() == 8 && p.background_cpu_set_ids[0] == 260);
     }
     {
         CpuTopology t;  // two cores: still one worker
@@ -1148,6 +1222,7 @@ int main() {
     test_critical_between_ai_chunks();
     test_inline_small_forks();
     test_pool_plan();
+    test_background_workers();  // #127
     std::printf(g_fail ? "alamo_jobs_tests: %d failure(s)\n" : "alamo_jobs_tests: OK\n", g_fail);
     return g_fail ? 1 : 0;
 }

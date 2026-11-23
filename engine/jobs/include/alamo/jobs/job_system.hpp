@@ -50,6 +50,13 @@
 // an epoch that pushes and completions bump (no std::this_thread::yield, no mutex / condition variable). Idle workers
 // spin a little longer before they sleep, so back-to-back forks of one tick find them awake.
 //
+// Background-only workers (#127, design 4.1): on a hybrid CPU the E-cores (topology.hpp PoolPlan::background_cpu_set_ids)
+// get workers that take Priority::Background jobs only (slots N+1..N+B). They pop the background queue outside the cap
+// (the cap keeps the regular workers free for foreground loops; these never run foreground work anyway), never run
+// critical or AI jobs, also while they wait (their waits help with background work only, and a background loop they help
+// with does not stop for critical work), and sleep on their own epoch so a wake-up meant for critical work never lands on
+// them. What they submit inherits Background, so they never queue critical work. Scheduling only.
+//
 // Pool (sp1, alamo/jobs/topology.hpp): the default worker count is one per physical core of the performance cores of
 // one last-level-cache domain, minus the sim thread and the AI thread; workers are kept on those cores (one logical
 // processor per core, SMT siblings left to the OS) when the pool fits (JobSystemConfig::cpu_sets).
@@ -122,6 +129,10 @@ struct JobSystemConfig {
     // sp1: null = profile::now_ns. Tests pass a fixed clock so the inline decision does not depend on machine load
     // (#161).
     EstimateClock estimate_clock = nullptr;
+    // #127: background-only workers. < 0: one per E-core of the machine (topology.hpp) when `workers` is < 0 too (the
+    // automatic pool), else none, so an explicit worker count never depends on the host CPU; 0: none. Never in serial
+    // mode. They are kept on the E-cores when `cpu_sets` allows and they fit.
+    int32_t background_workers = -1;
 };
 
 // sp1 tuning (wall clock only; nothing the sim reads depends on them).
@@ -161,6 +172,9 @@ public:
     static uint32_t default_worker_count();
 
     uint32_t worker_count() const noexcept { return workers_; }
+    // #127: background-only workers (slots worker_count() + 1 ..), 0 when none.
+    uint32_t background_worker_count() const noexcept { return bg_workers_; }
+    bool background_pinned() const noexcept { return bg_pinned_; }
     // Most top-level background jobs that run on workers at once: max(1, workers / 2); 0 when serial.
     uint32_t background_cap() const noexcept { return bg_cap_; }
     uint32_t thread_count() const noexcept { return workers_ + 1; }  // workers + calling thread
@@ -171,7 +185,7 @@ public:
     bool pinned() const noexcept { return pinned_; }
     // sp1 diagnostics / tests: parallel_for calls that ran inline because their estimated work was small.
     uint64_t inline_forks() const noexcept { return inline_forks_.load(std::memory_order_relaxed); }
-    // Jobs executed per slot since construction (diagnostics / tests).
+    // Jobs executed per slot since construction (diagnostics / tests): slot 0, the workers, then the background-only workers.
     std::vector<uint64_t> executed_per_slot() const;
 
     // Low-level submission: fn(ctx, a, b) runs once on some thread. `a` doubles as the
@@ -266,10 +280,17 @@ private:
     // Wake threads sleeping in wait() so they re-check their condition.
     void notify_waiters();
     void worker_main(uint32_t slot);
+    // #127: a background-only worker's loop, and the wake-up of those that sleep.
+    void background_worker_main(uint32_t slot);
+    void wake_background(uint32_t copies);
+    // #127: whether the calling thread is one of this system's background-only workers.
+    bool background_only() const noexcept;
 
     uint32_t workers_ = 0;
+    uint32_t bg_workers_ = 0;  // #127
     uint32_t bg_cap_ = 0;
     bool pinned_ = false;
+    bool bg_pinned_ = false;  // #127
     bool inline_small_ = true;
     EstimateClock estimate_clock_ = nullptr;    // sp1: never null after construction
     std::atomic<uint32_t> bg_running_{0};       // top-level background jobs running on workers
@@ -287,6 +308,8 @@ private:
     std::atomic<uint32_t> work_epoch_{0};
     std::atomic<uint32_t> done_epoch_{0};
     std::atomic<uint32_t> idle_workers_{0};
+    std::atomic<uint32_t> bg_epoch_{0};       // #127: background-only workers sleep on this
+    std::atomic<uint32_t> bg_idle_workers_{0};
     std::atomic<uint32_t> waiters_{0};
     std::atomic<bool> stop_{false};
     std::vector<std::thread> threads_;
