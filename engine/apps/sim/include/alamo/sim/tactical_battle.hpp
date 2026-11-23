@@ -3041,6 +3041,10 @@ private:
     void bt_sky_domes(TacticalMode& mode);       // storyb t16 (STORYB_T16_SKY_DOME): the environment's sky dome objects
     void hg_setup(TacticalMode& mode);           // setup(): HangarSystem (after combat / abilities)
     void hg_ability_host(tactical::abilities::AbilityHost& h);  // oi_install(): DEPLOY_SQUAD hooks
+    // #90: AbilityHost::face_direction (Redirect_Blaster's Turn_To_Face_Unblockable_Shots): the locomotor's facing order
+    // (vf +0x218, MovementSystem::turn_in_place) toward the level `dir` while `id`'s primary clip is idle-like; on land
+    // only for WALK_LOCOMOTOR (every other land locomotor's slot is the empty stub 0x13b7d0).
+    void ab_face_direction(objects::ObjectId id, tactical::Vec3 dir);
     int32_t hg_tech(int32_t player) const;
     void hg_raise_tech(int32_t player);  // Tactical_Build_Increments_Tech_Level (0x498170)
     // the build manager queue of a type (Tactical_Production_Queue - 2: 0 units, 1 upgrades; -1 not buildable

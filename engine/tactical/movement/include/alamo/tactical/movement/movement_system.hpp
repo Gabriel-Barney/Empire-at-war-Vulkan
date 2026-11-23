@@ -588,7 +588,13 @@ public:
     // (TRL2_A_RE_ANSWERS Q4.2 [H]): a fighter (FIGHTER_LOCOMOTOR 0x5cb490) only in Dead_Stop 0x1F stores the heading as
     // its Dead_Stop orientation (0x20acd0 of the heading: roll 0, pitch 0, yaw in [0, 360)), keeping its path; in any
     // other state it does nothing (false); a squadron id (TEAM_LOCOMOTOR 0x62fe10) forwards the call to every member
-    // (true). False when the unit is unknown or the mode is land. No draws.
+    // (true). #90 land (WALK_LOCOMOTOR 0x61e4b0 [H]: a one-node kind-5 path record at the unit's position whose node
+    // carries the heading; the walk ends it at once and runs the arrival turn): a Walk unit (LocomotorKind::Default, not
+    // air, not a team container) takes `yaw_deg` as its final facing and the arrival turn (land_arrival_turn: no turn
+    // within the threshold, otherwise 0x0F-0x11 at its turn rate from rest) - true. [port] only an idle one (no goal,
+    // not pushed, not deploying); a moving one is refused (retail would run the record on top of its path). The other
+    // land locomotors' slot is the empty stub 0x13b7d0 (false); the caller filters the tokens the port maps to Default
+    // (LAND_TEAM_INFANTRY_LOCOMOTOR). False when the unit is unknown. No draws.
     bool turn_in_place(ObjectId id, float yaw_deg, uint32_t frame);
     // S7 t06 / t14 (MOVEMENT §3.1.1, 0x3a9910): swap a Uses_Multiple_Locomotors unit to its secondary locomotor (true)
     // or back to its primary (false); see "multi" in the header comment. Returns false when the unit is unknown, the mode
