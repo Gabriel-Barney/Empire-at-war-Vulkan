@@ -1382,6 +1382,7 @@ void test_player_conflict_tokens();
 void test_budget_allocation_token();
 void test_story_trigger_token();
 void test_mcx8_t07_tokens();
+void test_game_timeline_token();  // #243
 void test_loaded_category_enum();
 void test_ai_type_switch();
 

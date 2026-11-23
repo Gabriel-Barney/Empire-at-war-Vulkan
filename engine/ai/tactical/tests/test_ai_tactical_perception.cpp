@@ -501,6 +501,11 @@ static void test_tokens() {
     // ---- Game ----
     CHECK(f.val("Game.Age") == static_cast<double>(30.0f * (1.0f / 30.0f)));
     CHECK(f.val("Game.IsCampaignGame") == 0.0);
+    {  // #243: Game.Timeline (0x6e2140) = mode +0x9C, the highest tech level among the players (the era).
+        Fixture t;
+        for (size_t i = 0; i < t.w.players.size(); ++i) t.w.players[i].tech_level = static_cast<float>(i == 2 ? 4 : 1 + i % 2);
+        CHECK(t.w.players.size() >= 3 && t.val("Game.Timeline") == 4.0);
+    }
     // mcx8 t09 (legacy docs/re/AI_GALACTIC_TOKENS.md §4, 0x6e1fb0 on the base Game evaluator [H]): battles read the game
     // settings flags too: 1.0 by default, 0.0 when an advanced option was changed with random events off.
     CHECK(f.val("Game.InterventionsEnabled") == 1.0);
