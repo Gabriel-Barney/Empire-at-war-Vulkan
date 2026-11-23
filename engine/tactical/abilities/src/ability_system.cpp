@@ -1500,7 +1500,9 @@ void AbilitySystem::break_stealth(Obj& o, uint32_t frame) {
 }
 
 void AbilitySystem::detect(Obj& o, uint32_t frame) {
-    // 0x592ae0: the first live enemy (ascending id) within 3D distance < its detection range.
+    // 0x592ae0: the first live enemy (ascending id) within 3D distance < its detection range. #67 t02: Is_Stealthed is
+    // read before the scan; stealthed before and not after -> the reveal (SFX_Stealth_Reveal, presentation).
+    const bool was_stealthed = stealthed_now(o, frame);
     const Vec3 p = position(o);
     const size_t count = combat_->unit_count();
     for (size_t i = 0; i < count; ++i) {
@@ -1512,6 +1514,7 @@ void AbilitySystem::detect(Obj& o, uint32_t frame) {
         if (combat::distance3(combat_->position(u), p) < range) {
             if (o.last_detected != frame) event(AbilityEventKind::StealthDetected, kStealth, o.id, u, frame);
             o.last_detected = frame;
+            if (was_stealthed && !stealthed_now(o, frame)) event(AbilityEventKind::StealthRevealed, kStealth, o.id, u, frame);
             return;
         }
     }

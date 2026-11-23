@@ -739,6 +739,7 @@ const char* kAud1Sfx = R"(<?xml version="1.0"?>
   <SFXEvent Name="HP_Turbolaser"><Samples>TL.WAV</Samples><Max_Instances>8</Max_Instances></SFXEvent>
   <SFXEvent Name="Ship_Fire"><Samples>SF.WAV</Samples><Max_Instances>8</Max_Instances></SFXEvent>
   <SFXEvent Name="Hyper_Arrive"><Samples>HYPER.WAV</Samples><Max_Instances>8</Max_Instances></SFXEvent>
+  <SFXEvent Name="SFX_Stealth_Reveal"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Samples>REVEAL.WAV</Samples><Max_Instances>4</Max_Instances></SFXEvent>
 </SFXEvents>
 )";
 const char* kAud1Music = R"(<?xml version="1.0"?>
@@ -882,6 +883,9 @@ void test_battle_hookups_aud1() {
     // A hyperspace arrival: the owner faction's SFXEvent_Arrive_From_Hyperspace, attached to the ship (§9.6).
     CHECK(h.hyperspace_arrival(6, "Rebel", p) != 0 && starts(h, "Hyper_Arrive") == 1 && h.hyperspace_sfx_played() == 1);
     CHECK(h.hyperspace_arrival(6, "", p) == 0);  // no owner faction: nothing
+    // #67 t02 (legacy docs/re/ABILITY_VISUALS.md §1.4, 0x592ae0 [H]): a stealthed unit revealed by detection plays
+    // SFX_Stealth_Reveal by name, 2D (0x2d5010), whoever owns it.
+    CHECK(h.stealth_reveal() != 0 && starts(h, "SFX_Stealth_Reveal") == 1 && h.stats().stealth_reveals == 1);
 }
 #endif
 

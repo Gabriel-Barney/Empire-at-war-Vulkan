@@ -1157,9 +1157,13 @@ void test_stealth_jamming_laser() {
     w.move(2, {500, 0, 0});  // within 600 -> detected
     w.tick();
     CHECK(!(w.sys->flags(1) & kUnitStealthed) && w.has_event(AbilityEventKind::StealthDetected, 1));
+    // #67 t02 (0x592ae0 [H]): stealthed before the scan, not after: the reveal (SFX_Stealth_Reveal) is raised
+    CHECK(w.has_event(AbilityEventKind::StealthRevealed, 1));
+    w.ab->clear_events();
     w.move(2, {2000, 0, 0});
     w.tick();
     CHECK(w.sys->flags(1) & kUnitStealthed);
+    CHECK(!w.has_event(AbilityEventKind::StealthRevealed, 1));  // no detection this tick: no reveal
     for (int i = 0; i < 150; ++i) w.tick();  // 5 s duration
     CHECK(!w.ab->is_stealthed(1, w.frame));
     // jammer (Combat_Automatic, applied at spawn): OI abilities (TACTICAL_GAPS §1.5) - objects NOT hostile to the jammer's

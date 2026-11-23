@@ -139,6 +139,9 @@ enum class AbilityEventKind : uint8_t {
     // mcx4 t13 (presentation; MCX4_T13_RE_ANSWERS "Tactical_Bribe_Ability.SFXEvent_Success family", 0x5b07c0): the bribe
     // was paid for and the target `target` is converted; `id` the user.
     BribeApplied,
+    // #67 t02 (presentation; legacy docs/re/ABILITY_VISUALS.md §1.4, 0x592ae0 [H]): stealthed `id` was stealthed before
+    // this detection scan and is not after it (`target` = the detector): SFX_Stealth_Reveal by name, 2D, any owner.
+    StealthRevealed,
 };
 
 // StopOrder `value` (MOVEMENT §4.7.2 / §4.7.5): a plain stop; the stop-and-hold 0x3a9880 (leave every
