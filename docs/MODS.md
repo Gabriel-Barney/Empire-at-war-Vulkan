@@ -79,9 +79,9 @@ Every installed mod gets one `vfs::ModDescriptor` per (folder, variant), built b
 (`engine/vfs/include/alamo/vfs/mod_registry.hpp`): kind (workshop / `Mods\` / path), id (workshop id or folder name),
 name, version, summary, icon, languages, dependencies, Steam game tag, and a content hash (FNV-1a 64 over the sorted
 relative path and size of every file under `Data`, plus each MEG's header and tables; write times are not hashed, so a
-copied or re-downloaded mod with the same bytes keeps its hash, and a same-size edit is not seen). `modinfo.json` follows the AlamoEngine-Tools
-`eaw.modinfo` spec and is read leniently: comments, trailing commas, a missing comma (warning), and
-`<variant>-modinfo.json` files (one descriptor each, the main file's values as defaults). Missing `languages` means
+copied or re-downloaded mod with the same bytes keeps its hash, and a same-size edit is not seen). `modinfo.json`
+follows the AlamoEngine-Tools `eaw.modinfo` spec and is read leniently: comments, trailing commas, a missing comma
+(warning), and `<variant>-modinfo.json` files (one descriptor each, the main file's values as defaults). Missing `languages` means
 English; `description` stands in for a missing `summary`. A malformed file is a warning and the folder name is used.
 
 Retail never opens `modinfo.json`, so nothing in gameplay reads a descriptor: they feed names, languages, dependencies,

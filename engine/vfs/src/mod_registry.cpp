@@ -355,15 +355,17 @@ std::string ModDescriptor::arg() const {
 namespace {
 
 // The bytes of a MEG before its first entry's data: the header, name table and record table, so a renamed, added or
-// resized entry moves the hash without reading the data. An encrypted, empty or unreadable MEG gives its first 64 KiB;
-// a malformed table claiming more than 16 MiB before the data gives 16 MiB.
+// resized entry moves the hash without reading the data. An encrypted, empty or unreadable MEG, or one with a record whose
+// data would start inside the tables, gives its first 64 KiB; a table claiming more than 16 MiB before the data gives
+// 16 MiB.
 std::string meg_head(const fs::path& p, uint64_t file_size) {
     uint64_t end = std::min<uint64_t>(file_size, 64u * 1024u);
     std::string err;
     if (const auto a = meg::Archive::open(path_to_utf8(p), meg::Source::Mode::Stream, &err); a && !a->entries().empty()) {
         uint64_t first = file_size;
         for (const meg::Entry& e : a->entries()) first = std::min<uint64_t>(first, e.offset);
-        end = std::min<uint64_t>(first, 16u * 1024u * 1024u);
+        const uint64_t tables_min = 8u + 20u * static_cast<uint64_t>(a->entries().size());  // header and records alone
+        if (first >= tables_min) end = std::min<uint64_t>(first, 16u * 1024u * 1024u);
     }
     std::string out(static_cast<size_t>(end), char{});
     std::ifstream f(p, std::ios::binary);
@@ -380,16 +382,17 @@ uint64_t mod_content_hash(const std::string& root) {
     struct F {
         std::string rel;
         uint64_t size;
-        std::string meg;  // meg_head for a .meg file
+        std::string meg_head_bytes;  // meg_head for a .meg file
     };
     std::vector<F> files;
     for (fs::recursive_directory_iterator it(data, fs::directory_options::skip_permission_denied, ec), end; !ec && it != end;
          it.increment(ec)) {
-        if (!it->is_regular_file(ec)) continue;
+        std::error_code fe;  // one file's error does not end the walk
+        if (!it->is_regular_file(fe)) continue;
         F f;
-        f.rel = ascii_upper(path_to_utf8(fs::relative(it->path(), data, ec)));
-        f.size = it->file_size(ec);
-        if (ascii_iends_with(f.rel, ".MEG")) f.meg = meg_head(it->path(), f.size);
+        f.rel = ascii_upper(path_to_utf8(fs::relative(it->path(), data, fe)));
+        f.size = it->file_size(fe);
+        if (f.rel.ends_with(".MEG")) f.meg_head_bytes = meg_head(it->path(), f.size);
         files.push_back(std::move(f));
     }
     std::sort(files.begin(), files.end(), [](const F& a, const F& b) { return a.rel < b.rel; });
@@ -399,9 +402,9 @@ uint64_t mod_content_hash(const std::string& root) {
         const char sep = 0;
         h = fnv1a64(&sep, 1, h);
         h = fnv1a64(&f.size, sizeof f.size, h);
-        const uint64_t meg_size = f.meg.size();
+        const uint64_t meg_size = f.meg_head_bytes.size();
         h = fnv1a64(&meg_size, sizeof meg_size, h);
-        h = fnv1a64(f.meg.data(), f.meg.size(), h);
+        h = fnv1a64(f.meg_head_bytes.data(), f.meg_head_bytes.size(), h);
     }
     return h == 0 ? 1 : h;
 }

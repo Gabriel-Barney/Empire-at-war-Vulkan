@@ -618,7 +618,13 @@ void test_content_hash(const Fixture& f) {
     const std::string meg2 = meg_of({"DATA\\XML\\A.XML", "DATA\\XML\\C.XML"});
     CHECK(meg2.size() == meg1.size() && meg2 != meg1);
     write_file(copy / "Data" / "Pack.meg", meg2);
-    CHECK(av::mod_content_hash(u8(copy)) != h2);
+    const uint64_t h3 = av::mod_content_hash(u8(copy));
+    CHECK(h3 != h2);
+    // Only the header counts: the same MEG with one entry's data changed at the same size keeps it (the known limit).
+    std::string meg3 = meg2;
+    meg3.back() = meg3.back() == 'Z' ? 'Y' : 'Z';
+    write_file(copy / "Data" / "Pack.meg", meg3);
+    CHECK(av::mod_content_hash(u8(copy)) == h3);
 }
 
 }  // namespace
