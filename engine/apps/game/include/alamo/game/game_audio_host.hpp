@@ -194,7 +194,7 @@ public:
     void movie_cue(std::string_view music_event);
     void movie_ended();
     // After every tick of a running battle (const reads). q6 t19 (OBJECT_SCRIPTS §10.3): `script_hidden` (optional,
-    // GameSession::script_hidden) mutes Lua-hidden objects like fogged / stealthed ones (loops muted, never stopped).
+    // GameSession::script_hidden) mutes Lua-hidden objects like fogged ones (loops muted, never stopped; object_mute).
     void battle_tick(const sim::TacticalBattle& battle, const objects::ObjectStore& store, const objects::GameObjectTypes& types,
                      int32_t local_player, const std::function<bool(objects::ObjectId)>& script_hidden = {});
     void battle_reset();
@@ -522,6 +522,14 @@ public:
     // base object (land DUMMY_GROUND_STRUCTURE / DUMMY_LAND_BASE_LEVEL_COMPONENT, space DUMMY_STAR_BASE /
     // DUMMY_ORBITAL_STRUCTURE), the attacker is hostile to the victim's owner, and the owner is the local player or an ally
     // of it whose victim type has Is_Community_Property. The rate limit is GameAudio::combat's.
+    // #225 (retail answer on #205, the 3D visibility factor 0x2d4b00): whether an object's attached sounds are muted.
+    // inaudible = muted (fogged for the local player, or hidden); hidden = also muted while the cinematic camera runs
+    // (Lua Hide; the cinematic camera skips only the fog test). `stealthed` never mutes: retail's factor has no stealth
+    // test, so a stealthed object is heard unless it is fogged.
+    struct ObjectMute {
+        bool inaudible = false, hidden = false;
+    };
+    static ObjectMute object_mute(bool stealthed, bool script_hidden, bool fogged);
     static bool base_attacked(bool victim_is_base, bool attacker_hostile, int32_t victim_owner, int32_t local_player,
                               bool owner_is_ally, bool community_property);
     static std::string_view fire_event(std::string_view hardpoint_fire, std::string_view shooter_fire);
@@ -657,8 +665,8 @@ private:
     std::unordered_map<uint64_t, Vec3> positions_;                             // lookup only (never iterated)
     std::set<objects::ObjectId> spawned_;                                      // battle units already announced
     std::map<objects::ObjectId, bool> moving_;                                 // ascending id
-    std::unordered_set<uint64_t> inaudible_;  // lookup only (never iterated): hidden / stealthed / fogged for the local player
-    std::unordered_set<uint64_t> hidden_;     // lookup only: the stealthed / Lua-hidden part of inaudible_ (muted in cinematics too)
+    std::unordered_set<uint64_t> inaudible_;  // lookup only (never iterated): Lua-hidden / fogged for the local player
+    std::unordered_set<uint64_t> hidden_;     // lookup only: the Lua-hidden part of inaudible_ (muted in cinematics too)
     std::vector<objects::TypeIndex> super_weapon_types_;  // every faction's Faction_Super_Weapon type (resolved once)
     bool super_weapon_types_ready_ = false, battle_reported_ = false;
     size_t clash_ends_seen_ = 0;  // HeroClashManager::ended() entries already voiced  // battle_reported_: a battle_tick ran since battle_reset

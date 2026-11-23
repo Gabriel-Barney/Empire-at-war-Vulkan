@@ -780,6 +780,21 @@ int starts(GameAudioHost& h, std::string_view ev) {
     return n;
 }
 
+// #225 (retail answer on #205, 0x2d4b00): an attached 3D sound is muted for a Lua-hidden object (also during a cinematic,
+// `hidden`) or a fogged one (`inaudible` only: the cinematic camera unmutes it). Stealth is no reason: a stealthed object
+// is heard unless it is fogged for the local player.
+void test_object_mute() {
+    using H = GameAudioHost;
+    H::ObjectMute m = H::object_mute(true, false, false);  // stealthed, not fogged
+    CHECK(!m.inaudible && !m.hidden);
+    m = H::object_mute(true, false, true);  // stealthed and fogged: muted as fogged
+    CHECK(m.inaudible && !m.hidden);
+    m = H::object_mute(false, true, false);  // Lua Hide
+    CHECK(m.inaudible && m.hidden);
+    m = H::object_mute(false, false, false);
+    CHECK(!m.inaudible && !m.hidden);
+}
+
 void test_battle_hookups_aud1() {
     using H = GameAudioHost;
     // Pure rules first: terrain keys (map mini 06, §9.1), fire event choice (§9.5), base-attack test (§9.8).
@@ -1474,6 +1489,7 @@ int main() {
     test_delayed_fire_sounds();  // trl2 t08
     test_object_sfx_t05();
     test_galactic_lua_sfx_position();  // aud8 t05
+    test_object_mute();                // #225
     test_inactive();
     test_control_point_lines();
     test_garrison_and_clash_lines();

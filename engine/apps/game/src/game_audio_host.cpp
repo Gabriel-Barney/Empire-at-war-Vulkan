@@ -256,6 +256,14 @@ std::string_view GameAudioHost::terrain_name(uint32_t type) {
     return type < std::size(kNames) ? std::string_view(kNames[type]) : std::string_view();
 }
 
+GameAudioHost::ObjectMute GameAudioHost::object_mute(bool stealthed, bool script_hidden, bool fogged) {
+    (void)stealthed;  // retail tests the hide bit, the model's hide bit and fog, never stealth (a tint / alpha effect)
+    ObjectMute m;
+    m.hidden = script_hidden;
+    m.inaudible = script_hidden || fogged;
+    return m;
+}
+
 Vec3 GameAudioHost::position_of(uint64_t id) const {
     const auto it = positions_.find(id);
     return it == positions_.end() ? Vec3{} : it->second;
@@ -317,7 +325,7 @@ bool GameAudioHost::init(const GameData& data, AudioBackendKind kind, uint32_t s
         if (it == positions_.end()) return std::nullopt;
         audio::AudioSystem::ObjectAudio a;
         a.position = it->second;
-        a.audible = inaudible_.find(owner) == inaudible_.end();  // §3.5 item 8: fog / hidden / stealth mute, no stop
+        a.audible = inaudible_.find(owner) == inaudible_.end();  // §3.5 item 8: fog / hidden mute, no stop (#225)
         a.hidden = hidden_.find(owner) != hidden_.end();          // legacy docs/re/AUDIO.md §1.6: a cinematic unmutes fog only
         return a;
     });
@@ -469,8 +477,8 @@ void GameAudioHost::battle_tick(const sim::TacticalBattle& battle, const objects
     };
     // Battle units new since the last tick: ambient loop + engine mode enter (object_spawned). STATION_HANGARS_SOUND §3:
     // every locomotor service reports moving (speed >= 1.1 x SpaceIdleMovementSpeed, the sim's threshold) - ambient
-    // moving chatter and the audio-side engine switch; outside hyperspace states. Audible = not hidden / fogged /
-    // stealthed for the local player (running loops are muted, never stopped).
+    // moving chatter and the audio-side engine switch; outside hyperspace states. Audible = not Lua-hidden or fogged for
+    // the local player (object_mute; running loops are muted, never stopped).
     const tactical::abilities::AbilitySystem& ab = battle.abilities();
     const float threshold = battle.engine_moving_threshold();
     if (!super_weapon_types_ready_) {  // legacy docs/re/AUDIO.md §2.3: the factions' Faction_Super_Weapon types
@@ -494,12 +502,12 @@ void GameAudioHost::battle_tick(const sim::TacticalBattle& battle, const objects
             game_->object_spawned(static_cast<uint64_t>(id), sounds(types, store.type(h)), store.position(h));
             ++stats_.spawned;
         }
-        const bool hidden = ab.is_stealthed(id, battle.frame()) ||
-                            (script_hidden && script_hidden(id));  // Lua Hide(true) mutes the object's sound
-        const bool fogged = battle.fog_object_hidden(local_player, id, false);
-        if (hidden || fogged) inaudible_.insert(static_cast<uint64_t>(id));
+        const ObjectMute mute = object_mute(ab.is_stealthed(id, battle.frame()),
+                                            script_hidden && script_hidden(id),  // Lua Hide(true) mutes the object's sound
+                                            battle.fog_object_hidden(local_player, id, false));
+        if (mute.inaudible) inaudible_.insert(static_cast<uint64_t>(id));
         else inaudible_.erase(static_cast<uint64_t>(id));
-        if (hidden) hidden_.insert(static_cast<uint64_t>(id));
+        if (mute.hidden) hidden_.insert(static_cast<uint64_t>(id));
         else hidden_.erase(static_cast<uint64_t>(id));
         if (battle.hyperspace().departing(id)) continue;  // hyperspace states: the locomotor leaves the loops alone
         const bool moving = mv.view(id).speed >= threshold;
