@@ -14,7 +14,9 @@
 //                                   Esc -> NeutralizeHeroCancelled
 //   IDD_SLICE_DIALOG                #71 t01: the slicer's pick (REMAINING_GAPS 1.3): one row per slice entry in
 //                                   IDC_SLICE_LISTBOX, sorted by name; Slice for an affordable row -> Slice{button = type};
-//                                   Cancel / Esc -> SliceCancelled
+//                                   Cancel / Esc -> SliceCancelled. The RC has no control for 0x3c95d0's
+//                                   TEXT_SLICE_DIALOG_DESCRIPTION (REMAINING_GAPS 1.3 step 5) and its listbox no icons, so
+//                                   neither is shown (the former black-market shell stand-in showed both)
 //   (IDD_PLANET_INFO, GALACTIC_DIALOGS §9, is GameScreens::show_planet_info in gui_screens.hpp; IDD_PLANET_DIALOG is
 //   dead in the original and not ported)
 //   "holocron" pages (4 tab radios on every page: Droid log / Data chart / Tech tree / Summary; Close / Esc ->

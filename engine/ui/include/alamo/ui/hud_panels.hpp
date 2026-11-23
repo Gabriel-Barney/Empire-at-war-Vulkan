@@ -174,7 +174,8 @@ public:
     const std::vector<int32_t>& shells() const { return shells_; }
     int32_t active_shell() const { return open_ ? active_shell_ : -1; }
     virtual std::vector<std::string> shell_names() const = 0;
-    // Shell clicks of this frame -> `actions`. `wheel` = the frame's wheel notches (InputFrame::wheel), read by SlicePanel only.
+    // Shell clicks of this frame -> `actions`. `wheel` = the frame's wheel notches (InputFrame::wheel); no shell panel reads
+    // it since the slice pick became IDD_SLICE_DIALOG (#71 t01), whose listbox scrolls itself.
     virtual void update_input(const RoutedInput& routed, bool shift, bool ctrl, double now, std::vector<HudAction>* actions = nullptr,
                               float wheel = 0.0f) = 0;
 

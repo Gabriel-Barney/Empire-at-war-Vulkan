@@ -186,7 +186,9 @@ void App::handle_screen_actions(const std::vector<ui::ScreenAction>& acts) {
             case K::SliceCancelled:
                 if (session_) session_->close_special_dialog();
                 break;
-            case K::Slice:  // #71 t01: SpecialAbility kind 2 (REMAINING_GAPS 1.3.1); [port] a refused pick closes the panel
+            // #71 t01: SpecialAbility kind 2 (REMAINING_GAPS 1.3.1); [port] a refused pick closes the panel. (The smoke's
+            // panel_preview_ is a black-market preview: it never opens this dialog, so no preview check here.)
+            case K::Slice:
                 story_ui_.generic("slice");
                 story_ui_.generic("slice_slot");  // 0x3e4450: the slot-bar form of the pick [M]  // STY1 t03 (0xf5d10 / 0x3e4450): the option was picked
                 if (session_ && (a.button < 0 || !session_->slice_tech(static_cast<uint32_t>(a.button)))) session_->close_special_dialog();
