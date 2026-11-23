@@ -284,14 +284,14 @@ V2 last_dir(std::span<const V2> p) {
         if (length_sq(p[i] - p[i - 1]) > 0.0f) return normalize_retail(p[i] - p[i - 1]);
     return {};
 }
+}  // namespace
+
 // cmb3 t03 (BKR2 Q7 item 4 [H]): the slot leg (0x417520) takes the literal first segment (p[1] - p[0]) and last
 // segment, normalised; a zero segment gives (0, 0), so a zero last segment means no leg and a zero first segment fails the
 // dot test (> 0). Every pathfinder waypoint has z = 0 (MOVEMENT §3.5.2 "Waypoint z" items 1 - 2; G's z is appended only after
 // the leg path), so retail's 3-D unit vectors equal these 2-D ones.
 V2 literal_first_dir(std::span<const V2> p) { return p.size() >= 2 ? normalize_retail(p[1] - p[0]) : V2{}; }
 V2 literal_last_dir(std::span<const V2> p) { return p.size() >= 2 ? normalize_retail(p[p.size() - 1] - p[p.size() - 2]) : V2{}; }
-
-}  // namespace
 
 size_t attack_reference_index(std::span<const V2> xy, std::span<const float> z) {
     if (xy.empty()) return 0;

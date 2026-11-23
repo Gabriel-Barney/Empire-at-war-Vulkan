@@ -69,6 +69,8 @@ std::string bkt1_types(std::string t) {
                      "<Expiration_Seconds>600.0</Expiration_Seconds><GUI_Activated_Ability_Name>S10_Bkt1_Stealth</GUI_Activated_Ability_Name>"
                      "</Unit_Ability></Unit_Abilities_Data><Abilities SubObjectList=\"Yes\"><Stealth_Ability Name=\"S10_Bkt1_Stealth\">"
                      "<Activation_Style>User_Input</Activation_Style></Stealth_Ability></Abilities>");
+    // #106: the ranger with Target_Stealth_Units, for a formation that mixes types with and without it
+    add += land_unit("S10_Seer", 100.0f, 250.0f, "WALK_LOCOMOTOR", "<Target_Stealth_Units>Yes</Target_Stealth_Units>");
     add += land_unit("S10_Crusher", 100.0f, 250.0f, "WALK_LOCOMOTOR, SQUASH", "<Is_Squashable_By_Supercrusher>Yes</Is_Squashable_By_Supercrusher>");
     // hard half extents 5 x 2 (soft radius 3): the engage-clause target, so min(hx, hy) = 2 is told apart from the others
     add += land_unit("S10_Super", 100.0f, 250.0f, "WALK_LOCOMOTOR, SQUASH", "<Is_Supercrusher>Yes</Is_Supercrusher>", 5, 2);
@@ -661,6 +663,191 @@ void test_trim_gate_hidden_stealthed(const Data& d) {
     CHECK(!control_hidden && to_lead);
 }
 
+// #106 / cmb3 t01 (a) (BKR2 Q6 / BKT1_ATTACK_RE §1.2.1 [H]): T's goal point is clamped to the playable box (0x583680) before
+// the staging. The hidden-lurker scene (no fire trim) with a lone ranger 700 away (outside its minimum range: no staging), so
+// the plan's G is the clamped point. A target point in the strip between the playable box and the map's edge (on the map,
+// so the plan's zone check would keep an unclamped point apart) plans exactly as its clamped twin on the box edge: the same
+// goal. This map's border cells are impassable, so the zone check moves both onto the nearest reachable point; unclamped,
+// the two points end at different goals.
+void test_stage_point_clamp(const Data& d) {
+    CampaignBattleOptions opt;
+    opt.conflict.human_choice = galactic::BattleChoice::Fight;
+    opt.battle.max_frames = 2000;
+    opt.battle.skip_human_units = true;
+    opt.battle.order_interval = 0;  // no stand-in orders
+    ClashSession s(d, 0, opt, {"S10_Ranger_Co"}, {"S10_Lurker_Co"}, true);
+    if (!s.gs) return;
+    objects::ObjectId r = objects::kNoObjectId, e = objects::kNoObjectId;
+    int stage = 0;
+    uint32_t stage_frame = 0;
+    bool hidden = false, planned = false, same = false;
+    Vec3 tp{}, edge{};
+    mv::V2 goal{}, goal_edge{};
+    for (uint64_t tk = 0; tk < 2000 && stage < 9; ++tk) {
+        TacticalBattle* b = s.tick();
+        TacticalMode* tm = s.host->tactical();
+        if (!b || !tm || b->frame() < 3) {
+            if (stage > 0) break;
+            continue;
+        }
+        objects::ObjectStore& st = tm->primary();
+        if (stage == 0) {
+            r = unit_of(*b, st, d, "S10_Ranger", 0);
+            e = unit_of(*b, st, d, "S10_Lurker", 1);
+            if ((r == objects::kNoObjectId || e == objects::kNoObjectId) && b->frame() < 600) continue;
+            CHECK(r != objects::kNoObjectId && e != objects::kNoObjectId && b->fog() != nullptr);
+            if (r == objects::kNoObjectId || e == objects::kNoObjectId || !b->fog()) break;
+            invulnerable_all(*b);
+            Vec3 ep{}, rp{};
+            const bool spot = trim_gate_spots(*b, *tm, r, ep, rp);
+            CHECK(spot);
+            if (!spot) break;
+            CHECK(b->teleport(*tm, e, ep, st.facing(st.find(e))));
+            CHECK(b->teleport(*tm, r, rp, st.facing(st.find(r))));
+            stage = 1;
+            stage_frame = b->frame();
+            continue;
+        }
+        if (stage == 1 && b->frame() >= stage_frame + 2) {
+            bool h = false, sl = false;
+            TA::target_unseen(*b, st, r, e, h, sl);
+            hidden = h;
+            const tactical::Aabb& bb = tm->bounds();
+            const tactical::Aabb mx = TA::map_extents(*b, *tm);
+            const Vec3 ep = st.position(st.find(e)), rp = st.position(st.find(r));
+            const bool high = mx.max.x > bb.max.x + 5.0f;  // the strip's side
+            CHECK(high || bb.min.x > mx.min.x + 5.0f);
+            tp = Vec3{high ? 0.5f * (bb.max.x + mx.max.x) : 0.5f * (bb.min.x + mx.min.x), rp.y, ep.z};
+            edge = Vec3{high ? bb.max.x : bb.min.x, rp.y, ep.z};
+            const objects::ObjectId ids[] = {r};
+            SimRng rng1 = s.host->random().synced(), rng2 = rng1;  // both plans from the same draws
+            constexpr int kMoved = 2;  // TacticalBattle::AttackPlan::Moved (a failed plan would keep the old goal)
+            planned = TA::land_attack_order(*b, *tm, ids, e, tp, 0, rng1, false) == kMoved && b->movement().view(r).has_goal;
+            goal = b->movement().view(r).goal;
+            planned = planned && TA::land_attack_order(*b, *tm, ids, e, edge, 0, rng2, false) == kMoved;
+            goal_edge = b->movement().view(r).goal;
+            same = goal == goal_edge;
+            std::printf("  #106 clamp: box x %.0f..%.0f, map x %.0f..%.0f; target point (%.0f, %.0f) -> goal (%.1f, %.1f); its "
+                        "edge twin (%.0f, %.0f) -> (%.1f, %.1f)\n",
+                        static_cast<double>(bb.min.x), static_cast<double>(bb.max.x), static_cast<double>(mx.min.x),
+                        static_cast<double>(mx.max.x), static_cast<double>(tp.x), static_cast<double>(tp.y),
+                        static_cast<double>(goal.x), static_cast<double>(goal.y), static_cast<double>(edge.x),
+                        static_cast<double>(edge.y), static_cast<double>(goal_edge.x), static_cast<double>(goal_edge.y));
+            stage = 9;
+        }
+    }
+    std::printf("  #106 stage point clamp: hidden %d, planned %d, same goal as the edge twin %d\n", hidden ? 1 : 0,
+                planned ? 1 : 0, same ? 1 : 0);
+    CHECK(hidden && planned && same);
+}
+
+// #106 / cmb3 t01 (c) (FIGHTER_FLYING §4.11 E [H]): the land stop's c (0x40edd0) takes the fog / stealth terms of members[0]
+// ([port] the first mover's block lead), not of the formation lead (C 3's 0x41a9b0). They differ only in a formation that
+// mixes types with and without Target_Stealth_Units. Two S10_Rangers (no Target_Stealth_Units) and an S10_Seer (with it)
+// 60 apart across the approach, the Seer in the middle (the lead: nearest the centroid) and a Ranger members[0] (the
+// smallest mover id), attack the stealthed S10_Shade (fire range 0: it never fires, so its stealth holds; the fog revealed,
+// so it is not hidden). Every member can hit by geometry once in range, but members[0] cannot target a stealthed unit:
+// c is false, so no 30-frame check land-stops the formation on its way in. Read with the lead's terms (the Seer sees it), c
+// would be true in range and the formation would land-stop.
+void test_mixed_formation_stealth_terms(const Data& d) {
+    CampaignBattleOptions opt;
+    opt.conflict.human_choice = galactic::BattleChoice::Fight;
+    opt.battle.max_frames = 4000;
+    opt.battle.skip_human_units = true;
+    opt.battle.order_interval = 0;  // no stand-in orders
+    ClashSession s(d, 0, opt, {"S10_Ranger_Co", "S10_Seer_Co", "S10_Ranger_Co"}, {"S10_Shade_Co"}, true);
+    if (!s.gs) return;
+    objects::ObjectId r0 = objects::kNoObjectId, r1 = objects::kNoObjectId, seer = objects::kNoObjectId, e = objects::kNoObjectId;
+    int stage = 0;
+    uint32_t stage_frame = 0, stops0 = 0, stops = 0, in_range = 0;
+    bool ordered = false, one_form = false, ranger_first = false, stealth_held = true, arrived = false;
+    for (uint64_t tk = 0; tk < 4000 && stage < 9; ++tk) {
+        TacticalBattle* b = s.tick();
+        TacticalMode* tm = s.host->tactical();
+        if (!b || !tm || b->frame() < 3) {
+            if (stage > 0) break;
+            continue;
+        }
+        objects::ObjectStore& st = tm->primary();
+        auto& cs = const_cast<tc::CombatSystem&>(b->combat());
+        const mv::MovementSystem& ms = b->movement();
+        if (stage == 0) {
+            r0 = unit_of(*b, st, d, "S10_Ranger", 0);
+            r1 = unit_of(*b, st, d, "S10_Ranger", 0, 1);
+            seer = unit_of(*b, st, d, "S10_Seer", 0);
+            e = unit_of(*b, st, d, "S10_Shade", 1);
+            const bool all = r0 != objects::kNoObjectId && r1 != objects::kNoObjectId && seer != objects::kNoObjectId &&
+                             e != objects::kNoObjectId;
+            if (!all && b->frame() < 600) continue;
+            CHECK(all && b->fog() != nullptr);
+            if (!all || !b->fog()) break;
+            invulnerable_all(*b);
+            TA::fog(*b)->reveal_all(0);  // not hidden: only the stealth term differs
+            // the target 250 in from the playable box's left edge at mid height, the attackers 700 along x (60 apart
+            // across), each reachable for the attackers' class
+            const tactical::Aabb& bb = tm->bounds();
+            const Vec3 ep{bb.min.x + 250.0f, 0.5f * (bb.min.y + bb.max.y), 0.0f};
+            CHECK(ep.x + 700.0f < bb.max.x - 40.0f);
+            const Vec3 rp{ep.x + 700.0f, ep.y, 0.0f};
+            const Vec3 perp{0.0f, 1.0f, 0.0f};
+            bool reach = true;
+            for (const float k : {-60.0f, 0.0f, 60.0f})
+                reach = reach && mv::zone_connected(ms.regions(), ms.mask_of(r0), {rp.x, rp.y + k}, {ep.x, ep.y});
+            CHECK(reach);
+            if (!reach) break;
+            CHECK(b->teleport(*tm, e, ep, st.facing(st.find(e))));
+            // members[0] is the smallest mover id: a Ranger on one side, the Seer in the middle
+            const objects::ObjectId lo = std::min(r0, r1), hi = std::max(r0, r1);
+            ranger_first = lo < seer;
+            CHECK(b->teleport(*tm, lo, Vec3{rp.x + perp.x * 60.0f, rp.y + perp.y * 60.0f, rp.z}, st.facing(st.find(lo))));
+            CHECK(b->teleport(*tm, seer, rp, st.facing(st.find(seer))));
+            CHECK(b->teleport(*tm, hi, Vec3{rp.x - perp.x * 60.0f, rp.y - perp.y * 60.0f, rp.z}, st.facing(st.find(hi))));
+            if (tc::ModifierSet* m = cs.unit_modifiers(e))  // fire range x 0: the target never fires (stealth holds)
+                m->set_by_source(tc::ModList::FireRange, 0x10600106, -1.0f, tc::kPermanent, 0x10600106u, -0x106);
+            stage = 1;
+            stage_frame = b->frame();
+            continue;
+        }
+        if (stage == 1 && b->frame() >= stage_frame + 2) {
+            const objects::ObjectId on[] = {e};
+            (void)TA::abilities(*b).set_unit_ability_mode(on, tactical::abilities::kStealth, true, b->frame());
+            const objects::ObjectId ids[] = {r0, seer, r1};
+            ordered = b->order_attack(*tm, 0, ids, e, s.host->random().synced()) == commands::RejectReason::None;
+            const uint32_t f0 = ms.view(r0).atk_form;
+            one_form = f0 != 0 && ms.view(r1).atk_form == f0 && ms.view(seer).atk_form == f0;
+            stops0 = b->stats().attack_land_stops;
+            stage = 2;
+            stage_frame = b->frame();
+            continue;
+        }
+        if (stage == 2) {
+            stealth_held = stealth_held && TA::abilities(*b).is_stealthed(e, b->frame());
+            stops = b->stats().attack_land_stops - stops0;
+            bool all_hit = true;
+            for (const objects::ObjectId id : {r0, seer, r1}) all_hit = all_hit && cs.can_hit(id, e) == tc::CanHit::Yes;
+            const bool walking = ms.view(r0).has_goal || ms.view(r1).has_goal || ms.view(seer).has_goal;
+            // (review) count only while the Seer is the lead (the member nearest the centroid, recomputed every pass): with
+            // a Ranger as lead, members[0] and the lead would share their terms and the test could not tell them apart
+            const mv::V2 p0 = ms.view(r0).pos, p1 = ms.view(r1).pos, ps = ms.view(seer).pos;
+            const mv::V2 cen{(p0.x + p1.x + ps.x) / 3.0f, (p0.y + p1.y + ps.y) / 3.0f};
+            const auto d2 = [&](mv::V2 p) { return (p.x - cen.x) * (p.x - cen.x) + (p.y - cen.y) * (p.y - cen.y); };
+            const bool seer_lead = d2(ps) < d2(p0) && d2(ps) < d2(p1);
+            if (all_hit && walking && seer_lead) ++in_range;
+            if (!walking) {
+                arrived = true;
+                stage = 9;
+            } else if (b->frame() > stage_frame + 3000) {
+                stage = 9;
+            }
+        }
+    }
+    std::printf("  #106 mixed formation: ordered %d, one formation %d, a Ranger is members[0] %d, stealth held %d; %u walking "
+                "frame(s) with every member in range, land stops %u, arrived %d\n",
+                ordered ? 1 : 0, one_form ? 1 : 0, ranger_first ? 1 : 0, stealth_held ? 1 : 0, in_range, stops, arrived ? 1 : 0);
+    CHECK(ordered && one_form && ranger_first && stealth_held);
+    CHECK(in_range > 31 && stops == 0);
+}
+
 // ---- t03: the attack formation lead skips locked members ----------------------------------------------------------
 
 void test_locked_lead(const Data& d) {
@@ -1138,6 +1325,8 @@ int main() {
     std::printf("cmb3 t02: the fire trim's gate is the object hidden test\n");
     test_trim_gate_hidden(*d);
     test_trim_gate_hidden_stealthed(*d);  // #91
+    test_stage_point_clamp(*d);           // #106
+    test_mixed_formation_stealth_terms(*d);  // #106
     std::printf("bkt1 t03: the attack formation lead skips movement-locked members; all locked waits\n");
     test_locked_lead(*d);
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI

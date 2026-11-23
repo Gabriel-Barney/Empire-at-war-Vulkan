@@ -329,6 +329,25 @@ void test_slot_leg() {
     std::printf("slot leg Q' (%.4f, %.4f)\n", static_cast<double>(q.x), static_cast<double>(q.y));
 }
 
+// #106 / cmb3 t03 (BKR2 Q7 item 4 [H]): the slot leg reads the literal first and last segments. A repeated point makes
+// that segment zero, which gives (0, 0) (no leg; the dot test fails), not the next non-zero segment's direction. Paths
+// from find_land_path never repeat a point (test_scene_zero_first_segment), so the rule is pinned here directly.
+void test_literal_dirs() {
+    ::alamo::test::section("literal_dirs");
+    constexpr float kDirTol = 1e-2f;  // normalize_retail is fast_rsqrt_retail: the unit vectors are approximate
+    const std::vector<V2> bent{{0.0f, 0.0f}, {3.0f, 4.0f}, {3.0f, 10.0f}};
+    CHECK(close2(literal_first_dir(bent), {0.6f, 0.8f}, kDirTol));
+    CHECK(close2(literal_last_dir(bent), {0.0f, 1.0f}, kDirTol));
+    const std::vector<V2> zero_last{{0.0f, 0.0f}, {10.0f, 0.0f}, {10.0f, 0.0f}};
+    CHECK(literal_last_dir(zero_last) == V2{});  // the non-zero rule would give (1, 0)
+    CHECK(close2(literal_first_dir(zero_last), {1.0f, 0.0f}, kDirTol));
+    const std::vector<V2> zero_first{{5.0f, 5.0f}, {5.0f, 5.0f}, {9.0f, 5.0f}};
+    CHECK(literal_first_dir(zero_first) == V2{});  // the non-zero rule would give (1, 0)
+    CHECK(close2(literal_last_dir(zero_first), {1.0f, 0.0f}, kDirTol));
+    const std::vector<V2> one{{1.0f, 1.0f}};
+    CHECK(literal_first_dir(one) == V2{} && literal_last_dir(one) == V2{});
+}
+
 // cmb2 t01 (BKR1 Q7 (c) [H]): the slot leg's reach. Open 40 x 20 grid, class mask Clear; G = (100, 100), Q = (400, 100).
 // (a) a cell on the line blocked after the regions were built: G and Q still share a region -> q = rho (300), no walk;
 // (b) the regions rebuilt: different regions -> halving down to pieces < 40, the walk stops at the blocked cell's entry
@@ -1129,6 +1148,7 @@ int main() {
     test_trim_point();
     test_fire_trim();
     test_slot_leg();
+    test_literal_dirs();  // #106
     test_slot_leg_reach();  // cmb2 t01
     test_scene_unit_target();     // s78n t25.2
     test_scene_structure();
