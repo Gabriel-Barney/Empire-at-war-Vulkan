@@ -5,6 +5,7 @@
 
 #include "alamo/core/ascii.hpp"
 #include "alamo/data/values.hpp"
+#include "alamo/tactical/abilities/ability_system.hpp"
 #ifdef ALAMO_SIM_HAVE_STORY
 #include "alamo/lua/story_model.hpp"
 #endif
@@ -38,6 +39,7 @@ std::vector<uint8_t> radar_land_terrain(const terrain::MapData& map, const tacti
 void RadarFeed::reset() {
     progress_.clear();
     gravity_events_.clear();
+    gravity_synced_ = false;
     death_pings_ = transition_pings_ = 0;
 }
 
@@ -86,6 +88,35 @@ void RadarFeed::gravity(std::span<const RadarGravityNote> changes, const ui::Rad
     }
 }
 
+std::vector<RadarGravityNote> RadarFeed::gravity_notes(const sim::TacticalBattle& battle, const objects::ObjectStore& store) {
+    std::vector<RadarGravityNote> notes;
+    const auto at = [&](objects::ObjectHandle h, objects::ObjectId id, bool on) {
+        return RadarGravityNote{id, on, store.position(h).x, store.position(h).y};
+    };
+    if (!gravity_synced_) {
+        // [port] the first tick after reset() (a new battle, or a load): the generators already under power raise their
+        // event, since the feed's held events are not saved and the battle's first tick is not fed (begin_battle).
+        gravity_synced_ = true;
+        for (uint32_t slot = 0; slot < store.capacity(); ++slot) {
+            const objects::ObjectHandle h = store.handle_of_slot(slot);
+            if (h && store.alive(h) && battle.abilities().gravity_field_on(store.id(h))) notes.push_back(at(h, store.id(h), true));
+        }
+    }
+    for (const sim::TacticalBattle::GravityPowerEvent& e : battle.gravity_power_changes()) {
+        const objects::ObjectHandle h = store.find(e.generator);
+        if (store.exists(h)) {
+            notes.push_back(at(h, e.generator, e.on));
+        } else if (!e.on) {
+            notes.push_back({e.generator, false, 0.0f, 0.0f});
+        }
+    }
+    for (const auto& held : gravity_events_) {  // [port] the generator is gone: its event goes too
+        const objects::ObjectHandle h = store.find(held.first);
+        if (!store.exists(h) || !store.alive(h)) notes.push_back({held.first, false, 0.0f, 0.0f});
+    }
+    return notes;
+}
+
 void RadarFeed::battle_tick(const sim::TacticalBattle& battle, const objects::ObjectStore& store, const objects::GameObjectTypes& types,
                             std::span<const ui::HudTypeInfo> hud_types, int32_t local_player, const lua::StoryModel* story,
                             const ui::RadarSettings& settings, ui::RadarEvents& events) {
@@ -102,23 +133,7 @@ void RadarFeed::battle_tick(const sim::TacticalBattle& battle, const objects::Ob
         deaths_now.push_back(n);
     }
     deaths(deaths_now, settings, events);
-    std::vector<RadarGravityNote> power;
-    for (const sim::TacticalBattle::GravityPowerEvent& e : battle.gravity_power_changes()) {
-        const objects::ObjectHandle h = store.find(e.generator);
-        RadarGravityNote n{e.generator, e.on, 0.0f, 0.0f};
-        if (store.exists(h)) {
-            n.x = store.position(h).x;
-            n.y = store.position(h).y;
-        } else if (e.on) {
-            continue;
-        }
-        power.push_back(n);
-    }
-    for (const auto& held : gravity_events_) {  // [port] the generator is gone: its event goes too
-        const objects::ObjectHandle h = store.find(held.first);
-        if (!store.exists(h) || !store.alive(h)) power.push_back({held.first, false, 0.0f, 0.0f});
-    }
-    gravity(power, settings, events);
+    gravity(gravity_notes(battle, store), settings, events);
     if (const tactical::garrison::CapturePointSystem* cps = battle.captures()) {
         std::vector<RadarCapturePointNote> pts;
         for (size_t i = 0; i < cps->point_count(); ++i) {

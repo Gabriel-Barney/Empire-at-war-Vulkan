@@ -18,9 +18,11 @@
 //   RadarFeed::blips       Lua Add_Radar_Blip(object, name) / Remove_Radar_Blip(name): persistent named markers that follow
 //                          the object ([port] visual: gold ring; the original's blip art is not traced).
 //   RadarFeed::gravity     #69 t06 (legacy docs/re/TRU1_GRAVITY_FIELD.md §1.2 [H], 0x61c700): a gravity control generator
-//                          that comes under base power raises Interdict_Activated at itself (0x355ca0, every player's
-//                          radar: no visibility test is traced); one that loses it removes the event it holds (0x358630).
-//                          [port] a held event whose generator is gone (dead, or removed) is removed too.
+//                          that comes under base power raises Interdict_Activated at itself (0x355ca0); one that loses
+//                          it removes the event it holds (0x358630). Every player's radar: the doc traces no visibility
+//                          test on the raise (only the SFX is the local player's) [M]. [port] a held event whose
+//                          generator is gone (dead, or removed) is removed too; after reset() (a new battle or a load)
+//                          the generators already under power raise theirs.
 // Not fed: the base-under-attack radar ping (no RADARMAP.XML entry; legacy docs/re/AUDIO.md names no event),
 // Default_Beacon_Placement (multiplayer beacons, out of scope), Galactic_Build_Complete_Planet_Ping (galactic radar).
 // Needs engine/ui's alamo_ui_hud (ALAMO_GAME_HAVE_CONTROLS).
@@ -106,6 +108,9 @@ public:
 private:
     std::map<objects::ObjectId, float> progress_;  // capture point -> progress at the last tick (ordered: lookups only)
     std::map<objects::ObjectId, uint32_t> gravity_events_;  // generator -> its Interdict_Activated (obj +0x200; ordered)
+    bool gravity_synced_ = false;  // the generators already powered at the battle's start were read
+    // This tick's power changes as notes (plus, after reset(), every powered generator; plus the gone generators' offs).
+    std::vector<RadarGravityNote> gravity_notes(const sim::TacticalBattle& battle, const objects::ObjectStore& store);
     uint64_t death_pings_ = 0, transition_pings_ = 0;
 };
 
