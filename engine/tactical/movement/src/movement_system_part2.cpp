@@ -1327,9 +1327,9 @@ float MovementSystem::accel_per_frame(const Unit& u) const {
 }
 
 // s78n t26 closing review (MOVEMENT §3.4 "Units with Walk_Transition" [H], §3.5.2 F): the clip data of a Walk_Transition
-// Walk / Bike unit from the model (set_deploy_clip_fn's hook: frames, fps; [M] variant 0 - the hook answers the drawn
-// variant once that clip plays). Refreshed each land tick before the plan and the walk (not saved: derived from the
-// model); no hook -> off (the unit keeps the OverrideAcceleration / OverrideDeceleration getters).
+// Walk / Bike unit from the model (set_deploy_clip_fn's hook: frames, fps; variant 0 [H], BKR2 Q2 (e) - [port] the hook
+// answers the drawn variant once that clip plays). Refreshed each land tick before the plan and the walk (not saved:
+// derived from the model); no hook -> off (the unit keeps the OverrideAcceleration / OverrideDeceleration getters).
 void MovementSystem::walk_transition_fill(Unit& u) const {
     u.wt = WalkTransition{};
     if (!u.d.walk_transition || !deploy_clip_ || cfg_.mode != MoveMode::Land) return;
@@ -1337,7 +1337,7 @@ void MovementSystem::walk_transition_fill(Unit& u) const {
     u.wt.on = true;
     u.wt.states = u.d.locomotor == LocomotorKind::Default;
     u.wt.s = u.d.anim_scale_speed;
-    for (size_t i = 0; i < 6; ++i) {
+    for (size_t i = 0; i < std::size(kWtClips); ++i) {
         uint32_t n = 0;
         float fps = 0.0f;
         if (deploy_clip_(u.d.id, kWtClips[i], n, fps) && fps > 0.0f) {

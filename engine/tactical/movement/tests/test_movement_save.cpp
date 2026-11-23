@@ -1558,13 +1558,13 @@ void test_s78o_unit_rejections() {
     CHECK(load(t.sys, good));
     const float inf = std::numeric_limits<float>::infinity(), nan = std::numeric_limits<float>::quiet_NaN();
     const auto put_f = [](Bytes& b, size_t at, float x) { put_u32(b, at, std::bit_cast<uint32_t>(x)); };
-    // the clip: -1, 2, 16 .. 20 load; anything else is refused
-    for (const int32_t c : {-1, 2, 16, 17, 20}) {
+    // the clip: -1, 0 (anm1 t01: the 0x14 idle), 2, 16 .. 20 load; anything else is refused
+    for (const int32_t c : {-1, 0, 2, 16, 17, 20}) {
         Bytes x = good;
         put_u32(x, at_wt, static_cast<uint32_t>(c));
         CHECK(load(t.sys, x));
     }
-    for (const int32_t c : {-2, 0, 1, 3, 15, 21, 0x42, INT32_MIN, INT32_MAX}) {
+    for (const int32_t c : {-2, 1, 3, 15, 21, 0x42, INT32_MIN, INT32_MAX}) {
         Bytes x = good;
         put_u32(x, at_wt, static_cast<uint32_t>(c));
         CHECK(rejects(t.sys, x));

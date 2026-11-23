@@ -132,7 +132,7 @@ bool walk_wanted_dir(const LandMotion& m, const WalkExtras* x, V2& dir) {
 namespace {
 // s78n t26 closing review (MOVEMENT §3.5.2 F): the tracked clip's table index (-1: none / not a transition clip).
 int32_t wt_index(int32_t clip) {
-    for (int32_t i = 0; i < 6; ++i)
+    for (int32_t i = 0; i < static_cast<int32_t>(std::size(kWtClips)); ++i)
         if (kWtClips[i] == clip) return i;
     return -1;
 }
@@ -158,34 +158,57 @@ void wt_advance(LandMotion& m, const WalkTransition& wt) {
 }
 // 0x372ae0: the transition clips' rate V / S (1.0 when S = 0).
 float wt_vs(const WalkTransition& wt, float vmax) { return wt.s > 0.0f ? vmax / wt.s : 1.0f; }
-// F 0x14 (0x61f510) before the move step: true -> the end clip has ended (0x15, no speed test).
-bool wt_end_move(LandMotion& m, const WalkTransition& wt, float vmax) {
+// F 0x14 (0x61f510, BKR2 Q2 (a) - (c) [H]) before the move step: true -> the 0x14 clip has ended (0x15). A transition unit
+// has no speed test here: the target clip is the end clip (current MOVE, k > 0), the idle (current MOVE, k = 0) or 17
+// (current MOVESTART); the current clip itself otherwise. When the current clip is the target, 0x15 follows once it has
+// ended. `dec` is the speed test's deceleration for the [port] cases: a target clip the model lacks, or no tracked clip.
+// Retail's MOVE test is "current clip in {2 MOVE, 0x42 WALKMOVE, 0x43 CROUCHMOVE}"; [port] the locomotor tracks the
+// three as MOVE (2), its frame on MOVE's clip.
+bool wt_end_move(LandMotion& m, const WalkTransition& wt, float vmax, float dec) {
     int32_t k = 0;  // the present end clips 17..20 (0x61d220)
     for (int32_t i = 2; i < 6; ++i) k += wt.count[i] > 0.0f ? 1 : 0;
+    const auto speed_test = [&] { return !(m.speed > dec); };
     const auto play_end = [&](int32_t clip) {
-        // played at rate V / S from frame +0xf4 ([M] the start frame "rate + +0xf4" read as +0xf4), +0xf0 := +0xec latched
+        // variant 0 at rate V / S, its frame rate + +0xf4 (0x3a7b30 -> 0x2654f0: 0 for a clip of fewer than 2 frames),
+        // +0xf0 := +0xec latched
+        const int32_t i = wt_index(clip);
         m.wt_clip = clip;
-        m.wt_pos = m.wt_f4;
         m.wt_rate = wt_vs(wt, vmax);
+        m.wt_pos = i >= 0 && wt.count[i] >= 2.0f ? m.wt_rate + m.wt_f4 : 0.0f;
         m.wt_f0 = m.speed;
     };
-    if (m.wt_clip >= 17 && m.wt_clip <= 20) return wt_ended(m, wt);
-    if (m.wt_clip == 2 && wt.count[0] > 0.0f && k > 0) {
-        // the end clip = 17 + (int(cur / (n_move / k)) % k), switched only when the phase <= the clip step, +0xf4 := the phase
-        const float seg = wt.count[0] / static_cast<float>(k);
+    if ((m.wt_clip >= 17 && m.wt_clip <= 20) || m.wt_clip == 0) return wt_ended(m, wt);  // the target is the current clip
+    if (m.wt_clip == 2 && k > 0 && wt.count[0] > 0.0f) {
+        // the end clip = 17 + (int(cur / seg) % k), seg = int(MOVE's count / k) (integer division, then float), switched
+        // only when the phase <= the clip step, +0xf4 := the phase
+        const float seg = static_cast<float>(static_cast<int32_t>(wt.count[0]) / k);
+        if (!(seg > 0.0f)) return speed_test();  // [port] fewer MOVE frames than end clips
         float q = std::floor(m.wt_pos / seg);
-        if (!(q >= 0.0f) || q > static_cast<float>(k)) q = 0.0f;  // s78o: never a clip below 17 or an int overflow
+        if (!(q >= 0.0f) || q > 65535.0f) q = 0.0f;  // s78o: never a clip below 17 or an int overflow (q % k as retail)
         const float phase = m.wt_pos - q * seg;
         if (phase <= wt_step(m, wt)) {
-            int32_t e = 17 + static_cast<int32_t>(q) % k;
-            if (!(wt.count[e - 15] > 0.0f)) e = 17;  // [port] the end clips are taken as numbered from 17
+            // numbered from 17 [H]: retail asks for a missing one too and its play fails, so MOVE runs on ([port] nothing
+            // switches; retail's frame set after the failed play is not modelled)
+            const int32_t e = 17 + static_cast<int32_t>(q) % k;
+            if (!(wt.count[e - 15] > 0.0f)) return false;
             m.wt_f4 = phase;
             play_end(e);
         }
         return false;  // B.7 holds T = v while MOVE plays
     }
-    play_end(17);  // the current clip 16 -> 17 (any other clip likewise)
-    return false;
+    if (m.wt_clip == 2 && k == 0) {  // no end clip: the idle, played like an end clip (the stale +0xf4)
+        // The deceleration getter has no MOVE_ENDONE (u = max(0.75 V, +0xf0)) and End Move's T is that value (B.7), so the
+        // unit hardly brakes while the idle plays. No vanilla model gets here: every Walk_Transition model ships 3 or 4 end
+        // clips (EV_AT-AT 4; EV_AT-ST, EV_AT-AA, EV_PODWALKER, EV_SPMAT, AI_RANCOR, UI_NIGHT_SISTER 3).
+        if (!(wt.count[6] > 0.0f)) return speed_test();  // [port] nor an idle clip
+        play_end(0);
+        return false;
+    }
+    if (m.wt_clip == 16 && wt.count[2] > 0.0f) {  // MOVESTART -> MOVE_ENDONE
+        play_end(17);
+        return false;
+    }
+    return speed_test();  // [port] no tracked clip, MOVESTART without MOVE_ENDONE, or MOVE without frames: the speed test
 }
 }  // namespace
 
@@ -221,12 +244,11 @@ WalkResult walk_step(LandMotion& m, const LocomotorParams& p, float speed_cap, c
     // 0; with a started path, heading for the last waypoint and dot(pos - W, n) > -5 (n = the last segment's direction) the
     // index steps on; on the last waypoint the unit has arrived where it stands (the caller runs the arrival turn / pop),
     // else the move restarts from state 0 (the start rule below, in the same frame). No started path: idle 0x16.
-    // s78n t26 closing review (§3.5.2 F 0x14): a Walk_Transition unit with end clips enters 0x15 when its end clip has
-    // ended (no speed test); before that the end clip starts at a MOVE phase boundary ([port] no end clip: the speed test)
+    // s78n t26 closing review (§3.5.2 F 0x14), anm1 t01: a Walk_Transition unit enters 0x15 when its 0x14 clip (an end
+    // clip, or the idle with no end clip) has ended, with no speed test; the end clip starts at a MOVE phase boundary
     bool to15 = false;
     if (m.state == LocoState::WalkEndMove) {
-        const bool clips = wts && (wt->count[2] > 0.0f || wt->count[3] > 0.0f || wt->count[4] > 0.0f || wt->count[5] > 0.0f);
-        to15 = clips ? wt_end_move(m, *wt, vmax_u) : !(m.speed > dec_of());
+        to15 = wts ? wt_end_move(m, *wt, vmax_u, dec_of()) : !(m.speed > dec_of());
     }
     if (to15) {
         m.speed = 0.0f;

@@ -142,8 +142,9 @@ struct LocomotorInput {
     // TURNR from the yaw change here.
     bool host_turn = false;
     // bkx1 t04 (BKX1_RENDER_RE §2): a Walk_Transition unit's clip as its locomotor runs it (MovementSystem UnitView
-    // wt_clip / wt_pos / wt_rate): 16 MOVESTART, 17..20 the end clips, 2 MOVE after MOVESTART, -1 none. The locomotor's
-    // frame and rate (clip frames per sim frame = fps / 30 x rate) start the clip.
+    // wt_clip / wt_pos / wt_rate): 16 MOVESTART, 17..20 the end clips, 0 the idle a model without end clips plays in
+    // 0x14 (anm1 t01), 2 MOVE after MOVESTART, -1 none. The locomotor's frame and rate (clip frames per sim frame =
+    // fps / 30 x rate) start the clip.
     int32_t wt_clip = -1;
     float wt_pos = 0.0f, wt_rate = 0.0f;
     // mcx4 t11 (MCX4_T11_T12_RE_ANSWERS §B4 "Blend times"): a land team member (LandTeamInfantryLocomotor 0x62ca10, the

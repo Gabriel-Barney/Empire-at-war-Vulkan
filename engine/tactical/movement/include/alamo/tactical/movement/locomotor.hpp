@@ -89,8 +89,9 @@ struct LandMotion {
     V2 last_dir;
     bool started = true;
     // s78n t26 closing review (MOVEMENT §3.5.2 F, §3.4 "Units with Walk_Transition"): a Walk_Transition unit's clip as the
-    // locomotor tracks it - wt_clip = the current clip (-1 none / idle / a turn clip, 2 MOVE, 16 MOVESTART, 17..20 the
-    // end clips), wt_pos its frame, wt_rate its play rate (clip frames per sim frame = the clip's fps / 30 x wt_rate);
+    // locomotor tracks it - wt_clip = the current clip (-1 none: the idle / a turn clip, 0 the 0x14 idle of a model
+    // without end clips, 2 MOVE, 16 MOVESTART, 17..20 the end clips), wt_pos its frame, wt_rate its play rate (clip frames
+    // per sim frame = the clip's fps / 30 x wt_rate);
     // wt_f4 = pack +0xf4 (the frame handed from one clip to the next); wt_f0 = pack +0xf0 (the speed latched when the end
     // clip starts, the deceleration's v0; 0 at 0x15). Every value stays at its default for any other unit.
     int32_t wt_clip = -1;
@@ -113,18 +114,21 @@ struct LandMotion {
 };
 
 // s78n t26 closing review (MOVEMENT §3.4 "Units with Walk_Transition" [H], §3.5.2 F): the clip data of a Walk_Transition
-// unit from its model (variant 0 [M]): count[i] = the frame count (0: the model has no such clip) and step[i] = fps / 30
-// (clip frames per sim frame at rate 1) of clip kWtClips[i] - MOVE 2, MOVESTART 16, MOVE_ENDONE..END4 17..20. on = the
+// unit from its model (variant 0 [H], BKR2 Q2 (e): the getters read variant 0 and the 0x14 end clip plays index 0; the
+// MOVESTART played in 0x12 is a drawn variant, the same one in vanilla, which ships one per clip): count[i] = the frame
+// count (0: the model has no such clip) and step[i] = fps / 30 (clip frames per sim frame at rate 1) of clip
+// kWtClips[i] - MOVE 2, MOVESTART 16, MOVE_ENDONE..END4 17..20 and (anm1 t01) IDLE 0, the 0x14 clip of a model with no
+// end clip ([port] the idle type is always IDLE: retail's 0x395920 picks 0x47 while crouched). on = the
 // unit has Walk_Transition and the host supplied clip data; states = the 0x12 / 0x13 / 0x14 clip states of F run (the
 // Walk locomotor; a Bike shares only the acceleration / deceleration getters, [L] its state handlers are unread);
 // s = S = 0x372b90 = Scale_Factor x Movement_Animation_Speed.
-inline constexpr int32_t kWtClips[6] = {2, 16, 17, 18, 19, 20};
+inline constexpr int32_t kWtClips[7] = {2, 16, 17, 18, 19, 20, 0};
 struct WalkTransition {
     bool on = false;
     bool states = false;
     float s = 0.0f;
-    float count[6] = {};
-    float step[6] = {};
+    float count[7] = {};
+    float step[7] = {};
 };
 // vf +0x2d8 0x42c400: n = the MOVESTART frame count; n > 0 -> a = ((S / n) x (V / S)) x (V / S), else V ([port] S <= 0: V).
 float walk_transition_accel(const WalkTransition& wt, float vmax);

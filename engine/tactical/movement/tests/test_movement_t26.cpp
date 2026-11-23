@@ -1531,9 +1531,10 @@ void test_t26_walk_transition() {
         CHECK(near(m.wt_f4, 12.972774f + 1.441419f - 14.0f, 1e-4f));  // +0xf4: the frames past count - 2
     }
     // Braking (F 0x14, B.7): in End Move at V with MOVE at frame 28 (rate V / S): T = v while MOVE plays; the next frame
-    // MOVE wraps to 0.882838 <= its step 1.441419 -> MOVE_ENDONE starts at that frame (+0xf4 := the phase), +0xf0 := V,
-    // T = a: v = V - (c - 1) a on calls c = 2 .. 10; the end clip has ended at frame 0.882838 + 9 x 1.441419 >= 17 - 2 -
-    // 1.441419 on call 11 -> 0x15 (no speed test: v was 0.354186 > a), speed 0, arrived past the last line.
+    // MOVE wraps to 0.882838 <= its step 1.441419 -> MOVE_ENDONE starts (+0xf4 := the phase), +0xf0 := V, T = a. anm1 t01
+    // (BKR2 Q2 (a) [H]): it starts at frame rate + +0xf4 = 1.441419 + 0.882838 = 2.324257, so v = V - (c - 1) a on calls
+    // c = 2 .. 9 and the end clip has ended at 2.324257 + 8 x 1.441419 = 13.855609 >= 17 - 2 - 1.441419 on call 10 -> 0x15
+    // (no speed test: v was 0.354186 + a > a), speed 0, arrived past the last line - one call before the old frame +0xf4.
     {
         LandMotion m;
         m.path = {V2{0.0f, 0.0f}, V2{450.0f, 0.0f}};
@@ -1544,18 +1545,127 @@ void test_t26_walk_transition() {
         m.wt_clip = 2;
         m.wt_pos = 28.0f;
         m.wt_rate = vmax / wt.s;
-        for (int c = 1; c <= 11; ++c) {
+        for (int c = 1; c <= 10; ++c) {
             const WalkResult r = walk_step(m, p, 3.0e38f, nullptr, &x);
             if (c == 1) {
                 CHECK(near(m.speed, vmax, 1e-6f) && m.wt_clip == 2 && m.state == LocoState::WalkEndMove);
-            } else if (c <= 10) {
+            } else if (c <= 9) {
                 CHECK(near(m.speed, vmax - static_cast<float>(c - 1) * acc, 1e-4f) && m.wt_clip == 17 &&
                       m.state == LocoState::WalkEndMove);
-                if (c == 2) CHECK(near(m.wt_f4, 0.882838f, 1e-4f) && m.wt_f0 == vmax);
+                if (c == 2) CHECK(near(m.wt_f4, 0.882838f, 1e-4f) && m.wt_f0 == vmax && near(m.wt_pos, 2.324257f, 1e-4f));
             } else {
                 CHECK(m.speed == 0.0f && r.arrived && m.state == LocoState::WalkStopped && m.wt_clip == -1 && m.wt_f0 == 0.0f);
             }
         }
+    }
+    // anm1 t01 (BKR2 Q2 (b) [H]): seg = int(MOVE's count / k) in integer division - MOVE 31 frames, end clips 17 and 18
+    // (k = 2): seg 15, not 15.5. MOVE at frame 13.8 steps to 15.241419 (phase 0.241419 <= the step after one seg) -> the
+    // second end clip 18 starts now, at frame rate + phase; with seg 15.5 nothing would start (phase 15.241419).
+    {
+        WalkTransition w2 = wt;
+        w2.count[0] = 31.0f;
+        w2.count[3] = 17.0f;  // MOVE_ENDTWO
+        WalkExtras x2 = x;
+        x2.wt = &w2;
+        LandMotion m;
+        m.path = {V2{0.0f, 0.0f}, V2{450.0f, 0.0f}};
+        m.next = 1;
+        m.pos = {100.0f, 0.0f};
+        m.speed = vmax;
+        m.state = LocoState::WalkEndMove;
+        m.wt_clip = 2;
+        m.wt_pos = 13.8f;
+        m.wt_rate = vmax / w2.s;
+        (void)walk_step(m, p, 3.0e38f, nullptr, &x2);
+        CHECK(m.wt_clip == 18 && near(m.wt_f4, 0.241419f, 1e-4f) && near(m.wt_pos, 1.441419f + 0.241419f, 1e-4f));
+    }
+    // anm1 t01 (BKR2 Q2 (c) [H]): no end clip - at the 0x14 entry the idle (IDLE 0, here 20 frames) plays like an end clip
+    // (rate V / S, frame rate + the stale +0xf4 = 1.441419 + 0.5, +0xf0 := v) and 0x15 follows once it has ended, not on
+    // the speed test: frame 1.941419 + (c - 1) x 1.441419 >= 20 - 2 - 1.441419 first on call c = 12. With no MOVE_ENDONE
+    // the deceleration getter is u = max(0.75 V, +0xf0 = 0.2) = 1.404 and End Move's T is that value (B.7), so the speed
+    // climbs by a = 0.168646 a frame to 0.75 V and stays there until 0x15.
+    {
+        WalkTransition w0 = wt;
+        w0.count[2] = 0.0f;   // no MOVE_ENDONE
+        w0.count[6] = 20.0f;  // IDLE
+        WalkExtras x0 = x;
+        x0.wt = &w0;
+        LandMotion m;
+        m.path = {V2{0.0f, 0.0f}, V2{450.0f, 0.0f}};
+        m.next = 1;
+        m.pos = {447.0f, 0.0f};  // within 5 of the end: 0x15 arrives (no restart)
+        m.speed = 0.2f;  // a speed already at or below the deceleration would pass the old speed test at once
+        m.state = LocoState::WalkEndMove;
+        m.wt_clip = 2;
+        m.wt_pos = 3.0f;
+        m.wt_f4 = 0.5f;
+        m.wt_rate = vmax / w0.s;
+        int to15 = -1;
+        float v11 = 0.0f;
+        for (int c = 1; c <= 20 && to15 < 0; ++c) {
+            (void)walk_step(m, p, 3.0e38f, nullptr, &x0);
+            if (c == 1) CHECK(m.wt_clip == 0 && near(m.wt_pos, 1.941419f, 1e-4f) && m.wt_f0 == 0.2f);
+            if (c == 11) v11 = m.speed;
+            if (m.state != LocoState::WalkEndMove) to15 = c;
+        }
+        std::printf("t26 walk transition, no end clip: idle in 0x14, 0x15 on call %d (speed before %.6f)\n", to15,
+                    static_cast<double>(v11));
+        CHECK(to15 == 12 && m.state == LocoState::WalkStopped && m.wt_clip == -1 && near(v11, 0.75f * vmax, 1e-4f));
+        // ... and with no idle clip either: [port] the speed test (0.2 <= the deceleration 1.404: 0x15 at once)
+        WalkTransition wn = w0;
+        wn.count[6] = 0.0f;
+        WalkExtras xn = x;
+        xn.wt = &wn;
+        LandMotion q;
+        q.path = {V2{0.0f, 0.0f}, V2{450.0f, 0.0f}};
+        q.next = 1;
+        q.pos = {447.0f, 0.0f};
+        q.speed = 0.2f;
+        q.state = LocoState::WalkEndMove;
+        q.wt_clip = 2;
+        q.wt_rate = vmax / wn.s;
+        (void)walk_step(q, p, 3.0e38f, nullptr, &xn);
+        CHECK(q.state == LocoState::WalkStopped && q.speed == 0.0f);
+    }
+    // anm1 t01 (Q2 (a) / (c)): MOVESTART current in 0x14 -> MOVE_ENDONE at frame rate + the stale +0xf4 (1.441419 + 0.3);
+    // a MOVE_ENDONE of fewer than 2 frames starts at frame 0 (0x2654f0)
+    for (const float n17 : {17.0f, 1.0f}) {
+        WalkTransition w1 = wt;
+        w1.count[2] = n17;
+        WalkExtras x1 = x;
+        x1.wt = &w1;
+        LandMotion m;
+        m.path = {V2{0.0f, 0.0f}, V2{450.0f, 0.0f}};
+        m.next = 1;
+        m.pos = {100.0f, 0.0f};
+        m.speed = 1.0f;
+        m.state = LocoState::WalkEndMove;
+        m.wt_clip = 16;
+        m.wt_pos = 5.0f;
+        m.wt_f4 = 0.3f;
+        m.wt_rate = vmax / w1.s;
+        (void)walk_step(m, p, 3.0e38f, nullptr, &x1);
+        CHECK(m.wt_clip == 17 && m.wt_f0 == 1.0f && near(m.wt_pos, n17 >= 2.0f ? 1.741419f : 0.0f, 1e-4f));
+    }
+    // anm1 t01 (Q2 (b)): the end clips are numbered from 17 - a model with only MOVE_ENDTWO (k = 1) asks for 17, which it
+    // lacks: nothing switches and MOVE runs on (retail's play fails)
+    {
+        WalkTransition wg = wt;
+        wg.count[2] = 0.0f;
+        wg.count[3] = 17.0f;
+        WalkExtras xg = x;
+        xg.wt = &wg;
+        LandMotion m;
+        m.path = {V2{0.0f, 0.0f}, V2{450.0f, 0.0f}};
+        m.next = 1;
+        m.pos = {100.0f, 0.0f};
+        m.speed = vmax;
+        m.state = LocoState::WalkEndMove;
+        m.wt_clip = 2;
+        m.wt_pos = 29.0f;  // wraps to 0.441419: a phase boundary
+        m.wt_rate = vmax / wg.s;
+        (void)walk_step(m, p, 3.0e38f, nullptr, &xg);
+        CHECK(m.wt_clip == 2 && m.state == LocoState::WalkEndMove && near(m.wt_pos, 0.441419f, 1e-4f));
     }
     // s78o: a MOVE clip at a huge, infinite or NaN frame (a damaged save) wraps with one fmod / restarts at 0
     // instead of looping ~2^24 x count times, and a negative frame in End Move picks an end clip in 17 .. 20, never an
@@ -1571,7 +1681,7 @@ void test_t26_walk_transition() {
         m.wt_pos = bad;
         m.wt_rate = vmax / wt.s;
         for (int c = 1; c <= 3; ++c) (void)walk_step(m, p, 3.0e38f, nullptr, &x);
-        CHECK(std::isfinite(m.wt_pos) && (m.wt_clip == -1 || m.wt_clip == 2 || (m.wt_clip >= 16 && m.wt_clip <= 20)));
+        CHECK(std::isfinite(m.wt_pos) && (m.wt_clip == -1 || m.wt_clip == 0 || m.wt_clip == 2 || (m.wt_clip >= 16 && m.wt_clip <= 20)));
         CHECK(bad < 0.0f || m.wt_clip != 2 || (m.wt_pos >= 0.0f && m.wt_pos < wt.count[0]));
     }
     // 0x12 with a path not started: MOVESTART current -> 0x14; else 0x15 (idle, speed 0)
