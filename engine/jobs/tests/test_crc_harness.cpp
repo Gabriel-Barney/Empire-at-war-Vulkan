@@ -117,8 +117,12 @@ struct ToySim {
     }
 };
 
-alamo::CrcLog run(int32_t workers, uint64_t ticks, bool parallel_capture, int64_t corrupt_tick = -1) {
-    JobSystem js(JobSystemConfig{workers});
+alamo::CrcLog run(int32_t workers, uint64_t ticks, bool parallel_capture, int64_t corrupt_tick = -1,
+                  int32_t background_workers = 0) {
+    JobSystemConfig cfg;
+    cfg.workers = workers;
+    cfg.background_workers = background_workers;  // #127: background-only (E-core) workers
+    JobSystem js(cfg);
     ToySim sim(js);
     TickScheduler sched(js);
     sim.add_systems(sched, js);
@@ -150,6 +154,12 @@ int main() {
             std::printf("  workers %2d capture %-8s: %s\n", r.workers, pc ? "parallel" : "serial", r.vs_first.message.c_str());
         CHECK(rep.ok() && rep.runs.size() == counts.size() && rep.runs.front().workers == 0);
         CHECK(!alamo::first_divergence(ref, rep.first).diverged);
+    }
+    // #127: background-only workers take the Deferred histogram job: the log is the serial one.
+    for (const auto& [w, b] : {std::pair{1, 2}, std::pair{4, 4}}) {
+        const auto dv = alamo::first_divergence(ref, run(w, kTicks, false, -1, b));
+        std::printf("  workers %d + %d background-only: %s\n", w, b, dv.message.c_str());
+        CHECK(!dv.diverged);
     }
     // The state actually changes every tick (else the check proves nothing).
     CHECK(ref.records[10].systems[0] != ref.records[11].systems[0]);

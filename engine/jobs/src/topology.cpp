@@ -20,10 +20,16 @@
 namespace alamo::jobs {
 
 std::string PoolPlan::describe() const {
-    char buf[200];
+    char buf[240];
     std::snprintf(buf, sizeof buf, "%u physical / %u logical cores; pool %u cores (%s%u cache domain%s), %u default workers",
                   physical_total, logical_total, cores, hybrid ? "P-cores, " : "", domains, domains == 1 ? "" : "s", workers);
-    return buf;
+    std::string out = buf;
+    if (background_cores > 0) {
+        std::snprintf(buf, sizeof buf, "; %u background-only E-core worker%s", background_cores,
+                      background_cores == 1 ? "" : "s");
+        out += buf;
+    }
+    return out;
 }
 
 CpuTopology read_cpu_topology() {
@@ -104,6 +110,14 @@ PoolPlan plan_pool(const CpuTopology& topo, uint32_t reserved) {
         low = std::min(low, k.efficiency);
     }
     p.hybrid = top != low;
+    if (p.hybrid) {  // #127: every core below the top class is a background-only core, ascending by logical processor
+        std::vector<std::pair<std::pair<uint16_t, uint8_t>, uint32_t>> e;  // ((group, number), cpu set id)
+        for (const auto& [key, k] : cores)
+            if (k.efficiency != top) e.push_back({{key.first, k.first_number}, k.first_id});
+        std::sort(e.begin(), e.end());
+        for (const auto& [where, id] : e) p.background_cpu_set_ids.push_back(id);
+        p.background_cores = static_cast<uint32_t>(e.size());
+    }
     // Performance cores grouped by cache domain (group, llc), keys ascending.
     std::map<std::pair<uint16_t, uint32_t>, std::vector<std::pair<uint8_t, uint32_t>>> domains;  // -> (number, cpu set id)
     for (const auto& [key, k] : cores)
