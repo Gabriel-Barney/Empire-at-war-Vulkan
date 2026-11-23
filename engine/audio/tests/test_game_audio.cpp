@@ -90,6 +90,7 @@ const char* kSfx = R"(<?xml version="1.0"?>
   <SFXEvent Name="Unit_Select"><Use_Preset>Preset_UR</Use_Preset><Samples>S1_ENG.WAV</Samples><Overlap_Test>U</Overlap_Test></SFXEvent>
   <SFXEvent Name="Unit_Move"><Use_Preset>Preset_UR</Use_Preset><Samples>M1_ENG.WAV</Samples></SFXEvent>
   <SFXEvent Name="Unit_Group_Move"><Use_Preset>Preset_UR</Use_Preset><Samples>GM1_ENG.WAV</Samples></SFXEvent>
+  <SFXEvent Name="Unit_Group_Attack"><Use_Preset>Preset_UR</Use_Preset><Samples>GA1_ENG.WAV</Samples></SFXEvent>
   <SFXEvent Name="Unit_Attack_Ability"><Use_Preset>Preset_UR</Use_Preset><Samples>AA1_ENG.WAV</Samples></SFXEvent>
 
   <SFXEvent Name="Engine_Idle"><Use_Preset>Preset_LOOP3D</Use_Preset><Samples>IDLE.WAV</Samples></SFXEvent>
@@ -791,7 +792,7 @@ void test_hooks() {
     // Unit responses (Â§3.3).
     data::XmlDocument doc = data::XmlDocument::parse(std::string_view(
         "<SpaceUnit Name='X'><SFXEvent_Select>Unit_Select</SFXEvent_Select><SFXEvent_Move> Unit_Move </SFXEvent_Move>"
-        "<SFXEvent_Group_Move>Unit_Group_Move</SFXEvent_Group_Move>"
+        "<SFXEvent_Group_Move>Unit_Group_Move</SFXEvent_Group_Move><SFXEvent_Group_Attack>Unit_Group_Attack</SFXEvent_Group_Attack>"
         "<SFXEvent_Attack_With_Non_Hero_Ability>Unit_Attack_Ability</SFXEvent_Attack_With_Non_Hero_Ability>"
         "<SFXEvent_Engine_Idle_Loop>Engine_Idle</SFXEvent_Engine_Idle_Loop>"
         "<SFXEvent_Engine_Moving_Loop>Engine_Move</SFXEvent_Engine_Moving_Loop>"
@@ -813,8 +814,15 @@ void test_hooks() {
     g.update(0.0);
     CHECK(g.unit_response(9, us, UnitOrder::Move, p, true) != 0 && last_op(a, LogOp::SfxStart)->event == "Unit_Group_Move");
     CHECK(g.unit_response(9, us, UnitOrder::FleetMove, p) != 0 && last_op(a, LogOp::SfxStart)->event == "Unit_Move");
+    // #50 t02 (0x44590 [H]): Group_Attack before the resolver's non-hero variant; the variant without a group.
     CHECK(g.unit_response(9, us, UnitOrder::Attack, p, true, true) != 0 &&
+          last_op(a, LogOp::SfxStart)->event == "Unit_Group_Attack");
+    g.update(1.0);
+    g.update(0.0);
+    CHECK(g.unit_response(9, us, UnitOrder::Attack, p, false, true) != 0 &&
           last_op(a, LogOp::SfxStart)->event == "Unit_Attack_Ability");
+    g.update(1.0);
+    g.update(0.0);
     CHECK(g.unit_response(9, us, UnitOrder::Guard, p) == 0);  // no line for this type
     a.allow_unit_response_vo(false);
     CHECK(g.unit_response(9, us, UnitOrder::Move, p) == 0);

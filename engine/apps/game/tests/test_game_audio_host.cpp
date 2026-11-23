@@ -1654,6 +1654,76 @@ void test_gui_only_attract() {
 #endif
 }
 
+// #50 t02 (0x442f0 / 0x44590 / the resolvers [H]): the group line comes before the non-hero variant and falls back to the
+// plain line when the type has none; the variant needs the first or second Unit_Abilities_Data entry active; a group
+// counts objects that are not TEAM / FLEET / TRANSPORT.
+void test_unit_responses_50() {
+    using H = GameAudioHost;
+    MemoryProvider files;
+    files.add("Data\\XML\\GameObjectFiles.xml", "<L><File>T50R.xml</File></L>");
+    files.add("Data\\XML\\T50R.xml", R"(<?xml version="1.0"?>
+<SpaceUnits>
+  <SpaceUnit Name="Broadside"><SFXEvent_Attack> Bs_Attack </SFXEvent_Attack><SFXEvent_Move> Bs_Move </SFXEvent_Move>
+    <SFXEvent_Group_Attack> Bs_Group_Attack </SFXEvent_Group_Attack>
+    <SFXEvent_Attack_With_Non_Hero_Ability> Bs_Barrage </SFXEvent_Attack_With_Non_Hero_Ability>
+    <Unit_Abilities_Data SubObjectList="Yes">
+      <Unit_Ability><Type>STEALTH</Type></Unit_Ability><Unit_Ability><Type>SPRINT</Type></Unit_Ability>
+      <Unit_Ability><Type>ENERGY_WEAPON</Type></Unit_Ability>
+    </Unit_Abilities_Data></SpaceUnit>
+  <SpaceUnit Name="Plain"><SFXEvent_Move> Pl_Move </SFXEvent_Move></SpaceUnit>
+</SpaceUnits>
+)");
+    objects::ObjectTypeDatabase raw;
+    CHECK(raw.load(files));
+    objects::GameObjectTypes types;
+    CHECK(types.build(raw));
+    const objects::TypeIndex bs = types.resolve_name("Broadside"), plain = types.resolve_name("Plain");
+    CHECK(bs != objects::kNone && plain != objects::kNone);
+    if (bs == objects::kNone || plain == objects::kNone) return;
+    namespace ta = tactical::abilities;
+    const auto only = [](uint8_t t) { return [t](uint8_t a) { return a == t; }; };
+    CHECK(H::non_hero_variant_active(types, bs, only(ta::kStealth)) && H::non_hero_variant_active(types, bs, only(ta::kSprint)));
+    CHECK(!H::non_hero_variant_active(types, bs, only(ta::kEnergyWeapon)));  // the third entry does not count
+    CHECK(!H::non_hero_variant_active(types, bs, [](uint8_t) { return false; }) &&
+          !H::non_hero_variant_active(types, plain, [](uint8_t) { return true; }));
+    // group_count: plain units count; an object with a TEAM behaviour does not (none in this fixture's types).
+    objects::ObjectStore store(objects::ModeKind::Space, objects::StoreKind::Primary, types);
+    objects::SpawnParams sp;
+    sp.type = bs;
+    sp.owner = 0;
+    const uint32_t a = static_cast<uint32_t>(store.id(store.create(sp)));
+    const uint32_t b = static_cast<uint32_t>(store.id(store.create(sp)));
+    const std::vector<uint32_t> two = {a, b}, one = {a}, gone = {a, 0x7FFFFFF0u};
+    CHECK(H::group_count(store, two) == 2 && H::group_count(store, one) == 1 && H::group_count(store, gone) == 1);
+#ifdef ALAMO_GAME_HAVE_AUDIO
+    auto tree = make_tree(true);
+    tree->add("Data\\XML\\SFXEventsTest.xml", R"(<?xml version="1.0"?>
+<SFXEvents>
+  <SFXEvent Name="Bs_Attack"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Max_Instances>8</Max_Instances><Samples>A.WAV</Samples></SFXEvent>
+  <SFXEvent Name="Bs_Move"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Max_Instances>8</Max_Instances><Samples>M.WAV</Samples></SFXEvent>
+  <SFXEvent Name="Bs_Group_Attack"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Max_Instances>8</Max_Instances><Samples>G.WAV</Samples></SFXEvent>
+  <SFXEvent Name="Bs_Barrage"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Max_Instances>8</Max_Instances><Samples>B.WAV</Samples></SFXEvent>
+  <SFXEvent Name="Pl_Move"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Max_Instances>8</Max_Instances><Samples>P.WAV</Samples></SFXEvent>
+</SFXEvents>
+)");
+    GameData data;
+    data.files = std::move(tree);
+    H h;
+    CHECK(h.init(data, AudioBackendKind::Null, 3));
+    if (!h.active()) return;
+    h.unit_response(types, bs, 5, UnitResponse::Attack, true, 0, 0, -1, true);  // group first (0x44590 step 2)
+    CHECK(starts(h, "Bs_Group_Attack") == 1 && starts(h, "Bs_Barrage") == 0);
+    h.unit_response(types, bs, 5, UnitResponse::Attack, false, 0, 0, -1, true);  // the resolver's variant
+    CHECK(starts(h, "Bs_Barrage") == 1);
+    h.unit_response(types, bs, 5, UnitResponse::Attack, false, 0, 0, -1, false);
+    CHECK(starts(h, "Bs_Attack") == 1);
+    h.unit_response(types, bs, 5, UnitResponse::Move, true, 0, 0, -1, false);  // no Group_Move: the plain line
+    CHECK(starts(h, "Bs_Move") == 1);
+    h.unit_response(types, plain, 6, UnitResponse::Move, false, 0, 0, -1, true);  // no variant set: the plain line
+    CHECK(starts(h, "Pl_Move") == 1);
+#endif
+}
+
 // ref2 t02 (alamo/sim/presentation_events.hpp): one tick's presentation events -> GameAudioHost::on_events. The local
 // player's tactical production begin / cancel / complete play the built type's speech or SFXEvent_Tactical_Build_* line
 // (MCX4_T13_RE_ANSWERS "GameObjectType.SFXEvent_Tactical_Build_Started family"), no build music in a battle; another
@@ -1780,6 +1850,7 @@ int main() {
     test_intro_speech_t07();
     test_aud2();
     test_presentation_events_ref2();  // ref2 t02
+    test_unit_responses_50();          // #50 t02
     test_spin_and_self_destruct();  // mcx4 t13 batch Q
     test_death_end_sfx();           // #61
 #ifdef ALAMO_GAME_HAVE_AUDIO

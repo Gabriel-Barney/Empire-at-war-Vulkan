@@ -272,14 +272,13 @@ Vec3 GameAudioHost::position_of(uint64_t id) const {
 #ifdef ALAMO_GAME_HAVE_AUDIO
 
 namespace {
-audio::UnitOrder order_of(UnitResponse k, bool group) {
+audio::UnitOrder order_of(UnitResponse k) {
     switch (k) {
         case UnitResponse::Select: return audio::UnitOrder::Select;
-        case UnitResponse::Move: return group ? audio::UnitOrder::GroupMove : audio::UnitOrder::Move;
+        case UnitResponse::Move: return audio::UnitOrder::Move;  // #50 t02: the group line is GameAudio::unit_response's
         case UnitResponse::FleetMove: return audio::UnitOrder::FleetMove;
-        case UnitResponse::Attack: return group ? audio::UnitOrder::GroupAttack : audio::UnitOrder::Attack;
+        case UnitResponse::Attack: return audio::UnitOrder::Attack;
         case UnitResponse::Guard: return audio::UnitOrder::Guard;
-        case UnitResponse::Stop: return audio::UnitOrder::Stop;
     }
     return audio::UnitOrder::Select;
 }
@@ -339,10 +338,14 @@ const audio::UnitSounds& GameAudioHost::sounds(const objects::GameObjectTypes& t
     if (t != objects::kNone && t < types.size()) {
         static constexpr const char* kTags[audio::kUnitOrderCount] = {
             "SFXEvent_Select",     "SFXEvent_Move",        "SFXEvent_Fleet_Move", "SFXEvent_Attack",       "SFXEvent_Guard",
-            "SFXEvent_Defend",     "SFXEvent_Stop",        "SFXEvent_Deploy",     "SFXEvent_Undeploy",     "SFXEvent_Move_Opposite",
+            "",                    "",                     "",                    "",                      "",  // #50 t02: retail-unused
             "SFXEvent_Group_Move", "SFXEvent_Group_Attack", "SFXEvent_Assist_Move", "SFXEvent_Assist_Attack"};
         for (size_t i = 0; i < audio::kUnitOrderCount; ++i) s->response[i] = std::string(types.get_string(t, kTags[i]));
         s->unit_lost = std::string(types.get_string(t, "SFXEvent_Unit_Lost"));
+        // #50 t02: the resolvers' non-hero-ability variants (GameAudio::unit_response picks them).
+        s->select_with_non_hero_ability = std::string(types.get_string(t, "SFXEvent_Select_With_Non_Hero_Ability"));
+        s->move_with_non_hero_ability = std::string(types.get_string(t, "SFXEvent_Move_With_Non_Hero_Ability"));
+        s->attack_with_non_hero_ability = std::string(types.get_string(t, "SFXEvent_Attack_With_Non_Hero_Ability"));
         s->fire = std::string(types.get_string(t, "SFXEvent_Fire"));
         s->death_start = std::string(types.get_string(t, "Death_SFXEvent_Start_Die"));
         s->death_end = std::string(types.get_string(t, "Death_SFXEvent_End_Die"));
@@ -434,14 +437,14 @@ void GameAudioHost::negative_feedback() {
 }
 
 void GameAudioHost::unit_response(const objects::GameObjectTypes& types, objects::TypeIndex type, uint64_t object, UnitResponse kind,
-                                  bool group, int32_t owner, uint32_t dest_fields, int32_t hardpoint_kind) {
+                                  bool group, int32_t owner, uint32_t dest_fields, int32_t hardpoint_kind, bool non_hero_ability) {
     if (!game_) return;
     // The mode's "excluded set" = the retreat coordinator's retreating units (STRATEGIC_GAPS §7.4 [M]): no response.
     if (owner >= 0 && owner == retreating_player_) {
         ++stats_.excluded;
         return;
     }
-    const audio::UnitOrder order = order_of(kind, group);
+    const audio::UnitOrder order = order_of(kind);
     // ledger: consumes GameObjectType.SFXEvent_Attack_Hardpoint
     if (kind == UnitResponse::Attack && hardpoint_kind >= 0 && hardpoint_kind < 13 && type != objects::kNone && type < types.size())
         if (const std::string_view ev = hardpoint_kind_event(types.get_list(type, "SFXEvent_Attack_Hardpoint"),
@@ -449,17 +452,17 @@ void GameAudioHost::unit_response(const objects::GameObjectTypes& types, objects
             !ev.empty()) {
             audio::UnitSounds s = sounds(types, type);  // step 1 of the response chain: the hard point line first
             s.response[static_cast<size_t>(order)] = std::string(ev);
-            if (game_->unit_response(object, s, order, position_of(object), group)) ++stats_.responses;
+            if (game_->unit_response(object, s, order, position_of(object), false)) ++stats_.responses;  // replaces the chain
             return;
         }
     if (const std::string_view tag = kind == UnitResponse::Move ? move_into_field_tag(dest_fields) : std::string_view(); !tag.empty())
         if (const std::string_view ev = types.get_string(type, tag); !ev.empty()) {
             audio::UnitSounds s = sounds(types, type);  // the field line replaces the move response (0x3738b0)
             s.response[static_cast<size_t>(order)] = std::string(ev);
-            if (game_->unit_response(object, s, order, position_of(object), group)) ++stats_.responses;
+            if (game_->unit_response(object, s, order, position_of(object), false)) ++stats_.responses;  // before the group line
             return;
         }
-    if (game_->unit_response(object, sounds(types, type), order, position_of(object), group)) ++stats_.responses;
+    if (game_->unit_response(object, sounds(types, type), order, position_of(object), group, non_hero_ability)) ++stats_.responses;
 }
 
 void GameAudioHost::battle_end(bool won, std::string_view other_faction) {
@@ -1678,7 +1681,7 @@ void GameAudioHost::movie_started(bool movie_music, bool halt_music) {  // same 
 }
 void GameAudioHost::movie_cue(std::string_view) {}
 void GameAudioHost::movie_ended() { movie_music_on_ = movie_halted_ = false; }
-void GameAudioHost::unit_response(const objects::GameObjectTypes&, objects::TypeIndex, uint64_t, UnitResponse, bool, int32_t, uint32_t,
+void GameAudioHost::unit_response(const objects::GameObjectTypes&, objects::TypeIndex, uint64_t, UnitResponse, bool, int32_t, uint32_t, bool,
                                   int32_t) {}
 void GameAudioHost::battle_tick(const sim::TacticalBattle&, const objects::ObjectStore&, const objects::GameObjectTypes&, int32_t,
                                 const std::function<bool(objects::ObjectId)>&) {}
