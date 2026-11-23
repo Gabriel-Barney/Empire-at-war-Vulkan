@@ -2035,13 +2035,24 @@ int move_internal(Call& c, int flags, const char* who) {
         p = st->position(h);
         target = flags == kMoveTo ? h : object_target(h);
     } else if (detail::ai_task_force_units(c, d, tf_units)) {
-        // TaskForceClass: its position (vf+0x170) [port: the first live unit's position; none = nothing to move to].
-        // Guard_Target: the first member that is not the caller or its container; Move_To keeps the stage-2 rule (the
-        // first unit as an object target, which the battle host follows).
-        if (tf_units.empty()) return c.script_error_stop("GameObjectWrapper::%s -- Target is already dead.", who);
-        p = st->position(tf_units.front());
-        if (flags == kMoveTo) target = tf_units.front();
-        else if (flags == kGuardTarget)
+        // TaskForceClass: its position vf+0x170 (0x5fcc60, legacy docs/re/AI_TACTICAL.md §7.3.2 [H]): the mean of its live
+        // members, summed in member order and scaled by a reciprocal; (0, 0, 0) with none, never an error (#51 t01).
+        // Move_To and Attack_Move go to that position; Guard_Target guards the first member that is not the caller or its
+        // container. The same arithmetic as the tactical AI's TacticalAiWorld::Impl::tf_center (tf_units are its live
+        // members, in member order): keep the two together.
+        for (const ObjectHandle member : tf_units) {
+            const Vec3 at = st->position(member);
+            p.x += at.x;
+            p.y += at.y;
+            p.z += at.z;
+        }
+        if (!tf_units.empty()) {
+            const float f = 1.0f / static_cast<float>(tf_units.size());
+            p.x *= f;
+            p.y *= f;
+            p.z *= f;
+        }
+        if (flags == kGuardTarget)
             for (const ObjectHandle m : tf_units)
                 if ((target = object_target(m))) break;
     } else if (const Ud* pw = c.userdata(d, cls_position())) {
