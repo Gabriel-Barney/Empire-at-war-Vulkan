@@ -132,6 +132,7 @@
 #pragma once
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <span>
@@ -391,6 +392,12 @@ struct StoryLoadCampaign {
     int32_t difficulty = -1;  // Reward_Param3 when 0..2 (the new game's difficulty), else -1 (difficulty 1)
     int32_t tech = -1;        // Reward_Param4 when 0..5 (every player's tech level), else -1 (the campaign's own)
 };
+
+// #51 t03: the Play_Lightning_Effect block length (lua::lightning_block_frames) of each LightningEffect record in
+// Data\XML\LightningEffectTypes.xml (Number_Bolts, Bolt_Creation_Interval_Min / _Max, Fadeout_Time_Max, Replace_Faded;
+// the render library's defaults for a missing tag), by upper-cased name; empty without the file. StorySession::start sets
+// it as the presentation log's lightning_frames_of, so alamo_game and alamo_headless block for the same length.
+std::map<std::string, uint32_t> lightning_block_table(const FileProvider& files);
 
 class StorySession {
 public:
@@ -690,6 +697,7 @@ private:
     const objects::GameObjectTypes* types_;
     GameRandom* rng_;
     const FileProvider* files_ = nullptr;
+    std::map<std::string, uint32_t> lightning_frames_;  // #51 t03: lightning_block_table(*files_)
     lua::GlobalValueStore* global_values_ = nullptr;  // Int-final: StoryStart::global_values
     ParallelFor lua_gc_pf_ = serial_for;               // OPT2 t04
     // Lua families shared by every VM of the session (declared before sets_: the VMs go first).

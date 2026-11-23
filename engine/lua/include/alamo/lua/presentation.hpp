@@ -218,10 +218,21 @@ struct PresentationConfig {
     // Bink movies have no length in game data: a movie block finishes this many frames after the
     // call unless stopped earlier. [inferred] Headless default: 1 frame.
     uint32_t movie_frames = 1;
-    // Lightning effect block length by effect name; empty -> lightning_frames. [inferred]
+    // Lightning effect block length by effect name (kLightningNeverEnds: the block never finishes); empty ->
+    // lightning_frames. The story host sets it from LightningEffectTypes.xml (lightning_block_frames, #51 t03); the
+    // default stays for an effect name the data does not have [port: retail creates no effect and returns nothing].
     std::function<uint32_t(std::string_view effect)> lightning_frames_of;
     uint32_t lightning_frames = 30;
 };
+
+// #51 t03 (Play_Lightning_Effect 0x6a5fc0, the effect update 0x7dcd40 [H]): the call does not block; its block status is
+// finished once all Number_Bolts bolts exist and have faded. Retail creates at most one bolt per update, the next one
+// U(Bolt_Creation_Interval_Min, _Max) seconds later, and each bolt fades over U(Fadeout_Time_Min, _Max) seconds, all drawn
+// on the free RNG in render time, so its length is not reproducible; with Replace_Faded the effect never ends.
+// [port] the deterministic stand-in: (Number_Bolts - 1) x the mean interval + Fadeout_Time_Max seconds, in 30 Hz frames
+// rounded up (Hack_Electicity_Zaps: 52, Kessel_Mouse_Droid_Hack: 360); Replace_Faded -> kLightningNeverEnds.
+inline constexpr uint32_t kLightningNeverEnds = 0xFFFFFFFFu;
+uint32_t lightning_block_frames(int32_t bolts, float interval_min, float interval_max, float fade_max, bool replace_faded);
 
 // OI lua (L1 -> R4 hand-off): GameObjectWrapper.Attach_Particle_Effect(type [, bone]) resolved for a host. Recorded
 // next to its ObjectAttachParticleEffect event (same frame / seq); the render host maps it to a particle system on
@@ -264,6 +275,8 @@ public:
     uint32_t open_block(uint32_t end_frame);
     void finish_block(uint32_t id, uint32_t frame);
     bool block_finished(uint32_t id, uint32_t frame) const;  // unknown ids are finished
+    // The frame a block finishes at (kLightningNeverEnds: never); 0 for an unknown id.
+    uint32_t block_end(uint32_t id) const;
 
     // Digest of events + state (determinism tests, replays). Not part of any sim CRC.
     uint64_t digest() const;

@@ -566,6 +566,22 @@ static void test_blocking() {
     for (const auto& e : log.events())
         if (e.block) ++blocks;
     CHECK(blocks == 4);
+    // #51 t03: lightning_block_frames, the deterministic stand-in for retail's render-time length, in 30 Hz frames:
+    // (Number_Bolts - 1) x the mean interval + Fadeout_Time_Max, rounded up; Replace_Faded never ends.
+    CHECK(lightning_block_frames(23, 0.0005f, 0.1f, 0.6f, false) == 52u);  // Hack_Electicity_Zaps: 1.71 s
+    CHECK(lightning_block_frames(3, 0.5f, 0.5f, 11.0f, false) == 360u);    // Kessel_Mouse_Droid_Hack: 12 s exactly
+    CHECK(lightning_block_frames(1, 0.0f, 0.1f, 1.0f, false) == 30u && lightning_block_frames(0, 5.0f, 5.0f, 0.0f, false) == 0u);
+    CHECK(lightning_block_frames(4, 0.1f, 0.2f, 1.0f, true) == kLightningNeverEnds);
+    // A never-ending block: no wrap past the frame counter, block_end reports it, and it is not finished much later.
+    log.config().lightning_frames_of = [](std::string_view) { return kLightningNeverEnds; };
+    CHECK(run(vm, "z = Play_Lightning_Effect('Corruption_Line', marker, trooper)") == "");
+    const PresentationEvent& forever = log.events().back();
+    CHECK(forever.op == PresentationOp::PlayLightningEffect && forever.block != 0);
+    CHECK(log.block_end(forever.block) == kLightningNeverEnds && !log.block_finished(forever.block, 0x7FFFFFFFu));
+    CHECK(log.block_end(0xFFFFu) == 0u);  // unknown id
+    log.config().lightning_frames_of = [](std::string_view) { return 12u; };
+    CHECK(run(vm, "Play_Lightning_Effect('Hack_Electicity_Zaps', marker, trooper)") == "");
+    CHECK(log.block_end(log.events().back().block) == log.events().back().frame + 12u);
     attach_presentation(vm, nullptr);
 }
 

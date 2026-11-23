@@ -1,6 +1,7 @@
 // PresentationLog / PresentationState (see alamo/lua/presentation.hpp).
 #include "alamo/lua/presentation.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <iterator>
@@ -137,6 +138,20 @@ void PresentationLog::finish_block(uint32_t id, uint32_t frame) {
 bool PresentationLog::block_finished(uint32_t id, uint32_t frame) const {
     const auto it = blocks_.find(id);
     return it == blocks_.end() || frame >= it->second.end;
+}
+
+uint32_t PresentationLog::block_end(uint32_t id) const {
+    const auto it = blocks_.find(id);
+    return it == blocks_.end() ? 0u : it->second.end;
+}
+
+uint32_t lightning_block_frames(int32_t bolts, float interval_min, float interval_max, float fade_max, bool replace_faded) {
+    if (replace_faded) return kLightningNeverEnds;
+    const double gaps = bolts > 1 ? static_cast<double>(bolts - 1) : 0.0;
+    const double mean = (static_cast<double>(interval_min) + static_cast<double>(interval_max)) * 0.5;
+    const double seconds = std::max(0.0, gaps * std::max(0.0, mean) + std::max(0.0, static_cast<double>(fade_max)));
+    if (seconds * 30.0 >= 2.0e9) return kLightningNeverEnds - 1;
+    return static_cast<uint32_t>(frames_ceil(seconds * 30.0 - 1e-9));  // a whole number of seconds stays exact (12 s -> 360)
 }
 
 namespace {

@@ -13,7 +13,9 @@ namespace alamo_game_app {
 
 namespace {
 
-// Play_Lightning_Effect's block length in battle frames (the Lua config default, PresentationConfig::lightning_frames): the bolts show that long.
+// Play_Lightning_Effect's drawn length in battle frames without a story log (the Lua config default,
+// PresentationConfig::lightning_frames). With one, the bolts show as long as the call's block runs (#51 t03: the
+// effect's data-driven length, the same in alamo_headless).
 constexpr uint32_t kStoryLightningFrames = 30;
 
 // The trailing "@pos", x, y, z of a camera event (bind_presentation.cpp append_position), false when the call had none.
@@ -123,7 +125,15 @@ void App::story_script_event(const lua::PresentationEvent& e) {
                 }
             if (pts.size() == 2 && !e.args.empty() && battle()) {
                 const uint32_t f = story_frame();
-                story_lightning_.push_back({e.args[0].text, pts[1], pts[0], f, f + kStoryLightningFrames});
+                uint32_t frames = kStoryLightningFrames;
+#ifdef ALAMO_SIM_HAVE_STORY
+                sim::StorySession* story = session_ ? session_->host().story() : nullptr;
+                const lua::PresentationLog* log = story ? story->presentation() : nullptr;
+                if (const uint32_t end = log && e.block ? log->block_end(e.block) : 0u; end != 0)
+                    frames = end == lua::kLightningNeverEnds ? lua::kLightningNeverEnds : (end > e.frame ? end - e.frame : 0u);
+#endif
+                const uint32_t to = frames >= lua::kLightningNeverEnds - f ? lua::kLightningNeverEnds : f + frames;
+                story_lightning_.push_back({e.args[0].text, pts[1], pts[0], f, to});
             }
             break;
         }

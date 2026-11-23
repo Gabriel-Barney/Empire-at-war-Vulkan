@@ -17,6 +17,7 @@
     REBUILT(types_, "the type table handed to the constructor") \
     REBUILT(rng_, "the session's random stream (saved by the session)") \
     REBUILT(files_, "the file provider handed to the constructor") \
+    REBUILT(lightning_frames_, "#51 t03: start() reads it again from LightningEffectTypes.xml") \
     REBUILT(global_values_, "Int-final: StoryStart::global_values") \
     REBUILT(lua_gc_pf_, "OPT2 t04: the host's ParallelFor") \
     SAVED(lua_, hashed) \
