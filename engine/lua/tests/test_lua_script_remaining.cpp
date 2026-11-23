@@ -861,9 +861,9 @@ static void test_unit_order_targets(const Db& db) {
     CHECK(lua_order_of(1).u("subtype") == kLuaOrderSubtype + static_cast<uint32_t>(LuaOrder::Guard) &&
           payload_u32(lua_order_of(1), 4) == static_cast<uint32_t>(t1_id));
     CHECK(payload_u32(lua_order_of(0), 4) == none);
-    // #51 t01 (Move_Internal 0x57da90 -> task force vf+0x170: legacy docs/re/LUA_API.md "Move_Internal" and legacy
-    // docs/re/AI_TACTICAL.md §7.3.2 [H]): Move_To a task force goes to the mean of its live members as a position, not to
-    // an object; an empty task force is (0, 0, 0), never an error, for all three orders.
+    // #51 t01 (Move_Internal 0x57da90 -> task force vf+0x170: legacy docs/re/LUA_API.md "Move_Internal",
+    // legacy docs/re/AI_TACTICAL.md §7.3.2 [H]): Move_To a task force goes to the mean of its live members as a position,
+    // not to an object; an empty task force is (0, 0, 0), never an error, for all three orders.
     const auto order_x = [&](size_t back) { return std::bit_cast<float>(payload_u32(lua_order_of(back), 8)); };
     CHECK(run(vm, "m = Ship.Move_To(TF)") == "" && !gnil(vm, "m") && !vm.exit_requested());
     CHECK(lua_order_of(0).u("subtype") == kLuaOrderSubtype + static_cast<uint32_t>(LuaOrder::MoveTo) &&
@@ -877,6 +877,12 @@ static void test_unit_order_targets(const Db& db) {
               lua_order_of(1).u("subtype") == kLuaOrderSubtype + static_cast<uint32_t>(LuaOrder::AttackMove) &&
               lua_order_of(0).u("subtype") == kLuaOrderSubtype + static_cast<uint32_t>(LuaOrder::Guard));
         for (size_t b = 0; b < 3; ++b) CHECK(payload_u32(lua_order_of(b), 4) == none && order_x(b) == 0.0f);
+        // Guard_Target when the caller is the only member: no object to guard, the task force's position (Ship's).
+        ai.units = {ship};
+        CHECK(run(vm, "g1 = Ship.Guard_Target(TF)") == "" && !gnil(vm, "g1") && !vm.exit_requested());
+        CHECK(payload_u32(lua_order_of(0), 4) == none && order_x(0) == 0.0f);
+        ai.units = {t2, ship};
+        CHECK(run(vm, "g2 = Ship.Guard_Target(TF)") == "" && payload_u32(lua_order_of(0), 4) == static_cast<uint32_t>(t2_id));
         reset_script_threads(vm);
         ai.units = members;
     }

@@ -2038,17 +2038,16 @@ int move_internal(Call& c, int flags, const char* who) {
         // TaskForceClass: its position vf+0x170 (0x5fcc60, legacy docs/re/AI_TACTICAL.md §7.3.2 [H]): the mean of its live
         // members, summed in member order and scaled by a reciprocal; (0, 0, 0) with none, never an error (#51 t01).
         // Move_To and Attack_Move go to that position; Guard_Target guards the first member that is not the caller or its
-        // container.
-        uint32_t n = 0;
-        for (const ObjectHandle m : tf_units) {
-            const Vec3 q = st->position(m);
-            p.x += q.x;
-            p.y += q.y;
-            p.z += q.z;
-            ++n;
+        // container. The same arithmetic as the tactical AI's TacticalAiWorld::Impl::tf_center (tf_units are its live
+        // members, in member order): keep the two together.
+        for (const ObjectHandle member : tf_units) {
+            const Vec3 at = st->position(member);
+            p.x += at.x;
+            p.y += at.y;
+            p.z += at.z;
         }
-        if (n > 0) {
-            const float f = 1.0f / static_cast<float>(n);
+        if (!tf_units.empty()) {
+            const float f = 1.0f / static_cast<float>(tf_units.size());
             p.x *= f;
             p.y *= f;
             p.z *= f;
