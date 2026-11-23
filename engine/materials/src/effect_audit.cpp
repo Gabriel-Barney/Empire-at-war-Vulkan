@@ -111,10 +111,8 @@ std::vector<ShaderIssue> effect_load_issues(const EffectLibrary& lib, std::strin
                        reason + "; the port loads " + *fxo + " in place of this .fx"});
     }
     if (!fxo && !from_src) return out;  // missing: the original's silent green default (D.3), not a shader issue
-    // An if, not `from_src ? *src : *fxo` (#24): MSVC 14.51 /O2 loads both arms of that conditional before choosing,
-    // and its STL poisons an empty std::optional's storage under /fsanitize=address (_INSERT_OPTIONAL_ANNOTATION), so
-    // ASan reported use-after-poison on the empty `src`. A false positive, not an engine bug: the speculative load reads
-    // live stack bytes and its value is discarded.
+    // An if, not `from_src ? *src : *fxo` (#24): MSVC /O2 loads both arms, and under /fsanitize=address the STL poisons
+    // an empty optional's storage, so ASan flags a false use-after-poison on the empty `src`.
     std::string file;
     if (from_src) file = *src;
     else file = *fxo;
