@@ -20,6 +20,21 @@ std::vector<ui::RadarField> radar_asteroid_fields(std::span<const tactical::abil
     return out;
 }
 
+std::vector<uint8_t> radar_land_terrain(const terrain::MapData& map, const tactical::movement::PassabilityGrid& grid,
+                                        const ui::PassabilityPalette& palette, uint32_t size, float min_x, float min_y, float max_x,
+                                        float max_y) {
+    if (!map.passability_present && map.legacy_passability.empty()) return {};
+    ui::RadarTerrainSource src;
+    src.cells = grid.effective_values();
+    src.gw = grid.width();
+    src.gh = grid.height();
+    if (map.terrain.present && map.terrain.header.water_type != terrain::WaterType::None) {
+        const terrain::Terrain* tr = &map.terrain;
+        src.water = [tr](float x, float y) { return tr->header.water_height >= tr->sample_height(x, y); };
+    }
+    return ui::radar_terrain_rgba(src, palette, size, min_x, min_y, max_x, max_y);
+}
+
 void RadarFeed::reset() {
     progress_.clear();
     death_pings_ = transition_pings_ = 0;

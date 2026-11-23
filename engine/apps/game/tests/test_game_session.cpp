@@ -3183,6 +3183,30 @@ void radar_feed_test() {
     CHECK(bl.items().size() == 1 && bl.items()[0].type == "objective_blip");
     feed.blips({}, bl);
     CHECK(bl.items().empty());
+
+    // #69 t04 (MAP1_RADAR_TERRAIN_RE "Per-texel rule"): the land picture reads the movement grid's EFFECTIVE flags - an object
+    // footprint and the whole cells outside the playable box read Obstacle. 4 x 4 cells (centres 0, 20, 40, 60) on a 4 x 4
+    // picture over [-10, 70]^2: texel (col, row) samples cell (col, row + 1) (rows clamp at 59.999 -> cell 3).
+    {
+        namespace mv = tactical::movement;
+        mv::PassabilityGrid grid;
+        grid.init(4, 4);
+        CHECK(grid.stamp(9, mv::make_footprint({20.0f, 20.0f}, 0.0f, 10.0f, 10.0f, -5.0f, -5.0f, 0, 0, 1.0f, 0)) == 1);  // cell (1, 1)
+        grid.set_playable_box({-5.0f, -5.0f}, {50.0f, 100.0f});  // column 3 (centre 60) is outside
+        ui::PassabilityPalette pal{};
+        for (size_t i = 0; i < pal.size(); ++i) pal[i] = ui::Rgba8{static_cast<uint8_t>(i + 1), 0, 0, 255};
+        const auto cls = [&](const std::vector<uint8_t>& px, uint32_t col, uint32_t row) { return px[(row * 4 + col) * 4] - 1; };
+        terrain::MapData md;
+        md.passability_present = true;
+        const std::vector<uint8_t> px = game::radar_land_terrain(md, grid, pal, 4, -10.0f, -10.0f, 70.0f, 70.0f);
+        CHECK(px.size() == 64);
+        CHECK(cls(px, 1, 0) == static_cast<int>(ui::Passability::Obstacle) && cls(px, 3, 0) == static_cast<int>(ui::Passability::Obstacle));
+        CHECK(cls(px, 0, 0) == static_cast<int>(ui::Passability::Clear) && cls(px, 2, 0) == static_cast<int>(ui::Passability::Clear));
+        terrain::MapData legacy;  // a map with only the legacy 0x104 chunk still has a picture; one with neither has none
+        legacy.legacy_passability.assign(16, 0);
+        CHECK(game::radar_land_terrain(legacy, grid, pal, 4, -10.0f, -10.0f, 70.0f, 70.0f).size() == 64);
+        CHECK(game::radar_land_terrain(terrain::MapData{}, grid, pal, 4, -10.0f, -10.0f, 70.0f, 70.0f).empty());
+    }
 }
 #endif
 

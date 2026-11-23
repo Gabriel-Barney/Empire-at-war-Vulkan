@@ -12,6 +12,9 @@
 //                          than its owner plays the type's Begin_Control_Transition_Radar_Event (vanilla
 //                          DEFAULT_CONTROL_POINT_TRANSITION) at the point, local player sees it only. End_Control_
 //                          Transition_Radar_Event has no traced call site (not played).
+//   radar_land_terrain     #69 t04 (MAP1_RADAR_TERRAIN_RE "Per-texel rule"): the land battle's passability picture from
+//                          the movement grid's EFFECTIVE cell flags - the map's 0x10A (or legacy 0x104) bits OR the object
+//                          footprints, Obstacle on the cells outside the playable box - and the map's water surface.
 //   RadarFeed::blips       Lua Add_Radar_Blip(object, name) / Remove_Radar_Blip(name): persistent named markers that follow
 //                          the object ([port] visual: gold ring; the original's blip art is not traced).
 // Not fed (no spec): the base-under-attack radar ping (legacy docs/re/AUDIO.md names no event), Interdict_Activated (a radar
@@ -31,6 +34,8 @@
 #include "alamo/objects/object_store.hpp"
 #include "alamo/sim/tactical_battle.hpp"
 #include "alamo/tactical/abilities/space_fields.hpp"
+#include "alamo/tactical/movement/passability.hpp"
+#include "alamo/terrain/ted.hpp"
 #include "alamo/ui/hud_radar.hpp"
 #include "alamo/ui/hud_world.hpp"
 
@@ -44,6 +49,11 @@ namespace alamo::game {
 
 // Asteroid fields of a space battle for ui::RadarFieldPaint (insertion order).
 std::vector<ui::RadarField> radar_asteroid_fields(std::span<const tactical::abilities::SpaceField> fields);
+// The land picture (ui::radar_terrain_rgba, `size` x `size` over the world box) of a map and its battle's movement grid;
+// empty when the map has no passability chunk (neither 0x10A nor 0x104).
+std::vector<uint8_t> radar_land_terrain(const terrain::MapData& map, const tactical::movement::PassabilityGrid& grid,
+                                        const ui::PassabilityPalette& palette, uint32_t size, float min_x, float min_y, float max_x,
+                                        float max_y);
 
 struct RadarDeathNote {
     float x = 0, y = 0;

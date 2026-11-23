@@ -361,6 +361,7 @@ public:
     RadarFeed radar_feed_;  // radar_feed.hpp: death / capture-point pings, story blips (host-side, read-only)
     std::vector<ui::RadarField> radar_fields_;  // space battle's asteroid fields (painted into the radar picture)
     bool radar_fields_built_ = false, radar_fields_dirty_ = false;
+    static constexpr uint32_t kRadarTerrainSize = 128;
     std::vector<uint8_t> radar_terrain_;  // the land battle's passability picture (RGBA, 128 x 128, row 0 = south)
     bool radar_terrain_built_ = false;
     ui::EncyclopediaPanel ency_;
@@ -826,6 +827,8 @@ public:
     void show_credits();
     void fill_cursor_hover(ui::CursorContext& c);  // hovered object -> cursor context (battle)
     void update_radar();
+    ui::RadarFieldPaint radar_world_box() const;  // the top tactical mode's bounds (unset: RadarFieldPaint's default box)
+    void build_radar_terrain();                   // radar_terrain_ for the current battle (#69 t04)
 
     // ---- BM2a benchmark mode (app_benchmark.cpp, benchmark.hpp) ----
     // Loading: the save is loading / its load screen is up; Settling: gameplay frames until settle_frames settled ones in a
