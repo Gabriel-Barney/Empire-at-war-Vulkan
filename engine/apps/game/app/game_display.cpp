@@ -13,6 +13,7 @@
 #include <string_view>
 #include <thread>
 
+#include "alamo/game/host_text.hpp"
 #include "alamo/render/renderer.hpp"
 
 #include <windows.h>
@@ -330,10 +331,11 @@ void set_os_cursor_hidden(bool hidden) {
 }
 
 // ---- [port] video options file ------------------------------------------------------------------------------------
+// #137: UTF-8 from the wide value, so a profile folder outside the ANSI code page keeps its name (host_text.hpp).
 std::string default_video_profile_path() {
-    const char* la = std::getenv("LOCALAPPDATA");
-    if (!la || !*la) return {};
-    return (std::filesystem::path(la) / "alamo" / "video_options.txt").string();
+    const std::string la = game::env_utf8("LOCALAPPDATA");
+    if (la.empty()) return {};
+    return game::host_utf8(game::host_path(la) / "alamo" / "video_options.txt");
 }
 
 namespace {
@@ -383,7 +385,7 @@ bool update_video_profile(VideoProfile& p, const ui::VideoSettings& v, const std
 void sync_detail(VideoProfile& p) { p.detail = ui::advanced_detail_level(p.advanced); }
 
 bool load_video_profile(const std::string& path, VideoProfile& p) {
-    std::ifstream f(path);
+    std::ifstream f(game::host_path(path));  // #137: a UTF-8 path
     if (path.empty() || !f) return false;
     std::map<std::string, std::string> kv;
     for (std::string line; std::getline(f, line);) {
@@ -451,8 +453,8 @@ bool load_video_profile(const std::string& path, VideoProfile& p) {
 bool save_video_profile(const std::string& path, const VideoProfile& p) {
     if (path.empty()) return false;
     std::error_code ec;
-    std::filesystem::create_directories(std::filesystem::path(path).parent_path(), ec);
-    std::ofstream f(path, std::ios::trunc);
+    std::filesystem::create_directories(game::host_path(path).parent_path(), ec);
+    std::ofstream f(game::host_path(path), std::ios::trunc);  // #137: a UTF-8 path
     if (!f) return false;
     f << "# alamo_game video options (written by the Video / Advanced video dialogs)\n";
     f << "width=" << p.mode.width << "\nheight=" << p.mode.height << "\nrefresh_hz=" << p.mode.hz << "\n";
@@ -467,15 +469,16 @@ bool save_video_profile(const std::string& path, const VideoProfile& p) {
 }
 
 // ---- ui1 t02 [port] other options file --------------------------------------------------------------------------
+// #137: as default_video_profile_path.
 std::string default_options_profile_path() {
-    const char* la = std::getenv("LOCALAPPDATA");
-    if (!la || !*la) return {};
-    return (std::filesystem::path(la) / "alamo" / "game_options.txt").string();
+    const std::string la = game::env_utf8("LOCALAPPDATA");
+    if (la.empty()) return {};
+    return game::host_utf8(game::host_path(la) / "alamo" / "game_options.txt");
 }
 
 // each options page reads and writes its own keys (options_pages.hpp); the file keeps the pages in this order.
 bool load_options_profile(const std::string& path, OptionsProfile& p) {
-    std::ifstream f(path);
+    std::ifstream f(game::host_path(path));  // #137: a UTF-8 path
     if (path.empty() || !f) return false;
     const OptionsKeys k = OptionsKeys::parse(f);
     GameplayPage::load(k, p.gameplay);
@@ -492,8 +495,8 @@ bool load_options_profile(const std::string& path, OptionsProfile& p) {
 bool save_options_profile(const std::string& path, const OptionsProfile& p) {
     if (path.empty()) return false;
     std::error_code ec;
-    std::filesystem::create_directories(std::filesystem::path(path).parent_path(), ec);
-    std::ofstream f(path, std::ios::trunc);
+    std::filesystem::create_directories(game::host_path(path).parent_path(), ec);
+    std::ofstream f(game::host_path(path), std::ios::trunc);  // #137: a UTF-8 path
     if (!f) return false;
     f << "# alamo_game options (audio, gameplay, camera and controls, keyboard dialogs)\n";
     GameplayPage::save(f, p.gameplay);

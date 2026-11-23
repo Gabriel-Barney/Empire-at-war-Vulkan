@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <span>
@@ -496,6 +497,49 @@ void options_pages() {
     const sim::BattleConfig::SkirmishOptions bo = game::SkirmishOptionsPage::battle_options(so);
     CHECK(bo.set && bo.credits == 0 && bo.win_condition == 0xff && !bo.heroes && bo.starting_units && bo.prebuilt_base);
 }
+// #137 t01: the profiles under a %LOCALAPPDATA% outside the ANSI code page. The folder is named in Hebrew and CJK, which
+// no single code page holds: the default paths keep its name (UTF-8), and a profile written there is read back there.
+void profiles_outside_ansi() {
+    wchar_t* old = nullptr;
+    size_t old_len = 0;
+    const bool had = _wdupenv_s(&old, &old_len, L"LOCALAPPDATA") == 0 && old;
+    const std::wstring saved = had ? std::wstring(old) : std::wstring();
+    std::free(old);
+    // unique per run (two test runs at once must not share it)
+    const std::filesystem::path root = std::filesystem::temp_directory_path() /
+                                       (L"alamo_t137_\u05D0\u05D1_\u4E2D\u6587_" + std::to_wstring(GetCurrentProcessId()));
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    CHECK(_wputenv_s(L"LOCALAPPDATA", root.c_str()) == 0);
+    const std::string vp = game::default_video_profile_path(), op = game::default_options_profile_path();
+    // the UTF-8 name of the folder: "alamo_t137_" + U+05D0 U+05D1 + "_" + U+4E2D U+6587
+    CHECK(vp.find("alamo_t137_\xD7\x90\xD7\x91_\xE4\xB8\xAD\xE6\x96\x87") != std::string::npos);
+    CHECK(op.find("alamo_t137_\xD7\x90\xD7\x91_\xE4\xB8\xAD\xE6\x96\x87") != std::string::npos);
+    const auto restore = [&] {
+        if (had) (void)_wputenv_s(L"LOCALAPPDATA", saved.c_str());
+        else (void)_wputenv_s(L"LOCALAPPDATA", L"");
+        std::filesystem::remove_all(root, ec);
+    };
+    if (vp.find("alamo_t137_") == std::string::npos || op.find("alamo_t137_") == std::string::npos) {
+        restore();  // never write over the real profiles
+        return;
+    }
+    game::VideoProfile v;
+    v.mode = {1600, 900, 75};
+    v.ui_scale = 125;
+    CHECK(game::save_video_profile(vp, v));
+    CHECK(std::filesystem::exists(root / L"alamo" / L"video_options.txt", ec));
+    game::VideoProfile v2;
+    CHECK(game::load_video_profile(vp, v2) && v2.mode == v.mode && v2.ui_scale == 125);
+    game::OptionsProfile o;
+    o.gameplay.difficulty = 2;
+    o.audio.master = 0.5f;
+    CHECK(game::save_options_profile(op, o));
+    CHECK(std::filesystem::exists(root / L"alamo" / L"game_options.txt", ec));
+    game::OptionsProfile o2;
+    CHECK(game::load_options_profile(op, o2) && o2.gameplay.difficulty == 2 && o2.audio.master == 0.5f);
+    restore();
+}
 }  // namespace
 
 int main() {
@@ -508,6 +552,7 @@ int main() {
     detail_options();
     detail_mappings();
     options_round_trip();
+    profiles_outside_ansi();  // #137 t01
     std::printf(g_fail ? "alamo_game_display_tests: %d FAILED\n" : "alamo_game_display_tests: OK\n", g_fail);
     return g_fail ? 1 : 0;
 }
