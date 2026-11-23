@@ -35,7 +35,6 @@ graded by its overlap with the closest retail run: sum(min(a, b)) / max(sum(a), 
 INFO metrics (RNG draws) are reported, never graded. N/A names the side that has no data and why.
 """
 import argparse
-import bisect
 import collections
 import json
 import math
@@ -320,8 +319,8 @@ def galactic_metrics(trace_path, queue_path=None, ai_log=None, sample_ticks=(450
     cut for travel.hop_ticks alone (default max_tick); a reference run's later legs still measure fleet speeds.
     factory_reduced: {type: [structure types]} (scenario "factory_reduced"), the types whose build time the structures at
     the planet divide."""
-    fr = {str(k).upper(): [str(x).upper() for x in v] for k, v in (factory_reduced or {}).items()}
-    m = tp.trace_metrics(trace_path, max_tick=max_tick, count_types={x for v in fr.values() for x in v} or None)
+    reducers = {str(k).upper(): [str(x).upper() for x in v] for k, v in (factory_reduced or {}).items()}
+    m = tp.trace_metrics(trace_path, max_tick=max_tick, count_types={x for v in reducers.values() for x in v} or None)
     fac = m["factions"]
     out, notes = {}, []
     # Travel: leg duration per route (departure = first moved sample, arrival = first sample of a stop, a pass through a
@@ -364,19 +363,15 @@ def galactic_metrics(trace_path, queue_path=None, ai_log=None, sample_ticks=(450
     # Production: retail queue starts (production.q2q) or port build orders (AI log); build time per type.
     builds = None
     durations = collections.defaultdict(list)
-    counts = m.get("structure_counts") or []
-    count_ticks = [tk for tk, _ in counts]
 
-    def build_key(t, planet, start):
+    def build_key(t, planet, queued):
         # #229: Build_Time_Reduced_By_Multiple_Factories divides the build time by the number of the type's required
-        # structures at the planet when the build starts (GalacticSim::build_time_for [H]), an AI choice; a build under
-        # n >= 2 of them is keyed /n<n>, so it is only graded against builds under as many.
+        # structures at the planet, any owner, when the item is queued (engine/galactic/src/campaign.cpp
+        # GalacticSim::build_time_for), an AI choice; a build under n >= 2 of them is keyed /n<n>, so it is only graded
+        # against builds under as many.
         k = "%s@%s" % (t, planet)
-        req = fr.get(str(t).upper())
-        j = bisect.bisect_right(count_ticks, start) - 1
-        if not req or j < 0:
-            return k
-        n = sum(counts[j][1].get((str(planet).upper(), s), 0) for s in req)
+        req = reducers.get(str(t).upper())
+        n = tp.structure_count(m, queued, str(planet).upper(), req) if req else 0
         return k + "/n%d" % n if n >= 2 else k
     if queue_path and os.path.exists(queue_path):
         tp.queue_metrics(queue_path, m, max_tick)
@@ -389,7 +384,7 @@ def galactic_metrics(trace_path, queue_path=None, ai_log=None, sample_ticks=(450
         for e in m["queue_entries"]:
             d = e["done"] - e["last_start"]
             if e["restarts"] == 0 and (e["created"] is not None or e["last"] < end) and d >= e["frames"]:
-                durations[build_key(e["type"], e["planet"], e["start"])].append(d)
+                durations[build_key(e["type"], e["planet"], e["seen"])].append(d)  # seen: the first frame it is listed
     elif ai_log and os.path.exists(ai_log):
         o = tp.port_metrics(None, ai_log)
         orders = [(tk, f, at_, t) for tk, f, at_, d in o["production"] for t in d]

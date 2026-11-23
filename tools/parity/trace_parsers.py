@@ -8,6 +8,7 @@ tools/analysis/a2g_port_vs_retail.py and the kit (q2_parity.py's comparison, q2t
 Metric dicts: empty_metrics() names every key; trace_metrics / queue_metrics / lua_metrics fill the retail side,
 port_metrics the port side, both keyed by tick = mode frame (q2_parity.py's docstring has the field list).
 """
+import bisect
 import collections
 import math
 import os
@@ -364,6 +365,14 @@ def trace_metrics(path, factions_override=None, max_tick=None, count_types=None)
     if players:
         m["credits_final"] = {cfac(k): v for k, v in sorted(players.items())}
     return m
+
+
+def structure_count(m, tick, planet, types):
+    """The number of `types` objects at `planet` after `tick`, from trace_metrics(count_types=...)'s m["structure_counts"]
+    (0 before the first sample, or for a type that was not counted)."""
+    counts = m.get("structure_counts") or []
+    j = bisect.bisect_right([c[0] for c in counts], tick) - 1
+    return sum(counts[j][1].get((planet, t), 0) for t in types) if j >= 0 else 0
 
 
 def queue_metrics(path, m, max_tick=None):
