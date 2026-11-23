@@ -548,8 +548,8 @@ public:
     // OI host (P3 video item 3): the output device's buffering in seconds (period size x periods / rate; 0 for the
     // null backend / inactive audio), subtracted from a movie's audio clock (MoviePlayer::set_audio_latency).
     double output_latency_seconds() const;
-    // The profile's bus levels (options load / apply / preview). aud2 t02 (legacy docs/re/AUDIO.md §4): the master level is also saved as
-    // the level Lua Master_Volume_Restore ramps back to (AudioSystem::save_master_volume).
+    // The profile's bus levels (options load / apply / preview). They save no master level for Lua Master_Volume_Restore
+    // (#223, retail answer on #205: the options never call the save).
     void set_volumes(float master, float sfx, float speech, float music);
 
     // --- aud2 (galactic, app and mixer hookups; both builds, no-ops without engine/audio) ---

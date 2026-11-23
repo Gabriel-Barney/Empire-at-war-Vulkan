@@ -293,13 +293,16 @@ public:
     void set_bus_level(AudioBus bus, float level, float ramp_seconds = 0.0f);
     float bus_level(AudioBus bus) const { return buses_[static_cast<int>(bus)].level; }
     float bus_gain(AudioBus bus) const;  // level x master (master itself: level)
-    // §4 saved master level for Lua Master_Volume_Restore. save_master_volume() records the current
-    // master target (the options code calls it after applying the profile's VolumeMaster); restore ramps
-    // the master bus back to it. [M] who saves in the original is not documented; the saved level
-    // starts at AudioConfig::default_bus_level.
-    void save_master_volume() { saved_master_ = buses_[0].target; }
-    void master_volume_restore(float ramp_seconds = 0.0f) { set_bus_level(AudioBus::Master, saved_master_, ramp_seconds); }
-    float saved_master_volume() const { return saved_master_; }
+    // §4 saved master level for Lua Master_Volume_Restore (#223, retail answer on #205: save 0x21cf60, restore
+    // 0x21cfa0). Nothing is saved at first; save_master_volume() records the master's current level (not a running
+    // ramp's target); master_volume_restore() sets the master's level and target to it at once and keeps it saved,
+    // and does nothing while nothing is saved. Retail saves only at the end of a load screen that resumes a cinematic
+    // (the port has no such load); volume changes (profile, options) never save.
+    void save_master_volume() { saved_master_ = buses_[0].level; }
+    void master_volume_restore() {
+        if (saved_master_) set_bus_level(AudioBus::Master, *saved_master_);
+    }
+    std::optional<float> saved_master_volume() const { return saved_master_; }
 
     // ---- Music (§2).
     using MusicResolver = std::function<std::string(uint8_t mode, SimRng& free_rng)>;
@@ -496,7 +499,7 @@ private:
     std::deque<SpeechEntry> speech_queue_;
     uint32_t speech_voice_ = 0;
     uint32_t next_speech_ticket_ = 1;
-    float saved_master_ = 0.8f;
+    std::optional<float> saved_master_;
     std::vector<std::function<void(const std::string&, bool)>> speech_done_;
     std::vector<std::function<void(const SpeechEvent&, const std::string&)>> speech_start_;
     // streams

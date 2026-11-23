@@ -1523,7 +1523,6 @@ double GameAudioHost::output_latency_seconds() const { return backend_ ? backend
 void GameAudioHost::set_volumes(float master, float sfx, float speech, float music) {
     if (!system_) return;
     system_->set_bus_level(audio::AudioBus::Master, master);
-    system_->save_master_volume();  // the profile's master is what Lua Master_Volume_Restore restores
     system_->set_bus_level(audio::AudioBus::Sfx, sfx);
     system_->set_bus_level(audio::AudioBus::Speech, speech);
     system_->set_bus_level(audio::AudioBus::Music, music);
