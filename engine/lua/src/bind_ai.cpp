@@ -288,7 +288,7 @@ int m_tf_goal_type_name(Call& c) {
     return 1;
 }
 // Collect_All_Free_Units([category]) (0x5fc040, A1_READINGS §39.3): 0 or 1 argument, a GameObjectCategoryType mask
-// string (default every bit); an unknown category collects nothing. No result.
+// string (default every bit); an unknown category name is a script error. No result. The galactic host collects nothing (#81).
 int m_tf_collect_all_free_units(Call& c) {
     if (c.nargs > 1)
         return c.script_error_stop("TaskForceClass::Collect_All_Free_Units -- invalid number of parameters.  Expected 0 or 1, got %d.", c.nargs);

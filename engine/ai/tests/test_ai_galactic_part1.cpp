@@ -2614,8 +2614,9 @@ void test_plan_target_wrapper() {
     pw.world->set_global_values(nullptr);
 }
 
-// #81 (legacy docs/re/A1_READINGS.md 39.3, slot 47 stub 0x13b7d0) [H]: a galactic plan's Collect_All_Free_Units collects
-// nothing. The Empire has free units (the hero at P0, its frigates); the task force has none before and after the call.
+// #81 (legacy docs/re/A1_READINGS.md §39.3, slot 47 stub 0x13b7d0) [H]: a galactic plan's Collect_All_Free_Units collects
+// nothing: the task force has no unit before or after the call, while the Empire has free units to take (the plan is
+// the only one loaded and its task force holds none, so every live Empire unit in a fleet is on the free store).
 void test_collect_all_free_units_galactic() {
     ParityWorld pw(false, {"CollectFree"});
     lua::GlobalValueStore gv;
@@ -2626,6 +2627,11 @@ void test_collect_all_free_units_galactic() {
         pw.world->update_player(0, f, true, false);
     }
     std::printf("galactic Collect_All_Free_Units: task force units %.0f -> %.0f\n", num("cf_before"), num("cf_after"));
+    size_t free_units = 0;
+    for (const gal::FleetState& fl : pw.sim->fleets())
+        if (fl.alive && fl.owner == 0)
+            for (const objects::ObjectHandle u : fl.contents) free_units += pw.store->alive(u) ? 1u : 0u;
+    CHECK(free_units > 0);  // something to collect: not a vacuous pass
     CHECK(num("cf_before") == 0.0 && num("cf_after") == 0.0);
     pw.world->set_global_values(nullptr);
 }

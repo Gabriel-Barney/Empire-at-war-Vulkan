@@ -756,11 +756,8 @@ function NewForce_Thread()
   while true do Sleep(1) end
 end
 )";
-// #200 (b): MainForce gets the selection; EscortForce (0 minimum) gets none; RequiredForce gets none but is
-// TaskForceRequired. MainForce_Thread reads the other two globals before anything else runs.
-// #81 (legacy docs/re/A1_READINGS.md 39.3) [H]: the galactic task force's Collect_All_Free_Units (slot 47) is a stub, so the
-// task force's unit count does not change (the port took every free unit). Counts before and after, then the free store
-// units the plan can see as candidates (Get_Unit_Table of a fresh TF is empty either way).
+// #81 (legacy docs/re/A1_READINGS.md §39.3) [H]: the galactic task force's Collect_All_Free_Units (slot 47) is a stub, so
+// the task force's unit count does not change (the port took every free unit). Records the count before and after.
 inline const char* kPlanCollectFree = R"(
 require("SynAICommands")
 function Definitions()
@@ -778,6 +775,8 @@ function MainForce_Thread()
   ScriptExit()
 end
 )";
+// #200 (b): MainForce gets the selection; EscortForce (0 minimum) gets none; RequiredForce gets none but is
+// TaskForceRequired. MainForce_Thread reads the other two globals before anything else runs.
 inline const char* kPlanTfCreation = R"(
 require("SynAICommands")
 function Definitions()
