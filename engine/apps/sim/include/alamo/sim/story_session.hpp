@@ -419,7 +419,9 @@ public:
     bool start(const StoryStart& s, std::vector<std::string>* diagnostics = nullptr);
 
     // T9. `frame` = global frame, `mode_seconds` = galactic mode time.
-    void service(uint64_t frame, double mode_seconds);
+    // galactic_top: the galactic mode is the top mode. #51 t05: retail's T9 runs only the current mode's story manager
+    // (0x3271d0 on the current mode), so the galactic plots' Lua is not serviced while a battle is on top.
+    void service(uint64_t frame, double mode_seconds, bool galactic_top = true);
     // The T9 time argument (legacy docs/re/STORY.md 4.7 / 7.3 [H]) = (float)(mode frame) x seconds-per-frame (1/30 as a float),
     // computed in float and widened (StoryModel::t9_seconds). A pure function of the mode frame: never wall time, so
     // identical for every worker count and compiler. SimHost::tick_once passes it to service(); the tactical T9

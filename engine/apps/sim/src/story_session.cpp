@@ -1898,10 +1898,12 @@ void StorySession::service_script_in(Set& s, uint32_t si, Script& sc, uint64_t f
     sc.vm->set_time(seconds);
     sc.vm->set_frame(static_cast<uint32_t>(frame));
     sc.vm->service_threads();
-    lua_pushstring(L, "LastService");
-    lua_pushnumber(L, now);
-    lua_rawset(L, LUA_GLOBALSINDEX);
-    sc.serviced = true;  // mirrors of the Lua gate (saved for older readers; not the gate)
+    if (!sc.vm->exit_requested()) {  // retail releases an exited script instead [port: its threads are already killed]
+        lua_pushstring(L, "LastService");
+        lua_pushnumber(L, now);
+        lua_rawset(L, LUA_GLOBALSINDEX);
+    }
+    sc.serviced = true;  // saved mirrors of the Lua gate (the story save layout is unchanged); nothing reads them
     sc.last_service = now;
     sc.rate = rate;
     const auto& errors = sc.vm->errors();
@@ -1918,7 +1920,7 @@ double StorySession::t9_seconds(uint64_t mode_frame) {
     return lua::StoryModel::t9_seconds(mode_frame, 1.0f / 30.0f);
 }
 
-void StorySession::service(uint64_t frame, double mode_seconds) {
+void StorySession::service(uint64_t frame, double mode_seconds, bool galactic_top) {
     frame_ = frame;
     seconds_ = mode_seconds;
     {  // staggered scheduled Lua collections, before any plot script of this service runs
@@ -1970,7 +1972,7 @@ void StorySession::service(uint64_t frame, double mode_seconds) {
             Set& s = *sets_[si];
             for (const uint32_t p : s.model.plot_order()) {
                 for (Script& sc : s.scripts)
-                    if (sc.plot == p) service_script(si, sc, frame, mode_seconds);
+                    if (sc.plot == p && galactic_top) service_script(si, sc, frame, mode_seconds);
                 s.model.service_plot(p);
                 collect(si, "clock");
             }

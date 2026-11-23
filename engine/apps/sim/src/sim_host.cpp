@@ -745,7 +745,7 @@ bool SimHost::tick_once() {
         const GalacticMode* g = galactic_mode();
         const double mode_seconds = StorySession::t9_seconds(g ? g->frame() : frame_);
         story_->set_command_pipeline(pipeline_.get());  // script orders: execute_direct at this frame
-        story_->service(frame_, mode_seconds);
+        story_->service(frame_, mode_seconds, g != nullptr && modes_.top() == g);  // #51 t05: galactic plots on top only
         step("T9.story");
     }
 #ifdef ALAMO_SIM_HAVE_STORY

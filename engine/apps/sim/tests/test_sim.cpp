@@ -1165,8 +1165,8 @@ static std::string expected_pumps(double rate, uint64_t ticks) {
 
 // #51 t05 (the story plot service 0x52f720 [H]): a plot script is serviced by its own Lua globals on the global frame
 // clock, the same rule as the scoring pump above: ServiceRate 0.2 gives host frames 1, 8, 15, ... (7-frame gaps, and
-// 6-frame ones where the float clock rounds up, e.g. 126 -> 132); a script without a numeric ServiceRate is never serviced (only the port's one resume at
-// load runs it).
+// 6-frame ones where the float clock rounds up); a script without a numeric ServiceRate is never serviced (only the
+// port's one resume at load runs it); a battle on top stops the galactic plots' service.
 static void test_story_service_gate_51(const World& w) {
     const fs::path root = fs::temp_directory_path() / "alamo_sim_story_service_51";
     std::error_code ec;
@@ -1209,6 +1209,15 @@ static void test_story_service_gate_51(const World& w) {
     std::printf("  story service frames: %s\n", serviced.c_str());
     CHECK(serviced == expected_pumps(0.2, ticks));
     CHECK(host.global_values()->get("Svc_None").number <= 1.0);  // the load resume at most
+    // A battle on top: retail's T9 runs only the current mode's story manager, so the galactic plot is not serviced;
+    // after the pop it is serviced again on the same global clock (LastService from before the battle).
+    const double before_battle = host.global_values()->get("Svc_Rate").number;
+    host.start_game(ModeKind::Space);
+    for (int t = 0; t < 60; ++t) host.tick_once();
+    CHECK(host.global_values()->get("Svc_Rate").number == before_battle);
+    CHECK(host.end_game_mode());
+    host.tick_once();
+    CHECK(host.global_values()->get("Svc_Rate").number == before_battle + 1.0);  // overdue: serviced at once
     for (const std::string& m : host.story()->lua_messages()) std::printf("  lua: %s\n", m.c_str());
 }
 
