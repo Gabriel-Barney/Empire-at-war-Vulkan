@@ -688,6 +688,66 @@ function FindForce_Thread()
   ScriptExit()
 end
 )";
+// #200 (a): two replaceable plans whose threads run until the goal system ends them, counting their starts. Old: the
+// global Build_Space_Forces goal; New: Conquer_Planet. Neither calls Set_As_Goal_System_Removable(false).
+inline const char* kPlanReacceptOld = R"(
+require("SynAICommands")
+function Definitions()
+  Category = "Build_Space_Forces"
+  IgnoreTarget = true
+  MagicPlan = true
+  MagicPlanStealing = false
+  TaskForce = { { "OldForce", "Corvette = 1" } }
+end
+function OldForce_Thread()
+  GlobalValue.Set("ra_old_starts", (GlobalValue.Get("ra_old_starts") or 0) + 1)
+  while true do Sleep(1) end
+end
+)";
+inline const char* kPlanReacceptNew = R"(
+require("SynAICommands")
+function Definitions()
+  Category = "Conquer_Planet"
+  IgnoreTarget = true
+  MagicPlan = true
+  MagicPlanStealing = false
+  TaskForce = { { "NewForce", "Corvette = 1" } }
+end
+function NewForce_Thread()
+  GlobalValue.Set("ra_new_starts", (GlobalValue.Get("ra_new_starts") or 0) + 1)
+  while true do Sleep(1) end
+end
+)";
+// #200 (b): MainForce gets the selection; EscortForce (0 minimum) gets none; RequiredForce gets none but is
+// TaskForceRequired. MainForce_Thread reads the other two globals before anything else runs.
+inline const char* kPlanTfCreation = R"(
+require("SynAICommands")
+function Definitions()
+  Category = "Build_Space_Forces"
+  IgnoreTarget = true
+  MagicPlan = true
+  MagicPlanStealing = false
+  TaskForce = {
+    { "MainForce", "Corvette = 1" },
+    { "EscortForce", "Frigate = 0,1" },
+    { "RequiredForce", "TaskForceRequired", "Frigate = 0,1" }
+  }
+end
+function MainForce_Thread()
+  if EscortForce == nil then GlobalValue.Set("tfc_escort_nil", 1) else GlobalValue.Set("tfc_escort_nil", 0) end
+  if RequiredForce == nil then GlobalValue.Set("tfc_required_nil", 1) else GlobalValue.Set("tfc_required_nil", 0) end
+  GlobalValue.Set("tfc_main_ran", 1)
+  while true do Sleep(1) end
+end
+function EscortForce_Thread()
+  GlobalValue.Set("tfc_escort_ran", 1)
+  while true do Sleep(1) end
+end
+function RequiredForce_Thread()
+  GlobalValue.Set("tfc_required_ran", 1)
+  while true do Sleep(1) end
+end
+)";
 struct ParityWorld {
     MemoryFiles files;
     AiDefinitions defs;
@@ -736,6 +796,9 @@ struct ParityWorld {
         files.add("Data\\Scripts\\AI\\A2mT03Plain.lua", kPlanA2mT03Plain);
         files.add("Data\\Scripts\\AI\\Tst2FindAll.lua", kPlanFindAll);
         files.add("Data\\Scripts\\AI\\LossSave.lua", kPlanLossSave);
+        files.add("Data\\Scripts\\AI\\ReacceptOld.lua", kPlanReacceptOld);
+        files.add("Data\\Scripts\\AI\\ReacceptNew.lua", kPlanReacceptNew);
+        files.add("Data\\Scripts\\AI\\TfCreation.lua", kPlanTfCreation);
         plan_files = list_plan_files([this](std::string_view glob) {
             const std::string g(glob);
             return files.list(g.substr(0, g.find('*')));
@@ -966,6 +1029,8 @@ struct ResolveOutcome {
 ResolveOutcome resolve_once(float nominal, float resolved, bool budget, bool galactic = true);
 void test_goal_resolve_time_ok();
 void test_goal_old_candidate_reaccept();  // skai t17
+void test_galactic_old_candidate_reaccept();  // #200 (a)
+void test_galactic_task_force_creation();     // #200 (b)
 void test_active_goals_category();
 void test_maintenance_tokens();
 void test_force_maintenance_tokens();

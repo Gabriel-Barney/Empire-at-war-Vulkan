@@ -178,6 +178,7 @@ content that was not carried over.
 | [docs/re/SCRIPT_GAPS.md](https://github.com/Gabriel-Barney/Empire-at-war-vulkan-old/blob/7f911b51f0d12d0d10e8218e726af3d7ace5d9c5/docs/re/SCRIPT_GAPS.md) |
 | [docs/re/SKAI_T15_PLAN_RETEST.md](https://github.com/Gabriel-Barney/Empire-at-war-vulkan-old/blob/7f911b51f0d12d0d10e8218e726af3d7ace5d9c5/docs/re/SKAI_T15_PLAN_RETEST.md) |
 | [docs/re/SKAI_T15_TARGET_LOCATION_FORCE.md](https://github.com/Gabriel-Barney/Empire-at-war-vulkan-old/blob/7f911b51f0d12d0d10e8218e726af3d7ace5d9c5/docs/re/SKAI_T15_TARGET_LOCATION_FORCE.md) |
+| [docs/re/SKAI_T17_SPACE_BUILD_RE.md](https://github.com/Gabriel-Barney/Empire-at-war-vulkan-old/blob/7f911b51f0d12d0d10e8218e726af3d7ace5d9c5/docs/re/SKAI_T17_SPACE_BUILD_RE.md) |
 | [docs/re/SKAI_T22_SPACE_AI_RE.md](https://github.com/Gabriel-Barney/Empire-at-war-vulkan-old/blob/7f911b51f0d12d0d10e8218e726af3d7ace5d9c5/docs/re/SKAI_T22_SPACE_AI_RE.md) |
 | [docs/re/SKIRMISH_SETUP.md](https://github.com/Gabriel-Barney/Empire-at-war-vulkan-old/blob/7f911b51f0d12d0d10e8218e726af3d7ace5d9c5/docs/re/SKIRMISH_SETUP.md) |
 | [docs/re/SPACE_AND_OPEN.md](https://github.com/Gabriel-Barney/Empire-at-war-vulkan-old/blob/7f911b51f0d12d0d10e8218e726af3d7ace5d9c5/docs/re/SPACE_AND_OPEN.md) |
