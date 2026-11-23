@@ -117,7 +117,8 @@ struct ToySim {
     }
 };
 
-alamo::CrcLog run(int32_t workers, uint64_t ticks, bool parallel_capture, int64_t corrupt_tick = -1, int32_t background_workers = 0) {
+alamo::CrcLog run(int32_t workers, uint64_t ticks, bool parallel_capture, int64_t corrupt_tick = -1,
+                  int32_t background_workers = 0) {
     JobSystemConfig cfg;
     cfg.workers = workers;
     cfg.background_workers = background_workers;  // #127: background-only (E-core) workers

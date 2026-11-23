@@ -25,7 +25,8 @@ std::string PoolPlan::describe() const {
                   physical_total, logical_total, cores, hybrid ? "P-cores, " : "", domains, domains == 1 ? "" : "s", workers);
     std::string out = buf;
     if (background_cores > 0) {
-        std::snprintf(buf, sizeof buf, "; %u background-only E-core worker%s", background_cores, background_cores == 1 ? "" : "s");
+        std::snprintf(buf, sizeof buf, "; %u background-only E-core worker%s", background_cores,
+                      background_cores == 1 ? "" : "s");
         out += buf;
     }
     return out;

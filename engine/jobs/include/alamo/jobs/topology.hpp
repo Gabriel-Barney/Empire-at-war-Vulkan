@@ -3,8 +3,9 @@
 // The pool is one worker per physical core (SMT siblings left to the OS, the render thread and audio), on the
 // performance cores only (hybrid CPUs: the highest EfficiencyClass), within one last-level-cache domain (dual-CCD parts:
 // the domain with the most such cores, then the larger L3, e.g. the V-cache CCD of an X3D part), minus the sim thread
-// and the AI thread. #127: on a hybrid CPU the other cores (the lower efficiency classes, the E-cores) are a background-only
-// pool: one logical processor per physical core, for workers that take Priority::Background jobs only. Windows CPU sets (GetSystemCpuSetInformation) give core, cache domain and efficiency class per
+// and the AI thread. #127: on a hybrid CPU the other cores (the lower efficiency classes, the E-cores) are a
+// background-only pool: one logical processor per physical core, for workers that take Priority::Background jobs only.
+// Windows CPU sets (GetSystemCpuSetInformation) give core, cache domain and efficiency class per
 // logical processor; GetLogicalProcessorInformationEx gives the L3 sizes.
 //
 // Everything here is wall clock / scheduling only: no result the sim reads may depend on it (CLAUDE.md rule 3; results

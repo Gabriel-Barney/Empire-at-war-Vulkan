@@ -50,12 +50,13 @@
 // an epoch that pushes and completions bump (no std::this_thread::yield, no mutex / condition variable). Idle workers
 // spin a little longer before they sleep, so back-to-back forks of one tick find them awake.
 //
-// Background-only workers (#127, design 4.1): on a hybrid CPU the E-cores (topology.hpp PoolPlan::background_cpu_set_ids)
-// get workers that take Priority::Background jobs only (slots N+1..N+B). They pop the background queue outside the cap
-// (the cap keeps the regular workers free for foreground loops; these never run foreground work anyway), never run
-// critical or AI jobs, also while they wait (their waits help with background work only, and a background loop they help
-// with does not stop for critical work), and sleep on their own epoch so a wake-up meant for critical work never lands on
-// them. What they submit inherits Background, so they never queue critical work. Scheduling only.
+// Background-only workers (#127, design 4.1): on a hybrid CPU the E-cores (topology.hpp
+// PoolPlan::background_cpu_set_ids) get workers that take Priority::Background jobs only (slots N+1..N+B). They pop the
+// background queue outside the cap (the cap keeps the regular workers free for foreground loops; these never run
+// foreground work anyway), never run critical or AI jobs, also while they wait (their waits help with background work
+// only, and a background loop they help with does not stop for critical work), and sleep on their own epoch so a
+// wake-up meant for critical work never lands on them. What they submit inherits Background, so they never queue
+// critical work. Scheduling only.
 //
 // Pool (sp1, alamo/jobs/topology.hpp): the default worker count is one per physical core of the performance cores of
 // one last-level-cache domain, minus the sim thread and the AI thread; workers are kept on those cores (one logical
@@ -177,15 +178,20 @@ public:
     bool background_pinned() const noexcept { return bg_pinned_; }
     // Most top-level background jobs that run on workers at once: max(1, workers / 2); 0 when serial.
     uint32_t background_cap() const noexcept { return bg_cap_; }
-    uint32_t thread_count() const noexcept { return workers_ + 1; }  // workers + calling thread
+    // Workers + the calling thread: the threads that run critical and AI work. Per-slot resources of critical / AI code
+    // may be sized by it; background code that indexes by current_slot() needs slot_count() (#127).
+    uint32_t thread_count() const noexcept { return workers_ + 1; }
+    // #127: every slot (0, the workers, the background-only workers).
+    uint32_t slot_count() const noexcept { return workers_ + bg_workers_ + 1; }
     bool serial() const noexcept { return workers_ == 0; }
-    // 0 for non-worker threads, 1..N on this system's workers.
+    // 0 for non-worker threads, 1..N on this system's workers, N+1..N+B on its background-only workers (#127).
     uint32_t current_slot() const noexcept;
     // sp1: whether the workers were kept on the pool's cores (JobSystemConfig::cpu_sets and the pool fits).
     bool pinned() const noexcept { return pinned_; }
     // sp1 diagnostics / tests: parallel_for calls that ran inline because their estimated work was small.
     uint64_t inline_forks() const noexcept { return inline_forks_.load(std::memory_order_relaxed); }
-    // Jobs executed per slot since construction (diagnostics / tests): slot 0, the workers, then the background-only workers.
+    // Jobs executed per slot since construction (diagnostics / tests): slot 0, the workers, then the background-only
+    // workers.
     std::vector<uint64_t> executed_per_slot() const;
 
     // Low-level submission: fn(ctx, a, b) runs once on some thread. `a` doubles as the

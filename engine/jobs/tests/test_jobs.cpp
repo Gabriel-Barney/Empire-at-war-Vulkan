@@ -1066,8 +1066,8 @@ static void test_inline_small_forks() {
     }
 }
 
-// #127: background-only workers (the E-cores of a hybrid CPU). They take background jobs only, outside the cap; their
-// waits never run critical or AI work. Every check here is timing-independent: the waits are hang guards, not judgements.
+// #127: background-only workers (the E-cores of a hybrid CPU). They take background jobs only, outside the cap;
+// their waits never run critical or AI work. Every check here is timing-independent: the waits are hang guards.
 static void test_background_workers() {
     section("#127: background-only workers");
     {
@@ -1077,7 +1077,10 @@ static void test_background_workers() {
         JobSystem js(c);
         CHECK(js.worker_count() == 2 && js.background_worker_count() == 3 && js.executed_per_slot().size() == 6);
         CHECK(js.background_cap() == 1);  // the cap still counts the regular workers only
-        CHECK(JobSystem(JobSystemConfig{2}).background_worker_count() == 0);  // an explicit worker count: none by default
+        CHECK(js.slot_count() == 6 && js.thread_count() == 3);
+        CHECK(JobSystem(JobSystemConfig{2}).background_worker_count() == 0);  // explicit worker count: none by default
+        // the automatic pool: one per E-core of this machine (none on a non-hybrid one)
+        CHECK(JobSystem(JobSystemConfig{}).background_worker_count() == machine_pool().background_cores);
         JobSystemConfig s;
         s.workers = 0;
         s.background_workers = 4;

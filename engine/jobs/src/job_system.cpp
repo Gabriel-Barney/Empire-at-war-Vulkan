@@ -158,7 +158,8 @@ JobSystem::JobSystem(JobSystemConfig config) {
                                                           : 0u;
         bg_workers_ = std::min(want, kMaxWorkers);
     }
-    bg_pinned_ = bg_workers_ > 0 && config.cpu_sets && cpu_sets_allowed() && bg_workers_ <= plan.background_cpu_set_ids.size();
+    bg_pinned_ = bg_workers_ > 0 && config.cpu_sets && cpu_sets_allowed() &&
+                 bg_workers_ <= plan.background_cpu_set_ids.size();
     bg_cap_ = workers_ == 0 ? 0u : std::max(1u, workers_ / 2u);
     inline_small_ = config.inline_small;
     estimate_clock_ = config.estimate_clock ? config.estimate_clock : &profile::now_ns;
@@ -180,9 +181,11 @@ JobSystem::JobSystem(JobSystemConfig config) {
     for (uint32_t i = 0; i <= workers_ + bg_workers_; ++i) slots_.push_back(std::make_unique<Slot>());
     threads_.reserve(workers_ + bg_workers_);
     for (uint32_t i = 1; i <= workers_; ++i) threads_.emplace_back([this, i] { worker_main(i); });
-    for (uint32_t i = workers_ + 1; i <= workers_ + bg_workers_; ++i) threads_.emplace_back([this, i] { background_worker_main(i); });
-    log::debugf("jobs", "job system started: %u worker(s)%s%s, %u background-only%s", workers_, workers_ ? "" : " (serial mode)",
-                pinned_ ? ", on the pool's cores" : "", bg_workers_, bg_pinned_ ? " on the E-cores" : "");
+    for (uint32_t i = workers_ + 1; i <= workers_ + bg_workers_; ++i)
+        threads_.emplace_back([this, i] { background_worker_main(i); });
+    log::debugf("jobs", "job system started: %u worker(s)%s%s, %u background-only%s", workers_,
+                workers_ ? "" : " (serial mode)", pinned_ ? ", on the pool's cores" : "", bg_workers_,
+                bg_pinned_ ? " on the E-cores" : "");
 }
 
 JobSystem::~JobSystem() {
@@ -248,7 +251,9 @@ void JobSystem::push(const Job& job, uint32_t copies) {
         q.queued.fetch_add(copies);  // under the queue lock: count never lags the queue
         q.epoch.fetch_add(1);
     } else {
-        Slot& s = *slots_[background_only() ? 0u : my_slot()];  // #127: a background-only slot is never scanned
+        // #127: unreachable from a background-only worker (what it submits inherits Background); slot 0 if it ever were,
+        // since pop_foreground never scans the background-only slots.
+        Slot& s = *slots_[background_only() ? 0u : my_slot()];
         std::lock_guard lk(s.mutex);
         push_all(s.queue, false);
         fg_queued_.fetch_add(copies);
@@ -515,7 +520,7 @@ void JobSystem::worker_main(uint32_t slot) {
 }
 
 void JobSystem::background_worker_main(uint32_t slot) {
-    // #127: background jobs only, outside the cap; no spin (background work is never latency-bound), sleep on bg_epoch_.
+    // #127: background jobs only, outside the cap; no spin (background work is not latency-bound); sleeps on bg_epoch_.
     t_state = ThreadState{this, slot, true};
     if (bg_pinned_) (void)pin_current_thread(machine_pool().background_cpu_set_ids);
     (void)thread_scratch();
@@ -576,7 +581,8 @@ void JobSystem::run_for_chunks(ForState& st, bool helper) {
         release_for_chunk(st);
         // sp1 strict priority: between two chunks of an AI / background loop, a helper takes queued critical work first
         // (#127: not on a background-only worker).
-        if (yield_to_critical && fg_queued_.load(std::memory_order_relaxed) > 0 && !background_only()) run_critical(my_slot());
+        if (yield_to_critical && fg_queued_.load(std::memory_order_relaxed) > 0 && !background_only())
+            run_critical(my_slot());
     }
 }
 
