@@ -29,9 +29,9 @@ enum class PresentationEventKind : uint8_t { ProductionBegin = 0, ProductionCanc
 
 struct PresentationEvent {
     PresentationEventKind kind = PresentationEventKind::ProductionBegin;
-    int32_t player = -1;                            // the order's player
-    int32_t type = -1;                              // host TypeIndex of the built type
-    objects::ObjectId object = objects::kNoObjectId;  // the builder
+    int32_t player = -1;                            // the order's player (HangarLaunch: the ship's owner)
+    int32_t type = -1;                              // host TypeIndex of the built / launched type
+    objects::ObjectId object = objects::kNoObjectId;  // the builder (HangarLaunch: the launched ship)
     uint32_t order = 0;                             // TacticalProduction order id
     uint32_t frame = 0;                             // battle frame
 };

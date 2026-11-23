@@ -2923,6 +2923,8 @@ void test_tactical_tech_upgrade() {
     CHECK(tech_built == tech_before + 1);
     CHECK(tech_killed == tech_built - 1);
 }
+// --- end hangars ---
+
 // #50 t09: CampaignBattleOptions::battle_dropping runs once at the battle end, before the battle is dropped, so what the
 // battle emitted and nobody drained yet (here a production order at frame 2 of a short battle) still reaches the host.
 void test_battle_dropping_presentation() {
@@ -2984,7 +2986,6 @@ void test_battle_dropping_presentation() {
     std::printf("  #50 t09: battle_dropping called %d time(s), %zu undrained event(s) at the drop\n", calls, last.size());
     CHECK(begin);
 }
-// --- end hangars ---
 
 // cu8g t05 (CU8F_T04_T06_RE §3.3 [H]): TacticalBattle::player_gate_allows / special_weapons_allowed on the S10 space
 // battle (gate data), campaign and skirmish. At battle frame 3: the Empire (0) has its star base's S10_Gate_On entries

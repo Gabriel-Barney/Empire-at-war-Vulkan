@@ -1264,9 +1264,6 @@ std::string restrict_tie_squadron_on_b(std::string t) {
 }
 }  // namespace
 
-// trl2 t06 (STATION_HANGARS_SOUND §2.4 items 2 and 7): a campaign space battle at a Corruption_Bribery planet whose owner's
-// faction (Empire) lacks Benefits_From_Corruption launches nothing; another corruption type does not stop launches; a
-// battle planet whose type restricts the spawn type launches nothing of it.
 // #50 t06 (STATION_HANGARS_SOUND §2.5, 0x594dc0 [H]): a space hangar's single-ship launch (no Squadron_Units) is a
 // HangarLaunch presentation event (the host plays Reinforcements_Enroute_SFXEvent for the local player); a squadron launch
 // is none. The carrier (player 0) launches S10_TIE_Squadron as built, S10_TIE (a single ship) with the patch.
@@ -1316,6 +1313,9 @@ void test_hangar_launch_presentation() {
     CHECK(singles.first > 0 && singles.second);
 }
 
+// trl2 t06 (STATION_HANGARS_SOUND §2.4 items 2 and 7): a campaign space battle at a Corruption_Bribery planet whose owner's
+// faction (Empire) lacks Benefits_From_Corruption launches nothing; another corruption type does not stop launches; a
+// battle planet whose type restricts the spawn type launches nothing of it.
 void test_hangar_planet_gates() {
     const uint32_t base = carrier_fighters_seen(-1);
     const uint32_t bribery = carrier_fighters_seen(5);  // Corruption_Bribery
