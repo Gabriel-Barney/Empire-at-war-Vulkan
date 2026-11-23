@@ -209,6 +209,84 @@ void test_landing_streams() {
     CHECK(run_landing_streams(*d, 0, 4, par, n) == off);  // off stays worker-independent too
 }
 
+// #128 t04: the queues service on counter-based streams (bit StreamId::Queues): an order group a queue starts draws from
+// its own stream (keyed by the group and the queue pass). Player 1's squads get a move, then a queued move and a queued
+// attack: the queue service starts each once the one before ends, and a standing squad container's move draws its
+// members' start delays. Off: the synced draws; on: the run differs and is identical at 0 / 1 / 4 / 15 workers and in
+// every service run mode.
+struct QueueStreamRun {
+    uint64_t digest = 0;
+    uint32_t started = 0;  // the frame the last queued order (the attack) left the queue (0: never)
+};
+QueueStreamRun run_queue_streams(Data& d, uint32_t streams, uint32_t workers, tactical::services::RunMode run_mode) {
+    namespace mv = alamo::tactical::movement;
+    const TacticalBattle::ServiceRunDefaults saved = TacticalBattle::service_run_defaults();
+    TacticalBattle::ServiceRunDefaults sd = saved;
+    sd.streams = streams;
+    sd.mode = run_mode;
+    TacticalBattle::set_service_run_defaults(sd);
+    QueueStreamRun r;
+    StateHasher all;
+    std::vector<objects::ObjectId> ids;
+    land_battle(
+        d, nullptr, 1500,
+        [&](TacticalBattle& b, TacticalMode& tm, SimHost& host) {
+            objects::ObjectStore& st = tm.primary();
+            if (ids.empty()) {
+                if (b.frame() != 30) return true;
+                for (const objects::ObjectHandle h : st.owned_by(1))
+                    if (st.alive(h) && b.movement().has_unit(st.id(h))) ids.push_back(st.id(h));
+                objects::ObjectId foe = objects::kNoObjectId;  // the first enemy unit
+                for (const objects::ObjectHandle h : st.all_objects())
+                    if (foe == objects::kNoObjectId && st.alive(h) && st.owner(h) != 1 && b.movement().has_unit(st.id(h)))
+                        foe = st.id(h);
+                if (ids.empty()) return false;
+                SimRng& rng = host.random().synced();
+                const mv::V2 a = mv::cell_center(28, 28), c = mv::cell_center(36, 28);
+                CHECK(b.order_move(tm, 1, ids, a.x, a.y, rng) == commands::RejectReason::None);
+                CHECK(b.order_move(tm, 1, ids, c.x, c.y, rng, mv::kNoFacing, false, true) ==
+                      commands::RejectReason::None);
+                CHECK(b.order_attack(tm, 1, ids, foe, rng, -1, true) == commands::RejectReason::None);
+                return true;
+            }
+            if (!r.started && b.queued_orders(ids.front()).empty()) r.started = b.frame();  // the attack started
+            all.u32(b.frame());
+            all.u32(host.random().synced().state());
+            for (const objects::ObjectHandle h : st.all_objects()) {
+                if (!st.alive(h)) continue;
+                const Vec3 p = st.position(h);
+                all.u32(static_cast<uint32_t>(st.id(h)));
+                all.f32(p.x);
+                all.f32(p.y);
+            }
+            return !r.started || b.frame() < r.started + 300;
+        },
+        false, {}, {}, workers);
+    TacticalBattle::set_service_run_defaults(saved);
+    r.digest = all.digest();
+    return r;
+}
+
+void test_queue_streams() {
+    g_temp_prefix = "alamo_sim_r3g_tests_128q";
+    // squads: TEAM containers on their own locomotor (a standing container's move draws its members' start delays)
+    auto d = make_data(false, false, false, false, false, false, true, false, false, false, false, false, false, false,
+                       false, false, false, false, true);
+    const uint32_t bit = 1u << static_cast<uint32_t>(tactical::services::StreamId::Queues);
+    const auto par = TacticalBattle::service_run_defaults().mode;
+    const QueueStreamRun off = run_queue_streams(*d, 0, 0, par);
+    const QueueStreamRun on = run_queue_streams(*d, bit, 0, par);
+    std::printf("  queue streams: off %016llx (queued attack at frame %u), on %016llx (frame %u)\n",
+                static_cast<unsigned long long>(off.digest), off.started, static_cast<unsigned long long>(on.digest),
+                on.started);
+    CHECK(off.started > 30 && on.started > 30);  // the queue service started the queued orders
+    CHECK(off.digest != on.digest);              // the draws moved
+    for (const uint32_t w : {1u, 4u, 15u}) CHECK(run_queue_streams(*d, bit, w, par).digest == on.digest);
+    for (const auto m : {tactical::services::RunMode::Serial, tactical::services::RunMode::Reverse})
+        CHECK(run_queue_streams(*d, bit, 4, m).digest == on.digest);
+    CHECK(run_queue_streams(*d, 0, 4, par).digest == off.digest);  // off stays worker-independent too
+}
+
 // ---- t05 ----
 std::string crush_patch(std::string t) {
     // The trooper gets a Damage_Crush clone (Crushed, as the 21 FoC Damage_Crush clones) and a Damage_Normal clone.
@@ -1004,6 +1082,8 @@ int main() {
     test_landing_clips();
     std::printf("#128 t01: the landing service on counter-based streams\n");
     test_landing_streams();
+    std::printf("#128 t04: the queues service on counter-based streams\n");
+    test_queue_streams();
     std::printf("r3g t05: crush kind and Damage_Crush clones\n");
     test_crush_kind();
     std::printf("r3g t06: crouch under SPREAD_OUT\n");

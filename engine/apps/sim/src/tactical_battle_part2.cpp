@@ -1526,27 +1526,32 @@ void TacticalBattle::advance_queues(TacticalMode& mode, SimRng& rng) {
         if (starts.empty()) break;
         for (Start& s : starts) {
             const QueuedOrder& o = s.o;
+            // #128 t04: with the Queues stream on, each order group a queue starts draws from its own stream, keyed by
+            // the group and the pass (a group can start again in a later pass of the same tick).
+            SimRng own;
+            SimRng& srng = svc_rng(static_cast<uint32_t>(tactical::services::StreamId::Queues),
+                                   (static_cast<uint64_t>(o.group) << 8) | static_cast<uint64_t>(pass), rng, own);
             switch (o.kind) {
                 case QueuedOrder::Kind::Move:  // [port] fleet cohesion: the player's setting when the move starts
-                    exec_move(mode, s.ids, o.x, o.y, rng, o.facing, o.attack_move, o.flags, false, kNoObjectId, false,
+                    exec_move(mode, s.ids, o.x, o.y, srng, o.facing, o.attack_move, o.flags, false, kNoObjectId, false,
                               cohesion_for(o.player, o.flags));
                     break;
                 case QueuedOrder::Kind::MoveToObject: {
                     const objects::ObjectHandle th = st.find(o.target);
                     if (!st.alive(th)) break;  // target gone: dropped, the next entry runs next pass
                     const Vec3 p = st.position(th);
-                    exec_move(mode, s.ids, p.x, p.y, rng, mv::kNoFacing, o.attack_move);
+                    exec_move(mode, s.ids, p.x, p.y, srng, mv::kNoFacing, o.attack_move);
                     break;
                 }
                 case QueuedOrder::Kind::Attack: {
                     const Unit* t = unit_by_id(o.target);
                     if (const Container* ct = t ? nullptr : team_target(o.target)) {  // q6: a TEAM container target
-                        if (combat_->is_enemy(o.player, st.owner(ct->h))) exec_attack(mode, s.ids, o.target, -1, rng);
+                        if (combat_->is_enemy(o.player, st.owner(ct->h))) exec_attack(mode, s.ids, o.target, -1, srng);
                         break;
                     }
                     if (!t || !t->alive || t->retreated || !combat_->is_enemy(o.player, st.owner(t->h))) break;
                     if (o.hardpoint >= 0 && combat_->hardpoint_destroyed(t->id, static_cast<uint32_t>(o.hardpoint))) break;
-                    exec_attack(mode, s.ids, t->id, o.hardpoint, rng);
+                    exec_attack(mode, s.ids, t->id, o.hardpoint, srng);
                     break;
                 }
                 case QueuedOrder::Kind::Ability: {
@@ -1558,7 +1563,7 @@ void TacticalBattle::advance_queues(TacticalMode& mode, SimRng& rng) {
                                    ? "users"
                                    : "units",
                                std::move(w));
-                    handle_ability(mode, o.player, ev, rng);
+                    handle_ability(mode, o.player, ev, srng);
                     break;
                 }
             }
