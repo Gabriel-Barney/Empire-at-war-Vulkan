@@ -28,6 +28,8 @@ from check_mod_names import allowed_lines, tokenize  # noqa: E402  (same tokeniz
 SCOPE = [
     'ui/src/galactic_hud.cpp',  # #45 t08 slice 1
     'ui/src/galactic_hud_map.cpp',
+    'ui/src/gui_menus.cpp',  # slice 2 (hotkey labels) and slice 3 (options and mods menus)
+    'ui/include/alamo/ui/gui_menus.hpp',
 ]
 MARK = re.compile(r'\[port-text(-begin)?:\s*([^\]]*)\]')
 MARK_END = re.compile(r'\[port-text-end\]')

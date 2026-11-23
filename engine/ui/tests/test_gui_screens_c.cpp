@@ -706,6 +706,7 @@ void test_controls() {
         cs.tactical_fov_deg = 70.0f;
         cs.fleet_groups = true;  // #175
         p.camera_settings = [&] { return cs; };
+        env.text.add("TEXT_KEY_SHIFT", u"Umschalt");  // #45 t08: retail's key name, in a German table
         fe.init(env.gui, {}, p);
         std::vector<MenuAction> acts;
         fe.update(std::vector<GuiEvent>{event(GuiEvent::Kind::Clicked, "IDD_MAIN_OPTIONS_DIALOG", "IDC_MAIN_OPTIONS_MODS")}, InputFrame{}, acts);
@@ -714,6 +715,8 @@ void test_controls() {
         CHECK(d && d->get("IDC_PORT_TACTICAL_FOV_SLIDER")->value == 70 && d->get("IDC_PORT_GALACTIC_FOV_SLIDER")->value == 27 &&
               d->get("IDC_PORT_TACTICAL_FOV_SLIDER")->range_max == 110 && d->get("IDC_EDIT_PORT_PAUSE")->text == U"Pause" &&
               d->get("IDC_EDIT_PORT_SCROLL_UP")->text == U"W" && d->get("IDC_PORT_QUEUE_MODIFIER")->selected == 0);
+        CHECK((d && d->get("IDC_PORT_QUEUE_MODIFIER")->items ==
+                        std::vector<std::u32string>{U"Umschalt", U"Ctrl", U"Alt", U"None"}));  // the table lacks the others
         // #175: the fleet groups checkbox shows the setting; unticked here, so Accept reports it off.
         CHECK(d && d->get("IDC_PORT_FLEET_GROUPS") && d->get("IDC_PORT_FLEET_GROUPS")->checked);
         if (d && d->get("IDC_PORT_FLEET_GROUPS")) d->set_checked("IDC_PORT_FLEET_GROUPS", false);
