@@ -422,6 +422,17 @@ void GameAudioHost::movie_ended() {
     }
 }
 
+bool GameAudioHost::structure_music(std::string_view type_name, bool alt, bool shift) {
+    if (!system_ || !alt || !shift) return false;
+    const auto is = [&](const char* a, const char* b) { return ascii_iequals(type_name, a) || ascii_iequals(type_name, b); };
+    const char* event = is("Ground_Hutt_Palace_E", "Ground_Hutt_Palace_R") ? "Structure_Hutt_Palace_Music_Event"
+                        : is("Ground_Cantina_E", "Ground_Cantina_R")      ? "Structure_Cantina_Music_Event"
+                                                                            : nullptr;
+    if (!event) return false;
+    const uint8_t m = system_->music_mode();
+    return system_->play_music(event, m == audio::music_mode::kNone ? audio::music_mode::kTacticalAmbient : m, false, true);
+}
+
 void GameAudioHost::negative_feedback() {
     if (!game_) return;
     ++stats_.feedback;
@@ -1636,6 +1647,7 @@ void GameAudioHost::ui(std::string_view) {}
 void GameAudioHost::speech(std::string_view) {}
 void GameAudioHost::faction_sfx(std::string_view) {}
 void GameAudioHost::negative_feedback() {}
+bool GameAudioHost::structure_music(std::string_view, bool, bool) { return false; }
 void GameAudioHost::battle_pending(bool) { pending_played_ = true; }  // same bookkeeping as with audio
 void GameAudioHost::galactic_resume() { pending_played_ = false; }
 void GameAudioHost::movie_started(bool movie_music, bool halt_music) {  // same bookkeeping as with audio (no music here)
