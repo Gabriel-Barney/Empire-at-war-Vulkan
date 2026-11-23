@@ -77,7 +77,7 @@ bool App::init() {
                 data_.db.campaigns().size(), ms_since(t0));
     js_ = std::make_unique<jobs::JobSystem>(jobs::JobSystemConfig{opt_.workers});
     if (bench_active()) bench_apply_window();  // BM2a: the preset's window size, present mode and frame cap
-    // [name-ok: the window title (the game's name), not a faction]
+    // [name-ok: the window title (the game's name), not a faction] [port-text: the window title, not in-game text]
     if (!win_.create({"Alamo - Empire at War", opt_.width, opt_.height, true, !opt_.hidden})) return false;
     const bool strict = render::setup_validation_env(ALAMO_RENDER_SOURCE_DIR);
     rhi::ContextDesc cd;
@@ -259,9 +259,11 @@ bool App::init() {
         v.frame_cap = opt_.frame_cap;
         const VkPresentModeKHR pm = sc_.present_mode();
         const char* used = pm == VK_PRESENT_MODE_MAILBOX_KHR ? "v-sync (Mailbox)" : pm == VK_PRESENT_MODE_IMMEDIATE_KHR ? "no v-sync" : "v-sync (FIFO)";
-        v.display_info = ui::utf8_to_utf32((refresh_hz_ ? "Display " + std::to_string(refresh_hz_) + " Hz, " : std::string("Display ")) +
+        // [port-text-begin: the port's display line, shown as a port string]
+        v.display_info = port_text(ui::utf8_to_utf32((refresh_hz_ ? "Display " + std::to_string(refresh_hz_) + " Hz, " : std::string("Display ")) +
                                            "presenting with " + used + (sc_.exclusive() ? ", exclusive full screen" : "") +
-                                           (limiter_.fps() ? ", capped at " + std::to_string(limiter_.fps()) + " fps" : std::string()));
+                                           (limiter_.fps() ? ", capped at " + std::to_string(limiter_.fps()) + " fps" : std::string())));
+        // [port-text-end]
         v.device = ui::utf8_to_utf32(ctx_.caps().name);
         return v;
     };
@@ -282,13 +284,12 @@ bool App::init() {
             ui::SaveGameInfo i;
             i.name = e.name;
             if (!e.readable) {  // top level, so the player can still delete it
-                i.label = ui::utf8_to_utf32(e.name + "  -  (unreadable: " + e.error + ")");
+                i.label = ui::utf8_to_utf32(e.name) + port_text(U"  -  (unreadable: " + ui::utf8_to_utf32(e.error) + U")");
                 v.push_back(std::move(i));
                 continue;
             }
             if (e.name == kAutoSaveName) {  // retail shows [AutoSave] as TEXT_GUI_AUTO_SAVE, first, outside any tree
-                i.label = ui_.gui.text_db() && ui_.gui.text_db()->find("TEXT_GUI_AUTO_SAVE") ? ui_.gui.caption_text("TEXT_GUI_AUTO_SAVE")
-                                                                                              : std::u32string(U"Auto Save");
+                i.label = txt("TEXT_GUI_AUTO_SAVE", U"[Auto Save]");  // retail's English
                 v.insert(v.begin(), std::move(i));
                 continue;
             }
@@ -301,25 +302,27 @@ bool App::init() {
             i.icon = !m.faction_icon.empty() ? m.faction_icon : fr ? fr->icon : std::string();
             i.label = ui::utf8_to_utf32(save_row_label(m));
             const std::string what = m.title.empty() ? m.campaign : m.title;
-            i.groups.push_back({m.kind + ":" + m.campaign, ui::utf8_to_utf32(skirmish ? "Skirmish: " + what : what)});
-            std::u32string faction = ui::utf8_to_utf32(m.faction.empty() ? std::string("(no faction)") : m.faction);
+            // [port-text-begin: the port's save-list group names (no retail key), shown through port_text]
+            i.groups.push_back({m.kind + ":" + m.campaign, skirmish ? port_text(U"Skirmish: ") + ui::utf8_to_utf32(what) : ui::utf8_to_utf32(what)});
+            std::u32string faction = m.faction.empty() ? port_text(U"(no faction)") : ui::utf8_to_utf32(m.faction);
             if (fr && !fr->text_id.empty() && ui_.gui.text_db() && ui_.gui.text_db()->find(fr->text_id))
                 faction = ui_.gui.caption_text(fr->text_id);
             i.groups.push_back({m.faction, std::move(faction), i.icon});
             if (!skirmish) {
                 const std::string started = format_local_time(m.playthrough_started);
-                i.groups.push_back({m.playthrough, ui::utf8_to_utf32(m.playthrough.empty() ? std::string("Earlier saves")
-                                                                     : started.empty()  ? std::string("Game")
-                                                                                        : "Game started " + started)});
+                i.groups.push_back({m.playthrough, m.playthrough.empty() ? port_text(U"Earlier saves")
+                                                   : started.empty()      ? port_text(U"Game")
+                                                                          : port_text(U"Game started ") + ui::utf8_to_utf32(started)});
             }
+            // [port-text-end]
             v.push_back(std::move(i));
         }
         return v;
     };
     mp.save_blocker = [this] {
-        if (saves_dir_.empty()) return std::u32string(U"No saved games folder (%LOCALAPPDATA% is not set)");
-        if (!session_ || demo_session()) return std::u32string(U"No game is running");
-        return ui::utf8_to_utf32(session_->check_save());
+        if (saves_dir_.empty()) return port_text(U"No saved games folder (%LOCALAPPDATA% is not set)");
+        if (!session_ || demo_session()) return port_text(U"No game is running");
+        return port_text(ui::utf8_to_utf32(session_->check_save()));  // the session's reason, in English
     };
     mp.save_exists = [this](const std::string& name) { return game::save_exists(saves_dir_, name); };
     mp.skirmish_profile = [this] { return skirmish_profile_; };  // modc t47 (load_game_options fills it in live play)
