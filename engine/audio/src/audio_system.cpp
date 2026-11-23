@@ -358,10 +358,13 @@ float AudioSystem::distance_to_listener(const Vec3& p) const { return length(sub
 float AudioSystem::attenuation(float distance, float event_saturation) const {
     const AudioConstants& c = db_->constants();
     const int m = static_cast<int>(mode_);
-    const float min_d = std::max(1.0f, event_saturation * c.saturation_distance_mod[m]);
+    // Mode shutdown resets both mods to 1.0 (aud8 t02).
+    const float saturation_mod = mode_active_ ? c.saturation_distance_mod[m] : 1.0f;
+    const float rolloff_mod = mode_active_ ? c.rolloff_distance_mod[m] : 1.0f;
+    const float min_d = std::max(1.0f, event_saturation * saturation_mod);
     if (distance > cfg_.max_distance) return 0.0f;  // nothing beyond max distance
     if (distance <= min_d) return 1.0f;
-    return min_d / (min_d + c.rolloff_distance_mod[m] * (distance - min_d));  // [M] DS3D inverse distance
+    return min_d / (min_d + rolloff_mod * (distance - min_d));  // [M] DS3D inverse distance
 }
 
 float AudioSystem::pan_for(const Vec3& pos) const {
