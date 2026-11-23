@@ -275,8 +275,9 @@ public:
         // name the definitions lack or a player without a galactic AI.
         std::function<bool(int32_t player, std::string_view category, int32_t& out)> active_goals;
         bool story_campaign = false;                          // Game.IsStoryCampaign
-        // #244 Hints.X (HintPerceptualEvaluator 0x6dee80): the value `player`'s campaign markup file gives `hint`
-        // (upper-cased) at `planet`; false = none (the Galactic_Hints default 0 stands). Null = no markup.
+        // #244 Hints.X (HintPerceptualEvaluator 0x6dee80): false = `player`'s faction has no markup file, so the planet
+        // evaluator 0x65f7b0 never registered Hints and the token fails [M]. Else true, with `out` = the value the file
+        // gives `hint` (upper-cased) at `planet`, left at the Galactic_Hints default when it gives none. Null = defaults.
         std::function<bool(int32_t player, int32_t planet, std::string_view hint, double& out)> hint;
         // Apply_Markup accumulator of `player`'s AI target for `planet` (+0x80).
         std::function<double(int32_t player, int32_t planet)> markup;

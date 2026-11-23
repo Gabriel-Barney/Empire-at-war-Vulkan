@@ -743,7 +743,8 @@ void test_story_trigger_token() {
 
 // #244 (AI_GALACTIC_TOKENS §1 Hints.X, HintPerceptualEvaluator 0x6dee80) [H]: Variable_Target.Hints.X is the value the
 // campaign's Markup_Filename file gives planet X of the AI player's faction ("Faction, File" pairs, files under
-// Data\XML\AI\GalacticMarkup), else the Galactic_Hints default 0. A hint outside the set fails.
+// Data\XML\AI\GalacticMarkup), else the Galactic_Hints default 0. A hint outside the set fails, and so does every hint for
+// a faction without a markup file (0x65f7b0 registers no Hints leaf) [M].
 void test_campaign_hint_tokens() {
     MemoryFiles files;
     AiDefinitions defs;
@@ -755,6 +756,8 @@ void test_campaign_hint_tokens() {
               "  <p1> <PriorityTarget> 7.0 </PriorityTarget> <Chokepoint>1</Chokepoint> </p1>\n"
               "  <P3> <OffenseDelaySpace>2.5</OffenseDelaySpace> </P3>\n"
               " </Planets>\n</Galactic_Markup>\n");
+    files.add("Data\\XML\\AI\\GalacticMarkup\\EmptyHints.xml",  // as DefaultGalacticHints: the set, no planets
+              "<Galactic_Markup> <Planets HintSet=\"Galactic_Hints\"> </Planets> </Galactic_Markup>");
     const gal::GalacticRules rules = syn_rules();
     objects::GameObjectTypes types;
     objects::IdCounter ids;
@@ -766,7 +769,7 @@ void test_campaign_hint_tokens() {
     GalacticAiConfig cfg;
     cfg.players = {{0, "SynEmpire", 1}, {1, "SynRebel", 1}};
     cfg.difficulties = {{"Normal_Default", 1.1f, 0.0f}};
-    cfg.markup_files = {"Empire, TestHints"};  // the Rebel has no file
+    cfg.markup_files = {"Empire, TestHints, Rebel, EmptyHints"};  // one value, two pairs; the Neutral has none
     std::vector<GalacticAiTypeInfo> tinfo(tTypes);
     GalacticAiWorld world(sim, store, &types, &files, rng, defs, eqs, tinfo,
                           [&sim](uint8_t p, const commands::EventData& ev) { return sim.execute(p, ev); }, cfg);
@@ -789,10 +792,13 @@ void test_campaign_hint_tokens() {
     CHECK(token("Variable_Target.Hints.OffenseDelayGround", 0, 1, ok) == 0.0 && ok);  // not in the file: the default
     CHECK(token("Variable_Target.Hints.OffenseDelaySpace", 0, 3, ok) == 2.5 && ok);
     CHECK(token("Variable_Target.Hints.PriorityTarget", 0, 2, ok) == 0.0 && ok);  // a planet the file does not name
-    CHECK(token("Variable_Target.Hints.PriorityTarget", 1, 1, ok) == 0.0 && ok);  // the Rebel's AI reads no file
+    CHECK(token("Variable_Target.Hints.PriorityTarget", 1, 1, ok) == 0.0 && ok);  // the Rebel's file names no planet
     token("Variable_Target.Hints.High_Ground", 0, 1, ok);
     CHECK(!ok);  // not a Galactic_Hints hint: the token fails
-    std::printf("campaign hints: Empire P1 PriorityTarget 7, Chokepoint 1, P3 OffenseDelaySpace 2.5; others 0\n");
+    CHECK(sim.players().size() == 3 && sim.rules().factions[sim.players()[2].faction].name == "Neutral");
+    token("Variable_Target.Hints.PriorityTarget", 2, 1, ok);
+    CHECK(!ok);  // no markup file for the faction: no Hints leaf
+    std::printf("campaign hints: Empire P1 PriorityTarget 7, Chokepoint 1, P3 OffenseDelaySpace 2.5; Rebel 0; Neutral fails\n");
 }
 
 // mcx8 t07 (AI_GALACTIC_TOKENS §1 / §4, STORYB_T10_TRIGGER_AI §3.2): the three galactic tokens base FoC equations use that

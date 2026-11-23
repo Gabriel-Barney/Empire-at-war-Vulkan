@@ -564,6 +564,8 @@ public:
         const data::CampaignDef* cdef = db_.find_campaign(campaign_);
         const std::vector<std::string> no_pairs;
         const std::vector<std::string>& control = cdef ? cdef->ai_player_control : no_pairs;
+        if (cdef)  // #244: the campaign's Markup_Filename "Faction, File" pairs feed the AI's Hints.X tokens
+            for (const std::string_view v : cdef->raw_values("Markup_Filename")) gcfg_.markup_files.emplace_back(v);
         const std::map<std::string, std::string> basic_ai = ai::load_faction_basic_ai(rules_.factions);
         ai_types_.assign(setup_.players.size(), std::string());
         for (size_t p = 0; p < setup_.players.size(); ++p) {
@@ -598,6 +600,8 @@ public:
         h.u32(static_cast<uint32_t>(defs_.goals.size()));
         h.u32(static_cast<uint32_t>(eqs_.size()));
         h.u32(static_cast<uint32_t>(gcfg_.players.size()));
+        h.u32(static_cast<uint32_t>(gcfg_.markup_files.size()));  // #244: the hint markup the AI reads
+        for (const std::string& f : gcfg_.markup_files) h.str(f);
         fingerprint_ = sim::combine_fingerprints({sim::fingerprint_types(types_), sim::fingerprint_galactic(rules_, setup_), h.digest()});
         std::printf("galactic: campaign %s, %zu planets, %zu AI players, %zu plan files, %zu equations\n", campaign_.c_str(),
                     setup_.map.planets.size(), gcfg_.players.size(), plan_files_.size(), eqs_.size());

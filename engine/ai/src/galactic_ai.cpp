@@ -49,17 +49,40 @@ GalacticAiWorld::Impl::Impl(gal::GalacticSim& s, objects::ObjectStore& st, const
     res.set_hooks(make_hooks());
 }
 
-// #244: each faction's Markup_Filename file, once (retail fills the hint leaves when the planet evaluator is built).
-// A missing or unreadable file leaves that faction's hints at their defaults.
+// #244: each player's faction markup file, read once per faction and keyed by planet index (retail loads the files with
+// the campaign, 0x4e3670, and the planet evaluator 0x65f7b0 takes the faction's set) [M]. A faction without a pair, or
+// whose file is missing or has no Galactic_Hints group, has no hint set: its Hints.X tokens fail.
 void GalacticAiWorld::Impl::load_hint_markup() {
-    if (!files || cfg.markup_files.empty()) return;
+    player_hints.assign(sim.players().size(), std::nullopt);
+    if (!files) return;
+    std::map<uint32_t, std::optional<GalacticMarkup>> by_faction;
     std::vector<uint8_t> bytes;
-    for (const gal::FactionRules& f : sim.rules().factions) {
-        const std::string path = galactic_markup_path(cfg.markup_files, f.name);
-        if (path.empty() || !files->read(path, bytes)) continue;
-        hint_markup[ai_upper_copy(ai_trim(f.name))] =
-            parse_galactic_markup(std::string_view(reinterpret_cast<const char*>(bytes.data()), bytes.size()), path);
+    for (size_t p = 0; p < sim.players().size(); ++p) {
+        const uint32_t fac = sim.players()[p].faction;
+        if (fac >= sim.rules().factions.size()) continue;
+        auto it = by_faction.find(fac);
+        if (it == by_faction.end()) {
+            const std::string path = galactic_markup_path(cfg.markup_files, sim.rules().factions[fac].name);
+            std::optional<GalacticMarkup> m;
+            if (!path.empty() && files->read(path, bytes))
+                m = parse_galactic_markup(std::string_view(reinterpret_cast<const char*>(bytes.data()), bytes.size()), path);
+            it = by_faction.emplace(fac, std::move(m)).first;
+        }
+        if (!it->second) continue;
+        std::map<int32_t, HintValues>& rows = player_hints[p].emplace();
+        for (size_t i = 0; i < sim.map().planets.size(); ++i) {
+            const auto row = it->second->find(ai_upper_copy(ai_trim(sim.map().planets.name[i])));
+            if (row != it->second->end()) rows.emplace(static_cast<int32_t>(i), row->second);
+        }
     }
+}
+
+bool GalacticAiWorld::Impl::hint_value(int32_t p, int32_t planet, std::string_view hint, double& out) const {
+    if (p < 0 || static_cast<size_t>(p) >= player_hints.size() || !player_hints[static_cast<size_t>(p)]) return false;
+    const std::map<int32_t, HintValues>& rows = *player_hints[static_cast<size_t>(p)];
+    if (const auto row = rows.find(planet); row != rows.end())
+        if (const auto v = row->second.find(hint); v != row->second.end()) out = v->second;
+    return true;
 }
 
 GalacticSimTokenResolver::Hooks GalacticAiWorld::Impl::make_hooks() {
@@ -72,19 +95,7 @@ GalacticSimTokenResolver::Hooks GalacticAiWorld::Impl::make_hooks() {
     };
     h.interventions_enabled = cfg.interventions_enabled;  // mcx8 t07 Game.InterventionsEnabled
     h.active_goals = [this](int32_t p, std::string_view cat, int32_t& n) { return active_goals(p, cat, n); };
-    h.hint = [this](int32_t p, int32_t planet, std::string_view hint, double& out) {
-        if (hint_markup.empty() || p < 0 || static_cast<size_t>(p) >= sim.players().size()) return false;
-        const uint32_t fac = sim.players()[static_cast<size_t>(p)].faction;
-        if (fac >= sim.rules().factions.size()) return false;
-        const auto file = hint_markup.find(ai_upper_copy(ai_trim(sim.rules().factions[fac].name)));
-        if (file == hint_markup.end() || planet < 0 || static_cast<size_t>(planet) >= sim.map().planets.size()) return false;
-        const auto row = file->second.find(ai_upper_copy(ai_trim(sim.map().planets.name[static_cast<size_t>(planet)])));
-        if (row == file->second.end()) return false;
-        const auto v = row->second.find(std::string(hint));
-        if (v == row->second.end()) return false;
-        out = v->second;
-        return true;
-    };
+    h.hint = [this](int32_t p, int32_t planet, std::string_view hint, double& out) { return hint_value(p, planet, hint, out); };
     h.markup = [this](int32_t p, int32_t planet) {
         const auto it = markup.find({p, planet});
         return it == markup.end() ? 0.0 : it->second;

@@ -1818,7 +1818,7 @@
 {"Campaign", "Is_Multiplayer", 0x0, LedgerState::Stored, "docs/re/xml_reference_index.md", 8, 1},
 {"Campaign", "Is_Listed", 0x0, LedgerState::Verified, "docs/re/xml_reference_index.md", 12, 1},
 {"Campaign", "Is_Quickmatch_Allowed", 0x0, LedgerState::OutOfScope, "docs/xml-scope.md \"Out-of-scope tag-ledger rows\": multiplayer", 2, 1},
-{"Campaign", "Markup_Filename", 0x1b, LedgerState::Stored, "docs/re/xml_reference_index.md", 240, 1},
+{"Campaign", "Markup_Filename", 0x1b, LedgerState::Consumed, "docs/re/xml_reference_index.md", 240, 1},
 {"Campaign", "Planet_Auto_Reveal", 0x0, LedgerState::Consumed, "docs/re/xml_reference_index.md", 12, 1},
 {"Campaign", "Max_Tech_Level", 0x2b, LedgerState::Consumed, "docs/re/xml_reference_index.md", 158, 1},
 {"Campaign", "Supports_Custom_Settings", 0x0, LedgerState::Consumed, "docs/re/xml_reference_index.md", 68, 1},
