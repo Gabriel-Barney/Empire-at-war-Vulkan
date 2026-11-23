@@ -569,6 +569,16 @@ std::vector<ui::NeutralizeHeroRow> neutralize_dialog_rows(const GameData& d, con
     return out;
 }
 
+std::vector<ui::SliceDialogRow> slice_dialog_rows(const galactic::GalacticSim& g, const GameData& d, const ui::TextDatabase& text,
+                                                  int32_t player, PlanetIndex planet, uint32_t hero_id) {
+    std::vector<ui::SliceDialogRow> out;
+    const float credits = g.credits(player);
+    for (const galactic::SliceEntry& e : slice_rows(g, player, planet, hero_id))
+        out.push_back({e.type, type_label(d, text, static_cast<objects::TypeIndex>(e.type)), static_cast<int32_t>(std::lround(e.price)),
+                       e.chance, e.price <= credits});
+    return out;
+}
+
 SpecialPanelData special_panel(const galactic::GalacticSim& g, const GameData& d, const ui::TextDatabase& text,
                                std::span<const ui::HudTypeInfo> hud_types, int32_t player, uint32_t kind, PlanetIndex planet,
                                uint32_t hero_id) {
@@ -583,15 +593,6 @@ SpecialPanelData special_panel(const galactic::GalacticSim& g, const GameData& d
     if (st.alive(hero)) out.hero = type_label(d, text, st.type(hero));
     const galactic::SpecialRules& sp = g.rules().special;
     switch (kind) {
-        case galactic::kSpecialSlice:
-            // REMAINING_GAPS 1.3 step 5: TEXT_SLICE_DIALOG_TITLE, one row per slice_entries entry (type, price, chance).
-            out.title = text.find("TEXT_SLICE_DIALOG_TITLE") ? text_or(text, "TEXT_SLICE_DIALOG_TITLE") : std::u32string(U"Slice");
-            if (text.find("TEXT_SLICE_DIALOG_DESCRIPTION")) out.subtitle = text_or(text, "TEXT_SLICE_DIALOG_DESCRIPTION");
-            for (const galactic::SliceEntry& e : slice_rows(g, player, planet, hero_id))  // every row (the panel scrolls)
-                out.slice.push_back({e.type, icon_of(hud_types, static_cast<objects::TypeIndex>(e.type)),
-                                     type_label(d, text, static_cast<objects::TypeIndex>(e.type)), std::u32string(),
-                                     static_cast<int32_t>(std::lround(e.price)), e.chance, e.price <= credits});
-            break;
         case galactic::kSpecialBlackMarket:
             out.title = U"Black Market";
             for (const galactic::BlackMarketOffer& o : g.bm_offers(player, planet, hero)) {

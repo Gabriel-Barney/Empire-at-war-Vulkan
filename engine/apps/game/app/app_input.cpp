@@ -893,14 +893,9 @@ void App::handle_hud_actions(const std::vector<ui::HudAction>& acts) {
                 if (a.name == "g_special_ability") activate_special_here(a.unit);
                 break;
             // P4 host: the panels' answers (SpecialAbility kinds 2 / 4 / 5 / 6 / 7 through the command stream); the preview
-            // panel of the smoke sends nothing. OI host: slice rows come from the SlicePanel (unit = type).
+            // panel of the smoke sends nothing. (#71 t01: the slice pick is IDD_SLICE_DIALOG, ScreenAction::Slice.)
             case ui::HudAction::Kind::BlackMarketBuy:
                 if (session_ && !panel_preview_) session_->buy_black_market(a.unit);
-                break;
-            case ui::HudAction::Kind::SliceSelect:
-                story_ui_.generic("slice");
-                story_ui_.generic("slice_slot");  // 0x3e4450: the slot-bar form of the pick [M]  // STY1 t03 (0xf5d10 / 0x3e4450): the option was picked
-                if (session_ && !panel_preview_) session_->slice_tech(a.unit);
                 break;
             case ui::HudAction::Kind::SabotageTarget:
                 if (session_ && !panel_preview_) session_->sabotage_structure(a.unit);
@@ -1119,8 +1114,7 @@ void App::galactic_input() {
             ui_.galactic_hud.buttons().visual(static_cast<uint32_t>(e.component)) != ui::ButtonVisual::Disabled)
             story_ui_.click_gui(ui_.components[static_cast<size_t>(e.component)].name);
     // The galactic shell panels and the hero roster (FIXPASS_GALACTIC §2.2: a good slot's click focuses the hero's
-    // planet, a double click zooms; hover gives Mouse_Over_SFX, the tooltip and the encyclopedia pop-up). Only SlicePanel
-    // reads the wheel.
+    // planet, a double click zooms; hover gives Mouse_Over_SFX, the tooltip and the encyclopedia pop-up).
     for (ui::HudPanel* p : panels())
         if (p->open()) p->update_input(routed_, input_.shift(), input_.ctrl(), now_s_, &acts, input_.wheel());
     for (const ui::HotkeyEvent& e : hk) {

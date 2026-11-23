@@ -454,54 +454,6 @@ void test_panels() {
     env.click(bm, "market_00", acts, Button::Right);
     CHECK(acts.size() == 2 && acts[0].kind == HudAction::Kind::PanelClose && acts[0].name == "market_frame" &&
           acts[1].kind == HudAction::Kind::PanelClose);
-    // Slice dialog (market_frame stand-in): 7 rows, 5 visible; row click -> SliceSelect{type, {planet, slicer}, row};
-    // unaffordable row swallowed; the wheel over the panel scrolls; hovered row shows "Chance n%"; close -> PanelClose.
-    {
-        SlicePanel sp;
-        CHECK(sp.init(env.table, env.atlas, env.fonts));
-        CHECK(sp.shells().size() == 1 && sp.shells()[0] == env.table.find("market_frame"));
-        std::vector<SliceRow> rows;
-        for (uint32_t k = 0; k < 7; ++k)
-            rows.push_back({500 + k, "i_button_vader.tga", U"Type", U"", 1000 + static_cast<int32_t>(k), 1.0f, k != 1});
-        SliceFrame sf2;
-        sf2.open = true;
-        sf2.planet = 557;
-        sf2.slicer = 9001;
-        sf2.title = U"Slice";
-        sf2.rows = rows;
-        sp.build(sf2);
-        CHECK(sp.open() && sp.active_shell() == env.table.find("market_frame") && sp.first_row() == 0);
-        acts.clear();
-        env.click(sp, "market_01", acts);  // unaffordable: swallowed
-        env.click(sp, "market_00", acts);
-        CHECK(acts.size() == 1 && acts[0].kind == HudAction::Kind::SliceSelect && acts[0].unit == 500 &&
-              acts[0].value == 0 && acts[0].ids == (std::vector<uint32_t>{557, 9001}));
-        sp.build(sf2);  // market_00 hovered: its chance on market_title02
-        bool chance = false;
-        for (const PanelSlot& s : sp.slots())
-            if (s.component == env.table.find("market_title02")) chance = s.text == U"Chance 100%";
-        CHECK(chance);
-        RoutedInput wheel;
-        wheel.wheel_target = PointerTarget::Hud;
-        wheel.hover_component = env.table.find("market_00");
-        sp.update_input(wheel, false, false, 2.0, &acts, -5.0f);  // towards the user: down, clamped to 7 - 5
-        sp.build(sf2);
-        CHECK(sp.first_row() == 2);
-        acts.clear();
-        env.click(sp, "market_00", acts);
-        CHECK(acts.size() == 1 && acts[0].unit == 502 && acts[0].value == 2);
-        wheel.hover_component = -1;  // not over the panel: ignored
-        sp.update_input(wheel, false, false, 2.1, &acts, 1.0f);
-        CHECK(sp.first_row() == 2);
-        acts.clear();
-        env.click(sp, "market_close", acts);
-        CHECK(acts.size() == 1 && acts[0].kind == HudAction::Kind::PanelClose && acts[0].name == "market_frame");
-        sf2.open = false;  // reopening starts at the first row
-        sp.build(sf2);
-        sf2.open = true;
-        sp.build(sf2);
-        CHECK(sp.first_row() == 0);
-    }
     // Sabotage and corruption.
     SabotagePanel sab;
     CHECK(sab.init(env.table, env.atlas, env.fonts));
@@ -646,6 +598,28 @@ void test_info_screens() {
         CHECK(is.show_neutralize(rows));
         is.close_neutralize();  // the host closes it (the session's panel went away)
         CHECK(!is.neutralize_open() && acts.size() == 3);
+    }
+    // #71 t01: IDD_SLICE_DIALOG (GUIDIALOGS.RC, REMAINING_GAPS 1.3) - the slice entries sorted by name, [port] "name  price
+    // n%"; Slice for an affordable row -> Slice{button = type}; Cancel / Esc -> SliceCancelled; the host's refresh.
+    {
+        acts.clear();
+        const std::vector<SliceDialogRow> rows = {{500, U"X-wing", 1500, 1.0f, true}, {501, U"A-wing", 2000, 0.5f, false}};
+        CHECK(is.show_slice(rows) && is.slice_open() && !is.show_slice(rows));
+        GuiDialog* sd = env.gui.find(dlg::kSlice);
+        const GuiControl* l = sd ? sd->get("IDC_SLICE_LISTBOX") : nullptr;
+        CHECK((l && l->items == std::vector<std::u32string>{U"A-wing  2000  50%", U"X-wing  1500  100%"} && l->selected == 0));
+        CHECK(sd && !sd->get("IDC_SLICE_BUTTON")->enabled);
+        const std::vector<SliceDialogRow> richer = {{500, U"X-wing", 1500, 1.0f, true}, {501, U"A-wing", 2000, 0.5f, true}};
+        is.set_slice(richer);
+        CHECK(sd && sd->get("IDC_SLICE_BUTTON")->enabled);
+        is.update(env.click(dlg::kSlice, "IDC_SLICE_BUTTON"), acts);
+        CHECK(acts.size() == 1 && acts[0].kind == ScreenAction::Kind::Slice && acts[0].button == 501 && !is.slice_open());
+        CHECK(is.show_slice(rows));
+        is.update(env.click(dlg::kSlice, "IDC_SLICE_CANCEL_BUTTON"), acts);
+        CHECK(acts.size() == 2 && acts[1].kind == ScreenAction::Kind::SliceCancelled && !is.slice_open());
+        CHECK(is.show_slice(rows));
+        is.update(std::vector<GuiEvent>{event(GuiEvent::Kind::Cancel, dlg::kSlice, "", 0)}, acts);
+        CHECK(acts.size() == 3 && acts[2].kind == ScreenAction::Kind::SliceCancelled && !is.slice_open());
     }
     // GALACTIC_DIALOGS Â§9 IDD_PLANET_INFO (GameScreens): name line in the owner colour, overlay, wrapped lists (tactical in
     // 50/200/255), icon-name rewrites, map icon off when missing; single instance; Close / Esc -> PlanetInfoClosed; host close.

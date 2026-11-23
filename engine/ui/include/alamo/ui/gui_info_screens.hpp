@@ -12,6 +12,11 @@
 //                                   candidates in IDC_NEUTRALIZE_HERO_LISTBOX, sorted by name (the RC's LBS_SORT); the
 //                                   Neutralize button for a pickable row -> NeutralizeHero{button = candidate}; Cancel /
 //                                   Esc -> NeutralizeHeroCancelled
+//   IDD_SLICE_DIALOG                #71 t01: the slicer's pick (REMAINING_GAPS 1.3): one row per slice entry in
+//                                   IDC_SLICE_LISTBOX, sorted by name; Slice for an affordable row -> Slice{button = type};
+//                                   Cancel / Esc -> SliceCancelled. The RC has no control for 0x3c95d0's
+//                                   TEXT_SLICE_DIALOG_DESCRIPTION (REMAINING_GAPS 1.3 step 5) and its listbox no icons, so
+//                                   neither is shown (the former black-market shell stand-in showed both)
 //   (IDD_PLANET_INFO, GALACTIC_DIALOGS §9, is GameScreens::show_planet_info in gui_screens.hpp; IDD_PLANET_DIALOG is
 //   dead in the original and not ported)
 //   "holocron" pages (4 tab radios on every page: Droid log / Data chart / Tech tree / Summary; Close / Esc ->
@@ -63,6 +68,14 @@ struct NeutralizeHeroRow {
     std::u32string name;
     int32_t price = 0;
     bool enabled = true;  // can be picked (eligible, affordable)
+};
+// #71 t01: one IDD_SLICE_DIALOG row. [port] the row reads "name  price  n%" (retail's row text is not recovered).
+struct SliceDialogRow {
+    uint32_t type = 0;  // the slice entry's type (the pick reports it)
+    std::u32string name;
+    int32_t price = 0;
+    float chance = 0.0f;  // 0..1
+    bool enabled = true;  // affordable
 };
 
 // A cue of a story dialog script played when the dialog's clock reaches `at` (seconds after the first update_story):
@@ -180,6 +193,7 @@ inline constexpr const char* kStory = "IDD_STORY_DIALOG";
 inline constexpr const char* kStorySummary = "IDD_STORY_SUMMARY_DIALOG";
 inline constexpr const char* kTutorial = "IDD_TUTORIAL_DIALOG";  // ui2 t02
 inline constexpr const char* kNeutralizeHero = "IDD_NEUTRALIZE_HERO_DIALOG";  // #71 t08
+inline constexpr const char* kSlice = "IDD_SLICE_DIALOG";                     // #71 t01
 inline constexpr const char* kDroidLog = "IDD_DROID_LOG";
 inline constexpr const char* kDataChart = "IDD_DATA_CHART";
 inline constexpr const char* kSummaryProduction = "IDD_SUMMARY_SCREEN_PRODUCTION";
@@ -210,10 +224,15 @@ public:
     // #71 t08: IDD_NEUTRALIZE_HERO_DIALOG with `rows` (sorted by name, the first row selected). A second call while it is
     // open does nothing and returns false; close_neutralize is the host's close (its panel went away), with no action.
     // set_neutralize refreshes the open dialog's rows (prices, pickable) by candidate, keeping the order and selection.
-    bool show_neutralize(std::vector<NeutralizeHeroRow> rows);
+    bool show_neutralize(std::span<const NeutralizeHeroRow> rows);
     void set_neutralize(std::span<const NeutralizeHeroRow> rows);
     bool neutralize_open() const { return gui_ && gui_->find(dlg::kNeutralizeHero) != nullptr; }
     void close_neutralize();
+    // #71 t01: IDD_SLICE_DIALOG, the same way.
+    bool show_slice(std::span<const SliceDialogRow> rows);
+    void set_slice(std::span<const SliceDialogRow> rows);
+    bool slice_open() const { return gui_ && gui_->find(dlg::kSlice) != nullptr; }
+    void close_slice();
     // The holocron: data for every page, then open one (switching pages keeps the data).
     void set_droid_log(DroidLogInfo d) { droid_ = std::move(d); }
     void set_data_chart(DataChartInfo c) { chart_ = std::move(c); }
@@ -244,8 +263,27 @@ private:
     GuiDialog* go_info(const std::string& name);
     bool info_dialog(std::string_view n) const;
     void fill_buy(GuiDialog& d);
-    void fill_neutralize(GuiDialog& d);
-    const NeutralizeHeroRow* neutralize_selected(const GuiDialog& d) const;
+    // #71 t08 / t01: a sorted list dialog with a pick and a Cancel button (IDD_NEUTRALIZE_HERO_DIALOG, IDD_SLICE_DIALOG).
+    struct PickRow {
+        int32_t id = -1;  // what the pick reports (ScreenAction::button)
+        std::u32string name, text;
+        bool enabled = true;
+    };
+    struct PickList {
+        const char* dialog;
+        const char* list;
+        const char* pick;
+        const char* cancel;
+        ScreenAction::Kind pick_kind, cancel_kind;
+        std::vector<PickRow> rows;  // the open dialog's rows, in list order
+    };
+    bool show_pick(PickList& p, std::vector<PickRow> rows);
+    void set_pick(PickList& p, std::span<const PickRow> rows);
+    void fill_pick(const PickList& p, GuiDialog& d) const;
+    const PickRow* pick_selected(const PickList& p, const GuiDialog& d) const;
+    PickList* pick_list(std::string_view dialog);
+    static std::vector<PickRow> pick_rows(std::span<const NeutralizeHeroRow> rows);
+    static std::vector<PickRow> pick_rows(std::span<const SliceDialogRow> rows);
     void fill_droid(GuiDialog& d);
     void fill_chart(GuiDialog& d);
     void fill_tech(GuiDialog& d);
@@ -258,7 +296,11 @@ private:
 
     GuiManager* gui_ = nullptr;
     BuyUnitsState buy_;
-    std::vector<NeutralizeHeroRow> neutralize_;  // #71 t08: the open dialog's rows, in list order
+    PickList neutralize_{dlg::kNeutralizeHero, "IDC_NEUTRALIZE_HERO_LISTBOX", "IDC_NEUTRALIZE_HERO_BUTTON",
+                         "IDC_NEUTRALIZE_HERO_CANCEL_BUTTON", ScreenAction::Kind::NeutralizeHero,
+                         ScreenAction::Kind::NeutralizeHeroCancelled, {}};
+    PickList slice_{dlg::kSlice, "IDC_SLICE_LISTBOX", "IDC_SLICE_BUTTON", "IDC_SLICE_CANCEL_BUTTON", ScreenAction::Kind::Slice,
+                    ScreenAction::Kind::SliceCancelled, {}};
     std::string story_tag_;
     StoryDialogInfo story_;          // the open story dialog's script (lines revealed by update_story)
     double story_t0_ = -1.0;         // clock start (-1 = not started)

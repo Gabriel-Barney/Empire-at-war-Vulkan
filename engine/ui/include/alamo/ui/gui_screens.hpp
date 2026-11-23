@@ -147,6 +147,8 @@ struct ScreenAction {
         TutorialQuit,         // IDC_QUIT_TO_MAIN: the host asks TEXT_QUIT_SURE
         NeutralizeHero,           // #71 t08, appended: IDD_NEUTRALIZE_HERO_DIALOG's pick (button = the candidate index)
         NeutralizeHeroCancelled,  // its Cancel / Esc
+        Slice,                    // #71 t01, appended: IDD_SLICE_DIALOG's pick (button = the slice entry's type)
+        SliceCancelled,           // its Cancel / Esc
     };
     Kind kind = Kind::MessageBoxResult;
     std::string tag, map;

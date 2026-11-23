@@ -245,7 +245,7 @@ void App::set_planet_map(bool open) {
     bool foreign = false;
     // §1.1 condition 2: no FoC ability dialog (corruption, sabotage, black market / slice, hack) open. A refused open does
     // nothing (no sound, no text).
-    const bool dialog = corruption_.open() || sabotage_.open() || market_.open() || slice_.open() || hack_.open();
+    const bool dialog = corruption_.open() || sabotage_.open() || market_.open() || hack_.open() || info_.slice_open();
     if (open && (planet_map_open_ || dialog || !gview_.camera().zoomed() || !planet_map_allowed(foreign))) return;
     planet_map_open_ = open;
     planet_map_planet_ = open ? selected_planet_ : 0u;

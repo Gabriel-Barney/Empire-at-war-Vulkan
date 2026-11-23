@@ -397,7 +397,6 @@ public:
     std::vector<std::pair<uint32_t, objects::TypeIndex>> hero_types_;  // hero bar entries: object -> type (hover pop-up)
     bool story_controls_locked() const;  // the story's Lock_Controls state (FIXPASS_GALACTIC §2.2 gate)
     ui::BlackMarketPanel market_;
-    ui::SlicePanel slice_;  // OI host: the slice dialog (kind 2) on the market shell
     ui::SabotagePanel sabotage_;
     ui::CorruptionPanel corruption_;
     ui::HackPanel hack_;
@@ -744,7 +743,7 @@ public:
     // player); panel_preview_ = a presentation-only black-market preview of the smoke (no sim dialog, clicks ignored).
     uint32_t panel_kind() const;
     uint32_t panel_preview_ = 0;
-    uint64_t neutralize_shown_ = 0;  // #71 t08: the SpecialDialog::frame of the Neutralize_Hero dialog on screen
+    uint64_t special_shown_ = 0;  // #71 t08 / t01: the SpecialDialog::frame of the pick dialog on screen
     uint32_t preview_planet_ = 0;
     uint64_t special_sfx_ = 0, special_msgs_ = 0, activations_ = 0;
     void galactic_message(std::string_view id);  // a message-callback text as a white screen-text line
@@ -791,7 +790,7 @@ public:
     void audio_flags();
     bool presentation_cinematic() const;
     void special_feedback();
-    std::vector<ui::HudPanel*> panels() { return {&hero_panel_, &market_, &slice_, &sabotage_, &corruption_, &hack_}; }
+    std::vector<ui::HudPanel*> panels() { return {&hero_panel_, &market_, &sabotage_, &corruption_, &hack_}; }
     void handle_screen_actions(const std::vector<ui::ScreenAction>& acts);
     void handle_hud_actions(const std::vector<ui::HudAction>& acts);
     // `voice`: per cmds entry, 0 = no unit voice response (the double-click order, UiOrder::voice); missing entries = 1.

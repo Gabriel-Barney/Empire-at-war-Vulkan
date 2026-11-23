@@ -52,7 +52,7 @@ std::u32string InfoScreens::text(std::string_view key, std::u32string_view fallb
 
 void InfoScreens::close_all() {
     if (!gui_) return;
-    for (const char* n : {dlg::kBuyUnits, dlg::kStory, dlg::kStorySummary, dlg::kTutorial, dlg::kNeutralizeHero}) gui_->close(n);
+    for (const char* n : {dlg::kBuyUnits, dlg::kStory, dlg::kStorySummary, dlg::kTutorial, dlg::kNeutralizeHero, dlg::kSlice}) gui_->close(n);
     if (!info_open_.empty()) gui_->close(info_open_);
     info_open_.clear();
 }
@@ -93,50 +93,76 @@ void InfoScreens::set_buy_units(const BuyUnitsState& s) {
     if (GuiDialog* d = gui_ ? gui_->find(dlg::kBuyUnits) : nullptr) fill_buy(*d);
 }
 
-// ---- #71 t08: Neutralize_Hero ---------------------------------------------------------------------------------------
-const NeutralizeHeroRow* InfoScreens::neutralize_selected(const GuiDialog& d) const {
-    const GuiControl* l = d.get("IDC_NEUTRALIZE_HERO_LISTBOX");
-    return l && l->selected >= 0 && static_cast<size_t>(l->selected) < neutralize_.size() ? &neutralize_[static_cast<size_t>(l->selected)]
-                                                                                          : nullptr;
+// ---- #71 t08 / t01: the pick lists (Neutralize_Hero, slice) ---------------------------------------------------------
+std::vector<InfoScreens::PickRow> InfoScreens::pick_rows(std::span<const NeutralizeHeroRow> rows) {
+    std::vector<PickRow> out;
+    for (const NeutralizeHeroRow& r : rows) out.push_back({r.candidate, r.name, r.name + U"  " + num32(r.price), r.enabled});  // [port] row text
+    return out;
+}
+std::vector<InfoScreens::PickRow> InfoScreens::pick_rows(std::span<const SliceDialogRow> rows) {
+    std::vector<PickRow> out;
+    for (const SliceDialogRow& r : rows)  // [port] row text
+        out.push_back({static_cast<int32_t>(r.type), r.name,
+                       r.name + U"  " + num32(r.price) + U"  " + num32(static_cast<int64_t>(std::lround(r.chance * 100.0f))) + U"%",
+                       r.enabled});
+    return out;
 }
 
-void InfoScreens::fill_neutralize(GuiDialog& d) {
-    const GuiControl* l = d.get("IDC_NEUTRALIZE_HERO_LISTBOX");
+InfoScreens::PickList* InfoScreens::pick_list(std::string_view dialog) {
+    if (iequals(dialog, neutralize_.dialog)) return &neutralize_;
+    if (iequals(dialog, slice_.dialog)) return &slice_;
+    return nullptr;
+}
+
+const InfoScreens::PickRow* InfoScreens::pick_selected(const PickList& p, const GuiDialog& d) const {
+    const GuiControl* l = d.get(p.list);
+    return l && l->selected >= 0 && static_cast<size_t>(l->selected) < p.rows.size() ? &p.rows[static_cast<size_t>(l->selected)] : nullptr;
+}
+
+void InfoScreens::fill_pick(const PickList& p, GuiDialog& d) const {
+    const GuiControl* l = d.get(p.list);
     std::vector<std::u32string> items;
-    for (const NeutralizeHeroRow& r : neutralize_) items.push_back(r.name + U"  " + num32(r.price));  // [port] row text (not recovered)
+    for (const PickRow& r : p.rows) items.push_back(r.text);
     // [port] the first row is selected when the dialog opens (retail's initial selection is not recovered).
     const int32_t sel = l && l->selected >= 0 && static_cast<size_t>(l->selected) < items.size() ? l->selected : (items.empty() ? -1 : 0);
-    d.set_items("IDC_NEUTRALIZE_HERO_LISTBOX", std::move(items), sel);
-    const NeutralizeHeroRow* r = neutralize_selected(d);
-    d.enable("IDC_NEUTRALIZE_HERO_BUTTON", r && r->enabled);
+    d.set_items(p.list, std::move(items), sel);
+    const PickRow* r = pick_selected(p, d);
+    d.enable(p.pick, r && r->enabled);
 }
 
-bool InfoScreens::show_neutralize(std::vector<NeutralizeHeroRow> rows) {
-    if (!gui_ || neutralize_open()) return false;
-    GuiDialog* d = gui_->open(dlg::kNeutralizeHero);
+bool InfoScreens::show_pick(PickList& p, std::vector<PickRow> rows) {
+    if (!gui_ || gui_->find(p.dialog)) return false;
+    GuiDialog* d = gui_->open(p.dialog);
     if (!d) return false;
     // The RC's listbox has LBS_SORT: the rows in name order (stable, so equal names keep the host's order).
-    std::stable_sort(rows.begin(), rows.end(), [](const NeutralizeHeroRow& a, const NeutralizeHeroRow& b) { return row_text_less(a.name, b.name); });
-    neutralize_ = std::move(rows);
-    d->set_items("IDC_NEUTRALIZE_HERO_LISTBOX", {}, -1);
-    fill_neutralize(*d);
+    std::stable_sort(rows.begin(), rows.end(), [](const PickRow& a, const PickRow& b) { return row_text_less(a.name, b.name); });
+    p.rows = std::move(rows);
+    d->set_items(p.list, {}, -1);
+    fill_pick(p, *d);
     return true;
 }
 
-void InfoScreens::set_neutralize(std::span<const NeutralizeHeroRow> rows) {
-    GuiDialog* d = gui_ ? gui_->find(dlg::kNeutralizeHero) : nullptr;
+void InfoScreens::set_pick(PickList& p, std::span<const PickRow> rows) {
+    GuiDialog* d = gui_ ? gui_->find(p.dialog) : nullptr;
     if (!d) return;
-    for (NeutralizeHeroRow& r : neutralize_)
-        for (const NeutralizeHeroRow& n : rows)
-            if (n.candidate == r.candidate) {
-                r.price = n.price;
+    for (PickRow& r : p.rows)
+        for (const PickRow& n : rows)
+            if (n.id == r.id) {
+                r.text = n.text;
                 r.enabled = n.enabled;
             }
-    fill_neutralize(*d);
+    fill_pick(p, *d);
 }
 
+bool InfoScreens::show_neutralize(std::span<const NeutralizeHeroRow> rows) { return show_pick(neutralize_, pick_rows(rows)); }
+void InfoScreens::set_neutralize(std::span<const NeutralizeHeroRow> rows) { set_pick(neutralize_, pick_rows(rows)); }
 void InfoScreens::close_neutralize() {
     if (gui_) gui_->close(dlg::kNeutralizeHero);
+}
+bool InfoScreens::show_slice(std::span<const SliceDialogRow> rows) { return show_pick(slice_, pick_rows(rows)); }
+void InfoScreens::set_slice(std::span<const SliceDialogRow> rows) { set_pick(slice_, pick_rows(rows)); }
+void InfoScreens::close_slice() {
+    if (gui_) gui_->close(dlg::kSlice);
 }
 
 // ---- story --------------------------------------------------------------------------------------------------------
@@ -502,17 +528,17 @@ void InfoScreens::on_click(const GuiEvent& e, std::vector<ScreenAction>& out) {
     auto is = [&](std::string_view id) { return iequals(c, id); };
     GuiDialog* d = gui_->find(n);
     if (!d) return;
-    if (iequals(n, dlg::kNeutralizeHero)) {
-        if (is("IDC_NEUTRALIZE_HERO_BUTTON")) {
-            const NeutralizeHeroRow* r = neutralize_selected(*d);
+    if (PickList* p = pick_list(n)) {
+        if (is(p->pick)) {
+            const PickRow* r = pick_selected(*p, *d);
             if (!r || !r->enabled) return;
-            ScreenAction a = act(ScreenAction::Kind::NeutralizeHero);
-            a.button = r->candidate;
+            ScreenAction a = act(p->pick_kind);
+            a.button = r->id;
             gui_->close(n);
             out.push_back(std::move(a));
-        } else if (is("IDC_NEUTRALIZE_HERO_CANCEL_BUTTON")) {
+        } else if (is(p->cancel)) {
             gui_->close(n);
-            out.push_back(act(ScreenAction::Kind::NeutralizeHeroCancelled));
+            out.push_back(act(p->cancel_kind));
         }
         return;
     }
@@ -579,8 +605,8 @@ void InfoScreens::on_change(const GuiEvent& e, std::vector<ScreenAction>& out) {
     auto is = [&](std::string_view id) { return iequals(c, id); };
     GuiDialog* d = gui_->find(n);
     if (!d) return;
-    if (iequals(n, dlg::kNeutralizeHero) && is("IDC_NEUTRALIZE_HERO_LISTBOX")) {
-        fill_neutralize(*d);
+    if (const PickList* p = pick_list(n); p && is(p->list)) {
+        fill_pick(*p, *d);
         return;
     }
     if (iequals(n, dlg::kBuyUnits) && is("IDC_SKIRMISH_BUY_FORCES_LISTBOX")) {
@@ -674,9 +700,9 @@ void InfoScreens::update(std::span<const GuiEvent> events, std::vector<ScreenAct
                 } else if (iequals(e.dialog, dlg::kTutorial)) {
                     gui_->close(e.dialog);
                     out.push_back(act(ScreenAction::Kind::TutorialClosed));
-                } else if (iequals(e.dialog, dlg::kNeutralizeHero)) {
+                } else if (const PickList* p = pick_list(e.dialog)) {
                     gui_->close(e.dialog);
-                    out.push_back(act(ScreenAction::Kind::NeutralizeHeroCancelled));
+                    out.push_back(act(p->cancel_kind));
                 } else if (iequals(e.dialog, dlg::kStorySummary)) {
                     gui_->close(e.dialog);
                     out.push_back(act(ScreenAction::Kind::StorySummaryClosed));

@@ -183,7 +183,15 @@ void App::handle_screen_actions(const std::vector<ui::ScreenAction>& acts) {
                 if (session_ && (a.button < 0 || !session_->neutralize_hero(static_cast<size_t>(a.button)))) session_->close_special_dialog();
                 break;
             case K::NeutralizeHeroCancelled:
+            case K::SliceCancelled:
                 if (session_) session_->close_special_dialog();
+                break;
+            // #71 t01: SpecialAbility kind 2 (REMAINING_GAPS 1.3.1); [port] a refused pick closes the panel. (The smoke's
+            // panel_preview_ is a black-market preview: it never opens this dialog, so no preview check here.)
+            case K::Slice:
+                story_ui_.generic("slice");
+                story_ui_.generic("slice_slot");  // 0x3e4450: the slot-bar form of the pick [M]  // STY1 t03 (0xf5d10 / 0x3e4450): the option was picked
+                if (session_ && (a.button < 0 || !session_->slice_tech(static_cast<uint32_t>(a.button)))) session_->close_special_dialog();
                 break;
             case K::StoryClosed:  // the story / tutorial dialog's Continue / close (0x1243f0, 0x105190)
                 story_ui_.generic("Continue_Tutorial");
@@ -1357,22 +1365,32 @@ void App::build_panels(std::vector<ui::HudDrawList>& lists) {
         hero_id = dlg ? dlg->hero_id : 0;
         pi = dlg ? dlg->planet : planet_index(*g, preview_planet_);
     }
-    // #71 t08: the Neutralize_Hero pick is the IDD_NEUTRALIZE_HERO_DIALOG GUI dialog, not a HUD panel; it is open while the
-    // session's kind-3 dialog is (its pick / Cancel answer through ScreenAction::NeutralizeHero / NeutralizeHeroCancelled).
-    // A new NeutralizeDialog (another frame) replaces the open one's rows; the rows' prices and pickable state follow the
-    // credits every frame.
-    if (galactic && dlg && dlg->kind == galactic::kSpecialNeutralize && g) {
-        std::vector<ui::NeutralizeHeroRow> rows = neutralize_dialog_rows(data_, ui_.text, session_->neutralize_rows(), g->credits(local_player()));
-        if (info_.neutralize_open() && neutralize_shown_ != dlg->frame) info_.close_neutralize();
-        if (!info_.neutralize_open()) {
-            info_.show_neutralize(std::move(rows));
-            neutralize_shown_ = dlg->frame;
-        } else {
-            info_.set_neutralize(rows);
+    // #71 t08 / t01: the Neutralize_Hero and slice picks are GUI dialogs (IDD_NEUTRALIZE_HERO_DIALOG, IDD_SLICE_DIALOG), not
+    // HUD panels. Each is open while the session's dialog of its kind is; a new one (another frame) is shown afresh, and the
+    // rows' prices and pickable state follow the credits every frame. Their answers are ScreenAction NeutralizeHero / Slice
+    // and the *Cancelled kinds.
+    const auto sync = [&](uint32_t which, bool open, auto rows, auto show, auto set, auto close) {
+        if (galactic && dlg && g && dlg->kind == which) {
+            if (open && special_shown_ != dlg->frame) {
+                (info_.*close)();
+                open = false;
+            }
+            if (!open) {
+                (info_.*show)(rows());
+                special_shown_ = dlg->frame;
+            } else {
+                (info_.*set)(rows());
+            }
+        } else if (open) {
+            (info_.*close)();
         }
-    } else if (info_.neutralize_open()) {
-        info_.close_neutralize();
-    }
+    };
+    sync(galactic::kSpecialNeutralize, info_.neutralize_open(),
+         [&] { return neutralize_dialog_rows(data_, ui_.text, session_->neutralize_rows(), g->credits(local_player())); },
+         &ui::InfoScreens::show_neutralize, &ui::InfoScreens::set_neutralize, &ui::InfoScreens::close_neutralize);
+    sync(galactic::kSpecialSlice, info_.slice_open(),
+         [&] { return slice_dialog_rows(*g, data_, ui_.text, local_player(), dlg->planet, dlg->hero_id); }, &ui::InfoScreens::show_slice,
+         &ui::InfoScreens::set_slice, &ui::InfoScreens::close_slice);
     SpecialPanelData pd;
     if (g && pi != kInvalidPlanet) pd = special_panel(*g, data_, ui_.text, ui_.hud_types, local_player(), kind, pi, hero_id);
     const bool show = galactic && pi != kInvalidPlanet;
@@ -1383,15 +1401,6 @@ void App::build_panels(std::vector<ui::HudDrawList>& lists) {
     mf.subtitle = pd.subtitle;
     mf.items = pd.market;
     market_.build(mf);
-    // OI host: the slice dialog (kind 2): SlicePanel on the same market shell (only one of the two is open).
-    ui::SliceFrame lf;
-    frame_of(lf, show && kind == galactic::kSpecialSlice);
-    lf.planet = planet_id;
-    lf.slicer = hero_id;
-    lf.title = pd.title;
-    lf.description = pd.subtitle;
-    lf.rows = pd.slice;
-    slice_.build(lf);
     ui::SabotageFrame sf;
     frame_of(sf, show && kind == galactic::kSpecialSabotage);
     sf.planet = planet_id;

@@ -174,7 +174,8 @@ public:
     const std::vector<int32_t>& shells() const { return shells_; }
     int32_t active_shell() const { return open_ ? active_shell_ : -1; }
     virtual std::vector<std::string> shell_names() const = 0;
-    // Shell clicks of this frame -> `actions`. `wheel` = the frame's wheel notches (InputFrame::wheel), read by SlicePanel only.
+    // Shell clicks of this frame -> `actions`. `wheel` = the frame's wheel notches (InputFrame::wheel); no shell panel reads
+    // it since the slice pick became IDD_SLICE_DIALOG (#71 t01), whose listbox scrolls itself.
     virtual void update_input(const RoutedInput& routed, bool shift, bool ctrl, double now, std::vector<HudAction>* actions = nullptr,
                               float wheel = 0.0f) = 0;
 
@@ -312,47 +313,6 @@ public:
 private:
     void fallback_layout() override;
     uint32_t planet_ = commands::kNoObject;
-};
-
-// ---- Slice dialog (Rebel tech theft, REMAINING_GAPS §1.3 step 5) ---------------------------------------------------
-// The retail dialog (0x3c95d0: TEXT_SLICE_DIALOG_TITLE / _DESCRIPTION, one row per slice entry, Cancel) is a GUI dialog
-// whose resource is not identified. [port] stand-in: the market_frame shell (i_black_market.alo) with the black-market
-// slot mapping - market_title00 title, 01 description, row k name / price on market_title(4 + 2k) / (5 + 2k), hovered
-// row's description (or "Chance n%") / price on market_title02 / 03; 5 rows visible, the mouse wheel over the panel
-// scrolls one row per notch (rows beyond 5); market_tech_level icons hidden. Row click (enabled rows) ->
-// HudAction::SliceSelect{unit = type, ids = {planet, slicer}, value = row} - the host sends SpecialAbility event 13 kind 2
-// (§1.3.1); market_close / right click -> PanelClose (Cancel: sends nothing [M]). Only one of BlackMarketPanel /
-// SlicePanel should be open at a time (same shell).
-struct SliceRow {
-    uint32_t type = 0;          // GameObjectType index of the slice entry (reported by the click)
-    std::string icon;
-    std::u32string name, description;  // description "" = "Chance n%" from `chance`
-    int32_t cost = -1;          // the entry's price (rounded), < 0 none
-    float chance = -1.0f;       // 0..1 success chance, < 0 not shown
-    bool enabled = true;        // affordable (price <= credits)
-};
-struct SliceFrame : PanelFrame {
-    uint32_t planet = commands::kNoObject;  // the slicer's planet
-    uint32_t slicer = 0;                    // the slicer (R2D2) object id
-    std::u32string title, description;      // TEXT_SLICE_DIALOG_TITLE / _DESCRIPTION
-    std::span<const SliceRow> rows;         // every slice entry, candidate order
-};
-class SlicePanel : public HudPanel {
-public:
-    static constexpr int32_t kVisibleRows = 5;
-    std::vector<std::string> shell_names() const override { return {"market_frame"}; }
-    void build(const SliceFrame& f);
-    // `wheel` = this frame's wheel notches (InputFrame::wheel); used while routed.wheel_target is the HUD and the cursor
-    // is over one of the panel's components.
-    void update_input(const RoutedInput& routed, bool shift, bool ctrl, double now, std::vector<HudAction>* actions = nullptr,
-                      float wheel = 0.0f) override;
-    int32_t first_row() const { return first_; }
-
-private:
-    void fallback_layout() override;
-    uint32_t planet_ = commands::kNoObject, slicer_ = 0;
-    int32_t first_ = 0, rows_ = 0;
-    bool was_open_ = false;
 };
 
 // ---- Sabotage (FoC) -------------------------------------------------------------------------------------------
