@@ -12,7 +12,8 @@ Allowed without a marker:
     a literal on a line that calls text_or( / text_or_port( / txt( / caption_text(, or that holds a "TEXT_*" key
                                                                                 - the English stand-in of a retail key
     a literal on a line that calls port_text(                                   - the call is the port's mark
-    a literal on a line that logs (printf / fprintf / log:: / LOG_)             - diagnostics, not UI text
+    a literal on a line that logs (printf / fprintf / log:: / LOG_ / notes_.push_back) - diagnostics, not UI text
+    ("on a line" means anywhere in the literal's statement, back to the previous ';' / '{' / '}', at most 8 lines)
 Allowed uses with a marker in a comment (the reason is required):
     [port-text: reason]        on the line of the literal, or in the comment lines directly above the statement
     [port-text-begin: reason]  ... [port-text-end]   every literal between the two lines
@@ -42,6 +43,7 @@ NOT_TEXT = [
     re.compile(r'[\\/]|\.(?:xml|dat|tga|dds|alo|ala|meg|txt|lua|wav|mp3|bik)\b', re.I),  # paths, file names
 ]
 ALLOWED_CALL = re.compile(r'\b(?:text_or|text_or_port|txt|caption_text|port_text)\s*\(|\b(?:f?printf|log::\w+|LOG_\w+)\s*\('
+                          r'|\bnotes?_\.push_back\s*\('  # diagnostics notes
                           r'|"TEXT_[A-Z0-9_]+"')  # a key literal on the line: the English is its stand-in
 
 
@@ -50,6 +52,19 @@ def is_english(content):
     if len(s) < 3 or any(p.search(s) for p in NOT_TEXT):
         return False
     return any(p.search(s) for p in ENGLISH)
+
+
+def statement_code(line, code_lines, src):
+    """The code of the statement holding `line`: the line and the code lines above it back to the end of the previous
+    statement (a line ending in ';', '{' or '}'), at most 8, so a printf( or text_or( call whose literal argument sits on
+    a continuation line still counts."""
+    lines = [line]
+    for ln in sorted((l for l in code_lines if l < line), reverse=True):
+        prev = src[ln - 1].split('//')[0].rstrip() if ln - 1 < len(src) else ''
+        if prev.endswith((';', '{', '}')) or len(lines) >= 8:
+            break
+        lines.append(ln)
+    return '\n'.join(src[ln - 1] for ln in sorted(lines) if ln - 1 < len(src))
 
 
 def check_file(path, rel, out):
@@ -64,8 +79,7 @@ def check_file(path, rel, out):
     for line, content in literals:
         if not is_english(content):
             continue
-        code = src[line - 1] if line - 1 < len(src) else ''
-        if line in allowed or ALLOWED_CALL.search(code):
+        if line in allowed or ALLOWED_CALL.search(statement_code(line, code_lines, src)):
             ok += 1
             continue
         shown = content if len(content) <= 60 else content[:57] + '...'
@@ -120,7 +134,7 @@ def selftest(here):
     want = sorted(['VIOLATION ui/src/menu.cpp:4', 'VIOLATION ui/src/menu.cpp:5', 'MARKER ui/src/menu.cpp:13',
                    'VIOLATION ui/src/menu.cpp:16'])
     expect(got == want, 'fixture findings:\n  got  ' + '\n       '.join(got) + '\n  want ' + '\n       '.join(want))
-    expect(ok == 6, f'fixture: {ok} literals allowed, want 6')
+    expect(ok == 7, f'fixture: {ok} literals allowed, want 7')
     _, out2, bad2, _ = scan(fixture, ['ui/src/missing.cpp'])
     expect(bad2 == 1 and out2 and out2[0].startswith('SCOPE'), 'a missing scope file is a finding')
     for f in fails:

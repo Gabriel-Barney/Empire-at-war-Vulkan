@@ -2605,7 +2605,7 @@ void test_real_data() {
     clicked("IDD_CUSTOM_CAMPAIGN_STAGING_DIALOG", "IDC_PLAY_BUTTON");
     CHECK(acts.size() == 1 && acts[0].kind == MenuAction::Kind::StartCampaign && db.find_campaign(acts[0].campaign) != nullptr);
     if (!acts.empty()) std::printf("real gui: start %s as %s\n", acts[0].campaign.c_str(), acts[0].faction.c_str());
-    for (const char* k : {"TEXT_BUTTON_YES", "TEXT_BUTTON_NO", "TEXT_BUTTON_QUIT_GAME", "TEXT_OBJECTIVES", "TEXT_DIFFICULTY_EASY_NAME",
+    for (const char* k : {"TEXT_BUTTON_YES", "TEXT_BUTTON_NO", "TEXT_BUTTON_QUIT_GAME", "TEXT_TEST_OBJECTIVE_HEADER", "TEXT_DIFFICULTY_EASY_NAME",
                           "TEXT_FACTION_EMPIRE", "TEXT_FACTION_REBEL", "TEXT_FACTION_UNDERWORLD", "TEXT_BUTTON_BEGIN"})
         std::printf("real gui: text key %s %s\n", k, text.find(k) ? "found" : "MISSING");
 }

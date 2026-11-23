@@ -15,3 +15,7 @@ void menu() {
     x = "%d";
     y = U"Unit Cap";                 // VIOLATION: after the region
 }
+void log_more() {
+    std::fprintf(stderr, "%s: %d\n",
+                 "a continuation argument of the call", 3);  // allowed: the statement logs
+}

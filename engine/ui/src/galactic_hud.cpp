@@ -1254,7 +1254,7 @@ void GalacticHud::build_objectives(const GalacticHudFrame& f) {
     // #45 t08: the objectives panel header TEXT_TEST_OBJECTIVE_HEADER (panel 0x2fdef0,
     // legacy docs/re/MCX8_BINDINGS_PLAYERS_STORY.md; the tactical HUD's header) [M for the galactic panel];
     // TEXT_OBJECTIVES, which the port used before, is not in the FoC MasterTextFile.
-    if (header.empty()) header = text_or("TEXT_TEST_OBJECTIVE_HEADER", U"Objectives");
+    if (header.empty()) header = text_or("TEXT_TEST_OBJECTIVE_HEADER", U"Mission Objectives");  // retail's English
     const float y_top = tl.y;
     // Lines first (to size the background).
     struct Line {
@@ -1503,11 +1503,11 @@ std::u32string replace_all(std::u32string s, std::u32string_view from, std::u32s
 std::u32string auto_resolve_text(const TextDatabase* text, bool space, bool win, int32_t magnitude, std::u32string_view faction,
                                  std::u32string_view planet, int64_t losses) {
     static const char* const kMag[3] = {"MAJOR", "REGULAR", "MINOR"};
-    static const char32_t* const kMagText[3] = {U"major", U"", U"minor"};
     const int32_t m = std::clamp(magnitude, 0, 2);
     char key[48];
     std::snprintf(key, sizeof key, "TEXT_AR_%s_%s_%s", space ? "SPACE" : "LAND", win ? "WIN" : "LOSS", kMag[m]);
     // [port-text-begin: the English stand-in of the TEXT_AR_* line when the table lacks it]
+    static const char32_t* const kMagText[3] = {U"major", U"", U"minor"};
     std::u32string fb = U"##0 ";
     if (*kMagText[m]) fb += std::u32string(kMagText[m]) + U" ";
     fb += space ? U"space " : U"land ";
