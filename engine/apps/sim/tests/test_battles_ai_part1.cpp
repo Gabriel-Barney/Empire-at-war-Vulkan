@@ -2352,6 +2352,73 @@ bool goal_at(const mv::UnitView& v, const std::vector<Vec3>& points) {
         if (v.has_goal && std::fabs(v.goal.x - q.x) < 1.0f && std::fabs(v.goal.y - q.y) < 1.0f) return true;
     return false;
 }
+
+// #222 (A2K_T10_CREDIT_NOTIFY_RE Q1 / Q3 [H]): the AI plan's escrow charge 0x6c2d60 and plan-end refund 0x5f6a50 call
+// Add_Credits with the AI notify on, and 0x4b0310 passes it to the galactic budget only when a galactic mode is under the
+// battle. In the S10 space battle, BattleAi's credit changes for the AI player 1 (-200, then +50 x its Credit_Multiplier)
+// raise GalacticSim's credit notification with the applied amounts; in a skirmish (no galactic mode) they raise none.
+void test_battle_ai_credit_notify(const Data& d, bool skirmish) {
+    std::vector<std::pair<int32_t, float>> got;  // outlives the galaxy that holds the hook
+    jobs::JobSystem js(jobs::JobSystemConfig{0});
+    SimConfig cfg;
+    cfg.seed = 2026;
+    cfg.players = 4;
+    SimHost host(d.types, js, cfg);
+    galactic::GalacticSim* gs = host.start_galactic(d.rules, make_setup(d, false));
+    CHECK(gs != nullptr);
+    if (!gs) return;
+    CHECK(gs->add_credit_notify_hook([&got](int32_t p, float x) { got.emplace_back(p, x); }) != 0);
+    CampaignBattleOptions opt;
+    opt.conflict.human_choice = galactic::BattleChoice::Fight;
+    opt.battle.max_frames = 600;
+    opt.battle.skirmish = skirmish;
+    CampaignBattles battles(host, d.crules, *d.catalog,
+                            [](const std::string& name, terrain::MapData& m) {
+                                if (name != "S10_Space_B") return false;
+                                m = space_map();
+                                return true;
+                            },
+                            opt);
+    CHECK(battles.attach(nullptr));
+    const std::vector<uint32_t> uf = gs->fleets_at(2, 1);
+    if (!uf.empty()) CHECK(gs->move_fleet(1, uf[0], 1) == commands::RejectReason::None);
+    ai::AiDefinitions defs;
+    ai::EquationSet eqs;
+    TacticalAiSetup setup;
+    setup.defs = &defs;
+    setup.equations = &eqs;
+    setup.files = d.files.get();
+    setup.ai_type = [](int32_t, const galactic::GalacticSim&) { return std::string(); };  // no AI player: credits only
+    bool done = false;
+    float c0 = 0.0f, c1 = 0.0f, c2 = 0.0f;
+    for (uint64_t t = 0; t < 600 && !done; ++t) {
+        host.tick_once();
+        TacticalBattle* b = battles.battle();
+        TacticalMode* tm = host.tactical();
+        if (!b || !tm || b->frame() != 3) continue;
+        BattleAi ai(*b, *tm, host, setup);
+        got.clear();
+        c0 = gs->credits(1);
+        ai.add_credits(1, -200.0f);  // the escrow charge at plan accept
+        c1 = gs->credits(1);
+        ai.add_credits(1, 50.0f);  // the unspent escrow back at plan end
+        c2 = gs->credits(1);
+        done = true;
+    }
+    std::printf("  %s: AI credits %.1f -> %.1f -> %.1f, %zu notification(s)\n", skirmish ? "skirmish" : "campaign", static_cast<double>(c0),
+                static_cast<double>(c1), static_cast<double>(c2), got.size());
+    CHECK(done);
+    CHECK(c1 == c0 - 200.0f && c2 > c1);
+    if (skirmish) {
+        CHECK(got.empty());
+    } else {
+        CHECK(got.size() == 2);
+        if (got.size() == 2) {
+            CHECK(got[0].first == 1 && std::fabs(got[0].second - (c1 - c0)) < 1e-3f);
+            CHECK(got[1].first == 1 && std::fabs(got[1].second - (c2 - c1)) < 1e-3f);
+        }
+    }
+}
 #endif
 }  // namespace bo3split
 

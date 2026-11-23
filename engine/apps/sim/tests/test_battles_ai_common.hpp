@@ -215,6 +215,7 @@ void test_hero_clash_garrison(const Data& d);
 void test_reserve_drop_facing(bool attacker_marker);
 void test_battle_ai_land_drop(const Data& d);
 void test_tactical_ai_constants_load();
+void test_battle_ai_credit_notify(const Data& d, bool skirmish);  // #222
 #endif
 // t03 (test_battles_ai_part3.cpp): land Auto_Engage, the land scan range while moving, land Order_Attack issue
 void test_land_auto_engage();
@@ -421,10 +422,10 @@ inline void test_landing_drop(bool timed, uint32_t destroy_at = 0) {
             // (the landing's Land / Takeoff clip); version 17 (skirmish sides 2..7); version 18
             // (land formation records, the attack blocks' last-observed point); version 19 (the attack blocks'
             // plan retry frame); version 20 (BOMBARD_DELAY, map hints, marker names, pad levels); aitac t05:
-            // version 21 (space reinforcement arrivals); version 22 (INDIGENOUS_UNIT list and spawner homes):
-            // 20, 21 and 23 are refused.
+            // version 21 (space reinforcement arrivals); version 22 (INDIGENOUS_UNIT list and spawner homes); #222:
+            // version 23 (HgOrderCost::ai): 21, 22 and 24 are refused.
             std::vector<uint8_t> stale(w.bytes().begin(), w.bytes().end());
-            for (const uint32_t v : {20u, 21u, 23u}) {
+            for (const uint32_t v : {21u, 22u, 24u}) {
                 for (size_t k = 0; k < 4; ++k) stale[k] = static_cast<uint8_t>(v >> (8 * k));
                 ByteReader rs(stale);
                 CHECK(!b->read_part(TacticalBattle::SavePart::State, rs));

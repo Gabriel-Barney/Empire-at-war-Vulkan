@@ -74,6 +74,12 @@ constexpr const objects::ListTag* kReserveTech[] = {
     &objects::tags::Reserve_Spawned_Units_Tech_2, &objects::tags::Reserve_Spawned_Units_Tech_3,
     &objects::tags::Reserve_Spawned_Units_Tech_4, &objects::tags::Reserve_Spawned_Units_Tech_5};
 static_assert(std::size(kStartingTech) == th::kTechSlots && std::size(kReserveTech) == th::kTechSlots);
+
+// The built fraction of a tactical production order: 1 - remaining / total.
+float built_fraction(const th::BuildOrder& o) {
+    return o.total_frames == 0 ? 0.0f : 1.0f - static_cast<float>(o.frames_left) / static_cast<float>(o.total_frames);
+}
+
 }  // namespace
 
 bool TacticalBattle::hg_is_spawner(uint32_t type) const {
@@ -404,7 +410,7 @@ void TacticalBattle::hg_unit_removed(objects::ObjectId id) {
     }
     if (production_)
         for (const th::BuildOrder& o : production_->builder_removed(id)) {
-            hg_refund(o.id, true);
+            hg_refund(o.id, true, built_fraction(o));
             prod_used_ = true;
         }
     if (!hangars_) return;
@@ -827,10 +833,16 @@ std::vector<TacticalBattle::BuildOptionInfo> TacticalBattle::station_build_optio
     return out;
 }
 
-void TacticalBattle::hg_refund(uint32_t order, bool pay) {
+void TacticalBattle::hg_refund(uint32_t order, bool pay, float done) {
     for (size_t i = 0; i < hg_order_cost_.size(); ++i)
         if (hg_order_cost_[i].order == order) {
-            if (pay && hg_order_cost_[i].cost > 0.0f && credits_add_) credits_add_(hg_order_cost_[i].player, hg_order_cost_[i].cost);
+            // #222 (legacy docs/re/BKG1_RE_ANSWERS.md §7.3 [H]): cancel 0x498820 refunds 0x499000(entry), the full price for
+            // a payer charged up front (a FoC human) and clamp(1 - remaining / total, 0, 1) x price for one that is not
+            // (0x289050 true: every AI player, whose plan escrow paid), through Add_Credits with the AI notify on
+            // (A2K_T10_CREDIT_NOTIFY_RE Q3).
+            const HgOrderCost& c = hg_order_cost_[i];
+            const float refund = c.ai ? std::clamp(done, 0.0f, 1.0f) * c.cost : c.cost;
+            if (pay && refund > 0.0f) credits_add_notified(c.player, refund);
             hg_order_cost_.erase(hg_order_cost_.begin() + static_cast<std::ptrdiff_t>(i));
             return;
         }
@@ -853,9 +865,10 @@ commands::RejectReason TacticalBattle::hg_production_command(TacticalMode& mode,
             if (o.builder != builder) continue;
             if (k++ != want) continue;
             const uint32_t id = o.id;
+            const float done = built_fraction(o);
             present(PresentationEventKind::ProductionCanceled, p, builder, o.type, id);  // ref2 t02 (before cancel drops o)
             production_->cancel(id);
-            hg_refund(id, true);
+            hg_refund(id, true, done);
             prod_used_ = hg_used_ = true;
             return R::None;
         }
@@ -866,10 +879,9 @@ commands::RejectReason TacticalBattle::hg_production_command(TacticalMode& mode,
     if (hg_queue_full(p, type)) return R::NotAllowed;  // a human's queue holds Max_Build_Queue entries
     // b0147 (legacy docs/re/BKG1_RE_ANSWERS.md §7.3 item 3): enqueue 0x496a20 tests and takes the full cost only when 0x289050
     // is false (a FoC human); an AI player's entry is not charged here: its plan paid the price at accept into an escrow
-    // that this accepted enqueue draws down (tactical_ai.cpp). Its order carries cost 0, so a cancel refunds nothing [port:
-    // retail refunds an AI entry's progress fraction x cost, 0x499000].
-    const float cost = ai ? 0.0f : static_cast<float>(std::max(0, types.get(type, objects::tags::Tactical_Build_Cost_Multiplayer)));  // int field
-    if (cost > 0.0f) {
+    // that this accepted enqueue draws down (tactical_ai.cpp). The entry still keeps the price, for the cancel refund (#222).
+    const float cost = static_cast<float>(std::max(0, types.get(type, objects::tags::Tactical_Build_Cost_Multiplayer)));  // int field
+    if (!ai && cost > 0.0f) {
         const float have = credits_get_ ? credits_get_(p) : 0.0f;
         if (have < cost) return R::CannotAfford;
         if (credits_add_) credits_add_(p, -cost);
@@ -887,7 +899,7 @@ commands::RejectReason TacticalBattle::hg_production_command(TacticalMode& mode,
     if (!cfg_.skirmish && galaxy_)
         seconds *= galaxy_->tactical_corruption_multiplier(req_.info.planet, p, galactic::GalacticSim::TacticalCorruption::ProductionTime);
     const uint32_t id = production_->enqueue(p, builder, static_cast<int32_t>(type), seconds, frame_, static_cast<uint8_t>(hg_queue_of(type)));
-    hg_order_cost_.push_back(HgOrderCost{id, p, cost});
+    hg_order_cost_.push_back(HgOrderCost{id, p, cost, ai});
     present(PresentationEventKind::ProductionBegin, p, builder, static_cast<int32_t>(type), id);  // ref2 t02
     prod_used_ = hg_used_ = true;
     return R::None;
@@ -934,7 +946,7 @@ void TacticalBattle::hg_production(TacticalMode& mode, SimRng& rng) {
     production_->clear_completed();
     for (const th::BuildOrder& o : done) {
         prod_used_ = hg_used_ = true;
-        hg_refund(o.id, false);
+        hg_refund(o.id, false, 1.0f);
         const Unit* b = unit_by_id(o.builder);
         if (!b || !b->alive || b->retreated || !store.alive(b->h) || o.type < 0) continue;  // builder gone: dropped
         present(PresentationEventKind::ProductionCompleted, o.player, o.builder, o.type, o.id);  // ref2 t02
@@ -1042,6 +1054,7 @@ void TacticalBattle::hg_hash(StateHasher& h) const {
         h.u32(c.order);
         h.i32(c.player);
         h.f32(c.cost);
+        h.boolean(c.ai);
     }
     h.u32(static_cast<uint32_t>(hg_upgrade_objs_.size()));
     for (const HgUpgradeObject& u : hg_upgrade_objs_) h.i32(u.id);

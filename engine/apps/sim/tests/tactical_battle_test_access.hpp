@@ -39,6 +39,10 @@ struct TacticalBattleTestAccess {
         hidden = stealthed = false;
         if (const TacticalBattle::Unit* u = b.unit_by_id(viewer)) b.attack_target_unseen(st, *u, target, hidden, stealthed);
     }
+    // #222: a Production command as the battle AI issues it (BattleHost Production: hg_production_command with ai = true).
+    static commands::RejectReason ai_production(TacticalBattle& b, TacticalMode& mode, uint8_t player, const commands::EventData& ev) {
+        return b.hg_production_command(mode, player, ev, true);
+    }
     // the 8 (x, y) points of object `h`'s fog multisample footprint.
     static void fog_footprint(const TacticalBattle& b, const objects::ObjectStore& st, objects::ObjectHandle h, float* xy16) {
         b.fog_footprint_samples(st, h, xy16);

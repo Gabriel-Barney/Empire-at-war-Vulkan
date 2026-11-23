@@ -36,6 +36,9 @@ int main(int argc, char** argv) {
     test_battle_ai_land_drop(*d);
     std::printf("a2h t05: the battle hosts load the tactical AI constants from GameConstants\n");
     test_tactical_ai_constants_load();
+    std::printf("#222: the AI plan's escrow credits raise the AI credit notification in a campaign battle, not in a skirmish\n");
+    test_battle_ai_credit_notify(*d, false);
+    test_battle_ai_credit_notify(*d, true);
 #endif
     std::printf("s78f t07: land team members registered with combat (TeamTargeting copy in a battle)\n");
     test_land_team_targeting();

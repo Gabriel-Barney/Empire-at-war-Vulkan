@@ -2678,6 +2678,97 @@ void test_station_production(float build_mult = 1.0f) {
     CHECK(after == before - 100.0f);
 }
 
+// #222 (legacy docs/re/BKG1_RE_ANSWERS.md §7.3 [H]): the S10 space skirmish battle. At frame 2 the Empire orders
+// S10_Base_Upgrade (Tactical_Build_Cost_Multiplayer 100, 30 frames) at its star base and cancels it at frame 17, mid-build.
+// As an AI player (the battle AI's Production path) the enqueue 0x496a20 charges nothing (the plan's escrow paid) and the
+// cancel 0x498820 refunds 0x499000's paid fraction clamp(1 - remaining / total, 0, 1) x 100. As a human the enqueue
+// charges 100 and the cancel refunds all of it. Both refunds go through the battle's notify hook (0x498820 calls
+// Add_Credits with the AI notify on, A2K_T10_CREDIT_NOTIFY_RE Q3); the human's charge does not (0x496a20, notify off).
+void test_production_cancel_refund(bool ai) {
+    auto d = make_data(false, false, false, false, true);
+    jobs::JobSystem js(jobs::JobSystemConfig{0});
+    SimConfig cfg;
+    cfg.seed = 2026;
+    cfg.players = 4;
+    SimHost host(d->types, js, cfg);
+    galactic::GalacticSim* gs = host.start_galactic(d->rules, make_setup(*d, false));
+    CHECK(gs != nullptr);
+    if (!gs) return;
+    gs->add_credits(0, 1000.0f, false);
+    CampaignBattleOptions opt;
+    opt.conflict.human_choice = galactic::BattleChoice::Fight;
+    opt.battle.max_frames = 600;
+    opt.battle.skirmish = true;
+    CampaignBattles battles(host, d->crules, *d->catalog,
+                            [](const std::string& name, terrain::MapData& m) {
+                                if (name != "S10_Space_B") return false;
+                                m = space_map();
+                                return true;
+                            },
+                            opt);
+    CHECK(battles.attach(nullptr));
+    const std::vector<uint32_t> uf = gs->fleets_at(2, 1);
+    CHECK(!uf.empty());
+    if (!uf.empty()) CHECK(gs->move_fleet(1, uf[0], 1) == commands::RejectReason::None);
+    const uint32_t base1 = type_of(*d, "S10_Star_Base_1"), up = type_of(*d, "S10_Base_Upgrade");
+    auto order = [&](TacticalBattle& b, TacticalMode& tm, const commands::EventData& ev) {
+        return ai ? TacticalBattleTestAccess::ai_production(b, tm, 0, ev) : host.execute_direct(0, commands::CommandSource::Player, ev);
+    };
+    objects::ObjectId station = objects::kNoObjectId;
+    bool ordered = false, cancelled = false;
+    float before = 0.0f, after_order = 0.0f, pre_cancel = 0.0f, after_cancel = 0.0f, want = -1.0f;
+    float plain = 0.0f, notified = 0.0f;  // player 0's credit changes per hook
+    for (uint64_t t = 0; t < 600 && !cancelled; ++t) {
+        host.tick_once();
+        TacticalBattle* b = battles.battle();
+        TacticalMode* tm = host.tactical();
+        if (!b || !tm) continue;
+        if (!ordered && b->frame() == 2) {
+            for (const objects::ObjectHandle h : tm->primary().owned_by(0))
+                if (tm->primary().alive(h) && tm->primary().type(h) == base1) station = tm->primary().id(h);
+            CHECK(station != objects::kNoObjectId);
+            b->set_credit_hooks([gs](int32_t p) { return gs->credits(p); },
+                                [gs, &plain](int32_t p, float x) {
+                                    if (p == 0) plain += x;
+                                    gs->add_credits(p, x, false);
+                                },
+                                [gs, &notified](int32_t p, float x) {
+                                    if (p == 0) notified += x;
+                                    gs->add_credits(p, x, false);
+                                });
+            before = gs->credits(0);
+            commands::EventData ev(commands::EventType::Production);
+            ev.set("type_index", up).set("location", static_cast<uint32_t>(station));
+            CHECK(order(*b, *tm, ev) == commands::RejectReason::None);
+            after_order = gs->credits(0);
+            ordered = true;
+        } else if (ordered && b->frame() == 17) {
+            const std::span<const tactical::hangar::BuildOrder> q = b->production()->queue(0);
+            CHECK(q.size() == 1);
+            if (q.size() != 1) return;
+            const tactical::hangar::BuildOrder o = q[0];
+            CHECK(o.frames_left > 0 && o.frames_left < o.total_frames);  // mid-build
+            const float done = 1.0f - static_cast<float>(o.frames_left) / static_cast<float>(o.total_frames);
+            want = ai ? done * 100.0f : 100.0f;
+            pre_cancel = gs->credits(0);
+            commands::EventData ev(commands::EventType::Production);
+            ev.set("cancel", 1u).set("index", 0u).set("location", static_cast<uint32_t>(station));
+            CHECK(order(*b, *tm, ev) == commands::RejectReason::None);
+            CHECK(b->production()->queue(0).empty());
+            after_cancel = gs->credits(0);
+            cancelled = true;
+        }
+    }
+    std::printf("  %s: credits %.1f -> %.1f at the order, %.1f -> %.1f at the cancel (refund %.3f wanted)\n", ai ? "AI" : "human",
+                static_cast<double>(before), static_cast<double>(after_order), static_cast<double>(pre_cancel),
+                static_cast<double>(after_cancel), static_cast<double>(want));
+    CHECK(ordered && cancelled);
+    CHECK(after_order == (ai ? before : before - 100.0f));
+    CHECK(std::fabs(after_cancel - pre_cancel - want) < 1e-3f);
+    if (ai) CHECK(want > 40.0f && want < 60.0f);  // about half the build time had run
+    CHECK(plain == (ai ? 0.0f : -100.0f) && std::fabs(notified - want) < 1e-3f);
+}
+
 // the S10 space skirmish battle again. At frame 2 the Empire orders S10_Base_Upgrade (Tactical_Units queue, 30
 // frames) and S10_Tech_Upgrade (Tactical_Upgrades queue, 60 frames) at its star base; S10_No_Queue_Upgrade (no
 // Tactical_Production_Queue) is refused. SKIRMISH_SETUP §3 service 0x498170 [H]: the head of each queue counts down, so the
@@ -3647,6 +3738,9 @@ int main(int argc, char** argv) {
     std::printf("skirmish station production: Production at the star base, upgrade object, station upgrade\n");
     test_station_production();
     test_station_production(1.5f);  // Easy AI build time
+    std::printf("#222: tactical production cancel refunds (AI: progress x cost; human: the charged cost)\n");
+    test_production_cancel_refund(true);
+    test_production_cancel_refund(false);
     std::printf("mcx4 t04: tactical production queues and the skirmish tech upgrade\n");
     test_tactical_tech_upgrade();
     test_skirmish_redelivery();      // skm1 t07

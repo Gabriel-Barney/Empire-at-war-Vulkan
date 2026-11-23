@@ -1397,10 +1397,14 @@ public:
         pad_restore_ = restore;
     }
     // Credits of the galactic player (campaign battles spend the galactic account). Unset: every player has 0 credits
-    // and refunds are dropped. CampaignBattles installs GalacticSim::credits / add_credits.
-    void set_credit_hooks(std::function<float(int32_t)> get, std::function<void(int32_t, float)> add) {
+    // and refunds are dropped. CampaignBattles installs GalacticSim::credits / add_credits. `add` is Add_Credits 0x27f370
+    // with the AI notify off; `add_notify` with it on (A2K_T10_CREDIT_NOTIFY_RE Q3: the tactical build cancel refund
+    // 0x498820 and the AI plan's escrow charge 0x6c2d60 / refund 0x5f6a50). Unset, `add` serves both.
+    void set_credit_hooks(std::function<float(int32_t)> get, std::function<void(int32_t, float)> add,
+                          std::function<void(int32_t, float)> add_notify = {}) {
         credits_get_ = std::move(get);
         credits_add_ = std::move(add);
+        credits_add_notify_ = std::move(add_notify);
     }
     // skm1 t01 / t02 (SKIRMISH_SETUP §2 step 3): a skirmish map battle with BattleConfig::skirmish_options set sets every
     // galactic player's credits to the option credits through the credit hooks (tactical_battle_skirmish.cpp). The host calls
@@ -2915,6 +2919,11 @@ private:
     std::vector<objects::ObjectId> bt_shields_;  // stamped shield objects, ascending id
     std::function<float(int32_t)> credits_get_;
     std::function<void(int32_t, float)> credits_add_;
+    std::function<void(int32_t, float)> credits_add_notify_;  // #222: Add_Credits with the AI notify on (set_credit_hooks)
+    void credits_add_notified(int32_t player, float amount) {
+        if (credits_add_notify_) credits_add_notify_(player, amount);
+        else if (credits_add_) credits_add_(player, amount);
+    }
     std::function<bool()> arrival_hold_;  // story t12
     std::function<void(objects::ObjectHandle, int32_t)> scoring_death_;  // storyb t14
     std::function<void()> before_map_load_;  // modc t32
@@ -3104,12 +3113,14 @@ private:
     bool hg_buildable(const objects::ObjectStore& st, int32_t player, objects::ObjectId builder, objects::TypeIndex type) const {
         return hg_build_check(st, player, builder, type) == 0;
     }
-    void hg_refund(uint32_t order, bool pay);    // drops the order's charge record; pay = credit it back
+    // drops the order's charge record; pay = credit back 0x499000's amount (done = the order's built fraction)
+    void hg_refund(uint32_t order, bool pay, float done);
     void hg_remove_silently(objects::ObjectId id);  // RemoveSilently: contents / abilities bookkeeping of a non-unit
     struct HgOrderCost {
         uint32_t order = 0;
         int32_t player = -1;
-        float cost = 0.0f;
+        float cost = 0.0f;  // the entry's price (charged at enqueue unless ai)
+        bool ai = false;    // #222: an AI player's entry (0x289050 true): not charged, refunded the paid fraction
     };
     struct HgUpgradeObject {
         objects::ObjectId id = objects::kNoObjectId;
@@ -3117,7 +3128,7 @@ private:
     };
     std::unique_ptr<tactical::hangar::ContentsSystem> contents_;
     std::unique_ptr<tactical::hangar::TacticalProduction> production_;
-    std::vector<HgOrderCost> hg_order_cost_;                  // charged credits per open order (issue order)
+    std::vector<HgOrderCost> hg_order_cost_;                  // the price per open order (issue order)
     // skm1 t04 (SKIRMISH_SETUP 0x496f00): per player, the tactical AI's difficulty build-time multiplier (Space_ / Land_
     // Build_Time_Multiplier) for non-human AI players, set by BattleAi::start (a load's start sets it again; not saved).
     // Missing entry = 1.0.
