@@ -847,8 +847,8 @@ static void test_unit_order_targets(const Db& db) {
     CHECK(cmds.back().payload.type() == commands::EventType::Attack &&
           cmds.back().payload.ids("attackers") == (std::vector<uint32_t>{static_cast<uint32_t>(t1_id), static_cast<uint32_t>(t2_id)}));
     // Move_Internal: positions, AI targets, task forces. Attack_Move / Guard_Target take an object target unless it is the
-    // caller (then its position); Attack_Move to a task force goes to its position; Guard_Target guards its first member
-    // that is not the caller.
+    // caller (then its position); Attack_Move to a task force goes to its position (the mean of Ship and T1); Guard_Target
+    // guards its first member that is not the caller.
     auto lua_order_of = [&cmds](size_t back) -> const commands::EventData& { return cmds[cmds.size() - 1 - back].payload; };
     const uint32_t none = static_cast<uint32_t>(objects::kNoObjectId);
     CHECK(run(vm, "a = Ship.Move_To(Region) b = Ship.Attack_Move(Tgt) c = Ship.Attack_Move(TF) d = Ship.Guard_Target(TF) "
@@ -857,10 +857,29 @@ static void test_unit_order_targets(const Db& db) {
     CHECK(lua_order_of(4).u("subtype") == kLuaOrderSubtype + static_cast<uint32_t>(LuaOrder::MoveTo) &&
           payload_u32(lua_order_of(4), 4) == none && std::bit_cast<float>(payload_u32(lua_order_of(4), 8)) == 7.0f);
     CHECK(payload_u32(lua_order_of(3), 4) == static_cast<uint32_t>(enemy_id));
-    CHECK(payload_u32(lua_order_of(2), 4) == none && std::bit_cast<float>(payload_u32(lua_order_of(2), 8)) == 0.0f);
+    CHECK(payload_u32(lua_order_of(2), 4) == none && std::bit_cast<float>(payload_u32(lua_order_of(2), 8)) == 5.0f);
     CHECK(lua_order_of(1).u("subtype") == kLuaOrderSubtype + static_cast<uint32_t>(LuaOrder::Guard) &&
           payload_u32(lua_order_of(1), 4) == static_cast<uint32_t>(t1_id));
     CHECK(payload_u32(lua_order_of(0), 4) == none);
+    // #51 t01 (Move_Internal 0x57da90 -> task force vf+0x170: legacy docs/re/LUA_API.md "Move_Internal" and legacy
+    // docs/re/AI_TACTICAL.md §7.3.2 [H]): Move_To a task force goes to the mean of its live members as a position, not to
+    // an object; an empty task force is (0, 0, 0), never an error, for all three orders.
+    const auto order_x = [&](size_t back) { return std::bit_cast<float>(payload_u32(lua_order_of(back), 8)); };
+    CHECK(run(vm, "m = Ship.Move_To(TF)") == "" && !gnil(vm, "m") && !vm.exit_requested());
+    CHECK(lua_order_of(0).u("subtype") == kLuaOrderSubtype + static_cast<uint32_t>(LuaOrder::MoveTo) &&
+          payload_u32(lua_order_of(0), 4) == none && order_x(0) == 5.0f);
+    {
+        const auto members = ai.units;
+        ai.units.clear();
+        CHECK(run(vm, "m0 = Ship.Move_To(TF) a0 = Ship.Attack_Move(TF) g0 = Ship.Guard_Target(TF)") == "" && !vm.exit_requested());
+        CHECK(!gnil(vm, "m0") && !gnil(vm, "a0") && !gnil(vm, "g0"));
+        CHECK(lua_order_of(2).u("subtype") == kLuaOrderSubtype + static_cast<uint32_t>(LuaOrder::MoveTo) &&
+              lua_order_of(1).u("subtype") == kLuaOrderSubtype + static_cast<uint32_t>(LuaOrder::AttackMove) &&
+              lua_order_of(0).u("subtype") == kLuaOrderSubtype + static_cast<uint32_t>(LuaOrder::Guard));
+        for (size_t b = 0; b < 3; ++b) CHECK(payload_u32(lua_order_of(b), 4) == none && order_x(b) == 0.0f);
+        reset_script_threads(vm);
+        ai.units = members;
+    }
     // A unit table: one order per live unit, in table order; the non-object entry is a script error (the loop goes on).
     const size_t n = cmds.size();
     CHECK(run(vm, "g = Ship.Guard_Target({T2, 7, T1}, Create_Position(1, 2, 3))") == "" && !gnil(vm, "g") && stopped());
