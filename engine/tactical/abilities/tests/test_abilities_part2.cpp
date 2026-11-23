@@ -191,13 +191,15 @@ int oi_hack_timing(uint32_t count, float fps) {
 // Paralyze `paralyze`). After Drop + Pull services the wrapping starts; past 30 more services a walker still walking takes
 // a kind-8 (Damage_Cable_Attack) kill for its hull health, credited to the speeder; a stopped one is stopped and locked for
 // max(Paralyze, 70) services, then released. Returns the tick of the kill / lock (relative to the order) and the release.
+// `leave` (#44 t03, 0x6f3180 read 2026-11-23 [H]): from that tick on the speeder's locomotor is no longer circling (state
+// 0x26); during the drop / pull phase that ends the cable at once (0x6f2a30): no trip and no hold. -1: it keeps circling.
 struct CableRun {
     int order_tick = 0, hit = -1, released = -1;
     bool died = false;
     uint8_t kind = 0;
     ObjectId killer = kNoObject;
 };
-CableRun oi_cable_run(bool walker_moving, float paralyze) {
+CableRun oi_cable_run(bool walker_moving, float paralyze, int leave = -1) {
     OiWorld w;
     SpecialAbilityDesc cb = oi_special("Cable", SpecialClass::Cable, ActivationStyle::UserInput);
     cb.min_range = 0.0f;
@@ -216,6 +218,8 @@ CableRun oi_cable_run(bool walker_moving, float paralyze) {
     w.make(GameMode::Land);
     AbilityHost h;
     h.moving = [walker_moving](ObjectId id) { return id == 2 && walker_moving; };
+    int tick = 0;
+    h.circling = [&tick, leave](ObjectId id) { return id != 1 || leave < 0 || tick < leave; };
     w.ab->set_host(std::move(h));
     w.add(1, sd, 0, {0, 0, 0});
     w.add(2, td, 1, {50, 0, 0});
@@ -223,6 +227,7 @@ CableRun oi_cable_run(bool walker_moving, float paralyze) {
     CHECK(w.ab->targeted_ability(one, kCableAttack, 2, -1, w.frame) == 1);
     CableRun r;
     for (int i = 1; i <= 800 && r.released < 0 && !r.died; ++i) {
+        tick = i;
         w.tick();
         for (const DeathEvent& d : w.sys->deaths())
             if (d.id == 2) {
@@ -458,6 +463,14 @@ void test_oi_anim_timings() {
     CHECK(trip.died && trip.kind == 8 && trip.killer == 1 && trip.hit >= 281 && trip.hit <= 283);
     CHECK(!hold.died && hold.hit == trip.hit && hold.released - hold.hit == 300);
     CHECK(!short_hold.died && short_hold.hit == trip.hit && short_hold.released - short_hold.hit == 70);
+    // #44 t03: a speeder that stops circling while the cable drops / pulls (tick 100 < 250) lets the walker go: no trip and
+    // no hold by tick 800. Once the wrapping has started (tick 260) the check is gone (0x6f3800 has none): it still trips.
+    const CableRun let_go = oi_cable_run(true, 300.0f, 100);
+    const CableRun late = oi_cable_run(true, 300.0f, 260);
+    std::printf("r3g cable: left circling at 100: hit %d died %d; at 260: hit %d died %d\n", let_go.hit, let_go.died ? 1 : 0, late.hit,
+                late.died ? 1 : 0);
+    CHECK(!let_go.died && let_go.hit < 0);
+    CHECK(late.died && late.hit == trip.hit);
     test_r3g_deploy_troopers_timed();  // r3g t02
     // Berserker: passes on counters 55, 50, ... 5 (n = 5 .. 55); a 50-frame clip loops at 49, window (10, 40) strict:
     // n = 15, 20, 25, 30, 35 only.

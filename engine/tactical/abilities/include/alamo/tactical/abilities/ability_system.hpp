@@ -290,6 +290,9 @@ struct AbilityHost {
     // #44 t04 (R3G_ANIM_TIMED_RE §2 step 1, MOVEMENT §5.3 vf +0x1b0): turning in place (a Walk start / arrival turn, a
     // container's final-facing turn) at speed 0; unset = never turning
     std::function<bool(ObjectId id)> turning;
+    // #44 t03 (CableAttackAbility state 3, 0x6f3180 read 2026-11-23 [H]): the cable user's locomotor is circling (state 0x26,
+    // FlyCircling); a user without a locomotor of its own answers true. Unset = always circling.
+    std::function<bool(ObjectId id)> circling;
     std::function<float(float x, float y)> ground_height;  // terrain z for mines (fallback: the point's z)
     // Battlefield_Modifier list +0x1f8 (TacticalBattle::fog_add_reveal_multiplier / fog_remove_reveal_modifier).
     std::function<void(int32_t player, int32_t category, uint64_t source, float multiplier)> fow_reveal_add;
