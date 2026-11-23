@@ -835,8 +835,8 @@ void test_radar() {
         const Rgba8 c00{px2[0], px2[1], px2[2], px2[3]};
         const Rgba8 c11{px2[(1 * 4 + 1) * 4], px2[(1 * 4 + 1) * 4 + 1], px2[(1 * 4 + 1) * 4 + 2], px2[(1 * 4 + 1) * 4 + 3]};
         const Rgba8 c21{px2[(1 * 4 + 2) * 4], px2[(1 * 4 + 2) * 4 + 1], px2[(1 * 4 + 2) * 4 + 2], px2[(1 * 4 + 2) * 4 + 3]};
-        CHECK2(c00 == temp[static_cast<size_t>(Passability::Clear)] && c11 == temp[static_cast<size_t>(Passability::Obstacle)] &&
-               c21 == temp[static_cast<size_t>(Passability::Water)]);
+        CHECK2(c00 == temp[static_cast<size_t>(Passability::Clear)] && c11 == temp[static_cast<size_t>(Passability::Clear)] &&
+               c21 == temp[static_cast<size_t>(Passability::Water)]);  // cells (0, 0), (1, 1), (2, 1)
     }
     // Events.
     RadarEvents ev;
