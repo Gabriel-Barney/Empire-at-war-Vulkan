@@ -1453,7 +1453,9 @@ private:
         e.frame = frame_;
         events_.push_back(e);
     }
-    void emit_production(GalacticEventKind kind, PlanetIndex planet, uint32_t queue, const BuildEntry& e, int32_t extra);
+    // `voiced`: a ProductionCanceled from a queue cancel (kCancelVoiced, galactic_events.hpp), not a wipe.
+    void emit_production(GalacticEventKind kind, PlanetIndex planet, uint32_t queue, const BuildEntry& e, int32_t extra,
+                         bool voiced = false);
     PlanetIndex location_of(ObjectHandle object) const;  // planet of a unit / structure / starbase / fleet
     // P4 sim (src/special_systems.cpp)
     const SpecialRules& special() const { return rules_->special; }

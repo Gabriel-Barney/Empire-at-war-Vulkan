@@ -1051,7 +1051,8 @@ RejectReason GalacticSim::cancel(int32_t player, PlanetIndex planet, uint32_t qu
     if (refund)  // through Add_Credits with notify: AI refunds get Credit_Multiplier again (quirk) [H]
         add_credits(e.player, econ::refund_amount(pays_as_you_go(e.player), e.remaining, e.build_time, e.cost), true);
     if (index == 0 && !qv.empty()) restart_head(qv[0]);
-    emit_production(GalacticEventKind::ProductionCanceled, planet, queue, e, refund ? 1 : 0);
+    // #67 t04: a queue cancel (0x403770 / 0x403900: the command, the AI, the production sabotage) voices the line
+    emit_production(GalacticEventKind::ProductionCanceled, planet, queue, e, refund ? 1 : 0, true);
     return RejectReason::None;
 }
 
@@ -1307,7 +1308,7 @@ PlanetIndex GalacticSim::location_of(ObjectHandle object) const {
 }
 
 void GalacticSim::emit_production(GalacticEventKind kind, PlanetIndex planet, uint32_t queue, const BuildEntry& e,
-                                  int32_t extra) {
+                                  int32_t extra, bool voiced) {
     if (!emit_events_) return;
     GalacticEvent ev;
     ev.kind = kind;
@@ -1315,7 +1316,10 @@ void GalacticSim::emit_production(GalacticEventKind kind, PlanetIndex planet, ui
     ev.planet = planet;
     ev.type = e.type;
     ev.value = static_cast<int32_t>(queue);
-    if (kind == GalacticEventKind::ProductionCanceled) ev.other_player = extra;
+    if (kind == GalacticEventKind::ProductionCanceled) {
+        ev.other_player = extra;
+        ev.object = voiced ? kCancelVoiced : 0;
+    }
     if (kind == GalacticEventKind::ProductionCompleted) ev.object = extra;
     emit(ev);
 }
