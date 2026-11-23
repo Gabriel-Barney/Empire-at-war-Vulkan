@@ -256,6 +256,42 @@ std::string_view GameAudioHost::terrain_name(uint32_t type) {
     return type < std::size(kNames) ? std::string_view(kNames[type]) : std::string_view();
 }
 
+std::vector<GameAudioHost::CorruptionSlot> GameAudioHost::corruption_slots(const objects::GameObjectTypes& types,
+                                                                          objects::TypeIndex planet_type) {
+    static constexpr const char* kFields[3][4] = {
+        {"Corruption_1_Type", "Corruption_1_Mission_Commencing_Speech_Event", "Corruption_1_Success_Speech_Event",
+         "Corruption_1_Failure_Speech_Event"},
+        {"Corruption_2_Type", "Corruption_2_Mission_Commencing_Speech_Event", "Corruption_2_Success_Speech_Event",
+         "Corruption_2_Failure_Speech_Event"},
+        {"Corruption_3_Type", "Corruption_3_Mission_Commencing_Speech_Event", "Corruption_3_Success_Speech_Event",
+         "Corruption_3_Failure_Speech_Event"},
+    };
+    std::vector<CorruptionSlot> out;
+    if (planet_type >= types.size()) return out;
+    for (const auto& f : kFields) {
+        if (ascii_trim(types.get_string(planet_type, f[0])).empty()) continue;
+        CorruptionSlot s;
+        s.type = types.get_enum(planet_type, f[0]);
+        s.commencing = std::string(ascii_trim(types.get_string(planet_type, f[1])));
+        s.success = std::string(ascii_trim(types.get_string(planet_type, f[2])));
+        s.failure = std::string(ascii_trim(types.get_string(planet_type, f[3])));
+        out.push_back(std::move(s));
+    }
+    return out;
+}
+
+std::string_view GameAudioHost::corruption_speech_event(std::span<const CorruptionSlot> slots, int32_t type, CorruptionSpeech kind) {
+    for (const CorruptionSlot& s : slots) {  // 0x3716f0 / 0x3713d0 / 0x371450: slots 1, 2, 3 in order, the first match
+        if (s.type != type) continue;
+        switch (kind) {
+        case CorruptionSpeech::Commencing: return s.commencing;
+        case CorruptionSpeech::Success: return s.success;
+        case CorruptionSpeech::Failure: return s.failure;
+        }
+    }
+    return {};
+}
+
 GameAudioHost::ObjectMute GameAudioHost::object_mute(bool stealthed, bool script_hidden, bool fogged) {
     (void)stealthed;  // retail tests the hide bit, the model's hide bit and fog, never stealth (a tint / alpha effect)
     ObjectMute m;
@@ -1602,6 +1638,24 @@ bool GameAudioHost::structure_music(std::string_view type_name, bool alt, bool s
     return system_->play_music(event, m == audio::music_mode::kNone ? audio::music_mode::kTacticalAmbient : m, false, true);
 }
 
+bool GameAudioHost::corruption_speech(CorruptionSpeech kind, std::span<const CorruptionSlot> slots, int32_t type) {
+    if (!game_ || !system_) return false;
+    const std::string_view event = corruption_speech_event(slots, type, kind);
+    if (kind == CorruptionSpeech::Commencing) {
+        if (event.empty()) {
+            // ledger: consumes Faction.SFXEvent_Tactical_Corruption_Mission_Commencing
+            faction_sfx("SFXEvent_Tactical_Corruption_Mission_Commencing");
+            return true;
+        }
+        game_->conversations().cancel_all();  // the SFX and speech conversations, then all speech (AUDIO.md §9.7)
+        system_->stop_all_speech();
+    }
+    if (event.empty()) return false;
+    const uint64_t before = stats_.speech;
+    speech(event);
+    return stats_.speech != before;
+}
+
 void GameAudioHost::planet_revealed() {
     if (!game_ || !db_) return;
     const std::string& event = db_->constants().sfx_planet_revealed;
@@ -1747,6 +1801,7 @@ double GameAudioHost::output_latency_seconds() const { return 0.0; }
 void GameAudioHost::set_volumes(float, float, float, float) {}
 void GameAudioHost::update(double) {}
 bool GameAudioHost::structure_music(std::string_view, bool, bool) { return false; }
+bool GameAudioHost::corruption_speech(CorruptionSpeech, std::span<const CorruptionSlot>, int32_t) { return false; }
 void GameAudioHost::planet_revealed() {}
 void GameAudioHost::set_app_active(bool active) {  // same bookkeeping as with audio
     if (active == app_active_) return;

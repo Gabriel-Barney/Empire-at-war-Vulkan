@@ -230,6 +230,26 @@ public:
     // ambient) when there is none: 0x2d21f0(event, mode, 0, 1). True when the music started. The app passes the
     // object a click newly added to the selection (App::respond) and the keys' state.
     bool structure_music(std::string_view type_name, bool alt, bool shift);
+    // #62 t05 (legacy docs/re/AUDIO.md §9.7; MCX4_T13_RE_ANSWERS "GameObjectType.Corruption_1_Success_Speech_Event family"
+    // and "Faction.SFXEvent_Tactical_Corruption_Mission_Commencing" [H]): the local corrupter's corruption speech. The
+    // event is the corruption slot N (1..3) whose Corruption_N_Type is the corruption's type, read from the PLANET's type
+    // [M: the RE notes say "the corrupting unit's type", but every Corruption_N_* speech field of the FoC data is on a
+    // PLANETS.XML planet and the offsets lie in the planet's corruption slot, stride 0x1a4].
+    //   Commencing (the mission battle starts): the SFX and speech conversations and all speech stop, then
+    //              Corruption_N_Mission_Commencing_Speech_Event is queued; without one the faction's
+    //              SFXEvent_Tactical_Corruption_Mission_Commencing plays 2D instead.
+    //   Success / Failure (the mission's end; Success also for a direct corruption): Corruption_N_Success_Speech_Event /
+    //              Corruption_N_Failure_Speech_Event is queued (none: silent). [port] the planet data +0x2e4 gate on the
+    //              success line [M, meaning unknown] is taken as set; the *_Bink_Hologram_Name talking head is not shown.
+    // True when something was queued or played.
+    enum class CorruptionSpeech : uint8_t { Commencing, Success, Failure };
+    struct CorruptionSlot {
+        int32_t type = -1;  // Corruption_N_Type (CorruptionTypeEnum)
+        std::string commencing, success, failure;
+    };
+    static std::vector<CorruptionSlot> corruption_slots(const objects::GameObjectTypes& types, objects::TypeIndex planet_type);
+    static std::string_view corruption_speech_event(std::span<const CorruptionSlot> slots, int32_t type, CorruptionSpeech kind);
+    bool corruption_speech(CorruptionSpeech kind, std::span<const CorruptionSlot> slots, int32_t type);
     // Movie music (STRATEGIC_GAPS §7.3 / §7.4), called by MovieSlot for the movie's Movies.xml flags: movie_started with the
     // movie-music flag (Has_Credits, +0xD0) starts mode 14 music (kCreditsMusicEvent [M for the name]; one pass, then the
     // previous music resumes), with Halt_Game_Music (+0xD4) stops the game's music; movie_cue = a MusicEvent_Frame cue

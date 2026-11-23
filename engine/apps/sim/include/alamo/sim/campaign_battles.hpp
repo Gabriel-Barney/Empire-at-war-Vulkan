@@ -218,6 +218,18 @@ public:
     CorruptionStart last_corruption_start() const { return last_corruption_; }
     // mcx4 t13 (presentation read): the running battle's corruption mission player, -1 when it is not one.
     int32_t active_corruption_player() const { return corruption_active_.player; }
+    // #62 t05 (presentation feed: not saved, not hashed, nothing in the sim reads it): the corruption speech moments, in
+    // order - a mission battle pushed (Commencing: retail Initiate_Space_Conflict 0x2af7c0 / Land_Invade 0x2b0520, legacy
+    // docs/re/AUDIO.md §9.7), a mission's end (Success when the corrupter won, else Failure: 0x28bf10) and a direct
+    // corruption (Success: 0x52bf50). Every player's; the host voices the local corrupter's and keeps its own read position.
+    struct CorruptionSpeechNote {
+        enum class Kind : uint8_t { Commencing, Success, Failure };
+        Kind kind = Kind::Commencing;
+        PlanetIndex planet = kInvalidPlanet;
+        int32_t player = -1;
+        int8_t type = -1;  // CorruptionTypeEnum
+    };
+    std::span<const CorruptionSpeechNote> corruption_speech() const { return corruption_speech_; }
     // --- P4 sim (owner: galactic agent): the tactical retreat dialog's Autoresolve for `player` (BT §4.5,
     // P4_SIM_SYSTEMS §9.3; retail: a direct GUI call, the port keeps it as the host's port command so replays reproduce
     // it). Gate = the retreat coordinator's can-retreat check for the player (TacticalBattle::stop_for_auto_resolve).
@@ -419,6 +431,7 @@ private:
 #endif
     // --- end story t07 / t08 ---
     CorruptionMission corruption_active_;               // the running battle's mission (player -1: none)
+    std::vector<CorruptionSpeechNote> corruption_speech_;  // #62 t05 presentation feed (corruption_speech)
     CorruptionStart last_corruption_ = CorruptionStart::Refused;  // Int-final: result of the last corruption command
     commands::RejectReason corruption_command(uint8_t player, const commands::EventData& ev);  // Int-final
     void corruption_push();                             // at the push: match pending_req_ against corruption_queued_

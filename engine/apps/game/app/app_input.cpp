@@ -53,6 +53,27 @@ bool App::activate_special_here(uint32_t hero_id) {
 
 // SFX / messages of the special events (local player only, P4_SIM_SYSTEMS §1.4, §2.3, §2.4, §3.3, §6.2). The "local error
 // SFX" (0x140b301c8) is not identified: [port] the GUI negative feedback.
+// #62 t05: the local corrupter's corruption speech (CampaignBattles::corruption_speech -> GameAudioHost::corruption_speech),
+// read from the battle planet's type.
+void App::corruption_speech_feedback() {
+    const sim::CampaignBattles* cb = session_ ? session_->battles() : nullptr;
+    if (!cb) return;
+    const std::span<const sim::CampaignBattles::CorruptionSpeechNote> notes = cb->corruption_speech();
+    if (corruption_speech_seen_ > notes.size()) corruption_speech_seen_ = 0;  // another battles host (a load)
+    const galactic::GalacticSim* g = session_->galaxy();
+    for (; corruption_speech_seen_ < notes.size(); ++corruption_speech_seen_) {
+        const sim::CampaignBattles::CorruptionSpeechNote& n = notes[corruption_speech_seen_];
+        if (n.player != local_player() || !g || n.planet >= g->planets().size()) continue;
+        const uint32_t t = g->planets()[n.planet].type;
+        if (t >= data_.types.size()) continue;
+        using K = sim::CampaignBattles::CorruptionSpeechNote::Kind;
+        const GameAudioHost::CorruptionSpeech kind = n.kind == K::Commencing ? GameAudioHost::CorruptionSpeech::Commencing
+                                                     : n.kind == K::Success  ? GameAudioHost::CorruptionSpeech::Success
+                                                                             : GameAudioHost::CorruptionSpeech::Failure;
+        audio_.corruption_speech(kind, GameAudioHost::corruption_slots(data_.types, static_cast<objects::TypeIndex>(t)), n.type);
+    }
+}
+
 void App::special_feedback() {
     if (!session_) return;
     using K = galactic::GalacticEventKind;
@@ -269,6 +290,7 @@ void App::post_tick() {
     }
     special_feedback();  // P4 host
     announcer_feedback();  // ui4 t08
+    corruption_speech_feedback();  // #62 t05
     if (session_->in_battle()) {
         if (!bview_.active()) {
             begin_battle();

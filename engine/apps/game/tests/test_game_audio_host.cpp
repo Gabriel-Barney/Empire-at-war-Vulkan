@@ -753,6 +753,72 @@ void test_intro_speech_t07() {
 }
 
 
+// #62 t05 (legacy docs/re/AUDIO.md §9.7; MCX4_T13_RE_ANSWERS "GameObjectType.Corruption_1_Success_Speech_Event family"): the
+// slot whose Corruption_N_Type is the corruption's type gives the line; Commencing stops all speech first and falls back
+// to the faction's SFXEvent_Tactical_Corruption_Mission_Commencing; Success / Failure without a line are silent.
+// ledger: verifies GameObjectType.Corruption_1_Success_Speech_Event
+// ledger: verifies Faction.SFXEvent_Tactical_Corruption_Mission_Commencing
+void test_corruption_speech() {
+    using H = GameAudioHost;
+    using K = H::CorruptionSpeech;
+    // Shaped like PLANETS.XML AetenII: slot 1 Piracy (4) with all three lines, slot 2 Racketeering (3) with a success only.
+    std::vector<H::CorruptionSlot> slots(2);
+    slots[0].type = 4;
+    slots[0].commencing = "AETENII_PIR_LOAD_COR02_01";
+    slots[0].success = "AETENII_PIR_VICTORY_COR02_03";
+    slots[0].failure = "AETENII_PIR_LOSS_COR02_04";
+    slots[1].type = 3;
+    slots[1].success = "AETENII_RKT_VICTORY_COR02_05";
+    CHECK(H::corruption_speech_event(slots, 4, K::Commencing) == "AETENII_PIR_LOAD_COR02_01");
+    CHECK(H::corruption_speech_event(slots, 4, K::Success) == "AETENII_PIR_VICTORY_COR02_03");
+    CHECK(H::corruption_speech_event(slots, 4, K::Failure) == "AETENII_PIR_LOSS_COR02_04");
+    CHECK(H::corruption_speech_event(slots, 3, K::Success) == "AETENII_RKT_VICTORY_COR02_05");
+    CHECK(H::corruption_speech_event(slots, 3, K::Commencing).empty() && H::corruption_speech_event(slots, 3, K::Failure).empty());
+    CHECK(H::corruption_speech_event(slots, 6, K::Success).empty() && H::corruption_speech_event({}, 4, K::Success).empty());
+    {
+        GameAudioHost idle;  // inactive: nothing plays
+        CHECK(!idle.corruption_speech(K::Success, slots, 4));
+    }
+#ifdef ALAMO_GAME_HAVE_AUDIO
+    GameData data;
+    auto tree = make_tree(true);
+    tree->add("Data\\XML\\SpeechEvents.xml",
+              "<SpeechEvents><SpeechEvent Name=\"OTHER_LINE\"><Files> O_ENG.MP3 </Files></SpeechEvent>"
+              "<SpeechEvent Name=\"AETENII_PIR_LOAD_COR02_01\"><Files> L_ENG.MP3 </Files></SpeechEvent>"
+              "<SpeechEvent Name=\"AETENII_PIR_VICTORY_COR02_03\"><Files> V_ENG.MP3 </Files></SpeechEvent>"
+              "<SpeechEvent Name=\"AETENII_RKT_VICTORY_COR02_05\"><Files> R_ENG.MP3 </Files></SpeechEvent></SpeechEvents>");
+    tree->add("Data\\XML\\SFXEventsTest.xml",
+              "<SFXEvents><SFXEvent Name=\"Corrupt_Start\"><Is_2D>Yes</Is_2D><Samples>CS.WAV</Samples></SFXEvent></SFXEvents>");
+    tree->add("Data\\XML\\Factions.xml",
+              "<Factions><Faction Name=\"Rebel\"><Strategic_Map_Music_Event> Gal_Rebel </Strategic_Map_Music_Event>"
+              "<SFXEvent_Tactical_Corruption_Mission_Commencing> Corrupt_Start </SFXEvent_Tactical_Corruption_Mission_Commencing>"
+              "</Faction></Factions>");
+    data.files = std::move(tree);
+    GameAudioHost h;
+    std::string err;
+    CHECK(h.init(data, AudioBackendKind::Null, 7, &err));
+    if (!h.active()) return;
+    h.music(MusicScene::Galactic, "Rebel");  // the local faction
+    const auto count = [&h](audio::LogOp op, const char* ev) {
+        int n = 0;
+        for (const audio::LogEntry& e : h.system()->log()) n += e.op == op && e.event == ev ? 1 : 0;
+        return n;
+    };
+    h.speech("OTHER_LINE");
+    CHECK(h.system()->speech_queue_size() == 1);  // queued (no update yet)
+    // Commencing with a line: the speech already playing / queued is killed, then the line is queued.
+    CHECK(h.corruption_speech(K::Commencing, slots, 4));
+    CHECK(count(audio::LogOp::SpeechKill, "OTHER_LINE") == 1 && count(audio::LogOp::SpeechQueue, "AETENII_PIR_LOAD_COR02_01") == 1);
+    // Commencing without a line (Racketeering): the faction SFX, no speech.
+    CHECK(h.corruption_speech(K::Commencing, slots, 3) && count(audio::LogOp::SfxStart, "Corrupt_Start") == 1);
+    // Success / failure: queued after what is there (no stop).
+    CHECK(h.corruption_speech(K::Success, slots, 3));
+    CHECK(count(audio::LogOp::SpeechQueue, "AETENII_RKT_VICTORY_COR02_05") == 1 && count(audio::LogOp::SpeechKill, "AETENII_PIR_LOAD_COR02_01") == 0);
+    CHECK(!h.corruption_speech(K::Failure, slots, 3));  // no failure line for Racketeering
+    CHECK(!h.corruption_speech(K::Success, slots, 6));  // no slot for that type
+#endif
+}
+
 #ifdef ALAMO_GAME_HAVE_AUDIO
 // aud1 (legacy docs/re/AUDIO.md §9): a scripted land battle (Temperate, rain) and a space battle through GameAudioHost - ambient then
 // battle music from the map terrain's list, the weather loop and SFXEvent_Weather_Begin, an AnimationSFXMaps SOUND row,
@@ -1954,6 +2020,7 @@ int main() {
     test_turret_turning();              // mcx4 t13
     test_retreat_refusal_tag();         // mcx4 t13
     test_intro_speech_t07();
+    test_corruption_speech();  // #62 t05
     test_aud2();
     test_presentation_events_ref2();  // ref2 t02
     test_unit_responses_50();          // #50 t02
