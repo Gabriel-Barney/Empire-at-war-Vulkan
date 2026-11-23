@@ -2923,6 +2923,67 @@ void test_tactical_tech_upgrade() {
     CHECK(tech_built == tech_before + 1);
     CHECK(tech_killed == tech_built - 1);
 }
+// #50 t09: CampaignBattleOptions::battle_dropping runs once at the battle end, before the battle is dropped, so what the
+// battle emitted and nobody drained yet (here a production order at frame 2 of a short battle) still reaches the host.
+void test_battle_dropping_presentation() {
+    auto d = make_data(false, false, false, false, true);
+    jobs::JobSystem js(jobs::JobSystemConfig{0});
+    SimConfig cfg;
+    cfg.seed = 2026;
+    cfg.players = 4;
+    SimHost host(d->types, js, cfg);
+    galactic::GalacticSim* gs = host.start_galactic(d->rules, make_setup(*d, false));
+    CHECK(gs != nullptr);
+    if (!gs) return;
+    gs->add_credits(0, 1000.0f, false);
+    CampaignBattleOptions opt;
+    opt.conflict.human_choice = galactic::BattleChoice::Fight;
+    opt.battle.max_frames = 12;
+    opt.battle.skirmish = true;
+    int calls = 0;
+    bool had_battle = false;
+    PresentationEvents last;
+    opt.battle_dropping = [&](TacticalBattle& b) {
+        ++calls;
+        had_battle = b.frame() > 0;
+        b.drain_presentation(last);
+    };
+    CampaignBattles battles(host, d->crules, *d->catalog,
+                            [](const std::string& name, terrain::MapData& m) {
+                                if (name != "S10_Space_B") return false;
+                                m = space_map();
+                                return true;
+                            },
+                            opt);
+    CHECK(battles.attach(nullptr));
+    const std::vector<uint32_t> uf = gs->fleets_at(2, 1);
+    CHECK(!uf.empty());
+    if (!uf.empty()) CHECK(gs->move_fleet(1, uf[0], 1) == commands::RejectReason::None);
+    const uint32_t base1 = type_of(*d, "S10_Star_Base_1"), base_up = type_of(*d, "S10_Base_Upgrade");
+    bool ordered = false, started = false, ended = false;
+    for (uint64_t t = 0; t < 3000 && !ended; ++t) {
+        host.tick_once();
+        TacticalBattle* b = battles.battle();
+        TacticalMode* tm = host.tactical();
+        if (b) started = true;
+        if (started && !b) ended = true;
+        if (!b || !tm || ordered || b->frame() < 2) continue;
+        objects::ObjectId station = objects::kNoObjectId;
+        for (const objects::ObjectHandle h : tm->primary().owned_by(0))
+            if (tm->primary().alive(h) && tm->primary().type(h) == base1) station = tm->primary().id(h);
+        b->set_emit_presentation(true);
+        commands::EventData ev(commands::EventType::Production);
+        ev.set("type_index", base_up).set("location", static_cast<uint32_t>(station));
+        CHECK(host.execute_direct(0, commands::CommandSource::Player, ev) == commands::RejectReason::None);
+        ordered = true;
+    }
+    CHECK(ordered && ended && calls == 1 && had_battle);
+    bool begin = false;
+    for (const PresentationEvent& e : last)
+        begin = begin || (e.kind == PresentationEventKind::ProductionBegin && e.player == 0 && e.type == static_cast<int32_t>(base_up));
+    std::printf("  #50 t09: battle_dropping called %d time(s), %zu undrained event(s) at the drop\n", calls, last.size());
+    CHECK(begin);
+}
 // --- end hangars ---
 
 // cu8g t05 (CU8F_T04_T06_RE §3.3 [H]): TacticalBattle::player_gate_allows / special_weapons_allowed on the S10 space
@@ -3771,6 +3832,7 @@ int main(int argc, char** argv) {
     test_production_cancel_refund(false);
     std::printf("mcx4 t04: tactical production queues and the skirmish tech upgrade\n");
     test_tactical_tech_upgrade();
+    test_battle_dropping_presentation();  // #50 t09
     test_skirmish_redelivery();      // skm1 t07
     test_skirmish_garrison_upgrade();  // tru3 t05
     test_standin_slots();            // aitac t08

@@ -354,6 +354,7 @@ private:
     std::unique_ptr<sim::SimHost> host_;
     std::unique_ptr<sim::CampaignBattles> battles_;  // after host_: destroyed first (clears its hooks)
     sim::PresentationEvents presentation_;  // the last tick's (presentation_events)
+    sim::PresentationEvents dropped_presentation_;  // #50 t09: a battle's last events, drained as it was dropped
     bool presentation_on_ = false;
     galactic::GalacticSetup setup_;
     terrain::MapData skirmish_map_;

@@ -77,6 +77,7 @@ struct GameAudioStats {
     uint64_t garrison_lines = 0, clash_win_speech = 0;                   // aud4: SFXEvent_Bunker_Garrisoned / clash win speech
     uint64_t anim_sounds = 0;                                           // AnimationSFXMaps SOUND rows started
     uint64_t planet_reveals = 0, production_sfx = 0, build_music = 0;    // aud2 t01 / t03
+    uint64_t hangar_enroute_lines = 0;  // #50 t06: Reinforcements_Enroute_SFXEvent of a hangar launch started
     uint64_t fleet_jumps = 0, campaign_end_music = 0, deactivations = 0;  // aud2 t07 / t08 / t04
     uint64_t health_warnings = 0, hardpoint_lines = 0, hardpoint_explosions = 0;  // mcx4 t13 batch A
     uint64_t control_lines = 0;                                                    // mcx4 t13 batch C

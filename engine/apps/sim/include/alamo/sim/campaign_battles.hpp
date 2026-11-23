@@ -111,6 +111,10 @@ struct CampaignBattleOptions {
     // pops, once per TacticalBattle::removals() record (deaths in event order, then the survivors). Hosts connect it to
     // GalacticAiWorld::record_object_removal (which filters AI owners / UNIT_AI / TRANSPORT). Unset: nothing.
     std::function<void(int32_t owner, uint32_t object_type, uint32_t original_type, bool survived)> object_removed;
+    // #50 t09: presentation only. Called once at each battle end, after the battle's last tick and just before the
+    // battle is dropped, so a host can drain what the last tick emitted (TacticalBattle::drain_presentation); the host's
+    // own per-tick drain runs after the tick, when the battle is already gone. Unset: nothing.
+    std::function<void(TacticalBattle& battle)> battle_dropping;
     // --- end battle host ---
 #ifdef ALAMO_SIM_HAVE_AI_TACTICAL
     // A1 land campaign-battle credit transfer (tactical_credits.hpp): for a LAND battle each non-human

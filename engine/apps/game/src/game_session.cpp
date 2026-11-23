@@ -369,6 +369,10 @@ bool GameSession::start(std::vector<std::string>* diag, const commands::CommandR
     // AI's world (0x69e1b0).
     bo.galactic_resolver = [this]() -> const ai::TokenResolver* { return galactic_ai_ ? &galactic_ai_->resolver() : nullptr; };
 #endif
+    // #50 t09: the battle's last tick's presentation events, before CampaignBattles drops it (collect_presentation).
+    bo.battle_dropping = [this](sim::TacticalBattle& b) {
+        if (presentation_on_) b.drain_presentation(dropped_presentation_);
+    };
     sim::CampaignBattles::MapLoader loader;
     if (spec_.kind == SessionKind::Skirmish) {
         const terrain::MapData* mp = &skirmish_map_;
@@ -952,7 +956,11 @@ void GameSession::after_tick() {
 // here covers a battle started inside this tick and one loaded from a save.
 void GameSession::collect_presentation() {
     presentation_.clear();
-    if (!presentation_on_ || !battles_) return;
+    presentation_.swap(dropped_presentation_);  // #50 t09: a battle that ended inside this tick: its last events first
+    if (!presentation_on_ || !battles_) {
+        presentation_.clear();
+        return;
+    }
     if (sim::TacticalBattle* b = battles_->battle()) {
         b->set_emit_presentation(true);
         b->drain_presentation(presentation_);
@@ -962,6 +970,7 @@ void GameSession::collect_presentation() {
 void GameSession::set_presentation_events(bool on) {
     presentation_on_ = on;
     presentation_.clear();
+    dropped_presentation_.clear();
     if (battles_)
         if (sim::TacticalBattle* b = battles_->battle()) b->set_emit_presentation(on);
 }

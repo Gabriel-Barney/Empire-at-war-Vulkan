@@ -1267,6 +1267,55 @@ std::string restrict_tie_squadron_on_b(std::string t) {
 // trl2 t06 (STATION_HANGARS_SOUND §2.4 items 2 and 7): a campaign space battle at a Corruption_Bribery planet whose owner's
 // faction (Empire) lacks Benefits_From_Corruption launches nothing; another corruption type does not stop launches; a
 // battle planet whose type restricts the spawn type launches nothing of it.
+// #50 t06 (STATION_HANGARS_SOUND §2.5, 0x594dc0 [H]): a space hangar's single-ship launch (no Squadron_Units) is a
+// HangarLaunch presentation event (the host plays Reinforcements_Enroute_SFXEvent for the local player); a squadron launch
+// is none. The carrier (player 0) launches S10_TIE_Squadron as built, S10_TIE (a single ship) with the patch.
+namespace {
+std::string single_ship_carrier(std::string t) {
+    const std::string a = "<Starting_Spawned_Units_Tech_0>S10_TIE_Squadron, 1</Starting_Spawned_Units_Tech_0>";
+    const size_t p = t.find(a);
+    if (p != std::string::npos) t.replace(p, a.size(), "<Starting_Spawned_Units_Tech_0>S10_TIE, 1</Starting_Spawned_Units_Tech_0>");
+    return t;
+}
+// HangarLaunch events of player 0 over the first 400 ticks, and whether every one named a live S10_TIE.
+std::pair<uint32_t, bool> hangar_launch_events() {
+    FighterBattle fb;
+    uint32_t n = 0;
+    bool all_tie = true;
+    if (!start_fighter_battle(fb, false, true)) return {0, false};
+    const auto tie = static_cast<int32_t>(type_of(*fb.d, "S10_TIE"));
+    PresentationEvents pres;
+    for (uint64_t t = 0; t < 400; ++t) {
+        fb.host->tick_once();
+        TacticalBattle* b = fb.battles->battle();
+        TacticalMode* tm = fb.host->tactical();
+        if (!b || !tm) continue;
+        b->set_emit_presentation(true);
+        pres.clear();
+        b->drain_presentation(pres);
+        for (const PresentationEvent& e : pres) {
+            if (e.kind != PresentationEventKind::HangarLaunch) continue;
+            n += e.player == 0 ? 1u : 0u;
+            all_tie = all_tie && e.player == 0 && e.type == tie && tm->primary().alive(tm->primary().find(e.object));
+        }
+    }
+    return {n, all_tie};
+}
+}  // namespace
+
+void test_hangar_launch_presentation() {
+    const auto squadrons = hangar_launch_events();
+    const char* prefix = g_temp_prefix;
+    g_types_patch = single_ship_carrier;
+    g_temp_prefix = "alamo_sim_battle_fighter_tests_50t06";
+    const auto singles = hangar_launch_events();
+    g_types_patch = nullptr;
+    g_temp_prefix = prefix;
+    std::printf("  hangar launch events: squadron carrier %u, single-ship carrier %u\n", squadrons.first, singles.first);
+    CHECK(squadrons.first == 0);
+    CHECK(singles.first > 0 && singles.second);
+}
+
 void test_hangar_planet_gates() {
     const uint32_t base = carrier_fighters_seen(-1);
     const uint32_t bribery = carrier_fighters_seen(5);  // Corruption_Bribery
@@ -1310,6 +1359,8 @@ int main(int argc, char** argv) {
     test_compose_squadron_union();
     std::printf("SP5 t03: hangar services on counter-based streams (flag off / on, worker counts)\n");
     test_hangar_streams();
+    std::printf("#50 t06: a single-ship hangar launch is a HangarLaunch presentation event\n");
+    test_hangar_launch_presentation();
     std::printf("trl2 t06: hangar gates of the battle planet (Corruption_Bribery owner faction, Planet_Restricted_Unit_Types)\n");
     test_hangar_planet_gates();
     if (g_fail) {
