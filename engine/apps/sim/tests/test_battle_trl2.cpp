@@ -634,8 +634,12 @@ void test_land_population_exclusions() {
     auto d = make_data(false, false, false, false, false, false, false, false, false, false, false, true);
     g_types_patch = nullptr;
     const PopRun c = run_population(*d, false);
-    std::printf("  #86 start exclusions: defender %.2f (two troopers of four members at 0.5)\n", static_cast<double>(c.defender));
-    CHECK(c.defender == 1.0f);
+    std::printf("  #86 start exclusions: defender %.2f, attacker before %.2f (two troopers of four members at 0.5); reserve "
+                "drop landed %.2f\n",
+                static_cast<double>(c.defender), static_cast<double>(c.before), static_cast<double>(c.landed));
+    CHECK(c.defender == 1.0f && c.before == 1.0f);  // both sides' start squads
+    // the reserve drop (a reinforcement, not 0x2a00b0) still counts every member: the whole company, 2
+    CHECK(c.dropped && c.landed == c.before + 2.0f);
 }
 
 }  // namespace

@@ -288,14 +288,11 @@ float TacticalBattle::population_used(int32_t player) const {
         // and a Stay_In_Transport_During_Ground_Battle type (+0x2d, carried into a structure or the transport; [port] it
         // stands on the field). Reinforcement unloads (0x6438a0) were not read for these branches: they count as before.
         const objects::GameObjectTypes& types = catalog_->types();
+        // The branches take container contents only: a single object (no members) is registered at 0x2a1afa whatever its type.
         const auto start_unregistered = [&](const Participant& P, uint32_t t) {
-            if (P.reserve || t >= types.size()) return false;
+            if (P.reserve || t >= types.size() || rules_->type(P.type).members.empty()) return false;
             if (types.get(t, objects::tags::Stay_In_Transport_During_Ground_Battle)) return true;
-            std::string_view name = types.get(t, objects::tags::Unique_Ground_Unit);
-            while (!name.empty() && (name.front() == ' ' || name.front() == '\t' || name.front() == '\r' || name.front() == '\n'))
-                name.remove_prefix(1);
-            while (!name.empty() && (name.back() == ' ' || name.back() == '\t' || name.back() == '\r' || name.back() == '\n'))
-                name.remove_suffix(1);
+            const std::string_view name = ascii_trim(types.get(t, objects::tags::Unique_Ground_Unit));
             return !name.empty() && types.resolve_name(name) != objects::kNone;
         };
         std::vector<std::pair<objects::ObjectId, float>> list;
