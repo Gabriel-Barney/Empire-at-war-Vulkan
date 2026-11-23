@@ -23,6 +23,8 @@ int main(int argc, char** argv) {
     test_desire_and_hysteresis();
     test_goal_reservations();
     test_queue_slot_lifetime();
+    test_queue_slots_positional();  // #196
+    test_queue_slot_hole_save();    // #196
     test_goal_batched_values();
     test_goal_resolved_functions();  // sp4a (S7)
     test_goal_batched_accept();  // OPT2 t10

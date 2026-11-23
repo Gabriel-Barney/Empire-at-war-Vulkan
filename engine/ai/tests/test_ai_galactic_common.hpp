@@ -830,6 +830,16 @@ void test_fleet_distance_tokens();
 void test_connectivity_tokens();
 void test_structure_eta_queue_wait();
 void test_queue_slot_lifetime();
+void test_queue_slots_positional();  // #196
+void test_queue_slot_hole_save();    // #196
+// #196: the empty (cleared in place) AIPlanetBuildQueue slots over every planet's two queues.
+inline size_t queue_slot_holes(const GalacticAiWorld& w, size_t planets) {
+    size_t n = 0;
+    for (PlanetIndex p = 0; p < planets; ++p)
+        for (uint32_t q = 0; q < 2; ++q)
+            for (const GalacticAiWorld::PlanetQueueSlot& s : w.planet_queue_slot_list(p, q)) n += s.type == gal::kNoIndex ? 1 : 0;
+    return n;
+}
 void test_budget_fraction_before_init();
 void test_production_unbuildable();
 

@@ -1,5 +1,6 @@
 // Part 2 of test_ai_galactic (split by position; see test_ai_galactic_common.hpp).
 #include "test_ai_galactic_common.hpp"
+#include "galactic_ai_impl.hpp"  // PlanetBuildQueue (#196)
 
 // a2m t02 (A2K_T08_RE_ANSWERS Q2.3 step 4 TRANSPORTS_TO_ORBIT, A2L_T01_RE_ANSWERS Q8.3) [H state; M name]: Produce_Force
 // to the stage launches a member that is on the stage's surface and merges it into the FleetObject (DO_TASK_FORCE_MERGE),
@@ -530,7 +531,7 @@ void test_queue_slot_lifetime() {
     };
     size_t log_seen = 0;
     int32_t accepted = -1, started = -1;
-    size_t slots_at_accept = 0, slots_after_start = 99;
+    size_t slots_at_accept = 0, slots_after_start = 99, holes_after_start = 0;
     PlanetIndex at = kInvalidPlanet;
     for (int32_t f = 1; f <= 30 * 200 && (started < 0 || f < started + 30 * 60); ++f) {
         pw.sim->update();
@@ -542,7 +543,10 @@ void test_queue_slot_lifetime() {
                 slots_at_accept = slots();
             }
         if (started < 0 && barracks_queued(at)) started = f;
-        if (started >= 0) slots_after_start = slots();
+        if (started >= 0) {
+            slots_after_start = slots();
+            holes_after_start = queue_slot_holes(*pw.world, pw.sim->planets().size());
+        }
     }
     const float wait = at != kInvalidPlanet ? pw.world->planet_queue_wait(at, 0) : -1.0f;
     float own = 0.0f;
@@ -554,7 +558,134 @@ void test_queue_slot_lifetime() {
                 accepted, slots_at_accept, started, slots_after_start, static_cast<double>(wait), static_cast<double>(own));
     CHECK(accepted > 0 && slots_at_accept >= 1);           // made at accept, before the plan's first commit step 4
     CHECK(started >= accepted && slots_after_start == 0);  // the production start removed it; no later commit re-made it
+    CHECK(holes_after_start >= 1);                          // #196: cleared in place (step 5), the slot stays as a hole
     CHECK(wait == own);                                     // the re-solve wait has no stale slot
+}
+
+// #196 (legacy docs/re/BKG1_RE_ANSWERS.md §5 b0122) [H]: AIPlanetBuildQueue slots are positional. 0x53b810 reuses the
+// first empty slot, else appends; the PP destructor's 0x6c2520 -> 0x53c730 and the production start (market step 5)
+// clear (type, owner) in place, leaving the flag byte; 0x53bda0 sums the live flag-0 slots and cuts the vector after the
+// last of them, so trailing suspended slots are gone and the PP's later re-assert (0x53bee0 flag 0) is a no-op; step 5
+// clears only the producing queue's first (type, PP) slot, so a slot reserved at A for a build produced at B stays.
+void test_queue_slots_positional() {
+    constexpr uint32_t kA = 7, kB = 8;
+    {  // a released slot leaves a hole; the next reservation fills it, the one after appends
+        PlanetBuildQueue q;
+        CHECK(q.reserve_slot(1, kA, 10.0f) == 0);
+        CHECK(q.reserve_slot(2, kB, 20.0f) == 1);
+        CHECK(q.reserve_slot(3, kA, 30.0f) == 2);
+        q.release_slots(2);
+        CHECK(q.reservations.size() == 3 && q.live_slots() == 2);
+        CHECK(q.reservations.size() == 3 && !q.reservations[1].live() && q.reservations[1].pp == -1);
+        CHECK(q.reservations.size() == 3 && q.reservations[2].pp == 3);  // indices stay
+        CHECK(q.reserve_slot(4, kB, 40.0f) == 1);
+        CHECK(q.reservations.size() == 3 && q.reservations[1].pp == 4 && q.reservations[1].type == kB);
+        CHECK(q.reserve_slot(5, kB, 50.0f) == 3);
+    }
+    {  // step 5 clears the first (type, PP) slot in place; the flag byte and the later slots' indices stay
+        PlanetBuildQueue q;
+        q.reserve_slot(1, kA, 10.0f);
+        q.reserve_slot(1, kB, 20.0f);
+        q.reserve_slot(1, kA, 30.0f);
+        q.flag_slots(1, true);
+        CHECK(!q.consume_slot(kA, 2));  // another PP's build
+        CHECK(q.consume_slot(kA, 1));
+        CHECK(q.reservations.size() == 3 && !q.reservations[0].live() && q.reservations[0].pp == -1);
+        CHECK(q.reservations.size() == 3 && q.reservations[0].suspended);
+        CHECK(q.reservations.size() == 3 && q.reservations[1].type == kB && q.reservations[2].type == kA && q.reservations[2].pp == 1);
+        CHECK(q.consume_slot(kA, 1) && q.live_slots() == 1 && q.reservations.size() == 3);
+    }
+    {  // reserved at A, produced at B: B's step 5 never touches A; a B slot of the same (type, PP) is the one consumed
+        PlanetBuildQueue a, b;
+        a.reserve_slot(1, kA, 10.0f);
+        CHECK(!b.consume_slot(kA, 1) && a.live_slots() == 1);
+        b.reserve_slot(1, kA, 10.0f);
+        CHECK(b.consume_slot(kA, 1) && b.live_slots() == 0 && a.live_slots() == 1 && a.reservations[0].pp == 1);
+    }
+    {  // the re-solve read: live flag-0 sum, then the cut after the last of them
+        PlanetBuildQueue q;
+        q.reserve_slot(1, kA, 10.0f);  // 0: counts
+        q.reserve_slot(2, kB, 20.0f);  // 1: suspended (PP 2 not re-asserted yet)
+        q.reserve_slot(3, kA, 30.0f);  // 2: released -> empty
+        q.reserve_slot(2, kA, 40.0f);  // 3: suspended
+        q.flag_slots(2, true);
+        q.release_slots(3);
+        CHECK(q.counted_time() == 10.0f);
+        q.cut_tail();
+        CHECK(q.reservations.size() == 1 && q.reservations[0].pp == 1);
+        q.flag_slots(2, false);  // PP 2 re-asserted: its slots are gone, nothing comes back
+        CHECK(q.reservations.size() == 1 && q.counted_time() == 10.0f);
+        CHECK(q.reserve_slot(4, kB, 50.0f) == 1);  // another PP at PP 2's old index: the owner check keeps PP 2 off it
+        q.flag_slots(2, true);
+        CHECK(q.reservations.size() == 2 && !q.reservations[1].suspended && q.counted_time() == 60.0f);
+        q.release_slots(2);
+        CHECK(q.live_slots() == 2);
+    }
+    {  // no live flag-0 slot: nothing is cut; trailing empty slots after the last counted one are trimmed
+        PlanetBuildQueue q;
+        q.reserve_slot(1, kA, 10.0f);
+        q.reserve_slot(2, kB, 20.0f);
+        q.flag_slots(1, true);
+        q.flag_slots(2, true);
+        CHECK(q.counted_time() == 0.0f);
+        q.cut_tail();
+        CHECK(q.reservations.size() == 2);
+        PlanetBuildQueue e;
+        e.reserve_slot(1, kA, 10.0f);
+        e.reserve_slot(2, kB, 20.0f);
+        e.reserve_slot(3, kB, 30.0f);
+        e.release_slots(2);
+        e.release_slots(3);
+        e.cut_tail();
+        CHECK(e.reservations.size() == 1);
+    }
+}
+
+// #196: a save taken while a queue holds an empty slot (the Barracks' slot after its production start) and loaded into a
+// rebuilt world continues exactly as the uninterrupted run (AI hash every frame); the hole survives the round trip.
+void test_queue_slot_hole_save() {
+    ParityWorld a(false, {"BuildBarracks"}), b(false, {"BuildBarracks"});
+    const size_t planets = a.sim->planets().size();
+    auto step = [](ParityWorld& pw, int32_t f) {
+        pw.sim->update();
+        pw.world->update_player(0, f, true, false);
+    };
+    auto digest = [](const ParityWorld& pw) {
+        StateHasher h;
+        pw.world->hash(h);
+        pw.sim->hash_state(h);
+        return h.digest();
+    };
+    int32_t f = 1, saved_at = -1;
+    for (; f <= 30 * 300 && saved_at < 0; ++f) {
+        step(a, f);
+        step(b, f);
+        if (queue_slot_holes(*a.world, planets) >= 1) saved_at = f;
+    }
+    CHECK(saved_at > 0);
+    if (saved_at < 0) return;
+    ByteWriter w;
+    b.world->write(w);
+    b.world.reset();
+    b.make_world();
+    ByteReader r(w.bytes());
+    const bool loaded = b.world->read(r) && r.done();
+    CHECK(loaded);
+    CHECK(queue_slot_holes(*b.world, planets) == queue_slot_holes(*a.world, planets));
+    CHECK(digest(a) == digest(b));
+    if (!lua_state_persists()) {
+        std::printf("queue slot hole save: PENDING n1-lua (no lockstep continuation)\n");
+        return;
+    }
+    int32_t differ = -1;
+    for (const int32_t end = f + 30 * 120; f < end && differ < 0; ++f) {
+        step(a, f);
+        step(b, f);
+        if (digest(a) != digest(b)) differ = f;
+    }
+    std::printf("queue slot hole save: saved at %d with %zu empty slot(s), 120 s lockstep %s\n", saved_at,
+                queue_slot_holes(*a.world, planets), differ < 0 ? "identical" : "DIFFERS");
+    CHECK(differ < 0);
 }
 
 // A2 f t01 (2): BudgetFractionToBuild 0x667120 fails only without a goal system / for an unknown type. Before the

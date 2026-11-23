@@ -1138,7 +1138,7 @@ void GalacticAiWorld::Impl::end_plan(int32_t id, bool by_goal_system) {
         pa->ctx.learning.record_goal_outcome(pi.goal_type, pi.target, pi.plan, pi.result, dur, now);
         if (!by_goal_system) pa->ctx.goals.plan_ended(id);
     }
-    if (pi.pp >= 0) release_pp(pi.pp);  // 0x6c2320 queue reservations
+    if (pi.pp >= 0) release_pp(pi.pp);  // 0x6c2520 queue slots, 0x6c2320 free-store entries
     decide(pi.player, "plan " + std::to_string(id) + " " + library.plans[pi.plan].name + " ended " +
                           (pi.result ? "success" : "failure") + (by_goal_system ? " (released)" : ""));
     if (pi.vm) {
@@ -2680,7 +2680,7 @@ bool GalacticAiWorld::start(std::vector<std::string>* diagnostics) {
 void GalacticAiWorld::Impl::retire_player(int32_t player) {
     // Ends what the old AIPlayer owned, in id order: its running plans (released by the goal system: their task forces'
     // units go back to the player, their build tasks run on to the free store, AI_GALACTIC_3 §8), then its unclaimed
-    // PotentialPlans (queue reservations and free-store entries, 0x6c2320) and its pending free-store moves.
+    // PotentialPlans (queue slots 0x6c2520 and free-store entries 0x6c2320) and its pending free-store moves.
     // [port] The original deletes the AIPlayer object (Player::Set_AI_Type, AI_GALACTIC §1.2); the order of these
     // releases inside its destructor is not read. Build tasks already queued keep their sim entries.
     std::vector<int32_t> ids;
@@ -3001,10 +3001,22 @@ bool GalacticAiWorld::potential_plan_cost(int32_t pp_handle, float* net, float* 
 size_t GalacticAiWorld::planet_queue_slots(PlanetIndex p, uint32_t queue) const {
     const Impl& w = *impl_;
     if (p >= w.planet_queues.size() || queue > 1) return 0;
-    return w.planet_queues[p][queue].reservations.size();
+    return w.planet_queues[p][queue].live_slots();
 }
 
-float GalacticAiWorld::planet_queue_wait(PlanetIndex p, uint32_t queue) const { return impl_->planet_queue_time(p, queue); }
+std::vector<GalacticAiWorld::PlanetQueueSlot> GalacticAiWorld::planet_queue_slot_list(PlanetIndex p, uint32_t queue) const {
+    const Impl& w = *impl_;
+    std::vector<PlanetQueueSlot> out;
+    if (p >= w.planet_queues.size() || queue > 1) return out;
+    for (const QueueReservation& r : w.planet_queues[p][queue].reservations) out.push_back({r.pp, r.type, r.suspended});
+    return out;
+}
+
+float GalacticAiWorld::planet_queue_wait(PlanetIndex p, uint32_t queue) const {
+    const Impl& w = *impl_;
+    if (!w.valid_planet(p) || queue > 1) return 0.0f;
+    return w.planet_queues[p][queue].counted_time(w.planet_queue_base_time(p, queue));
+}
 
 std::vector<uint32_t> GalacticAiWorld::solve_potential_plan(int32_t player, std::string_view plan, std::string_view goal,
                                                            int32_t target, bool* ok, float* eta) {
@@ -3093,7 +3105,11 @@ void GalacticAiWorld::hash(StateHasher& h) const {
             h.i32(q.current_queue_id);
             h.u32(static_cast<uint32_t>(q.tasks.size()));
             for (const int32_t t : q.tasks) h.i32(t);
-            h.u32(static_cast<uint32_t>(q.reservations.size()));
+            h.u32(static_cast<uint32_t>(q.reservations.size()));  // #196: by position, empty slots included
+            for (const QueueReservation& r : q.reservations) {
+                h.i32(r.pp);
+                h.u32(r.type);
+            }
         }
     h.u32(static_cast<uint32_t>(w.unit_reserved.size()));
     for (const auto& [u, pp] : w.unit_reserved) {

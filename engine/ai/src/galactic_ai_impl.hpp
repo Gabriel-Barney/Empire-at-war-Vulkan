@@ -115,16 +115,20 @@ struct BuildTask {
 };
 
 // AIPlanetBuildQueue (per planet x queue index), §2.2-2.3.
-// A slot is made when its PP is accepted (0x6c2d60, A1_READINGS §28.6 step 3) and removed by the production start of
-// the matching task (market step 5, AI_GALACTIC_2 §2.3) or the PP's release (0x6c2320). `suspended` = the 0x53bee0
+// A slot is made when its PP is accepted (0x6c2d60, A1_READINGS §28.6 step 3) and cleared by the production start of
+// the matching task (market step 5, AI_GALACTIC_2 §2.3) or the PP's release (0x6c2520). `suspended` = the 0x53bee0
 // flag 1 of Commit start (0x6c0be0) until 0x6c2d60 re-asserts the kept goal; such a slot is not counted
-// (planet_queue_time) [M, a2m r4]. Every kept goal is re-asserted in its category's resolve, so the flag is always 0
-// between commits and is neither saved nor hashed.
+// (planet_queue_time) [M, a2m r4]. Every kept goal is re-asserted in its category's resolve, so a live slot's flag is
+// always 0 between commits and is neither saved nor hashed (an empty slot's flag is never read).
+// #196 (legacy docs/re/BKG1_RE_ANSWERS.md §5 b0122) [H]: slots are positional. Removal clears (type, owner) in place
+// (type kNoIndex = empty), a new slot reuses the first empty one, and the re-solve read cuts the vector after its last
+// live flag-0 slot (PlanetBuildQueue below, galactic_pp.cpp). Empty slots are saved and hashed by position.
 struct QueueReservation {
     int32_t pp = -1;  // PotentialPlan handle
     uint32_t type = gal::kNoIndex;
     float time = 0.0f;
     bool suspended = false;
+    bool live() const { return type != gal::kNoIndex; }
 };
 // PlanetBuildQueue::current while the production of a task whose plan ended goes on (current_queue_id >= 0): the
 // original keeps the ended task (+0xA8) on the queue; the port keeps only whether the PAYG reclaim took it (+0xD9), which
@@ -138,6 +142,14 @@ struct PlanetBuildQueue {
     int32_t current_queue_id = -1;
     uint32_t current_type = gal::kNoIndex;
     std::vector<QueueReservation> reservations;
+
+    size_t reserve_slot(int32_t pp, uint32_t type, float time);  // 0x53b810
+    void release_slots(int32_t pp);                              // 0x53c730 for each of the PP's slots
+    bool consume_slot(uint32_t type, int32_t pp);                // market step 5
+    void flag_slots(int32_t pp, bool suspended);                 // 0x53bee0 for each of the PP's slots
+    float counted_time(float t = 0.0f) const;                    // 0x53bda0's sum, added to t
+    void cut_tail();                                             // 0x53bda0's resize
+    size_t live_slots() const;
 };
 
 // DesireBonus: a Lua GiveDesireBonus; finished by PlayerAi::execution_service's bonus loop (PendingBonus::status).
@@ -493,10 +505,12 @@ struct GalacticAiWorld::Impl final : lua::AiScriptHost, lua::ScriptMarkupHost, A
     void pp_handed_back(int32_t plan_id, ObjectHandle u);  // 0x6c27d0 for a null-destination claim
     void off_free_store(ObjectHandle u) { unit_reserved.erase(store.id(u)); }  // a task force took u (node erased)
     bool on_free_store(int32_t player, objects::ObjectId id) const;
-    void release_pp(int32_t handle);         // drop: free-store entries and queue reservations (0x6c2320)
+    void release_pp(int32_t handle);         // drop: free-store entries (0x6c2320) and queue slots (0x6c2520)
     void reserve_pp_queues(int32_t handle);  // 0x6c2d60 at accept: one slot per selection to be produced (a2m r4)
     float production_queue_time(PlanetIndex p, uint32_t q) const;  // 0x401ba0 (a2m r2)
-    float planet_queue_time(PlanetIndex p, uint32_t q) const;
+    // 0x53bb20(Q, 1, 0), the re-solve read: Q's own time + 0x53bda0, which also cuts Q's slot vector (#196).
+    float planet_queue_time(PlanetIndex p, uint32_t q);
+    float planet_queue_base_time(PlanetIndex p, uint32_t q) const;  // planet_queue_time without the slots
 
     // ---- build tasks + market (galactic_build.cpp) ----
     void create_build_tasks(TaskForceRec& tf);
