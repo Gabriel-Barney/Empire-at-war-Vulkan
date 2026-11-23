@@ -109,6 +109,12 @@ float fire_trim(std::span<const V2> path, std::span<const TrimMember> members, b
 // q <= 0 (no leg).
 bool slot_leg_point(V2 g, V2 v, float theta, float q, V2& out);
 
+// cmb3 t03 (BKR2 Q7 item 4 [H]): the slot leg's directions - the literal first segment p[1] - p[0] and last segment, unit
+// length (normalize_retail); a zero segment (a repeated point) gives (0, 0), never the next non-zero one. (0, 0) for
+// fewer than two points.
+V2 literal_first_dir(std::span<const V2> p);
+V2 literal_last_dir(std::span<const V2> p);
+
 // cmb2 t01 (BKR1 Q7 (c) [H], 0x5a4c10 -> 0x5a5810): q, the slot leg's reach from G toward Q = G + rho rot(-v, theta) for the
 // formation's plan class `mask`. 0 when |Q - G| = 0 or G's cell is off the grid. A piece a -> b (first the whole line): a's
 // cell enterable for the class and in the same region as b's cell (0x50e780) -> the whole piece, no cell walk (blocked cells

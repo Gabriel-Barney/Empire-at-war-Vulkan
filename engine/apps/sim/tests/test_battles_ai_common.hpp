@@ -1870,6 +1870,102 @@ inline void test_land_guard() {
     CHECK(r.marker_attack_move && r.marker_kept && r.marker_goal_d > 150.0f && r.marker_goal_d < 300.0f);  // cmb2 t06
 }
 
+// #106 / cmb3 t01 (b) (BKT1_ATTACK_RE §3.1 [H]): a unit's own Attack_Move (arg 0) on a non-hostile combat unit is the land
+// attack move (a no-lock attack block) unless the target is the caller itself (payload word 0): then it stays a move to the
+// point. A squadmate of the caller is not the caller. Trooper A of a friendly squad: Attack_Move on A -> no block; on its
+// squadmate B -> the block, naming B. (The non-combat-object branch's self test cannot see a squadmate: a squadmate is a
+// combat unit, so it takes this branch.)
+struct OwnAttackMoveSelfRun {
+    bool found = false, self_ok = false, self_no_block = false, mate_ok = false, mate_block = false;
+    objects::ObjectId atk_target = objects::kNoObjectId, mate = objects::kNoObjectId;
+};
+
+inline OwnAttackMoveSelfRun run_own_attack_move_self(const Data& d) {
+    OwnAttackMoveSelfRun out;
+    CampaignBattleOptions opt;
+    opt.conflict.human_choice = galactic::BattleChoice::Fight;
+    opt.battle.max_frames = 2000;
+    opt.battle.skip_human_units = true;
+    opt.battle.order_interval = 0;  // no stand-in orders
+    opt.battle.fog = false;
+    ClashSession s(d, 0, opt, {"S10_Squad"}, {}, true);
+    if (!s.gs) return out;
+    ai::AiDefinitions defs;
+    ai::EquationSet eqs;
+    TacticalAiSetup ts;
+    ts.defs = &defs;
+    ts.equations = &eqs;
+    ts.files = d.files.get();
+    ts.ai_type = [](int32_t, const galactic::GalacticSim&) { return std::string(); };  // no AI player: orders only
+    std::unique_ptr<BattleAi> bai;
+    std::vector<objects::ObjectId> mem;
+    objects::ObjectId sq = objects::kNoObjectId;
+    for (uint64_t t = 0; t < 600; ++t) {
+        TacticalBattle* b = s.tick();
+        TacticalMode* tm = s.host->tactical();
+        if (!b || !tm || b->frame() < 3) continue;
+        objects::ObjectStore& st = tm->primary();
+        auto& cs = const_cast<tc::CombatSystem&>(b->combat());
+        const mv::MovementSystem& ms = b->movement();
+        if (!bai) {
+            std::map<uint32_t, std::vector<objects::ObjectId>> teams;
+            for (size_t i = 0; i < cs.unit_count(); ++i) {
+                const auto id = cs.unit_id_at(i);
+                cs.make_invulnerable(id, 1000000, b->frame());
+                if (cs.team(id) != 0 && cs.alive(id)) teams[cs.team(id)].push_back(id);
+            }
+            for (const auto& [tid, m] : teams) {
+                const objects::ObjectHandle th = st.find(static_cast<objects::ObjectId>(tid));
+                if (m.size() >= 2 && st.alive(th) && st.owner(th) == 0 && ms.has_unit(static_cast<objects::ObjectId>(tid))) {
+                    sq = static_cast<objects::ObjectId>(tid);
+                    mem = m;
+                    break;
+                }
+            }
+            if (sq == objects::kNoObjectId) continue;
+            bai = std::make_unique<BattleAi>(*b, *tm, *s.host, ts);
+            continue;
+        }
+        bai->follow_service();
+        out.found = true;
+        const auto attack_move = [&](objects::ObjectId caller, objects::ObjectId target) {
+            const Vec3 p = st.position(st.find(target));
+            std::vector<uint8_t> pay;
+            const auto put = [&pay](uint32_t v) {
+                for (int i = 0; i < 4; ++i) pay.push_back(static_cast<uint8_t>(v >> (8 * i)));
+            };
+            put(static_cast<uint32_t>(caller));
+            put(static_cast<uint32_t>(target));
+            put(std::bit_cast<uint32_t>(p.x));
+            put(std::bit_cast<uint32_t>(p.y));
+            put(std::bit_cast<uint32_t>(p.z));
+            put(0u);  // arg 0: the object's own Attack_Move
+            const auto sub = static_cast<uint16_t>(lua::kLuaOrderSubtype + static_cast<uint16_t>(lua::LuaOrder::AttackMove));
+            return bai->execute(0, commands::ev::port_extension(sub, pay)) == commands::RejectReason::None;
+        };
+        const size_t blocks0 = b->attack_blocks();
+        out.self_ok = attack_move(mem[0], mem[0]);
+        out.self_no_block = b->attack_blocks() == blocks0;
+        out.mate = mem[1];
+        out.mate_ok = attack_move(mem[0], mem[1]);
+        out.atk_target = ms.view(sq).atk_target;
+        out.mate_block = b->attack_blocks() == blocks0 + 1 && out.atk_target == mem[1];
+        break;
+    }
+    return out;
+}
+
+inline void test_own_attack_move_self() {
+    auto d = make_data(false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false,
+                       false, false, true);  // as test_land_guard
+    const OwnAttackMoveSelfRun r = run_own_attack_move_self(*d);
+    std::printf("  #106 own Attack_Move self rule: squad found %d; on itself ok %d, no block %d; on its squadmate ok %d, block %d "
+                "(atk_target %d, squadmate %d)\n",
+                r.found ? 1 : 0, r.self_ok ? 1 : 0, r.self_no_block ? 1 : 0, r.mate_ok ? 1 : 0, r.mate_block ? 1 : 0,
+                static_cast<int>(r.atk_target), static_cast<int>(r.mate));
+    CHECK(r.found && r.self_ok && r.self_no_block && r.mate_ok && r.mate_block);
+}
+
 // s78n t26 review round 2 (LUA_API "Move_To / Attack_Move / Guard_Target - Move_Internal 0x57da90" [H]: for Move_To,
 // flags 0, a GameObjectWrapper destination is the object's position and the order gets kind 1; TACTICAL_COMBAT §2.8
 // "Summary by order": unit.Move_To(object) = 1 (position snapshot); A1_READINGS §33.4: the 30-frame re-path follows

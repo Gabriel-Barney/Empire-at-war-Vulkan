@@ -73,6 +73,7 @@ int main(int argc, char** argv) {
     test_land_attack_blocks();
     test_land_attack_order();
     test_land_guard();  // s78n t25.4
+    test_own_attack_move_self();  // #106
     test_land_move_to_object();  // s78n t26 review round 2
     test_land_attack_formation_stop();  // s78n t26 review round 2
     test_land_attack_unseen();          // s78n t26 review round 3
