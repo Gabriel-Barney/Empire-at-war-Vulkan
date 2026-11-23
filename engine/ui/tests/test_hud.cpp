@@ -1448,12 +1448,32 @@ void test_tactical_panels() {
     // Thousands separator.
     CHECK(hud_thousands(13000) == U"13,000" && hud_thousands(668) == U"668" && hud_thousands(-1250) == U"-1,250" &&
           hud_thousands(1234567) == U"1,234,567" && hud_thousands(0) == U"0");
+    // #47 t08 (0x3e6dc0 [H]): the battle credits text is "$ " and the grouped whole credits, set each HUD frame (no tick).
+    CHECK(hud_credits_text(13000) == U"$ 13,000" && hud_credits_text(0) == U"$ 0" && hud_credits_text(-1250) == U"$ -1,250");
     TacticalHudFrame fr;
     fr.credits = 13000;
     fr.planet_name = U"Nal Hutta";
     fr.tech = 3;
     fr.pop = 13;
     fr.pop_cap = 20;
+    // #47 t08: the drawn credits text is "$ 13,000" (its glyph quads against no credits text and "$ 1").
+    auto text_glyphs = [&] {
+        size_t n = 0;
+        for (uint32_t layer = 0; layer < 16; ++layer) n += hud.draw_list().items(layer, HudList::Text).size();
+        return n;
+    };
+    fr.credits = -1;
+    hud.build(fr, {}, {});
+    const size_t no_credits = text_glyphs();
+    fr.credits = 13000;
+    hud.build(fr, {}, {});
+    const size_t big = text_glyphs() - no_credits;
+    fr.credits = 1;
+    hud.build(fr, {}, {});
+    const size_t one = text_glyphs() - no_credits;
+    // "$ 13,000" : "$ 1" = 7 : 2 visible glyphs, whatever the quads per glyph (outline); "13,000" : "1" would be 6 : 1.
+    CHECK(one > 0 && big * 2 == one * 7);
+    fr.credits = 13000;
     hud.build(fr, {}, {});
     auto text_of = [&](const char* n) {
         const ButtonRuntime* r = hud.buttons().find_state(static_cast<uint32_t>(t.find(n)));

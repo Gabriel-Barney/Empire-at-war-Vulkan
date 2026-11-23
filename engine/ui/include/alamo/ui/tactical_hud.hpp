@@ -288,7 +288,7 @@ struct TacticalHudFrame {
     WorldHudContext world;          // canvas is filled by TacticalHud
     // Radar mapping: world rectangle shown by the radar (the map's playable box).
     float map_min_x = -5000, map_min_y = -5000, map_max_x = 5000, map_max_y = 5000;
-    int64_t credits = -1;           // < 0: no credits text ("13,000": thousands separator [port: original screenshot])
+    int64_t credits = -1;           // < 0: no credits text [port: retail would show a negative amount]; else "$ 13,000" (hud_credits_text)
     // [port: Gabriel, original screenshot] planet panel above the radar: Text_Planet_tactical (battle planet name),
     // Text_Tactical_Tech ("Tech: 3", TEXT_TECH), Text_Planetary_Pop ("13/20"; Text_Pop_Cap without it); empty / < 0 = blank.
     std::u32string planet_name;
@@ -546,8 +546,12 @@ inline constexpr uint32_t kDragBoxLayer = 9;                  // [inferred] over
 // is narrower than two pixels.
 uint32_t add_drag_box(HudDrawList& dl, const HudCanvas& canvas, const DragRect& rect, uint32_t layer = kDragBoxLayer);
 
-// Decimal with thousands separators ("13,000", "-1,250") [port: original screenshots].
+// Decimal with thousands separators ("13,000", "-1,250") (original screenshots; the HUD credits text 0x3e6dc0 groups too [H]).
 std::u32string hud_thousands(int64_t v);
+// #47 t08: the Text_Credits_tactical text. 0x3e6dc0 [H] writes "$ " and the grouped number into Text_Credits (component 6)
+// and Text_Credits_tactical (0xf2); every HUD frame (0x2ee40, 0x3c990) passes (int) of the local player's credits, so the text
+// jumps to a new amount (no tick: Credits_Scroll_Rate is the end credits roll's). '$' is the fonts' credits sign.
+std::u32string hud_credits_text(int64_t credits);
 // Reinforce event (legacy docs/re/COMMANDS.md §2 id 12) for a reinforcement unit dropped at a world point.
 commands::EventData reinforce_event(uint32_t unit, Vec3 point);
 // SetUnitAbilityMode (id 43) toggling `ability` on `units` (max 127).
