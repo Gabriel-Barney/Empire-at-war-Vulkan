@@ -35,6 +35,7 @@ add_library(alamo_game_core STATIC
   src/story_camera.cpp
   src/script_cinematics.cpp
   src/save_games.cpp
+  src/host_text.cpp           # #137: UTF-8 host strings (env, paths)
   src/mod_check.cpp           # check_mod_data; one file per check family (mod_check_detail.hpp)
   src/mod_check_files.cpp
   src/mod_check_content.cpp

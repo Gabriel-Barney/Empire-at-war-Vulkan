@@ -13,6 +13,7 @@
 #include "alamo/core/ascii.hpp"
 #include "alamo/core/bytes.hpp"
 #include "alamo/core/host_fs.hpp"
+#include "alamo/game/host_text.hpp"
 
 #ifdef _WIN32
 #include <cwchar>
@@ -24,26 +25,8 @@ namespace fs = std::filesystem;
 
 namespace {
 
-// every path string here is UTF-8 (the dialogs' text); std::string <-> fs::path goes through these, never through
-// fs::path(std::string) / path::string(), which use the ANSI code page and throw on a name outside it.
-// Not valid UTF-8 (a folder passed on the command line in the ANSI code page): read it as ANSI instead of throwing.
-fs::path host_path(const std::string& utf8) {
-    try {
-        return path_from_utf8(utf8);
-    } catch (const std::exception&) {
-        return fs::path(utf8);
-    }
-}
-// Native separators ('\' on Windows), unlike path_to_utf8's generic form; "" for a name that has no UTF-8 form (a lone
-// UTF-16 surrogate), so the caller can skip it instead of throwing.
-std::string utf8_of(const fs::path& p) {
-    try {
-        const std::u8string s = p.u8string();
-        return std::string(reinterpret_cast<const char*>(s.data()), s.size());
-    } catch (const std::exception&) {
-        return {};
-    }
-}
+// every path string here is UTF-8 (the dialogs' text): std::string <-> fs::path through host_path / host_utf8
+// (host_text.hpp).
 
 // Length of the valid UTF-8 sequence starting at s[i] (2..4, no overlong forms, no surrogates, <= U+10FFFF); 0 if
 // there is none.
@@ -138,21 +121,10 @@ bool reserved_device(std::string_view s) {
 }  // namespace
 
 std::string default_saves_dir() {
-#ifdef _WIN32
-    // the wide value, so a profile folder outside the ANSI code page keeps its name.
-    wchar_t* v = nullptr;
-    size_t len = 0;
-    std::wstring la;
-    if (_wdupenv_s(&v, &len, L"LOCALAPPDATA") == 0 && v) la = v;
-    std::free(v);
+    // the wide value (env_utf8), so a profile folder outside the ANSI code page keeps its name.
+    const std::string la = env_utf8("LOCALAPPDATA");
     if (la.empty()) return {};
-    return utf8_of(fs::path(la) / L"alamo" / L"Saves");
-#else
-    const char* e = std::getenv("LOCALAPPDATA");
-    const std::string la = e ? e : "";
-    if (la.empty()) return {};
-    return utf8_of(host_path(la) / "alamo" / "Saves");
-#endif
+    return host_utf8(host_path(la) / "alamo" / "Saves");
 }
 
 std::string format_local_time(int64_t unix_seconds) {
@@ -333,9 +305,9 @@ std::string save_path(const std::string& dir, std::string_view name) {
     if (stem != name && plain) {
         std::error_code ec;
         const fs::path own = host_path(dir) / host_path(std::string(name) + kSaveExtension);
-        if (fs::is_regular_file(own, ec)) return utf8_of(own);
+        if (fs::is_regular_file(own, ec)) return host_utf8(own);
     }
-    return utf8_of(host_path(dir) / host_path(stem + kSaveExtension));
+    return host_utf8(host_path(dir) / host_path(stem + kSaveExtension));
 }
 
 bool save_exists(const std::string& dir, std::string_view name) {
@@ -358,7 +330,7 @@ bool write_save_file(const SaveFile& save, const std::string& path, std::string*
     std::error_code ec;
     if (target.has_parent_path()) {
         fs::create_directories(target.parent_path(), ec);
-        if (ec) return fail(err, "cannot create " + utf8_of(target.parent_path()) + ": " + ec.message());
+        if (ec) return fail(err, "cannot create " + host_utf8(target.parent_path()) + ": " + ec.message());
     }
     const fs::path tmp = host_path(path + ".tmp");
     {
@@ -420,10 +392,10 @@ std::vector<SaveEntry> list_saves(const std::string& dir) {
     for (fs::directory_iterator it(d, ec), end; !ec && it != end; it.increment(ec)) {
         const fs::path& p = it->path();
         std::error_code ec2;
-        if (!it->is_regular_file(ec2) || !ascii_iequals(utf8_of(p.extension()), kSaveExtension)) continue;
+        if (!it->is_regular_file(ec2) || !ascii_iequals(host_utf8(p.extension()), kSaveExtension)) continue;
         SaveEntry e;
-        e.name = utf8_of(p.stem());
-        e.path = utf8_of(p);
+        e.name = host_utf8(p.stem());
+        e.path = host_utf8(p);
         if (e.name.empty() || e.path.empty()) continue;  // no UTF-8 form: not a name the dialogs could show or open
         std::string desc;
         e.readable = read_save_header(e.path, e.tick, desc, &e.error);
