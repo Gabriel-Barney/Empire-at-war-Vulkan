@@ -119,8 +119,10 @@ void test_land(const Data& d) {
     const uint32_t trooper = type_of(d, "S10_Trooper"), shield = type_of(d, "M1_Shield");
     static const objects::BehaviorTypeId kHint = objects::behavior_type_id("HINT");
     terrain::MapData m = land_map();
-    m.objects.push_back(place("Defending Forces Position", 600.0f, 600.0f, 0));
+    m.objects.push_back(place("Defending Forces Position", 600.0f, 600.0f, 0, 13));  // #70 t07: never a remembered marker
     m.objects.push_back(place("Attacker Entry Position", 200.0f, 200.0f, 1));
+    // #70 t07: an out-base marker with the in-base marker's id, first in map order: pass 1 still takes the in-base one
+    m.objects.push_back(place("Out Base Special Structure Position", 1500.0f, 400.0f, 0, 12));
     m.objects.push_back(place("In Base Special Structure Position", 500.0f, 400.0f, 0, 11));
     m.objects.push_back(place("In Base Special Structure Position", 900.0f, 400.0f, 0, 12));
     terrain::ObjectPlacement squad = place("S10_Squad", 400.0f, 800.0f, 0);  // t03: a company with a hint
@@ -141,7 +143,7 @@ void test_land(const Data& d) {
     m.objects.push_back(place("M1_Hangar", 1300.0f, 1100.0f, 0));  // t05: the same without the byte (creation value: on)
     galactic::GalacticSetup setup = make_setup(d, true);
     setup.forces.push_back({0, 1, shield});
-    for (const int32_t remembered : {-1, 12}) {
+    for (const int32_t remembered : {-1, 12, 13}) {
         objects::ObjectId shield_gid = objects::kNoObjectId;
         run_map_battle(
             d, true, m, setup,
@@ -196,14 +198,16 @@ void test_land(const Data& d) {
                     hangars_on += x == 1300.0f && on ? 1u : 0u;
                 }
                 CHECK(hangars_off == 1 && hangars_on == 1);
-                // t06: the structure on the remembered marker (pass 1), else the first free in-base marker; the memory follows
+                // t06: the structure on the remembered marker (pass 1), else the first free in-base marker; the memory follows.
+                // #70 t07 (0x2a1eb0 [H]): pass 1 searches the in-base and out-base markers only, so a memory of the Defending
+                // Forces marker (13) is not matched and the structure takes the first free in-base marker.
                 Vec3 at{};
                 CHECK(count_of(st, shield, 0) == 1);
                 for (const objects::ObjectHandle h : st.all_objects())
                     if (st.alive(h) && static_cast<uint32_t>(st.type(h)) == shield) at = st.position(h);
                 const galactic::GalacticSim::StructureSlot* mem = gs.structure_slot(shield_gid);
                 CHECK(mem != nullptr);
-                if (remembered < 0) {
+                if (remembered != 12) {
                     CHECK(at.x == 500.0f && at.y == 400.0f && s.remembered_markers == 0 && mem && mem->marker == 11 && mem->slot == 0);
                 } else {
                     CHECK(at.x == 900.0f && at.y == 400.0f && s.remembered_markers == 1 && mem && mem->marker == 12 && mem->slot == 1);
