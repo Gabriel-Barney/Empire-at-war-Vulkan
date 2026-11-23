@@ -234,6 +234,17 @@ void test_space(const Data& d) {
             CHECK(s.starbase_picked && count_of(st, picked, 0) == 1 && count_of(st, sb, 0) == 0);
             CHECK(s.escorts == 2 && count_of(st, co, 0) == 2 && count_of(st, esc, 0) == 1);
             CHECK(f0 && focus.x == 1000.0f && focus.y == 0.0f && !f1);
+            // #72 t01: the host's start view looks at that focus for the local defender; the attacker (no focus) looks at
+            // its own battle units (the frigate, its one unit).
+            const Vec3 look0 = b.start_look_at(tm, 0), look1 = b.start_look_at(tm, 1);
+            Vec3 frigate{};
+            for (const objects::ObjectHandle h : st.all_objects())
+                if (st.alive(h) && st.owner(h) == 1 && st.type(h) == fr) frigate = st.position(h);
+            std::printf("  start look-at: defender (%.0f, %.0f), attacker (%.0f, %.0f), frigate (%.0f, %.0f)\n",
+                        static_cast<double>(look0.x), static_cast<double>(look0.y), static_cast<double>(look1.x),
+                        static_cast<double>(look1.y), static_cast<double>(frigate.x), static_cast<double>(frigate.y));
+            CHECK(look0.x == 1000.0f && look0.y == 0.0f && look0.z == 0.0f);
+            CHECK(look1.x == frigate.x && look1.y == frigate.y && look1.z == 0.0f);
         });
 }
 

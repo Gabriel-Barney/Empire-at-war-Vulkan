@@ -1357,6 +1357,25 @@ bool TacticalBattle::start_camera_focus(int32_t player, Vec3& out) const {
     return true;
 }
 
+Vec3 TacticalBattle::start_look_at(const TacticalMode& mode, int32_t player) const {
+    Vec3 f{};
+    if (start_camera_focus(player, f)) return {f.x, f.y, 0.0f};
+    const objects::ObjectStore& st = mode.primary();
+    double sx = 0, sy = 0;
+    uint32_t n = 0;
+    if (movement_)
+        for (const objects::ObjectId id : movement_->unit_ids()) {
+            const objects::ObjectHandle h = st.find(id);
+            if (!st.alive(h) || st.owner(h) != player) continue;
+            sx += st.position(h).x;
+            sy += st.position(h).y;
+            ++n;
+        }
+    if (n) return {static_cast<float>(sx / n), static_cast<float>(sy / n), 0.0f};
+    const tactical::Aabb& bb = mode.bounds();
+    return {0.5f * (bb.min.x + bb.max.x), 0.5f * (bb.min.y + bb.max.y), 0.0f};
+}
+
 void TacticalBattle::bt_note_record(TacticalMode& mode, const terrain::ObjectPlacement& pl, objects::ObjectHandle h) {
     // map1 t04 (Q6_T30 3 [H]): the base record reader 0x39c3a0 -> 0x39cca0 reads chunk 0x4B7 and attaches each listed
     // behaviour to the object (every shipped entry is HINT: how types without HINT in XML carry one); chunk 0x46E goes into

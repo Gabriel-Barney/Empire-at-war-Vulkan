@@ -524,18 +524,9 @@ bool BattleView::start(GpuCore& gpu, const GameData& data, const GameSession& se
             const terrain::MapData* m = &scene_->map();
             camera_.set_terrain_height([m](float x, float y) { return m->terrain.sample_height(x, y); });
         }
-        const objects::ObjectStore& st = tm->primary();
-        double sx = 0, sy = 0;
-        uint32_t n = 0;
-        for (const objects::ObjectId id : b->movement().unit_ids()) {
-            const objects::ObjectHandle h = st.find(id);
-            if (!st.alive(h) || st.owner(h) != local_) continue;
-            sx += st.position(h).x;
-            sy += st.position(h).y;
-            ++n;
-        }
-        if (n) camera_.set_look_at({static_cast<float>(sx / n), static_cast<float>(sy / n), 0.0f});
-        else camera_.set_look_at({0.5f * (bb.min.x + bb.max.x), 0.5f * (bb.min.y + bb.max.y), 0.0f});
+        // #72 t01: the battle's start focus (a local space defender: the chosen Space Station marker), else the local units.
+        const Vec3 look = b->start_look_at(*tm, local_);
+        camera_.set_look_at({look.x, look.y, look.z});
     }
     // Selection circles (legacy docs/re/UI.md 1.3): the ShadowBlobMaterials table; each blob's model is uploaded on first use
     // (selection_model). Fallback for an unknown / empty name: the first Selection* material, else entry 0.
