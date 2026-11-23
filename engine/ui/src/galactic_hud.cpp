@@ -1715,10 +1715,16 @@ void GalacticHud::build(const GalacticHudFrame& f) {
             add_atlas_quad(dl_, kHudLayers - 1, HudList::Alpha, *atlas_, icon, canvas_.pixel_to_canvas(drag_.cursor_px.x, drag_.cursor_px.y),
                            {}, c.scale, Rgba8{255, 255, 255, 200}, {32, 32});
     }
-    tooltip_.update(buttons_, *table_, tooltip_cfg_, f.time);
-    if (fonts_)
-        stats_.tooltip = tooltip_.draw(dl_, *atlas_, *fonts_, canvas_, *table_, buttons_, text_, f.cursor_px, f.faction_alt,
-                                       tooltip_cfg_);
+    // #71 t06 (legacy docs/re/HUD_GAPS.md §2.1 [H]): no component tooltip while a HUD modal is up (HUD +0x26a0 > 0: the
+    // battle-pending shells).
+    if (f.battle.active) {
+        tooltip_ = TooltipState{};
+    } else {
+        tooltip_.update(buttons_, *table_, tooltip_cfg_, f.time);
+        if (fonts_)
+            stats_.tooltip = tooltip_.draw(dl_, *atlas_, *fonts_, canvas_, *table_, buttons_, text_, f.cursor_px, f.faction_alt,
+                                           tooltip_cfg_);
+    }
     stats_.hit_boxes = static_cast<uint32_t>(hits_.size());
 }
 

@@ -1630,6 +1630,14 @@ void test_tactical_stage2() {
         fr.cursor_px = {static_cast<float>(x), static_cast<float>(y)};
         hud.build(fr, units, types);
         CHECK2(hud.stats().tooltip && hud.tooltip().component() == t.find("b_retreat"));
+        // #71 t06 (legacy docs/re/HUD_GAPS.md §2.1 [H]): none while the pause banner (a HUD modal) is up.
+        fr.paused = true;
+        fr.pause_banner = true;
+        hud.build(fr, units, types);
+        CHECK2(!hud.stats().tooltip && !hud.tooltip().active());
+        fr.paused = false;
+        hud.build(fr, units, types);
+        CHECK2(hud.stats().tooltip && hud.tooltip().component() == t.find("b_retreat"));
     }
     // Determinism of the full stage-2 draw list.
     const uint64_t d1 = hud.draw_list().digest();

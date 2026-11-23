@@ -473,6 +473,7 @@ public:
     }
     void set_sfx_hook(HudSfxHook hook) { buttons_.set_sfx_hook(std::move(hook)); }
     void set_tooltip_config(const TooltipConfig& c) { tooltip_cfg_ = c; }
+    const TooltipState& tooltip() const { return tooltip_; }
 
     void build(const GalacticHudFrame& frame);
     const HudDrawList& draw_list() const { return dl_; }
