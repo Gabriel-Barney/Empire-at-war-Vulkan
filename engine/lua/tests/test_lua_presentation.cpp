@@ -731,6 +731,90 @@ static void test_camera_positions() {
     attach_presentation(vm, nullptr);
 }
 
+// #51 t02 (legacy docs/re/STORY_PRESENTATION_LUA.md §3: Point_Camera_At 0x5432d0 / Scroll_Camera_To take "one position
+// (object, marker or vector)"): an AI target is resolved at the call like any other position, a unit target to its object's
+// position and a region target to the host's position; an invalid target records no position. Outside a tactical mode
+// the camera calls are a script error before the binding runs (retail's mode gate, legacy docs/re/LUA_API.md "Mode gates"),
+// so nothing is recorded.
+struct CameraAi final : AiScriptHost {
+    std::vector<objects::ObjectHandle> units;
+    bool tf_valid(int32_t tf) override { return tf == 3; }
+    int32_t tf_force_count(int32_t) override { return static_cast<int32_t>(units.size()); }
+    void tf_set_flag(int32_t, AiTfFlag, bool) override {}
+    int32_t tf_produce_force(int32_t, const AiArg&, bool) override { return -1; }
+    int32_t tf_get_stage(int32_t) override { return -1; }
+    bool tf_all_on_free_store(int32_t) override { return false; }
+    int32_t tf_order(int32_t, AiTfOrder, const AiArg&) override { return -1; }
+    bool tf_is_raid_capable(int32_t) override { return false; }
+    void tf_release_forces(int32_t, double) override {}
+    void tf_release_unit(int32_t, objects::ObjectHandle) override {}
+    std::vector<objects::ObjectHandle> tf_units(int32_t tf) override { return tf == 3 ? units : std::vector<objects::ObjectHandle>{}; }
+    std::string tf_goal_type_name(int32_t) override { return {}; }
+    bool tf_collect_free_units(int32_t, uint64_t) override { return false; }
+    bool status_finished(int32_t) override { return true; }
+    AiStatusResult status_result(int32_t) override { return AiStatusResult::Nil; }
+    objects::ObjectHandle unit{};  // target 5: a unit target
+    bool target_valid(int32_t t) override { return t == 5 || t == 6; }
+    objects::ObjectHandle target_object(int32_t t) override { return t == 5 ? unit : objects::ObjectHandle{}; }
+    bool target_position(int32_t t, Vec3& out) override {
+        if (t != 6) return false;
+        out = {700.0f, 300.0f, 0.0f};
+        return true;
+    }
+    double target_distance(int32_t, const AiArg&) override { return -1.0; }
+    double budget_op(int32_t, AiBudgetOp, double, std::string_view) override { return 0.0; }
+    int32_t budget_wait(int32_t, AiBudgetOp, double) override { return -1; }
+    int32_t free_store_count(int32_t, int) override { return 0; }
+    bool free_store_has(int32_t, objects::ObjectHandle) override { return false; }
+    bool unit_in_transit(objects::ObjectHandle) override { return false; }
+    bool unit_safe(objects::ObjectHandle) override { return true; }
+    bool free_store_move(int32_t, objects::ObjectHandle, const AiArg&) override { return false; }
+    int32_t find_target(int32_t, const AiFindTargetRequest&) override { return -1; }
+    int32_t find_stage_area(int32_t, const AiArg&, const AiArg&, const AiArg&) override { return -1; }
+    AiGlobalValue global_value(std::string_view) override { return {}; }
+    void set_global_value(std::string_view, const AiGlobalValue&) override {}
+};
+
+static void test_camera_ai_target() {
+    World w;
+    LuaHost h = w.host();
+    LuaVm vm(h);
+    PresentationLog log;
+    attach_presentation(vm, &log);
+    CameraAi ai;
+    ai.unit = w.store->find(2);  // the trooper at (-5, 3, 0)
+    attach_ai_host(vm, &ai, 1);
+    set_ai_target_global(vm, "Unit", 5);
+    set_ai_target_global(vm, "Region", 6);
+    set_ai_target_global(vm, "Bad", 9);
+    CHECK(run(vm, "Point_Camera_At(Region) Scroll_Camera_To(Unit) Point_Camera_At(Bad)") == "");
+    const auto& ev = log.events();
+    CHECK(ev.size() == 3);
+    if (ev.size() == 3) {
+        CHECK(ev[0].op == PresentationOp::PointCameraAt && ev[0].args.size() == 5 && ev[0].args[1].text == "@pos" &&
+              ev[0].args[2].number == 700.0 && ev[0].args[3].number == 300.0 && ev[0].args[4].number == 0.0);
+        CHECK(ev[1].op == PresentationOp::ScrollCameraTo && ev[1].args.size() == 5 && ev[1].args[1].text == "@pos" &&
+              ev[1].args[2].number == -5.0 && ev[1].args[3].number == 3.0 && ev[1].args[4].number == 0.0);
+        CHECK(ev[2].op == PresentationOp::PointCameraAt && ev[2].args.size() == 1);
+    }
+    // A unit target whose unit has died records no position (like a dead object).
+    CHECK(w.store->destroy(ai.unit));
+    CHECK(run(vm, "Point_Camera_At(Unit)") == "");
+    CHECK(log.events().size() == 4 && log.events().back().args.size() == 1);
+    attach_ai_host(vm, nullptr, -1);
+    attach_presentation(vm, nullptr);
+    // Galactic: retail's tactical-mode gate, a script error and no event.
+    objects::ObjectStore galactic(objects::ModeKind::Galactic, objects::StoreKind::Primary, w.types, &w.ids);
+    LuaHost gh = w.host();
+    gh.store = &galactic;
+    LuaVm gvm(gh);
+    PresentationLog glog;
+    attach_presentation(gvm, &glog);
+    CHECK(contains(run(gvm, "Point_Camera_At(Create_Position(1, 2, 3))"), "only"));
+    CHECK(glog.events().empty());
+    attach_presentation(gvm, nullptr);
+}
+
 int main() {
     test_registry();
     test_argument_contracts();
@@ -739,6 +823,7 @@ int main() {
     test_end_cinematic_cleanup();  // mcx6
     test_object_effects();
     test_camera_positions();
+    test_camera_ai_target();  // #51 t02
     test_cinematic_sequence();
     test_private_log_and_digest();
     test_blocking();
