@@ -50,6 +50,8 @@ public:
     // Adds a chunk. Names: non-empty, no whitespace, unique (throws std::invalid_argument).
     void add(std::string name, uint32_t version, const ByteWriter& w);
     void add(std::string name, uint32_t version, std::vector<uint8_t> data);
+    // #149: replaces the data (and version) of chunk `name` in place, keeping the chunk order. False when there is none.
+    bool replace(std::string_view name, uint32_t version, const ByteWriter& w);
     // Null when there is no such chunk.
     const SaveChunk* find(std::string_view name) const;
     const std::vector<SaveChunk>& chunks() const noexcept { return chunks_; }

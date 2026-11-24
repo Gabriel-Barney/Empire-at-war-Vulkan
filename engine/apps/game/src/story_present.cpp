@@ -524,7 +524,7 @@ std::vector<std::string> StoryPresenter::take_forced_clicks() { return std::exch
 // ---- save / read ----
 namespace {
 
-constexpr uint32_t kPresenterSaveVersion = 2;  // 2: + the DUAL_FLASH state at the end; 1 still reads
+constexpr uint32_t kPresenterSaveVersion = 3;  // 3: + the advisor clock (#149); 2: + the DUAL_FLASH state; 1 and 2 still read
 
 void put_u32s(ByteWriter& w, std::u32string_view s) {
     w.u32(static_cast<uint32_t>(s.size()));
@@ -617,7 +617,7 @@ void StoryPresenter::write(ByteWriter& w, double now) const {
     put_list(w, hint_queue_, put_hint);
     w.boolean(hint_shown_).boolean(hint_started_);
     put_hint(shown_.hint);
-    w.f64(shown_.start - now).f64(shown_.seconds);
+    w.f64(hint_shown_ ? shown_.start - now : 0.0).f64(shown_.seconds);  // #149: no hint shown, no clock in the bytes
     w.boolean(controls_locked_).boolean(scroll_locked_).boolean(planet_selection_locked_).boolean(objectives_shown_);
     w.i32(command_bar_hide_).u32(text_hint_sounds_);
     w.boolean(objective_event_.has_value()).boolean(objective_event_.value_or(false));
@@ -630,6 +630,7 @@ void StoryPresenter::write(ByteWriter& w, double now) const {
     w.u64(handled_);
     w.boolean(dual_.armed).f64(dual_.time).f64(dual_.rate);  // v2
     put_list(w, dual_.held, [&](const DualHeld& d) { w.boolean(d.planet).str(d.target); });
+    w.u8(advisor_clock_.mode).u32(advisor_clock_.last_tick).f64(advisor_clock_.galactic_seconds).boolean(advisor_clock_.galactic_started);  // v3
 }
 
 bool StoryPresenter::read(ByteReader& r, double now) {
@@ -757,6 +758,12 @@ bool StoryPresenter::read(ByteReader& r, double now) {
                 return d;
             }))
             return false;
+    }
+    if (version >= 3) {  // #149; older saves: the clock starts afresh (each mode begins again, as before)
+        t.advisor_clock_.mode = r.u8();
+        t.advisor_clock_.last_tick = r.u32();
+        t.advisor_clock_.galactic_seconds = r.f64();
+        t.advisor_clock_.galactic_started = r.boolean();
     }
     if (!r.ok()) return false;
     t.hooks_ = std::move(hooks_);

@@ -34,6 +34,16 @@ void SaveFile::add(std::string name, uint32_t version, std::vector<uint8_t> data
     chunks_.push_back(SaveChunk{std::move(name), version, std::move(data)});
 }
 
+bool SaveFile::replace(std::string_view name, uint32_t version, const ByteWriter& w) {
+    for (SaveChunk& c : chunks_)
+        if (c.name == name) {
+            c.version = version;
+            c.data.assign(w.bytes().begin(), w.bytes().end());
+            return true;
+        }
+    return false;
+}
+
 const SaveChunk* SaveFile::find(std::string_view name) const {
     for (const auto& c : chunks_)
         if (c.name == name) return &c;

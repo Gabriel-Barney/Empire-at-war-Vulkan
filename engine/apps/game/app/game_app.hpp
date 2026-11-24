@@ -674,10 +674,7 @@ public:
     std::u32string owner_label(int32_t player) const;  // a planet owner's name in the changed-hands line
     void story_advisor_frame();  // the periodic advisor hint (6.4) and the hint sound cue
     // The advisor's current mode (0 galactic, 1 space, 2 land, 255 none), the render time it began and the faction's hint ids.
-    uint8_t advisor_mode_ = 255;
-    double advisor_gal_s_ = 0.0;        // render seconds spent on the galactic map this campaign
-    bool advisor_gal_started_ = false;  // the galactic mode's begin-mode ran
-    uint32_t advisor_last_tick_ = 0;
+    uint8_t advisor_hints_mode_ = 255;  // the mode advisor_hints_ was loaded for (the hint clock: StoryPresenter::advisor_clock)
     std::vector<std::string> advisor_hints_;
     void build_story_overlay(ui::HudDrawList& dl, const ui::HudCanvas& canvas);
     // storyb t13 (app_text_crawl.cpp): the full-screen movie's text crawl (StarWars3DTextCrawl.xml, read once).

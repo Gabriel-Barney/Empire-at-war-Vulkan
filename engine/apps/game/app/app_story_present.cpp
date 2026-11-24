@@ -34,9 +34,7 @@ void App::story_present_setup() {
     StoryPresenter::Colors colors;  // the screen-text colours (STORY_PRESENTATION_REWARDS §1.1)
     load_story_colors(data_.db.constants().element, colors);
     story_present_.set_colors(colors);
-    advisor_mode_ = 255;
-    advisor_gal_s_ = 0.0;
-    advisor_gal_started_ = false;
+    advisor_hints_mode_ = 255;  // #149: the clock itself is the presenter's (reset with it, restored from a save)
     h.type_name = [this](std::string_view type) -> std::u32string {
         const uint32_t t = data_.rules.find_type(type);
         if (t == 0xFFFFFFFFu) return {};
@@ -82,6 +80,8 @@ void App::story_present_lua(const lua::PresentationEvent& e) {
 // sim tick of the mode: a battle uses its frame (a pause stops it), the galactic mode the render clock since it began [port].
 void App::story_advisor_frame() {
     if (!session_ || bench_active() || demo_session()) return;
+    // #149: the clock (mode, tick, galactic seconds) is the presenter's, so a save carries it and a load continues the schedule.
+    StoryPresenter::AdvisorClock& clk = story_present_.advisor_clock();
     uint8_t mode = 255;
     uint32_t tick = 0;
     if (const sim::TacticalBattle* b = battle(); b && screen() == Screen::Battle) {
@@ -91,24 +91,25 @@ void App::story_advisor_frame() {
         mode = 0;
         // 6.4: the galactic mode starts once per campaign (a return from a battle does not restart its hint clock); its tick
         // counts the render time spent on the map [port].
-        advisor_gal_s_ += static_cast<double>(dt_);
-        tick = static_cast<uint32_t>(advisor_gal_s_ * static_cast<double>(StoryPresenter::kTicksPerSecond));
-        if (!advisor_gal_started_) {
-            advisor_gal_started_ = true;
+        clk.galactic_seconds += static_cast<double>(dt_);
+        tick = static_cast<uint32_t>(clk.galactic_seconds * static_cast<double>(StoryPresenter::kTicksPerSecond));
+        if (!clk.galactic_started) {
+            clk.galactic_started = true;
             story_present_.begin_mode(0);
         }
-        if (advisor_mode_ != 0) advisor_hints_ = faction_advisor_hints(data_.db, local_faction(), 0);  // back from a battle: the galactic list
     }
     if (mode == 255) {
-        advisor_mode_ = 255;
+        clk.mode = 255;
         return;
     }
-    if (mode != 0 && (mode != advisor_mode_ || tick < advisor_last_tick_)) {  // a new battle: the first hint is due 90 ticks in
+    if (mode != 0 && (mode != clk.mode || tick < clk.last_tick))  // a new battle: the first hint is due 90 ticks in
         story_present_.begin_mode(mode);
+    if (mode != advisor_hints_mode_) {  // the mode's faction hint list (after a load too)
         advisor_hints_ = faction_advisor_hints(data_.db, local_faction(), mode);
+        advisor_hints_mode_ = mode;
     }
-    advisor_mode_ = mode;
-    advisor_last_tick_ = tick;
+    clk.mode = mode;
+    clk.last_tick = tick;
     story_present_.tick_advisor(mode, tick, advisor_hints_);
 }
 

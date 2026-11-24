@@ -571,6 +571,18 @@ int main(int argc, char** argv) {
         CHECK(r2.take_loaded_presentation() == std::optional<std::vector<uint8_t>>(pres) && !r2.take_loaded_presentation());
         CHECK(r2.save(f3, r2.save_meta("pres", 0), &err));
         CHECK(f2.find("game") && f3.find("game") && f2.find("game")->data == f3.find("game")->data);
+        CHECK(f2.encode() == f3.encode());  // #149: save / load / save of an idle session is byte-identical
+        // #149: the save dialog checks the save when it opens; the session does not tick behind it, but the presenter's
+        // state changes (a line ended): the save at the click carries the state at the click.
+        std::vector<uint8_t> live{7};
+        r2.set_presentation_writer([&live](ByteWriter& w) { w.raw(live); });
+        CHECK(r2.check_save().empty());
+        live = {8, 9};
+        SaveFile f4;
+        CHECK(r2.save(f4, r2.save_meta("pres", 0), &err));
+        game::GameSession r4(data, js, s);
+        CHECK(r4.start_from_save(f4, &err));
+        CHECK(r4.take_loaded_presentation() == std::optional<std::vector<uint8_t>>(std::vector<uint8_t>{8, 9}));
         SaveFile v1;  // the same save with a v1 game chunk: version 1, the fields before the presentation section
         v1.tick = f2.tick;
         v1.description = f2.description;
