@@ -289,6 +289,27 @@ exception there wins.
   staging and Start Game, although retail single-player skirmish has none (its buy dialog opens only inside a battle).
   Its list follows retail's filter. Revisit if the in-battle buy dialog is built.
 
+## Mod picker load report stays in-process
+
+The recommended option, taken in the 2026-11-23 issue run under the user's standing rule (take the recommended option and
+record why), 2026-11-24; #136.
+
+The mod picker's load report (`App::check_mod`, `app_mods.cpp`) keeps running `game::check_picked_mod` on a worker thread
+inside `alamo_game`. It is not moved to an `alamo_mod_check --json` child process.
+
+Why:
+
+- **Memory:** a child process does not lower what the machine uses. The checker's second copy of the mod's data exists
+  either way; only the process that holds it changes. Measured with the picker's options (`alamo_mod_check --no-dxc`,
+  2026-11-24): the base game peaks at 447 MB working set (1 s), and Thrawn's Revenge peaks at 888 MB (281 s).
+- **Cost:** a child process needs a JSON reader for the whole `ModCheckReport`, kept in step with the writer.
+  `alamo_mod_check` would have to ship next to `alamo_game` and be found at run time, and the game would need
+  process-spawn and timeout plumbing.
+- **Responsiveness:** the menu already stays responsive, because the check runs on a worker thread.
+
+Revisit if a checker crash ever takes the game down (a child process would isolate it), or if the picker must cancel a
+long check. Today a running check is not cancelled; the newest request waits for it to finish.
+
 ## Headless and AI defaults
 
 - **Game-object Lua scripts run in base FoC** (Gabriel, 2026-11-13, replacing the 2026-11-04 mod-only rule): a retail

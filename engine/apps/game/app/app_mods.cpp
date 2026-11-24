@@ -96,7 +96,8 @@ void App::check_mod(const std::string& id) {
     o.shader_compile = false;  // the effect audit without the runtime DXC compile: lighter inside the running game
     const std::string root = game_root_;
     std::printf("mods: checking %s\n", id.empty() ? "the base game" : id.c_str());
-    // resolve the row's stack first (declared and likely parents, submod first), then check that stack.
+    // resolve the row's stack first (declared and likely parents, submod first), then check that stack. In this process
+    // on a worker thread, not an alamo_mod_check child: docs/DECISIONS.md "Mod picker load report stays in-process".
     mod_check_ = std::async(std::launch::async, [root, id, o] { return game::check_picked_mod(root, id, o); });
 }
 
