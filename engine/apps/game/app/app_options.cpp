@@ -107,11 +107,14 @@ void App::queue_default_autofire(std::vector<commands::EventData>& cmds) {
 }
 
 // ui1 t04 (HUD_GAPS §9.1, SCRIPT_GAPS §1.1 steps 4 / 5): the local player's space special weapon - a SPECIAL_WEAPON object
-// (Special_Weapon_Index = the button icon and pointer index) or a station with a special-weapon hard point (icon 2,
-// "station turret"). [port] several: the first ready one in id order, else the first.
-objects::ObjectId App::space_weapon(int32_t& icon, float& readiness) const {
+// (Special_Weapon_Index = the button icon) or a station with a special-weapon hard point (icon 2, "station turret").
+// #431 (docs/re/SPACE_SPECIAL_WEAPON_UI.md, 0x2ad280 [H]): the aim pointer comes from Special_Weapon_Target_Action_Index,
+// 0 for a station. [port] several: the first ready one in id order, else the first.
+objects::ObjectId App::space_weapon(int32_t& icon, float& readiness, int32_t* pointer, bool* station, bool skip_stations) const {
     icon = -1;
     readiness = 0.0f;
+    if (pointer) *pointer = 0;
+    if (station) *station = false;
     const sim::TacticalMode* tm = session_ ? session_->host().modes().top_tactical() : nullptr;
     const sim::TacticalBattle* tb = session_ ? session_->battle() : nullptr;
     const int32_t me = local_player();
@@ -126,41 +129,52 @@ objects::ObjectId App::space_weapon(int32_t& icon, float& readiness) const {
     objects::ObjectId best = objects::kNoObjectId;
     for (const uint32_t u : ids) {
         const auto id = static_cast<objects::ObjectId>(u);
-        int32_t ic = -1;
+        int32_t ic = -1, pt = 0;
         float r = -1.0f;
+        bool st = false;
         if ((tb->special_weapons().kinds(id) & tactical::abilities::kSwSpecialWeapon) != 0) {
             const objects::ObjectHandle h = store.find(id);
             if (!store.exists(h)) continue;
             ic = std::clamp(data_.types.get_int(store.type(h), "Special_Weapon_Index"), 0, 2);
+            pt = special_weapon_pointer_index(data_.types.get_int(store.type(h), "Special_Weapon_Target_Action_Index"));
             r = tb->special_weapons().readiness(id, tb->frame());
         } else if (const float sr = tb->combat().special_weapon_readiness(static_cast<tactical::combat::ObjectId>(id)); sr >= 0.0f) {
             ic = 2;
             r = sr;
+            st = true;
         }
-        if (ic < 0) continue;
+        if (ic < 0 || (st && skip_stations)) continue;
         if (best == objects::kNoObjectId || (readiness < 1.0f && r >= 1.0f)) {
             best = id;
             icon = ic;
             readiness = r;
+            if (pointer) *pointer = pt;
+            if (station) *station = st;
         }
     }
     return best;
 }
 
-// 0x346a80 / hotkey 22 in space: a second press cancels the aim; a ready weapon starts it (the button is disabled while
-// none is ready, the hotkey then does nothing).
-void App::space_weapon_toggle() {
+// 0x346a80 / hotkey 22 in space: a ready weapon starts the aim (the button is disabled while none is ready, the hotkey
+// then does nothing). #431 (docs/re/SPACE_SPECIAL_WEAPON_UI.md) [H]: a second press cancels a SPECIAL_WEAPON aim
+// (0x491b40); the button sets a station's aim again (0x387d20(hp, 1)) and the hotkey never reaches a station, so a
+// station aim stays. The hotkey aims a ready SPECIAL_WEAPON without the SpecialWeaponsAllowed test (the command's execute
+// makes it).
+void App::space_weapon_toggle(bool hotkey) {
     if (sw_weapon_ != objects::kNoObjectId) {
-        sw_weapon_ = objects::kNoObjectId;
+        if (!sw_station_) sw_weapon_ = objects::kNoObjectId;
         return;
     }
     const sim::TacticalBattle* tb = battle();
-    int32_t icon = -1;
+    int32_t icon = -1, pointer = 0;
     float ready = 0.0f;
-    const objects::ObjectId w = space_weapon(icon, ready);
-    if (w == objects::kNoObjectId || ready < 1.0f || !tb || !tb->special_weapons_allowed(local_player()) || story_controls_locked()) return;
+    bool station = false;
+    const objects::ObjectId w = space_weapon(icon, ready, &pointer, &station, hotkey);
+    if (w == objects::kNoObjectId || ready < 1.0f || !tb || story_controls_locked()) return;
+    if (!hotkey && !tb->special_weapons_allowed(local_player())) return;
     sw_weapon_ = w;
-    sw_icon_ = icon;
+    sw_icon_ = pointer;
+    sw_station_ = station;
     bombing_targeting_ = false;  // one modal pick at a time
     reinforce_unit_ = 0;
     targeting_.cancel();

@@ -81,11 +81,19 @@ ui::HudOrderButtons order_buttons(std::span<const OrderUnitState> selection, int
 // dial = fraction, a 0 shown as 1.0 (§9.3 rule 4: a skirmish before its first run is disabled with a full dial); ready:
 // no dial [port, §9.9 item 1].
 ui::HudBombingRunButton bombing_run_button(bool land, bool controls_locked, bool available, float fraction);
-// ui1 t04 (HUD_GAPS §9.1, 0x317d00; [port] shown / hidden rule): the space b_special_weapon. `space` = a
-// space battle (else not driven); `icon` = the local player's weapon (its Special_Weapon_Index, a station 2), < 0 = none:
-// hidden; ready = readiness >= 1, allowed (SpecialWeaponsAllowed, else tooltip 4) and controls not locked; the dial =
-// readiness while not ready.
-ui::HudBombingRunButton space_weapon_button(bool space, int32_t icon, bool allowed, bool controls_locked, float readiness);
+// ui1 t04 (HUD_GAPS §9.1) / #431 (docs/re/SPACE_SPECIAL_WEAPON_UI.md, 0x317d00 [H]): the space b_special_weapon. `space` = a
+// space battle (else not driven); `icon` = the local player's weapon (its Special_Weapon_Index, a station 2), < 0 = none,
+// which draws `faction_icon`. Never hidden; ready = readiness >= 1, allowed and controls not locked. With no weapon, not
+// allowed or locked it is disabled with a full dial; a weapon at readiness 0 also shows a full dial. [L] the tooltip:
+// the icon, or 4 when not allowed (retail's rule 0x2e32f0 is not traced).
+ui::HudBombingRunButton space_weapon_button(bool space, int32_t icon, int32_t faction_icon, bool allowed, bool controls_locked,
+                                            float readiness);
+// 0x317d00: the button icon by the local faction's name - Rebel 0, Empire 1, Underworld 2, any other 3 [M: the HUD strings
+// it compares with].
+int32_t space_weapon_faction_icon(std::string_view faction);
+// 0x2ad280 [H]: the aim pointer, POINTER_ATTACK_WITH_SPECIAL_WEAPON_<n>, from the weapon type's
+// Special_Weapon_Target_Action_Index: negative -> 0, capped at 2. A station aims with 0.
+int32_t special_weapon_pointer_index(int32_t target_action_index);
 
 struct BombingRunStyle {
     std::string blob_material;   // Bombing_Run_Shadow_Blob_Material_Name ("" = no blob: targeting stays on without one)
