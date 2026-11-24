@@ -121,12 +121,6 @@ struct In {
     }
 };
 
-std::string getenv_str(const char* n) {
-    char buf[4096];
-    const DWORD r = GetEnvironmentVariableA(n, buf, sizeof(buf));
-    return (r > 0 && r < sizeof(buf)) ? std::string(buf, r) : std::string();
-}
-
 }  // namespace
 
 std::string FxSource::key() const {
@@ -200,10 +194,11 @@ FxCache::FxCache() : dir_(default_directory()) {}
 FxCache::FxCache(std::filesystem::path directory) : dir_(std::move(directory)) {}
 
 std::filesystem::path FxCache::default_directory() {
-    const std::string over = getenv_str("ALAMO_FX_CACHE");
-    if (!over.empty()) return alamo::path_from_utf8(over);
-    const std::string la = getenv_str("LOCALAPPDATA");
-    if (!la.empty()) return std::filesystem::path(la) / "alamo" / "fx";
+    // #338: read wide (host_env_utf8), so a %LOCALAPPDATA% outside the ANSI code page keeps its name
+    const std::string over = alamo::host_env_utf8("ALAMO_FX_CACHE");
+    if (!over.empty()) return alamo::path_from_host_string(over);
+    const std::string la = alamo::host_env_utf8("LOCALAPPDATA");
+    if (!la.empty()) return alamo::path_from_host_string(la) / "alamo" / "fx";
     std::error_code ec;
     return std::filesystem::temp_directory_path(ec) / "alamo" / "fx";
 }

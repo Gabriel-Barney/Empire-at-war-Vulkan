@@ -61,7 +61,6 @@ target_link_libraries(alamo_game_core PUBLIC alamo_sim alamo_vfs alamo_data alam
 target_link_libraries(alamo_game_core PUBLIC alamo_mod_resolve)  # the picker and alamo_mod_check resolve through it
 target_link_libraries(alamo_game_core PUBLIC alamo_game_open)  # open_game_data (game/open)
 target_link_libraries(alamo_game_core PUBLIC alamo_game_rules)  # skirmish rules shared with alamo_headless (rules/)
-target_link_libraries(alamo_game_core PUBLIC shell32)  # #137: CommandLineToArgvW (host_text.cpp utf8_command_line)
 if(TARGET alamo_ai_galactic)  # A2 galactic AI for the AI players (needs engine/ai + engine/lua)
   target_link_libraries(alamo_game_core PUBLIC alamo_ai_galactic)
   target_compile_definitions(alamo_game_core PUBLIC ALAMO_GAME_HAVE_GALACTIC_AI=1)

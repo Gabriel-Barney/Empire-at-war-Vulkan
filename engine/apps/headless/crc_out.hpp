@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "alamo/core/host_fs.hpp"
 #include "alamo/core/sim_crc.hpp"
 
 namespace alamo_headless {
@@ -40,7 +41,7 @@ inline int compare_golden(const std::string& path, const alamo::CrcLog& log, boo
         return 2;
     }
     const alamo::CrcDivergence d = alamo::first_divergence(golden, log);
-    if (name_file) std::printf("golden %s: %s\n", std::filesystem::path(path).filename().string().c_str(), d.message.c_str());
+    if (name_file) std::printf("golden %s: %s\n", alamo::path_to_utf8(alamo::path_from_host_string(path).filename()).c_str(), d.message.c_str());
     else std::printf("golden: %s\n", d.message.c_str());
     if (d.diverged) ok = false;
     return 0;

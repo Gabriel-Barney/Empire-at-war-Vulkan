@@ -5,6 +5,7 @@
 #include "alamo/test/support.hpp"
 
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -108,6 +109,21 @@ int main(int argc, char** argv) {
     CHECK(run_child(fresh_dir("none"), "no-such-kind") == 0);
     CHECK(!alamo::crash::crash_now("no-such-kind"));
     CHECK(!alamo::crash::default_dump_dir().empty());
+
+    // #338: under a %LOCALAPPDATA% outside the ANSI code page (Hebrew and CJK) the default folder keeps its name (UTF-8).
+    alamo::test::section("default folder outside the ANSI code page");
+    {
+        wchar_t* old = nullptr;
+        size_t len = 0;
+        const bool had = _wdupenv_s(&old, &len, L"LOCALAPPDATA") == 0 && old;
+        const std::wstring keep = had ? std::wstring(old) : std::wstring();
+        std::free(old);
+        _wputenv_s(L"LOCALAPPDATA", L"C:\\Temp\\אב_中文");
+        const std::string dir = alamo::crash::default_dump_dir();
+        std::printf("default dump folder: %s\n", dir.c_str());
+        CHECK(dir == "C:\\Temp\\אב_中文\\alamo\\crashes");  // /utf-8: the literal is UTF-8
+        _wputenv_s(L"LOCALAPPDATA", keep.c_str());
+    }
 #else
     CHECK(alamo::crash::install({}).empty());
 #endif

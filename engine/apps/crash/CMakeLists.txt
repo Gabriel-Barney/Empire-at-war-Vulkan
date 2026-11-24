@@ -2,7 +2,7 @@
 # "Crash dumps"). No sim dependency; linked by alamo_game and alamo_headless, which call alamo::crash::install() first thing.
 add_library(alamo_crash STATIC src/crash_handler.cpp)
 target_include_directories(alamo_crash PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(alamo_crash PRIVATE alamo_engine_flags)
+target_link_libraries(alamo_crash PRIVATE alamo_engine_flags alamo_core)  # #338: host_env_utf8, path_from_host_string
 if(WIN32)
   target_link_libraries(alamo_crash PRIVATE dbghelp)
 endif()

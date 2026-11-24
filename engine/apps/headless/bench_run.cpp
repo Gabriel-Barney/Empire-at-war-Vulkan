@@ -9,6 +9,7 @@
 #include <cinttypes>
 #include <cstdio>
 #include <ctime>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -19,6 +20,7 @@
 #include <vector>
 
 #include "alamo/commands/recording.hpp"
+#include "alamo/core/host_fs.hpp"
 #include "alamo/core/profile.hpp"
 #include "alamo/core/sim_crc.hpp"
 #include "alamo/sim/bench_json.hpp"
@@ -59,8 +61,22 @@ double ms_between(Clock::time_point a, Clock::time_point b) {
     return std::chrono::duration<double, std::milli>(b - a).count();
 }
 
+// #338: host path strings here are UTF-8 (main reads the arguments wide); an ANSI string is still read
+// (core path_from_host_string). Never fs::path(std::string), which takes the ANSI code page.
+fs::path host_file(const std::string& s) { return path_from_host_string(s); }
+// UTF-8 with native separators ("" for a name with no UTF-8 form).
+std::string native_utf8(const fs::path& p) {
+    try {
+        const std::u8string u = p.u8string();
+        return std::string(reinterpret_cast<const char*>(u.data()), u.size());
+    } catch (const std::exception&) {
+        return {};
+    }
+}
+std::string file_name(const std::string& s) { return native_utf8(host_file(s).filename()); }
+
 std::string read_text(const std::string& path) {
-    std::ifstream f(fs::path(path), std::ios::binary);
+    std::ifstream f(host_file(path), std::ios::binary);
     return f ? std::string(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>()) : std::string();
 }
 
@@ -405,7 +421,7 @@ int bench_run(const BenchOptions& opt) {
         if (!opt.golden.empty()) {
             const CrcDivergence dg = first_divergence(golden, log);
             if (dg.diverged) {
-                std::printf("bench: run %u vs golden %s: %s\n", run, fs::path(opt.golden).filename().string().c_str(), dg.message.c_str());
+                std::printf("bench: run %u vs golden %s: %s\n", run, file_name(opt.golden).c_str(), dg.message.c_str());
                 failed = true;
             }
         }
@@ -467,7 +483,7 @@ int bench_run(const BenchOptions& opt) {
     sj.set("name", bench::Json::string(sc.name));
     sj.set("version", bench::Json::number(sc.version));
     sj.set("format", bench::Json::number(sc.format));
-    sj.set("file", bench::Json::string(fs::path(opt.scenario).filename().string()));
+    sj.set("file", bench::Json::string(file_name(opt.scenario)));
     sj.set("session", bench::Json::string(src->describe()));
     sj.set("start_tick", bench::Json::number(static_cast<double>(sc.start_tick)));
     sj.set("ticks", bench::Json::number(static_cast<double>(sc.ticks)));
@@ -506,7 +522,7 @@ int bench_run(const BenchOptions& opt) {
             return 1;
         }
         const bench::Comparison c = bench::compare(key_from_json(base), stats_from_json(base.find("summary")), key_from_json(r), summary);
-        std::printf("bench: vs baseline %s: %s\n", fs::path(opt.baseline).filename().string().c_str(), c.text.c_str());
+        std::printf("bench: vs baseline %s: %s\n", file_name(opt.baseline).c_str(), c.text.c_str());
         auto same = [&](const char* p) {
             const bench::Json* a = base.at(p);
             const bench::Json* b = r.at(p);
@@ -524,7 +540,7 @@ int bench_run(const BenchOptions& opt) {
             std::printf("bench: note, compared with the baseline: %s\n", n.c_str());
         }
         bench::Json bj = bench::Json::object();
-        bj.set("file", bench::Json::string(fs::path(opt.baseline).filename().string()));
+        bj.set("file", bench::Json::string(file_name(opt.baseline)));
         bj.set("comparable", bench::Json::boolean(c.comparable));
         if (c.comparable) {
             bj.set("median_ratio", bench::Json::number(c.median_ratio));
@@ -544,7 +560,7 @@ int bench_run(const BenchOptions& opt) {
         if (opt.json_out == "-") {
             std::fputs(text.c_str(), stdout);
         } else {
-            std::ofstream f(fs::path(opt.json_out), std::ios::binary | std::ios::trunc);
+            std::ofstream f(host_file(opt.json_out), std::ios::binary | std::ios::trunc);
             if (!f || !f.write(text.data(), static_cast<std::streamsize>(text.size()))) {
                 std::fprintf(stderr, "bench: cannot write %s\n", opt.json_out.c_str());
                 return 1;
@@ -568,8 +584,8 @@ int bench_make(const BenchOptions& opt) {
         std::fprintf(stderr, "bench-make: needs --save-session KIND, --bench-save-at T and --ticks K\n");
         return 2;
     }
-    const fs::path manifest(opt.scenario);
-    const std::string name = manifest.stem().string();
+    const fs::path manifest = host_file(opt.scenario);
+    const std::string name = native_utf8(manifest.stem());
     if (name.empty() || name.find_first_of(" \t") != std::string::npos) {
         std::fprintf(stderr, "bench-make: the scenario file name must be one word (%s)\n", opt.scenario.c_str());
         return 2;
@@ -577,12 +593,12 @@ int bench_make(const BenchOptions& opt) {
     const fs::path dir = manifest.parent_path();
     std::error_code ec;
     if (!dir.empty()) fs::create_directories(dir, ec);
-    auto in_dir = [&](const std::string& f) { return (dir.empty() ? fs::path(f) : dir / f).string(); };
+    auto in_dir = [&](const std::string& f) { return native_utf8(dir.empty() ? host_file(f) : dir / host_file(f)); };
     const std::string save_name = name + ".alsv", orders_name = name + ".acmd", fp_name = name + ".crc";
     const std::string tmp_save = in_dir(save_name + ".tmp"), tmp_orders = in_dir(orders_name + ".tmp"), tmp_fp = in_dir(fp_name + ".tmp");
     auto cleanup = [&] {
         std::error_code e2;
-        for (const std::string& p : {tmp_save, tmp_orders, tmp_fp}) fs::remove(fs::path(p), e2);
+        for (const std::string& p : {tmp_save, tmp_orders, tmp_fp}) fs::remove(host_file(p), e2);
     };
 
     // 1. The save.
@@ -666,7 +682,7 @@ int bench_make(const BenchOptions& opt) {
     sc.ticks = opt.ticks;
     sc.workers = opt.workers_set ? opt.workers : -1;
     sc.final_crc = replayed.records.empty() ? 0 : replayed.records.back().combined;
-    sc.dir = dir.string();
+    sc.dir = native_utf8(dir);
     bench::Scenario old;
     const bool had_old = bench::Scenario::load_recipe(opt.scenario, old, nullptr);  // a recipe keeps its settings too
     sc.description = !opt.description.empty() ? opt.description : had_old ? old.description : std::string();
@@ -692,7 +708,7 @@ int bench_make(const BenchOptions& opt) {
     }
     for (auto [tmp, final_path] : {std::pair{tmp_save, in_dir(save_name)}, std::pair{tmp_orders, in_dir(orders_name)},
                                    std::pair{tmp_fp, in_dir(fp_name)}, std::pair{tmp_manifest, opt.scenario}}) {
-        fs::rename(fs::path(tmp), fs::path(final_path), ec);
+        fs::rename(host_file(tmp), host_file(final_path), ec);
         if (ec) {
             std::fprintf(stderr, "bench-make: %s: %s (rerun --bench-make)\n", final_path.c_str(), ec.message().c_str());
             return 1;

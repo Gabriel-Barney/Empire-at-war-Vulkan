@@ -43,6 +43,16 @@ std::string path_to_utf8(const std::filesystem::path& p);
 // page (cp1252 needs a byte C2..F4 followed by 80..BF, two rare letters in a row), but possible for short names in a double-byte one (936 / 950 / 932). A
 // tool that reads its arguments as UTF-8 (alamo_game, host_text.hpp utf8_args) never hits it.
 std::filesystem::path path_from_host_string(std::string_view s);
+// #137 / #338: the environment variable `name` (ASCII) as UTF-8, read wide, so a value outside the ANSI code page (a
+// profile folder named in Hebrew or CJK) keeps its name; "" when unset or empty.
+std::string host_env_utf8(const char* name);
+// #137 t02 / #338: a wide command line split by CommandLineToArgvW (the C runtime's rules, except a doubled "" inside
+// quotes), each argument as UTF-8 and as typed (no path conversion). Empty when it cannot be split.
+std::vector<std::string> host_command_line_utf8(std::wstring_view command_line);
+// The process's arguments as UTF-8 from the wide command line (GetCommandLineW), so a path outside the ANSI code page
+// arrives whole; the narrow argv only when the wide line cannot be split. Pass the result's strings to
+// path_from_host_string / path_from_utf8, never to std::filesystem::path(std::string).
+std::vector<std::string> host_args_utf8(int argc, char** argv);
 
 // Host path usable beyond MAX_PATH (260 characters). Windows: absolute, normalised ('/' -> '\\',
 // "." / ".." resolved) and prefixed with "\\?\" ("\\?\UNC\server\share\..." for UNC paths); paths
