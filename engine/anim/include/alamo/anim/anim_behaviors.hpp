@@ -8,8 +8,18 @@
 //   flinch    [H flow, M direction naming] on a hit: type by the angle between the victim's facing and the hit's
 //             travel direction (< 45 deg back, 45-135 deg left / right by side, > 135 deg front), 83-86 instead of
 //             79-82 while the current clip is attack-like or Attack Idle; random variant (synced), loop, blend
-//             Max_Flinch_Blend_Seconds, speed 1. Held Max_Flinch_Hold_Seconds, then no new flinch for
-//             Idle_ / Attack_Flinch_Interval_Seconds. No clip of the type = nothing (no draw).
+//             Max_Flinch_Blend_Seconds, speed 1. No clip of the type = nothing (no draw).
+//             #361 (TACTICAL_COMBAT §3.1.1 slot 47 "s78l t03" step-2 flinch bookkeeping [H unless tagged]; R3f t06
+//             §A.12): the start needs the cooldown timer ready (I +0x50), the weight I +0x58 = 0, a non-Deploys type
+//             and the current clip A attack-like, Attack Idle or idle-class; it sets I +0x58 = the weight (intensity)
+//             and I +0x5c = A. The IDLE service's step 2 (flinch_step) then: on the flinch, once the crossfade has
+//             ended, holds int(30 x Max_Flinch_Hold_Seconds x weight) frames (I +0x58 := 0); at the hold's end replays
+//             A (synced variant draw, one-shot, Max_Flinch_Blend_Seconds, blend mode 3); back on A with the fade done,
+//             the cooldown timer := Attack_ / Idle_Flinch_Interval_Seconds (attack when A is attack-like or Attack
+//             Idle), I +0x5c := none. Any clip that replaces the flinch (turn, move, Lua) leaves the state in place
+//             (the stages run against that clip); the moving gate zeroes the weight. While A is set the no-target idle
+//             service plays nothing (the flinch is "in progress"). Only objects with IDLE flinch (the pack is IDLE's;
+//             the host's gate).
 //   idle      [H] (TACTICAL_COMBAT §3.1.1 slot 47 "s78k t02"; IdleBehavior 0x62e570) serviced EVERY frame
 //             (not only when the clip finished; not suspended by Prevent_All_Fire), only for objects with IDLE (s78l t03
 //             (b)); no service while the locomotor reports moving (s78l t03 (a): LocomotorInput::on_path, the host's;
@@ -38,14 +48,14 @@
 //   * idle: the "Attack Idle with a blend draw" is drawn even when the model has no Attack Idle clip (the
 //     play then fails and the clip stays; [M] retail evaluates the argument before the play); the default idle from an
 //     attack clip is index 0, one-shot, speed 1 [M]; whether a stationary turn is "on a path" is the host's on_path
-//     (the idle service runs after the turn / stop play in the same call) [M]; the flinch bookkeeping of step 2 is not
-//     modelled here (flinch: on_hit / service); the idle records are kept in ascending presence id (retail
+//     (the idle service runs after the turn / stop play in the same call) [M]; the idle records are kept in ascending
+//     presence id (retail
 //     iterates an unordered_map; only ties between two allied / two non-allied records that map to different
 //     animations could differ);
-//   * flinch only from no clip / idle-like / attack-like / Attack Idle (not while moving, turning or dying); the
-//     hold end plays the return clip (Attack Idle when the flinch was an attack flinch and the clip exists, else
-//     the default idle with Loop_Idle_Anim_00 / Idle_Anim_00_Rate_Mod) with the flinch blend; both flinch plays
-//     use blend mode 2 (rescale a running fade);
+//   * #361: the flinch play uses blend mode 2 (rescale a running fade; the RE gives the mode of the replay only); the
+//     replay of the interrupted clip plays at speed 1; the crossfade weight test of step 2 ("w >= I +0x58 or not
+//     fading", "w < 1 and fading") reads as "fading" alone (R3f t06 [H]: the slot weight +0x2c is always 0); the
+//     crossfade freeze (+0x104 := 1e-4) has no visible effect and is not modelled;
 //   * left / right: the hit travels toward the victim's left side (cross(facing, dir).z > 0) -> it came from the
 //     right -> Flinch_Right;
 //   * the death play passes lock = 1 (no later behaviour or Lua call replaces the death clip);
@@ -73,6 +83,7 @@ struct FlinchParams {
     float hold_seconds = 0.5f;             // Max_Flinch_Hold_Seconds (+0x20ec)
     float idle_interval_seconds = 1.0f;    // Idle_Flinch_Interval_Seconds (+0x20f4)
     float attack_interval_seconds = 3.0f;  // Attack_Flinch_Interval_Seconds (+0x20f0)
+    bool deploys = false;                  // #361: Deploys (a deploying type never flinches)
 };
 
 // s78l t03 (TACTICAL_COMBAT slot 47 "s78l t03" (c)): one idle record of the IDLE pack's list I +0x10 - a presence object's
@@ -93,6 +104,7 @@ struct IdleParams {
     // the presence step of the default idle type (null: none - also while crouched / a garrison override,
     // which come first in 0x395920). Must outlive the call it is passed to.
     const PresenceIdleFn* presence = nullptr;
+    FlinchParams flinch;  // #361: the type's flinch fields for the service's step 2
 };
 
 struct DeathParams {
@@ -254,11 +266,13 @@ enum class DeathResult : uint8_t { Corpse = 0, RemoveNow, NoRow };
 class AnimBehaviors {
 public:
     // ---- flinch ----
-    // Returns true when a flinch clip started. `idle` = the clip to return to after the hold.
-    bool on_hit(AnimWorld& w, ObjectId id, const FlinchParams& p, const IdleParams& idle, float fx, float fy, float dx, float dy,
-                SimRng& rng, uint64_t frame);
-    bool flinching(ObjectId id) const;
-    uint64_t next_flinch_frame(ObjectId id) const;  // 0 when none recorded
+    // Returns true when a flinch clip started (0x62dde0). `weight` = the hit's intensity (I +0x58; the hold scales with it).
+    bool on_hit(AnimWorld& w, ObjectId id, const FlinchParams& p, float fx, float fy, float dx, float dy, SimRng& rng, uint64_t frame,
+                float weight = 1.0f);
+    bool flinching(ObjectId id) const;              // #361: I +0x5c set (a flinch in progress, return fade included)
+    uint64_t next_flinch_frame(ObjectId id) const;  // the hold / cooldown timer's ready frame; 0 when none recorded
+    int32_t flinch_interrupted(ObjectId id) const;  // I +0x5c: the clip the flinch interrupted, kNoAnimType when none
+    float flinch_weight(ObjectId id) const;         // I +0x58
 
     // ---- idle behaviour (incl. idle while engaged; s78k t02 flow above) ----
     // One service of 0x62e570 (call every frame the unit is not moving; draws with a target whatever the clip). True if
@@ -266,9 +280,8 @@ public:
     // - 1, a record below 1 erased), then the default idle type is resolved (presence_idle_type with idle.presence).
     bool service_idle(AnimWorld& w, ObjectId id, const IdleParams& idle, IdleTarget target, SimRng& rng, uint64_t frame,
                       bool crouch_changed = false);
-    // s78l t03 (a): the service of a unit the moving gate stops (step 1): the records are cleared, nothing else (no draw).
-    // [port] the flinch weight reset of the same step has no counterpart: the port's flinch has no weight, a moving unit
-    // starts none (on_hit) and its locomotor clip replaces a running one.
+    // s78l t03 (a): the service of a unit the moving gate stops (step 1): the records are cleared and the flinch weight
+    // I +0x58 := 0, nothing else (no draw).
     void idle_gated(ObjectId id);
     uint64_t idle_countdown(ObjectId id) const;  // I +0xc, frames; 0 when none recorded
     // s78l t03 (c): IMPOSING_PRESENCE's write 0x62e450 - find-or-insert the record of `presence` with `frames` (a refresh
@@ -319,7 +332,7 @@ public:
     void detach(ObjectId id);                                      // store object gone, corpse kept
 
     // ---- per frame (before AnimWorld::advance) ----
-    // Ends flinch holds (return clip) and runs the corpse countdown in ascending id. Corpses whose countdown
+    // Runs the corpse countdown in ascending id (#361: the flinch stages are the idle service's). Corpses whose countdown
     // ended are removed (row + state) and their ids appended to `removed` (the caller removes the objects).
     void service(AnimWorld& w, uint64_t frame, std::vector<ObjectId>& removed);
 
@@ -329,11 +342,13 @@ public:
     size_t state_count() const { return entries_.size(); }
 
     // ---- N1 save / load (contract: alamo/core/save_file.hpp; src/anim_save.cpp) ----
-    // Layout: u32 version (3; 2 and 1 are accepted without records, 1 with its combat-timer frame stamp read as countdown
-    // 0); u32 count + every behaviour entry in ascending id (i32 id, i32 flinch type, u64 flinch
-    // end, u64 next flinch, f32 flinch blend, i32 return type, bool return loop, f32 return speed, u64 idle countdown,
-    // f32 last yaw, bool have yaw, bool last crouch, version 3: u32 record count + per record in ascending presence id
-    // i32 presence id, i32 frames (>= 1)); u32 count + every corpse in ascending id (i32 id, u8 phase, i32
+    // Layout: u32 version (4; 3, 2 and 1 are accepted with their old flinch fields read and dropped (no flinch in
+    // progress), 2 and 1 without records, 1 with its combat-timer frame stamp read as countdown 0); u32 count + every
+    // behaviour entry in ascending id (i32 id; version 4: i32 interrupted clip I +0x5c, f32 weight I +0x58, u64 timer
+    // start, u64 timer frames (I +0x50); versions 1-3: i32 flinch type, u64 flinch end, u64 next flinch, f32 flinch
+    // blend, i32 return type, bool return loop, f32 return speed; then u64 idle countdown, f32 last yaw, bool have yaw,
+    // bool last crouch, version >= 3: u32 record count + per record in ascending presence id i32 presence id, i32
+    // frames (>= 1)); u32 count + every corpse in ascending id (i32 id, u8 phase, i32
     // death type, bool forever, bool spin-away, u8 damage kind, bool detached, u64 death frame, u64 phase end, u64
     // persist frames, u64 fade frames, CorpseInfo: u32 object type, i32 owner, f32 position[3], f32 facing[3]).
     // Independent of the AnimWorld (the host reads it before the AnimWorld). False and unchanged on bad data; reads
@@ -344,17 +359,16 @@ public:
 private:
     struct Entry {
         ObjectId id = 0;
-        int32_t flinch = kNoAnimType;  // flinch type being held
-        uint64_t flinch_end = 0, flinch_next = 0;
-        float flinch_blend = 0.0f;
-        int32_t ret_type = kAnimIdle;
-        bool ret_loop = false;
-        float ret_speed = 1.0f;
+        int32_t flinch_prev = kNoAnimType;           // I +0x5c: the clip the flinch interrupted (none: no flinch)
+        float flinch_weight = 0.0f;                  // I +0x58
+        uint64_t timer_start = 0, timer_frames = 0;  // I +0x50: hold / cooldown timer, ready when start + frames <= now
         uint64_t idle_countdown = 0;  // I +0xc (frames)
         float last_yaw = 0.0f;  // locomotor
         bool have_yaw = false, last_crouch = false;
         std::vector<IdleRecord> records;  // I +0x10, ascending presence id (retail: an unordered map)
     };
+    // #361: step 2 of the IDLE service; true while the flinch is in progress.
+    bool flinch_step(AnimWorld& w, Entry& e, const FlinchParams& p, SimRng& rng, uint64_t frame);
     Entry* find(ObjectId id);
     const Entry* find(ObjectId id) const;
     Entry& entry(ObjectId id);

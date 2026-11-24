@@ -40,7 +40,7 @@
 //                    without this service); the service never destroys store objects, its corpse row only follows;
 //   * corpse_clone() refix t03, the infantry corpse path (legacy docs/re/S9_DEATH_CLONE_SHIELDS.md §1.6 [L]): no clone object; the
 //                    dying unit's row becomes a corpse of the clone type's model running the clone's death sequence;
-//   * service: before the advance, flinch holds end and the corpse countdown runs (Death_Persistence_Duration
+//   * service: before the advance, the corpse countdown runs (#361: the flinch stages are the idle service's) (Death_Persistence_Duration
 //     after the death clip, then Death_Fade_Time); a finished corpse loses its row. a death clone's store
 //     object is removed by the battle at the frame plan_death gives (the same frame as this countdown when both read the
 //     same model); a corpse row whose store object went first lives on detached until its countdown ends (render only).

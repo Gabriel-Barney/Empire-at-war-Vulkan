@@ -237,6 +237,9 @@ inline std::string anim_types() {
         if (p != std::string::npos) t.insert(p + at.size(), what);
     };
     insert_after("<GroundInfantry Name=\"S10_Trooper\">", "<Death_Persistence_Duration>1.0</Death_Persistence_Duration><Death_Fade_Time>0.5</Death_Fade_Time>");
+    // #361: the trooper has IDLE, as retail infantry do (a flinch is the IDLE pack's: no IDLE, no flinch).
+    const std::string beh = "<Behavior>SELECTABLE, WEAPON</Behavior><Collidable_By_Projectile_Living>Yes</Collidable_By_Projectile_Living><LandBehavior>WALK_LOCOMOTOR";
+    if (const size_t p = t.find(beh); p != std::string::npos) t.replace(p, std::string("<Behavior>SELECTABLE, WEAPON").size(), "<Behavior>SELECTABLE, WEAPON, IDLE");
     // the star base's typed clone (no Remove_Upon_Death, 30 s persistence) is made on the battle's last tick.
     insert_after("<StarBase Name=\"S10_Star_Base_1\">",
                  "<Remove_Upon_Death>Yes</Remove_Upon_Death><Death_Clone>Damage_Normal, S10_Star_Base_Death_Clone</Death_Clone>");
@@ -254,7 +257,7 @@ inline std::string anim_types() {
 // Celebrate in every other).
 inline std::string presence_types() {
     std::string t = anim_types();
-    const std::string beh = "<Behavior>SELECTABLE, WEAPON</Behavior><Collidable_By_Projectile_Living>Yes</Collidable_By_Projectile_Living><LandBehavior>WALK_LOCOMOTOR";
+    const std::string beh = "<Behavior>SELECTABLE, WEAPON, IDLE</Behavior><Collidable_By_Projectile_Living>Yes</Collidable_By_Projectile_Living><LandBehavior>WALK_LOCOMOTOR";
     if (const size_t p = t.find(beh); p != std::string::npos)
         t.replace(p, beh.size(),
                   "<Behavior>SELECTABLE, WEAPON, IDLE, IMPOSING_PRESENCE</Behavior><Collidable_By_Projectile_Living>Yes</Collidable_By_Projectile_Living>"
