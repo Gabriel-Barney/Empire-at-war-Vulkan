@@ -1733,6 +1733,10 @@ public:
     // FOW_Point_Test / FOW_Object_Hidden (FOG_OF_WAR §5) on the battle's mode; false while fog is off.
     bool fog_point_fogged(int32_t player, float x, float y, bool force) const;
     bool fog_object_hidden(int32_t player, objects::ObjectId id, bool force) const;
+    // #327 t02: FOW_Object_Hidden for an object that is not in the store (the port's projectiles): the query from `type`'s
+    // behaviours in the battle's mode (TEAM / HIDE_WHEN_FOGGED, REVEAL), `owner` and `position`. [port] no footprint
+    // samples: Multisample_FOW_Check needs an object's bounds, so such a type is tested at its point.
+    bool fog_type_hidden(int32_t player, objects::TypeIndex type, int32_t owner, const Vec3& position, bool force) const;
     // the representative type 0x3973b0 (legacy docs/re/LUA_API.md "Find_All_Objects_Of_Type and the sibling finders") for
     // the Lua finders (lua::ObjectBridge::representative_type): a TEAM container -> its Container::type (Create_Team_Type,
     // else the company type). The battle has no tactical transport or fleet objects; anything else -> objects::kNone (the
