@@ -514,6 +514,7 @@ void App::save_game_as(const std::string& typed) {
     if (typed == kAutoSaveName) return;  // retail rejects the reserved name (the box is cleared, nothing saved)
     // [port-text: the detail lines go through port_text inside save_message]
     if (!session_ || demo_session()) return save_message(port_text(kCannotSave), "no game is running");
+    // [port-text: the detail lines go through port_text inside save_message]
     if (saves_dir_.empty()) return save_message(txt("TEXT_SAVE_FAILED", kSaveFailed), "no saved games folder");
     std::string path, err;
     if (!save_game(*session_, saves_dir_, typed, session_title(), unix_now(), &path, &err)) {

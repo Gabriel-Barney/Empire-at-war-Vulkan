@@ -22,5 +22,10 @@ void log_more() {
 void narrow() {
     save_message(port_text(U"Could not save"), "no save name");  // VIOLATION: the detail is beside port_text, not in it
     std::printf("%s\n", label(U"Ships lost"));                    // allowed: inside the log call's arguments
-    show(txt("TEXT_X", U"Begin"), U"Unit Cap");                   // allowed: a key literal in the statement
+    show(txt("TEXT_X", U"Begin"), U"Unit Cap");                   // VIOLATION: the key is in txt's group, not show's
+    const Row rows[] = {{"TEXT_UNIT_CAP", U"Unit Cap"}, {"id", U"Ships lost"}};  // a keyed row; VIOLATION: the other
+    set(U"Page Down"); y = port_text(U"Page Down");               // VIOLATION: the first copy (by position)
+    z = port_text(R"(Hello world)");                              // allowed: a raw string in the call
+    w = port_text(/* see) */ U"Fleet view");                      // allowed: a ')' in a comment closes nothing
+    set(U"Unit list");  // was "TEXT_FOO"                          VIOLATION: a key in a comment allows nothing
 }
