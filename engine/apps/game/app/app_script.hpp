@@ -11,16 +11,16 @@ struct ClickState {
 };
 bool click_at(ClickState& c, ui::InputFrame& f, int32_t x, int32_t y, ui::Button b, bool shift = false);
 // Done once `cond` holds.
-ScriptStep step_wait(std::string name, std::function<bool(App&)> cond, uint32_t timeout = 3600);
+ScriptStep step_wait(std::string name, std::function<bool(AppProbe&)> cond, uint32_t timeout = 3600);
 // A left click on a control of `dialog` once that dialog is the topmost one.
 ScriptStep step_click_control(std::string dialog, std::string control);
 // Selects list row `row` like a player: click the first row (selects + focuses the list), then Down until it is reached.
-ScriptStep step_select_row(std::string dialog, std::string control, std::function<size_t(App&)> row);
+ScriptStep step_select_row(std::string dialog, std::string control, std::function<size_t(AppProbe&)> row);
 // After a new campaign reaches the galactic map: closes the mission holocron it opens by itself (the summary holds the
 // ticks), or does nothing when the campaign added no chapter.
 void close_auto_holocron(std::vector<ScriptStep>& s);
 // Clicks list row `row` itself (scrolled into view first), never another row on the way.
-ScriptStep step_click_row(std::string dialog, std::string control, std::function<int32_t(App&)> row);
+ScriptStep step_click_row(std::string dialog, std::string control, std::function<int32_t(AppProbe&)> row);
 // A PNG of the next settled frame into --png-dir (the sim held meanwhile: presentation only).
 ScriptStep step_shot(std::string file);
 // Done once the session ran `n` more ticks.
@@ -32,5 +32,9 @@ ScriptStep step_galactic_attack();
 
 // --smoke saveload (app_script_saveload.cpp): the steps after the main menu is shown.
 void add_saveload_steps(std::vector<ScriptStep>& s);
+
+// The steps of smoke `opt.smoke` (skirmish, land, campaign, saveload), built at start; `probe` is the running game
+// (read at build time only for the campaign menu rows).
+std::vector<ScriptStep> make_script(const Options& opt, AppProbe& probe);
 
 }  // namespace alamo_game_app::script

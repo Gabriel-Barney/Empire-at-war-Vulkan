@@ -195,20 +195,14 @@ constexpr uint16_t kVkF11 = 0x7A;  // frame-time overlay toggle (not in the defa
 constexpr int32_t kLoadIntroMaxFrames = 30;  // the most frames the sim waits for the load screen's textures
 constexpr uint64_t kLoadIntroMaxTicks = 30;  // sim ticks a Fight answer may take to push its battle
 
-class App;
-// One scripted step: fills the frame's input (or leaves it idle) and returns true when done. Steps run in order.
-struct ScriptStep {
-    std::string name;
-    std::function<bool(App&, ui::InputFrame&)> run;
-    uint32_t timeout_frames = 3600;
-};
-
+// #154: the only public members are the constructor and run(). The smoke script reaches the running game through the
+// AppProbe base (app_probe.hpp); the overrides below are private, called through AppProbe&.
 class App final : public AppProbe {
 public:
     explicit App(Options o) : opt_(std::move(o)) {}
     int run();
 
-    // ---- used by the script ----
+private:
     Options opt_;
     GameData data_;
     std::unique_ptr<jobs::JobSystem> js_;
@@ -1033,7 +1027,6 @@ public:
     std::string local_faction() const;
     std::string_view battle_terrain() const;  // the running battle's music / ambience key ("" without a battle)
     bool crc_check();
-    void make_script();
     // Script helpers.
     ui::InputFrame idle_frame() const;
     std::vector<uint32_t> synced_selection() const;
