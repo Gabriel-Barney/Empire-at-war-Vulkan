@@ -29,6 +29,7 @@
 #include "alamo/data/game_database.hpp"
 #include "alamo/galactic/campaign.hpp"
 #include "alamo/galactic/economy.hpp"
+#include "alamo/galactic/leader_planet.hpp"
 #include "alamo/galactic/victory.hpp"
 #include "alamo/objects/game_object_types.hpp"
 #include "alamo/objects/object_types.hpp"
@@ -2510,6 +2511,26 @@ void test_oi_victory() {
     CHECK(s7.start(make_setup({{pEmpire, rA, tSB1}, {pUnder, rE, tSB1}, {pUnder, rE, tBarracks}, {pUnder, rD, tCompany}})));
     VictorySide none;
     CHECK(s7.planets()[rD].owner == pUnder && s7.super_weapon_leader_hit(rD) && !s7.super_weapon_leader_hit(rE));
+    // #295 Home key (0x3d2330): the planet of the faction leader's team; none without a Faction_Leader.
+    CHECK(leader_planet(s7, pUnder) == rD && leader_planet(s7, pEmpire) == kInvalidPlanet && leader_planet(s7, -1) == kInvalidPlanet);
+    {  // in orbit: the fleet's planet (retail walks fleets too); the leader type itself also counts
+        GalacticRules ro = make_oi_rules();
+        ro.factions[1].leader = tInfantry;
+        objects::IdCounter ids_o;
+        objects::ObjectStore store_o{objects::ModeKind::Galactic, objects::StoreKind::Primary, types, &ids_o};
+        SimRng rng_o{9u};
+        GalacticSim so{ro, store_o, rng_o};
+        CHECK(so.start(make_setup({{pEmpire, rA, tSB1}, {pUnder, rE, tSB1}, {pUnder, rE, tOrbitCompany}})));
+        CHECK(leader_planet(so, pUnder) == rE);
+        GalacticRules rc = make_oi_rules();
+        rc.factions[1].leader = tCompany;
+        objects::IdCounter ids_c;
+        objects::ObjectStore store_c{objects::ModeKind::Galactic, objects::StoreKind::Primary, types, &ids_c};
+        SimRng rng_c{9u};
+        GalacticSim sc{rc, store_c, rng_c};
+        CHECK(sc.start(make_setup({{pEmpire, rA, tSB1}, {pUnder, rE, tSB1}, {pUnder, rD, tCompany}})));
+        CHECK(leader_planet(sc, pUnder) == rD);
+    }
     CHECK(!victory_condition_met(s7, none, VictoryCondition::KillEnemyLeader, pEmpire));
     CHECK(s7.super_weapon_destroy_planet(rD, pEmpire) && s7.planets()[rD].destroyed);
     CHECK(s7.victory_claims().size() == 1 && s7.victory_claims()[0].type == 7 && s7.victory_claims()[0].countdown == 30);

@@ -36,6 +36,7 @@ if("data" IN_LIST ALAMO_ENGINE_MODULES AND "objects" IN_LIST ALAMO_ENGINE_MODULE
     src/object_names.cpp  # [port: Gabriel 2026-11-13] fleet and ship names (campaign.hpp GalacticSim::rename)
     src/strategic.cpp  # OI galactic: STRATEGIC_GAPS speed M, company transports, buildability, stealth, victory claims
     src/special_rules.cpp    # P4 sim: special-system tables (special_data.hpp)
+    src/leader_planet.cpp  # #295: the galactic Home key's planet
     src/special_systems.cpp  # P4 sim: hero trigger / respawn, black market, sabotage, hack, income abilities, corruption
     src/galab_abilities.cpp  # galab: Remove_Corruption, Death Star, Siphon, planet bonuses, Tarkin, Neutralize_Hero
     src/galactic_save.cpp    # N1: GalacticSim / ConflictManager write / read

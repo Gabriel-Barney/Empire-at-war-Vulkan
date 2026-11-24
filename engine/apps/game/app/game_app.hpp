@@ -550,6 +550,8 @@ private:
     // `skip_stations`: hotkey 22's scan (0x63f00 case 0x16 reaches SPECIAL_WEAPON objects only).
     objects::ObjectId space_weapon(int32_t& icon, float& readiness, int32_t* pointer = nullptr, bool* station = nullptr,
                                    bool skip_stations = false) const;
+    void galactic_home();         // #295: the galactic Home key (0x3d2330)
+    uint32_t home_planet_ = 0;    // its cached planet (HUD +0xf80), a planet object id; 0 = not found yet
     void space_weapon_toggle(bool hotkey = false);
     std::optional<render::JamBlob> bombing_blob_;  // the green / red terrain blob under the cursor while targeting
     uint64_t bombing_commands_ = 0, bombing_cancels_ = 0, bombing_invalid_clicks_ = 0;
