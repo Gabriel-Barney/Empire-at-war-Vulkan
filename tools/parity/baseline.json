@@ -1,5 +1,5 @@
 {
- "commit": "8324117",
+ "commit": "83241172",
  "scenarios": {
   "geonosis_skirmish": {
    "commit": "67b38a02",
@@ -53,7 +53,7 @@
    }
   },
   "hotm_galactic": {
-   "commit": "8324117",
+   "commit": "83241172",
    "references": [
     "20261108-170824-galactic-vanilla-lua",
     "20261030-061228-galactic-vanilla-lua",

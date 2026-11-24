@@ -1087,14 +1087,19 @@ def git_head():
         return None
 
 
+def scenario_entry(baseline, scen_id):
+    return (baseline.get("scenarios") or {}).get(scen_id, {})
+
+
 def baseline_commit(baseline, scen_id):
-    """The commit a scenario's baseline entry was recorded at: its own (#400), else the file's (older entries)."""
-    return (baseline.get("scenarios") or {}).get(scen_id, {}).get("commit") or baseline.get("commit")
+    """The commit a scenario's baseline entry was recorded at: its own (#400), else the file's top-level "commit" (a
+    fallback for entries older than the per-scenario field; the top level names the last write)."""
+    return scenario_entry(baseline, scen_id).get("commit") or baseline.get("commit")
 
 
 def check_baseline(baseline, scen_id, results):
     """Metrics that passed in the baseline and fail now (a regression); PASS -> N/A is listed, not failed."""
-    base = (baseline.get("scenarios") or {}).get(scen_id, {}).get("status", {})
+    base = scenario_entry(baseline, scen_id).get("status", {})
     now = {r["metric"]: r["status"] for r in results}
     regress = sorted(k for k, v in base.items() if v == "PASS" and now.get(k) == "FAIL")
     gone = sorted(k for k, v in base.items() if v == "PASS" and now.get(k) in (None, "N/A"))
