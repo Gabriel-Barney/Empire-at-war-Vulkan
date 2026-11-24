@@ -1275,6 +1275,9 @@ void test_events_and_locomotor() {
         LocomotorInput in;
         in.speed = 1.0f;
         in.max_speed = 1.0f;
+        // Moving with a path: the moving gate stops the idle service (#363: without it, its crouch-class test would restart
+        // the crouched unit's moves into Idle Crouch).
+        in.on_path = true;
         CHECK(b.service_locomotor(w, 1, lp, in, rng, 1) == 1 && w.current_type(1) == kAnimMove && w.slot(1).speed == 0.8f);
         in.speed = 0.25f;  // slow: WALKMOVE, phase kept
         const float f0 = w.slot(1).frame;
@@ -1866,6 +1869,46 @@ void test_weapon_clip_hold() {
     CHECK(w.current_type(1) == kAnimFlinchLeft && !weapon_clip_hold(w, 1, false, false));
 }
 
+// #363 (s78l (c) [H]): a SPREAD_OUT (crouch) toggle during a flinch is not lost. The flinch blocks the idle service on the
+// toggle frame; once it ends, the service sees the default idle (Idle Crouch) and the current clip (the replayed Idle) in
+// different crouch classes and restarts at once, long before the 300-frame Idle would finish.
+void test_idle_crouch_class_restart() {
+    auto m = make_model(3, {{kAnimIdle, 1, 300, 30.0f, 2}, {kAnimIdleCrouch, 1, 300, 30.0f, 2}, {kAnimFlinchLeft, 1, 10, 30.0f, 2}});
+    AnimWorld w;
+    AnimBehaviors b;
+    w.create(1, m.get(), {}, nullptr, 0);
+    SimRng rng(5);
+    LocomotorParams lp;
+    lp.idle.flinch = FlinchParams{};
+    LocomotorInput in;
+    in.max_speed = 1.0f;
+    b.service_locomotor(w, 1, lp, in, rng, 1);
+    w.advance(1);
+    CHECK(w.current_type(1) == kAnimIdle);
+    CHECK(b.on_hit(w, 1, lp.idle.flinch, 1, 0, 0, -1, rng, 2) && w.current_type(1) == kAnimFlinchLeft);
+    w.advance(2);
+    in.crouched = true;  // the toggle frame, during the flinch
+    b.service_locomotor(w, 1, lp, in, rng, 3);
+    w.advance(3);
+    CHECK(w.current_type(1) != kAnimIdleCrouch && b.flinching(1));
+    uint64_t done = 0;
+    int32_t at_done = kNoAnimType;
+    for (uint64_t f = 4; f < 250 && !done; ++f) {
+        b.service_locomotor(w, 1, lp, in, rng, f);
+        w.advance(f);
+        if (!b.flinching(1)) {
+            done = f;
+            at_done = w.current_type(1);
+        }
+    }
+    std::printf("crouch toggle during a flinch: flinch over at %llu, clip %d\n", static_cast<unsigned long long>(done), at_done);
+    CHECK(done > 0 && at_done == kAnimIdleCrouch);
+    // Same class: Idle Crouch is kept while it plays when the default idle stays in the crouch class.
+    const SlotView s = w.slot(1);
+    b.service_locomotor(w, 1, lp, in, rng, done + 1);
+    CHECK(w.current_type(1) == kAnimIdleCrouch && w.slot(1).variant == s.variant);
+}
+
 }  // namespace
 
 // plan_death (no AnimWorld) gives the frame the corpse countdown removes the object, for clips of several
@@ -2186,6 +2229,7 @@ int main() {
     test_determinism();
     test_behaviors();
     test_walk_transition_clips();
+    test_idle_crouch_class_restart();
     test_weapon_clip_hold();
     test_events_and_locomotor();
     test_save();

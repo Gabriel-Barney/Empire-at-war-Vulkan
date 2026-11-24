@@ -289,8 +289,9 @@ public:
     // One service of 0x62e570 (call every frame the unit is not moving; draws with a target whatever the clip). True if
     // it played a clip. With a target the idle records are cleared; without one they age first (every value
     // - 1, a record below 1 erased), then the default idle type is resolved (presence_idle_type with idle.presence).
-    bool service_idle(AnimWorld& w, ObjectId id, const IdleParams& idle, IdleTarget target, SimRng& rng, uint64_t frame,
-                      bool crouch_changed = false);
+    // #363 (s78l (c) [H]): a clip still playing is kept unless the default idle and the current clip differ in crouch class
+    // (0x27b570: 67, 71, 72, 73), checked on every service; then the idle restarts at once, mid-clip.
+    bool service_idle(AnimWorld& w, ObjectId id, const IdleParams& idle, IdleTarget target, SimRng& rng, uint64_t frame);
     // s78l t03 (a): the service of a unit the moving gate stops (step 1): the records are cleared and the flinch weight
     // I +0x58 := 0, nothing else (no draw).
     void idle_gated(ObjectId id);
