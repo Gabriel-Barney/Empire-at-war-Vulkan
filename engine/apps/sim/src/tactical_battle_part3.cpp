@@ -550,15 +550,28 @@ objects::ObjectHandle TacticalBattle::spawn_death_clone(TacticalMode& mode, int3
     return h;
 }
 
-void TacticalBattle::spawn_death_explosion(TacticalMode& mode, int32_t type, Vec3 pos, int32_t clone_owner) {
-    // storyb t17 (legacy docs/re/STORYB_T17_SPAWNS_AND_DEATH.md §3.4 [H]): owned by the clone's owner (the neutral player); an Is_Decoration
-    // explosion type goes to the mode's secondary store, which the port marks objects::kFlagMapDecoration (kept in the
-    // primary store for drawing, out of the CRC, the trace and the Lua searches). [port] The first list entry, no synced
-    // pick, no Ranged_Target_Z_Adjust lift.
+void TacticalBattle::spawn_death_explosion(TacticalMode& mode, std::span<const int32_t> list, uint32_t object_type, Vec3 pos,
+                                           int32_t clone_owner, SimRng& rng) {
+    // #358 (DeathBehavior's effects 0x58cf90, phases 0 and 2 [H], read in the decompile): one entry of the list picked with
+    // the synced 0x1ffb40(0, n - 1) - which returns without a draw for n = 1 - spawned at 0x398440(object) = the object's
+    // position + (0, 0, its type's Ranged_Target_Z_Adjust +0x4dc). [port] Entries that resolve to no type are dropped before
+    // the draw (#221). storyb t17 (legacy docs/re/STORYB_T17_SPAWNS_AND_DEATH.md §3.4 [H]): owned by the clone's owner (the
+    // neutral player); an Is_Decoration explosion type goes to the mode's secondary store, which the port marks
+    // objects::kFlagMapDecoration (kept in the primary store for drawing, out of the CRC, the trace and the Lua searches).
+    const objects::GameObjectTypes& types = catalog_->types();
+    std::vector<int32_t> valid;
+    for (const int32_t t : list)
+        if (t >= 0 && static_cast<size_t>(t) < types.size()) valid.push_back(t);
+    if (valid.empty()) return;
+    size_t pick = 0;
+    if (valid.size() > 1) pick = static_cast<size_t>(rng.range_int(0, static_cast<int32_t>(valid.size()) - 1));
+    const int32_t type = valid[pick];
+    if (object_type < types.size())
+        pos.z += types.get(static_cast<objects::TypeIndex>(object_type), objects::tags::Ranged_Target_Z_Adjust);  // ledger: consumes GameObjectType.Ranged_Target_Z_Adjust
     const size_t before = particles_.size();
     spawn_particle(mode, type, pos, clone_owner);
-    if (particles_.size() == before || type < 0 || static_cast<size_t>(type) >= catalog_->types().size()) return;
-    if (catalog_->types().get(static_cast<objects::TypeIndex>(type), objects::tags::Is_Decoration))
+    if (particles_.size() == before) return;
+    if (types.get(static_cast<objects::TypeIndex>(type), objects::tags::Is_Decoration))
         mode.primary().set_flag(particles_.back().h, objects::kFlagMapDecoration);
 }
 
@@ -566,11 +579,9 @@ void TacticalBattle::spawn_death_explosion_end(TacticalMode& mode, objects::Obje
     // #221: DeathBehavior's effects 0x58cf90 phase 2, whose only caller is the behaviour-detach hook 0x58d830 (vtable slot
     // 15) that the object destructor runs for every behaviour (0x38a310 -> 0x3893e0 -> 0x3a52f0; traced in PR #218 [M]):
     // every deletion of a death clone spawns one entry of the clone type's Death_Explosions_End (+0xcf8; data +0xd00,
-    // count +0xd08) - one synced int(0, n - 1) when n > 1, no draw for one entry - at the clone's position plus the
-    // clone type's (x, y) half extents 0x371be0 turned by the clone's facing yaw, owned by the clone's owner, then the
-    // phase-0 path (spawn_death_explosion, with its [port] notes: no Ranged_Target_Z_Adjust / Layer_Z_Adjust lift,
-    // particle facing, no projectile pack, no camera shake 0x2cdbb0). [port] Names that resolve to no type are dropped
-    // before the draw. Not called at the battle's end (remove_death_clones without an RNG): see there. A remove-at-once
+    // count +0xd08) - the pick and lift of spawn_death_explosion (#358) - at the clone's position plus the clone type's
+    // (x, y) half extents 0x371be0 turned by the clone's facing yaw, owned by the clone's owner. [port] No Layer_Z_Adjust
+    // lift, particle facing, projectile pack or camera shake 0x2cdbb0. Not called at the battle's end (remove_death_clones without an RNG): see there. A remove-at-once
     // clone's entry comes after the dying unit's phase-0 Death_Explosions object (its callers spawn that first), as
     // retail's phase 0 runs before the deletion.
     const objects::ObjectStore& store = mode.primary();
@@ -585,8 +596,6 @@ void TacticalBattle::spawn_death_explosion_end(TacticalMode& mode, objects::Obje
         if (t != objects::kNone && t < types.size()) list.push_back(static_cast<int32_t>(t));
     }
     if (list.empty()) return;
-    size_t pick = 0;
-    if (list.size() > 1) pick = static_cast<size_t>(rng.range_int(0, static_cast<int32_t>(list.size()) - 1));
     float hx = 0.0f, hy = 0.0f;
     type_half_extents(ct, hx, hy);
     float s = 0.0f, c = 1.0f;
@@ -594,7 +603,7 @@ void TacticalBattle::spawn_death_explosion_end(TacticalMode& mode, objects::Obje
     Vec3 at = store.position(clone);
     at.x += hx * c - hy * s;
     at.y += hx * s + hy * c;
-    spawn_death_explosion(mode, list[pick], at, store.owner(clone));
+    spawn_death_explosion(mode, list, ct, at, store.owner(clone), rng);
 }
 
 bool TacticalBattle::death_clone_corpse_path(uint32_t dying_type, int32_t clone_type, int32_t key) const {
@@ -689,7 +698,7 @@ void TacticalBattle::consume_events(TacticalMode& mode, SimRng& rng) {
     // c. hardpoint destructions: Death_Explosion_Particles, then Death_Breakoff_Prop (each an id).
     for (const tc::HardpointEvent& e : combat_->hardpoint_events()) consume_hardpoint_event(mode, e);
     unread_.hardpoints = false;
-    // d. deaths: destroy, death clone object, first Death_Explosions entry [port: pick rule untraced].
+    // d. deaths: destroy, death clone object, one Death_Explosions entry (synced pick, #358).
     for (const tc::DeathEvent& d : combat_->deaths()) process_death(mode, d, rng);
     unread_.deaths = false;
     // e. damaged smoke (render attachment).
@@ -856,13 +865,13 @@ void TacticalBattle::process_death(TacticalMode& mode, const tc::DeathEvent& d, 
         // here from data and the battle removes the clone object at the planned frame - identical with and without the
         // animation service, which only plays the planned clip (schedule_death_clone).
         const bool carried_by_clone = static_cast<bool>(ch);
-        // The dying type's first Death_Explosions entry (phase 0) before the clone's schedule, whose remove-at-once
-        // path deletes the clone and spawns its Death_Explosions_End entry (phase 2, #221). Neither step draws for
-        // phase 0 or makes an object between them otherwise, so the order only matters for that path.
+        // One entry of the dying type's Death_Explosions (phase 0: the synced pick, none for one entry, and the
+        // Ranged_Target_Z_Adjust lift, #358) before the clone's schedule, whose remove-at-once path deletes the clone and
+        // spawns its Death_Explosions_End entry (phase 2, #221): phase 0's pick draws first, as retail's phase 0 runs first.
         if (const BattleTables::UnitVisuals* vis = visuals_of_type(u->type))
             if (!silent && !vis->death_explosions.empty()) {
                 const int32_t neutral = galaxy_ ? galaxy_->neutral_player() : -1;  // the clone's owner
-                spawn_death_explosion(mode, vis->death_explosions.front(), at, neutral >= 0 ? neutral : owner);
+                spawn_death_explosion(mode, vis->death_explosions, u->type, at, neutral >= 0 ? neutral : owner, rng);
             }
         if (ch) schedule_death_clone(mode, ch, u->id, d.death_clone, d.kind, rng, persist);
 #ifdef ALAMO_SIM_HAVE_ANIM

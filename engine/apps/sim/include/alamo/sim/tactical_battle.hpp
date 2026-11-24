@@ -40,7 +40,7 @@
 //      expiries -> PARTICLE objects (detonation particle, then the synced hit-particle pick); hardpoint
 //      destructions -> Death_Explosion_Particles (PARTICLE) + Death_Breakoff_Prop objects; deaths ->
 //      TacticalMode::destroy + movement removal, death clone object (its death plan - spin / variant
-//      draws, removal frame - schedule_death_clone), first Death_Explosions entry [port];
+//      draws, removal frame - schedule_death_clone), one Death_Explosions entry (synced pick, Z lift: #358);
 //      damaged-smoke events -> attached_effects() (render); ability events (EnginesOffline); clear_events;
 //      death clones whose planned removal frame came are destroyed, each spawning its type's Death_Explosions_End
 //      entry (#221: one synced pick when the list has more than one; also on a push kill and a remove-at-once clone,
@@ -2356,7 +2356,9 @@ private:
     // Die step 8's clone object (flags 0xc0), and the infantry corpse-path test (S9 §1.6).
     objects::ObjectHandle spawn_death_clone(TacticalMode& mode, int32_t type, Vec3 pos, Vec3 facing, int32_t owner);
     // a death's Death_Explosions object (the clone's owner; Is_Decoration -> objects::kFlagMapDecoration).
-    void spawn_death_explosion(TacticalMode& mode, int32_t type, Vec3 pos, int32_t clone_owner);
+    // #358: one entry of `list` (synced pick, none for one entry) at `pos` lifted by `object_type`'s Ranged_Target_Z_Adjust.
+    void spawn_death_explosion(TacticalMode& mode, std::span<const int32_t> list, uint32_t object_type, Vec3 pos, int32_t clone_owner,
+                               SimRng& rng);
     // #221: a death clone's deletion (0x58cf90 phase 2): one entry of its type's Death_Explosions_End, if any.
     void spawn_death_explosion_end(TacticalMode& mode, objects::ObjectHandle clone, SimRng& rng);
     mutable std::optional<uint64_t> infantry_category_;  // GameObjectCategoryType "Infantry" bit (lazy; ~0 = unknown)
