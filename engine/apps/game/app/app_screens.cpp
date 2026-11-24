@@ -171,7 +171,7 @@ void App::handle_screen_actions(const std::vector<ui::ScreenAction>& acts) {
                 const bool land = skirmish_map_is_land(s.skirmish_map);
                 if (!units.empty()) (land ? s.skirmish.ground_human : s.skirmish.units_human) = units;
                 if (!start_session(s)) {
-                    notes_.push_back("skirmish on " + s.skirmish_map + " did not start");
+                    ctl_.notes.push_back("skirmish on " + s.skirmish_map + " did not start");
                     open_main_menu();
                 }
                 break;
@@ -565,7 +565,7 @@ bool App::load_save_file(const std::string& path, const commands::CommandRecordi
     }
     if (s->loaded_with_different_data()) {  // D3: the session is marked; bugs in it are not port bugs
         std::printf("saves: %s loaded with different data (not supported)\n", path.c_str());
-        notes_.push_back("loaded with different data: " + path + " (continuing an outdated save on a newer mod version is not supported)");
+        ctl_.notes.push_back("loaded with different data: " + path + " (continuing an outdated save on a newer mod version is not supported)");
     }
     attract_.stop();  // as start_session: a real game ends the attract demo
     end_session();
@@ -960,7 +960,7 @@ void App::show_campaign_end(bool victory) {
             if (!art.image.empty()) score.image = std::string(art.image);
         }
     }
-    if (!screens_.show_campaign_score(score)) notes_.push_back("campaign score dialog missing");
+    if (!screens_.show_campaign_score(score)) ctl_.notes.push_back("campaign score dialog missing");
     {  // Music_Event_Strategic_Win / _Lose (mode 16); a lost campaign names the winner as the enemy faction, as
        // the battle end does (the _Vs_Faction row first).
         std::string winner;
@@ -985,7 +985,7 @@ void App::open_holocron(ui::InfoPage page) {
     info_.set_data_chart(holo_.chart(*g, data_, ui_.text));
     info_.set_tech_tree(holo_.tech_tree(*g, data_, ui_.hud_types, local_player(), false));
     info_.set_summary(holo_.summary(*g, data_, ui_.text, ui_.hud_types, local_player()));
-    if (!info_.show_info(page)) notes_.push_back("holocron page missing");
+    if (!info_.show_info(page)) ctl_.notes.push_back("holocron page missing");
 }
 
 // GALACTIC_DIALOGS §2.2 / §2.8: IDD_STORY_SUMMARY_DIALOG from the sim's holocron list (holocron_summary): the tab's
@@ -1008,7 +1008,7 @@ void App::open_story_summary() {
         if (sim::StorySession* story = session_->host().story()) story->mark_holocron_read(v.selected_index);
 #endif
     if (!info_.show_story_summary(v.info)) {
-        notes_.push_back("story summary dialog missing");
+        ctl_.notes.push_back("story summary dialog missing");
         return;
     }
     holocron_flash_ = false;

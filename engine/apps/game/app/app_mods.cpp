@@ -146,7 +146,7 @@ void App::launch_mod(const std::string& id) {
     std::printf("mods: relaunch:%s\n", all.c_str());
     std::string err;
     if (!game::relaunch_self(game::windows_command_line(args), &err)) {
-        notes_.push_back("mod launch failed: " + err);
+        ctl_.notes.push_back("mod launch failed: " + err);
         ui_.front.set_mod_report(id, {ui::utf8_to_utf32("Launch failed: " + err)});
         return;
     }

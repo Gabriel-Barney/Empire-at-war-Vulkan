@@ -270,7 +270,7 @@ public:
     void lua_presentation();
     // the screen, changed only through flow_.on(ScreenEvent) (screen_flow.hpp: the rule table).
     ScreenFlow flow_;
-    Screen screen() const { return flow_.screen(); }
+    Screen screen() const override { return flow_.screen(); }
     // AppProbe, the smoke script's view of the running game (app_probe.hpp, app_probe.cpp).
     bool in_battle() const override;
     bool unit_moves(objects::ObjectId id) const override;
@@ -279,6 +279,44 @@ public:
     std::vector<ProbeUnit> battle_units() const override;
     const sim::BattleStats* battle_stats() const override;
     void menu_action(const ui::MenuAction& action) override;
+    ScriptControl& control() override { return ctl_; }
+    uint64_t frames() const override { return frames_; }
+    double now_s() const override { return now_s_; }
+    const GameUi& ui() const override { return ui_; }
+    bool scroll_list_to(const std::string& dialog, const std::string& control, int32_t row) override;
+    bool set_selected_row(const std::string& dialog, const std::string& control, int32_t row) override;
+    bool menu_paused() const override { return paused_; }
+    bool choice_open() const override { return choice_open_; }
+    bool battle_end_open() const override { return battle_end_open_; }
+    bool story_summary_open() const override { return story_summary_open_; }
+    bool summary_auto_open() const override { return summary_auto_open_; }
+    bool campaign_over() const override { return campaign_over_; }
+    const ui::InfoScreens& info() const override { return info_; }
+    const ui::EncyclopediaPanel& encyclopedia() const override { return ency_; }
+    uint64_t encyclopedia_shown() const override { return ency_shown_; }
+    const std::vector<ui::GalacticScreenText>& screen_text() const override { return screen_text_; }
+    const std::vector<DisplayMode>& display_mode_list() const override { return display_modes_; }
+    uint64_t holocron_updates() const override { return holocron_updates_; }
+    size_t holocron_chapters() const override { return holocron_chapters_.size(); }
+    bool market_open() const override { return market_.open(); }
+    bool show_battle_end(const ui::BattleEndInfo& info) override { return screens_.show_battle_end(info); }
+    void quit() override { flow_.on(ScreenEvent::Quit); }
+    const std::vector<ui::HudUnit>& hud_units() const override { return hud_units_; }
+    void hud_actions(const std::vector<ui::HudAction>& acts) override { handle_hud_actions(acts); }
+    uint32_t hover_ship() const override { return hover_ship_; }
+    int32_t hover_component() const override { return routed_.hover_component; }
+    int32_t mouse_x() const override { return input_.mouse_x(); }
+    int32_t mouse_y() const override { return input_.mouse_y(); }
+    const ui::TargetingController& targeting() const override { return targeting_; }
+    const std::vector<uint32_t>& selection() const override { return orders_.selection(); }
+    void clear_selection() override { orders_.set_selection({}); }
+    void submit_command(commands::EventData ev) override { submit(std::move(ev)); }
+    const ui::BuyUnitsState& buy() const override { return buy_; }
+    const std::map<std::string, uint32_t>& bought() const override { return bought_; }
+    uint64_t refused() const override { return refused_; }
+    uint64_t reinforce_drops() const override { return reinforce_drops_; }
+    const std::vector<ui::HudWaypointLine>& waypoints() const override { return waypoints_; }
+    const std::vector<ui::HudOrderQueue>& queues() const override { return queues_; }
     ui::InputState input_;
     ui::InputRouter router_;
     ui::RoutedInput routed_;
@@ -295,12 +333,8 @@ public:
     std::vector<ScriptStep> script_;
     size_t script_step_ = 0;
     uint32_t step_frames_ = 0;
-    bool script_failed_ = false;
-    std::string shot_path_;   // set: the next rendered frame is read back into this PNG
-    bool shot_done_ = false;
-    bool hold_sim_ = false;   // presentation-only pause (screenshots settle; never changes what the sim computes)
-    bool hold_release_ = false;  // hold_sim_ ends before the NEXT script step runs (that step keeps its frame's ticks)
-    bool script_hold_ = false;  // the same for a whole stretch of script steps (step_shot leaves it alone)
+    // the script run's notes, ok / failed flags, presentation holds and screenshot request (app_probe.hpp, #154)
+    ScriptControl ctl_;
     uint32_t story_dialog_frames_ = 0;
     bool paused_ = false;     // pause menu
     // N1 / t09: saved games (save_games.hpp; the Save / Load dialogs, MenuAction SaveGame / LoadGame / DeleteSave).
@@ -341,8 +375,6 @@ public:
     ui::RenamePrompt rename_;
     FrameTimes ft_;
     Clock::time_point frame_t0_{};
-    bool smoke_ok_ = true;
-    std::vector<std::string> notes_;
     uint64_t battles_seen_ = 0;
     // the skirmish map catalog (legacy docs/re/UI.md section 9), built once when the menus are set up (null before).
     std::shared_ptr<const game::SkirmishMapCatalog> skirmish_catalog_;
@@ -475,7 +507,7 @@ public:
     int32_t ui_scale_ = 0;
     void resize_ui();  // the GUI, both HUDs and the side panels to the window size at ui_scale_
     uint64_t video_applies_ = 0;
-    bool menu_dialog_open() const;  // the in-game menu or one of its option / save / load / quit dialogs is open
+    bool menu_dialog_open() const override;  // the in-game menu or one of its option / save / load / quit dialogs is open
     uint32_t reinforce_unit_ = 0;       // reinforcement chosen on the pad, waiting for its drop point (0 = none)
     // cu9g t03 (HUD_GAPS §9.4 - §9.6): the land bombing-run targeting state (HUD +0x20b2): toggled by the b_special_weapon
     // click and the super-weapon hotkey; the world's next left click on a valid point sends command 28.
@@ -499,7 +531,7 @@ public:
     void interface_hotkey(uint16_t slot);  // QuickSave / QuickLoad / Screenshot (galactic and tactical)
     bool tactical_button(const ui::HudAction& a);  // true = handled (c_button00 / 02 / 04, b_reinforcement, beacon, ...)
     void fill_command_buttons(ui::TacticalHudFrame& hf) const;  // b_retreat / b_reinforcement / beacon / movie mode state
-    bool reinforce_available(objects::ObjectId galactic_id) const;
+    bool reinforce_available(objects::ObjectId galactic_id) const override;
     bool begin_first_reinforcement();  // R / b_reinforcement: the first callable pad entry's drop pick (toggle)
     bool cancel_picks();               // Esc: ends a reinforcement / bombing-run / beacon pick (true when one was on)
     void select_cycle(int32_t step);   // NextUnit / PreviousUnit
@@ -737,9 +769,9 @@ public:
     bool story_hides_hud() const;
     int32_t story_page_ = -1;   // ui ask 11: the GUI image page the story movie fills (the dialog portrait), -1 none
     void galactic_screens();
-    void open_holocron(ui::InfoPage page);
-    void open_story_summary();
-    void show_campaign_end(bool victory);
+    void open_holocron(ui::InfoPage page) override;
+    void open_story_summary() override;
+    void show_campaign_end(bool victory) override;
     void build_encyclopedia(ui::HudDrawList& dl, const ui::HudCanvas& canvas);
     // P4 host: the FoC galactic panels follow GameSession::special_dialog() (opened by a SpecialDialog event of the local
     // player); panel_preview_ = a presentation-only black-market preview of the smoke (no sim dialog, clicks ignored).

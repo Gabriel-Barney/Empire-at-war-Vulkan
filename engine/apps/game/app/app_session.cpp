@@ -656,7 +656,7 @@ void App::load_story_campaign(const sim::StoryLoadCampaign& lc) {
                 c->starting_active_player.c_str(), s.difficulty);
     ++story_campaign_loads_;
     if (!start_session(s)) {
-        notes_.push_back("campaign " + c->name + " (LOAD_CAMPAIGN) did not start");
+        ctl_.notes.push_back("campaign " + c->name + " (LOAD_CAMPAIGN) did not start");
         open_main_menu();
     }
 }
@@ -826,7 +826,7 @@ void App::begin_battle(bool from_save) {
     // the dialog first, the blocking BattleView::start only after it has been presented (a Fight answer or a
     // skirmish start opened it even earlier, before the tactical push's own load).
     if (ui_.load.is_open()) load_intro_frames_ = 1;
-    else if (!open_battle_load(planet, space, story_mission)) notes_.push_back("load screen dialog missing");
+    else if (!open_battle_load(planet, space, story_mission)) ctl_.notes.push_back("load screen dialog missing");
     if (ui_.load.is_open()) {
         flow_.on(ScreenEvent::BattleLoading);
         battle_view_pending_ = true;
@@ -845,7 +845,7 @@ void App::start_battle_view() {
     bview_.set_blocking_models(!script_.empty() || bench_fixed());  // BM2a: fixed frames draw every model on its first frame  // scripted runs: a new model draws on its first frame (screenshots)
     if (!bview_.start(gpu_, data_, *session_, targets_.width, targets_.height, &err)) {
         std::fprintf(stderr, "battle view: %s\n", err.c_str());
-        notes_.push_back("battle view failed: " + err);
+        ctl_.notes.push_back("battle view failed: " + err);
         if (ui_.load.is_open()) ui_.load.close();  // its progress would never fill
         if (flow_.on(ScreenEvent::LoadScreenDone)) {
             audio_.music(MusicScene::Battle, local_faction(), bview_.space(), battle_terrain());

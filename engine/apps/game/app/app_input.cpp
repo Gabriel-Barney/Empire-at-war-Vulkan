@@ -457,7 +457,7 @@ void App::post_tick() {
 }
 
 void App::step_sim() {
-    if (!session_ || hold_sim_ || script_hold_ || paused_ || battle_end_open_ || story_summary_open_) return;
+    if (!session_ || ctl_.hold_sim || ctl_.script_hold || paused_ || battle_end_open_ || story_summary_open_) return;
     // mcx4 t14 (MCX4_PRES_RE_ANSWERS_3 Q6): a Pause_Game_While_Playing movie holds the game mode while it plays.
     if ((full_movie_.playing() && full_movie_.pauses_game()) || (advisor_movie_.playing() && advisor_movie_.pauses_game())) return;
     if (load_intro_frames_ > 0) return;  // the load screen reaches the screen before the push's blocking load
@@ -761,7 +761,7 @@ void App::handle_hud_actions(const std::vector<ui::HudAction>& acts) {
                 if (row == kInvalidPlanet) break;
                 ui::PlanetInfoData d = planet_info_data(*g, row);
                 d.planet = a.unit;
-                if (!screens_.show_planet_info(d)) notes_.push_back("planet info dialog missing");
+                if (!screens_.show_planet_info(d)) ctl_.notes.push_back("planet info dialog missing");
                 break;
             }
             case ui::HudAction::Kind::BeginReinforcement:  // the drop point is the next left click in the world
@@ -1612,7 +1612,7 @@ void App::handle_menu_actions(const std::vector<ui::MenuAction>& acts) {
                 c.difficulty = a.difficulty;
                 c.game_options = game::CampaignOptionsPage::session_options(a.game_options);  // ui1 t06
                 if (!start_session(make_session_spec(c, session_options()))) {
-                    notes_.push_back("campaign " + a.campaign + " did not start");
+                    ctl_.notes.push_back("campaign " + a.campaign + " did not start");
                     open_main_menu();
                 }
                 break;

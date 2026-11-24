@@ -508,7 +508,7 @@ int App::run() {
     }
     int rc = bench_active() ? bench_finish() : 0;
     if (!script_.empty()) {
-        const bool finished = script_step_ >= script_.size() && !script_failed_;
+        const bool finished = script_step_ >= script_.size() && !ctl_.failed;
         std::printf("smoke %s: %zu / %zu steps, %" PRIu64 " frames, %" PRIu64 " battles, galactic AI orders %" PRIu64 "\n", opt_.smoke.c_str(),
                     script_step_, script_.size(), frames_, battles_seen_, session_ ? session_->galactic_ai_orders() : 0);
         if (session_)
@@ -533,7 +533,7 @@ int App::run() {
         // OI host: the camera / controls decisions hold on the tables the run used (scripts never rebind).
         for (const std::string& v : check_control_decisions(ui_.hotkeys, ui_.bindings)) {
             std::fprintf(stderr, "controls: %s\n", v.c_str());
-            smoke_ok_ = false;
+            ctl_.smoke_ok = false;
         }
         if (session_) {
             const PortEventStats& ps = session_->port_stats();
@@ -555,9 +555,9 @@ int App::run() {
                         story_ui_.raised_total(), story_ui_sent_, ps.story_ui, ps.story_ui_dropped, reward_movies_,
                         reward_speeches_);  // L1/S4 wave 1
         }
-        for (const std::string& n : notes_) std::printf("note: %s\n", n.c_str());
+        for (const std::string& n : ctl_.notes) std::printf("note: %s\n", n.c_str());
         const bool crc = finished && crc_check();
-        if (!finished || !crc || !smoke_ok_) rc = 1;
+        if (!finished || !crc || !ctl_.smoke_ok) rc = 1;
     }
     shutdown();
     const uint32_t ve = ctx_.validation_errors(), vw = ctx_.validation_warnings();
