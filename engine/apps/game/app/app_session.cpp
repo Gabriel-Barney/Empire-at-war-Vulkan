@@ -673,8 +673,11 @@ void App::session_started(const std::vector<std::string>& diag) {
     }
     apply_gameplay_options();  // the session start reset the game speed indices (legacy docs/re/MAIN_LOOP.md §1.5)
     holo_.reset();
+    // #428 (docs/re/DROID_LOG.md): retail never saves the Droid Log (a front-end global no save writer reads, cleared by
+    // 0x9da90 on the front-end screens), so each session starts with it empty. [port] A load started inside a game
+    // empties it too; retail keeps the old rows [M].
     droid_rows_.clear();
-    droid_row_colors_.clear();  // the Droid Log starts empty with each session [port: not saved]
+    droid_row_colors_.clear();
     planet_map_open_ = false;  // the planet map and its marker cache start fresh per session
     planet_map_planet_ = 0;
     planet_map_markers_.clear();
