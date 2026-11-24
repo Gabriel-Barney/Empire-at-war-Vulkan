@@ -2372,9 +2372,9 @@ private:
     // consume_events step c for one hardpoint destruction: Death_Explosion_Particles, then Death_Breakoff_Prop.
     void consume_hardpoint_event(TacticalMode& mode, const tactical::combat::HardpointEvent& e);
     // #360: the events of a combat kill made outside the tick's consumers (a garrison host's Killed occupants, #382 a script
-    // kill), consumed in
-    // consume_events' order - hardpoints (Die step 5), deaths, survivors (Die step 7) - from the marks on. A list the running
-    // consume_events has still to read (unread_) is left to it, so no event is consumed twice.
+    // kill), consumed in consume_events' order - hardpoints (Die step 5), deaths, survivors (Die step 7) - from the marks
+    // on. A list that consume_events has still to read (unread_, from the combat tick on) is left to it, so no event is
+    // consumed twice.
     struct CombatEventMarks {
         size_t hardpoints = 0, deaths = 0, survivors = 0;
     };

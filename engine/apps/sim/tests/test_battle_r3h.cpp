@@ -752,13 +752,15 @@ void test_script_kill_survivors() {
     CHECK(pilot != objects::kNone);
     objects::ObjectId victim = objects::kNoObjectId;
     Vec3 at{};
-    uint32_t kill_frame = 0, at_kill = 0, after = 0;
+    uint32_t kill_frame = 0, before = 0, at_kill = 0, after = 0;
+    bool dead = false;
+    constexpr float kNear = 60.0f;  // around the death position (the survivor spawns there)
     const auto near = [&](const objects::ObjectStore& st) {
         uint32_t n = 0;
         for (const objects::ObjectHandle h : st.all_objects()) {
             if (!st.alive(h) || st.type(h) != pilot) continue;
             const Vec3 p = st.position(h);
-            n += (p.x - at.x) * (p.x - at.x) + (p.y - at.y) * (p.y - at.y) < 60.0f * 60.0f ? 1u : 0u;
+            n += (p.x - at.x) * (p.x - at.x) + (p.y - at.y) * (p.y - at.y) < kNear * kNear ? 1u : 0u;
         }
         return n;
     };
@@ -771,15 +773,18 @@ void test_script_kill_survivors() {
             if (victim == objects::kNoObjectId) return false;
             at = st.position(st.find(victim));
             kill_frame = b.frame();
+            before = near(st);
             CHECK(b.script_damage(tm, victim, 1.0e6f, false));
+            dead = !b.combat().alive(victim);
             at_kill = near(st);
             return true;
         }
         after = near(st);
         return b.frame() < kill_frame + 3;
     });
-    std::printf("  #382 script kill: survivors at the death %u right after the kill, %u three ticks later\n", at_kill, after);
-    CHECK(victim != objects::kNoObjectId && at_kill == 1 && after == 1);
+    std::printf("  #382 script kill: survivors at the death %u before, %u right after the kill, %u three ticks later\n", before, at_kill,
+                after);
+    CHECK(victim != objects::kNoObjectId && dead && at_kill == before + 1 && after == before + 1);
 }
 
 int main() {
