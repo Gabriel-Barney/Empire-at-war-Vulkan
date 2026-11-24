@@ -171,8 +171,8 @@ void OrderTranslator::toggle_move_toggle(MoveToggle t, bool exclusive) {
         case MoveToggle::Attack: flag = &toggle_force_attack_; break;
         case MoveToggle::Move: flag = &toggle_force_move_; break;
     }
-    if (!flag) return;
-    const bool on = !*flag;
+    if (!flag) return;  // an out-of-range value
+    const bool on = !*flag;  // a Waypoint toggle left on makes every later move a waypoint, until flipped off
     if (on && exclusive) toggle_attack_ = toggle_guard_ = toggle_waypoint_ = toggle_force_attack_ = toggle_force_move_ = false;
     *flag = on;
 }
@@ -225,7 +225,7 @@ void OrderTranslator::right_release(const InputState& in, const OrderContext& ct
     if (hit) {
         waypoint_mode_ = false;  // any other order ends an Alt run
         const bool attack = is_hostile(ctx, hit->id);
-        if (!attack) toggle_guard_ = false;  // #430: an object move clears GuardMove (Attack / Move are off here)
+        if (!attack) toggle_guard_ = false;  // [port] an object move clears GuardMove, as a ground move does (not traced)
         if (attack) {
             commands::EventData e = ev::attack(hit->id, sel_);
             e.set("flag1", in.ctrl() ? 1u : 0u);  // +0x51 Ctrl (spec §3.4)
@@ -240,7 +240,9 @@ void OrderTranslator::right_release(const InputState& in, const OrderContext& ct
 
 // Double click of the order button (action 14, spec §1.3): acts at the press point; tactical modes only.
 void OrderTranslator::right_double(const InputState& in, const OrderContext& ctx) {
-    const auto hit = pick_world(ctx.trees->all(), ctx.view, pixel_ray(ctx.view, in.mouse_x(), in.mouse_y()), ctx.pick_filter, qctx_, ctx.pick_tests);
+    const auto hit = toggle_force_move_ ? std::nullopt  // the Move toggle - a ground move whatever is under the cursor
+                                        : pick_world(ctx.trees->all(), ctx.view, pixel_ray(ctx.view, in.mouse_x(), in.mouse_y()),
+                                                     ctx.pick_filter, qctx_, ctx.pick_tests);
     if (!hit && toggle_force_attack_) return;  // #430: Attack armed - no ground order
     if (hit) {
         if (!is_hostile(ctx, hit->id)) return;  // a double click on a friendly object adds nothing

@@ -879,8 +879,8 @@ void App::handle_hud_actions(const std::vector<ui::HudAction>& acts) {
                     break;
                 }
                 if (tactical_button(a)) break;  // c_button00 / 02 / 04, b_reinforcement, beacon, movie mode, droid
-                // legacy docs/re/P1_DOUBLE_CLICK_MOVE.md §2.1: the attack-move / waypoint / guard order buttons (c_button01 / 03 / 05) arm the
-                // one-shot move toggles of the next move order.
+                // #430 (docs/re/TACTICAL_HOTKEYS.md): the attack-move / waypoint / guard order buttons (c_button01 / 03 / 05) flip their
+                // toggles (fc3 / fc4 / fc0).
                 if (screen() == Screen::Battle && (ascii_iequals(a.name, "c_button01") || ascii_iequals(a.name, "c_button03") || ascii_iequals(a.name, "c_button05"))) {
                     orders_.toggle_move_toggle(ascii_iequals(a.name, "c_button01")   ? ui::MoveToggle::AttackMove
                                             : ascii_iequals(a.name, "c_button03") ? ui::MoveToggle::Waypoint

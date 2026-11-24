@@ -1376,6 +1376,21 @@ void test_double_click_move() {
     s.key(vk::kControl, false);
     o = run(land, mark);
     CHECK(o.size() == 1 && o[0].event.u("flag1") == 1 && o[0].event.u("flag0") == 0);
+    // #430: with Attack armed a right click on the hostile attacks it and the toggle stays; with Move armed a click on it is a
+    // ground move (the object is ignored) and the move clears the toggle.
+    ot.toggle_move_toggle(MoveToggle::Attack, true);
+    pause();
+    mark = s.frames.size();
+    s.click(Button::Right, hx, hy);
+    o = run(land, mark);
+    CHECK(o.size() == 1 && o[0].event.type() == T::Attack && ot.move_toggle_armed(MoveToggle::Attack));
+    ot.toggle_move_toggle(MoveToggle::Move, true);
+    CHECK(ot.move_toggle_armed(MoveToggle::Move) && !ot.move_toggle_armed(MoveToggle::Attack));
+    pause();
+    mark = s.frames.size();
+    s.click(Button::Right, hx, hy);
+    o = run(land, mark);
+    CHECK(o.size() == 1 && o[0].event.type() == T::MoveToPosition && !ot.move_toggle_armed(MoveToggle::Move));
 
     // 9. double click on the friendly 11: only the first click's MoveToObject
     w.screen({150, -150, 0}, ux, uy);
