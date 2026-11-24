@@ -63,6 +63,14 @@ static void test_save_file() {
     CHECK(g && g->version == 3 && g->data == a.bytes());
     CHECK(back.find("story") && back.find("story")->data.empty());
     CHECK(!back.find("ai.state"));
+    {  // #149: replace keeps the chunk order, sets data and version; a missing chunk is refused
+        alamo::SaveFile r = back;
+        alamo::ByteWriter nw;
+        nw.u32(7).u8(1);
+        CHECK(r.replace("galactic.state", 4, nw) && !r.replace("ai.state", 1, nw));
+        CHECK(r.chunks().size() == 2 && r.chunks()[0].name == "galactic.state" && r.chunks()[0].version == 4 &&
+              r.chunks()[0].data == nw.bytes() && r.chunks()[1].name == "story");
+    }
 
     // Every single-byte corruption and every truncation is caught; `out` stays unchanged.
     for (size_t i = 0; i < bytes.size(); ++i) {

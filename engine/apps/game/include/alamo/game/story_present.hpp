@@ -229,6 +229,21 @@ public:
     void unlock_controls() { controls_locked_ = false; }
     uint32_t next_hint_index(uint8_t mode) const { return mode < 3 ? hint_index_[mode] : 0; }
     void begin_mode(uint8_t mode);  // the mode started: the first hint is due config().first_hint_tick ticks later
+    // #149: the advisor-hint clock, kept here so a save carries it (presenter save v3) and a load continues the hint
+    // schedule instead of starting each mode again: the mode last stepped (255 none) and its tick, and the galactic mode's
+    // seconds on the map and whether it began.
+    struct AdvisorClock {
+        uint8_t mode = 255;
+        uint32_t last_tick = 0;
+        double galactic_seconds = 0.0;
+        bool galactic_started = false;
+    };
+    const AdvisorClock& advisor_clock() const { return advisor_clock_; }
+    // One host frame of the local human's mode (0 galactic, 1 space, 2 land, 255 none): returns the mode's tick for
+    // tick_advisor. A battle's tick is its frame (`battle_tick`); its mode begins (begin_mode) when the mode changes or the
+    // frame goes back (a new battle). The galactic mode begins once per campaign and counts the seconds spent on the map
+    // [port: retail's galactic tick]; #149: not while the session is paused, so a paused save / load / save is identical.
+    uint32_t advisor_step(uint8_t mode, uint32_t battle_tick, double dt_seconds, bool paused);
 
     // ---- state the host draws / obeys ----
     const std::vector<StoryTextLine>& lines(double now) const;  // not expired
@@ -277,7 +292,8 @@ public:
 
     // the presenter's own save, carried in GameSession's "game" chunk (v2). Everything the queries above return is
     // written (the hooks, colours and config are set up from the game data again and are not). Host times are written relative
-    // to `now` and read back relative to the loading host's `now`. read() rejects a wrong version or a short / corrupt blob
+    // to `now` and read back relative to the loading host's `now`; a time nothing reads (the start of a hint that is not
+    // shown) is written as 0, so an idle presenter's save / load / save is byte-identical at any clocks (#149). read() rejects a wrong version or a short / corrupt blob
     // and then leaves the presenter as it was.
     void write(ByteWriter& w, double now) const;
     bool read(ByteReader& r, double now);
@@ -321,6 +337,7 @@ private:
     std::array<bool, 3> advisor_{true, true, true};  // [port] default on: the retail default was not read
     std::array<uint32_t, 3> next_hint_{90, 90, 90};
     std::array<uint32_t, 3> hint_index_{0, 0, 0};
+    AdvisorClock advisor_clock_;  // #149: saved (presenter save v3)
     std::set<std::string> retreat_off_, hologram_;  // upper case
     std::set<std::string> slots_;                    // "PLANET|SLOT" upper case
     mutable std::vector<StoryTextLine> live_;

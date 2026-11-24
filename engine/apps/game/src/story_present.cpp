@@ -481,6 +481,28 @@ void StoryPresenter::begin_mode(uint8_t mode) {
     next_hint_[mode] = config_.first_hint_tick;  // 6.5: only the next-tick field is set; the hint index runs on across modes / battles
 }
 
+uint32_t StoryPresenter::advisor_step(uint8_t mode, uint32_t battle_tick, double dt_seconds, bool paused) {
+    AdvisorClock& c = advisor_clock_;
+    if (mode >= 3) {
+        c.mode = 255;
+        return 0;
+    }
+    uint32_t tick = battle_tick;
+    if (mode == 0) {
+        if (!paused && dt_seconds > 0.0) c.galactic_seconds += dt_seconds;
+        tick = static_cast<uint32_t>(c.galactic_seconds * static_cast<double>(kTicksPerSecond));
+        if (!c.galactic_started) {
+            c.galactic_started = true;
+            begin_mode(0);
+        }
+    } else if (mode != c.mode || tick < c.last_tick) {  // a new battle: the first hint is due first_hint_tick ticks in
+        begin_mode(mode);
+    }
+    c.mode = mode;
+    c.last_tick = tick;
+    return tick;
+}
+
 bool StoryPresenter::tick_advisor(uint8_t mode, uint32_t tick, const std::vector<std::string>& hints) {
     if (mode >= 3 || !advisor_[mode] || tick < next_hint_[mode]) return false;
     next_hint_[mode] = tick + static_cast<uint32_t>(static_cast<double>(kTicksPerSecond) * config_.advisor_hint_interval + 0.5);
@@ -524,7 +546,7 @@ std::vector<std::string> StoryPresenter::take_forced_clicks() { return std::exch
 // ---- save / read ----
 namespace {
 
-constexpr uint32_t kPresenterSaveVersion = 2;  // 2: + the DUAL_FLASH state at the end; 1 still reads
+constexpr uint32_t kPresenterSaveVersion = 3;  // 3: + the advisor clock (#149); 2: + the DUAL_FLASH state; 1 and 2 still read
 
 void put_u32s(ByteWriter& w, std::u32string_view s) {
     w.u32(static_cast<uint32_t>(s.size()));
@@ -617,7 +639,7 @@ void StoryPresenter::write(ByteWriter& w, double now) const {
     put_list(w, hint_queue_, put_hint);
     w.boolean(hint_shown_).boolean(hint_started_);
     put_hint(shown_.hint);
-    w.f64(shown_.start - now).f64(shown_.seconds);
+    w.f64(hint_shown_ ? shown_.start - now : 0.0).f64(shown_.seconds);  // #149: no hint shown, no clock in the bytes
     w.boolean(controls_locked_).boolean(scroll_locked_).boolean(planet_selection_locked_).boolean(objectives_shown_);
     w.i32(command_bar_hide_).u32(text_hint_sounds_);
     w.boolean(objective_event_.has_value()).boolean(objective_event_.value_or(false));
@@ -630,6 +652,7 @@ void StoryPresenter::write(ByteWriter& w, double now) const {
     w.u64(handled_);
     w.boolean(dual_.armed).f64(dual_.time).f64(dual_.rate);  // v2
     put_list(w, dual_.held, [&](const DualHeld& d) { w.boolean(d.planet).str(d.target); });
+    w.u8(advisor_clock_.mode).u32(advisor_clock_.last_tick).f64(advisor_clock_.galactic_seconds).boolean(advisor_clock_.galactic_started);  // v3
 }
 
 bool StoryPresenter::read(ByteReader& r, double now) {
@@ -757,6 +780,14 @@ bool StoryPresenter::read(ByteReader& r, double now) {
                 return d;
             }))
             return false;
+    }
+    if (version >= 3) {  // #149; older saves: the clock starts afresh (each mode begins again, as before)
+        t.advisor_clock_.mode = r.u8();
+        t.advisor_clock_.last_tick = r.u32();
+        t.advisor_clock_.galactic_seconds = r.f64();
+        t.advisor_clock_.galactic_started = r.boolean();
+        const AdvisorClock& c = t.advisor_clock_;
+        if ((c.mode >= 3 && c.mode != 255) || !std::isfinite(c.galactic_seconds) || c.galactic_seconds < 0.0) return false;
     }
     if (!r.ok()) return false;
     t.hooks_ = std::move(hooks_);

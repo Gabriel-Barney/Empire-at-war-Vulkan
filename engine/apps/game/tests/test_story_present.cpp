@@ -506,6 +506,39 @@ void save_test() {
     CHECK(w2.bytes() == w.bytes());
     same_presenter(a, 20.0, b, 520.0);
 
+    alamo::test::section("#149: an idle presenter's save / load / save is byte-identical at any clocks; the advisor clock is saved");
+    {
+        game::StoryPresenter idle = make();
+        CHECK(idle.advisor_step(0, 0, 152.25 + 1.0 / 3.0, false) == 4577 && idle.advisor_step(0, 0, 9.0, true) == 4577);  // paused: no time
+        CHECK(idle.advisor_step(2, 300, 0.1, false) == 300 && idle.advisor_step(255, 0, 0.1, false) == 0);
+        CHECK(idle.advisor_step(0, 0, 0.0, false) == 4577 && idle.advisor_clock().galactic_started);
+        idle.on_reward("LOCK_CONTROLS", P{"1"}, 0.0, 0);  // a lasting state, no timed text
+        ByteWriter i1;
+        idle.write(i1, 1234.567891);
+        game::StoryPresenter back = make();
+        ByteReader ir(i1.bytes());
+        CHECK(back.read(ir, 98765.4321987) && ir.done());
+        ByteWriter i2;
+        back.write(i2, 98765.4321987 + 17.125);  // later: nothing in the bytes depends on the clock
+        CHECK(i2.bytes() == i1.bytes());
+        const game::StoryPresenter::AdvisorClock& c = back.advisor_clock();
+        CHECK(c.mode == 0 && c.last_tick == 4577 && c.galactic_seconds == 152.25 + 1.0 / 3.0 && c.galactic_started);
+        // a bad clock (mode 7) is refused and changes nothing
+        std::vector<uint8_t> bad = i1.bytes();
+        bad[bad.size() - 14] = 7;
+        game::StoryPresenter keep = make();
+        ByteReader br(bad);
+        CHECK(!keep.read(br, 0.0) && keep.advisor_clock().mode == 255);
+        // a v2 blob (no clock at the end): reads, the clock starts afresh
+        std::vector<uint8_t> v2 = i1.bytes();
+        v2.resize(v2.size() - (1 + 4 + 8 + 1));
+        v2[0] = 2;
+        game::StoryPresenter old = make();
+        ByteReader vr(v2);
+        CHECK(old.read(vr, 5.0) && vr.done() && old.controls_locked() && old.advisor_clock().mode == 255 &&
+              !old.advisor_clock().galactic_started && old.advisor_clock().galactic_seconds == 0.0);
+    }
+
     alamo::test::section("ref4 t01: a bad blob is refused and changes nothing");
     game::StoryPresenter c = make();
     c.on_reward("LOCK_CONTROLS", P{"1"}, 0.0, 0);
@@ -577,9 +610,9 @@ void handler_test() {
         z.on_reward("DUAL_FLASH", P{}, 0.0, 0);
         z.on_reward("FLASH_GUI", P{"b_zoom"}, 0.0, 0);
         CHECK(z.component_flashing("b_zoom", 0.1));
-        ByteWriter zw;  // a v1 blob (no DUAL_FLASH tail: bool, f64, f64, u32 count) still reads
+        ByteWriter zw;  // a v1 blob (no DUAL_FLASH tail: bool, f64, f64, u32 count; no v3 clock: u8, u32, f64, bool) still reads
         z.write(zw, 0.0);
-        std::vector<uint8_t> v1(zw.bytes().begin(), zw.bytes().end() - 21);
+        std::vector<uint8_t> v1(zw.bytes().begin(), zw.bytes().end() - 21 - 14);
         v1[0] = 1;
         game::StoryPresenter zr = make();
         ByteReader zrr(v1);

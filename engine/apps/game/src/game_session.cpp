@@ -1418,6 +1418,14 @@ bool GameSession::save(SaveFile& out, const SaveMeta& meta, std::string* err) {
     out = std::move(*save_cache_);
     save_cache_.reset();
     save_checked_ = false;  // handed out: a second save at this frame saves again
+    // #149: the cached file holds this session's chunk as of the check (the save dialog checks when it opens). The session
+    // does not tick behind the dialog, but the host's presentation state (the App's StoryPresenter) runs on wall time, so
+    // the chunk is written again at the click: a line or flash that ended behind the dialog does not come back after a load.
+    if (const SaveChunk* g = out.find("game")) {
+        ByteWriter w;
+        write_game_state(w);
+        out.replace("game", g->version, w);
+    }
     out.description = encode_description(meta);
     return true;
 }
