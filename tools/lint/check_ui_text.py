@@ -52,7 +52,7 @@ NOT_TEXT = [
 # The code just before a '(' that opens an allowed call: a lookup, port_text, or a log line (#308: per call, not per
 # statement).
 ALLOWED_CALL = re.compile(r'(?:\b(?:text_or|text_or_port|txt|caption_text|port_text)|\b(?:f?printf|log::\w+|LOG_\w+)'
-                          r'|\bnotes?_?\.push_back)\s*$')  # diagnostics notes (notes_ or ScriptControl::notes)
+                          r'|\b(?:notes?_|ctl_\.notes|control\(\)\.notes)\.push_back)\s*$')  # diagnostics notes (App::ctl_ / AppProbe::control())
 KEY_LITERAL = re.compile(r'TEXT_[A-Z0-9_]+')  # a key literal's content: the English beside it is its stand-in
 RAW_OPEN = re.compile(r'(?:u8|u|U|L)?R"([^()\\ \t\n]{0,16})\(')  # as check_mod_names.tokenize
 

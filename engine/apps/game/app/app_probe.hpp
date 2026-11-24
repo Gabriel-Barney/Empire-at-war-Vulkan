@@ -75,7 +75,7 @@ public:
     // ---- screen and dialogs ----
     virtual Screen screen() const = 0;
     virtual const alamo::game::GameUi& ui() const = 0;  // the dialogs, HUDs, text and the HUD type table as drawn
-    // Scrolls list `control` of the open dialog `dialog` so row `row` is visible (false: no such dialog / list).
+    // Scrolls list `control` of the open dialog `dialog` so row `row` is visible (false: no such dialog).
     virtual bool scroll_list_to(const std::string& dialog, const std::string& control, int32_t row) = 0;
     // Sets the selected row of list / combo `control` of the open dialog `dialog` (no click; false: no such control).
     virtual bool set_selected_row(const std::string& dialog, const std::string& control, int32_t row) = 0;
