@@ -71,11 +71,14 @@ bool read_pause_event(const commands::EventData& e, bool& pause);
 namespace move_flag {
 inline constexpr uint8_t kAttackMove = 0x01, kGuardMove = 0x02, kPlayerOrder = 0x04, kWaypoint = 0x08, kDoubleClick = 0x80;
 }
-// One-shot HUD toggles (attack-move / guard / waypoint buttons): armed until the next move order is sent.
-// ui3 t01 [port] (the 0x140b29fc1 / fc2 toggles of legacy docs/re/P1_DOUBLE_CLICK_MOVE.md §2.1 are not traced): Attack (c_button00, the
-// Attack hotkey) - the next right click on any object that is not the local player's attacks it, on the ground it is an
-// attack-move; Move (c_button02, the Move hotkey) - the next right click is a plain ground move at the cursor even over an
-// object (no attack, no move-to-object). Both clear with the next order, as the other toggles.
+// The order toggles, the bytes 0x140b29fc0..fc4 (#430, docs/re/TACTICAL_HOTKEYS.md [H]): GuardMove fc0, Attack fc1, Move fc2,
+// AttackMove fc3, Waypoint fc4. The keys (slots 14 / 15 / 17 / 18 / 23) and the c_button01 / 03 / 05 buttons flip one; the
+// c_button00 (Attack) / c_button02 (Move) buttons flip theirs and, when arming, clear the other four.
+// - Attack armed: a right click on a hostile object attacks it and the toggle stays; anything else gives no order.
+// - Move armed: a right click is a plain ground move at the cursor even over an object.
+// - A ground move (0x3b360) or an object move clears GuardMove, Attack and Move; AttackMove and Waypoint stay armed until
+//   flipped off. An attack order (0x3c220) clears nothing.
+// - A left click on nothing with Attack (else Move) armed clears that toggle instead of the selection.
 enum class MoveToggle : uint8_t { AttackMove, GuardMove, Waypoint, Attack, Move };
 
 // Move acknowledgement (spec §2.3, `0x418b0`), one per ground move order the translator emits; the host spawns it.
@@ -157,7 +160,8 @@ public:
     }
     // Acknowledgements of this frame's move orders, in order (cleared by the call).
     std::vector<MoveAck> take_move_acks() { return std::exchange(acks_, {}); }
-    void arm_move_toggle(MoveToggle t);
+    // Flips a toggle; `exclusive` (the c_button00 / 02 rule) clears the other four when it arms.
+    void toggle_move_toggle(MoveToggle t, bool exclusive = false);
     // IDC_ALTERNATE_MOUSE_CONTROLS (P1_DOUBLE_CLICK_MOVE §1.2, ground orders on the left button). Tactical only
     // [port: the alternate table's actions 0..8 are not recovered]: a left click on an own selectable object selects as
     // in the default scheme (shift toggle, double click = same type); any other left click with a selection is the
