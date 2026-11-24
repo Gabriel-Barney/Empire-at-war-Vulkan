@@ -384,6 +384,115 @@ void test_unit_died_presentation() {
     CHECK(died_events > 1 && died_events == deaths);
 }
 
+// #359: the trooper's Damage_Normal clone. `primary`: HIDE_WHEN_FOGGED in the clone's generic set keeps the primary path
+// (a clone object); without it the infantry corpse path makes none (death_clone_corpse_path).
+bool g_clone_primary = true;
+std::string clone_patch(std::string t) {
+    const std::string at = "<GroundInfantry Name=\"S10_Trooper\">";
+    if (const size_t p = t.find(at); p != std::string::npos) t.insert(p + at.size(), "<Death_Clone>Damage_Normal, S10_Trooper_Clone</Death_Clone>");
+    const size_t end = t.find("</S10>");
+    if (end != std::string::npos)
+        t.insert(end, std::string(" <GroundInfantry Name=\"S10_Trooper_Clone\"><Death_Persistence_Duration>5</Death_Persistence_Duration>") +
+                          (g_clone_primary ? "<Behavior>HIDE_WHEN_FOGGED</Behavior>" : "") + "</GroundInfantry>\n");
+    return t;
+}
+
+// #359 (gap 14; legacy S9_DEATH_CLONE_SHIELDS §1.6 [H], 0x29f270 -> 0x395590 -> 0x3a92f0): a trooper dies (script kill, processed at
+// once) while its row runs Move variant 1 looped at half speed from frame 7; its clone's row starts on that slot - no idle clip, no
+// synced start-frame draw. The clone model has no Die clip, so its death plays nothing over the copied slot.
+void test_clone_copies_slot() {
+#ifdef ALAMO_SIM_HAVE_ANIM
+    g_temp_prefix = "alamo_sim_r3h_tests_359_slot";
+    g_clone_primary = true;
+    g_types_patch = clone_patch;
+    auto d = make_data();
+    g_types_patch = nullptr;
+    const objects::TypeIndex trooper = d->types.resolve_name("S10_Trooper"), clone_t = d->types.resolve_name("S10_Trooper_Clone");
+    CHECK(clone_t != objects::kNone);
+    const auto model = synth_model("R3H_TROOPER", {{anim::kAnimIdle, 30u}, {anim::kAnimMove, 20u}, {anim::kAnimMove, 24u}, {anim::kAnimDie, 40u}});
+    const auto clone_model = synth_model("R3H_CLONE", {{anim::kAnimIdle, 30u}, {anim::kAnimMove, 20u}, {anim::kAnimMove, 24u}});
+    SimAnimation animation(d->types, *d->files);
+    animation.set_model(trooper, objects::ModeKind::Land, model.get());
+    animation.set_model(clone_t, objects::ModeKind::Land, clone_model.get());
+    objects::ObjectId victim = objects::kNoObjectId, clone = objects::kNoObjectId;
+    anim::SlotView at_death, first;
+    land_battle(*d, &animation, 900, [&](TacticalBattle& b, TacticalMode& tm, SimHost&) {
+        objects::ObjectStore& st = tm.primary();
+        anim::AnimWorld* w = animation.find_world(tm) ? &animation.world(tm) : nullptr;
+        if (victim == objects::kNoObjectId) {
+            if (b.frame() < 30 || !w) return true;
+            for (const objects::ObjectHandle h : st.all_objects())
+                if (victim == objects::kNoObjectId && st.alive(h) && st.type(h) == trooper && w->contains(st.id(h))) victim = st.id(h);
+            if (victim == objects::kNoObjectId) return false;
+            anim::PlayRequest req;
+            req.type = anim::kAnimMove;
+            req.index = 1;
+            req.loop = true;
+            req.speed = 0.5f;
+            req.start_frame = 7.0f;
+            CHECK(w->play(victim, req, nullptr, b.frame()) == anim::PlayResult::Played);
+            at_death = w->slot(victim);
+            CHECK(b.script_damage(tm, victim, 1.0e6f, false));
+            return true;
+        }
+        for (const objects::ObjectHandle h : st.all_objects())
+            if (st.alive(h) && st.type(h) == clone_t) clone = st.id(h);
+        if (clone == objects::kNoObjectId || !w || !w->contains(clone)) return b.frame() < 200;
+        first = w->slot(clone);
+        return false;
+    });
+    std::printf("  #359 clone slot: dying Move %d v%u frame %.2f speed %.2f; clone type %d v%u frame %.2f speed %.2f mode %d\n", at_death.type,
+                at_death.variant, static_cast<double>(at_death.frame), static_cast<double>(at_death.speed), first.type, first.variant,
+                static_cast<double>(first.frame), static_cast<double>(first.speed), static_cast<int>(first.mode));
+    CHECK(clone != objects::kNoObjectId);
+    CHECK(first.type == anim::kAnimMove && first.variant == 1 && first.mode == anim::SlotMode::Loop && first.speed == 0.5f);
+    CHECK(first.frame >= 7.0f && first.frame <= 8.0f);  // the copied frame, advanced at most two half-speed frames
+#else
+    std::printf("  #359 clone slot: skipped (no engine/anim)\n");
+#endif
+}
+
+// #359 (gap 20, [port] as "with a Death_Clone the original plays no death clip"): a trooper whose clone takes the infantry corpse path
+// and has no animated model leaves nothing behind - no death clip, no corpse of its own type.
+void test_corpse_path_no_model() {
+#ifdef ALAMO_SIM_HAVE_ANIM
+    g_temp_prefix = "alamo_sim_r3h_tests_359_corpse";
+    g_clone_primary = false;
+    g_types_patch = clone_patch;
+    auto d = make_data();
+    g_types_patch = nullptr;
+    g_clone_primary = true;
+    const objects::TypeIndex trooper = d->types.resolve_name("S10_Trooper");
+    const auto model = synth_model("R3H_TROOPER", {{anim::kAnimIdle, 30u}, {anim::kAnimMove, 20u}, {anim::kAnimDie, 40u}});
+    SimAnimation animation(d->types, *d->files);
+    animation.set_model(trooper, objects::ModeKind::Land, model.get());
+    objects::ObjectId victim = objects::kNoObjectId;
+    bool corpse = false, row = false, died_on_row = false;
+    uint32_t killed = 0;
+    land_battle(*d, &animation, 900, [&](TacticalBattle& b, TacticalMode& tm, SimHost&) {
+        objects::ObjectStore& st = tm.primary();
+        const anim::AnimWorld* w = animation.find_world(tm);
+        const anim::AnimBehaviors* beh = animation.find_behaviors(tm);
+        if (victim == objects::kNoObjectId) {
+            if (b.frame() < 30 || !w) return true;
+            for (const objects::ObjectHandle h : st.all_objects())
+                if (victim == objects::kNoObjectId && st.alive(h) && st.type(h) == trooper && w->contains(st.id(h))) victim = st.id(h);
+            if (victim == objects::kNoObjectId) return false;
+            CHECK(b.script_damage(tm, victim, 1.0e6f, false));
+            killed = b.frame();
+        }
+        corpse = corpse || (beh && beh->corpse(victim) != nullptr);
+        row = row || (w && w->contains(victim));
+        died_on_row = died_on_row || (w && w->contains(victim) && w->current_type(victim) == anim::kAnimDie);
+        return b.frame() < killed + 60;
+    });
+    std::printf("  #359 corpse path without a clone model: corpse %d, row %d, death clip %d\n", corpse ? 1 : 0, row ? 1 : 0, died_on_row ? 1 : 0);
+    CHECK(victim != objects::kNoObjectId && !corpse && !row && !died_on_row);
+#else
+    std::printf("  #359 corpse path: skipped (no engine/anim)\n");
+#endif
+}
+
 int main() {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
     std::printf("r3h t01: Force_Sight clips on the battle's animation world\n");
@@ -393,6 +502,8 @@ int main() {
     test_force_sight_no_end();
     test_pad_sell_start();  // tru3 t06
     test_unit_died_presentation();  // #327 t06
+    test_clone_copies_slot();       // #359
+    test_corpse_path_no_model();    // #359
     if (g_fail) {
         std::printf("alamo_sim_r3h_tests: %d failure(s)\n", g_fail);
         return 1;

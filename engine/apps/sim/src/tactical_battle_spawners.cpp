@@ -317,7 +317,7 @@ void TacticalBattle::sp_debris_expire(TacticalMode& mode, SimRng& rng, const Deb
         const int32_t neutral = galaxy_ ? galaxy_->neutral_player() : -1;  // the clone's owner
         spawn_death_explosion(mode, static_cast<int32_t>(ex), at, neutral >= 0 ? neutral : owner);
     }
-    if (ch) schedule_death_clone(mode, ch, static_cast<int32_t>(t), 1, rng);
+    if (ch) schedule_death_clone(mode, ch, d.id, static_cast<int32_t>(t), 1, rng);
 }
 
 void TacticalBattle::sp_activate(const TacticalMode& mode, SimRng& rng, size_t index) {

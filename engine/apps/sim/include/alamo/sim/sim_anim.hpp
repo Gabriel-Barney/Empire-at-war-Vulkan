@@ -103,8 +103,9 @@ public:
     void detach(SimHost& host);
     // N1 save chunk "anim" (owner: n2-host): u32 version 3, u32 mode depth, then per mode bottom -> top: bool has-world;
     // if so a section with AnimBehaviors::write, a section with AnimWorld::write (primary world), i32 max_seen, the
-    // pending death clones (u32 count; per clone i32 id, u8 kind, bool planned, bool spin, i32 type, u32 variant; version 2:
-    // the id list then the kinds, unplanned), the event-row ids, the muzzles (id, hardpoint, bone, until). read() validates every mode
+    // pending death clones (u32 count; per clone i32 id, u8 kind, bool planned, bool spin, i32 type, u32 variant, then #359
+    // bool copied, i32 slot type, u32 slot variant, bool slot loop, f32 slot frame, f32 slot speed; version 3: without the
+    // slot (not copied); version 2: the id list then the kinds, unplanned), the event-row ids, the muzzles (id, hardpoint, bone, until). read() validates every mode
     // on scratch copies, then reads the live worlds in place (battle hooks / script bridges hold pointers to them): rows
     // come back with the host's model choice (the store object's type, else the corpse's), nothing is re-created at
     // the next sync (max_seen restored) and no RNG is drawn. Not saved: the secondary (cosmetic) worlds - re-created at
@@ -143,7 +144,11 @@ public:
     // A Death_Clone object was spawned: its death sequence runs after its model creation at the next sync.
     // `damage_kind` = the killing hit's kind (the death clip when the clone type sets no Specific_Death_Anim_*).
     // `plan`: the battle's plan_clone_death result - played as planned, no draws; null = drawn at the sync.
-    void death_clone_spawned(const GameMode& mode, ObjectId clone, uint8_t damage_kind = 1, const anim::DeathPlan* plan = nullptr);
+    // #359 (legacy S9_DEATH_CLONE_SHIELDS §1.6 [H], 0x29f270 -> 0x395590 -> 0x3a92f0): `dying` (its row still present) - the
+    // clone's row starts on the dying row's primary slot (type, variant, frame, speed, loop) instead of the model-created
+    // idle and its synced start-frame draw ([port] no draw); no row / kNoObjectId: the usual creation.
+    void death_clone_spawned(const GameMode& mode, ObjectId clone, uint8_t damage_kind = 1, const anim::DeathPlan* plan = nullptr,
+                             ObjectId dying = objects::kNoObjectId);
     // anim::plan_death for a clone of `type` in `mode` (the type's DeathBehavior fields, the model model_for
     // gives: the same clip data the clone's row plays). Draws on `rng` like the death would. Usable without attach().
     // mcx4 tac2 (MCX4_T10_RE_ANSWERS §16 / §18, 0x29f270 [H]): `persistence_override` (null: none) replaces the type's
@@ -231,6 +236,12 @@ private:
             uint8_t kind = 1;      // the killing damage kind
             bool planned = false;  // `plan` holds the battle's spin / type / variant
             anim::DeathPlan plan;
+            bool copied = false;   // #359: the dying row's primary slot below starts the clone's row
+            int32_t slot_type = anim::kNoAnimType;
+            uint32_t slot_variant = 0;
+            bool slot_loop = false;
+            float slot_frame = 0.0f;
+            float slot_speed = 1.0f;
         };
         std::vector<PendingClone> pending_clones;  // request order
         ObjectId max_seen = INT32_MIN;               // highest store id considered for model creation
