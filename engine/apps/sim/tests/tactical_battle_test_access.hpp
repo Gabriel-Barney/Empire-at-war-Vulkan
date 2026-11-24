@@ -48,6 +48,8 @@ struct TacticalBattleTestAccess {
         return static_cast<int>(b.land_attack_order(mode, ids, target, tp, flags, false, rng, guard));
     }
     static tactical::Aabb map_extents(const TacticalBattle& b, const TacticalMode& mode) { return b.map_extents(mode); }
+    // #156: the land terrain box map_extents caches at setup (nullopt: no terrain grid).
+    static std::optional<tactical::Aabb> land_terrain_box(const terrain::Terrain& t) { return TacticalBattle::land_terrain_box(t); }
     // attack_target_unseen for battle unit `viewer` (false, false when it is not one).
     static void target_unseen(TacticalBattle& b, const objects::ObjectStore& st, objects::ObjectId viewer, objects::ObjectId target,
                               bool& hidden, bool& stealthed) {

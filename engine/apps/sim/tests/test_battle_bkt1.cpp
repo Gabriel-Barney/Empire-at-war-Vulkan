@@ -16,7 +16,9 @@
 //   * the land guard follow (t02): R = min(half the lead's range, Land_Guard_Range 150) (lead range 400: a 170 move
 //     re-paths, 130 does not); a guarded object hidden after arrival: d >= 40 plans toward its last-observed point,
 //     then d < 40 turns the guard into a position guard (the follow ends);
-//   * a third-party unit on land idles (t07): the stand-in orders drive the attacker and the defender only.
+//   * a third-party unit on land idles (t07): the stand-in orders drive the attacker and the defender only;
+//   * #156: the land terrain box map_extents returns is computed once at setup (TacticalBattle::land_terrain_box) and
+//     equals the per-call scan it replaced, on the staging map and on hand-made terrains.
 #include "test_battles_ai_common.hpp"
 
 #include <cstring>
@@ -25,6 +27,49 @@
 namespace {
 
 using TA = alamo::sim::TacticalBattleTestAccess;
+
+// #156: map_extents' land box as it was computed on every call before the cache (the oracle): x / y = [0, W x 20] x
+// [0, H x 20], z = [zmin, zmax] over every vertex height, both started at 0.
+tactical::Aabb scanned_terrain_box(const terrain::Terrain& t) {
+    float zmin = 0.0f, zmax = 0.0f;
+    for (const int16_t h : t.heights) {
+        const float z = static_cast<float>(h) * terrain::kHeightScale;
+        zmin = std::min(zmin, z);
+        zmax = std::max(zmax, z);
+    }
+    return {{0.0f, 0.0f, zmin},
+            {static_cast<float>(t.width) * terrain::kVertexSpacing, static_cast<float>(t.height) * terrain::kVertexSpacing, zmax}};
+}
+
+bool same_box(const tactical::Aabb& a, const tactical::Aabb& b) { return std::memcmp(&a, &b, sizeof a) == 0; }
+
+// #156: the cached land box on hand-made terrains: the vertex grid's x / y, z over the heights with 0 always inside; no
+// box without a terrain grid (map_extents then keeps the playable box).
+void test_terrain_box() {
+    terrain::Terrain t;
+    t.present = true;
+    t.width = 3;
+    t.height = 2;
+    t.heights = {-2048, 0, 4096, 10, 20, 30};
+    const std::optional<tactical::Aabb> box = TA::land_terrain_box(t);
+    if (box)
+        std::printf("  #156 terrain box: (%.0f, %.0f, %.0f)-(%.0f, %.0f, %.0f)\n", static_cast<double>(box->min.x),
+                    static_cast<double>(box->min.y), static_cast<double>(box->min.z), static_cast<double>(box->max.x),
+                    static_cast<double>(box->max.y), static_cast<double>(box->max.z));
+    CHECK(box && box->min.x == 0.0f && box->min.y == 0.0f && box->min.z == -100.0f && box->max.x == 60.0f && box->max.y == 40.0f &&
+          box->max.z == 200.0f);
+    CHECK(box && same_box(*box, scanned_terrain_box(t)));
+    t.heights = {10, 20, 30, 40, 50, 60};  // all above 0: zmin stays 0
+    std::optional<tactical::Aabb> up = TA::land_terrain_box(t);
+    CHECK(up && up->min.z == 0.0f && same_box(*up, scanned_terrain_box(t)));
+    t.heights = {-10, -20, -30, -40, -50, -60};  // all below 0: zmax stays 0
+    std::optional<tactical::Aabb> down = TA::land_terrain_box(t);
+    CHECK(down && down->max.z == 0.0f && same_box(*down, scanned_terrain_box(t)));
+    const terrain::Terrain none;
+    CHECK(!TA::land_terrain_box(none));
+    t.width = 0;
+    CHECK(!TA::land_terrain_box(t));
+}
 
 float dist3(Vec3 a, Vec3 b) {
     const float dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
@@ -276,6 +321,8 @@ void test_staging(const Data& d) {
             if (!all) break;
             invulnerable_all(*b);
             box = TA::map_extents(*b, *tm);
+            // #156: the box cached at setup is the per-call scan it replaced
+            CHECK(b->map().terrain.present && same_box(box, scanned_terrain_box(b->map().terrain)));
             const tactical::Aabb& bb = tm->bounds();
             mid = Vec3{0.5f * (bb.min.x + bb.max.x), 0.5f * (bb.min.y + bb.max.y), 0.0f};
             std::printf("  map extents (%.0f, %.0f)-(%.0f, %.0f), bounds (%.0f, %.0f)-(%.0f, %.0f)\n", static_cast<double>(box.min.x),
@@ -1388,6 +1435,8 @@ int main() {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
     g_temp_prefix = "alamo_sim_bkt1_tests";
     auto d = squad_data_patched("_bkt1", bkt1_types);
+    std::printf("#156: the land terrain box, computed once\n");
+    test_terrain_box();
     std::printf("bkt1 t01: attack staging 0x40e260 / 0x440f90 and the engagement range's pending-ability clause\n");
     test_staging(*d);
     std::printf("cmb3 t02: the fire trim's gate is the object hidden test\n");

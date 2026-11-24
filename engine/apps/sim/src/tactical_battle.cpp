@@ -366,6 +366,7 @@ void TacticalBattle::avoid_snapshot(const objects::ObjectStore& store) {
 
 void TacticalBattle::setup(TacticalMode& mode, terrain::MapData map, SimRng& rng, uint32_t players, const ParallelFor& pf) {
     map_ = std::move(map);
+    land_box_ = land_terrain_box(map_.terrain);  // #156: the terrain is fixed for the battle
 #ifdef ALAMO_SIM_HAVE_ASSETS
     // refixf t07 (SPACE_AVOIDANCE §3.1 / §3.2 / §7.2): the tree boxes and the precise projectile test read the type
     // model's collision data (Space_Model_Name / Land_Model_Name, as the fighter avoidance does). A model that does not

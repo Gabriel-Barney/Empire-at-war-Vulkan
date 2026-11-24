@@ -2514,6 +2514,7 @@ private:
     std::vector<HyperspaceSfx> hyperspace_sfx_;         // hyperspace_sfx() (presentation, not saved / hashed)
     bool space_ = true;
     terrain::MapData map_;
+    std::optional<tactical::Aabb> land_box_;  // #156: land_terrain_box(map_.terrain), set with map_ in setup()
     uint32_t desc_of(uint32_t type) const;
     std::vector<uint32_t> spawn_types(const Participant& p) const;
 
@@ -2696,6 +2697,11 @@ private:
     enum class ExtentsUse : uint8_t { Traced, Perception };
     static constexpr bool kPerceptionTracedExtents = true;
     tactical::Aabb map_extents(const TacticalMode& mode, ExtentsUse use = ExtentsUse::Traced) const;
+    // #156: the land terrain box of map_extents (x / y the vertex grid, z over every vertex height with 0 inside), from the
+    // terrain alone; nullopt without a terrain grid. setup() computes it once into land_box_ (the terrain never changes
+    // during a battle; a loaded battle runs setup() first), so the staging search and the fog / threat-grid box do not
+    // rescan the heights.
+    static std::optional<tactical::Aabb> land_terrain_box(const terrain::Terrain& t);
     void fog_after_deploy(TacticalMode& mode);              // setup(): dense mask, battle scale
     void fog_decay();                                       // tick(): step 4, before movement
     void fog_service(TacticalMode& mode);                   // tick(): after consume_events
