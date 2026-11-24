@@ -1321,13 +1321,27 @@ std::string single_ship_carrier(std::string t) {
     if (p != std::string::npos) t.replace(p, a.size(), "<Starting_Spawned_Units_Tech_0>S10_TIE, 1</Starting_Spawned_Units_Tech_0>");
     return t;
 }
-// HangarLaunch events of player 0 over the first 400 ticks, and whether every one named a live S10_TIE.
-std::pair<uint32_t, bool> hangar_launch_events() {
+// #327 t05 (0x594dc0 [H]): a space hangar's squadron test reads only Squadron_Units, so a type with Company_Units alone
+// (S10_TIE_Company) launches as a single ship of its own type.
+std::string company_ship_carrier(std::string t) {
+    const std::string a = "<Starting_Spawned_Units_Tech_0>S10_TIE_Squadron, 1</Starting_Spawned_Units_Tech_0>";
+    const size_t p = t.find(a);
+    if (p != std::string::npos)
+        t.replace(p, a.size(), "<Starting_Spawned_Units_Tech_0>S10_TIE_Company, 1</Starting_Spawned_Units_Tech_0>");
+    const std::string after = " <Team Name=\"Team\">";
+    const size_t q = t.find(after);
+    if (q != std::string::npos)
+        t.insert(q, " <SpaceUnit Name=\"S10_TIE_Company\"><Variant_Of_Existing_Type>S10_TIE</Variant_Of_Existing_Type>"
+                    "<Company_Units>S10_TIE, S10_TIE</Company_Units></SpaceUnit>\n");
+    return t;
+}
+// HangarLaunch events of player 0 over the first 400 ticks, and whether every one named a live `type`.
+std::pair<uint32_t, bool> hangar_launch_events(const char* type = "S10_TIE") {
     FighterBattle fb;
     uint32_t n = 0;
     bool all_tie = true;
     if (!start_fighter_battle(fb, false, true)) return {0, false};
-    const auto tie = static_cast<int32_t>(type_of(*fb.d, "S10_TIE"));
+    const auto tie = static_cast<int32_t>(type_of(*fb.d, type));
     PresentationEvents pres;
     for (uint64_t t = 0; t < 400; ++t) {
         fb.host->tick_once();
@@ -1355,9 +1369,62 @@ void test_hangar_launch_presentation() {
     const auto singles = hangar_launch_events();
     g_types_patch = nullptr;
     g_temp_prefix = prefix;
-    std::printf("  hangar launch events: squadron carrier %u, single-ship carrier %u\n", squadrons.first, singles.first);
+    g_types_patch = company_ship_carrier;
+    g_temp_prefix = "alamo_sim_battle_fighter_tests_327t05";
+    const auto company = hangar_launch_events("S10_TIE_Company");
+    g_types_patch = nullptr;
+    g_temp_prefix = prefix;
+    std::printf("  hangar launch events: squadron carrier %u, single-ship carrier %u, Company_Units-only carrier %u\n",
+                squadrons.first, singles.first, company.first);
     CHECK(squadrons.first == 0);
     CHECK(singles.first > 0 && singles.second);
+    CHECK(company.first > 0 && company.second);  // #327 t05
+}
+
+// #327 t05 (0x595650 [H]): a space launch's single ship takes the first free spot of the rings around the flyout point and
+// is not created when none is free (the port created it at the flyout point). Launches around one point in one tick
+// fill the rings (at most 1 + 4 x 8 spots); then nothing more is created there.
+void test_hangar_ring_full() {
+    FighterBattle fb;
+    if (!start_fighter_battle(fb, false, true)) return;
+    TacticalBattle* b = nullptr;
+    for (int t = 0; t < 1000 && !b; ++t) {
+        fb.host->tick_once();
+        b = fb.battles->battle();
+    }
+    TacticalMode* tm = fb.host->tactical();
+    CHECK(b != nullptr && tm != nullptr);
+    if (!b || !tm) return;
+    objects::ObjectStore& st = tm->primary();
+    const auto tie = static_cast<int32_t>(type_of(*fb.d, "S10_TIE"));
+    const auto carrier_type = static_cast<objects::TypeIndex>(type_of(*fb.d, "S10_Carrier"));
+    objects::ObjectHandle carrier;
+    for (const objects::ObjectHandle h : st.owned_by(0))
+        if (st.alive(h) && st.type(h) == carrier_type) carrier = h;
+    CHECK(st.alive(carrier));
+    if (!st.alive(carrier)) return;
+    const Vec3 c = st.position(carrier);
+    SimRng rng;
+    rng.seed(5);
+    uint32_t created = 0, refused = 0;
+    std::vector<Vec3> spots;
+    for (int i = 0; i < 60; ++i) {
+        const objects::ObjectId id = TacticalBattleTestAccess::hangar_space_launch(*b, *tm, tie, 0, c, rng);
+        if (id == objects::kNoObjectId) {
+            ++refused;
+            continue;
+        }
+        ++created;
+        spots.push_back(st.position(st.find(id)));
+    }
+    bool apart = true;
+    for (size_t i = 0; i < spots.size(); ++i)
+        for (size_t j = i + 1; j < spots.size(); ++j) {
+            const float dx = spots[i].x - spots[j].x, dy = spots[i].y - spots[j].y;
+            apart = apart && dx * dx + dy * dy >= 100.0f * 100.0f;
+        }
+    std::printf("  hangar ring full: %u ships created around the carrier, %u launches refused\n", created, refused);
+    CHECK(created > 0 && created <= 41 && refused == 60 - created && apart);
 }
 
 // trl2 t06 (STATION_HANGARS_SOUND §2.4 items 2 and 7): a campaign space battle at a Corruption_Bribery planet whose owner's
@@ -1409,6 +1476,7 @@ int main(int argc, char** argv) {
     test_reinforce_streams();  // #128 t01
     std::printf("#50 t06: a single-ship hangar launch is a HangarLaunch presentation event\n");
     test_hangar_launch_presentation();
+    test_hangar_ring_full();  // #327 t05
     std::printf("trl2 t06: hangar gates of the battle planet (Corruption_Bribery owner faction, Planet_Restricted_Unit_Types)\n");
     test_hangar_planet_gates();
     if (g_fail) {
