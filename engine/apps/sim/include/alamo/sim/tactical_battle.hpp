@@ -2193,6 +2193,11 @@ private:
     bool mv_first_lock(const TacticalMode& mode, objects::ObjectId id, SimRng& rng);
     std::string_view mv_locomotor_token(uint32_t type) const;  // the mode's active *_LOCOMOTOR behaviour token (empty: none)
     bool mv_self_registers(uint32_t type) const;  // LandTeamContainer (land) / SimpleSpace (space) locomotor
+    // cu8l t01 (CU8K_T02_T06_RE §1.2, §4 rules 1 / 4): a new land team container containers_[ci] (object type `object_type`)
+    // whose LandTeamContainer locomotor registers it at creation - its own coordinator, no draw now, one composition at the
+    // next step 10 (coordinator creation order). The container walks itself (mv_squad_add); else its `members` stand in.
+    // Nothing for space, without movement or another locomotor. Starting companies and indigenous packs (#114).
+    void mv_register_land_team(TacticalMode& mode, size_t ci, uint32_t object_type, std::span<const objects::ObjectId> members);
     // s78n t03 (TACTICAL_COMBAT §5.4.4 item 2, MOVEMENT §3.7): makes land squad container containers_[ci] (object type
     // `object_type`, a LAND_TEAM_CONTAINER locomotor) a movement unit walking its own path, its members steering to their
     // slots (MovementSystem::set_land_team). False (nothing changed): a member is not a Default-locomotor walker without

@@ -756,8 +756,8 @@ void test_land(const Data& d) {
                 "farthest from a hut %.1f\n",
                 a.moves, a.unit_frames, stay_rate, r6.restless_moves, r6.restless_unit_frames, restless_rate, r6.max_home_dist);
     CHECK(a.moves > 0 && r6.restless_moves > 0);
-    // A few dozen move starts each: the margin moves with the battle's draw stream (#114's pack composition draw took it
-    // from 4.0x to 2.2x), so the check asks for a clear lead, not a ratio.
+    // A few dozen move starts each on one seed: the margin moves with the battle's draw stream (4.0x before #114's pack
+    // containers, measured again at #114), so the check asks for a clear lead, not the exact ratio.
     CHECK(restless_rate > 2.0 * stay_rate);
     CHECK(a.max_home_dist <= 550.0f && r6.max_home_dist <= 550.0f);
     CHECK(!first_divergence(r6.crc, r6w.crc).diverged);

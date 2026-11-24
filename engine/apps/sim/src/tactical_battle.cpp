@@ -205,6 +205,16 @@ bool TacticalBattle::mv_self_registers(uint32_t type) const {
     return ascii_iequals(t, space_ ? std::string_view("SIMPLE_SPACE_LOCOMOTOR") : std::string_view("LAND_TEAM_CONTAINER_LOCOMOTOR"));
 }
 
+void TacticalBattle::mv_register_land_team(TacticalMode& mode, size_t ci, uint32_t object_type, std::span<const objects::ObjectId> members) {
+    if (space_ || !movement_ || ci >= containers_.size() || !mv_self_registers(object_type)) return;
+    if (mv_squad_add(mode, ci, object_type)) {
+        const mv::ObjectId self[] = {containers_[ci].id};
+        (void)movement_->hold_from_birth(self);
+    } else {
+        (void)movement_->hold_from_birth(members);
+    }
+}
+
 bool TacticalBattle::mv_adopt(const TacticalMode& mode, objects::ObjectHandle h, SimRng& rng, bool leave) {
     if (!movement_) return false;
     const objects::ObjectStore& st = mode.primary();
@@ -950,14 +960,7 @@ void TacticalBattle::deploy(TacticalMode& mode, uint32_t pi, SimRng& rng, uint32
             // order takes the members first. s78n t03 (TACTICAL_COMBAT §5.4.4 item 2): the container is a movement unit
             // walking its own path, its members steering to their slots, so its own coordinator holds it. [port] A squad
             // with a member that cannot steer (mv_squad_add false) keeps the members standing in for the container.
-            if (!space_ && movement_ && mv_self_registers(team_obj)) {
-                if (mv_squad_add(mode, containers_.size() - 1, team_obj)) {
-                    const mv::ObjectId self[] = {ct.id};
-                    (void)movement_->hold_from_birth(self);
-                } else {
-                    (void)movement_->hold_from_birth(groups.back());
-                }
-            }
+            mv_register_land_team(mode, containers_.size() - 1, team_obj, groups.back());
         }
     }
     // 3. combat / ability units (hardpoint draws, HardPoints order), then the containers.
