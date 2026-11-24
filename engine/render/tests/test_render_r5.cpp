@@ -776,20 +776,16 @@ static void test_stage2_builder() {
     const std::vector<Ev> evs = {{4, &surf, {1, 2, 3}}, {4, &snd, {0, 0, 0}}, {4, nullptr, {0, 0, 0}}};
     const std::vector<render::SnapshotFootPlant> fps = render::snapshot_foot_plants(evs);
     CHECK(fps.size() == 1 && fps[0].foot == 1 && fps[0].trigger == "Generic_Footprint" && fps[0].position.z == 3.0f);
-    // Spin-away corpse motion: drifts along the death facing, yaws and rolls (render-side rates).
+    // #357: no render-side spin-away motion (the sim moves a spin-away wreck): a detached corpse is drawn at its record.
     render::SnapshotCorpse sc;
     sc.id = 40;
     sc.type = 2;
     sc.position = {100, 0, 0};
     sc.facing = {1, 0, 0};
-    sc.spin_away = true;
-    sc.spin_seconds = 2.0f;
     render::SimSnapshot ss;
     render::add_snapshot_corpses(ss, table, std::span<const render::SnapshotCorpse>(&sc, 1));
     if (!table[2].model.empty()) {
-        CHECK(ss.objects.size() == 1 && (ss.objects[0].flags & render::kSnapSpinAway) &&
-              std::fabs(ss.objects[0].position.x - (100.0f + 2.0f * render::kSpinAwayDrift)) < 1e-3f &&
-              std::fabs(ss.objects[0].roll - 2.0f * render::kSpinAwayRollRate) < 1e-5f && std::fabs(ss.objects[0].facing.y) > 0.5f);
+        CHECK(ss.objects.size() == 1 && ss.objects[0].position.x == 100.0f && ss.objects[0].roll == 0.0f && ss.objects[0].facing.x == 1.0f);
     }
     std::printf("stage 2 builder: OK\n");
 }
@@ -1041,23 +1037,20 @@ static void test_sim_decorations_stage2(render::SurfaceFxLibrary& lib) {
     f.tick = 5 + static_cast<uint64_t>(render::kFootEffectSeconds * 30.0f) + 1;
     deco.update(f);
     CHECK(deco.effects().empty());
-    // Spin-away explosion when the spinning corpse leaves (space: no terrain).
-    table.set_spin_away_explosion(3, "P_BOOM");
+    // #357: a corpse that leaves the frame plays nothing here (the sim spawns a spin-away's explosions as objects).
     render::SimDecorations space(lib, table, nullptr);
     render::InterpolatedFrame sf;
     render::SnapshotObject spin = sobj(9, 0);
     spin.type = 3;
-    spin.flags = render::kSnapSpinAway | render::kSnapCorpse;
+    spin.flags = render::kSnapCorpse;
     spin.position = {7, 8, 9};
     sf.tick = 1;
     sf.objects = {spin};
     space.update(sf);
-    CHECK(space.effects().empty());
     sf.tick = 2;
     sf.objects.clear();
     space.update(sf);
-    CHECK(space.effects().size() == 1 && space.effects()[0].asset == "P_BOOM" && space.effects()[0].position.z == 9.0f &&
-          space.stats().spin_explosions == 1);
+    CHECK(space.effects().empty());
     std::printf("sim decorations stage 2: OK\n");
 }
 

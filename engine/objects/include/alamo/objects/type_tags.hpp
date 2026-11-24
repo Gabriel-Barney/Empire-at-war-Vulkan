@@ -255,7 +255,7 @@ struct SubObjectsTag {
     X(Text, Specific_Death_Anim_Index, "")                                                                            \
     X(Bool, Remove_Upon_Death, false)                                                                                 \
     X(Bool, Spin_Away_On_Death, false)                                                                                \
-    X(Text, Spin_Away_On_Death_Explosion, "")                                                                         \
+    X(List, Spin_Away_On_Death_Explosion, 0)                                                                          \
     X(Bool, Allow_Idle_When_Moving, false)                                                                            \
     X(Float, Death_Persistence_Duration, 0.0f)                                                                        \
     X(Float, Death_Fade_Time, 0.0f)                                                                                   \

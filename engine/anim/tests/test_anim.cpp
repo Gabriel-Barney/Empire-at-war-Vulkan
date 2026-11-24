@@ -1341,14 +1341,15 @@ void test_events_and_locomotor() {
         sp.spin_away_seconds = 2.0f;
         sp.remove_upon_death = true;
         SimRng replay = rng;
-        const bool spins = replay.range_float(0.0f, 1.0f) < 0.4f;
+        const bool spins = replay.range_float(0.0f, 1.0f) <= 0.4f;  // #357: draw <= chance (0x58cdb0)
         const DeathResult r4 = b.begin_death(w, 4, sp, {}, rng, 10);
         CHECK(rng.state() == replay.state());
         if (spins) CHECK(r4 == DeathResult::Corpse && b.corpse(4)->spin_away && b.corpse(4)->phase == CorpsePhase::SpinAway);
         else CHECK(r4 == DeathResult::Corpse && !b.corpse(4)->spin_away);
-        sp.spin_away_chance = 1.0f;
-        const uint32_t st = rng.state();
-        CHECK(b.begin_death(w, 5, sp, {}, rng, 10) == DeathResult::Corpse && rng.state() == st && b.corpse(5)->spin_away &&
+        sp.spin_away_chance = 1.0f;  // #357: still one draw (0x58cdb0 always draws), always spins
+        SimRng replay5 = rng;
+        (void)replay5.range_float(0.0f, 1.0f);
+        CHECK(b.begin_death(w, 5, sp, {}, rng, 10) == DeathResult::Corpse && rng.state() == replay5.state() && b.corpse(5)->spin_away &&
               b.corpse(5)->death_type == kNoAnimType && b.corpse(5)->phase_end == 70);
         std::vector<ObjectId> removed;
         b.service(w, 69, removed);
@@ -1361,7 +1362,7 @@ void test_events_and_locomotor() {
         SimRng rng(12);
         DeathParams sp;
         sp.spin_away = true;
-        sp.spin_away_chance = 1.0f;  // plan_death's own rule: always spin, no draw
+        sp.spin_away_chance = 1.0f;  // plan_death's own rule: one draw, always a spin
         sp.spin_away_seconds = 2.0f;
         sp.spin_decision = false;    // combat drew no spin
         uint32_t st = rng.state();
@@ -1878,15 +1879,23 @@ void test_death_plan() {
         DeathParams sp;
         sp.spin_away = true;
         sp.spin_away_seconds = 2.0f;
+        sp.spin_away_chance = 1.0f;
         SimRng rng(9);
-        const uint32_t st = rng.state();
+        SimRng replay(9);
+        (void)replay.range_float(0.0f, 1.0f);
         const DeathPlan p = plan_death(m.get(), sp, 1, rng);
-        CHECK(p.spin && p.type == kNoAnimType && p.lifetime == 60 && rng.state() == st);  // chance unset: always, no draw
+        CHECK(p.spin && p.type == kNoAnimType && p.lifetime == 60 && rng.state() == replay.state());  // #357: one draw <= 1
+        // #357 (0x58cdb0 [H]): chance unset (0) still draws, and spins only on a draw of exactly 0
+        sp.spin_away_chance = 0.0f;
+        SimRng r0(9), rp0(9);
+        const bool zero = rp0.range_float(0.0f, 1.0f) <= 0.0f;
+        CHECK(plan_death(nullptr, sp, 1, r0).spin == zero && r0.state() == rp0.state());  // no model: no variant draw after
         DeathParams forever;
         SimRng other(9);
         CHECK(plan_death(m.get(), forever, 1, other).forever);
         DeathParams rm;
         rm.remove_upon_death = true;
+        const uint32_t st = rng.state();
         const DeathPlan none = plan_death(nullptr, rm, 1, rng);
         CHECK(none.remove_now && rng.state() == st);
         DeathParams keep;

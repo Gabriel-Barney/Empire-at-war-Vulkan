@@ -576,16 +576,15 @@ void TacticalBattle::spawn_death_explosion(TacticalMode& mode, std::span<const i
 }
 
 void TacticalBattle::spawn_death_explosion_start(TacticalMode& mode, uint32_t holder_type, Vec3 pos, int32_t owner, SimRng& rng, bool spin) {
-    // 0x58cf90 phase 0 of the DeathBehavior holder `holder_type` at `pos`, owned by the neutral player (the clone's owner,
-    // storyb t17 §3.4 [H]; `owner` without one). [port] A spin-away runs phase 1 (Spin_Away_On_Death_Explosion) at its
-    // start and phase 0 at its end (0x58d430 [H]); until #357 simulates the wreck the first Death_Explosions entry spawns
-    // at the death position, without the pick and the lift (as before #358: no synced draw retail does not make).
-    const std::vector<int32_t> list = resolved_type_list(holder_type, objects::tags::Death_Explosions);
+    // 0x58cf90 phase 0 (Death_Explosions, +0xcd8) of the DeathBehavior holder `holder_type` at `pos` - or, for a spin-away,
+    // phase 1 (Spin_Away_On_Death_Explosion, +0x2210 [H]) - the pick and lift of spawn_death_explosion, owned by the neutral
+    // player (the clone's owner, storyb t17 §3.4 [H]; `owner` without one). #357: a spin-away's phase 0 runs at its end
+    // (service_spin_wrecks).
+    const std::vector<int32_t> list =
+        resolved_type_list(holder_type, spin ? objects::tags::Spin_Away_On_Death_Explosion : objects::tags::Death_Explosions);
     if (list.empty()) return;
     const int32_t neutral = galaxy_ ? galaxy_->neutral_player() : -1;
-    const int32_t by = neutral >= 0 ? neutral : owner;
-    if (spin) spawn_death_explosion(mode, std::span<const int32_t>(list).first(1), objects::kNone, pos, by, rng);
-    else spawn_death_explosion(mode, list, holder_type, pos, by, rng);
+    spawn_death_explosion(mode, list, holder_type, pos, neutral >= 0 ? neutral : owner, rng);
 }
 
 std::vector<int32_t> TacticalBattle::resolved_type_list(uint32_t type, const objects::ListTag& tag) const {
@@ -856,6 +855,7 @@ void TacticalBattle::process_death(TacticalMode& mode, const tc::DeathEvent& d, 
         mode.destroy(u->h);
         vm_deaths_.push_back(u->id);  // the victory monitor sees this tick's deaths in this order
         s4_hover_death(u->id, at, face);  // s78n t20 batch 2: before the mover (and its hover state) goes
+        const DeathMotion motion = death_motion(*u);  // #357: the clone's V and orientation, before the mover goes
         if (u->movable) movement_->remove_unit(u->id);
         else {
             (void)movement_->remove_unit(u->id);  // s78n t23 step 0: a registered mine obstacle (no-op otherwise)
@@ -890,7 +890,7 @@ void TacticalBattle::process_death(TacticalMode& mode, const tc::DeathEvent& d, 
         // the corpse path's clone type below, after its death sequence. [port, tier 3] A death without a clone (kind 15, death
         // clones off, a failed spawn) spawns the dying type's here, as before #358.
         if (!silent && !ch && !corpse_path) spawn_death_explosion_start(mode, u->type, at, owner, rng, false);
-        if (ch) schedule_death_clone(mode, ch, u->id, d.death_clone, d.kind, rng, persist);
+        if (ch) schedule_death_clone(mode, ch, u->id, d.death_clone, d.kind, rng, persist, motion);
 #ifdef ALAMO_SIM_HAVE_ANIM
         {  // R3 anim: death clip / corpse of the unit (unless a clone carries it), or the infantry corpse path
             bool carried = carried_by_clone || silent;  // s78n t12 review: a silent removal plays no death clip
@@ -981,7 +981,7 @@ bool TacticalBattle::infantry_type(uint32_t type) const {
 }
 
 void TacticalBattle::schedule_death_clone(TacticalMode& mode, objects::ObjectHandle clone, objects::ObjectId dying, int32_t clone_type, uint8_t kind, SimRng& rng,
-                                          const float* persistence_override) {
+                                          const float* persistence_override, const DeathMotion& motion) {
     const auto t = static_cast<objects::TypeIndex>(clone_type);
 #ifdef ALAMO_SIM_HAVE_ANIM
     SimAnimation* src = anim_ ? anim_ : clone_models_;
@@ -1004,7 +1004,7 @@ void TacticalBattle::schedule_death_clone(TacticalMode& mode, objects::ObjectHan
 #else
     // [port] a build without engine/anim has no clip data and no spin-away: Remove_Upon_Death -> at once, else
     // Death_Persistence_Duration (< 0 forever, default) + Death_Fade_Time (default 0.25 s), int(30 x s) each.
-    (void)rng, (void)kind;
+    (void)rng, (void)kind, (void)motion;
     const objects::GameObjectTypes& types = catalog_->types();
     const auto seconds = [&types, t](const objects::FloatTag& field, float def) {
         return types.get_string(t, field).empty() ? def : types.get(t, field);
@@ -1024,16 +1024,30 @@ void TacticalBattle::schedule_death_clone(TacticalMode& mode, objects::ObjectHan
         const objects::ObjectStore& st = mode.primary();
         spawn_death_explosion_start(mode, static_cast<uint32_t>(clone_type), st.position(clone), st.owner(clone), rng, spin);
     }
-    if (remove_now || (!forever && lifetime == 0)) {
+    // #357: a spin-away is removed by its wreck's service (0x58d430), never at once and never by a countdown.
+    if (!spin && (remove_now || (!forever && lifetime == 0))) {
         spawn_death_explosion_end(mode, clone, rng);  // #221: the deletion runs phase 2
         mode.destroy(clone);
         ++stats_.death_clones_removed;
         return;
     }
     uint32_t at = kForeverFrame;
-    if (!forever) at = lifetime >= static_cast<uint64_t>(kForeverFrame - 1u - frame_) ? kForeverFrame - 1u : frame_ + static_cast<uint32_t>(lifetime);
+    if (!forever && !spin) at = lifetime >= static_cast<uint64_t>(kForeverFrame - 1u - frame_) ? kForeverFrame - 1u : frame_ + static_cast<uint32_t>(lifetime);
     death_clones_.push_back({mode.primary().id(clone), clone, at});
     register_clone_obstacle(mode, clone, clone_type);  // s78n t20 batch 1
+    if (spin) {  // #357: the wreck (0x29f270 writes V; the clone starts at the dying object's orientation)
+        const objects::ObjectStore& st = mode.primary();
+        SpinWreck w;
+        w.id = st.id(clone);
+        w.h = clone;
+        w.v = motion.v;
+        w.roll = motion.roll;
+        w.pitch = motion.pitch;
+        w.born = frame_;
+        w.yaw = yaw_of(st.facing(clone));
+        if (w.yaw < 0.0f) w.yaw += 360.0f;
+        spin_wrecks_.push_back(std::move(w));
+    }
 #ifdef ALAMO_SIM_HAVE_ANIM
     hooks_->anim_clone(clone, dying, kind, &plan);
 #endif
@@ -1088,6 +1102,7 @@ void TacticalBattle::kill_pushed_clones(TacticalMode& mode, SimRng& rng) {
         }
         death_clones_.erase(it);
     }
+    drop_gone_wrecks(store);  // #357
 }
 
 void TacticalBattle::remove_death_clones(TacticalMode& mode, SimRng* due_rng) {
@@ -1113,9 +1128,11 @@ void TacticalBattle::remove_death_clones(TacticalMode& mode, SimRng* due_rng) {
         death_clones_[w++] = death_clones_[i];
     }
     death_clones_.resize(w);
+    drop_gone_wrecks(store);  // #357: a wreck goes with its clone
 }
 
 void TacticalBattle::expire_objects(TacticalMode& mode, SimRng& rng) {
+    service_spin_wrecks(mode, rng);   // #357: an ended wreck is due now
     remove_death_clones(mode, &rng);  // refixf t04
     objects::ObjectStore& store = mode.primary();
     size_t w = 0;
@@ -1706,7 +1723,12 @@ bool TacticalBattle::test_play_clip(objects::ObjectId id, int32_t clip_type) {
 
 bool TacticalBattle::unit_attitude(objects::ObjectId id, float& roll_rad, float& pitch_rad) const {
     float r = 0.0f, p = 0.0f;
-    const bool ok = movement_ && movement_->attitude(id, r, p);
+    bool ok = movement_ && movement_->attitude(id, r, p);
+    if (const SpinWreck* w = spin_wreck(id)) {  // #357: a spin-away wreck's simulated roll / pitch
+        r = w->roll;
+        p = w->pitch;
+        ok = true;
+    }
     constexpr float kDegToRad = 0.017453292f;  // FIGHTER_FLYING §1.1 k
     roll_rad = r * kDegToRad;
     pitch_rad = p * kDegToRad;
@@ -1935,6 +1957,7 @@ void TacticalBattle::hash_abilities(StateHasher& h) const {
             h.u32(c.frame);
         }
     }
+    if (!spin_wrecks_.empty()) spin_hash(h);  // #357 (absent while none)
     if (l1_used_) l1_hash(h);  // L1 systems (absent until a pack / jump / engine entry existed)
     if (pads_used_) pads_hash(h);  // Int-final: build pads (absent until a pad was used)
     if (!oi_respawns_.empty()) oi_hash(h);  // OI abilities: pending Tactical_Respawn creations (absent while none)

@@ -72,6 +72,15 @@ void AnimBehaviors::detach(ObjectId id) {
     if (Corpse* c = find_corpse(id)) c->detached = true;
 }
 
+void AnimBehaviors::hold_spin(ObjectId id) {
+    if (Corpse* c = find_corpse(id); c && c->phase == CorpsePhase::SpinAway) c->phase_end = kNeverFrames;
+}
+
+bool AnimBehaviors::held_spin(ObjectId id) const {
+    const Corpse* c = corpse(id);
+    return c && c->phase == CorpsePhase::SpinAway && c->phase_end == kNeverFrames;
+}
+
 void AnimBehaviors::remove(ObjectId id) {
     entries_.erase(std::remove_if(entries_.begin(), entries_.end(), [id](const Entry& e) { return e.id == id; }), entries_.end());
     corpses_.erase(std::remove_if(corpses_.begin(), corpses_.end(), [id](const Corpse& c) { return c.id == id; }), corpses_.end());
@@ -478,8 +487,9 @@ DeathPlan plan_death(const AnimModel* m, const DeathParams& p, uint8_t damage_ki
     if (p.spin_decision) {
         d.spin = *p.spin_decision;  // #356: the caller's draw (combat's DeathBehavior Initialise decision)
     } else if (p.spin_away) {
-        if (p.spin_away_chance > 0.0f && p.spin_away_chance < 1.0f) d.spin = rng.range_float(0.0f, 1.0f) < p.spin_away_chance;
-        else d.spin = true;  // [port] chance >= 1 or unset
+        // #357 (DeathBehavior Initialise 0x58cdb0 [H]): with Spin_Away_On_Death always one synced Get_Float(0, 1), spinning when
+        // the draw <= Spin_Away_On_Death_Chance (+0x2208, default 0) - the rule of combat's draw (#356).
+        d.spin = rng.range_float(0.0f, 1.0f) <= p.spin_away_chance;
     }
     if (d.spin) {
         d.lifetime = seconds_to_frames(p.spin_away_seconds);

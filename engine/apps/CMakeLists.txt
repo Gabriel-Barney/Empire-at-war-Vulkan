@@ -80,6 +80,7 @@ if(TARGET alamo_objects AND TARGET alamo_commands AND TARGET alamo_tactical AND 
       sim/src/tactical_battle_chase.cpp  # one chase-input builder (land formations and fighters)
       sim/src/tactical_battle_engagement.cpp  # the battle's EngagementQueries (movement and combat)
       sim/src/tactical_battle_spawners.cpp   # indigenous spawners, debris (TRU1_C_RE §1 / §3)
+      sim/src/tactical_battle_spin.cpp       # #357 spin-away death wrecks (docs/re/SPIN_AWAY_DEATH.md)
       sim/src/fleet_groups.cpp               # [port] fleet groups, phase 1 (docs/DECISIONS.md "Fleet groups: exception to the current focus")
       sim/src/battle_object_bridge.cpp       # the battle lifecycle hooks of every battle VM's ObjectBridge
       # Hangars / station upgrade / engine-loop requests (legacy docs/re/STATION_HANGARS_SOUND.md): engine/tactical/hangar.

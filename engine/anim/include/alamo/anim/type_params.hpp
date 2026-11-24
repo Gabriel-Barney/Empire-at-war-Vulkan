@@ -33,7 +33,6 @@ struct TypeAnimParams {
     bool spin_away_on_death = false;              // Spin_Away_On_Death (+0x9a)
     float spin_away_chance = 0.0f;                // Spin_Away_On_Death_Chance (+0x2208)
     float spin_away_seconds = 0.0f;               // Spin_Away_On_Death_Time (+0x220c)
-    std::string spin_away_explosion;              // Spin_Away_On_Death_Explosion (render / particle side)
     float deployed_walk_anim_speed = 1.0f;        // Deployed_Walk_Anim_Speed
     float deployment_anim_rate = 1.0f;            // Deployment_Anim_Rate (+0x1668)
     bool allow_idle_when_moving = false;          // Allow_Idle_When_Moving (+0x85): the IDLE service runs while moving

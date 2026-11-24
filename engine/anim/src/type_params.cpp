@@ -44,7 +44,6 @@ TypeAnimParams type_anim_params(const objects::GameObjectTypes& types, objects::
     p.spin_away_on_death = types.get(t, objects::tags::Spin_Away_On_Death);
     opt_float(objects::tags::Spin_Away_On_Death_Chance, p.spin_away_chance);
     opt_float(objects::tags::Spin_Away_On_Death_Time, p.spin_away_seconds);
-    p.spin_away_explosion = std::string(types.get(t, objects::tags::Spin_Away_On_Death_Explosion));
     opt_float(objects::tags::Deployed_Walk_Anim_Speed, p.deployed_walk_anim_speed);
     opt_float(objects::tags::Deployment_Anim_Rate, p.deployment_anim_rate);
     p.allow_idle_when_moving = types.get(t, objects::tags::Allow_Idle_When_Moving);

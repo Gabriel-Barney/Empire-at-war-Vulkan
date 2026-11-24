@@ -261,7 +261,7 @@ struct Corpse {
     CorpsePhase phase = CorpsePhase::Dying;
     int32_t death_type = kNoAnimType;  // the type played (kNoAnimType: no clip)
     bool forever = false;              // persistence < 0: never fades
-    bool spin_away = false;            // spin-away death: no clip, removed after Spin_Away_On_Death_Time
+    bool spin_away = false;            // spin-away death: no clip, removed after Spin_Away_On_Death_Time (held: with its object)
     uint8_t damage_kind = 1;           // killing damage kind
     bool detached = false;             // the store object is gone (render draws it from `info`)
     uint64_t death_frame = 0;
@@ -341,6 +341,10 @@ public:
     const Corpse* corpse(ObjectId id) const;
     std::span<const Corpse> corpses() const { return corpses_; }  // ascending id
     void detach(ObjectId id);                                      // store object gone, corpse kept
+    // #357: spin-away corpse `id` ends with its store object (a battle-simulated wreck), not on its own countdown:
+    // phase_end = kNeverFrames; held_spin tells such a corpse (the host removes it, not detaches it).
+    void hold_spin(ObjectId id);
+    bool held_spin(ObjectId id) const;
 
     // ---- per frame (before AnimWorld::advance) ----
     // Runs the corpse countdown in ascending id (#361: the flinch stages are the idle service's). Corpses whose countdown

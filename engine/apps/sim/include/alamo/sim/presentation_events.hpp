@@ -23,6 +23,10 @@
 //                        on the infantry corpse path; the type, -1 when the death makes no clone), x / y / z = where it
 //                        died. The host plays Unit_Lost (0x39bdb0, the dying type, local owner) and the clone's
 //                        Death_SFXEvent_Start_Die (DEATH's effects 0x58cf90 on the clone, the clone as gate 9's parent).
+//                        #357: spin = the clone spins away: its phase 1 plays no Start_Die (SpinAwayEnded does).
+//   SpinAwayEnded        #357: a spin-away wreck ended (DeathBehavior service 0x58d430, phase 0): object / clone = the
+//                        clone, type / clone_type = its type, player = its owner, x / y / z = where it ended. The host
+//                        plays the clone type's Death_SFXEvent_Start_Die there.
 #pragma once
 #include <cstdint>
 #include <vector>
@@ -31,7 +35,7 @@
 
 namespace alamo::sim {
 
-enum class PresentationEventKind : uint8_t { ProductionBegin = 0, ProductionCanceled, ProductionCompleted, HangarLaunch, UnitDied };
+enum class PresentationEventKind : uint8_t { ProductionBegin = 0, ProductionCanceled, ProductionCompleted, HangarLaunch, UnitDied, SpinAwayEnded };
 
 struct PresentationEvent {
     PresentationEventKind kind = PresentationEventKind::ProductionBegin;
@@ -42,7 +46,8 @@ struct PresentationEvent {
     uint32_t frame = 0;                             // battle frame
     objects::ObjectId clone = objects::kNoObjectId;  // UnitDied: the death clone object
     int32_t clone_type = -1;                         // UnitDied: the death clone's type
-    float x = 0.0f, y = 0.0f, z = 0.0f;              // UnitDied: the death position
+    float x = 0.0f, y = 0.0f, z = 0.0f;              // UnitDied: the death position (SpinAwayEnded: the end)
+    bool spin = false;                               // UnitDied: the clone spins away (#357)
 };
 using PresentationEvents = std::vector<PresentationEvent>;
 

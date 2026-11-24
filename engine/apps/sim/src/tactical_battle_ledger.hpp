@@ -94,6 +94,7 @@
     SAVED(particles_, state) \
     SAVED(dummies_, state) \
     SAVED(death_clones_, state) \
+    SAVED(spin_wrecks_, state) \
     REBUILT(clone_models_, "set by the host that starts the battle, the same on a rebuild") \
     SAVED(effects_, state) \
     DERIVED(story_generics_, "records of the last tick for the host (cleared at the next tick start)") \

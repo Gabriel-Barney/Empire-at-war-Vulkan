@@ -19,7 +19,7 @@ namespace alamo::sim {
 
 namespace {
 
-constexpr uint32_t kBattleStateVersion = 24;  // 24: #84 land retreat list taken at the request; 23: #222 HgOrderCost::ai (AI production entries keep their price); 22: tru2 t01 INDIGENOUS_UNIT list and spawner homes; 21: aitac t05 space reinforcement arrivals (ArrivalRec::reinforce); 20: ref2 t01 save ledger (BOMBARD_DELAY reward, map hints, marker names, pad levels); 19: cmb2 t03 / t04 AttackBlock::retry / hp; 18: cmb1 t01 land formation records; 17: skm2 t02 skirmish sides 2..7 (anchors, facings, records); 16: r3g t01 landing Land / Takeoff clip timing; 15: skm1 t07 skirmish garrison re-delivery; 14: TRU1 t06 retreat flight, t05 / t07 spawners and debris; 13: [port] fleet cohesion per player; 2: S7 t22 fighter formations; 3: S7 t24 formation follow_next / a1i t04 landing objects (two branches); 4: S7 t37 follow_next dropped (the follow is in the movement layer); 5: both merged (formations + landing objects); 6: story t06 victory monitor (replaces the end-hold fields); 7: q6 attacks on TEAM containers / s78f t02 FighterFormationRecord::pushed dropped (the auto blocks are in the movement save) (two branches); 8: both merged; 9: ccpgt t02 domination timer; 10: cu8k t01 Saber_Throw thrower machines; 11: cu8l t03 start fleet arrivals; 12: s78n t20 land attack blocks (exact: older versions are refused)
+constexpr uint32_t kBattleStateVersion = 25;  // 25: #357 spin-away wrecks and the units' motion snapshots; 24: #84 land retreat list taken at the request; 23: #222 HgOrderCost::ai (AI production entries keep their price); 22: tru2 t01 INDIGENOUS_UNIT list and spawner homes; 21: aitac t05 space reinforcement arrivals (ArrivalRec::reinforce); 20: ref2 t01 save ledger (BOMBARD_DELAY reward, map hints, marker names, pad levels); 19: cmb2 t03 / t04 AttackBlock::retry / hp; 18: cmb1 t01 land formation records; 17: skm2 t02 skirmish sides 2..7 (anchors, facings, records); 16: r3g t01 landing Land / Takeoff clip timing; 15: skm1 t07 skirmish garrison re-delivery; 14: TRU1 t06 retreat flight, t05 / t07 spawners and debris; 13: [port] fleet cohesion per player; 2: S7 t22 fighter formations; 3: S7 t24 formation follow_next / a1i t04 landing objects (two branches); 4: S7 t37 follow_next dropped (the follow is in the movement layer); 5: both merged (formations + landing objects); 6: story t06 victory monitor (replaces the end-hold fields); 7: q6 attacks on TEAM containers / s78f t02 FighterFormationRecord::pushed dropped (the auto blocks are in the movement save) (two branches); 8: both merged; 9: ccpgt t02 domination timer; 10: cu8k t01 Saber_Throw thrower machines; 11: cu8l t03 start fleet arrivals; 12: s78n t20 land attack blocks (exact: older versions are refused)
 constexpr uint32_t kBattlePartVersion = 3;  // 3: mcx4 t05 cash points in the Garrison part; 2: s78n t06 running hero clashes in
                                             // the Combat part (1 and 2 still read: none of the later state)
 
@@ -96,12 +96,14 @@ void TacticalBattle::state_io(Ar& a, Self& b) {
     a.seq(b.units_, [](auto& x, auto& u) {
         x(u.id, u.h, u.participant, u.type, u.side, u.movable, u.alive, u.retreated, u.tracked, u.engines_offline);
         x(u.dt_next, u.container, u.power, u.range, u.attached_to, u.attach_bone, u.flags_3a2, u.fighter_seen);
+        x(u.snap0, u.snap1, u.snapped);  // #357 (25)
     });
     a.seq(b.containers_, [](auto& x, auto& c) { x(c.id, c.h, c.alive, c.removed, c.team, c.type, c.owner, c.squad_type); });
     auto timed = [](auto& x, auto& t) { x(t.id, t.h, t.frame); };
     a.seq(b.particles_, timed);
     a.seq(b.dummies_, timed);
     a.seq(b.death_clones_, timed);  // refixf t04
+    a.seq(b.spin_wrecks_, [](auto& x, auto& w) { x(w.id, w.h, w.v, w.pts, w.dist, w.acc, w.roll, w.pitch, w.yaw, w.born); });  // #357 (25)
     a.seq(b.effects_, [](auto& x, auto& e) { x(e.id, e.asset, e.percent, e.frame); });
     a(b.anchor_[0], b.anchor_[1], b.facing_[0], b.facing_[1], b.placed_[0], b.placed_[1]);
     a(b.drop_facing_[0], b.drop_facing_[1]);  // a1h t06
@@ -360,8 +362,10 @@ bool TacticalBattle::read_part(SavePart p, ByteReader& r) {
                 ByteReader br(backup.bytes());
                 save_io::In restore(br);
                 state_io(restore, *this);
+                rebuild_spin_paths();
                 return false;
             }
+            rebuild_spin_paths();  // #357: the load 0x58c030 rebuilds each wreck's spline from its points
             // cu8g t02 (CU8G_T02_ENV_PICK_RE §2): the environment is not saved; a loaded battle shows the map's start
             // environment (mini 25 through vf25's clamp), without a draw. [port] The saved weather state is kept and counts
             // as bound to it (no restart at the next land tick); retail's forced weather rebinds on load (2 + 2 synced

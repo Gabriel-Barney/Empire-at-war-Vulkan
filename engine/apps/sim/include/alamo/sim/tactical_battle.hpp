@@ -80,6 +80,7 @@
 #include "alamo/sim/presentation_events.hpp"  // ref2 t02
 #include "alamo/tactical/abilities/ability_system.hpp"
 #include "alamo/tactical/combat/combat_system.hpp"
+#include "alamo/tactical/combat/rocket.hpp"  // #357: the spin-away wreck's path (SplineClass)
 #include "alamo/tactical/movement/fleet_placement.hpp"  // cu8l t03
 #include "alamo/tactical/movement/movement_system.hpp"
 #include "alamo/tactical/movement/space_avoid.hpp"  // SPACE_AVOIDANCE (fighter avoidance members)
@@ -1903,6 +1904,10 @@ private:
         int32_t attach_bone = -1;
         uint8_t flags_3a2 = 0;
         bool fighter_seen = false;  // S7 fighters: set_fighter_params done (fighter_sync)
+        // #357: the store position at the start of this tick's movement and of the previous tick's (movable units; the
+        // locomotor pack's +0x164 / +0x194 snapshots a death clone's V comes from, 0x29f270). `snapped`: snap0 is set.
+        Vec3 snap0{}, snap1{};
+        bool snapped = false;
     };
     struct Container {
         objects::ObjectId id = objects::kNoObjectId;
@@ -1918,6 +1923,23 @@ private:
         objects::ObjectId id = objects::kNoObjectId;
         objects::ObjectHandle h;
         uint32_t frame = 0;
+    };
+    // #357: a spin-away death clone's DeathDataPack spin state (docs/re/SPIN_AWAY_DEATH.md): V (+0x38), the path's control
+    // points (+0x20, empty when V = 0), the travelled distance (+0x28), the roll accumulator (+0x2c, 0 until the first
+    // service) and the clone's roll / pitch / yaw (obj +0x84..+0x8c, degrees). The spline is rebuilt from the points.
+    struct SpinWreck {
+        objects::ObjectId id = objects::kNoObjectId;
+        objects::ObjectHandle h;
+        Vec3 v{};
+        std::vector<Vec3> pts;
+        float dist = 0.0f, acc = 0.0f, roll = 0.0f, pitch = 0.0f, yaw = 0.0f;
+        uint32_t born = 0;                      // battle frame of the death: the first service is on a later tick
+        tactical::combat::RocketSpline spline;  // not saved: rebuilt from pts (build_spin_spline)
+    };
+    // #357: what a death clone takes from the dying object (0x29f270): V and its roll / pitch (degrees).
+    struct DeathMotion {
+        Vec3 v{};
+        float roll = 0.0f, pitch = 0.0f;
     };
     void service_damage_tracking();
     void add_participant(objects::ObjectHandle g, int32_t owner, uint8_t side, bool reserve, bool starbase, bool structure);
@@ -1988,6 +2010,18 @@ private:
                            const Vec3& at) {
         if (!emit_presentation_) return;
         PresentationEvent e{PresentationEventKind::UnitDied, owner, static_cast<int32_t>(type), id, 0, frame_};
+        e.clone = clone;
+        e.clone_type = clone_type;
+        e.x = at.x;
+        e.y = at.y;
+        e.z = at.z;
+        e.spin = clone != objects::kNoObjectId && spin_wreck(clone) != nullptr;  // #357: Start_Die at the wreck's end
+        presentation_.push_back(e);
+    }
+    // #357: PresentationEventKind::SpinAwayEnded - spin-away wreck `clone` (of `clone_type`, owned by `owner`) ended at `at`.
+    void present_spin_end(int32_t owner, objects::ObjectId clone, int32_t clone_type, const Vec3& at) {
+        if (!emit_presentation_) return;
+        PresentationEvent e{PresentationEventKind::SpinAwayEnded, owner, clone_type, clone, 0, frame_};
         e.clone = clone;
         e.clone_type = clone_type;
         e.x = at.x;
@@ -2362,7 +2396,8 @@ private:
                                SimRng& rng);
     // #221: a death clone's deletion (0x58cf90 phase 2): one entry of its type's Death_Explosions_End, if any.
     void spawn_death_explosion_end(TacticalMode& mode, objects::ObjectHandle clone, SimRng& rng);
-    // #358: 0x58cf90 phase 0 of the DeathBehavior holder `holder_type` (the clone's type; the dying type without a clone).
+    // #358: 0x58cf90 phase 0 of the DeathBehavior holder `holder_type` (the clone's type; the dying type without a clone);
+    // #357: phase 1 (Spin_Away_On_Death_Explosion) when `spin`.
     void spawn_death_explosion_start(TacticalMode& mode, uint32_t holder_type, Vec3 pos, int32_t owner, SimRng& rng, bool spin);
     // The type ids a list tag of `type` names, unresolved names dropped (data order).
     std::vector<int32_t> resolved_type_list(uint32_t type, const objects::ListTag& tag) const;
@@ -2601,7 +2636,19 @@ private:
 #endif
     // #359: `dying` - the object the clone replaces (the animation service copies its row's slot to the clone).
     void schedule_death_clone(TacticalMode& mode, objects::ObjectHandle clone, objects::ObjectId dying, int32_t clone_type, uint8_t kind,
-                              SimRng& rng, const float* persistence_override = nullptr);
+                              SimRng& rng, const float* persistence_override = nullptr, const DeathMotion& motion = {});
+    // #357 (tactical_battle_spin.cpp): spin-away wrecks in spawn order, each also in death_clones_ (kForeverFrame until its
+    // service ends it); the movable units' position snapshots; the motion a dying unit's clone inherits.
+    std::vector<SpinWreck> spin_wrecks_;
+    void snapshot_unit_motion(const objects::ObjectStore& store);
+    DeathMotion death_motion(const Unit& u) const;
+    const SpinWreck* spin_wreck(objects::ObjectId id) const;
+    void spin_wreck_path(SpinWreck& w, Vec3 pos, float seconds, SimRng& rng) const;  // 0x58c7a0
+    void service_spin_wrecks(TacticalMode& mode, SimRng& rng);  // 0x58d430, spin branch
+    void rebuild_spin_paths();
+    static void build_spin_spline(SpinWreck& w);  // Build(20) of w.pts
+    void drop_gone_wrecks(const objects::ObjectStore& store);
+    void spin_hash(StateHasher& h) const;
     // `due_rng` set: the due ones (expire_objects), each spawning its Death_Explosions_End entry with draws from it; null:
     // every clone left (the battle's end), no spawn.
     void remove_death_clones(TacticalMode& mode, SimRng* due_rng);
