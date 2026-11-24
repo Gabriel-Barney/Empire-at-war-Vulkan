@@ -135,10 +135,11 @@ void CombatSystem::set_player_difficulty(int32_t player, float damage_multiplier
         if (u.owner != player || !live(&u)) continue;
         u.health *= hr;
         u.shield *= sr;
-        // #434: each hard point with health > 0 to current x new / old, clamped to [0, the new maximum] (0x387ca0)
+        // #434: each hard point with health > 0 to current x new / old, clamped to [0, the new maximum] (0x387ca0, which
+        // does nothing for a type that cannot take damage: hard-point type +0x4D Is_Destroyable clear)
         for (uint32_t i = 0; i < u.hp_count; ++i) {
             Hardpoint& h = hps_[u.hp_begin + i];
-            if (h.health > 0.0f) h.health = std::clamp(h.health * hr, 0.0f, hp_max(u, h));
+            if (data_->hardpoints[h.desc].destroyable && h.health > 0.0f) h.health = std::clamp(h.health * hr, 0.0f, hp_max(u, h));
         }
     }
 }

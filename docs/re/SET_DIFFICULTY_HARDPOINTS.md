@@ -35,3 +35,10 @@ A destroyed hard point (health 0) stays at 0.
 - `CombatSystem::hp_max` takes the owner's AI Health_Multiplier, as hull and shield maxima already do.
 - `set_player_difficulty` rescales each live hard point's current health by new / old Health_Multiplier, clamped to
   the new maximum, after the difficulty is changed.
+
+## Open item
+
+- A change of owner (Change_Owner, a capture) was not read. Because the maximum is computed on read from the current
+  owner, a hard point taken from a Hard AI by a human probably keeps its health against a lower maximum until the
+  next set-health clamps it [L]. The port does the same (`set_owner` / `convert_unit` do not rescale), as it does
+  for the hull.

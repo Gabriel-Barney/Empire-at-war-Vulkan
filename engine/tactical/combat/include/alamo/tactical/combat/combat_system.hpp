@@ -607,7 +607,7 @@ struct PlayerInfo {
     // TACTICAL_COMBAT §3.6 step 12 / §4.3); 1.0 for humans and players without an adjustment.
     float ai_damage_multiplier = 1.0f;  // Damage_Multiplier (AI attackers)
     float ai_accuracy = 1.0f;           // land inaccuracy factor input
-    float faction_health = 1.0f;        // Health_Multiplier (+0x50): max hull
+    float faction_health = 1.0f;        // Health_Multiplier (+0x50): max hull and hard-point max (#434)
     float faction_shield = 1.0f;        // Shield_Multiplier (+0x54): max shield
     // cu8 t03 (TACTICAL_COMBAT §3.6 step 9): the player's faction Space_ / Land_Retreat_Units_Damaged_Mod_Factor
     // (faction +0x20b8 / +0x2198) for the battle's mode; damage to its retreating units is multiplied by it.
@@ -1260,8 +1260,8 @@ public:
     bool is_enemy(int32_t a, int32_t b) const;
     // skm2 t01 (SKIRMISH_SETUP 1.1, AI_GALACTIC §1.2 Set_Difficulty 0x4b0dc0): the AI player's new DifficultyAdjustments
     // multipliers. PlayerInfo takes the new values, then every live unit of `player` has its hull and shield scaled by new /
-    // old Health_ / Shield_Multiplier (in unit id order) and each hard point with health > 0 by new / old Health_Multiplier,
-    // clamped to its new maximum (#434: the hard-point maximum carries the multiplier). Serial (command phase); an invalid
+    // old Health_ / Shield_Multiplier (in unit id order) and each destroyable hard point with health > 0 by new / old
+    // Health_Multiplier, clamped to its new maximum (#434: the hard-point maximum carries the multiplier). Serial (command phase); an invalid
     // player does nothing.
     void set_player_difficulty(int32_t player, float damage_multiplier, float health_multiplier, float shield_multiplier);
 

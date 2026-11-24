@@ -1996,9 +1996,12 @@ void test_hardpoint_difficulty_health() {
     w.data.hardpoints.push_back(gen);  // 0
     gen.attach_offset = Vec3{0.0f, 10.0f, 0.0f};
     w.data.hardpoints.push_back(gen);  // 1
+    HardpointDesc art = gen;  // cannot take damage: Set_Difficulty leaves it (0x387ca0)
+    art.destroyable = false;
+    w.data.hardpoints.push_back(art);  // 2
     UnitDesc sh;
     sh.tactical_health = 100.0f;
-    sh.hardpoints = {0, 1};
+    sh.hardpoints = {0, 1, 2};
     push_unit(w.data, sh);  // 0
     CombatConfig cfg;
     cfg.mode = GameMode::Space;
@@ -2026,11 +2029,24 @@ void test_hardpoint_difficulty_health() {
     CHECK_F(w.sys->hardpoint_health(1, 1), 0.0f);  // health 0 stays 0
     CHECK_F(w.sys->hardpoint_max(2, 0), 20.0f);  // the other player is untouched
     CHECK_F(w.sys->hardpoint_health(2, 0), 20.0f);
-    // Hard -> Easy: the full-health one would be 30 x 0.8 / 1.5 = 16, inside the new max 16
+    CHECK_F(w.sys->hardpoint_health(1, 2), 16.0f);  // not destroyable: not rescaled (its maximum is 30 now)
+    // Hard -> Easy: the full-health one 30 x 0.8 / 1.5 = 16, the new max
     w.sys->set_hardpoint_health(1, 0, 30.0f);
     w.sys->set_player_difficulty(0, 1.0f, 0.8f, 1.0f);
     CHECK_F(w.sys->hardpoint_max(1, 0), 16.0f);
     CHECK_F(w.sys->hardpoint_health(1, 0), 16.0f);
+    {   // a Hard AI (1.5) spawns its hard points at max = 20 x 1.5 (the clamp in the rescale only guards rounding: current
+        // and maximum scale by the same ratio)
+        World h;
+        h.data = w.data;
+        PlayerInfo hard;
+        hard.ai = true;
+        hard.faction_health = 1.5f;
+        h.make(cfg, {hard, PlayerInfo{}});
+        h.add(1, 0, 0, Vec3{});
+        CHECK_F(h.sys->hardpoint_max(1, 0), 30.0f);
+        CHECK_F(h.sys->hardpoint_health(1, 0), 30.0f);
+    }
 }
 
 void test_hardpoint_mode_default() {
