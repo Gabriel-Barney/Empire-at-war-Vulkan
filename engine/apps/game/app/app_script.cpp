@@ -1,6 +1,7 @@
 // alamo_game App: the scripted smoke steps (split from game_main.cpp). The step helpers shared with the save / load smoke
 // (app_script_saveload.cpp) are declared in app_script.hpp.
 #include "app_script.hpp"
+#include "game_app.hpp"  // the types the steps use (Options, the UI and game headers); App itself is private
 
 
 namespace alamo_game_app {

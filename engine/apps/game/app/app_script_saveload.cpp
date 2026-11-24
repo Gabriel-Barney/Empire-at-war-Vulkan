@@ -24,6 +24,7 @@
 #include <optional>
 
 #include "app_script.hpp"
+#include "game_app.hpp"  // the types the steps use (Options, the UI and game headers); App itself is private
 
 namespace alamo_game_app::script {
 

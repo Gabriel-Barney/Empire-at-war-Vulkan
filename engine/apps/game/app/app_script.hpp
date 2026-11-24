@@ -1,7 +1,11 @@
 // alamo_game App: the scripted smoke steps shared by app_script.cpp (skirmish / land / campaign smokes) and
 // app_script_saveload.cpp (the save / load menus smoke, --smoke saveload).
 #pragma once
-#include "game_app.hpp"
+#include <functional>
+#include <string>
+#include <vector>
+
+#include "app_probe.hpp"  // #154: the steps see the game only through AppProbe
 
 namespace alamo_game_app::script {
 
@@ -9,7 +13,7 @@ namespace alamo_game_app::script {
 struct ClickState {
     int phase = 0;
 };
-bool click_at(ClickState& c, ui::InputFrame& f, int32_t x, int32_t y, ui::Button b, bool shift = false);
+bool click_at(ClickState& c, alamo::ui::InputFrame& f, int32_t x, int32_t y, alamo::ui::Button b, bool shift = false);
 // Done once `cond` holds.
 ScriptStep step_wait(std::string name, std::function<bool(AppProbe&)> cond, uint32_t timeout = 3600);
 // A left click on a control of `dialog` once that dialog is the topmost one.
