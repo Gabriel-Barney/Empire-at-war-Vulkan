@@ -497,6 +497,7 @@ struct UnitDesc {
     int32_t min_survivors = 1, max_survivors = 1;
     float tactical_respawn_secs = 0.0f;           // Tactical_Respawn_Time_In_Secs (+0x21d0)
     bool stunnable = false;                       // has STUNNABLE (0x38)
+    bool ion_stun_effect = false;                 // has ION_STUN_EFFECT (0x45): only such units are ion stunned (#92)
     bool earthquake_target = false;               // has EARTHQUAKE_TARGET (0x31): Earthquake_Attack accepts it
     bool telekinesis_target = false;              // has TELEKINESIS_TARGET (0x30): Force_Telekinesis accepts it
     // ---- tru1 t02 (legacy docs/re/TRU1_A_RE_ANSWERS.md A1 - A5): base shields ----

@@ -962,7 +962,10 @@ void CombatSystem::detonation_effects(const Projectile& p, Vec3 center, ObjectId
 }
 
 bool CombatSystem::ion_stun_unit(Unit& v, uint32_t pdesc, uint32_t frame) {
-    // IonStunEffect::Apply (0x62b920) [H].
+    // IonStunEffect::Apply (0x62b920) [H]. #92: both callers (the object hit 0x4cb280 and the area stun 0x4cbbb0) run it
+    // only on the object's ION_STUN_EFFECT behaviour (vf +0x10 (0x45)) [H]: a unit without one is not stunned. The area
+    // stun's water test runs either way (stun_water_kill).
+    if (!desc_of(v).ion_stun_effect) return false;
     const ProjectileDesc& pd = data_->projectiles[pdesc];
     const auto frames = trunc_i32(static_cast<float>(cfg_.fps) * pd.ion_stun_duration);  // mcx8 t11
     if (frames <= 0 || (v.flags & kUnitLocomotorBusy)) return false;
@@ -1620,9 +1623,9 @@ void CombatSystem::upkeep_unit(Unit& u, uint32_t frame) {
                                  shield_lockout_active(frame, u.shield_depleted_frame, cfg_.fps, cfg_.depleted_shield_disable_time);
             // cmb3 t07 (TACTICAL_COMBAT §3.7 [H], 0x549250): no base-power test (Shield_Requires_Base_Power is read only
             // by the base shield 0x56bb00); the regeneration is skipped while regen is blocked (TD +0x131) or the unit's
-            // ION_STUN_EFFECT is running (its disable counter +0x3c is 0 from the stun's apply to its end). [port] the port's
-            // ion stun window (ion_stun_end) stands in for that behaviour, so a stunned unit without ION_STUN_EFFECT is gated
-            // too.
+            // ION_STUN_EFFECT is running (its disable counter +0x3c is 0 from the stun's apply to its end). The port's ion
+            // stun window (ion_stun_end) stands in for that behaviour's counter; only units with the behaviour are stunned
+            // (#92, ion_stun_unit), so it is never set on a unit without one.
             const bool ion_stunned = u.ion_stun_end > frame;
             if (!u.regen_blocked && !ion_stunned) {
                 const float next = shield_regen_step(u.shield, amount, unit_max_shield(u), lockout, cfg_.depleted_shield_regen_cap);

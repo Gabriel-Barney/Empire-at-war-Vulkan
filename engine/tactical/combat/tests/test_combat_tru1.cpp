@@ -463,6 +463,7 @@ struct DetonationWorld {
         t.tactical_health = 1000.0f;
         t.radius = 5.0f;
         t.destroy_when_stunned_over_water = sinks;  // trn1 t04
+        t.ion_stun_effect = true;
         const uint32_t td = push_unit(w.data, t);
         CombatConfig cfg;
         cfg.mode = mode;
