@@ -129,7 +129,8 @@ bool HangarSystem::read(ByteReader& r) {
             e.max = r.i32();
             e.remaining = r.i32();
         }
-        if (version < 3) c.loaded = c.entries.empty() ? 0 : 1;  // the old rule: the list built means the load ran
+        // The old rule: a land garrison-on-load carrier whose list built has run its load (others never set the flag).
+        if (version < 3) c.loaded = (cfg_.land && descs_[c.desc].garrison_on_load && !c.entries.empty()) ? 1 : 0;
         if (!r.count(m, 17)) return false;
         c.spawned.resize(m);
         const auto entries = static_cast<int32_t>(c.entries.size());
