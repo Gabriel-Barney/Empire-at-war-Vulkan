@@ -601,11 +601,11 @@ void App::respond(const commands::EventData& ev) {
             const objects::ObjectHandle mh = st.find(m);
             if (st.exists(mh))
                 non_hero = GameAudioHost::non_hero_variant_active(data_.types, st.type(mh), [&ab, m](uint8_t t) { return ab.is_active(m, t); });
-            const objects::ObjectHandle ch = team != tactical::abilities::kNoObject ? st.find(team) : objects::ObjectHandle{};
+            const objects::ObjectHandle container = team != tactical::abilities::kNoObject ? st.find(team) : objects::ObjectHandle{};
             const tactical::combat::CombatSystem& cs = b->combat();
             const bool stolen = team != tactical::abilities::kNoObject && cs.has_unit(static_cast<tactical::combat::ObjectId>(team)) &&
                                 (cs.flags(static_cast<tactical::combat::ObjectId>(team)) & tactical::combat::kUnitStolenVehicle) != 0;
-            resolve = GameAudioHost::resolve_speaker(st, h, ch, members, stolen);
+            resolve = GameAudioHost::resolve_speaker(st, h, container, members, stolen);
             if (ev.type() == T::Attack)
                 if (const objects::ObjectHandle th = st.find(static_cast<objects::ObjectId>(ev.u("target"))); st.exists(th))
                     resolve.attack_target = st.type(th);
