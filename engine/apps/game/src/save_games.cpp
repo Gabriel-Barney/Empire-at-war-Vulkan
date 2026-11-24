@@ -115,6 +115,22 @@ std::string format_local_time(int64_t unix_seconds) {
     return buf;
 }
 
+std::string screenshot_file_name(int year, int month, int day, int hour, int minute, int second, int centis) {
+    char buf[48];
+    std::snprintf(buf, sizeof buf, "EAW_%04d%02d%02d_%02d%02d%02d%02d.png", year, month, day, hour, minute, second, centis);
+    return buf;
+}
+
+std::string screenshot_file_name_now() {
+    const auto now = std::chrono::system_clock::now();
+    const std::time_t t = std::chrono::system_clock::to_time_t(now);
+    std::tm tm{};
+    if (localtime_s(&tm, &t) != 0) return screenshot_file_name(1970, 1, 1, 0, 0, 0, 0);
+    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count() % 1000;
+    return screenshot_file_name(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,
+                                static_cast<int>(ms / 10));
+}
+
 int64_t unix_now() {
     const auto now = std::chrono::system_clock::now().time_since_epoch();
     return static_cast<int64_t>(std::chrono::duration_cast<std::chrono::seconds>(now).count());

@@ -74,6 +74,11 @@ struct SaveRowWords {
 std::string save_row_label(const SaveMeta& m, const SaveRowWords& words = {});
 std::string new_playthrough_id(int64_t now);          // a new SaveMeta::playthrough ("<now in hex>-<8 hex digits>")
 std::string format_local_time(int64_t unix_seconds);  // "2026-10-29 14:03" ("" for 0)
+// #466 (docs/re/TACTICAL_HOTKEYS.md slot 80, format 0x8034ec [H]): retail's screenshot file name
+// EAW_<YYYYMMDD>_<HHMMSScc> (cc = hundredths of a second), in the ScreenShots folder. [port] PNG, not retail's TGA.
+inline constexpr const char* kScreenshotFolder = "ScreenShots";
+std::string screenshot_file_name(int year, int month, int day, int hour, int minute, int second, int centis);
+std::string screenshot_file_name_now();  // the local time now
 int64_t unix_now();                                   // wall clock, seconds since 1970-01-01 UTC (SaveMeta::saved_at)
 
 struct SaveEntry {

@@ -2729,6 +2729,10 @@ CrcLog records_from(const CrcLog& log, uint64_t tick) {
 
 // Names, descriptions, the listing order and delete (no session).
 void save_files_test() {
+    // #466: retail's screenshot name EAW_<YYYYMMDD>_<HHMMSScc> (PNG [port]).
+    CHECK(game::screenshot_file_name(2026, 11, 24, 7, 5, 9, 3) == "EAW_20261124_07050903.png");
+    CHECK(game::screenshot_file_name(1999, 1, 2, 23, 59, 58, 99) == "EAW_19990102_23595899.png");
+    CHECK(game::screenshot_file_name_now().size() == std::string("EAW_20261124_07050903.png").size());
     CHECK(game::sanitize_save_name("  My: save?  ") == "My_ save_");
     CHECK(game::sanitize_save_name("a/b\\c*d") == "a_b_c_d");
     CHECK(game::sanitize_save_name("...").empty() && game::sanitize_save_name("").empty());
