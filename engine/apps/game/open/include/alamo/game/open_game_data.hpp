@@ -42,12 +42,14 @@ struct AutoFindInputs {
     std::vector<std::string> scan_roots;   // vfs::fixed_drive_roots() (empty: no scan)
     uint32_t max_depth = 6;
     uint64_t max_folders = 200000;
-    std::function<void(uint64_t checked, const std::string& at)> progress;  // the scan's progress (every 5,000 folders)
+    // the scan's progress: (0, "") as it starts, then every 5,000 folders
+    std::function<void(uint64_t checked, const std::string& at)> progress;
 };
 struct AutoFindResult {
     std::string foc;       // the folder found, "" when none
     bool scanned = false;  // the drive scan ran
     bool saved = false;    // game_path.txt was written
+    std::string save_error;  // why game_path.txt could not be written ("" when it was, or did not need to be)
     uint64_t checked = 0;  // folders the scan checked
     bool limit_hit = false;
 };

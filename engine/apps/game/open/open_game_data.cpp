@@ -84,6 +84,7 @@ AutoFindResult auto_find_game(const AutoFindInputs& in) {
         scan.max_depth = in.max_depth;
         scan.max_folders = in.max_folders;
         scan.progress = in.progress;
+        if (in.progress) in.progress(0, {});
         const vfs::FocScanResult s = vfs::scan_for_foc(scan);
         r.scanned = true;
         r.checked = s.checked;
@@ -94,7 +95,7 @@ AutoFindResult auto_find_game(const AutoFindInputs& in) {
     if (!r.foc.empty() && !file.empty()) {
         const std::string had = vfs::normalize_foc_dir(saved);
         if (had.empty() || vfs::lexical_folder_key(had) != vfs::lexical_folder_key(r.foc))
-            r.saved = write_text_file(file, vfs::native_utf8(path_from_utf8(r.foc).make_preferred()) + "\r\n");
+            r.saved = write_text_file(file, vfs::native_utf8(path_from_utf8(r.foc).make_preferred()) + "\r\n", &r.save_error);
     }
     return r;
 }

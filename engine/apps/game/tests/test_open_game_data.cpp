@@ -123,7 +123,10 @@ int main(int argc, char** argv) {
         alamo::game::AutoFindInputs in;
         in.exe_dir = alamo::path_to_utf8(exe);
         in.scan_roots = {alamo::path_to_utf8(drive)};
-        const auto same = [](const std::string& a, const fs::path& b) { return fs::equivalent(alamo::path_from_utf8(a), b); };
+        const auto same = [](const std::string& a, const fs::path& b) {
+            std::error_code e;
+            return !a.empty() && fs::equivalent(alamo::path_from_utf8(a), b, e);
+        };
         const auto saved_text = [&] {
             std::ifstream f(exe / "game_path.txt", std::ios::binary);
             return std::string(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>());

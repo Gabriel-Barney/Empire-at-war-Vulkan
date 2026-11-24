@@ -275,6 +275,10 @@ void test_scan() {
         CHECK(same(r.foc, in_zzz) && calls == r.checked && last == r.checked);
     }
     CHECK(scan({u8(T / "none")}).foc.empty());  // a root that does not exist
+    // An EaW-only install: its GameData folder looks like a FoC folder (Data\MegaFiles.xml) but is skipped.
+    write_file(T / "d5" / "Star Wars Empire at War" / "GameData" / "Data" / "MegaFiles.xml", "<Mega_Files/>");
+    CHECK(av::is_foc_dir(u8(T / "d5" / "Star Wars Empire at War" / "GameData")));
+    CHECK(scan({u8(T / "d5")}).foc.empty());
 
     // A fixed folder that names the EaW folder above "corruption" (the registry's InstallPath / GOG path) is found too.
     av::InstallInputs in;

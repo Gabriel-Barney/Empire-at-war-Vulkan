@@ -75,7 +75,9 @@ std::vector<std::string> fixed_drive_roots();
 // ignoring case - so the result depends only on the folders on disk. A folder matches when it, or its "corruption"
 // folder, is a FoC folder (is_foc_dir); the first match ends the scan. Reparse points (junctions, symbolic links) and the
 // system and tool folders (Windows, Windows.old, $Recycle.Bin, System Volume Information, Recovery, $WinREAgent,
-// ProgramData, AppData, node_modules, .git) are not entered. Folders it cannot list are skipped.
+// ProgramData, AppData, node_modules, .git) are not entered, nor base EaW's GameData folder (it has Data\MegaFiles.xml, so
+// is_foc_dir would take an EaW-only install for FoC). Folders it cannot list are skipped. At most max_folders folders
+// are checked or waiting at any time, so memory stays bounded too.
 struct FocScan {
     std::vector<std::string> roots;  // UTF-8 folders (fixed_drive_roots() for the real machine)
     uint32_t max_depth = 6;          // levels below a root; C:\Program Files (x86)\Steam\steamapps\common\<game>\corruption is 6

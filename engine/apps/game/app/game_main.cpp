@@ -71,8 +71,10 @@ bool App::init() {
         // fixed folders, then a bounded scan of the fixed drives) and remember it in game_path.txt.
         game::AutoFindInputs in = game::default_auto_find_inputs();
         in.progress = [](uint64_t checked, const std::string& at) {
-            std::printf("looking for Forces of Corruption: %llu folders checked (%s)\n", static_cast<unsigned long long>(checked),
-                        at.c_str());
+            if (checked == 0) std::printf("looking for Forces of Corruption on the fixed drives (this can take a while)...\n");
+            else
+                std::printf("looking for Forces of Corruption: %llu folders checked (%s)\n", static_cast<unsigned long long>(checked),
+                            at.c_str());
             std::fflush(stdout);
         };
         const game::AutoFindResult found = game::auto_find_game(in);
@@ -87,6 +89,9 @@ bool App::init() {
         }
         std::printf("game folder: %s%s%s\n", root.c_str(), found.scanned ? " (found by the drive scan)" : "",
                     found.saved ? ", saved to game_path.txt" : "");
+        if (!found.save_error.empty())  // a read-only folder: the search runs again on every start
+            std::fprintf(stderr, "game_path.txt not written (%s): the game folder is searched for on every start\n",
+                         found.save_error.c_str());
     }
     game_root_ = root;
     const auto t0 = Clock::now();

@@ -164,7 +164,8 @@ constexpr std::string_view kLikely[] = {
     "Star Wars Empire at War",  // [name-ok: the game's install folder, not a faction]
     "corruption", "SteamLibrary", "steamapps", "common", "GOG Games", "Games", "Program Files", "Program Files (x86)"};
 constexpr std::string_view kSkip[] = {"Windows", "Windows.old", "$Recycle.Bin", "System Volume Information", "Recovery",
-                                      "$WinREAgent", "ProgramData", "AppData", "node_modules", ".git"};
+                                      "$WinREAgent", "ProgramData", "AppData", "node_modules", ".git",
+                                      "GameData"};  // base EaW's folder: it passes is_foc_dir (Data\MegaFiles.xml) but is not FoC
 
 size_t likely_rank(std::string_view name) {
     for (size_t i = 0; i < std::size(kLikely); ++i)
@@ -193,9 +194,9 @@ std::vector<std::string> registry_install_folders() {
         for (const REGSAM view : {static_cast<REGSAM>(KEY_WOW64_64KEY), static_cast<REGSAM>(KEY_WOW64_32KEY)}) {
             for (const std::wstring& id : reg_subkeys(root, L"SOFTWARE\\GOG.com\\Games", view))
                 add(reg_text(root, L"SOFTWARE\\GOG.com\\Games\\" + id, L"path", view));
-            // [name-ok: the retail installer's registry keys, not factions]
-            add(reg_text(root, L"SOFTWARE\\LucasArts\\Star Wars Empire at War Forces of Corruption\\1.0", L"InstallPath", view));
-            add(reg_text(root, L"SOFTWARE\\LucasArts\\Star Wars Empire at War\\1.0", L"InstallPath", view));
+            // the retail installer's keys (Steam's install writes them too, in the 32-bit view)
+            add(reg_text(root, L"SOFTWARE\\LucasArts\\Star Wars Empire at War Forces of Corruption\\1.0", L"InstallPath", view));  // [name-ok: registry key]
+            add(reg_text(root, L"SOFTWARE\\LucasArts\\Star Wars Empire at War\\1.0", L"InstallPath", view));  // [name-ok: registry key]
         }
     return out;
 }
@@ -229,16 +230,16 @@ FocScanResult scan_for_foc(const FocScan& scan) {
     while (!queue.empty()) {
         const Node n = std::move(queue.front());
         queue.pop_front();
-        if (r.checked >= scan.max_folders) {
-            r.limit_hit = true;
-            return r;
-        }
         ++r.checked;
         const std::string at = native_utf8(n.dir);
         if (scan.progress && scan.progress_every > 0 && r.checked % scan.progress_every == 0) scan.progress(r.checked, at);
         const std::string found = normalize_foc_dir(at);  // the folder itself, or its "corruption" folder
         if (!found.empty()) {
             r.foc = found;
+            return r;
+        }
+        if (r.checked >= scan.max_folders) {  // the last folder it may check
+            r.limit_hit = !queue.empty() || n.depth < scan.max_depth;
             return r;
         }
         if (n.depth >= scan.max_depth) continue;
@@ -259,7 +260,10 @@ FocScanResult scan_for_foc(const FocScan& scan) {
             if (!ascii_iequals(a.first, b.first)) return ascii_iless(a.first, b.first);
             return a.first < b.first;
         });
-        for (auto& c : children) queue.push_back({std::move(c.second), n.depth + 1});
+        for (auto& c : children) {  // the queue never holds more than the folders left to check
+            if (r.checked + queue.size() >= scan.max_folders) break;
+            queue.push_back({std::move(c.second), n.depth + 1});
+        }
     }
     return r;
 }
