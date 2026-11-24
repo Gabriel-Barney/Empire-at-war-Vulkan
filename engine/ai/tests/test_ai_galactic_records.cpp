@@ -683,7 +683,7 @@ void test_old_versions(const Store& s) {
         const TaskForceRec d;
         std::printf("  task force, version %u: %s\n", version, ok ? "read" : "FAILED");
         CHECK(ok && y.stage == t.stage && y.area == t.area && y.alive == t.alive && y.units.size() == 1);
-        CHECK(y.fleet == (version >= 8 ? t.fleet : d.fleet));
+        CHECK(y.fleet == (version >= 8 ? t.fleet : galactic::kNoFleet));  // #432: no fleet before version 8
         CHECK(version >= 7 ? (y.sync == t.sync && y.sync_left == t.sync_left && y.sync_etas == t.sync_etas)
                            : (y.sync == d.sync && y.sync_left == d.sync_left && y.sync_etas.empty()));
     }
@@ -692,7 +692,8 @@ void test_old_versions(const Store& s) {
         ByteWriter w;
         old_status(w, x, 7);
         StatusRec y;
-        CHECK(load(w.bytes(), s, y, 7) && y.fleet == StatusRec{}.fleet && y.dest == x.dest && y.amount == x.amount);
+        // #432: a version-7 status has no fleet: kNoFleet until the MoveTo step fills it from the FleetObject
+        CHECK(load(w.bytes(), s, y, 7) && y.fleet == galactic::kNoFleet && y.dest == x.dest && y.amount == x.amount);
     }
     {
         const BuildTask x = sample_build(s);
