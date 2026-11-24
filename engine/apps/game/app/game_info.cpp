@@ -322,15 +322,17 @@ ui::SummaryInfo Holocron::summary(const galactic::GalacticSim& g, const GameData
         er.trade = number(trade);
         er.mining = number(mining);
         er.total = number(base + trade + other);
-        // ui4 t07 (HUD_GAPS §10.2): the sort values of the planet's rows, by key. [port] 7 producing = space queue busy +
-        // ground queue busy; 8 upgrades = 0 (the record's upgrade list is not traced); 9 / 10 = own land units / own fleets.
+        // ui4 t07 (HUD_GAPS §10.2): the sort values of the planet's rows, by key. #429 (docs/re/HOLOCRON_SUMMARY_SORT.md,
+        // 0x10b0f0 [H]): 7 producing counts each queue whose head type has an icon (0..2). [port] 8 upgrades = 0 (the
+        // planet's persistent upgrade list is #459); 6 / 9 / 10 = own units / own land units / own fleets (retail's differ;
+        // 9 and 10 have no button in FoC).
         std::array<double, ui::kSummarySortKeys> sv{};
         sv[2] = base;
         sv[3] = trade;
         sv[4] = mining;
         sv[5] = base + trade + other;
         sv[6] = static_cast<double>(units);
-        sv[7] = (p.queue[1].empty() ? 0.0 : 1.0) + (p.queue[0].empty() ? 0.0 : 1.0);
+        sv[7] = (pr.space_icon.empty() ? 0.0 : 1.0) + (pr.ground_icon.empty() ? 0.0 : 1.0);
         sv[9] = static_cast<double>(land_units);
         sv[10] = static_cast<double>(space_fleets);
         s.production.back().sort = sv;

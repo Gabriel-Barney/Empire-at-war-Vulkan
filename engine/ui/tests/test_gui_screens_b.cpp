@@ -741,6 +741,16 @@ void test_info_screens() {
     is.update(env.click(dlg::kSummaryProduction, "IDC_BUTTON_EXIT"), acts);
     CHECK(acts.size() == 3 && acts[0].kind == ScreenAction::Kind::SummarySort && acts[0].tag == "IDC_BUTTON_POP_CAP" &&
           acts[2].kind == ScreenAction::Kind::InfoClosed && is.info_dialog().empty() && env.gui.open_count() == 0);
+    // #429 (row build 0x10a4a0): every summary open resets the sort to A to Z by name, so the first PLANETARY click
+    // gives Z to A.
+    is.sort_summary(6);
+    CHECK(is.summary_sort_key() == 6 && is.show_info(InfoPage::SummaryProduction));
+    d = env.gui.find(dlg::kSummaryProduction);
+    CHECK(d && is.summary_sort_key() == 1 && !is.summary_sort_reversed() && d->get("IDC_PLANET_NAME0")->text == U"P0");
+    is.sort_summary(summary_button_key("IDC_BUTTON_PLANETARY"));  // the button's path (the fixture has no PLANETARY button)
+    CHECK(d && is.summary_sort_key() == 1 && is.summary_sort_reversed() && d->get("IDC_PLANET_NAME0")->text == U"P8");
+    is.update(env.click(dlg::kSummaryProduction, "IDC_BUTTON_EXIT"), acts);
+    CHECK(is.info_dialog().empty());
     CHECK(tech_tree_dialog("IDD_TECH_TREE_BLACKMARKET", true) == "IDD_TECH_TREE_BLACKMARKET_SPACE");
     CHECK(tech_tree_dialog("", true).empty());  // a faction without Tech_Tree_Dialog_Name has no tech tree
 }
