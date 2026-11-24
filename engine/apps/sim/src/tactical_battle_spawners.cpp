@@ -411,22 +411,27 @@ void TacticalBattle::sp_service(TacticalMode& mode, SimRng& rng, size_t index) {
                 const objects::ObjectHandle u = sp_spawn_one(mode, rng, sh, &at);
                 if (st.alive(u)) members.push_back(u);
             }
-            // The pack's team container (0x2a5a60): Spawned_Indigenous_Pack_Type's team object over the members. [port] No
-            // container without a pack type that resolves to a team (the original then uses the first member's type), or
-            // for an Is_Neutral owner (its members are bare objects, as map units).
-            uint32_t ci = 0xFFFFFFFFu;
+            // The pack's team containers (the team helper 0x2a5a60, as a starting company's: one per chunk of the pack type's
+            // Max_Squad_Size, in member order; #114, CU8K_T02_T06_RE §1.3 [M]: 2 containers per Endor spawn, 10 Ewoks in
+            // chunks of 5): Spawned_Indigenous_Pack_Type's team object over each chunk's members. [port] A container stands
+            // at its chunk's first member, with that member's facing. No container without a pack type that resolves to a
+            // team (the original then uses the first member's type), or for an Is_Neutral owner (its members are bare
+            // objects, as map units).
+            std::vector<uint32_t> cis(members.size(), 0xFFFFFFFFu);
+            std::vector<uint32_t> made;  // container indices, creation order
             const objects::TypeIndex pack = types.resolve_name(ascii_trim(types.get(t, objects::tags::Spawned_Indigenous_Pack_Type)));
             uint32_t ot = 0xFFFFFFFFu, bt = 0xFFFFFFFFu, squad = 0;
             if (adopt && pack != objects::kNone && pack < types.size() &&
                 bt_team(static_cast<uint32_t>(pack), static_cast<uint32_t>(st.type(first)), ot, bt, squad) &&
                 std::find(types_used_.begin(), types_used_.end(), ot) != types_used_.end()) {
-                objects::SpawnParams sp;
-                sp.type = static_cast<objects::TypeIndex>(ot);
-                sp.owner = owner;
-                sp.position = at;
-                sp.facing = st.facing(first);
-                const objects::ObjectHandle ch = st.create(sp);
-                if (st.alive(ch)) {
+                for (size_t s0 = 0; s0 < members.size(); s0 += squad) {
+                    objects::SpawnParams sp;
+                    sp.type = static_cast<objects::TypeIndex>(ot);
+                    sp.owner = owner;
+                    sp.position = s0 == 0 ? at : st.position(members[s0]);
+                    sp.facing = st.facing(members[s0]);
+                    const objects::ObjectHandle ch = st.create(sp);
+                    if (!st.alive(ch)) continue;
                     Container ct;
                     ct.id = st.id(ch);
                     ct.h = ch;
@@ -434,16 +439,35 @@ void TacticalBattle::sp_service(TacticalMode& mode, SimRng& rng, size_t index) {
                     ct.type = bt;
                     ct.owner = owner;
                     ct.squad_type = static_cast<uint32_t>(pack);
-                    ci = static_cast<uint32_t>(containers_.size());
+                    const auto ci = static_cast<uint32_t>(containers_.size());
                     containers_.push_back(ct);
                     ++stats_.containers;
+                    made.push_back(ci);
+                    for (size_t i = s0; i < std::min(members.size(), s0 + squad); ++i) cis[i] = ci;
                 }
             }
-            for (const objects::ObjectHandle u : members) {
+            for (size_t i = 0; i < members.size(); ++i) {
+                const objects::ObjectHandle u = members[i];
                 if (owner != spawner_owner) st.set_owner(u, owner);
                 sp_spawners_[index].spawned.push_back(st.id(u));
-                if (adopt) (void)bt_adopt_built(mode, u, owner, 1.0f, &rng, true, ci);
+                if (adopt) (void)bt_adopt_built(mode, u, owner, 1.0f, &rng, true, cis[i]);
             }
+            // #114 (CU8K_T02_T06_RE §1.3, §3 row SpawnIndigenousUnits 0x5320d4 [H trace]): each container's LandTeamContainer
+            // locomotor registers it at creation, as a starting team's (bt_spawn_company): its own coordinator, no draw now,
+            // one composition at this tick's step 10 (after the object services), in creation order. [port] A container
+            // with a member that cannot steer keeps its members standing in for it.
+            if (!space_ && movement_ && mv_self_registers(ot))
+                for (const uint32_t ci : made) {
+                    if (mv_squad_add(mode, ci, ot)) {
+                        const mv::ObjectId self[] = {containers_[ci].id};
+                        (void)movement_->hold_from_birth(self);
+                    } else {
+                        std::vector<mv::ObjectId> ids;
+                        for (const Unit& m : units_)
+                            if (m.container == ci && m.movable) ids.push_back(m.id);
+                        (void)movement_->hold_from_birth(ids);
+                    }
+                }
         }
     }
     sp_spawners_[index].next = mf + static_cast<uint32_t>(frames_trunc(30.0f * std::max(0.0f, types.get(t, objects::tags::Spawned_Indigenous_Units_Delay_Seconds))));
