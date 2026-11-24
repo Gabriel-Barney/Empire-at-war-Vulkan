@@ -779,7 +779,7 @@ void CombatSystem::process_hit(Projectile& p, Unit& v, float t, uint32_t frame, 
         he.delayed = true;
     } else {
         const DamageResult res = take_damage(r, frame);
-        absorbed_all = res.absorbed > 0.0f && res.to_hull == 0.0f && res.to_hardpoint == 0.0f;  // [M]
+        absorbed_all = res.shield_absorbed_all;  // #367: Take_Damage's flag [H] (was: nothing reached hull / hard point [M])
         he.armor_reduced = res.hull_armor_factor <= 0.75f;
     }
     // Visual picks are synced draws too (section 0.1).
@@ -1471,6 +1471,7 @@ DamageResult CombatSystem::take_damage_inner(const DamageRequest& r, uint32_t fr
     // nothing and no state is tested. [M] nothing else runs for it (no damage record: x is 0 from here on in retail).
     if (k != kKindBypassShield && r.hardpoint == kHardpointBaseShieldDome && vd.base_shield && sx > 0.0f) {
         out.absorbed = sx;
+        out.shield_absorbed_all = true;  // #367
         return out;
     }
     float absorbed = 0.0f;
@@ -1501,6 +1502,7 @@ DamageResult CombatSystem::take_damage_inner(const DamageRequest& r, uint32_t fr
         }
     }
     out.absorbed = absorbed;
+    out.shield_absorbed_all = absorbed > 0.0f && absorbed >= sx;  // #367: Take_Damage's flag (shield took all that was left)
     // S9: energy pool absorption (EnergyPool::Absorb 0x56c230, Does_Energy_Damage only) [L: takes
     // min(energy, the unabsorbed rest) in shield-armor space].
     float energy_taken = 0.0f;

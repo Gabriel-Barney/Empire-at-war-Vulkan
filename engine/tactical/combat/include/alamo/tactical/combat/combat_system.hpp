@@ -1052,6 +1052,10 @@ struct DamageResult {
     bool killed = false;
     bool cancelled = false;  // a Take_Damage listener (redirect / absorb) cancelled the hit
     float energy_absorbed = 0.0f;
+    // #367 (Take_Damage 0x3a9e30's out flag [H], docs/re/HIT_FLINCH.md §2): a shield (the base shield's dome, or SHIELDED)
+    // absorbed at least the damage left. Apply_Direct_Damage then takes the shield-hit particle and no flinch. The energy
+    // pool never sets it.
+    bool shield_absorbed_all = false;
 };
 
 struct DeathEvent {

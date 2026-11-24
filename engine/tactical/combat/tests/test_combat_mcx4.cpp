@@ -560,6 +560,26 @@ void test_clip_holds_fire() {
 }
 
 void test_hit_event_travel() {
+    // #367 (Take_Damage 0x3a9e30's flag): shield_absorbed_all is set only when the shield takes all that is left, not for a
+    // partly absorbed hit.
+    {
+        World w;
+        UnitDesc v;
+        v.tactical_health = 1e6f;
+        v.shield_points = 100.0f;
+        const uint32_t d = push_unit(w.data, v);
+        w.make();
+        w.add(1, d, 0, Vec3{0, 0, 0});
+        DamageRequest r;
+        r.victim = 1;
+        r.amount = 40.0f;
+        const DamageResult all = w.sys->take_damage(r, 10);
+        CHECK(all.shield_absorbed_all && all.absorbed == 40.0f);
+        r.amount = 100.0f;  // 60 shield left: 60 absorbed, 40 to the hull
+        const DamageResult part = w.sys->take_damage(r, 11);
+        CHECK(!part.shield_absorbed_all && part.absorbed == 60.0f && part.to_hull > 0.0f);
+    }
+
     // #367 (docs/re/HIT_FLINCH.md): a direct hit's HitEvent carries the projectile's LastKnownVelocity direction (the flinch
     // direction 0x62dde0 receives), and it survives a save (combat v21).
     struct W {
