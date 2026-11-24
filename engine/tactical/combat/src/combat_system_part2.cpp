@@ -170,6 +170,9 @@ void CombatSystem::fire_unit_weapon(Unit& u, uint32_t frame, SimRng& rng) {
     float dscale = 1.0f;  // OI abilities: Blast state gate (REMAINING_GAPS §5.5; a weapon never fires while it runs)
     if (hooks_ && !hooks_->fire_gate(u.id, nullptr, proj, dscale)) return;
     if (hooks_ && !hooks_->shot_allowed(u.id, tid, thp, proj)) return;
+    // #263 (docs/re/WEAPON_CLIP_GATES.md): 0x54d090's clip gates (crossfade into an attack pose or a flinch; the idle / move
+    // pose of a model that has ATTACKIDLE), own weapon only.
+    if (hooks_ && hooks_->clip_holds_fire(u.id, (u.flags & kUnitContained) != 0, ud.turret)) return;
     // mcx4 (MCX4_T11_T12_RE_ANSWERS §B4, 0x54d090 after the clip gates): in the crouched-move clip with a fire target, no
     // shot while the target's direction is more than Crouch_Move_Fire_Angle_Cutoff degrees off the unit's facing.
     if (tp && hooks_ && hooks_->crouch_moving(u.id) && !crouch_fire_cone(u, tp->pos)) return;

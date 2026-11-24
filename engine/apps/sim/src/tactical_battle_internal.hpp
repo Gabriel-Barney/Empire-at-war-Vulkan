@@ -232,11 +232,21 @@ public:
         if (b_->movement_ && b_->movement_->has_unit(id)) (void)b_->movement_->deploy(id, true, frame);
     }
     bool shot_allowed(tc::ObjectId shooter, tc::ObjectId target, int32_t target_hp, int32_t& projectile) override {
-#ifdef ALAMO_SIM_HAVE_ANIM
-        // ANIM_PARTICLES A.8: the weapon refuses to fire while the object plays a flinch clip.
-        if (world_ && world_->contains(shooter) && anim::is_flinch(world_->current_type(shooter))) return false;
-#endif
         return a_->shot_allowed(shooter, target, target_hp, projectile);
+    }
+    // #263: the flinch refusal is one of 0x54d090's clip gates (own weapon, while the crossfade runs); GARRISON_UNIT state
+    // 7 (inside) exempts the pose gate as the TURRET behaviour does.
+    bool clip_holds_fire(tc::ObjectId id, bool contained, bool turret) const override {
+#ifdef ALAMO_SIM_HAVE_ANIM
+        if (!world_) return false;
+        const bool inside = b_->garrison_.garrisoned(id);  // GARRISON_UNIT state 7 (inside)
+        return anim::weapon_clip_hold(*world_, id, contained, turret || inside);
+#else
+        (void)id;
+        (void)contained;
+        (void)turret;
+        return false;
+#endif
     }
     bool fire_gate(tc::ObjectId shooter, const tc::HardpointDesc* hardpoint, int32_t& projectile, float& damage_scale) override {
         return a_->fire_gate(shooter, hardpoint, projectile, damage_scale);
