@@ -183,7 +183,8 @@ public:
     // Gap (#50 follow-up, tier 1): retail passes the projectile as the detonation's parent (0x4c7050 family); the port's
     // projectiles are not store objects, so a detonation under fog still plays.
     // `fog_parent`: the object gate 9 tests (#50 t08; 0 = none).
-    uint32_t impact(std::string_view event, const Vec3& position, uint64_t fog_parent = 0);
+    // #327 t02: `parent_fogged` = the caller found the parent hidden by the fog (a projectile: no game object id).
+    uint32_t impact(std::string_view event, const Vec3& position, uint64_t fog_parent = 0, bool parent_fogged = false);
     uint32_t explosion(std::string_view event, const Vec3& position) { return impact(event, position); }
     // Death: every sound attached to the object is stopped (DeathBehavior, §1.5), then the death event
     // (Death_SFXEvent_Start_Die) plays at the death position [port: positional, so it survives the object's

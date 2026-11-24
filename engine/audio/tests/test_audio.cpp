@@ -544,6 +544,14 @@ void test_gates() {
     CHECK(a.play_sfx("Gun3D", seen) != 0);
     CHECK(a.play_sfx("Gun3D", at(2000.0f)) != 0);
     CHECK((parents == std::vector<uint64_t>{7, 8, 0}));
+    // #327 t02: a parent the caller found hidden (a projectile, no game object id) refuses the start the same way, also
+    // when the callback answers false; the Lua cinematic camera skips it too.
+    SfxPlay projectile = at(2000.0f);
+    projectile.parent_fogged = true;
+    CHECK(a.play_sfx("Gun3D", projectile) == 0 && last_reason(a) == "fogged");
+    a.set_cinematic_fog_skip(true);
+    CHECK(a.play_sfx("Gun3D", projectile) != 0);
+    a.set_cinematic_fog_skip(false);
     // #327 t01 (0x2d5440 gate 9 [H]): only the Lua cinematic camera (controller state 4) skips the fog test; another
     // cinematic camera (the TSW shot, state 3) still fogs.
     a.set_cinematic(true);

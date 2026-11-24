@@ -317,12 +317,13 @@ uint32_t GameAudio::weapon_fire(uint64_t shooter, std::string_view event, const 
     return impact(event, position, shooter);
 }
 
-uint32_t GameAudio::impact(std::string_view event, const Vec3& position, uint64_t fog_parent) {
+uint32_t GameAudio::impact(std::string_view event, const Vec3& position, uint64_t fog_parent, bool parent_fogged) {
     if (event.empty()) return 0;
     SfxPlay p;
     p.kind = SfxPlay::Kind::Position;
     p.position = position;
     p.fog_parent = fog_parent;
+    p.parent_fogged = parent_fogged;
     return audio_->play_sfx(event, p);
 }
 

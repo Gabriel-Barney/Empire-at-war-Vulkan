@@ -175,6 +175,9 @@ struct SfxPlay {
     uint64_t owner = 0;       // Object: game object id
     Vec3 position{};          // Position: the point; Object: initial position (updated via the object query)
     uint64_t fog_parent = 0;  // #50 t08, Position: the parent object 0x2d5240 passes to gate 9 (0 = none: no fog test)
+    // #327 t02, Position: the parent is hidden by the fog, as the caller tested it (a parent with no game object id, such
+    // as the port's projectiles); gate 9 refuses the start like a hidden fog_parent.
+    bool parent_fogged = false;
     bool force = false;       // skips gates 4..8
     uint32_t pump = 0;        // GUI entry points: run this many SFX updates now (same-frame clicks)
     float fade_in_seconds = 0.0f;  // callers starting loops pass Loop_Fade_In_Seconds (§1.6)

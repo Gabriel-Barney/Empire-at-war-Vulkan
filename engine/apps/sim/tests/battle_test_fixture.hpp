@@ -1015,6 +1015,9 @@ struct Run {
     uint64_t fog_hash = 0;  // digest of the per-frame FogOfWar::hash digests
     uint32_t fog_frames = 0, fog_sources_max = 0, fog_visible_max = 0, fog_hidden = 0, fog_shown = 0, fog_refogs = 0;
     bool fog_grids_ok = true, fog_ai_unfogged = true;
+    // #327 t02: fog_type_hidden (an object that is not in the store: a projectile) answers like fog_object_hidden for
+    // the same type, owner and position (objects without Multisample_FOW_Check)
+    uint32_t fog_type_checks = 0, fog_type_mismatches = 0;
     // fog follow-up: S8 targeting filter (human targets acquired while hidden), S9 ping / Force Sight
     std::map<int32_t, int32_t> fog_last_target;  // human unit -> auto target after the previous tick
     uint32_t fog_new_targets = 0, fog_bad_targets = 0, fog_force_frames = 0;
@@ -1067,8 +1070,13 @@ inline void fog_probe(TacticalBattle& b, TacticalMode& tm, Run& out, StateHasher
         if (!st.alive(h)) continue;
         const Vec3 p = st.position(h);
         out.fog_ai_unfogged = out.fog_ai_unfogged && !b.fog_point_fogged(1, p.x + 3000.0f, p.y, false);
-        if (b.fog_object_hidden(0, st.id(h), false)) ++out.fog_hidden;
+        const bool hidden = b.fog_object_hidden(0, st.id(h), false);
+        if (hidden) ++out.fog_hidden;
         else ++out.fog_shown;
+        if (!st.object_types().get(st.type(h), objects::tags::Multisample_FOW_Check)) {
+            ++out.fog_type_checks;
+            if (b.fog_type_hidden(0, st.type(h), st.owner(h), p, false) != hidden) ++out.fog_type_mismatches;
+        }
     }
     // fog follow-up (S8 step 4): a target the human acquired this tick was visible at its scan. Visibility can only
     // grow between the gather phase and the end of the tick (reveals / flashes raise states, removals only uncount),

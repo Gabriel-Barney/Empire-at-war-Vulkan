@@ -397,6 +397,22 @@ bool TacticalBattle::fog_object_hidden(int32_t player, objects::ObjectId id, boo
     return fog_.object_hidden(player, q, force);
 }
 
+bool TacticalBattle::fog_type_hidden(int32_t player, objects::TypeIndex type, int32_t owner, const Vec3& position, bool force) const {
+    if (!fog_on_ || !fog_mode_) return false;
+    const objects::GameObjectTypes& types = fog_mode_->primary().object_types();
+    if (type >= types.size()) return false;
+    const objects::BehaviorSet set = space_ ? objects::BehaviorSet::Space : objects::BehaviorSet::Land;
+    const auto has = [&](objects::BehaviorTypeId id) { return id != objects::kNoBehavior && types.has_behavior(type, set, id); };
+    fw::FogHideQuery q;
+    q.owner = owner;
+    q.team_or_hide_when_fogged = has(fog_team_beh_) || has(fog_hide_beh_);
+    q.has_reveal = has(fog_reveal_beh_);
+    q.x = position.x;
+    q.y = position.y;
+    q.z = position.z;
+    return fog_.object_hidden(player, q, force);
+}
+
 bool TacticalBattle::fog_object(objects::ObjectId id, fw::FogObject& out) const {
     if (!fog_mode_) return false;
     const objects::ObjectStore& store = fog_mode_->primary();

@@ -476,8 +476,10 @@ uint32_t AudioSystem::play_sfx(uint32_t event_index, const SfxPlay& p) {
         if (e.probability < 100 && rng_->range_int(1, 100) > e.probability) return fail("probability");
     }
     // 9. 3D-positional calls under the fog of war
-    if (p.kind == SfxPlay::Kind::Position && !cinematic_fog_skip_ && position_fogged_ && position_fogged_(p.position, p.fog_parent))
-        return fail("fogged");
+    if (p.kind == SfxPlay::Kind::Position && !cinematic_fog_skip_) {
+        const bool parent_hidden = position_fogged_ && position_fogged_(p.position, p.fog_parent);
+        if (parent_hidden || p.parent_fogged) return fail("fogged");  // #327 t02: a parent tested by the caller
+    }
 
     // [port] Kills_Previous_Object_SFX is applied once the start is accepted (§1.5 says "before starting").
     if (e.kills_previous_object_sfx && p.kind == SfxPlay::Kind::Object && p.owner != 0) {
