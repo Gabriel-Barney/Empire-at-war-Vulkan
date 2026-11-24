@@ -37,9 +37,23 @@ struct AvoidModel {
         // is_hidden flag does NOT clear it. Read by avoid_ray_any only.
         bool bone_visible = true;
         std::vector<F3> tris;
+        // #111: a bounding volume hierarchy over `tris` (avoid_build_index), so a segment visits only the triangles whose
+        // node boxes, slightly enlarged, it crosses; none (the default, and a mesh of a few triangles) = every triangle in
+        // order. The results are the same either way: the tests are an OR or a strict nearest-t minimum, which no visiting
+        // order changes, and the enlarged boxes keep every triangle the exact test could hit. Performance only.
+        struct Node {
+            F3 lo, hi;               // the box of the node's triangles, enlarged (avoid_build_index)
+            uint32_t first = 0;      // leaf: first entry of `order`; inner node: index of its first child (the second follows)
+            uint32_t count = 0;      // leaf: triangle count; 0 = inner node
+        };
+        std::vector<Node> nodes;     // nodes[0] is the root
+        std::vector<uint32_t> order;  // triangle numbers (index into tris / 3) in leaf order
     };
     std::vector<Mesh> meshes;
 };
+// #111: builds Mesh::nodes / order for every mesh of more than a few triangles (the host calls it once per model, after
+// the meshes are filled). Deterministic; results of the tests below are unchanged.
+void avoid_build_index(AvoidModel& m);
 
 // One member of the avoidance tree at query time.
 struct AvoidObstacle {

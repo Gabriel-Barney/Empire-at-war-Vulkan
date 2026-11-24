@@ -1,14 +1,18 @@
 // movement_system: part 3 (bo3 t03 split; shared code in movement_system_internal.hpp).
 #include "movement_system_internal.hpp"
 
+#include "alamo/core/profile.hpp"
+
 namespace alamo::tactical::movement {
 void MovementSystem::tick_space(uint32_t frame, const ParallelFor& pf) {
     const MovementConstants& k = cfg_.constants;
+    profile::Steps steps;
     std::vector<uint32_t> req;
     for (uint32_t i = 0; i < units_.size(); ++i)
         if (units_[i].need_path && frame >= units_[i].start_frame) req.push_back(i);
     if (!req.empty()) {
         space_.build_index();  // the parallel planners' occupancy queries visit only nearby entries
+        ALAMO_PROFILE_STEP(steps, "mov.space.index");
         std::vector<SpacePath> out(req.size());
         pf(static_cast<uint32_t>(req.size()), 1, [&](uint32_t b, uint32_t e) {
             SpaceScratch sc;
@@ -58,6 +62,7 @@ void MovementSystem::tick_space(uint32_t frame, const ParallelFor& pf) {
             u.following = true;
             space_.set_track(u.d.id, u.d.space_layer, u.d.radius, frame, u.wps);
         }
+        ALAMO_PROFILE_STEP(steps, "mov.space.plan");
     }
     std::vector<SpacePose> pose(units_.size());
     pf(static_cast<uint32_t>(units_.size()), 64, [&](uint32_t b, uint32_t e) {
@@ -106,7 +111,9 @@ void MovementSystem::tick_space(uint32_t frame, const ParallelFor& pf) {
             park_space(u, frame);
         }
     }
+    ALAMO_PROFILE_STEP(steps, "mov.space.follow");
     tick_fighters(frame);  // FIGHTER_FLYING §2-§5 (serial, ascending id)
+    ALAMO_PROFILE_STEP(steps, "mov.space.fighters");
 }
 
 void MovementSystem::commit(objects::ObjectStore& store) const {
