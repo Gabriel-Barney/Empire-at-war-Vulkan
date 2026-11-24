@@ -42,6 +42,8 @@ TacticalBattle::TacticalBattle(const BattleCatalog& catalog, const galactic::Gal
                                const galactic::ConflictRules& rules, galactic::BattleRequest request, BattleConfig cfg,
                                const ParallelFor& pf)
     : catalog_(&catalog), galaxy_(&galaxy), rules_(&rules), req_(std::move(request)), cfg_(cfg) {
+    // #365: GameConstants Unit_Presence_Relaxation_Time when the data sets it (else the BattleConfig [port] default).
+    if (const std::optional<float> v = catalog.presence_relaxation_seconds()) cfg_.presence_relaxation_seconds = *v;
     space_ = req_.info.kind == galactic::ConflictKind::Space;
     for (const galactic::BattleForces& f : req_.forces) {
         const uint8_t side = owner_side(f.player);  // a skirmish slot k >= 2 is side k

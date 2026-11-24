@@ -170,15 +170,13 @@ void TacticalBattle::imposing_presence(objects::ObjectStore& store, const std::v
     // the moving gate stops. No draws; the order of the writes does not change the result.
     // [port] R is a battle unit (the gates read the unit tables); the tree's other objects with IDLE get no record.
     const GameMode* gm = hooks_ ? hooks_->anim_mode() : nullptr;
-    if (!anim_ || !gm || &gm->primary() != &store) return;
-    // #365: GameConstants Unit_Presence_Relaxation_Time when the data sets it, else the [port] default.
-    const float fr = static_cast<float>(anim::kSimTicksPerSecond) * catalog_->presence_relaxation_seconds().value_or(cfg_.presence_relaxation_seconds);
+    if (!anim_ || !gm || &gm->primary() != &store || !tick_.mode || &tick_.mode->primary() != &store) return;
+    const float fr = static_cast<float>(anim::kSimTicksPerSecond) * cfg_.presence_relaxation_seconds;  // #365: GameConstants when set
     const int32_t frames = fr >= 1.0f ? (fr < 1.0e9f ? static_cast<int32_t>(fr) : 1000000000) : 0;  // frame-cast-ok: range-guarded above
     if (frames < 1) return;
     anim::AnimBehaviors& beh = anim_->behaviors(*gm);
-    if (!tick_.mode || &tick_.mode->primary() != &store) return;
     const tactical::SpatialTree& tree = tick_.mode->trees().all();  // GOM +0xd8
-    tactical::QueryContext ctx;
+    tactical::QueryContext& ctx = presence_query_;
     const uint32_t mf = store.mode_frame();
     const objects::BehaviorTypeId kImposingPresence = 0x40;
     for (const objects::ObjectHandle p : store.all_objects()) {
