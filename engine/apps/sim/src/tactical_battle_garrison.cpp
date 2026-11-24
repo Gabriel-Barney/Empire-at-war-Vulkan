@@ -550,7 +550,18 @@ void TacticalBattle::s4_apply(TacticalMode& mode) {
             case tg::GarrisonEventKind::Killed: {  // host without a garrison behaviour died (or a hover host in the air)
                 Unit* u = unit_by_id(e.unit);
                 if (!u || !u->alive) break;
-                if (combat_->has_unit(e.unit)) combat_->kill_unit(e.unit, tc::kNoObject, tc::kKindNormal, frame_);
+                // #360 (TACTICAL_GAPS §1.9 [H], ABILITIES_HARDPOINTS §4.9): the occupant dies as any combat death - death
+                // clone / corpse, death clip, Death_Explosions, scoring and victory bookkeeping (process_death) - and its
+                // hardpoint (Die step 5) and survivor (step 7) events are consumed in consume_events' order
+                // (consume_kill_events). [port] It dies when the Killed event is applied (the next s4_apply, mostly the
+                // garrisons service), not inline in the host's Die.
+                if (combat_->has_unit(e.unit)) {
+                    const CombatEventMarks marks = combat_event_marks();
+                    combat_->kill_unit(e.unit, tc::kNoObject, tc::kKindNormal, frame_);
+                    if (bt_rng_) consume_kill_events(mode, *bt_rng_, marks);
+                    if (!u->alive) break;
+                }
+                // no combat entry, no battle RNG, or a kill the combat refused (cannot die): the occupant is removed directly
                 // #327 t06 [port]: no death clone on this path; the dying type stands for its own clone.
                 if (mode.primary().exists(u->h))
                     present_unit_died(mode.primary().owner(u->h), u->id, u->type, static_cast<int32_t>(u->type), objects::kNoObjectId,

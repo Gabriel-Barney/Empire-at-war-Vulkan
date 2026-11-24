@@ -2334,6 +2334,21 @@ private:
     // s78n t12 review: `silent` = a world removal without Die (CombatSystem::remove_from_world: the vehicle a thief's clone
     // replaces) - the object leaves as for a death, without the Death_Explosions particle and the death clip.
     void process_death(TacticalMode& mode, const tactical::combat::DeathEvent& d, SimRng& rng, bool silent = false);
+    // consume_events step c for one hardpoint destruction: Death_Explosion_Particles, then Death_Breakoff_Prop.
+    void consume_hardpoint_event(TacticalMode& mode, const tactical::combat::HardpointEvent& e);
+    // #360: the events of a combat kill made outside the tick's consumers (a garrison host's Killed occupants), consumed in
+    // consume_events' order - hardpoints (Die step 5), deaths, survivors (Die step 7) - from the marks on. A list the running
+    // consume_events has still to read (unread_) is left to it, so no event is consumed twice.
+    struct CombatEventMarks {
+        size_t hardpoints = 0, deaths = 0, survivors = 0;
+    };
+    CombatEventMarks combat_event_marks() const;
+    void consume_kill_events(TacticalMode& mode, SimRng& rng, const CombatEventMarks& marks);
+    // #360: set by consume_events for each combat list it has still to read, cleared as it passes it (transient: never
+    // set between services, so not saved or hashed).
+    struct UnreadCombatEvents {
+        bool hardpoints = false, deaths = false, survivors = false;
+    } unread_;
     void spawn_particle(TacticalMode& mode, int32_t type, Vec3 pos, int32_t owner);
     objects::ObjectHandle spawn_prop(TacticalMode& mode, int32_t type, Vec3 pos, Vec3 facing, int32_t owner);
     // Die step 8's clone object (flags 0xc0), and the infantry corpse-path test (S9 §1.6).
@@ -3002,6 +3017,7 @@ private:
     void oi_add_ability_types();                       // setup(): spawn / survivor types the abilities name -> tables
     void oi_install(TacticalMode& mode, SimRng& rng);  // setup(): AbilityHost, RNG, credit hooks (after the combat hooks)
     void oi_events(TacticalMode& mode);                // consume_events(): ability actions, spawn requests, survivors
+    void oi_survivor(TacticalMode& mode, const tactical::combat::SurvivorEvent& s);  // oi_events step c: one Die step 7 event
     void oi_respawn_due(TacticalMode& mode);           // tick(): due Tactical_Respawn creations
     // S8 t11 / t12 (MOVEMENT §3.2): drains MovementSystem::take_deploy_events() - each Walk deploy-state change sets DEPLOY
     // Is_Active / kUnitDeploying / kUnitDeployTransition (AbilitySystem::set_deploy_state), and each change with `finished`

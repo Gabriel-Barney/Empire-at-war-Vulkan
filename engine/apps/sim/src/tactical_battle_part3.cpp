@@ -597,6 +597,7 @@ objects::ObjectHandle TacticalBattle::spawn_prop(TacticalMode& mode, int32_t typ
 
 void TacticalBattle::consume_events(TacticalMode& mode, SimRng& rng) {
     objects::ObjectStore& store = mode.primary();
+    unread_ = {true, true, true};  // #360: consume_kill_events leaves these lists to the steps below
     // a. damage events -> DAMAGE_TRACKING (call order, before the deaths disable the victims).
 #ifdef ALAMO_SIM_HAVE_AI_TACTICAL
     // A1_READINGS §7 [H; M flag names]: amount = the actual hull + shield loss (shield absorbed + hull damage; a hit
@@ -646,28 +647,11 @@ void TacticalBattle::consume_events(TacticalMode& mode, SimRng& rng) {
         }
     }
     // c. hardpoint destructions: Death_Explosion_Particles, then Death_Breakoff_Prop (each an id).
-    for (const tc::HardpointEvent& e : combat_->hardpoint_events()) {
-        ++stats_.hardpoints_destroyed;
-        const objects::ObjectHandle oh = store.find(e.owner);
-        if (!store.exists(oh)) continue;
-        Vec3 at = store.position(oh);
-        // battle host: at the hard point's attachment bone (bind pose, BattleCatalog model data; unit centre without it):
-        // unit-local (x forward, y left, z up) rotated by the unit's yaw.
-        if (combat_->has_unit(e.owner)) {
-            const tc::UnitDesc& ud = combat_->data().units[combat_->desc_index(e.owner)];
-            if (e.index < ud.hardpoints.size() && ud.hardpoints[e.index] < combat_->data().hardpoints.size()) {
-                const auto off = combat_->data().hardpoints[ud.hardpoints[e.index]].attach_offset;
-                const Vec3 f = store.facing(oh);
-                const float len = dmath::sqrt(f.x * f.x + f.y * f.y);
-                const float fx = len > 0.0f ? f.x / len : 1.0f, fy = len > 0.0f ? f.y / len : 0.0f;
-                at = Vec3{at.x + fx * off.x - fy * off.y, at.y + fy * off.x + fx * off.y, at.z + off.z};
-            }
-        }
-        spawn_particle(mode, e.explosion_type, at, store.owner(oh));
-        if (e.breakoff_type >= 0 && spawn_prop(mode, e.breakoff_type, at, store.facing(oh), store.owner(oh))) ++stats_.props;
-    }
+    for (const tc::HardpointEvent& e : combat_->hardpoint_events()) consume_hardpoint_event(mode, e);
+    unread_.hardpoints = false;
     // d. deaths: destroy, death clone object, first Death_Explosions entry [port: pick rule untraced].
     for (const tc::DeathEvent& d : combat_->deaths()) process_death(mode, d, rng);
+    unread_.deaths = false;
     // e. damaged smoke (render attachment).
     for (const tc::SmokeEvent& e : combat_->smoke_events()) {
         const objects::ObjectHandle h = store.find(e.id);
@@ -733,6 +717,51 @@ void TacticalBattle::consume_events(TacticalMode& mode, SimRng& rng) {
     oi_events(mode);  // OI abilities: ability moves / stops / owner changes, ability spawns, death survivors
     oi_deploy_sync(mode);  // this pass's deploy requests and jetpack swaps
     abilities_->clear_events();
+    unread_ = {};
+}
+
+void TacticalBattle::consume_hardpoint_event(TacticalMode& mode, const tc::HardpointEvent& e) {
+    objects::ObjectStore& store = mode.primary();
+    ++stats_.hardpoints_destroyed;
+    const objects::ObjectHandle oh = store.find(e.owner);
+    if (!store.exists(oh)) return;
+    Vec3 at = store.position(oh);
+    // battle host: at the hard point's attachment bone (bind pose, BattleCatalog model data; unit centre without it):
+    // unit-local (x forward, y left, z up) rotated by the unit's yaw.
+    if (combat_->has_unit(e.owner)) {
+        const tc::UnitDesc& ud = combat_->data().units[combat_->desc_index(e.owner)];
+        if (e.index < ud.hardpoints.size() && ud.hardpoints[e.index] < combat_->data().hardpoints.size()) {
+            const auto off = combat_->data().hardpoints[ud.hardpoints[e.index]].attach_offset;
+            const Vec3 f = store.facing(oh);
+            const float len = dmath::sqrt(f.x * f.x + f.y * f.y);
+            const float fx = len > 0.0f ? f.x / len : 1.0f, fy = len > 0.0f ? f.y / len : 0.0f;
+            at = Vec3{at.x + fx * off.x - fy * off.y, at.y + fy * off.x + fx * off.y, at.z + off.z};
+        }
+    }
+    spawn_particle(mode, e.explosion_type, at, store.owner(oh));
+    if (e.breakoff_type >= 0 && spawn_prop(mode, e.breakoff_type, at, store.facing(oh), store.owner(oh))) ++stats_.props;
+}
+
+TacticalBattle::CombatEventMarks TacticalBattle::combat_event_marks() const {
+    return {combat_->hardpoint_events().size(), combat_->deaths().size(), combat_->survivor_events().size()};
+}
+
+void TacticalBattle::consume_kill_events(TacticalMode& mode, SimRng& rng, const CombatEventMarks& marks) {
+    // #360 (TACTICAL_GAPS §1.9 [H] Die step 7, ABILITIES_HARDPOINTS §4.9 Die step 5): consume_events' order - hardpoints (step
+    // c), deaths (step d), then oi_events' survivors (its step c) - for the events from the marks on (copies: the consumers
+    // may add to the lists). A list the running consume_events still reads (a kill from inside it, e.g. oi_events step b's
+    // s4_board -> s4_apply) is left to it; at any other time its events would be dropped (the combat tick clears the lists).
+    const auto from = [](const auto& list, size_t k, bool unread) {
+        using E = typename std::decay_t<decltype(list)>::value_type;
+        if (unread) return std::vector<E>{};
+        return std::vector<E>(list.begin() + static_cast<std::ptrdiff_t>(std::min(k, list.size())), list.end());
+    };
+    const std::vector<tc::HardpointEvent> hardpoints = from(combat_->hardpoint_events(), marks.hardpoints, unread_.hardpoints);
+    const std::vector<tc::DeathEvent> deaths = from(combat_->deaths(), marks.deaths, unread_.deaths);
+    const std::vector<tc::SurvivorEvent> survivors = from(combat_->survivor_events(), marks.survivors, unread_.survivors);
+    for (const tc::HardpointEvent& e : hardpoints) consume_hardpoint_event(mode, e);
+    for (const tc::DeathEvent& d : deaths) process_death(mode, d, rng);
+    for (const tc::SurvivorEvent& s : survivors) oi_survivor(mode, s);
 }
 
 void TacticalBattle::process_death(TacticalMode& mode, const tc::DeathEvent& d, SimRng& rng, bool silent) {
