@@ -307,7 +307,7 @@ void test_fog_battle(const Data& d) {
                     a.fog_ability_frame, a.fog_probe_before ? 1 : 0, a.fog_probe_after ? 1 : 0, a.fog_force_frames);
         CHECK(a.fought == 1 && a.fog_frames > 100 && a.fog_grids_ok && a.fog_ai_unfogged);
         CHECK(a.fog_sources_max > 0 && a.fog_visible_max > 0 && a.fog_hidden > 0 && a.fog_shown > 0);
-        CHECK(a.fog_type_checks > 0 && a.fog_type_mismatches == 0);  // #327 t02
+        CHECK(a.fog_type_checks > a.fog_type_hidden && a.fog_type_hidden > 0 && a.fog_type_mismatches == 0);  // #327 t02
         CHECK(off.fog_frames == 0);
         CHECK(a.fog_new_targets > 0 && a.fog_bad_targets == 0);
         CHECK(a.fog_ability_frame == 30 && a.fog_probe_before && a.fog_probe_after);

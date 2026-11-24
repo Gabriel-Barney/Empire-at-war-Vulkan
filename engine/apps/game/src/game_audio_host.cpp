@@ -941,8 +941,10 @@ void GameAudioHost::battle_tick(const sim::TacticalBattle& battle, const objects
                 if (ev.empty()) ev = sounds(types, pt).projectile_detonate;
                 // #327 t02 (0x4c7050 / 0x4caea0 / 0x4cb070 / 0x4cb280 [H]): every detonation passes the projectile as the
                 // sound's parent, so gate 9 tests the projectile type (TEAM / HIDE_WHEN_FOGGED) at the detonation point.
-                const bool fogged = battle.fog_type_hidden(local_player, pt, e.owner, v3(e.position), false);
-                if (!ev.empty() && game_->impact(ev, v3(e.position), 0, fogged)) ++stats_.hits;
+                // [port] the detonation point stands for the projectile's position (a hit's impact point).
+                if (!ev.empty() &&
+                    game_->impact(ev, v3(e.position), 0, battle.fog_type_hidden(local_player, pt, e.owner, v3(e.position), false)))
+                    ++stats_.hits;
             }
         }
         combat = combat || e.owner == local_player || (e.victim != tactical::combat::kNoObject && owner_of(e.victim) == local_player);
