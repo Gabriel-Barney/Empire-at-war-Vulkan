@@ -215,7 +215,7 @@ enum SnapshotFlag : uint8_t {
     kSnapCorpse = 0x10,
     // R3: inside a garrison / transport (not drawn, no particles; the sim keeps the object). Set by apply_contained.
     kSnapContained = 0x20,
-    // 0x40: free (#357 removed the render-side spin-away stand-in; the sim moves the wreck)
+    // 0x40: unused
     // a store death clone (objects::kFlagDeathClone, dying / removing): drawn while it plays its death, but
     // not a HUD unit and never hovered or picked.
     kSnapDeathClone = 0x80,

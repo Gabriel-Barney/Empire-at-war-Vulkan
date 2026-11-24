@@ -1889,7 +1889,7 @@ void test_death_plan() {
         sp.spin_away_chance = 0.0f;
         SimRng r0(9), rp0(9);
         const bool zero = rp0.range_float(0.0f, 1.0f) <= 0.0f;
-        CHECK(plan_death(m.get(), sp, 1, r0).spin == zero && r0.state() == rp0.state());
+        CHECK(plan_death(nullptr, sp, 1, r0).spin == zero && r0.state() == rp0.state());  // no model: no variant draw after
         DeathParams forever;
         SimRng other(9);
         CHECK(plan_death(m.get(), forever, 1, other).forever);

@@ -1933,7 +1933,8 @@ private:
         Vec3 v{};
         std::vector<Vec3> pts;
         float dist = 0.0f, acc = 0.0f, roll = 0.0f, pitch = 0.0f, yaw = 0.0f;
-        tactical::combat::RocketSpline spline;  // not saved: rebuilt from pts (rebuild_spin_paths)
+        uint32_t born = 0;                      // battle frame of the death: the first service is on a later tick
+        tactical::combat::RocketSpline spline;  // not saved: rebuilt from pts (build_spin_spline)
     };
     // #357: what a death clone takes from the dying object (0x29f270): V and its roll / pitch (degrees).
     struct DeathMotion {
@@ -2645,6 +2646,7 @@ private:
     void spin_wreck_path(SpinWreck& w, Vec3 pos, float seconds, SimRng& rng) const;  // 0x58c7a0
     void service_spin_wrecks(TacticalMode& mode, SimRng& rng);  // 0x58d430, spin branch
     void rebuild_spin_paths();
+    static void build_spin_spline(SpinWreck& w);  // Build(20) of w.pts
     void drop_gone_wrecks(const objects::ObjectStore& store);
     void spin_hash(StateHasher& h) const;
     // `due_rng` set: the due ones (expire_objects), each spawning its Death_Explosions_End entry with draws from it; null:

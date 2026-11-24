@@ -1043,6 +1043,7 @@ void TacticalBattle::schedule_death_clone(TacticalMode& mode, objects::ObjectHan
         w.v = motion.v;
         w.roll = motion.roll;
         w.pitch = motion.pitch;
+        w.born = frame_;
         w.yaw = yaw_of(st.facing(clone));
         if (w.yaw < 0.0f) w.yaw += 360.0f;
         spin_wrecks_.push_back(std::move(w));

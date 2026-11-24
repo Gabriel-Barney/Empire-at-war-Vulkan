@@ -10,8 +10,8 @@ using namespace bo3split;
 
 void TacticalBattle::snapshot_unit_motion(const objects::ObjectStore& store) {
     // The object service 0x3a6b80 copies its locomotor pack's +0x164 snapshot to +0x194 and the object matrix to +0x164 at
-    // its start (MOVEMENT s78n t26 RE 2 [H]); [port] once per tick, before the movement, for the movable battle units (an
-    // object without a locomotor pack has V = 0). The first snapshot fills both (no motion yet).
+    // its start (MOVEMENT s78n t26 RE 2 [H]); [port, tier 1: V within a frame] once per tick, before the movement, for the
+    // movable battle units (an object without a locomotor pack has V = 0). The first snapshot fills both (no motion yet).
     for (Unit& u : units_) {
         if (!u.alive || !u.movable || !store.alive(u.h)) continue;
         const Vec3 p = store.position(u.h);
@@ -38,14 +38,16 @@ const TacticalBattle::SpinWreck* TacticalBattle::spin_wreck(objects::ObjectId id
     return nullptr;
 }
 
+void TacticalBattle::build_spin_spline(SpinWreck& w) {
+    w.spline.clear();
+    for (const Vec3& p : w.pts) w.spline.append(tv(p));
+    w.spline.build(20);  // 0x22ffc0(spline, 0x14): the spacing sizes the polyline table only
+}
+
 void TacticalBattle::rebuild_spin_paths() {
     // the load 0x58c030 [H]: the control points re-appended in order, then Build(20); the coefficients and segment lengths
     // are recomputed, not saved.
-    for (SpinWreck& w : spin_wrecks_) {
-        w.spline.clear();
-        for (const Vec3& p : w.pts) w.spline.append(tv(p));
-        w.spline.build(20);
-    }
+    for (SpinWreck& w : spin_wrecks_) build_spin_spline(w);
 }
 
 void TacticalBattle::drop_gone_wrecks(const objects::ObjectStore& store) {
@@ -78,7 +80,8 @@ void TacticalBattle::spin_wreck_path(SpinWreck& w, Vec3 P0, float seconds, SimRn
     if (L < 0.0f) return;  // never (the original's test)
     const Vec3 P1{(P0.x + E.x) * 0.5f, (P0.y + E.y) * 0.5f, (P0.z + E.z) * 0.5f};
     // one synced Get_Float(0, 2 pi) (0x1ffbb0, [0, 2 pi] inclusive); sinf / cosf with the tiny-angle shortcut (theta 0
-    // exactly: s = theta, c = 1). [port] dmath::sin / cos for the CRT's (parity by behaviour, as the rocket spline).
+    // exactly: s = theta, c = 1). [port, tier 3: bits of the path, not its shape] dmath::sin / cos for the CRT's (as the
+    // rocket spline).
     const float theta = rng.range_float(0.0f, 6.2831855f);
     float s = theta, c = 1.0f;
     if (theta != 0.0f) {
@@ -87,15 +90,14 @@ void TacticalBattle::spin_wreck_path(SpinWreck& w, Vec3 P0, float seconds, SimRn
     }
     const Vec3 P2{E.x + (s * c2.x + c * c1.x) * k, E.y + (c * c1.y + s * c2.y) * k, E.z + std::fabs(c * c1.z + s * c2.z) * k};
     w.pts = {P0, P1, P2, E};
-    for (const Vec3& p : w.pts) w.spline.append(tv(p));
-    w.spline.build(20);  // 0x22ffc0(spline, 0x14): the spacing sizes the polyline table only
+    build_spin_spline(w);
     w.dist = 0.0f;
 }
 
 void TacticalBattle::service_spin_wrecks(TacticalMode& mode, SimRng& rng) {
     // DeathBehavior service 0x58d430, spin branch [H, decompile and disassembly 0x58d484..0x58d5f8], once per tick for every
-    // wreck in spawn order. [port] The first service is on the tick after the death (the clone's place in the object walk
-    // is untraced, docs/re/SPIN_AWAY_DEATH.md §1).
+    // wreck in spawn order. [port, tier 1: within a frame] The first service is on the tick after the death, for a death in a
+    // tick (combat, late deaths) as between ticks (a script kill): the clone's place in the object walk is untraced [L].
     objects::ObjectStore& store = mode.primary();
     drop_gone_wrecks(store);  // removed by another path (a collision push kill)
     if (spin_wrecks_.empty()) return;
@@ -104,6 +106,11 @@ void TacticalBattle::service_spin_wrecks(TacticalMode& mode, SimRng& rng) {
     size_t keep = 0;
     for (size_t i = 0; i < spin_wrecks_.size(); ++i) {
         SpinWreck& w = spin_wrecks_[i];
+        if (w.born == frame_) {  // died in this tick
+            if (keep != i) spin_wrecks_[keep] = std::move(w);
+            ++keep;
+            continue;
+        }
         const objects::TypeIndex t = store.type(w.h);
         const float seconds = types.get(t, objects::tags::Spin_Away_On_Death_Time);  // ledger: consumes GameObjectType.Spin_Away_On_Death_Time
         const Vec3 pos = store.position(w.h);
@@ -127,8 +134,8 @@ void TacticalBattle::service_spin_wrecks(TacticalMode& mode, SimRng& rng) {
         }
         const Vec3 p{s.x, s.y, s.z};
         // Turn_Toward 0x3abe40(obj, angles_to(pos, P), -1.0, yaw, pitch): rate <= 0 -> 0x372560 = the clone type's
-        // Max_Rate_Of_Turn x Object_Max_Speed_Multiplier_{Space,Land} x 1.0 degrees a service ([port] the type flag +0x790
-        // that skips the multiplier is not read, as CombatSystem::projectile_turn_rate).
+        // Max_Rate_Of_Turn x Object_Max_Speed_Multiplier_{Space,Land} x 1.0 degrees a service. [port, tier 1 for a type that
+        // sets it] The type flag +0x790 that skips the multiplier is not read (as CombatSystem::projectile_turn_rate).
         const mv::FAngles a = mv::fighter_vector_angles(mv::F3{pos.x, pos.y, pos.z}, mv::F3{p.x, p.y, p.z});
         const float rate = types.get(t, objects::tags::Max_Rate_Of_Turn) * (space_ ? cc.turn_multiplier_space : cc.turn_multiplier_land);
         const auto clamp_turn = [rate](float delta) {
@@ -150,8 +157,8 @@ void TacticalBattle::service_spin_wrecks(TacticalMode& mode, SimRng& rng) {
         float sy = 0.0f, cy = 1.0f;
         dmath::sincos(yaw * (dmath::kPiF / 180.0f), sy, cy);
         store.set_facing(w.h, Vec3{cy, sy, 0.0f});  // the level yaw frame; pitch and roll through unit_attitude
-        // [port] a land clone obstacle (register_clone_obstacle) moves with the wreck (retail marks the transform dirty;
-        // how its land collision follows a moving clone is untraced [L]).
+        // [port, tier 1: no stale obstacle] a land clone obstacle (register_clone_obstacle) moves with the wreck (retail marks
+        // the transform dirty; how its land collision follows a moving clone is untraced [L]).
         if (movement_ && movement_->has_unit(w.id)) movement_->teleport(w.id, mv::V2{p.x, p.y}, p.z, yaw, frame_);
         if (keep != i) spin_wrecks_[keep] = std::move(w);
         ++keep;
@@ -177,6 +184,7 @@ void TacticalBattle::spin_hash(StateHasher& h) const {
         h.f32(w.roll);
         h.f32(w.pitch);
         h.f32(w.yaw);
+        h.u32(w.born);
     }
 }
 

@@ -103,7 +103,7 @@ void TacticalBattle::state_io(Ar& a, Self& b) {
     a.seq(b.particles_, timed);
     a.seq(b.dummies_, timed);
     a.seq(b.death_clones_, timed);  // refixf t04
-    a.seq(b.spin_wrecks_, [](auto& x, auto& w) { x(w.id, w.h, w.v, w.pts, w.dist, w.acc, w.roll, w.pitch, w.yaw); });  // #357 (25)
+    a.seq(b.spin_wrecks_, [](auto& x, auto& w) { x(w.id, w.h, w.v, w.pts, w.dist, w.acc, w.roll, w.pitch, w.yaw, w.born); });  // #357 (25)
     a.seq(b.effects_, [](auto& x, auto& e) { x(e.id, e.asset, e.percent, e.frame); });
     a(b.anchor_[0], b.anchor_[1], b.facing_[0], b.facing_[1], b.placed_[0], b.placed_[1]);
     a(b.drop_facing_[0], b.drop_facing_[1]);  // a1h t06
