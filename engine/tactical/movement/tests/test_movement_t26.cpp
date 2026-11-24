@@ -1115,8 +1115,29 @@ void test_t26_end_move() {
     };
     const auto [ra, ka] = end_case(46.0f);  // 4 short: arrived, the index stepped on, no move
     CHECK(ra.arrived && !ra.moved && ka.next == 2 && ka.speed == 0.0f && ka.state == LocoState::WalkStopped && ka.pos.x == 46.0f);
-    const auto [rb, kb] = end_case(44.0f);  // 6 short: restart (start rule, Start Move, the move step from speed 0)
-    CHECK(!rb.arrived && rb.restart && kb.next == 1 && kb.state == LocoState::WalkMoving && kb.speed == 1.0f);
+    // 6 short: restart. #282 (0x61fc30 read 2026-11-23 [H]): 0x15 sets state 0 and returns 1, "done for this frame" - the
+    // unit stands in state 0 at speed 0 and the start rule (Start Move, the move step from speed 0) runs the next frame.
+    auto [rb, kb] = end_case(44.0f);
+    CHECK(!rb.arrived && rb.restart && !rb.moved && kb.next == 1 && kb.state == LocoState::None && kb.speed == 0.0f && kb.pos.x == 44.0f);
+    const WalkResult rc = walk_step(kb, lp, 3.0e38f, nullptr);
+    CHECK(!rc.arrived && !rc.restart && rc.moved && kb.next == 1 && kb.state == LocoState::WalkMoving && kb.speed == 1.0f);
+    // The same restart facing 90 degrees off the path (more than R and CE): state 0 at the end of the 0x15 frame, the start
+    // turn (0xF) on the next.
+    {
+        LocomotorParams lt = lp;
+        lt.close_enough_angle = 10.0f;
+        LandMotion k;
+        k.pos = {44.0f, 0.0f};
+        k.speed = 1.0f;
+        k.yaw = 90.0f;
+        k.state = LocoState::WalkEndMove;
+        k.path = {{0.0f, 0.0f}, {50.0f, 0.0f}};
+        k.next = 1;
+        const WalkResult r1 = walk_step(k, lt, 3.0e38f, nullptr);
+        CHECK(r1.restart && !r1.turn && k.state == LocoState::None);
+        const WalkResult r2 = walk_step(k, lt, 3.0e38f, nullptr);
+        CHECK(!r2.restart && r2.turn && k.state == LocoState::WalkStartTurn && std::fabs(r2.want) < 1e-3f);
+    }
 
     // No snap (system): a vehicle ordered 50 ahead along +x ends where 0x15 finds it - past the last line or within 5 before
     // it - never exactly on the goal point
@@ -2179,7 +2200,9 @@ void test_bkm2_goal_behind() {
         float along, across;
     };
     const Want want[3] = {
-        {10.0f, 31, 1, 1.162964f, 4.239380f}, {15.0f, 23, 0, 0.330139f, 3.501343f}, {20.0f, 26, 0, -0.016907f, 3.001099f}};
+        // #282 (2026-11-23, MSVC): goal 10 behind takes 32 frames (31 before): its 0x15 restart runs the start rule a
+        // frame later
+        {10.0f, 32, 1, 1.162964f, 4.239380f}, {15.0f, 23, 0, 0.330139f, 3.501343f}, {20.0f, 26, 0, -0.016907f, 3.001099f}};
     for (const Want& w : want) {
         const BehindRun r = run_behind(w.back);
         const float along = r.goal.x - r.end.x, across = r.end.y - r.goal.y;

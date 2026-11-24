@@ -245,7 +245,10 @@ WalkResult walk_step(LandMotion& m, const LocomotorParams& p, float speed_cap, c
     // §3.5.1 "Arrival turn, details" item 1 (state 0x15): End Move at a speed at or below one frame's deceleration - speed
     // 0; with a started path, heading for the last waypoint and dot(pos - W, n) > -5 (n = the last segment's direction) the
     // index steps on; on the last waypoint the unit has arrived where it stands (the caller runs the arrival turn / pop),
-    // else the move restarts from state 0 (the start rule below, in the same frame). No started path: idle 0x16.
+    // else the move restarts from state 0: #282 (0x61fc30 read 2026-11-23 [H]) the handler sets state 0 and returns 1,
+    // "done for this frame", so the start rule below runs on the next frame. [port] A Bike with its clip data
+    // (WalkExtras::bike), which reaches this block from its 0x23, keeps the restart in the same frame (its exit, 0x639e90,
+    // is not read); without clip data a Bike runs these Walk states, this rule included. No started path: idle 0x16.
     // s78n t26 closing review (§3.5.2 F 0x14), anm1 t01: a Walk_Transition unit enters 0x15 when its 0x14 clip (an end
     // clip, or the idle with no end clip) has ended, with no speed test; the end clip starts at a MOVE phase boundary
     bool to15 = false;
@@ -278,6 +281,7 @@ WalkResult walk_step(LandMotion& m, const LocomotorParams& p, float speed_cap, c
         }
         m.state = LocoState::None;
         r.restart = true;
+        if (!bk) return r;
     }
     // §3.5.2 A: the start rule in state 0 (also idle 0x16, and a turn in place the caller dropped): no top path -> the frame
     // ends; an unstarted path is started (the 0x16 handler); |delta| <= R, or |delta| <= CE with the current waypoint's
