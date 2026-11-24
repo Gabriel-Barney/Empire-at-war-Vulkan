@@ -1836,6 +1836,19 @@ void TacticalBattle::complete_retreat(TacticalMode& mode, uint8_t side) {
         // there was none), not left frozen there.
         if (cfg_.end_hold_frames > 0) mode.destroy(u.h);
     }
+    // #87 (vf11 0x5335f0 [H]): the post-retreat destroys every remaining object of the player that is not retreated, not
+    // inside a retreated flagship and not a fleet object (0x391310(obj, 0)). In space that includes the campaign ground
+    // special weapon (bt_ground_special_weapons: a special weapon object without a battle unit, no fleet); it is removed
+    // like the port's other non-unit objects, and the L1 pass drops its special weapon record. [port] other non-unit
+    // objects of the player (none the space battle creates for it) are not swept.
+    if (space_) {
+        objects::ObjectStore& st = mode.primary();
+        const int32_t r = side_player(side);
+        std::vector<objects::ObjectHandle> gone;
+        for (const objects::ObjectHandle h : st.owned_by(r))
+            if (st.alive(h) && !st.dying(h) && l1_sw_.has(st.id(h)) && !unit_by_id(st.id(h))) gone.push_back(h);
+        for (const objects::ObjectHandle h : gone) mode.destroy(h);
+    }
     retreat_complete_ = true;
     land_retreat_list_.clear();              // #84: used
     rt_.state = 0;                           // coordinator state 3 (rt_listed is false from here on)

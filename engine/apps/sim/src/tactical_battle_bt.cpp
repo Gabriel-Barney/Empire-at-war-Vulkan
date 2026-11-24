@@ -824,8 +824,8 @@ uint32_t TacticalBattle::bt_ground_special_weapons(TacticalMode& mode) {
     // Retail creates every qualifying structure's weapon and the registration 0x35c520 silently removes a second one of the
     // same (player, Special_Weapon_Index), adding 1 to the first one's record counter (+0x20, effect not read [L]). [port]
     // The duplicate is not created (no object id used) and no counter is kept. The weapon has no galactic link, no
-    // population share and no battle participant (not victory relevant, never a valid target); [port] it is not killed
-    // at its owner's space retreat end (retail vf11 0x5335f0 kills it; the battle ends then anyway).
+    // population share and no battle participant (not victory relevant, never a valid target); #87: it dies at its owner's
+    // space retreat end (vf11 0x5335f0, complete_retreat).
     if (!space_ || cfg_.skirmish || !galaxy_ || !catalog_) return 0;
     const uint32_t pi = req_.info.planet;
     if (pi >= galaxy_->planets().size()) return 0;

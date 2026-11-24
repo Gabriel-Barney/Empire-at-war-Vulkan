@@ -1529,6 +1529,7 @@ public:
     // --- end BT pass ---
 
     bool finished() const { return finished_; }
+    bool retreat_completed() const { return retreat_complete_; }  // the post-retreat (vf11) has run
     // Playtest QA D1 / story t06: a victory is declared and its countdown is running out. Hosts start the fade to the summary
     // here; end_hold_frames_left() = ticks until finished() (at least 1 while the monitor is held).
     bool end_hold_active() const { return vm_declared_ && !finished_; }
