@@ -192,7 +192,7 @@ void App::show_credits() {
 
 void App::end_credits() {
     credits_.stop();
-    if (credits_movie_) full_movie_.stop(audio_);
+    if (credits_movie_ && full_movie_.name() == "Credits") full_movie_.stop(audio_);  // not a movie that replaced it
     credits_movie_ = false;
     open_main_menu();
 }

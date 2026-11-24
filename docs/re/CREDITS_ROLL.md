@@ -50,8 +50,8 @@ Positions are fractions of the screen, with y down and 0 at the top. H is the sc
 
 ## End and skip [H]
 
-- **End:** the roll ends (`0x44d780`) when the highest top edge of every item, blanks and logos included, is at or above
-  the top of the screen. The stop (`0x44f130`) closes the movie, the roll and the music and brings the main menu back.
+- **End:** the roll ends (`0x44d780`) when every item, blanks and logos included, has its top edge at or above the top
+  of the screen: the largest top-y is <= 0, so the last item decides. The stop (`0x44f130`) closes the movie, the roll and the music and brings the main menu back.
 - **Skip:** the key handler `0x61fe0` stops a skippable movie only on **Esc or Space**. Every other key is swallowed.
   The mouse path was not traced.
 

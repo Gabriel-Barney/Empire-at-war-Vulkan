@@ -10,7 +10,7 @@
 //   frame (credits_scroll_target_px);
 // - the text never fades (Credits_Margin fades only the logos, a follow-up);
 // - the roll ends when the highest top edge of every record is at or above the top of the screen;
-// - headers and names use the same font; a record whose key contains "HEADER" takes the header colours.
+// - headers and names use the same font; a record whose key contains "HEADER" takes the header colours [M: strstr].
 // The backdrop is the "Credits" movie (credits_loop.bik), drawn by the host; `black_backdrop` stands in when it does
 // not play. Presentation only.
 #pragma once
@@ -61,6 +61,7 @@ class CreditsRoll {
 public:
     void start(std::vector<CreditsLine> lines, const CreditsStyle& style, double now, bool black_backdrop = true);
     void stop() { active_ = false; }
+    void set_black_backdrop(bool on) { black_backdrop_ = on; }  // the Credits movie stopped mid-roll
     bool active() const { return active_; }
     // One frame: moves the roll by at most one pixel, then draws the visible lines (the top layer, Text), over a black
     // backdrop when start() asked for one. False (and inactive) once the roll has ended.

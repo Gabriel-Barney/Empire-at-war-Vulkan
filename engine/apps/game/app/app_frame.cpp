@@ -624,7 +624,12 @@ void App::frame() {
     if (bench_active()) bench_autopilot();  // BM2a: battle prompts, load screens, battle-end and story dialogs, movies
     if (screen() != Screen::Movie) {
         if (full_movie_.playing() && !full_movie_.update(dt_, gpu_.hud, kMoviePage)) {
-            story_ui_.movie_done(full_movie_.name());  // L1/S4 wave 1: STORY_MOVIE_DONE (an in-game full-screen movie ended)
+            if (credits_movie_ && full_movie_.name() == "Credits") {  // #426: the looped Credits movie failed mid-roll
+                credits_movie_ = false;
+                credits_.set_black_backdrop(true);
+            } else {
+                story_ui_.movie_done(full_movie_.name());  // L1/S4 wave 1: STORY_MOVIE_DONE (an in-game full-screen movie ended)
+            }
             full_movie_.stop(audio_);
         }
         if (advisor_movie_.playing()) {
