@@ -529,7 +529,7 @@ void test_gates() {
     CHECK(a.play_sfx("Engine_Loop", on_object(5)) != 0);
     CHECK(a.play_sfx("Engine_Loop", on_object(5)) == 0 && last_reason(a) == "loop_already_attached");
     CHECK(a.play_sfx("Engine_Loop", on_object(6)) != 0);
-    // Gate 9 (#50 t08, 0x2d5240 [H]): a 3D-positional start fails when its parent object is fogged (not in cinematics);
+    // Gate 9 (#50 t08, 0x2d5240 [H]): a 3D-positional start fails when its parent object is fogged (not in the Lua cinematic camera);
     // the callback gets the point and the parent, and a start without a parent is not refused.
     std::vector<uint64_t> parents;
     a.set_position_fogged([&parents](const Vec3&, uint64_t parent) {

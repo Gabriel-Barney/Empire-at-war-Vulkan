@@ -926,8 +926,9 @@ void AudioSystem::update_sfx(int64_t dt_us) {
             if (in.state == 0 || in.owner == 0) continue;
             if (auto o = object_query_(in.owner)) {
                 in.pos = o->position;
-                // §1.6: a cinematic skips only the fog test; hidden / stealthed / garrisoned objects stay muted.
-                in.audible = !o->hidden && (o->audible || cinematic_fog_skip_);  // #327 t01: state 4 only
+                // §1.6: the Lua cinematic camera (state 4, #327 t01) skips only the fog test; hidden / stealthed /
+                // garrisoned objects stay muted.
+                in.audible = !o->hidden && (o->audible || cinematic_fog_skip_);
             }
         }
     }

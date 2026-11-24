@@ -1789,7 +1789,7 @@ void GameAudioHost::music(MusicScene scene, std::string_view, bool, std::string_
     if (scene != scene_) pending_played_ = false;
     scene_ = scene;
 }
-void GameAudioHost::set_listener(const Vec3&, const Vec3&, bool) {}
+void GameAudioHost::set_listener(const Vec3&, const Vec3&, bool, bool) {}
 void GameAudioHost::set_flags(bool modal, bool attract) {  // same bookkeeping as with audio
     if (modal == modal_ && attract == attract_) return;
     if (attract && !attract_) ++stats_.attract_starts;
