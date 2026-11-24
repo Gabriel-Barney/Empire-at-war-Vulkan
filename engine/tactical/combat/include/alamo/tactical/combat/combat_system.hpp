@@ -457,7 +457,6 @@ struct UnitDesc {
     // and no bone: the weapon never fires.
     bool muzzle_model = false;
     std::vector<Vec3> muzzle_bones;
-    std::array<int32_t, 2> abilities{-1, -1};  // first two Unit_Abilities_Data slots
     uint8_t hit_particle_count = 0, shield_hit_particle_count = 0;  // list sizes (synced pick draws)
     // ---- S9 (legacy docs/re/ABILITIES_HARDPOINTS.md 1.3, 4.3, 4.7-4.10) ----
     bool combustible = false;               // Is_Combustible: kind-7 hit ignites instead of damaging
@@ -584,7 +583,6 @@ struct CombatData {
     std::vector<PrioritySet> priority_sets;
     std::vector<ProjectileDesc> projectiles;
     std::vector<HardpointDesc> hardpoints;
-    std::vector<UnitAbilityDesc> abilities;
     std::vector<UnitDesc> units;
     std::vector<SurfaceFxDef> surface_fx;  // SURFACEFX.XML (surface_fx.hpp)
 };
@@ -1002,6 +1000,7 @@ struct UnitSpawn {
     ObjectId damage_parent = kNoObject;  // parent container that takes this unit's damage [M]
     float health_fraction = 1.0f;
     uint32_t flags = 0;
+    UnitAbilityState ability_state;  // #417: the abilities module's state of the type's first two slots (activity off)
 };
 
 // tru1 t02 (TRU1_A_RE_ANSWERS A4): DamageRequest::hardpoint of a projectile that struck a base shield's dome mesh
@@ -1283,7 +1282,11 @@ public:
     void clear_team_positions() { team_pos_.clear(); }
     void set_flag(ObjectId id, uint32_t flag, bool on);
     bool set_owner(ObjectId id, int32_t owner);  // S10-int: Change_Owner (host keeps trees / store in step)
-    void set_ability_active(ObjectId id, int slot, bool on);
+    // #417: the unit's ability state from the abilities module (abilities::unit_ability_state) after an activity change:
+    // the slots' activity becomes state.active, then the modifier caches refresh. restore_ability_state (after a load):
+    // the state of the saved activity, caches untouched (they were saved).
+    void set_ability_state(ObjectId id, const UnitAbilityState& state);
+    void restore_ability_state(ObjectId id, const UnitAbilityState& state);
     bool ability_active(ObjectId id, int slot) const;
     // Attack order (engine/commands Attack): the ordered target slot; drops the auto target.
     // `hardpoint` >= 0 targets one hardpoint of the target (command 40/45 hardpoint index): the
@@ -1950,7 +1953,7 @@ private:
         uint8_t mod_valid = 0;
         std::array<float, kModKindCount> own_mult{};
         std::array<float, kModKindCount> mult{};  // = own_mult (a member never takes the squad value)
-        UnitAbilityState ability_state;  // #416: the type's ability slots with this unit's activity (build_ability_state)
+        UnitAbilityState ability_state;  // #416 / #417: the abilities module's state of this unit's slots (not saved)
         uint8_t needs_scan = 0;  // phase C output
         uint8_t scan_due = 0;
         ObjectId share_group = kNoObject;  // squadron of the shared team target (host, per tick)
@@ -2050,10 +2053,6 @@ private:
     void ensure_cache(Unit& u);
     float mod_r(const Unit& u, ModList l) const { return u.mod_r[static_cast<uint32_t>(l)]; }
     float mult(const Unit& u, ModKind k) const { return u.mult[static_cast<uint32_t>(k) - 1u]; }
-    // #416: the one reader of the type's ability slots - fills u.ability_state from them and u.ability_active (spawn, activity
-    // change, load). Every other ability read goes through u.ability_state.
-    void build_ability_state(Unit& u) const;
-    const UnitAbilityDesc* ability(const Unit& u, int slot) const;  // build_ability_state only
 
     // derived stats
     float unit_max_hull(const Unit& u) const;

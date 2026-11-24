@@ -438,6 +438,7 @@ namespace bo3split {
 bool load_battle(Battle& b, const std::vector<uint8_t>& combat, const std::vector<uint8_t>& rng, uint32_t frame) {
     ByteReader r(combat);
     if (!b.w.sys->read(r)) return false;
+    b.w.restore_ability_states();
     ByteReader rr(rng);
     if (!b.w.rng.read(rr)) return false;
     b.w.frame = frame;
@@ -573,7 +574,8 @@ void test_save_rejects() {
     CHECK(rejected(bad));
     CHECK(combat_bytes(*c.w.sys) == before);  // every rejected read left the system unchanged
     ByteReader ok(saved);
-    CHECK(c.w.sys->read(ok));  // and the intact bytes still load
+    CHECK(c.w.sys->read(ok));
+    c.w.restore_ability_states();  // and the intact bytes still load
     CHECK(combat_bytes(*c.w.sys) == saved);
 }
 }  // namespace bo3split
@@ -743,6 +745,7 @@ void test_stickiness_override() {
         b.make(cfg);
         ByteReader rd(bytes);
         CHECK(b.sys->read(rd));
+        b.restore_ability_states();
         CHECK(b.sys->stickiness_override(1) == 2.5f && b.sys->stickiness_override(4) == 0.25f &&
               b.sys->stickiness_override(5) == -1.0f && combat_bytes(*b.sys) == bytes);
     }
@@ -1401,6 +1404,7 @@ void test_rocket_flight_system() {
         RocketWorld b(GameMode::Land, false, true);
         ByteReader r(saved);
         CHECK(b.w.sys->read(r));
+        b.w.restore_ability_states();
         ByteReader rr(rng_w.bytes());
         CHECK(b.w.rng.read(rr));
         b.w.frame = a.w.frame;
@@ -1470,7 +1474,7 @@ void test_weapon_sources() {
     for (const Case& c : cases) {
         SourceWorld sw(c.own, c.hp, c.grenade);
         if (c.deployed) sw.w.sys->set_flag(1, kUnitDeploying, true);
-        if (c.rocket) sw.w.sys->set_ability_active(1, 0, true);
+        if (c.rocket) sw.w.set_ability_active(1, 0, true);
         const std::array<uint32_t, 2> n = sw.run(120);
         if ((n[0] > 0) != c.own_fires || (n[1] > 0) != c.hp_fires)
             std::printf("FAIL weapon sources %s: own %u hardpoint %u\n", c.name, n[0], n[1]);
@@ -1514,7 +1518,7 @@ void test_hardpoint_state_gate() {
         GateWorld g(true);
         CHECK(g.run(90) == 0);
         CHECK(g.w.sys->auto_target(1) == kNoObject);
-        g.w.sys->set_ability_active(1, 0, false);
+        g.w.set_ability_active(1, 0, false);
         CHECK(g.run(90) > 0);
     }
 }
@@ -1541,6 +1545,7 @@ void test_weapon_suspend_elapse() {
     {
         ByteReader r(sw.bytes());
         CHECK(b.w.sys->read(r));
+        b.w.restore_ability_states();
         ByteReader rr(rw.bytes());
         CHECK(b.w.rng.read(rr));
         b.w.frame = a.w.frame;
@@ -1686,13 +1691,13 @@ void test_own_weapon_gate_steps() {
         OwnOpt opt;
         opt.weapons_enabled_flag = 0;
         OwnWorld o(opt, Vec3{100, 0, 0});
-        o.w.sys->set_ability_active(1, 0, true);
+        o.w.set_ability_active(1, 0, true);
         CHECK(o.run(60) == 0);
-        o.w.sys->set_ability_active(1, 0, false);
+        o.w.set_ability_active(1, 0, false);
         CHECK(o.run(30) > 0);
         opt.weapons_enabled_flag = 1;
         OwnWorld e(opt, Vec3{100, 0, 0});
-        e.w.sys->set_ability_active(1, 0, true);
+        e.w.set_ability_active(1, 0, true);
         CHECK(e.run(60) > 0);
     }
     {  // step 6: fighter Idle (0x1C) refuses without Can_Fighter_Fire_When_Idle
@@ -2269,6 +2274,7 @@ void test_fire_at_position() {
         auto b = make(true, 90, 0.2f);
         ByteReader r(wa.bytes());
         CHECK(b->w.sys->read(r));
+        b->w.restore_ability_states();
         b->w.frame = a->w.frame;
         b->w.rng = a->w.rng;
         CHECK(b->w.sys->fire_at_position_state(1) == 1);
@@ -2636,6 +2642,7 @@ void test_targeting_states() {
         OwnWorld c(OwnOpt{}, Vec3{100, 0, 0});
         ByteReader r(wa.bytes());
         CHECK(c.w.sys->read(r) && c.w.sys->targeting_state(1) == 4);
+        c.w.restore_ability_states();
         StateHasher ha, hc;
         o.w.sys->hash_extended(ha);
         c.w.sys->hash_extended(hc);

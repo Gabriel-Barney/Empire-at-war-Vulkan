@@ -159,30 +159,15 @@ inline constexpr uint8_t kAbilityLuckyShot = 0x22;
 inline constexpr uint8_t kAbilityFullSalvo = 62;
 inline constexpr uint32_t kUnitAbilityTypeCount = 76;  // 1..75
 
-// One Unit_Abilities_Data record (Mod_Multiplier defaults 1.0, Mod_Flag "unset").
-struct UnitAbilityDesc {
-    uint8_t ability_type = 0;
-    std::array<float, kModKindCount> mult{1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
-    std::array<int8_t, kModFlagCount> flag{-1, -1, -1, -1};  // -1 = not given (does not take part in the AND)
-    uint16_t armor_override = 0xFFFF;  // ability data +0x168 (0xFFFF = none)
-    float range_override = 0.0f;       // ability data +0x108 (> 0 = override)
-    float inaccuracy_override = 0.0f;  // ability data +0x1b4 (> 0 = override, used UNSCALED)
-};
-
-// Get_Unit_Ability_Mod_Multiplier (0x398010) for one object: product over the 2 slots where the
-// ability is active, LUCKY_SHOT skipped. `abilities` = the type's slot data (nullptr = empty slot).
-float ability_product(const UnitAbilityDesc* const abilities[2], const bool active[2], ModKind kind);
 // Squad rule: a TEAM container's value. `own` = the container's own product; `members` =
 // EVERY live member's own product (a stand-in leader and 1.0-valued members included). own if != 1,
 // else the minimum over `members` (member order, <= replaces); no members -> 1. Members themselves
 // never take this value (each reads its own product).
 float squad_multiplier(float own, std::span<const float> members);
-// Get_Unit_Ability_Mod_Flag (0x397f60): AND across active slots whose ability sets the flag; true default.
-bool ability_flag(const UnitAbilityDesc* const abilities[2], const bool active[2], uint8_t flag);
-
-// #416 (#150 ticket 1): what combat reads of one unit's two Unit_Abilities_Data slots, built in one place
-// (CombatSystem::build_ability_state) from the type's slots and the unit's activity. Derived: rebuilt at spawn, at every
-// activity change and after a load; never saved or hashed.
+// #416 / #417 (#150): what combat reads of one unit's two Unit_Abilities_Data slots with the unit's activity. The
+// abilities module owns the descriptor and builds this state (abilities::unit_ability_state); combat receives it at spawn
+// (UnitSpawn::ability_state), at every activity change (CombatSystem::set_ability_state) and after a load
+// (restore_ability_state, from the saved activity). Combat never saves or hashes it.
 struct UnitAbilityState {
     std::array<uint8_t, 2> present{0, 0};  // the slot names an ability record
     std::array<uint8_t, 2> type{0, 0};     // that record's UnitAbilityType

@@ -729,6 +729,10 @@ public:
     // reveal-all callback, config. No host call is needed after read (the combat hooks stay installed).
     void write(ByteWriter& w) const;
     bool read(ByteReader& r);
+    // #417: hands every combat unit it knows its ability state again, built from the type's slots and combat's saved
+    // activity (CombatSystem::restore_ability_state). read() calls it; a host that reads combat after the abilities calls it
+    // once both are loaded.
+    void restore_combat_states();
 
     void tick(uint32_t frame, const TreeSet& trees, SimRng& rng, const ParallelFor& pf = serial_for) {
         combat_->tick(frame, trees, rng, pf);

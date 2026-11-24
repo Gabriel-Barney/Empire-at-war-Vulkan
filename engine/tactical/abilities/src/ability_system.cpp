@@ -136,8 +136,11 @@ bool AbilitySystem::add_unit(const combat::UnitSpawn& s, uint32_t ability_desc, 
         if (t >= 1 && t <= kMaxAbilityType) o.record[t] = static_cast<int16_t>(i);
     }
     o.cd.last_update = frame;
-    // 2. hardpoints (combat unit): one synced Get_Int per hardpoint, HardPoints order.
-    if (!combat_->add_unit(s, frame, rng)) return false;
+    // 2. hardpoints (combat unit): one synced Get_Int per hardpoint, HardPoints order. #417: with the type's ability slots
+    // (activity off), which combat reads from its creation on (the missile-shield emitter).
+    combat::UnitSpawn cs = s;
+    cs.ability_state = combat_ability_state(d, {0, 0});
+    if (!combat_->add_unit(cs, frame, rng)) return false;
     // 3. special-ability pack
     o.specials.reserve(d.specials.size());
     for (uint32_t si : d.specials) {
@@ -441,14 +444,28 @@ void AbilitySystem::event(AbilityEventKind k, uint8_t type, ObjectId id, ObjectI
 }
 
 void AbilitySystem::sync_combat(Obj& o) {
-    // Mod_Multiplier (system B) reads the first two Unit_Abilities_Data entries where Is_Active.
+    // Mod_Multiplier (system B) reads the first two Unit_Abilities_Data entries where Is_Active. #417: one hand-over of
+    // the unit's state when either slot's activity changed.
     if (!o.combat_unit || o.dead) return;
-    const combat::UnitDesc& ud = combat_->data().units[combat_->desc_index(o.id)];
-    for (int s = 0; s < 2; ++s) {
-        const int32_t a = ud.abilities[static_cast<size_t>(s)];
-        if (a < 0 || static_cast<size_t>(a) >= combat_->data().abilities.size()) continue;
-        const bool on = active_state(o, combat_->data().abilities[static_cast<size_t>(a)].ability_type);
-        if (combat_->ability_active(o.id, s) != on) combat_->set_ability_active(o.id, s, on);
+    const AbilityObjectDesc& d = desc(o);
+    std::array<uint8_t, 2> act{0, 0};
+    bool changed = false;
+    for (size_t s = 0; s < 2; ++s) {
+        act[s] = combat_->ability_active(o.id, static_cast<int>(s)) ? uint8_t{1} : uint8_t{0};
+        if (s >= d.unit_abilities.size()) continue;
+        const uint8_t on = active_state(o, d.unit_abilities[s].combat.ability_type) ? uint8_t{1} : uint8_t{0};
+        changed = changed || on != act[s];
+        act[s] = on;
+    }
+    if (changed) combat_->set_ability_state(o.id, combat_ability_state(d, act));
+}
+
+void AbilitySystem::restore_combat_states() {
+    for (const Obj& o : objs_) {
+        if (!o.combat_unit || !combat_->has_unit(o.id)) continue;
+        const std::array<uint8_t, 2> act{combat_->ability_active(o.id, 0) ? uint8_t{1} : uint8_t{0},
+                                         combat_->ability_active(o.id, 1) ? uint8_t{1} : uint8_t{0}};
+        combat_->restore_ability_state(o.id, combat_ability_state(desc(o), act));
     }
 }
 

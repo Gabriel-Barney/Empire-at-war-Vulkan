@@ -294,9 +294,10 @@ void test_mod_multiplier() {
     CHECK(ability_flag(ab, none, kFlagAllowDiminishingFirepower));  // default true
 }
 
-// #416 (#150 ticket 1): combat reads a unit's ability slots through one derived state, rebuilt at every activity change
-// and after a load (the activity is saved, the state is not): the attack range follows the active slot's override in the
-// saving system and in the loaded one.
+// #416 / #417 (#150): combat reads a unit's ability slots through the state the abilities module hands it, at every
+// activity change (set_ability_state) and after a load (restore_ability_state from the saved activity; the activity is
+// saved, the state is not): the attack range follows the active slot's override in the saving system and the loaded one.
+// AbilitySystem::read hands the states back in a battle (test_save_load_battle in the abilities tests).
 void test_ability_state_after_load() {
     auto build = [](World& w) {
         UnitAbilityDesc near_mode, far_mode;
@@ -304,12 +305,12 @@ void test_ability_state_after_load() {
         near_mode.range_override = 300.0f;
         far_mode.ability_type = kAbilityPowerToWeapons;
         far_mode.range_override = 700.0f;
-        w.data.abilities = {near_mode, far_mode};
+        w.abilities = {near_mode, far_mode};
         UnitDesc u;
         u.tactical_health = 100.0f;
         u.max_attack_distance = 500.0f;
-        u.abilities = {0, 1};
         const uint32_t d = push_unit(w.data, u);
+        w.set_slots(d, {0, 1});
         w.make();
         return d;
     };
@@ -317,9 +318,9 @@ void test_ability_state_after_load() {
     const uint32_t d = build(a);
     a.add(1, d, 0, Vec3{0, 0, 0});
     const float plain = a.sys->attack_range(1);
-    a.sys->set_ability_active(1, 1, true);
+    a.set_ability_active(1, 1, true);
     const float far_on = a.sys->attack_range(1);
-    a.sys->set_ability_active(1, 0, true);
+    a.set_ability_active(1, 0, true);
     const float both_on = a.sys->attack_range(1);  // the first active slot's override
     ByteWriter wr;
     a.sys->write(wr);
@@ -327,6 +328,7 @@ void test_ability_state_after_load() {
     (void)build(b);
     ByteReader rd(wr.bytes());
     CHECK(b.sys->read(rd));
+    b.restore_ability_states();
     const float loaded = b.sys->attack_range(1);
     std::printf("  ability state: range %.0f plain, %.0f slot 1 on, %.0f both on, %.0f after a load\n", plain, far_on, both_on, loaded);
     CHECK_F(plain, 500.0f);
@@ -421,18 +423,18 @@ void inaccuracy_case(GameMode mode, float accuracy, float fixed_radius, float ov
     UnitAbilityDesc ab;
     ab.ability_type = kAbilityPowerToWeapons;
     ab.inaccuracy_override = override_radius;
-    w.data.abilities.push_back(ab);
+    w.abilities.push_back(ab);
     UnitDesc shooter;
     shooter.tactical_health = 100.0f;
     shooter.max_attack_distance = 1000.0f;
     shooter.hardpoints = {0};
     shooter.fire_inaccuracy_fixed_radius = fixed_radius;
-    shooter.abilities = {override_radius > 0.0f ? 0 : -1, -1};
     UnitDesc target;
     target.tactical_health = 1e6f;
     target.radius = 10.0f;
     target.category_mask = target_category;
     const uint32_t ds = push_unit(w.data, shooter), dt = push_unit(w.data, target);
+    w.set_slots(ds, {override_radius > 0.0f ? 0 : -1, -1});
     CombatConfig cfg;
     cfg.mode = mode;
     PlayerInfo p0;
@@ -440,7 +442,7 @@ void inaccuracy_case(GameMode mode, float accuracy, float fixed_radius, float ov
     w.make(cfg, {p0, PlayerInfo{}});
     w.add(1, ds, 0, Vec3{0, 0, 0});
     w.add(2, dt, 1, Vec3{500, 0, 0});
-    if (override_radius > 0.0f) w.sys->set_ability_active(1, 0, true);
+    if (override_radius > 0.0f) w.set_ability_active(1, 0, true);
     w.sys->order_attack(1, 2);
     for (int i = 0; i < 40 && w.sys->projectile_count() == 0; ++i) {
         SimRng copy = w.rng;
@@ -1533,10 +1535,10 @@ void test_gaps_constants() {
     UnitAbilityDesc nodim;
     nodim.ability_type = kAbilityPowerToWeapons;
     nodim.flag[kFlagAllowDiminishingFirepower] = 0;
-    w.data.abilities = {nodim};
+    w.abilities = {nodim};
     UnitDesc nodim_unit = v;
-    nodim_unit.abilities = {0, -1};
     const uint32_t ndd = push_unit(w.data, nodim_unit);
+    w.set_slots(ndd, {0, -1});
     w.make(cfg);
     // s78n t13 (HERO_CLASH §8.4.1 steps 10 - 11): the curve applies, and the last-hit stamp is written, only for a kind-1
     // hit whose allow flag step 10 set - a projectile with a found shooter, or an incognito non-projectile source - and
@@ -1545,7 +1547,7 @@ void test_gaps_constants() {
     w.add(2, vd, 1, Vec3{500, 0, 0});     // a live shooter
     w.add(3, vd, 1, Vec3{500, 500, 0});   // the incognito non-projectile source
     w.add(4, ndd, 1, Vec3{500, 1000, 0}); // a shooter whose active ability has ALLOW_TARGET_DIMINISHING_FIREPOWER false
-    w.sys->set_ability_active(4, 0, true);
+    w.set_ability_active(4, 0, true);
     for (ObjectId id = 5; id <= 9; ++id) w.add(id, vd, 0, Vec3{0, static_cast<float>(id) * 100.0f, 0});
     enum class Src { None, Plain, Projectile };
     auto hit = [&](ObjectId victim, uint32_t frame, Src s, ObjectId source = 2, uint8_t kind = kKindNormal) {
@@ -1888,6 +1890,7 @@ void test_s78n_min_range_slot46() {
         world(l, td, od, ad);
         ByteReader r(w.bytes());
         CHECK(l.w.sys->read(r));
+        l.w.restore_ability_states();
         CHECK(l.w.sys->inside_min_range(1, 2));  // the loaded system agrees
     }
 }
@@ -2185,7 +2188,7 @@ void test_attack_move_object() {
     w.data.hardpoints.push_back(laser);
     UnitAbilityDesc barrage;
     barrage.ability_type = 5;
-    w.data.abilities.push_back(barrage);
+    w.abilities.push_back(barrage);
     UnitDesc a;
     a.tactical_health = 100.0f;
     a.max_attack_distance = 1000.0f;
@@ -2196,8 +2199,8 @@ void test_attack_move_object() {
     UnitDesc ah = a;
     ah.weapon_projectile = -1;
     ah.hardpoints = {0};
-    ah.abilities = {0, -1};
     const uint32_t hp_attacker = push_unit(w.data, ah);
+    w.set_slots(hp_attacker, {0, -1});
     UnitDesc am = a;
     am.min_attack_distance = 200.0f;
     const uint32_t min_attacker = push_unit(w.data, am);
@@ -2285,7 +2288,7 @@ void test_attack_move_object() {
     w.tick();
     CHECK(w.sys->weapon_aim(6) == 7);  // nothing in range: the scan picks nothing, the aim holds
     // BARRAGE active in space: the set path locks the target at once.
-    w.sys->set_ability_active(6, 0, true);
+    w.set_ability_active(6, 0, true);
     CHECK(w.sys->order_attack_issue(6, 7));
     CHECK(w.sys->ordered_target(6) == 7 && w.sys->order_locked(6) && w.sys->weapon_aim(6) == kNoObject);
     // q6 t19 (A1_READINGS §33.2.1): a goal that fails 0x5680b0's type test is never promoted, even in range (ids ascend).
@@ -2551,8 +2554,8 @@ void test_take_damage() {
         DamageWorld d;
         d.w.add(1, d.attacker, 0, Vec3{});
         d.w.add(2, d.plain, 1, Vec3{});
-        d.w.sys->set_ability_active(1, 0, true);
-        d.w.sys->set_ability_active(2, 0, true);
+        d.w.set_ability_active(1, 0, true);
+        d.w.set_ability_active(2, 0, true);
         d.w.sys->player_modifiers(0).insert(ModList::Damage, 1, 0.25f, kPermanent);
         d.w.sys->unit_modifiers(2)->insert(ModList::Defense, 1, 0.9f, kPermanent);  // clamped to 0.75
         d.w.tick();  // refresh caches

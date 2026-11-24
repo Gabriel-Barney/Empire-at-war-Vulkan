@@ -237,22 +237,22 @@ void test_mode_weapon_delay() {
         w.data.hardpoints.push_back(hd);
         UnitAbilityDesc ab;
         ab.ability_type = kAbilityPowerToWeapons;
-        w.data.abilities.push_back(ab);
+        w.abilities.push_back(ab);
         UnitDesc sh;
         sh.tactical_health = 100.0f;
         sh.max_attack_distance = 1000.0f;
         sh.hardpoints = {0};
-        sh.abilities = {0, -1};
         UnitDesc tg;
         tg.tactical_health = 1e6f;
         tg.radius = 10.0f;
         const uint32_t ds = push_unit(w.data, sh), dt = push_unit(w.data, tg);
+        w.set_slots(ds, {0, -1});
         CombatConfig cfg;
         cfg.inaccuracy_enabled = false;
         w.make(cfg);
         w.add(1, ds, 0, Vec3{0, 0, 0});
         w.add(2, dt, 1, Vec3{300, 0, 0});
-        if (active) w.sys->set_ability_active(1, 0, true);
+        if (active) w.set_ability_active(1, 0, true);
         w.sys->order_attack(1, 2);
         int32_t first = -1, second = -1;
         for (int i = 0; i < 400 && second < 0; ++i) {
@@ -435,20 +435,20 @@ void test_weapon_delay_order() {
     ptw.mult[static_cast<size_t>(ModKind::WeaponDelay) - 1] = m;
     UnitAbilityDesc def;  // slot 1
     def.ability_type = kAbilityDefend;
-    w.data.abilities = {ptw, def};
+    w.abilities = {ptw, def};
     UnitDesc sh;
     sh.tactical_health = 100.0f;
     sh.hardpoints = {0};
-    sh.abilities = {0, 1};
     const uint32_t ds = push_unit(w.data, sh);
+    w.set_slots(ds, {0, 1});
     w.make();
     w.add(1, ds, 0, Vec3{0, 0, 0});
     CHECK(w.sys->weapon_delay_factor(1, 0) == 1.0f);
-    w.sys->set_ability_active(1, 0, true);
-    w.sys->set_ability_active(1, 1, true);
+    w.set_ability_active(1, 0, true);
+    w.set_ability_active(1, 1, true);
     const float got = w.sys->weapon_delay_factor(1, 0);
     CHECK(got == want);
-    w.sys->set_ability_active(1, 1, false);  // slot 1 off: its entry drops out
+    w.set_ability_active(1, 1, false);  // slot 1 off: its entry drops out
     CHECK(w.sys->weapon_delay_factor(1, 0) == e0 * m);
 }
 

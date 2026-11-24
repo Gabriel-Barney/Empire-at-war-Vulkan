@@ -495,7 +495,6 @@ static uint32_t push_unit(tc::CombatData& cd, ta::AbilityData& ad, const tc::Uni
     a.name = u.name;
     a.name_crc = name_crc(u.name);
     a.category_mask = u.category_mask;
-    ta::link_combat_abilities(a, cd, cd.units.back());
     ad.objects.push_back(std::move(a));
     return static_cast<uint32_t>(cd.units.size() - 1);
 }

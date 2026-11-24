@@ -563,12 +563,10 @@ std::vector<uint32_t> parse_special_abilities(const data::XmlNode& type_element,
     return out;
 }
 
-void link_combat_abilities(const AbilityObjectDesc& d, combat::CombatData& cd, combat::UnitDesc& ud) {
-    ud.abilities = {-1, -1};
-    for (size_t s = 0; s < 2 && s < d.unit_abilities.size(); ++s) {
-        ud.abilities[s] = static_cast<int32_t>(cd.abilities.size());
-        cd.abilities.push_back(d.unit_abilities[s].combat);
-    }
+combat::UnitAbilityState combat_ability_state(const AbilityObjectDesc& d, const std::array<uint8_t, 2>& active) {
+    const UnitAbilityDesc* slots[2] = {nullptr, nullptr};
+    for (size_t s = 0; s < 2 && s < d.unit_abilities.size(); ++s) slots[s] = &d.unit_abilities[s].combat;
+    return unit_ability_state(slots, active);
 }
 
 void link_infection(const AbilityObjectDesc& d, std::span<const SpecialAbilityDesc> specials, combat::UnitDesc& ud) {
