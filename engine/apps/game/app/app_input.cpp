@@ -603,13 +603,13 @@ void App::respond(const commands::EventData& ev) {
                 non_hero = GameAudioHost::non_hero_variant_active(data_.types, st.type(mh), [&ab, m](uint8_t t) { return ab.is_active(m, t); });
             // the parent container: the garrison / vehicle-thief holder the speaker is inside, else its team [port]
             const objects::ObjectId holder = b->contained_by(sid);
-            const objects::ObjectId cid = holder != objects::kNoObjectId ? holder : team;
-            const bool has_container = cid != objects::kNoObjectId && cid != tactical::abilities::kNoObject;
+            const objects::ObjectId container_id = holder != objects::kNoObjectId ? holder : team;
+            const bool has_container = container_id != objects::kNoObjectId && container_id != tactical::abilities::kNoObject;
             const tactical::combat::CombatSystem& cs = b->combat();
-            const auto ccid = static_cast<tactical::combat::ObjectId>(cid);
-            const bool stolen = has_container && cs.has_unit(ccid) && (cs.flags(ccid) & tactical::combat::kUnitStolenVehicle) != 0;
-            resolve = GameAudioHost::resolve_speaker(st, h, has_container ? st.find(cid) : objects::ObjectHandle{},
-                                                     ab.members_of(has_container ? cid : sid), stolen);
+            const auto combat_id = static_cast<tactical::combat::ObjectId>(container_id);
+            const bool stolen = has_container && cs.has_unit(combat_id) && (cs.flags(combat_id) & tactical::combat::kUnitStolenVehicle) != 0;
+            resolve = GameAudioHost::resolve_speaker(st, h, has_container ? st.find(container_id) : objects::ObjectHandle{},
+                                                     ab.members_of(has_container ? container_id : sid), stolen);
             if (ev.type() == T::Attack)
                 if (const objects::ObjectHandle th = st.find(static_cast<objects::ObjectId>(ev.u("target"))); st.exists(th))
                     resolve.attack_target = st.type(th);
