@@ -162,16 +162,23 @@ void TacticalBattle::imposing_presence(objects::ObjectStore& store, const std::v
 #ifdef ALAMO_SIM_HAVE_ANIM
     // s78l t03 (TACTICAL_COMBAT slot 47 "s78l t03" (c), TACTICAL_GAPS 6.2): IMPOSING_PRESENCE 0x624ab0 on its interval-30
     // schedule (the store's: first due frame drawn at the attach, TACTICAL_GAPS 6.4). Each due presence object P (alive,
-    // the behaviour enabled; death clones keep it) refreshes, for every battle unit R with IDLE inside the box of half size
-    // P's Presence_Range around P, not dying, whose type lists P's type in Presence_Induced_Animations, R's record of P to
-    // int(FPS x Unit_Presence_Relaxation_Time). Skipped for an R with a target (TARGETING, a team member: its container's;
-    // suspended or not) or that the moving gate stops. No draws; the order of the writes does not change the result.
+    // the behaviour enabled; death clones keep it) refreshes, for every battle unit R with IDLE that the cube of half size
+    // P's Presence_Range around P finds, not dying, whose type lists P's type in Presence_Induced_Animations, R's record of P
+    // to int(FPS x Unit_Presence_Relaxation_Time). #365 (R3f t06 [H], parked branch ANIM_PARTICLES §A.11): the cube is a
+    // Query_AABB 0x20e780 over the projectile-collidable tree GOM +0xd8 - every object whose TREE BOX overlaps it, no
+    // centre re-test. Skipped for an R with a target (TARGETING, a team member: its container's; suspended or not) or that
+    // the moving gate stops. No draws; the order of the writes does not change the result.
+    // [port] R is a battle unit (the gates read the unit tables); the tree's other objects with IDLE get no record.
     const GameMode* gm = hooks_ ? hooks_->anim_mode() : nullptr;
     if (!anim_ || !gm || &gm->primary() != &store) return;
-    const float fr = static_cast<float>(anim::kSimTicksPerSecond) * cfg_.presence_relaxation_seconds;
+    // #365: GameConstants Unit_Presence_Relaxation_Time when the data sets it, else the [port] default.
+    const float fr = static_cast<float>(anim::kSimTicksPerSecond) * catalog_->presence_relaxation_seconds().value_or(cfg_.presence_relaxation_seconds);
     const int32_t frames = fr >= 1.0f ? (fr < 1.0e9f ? static_cast<int32_t>(fr) : 1000000000) : 0;  // frame-cast-ok: range-guarded above
     if (frames < 1) return;
     anim::AnimBehaviors& beh = anim_->behaviors(*gm);
+    if (!tick_.mode || &tick_.mode->primary() != &store) return;
+    const tactical::SpatialTree& tree = tick_.mode->trees().all();  // GOM +0xd8
+    tactical::QueryContext ctx;
     const uint32_t mf = store.mode_frame();
     const objects::BehaviorTypeId kImposingPresence = 0x40;
     for (const objects::ObjectHandle p : store.all_objects()) {
@@ -183,13 +190,17 @@ void TacticalBattle::imposing_presence(objects::ObjectStore& store, const std::v
         const float range = presence_info(pt).range;
         const Vec3 pp = store.position(p);
         const objects::ObjectId pid = store.id(p);
-        for (size_t i = 0; i < units_.size(); ++i) {
-            const Unit& u = units_[i];
+        tactical::Aabb cube;
+        cube.min = {pp.x - range, pp.y - range, pp.z - range};
+        cube.max = {pp.x + range, pp.y + range, pp.z + range};
+        for (const tactical::EntityHandle hit : tree.query_aabb(cube, tactical::kSkipDead, ctx)) {
+            const Unit* up = unit_by_id(static_cast<objects::ObjectId>(hit));
+            if (!up) continue;
+            const Unit& u = *up;
+            const size_t i = static_cast<size_t>(up - units_.data());
             if (!u.alive || u.retreated || !store.active(u.h) || !store.has_behavior(u.h, objects::beh::Idle)) continue;
             if (i < gated.size() && gated[i]) continue;
             if (combat_->has_unit(u.id) && combat_->current_target(u.id) != tc::kNoObject) continue;
-            const Vec3 q = store.position(u.h);
-            if (std::fabs(q.x - pp.x) > range || std::fabs(q.y - pp.y) > range || std::fabs(q.z - pp.z) > range) continue;
             bool listed = false;
             for (const auto& e : presence_info(store.type(u.h)).anims)
                 listed = listed || std::find(e.second.begin(), e.second.end(), pt) != e.second.end();
