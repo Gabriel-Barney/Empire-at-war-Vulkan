@@ -1087,6 +1087,11 @@ def git_head():
         return None
 
 
+def baseline_commit(baseline, scen_id):
+    """The commit a scenario's baseline entry was recorded at: its own (#400), else the file's (older entries)."""
+    return (baseline.get("scenarios") or {}).get(scen_id, {}).get("commit") or baseline.get("commit")
+
+
 def check_baseline(baseline, scen_id, results):
     """Metrics that passed in the baseline and fail now (a regression); PASS -> N/A is listed, not failed."""
     base = (baseline.get("scenarios") or {}).get(scen_id, {}).get("status", {})
@@ -1113,6 +1118,8 @@ def cmd_run(a):
     new_base = {"commit": commit, "scenarios": {}}
     if a.write_baseline and os.path.exists(a.write_baseline):
         new_base = load_json(a.write_baseline)
+        for entry in (new_base.get("scenarios") or {}).values():  # #400: older entries keep the commit they were recorded at
+            entry.setdefault("commit", new_base.get("commit"))
         new_base["commit"] = commit
         new_base.setdefault("scenarios", {})
     if seeds_mode:
@@ -1185,7 +1192,7 @@ def cmd_run(a):
             regress, gone, improved = check_baseline(baseline, sid, results)
             verdict = "baseline %s (commit %s): %d regressions%s; %d metrics passing in the baseline are N/A now%s; " \
                       "%d improved%s\n" % (
-                          a.check_baseline, baseline.get("commit"), len(regress), " (%s)" % ", ".join(regress) if regress else "",
+                          a.check_baseline, baseline_commit(baseline, sid), len(regress), " (%s)" % ", ".join(regress) if regress else "",
                           len(gone), " (%s)" % ", ".join(gone) if gone else "", len(improved),
                           " (%s): re-record with --write-baseline" % ", ".join(improved) if improved else "")
             if regress:
@@ -1201,7 +1208,7 @@ def cmd_run(a):
                                                                "summary": summarize(results)}, **extra))
         print(text, end="")
         print("wrote %s" % os.path.join(out_dir, "report.txt"))
-        new_base["scenarios"][sid] = dict({"references": [n for n, _ in have], "summary": summarize(results),
+        new_base["scenarios"][sid] = dict({"commit": commit, "references": [n for n, _ in have], "summary": summarize(results),
                                            "status": {r["metric"]: r["status"] for r in results}},
                                           **({"seeds": extra["seeds"]} if seeds_mode else {}))
         ran += 1
@@ -1624,6 +1631,9 @@ def selftest():
         check(gone == ["travel.hop_ticks[Empire:KUAT->NABOO]"], "baseline PASS -> missing listed (%s)" % gone)
         reg2, _, imp2 = check_baseline(base, "x", list(same.values()))
         check(not reg2 and imp2 == ["econ.income_cycle1[Empire]"], "baseline improvement found")
+        # #400: a scenario entry names the commit it was recorded at; an older entry falls back to the file's.
+        mixed = {"commit": "f1", "scenarios": {"x": {"commit": "s1", "status": {}}, "y": {"status": {}}}}
+        check(baseline_commit(mixed, "x") == "s1" and baseline_commit(mixed, "y") == "f1", "per-scenario baseline commit")
         # Skirmish port log parser.
         sk = os.path.join(tmp, "sk_ai.txt")
         with open(sk, "w", encoding="utf-8", newline="\n") as fh:
