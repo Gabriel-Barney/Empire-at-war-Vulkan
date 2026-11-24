@@ -574,6 +574,9 @@ void MovementSystem::attack_slots(const MoveOrder& order, const std::vector<uint
 bool MovementSystem::attack_plan(const MoveOrder& order, const std::vector<uint32_t>& idx, const LandForm& f, uint32_t frame,
                                  const std::vector<uint8_t>& kept, std::span<const FormationMember> mem, std::span<const Unit> snap) {
     const Unit& lead = units_[idx[f.members[0]]];
+    // #89 [H]: an air lead's locomotor gives formation type 2 (FLYING_LOCOMOTOR vf +0x238 = 0x18cec0 returns 2; Walk's
+    // 0x18ceb0 returns 1; 0x43c1b0 stores it as the type). 0x417520's land branch and 0x41c1a0's item-6 stop are type 1
+    // only, and the type-2 branch returns 0 at the order. [port] its approach at the later updates is #482.
     if (is_air(lead)) return false;
     const ObjectId target = order.attack.target;
     const bool guard = order.attack.guard;
