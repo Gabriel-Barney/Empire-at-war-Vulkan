@@ -786,11 +786,16 @@ void TacticalBattle::process_death(TacticalMode& mode, const tc::DeathEvent& d, 
                 const int32_t neutral = galaxy_ ? galaxy_->neutral_player() : -1;  // the clone's owner
                 spawn_death_explosion(mode, vis->death_explosions.front(), at, neutral >= 0 ? neutral : owner);
             }
-        if (ch) schedule_death_clone(mode, ch, d.death_clone, d.kind, rng, persist);
+        if (ch) schedule_death_clone(mode, ch, u->id, d.death_clone, d.kind, rng, persist);
 #ifdef ALAMO_SIM_HAVE_ANIM
         {  // R3 anim: death clip / corpse of the unit (unless a clone carries it), or the infantry corpse path
             bool carried = carried_by_clone || silent;  // s78n t12 review: a silent removal plays no death clip
-            if (!ch && corpse_path) carried = hooks_->anim_corpse_clone(u->id, d.death_clone, d.kind, persist);
+            // #359 (gap 20, [port] as "with a Death_Clone the original plays no death clip"): the corpse path carries the death
+            // even when the clone type has no animated model (nothing stays then).
+            if (!ch && corpse_path) {
+                hooks_->anim_corpse_clone(u->id, d.death_clone, d.kind, persist);
+                carried = true;
+            }
             hooks_->anim_death(u->id, carried, d.kind, d.death_clone < 0 ? std::optional<bool>(d.spin_away) : std::nullopt);
         }
 #else
@@ -870,7 +875,7 @@ bool TacticalBattle::infantry_type(uint32_t type) const {
     return *infantry_category_ != ~uint64_t{0} && (types.get(type, objects::tags::CategoryMask) & *infantry_category_) != 0;
 }
 
-void TacticalBattle::schedule_death_clone(TacticalMode& mode, objects::ObjectHandle clone, int32_t clone_type, uint8_t kind, SimRng& rng,
+void TacticalBattle::schedule_death_clone(TacticalMode& mode, objects::ObjectHandle clone, objects::ObjectId dying, int32_t clone_type, uint8_t kind, SimRng& rng,
                                           const float* persistence_override) {
     const auto t = static_cast<objects::TypeIndex>(clone_type);
 #ifdef ALAMO_SIM_HAVE_ANIM
@@ -918,7 +923,7 @@ void TacticalBattle::schedule_death_clone(TacticalMode& mode, objects::ObjectHan
     death_clones_.push_back({mode.primary().id(clone), clone, at});
     register_clone_obstacle(mode, clone, clone_type);  // s78n t20 batch 1
 #ifdef ALAMO_SIM_HAVE_ANIM
-    hooks_->anim_clone(clone, kind, &plan);
+    hooks_->anim_clone(clone, dying, kind, &plan);
 #endif
 }
 

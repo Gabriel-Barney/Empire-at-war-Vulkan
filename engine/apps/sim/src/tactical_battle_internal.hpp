@@ -144,16 +144,16 @@ public:
         anim_->begin_death(*mode_, id, *rng_, gframe_, kind, spin);
     }
     const GameMode* anim_mode() const { return mode_; }
-    bool anim_clone(objects::ObjectHandle clone, uint8_t kind, const anim::DeathPlan* plan) {  // false: no animation service
+    // #359: `dying` - the object the clone replaces (its row's primary slot starts the clone's row).
+    bool anim_clone(objects::ObjectHandle clone, objects::ObjectId dying, uint8_t kind, const anim::DeathPlan* plan) {  // false: no animation service
         if (!anim_ || !mode_) return false;
-        anim_->death_clone_spawned(*mode_, mode_->primary().id(clone), kind, plan);
+        anim_->death_clone_spawned(*mode_, mode_->primary().id(clone), kind, plan, dying);
         return true;
     }
     // the infantry corpse path - the dying unit's row becomes the clone type's corpse (no clone object).
-    bool anim_corpse_clone(objects::ObjectId dying, int32_t clone_type, uint8_t kind, const float* persistence_override = nullptr) {
-        if (!anim_ || !mode_ || !rng_ || clone_type < 0) return false;
-        return anim_->corpse_clone(*mode_, dying, static_cast<objects::TypeIndex>(clone_type), *rng_, gframe_, kind,
-                                   persistence_override) != anim::DeathResult::NoRow;
+    void anim_corpse_clone(objects::ObjectId dying, int32_t clone_type, uint8_t kind, const float* persistence_override = nullptr) {
+        if (!anim_ || !mode_ || !rng_ || clone_type < 0) return;
+        (void)anim_->corpse_clone(*mode_, dying, static_cast<objects::TypeIndex>(clone_type), *rng_, gframe_, kind, persistence_override);
     }
     // --- end R3 anim ---
 #endif

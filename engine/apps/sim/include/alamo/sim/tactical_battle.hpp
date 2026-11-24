@@ -2572,8 +2572,9 @@ private:
 #ifdef ALAMO_SIM_HAVE_ANIM
     mutable std::unique_ptr<SimAnimation> own_clone_models_;  // made on first use when neither anim_ nor clone_models_ is set
 #endif
-    void schedule_death_clone(TacticalMode& mode, objects::ObjectHandle clone, int32_t clone_type, uint8_t kind, SimRng& rng,
-                              const float* persistence_override = nullptr);
+    // #359: `dying` - the object the clone replaces (the animation service copies its row's slot to the clone).
+    void schedule_death_clone(TacticalMode& mode, objects::ObjectHandle clone, objects::ObjectId dying, int32_t clone_type, uint8_t kind,
+                              SimRng& rng, const float* persistence_override = nullptr);
     // `due_rng` set: the due ones (expire_objects), each spawning its Death_Explosions_End entry with draws from it; null:
     // every clone left (the battle's end), no spawn.
     void remove_death_clones(TacticalMode& mode, SimRng* due_rng);
