@@ -8,16 +8,24 @@ Tiers: **[H]** read directly in the code, **[M]** inferred from the code with a 
 ## 1. Where the animation tests are
 
 #44 (its R3G anim-timed note, §9) put the animation hold (flinch, crossfade, crouched move) in the gate
-0x54c910. It is not there [H]. 0x54c910 holds no clip test. Its first part is the gate the port already has as
-`CombatSystem::unit_weapon_allowed` (TACTICAL_COMBAT §3.1.1 steps 1-6). The object flag +0x3a0 bit 0x10 and the two
-state tests 0x39a400 / 0x39b2a0 in it were not re-read for this note. Then comes the targeting-state block
-(TD = obj +0xf0):
-- fire when the fire-at-position order is charged (TD +0x3d);
-- otherwise TD +0x3c set, or TD +0x18 == 4 with a weapon target (0x54c190);
-- otherwise TD +0x28 := the weapon's Projectile_Fire_Pulse_Count (+0x4f0) and hold.
+0x54c910. It is not there [H]: 0x54c910 holds no clip test. Its conjunction, in order, against the port
+(`CombatSystem::unit_weapon_allowed` steps 1-6, then step 7 in `fire_unit_weapon`):
 
-A LOBBING_SUPERWEAPON object (slot byte +0x369) fires only through TD +0x3d. The port has this block in
-`CombatSystem::fire_unit_weapon` (step 7).
+| # | 0x54c910 | Meaning | Port |
+|---|---|---|---|
+| 1 | 0x4c3700 (`+0x3c == 0` of an object whose pointer the decompile loses) and the static byte 0x140a43a88 | the global weapons switch [M: the object not named] | `cfg_.weapons_enabled` |
+| - | obj +0x3a0 bit 0x10 clear | an object flag, **not named** [L] | **not tested** (open) |
+| 2 | 0x39a400 and 0x39b2a0 not true | for a type with +0xd1 (Deploys) and a locomotor (slot byte +0x333): the locomotor's vf +0x130 / +0x128, the two deploy-transition states [M: vf names] | `deploy_transition` |
+| 3 | 0x39a390 picks type +0xae or +0xaf | deployed (same guard; locomotor +0x2b3 set, or its vf +0x120) → Fire_Weapon_When_Deployed, else _Undeployed [H] | `deployed_or_deploying` |
+| 4 | 0x39b950(obj, 0xb, 1) picks type +0xb0 or +0xb1 | ROCKET_ATTACK (11) active → Fire_Weapon_When_In_Rocket_Attack_Mode, else _In_Normal_Attack_Mode [H] | `ability_type_active(kAbilityRocketAttack)` |
+| 5 | 0x397f60(obj, 1) | the WEAPONS_ENABLED flag ANDed over the active modes of ability entries 0 and 1 (0x565970) [H] | `ability_state.flag[kFlagWeaponsEnabled]` |
+| 6 | locomotor (obj +0xa8) +0x48 == 0x1c, or == 0x16 when the locomotor's vf +0x240 is true; skipped when type +0x8a (Can_Fighter_Fire_When_Idle) is set | fighter idle / hover rest [H for the states; M for the vf] | `kUnitFighterIdle` / `kUnitHoverRest` |
+| 7 | TD = obj +0xf0 | see below [H] | `fire_unit_weapon` step 7 |
+
+Step 7: when obj +0x369 (LOBBING_SUPERWEAPON) is set and TD +0x3d (the charged fire-at-position order) is clear, hold.
+Otherwise fire when TD +0x3d or TD +0x3c is set. Otherwise TD +0x18 must be 4. Any other value holds without a write.
+At 4, fire when 0x54c190 finds the weapon target; with none, TD +0x28 := the weapon's Projectile_Fire_Pulse_Count
+(+0x4f0) and hold. [port] The port's step 7 resets the burst on every non-4 state too, not only on a missing target.
 
 The clip tests are in the fire service 0x54d090 itself, after 0x54c910, after the target and weapon lookups and before
 the shot (0x54ad30) [H].
@@ -67,6 +75,9 @@ from its idle or walk/run clips at all.
 
 ## 5. Open
 
+- obj +0x3a0 bit 0x10 (§1) is not named and the port does not test it.
+- The flinch hold is narrower than "while it flinches": rule 1 holds a flinch only while its crossfade runs [H], so a
+  unit in a flinch whose fade has ended can fire.
 - The flinch's own crossfade: rule 1 holds a flinch only while its fade runs. Whether the port's flinch keeps the
   crossfade running through Max_Flinch_Hold_Seconds is the anim system's model (#361 / #362), not re-checked here.
 - 0x569400 / 0x569540 (targeting) also call the flinch test; not part of this rule.

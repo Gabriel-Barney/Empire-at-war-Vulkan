@@ -239,7 +239,7 @@ public:
     bool clip_holds_fire(tc::ObjectId id, bool contained, bool turret) const override {
 #ifdef ALAMO_SIM_HAVE_ANIM
         if (!world_) return false;
-        const bool inside = b_->garrison_.state_of(id) == 7;
+        const bool inside = b_->garrison_.garrisoned(id);  // GARRISON_UNIT state 7 (inside)
         return anim::weapon_clip_hold(*world_, id, contained, turret || inside);
 #else
         (void)id;
