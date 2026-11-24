@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdio>
 
+#include "alamo/core/ascii.hpp"
 #include "alamo/galactic/economy.hpp"
 #include "alamo/objects/type_fields.hpp"
 
@@ -41,18 +42,28 @@ ui::HudBombingRunButton bombing_run_button(bool land, bool controls_locked, bool
     return b;
 }
 
-ui::HudBombingRunButton space_weapon_button(bool space, int32_t icon, bool allowed, bool controls_locked, float readiness) {
+ui::HudBombingRunButton space_weapon_button(bool space, int32_t icon, int32_t faction_icon, bool allowed, bool controls_locked,
+                                            float readiness) {
     ui::HudBombingRunButton b;
     if (!space) return b;
     b.present = true;
-    b.icon = icon;
-    b.hidden = icon < 0;
-    b.tooltip = allowed ? icon : 4;
-    const bool ready = icon >= 0 && allowed && !controls_locked && readiness >= 1.0f;
-    b.disabled = !ready;
-    if (!ready && icon >= 0) b.dial = allowed ? std::clamp(readiness, 0.0f, 1.0f) : 0.0f;
+    b.icon = icon >= 0 ? icon : faction_icon;
+    b.hidden = false;
+    b.tooltip = allowed ? b.icon : 4;
+    const bool live = icon >= 0 && allowed && !controls_locked;
+    b.disabled = !(live && readiness >= 1.0f);
+    if (b.disabled) b.dial = live && readiness > 0.0f ? std::min(readiness, 1.0f) : 1.0f;
     return b;
 }
+
+int32_t space_weapon_faction_icon(std::string_view faction) {
+    if (ascii_iequals(faction, "Rebel")) return 0;
+    if (ascii_iequals(faction, "Empire")) return 1;
+    if (ascii_iequals(faction, "Underworld")) return 2;
+    return 3;
+}
+
+int32_t special_weapon_pointer_index(int32_t target_action_index) { return std::clamp(target_action_index, 0, 2); }
 
 BombingRunStyle bombing_run_style(const galactic::FactionRules& faction) {
     BombingRunStyle s;

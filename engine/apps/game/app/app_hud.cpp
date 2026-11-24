@@ -1184,7 +1184,8 @@ void App::build_tactical_hud() {
             int32_t icon = -1;
             float ready = 0.0f;
             space_weapon(icon, ready);
-            hf.bombing_run = space_weapon_button(true, icon, tb->special_weapons_allowed(local_player()), story_controls_locked(), ready);
+            hf.bombing_run = space_weapon_button(true, icon, space_weapon_faction_icon(local_faction()),
+                                                 tb->special_weapons_allowed(local_player()), story_controls_locked(), ready);
         }
     }
     fill_wings(hf);            // [port: Gabriel] squadron wing buttons

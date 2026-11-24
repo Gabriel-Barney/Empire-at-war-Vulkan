@@ -1354,8 +1354,9 @@ void App::battle_input() {
         }
     }
     // ui1 t04 [port]: while the space special weapon is aimed, a left click on an enemy object sends
-    // command 25 (weapon, target object) and ends the aim; on anything else the GUI negative SFX and the aim stays; a
-    // right click cancels. Orders and the drag box wait while it is on, as for the bombing run.
+    // command 25 (weapon, target object) and ends the aim; a right click cancels. Orders and the drag box wait while it is
+    // on, as for the bombing run. #431 (docs/re/SPACE_SPECIAL_WEAPON_UI.md): a click on an invalid target does nothing - no
+    // command, no sound - and the aim stays [M].
     bool sw_click = false;
     if (sw_weapon_ != objects::kNoObjectId) {
         int32_t icon = -1;
@@ -1379,8 +1380,6 @@ void App::battle_input() {
                 ev.set("weapon", static_cast<uint32_t>(sw_weapon_)).set("player", static_cast<uint32_t>(me)).set("at_position", 0u).set("target", hit->id);
                 cmds.push_back(std::move(ev));
                 sw_weapon_ = objects::kNoObjectId;
-            } else {
-                audio_.negative_feedback();
             }
         }
     }
@@ -1483,7 +1482,7 @@ void App::battle_input() {
         else if (e.slot == ui::hk::kGuard) orders_.arm_move_toggle(ui::MoveToggle::GuardMove);
         else if (e.slot == ui::hk::kWaypoint) orders_.arm_move_toggle(ui::MoveToggle::Waypoint);
         else if (e.slot == ui::hk::kSuperWeapon && !bview_.space() && bombing_run_ready()) bombing_toggle();  // 0x63f00 case 0x16 (land)
-        else if (e.slot == ui::hk::kSuperWeapon && bview_.space()) space_weapon_toggle();  // 0x63f00 case 0x16 (space)
+        else if (e.slot == ui::hk::kSuperWeapon && bview_.space()) space_weapon_toggle(true);  // 0x63f00 case 0x16 (space)
         else if (e.slot == ui::hk::kDroidAdvisor) open_holocron(ui::InfoPage::DroidLog);  // capture C2 (no galaxy in a skirmish: nothing)
         else if (e.slot == ui::hk::kFleetCohesion && bview_.space()) session_->toggle_fleet_cohesion();  // [port] fleet cohesion
     }

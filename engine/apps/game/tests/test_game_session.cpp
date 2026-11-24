@@ -2565,18 +2565,26 @@ void hud_feeds_test(const game::GameData& data, const game::SessionSpec& spec) {
     CHECK(cd.present && cd.disabled && cd.dial == 0.25f);
     const ui::HudBombingRunButton fresh = game::bombing_run_button(true, false, false, 0.0f);
     CHECK(fresh.disabled && fresh.dial == 1.0f);
-    // the space special-weapon button - hidden without a weapon; icon / tooltip = the weapon's index; not allowed
-    // -> tooltip 4 (requires comm array), disabled; recharging -> disabled with the readiness dial; ready -> enabled.
-    CHECK(!game::space_weapon_button(false, 0, true, false, 1.0f).present);
-    const ui::HudBombingRunButton no_weapon = game::space_weapon_button(true, -1, true, false, 0.0f);
-    CHECK(no_weapon.present && no_weapon.hidden && no_weapon.disabled);
-    const ui::HudBombingRunButton ion = game::space_weapon_button(true, 0, true, false, 1.0f);
+    // the space special-weapon button - icon / tooltip = the weapon's index; not allowed -> tooltip 4 (requires comm
+    // array), disabled; recharging -> disabled with the readiness dial; ready -> enabled. #431 (0x317d00 [H]): never
+    // hidden - no weapon draws the faction's icon, disabled with a full dial; not allowed, locked or readiness 0 -> full dial.
+    CHECK(!game::space_weapon_button(false, 0, 0, true, false, 1.0f).present);
+    const ui::HudBombingRunButton no_weapon = game::space_weapon_button(true, -1, 1, true, false, 0.0f);
+    CHECK(no_weapon.present && !no_weapon.hidden && no_weapon.disabled && no_weapon.icon == 1 && no_weapon.dial == 1.0f);
+    const ui::HudBombingRunButton ion = game::space_weapon_button(true, 0, 0, true, false, 1.0f);
     CHECK(ion.present && !ion.hidden && !ion.disabled && ion.icon == 0 && ion.tooltip == 0 && ion.dial < 0.0f);
-    const ui::HudBombingRunButton hv = game::space_weapon_button(true, 1, true, false, 0.4f);
+    const ui::HudBombingRunButton hv = game::space_weapon_button(true, 1, 1, true, false, 0.4f);
     CHECK(hv.disabled && hv.icon == 1 && hv.tooltip == 1 && hv.dial == 0.4f);
-    const ui::HudBombingRunButton comm = game::space_weapon_button(true, 2, false, false, 1.0f);
-    CHECK(comm.disabled && comm.icon == 2 && comm.tooltip == 4);
-    CHECK(game::space_weapon_button(true, 0, true, true, 1.0f).disabled);  // controls locked
+    CHECK(game::space_weapon_button(true, 1, 1, true, false, 0.0f).dial == 1.0f);  // readiness 0: a full dial
+    const ui::HudBombingRunButton comm = game::space_weapon_button(true, 2, 2, false, false, 0.5f);
+    CHECK(comm.disabled && comm.icon == 2 && comm.tooltip == 4 && comm.dial == 1.0f);
+    const ui::HudBombingRunButton locked = game::space_weapon_button(true, 0, 0, true, true, 0.5f);
+    CHECK(locked.disabled && locked.dial == 1.0f);  // controls locked
+    CHECK(game::space_weapon_faction_icon("REBEL") == 0 && game::space_weapon_faction_icon("Empire") == 1 &&
+          game::space_weapon_faction_icon("Underworld") == 2 && game::space_weapon_faction_icon("Pirates") == 3);
+    // 0x2ad280: the aim pointer from Special_Weapon_Target_Action_Index (stock: Ion Cannon 1, Hypervelocity Gun 0).
+    CHECK(game::special_weapon_pointer_index(1) == 1 && game::special_weapon_pointer_index(0) == 0 &&
+          game::special_weapon_pointer_index(-1) == 0 && game::special_weapon_pointer_index(5) == 2);
     {
         galactic::FactionRules fr;
         fr.xml_fields = {{"Bombing_Run_Shadow_Blob_Material_Name", "Bombing_Run_Empire"}, {"Bombing_Run_Blob_Size", "100.0"}};
