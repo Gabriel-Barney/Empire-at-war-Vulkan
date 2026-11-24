@@ -130,7 +130,7 @@ does not use a RADARMAP.XML event.
   - None of these is on an attack path.
 - The under-attack ping goes through the **HUD blip record 0x2de700**, not a RADARMAP event. Land 0x3ba180 (call
   0x3ba394) and space 0x4d8ae0 (call 0x4d8cf4) handle the combat notification (attacker, victim). This is legacy
-  AUDIO.md 9.8; its "size 4.0" is wrong, the 4.0 is the duration. The rule:
+  legacy docs/re/AUDIO.md 9.8; its "size 4.0" is wrong, the 4.0 is the duration. The rule:
   - the mode countdown (land +0x414, space +0x3c4) is 0, and the attacker is hostile to the victim's owner (0x39a4e0);
   - the victim is a base object: land behaviour slot +0x391 DUMMY_GROUND_STRUCTURE or +0x394
     DUMMY_LAND_BASE_LEVEL_COMPONENT; space +0x38e DUMMY_STAR_BASE or +0x392 DUMMY_ORBITAL_STRUCTURE;
