@@ -857,6 +857,23 @@ std::vector<std::pair<std::string, lua::StoryNotification>> StorySession::notifi
             out.emplace_back("STORY_DEPLOY", n);  // wave 1: hero / team deployed to the surface (MOVE rule)
             break;
         }
+        // #252: a Ground_Activated apply raises LAND_ON (2) and DEPLOY (0xC) for the hero S at the planet X (0x3284c0;
+        // legacy docs/re/P4_SIM_SYSTEMS.md §2.3 step 6 and §6.4, legacy docs/re/GALAB_ABILITIES_RE.md §1 step 4 and §7.6
+        // step 6 [H]). The galactic sim emits SpecialApplied at exactly those points (special_apply, apply_neutralize),
+        // before Neutralize_Hero's HeroNeutralized. [port] The payload mirrors UnitsLanded: the hero's type (the event's
+        // `type`, read at the apply, so a hero that leaves at once still counts) and its Company_Units stand for a one-object
+        // fleet.
+        case K::SpecialApplied:
+            n.has_object = true;
+            if (!t.type.empty()) {
+                n.units = {t.type};
+                expand(n.units);
+                n.fleet_direct = 1;
+            }
+            orbit_names(e.planet, n.orbit_units);
+            out.emplace_back("STORY_LAND_ON", n);
+            out.emplace_back("STORY_DEPLOY", n);
+            break;
         case K::ObjectDestroyed: {
             n.name = t.type;
             n.has_object = true;
@@ -951,8 +968,8 @@ std::vector<std::pair<std::string, lua::StoryNotification>> StorySession::notifi
         // --- end P4 lua ---
         // #65 t02: Neutralize_Hero's executor 0x616740 raises STORY_GENERIC "hero_neutralized" for any player's neutralize
         // and the siphon entry alike (legacy docs/re/STY1_GENERIC_AUTOSAVE.md §2, legacy docs/re/GALAB_ABILITIES_RE.md
-        // §7.6 step 6 [H]). Retail makes its LAND_ON / DEPLOY story call first; the port raises none for an ability apply
-        // (#252). Every plot set (route()), like increase / decrease_corruption and retreat_complete.
+        // §7.6 step 6 [H]). Its LAND_ON / DEPLOY story call comes first (the SpecialApplied the sim emits before this
+        // event, #252). Every plot set (route()), like increase / decrease_corruption and retreat_complete.
         case K::HeroNeutralized:
             n.name = "hero_neutralized";
             out.emplace_back("STORY_GENERIC", n);

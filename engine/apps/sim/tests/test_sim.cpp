@@ -2924,6 +2924,12 @@ static const char* kPlot =
     // #65 t02 (legacy docs/re/STY1_GENERIC_AUTOSAVE.md §2, 0x616740): any player's neutralize raises STORY_GENERIC
     // hero_neutralized
     " <Event Name=\"Neutralized\"><Event_Type>STORY_GENERIC</Event_Type><Event_Param1>hero_neutralized</Event_Param1></Event>\n"
+    // #252 (legacy docs/re/P4_SIM_SYSTEMS.md §2.3 step 6, 0x3284c0 [H]): a Ground_Activated apply raises LAND_ON and
+    // DEPLOY for the hero at the planet; only the ability apply at PlanetA fires these two
+    " <Event Name=\"Ability_Land_A\"><Event_Type>STORY_LAND_ON</Event_Type><Event_Param1>PlanetA</Event_Param1>"
+    "<Event_Param3>Hero_Unit</Event_Param3></Event>\n"
+    " <Event Name=\"Ability_Deploy_A\"><Event_Type>STORY_DEPLOY</Event_Type><Event_Param1>Hero_Unit</Event_Param1>"
+    "<Event_Param2>PlanetA</Event_Param2></Event>\n"
     "</Story>\n";
 // The script moves the Underworld corvette to the Empire (GalacticSim::change_owner: a new Empire fleet in
 // orbit) and reports when the owner and the parent fleet changed.
@@ -2992,6 +2998,7 @@ struct Result {
     bool scoped_ok = false;
     bool battles_ok = false;
     bool special_ok = false;  // P4 lua
+    bool ability_ok = false;  // #252: no ability LAND_ON / DEPLOY before the apply
     size_t holocron = 0;      // q6 t14
     bool holocron_saved = false;
 };
@@ -3082,6 +3089,16 @@ static Result run(const objects::GameObjectTypes& types, const FileProvider& fil
             sab.type = story_test::tSB1;
             sab.value = kSabotageSpecialStructure;
             gs->post_event(sab);
+            // #252: the Underworld's hero team applies a Ground_Activated ability at A. Its SpecialApplied comes first, as
+            // in Neutralize_Hero's executor 0x616740: story LAND_ON / DEPLOY, then hero_neutralized.
+            out.ability_ok = story.log_text().find(" Ability_Land_A ") == std::string::npos &&
+                             story.log_text().find(" Ability_Deploy_A ") == std::string::npos;
+            GalacticEvent applied;
+            applied.kind = GalacticEventKind::SpecialApplied;
+            applied.player = pUnder;
+            applied.planet = story_test::rA;
+            applied.type = tHeroTeam;
+            gs->post_event(applied);
             // #65 t02: the Underworld neutralizes an Empire hero; the Empire's plot set hears it (no player scoping)
             GalacticEvent neut;
             neut.kind = GalacticEventKind::HeroNeutralized;
@@ -3166,13 +3183,17 @@ static void test_story_wave1() {
     CHECK(a.lua.empty());
     for (const char* ev : {"Deploy_C", "Hero_Lost", "Select_Infantry", "Select_A", "Zoom_B", "Zoom_Out", "Gui", "Speech", "Movie",
                            "Generic", "Lost", "Bought", "Sabotage", "Open_C", "Destroyed_B", "Era", "Owner_Done",
-                           "Won_Two_At_C", "Lost_One", "Retreat_C", "Neutralized"})
+                           "Won_Two_At_C", "Lost_One", "Retreat_C", "Neutralized", "Ability_Land_A",
+                           "Ability_Deploy_A"})
         if (a.log.find(std::string(" ") + ev + " ") == std::string::npos) {
             std::printf("FAIL wave1 story event %s did not fire\n", ev);
             ++g_fail;
         }
     CHECK(a.scoped_ok && a.battles_ok && a.dialogs == 1 && a.dialog_tag == "Era_Tag" && a.dialog_chapter == 2);
     CHECK(a.special_ok);  // P4 lua
+    // #252: LAND_ON and DEPLOY from the ability apply, before the executor's hero_neutralized
+    CHECK(a.ability_ok && a.log.find(" Ability_Land_A ") < a.log.find(" Neutralized ") &&
+          a.log.find(" Ability_Deploy_A ") < a.log.find(" Neutralized "));
     CHECK(a.holocron == 1 && a.holocron_saved);  // q6 t14
     CHECK(a.log.find("UiSelectUnit") != std::string::npos && a.log.find("PlanetDestroyed") != std::string::npos);
     CHECK(!a.log.empty() && a.log == b.log);
