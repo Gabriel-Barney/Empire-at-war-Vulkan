@@ -54,3 +54,5 @@ moves.
 - Retail's object-list order when several leader objects exist [L]. The shipped data never creates two.
 - A select guard on planet data +0xb8, byte +0x2c9 [L].
 - What triggers `0x2ea110` [L].
+- A cached planet that is destroyed later stays the target, since nothing but the HUD init clears the cache [L]. The
+  port does the same.
