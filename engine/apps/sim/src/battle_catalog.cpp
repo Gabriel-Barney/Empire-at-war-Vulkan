@@ -281,6 +281,7 @@ BattleTables::ProjectileVisuals BattleCatalog::projectile_visuals(uint32_t t) co
     v.absorbed = type_or_none(ty.get(t, objects::tags::Projectile_Absorbed_By_Shields_Particle));
     v.lifetime = type_or_none(ty.get(t, objects::tags::Projectile_Lifetime_Detonation_Particle));
     v.ground = type_or_none(ty.get(t, objects::tags::Projectile_Ground_Detonation_Particle));  // tru1 t08
+    v.flinch_intensity = ty.get(t, objects::tags::Induced_Flinch_Intensity);                     // #362
     return v;
 }
 

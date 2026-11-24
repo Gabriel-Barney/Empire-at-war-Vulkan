@@ -233,6 +233,10 @@ uint64_t seconds_to_frames(float seconds);
 // Flinch type for a hit travelling along (dx, dy) on a victim facing (fx, fy) (2-D, z ignored). attacking: the
 // Attack_Flinch_* set. A zero direction or facing counts as a hit from the front.
 int32_t flinch_type(float fx, float fy, float dx, float dy, bool attacking);
+// #362 (0x62e040; TACTICAL_COMBAT slot 47 "s78l t03" step-2 "Start" [M], legacy ANIM_PARTICLES §A.12 d^2_xy): the
+// flinch weight of an explosion's victim at horizontal offset (dx, dy): clamp(intensity x (1 - d^2 / (2 range^2)), 0.25,
+// 1), with `range` = Induced_Flinch_Range (> 0) and `intensity` = Induced_Flinch_Intensity.
+float explosion_flinch_weight(float intensity, float range, float dx, float dy);
 
 enum class CorpsePhase : uint8_t { Dying = 0, Persisting = 1, Fading = 2, SpinAway = 3 };
 

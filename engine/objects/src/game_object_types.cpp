@@ -50,6 +50,7 @@ const Def kDefaults[] = {
     {"Stopping_Distance", "2.0"},
     {"Movement_Animation_Speed", "0.25"}, {"Walk_Animation_Speed", "0.25"}, {"Crouch_Animation_Speed", "0.25"},
     {"Dense_FOW_Reveal_Range_Multiplier", "0.5"},
+    {"Induced_Flinch_Range", "100.0"}, {"Induced_Flinch_Intensity", "1.0"},  // #362: type +0x20e0 / +0x20e4, ctor 0x367250
     // Enums whose constructor value is -1 ("none"); kept as FieldValue::i = -1 with no name.
     {"MovementClass", "-1"}, {"Ship_Class", "-1"}, {"OccupationStyle", "-1"}, {"UnitCollisionClass", "-1"},
     {"Weather_Category", "-1"}, {"Tactical_Production_Queue", "-1"}, {"Projectile_Blast_Area_Dropoff_Tiers", "5"}, {"Projectile_Category", "-1"},

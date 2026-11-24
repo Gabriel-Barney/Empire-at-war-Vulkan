@@ -2350,6 +2350,8 @@ private:
         bool hardpoints = false, deaths = false, survivors = false;
     } unread_;
     void spawn_particle(TacticalMode& mode, int32_t type, Vec3 pos, int32_t owner);
+    void explosion_flinch(TacticalMode& mode, objects::ObjectHandle h);  // #362: an EXPLOSION object's area flinch
+    tactical::QueryContext explosion_query_;                            // #362: explosion_flinch scratch
     objects::ObjectHandle spawn_prop(TacticalMode& mode, int32_t type, Vec3 pos, Vec3 facing, int32_t owner);
     // Die step 8's clone object (flags 0xc0), and the infantry corpse-path test (S9 §1.6).
     objects::ObjectHandle spawn_death_clone(TacticalMode& mode, int32_t type, Vec3 pos, Vec3 facing, int32_t owner);

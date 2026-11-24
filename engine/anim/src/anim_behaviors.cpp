@@ -79,6 +79,11 @@ void AnimBehaviors::remove(ObjectId id) {
 
 // ---- flinch ------------------------------------------------------------------------------------------
 
+float explosion_flinch_weight(float intensity, float range, float dx, float dy) {
+    const float d2 = dx * dx + dy * dy;
+    return std::clamp(intensity * (1.0f - 0.5f * d2 / (range * range)), 0.25f, 1.0f);
+}
+
 bool AnimBehaviors::on_hit(AnimWorld& w, ObjectId id, const FlinchParams& p, float fx, float fy, float dx, float dy, SimRng& rng,
                            uint64_t frame, float weight) {
     // 0x62dde0 (s78l t03 step-2 bookkeeping "Start" [H]): the cooldown timer ready, I +0x58 = 0, not a Deploys type, the

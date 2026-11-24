@@ -686,6 +686,12 @@ void test_behaviors() {
     CHECK(flinch_type(1, 0, -1, -0.9f, false) == kAnimFlinchFront);
     CHECK(flinch_type(0, 0, 1, 0, false) == kAnimFlinchFront && flinch_type(1, 0, 0, 0, true) == kAnimAttackFlinchFront);
     CHECK(flinch_type(1, 0, 1, 0, true) == kAnimAttackFlinchBack && flinch_type(1, 0, 0, 1, true) == kAnimAttackFlinchRight);
+    // #362: an explosion victim's weight clamp(I x (1 - d^2 / (2 R^2)), 0.25, 1), d horizontal (the caller drops z).
+    CHECK(explosion_flinch_weight(1.0f, 100.0f, 0.0f, 0.0f) == 1.0f && explosion_flinch_weight(1.0f, 100.0f, 50.0f, 0.0f) == 0.875f);
+    CHECK(explosion_flinch_weight(1.0f, 100.0f, 100.0f, 0.0f) == 0.5f && explosion_flinch_weight(1.0f, 100.0f, 60.0f, 80.0f) == 0.5f);
+    CHECK(explosion_flinch_weight(1.0f, 100.0f, 130.0f, 0.0f) == 0.25f);  // 0.155: the 0.25 floor (a box overlap beyond R)
+    CHECK(explosion_flinch_weight(0.4f, 100.0f, 0.0f, 0.0f) == 0.4f && explosion_flinch_weight(0.1f, 100.0f, 0.0f, 0.0f) == 0.25f);
+    CHECK(explosion_flinch_weight(2.0f, 100.0f, 50.0f, 0.0f) == 1.0f);  // the 1 cap
 
     const auto m = behaviour_model();
     const FlinchParams fp;  // 0.25 blend, 0.5 hold (15 frames), 1.0 idle interval (30), 3.0 attack interval (90)
