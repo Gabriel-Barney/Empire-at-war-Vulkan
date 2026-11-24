@@ -780,6 +780,7 @@ void App::begin_battle(bool from_save) {
     bombing_targeting_ = false;  // nor a bombing-run pick
     autofire_seen_.clear();  // the default autofire is sent for this battle's objects
     sw_weapon_ = objects::kNoObjectId;  // nor a space special-weapon aim
+    sw_station_ = false;
     bombing_blob_.reset();
     targeting_.cancel();  // nor a targeted ability
     reinforce_blob_.reset();  // nor a drop preview / beacon pick; tether and interface keys reset per battle [port]

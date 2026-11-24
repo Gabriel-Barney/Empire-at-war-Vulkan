@@ -110,7 +110,7 @@ void App::queue_default_autofire(std::vector<commands::EventData>& cmds) {
 // (Special_Weapon_Index = the button icon) or a station with a special-weapon hard point (icon 2, "station turret").
 // #431 (docs/re/SPACE_SPECIAL_WEAPON_UI.md, 0x2ad280 [H]): the aim pointer comes from Special_Weapon_Target_Action_Index,
 // 0 for a station. [port] several: the first ready one in id order, else the first.
-objects::ObjectId App::space_weapon(int32_t& icon, float& readiness, int32_t* pointer, bool* station) const {
+objects::ObjectId App::space_weapon(int32_t& icon, float& readiness, int32_t* pointer, bool* station, bool skip_stations) const {
     icon = -1;
     readiness = 0.0f;
     if (pointer) *pointer = 0;
@@ -143,7 +143,7 @@ objects::ObjectId App::space_weapon(int32_t& icon, float& readiness, int32_t* po
             r = sr;
             st = true;
         }
-        if (ic < 0) continue;
+        if (ic < 0 || (st && skip_stations)) continue;
         if (best == objects::kNoObjectId || (readiness < 1.0f && r >= 1.0f)) {
             best = id;
             icon = ic;
@@ -169,9 +169,9 @@ void App::space_weapon_toggle(bool hotkey) {
     int32_t icon = -1, pointer = 0;
     float ready = 0.0f;
     bool station = false;
-    const objects::ObjectId w = space_weapon(icon, ready, &pointer, &station);
+    const objects::ObjectId w = space_weapon(icon, ready, &pointer, &station, hotkey);
     if (w == objects::kNoObjectId || ready < 1.0f || !tb || story_controls_locked()) return;
-    if (hotkey ? station : !tb->special_weapons_allowed(local_player())) return;
+    if (!hotkey && !tb->special_weapons_allowed(local_player())) return;
     sw_weapon_ = w;
     sw_icon_ = pointer;
     sw_station_ = station;

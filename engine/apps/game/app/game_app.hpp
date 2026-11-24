@@ -547,7 +547,9 @@ private:
     // The local player's space special weapon (a ready one first): a SPECIAL_WEAPON object (icon = Special_Weapon_Index)
     // or a station with a special-weapon hard point (icon 2); kNoObjectId when none.
     // `pointer` = the aim pointer index, `station` = a station's special-weapon hard point (#431).
-    objects::ObjectId space_weapon(int32_t& icon, float& readiness, int32_t* pointer = nullptr, bool* station = nullptr) const;
+    // `skip_stations`: hotkey 22's scan (0x63f00 case 0x16 reaches SPECIAL_WEAPON objects only).
+    objects::ObjectId space_weapon(int32_t& icon, float& readiness, int32_t* pointer = nullptr, bool* station = nullptr,
+                                   bool skip_stations = false) const;
     void space_weapon_toggle(bool hotkey = false);
     std::optional<render::JamBlob> bombing_blob_;  // the green / red terrain blob under the cursor while targeting
     uint64_t bombing_commands_ = 0, bombing_cancels_ = 0, bombing_invalid_clicks_ = 0;
