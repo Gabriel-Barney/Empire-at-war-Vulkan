@@ -337,11 +337,11 @@ uint32_t GameAudio::animation_sounds(uint64_t object, std::string_view animation
     return n;
 }
 
-uint32_t GameAudio::unit_death(uint64_t object, std::string_view event, const Vec3& position) {
+uint32_t GameAudio::unit_death(uint64_t object, std::string_view event, const Vec3& position, uint64_t fog_parent) {
     object_dead(object);
-    // #50 t08: 0x58cf90 passes the dying object to gate 9. The port's fog test (TacticalBattle::fog_object_hidden)
-    // reads live objects only, and the death runs after the sim destroyed the object, so a death sound is not fogged yet.
-    return impact(event, position, object);
+    // #50 t08 / #327 t06: 0x58cf90 runs on the death clone and passes it to gate 9; the port's fog test
+    // (TacticalBattle::fog_object_hidden) reads live objects, so a clone already removed is not fogged.
+    return impact(event, position, fog_parent);
 }
 
 uint32_t GameAudio::object_sfx(uint64_t object, std::string_view event, const Vec3& position, float fade_in_seconds) {

@@ -17,6 +17,12 @@
 //   HangarLaunch         #50 t06 (STATION_HANGARS_SOUND §2.5, 0x594dc0 [H]): a space hangar launched a single ship (a type
 //                        without Squadron_Units); player = the launched ship's owner, type = its type, object = the ship.
 //                        The original plays the faction's Reinforcements_Enroute_SFXEvent (2D) when that is the local player.
+//   UnitDied             #327 t06: a battle unit died (process_death, not a silent removal) - from a combat tick, a late
+//                        death (late_deaths) or a script kill between ticks alike. player = its owner, type = its type,
+//                        object = it; clone / clone_type = its death clone (the Die step 8 clone 0x29f270: the object, none
+//                        on the infantry corpse path; the type, -1 when the death makes no clone), x / y / z = where it
+//                        died. The host plays Unit_Lost (0x39bdb0, the dying type, local owner) and the clone's
+//                        Death_SFXEvent_Start_Die (DEATH's effects 0x58cf90 on the clone, the clone as gate 9's parent).
 #pragma once
 #include <cstdint>
 #include <vector>
@@ -25,7 +31,7 @@
 
 namespace alamo::sim {
 
-enum class PresentationEventKind : uint8_t { ProductionBegin = 0, ProductionCanceled, ProductionCompleted, HangarLaunch };
+enum class PresentationEventKind : uint8_t { ProductionBegin = 0, ProductionCanceled, ProductionCompleted, HangarLaunch, UnitDied };
 
 struct PresentationEvent {
     PresentationEventKind kind = PresentationEventKind::ProductionBegin;
@@ -34,6 +40,9 @@ struct PresentationEvent {
     objects::ObjectId object = objects::kNoObjectId;  // the builder (HangarLaunch: the launched ship)
     uint32_t order = 0;                             // TacticalProduction order id
     uint32_t frame = 0;                             // battle frame
+    objects::ObjectId clone = objects::kNoObjectId;  // UnitDied: the death clone object
+    int32_t clone_type = -1;                         // UnitDied: the death clone's type
+    float x = 0.0f, y = 0.0f, z = 0.0f;              // UnitDied: the death position
 };
 using PresentationEvents = std::vector<PresentationEvent>;
 

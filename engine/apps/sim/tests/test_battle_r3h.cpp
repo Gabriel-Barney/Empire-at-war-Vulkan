@@ -346,6 +346,44 @@ void test_pad_sell_start() {
 
 }  // namespace
 
+// #327 t06: every battle death that is not a silent removal is a UnitDied presentation event - a combat tick's and a
+// script kill made between ticks alike (that one never reaches CombatSystem::deaths() after a tick, which the audio host
+// read before) - with its type, owner, position and death clone.
+void test_unit_died_presentation() {
+    g_temp_prefix = "alamo_sim_r3h_tests_327t06";
+    auto d = make_data();
+    const objects::TypeIndex trooper = d->types.resolve_name("S10_Trooper");
+    objects::ObjectId victim = objects::kNoObjectId;
+    uint32_t kill_frame = 0, died_events = 0, deaths = 0;
+    bool victim_event = false, fields_ok = true;
+    PresentationEvents pres;
+    land_battle(*d, nullptr, 900, [&](TacticalBattle& b, TacticalMode& tm, SimHost&) {
+        b.set_emit_presentation(true);
+        pres.clear();
+        b.drain_presentation(pres);
+        const objects::ObjectStore& st = tm.primary();
+        for (const PresentationEvent& e : pres) {
+            if (e.kind != PresentationEventKind::UnitDied) continue;
+            ++died_events;
+            fields_ok = fields_ok && e.type >= 0 && e.object != objects::kNoObjectId && e.clone_type >= 0;
+            if (e.object == victim) victim_event = e.type == static_cast<int32_t>(trooper) && e.frame == kill_frame;
+        }
+        deaths = b.stats().deaths;
+        if (victim == objects::kNoObjectId && b.frame() >= 60) {
+            for (const objects::ObjectHandle h : st.all_objects())
+                if (victim == objects::kNoObjectId && st.alive(h) && st.type(h) == trooper) victim = st.id(h);
+            if (victim != objects::kNoObjectId) {
+                kill_frame = b.frame();  // a kill between ticks belongs to the frame just run
+                CHECK(b.script_damage(tm, victim, 1.0e6f, false));
+            }
+        }
+        return b.frame() < 400;
+    });
+    std::printf("  #327 t06 UnitDied: %u events, %u battle deaths, script kill seen %d\n", died_events, deaths, victim_event ? 1 : 0);
+    CHECK(victim != objects::kNoObjectId && victim_event && fields_ok);
+    CHECK(died_events > 1 && died_events == deaths);
+}
+
 int main() {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
     std::printf("r3h t01: Force_Sight clips on the battle's animation world\n");
@@ -354,6 +392,7 @@ int main() {
     test_force_sight_death(false);
     test_force_sight_no_end();
     test_pad_sell_start();  // tru3 t06
+    test_unit_died_presentation();  // #327 t06
     if (g_fail) {
         std::printf("alamo_sim_r3h_tests: %d failure(s)\n", g_fail);
         return 1;
