@@ -17,6 +17,7 @@
 #include "alamo/data/xml_values.hpp"
 #include "alamo/lua/gc_schedule.hpp"  // OPT2 t04
 #include "galactic_ai_impl.hpp"
+#include "galactic_ai_records.hpp"  // #145: the records' field lists (hash)
 
 namespace alamo::ai {
 
@@ -3088,18 +3089,6 @@ std::vector<uint32_t> GalacticAiWorld::solve_potential_plan(int32_t player, std:
     return out;
 }
 
-// A MoveTo status also hashes where it goes, how and which fleet it moves (#119): the save keeps them, so a divergence
-// there shows in the CRC log. The other kinds hash as before.
-void hash_status(StateHasher& h, const StatusRec& s) {
-    h.boolean(s.finished);
-    h.u8(static_cast<uint8_t>(s.result));
-    if (s.kind == StatusKind::MoveTo) {
-        h.u32(s.dest);
-        h.u8(s.mode);
-        h.u32(s.fleet);
-    }
-}
-
 void GalacticAiWorld::hash(StateHasher& h) const {
     const Impl& w = *impl_;
     // bkg2 b0099: not hashed. The CRC is taken after the frame's update_player calls, whose drains empty the queue (a
@@ -3110,70 +3099,38 @@ void GalacticAiWorld::hash(StateHasher& h) const {
         h.boolean(a != nullptr);
         if (a) a->ctx.hash(h);
     }
+    // #145: the records' field lists (galactic_ai_records.hpp): a map entry is its key, then the record's hashed fields.
+    galactic_io::RecordHasher rec(h, &w.store);
     h.u32(static_cast<uint32_t>(w.plans.size()));
     for (const auto& [id, p] : w.plans) {
         h.i32(id);
-        h.i32(p.player);
-        h.u32(p.plan);
-        h.u32(p.goal_type);
-        h.i32(p.target);
-        h.boolean(p.result);
-        h.boolean(p.non_removable);
-        h.u32(p.live_threads);  // cached on the sim thread: hashers may run on job workers (no VM access)
+        visit(rec, p);
     }
     h.u32(static_cast<uint32_t>(w.tfs.size()));
     for (const auto& [id, t] : w.tfs) {
         h.i32(id);
-        h.i32(t.stage);
-        h.i32(t.area);
-        h.u32(t.fleet);  // TF +0x120
-        if (t.sync) {  // only a sync gather adds its countdown (other task forces hash as before)
-            h.boolean(t.sync_started);
-            h.f64(t.sync_left);
-        }
-        h.u32(static_cast<uint32_t>(t.units.size()));
-        for (const ObjectHandle u : t.units) h.i32(w.store.id(u));
+        visit(rec, t);
     }
     h.u32(static_cast<uint32_t>(w.statuses.size()));
     for (const auto& [id, s] : w.statuses) {
         h.i32(id);
-        hash_status(h, s);
+        visit(rec, s);
     }
     h.u32(static_cast<uint32_t>(w.builds.size()));
     for (const auto& [id, b] : w.builds) {
         h.i32(id);
-        h.u32(b.type);
-        h.i32(b.tf);
-        h.u8(static_cast<uint8_t>(b.state));
-        h.u32(b.bid_planet);
-        h.f64(b.bid);
-        h.i32(b.queue_id);
+        visit(rec, b);
     }
     h.u32(static_cast<uint32_t>(w.pending_builds.size()));
     for (const int32_t b : w.pending_builds) h.i32(b);
     for (const auto& pq : w.planet_queues)
-        for (const PlanetBuildQueue& q : pq) {
-            h.i64(q.last_run);
-            h.i32(q.current);
-            h.i32(q.current_queue_id);
-            h.u32(static_cast<uint32_t>(q.tasks.size()));
-            for (const int32_t t : q.tasks) h.i32(t);
-            h.u32(static_cast<uint32_t>(q.reservations.size()));  // #196: by position, empty slots included
-            for (const QueueReservation& r : q.reservations) {
-                h.i32(r.pp);
-                h.u32(r.type);
-            }
-        }
+        for (const PlanetBuildQueue& q : pq) visit(rec, q);
     h.u32(static_cast<uint32_t>(w.unit_reserved.size()));
     for (const auto& [u, pp] : w.unit_reserved) {
         h.i32(u);
         h.i32(pp);
     }
-    h.u32(static_cast<uint32_t>(w.fs_moves.size()));
-    for (const FreeStoreMove& m : w.fs_moves) {
-        h.i32(w.store.id(m.unit));
-        h.u32(m.dest);
-    }
+    rec.list(w.fs_moves, galactic_io::In::Both, galactic_io::kFreeStoreMoveBytes, galactic_io::visit_each);
     h.u32(static_cast<uint32_t>(w.markup.size()));
     for (const auto& [k, v] : w.markup) {
         h.i32(k.first);
