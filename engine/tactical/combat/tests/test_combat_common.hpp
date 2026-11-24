@@ -799,6 +799,7 @@ struct GateWorld {
     }
 };
 void test_hardpoint_state_gate();
+void test_hardpoint_difficulty_health();  // #434
 
 // S7 t15 A2 (MOVEMENT §3.1.1): a WeaponBehavior recharge keeps elapsing while the weapon is suspended (jetpack).
 struct SuspendWorld {

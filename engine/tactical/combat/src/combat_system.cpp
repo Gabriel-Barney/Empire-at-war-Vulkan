@@ -127,14 +127,20 @@ void CombatSystem::set_player_difficulty(int32_t player, float damage_multiplier
     PlayerInfo& pi = players_[static_cast<size_t>(player)];
     const float hr = pi.faction_health > 0.0f ? health_multiplier / pi.faction_health : 1.0f;
     const float sr = pi.faction_shield > 0.0f ? shield_multiplier / pi.faction_shield : 1.0f;
+    // 0x4b0dc0 [H]: the new difficulty first, so a hard point's maximum (0x385ae0) reads the new multiplier.
+    pi.ai_damage_multiplier = damage_multiplier;
+    pi.faction_health = health_multiplier;
+    pi.faction_shield = shield_multiplier;
     for (Unit& u : units_) {
         if (u.owner != player || !live(&u)) continue;
         u.health *= hr;
         u.shield *= sr;
+        // #434: each hard point with health > 0 to current x new / old, clamped to [0, the new maximum] (0x387ca0)
+        for (uint32_t i = 0; i < u.hp_count; ++i) {
+            Hardpoint& h = hps_[u.hp_begin + i];
+            if (h.health > 0.0f) h.health = std::clamp(h.health * hr, 0.0f, hp_max(u, h));
+        }
     }
-    pi.ai_damage_multiplier = damage_multiplier;
-    pi.faction_health = health_multiplier;
-    pi.faction_shield = shield_multiplier;
 }
 
 void CombatSystem::reserve(uint32_t units, uint32_t projectiles, uint32_t candidates_per_unit, uint32_t delayed) {
@@ -718,7 +724,7 @@ float CombatSystem::unit_max_shield(const Unit& u) const {
 
 float CombatSystem::hp_max(const Unit& u, const Hardpoint& h) const {
     return hardpoint_max_health(data_->hardpoints[h.desc].health, cfg_.hardpoint_health_multiplier,
-                                mod_r(u, ModList::MaxHealth));
+                                player(u.owner).faction_health, mod_r(u, ModList::MaxHealth));
 }
 
 float CombatSystem::hp_fraction(const Unit& u) const {
