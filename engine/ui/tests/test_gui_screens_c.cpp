@@ -13,7 +13,8 @@ void test_credits_roll() {
     auto u32le = [&](uint32_t v) {
         for (int i = 0; i < 4; ++i) b.push_back(static_cast<uint8_t>(v >> (8 * i)));
     };
-    const std::vector<std::pair<std::string, std::u16string>> recs = {{"CENTER", u"[TBL]"}, {"HEADER", u"Producer"}, {"CENTER", u"A NAME"}};
+    const std::vector<std::pair<std::string, std::u16string>> recs = {
+        {"CENTER", u"[TBL]"}, {"HEADER", u"Producer"}, {"CENTER", u"A NAME"}, {"SUBHEADER", u"Art"}};
     u32le(static_cast<uint32_t>(recs.size()));
     for (const auto& [k, v] : recs) {
         u32le(0);
@@ -27,31 +28,69 @@ void test_credits_roll() {
         }
     for (const auto& r : recs) b.insert(b.end(), r.first.begin(), r.first.end());
     std::vector<CreditsLine> lines;
-    CHECK(parse_credits(b, lines) && lines.size() == 3);
-    if (lines.size() == 3)
+    CHECK(parse_credits(b, lines) && lines.size() == 4);
+    if (lines.size() == 4)
         CHECK(lines[0].kind == CreditsLine::Kind::Blank && lines[1].kind == CreditsLine::Kind::Header && lines[1].text == U"Producer" &&
-              lines[2].kind == CreditsLine::Kind::Name && lines[2].text == U"A NAME");
+              lines[2].kind == CreditsLine::Kind::Name && lines[2].text == U"A NAME" &&
+              lines[3].kind == CreditsLine::Kind::Header);  // #426: a key that contains HEADER
     std::vector<uint8_t> cut(b.begin(), b.end() - 3);
     CHECK(!parse_credits(cut, lines));
     CHECK(credits_path("ENGLISH") == "Data\\Text\\CreditsText_ENGLISH.DAT");
+    // #426 (docs/re/CREDITS_ROLL.md): the retail defaults, the pixel target and the one-pixel-per-frame cap, the pitch
+    // floor(spacing x height), the end when the last record's top reaches the top, and no fade.
+    {
+        const CreditsStyle d;
+        CHECK(d.font == "Arial Unicode MS" && d.font_size == 10.0f && d.spacing == 0.01f && d.scroll_rate == -0.01f && d.margin == 0.0f &&
+              d.top.r == 255 && d.header_bottom.b == 255);
+    }
+    CHECK(credits_scroll_target_px(-0.10f, 768, 3.0) == 232);  // floor(230.4) + 2
+    CHECK(credits_scroll_target_px(-0.10f, 768, 0.0) == 2);
+    CHECK(credits_scroll_target_px(0.0f, 768, 9.0) == 2);  // a rate of 0 stops after two pixels
     CreditsStyle st;
     st.scroll_rate = -0.10f;
-    st.spacing = 0.04f;
+    st.spacing = 0.04f;  // 30 px at 768
     CreditsRoll roll;
     std::vector<CreditsLine> parsed;
     CHECK(parse_credits(b, parsed));
     roll.start(parsed, st, 100.0);
-    CHECK(roll.active() && roll.lines() == 3);
-    CHECK(std::fabs(roll.duration() - (1.0 + 4 * 0.04) / 0.10) < 1e-6);
+    CHECK(roll.active() && roll.lines() == 4);
     auto raster = make_box_rasterizer();
     FontCache fonts(*raster);
     const HudCanvas cv = HudCanvas::make(1024, 768);
     HudDrawList dl;
-    CHECK(roll.build(dl, fonts, cv, 100.0) && roll.drawn() == 0);  // all lines start below the screen
+    for (int f = 0; f < 3; ++f) {  // frames at 0, 0.01 and 0.02 s: one pixel each
+        dl.clear();
+        CHECK(roll.build(dl, fonts, cv, 100.0 + 0.01 * f) && roll.moved_px() == f + 1);
+    }
+    CHECK(roll.drawn() == 0);  // every line still below the screen
     dl.clear();
-    CHECK(roll.build(dl, fonts, cv, 100.0 + 5.0) && roll.drawn() == 2);  // half a screen scrolled: both text lines visible
+    // A long gap: still one pixel for this frame, then the roll catches up one pixel per frame.
+    CHECK(roll.build(dl, fonts, cv, 103.0) && roll.moved_px() == 4);
+    for (int f = 0; f < 400; ++f) {
+        dl.clear();
+        roll.build(dl, fonts, cv, 103.0);
+    }
+    CHECK(roll.moved_px() == 232 && roll.last_top_px() == 536.0f);  // line 0's top: 768 - 232
+    CHECK(roll.drawn() == 3);  // the three text lines (tops 566, 596, 626) are on screen
+    bool opaque = true;
+    for (const HudQuad& q : dl.items(kHudLayers - 1, HudList::Text)) opaque = opaque && q.color.a == 255;
+    CHECK(opaque);  // the text never fades
+    // The end: the last record's top (768 + 3 x 30 - moved) reaches 0 at 858 px.
+    double t = 103.0;
+    for (int f = 0; f < 2000 && roll.active(); ++f) {
+        dl.clear();
+        t += 0.01;
+        roll.build(dl, fonts, cv, t);
+    }
+    CHECK(!roll.active() && roll.moved_px() == 858);
+    // A black backdrop only when asked for (no Credits movie).
+    CreditsRoll over_movie;
+    over_movie.start(parsed, st, 0.0, false);
     dl.clear();
-    CHECK(!roll.build(dl, fonts, cv, 100.0 + roll.duration() + 0.1) && !roll.active());
+    CHECK(over_movie.build(dl, fonts, cv, 0.0) && dl.items(kHudLayers - 1, HudList::Alpha).empty());
+    roll.start(parsed, st, 0.0);
+    dl.clear();
+    CHECK(roll.build(dl, fonts, cv, 0.0) && dl.items(kHudLayers - 1, HudList::Alpha).size() == 1);
 
     // the text crawl - nothing before its lines reach the screen, lines once it scrolled, the header first and
     // larger at the start, all yellow, alpha following Fadein, nothing once every line passed the horizon.

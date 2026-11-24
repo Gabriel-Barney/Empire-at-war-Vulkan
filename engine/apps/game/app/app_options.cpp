@@ -166,9 +166,10 @@ void App::space_weapon_toggle() {
     targeting_.cancel();
 }
 
-// IDC_MENU_CREDITS -> the credits roll (credits_roll.hpp) over the menu backdrop; the menu dialogs close while it
-// runs and the main menu comes back when it ends or is clicked away. CreditsText_<LANGUAGE>.DAT of the loaded text
-// language, else ENGLISH.
+// IDC_MENU_CREDITS -> the credits roll (credits_roll.hpp) over the looping Movies.xml "Credits" movie, whose
+// Has_Credits flag starts the credits music (#426, docs/re/CREDITS_ROLL.md: handler 0xc6590, roll setup 0x44e5a0 [H]).
+// The menu dialogs close while it runs and the main menu comes back when it ends or is skipped. CreditsText_<LANGUAGE>.DAT
+// of the loaded text language, else ENGLISH. Without the movie (no FFmpeg, no file) the roll runs over black [port].
 void App::show_credits() {
     if (screen() != Screen::Menu || !data_.files) return;
     std::vector<uint8_t> bytes;
@@ -183,7 +184,17 @@ void App::show_credits() {
         return;
     }
     ui_.gui.close_all();
-    credits_.start(std::move(lines), ui::credits_style(data_.db.constants()), now_s_);
+    std::string err;
+    credits_movie_ = full_movie_.open(data_, audio_, "Credits", true, &err);
+    if (!credits_movie_) ctl_.notes.push_back("credits: no Credits movie (" + err + ")");
+    credits_.start(std::move(lines), ui::credits_style(data_.db.constants()), now_s_, !credits_movie_);
+}
+
+void App::end_credits() {
+    credits_.stop();
+    if (credits_movie_ && full_movie_.name() == "Credits") full_movie_.stop(audio_);  // not a movie that replaced it
+    credits_movie_ = false;
+    open_main_menu();
 }
 
 }  // namespace alamo_game_app

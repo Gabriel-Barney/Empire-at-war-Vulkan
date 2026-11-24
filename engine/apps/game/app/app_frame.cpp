@@ -278,7 +278,7 @@ bool App::render_frame() {
         dialogs.add(ui::kHudLayers - 1, ui::HudList::Alpha, q);
     }
     info_.build_overlay(dialogs);  // data-chart lines over IDC_DATA_CHART_IMAGE
-    if (credits_.active() && !credits_.build(dialogs, *ui_.fonts, *canvas, now_s_)) open_main_menu();  // ended
+    if (credits_.active() && !credits_.build(dialogs, *ui_.fonts, *canvas, now_s_)) end_credits();  // ended
     if (rename_.active()) rename_.build(dialogs, *ui_.fonts, *canvas, now_s_);  // [port] fleet / ship rename prompt
     if (overlay_.shown()) {  // the frame-time overlay, top layer of the dialogs list (under the cursor)
         overlay_.read_ticks();
@@ -532,12 +532,11 @@ void App::frame() {
     router_.route(raw, hooks, routed_);
     target_input_.update(raw);
     gui_events_.clear();
-    // ui1 t03 [port]: a click or Esc / Space / Enter ends the credits roll and brings the main menu back.
+    // #426 (docs/re/CREDITS_ROLL.md, key handler 0x61fe0 [H]): Esc or Space skips the roll, and other keys do nothing.
+    // [port] a click skips it too; retail's mouse path was not traced.
     if (credits_.active() && (input_.button(ui::Button::Left).click || input_.button(ui::Button::Right).click ||
-                              input_.key_pressed(ui::vk::kEscape) || input_.key_pressed(ui::vk::kSpace) || input_.key_pressed(0x0D))) {
-        credits_.stop();
-        open_main_menu();
-    }
+                              input_.key_pressed(ui::vk::kEscape) || input_.key_pressed(ui::vk::kSpace)))
+        end_credits();
     ui_.gui.update(raw, routed_, now_s_, gui_events_, typed);
     std::vector<ui::MenuAction> acts;
     ui_.front.update(gui_events_, raw, acts);
@@ -625,7 +624,12 @@ void App::frame() {
     if (bench_active()) bench_autopilot();  // BM2a: battle prompts, load screens, battle-end and story dialogs, movies
     if (screen() != Screen::Movie) {
         if (full_movie_.playing() && !full_movie_.update(dt_, gpu_.hud, kMoviePage)) {
-            story_ui_.movie_done(full_movie_.name());  // L1/S4 wave 1: STORY_MOVIE_DONE (an in-game full-screen movie ended)
+            if (credits_movie_ && full_movie_.name() == "Credits") {  // #426: the looped Credits movie failed mid-roll
+                credits_movie_ = false;
+                credits_.set_black_backdrop(true);
+            } else {
+                story_ui_.movie_done(full_movie_.name());  // L1/S4 wave 1: STORY_MOVIE_DONE (an in-game full-screen movie ended)
+            }
             full_movie_.stop(audio_);
         }
         if (advisor_movie_.playing()) {
