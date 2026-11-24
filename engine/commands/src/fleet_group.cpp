@@ -12,10 +12,10 @@ EventData fleet_group_event(const FleetGroupCommand& c) {
         case FleetGroupOp::Rename: {
             b.push_back(static_cast<uint8_t>(c.group & 0xFFu));
             b.push_back(static_cast<uint8_t>(c.group >> 8));
-            size_t n = c.name.size() < kFleetGroupNameMax ? c.name.size() : kFleetGroupNameMax;
-            // #176: cut at a character boundary (never inside a multi-byte UTF-8 sequence).
-            if (n < c.name.size())
-                while (n > 0 && (static_cast<uint8_t>(c.name[n]) & 0xC0u) == 0x80u) --n;
+            // #393 (docs/MODS.md "Limits policy"): the name goes out whole, so the guard in parse_fleet_group refuses an
+            // over-long one instead of a silent cut here. Only the u8 length field bounds it (a name of 256+ bytes is sent as
+            // its first 255, which the guard refuses all the same).
+            const size_t n = c.name.size() < 255u ? c.name.size() : 255u;
             b.push_back(static_cast<uint8_t>(n));
             for (size_t i = 0; i < n; ++i) b.push_back(static_cast<uint8_t>(c.name[i]));
             break;
