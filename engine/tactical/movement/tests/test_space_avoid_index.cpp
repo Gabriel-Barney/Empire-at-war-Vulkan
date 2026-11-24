@@ -1,8 +1,8 @@
 // alamo_tactical_movement_avoid_index_tests (no framework; non-zero exit on failure).
 // #111: the triangle index of an avoidance mesh (avoid_build_index, space_avoid.hpp) changes which triangles a segment
 // visits, never a result: avoid_precise, avoid_precise_segment (nearest t and its mesh) and avoid_ray_any answer exactly
-// as the plain every-triangle loop does, for random segments, segments through vertices and along edges, axis-parallel
-// and zero-length segments, starts inside the mesh box, and far-away segments.
+// as the plain every-triangle loop does, for random segments, segments through vertices and along edges, segments in a
+// triangle's plane away from it, axis-parallel and zero-length segments, starts inside the mesh box, and far-away ones.
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -120,6 +120,13 @@ int main() {
                         {v.x + 2.0f * (w.x - v.x), v.y + 2.0f * (w.y - v.y), v.z + 2.0f * (w.z - v.z)}});  // edge line
         segs.push_back({{v.x, v.y, v.z - 900.0f}, {v.x, v.y, v.z + 900.0f}});                     // axis-parallel
         segs.push_back({v, v});                                                                   // zero length
+    }
+    // segments in a triangle's plane, shifted along it away from the triangle (the exact test's ill-conditioned case)
+    for (size_t i = 0; i < rt.size(); i += 31) {
+        const F3 v = rt[i], e1{rt[i + 1].x - v.x, rt[i + 1].y - v.y, rt[i + 1].z - v.z}, e2{rt[i + 2].x - v.x, rt[i + 2].y - v.y, rt[i + 2].z - v.z};
+        const float k1 = rnd(-30.0f, 30.0f), k2 = rnd(-30.0f, 30.0f), k3 = rnd(-3.0f, 3.0f), k4 = rnd(-3.0f, 3.0f);
+        const F3 a{v.x + k1 * e1.x + k2 * e2.x, v.y + k1 * e1.y + k2 * e2.y, v.z + k1 * e1.z + k2 * e2.z};
+        segs.push_back({a, {a.x + k3 * e1.x + k4 * e2.x, a.y + k3 * e1.y + k4 * e2.y, a.z + k3 * e1.z + k4 * e2.z}});
     }
     for (int32_t i = 0; i < 200; ++i) {
         const F3 a{rnd(-5.0e4f, 5.0e4f), rnd(-5.0e4f, 5.0e4f), rnd(-5.0e3f, 5.0e3f)};
