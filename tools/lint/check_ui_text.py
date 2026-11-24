@@ -11,7 +11,7 @@ English. Comments are not code and are never flagged. Exit 1 on any violation or
 Allowed without a marker:
     a literal inside the arguments of text_or( / text_or_port( / txt( / caption_text( - a retail key's English stand-in
     a literal inside the arguments of port_text(                                - the call is the port's mark
-    a literal inside the arguments of a log call (printf / fprintf / log:: / LOG_ / notes_.push_back) - diagnostics
+    a literal inside the arguments of a log call (printf / fprintf / log:: / LOG_ / notes_.push_back, the script's ScriptControl notes.push_back) - diagnostics
     a literal in the same ( ) / { } / [ ] group as a "TEXT_*" key literal      - the English stand-in of that key
     ("inside the arguments" means between the call's parentheses at any depth, so in save_message(port_text(U"..."),
     "a detail") the detail is flagged (#308); the call may open on an earlier line of the literal's statement, back to
@@ -52,7 +52,7 @@ NOT_TEXT = [
 # The code just before a '(' that opens an allowed call: a lookup, port_text, or a log line (#308: per call, not per
 # statement).
 ALLOWED_CALL = re.compile(r'(?:\b(?:text_or|text_or_port|txt|caption_text|port_text)|\b(?:f?printf|log::\w+|LOG_\w+)'
-                          r'|\bnotes?_\.push_back)\s*$')  # diagnostics notes
+                          r'|\bnotes?_?\.push_back)\s*$')  # diagnostics notes (notes_ or ScriptControl::notes)
 KEY_LITERAL = re.compile(r'TEXT_[A-Z0-9_]+')  # a key literal's content: the English beside it is its stand-in
 RAW_OPEN = re.compile(r'(?:u8|u|U|L)?R"([^()\\ \t\n]{0,16})\(')  # as check_mod_names.tokenize
 
