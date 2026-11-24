@@ -1114,7 +1114,7 @@ void GalacticSim::service_production(PlanetIndex planet) {
         }
         // 2. starbase in production with a fleet of another player in orbit (planet not in battle) [H]
         //    (docs/re/STARBASE_ORBIT_FLEETS.md: no ally exemption, no combat-power test).
-        if (t.kind == UnitKind::StarBase && !p.in_battle && starbase_orbit_blocked(planet, e.player)) {
+        if (is_star_base_type(t) && !p.in_battle && starbase_orbit_blocked(planet, e.player)) {  // DUMMY_STAR_BASE 0x5C
             emit_cancel(planet, q, e, false, false);  // the service drops the head: silent
             pop_head(planet, q);
             return;

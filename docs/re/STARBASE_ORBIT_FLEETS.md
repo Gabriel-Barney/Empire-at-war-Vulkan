@@ -1,6 +1,7 @@
 # Starbase production and the fleets in orbit (#433)
 
 Retail FoC x64 `StarWarsG.exe` (v1.121.859328), read in the Ghidra export (reference only, not copied) on 2026-11-24.
+Tiers: **[H]** read directly in the code, **[M]** inferred from the code with a gap named, **[L]** a guess.
 Follows legacy docs/re/BKG1_RE_ANSWERS.md §10 (b0121), which read the first test and left the fleet byte +0x94 at [L].
 
 ## Two tests, one rule [H]
@@ -10,7 +11,7 @@ Retail checks the fleets in a planet's orbit in two places before a starbase is 
 | Where | What it does |
 |---|---|
 | Planet production service 0x402840, head rule 2 | A queue head of a DUMMY_STAR_BASE type (flag 0x5C), at a planet not in an active battle (0x2b0470), is cancelled with no refund when the orbit holds a matching fleet. It logs "starbase in production and enemy fleet in orbit", raises planet signal 3 and starts the next entry. |
-| Buildability 0x2804d0, the starbase step (STRATEGIC_GAPS §1.3 step 20) | The same orbit walk makes a DUMMY_STAR_BASE type unbuildable at that planet (reason 10). |
+| Buildability 0x2804d0, the starbase step (legacy docs/re/STRATEGIC_GAPS.md §1.3 step 20) | The same orbit walk makes a DUMMY_STAR_BASE type unbuildable at that planet (reason 10). |
 
 Both walk the planet's orbit object list (planet +0xC8, count +0xD0). An object matches when all of these hold:
 

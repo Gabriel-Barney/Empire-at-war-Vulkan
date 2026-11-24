@@ -195,7 +195,7 @@ struct PlayerState {
 enum BuildReason : int32_t {
     kBuildOk = 0, kBuildTechLevel = 1, kBuildGroundBase = 2, kBuildStarBase = 3, kBuildRequiredStructure = 4,
     kBuildRequiredPlanet = 5, kBuildLimit = 6, kBuildInitiallyLocked = 7, kBuildPlanetRestricted = 8,
-    kBuildHostileFleet = 10
+    kBuildHostileFleet = 10  // step 20: a visible fleet of another player in orbit, allies and neutrals included (#433)
 };
 struct BuildCheck {
     bool ok = false;
@@ -921,7 +921,8 @@ public:
     // (any owner), spawn. Step 5 (launch op 4 + form op 0 for a unit created on a surface; FAILED when
     // blockaded) is the caller's, through FleetManagement events.
     ObjectHandle magic_spawn(int32_t player, PlanetIndex planet, uint32_t type, bool steal, bool hero);
-    // A hostile combat fleet in orbit of the planet for `player` (the starbase-drop rule's test; HUD / story use).
+    // A hostile combat fleet in orbit of the planet for `player` (HUD / story use; the starbase rules use
+    // starbase_orbit_blocked).
     bool blockaded(PlanetIndex planet, int32_t player) const { return valid_planet(planet) && enemy_fleet_in_orbit(planet, player); }
     // The AI blockade test 0x3fa370 (A2GAL_READINGS 4 [H]; HIJACK_UNIT launch, the build task, FreeStore Move_Object,
     // TaskForce Launch_Units): the first orbit fleet that is alive and not hidden decides; blockaded unless its owner is
@@ -1446,7 +1447,7 @@ private:
     // #433 (docs/re/STARBASE_ORBIT_FLEETS.md) [H]: the starbase orbit test of production rule 2 (0x402840) and buildability
     // step 20 (0x2804d0): an alive fleet in the orbit whose owner is not `player` (allies and neutrals included) and that
     // is not hidden (0x3a9760). [port] retail also needs the fleet data byte +0x94, clear only on the fleet of an AI magic
-    // spawn; not modelled, so every fleet counts.
+    // spawn [M]; not modelled, so every fleet counts (#456).
     bool starbase_orbit_blocked(PlanetIndex planet, int32_t player) const;
     bool contested_surface(PlanetIndex planet) const;
     // objects

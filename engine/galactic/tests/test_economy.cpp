@@ -2251,28 +2251,34 @@ void test_tactical_corruption_multipliers() {
 // stealthed fleet does not match.
 void test_starbase_orbit_fleets() {
     std::printf("  oi: starbase orbit fleets (#433)\n");
-    // rA: the Empire's level-1 starbase and barracks. `other` puts a fleet of `type` owned by `owner` in rA's orbit.
-    const auto case_run = [](int32_t owner, uint32_t type, Relation rel, bool stealth, bool* step20, bool* cancelled) {
-        OiWorld w({{pEmpire, rA, tSB1}, {pEmpire, rA, tBarracks}});
-        GalacticSim& s = w.sim;
-        s.add_credits(pEmpire, 50000.0f);
-        if (owner != pEmpire) s.set_relation(pEmpire, owner, rel);
-        CHECK(s.build_check(pEmpire, rA, tSB2).ok);
-        CHECK(s.enqueue(pEmpire, rA, tSB2) == RejectReason::None);  // the level-2 upgrade is in production
-        const ObjectHandle u = s.spawn_unit(owner, rA, type);
-        CHECK(static_cast<bool>(u));
-        if (stealth) s.set_galactic_stealth(u, true);  // the fleet's only member: the fleet is hidden (0x3a9760)
-        *step20 = s.build_check(pEmpire, rA, tSB2).reason == kBuildHostileFleet;
-        w.run(2);
-        *cancelled = w.planet(rA).queue[kSpaceQueue].empty();
-    };
     struct Case {
         const char* what;
         int32_t owner;
         uint32_t type;
-        Relation rel;
+        Relation rel;  // the Empire's relation to `owner` (unused for the Empire's own fleet)
         bool stealth;
         bool blocks;
+    };
+    struct Result {
+        bool step20 = false, cancelled = false;
+    };
+    // rA: the Empire's level-1 starbase and barracks, the level-2 upgrade in production; then a fleet of the case's type
+    // and owner arrives in rA's orbit.
+    const auto case_run = [](const Case& c) {
+        Result r;
+        OiWorld w({{pEmpire, rA, tSB1}, {pEmpire, rA, tBarracks}});
+        GalacticSim& s = w.sim;
+        s.add_credits(pEmpire, 50000.0f);
+        if (c.owner != pEmpire) s.set_relation(pEmpire, c.owner, c.rel);
+        CHECK(s.build_check(pEmpire, rA, tSB2).ok);
+        CHECK(s.enqueue(pEmpire, rA, tSB2) == RejectReason::None);
+        const ObjectHandle u = s.spawn_unit(c.owner, rA, c.type);
+        CHECK(static_cast<bool>(u));
+        if (c.stealth) s.set_galactic_stealth(u, true);  // the fleet's only member: the fleet is hidden (0x3a9760)
+        r.step20 = s.build_check(pEmpire, rA, tSB2).reason == kBuildHostileFleet;
+        w.run(2);
+        r.cancelled = w.planet(rA).queue[kSpaceQueue].empty();
+        return r;
     };
     const Case cases[] = {
         {"enemy frigate", pUnder, tFrigate, Relation::Enemy, false, true},
@@ -2283,12 +2289,11 @@ void test_starbase_orbit_fleets() {
         {"own frigate", pEmpire, tFrigate, Relation::Self, false, false},
     };
     for (const Case& c : cases) {
-        bool step20 = false, cancelled = false;
-        case_run(c.owner, c.type, c.rel, c.stealth, &step20, &cancelled);
-        std::printf("    %s in orbit: step 20 %s, starbase in production %s\n", c.what, step20 ? "refuses" : "allows",
-                    cancelled ? "cancelled" : "kept");
-        CHECK(step20 == c.blocks);
-        CHECK(cancelled == c.blocks);
+        const Result r = case_run(c);
+        std::printf("    %s in orbit: step 20 %s, starbase in production %s\n", c.what, r.step20 ? "refuses" : "allows",
+                    r.cancelled ? "cancelled" : "kept");
+        CHECK(r.step20 == c.blocks);
+        CHECK(r.cancelled == c.blocks);
     }
 }
 
@@ -2318,7 +2323,7 @@ void test_oi_buildability() {
     w.rules.types[tFrigate].build_initially_locked = true;
     CHECK(s.build_check(pEmpire, rA, tFrigate).reason == kBuildInitiallyLocked);
     w.rules.types[tFrigate].build_initially_locked = false;
-    // Starbase: the next level within Max_Space_Base; a hostile visible fleet in orbit blocks a new base (reason 10).
+    // Starbase: the next level within Max_Space_Base; another player's visible fleet in orbit blocks a new base (reason 10).
     CHECK(s.build_check(pEmpire, rA, tSB2).ok);
     w.rules.types[tPlanetA].max_space_base = 1;
     CHECK(s.build_check(pEmpire, rA, tSB2).step == 20 && !s.buildable(rA, pEmpire, tSB2));
