@@ -325,6 +325,43 @@ void test_closed() {
     CHECK(!e.hud.stats().organize_shown && e.hud.stats().fleet_slots == 0 && e.filled(0) == 0);
 }
 
+// #515: with the organiser closed (the galaxy view) no pane pad shows or takes a hit, during a drag included: neither the
+// header pads q{n}_0000, nor the empty drop-target pads of legacy docs/re/UI.md §7.3, nor the fleet headers.
+void test_closed_while_dragging() {
+    Env e;
+    e.build({make_fleet(900, 0, false, 1)}, true);
+    // Start a drag of fleet 900's unit pad, then close the organiser while the drag is still held.
+    const int32_t fc = e.id("q1_0001");
+    const Vec2f p = e.center_px("q1_0001");
+    CHECK(p.x >= 0);
+    std::vector<commands::EventData> out;
+    RoutedInput r;
+    r.world.mouse_x = static_cast<int32_t>(p.x);
+    r.world.mouse_y = static_cast<int32_t>(p.y);
+    r.hover_component = fc;
+    r.owner[static_cast<size_t>(Button::Left)] = PointerTarget::Hud;
+    r.hud = {{HudPointerEvent::Kind::Press, Button::Left, fc, r.world.mouse_x, r.world.mouse_y}};
+    e.hud.update_input(r, false, false, 1.0, out);
+    r.hud.clear();
+    r.world.mouse_x += 10;
+    e.hud.update_input(r, false, false, 1.05, out);
+    CHECK(e.hud.drag().active);
+    e.build({make_fleet(900, 0, false, 1)}, true);
+    CHECK(!e.hidden("q3_0003"));  // open organiser: the empty pads show as drop targets
+    e.frame.organize_open = false;
+    e.build({make_fleet(900, 0, false, 1)}, true);
+    CHECK(e.hud.drag().active && !e.hud.stats().organize_shown && e.hud.stats().fleet_slots == 0);
+    for (int n = 1; n <= 3; ++n) {
+        const std::string q = "q" + std::to_string(n) + "_";
+        CHECK(e.hidden(q + "fleet"));
+        for (int c = 0; c <= kPad; ++c) {
+            const std::string name = q + "000" + std::to_string(c);
+            CHECK(e.hidden(name));
+            CHECK(e.center_px(name).x < 0);  // no hit box
+        }
+    }
+}
+
 }  // namespace
 
 namespace {
@@ -426,6 +463,7 @@ int main() {
     test_stacks();
     test_empty_pads();
     test_closed();
+    test_closed_while_dragging();
     if (g_fail) {
         std::printf("alamo_ui_organizer_tests: %d failure(s)\n", g_fail);
         return 1;

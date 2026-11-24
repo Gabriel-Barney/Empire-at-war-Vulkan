@@ -891,7 +891,19 @@ void GalacticHud::build_fleets(const GalacticHudFrame& f) {
         pads_.push_back(std::move(ps));
         return true;
     };
-    for (size_t fl = 0; fl < fleet_.size() && fl < kPanes; ++fl) {  // all three panes always: the frames and tabs are shell geometry (§7.1)
+    // #515: the panes belong to the organiser. While it is closed (the galaxy view, the planet map) every pane component is
+    // hidden and takes no hit, a drag included; otherwise its pads drew, frameless, over the galaxy.
+    auto hide = [&](int32_t ci) {
+        if (ci >= 0) buttons_.state(static_cast<uint32_t>(ci)).hidden = true;
+    };
+    if (!stats_.organize_shown) {
+        for (size_t fl = 0; fl < fleet_.size(); ++fl) {
+            for (const int32_t ci : fleet_[fl]) hide(ci);
+            if (fl < fleet_header_.size()) hide(fleet_header_[fl]);
+            if (fl < pathfinder_.size()) hide(pathfinder_[fl]);
+        }
+    }
+    for (size_t fl = 0; stats_.organize_shown && fl < fleet_.size() && fl < kPanes; ++fl) {  // all three panes always while open: the frames and tabs are shell geometry (§7.1)
         const std::vector<int32_t>& slots = fleet_[fl];
         const std::vector<const GalacticFleet*>& in_pane = panes[fl];
         const GalacticFleet* fd = in_pane.empty() ? nullptr : in_pane.front();
