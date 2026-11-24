@@ -517,6 +517,11 @@ it bounds something carries one tag, checked by `tools/lint/check_limits.py` (ct
 | `// limit: dynamic <why>` | The container grows with the data |
 | `// limit: guard <what>` | A sanity bound far above any real data; records `limit_hit` and refuses, never clamps silently |
 
+Deliberate exceptions (a guard that clamps; #143): `kRocketArcMaxDepth` (12, `tactical/combat/rocket.hpp`) stops the
+rocket arc subdivision at 2^12 − 1 midpoints. Refusing would leave the rocket without a flight path; the cap only bounds a
+recursion that a degenerate radius / threshold pair would not end (retail's never ends on a NaN dot), and the arc it
+gives is deterministic.
+
 Retail has no player cap, so per-player state is sized from the session; `sim::kMaxPlayers` = 256 is a guard (the sim's
 player ids are `uint8_t`) and `alamo_mod_check` reports `limit_hit` past it. AI level maxima and fleet distance are read
 from GameConstants. Squadrons use retail's `Squadron_Units` lists and prices for base FoC and mods. Conformance mods:

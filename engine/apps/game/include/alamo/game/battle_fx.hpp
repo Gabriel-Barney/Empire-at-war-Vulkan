@@ -114,9 +114,11 @@ private:
 // The shake trackers of the cinematic controller (+0x278).
 class CameraShake {
 public:
-    // limit: guard [port] camera shake trackers (memory bound; retail drops none: S3 backlog)
-    static constexpr size_t kMaxTrackers = 256;  // [port] memory bound; the original never drops one before the cinematic ends
-    void start(const ShakeEffect& e, int32_t start_clock, int32_t duration_frames = kCinematicFps);
+    // limit: guard [port] camera shake trackers (memory bound; retail drops none), refuses
+    static constexpr size_t kMaxTrackers = 256;  // #143: a shake past it is not started (limit_hits), none is dropped
+    // False (counted in limit_hits) when kMaxTrackers shakes run already; false without counting for a zero duration.
+    bool start(const ShakeEffect& e, int32_t start_clock, int32_t duration_frames = kCinematicFps);
+    uint32_t limit_hits() const { return limit_hits_; }
     struct Sample {
         tactical::Vec3 offset;  // dx * R + dy * U (world)
         float roll_deg = 0.0f;
@@ -133,6 +135,7 @@ private:
         int32_t start = 0, duration = kCinematicFps;
     };
     std::vector<Tracker> trackers_;  // start order
+    uint32_t limit_hits_ = 0;        // #143: shakes refused at kMaxTrackers
 };
 
 // 0x2cdc00's gate and tracker: nothing (no tracker, no draw) unless the shake enable (+0x34d, always on), a land / space

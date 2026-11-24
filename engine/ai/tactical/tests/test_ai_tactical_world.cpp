@@ -29,6 +29,7 @@
 #include "alamo/ai/ai_context.hpp"
 #include "alamo/ai/ai_lua_runtime.hpp"
 #include "alamo/ai/perception_equations.hpp"
+#include "alamo/ai/tactical/group_order.hpp"  // #143
 #include "alamo/ai/tactical/tactical_ai.hpp"
 #include "alamo/ai/tactical/tactical_perception.hpp"
 #include "alamo/ai/tactical/tactical_pp.hpp"
@@ -3948,6 +3949,27 @@ void test_logging_off() {
                 on.decisions.size(), on.stats.size(), off.decisions.size(), off.stats.size(), on.executed.size());
 }
 
+// #143 (docs/MODS.md "Limits policy"): a task-force group order of kTfGroupOrderMaxUnits ids is encoded whole; one id more
+// is refused (no event), never cut to the guard.
+void test_group_order_guard() {
+    using namespace alamo::ai::tactical;
+    std::vector<uint32_t> ids(kTfGroupOrderMaxUnits + 1);
+    for (size_t i = 0; i < ids.size(); ++i) ids[i] = static_cast<uint32_t>(i + 1);
+    const std::span<const uint32_t> all(ids);
+    const auto fits = tf_group_order_event(0x100u, all.first(kTfGroupOrderMaxUnits), -1, 1.0f, 2.0f, 3.0f, 0u);
+    CHECK(fits.has_value());
+    if (fits) {
+        const std::span<const uint8_t> b = fits->bytes_view("data");
+        CHECK(b.size() == 24 + 4 * (kTfGroupOrderMaxUnits - 1));
+        const size_t last = b.size() - 4;
+        const uint32_t v = static_cast<uint32_t>(b[last]) | (static_cast<uint32_t>(b[last + 1]) << 8) |
+                           (static_cast<uint32_t>(b[last + 2]) << 16) | (static_cast<uint32_t>(b[last + 3]) << 24);
+        CHECK(v == kTfGroupOrderMaxUnits);  // the last id is there
+    }
+    CHECK(!tf_group_order_event(0x100u, all, -1, 1.0f, 2.0f, 3.0f, 0u).has_value());
+    std::printf("group order guard: %zu ids encoded, %zu refused\n", kTfGroupOrderMaxUnits, ids.size());
+}
+
 int main(int argc, char** argv) {
     // --only <name>: run only the scenarios whose name contains <name> (one scenario per run while iterating;
     // --list prints the names). ctest runs them all.
@@ -3984,6 +4006,7 @@ int main(int argc, char** argv) {
     scenario("battle_budget", test_battle_budget);  // q6 (AI_GALACTIC_TOKENS 9.3)
     scenario("opportunity_and_hijack", test_opportunity_and_hijack);
     scenario("group_orders", test_group_orders);
+    scenario("group_order_guard", test_group_order_guard);  // #143
     scenario("space_reinforce_needs_starbase", test_space_reinforce_needs_starbase);  // skm1 t03 / t04
     scenario("facts_same_frame", test_facts_same_frame);  // ref5 t07
     scenario("tactical_production", test_tactical_production);

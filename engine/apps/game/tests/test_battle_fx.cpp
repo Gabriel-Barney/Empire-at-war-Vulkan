@@ -300,6 +300,15 @@ void test_explosion_shake() {
     const tactical::Vec3 R{1.0f, 0.0f, 0.0f}, U{0.0f, 0.0f, 1.0f};
     CameraShake s;
     CHECK(s.empty());
+    {  // #143 (docs/MODS.md "Limits policy"): past kMaxTrackers a shake is refused and counted; none running is dropped
+        CameraShake full;
+        for (size_t k = 0; k < CameraShake::kMaxTrackers; ++k) CHECK(full.start(e, static_cast<int32_t>(k)));
+        CHECK(!full.start(e, 999) && full.count() == CameraShake::kMaxTrackers && full.limit_hits() == 1);
+        CHECK(!full.start(e, 5, 0) && full.limit_hits() == 1);  // a zero duration is no shake, not a limit hit
+        // the first shake (clock 0) still runs: at clock 10 (t = 1/3) a shake started at 999 would add nothing
+        const CameraShake::Sample a = full.evaluate(10, tactical::Vec3{1.0f, 0.0f, 0.0f}, tactical::Vec3{0.0f, 0.0f, 1.0f});
+        CHECK(a.offset.x != 0.0f || a.offset.z != 0.0f);
+    }
     s.start(e, 10);  // 30 frames from shot clock 10
     CHECK(s.count() == 1);
     // Before the start and from t = 1 on: nothing (t = 1 has the envelope at 0).
