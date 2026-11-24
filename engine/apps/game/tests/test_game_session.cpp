@@ -2718,6 +2718,7 @@ void save_files_test() {
     CHECK(game::sanitize_save_name("CON") == "CON_" && game::sanitize_save_name("com1") == "com1_");
     CHECK(game::sanitize_save_name(std::string(100, 'x')).size() == game::kMaxSaveName);
     CHECK(game::save_path("d", "").empty());
+    CHECK(game::sanitize_save_name(game::kQuickSaveName) == "[QuickSave]");  // #430: the quick slot's name is kept
     game::SaveMeta m;
     m.name = "Week 3";
     m.kind = "campaign";

@@ -167,12 +167,26 @@ std::string_view hotkey_ability_name(uint16_t slot) {
         {"Ability_DrainLife", "DRAIN_LIFE"}, {"Ability_Summon", "SUMMON"}, {"Ability_Blast", "BLAST"},
         {"Ability_ShieldFlare", "SHIELD_FLARE"}, {"Ability_Stun", "STUN"}, {"Ability_TacticalBribe", "TACTICAL_BRIBE"},
         {"Ability_FoCFullSalvo", "FULL_SALVO"}, {"Ability_FoCSensorJamming", "SENSOR_JAMMING"},
+        {"Ability_SystemControl", "LURE"},  // #430: case 0x25 shares slot 52's call
     };
     if (slot >= kHotkeySlots) return {};
     const std::string_view name = kSlots[slot].name;
     for (const Row& r : kRows)
         if (name == r.slot) return r.ability;
     return {};
+}
+
+std::string_view hotkey_ability_name2(uint16_t slot) {
+    if (slot >= kHotkeySlots) return {};
+    const std::string_view name = kSlots[slot].name;
+    if (name == "Ability_SwapWeapons") return "ROCKET_ATTACK";  // 0x648fe
+    if (name == "Ability_ForceCloak") return "STEALTH";         // 0x64cb2
+    return {};
+}
+
+uint32_t tether_toggle(uint32_t current, std::span<const uint32_t> selection) {
+    if (current != 0) return 0;
+    return selection.empty() ? 0 : selection.front();
 }
 
 int8_t hotkey_group(uint16_t slot) {

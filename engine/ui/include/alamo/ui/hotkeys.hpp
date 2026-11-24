@@ -157,12 +157,18 @@ private:
 };
 
 // the tactical ability (ABILITIES_HARDPOINTS 2.1 type name, e.g. "SPREAD_OUT") an ability slot (24..65, 90..122)
-// or DeploySquad (66) fires; "" for other slots and for the two ability slots no FoC type matches (SystemControl,
-// DestroyPlanet). [port] matched by meaning: the keyboard dialog's edit-box names (legacy docs/re/UI.md §4.3) against the ability types the
-// FoC data uses; the original's slot -> ability lookup in the hotkey dispatch (0x63f00) is not traced. Slots of one
-// meaning share a type (SelfDestruct / SpaceSelfDestruct, LaserDefense / SpaceLaserDefense, FullSalvo / FoCFullSalvo,
-// SensorJamming / FoCSensorJamming, MinorDrainLife / DrainLife).
+// or DeploySquad (66) fires; "" for other slots and for DestroyPlanet (the galactic planet-destroy UI, no ability).
+// Slots of one meaning share a type (SelfDestruct / SpaceSelfDestruct, LaserDefense / SpaceLaserDefense, FullSalvo /
+// FoCFullSalvo, SensorJamming / FoCSensorJamming, MinorDrainLife / DrainLife).
+// #430 (docs/re/TACTICAL_HOTKEYS.md, 0x63f00 [H]): the dispatch calls 0x2dccf0(HUD, type) per slot with these types;
+// Ability_SystemControl uses LURE (slot 52's call).
 std::string_view hotkey_ability_name(uint16_t slot);
+// The second type a slot also activates (0x63f00 calls 0x2dccf0 twice): SwapWeapons -> ROCKET_ATTACK, ForceCloak ->
+// STEALTH; "" for every other slot.
+std::string_view hotkey_ability_name2(uint16_t slot);
+// Camera Tether (slot 77, battle-cam key-down 0x2cbd00 [H]): on -> off (0); off -> the first selected object, nothing
+// with an empty selection. Ids are ObjectIds, 0 = none.
+uint32_t tether_toggle(uint32_t current, std::span<const uint32_t> selection);
 
 // Group number (0..9) of a group slot (0..9, 123..152), -1 otherwise.
 int8_t hotkey_group(uint16_t slot);

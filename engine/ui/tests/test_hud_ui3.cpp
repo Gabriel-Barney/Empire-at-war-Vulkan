@@ -82,7 +82,7 @@ void test_ability_slots() {
             continue;
         }
         const std::string_view slot = slots[s].name;
-        if (slot == "Ability_SystemControl" || slot == "Ability_DestroyPlanet") {
+        if (slot == "Ability_DestroyPlanet") {
             CHECK(n.empty());
             continue;
         }
@@ -94,7 +94,17 @@ void test_ability_slots() {
         CHECK(type != 0);
 #endif
     }
-    CHECK(mapped == 74);  // 42 + 33 ability slots, minus SystemControl / DestroyPlanet, plus DeploySquad
+    CHECK(mapped == 75);  // 42 + 33 ability slots, minus DestroyPlanet, plus DeploySquad
+    // #430 (0x63f00): SystemControl is LURE; SwapWeapons and ForceCloak also activate a second type.
+    CHECK(hotkey_ability_name(static_cast<uint16_t>(hotkey_slot("Ability_SystemControl"))) == "LURE");
+    CHECK(hotkey_ability_name2(static_cast<uint16_t>(hotkey_slot("Ability_SwapWeapons"))) == "ROCKET_ATTACK" &&
+          hotkey_ability_name2(static_cast<uint16_t>(hotkey_slot("Ability_ForceCloak"))) == "STEALTH");
+    uint32_t second = 0;
+    for (uint16_t s = 0; s < kHotkeySlots; ++s) second += hotkey_ability_name2(s).empty() ? 0u : 1u;
+    CHECK(second == 2 && hotkey_ability_name2(kHotkeySlots).empty());
+    // slot 77: the tether takes the first selected object, nothing without a selection, and a second press ends it.
+    const std::vector<uint32_t> sel = {7, 9};
+    CHECK(tether_toggle(0, sel) == 7 && tether_toggle(7, sel) == 0 && tether_toggle(0, std::span<const uint32_t>{}) == 0);
     CHECK(hotkey_ability_name(hk::kDeploySquad) == "DEPLOY_SQUAD");
     CHECK(hotkey_ability_name(static_cast<uint16_t>(hotkey_slot("Ability_HomeOne"))) == "CONCENTRATE_FIRE");
     CHECK(hotkey_ability_name(hk::kAttack).empty() && hotkey_ability_name(kHotkeySlots).empty());

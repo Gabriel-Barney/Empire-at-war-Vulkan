@@ -231,14 +231,16 @@ void App::select_wing(size_t wing, bool add, bool centre_only) {
     }
 }
 
-// QuickSave (F6) / QuickLoad (F5) / Screenshot (F12), galactic and tactical [port]: the save slot "QuickSave" through the
-// save / load dialogs' path; the screenshot is a PNG of the next presented frame in a Screenshots folder beside the saves.
+// QuickSave (F6) / QuickLoad (F5) / Screenshot (F12), galactic and tactical: the save slot game::kQuickSaveName
+// ("[QuickSave]", 0x55c00 / 0x562c0, #430 [H]) through the save / load dialogs' path. [port] the screenshot is a PNG of
+// the next presented frame in a Screenshots folder beside the saves (retail's file name is #466).
 void App::interface_hotkey(uint16_t slot) {
+    const std::string quick(game::kQuickSaveName);
     if (slot == ui::hk::kQuickSave) {
-        save_game_as("QuickSave");
+        save_game_as(quick);
     } else if (slot == ui::hk::kQuickLoad) {
         std::error_code ec;
-        if (!saves_dir_.empty() && std::filesystem::exists(host_path(save_path(saves_dir_, "QuickSave")), ec)) load_saved_game("QuickSave");
+        if (!saves_dir_.empty() && std::filesystem::exists(host_path(save_path(saves_dir_, quick)), ec)) load_saved_game(quick);
         else audio_.negative_feedback();
     } else if (slot == ui::hk::kScreenshot && ctl_.shot_path.empty() && !saves_dir_.empty()) {
         std::error_code ec;
@@ -262,9 +264,13 @@ void App::tactical_hotkeys(const std::vector<ui::HotkeyEvent>& hk, std::vector<c
         if (e.kind == ui::HotkeyKind::Ability || e.slot == hk_::kDeploySquad) {
             // t02: the ability button of that type in the selection panel, as a left click (targeted abilities start
             // their pick). The slot's modifier is part of the key, so it is never the queue modifier here.
-            const std::string_view name = ui::hotkey_ability_name(e.slot);
-            const uint8_t type = name.empty() ? uint8_t{0} : tactical::abilities::ability_type_from_name(name);
-            if (type != 0 && !story_controls_locked() && ui_.tactical_hud.activate_ability(type, false, cmds, &acts)) ++hotkey_abilities_;
+            // #430 (0x63f00): SwapWeapons and ForceCloak activate a second type too.
+            bool used = false;
+            for (const std::string_view name : {ui::hotkey_ability_name(e.slot), ui::hotkey_ability_name2(e.slot)}) {
+                const uint8_t type = name.empty() ? uint8_t{0} : tactical::abilities::ability_type_from_name(name);
+                if (type != 0 && !story_controls_locked() && ui_.tactical_hud.activate_ability(type, false, cmds, &acts)) used = true;
+            }
+            if (used) ++hotkey_abilities_;
             continue;
         }
         switch (e.slot) {
@@ -287,7 +293,7 @@ void App::tactical_hotkeys(const std::vector<ui::HotkeyEvent>& hk, std::vector<c
                 tactical_button(a);
                 break;
             }
-            case hk_::kCameraTether: camera_tether_ = !camera_tether_; break;
+            case hk_::kCameraTether: tether_id_ = ui::tether_toggle(tether_id_, orders_.selection()); break;
             case hk_::kMovieMode: movie_mode_ = !movie_mode_; break;
             case hk_::kToggleInterface: interface_hidden_ = !interface_hidden_; break;
             case hk_::kHolocron: objectives_hidden_ = !objectives_hidden_; break;  // [port] the battle's holocron = the objectives box
@@ -328,9 +334,7 @@ bool App::tactical_button(const ui::HudAction& a) {
             cancel_picks();
             targeting_.cancel();
             beacon_pick_ = true;
-        } else {
-            audio_.negative_feedback();
-        }
+        }  // #430 (0x2e7e40 [H]): silent during the cooldown
         return true;
     }
     if (ascii_iequals(n, "b_droid_help_tactical")) {  // the advisor dome, as the Droid Advisor key (capture C2)

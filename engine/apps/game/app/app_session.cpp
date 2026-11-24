@@ -785,7 +785,7 @@ void App::begin_battle(bool from_save) {
     targeting_.cancel();  // nor a targeted ability
     reinforce_blob_.reset();  // nor a drop preview / beacon pick; tether and interface keys reset per battle [port]
     beacon_pick_ = false;
-    camera_tether_ = false;
+    tether_id_ = 0;
     cycle_unit_ = 0;
     // L1/S4 wave 1: the battle's tactical plots (loaded by CampaignBattles at the tactical push) for STORY_MISSION_LOST;
     // battle-screen story notifications go to that plot set (story_ui_step / battle_input).
