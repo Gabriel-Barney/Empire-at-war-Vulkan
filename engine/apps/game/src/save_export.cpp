@@ -1,6 +1,7 @@
 // Launcher support: a saved game's galactic state as JSON (see save_export.hpp).
 #include "alamo/game/save_export.hpp"
 #include "alamo/game/host_text.hpp"
+#include "alamo/core/utf8.hpp"
 
 #include <cmath>
 #include <cstdio>
@@ -25,19 +26,8 @@ public:
     std::string out;
 
     void raw(std::string_view s) { out.append(s); }
-    static bool valid_utf8(std::string_view s) {
-        for (size_t i = 0; i < s.size();) {
-            const auto c = static_cast<unsigned char>(s[i]);
-            const size_t n = static_cast<size_t>(c < 0x80 ? 1 : (c >> 5) == 0x6 ? 2 : (c >> 4) == 0xE ? 3 : (c >> 3) == 0x1E ? 4 : 0);
-            if (n == 0 || i + n > s.size()) return false;
-            for (size_t k = 1; k < n; ++k)
-                if ((static_cast<unsigned char>(s[i + k]) & 0xC0) != 0x80) return false;
-            i += n;
-        }
-        return true;
-    }
     void str(std::string_view s) {
-        const bool utf8 = valid_utf8(s);
+        const bool utf8 = alamo::utf8_valid(s);  // core/utf8.hpp
         out.push_back('"');
         for (const char c : s) {
             const auto u = static_cast<unsigned char>(c);

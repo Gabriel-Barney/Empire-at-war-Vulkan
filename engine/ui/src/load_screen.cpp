@@ -18,6 +18,14 @@ const char* load_screen_dialog(LoadScreenKind k) {
     return "";
 }
 
+bool mission_load_screen(bool story_map, bool from_save, std::string_view map) { return story_map || (from_save && !map.empty()); }
+
+LoadScreenKind battle_load_screen(bool mission, bool skirmish, bool space) {
+    if (mission) return space ? LoadScreenKind::SpaceMission : LoadScreenKind::LandMission;
+    if (skirmish) return LoadScreenKind::Skirmish;
+    return space ? LoadScreenKind::SpaceBattle : LoadScreenKind::LandBattle;
+}
+
 namespace {
 int32_t pct(float f) { return static_cast<int32_t>(std::lround(std::clamp(f, 0.0f, 1.0f) * 100.0f)); }
 }  // namespace

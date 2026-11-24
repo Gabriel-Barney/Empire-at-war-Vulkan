@@ -558,13 +558,7 @@ bool App::open_battle_load(PlanetIndex planet, bool space, bool mission) {
     info.map_icon = std::move(d.map_icon);
     info.native_icon = std::move(d.native_icon);
     info.begin_button = !session_->spec().attract;  // OI host: the attract demo starts as soon as it is loaded
-    // legacy docs/re/UI.md §5.1 "Which dialog": `mission` (a SET_TACTICAL_MAP override or a save taken in the battle) takes the
-    // Mission pair (a skirmish save too: retail's load path clears the skirmish flag), a skirmish start the skirmish
-    // dialog, every other battle the Battle pair.
-    const ui::LoadScreenKind kind = mission    ? (space ? ui::LoadScreenKind::SpaceMission : ui::LoadScreenKind::LandMission)
-                                    : skirmish ? ui::LoadScreenKind::Skirmish
-                                    : space    ? ui::LoadScreenKind::SpaceBattle
-                                              : ui::LoadScreenKind::LandBattle;
+    const ui::LoadScreenKind kind = ui::battle_load_screen(mission, skirmish, space);  // legacy docs/re/UI.md §5.1 "Which dialog"
     screens_.close_planet_info();  // GALACTIC_DIALOGS §9.4: IDD_PLANET_INFO never survives into a battle
     ui_.load.set_progress_source([this] { return bview_.active() ? bview_.load_progress() : 0.0f; });
     if (!ui_.load.open(ui_.gui, kind, info)) return false;

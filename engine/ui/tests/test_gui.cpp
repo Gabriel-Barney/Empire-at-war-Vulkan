@@ -637,6 +637,21 @@ void test_routing_and_controls() {
         for (int i = 0; i < 25; ++i) env.frame(row1, false, {vk::kDown});
         const GuiControl* l = d->get("IDC_TEST_LIST");
         CHECK(l->selected == 19 && l->top > 0 && l->top + 3 >= 19 - 5);  // scrolled to keep the selection visible
+        // #138: the list's scroll bar is its own gadget (legacy docs/re/UI.md §3.6): moving onto it from the rows hovers
+        // once (staying on it does not hover again), and a press on its arrow is a Button_Press.
+        const Vec2f down_arrow = env.gui.canvas().canvas_to_pixel(r.max.x - 1.0f, r.min.y + 1.0f);
+        env.sfx.clear();
+        env.frame(down_arrow, false);
+        CHECK(env.sfx.size() == 1 && env.sfx[0] == "GUI_Common_Dialog_Button_Hilight");
+        env.frame(down_arrow, false);
+        CHECK(env.sfx.size() == 1);
+        env.frame(down_arrow, true);
+        CHECK(env.sfx.size() == 2 && env.sfx[1] == "GUI_Common_Dialog_Button_Press");
+        env.frame(down_arrow, false);
+        env.frame(row1, false);  // back onto the rows, then onto the bar again: a new hover
+        env.sfx.clear();
+        env.frame(down_arrow, false);
+        CHECK(env.sfx.size() == 1 && env.sfx[0] == "GUI_Common_Dialog_Button_Hilight");
     }
     // Combo: open, pick a row, closes.
     {
@@ -1386,6 +1401,21 @@ void test_load_screen() {
     ls.update({}, out);
     CHECK(out.size() == 2 && out[1].kind == LoadScreenEvent::Kind::Begin && !ls.is_open());
     CHECK(std::string(load_screen_dialog(LoadScreenKind::SpaceMission)) == "IDD_SPACE_MISSION_LOAD_DIALOG");
+    // #138, legacy docs/re/UI.md §5.1 "Which dialog": a SET_TACTICAL_MAP override (story_map) or a save taken in the battle
+    // with its map named (from_save) takes the Mission pair; a LINK_TACTICAL battle (neither) and a save whose battle has
+    // no map name take the Battle pair.
+    CHECK(mission_load_screen(true, false, "") && mission_load_screen(true, false, "_Land_Planet_Kessel_01.ted"));
+    CHECK(mission_load_screen(false, true, "_Land_Planet_Kessel_01.ted") && !mission_load_screen(false, true, ""));
+    CHECK(!mission_load_screen(false, false, "_Land_Planet_Kessel_01.ted"));
+    CHECK(battle_load_screen(true, false, false) == LoadScreenKind::LandMission);
+    CHECK(battle_load_screen(true, false, true) == LoadScreenKind::SpaceMission);
+    CHECK(battle_load_screen(true, true, true) == LoadScreenKind::SpaceMission);  // a skirmish save: retail clears the flag
+    CHECK(battle_load_screen(false, true, false) == LoadScreenKind::Skirmish && battle_load_screen(false, true, true) == LoadScreenKind::Skirmish);
+    CHECK(battle_load_screen(false, false, false) == LoadScreenKind::LandBattle);
+    CHECK(battle_load_screen(false, false, true) == LoadScreenKind::SpaceBattle);
+    // #138: the ##N inserts (ui::replace_all): every copy, left to right; an inserted value holding the tag stays as is.
+    CHECK(replace_all(U"##0 and ##0, ##1", U"##0", U"A") == U"A and A, ##1");
+    CHECK(replace_all(U"##0!", U"##0", U"x##0") == U"x##0!" && replace_all(U"abc", U"", U"z") == U"abc");
     LoadScreenInfo raw;
     raw.planet_name = U"_Space_Planet_Felucia_01.ted";
     CHECK(ls.open(env.gui, LoadScreenKind::Skirmish, raw));
@@ -2197,8 +2227,14 @@ void test_galactic_hud() {
     std::vector<HudAction> acts;
     click_component("b_Create_00", cmds, acts);
     CHECK(cmds.size() == 1 && cmds[0] == commands::ev::production(101, 101));
-    click_component("queue00", cmds, acts);
-    CHECK(cmds.size() == 2 && cmds[1] == commands::ev::production(7, 101, true));
+    {  // #138: the queue click is CommandBarClass::Cancel_Production: GUI_Cancel_SFX once (legacy docs/re/UI.md §3.6)
+        std::vector<std::string> sfx;
+        hud.set_sfx_hook([&sfx](std::string_view e, int32_t) { sfx.emplace_back(e); });
+        click_component("queue00", cmds, acts);
+        CHECK(cmds.size() == 2 && cmds[1] == commands::ev::production(7, 101, true));
+        CHECK(std::count(sfx.begin(), sfx.end(), std::string("GUI_Cancel_SFX")) == 1);
+        hud.set_sfx_hook({});
+    }
     click_component("q1_0002", cmds, acts);
     CHECK(acts.size() == 1 && acts[0].kind == HudAction::Kind::GalacticSelect && acts[0].ids == std::vector<uint32_t>{902});
     // GALACTIC_DIALOGS §5.4: planet_info has no fallback spot (the yellow rectangle); it shows on its shell bone only.

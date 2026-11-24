@@ -18,6 +18,7 @@
 #include <functional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "alamo/ui/gui_dialog.hpp"
@@ -29,6 +30,13 @@ inline constexpr const char* kLoadScreenReadySfx = "GUI_Text_Hint_SFX";
 
 enum class LoadScreenKind : uint8_t { LandBattle, SpaceBattle, Skirmish, LandMission, SpaceMission };
 const char* load_screen_dialog(LoadScreenKind k);
+// legacy docs/re/UI.md §5.1 "Which dialog": a battle opens the Mission pair when it runs on a SET_TACTICAL_MAP override
+// (`story_map`) or was loaded from a save taken during it and its map name is set (`from_save`, as 0x8dc40 checks);
+// LINK_TACTICAL story battles take the Battle pair like any other.
+bool mission_load_screen(bool story_map, bool from_save, std::string_view map);
+// The dialog of a battle: a mission the Mission pair (a skirmish save too: retail's load path clears the skirmish flag), a
+// skirmish start the Skirmish dialog, every other battle the Battle pair; land or space by the battle's kind.
+LoadScreenKind battle_load_screen(bool mission, bool skirmish, bool space);
 
 struct LoadScreenInfo {
     std::u32string planet_name;
