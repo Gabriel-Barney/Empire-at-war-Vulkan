@@ -411,39 +411,69 @@ void TacticalBattle::sp_service(TacticalMode& mode, SimRng& rng, size_t index) {
                 const objects::ObjectHandle u = sp_spawn_one(mode, rng, sh, &at);
                 if (st.alive(u)) members.push_back(u);
             }
-            // The pack's team container (0x2a5a60): Spawned_Indigenous_Pack_Type's team object over the members. [port] No
-            // container without a pack type that resolves to a team (the original then uses the first member's type), or
-            // for an Is_Neutral owner (its members are bare objects, as map units).
-            uint32_t ci = 0xFFFFFFFFu;
+            // The pack's team containers (the team helper 0x2a5a60, as a starting company's in bt_spawn_company: one per chunk
+            // of the pack type's Max_Squad_Size, in member order, at the chunk's mean position with its first member's facing;
+            // #114, CU8K_T02_T06_RE §1.3 [M]: 2 containers per Endor spawn, 10 Ewoks in chunks of 5): Spawned_Indigenous_
+            // Pack_Type's team object over each chunk's members. No container without a pack type that resolves to a team
+            // (the original then uses the first member's type), or for an Is_Neutral owner (its members are bare objects, as
+            // map units).
+            struct PackTeam {
+                uint32_t ci = 0;
+                std::vector<objects::ObjectId> members;
+            };
+            std::vector<PackTeam> teams;  // creation order
+            std::vector<uint32_t> team_of(members.size(), 0xFFFFFFFFu);
             const objects::TypeIndex pack = types.resolve_name(ascii_trim(types.get(t, objects::tags::Spawned_Indigenous_Pack_Type)));
-            uint32_t ot = 0xFFFFFFFFu, bt = 0xFFFFFFFFu, squad = 0;
+            uint32_t team_obj = 0xFFFFFFFFu, team_beh = 0xFFFFFFFFu, squad = 0;
             if (adopt && pack != objects::kNone && pack < types.size() &&
-                bt_team(static_cast<uint32_t>(pack), static_cast<uint32_t>(st.type(first)), ot, bt, squad) &&
-                std::find(types_used_.begin(), types_used_.end(), ot) != types_used_.end()) {
-                objects::SpawnParams sp;
-                sp.type = static_cast<objects::TypeIndex>(ot);
-                sp.owner = owner;
-                sp.position = at;
-                sp.facing = st.facing(first);
-                const objects::ObjectHandle ch = st.create(sp);
-                if (st.alive(ch)) {
+                bt_team(static_cast<uint32_t>(pack), static_cast<uint32_t>(st.type(first)), team_obj, team_beh, squad) &&
+                std::find(types_used_.begin(), types_used_.end(), team_obj) != types_used_.end()) {
+                for (size_t chunk = 0; chunk < members.size(); chunk += squad) {
+                    const size_t end = std::min(members.size(), chunk + squad);
+                    Vec3 c{0.0f, 0.0f, 0.0f};
+                    for (size_t i = chunk; i < end; ++i) {
+                        const Vec3 p = st.position(members[i]);
+                        c.x = c.x + p.x;
+                        c.y = c.y + p.y;
+                        c.z = c.z + p.z;
+                    }
+                    const auto n = static_cast<float>(end - chunk);
+                    objects::SpawnParams sp;
+                    sp.type = static_cast<objects::TypeIndex>(team_obj);
+                    sp.owner = owner;
+                    sp.position = Vec3{c.x / n, c.y / n, c.z / n};
+                    sp.facing = st.facing(members[chunk]);
+                    const objects::ObjectHandle ch = st.create(sp);
+                    if (!st.alive(ch)) continue;
                     Container ct;
                     ct.id = st.id(ch);
                     ct.h = ch;
                     ct.team = true;
-                    ct.type = bt;
+                    ct.type = team_beh;
                     ct.owner = owner;
                     ct.squad_type = static_cast<uint32_t>(pack);
-                    ci = static_cast<uint32_t>(containers_.size());
+                    PackTeam pt;
+                    pt.ci = static_cast<uint32_t>(containers_.size());
                     containers_.push_back(ct);
                     ++stats_.containers;
+                    for (size_t i = chunk; i < end; ++i) {
+                        team_of[i] = pt.ci;
+                        pt.members.push_back(st.id(members[i]));
+                    }
+                    teams.push_back(std::move(pt));
                 }
             }
-            for (const objects::ObjectHandle u : members) {
+            for (size_t i = 0; i < members.size(); ++i) {
+                const objects::ObjectHandle u = members[i];
                 if (owner != spawner_owner) st.set_owner(u, owner);
                 sp_spawners_[index].spawned.push_back(st.id(u));
-                if (adopt) (void)bt_adopt_built(mode, u, owner, 1.0f, &rng, true, ci);
+                if (adopt) (void)bt_adopt_built(mode, u, owner, 1.0f, &rng, true, team_of[i]);
             }
+            // #114 (CU8K_T02_T06_RE §1.3, §3 row SpawnIndigenousUnits 0x5320d4 [H trace]): each container registers itself
+            // as a starting team's does, once its members are movement units: one composition each at this tick's step 10
+            // (after the object services), in creation order. [port] Retail's group move right after the spawn (0x6218f0)
+            // is not modelled: the pack waits for its first wander service.
+            for (const PackTeam& pt : teams) mv_register_land_team(mode, pt.ci, team_obj, pt.members);
         }
     }
     sp_spawners_[index].next = mf + static_cast<uint32_t>(frames_trunc(30.0f * std::max(0.0f, types.get(t, objects::tags::Spawned_Indigenous_Units_Delay_Seconds))));
