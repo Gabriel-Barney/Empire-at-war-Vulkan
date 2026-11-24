@@ -267,8 +267,7 @@ struct TypeSpecial {
 // <Abilities> entries (TypeSpecial::ability_entry_names, case-insensitive) wins: 1 Slice, 2 Sabotage, 3 System_Spy,
 // 4 Neutralize_Hero, 5 Siphon_Credits, 6 Destroy_Planet, 7 Corrupt_Planet, 8 Remove_Corruption, 9 Black_Market,
 // 10 Hack_Super_Weapon. kind -1 = no button; `label` = the text key, one for every kind (#437, docs/re/GALACTIC_ABILITY_ROWS.md:
-// 0x3d2020's labels; "" only for kind -1). Presentation only: no
-// rule or AI reads it. [port] "applies to the planet" (0x2e6fe0 -> 0x37c430) is the name match alone.
+// 0x3d2020's labels; "" only for kind -1). Presentation only: no rule or AI reads it. [port] "applies to the planet" (0x2e6fe0 -> 0x37c430) is the name match alone.
 struct ActivatedAbilitySlot {
     int32_t kind = -1;
     const char* label = "";
