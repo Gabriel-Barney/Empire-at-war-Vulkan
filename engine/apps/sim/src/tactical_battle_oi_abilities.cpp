@@ -509,12 +509,13 @@ bool TacticalBattle::script_hardpoint_damage(TacticalMode& mode, objects::Object
     r.amount = amount;
     r.hardpoint = hp;
     r.kind = tc::kKindDebug;  // Lua Take_Damage: kind 0 (OBJECT_SCRIPTS Â§6.1 step 4)
-    const size_t deaths_before = combat_->deaths().size();
+    const CombatEventMarks marks = combat_event_marks();
     combat_->take_damage(r, frame_);
     if (cannot_die && !had_cannot_die && combat_->has_unit(id)) combat_->set_flag(id, tc::kUnitCannotDie, false);
-    // The deaths this hit caused (the victim, team members it was shared with), in Die order.
-    const std::vector<tc::DeathEvent> deaths(combat_->deaths().begin() + static_cast<std::ptrdiff_t>(deaths_before), combat_->deaths().end());
-    for (const tc::DeathEvent& d : deaths) process_death(mode, d, *bt_rng_);
+    // #382: what this hit caused (the victim, team members it was shared with) - its hardpoint (Die step 5), death and
+    // survivor (Die step 7: Tactical_Respawn, Destruction_Survivors, TACTICAL_GAPS §1.9 [H]) events, in consume_events'
+    // order. Between ticks the next combat tick would clear the hardpoint and survivor lists unread.
+    consume_kill_events(mode, *bt_rng_, marks);
     return true;
 }
 

@@ -2371,7 +2371,8 @@ private:
     void process_death(TacticalMode& mode, const tactical::combat::DeathEvent& d, SimRng& rng, bool silent = false);
     // consume_events step c for one hardpoint destruction: Death_Explosion_Particles, then Death_Breakoff_Prop.
     void consume_hardpoint_event(TacticalMode& mode, const tactical::combat::HardpointEvent& e);
-    // #360: the events of a combat kill made outside the tick's consumers (a garrison host's Killed occupants), consumed in
+    // #360: the events of a combat kill made outside the tick's consumers (a garrison host's Killed occupants, #382 a script
+    // kill), consumed in
     // consume_events' order - hardpoints (Die step 5), deaths, survivors (Die step 7) - from the marks on. A list the running
     // consume_events has still to read (unread_) is left to it, so no event is consumed twice.
     struct CombatEventMarks {
@@ -2379,8 +2380,8 @@ private:
     };
     CombatEventMarks combat_event_marks() const;
     void consume_kill_events(TacticalMode& mode, SimRng& rng, const CombatEventMarks& marks);
-    // #360: set by consume_events for each combat list it has still to read, cleared as it passes it (transient: never
-    // set between services, so not saved or hashed).
+    // #360 / #382: set for each combat list from the combat tick (abilities_combat) until consume_events has read it (it
+    // clears each as it passes it; transient: never set between ticks, so not saved or hashed).
     struct UnreadCombatEvents {
         bool hardpoints = false, deaths = false, survivors = false;
     } unread_;

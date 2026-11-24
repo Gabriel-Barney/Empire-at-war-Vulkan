@@ -25,7 +25,7 @@
     DERIVED(land_obstacle_none_, "per-type cache (filled from type data on first use)") \
     DERIVED(drop_pos_, "scratch inside one call or tick") \
     DERIVED(despawning_, "scratch inside one call (script_despawn)") \
-    DERIVED(unread_, "#360: scratch inside one call (consume_events sets and clears it)") \
+    DERIVED(unread_, "#360 / #382: scratch within one tick (set at the combat tick, cleared by consume_events)") \
     DERIVED(deploy_unload_, "scratch inside one call or tick") \
     DERIVED(drop_face_, "scratch inside one call or tick") \
     SAVED(landings_, state) \
