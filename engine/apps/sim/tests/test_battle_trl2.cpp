@@ -373,6 +373,44 @@ void test_ground_special_weapon() {
     CHECK(seen && ions == 1 && owner_ok && at_backdrop && registered && others == 0);
 }
 
+// #87 (SpaceRetreatCoordinatorClass post-retreat, vf11 0x5335f0 [H]): when the planet owner's space retreat ends, every
+// remaining object of that player dies except the retreated ones, those inside a retreated flagship and fleet objects, so
+// its ground special weapon (no fleet, never retreats) dies then. Before the end it lives.
+void test_ground_special_weapon_retreat() {
+    g_temp_prefix = "alamo_sim_trl2_tests_ion_retreat";
+    g_types_patch = ion_patch;
+    auto d = make_data();
+    g_types_patch = nullptr;
+    const uint32_t ion = type_of(*d, "T_Ion");
+    bool requested = false, alive_at_request = false, alive_before_end = true, dead_at_end = false;
+    objects::ObjectId weapon = objects::kNoObjectId;
+    space_battle(
+        *d, 3000,
+        [&](TacticalBattle& b, TacticalMode& tm, SimHost&) {
+            objects::ObjectStore& st = tm.primary();
+            if (!requested) {
+                if (b.frame() < 1 || b.retreat_block(0) != 0) return true;
+                for (const objects::ObjectHandle h : st.owned_by(0))
+                    if (st.alive(h) && static_cast<uint32_t>(st.type(h)) == ion) weapon = st.id(h);
+                alive_at_request = weapon != objects::kNoObjectId;
+                requested = b.request_retreat(0);
+                return requested;
+            }
+            const objects::ObjectHandle wh = st.find(weapon);
+            const bool alive = st.alive(wh) && !st.dying(wh);
+            if (!b.retreat_completed()) {
+                alive_before_end = alive_before_end && alive;
+                return !b.finished();
+            }
+            dead_at_end = !alive;
+            return false;
+        },
+        1.0f, {{0, 1, ion}}, "T_Backdrop");
+    std::printf("  #87: requested %d, weapon at the request %d, alive until the retreat end %d, dead at the end %d\n", requested,
+                alive_at_request, alive_before_end, dead_at_end);
+    CHECK(requested && alive_at_request && alive_before_end && dead_at_end);
+}
+
 // ---- space ----
 // S10_Star_Base_1 names T_SD_Boom (a PARTICLE) as its Retreat_Self_Destruct_Explosion.
 std::string self_destruct_patch(std::string t) {
@@ -697,6 +735,7 @@ int main() {
     test_land_population_exclusions();  // #86
     std::printf("trl2 t01: ground special weapon in space\n");
     test_ground_special_weapon();
+    test_ground_special_weapon_retreat();  // #87
     std::printf("tru2 t02: space retreat heading\n");
     test_retreat_heading();
     test_retreat_heading_fighters();  // #88
