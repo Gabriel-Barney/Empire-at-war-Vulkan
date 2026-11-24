@@ -790,6 +790,8 @@ public:
     // menu dialogs without the tactical HUD).
     bool demo_session() const { return session_ != nullptr && session_->spec().attract; }
     void audio_flags();
+    // The Lua cinematic camera is up: retail's cinematic controller active in state 4 (Start_Cinematic_Camera 0x2ccd80),
+    // the one camera that skips the audio fog test (#327 t01).
     bool presentation_cinematic() const;
     void special_feedback();
     std::vector<ui::HudPanel*> panels() { return {&hero_panel_, &market_, &sabotage_, &corruption_, &hack_}; }

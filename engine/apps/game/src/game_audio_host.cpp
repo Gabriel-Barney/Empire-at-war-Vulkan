@@ -1577,7 +1577,7 @@ void GameAudioHost::music(MusicScene scene, std::string_view faction, bool space
     }
 }
 
-void GameAudioHost::set_listener(const Vec3& eye, const Vec3& look_at, bool cinematic) {
+void GameAudioHost::set_listener(const Vec3& eye, const Vec3& look_at, bool cinematic, bool fog_skip) {
     if (!game_) return;
     Vec3 f{look_at.x - eye.x, look_at.y - eye.y, look_at.z - eye.z};
     const float len = std::sqrt(f.x * f.x + f.y * f.y + f.z * f.z);
@@ -1588,6 +1588,7 @@ void GameAudioHost::set_listener(const Vec3& eye, const Vec3& look_at, bool cine
     c.forward = f;
     c.up = {0.0f, 0.0f, 1.0f};
     c.cinematic = cinematic;
+    c.fog_skip = fog_skip;
     game_->set_camera(c);
 }
 
@@ -1788,7 +1789,7 @@ void GameAudioHost::music(MusicScene scene, std::string_view, bool, std::string_
     if (scene != scene_) pending_played_ = false;
     scene_ = scene;
 }
-void GameAudioHost::set_listener(const Vec3&, const Vec3&, bool) {}
+void GameAudioHost::set_listener(const Vec3&, const Vec3&, bool, bool) {}
 void GameAudioHost::set_flags(bool modal, bool attract) {  // same bookkeeping as with audio
     if (modal == modal_ && attract == attract_) return;
     if (attract && !attract_) ++stats_.attract_starts;

@@ -266,9 +266,9 @@ public:
     };
     void set_object_query(std::function<std::optional<ObjectAudio>(uint64_t owner)> q) { object_query_ = std::move(q); }
     // Gate 9 (#50 t08, 0x2d5240 -> FOW_Object_Hidden 0x35f470 [H]): a 3D-positional start fails when the callback says
-    // its parent object (SfxPlay::fog_parent) is hidden from the local player by the fog of war; not in cinematics. The
-    // original tests the parent object, not the point, and a start without a parent is never fog-tested: the game's
-    // callback answers false for parent 0. The callback sees every positional start (tests observe the points).
+    // its parent object (SfxPlay::fog_parent) is hidden from the local player by the fog of war; not in the Lua cinematic
+    // camera (#327 t01). The original tests the parent object, not the point, and a start without a parent is never
+    // fog-tested: the game's callback answers false for parent 0. The callback sees every positional start (tests observe the points).
     void set_position_fogged(std::function<bool(const Vec3& position, uint64_t parent)> f) { position_fogged_ = std::move(f); }
 
     // ---- Permission flags (Lua SFXManager.Allow_*, default on; gate 3).
@@ -277,7 +277,10 @@ public:
     void allow_hud_vo(bool on) { allow_hud_vo_ = on; }
     void allow_ambient_vo(bool on) { allow_ambient_vo_ = on; }
     // ---- Game state the gates and gain read.
-    void set_cinematic(bool on) { cinematic_ = on; }              // gate 2, gate 9, visibility
+    void set_cinematic(bool on) { cinematic_ = on; }              // gate 2 (any cinematic camera)
+    // #327 t01 (gate 9 in 0x2d5440, visibility 0x2d4b00 [H]): the fog test is skipped only while the cinematic controller is
+    // active in state 4, the Lua cinematic camera (Start_Cinematic_Camera 0x2ccd80); the TSW shot (state 3) still fogs.
+    void set_cinematic_fog_skip(bool on) { cinematic_fog_skip_ = on; }
     void set_gui_only(bool on) { gui_only_ = on; }                // gate 4: flag +0x94, refuses only with a modal dialog open
     void set_modal_dialog(bool on) { modal_dialog_ = on; }        // disables speech ducking
     void set_hud_vo_blocked(bool on) { hud_vo_blocked_ = on; }    // gate 5 (tutorial flag in a tactical mode)
@@ -418,6 +421,7 @@ public:
     const AudioDatabase& database() const { return *db_; }
     const AudioConfig& config() const { return cfg_; }
     bool cinematic() const { return cinematic_; }
+    bool cinematic_fog_skip() const { return cinematic_fog_skip_; }
 
     // Exposed for tests.
     float attenuation(float distance, float event_saturation) const;  // §1.7
@@ -505,7 +509,7 @@ private:
     std::function<std::optional<ObjectAudio>(uint64_t)> object_query_;
     std::function<bool(const Vec3&, uint64_t)> position_fogged_;
     bool allow_localized_ = true, allow_unit_response_vo_ = true, allow_hud_vo_ = true, allow_ambient_vo_ = true;
-    bool cinematic_ = false, gui_only_ = false, modal_dialog_ = false, hud_vo_blocked_ = false, attract_ = false;
+    bool cinematic_ = false, cinematic_fog_skip_ = false, gui_only_ = false, modal_dialog_ = false, hud_vo_blocked_ = false, attract_ = false;
     float scale_3d_ = 1.0f;
     BusState buses_[4];
     // music

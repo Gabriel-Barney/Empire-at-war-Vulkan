@@ -269,6 +269,7 @@ void GameAudio::set_camera(const CameraState& camera) {
     const int m = static_cast<int>(audio_->mode());
     const float pullback = audio_->database().constants().listener_z_pullback[m];
     audio_->set_cinematic(camera.cinematic);
+    audio_->set_cinematic_fog_skip(camera.fog_skip);
     audio_->set_listener(
         listener_from_camera(camera.position, camera.look_at, camera.forward, camera.up, pullback, camera.cinematic));
 }

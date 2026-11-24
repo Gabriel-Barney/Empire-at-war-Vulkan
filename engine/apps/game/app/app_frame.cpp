@@ -645,13 +645,14 @@ void App::frame() {
     end_load_intro_frame();
     if (bench_active()) bench_frame_end();
     const bool cinematic = presentation_cinematic() || cine_.shot.active();  // OI host: Lua / TSW cinematic camera -> listener rules
+    const bool fog_skip = presentation_cinematic();  // #327 t01: the Lua camera (state 4) only, not the TSW shot (state 3)
     if (screen() == Screen::Galactic) {
         const ui::CameraParams cp = gview_.camera_params(targets_.width, targets_.height);
-        audio_.set_listener({cp.eye.x, cp.eye.y, cp.eye.z}, {cp.target.x, cp.target.y, cp.target.z}, cinematic);
+        audio_.set_listener({cp.eye.x, cp.eye.y, cp.eye.z}, {cp.target.x, cp.target.y, cp.target.z}, cinematic, fog_skip);
     } else if ((screen() == Screen::Battle || (screen() == Screen::Menu && demo_session())) && bview_.active()) {
         ui::CameraParams cp = bview_.camera_params(targets_.width, targets_.height);
         cinematic_camera(cp);
-        audio_.set_listener({cp.eye.x, cp.eye.y, cp.eye.z}, {cp.target.x, cp.target.y, cp.target.z}, cinematic);
+        audio_.set_listener({cp.eye.x, cp.eye.y, cp.eye.z}, {cp.target.x, cp.target.y, cp.target.z}, cinematic, fog_skip);
     }
     audio_flags();  // OI host: modal / GUI-only / attract
     // aud2 t04 (legacy docs/re/AUDIO.md §6.1 / §2.3): audio updates and music only while this application is active. Smoke, hidden and

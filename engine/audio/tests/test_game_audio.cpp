@@ -787,9 +787,14 @@ void test_hooks() {
     CHECK(near(a.listener().position.z, -40.0f) && near(a.listener().position.x, 10.0f) && !a.cinematic());
     cam.cinematic = true;
     g.set_camera(cam);
-    CHECK(near(a.listener().position.y, 100.0f) && a.cinematic());
-    cam.cinematic = false;
+    CHECK(near(a.listener().position.y, 100.0f) && a.cinematic() && !a.cinematic_fog_skip());
+    cam.fog_skip = true;  // #327 t01: the Lua cinematic camera (state 4) also skips the fog test
     g.set_camera(cam);
+    CHECK(a.cinematic() && a.cinematic_fog_skip());
+    cam.cinematic = false;
+    cam.fog_skip = false;
+    g.set_camera(cam);
+    CHECK(!a.cinematic_fog_skip());
 
     // Unit responses (Â§3.3).
     data::XmlDocument doc = data::XmlDocument::parse(std::string_view(

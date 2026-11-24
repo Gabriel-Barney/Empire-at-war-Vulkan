@@ -529,7 +529,7 @@ void test_gates() {
     CHECK(a.play_sfx("Engine_Loop", on_object(5)) != 0);
     CHECK(a.play_sfx("Engine_Loop", on_object(5)) == 0 && last_reason(a) == "loop_already_attached");
     CHECK(a.play_sfx("Engine_Loop", on_object(6)) != 0);
-    // Gate 9 (#50 t08, 0x2d5240 [H]): a 3D-positional start fails when its parent object is fogged (not in cinematics);
+    // Gate 9 (#50 t08, 0x2d5240 [H]): a 3D-positional start fails when its parent object is fogged (not in the Lua cinematic camera);
     // the callback gets the point and the parent, and a start without a parent is not refused.
     std::vector<uint64_t> parents;
     a.set_position_fogged([&parents](const Vec3&, uint64_t parent) {
@@ -544,8 +544,13 @@ void test_gates() {
     CHECK(a.play_sfx("Gun3D", seen) != 0);
     CHECK(a.play_sfx("Gun3D", at(2000.0f)) != 0);
     CHECK((parents == std::vector<uint64_t>{7, 8, 0}));
+    // #327 t01 (0x2d5440 gate 9 [H]): only the Lua cinematic camera (controller state 4) skips the fog test; another
+    // cinematic camera (the TSW shot, state 3) still fogs.
     a.set_cinematic(true);
+    CHECK(a.play_sfx("Gun3D", fogged) == 0 && last_reason(a) == "fogged");
+    a.set_cinematic_fog_skip(true);
     CHECK(a.play_sfx("Gun3D", fogged) != 0);
+    a.set_cinematic_fog_skip(false);
     // GUI pump: plays in the same frame.
     a.set_cinematic(false);
     SfxPlay pump;
@@ -797,7 +802,11 @@ void test_voices() {
         a.update(0.0);
         CHECK(a.sfx_live(o) && rig.backend.voice(voice_of(a, o))->params.gain == 0.0f);
         // b0280 (§1.6): a cinematic skips only the fog test - a fogged object is heard, a hidden / stealthed one is not.
+        // #327 t01 (0x2d4b00 [H]): only the Lua cinematic camera (state 4) skips it; another cinematic camera does not.
         a.set_cinematic(true);
+        a.update(0.0);
+        CHECK(rig.backend.voice(voice_of(a, o))->params.gain == 0.0f);
+        a.set_cinematic_fog_skip(true);
         a.update(0.0);
         CHECK(rig.backend.voice(voice_of(a, o))->params.gain > 0.0f);
         a.set_object_query([](uint64_t id) -> std::optional<AudioSystem::ObjectAudio> {
@@ -809,6 +818,7 @@ void test_voices() {
         });
         a.update(0.0);
         CHECK(rig.backend.voice(voice_of(a, o))->params.gain == 0.0f);
+        a.set_cinematic_fog_skip(false);
         a.set_cinematic(false);
         a.set_3d_scale(0.0f);  // battle-load screen
         a.update(0.0);

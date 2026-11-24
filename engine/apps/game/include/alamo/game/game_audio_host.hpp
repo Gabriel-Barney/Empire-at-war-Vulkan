@@ -656,8 +656,9 @@ public:
 
     // Positions of objects for attached instances (copied from the render snapshot after each capture).
     void set_object_positions(std::vector<std::pair<uint64_t, Vec3>> positions);
-    // `cinematic` = a Lua cinematic camera is active (legacy docs/re/AUDIO.md §1.2 / §1.6: listener at the camera, gates 2 / 9).
-    void set_listener(const Vec3& eye, const Vec3& look_at, bool cinematic = false);
+    // `cinematic` = a cinematic camera is active (legacy docs/re/AUDIO.md §1.2 / §1.8: listener at the camera, gate 2).
+    // `fog_skip` = it is the Lua cinematic camera (controller state 4), the only one that skips the fog test (#327 t01).
+    void set_listener(const Vec3& eye, const Vec3& look_at, bool cinematic = false, bool fog_skip = false);
     // #50 t08, start gate 5 (0x2d5440 test 5 [H]): Is_HUD_VO events are refused in a tactical mode while the local player is
     // a tutorial player (player +0x3c0; its only setter is the story reward TUTORIAL_PLAYER 0x456970, never cleared). The
     // app passes "in a battle and the local player is marked" (StorySession::tutorial().marked_players).
