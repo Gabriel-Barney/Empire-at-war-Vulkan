@@ -85,6 +85,7 @@ int main(int argc, char** argv) {
     test_own_player_sweep();
     test_garrison_fire_bones();
     test_hardpoint_mode_default();
+    test_hardpoint_difficulty_health();  // #434
     test_own_weapon_aim_point();
     test_own_weapon_target_bones();  // S8 t27
     test_fire_at_position();         // S8 t26

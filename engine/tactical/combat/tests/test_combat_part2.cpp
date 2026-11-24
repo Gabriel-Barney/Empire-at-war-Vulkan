@@ -1988,6 +1988,72 @@ void test_garrison_fire_bones() {
 
 namespace bo3split {
 
+// #434 (docs/re/SET_DIFFICULTY_HARDPOINTS.md) [H]: a hard point's maximum health (0x385ae0) carries its owner's AI
+// Health_Multiplier, read with the current difficulty; Set_Difficulty (0x4b0dc0) sets each live hard point to current x
+// new / old Health_Multiplier, clamped to the new maximum, and leaves one at health 0 there. A human's hard points take
+// factor 1.
+void test_hardpoint_difficulty_health() {
+    World w;
+    HardpointDesc gen;
+    gen.kind = HardpointKind::ShieldGenerator;
+    gen.health = 20.0f;
+    gen.destroyable = gen.targetable = true;
+    w.data.hardpoints.push_back(gen);  // 0
+    gen.attach_offset = Vec3{0.0f, 10.0f, 0.0f};
+    w.data.hardpoints.push_back(gen);  // 1
+    HardpointDesc art = gen;  // cannot take damage: Set_Difficulty leaves it (0x387ca0)
+    art.destroyable = false;
+    w.data.hardpoints.push_back(art);  // 2
+    UnitDesc sh;
+    sh.tactical_health = 100.0f;
+    sh.hardpoints = {0, 1, 2};
+    push_unit(w.data, sh);  // 0
+    CombatConfig cfg;
+    cfg.mode = GameMode::Space;
+    cfg.object_max_health_multiplier = 1.0f;
+    cfg.hardpoint_health_multiplier = 1.0f;
+    PlayerInfo ai;
+    ai.ai = true;
+    ai.faction_health = 0.8f;  // Easy-like Health_Multiplier
+    w.make(cfg, {ai, PlayerInfo{}});
+    w.add(1, 0, 0, Vec3{});
+    w.add(2, 0, 1, Vec3{300.0f, 0.0f, 0.0f});
+    // spawn: max = 20 x 0.8 for the AI, 20 for the human; both full
+    CHECK_F(w.sys->hardpoint_max(1, 0), 16.0f);
+    CHECK_F(w.sys->hardpoint_health(1, 0), 16.0f);
+    CHECK_F(w.sys->hardpoint_max(2, 0), 20.0f);
+    w.sys->set_hardpoint_health(1, 0, 8.0f);  // 50 %
+    w.sys->set_hardpoint_health(1, 1, 0.0f);  // no health left
+    // Easy (0.8) -> Hard (1.5): x 1.875
+    w.sys->set_player_difficulty(0, 1.0f, 1.5f, 1.0f);
+    std::printf("hard point difficulty: max %.3f, current %.3f (50 %% kept), destroyed %.3f, human max %.3f\n",
+                w.sys->hardpoint_max(1, 0), w.sys->hardpoint_health(1, 0), w.sys->hardpoint_health(1, 1),
+                w.sys->hardpoint_max(2, 0));
+    CHECK_F(w.sys->hardpoint_max(1, 0), 30.0f);
+    CHECK_F(w.sys->hardpoint_health(1, 0), 15.0f);
+    CHECK_F(w.sys->hardpoint_health(1, 1), 0.0f);  // health 0 stays 0
+    CHECK_F(w.sys->hardpoint_max(2, 0), 20.0f);  // the other player is untouched
+    CHECK_F(w.sys->hardpoint_health(2, 0), 20.0f);
+    CHECK_F(w.sys->hardpoint_health(1, 2), 16.0f);  // not destroyable: not rescaled (its maximum is 30 now)
+    // Hard -> Easy: the full-health one 30 x 0.8 / 1.5 = 16, the new max
+    w.sys->set_hardpoint_health(1, 0, 30.0f);
+    w.sys->set_player_difficulty(0, 1.0f, 0.8f, 1.0f);
+    CHECK_F(w.sys->hardpoint_max(1, 0), 16.0f);
+    CHECK_F(w.sys->hardpoint_health(1, 0), 16.0f);
+    {   // a Hard AI (1.5) spawns its hard points at max = 20 x 1.5 (the clamp in the rescale only guards rounding: current
+        // and maximum scale by the same ratio)
+        World h;
+        h.data = w.data;
+        PlayerInfo hard;
+        hard.ai = true;
+        hard.faction_health = 1.5f;
+        h.make(cfg, {hard, PlayerInfo{}});
+        h.add(1, 0, 0, Vec3{});
+        CHECK_F(h.sys->hardpoint_max(1, 0), 30.0f);
+        CHECK_F(h.sys->hardpoint_health(1, 0), 30.0f);
+    }
+}
+
 void test_hardpoint_mode_default() {
     // S8 t12 (b): Fire_When_In_<Mode>_Mode defaults to 1 - without the No the hardpoint fires in DEFEND.
     GateWorld g(true);

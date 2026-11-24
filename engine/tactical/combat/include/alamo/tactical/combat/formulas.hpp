@@ -152,8 +152,11 @@ inline float max_hull(float tactical_health, float difficulty_mult, float factio
 inline float max_shield(float shield_points, float faction_factor, float list3) {
     return shield_points * faction_factor * (1.0f + list3);
 }
-// Hardpoint max = Health x mode multiplier (Land 1.0 / Space 1.5) x (1 + list 2).
-inline float hardpoint_max_health(float health, float mode_mult, float list2) { return health * mode_mult * (1.0f + list2); }
+// Hardpoint max = Health x mode multiplier (Land 1.0 / Space 1.5) x the owner's AI Health_Multiplier (0x385ae0, 1 for a
+// player with no AI system: #434, docs/re/SET_DIFFICULTY_HARDPOINTS.md) x (1 + list 2).
+inline float hardpoint_max_health(float health, float mode_mult, float ai_health_mult, float list2) {
+    return health * mode_mult * ai_health_mult * (1.0f + list2);
+}
 // Get_Damage_Multiplier (0x38e0c0) [H]: (1 + attacker list 1) x (1 - victim list 0) x AI x cover.
 inline float damage_multiplier(float attacker_list1, float victim_list0, float ai_mult, float cover) {
     return (1.0f + attacker_list1) * (1.0f - victim_list0) * ai_mult * cover;
