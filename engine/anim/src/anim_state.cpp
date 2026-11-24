@@ -504,12 +504,12 @@ void AnimWorld::set_idle_timer(ObjectId id, uint64_t frame) {
     if (r != kNoRow) idle_timer_[r] = frame;
 }
 
-bool AnimWorld::service_idle(ObjectId id, int32_t idle_type, bool crouch_changed, SimRng& rng, uint64_t frame) {
+bool AnimWorld::service_idle(ObjectId id, int32_t idle_type, bool restart, SimRng& rng, uint64_t frame) {
     const uint32_t r = row(id);
     if (r == kNoRow) return false;
     const ClipRef* cur = slot_clip(r, kPrimary);
     const bool finished = cur && static_cast<SlotMode>(mode_[kPrimary][r]) == SlotMode::Finished;
-    if (cur && !finished && !crouch_changed) return false;
+    if (cur && !finished && !restart) return false;
     const uint32_t count = model_[r] ? model_[r]->variant_count(idle_type) : 0u;
     uint32_t variant = 0;
     if (frame >= idle_timer_[r]) {

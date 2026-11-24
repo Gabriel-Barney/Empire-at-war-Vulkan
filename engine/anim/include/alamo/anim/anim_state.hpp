@@ -168,7 +168,7 @@ public:
     // variant = rng int [1, count - 1] (0 with one clip; no draw then) and timer = frame + rng int [210, 450];
     // otherwise variant 0. Plays the idle type one-shot at speed 1, blend 0 when the type is unchanged, else
     // tunables().idle_blend_seconds. Returns true if it played.
-    bool service_idle(ObjectId id, int32_t idle_type, bool crouch_changed, SimRng& rng, uint64_t frame);
+    bool service_idle(ObjectId id, int32_t idle_type, bool restart, SimRng& rng, uint64_t frame);  // restart: replay mid-clip
     uint64_t idle_timer(ObjectId id) const;
     // s78l t03 (b): the IDLE attach (vf7 0x62dd40) sets the first fidget frame I +8 = now + Get_Int(210, 450) (the
     // caller draws it). No-op without a row.

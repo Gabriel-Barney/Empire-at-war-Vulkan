@@ -291,8 +291,9 @@ public:
     // One service of 0x62e570 (call every frame the unit is not moving; draws with a target whatever the clip). True if
     // it played a clip. With a target the idle records are cleared; without one they age first (every value
     // - 1, a record below 1 erased), then the default idle type is resolved (presence_idle_type with idle.presence).
-    bool service_idle(AnimWorld& w, ObjectId id, const IdleParams& idle, IdleTarget target, SimRng& rng, uint64_t frame,
-                      bool crouch_changed = false);
+    // #363 (s78l (c) [H]): a clip still playing is kept unless the default idle and the current clip differ in crouch class
+    // (0x27b570: 67, 71, 72, 73), checked on every service; then the idle restarts at once, mid-clip.
+    bool service_idle(AnimWorld& w, ObjectId id, const IdleParams& idle, IdleTarget target, SimRng& rng, uint64_t frame);
     // s78l t03 (a): the service of a unit the moving gate stops (step 1): the records are cleared and the flinch weight
     // I +0x58 := 0, nothing else (no draw).
     void idle_gated(ObjectId id);
@@ -381,7 +382,7 @@ private:
         uint64_t timer_start = 0, timer_frames = 0;  // I +0x50: hold / cooldown timer, ready when start + frames <= now
         uint64_t idle_countdown = 0;  // I +0xc (frames)
         float last_yaw = 0.0f;  // locomotor
-        bool have_yaw = false, last_crouch = false;
+        bool have_yaw = false, last_crouch = false;  // last_crouch: [port] no longer read (#363), kept for the save / hash layout
         std::vector<IdleRecord> records;  // I +0x10, ascending presence id (retail: an unordered map)
     };
     // #361: step 2 of the IDLE service; true while the flinch is in progress.

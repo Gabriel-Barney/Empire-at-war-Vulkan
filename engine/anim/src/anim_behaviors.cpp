@@ -213,8 +213,7 @@ bool AnimBehaviors::yaw_changed(ObjectId id, float yaw_deg) const {
     return d > 0.01f || d < -0.01f;
 }
 
-bool AnimBehaviors::service_idle(AnimWorld& w, ObjectId id, const IdleParams& idle_in, IdleTarget target, SimRng& rng, uint64_t frame,
-                                 bool crouch_changed) {
+bool AnimBehaviors::service_idle(AnimWorld& w, ObjectId id, const IdleParams& idle_in, IdleTarget target, SimRng& rng, uint64_t frame) {
     // IdleBehavior service 0x62e570 from step 3 (the moving / deploying early returns are the caller's).
     if (is_corpse(id) || !w.contains(id)) return false;
     // Step 2 (#361): the flinch bookkeeping, before the TARGETING lookup.
@@ -255,7 +254,11 @@ bool AnimBehaviors::service_idle(AnimWorld& w, ObjectId id, const IdleParams& id
     idle.idle_type =
         presence_idle_type(m, id, idle_in, e ? std::span<const IdleRecord>(e->records) : std::span<const IdleRecord>{}, false);
     if (flinch_busy) return false;
-    if (cur.clip && !finished && !crouch_changed) return false;
+    // #363 (0x62e570 step 5 [H]): T = the default idle (0x395920), C = the current primary clip type (0x3956a0); restart when
+    // T != C and their crouch classes (0x27b570: 67, 71, 72, 73) differ. Computed every service, no stored value; a clip whose
+    // mode is neither finished nor none is kept unless restart. The targeted branch below takes it as retail does.
+    const bool restart = cur.clip && idle.idle_type != cur.type && is_crouch(idle.idle_type) != is_crouch(cur.type);
+    if (cur.clip && !finished && !restart) return false;
     if (from_attack && target != IdleTarget::None) {
         if (e && e->idle_countdown > 0) {
             r.blend_seconds = rng.range_float(0.2f, 0.75f);  // drawn even without the clip [M]
@@ -265,7 +268,7 @@ bool AnimBehaviors::service_idle(AnimWorld& w, ObjectId id, const IdleParams& id
         r.blend_seconds = w.tunables().idle_blend_seconds;
         return w.play(id, r, nullptr, frame) == PlayResult::Played;
     }
-    return w.service_idle(id, idle.idle_type, crouch_changed, rng, frame);
+    return w.service_idle(id, idle.idle_type, restart, rng, frame);
 }
 
 uint64_t AnimBehaviors::idle_countdown(ObjectId id) const {
@@ -311,7 +314,6 @@ uint32_t AnimBehaviors::service_locomotor(AnimWorld& w, ObjectId id, const Locom
         while (dyaw > 180.0f) dyaw -= 360.0f;
         while (dyaw <= -180.0f) dyaw += 360.0f;
     }
-    const bool crouch_changed = e.have_yaw && e.last_crouch != in.crouched;
     e.last_yaw = in.yaw_deg;
     e.have_yaw = true;
     e.last_crouch = in.crouched;
@@ -335,15 +337,15 @@ uint32_t AnimBehaviors::service_locomotor(AnimWorld& w, ObjectId id, const Locom
     service_ip.idle_type = default_idle_type(m, in, p.idle, false);
     // the IDLE service (0x62e570) after the locomotor's play, every call for an object with IDLE
     // unless the moving gate stops it (step 1: the locomotor has a path - in.on_path - and no Allow_Idle_When_Moving;
-    // then the records are cleared). Plays started: the locomotor's + the idle's. A crouch change forces the idle clip only
-    // when the locomotor started none this call ([port]: its stop / turn clip already follows the state).
+    // then the records are cleared). Plays started: the locomotor's + the idle's. A crouch change restarts the idle through
+    // the service's crouch-class test (#363).
     const auto then_idle = [&](uint32_t plays) -> uint32_t {
         if (!in.has_idle) return plays;
         if (in.movable && in.on_path && !in.allow_idle_when_moving) {
             idle_gated(id);
             return plays;
         }
-        return plays + (service_idle(w, id, service_ip, in.target, rng, frame, crouch_changed && plays == 0) ? 1u : 0u);
+        return plays + (service_idle(w, id, service_ip, in.target, rng, frame) ? 1u : 0u);
     };
     // bkx1 t04 (BKX1_RENDER_RE §2.1 / §2.2 [H]): the Walk_Transition clips follow the locomotor. MOVESTART (16, state
     // 0x12) and the end clip (17..20, state 0x14) start when the locomotor starts them: variant 0 ([port] no variant draw,
