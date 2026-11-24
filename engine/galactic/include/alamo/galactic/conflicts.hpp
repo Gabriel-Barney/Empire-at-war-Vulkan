@@ -234,8 +234,13 @@ struct ConflictConfig {
     BattleChoice human_choice = BattleChoice::AutoResolve;  // headless answer to the pending-battle choice
     bool fight_ai_battles = false;  // [port test option] AI vs AI conflicts are fought too
     // #472 (docs/re/SCORE_TOOLTIPS_GAME_OPTIONS.md t14 [H]): the game option "never" sets the no-auto-resolve flag the story
-    // lock sets (0x2b9a11), which only skips the overrun check. Inert in FoC (Overrun_Auto_Resolve_Multiple 0).
+    // lock sets (0x2b9a11), which only skips the overrun check. Inert in FoC (Overrun_Auto_Resolve_Multiple 0). Not saved,
+    // as in retail (the options record is only in the replay header): a loaded game runs the check again.
     bool overrun_check = true;
+    // #467 (docs/re/GAMEPLAY_OPTIONS_AND_MOUSE.md t09 [H]): the profile's IDC_AUTORESOLVE (byte 0x140a7c46f, 0x2b9ab6 /
+    // 0x2b8222): a conflict the local player is in goes straight to the auto-resolve state, without the prompt. Retail's
+    // test ignores the story lock; the port keeps the lock as a guard [port] until a playtest settles it (#467 "open").
+    bool always_auto_resolve = false;
 };
 
 class ConflictManager final : public ConflictHooks {

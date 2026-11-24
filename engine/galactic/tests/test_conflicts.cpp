@@ -1062,6 +1062,29 @@ void test_pending_choice() {
     CHECK(w.sim.frame() == frame + 1);
 }
 
+// #467: the profile's always-auto-resolve box sends the local player's conflict to auto-resolve without asking; the
+// story lock keeps the prompt [port]; off, the prompt (decide) runs.
+void test_always_auto_resolve() {
+    for (const int mode : {0, 1, 2}) {  // 0 off, 1 on, 2 on + story-locked
+        World w({{pEmpire, rB, tFrigate}, {pUnder, rC, tFrigate}, {pUnder, rC, tFrigate}}, true);
+        int asked = 0;
+        w.cm->decide = [&asked](const ConflictInfo&) {
+            ++asked;
+            return BattleChoice::Pending;
+        };
+        w.cm->config().always_auto_resolve = mode != 0;
+        if (mode == 2) w.cm->story_lock = [](const ConflictInfo&) { return true; };
+        w.arrive_at_b();
+        if (mode == 1) {
+            CHECK(asked == 0 && w.cm->log().size() == 1 && w.cm->log()[0].how == 1);
+            CHECK(w.cm->state() == ConflictState::Idle);
+        } else {
+            CHECK(asked == 1 && w.cm->state() == ConflictState::Vote && w.cm->log().empty());
+        }
+    }
+    std::printf("always auto-resolve: on -> resolved without asking; off or story-locked -> asked\n");
+}
+
 // L1/S4 integrator ask (3): GalacticSim::change_owner on a planet (GE 4.2 "clears the conflict") also drops the planet's
 // queued conflict at the next service tail (logged, how 0); the active head stays.
 void test_change_owner_drops_queued() {
@@ -1699,6 +1722,7 @@ int main() {
     test_human_retreat_after_battle();
     std::printf("pending choice\n");
     test_pending_choice();
+    test_always_auto_resolve();
     test_change_owner_drops_queued();
     std::printf("land invasion\n");
     test_land_invasion();

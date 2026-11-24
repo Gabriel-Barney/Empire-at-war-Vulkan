@@ -38,6 +38,7 @@
 #include "alamo/game/attract_mode.hpp"
 #include "alamo/game/game_controls.hpp"
 #include "alamo/game/hud_feeds.hpp"
+#include "alamo/ui/gui_menus.hpp"  // kAutoResolve*
 #include "alamo/game/planet_map.hpp"
 #include "alamo/game/radar_feed.hpp"
 #include "alamo/game/game_session.hpp"
@@ -2568,19 +2569,21 @@ void hud_feeds_test(const game::GameData& data, const game::SessionSpec& spec) {
     // the space special-weapon button - icon / tooltip = the weapon's index; not allowed -> tooltip 4 (requires comm
     // array), disabled; recharging -> disabled with the readiness dial; ready -> enabled. #431 (0x317d00 [H]): never
     // hidden - no weapon draws the faction's icon, disabled with a full dial; not allowed, locked or readiness 0 -> full dial.
-    {  // #467 / #472: the pending-battle prompt rule
+    {  // #472: the pending-battle prompt rule
         using game::battle_prompt_rule;
-        CHECK(battle_prompt_rule(false, true, false, 2, 15.0f, false).auto_now);   // the profile box: always
-        CHECK(battle_prompt_rule(false, false, true, 0, 15.0f, false).auto_now);   // option "always"
-        const game::BattlePromptRule never = battle_prompt_rule(false, false, true, 1, 15.0f, false);
-        CHECK(!never.auto_now && !never.begin_only && never.timeout_s == 0.0f);   // "never": both buttons
-        const game::BattlePromptRule odds = battle_prompt_rule(false, false, true, 3, 15.0f, false);
+        constexpr bool kOptions = true, kLocked = true;
+        CHECK(battle_prompt_rule(!kLocked, kOptions, ui::kAutoResolveAlways, 15.0f, false).auto_now);
+        const game::BattlePromptRule never = battle_prompt_rule(!kLocked, kOptions, ui::kAutoResolveNever, 15.0f, false);
+        CHECK(!never.auto_now && never.timeout_s == 0.0f);  // "never": both buttons, no timer
+        const game::BattlePromptRule odds = battle_prompt_rule(!kLocked, kOptions, ui::kAutoResolveOdds, 15.0f, false);
         CHECK(!odds.auto_now && odds.timeout_s == 15.0f && odds.timeout_auto);
-        CHECK(!battle_prompt_rule(false, false, true, 3, 15.0f, true).timeout_auto);  // ...ToTactical True
-        const game::BattlePromptRule ask = battle_prompt_rule(false, false, true, 2, 15.0f, false);
-        CHECK(!ask.auto_now && ask.timeout_s == 0.0f && !battle_prompt_rule(false, false, false, 3, 15.0f, false).timeout_s);
-        const game::BattlePromptRule locked = battle_prompt_rule(true, true, true, 0, 15.0f, false);
-        CHECK(locked.begin_only && !locked.auto_now);  // [port] the story lock wins
+        CHECK(!battle_prompt_rule(!kLocked, kOptions, ui::kAutoResolveOdds, 15.0f, true).timeout_auto);  // ...ToTactical
+        const game::BattlePromptRule ask = battle_prompt_rule(!kLocked, kOptions, ui::kAutoResolveAsk, 15.0f, false);
+        CHECK(!ask.auto_now && ask.timeout_s == 0.0f);
+        const game::BattlePromptRule no_options = battle_prompt_rule(!kLocked, !kOptions, ui::kAutoResolveAlways, 15.0f, false);
+        CHECK(!no_options.auto_now && no_options.timeout_s == 0.0f);  // a load / skirmish: ask
+        const game::BattlePromptRule locked = battle_prompt_rule(kLocked, kOptions, ui::kAutoResolveAlways, 15.0f, false);
+        CHECK(!locked.auto_now && locked.timeout_s == 0.0f);  // the story lock: Begin only, never answered
     }
     CHECK(!game::space_weapon_button(false, 0, 0, true, false, 1.0f).present);
     const ui::HudBombingRunButton no_weapon = game::space_weapon_button(true, -1, 1, true, false, 0.0f);

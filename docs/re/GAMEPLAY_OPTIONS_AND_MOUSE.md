@@ -31,13 +31,10 @@ Options dialog handler = `0xa0f30` (OK branch reads the checks into the profile 
 - The tactical IDC_AUTORESOLVE (retreat dialog, `0xdc5d0`) is a different control with the same name; unrelated.
 
 **Port (#467, landed):** `GameplaySettings::auto_resolve = false`, options key `auto_resolve` (the old `ask_autoresolve`
-key is not read). The pure rule `game::battle_prompt_rule` (hud_feeds.hpp) answers the pending-battle prompt with
-Auto-Resolve at once when the box is checked; `App::open_battle_prompt` applies it. The answer goes through the same
-`BattleChoice::AutoResolve` path as a click (force + AutoSetup), so the outcome matches retail's 0x2b9ab6 while the profile
-stays out of the simulation: the sim only sees the player's answer. The story lock stays a guard [port] (see "open").
-The recipe below (a sim-side `ConflictConfig::always_auto_resolve`) was the first plan and was not taken.
+key is not read); `ConflictConfig::always_auto_resolve`, read in Decide as below and pushed by
+`App::apply_gameplay_options` (also at every session start). The story lock stays a guard [port] (see "open").
 
-**First plan (not taken):**
+**Change [H]:**
 1. `GameplaySettings::ask_autoresolve` -> `auto_resolve = false` (gui_menus.hpp:301, gui_menus.cpp:1466/1490); options key
    `auto_resolve` (options_pages.cpp:31; do not map the old `ask_autoresolve` key - every existing port profile has it =1).
 2. `ConflictConfig`: `bool always_auto_resolve = false;  // profile 0x140a7c46f, 0x2b9ab6`. In Decide, after the overrun

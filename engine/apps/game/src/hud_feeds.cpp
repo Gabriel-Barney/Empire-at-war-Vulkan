@@ -43,18 +43,15 @@ ui::HudBombingRunButton bombing_run_button(bool land, bool controls_locked, bool
     return b;
 }
 
-BattlePromptRule battle_prompt_rule(bool story_locked, bool profile_auto_resolve, bool game_options, int32_t option,
-                                    float vote_timeout_s, bool vote_default_tactical) {
+BattlePromptRule battle_prompt_rule(bool story_locked, bool game_options, int32_t option, float vote_timeout_s,
+                                    bool vote_default_tactical) {
     BattlePromptRule r;
-    if (story_locked) {
-        r.begin_only = true;
-        return r;
-    }
-    if (profile_auto_resolve || (game_options && option == ui::kAutoResolveAlways)) {
+    if (story_locked || !game_options) return r;
+    if (option == ui::kAutoResolveAlways) {
         r.auto_now = true;
         return r;
     }
-    if (game_options && option == ui::kAutoResolveOdds && vote_timeout_s > 0.0f) {
+    if (option == ui::kAutoResolveOdds && vote_timeout_s > 0.0f) {
         r.timeout_s = vote_timeout_s;
         r.timeout_auto = !vote_default_tactical;
     }

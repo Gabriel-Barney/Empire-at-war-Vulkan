@@ -663,7 +663,10 @@ void ConflictManager::run(ConflictKind kind) {
                             overrun_loser = att_weaker ? head.attacker : head.defender;
                     }
                 }
-                if ((!hum && !cfg_.fight_ai_battles) || overrun_loser != kNoPlayer) {
+                const int32_t local = sim_->local_player();
+                const bool local_in = local != kNoPlayer && (head.attacker == local || head.defender == local);
+                const bool always = cfg_.always_auto_resolve && local_in && !story_locked(head);  // #467
+                if ((!hum && !cfg_.fight_ai_battles) || overrun_loser != kNoPlayer || always) {
                     force_ = true;
                     retreating_ = overrun_loser;
                     state_ = ConflictState::AutoSetup;
