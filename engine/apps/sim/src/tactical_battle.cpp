@@ -2143,7 +2143,7 @@ void TacticalBattle::attack_block_service(TacticalMode& mode, SimRng& rng) {
         // (Set_Move kind 1, flags / theta / rho kept, clear) with the plan to L at once, and every member's attack order is
         // cleared (0x38d730(member, null) [M]). Not for an auto block on top of an order (n = 2): land_engage_service.
         const LandFormationRecord* lr = land_formation(checked[i].mover);
-        const bool auto_top = lr && lr->pushed != objects::kNoObjectId && lr->pushed == ri->target;
+        const bool auto_top = lr && lr->pushed() != objects::kNoObjectId && lr->pushed() == ri->target;
         if (!moving && !pushed && (hidden || stealthed) && !auto_top) {
             mv::V2 L{0.0f, 0.0f};
             for (const size_t j : g) L = L + movement_->view(checked[j].mover).pos;
@@ -2268,10 +2268,14 @@ void TacticalBattle::attack_block_service(TacticalMode& mode, SimRng& rng) {
             const auto lr = std::lower_bound(lformations_.begin(), lformations_.end(), mover,
                                              [](const LandFormationRecord& x, objects::ObjectId m) { return x.mover < m; });
             if (lr != lformations_.end() && lr->mover == mover) {
-                d.flags = lr->flags;
-                lr->goal = d.l;
-                lr->goal_object = objects::kNoObjectId;
-                lr->pushed = objects::kNoObjectId;
+                d.flags = lr->flags();
+                // #488: Set_Move(F, {kind 1 at L, flags kept}, clear) - the stack becomes that one position block
+                mv::FighterBlock b;
+                b.kind = mv::kFighterBlockPosition;
+                b.point = {d.l.x, d.l.y};
+                b.flags = d.flags;
+                (void)mv::stack_set_move(lr->blocks, b, true);
+                lr->goal_z = d.l.z;
             }
         }
         movement_->clear_attack_block(d.movers);

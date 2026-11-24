@@ -62,6 +62,7 @@ void test_bomber();
 void test_fighter_space();
 void test_fighter_guard();
 void test_fighter_formation_stack();
+void test_formation_stack_rules();  // #488 (test_movement_gaps_part1.cpp)
 CrcLog mixed_run(const ParallelFor& pf);
 
 // Golden digest of the final record (written by MSVC). S7 collision layer (2026-10-29): moved (the

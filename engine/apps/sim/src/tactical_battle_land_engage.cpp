@@ -1,5 +1,8 @@
 // tactical_battle: cmb1 t01 / t03 - the land formation records (LandFormationRecord), land Auto_Engage and the land scan
 // range (legacy docs/re/BKR1_RE_ANSWERS.md Q2 / Q8 [H], FIGHTER_FLYING §4.10 A / §4.11 B / E [H]).
+#include <optional>
+
+#include "alamo/tactical/movement/formation_stack.hpp"
 #include "tactical_battle_internal.hpp"
 
 namespace alamo::sim {
@@ -26,11 +29,16 @@ void TacticalBattle::land_order(std::span<const objects::ObjectId> ids, uint8_t 
         if (it == lformations_.end() || it->mover != mover) it = lformations_.insert(it, LandFormationRecord{});
         LandFormationRecord nr;
         nr.mover = mover;
-        nr.flags = static_cast<uint8_t>(flags & (mv::kMoveFlagAttackMove | mv::kMoveFlagGuardMove));
-        nr.goal = goal;
-        nr.goal_object = goal_object;
+        mv::FighterBlock b;  // #488: the order's block, Set_Move(F, b, clear) - a new coordinator: the old stack (and its
+                             // auto block) is gone (FIGHTER_FLYING §4.11 B 3)
+        b.kind = goal_object != objects::kNoObjectId ? mv::kFighterBlockObject : mv::kFighterBlockPosition;
+        b.object = goal_object;
+        b.point = {goal.x, goal.y};
+        b.flags = static_cast<uint8_t>(flags & (mv::kMoveFlagAttackMove | mv::kMoveFlagGuardMove));
+        (void)mv::stack_set_move(nr.blocks, b, true);
+        nr.goal_z = goal.z;
         nr.seen = goal;
-        *it = nr;  // a new coordinator: the old stack (and its auto block) is gone (FIGHTER_FLYING §4.11 B 3)
+        *it = std::move(nr);
     }
 }
 
@@ -50,7 +58,7 @@ const LandFormationRecord* TacticalBattle::land_formation(objects::ObjectId move
 bool TacticalBattle::land_auto_pushed(objects::ObjectId unit) const {
     if (space_ || lformations_.empty()) return false;
     const LandFormationRecord* r = land_formation(attack_mover(unit));
-    return r && r->pushed != objects::kNoObjectId;
+    return r && r->pushed() != objects::kNoObjectId;
 }
 
 std::vector<objects::ObjectId> TacticalBattle::land_mover_units(objects::ObjectId mover) const {
@@ -122,18 +130,18 @@ uint8_t TacticalBattle::land_chase(const objects::ObjectStore& store, const Land
     };
     // the land adapter of the one chase-input builder (tactical_battle_chase.cpp)
     ChaseOrder o;
-    o.first_flags = o.flags = r.flags;  // Rr and the attack-move branch read blocks[0]
+    o.first_flags = o.flags = r.flags();  // Rr and the attack-move branch read blocks[0]
     o.moving = v.has_goal;
-    o.live_push = r.pushed != objects::kNoObjectId;
-    o.goal_object = r.goal_object != objects::kNoObjectId;
+    o.live_push = r.pushed() != objects::kNoObjectId;
+    o.goal_object = r.goal_object() != objects::kNoObjectId;
     // order_goal_live stays false: BKR1 Q8 / FIGHTER_FLYING §4.10 A read the block objects only; the fighter adapter's
     // combat order goal is the space port's stand-in for an attack order's object (land records carry it in goal_object).
     // a guarded TEAM container: its own mover, its first live member's position
-    const Unit* guarded = (r.flags & mv::kMoveFlagGuardMove) != 0 ? land_goal_unit(store, r.goal_object) : nullptr;
-    o.guarded_mover = guarded && movement_->has_unit(r.goal_object) ? r.goal_object : guarded ? guarded->id : objects::kNoObjectId;
+    const Unit* guarded = (r.flags() & mv::kMoveFlagGuardMove) != 0 ? land_goal_unit(store, r.goal_object()) : nullptr;
+    o.guarded_mover = guarded && movement_->has_unit(r.goal_object()) ? r.goal_object() : guarded ? guarded->id : objects::kNoObjectId;
     o.unit = Vec3{v.pos.x, v.pos.y, 0.0f};
     o.goal = Vec3{v.goal.x, v.goal.y, 0.0f};
-    if (const Unit* go = land_goal_unit(store, r.goal_object)) o.goal = store.position(go->h);
+    if (const Unit* go = land_goal_unit(store, r.goal_object())) o.goal = store.position(go->h);
     o.range_type = land_type_of(r.mover);
     o.attack_range = range;
     FighterChaseInputs ci = chase_inputs(o);
@@ -142,11 +150,11 @@ uint8_t TacticalBattle::land_chase(const objects::ObjectStore& store, const Land
     } else {
         const Unit* c = live(cand);
         if (!c) return 0;
-        ci.candidate_is_goal = land_goal_member(r.goal_object, cand) || cand == r.pushed;  // c is the object of the first or the last block
+        ci.candidate_is_goal = land_goal_member(r.goal_object(), cand) || cand == r.pushed();  // c is the object of the first or the last block
         // c attacks the guarded object or u itself (0x39b1c0: its attacker list; [port] its current combat target)
         const objects::ObjectId at = combat_->has_unit(c->id) ? combat_->current_target(c->id) : objects::kNoObjectId;
         if (at != objects::kNoObjectId) {
-            if (guarded && land_goal_member(r.goal_object, at)) ci.candidate_attacker = true;
+            if (guarded && land_goal_member(r.goal_object(), at)) ci.candidate_attacker = true;
             if (at == unit || at == r.mover) ci.candidate_attacker = true;
             if (!ci.candidate_attacker && movement_->is_land_team_container(r.mover))
                 for (const auto& [mid, slot] : movement_->land_team_slots(r.mover)) {
@@ -218,7 +226,7 @@ void TacticalBattle::land_engage_service(TacticalMode& mode, SimRng& rng) {
         // blocks[0]'s last-observed point (0x584750 at every formation step, the lead as viewer): seen ->
         // the object's position; hidden -> frozen; stealthed -> the formation lead's position, which is the member nearest
         // the movers' centroid and is taken where the movers are known (BattleAi::guard_follow_step)
-        if (const Unit* go = land_goal_unit(st, r.goal_object)) {
+        if (const Unit* go = land_goal_unit(st, r.goal_object())) {
             bool hidden = false, stealthed = false;
             attack_target_unseen(st, *lead, go->id, hidden, stealthed);
             if (!hidden && !stealthed) r.seen = st.position(go->h);
@@ -227,39 +235,39 @@ void TacticalBattle::land_engage_service(TacticalMode& mode, SimRng& rng) {
         //    re-paths it only when 0x4165f0 holds (the leash), else step 5 pops it (no 0x04); 0x410a60 (arrived, state 3)
         //    pops it when the leash fails and (c is false or blocks[0] names an object). Its object's death ends it too
         //    ([port] at once; retail converts it to a position at its path end and pops it there on arrival).
-        if (r.pushed != objects::kNoObjectId) {
-            const Unit* pu = live(r.pushed);
+        if (r.pushed() != objects::kNoObjectId) {
+            const Unit* pu = live(r.pushed());
             bool pop = !pu || !combat_->is_enemy(me, st.owner(pu->h));
             if (!pop) {  // the attack block that carries it is gone (a C 3 drop, a newer block)
                 const auto it = std::lower_bound(attack_blocks_.begin(), attack_blocks_.end(), r.mover,
                                                  [](const AttackBlock& b, objects::ObjectId m) { return b.mover < m; });
-                pop = it == attack_blocks_.end() || it->mover != r.mover || it->target != r.pushed;
+                pop = it == attack_blocks_.end() || it->mover != r.mover || it->target != r.pushed();
             }
             if (!pop && frame_ >= r.next) {
                 r.next = frame_ + 30u;
                 bool hidden = false, stealthed = false;
-                attack_target_unseen(st, *lead, r.pushed, hidden, stealthed);
+                attack_target_unseen(st, *lead, r.pushed(), hidden, stealthed);
                 // 0x4165f0 for n >= 2 (§4.11 E): blocks[0] attack-move -> Attack_Move_Response_Range around F's path point
                 // ([port] the formation's own position: the lead stays inside); else Guard / Idle_Chase_Range around the
                 // goal of blocks[n-2] (the order's goal point). The attacker extension; a moving guarded object answers its
                 // attackers only; the object farther than Rr from the anchor -> the 0x5672b0 point test ([port] within
                 // Rr + the attack range, as fighter_chase_test). A hidden object -> false.
                 const uint32_t ty = land_type_of(r.mover);
-                const bool am = (r.flags & mv::kMoveFlagAttackMove) != 0;
+                const bool am = (r.flags() & mv::kMoveFlagAttackMove) != 0;
                 const std::array<float, 4> cr = chase_ranges(ty);  // filled above for the record's type
-                float rr = am ? cr[2] : (r.flags & mv::kMoveFlagGuardMove) != 0 ? cr[0] : cr[1];
+                float rr = am ? cr[2] : (r.flags() & mv::kMoveFlagGuardMove) != 0 ? cr[0] : cr[1];
                 const float ext = cr[3];
                 if (rr < 0.0f) rr = 0.0f;
-                const Unit* go = land_goal_unit(st, r.goal_object);
-                Vec3 anchor = am ? Vec3{v.pos.x, v.pos.y, 0.0f} : go ? st.position(go->h) : r.goal;
+                const Unit* go = land_goal_unit(st, r.goal_object());
+                Vec3 anchor = am ? Vec3{v.pos.x, v.pos.y, 0.0f} : go ? st.position(go->h) : r.goal();
                 const objects::ObjectId at = combat_->current_target(pu->id);
                 const std::vector<objects::ObjectId> us = land_mover_units(r.mover);
-                const bool attacker = at != objects::kNoObjectId && ((go && (r.flags & mv::kMoveFlagGuardMove) && land_goal_member(r.goal_object, at)) || at == r.mover ||
+                const bool attacker = at != objects::kNoObjectId && ((go && (r.flags() & mv::kMoveFlagGuardMove) && land_goal_member(r.goal_object(), at)) || at == r.mover ||
                                                                     std::find(us.begin(), us.end(), at) != us.end());
                 if (attacker) rr += ext;
                 bool a = !hidden;
-                const objects::ObjectId gm = go && movement_->has_unit(r.goal_object) ? r.goal_object : go ? go->id : objects::kNoObjectId;
-                if (a && go && (r.flags & mv::kMoveFlagGuardMove) && !attacker && movement_->has_unit(gm)) {
+                const objects::ObjectId gm = go && movement_->has_unit(r.goal_object()) ? r.goal_object() : go ? go->id : objects::kNoObjectId;
+                if (a && go && (r.flags() & mv::kMoveFlagGuardMove) && !attacker && movement_->has_unit(gm)) {
                     const mv::UnitView gv = movement_->view(gm);
                     if (gv.has_goal && gv.speed > 0.0f) a = false;
                 }
@@ -275,10 +283,10 @@ void TacticalBattle::land_engage_service(TacticalMode& mode, SimRng& rng) {
                 } else {  // 0x40edd0: the mover tested through its lead (a squad container: its first live member, D 5)
                     bool c = !hidden && !stealthed;
                     if (c) {
-                        const tc::CanHit h = attack_can_hit(lead->id, r.pushed);
+                        const tc::CanHit h = attack_can_hit(lead->id, r.pushed());
                         c = h == tc::CanHit::Yes || h == tc::CanHit::NoTarget;
                     }
-                    pop = !a && (!c || r.goal_object != objects::kNoObjectId);
+                    pop = !a && (!c || r.goal_object() != objects::kNoObjectId);
                 }
             }
             if (pop) {
@@ -297,8 +305,8 @@ void TacticalBattle::land_engage_service(TacticalMode& mode, SimRng& rng) {
         const Unit* tt = live(t);
         if (!tt || !combat_->is_enemy(me, st.owner(tt->h))) continue;
         const objects::ObjectId goal =
-            r.pushed != objects::kNoObjectId ? r.pushed : (r.flags & mv::kMoveFlagGuardMove) != 0 ? objects::kNoObjectId : r.goal_object;
-        if (t == goal || (r.pushed == objects::kNoObjectId && land_goal_member(goal, t))) continue;
+            r.pushed() != objects::kNoObjectId ? r.pushed() : (r.flags() & mv::kMoveFlagGuardMove) != 0 ? objects::kNoObjectId : r.goal_object();
+        if (t == goal || (r.pushed() == objects::kNoObjectId && land_goal_member(goal, t))) continue;
         float rr = 0.0f;
         if (land_chase(st, r, tu, t, combat_->attack_range(tu), rr) == 0) continue;
         if (land_mover_units(r.mover).empty()) continue;
@@ -316,7 +324,7 @@ bool TacticalBattle::land_step10_attack(TacticalMode& mode, objects::ObjectId mo
     };
     const auto it = std::lower_bound(lformations_.begin(), lformations_.end(), mover,
                                      [](const LandFormationRecord& x, objects::ObjectId m) { return x.mover < m; });
-    if (it == lformations_.end() || it->mover != mover || it->locked || it->pushed == target) return false;
+    if (it == lformations_.end() || it->mover != mover || it->locked || it->pushed() == target) return false;
     const Unit* tt = live(target);
     const objects::ObjectId tu = land_mover_target_unit(mover);
     const Unit* lu = live(attack_lead(mover));
@@ -334,11 +342,17 @@ void TacticalBattle::land_push(TacticalMode& mode, LandFormationRecord& r, objec
     const std::vector<objects::ObjectId> us = land_mover_units(r.mover);
     if (us.empty()) return;
     const Vec3 tp = mode.primary().position(t.h);
-    r.pushed = t.id;
-    r.next = frame_ + 30u;
     // cmb2 t04 (FIGHTER_FLYING §4.11 B, BKT1_ATTACK_RE §1.3 [H]): Push gives the block a hard point when the object has hard
     // points (0x394610 Choose_Target_Hardpoint for the TARGETING unit; -1 none)
     const int32_t hp = combat_->hardpoint_count(t.id) > 0 ? combat_->choose_target_hardpoint(tu, t.id) : -1;
+    mv::FighterBlock b;  // #488: {kind 3, t, hard point, flags 0, +0x50 the auto class, +0x5d = 1} through the shared Push
+    b.kind = mv::kFighterBlockObject;
+    b.object = t.id;
+    b.hard_point = hp;
+    b.pushed = true;
+    b.own_speed = true;
+    mv::stack_push(r.blocks, b);
+    r.next = frame_ + 30u;
     for (const objects::ObjectId id : us)
         if (combat_->has_unit(id)) combat_->set_attack_goal(id, t.id, hp);
     attack_block_set(us.front(), t.id, kAttackBlockNoLock, tp, hp);
@@ -349,30 +363,40 @@ void TacticalBattle::land_push(TacticalMode& mode, LandFormationRecord& r, objec
 // it (state 5 / 0 [M]): an object block (attack / guard) re-plans on its object, a position block moves to its point. The
 // formation goal (path B) returns to the order's object (a guard: none). [port] the members' combat targets are left alone.
 void TacticalBattle::land_pop(TacticalMode& mode, LandFormationRecord& r, SimRng& rng) {
-    const objects::ObjectId was = r.pushed;
-    r.pushed = objects::kNoObjectId;
+    const std::optional<mv::FighterBlock> popped = mv::stack_pop(r.blocks);  // #488: the shared Pop (the auto block on top)
+    const objects::ObjectId was = popped ? popped->object : objects::kNoObjectId;
     ++stats_.land_auto_pops;
+    // the object listener goes when no block left names T's object
+    const bool named = std::any_of(r.blocks.begin(), r.blocks.end(), [&](const mv::FighterBlock& b) {
+        return b.kind == mv::kFighterBlockObject && b.object == was;
+    });
     const auto it = std::lower_bound(attack_blocks_.begin(), attack_blocks_.end(), r.mover,
                                      [](const AttackBlock& b, objects::ObjectId m) { return b.mover < m; });
-    if (it != attack_blocks_.end() && it->mover == r.mover && it->target == was) attack_blocks_.erase(it);
+    if (!named && it != attack_blocks_.end() && it->mover == r.mover && it->target == was) attack_blocks_.erase(it);
+    if (r.blocks.empty()) return;
+    // the recorded goal := goal(new top) (blocks[0] while n <= 2)
+    const mv::FighterBlock& top = r.blocks.back();
+    const uint8_t tflags = top.flags;
+    const objects::ObjectId tobj = top.kind == mv::kFighterBlockObject ? top.object : objects::kNoObjectId;
+    const Vec3 tgoal{top.point.x, top.point.y, r.goal_z};
     const std::vector<objects::ObjectId> us = land_mover_units(r.mover);
     if (us.empty()) return;
     const objects::ObjectStore& st = mode.primary();
-    const objects::ObjectId goal = (r.flags & mv::kMoveFlagGuardMove) != 0 ? objects::kNoObjectId : r.goal_object;
+    const objects::ObjectId goal = (tflags & mv::kMoveFlagGuardMove) != 0 ? objects::kNoObjectId : tobj;
     for (const objects::ObjectId id : us)
         if (combat_->has_unit(id)) combat_->set_attack_goal(id, goal);
     // the object (a TEAM container through its first live member's position; the order names the container)
-    const Unit* go = land_goal_unit(st, r.goal_object);
+    const Unit* go = land_goal_unit(st, tobj);
     if (go && combat_->has_unit(go->id)) {
         const Vec3 tp = st.position(go->h);
-        if ((r.flags & mv::kMoveFlagGuardMove) != 0) {
-            (void)land_attack_order(mode, us, r.goal_object, tp, mv::kMoveFlagGuardMove, false, rng, true);
+        if ((tflags & mv::kMoveFlagGuardMove) != 0) {
+            (void)land_attack_order(mode, us, tobj, tp, mv::kMoveFlagGuardMove, false, rng, true);
             return;
         }
         const Unit* lu = unit_by_id(us.front());
         const bool hostile = lu && combat_->is_enemy(st.owner(lu->h), st.owner(go->h));
-        attack_block_set(us.front(), r.goal_object, static_cast<uint8_t>(r.flags | (hostile ? 0 : kAttackBlockNoLock)), tp);
-        (void)land_attack_order(mode, us, r.goal_object, tp, r.flags, false, rng);
+        attack_block_set(us.front(), tobj, static_cast<uint8_t>(tflags | (hostile ? 0 : kAttackBlockNoLock)), tp);
+        (void)land_attack_order(mode, us, tobj, tp, tflags, false, rng);
         return;
     }
     // a position block (or an object block whose object is gone: its position then)
@@ -381,8 +405,8 @@ void TacticalBattle::land_pop(TacticalMode& mode, LandFormationRecord& r, SimRng
         if (!movement_locked(id)) o.units.push_back(id);
     if (o.units.empty()) return;
     const tactical::Aabb& bb = mode.bounds();
-    o.destination = {std::clamp(r.goal.x, bb.min.x, bb.max.x), std::clamp(r.goal.y, bb.min.y, bb.max.y)};
-    o.flags = r.flags;
+    o.destination = {std::clamp(tgoal.x, bb.min.x, bb.max.x), std::clamp(tgoal.y, bb.min.y, bb.max.y)};
+    o.flags = tflags;
     movement_->move(o, rng, frame_);
 }
 }  // namespace alamo::sim

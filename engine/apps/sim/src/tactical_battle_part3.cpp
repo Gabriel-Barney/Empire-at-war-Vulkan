@@ -1903,12 +1903,12 @@ void TacticalBattle::hash(StateHasher& h) const {
         h.u32(static_cast<uint32_t>(lformations_.size()));
         for (const LandFormationRecord& r : lformations_) {
             h.i32(r.mover);
-            h.u8(r.flags);
-            h.f32(r.goal.x);
-            h.f32(r.goal.y);
-            h.f32(r.goal.z);
-            h.i32(r.goal_object);
-            h.i32(r.pushed);
+            h.u8(r.flags());  // #488: the same bytes as before the stack (blocks[0] and the auto block on top)
+            h.f32(r.goal().x);
+            h.f32(r.goal().y);
+            h.f32(r.goal().z);
+            h.i32(r.goal_object());
+            h.i32(r.pushed());
             h.u32(r.next);
             h.f32(r.seen.x);
             h.f32(r.seen.y);
