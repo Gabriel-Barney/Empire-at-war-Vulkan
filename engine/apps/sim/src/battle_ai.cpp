@@ -1673,6 +1673,12 @@ void BattleAi::fill(at::PerceptionWorld& w, std::vector<at::TacticalAiObject>& o
         }
         // t48: Variable_Self.BaseLevel in land skirmish: the count of P's alive objects with this behaviour.
         o.dummy_ground_structure = kDummyGroundStructure != objects::kNoBehavior && st.has_behavior(h, kDummyGroundStructure);
+        // #96 t06: Variable_Target.AdditionalPopulationCapacity = the type's Additional_Population_Capacity (the value the
+        // population cap sums, AI_GALACTIC_3 §3.3). It was never filled (always 0), so Should_Hold_Position's
+        // (AdditionalPopulationCapacity > UnitSpaceAvailable) never held and the land skirmish AI never proposed
+        // Hold_Position; retail run 20261116-171531 proposes it on friendly reinforcement points from 5902 [M: the
+        // token's name and the retail proposals on the points that carry the tag].
+        o.additional_population_capacity = static_cast<float>(tf.additional_population_capacity);
         o.no_owner_list = (st.flags(h) & objects::kFlagNoAiOwnerList) != 0;  // skai t15 (SKAI_T15_TARGET_CHOICE Q5)
         // skai: TacticalBuiltStructureCount's free-store table of built structures (0x4d3630) [M]: the finished structures on
         // build pads (pre-built skirmish base included). Unset, Num_Refineries stayed 0 and the land skirmish AI never bought units.

@@ -459,6 +459,57 @@ void test_battle_ai_station_level(bool skirmish) {
 namespace bo3split {
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
 
+// #96 t06: Variable_Target.AdditionalPopulationCapacity is the object's type value (Additional_Population_Capacity, the tag
+// the population cap sums). Squad data whose trooper carries 4: every trooper of the AI view reads 4, every other object 0.
+// Before, the view never filled it (always 0), so Should_Hold_Position's (AdditionalPopulationCapacity >
+// UnitSpaceAvailable) never held.
+std::string trooper_population(std::string t) {
+    const std::string at = "<GroundInfantry Name=\"S10_Trooper\">";
+    if (const size_t p = t.find(at); p != std::string::npos)
+        t.insert(p + at.size(), "<Additional_Population_Capacity>4</Additional_Population_Capacity>");
+    return t;
+}
+
+void test_view_population_capacity() {
+    auto d = squad_data_patched("_popcap", trooper_population);
+    CampaignBattleOptions opt;
+    opt.conflict.human_choice = galactic::BattleChoice::Fight;
+    opt.battle.max_frames = 600;
+    opt.battle.skip_human_units = true;
+    opt.battle.order_interval = 0;
+    opt.battle.fog = false;
+    ClashSession s(*d, 0, opt, {"S10_Squad", "S10_Squad"}, {}, true);
+    if (!s.gs) return;
+    ai::AiDefinitions defs;
+    ai::EquationSet eqs;
+    TacticalAiSetup ts;
+    ts.defs = &defs;
+    ts.equations = &eqs;
+    ts.files = d->files.get();
+    ts.ai_type = [](int32_t, const galactic::GalacticSim&) { return std::string(); };
+    bool checked = false;
+    for (uint64_t t = 0; t < 3000 && !checked; ++t) {
+        TacticalBattle* b = s.tick();
+        TacticalMode* tm = s.host->tactical();
+        if (!b || !tm || b->frame() < 3) continue;
+        BattleAi ai(*b, *tm, *s.host, ts);
+        ai::tactical::PerceptionWorld w;
+        std::vector<ai::tactical::TacticalAiObject> facts;
+        ai.fill(w, facts);
+        const auto trooper = static_cast<int32_t>(tm->types().resolve_name("S10_Trooper"));
+        int troopers = 0, wrong = 0;
+        for (const ai::tactical::PerceptionObject& o : w.objects) {
+            const float want = o.type == trooper ? 4.0f : 0.0f;
+            troopers += o.type == trooper ? 1 : 0;
+            wrong += o.additional_population_capacity == want ? 0 : 1;
+        }
+        std::printf("  view population capacity (#96 t06): %d troopers read 4, %d objects wrong\n", troopers, wrong);
+        CHECK(troopers > 0 && wrong == 0);
+        checked = true;
+    }
+    CHECK(checked);
+}
+
 // t48: the battle mode reaches the perception (Game.IsCampaignGame, IsDefender, the start markers) and so do both land BaseLevel
 // inputs: campaign = the conflict planet's structures, skirmish = each player's DUMMY_GROUND_STRUCTURE objects.
 // Game.IsLandControlGame is set only in a land skirmish with the control-point win condition (game type 4).

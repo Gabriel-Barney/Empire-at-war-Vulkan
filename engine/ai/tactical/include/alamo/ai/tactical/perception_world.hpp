@@ -109,7 +109,7 @@ struct PerceptionObject {
     bool contestable = false;        // behaviour 0x3D + 0x3751a0 test [M]
     int32_t garrison_capacity = 0;   // 0x3954b0
     int32_t garrison_occupants = 0;  // obj +0x210 -> +0x34
-    float additional_population_capacity = 0.0f;  // [L]
+    float additional_population_capacity = 0.0f;  // the type's Additional_Population_Capacity (#96 t06) [M]
     std::vector<int32_t> contained_types;  // garrison / contained objects (+0xf8) and team members (types)
     bool engines_online = true;            // [L]
     // player-token inputs

@@ -24,6 +24,7 @@ int main(int argc, char** argv) {
     test_battle_ai_land_mode(true);
     test_battle_ai_land_mode(true, true);
     test_battle_ai_land_mode(false, true);
+    test_view_population_capacity();  // #96 t06
     std::printf("refixf t03: Find_All_Objects_Of_Type('S10_Squad') finds the TEAM containers (representative type hook)\n");
     test_battle_ai_find_team();
     std::printf("ref2 t04: the AI VMs' ObjectBridge from make_object_bridge (spawn adopted, Take_Damage / Despawn through the battle, refusals)\n");
