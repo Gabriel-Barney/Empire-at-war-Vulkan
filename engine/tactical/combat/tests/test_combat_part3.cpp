@@ -592,7 +592,34 @@ void test_s78n_review_combat() {
         CHECK(w.sys->deaths().size() == 1);
         w.sys->kill_unit(2, 3, kKindNormal, w.frame);  // the same unit through Die: its hardpoints die, the draws are made
         CHECK(w.sys->deaths().size() == 2 && w.sys->hardpoint_events().size() == 2 && w.sys->projectile_count() == 1u);
+        CHECK(w.sys->deaths().size() == 2 && w.sys->deaths()[1].death_clone == -1);  // no clone: Die's DeathBehavior draws
         CHECK(w.rng.draws() == d0 + 2);
+    }
+    {  // #356: a death with a clone (its own type) leaves the spin-away draw to the clone's DeathBehavior (the host's
+       // plan); without clones Die's DeathBehavior Initialise draws it.
+        for (const bool clones : {true, false}) {
+            World w;
+            UnitDesc car;
+            car.tactical_health = 500.0f;
+            car.object_type = 5;
+            car.spin_away_on_death = true;
+            car.spin_away_chance = 1.0f;
+            const uint32_t cd = push_unit(w.data, car);
+            CombatConfig cfg;
+            cfg.death_clones = clones;
+            w.make(cfg);
+            w.sys->bind_rng(&w.rng);
+            w.add(1, cd, 0, Vec3{0, 0, 0});
+            w.add(2, cd, 1, Vec3{200, 0, 0});
+            w.tick();
+            const uint64_t d0 = w.rng.draws();
+            w.sys->kill_unit(1, 2, kKindNormal, w.frame);
+            CHECK(w.sys->deaths().size() == 1);
+            if (w.sys->deaths().size() != 1) continue;
+            const DeathEvent& d = w.sys->deaths()[0];
+            if (clones) CHECK(d.death_clone == 5 && !d.spin_away && w.rng.draws() == d0);
+            else CHECK(d.death_clone == -1 && d.spin_away && w.rng.draws() == d0 + 1);
+        }
     }
     {  // (b)
         World w;
