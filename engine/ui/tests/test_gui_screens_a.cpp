@@ -159,8 +159,8 @@ void test_screens() {
         CHECK(gs.show_campaign_score(cs));
         const GuiDialog* d = env.gui.find(dlg::kCampaignScore);
         const GuiControl* list = d ? d->get("IDC_VICTORY_LIST") : nullptr;
-        CHECK(list && list->items.size() > 1 && list->item_colors.size() == list->items.size());
-        for (size_t i = 0; list && i < list->item_colors.size(); ++i) CHECK(list->item_colors[i] == (Rgba8{255, 255, 255, 255}));
+        CHECK(list && list->items.size() > 1 && list->item_text_colors.size() == list->items.size());
+        for (size_t i = 0; list && i < list->item_text_colors.size(); ++i) CHECK(list->item_text_colors[i] == (Rgba8{255, 255, 255, 255}));
         CHECK(d && d->get("IDC_MILITARY_EFFICIENCY_STATIC")->text == U"87" && d->get("IDC_CONQUEST_EFFICIENCY_STATIC")->text == U"0%" &&
               d->get("IDC_KILL_EFFICIENCY_STATIC")->text == U"0");
         std::printf("campaign score: the paragraph wraps to %zu white rows; 87 / 0%% / 0\n", list ? list->items.size() : size_t{0});
