@@ -406,6 +406,136 @@ LandOrderIssueRun run_land_order_issue(const Data& d) {
     return out;
 }
 
+// #489 (FIGHTER_FLYING §4.11 B 1 / 2: the waypoint append 0x420f70, the arrival 0x423760 [H]): shift-queued land moves go into
+// the squad's formation stack (a squad with no chase ranges, walking away from the enemy).
+//   (i) a move to P1, then shift-queued P2 and P3: the stack holds three blocks and the queue view lists P2, P3; the squad
+//       walks to P1, then P2, then P3;
+//   (ii) a fourth shift-click within 20 of P1 (the player order's own block, 0x04; given with the others) closes a patrol
+//       loop over the whole stack (no fourth block), which survives a battle state round trip: after P3 the squad walks
+//       back to P1, then P2 and P3 again;
+//   (iii) a fresh move and seven shift-queued points: six are kept (MaxWaypointsPerPath 6), the seventh is refused.
+struct LandWaypointRun {
+    bool found = false, stacked = false, listed = false, looped = false, saved = false, capped = false;
+    std::vector<int> visits;  // the points the squad's goal named, in order (1..3)
+};
+
+std::unique_ptr<Data> waypoint_data() {
+    static std::string prefix;
+    const char* const old = g_temp_prefix;
+    prefix = std::string(old) + "_land_waypoints";
+    g_temp_prefix = prefix.c_str();
+    auto d = make_data(false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false,
+                       false, false, true);
+    g_temp_prefix = old;
+    return d;
+}
+
+LandWaypointRun run_land_waypoints(const Data& d) {
+    LandWaypointRun out;
+    CampaignBattleOptions opt;
+    opt.conflict.human_choice = galactic::BattleChoice::Fight;
+    opt.battle.max_frames = 9000;
+    opt.battle.skip_human_units = true;
+    opt.battle.order_interval = 0;
+    opt.battle.fog = false;
+    ClashSession s(d, 0, opt, {"S10_Squad"}, {}, true);
+    if (!s.gs) return out;
+    objects::ObjectId sq = objects::kNoObjectId;
+    std::vector<objects::ObjectId> mem;
+    mv::V2 p[4], home;
+    bool ordered = false;
+    for (uint64_t t = 0; t < 9000; ++t) {
+        TacticalBattle* b = s.tick();
+        TacticalMode* tm = s.host->tactical();
+        if (!b || !tm || b->frame() < 3) continue;
+        objects::ObjectStore& st = tm->primary();
+        const tc::CombatSystem& cs = b->combat();
+        const mv::MovementSystem& ms = b->movement();
+        SimRng& rng = s.host->random().synced();
+        if (!ordered) {
+            ordered = true;
+            Vec3 epos{};
+            bool enemy = false;
+            std::map<uint32_t, std::vector<objects::ObjectId>> teams;
+            for (size_t i = 0; i < cs.unit_count(); ++i) {
+                const auto id = cs.unit_id_at(i);
+                if (cs.team(id) != 0 && cs.alive(id)) teams[cs.team(id)].push_back(id);
+            }
+            for (const auto& [tid, m] : teams) {
+                const auto cid = static_cast<objects::ObjectId>(tid);
+                const objects::ObjectHandle th = st.find(cid);
+                if (m.size() < 2 || !st.alive(th) || !ms.has_unit(cid)) continue;
+                if (st.owner(th) == 0 && sq == objects::kNoObjectId) {
+                    sq = cid;
+                    mem = m;
+                } else if (st.owner(th) == 1 && !enemy) {
+                    enemy = true;
+                    epos = st.position(th);
+                }
+            }
+            out.found = sq != objects::kNoObjectId && enemy;
+            CHECK(out.found);
+            if (!out.found) break;
+            // away from the enemy: P1 150 ahead, P2 150 to the side, P3 150 further ahead
+            const Vec3 sp = st.position(st.find(sq));
+            home = {sp.x, sp.y};
+            float dx = sp.x - epos.x, dy = sp.y - epos.y;
+            const float len = std::max(1.0f, std::sqrt(dx * dx + dy * dy));
+            dx /= len;
+            dy /= len;
+            p[1] = {sp.x + 150.0f * dx, sp.y + 150.0f * dy};
+            p[2] = {p[1].x - 150.0f * dy, p[1].y + 150.0f * dx};
+            p[3] = {p[2].x + 150.0f * dx, p[2].y + 150.0f * dy};
+            CHECK(b->order_move(*tm, 0, mem, p[1].x, p[1].y, rng, mv::kNoFacing, false, false, mv::kMoveFlagPlayerOrder) ==
+                  commands::RejectReason::None);
+            CHECK(b->order_move(*tm, 0, mem, p[2].x, p[2].y, rng, mv::kNoFacing, false, true) == commands::RejectReason::None);
+            CHECK(b->order_move(*tm, 0, mem, p[3].x, p[3].y, rng, mv::kNoFacing, false, true) == commands::RejectReason::None);
+            const LandFormationRecord* r = record_of(*b, sq);
+            out.stacked = r && r->blocks.size() == 3;
+            const auto q = b->queued_orders(mem.front());
+            out.listed = q.size() == 2 && q[0].x == p[2].x && q[1].x == p[3].x;
+            CHECK(b->order_move(*tm, 0, mem, p[1].x + 5.0f, p[1].y + 5.0f, rng, mv::kNoFacing, false, true) ==
+                  commands::RejectReason::None);
+            r = record_of(*b, sq);
+            out.looped = r && r->blocks.size() == 3 && r->blocks[0].loop && r->blocks[1].loop && r->blocks[2].loop;
+            // the looped three-block stack through a battle state round trip
+            const std::vector<mv::FighterBlock> before = r ? r->blocks : std::vector<mv::FighterBlock>{};
+            StateHasher h0;
+            b->hash(h0);
+            ByteWriter w;
+            b->write_part(TacticalBattle::SavePart::State, w);
+            ByteReader rd(w.bytes());
+            const bool read = b->read_part(TacticalBattle::SavePart::State, rd);
+            StateHasher h1;
+            b->hash(h1);
+            r = record_of(*b, sq);
+            out.saved = read && r && r->blocks.size() == before.size() && h0.digest() == h1.digest();
+            for (size_t k = 0; out.saved && k < before.size(); ++k) out.saved = mv::same_block(before[k], r->blocks[k]);
+            continue;
+        }
+        const mv::UnitView v = ms.view(sq);
+        if (v.has_goal) {
+            int at = 0;
+            for (int k = 1; k <= 3; ++k)
+                if (std::hypot(v.goal.x - p[k].x, v.goal.y - p[k].y) < 60.0f) at = k;
+            if (at != 0 && (out.visits.empty() || out.visits.back() != at)) out.visits.push_back(at);
+        }
+        if (out.visits.size() >= 6) {
+            // (iii) a fresh move to P3, then seven queued points 40 apart on the way back to the start (no loop)
+            CHECK(b->order_move(*tm, 0, mem, p[3].x, p[3].y, rng) == commands::RejectReason::None);
+            const float hx = home.x - p[3].x, hy = home.y - p[3].y, hl = std::max(1.0f, std::sqrt(hx * hx + hy * hy));
+            for (int k = 1; k <= 7; ++k) {
+                const float f = 40.0f * static_cast<float>(k) / hl;
+                (void)b->order_move(*tm, 0, mem, p[3].x + f * hx, p[3].y + f * hy, rng, mv::kNoFacing, false, true);
+            }
+            const LandFormationRecord* r = record_of(*b, sq);
+            out.capped = r && r->blocks.size() == 7 && b->queued_orders(mem.front()).size() == 6;
+            break;
+        }
+    }
+    return out;
+}
+
 void test_land_auto_engage() {
     {
         auto d = chase_data(true);
@@ -451,6 +581,17 @@ void test_land_auto_engage() {
                     "it %d after %u frame(s)\n",
                     r.ordered ? 1 : 0, r.no_slot ? 1 : 0, r.goal_set ? 1 : 0, r.aimed ? 1 : 0, r.locked ? 1 : 0, r.lock_frames);
         CHECK(r.found && r.ordered && r.no_slot && r.goal_set && r.aimed && r.locked);
+    }
+    {
+        auto d = waypoint_data();
+        const LandWaypointRun r = run_land_waypoints(*d);
+        std::string seq;
+        for (const int k : r.visits) seq += static_cast<char>('0' + k);
+        std::printf("  land shift-queued waypoints (#489): stack of 3 %d, queue view %d, patrol loop %d, saved %d; walked %s; 7th "
+                    "refused %d\n",
+                    r.stacked ? 1 : 0, r.listed ? 1 : 0, r.looped ? 1 : 0, r.saved ? 1 : 0, seq.c_str(), r.capped ? 1 : 0);
+        CHECK(r.found && r.stacked && r.listed && r.looped && r.saved && r.capped);
+        CHECK(seq.rfind("123123", 0) == 0);  // P1, P2, P3, then the loop P1, P2, P3
     }
 }
 

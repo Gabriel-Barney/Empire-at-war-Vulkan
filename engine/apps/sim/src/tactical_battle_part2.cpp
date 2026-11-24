@@ -72,6 +72,13 @@ cmd::RejectReason TacticalBattle::order_move(TacticalMode& mode, uint8_t player,
         ids = std::move(rest);
         if (ids.empty()) return R::None;
     }
+    // #489 (FIGHTER_FLYING §4.11 B 1, MOVEMENT §6.2): a land mover whose formation runs a move takes the shift-queued move into
+    // its block stack (land_waypoint_append); the others keep the host's order queue.
+    if (!space_) {
+        ids = land_waypoint_append(mode, ids, x, y, facing_deg,
+                                   static_cast<uint8_t>(move_flags | (attack_move ? mv::kMoveFlagAttackMove : 0)));
+        if (ids.empty()) return R::None;
+    }
     QueuedOrder q;
     q.kind = QueuedOrder::Kind::Move;
     q.player = player;
@@ -1398,10 +1405,27 @@ bool TacticalBattle::land_drop_valid(const TacticalMode& mode, int32_t player, o
 
 // ---- [port: Gabriel] queueable unit actions: order queue ----------------------------------------------------------
 
-std::span<const TacticalBattle::QueuedOrder> TacticalBattle::queued_orders(objects::ObjectId unit) const {
+std::vector<TacticalBattle::QueuedOrder> TacticalBattle::queued_orders(objects::ObjectId unit) const {
+    std::vector<QueuedOrder> out;
+    // #489: the waypoints below the running block of the unit's land formation stack (player waypoints, run order)
+    if (!space_ && !lformations_.empty())
+        if (const LandFormationRecord* r = land_formation(attack_mover(unit))) {
+            const size_t run = r->running_end();
+            for (size_t i = run > 0 ? run - 1 : 0; i-- > 0;) {
+                const mv::FighterBlock& b = r->blocks[i];
+                if (b.kind != mv::kFighterBlockPosition || (b.flags & mv::kMoveFlagPlayerOrder) == 0) continue;
+                QueuedOrder q;
+                q.x = b.point.x;
+                q.y = b.point.y;
+                q.facing = b.facing;
+                q.attack_move = (b.flags & mv::kMoveFlagAttackMove) != 0;
+                q.flags = static_cast<uint8_t>(b.flags & ~(mv::kMoveFlagAttackMove | LandFormationRecord::kStackFlags));
+                out.push_back(q);
+            }
+        }
     const auto it = std::lower_bound(queues_.begin(), queues_.end(), unit, [](const OrderQueue& q, objects::ObjectId v) { return q.id < v; });
-    if (it == queues_.end() || it->id != unit) return {};
-    return it->orders;
+    if (it != queues_.end() && it->id == unit) out.insert(out.end(), it->orders.begin(), it->orders.end());
+    return out;
 }
 
 void TacticalBattle::clear_queues(std::span<const objects::ObjectId> ids) {
@@ -1470,6 +1494,9 @@ bool TacticalBattle::queue_object_live(const TacticalMode& mode, objects::Object
 }
 
 void TacticalBattle::advance_queues(TacticalMode& mode, SimRng& rng) {
+    // #489: the land stacks' queued waypoints, as the locked units' queues below (again here: a lock that began after
+    // land_engage_service this tick, such as a hero clash start, drops them in the same tick)
+    land_waypoints_drop_locked();
     if (queues_.empty()) return;
     const objects::ObjectStore& st = mode.primary();
     std::erase_if(queues_, [&](const OrderQueue& q) { return !queue_object_live(mode, q.id); });

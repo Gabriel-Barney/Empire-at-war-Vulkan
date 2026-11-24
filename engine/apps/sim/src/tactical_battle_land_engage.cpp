@@ -34,7 +34,8 @@ void TacticalBattle::land_order(std::span<const objects::ObjectId> ids, uint8_t 
         b.kind = goal_object != objects::kNoObjectId ? mv::kFighterBlockObject : mv::kFighterBlockPosition;
         b.object = goal_object;
         b.point = {goal.x, goal.y};
-        b.flags = static_cast<uint8_t>(flags & (mv::kMoveFlagAttackMove | mv::kMoveFlagGuardMove));
+        // the order flags and a player order's 0x04 (#489: the patrol loop closes on it, as on the fighters' order block)
+        b.flags = static_cast<uint8_t>(flags & (LandFormationRecord::kOrderFlags | mv::kMoveFlagPlayerOrder));
         (void)mv::stack_set_move(nr.blocks, b, true);
         nr.goal_z = goal.z;
         nr.seen = goal;
@@ -195,6 +196,7 @@ void TacticalBattle::land_engage_service(TacticalMode& mode, SimRng& rng) {
         for (const objects::ObjectId id : land_mover_units(r.mover)) r.locked = r.locked || movement_locked(id);
         chase_ranges_fill(land_type_of(r.mover));
     }
+    land_waypoints_drop_locked();  // #489: before the arrival pops (land_waypoint_service) walk a locked mover on
     // cmb1 t03 (Get_Scan_Range 0x566f50 on land, BKR1 Q8 [H]): the TARGETING owner o (a land team container, else the unit)
     // asks the formation (kUnitScanQuery, land_scan_range) when it has one and is not deployed; else R (steps 1 / 2). [port]
     // a steering squad's TeamTargeting runs on its head member (from the container's position): its members carry the flag.
@@ -374,9 +376,16 @@ void TacticalBattle::land_pop(TacticalMode& mode, LandFormationRecord& r, SimRng
                                      [](const AttackBlock& b, objects::ObjectId m) { return b.mover < m; });
     if (!named && it != attack_blocks_.end() && it->mover == r.mover && it->target == was) attack_blocks_.erase(it);
     if (r.blocks.empty()) return;
-    // the recorded goal := goal(new top) (blocks[0] while n <= 2)
+    land_replan(mode, r, rng);
+}
+
+// The formation plans to its top block (state 0 -> 0x41c1a0; the recorded goal := goal(top)): an object block (attack /
+// guard) re-plans on its object, a position block moves the members to its point (a waypoint keeps its own flags, not the
+// stack's 0x04 / 0x08).
+void TacticalBattle::land_replan(TacticalMode& mode, LandFormationRecord& r, SimRng& rng) {
+    if (r.blocks.empty()) return;
     const mv::FighterBlock& top = r.blocks.back();
-    const uint8_t tflags = top.flags;
+    const uint8_t tflags = static_cast<uint8_t>(top.flags & LandFormationRecord::kOrderFlags);
     const objects::ObjectId tobj = top.kind == mv::kFighterBlockObject ? top.object : objects::kNoObjectId;
     const Vec3 tgoal{top.point.x, top.point.y, r.goal_z};
     const std::vector<objects::ObjectId> us = land_mover_units(r.mover);
@@ -406,7 +415,156 @@ void TacticalBattle::land_pop(TacticalMode& mode, LandFormationRecord& r, SimRng
     if (o.units.empty()) return;
     const tactical::Aabb& bb = mode.bounds();
     o.destination = {std::clamp(tgoal.x, bb.min.x, bb.max.x), std::clamp(tgoal.y, bb.min.y, bb.max.y)};
-    o.flags = tflags;
+    o.flags = static_cast<uint8_t>(top.flags & ~LandFormationRecord::kStackFlags);
+    if (std::isfinite(top.facing)) o.facing_deg = top.facing;
     movement_->move(o, rng, frame_);
 }
+LandFormationRecord* TacticalBattle::land_formation_mut(objects::ObjectId mover) {
+    return const_cast<LandFormationRecord*>(std::as_const(*this).land_formation(mover));
+}
+
+// #489 (FIGHTER_FLYING §4.11 B 1, MOVEMENT §6.2 [H]): a shift-queued land move goes through coordinator vf +0x30 to the
+// waypoint append 0x420f70 of the mover's formation (the land patrol radius 20, MaxWaypointsPerPath): once per mover record
+// whose running block (the top below any auto block) is a position block and whose units hold no host-queued order. The
+// block is {position, the event's flags | 0x08}; the append adds 0x04. Returns the other ids, which keep the host's order
+// queue. [port] A record running an object block (an attack, a guard: #490) keeps the host queue.
+std::vector<objects::ObjectId> TacticalBattle::land_waypoint_append(TacticalMode& mode, std::span<const objects::ObjectId> ids, float x,
+                                                                     float y, float facing, uint8_t flags) {
+    std::vector<objects::ObjectId> rest, done;
+    const objects::ObjectStore& st = mode.primary();
+    const tactical::Aabb& bb = mode.bounds();
+    mv::FighterBlock b;
+    b.kind = mv::kFighterBlockPosition;
+    b.point = {std::clamp(x, bb.min.x, bb.max.x), std::clamp(y, bb.min.y, bb.max.y)};
+    if (std::isfinite(facing)) b.facing = facing;
+    b.flags = static_cast<uint8_t>(flags | mv::kMoveFlagQueue);
+    const mv::BlockGoalFn goal = [&](const mv::FighterBlock& k, mv::V2& out) {
+        if (k.kind != mv::kFighterBlockObject) {
+            out = k.point;
+            return true;
+        }
+        const Unit* g = land_goal_unit(st, k.object);
+        if (!g) return false;
+        const Vec3 p = st.position(g->h);
+        out = {p.x, p.y};
+        return true;
+    };
+    const auto host_queued = [this](objects::ObjectId u) {
+        const auto it = std::lower_bound(queues_.begin(), queues_.end(), u, [](const OrderQueue& q, objects::ObjectId v) { return q.id < v; });
+        return it != queues_.end() && it->id == u;
+    };
+    for (const objects::ObjectId id : ids) {
+        const objects::ObjectId mover = attack_mover(id);
+        LandFormationRecord* r = movement_ && movement_->has_unit(mover) ? land_formation_mut(mover) : nullptr;
+        const mv::FighterBlock* run = r && r->running_end() > 0 ? &r->blocks[r->running_end() - 1] : nullptr;
+        bool hosted = false;
+        if (run)
+            for (const objects::ObjectId u : land_mover_units(mover)) hosted = hosted || host_queued(u);
+        if (!run || run->kind == mv::kFighterBlockObject || hosted) {
+            rest.push_back(id);
+            continue;
+        }
+        if (std::find(done.begin(), done.end(), mover) != done.end()) continue;
+        done.push_back(mover);
+        (void)mv::stack_append(r->blocks, b, movement_->constants().max_waypoints_per_path, kLandPatrolRadius, goal);
+    }
+    return rest;
+}
+
+// #489 (A1_READINGS §28.9, HERO_CLASH §3.2, as advance_queues' locked units): a movement-locked land mover (hero clash,
+// script lock, ability immobilize, landing exit) loses the player waypoints (0x04) below its running block. [port] Retail's
+// lock callers leave every coordinator, which discards the formation's queued moves; the record and its running block stay.
+void TacticalBattle::land_waypoints_drop_locked() {
+    if (space_ || lformations_.empty()) return;
+    for (LandFormationRecord& r : lformations_) {
+        if (r.blocks.size() < 2) continue;
+        bool locked = false;
+        for (const objects::ObjectId id : land_mover_units(r.mover)) locked = locked || movement_locked(id);
+        if (!locked) continue;
+        const size_t run = r.running_end();
+        for (size_t i = run > 0 ? run - 1 : 0; i-- > 0;)
+            if ((r.blocks[i].flags & mv::kMoveFlagPlayerOrder) != 0) r.blocks.erase(r.blocks.begin() + static_cast<std::ptrdiff_t>(i));
+    }
+}
+
+// #489 (Arrival 0x423760 [H], FIGHTER_FLYING §4.11 B 2): a land formation whose top is a position block pops once every
+// member is done (no movement goal, no arrival turn: the locomotor's stack is empty). n = 1 stays (state 3); a player
+// waypoint top (0x04) pops only when blocks[n-2] is queued (0x08), else it stays; any other position top pops. An object
+// top never pops on arrival, and the auto block is land_engage_service's. [port] The formation is the records whose
+// members share a form_id (0: the record alone) and whose stacks are equal: it waits for all of them, pops them together
+// and runs the new top as one ordered move of all their units (exec_move: a new composition, the ordered move's combat
+// clears; the stacks are kept). Serial, ascending mover, after land_engage_service.
+void TacticalBattle::land_waypoint_service(TacticalMode& mode, SimRng& rng) {
+    if (space_ || !movement_ || lformations_.empty()) return;
+    struct Group {
+        uint32_t form = 0;
+        size_t first = 0;
+        bool done = true;
+        std::vector<objects::ObjectId> movers;
+    };
+    std::vector<Group> groups;
+    for (size_t i = 0; i < lformations_.size(); ++i) {
+        const LandFormationRecord& r = lformations_[i];
+        const size_t n = r.blocks.size();
+        if (n < 2 || r.locked) continue;
+        const mv::FighterBlock& t = r.blocks.back();
+        if (t.pushed || t.kind == mv::kFighterBlockObject) continue;
+        if ((t.flags & mv::kMoveFlagPlayerOrder) != 0 && (r.blocks[n - 2].flags & mv::kMoveFlagQueue) == 0) continue;
+        bool done = true, any = false;
+        uint32_t form = 0;
+        for (const objects::ObjectId u : land_mover_units(r.mover)) {
+            if (!movement_->has_unit(u)) continue;
+            const mv::UnitView v = movement_->view(u);
+            any = true;
+            done = done && !v.has_goal && !v.arrival_turn;
+            if (form == 0) form = v.form_id;
+        }
+        if (!any) continue;
+        Group* g = nullptr;
+        if (form != 0)
+            for (Group& c : groups) {
+                const LandFormationRecord& f = lformations_[c.first];
+                bool same = c.form == form && f.blocks.size() == n;
+                for (size_t k = 0; same && k < n; ++k) same = mv::same_block(f.blocks[k], r.blocks[k]);
+                if (same) {
+                    g = &c;
+                    break;
+                }
+            }
+        if (!g) {
+            groups.push_back({form, i, true, {}});
+            g = &groups.back();
+        }
+        g->done = g->done && done;
+        g->movers.push_back(r.mover);
+    }
+    for (const Group& g : groups) {
+        if (!g.done) continue;
+        std::vector<objects::ObjectId> us;
+        std::vector<LandFormationRecord> keep;
+        for (const objects::ObjectId m : g.movers) {
+            LandFormationRecord* r = land_formation_mut(m);
+            if (!r) continue;
+            (void)mv::stack_pop(r->blocks);
+            ++stats_.land_waypoint_pops;
+            keep.push_back(*r);
+            for (const objects::ObjectId u : land_mover_units(m))
+                if (!movement_locked(u)) us.push_back(u);
+        }
+        if (keep.empty() || us.empty()) continue;
+        const mv::FighterBlock t = keep.front().blocks.back();
+        if (t.kind == mv::kFighterBlockObject) {  // not reached today (appended blocks are position blocks); re-plan as a Pop
+            for (const LandFormationRecord& k : keep)
+                if (LandFormationRecord* r = land_formation_mut(k.mover)) land_replan(mode, *r, rng);
+            continue;
+        }
+        std::sort(us.begin(), us.end());
+        exec_move(mode, us, t.point.x, t.point.y, rng, t.facing, (t.flags & mv::kMoveFlagAttackMove) != 0,
+                  static_cast<uint8_t>(t.flags & ~(mv::kMoveFlagAttackMove | LandFormationRecord::kStackFlags)), false);
+        // exec_move's record write (land_order) is a fresh order's (a new stack); the waypoint walk keeps the popped stacks
+        for (const LandFormationRecord& k : keep)
+            if (LandFormationRecord* r = land_formation_mut(k.mover)) *r = k;
+    }
+}
+
 }  // namespace alamo::sim
