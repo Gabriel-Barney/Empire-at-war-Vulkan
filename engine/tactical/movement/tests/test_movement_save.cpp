@@ -9,6 +9,8 @@
 //     saved at several frames, a fresh battle is built the same way (hooks included) and loaded, then both run on and
 //     must have identical CRCs (register_crc + register_speed_crc + the departure / engine hashes) and identical save
 //     bytes after every tick; the loaded copy runs multi-threaded, the original serially;
+//   * #116: a land scene saved mid TerrainCollision detour, mid start turn and inside Walk_Transition clips (MOVESTART, an
+//     end clip), also run serial and with 4 workers from frame 0 (digests compared every tick);
 //   * a loader that already ran (dirty) is fully replaced by read(); another map or mode is rejected;
 //   * random single-bit corruption never crashes and a rejected load leaves the system unchanged.
 #include <algorithm>
@@ -1523,6 +1525,142 @@ void test_t25_attack() {
 // block (wt_clip, wt_pos, wt_rate, wt_f4, wt_f0) sits a fixed 107 bytes + 20 before atk_theta (io_unit: prev_pos ..
 // self_goal with empty push vectors, then s78p's lane (empty: its count) and lane_d); the block of a unit without
 // Walk_Transition is -1 and four zero floats.
+// ---------------------------------------------------------------- #116: TerrainCollision detour, start turn, Walk_Transition
+// On an open 100 x 100 land map:
+//  * vehicle 10 (10 x 6, speed 1, turn rate 6) is ordered along cell row 20; once it moves, a wall (an Impassable stamp, id
+//    9001: the save carries the grid's stamps) is put across its path at cell column 20. The failed step makes a
+//    TerrainCollision record whose decision pushes a kind-2 detour (the record Resolving); the detour's waypoint 0 at
+//    speed fraction 0 sends the vehicle into a start turn in place (aturn_start: turning_in_place at speed 0) before it
+//    walks round;
+//  * walker 1 (Walk_Transition, the clips from the host's clip hook) walks 600 along row 60 and stops: MOVESTART
+//    (wt_clip 16), MOVE (2) and an end clip (17..20).
+// Saved at the first, middle and last frame of each state: check_resume runs the saving battle serial and the loaded one
+// with 4 workers from there, digests compared every tick. The whole scene also runs serial and with 4 workers from frame
+// 0, its digest compared every tick.
+constexpr ObjectId kS116Wall = 9001;
+
+UnitDesc s116_vehicle(ObjectId id, V2 pos) {
+    UnitDesc d = land_unit(id, pos, 2, 1.0f, 12.0f, kUccVehicle);
+    d.turn_rate = 6.0f;
+    d.alt_max_speed = 1.0f;
+    d.alt_turn_rate = 6.0f;
+    d.hard_x = 10.0f;
+    d.hard_y = 6.0f;
+    d.owner = 1;
+    return d;
+}
+
+void build_s116(World& w) {
+    PassabilityGrid g;
+    g.init(100, 100);
+    const float hi = static_cast<float>(g.width() - 1) * kCellSize;
+    w.sys.set_grid(std::move(g));
+    w.sys.set_height_fn([](float, float) { return 0.0f; });
+    w.sys.air().set_box({0.0f, 0.0f}, {hi, hi});
+    w.sys.set_deploy_clip_fn([](ObjectId, int32_t type, uint32_t& n, float& fps) {  // MOVE 30, MOVESTART 16, end clips 17..20
+        fps = 30.0f;
+        n = type == 2 ? 30u : type == 16 ? 16u : (type >= 17 && type <= 20) ? static_cast<uint32_t>(type) : 0u;
+        return n != 0u;
+    });
+    w.rng = SimRng(1161);
+    CHECK(w.sys.add_unit(s116_vehicle(10, cell_center(10, 20))));
+    UnitDesc walker = land_unit(1, cell_center(20, 60), 2, 1.2f, 12.0f, kUccVehicle);
+    walker.turn_rate = 5.0f;
+    walker.walk_transition = true;
+    walker.anim_scale_speed = 1.6f * 0.8117f;
+    walker.owner = 1;
+    CHECK(w.sys.add_unit(walker));
+}
+
+void s116_before(World& w, uint32_t f) {
+    if (f == 1) {
+        MoveOrder o;
+        o.units = {10};
+        o.destination = cell_center(40, 20);
+        w.sys.move(o, w.rng, f);
+        MoveOrder m;
+        m.units = {1};
+        m.destination = cell_center(20, 60) + V2{600.0f, 0.0f};
+        w.sys.move(m, w.rng, f);
+    }
+    // the wall, once vehicle 10 moves on its straight order path (state: the stamp, saved with the grid)
+    if (!w.sys.grid().stamped(kS116Wall) && w.sys.view(10).speed > 0.0f) {
+        ObstacleFootprint fp;
+        fp.position = cell_center(20, 20);
+        fp.width = 20.0f;
+        fp.height = 140.0f;  // cells y = 17 .. 23
+        fp.bits = kPassImpassable;
+        CHECK(w.sys.grid().stamp(kS116Wall, fp) > 0);
+    }
+}
+
+void s116_after(World&, uint32_t) {}
+
+Scenario s116_scenario() {
+    Scenario sc;
+    sc.name = "land detour, start turn and Walk_Transition (#116)";
+    sc.build = build_s116;
+    sc.before = s116_before;
+    sc.after = s116_after;
+    sc.frames = 900;
+    return sc;
+}
+
+void test_s116_land_states() {
+    const Scenario sc = s116_scenario();
+    // which frames (after the tick) hold each state: 0 the detour (a kind-2 push owned by a Resolving Terrain record),
+    // 1 vehicle 10's start turn after it, 2 the walker's MOVESTART, 3 an end clip of the walker
+    const auto holds = [](const World& w, int which) {
+        if (which == 0) {
+            if (!w.sys.view(10).pushed || w.sys.view(10).push_kind != 2) return false;
+            for (const CollisionObject& c : w.sys.collisions().list())
+                if (c.kind == CollisionKind::Terrain && c.a == 10 && c.state == CollisionState::Resolving) return true;
+            return false;
+        }
+        // the start turn: turning in place (Moving at speed 0; it runs in the arrival turn's states, aturn_start) onto
+        // the detour's first leg
+        if (which == 1) return w.sys.view(10).pushed && w.sys.turning_in_place(10) && w.sys.view(10).speed == 0.0f;
+        if (which == 2) return w.sys.view(1).wt_clip == 16;
+        return w.sys.view(1).wt_clip >= 17 && w.sys.view(1).wt_clip <= 20;
+    };
+    constexpr int kStates = 4;
+    uint32_t seen[kStates][2] = {};
+    World v(sc.cfg);
+    sc.build(v);
+    World q(sc.cfg);  // the same scene with 4 workers from frame 0
+    sc.build(q);
+    const ParallelFor pf4 = make_thread_pf(4);
+    uint32_t diverged = UINT32_MAX;
+    for (uint32_t f = 0; f < sc.frames; ++f) {
+        step(sc, v, f, serial_for);
+        step(sc, q, f, pf4);
+        if (diverged == UINT32_MAX && (world_crc(v) != world_crc(q) || !(v.rng == q.rng))) diverged = f;
+        for (int k = 0; k < kStates; ++k)
+            if (holds(v, k)) {
+                if (seen[k][0] == 0) seen[k][0] = f + 1;
+                seen[k][1] = f + 1;
+            }
+    }
+    std::printf("#116 land states: detour %u..%u, start turn %u..%u, MOVESTART %u..%u, end clip %u..%u; serial = 4 workers every "
+                "tick %d (%u frames, terrain records %u, detours %u)\n",
+                seen[0][0], seen[0][1], seen[1][0], seen[1][1], seen[2][0], seen[2][1], seen[3][0], seen[3][1],
+                diverged == UINT32_MAX ? 1 : 0, sc.frames, v.sys.stats().terrain_records, v.sys.stats().terrain_detours);
+    CHECK(diverged == UINT32_MAX);
+    for (int k = 0; k < kStates; ++k) CHECK(seen[k][0] > 0 && seen[k][1] >= seen[k][0] + 2);
+    CHECK(v.sys.stats().terrain_detours >= 1 && !v.sys.view(10).has_goal && !v.sys.view(1).has_goal);
+    for (int k = 0; k < kStates; ++k) {
+        if (seen[k][0] == 0) continue;
+        for (const uint32_t at : {seen[k][0], (seen[k][0] + seen[k][1]) / 2, seen[k][1]}) {
+            World c(sc.cfg);
+            sc.build(c);
+            for (uint32_t f = 0; f < at; ++f) step(sc, c, f, serial_for);
+            CHECK(holds(c, k));  // the save taken after `at` ticks holds the state
+            check_resume(sc, at, 0);
+        }
+    }
+    if (seen[0][0] != 0) check_resume(sc, (seen[0][0] + seen[0][1]) / 2, 53);  // a loader that already ran
+}
+
 void test_s78o_unit_rejections() {
     Scenario sc;
     sc.build = build_t25_attack;
@@ -2007,6 +2145,7 @@ int main() {
                     "480 %d\n", sec45, swapped_back, sec333, walk480);
     }
     check_resume(land, 250, 37);  // the loader already ran: read() replaces everything
+    test_s116_land_states();  // #116: TerrainCollision detour, start turn, Walk_Transition
     const Scenario space = space_scenario();
     const Coverage sc = check_resume(space, 1, 0);
     CHECK(sc.locks > 0 && sc.departures > 0);
