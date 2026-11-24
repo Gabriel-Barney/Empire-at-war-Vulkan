@@ -473,6 +473,10 @@ bool InfoScreens::show_info(InfoPage page) {
         case InfoPage::DataChart: fill_chart(*d); break;
         case InfoPage::TechTree: fill_tech(*d); break;
         default:
+            // #429 (row build 0x10a4a0 [H]): every summary open starts A to Z by name.
+            sort_key_ = 1;
+            sort_reversed_ = false;
+            apply_summary_sort();
             d->set_value("IDC_SCROLLBAR_SLIDER", 0);
             fill_summary(*d);
             break;

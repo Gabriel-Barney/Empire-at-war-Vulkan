@@ -247,8 +247,10 @@ public:
     int32_t chart_mode() const { return chart_mode_; }  // 0 economy, 1 military, 2 planets
     int32_t summary_offset() const { return summary_off_; }
     // ui4 t07 (HUD_GAPS §10.2): the summary sort. A key sorts the numeric columns largest first and the name A to Z; the
-    // same key again reverses it, a third time restores it. All three summary screens share the key and direction, kept
-    // across opens; set_summary applies them; the scroll position is kept. [port] a stable sort (retail's may reorder ties).
+    // same key again reverses it, a third time restores it. All three summary screens share the key and direction;
+    // set_summary applies them; the scroll position is kept. #429 (docs/re/HOLOCRON_SUMMARY_SORT.md, row build 0x10a4a0)
+    // [H]: opening a summary page, or switching to another, sorts A to Z by name (key 1), so the next PLANETARY click
+    // reverses it. The sort is stable, as retail's insertion sort is for up to 32 rows; [port] stable above that too.
     void sort_summary(int32_t key);
     int32_t summary_sort_key() const { return sort_key_; }
     bool summary_sort_reversed() const { return sort_reversed_; }
