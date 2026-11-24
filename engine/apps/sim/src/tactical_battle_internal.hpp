@@ -119,16 +119,19 @@ public:
     // --- R3 anim: behaviour hand-offs (SimAnimation: flinch on hits, death clip / corpse, death clones) ---
     void set_anim_mode(const GameMode* mode) { mode_ = mode; }
     void anim_hit(const tc::HitEvent& e, float weight) {
-        // Flinch (0x62dde0) of a live victim; travel direction = impact point -> victim centre (fallback:
-        // shooter -> victim). Victims dying this tick are skipped (their death clip follows). #362: `weight` = the
+        // Flinch (0x62dde0) of a live victim. #367 (docs/re/HIT_FLINCH.md [H]): Apply_Direct_Damage 0x4c73d0 calls it only
+        // when Take_Damage did not report the hit absorbed by shields as a whole, with the projectile's LastKnownVelocity
+        // (HitEvent::travel) as the travel direction ([port] fallback when it is zero: impact point -> victim centre,
+        // then shooter -> victim). Victims dying this tick are skipped (their death clip follows). #362: `weight` = the
         // projectile type's Induced_Flinch_Intensity (+0x20e4, s78l t03 step-2 "Start" [M]).
-        if (!anim_active() || e.victim == tc::kNoObject || !world_->contains(e.victim)) return;
+        if (!anim_active() || e.victim == tc::kNoObject || e.absorbed || !world_->contains(e.victim)) return;
         const tc::CombatSystem& c = *b_->combat_;
         if (!c.has_unit(e.victim)) return;
         for (const tc::DeathEvent& d : c.deaths())
             if (d.id == e.victim) return;
         const tactical::Vec3 vp = c.position(e.victim), f = c.facing(e.victim);
-        Vec3 dir{vp.x - e.position.x, vp.y - e.position.y, 0.0f};
+        Vec3 dir{e.travel.x, e.travel.y, 0.0f};
+        if (dir.x == 0.0f && dir.y == 0.0f) dir = Vec3{vp.x - e.position.x, vp.y - e.position.y, 0.0f};
         if (dir.x == 0.0f && dir.y == 0.0f && e.shooter != tc::kNoObject && c.has_unit(e.shooter)) {
             const tactical::Vec3 sp = c.position(e.shooter);
             dir = Vec3{vp.x - sp.x, vp.y - sp.y, 0.0f};

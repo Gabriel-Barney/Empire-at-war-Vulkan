@@ -559,6 +559,79 @@ void test_clip_holds_fire() {
                 static_cast<uint32_t>(open.shots), held.calls / 2, static_cast<uint32_t>(late.shots));
 }
 
+void test_hit_event_travel() {
+    // #367 (Take_Damage 0x3a9e30's flag): shield_absorbed_all is set only when the shield takes all that is left, not for a
+    // partly absorbed hit.
+    {
+        World w;
+        UnitDesc v;
+        v.tactical_health = 1e6f;
+        v.shield_points = 100.0f;
+        const uint32_t d = push_unit(w.data, v);
+        w.make();
+        w.add(1, d, 0, Vec3{0, 0, 0});
+        DamageRequest r;
+        r.victim = 1;
+        r.amount = 40.0f;
+        const DamageResult all = w.sys->take_damage(r, 10);
+        CHECK(all.shield_absorbed_all && all.absorbed == 40.0f);
+        r.amount = 100.0f;  // 60 shield left: 60 absorbed, 40 to the hull
+        const DamageResult part = w.sys->take_damage(r, 11);
+        CHECK(!part.shield_absorbed_all && part.absorbed == 60.0f && part.to_hull > 0.0f);
+    }
+
+    // #367 (docs/re/HIT_FLINCH.md): a direct hit's HitEvent carries the projectile's LastKnownVelocity direction (the flinch
+    // direction 0x62dde0 receives), and it survives a save (combat v21).
+    struct W {
+        World w;
+        W() {
+            ProjectileDesc p;
+            p.max_speed = 10.0f;
+            p.damage = 1.0f;
+            w.data.projectiles.push_back(p);
+            UnitDesc s;
+            s.tactical_health = 100.0f;
+            s.max_attack_distance = 1000.0f;
+            s.weapon_projectile = 0;
+            s.weapon_recharge = 1.0f;
+            UnitDesc t;
+            t.tactical_health = 1e6f;
+            t.radius = 10.0f;
+            t.category_mask = kCatCapital;
+            const uint32_t ds = push_unit(w.data, s), dt = push_unit(w.data, t);
+            CombatConfig cfg;
+            cfg.mode = GameMode::Land;
+            cfg.inaccuracy_enabled = false;
+            w.make(cfg);
+            w.add(1, ds, 0, Vec3{0, 0, 0}, Vec3{0, 1, 0});
+            w.add(2, dt, 1, Vec3{0, 200, 0});
+        }
+    };
+    W a;
+    a.w.sys->order_attack(1, 2);
+    bool hit = false;
+    for (int i = 0; i < 300 && !hit; ++i) {
+        a.w.tick();
+        for (const HitEvent& e : a.w.sys->hit_events()) hit = hit || e.victim == 2;
+    }
+    CHECK(hit);
+    Vec3 travel{};
+    for (const HitEvent& e : a.w.sys->hit_events())
+        if (e.victim == 2) travel = e.travel;
+    const float len = std::sqrt(travel.x * travel.x + travel.y * travel.y + travel.z * travel.z);
+    std::printf("hit event travel (%.3f, %.3f, %.3f)\n", travel.x, travel.y, travel.z);
+    CHECK(len > 0.0f && travel.y / len > 0.99f);  // shot from (0, 0) to (0, 200): along +y
+    ByteWriter wa;
+    a.w.sys->write(wa);
+    W b;
+    ByteReader r(wa.bytes());
+    CHECK(b.w.sys->read(r));
+    bool same = false;
+    for (const HitEvent& e : b.w.sys->hit_events())
+        if (e.victim == 2) same = e.travel.x == travel.x && e.travel.y == travel.y && e.travel.z == travel.z;
+    CHECK(same);
+}
+
 void test_out_of_range_mod_values() {
     // mcx8 t11 (docs/MODS.md "Determinism with mods"): mod values whose frame count is out of int32 range convert the x86 way
     // (cvttss2si: INT32_MIN), so the MSVC and clang builds give the same result (both run this test). A mod's 99999999999 s
