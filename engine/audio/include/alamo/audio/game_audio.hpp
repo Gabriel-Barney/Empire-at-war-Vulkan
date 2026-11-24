@@ -74,7 +74,8 @@ struct CameraState {
     Vec3 look_at{};
     Vec3 forward{0.0f, 0.0f, 1.0f};
     Vec3 up{0.0f, 1.0f, 0.0f};
-    bool cinematic = false;  // cinematic camera: listener at the camera, gate 2/9 + visibility rules (§1.2, §1.6)
+    bool cinematic = false;  // cinematic camera: listener at the camera, gate 2 (§1.2, §1.8)
+    bool fog_skip = false;   // #327 t01: the Lua cinematic camera (state 4): gate 9 and visibility skip the fog test (§1.6)
 };
 
 struct TacticalSetup {
