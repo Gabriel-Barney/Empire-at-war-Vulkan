@@ -157,11 +157,9 @@ private:
 };
 
 // the tactical ability (ABILITIES_HARDPOINTS 2.1 type name, e.g. "SPREAD_OUT") an ability slot (24..65, 90..122)
-// or DeploySquad (66) fires; "" for other slots and for the two ability slots no FoC type matches (SystemControl,
-// DestroyPlanet). [port] matched by meaning: the keyboard dialog's edit-box names (legacy docs/re/UI.md §4.3) against the ability types the
-// FoC data uses; the original's slot -> ability lookup in the hotkey dispatch (0x63f00) is not traced. Slots of one
-// meaning share a type (SelfDestruct / SpaceSelfDestruct, LaserDefense / SpaceLaserDefense, FullSalvo / FoCFullSalvo,
-// SensorJamming / FoCSensorJamming, MinorDrainLife / DrainLife).
+// or DeploySquad (66) fires; "" for other slots and for DestroyPlanet (the galactic planet-destroy UI, no ability).
+// Slots of one meaning share a type (SelfDestruct / SpaceSelfDestruct, LaserDefense / SpaceLaserDefense, FullSalvo /
+// FoCFullSalvo, SensorJamming / FoCSensorJamming, MinorDrainLife / DrainLife).
 // #430 (docs/re/TACTICAL_HOTKEYS.md, 0x63f00 [H]): the dispatch calls 0x2dccf0(HUD, type) per slot with these types;
 // Ability_SystemControl uses LURE (slot 52's call).
 std::string_view hotkey_ability_name(uint16_t slot);
