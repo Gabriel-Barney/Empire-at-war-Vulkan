@@ -161,10 +161,12 @@ float AnimBehaviors::flinch_weight(ObjectId id) const {
 
 // ---- idle --------------------------------------------------------------------------------------------
 
-int32_t presence_idle_type(const AnimModel* m, ObjectId id, const IdleParams& idle, std::span<const IdleRecord> records) {
+int32_t presence_idle_type(const AnimModel* m, ObjectId id, const IdleParams& idle, std::span<const IdleRecord> records,
+                           bool clip_fallback) {
     if (!idle.presence || !*idle.presence || records.empty()) return idle.idle_type;
     const int32_t t = (*idle.presence)(id, records);
-    if (t == kNoAnimType || (m && m->variant_count(t) == 0)) return idle.idle_type;  // [port] no clip: the plain idle
+    if (t == kNoAnimType) return idle.idle_type;
+    if (clip_fallback && m && m->variant_count(t) == 0) return idle.idle_type;  // [port] the stop clip: no clip, the plain idle
     return t;
 }
 
@@ -233,9 +235,11 @@ bool AnimBehaviors::service_idle(AnimWorld& w, ObjectId id, const IdleParams& id
         e->records.resize(keep);
     }
     if (e && e->idle_countdown > 0) --e->idle_countdown;
-    // The default idle type (0x395920) is read after the aging.
+    // The default idle type (0x395920) is read after the aging. #364 (§A.11 [M]): a type without clips is kept (its play
+    // fails, so the unit holds its last frame).
     IdleParams idle = idle_in;
-    idle.idle_type = presence_idle_type(m, id, idle_in, e ? std::span<const IdleRecord>(e->records) : std::span<const IdleRecord>{});
+    idle.idle_type =
+        presence_idle_type(m, id, idle_in, e ? std::span<const IdleRecord>(e->records) : std::span<const IdleRecord>{}, false);
     if (flinch_busy) return false;
     if (cur.clip && !finished && !crouch_changed) return false;
     if (from_attack && target != IdleTarget::None) {
@@ -273,11 +277,11 @@ float infantry_turn_blend(float err_deg, float rate_deg_per_frame, float cap) {
     return cap <= t ? cap : t;
 }
 
-int32_t default_idle_type(const AnimModel* m, const LocomotorInput& in, const IdleParams& idle) {
-    // 0x395920: Idle Crouch when crouched, else the container's mapping when garrisoned, else the idle. [port] a
-    // type without clips falls back to the plain idle.
+int32_t default_idle_type(const AnimModel* m, const LocomotorInput& in, const IdleParams& idle, bool clip_fallback) {
+    // 0x395920: Idle Crouch when crouched, else the container's mapping when garrisoned, else the idle. [port] for the
+    // stop clip, a type without clips falls back to the plain idle; #364: the IDLE service keeps it (clip_fallback false).
     int32_t t = in.crouched ? kAnimIdleCrouch : (in.idle_type != kNoAnimType ? in.idle_type : idle.idle_type);
-    if (m && m->variant_count(t) == 0) t = idle.idle_type;
+    if (clip_fallback && m && m->variant_count(t) == 0) t = idle.idle_type;
     return t;
 }
 
@@ -313,6 +317,8 @@ uint32_t AnimBehaviors::service_locomotor(AnimWorld& w, ObjectId id, const Locom
     ip.idle_type = default_idle_type(m, in, p.idle);
     // the presence step comes after the crouch test and the garrison override (0x395920).
     if (in.crouched || in.idle_type != kNoAnimType) ip.presence = nullptr;
+    IdleParams service_ip = ip;  // #364: the IDLE service's default idle keeps a type without clips
+    service_ip.idle_type = default_idle_type(m, in, p.idle, false);
     // the IDLE service (0x62e570) after the locomotor's play, every call for an object with IDLE
     // unless the moving gate stops it (step 1: the locomotor has a path - in.on_path - and no Allow_Idle_When_Moving;
     // then the records are cleared). Plays started: the locomotor's + the idle's. A crouch change forces the idle clip only
@@ -323,7 +329,7 @@ uint32_t AnimBehaviors::service_locomotor(AnimWorld& w, ObjectId id, const Locom
             idle_gated(id);
             return plays;
         }
-        return plays + (service_idle(w, id, ip, in.target, rng, frame, crouch_changed && plays == 0) ? 1u : 0u);
+        return plays + (service_idle(w, id, service_ip, in.target, rng, frame, crouch_changed && plays == 0) ? 1u : 0u);
     };
     // bkx1 t04 (BKX1_RENDER_RE §2.1 / §2.2 [H]): the Walk_Transition clips follow the locomotor. MOVESTART (16, state
     // 0x12) and the end clip (17..20, state 0x14) start when the locomotor starts them: variant 0 ([port] no variant draw,

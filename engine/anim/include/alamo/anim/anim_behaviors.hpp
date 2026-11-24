@@ -190,10 +190,14 @@ inline constexpr int32_t kAnimTurnLeftCrouch = 72, kAnimTurnRightCrouch = 73;
 inline constexpr float kDeployBlendSeconds = 0.0333f;
 bool is_move_family(int32_t type);                     // 2, 61, 66, 67, 115
 bool is_walk_transition_clip(int32_t type);            // 16 MOVESTART, 17..20 MOVE_ENDONE..MOVE_ENDFOUR
-int32_t default_idle_type(const AnimModel* m, const LocomotorInput& in, const IdleParams& idle);
-// `idle.idle_type`, or the presence step's answer for `records` when idle.presence is set, the records are not
-// empty and the answer has a clip in `m` ([port] no clip: the plain type, as default_idle_type).
-int32_t presence_idle_type(const AnimModel* m, ObjectId id, const IdleParams& idle, std::span<const IdleRecord> records);
+// `clip_fallback`: a type without clips in `m` falls back to the plain idle - the locomotor's stop clip ([port]). #364
+// (ANIM_PARTICLES §A.11 [M]): the IDLE service passes false - it keeps the type, its play fails every frame and the unit
+// holds its last frame.
+int32_t default_idle_type(const AnimModel* m, const LocomotorInput& in, const IdleParams& idle, bool clip_fallback = true);
+// `idle.idle_type`, or the presence step's answer for `records` when idle.presence is set and the records are not
+// empty; with `clip_fallback`, an answer without a clip in `m` gives the plain type instead (as default_idle_type).
+int32_t presence_idle_type(const AnimModel* m, ObjectId id, const IdleParams& idle, std::span<const IdleRecord> records,
+                           bool clip_fallback = true);
 // r3g t07 (S9_DEATH_CLONE_SHIELDS §1.3-1.4, DeathBehavior attach 0x58cdb0): the death clip is the type's
 // Specific_Death_Anim_Type / _Index only (+0xd98 / +0xd9c); the killing kind never picks a clip. Kind-specific deaths
 // (FW / FL / FTK / Fire / CA / Crushed) come from the Death_Clone the kind selects, whose type names its clip.

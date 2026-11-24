@@ -1290,6 +1290,7 @@ void test_events_and_locomotor() {
         CHECK(default_idle_type(m.get(), g, lp.idle) == kAnimIdleCrouch);
         g.idle_type = 78;  // Celebrate: no clip in this model
         CHECK(default_idle_type(m.get(), g, lp.idle) == kAnimIdle);
+        CHECK(default_idle_type(m.get(), g, lp.idle, false) == 78);  // #364: the IDLE service keeps it
         // Turning in place: + yaw -> TURNL, - yaw -> TURNR, none without a yaw change.
         LocomotorInput t;
         t.yaw_deg = 10.0f;
@@ -1918,6 +1919,7 @@ void test_idle_records() {
     IdleParams cp;
     cp.presence = &celebrate;
     CHECK(presence_idle_type(m.get(), 1, cp, b.idle_records(1)) == kAnimIdle);
+    CHECK(presence_idle_type(m.get(), 1, cp, b.idle_records(1), false) == 78);  // #364: the IDLE service keeps it
     // A no-target service ages every value by 1 and erases those below 1; no draw while the (fresh) idle plays.
     SimRng rng(3);
     const uint32_t st = rng.state();
@@ -1993,6 +1995,45 @@ void test_idle_records() {
     CHECK(lw.current_type(2) == 77 && lb.idle_records(2).size() == 1 && lb.idle_records(2)[0].frames == 9);
     in.crouched = true;  // crouched: the presence step does not apply
     CHECK(default_idle_type(m.get(), in, lp.idle) != 77);
+
+    // #364 (ANIM_PARTICLES §A.11 [M]): the presence idle T (Celebrate 78) has no clip. The IDLE service keeps T, its play
+    // fails every frame and the unit holds its finished clip's last frame - it does not fall back to IDLE. The stop clip
+    // after a move still falls back to the base idle.
+    {
+        AnimWorld hw;
+        AnimBehaviors hb;
+        hw.create(3, m.get(), {}, nullptr, 0);
+        IdleParams hp;
+        hp.presence = &celebrate;
+        hb.presence_refresh(3, 30, 500);
+        CHECK(hw.play(3, PlayRequest{kAnimIdle, 0, false, 0.0f, 1.0f}, nullptr, 0) == PlayResult::Played);  // a one-shot idle
+        uint64_t hf = 1;
+        for (; hw.current_mode(3) != SlotMode::Finished && hf < 100; ++hf) hw.advance(hf);
+        const float last = hw.slot(3).frame;
+        for (uint64_t k = 0; k < 40; ++k, ++hf) {
+            CHECK(!hb.service_idle(hw, 3, hp, IdleTarget::NoTarget, rng, hf));
+            hw.advance(hf);
+        }
+        CHECK(hw.current_type(3) == kAnimIdle && hw.current_mode(3) == SlotMode::Finished && hw.slot(3).frame == last);
+        // without the record the plain idle plays again
+        hb.idle_gated(3);
+        CHECK(hb.service_idle(hw, 3, hp, IdleTarget::NoTarget, rng, hf) && hw.current_type(3) == kAnimIdle &&
+              hw.current_mode(3) != SlotMode::Finished);
+        // the locomotor's stop clip: Celebrate has no clip, so the base idle
+        LocomotorParams sp;
+        sp.idle.presence = &celebrate;
+        LocomotorInput si;
+        si.speed = 1.0f;
+        si.max_speed = 1.0f;
+        si.on_path = true;
+        hb.service_locomotor(hw, 3, sp, si, rng, hf + 1);
+        CHECK(hw.current_type(3) == kAnimMove);
+        si.speed = 0.0f;
+        si.on_path = false;
+        hb.presence_refresh(3, 30, 500);
+        hb.service_locomotor(hw, 3, sp, si, rng, hf + 2);
+        CHECK(hw.current_type(3) == kAnimIdle);
+    }
     std::printf("idle records: aging / clear / gate / presence idle ok\n");
 }
 
