@@ -1304,9 +1304,14 @@ std::vector<objects::ObjectId> TacticalBattle::owned_ids(const TacticalMode& mod
 // the battle's one validate-and-apply order entry (tactical_battle.hpp apply_order). The unit orders are the
 // player's order API (formerly the switch of apps/game route_battle_order); everything else is handle_command's.
 cmd::RejectReason TacticalBattle::apply_order(TacticalMode& mode, uint8_t player, const cmd::EventData& ev,
-                                              std::span<const objects::ObjectId> selection, SimRng& rng) {
+                                              std::span<const objects::ObjectId> selection, SimRng& rng, AiOrderIssuer* ai) {
     using R = cmd::RejectReason;
     using T = cmd::EventType;
+#ifdef ALAMO_SIM_HAVE_TACTICAL_AI
+    if (ai) return ai_order(mode, player, ev, *ai, rng);  // #147: the AI's rules (they pass the rest back here)
+#else
+    (void)ai;
+#endif
     const auto finite = [](float f) { return f - f == 0.0f; };
     // Wire ids -> object ids (kNoObject / out-of-range ids dropped); the order_* functions filter ownership.
     const auto ids_of = [](const std::vector<uint32_t>& wire) {
