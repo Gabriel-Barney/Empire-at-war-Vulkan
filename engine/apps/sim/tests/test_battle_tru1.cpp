@@ -103,6 +103,11 @@ const char* kTypes = R"(<T>
   <Can_Indigenous_Unit_Stop>False</Can_Indigenous_Unit_Stop></GroundInfantry>
  <GroundStructure Name="T_Restless_Hut"><Variant_Of_Existing_Type>T_Hut</Variant_Of_Existing_Type>
   <Spawned_Indigenous_Units_Type>T_Ewok_Restless</Spawned_Indigenous_Units_Type><Spawn_Indigenous_Units_Chance>100.0</Spawn_Indigenous_Units_Chance></GroundStructure>
+ <GroundStructure Name="T_Ttm"><Tactical_Health>500</Tactical_Health><LandBehavior>TERRAIN_TEXTURE_MODIFICATION</LandBehavior>
+  <Obstacle_Width>60</Obstacle_Width><Obstacle_Height>60</Obstacle_Height><Terrain_Texture_Modifier_Material>62</Terrain_Texture_Modifier_Material>
+  <Terrain_Texture_Modifier_Join_Distance>500.0</Terrain_Texture_Modifier_Join_Distance></GroundStructure>
+ <GroundStructure Name="T_Ttm_Other"><Variant_Of_Existing_Type>T_Ttm</Variant_Of_Existing_Type>
+  <Terrain_Texture_Modifier_Material>61</Terrain_Texture_Modifier_Material></GroundStructure>
  <GroundStructure Name="T_Pack_Hut"><Variant_Of_Existing_Type>T_Hut</Variant_Of_Existing_Type>
   <Spawned_Indigenous_Units_Type>T_Ewok</Spawned_Indigenous_Units_Type><Spawn_Indigenous_Units_In_Packs>Yes</Spawn_Indigenous_Units_In_Packs>
   <Spawned_Indigenous_Pack_Type>T_Ewok_Pack</Spawned_Indigenous_Pack_Type><Spawn_Indigenous_Units_Chance>100.0</Spawn_Indigenous_Units_Chance></GroundStructure>
@@ -220,7 +225,7 @@ terrain::MapData space_map(bool with_marker) {
     return m;
 }
 
-terrain::MapData land_map(const Data& d, int32_t extra_huts = 0, bool restless = false) {
+terrain::MapData land_map(const Data& d, int32_t extra_huts = 0, bool restless = false, bool ttm = false) {
     terrain::MapData m;
     m.terrain.present = true;
     m.terrain.width = m.terrain.height = 63;
@@ -240,6 +245,11 @@ terrain::MapData land_map(const Data& d, int32_t extra_huts = 0, bool restless =
     hut("T_Pack_Hut", 600.0f, 900.0f);
     for (int32_t i = 0; i < extra_huts; ++i) hut("T_Hut", 200.0f + 100.0f * static_cast<float>(i), 1400.0f);
     if (restless) hut("T_Restless_Hut", 1200.0f, 900.0f);  // tru2 t01
+    if (ttm) {  // #498: two material-62 stamps 200 apart (one join), one material-61 stamp among them (no join)
+        hut("T_Ttm", 1200.0f, 400.0f);
+        hut("T_Ttm", 1400.0f, 400.0f);
+        hut("T_Ttm_Other", 1300.0f, 600.0f);
+    }
     return m;
 }
 
@@ -473,6 +483,10 @@ struct LandRun {
     size_t single_count = 0, pack_count = 0;
     bool kept_three = true, refilled = false, refill_delay_ok = false, pack_once = true, pack_refilled = false;
     bool near_hut = true, adopted = false, saved = false;
+    // variant 7 (#498): the map load's TERRAIN_TEXTURE_MODIFICATION stamp draws; a T_Ttm spawned after the load (no stamp)
+    uint32_t ttm_draws = 0, ttm_after_spawn = 0;
+    uint64_t sync_before_spawn = 0, sync_after_spawn = 0;
+    bool ttm_spawned = false;
     uint32_t kill_frame = 0, refill_frame = 0;
     // variant 3: T_Hut on after SET_SPAWN 0.3 and then 1.0; the other battle rewards through the battle host
     int32_t on_low = -1, on_full = -1;
@@ -520,7 +534,7 @@ LandRun run_land(const Data& d, int32_t workers, int variant = 0) {
     CampaignBattles battles(host, d.crules, *d.catalog,
                             [dp, variant](const std::string& name, terrain::MapData& m) {
                                 if (name != "T_Land_B") return false;
-                                m = land_map(*dp, variant == 3 ? 8 : 0, variant == 6);
+                                m = land_map(*dp, variant == 3 ? 8 : 0, variant == 6, variant == 7);
                                 return true;
                             },
                             opt);
@@ -577,6 +591,18 @@ LandRun run_land(const Data& d, int32_t workers, int variant = 0) {
                 if (l.find(what) != std::string::npos) return true;
             return false;
         };
+        if (variant == 7) {
+            out.ttm_draws = b->map_load_stats().ttm_draws;
+            objects::SpawnParams sp;
+            sp.type = static_cast<objects::TypeIndex>(type_of(d, "T_Ttm"));
+            sp.owner = -1;
+            sp.position = Vec3{1300.0f, 400.0f, 0.0f};
+            out.sync_before_spawn = host.random().synced().draws();
+            out.ttm_spawned = st.alive(tm->spawn(sp));
+            out.sync_after_spawn = host.random().synced().draws();
+            out.ttm_after_spawn = b->map_load_stats().ttm_draws;
+            break;
+        }
         if (variant == 1 && f == 5) {
             CHECK(b->reward_set_spawn(*tm, host.random().synced(), "t_hut", 1.0f) == 0);  // the CRC of the upper-case name only
             battles.story_tactical_reward("SET_SPAWN", {"T_HUT", "1.0"});
@@ -705,6 +731,20 @@ LandRun run_land(const Data& d, int32_t workers, int variant = 0) {
 }
 
 void test_land(const Data& d) {
+    {
+        // #498 (TerrainTextureModificationBehaviorClass vf +0x50 0x624310 -> stamp 0x1341e0 [H]): a map-placed object with the
+        // behaviour makes one synced step per 10-unit cell of its stamp, (Obstacle_Width + 80) x (Obstacle_Height + 80):
+        // 140 x 140 -> 15 x 15 = 225; and one join stamp per earlier same-material one within the join distance, centred
+        // between them, max(|dx|, 60) x max(|dy|, 60): 200 x 60 -> 21 x 7 = 147. Three objects (the third of another
+        // material: no join): 3 x 225 + 147 = 822. An object spawned after the load (the vf9 initialise) makes none.
+        // ledger: verifies GameObjectType.Terrain_Texture_Modifier_Material
+        // ledger: verifies GameObjectType.Terrain_Texture_Modifier_Join_Distance
+        const LandRun t = run_land(d, 0, 7);
+        std::printf("  #498 TTM: map load stamp draws %u, after a later spawn %u (spawned %d, sync draws %llu -> %llu)\n", t.ttm_draws,
+                    t.ttm_after_spawn, t.ttm_spawned, static_cast<unsigned long long>(t.sync_before_spawn),
+                    static_cast<unsigned long long>(t.sync_after_spawn));
+        CHECK(t.fought && t.ttm_draws == 822u && t.ttm_spawned && t.ttm_after_spawn == 822u && t.sync_after_spawn == t.sync_before_spawn);
+    }
     const LandRun a = run_land(d, 0);
     std::printf("  spawners: %zu, T_Hut decided %d active %d (Chance 0.5 of 2 -> 1); single %zu (kept 3 %d, near %d, adopted %d), "
                 "refilled %d at %u after the kill at %u (delay ok %d); pack %zu (no refill while one lives %d, refilled %d)\n",

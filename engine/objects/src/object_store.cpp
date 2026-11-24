@@ -93,6 +93,7 @@ void ObjectStore::attach(uint32_t slot, BehaviorTypeId id, const BehaviorService
         registered_serviced_[slot] = 1;
         serviced_.push_back(h);
     }
+    if (map_init_ && on_map_init) on_map_init(*this, h, id);  // #498: the vf10 override's work, after the initialise
 }
 
 ObjectHandle ObjectStore::create(const SpawnParams& p) {

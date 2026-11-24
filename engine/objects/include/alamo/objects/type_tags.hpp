@@ -123,6 +123,8 @@ struct SubObjectsTag {
     X(Ref, Obstacle_Proxy_Type, 0)                                                                                    \
     X(Float, Obstacle_Width, 0.0f)                                                                                    \
     X(Float, Obstacle_Height, 0.0f)                                                                                   \
+    X(Int, Terrain_Texture_Modifier_Material, 0)                                                                      \
+    X(Float, Terrain_Texture_Modifier_Join_Distance, 0.0f)                                                            \
     X(Float, Obstacle_X_Offset, 0.0f)                                                                                 \
     X(Float, Obstacle_Y_Offset, 0.0f)                                                                                 \
     X(Bool, Fine_Tune_Occupied_Passability, true)                                                                     \
