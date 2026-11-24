@@ -247,7 +247,7 @@ bool CombatSystem::add_unit(const UnitSpawn& s, uint32_t frame, SimRng& rng) {
     nu.emitter_radius = ud.passive_missile_shield_radius > 0.0f ? ud.passive_missile_shield_radius : 0.0f;
     {
         bool ms = false;
-        for (size_t slot = 0; slot < 2; ++slot) ms = ms || (nu.abs.present[slot] && nu.abs.type[slot] == 32);
+        for (size_t slot = 0; slot < 2; ++slot) ms = ms || (nu.ability_state.present[slot] && nu.ability_state.type[slot] == 32);
         nu.emitter_entries = (ms ? 1u : 0u) + (ud.passive_missile_shield_radius > 0.0f ? 1u : 0u);
     }
     if (ud.weapon_projectile >= 0) {
@@ -447,7 +447,7 @@ bool CombatSystem::ability_type_active(const Unit& u, int32_t type) const {
     // S8 t11 (TACTICAL_COMBAT §3.1.1 "ROCKET_ATTACK detection"): 0x39b950 reads the per-type slot filled from every
     // Unit_Abilities_Data entry; the host mirrors entries past slot 1 as kUnitRocketAttack.
     if (type == kAbilityRocketAttack && (u.flags & kUnitRocketAttack)) return true;
-    return u.abs.type_active(type);
+    return u.ability_state.type_active(type);
 }
 
 bool CombatSystem::order_attack_issue(ObjectId attacker, ObjectId target, int32_t hardpoint) {
@@ -646,12 +646,12 @@ void CombatSystem::refresh_unit_cache(Unit& u) {
     u.mod_ver = u.mods.version();
     u.player_ver = ps ? ps->version() : 0;
     u.mod_valid = 1;
-    u.own_mult = u.abs.mult;
+    u.own_mult = u.ability_state.mult;
     u.mult = u.own_mult;
 }
 
 void CombatSystem::build_ability_state(Unit& u) const {
-    UnitAbilityState& st = u.abs;
+    UnitAbilityState& st = u.ability_state;
     st = UnitAbilityState{};
     const UnitAbilityDesc* ab[2] = {ability(u, 0), ability(u, 1)};
     const bool act[2] = {u.ability_active[0] != 0, u.ability_active[1] != 0};
@@ -875,7 +875,7 @@ float CombatSystem::min_health_fraction(const Unit& u) const {
 }
 
 float CombatSystem::base_attack_range(const Unit& u) const {
-    if (u.abs.range_override > 0.0f) return u.abs.range_override;
+    if (u.ability_state.range_override > 0.0f) return u.ability_state.range_override;
     const UnitDesc& ud = desc_of(u);
     // 0x3749d0 step 2 (LOB_SOLVER §4): a grenade weapon's range is Max_Speed^2 / (lob mod x gravity) [port: 0 for G <= 0];
     // Targeting_Max_Attack_Distance is not read. Scan box / approach only - acceptance is the solver (slot 44).
@@ -1760,9 +1760,9 @@ float CombatSystem::weapon_delay(const Unit& u, const HardpointDesc* hd) const {
     // x [slot-1 entry], in that order (float32); an entry is the hardpoint type's per-mode delay table at the slot's
     // ability type, applied only while that ability is active.
     auto entry = [&](int s) {
-        if (!hd || !u.abs.on(s)) return 1.0f;
+        if (!hd || !u.ability_state.on(s)) return 1.0f;
         for (const WeaponDelayEntry& e : hd->weapon_delay)
-            if (e.ability_type == u.abs.type[static_cast<size_t>(s)]) return e.factor;
+            if (e.ability_type == u.ability_state.type[static_cast<size_t>(s)]) return e.factor;
         return 1.0f;
     };
     float w = entry(0);
@@ -1904,7 +1904,7 @@ bool CombatSystem::unit_weapon_allowed(const Unit& u) const {
     if (!(deployed_or_deploying(u) ? ud.fire_weapon_when_deployed : ud.fire_weapon_when_undeployed)) return false;
     if (!(ability_type_active(u, kAbilityRocketAttack) ? ud.fire_weapon_when_rocket_attack : ud.fire_weapon_when_normal_attack))
         return false;
-    if (!u.abs.flag[kFlagWeaponsEnabled]) return false;
+    if (!u.ability_state.flag[kFlagWeaponsEnabled]) return false;
     if ((u.flags & kUnitFighterIdle) && !ud.can_fighter_fire_when_idle) return false;
     return (u.flags & kUnitHoverRest) == 0;
 }
@@ -2512,13 +2512,13 @@ bool CombatSystem::hp_state_allows(const Unit& u, const Hardpoint& h, const Unit
     if (t && (hd.fire_category_restrictions & desc_of(*t).category_mask)) return false;
     bool any_mode = false;
     for (int s = 0; s < 2; ++s) {
-        const uint8_t type = u.abs.type[static_cast<size_t>(s)];
-        if (!u.abs.on(s) || type < 1 || type > 0x4c) continue;
+        const uint8_t type = u.ability_state.type[static_cast<size_t>(s)];
+        if (!u.ability_state.on(s) || type < 1 || type > 0x4c) continue;
         any_mode = true;
         for (const uint8_t m : hd.no_fire_modes)
             if (m == type) return false;
     }
-    if (any_mode && !u.abs.flag[kFlagWeaponsEnabled]) return false;
+    if (any_mode && !u.ability_state.flag[kFlagWeaponsEnabled]) return false;
     if (!(deployed_or_deploying(u) ? hd.fire_when_deployed : hd.fire_when_undeployed)) return false;
     return ability_type_active(u, kAbilityRocketAttack) ? hd.fire_when_rocket_attack : hd.fire_when_normal_attack;
 }
