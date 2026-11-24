@@ -16,6 +16,8 @@
 //   * the land guard follow (t02): R = min(half the lead's range, Land_Guard_Range 150) (lead range 400: a 170 move
 //     re-paths, 130 does not); a guarded object hidden after arrival: d >= 40 plans toward its last-observed point,
 //     then d < 40 turns the guard into a position guard (the follow ends);
+//   * #116: a battle save / load mid land guard follow (every battle part, battle.ai, the synced RNG; loaded into a
+//     battle made dirty by a Lua Stop) agrees with the straight run every tick;
 //   * a third-party unit on land idles (t07): the stand-in orders drive the attacker and the defender only;
 //   * #156: the land terrain box map_extents returns is computed once at setup (TacticalBattle::land_terrain_box) and
 //     equals the per-call scan it replaced, on the staging map and on hand-made terrains.
@@ -1227,6 +1229,138 @@ void test_guard_r_cap() {
     CHECK(ordered && quiet && repathed && repath_frames <= 31 && moving);
 }
 
+// #116: a battle save / load in the middle of a land guard follow. The guard scene of test_guard_r_cap (a Lua
+// Guard_Target of one player-0 squad on another, the guarded squad then moved 170 off its recorded point so the follow
+// re-paths) runs twice from the same start: straight through, and saved 20 frames into the re-pathed follow - every battle
+// part (battle.types, the module parts, battle.state), the AI (battle.ai: the follow record with its guard flag) and the
+// synced RNG - then made dirty (a Lua Stop of the guard: its movement, its combat orders and its follow record dropped) and
+// loaded back into the running battle. From that frame on, the host's CRC registry and the AI's digest agree with the
+// straight run every tick.
+bool lua_stop(BattleAi& bai, objects::ObjectId unit) {
+    std::vector<uint8_t> pay(lua::kLuaOrderPayloadBytes, 0);
+    for (int i = 0; i < 4; ++i) pay[static_cast<size_t>(i)] = static_cast<uint8_t>(static_cast<uint32_t>(unit) >> (8 * i));
+    for (int i = 0; i < 4; ++i) pay[static_cast<size_t>(4 + i)] = 0xFF;  // no target
+    const auto sub = static_cast<uint16_t>(lua::kLuaOrderSubtype + static_cast<uint16_t>(lua::LuaOrder::Stop));
+    return bai.execute(0, commands::ev::port_extension(sub, pay)) == commands::RejectReason::None;
+}
+
+struct GuardSaveRun {
+    std::vector<uint64_t> crc;  // per tick from the save frame: the host CRC registry's combined digest, then the AI's
+    bool ordered = false, following = false, stopped = false, loaded = false;
+    uint32_t save_frame = 0;
+};
+
+GuardSaveRun run_guard_save(const Data& d, bool reload) {
+    GuardSaveRun out;
+    CampaignBattleOptions opt;
+    opt.conflict.human_choice = galactic::BattleChoice::Fight;
+    opt.battle.max_frames = 6000;
+    opt.battle.skip_human_units = true;
+    opt.battle.order_interval = 0;
+    opt.battle.fog = false;
+    ClashSession s(d, 0, opt, {"S10_Squad", "S10_Squad"}, {}, true);
+    if (!s.gs) return out;
+    ai::AiDefinitions defs;
+    ai::EquationSet eqs;
+    std::unique_ptr<BattleAi> bai;
+    objects::ObjectId sq[2] = {objects::kNoObjectId, objects::kNoObjectId}, enemy = objects::kNoObjectId;
+    int stage = 0;
+    uint32_t stage_frame = 0, rp0 = 0;
+    Vec3 gp0{};
+    for (uint64_t tk = 0; tk < 6000 && stage < 9; ++tk) {
+        TacticalBattle* b = s.tick();
+        TacticalMode* tm = s.host->tactical();
+        if (!b || !tm || b->frame() < 3) {
+            if (stage > 0) break;
+            continue;
+        }
+        objects::ObjectStore& st = tm->primary();
+        if (bai) bai->follow_service();
+        if (stage == 0) {
+            CHECK(find_squads(*b, st, sq, enemy));
+            if (sq[1] == objects::kNoObjectId) break;
+            invulnerable_all(*b);
+            const tactical::Aabb& bb = tm->bounds();
+            const float y0 = bb.min.y + 120.0f;
+            CHECK(b->teleport(*tm, sq[0], Vec3{bb.min.x + 120.0f, y0, 0.0f}, st.facing(st.find(sq[0]))));
+            CHECK(b->teleport(*tm, sq[1], Vec3{bb.min.x + 920.0f, y0 + 200.0f, 0.0f}, st.facing(st.find(sq[1]))));
+            bai = guard_ai(*b, *tm, s, d, defs, eqs);
+            stage = 1;
+            stage_frame = b->frame();
+            continue;
+        }
+        if (stage == 1 && b->frame() >= stage_frame + 2) {
+            gp0 = st.position(st.find(sq[1]));
+            out.ordered = lua_guard(*bai, sq[0], sq[1], gp0);
+            rp0 = b->stats().guard_repaths;
+            stage = 2;
+            stage_frame = b->frame();
+            continue;
+        }
+        if (stage == 2 && b->frame() >= stage_frame + 5) {  // 170 off the recorded point (> R 150): the follow re-paths
+            CHECK(b->teleport(*tm, sq[1], Vec3{gp0.x, gp0.y + 170.0f, gp0.z}, st.facing(st.find(sq[1]))));
+            stage = 3;
+            stage_frame = b->frame();
+            continue;
+        }
+        if (stage == 3 && b->stats().guard_repaths > rp0 && b->frame() >= stage_frame + 20) {
+            out.save_frame = b->frame();
+            // the guard follow is on: its record re-pathed (guard_follow_step runs only for a guard follow) and it moves
+            out.following = b->stats().guard_repaths > rp0 && b->movement().view(sq[0]).has_goal;
+            if (reload) {
+                using Part = TacticalBattle::SavePart;
+                const Part parts[] = {Part::Movement, Part::Combat, Part::Abilities, Part::Garrison, Part::Hangar, Part::Fog,
+                                      Part::Damage, Part::State};
+                ByteWriter types;
+                b->write_types(types);
+                std::vector<std::vector<uint8_t>> saved;
+                for (const Part pt : parts) {
+                    ByteWriter w;
+                    b->write_part(pt, w);
+                    saved.push_back(w.bytes());
+                }
+                ByteWriter ai_bytes;
+                bai->write(ai_bytes);
+                const SimRng rng = s.host->random().synced();
+                out.stopped = lua_stop(*bai, sq[0]) && !b->movement().view(sq[0]).has_goal;  // dirty: the guard stopped
+                ByteReader tr(types.bytes());
+                out.loaded = b->read_types(tr) && tr.done();
+                for (size_t k = 0; k < saved.size(); ++k) {
+                    ByteReader r(saved[k]);
+                    out.loaded = out.loaded && b->read_part(parts[k], r) && r.done();
+                }
+                ByteReader ar(ai_bytes.bytes());
+                out.loaded = out.loaded && bai->read(ar) && ar.done();
+                s.host->random().synced() = rng;
+            }
+            stage = 4;
+            stage_frame = b->frame();
+        }
+        if (stage == 4) {
+            out.crc.push_back(s.host->crc_registry().capture(b->frame()).combined);
+            StateHasher h;
+            bai->hash(h);
+            out.crc.push_back(h.digest());
+            if (b->frame() >= stage_frame + 400) stage = 9;
+        }
+    }
+    return out;
+}
+
+void test_guard_follow_save() {
+    auto d = squad_data_patched("_bkt1_range400s", trooper_range_400);
+    const GuardSaveRun a = run_guard_save(*d, false), b = run_guard_save(*d, true);
+    size_t first = 0;
+    while (first < a.crc.size() && first < b.crc.size() && a.crc[first] == b.crc[first]) ++first;
+    std::printf("  guard follow save (#116): ordered %d, saved at frame %u (straight %u) while following %d; dirty (stopped) %d, loaded "
+                "%d; %zu / %zu digests, equal up to %zu\n",
+                b.ordered ? 1 : 0, b.save_frame, a.save_frame, b.following ? 1 : 0, b.stopped ? 1 : 0, b.loaded ? 1 : 0,
+                b.crc.size(), a.crc.size(), first);
+    CHECK(a.ordered && b.ordered && a.following && b.following && a.save_frame == b.save_frame && a.save_frame > 0);
+    CHECK(b.stopped && b.loaded);
+    CHECK(a.crc.size() == 2u * 401u && a.crc == b.crc);
+}
+
 // (C 3) the guard of an enemy squad, the map revealed for player 0: it walks in and stands. The reveal is then undone:
 // arrived with the object hidden -> d = |L - P| >= 40 (it stands ~150 off, the trim's guard range) -> the plan toward the
 // last-observed point P (guard_unseen_plans + 1, no trim for an unseen target: it walks onto P), then, arrived within 40
@@ -1452,6 +1586,7 @@ int main() {
     std::printf("bkt1 t02: land guard follow - Land_Guard_Range caps R; a hidden guarded object (C 3)\n");
     test_guard_r_cap();
     test_guard_hidden_drop();
+    test_guard_follow_save();  // #116: a battle save / load mid land guard follow
 #endif
     std::printf("bkt1 t07: a third-party unit idles on land\n");
     {
