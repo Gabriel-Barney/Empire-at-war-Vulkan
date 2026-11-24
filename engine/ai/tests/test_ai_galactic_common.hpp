@@ -958,6 +958,7 @@ void test_magic_spawn_hyperspace_veto();
 void test_magic_spawn_space_model_info();
 void test_ground_structure_slots();
 void test_fleet_distance_tokens();
+void test_isconnectedto_trade_route_attenuation();  // #436
 void test_connectivity_tokens();
 void test_structure_eta_queue_wait();
 void test_queue_slot_lifetime();
