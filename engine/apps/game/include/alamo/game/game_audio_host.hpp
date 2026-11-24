@@ -189,9 +189,41 @@ public:
         objects::TypeIndex type = objects::kNone;
         bool vehicle_thief = false;  // has unit ability 46 EJECT_VEHICLE_THIEF (0x3986b0, which also checks team members)
     };
+    // #327 t03 (the response resolvers 0x3739a0 Select / 0x373700 Attack / 0x3738b0 Move [H]): how the resolver reads the
+    // speaker. An Attack also reads the speaker type's SFXEvent_Attack_Override list (0x373820) for the target's type, after
+    // the group line and before the resolver and its exits.
+    struct ResponseResolve {
+        enum class Exit : uint8_t {
+            Normal,    // the speaker type's *_With_Non_Hero_Ability line (non_hero_ability), else `member_type`'s plain
+                       // line, else the speaker type's
+            Plain,     // a structure dummy speaker or a TACTICAL_BUILD_OBJECTS container: the speaker type's plain line
+            MoveLine,  // a stolen-vehicle container (+0x3a2 & 8): the speaker type's SFXEvent_Move in all three
+            Silent,    // a team without members: no line
+        };
+        Exit exit = Exit::Normal;
+        objects::TypeIndex member_type = objects::kNone;    // the team's first member, the container or the speaker
+        objects::TypeIndex attack_target = objects::kNone;  // an Attack order's target type
+    };
     void unit_response(const objects::GameObjectTypes& types, objects::TypeIndex type, uint64_t object, UnitResponse kind,
                        bool group = false, int32_t owner = -1, uint32_t dest_fields = 0, int32_t hardpoint_kind = -1,
-                       bool non_hero_ability = false, std::span<const AssistCandidate> assist = {});
+                       bool non_hero_ability = false, std::span<const AssistCandidate> assist = {},
+                       const ResponseResolve& resolve = {});
+    // #327 t03: the resolvers' walk from the speaker (`container` = its team / parent container, invalid for none;
+    // `members` = the members of the container, or of the speaker when it has none; `container_stolen` = the container is
+    // a stolen vehicle, CombatSystem kUnitStolenVehicle). In order:
+    //   * the speaker has DUMMY_GROUND_STRUCTURE / DUMMY_ORBITAL_STRUCTURE (obj +0x391 / +0x392): Plain;
+    //   * a container with TACTICAL_BUILD_OBJECTS (+0x35b): Plain; a stolen container: MoveLine; else the container
+    //     stands for the speaker;
+    //   * that object has TEAM (+0x348): no members -> Silent, else its first member (0x4ec820);
+    //   * Normal, with member_type = that object's type.
+    static ResponseResolve resolve_speaker(const objects::ObjectStore& store, objects::ObjectHandle speaker,
+                                           objects::ObjectHandle container, std::span<const objects::ObjectId> members,
+                                           bool container_stolen);
+    // #327 t03 (0x373820 [H]; the list is filled by the type post-load 0x377500): the (type name, event) pairs of
+    // SFXEvent_Attack_Override in list order; the first pair whose type is `target_type_name` (case-insensitive) and
+    // whose event exists (`known`) gives the line. A pair whose type or event does not resolve stays an empty entry.
+    static std::string_view attack_override_event(std::span<const std::string_view> tokens, std::string_view target_type_name,
+                                                  const std::function<bool(std::string_view event)>& known);
     // The assist pick with the free RNG (0x1ffb40 on the Probability gate's generator [H]): int(0, n - 1) over the whole
     // selection, drawn again on a null entry (not counted) or on the speaker (more than 50 speaker draws: none). None
     // without a draw for an empty selection or the speaker alone. Returns the index, or SIZE_MAX for none.

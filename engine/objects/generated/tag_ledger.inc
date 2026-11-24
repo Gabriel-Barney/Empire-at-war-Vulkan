@@ -413,7 +413,7 @@
 {"GameObjectType", "SFXEvent_Group_Attack", 0x1f, LedgerState::Consumed, "docs/re/xml_reference_index.md", 25, 1},
 {"GameObjectType", "SFXEvent_Assist_Move", 0x1f, LedgerState::Consumed, "", 110, 1},
 {"GameObjectType", "SFXEvent_Assist_Attack", 0x1f, LedgerState::Consumed, "docs/re/xml_reference_index.md", 110, 1},
-{"GameObjectType", "SFXEvent_Attack_Override", 0x22, LedgerState::Stored, "docs/re/xml_reference_index.md", 0, 1},
+{"GameObjectType", "SFXEvent_Attack_Override", 0x22, LedgerState::Consumed, "docs/re/xml_reference_index.md", 0, 1},
 {"GameObjectType", "SFXEvent_Hardpoint_All_Weapons_Destroyed", 0x1f, LedgerState::Verified, "docs/re/xml_reference_index.md", 2, 1},
 {"GameObjectType", "SFXEvent_Attack_Hardpoint", 0x42, LedgerState::Verified, "docs/re/xml_reference_index.md", 426, 1},
 {"GameObjectType", "SFXEvent_Hardpoint_Destroyed", 0x42, LedgerState::Verified, "docs/re/xml_reference_index.md", 362, 1},

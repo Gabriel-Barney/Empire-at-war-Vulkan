@@ -580,13 +580,14 @@ void App::respond(const commands::EventData& ev) {
     // #50 t02 (0x442f0 / 0x44590 [H]): Group_Move / Group_Attack when a tactical move or attack selection counts more than
     // one object that is not a TEAM / FLEET / TRANSPORT; the non-hero-ability variant when the speaker's team's first
     // member (a team speaker: its own first member) has its first or second unit ability active.
-    // Gaps (tier 1, #50 follow-ups): the Attack response's Attack_Override list step (0x373820, between Group_Attack and the
-    // resolver; no vanilla data sets it); the resolvers' exits for a structure dummy or a TACTICAL_BUILD_OBJECTS container
-    // (the plain line), a vehicle-thief capture (the Move line) and a team without members (nothing); and their read of
-    // the plain line from the member's type first (the port reads the speaker's).
+    // #327 t03 (0x373820, the resolvers 0x3739a0 / 0x373700 / 0x3738b0 [H]): the resolver's walk from the speaker
+    // (GameAudioHost::resolve_speaker: its exits and the type whose plain line is read first) and an Attack's target type
+    // for the SFXEvent_Attack_Override list. [port] the container is the ability system's team container, the port's only
+    // parent container of a selectable tactical object.
     const bool group = top->tactical() && (kind == UnitResponse::Move || kind == UnitResponse::Attack) &&
                        GameAudioHost::group_count(st, ids) > 1;
     bool non_hero = false;
+    GameAudioHost::ResponseResolve resolve;
     // #50 t02 (0x44547 / 0x44753 [H]): a tactical move or attack offers its whole selection to the assist pick; an id
     // that no longer names a live object is a null entry.
     std::vector<GameAudioHost::AssistCandidate> assist;
@@ -600,6 +601,14 @@ void App::respond(const commands::EventData& ev) {
             const objects::ObjectHandle mh = st.find(m);
             if (st.exists(mh))
                 non_hero = GameAudioHost::non_hero_variant_active(data_.types, st.type(mh), [&ab, m](uint8_t t) { return ab.is_active(m, t); });
+            const objects::ObjectHandle ch = team != tactical::abilities::kNoObject ? st.find(team) : objects::ObjectHandle{};
+            const tactical::combat::CombatSystem& cs = b->combat();
+            const bool stolen = team != tactical::abilities::kNoObject && cs.has_unit(static_cast<tactical::combat::ObjectId>(team)) &&
+                                (cs.flags(static_cast<tactical::combat::ObjectId>(team)) & tactical::combat::kUnitStolenVehicle) != 0;
+            resolve = GameAudioHost::resolve_speaker(st, h, ch, members, stolen);
+            if (ev.type() == T::Attack)
+                if (const objects::ObjectHandle th = st.find(static_cast<objects::ObjectId>(ev.u("target"))); st.exists(th))
+                    resolve.attack_target = st.type(th);
             if (kind == UnitResponse::Move || kind == UnitResponse::Attack) {
                 assist.reserve(ids.size());
                 for (const uint32_t c : ids) {
@@ -614,7 +623,7 @@ void App::respond(const commands::EventData& ev) {
             }
         }
     audio_.unit_response(data_.types, st.type(h), static_cast<uint64_t>(st.id(h)), kind, group, top->tactical() ? st.owner(h) : -1,
-                         fields, hp_kind, non_hero, assist);
+                         fields, hp_kind, non_hero, assist, resolve);
 }
 
 void App::submit(commands::EventData ev, bool voice) {

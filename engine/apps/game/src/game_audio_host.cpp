@@ -487,7 +487,7 @@ void GameAudioHost::negative_feedback() {
 
 void GameAudioHost::unit_response(const objects::GameObjectTypes& types, objects::TypeIndex type, uint64_t object, UnitResponse kind,
                                   bool group, int32_t owner, uint32_t dest_fields, int32_t hardpoint_kind, bool non_hero_ability,
-                                  std::span<const AssistCandidate> assist) {
+                                  std::span<const AssistCandidate> assist, const ResponseResolve& resolve) {
     if (!game_) return;
     // The mode's "excluded set" = the retreat coordinator's retreating units (STRATEGIC_GAPS §7.4 [M]): no response.
     if (owner >= 0 && owner == retreating_player_) {
@@ -513,7 +513,34 @@ void GameAudioHost::unit_response(const objects::GameObjectTypes& types, objects
         if (const std::string_view tag = move_into_field_tag(dest_fields); !tag.empty())
             if (const std::string_view ev = types.get_string(type, tag); !ev.empty())
                 play_override(ev);  // the field line replaces the move response (0x3738b0), before the group line
-    if (!overridden) lead = game_->unit_response(object, sounds(types, type), order, position_of(object), group, non_hero_ability);
+    if (!overridden) {
+        // #327 t03 (0x373820, the resolvers 0x3739a0 / 0x373700 / 0x3738b0 [H]): GameAudio::unit_response takes the group
+        // line first, then the variant, then the plain line; the resolver's choice goes into that plain slot.
+        audio::UnitSounds s = sounds(types, type);
+        bool variant = non_hero_ability;
+        if (kind == UnitResponse::Select || kind == UnitResponse::Move || kind == UnitResponse::Attack) {
+            using Exit = ResponseResolve::Exit;
+            std::string& plain = s.response[static_cast<size_t>(order)];
+            if (resolve.exit != Exit::Normal) variant = false;
+            if (resolve.exit == Exit::MoveLine) plain = s.response[static_cast<size_t>(audio::UnitOrder::Move)];
+            else if (resolve.exit == Exit::Silent) plain.clear();
+            else if (resolve.exit == Exit::Normal && resolve.member_type != objects::kNone && resolve.member_type < types.size())
+                if (const std::string& line = sounds(types, resolve.member_type).response[static_cast<size_t>(order)];
+                    !line.empty())
+                    plain = line;  // the member's plain line before the speaker's
+            // ledger: consumes GameObjectType.SFXEvent_Attack_Override
+            if (kind == UnitResponse::Attack && resolve.attack_target < types.size() && type < types.size()) {
+                const auto known = [this](std::string_view e) { return system_->database().find_sfx(e) != audio::kNoEvent; };
+                if (const std::string_view ev = attack_override_event(types.get_list(type, "SFXEvent_Attack_Override"),
+                                                                      types.name(resolve.attack_target), known);
+                    !ev.empty()) {
+                    plain = std::string(ev);  // before the resolver and its exits, after the group line
+                    variant = false;
+                }
+            }
+        }
+        lead = game_->unit_response(object, s, order, position_of(object), group, variant);
+    }
     if (lead == 0) return;
     ++stats_.responses;
     // #50 t02 (0x44547 / 0x44753 [H]): the assist step, after whichever line started.
@@ -1767,7 +1794,7 @@ void GameAudioHost::movie_started(bool movie_music, bool halt_music) {  // same 
 void GameAudioHost::movie_cue(std::string_view) {}
 void GameAudioHost::movie_ended() { movie_music_on_ = movie_halted_ = false; }
 void GameAudioHost::unit_response(const objects::GameObjectTypes&, objects::TypeIndex, uint64_t, UnitResponse, bool, int32_t, uint32_t,
-                                  int32_t, bool, std::span<const AssistCandidate>) {}
+                                  int32_t, bool, std::span<const AssistCandidate>, const ResponseResolve&) {}
 void GameAudioHost::battle_tick(const sim::TacticalBattle&, const objects::ObjectStore&, const objects::GameObjectTypes&, int32_t,
                                 const std::function<bool(objects::ObjectId)>&) {}
 void GameAudioHost::battle_end(bool, std::string_view) {}

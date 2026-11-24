@@ -153,6 +153,48 @@ size_t GameAudioHost::group_count(const objects::ObjectStore& store, std::span<c
     return n;
 }
 
+GameAudioHost::ResponseResolve GameAudioHost::resolve_speaker(const objects::ObjectStore& store, objects::ObjectHandle speaker,
+                                                              objects::ObjectHandle container,
+                                                              std::span<const objects::ObjectId> members, bool container_stolen) {
+    using Exit = ResponseResolve::Exit;
+    ResponseResolve r;
+    if (!store.exists(speaker)) return r;
+    if (store.has_behavior(speaker, objects::beh::DummyGroundStructure) ||
+        store.has_behavior(speaker, objects::beh::DummyOrbitalStructure)) {
+        r.exit = Exit::Plain;
+        return r;
+    }
+    objects::ObjectHandle o = speaker;
+    if (store.exists(container)) {
+        if (store.has_behavior(container, objects::beh::TacticalBuildObjects)) {
+            r.exit = Exit::Plain;
+            return r;
+        }
+        if (container_stolen) {
+            r.exit = Exit::MoveLine;
+            return r;
+        }
+        o = container;
+    }
+    if (store.has_behavior(o, objects::beh::Team)) {
+        if (members.empty()) {
+            r.exit = Exit::Silent;
+            return r;
+        }
+        o = store.find(members.front());
+    }
+    if (store.exists(o)) r.member_type = store.type(o);
+    return r;
+}
+
+std::string_view GameAudioHost::attack_override_event(std::span<const std::string_view> tokens, std::string_view target_type_name,
+                                                      const std::function<bool(std::string_view)>& known) {
+    if (target_type_name.empty()) return {};
+    for (size_t i = 0; i + 1 < tokens.size(); i += 2)
+        if (ascii_iequals(tokens[i], target_type_name) && (!known || known(tokens[i + 1]))) return tokens[i + 1];
+    return {};
+}
+
 std::string_view GameAudioHost::unit_ability_line(const objects::GameObjectTypes& types, objects::TypeIndex t, uint8_t ability_type,
                                                   std::string_view tag) {
     if (t >= types.size() || ability_type == 0) return {};
