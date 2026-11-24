@@ -1110,6 +1110,7 @@ struct GalacticSimTokenResolver::Impl {
             it->second.value = out;
             it->second.stamp = r.frame_;
             if (inserted) it->second.params.assign(params.begin(), params.end());
+            it->second.crc_image.clear();  // #152: stored again - the CRC bytes are rebuilt at the next capture
         }
         return true;
     }

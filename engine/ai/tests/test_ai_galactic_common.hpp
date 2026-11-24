@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -1430,3 +1431,30 @@ void test_lost_members_survive_save();  // #122
 void test_type_info_mod_categories();
 
 // Test functions (defined in the part files)
+
+// #152: the token resolver's CRC (per-entry byte images) against the full field-by-field recompute, with the time of each.
+struct ResolverCrcCheck {
+    uint64_t captures = 0, mismatches = 0;
+    std::chrono::nanoseconds image{0}, full{0};
+    size_t max_entries = 0;
+    void capture(const alamo::ai::GalacticSimTokenResolver& r) {
+        alamo::StateHasher a, b;
+        const auto t0 = std::chrono::steady_clock::now();
+        r.hash(a);
+        const auto t1 = std::chrono::steady_clock::now();
+        r.hash_full(b);
+        const auto t2 = std::chrono::steady_clock::now();
+        image += t1 - t0;
+        full += t2 - t1;
+        ++captures;
+        mismatches += a.digest() == b.digest() ? 0u : 1u;
+        max_entries = std::max(max_entries, r.cache_size());
+    }
+    void print(const char* what) const {
+        std::printf("resolver CRC (%s): %llu captures, %llu mismatches, max %zu leaf entries; per capture %.1f us incremental, "
+                    "%.1f us full\n",
+                    what, static_cast<unsigned long long>(captures), static_cast<unsigned long long>(mismatches), max_entries,
+                    captures ? static_cast<double>(image.count()) / 1000.0 / static_cast<double>(captures) : 0.0,
+                    captures ? static_cast<double>(full.count()) / 1000.0 / static_cast<double>(captures) : 0.0);
+    }
+};

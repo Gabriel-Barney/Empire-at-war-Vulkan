@@ -1236,10 +1236,14 @@ void test_foc_data() {
     for (PlanetIndex t = 0; t < sim.planets().size(); ++t)
         if (sim.planets()[t].is_planet && sim.planets()[t].type < rules.types.size() && ai_iequal(rules.types[sim.planets()[t].type].name, "Shola"))
             CHECK(world.starbase_candidate(t) == rules.find_type("Underworld_Star_Base_2"));
+    ResolverCrcCheck rc;  // #152: every frame, the incremental resolver CRC against the full recompute, and their cost
     for (int32_t f = 1; f <= 30 * 120; ++f) {
         sim.update();
         for (int32_t p = 0; p < static_cast<int32_t>(sim.players().size()); ++p) world.update_player(p, f, true, false);
+        rc.capture(world.resolver());
     }
+    rc.print("FoC galaxy");
+    CHECK(rc.captures == 30u * 120u && rc.mismatches == 0 && rc.max_entries > 0);
     // Which goal functions evaluate on this galaxy (per AI player, every planet / global).
     for (size_t p = 0; p < sim.players().size(); ++p) {
         const AiContext* c = world.context(static_cast<int32_t>(p));
