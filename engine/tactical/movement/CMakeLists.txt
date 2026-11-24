@@ -30,6 +30,7 @@ add_library(alamo_tactical_movement STATIC
   src/deploy_system.cpp       # Walk locomotor deploy states (MOVEMENT 3.2)
   src/fighter.cpp             # FIGHTER_FLYING 1-5 (fighter primitives and cell grids)
   src/fighter_formation.cpp   # fighter formation block stacks (FIGHTER_FLYING 4.11)
+  src/formation_stack.cpp     # #488: the shared formation block-stack rules
   src/space_avoid.cpp         # SPACE_AVOIDANCE: avoidance tree members + precise model test (FighterAvoidFn rules)
   src/movement_save.cpp       # N1 stage 2: save / load of the battle movement state
   src/fleet_placement.cpp     # campaign space fleet placement layout (CU8K_T03_T08_T09_RE 1)

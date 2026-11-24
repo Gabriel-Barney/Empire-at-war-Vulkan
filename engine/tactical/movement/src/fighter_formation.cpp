@@ -13,19 +13,12 @@
 #include <algorithm>
 #include <cmath>
 
+#include "alamo/tactical/movement/formation_stack.hpp"
 #include "alamo/tactical/movement/movement_system.hpp"
 
 namespace alamo::tactical::movement {
 
 namespace {
-
-// The block equality 0x40dc90: kind, flags, the push class, the bytes, and the kind's own fields.
-bool same_block(const FighterBlock& a, const FighterBlock& b) {
-    if (a.kind != b.kind || a.flags != b.flags || a.pushed != b.pushed || a.own_speed != b.own_speed || a.loop != b.loop)
-        return false;
-    if (a.kind == kFighterBlockObject) return a.object == b.object && a.hard_point == b.hard_point;
-    return a.point.x == b.point.x && a.point.y == b.point.y && a.facing == b.facing;
-}
 
 float dist2d(V2 a, V2 b) { return std::sqrt(length_sq(a - b)); }
 
@@ -274,29 +267,11 @@ void MovementSystem::fform_waypoint(const MoveOrder& order, std::vector<uint32_t
 // b's closes a patrol loop (blocks[0..i] +0x5e := 1, b not added); else b goes to the BOTTOM (runs after everything
 // queued). Then, when n was 1 or the formation had arrived (state 3), state := 0.
 void MovementSystem::fform_append(FighterFormation& f, FighterBlock b) {
-    uint32_t queued = 0;
-    for (const FighterBlock& x : f.blocks) queued += (x.flags & kMoveFlagQueue) != 0 ? 1u : 0u;
-    if (queued >= cfg_.constants.max_waypoints_per_path) return;
-    b.flags = static_cast<uint8_t>(b.flags | kMoveFlagPlayerOrder);
+    // #488: the rules are the shared stack_append (formation_stack.hpp).
     const size_t n = f.blocks.size();
-    if (n == 0) {
-        f.blocks.push_back(b);
-    } else {
-        if (same_block(b, f.blocks[0])) return;
-        V2 gb;
-        const bool have_gb = fblock_goal(b, gb);
-        const float loop_r = cfg_.mode == MoveMode::Land ? 20.0f : 80.0f;
-        size_t loop_at = 0;
-        for (size_t i = 1; i < n && have_gb && loop_at == 0; ++i) {
-            V2 gi;
-            if ((f.blocks[i].flags & kMoveFlagPlayerOrder) != 0 && fblock_goal(f.blocks[i], gi) && dist2d(gi, gb) <= loop_r) loop_at = i;
-        }
-        if (loop_at > 0) {
-            for (size_t i = 0; i <= loop_at; ++i) f.blocks[i].loop = true;
-        } else {
-            f.blocks.insert(f.blocks.begin(), b);
-        }
-    }
+    const AppendResult r = stack_append(f.blocks, b, cfg_.constants.max_waypoints_per_path, cfg_.mode == MoveMode::Land ? 20.0f : 80.0f,
+                                        [this](const FighterBlock& x, V2& out) { return fblock_goal(x, out); });
+    if (r == AppendResult::Refused || r == AppendResult::Ignored) return;
     if (n == 1 || f.state == kFormationArrived) f.state = kFormationPlan;
 }
 
@@ -305,13 +280,9 @@ void MovementSystem::fform_append(FighterFormation& f, FighterBlock b) {
 // the path-progress object F +0x230 (no such objects), signal 0x2a (flag 0x40, no reader), 0x3a8710 on Space_Layer
 // members and unit ability 5 (no fighter has it active through a block).
 void MovementSystem::fform_pop(FighterFormation& f) {
-    if (f.blocks.size() <= 1) return;
-    FighterBlock t = f.blocks.back();
-    f.blocks.pop_back();
-    if (t.loop) {
-        t.flags = static_cast<uint8_t>(t.flags | kMoveFlagQueue);
-        f.blocks.insert(f.blocks.begin(), t);
-    }
+    const std::optional<FighterBlock> popped = stack_pop(f.blocks);  // #488: the shared rule
+    if (!popped) return;
+    const FighterBlock& t = *popped;
     V2 g;
     if (fblock_goal(f.blocks.back(), g)) f.goal = g;
     f.state = t.kind == kFighterBlockObject ? kFormationPopped : kFormationPlan;
@@ -341,12 +312,7 @@ bool MovementSystem::fighter_push(ObjectId key, ObjectId object, int32_t hard_po
     b.own_speed = true;
     V2 g;
     if (!fform_block_ok(b) || !fblock_goal(b, g)) return false;
-    while (f->blocks.size() > 1) {
-        const FighterBlock& t = f->blocks.back();
-        if ((t.flags & kMoveFlagGuardMove) != 0 || t.loop || t.pushed != b.pushed) break;
-        fform_pop(*f);
-    }
-    f->blocks.push_back(b);
+    stack_push(f->blocks, b);  // #488: the shared pre-pop and push (the state and goal are set below)
     f->goal = g;
     f->speed = -1.0f;
     f->state = kFormationPlan;

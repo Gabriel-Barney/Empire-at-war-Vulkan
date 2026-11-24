@@ -146,8 +146,8 @@ LandAutoEngageRun run_land_auto_engage(const Data& d) {
                 else if (b->frame() > stage_frame + 1500) stage = 9;
                 continue;
             }
-            if (r && r->pushed != objects::kNoObjectId) {
-                out.pushed = std::find(emem.begin(), emem.end(), r->pushed) != emem.end();
+            if (r && r->pushed() != objects::kNoObjectId) {
+                out.pushed = std::find(emem.begin(), emem.end(), r->pushed()) != emem.end();
                 out.push_frames = b->frame() - stage_frame;
                 out.push_hp = b->attack_block_hp(sq);
                 stage = 3;
@@ -169,7 +169,7 @@ LandAutoEngageRun run_land_auto_engage(const Data& d) {
         }
         if (stage == 4) {  // (iii) the leash pops the auto block, the order's position block resumes
             const LandFormationRecord* r = record_of(*b, sq);
-            if (r && r->pushed == objects::kNoObjectId && b->stats().land_auto_pops > 0) {
+            if (r && r->pushed() == objects::kNoObjectId && b->stats().land_auto_pops > 0) {
                 out.popped = true;
                 out.pop_frames = b->frame() - stage_frame;
                 out.resumed = v.has_goal && dist2d(v.goal, dest) < 40.0f;
@@ -189,7 +189,7 @@ LandAutoEngageRun run_land_auto_engage(const Data& d) {
 // nothing.
 struct LandStep10Run {
     bool found = false, no_record_refused = false, pushed = false, block = false, goal = false, again_refused = false;
-    bool friend_refused = false;
+    bool friend_refused = false, saved = false;
 };
 
 LandStep10Run run_land_step10(const Data& d) {
@@ -236,11 +236,29 @@ LandStep10Run run_land_step10(const Data& d) {
         CHECK(b->order_move(*tm, 0, mem, v.pos.x + 60.0f, v.pos.y, rng) == commands::RejectReason::None);
         out.pushed = b->land_step10_attack(*tm, sq, enemy, rng);
         const LandFormationRecord* r = record_of(*b, sq);
-        out.pushed = out.pushed && r && r->pushed == enemy && b->stats().land_step10_pushes == 1;
+        out.pushed = out.pushed && r && r->pushed() == enemy && b->stats().land_step10_pushes == 1;
         out.block = b->attack_blocks() > 0;
         out.goal = cs.attack_goal(mem.front()) == enemy;
         out.again_refused = !b->land_step10_attack(*tm, sq, enemy, rng);
         out.friend_refused = !b->land_step10_attack(*tm, sq, mem.back(), rng);
+        // #488: the record's two-block stack (the order's block, the pushed auto block) survives a battle state round trip
+        const LandFormationRecord* r0 = record_of(*b, sq);
+        const std::vector<mv::FighterBlock> before = r0 ? r0->blocks : std::vector<mv::FighterBlock>{};
+        StateHasher h0;
+        b->hash(h0);
+        ByteWriter w;
+        b->write_part(TacticalBattle::SavePart::State, w);
+        ByteReader rd(w.bytes());
+        const bool read = b->read_part(TacticalBattle::SavePart::State, rd);
+        StateHasher h1;
+        b->hash(h1);
+        const LandFormationRecord* r1 = record_of(*b, sq);
+        bool same = read && r1 && before.size() == 2 && r1->blocks.size() == before.size() && h0.digest() == h1.digest();
+        for (size_t i = 0; same && i < before.size(); ++i) {
+            const mv::FighterBlock &x = before[i], &y = r1->blocks[i];
+            same = mv::same_block(x, y) && x.threat == y.threat && x.point.x == y.point.x && x.point.y == y.point.y;
+        }
+        out.saved = same;
         break;
     }
     return out;
@@ -411,10 +429,11 @@ void test_land_auto_engage() {
         auto d = chase_data(true);
         const LandStep10Run r = run_land_step10(*d);
         std::printf("  land step-10 attack block (cmb2 t07): no record -> refused %d; ordered -> pushed %d, attack block %d, attack goal %d; "
-                    "again refused %d, friendly refused %d\n",
+                    "again refused %d, friendly refused %d; two-block stack saved %d\n",
                     r.no_record_refused ? 1 : 0, r.pushed ? 1 : 0, r.block ? 1 : 0, r.goal ? 1 : 0, r.again_refused ? 1 : 0,
-                    r.friend_refused ? 1 : 0);
+                    r.friend_refused ? 1 : 0, r.saved ? 1 : 0);
         CHECK(r.found && r.no_record_refused && r.pushed && r.block && r.goal && r.again_refused && r.friend_refused);
+        CHECK(r.saved);
     }
     {
         auto d = chase_data(true);

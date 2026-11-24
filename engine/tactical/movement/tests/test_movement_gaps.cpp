@@ -25,6 +25,7 @@ int main() {
     test_fighter_space();
     test_fighter_guard();
     test_fighter_formation_stack();  // s78f t02
+    test_formation_stack_rules();    // #488
     test_space_avoid();
     test_speed_override();
     test_arrival_turn();  // s78k t01

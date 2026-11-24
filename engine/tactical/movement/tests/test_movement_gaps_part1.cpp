@@ -1,6 +1,8 @@
 // Part 1 of test_movement_gaps (split by position; see test_movement_gaps_common.hpp).
 #include "test_movement_gaps_common.hpp"
 
+#include "alamo/tactical/movement/formation_stack.hpp"
+
 ParallelFor make_thread_pf(unsigned threads) { return ::alamo::test::make_thread_parallel_for(threads); }
 
 bool near(float a, float b, float eps) { return std::fabs(a - b) <= eps; }
@@ -1648,6 +1650,70 @@ void test_fighter_guard() {
                 copied ? 1 : 0, fr, capped ? 1 : 0, static_cast<double>(fastest), static_cast<double>(cap), slow ? 1 : 0,
                 repathed ? 1 : 0, lost ? 1 : 0, replaced ? 1 : 0);
     CHECK(copied && capped && slow && repathed && lost && replaced);
+}
+
+// #488 (formation_stack.hpp, FIGHTER_FLYING §4.11 B [H]): the shared block rules on a bare stack, without units.
+//   Set_Move 0x423c10: clear -> b only; empty -> b; b == blocks[0] -> unchanged (false); else blocks[0] := b, the rest kept.
+//   Pop 0x4105a0: n = 1 -> nothing; the top goes; a patrol top comes back at the bottom with 0x08.
+//   Push 0x41fd30: an earlier auto block on top is pre-popped, a guard or patrol top is kept.
+//   Append 0x420f70: b gets 0x04 and goes to the bottom; b == blocks[0] ignored; within the loop radius of an earlier
+//   player waypoint -> a patrol loop (blocks[0..i] +0x5e), b not added; refused at max_queued queued blocks.
+void test_formation_stack_rules() {
+    ::alamo::test::section("formation_stack_rules");
+    const auto pos = [](float x, float y, uint8_t flags = 0) {
+        FighterBlock b;
+        b.kind = kFighterBlockPosition;
+        b.point = {x, y};
+        b.flags = flags;
+        return b;
+    };
+    const BlockGoalFn goal = [](const FighterBlock& b, V2& out) {
+        if (b.kind != kFighterBlockPosition) return false;
+        out = b.point;
+        return true;
+    };
+    std::vector<FighterBlock> s;
+    CHECK(stack_set_move(s, pos(1, 1), false) && s.size() == 1);
+    CHECK(!stack_set_move(s, pos(1, 1), false) && s.size() == 1);
+    FighterBlock top = pos(9, 9);
+    s.push_back(top);
+    CHECK(stack_set_move(s, pos(2, 2), false) && s.size() == 2 && s[0].point.x == 2.0f && s[1].point.x == 9.0f);
+    CHECK(stack_set_move(s, pos(3, 3), true) && s.size() == 1 && s[0].point.x == 3.0f);
+    CHECK(!stack_pop(s) && s.size() == 1);
+    // Push: an auto block, then a second one replaces it; a guard top stays under a new auto block
+    FighterBlock a1;
+    a1.kind = kFighterBlockObject;
+    a1.object = 7;
+    a1.pushed = true;
+    a1.own_speed = true;
+    FighterBlock a2 = a1;
+    a2.object = 8;
+    stack_push(s, a1);
+    CHECK(s.size() == 2 && s.back().object == 7);
+    stack_push(s, a2);
+    CHECK(s.size() == 2 && s.back().object == 8);
+    const std::optional<FighterBlock> p = stack_pop(s);
+    CHECK(p && p->object == 8 && s.size() == 1);
+    std::vector<FighterBlock> g{pos(0, 0), pos(5, 5, kMoveFlagGuardMove)};
+    stack_push(g, a1);
+    CHECK(g.size() == 3 && g[1].flags == kMoveFlagGuardMove && g[2].object == 7);
+    // Append: two waypoints go to the bottom with 0x04; the first block repeated is ignored; a click within 20 of the
+    // waypoint at index 1 closes the loop over blocks[0..1]; the patrol top comes back at the bottom with 0x08 on Pop
+    std::vector<FighterBlock> w{pos(100, 0)};
+    CHECK(stack_append(w, pos(200, 0), 6, 20.0f, goal) == AppendResult::Added);
+    CHECK(stack_append(w, pos(300, 0), 6, 20.0f, goal) == AppendResult::Added);
+    CHECK(w.size() == 3 && w[0].point.x == 300.0f && w[1].point.x == 200.0f && w[2].point.x == 100.0f);
+    CHECK((w[0].flags & kMoveFlagPlayerOrder) != 0 && (w[1].flags & kMoveFlagPlayerOrder) != 0);
+    CHECK(stack_append(w, w[0], 6, 20.0f, goal) == AppendResult::Ignored && w.size() == 3);
+    CHECK(stack_append(w, pos(210, 5), 6, 20.0f, goal) == AppendResult::Loop && w.size() == 3);
+    CHECK(w[0].loop && w[1].loop && !w[2].loop);
+    w.back().loop = true;  // make the top a patrol block
+    const std::optional<FighterBlock> t2 = stack_pop(w);
+    CHECK(t2 && w.size() == 3 && w[0].point.x == 100.0f && (w[0].flags & kMoveFlagQueue) != 0);
+    // MaxWaypointsPerPath: refused once max_queued blocks carry 0x08
+    std::vector<FighterBlock> q{pos(0, 0, kMoveFlagQueue), pos(1, 1, kMoveFlagQueue)};
+    CHECK(stack_append(q, pos(50, 50), 2, 20.0f, goal) == AppendResult::Refused && q.size() == 2);
+    std::printf("formation stack rules: set_move / pop / push / append (add, ignore, loop, refuse) checked\n");
 }
 
 // s78f t02 (FIGHTER_FLYING §4.11 B, C, E; checklist I 10): the block stack of a fighter formation.

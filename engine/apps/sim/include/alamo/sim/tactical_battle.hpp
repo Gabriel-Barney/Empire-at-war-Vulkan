@@ -82,6 +82,7 @@
 #include "alamo/tactical/combat/combat_system.hpp"
 #include "alamo/tactical/combat/rocket.hpp"  // #357: the spin-away wreck's path (SplineClass)
 #include "alamo/tactical/movement/fleet_placement.hpp"  // cu8l t03
+#include "alamo/tactical/movement/formation_stack.hpp"  // #488: LandFormationRecord blocks
 #include "alamo/tactical/movement/movement_system.hpp"
 #include "alamo/tactical/movement/space_avoid.hpp"  // SPACE_AVOIDANCE (fighter avoidance members)
 #include "alamo/tactical/abilities/space_fields.hpp"     // L1 systems
@@ -438,18 +439,27 @@ struct FighterOrderView {
 // slot goal. The order's block is blocks[0]; `pushed` is the auto attack block LocomotorCommon 0x42d0f0 pushed on top
 // (0x41cf70 -> Push 0x41fd30: {kind 3, t, flags 0, +0x5d = 1}), at most one ([port] the pre-pop replaces an earlier auto
 // block of the same class, a guard is never popped by it). Saved (battle state 18), hashed while any exists.
+// #488: the record holds the formation's move-block stack (tactical::movement::FighterBlock, edited only through the shared
+// rules of formation_stack.hpp: Set_Move 0x423c10 at the order, Push 0x41fd30, Pop 0x4105a0). Saved (battle state 26).
 struct LandFormationRecord {
-    objects::ObjectId mover = kNoObjectId;        // ascending
-    uint8_t flags = 0;                            // blocks[0]'s flags: 0x01 attack-move, 0x02 guard
-    Vec3 goal;                                    // the order's goal point (an object block: the object's position then)
-    objects::ObjectId goal_object = kNoObjectId;  // the order's object block (Attack, Attack_Move / Guard of an object)
-    objects::ObjectId pushed = kNoObjectId;       // the auto attack block on top, none
-    uint32_t next = 0;                            // the auto block's 30-frame check (F +0x1d8: 0x4192b0 / 0x410a60)
+    objects::ObjectId mover = kNoObjectId;               // ascending
+    std::vector<tactical::movement::FighterBlock> blocks;  // bottom first: blocks[0] the order's block, back() the top
+    float goal_z = 0.0f;                                 // the order's goal height (the blocks keep x / y)
+    uint32_t next = 0;                                   // the auto block's 30-frame check (F +0x1d8: 0x4192b0 / 0x410a60)
     // cmb1 t04 / t06 (BKR2 Q6 [H], 0x584750): blocks[0]'s last-observed point when it names an object (the guarded object
     // of a land guard): rewritten every formation step (land_engage_service) - seen: the object's position; hidden for the
     // lead's owner: frozen; stealthed against the lead's type: the lead's position
     Vec3 seen;
     bool locked = false;  // derived each tick by land_engage_service (0x39ad40 / 0x41fd30: a member order-locked)
+    // blocks[0]'s flags (0x01 attack-move, 0x02 guard), goal point (an object block: the object's position at the order)
+    // and object (Attack, Attack_Move / Guard of an object; none for a position block)
+    uint8_t flags() const { return blocks.empty() ? uint8_t{0} : blocks.front().flags; }
+    Vec3 goal() const { return blocks.empty() ? Vec3{0.0f, 0.0f, goal_z} : Vec3{blocks.front().point.x, blocks.front().point.y, goal_z}; }
+    objects::ObjectId goal_object() const {
+        return blocks.empty() || blocks.front().kind != tactical::movement::kFighterBlockObject ? kNoObjectId : blocks.front().object;
+    }
+    // the auto attack block on top (n >= 2, the push class), none
+    objects::ObjectId pushed() const { return blocks.size() > 1 && blocks.back().pushed ? blocks.back().object : kNoObjectId; }
 };
 
 // mcx4 tac2 (tactical_battle_skirmish.cpp; MCX4_T09_RE_ANSWERS Q10 [H]): one Income_Stream_Mod_Ability of a type - the

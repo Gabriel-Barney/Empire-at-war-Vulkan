@@ -1638,7 +1638,7 @@ void test_land_squad_container() {
             continue;
         }
         for (const auto& lr : b->land_formations())
-            if (lr.mover == team_id && lr.pushed != objects::kNoObjectId) squad_engaged = true;
+            if (lr.mover == team_id && lr.pushed() != objects::kNoObjectId) squad_engaged = true;
         if (b->frame() < settle_frame + 120) continue;  // members recover to their slots once the team stopped
         settle_err = slot_error();
         // cmb1 t01 (BKR1 Q2 [H]): an arrived squad with a target the land Auto_Engage takes (an auto attack block) moves on
