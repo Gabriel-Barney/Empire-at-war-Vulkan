@@ -380,7 +380,7 @@ private:
         uint64_t timer_start = 0, timer_frames = 0;  // I +0x50: hold / cooldown timer, ready when start + frames <= now
         uint64_t idle_countdown = 0;  // I +0xc (frames)
         float last_yaw = 0.0f;  // locomotor
-        bool have_yaw = false, last_crouch = false;
+        bool have_yaw = false, last_crouch = false;  // last_crouch: [port] no longer read (#363), kept for the save / hash layout
         std::vector<IdleRecord> records;  // I +0x10, ascending presence id (retail: an unordered map)
     };
     // #361: step 2 of the IDLE service; true while the flinch is in progress.

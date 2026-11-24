@@ -424,7 +424,7 @@ void TacticalBattle::drive_animation(objects::ObjectStore& store, SimRng& rng, u
         in.on_path = gated;
         in.target = target;
         // r3g t06 (TACTICAL_GAPS §6.2, 0x395920 step 1): SPREAD_OUT on the unit (member flag obj +0x448) makes it crouched:
-        // default idle 71 Idle Crouch, CROUCHMOVE / crouch turns; a change of the state forces a new idle (crouch_changed).
+        // default idle 71 Idle Crouch, CROUCHMOVE / crouch turns; the idle service restarts on the crouch-class change (#363).
         in.crouched = abilities_ && abilities_->spread_out(u.id);
         // r3h t05 (ANIM_PARTICLES §A.7 move row, object +0x3a1 & 2): a burning unit moves with FIRE_MOVE (61).
         in.burning = combat_->has_unit(u.id) && combat_->burning(u.id);

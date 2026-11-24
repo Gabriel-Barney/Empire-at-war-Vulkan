@@ -254,9 +254,9 @@ bool AnimBehaviors::service_idle(AnimWorld& w, ObjectId id, const IdleParams& id
     idle.idle_type =
         presence_idle_type(m, id, idle_in, e ? std::span<const IdleRecord>(e->records) : std::span<const IdleRecord>{}, false);
     if (flinch_busy) return false;
-    // #363 (s78l (c) [H]): every service compares the crouch class (0x27b570: 67, 71, 72, 73) of the default idle T and the
-    // current clip C. T != C in another class restarts the idle at once, mid-clip; otherwise a playing clip is kept. (Before,
-    // only the locomotor's crouch toggle frame restarted it, so a toggle during a flinch was lost.)
+    // #363 (0x62e570 step 5 [H]): T = the default idle (0x395920), C = the current primary clip type (0x3956a0); restart when
+    // T != C and their crouch classes (0x27b570: 67, 71, 72, 73) differ. Computed every service, no stored value; a clip whose
+    // mode is neither finished nor none is kept unless restart. The targeted branch below takes it as retail does.
     const bool restart = cur.clip && idle.idle_type != cur.type && is_crouch(idle.idle_type) != is_crouch(cur.type);
     if (cur.clip && !finished && !restart) return false;
     if (from_attack && target != IdleTarget::None) {
