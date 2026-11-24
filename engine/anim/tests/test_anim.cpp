@@ -663,7 +663,7 @@ std::unique_ptr<AnimModel> behaviour_model(bool flinch_clips = true) {
 // MSVC 19.51. Was 4357bd5e704ab19c before the locomotor state (last yaw / crouch)
 // and the corpse spin-away / damage-kind fields joined AnimBehaviors::hash.
 // Was 53d7bba7979bbe88 before #361 (the flinch stages: hold from the fade end x weight, replay of the interrupted clip,
-// cooldown at the return; the entry hash fields changed with them). MSVC 19.51 checked; clang / gcc: the next nightly.
+// cooldown at the return; the entry hash fields changed with them). MSVC 19.51 (the one compiler, docs/DECISIONS.md).
 constexpr uint64_t kBehaviourGolden = 0x7d029c5b34a6e10eull;  // idle service every call, target draws
 
 uint64_t behaviours_hash(const AnimWorld& w, const AnimBehaviors& b) {
@@ -788,13 +788,21 @@ void test_behaviors() {
         w.play(3, mv, &rng, 0);
         const uint32_t st = rng.state();
         CHECK(!b.on_hit(w, 3, fp, 1, 0, -1, 0, rng, 1) && rng.state() == st && w.current_type(3) == kAnimMove);
+        // The hold scales with the weight: int(30 x 0.5 x 0.5) = 7 frames from the fade end.
+        w.create(6, m.get(), {}, nullptr, 0);
+        CHECK(b.on_hit(w, 6, fp, 1, 0, 0, 1, rng, 1, 0.5f) && b.flinch_weight(6) == 0.5f);
+        w.advance(1);
+        const uint64_t f6 = run_until(w, b, 6, ip, rng, 2, [&](uint64_t) { return w.crossfading(6); });
+        b.service_idle(w, 6, ip, IdleTarget::NoTarget, rng, f6);
+        CHECK(b.flinch_weight(6) == 0.0f && b.next_flinch_frame(6) == f6 + 7);
+        const uint32_t st2 = rng.state();
         FlinchParams dep = fp;
         dep.deploys = true;
         w.create(5, m.get(), {}, nullptr, 0);
-        CHECK(!b.on_hit(w, 5, dep, 1, 0, -1, 0, rng, 1) && rng.state() == st && !b.flinching(5));
+        CHECK(!b.on_hit(w, 5, dep, 1, 0, -1, 0, rng, 1) && rng.state() == st2 && !b.flinching(5));
         const auto plain = behaviour_model(false);
         w.create(4, plain.get(), {}, nullptr, 0);
-        CHECK(!b.on_hit(w, 4, fp, 1, 0, -1, 0, rng, 1) && rng.state() == st);
+        CHECK(!b.on_hit(w, 4, fp, 1, 0, -1, 0, rng, 1) && rng.state() == st2);
     }
     {
         // s78k t02 idle while engaged (IdleBehavior 0x62e570): with a target EVERY service draws one int [0, 30] into the

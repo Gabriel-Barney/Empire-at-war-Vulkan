@@ -349,6 +349,7 @@ bool SimAnimation::hit(const GameMode& mode, ObjectId victim, Vec3 facing, Vec3 
     if (!store.has_behavior(h, objects::beh::Idle)) return false;
     const objects::TypeIndex t = store.type(h);
     const anim::TypeAnimParams& p = params_for(t, mode.kind());
+    // [port] weight 1 until #362 passes the projectile type's Induced_Flinch_Intensity (+0x20e4) as I +0x58.
     const bool played = mw.behaviors->on_hit(*mw.world, victim, flinch_of(p), facing.x, facing.y, travel.x, travel.y, rng, frame);
     if (played) ++stats_.flinches;
     return played;
@@ -749,7 +750,7 @@ void SimAnimation::service(SimHost& host) {
         return;
     }
     scratch_destroy_.clear();
-    mw.behaviors->service(*mw.world, frame, scratch_destroy_);  // flinch holds, corpse countdown
+    mw.behaviors->service(*mw.world, frame, scratch_destroy_);  // corpse countdown
     stats_.corpses_removed += static_cast<uint32_t>(scratch_destroy_.size());
     // finished corpses lose their rows only. The store objects that outlive their death (death clones) are
     // removed by the battle at the frame of its plan (TacticalBattle death_clones_), the same with and without this
