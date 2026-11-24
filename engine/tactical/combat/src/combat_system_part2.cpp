@@ -771,6 +771,8 @@ void CombatSystem::process_hit(Projectile& p, Unit& v, float t, uint32_t frame, 
     he.owner = p.owner;
     he.projectile_desc = p.desc;
     he.position = impact;
+    const Rocket* hrk = p.rocket ? find_rocket(p.serial) : nullptr;  // #367: LastKnownVelocity, the flinch direction
+    he.travel = hrk ? hrk->last_vel : p.dir;
     if (pd.damage_delay_secs > 0.0f) {
         const float delay = rng.range_float(0.25f * pd.damage_delay_secs, pd.damage_delay_secs);  // synced
         apply_or_queue(r, delay, frame);

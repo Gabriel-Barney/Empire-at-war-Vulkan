@@ -48,7 +48,7 @@ using save_io::put_vec3;
 
 namespace {
 
-constexpr uint32_t kCombatSaveVersion = 20;  // 2: refix t02 INFECTION state, refix t03 death clone key; 3: refixf t01 rockets;
+constexpr uint32_t kCombatSaveVersion = 21;  // 2: refix t02 INFECTION state, refix t03 death clone key; 3: refixf t01 rockets;
                                              // 4: refixf t06 attack goal / weapon aim / order lock; 5: refixf t06 scan
                                              // target hardpoint (auto_hp); 6: a1g t03 damage event hull_lost; 7: S8 t04
                                              // grenade flight / sticky state; 8: S8 t06 stuck_offset in the parent's frame
@@ -67,7 +67,8 @@ constexpr uint32_t kCombatSaveVersion = 20;  // 2: refix t02 INFECTION state, re
                                              // state + terrain damage timer; 18: r1b t10 hardpoint turret pose
                                              // and last aim; 19: tru3 t03 Base_Shield_Upgrade entry
                                              // key adds the ability CRC; 20: cmb3 t04 shot event hardpoint +
-                                             // projectile serial. Only the current version is read (cu6).
+                                             // projectile serial; 21: #367 hit event travel (the
+                                             // flinch direction). Only the current version is read (cu6).
 constexpr uint32_t kWeatherSaveVersion = 1;
 constexpr uint32_t kNoIndex = 0xFFFFFFFFu;
 
@@ -243,6 +244,7 @@ void CombatSystem::write(ByteWriter& w) const {
         put_vec3(w, e.position);
         w.boolean(e.absorbed).boolean(e.armor_reduced).boolean(e.delayed).i32(e.pick);
         w.boolean(e.ground).boolean(e.commanded);  // tru1 t08 (v16)
+        put_vec3(w, e.travel);                      // #367 (v21)
     }
     w.u32(static_cast<uint32_t>(shot_events_.size()));
     for (const ShotEvent& e : shot_events_)  // cmb3 t04 (v20): the hardpoint and serial the host's Fire_SFXEvent lookup reads
@@ -606,7 +608,7 @@ bool CombatSystem::read(ByteReader& r) {
         e.frame = r.u32();
         if (!r.ok() || !proj_ok(e.projectile_desc)) return false;
     }
-    if (!r.count(n, 37)) return false;
+    if (!r.count(n, 49)) return false;
     std::vector<HitEvent> hit_events(n);
     for (HitEvent& e : hit_events) {
         e.victim = r.i32();
@@ -620,6 +622,7 @@ bool CombatSystem::read(ByteReader& r) {
         e.pick = r.i32();
         e.ground = r.boolean();  // tru1 t08 (v16)
         e.commanded = r.boolean();
+        e.travel = get_vec3<Vec3>(r);  // #367 (v21)
         if (!r.ok() || e.projectile_desc >= proj_descs) return false;
     }
     if (!r.count(n, 20)) return false;

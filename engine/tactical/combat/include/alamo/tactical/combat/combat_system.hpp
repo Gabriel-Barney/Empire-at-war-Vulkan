@@ -1139,6 +1139,10 @@ struct HitEvent {
     // no victim, a commanded detonation 0x4caea0 (detonate_projectile: the laser-defense zap 0x716230, the
     // remote bomb) - the lifetime particle; the renderer's zap detection does not count it as a hit.
     bool commanded = false;
+    // #367 (Apply_Direct_Damage 0x4c73d0 -> flinch 0x62dde0 [H]): the direction a victim flinches from, the projectile's
+    // LastKnownVelocity (ProjectileBehavior +0x98) at the hit. A rocket's last move; a straight shot moves along its
+    // direction ([port] a lobbed grenade's arc tangent is not kept: its launch direction). Zero without a victim.
+    Vec3 travel;
 };
 
 // OI fog: one shot that reached the post-shot hook (On_Shot_Fired 0x3a06a0, from HP_Fire_At and WeaponBehavior

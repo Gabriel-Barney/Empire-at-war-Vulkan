@@ -132,6 +132,7 @@ int main(int argc, char** argv) {
     test_out_of_range_mod_values();  // mcx8 t11
     test_weapon_delay_order();       // mcx4 (lane mcx4-tac2)
     test_crouch_move_fire_cone();    // mcx4 (lane mcx4-tac2)
+    test_hit_event_travel();         // #367
     test_clip_holds_fire();          // #263
     test_lost_target_no_rescan(); // mcx4 t03
     test_blast_dropoff();         // mcx4 t03
