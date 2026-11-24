@@ -361,8 +361,8 @@ struct PlanetState {
     // Siphon_Credits_Ability; read by Neutralize_Hero (§7). Saved (v8); hashed in the "GLB1" tail.
     uint32_t siphon_type = kNoIndex;
     int32_t siphon_source = 0;
-    // The siphon record reset (0x3ff1f0) every site uses (#134): player, amount, hero type and object. siphon_fraction and
-    // siphon_until keep their values (no reset site ever touched them; both are saved).
+    // The siphon record reset (0x3ff1f0; #134): player, amount, hero type and object. set_siphon starts from it too.
+    // siphon_fraction and siphon_until keep their values (no reset site ever touched them; both are saved).
     void clear_siphon() {
         siphon_player = kNoPlayer;
         siphon_amount = 0.0f;
@@ -1633,9 +1633,11 @@ template <class F>
 bool GalacticSim::visit_objects_at(PlanetIndex planet, F&& f, PlanetWalk walk) const {
     if (!valid_planet(planet)) return false;
     const PlanetState& p = planets_[planet];
+    using Result = std::invoke_result_t<F&, ObjectHandle, bool>;
+    static_assert(std::is_void_v<Result> || std::is_same_v<Result, bool>, "visit_objects_at: f returns void or bool");
     const auto visit = [&](ObjectHandle h, bool in_orbit) {
         if (!store_->alive(h)) return false;
-        if constexpr (std::is_same_v<std::invoke_result_t<F&, ObjectHandle, bool>, bool>) {
+        if constexpr (std::is_same_v<Result, bool>) {
             return f(h, in_orbit);
         } else {
             f(h, in_orbit);
