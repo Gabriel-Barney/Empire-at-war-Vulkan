@@ -237,6 +237,13 @@ public:
     // lists and the store lists, so a host can attach the type's Lua_Script. Host wiring: not saved, not hashed. Unset:
     // nothing. [port] The original attaches before the object enters the store lists.
     std::function<void(ObjectStore&, ObjectHandle created)> on_created;
+    // #498 (trace cu8k Endor [H]): the map load initialises its objects' behaviours through vf10 (0x4c3000 and the
+    // overrides; caller chain 0x2b164d <- 0x3603a0), every other creation through vf9 (0x4c2f90). While the host holds the
+    // map-init window open (set_map_init), on_map_init runs right after each attached behaviour's initialise (its
+    // interval draw), so a host can add a vf10 override's work (TERRAIN_TEXTURE_MODIFICATION's stamp draws). The handle
+    // is not in the store lists yet. Host wiring: not saved, not hashed.
+    std::function<void(ObjectStore&, ObjectHandle object, BehaviorTypeId id)> on_map_init;
+    void set_map_init(bool on) { map_init_ = on; }
 
     // ---- queries ----
     bool exists(ObjectHandle h) const;  // live or dead-but-not-flushed
@@ -347,6 +354,7 @@ private:
     std::vector<uint8_t> used_;
     std::vector<ObjectId> id_, parent_mode_id_;
     std::vector<TypeIndex> type_;
+    bool map_init_ = false;  // #498: on_map_init window (transient, host-driven)
     std::vector<int32_t> owner_;
     std::vector<Vec3> position_, facing_;
     std::vector<float> health_;

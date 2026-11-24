@@ -259,6 +259,7 @@ struct MapLoadStats {
     uint32_t hints_skipped = 0;
     uint32_t decorations = 0;
     uint32_t neutral_teams = 0;
+    uint32_t ttm_draws = 0;  // #498: TERRAIN_TEXTURE_MODIFICATION stamp draws at the map load (0x624310 -> 0x1341e0)
     uint32_t sky_domes = 0;  // environment sky dome objects (STORYB_T16_SKY_DOME)  // TEAM containers of inert (Is_Neutral) map companies  // Is_Decoration map objects (objects::kFlagMapDecoration)     // 0x482 hints on objects without HINT (retail reads none)
     uint32_t remembered_markers = 0;  // structures placed on their remembered marker (pass 1)
     uint32_t escorts = 0;           // Space_Escort_Unit_Types participants added
@@ -2092,6 +2093,7 @@ private:
     // battle for the planet owner at the first DUMMY_SPECIAL_WEAPON_SOURCE object, registered with the L1 systems; one per
     // (owner, Special_Weapon_Index). Returns the number spawned.
     uint32_t bt_ground_special_weapons(TacticalMode& mode);
+    void bt_ttm_stamp(const objects::ObjectStore& st, objects::ObjectHandle h, objects::BehaviorTypeId id, SimRng& rng);  // #498
     // --- SPAWN_INDIGENOUS_UNITS and DEBRIS (TRU1_C_RE §1 / §3; tactical_battle_spawners.cpp) ---
     struct IndigenousSpawner {
         objects::ObjectId id = objects::kNoObjectId;

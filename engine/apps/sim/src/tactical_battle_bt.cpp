@@ -20,6 +20,7 @@
 #include "alamo/objects/game_object_types.hpp"
 #include "alamo/sim/map_spawn.hpp"
 #include "alamo/sim/tactical_battle.hpp"
+#include "alamo/tactical/movement/space_avoid.hpp"
 #include "alamo/tactical/movement/special_locomotors.hpp"
 #include "alamo/tactical/movement/ted_grid.hpp"
 #include "alamo/tactical/movement/unit_params.hpp"
@@ -820,6 +821,58 @@ std::vector<std::pair<bool, Vec3>> TacticalBattle::bt_start_markers() const {
     return out;
 }
 
+void TacticalBattle::bt_ttm_stamp(const objects::ObjectStore& st, objects::ObjectHandle h, objects::BehaviorTypeId id, SimRng& rng) {
+    // #498: TerrainTextureModificationBehaviorClass vf10 (0x624310 [H]) after the base initialise: the texture stamp 0x1341e0
+    // walks its rectangle in 10-unit steps (x, then y, both from 0 to the extent inclusive, float accumulation) and makes
+    // one synced Get_Int(1, N) per cell (0x1ffb40). The values only pick texture cells; the trace's runs (196 = 14 x 14,
+    // 225 = 15 x 15) show one LCG step per cell [M: N a power of two, no rejection step], drawn here as next15.
+    static const objects::BehaviorTypeId kTtm = objects::behavior_type_id("TERRAIN_TEXTURE_MODIFICATION");
+    if (id != kTtm || kTtm == objects::kNoBehavior || !catalog_) return;
+    const objects::GameObjectTypes& types = catalog_->types();
+    const objects::TypeIndex t = st.type(h);
+    if (t >= types.size()) return;
+    const auto stamp = [&](float x_extent, float y_extent) {
+        if (!(0.0f <= x_extent)) return;
+        for (float x = 0.0f; x <= x_extent; x = x + 10.0f)
+            for (float y = 0.0f; 0.0f <= y_extent && y <= y_extent; y = y + 10.0f) {
+                (void)rng.next15();
+                ++map_stats_.ttm_draws;
+            }
+    };
+    // The own stamp: (width + 80) x (height + 80), the obstacle size getters 0x372d80 / 0x372ce0 [H]: Obstacle_Width /
+    // _Height; a zero one is 2 x |the land model's box half extent| x Scale_Factor - width from the box's +0x10 (half y),
+    // height from +0xc (half x). The box is ModelClass vf +0x58 (0x264920 -> the render object's cached box 0x12dc60:
+    // centre, half extents; half 1 without a render object), 0 without a model. [M] its contents are the port's
+    // collision-mesh box (avoid_model bound_c / bound_h, as space_avoid): on _MP_LAND_ENDOR it gives retail's runs exactly
+    // (W_Pedistal 196, EB_TLTower 225), the render-geometry box (model_half_extents) does not (210, 288). No
+    // Obstacle_Proxy_Type here (the getters read the object's own type).
+    float w = types.get(t, objects::tags::Obstacle_Width), hgt = types.get(t, objects::tags::Obstacle_Height);
+    if (w == 0.0f || hgt == 0.0f) {
+        const mv::AvoidModel* model = catalog_->avoid_model(static_cast<uint32_t>(t), false);
+        const float scale = types.scale_factor(t);
+        if (w == 0.0f) w = model ? 2.0f * std::fabs(model->bound_h.y) * scale : 0.0f;
+        if (hgt == 0.0f) hgt = model ? 2.0f * std::fabs(model->bound_h.x) * scale : 0.0f;
+    }
+    stamp(w + 80.0f, hgt + 80.0f);
+    // The join stamps (Terrain_Texture_Modifier_Join_Distance > 0 [H]): every object with the behaviour within the join
+    // distance (the query 0x2a9ff0; [M] its radius test taken as the XY distance <= join and its order as the store's - only
+    // the count matters) of the same Terrain_Texture_Modifier_Material: one stamp centred between the two, max(|dx|, 60) x
+    // max(|dy|, 60). The object itself is not in the store lists yet, so only earlier ones are found.
+    const float join = types.get(t, objects::tags::Terrain_Texture_Modifier_Join_Distance);
+    if (!(join > 0.0f)) return;
+    const int32_t material = types.get(t, objects::tags::Terrain_Texture_Modifier_Material);
+    const Vec3 p = st.position(h);
+    for (const objects::ObjectHandle o : st.all_objects()) {
+        if (!st.alive(o) || o == h || !st.has_behavior(o, kTtm)) continue;
+        const objects::TypeIndex ot = st.type(o);
+        if (ot >= types.size() || types.get(ot, objects::tags::Terrain_Texture_Modifier_Material) != material) continue;
+        const Vec3 q = st.position(o);
+        const float dx = q.x - p.x, dy = q.y - p.y;
+        if (dx * dx + dy * dy > join * join) continue;
+        stamp(std::max(std::fabs(dx), 60.0f), std::max(std::fabs(dy), 60.0f));
+    }
+}
+
 uint32_t TacticalBattle::bt_ground_special_weapons(TacticalMode& mode) {
     // Retail creates every qualifying structure's weapon and the registration 0x35c520 silently removes a second one of the
     // same (player, Special_Weapon_Index), adding 1 to the first one's record counter (+0x20, effect not read [L]). [port]
@@ -1198,6 +1251,15 @@ void TacticalBattle::bt_map_load(TacticalMode& mode, SimRng& rng) {
         bool record;  // false: a Map_Load_Spawn_Table pick (the placeholder's record data is not carried over)
     };
     std::vector<CompanyPlacement> companies;  // expanded after the record loop, map order
+    // #498: the record loop's objects are initialised through vf10 (the map-init window); TERRAIN_TEXTURE_MODIFICATION's
+    // override (0x624310) stamps the terrain texture then, one synced draw per stamp cell (bt_ttm_stamp).
+    objects::ObjectStore& map_store = mode.primary();
+    if (!space_) {
+        map_store.on_map_init = [this, &rng](objects::ObjectStore& st, objects::ObjectHandle h, objects::BehaviorTypeId id) {
+            bt_ttm_stamp(st, h, id, rng);
+        };
+        map_store.set_map_init(true);
+    }
     for (const terrain::ObjectPlacement& pl : map_.objects) {
         // bkg3 b0028 / map1 t05 (BKG3_RE_ANSWERS Q3.2 [H]): the object reader 0x39ce40 sets +0x3CB from mini 0x29 for every
         // map placement (campaign, story and skirmish maps alike), so a placement with byte 0 spawns nothing from its hangar
@@ -1341,6 +1403,8 @@ void TacticalBattle::bt_map_load(TacticalMode& mode, SimRng& rng) {
         }
     }
     hg_spawn_off_ = false;
+    map_store.set_map_init(false);
+    map_store.on_map_init = nullptr;
     // company expansion (0x2ab060), after every record, in map order.
     for (const CompanyPlacement& c : companies) bt_expand_company(mode, *c.pl, c.type, c.owner, c.record);
 }
