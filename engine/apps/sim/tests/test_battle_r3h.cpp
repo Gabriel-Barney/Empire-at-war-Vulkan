@@ -727,6 +727,8 @@ void test_spin_wreck() {
     bool same = b.path.size() == a.path.size();
     for (size_t k = 0; same && k < a.path.size(); ++k) same = b.path[k].x == a.path[k].x && b.path[k].y == a.path[k].y && b.path[k].z == a.path[k].z;
     CHECK(same);
+}
+
 // #382 (Die step 7, TACTICAL_GAPS §1.9 [H]: Destruction_Survivors): a script kill (Lua Take_Damage, script_damage) between
 // ticks spawns the victim's survivor at once - the hit's survivor events are consumed with its deaths, before the next combat
 // tick clears the list.
