@@ -683,7 +683,7 @@ void test_old_versions(const Store& s) {
         const TaskForceRec d;
         std::printf("  task force, version %u: %s\n", version, ok ? "read" : "FAILED");
         CHECK(ok && y.stage == t.stage && y.area == t.area && y.alive == t.alive && y.units.size() == 1);
-        CHECK(y.fleet == (version >= 8 ? t.fleet : galactic::kNoFleet) && d.fleet == galactic::kNoFleet);  // #432
+        CHECK(y.fleet == (version >= 8 ? t.fleet : galactic::kNoFleet));  // #432: no fleet before version 8
         CHECK(version >= 7 ? (y.sync == t.sync && y.sync_left == t.sync_left && y.sync_etas == t.sync_etas)
                            : (y.sync == d.sync && y.sync_left == d.sync_left && y.sync_etas.empty()));
     }

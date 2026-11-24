@@ -932,6 +932,15 @@ struct ParityWorld {
         }
     }
     bool has(const std::vector<uint32_t>& sel, uint32_t t) const { return std::find(sel.begin(), sel.end(), t) != sel.end(); }
+    // #432: the last live unit of `type` in `player`'s fleets (null when none).
+    objects::ObjectHandle unit_of(int32_t player, uint32_t type) const {
+        objects::ObjectHandle h;
+        for (const gal::FleetState& f : sim->fleets())
+            if (f.alive && f.owner == player)
+                for (const objects::ObjectHandle u : f.contents)
+                    if (store->alive(u) && store->type(u) == type) h = u;
+        return h;
+    }
 };
 void take_when_ready(ParityWorld& pw, lua::GlobalValueStore& gv);
 void test_free_store_supply();

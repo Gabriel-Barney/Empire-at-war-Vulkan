@@ -2590,17 +2590,12 @@ void test_stage_and_setup_a() {
         // there is no finite stage cost and the unit is dropped. The hero is ordered P3 -> P4: at P3 it is a candidate;
         // in hyperspace it is dropped only when keyed by P4 (keyed by P3 it would stay a candidate).
         ParityWorld pw(false, {"HeroDeny"}, [](gal::GalacticSetup& s) {
-            for (gal::StartingForce& f : s.forces)  // the hero is the Empire's only P0 unit besides the SB1 / Barracks / frigate
-                if (f.player == 0 && f.planet == 0 && f.type != tSB1 && f.type != tBarracks && f.type != tFrigate) f.planet = 3;
+            s.forces.back().planet = 3;  // the hero: ParityWorld pushes it last, just before this tweak
             s.forces.push_back({1, 3, tFrigate});
         });
         pw.run(2);
         const bool at_source = pw.has(pw.world->solve_potential_plan(0, "HeroDeny", "Conquer_Planet", 3, &ok), pw.hero);
-        objects::ObjectHandle h;
-        for (const gal::FleetState& f : pw.sim->fleets())
-            if (f.alive && f.owner == 0)
-                for (const objects::ObjectHandle u : f.contents)
-                    if (pw.store->alive(u) && pw.store->type(u) == pw.hero) h = u;
+        const objects::ObjectHandle h = pw.unit_of(0, pw.hero);
         CHECK(static_cast<bool>(h) && pw.world->free_store_move(0, h, 4));
         uint32_t fl = gal::kNoFleet;
         for (int32_t fr = 3; fr < 600 && fl == gal::kNoFleet; ++fr) {
@@ -2610,15 +2605,18 @@ void test_stage_and_setup_a() {
             if (c != gal::kNoFleet && pw.sim->fleets()[c].moving) fl = c;
         }
         CHECK(fl != gal::kNoFleet);
-        if (fl == gal::kNoFleet) return;
-        const gal::FleetState& fs = pw.sim->fleets()[fl];
-        const PlanetIndex dest = fs.path.empty() ? fs.to : fs.path.back();
-        const bool in_transit = pw.has(pw.world->solve_potential_plan(0, "HeroDeny", "Conquer_Planet", 3, &ok), pw.hero);
-        std::printf("setup A: hero P3 -> P%u in hyperspace: candidate at the source %s, in transit %s\n", dest,
-                    at_source ? "yes" : "no", in_transit ? "yes" : "no");
-        CHECK(dest == 4);
-        CHECK(at_source);    // keyed by P3, the stage: cost 0
-        CHECK(!in_transit);  // keyed by the destination P4: no finite stage cost
+        if (fl != gal::kNoFleet) {
+            // one hop: the final destination path.back() is also the next hop `to`, so this tells the destination from
+            // the source, not the final destination from the next hop
+            const gal::FleetState& fs = pw.sim->fleets()[fl];
+            const PlanetIndex dest = fs.path.empty() ? fs.to : fs.path.back();
+            const bool in_transit = pw.has(pw.world->solve_potential_plan(0, "HeroDeny", "Conquer_Planet", 3, &ok), pw.hero);
+            std::printf("setup A: hero P3 -> P%u in hyperspace: candidate at the source %s, in transit %s\n", dest,
+                        at_source ? "yes" : "no", in_transit ? "yes" : "no");
+            CHECK(dest == 4);
+            CHECK(at_source);    // keyed by P3, the stage: cost 0
+            CHECK(!in_transit);  // keyed by the destination P4: no finite stage cost
+        }
     }
 }
 
@@ -2694,14 +2692,16 @@ void test_collect_all_free_units_galactic() {
     pw.world->set_global_values(nullptr);
 }
 
+// The Empire's frigate starts at P1 instead of P0: the hero (P0) and the frigate (P1) are in two fleets.
+static void frigate_at_p1(gal::GalacticSetup& s) {
+    for (gal::StartingForce& f : s.forces)
+        if (f.player == 0 && f.type == tFrigate) f.planet = 1;
+}
+
 // a2m t02 (A2L_T01_RE_ANSWERS Q8.1 / Q8.2) [H]: Move_To moves the task force's FleetObject only (the parent fleet of
 // the first member added, TF +0x120); a member in another fleet stays where it is and is still counted.
 void test_move_to_fleet_object() {
-    // The Empire's frigate starts at P1 instead of P0: the hero (P0) and the frigate (P1) are in two fleets.
-    ParityWorld pw(false, {"A2mMoveTo"}, [](gal::GalacticSetup& s) {
-        for (gal::StartingForce& f : s.forces)
-            if (f.player == 0 && f.type == tFrigate) f.planet = 1;
-    });
+    ParityWorld pw(false, {"A2mMoveTo"}, frigate_at_p1);
     lua::GlobalValueStore gv;
     pw.world->set_global_values(&gv);
     auto num = [&gv](const char* n) { const lua::AiGlobalValue v = gv.get(n); return v.kind == lua::AiGlobalValue::Number ? v.number : -1.0; };
@@ -2720,14 +2720,8 @@ void test_move_to_fleet_object() {
     std::printf("\n");
     CHECK(sel.size() == 2);
     if (sel.size() != 2) return;
-    // the first member's starting fleet (the hero's at P0 or the frigate's at P1)
-    uint32_t first_fleet = gal::kNoFleet;
-    for (uint32_t i = 0; i < pw.sim->fleets().size(); ++i) {
-        const gal::FleetState& f = pw.sim->fleets()[i];
-        if (f.alive && f.owner == 0)
-            for (const objects::ObjectHandle u : f.contents)
-                if (pw.store->alive(u) && pw.store->type(u) == sel.front()) first_fleet = i;
-    }
+    // the first member's starting fleet (the hero's at P0 or the frigate's at P1; one unit of each type)
+    const uint32_t first_fleet = pw.sim->fleet_containing(pw.unit_of(0, sel.front()));
     uint32_t fleet_object = gal::kNoFleet;
     bool hero_left = false, frigate_left = false;
     for (int32_t f = 1; f <= 30 * 300 && num("a2m_done") < 0.0; ++f) {
@@ -2749,53 +2743,63 @@ void test_move_to_fleet_object() {
 }
 
 // #432 (a2m t02 save fields): a galactic AI save taken while Move_To moves the FleetObject (the version-8 task-force
-// fleet and the MoveTo status's fleet both set) reads back into a rebuilt AI world with an equal AI hash and the same
-// FleetObject, and the move then finishes. Version-7 images (no fleet fields, kNoFleet after the read)
-// are alamo_ai_galactic_records_tests' test_old_versions.
+// fleet and the MoveTo status's fleet both set; both are in the AI hash) reads back into a rebuilt AI world with an
+// equal AI hash and the same FleetObject. The run then matches a twin that was never saved: the frame the move ends
+// and the AI hash there. Version-7 images (no fleet fields, kNoFleet after the read) are
+// alamo_ai_galactic_records_tests' test_old_versions.
 void test_move_to_fleet_save() {
-    ParityWorld pw(false, {"A2mMoveTo"}, [](gal::GalacticSetup& s) {
-        for (gal::StartingForce& f : s.forces)
-            if (f.player == 0 && f.type == tFrigate) f.planet = 1;
-    });
-    lua::GlobalValueStore gv;
-    pw.world->set_global_values(&gv);
-    auto num = [&gv](const char* n) { const lua::AiGlobalValue v = gv.get(n); return v.kind == lua::AiGlobalValue::Number ? v.number : -1.0; };
-    int32_t frame = 1;
-    bool moving = false;
-    for (; frame <= 30 * 300 && !moving && num("a2m_done") < 0.0; ++frame) {
-        pw.sim->update();
-        pw.world->update_player(0, frame, true, false);
-        take_when_ready(pw, gv);
-        const uint32_t fo = num("a2m_block") >= 0.0 ? pw.world->task_force_fleet_object(0, "MainForce") : gal::kNoFleet;
-        moving = fo != gal::kNoFleet && fo < pw.sim->fleets().size() && pw.sim->fleets()[fo].moving;
-    }
-    CHECK(moving);
-    if (!moving) return;
-    const uint32_t fo = pw.world->task_force_fleet_object(0, "MainForce");
-    const auto ai_hash = [&pw]() {
+    struct Run {
+        int32_t saved_at = -1;
+        bool done = false;
+        uint64_t end_hash = 0;
+        bool load_ok = true;
+    };
+    const auto ai_hash = [](const ParityWorld& pw) {
         StateHasher h;
         pw.world->hash(h);
         return h.digest();
     };
-    const uint64_t before = ai_hash();
-    ByteWriter w;
-    pw.world->write(w);
-    pw.world.reset();
-    pw.make_world();
-    ByteReader r(w.bytes());
-    CHECK(pw.world->read(r) && r.done());
-    pw.world->set_global_values(&gv);
-    const uint64_t after = ai_hash();
-    const uint32_t fo2 = pw.world->task_force_fleet_object(0, "MainForce");
-    std::printf("move_to save: frame %d, FleetObject %u -> %u, AI hash %016llx -> %016llx, %zu bytes\n", frame, fo, fo2,
-                static_cast<unsigned long long>(before), static_cast<unsigned long long>(after), w.bytes().size());
-    CHECK(after == before && fo2 == fo);
-    for (; frame <= 30 * 300 && num("a2m_done") < 0.0; ++frame) {
-        pw.sim->update();
-        pw.world->update_player(0, frame, true, false);
-    }
-    CHECK(num("a2m_done") == 1.0 && num("a2m_count1") == 2.0);  // the move finished after the load
-    pw.world->set_global_values(nullptr);
+    const auto run = [&ai_hash](bool save) {
+        Run out;
+        ParityWorld pw(false, {"A2mMoveTo"}, frigate_at_p1);
+        lua::GlobalValueStore gv;
+        pw.world->set_global_values(&gv);
+        auto num = [&gv](const char* n) { const lua::AiGlobalValue v = gv.get(n); return v.kind == lua::AiGlobalValue::Number ? v.number : -1.0; };
+        for (int32_t frame = 1; frame <= 30 * 300 && num("a2m_done") < 0.0; ++frame) {
+            pw.sim->update();
+            pw.world->update_player(0, frame, true, false);
+            take_when_ready(pw, gv);
+            const uint32_t fo = num("a2m_block") >= 0.0 ? pw.world->task_force_fleet_object(0, "MainForce") : gal::kNoFleet;
+            const bool moving = fo != gal::kNoFleet && fo < pw.sim->fleets().size() && pw.sim->fleets()[fo].moving;
+            if (!save || !moving || out.saved_at >= 0) continue;
+            out.saved_at = frame;
+            const uint64_t before = ai_hash(pw);
+            ByteWriter w;
+            pw.world->write(w);
+            pw.world.reset();
+            pw.make_world();
+            ByteReader r(w.bytes());
+            out.load_ok = pw.world->read(r) && r.done();
+            pw.world->set_global_values(&gv);
+            const uint32_t fo2 = pw.world->task_force_fleet_object(0, "MainForce");
+            std::printf("move_to save: frame %d, FleetObject %u -> %u, AI hash %016llx -> %016llx, %zu bytes\n", frame, fo,
+                        fo2, static_cast<unsigned long long>(before), static_cast<unsigned long long>(ai_hash(pw)),
+                        w.bytes().size());
+            out.load_ok = out.load_ok && ai_hash(pw) == before && fo2 == fo;
+        }
+        if (num("a2m_done") == 1.0 && num("a2m_count1") == 2.0) {
+            out.done = true;
+            out.end_hash = ai_hash(pw);
+        }
+        pw.world->set_global_values(nullptr);
+        return out;
+    };
+    const Run plain = run(false), saved = run(true);
+    std::printf("move_to save: saved at %d, load %s, end hash %s the uninterrupted run's\n", saved.saved_at,
+                saved.load_ok ? "equal" : "DIFFERENT", saved.end_hash == plain.end_hash ? "equals" : "DIFFERS from");
+    CHECK(saved.saved_at > 0 && saved.load_ok);
+    CHECK(plain.done && saved.done);  // the move finished with both members, in both runs
+    CHECK(saved.end_hash == plain.end_hash);
 }
 
 // a2m t02 (A2L_T01_RE_ANSWERS Q8.2) [H; M on 0x1b]: the FleetObject (TF +0x120) is re-elected when it is destroyed
