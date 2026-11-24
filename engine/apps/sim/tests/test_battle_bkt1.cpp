@@ -1305,7 +1305,8 @@ GuardSaveRun run_guard_save(const Data& d, bool reload) {
         }
         if (stage == 3 && b->stats().guard_repaths > rp0 && b->frame() >= stage_frame + 20) {
             out.save_frame = b->frame();
-            out.following = b->movement().view(sq[0]).has_goal;
+            // the guard follow is on: its record re-pathed (guard_follow_step runs only for a guard follow) and it moves
+            out.following = b->stats().guard_repaths > rp0 && b->movement().view(sq[0]).has_goal;
             if (reload) {
                 using Part = TacticalBattle::SavePart;
                 const Part parts[] = {Part::Movement, Part::Combat, Part::Abilities, Part::Garrison, Part::Hangar, Part::Fog,

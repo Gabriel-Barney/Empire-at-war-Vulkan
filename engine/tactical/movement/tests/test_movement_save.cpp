@@ -1520,11 +1520,6 @@ void test_t25_attack() {
     check_resume(sc, (moving_first + moving_last) / 2, 31);
 }
 
-// s78o: a damaged unit record must not hang or index out of bounds after the load. In the t25.2 attack approach
-// unit 10 carries an attack slot (atk_theta / atk_rho, found by their 8 bytes) and no path record, so its Walk_Transition
-// block (wt_clip, wt_pos, wt_rate, wt_f4, wt_f0) sits a fixed 107 bytes + 20 before atk_theta (io_unit: prev_pos ..
-// self_goal with empty push vectors, then s78p's lane (empty: its count) and lane_d); the block of a unit without
-// Walk_Transition is -1 and four zero floats.
 // ---------------------------------------------------------------- #116: TerrainCollision detour, start turn, Walk_Transition
 // On an open 100 x 100 land map:
 //  * vehicle 10 (10 x 6, speed 1, turn rate 6) is ordered along cell row 20; once it moves, a wall (an Impassable stamp, id
@@ -1533,7 +1528,8 @@ void test_t25_attack() {
 //    speed fraction 0 sends the vehicle into a start turn in place (aturn_start: turning_in_place at speed 0) before it
 //    walks round;
 //  * walker 1 (Walk_Transition, the clips from the host's clip hook) walks 600 along row 60 and stops: MOVESTART
-//    (wt_clip 16), MOVE (2) and an end clip (17..20).
+//    (wt_clip 16), MOVE (2) and an end clip (17..20);
+//  * 72 parked infantry far away, so the per-unit passes (grain 64) split across the 4 workers.
 // Saved at the first, middle and last frame of each state: check_resume runs the saving battle serial and the loaded one
 // with 4 workers from there, digests compared every tick. The whole scene also runs serial and with 4 workers from frame
 // 0, its digest compared every tick.
@@ -1570,6 +1566,10 @@ void build_s116(World& w) {
     walker.anim_scale_speed = 1.6f * 0.8117f;
     walker.owner = 1;
     CHECK(w.sys.add_unit(walker));
+    // 72 parked infantry far from the movers (cells x 10..80, y 88..95): with 74+ units the per-unit passes (grain 64)
+    // split across the 4 workers
+    for (int32_t k = 0; k < 72; ++k)
+        CHECK(w.sys.add_unit(land_unit(1000 + k, cell_center(10 + 10 * (k % 8), 88 + k / 8), 0, 1.0f, 6.0f, kUccInfantry)));
 }
 
 void s116_before(World& w, uint32_t f) {
@@ -1661,6 +1661,11 @@ void test_s116_land_states() {
     if (seen[0][0] != 0) check_resume(sc, (seen[0][0] + seen[0][1]) / 2, 53);  // a loader that already ran
 }
 
+// s78o: a damaged unit record must not hang or index out of bounds after the load. In the t25.2 attack approach
+// unit 10 carries an attack slot (atk_theta / atk_rho, found by their 8 bytes) and no path record, so its Walk_Transition
+// block (wt_clip, wt_pos, wt_rate, wt_f4, wt_f0) sits a fixed 107 bytes + 20 before atk_theta (io_unit: prev_pos ..
+// self_goal with empty push vectors, then s78p's lane (empty: its count) and lane_d); the block of a unit without
+// Walk_Transition is -1 and four zero floats.
 void test_s78o_unit_rejections() {
     Scenario sc;
     sc.build = build_t25_attack;
