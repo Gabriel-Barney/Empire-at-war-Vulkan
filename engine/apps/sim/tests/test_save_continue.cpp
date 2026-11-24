@@ -1,7 +1,8 @@
 // alamo_sim_save_continue_tests (serves map3): save and continue on every battle fixture.
 // Each fixture (battle_test_fixture.hpp sessions: a space battle, a land invasion, a space battle with a retreat, a land
 // battle whose map carries placement records - hints, a company with a hint, a marker name, a build pad with a base
-// level on a planet with a ground structure - roadmap map3) runs twice from the same start:
+// level on a planet with a ground structure - roadmap map3, and #146 a space battle whose ships turn POWER_TO_WEAPONS
+// on, so checkpoints fall in its active time and then in its recharge) runs twice from the same start:
 //   continuous   ticked straight through;
 //   reloaded     at every 64-tick checkpoint (the CRC golden checkpoints, ALAMO_CRC 2) the session is saved, a fresh
 //                session is built like a new game, the save is loaded into it (a battle is rebuilt, then its parts are
@@ -10,7 +11,9 @@
 // the fresh session takes of the loaded state), and so do the answers the battle's Lua finders give after a load:
 // Find_Hint / Get_Hint (TacticalBattle::map_hint, which lua::ObjectBridge::map_hint reads), the marker names and the
 // pads' base levels, for every object of the battle; no object created after the battle start (after a load included)
-// answers a map hint. On every running battle the save ledger self-check holds too
+// answers a map hint. #146: every ship's POWER_TO_WEAPONS state (active, ready) after a load equals the continuous run's
+// at that checkpoint, and the ability fixture reaches both an active and a recharging checkpoint. On every running
+// battle the save ledger self-check holds too
 // (TacticalBattle::check_save_ledger: state_io walks exactly the SAVED members of tactical_battle_ledger.hpp).
 // Modes:
 //   (none)                        every fixture at 0 workers
@@ -30,6 +33,7 @@ struct Fixture {
     float retreat_ratio;
     bool records;  // land map with placement records (hints, a hinted company, a marker name, a levelled pad)
     uint64_t ticks;
+    uint64_t ability_frame = 0;  // #146: the battle frame at which every ship with POWER_TO_WEAPONS turns it on (0: never)
 };
 
 const Fixture kFixtures[] = {
@@ -37,7 +41,10 @@ const Fixture kFixtures[] = {
     {"land", true, 0.0f, false, 3000},
     {"space_retreat", false, 0.95f, false, 2600},
     {"land_records", true, 0.0f, true, 3000},
+    {"space_ability", false, 0.0f, false, 2500, 30},
 };
+
+constexpr auto kPowerToWeapons = static_cast<uint8_t>(tactical::abilities::kPowerToWeapons);
 
 terrain::ObjectPlacement placement(const char* type, float x, float y, uint32_t owner) {
     terrain::ObjectPlacement p;
@@ -100,9 +107,11 @@ struct Session {
     std::vector<ai::tactical::TacticalBudgetCategory> budget = std::vector<ai::tactical::TacticalBudgetCategory>(1);
 #endif
     bool land = false, invaded = false;
+    uint64_t ability_frame = 0;
+    bool ability_sent = false;  // #146: the fixture's POWER_TO_WEAPONS order was given (a loaded session carries it over)
     size_t crc_seen = 0;  // records of crc_log() already collected
 
-    Session(const Data& d, const Fixture& f, uint32_t workers, bool launch) : land(f.land) {
+    Session(const Data& d, const Fixture& f, uint32_t workers, bool launch) : land(f.land), ability_frame(f.ability_frame) {
         js = std::make_unique<jobs::JobSystem>(jobs::JobSystemConfig{static_cast<int32_t>(workers)});
         SimConfig cfg;
         cfg.seed = 2026;
@@ -153,6 +162,23 @@ struct Session {
                 invaded = true;
             }
         }
+        if (ability_frame > 0 && !ability_sent)
+            if (TacticalBattle* b = battle(); b && b->frame() >= ability_frame) {
+                // #146: SetUnitAbilityMode on for each player's ships that have the ability (one order per owner, ascending id)
+                const objects::ObjectStore& st = host->tactical()->primary();
+                std::map<int32_t, std::vector<uint32_t>> by_owner;
+                for (const objects::ObjectHandle h : st.all_objects())
+                    if (st.alive(h) && st.owner(h) >= 0 && TacticalBattleTestAccess::abilities(*b).has_ability(st.id(h), kPowerToWeapons))
+                        by_owner[st.owner(h)].push_back(static_cast<uint32_t>(st.id(h)));
+                for (auto& [owner, ids] : by_owner) {
+                    std::sort(ids.begin(), ids.end());
+                    commands::EventData ev(commands::EventType::SetUnitAbilityMode);
+                    ev.set("ability", kPowerToWeapons).set("on", 1).set_ids("units", ids);
+                    CHECK(host->execute_direct(static_cast<uint8_t>(owner), commands::CommandSource::Player, ev) == commands::RejectReason::None);
+                }
+                CHECK(!by_owner.empty());
+                ability_sent = true;
+            }
     }
 
     TacticalBattle* battle() const {
@@ -202,13 +228,47 @@ std::vector<std::string> lookup_answers(const TacticalBattle& b, const TacticalM
     return out;
 }
 
+// #146: every object's POWER_TO_WEAPONS state at a checkpoint ("id active ready"), and whether any is active / recharging
+// (neither active nor ready: this space map has no nebula, ion stun or force lockout).
+struct AbilityReadout {
+    std::vector<std::string> lines;
+    bool any_active = false, any_recharging = false;
+};
+AbilityReadout ability_readout(TacticalBattle& b, const TacticalMode& tm) {
+    AbilityReadout out;
+    const tactical::abilities::AbilitySystem& ab = TacticalBattleTestAccess::abilities(b);
+    const objects::ObjectStore& st = tm.primary();
+    for (const objects::ObjectHandle h : st.all_objects()) {
+        if (!st.alive(h)) continue;
+        const objects::ObjectId id = st.id(h);
+        if (!ab.has_ability(id, kPowerToWeapons)) continue;
+        const bool active = ab.is_active(id, kPowerToWeapons), ready = ab.is_ready(id, kPowerToWeapons, b.frame());
+        out.any_active = out.any_active || active;
+        out.any_recharging = out.any_recharging || (!active && !ready);
+        out.lines.push_back(std::to_string(id) + (active ? " active" : " -") + (ready ? " ready" : " -"));
+    }
+    std::sort(out.lines.begin(), out.lines.end());
+    return out;
+}
+
 struct RunResult {
     std::vector<Checkpoint> checkpoints;
     std::map<uint64_t, std::vector<std::string>> answers;  // checkpoint tick -> lookup answers (the reloaded run: after the load)
+    std::map<uint64_t, std::vector<std::string>> abilities;  // #146: checkpoint tick -> POWER_TO_WEAPONS states (likewise)
+    bool ability_active_seen = false, ability_recharge_seen = false;
     uint32_t battle_checkpoints = 0, reloads = 0, battle_reloads = 0, refused = 0;
     uint32_t ledger_checks = 0;
     bool ledger_ok = true, load_ok = true;
     uint64_t last_tick = 0;
+
+    // the lookup answers and ability readout of a battle at checkpoint `tick`
+    void record(uint64_t tick, TacticalBattle& b, const TacticalMode& tm) {
+        answers[tick] = lookup_answers(b, tm);
+        AbilityReadout a = ability_readout(b, tm);
+        ability_active_seen = ability_active_seen || a.any_active;
+        ability_recharge_seen = ability_recharge_seen || a.any_recharging;
+        abilities[tick] = std::move(a.lines);
+    }
 };
 
 void check_ledger(const TacticalBattle& b, RunResult& r, const char* fixture) {
@@ -234,7 +294,7 @@ RunResult run(const Data& d, const Fixture& f, uint32_t workers, bool reload) {
         if (b) {
             ++r.battle_checkpoints;
             check_ledger(*b, r, f.name);
-            if (!reload) r.answers[tick] = lookup_answers(*b, *s->host->tactical());
+            if (!reload) r.record(tick, *b, *s->host->tactical());
         }
         if (!reload) continue;
         std::string why;
@@ -251,6 +311,7 @@ RunResult run(const Data& d, const Fixture& f, uint32_t workers, bool reload) {
         auto fresh = std::make_unique<Session>(d, f, workers, false);
         if (!fresh->gs) break;
         fresh->invaded = s->invaded;  // the test's own invasion order, given once (the save holds its effect)
+        fresh->ability_sent = s->ability_sent;  // #146: likewise the ability order
         LoadReport rep;
         if (!fresh->host->load(save, &why, &rep)) {
             std::printf("  %s: load at tick %" PRIu64 " failed: %s\n", f.name, tick, rep.text().c_str());
@@ -263,7 +324,7 @@ RunResult run(const Data& d, const Fixture& f, uint32_t workers, bool reload) {
         if (TacticalBattle* lb = s->battle()) {
             ++r.battle_reloads;
             check_ledger(*lb, r, f.name);
-            r.answers[tick] = lookup_answers(*lb, *s->host->tactical());
+            r.record(tick, *lb, *s->host->tactical());
         }
     }
     return r;
@@ -349,6 +410,22 @@ std::string test_fixture(const Data& d, const Fixture& f, uint32_t workers) {
         }
     }
     CHECK(compared == b.battle_reloads);
+    for (const auto& [tick, want] : a.abilities) {  // #146: the ability states a load gives back
+        const auto it = b.abilities.find(tick);
+        if (it == b.abilities.end() || it->second == want) continue;
+        std::printf("  %s: POWER_TO_WEAPONS states differ after the load at tick %" PRIu64 " (%zu vs %zu):\n", f.name, tick, want.size(),
+                    it->second.size());
+        for (size_t i = 0; i < std::max(want.size(), it->second.size()) && i < 6; ++i)
+            std::printf("    want %-24s got %s\n", i < want.size() ? want[i].c_str() : "-", i < it->second.size() ? it->second[i].c_str() : "-");
+        CHECK(false);
+        break;
+    }
+    if (f.ability_frame > 0) {  // the ability fixture is saved and loaded while the ability runs and while it recharges
+        if (!(a.ability_active_seen && a.ability_recharge_seen && b.ability_active_seen && b.ability_recharge_seen))
+            std::printf("  %s: active seen %d/%d, recharge seen %d/%d\n", f.name, a.ability_active_seen, b.ability_active_seen,
+                        a.ability_recharge_seen, b.ability_recharge_seen);
+        CHECK(a.ability_active_seen && a.ability_recharge_seen && b.ability_active_seen && b.ability_recharge_seen);
+    }
     if (f.records) CHECK(hinted == compared && compared > 0);  // the records fixture has hints at every checkpoint
     if (f.records) CHECK(padded == compared);                  // and its pad keeps its base level
     return "# " + std::string(f.name) + "\n" + checkpoints_text(a.checkpoints);
