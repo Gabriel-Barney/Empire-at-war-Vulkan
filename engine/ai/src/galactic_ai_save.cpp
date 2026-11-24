@@ -896,7 +896,7 @@ bool GalacticAiWorld::read(ByteReader& r) {
     // ---- build tasks + market ----
     std::map<int32_t, BuildTask> builds;
     {
-        const uint32_t n = save::count(r, version >= 9 ? gio::kBuildBytes : gio::kBuildBytesV8);
+        const uint32_t n = save::count(r, gio::Features{version}.has(gio::Feature::BuildClaimed) ? gio::kBuildBytes : gio::kBuildBytesV8);
         for (uint32_t i = 0; i < n && r.ok(); ++i) {
             BuildTask b;
             b.id = r.i32();

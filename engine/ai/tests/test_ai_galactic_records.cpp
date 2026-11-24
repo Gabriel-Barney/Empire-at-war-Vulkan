@@ -675,14 +675,15 @@ void test_crc_pin(const Store& s) {
 void test_old_versions(const Store& s) {
     const objects::ObjectStore& st = s.store;
     const TaskForceRec t = sample_tf(s);
-    for (const uint32_t version : {6u, 7u}) {
+    for (const uint32_t version : {6u, 7u, 8u, 9u, 10u}) {
         ByteWriter w;
         old_tf(w, t, st, version);
         TaskForceRec y;
         const bool ok = load(w.bytes(), s, y, version);
         const TaskForceRec d;
         std::printf("  task force, version %u: %s\n", version, ok ? "read" : "FAILED");
-        CHECK(ok && y.stage == t.stage && y.area == t.area && y.alive == t.alive && y.fleet == d.fleet && y.units.size() == 1);
+        CHECK(ok && y.stage == t.stage && y.area == t.area && y.alive == t.alive && y.units.size() == 1);
+        CHECK(y.fleet == (version >= 8 ? t.fleet : d.fleet));
         CHECK(version >= 7 ? (y.sync == t.sync && y.sync_left == t.sync_left && y.sync_etas == t.sync_etas)
                            : (y.sync == d.sync && y.sync_left == d.sync_left && y.sync_etas.empty()));
     }
@@ -730,7 +731,8 @@ void test_coverage(const Store& s) {
     ok = coverage<PlanetBuildQueue>("PlanetBuildQueue", sample_queue, s, fields) && ok;
     ok = coverage<FreeStoreMove>("FreeStoreMove", sample_move, s, fields) && ok;
     std::printf("  coverage: %zu fields\n", fields);
-    CHECK(ok && fields > 100);
+    // Every field of the lists above: a field added to or dropped from a list changes the count (update it with the samples).
+    CHECK(ok && fields == 124);
 }
 
 }  // namespace
