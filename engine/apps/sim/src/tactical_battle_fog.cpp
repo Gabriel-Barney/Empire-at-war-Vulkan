@@ -22,19 +22,24 @@ namespace fw = alamo::tactical::fog;
 
 tactical::Aabb TacticalBattle::map_extents(const TacticalMode& mode, ExtentsUse use) const {
     if (use == ExtentsUse::Perception && !kPerceptionTracedExtents) return mode.bounds();  // the pre-#54 stand-in
-    // Land (0x3b8020): the terrain box, x / y = [0, W x 20] x [0, H x 20] with W, H the vertex grid size; z = [zmin, zmax]
-    // over every vertex height, both started at 0. Space (0x4d7780): the playable box. [port] A land map without terrain
-    // (synthetic test maps) keeps the playable box instead of retail's zero box (no grids).
-    const terrain::Terrain& t = map_.terrain;
-    if (space_ || !t.present || t.width == 0 || t.height == 0) return mode.bounds();
+    // Land (0x3b8020): the terrain box (land_terrain_box, cached at setup, #156). Space (0x4d7780): the playable box.
+    // [port] A land map without terrain (synthetic test maps) keeps the playable box instead of retail's zero box (no grids).
+    if (space_ || !land_box_) return mode.bounds();
+    return *land_box_;
+}
+
+std::optional<tactical::Aabb> TacticalBattle::land_terrain_box(const terrain::Terrain& t) {
+    // 0x3b8020: x / y = [0, W x 20] x [0, H x 20] with W, H the vertex grid size; z = [zmin, zmax] over every vertex
+    // height, both started at 0.
+    if (!t.present || t.width == 0 || t.height == 0) return std::nullopt;
     float zmin = 0.0f, zmax = 0.0f;
     for (const int16_t h : t.heights) {
         const float z = static_cast<float>(h) * terrain::kHeightScale;
         zmin = std::min(zmin, z);
         zmax = std::max(zmax, z);
     }
-    return {{0.0f, 0.0f, zmin},
-            {static_cast<float>(t.width) * terrain::kVertexSpacing, static_cast<float>(t.height) * terrain::kVertexSpacing, zmax}};
+    return tactical::Aabb{{0.0f, 0.0f, zmin},
+                          {static_cast<float>(t.width) * terrain::kVertexSpacing, static_cast<float>(t.height) * terrain::kVertexSpacing, zmax}};
 }
 
 void TacticalBattle::fog_begin(TacticalMode& mode, uint32_t players) {
