@@ -73,12 +73,9 @@ bool CombatSystem::fire_hardpoint(Unit& u, Hardpoint& h, uint32_t frame, SimRng&
         const float f = inaccuracy_f(cfg_.mode, player(u.owner).ai_accuracy);
         float r = 0.0f;
         bool overridden = false;
-        for (int s = 0; s < 2 && !overridden; ++s) {
-            const UnitAbilityDesc* ab = ability(u, s);
-            if (ab && u.ability_active[static_cast<size_t>(s)] && ab->inaccuracy_override > 0.0f) {
-                r = ab->inaccuracy_override;  // returned UNSCALED
-                overridden = true;
-            }
+        if (u.ability_state.inaccuracy_override > 0.0f) {
+            r = u.ability_state.inaccuracy_override;  // returned UNSCALED
+            overridden = true;
         }
         // L1 systems: tactical weather (land) scales the inaccuracy by (2 - m); m = 1 leaves it untouched.
         const float ws = cfg_.mode == GameMode::Land ? weather_scale(pd, u.owner) : 1.0f;
@@ -239,13 +236,7 @@ void CombatSystem::fire_unit_weapon(Unit& u, uint32_t frame, SimRng& rng) {
         const float ws = cfg_.mode == GameMode::Land ? weather_scale(pd, u.owner) : 1.0f;  // L1 systems: weather
         float r = scale_inaccuracy(ud.fire_inaccuracy_fixed_radius, f);
         if (ws != 1.0f) r = r * ws;
-        for (int s = 0; s < 2; ++s) {
-            const UnitAbilityDesc* ab = ability(u, s);
-            if (ab && u.ability_active[static_cast<size_t>(s)] && ab->inaccuracy_override > 0.0f) {
-                r = ab->inaccuracy_override;
-                break;
-            }
-        }
+        if (u.ability_state.inaccuracy_override > 0.0f) r = u.ability_state.inaccuracy_override;
         // mcx4 (MCX4_T10_RE_ANSWERS §15): a corrupted shooter (obj +0x38a, CORRUPT_SYSTEMS pack +0x14) uses the
         // corrupting ability's Inaccuracy_Radius as its fixed radius, whatever the getter gave.
         if (float cr = 0.0f; hooks_ && hooks_->corrupt_inaccuracy(u.id, cr)) r = cr;
@@ -1415,9 +1406,7 @@ DamageResult CombatSystem::take_damage_inner(const DamageRequest& r, uint32_t fr
     if (src && (r.source_is_projectile || (src->flags & kUnitIncognito))) {
         src->flags &= ~kUnitIncognito;
         x = x * mult(*src, ModKind::CauseDamage);
-        const UnitAbilityDesc* ab[2] = {ability(*src, 0), ability(*src, 1)};
-        const bool act[2] = {src->ability_active[0] != 0, src->ability_active[1] != 0};
-        dim_allowed = ability_flag(ab, act, kFlagAllowDiminishingFirepower);
+        dim_allowed = src->ability_state.flag[kFlagAllowDiminishingFirepower] != 0;
     }
     if (v.flags & kUnitInBaseShield) x = x * cfg_.base_shield_vulnerability;  // 6
     // 7 diminishing firepower (retail step 11). s78n t13 (HERO_CLASH §8.4.1, TACTICAL_GAPS §3.3): only for kind 1 and only
@@ -1461,13 +1450,7 @@ DamageResult CombatSystem::take_damage_inner(const DamageRequest& r, uint32_t fr
     out.after_multipliers = x;
     // 14-16 shields, armor, hull [H]
     uint16_t hull_armor = vd.armor_type;
-    for (int s = 1; s >= 0; --s) {  // active ability armor override, slot 1 before slot 0 [M]
-        const UnitAbilityDesc* ab = ability(v, s);
-        if (ab && v.ability_active[static_cast<size_t>(s)] && ab->armor_override != kNoTypeId) {
-            hull_armor = ab->armor_override;
-            break;
-        }
-    }
+    if (v.ability_state.armor_override != kNoTypeId) hull_armor = v.ability_state.armor_override;  // active, slot 1 before slot 0 [M]
     const float sf = data_->damage.factor(r.damage_type, vd.shield_armor_type);
     const float hf = data_->damage.factor(r.damage_type, hull_armor);
     out.hull_armor_factor = hf;
@@ -2260,10 +2243,7 @@ void CombatSystem::tick(uint32_t frame, const TreeSet& trees, SimRng& rng, const
                 if (u.flags & kUnitDead) continue;
                 u.mods.purge_expired(frame_);  // once per object update
                 ensure_cache(u);
-                const UnitAbilityDesc* ab[2] = {ability(u, 0), ability(u, 1)};
-                const bool act[2] = {u.ability_active[0] != 0, u.ability_active[1] != 0};
-                for (uint32_t k = 0; k < kModKindCount; ++k)
-                    u.own_mult[k] = ability_product(ab, act, static_cast<ModKind>(k + 1));
+                u.own_mult = u.ability_state.mult;
                 u.mult = u.own_mult;  // the team_leader too (the squad value is team_mod_multiplier)
             }
         };

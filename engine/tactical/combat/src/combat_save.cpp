@@ -659,6 +659,7 @@ bool CombatSystem::read(ByteReader& r) {
     player_mods_ = std::move(pmods);
     weather_acc_ = wacc;
     units_ = std::move(units);
+    for (Unit& u : units_) build_ability_state(u);  // #416: derived from the type's slots and the saved activity
     hps_ = std::move(hps);
     projectiles_ = std::move(projectiles);
     rockets_ = std::move(rockets);
