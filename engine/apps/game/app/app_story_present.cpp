@@ -80,36 +80,22 @@ void App::story_present_lua(const lua::PresentationEvent& e) {
 // sim tick of the mode: a battle uses its frame (a pause stops it), the galactic mode the render clock since it began [port].
 void App::story_advisor_frame() {
     if (!session_ || bench_active() || demo_session()) return;
-    // #149: the clock (mode, tick, galactic seconds) is the presenter's, so a save carries it and a load continues the schedule.
-    StoryPresenter::AdvisorClock& clk = story_present_.advisor_clock();
+    // #149: the clock (mode, tick, galactic seconds) is the presenter's (advisor_step), so a save carries it and a load
+    // continues the schedule; the galactic seconds stop while the session is paused.
     uint8_t mode = 255;
-    uint32_t tick = 0;
+    uint32_t frame = 0;
     if (const sim::TacticalBattle* b = battle(); b && screen() == Screen::Battle) {
         mode = bview_.space() ? 1 : 2;
-        tick = static_cast<uint32_t>(b->frame());
+        frame = static_cast<uint32_t>(b->frame());
     } else if (galaxy() && screen() == Screen::Galactic) {
-        mode = 0;
-        // 6.4: the galactic mode starts once per campaign (a return from a battle does not restart its hint clock); its tick
-        // counts the render time spent on the map [port].
-        clk.galactic_seconds += static_cast<double>(dt_);
-        tick = static_cast<uint32_t>(clk.galactic_seconds * static_cast<double>(StoryPresenter::kTicksPerSecond));
-        if (!clk.galactic_started) {
-            clk.galactic_started = true;
-            story_present_.begin_mode(0);
-        }
+        mode = 0;  // 6.4: begins once per campaign (a return from a battle does not restart its hint clock)
     }
-    if (mode == 255) {
-        clk.mode = 255;
-        return;
-    }
-    if (mode != 0 && (mode != clk.mode || tick < clk.last_tick))  // a new battle: the first hint is due 90 ticks in
-        story_present_.begin_mode(mode);
+    const uint32_t tick = story_present_.advisor_step(mode, frame, static_cast<double>(dt_), session_->paused());
+    if (mode == 255) return;
     if (mode != advisor_hints_mode_) {  // the mode's faction hint list (after a load too)
         advisor_hints_ = faction_advisor_hints(data_.db, local_faction(), mode);
         advisor_hints_mode_ = mode;
     }
-    clk.mode = mode;
-    clk.last_tick = tick;
     story_present_.tick_advisor(mode, tick, advisor_hints_);
 }
 

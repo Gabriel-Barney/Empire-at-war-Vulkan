@@ -509,7 +509,9 @@ void save_test() {
     alamo::test::section("#149: an idle presenter's save / load / save is byte-identical at any clocks; the advisor clock is saved");
     {
         game::StoryPresenter idle = make();
-        idle.advisor_clock() = {0, 4567, 152.25 + 1.0 / 3.0, true};
+        CHECK(idle.advisor_step(0, 0, 152.25 + 1.0 / 3.0, false) == 4577 && idle.advisor_step(0, 0, 9.0, true) == 4577);  // paused: no time
+        CHECK(idle.advisor_step(2, 300, 0.1, false) == 300 && idle.advisor_step(255, 0, 0.1, false) == 0);
+        CHECK(idle.advisor_step(0, 0, 0.0, false) == 4577 && idle.advisor_clock().galactic_started);
         idle.on_reward("LOCK_CONTROLS", P{"1"}, 0.0, 0);  // a lasting state, no timed text
         ByteWriter i1;
         idle.write(i1, 1234.567891);
@@ -520,7 +522,13 @@ void save_test() {
         back.write(i2, 98765.4321987 + 17.125);  // later: nothing in the bytes depends on the clock
         CHECK(i2.bytes() == i1.bytes());
         const game::StoryPresenter::AdvisorClock& c = back.advisor_clock();
-        CHECK(c.mode == 0 && c.last_tick == 4567 && c.galactic_seconds == 152.25 + 1.0 / 3.0 && c.galactic_started);
+        CHECK(c.mode == 0 && c.last_tick == 4577 && c.galactic_seconds == 152.25 + 1.0 / 3.0 && c.galactic_started);
+        // a bad clock (mode 7) is refused and changes nothing
+        std::vector<uint8_t> bad = i1.bytes();
+        bad[bad.size() - 14] = 7;
+        game::StoryPresenter keep = make();
+        ByteReader br(bad);
+        CHECK(!keep.read(br, 0.0) && keep.advisor_clock().mode == 255);
         // a v2 blob (no clock at the end): reads, the clock starts afresh
         std::vector<uint8_t> v2 = i1.bytes();
         v2.resize(v2.size() - (1 + 4 + 8 + 1));

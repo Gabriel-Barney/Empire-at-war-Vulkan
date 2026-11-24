@@ -673,7 +673,7 @@ public:
     void story_present_frame();
     std::u32string owner_label(int32_t player) const;  // a planet owner's name in the changed-hands line
     void story_advisor_frame();  // the periodic advisor hint (6.4) and the hint sound cue
-    // The advisor's current mode (0 galactic, 1 space, 2 land, 255 none), the render time it began and the faction's hint ids.
+    // The faction's advisor hint ids for one mode (the clock itself: StoryPresenter::advisor_step).
     uint8_t advisor_hints_mode_ = 255;  // the mode advisor_hints_ was loaded for (the hint clock: StoryPresenter::advisor_clock)
     std::vector<std::string> advisor_hints_;
     void build_story_overlay(ui::HudDrawList& dl, const ui::HudCanvas& canvas);

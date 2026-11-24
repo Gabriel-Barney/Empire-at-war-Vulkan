@@ -481,6 +481,28 @@ void StoryPresenter::begin_mode(uint8_t mode) {
     next_hint_[mode] = config_.first_hint_tick;  // 6.5: only the next-tick field is set; the hint index runs on across modes / battles
 }
 
+uint32_t StoryPresenter::advisor_step(uint8_t mode, uint32_t battle_tick, double dt_seconds, bool paused) {
+    AdvisorClock& c = advisor_clock_;
+    if (mode >= 3) {
+        c.mode = 255;
+        return 0;
+    }
+    uint32_t tick = battle_tick;
+    if (mode == 0) {
+        if (!paused && dt_seconds > 0.0) c.galactic_seconds += dt_seconds;
+        tick = static_cast<uint32_t>(c.galactic_seconds * static_cast<double>(kTicksPerSecond));
+        if (!c.galactic_started) {
+            c.galactic_started = true;
+            begin_mode(0);
+        }
+    } else if (mode != c.mode || tick < c.last_tick) {  // a new battle: the first hint is due first_hint_tick ticks in
+        begin_mode(mode);
+    }
+    c.mode = mode;
+    c.last_tick = tick;
+    return tick;
+}
+
 bool StoryPresenter::tick_advisor(uint8_t mode, uint32_t tick, const std::vector<std::string>& hints) {
     if (mode >= 3 || !advisor_[mode] || tick < next_hint_[mode]) return false;
     next_hint_[mode] = tick + static_cast<uint32_t>(static_cast<double>(kTicksPerSecond) * config_.advisor_hint_interval + 0.5);
@@ -764,6 +786,8 @@ bool StoryPresenter::read(ByteReader& r, double now) {
         t.advisor_clock_.last_tick = r.u32();
         t.advisor_clock_.galactic_seconds = r.f64();
         t.advisor_clock_.galactic_started = r.boolean();
+        const AdvisorClock& c = t.advisor_clock_;
+        if ((c.mode >= 3 && c.mode != 255) || !std::isfinite(c.galactic_seconds) || c.galactic_seconds < 0.0) return false;
     }
     if (!r.ok()) return false;
     t.hooks_ = std::move(hooks_);
