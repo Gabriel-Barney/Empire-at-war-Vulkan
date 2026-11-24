@@ -938,8 +938,8 @@ static void test_story_records_151() {
         changed([](auto& x) { x.credits_seen = false; }, true);
         changed([](auto& x) { x.last_credits = 10.0f; }, true);
         changed([](auto& x) { x.file = "Story_Plots_Other.xml"; }, false);
-        changed([](auto& x) { x.plots = 8; }, false);
-        changed([](auto& x) { x.scripts = 4; }, false);
+        changed([](auto& x) { x.plot_count = 8; }, false);
+        changed([](auto& x) { x.script_count = 4; }, false);
         changed([](auto& x) { x.fired_seen = 12; }, false);
     }
     std::printf("  story records: definition edit and plot set field lists ok\n");

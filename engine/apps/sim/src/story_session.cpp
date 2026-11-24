@@ -2947,7 +2947,7 @@ bool StorySession::read(ByteReader& r) {
         if (version >= 8) {
             save_io::In a(r);
             a.seq(def_edits, kEditFields);
-        } else {  // v6 / v7: the edits without their tactical flag
+        } else {  // v6 / v7: the edits before their tactical flag (the field list less its last field; no longer written)
             const uint32_t n = read_count(r);
             for (uint32_t i = 0; i < n && r.ok(); ++i) {
                 DefinitionEdit e;
@@ -3015,10 +3015,10 @@ bool StorySession::read(ByteReader& r) {
     std::vector<SetIn> sets(nsets);
     for (uint32_t i = 0; i < nsets; ++i) {
         const Set& s = *sets_[i];
-        const SetIn& in = sets[i];
-        if (!read_plot_set(r, sets[i]) || in.player != s.player || in.number != s.number || in.file != s.file ||
-            static_cast<int64_t>(in.plots) != static_cast<int64_t>(s.model.plot_count()) + delta_of(s.number) ||
-            in.scripts != s.scripts.size())
+        SetIn& in = sets[i];
+        if (!read_plot_set(r, in) || in.player != s.player || in.number != s.number || in.file != s.file ||
+            static_cast<int64_t>(in.plot_count) != static_cast<int64_t>(s.model.plot_count()) + delta_of(s.number) ||
+            in.script_count != s.scripts.size())
             return false;
     }
     std::vector<StoryTrigger> triggers, pending_host, pending_ui;
@@ -3113,8 +3113,8 @@ bool StorySession::read(ByteReader& r) {
             if (tactical_) {  // pass 2: the rebuilt battle's tactical set must be the saved one
                 const Set* s = tactical_->set.get();
                 if (!s || s->player != tac_id.player || s->number != tac_id.number || s->file != tac_id.file ||
-                    static_cast<int64_t>(tac_set.plots) != static_cast<int64_t>(s->model.plot_count()) + tac_delta ||
-                    tac_set.scripts != s->scripts.size())
+                    static_cast<int64_t>(tac_set.plot_count) != static_cast<int64_t>(s->model.plot_count()) + tac_delta ||
+                    tac_set.script_count != s->scripts.size())
                     return false;
             }
         }

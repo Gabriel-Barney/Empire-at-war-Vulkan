@@ -29,8 +29,8 @@ struct PlotSetFields {
     int32_t player = -1;
     uint32_t number = 0;
     std::string file;
-    uint32_t plots = 0;
-    uint32_t scripts = 0;
+    uint32_t plot_count = 0;
+    uint32_t script_count = 0;
     bool credits_seen = false;
     float last_credits = 0.0f;
     uint64_t fired_seen = 0;
@@ -40,7 +40,7 @@ struct PlotSetFields {
 template <class Ar, Of<PlotSetFields> R>
 void visit(Ar& a, R& s) {
     a(s.player, s.number);
-    a.save_only(s.file, s.plots, s.scripts);
+    a.save_only(s.file, s.plot_count, s.script_count);
     a(s.credits_seen, s.last_credits);
     a.save_only(s.fired_seen);
 }
