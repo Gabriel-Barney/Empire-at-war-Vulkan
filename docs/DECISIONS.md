@@ -291,8 +291,8 @@ exception there wins.
 
 ## Mod picker load report stays in-process
 
-The recommended option, taken in the 2026-11-23 issue run under the user's standing rule (take the recommended option and
-record why), 2026-11-24; #136.
+Gabriel, 2026-11-23 standing rule for the three-lane issue run (take the recommended option and record why), applied
+2026-11-24; #136.
 
 The mod picker's load report (`App::check_mod`, `app_mods.cpp`) keeps running `game::check_picked_mod` on a worker thread
 inside `alamo_game`. It is not moved to an `alamo_mod_check --json` child process.
@@ -300,8 +300,11 @@ inside `alamo_game`. It is not moved to an `alamo_mod_check --json` child proces
 Why:
 
 - **Memory:** a child process does not lower what the machine uses. The checker's second copy of the mod's data exists
-  either way; only the process that holds it changes. Measured with the picker's options (`alamo_mod_check --no-dxc`,
-  2026-11-24): the base game peaks at 447 MB working set (1 s), and Thrawn's Revenge peaks at 888 MB (281 s).
+  either way; only the process that holds it changes, and a child adds its own start-up baseline. The issue measured
+  Thrawn's Revenge at 576 MB peak working set (modc t38 b). A standalone `alamo_mod_check --no-dxc` run, without the
+  runtime DXC compile as in the picker, measured on 2026-11-24 gives 447 MB for the base game (1 s) and 888 MB for
+  Thrawn's Revenge (281 s). That figure is the whole checker process, start-up included. The game's own peak is not
+  the limit: x64 has no address-space pressure, and the copy is freed when the report ends.
 - **Cost:** a child process needs a JSON reader for the whole `ModCheckReport`, kept in step with the writer.
   `alamo_mod_check` would have to ship next to `alamo_game` and be found at run time, and the game would need
   process-spawn and timeout plumbing.
