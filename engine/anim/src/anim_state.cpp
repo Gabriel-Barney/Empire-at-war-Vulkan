@@ -723,4 +723,18 @@ void AnimWorld::register_crc(CrcRegistry& registry, const std::string& name) con
     registry.add(name, [this](StateHasher& h) { hash_state(h); });
 }
 
+bool weapon_clip_hold(const AnimWorld& w, ObjectId id, bool contained, bool pose_exempt) {
+    if (contained || !w.contains(id)) return false;
+    const int32_t cur = w.current_type(id);
+    if (w.crossfading(id)) {
+        const int32_t prev = w.slot(id, kPrevious).type;
+        const bool attack_pose = cur == kAnimAttack || cur == kAnimAttackIdle || cur == kAnimCrouchMove;
+        if (attack_pose && prev != kNoAnimType && prev != kAnimAttack && prev != kAnimAttackIdle) return true;
+        if (is_flinch(cur)) return true;
+    }
+    if (pose_exempt) return false;
+    const AnimModel* m = w.model(id);
+    return m && m->variant_count(kAnimAttackIdle) > 0 && (cur == kAnimIdle || cur == kAnimMove || cur == kAnimWalkMove);
+}
+
 }  // namespace alamo::anim

@@ -1810,6 +1810,62 @@ void test_real_data() {
 }
 #endif
 
+// #263 (docs/re/WEAPON_CLIP_GATES.md): the clip gates of the weapon fire service 0x54d090.
+void test_weapon_clip_hold() {
+    auto m = make_model(2, {{kAnimIdle, 1, 20, 30.0f, 1}, {kAnimMove, 1, 20, 30.0f, 1}, {kAnimAttack, 1, 20, 30.0f, 1},
+                            {kAnimAttackIdle, 1, 20, 30.0f, 1}, {kAnimCrouchMove, 1, 20, 30.0f, 1},
+                            {kAnimFlinchLeft, 1, 20, 30.0f, 1}, {kAnimWalkMove, 1, 20, 30.0f, 1}});
+    auto bare = make_model(2, {{kAnimIdle, 1, 20, 30.0f, 1}, {kAnimAttack, 1, 20, 30.0f, 1}});
+    auto play = [](AnimWorld& w, int32_t type, float blend, uint64_t frame) {
+        PlayRequest r;
+        r.type = type;
+        r.loop = true;
+        r.blend_seconds = blend;
+        return w.play(1, r, nullptr, frame);
+    };
+    auto fade_out = [](AnimWorld& w, uint64_t& f) {
+        while (w.crossfading(1) && f < 200) w.advance(++f);
+    };
+    AnimWorld w;
+    CHECK(!weapon_clip_hold(w, 1, false, false));  // no row: no clip, nothing held
+    w.add(1, m.get(), 0);
+    uint64_t f = 0;
+    // Pose gate: a model with ATTACKIDLE holds fire in IDLE / MOVE / WALKMOVE, not in ATTACK; TURRET or inside a garrison
+    // (pose_exempt) and contained (+0x3a7) skip it.
+    for (int32_t t : {kAnimIdle, kAnimMove, kAnimWalkMove}) {
+        CHECK(play(w, t, 0.0f, f) == PlayResult::Played && !w.crossfading(1));
+        CHECK(weapon_clip_hold(w, 1, false, false));
+        CHECK(!weapon_clip_hold(w, 1, false, true) && !weapon_clip_hold(w, 1, true, false));
+    }
+    play(w, kAnimAttack, 0.0f, f);
+    CHECK(!weapon_clip_hold(w, 1, false, false));
+    AnimWorld wb;
+    wb.add(1, bare.get(), 0);
+    play(wb, kAnimIdle, 0.0f, 0);
+    CHECK(!weapon_clip_hold(wb, 1, false, false));  // no ATTACKIDLE clip: the pose gate is off
+    // Crossfade gate: IDLE -> ATTACK holds while the fade runs, fires once it ends; ATTACKIDLE -> ATTACK does not hold.
+    play(w, kAnimIdle, 0.0f, f);
+    CHECK(play(w, kAnimAttack, 0.4f, f) == PlayResult::Played && w.crossfading(1) && w.slot(1, kPrevious).type == kAnimIdle);
+    CHECK(weapon_clip_hold(w, 1, false, true) && !weapon_clip_hold(w, 1, true, true));
+    fade_out(w, f);
+    CHECK(!w.crossfading(1) && !weapon_clip_hold(w, 1, false, false));
+    play(w, kAnimAttackIdle, 0.0f, f);
+    CHECK(play(w, kAnimAttack, 0.4f, f) == PlayResult::Played && w.crossfading(1) && !weapon_clip_hold(w, 1, false, true));
+    fade_out(w, f);
+    // MOVE -> CROUCHMOVE holds while it fades (pose_exempt: the pose gate does not cover CROUCHMOVE either).
+    play(w, kAnimMove, 0.0f, f);
+    play(w, kAnimCrouchMove, 0.4f, f);
+    CHECK(w.crossfading(1) && weapon_clip_hold(w, 1, false, true));
+    fade_out(w, f);
+    CHECK(!weapon_clip_hold(w, 1, false, false));
+    // A flinch holds while its crossfade runs, whatever clip fades out; not once the fade has ended.
+    play(w, kAnimAttack, 0.0f, f);
+    play(w, kAnimFlinchLeft, 0.25f, f);
+    CHECK(w.crossfading(1) && w.slot(1, kPrevious).type == kAnimAttack && weapon_clip_hold(w, 1, false, true));
+    fade_out(w, f);
+    CHECK(w.current_type(1) == kAnimFlinchLeft && !weapon_clip_hold(w, 1, false, false));
+}
+
 }  // namespace
 
 // plan_death (no AnimWorld) gives the frame the corpse countdown removes the object, for clips of several
@@ -2130,6 +2186,7 @@ int main() {
     test_determinism();
     test_behaviors();
     test_walk_transition_clips();
+    test_weapon_clip_hold();
     test_events_and_locomotor();
     test_save();
     test_idle_records();

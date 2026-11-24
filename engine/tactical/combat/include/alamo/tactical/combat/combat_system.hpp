@@ -792,6 +792,10 @@ public:
     // mcx4 (MCX4_T11_T12_RE_ANSWERS §B4): `id`'s current primary clip is the crouched move (clip type 0x43); its own weapon
     // then fires only inside CombatConfig::crouch_move_fire_angle_cutoff. Serial fire step. Default: never.
     virtual bool crouch_moving(ObjectId /*id*/) const { return false; }
+    // #263 (docs/re/WEAPON_CLIP_GATES.md, 0x54d090 after the gate 0x54c910): `id`'s animation clips hold its own weapon's
+    // fire this service (anim::weapon_clip_hold). `contained`: garrisoned or in limbo (obj +0x3a7); `turret`: a TURRET
+    // behaviour (obj +0x33d). The hard points (Fire_At 0x3825b0) have no clip gate. Serial fire step. Default: never.
+    virtual bool clip_holds_fire(ObjectId /*id*/, bool /*contained*/, bool /*turret*/) const { return false; }
     // mcx4 (MCX4_T10_RE_ANSWERS §15, own-weapon inaccuracy 0x549f80): `shooter` is corrupted by a Corrupt_Systems ability
     // (its CORRUPT_SYSTEMS pack): true with `radius` = that ability's Inaccuracy_Radius, which replaces the fixed
     // inaccuracy radius of its own weapon (unscaled; the ability override too). Serial fire step. Default: never.

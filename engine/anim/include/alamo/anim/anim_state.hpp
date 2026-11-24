@@ -246,6 +246,17 @@ private:
     std::vector<float> fade_duration_, fade_remaining_, fade_weight_;
 };
 
+// #263: the clip gates of WeaponBehavior's fire service 0x54d090, after its gate 0x54c910 and before the crouched-move
+// cone (docs/re/WEAPON_CLIP_GATES.md). True = the own weapon holds fire this service [H]:
+//   crossfade gate (0x397040: a crossfade runs, ModelClass +0x108; skipped when `contained`, obj +0x3a7): the current
+//     clip is ATTACK, ATTACKIDLE or CROUCHMOVE and the clip fading out (previous slot type, +0xf4) is set and is neither
+//     ATTACK nor ATTACKIDLE; or the current clip is a flinch (79-86, 0x27b590);
+//   pose gate (skipped when `contained` or `pose_exempt`: a TURRET behaviour, obj +0x33d, or GARRISON_UNIT state 7,
+//     inside): the model has an ATTACKIDLE clip (0x38f9e0(obj, 6) != 0 [M: read as variant_count > 0]) and the current
+//     clip is IDLE, MOVE or WALKMOVE.
+// An object without a row holds nothing (no clip: type -1, no crossfade).
+bool weapon_clip_hold(const AnimWorld& w, ObjectId id, bool contained, bool pose_exempt);
+
 // Sampling helper (exposed for tests and the render side): keys a, b and fraction t of frame position
 // `frame` in a clip of `count` frames - a = floor(frame), b = a + 1, both wrapped into [0, count - 1);
 // t = frame - floor(frame). Clips with < 2 frames sample frame 0 (t = 0).

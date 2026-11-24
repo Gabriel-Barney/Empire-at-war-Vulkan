@@ -498,6 +498,67 @@ void test_crouch_move_fire_cone() {
     CHECK_F(CombatConfig{}.crouch_move_fire_angle_cutoff, 20.0f);
 }
 
+void test_clip_holds_fire() {
+    // #263 (docs/re/WEAPON_CLIP_GATES.md, 0x54d090): while the host's clip gate holds, the own weapon does not fire; it
+    // fires once the gate opens. The hook gets obj +0x3a7 (contained) and the TURRET behaviour (+0x33d).
+    struct Hooks final : CombatHooks {
+        uint32_t hold_until = 0;  // frames the gate holds (counted per call: one service per tick)
+        mutable uint32_t calls = 0;
+        mutable bool saw_turret = false, saw_contained = false;
+        bool clip_holds_fire(ObjectId, bool contained, bool turret) const override {
+            saw_turret = saw_turret || turret;
+            saw_contained = saw_contained || contained;
+            return ++calls <= hold_until;
+        }
+    };
+    struct Run {
+        uint64_t shots;
+        uint32_t calls;
+        bool turret, contained;
+    };
+    auto run = [](uint32_t hold, bool turret, int ticks) {
+        Hooks hk;
+        hk.hold_until = hold;
+        World w;
+        ProjectileDesc p;
+        p.max_speed = 10.0f;
+        p.damage = 1.0f;
+        w.data.projectiles.push_back(p);
+        UnitDesc s;
+        s.tactical_health = 100.0f;
+        s.max_attack_distance = 1000.0f;
+        s.weapon_projectile = 0;
+        s.weapon_recharge = 1.0f;
+        s.turret = turret;
+        UnitDesc t;
+        t.tactical_health = 1e6f;
+        t.radius = 10.0f;
+        t.category_mask = kCatCapital;
+        const uint32_t ds = push_unit(w.data, s), dt = push_unit(w.data, t);
+        CombatConfig cfg;
+        cfg.mode = GameMode::Land;
+        cfg.inaccuracy_enabled = false;
+        w.make(cfg);
+        w.sys->set_hooks(&hk);
+        w.add(1, ds, 0, Vec3{0, 0, 0}, Vec3{1, 0, 0});
+        w.add(2, dt, 1, Vec3{300, 0, 0});
+        w.sys->order_attack(1, 2);
+        for (int i = 0; i < ticks; ++i) w.tick();
+        w.sys->set_hooks(nullptr);
+        return Run{w.sys->stats().shots, hk.calls, hk.saw_turret, hk.saw_contained};
+    };
+    const Run held = run(1000000, false, 300);
+    CHECK(held.shots == 0 && held.calls > 0 && !held.turret && !held.contained);  // held every service: no shot
+    const Run open = run(0, false, 300);
+    CHECK(open.shots > 0);  // never held: fires
+    CHECK(run(0, true, 300).turret);  // the TURRET behaviour reaches the hook
+    // Held for the first half of the services only: fire resumes once the gate opens, with fewer shots than never held.
+    const Run late = run(held.calls / 2, false, 300);
+    CHECK(late.shots > 0 && late.shots < open.shots);
+    std::printf("clip gate: held %u calls -> 0 shots; open %u shots; held %u calls then open %u shots\n", held.calls,
+                static_cast<uint32_t>(open.shots), held.calls / 2, static_cast<uint32_t>(late.shots));
+}
+
 void test_out_of_range_mod_values() {
     // mcx8 t11 (docs/MODS.md "Determinism with mods"): mod values whose frame count is out of int32 range convert the x86 way
     // (cvttss2si: INT32_MIN), so the MSVC and clang builds give the same result (both run this test). A mod's 99999999999 s
