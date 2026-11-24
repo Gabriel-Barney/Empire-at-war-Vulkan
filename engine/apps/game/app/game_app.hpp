@@ -882,6 +882,8 @@ private:
     ui::CreditsRoll credits_;            // the front end's credits roll (ShowCredits)
     uint32_t tooltip_trigger_fleet_ = 0;  // the fleet / land stack whose fleet_tooltip / land_tooltip fired last
     void show_credits();
+    void end_credits();          // the roll ended or was skipped: stops the Credits movie, back to the main menu
+    bool credits_movie_ = false;  // the Credits movie behind the roll is open
     void fill_cursor_hover(ui::CursorContext& c);  // hovered object -> cursor context (battle)
     void update_radar();
     void corruption_speech_feedback();  // #62 t05

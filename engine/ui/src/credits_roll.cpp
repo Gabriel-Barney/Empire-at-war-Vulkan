@@ -44,15 +44,14 @@ Rgba8 unit_color(const data::GameConstants& gc, std::string_view tag, Rgba8 fall
 CreditsStyle credits_style(const data::GameConstants& gc) {
     CreditsStyle s;
     if (const auto f = gc.get("Credits_Font"); f && !f->empty()) s.font = std::string(*f);
-    s.font_size = gc.get_float("Credits_Font_Size", s.font_size);
+    s.font_size = std::trunc(gc.get_float("Credits_Font_Size", s.font_size));
     s.header_top = unit_color(gc, "Credits_Header_Top_Color", s.header_top);
     s.header_bottom = unit_color(gc, "Credits_Header_Bottom_Color", s.header_bottom);
     s.top = unit_color(gc, "Credits_Top_Color", s.top);
     s.bottom = unit_color(gc, "Credits_Bottom_Color", s.bottom);
-    s.spacing = std::max(0.005f, gc.get_float("Credits_Spacing", s.spacing));
-    s.margin = std::clamp(gc.get_float("Credits_Margin", s.margin), 0.0f, 0.45f);
+    s.spacing = gc.get_float("Credits_Spacing", s.spacing);
+    s.margin = gc.get_float("Credits_Margin", s.margin);
     s.scroll_rate = gc.get_float("Credits_Scroll_Rate", s.scroll_rate);
-    if (std::fabs(s.scroll_rate) < 0.005f) s.scroll_rate = -0.10f;
     return s;
 }
 
@@ -83,7 +82,8 @@ bool parse_credits(std::span<const uint8_t> b, std::vector<CreditsLine>& out) {
         if (text == U"[TBL]" || text.empty()) {
             l.kind = CreditsLine::Kind::Blank;
         } else {
-            l.kind = key == "HEADER" ? CreditsLine::Kind::Header : CreditsLine::Kind::Name;
+            // 0x44eab6: a key that contains "HEADER" takes the header colours [M: the call is strstr].
+            l.kind = key.find("HEADER") != std::string::npos ? CreditsLine::Kind::Header : CreditsLine::Kind::Name;
             l.text = std::move(text);
         }
         out.push_back(std::move(l));
@@ -93,59 +93,61 @@ bool parse_credits(std::span<const uint8_t> b, std::vector<CreditsLine>& out) {
 
 std::string credits_path(std::string_view language) { return "Data\\Text\\CreditsText_" + std::string(language) + ".DAT"; }
 
-void CreditsRoll::start(std::vector<CreditsLine> lines, const CreditsStyle& style, double now) {
+int64_t credits_scroll_target_px(float scroll_rate, int32_t screen_height, double t) {
+    return static_cast<int64_t>(std::floor(-static_cast<double>(scroll_rate) * static_cast<double>(screen_height) * t)) + 2;
+}
+
+void CreditsRoll::start(std::vector<CreditsLine> lines, const CreditsStyle& style, double now, bool black_backdrop) {
     lines_ = std::move(lines);
     style_ = style;
     t0_ = now;
+    black_backdrop_ = black_backdrop;
+    moved_px_ = 0;
+    last_top_px_ = 0.0f;
     active_ = !lines_.empty();
     drawn_ = 0;
-}
-
-double CreditsRoll::duration() const {
-    // From the first line entering at the bottom to the last leaving at the top: (1 + lines x spacing) screen heights.
-    const double h = 1.0 + static_cast<double>(lines_.size() + 1) * static_cast<double>(style_.spacing);
-    return h / std::max(0.005, std::fabs(static_cast<double>(style_.scroll_rate)));
 }
 
 bool CreditsRoll::build(HudDrawList& dl, FontCache& fonts, const HudCanvas& cv, double now) {
     drawn_ = 0;
     if (!active_) return false;
     const double t = std::max(0.0, now - t0_);
-    if (t > duration()) {
+    const auto h = static_cast<int32_t>(cv.screen_height);
+    // 0x44e020: one pixel per frame at most, while the roll is behind its target.
+    if (moved_px_ < credits_scroll_target_px(style_.scroll_rate, h, t)) ++moved_px_;
+    const auto pitch = static_cast<int64_t>(std::floor(style_.spacing * static_cast<float>(h)));
+    const auto n = static_cast<int64_t>(lines_.size());
+    last_top_px_ = static_cast<float>(h - moved_px_);
+    // 0x44d780: the roll ends once the highest top edge of every record, blanks included, is at or above the top.
+    if (static_cast<int64_t>(h) + std::max<int64_t>(0, (n - 1) * pitch) - moved_px_ <= 0) {
         active_ = false;
         return false;
     }
-    const float sw = static_cast<float>(cv.screen_width), sh = static_cast<float>(cv.screen_height);
-    // The black backdrop over the menu.
-    HudQuad bg;
-    const Vec2f a = cv.pixel_to_canvas(0.0f, 0.0f), b = cv.pixel_to_canvas(sw, sh);
-    bg.min = {std::min(a.x, b.x), std::min(a.y, b.y)};
-    bg.max = {std::max(a.x, b.x), std::max(a.y, b.y)};
-    bg.color = {0, 0, 0, 255};
-    dl.add(kHudLayers - 1, HudList::Alpha, bg);
+    const float sw = static_cast<float>(cv.screen_width), sh = static_cast<float>(h);
+    if (black_backdrop_) {  // no Credits movie: a black backdrop over the menu
+        HudQuad bg;
+        const Vec2f a = cv.pixel_to_canvas(0.0f, 0.0f), b = cv.pixel_to_canvas(sw, sh);
+        bg.min = {std::min(a.x, b.x), std::min(a.y, b.y)};
+        bg.max = {std::max(a.x, b.x), std::max(a.y, b.y)};
+        bg.color = {0, 0, 0, 255};
+        dl.add(kHudLayers - 1, HudList::Alpha, bg);
+    }
     HudTextStyle st;
     st.font = fonts.font(style_.font, style_.font_size, cv.font_height());
     if (st.font < 0) return true;
     st.align = TextAlign::Center;
     st.gradient = true;
-    const float pitch = style_.spacing * sh;
-    const float offset = static_cast<float>(t * std::fabs(static_cast<double>(style_.scroll_rate))) * sh;  // pixels scrolled
-    const float band = std::max(1.0f, style_.margin * sh);
+    const auto line_h = static_cast<float>(fonts.metrics(st.font).line_height);
     for (size_t i = 0; i < lines_.size(); ++i) {
         const CreditsLine& l = lines_[i];
         if (l.kind == CreditsLine::Kind::Blank) continue;
-        const float y = sh + static_cast<float>(i + 1) * pitch - offset;  // line centre, pixels from the top
-        if (y < -pitch || y > sh + pitch) continue;
-        // Fade in the bottom and top margin bands.
-        const float edge = std::min(y, sh - y);
-        const float alpha = std::clamp(edge / band, 0.0f, 1.0f);
-        if (alpha <= 0.0f) continue;
+        // The top edge, pixels from the top of the screen; add_text anchors on the line's vertical centre.
+        const float top = static_cast<float>(static_cast<int64_t>(h) + static_cast<int64_t>(i) * pitch - moved_px_);
+        if (top + line_h < 0.0f || top > sh) continue;
         const bool header = l.kind == CreditsLine::Kind::Header;
         st.color = header ? style_.header_top : style_.top;
         st.color_bottom = header ? style_.header_bottom : style_.bottom;
-        st.color.a = static_cast<uint8_t>(std::lround(alpha * 255.0f));
-        st.color_bottom.a = st.color.a;
-        add_text(dl, kHudLayers - 1, HudList::Text, fonts, cv, l.text, cv.pixel_to_canvas(sw * 0.5f, y), st);
+        add_text(dl, kHudLayers - 1, HudList::Text, fonts, cv, l.text, cv.pixel_to_canvas(sw * 0.5f, top + line_h * 0.5f), st);
         ++drawn_;
     }
     return true;
