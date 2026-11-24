@@ -100,18 +100,30 @@ is the first tick of a battle, which does the one-off setup: 42 to 139 ms, down 
 | AI plan-script file reads per battle (read cache) | 98 ms | 25 ms |
 | Game frame p99 on a fully loaded CPU (above-normal process priority) | about 40 ms | about 18 ms |
 | Draw-list build / sort with 2,000 ships on screen | 0.88 / 0.19 ms | 0.67 / 0.09 ms |
+| Space skirmish with a battlefield-sized asteroid (EAW-Remake mod), mean tick ² | 60.9 ms | 1.5 ms (40x faster) |
+| Galactic AI state check per frame, FoC galaxy (cached per entry) ³ | 50.3 µs | 25.4 µs |
 
 ¹ One AI perception check scanned every unit type name for every open build pad, 66,749 times at about 0.38 ms each.
 It now looks the type up once per call, with no change in output. The skirmish's ticks above 33.3 ms went from 7 to 1
 (measured on a busy machine).
+
+² Fighter avoidance tested every triangle of an obstacle's collision mesh once a fighter's look-ahead crossed the
+mesh's box, and that asteroid's box covers the whole battle. A triangle index now visits only the triangles the path
+can touch, with byte-identical results. 3,000 ticks of `_MP_SPACE_GEONOSIS` went from 182.7 s to 4.5 s (one run,
+2026-11-24, [#415](https://github.com/Gabriel-Barney/Empire-at-war-Vulkan/pull/415)). Base FoC maps have no such
+obstacle and barely change.
+
+³ The galactic AI token resolver's part of the per-frame state checksum now reuses each entry's bytes until the entry
+changes, with a bit-identical checksum (120 s of galactic time, 2026-11-23,
+[#403](https://github.com/Gabriel-Barney/Empire-at-war-Vulkan/pull/403)).
 
 The job system also scales: a large pathfinding search runs 7.9x faster on 8 workers and 12x faster on 15, with
 identical results at every worker count.
 
 How these were measured: the engine's own tick profiler (`alamo_headless --profile`) and benchmark scenes, on an AMD
 Ryzen 7 7800X3D (8 cores, 16 threads) with a Radeon RX 9070 XT, Windows 11, an MSVC release build, the median of 3 runs
-on a quiet machine unless noted. The numbers come from the project's earlier checkout (2026-10-30 to 2026-11-14) and
-compare the port with its own earlier builds. **There is no side-by-side benchmark against the original game yet.**
+on a quiet machine unless noted. The numbers come from the project's earlier checkout (2026-10-30 to 2026-11-14)
+unless a note gives a later date, and compare the port with its own earlier builds. **There is no side-by-side benchmark against the original game yet.**
 The full measurement log, with every table and the fixes that were tried and not shipped, is
 [legacy docs/PERFORMANCE.md](https://github.com/Gabriel-Barney/Empire-at-war-vulkan-old/blob/7f911b51f0d12d0d10e8218e726af3d7ace5d9c5/docs/PERFORMANCE.md).
 
