@@ -159,7 +159,7 @@ void test_screens() {
         CHECK(gs.show_campaign_score(cs));
         const GuiDialog* d = env.gui.find(dlg::kCampaignScore);
         const GuiControl* list = d ? d->get("IDC_VICTORY_LIST") : nullptr;
-        CHECK(list && list->items.size() > 1 && list->item_text_colors.size() == list->items.size());
+        CHECK(list && list->items.size() > 1 && list->item_text_colors.size() == list->items.size() && list->top == 0);
         for (size_t i = 0; list && i < list->item_text_colors.size(); ++i) CHECK(list->item_text_colors[i] == (Rgba8{255, 255, 255, 255}));
         CHECK(d && d->get("IDC_MILITARY_EFFICIENCY_STATIC")->text == U"87" && d->get("IDC_CONQUEST_EFFICIENCY_STATIC")->text == U"0%" &&
               d->get("IDC_KILL_EFFICIENCY_STATIC")->text == U"0");

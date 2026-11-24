@@ -26,7 +26,8 @@
 //
 // [port] choices: battle-end lists show "name" or "name x N", icons on the PETROGLYPH_DIALOG_IMAGE controls, a
 // trackbar value v (0..100) scrolls the 12 rows by round(v / 100 * (n - 12)); IDC_COUNTDOWN_TIMER shows whole seconds
-// (hidden when < 0); the battle end's efficiencies are shown as "N%" (the campaign score's as retail's "%d", #470); the message box picks BOX0 / BOX1 / BOX2 / BOX by button count
+// (hidden when < 0); the battle end's efficiencies are shown as "N%" (the campaign score's as retail's "%d", #470); the
+// message box picks BOX0 / BOX1 / BOX2 / BOX by button count
 // (BOX1's single button is IDC_DIALOG_BOX_BUTTON_LEFT, BOX2 uses LEFT / RIGHT); lines beyond three are dropped;
 // default titles: TEXT_VICTORY / TEXT_DEFEAT when the MasterTextFile has them, else "Victory" / "Defeat".
 #pragma once

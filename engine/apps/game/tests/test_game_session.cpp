@@ -1091,6 +1091,7 @@ void game_over_art_test() {
     CHECK(!game::game_over_pick_land(0) && game::game_over_pick_land(1));
     CHECK(game::score_efficiency_percent(0.876) == 87 && game::score_efficiency_percent(0.999) == 99);
     CHECK(game::score_efficiency_percent(1.5) == 100 && game::score_efficiency_percent(-0.2) == 0);
+    CHECK(game::score_efficiency_percent(std::nan("")) == 0);  // cvttsd2si's INT_MIN, clamped
 }
 
 // mcx4 t14 (legacy docs/re/MCX4_T14_RE_ANSWERS.md): a planet's Encyclopedia_Weather_Name and Encyclopedia_Weather_Info text ids.

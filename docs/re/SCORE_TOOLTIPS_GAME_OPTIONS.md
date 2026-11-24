@@ -31,7 +31,7 @@ empty; every playable faction has all four images.
 top) and the efficiencies as "%d" ("0%" when missing); `game::game_over_pick_land` maps the draw's 0 to Space;
 `game::score_efficiency_percent` truncates.
 
-**Port change ([H]), as planned:**
+**Port change ([H]), as planned (line numbers as of #439):**
 1. gui_screens.cpp:321 -> `gui_->set_paragraphs(*d, "IDC_VICTORY_LIST", info.list, Rgba8{255,255,255,255});` (wrap, white,
    top).
 2. app_screens.cpp:948 -> `cine_.rng.range(0, 1) != 0` as `pick_land` (cosmetic; it only changes which value of the draw picks

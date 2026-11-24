@@ -523,10 +523,9 @@ ui::CampaignScoreInfo campaign_score(const GameSession& s, const galactic::Galac
     ui::CampaignScoreInfo c;
     c.victory = victory;
     if (stats.ok) {
-        auto pct = [](double e) { return game::score_efficiency_percent(e); };  // #470: truncated
-        c.military = pct(stats.military);
-        c.conquest = pct(stats.conquest);
-        c.kill = pct(stats.kill);
+        c.military = game::score_efficiency_percent(stats.military);  // #470: truncated
+        c.conquest = game::score_efficiency_percent(stats.conquest);
+        c.kill = game::score_efficiency_percent(stats.kill);
         if (!stats.title_key.empty()) c.rank_title = lookup(text, stats.title_key);
         return c;
     }
@@ -540,10 +539,11 @@ ui::CampaignScoreInfo campaign_score(const GameSession& s, const galactic::Galac
         }
     uint32_t planets = 0;
     for (const galactic::PlanetState& p : g.planets()) planets += p.is_planet ? 1u : 0u;
-    c.military = fought ? static_cast<int32_t>(std::lround(100.0 * won / fought)) : 0;
-    c.conquest = planets ? static_cast<int32_t>(std::lround(100.0 * g.planets_owned(me) / planets)) : 0;
+    // [port] without the scoring script's stats: the port's own ratios, truncated as retail's are (#470).
+    c.military = fought ? game::score_efficiency_percent(static_cast<double>(won) / fought) : 0;
+    c.conquest = planets ? game::score_efficiency_percent(static_cast<double>(g.planets_owned(me)) / planets) : 0;
     const uint32_t all = tally.kills + tally.losses;
-    c.kill = all ? static_cast<int32_t>(std::lround(100.0 * tally.kills / all)) : 0;
+    c.kill = all ? game::score_efficiency_percent(static_cast<double>(tally.kills) / all) : 0;
     return c;
 }
 
