@@ -729,6 +729,66 @@ void test_spin_wreck() {
     CHECK(same);
 }
 
+// #382 (Die step 7, TACTICAL_GAPS §1.9 [H]: Destruction_Survivors): a script kill (Lua Take_Damage, script_damage) between
+// ticks spawns the victim's survivor at once - the hit's survivor events are consumed with its deaths, before the next combat
+// tick clears the list.
+std::string survivor_patch(std::string t) {
+    const std::string at = "<GroundInfantry Name=\"S10_Trooper\">";
+    if (const size_t p = t.find(at); p != std::string::npos)
+        t.insert(p + at.size(), "<Destruction_Survivors>S10_Script_Pilot, 1.0</Destruction_Survivors>"
+                                "<Minimum_Destruction_Survivor_Count>1</Minimum_Destruction_Survivor_Count>"
+                                "<Maximum_Destruction_Survivor_Count>1</Maximum_Destruction_Survivor_Count>");
+    if (const size_t end = t.find("</S10>"); end != std::string::npos)
+        t.insert(end, " <GroundInfantry Name=\"S10_Script_Pilot\"><Tactical_Health>10</Tactical_Health><CategoryMask>Infantry</CategoryMask>"
+                      "<Behavior>SELECTABLE</Behavior><LandBehavior>WALK_LOCOMOTOR</LandBehavior><Max_Speed>1.0</Max_Speed>"
+                      "<MovementClass>Infantry</MovementClass></GroundInfantry>\n");
+    return t;
+}
+
+void test_script_kill_survivors() {
+    g_temp_prefix = "alamo_sim_r3h_tests_382";
+    g_types_patch = survivor_patch;
+    auto d = make_data();
+    g_types_patch = nullptr;
+    const objects::TypeIndex trooper = d->types.resolve_name("S10_Trooper"), pilot = d->types.resolve_name("S10_Script_Pilot");
+    CHECK(pilot != objects::kNone);
+    objects::ObjectId victim = objects::kNoObjectId;
+    Vec3 at{};
+    uint32_t kill_frame = 0, before = 0, at_kill = 0, after = 0;
+    bool dead = false;
+    constexpr float kNear = 60.0f;  // around the death position (the survivor spawns there)
+    const auto near = [&](const objects::ObjectStore& st) {
+        uint32_t n = 0;
+        for (const objects::ObjectHandle h : st.all_objects()) {
+            if (!st.alive(h) || st.type(h) != pilot) continue;
+            const Vec3 p = st.position(h);
+            n += (p.x - at.x) * (p.x - at.x) + (p.y - at.y) * (p.y - at.y) < kNear * kNear ? 1u : 0u;
+        }
+        return n;
+    };
+    land_battle(*d, nullptr, 900, [&](TacticalBattle& b, TacticalMode& tm, SimHost&) {
+        objects::ObjectStore& st = tm.primary();
+        if (b.frame() < 60) return true;
+        if (victim == objects::kNoObjectId) {
+            for (const objects::ObjectHandle h : st.all_objects())
+                if (victim == objects::kNoObjectId && st.alive(h) && st.type(h) == trooper && b.combat().alive(st.id(h))) victim = st.id(h);
+            if (victim == objects::kNoObjectId) return false;
+            at = st.position(st.find(victim));
+            kill_frame = b.frame();
+            before = near(st);
+            CHECK(b.script_damage(tm, victim, 1.0e6f, false));
+            dead = !b.combat().alive(victim);
+            at_kill = near(st);
+            return true;
+        }
+        after = near(st);
+        return b.frame() < kill_frame + 3;
+    });
+    std::printf("  #382 script kill: survivors at the death %u before, %u right after the kill, %u three ticks later\n", before, at_kill,
+                after);
+    CHECK(victim != objects::kNoObjectId && dead && at_kill == before + 1 && after == before + 1);
+}
+
 int main() {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
     std::printf("r3h t01: Force_Sight clips on the battle's animation world\n");
@@ -742,6 +802,7 @@ int main() {
     test_corpse_path_no_model();    // #359
     test_death_explosion_pick();    // #358
     test_spin_wreck();              // #357
+    test_script_kill_survivors();   // #382
     if (g_fail) {
         std::printf("alamo_sim_r3h_tests: %d failure(s)\n", g_fail);
         return 1;

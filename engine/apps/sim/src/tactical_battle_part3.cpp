@@ -665,7 +665,7 @@ objects::ObjectHandle TacticalBattle::spawn_prop(TacticalMode& mode, int32_t typ
 
 void TacticalBattle::consume_events(TacticalMode& mode, SimRng& rng) {
     objects::ObjectStore& store = mode.primary();
-    unread_ = {true, true, true};  // #360: consume_kill_events leaves these lists to the steps below
+    // #360 / #382: unread_ is set from the combat tick (abilities_combat); each step below clears its list's flag
     // a. damage events -> DAMAGE_TRACKING (call order, before the deaths disable the victims).
 #ifdef ALAMO_SIM_HAVE_AI_TACTICAL
     // A1_READINGS §7 [H; M flag names]: amount = the actual hull + shield loss (shield absorbed + hull damage; a hit

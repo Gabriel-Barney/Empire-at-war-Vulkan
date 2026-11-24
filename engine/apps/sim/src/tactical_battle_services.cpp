@@ -300,6 +300,9 @@ void TacticalBattle::build_service_graph() {
     g.add("combat_team_pos", bit(cStore) | bit(cState), bit(cCombat), [this] { combat_team_positions(tick_.mode->primary()); });
     lap("tac.combat_pre");
     g.add("abilities_combat", kAll, kAll, [this] {
+        // #382: from the combat tick on, its event lists are consume_events' to read; a kill in between (consume_kill_events)
+        // leaves them to it
+        unread_ = {true, true, true};
         hooks_->set_tick(tick_.rng, tick_.global_frame);
         abilities_->tick(frame_, tick_.mode->trees(), *tick_.rng, *tick_.pf);
         oi_ability_anims(tick_.global_frame);  // this tick's ability clips on the animation world
