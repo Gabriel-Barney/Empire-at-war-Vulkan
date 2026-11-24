@@ -107,7 +107,8 @@ ui::EncyclopediaEntry encyclopedia_entry(const GameData& d, const ui::TextDataba
     if (ti && ti->build_cost > 0) e.cost = number(ti->build_cost);
     if (ti && ti->kind == galactic::UnitKind::Planet) {
         ui::EncyclopediaRow income;  // [port] no capture of a planet's pop-up
-        income.left = U"Income";
+        income.id = kPlanetIncomeRow;
+        income.left = ui::text_or_port(&text, "TEXT_PLANET_INFO_INCOME", U"Income: ");  // #308: retail's key [H] and English
         income.right = number(ti->credit_value);
         e.rows.push_back(std::move(income));
         // mcx4 t14 (MCX4_T14_RE_ANSWERS "GameObjectType.Encyclopedia_Weather_Name family"): the weather name and info
