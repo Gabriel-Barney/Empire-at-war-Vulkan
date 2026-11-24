@@ -97,8 +97,10 @@ struct ModDescriptor {
     std::string arg() const;
 };
 
-// Hash of the sorted (relative path, size, last write time) list of root\Data (every file, MEGs included): the save
-// fingerprint, the corpus cache key and "mod updated" detection. 0 when there is no Data folder. FNV-1a 64.
+// Hash of the sorted (relative path, size) list of root\Data (every file), plus each MEG's header and tables (the bytes
+// before its first entry's data): the save fingerprint, the corpus cache key and "mod updated" detection. Write times
+// are not hashed, so a copy or a re-download with the same bytes keeps it (#142); a same-size edit to a loose file or
+// inside a MEG entry is not seen. 0 when there is no Data folder. FNV-1a 64.
 uint64_t mod_content_hash(const std::string& root);
 
 // The descriptors of one mod folder: its main mod (modinfo.json, or none at all), then one per variant file in name

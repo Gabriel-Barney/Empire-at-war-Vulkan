@@ -14,6 +14,8 @@
 #include <system_error>
 #include <utility>
 
+#include "alamo/core/ascii.hpp"
+#include "alamo/core/hash.hpp"
 #include "alamo/core/host_fs.hpp"
 #include "alamo/vfs/host_path.hpp"
 #include "alamo/vfs/install_locations.hpp"
@@ -223,31 +225,12 @@ std::string str_of(const JValue* v) {
     return {};
 }
 
-std::string lower(std::string s) {
-    for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    return s;
-}
-std::string upper(std::string s) {
-    for (char& c : s) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-    return s;
-}
-
 bool read_text(const fs::path& p, std::string& out) {
     std::ifstream f(p, std::ios::binary);
     if (!f) return false;
     out.assign(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>());
     return true;
 }
-
-uint64_t fnv(uint64_t h, const void* d, size_t n) {
-    const auto* b = static_cast<const unsigned char*>(d);
-    for (size_t i = 0; i < n; ++i) {
-        h ^= b[i];
-        h *= 1099511628211ull;
-    }
-    return h;
-}
-constexpr uint64_t kFnvBasis = 1469598103934665603ull;
 
 bool is_digits(const std::string& s) {
     return !s.empty() && std::all_of(s.begin(), s.end(), [](char c) { return c >= '0' && c <= '9'; });
@@ -285,7 +268,7 @@ std::optional<ModInfo> parse_modinfo(std::string_view text, std::vector<std::str
         m.has_languages = true;
         for (const JValue& e : l->a) {
             ModLanguage lang;
-            lang.code = lower(str_of(e.get("code")));
+            lang.code = ascii_lower(str_of(e.get("code")));
             const JValue* s = e.get("support");
             lang.support = s && s->t == JValue::T::Num ? static_cast<uint32_t>(s->n) : 1u;
             if (!lang.code.empty()) m.languages.push_back(std::move(lang));
@@ -369,6 +352,29 @@ std::string ModDescriptor::arg() const {
     return "MODPATH=" + root;
 }
 
+namespace {
+
+// The bytes of a MEG before its first entry's data: the header, name table and record table, so a renamed, added or
+// resized entry moves the hash without reading the data. An encrypted, empty or unreadable MEG, or one with a record whose
+// data would start inside the tables, gives its first 64 KiB; a table claiming more than 16 MiB before the data gives
+// 16 MiB.
+std::string meg_head(const fs::path& p, uint64_t file_size) {
+    uint64_t end = std::min<uint64_t>(file_size, 64u * 1024u);
+    std::string err;
+    if (const auto a = meg::Archive::open(path_to_utf8(p), meg::Source::Mode::Stream, &err); a && !a->entries().empty()) {
+        uint64_t first = file_size;
+        for (const meg::Entry& e : a->entries()) first = std::min<uint64_t>(first, e.offset);
+        const uint64_t tables_min = 8u + 20u * static_cast<uint64_t>(a->entries().size());  // header and records alone
+        if (first >= tables_min) end = std::min<uint64_t>(first, 16u * 1024u * 1024u);
+    }
+    std::string out(static_cast<size_t>(end), char{});
+    std::ifstream f(p, std::ios::binary);
+    if (!f || !f.read(out.data(), static_cast<std::streamsize>(out.size()))) return {};
+    return out;
+}
+
+}  // namespace
+
 uint64_t mod_content_hash(const std::string& root) {
     const fs::path data = path_from_utf8(root) / "Data";
     std::error_code ec;
@@ -376,25 +382,29 @@ uint64_t mod_content_hash(const std::string& root) {
     struct F {
         std::string rel;
         uint64_t size;
-        int64_t time;
+        std::string meg_head_bytes;  // meg_head for a .meg file
     };
     std::vector<F> files;
     for (fs::recursive_directory_iterator it(data, fs::directory_options::skip_permission_denied, ec), end; !ec && it != end;
          it.increment(ec)) {
-        if (!it->is_regular_file(ec)) continue;
+        std::error_code fe;  // one file's error does not end the walk
+        if (!it->is_regular_file(fe)) continue;
         F f;
-        f.rel = upper(path_to_utf8(fs::relative(it->path(), data, ec)));
-        f.size = it->file_size(ec);
-        f.time = static_cast<int64_t>(it->last_write_time(ec).time_since_epoch().count());
+        f.rel = ascii_upper(path_to_utf8(fs::relative(it->path(), data, fe)));
+        f.size = it->file_size(fe);
+        if (f.rel.ends_with(".MEG")) f.meg_head_bytes = meg_head(it->path(), f.size);
         files.push_back(std::move(f));
     }
     std::sort(files.begin(), files.end(), [](const F& a, const F& b) { return a.rel < b.rel; });
-    uint64_t h = kFnvBasis;
+    uint64_t h = kFnv1a64Offset;
     for (const F& f : files) {
-        h = fnv(h, f.rel.data(), f.rel.size() + 0);
-        h = fnv(h, "\0", 1);
-        h = fnv(h, &f.size, sizeof f.size);
-        h = fnv(h, &f.time, sizeof f.time);
+        h = fnv1a64(f.rel.data(), f.rel.size(), h);
+        const char sep = 0;
+        h = fnv1a64(&sep, 1, h);
+        h = fnv1a64(&f.size, sizeof f.size, h);
+        const uint64_t meg_size = f.meg_head_bytes.size();
+        h = fnv1a64(&meg_size, sizeof meg_size, h);
+        h = fnv1a64(f.meg_head_bytes.data(), f.meg_head_bytes.size(), h);
     }
     return h == 0 ? 1 : h;
 }
@@ -428,7 +438,7 @@ std::vector<ModDescriptor> describe_mod_folder(const std::string& root, ModKind 
         }
         bool eaw = false, foc = false;
         for (const std::string& t : m.steam_tags) {
-            const std::string u = upper(t);
+            const std::string u = ascii_upper(t);
             eaw = eaw || u == "EAW";
             foc = foc || u == "FOC";
         }
@@ -451,7 +461,7 @@ std::vector<ModDescriptor> describe_mod_folder(const std::string& root, ModKind 
     std::vector<std::pair<std::string, fs::path>> variants;
     for (fs::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec)) {
         if (!it->is_regular_file(ec)) continue;
-        const std::string n = lower(path_to_utf8(it->path().filename()));
+        const std::string n = ascii_lower(path_to_utf8(it->path().filename()));
         if (n == "modinfo.json") main_file = true;
         else if (n.size() > 13 && n.compare(n.size() - 13, 13, "-modinfo.json") == 0)
             variants.emplace_back(path_to_utf8(it->path().filename()).substr(0, n.size() - 13), it->path());
@@ -477,7 +487,7 @@ ModDescriptor describe_mounted_mod(const std::string& dir, const std::string& ga
     const std::string id = path_to_utf8(leaf.filename());
     const std::string parent = folder_key(path_to_utf8(leaf.parent_path()));
     ModKind kind = ModKind::Path;
-    if (is_digits(id) && lower(path_to_utf8(leaf.parent_path().filename())) == "32470") kind = ModKind::Workshop;
+    if (is_digits(id) && ascii_lower(path_to_utf8(leaf.parent_path().filename())) == "32470") kind = ModKind::Workshop;
     else if (parent == folder_key(path_to_utf8((path_from_utf8(game) / "Mods").lexically_normal()))) kind = ModKind::LocalMods;
     std::vector<ModDescriptor> ds = describe_mod_folder(path_to_utf8(leaf), kind, id, hash);
     if (ds.empty()) {
@@ -537,7 +547,7 @@ const ModDescriptor* ModCatalog::find_dependency(const ModDependency& d) const {
         if (p.is_relative()) p = path_from_utf8(game) / p;
         if (const ModDescriptor* m = find_root(path_to_utf8(p.lexically_normal()))) return m;
         for (const ModDescriptor& m : mods)
-            if (m.kind == ModKind::LocalMods && m.variant.empty() && lower(m.id) == lower(path_to_utf8(path_from_utf8(d.identifier).filename())))
+            if (m.kind == ModKind::LocalMods && m.variant.empty() && ascii_lower(m.id) == ascii_lower(path_to_utf8(path_from_utf8(d.identifier).filename())))
                 return &m;
     }
     return nullptr;
@@ -546,7 +556,7 @@ const ModDescriptor* ModCatalog::find_dependency(const ModDependency& d) const {
 const ModDescriptor* ModCatalog::find_arg(std::string_view arg, std::vector<ModDescriptor>& scratch) const {
     const size_t eq = arg.find('=');
     if (eq == std::string_view::npos) return find_key(arg);
-    const std::string sw = upper(std::string(arg.substr(0, eq)));
+    const std::string sw = ascii_upper(std::string(arg.substr(0, eq)));
     const std::string val(arg.substr(eq + 1));
     if (val.empty()) return nullptr;
     if (sw == "STEAMMOD") {
@@ -638,10 +648,10 @@ bool mod_provides(const std::string& root, std::string_view path) {
         size_t s = 0;
         while (ok && s <= rel.size()) {
             const size_t e = std::min(rel.find('/', s), rel.size());
-            const std::string part = lower(rel.substr(s, e - s));
+            const std::string part = ascii_lower(rel.substr(s, e - s));
             bool found = false;
             for (fs::directory_iterator it(cur, ec), end; !ec && it != end; it.increment(ec))
-                if (lower(path_to_utf8(it->path().filename())) == part) {
+                if (ascii_lower(path_to_utf8(it->path().filename())) == part) {
                     cur = it->path();
                     found = true;
                     break;
@@ -653,7 +663,7 @@ bool mod_provides(const std::string& root, std::string_view path) {
         if (ok && fs::is_regular_file(cur, ec)) return true;
     }
     for (fs::directory_iterator it(dir / "Data", ec), end; !ec && it != end; it.increment(ec)) {
-        if (!it->is_regular_file(ec) || lower(path_to_utf8(it->path().extension())) != ".meg") continue;
+        if (!it->is_regular_file(ec) || ascii_lower(path_to_utf8(it->path().extension())) != ".meg") continue;
         std::string err;
         const auto a = meg::Archive::open(path_to_utf8(it->path()), meg::Source::Mode::Stream, &err);
         if (a && a->lookup(path)) return true;  // the game's rule (legacy docs/re/MCX3_MEG_LOOKUP.md)
@@ -801,10 +811,10 @@ ModStack resolve(const ModCatalog& registry, std::span<const std::string> picked
         }
     for (StackMod& s : r.mods)
         if (s.mod.content_hash == 0 && s.mod.has_data) s.mod.content_hash = mod_content_hash(s.mod.root);
-    r.fingerprint = kFnvBasis;
+    r.fingerprint = kFnv1a64Offset;
     for (const StackMod& s : r.mods) {
         r.args.push_back(s.mod.arg());
-        r.fingerprint = fnv(r.fingerprint, &s.mod.content_hash, sizeof s.mod.content_hash);
+        r.fingerprint = fnv1a64(&s.mod.content_hash, sizeof s.mod.content_hash, r.fingerprint);
         if (!s.mod.has_data) r.warnings.push_back(s.mod.catalog_key() + " has no Data folder: nothing to mount");
         if (s.mod.game_tag == GameTag::Eaw) {
             r.base_eaw = true;

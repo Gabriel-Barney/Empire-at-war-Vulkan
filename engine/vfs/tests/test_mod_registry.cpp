@@ -3,6 +3,7 @@
 // workshop mods: variant files with one dependency each (subA / subB), a file with a missing comma before "tags", a
 // layout string first in "dependencies", a submod without any modinfo whose parent only the data shows.
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -221,10 +222,6 @@ void test_registry(const Fixture& f) {
     CHECK(av::mod_provides(u8(f.item("100")), "DATA\\xml\\factionfiles.XML"));
     CHECK(!av::mod_provides(u8(f.item("200")), "Data\\XML\\GameObjectFiles.xml"));
 
-    // The content hash moves when a file changes size.
-    const uint64_t h0 = av::mod_content_hash(u8(f.item("200")));
-    data_file(f.item("200"), "Art/Textures/hd.dds", "longer");
-    CHECK(av::mod_content_hash(u8(f.item("200"))) != h0);
     CHECK(av::mod_content_hash(u8(f.item("700"))) == 0);
 }
 
@@ -576,6 +573,60 @@ void test_junction(const Fixture& f) {
     fs::remove(mods_link, ec);
 }
 
+// mod_content_hash: a copy or a re-download (new write times, same bytes, another folder) keeps it; a file's size, a
+// file added or renamed, and a MEG's header (its record table) move it (#142).
+void test_content_hash(const Fixture& f) {
+    alamo::test::section("content hash");
+    const fs::path mod = f.T / "Hash" / "Mod";
+    data_file(mod, "XML/Units.xml", "<Units/>");
+    data_file(mod, "Art/Textures/hd.dds", "pixels");
+    const auto meg_of = [](const std::vector<std::string>& names) {
+        std::vector<Rec> recs;
+        for (uint32_t i = 0; i < names.size(); ++i) recs.push_back({alamo::meg::name_crc(names[i]), 0, i});
+        std::sort(recs.begin(), recs.end(), [](const Rec& a, const Rec& b) { return a.crc < b.crc; });
+        for (uint32_t i = 0; i < recs.size(); ++i) recs[i].index = i;
+        return meg_bytes(names, recs);
+    };
+    const std::string meg1 = meg_of({"DATA\\XML\\A.XML", "DATA\\XML\\B.XML"});
+    write_file(mod / "Data" / "Pack.meg", meg1);
+    const uint64_t h0 = av::mod_content_hash(u8(mod));
+    CHECK(h0 != 0);
+
+    // A copy elsewhere with every write time moved: the same hash.
+    const fs::path copy = f.T / "Hash" / "Copy";
+    std::error_code ec;
+    fs::copy(mod, copy, fs::copy_options::recursive, ec);
+    CHECK(!ec);
+    const auto later = fs::file_time_type::clock::now() + std::chrono::hours(30);
+    for (fs::recursive_directory_iterator it(copy / "Data", ec), end; !ec && it != end; it.increment(ec))
+        if (it->is_regular_file()) fs::last_write_time(it->path(), later, ec);
+    CHECK(!ec);
+    CHECK(av::mod_content_hash(u8(copy)) == h0);
+    // Rewriting a file with the same bytes (a re-download) keeps it too.
+    data_file(copy, "XML/Units.xml", "<Units/>");
+    CHECK(av::mod_content_hash(u8(copy)) == h0);
+
+    // A file's size moves it.
+    data_file(copy, "Art/Textures/hd.dds", "more pixels");
+    const uint64_t h1 = av::mod_content_hash(u8(copy));
+    CHECK(h1 != h0);
+    // A renamed file (same size) moves it.
+    fs::rename(copy / "Data" / "XML" / "Units.xml", copy / "Data" / "XML" / "Unitz.xml", ec);
+    const uint64_t h2 = av::mod_content_hash(u8(copy));
+    CHECK(!ec && h2 != h1);
+    // A MEG whose header changes at the same file size (one record name renamed, same length) moves it.
+    const std::string meg2 = meg_of({"DATA\\XML\\A.XML", "DATA\\XML\\C.XML"});
+    CHECK(meg2.size() == meg1.size() && meg2 != meg1);
+    write_file(copy / "Data" / "Pack.meg", meg2);
+    const uint64_t h3 = av::mod_content_hash(u8(copy));
+    CHECK(h3 != h2);
+    // Only the header counts: the same MEG with one entry's data changed at the same size keeps it (the known limit).
+    std::string meg3 = meg2;
+    meg3.back() = meg3.back() == 'Z' ? 'Y' : 'Z';
+    write_file(copy / "Data" / "Pack.meg", meg3);
+    CHECK(av::mod_content_hash(u8(copy)) == h3);
+}
+
 }  // namespace
 
 int main() {
@@ -584,6 +635,7 @@ int main() {
     const Fixture f = make_fixture();
     test_registry(f);
     test_resolve(f);
+    test_content_hash(f);
     test_junction(f);
     std::error_code ec;
     fs::remove_all(f.T, ec);
