@@ -272,6 +272,7 @@ private:
         uint8_t enabled = 1;        // +0x3CB
         uint8_t deploy_latch = 0;   // [L] one launch after a DEPLOY_SQUAD reset
         uint8_t bays_gone = 0;      // BaysGone reported
+        uint8_t loaded = 0;         // #135: Spawn_Garrison_On_Load has run (vf13: once, even when the list was empty)
         uint32_t clip_end = 0;      // r3g t03 land: the frame the Open / Close clip finishes (state 1 / 3)
         uint32_t leaving_serial = 0;      // r3g t03 land: the launch request whose unit is leaving (+0x58), 0 none
         ObjectId leaving = kNoObject;     // ... its bound unit

@@ -405,9 +405,9 @@ void HangarSystem::update(uint32_t frame, SimRng& rng, const StreamOf* stream_of
     // Services, newest object first (descending id).
     for (size_t k = carriers_.size(); k-- > 0;) {
         Carrier& c = carriers_[k];
-        // Spawn_Garrison_On_Load (vf13 0x594400 -> 0x593960) runs once, before the first service, while the
-        // entry list is still empty [M: vf13's trigger; the port runs it at the first update after the add].
-        const bool load = cfg_.land && c.entries.empty() && descs_[c.desc].garrison_on_load;
+        // Spawn_Garrison_On_Load (vf13 0x594400 -> 0x593960) runs once, before the first service [M: vf13's trigger; the
+        // port runs it at the first update after the add]. #135: once also when its list builds empty (`loaded`).
+        const bool load = cfg_.land && !c.loaded && descs_[c.desc].garrison_on_load;
         const bool due = c.due <= frame;
         if (!load && !due) continue;
         if (stream_of && *stream_of) {  // this carrier's own stream
@@ -574,6 +574,7 @@ std::vector<ObjectId> HangarSystem::leaving_units() const {
 void HangarSystem::garrison_on_load(Carrier& c, uint32_t frame, SimRng& rng) {
     // 0x593960: not in skirmish; the list (0x594b30), can-spawn (its draws), +0x3CB; one bone pick, then every entry x
     // its max-alive count at that point (live +1, remaining -1 when > 0 per unit). No leaving unit, no Open / Close.
+    c.loaded = 1;
     build(c, frame);
     if (cfg_.skirmish || !c.enabled || !can_spawn(c, frame, rng)) return;
     const int32_t bone = pick_bone(c, rng);
@@ -692,6 +693,7 @@ void HangarSystem::hash(StateHasher& h) const {
         }
         h.u32(static_cast<uint32_t>(c.bays.size()));
         for (const uint32_t b : c.bays) h.u32(b);
+        if (c.loaded && c.entries.empty()) h.u8(c.loaded);  // #135: only where `loaded` is not implied by the list
         h.u32(static_cast<uint32_t>(c.entries.size()));
         for (const Entry& e : c.entries) {
             h.i32(e.type);

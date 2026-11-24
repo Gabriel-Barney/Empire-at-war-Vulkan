@@ -4,7 +4,8 @@
 // player indices and descriptor / entry / hardpoint indices.
 //
 // HangarSystem (version kHangarSaveVersion): u32 descriptor count (checked); u32 request serial; u32 + carriers (id,
-// desc, owner, spawn player, due, next, state, enabled, deploy latch, bays-gone, u32 + bays, u32 + entries, u32 + spawned);
+// desc, owner, spawn player, due, next, state, enabled, deploy latch, bays-gone, version 2: clip end, leaving serial,
+// leaving unit; version 3: u8 loaded; u32 + bays, u32 + entries, u32 + spawned);
 // u32 + launch requests; u32 + events.
 // ContentsSystem (kContentsSaveVersion): u32 + lists (container, u32 + objects).
 // TacticalProduction (kProductionSaveVersion): u32 next order id; u32 + players (u32 + orders); u32 + completed orders.
@@ -31,7 +32,7 @@ using save_io::put_vec3;
 
 namespace {
 
-constexpr uint32_t kHangarSaveVersion = 2;  // 2: r3g t03 land state (clip end, leaving unit; request land / leaving)
+constexpr uint32_t kHangarSaveVersion = 3;  // 3: #135 Carrier::loaded; 2: r3g t03 land state (clip end, leaving unit; request land / leaving)
 constexpr uint32_t kContentsSaveVersion = 1;
 constexpr uint32_t kProductionSaveVersion = 2;  // 2: mcx4 t04 the order's queue index (v1 orders read as queue 0)
 constexpr uint32_t kEngineLoopsSaveVersion = 4;  // 2: cu8g t01 holster state per object, request op + fade; 3: cu8i t01 catch frame; 4: cu8j t03 throw / catch / end
@@ -67,6 +68,7 @@ void HangarSystem::write(ByteWriter& w) const {
         w.i32(c.id).u32(c.desc).i32(c.owner).i32(c.spawn_player).u32(c.due).u32(c.next);
         w.u8(c.state).u8(c.enabled).u8(c.deploy_latch).u8(c.bays_gone);
         w.u32(c.clip_end).u32(c.leaving_serial).i32(c.leaving);  // version 2
+        w.u8(c.loaded);                                           // version 3
         w.u32(static_cast<uint32_t>(c.bays.size()));
         for (const uint32_t b : c.bays) w.u32(b);
         w.u32(static_cast<uint32_t>(c.entries.size()));
@@ -90,11 +92,11 @@ void HangarSystem::write(ByteWriter& w) const {
 
 bool HangarSystem::read(ByteReader& r) {
     const uint32_t version = r.u32();
-    if ((version != 1 && version != kHangarSaveVersion) || !r.ok()) return false;
+    if (version < 1 || version > kHangarSaveVersion || !r.ok()) return false;
     const uint32_t ndesc = r.u32(), serial = r.u32();
     if (!r.ok() || ndesc != descs_.size()) return false;
     uint32_t n = 0;
-    if (!r.count(n, version >= 2 ? 52u : 40u)) return false;
+    if (!r.count(n, version >= 3 ? 53u : version >= 2 ? 52u : 40u)) return false;
     std::vector<Carrier> carriers(n);
     for (size_t i = 0; i < carriers.size(); ++i) {
         Carrier& c = carriers[i];
@@ -113,6 +115,7 @@ bool HangarSystem::read(ByteReader& r) {
             c.leaving_serial = r.u32();
             c.leaving = r.i32();
         }
+        if (version >= 3) c.loaded = r.u8();
         if (!r.ok() || c.desc >= ndesc || (i > 0 && c.id <= carriers[i - 1].id)) return false;
         uint32_t m = 0;
         if (!r.count(m, 4)) return false;
@@ -126,6 +129,7 @@ bool HangarSystem::read(ByteReader& r) {
             e.max = r.i32();
             e.remaining = r.i32();
         }
+        if (version < 3) c.loaded = c.entries.empty() ? 0 : 1;  // the old rule: the list built means the load ran
         if (!r.count(m, 17)) return false;
         c.spawned.resize(m);
         const auto entries = static_cast<int32_t>(c.entries.size());

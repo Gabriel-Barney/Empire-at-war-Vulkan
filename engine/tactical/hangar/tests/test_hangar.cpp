@@ -1492,7 +1492,7 @@ void test_hangar_save() {
     bad.push_back(0);
     CHECK(rejected(bad));
     bad = hg_bytes;
-    bad[0] = 3;  // versions 1 and 2 are read; 3 is unknown
+    bad[0] = 4;  // versions 1 to 3 are read (#135: 3); 4 is unknown
     CHECK(rejected(bad));
     bad = hg_bytes;
     bad[4] = 3;  // descriptor count 3, the battle has 2
@@ -1769,6 +1769,42 @@ void test_land_structures() {
         CHECK(a == 2 && b == 1 && w.hg->live(1, 0) == 2 && w.hg->live(1, 1) == 1 && w.hg->remaining(1, 0) == 1);
         w.run(1, 300);
         CHECK(w.log.size() == 3 && w.hg->state(1) == 0);  // full: no Open
+    }
+    {  // #135 (vf13 0x594400 -> 0x593960 runs once [M]): a list empty at load runs the on-load garrison once. A list that
+       // fills later (the owner's tech rising) spawns through the normal service - one leaving unit - never as a garrison.
+        World w;
+        HangarDesc g;
+        g.starting[2] = {SpawnEntry{kTypeA, 2}};
+        g.reserve[2] = {SpawnEntry{kTypeA, -1}};
+        g.delay_seconds = 5.0f;
+        g.garrison_on_load = true;
+        w.make({g});
+        HangarConfig cfg;
+        cfg.land = true;
+        cfg.skirmish = false;  // the on-load garrison is not a skirmish rule
+        w.hg = std::make_unique<HangarSystem>(*w.sys, std::vector<HangarDesc>{g}, cfg);
+        int32_t tech = 1;  // no starting list at tech 0 or 1
+        HangarHost h;
+        h.tech_level = [&tech](int32_t) { return tech; };
+        w.hg->set_host(std::move(h));
+        w.add(1, w.structure, 0, Vec3{500, 0, 0}, Vec3{0, 1, 0});
+        CHECK(w.hg->add_carrier(1, 0, 0, nullptr));  // due 0
+        w.run(0, 45);
+        CHECK(w.log.empty());
+        tech = 2;
+        w.run(45, 91);  // the service at 60 builds the list and launches
+        size_t garrison = 0;
+        for (const LaunchRequest& q : w.log) garrison += q.leaving ? 0u : 1u;
+        std::printf("land structure, empty list at load: %zu request(s) after the tech rise, %zu as a garrison\n", w.log.size(), garrison);
+        CHECK(w.log.size() == 1 && garrison == 0 && w.log_frame[0] == 60);
+        // save / load keeps the on-load garrison done
+        ByteWriter bw;
+        w.hg->write(bw);
+        ByteReader br(bw.bytes());
+        CHECK(w.hg->read(br));
+        ByteWriter bw2;
+        w.hg->write(bw2);
+        CHECK(bw.bytes() == bw2.bytes());
     }
 }
 
