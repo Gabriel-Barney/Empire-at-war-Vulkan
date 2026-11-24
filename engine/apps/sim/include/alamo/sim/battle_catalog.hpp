@@ -63,6 +63,7 @@ struct BattleTables {
     struct ProjectileVisuals {
         int32_t detonation = -1, armor_reduced = -1, absorbed = -1, lifetime = -1;  // Projectile_*_Particle types
         int32_t ground = -1;  // Projectile_Ground_Detonation_Particle (land ground / water hits)
+        float flinch_intensity = 1.0f;  // #362: Induced_Flinch_Intensity (+0x20e4), a direct hit's flinch weight
     };
     std::vector<ProjectileVisuals> projectiles;
     std::vector<std::array<std::string, 2>> fire_bones;  // per hardpoint: Fire_Bone_A / Fire_Bone_B ("" none)

@@ -1216,6 +1216,9 @@ struct AnimRun {
     CrcLog crc;
     SimAnimStats stats;
     uint32_t max_detached = 0, max_corpses = 0, flinch_seen = 0, muzzles_seen = 0, hp_muzzles_seen = 0, foot_events = 0, impact_events = 0;
+    // #362: flinch weights (I +0x58) seen while set (start to fade end)
+    uint32_t weight_frames = 0;
+    float min_weight = 2.0f, max_weight = 0.0f;
     uint64_t events_digest = 0;  // per-tick events (id, name, bone, position bits)
     std::vector<std::string> battles;
     // death clone objects (+0x3a0 |= 0xc0) seen in the tactical store, battle clone count, searches
@@ -1317,6 +1320,13 @@ AnimRun run_anim_campaign(const Data& d, bool land, int32_t workers, uint64_t ti
             out.max_corpses = std::max(out.max_corpses, static_cast<uint32_t>(animation.corpses(*tm).size()));
             if (const anim::AnimWorld* w = animation.find_world(*tm))
                 for (ObjectId id : w->ids()) out.flinch_seen += anim::is_flinch(w->current_type(id)) ? 1u : 0u;
+            if (const anim::AnimWorld* w = animation.find_world(*tm); w && animation.find_behaviors(*tm))
+                for (ObjectId id : w->ids())
+                    if (const float fw = animation.find_behaviors(*tm)->flinch_weight(id); fw > 0.0f) {
+                        ++out.weight_frames;
+                        out.min_weight = std::min(out.min_weight, fw);
+                        out.max_weight = std::max(out.max_weight, fw);
+                    }
         }
         if (land && !invaded && host.modes().depth() == 1) {
             const std::vector<uint32_t> f = gs->fleets_at(1, 1);
@@ -1607,6 +1617,69 @@ void test_anim_battles() {
             CHECK(!dv.diverged && b.battles == a.battles && b.stats.flinches == s.flinches && b.stats.corpses_removed == s.corpses_removed &&
                   b.events_digest == a.events_digest && b.muzzles_seen == a.muzzles_seen);
         }
+    }
+}
+
+// #362: flinch intensity. (a) The blaster's Induced_Flinch_Intensity 0.6 is every direct-hit flinch's weight. (b) The
+// blaster detonates as an EXPLOSION particle (Induced_Flinch_Range 100, intensity 1): the area flinch reaches the victim
+// and its neighbours with weight clamp(1 - d^2 / (2 x 100^2), 0.25, 1), below 1 off the explosion's centre (the direct
+// hit that follows finds the flinch in progress). The default land run (no EXPLOSION type, intensity 1) only sees 1.
+std::string blaster_flinch_patch(std::string t) {
+    const std::string at = "<Projectile Name=\"S10_Blaster_Proj\">";
+    if (const size_t p = t.find(at); p != std::string::npos)
+        t.insert(p + at.size(), "<Induced_Flinch_Intensity>0.6</Induced_Flinch_Intensity>");
+    return t;
+}
+std::string blaster_explosion_patch(std::string t) {
+    const std::string at = "<Projectile Name=\"S10_Blaster_Proj\">";
+    if (const size_t p = t.find(at); p != std::string::npos) {
+        t.insert(p + at.size(), "<Projectile_Object_Detonation_Particle>S10_Blast</Projectile_Object_Detonation_Particle>");
+        t.insert(p, "<Particle Name=\"S10_Blast\"><Behavior>EXPLOSION</Behavior><Particle_Lifetime_Frames>5</Particle_Lifetime_Frames>"
+                    "<Induced_Flinch_Range>100</Induced_Flinch_Range></Particle>\n ");
+    }
+    return t;
+}
+// #361 / #362 acceptance: without IDLE the trooper never flinches (the hit and the explosion both go through the gate).
+std::string trooper_no_idle_patch(std::string t) {
+    t = blaster_explosion_patch(std::move(t));
+    const std::string with = "<Behavior>SELECTABLE, WEAPON, IDLE</Behavior><Collidable_By_Projectile_Living>Yes</Collidable_By_Projectile_Living>"
+                             "<LandBehavior>WALK_LOCOMOTOR";
+    if (const size_t p = t.find(with); p != std::string::npos) t.replace(p, std::string("<Behavior>SELECTABLE, WEAPON, IDLE").size(), "<Behavior>SELECTABLE, WEAPON");
+    return t;
+}
+void test_flinch_intensity() {
+    {
+        auto d = make_data(false, true);
+        const AnimRun a = run_anim_campaign(*d, true, 0, 3000);
+        std::printf("  default: %u weight-frames, weights %.4f - %.4f\n", a.weight_frames, a.min_weight, a.max_weight);
+        CHECK(a.weight_frames > 0 && a.min_weight == 1.0f && a.max_weight == 1.0f);
+    }
+    {
+        g_types_patch = blaster_flinch_patch;
+        auto d = make_data(false, true);
+        g_types_patch = nullptr;
+        const AnimRun a = run_anim_campaign(*d, true, 0, 3000);
+        std::printf("  blaster intensity 0.6: %u weight-frames, weights %.4f - %.4f\n", a.weight_frames, a.min_weight, a.max_weight);
+        CHECK(a.weight_frames > 0 && a.min_weight == 0.6f && a.max_weight == 0.6f);
+    }
+    {
+        g_types_patch = blaster_explosion_patch;
+        auto d = make_data(false, true);
+        g_types_patch = nullptr;
+        const AnimRun a = run_anim_campaign(*d, true, 0, 3000);
+        std::printf("  explosion detonations: %u weight-frames, weights %.4f - %.4f\n", a.weight_frames, a.min_weight, a.max_weight);
+        CHECK(a.weight_frames > 0 && a.min_weight >= 0.25f && a.min_weight < 1.0f && a.max_weight <= 1.0f);
+    }
+    {
+        g_types_patch = trooper_no_idle_patch;
+        auto d = make_data(false, true);
+        g_types_patch = nullptr;
+        const objects::TypeIndex tt = d->types.resolve_name("S10_Trooper");
+        CHECK(tt != objects::kNone && !d->types.has_behavior(tt, objects::BehaviorSet::Land, objects::beh::Idle));
+        const AnimRun a = run_anim_campaign(*d, true, 0, 3000);
+        std::printf("  trooper without IDLE (explosions on): %u flinches, %u weight-frames, %u deaths\n", a.stats.flinches, a.weight_frames,
+                    a.stats.deaths);
+        CHECK(a.stats.deaths > 0 && a.stats.flinches == 0 && a.weight_frames == 0 && a.flinch_seen == 0);
     }
 }
 
@@ -3973,6 +4046,8 @@ int main(int argc, char** argv) {
 #ifdef ALAMO_SIM_HAVE_ANIM
     std::printf("anim battles (R3: flinch, death clips, corpses)\n");
     test_anim_battles();
+    std::printf("flinch intensity: projectile and explosion weights (#362)\n");
+    test_flinch_intensity();
     std::printf("death clone removal, headless and with the anim service (refixf t04)\n");
     test_death_clone_removal();
     std::printf("s78k t05: slot 47 tests the clip before the draw (animation world)\n");

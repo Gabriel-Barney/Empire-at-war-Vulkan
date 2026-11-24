@@ -263,6 +263,8 @@ struct SubObjectsTag {
     X(Float, Max_Flinch_Hold_Seconds, 0.0f)                                                                           \
     X(Float, Idle_Flinch_Interval_Seconds, 0.0f)                                                                      \
     X(Float, Attack_Flinch_Interval_Seconds, 0.0f)                                                                    \
+    X(Float, Induced_Flinch_Range, 100.0f)                                                                            \
+    X(Float, Induced_Flinch_Intensity, 1.0f)                                                                          \
     X(Float, Spin_Away_On_Death_Chance, 0.0f)                                                                         \
     X(Float, Spin_Away_On_Death_Time, 0.0f)                                                                           \
     X(Float, Deployed_Walk_Anim_Speed, 0.0f)                                                                          \

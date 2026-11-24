@@ -493,6 +493,46 @@ void TacticalBattle::spawn_particle(TacticalMode& mode, int32_t type, Vec3 pos, 
     if (life <= 0) life = static_cast<int32_t>(cfg_.particle_default_lifetime);
     particles_.push_back({mode.primary().id(h), h, frame_ + static_cast<uint32_t>(life)});
     ++stats_.particles;
+    explosion_flinch(mode, h);
+}
+
+void TacticalBattle::explosion_flinch(TacticalMode& mode, objects::ObjectHandle h) {
+#ifdef ALAMO_SIM_HAVE_ANIM
+    // #362 (legacy ANIM_PARTICLES §A.12 [M caller]; TACTICAL_COMBAT slot 47 "s78l t03" step-2 "Start" [M] for the weight):
+    // ExplosionBehavior's Initialise (vf9 0x622440) runs the area flinch 0x62e040 when an EXPLOSION object is created:
+    // every object whose tree box overlaps the cube of half-extent Induced_Flinch_Range (+0x20e0, default 100) around it
+    // in the projectile-collidable tree (GOM +0xd8, Query_AABB 0x20e780), with no owner, dying or self filter, gets the
+    // flinch start 0x62dde0 with weight clamp(I x (1 - d^2 / (2 R^2)), 0.25, 1) - d horizontal, I = the explosion type's
+    // Induced_Flinch_Intensity (+0x20e4, default 1) - and the direction victim - explosion. The flinch gates (IDLE, the
+    // cooldown, the current clip) are on_hit's. [port] Victims in ascending id (the query's order; retail walks the
+    // tree's list): each accepted flinch play draws the synced variant. [port] A projectile whose detonation particle is
+    // an EXPLOSION flinches its victim here first (the particle precedes anim_hit), so the direct hit's own flinch finds
+    // it in progress; the retail order inside Apply_Direct_Damage 0x4c73d0 was not read. [port] The anim hook's frame is
+    // the tick's (TacticalAnimHooks::set_tick); a retreat self-destruct explosion (before set_tick) stamps the last one.
+    objects::ObjectStore& store = mode.primary();
+    if (!hooks_ || !hooks_->anim_active() || &hooks_->anim_mode()->primary() != &store || !store.exists(h) ||
+        !store.has_behavior(h, objects::beh::Explosion))
+        return;
+    const objects::GameObjectTypes& types = catalog_->types();
+    const objects::TypeIndex t = store.type(h);
+    const float range = types.get(t, objects::tags::Induced_Flinch_Range);
+    const float intensity = types.get(t, objects::tags::Induced_Flinch_Intensity);
+    if (!(range > 0.0f)) return;  // [port] no cube (and no division by zero)
+    const Vec3 at = store.position(h);
+    tactical::Aabb cube;
+    cube.min = {at.x - range, at.y - range, at.z - range};
+    cube.max = {at.x + range, at.y + range, at.z + range};
+    for (const tactical::EntityHandle hit : mode.trees().all().query_aabb(cube, tactical::QueryFilter{}, explosion_query_)) {
+        const objects::ObjectId id = static_cast<objects::ObjectId>(hit);
+        const objects::ObjectHandle vh = store.find(id);
+        if (!store.exists(vh)) continue;
+        const Vec3 vp = store.position(vh);
+        const Vec3 d{vp.x - at.x, vp.y - at.y, vp.z - at.z};
+        hooks_->anim_flinch(id, store.facing(vh), d, anim::explosion_flinch_weight(intensity, range, anim::Float3{d.x, d.y, d.z}));
+    }
+#else
+    (void)mode, (void)h;
+#endif
 }
 
 objects::ObjectHandle TacticalBattle::spawn_death_clone(TacticalMode& mode, int32_t type, Vec3 pos, Vec3 facing, int32_t owner) {
@@ -637,7 +677,7 @@ void TacticalBattle::consume_events(TacticalMode& mode, SimRng& rng) {
         const int32_t det = e.absorbed ? pv.absorbed : (e.armor_reduced && pv.armor_reduced >= 0 ? pv.armor_reduced : pv.detonation);
         spawn_particle(mode, det, at, e.owner);
 #ifdef ALAMO_SIM_HAVE_ANIM
-        hooks_->anim_hit(e);  // R3 anim: flinch
+        hooks_->anim_hit(e, pv.flinch_intensity);  // R3 anim: flinch
 #endif
         const objects::ObjectHandle vh = store.find(e.victim);
         if (e.pick < 0 || !store.exists(vh)) continue;
