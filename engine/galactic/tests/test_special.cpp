@@ -1387,6 +1387,8 @@ void test_foc() {
             CHECK(kind("Death_Star") == 6 && label("Death_Star") == "TEXT_TOOLTIP_ABILITY_DESTROY_PLANET_NAME");
             CHECK(kind("Generic_Probe_Droid") == 3 && label("Generic_Probe_Droid") == "TEXT_ABILITY_SLOT_SPY");
             CHECK(kind("Han_Solo") == 5 && kind("Mon_Mothma") == 8 && kind("Boba_Fett") == 4 && kind("Tyber_Zann") == 9);
+            // #437 (docs/re/GALACTIC_ABILITY_ROWS.md, 0x3d2020): every kind has a label; Black Market was "" before
+            CHECK(label("Tyber_Zann") == "TEXT_ABILITY_SLOT_BLACK_MARKET" && label("Star_Destroyer").empty());
             CHECK(kind("IG-88") == 4);  // Neutralize (4) is tested before Hack_Super_Weapon (10)
             CHECK(kind("Star_Destroyer") == -1);
         }
@@ -1541,7 +1543,31 @@ void test_launch_and_linked() {
     }
 }
 
+// #437 (docs/re/GALACTIC_ABILITY_ROWS.md, 0x3d2020): every galaxy-map ability kind has a text key; kind -1 has none.
+void test_ability_slot_labels() {
+    SpecialRules sp;
+    sp.types.resize(6);
+    sp.types[1].ability_entry_names = {"Slice_A"};
+    sp.types[2].ability_entry_names = {"Market_A"};
+    sp.types[3].ability_entry_names = {"Sabotage_A"};
+    sp.types[4].ability_entry_names = {"Corrupt_A"};
+    sp.types[5].ability_entry_names = {"Hack_A"};
+    sp.activated_slice = {"Slice_A"};
+    sp.activated_black_market = {"market_a"};  // case-insensitive
+    sp.activated_sabotage = {"Sabotage_A"};
+    sp.activated_corrupt = {"Corrupt_A"};
+    sp.activated_hack = {"Hack_A"};
+    const auto slot = [&](uint32_t t) { return activated_ability_slot_of(sp, t); };
+    CHECK(slot(1).kind == 1 && std::string(slot(1).label) == "TEXT_ABILITY_SLOT_SLICE");
+    CHECK(slot(2).kind == 9 && std::string(slot(2).label) == "TEXT_ABILITY_SLOT_BLACK_MARKET");
+    CHECK(slot(3).kind == 2 && std::string(slot(3).label) == "TEXT_ABILITY_SLOT_SABOTAGE");
+    CHECK(slot(4).kind == 7 && std::string(slot(4).label) == "TEXT_ABILITY_SLOT_CORRUPT_PLANET");
+    CHECK(slot(5).kind == 10 && std::string(slot(5).label) == "TEXT_ABILITY_SLOT_HACK_SUPER_WEAPON");
+    CHECK(slot(0).kind == -1 && std::string(slot(0).label).empty());
+}
+
 int main() {
+    test_ability_slot_labels();
     test_payloads();
     test_respawn();
     test_black_market();

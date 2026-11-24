@@ -385,14 +385,14 @@ ActivatedAbilitySlot activated_ability_slot_of(const SpecialRules& sp, uint32_t 
     const Kind order[] = {
         {6, &sp.activated_destroy_planet, "TEXT_TOOLTIP_ABILITY_DESTROY_PLANET_NAME"},
         {1, &sp.activated_slice, "TEXT_ABILITY_SLOT_SLICE"},
-        {9, &sp.activated_black_market, ""},
-        {2, &sp.activated_sabotage, ""},
+        {9, &sp.activated_black_market, "TEXT_ABILITY_SLOT_BLACK_MARKET"},
+        {2, &sp.activated_sabotage, "TEXT_ABILITY_SLOT_SABOTAGE"},
         {3, &sp.activated_system_spy, "TEXT_ABILITY_SLOT_SPY"},
         {4, &sp.activated_neutralize_hero, "TEXT_ABILITY_SLOT_NEUTRALIZE_HERO"},
         {5, &sp.activated_siphon_credits, "TEXT_ABILITY_SLOT_SIPHON_CREDITS"},
-        {7, &sp.activated_corrupt, ""},
+        {7, &sp.activated_corrupt, "TEXT_ABILITY_SLOT_CORRUPT_PLANET"},
         {8, &sp.activated_remove_corruption, "TEXT_ABILITY_SLOT_REMOVE_CORRUPTION"},
-        {10, &sp.activated_hack, ""},
+        {10, &sp.activated_hack, "TEXT_ABILITY_SLOT_HACK_SUPER_WEAPON"},
     };
     for (const Kind& k : order)
         if (has(*k.names)) {
