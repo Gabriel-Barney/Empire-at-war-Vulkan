@@ -620,8 +620,9 @@ void test_death_persistence_override() {
 
 // #221 (0x58cf90 phase 2 from the behaviour-detach hook 0x58d830, traced in PR #218 [M]): a death clone whose type lists
 // Death_Explosions_End spawns one entry when it is deleted, at its position plus the type's half extents 0x371be0
-// (Custom_Hard 3 x 2 here) turned by its facing yaw, and goes when its persistence ends without Death_Fade_Time:
-// int(30 x 1) = 30 frames after the crush instead of 37. One entry takes no draw; two take one synced int(0, 1).
+// (Custom_Hard 3 x 2 here) turned by its facing yaw and (#358) lifted by its Ranged_Target_Z_Adjust (default 6), and goes
+// when its persistence ends without Death_Fade_Time: int(30 x 1) = 30 frames after the crush instead of 37. One entry takes
+// no draw; two take one synced int(0, 1).
 // ledger: verifies GameObjectType.Death_Explosions_End
 struct EndBoomRun {
     int gone = -1;                       // frames from the clone's appearance to its removal
@@ -706,7 +707,7 @@ EndBoomRun run_end_boom(const char* list, bool anim = false, bool drop = false) 
             }
         const float yaw = std::atan2(clone_face.y, clone_face.x);
         out.expect_at = {clone_pos.x + 3.0f * std::cos(yaw) - 2.0f * std::sin(yaw), clone_pos.y + 3.0f * std::sin(yaw) + 2.0f * std::cos(yaw),
-                         clone_pos.z};
+                         clone_pos.z + 6.0f};  // #358: + the clone type's Ranged_Target_Z_Adjust (default 6.0)
         return false;
     });
     std::printf("  #221 Death_Explosions_End \"%s\": clone removed +%d, %zu explosion(s) at (%.2f %.2f %.2f), expected (%.2f %.2f %.2f), "

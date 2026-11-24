@@ -498,6 +498,63 @@ void test_corpse_path_no_model() {
 #endif
 }
 
+// #358 (0x58cf90 phase 0 [H]: synced 0x1ffb40(0, n - 1), no draw for n = 1; spawned at 0x398440 = position + (0, 0,
+// Ranged_Target_Z_Adjust)): a trooper with Death_Explosions `list` and Ranged_Target_Z_Adjust 12 killed by script.
+struct DeathBoomRun {
+    uint32_t booms = 0;          // S10_Death_Boom_* objects right after the kill
+    float boom_z = 0.0f, victim_z = 0.0f;
+    uint64_t draws = 0;          // synced draws of the kill
+};
+DeathBoomRun run_death_boom(const char* list) {
+    g_temp_prefix = "alamo_sim_r3h_tests_358";
+    static std::string s_list;  // g_types_patch is a plain function pointer
+    s_list = list;
+    g_types_patch = [](std::string t) {
+        const std::string at = "<GroundInfantry Name=\"S10_Trooper\">";
+        if (const size_t p = t.find(at); p != std::string::npos)
+            t.insert(p + at.size(), "<Death_Explosions>" + s_list + "</Death_Explosions><Ranged_Target_Z_Adjust>12</Ranged_Target_Z_Adjust>");
+        if (const size_t end = t.find("</S10>"); end != std::string::npos)
+            t.insert(end, " <Particle Name=\"S10_Death_Boom_A\"><Particle_Lifetime_Frames>20</Particle_Lifetime_Frames></Particle>\n"
+                          " <Particle Name=\"S10_Death_Boom_B\"><Particle_Lifetime_Frames>20</Particle_Lifetime_Frames></Particle>\n");
+        return t;
+    };
+    auto d = make_data();
+    g_types_patch = nullptr;
+    const objects::TypeIndex trooper = d->types.resolve_name("S10_Trooper");
+    const objects::TypeIndex boom_a = d->types.resolve_name("S10_Death_Boom_A"), boom_b = d->types.resolve_name("S10_Death_Boom_B");
+    CHECK(boom_a != objects::kNone && boom_b != objects::kNone);
+    DeathBoomRun out;
+    objects::ObjectId victim = objects::kNoObjectId;
+    land_battle(*d, nullptr, 900, [&](TacticalBattle& b, TacticalMode& tm, SimHost& host) {
+        objects::ObjectStore& st = tm.primary();
+        if (b.frame() < 60) return true;
+        for (const objects::ObjectHandle h : st.all_objects())
+            if (victim == objects::kNoObjectId && st.alive(h) && st.type(h) == trooper && b.combat().alive(st.id(h))) victim = st.id(h);
+        if (victim == objects::kNoObjectId) return false;
+        out.victim_z = st.position(st.find(victim)).z;
+        const uint64_t before = host.random().synced().draws();
+        CHECK(b.script_damage(tm, victim, 1.0e6f, false));
+        out.draws = host.random().synced().draws() - before;
+        for (const objects::ObjectHandle h : st.all_objects())
+            if (st.alive(h) && (st.type(h) == boom_a || st.type(h) == boom_b)) {
+                ++out.booms;
+                out.boom_z = st.position(h).z;
+            }
+        return false;
+    });
+    std::printf("  #358 Death_Explosions \"%s\": %u explosion(s) at z %.2f (victim z %.2f), kill draws %llu\n", list, out.booms,
+                static_cast<double>(out.boom_z), static_cast<double>(out.victim_z), static_cast<unsigned long long>(out.draws));
+    return out;
+}
+
+void test_death_explosion_pick() {
+    const DeathBoomRun one = run_death_boom("S10_Death_Boom_A");
+    const DeathBoomRun two = run_death_boom("S10_Death_Boom_A, S10_Death_Boom_B");
+    CHECK(one.booms == 1 && two.booms == 1);
+    CHECK(std::fabs(one.boom_z - (one.victim_z + 12.0f)) < 1e-3f && std::fabs(two.boom_z - (two.victim_z + 12.0f)) < 1e-3f);
+    CHECK(two.draws == one.draws + 1);  // the pick: one synced Get_Int(0, 1); none for one entry
+}
+
 int main() {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
     std::printf("r3h t01: Force_Sight clips on the battle's animation world\n");
@@ -509,6 +566,7 @@ int main() {
     test_unit_died_presentation();  // #327 t06
     test_clone_copies_slot();       // #359
     test_corpse_path_no_model();    // #359
+    test_death_explosion_pick();    // #358
     if (g_fail) {
         std::printf("alamo_sim_r3h_tests: %d failure(s)\n", g_fail);
         return 1;

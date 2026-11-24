@@ -733,16 +733,16 @@ inline std::unique_ptr<Data> hover_garrison_data() {
     t.replace(pb, beh.size(), "WALK_LOCOMOTOR, GARRISON_HOVER");
     t.insert(t.find(head) + head.size(), "<Hover_Height>80</Hover_Height>");
     // #360: the trooper's death data - a Damage_Normal clone (HIDE_WHEN_FOGGED: the primary path, a clone object), one
-    // Death_Explosions entry and one Destruction_Survivors pilot - so a garrison-killed occupant shows all three.
+    // Death_Explosions entry (the clone's, #358) and one Destruction_Survivors pilot - so a garrison-killed occupant shows all three.
     const std::string trooper = "<GroundInfantry Name=\"S10_Trooper\">";
     if (const size_t p = t.find(trooper); p != std::string::npos)
-        t.insert(p + trooper.size(), "<Death_Clone>Damage_Normal, S10_Hover_Trooper_Clone</Death_Clone><Death_Explosions>S10_Hover_Boom</Death_Explosions>"
+        t.insert(p + trooper.size(), "<Death_Clone>Damage_Normal, S10_Hover_Trooper_Clone</Death_Clone>"
                                      "<Destruction_Survivors>S10_Hover_Pilot, 1.0</Destruction_Survivors>"
                                      "<Minimum_Destruction_Survivor_Count>1</Minimum_Destruction_Survivor_Count>"
                                      "<Maximum_Destruction_Survivor_Count>1</Maximum_Destruction_Survivor_Count>");
     if (const size_t end = t.find("</S10>"); end != std::string::npos)
         t.insert(end, " <GroundInfantry Name=\"S10_Hover_Trooper_Clone\"><Death_Persistence_Duration>5</Death_Persistence_Duration>"
-                      "<Behavior>HIDE_WHEN_FOGGED</Behavior></GroundInfantry>\n"
+                      "<Death_Explosions>S10_Hover_Boom</Death_Explosions><Behavior>HIDE_WHEN_FOGGED</Behavior></GroundInfantry>\n"
                       " <Particle Name=\"S10_Hover_Boom\"><Particle_Lifetime_Frames>60</Particle_Lifetime_Frames></Particle>\n"
                       " <GroundInfantry Name=\"S10_Hover_Pilot\"><Tactical_Health>10</Tactical_Health><CategoryMask>Infantry</CategoryMask>"
                       "<Behavior>SELECTABLE</Behavior><LandBehavior>WALK_LOCOMOTOR</LandBehavior><Max_Speed>1.0</Max_Speed>"

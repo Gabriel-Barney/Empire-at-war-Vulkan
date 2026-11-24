@@ -163,7 +163,8 @@ counter, `create` refused). Rules:
 - Nothing to convert: fog and victory draw nothing.
 - Still on the synced RNG while a converted service runs (tier 3; deterministic either way, the services run in graph
   order): the `Death_Explosions_End` pick of a death clone's deletion (#221: `expire` and `pushed_clones`, both
-  exclusive steps, and a remove-at-once clone on its caller's RNG), a combat listener's draws (the tick's RNG, `hooks_->set_tick`), the first-due draw of each behaviour an
+  exclusive steps, and a remove-at-once clone on its caller's RNG), the `Death_Explosions` pick of a death (#358:
+  `process_death`, the debris expiry of `spawners`, each on its caller's RNG), a combat listener's draws (the tick's RNG, `hooks_->set_tick`), the first-due draw of each behaviour an
   object gets when it is spawned (`ObjectStore::attach`, the host's bound synced RNG), and, under queues, the draws of
   the ability system and of combat's attack orders (their own bound RNG). A service is fully independent of
   the others only once those move too; until then the streams make a converted service's own draws independent.
