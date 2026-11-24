@@ -375,6 +375,7 @@ struct SubObjectsTag {
     X(List, Damage_Hit_Particles, 0)                                                                                  \
     X(List, Shield_Hit_Particles, 0)                                                                                  \
     X(List, Death_Explosions, 0)                                                                                      \
+    X(List, Death_Explosions_End, 0)                                                                                  \
     X(Text, Damaged_Smoke_Asset_Name, "")                                                                             \
     X(Bool, Target_Stealth_Units, false)                                                                              \
     X(Bool, Redirect_Damage_To_Teammates, false)                                                                      \

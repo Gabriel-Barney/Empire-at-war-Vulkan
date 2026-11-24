@@ -1077,8 +1077,8 @@ bool GameAudioHost::unit_sighted(const objects::GameObjectTypes& types, objects:
 // it is the CLONE type's tag (shipped: mostly *_Death_Clone types, else the dying type that is its own clone). [port] The port voices the clone on the tick it
 // is destroyed (dead until the next frame's flush; retail deletes it at the same frame's flush) or, when the host missed
 // that tick, on the first tick it is gone. [M] Nothing when the battle's end drops the clones (the mode pop stops every
-// sound, legacy docs/re/AUDIO.md §1.5); the infantry corpse path (no store clone) and Death_Explosions_End itself are
-// not modelled.
+// sound, legacy docs/re/AUDIO.md §1.5); the infantry corpse path (no store clone) is not modelled. The
+// Death_Explosions_End spawn is the battle's (TacticalBattle::spawn_death_explosion_end, #221).
 uint32_t GameAudioHost::death_clone_ends(const objects::ObjectStore& store, const objects::GameObjectTypes& types, bool battle_over) {
     if (!game_) return 0;
     uint32_t n = 0;

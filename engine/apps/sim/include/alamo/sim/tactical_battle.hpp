@@ -42,7 +42,9 @@
 //      TacticalMode::destroy + movement removal, death clone object (its death plan - spin / variant
 //      draws, removal frame - schedule_death_clone), first Death_Explosions entry [port];
 //      damaged-smoke events -> attached_effects() (render); ability events (EnginesOffline); clear_events;
-//      death clones whose planned removal frame came are destroyed; PARTICLE objects whose
+//      death clones whose planned removal frame came are destroyed, each spawning its type's Death_Explosions_End
+//      entry (#221: one synced pick when the list has more than one; also on a push kill and a remove-at-once clone,
+//      not at the battle's end [port]); PARTICLE objects whose
 //      Particle_Lifetime_Frames ran out are destroyed; dummy targets without a pending ability are removed;
 //   6. victory monitor (BT §3.1a, tactical_battle_victory.cpp): event driven - a victory-relevant object leaving a player
 //      (death / removal / owner change) tests 0xb (then 0xe land / 0xf space) for that player's enemies, a completed retreat
@@ -2320,8 +2322,10 @@ private:
     objects::ObjectHandle spawn_death_clone(TacticalMode& mode, int32_t type, Vec3 pos, Vec3 facing, int32_t owner);
     // a death's Death_Explosions object (the clone's owner; Is_Decoration -> objects::kFlagMapDecoration).
     void spawn_death_explosion(TacticalMode& mode, int32_t type, Vec3 pos, int32_t clone_owner);
+    // #221: a death clone's deletion (0x58cf90 phase 2): one entry of its type's Death_Explosions_End, if any.
+    void spawn_death_explosion_end(TacticalMode& mode, objects::ObjectHandle clone, SimRng& rng);
     mutable std::optional<uint64_t> infantry_category_;  // GameObjectCategoryType "Infantry" bit (lazy; ~0 = unknown)
-    void expire_objects(TacticalMode& mode);
+    void expire_objects(TacticalMode& mode, SimRng& rng);
     std::vector<objects::ObjectId> owned_ids(const TacticalMode& mode, uint8_t player, const std::vector<uint32_t>& wire) const;
     // --- [port: Gabriel] queueable unit actions (tactical_battle.cpp "order queue") ---
     struct OrderQueue {
@@ -2557,12 +2561,14 @@ private:
 #endif
     void schedule_death_clone(TacticalMode& mode, objects::ObjectHandle clone, int32_t clone_type, uint8_t kind, SimRng& rng,
                               const float* persistence_override = nullptr);
-    void remove_death_clones(TacticalMode& mode, bool all);  // due ones (expire_objects), or all (battle end)
+    // due ones (expire_objects: each spawns its Death_Explosions_End entry, drawing from `rng`), or all (battle end: no spawn,
+    // `rng` unused)
+    void remove_death_clones(TacticalMode& mode, bool all, SimRng* rng = nullptr);
     // s78n t20 batch 1 (MOVEMENT §5.4.5 item 2): a land clone of a type with IsDeathCloneObstacle and a UnitCollisionClass
     // is a movement object without a locomotor (the obstacle b of the land collisions); the clones a collision push
     // killed this tick (MovementSystem::push_kills) are removed after the movement tick, in list order.
     void register_clone_obstacle(TacticalMode& mode, objects::ObjectHandle clone, int32_t clone_type);
-    void kill_pushed_clones(TacticalMode& mode);
+    void kill_pushed_clones(TacticalMode& mode, SimRng& rng);
     std::vector<AttachedEffect> effects_;
     std::vector<StoryGeneric> story_generics_;  // this tick's generic story names
     std::vector<objects::ObjectId> story_reinforced_;  // L1/S4 wave 2b: reserve units deployed this tick

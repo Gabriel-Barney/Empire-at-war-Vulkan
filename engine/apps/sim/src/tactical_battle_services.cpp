@@ -227,7 +227,7 @@ void TacticalBattle::build_service_graph() {
     // ---- movement --------------------------------------------------------------------------------------------------
     g.add("move_tick", kAll, kAll, [this] { movement_->tick(frame_, *tick_.rng, *tick_.pf); });
     g.add("move_commit", kAll, kAll, [this] { movement_->commit(tick_.mode->primary()); });
-    g.add("pushed_clones", kAll, kAll, [this] { kill_pushed_clones(*tick_.mode); });  // s78n t20 batch 1
+    g.add("pushed_clones", kAll, kAll, [this] { kill_pushed_clones(*tick_.mode, *tick_.rng); });  // s78n t20 batch 1
     // the arrival turn's clip plays (synced variant draws), ascending id
     g.add("turn_clips", kAll, kAll, [this] { play_turn_clip_events(*tick_.rng, tick_.global_frame); });
     g.add("s4_exit_arrivals", kAll, kAll, [this] { s4_exit_arrivals(); });  // garrison hosts' +0xf8 hook
@@ -321,7 +321,7 @@ void TacticalBattle::build_service_graph() {
     lap("tac.services");
 
     // ---- cleanup ----------------------------------------------------------------------------------------------------
-    g.add("expire", kAll, kAll, [this] { expire_objects(*tick_.mode); });
+    g.add("expire", kAll, kAll, [this] { expire_objects(*tick_.mode, *tick_.rng); });
     g.add("garrisons", kAll, kAll, [this] { s4_tick(*tick_.mode, *tick_.rng); });  // S4: garrison enters / exits / ejects, capture
     g.add("pads", kAll, kAll, [this] { pads_tick(*tick_.mode); });  // Int-final: build pads
     // skai: skirmish map battles: the Income_Stream credit trickle (credits through the host's callback)
