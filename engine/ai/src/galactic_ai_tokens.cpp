@@ -1107,9 +1107,8 @@ struct GalacticSimTokenResolver::Impl {
         if (life != 0) {
             std::lock_guard<std::mutex> lock(r.mu_);
             const auto [it, inserted] = r.cache_.try_emplace(CacheKey{std::string(key), inst, ctx.self, std::move(pk)});
-            it->second.value = out;
-            it->second.stamp = r.frame_;
             if (inserted) it->second.params.assign(params.begin(), params.end());
+            it->second.store(out, r.frame_);  // #152: the CRC bytes are rebuilt at the next capture
         }
         return true;
     }

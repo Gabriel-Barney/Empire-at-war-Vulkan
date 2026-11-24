@@ -1324,10 +1324,12 @@ CampaignResult run_synthetic(unsigned threads, int32_t frames, bool script_targe
     for (const std::string& d : pd) std::printf("  plans: %s\n", d.c_str());
     CHECK(world.plans().plans.size() == 3);
     CHECK(world.start(&pd));
+    ResolverCrcCheck rc;  // #152
     for (int32_t f = 1; f <= frames; ++f) {
         sim.update();  // T5: the galactic tick
         for (int32_t p = 0; p < static_cast<int32_t>(sim.players().size()); ++p)
             world.update_player(p, f, true, conflicts.state() == gal::ConflictState::AutoRunning);  // T7
+        rc.capture(world.resolver());
         StateHasher h;
         sim.hash_state(h);
         world.hash(h);
@@ -1335,6 +1337,8 @@ CampaignResult run_synthetic(unsigned threads, int32_t frames, bool script_targe
         conflicts.hash(h);
         out.crc.push_back(h.digest());
     }
+    rc.print("synthetic campaign");
+    CHECK(rc.captures == static_cast<uint64_t>(frames) && rc.mismatches == 0);
     for (const AiDecision& d : world.decision_log())
         out.decisions.push_back(std::to_string(d.frame) + " p" + std::to_string(d.player) + " " + d.text);
     out.errors = world.lua_errors();
@@ -1940,6 +1944,16 @@ void test_leaf_cache() {
     c.target = 0;
     CHECK(value("Groundbase") == 0.0);
     c.target = 7;
+    // #152: the incremental CRC equals the full recompute here (entries stored, re-stamped and recomputed by 0xE above)
+    auto same_crc = [](const GalacticSimTokenResolver& r) {
+        StateHasher a, b;
+        r.hash(a);
+        r.hash(a);  // a second capture reuses every image
+        r.hash_full(b);
+        r.hash_full(b);
+        return a.digest() == b.digest();
+    };
+    CHECK(same_crc(res));
     // Save / load keeps the entries, their stamps and the visible flags.
     ByteWriter w;
     res.write(w);
@@ -1949,6 +1963,12 @@ void test_leaf_cache() {
     ByteWriter w2;
     copy.write(w2);
     CHECK(w2.bytes() == w.bytes());
+    {  // #152: a loaded resolver (no images yet) hashes as the saved one
+        StateHasher a, b;
+        res.hash(a);
+        copy.hash(b);
+        CHECK(a.digest() == b.digest() && same_crc(copy));
+    }
     const EvalResult rc = evaluate(eqs, eqs.find("Space_All"), c, copy);
     CHECK(rc.ok && rc.value == 0.0);  // the stale cached value survived the round trip
     std::printf("leaf cache: %zu entries, shared by equations / 0x5f2430 / Enemy-Human bindings; 15 s staleness; signal 0xE "

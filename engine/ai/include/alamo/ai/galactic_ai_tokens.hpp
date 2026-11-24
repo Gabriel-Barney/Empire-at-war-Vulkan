@@ -393,8 +393,11 @@ public:
     void write(ByteWriter& w) const;
     bool read(ByteReader& r);
     // the CRC of the saved state (GalacticAiWorld::hash adds it last): the fields write() saves after the version,
-    // through the same list (visit_saved), the hit counter left out.
+    // through the same list (visit_saved), the hit counter left out. #152: each leaf-cache entry's bytes are kept
+    // (Entry::crc_image, rebuilt only when the entry is stored again) and fed to the hasher whole - the same byte stream
+    // as hash_full, which formats every field again (the reference the tests compare it with).
     void hash(StateHasher& h) const;
+    void hash_full(StateHasher& h) const;
 
     // One token node's cache entry key (§9.9): the node = (leaf, inst, self), the entry = the parameter set.
     struct CacheKey {
@@ -428,7 +431,7 @@ public:
 
 private:
     friend struct Impl;
-    template <class W>
+    template <class W, bool kEntryImages = false>
     void visit_saved(W& w) const;  // galactic_ai_save.cpp
     void build_neighbours();  // planet evaluator neighbour lists (0x661da0)
     const galactic::GalacticSim* sim_;
@@ -470,6 +473,14 @@ private:
         double value = 0.0;
         int32_t stamp = 0;
         std::vector<Param> params;  // the bindings copy (0x64c840): what the 0xE recompute evaluates with
+        // #152: this entry's CRC bytes (key + fields, the saved layout), empty = to be rebuilt. Every store goes through
+        // store(), which clears them; not saved (a loaded entry starts empty).
+        std::vector<uint8_t> crc_image;
+        void store(double v, int32_t frame) {
+            value = v;
+            stamp = frame;
+            crc_image.clear();
+        }
     };
     mutable std::mutex mu_;
 public:

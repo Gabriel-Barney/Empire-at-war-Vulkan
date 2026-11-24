@@ -99,6 +99,10 @@ public:
         h_.str(v);
         return *this;
     }
+    HashWriter& raw(std::span<const uint8_t> b) {  // #152: bytes as they are (a ByteWriter image of the same calls)
+        h_.bytes(b.data(), b.size());
+        return *this;
+    }
 
 private:
     StateHasher& h_;
@@ -350,10 +354,15 @@ void GalacticSimTokenResolver::write(ByteWriter& w) const {
 
 void GalacticSimTokenResolver::hash(StateHasher& h) const {
     HashWriter hw(h);
-    visit_saved(hw);
+    visit_saved<HashWriter, true>(hw);
 }
 
-template <class W>
+void GalacticSimTokenResolver::hash_full(StateHasher& h) const {
+    HashWriter hw(h);
+    visit_saved<HashWriter, false>(hw);
+}
+
+template <class W, bool kEntryImages>
 void GalacticSimTokenResolver::visit_saved(W& w) const {
     w.i32(frame_);
     w.u32(static_cast<uint32_t>(stamp_space_.size()));
@@ -363,15 +372,27 @@ void GalacticSimTokenResolver::visit_saved(W& w) const {
     for (const uint8_t x : last_battle_) w.u8(x);
     std::lock_guard<std::mutex> lock(mu_);
     w.u32(static_cast<uint32_t>(cache_.size()));
-    for (const auto& [k, e] : cache_) {  // version 3 entry layout
-        w.str(k.leaf);
-        w.i32(k.inst);
-        w.i32(k.self);
-        w.str(k.params);
-        w.f64(e.value);
-        w.i32(e.stamp);
-        w.u32(static_cast<uint32_t>(e.params.size()));
-        for (const Param& p : e.params) put_param(w, p);
+    const auto put_entry = [](auto& o, const CacheKey& k, const Entry& e) {  // version 3 entry layout, version 4 parameters
+        o.str(k.leaf);
+        o.i32(k.inst);
+        o.i32(k.self);
+        o.str(k.params);
+        o.f64(e.value);
+        o.i32(e.stamp);
+        o.u32(static_cast<uint32_t>(e.params.size()));
+        for (const Param& p : e.params) put_param(o, p);
+    };
+    for (auto& [k, e] : cache_) {  // cache_ is mutable: the images are built here, under mu_
+        if constexpr (kEntryImages) {  // #152: the entry's bytes, formatted once per store (the lock is held)
+            if (e.crc_image.empty()) {
+                ByteWriter b;
+                put_entry(b, k, e);
+                e.crc_image.assign(b.bytes().begin(), b.bytes().end());
+            }
+            w.raw(e.crc_image);
+        } else {
+            put_entry(w, k, e);
+        }
     }
     save_only(w, hits_);  // a statistic (cache_hits)
     // version 2
