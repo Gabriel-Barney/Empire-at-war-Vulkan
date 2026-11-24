@@ -98,10 +98,10 @@ std::string list_text(App& a, std::string_view dialog) {
 }
 
 // The state CRC of the session now (every registered system, as the per-tick CRC record of this tick would hold it).
-CrcRecord state_crc(App& a) { return a.session_->host().crc_registry().capture(a.session_->host().frame()); }
+CrcRecord state_crc(App& a) { return a.crc_registry()->capture(a.session()->host().frame()); }
 std::string crc_diff(App& a, const CrcRecord& want, const CrcRecord& got) {
     std::string out;
-    const CrcRegistry& reg = a.session_->host().crc_registry();
+    const CrcRegistry& reg = *a.crc_registry();
     for (size_t i = 0; i < want.systems.size() || i < got.systems.size(); ++i) {
         const uint64_t w = i < want.systems.size() ? want.systems[i] : 0, g = i < got.systems.size() ? got.systems[i] : 0;
         if (w != g) out += (out.empty() ? "" : ", ") + (i < reg.size() ? reg.name(static_cast<CrcRegistry::SystemId>(i)) : "#" + std::to_string(i));
@@ -148,7 +148,7 @@ ScriptStep step_click_hud(std::string component) {
     auto st = std::make_shared<State>();
     return {"click the HUD's " + component, [st, component](App& a, ui::InputFrame& f) {
                 if (st->aimed) return click_at(st->click, f, st->x, st->y, ui::Button::Left);
-                const bool gal = a.screen() == Screen::Galactic, bat = a.screen() == Screen::Battle && a.bview_.active();
+                const bool gal = a.screen() == Screen::Galactic, bat = a.screen() == Screen::Battle && a.battle_view().active();
                 if ((!gal && !bat) || a.ui().gui.top() != nullptr) return false;
                 const int32_t ci = a.ui().components.find(component);
                 if (ci < 0) return stop(a, "HUD button", component + " is not a HUD component");
@@ -177,13 +177,13 @@ void open_game_menu(std::vector<ScriptStep>& s, const std::string& button, bool 
     if (save) {
         auto last = std::make_shared<std::string>();
         s.push_back(step_wait("the game may be saved", [last](App& a) {
-            if (!a.session_) return false;
-            const std::string why = a.session_->check_save();
+            if (!a.session()) return false;
+            const std::string why = a.check_save();
             if (why.empty()) {
                 a.control().script_hold = true;
                 return true;
             }
-            if (why != *last) std::printf("saveload: save not possible yet at tick %" PRIu64 ": %s\n", a.session_->host().frame(), why.c_str());
+            if (why != *last) std::printf("saveload: save not possible yet at tick %" PRIu64 ": %s\n", a.session()->host().frame(), why.c_str());
             *last = why;
             return false;
         }, 6000));
@@ -264,26 +264,26 @@ void select_save(std::vector<ScriptStep>& s, const char* dialog, const char* nam
 ScriptStep step_saved(const char* name, uint64_t written, Mark* m) {
     auto n = std::make_shared<uint32_t>(0);
     return {std::string("saved ") + name, [name, written, m, n](App& a, ui::InputFrame&) {
-                if (a.saves_written_ < written || a.ui().gui.find(kSave)) {
-                    if (++*n > 90) return stop(a, std::string("save ") + name, "no save written (saves written " + std::to_string(a.saves_written_) + ")");
+                if (a.saves_written() < written || a.ui().gui.find(kSave)) {
+                    if (++*n > 90) return stop(a, std::string("save ") + name, "no save written (saves written " + std::to_string(a.saves_written()) + ")");
                     return false;
                 }
-                if (a.saves_written_ > written) fail(a, std::string("save ") + name, "more saves written than requested");
+                if (a.saves_written() > written) fail(a, std::string("save ") + name, "more saves written than requested");
                 if (!top_is(a, kPause)) fail(a, std::string("save ") + name, "the in-game menu is not back on top");
-                const std::string path = save_path(a.saves_dir_, name);
+                const std::string path = save_path(a.saves_dir(), name);
                 uint64_t tick = 0;
                 std::string desc, err;
                 if (!read_save_header(path, tick, desc, &err)) return stop(a, std::string("save ") + name, path + ": " + err);
                 m->name = name;
-                m->tick = a.session_->host().frame();
+                m->tick = a.session()->host().frame();
                 m->crc = state_crc(a);
-                m->battle = a.session_->in_battle();
+                m->battle = a.session()->in_battle();
                 std::error_code ec;
                 m->size = std::filesystem::file_size(path, ec);
                 m->mtime = std::filesystem::last_write_time(path, ec);
                 m->set = true;
                 if (tick != m->tick) fail(a, std::string("save ") + name, "the file holds tick " + std::to_string(tick) + ", the session is at " + std::to_string(m->tick));
-                const CrcLog& log = a.session_->host().crc_log();
+                const CrcLog& log = a.session()->host().crc_log();
                 if (!log.records.empty() && log.records.back().tick == m->tick && log.records.back().combined != m->crc.combined)
                     std::printf("saveload: note: state CRC now %016" PRIx64 " vs the tick's CRC record %016" PRIx64 "\n", m->crc.combined, log.records.back().combined);
                 std::printf("saveload: saved %s at tick %" PRIu64 "%s, %" PRIuMAX " bytes, state CRC %016" PRIx64 "\n", name, m->tick, m->battle ? " (in battle)" : "",
@@ -321,8 +321,8 @@ ScriptStep step_question(std::string what, const char* name, uint64_t written) {
                 std::printf("saveload: %s question: \"%s\" / \"%s\"\n", what.c_str(), cap ? utf8_of(cap->text).c_str() : "-", t ? utf8_of(t->text).c_str() : "-");
                 if (!t || !t->visible || t->text != ui::utf8_to_utf32(name)) fail(a, what, std::string("the question does not name ") + name);
                 if (!cap || cap->text.empty()) fail(a, what, "the question has no caption");
-                if (a.saves_written_ != written) fail(a, what, "a save was written before the answer");
-                if (!save_exists(a.saves_dir_, name)) fail(a, what, std::string(name) + " is gone before the answer");
+                if (a.saves_written() != written) fail(a, what, "a save was written before the answer");
+                if (!save_exists(a.saves_dir(), name)) fail(a, what, std::string(name) + " is gone before the answer");
                 return true;
             },
             100};
@@ -334,26 +334,26 @@ ScriptStep step_loaded(std::string where, uint64_t loads, const Mark* m) {
     auto n = std::make_shared<uint32_t>(0);
     return {"load checked (" + where + ")", [where, loads, m, n](App& a, ui::InputFrame&) {
                 const std::string step = "load from the " + where;
-                if (a.saves_loaded_ < loads) {
-                    if (++*n > 90) return stop(a, step, "nothing loaded (loads " + std::to_string(a.saves_loaded_) + ")");
+                if (a.saves_loaded() < loads) {
+                    if (++*n > 90) return stop(a, step, "nothing loaded (loads " + std::to_string(a.saves_loaded()) + ")");
                     return false;
                 }
                 a.control().script_hold = false;
                 if (!m->set) return stop(a, step, "no save mark");
-                if (!a.session_ || !a.session_->loaded()) return stop(a, step, "no loaded session");
-                const uint64_t tick = a.session_->host().frame();
+                if (!a.session() || !a.session()->loaded()) return stop(a, step, "no loaded session");
+                const uint64_t tick = a.session()->host().frame();
                 const CrcRecord crc = state_crc(a);
-                const bool battle = a.session_->in_battle();
+                const bool battle = a.session()->in_battle();
                 std::printf("saveload: loaded %s from the %s: tick %" PRIu64 " (saved %" PRIu64 "), state CRC %016" PRIx64 " (saved %016" PRIx64 ")%s, screen %s\n",
                             m->name.c_str(), where.c_str(), tick, m->tick, crc.combined, m->crc.combined, battle ? ", in battle" : "", screen_name(a.screen()));
-                if (a.loaded_save_ != save_path(a.saves_dir_, m->name)) fail(a, step, "loaded " + a.loaded_save_ + ", not " + m->name);
-                if (tick != m->tick || a.session_->load_point().tick != m->tick) fail(a, step, "tick " + std::to_string(tick) + " != saved " + std::to_string(m->tick));
+                if (a.loaded_save() != save_path(a.saves_dir(), m->name)) fail(a, step, "loaded " + a.loaded_save() + ", not " + m->name);
+                if (tick != m->tick || a.session()->load_point().tick != m->tick) fail(a, step, "tick " + std::to_string(tick) + " != saved " + std::to_string(m->tick));
                 if (crc.combined != m->crc.combined || crc.parity != m->crc.parity) fail(a, step, "state CRC differs from the save's: " + crc_diff(a, m->crc, crc));
                 if (battle != m->battle) fail(a, step, battle ? "in a battle the save was not in" : "not in the saved battle");
                 if (!m->battle && a.screen() != Screen::Galactic) fail(a, step, std::string("screen ") + screen_name(a.screen()) + ", not the galactic map");
                 // A battle save opens its battle at once (the load screen, no tick on the galactic map first).
                 if (m->battle && a.screen() != Screen::BattleLoad) fail(a, step, std::string("screen ") + screen_name(a.screen()) + ", not the battle's load screen");
-                if (a.session_->ticks() != 0) fail(a, step, "the session ticked before the check");
+                if (a.session()->ticks() != 0) fail(a, step, "the session ticked before the check");
                 if (a.menu_dialog_open() || a.menu_paused()) fail(a, step, "the menus are still open / the session is paused");
                 return true;
             },
@@ -391,12 +391,12 @@ void add_saveload_steps(std::vector<ScriptStep>& s) {
     // Setup: this run's save names are not in the folder (a re-run). Nor the Auto Save an earlier run left in
     // this smoke's own folder (the overwrite step counts the folder's saves); never the player's own folder's Auto Save.
     s.push_back(step_wait("saves folder ready", [](App& a) {
-        if (a.saves_dir_.empty()) return stop(a, "setup", "no saves folder");
-        const bool own_folder = a.saves_dir_ != default_saves_dir();
+        if (a.saves_dir().empty()) return stop(a, "setup", "no saves folder");
+        const bool own_folder = a.saves_dir() != default_saves_dir();
         for (const char* n : {kMainSave, kExtraSave, kBattleSave, kAutoSaveName}) {
             if (n == kAutoSaveName && !own_folder) continue;
             std::string err;
-            if (save_exists(a.saves_dir_, n) && !delete_save(a.saves_dir_, n, &err)) return stop(a, "setup", "cannot remove the old " + std::string(n) + ": " + err);
+            if (save_exists(a.saves_dir(), n) && !delete_save(a.saves_dir(), n, &err)) return stop(a, "setup", "cannot remove the old " + std::string(n) + ": " + err);
         }
         return true;
     }, 10));
@@ -428,7 +428,7 @@ void add_saveload_steps(std::vector<ScriptStep>& s) {
                     n.mtime > o.mtime ? "later" : n.mtime == o.mtime ? "unchanged" : "earlier");
         if (n.tick <= o.tick) fail(a, "overwrite", "the file still holds the first save's tick");
         if (n.mtime < o.mtime) fail(a, "overwrite", "the file's write time went back");
-        if (list_saves(a.saves_dir_).size() != 1) fail(a, "overwrite", "the folder does not hold exactly one save");
+        if (list_saves(a.saves_dir()).size() != 1) fail(a, "overwrite", "the folder does not hold exactly one save");
         return true;
     }, 10));
     // ---- 3. a second save; Delete it: No keeps it, Yes removes it ----
@@ -441,7 +441,7 @@ void add_saveload_steps(std::vector<ScriptStep>& s) {
     s.push_back(step_click_control(kConfirm, "IDC_DIALOG_BOX_BUTTON_RIGHT"));
     s.push_back(step_wait("delete answered No: the save stays", [](App& a) {
         if (!top_is(a, kSave)) return false;
-        if (!save_exists(a.saves_dir_, kExtraSave)) fail(a, "delete No", "smoke_extra was deleted");
+        if (!save_exists(a.saves_dir(), kExtraSave)) fail(a, "delete No", "smoke_extra was deleted");
         if (list_row(a, kSave, kExtraSave) < 0) fail(a, "delete No", "smoke_extra left the list");
         return true;
     }, 120));
@@ -450,10 +450,10 @@ void add_saveload_steps(std::vector<ScriptStep>& s) {
     s.push_back(step_question("delete", kExtraSave, 3));
     s.push_back(step_click_control(kConfirm, "IDC_DIALOG_BOX_BUTTON_LEFT"));
     s.push_back(step_wait("delete answered Yes: the save is gone", [](App& a) {
-        if (!top_is(a, kSave) || save_exists(a.saves_dir_, kExtraSave)) return false;
+        if (!top_is(a, kSave) || save_exists(a.saves_dir(), kExtraSave)) return false;
         std::printf("saveload: after the delete the Save dialog lists %s\n", list_text(a, kSave).c_str());
         if (list_row(a, kSave, kExtraSave) >= 0) fail(a, "delete Yes", "smoke_extra is still listed");
-        if (list_row(a, kSave, kMainSave) < 0 || !save_exists(a.saves_dir_, kMainSave)) fail(a, "delete Yes", "smoke_main went too");
+        if (list_row(a, kSave, kMainSave) < 0 || !save_exists(a.saves_dir(), kMainSave)) fail(a, "delete Yes", "smoke_main went too");
         return true;
     }, 120));
     s.push_back(step_shot(png + "after_delete.png"));
@@ -471,7 +471,7 @@ void add_saveload_steps(std::vector<ScriptStep>& s) {
     s.push_back(step_click_control(kPause, "IDC_GAME_OPTIONS_QUIT"));
     s.push_back(step_dialog_open(kConfirm));
     s.push_back(step_click_control(kConfirm, "IDC_DIALOG_BOX_BUTTON_LEFT"));
-    s.push_back(step_wait("back on the main menu", [](App& a) { return a.screen() == Screen::Menu && !a.session_ && top_is(a, kMainMenu); }, 300));
+    s.push_back(step_wait("back on the main menu", [](App& a) { return a.screen() == Screen::Menu && !a.session() && top_is(a, kMainMenu); }, 300));
     s.push_back(step_click_control(kMainMenu, "IDC_LOAD_GAME_MAIN"));
     s.push_back(step_dialog_open(kLoad));
     select_save(s, kLoad, kMainSave);
@@ -490,7 +490,7 @@ void add_saveload_steps(std::vector<ScriptStep>& s) {
     }, 10));
     s.push_back(step_wait("load screen ready", [](App& a) { return a.screen() == Screen::BattleLoad && a.ui().load.ready(); }, 6000));
     s.push_back(step_begin_battle());
-    s.push_back(step_wait("in the battle", [](App& a) { return a.screen() == Screen::Battle && a.bview_.active(); }, 600));
+    s.push_back(step_wait("in the battle", [](App& a) { return a.screen() == Screen::Battle && a.battle_view().active(); }, 600));
     s.push_back(step_ticks("battle runs", 60));
     open_game_menu(s, "b_option_t", true);
     save_typed(s, kBattleSave, 4, &run->battle, png + "battle_save.png");
@@ -505,25 +505,25 @@ void add_saveload_steps(std::vector<ScriptStep>& s) {
     s.push_back(step_wait("the battle's load screen, no tick yet", [run](App& a) {
         if (a.screen() != Screen::BattleLoad) return stop(a, "battle load", std::string("screen ") + screen_name(a.screen()) + " before the load screen was ready");
         if (!a.ui().load.ready()) return false;
-        if (a.session_->ticks() != 0 || a.session_->host().frame() != run->battle.tick)
-            fail(a, "battle load", "ticked before Begin (" + std::to_string(a.session_->ticks()) + " ticks, frame " + std::to_string(a.session_->host().frame()) + ")");
+        if (a.session()->ticks() != 0 || a.session()->host().frame() != run->battle.tick)
+            fail(a, "battle load", "ticked before Begin (" + std::to_string(a.session()->ticks()) + " ticks, frame " + std::to_string(a.session()->host().frame()) + ")");
         return true;
     }, 600));
     s.push_back(step_shot(png + "battle_load_screen.png"));
     s.push_back(step_begin_battle());
-    s.push_back(step_wait("back in the battle", [](App& a) { return a.screen() == Screen::Battle && a.bview_.active(); }, 600));
+    s.push_back(step_wait("back in the battle", [](App& a) { return a.screen() == Screen::Battle && a.battle_view().active(); }, 600));
     s.push_back(step_wait("the first tick after the load is a battle tick", [run](App& a) {
-        if (a.session_->ticks() == 0) return false;
-        std::printf("saveload: first tick after the battle load: tick %" PRIu64 " on the %s screen\n", a.session_->host().frame(), screen_name(a.screen()));
-        if (a.screen() != Screen::Battle || !a.session_->in_battle() || a.session_->host().frame() <= run->battle.tick)
+        if (a.session()->ticks() == 0) return false;
+        std::printf("saveload: first tick after the battle load: tick %" PRIu64 " on the %s screen\n", a.session()->host().frame(), screen_name(a.screen()));
+        if (a.screen() != Screen::Battle || !a.session()->in_battle() || a.session()->host().frame() <= run->battle.tick)
             fail(a, "battle load", "the first tick after the load did not run in the battle");
         return true;
     }, 120));
     s.push_back(step_ticks("the loaded battle runs", 30));
     s.push_back(step_wait("the battle resumed", [run](App& a) {
-        const bool in = a.session_ && a.session_->in_battle() && a.screen() == Screen::Battle;
+        const bool in = a.session() && a.session()->in_battle() && a.screen() == Screen::Battle;
         std::printf("saveload: battle resumed: %s at tick %" PRIu64 " (saved at %" PRIu64 ")\n", in ? "in the battle" : "NOT in the battle",
-                    a.session_ ? a.session_->host().frame() : 0, run->battle.tick);
+                    a.session() ? a.session()->host().frame() : 0, run->battle.tick);
         if (!in) fail(a, "battle load", "the loaded battle did not run on");
         return true;
     }, 10));

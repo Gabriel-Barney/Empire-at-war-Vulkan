@@ -317,6 +317,39 @@ public:
     uint64_t reinforce_drops() const override { return reinforce_drops_; }
     const std::vector<ui::HudWaypointLine>& waypoints() const override { return waypoints_; }
     const std::vector<ui::HudOrderQueue>& queues() const override { return queues_; }
+    uint32_t width() const override { return targets_.width; }
+    uint32_t height() const override { return targets_.height; }
+    const BattleView& battle_view() const override { return bview_; }
+    ui::TacticalCameraController& battle_camera() override { return bview_.camera(); }
+    const GalacticView& galactic_view() const override { return gview_; }
+    ui::GalacticCameraController& galactic_camera() override { return gview_.camera(); }
+    const render::DrawStats& draw_stats() const override { return draw_stats_; }
+    bool full_movie_shown() const override { return full_movie_.has_frame(); }
+    uint32_t selected_planet() const override { return selected_planet_; }
+    void select_planet(uint32_t planet) override { selected_planet_ = planet; }
+    uint32_t preview_planet() const override { return preview_planet_; }
+    void set_preview_planet(uint32_t planet) override { preview_planet_ = planet; }
+    uint32_t panel_preview() const override { return panel_preview_; }
+    void set_panel_preview(uint32_t panel) override { panel_preview_ = panel; }
+    const GameSession* session() const override { return session_.get(); }
+    const CrcRegistry* crc_registry() override { return session_ ? &session_->host().crc_registry() : nullptr; }
+    std::string check_save() override { return session_ ? session_->check_save() : std::string(); }
+    const GameData& data() const override { return data_; }
+    const Options& options() const override { return opt_; }
+    const std::string& saves_dir() const override { return saves_dir_; }
+    uint64_t saves_written() const override { return saves_written_; }
+    uint64_t saves_loaded() const override { return saves_loaded_; }
+    const std::string& loaded_save() const override { return loaded_save_; }
+    const game::SkirmishMapCatalog* skirmish_catalog() const override { return skirmish_catalog_.get(); }
+    bool skirmish_ended() const override { return skirmish_ended_; }
+    const std::u32string& battle_place() const override { return battle_place_; }
+    uint64_t auto_results() const override { return auto_results_; }
+    bool attract_running() const override { return attract_.running(); }
+    AttractController::Request attract_menu_opened(double now, bool force) override { return attract_.menu_opened(now, force); }
+    const DemoCamStats& demo_stats() const override { return demo_stats_; }
+    void reset_demo_stats() override { demo_stats_ = {}; }
+    void cut_demo_shot() override { demo_shot_t0_ = -1.0; }
+    bool demo_side_view() const override { return demo_side_view_; }
     ui::InputState input_;
     ui::InputRouter router_;
     ui::RoutedInput routed_;
@@ -792,8 +825,8 @@ public:
     int32_t last_mouse_x_ = 0, last_mouse_y_ = 0;
     uint64_t attract_runs_ = 0, fast_toggles_ = 0;
     bool attract_step(const ui::InputFrame& raw);  // idle clock, idle pause, map cycle (wall time); true: a new map started
-    bool start_attract_map();
-    void stop_attract();    // a real game starts / credits / exit: the demo session ends (the dialogs stay)
+    bool start_attract_map() override;
+    void stop_attract() override;    // a real game starts / credits / exit: the demo session ends (the dialogs stay)
     void open_main_menu();  // IDD_MAIN_MENU_DIALOG + menu music; starts / cycles the attract demo (0xc58e0)
     void show_menu_after_intro();
     void demo_camera();     // [port] stand-in for the in-game "interesting object" cinematic camera
@@ -812,12 +845,10 @@ public:
     // the followed hull; the skirmish smoke prints and checks them. Presentation only.
     bool demo_side_view_ = true;
     float demo_yaw_ = 0.0f;
-    struct DemoCamStats {
-        uint32_t frames = 0, target_nose_on = 0, run = 0, longest_run = 0, hulls = 0, hulls_nose_on = 0;
-    } demo_stats_;
+    DemoCamStats demo_stats_;  // app_probe.hpp
     // OI host: the attract demo session runs behind the main menu (screen() stays Menu; its battle world is drawn under the
     // menu dialogs without the tactical HUD).
-    bool demo_session() const { return session_ != nullptr && session_->spec().attract; }
+    bool demo_session() const override { return session_ != nullptr && session_->spec().attract; }
     void audio_flags();
     // The Lua cinematic camera is up: retail's cinematic controller active in state 4 (Start_Cinematic_Camera 0x2ccd80),
     // the one camera that skips the audio fog test (#327 t01).
@@ -981,7 +1012,7 @@ public:
     void fleet_drag_preview(const ui::View& view, const std::vector<ui::PickSphere>& fleets);
     void battle_input();
     // the world pick tests over the top tactical mode (null outside a battle). Valid until the next tick.
-    const ui::WorldPickTests* world_pick_tests();
+    const ui::WorldPickTests* world_pick_tests() override;
     void submit(commands::EventData ev, bool voice = true);
     void respond(const commands::EventData& ev);
     bool render_frame();
@@ -990,11 +1021,11 @@ public:
     bool selection_can_repair() const;
     void tactical_hover(ui::TacticalHudFrame& hf, std::vector<ui::HudUnit>& units);
     bool reticle_orders(const ui::OrderContext& ctx, std::vector<commands::EventData>& cmds);
-    bool present_settled() const;
-    int32_t local_player() const { return session_ ? session_->local_player() : 0; }
+    bool present_settled() const override;
+    int32_t local_player() const override { return session_ ? session_->local_player() : 0; }
     // the session's galaxy / running tactical battle, nullptr without a session.
     const galactic::GalacticSim* galaxy() const { return session_ ? session_->galaxy() : nullptr; }
-    const sim::TacticalBattle* battle() const { return session_ ? session_->battle() : nullptr; }
+    const sim::TacticalBattle* battle() const override { return session_ ? session_->battle() : nullptr; }
     // the HUD icon of type `t` ("" when out of range), and the battle-end dialog's loss rows (owner -> type -> count;
     // `me`'s rows to your_losses, every other owner's to enemy_losses), shared by the tactical and auto-resolve ends.
     std::string type_icon(size_t t) const { return t < ui_.hud_types.size() ? ui_.hud_types[t].icon_name : std::string(); }

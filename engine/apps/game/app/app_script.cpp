@@ -187,7 +187,7 @@ ScriptStep step_click_row(std::string dialog, std::string control, std::function
 ScriptStep step_shot(std::string file) {
     auto st = std::make_shared<int>(0);
     return {"shot " + file, [st, file](App& a, ui::InputFrame&) {
-                if (a.opt_.png_dir.empty()) return true;
+                if (a.options().png_dir.empty()) return true;
                 if (*st == 0) {  // hold the sim while models stream and pipelines compile (presentation-only pause)
                     a.control().hold_sim = true;
                     a.control().shot_done = false;
@@ -200,8 +200,8 @@ ScriptStep step_shot(std::string file) {
                     return false;
                 }
                 if (a.control().shot_path.empty() && !a.control().shot_done) {
-                    if (!a.present_settled()) a.control().notes.push_back(file + ": taken before everything settled" + std::string(a.gview_.settled() ? " (models ok" : " (models pending") + ", pipelines " + std::to_string(a.draw_stats_.pending_pipeline) + ", translation " + std::to_string(a.draw_stats_.translation_pending) + ")");
-                    a.control().shot_path = a.opt_.png_dir + "/" + file;
+                    if (!a.present_settled()) a.control().notes.push_back(file + ": taken before everything settled" + std::string(a.galactic_view().settled() ? " (models ok" : " (models pending") + ", pipelines " + std::to_string(a.draw_stats().pending_pipeline) + ", translation " + std::to_string(a.draw_stats().translation_pending) + ")");
+                    a.control().shot_path = a.options().png_dir + "/" + file;
                     return false;
                 }
                 if (!a.control().shot_done) return false;
@@ -214,9 +214,9 @@ ScriptStep step_shot(std::string file) {
 ScriptStep step_ticks(std::string name, uint64_t n) {
     auto start = std::make_shared<uint64_t>(~uint64_t{0});
     return {std::move(name), [start, n](App& a, ui::InputFrame&) {
-                if (!a.session_) return false;
-                if (*start == ~uint64_t{0}) *start = a.session_->ticks();
-                return a.session_->ticks() >= *start + n;
+                if (!a.session()) return false;
+                if (*start == ~uint64_t{0}) *start = a.session()->ticks();
+                return a.session()->ticks() >= *start + n;
             },
             20000};
 }
@@ -238,21 +238,21 @@ ScriptStep step_key(std::string name, uint16_t key) {
 // rendering continues; then resume. Checks the sim frame stands still for 20 frames.
 void add_pause_steps(std::vector<ScriptStep>& s) {
     s.push_back(step_key("pause key", ui::vk::kPause));
-    s.push_back(step_wait("paused", [](App& a) { return a.session_ && a.session_->paused(); }, 300));
+    s.push_back(step_wait("paused", [](App& a) { return a.session() && a.session()->paused(); }, 300));
     auto frame0 = std::make_shared<uint64_t>(0);
     auto n = std::make_shared<int>(0);
     s.push_back({"sim stands still while paused", [frame0, n](App& a, ui::InputFrame&) {
-                     if (*n == 0) *frame0 = a.session_->host().frame();
+                     if (*n == 0) *frame0 = a.session()->host().frame();
                      if (++*n < 20) return false;
-                     if (a.session_->host().frame() != *frame0) {
-                         std::fprintf(stderr, "script: the sim ticked while paused (%" PRIu64 " -> %" PRIu64 ")\n", *frame0, a.session_->host().frame());
+                     if (a.session()->host().frame() != *frame0) {
+                         std::fprintf(stderr, "script: the sim ticked while paused (%" PRIu64 " -> %" PRIu64 ")\n", *frame0, a.session()->host().frame());
                          a.control().failed = true;
                      }
                      return true;
                  },
                  100});
     s.push_back(step_key("resume key", ui::vk::kPause));
-    s.push_back(step_wait("resumed", [](App& a) { return a.session_ && !a.session_->paused() && !a.session_->pause_requested(); }, 300));
+    s.push_back(step_wait("resumed", [](App& a) { return a.session() && !a.session()->paused() && !a.session()->pause_requested(); }, 300));
 }
 
 // A hotkey slot pressed with its current binding (key + modifier from the HotkeyTable).
@@ -335,7 +335,7 @@ void add_fleet_group_steps(std::vector<ScriptStep>& s, const std::string& prefix
     auto st = std::make_shared<Aim>();
     st->shot = step_shot(prefix + "_fleet_preview.png");
     s.push_back({"aim a locked group move (preview)", [st](App& a, ui::InputFrame& f) {
-                     if (!a.bview_.active() || a.screen() != Screen::Battle) return false;
+                     if (!a.battle_view().active() || a.screen() != Screen::Battle) return false;
                      const uint8_t bit = ui::button_bit(ui::Button::Right);
                      if (st->phase < 0) {  // released last frame: done
                          std::printf("script: fleet groups: move preview shown while aiming %d\n", st->shown ? 1 : 0);
@@ -379,27 +379,27 @@ void add_control_group_steps(std::vector<ScriptStep>& s) {
                  },
                  100});
     s.push_back(step_wait("group 1 assigned", [](App& a) {
-        return a.session_ && !a.session_->host().control_group(static_cast<uint8_t>(a.local_player()), 1).empty();
+        return a.session() && !a.session()->host().control_group(static_cast<uint8_t>(a.local_player()), 1).empty();
     }, 300));
     s.push_back({"recall group 1 twice (camera jump)", [](App& a, ui::InputFrame& f) {
                      static int n = 0;
                      ++n;
-                     if (n == 1) a.bview_.camera().jump_to({0.0f, 0.0f, 0.0f});
+                     if (n == 1) a.battle_camera().jump_to({0.0f, 0.0f, 0.0f});
                      if (n == 3 || n == 6) {
                          f.keys_down.set(ui::vk::key('1'));
                          f.keys_pressed.set(ui::vk::key('1'));
                      }
                      if (n < 20) return false;
-                     const std::vector<objects::ObjectId>& g = a.session_->host().control_group(static_cast<uint8_t>(a.local_player()), 1);
+                     const std::vector<objects::ObjectId>& g = a.session()->host().control_group(static_cast<uint8_t>(a.local_player()), 1);
                      double x = 0, y = 0;
                      uint32_t k = 0;
-                     for (const render::SnapshotObject& o : a.bview_.frame().objects)
+                     for (const render::SnapshotObject& o : a.battle_view().frame().objects)
                          if (std::binary_search(g.begin(), g.end(), o.id)) {
                              x += o.position.x;
                              y += o.position.y;
                              ++k;
                          }
-                     const ui::CameraParams cp = a.bview_.camera_params(a.targets_.width, a.targets_.height);
+                     const ui::CameraParams cp = a.battle_view().camera_params(a.width(), a.height());
                      const double dx = cp.target.x - (k ? x / k : 0.0), dy = cp.target.y - (k ? y / k : 0.0);
                      std::printf("script: control group 1: %zu units, camera %.0f units from their centroid\n", g.size(), std::sqrt(dx * dx + dy * dy));
                      if (k == 0 || dx * dx + dy * dy > 400.0 * 400.0) {
@@ -432,25 +432,25 @@ ScriptStep step_encyclopedia(std::string name) {
                 // station's hangar). The camera only; the sim stays held.
                 if (*aimed && a.screen() == Screen::Battle && a.hover_ship() == 0 && a.encyclopedia_shown() <= *shown0 && ++*since_aim >= 60) *aimed = false;
                 if (!*aimed) {
-                    if (a.screen() == Screen::Battle && a.bview_.active()) {
+                    if (a.screen() == Screen::Battle && a.battle_view().active()) {
                         // The local units: the selection the control-group steps left, else the owner test.
                         std::vector<const render::SnapshotObject*> local;
                         const std::vector<objects::ObjectId>* sel =
-                            a.session_ ? &a.session_->host().selection(static_cast<uint8_t>(a.local_player())) : nullptr;
+                            a.session() ? &a.session()->host().selection(static_cast<uint8_t>(a.local_player())) : nullptr;
                         // Only units the mouse can pick (not Lua-hidden or contained: the EAW-Remake's Z-layer scripts hide
                         // selectable helper objects, OBJECT_SCRIPTS §10.3).
                         const ui::WorldPickTests* pt = a.world_pick_tests();
                         auto pickable = [pt](uint32_t id) { return !pt || !pt->skip || !pt->skip(id); };
-                        for (const render::SnapshotObject& o : a.bview_.frame().objects)
+                        for (const render::SnapshotObject& o : a.battle_view().frame().objects)
                             if (sel && std::find(sel->begin(), sel->end(), o.id) != sel->end() && pickable(static_cast<uint32_t>(o.id)))
                                 local.push_back(&o);
                         if (local.empty())
-                            for (const render::SnapshotObject& o : a.bview_.frame().objects)
+                            for (const render::SnapshotObject& o : a.battle_view().frame().objects)
                                 if (o.owner == a.local_player() && a.unit_moves(o.id))
                                     local.push_back(&o);
                         if (!local.empty()) {
                             const render::SnapshotObject& o = *local[*aims % local.size()];
-                            a.bview_.camera().jump_to({o.position.x, o.position.y, o.position.z});
+                            a.battle_camera().jump_to({o.position.x, o.position.y, o.position.z});
                             *target = {o.position.x, o.position.y, o.position.z};
                             *target_id = static_cast<uint32_t>(o.id);
                             ++*aims;
@@ -458,9 +458,9 @@ ScriptStep step_encyclopedia(std::string name) {
                             *aimed = true;
                         }
                     } else if (a.screen() == Screen::Galactic) {
-                        for (const ui::PickSphere& s : a.gview_.pick_items())
+                        for (const ui::PickSphere& s : a.galactic_view().pick_items())
                             if (s.kind == ui::PickKind::Planet) {
-                                a.gview_.camera().set_look_at(s.center);
+                                a.galactic_camera().set_look_at(s.center);
                                 *aimed = true;
                                 break;
                             }
@@ -482,12 +482,12 @@ ScriptStep step_encyclopedia(std::string name) {
                                     a.encyclopedia().stage() == ui::EncyclopediaPanel::Stage::Shown ? "shown" : "hidden", a.encyclopedia().shown_object(),
                                     static_cast<size_t>(a.encyclopedia_shown() - *shown0), *aims, mx, my, a.hover_component(),
                                     a.ui().gui.hit(mx, my) ? 1 : 0);
-                        const ui::Vec3 la = a.bview_.camera().look_at();
+                        const ui::Vec3 la = a.battle_camera().look_at();
                         std::printf("script:   last aim %.0f,%.0f,%.0f, camera look-at %.0f,%.0f,%.0f\n", target->x, target->y,
                                     target->z, la.x, la.y, la.z);
                         if (const ui::WorldPickTests* pt = a.world_pick_tests(); pt && pt->precise) {
-                            const uint32_t w = a.targets_.width, h = a.targets_.height;
-                            const ui::View v = ui::make_view(a.bview_.camera_params(w, h), w, h);
+                            const uint32_t w = a.width(), h = a.height();
+                            const ui::View v = ui::make_view(a.battle_view().camera_params(w, h), w, h);
                             const tactical::Ray ray = ui::pixel_ray(v, mx, my);
                             float t = 0.0f;
                             const ui::PreciseOutcome po = pt->precise(*target_id, ray, t);
@@ -495,7 +495,7 @@ ScriptStep step_encyclopedia(std::string name) {
                             const float r = pt->sphere ? pt->sphere(*target_id, c) : 0.0f;
                             std::printf("script:   aimed object %u: precise %d (t %.1f), override sphere %.1f, skipped %d\n",
                                         *target_id, static_cast<int>(po), t, r, pt->skip && pt->skip(*target_id) ? 1 : 0);
-                            if (const sim::TacticalBattle* b = a.session_ ? a.session_->battle() : nullptr) {
+                            if (const sim::TacticalBattle* b = a.session() ? a.session()->battle() : nullptr) {
                                 const objects::ObjectId box = b->contained_by(static_cast<objects::ObjectId>(*target_id));
                                 std::string box_type = "-";
                                 for (const ui::HudUnit& u : a.hud_units())
@@ -532,14 +532,14 @@ ScriptStep step_unit_tooltip(std::string file) {
     auto st = std::make_shared<State>();
     st->shot = step_shot(std::move(file));
     return {"unit tooltip", [st](App& a, ui::InputFrame& f) {
-                if (a.screen() != Screen::Battle || !a.bview_.active()) return false;
+                if (a.screen() != Screen::Battle || !a.battle_view().active()) return false;
                 a.control().hold_sim = true;
                 if (st->phase == 0) {  // aim: the cursor stays in the middle of the screen
                     size_t most = 0;
                     ui::Vec3 at{};
                     for (const ui::HudUnit& u : a.hud_units()) {
-                        if (u.type >= a.data_.types.size()) continue;
-                        const ui::EncyclopediaEntry e = encyclopedia_entry(a.data_, a.ui().text, a.ui().hud_types, u.type);
+                        if (u.type >= a.data().types.size()) continue;
+                        const ui::EncyclopediaEntry e = encyclopedia_entry(a.data(), a.ui().text, a.ui().hud_types, u.type);
                         size_t len = e.header.size() + e.description.size();
                         for (const ui::EncyclopediaRow& r : e.rows) len += r.left.size() + r.right.size() + r.center.size();
                         if (len > most) {
@@ -553,8 +553,8 @@ ScriptStep step_unit_tooltip(std::string file) {
                         a.control().hold_release = true;
                         return true;
                     }
-                    st->look = a.bview_.camera().look_at();
-                    a.bview_.camera().jump_to(at);
+                    st->look = a.battle_camera().look_at();
+                    a.battle_camera().jump_to(at);
                     st->phase = 1;
                     return false;
                 }
@@ -565,7 +565,7 @@ ScriptStep step_unit_tooltip(std::string file) {
                     return false;
                 }
                 if (!st->shot.run(a, f)) return false;
-                a.bview_.camera().jump_to(st->look);
+                a.battle_camera().jump_to(st->look);
                 a.control().hold_sim = true;
                 a.control().hold_release = true;  // no ticks on this frame: the next step runs when it would have without this one
                 return true;
@@ -586,14 +586,14 @@ ScriptStep step_victory_screen(std::string file) {
     return {"victory screen", [st](App& a, ui::InputFrame& f) {
                 if (st->shown) return st->shot.run(a, f);
                 std::vector<std::pair<std::u32string, objects::TypeIndex>> names;
-                for (objects::TypeIndex t = 0; t < a.data_.types.size() && t < a.ui().hud_types.size(); ++t)
-                    if (const std::string_view id = a.data_.types.get_string(t, "Text_ID");
+                for (objects::TypeIndex t = 0; t < a.data().types.size() && t < a.ui().hud_types.size(); ++t)
+                    if (const std::string_view id = a.data().types.get_string(t, "Text_ID");
                         !id.empty() && a.ui().text.find(id) && !a.ui().hud_types[t].icon_name.empty())
-                        names.emplace_back(type_label(a.data_, a.ui().text, t), t);
+                        names.emplace_back(type_label(a.data(), a.ui().text, t), t);
                 std::stable_sort(names.begin(), names.end(), [](const auto& x, const auto& y) { return x.first.size() > y.first.size(); });
                 ui::BattleEndInfo info;
                 info.victory = true;
-                info.planet = a.battle_place_;
+                info.planet = a.battle_place();
                 info.battle_seconds = 3599;
                 info.bounty = 123456;
                 info.your_loss_value = 1234567;
@@ -647,7 +647,7 @@ ScriptStep step_select_all(std::shared_ptr<bool> none = nullptr) {
                 }
                 if (++*st <= 3) return false;
                 const std::vector<objects::ObjectId>* sel =
-                    a.session_ ? &a.session_->host().selection(static_cast<uint8_t>(a.local_player())) : nullptr;
+                    a.session() ? &a.session()->host().selection(static_cast<uint8_t>(a.local_player())) : nullptr;
                 // a selection of static objects only (Fall of the Republic's start defense stations, its bought
                 // ships arriving later) is pressed again until a unit that can move is in it; after 300 frames it is kept.
                 bool moves = !sel;
@@ -682,8 +682,8 @@ ScriptStep step_attack_enemy(bool shift = false) {
     auto settle = std::make_shared<int>(0);
     auto probe = std::make_shared<int32_t>(0);
     return {shift ? "shift+right-click an enemy" : "right-click an enemy", [st, target, px, settle, shift, probe](App& a, ui::InputFrame& f) {
-                if (!a.session_ || !a.bview_.active() || a.screen() != Screen::Battle) return false;
-                const render::InterpolatedFrame& fr = a.bview_.frame();
+                if (!a.session() || !a.battle_view().active() || a.screen() != Screen::Battle) return false;
+                const render::InterpolatedFrame& fr = a.battle_view().frame();
                 const render::SnapshotObject* t = nullptr;
                 // only an enemy the mouse can pick (not Lua-hidden or contained: the EAW-Remake hides helper objects).
                 const ui::WorldPickTests* pt = a.world_pick_tests();
@@ -698,13 +698,13 @@ ScriptStep step_attack_enemy(bool shift = false) {
                 if (!t) return false;
                 if (*target == 0) {
                     *target = static_cast<uint32_t>(t->id);
-                    a.bview_.camera().jump_to({t->position.x, t->position.y, 0.0f});
+                    a.battle_camera().jump_to({t->position.x, t->position.y, 0.0f});
                     a.control().hold_sim = true;  // presentation-only hold: the target stays where the click aims
                     return false;
                 }
                 if (st->phase == 0 && ++*settle < 10) return false;  // let the camera settle on the target
                 if (st->phase == 0) {  // the pixel is fixed for the whole click (the camera may still be moving)
-                    const ui::View v = ui::make_view(a.bview_.camera_params(a.targets_.width, a.targets_.height), a.targets_.width, a.targets_.height);
+                    const ui::View v = ui::make_view(a.battle_view().camera_params(a.width(), a.height()), a.width(), a.height());
                     float sx = 0, sy = 0;
                     if (!ui::project(v, {t->position.x, t->position.y, t->position.z}, sx, sy)) return false;
                     // the hull may not cover its own centre (the EAW-Remake's enemy base is a shield-gate ring):
@@ -740,8 +740,8 @@ ScriptStep step_attack_enemy(bool shift = false) {
                     std::printf("script: enemy click - target %u %s at pixel %d,%d, hovered %u, hud component %d\n", *target, ty.c_str(),
                                 px->first, px->second, a.hover_ship(), a.hover_component());
                     if (const ui::WorldPickTests* tests = a.world_pick_tests(); tests && tests->precise && a.hover_ship() != *target) {
-                        const ui::View v = ui::make_view(a.bview_.camera_params(a.targets_.width, a.targets_.height), a.targets_.width,
-                                                         a.targets_.height);
+                        const ui::View v = ui::make_view(a.battle_view().camera_params(a.width(), a.height()), a.width(),
+                                                         a.height());
                         float hit_t = 0.0f;
                         const ui::PreciseOutcome po = tests->precise(*target, ui::pixel_ray(v, px->first, px->second), hit_t);
                         ui::Vec3 c{};
@@ -762,21 +762,21 @@ ScriptStep step_attack_enemy(bool shift = false) {
 void camera_on_local_units(App& a) {
     double x = 0, y = 0;
     uint32_t n = 0;
-    for (const render::SnapshotObject& o : a.bview_.frame().objects)
+    for (const render::SnapshotObject& o : a.battle_view().frame().objects)
         if (o.owner == a.local_player() && a.unit_moves(o.id)) {
             x += o.position.x;
             y += o.position.y;
             ++n;
         }
-    if (n) a.bview_.camera().jump_to({static_cast<float>(x / n), static_cast<float>(y / n), 0.0f});
+    if (n) a.battle_camera().jump_to({static_cast<float>(x / n), static_cast<float>(y / n), 0.0f});
 }
 
 // a buy row the smoke can move: not a SpaceStructure (the category the mods' own scripts test with Is_Category;
 // Fall of the Republic's static defense stations carry a Max_Speed).
 bool smoke_unit_moves(App& a, const std::string& type) {
-    const objects::TypeIndex t = a.data_.types.resolve_name(type);
+    const objects::TypeIndex t = a.data().types.resolve_name(type);
     if (t == objects::kNone) return true;
-    for (const std::string_view c : a.data_.types.get_list(t, "CategoryMask"))
+    for (const std::string_view c : a.data().types.get_list(t, "CategoryMask"))
         if (ascii_iequals(c, "SpaceStructure")) return false;
     return true;
 }
@@ -800,14 +800,14 @@ void gate_steps(std::vector<ScriptStep>& s, size_t from, const std::shared_ptr<b
 // camera steps across the view from where it looked, half its distance more each time and on alternate sides, and the
 // search runs again (step_move_ground, at most kGroundShifts steps; a note when they run out).
 bool ground_pixel_free(App& a, int32_t x, int32_t y) {
-    const sim::TacticalMode* tm = a.session_ ? a.session_->host().modes().top_tactical() : nullptr;
+    const sim::TacticalMode* tm = a.session() ? a.session()->host().modes().top_tactical() : nullptr;
     if (!tm) return true;
-    const ui::View v = ui::make_view(a.bview_.camera_params(a.targets_.width, a.targets_.height), a.targets_.width, a.targets_.height);
+    const ui::View v = ui::make_view(a.battle_view().camera_params(a.width(), a.height()), a.width(), a.height());
     tactical::QueryContext qc;
     return !ui::pick_world(tm->trees().all(), v, ui::pixel_ray(v, x, y), tactical::kSkipDead, qc, a.world_pick_tests()).has_value();
 }
 std::pair<int32_t, int32_t> free_ground_pixel(App& a) {
-    const int32_t w = static_cast<int32_t>(a.targets_.width), h = static_cast<int32_t>(a.targets_.height);
+    const int32_t w = static_cast<int32_t>(a.width()), h = static_cast<int32_t>(a.height());
     const std::pair<int32_t, int32_t> base{w / 2, h / 3};
     const auto free_at = [&](int32_t x, int32_t y) { return ground_pixel_free(a, x, y); };
     if (free_at(base.first, base.second)) return base;
@@ -830,9 +830,9 @@ ScriptStep step_move_ground(bool shift = false) {
     auto origin = std::make_shared<ui::Vec3>();
     return {shift ? "shift+right-click the ground" : "right-click the ground",
             [st, px, settle, shifts, origin, shift](App& a, ui::InputFrame& f) {
-                if (!a.bview_.active() || a.screen() != Screen::Battle) return false;
+                if (!a.battle_view().active() || a.screen() != Screen::Battle) return false;
                 if (st->phase == 0) {
-                    const int32_t bx = static_cast<int32_t>(a.targets_.width / 2), by = static_cast<int32_t>(a.targets_.height / 3);
+                    const int32_t bx = static_cast<int32_t>(a.width() / 2), by = static_cast<int32_t>(a.height() / 3);
                     if (*settle == 0 && !ground_pixel_free(a, bx, by)) {
                         camera_on_local_units(a);
                         *settle = 1;
@@ -841,7 +841,7 @@ ScriptStep step_move_ground(bool shift = false) {
                     if (*settle > 0 && ++*settle < 10) return false;  // let the camera settle
                     *px = free_ground_pixel(a);
                     if (!ground_pixel_free(a, px->first, px->second)) {
-                        ui::TacticalCameraController& cam = a.bview_.camera();
+                        ui::TacticalCameraController& cam = a.battle_camera();
                         if (*shifts < kGroundShifts) {
                             if (*shifts == 0) *origin = cam.look_at();
                             ++*shifts;
@@ -875,8 +875,8 @@ ScriptStep step_drag_box(std::string file) {
     auto st = std::make_shared<State>();
     st->shot = step_shot(std::move(file));
     return {"drag-select box", [st](App& a, ui::InputFrame& f) {
-                if (!a.bview_.active() || a.screen() != Screen::Battle) return false;
-                const auto w = static_cast<float>(a.targets_.width), h = static_cast<float>(a.targets_.height);
+                if (!a.battle_view().active() || a.screen() != Screen::Battle) return false;
+                const auto w = static_cast<float>(a.width()), h = static_cast<float>(a.height());
                 const int kMove = 10;
                 const float t = static_cast<float>(std::clamp(st->phase, 0, kMove)) / static_cast<float>(kMove);
                 f.mouse_x = static_cast<int32_t>(w * (0.30f + 0.40f * t));
@@ -917,14 +917,14 @@ ScriptStep step_zoom_light(std::string file) {
     return {"zoom light", [st](App& a, ui::InputFrame& f) {
                 if (a.screen() != Screen::Galactic) return false;
                 if (st->phase == 0) {
-                    for (const ui::PickSphere& p : a.gview_.pick_items()) {
+                    for (const ui::PickSphere& p : a.galactic_view().pick_items()) {
                         bool seen = false;  // a planet the local player sees (a fogged one is a flat wireframe globe)
-                        for (const render::GalacticPlanetSnap& ps : a.gview_.frame().planets)
+                        for (const render::GalacticPlanetSnap& ps : a.galactic_view().frame().planets)
                             seen = seen || (static_cast<uint32_t>(ps.id) == p.id && !(ps.flags & render::kGalFogged));
                         if (p.kind == ui::PickKind::Planet && seen) {
-                            a.selected_planet_ = p.id;
-                            a.gview_.camera().set_look_at({p.center.x, p.center.y, 0.0f});
-                            a.gview_.camera().zoom_to_planet(p.center, p.radius);
+                            a.select_planet(p.id);
+                            a.galactic_camera().set_look_at({p.center.x, p.center.y, 0.0f});
+                            a.galactic_camera().zoom_to_planet(p.center, p.radius);
                             st->phase = 1;
                             break;
                         }
@@ -932,18 +932,18 @@ ScriptStep step_zoom_light(std::string file) {
                     return false;
                 }
                 if (st->phase == 1) {  // settled zoomed in (zoom state 3)
-                    if (a.gview_.camera().zoom_state() == 3 && ++st->wait > 5) st->phase = 2;
+                    if (a.galactic_camera().zoom_state() == 3 && ++st->wait > 5) st->phase = 2;
                     return false;
                 }
                 if (st->phase == 2) {
                     if (!st->shot.run(a, f)) return false;
-                    std::printf("script: zoomed light blend %.2f (planet %u)\n", static_cast<double>(a.gview_.camera().zoom_blend()), a.selected_planet_);
-                    a.gview_.camera().zoom_out();
+                    std::printf("script: zoomed light blend %.2f (planet %u)\n", static_cast<double>(a.galactic_camera().zoom_blend()), a.selected_planet());
+                    a.galactic_camera().zoom_out();
                     st->phase = 3;
                     return false;
                 }
-                if (a.gview_.camera().zoom_state() != 0) return false;
-                a.selected_planet_ = 0;
+                if (a.galactic_camera().zoom_state() != 0) return false;
+                a.select_planet(0);
                 return true;
             }, 3000};
 }
@@ -964,7 +964,7 @@ ScriptStep step_fleet_slots(std::string sel_file, std::string drag_file) {
     st->shot_drag = step_shot(std::move(drag_file));
     return {"fleet slots", [st](App& a, ui::InputFrame& f) {
                 if (st->phase < 0) return true;  // released last frame
-                const galactic::GalacticSim* g = a.session_ ? a.session_->galaxy() : nullptr;
+                const galactic::GalacticSim* g = a.session() ? a.session()->galaxy() : nullptr;
                 if (!g || a.screen() != Screen::Galactic) return false;
                 const objects::ObjectStore& store = g->store();
                 if (st->phase == 0) {
@@ -979,7 +979,7 @@ ScriptStep step_fleet_slots(std::string sel_file, std::string drag_file) {
                     }
                     if (st->fleet == 0) return false;
                     const Vec3 c0 = g->planets()[st->at].position, c1 = g->planets()[st->to].position;
-                    a.gview_.camera().set_look_at({0.5f * (c0.x + c1.x), 0.5f * (c0.y + c1.y), 0.0f});
+                    a.galactic_camera().set_look_at({0.5f * (c0.x + c1.x), 0.5f * (c0.y + c1.y), 0.0f});
                     ui::HudAction act;
                     act.kind = ui::HudAction::Kind::GalacticSelect;
                     act.ids = {st->fleet};
@@ -1002,7 +1002,7 @@ ScriptStep step_fleet_slots(std::string sel_file, std::string drag_file) {
                 const ui::HudCanvas& cv = a.ui().galactic_hud.canvas();
                 if (st->phase == 5) {  // the fleet's map button: the g_planet_fleet hit nearest above its planet
                     const int32_t gpf = a.ui().components.find("g_planet_fleet");
-                    const ui::View v = ui::make_view(a.gview_.camera_params(a.targets_.width, a.targets_.height), a.targets_.width, a.targets_.height);
+                    const ui::View v = ui::make_view(a.galactic_view().camera_params(a.width(), a.height()), a.width(), a.height());
                     float px = 0, py = 0, qx = 0, qy = 0;
                     const Vec3 p0 = g->planets()[st->at].position, p1 = g->planets()[st->to].position;
                     if (!ui::project(v, {p0.x, p0.y, p0.z}, px, py) || !ui::project(v, {p1.x, p1.y, p1.z}, qx, qy)) return false;
@@ -1059,7 +1059,7 @@ ScriptStep step_combat(bool land) {
     auto st = std::make_shared<State>();
     return {land ? "land forces engage" : "space forces engage", [st, land](App& a, ui::InputFrame&) {
                 const sim::BattleStats* stats = a.battle_stats();
-                if (!stats || !a.bview_.active() || a.screen() != Screen::Battle) return false;
+                if (!stats || !a.battle_view().active() || a.screen() != Screen::Battle) return false;
                 // Sim reads only (the battle's movable units, ascending id, store positions): the orders do not depend
                 // on the render interpolation.
                 const int32_t me = a.local_player();
@@ -1089,34 +1089,34 @@ ScriptStep step_combat(bool land) {
                         }
                     }
                     // The camera between the local units and that enemy, so the shot shows the engagement (presentation only).
-                    if (target != 0) a.bview_.camera().jump_to({static_cast<float>((cx + tx) / 2), static_cast<float>((cy + ty) / 2), 0.0f});
-                    else a.bview_.camera().jump_to({static_cast<float>(cx), static_cast<float>(cy), 0.0f});
+                    if (target != 0) a.battle_camera().jump_to({static_cast<float>((cx + tx) / 2), static_cast<float>((cy + ty) / 2), 0.0f});
+                    else a.battle_camera().jump_to({static_cast<float>(cx), static_cast<float>(cy), 0.0f});
                 }
                 if (st->n++ % 150 == 0 && target != 0) a.submit_command(commands::ev::attack(target, mine));
                 const sim::BattleStats& bs = *stats;
                 if (bs.deaths > 0 && st->first_death == 0) st->first_death = st->n;
                 // Sim-only end condition (frame counts, no render state): the run's ticks stay machine independent.
                 if (bs.shots == 0 || bs.deaths == 0 || st->n < st->first_death + 60) return false;
-                if (land && a.bview_.stats().corpses == 0) a.control().notes.push_back("land combat: no corpse drawn yet");
+                if (land && a.battle_view().stats().corpses == 0) a.control().notes.push_back("land combat: no corpse drawn yet");
 #ifdef ALAMO_SIM_HAVE_ANIM
                 // Animation feed: land infantry / vehicles walk, idle and attack (anim plays); every battle's shots flash
                 // muzzles. FoC's space capital ships ship no idle / move / attack clips (only _D_DIE_00), so space
                 // skirmishes legitimately log 0 anim plays.
-                if (const sim::SimAnimation* an = a.session_->animation()) {
+                if (const sim::SimAnimation* an = a.session()->animation()) {
                     if (land && bs.anim_plays == 0) a.control().notes.push_back("land combat: no animation played");
                     if (an->stats().muzzle_flashes == 0) a.control().notes.push_back("combat: no muzzle flash");
                 }
 #endif
                 // a mod may draw its bolts as projectile models (Thrawn's Revenge: Proj_Space_Laser_*.alo) instead of
                 // procedural lasers; only a battle with neither is noted. Vanilla lines unchanged.
-                if (!land && a.bview_.stats().lasers_peak == 0)
-                    a.control().notes.push_back(a.bview_.stats().model_projectiles_peak > 0
-                                           ? "space combat: no procedural laser bolt drawn (" + std::to_string(a.bview_.stats().model_projectiles_peak) +
+                if (!land && a.battle_view().stats().lasers_peak == 0)
+                    a.control().notes.push_back(a.battle_view().stats().model_projectiles_peak > 0
+                                           ? "space combat: no procedural laser bolt drawn (" + std::to_string(a.battle_view().stats().model_projectiles_peak) +
                                                  " model projectiles peak)"
                                            : std::string("space combat: no laser bolt drawn"));
                 std::printf("script: %s combat - %" PRIu64 " shots, %" PRIu64 " hits, %u deaths, %u corpse draws, %" PRIu64 " scorch decals, %u anim plays, %u peak laser bolts, %u impact / death effects\n",
-                            land ? "land" : "space", bs.shots, bs.hits, bs.deaths, a.bview_.stats().corpses, a.bview_.stats().decals, bs.anim_plays,
-                            a.bview_.stats().lasers_peak, bs.particles);
+                            land ? "land" : "space", bs.shots, bs.hits, bs.deaths, a.battle_view().stats().corpses, a.battle_view().stats().decals, bs.anim_plays,
+                            a.battle_view().stats().lasers_peak, bs.particles);
                 return true;
             },
             6000};
@@ -1137,18 +1137,18 @@ ScriptStep step_reinforce() {
     };
     auto st = std::make_shared<State>();
     return {"reinforcement drop", [st](App& a, ui::InputFrame& f) {
-                const sim::TacticalBattle* b = a.session_ ? a.session_->battle() : nullptr;
-                if (!b || a.screen() != Screen::Battle || !a.bview_.active()) {
+                const sim::TacticalBattle* b = a.session() ? a.session()->battle() : nullptr;
+                if (!b || a.screen() != Screen::Battle || !a.battle_view().active()) {
                     if (st->n > 0) a.control().notes.push_back("reinforcement: the battle ended before a drop deployed");
                     return st->n > 0;
                 }
-                if (st->n++ == 0) st->rejected0 = a.session_->order_stats().rejected;
-                const uint64_t refused = a.session_->order_stats().rejected - st->rejected0;
-                if (a.session_->order_stats().reinforcements > 0 || (a.reinforce_drops() > 0 && refused > 0 && st->n >= st->next)) {
+                if (st->n++ == 0) st->rejected0 = a.session()->order_stats().rejected;
+                const uint64_t refused = a.session()->order_stats().rejected - st->rejected0;
+                if (a.session()->order_stats().reinforcements > 0 || (a.reinforce_drops() > 0 && refused > 0 && st->n >= st->next)) {
                     // Deployed, or answered QueueFull (the cap is full until a unit dies; deployment after a loss is covered
                     // by alamo_game_session_tests).
                     std::printf("script: reinforcement drop answered: %s after %" PRIu64 " drop(s), %" PRIu64 " refused\n",
-                                a.session_->order_stats().reinforcements > 0 ? "deployed" : "refused (cap full)", a.reinforce_drops(), refused);
+                                a.session()->order_stats().reinforcements > 0 ? "deployed" : "refused (cap full)", a.reinforce_drops(), refused);
                     return true;
                 }
                 if (st->n > 900) {
@@ -1179,7 +1179,7 @@ ScriptStep step_reinforce() {
                     st->phase = 1;
                     return false;
                 }
-                if (click_at(st->click, f, static_cast<int32_t>(a.targets_.width / 2), static_cast<int32_t>(a.targets_.height / 2), ui::Button::Left)) {
+                if (click_at(st->click, f, static_cast<int32_t>(a.width() / 2), static_cast<int32_t>(a.height() / 2), ui::Button::Left)) {
                     st->click = {};
                     st->phase = 0;
                     st->next = st->n + 90;
@@ -1194,7 +1194,7 @@ ScriptStep step_reinforce() {
 ScriptStep step_reinforce_hover(std::string file) {
     auto n = std::make_shared<uint32_t>(0);
     return {"reinforcement button hover", [n, file](App& a, ui::InputFrame& f) {
-                if (!a.session_ || a.screen() != Screen::Battle || !a.bview_.active()) return false;
+                if (!a.session() || a.screen() != Screen::Battle || !a.battle_view().active()) return false;
                 const int32_t ci = a.ui().components.find("r_0000");
                 if (ci < 0 || a.ui().tactical_hud.stats().reinforcements == 0) {
                     if (++*n > 600) {
@@ -1214,8 +1214,8 @@ ScriptStep step_reinforce_hover(std::string file) {
                     a.control().shot_done = false;
                     return false;
                 }
-                if (++*n == 1005 && !a.opt_.png_dir.empty()) a.control().shot_path = a.opt_.png_dir + "/" + file;
-                if (*n < 1005 || (!a.opt_.png_dir.empty() && !a.control().shot_done)) return false;
+                if (++*n == 1005 && !a.options().png_dir.empty()) a.control().shot_path = a.options().png_dir + "/" + file;
+                if (*n < 1005 || (!a.options().png_dir.empty() && !a.control().shot_done)) return false;
                 a.control().hold_sim = false;
                 return true;
             },
@@ -1233,14 +1233,14 @@ ScriptStep step_ability_pick() {
     };
     auto st = std::make_shared<State>();
     return {"targeted ability pick", [st](App& a, ui::InputFrame& f) {
-                if (!a.session_ || a.screen() != Screen::Battle || !a.bview_.active()) return false;
+                if (!a.session() || a.screen() != Screen::Battle || !a.battle_view().active()) return false;
                 if (st->phase == 0) {
                     a.control().hold_sim = true;  // presentation-only hold: no tick runs during the step (the later steps keep their ticks)
                     ui::HudAction act;
                     act.kind = ui::HudAction::Kind::BeginAbilityTargeting;
                     act.ability_type = 30;  // TRACTOR_BEAM: an object pick
                     act.ids = a.selection();
-                    st->routed0 = a.session_->order_stats().routed;
+                    st->routed0 = a.session()->order_stats().routed;
                     a.hud_actions({act});
                     if (!a.targeting().active() || a.targeting().target_kind() != ui::TargetKind::Object) {
                         a.control().notes.push_back("ability pick: the HUD action did not start the pick");
@@ -1251,12 +1251,12 @@ ScriptStep step_ability_pick() {
                     st->phase = 1;
                     return false;
                 }
-                if (!click_at(st->click, f, static_cast<int32_t>(a.targets_.width / 2), static_cast<int32_t>(a.targets_.height / 2), ui::Button::Right))
+                if (!click_at(st->click, f, static_cast<int32_t>(a.width() / 2), static_cast<int32_t>(a.height() / 2), ui::Button::Right))
                     return false;
                 a.control().hold_release = true;  // the next step's first frame runs the ticks the held frames did not
-                const bool ok = !a.targeting().active() && a.targeting().cancelled() >= 1 && a.session_->order_stats().routed == st->routed0;
+                const bool ok = !a.targeting().active() && a.targeting().cancelled() >= 1 && a.session()->order_stats().routed == st->routed0;
                 std::printf("script: ability pick - %s (cancelled %" PRIu64 ", orders routed +%" PRIu64 ")\n", ok ? "right click cancelled it, no order" : "FAILED",
-                            a.targeting().cancelled(), a.session_->order_stats().routed - st->routed0);
+                            a.targeting().cancelled(), a.session()->order_stats().routed - st->routed0);
                 if (!ok) {
                     a.control().notes.push_back("ability pick: the right click did not cancel the pick cleanly");
                     a.control().smoke_ok = false;
@@ -1277,7 +1277,7 @@ ScriptStep step_galactic_attack() {
     };
     auto st = std::make_shared<State>();
     return {"galactic attack order", [st](App& a, ui::InputFrame& f) {
-                const galactic::GalacticSim* g = a.session_ ? a.session_->galaxy() : nullptr;
+                const galactic::GalacticSim* g = a.session() ? a.session()->galaxy() : nullptr;
                 if (!g || a.screen() != Screen::Galactic) return false;
                 const objects::ObjectStore& store = g->store();
                 const int32_t me = a.local_player();
@@ -1318,16 +1318,16 @@ ScriptStep step_galactic_attack() {
                     std::printf("script: fleet %u at %s attacks %s (%u hops)\n", st->fleet, g->map().planets.name[st->fleet_at].c_str(),
                                 g->map().planets.name[st->target].c_str(), best_hops);
                     const Vec3 c = g->planets()[st->fleet_at].position;
-                    a.gview_.camera().set_look_at({c.x, c.y, 0.0f});
+                    a.galactic_camera().set_look_at({c.x, c.y, 0.0f});
                     st->phase = 1;
                     return false;
                 }
-                const ui::View v = ui::make_view(a.gview_.camera_params(a.targets_.width, a.targets_.height), a.targets_.width, a.targets_.height);
+                const ui::View v = ui::make_view(a.galactic_view().camera_params(a.width(), a.height()), a.width(), a.height());
                 if (st->phase == 1 || st->phase == 3) {  // let the camera / frame catch up one frame
                     ++st->phase;
                     if (st->phase == 4) {
                         const Vec3 c = g->planets()[st->target].position;
-                        a.gview_.camera().set_look_at({c.x, c.y, 0.0f});
+                        a.galactic_camera().set_look_at({c.x, c.y, 0.0f});
                     }
                     return false;
                 }
@@ -1363,7 +1363,7 @@ ScriptStep answer_ai_attacks(ScriptStep inner) {
     auto st = std::make_shared<State>();
     return {inner.name, [st, run = std::move(inner.run)](App& a, ui::InputFrame& f) {
                 if (st->phase == 0) {
-                    const galactic::ConflictInfo* c = a.choice_open() && a.session_ ? a.session_->conflict_head() : nullptr;
+                    const galactic::ConflictInfo* c = a.choice_open() && a.session() ? a.session()->conflict_head() : nullptr;
                     if (!c || c->attacker == a.local_player()) return run(a, f);
                     std::printf("script: battle prompt for an attack by player %d: auto-resolved\n", c->attacker);
                     ui::HudAction act;
@@ -1400,7 +1400,7 @@ ScriptStep step_galactic_move(bool drag) {
     };
     auto st = std::make_shared<State>();
     return {drag ? "galactic move by drag" : "galactic move by click", [st, drag](App& a, ui::InputFrame& f) {
-                const galactic::GalacticSim* g = a.session_ ? a.session_->galaxy() : nullptr;
+                const galactic::GalacticSim* g = a.session() ? a.session()->galaxy() : nullptr;
                 if (!g || a.screen() != Screen::Galactic) return false;
                 const objects::ObjectStore& store = g->store();
                 const int32_t me = a.local_player();
@@ -1433,7 +1433,7 @@ ScriptStep step_galactic_move(bool drag) {
                                 g->map().planets.name[st->to].c_str(), drag ? "drag" : "click");
                     // Both planets on screen: the camera looks at their midpoint.
                     const Vec3 c0 = g->planets()[st->from].position, c1 = g->planets()[st->to].position;
-                    a.gview_.camera().set_look_at({0.5f * (c0.x + c1.x), 0.5f * (c0.y + c1.y), 0.0f});
+                    a.galactic_camera().set_look_at({0.5f * (c0.x + c1.x), 0.5f * (c0.y + c1.y), 0.0f});
                     a.clear_selection();
                     st->refused0 = a.refused();
                     st->phase = 1;
@@ -1443,10 +1443,10 @@ ScriptStep step_galactic_move(bool drag) {
                     ++st->phase;
                     return false;
                 }
-                const ui::View v = ui::make_view(a.gview_.camera_params(a.targets_.width, a.targets_.height), a.targets_.width, a.targets_.height);
+                const ui::View v = ui::make_view(a.galactic_view().camera_params(a.width(), a.height()), a.width(), a.height());
                 float fx = 0, fy = 0, px = 0, py = 0;
                 const render::GalacticFleetSnap* fs = nullptr;
-                for (const render::GalacticFleetSnap& x : a.gview_.frame().fleets)
+                for (const render::GalacticFleetSnap& x : a.galactic_view().frame().fleets)
                     if (static_cast<uint32_t>(x.id) == st->fleet) fs = &x;
                 if (st->phase == 3 || st->phase == 4) {
                     // The orbiting fleet has no map snapshot (only fleets in transit are drawn): only the target planet
@@ -1514,8 +1514,8 @@ void App::make_script() {
                          f.keys_pressed.set(ui::vk::kEscape);
                      }
                      // (not the save / load smoke: it shares the PNG folder and writes only game_smoke_saveload_*.png)
-                     if (n == 10 && a.full_movie_.has_frame() && !a.opt_.png_dir.empty() && a.opt_.smoke != "saveload")
-                         a.control().shot_path = a.opt_.png_dir + "/game_intro_movie.png";
+                     if (n == 10 && a.full_movie_shown() && !a.options().png_dir.empty() && a.options().smoke != "saveload")
+                         a.control().shot_path = a.options().png_dir + "/game_intro_movie.png";
                      return false;
                  },
                  1200});
@@ -1560,7 +1560,7 @@ void App::make_script() {
         // tactical HUD) and keeps ticking under the menu and its sub-dialogs (input never stops it); the skirmish's start
         // ends it. Its own session: the skirmish's session, CRC log and recording start afresh afterwards.
         s.push_back(step_wait("attract demo starts", [](App& a) {
-            if (a.attract_.menu_opened(a.now_s(), true) == AttractController::Request::None || !a.start_attract_map()) {
+            if (a.attract_menu_opened(a.now_s(), true) == AttractController::Request::None || !a.start_attract_map()) {
                 a.control().notes.push_back("attract demo did not start");
                 a.control().smoke_ok = false;
                 a.stop_attract();
@@ -1570,12 +1570,12 @@ void App::make_script() {
         auto tick0 = std::make_shared<uint64_t>(0);
         s.push_back(step_wait("attract demo drawn under the menu", [tick0](App& a) {
             if (!a.demo_session()) return true;  // failed above
-            const sim::TacticalBattle* b = a.session_->battle();
-            const bool drawn = a.screen() == Screen::Menu && a.bview_.active() && b && a.draw_stats_.draws > 0 &&
+            const sim::TacticalBattle* b = a.session()->battle();
+            const bool drawn = a.screen() == Screen::Menu && a.battle_view().active() && b && a.draw_stats().draws > 0 &&
                                a.ui().gui.find("IDD_MAIN_MENU_DIALOG") && a.ui().tactical_hud.stats().quads == 0;
             if (drawn) {
                 *tick0 = b->frame();
-                std::printf("script: attract demo - %u world draws under the main menu, battle frame %u\n", a.draw_stats_.draws, b->frame());
+                std::printf("script: attract demo - %u world draws under the main menu, battle frame %u\n", a.draw_stats().draws, b->frame());
             }
             return drawn;
         }, 3000));
@@ -1589,9 +1589,9 @@ void App::make_script() {
             };
             auto st = std::make_shared<Orient>();
             s.push_back(step_wait("attract hull heading vs travel", [st](App& a) {
-                const sim::TacticalBattle* b = a.demo_session() ? a.session_->battle() : nullptr;
+                const sim::TacticalBattle* b = a.demo_session() ? a.session()->battle() : nullptr;
                 if (!b) return true;  // the demo did not start (noted above)
-                const std::vector<render::SnapshotObject>& objs = a.bview_.frame().objects;
+                const std::vector<render::SnapshotObject>& objs = a.battle_view().frame().objects;
                 if (st->pos.empty()) {
                     st->t0 = b->frame();
                     for (const render::SnapshotObject& o : objs)
@@ -1631,32 +1631,32 @@ void App::make_script() {
             auto shot_tick = std::make_shared<uint64_t>(0);
             for (int k = 0; k < 4; ++k) {
                 s.push_back(step_wait("attract camera cut", [shot_tick, k](App& a) {
-                    const sim::TacticalBattle* b = a.demo_session() ? a.session_->battle() : nullptr;
+                    const sim::TacticalBattle* b = a.demo_session() ? a.session()->battle() : nullptr;
                     if (!b) return true;
-                    if (k == 0) a.demo_stats_ = {};
+                    if (k == 0) a.reset_demo_stats();
                     if (k == 0 || b->frame() >= *shot_tick + 45) {
                         *shot_tick = b->frame();
-                        a.demo_shot_t0_ = -1.0;  // the next demo_camera() frame cuts to the next unit
+                        a.cut_demo_shot();  // the next demo_camera() frame cuts to the next unit
                         return true;
                     }
                     return false;
                 }, 1200));
                 s.push_back(step_wait("attract camera shot runs", [shot_tick](App& a) {
-                    const sim::TacticalBattle* b = a.demo_session() ? a.session_->battle() : nullptr;
+                    const sim::TacticalBattle* b = a.demo_session() ? a.session()->battle() : nullptr;
                     return !b || b->frame() >= *shot_tick + 44;
                 }, 1200));
                 s.push_back(step_shot("game_attract_cam_" + std::to_string(k) + ".png"));
             }
             s.push_back(step_wait("attract camera nose-on check", [](App& a) {
                 if (!a.demo_session()) return true;
-                const auto& st = a.demo_stats_;
+                const auto& st = a.demo_stats();
                 std::printf("script: attract camera (%s) - %u frames, followed hull nose-on/tail-on in %u (longest run %u frames), nearby hulls %u / %u nose-on/tail-on\n",
-                            a.demo_side_view_ ? "side view" : "first stand-in", st.frames, st.target_nose_on, st.longest_run, st.hulls_nose_on, st.hulls);
+                            a.demo_side_view() ? "side view" : "first stand-in", st.frames, st.target_nose_on, st.longest_run, st.hulls_nose_on, st.hulls);
                 // a demo map without combat units (Thrawn's Revenge's End_Demo_Attract_* place only props) has
                 // nothing to follow: noted, not a failure. Vanilla demos always follow a hull (frames > 0).
-                const sim::TacticalBattle* b = a.session_->battle();
+                const sim::TacticalBattle* b = a.session()->battle();
                 bool any_unit = false;
-                for (const render::SnapshotObject& o : a.bview_.frame().objects)
+                for (const render::SnapshotObject& o : a.battle_view().frame().objects)
                     if (b && o.owner >= 0 && b->combat().has_unit(o.id)) any_unit = true;
                 if (st.frames == 0 && !any_unit) {
                     a.control().notes.push_back("attract demo: no combat unit on the demo map, camera check skipped");
@@ -1668,18 +1668,18 @@ void App::make_script() {
             }));
         }
         s.push_back(step_wait("attract demo ticks under the menu", [tick0](App& a) {
-            const sim::TacticalBattle* b = a.demo_session() ? a.session_->battle() : nullptr;
+            const sim::TacticalBattle* b = a.demo_session() ? a.session()->battle() : nullptr;
             return !b || b->frame() >= *tick0 + 30;
         }, 600));
         s.push_back(step_click_control("IDD_MAIN_MENU_DIALOG", "IDC_MAIN_MENU_SINGLE_PLAYER_GAMES"));
         s.push_back(step_wait("attract demo runs under the single-player dialog", [tick0](App& a) {
-            const sim::TacticalBattle* b = a.demo_session() ? a.session_->battle() : nullptr;
+            const sim::TacticalBattle* b = a.demo_session() ? a.session()->battle() : nullptr;
             if (!b) {
                 a.control().notes.push_back("attract demo stopped by the menu input");
                 a.control().smoke_ok = false;
                 return true;
             }
-            const bool ok = a.attract_.running() && a.bview_.active() && a.draw_stats_.draws > 0 && b->frame() >= *tick0 + 60 &&
+            const bool ok = a.attract_running() && a.battle_view().active() && a.draw_stats().draws > 0 && b->frame() >= *tick0 + 60 &&
                             a.ui().gui.find("IDD_SINGLE_PLAYER_GAMES_MENU_DIALOG") != nullptr;
             if (ok) std::printf("script: attract demo - still running under the single-player dialog, battle frame %u\n", b->frame());
             return ok;
@@ -1715,7 +1715,7 @@ void App::make_script() {
         s.push_back(step_shot(prefix + "_encyclopedia.png"));
         if (env_or_empty("ALAMO_SMOKE_SCREENS") == "1") s.push_back(step_unit_tooltip(prefix + "_screen_tooltip.png"));
         s.push_back(step_attack_enemy());
-        s.push_back(step_wait("attack routed into the battle", [](App& a) { return a.session_ && a.session_->order_stats().attacks >= 1; }, 600));
+        s.push_back(step_wait("attack routed into the battle", [](App& a) { return a.session() && a.session()->order_stats().attacks >= 1; }, 600));
         s.push_back(step_ticks("battle runs", 60));
         s.push_back(step_wait("camera on the local units", [](App& a) {
             camera_on_local_units(a);
@@ -1726,11 +1726,11 @@ void App::make_script() {
         s.push_back(step_move_ground());
         s.push_back(step_wait("move routed", [](App& a) {
             static uint32_t waits = 0;  // what was selected when the move did not route
-            if (a.session_ && a.session_->order_stats().moves >= 1) return true;
-            if (a.session_ && ++waits == 300) {
+            if (a.session() && a.session()->order_stats().moves >= 1) return true;
+            if (a.session() && ++waits == 300) {
                 std::printf("script: move not routed after 300 frames - %llu rejected; selection:",
-                            static_cast<unsigned long long>(a.session_->order_stats().rejected));
-                for (const objects::ObjectId id : a.session_->host().selection(static_cast<uint8_t>(a.local_player()))) {
+                            static_cast<unsigned long long>(a.session()->order_stats().rejected));
+                for (const objects::ObjectId id : a.session()->host().selection(static_cast<uint8_t>(a.local_player()))) {
                     std::string ty = "?";
                     for (const ui::HudUnit& u : a.hud_units())
                         if (u.id == static_cast<uint32_t>(id) && u.type < a.ui().hud_types.size()) ty = a.ui().hud_types[u.type].name;
@@ -1752,7 +1752,7 @@ void App::make_script() {
         s.push_back(step_attack_enemy(true));
         s.push_back(step_move_ground(true));
         s.push_back(step_wait("queued orders routed", [](App& a) {
-            return a.session_ && a.session_->order_stats().attacks >= 2 && a.session_->order_stats().moves >= 2;
+            return a.session() && a.session()->order_stats().attacks >= 2 && a.session()->order_stats().moves >= 2;
         }, 600));
         s.push_back(step_wait("queue markers shown", [](App& a) {
             if (a.queues().empty()) return false;
@@ -1793,7 +1793,7 @@ void App::make_script() {
         auto skipped = std::make_shared<bool>(false);  // no buy screen (free starting units off): nothing to click
         s.push_back({"buy list read", [empty, skipped, space_buy](App& a, ui::InputFrame&) {
                          if (!a.ui().gui.find(ui::dlg::kBuyUnits)) {
-                             if (!a.session_) return false;
+                             if (!a.session()) return false;
                              *empty = *skipped = true;
                              a.control().notes.push_back("no buy screen (free starting units off): the slots start without forces");
                              std::printf("script: buy screen skipped - free starting units off\n");
@@ -1838,8 +1838,8 @@ void App::make_script() {
             for (size_t i = 0; i < u.size(); ++i)
                 if (affordable(i) && ascii_upper(u[i].type).find("_CORVETTE") != std::string::npos) return i;
             for (size_t i = 0; i < u.size(); ++i) {
-                const uint32_t t = a.data_.rules.find_type(u[i].type);
-                if (affordable(i) && t != galactic::kNoIndex && !a.data_.rules.types[t].build_initially_locked) return i;
+                const uint32_t t = a.data().rules.find_type(u[i].type);
+                if (affordable(i) && t != galactic::kNoIndex && !a.data().rules.types[t].build_initially_locked) return i;
             }
             for (size_t i = 0; i < u.size(); ++i)
                 if (affordable(i)) return i;
@@ -1870,10 +1870,10 @@ void App::make_script() {
         s.push_back(step_select_row("IDD_SKIRMISH_STAGING_DIALOG", "IDC_STAGING_MAP_LIST", [](App& a) {
             // The first land map by name (the old list's first land row): its row in the staging list as the front end sorted it;
             // else the first land row of the Official tab.
-            const std::vector<std::string> land = skirmish_land_maps(a.data_);
+            const std::vector<std::string> land = skirmish_land_maps(a.data());
             int32_t row = land.empty() ? -1 : a.ui().front.skirmish_map_row(land.front());
-            if (row < 0 && a.skirmish_catalog_)
-                for (const SkirmishMapEntry& e : skirmish_map_rows(*a.skirmish_catalog_, false))
+            if (row < 0 && a.skirmish_catalog())
+                for (const SkirmishMapEntry& e : skirmish_map_rows(*a.skirmish_catalog(), false))
                     if (e.kind == 1 && row < 0) row = a.ui().front.skirmish_map_row(e.map);
             return static_cast<size_t>(std::max<int32_t>(row, 0));
         }));
@@ -1881,7 +1881,7 @@ void App::make_script() {
         s.push_back(step_click_control("IDD_SKIRMISH_STAGING_DIALOG", "IDC_SKIRMISH_START_GAME_BUTTON"));
         buy_steps("game_land");
         battle_steps("game_land");
-        s.push_back(step_wait("land skirmish over", [](App& a) { return a.session_ && a.skirmish_ended_ && a.screen() == Screen::Menu; }, 20000));
+        s.push_back(step_wait("land skirmish over", [](App& a) { return a.session() && a.skirmish_ended() && a.screen() == Screen::Menu; }, 20000));
     } else if (opt_.smoke == "skirmish") {
         s.push_back(step_click_control("IDD_SINGLE_PLAYER_GAMES_MENU_DIALOG", "IDC_SKIRMISH_GAMES_BUTTON"));
         // The dialog opens on Land (legacy docs/re/UI.md 9.7): select the Space game type (its row; the rows are sorted by text); the
@@ -1895,7 +1895,7 @@ void App::make_script() {
         s.push_back(step_click_control("IDD_SKIRMISH_STAGING_DIALOG", "IDC_SKIRMISH_START_GAME_BUTTON"));
         buy_steps("game_skirmish");
         battle_steps("game_skirmish");
-        s.push_back(step_wait("skirmish over", [](App& a) { return a.session_ && a.skirmish_ended_ && a.screen() == Screen::Menu; }, 20000));
+        s.push_back(step_wait("skirmish over", [](App& a) { return a.session() && a.skirmish_ended() && a.screen() == Screen::Menu; }, 20000));
     } else {
         // Selects row `row` exactly: step_select_row stops at the first row >= the wanted one (its click can land below
         // it), then Up keys back to it.
@@ -2004,9 +2004,9 @@ void App::make_script() {
         if (env_or_empty("ALAMO_SMOKE_TRANSIT") == "1") {  // t32: a shot with any fleet in flight (opt-in, gives up after 3000 frames)
             auto n = std::make_shared<int>(0);
             s.push_back({"a fleet in transit", [n](App& a, ui::InputFrame&) {
-                             for (const render::GalacticFleetSnap& fl : a.gview_.frame().fleets)
+                             for (const render::GalacticFleetSnap& fl : a.galactic_view().frame().fleets)
                                  if (fl.flags & render::kGalFleetMoving) {
-                                     a.gview_.camera().set_look_at({fl.position.x, fl.position.y, 0.0f});
+                                     a.galactic_camera().set_look_at({fl.position.x, fl.position.y, 0.0f});
                                      return true;
                                  }
                              return ++*n > 3000;
@@ -2027,7 +2027,7 @@ void App::make_script() {
         const auto needs_fleet = [no_fleet, gated](ScriptStep st) {
             return ScriptStep{st.name, [no_fleet, gated, run = std::move(st.run)](App& a, ui::InputFrame& f) {
                                   if (*no_fleet < 0) {
-                                      const galactic::GalacticSim* g = a.session_ ? a.session_->galaxy() : nullptr;
+                                      const galactic::GalacticSim* g = a.session() ? a.session()->galaxy() : nullptr;
                                       if (!g) return run(a, f);
                                       bool own = false;
                                       for (const galactic::FleetState& fl : g->fleets())
@@ -2036,7 +2036,7 @@ void App::make_script() {
                                       if (!own)
                                           std::printf("script: the local player owns no fleet in %s: the %zu galactic move, attack and battle steps "
                                                       "are skipped (each logs done without running)\n",
-                                                      a.session_->spec().campaign.c_str(), *gated);
+                                                      a.session()->spec().campaign.c_str(), *gated);
                                   }
                                   return *no_fleet == 1 || run(a, f);
                               },
@@ -2057,7 +2057,7 @@ void App::make_script() {
             return !a.choice_open();
         }, 10));
         battle_steps("game_campaign");
-        s.push_back(step_wait("back on the galactic map", [](App& a) { return a.screen() == Screen::Galactic && !a.bview_.active() && !a.battle_end_open(); }, 20000));
+        s.push_back(step_wait("back on the galactic map", [](App& a) { return a.screen() == Screen::Galactic && !a.battle_view().active() && !a.battle_end_open(); }, 20000));
         // Shot at once: the AI may start the next conflict within a few ticks (the shot holds the sim).
         s.push_back(step_shot("game_campaign_galactic_after.png"));
         // GALACTIC_DIALOGS §3.1: a second attack answered Auto-Resolve - resolved at once (no progress dialog), the red
@@ -2070,7 +2070,7 @@ void App::make_script() {
             a.hud_actions({act});
             return !a.choice_open();
         }, 10));
-        s.push_back(step_wait("auto-resolve battle-end screen", [](App& a) { return a.auto_results_ > 0 && a.battle_end_open() && a.ui().gui.find(ui::dlg::kBattleEnd) && a.screen_text().empty(); }, 600));
+        s.push_back(step_wait("auto-resolve battle-end screen", [](App& a) { return a.auto_results() > 0 && a.battle_end_open() && a.ui().gui.find(ui::dlg::kBattleEnd) && a.screen_text().empty(); }, 600));
         s.push_back(step_shot("game_campaign_auto_result.png"));
         s.push_back(step_click_control(ui::dlg::kBattleEnd, "IDC_CONTINUE_BUTTON"));
         *gated = s.size() - fleet_steps;
@@ -2112,22 +2112,22 @@ void App::make_script() {
         // faction - a presentation-only preview: the scripted campaign has no natural black-market dialog (that needs an
         // Underworld hero at a Corruption_Black_Market planet), and the preview sends no command.
         s.push_back(step_wait("black market panel", [](App& a) {
-            const galactic::GalacticSim* g = a.session_ ? a.session_->galaxy() : nullptr;
+            const galactic::GalacticSim* g = a.session() ? a.session()->galaxy() : nullptr;
             if (!g) return true;
-            if (!a.panel_preview_) {
-                for (size_t i = 0; i < g->planets().size() && !a.preview_planet_; ++i) {
+            if (!a.panel_preview()) {
+                for (size_t i = 0; i < g->planets().size() && !a.preview_planet(); ++i) {
                     const galactic::PlanetState& p = g->planets()[i];
                     if (!p.is_planet || p.owner == a.local_player() || p.owner < 0 || static_cast<size_t>(p.owner) >= g->players().size()) continue;
                     const uint32_t f = g->players()[static_cast<size_t>(p.owner)].faction;
-                    if (f < g->rules().factions.size() && g->rules().factions[f].is_playable) a.preview_planet_ = static_cast<uint32_t>(g->store().id(p.object));
+                    if (f < g->rules().factions.size() && g->rules().factions[f].is_playable) a.set_preview_planet(static_cast<uint32_t>(g->store().id(p.object)));
                 }
-                a.panel_preview_ = galactic::kSpecialBlackMarket;
+                a.set_panel_preview(galactic::kSpecialBlackMarket);
             }
-            return a.market_open() || !a.preview_planet_;  // no such planet: nothing to show
+            return a.market_open() || !a.preview_planet();  // no such planet: nothing to show
         }, 120));
         s.push_back(step_shot("game_campaign_black_market.png"));
         s.push_back(step_wait("black market closed", [](App& a) {
-            a.panel_preview_ = 0;
+            a.set_panel_preview(0);
             return true;
         }, 10));
         // Holocron (hotkey): droid log, then the tech tree and the production summary pages; Esc closes.
