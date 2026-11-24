@@ -588,6 +588,11 @@ if(_alamo_sim)
            COMMAND ${CMAKE_COMMAND} -DEXE=$<TARGET_FILE:alamo_headless> -DWORK=${CMAKE_CURRENT_BINARY_DIR}/bench_synthetic
                    -P ${CMAKE_CURRENT_SOURCE_DIR}/headless/check_bench.cmake)
   set_tests_properties(alamo_headless_bench_synthetic PROPERTIES TIMEOUT 300)
+  # #338: the same synthetic scenario made and run in a folder named outside the ANSI code page (headless/check_unicode_paths.cmake).
+  add_test(NAME alamo_headless_unicode_paths
+           COMMAND ${CMAKE_COMMAND} -DEXE=$<TARGET_FILE:alamo_headless> -DWORK=${CMAKE_CURRENT_BINARY_DIR}/unicode_paths
+                   -P ${CMAKE_CURRENT_SOURCE_DIR}/headless/check_unicode_paths.cmake)
+  set_tests_properties(alamo_headless_unicode_paths PROPERTIES TIMEOUT 300)
   # t05: the OPT3 t07 worker-count check on the benchmark scenario (tests/benchmark/space_battle.abench, FoC data) from its save:
   # one timed run per worker count, CRCs compared with the 0-worker run. A scenario whose fingerprint no longer matches
   # (a stale build copy) only prints "scenario changed, not comparable" here (--bench-allow-changed). Skipped (exit 0)

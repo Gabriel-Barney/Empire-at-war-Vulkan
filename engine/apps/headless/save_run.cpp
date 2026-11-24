@@ -18,6 +18,7 @@
 
 #include "alamo/commands/recording.hpp"
 #include "alamo/core/file_provider.hpp"
+#include "alamo/core/host_fs.hpp"
 #include "alamo/core/save_file.hpp"
 #include "alamo/core/sim_crc.hpp"
 #include "alamo/galactic/campaign.hpp"
@@ -1081,7 +1082,12 @@ int run_child(const SaveRunOptions& opt, const std::string& crc_path) {
 #endif
     std::fflush(stdout);
     std::fflush(stderr);
+#ifdef _WIN32
+    // #338: the paths are UTF-8 (main reads the arguments wide); the narrow std::system would read them in the ANSI code page
+    return _wsystem(alamo::host_wide(cmd).c_str());
+#else
     return std::system(cmd.c_str());
+#endif
 }
 
 // --save-session KIND --save-check --save-at T FILE --ticks K

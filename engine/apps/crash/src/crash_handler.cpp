@@ -10,6 +10,8 @@
 #include <system_error>
 #include <thread>
 
+#include "alamo/core/host_fs.hpp"
+
 #ifdef _WIN32
 #include <windows.h>
 // DbgHelp after windows.h (it uses its types).
@@ -25,19 +27,11 @@ namespace alamo::crash {
 
 namespace {
 
-std::string env_value(const char* name) {
-#ifdef _MSC_VER
-    char* v = nullptr;
-    size_t len = 0;
-    std::string out;
-    if (_dupenv_s(&v, &len, name) == 0 && v) out = v;
-    std::free(v);
-    return out;
-#else
-    const char* v = std::getenv(name);  // NOLINT(concurrency-mt-unsafe): read once at start-up
-    return v ? std::string(v) : std::string();
-#endif
-}
+// #338: read wide, as UTF-8, so a %LOCALAPPDATA% or ALAMO_CRASHDUMP_DIR outside the ANSI code page keeps its name.
+std::string env_value(const char* name) { return alamo::host_env_utf8(name); }
+
+// UTF-8 with native separators (the folder install() and default_dump_dir() report).
+std::string utf8_of(const std::filesystem::path& p) { return alamo::path_to_native_utf8(p); }
 
 #ifdef _WIN32
 // limit: guard crash dump directory path buffer (wchar_t)
@@ -227,7 +221,7 @@ struct PureDerived final : PureBase {
 std::string default_dump_dir() {
     const std::string la = env_value("LOCALAPPDATA");
     if (la.empty()) return {};
-    return (std::filesystem::path(la) / "alamo" / "crashes").string();
+    return utf8_of(alamo::path_from_host_string(la) / "alamo" / "crashes");
 }
 
 std::string install(const Options& options) {
@@ -238,12 +232,12 @@ std::string install(const Options& options) {
     if (dir.empty()) dir = options.dump_dir.empty() ? default_dump_dir() : options.dump_dir;
     if (dir.empty()) return {};
     std::error_code ec;
-    const std::filesystem::path p = std::filesystem::absolute(std::filesystem::path(dir), ec);
+    const std::filesystem::path p = std::filesystem::absolute(alamo::path_from_host_string(dir), ec);
     if (ec) return {};
     std::filesystem::create_directories(p, ec);
     if (!std::filesystem::is_directory(p, ec)) return {};
     const std::wstring wdir = p.wstring();
-    const std::wstring wapp = std::filesystem::path(options.app_name.empty() ? std::string("alamo") : options.app_name).wstring();
+    const std::wstring wapp = alamo::host_wide(options.app_name.empty() ? std::string("alamo") : options.app_name);
     if (wdir.size() + 64 >= kPathMax || wapp.size() >= std::size(g_app)) return {};
     std::wcsncpy(g_dir, wdir.c_str(), kPathMax - 1);
     std::wcsncpy(g_app, wapp.c_str(), std::size(g_app) - 1);
@@ -264,7 +258,7 @@ std::string install(const Options& options) {
     std::signal(SIGABRT, on_abort);
     _set_invalid_parameter_handler(on_invalid_parameter);
     _set_purecall_handler(on_purecall);
-    g_dir_utf8 = p.string();
+    g_dir_utf8 = utf8_of(p);
     return g_dir_utf8;
 #else
     (void)options;

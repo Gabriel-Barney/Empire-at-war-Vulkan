@@ -1149,6 +1149,26 @@ void test_fx_sources() {
     CHECK(collect_fx_source(m, "Data\\Art\\Shaders\\Terrain\\Mod.fx", third) && third.missing.empty() && third.key() != again.key());
     CHECK(!collect_fx_source(m, "Data\\Art\\Shaders\\Nope.fx", third, &err) && !err.empty());
 
+    // #338: the default cache folder under a %LOCALAPPDATA% outside the ANSI code page (Hebrew and CJK) keeps its name.
+    {
+        const auto take = [](const wchar_t* name, std::wstring& value) {
+            wchar_t* v = nullptr;
+            size_t len = 0;
+            const bool had = _wdupenv_s(&v, &len, name) == 0 && v;
+            value = had ? std::wstring(v) : std::wstring();
+            std::free(v);
+        };
+        std::wstring old_la, old_fx;
+        take(L"LOCALAPPDATA", old_la);
+        take(L"ALAMO_FX_CACHE", old_fx);
+        _wputenv_s(L"ALAMO_FX_CACHE", L"");
+        _wputenv_s(L"LOCALAPPDATA", L"C:\\Temp\\אב_中文");
+        const std::filesystem::path d = FxCache::default_directory();
+        CHECK(d == std::filesystem::path(L"C:\\Temp\\אב_中文") / L"alamo" / L"fx");
+        _wputenv_s(L"LOCALAPPDATA", old_la.c_str());
+        _wputenv_s(L"ALAMO_FX_CACHE", old_fx.c_str());
+    }
+
     // 2. FxCache round trip; another key, a damaged file and an empty key are misses.
     const std::filesystem::path dir = unique_temp_dir("fxcache");
     const FxCache cache(dir);

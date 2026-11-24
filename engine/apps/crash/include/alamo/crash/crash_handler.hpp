@@ -18,14 +18,15 @@ namespace alamo::crash {
 
 struct Options {
     std::string app_name = "alamo";  // file name prefix
-    std::string dump_dir;            // empty: default_dump_dir()
+    std::string dump_dir;            // empty: default_dump_dir(); UTF-8 (an ANSI string is still read, core path_from_host_string)
 };
 
 // Installs the handlers once per process (later calls return the first folder). Returns the dump folder, or "" when dumps are
 // off: ALAMO_CRASHDUMP=0, no folder could be made, or not Windows. ALAMO_CRASHDUMP_DIR overrides the folder.
 std::string install(const Options& options);
 
-// %LOCALAPPDATA%\alamo\crashes ("" when LOCALAPPDATA is unset).
+// %LOCALAPPDATA%\alamo\crashes as UTF-8, read wide (#338: a folder outside the ANSI code page keeps its name); "" when
+// LOCALAPPDATA is unset.
 std::string default_dump_dir();
 
 // Test hook: crash now in the named way. Kinds: access (null write), thread (null write on another thread), abort, terminate,

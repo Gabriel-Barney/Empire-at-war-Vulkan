@@ -1176,7 +1176,7 @@ int skirmish_ai_run(const MapRunOptions& opt, const std::string& kind, const std
         return 1;
     }
     std::printf("%s", first.text.c_str());
-    if (!ai_log.empty()) std::ofstream(fs::path(ai_log), std::ios::binary) << log_text;
+    if (!ai_log.empty()) std::ofstream(alamo::path_from_host_string(ai_log), std::ios::binary) << log_text;  // #338
     bool good = true;
     if (opt.check_workers)
         good = jobs::check_worker_counts(

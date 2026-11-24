@@ -342,7 +342,7 @@ int map_run(const MapRunOptions& opt) {
     first.log.comments = {"map " + opt.map + " seed " + std::to_string(opt.replay.empty() ? opt.seed : replay.seed) +
                           " ticks " + std::to_string(first.ticks) +
                           (opt.replay.empty() ? std::string(" live orders")
-                                              : " replay " + std::filesystem::path(opt.replay).filename().string()),
+                                              : " replay " + alamo::path_to_utf8(alamo::path_from_host_string(opt.replay).filename())),
                           "spawned " + std::to_string(s.spawned) + " commands applied " + std::to_string(first.applied) +
                               " rejected " + std::to_string(first.rejected)};
     if (!opt.record_orders.empty()) {

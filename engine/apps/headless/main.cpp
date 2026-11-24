@@ -136,6 +136,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <functional>
 #include <memory>
 #include <variant>
@@ -834,7 +835,7 @@ int replay_mode(const Options& opt) {
     o.latency = meta_u32(rec, "latency", alamo::galactic::kDefaultAllPairsLatency);
     o.frames = opt.frames_set ? opt.frames : static_cast<uint32_t>(rec.end_tick ? rec.end_tick : 600);
     const auto map = make_synthetic(planets, static_cast<uint32_t>(rec.seed));
-    const std::string stream_name = std::filesystem::path(opt.replay).filename().string();
+    const std::string stream_name = alamo::path_to_utf8(alamo::path_from_host_string(opt.replay).filename());
     auto run_one = [&](int32_t w, alamo::CrcLog& log) {
         const RunResult r = run_campaign(map, o, w, &rec, &log, rec.seed);
         log.comments = {"replay " + stream_name + " seed " + std::to_string(rec.seed) + " ticks " +
@@ -1337,6 +1338,15 @@ int main(int argc, char** argv) {
         }
         std::abort();
     });
+    // #338: the arguments as UTF-8 from the wide command line (core host_args_utf8), so a save, scenario or output path
+    // in a folder outside the ANSI code page arrives whole; every file call takes them through path_from_host_string /
+    // path_from_utf8.
+    std::vector<std::string> utf8_args = alamo::host_args_utf8(argc, argv);
+    std::vector<char*> utf8_argv;
+    for (std::string& s : utf8_args) utf8_argv.push_back(s.data());
+    utf8_argv.push_back(nullptr);
+    argc = static_cast<int>(utf8_args.size());
+    argv = utf8_argv.data();
     std::vector<char*> args;
     bool profile_on = false;
     std::string profile_out;
@@ -1419,10 +1429,8 @@ int main(int argc, char** argv) {
         const std::string text = alamo::profile::format_report(alamo::profile::build_report(alamo::profile::snapshot(), budget_ms));
         std::fputs(text.c_str(), stdout);
         if (!profile_out.empty()) {
-            if (FILE* f = std::fopen(profile_out.c_str(), "wb")) {
-                std::fputs(text.c_str(), f);
-                std::fclose(f);
-            } else {
+            std::ofstream f(alamo::path_from_host_string(profile_out), std::ios::binary);
+            if (!(f && (f << text))) {
                 std::fprintf(stderr, "cannot write %s\n", profile_out.c_str());
             }
         }

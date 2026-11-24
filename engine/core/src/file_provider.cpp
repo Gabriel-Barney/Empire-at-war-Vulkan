@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <exception>
 #include <filesystem>
 #include <fstream>
@@ -15,6 +16,8 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+
+#include <shellapi.h>  // CommandLineToArgvW (host_command_line_utf8)
 
 namespace fs = std::filesystem;
 
@@ -64,6 +67,58 @@ fs::path path_from_host_string(std::string_view s) {
     } catch (const std::exception&) {  // not valid in the ANSI code page either (a double-byte code page)
         return {};
     }
+}
+
+std::wstring host_wide(std::string_view s) { return path_from_host_string(s).native(); }
+
+std::string path_to_native_utf8(const fs::path& p) {
+    try {
+        const std::u8string u = p.u8string();
+        return std::string(reinterpret_cast<const char*>(u.data()), u.size());
+    } catch (const std::exception&) {
+        return {};
+    }
+}
+
+namespace {
+// UTF-16 -> UTF-8 as is (WideCharToMultiByte; a lone surrogate becomes U+FFFD).
+std::string wide_to_utf8(const wchar_t* w) {
+    const int len = WideCharToMultiByte(CP_UTF8, 0, w, -1, nullptr, 0, nullptr, nullptr);
+    if (len <= 1) return {};
+    std::string s(static_cast<size_t>(len), char{});
+    WideCharToMultiByte(CP_UTF8, 0, w, -1, s.data(), len, nullptr, nullptr);
+    s.resize(s.size() - 1);  // the terminator
+    return s;
+}
+}  // namespace
+
+std::string host_env_utf8(const char* name) {
+    std::wstring wname;
+    for (const char* c = name; *c; ++c) wname.push_back(static_cast<wchar_t>(static_cast<unsigned char>(*c)));  // ASCII names
+    wchar_t* v = nullptr;
+    size_t len = 0;
+    std::string out;
+    if (_wdupenv_s(&v, &len, wname.c_str()) == 0 && v) out = wide_to_utf8(v);
+    std::free(v);
+    return out;
+}
+
+std::vector<std::string> host_command_line_utf8(std::wstring_view command_line) {
+    std::vector<std::string> out;
+    const std::wstring line(command_line);
+    int argc = 0;
+    LPWSTR* argv = CommandLineToArgvW(line.c_str(), &argc);
+    if (!argv) return out;
+    for (int i = 0; i < argc; ++i) out.push_back(wide_to_utf8(argv[i]));  // as typed: not a path conversion
+    LocalFree(argv);
+    return out;
+}
+
+std::vector<std::string> host_args_utf8(int argc, char** argv) {
+    std::vector<std::string> out = host_command_line_utf8(GetCommandLineW());
+    if (!out.empty()) return out;
+    for (int i = 0; i < argc; ++i) out.emplace_back(argv[i]);
+    return out;
 }
 
 namespace {
