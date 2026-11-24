@@ -577,7 +577,7 @@ private:
     bool movie_mode_ = false;          // MovieMode key / b_camera_t [port]: the interface hidden
     bool interface_hidden_ = false;    // ToggleInterface key (byte 0x140b3069b)
     bool objectives_hidden_ = false;   // MissionHolocron key in a battle [port]
-    bool camera_tether_ = false;       // CameraTether key [port]: the camera follows the selection
+    uint32_t tether_id_ = 0;           // CameraTether key (#430): the object the camera follows, 0 = none
     bool beacon_pick_ = false;         // place-beacon pick (b_special_weapon2 / b_beacon_t / PlaceBeacon key)
     double beacon_last_s_ = -1.0e30;   // wall time of the last beacon (BeaconPlaceDelay)
     float beacon_delay_s_ = 5.0f;      // GameConstants BeaconPlaceDelay (ms) / 1000

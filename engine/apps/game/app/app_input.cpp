@@ -1468,8 +1468,15 @@ void App::battle_input() {
         return centroid([&ids](const render::SnapshotObject& o) { return std::binary_search(ids.begin(), ids.end(), o.id); });
     };
     ui::apply_camera_hotkeys(hk, bview_.camera(), focus);
-    if (camera_tether_)  // ui3 t01 [port]: the CameraTether key keeps the camera on the selection's centre
-        if (const auto c = focus.selection()) bview_.camera().set_look_at(*c);
+    // #430 (docs/re/TACTICAL_HOTKEYS.md, 0x2cbd00 [H]): the CameraTether key keeps the camera on the object that was
+    // first in the selection at the press [M: what the camera does with the target]; the tether ends when it is gone.
+    if (tether_id_ != 0) {
+        const uint32_t id = tether_id_;
+        if (const auto c = centroid([id](const render::SnapshotObject& o) { return static_cast<uint32_t>(o.id) == id; }))
+            bview_.camera().set_look_at(*c);
+        else
+            tether_id_ = 0;
+    }
     std::vector<ui::HudAction> acts;
     tactical_hotkeys(hk, cmds, acts);
     // [port: Gabriel, 2026-11-13] F2 / F3: the fighter / bomber wing (Shift adds to the selection, Ctrl centres only).

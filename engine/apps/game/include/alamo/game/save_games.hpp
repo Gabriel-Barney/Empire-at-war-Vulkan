@@ -91,7 +91,9 @@ std::vector<SaveEntry> list_saves(const std::string& dir);
 inline constexpr const char* kAutoSaveName = "[AutoSave]";
 
 std::string sanitize_save_name(std::string_view typed);
-std::string save_path(const std::string& dir, std::string_view name);  // dir \ sanitize(name) + ".alsv" ("" for an empty name)
+std::string save_path(const std::string& dir, std::string_view name);
+// The QuickSave / QuickLoad slot (#430, 0x55c00 / 0x562c0 [H]).
+inline constexpr std::string_view kQuickSaveName = "[QuickSave]";  // dir \ sanitize(name) + ".alsv" ("" for an empty name)
 bool save_exists(const std::string& dir, std::string_view name);
 bool delete_save(const std::string& dir, std::string_view name, std::string* err = nullptr);
 bool write_save_file(const SaveFile& save, const std::string& path, std::string* err = nullptr);  // creates the folder
