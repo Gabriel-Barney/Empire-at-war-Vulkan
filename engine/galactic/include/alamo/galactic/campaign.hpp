@@ -34,6 +34,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -360,6 +361,14 @@ struct PlanetState {
     // Siphon_Credits_Ability; read by Neutralize_Hero (§7). Saved (v8); hashed in the "GLB1" tail.
     uint32_t siphon_type = kNoIndex;
     int32_t siphon_source = 0;
+    // The siphon record reset (0x3ff1f0) every site uses (#134): player, amount, hero type and object. siphon_fraction and
+    // siphon_until keep their values (no reset site ever touched them; both are saved).
+    void clear_siphon() {
+        siphon_player = kNoPlayer;
+        siphon_amount = 0.0f;
+        siphon_type = kNoIndex;
+        siphon_source = 0;
+    }
     // galab (§4 / §5): the player holding this planet's Galaxy_Wide_Upgrade / Reduce_Technology_Price bonuses (kNoPlayer =
     // not applied yet). Saved (v8); hashed in the "GLB1" tail.
     int32_t bonus_holder = kNoPlayer;
@@ -719,6 +728,16 @@ public:
     // The Space_ / Land_Upgrade_Type list of the player's held Galaxy_Wide_Upgrade bonuses (player +0x300 / +0x318),
     // spawned for the player at the start of a space / land battle (0x2afc10).
     std::vector<uint32_t> player_upgrades(int32_t player, bool space) const;
+    // The live objects at a planet, the one walk behind the galactic ability rules (#134): the surface units in list order,
+    // then the contents of the live fleets in orbit (fleets in arrival order, members in fleet order) [M]. orbit_first
+    // swaps the two lists (Neutralize_Hero's candidates); stationary_fleets skips a moving fleet (the political holders).
+    // f(ObjectHandle, bool in_orbit); when f returns bool, true stops the walk and visit_objects_at returns true.
+    struct PlanetWalk {
+        bool orbit_first = false;
+        bool stationary_fleets = false;
+    };
+    template <class F>
+    bool visit_objects_at(PlanetIndex planet, F&& f, PlanetWalk walk = {}) const;
     // Tarkin's Political_Transition_Bonus at the planet: the product over stacking categories of the smallest
     // Time_Reduction_Percentage of the owner's holders present (1.0 = none); it divides the political ramp time.
     float political_transition_factor(PlanetIndex planet) const;
@@ -1609,5 +1628,35 @@ private:
     bool visibility_state_default() const;
     void hash_visibility(StateHasher& h) const;
 };
+
+template <class F>
+bool GalacticSim::visit_objects_at(PlanetIndex planet, F&& f, PlanetWalk walk) const {
+    if (!valid_planet(planet)) return false;
+    const PlanetState& p = planets_[planet];
+    const auto visit = [&](ObjectHandle h, bool in_orbit) {
+        if (!store_->alive(h)) return false;
+        if constexpr (std::is_same_v<std::invoke_result_t<F&, ObjectHandle, bool>, bool>) {
+            return f(h, in_orbit);
+        } else {
+            f(h, in_orbit);
+            return false;
+        }
+    };
+    const auto surface = [&] {
+        for (ObjectHandle u : p.surface)
+            if (visit(u, false)) return true;
+        return false;
+    };
+    const auto orbit = [&] {
+        for (uint32_t i : p.orbit) {
+            const FleetState& fleet = fleets_[i];
+            if (!fleet.alive || (walk.stationary_fleets && fleet.moving)) continue;
+            for (ObjectHandle m : fleet.contents)
+                if (visit(m, true)) return true;
+        }
+        return false;
+    };
+    return walk.orbit_first ? orbit() || surface() : surface() || orbit();
+}
 
 }  // namespace alamo::galactic

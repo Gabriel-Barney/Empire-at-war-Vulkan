@@ -79,15 +79,7 @@ bool GalacticSim::siphon_accepts(int32_t player, PlanetIndex planet) const {
 bool GalacticSim::siphon_blocked_by_presence(PlanetIndex planet) const {
     // 0x4b8410 [H for the field, M for the lists]: an object at the planet whose type has Prevents_Minor_Credit_Siphons
     // (T +0x63). The planet's two object lists are taken as the surface units and the orbiting fleets' contents [M].
-    const PlanetState& p = planets_[planet];
-    const auto blocks = [&](ObjectHandle h) { return store_->alive(h) && special_type(h).prevents_minor_siphons; };
-    for (ObjectHandle u : p.surface)
-        if (blocks(u)) return true;
-    for (uint32_t f : p.orbit)
-        if (fleets_[f].alive)
-            for (ObjectHandle m : fleets_[f].contents)
-                if (blocks(m)) return true;
-    return false;
+    return visit_objects_at(planet, [&](ObjectHandle h, bool) { return special_type(h).prevents_minor_siphons; });
 }
 
 bool GalacticSim::apply_siphon(const SpecialAbilityDef& a, ObjectHandle hero, int32_t player, PlanetIndex planet) {
@@ -213,8 +205,8 @@ float GalacticSim::political_transition_factor(PlanetIndex planet) const {
     const PlanetState& p = planets_[planet];
     if (!valid_player(p.owner) || special().galab.empty()) return 1.0f;
     std::vector<std::pair<int32_t, float>> best;  // category -> smallest value, first-seen order
-    const auto add = [&](ObjectHandle h) {
-        if (!store_->alive(h) || store_->owner(h) != p.owner) return;
+    const auto add = [&](ObjectHandle h, bool) {
+        if (store_->owner(h) != p.owner) return;
         for (uint32_t gi : special_type(h).galab) {
             const SpecialAbilityDef& a = special().galab[gi];
             if (a.cls != SpecialAbilityClass::PoliticalTransition || !a.initially_enabled) continue;
@@ -223,10 +215,7 @@ float GalacticSim::political_transition_factor(PlanetIndex planet) const {
             else it->second = std::min(it->second, a.production_reduction);
         }
     };
-    for (ObjectHandle u : p.surface) add(u);
-    for (uint32_t f : p.orbit)
-        if (fleets_[f].alive && !fleets_[f].moving)
-            for (ObjectHandle m : fleets_[f].contents) add(m);
+    visit_objects_at(planet, add, {.stationary_fleets = true});
     if (best.empty()) return 1.0f;
     std::sort(best.begin(), best.end(), [](const auto& x, const auto& y) { return x.first < y.first; });  // map key order
     float m = 1.0f;
@@ -242,21 +231,15 @@ bool GalacticSim::political_control_protected(PlanetIndex planet) const {
     if (!valid_planet(planet)) return false;
     const PlanetState& p = planets_[planet];
     if (!valid_player(p.owner) || special().galab.empty()) return false;
-    const auto holds = [&](ObjectHandle h) {
-        if (!store_->alive(h) || store_->owner(h) != p.owner) return false;
+    const auto holds = [&](ObjectHandle h, bool) {
+        if (store_->owner(h) != p.owner) return false;
         for (uint32_t gi : special_type(h).galab) {
             const SpecialAbilityDef& a = special().galab[gi];
             if (a.cls == SpecialAbilityClass::PoliticalProtection && a.initially_enabled) return true;
         }
         return false;
     };
-    for (ObjectHandle u : p.surface)
-        if (holds(u)) return true;
-    for (uint32_t f : p.orbit)
-        if (fleets_[f].alive && !fleets_[f].moving)
-            for (ObjectHandle m : fleets_[f].contents)
-                if (holds(m)) return true;
-    return false;
+    return visit_objects_at(planet, holds, {.stationary_fleets = true});
 }
 
 }  // namespace alamo::galactic
@@ -318,14 +301,10 @@ float GalacticSim::hero_protection(PlanetIndex planet, ObjectHandle target) cons
         best.emplace_back(a.stacking_category, m);
     };
     for (uint32_t gi : special().type(p.type).galab) take(special().galab[gi], p.owner, true);
-    const auto add = [&](ObjectHandle h) {
-        if (!store_->alive(h) || h == target) return;
+    visit_objects_at(planet, [&](ObjectHandle h, bool) {
+        if (h == target) return;
         for (uint32_t gi : special_type(h).galab) take(special().galab[gi], store_->owner(h), false);
-    };
-    for (ObjectHandle u : p.surface) add(u);
-    for (uint32_t f : p.orbit)
-        if (fleets_[f].alive)
-            for (ObjectHandle m : fleets_[f].contents) add(m);
+    });
     if (best.empty()) return 1.0f;
     std::sort(best.begin(), best.end(), [](const auto& x, const auto& y) { return x.first < y.first; });
     float m = best.front().second;
@@ -371,7 +350,6 @@ std::vector<NeutralizeCandidate> GalacticSim::neutralize_candidates(const Specia
         return e && (named_neutralizer ? t.neutralizable_by_major : t.neutralizable_by_minor);
     };
     const auto add = [&](ObjectHandle h, bool space) {
-        if (!store_->alive(h)) return;
         const uint32_t ty = static_cast<uint32_t>(store_->type(h));
         const TypeSpecial& t = special().type(ty);
         if (!t.generic_hero && !t.named_hero) return;
@@ -384,10 +362,7 @@ std::vector<NeutralizeCandidate> GalacticSim::neutralize_candidates(const Specia
         c.eligible = eligible(t);
         out.push_back(std::move(c));
     };
-    for (uint32_t f : p.orbit)
-        if (fleets_[f].alive)
-            for (ObjectHandle m : fleets_[f].contents) add(m, true);
-    for (ObjectHandle u : p.surface) add(u, false);
+    visit_objects_at(planet, add, {.orbit_first = true});
     if (valid_player(p.siphon_player) && !allied(player, p.siphon_player) && p.siphon_type != kNoIndex) {
         NeutralizeCandidate c;
         c.type = p.siphon_type;
@@ -523,10 +498,7 @@ bool GalacticSim::neutralize_do(int32_t player, PlanetIndex planet, ObjectHandle
     if (!c.siphon) {
         hero_depart(target, planet, c.target_respawn);
     } else {
-        p.siphon_player = kNoPlayer;  // 0x3ff1f0
-        p.siphon_amount = 0.0f;
-        p.siphon_type = kNoIndex;
-        p.siphon_source = 0;
+        p.clear_siphon();  // 0x3ff1f0
     }
     count_neutralized(player, counted);
     add_credits(player, -price, false);
