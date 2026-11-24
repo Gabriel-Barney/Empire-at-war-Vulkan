@@ -473,9 +473,14 @@ private:
         double value = 0.0;
         int32_t stamp = 0;
         std::vector<Param> params;  // the bindings copy (0x64c840): what the 0xE recompute evaluates with
-        // #152: this entry's CRC bytes (key + fields, the saved layout), empty = to be rebuilt; cleared whenever the entry is
-        // stored. Not saved (a loaded entry starts empty).
-        mutable std::vector<uint8_t> crc_image;
+        // #152: this entry's CRC bytes (key + fields, the saved layout), empty = to be rebuilt. Every store goes through
+        // store(), which clears them; not saved (a loaded entry starts empty).
+        std::vector<uint8_t> crc_image;
+        void store(double v, int32_t frame) {
+            value = v;
+            stamp = frame;
+            crc_image.clear();
+        }
     };
     mutable std::mutex mu_;
 public:

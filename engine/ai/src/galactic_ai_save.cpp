@@ -372,7 +372,7 @@ void GalacticSimTokenResolver::visit_saved(W& w) const {
     for (const uint8_t x : last_battle_) w.u8(x);
     std::lock_guard<std::mutex> lock(mu_);
     w.u32(static_cast<uint32_t>(cache_.size()));
-    const auto put_entry = [](auto& o, const CacheKey& k, const Entry& e) {  // version 3 entry layout
+    const auto put_entry = [](auto& o, const CacheKey& k, const Entry& e) {  // version 3 entry layout, version 4 parameters
         o.str(k.leaf);
         o.i32(k.inst);
         o.i32(k.self);
@@ -382,12 +382,12 @@ void GalacticSimTokenResolver::visit_saved(W& w) const {
         o.u32(static_cast<uint32_t>(e.params.size()));
         for (const Param& p : e.params) put_param(o, p);
     };
-    for (const auto& [k, e] : cache_) {
+    for (auto& [k, e] : cache_) {  // cache_ is mutable: the images are built here, under mu_
         if constexpr (kEntryImages) {  // #152: the entry's bytes, formatted once per store (the lock is held)
             if (e.crc_image.empty()) {
                 ByteWriter b;
                 put_entry(b, k, e);
-                e.crc_image = b.bytes();
+                e.crc_image.assign(b.bytes().begin(), b.bytes().end());
             }
             w.raw(e.crc_image);
         } else {
