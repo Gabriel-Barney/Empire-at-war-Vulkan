@@ -650,12 +650,11 @@ void GameAudioHost::battle_tick(const sim::TacticalBattle& battle, const objects
         ++stats_.engine_restarts;
     }
     std::vector<objects::ObjectId> died;
+    // #327 t06: the death sounds come from the presentation stream (on_events, UnitDied), which also carries the late and
+    // between-tick deaths this list never holds; here only the bookkeeping.
     for (const tactical::combat::DeathEvent& d : cs.deaths()) {
         const objects::ObjectHandle h = handle_of(d.id);
         if (!store.exists(h)) continue;
-        if (unit_died(types, static_cast<objects::ObjectId>(d.id), store.type(h), store.position(h),
-                      local_player >= 0 && store.owner(h) == local_player))
-            ++stats_.deaths;
         moving_.erase(static_cast<objects::ObjectId>(d.id));
         died.push_back(static_cast<objects::ObjectId>(d.id));
         combat = combat || store.owner(h) == local_player || owner_of(d.killer) == local_player;
@@ -1077,10 +1076,13 @@ uint32_t GameAudioHost::spin_away_deaths(std::span<const SpinDeath> deaths, cons
 }
 
 uint32_t GameAudioHost::unit_died(const objects::GameObjectTypes& types, objects::ObjectId object, objects::TypeIndex type,
-                                  const Vec3& position, bool local_owner) {
+                                  const Vec3& position, bool local_owner, int32_t clone_type, uint64_t clone) {
     if (!game_) return 0;
+    const std::string_view start =
+        clone_type >= 0 && static_cast<size_t>(clone_type) < types.size() ? sounds(types, static_cast<objects::TypeIndex>(clone_type)).death_start
+                                                                          : std::string_view();
+    const uint32_t id = game_->unit_death(static_cast<uint64_t>(object), start, position, clone);
     const audio::UnitSounds& s = sounds(types, type);
-    const uint32_t id = game_->unit_death(static_cast<uint64_t>(object), s.death_start, position);
     if (local_owner && !s.unit_lost.empty() && game_->sfx_2d(s.unit_lost) != 0) ++stats_.unit_lost_lines;
     return id;
 }
@@ -1807,7 +1809,8 @@ void GameAudioHost::tsw_audio(std::span<const TswCue>, const objects::GameObject
 void GameAudioHost::sim_tick() {}
 uint32_t GameAudioHost::animation_sounds(std::span<const AnimSound>) { return 0; }
 uint32_t GameAudioHost::spin_away_deaths(std::span<const SpinDeath>, const objects::GameObjectTypes&) { return 0; }
-uint32_t GameAudioHost::unit_died(const objects::GameObjectTypes&, objects::ObjectId, objects::TypeIndex, const Vec3&, bool) {
+uint32_t GameAudioHost::unit_died(const objects::GameObjectTypes&, objects::ObjectId, objects::TypeIndex, const Vec3&, bool, int32_t,
+                                  uint64_t) {
     return 0;
 }
 bool GameAudioHost::unit_sighted(const objects::GameObjectTypes&, objects::TypeIndex, bool) { return false; }
@@ -1853,6 +1856,14 @@ void GameAudioHost::apply_presentation(const std::vector<lua::PresentationEvent>
 void GameAudioHost::on_events(const sim::PresentationEvents& events, const objects::GameObjectTypes& types, int32_t local_player) {
     using K = sim::PresentationEventKind;
     for (const sim::PresentationEvent& e : events) {
+        if (e.kind == K::UnitDied) {  // #327 t06: every player's death; Unit_Lost for the local player's
+            if (e.type < 0 || static_cast<size_t>(e.type) >= types.size()) continue;
+            const uint64_t clone = e.clone != objects::kNoObjectId ? static_cast<uint64_t>(e.clone) : 0u;
+            if (unit_died(types, e.object, static_cast<objects::TypeIndex>(e.type), Vec3{e.x, e.y, e.z},
+                          local_player >= 0 && e.player == local_player, e.clone_type, clone) != 0)
+                ++stats_.deaths;
+            continue;
+        }
         if (local_player < 0 || e.player != local_player || e.type < 0) continue;
         const auto t = static_cast<objects::TypeIndex>(e.type);
         switch (e.kind) {
@@ -1863,6 +1874,7 @@ void GameAudioHost::on_events(const sim::PresentationEvents& events, const objec
                 faction_sfx("Reinforcements_Enroute_SFXEvent");
                 ++stats_.hangar_enroute_lines;
                 break;
+            case K::UnitDied: break;  // above
         }
     }
 }

@@ -1133,7 +1133,7 @@ void test_unit_lost_sighting_50() {
     CHECK(tank != objects::kNone && hero != objects::kNone);
     if (tank == objects::kNone || hero == objects::kNone) return;
     H off;  // inactive host: nothing
-    CHECK(off.unit_died(types, 5, tank, Vec3{}, true) == 0 && !off.unit_sighted(types, tank, true));
+    CHECK(off.unit_died(types, 5, tank, Vec3{}, true, static_cast<int32_t>(tank)) == 0 && !off.unit_sighted(types, tank, true));
 #ifdef ALAMO_GAME_HAVE_AUDIO
     auto tree = make_tree(true);
     tree->add("Data\\XML\\SFXEventsTest.xml", R"(<?xml version="1.0"?>
@@ -1156,11 +1156,11 @@ void test_unit_lost_sighting_50() {
     if (!h.active()) return;
     h.music(MusicScene::Galactic, "Rebel");  // the local faction
     // t01: another player's unit: its death line only; the local player's: SFXEvent_Unit_Lost too (2D).
-    h.unit_died(types, 5, tank, Vec3{10, 0, 0}, false);
+    h.unit_died(types, 5, tank, Vec3{10, 0, 0}, false, static_cast<int32_t>(tank));
     CHECK(starts(h, "Tank_Lost") == 0 && h.stats().unit_lost_lines == 0);
-    h.unit_died(types, 6, tank, Vec3{10, 0, 0}, true);
+    h.unit_died(types, 6, tank, Vec3{10, 0, 0}, true, static_cast<int32_t>(tank));
     CHECK(starts(h, "Tank_Lost") == 1 && h.stats().unit_lost_lines == 1);
-    h.unit_died(types, 7, hero, Vec3{10, 0, 0}, true);  // no Unit_Lost tag: nothing more
+    h.unit_died(types, 7, hero, Vec3{10, 0, 0}, true, static_cast<int32_t>(hero));  // no Unit_Lost tag: nothing more
     CHECK(h.stats().unit_lost_lines == 1);
     // t03: an ally's ordinary unit says nothing; the enemy's first sighting says Enemy_Spotted once per battle.
     CHECK(!h.unit_sighted(types, tank, false));
@@ -1173,6 +1173,66 @@ void test_unit_lost_sighting_50() {
     h.battle_reset();  // a new battle: both announce again
     CHECK(h.unit_sighted(types, hero, true) && starts(h, "Hero_Seen") == 2);
     CHECK(h.unit_sighted(types, tank, true) && starts(h, "Enemy_Seen") == 2);
+#endif
+}
+
+// #327 t06 (Die 0x39bdb0, DEATH's effects 0x58cf90 [H]): a UnitDied presentation event - any death, late and between
+// ticks included - plays the death CLONE type's Death_SFXEvent_Start_Die with the clone as gate 9's parent (fogged when
+// the clone is hidden), none when the death makes no clone, and the dying type's SFXEvent_Unit_Lost for the local owner.
+void test_unit_died_events_327() {
+    using H = GameAudioHost;
+    using PK = sim::PresentationEventKind;
+    MemoryProvider files;
+    files.add("Data\\XML\\GameObjectFiles.xml", "<L><File>T327D.xml</File></L>");
+    files.add("Data\\XML\\T327D.xml", R"(<?xml version="1.0"?>
+<GroundVehicles>
+  <GroundVehicle Name="Tank"><SFXEvent_Unit_Lost> Tank_Lost </SFXEvent_Unit_Lost>
+    <Death_SFXEvent_Start_Die> Tank_Die </Death_SFXEvent_Start_Die></GroundVehicle>
+  <GroundVehicle Name="Tank_Death_Clone"><Death_SFXEvent_Start_Die> Clone_Die </Death_SFXEvent_Start_Die></GroundVehicle>
+</GroundVehicles>
+)");
+    objects::ObjectTypeDatabase raw;
+    CHECK(raw.load(files));
+    objects::GameObjectTypes types;
+    CHECK(types.build(raw));
+    const objects::TypeIndex tank = types.resolve_name("Tank"), clone_t = types.resolve_name("Tank_Death_Clone");
+    CHECK(tank != objects::kNone && clone_t != objects::kNone);
+    if (tank == objects::kNone || clone_t == objects::kNone) return;
+#ifdef ALAMO_GAME_HAVE_AUDIO
+    auto tree = make_tree(true);
+    tree->add("Data\\XML\\SFXEventsTest.xml", R"(<?xml version="1.0"?>
+<SFXEvents>
+  <SFXEvent Name="Tank_Lost"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Max_Instances>8</Max_Instances><Samples>LOST.WAV</Samples></SFXEvent>
+  <SFXEvent Name="Tank_Die"><Is_2D>No</Is_2D><Is_3D>Yes</Is_3D><Max_Instances>8</Max_Instances><Samples>TD.WAV</Samples></SFXEvent>
+  <SFXEvent Name="Clone_Die"><Is_2D>No</Is_2D><Is_3D>Yes</Is_3D><Max_Instances>8</Max_Instances><Samples>CD.WAV</Samples></SFXEvent>
+</SFXEvents>
+)");
+    GameData data;
+    data.files = std::move(tree);
+    H h;
+    CHECK(h.init(data, AudioBackendKind::Null, 3));
+    if (!h.active()) return;
+    h.set_listener(Vec3{0, 0, 100}, Vec3{0, 0, 0});
+    const auto died = [&](int32_t owner, objects::ObjectId id, int32_t clone_type, objects::ObjectId clone) {
+        sim::PresentationEvent e{PK::UnitDied, owner, static_cast<int32_t>(tank), id, 0, 10};
+        e.clone_type = clone_type;
+        e.clone = clone;
+        e.x = 10.0f;
+        return e;
+    };
+    // another player's death: the clone type's line, not the dying type's; no Unit_Lost
+    h.on_events({died(1, 5, static_cast<int32_t>(clone_t), 50)}, types, 0);
+    CHECK(starts(h, "Clone_Die") == 1 && starts(h, "Tank_Die") == 0 && starts(h, "Tank_Lost") == 0);
+    // the local player's: Unit_Lost too
+    h.on_events({died(0, 6, static_cast<int32_t>(clone_t), 51)}, types, 0);
+    CHECK(starts(h, "Clone_Die") == 2 && starts(h, "Tank_Lost") == 1 && h.stats().deaths == 2);
+    // a death without a clone: no death sound, Unit_Lost still
+    h.on_events({died(0, 7, -1, objects::kNoObjectId)}, types, 0);
+    CHECK(starts(h, "Clone_Die") == 2 && starts(h, "Tank_Die") == 0 && starts(h, "Tank_Lost") == 2);
+    // gate 9 tests the clone: a hidden clone's death sound is refused, a seen one plays
+    h.set_fog_test([](uint64_t parent) { return parent == 52; });
+    h.on_events({died(1, 8, static_cast<int32_t>(clone_t), 52), died(1, 9, static_cast<int32_t>(clone_t), 53)}, types, 0);
+    CHECK(starts(h, "Clone_Die") == 3);
 #endif
 }
 
@@ -1468,7 +1528,7 @@ void test_death_end_sfx() {
     const objects::ObjectHandle unit = spawn(walker, Vec3{5, 0, 0}, false);
     const objects::ObjectHandle persisting = spawn(clone, Vec3{5, 0, 0}, true);
     GameAudioHost off;  // inactive host: nothing
-    CHECK(off.unit_died(types, store.id(unit), walker, Vec3{5, 0, 0}, true) == 0);
+    CHECK(off.unit_died(types, store.id(unit), walker, Vec3{5, 0, 0}, true, static_cast<int32_t>(walker)) == 0);
     CHECK(off.death_clone_ends(store, types, false) == 0);
 #ifdef ALAMO_GAME_HAVE_AUDIO
     GameData data;
@@ -1485,7 +1545,7 @@ void test_death_end_sfx() {
     if (!h.active()) return;
     h.set_listener(Vec3{0, 0, 100}, Vec3{0, 0, 0});
     // the tick of the death: the unit's start-die line; its clone runs its death sequence (no end yet)
-    CHECK(h.unit_died(types, store.id(unit), walker, Vec3{5, 0, 0}, false) != 0);
+    CHECK(h.unit_died(types, store.id(unit), walker, Vec3{5, 0, 0}, false, static_cast<int32_t>(walker)) != 0);
     store.destroy(unit);
     CHECK(h.death_clone_ends(store, types, false) == 0);
     CHECK(starts(h, "Walker_Start") == 1 && starts(h, "Walker_End") == 0);
@@ -2122,6 +2182,7 @@ int main() {
     test_object_sfx_t05();
     test_start_gates_50();  // #50 t08
     test_unit_lost_sighting_50();  // #50 t01 / t03
+    test_unit_died_events_327();       // #327 t06
     test_galactic_activate_t06();  // #62 t06
     test_galactic_lua_sfx_position();  // aud8 t05
     test_gui_only_attract();           // #226

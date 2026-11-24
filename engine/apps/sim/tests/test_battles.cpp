@@ -3026,14 +3026,17 @@ void test_tactical_tech_upgrade() {
     {
         using PK = PresentationEventKind;
         std::vector<std::pair<PK, uint32_t>> seen;
-        for (const PresentationEvent& e : pres)
-            if (e.player == 0) seen.emplace_back(e.kind, static_cast<uint32_t>(e.type));
+        for (const PresentationEvent& e : pres)  // the production rows (the holder's kill is a UnitDied, #327 t06)
+            if (e.player == 0 && e.kind != PK::UnitDied) seen.emplace_back(e.kind, static_cast<uint32_t>(e.type));
         const std::vector<std::pair<PK, uint32_t>> want = {{PK::ProductionBegin, base_up},     {PK::ProductionBegin, tech_up},
                                                            {PK::ProductionCanceled, tech_up},  {PK::ProductionBegin, tech_up},
                                                            {PK::ProductionCompleted, base_up}, {PK::ProductionCompleted, tech_up}};
         CHECK(seen == want);
-        CHECK(pres.size() >= 4 && pres[0].frame == 2 && pres[3].frame == 2 && pres.back().frame <= built_at &&
-              pres.back().frame + 1 >= built_at);
+        std::vector<PresentationEvent> rows;
+        for (const PresentationEvent& e : pres)
+            if (e.kind != PK::UnitDied) rows.push_back(e);
+        CHECK(rows.size() >= 4 && rows[0].frame == 2 && rows[3].frame == 2 && rows.back().frame <= built_at &&
+              rows.back().frame + 1 >= built_at);
         std::printf("  ref2 t02: %zu presentation events (player 0: %zu)\n", pres.size(), seen.size());
     }
     CHECK(tech_built == tech_before + 1);

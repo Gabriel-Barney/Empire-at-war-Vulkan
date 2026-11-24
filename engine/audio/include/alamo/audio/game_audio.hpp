@@ -189,7 +189,11 @@ public:
     // Death: every sound attached to the object is stopped (DeathBehavior, §1.5), then the death event
     // (Death_SFXEvent_Start_Die) plays at the death position [port: positional, so it survives the object's
     // removal]. Same as object_dead (the dead bit blocks engine loop restarts) followed by the death event.
-    uint32_t unit_death(uint64_t object, std::string_view event, const Vec3& position);
+    uint32_t unit_death(uint64_t object, std::string_view event, const Vec3& position) {
+        return unit_death(object, event, position, object);
+    }
+    // #327 t06: `fog_parent` = gate 9's parent: the death clone, which the original's DEATH effects (0x58cf90) start on.
+    uint32_t unit_death(uint64_t object, std::string_view event, const Vec3& position, uint64_t fog_parent);
     // Any other object-attached event (abilities, shields, hyperspace, production, Lua Play_SFX_Event, ...).
     uint32_t object_sfx(uint64_t object, std::string_view event, const Vec3& position, float fade_in_seconds = 0.0f);
     void stop_object_sfx(uint64_t object, std::string_view event, float fade_seconds = 0.0f);

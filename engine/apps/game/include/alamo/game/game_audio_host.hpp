@@ -328,13 +328,15 @@ public:
         Vec3 position{};
     };
     uint32_t spin_away_deaths(std::span<const SpinDeath> deaths, const objects::GameObjectTypes& types);
-    // A unit's death (battle_tick, one per CombatSystem death): every sound attached to it stops and its type's
-    // Death_SFXEvent_Start_Die plays at `position` (GameAudio::unit_death). Returns that instance id, 0 when none.
+    // A unit's death (on_events, PresentationEventKind::UnitDied): every sound attached to it stops and the death clone's
+    // type's (`clone_type`; -1: no clone, no sound) Death_SFXEvent_Start_Die plays at `position` with the clone object
+    // (`clone`, 0 none) as gate 9's parent (#327 t06: DEATH's effects 0x58cf90 run on the clone [H]; a type without
+    // Death_Clone is its own clone). Returns that instance id, 0 when none.
     // #50 t01 (the death function 0x39bdb0, its last step [H]): when the object's owner is the local player
     // (`local_owner`), its type's SFXEvent_Unit_Lost (+0x1230) also plays, 2D by event (0x2d5290). SFXEvent_Unit_Under_
     // Attack (+0x1220) has no reader in the original besides the type copy (0x36c000), so it never plays.
     uint32_t unit_died(const objects::GameObjectTypes& types, objects::ObjectId object, objects::TypeIndex type, const Vec3& position,
-                       bool local_owner);
+                       bool local_owner, int32_t clone_type, uint64_t clone = 0);
     // #50 t03: one sighting (battle_tick: the first tick a unit of another player is visible to the local player). A
     // Play_SFXEvent_On_Sighting type not yet announced this battle plays the unit-type line (GameAudio::unit_type_spotted);
     // otherwise an enemy's (`enemy`) sighting plays SFXEvent_Enemy_Spotted, once per battle (battle_reset starts over).

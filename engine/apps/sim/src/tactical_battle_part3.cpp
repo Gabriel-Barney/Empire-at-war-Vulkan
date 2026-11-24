@@ -796,6 +796,8 @@ void TacticalBattle::process_death(TacticalMode& mode, const tc::DeathEvent& d, 
 #else
         (void)carried_by_clone;
 #endif
+        // #327 t06: the death for the presentation (Unit_Lost, the clone's Start_Die), late and between-tick deaths too.
+        if (!silent) present_unit_died(owner, u->id, u->type, d.death_clone, ch ? store.id(ch) : objects::kNoObjectId, at);
         unit_gone(mode, *u);
     }
 }
