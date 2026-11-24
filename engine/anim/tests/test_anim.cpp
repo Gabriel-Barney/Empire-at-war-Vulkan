@@ -2033,6 +2033,21 @@ void test_idle_records() {
         hb.presence_refresh(3, 30, 500);
         hb.service_locomotor(hw, 3, sp, si, rng, hf + 2);
         CHECK(hw.current_type(3) == kAnimIdle);
+        // Crouched and stopped through the locomotor: Idle Crouch (71) has no clip, so the IDLE service holds the finished
+        // idle instead of replaying IDLE.
+        hw.create(4, m.get(), {}, nullptr, hf);
+        CHECK(hw.play(4, PlayRequest{kAnimIdle, 0, false, 0.0f, 1.0f}, nullptr, hf) == PlayResult::Played);
+        uint64_t cf = hf + 1;
+        for (; hw.current_mode(4) != SlotMode::Finished && cf < hf + 100; ++cf) hw.advance(cf);
+        const float clast = hw.slot(4).frame;
+        LocomotorParams cpar;
+        LocomotorInput crouch;
+        crouch.crouched = true;
+        for (uint64_t k = 0; k < 40; ++k, ++cf) {
+            CHECK(hb.service_locomotor(hw, 4, cpar, crouch, rng, cf) == 0);
+            hw.advance(cf);
+        }
+        CHECK(hw.current_type(4) == kAnimIdle && hw.current_mode(4) == SlotMode::Finished && hw.slot(4).frame == clast);
     }
     std::printf("idle records: aging / clear / gate / presence idle ok\n");
 }

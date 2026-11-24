@@ -166,7 +166,7 @@ int32_t presence_idle_type(const AnimModel* m, ObjectId id, const IdleParams& id
     if (!idle.presence || !*idle.presence || records.empty()) return idle.idle_type;
     const int32_t t = (*idle.presence)(id, records);
     if (t == kNoAnimType) return idle.idle_type;
-    if (clip_fallback && m && m->variant_count(t) == 0) return idle.idle_type;  // [port] the stop clip: no clip, the plain idle
+    if (clip_fallback && m && m->variant_count(t) == 0) return idle.idle_type;  // no clip: the plain idle (header)
     return t;
 }
 
