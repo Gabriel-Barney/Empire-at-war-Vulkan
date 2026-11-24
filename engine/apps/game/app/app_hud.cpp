@@ -868,17 +868,14 @@ void App::build_galactic_hud(ui::GalacticHudFrame& f, std::vector<ui::GalacticPl
         if (!gs) return;
         const objects::ObjectStore& st = gs->store();
         for (const objects::ObjectHandle h : special_units(*gs, planet_index(*gs, planet))) {
+            // #437 (docs/re/GALACTIC_ABILITY_ROWS.md, 0x3d2020 / 0x3eb200): the row's text is the kind's label, which every
+            // kind has; a unit without a kind (-1) gets no row (retail hides the component; it never shows the unit name).
+            const galactic::ActivatedAbilitySlot slot = gs->activated_ability_slot(h, planet_index(*gs, planet));
+            if (slot.kind < 0 || !slot.label || slot.label[0] == '\0') continue;
             ui::GalacticSpecialAbility r;
             r.hero = static_cast<uint32_t>(st.id(h));
             const objects::TypeIndex t = st.type(h);
-            r.text = type_label(data_, ui_.text, t);
-            // mcx4 t14 (MCX4_T09_RE_ANSWERS Q6, 0x3d2020 / 0x3e8890): the activated-ability slot's label names the button
-            // (TEXT_ABILITY_SLOT_SLICE, ...); a kind without a label keeps the unit's name.
-            if (const galactic::ActivatedAbilitySlot slot = gs->activated_ability_slot(h, planet_index(*gs, planet));
-                slot.kind >= 0 && slot.label && slot.label[0] != '\0') {
-                r.text.clear();
-                r.text_key = slot.label;
-            }
+            r.text_key = slot.label;
             if (t < ui_.hud_types.size()) r.icon = ui_.hud_types[t].icon_name;
             out.push_back(std::move(r));
         }
