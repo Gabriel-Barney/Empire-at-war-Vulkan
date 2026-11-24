@@ -898,11 +898,12 @@ void App::build_tactical_hud() {
             const galactic::FactionRules& fr = gs->rules().factions[f];
             return land ? fr.land_selection_blob : fr.space_selection_blob;
         };
-    if (tm && tm->bounds().max.x - tm->bounds().min.x < 1.0e5f) {
-        hf.map_min_x = tm->bounds().min.x;
-        hf.map_min_y = tm->bounds().min.y;
-        hf.map_max_x = tm->bounds().max.x;
-        hf.map_max_y = tm->bounds().max.y;
+    if (tm && tm->bounds().max.x - tm->bounds().min.x < 1.0e5f) {  // #320: the radar rect (radar_world_box)
+        const ui::RadarFieldPaint box = radar_world_box();
+        hf.map_min_x = box.min_x;
+        hf.map_min_y = box.min_y;
+        hf.map_max_x = box.max_x;
+        hf.map_max_y = box.max_y;
     }
     if (const galactic::GalacticSim* g = galaxy()) {
         hf.credits = static_cast<int64_t>(g->credits(local_player()));

@@ -837,6 +837,19 @@ void test_radar() {
         const Rgba8 c21{px2[(1 * 4 + 2) * 4], px2[(1 * 4 + 2) * 4 + 1], px2[(1 * 4 + 2) * 4 + 2], px2[(1 * 4 + 2) * 4 + 3]};
         CHECK2(c00 == temp[static_cast<size_t>(Passability::Clear)] && c11 == temp[static_cast<size_t>(Passability::Clear)] &&
                c21 == temp[static_cast<size_t>(Passability::Water)]);  // cells (0, 0), (1, 1), (2, 1)
+        // #320 (0x359bc1): with the camera box x in [0, 40] (y unbounded), the in-grid texels of column 2 (x 30) keep their
+        // class, column 0 (x -10) turns opaque black, and an off-grid texel stays transparent.
+        src.water = nullptr;
+        src.has_box = true;
+        src.box_cx = 20.0f;
+        src.box_cy = 10.0f;
+        src.box_hx = 20.0f;
+        src.box_hy = 1000.0f;
+        const std::vector<uint8_t> px3 = radar_terrain_rgba(src, temp, 4, -10.0f, -30.0f, 70.0f, 50.0f);
+        const auto at3 = [&](uint32_t col, uint32_t row) { return Rgba8{px3[(row * 4 + col) * 4], px3[(row * 4 + col) * 4 + 1],
+                                                                         px3[(row * 4 + col) * 4 + 2], px3[(row * 4 + col) * 4 + 3]}; };
+        CHECK2(at3(0, 0) == (Rgba8{0, 0, 0, 255}) && at3(1, 0) == temp[static_cast<size_t>(Passability::Steep)] &&
+               at3(2, 0) == temp[static_cast<size_t>(Passability::Water)] && at3(3, 0).a == 0);
     }
     // Events.
     RadarEvents ev;
@@ -866,6 +879,34 @@ void test_radar() {
         CHECK2(mk.marker_names().size() == 2 && mk.marker_names()[1] == "objective_blip");
         CHECK2(mk.remove_marker("Objective_Blip") && !mk.remove_marker("objective_blip") && mk.items().size() == 2);
         CHECK2(!mk.remove_marker("Interdict_Activated") && mk.items().size() == 2);  // events are not markers
+    }
+    {  // #320 (0x315c40): the pulse falls from 255 at 1024 / s, reflects at 0 and turns again at 255
+        RadarEvents p;
+        p.set_marker("b", 0, 0);
+        p.update(0.125f);
+        CHECK2(near2(p.items()[0].pulse, 127.0f) && !p.items()[0].rising);
+        p.update(0.25f);  // 127 - 256 = -129 -> 129, rising
+        CHECK2(near2(p.items()[0].pulse, 129.0f) && p.items()[0].rising);
+        p.update(0.25f);  // 129 + 256 -> 255 (clamped), falling again
+        CHECK2(near2(p.items()[0].pulse, 255.0f) && !p.items()[0].rising);
+        RadarEvents q;
+        q.add(s, "Default_Click", 0, 0);
+        q.update(0.125f);
+        CHECK2(q.items()[0].pulse == 255.0f);  // only story blips pulse
+    }
+    {  // #320 (0x35f140): the land radar rect is the square about the camera box
+        RadarFieldPaint sq = radar_square_box(0.0f, 0.0f, 200.0f, 100.0f);
+        CHECK2(near2(sq.min_x, 0.0f) && near2(sq.max_x, 200.0f) && near2(sq.min_y, -50.0f) && near2(sq.max_y, 150.0f));
+        // The fog grid covers only the box: sampled by world point, the strip rows (y -25, 125) get no fog, the box rows do.
+        sq.fog_box = true;
+        sq.fog_max_x = 200.0f;
+        sq.fog_max_y = 100.0f;
+        RadarImage fog_img;
+        const uint8_t fog_vis[1] = {0};  // unseen everywhere
+        fog_img.build(4, {}, 0, 0, fog_vis, 1, 1, Rgba8{0, 0, 0, 200}, sq);
+        const auto alpha_at = [&](uint32_t row) { return fog_img.rgba()[(static_cast<size_t>(row) * 4 + 1) * 4 + 3]; };
+        // image rows run north (max y) to south: row 0 = y 125 (strip), rows 1 / 2 = y 75 / 25 (box), row 3 = y -25 (strip)
+        CHECK2(alpha_at(0) == 0 && alpha_at(1) == 200 && alpha_at(2) == 200 && alpha_at(3) == 0);
     }
     // Mapping.
     RadarView rv;
@@ -1428,20 +1469,26 @@ void test_tactical_stage2() {
             hud.build(fr, ju, types);
             CHECK2(hud.stats().radar_blips == 3);
         }
-        {  // a story blip draws a gold ring + centre dot (no event model: the Lua name is not a RadarMap.xml type)
+        {  // #320: a story blip draws the radar_blip art (i_radar_focus.tga, 30 x 30) at alpha = pulse, scale pulse / 512 + 0.5
             RadarEvents blips;
             const RadarView& rvw = hud.radar_view();
             blips.set_marker("objective_blip", 0.5f * (rvw.min_x + rvw.max_x), 0.5f * (rvw.min_y + rvw.max_y));
             TacticalHudFrame f3 = f2;
             f3.radar_events = &blips;
+            auto blip_width = [&](uint8_t alpha) {
+                float wdt = -1.0f;
+                for (uint32_t l = 0; l < kHudLayers; ++l)
+                    for (const HudQuad& q : hud.draw_list().items(l, HudList::Alpha))
+                        if (q.color == Rgba8{255, 255, 255, alpha}) wdt = q.max.x - q.min.x;
+                return wdt;
+            };
             hud.build(f3, ru, rt);
             const TacticalHudStats& s3 = hud.stats();
             CHECK2(s3.radar_events == 1 && s3.radar_models == 0 && hud.radar_models().empty());
-            bool gold = false;
-            for (uint32_t l = 0; l < kHudLayers; ++l)
-                for (const HudQuad& q : hud.draw_list().items(l, HudList::Alpha))
-                    gold = gold || (q.color.r == 255 && q.color.g == 214 && q.color.b == 64 && q.color.a == 255);
-            CHECK2(gold);
+            CHECK2(near2(blip_width(255), 30.0f * (255.0f / 512.0f + 0.5f)));
+            blips.update(0.125f);  // 255 - 128: alpha 127, smaller
+            hud.build(f3, ru, rt);
+            CHECK2(near2(blip_width(127), 30.0f * (127.0f / 512.0f + 0.5f)));
         }
         hud.build(fr, units, types);  // back to the plain frame
     }

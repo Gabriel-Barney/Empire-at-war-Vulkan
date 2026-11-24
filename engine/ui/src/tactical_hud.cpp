@@ -806,11 +806,21 @@ void TacticalHud::build_radar(const TacticalHudFrame& f, std::span<const HudUnit
         ++stats_.radar_blips;
     }
     // Pings: the event type's .alo (Event_Model_Name, legacy docs/re/UI.md §1.7) goes to radar_models() for the host's HudModelDrawer;
-    // [port] an expanding, fading ring of dots stands in when the type has no model or the host draws no models.
+    // [port] an expanding, fading ring of dots stands in when the type has no model or the host draws no models. Story blips
+    // draw the radar_blip art (#320).
     if (f.radar_events) {
         for (const RadarEvent& e : f.radar_events->items()) {
             const Vec2f c = radar_view_.to_canvas(e.x, e.y);
             if (!radar_view_.inside(c)) continue;
+            if (e.marker) {
+                // #320 (docs/re/RADAR_BLIPS_AND_BOX.md, 0x2de700 / 0x315c40 [H]): the radar_blip component (i_radar_focus.tga,
+                // 30 x 30) with alpha = the pulse and scale = pulse / 512 + 0.5; white [M: the component has no Color].
+                const float v = std::clamp(e.pulse, 0.0f, 255.0f);
+                add_atlas_quad(dl_, blayer, HudList::Alpha, *atlas_, "i_radar_focus.tga", c, {}, v / 512.0f + 0.5f,
+                               Rgba8{255, 255, 255, static_cast<uint8_t>(v)}, Vec2f{30.0f, 30.0f});
+                ++stats_.radar_events;
+                continue;
+            }
             const RadarEventType* et = f.radar_settings ? f.radar_settings->event(e.type) : nullptr;
             if (et && !et->model.empty()) {
                 // Event_Model_Scale is in the RadarMap.xml's logical screen space (-1..1 = the screen): the vanilla models are one
@@ -826,14 +836,12 @@ void TacticalHud::build_radar(const TacticalHudFrame& f, std::span<const HudUnit
             const float t = e.persistent ? std::fmod(e.age, 1.0f) : std::clamp(e.age / std::max(e.duration, 1e-3f), 0.0f, 1.0f);
             const float r = 3.0f + 9.0f * t;
             const auto a = static_cast<uint8_t>(std::lround(255.0f * (1.0f - 0.8f * t)));
-            // Story blips (Lua Add_Radar_Blip, [port] visual): a gold ring around a centre dot.
-            const Rgba8 ring = e.marker ? Rgba8{255, 214, 64, a} : Rgba8{255, 255, 255, a};
+            const Rgba8 ring{255, 255, 255, a};
             for (int d = 0; d < 12; ++d) {
                 const float ang = static_cast<float>(d) * (6.28318530717958647692f / 12.0f);
                 const Vec2f pnt{c.x + r * std::cos(ang), c.y + r * std::sin(ang)};
                 if (radar_view_.inside(pnt)) dot(dl_, blayer, pnt, 1.0f, ring);
             }
-            if (e.marker) dot(dl_, blayer, c, 1.5f, Rgba8{255, 214, 64, 255});
             ++stats_.radar_events;
         }
     }

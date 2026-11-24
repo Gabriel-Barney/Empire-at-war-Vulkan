@@ -28,6 +28,7 @@
 // Needs engine/ui's alamo_ui_hud (ALAMO_GAME_HAVE_CONTROLS).
 #pragma once
 #ifdef ALAMO_GAME_HAVE_CONTROLS
+#include <array>
 #include <cstdint>
 #include <map>
 #include <span>
@@ -55,9 +56,10 @@ namespace alamo::game {
 std::vector<ui::RadarField> radar_asteroid_fields(std::span<const tactical::abilities::SpaceField> fields);
 // The land picture (ui::radar_terrain_rgba, `size` x `size` over the world box) of a map and its battle's movement grid;
 // empty when the map has no passability chunk (neither 0x10A nor 0x104).
+// #320: `camera_box` (min x, min y, max x, max y; null = none) blacks out the texels outside it (ui::RadarTerrainSource).
 std::vector<uint8_t> radar_land_terrain(const terrain::MapData& map, const tactical::movement::PassabilityGrid& grid,
                                         const ui::PassabilityPalette& palette, uint32_t size, float min_x, float min_y, float max_x,
-                                        float max_y);
+                                        float max_y, const std::array<float, 4>* camera_box = nullptr);
 
 struct RadarDeathNote {
     float x = 0, y = 0;
