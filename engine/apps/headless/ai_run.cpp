@@ -192,17 +192,21 @@ int ai_campaign_run(const MapRunOptions& opt, const AiRunOptions& aopt) {
                 type = ai::ai_iequal(ai::ai_trim(std::string_view(o).substr(eq + 1)), "Human") ? std::string()
                                                                                                  : std::string(ai::ai_trim(std::string_view(o).substr(eq + 1)));
         }
-        if (!type.empty() && !defs.find_player(type)) {
-            std::printf("galactic-ai: player %zu (%s): Unrecognized AI player type %s\n", p, fac.c_str(), type.c_str());
-            type.clear();
-        }  // unknown type: no AI ("Unrecognized AI player type")
-        if (type.empty() || (ps.faction < rules.factions.size() && rules.factions[ps.faction].is_neutral)) continue;
-        if (!aopt.human.empty() && human < 0 && ai::ai_iequal(fac, aopt.human)) {
+        const bool neutral = ps.faction < rules.factions.size() && rules.factions[ps.faction].is_neutral;
+        // #141: the --human faction is matched before an unknown type is cleared, so a faction the campaign gives a type
+        // that is not an AIPlayerType (the story campaigns' ScriptableHuman) can be the scripted human. Still only the
+        // campaign's own factions (a type assigned) and never a neutral one.
+        if (!aopt.human.empty() && human < 0 && !type.empty() && !neutral && ai::ai_iequal(fac, aopt.human)) {
             ps.human = true;
             ps.ai = false;
             human = static_cast<int32_t>(p);
             continue;
         }
+        if (!type.empty() && !defs.find_player(type)) {
+            std::printf("galactic-ai: player %zu (%s): Unrecognized AI player type %s\n", p, fac.c_str(), type.c_str());
+            type.clear();
+        }  // unknown type: no AI ("Unrecognized AI player type")
+        if (type.empty() || neutral) continue;
         ps.human = false;
         ps.ai = true;
         const ai::AiPlayerTypeDef* def = defs.find_player(type);
