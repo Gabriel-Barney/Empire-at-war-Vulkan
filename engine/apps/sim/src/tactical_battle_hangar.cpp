@@ -95,18 +95,21 @@ void TacticalBattle::hg_add_types() {
             if (std::find(types_used_.begin(), types_used_.end(), ut) == types_used_.end()) types_used_.push_back(ut);
         };
         // A launchable / buildable type with its Squadron_Units / Company_Units members and team types.
+        auto use_members = [&](int32_t x, const std::vector<int32_t>& members) {
+            for (const int32_t m : members) use(static_cast<objects::TypeIndex>(m));
+            uint32_t ot = 0xFFFFFFFFu, bt = 0xFFFFFFFFu, squad = 0;
+            if (bt_team(static_cast<uint32_t>(x), static_cast<uint32_t>(members.front()), ot, bt, squad)) {
+                use(static_cast<objects::TypeIndex>(ot));
+                use(static_cast<objects::TypeIndex>(bt));
+            }
+        };
         auto use_spawnable = [&](int32_t x) {
             if (x < 0) return;
             use(static_cast<objects::TypeIndex>(x));
-            std::vector<int32_t> members;
-            if (oi_company_members(x, members) && !members.empty()) {
-                for (const int32_t m : members) use(static_cast<objects::TypeIndex>(m));
-                uint32_t ot = 0xFFFFFFFFu, bt = 0xFFFFFFFFu, squad = 0;
-                if (bt_team(static_cast<uint32_t>(x), static_cast<uint32_t>(members.front()), ot, bt, squad)) {
-                    use(static_cast<objects::TypeIndex>(ot));
-                    use(static_cast<objects::TypeIndex>(bt));
-                }
-            }
+            std::vector<int32_t> members, squadron;
+            if (oi_company_members(x, members) && !members.empty()) use_members(x, members);
+            // #327 t05: a space hangar launches a type with Squadron_Units as that squadron, Company_Units or not.
+            if (space_ && hg_squadron_members(x, squadron) && squadron != members) use_members(x, squadron);
         };
         const std::vector<uint32_t> now = types_used_;
         for (const uint32_t t : now) {

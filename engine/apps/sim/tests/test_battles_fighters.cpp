@@ -1330,6 +1330,7 @@ std::string company_ship_carrier(std::string t) {
         t.replace(p, a.size(), "<Starting_Spawned_Units_Tech_0>S10_TIE_Company, 1</Starting_Spawned_Units_Tech_0>");
     const std::string after = " <Team Name=\"Team\">";
     const size_t q = t.find(after);
+    CHECK(p != std::string::npos && q != std::string::npos);  // the patch applies
     if (q != std::string::npos)
         t.insert(q, " <SpaceUnit Name=\"S10_TIE_Company\"><Variant_Of_Existing_Type>S10_TIE</Variant_Of_Existing_Type>"
                     "<Company_Units>S10_TIE, S10_TIE</Company_Units></SpaceUnit>\n");
