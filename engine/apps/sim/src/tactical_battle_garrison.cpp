@@ -551,18 +551,17 @@ void TacticalBattle::s4_apply(TacticalMode& mode) {
                 Unit* u = unit_by_id(e.unit);
                 if (!u || !u->alive) break;
                 // #360 (TACTICAL_GAPS §1.9 [H], ABILITIES_HARDPOINTS §4.9): the occupant dies as any combat death - death
-                // clone / corpse, death clip, Death_Explosions (process_death) - and its hardpoint (Die step 5) and survivor
-                // (step 7) events are consumed now, in consume_events' order: the tick's consumers have run already (or the
-                // next combat tick clears the lists before they read them).
-                if (combat_->has_unit(e.unit) && bt_rng_) {
-                    const size_t hp0 = combat_->hardpoint_events().size(), d0 = combat_->deaths().size();
-                    const size_t s0 = combat_->survivor_events().size();
+                // clone / corpse, death clip, Death_Explosions, scoring and victory bookkeeping (process_death) - and its
+                // hardpoint (Die step 5) and survivor (step 7) events are consumed in consume_events' order
+                // (consume_kill_events). [port] It dies when the Killed event is applied (the next s4_apply, mostly the
+                // garrisons service), not inline in the host's Die.
+                if (combat_->has_unit(e.unit)) {
+                    const CombatEventMarks marks = combat_event_marks();
                     combat_->kill_unit(e.unit, tc::kNoObject, tc::kKindNormal, frame_);
-                    consume_kill_events(mode, *bt_rng_, hp0, d0, s0);
+                    if (bt_rng_) consume_kill_events(mode, *bt_rng_, marks);
                     if (!u->alive) break;
                 }
-                // no combat entry or no battle RNG: the occupant is removed directly
-                if (combat_->has_unit(e.unit)) combat_->kill_unit(e.unit, tc::kNoObject, tc::kKindNormal, frame_);
+                // no combat entry, no battle RNG, or a kill the combat refused (cannot die): the occupant is removed directly
                 // #327 t06 [port]: no death clone on this path; the dying type stands for its own clone.
                 if (mode.primary().exists(u->h))
                     present_unit_died(mode.primary().owner(u->h), u->id, u->type, static_cast<int32_t>(u->type), objects::kNoObjectId,
