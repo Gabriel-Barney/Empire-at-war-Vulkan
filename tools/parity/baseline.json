@@ -1,5 +1,5 @@
 {
- "commit": "83241172",
+ "commit": "24f7ef6",
  "scenarios": {
   "geonosis_skirmish": {
    "commit": "67b38a02",
@@ -53,7 +53,7 @@
    }
   },
   "hotm_galactic": {
-   "commit": "83241172",
+   "commit": "24f7ef6",
    "references": [
     "20261108-170824-galactic-vanilla-lua",
     "20261030-061228-galactic-vanilla-lua",
@@ -90,13 +90,13 @@
     "build.ticks[INTERCEPTOR4_FRIGATE@THE_MAW]": "PASS",
     "build.ticks[REBEL_GROUND_MINING_FACILITY@KAMINO]": "PASS",
     "build.ticks[REBEL_GROUND_MINING_FACILITY@MONCALIMARI]": "PASS",
-    "build.ticks[REBEL_GROUND_MINING_FACILITY@NABOO]": "PASS",
-    "build.ticks[REBEL_INFANTRY_SQUAD@NABOO]": "FAIL",
+    "build.ticks[REBEL_GROUND_MINING_FACILITY@NABOO/c]": "PASS",
+    "build.ticks[REBEL_INFANTRY_SQUAD@NABOO]": "PASS",
     "build.ticks[REBEL_LIGHT_TANK_BRIGADE@YAVIN]": "PASS",
     "build.ticks[REBEL_TANK_BUSTER_SQUAD@KAMINO]": "PASS",
     "build.ticks[REBEL_TANK_BUSTER_SQUAD@NABOO]": "PASS",
     "build.ticks[R_GALACTIC_TURBOLASER_TOWER_DEFENSES@YAVIN]": "PASS",
-    "build.ticks[R_GROUND_BARRACKS@NABOO]": "PASS",
+    "build.ticks[R_GROUND_BARRACKS@NABOO/c]": "PASS",
     "build.ticks[UNDERWORLD_MDU_COMPANY@SHOLA]": "FAIL",
     "build.ticks[UNDERWORLD_MERC_SQUAD@NALHUTTA]": "PASS",
     "build.ticks[UNDERWORLD_SABOTEUR_TEAM@NALHUTTA]": "FAIL",
@@ -200,8 +200,8 @@
      "PASS": 22
     },
     "timing": {
-     "FAIL": 8,
-     "PASS": 56
+     "FAIL": 7,
+     "PASS": 57
     }
    }
   },
