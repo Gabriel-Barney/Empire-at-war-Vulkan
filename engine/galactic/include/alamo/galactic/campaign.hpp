@@ -1443,6 +1443,11 @@ private:
     void planet_production(PlanetIndex planet);  // production hook + service_production
     void complete_build(PlanetIndex planet, const BuildEntry& e);
     bool enemy_fleet_in_orbit(PlanetIndex planet, int32_t player) const;
+    // #433 (docs/re/STARBASE_ORBIT_FLEETS.md) [H]: the starbase orbit test of production rule 2 (0x402840) and buildability
+    // step 20 (0x2804d0): an alive fleet in the orbit whose owner is not `player` (allies and neutrals included) and that
+    // is not hidden (0x3a9760). [port] retail also needs the fleet data byte +0x94, clear only on the fleet of an AI magic
+    // spawn; not modelled, so every fleet counts.
+    bool starbase_orbit_blocked(PlanetIndex planet, int32_t player) const;
     bool contested_surface(PlanetIndex planet) const;
     // objects
     ObjectHandle spawn(int32_t player, PlanetIndex planet, uint32_t type, ObjectHandle container);

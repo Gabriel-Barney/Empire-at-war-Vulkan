@@ -1081,6 +1081,12 @@ bool GalacticSim::enemy_fleet_in_orbit(PlanetIndex planet, int32_t player) const
     return false;
 }
 
+bool GalacticSim::starbase_orbit_blocked(PlanetIndex planet, int32_t player) const {
+    for (const uint32_t f : planets_[planet].orbit)
+        if (fleets_[f].alive && fleets_[f].owner != player && !hidden(fleets_[f].object)) return true;
+    return false;
+}
+
 bool GalacticSim::contested_surface(PlanetIndex planet) const {
     // GE 2.5 step 3 presence checks 0x3f9270 / 0x3f9220 [L]: two different players on the surface.
     int32_t first = kNoPlayer;
@@ -1106,8 +1112,9 @@ void GalacticSim::service_production(PlanetIndex planet) {
             pop_head(planet, q);
             return;
         }
-        // 2. starbase in production with an enemy fleet in orbit (planet not in battle) [H].
-        if (t.kind == UnitKind::StarBase && !p.in_battle && enemy_fleet_in_orbit(planet, e.player)) {
+        // 2. starbase in production with a fleet of another player in orbit (planet not in battle) [H]
+        //    (docs/re/STARBASE_ORBIT_FLEETS.md: no ally exemption, no combat-power test).
+        if (t.kind == UnitKind::StarBase && !p.in_battle && starbase_orbit_blocked(planet, e.player)) {
             emit_cancel(planet, q, e, false, false);  // the service drops the head: silent
             pop_head(planet, q);
             return;

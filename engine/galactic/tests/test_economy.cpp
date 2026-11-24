@@ -2245,6 +2245,53 @@ void test_tactical_corruption_multipliers() {
           s.tactical_corruption_multiplier(rA, 9, K::PadPrice) == 1.0f);
 }
 
+// #433 (docs/re/STARBASE_ORBIT_FLEETS.md) [H]: retail's two starbase orbit tests, the production service's rule 2
+// (0x402840: a starbase head is cancelled) and buildability step 20 (0x2804d0: reason 10), match any fleet in orbit
+// whose owner is not the building player: allies and neutral players included, no combat-power test; an own or a
+// stealthed fleet does not match.
+void test_starbase_orbit_fleets() {
+    std::printf("  oi: starbase orbit fleets (#433)\n");
+    // rA: the Empire's level-1 starbase and barracks. `other` puts a fleet of `type` owned by `owner` in rA's orbit.
+    const auto case_run = [](int32_t owner, uint32_t type, Relation rel, bool stealth, bool* step20, bool* cancelled) {
+        OiWorld w({{pEmpire, rA, tSB1}, {pEmpire, rA, tBarracks}});
+        GalacticSim& s = w.sim;
+        s.add_credits(pEmpire, 50000.0f);
+        if (owner != pEmpire) s.set_relation(pEmpire, owner, rel);
+        CHECK(s.build_check(pEmpire, rA, tSB2).ok);
+        CHECK(s.enqueue(pEmpire, rA, tSB2) == RejectReason::None);  // the level-2 upgrade is in production
+        const ObjectHandle u = s.spawn_unit(owner, rA, type);
+        CHECK(static_cast<bool>(u));
+        if (stealth) s.set_galactic_stealth(u, true);  // the fleet's only member: the fleet is hidden (0x3a9760)
+        *step20 = s.build_check(pEmpire, rA, tSB2).reason == kBuildHostileFleet;
+        w.run(2);
+        *cancelled = w.planet(rA).queue[kSpaceQueue].empty();
+    };
+    struct Case {
+        const char* what;
+        int32_t owner;
+        uint32_t type;
+        Relation rel;
+        bool stealth;
+        bool blocks;
+    };
+    const Case cases[] = {
+        {"enemy frigate", pUnder, tFrigate, Relation::Enemy, false, true},
+        {"allied frigate", pUnder, tFrigate, Relation::Ally, false, true},  // owner != player: no ally exemption
+        {"neutral frigate", pNeutral, tFrigate, Relation::Neutral, false, true},
+        {"enemy fleet with no combat power", pUnder, tKiller, Relation::Enemy, false, true},  // no ai_combat_power test
+        {"stealthed enemy frigate", pUnder, tFrigate, Relation::Enemy, true, false},
+        {"own frigate", pEmpire, tFrigate, Relation::Self, false, false},
+    };
+    for (const Case& c : cases) {
+        bool step20 = false, cancelled = false;
+        case_run(c.owner, c.type, c.rel, c.stealth, &step20, &cancelled);
+        std::printf("    %s in orbit: step 20 %s, starbase in production %s\n", c.what, step20 ? "refuses" : "allows",
+                    cancelled ? "cancelled" : "kept");
+        CHECK(step20 == c.blocks);
+        CHECK(cancelled == c.blocks);
+    }
+}
+
 // SG 1.3: buildability order and reason codes.
 void test_oi_buildability() {
     std::printf("  oi: buildability\n");
@@ -3610,6 +3657,7 @@ int main(int argc, char** argv) {
         test_oi_stealth();
         test_oi_base_info();
         test_oi_buildability();
+        test_starbase_orbit_fleets();  // #433
         test_campaign_rule_fields_parse();
         test_special_case_production();
         test_corruption_level_override();

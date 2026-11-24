@@ -240,14 +240,13 @@ BuildCheck GalacticSim::build_check(int32_t player, PlanetIndex planet, uint32_t
     if (is_orbital_structure_type(t) && pt.orbital_structure_slots >= 0 && family_count(true) >= pt.orbital_structure_slots) return fail(18);
     // 19. Required_Planets.
     if (!t.required_planets.empty() && !contains(t.required_planets, p.type)) return fail(19, kBuildRequiredPlanet);
-    // 20. starbases: exactly the next level within Max_Space_Base, and no hostile visible fleet in orbit.
+    // 20. starbases: exactly the next level within Max_Space_Base, and no visible fleet of another player in orbit
+    //     (allies and neutrals included: docs/re/STARBASE_ORBIT_FLEETS.md) [H].
     if (is_star_base_type(t)) {
         const int32_t cur = p.starbase_level, max_level = pt.max_space_base;
         const int32_t next = cur == 0 ? (max_level != 0 ? 1 : 0) : (cur != 5 && cur <= max_level ? cur + 1 : 0);
         if (t.base_level != next || max_level < next) return fail(20);
-        for (uint32_t f : p.orbit)
-            if (fleets_[f].alive && fleets_[f].owner != player && hostile(fleets_[f].owner, player) && !hidden(fleets_[f].object))
-                return fail(20, kBuildHostileFleet);
+        if (starbase_orbit_blocked(planet, player)) return fail(20, kBuildHostileFleet);
     }
     // 21. Build_Max_Instances_Per_Planet (structures): on the planet + queued here; orbital ones need a starbase.
     if ((is_ground_structure_type(t) || is_orbital_structure_type(t)) && t.max_instances_per_planet >= 0) {
