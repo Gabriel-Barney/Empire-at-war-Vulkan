@@ -107,6 +107,10 @@ const char* kTypes = R"(<GS>
   </Neutralize_Hero_Ability></Abilities></SpaceUnit>
  <SpaceUnit Name="GS_Mark"><Variant_Of_Existing_Type>GS_Corvette</Variant_Of_Existing_Type><Is_Generic_Hero>Yes</Is_Generic_Hero>
   <Neutralization_Cost>1200</Neutralization_Cost><Can_Be_Neutralized_By_Minor_Heroes>Yes</Can_Be_Neutralized_By_Minor_Heroes></SpaceUnit>
+ <SpaceUnit Name="GS_Carrier"><Variant_Of_Existing_Type>GS_Frigate</Variant_Of_Existing_Type>
+  <HardPoints>HP_GS_Laser, HP_GS_Bay</HardPoints><SpaceBehavior>STARSHIP_LOCOMOTOR, REVEAL, SPAWN_SQUADRON</SpaceBehavior>
+  <Starting_Spawned_Units_Tech_0>GS_Corvette, 1</Starting_Spawned_Units_Tech_0>
+  <Spawned_Squadron_Delay_Seconds>1.0</Spawned_Squadron_Delay_Seconds></SpaceUnit>
  <GroundStructure Name="GS_Cantina"><Victory_Relevant>Yes</Victory_Relevant><Tactical_Health>500</Tactical_Health><Sabotage_Cost_Credits>800</Sabotage_Cost_Credits></GroundStructure>
  <Marker Name="DEMO_CONTROLLER"><Is_Marker>Yes</Is_Marker><Lua_Script>Demo_Attract_Controller</Lua_Script></Marker>
  <Marker Name="Story_Trigger_Zone_00"><Is_Marker>Yes</Is_Marker></Marker>
@@ -127,6 +131,8 @@ const char* kHardpoints = R"(<HardPoints>
   <Fire_Projectile_Type>GS_Laser_Proj</Fire_Projectile_Type><Fire_Min_Recharge_Seconds>2.0</Fire_Min_Recharge_Seconds>
   <Fire_Max_Recharge_Seconds>3.0</Fire_Max_Recharge_Seconds><Fire_Pulse_Count>2</Fire_Pulse_Count>
   <Fire_Pulse_Delay_Seconds>0.2</Fire_Pulse_Delay_Seconds><Fire_Range_Distance>1400</Fire_Range_Distance><Fire_Cone_Width>360</Fire_Cone_Width><Fire_Cone_Height>180</Fire_Cone_Height></HardPoint>
+<HardPoint Name="HP_GS_Bay"><Type>HARD_POINT_FIGHTER_BAY</Type><Health>200</Health>
+  <Fighter_Bay_Flyout_Distance>100</Fighter_Bay_Flyout_Distance></HardPoint>
 </HardPoints>
 )";
 const char* kFactions = R"(<Factions>
@@ -295,6 +301,78 @@ void home_base_setup(game::GameSession& s) {
 }
 
 // Live run with scripted orders: returns the recording and the CRC log.
+// #327 t04 (#50 t09 glue): a battle that ends inside a tick is dropped by CampaignBattles before collect_presentation
+// drains it; the battle_dropping hook keeps its last tick's presentation events, and the session hands them out on that
+// tick, before nothing else. A carrier's single-ship launches (PresentationEventKind::HangarLaunch) put events on known
+// frames: run A finds the first launch frame F, run B ends the battle on frame F (battle_max_frames), so that launch lands
+// in the dropped tick. Every run: the events the session handed out are exactly run A's up to B's end, none twice.
+struct PresentationRun {
+    std::vector<sim::PresentationEvent> events;  // in hand-out order
+    size_t end_tick_events = 0;                  // handed out on the tick the battle ended
+    size_t after_end_events = 0;                 // handed out on the ticks after it
+    bool ended = false;
+};
+PresentationRun presentation_run(const game::GameData& data, const game::SessionSpec& base, uint32_t max_frames) {
+    game::SessionSpec spec = base;
+    spec.skirmish.units_human = {"GS_Carrier", "GS_Frigate"};
+    spec.battle_max_frames = max_frames;
+    PresentationRun out;
+    jobs::JobSystem js(jobs::JobSystemConfig{0});
+    game::GameSession s(data, js, spec);
+    CHECK(s.start(nullptr, nullptr, nullptr));
+    if (!s.started()) return out;
+    s.set_presentation_events(true);
+    home_base_setup(s);
+    uint64_t t = 0, asked = 0;
+    while (t < 4000 && !s.in_battle()) {
+        if (s.battle_choice_pending()) {
+            if (asked == 0) asked = t;
+            if (t >= asked + 10) (void)s.choose_battle(galactic::BattleChoice::Fight);
+        }
+        s.tick();
+        ++t;
+        out.events.insert(out.events.end(), s.presentation_events().begin(), s.presentation_events().end());
+    }
+    CHECK(s.in_battle());
+    for (uint64_t i = 0; i < 3000 && s.in_battle(); ++i) {
+        s.tick();
+        out.events.insert(out.events.end(), s.presentation_events().begin(), s.presentation_events().end());
+        if (!s.in_battle()) out.end_tick_events = s.presentation_events().size();
+    }
+    out.ended = !s.in_battle();
+    for (int i = 0; i < 5; ++i) {
+        s.tick();
+        out.after_end_events += s.presentation_events().size();
+    }
+    return out;
+}
+
+void presentation_merge_test(const game::GameData& data, const game::SessionSpec& spec) {
+    using PK = sim::PresentationEventKind;
+    const PresentationRun a = presentation_run(data, spec, 900);
+    uint32_t first_launch = 0;
+    for (const sim::PresentationEvent& e : a.events)
+        if (e.kind == PK::HangarLaunch && (first_launch == 0 || e.frame < first_launch)) first_launch = e.frame;
+    CHECK(a.ended && first_launch > 0);
+    if (first_launch == 0) return;
+    const PresentationRun b = presentation_run(data, spec, first_launch);
+    std::printf("presentation merge: run A %zu events (first launch at battle frame %u), run B ends at frame %u: %zu events, %zu "
+                "on the end tick, %zu after\n",
+                a.events.size(), first_launch, first_launch, b.events.size(), b.end_tick_events, b.after_end_events);
+    CHECK(b.ended && b.after_end_events == 0);
+    // the launch on the battle's last frame reached the host on the end tick
+    CHECK(b.end_tick_events > 0 && !b.events.empty() && b.events.back().kind == PK::HangarLaunch &&
+          b.events.back().frame == first_launch);
+    // run B handed out run A's events up to its end, in order, none lost and none twice
+    std::vector<sim::PresentationEvent> want;
+    for (const sim::PresentationEvent& e : a.events)
+        if (e.frame <= first_launch) want.push_back(e);
+    const auto same = [](const sim::PresentationEvent& x, const sim::PresentationEvent& y) {
+        return x.kind == y.kind && x.player == y.player && x.type == y.type && x.object == y.object && x.frame == y.frame;
+    };
+    CHECK(b.events.size() == want.size() && std::equal(b.events.begin(), b.events.end(), want.begin(), same));
+}
+
 bool live_run(const game::GameData& data, const game::SessionSpec& spec, commands::CommandRecording& rec, RunResult& out) {
     jobs::JobSystem js(jobs::JobSystemConfig{2});
     game::GameSession s(data, js, spec);
@@ -3408,6 +3486,7 @@ int main() {
     if (g_fail == 0) {
         const auto map = space_map();
         const game::SessionSpec spec = spec_for(map);
+        presentation_merge_test(data, spec);  // #327 t04
         commands::CommandRecording rec;
         RunResult live;
         if (live_run(data, spec, rec, live)) {
