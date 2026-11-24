@@ -524,8 +524,8 @@ void GameAudioHost::unit_response(const objects::GameObjectTypes& types, objects
             if (resolve.exit != Exit::Normal) variant = false;
             if (resolve.exit == Exit::MoveLine) plain = s.response[static_cast<size_t>(audio::UnitOrder::Move)];
             else if (resolve.exit == Exit::Silent) plain.clear();
-            else if (resolve.exit == Exit::Normal && resolve.member_type != objects::kNone && resolve.member_type < types.size())
-                if (const std::string& line = sounds(types, resolve.member_type).response[static_cast<size_t>(order)];
+            else if (resolve.exit == Exit::Normal && resolve.plain_source_type < types.size())
+                if (const std::string& line = sounds(types, resolve.plain_source_type).response[static_cast<size_t>(order)];
                     !line.empty())
                     plain = line;  // the member's plain line before the speaker's
             // ledger: consumes GameObjectType.SFXEvent_Attack_Override

@@ -183,7 +183,7 @@ GameAudioHost::ResponseResolve GameAudioHost::resolve_speaker(const objects::Obj
         }
         o = store.find(members.front());
     }
-    if (store.exists(o)) r.member_type = store.type(o);
+    if (store.exists(o)) r.plain_source_type = store.type(o);
     return r;
 }
 

@@ -1945,18 +1945,18 @@ void test_response_resolver_327() {
     const std::vector<objects::ObjectId> members = {store.id(member)}, none = {};
     // resolve_speaker
     const R lone = H::resolve_speaker(store, speaker, {}, none, false);
-    CHECK(lone.exit == R::Exit::Normal && lone.member_type == speaker_t);
+    CHECK(lone.exit == R::Exit::Normal && lone.plain_source_type == speaker_t);
     const R in_team = H::resolve_speaker(store, speaker, company, members, false);
-    CHECK(in_team.exit == R::Exit::Normal && in_team.member_type == member_t);
+    CHECK(in_team.exit == R::Exit::Normal && in_team.plain_source_type == member_t);
     const R team_speaker = H::resolve_speaker(store, company, {}, members, false);  // a team selected: its first member
-    CHECK(team_speaker.exit == R::Exit::Normal && team_speaker.member_type == member_t);
+    CHECK(team_speaker.exit == R::Exit::Normal && team_speaker.plain_source_type == member_t);
     CHECK(H::resolve_speaker(store, company, {}, none, false).exit == R::Exit::Silent);   // a team without members
     CHECK(H::resolve_speaker(store, speaker, company, none, false).exit == R::Exit::Silent);
     CHECK(H::resolve_speaker(store, dummy, company, members, true).exit == R::Exit::Plain);  // the dummy test comes first
     CHECK(H::resolve_speaker(store, speaker, pad, members, true).exit == R::Exit::Plain);   // build container before stolen
     CHECK(H::resolve_speaker(store, speaker, walker, none, true).exit == R::Exit::MoveLine);
     const R in_walker = H::resolve_speaker(store, speaker, walker, none, false);  // a plain container: read like a member
-    CHECK(in_walker.exit == R::Exit::Normal && in_walker.member_type == ty("Walker"));
+    CHECK(in_walker.exit == R::Exit::Normal && in_walker.plain_source_type == ty("Walker"));
     // attack_override_event: list order, the type must be the target and the event must exist
     const auto known = [](std::string_view e) { return e != "No_Such_Event"; };
     const std::span<const std::string_view> list = types.get_list(speaker_t, "SFXEvent_Attack_Override");
@@ -1980,7 +1980,7 @@ void test_response_resolver_327() {
         h.unit_response(types, speaker_t, 5, kind, group, 0, 0, -1, non_hero, {}, r);
     };
     R m;
-    m.member_type = member_t;
+    m.plain_source_type = member_t;
     respond(UnitResponse::Attack, m);  // the member's plain line first
     CHECK(starts(h, "Mb_Attack") == 1);
     respond(UnitResponse::Select, m);  // the member's type sets no Select: the speaker's

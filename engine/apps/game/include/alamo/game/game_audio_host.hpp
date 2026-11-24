@@ -194,14 +194,14 @@ public:
     // the group line and before the resolver and its exits.
     struct ResponseResolve {
         enum class Exit : uint8_t {
-            Normal,    // the speaker type's *_With_Non_Hero_Ability line (non_hero_ability), else `member_type`'s plain
+            Normal,    // the speaker type's *_With_Non_Hero_Ability line (non_hero_ability), else `plain_source_type`'s plain
                        // line, else the speaker type's
             Plain,     // a structure dummy speaker or a TACTICAL_BUILD_OBJECTS container: the speaker type's plain line
             MoveLine,  // a stolen-vehicle container (+0x3a2 & 8): the speaker type's SFXEvent_Move in all three
             Silent,    // a team without members: no line
         };
         Exit exit = Exit::Normal;
-        objects::TypeIndex member_type = objects::kNone;    // the team's first member, the container or the speaker
+        objects::TypeIndex plain_source_type = objects::kNone;  // the team's first member, the container or the speaker
         objects::TypeIndex attack_target = objects::kNone;  // an Attack order's target type
     };
     void unit_response(const objects::GameObjectTypes& types, objects::TypeIndex type, uint64_t object, UnitResponse kind,
@@ -215,7 +215,7 @@ public:
     //   * a container with TACTICAL_BUILD_OBJECTS (+0x35b): Plain; a stolen container: MoveLine; else the container
     //     stands for the speaker;
     //   * that object has TEAM (+0x348): no members -> Silent, else its first member (0x4ec820);
-    //   * Normal, with member_type = that object's type.
+    //   * Normal, with plain_source_type = that object's type.
     static ResponseResolve resolve_speaker(const objects::ObjectStore& store, objects::ObjectHandle speaker,
                                            objects::ObjectHandle container, std::span<const objects::ObjectId> members,
                                            bool container_stolen);
