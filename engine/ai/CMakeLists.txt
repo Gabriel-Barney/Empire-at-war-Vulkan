@@ -21,11 +21,11 @@ add_library(alamo::ai ALIAS alamo_ai)
 target_include_directories(alamo_ai PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(alamo_ai PUBLIC alamo_galactic alamo_data alamo_core alamo_engine_flags
                                PRIVATE alamo_objects)
-# The AI save codec (src/ai_save_io.hpp, not installed) for the tactical AI's save code (engine/ai/tactical): an internal
-# include directory, so its tactical_save_io.hpp reuses it instead of a copy.
+# The AI save codec and record archives (src/ai_save_io.hpp, not installed) for the tactical AI's save code
+# (engine/ai/tactical): an internal include directory, so its tactical_save_io.hpp shares them with the galactic AI.
 add_library(alamo_ai_save_io INTERFACE)
 target_include_directories(alamo_ai_save_io INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(alamo_ai_save_io INTERFACE alamo_galactic alamo_core)
+target_link_libraries(alamo_ai_save_io INTERFACE alamo_galactic alamo_objects alamo_core)
 # q6 / mcx1 t05: the galactic seed's force roles use galactic::galactic_dummy (galactic_rules.cpp, in alamo_galactic_sim,
 # which exists when data, objects and commands are configured, as in every full build); without it no type is a valid
 # starting force (there is no element-tag rule any more, D4).
@@ -80,6 +80,12 @@ if(TARGET alamo_lua AND TARGET alamo_lua_vm AND TARGET alamo_galactic_sim)
     target_compile_definitions(alamo_ai_galactic_tests PRIVATE ALAMO_AI_HAVE_VFS=1)
   endif()
   add_test(NAME alamo_ai_galactic_tests COMMAND alamo_ai_galactic_tests)
+  # #145: the world's state records and their one field list each (src/galactic_ai_records.hpp, not installed): round
+  # trip, save and CRC byte pins, older save versions, per-field coverage of the save and the CRC.
+  add_executable(alamo_ai_galactic_records_tests tests/test_ai_galactic_records.cpp)
+  target_include_directories(alamo_ai_galactic_records_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+  target_link_libraries(alamo_ai_galactic_records_tests PRIVATE alamo_ai_galactic alamo_lua_vm alamo_ai_save_io alamo_test_support)
+  add_test(NAME alamo_ai_galactic_records_tests COMMAND alamo_ai_galactic_records_tests)
   # alamo_ai_tests' perception coverage also checks the in-game resolver's token registry.
   target_link_libraries(alamo_ai_tests PRIVATE alamo_ai_galactic)
   target_compile_definitions(alamo_ai_tests PRIVATE ALAMO_AI_HAVE_GALACTIC_AI=1)

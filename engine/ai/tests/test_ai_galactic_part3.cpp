@@ -1,6 +1,6 @@
 // Part 3 of test_ai_galactic (split by position; see test_ai_galactic_common.hpp).
 #include "test_ai_galactic_common.hpp"
-#include "galactic_ai_impl.hpp"  // StatusRec, hash_status (#119)
+#include "galactic_ai_records.hpp"  // StatusRec and its field list (#119, #145)
 
 // #242 (legacy docs/re/BKG1_RE_ANSWERS.md §A.2 [H]): the galactic AI VMs' GetCurrentTime() (0x5428b0) is
 // (double)((float)(int32)mode frame x 0.033333335f), a float multiply: frame 3 -> 0.10000000894069672, frame 150 ->
@@ -28,7 +28,7 @@ void test_lua_clock_float_multiply() {
 void test_status_hash_covers_move_to() {
     const auto digest = [](const StatusRec& s) {
         StateHasher h;
-        hash_status(h, s);
+        galactic_io::hash_record(h, s);  // the status's part of GalacticAiWorld::hash (after its id)
         return h.digest();
     };
     StatusRec move;

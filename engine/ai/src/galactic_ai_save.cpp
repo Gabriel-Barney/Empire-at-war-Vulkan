@@ -43,9 +43,11 @@
 
 #include "ai_save_io.hpp"
 #include "galactic_ai_impl.hpp"
+#include "galactic_ai_records.hpp"
 
 namespace alamo::ai {
 
+namespace gio = galactic_io;
 using save::get_vec;
 using save::put_vec;
 
@@ -135,37 +137,9 @@ bool get_param(ByteReader& r, Param& p, uint32_t version) {
 // limit: guard save decode: nested AI global value depth, refuses
 constexpr int kMaxValueDepth = 32;
 
-// ---- objects ----
-void put_handle(ByteWriter& w, const objects::ObjectStore& st, ObjectHandle h) {
-    w.u64(h.value);
-    w.i32(st.exists(h) ? st.id(h) : objects::kNoObjectId);
-}
-
-ObjectHandle get_handle(ByteReader& r, const objects::ObjectStore& st) {
-    const ObjectHandle raw{r.u64()};
-    const objects::ObjectId id = r.i32();
-    if (!r.ok()) return {};
-    if (id != objects::kNoObjectId) {
-        const ObjectHandle h = st.find(id);
-        if (!h) r.fail();  // the restored store does not know the object
-        return h;
-    }
-    // Stale (or null) when saved: it stays stale; a slot the restored store reuses differently becomes null.
-    return st.exists(raw) ? ObjectHandle{} : raw;
-}
-
-void put_handles(ByteWriter& w, const objects::ObjectStore& st, const std::vector<ObjectHandle>& v) {
-    w.u32(static_cast<uint32_t>(v.size()));
-    for (const ObjectHandle h : v) put_handle(w, st, h);
-}
-
-bool get_handles(ByteReader& r, const objects::ObjectStore& st, std::vector<ObjectHandle>& out) {
-    std::vector<ObjectHandle> v(save::count(r, 12));
-    for (ObjectHandle& h : v) h = get_handle(r, st);
-    if (!r.ok()) return false;
-    out = std::move(v);
-    return true;
-}
+// ---- objects (the handle codec: ai_save_io.hpp) ----
+using save::get_handle;
+using save::put_handle;
 
 // ---- Lua VMs ----
 // The VM's LuaVm::write image, length-prefixed; an empty image without Lua state (set_save_lua_state(false), tests).
@@ -581,30 +555,19 @@ void GalacticAiWorld::write(ByteWriter& w) const {
         put_value(w, v);
     }
     // ---- AI players ----
+    // #145: the records' field lists (galactic_ai_records.hpp); a map entry is its key, then the record.
+    gio::SaveWriter rec(w, &st);
     for (const auto& a : m.ai) {
         if (!a) continue;
         const PlayerAi& p = *a;
         p.ctx.write(w);
         save::put_set(w, p.known);
-        w.u32(static_cast<uint32_t>(p.bonuses.size()));
-        for (const PendingBonus& b : p.bonuses) {
-            w.u32(b.goal_type);
-            w.i32(b.target);
-            w.f32(b.bonus);
-            w.i64(b.deadline);
-            w.i32(b.status);  // v10
-        }
+        rec.list(p.bonuses, gio::In::Both, gio::kBonusBytes, gio::visit_each);
         p.paths.write(w);
-        for (const PlayerAi::SourceList& s : p.sources) {
-            w.i64(s.frame);
-            put_vec(w, s.planets);
-        }
+        for (const PlayerAi::SourceList& s : p.sources) visit(rec, s);
         w.u32(static_cast<uint32_t>(p.stage_lists.size()));  // per-target lists (0 or the planet count)
         for (const auto& levels : p.stage_lists)
-            for (const PlayerAi::SourceList& s : levels) {
-                w.i64(s.frame);
-                put_vec(w, s.planets);
-            }
+            for (const PlayerAi::SourceList& s : levels) visit(rec, s);
         w.boolean(p.fs_vm != nullptr);
         if (p.fs_vm) put_vm(w, m.lua_state, *p.fs_vm);
     }
@@ -612,21 +575,7 @@ void GalacticAiWorld::write(ByteWriter& w) const {
     w.u32(static_cast<uint32_t>(m.plans.size()));
     for (const auto& [id, pi] : m.plans) {
         w.i32(id);
-        w.i32(pi.player);
-        w.u32(pi.plan);
-        w.u32(pi.goal_type);
-        w.u32(pi.goal_key);
-        w.i32(pi.category);
-        w.i32(pi.target);
-        w.i32(pi.target_owner);
-        w.i32(pi.pp);
-        put_vec(w, pi.tfs);
-        w.boolean(pi.result);
-        w.boolean(pi.non_removable);
-        w.boolean(pi.test_contrast);
-        w.boolean(pi.blocking);
-        w.boolean(pi.ended);
-        w.u32(pi.live_threads);
+        visit(rec, pi);
         w.boolean(pi.vm != nullptr);
         if (pi.vm) put_vm(w, m.lua_state, *pi.vm);
     }
@@ -634,26 +583,7 @@ void GalacticAiWorld::write(ByteWriter& w) const {
     w.u32(static_cast<uint32_t>(m.tfs.size()));
     for (const auto& [id, t] : m.tfs) {
         w.i32(id);
-        w.i32(t.plan);
-        w.i32(t.player);
-        w.u32(t.def);
-        w.str(t.name);
-        put_handles(w, st, t.units);
-        put_vec(w, t.wanted);
-        put_vec(w, t.wanted_source);
-        put_vec(w, t.builds);
-        w.i32(t.stage);
-        w.i32(t.area);
-        w.boolean(t.sync);
-        w.boolean(t.sync_started);
-        w.f64(t.sync_left);
-        w.i64(t.sync_frame);
-        put_handles(w, st, t.sync_units);
-        put_vec(w, t.sync_etas);
-        w.u32(t.fleet);
-        w.boolean(t.had_units);
-        w.boolean(t.no_units_sent);
-        w.boolean(t.alive);
+        visit(rec, t);
     }
     // ---- the lost-member queue ----
     // bkg2 b0099: prune_tf queues a task force's lost members; drain_lost_members raises their events. A prune in the
@@ -669,88 +599,24 @@ void GalacticAiWorld::write(ByteWriter& w) const {
     w.u32(static_cast<uint32_t>(m.statuses.size()));
     for (const auto& [id, s] : m.statuses) {
         w.i32(id);
-        w.i32(s.plan);
-        w.i32(s.tf);
-        w.u8(static_cast<uint8_t>(s.kind));
-        w.boolean(s.finished);
-        w.u8(static_cast<uint8_t>(s.result));
-        w.u32(s.dest);
-        w.u8(s.mode);
-        w.u32(s.fleet);
-        w.i64(s.started);
-        w.u8(static_cast<uint8_t>(s.op));
-        w.f64(s.amount);
+        visit(rec, s);
     }
     // ---- PotentialPlans ----
     w.u32(static_cast<uint32_t>(m.pps.size()));
     for (const auto& [id, pp] : m.pps) {
         w.i32(id);
-        w.i32(pp.player);
-        w.u32(pp.plan);
-        w.u32(pp.goal_type);
-        w.i32(pp.target);
-        w.u32(static_cast<uint32_t>(pp.sel.size()));
-        for (const PpSelection& s : pp.sel) {
-            w.u32(s.type);
-            put_handle(w, st, s.unit);
-            w.i32(s.tf);
-            w.u32(s.source);
-            w.u8(s.queue);
-            w.f32(s.btime);
-        }
-        w.f32(pp.gross);
-        w.f32(pp.net);
-        w.f32(pp.eta);
-        w.boolean(pp.contrast_ok);
-        w.boolean(pp.queues_reserved);
-        w.f64(pp.pop);
-        put_vec(w, pp.reserved_units);
+        visit(rec, pp);
     }
     // ---- build tasks + market ----
     w.u32(static_cast<uint32_t>(m.builds.size()));
     for (const auto& [id, b] : m.builds) {
         w.i32(id);
-        w.i32(b.plan);
-        w.i32(b.tf);
-        w.i32(b.player);
-        w.u32(b.type);
-        w.u32(b.dest);
-        w.u8(b.queue);
-        w.u8(static_cast<uint8_t>(b.state));
-        w.boolean(b.bound);
-        w.u32(b.bid_planet);
-        w.f64(b.bid);
-        w.i64(b.created);
-        w.i64(b.next_poll);
-        w.boolean(b.charged);
-        w.f32(0.0f);  // former BuildTask::charge (always 0; dropped in a2m t05), kept so version 8 saves still read
-        w.i32(b.queue_id);
-        w.u32(b.producing_at);
-        w.i32(b.queue_entries_before);
-        w.u32(b.goal_key);
-        w.i32(b.category);
-        w.boolean(b.listed);
-        w.boolean(b.reclaimed);
-        w.i64(b.claimed);  // v9
+        visit(rec, b);
     }
     put_vec(w, m.pending_builds);
     w.u32(static_cast<uint32_t>(m.planet_queues.size()));
     for (const auto& pq : m.planet_queues)
-        for (const PlanetBuildQueue& q : pq) {
-            w.i64(q.last_run);
-            put_vec(w, q.tasks);
-            w.i32(q.current);
-            w.i32(q.current_queue_id);
-            w.u32(q.current_type);
-            // #196: by position, empty slots included (owner -1, type kNoIndex; same layout). The flag is not saved: a
-            // live slot's is 0 between commits, an empty slot's is never read.
-            w.u32(static_cast<uint32_t>(q.reservations.size()));
-            for (const QueueReservation& res : q.reservations) {
-                w.i32(res.pp);
-                w.u32(res.type);
-                w.f32(res.time);
-            }
-        }
+        for (const PlanetBuildQueue& q : pq) visit(rec, q);
     w.i64(m.delivery_frame);
     w.u32(static_cast<uint32_t>(m.delivery_reach.size()));
     for (const auto& [k, v] : m.delivery_reach) {
@@ -764,13 +630,7 @@ void GalacticAiWorld::write(ByteWriter& w) const {
         w.i32(u);
         w.i32(pp);
     }
-    w.u32(static_cast<uint32_t>(m.fs_moves.size()));
-    for (const FreeStoreMove& mv : m.fs_moves) {
-        put_handle(w, st, mv.unit);
-        w.i32(mv.player);
-        w.u32(mv.dest);
-        w.boolean(mv.done);
-    }
+    rec.list(m.fs_moves, gio::In::Both, gio::kFreeStoreMoveBytes, gio::visit_each);
     w.u32(static_cast<uint32_t>(m.reclaim.size()));
     for (const auto& [serial, amount] : m.reclaim) {
         w.u32(serial);
@@ -901,6 +761,8 @@ bool GalacticAiWorld::read(ByteReader& r) {
     }
     if (!r.ok()) return false;
     // ---- AI players ----
+    // #145: the records' field lists (galactic_ai_records.hpp); this image's version decides which fields it has.
+    gio::SaveReader rec(r, &st, gio::Features{version});
     std::vector<StagedPlayer> players(m.ai.size());
     for (size_t i = 0; i < m.ai.size(); ++i) {
         if (!staged_ai(i)) continue;
@@ -913,26 +775,18 @@ bool GalacticAiWorld::read(ByteReader& r) {
                 for (const Goal& g : cat)
                     if (!valid_index(g.target, planets) || (g.plan != kAiNone && g.plan >= lib)) return false;
         if (!save::get_set(r, sp.known)) return false;
-        sp.bonuses.resize(save::count(r, 20));
-        for (PendingBonus& b : sp.bonuses) {
-            b.goal_type = r.u32();
-            b.target = r.i32();
-            b.bonus = r.f32();
-            b.deadline = r.i64();
-            if (version >= 10) b.status = r.i32();  // older saves: no blocking status
+        rec.list(sp.bonuses, gio::In::Both, gio::kBonusBytes, gio::visit_each);
+        for (const PendingBonus& b : sp.bonuses)
             if (b.goal_type >= goal_types) r.fail();
-        }
         if (!r.ok() || !sp.paths.read(r, m.sim.graph(), m.cfg.path_pf)) return false;
-        for (PlayerAi::SourceList& s : sp.sources) {
-            s.frame = r.i64();
-            if (!get_vec(r, s.planets)) return false;
-        }
+        for (PlayerAi::SourceList& s : sp.sources) visit(rec, s);
+        if (!r.ok()) return false;
         sp.stage_lists.resize(save::count(r, 6 * 12));
         if (!sp.stage_lists.empty() && sp.stage_lists.size() != planets) r.fail();
         for (auto& levels : sp.stage_lists)
             for (PlayerAi::SourceList& s : levels) {
-                s.frame = r.i64();
-                if (!get_vec(r, s.planets)) return false;
+                visit(rec, s);
+                if (!r.ok()) return false;
                 for (const PlanetIndex k : s.planets)
                     if (k >= planets) r.fail();
             }
@@ -954,25 +808,11 @@ bool GalacticAiWorld::read(ByteReader& r) {
     // ---- plans ----
     std::map<int32_t, PlanInstance> plans;
     {
-        const uint32_t n = save::count(r, 50);
+        const uint32_t n = save::count(r, gio::kPlanBytes);
         for (uint32_t i = 0; i < n && r.ok(); ++i) {
             PlanInstance pi;
             pi.id = r.i32();
-            pi.player = r.i32();
-            pi.plan = r.u32();
-            pi.goal_type = r.u32();
-            pi.goal_key = r.u32();
-            pi.category = r.i32();
-            pi.target = r.i32();
-            pi.target_owner = r.i32();
-            pi.pp = r.i32();
-            if (!get_vec(r, pi.tfs)) return false;
-            pi.result = r.boolean();
-            pi.non_removable = r.boolean();
-            pi.test_contrast = r.boolean();
-            pi.blocking = r.boolean();
-            pi.ended = r.boolean();
-            pi.live_threads = r.u32();
+            visit(rec, pi);
             const bool has_vm = r.boolean();
             if (!r.ok() || !valid_ai(pi.player) || pi.plan >= lib || pi.goal_type >= goal_types ||
                 !valid_index(pi.category, categories) || !valid_index(pi.target, planets) ||
@@ -998,33 +838,12 @@ bool GalacticAiWorld::read(ByteReader& r) {
     // ---- task forces ----
     std::map<int32_t, TaskForceRec> tfs;
     {
-        const uint32_t n = save::count(r, 40);
+        const uint32_t n = save::count(r, gio::kTaskForceBytes);
         for (uint32_t i = 0; i < n && r.ok(); ++i) {
             TaskForceRec t;
             t.id = r.i32();
-            t.plan = r.i32();
-            t.player = r.i32();
-            t.def = r.u32();
-            t.name = r.str();
-            if (!get_handles(r, st, t.units) || !get_vec(r, t.wanted) || !get_vec(r, t.wanted_source) || !get_vec(r, t.builds))
-                return false;
-            t.stage = r.i32();
-            t.area = r.i32();
-            if (version >= 7) {
-                t.sync = r.boolean();
-                t.sync_started = r.boolean();
-                t.sync_left = r.f64();
-                t.sync_frame = r.i64();
-                if (!get_handles(r, st, t.sync_units) || !get_vec(r, t.sync_etas) || t.sync_etas.size() != t.sync_units.size())
-                    return false;
-            }
-            if (version >= 8) {
-                t.fleet = r.u32();  // checked against the fleets where it is read (tf_fleet_object)
-            }
-            t.had_units = r.boolean();
-            t.no_units_sent = r.boolean();
-            t.alive = r.boolean();
-            if (!r.ok() || !valid_ai(t.player) || (!tfs.empty() && tfs.rbegin()->first >= t.id)) return false;
+            visit(rec, t);
+            if (!r.ok() || t.sync_etas.size() != t.sync_units.size() || !valid_ai(t.player) || (!tfs.empty() && tfs.rbegin()->first >= t.id)) return false;
             if (const auto pit = plans.find(t.plan); pit != plans.end() && t.def >= m.library.plans[pit->second.plan].task_forces.size())
                 return false;
             const int32_t id = t.id;
@@ -1046,29 +865,12 @@ bool GalacticAiWorld::read(ByteReader& r) {
     // ---- blocking statuses ----
     std::map<int32_t, StatusRec> statuses;
     {
-        const uint32_t n = save::count(r, 36);
+        const uint32_t n = save::count(r, gio::kStatusBytes);
         for (uint32_t i = 0; i < n && r.ok(); ++i) {
             StatusRec s;
             s.id = r.i32();
-            s.plan = r.i32();
-            s.tf = r.i32();
-            const uint8_t kind = r.u8();
-            s.finished = r.boolean();
-            const uint8_t result = r.u8();
-            s.dest = r.u32();
-            s.mode = r.u8();
-            if (version >= 8) {
-                s.fleet = r.u32();  // checked against the fleets where it is read (the MoveTo step)
-            }
-            s.started = r.i64();
-            const uint8_t op = r.u8();
-            s.amount = r.f64();
-            if (kind > static_cast<uint8_t>(StatusKind::DesireBonus) || result > static_cast<uint8_t>(lua::AiStatusResult::False) ||
-                op > static_cast<uint8_t>(lua::AiBudgetOp::WaitUnallocated) || s.mode > 5 || !valid_planet_or_none(s.dest, planets))
-                r.fail();
-            s.kind = static_cast<StatusKind>(kind);
-            s.result = static_cast<lua::AiStatusResult>(result);
-            s.op = static_cast<lua::AiBudgetOp>(op);
+            visit(rec, s);  // a kind, result or op past its last value fails the read
+            if (s.mode > 5 || !valid_planet_or_none(s.dest, planets)) r.fail();
             if (!r.ok() || (s.kind == StatusKind::MoveTo && s.dest >= planets) || (!statuses.empty() && statuses.rbegin()->first >= s.id))
                 return false;
             const int32_t id = s.id;
@@ -1078,31 +880,13 @@ bool GalacticAiWorld::read(ByteReader& r) {
     // ---- PotentialPlans ----
     std::map<int32_t, PotentialPlanRec> pps;
     {
-        const uint32_t n = save::count(r, 48);
+        const uint32_t n = save::count(r, gio::kPotentialPlanBytes);
         for (uint32_t i = 0; i < n && r.ok(); ++i) {
             const int32_t id = r.i32();
             PotentialPlanRec pp;
-            pp.player = r.i32();
-            pp.plan = r.u32();
-            pp.goal_type = r.u32();
-            pp.target = r.i32();
-            pp.sel.resize(save::count(r, 29));
-            for (PpSelection& s : pp.sel) {
-                s.type = r.u32();
-                s.unit = get_handle(r, st);
-                s.tf = r.i32();
-                s.source = r.u32();
-                s.queue = r.u8();
-                s.btime = r.f32();
+            visit(rec, pp);
+            for (const PpSelection& s : pp.sel)
                 if (s.queue > 1 || !valid_planet_or_none(s.source, planets)) r.fail();
-            }
-            pp.gross = r.f32();
-            pp.net = r.f32();
-            pp.eta = r.f32();
-            pp.contrast_ok = r.boolean();
-            pp.queues_reserved = r.boolean();
-            pp.pop = r.f64();
-            if (!get_vec(r, pp.reserved_units)) return false;
             if (!r.ok() || (pp.plan != kAiNone && pp.plan >= lib) || (pp.goal_type != kAiNone && pp.goal_type >= goal_types) ||
                 !valid_index(pp.target, planets) || (!pps.empty() && pps.rbegin()->first >= id))
                 return false;
@@ -1112,34 +896,11 @@ bool GalacticAiWorld::read(ByteReader& r) {
     // ---- build tasks + market ----
     std::map<int32_t, BuildTask> builds;
     {
-        const uint32_t n = save::count(r, version >= 9 ? 79 : 71);
+        const uint32_t n = save::count(r, gio::Features{version}.has(gio::Feature::BuildClaimed) ? gio::kBuildBytes : gio::kBuildBytesV8);
         for (uint32_t i = 0; i < n && r.ok(); ++i) {
             BuildTask b;
             b.id = r.i32();
-            b.plan = r.i32();
-            b.tf = r.i32();
-            b.player = r.i32();
-            b.type = r.u32();
-            b.dest = r.u32();
-            b.queue = r.u8();
-            const uint8_t state = r.u8();
-            b.bound = r.boolean();
-            b.bid_planet = r.u32();
-            b.bid = r.f64();
-            b.created = r.i64();
-            b.next_poll = r.i64();
-            b.charged = r.boolean();
-            (void)r.f32();  // former BuildTask::charge
-            b.queue_id = r.i32();
-            b.producing_at = r.u32();
-            b.queue_entries_before = r.i32();
-            b.goal_key = r.u32();
-            b.category = r.i32();
-            b.listed = r.boolean();
-            b.reclaimed = r.boolean();
-            if (version >= 9) b.claimed = r.i64();  // older saves: no timer running
-            if (state > static_cast<uint8_t>(BuildState::Failed)) r.fail();
-            b.state = static_cast<BuildState>(state);
+            visit(rec, b);  // a state past Failed fails the read
             if (!r.ok() || !valid_ai(b.player) || b.queue > 1 || !valid_planet_or_none(b.dest, planets) ||
                 !valid_planet_or_none(b.bid_planet, planets) || !valid_planet_or_none(b.producing_at, planets) ||
                 (b.state == BuildState::Producing && b.producing_at >= planets) || !valid_index(b.category, categories) ||
@@ -1151,21 +912,12 @@ bool GalacticAiWorld::read(ByteReader& r) {
     }
     std::vector<int32_t> pending_builds;
     if (!get_vec(r, pending_builds)) return false;
-    std::vector<std::array<PlanetBuildQueue, 2>> planet_queues(save::count(r, 2 * 28));
+    std::vector<std::array<PlanetBuildQueue, 2>> planet_queues(save::count(r, 2 * gio::kPlanetQueueBytes));
     if (!r.ok() || planet_queues.size() != planets) return false;
     for (auto& pq : planet_queues)
         for (PlanetBuildQueue& q : pq) {
-            q.last_run = r.i64();
-            if (!get_vec(r, q.tasks)) return false;
-            q.current = r.i32();
-            q.current_queue_id = r.i32();
-            q.current_type = r.u32();
-            q.reservations.resize(save::count(r, 12));
-            for (QueueReservation& res : q.reservations) {
-                res.pp = r.i32();
-                res.type = r.u32();
-                res.time = r.f32();
-            }
+            visit(rec, q);
+            if (!r.ok()) return false;
         }
     const int64_t delivery_frame = r.i64();
     std::map<std::tuple<int32_t, PlanetIndex, int>, std::vector<uint8_t>> delivery_reach;
@@ -1192,14 +944,10 @@ bool GalacticAiWorld::read(ByteReader& r) {
             unit_reserved.emplace_hint(unit_reserved.end(), u, pp);
         }
     }
-    std::vector<FreeStoreMove> fs_moves(save::count(r, 21));
-    for (FreeStoreMove& mv : fs_moves) {
-        mv.unit = get_handle(r, st);
-        mv.player = r.i32();
-        mv.dest = r.u32();
-        mv.done = r.boolean();
+    std::vector<FreeStoreMove> fs_moves;
+    rec.list(fs_moves, gio::In::Both, gio::kFreeStoreMoveBytes, gio::visit_each);
+    for (const FreeStoreMove& mv : fs_moves)
         if (!valid_ai(mv.player) || mv.dest >= planets) r.fail();
-    }
     std::map<uint32_t, float> reclaim;
     {
         const uint32_t n = save::count(r, 8);
