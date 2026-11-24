@@ -127,9 +127,9 @@ int run() {
     in.saved_file = here / L"game_path.txt";
     in.env = env(L"ALAMO_FOC_DATA");
     for (const std::string& root : vfs::default_steam_roots()) in.steam_roots.push_back(alamo::path_from_utf8(root));
-    in.fixed = {L"F:\\SteamLibrary\\steamapps\\common\\Star Wars Empire at War\\corruption",
-                L"C:\\GOG Games\\Star Wars - Empire at War\\corruption",
-                L"C:\\Program Files (x86)\\GOG Galaxy\\Games\\Star Wars - Empire at War\\corruption"};
+    // #342: the registry's install entries (GOG Galaxy, the retail disc), then the fixed folders every launch surface shares
+    for (const std::string& dir : vfs::registry_install_folders()) in.fixed.push_back(alamo::path_from_utf8(dir));
+    for (const std::string& dir : vfs::default_fixed_install_folders()) in.fixed.push_back(alamo::path_from_utf8(dir));
     std::vector<std::string> libraries;  // the search's Steam libraries, reused by the resolver
     fs::path game = play::find_game(in, &libraries);
     const bool asked = game.empty();
