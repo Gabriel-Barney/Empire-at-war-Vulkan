@@ -416,7 +416,7 @@ void test_clone_copies_slot() {
     animation.set_model(clone_t, objects::ModeKind::Land, clone_model.get());
     objects::ObjectId victim = objects::kNoObjectId, clone = objects::kNoObjectId;
     anim::SlotView at_death, first;
-    land_battle(*d, &animation, 900, [&](TacticalBattle& b, TacticalMode& tm, SimHost&) {
+    land_battle(*d, &animation, 900, [&](TacticalBattle& b, TacticalMode& tm, SimHost& host) {
         objects::ObjectStore& st = tm.primary();
         anim::AnimWorld* w = animation.find_world(tm) ? &animation.world(tm) : nullptr;
         if (victim == objects::kNoObjectId) {
@@ -433,6 +433,11 @@ void test_clone_copies_slot() {
             CHECK(w->play(victim, req, nullptr, b.frame()) == anim::PlayResult::Played);
             at_death = w->slot(victim);
             CHECK(b.script_damage(tm, victim, 1.0e6f, false));
+            // the pending clone's slot is saved state (anim chunk version 4): a write / read round trip between ticks keeps it
+            ByteWriter bw;
+            animation.write(host, bw);
+            ByteReader br(bw.bytes());
+            CHECK(animation.read(host, br));
             return true;
         }
         for (const objects::ObjectHandle h : st.all_objects())

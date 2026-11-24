@@ -793,7 +793,7 @@ void TacticalBattle::process_death(TacticalMode& mode, const tc::DeathEvent& d, 
             // #359 (gap 20, [port] as "with a Death_Clone the original plays no death clip"): the corpse path carries the death
             // even when the clone type has no animated model (nothing stays then).
             if (!ch && corpse_path) {
-                (void)hooks_->anim_corpse_clone(u->id, d.death_clone, d.kind, persist);
+                hooks_->anim_corpse_clone(u->id, d.death_clone, d.kind, persist);
                 carried = true;
             }
             hooks_->anim_death(u->id, carried, d.kind, d.death_clone < 0 ? std::optional<bool>(d.spin_away) : std::nullopt);

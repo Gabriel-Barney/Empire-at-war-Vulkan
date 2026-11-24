@@ -101,10 +101,10 @@ public:
     // outlive the host's ticks / CRC captures / saves.
     void attach(SimHost& host, bool crc);
     void detach(SimHost& host);
-    // N1 save chunk "anim" (owner: n2-host): u32 version 3, u32 mode depth, then per mode bottom -> top: bool has-world;
+    // N1 save chunk "anim" (owner: n2-host): u32 version 4, u32 mode depth, then per mode bottom -> top: bool has-world;
     // if so a section with AnimBehaviors::write, a section with AnimWorld::write (primary world), i32 max_seen, the
     // pending death clones (u32 count; per clone i32 id, u8 kind, bool planned, bool spin, i32 type, u32 variant, then #359
-    // bool copied, i32 slot type, u32 slot variant, bool slot loop, f32 slot frame, f32 slot speed; version 3: without the
+    // bool copied, i32 slot type, u32 slot variant, bool slot loop, f32 slot frame, f32 slot speed (unused when not copied); version 3: without the
     // slot (not copied); version 2: the id list then the kinds, unplanned), the event-row ids, the muzzles (id, hardpoint, bone, until). read() validates every mode
     // on scratch copies, then reads the live worlds in place (battle hooks / script bridges hold pointers to them): rows
     // come back with the host's model choice (the store object's type, else the corpse's), nothing is re-created at
@@ -236,12 +236,8 @@ private:
             uint8_t kind = 1;      // the killing damage kind
             bool planned = false;  // `plan` holds the battle's spin / type / variant
             anim::DeathPlan plan;
-            bool copied = false;   // #359: the dying row's primary slot below starts the clone's row
-            int32_t slot_type = anim::kNoAnimType;
-            uint32_t slot_variant = 0;
-            bool slot_loop = false;
-            float slot_frame = 0.0f;
-            float slot_speed = 1.0f;
+            // #359: the dying row's primary slot (type, index, loop, speed, start_frame) that starts the clone's row
+            std::optional<anim::PlayRequest> slot;
         };
         std::vector<PendingClone> pending_clones;  // request order
         ObjectId max_seen = INT32_MIN;               // highest store id considered for model creation

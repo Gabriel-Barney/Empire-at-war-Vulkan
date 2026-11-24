@@ -151,10 +151,9 @@ public:
         return true;
     }
     // the infantry corpse path - the dying unit's row becomes the clone type's corpse (no clone object).
-    bool anim_corpse_clone(objects::ObjectId dying, int32_t clone_type, uint8_t kind, const float* persistence_override = nullptr) {
-        if (!anim_ || !mode_ || !rng_ || clone_type < 0) return false;
-        return anim_->corpse_clone(*mode_, dying, static_cast<objects::TypeIndex>(clone_type), *rng_, gframe_, kind,
-                                   persistence_override) != anim::DeathResult::NoRow;
+    void anim_corpse_clone(objects::ObjectId dying, int32_t clone_type, uint8_t kind, const float* persistence_override = nullptr) {
+        if (!anim_ || !mode_ || !rng_ || clone_type < 0) return;
+        (void)anim_->corpse_clone(*mode_, dying, static_cast<objects::TypeIndex>(clone_type), *rng_, gframe_, kind, persistence_override);
     }
     // --- end R3 anim ---
 #endif

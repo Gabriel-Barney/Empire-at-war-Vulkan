@@ -112,7 +112,8 @@ void SimAnimation::write(const SimHost& host, ByteWriter& w) const {
         w.u32(static_cast<uint32_t>(mw->pending_clones.size()));
         for (const ModeWorld::PendingClone& pc : mw->pending_clones) {
             w.i32(pc.id).u8(pc.kind).boolean(pc.planned).boolean(pc.plan.spin).i32(pc.plan.type).u32(pc.plan.variant);
-            w.boolean(pc.copied).i32(pc.slot_type).u32(pc.slot_variant).boolean(pc.slot_loop).f32(pc.slot_frame).f32(pc.slot_speed);
+            const anim::PlayRequest s = pc.slot ? *pc.slot : anim::PlayRequest{};  // not copied: written, not read
+            w.boolean(pc.slot.has_value()).i32(s.type).u32(s.index).boolean(s.loop).f32(s.start_frame).f32(s.speed);
         }
         write_id_list(w, mw->event_rows);
         w.u32(static_cast<uint32_t>(mw->muzzles.size()));
@@ -152,7 +153,8 @@ bool SimAnimation::read(SimHost& host, ByteReader& r) {
             for (ModeWorld::PendingClone& pc : m.clones) pc.kind = r.u8();
         } else {
             const uint32_t nc = r.u32();
-            const uint64_t per = version >= 4 ? 15u + 18u : 15u;
+            constexpr uint64_t kCloneBytes = 15u, kSlotBytes = 18u;  // version 3 per clone; version 4 adds the slot
+            const uint64_t per = version >= 4 ? kCloneBytes + kSlotBytes : kCloneBytes;
             if (!r.ok() || nc > kMaxAnimCount || static_cast<uint64_t>(nc) * per > r.remaining()) return false;
             m.clones.resize(nc);
             for (ModeWorld::PendingClone& pc : m.clones) {
@@ -163,12 +165,14 @@ bool SimAnimation::read(SimHost& host, ByteReader& r) {
                 pc.plan.type = r.i32();
                 pc.plan.variant = r.u32();
                 if (version < 4) continue;
-                pc.copied = r.boolean();
-                pc.slot_type = r.i32();
-                pc.slot_variant = r.u32();
-                pc.slot_loop = r.boolean();
-                pc.slot_frame = r.f32();
-                pc.slot_speed = r.f32();
+                const bool copied = r.boolean();
+                anim::PlayRequest s;
+                s.type = r.i32();
+                s.index = r.u32();
+                s.loop = r.boolean();
+                s.start_frame = r.f32();
+                s.speed = r.f32();
+                if (copied) pc.slot = s;
             }
         }
         if (!r.ok() || !read_id_list(r, m.event_rows)) return false;
@@ -524,12 +528,13 @@ void SimAnimation::death_clone_spawned(const GameMode& mode, ObjectId clone, uin
     if (plan) pc.plan = *plan;
     if (dying != objects::kNoObjectId && mw.world->contains(dying)) {  // #359: the dying row's primary slot, as it is now
         const anim::SlotView s = mw.world->slot(dying);
-        pc.copied = true;
-        pc.slot_type = s.type;
-        pc.slot_variant = s.variant;
-        pc.slot_loop = s.mode == anim::SlotMode::Loop;
-        pc.slot_frame = s.frame;
-        pc.slot_speed = s.speed;
+        anim::PlayRequest req;
+        req.type = s.type;
+        req.index = s.variant;
+        req.loop = s.mode == anim::SlotMode::Loop;
+        req.speed = s.speed;
+        req.start_frame = s.frame;
+        pc.slot = req;
     }
     mw.pending_clones.push_back(pc);
 }
@@ -700,23 +705,16 @@ void SimAnimation::sync(const GameMode& mode, SimRng& rng, uint64_t frame) {
         const objects::TypeIndex t = store.type(h);
         const anim::AnimModel* m = model_for(t, mode.kind());
         if (!m) continue;
-        const anim::IdleParams ip = idle_params(mode, t, m);
         const auto pending = std::find_if(mw.pending_clones.begin(), mw.pending_clones.end(),
-                                          [id](const ModeWorld::PendingClone& pc) { return pc.id == id && pc.copied; });
+                                          [id](const ModeWorld::PendingClone& pc) { return pc.id == id && pc.slot; });
         if (pending != mw.pending_clones.end()) {
             // #359 (S9 §1.6 [H] 0x29f270 -> 0x395590 -> 0x3a92f0): a death clone starts on the dying row's primary slot -
-            // no idle clip, no start-frame draw ([port]); a slot the clone's model lacks leaves the row without a clip.
+            // no idle clip, no start-frame draw ([port]: the row is made at this sync, one frame after the death, from the
+            // slot as it was then); a slot the clone's model lacks leaves the row without a clip.
             w.add(id, m, frame);
-            if (pending->slot_type != anim::kNoAnimType) {
-                anim::PlayRequest req;
-                req.type = pending->slot_type;
-                req.index = pending->slot_variant;
-                req.loop = pending->slot_loop;
-                req.speed = pending->slot_speed;
-                req.start_frame = pending->slot_frame;
-                (void)w.play(id, req, nullptr, frame);
-            }
+            if (pending->slot->type != anim::kNoAnimType) (void)w.play(id, *pending->slot, nullptr, frame);
         } else {
+            const anim::IdleParams ip = idle_params(mode, t, m);
             anim::AnimCreateParams cp;
             cp.idle_type = ip.idle_type;  // default idle (Space Idle above; crouch: not at creation)
             cp.loop_idle = ip.loop_idle;
