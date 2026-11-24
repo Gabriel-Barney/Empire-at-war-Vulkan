@@ -780,6 +780,43 @@ void test_scene_unseen() {
     }
 }
 
+// #89 (FLYING_LOCOMOTOR vf +0x238 = 0x18cec0, returns 2 [H]; Walk 0x18ceb0 returns 1): an air-led land formation's type
+// (0x43c1b0 stores the seed locomotor's vf +0x238 as the formation type, F +0x218) is 2. 0x417520 runs its land branch
+// (the slot leg, the fire trim, the formation path) only for type 1, and 0x41c1a0's item-6 stop only for type 1; the type-2
+// branch returns 0 at the order (reason < 2). So two flying attackers ordered onto a standing unit 1000 away get no
+// item-6 stop, no slot leg and no formation path; two ground attackers (the control) do. Also with the target 200 away,
+// in range of both: the ground pair stops (item 6), the flying pair does not.
+void test_scene_air_lead() {
+    ::alamo::test::section("scene_air_lead");
+    for (const float dist : {1000.0f, 200.0f})
+        for (const bool air : {false, true}) {
+            MovementSystem sys{MovementConfig{}};
+            scene_system(sys);
+            UnitDesc a = attacker(10, kO);
+            UnitDesc b = attacker(11, kO + V2{0.0f, 50.0f});
+            if (air) a.locomotor = b.locomotor = LocomotorKind::Flying;
+            CHECK(sys.add_unit(a));
+            CHECK(sys.add_unit(b));
+            const V2 c = kO + V2{dist, 0.0f};
+            UnitDesc t = attacker(900, c, 5.0f);
+            t.owner = 2;
+            CHECK(sys.add_unit(t));
+            geometric_fire(sys, c, 300.0f);
+            SimRng rng(7);
+            sys.move(attack_order({10, 11}, 900, c, 5.0f, 300.0f, dist < 500.0f), rng, 1);
+            const MovementStats& s = sys.stats();
+            const uint32_t legs = s.attack_legs + s.attack_leg_refused;
+            if (air)
+                CHECK(s.attack_stops == 0 && legs == 0 && s.formation_paths == 0 && sys.view(10).has_goal && sys.view(11).has_goal);
+            else if (dist < 500.0f)
+                CHECK(s.attack_stops >= 1 && !sys.view(10).has_goal && !sys.view(11).has_goal);
+            else
+                CHECK(s.attack_stops == 0 && legs > 0 && s.formation_paths == 1);
+            std::printf("%s pair, target %.0f away: item-6 stops %u, slot legs %u, formation paths %u\n", air ? "flying" : "ground",
+                        static_cast<double>(dist), s.attack_stops, legs, s.formation_paths);
+        }
+}
+
 // s78n t26 review round 3 (FIGHTER_FLYING §4.11 G 5 [H]): "with a non-guard object top, a member that is in max range
 // (slot 44), not inside min range (slot 45) and not moving (locomotor vf +0x1c0(0) false) keeps its own path" when the
 // moving formation re-paths (0x4192b0 step 4). Two vehicles 50 apart, one attack formation, 1500 from the target; after 60
@@ -1168,6 +1205,7 @@ int main() {
     test_scene_guard_trim_start();  // cmb1 t05
     test_scene_workers();
     test_scene_unseen();  // s78n t26 review round 3
+    test_scene_air_lead();  // #89
     test_scene_repath_keep();
     return ::alamo::test::report("alamo_tactical_movement_b5_tests");
 }
