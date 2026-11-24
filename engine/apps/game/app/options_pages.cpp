@@ -28,14 +28,16 @@ constexpr Field<ui::GameplaySettings, int32_t> kGameplayInts[] = {{"game_speed",
                                                                   {"scroll_speed", &ui::GameplaySettings::scroll_speed},
                                                                   {"difficulty", &ui::GameplaySettings::difficulty}};
 constexpr Field<ui::GameplaySettings, bool> kGameplayChecks[] = {
-    {"ask_autoresolve", &ui::GameplaySettings::ask_autoresolve},
+    // #467 / #473: new keys, so the port's old ask_autoresolve=1 / abilities_autofire=0 (wrong meaning / default) are
+    // not carried over.
+    {"auto_resolve", &ui::GameplaySettings::auto_resolve},
     {"delay_tooltips", &ui::GameplaySettings::delay_tooltips},
     {"absolute_scroll", &ui::GameplaySettings::absolute_scroll},
     {"alternate_mouse", &ui::GameplaySettings::alternate_mouse},
     {"right_button_scroll", &ui::GameplaySettings::right_button_scroll},
     {"both_buttons_rotate", &ui::GameplaySettings::both_buttons_rotate},
     {"simplified_colors", &ui::GameplaySettings::simplified_colors},
-    {"abilities_autofire", &ui::GameplaySettings::abilities_autofire}};
+    {"abilities_default_to_autofire", &ui::GameplaySettings::abilities_autofire}};
 constexpr Field<ui::AudioVolumes, float> kVolumes[] = {{"volume_master", &ui::AudioVolumes::master},
                                                        {"volume_sfx", &ui::AudioVolumes::sfx},
                                                        {"volume_speech", &ui::AudioVolumes::speech},

@@ -1463,7 +1463,7 @@ void FrontEnd::fill_gameplay(GuiDialog& d, const GameplaySettings& g) {
     d.set_value("IDC_GAME_SPEED_SLIDER", g.game_speed);
     d.set_value("IDC_STRATEGIC_GAME_SPEED_SLIDER", g.strategic_speed);
     d.set_value("IDC_SCROLL_SPEED_SLIDER", g.scroll_speed);
-    d.set_checked("IDC_AUTORESOLVE", g.ask_autoresolve);
+    d.set_checked("IDC_AUTORESOLVE", g.auto_resolve);
     d.set_checked("IDC_DELAY_TOOLTIPS", g.delay_tooltips);
     d.set_checked("IDC_ABSOLUTE_SCROLLING", g.absolute_scroll);
     d.set_checked("IDC_ALTERNATE_MOUSE_CONTROLS", g.alternate_mouse);
@@ -1487,7 +1487,7 @@ GameplaySettings FrontEnd::read_gameplay(const GuiDialog& d) const {
     val("IDC_GAME_SPEED_SLIDER", g.game_speed);
     val("IDC_STRATEGIC_GAME_SPEED_SLIDER", g.strategic_speed);
     val("IDC_SCROLL_SPEED_SLIDER", g.scroll_speed);
-    chk("IDC_AUTORESOLVE", g.ask_autoresolve);
+    chk("IDC_AUTORESOLVE", g.auto_resolve);
     chk("IDC_DELAY_TOOLTIPS", g.delay_tooltips);
     chk("IDC_ABSOLUTE_SCROLLING", g.absolute_scroll);
     chk("IDC_ALTERNATE_MOUSE_CONTROLS", g.alternate_mouse);

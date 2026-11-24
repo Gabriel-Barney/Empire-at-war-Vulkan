@@ -86,6 +86,22 @@ ui::HudBombingRunButton bombing_run_button(bool land, bool controls_locked, bool
 // which draws `faction_icon`. Never hidden; ready = readiness >= 1, allowed and controls not locked. With no weapon, not
 // allowed or locked it is disabled with a full dial; a weapon at readiness 0 also shows a full dial. [L] the tooltip:
 // the icon, or 4 when not allowed (retail's rule 0x2e32f0 is not traced).
+// The galactic pending-battle prompt (GALACTIC_DIALOGS §1): what it does, from retail's state machines 0x2b92e0 / 0x2b76a0 and
+// the banner 0x3ca480 (#467 / #472: docs/re/GAMEPLAY_OPTIONS_AND_MOUSE.md t09, docs/re/SCORE_TOOLTIPS_GAME_OPTIONS.md t14 [H]).
+// - the profile's IDC_AUTORESOLVE, or the game option "always" (0): resolve without asking;
+// - "never" (1): both buttons (the banner ignores the option; "never" only skips the overrun check);
+// - "overwhelming odds" (3): ask, and after `vote_timeout_s` (AutoResolveVoteDefaultTimeOut) of wall clock take the
+//   default, auto-resolve unless AutoResolveVoteDefaultToTactical [port: the banner, not IDD_MP_VOTE_DIALOG];
+// - "ask" (2) / no game options (a load, a skirmish): ask.
+// A story-locked battle offers Begin only and never auto-resolves [port: retail's profile test ignores the lock].
+struct BattlePromptRule {
+    bool auto_now = false;     // answer Auto-Resolve at once
+    bool begin_only = false;   // one button (the story lock)
+    float timeout_s = 0.0f;    // > 0: answer by itself after this many seconds
+    bool timeout_auto = true;  // that answer: Auto-Resolve, else Begin
+};
+BattlePromptRule battle_prompt_rule(bool story_locked, bool profile_auto_resolve, bool game_options, int32_t option,
+                                    float vote_timeout_s, bool vote_default_tactical);
 ui::HudBombingRunButton space_weapon_button(bool space, int32_t icon, int32_t faction_icon, bool allowed, bool controls_locked,
                                             float readiness);
 // 0x317d00: the button icon by the local faction's name - Rebel 0, Empire 1, Underworld 2, any other 3 [M: the HUD strings

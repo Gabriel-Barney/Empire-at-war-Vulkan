@@ -233,6 +233,9 @@ enum class LinkedResolution : uint8_t { None = 0, RetreatPlayer = 1, RetreatAi =
 struct ConflictConfig {
     BattleChoice human_choice = BattleChoice::AutoResolve;  // headless answer to the pending-battle choice
     bool fight_ai_battles = false;  // [port test option] AI vs AI conflicts are fought too
+    // #472 (docs/re/SCORE_TOOLTIPS_GAME_OPTIONS.md t14 [H]): the game option "never" sets the no-auto-resolve flag the story
+    // lock sets (0x2b9a11), which only skips the overrun check. Inert in FoC (Overrun_Auto_Resolve_Multiple 0).
+    bool overrun_check = true;
 };
 
 class ConflictManager final : public ConflictHooks {

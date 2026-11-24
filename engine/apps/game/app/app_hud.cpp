@@ -724,7 +724,7 @@ void App::build_galactic_hud(ui::GalacticHudFrame& f, std::vector<ui::GalacticPl
     // GALACTIC_DIALOGS §1 banner, §2.1 holocron flash, screen text ([port] each line 6 s, the last second fading).
     if (choice_open_) {
         f.battle.active = true;
-        f.battle.single = prompt_.story_pending || prompt_.no_autoresolve;
+        f.battle.single = prompt_.story_pending;
         f.battle.color = hud_consts_.battle_pending_color;  // Battle_Pending_Message_Color
         f.battle.space = !prompt_.land;
         f.battle.planet = prompt_.planet_name;

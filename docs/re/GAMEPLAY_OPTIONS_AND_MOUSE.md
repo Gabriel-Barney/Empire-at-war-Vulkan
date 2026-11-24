@@ -30,12 +30,14 @@ Options dialog handler = `0xa0f30` (OK branch reads the checks into the profile 
   of this state is not traced - see "open"]. It is not read in the multiplayer branch.
 - The tactical IDC_AUTORESOLVE (retreat dialog, `0xdc5d0`) is a different control with the same name; unrelated.
 
-**Port today:** `engine/ui/include/alamo/ui/gui_menus.hpp:301` `ask_autoresolve = true` (wrong name, wrong default: the box
-starts checked and Defaults checks it); saved as `ask_autoresolve` (`engine/apps/game/app/options_pages.cpp:31`); no
-reader. The battle prompt: `App::open_battle_prompt` `engine/apps/game/app/app_screens.cpp:650-690`; the sim decision:
-`ConflictManager` Decide `engine/galactic/src/conflicts.cpp:647-683`, `ConflictConfig` `conflicts.hpp:233`.
+**Port (#467, landed):** `GameplaySettings::auto_resolve = false`, options key `auto_resolve` (the old `ask_autoresolve`
+key is not read). The pure rule `game::battle_prompt_rule` (hud_feeds.hpp) answers the pending-battle prompt with
+Auto-Resolve at once when the box is checked; `App::open_battle_prompt` applies it. The answer goes through the same
+`BattleChoice::AutoResolve` path as a click (force + AutoSetup), so the outcome matches retail's 0x2b9ab6 while the profile
+stays out of the simulation: the sim only sees the player's answer. The story lock stays a guard [port] (see "open").
+The recipe below (a sim-side `ConflictConfig::always_auto_resolve`) was the first plan and was not taken.
 
-**Change [H]:**
+**First plan (not taken):**
 1. `GameplaySettings::ask_autoresolve` -> `auto_resolve = false` (gui_menus.hpp:301, gui_menus.cpp:1466/1490); options key
    `auto_resolve` (options_pages.cpp:31; do not map the old `ask_autoresolve` key - every existing port profile has it =1).
 2. `ConflictConfig`: `bool always_auto_resolve = false;  // profile 0x140a7c46f, 0x2b9ab6`. In Decide, after the overrun
@@ -132,5 +134,5 @@ release after a drag -> pose == reset pose; orders - alternate on, right press+r
   story lock as a guard [port] until then.
 - t11: the galactic effect of each alternate action is read from the shared code only [M]; 0x140b29fc1/fc2 (what the
   right click cancels) not named.
-- Side finding (not t09-t11): retail IDC_ABILITIES_DEFAULT_TO_AUTOFIRE defaults ON (ctor +0x246 = 1, Defaults passes 1);
-  the port defaults it off (gui_menus.hpp:302).
+- Side finding (not t09-t11): retail IDC_ABILITIES_DEFAULT_TO_AUTOFIRE defaults ON (ctor +0x246 = 1, Defaults passes 1).
+  The port now defaults it on too, under the new key `abilities_default_to_autofire` (#473).

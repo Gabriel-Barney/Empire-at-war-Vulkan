@@ -148,11 +148,12 @@ clear, so by default the option is never consulted.
 - Hook 0x87700 (0x140b15640) only blocks a second dialog while one is open (byte 0x140a61c38).
 - So "odds" asks every human battle through the vote dialog, which **defaults to auto-resolve after 15 s**.
 
-**Port today:**
-- app_screens.cpp:683-688: "never" sets `prompt_.no_autoresolve` (Begin only); "odds" uses the normal banner with no timeout.
-- conflicts.cpp:655: the overrun gate checks only `story_locked`.
+**Port (#472, landed):** `game::battle_prompt_rule` (hud_feeds.hpp) gives "never" both buttons and no timer, and "odds" the
+banner with a wall-clock timer of `AutoResolveVoteDefaultTimeOut` that answers Auto-Resolve unless
+`AutoResolveVoteDefaultToTactical` (the "smaller step" below: the banner, not IDD_MP_VOTE_DIALOG [port]).
+`ConflictConfig::overrun_check` is false under "never", and gates the overrun check at conflicts.cpp:655.
 
-**Port change ([H]):**
+**Port change ([H]), as planned:**
 1. app_screens.cpp:687: drop the kAutoResolveNever line, so "never" offers both buttons.
 2. For completeness, add `bool overrun_off` to ConflictRules (or the manager's options), set when `game_options &&
    auto_resolve_option == 1`, and gate conflicts.cpp:655 with `&& !overrun_off`. It only matters for mods that set

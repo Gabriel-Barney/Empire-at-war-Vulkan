@@ -630,7 +630,7 @@ void App::answer_battle_prompt(bool auto_resolve) {
         std::printf("battle choice: begin (story link%s)\n", sent ? "" : ", not sent");
         return;
     }
-    const bool ar = auto_resolve && !prompt_.story_pending && !prompt_.no_autoresolve;
+    const bool ar = auto_resolve && !prompt_.story_pending;
     const galactic::BattleChoice c = ar ? galactic::BattleChoice::AutoResolve : galactic::BattleChoice::Fight;
     const galactic::GalacticSim* g = galaxy();
     const galactic::ConflictInfo* head = session_ ? session_->conflict_head() : nullptr;
@@ -679,12 +679,19 @@ void App::open_battle_prompt(const galactic::GalacticSim& g, const galactic::Con
     choice_open_ = true;  // the banner (GalacticHudFrame::battle) until Begin / Auto-Resolve
     ++choices_;
     if (prompt_.story_pending) ++prompts_story_;
-    // ui1 t06 (BATTLE_TRANSITIONS §1.6 step 4): with the advanced options' auto-resolve option, "always" (0) resolves a
-    // battle that is not story-locked without asking; "never" (1) [port: the original's GUI hook 0x140b15638 is not
-    // traced] offers Begin only; "ask" (2) and "overwhelming odds" (3) [port] ask.
-    if (session_ && session_->spec().game_options && !prompt_.story_pending && !prompt_.linked) {
-        if (session_->spec().auto_resolve_option == ui::kAutoResolveAlways) answer_battle_prompt(true);
-        else if (session_->spec().auto_resolve_option == ui::kAutoResolveNever) prompt_.no_autoresolve = true;
+    // #467 / #472 (game::battle_prompt_rule): the profile's Auto-Resolve box and the advanced options' auto-resolve option.
+    if (session_ && !prompt_.linked) {
+        const data::GameConstants& gc = data_.db.constants();
+        const std::string_view to_tactical = gc.get("AutoResolveVoteDefaultToTactical").value_or("False");
+        const auto vote_s = static_cast<float>(gc.get_int("AutoResolveVoteDefaultTimeOut", 15));
+        const BattlePromptRule rule =
+            battle_prompt_rule(prompt_.story_pending, gameplay_.auto_resolve, session_->spec().game_options,
+                               session_->spec().auto_resolve_option, vote_s, data::parse_bool_or(to_tactical, false));
+        if (rule.timeout_s > 0.0f) {
+            prompt_.vote_deadline = now_s_ + static_cast<double>(rule.timeout_s);
+            prompt_.vote_auto = rule.timeout_auto;
+        }
+        if (rule.auto_now) answer_battle_prompt(true);
     }
     std::printf("battle prompt: %s (%s, %s), yours %u units / %u stacks [%s], enemy %u units / %u stacks [%s]\n",
                 utf8_of(prompt_.title).c_str(), prompt_.land ? "land" : "space", prompt_.story_pending ? "begin only" : "begin / auto-resolve",
@@ -899,6 +906,9 @@ void App::galactic_screens() {
     }
     if (session_->battle_choice_pending() && !choice_open_)
         if (const galactic::ConflictInfo* c = session_->conflict_head()) open_battle_prompt(*g, *c);
+    // #472: "overwhelming odds" takes the vote's default answer after AutoResolveVoteDefaultTimeOut (wall clock).
+    if (choice_open_ && !prompt_.linked && prompt_.vote_deadline > 0.0 && now_s_ >= prompt_.vote_deadline)
+        answer_battle_prompt(prompt_.vote_auto);
     // the linked record's banner (it can also go down without Begin, e.g. a loaded save shows it again).
     if (choice_open_ && prompt_.linked && !(session_->battles() && session_->battles()->linked_banner_up())) choice_open_ = false;
     if (!choice_open_)

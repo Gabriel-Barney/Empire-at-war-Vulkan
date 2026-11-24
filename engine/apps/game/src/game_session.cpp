@@ -306,6 +306,8 @@ bool GameSession::start(std::vector<std::string>* diag, const commands::CommandR
     sim::CampaignBattleOptions bo;
     bo.conflict.human_choice = galactic::BattleChoice::Fight;  // without ask_battle_choice: every human conflict is fought
     bo.conflict.fight_ai_battles = spec_.attract;  // OI host: the attract demo's AI-vs-AI battle is fought
+    // #472: the advanced options' auto-resolve "never" (1) skips the overrun check.
+    bo.conflict.overrun_check = !(spec_.game_options && spec_.auto_resolve_option == 1);
     bo.battle.max_frames = spec_.battle_max_frames;
     bo.fleet_groups = spec_.fleet_groups;  // [port] fleet groups (off = retail)
     bo.battle.end_hold_frames = spec_.battle_end_hold_frames;

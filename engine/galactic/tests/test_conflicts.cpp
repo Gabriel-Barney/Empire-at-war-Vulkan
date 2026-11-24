@@ -787,13 +787,15 @@ void test_overrun_strength() {
     // Decide: with Overrun_Auto_Resolve_Multiple (synthetic 3; vanilla 0 = off) a human defender's battle against a much
     // weaker attacker is auto-resolved (BT §1.6); without it the human's Fight choice starts the battle.
     // mcx4 t07 (MCX4_RE_ANSWERS_GALACTIC Q7.6): the auto-resolve lock (story_lock: the story's +0x41 / RESTRICT list,
-    // or the campaign's Is_Autoresolve_Allowed false) suppresses the overrun check, so the human fights.
-    for (const auto& [multiple, locked] : {std::pair{0.0f, false}, std::pair{3.0f, false}, std::pair{3.0f, true}}) {
+    // or the campaign's Is_Autoresolve_Allowed false) suppresses the overrun check, so the human fights. #472: so does the
+    // game option "never" (ConflictConfig::overrun_check false, the same flag 0x2b9a11); `locked` 2 is that case.
+    for (const auto& [multiple, locked] : {std::pair{0.0f, 0}, std::pair{3.0f, 0}, std::pair{3.0f, 1}, std::pair{3.0f, 2}}) {
         World h({{pEmpire, rB, tSB1}, {pEmpire, rB, tFrigate}, {pEmpire, rB, tFrigate}, {pEmpire, rB, tFrigate},
                  {pUnder, rC, tCorvette}},
                 true);
         h.crules.overrun_multiple = multiple;
-        if (locked) h.cm->story_lock = [](const ConflictInfo&) { return true; };
+        if (locked == 1) h.cm->story_lock = [](const ConflictInfo&) { return true; };
+        if (locked == 2) h.cm->config().overrun_check = false;
         h.cm->config().human_choice = BattleChoice::Fight;
         int started = 0;
         h.cm->start_battle = [&started](const BattleRequest&) {
@@ -801,7 +803,7 @@ void test_overrun_strength() {
             return true;
         };
         h.arrive_at_b();  // 3300 vs 400
-        if (multiple == 0.0f || locked) {
+        if (multiple == 0.0f || locked != 0) {
             CHECK(started == 1 && h.cm->battle_active());
         } else {
             CHECK(started == 0 && !h.cm->battle_active());

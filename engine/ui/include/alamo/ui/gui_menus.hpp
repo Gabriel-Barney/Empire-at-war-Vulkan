@@ -298,8 +298,11 @@ struct GameplaySettings {
     int32_t game_speed = 50, strategic_speed = 50, scroll_speed = kDefaultScrollSpeedSlider;  // 0..100
     int32_t difficulty = 1;  // 0 easy, 1 normal, 2 hard
     // absolute_scroll: IDC_ABSOLUTE_SCROLLING, on by default (§3.1). The Defaults button restores these values.
-    bool ask_autoresolve = true, delay_tooltips = false, absolute_scroll = true, alternate_mouse = false,
-         right_button_scroll = false, both_buttons_rotate = false, simplified_colors = false, abilities_autofire = false;
+    // auto_resolve: IDC_AUTORESOLVE "Auto-Resolve" = always auto-resolve my battles, off by default (#467, profile byte
+    // 0x140a7c46f, docs/re/GAMEPLAY_OPTIONS_AND_MOUSE.md t09). abilities_autofire: IDC_ABILITIES_DEFAULT_TO_AUTOFIRE, on
+    // by default (#473: profile +0x246 = 1, the Defaults button passes 1).
+    bool auto_resolve = false, delay_tooltips = false, absolute_scroll = true, alternate_mouse = false,
+         right_button_scroll = false, both_buttons_rotate = false, simplified_colors = false, abilities_autofire = true;
 };
 // IDD_CAMPAIGN_ADVANCED_OPTIONS_DIALOG = the game options record (legacy docs/re/SKIRMISH_SETUP.md, GMM+0xbc: +0 start credits,
 // +4 start tech, +8 max tech, +0xc auto-resolve 0 always / 1 never / 2 ask / 3 overwhelming odds (BATTLE_TRANSITIONS §1.6),
