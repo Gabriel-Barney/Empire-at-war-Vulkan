@@ -882,7 +882,7 @@ void App::handle_hud_actions(const std::vector<ui::HudAction>& acts) {
                 // legacy docs/re/P1_DOUBLE_CLICK_MOVE.md §2.1: the attack-move / waypoint / guard order buttons (c_button01 / 03 / 05) arm the
                 // one-shot move toggles of the next move order.
                 if (screen() == Screen::Battle && (ascii_iequals(a.name, "c_button01") || ascii_iequals(a.name, "c_button03") || ascii_iequals(a.name, "c_button05"))) {
-                    orders_.arm_move_toggle(ascii_iequals(a.name, "c_button01")   ? ui::MoveToggle::AttackMove
+                    orders_.toggle_move_toggle(ascii_iequals(a.name, "c_button01")   ? ui::MoveToggle::AttackMove
                                             : ascii_iequals(a.name, "c_button03") ? ui::MoveToggle::Waypoint
                                                                            : ui::MoveToggle::GuardMove);
                     break;
@@ -1485,9 +1485,9 @@ void App::battle_input() {
             if (input_.key_pressed(wing == 0 ? kVkF2 : kVkF3)) select_wing(wing, input_.shift(), input_.ctrl());
     // legacy docs/re/P1_DOUBLE_CLICK_MOVE.md §2.1: the attack-move (T), guard (G) and waypoint hotkeys arm the next move order's toggle.
     for (const ui::HotkeyEvent& e : hk) {
-        if (e.slot == ui::hk::kAttackMove) orders_.arm_move_toggle(ui::MoveToggle::AttackMove);
-        else if (e.slot == ui::hk::kGuard) orders_.arm_move_toggle(ui::MoveToggle::GuardMove);
-        else if (e.slot == ui::hk::kWaypoint) orders_.arm_move_toggle(ui::MoveToggle::Waypoint);
+        if (e.slot == ui::hk::kAttackMove) orders_.toggle_move_toggle(ui::MoveToggle::AttackMove);  // #430: the keys flip
+        else if (e.slot == ui::hk::kGuard) orders_.toggle_move_toggle(ui::MoveToggle::GuardMove);
+        else if (e.slot == ui::hk::kWaypoint) orders_.toggle_move_toggle(ui::MoveToggle::Waypoint);
         else if (e.slot == ui::hk::kSuperWeapon && !bview_.space() && bombing_run_ready()) bombing_toggle();  // 0x63f00 case 0x16 (land)
         else if (e.slot == ui::hk::kSuperWeapon && bview_.space()) space_weapon_toggle(true);  // 0x63f00 case 0x16 (space)
         else if (e.slot == ui::hk::kDroidAdvisor) open_holocron(ui::InfoPage::DroidLog);  // capture C2 (no galaxy in a skirmish: nothing)

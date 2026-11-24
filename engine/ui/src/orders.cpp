@@ -132,7 +132,10 @@ void OrderTranslator::tactical(const InputState& in, const OrderContext& ctx) {
                 right_release(in, ctx);
             }
         } else if (!hit && !in.shift()) {  // legacy docs/re/P1_CAMERA_INPUT.md §5: a plain click on nothing submits Select{} [port: Shift]
-            emit_select({});
+            // #430 (0x32236 [H]): with Attack (else Move) armed the click clears that toggle instead.
+            if (toggle_force_attack_) toggle_force_attack_ = false;
+            else if (toggle_force_move_) toggle_force_move_ = false;
+            else emit_select({});
         }
     }
     if (alternate_) {
@@ -159,14 +162,19 @@ void OrderTranslator::tactical(const InputState& in, const OrderContext& ctx) {
     }
 }
 
-void OrderTranslator::arm_move_toggle(MoveToggle t) {
+void OrderTranslator::toggle_move_toggle(MoveToggle t, bool exclusive) {
+    bool* flag = nullptr;
     switch (t) {
-        case MoveToggle::AttackMove: toggle_attack_ = true; break;
-        case MoveToggle::GuardMove: toggle_guard_ = true; break;
-        case MoveToggle::Waypoint: toggle_waypoint_ = true; break;
-        case MoveToggle::Attack: toggle_force_attack_ = true; toggle_force_move_ = false; break;
-        case MoveToggle::Move: toggle_force_move_ = true; toggle_force_attack_ = false; break;
+        case MoveToggle::AttackMove: flag = &toggle_attack_; break;
+        case MoveToggle::GuardMove: flag = &toggle_guard_; break;
+        case MoveToggle::Waypoint: flag = &toggle_waypoint_; break;
+        case MoveToggle::Attack: flag = &toggle_force_attack_; break;
+        case MoveToggle::Move: flag = &toggle_force_move_; break;
     }
+    if (!flag) return;
+    const bool on = !*flag;
+    if (on && exclusive) toggle_attack_ = toggle_guard_ = toggle_waypoint_ = toggle_force_attack_ = toggle_force_move_ = false;
+    *flag = on;
 }
 
 bool OrderTranslator::move_toggle_armed(MoveToggle t) const {
@@ -186,7 +194,7 @@ uint8_t OrderTranslator::move_flags(const InputState& in, bool dbl) {
     const bool guard = (in.ctrl() && in.alt()) || toggle_guard_;
     if (guard) {
         f |= kGuardMove;
-    } else if (in.ctrl() || toggle_attack_ || toggle_force_attack_) {
+    } else if (in.ctrl() || toggle_attack_) {
         f |= kAttackMove;
     }
     if (dbl) f |= kDoubleClick;
@@ -199,14 +207,25 @@ uint8_t OrderTranslator::move_flags(const InputState& in, bool dbl) {
 
 // Order button release (default scheme action 13 -> `0x41f70`): the cursor action at the release point.
 void OrderTranslator::right_release(const InputState& in, const OrderContext& ctx) {
+    if (toggle_force_attack_) {
+        // #430 (0x39980 / 0x41f70 [H]): with Attack armed only an attack: a hostile object, else no order; the toggle stays.
+        const auto target = pick_world(ctx.trees->all(), ctx.view, pixel_ray(ctx.view, in.mouse_x(), in.mouse_y()), ctx.pick_filter,
+                                       qctx_, ctx.pick_tests);
+        if (target && is_hostile(ctx, target->id)) {
+            waypoint_mode_ = false;
+            commands::EventData e = ev::attack(target->id, sel_);
+            e.set("flag1", in.ctrl() ? 1u : 0u);
+            push_order(std::move(e), queue_);
+        }
+        return;
+    }
     const auto hit = toggle_force_move_ ? std::nullopt  // the Move toggle - a ground move whatever is under the cursor
                                         : pick_world(ctx.trees->all(), ctx.view, pixel_ray(ctx.view, in.mouse_x(), in.mouse_y()),
                                                      ctx.pick_filter, qctx_, ctx.pick_tests);
     if (hit) {
         waypoint_mode_ = false;  // any other order ends an Alt run
-        // the Attack toggle attacks any object that is not the local player's (hostile or not).
-        const bool attack = is_hostile(ctx, hit->id) || (toggle_force_attack_ && !is_selectable(ctx, hit->id));
-        toggle_attack_ = toggle_guard_ = toggle_waypoint_ = toggle_force_attack_ = toggle_force_move_ = false;
+        const bool attack = is_hostile(ctx, hit->id);
+        if (!attack) toggle_guard_ = false;  // #430: an object move clears GuardMove (Attack / Move are off here)
         if (attack) {
             commands::EventData e = ev::attack(hit->id, sel_);
             e.set("flag1", in.ctrl() ? 1u : 0u);  // +0x51 Ctrl (spec §3.4)
@@ -222,6 +241,7 @@ void OrderTranslator::right_release(const InputState& in, const OrderContext& ct
 // Double click of the order button (action 14, spec §1.3): acts at the press point; tactical modes only.
 void OrderTranslator::right_double(const InputState& in, const OrderContext& ctx) {
     const auto hit = pick_world(ctx.trees->all(), ctx.view, pixel_ray(ctx.view, in.mouse_x(), in.mouse_y()), ctx.pick_filter, qctx_, ctx.pick_tests);
+    if (!hit && toggle_force_attack_) return;  // #430: Attack armed - no ground order
     if (hit) {
         if (!is_hostile(ctx, hit->id)) return;  // a double click on a friendly object adds nothing
         waypoint_mode_ = false;
@@ -311,7 +331,7 @@ void OrderTranslator::ground_move(const InputState& in, const OrderContext& ctx,
     if (e.type() != commands::EventType::Facing) e.set("flags", flags);
     ack.attack = (flags & move_flag::kAttackMove) != 0;
     ack.guard = (flags & move_flag::kGuardMove) != 0;
-    toggle_attack_ = toggle_guard_ = toggle_waypoint_ = toggle_force_attack_ = toggle_force_move_ = false;  // one-shot toggles
+    toggle_guard_ = toggle_force_attack_ = toggle_force_move_ = false;  // #430 (0x3b360): AttackMove and Waypoint stay armed
     push_order(std::move(e), (flags & move_flag::kWaypoint) != 0, !dbl, dbl);
     acks_.push_back(ack);
 }

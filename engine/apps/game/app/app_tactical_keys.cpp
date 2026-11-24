@@ -277,12 +277,8 @@ void App::tactical_hotkeys(const std::vector<ui::HotkeyEvent>& hk, std::vector<c
             case hk_::kQuickSave:
             case hk_::kQuickLoad:
             case hk_::kScreenshot: interface_hotkey(e.slot); break;
-            case hk_::kAttack:  // t01: as c_button00 (only while it is enabled)
-                if (ui_.tactical_hud.order_button_live(0)) orders_.arm_move_toggle(ui::MoveToggle::Attack);
-                break;
-            case hk_::kMove:  // as c_button02
-                if (ui_.tactical_hud.order_button_live(2)) orders_.arm_move_toggle(ui::MoveToggle::Move);
-                break;
+            case hk_::kAttack: orders_.toggle_move_toggle(ui::MoveToggle::Attack); break;  // #430: a toggle, no button test
+            case hk_::kMove: orders_.toggle_move_toggle(ui::MoveToggle::Move); break;
             case hk_::kSelectLike: select_like(); break;
             case hk_::kNextUnit: select_cycle(1); break;
             case hk_::kPrevUnit: select_cycle(-1); break;
@@ -307,12 +303,12 @@ void App::tactical_hotkeys(const std::vector<ui::HotkeyEvent>& hk, std::vector<c
 bool App::tactical_button(const ui::HudAction& a) {
     if (screen() != Screen::Battle) return false;
     const std::string& n = a.name;
-    if (ascii_iequals(n, "c_button00")) {  // t01 attack: the next right click attacks (an object) / attack-moves (ground)
-        orders_.arm_move_toggle(ui::MoveToggle::Attack);
+    if (ascii_iequals(n, "c_button00")) {  // #430 (0x347360): flip Attack; arming clears the other four
+        orders_.toggle_move_toggle(ui::MoveToggle::Attack, true);
         return true;
     }
-    if (ascii_iequals(n, "c_button02")) {  // move: the next right click is a plain ground move
-        orders_.arm_move_toggle(ui::MoveToggle::Move);
+    if (ascii_iequals(n, "c_button02")) {  // #430 (0x347420): flip Move; arming clears the other four
+        orders_.toggle_move_toggle(ui::MoveToggle::Move, true);
         return true;
     }
     if (ascii_iequals(n, "c_button04")) {  // full stop: StopMovement for the selection (as the Stop key)

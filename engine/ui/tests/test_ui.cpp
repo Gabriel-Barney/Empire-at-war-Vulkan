@@ -1241,43 +1241,53 @@ void test_double_click_move() {
     o = run(land, mark);
     CHECK(o.size() == 1 && o[0].event.u("flags") == 0x0C && o[0].queued);
 
-    // 6. one-shot HUD toggles: attack-move applies to the next move only; guard wins over attack-move
-    ot.arm_move_toggle(MoveToggle::AttackMove);
+    // 6. #430 (docs/re/TACTICAL_HOTKEYS.md): the toggles flip. AttackMove stays armed across moves (fc3 survives 0x3b360);
+    //    GuardMove wins over it and clears with the move.
+    ot.toggle_move_toggle(MoveToggle::AttackMove);
     pause();
     mark = s.frames.size();
     s.click(Button::Right, 500, 200);
     pause();
     s.click(Button::Right, 500, 200);
     o = run(land, mark);
-    CHECK(o.size() == 2 && o[0].event.u("flags") == 0x05 && o[1].event.u("flags") == 0x04);
-    ot.arm_move_toggle(MoveToggle::GuardMove);
-    ot.arm_move_toggle(MoveToggle::AttackMove);
+    CHECK(o.size() == 2 && o[0].event.u("flags") == 0x05 && o[1].event.u("flags") == 0x05);
+    ot.toggle_move_toggle(MoveToggle::GuardMove);
     pause();
     mark = s.frames.size();
     s.click(Button::Right, 500, 200);
     o = run(land, mark);
-    CHECK(o.size() == 1 && o[0].event.u("flags") == 0x06);
-    // the attack button / key (MoveToggle::Attack) makes the next ground order an attack-move, once; the move
-    // button / key (MoveToggle::Move) a plain move; arming one clears the other.
-    ot.arm_move_toggle(MoveToggle::Attack);
-    CHECK(ot.move_toggle_armed(MoveToggle::Attack) && !ot.move_toggle_armed(MoveToggle::Move));
+    CHECK(o.size() == 1 && o[0].event.u("flags") == 0x06 && !ot.move_toggle_armed(MoveToggle::GuardMove) &&
+          ot.move_toggle_armed(MoveToggle::AttackMove));
+    ot.toggle_move_toggle(MoveToggle::AttackMove);  // a second flip disarms
+    CHECK(!ot.move_toggle_armed(MoveToggle::AttackMove));
+    // Attack armed: a right click on the ground gives no order and the toggle stays; the move toggle is a plain move.
+    ot.toggle_move_toggle(MoveToggle::Attack);
     pause();
     mark = s.frames.size();
     s.click(Button::Right, 500, 200);
-    pause();
-    s.click(Button::Right, 500, 200);
     o = run(land, mark);
-    CHECK(o.size() == 2 && o[0].event.u("flags") == 0x05 && o[1].event.u("flags") == 0x04);
-    CHECK(!ot.move_toggle_armed(MoveToggle::Attack));
-    ot.arm_move_toggle(MoveToggle::Attack);
-    ot.arm_move_toggle(MoveToggle::Move);
-    CHECK(ot.move_toggle_armed(MoveToggle::Move) && !ot.move_toggle_armed(MoveToggle::Attack));
+    CHECK(o.empty() && ot.move_toggle_armed(MoveToggle::Attack));
+    // the keys do not clear each other; the buttons' exclusive arm does.
+    ot.toggle_move_toggle(MoveToggle::Move);
+    CHECK(ot.move_toggle_armed(MoveToggle::Move) && ot.move_toggle_armed(MoveToggle::Attack));
+    ot.toggle_move_toggle(MoveToggle::Attack);  // off
+    ot.toggle_move_toggle(MoveToggle::Move);    // off
+    ot.toggle_move_toggle(MoveToggle::AttackMove);
+    ot.toggle_move_toggle(MoveToggle::Move, true);
+    CHECK(ot.move_toggle_armed(MoveToggle::Move) && !ot.move_toggle_armed(MoveToggle::AttackMove));
     pause();
     mark = s.frames.size();
     s.click(Button::Right, 500, 200);
     o = run(land, mark);
     CHECK(o.size() == 1 && o[0].event.type() == T::MoveToPosition && o[0].event.u("flags") == 0x04);
-    CHECK(!ot.move_toggle_armed(MoveToggle::Move));
+    CHECK(!ot.move_toggle_armed(MoveToggle::Move));  // the move cleared it
+    // a left click on nothing with Attack armed clears the toggle instead of the selection.
+    ot.toggle_move_toggle(MoveToggle::Attack, true);
+    pause();
+    mark = s.frames.size();
+    s.click(Button::Left, 500, 200);
+    o = run(land, mark);
+    CHECK(o.empty() && !ot.move_toggle_armed(MoveToggle::Attack));
 
     // 7. land drag: Chebyshev 3 px (Euclid 4.2 > 4) is still a click; 60 px -> MoveToPositionFacing at the anchor;
     //    a drag starting on a selected unit -> Facing (rotate only).
