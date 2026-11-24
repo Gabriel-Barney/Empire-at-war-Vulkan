@@ -23,9 +23,17 @@ std::vector<ui::RadarField> radar_asteroid_fields(std::span<const tactical::abil
 
 std::vector<uint8_t> radar_land_terrain(const terrain::MapData& map, const tactical::movement::PassabilityGrid& grid,
                                         const ui::PassabilityPalette& palette, uint32_t size, float min_x, float min_y, float max_x,
-                                        float max_y) {
+                                        float max_y, const std::array<float, 4>* camera_box) {
     if (!map.passability_present && map.legacy_passability.empty()) return {};
     ui::RadarTerrainSource src;
+    if (camera_box) {
+        const std::array<float, 4>& b = *camera_box;
+        src.has_box = true;
+        src.box_cx = 0.5f * (b[0] + b[2]);
+        src.box_cy = 0.5f * (b[1] + b[3]);
+        src.box_hx = 0.5f * (b[2] - b[0]);
+        src.box_hy = 0.5f * (b[3] - b[1]);
+    }
     src.cells = grid.effective_values();
     src.gw = grid.width();
     src.gh = grid.height();

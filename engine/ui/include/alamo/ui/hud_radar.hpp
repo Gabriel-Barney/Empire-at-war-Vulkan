@@ -110,12 +110,18 @@ struct RadarTerrainSource {
     uint32_t gw = 0, gh = 0;
     float cell = 20.0f;
     std::function<bool(float, float)> water;  // water surface at or above the terrain at (x, y); null = no water
+    // #320 (docs/re/RADAR_BLIPS_AND_BOX.md, 0x359bc1 [H]): the land camera box (the playable box, .ted 0x103 05 / 06): a texel
+    // whose unclamped world point is outside it is opaque black. Without a box nothing is black.
+    bool has_box = false;
+    float box_cx = 0, box_cy = 0, box_hx = 0, box_hy = 0;
 };
+// #320 (0x35f140 [H]): with the land camera box, the radar's world rect is the square about the box's centre with the half
+// side max(half width, half height); on a non-square map the strips beside the box are black.
+RadarFieldPaint radar_square_box(float min_x, float min_y, float max_x, float max_y);
 // `size` x `size` RGBA over the world box [min, max], RadarImage's terrain convention (row 0 = min y, column 0 = min x).
 // Retail's texel (x, t) samples world (min_x + w x / W, max_y - h t / H) with t = 0 the max-Y row [H]; in RadarImage rows
 // row r = H - 1 - t samples min_y + h (r + 1) / H. The point is clamped into [min + 0.001, max - 10 - 0.001]; a texel whose
-// cell is outside the grid is transparent [H]. [port] Not applied (#69 t04, needs-info): the opaque black outside the
-// tactical camera's bounding box - when the camera has one and where the box comes from are not recovered [L].
+// cell is outside the grid is transparent [H]; then, with `src.has_box`, a texel outside the box is opaque black [H] (#320).
 std::vector<uint8_t> radar_terrain_rgba(const RadarTerrainSource& src, const PassabilityPalette& palette, uint32_t size, float min_x,
                                         float min_y, float max_x, float max_y);
 
@@ -126,6 +132,10 @@ struct RadarEvent {
     bool persistent = false;
     bool marker = false;  // a story blip (RadarEvents::set_marker): `type` is the Lua blip name
     uint32_t id = 0;
+    // #320 (docs/re/RADAR_BLIPS_AND_BOX.md, 0x315c40 [H]): a story blip's pulse, 0..255, ping-ponging at 1024 per second
+    // from 255 falling. The radar_blip art (i_radar_focus.tga) draws with alpha = pulse and scale = pulse / 512 + 0.5.
+    float pulse = 255.0f;
+    bool rising = false;
 };
 class RadarEvents {
 public:
@@ -133,8 +143,9 @@ public:
     // ping. Returns its id.
     uint32_t add(const RadarSettings& s, std::string_view type, float x, float y);
     void remove(uint32_t id);
-    // Lua Add_Radar_Blip(object, name) / Remove_Radar_Blip(name) (legacy docs/re/UI.md §1.7; the visual is [port], no spec): a persistent
-    // named marker (a ring ping that follows the object). Upsert by case-insensitive name; the age is kept on a move.
+    // Lua Add_Radar_Blip(object, name) / Remove_Radar_Blip(name) (legacy docs/re/UI.md §1.7; #320: the radar_blip component's
+    // pulsing i_radar_focus.tga): a persistent named marker that follows the object. [port] Upsert by case-insensitive name
+    // (retail appends a record per Add); the age and pulse are kept on a move.
     uint32_t set_marker(std::string_view name, float x, float y);
     bool remove_marker(std::string_view name);
     std::vector<std::string> marker_names() const;

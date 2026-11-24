@@ -748,14 +748,18 @@ void App::add_holocron_chapter(const StoryDialogMeta& meta, size_t lines) {
     if (meta.sfx) audio_.faction_sfx("SFXEvent_Mission_Added");
 }
 
+// #320 (docs/re/RADAR_BLIPS_AND_BOX.md, 0x35f140 [H]): on land the camera box (the playable box) makes the radar rect the
+// square about its centre; space keeps the playable box [M].
 ui::RadarFieldPaint App::radar_world_box() const {
     ui::RadarFieldPaint box;
     if (const sim::TacticalMode* tm = session_ ? session_->host().modes().top_tactical() : nullptr)
         if (tm->bounds().max.x - tm->bounds().min.x < 1.0e5f) {
-            box.min_x = tm->bounds().min.x;
-            box.min_y = tm->bounds().min.y;
-            box.max_x = tm->bounds().max.x;
-            box.max_y = tm->bounds().max.y;
+            const tactical::Aabb& b = tm->bounds();
+            if (!bview_.space()) return ui::radar_square_box(b.min.x, b.min.y, b.max.x, b.max.y);
+            box.min_x = b.min.x;
+            box.min_y = b.min.y;
+            box.max_x = b.max.x;
+            box.max_y = b.max.y;
         }
     return box;
 }
@@ -772,8 +776,11 @@ void App::build_radar_terrain() {
     const std::string_view biome = ui::radar_biome(b->terrain_type());
     if (bview_.space() || b->is_space_battle() || biome.empty()) return;
     const ui::RadarFieldPaint box = radar_world_box();
+    std::array<float, 4> camera_box{};  // #320: the land camera box = the playable box
+    const sim::TacticalMode* tm = session_->host().modes().top_tactical();
+    if (tm) camera_box = {tm->bounds().min.x, tm->bounds().min.y, tm->bounds().max.x, tm->bounds().max.y};
     radar_terrain_ = radar_land_terrain(b->map(), b->movement().grid(), radar_settings_.palette(biome), kRadarTerrainSize, box.min_x,
-                                        box.min_y, box.max_x, box.max_y);
+                                        box.min_y, box.max_x, box.max_y, tm ? &camera_box : nullptr);
 }
 
 void App::update_radar() {

@@ -218,20 +218,38 @@ std::vector<uint8_t> radar_terrain_rgba(const RadarTerrainSource& src, const Pas
     const float half = 0.5f * src.cell;
     for (uint32_t row = 0; row < size; ++row)
         for (uint32_t col = 0; col < size; ++col) {
-            const float x = std::clamp(min_x + w * static_cast<float>(col) / static_cast<float>(size), lo_x, hi_x);
-            const float y = std::clamp(min_y + h * static_cast<float>(row + 1) / static_cast<float>(size), lo_y, hi_y);
+            const float ux = min_x + w * static_cast<float>(col) / static_cast<float>(size);
+            const float uy = min_y + h * static_cast<float>(row + 1) / static_cast<float>(size);
+            const float x = std::clamp(ux, lo_x, hi_x), y = std::clamp(uy, lo_y, hi_y);
             if (x + half < 0.0f || y + half < 0.0f) continue;
             const auto cx = static_cast<uint32_t>((x + half) / src.cell), cy = static_cast<uint32_t>((y + half) / src.cell);
             if (cx >= src.gw || cy >= src.gh) continue;  // outside the grid: transparent
+            uint8_t* px = &out[(static_cast<size_t>(row) * size + col) * 4];
+            // #320 (0x359bc1 [H]): outside the camera box (the unclamped point): opaque black.
+            if (src.has_box && (src.box_hx != 0.0f || src.box_hy != 0.0f) &&
+                (std::fabs(ux - src.box_cx) > src.box_hx || std::fabs(uy - src.box_cy) > src.box_hy)) {
+                px[3] = 255;
+                continue;
+            }
             const uint32_t bits = src.cells[static_cast<size_t>(cy) * src.gw + cx];
             const Rgba8 c = palette[static_cast<size_t>(radar_cell_class(bits, src.water && src.water(x, y)))];
-            uint8_t* px = &out[(static_cast<size_t>(row) * size + col) * 4];
             px[0] = c.r;
             px[1] = c.g;
             px[2] = c.b;
             px[3] = c.a;
         }
     return out;
+}
+
+RadarFieldPaint radar_square_box(float min_x, float min_y, float max_x, float max_y) {
+    const float cx = 0.5f * (min_x + max_x), cy = 0.5f * (min_y + max_y);
+    const float half = 0.5f * std::max(max_x - min_x, max_y - min_y);
+    RadarFieldPaint b;
+    b.min_x = cx - half;
+    b.min_y = cy - half;
+    b.max_x = cx + half;
+    b.max_y = cy + half;
+    return b;
 }
 
 void RadarImage::build(uint32_t size, std::span<const uint8_t> terrain, uint32_t tw, uint32_t th,
@@ -356,7 +374,21 @@ std::vector<std::string> RadarEvents::marker_names() const {
 }
 
 void RadarEvents::update(float dt) {
-    for (RadarEvent& e : items_) e.age += dt;
+    for (RadarEvent& e : items_) {
+        e.age += dt;
+        if (!e.marker) continue;
+        // #320 (0x315c40 [H]): the pulse falls to 0 and rises to 255 at 1024 per second, reflecting at each end.
+        if (!e.rising) {
+            e.pulse = std::clamp(e.pulse - 1024.0f * dt, -255.0f, 255.0f);
+            if (e.pulse <= 0.0f) {
+                e.rising = true;
+                e.pulse = -e.pulse;
+            }
+        } else {
+            e.pulse = std::clamp(e.pulse + 1024.0f * dt, -255.0f, 255.0f);
+            if (e.pulse >= 255.0f) e.rising = false;
+        }
+    }
     items_.erase(std::remove_if(items_.begin(), items_.end(),
                                 [](const RadarEvent& e) { return !e.persistent && e.age >= e.duration; }),
                  items_.end());
