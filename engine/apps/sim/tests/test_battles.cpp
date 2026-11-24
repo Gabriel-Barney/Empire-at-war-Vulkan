@@ -1425,9 +1425,28 @@ void test_attack_idle_clip_order() {
 // Celebrate (Presence_Induced_Animations) for an idle trooper holding a record; records hold only live-at-write presence
 // ids and never exceed int(30 x Unit_Presence_Relaxation_Time) frames; the IDLE attach set every trooper's first fidget
 // frame (210 - 450 frames after its row creation).
-void test_presence_idle() {
+// #365 (R3f t06 [H]): the presence cube is a query of the projectile-collidable tree (GOM +0xd8) - a unit whose tree BOX
+// overlaps the cube gets the record even when its centre is outside. With a small Presence_Range (`small_range`), some
+// records written this tick come from a presence trooper whose centre is outside the receiver's cube on some axis at
+// both the previous and this tick's positions (the write saw one of the two). `relax_seconds` > 0: the test GameConstants
+// set Unit_Presence_Relaxation_Time, whose int(30 x value) bounds the records instead of the BattleConfig default.
+float g_presence_range = 0.0f;
+std::string presence_range_patch(std::string t) {
+    const std::string tag = "<Presence_Range>5000</Presence_Range>";
+    if (const size_t p = t.find(tag); p != std::string::npos)
+        t.replace(p, tag.size(), "<Presence_Range>" + std::to_string(g_presence_range) + "</Presence_Range>");
+    return t;
+}
+void test_presence_idle(float small_range = 0.0f, float relax_seconds = 0.0f) {
+    g_presence_range = small_range;
+    if (small_range > 0.0f) g_types_patch = presence_range_patch;
+    const std::string relax_xml =
+        "<Unit_Presence_Relaxation_Time>" + std::to_string(relax_seconds) + "</Unit_Presence_Relaxation_Time>\n";
+    if (relax_seconds > 0.0f) g_constants_extra = relax_xml.c_str();
     auto d = make_data(false, true, false, false, false, false, false, false, false, false, false, false, false, false, false, false,
                        true);
+    g_types_patch = nullptr;
+    g_constants_extra = nullptr;
     const auto trooper = anim_model({{anim::kAnimIdle, {2, 30}}, {anim::kAnimMove, {1, 24}}, {anim::kAnimWalkMove, {1, 24}},
                                      {anim::kAnimAttack, {1, 12}}, {anim::kAnimAttackIdle, {1, 20}}, {anim::kAnimDie, {2, 45}},
                                      {78, {1, 20}}});  // 78 = Celebrate
@@ -1461,10 +1480,14 @@ void test_presence_idle() {
     CHECK(gs->launch_units(1, 2, up) == commands::RejectReason::None);
     const std::vector<uint32_t> uf = gs->fleets_at(2, 1);
     if (!uf.empty()) CHECK(gs->move_fleet(1, uf[0], 1) == commands::RejectReason::None);
-    const int32_t max_frames = static_cast<int32_t>(30.0f * opt.battle.presence_relaxation_seconds);
+    const int32_t max_frames = static_cast<int32_t>(30.0f * (relax_seconds > 0.0f ? relax_seconds : opt.battle.presence_relaxation_seconds));
+    int32_t top_frames = 0;  // the largest record value seen
     bool invaded = false;
     uint32_t frames_with_records = 0, max_records = 0, celebrate_frames = 0, bad_records = 0, timers_checked = 0, bad_timers = 0;
+    uint32_t box_only = 0;  // records written this tick whose presence centre is outside the cube
     std::map<objects::ObjectId, uint64_t> first_seen;
+    std::map<objects::ObjectId, Vec3> prev_pos, cur_pos;  // live objects with an anim row, end of the previous / this tick
+    std::map<std::pair<objects::ObjectId, objects::ObjectId>, int32_t> prev_rec, cur_rec;  // (receiver, presence) -> frames
     for (uint64_t t = 0; t < 4000; ++t) {
         host.tick_once();
         if (!invaded && host.modes().depth() == 1) {
@@ -1482,6 +1505,13 @@ void test_presence_idle() {
         if (!w || !beh) continue;
         const objects::ObjectStore& st = tm->primary();
         uint32_t with = 0;
+        cur_pos.clear();
+        cur_rec.clear();
+        for (const anim::ObjectId id : w->ids())
+            if (const objects::ObjectHandle h = st.find(id); st.alive(h)) cur_pos[id] = st.position(h);
+        const auto outside = [&](const Vec3& a, const Vec3& c) {
+            return std::fabs(a.x - c.x) > small_range || std::fabs(a.y - c.y) > small_range || std::fabs(a.z - c.z) > small_range;
+        };
         for (const anim::ObjectId id : w->ids()) {
             const objects::ObjectHandle h = st.find(id);
             // Live troopers only: the dying type's own death clone (same type, IDLE stripped) gets a row without the draw.
@@ -1495,16 +1525,34 @@ void test_presence_idle() {
             if (!recs.empty()) ++with;
             // [port] a presence unit may hold a record of itself (its type lists its own type; retail's box query
             // includes it [M]), so self records are allowed.
-            for (const anim::IdleRecord& r : recs)
+            for (const anim::IdleRecord& r : recs) {
                 if (r.frames < 1 || r.frames > max_frames) ++bad_records;
+                top_frames = std::max(top_frames, r.frames);
+                const auto key = std::make_pair(id, r.presence);
+                cur_rec[key] = r.frames;
+                // Written this tick: new, or higher than last tick (the presence interval is 30, so no write two ticks running).
+                const auto pr = prev_rec.find(key);
+                const bool fresh = pr == prev_rec.end() || r.frames > pr->second;
+                if (small_range <= 0.0f || r.presence == id || !fresh) continue;
+                const auto a0 = prev_pos.find(id), c0 = prev_pos.find(r.presence), a1 = cur_pos.find(id), c1 = cur_pos.find(r.presence);
+                if (a0 == prev_pos.end() || c0 == prev_pos.end() || a1 == cur_pos.end() || c1 == cur_pos.end()) continue;
+                if (outside(a0->second, c0->second) && outside(a1->second, c1->second)) ++box_only;
+            }
             if (w->current_type(id) == 78) ++celebrate_frames;
         }
         if (with > 0) ++frames_with_records;
         max_records = std::max(max_records, with);
+        prev_pos.swap(cur_pos);
+        prev_rec.swap(cur_rec);
     }
-    std::printf("  presence: %u frames with records (max %u troopers), %u Celebrate trooper-frames, %u bad records; %u attach timers (%u bad)\n",
-                frames_with_records, max_records, celebrate_frames, bad_records, timers_checked, bad_timers);
-    CHECK(frames_with_records > 0 && celebrate_frames > 0 && bad_records == 0);
+    std::printf("  presence (range %s, relax %d frames): %u frames with records (max %u troopers, top value %d), %u Celebrate "
+                "trooper-frames, %u bad records; %u attach timers (%u bad); %u fresh records from outside the centre cube\n",
+                small_range > 0.0f ? std::to_string(small_range).c_str() : "5000", max_frames, frames_with_records, max_records,
+                top_frames, celebrate_frames, bad_records, timers_checked, bad_timers, box_only);
+    CHECK(frames_with_records > 0 && bad_records == 0);
+    CHECK(top_frames >= max_frames - 1);  // the records start at int(30 x relaxation) (read after one aging at most)
+    if (small_range > 0.0f) CHECK(box_only > 0);  // #365: only a box overlap writes those
+    else CHECK(celebrate_frames > 0);
     CHECK(timers_checked > 0 && bad_timers == 0);
     animation.detach(host);
 }
@@ -3930,6 +3978,10 @@ int main(int argc, char** argv) {
     std::printf("s78k t05: slot 47 tests the clip before the draw (animation world)\n");
     test_attack_idle_clip_order();
     test_presence_idle();  // s78l t03
+    // #365: the tree-box query. Range 20 is below the closest trooper spacing (about 22) but within the spacing plus a
+    // trooper's box half-extent (6), so only box overlaps write records.
+    test_presence_idle(20.0f);
+    test_presence_idle(0.0f, 2.0f);  // #365: GameConstants Unit_Presence_Relaxation_Time (2 s = 60 frames, not the 3 s default)
 #endif
     std::printf("black market gate (P4 tactical)\n");
     test_black_market_battle();

@@ -104,6 +104,9 @@ BattleCatalog::BattleCatalog(const objects::GameObjectTypes& types, const FilePr
         tc::apply_game_constants(combat_config_, *constants);  // OI tactical (TACTICAL_GAPS 3.2 / 3.3)
         movement_constants_ = tactical::movement::MovementConstants::from_game_constants(*constants);  // mcx4 t11
         walk_animation_cutoff_ = constants->get_float("WalkAnimationCutoff", walk_animation_cutoff_);
+        // #365 (s78l t03 (c), TACTICAL_GAPS 6.2): the IMPOSING_PRESENCE record lifetime, only when the data sets it.
+        if (constants->get("Unit_Presence_Relaxation_Time"))
+            presence_relaxation_seconds_ = constants->get_float("Unit_Presence_Relaxation_Time", 0.0f);
         LocomotorBlends& lb = locomotor_blends_;  // mcx4 t11 (MCX4_T11_T12_RE_ANSWERS §B4 "Blend times")
         lb.idle_walk = constants->get_float("IdleWalkBlendTime", lb.idle_walk);
         lb.crouch_idle_walk = constants->get_float("CrouchIdleWalkBlendTime", lb.crouch_idle_walk);

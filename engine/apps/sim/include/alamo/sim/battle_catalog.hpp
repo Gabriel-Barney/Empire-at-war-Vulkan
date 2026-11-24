@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -198,6 +199,8 @@ public:
     // WALKMOVE below this x max speed).
     const tactical::movement::MovementConstants& movement_constants() const { return movement_constants_; }
     float walk_animation_cutoff() const { return walk_animation_cutoff_; }
+    // #365: GameConstants Unit_Presence_Relaxation_Time (GC +0x117a8) when the data sets it (vanilla does not).
+    std::optional<float> presence_relaxation_seconds() const { return presence_relaxation_seconds_; }
     // mcx4 t11 (MCX4_T11_T12_RE_ANSWERS §S / §B4 "Blend times"): the locomotor clip blends (seconds; anim::AnimTunables
     // fields of the same names). [port] 0 (hard cut) without GameConstants.
     struct LocomotorBlends {
@@ -303,6 +306,7 @@ private:
     tactical::fog::FogConstants fog_constants_;
     tactical::movement::MovementConstants movement_constants_;  // mcx4 t11
     float walk_animation_cutoff_ = 0.6f;
+    std::optional<float> presence_relaxation_seconds_;
     LocomotorBlends locomotor_blends_;  // mcx4 t11
 };
 

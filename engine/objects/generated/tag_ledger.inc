@@ -1443,7 +1443,7 @@
 {"GameConstants", "Max_Game_Speed", 0x8, LedgerState::Stored, "", 0, 1},
 {"GameConstants", "Game_Speed_Trackbar_Steps", 0x6, LedgerState::Stored, "", 0, 1},
 {"GameConstants", "Object_Importance_Decay_Factor", 0x8, LedgerState::Stored, "", 0, 1},
-{"GameConstants", "Unit_Presence_Relaxation_Time", 0x8, LedgerState::Stored, "docs/re/xml_reference_index.md", 0, 1},
+{"GameConstants", "Unit_Presence_Relaxation_Time", 0x8, LedgerState::Consumed, "docs/re/xml_reference_index.md", 0, 1},
 {"GameConstants", "Demo_Attract_Maps", 0x2a, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "Demo_Attract_Start_Timeout_Seconds", 0x6, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "Demo_Attract_Map_Cycle_Delay_Seconds", 0x12, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},

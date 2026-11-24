@@ -92,6 +92,7 @@
 #include "alamo/tactical/hangar/hangar_system.hpp"
 #include "alamo/tactical/hangar/contents.hpp"            // station contents / tactical production
 #include "alamo/tactical/services/service_graph.hpp"  // the tick as a services phase graph
+#include "alamo/tactical/spatial_tree.hpp"  // #365: the presence query context
 #include "alamo/terrain/ted.hpp"
 #ifdef ALAMO_SIM_HAVE_AI_TACTICAL
 #include "alamo/ai/tactical/damage_tracking.hpp"
@@ -2327,6 +2328,7 @@ private:
     void play_turn_clip_events(SimRng& rng, uint64_t global_frame);
     std::vector<PresenceTypeInfo> presence_cache_;
     std::vector<uint8_t> idle_gate_;  // drive_animation scratch (per units_ index)
+    tactical::QueryContext presence_query_;  // #365: imposing_presence scratch (one per query site)
     void consume_events(TacticalMode& mode, SimRng& rng);
     // consume_events step d for one combat death (also script_damage's out-of-tick kills): a dead or unknown unit is skipped.
     // s78n t12 review: `silent` = a world removal without Die (CombatSystem::remove_from_world: the vehicle a thief's clone
