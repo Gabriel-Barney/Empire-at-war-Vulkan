@@ -98,6 +98,7 @@
 #ifdef ALAMO_SIM_HAVE_AI_TACTICAL
 #include "alamo/ai/tactical/damage_tracking.hpp"
 #endif
+#include "alamo/sim/ai_order_issuer.hpp"  // #147 (no AI dependency)
 #include "alamo/tactical/fog/fog_of_war.hpp"  // fog of war hookup (owner: fog agent)
 #include "alamo/tactical/garrison/capture.hpp"   // S4 garrisons + structure capture (owner: S4 agent)
 #include "alamo/tactical/garrison/cash_point.hpp"  // CASH_POINT markers
@@ -505,14 +506,38 @@ public:
     // issuing player's objects (missing / foreign ids skipped). Other events: Unhandled.
     commands::RejectReason handle_command(TacticalMode& mode, uint8_t player, const commands::EventData& ev, SimRng& rng);
     // the one validate-and-apply order entry of the battle, for every issuer (the human order hook through
-    // apps/game route_battle_order, the tactical AI's orders BattleAi::execute_order does not shape itself). Unit orders go
+    // apps/game route_battle_order, the tactical AI through BattleAi::execute_order). #147: with an `ai` issuer the AI's
+    // order rules run first (ai_order: its move / attack / Lua MoveTo, AttackMove, Guard, Stop rules, Reinforce with the
+    // population cap, Production, TacticalBuild, Retreat); every other AI event takes the path below as a human's. Unit orders go
     // through the player order API below (MoveToPosition / MoveToPositionFacing / MoveToRay / MoveToRayFacing ->
     // fleet_order_move + order_move, Facing -> order_facing, MoveToObject / Escort -> order_move_to_object, Attack ->
     // order_attack, StopMovement -> order_stop, Reinforce -> order_reinforce, Retreat -> request_retreat); `selection` is the
     // issuer's selection for the events that act on it (empty for the AI). Every other event goes to handle_command
     // (garrisons, sell, build, abilities, special weapons, setup phase); Unhandled only when no battle system takes it.
     commands::RejectReason apply_order(TacticalMode& mode, uint8_t player, const commands::EventData& ev,
-                                       std::span<const objects::ObjectId> selection, SimRng& rng);
+                                       std::span<const objects::ObjectId> selection, SimRng& rng, AiOrderIssuer* ai = nullptr);
+    // #147: the tactical AI's order rules (tactical_battle_ai_orders.cpp; A1_READINGS §33, MOVEMENT §4.3 / §6.3,
+    // TACTICAL_COMBAT §2.8 / §2.10, BKT1_ATTACK_RE §3): unit orders resolve through team_units (a unit, or a TEAM
+    // container's live members). The AI's follow records, population cap and statistics are the issuer's.
+    commands::RejectReason ai_order(TacticalMode& mode, uint8_t player, const commands::EventData& ev, AiOrderIssuer& ai,
+                                    SimRng& rng);
+    // battle host: `player`'s live unit with this wire id, or a TEAM container's live members of `player` (ascending id)
+    std::vector<objects::ObjectId> team_units(const TacticalMode& mode, uint8_t player, uint32_t wire);
+    // One AI move of a unit to (x, y) clamped to the mode bounds; false when it cannot move (dead, retreated, immobile).
+    // A movement-locked unit keeps its order (OI follow-up t03, A1_READINGS §28.9) and counts as moved. `flags` the block
+    // flags (0x01 attack-move / 0x02 guard), `goal_object` the object block; s78n t20 fix: `object_block` - the move stands
+    // for an object-goal block (kind 3) although `goal_object` names none (an attack approach, the object follow's
+    // re-path): no destination check (MOVEMENT 4.3.1 item 2).
+    bool ai_move_unit(TacticalMode& mode, SimRng& rng, objects::ObjectId id, float x, float y,
+                      float threat_threshold = ::alamo::tactical::movement::kThreatOff, uint8_t flags = 0,
+                      objects::ObjectId goal_object = objects::kNoObjectId, bool object_block = false);
+    bool ai_fighter(objects::ObjectId id) const;  // a space unit on the fighter locomotor
+    // the AI's object follow re-path (A1_READINGS §33.4): the units to the object's position tp, no destination check
+    void ai_follow_move(TacticalMode& mode, const std::vector<objects::ObjectId>& units, Vec3 tp, float threat, SimRng& rng);
+    // a land guard follow that lost its object near the movers (FIGHTER_FLYING §4.11 C 3): a position guard of the
+    // movers' units at `at_point`
+    void ai_guard_drop(TacticalMode& mode, const std::vector<objects::ObjectId>& movers, ::alamo::tactical::movement::V2 at_point,
+                       SimRng& rng);
     // S10-int Change_Owner of a battle object (Lua ObjectBridge::change_owner on tactical hosts): store owner,
     // TreeSet::set_owner, ability / combat owner, the unit's side. False when not a live battle object.
     bool change_owner(TacticalMode& mode, objects::ObjectHandle h, int32_t owner);

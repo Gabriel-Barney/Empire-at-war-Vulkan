@@ -49,6 +49,7 @@
 #include "alamo/lua/fog_bridge.hpp"        // Find_Nearest's fog test in the tactical AI VMs
 #include "alamo/lua/script_gaps.hpp"       // battle host: the tactical AI VMs' TacticalScriptHooks
 #include "alamo/lua/script_remaining.hpp"  // L1 bindings: the tactical AI VMs' RemainingScriptHooks
+#include "alamo/sim/ai_order_issuer.hpp"     // #147
 #include "alamo/tactical/abilities/special_weapons.hpp"  // sp3 slice 4e: the view's SpecialWeaponSystem copy
 #include "alamo/tactical/movement/common.hpp"  // kThreatOff
 
@@ -116,7 +117,7 @@ std::string default_tactical_ai_type(int32_t player, const galactic::GalacticSim
 void load_tactical_ai_data(TacticalAiSetup& s, const FileProvider& files, const data::GameConstants* gc,
                            const std::function<std::vector<std::string>(std::string_view)>& list);
 
-class BattleAi final : public ai::tactical::TacticalAiHost {
+class BattleAi final : public ai::tactical::TacticalAiHost, private AiOrderIssuer {
 public:
     BattleAi(TacticalBattle& battle, TacticalMode& mode, SimHost& host, const TacticalAiSetup& setup);
     ~BattleAi() override;
@@ -227,8 +228,8 @@ private:
     }
     std::vector<ai::tactical::TacticalReinforcement> reinforcement_pool(int32_t player);
     bool can_reinforce(int32_t player);
-    float population_cap(int32_t player);
-    float population_used(int32_t player);
+    float population_cap(int32_t player) override;  // also the AI order rules' (AiOrderIssuer)
+    float population_used(int32_t player) override;
     // --- A2 tactical: build pads (L1_S4_REMAINING §3.6 on TacticalBattle's pads) ---
     bool can_build_now(int32_t player, int32_t type);
     std::vector<int32_t> tactical_builders(int32_t player, int32_t type);  // skirmish station production
@@ -328,20 +329,17 @@ private:
         bool guard = false;
     };
     std::vector<ObjectFollow> follows_;  // issue order
-    void follow_drop(const std::vector<objects::ObjectId>& units);
+    // AiOrderIssuer (#147): the records TacticalBattle::ai_order reads and writes
+    void follow_drop(const std::vector<objects::ObjectId>& units) override;
     void follow_add(const std::vector<objects::ObjectId>& units, objects::ObjectId target, float x, float y, float threat,
-                    bool guard = false);
+                    bool guard) override;
+    void follow_retry_at(objects::ObjectId target, uint32_t frame) override;
+    void stale_target() override;
+    void order_refused(objects::ObjectId unit) override;
     // cmb1 t04 (FIGHTER_FLYING §4.11 A / C 3 / G 1, BKR2 Q6 [H]): a land guard follow's formation step (every tick)
     void guard_follow_step(ObjectFollow& f, Vec3 tp);
+    // #147: TacticalBattle::apply_order with this issuer (the AI's order rules are TacticalBattle::ai_order)
     commands::RejectReason execute_order(uint8_t player, const commands::EventData& ev);
-    // `flags` / `goal_object` = the order's movement block (mv::MoveOrder::flags / goal_object), the same values the
-    // host's fighter formation record gets (TacticalBattle::fighter_order), so the movement layer's fighter leash and the
-    // host's chase tests read one block.
-    // s78n t20 fix: `object_block` - the move stands for an object-goal block (kind 3) although `goal_object` names
-    // none (an attack approach, the object follow's re-path): no destination check (MOVEMENT 4.3.1 item 2).
-    bool move_unit(objects::ObjectId id, float x, float y, float threat_threshold = ::alamo::tactical::movement::kThreatOff,
-                   uint8_t flags = 0, objects::ObjectId goal_object = objects::kNoObjectId, bool object_block = false);
-    bool is_fighter(objects::ObjectId id) const;  // a space unit on the fighter locomotor
 
     TacticalBattle* b_;
     TacticalMode* mode_;
@@ -535,12 +533,8 @@ private:
     // the second draw of the same pack (+0x34, UnitAiStamps::second: the attack-positioning stamp), same keys.
     // Not hashed (it is read only through the AI world's attack-positioning records, which are); saved (battle.ai 7 / 8).
     std::map<objects::ObjectId, int32_t> unit_ai_second_;
-    std::vector<objects::ObjectId> team_units(uint8_t player, uint32_t wire) const;  // battle host: unit or TEAM members
     // signal 0xb (a new order replaces the unit's order) on every unit an executed AI / script order took.
     void order_signals(uint8_t player, const commands::EventData& ev);
-    // The ordered-attack hostility test (0x39a450 -> Is_Enemy 0x2824f0, relation == 1): the battle's relation table
-    // (TACTICAL_COMBAT §2.10), where an Is_Neutral player is relation 2.
-    bool hostile_owner(uint8_t player, int32_t owner) const;
     lua::TacticalScriptHooks tactical_;    // battle host: script_gaps.hpp hooks of the tactical AI VMs (L1 final list)
 #ifdef ALAMO_LUA_HAVE_FOG
     // object_hidden (Find_Nearest's FOW_Object_Hidden test); fog = the battle's fog (FogOfWar.*).

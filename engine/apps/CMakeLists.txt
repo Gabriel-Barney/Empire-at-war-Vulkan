@@ -101,7 +101,7 @@ if(TARGET alamo_objects AND TARGET alamo_commands AND TARGET alamo_tactical AND 
     endif()
     # --- A1 stage 2 (owner: A1 agent): opt-in tactical AI in battles (battle_ai.hpp, campaign_battles_ai.cpp) ---
     if(TARGET alamo_ai_tactical_world)
-      target_sources(alamo_sim_battle PRIVATE sim/src/battle_ai.cpp)
+      target_sources(alamo_sim_battle PRIVATE sim/src/battle_ai.cpp sim/src/tactical_battle_ai_orders.cpp)  # #147: the AI order rules
       target_sources(alamo_sim_campaign PRIVATE sim/src/campaign_battles_ai.cpp)
       target_link_libraries(alamo_sim_battle PUBLIC alamo_ai_tactical_world)
       target_compile_definitions(alamo_sim_config INTERFACE ALAMO_SIM_HAVE_TACTICAL_AI=1)
@@ -226,6 +226,11 @@ if(TARGET alamo_objects AND TARGET alamo_commands AND TARGET alamo_tactical AND 
       add_test(NAME alamo_sim_battle_ledger_lint_selftest
                COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/lint/check_battle_ledger.py --selftest)
       set_tests_properties(alamo_sim_battle_ledger_lint alamo_sim_battle_ledger_lint_selftest PROPERTIES TIMEOUT 60)
+      # #147: the tactical AI issues no combat / movement order itself (tools/lint/check_ai_orders.py)
+      add_test(NAME alamo_sim_ai_orders_lint COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/lint/check_ai_orders.py)
+      add_test(NAME alamo_sim_ai_orders_lint_selftest
+               COMMAND ${ALAMO_LINT_PYTHON} -I ${PROJECT_SOURCE_DIR}/tools/lint/check_ai_orders.py --selftest)
+      set_tests_properties(alamo_sim_ai_orders_lint alamo_sim_ai_orders_lint_selftest PROPERTIES TIMEOUT 60)
     endif()
     # --- end L1 systems ---
   endif()
