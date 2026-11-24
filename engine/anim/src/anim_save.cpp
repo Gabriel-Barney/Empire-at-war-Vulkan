@@ -16,12 +16,12 @@ namespace {
 // 2: frame_changed column dropped (write-only flag)
 constexpr uint32_t kAnimWorldVersion = 2;
 // the u64 is the idle countdown (1: a combat-timer frame); 3: s78l t03 idle records per entry
-constexpr uint32_t kAnimBehaviorsVersion = 3;
+constexpr uint32_t kAnimBehaviorsVersion = 4;  // 4 (#361): the flinch state I +0x5c / +0x58 / +0x50
 
 // Lower bounds of one saved record (corrupted-count guard: a count larger than the bytes left can hold fails before
 // anything is allocated).
 constexpr size_t kRowBytes = 4 + 1 + 4 + 8 + 4 + 8 + 3 * (4 + 4 + 1 + 4 + 4 + 1 + 4) + 1 + 4 + 4 + 4;
-constexpr size_t kEntryBytes = 4 + 4 + 8 + 8 + 4 + 4 + 1 + 4 + 8 + 4 + 1 + 1;
+constexpr size_t kEntryBytes = 4 + 4 + 4 + 8 + 8 + 8 + 4 + 1 + 1;  // the smallest entry (version 4)
 constexpr size_t kCorpseBytes = 4 + 1 + 4 + 1 + 1 + 1 + 1 + 8 + 8 + 8 + 8 + 4 + 4 + 12 + 12;
 
 // ByteReader::count, plus fail(): a rejected read leaves the reader !ok() (the tests rely on it).
@@ -174,13 +174,10 @@ void AnimBehaviors::write(ByteWriter& w) const {
     w.u32(static_cast<uint32_t>(entries_.size()));
     for (const Entry& e : entries_) {
         w.i32(e.id);
-        w.i32(e.flinch);
-        w.u64(e.flinch_end);
-        w.u64(e.flinch_next);
-        w.f32(e.flinch_blend);
-        w.i32(e.ret_type);
-        w.boolean(e.ret_loop);
-        w.f32(e.ret_speed);
+        w.i32(e.flinch_prev);
+        w.f32(e.flinch_weight);
+        w.u64(e.timer_start);
+        w.u64(e.timer_frames);
         w.u64(e.idle_countdown);
         w.f32(e.last_yaw);
         w.boolean(e.have_yaw);
@@ -210,7 +207,7 @@ void AnimBehaviors::write(ByteWriter& w) const {
 
 bool AnimBehaviors::read(ByteReader& r) {
     const uint32_t version = r.u32();
-    if ((version != kAnimBehaviorsVersion && version != 2 && version != 1) || !r.ok()) {
+    if (version < 1 || version > kAnimBehaviorsVersion || !r.ok()) {
         r.fail();
         return false;
     }
@@ -221,13 +218,22 @@ bool AnimBehaviors::read(ByteReader& r) {
         Entry& e = entries[i];
         e.id = r.i32();
         if (i > 0 && e.id <= entries[i - 1].id) r.fail();
-        e.flinch = r.i32();
-        e.flinch_end = r.u64();
-        e.flinch_next = r.u64();
-        e.flinch_blend = r.f32();
-        e.ret_type = r.i32();
-        e.ret_loop = r.boolean();
-        e.ret_speed = r.f32();
+        if (version >= 4) {
+            e.flinch_prev = r.i32();
+            e.flinch_weight = r.f32();
+            e.timer_start = r.u64();
+            e.timer_frames = r.u64();
+            if (!valid_type(e.flinch_prev) || !(e.flinch_weight >= 0.0f)) r.fail();
+        } else {  // versions 1-3: the old fixed-hold flinch, dropped (#361: no flinch in progress after the load)
+            const int32_t flinch = r.i32();
+            (void)r.u64();
+            (void)r.u64();
+            (void)r.f32();
+            const int32_t ret = r.i32();
+            (void)r.boolean();
+            (void)r.f32();
+            if (!valid_type(flinch) || !valid_type(ret)) r.fail();
+        }
         e.idle_countdown = r.u64();
         if (version == 1) e.idle_countdown = 0;  // [port] a frame stamp then: no countdown carried over
         if (e.idle_countdown > kEngagedBaseFrames + static_cast<uint64_t>(kEngagedRandomFrames)) r.fail();
@@ -245,7 +251,6 @@ bool AnimBehaviors::read(ByteReader& r) {
                 if (rec.frames < 1 || (k > 0 && rec.presence <= e.records[k - 1].presence)) r.fail();
             }
         }
-        if (!valid_type(e.flinch) || !valid_type(e.ret_type)) r.fail();
         if (!r.ok()) return false;
     }
     if (!read_count(r, kCorpseBytes, n)) return false;

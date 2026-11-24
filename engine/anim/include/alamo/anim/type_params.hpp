@@ -37,6 +37,7 @@ struct TypeAnimParams {
     float deployed_walk_anim_speed = 1.0f;        // Deployed_Walk_Anim_Speed
     float deployment_anim_rate = 1.0f;            // Deployment_Anim_Rate (+0x1668)
     bool allow_idle_when_moving = false;          // Allow_Idle_When_Moving (+0x85): the IDLE service runs while moving
+    bool deploys = false;                         // Deploys: #361 a deploying type never flinches
 };
 
 TypeAnimParams type_anim_params(const objects::GameObjectTypes& types, objects::TypeIndex t, objects::ModeKind mode);

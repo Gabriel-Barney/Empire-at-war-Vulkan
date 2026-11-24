@@ -18,6 +18,7 @@ anim::FlinchParams flinch_of(const anim::TypeAnimParams& p) {
     f.hold_seconds = p.max_flinch_hold_seconds;
     f.idle_interval_seconds = p.idle_flinch_interval_seconds;
     f.attack_interval_seconds = p.attack_flinch_interval_seconds;
+    f.deploys = p.deploys;  // #361
     return f;
 }
 
@@ -327,6 +328,7 @@ anim::IdleParams SimAnimation::idle_params(const GameMode& mode, objects::TypeIn
     i.idle_type = anim::kAnimIdle;
     i.loop_idle = p.loop_idle;
     i.idle_rate = p.idle_rate;
+    i.flinch = flinch_of(p);  // #361: the flinch stages run in the idle service
     // [port] Space Idle (doc §C item 4: where it is selected is unknown): a space-mode model without IDLE clips but
     // with SPACE_IDLE clips idles on Space Idle.
     if (mode.kind() == objects::ModeKind::Space && m && m->variant_count(anim::kAnimIdle) == 0 && m->variant_count(anim::kAnimSpaceIdle) > 0)
@@ -342,10 +344,12 @@ bool SimAnimation::hit(const GameMode& mode, ObjectId victim, Vec3 facing, Vec3 
     const objects::ObjectStore& store = mode.primary();
     const ObjectHandle h = store.find(victim);
     if (!store.alive(h)) return false;
+    // #361 (s78l t03 (b) [H]): the flinch state is the IDLE pack's - an object without IDLE never flinches (its stages
+    // run only in the IDLE service).
+    if (!store.has_behavior(h, objects::beh::Idle)) return false;
     const objects::TypeIndex t = store.type(h);
     const anim::TypeAnimParams& p = params_for(t, mode.kind());
-    const bool played = mw.behaviors->on_hit(*mw.world, victim, flinch_of(p), idle_params(mode, t, mw.world->model(victim)), facing.x,
-                                             facing.y, travel.x, travel.y, rng, frame);
+    const bool played = mw.behaviors->on_hit(*mw.world, victim, flinch_of(p), facing.x, facing.y, travel.x, travel.y, rng, frame);
     if (played) ++stats_.flinches;
     return played;
 }

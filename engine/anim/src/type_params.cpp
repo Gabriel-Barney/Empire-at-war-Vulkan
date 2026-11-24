@@ -48,6 +48,7 @@ TypeAnimParams type_anim_params(const objects::GameObjectTypes& types, objects::
     opt_float(objects::tags::Deployed_Walk_Anim_Speed, p.deployed_walk_anim_speed);
     opt_float(objects::tags::Deployment_Anim_Rate, p.deployment_anim_rate);
     p.allow_idle_when_moving = types.get(t, objects::tags::Allow_Idle_When_Moving);
+    p.deploys = types.get(t, objects::tags::Deploys);  // #361
     return p;
 }
 
