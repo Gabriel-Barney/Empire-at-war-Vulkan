@@ -192,7 +192,8 @@ R FleetGroups::apply(uint8_t player, const commands::FleetGroupCommand& c, std::
         case Op::Rename: {
             FleetGroup* g = find(c.group);
             if (!g || g->owner != player) return R::InvalidTarget;
-            g->name = c.name.substr(0, commands::kFleetGroupNameMax);
+            if (c.name.size() > commands::kFleetGroupNameMax) return R::Malformed;  // #393: refused, never cut
+            g->name = c.name;
             return R::None;
         }
     }

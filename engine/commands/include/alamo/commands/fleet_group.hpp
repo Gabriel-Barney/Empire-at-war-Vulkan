@@ -7,7 +7,7 @@
 //   Dissolve     nothing          every group with a unit in the selection is removed
 //   RemoveUnits  nothing          the selected units leave their groups
 //   SetLock      locked (u8 0/1)  every group with a unit in the selection is locked / unlocked
-//   Rename       group (u16 LE), name length (u8), name bytes (UTF-8, at most kFleetGroupNameMax; cut at a character)
+//   Rename       group (u16 LE), name length (u8), name bytes (UTF-8; over kFleetGroupNameMax the parser refuses it, #393)
 //   Merge        nothing          every group with a unit in the selection folds into the oldest of them (#177)
 // The sim applies them at the command phase from its synced selection (sim/fleet_groups.hpp).
 #pragma once
@@ -22,8 +22,8 @@
 namespace alamo::commands {
 
 inline constexpr uint16_t kFleetGroupSubtype = 0x4647;  // "FG"
-// limit: guard [port] fleet group name bytes (port-only feature)
-inline constexpr size_t kFleetGroupNameMax = 32;         // bytes
+// limit: guard [port] fleet group name bytes (port-only feature), refuses
+inline constexpr size_t kFleetGroupNameMax = 32;         // bytes; #393: a longer name is refused, never cut
 
 enum class FleetGroupOp : uint8_t { Create = 0, Dissolve = 1, RemoveUnits = 2, SetLock = 3, Rename = 4, Merge = 5 };
 
@@ -31,7 +31,7 @@ struct FleetGroupCommand {
     FleetGroupOp op = FleetGroupOp::Create;
     bool locked = false;  // SetLock
     uint16_t group = 0;   // Rename
-    std::string name;     // Rename (cut to kFleetGroupNameMax bytes when encoded)
+    std::string name;     // Rename (encoded whole - at most 255 bytes fit the length byte; over kFleetGroupNameMax refused)
 };
 
 // The PortExtension event of `c`.

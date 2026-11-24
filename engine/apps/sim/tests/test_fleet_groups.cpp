@@ -45,13 +45,17 @@ void test_commands() {
     rn.name = "Red Squadron";
     const auto p = cmd::parse_fleet_group(cmd::fleet_group_event(rn).bytes_view("data"));
     CHECK(p && p->op == Op::Rename && p->group == 0x1234 && p->name == "Red Squadron");
-    rn.name = std::string(50, 'x');  // cut to kFleetGroupNameMax when encoded
-    const auto cut = cmd::parse_fleet_group(cmd::fleet_group_event(rn).bytes_view("data"));
-    CHECK(cut && cut->name.size() == cmd::kFleetGroupNameMax);
-    // #176: 31 ASCII bytes then a two-byte character: the character is left out whole (31 bytes), never split.
-    rn.name = std::string(31, 'y') + "\xC3\x89";
-    const auto boundary = cmd::parse_fleet_group(cmd::fleet_group_event(rn).bytes_view("data"));
-    CHECK(boundary && boundary->name == std::string(31, 'y'));
+    // #393 (docs/MODS.md "Limits policy"): a name over kFleetGroupNameMax bytes is refused, never cut - 33 bytes, 50, a
+    // 31-byte name plus a two-byte character, and a name past the length byte (300) all fail to parse.
+    for (const std::string& longer : {std::string(cmd::kFleetGroupNameMax + 1, 'x'), std::string(50, 'x'),
+                                      std::string(31, 'y') + "\xC3\x89", std::string(300, 'z')}) {
+        rn.name = longer;
+        CHECK(!cmd::parse_fleet_group(cmd::fleet_group_event(rn).bytes_view("data")));
+    }
+    // exactly kFleetGroupNameMax bytes, a two-byte character ending at byte 32: round-trips whole
+    rn.name = std::string(30, 'y') + "\xC3\x89";
+    const auto full = cmd::parse_fleet_group(cmd::fleet_group_event(rn).bytes_view("data"));
+    CHECK(full && full->name == rn.name && full->name.size() == cmd::kFleetGroupNameMax);
     const uint8_t bad1[] = {9}, bad2[] = {0, 1}, bad3[] = {3, 2}, bad4[] = {4, 1, 0, 5, 'a'};
     CHECK(!cmd::parse_fleet_group({}) && !cmd::parse_fleet_group(bad1) && !cmd::parse_fleet_group(bad2) &&
           !cmd::parse_fleet_group(bad3) && !cmd::parse_fleet_group(bad4));
@@ -183,11 +187,17 @@ void test_logic() {
         CHECK(!other.read(bc) && other.groups().empty());
     }
 
-    // rename: own group only, cut to the cap
+    // rename: own group only; #393: a name over the cap is refused (Malformed), the old name stays
     cmd::FleetGroupCommand rn = op(Op::Rename);
     rn.group = 1;
     rn.name = "Home Fleet";
     CHECK(fg.apply(1, rn, {}, info) == R::InvalidTarget && fg.apply(0, rn, {}, info) == R::None && fg.groups()[0].name == "Home Fleet");
+    rn.name = std::string(cmd::kFleetGroupNameMax + 1, 'n');
+    CHECK(fg.apply(0, rn, {}, info) == R::Malformed && fg.groups()[0].name == "Home Fleet");
+    rn.name = std::string(cmd::kFleetGroupNameMax, 'n');
+    CHECK(fg.apply(0, rn, {}, info) == R::None && fg.groups()[0].name == rn.name);
+    rn.name = "Home Fleet";
+    CHECK(fg.apply(0, rn, {}, info) == R::None);
     rn.group = 7;
     CHECK(fg.apply(0, rn, {}, info) == R::InvalidTarget);
 
