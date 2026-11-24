@@ -1,7 +1,6 @@
 // #137 [port]: UTF-8 host strings (host_text.hpp).
 #include "alamo/game/host_text.hpp"
 
-#include <exception>
 #include <string>
 
 #include "alamo/core/host_fs.hpp"
@@ -14,14 +13,7 @@ std::string env_utf8(const char* name) { return host_env_utf8(name); }  // #338:
 
 fs::path host_path(std::string_view utf8) { return path_from_host_string(utf8); }
 
-std::string host_utf8(const fs::path& p) {
-    try {
-        const std::u8string s = p.u8string();
-        return std::string(reinterpret_cast<const char*>(s.data()), s.size());
-    } catch (const std::exception&) {
-        return {};
-    }
-}
+std::string host_utf8(const fs::path& p) { return path_to_native_utf8(p); }
 
 std::vector<std::string> utf8_command_line(std::wstring_view command_line) { return host_command_line_utf8(command_line); }
 

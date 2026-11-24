@@ -21,7 +21,7 @@ add_library(alamo_core STATIC
 add_library(alamo::core ALIAS alamo_core)
 target_include_directories(alamo_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(alamo_core PUBLIC alamo_engine_flags Threads::Threads)
-target_link_libraries(alamo_core PUBLIC shell32)  # #338: CommandLineToArgvW (host_fs.hpp host_command_line_utf8)
+target_link_libraries(alamo_core PRIVATE shell32)  # #338: CommandLineToArgvW (host_fs.hpp host_command_line_utf8)
 
 add_executable(alamo_core_tests tests/test_core.cpp)
 target_link_libraries(alamo_core_tests PRIVATE alamo_core alamo_test_support)

@@ -1429,8 +1429,8 @@ int main(int argc, char** argv) {
         const std::string text = alamo::profile::format_report(alamo::profile::build_report(alamo::profile::snapshot(), budget_ms));
         std::fputs(text.c_str(), stdout);
         if (!profile_out.empty()) {
-            if (std::ofstream f(alamo::path_from_host_string(profile_out), std::ios::binary); f && (f << text)) {
-            } else {
+            std::ofstream f(alamo::path_from_host_string(profile_out), std::ios::binary);
+            if (!(f && (f << text))) {
                 std::fprintf(stderr, "cannot write %s\n", profile_out.c_str());
             }
         }

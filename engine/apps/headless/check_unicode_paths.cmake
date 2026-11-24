@@ -1,4 +1,4 @@
-# #338: alamo_headless with its scenario, save, orders, fingerprint and result paths in a folder named outside the ANSI code
+# #338: alamo_headless with its scenario, save, orders, fingerprint, result and --save-check paths in a folder named outside the ANSI code
 # page (Hebrew and CJK, which no single code page holds). CMake passes the arguments wide (CreateProcessW), so they reach
 # alamo_headless as UTF-8 (core host_args_utf8) and every file call opens those names. No game data needed (the synthetic
 # bench scenario of check_bench.cmake).
@@ -35,5 +35,11 @@ if(ok EQUAL -1)
 endif()
 if(NOT EXISTS ${dir}/結果.json)
   message(FATAL_ERROR "--bench-json wrote no ${dir}/結果.json")
+endif()
+# --save-check loads the save in this process and in a fresh one (save_run.cpp run_child: _wsystem with the UTF-8 paths).
+run(out --save-session synthetic --save-check --save-at 30 ${dir}/保存.alsv --ticks 30 --workers 0)
+string(FIND "${out}" "FAIL" bad)
+if(NOT bad EQUAL -1)
+  message(FATAL_ERROR "--save-check failed:\n${out}")
 endif()
 file(REMOVE_RECURSE ${WORK})

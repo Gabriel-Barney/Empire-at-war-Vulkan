@@ -9,7 +9,6 @@
 #include <cinttypes>
 #include <cstdio>
 #include <ctime>
-#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -64,15 +63,7 @@ double ms_between(Clock::time_point a, Clock::time_point b) {
 // #338: host path strings here are UTF-8 (main reads the arguments wide); an ANSI string is still read
 // (core path_from_host_string). Never fs::path(std::string), which takes the ANSI code page.
 fs::path host_file(const std::string& s) { return path_from_host_string(s); }
-// UTF-8 with native separators ("" for a name with no UTF-8 form).
-std::string native_utf8(const fs::path& p) {
-    try {
-        const std::u8string u = p.u8string();
-        return std::string(reinterpret_cast<const char*>(u.data()), u.size());
-    } catch (const std::exception&) {
-        return {};
-    }
-}
+std::string native_utf8(const fs::path& p) { return path_to_native_utf8(p); }
 std::string file_name(const std::string& s) { return native_utf8(host_file(s).filename()); }
 
 std::string read_text(const std::string& path) {

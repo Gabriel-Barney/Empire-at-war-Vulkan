@@ -4,7 +4,6 @@
 #include "alamo/crash/crash_handler.hpp"
 
 #include <cstdlib>
-#include <exception>
 #include <filesystem>
 #include <stdexcept>
 #include <string>
@@ -32,14 +31,7 @@ namespace {
 std::string env_value(const char* name) { return alamo::host_env_utf8(name); }
 
 // UTF-8 with native separators (the folder install() and default_dump_dir() report).
-std::string utf8_of(const std::filesystem::path& p) {
-    try {
-        const std::u8string s = p.u8string();
-        return std::string(reinterpret_cast<const char*>(s.data()), s.size());
-    } catch (const std::exception&) {
-        return {};
-    }
-}
+std::string utf8_of(const std::filesystem::path& p) { return alamo::path_to_native_utf8(p); }
 
 #ifdef _WIN32
 // limit: guard crash dump directory path buffer (wchar_t)
@@ -245,7 +237,7 @@ std::string install(const Options& options) {
     std::filesystem::create_directories(p, ec);
     if (!std::filesystem::is_directory(p, ec)) return {};
     const std::wstring wdir = p.wstring();
-    const std::wstring wapp = alamo::path_from_host_string(options.app_name.empty() ? std::string("alamo") : options.app_name).wstring();
+    const std::wstring wapp = alamo::host_wide(options.app_name.empty() ? std::string("alamo") : options.app_name);
     if (wdir.size() + 64 >= kPathMax || wapp.size() >= std::size(g_app)) return {};
     std::wcsncpy(g_dir, wdir.c_str(), kPathMax - 1);
     std::wcsncpy(g_app, wapp.c_str(), std::size(g_app) - 1);

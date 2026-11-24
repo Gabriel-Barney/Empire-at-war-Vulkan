@@ -69,6 +69,17 @@ fs::path path_from_host_string(std::string_view s) {
     }
 }
 
+std::wstring host_wide(std::string_view s) { return path_from_host_string(s).native(); }
+
+std::string path_to_native_utf8(const fs::path& p) {
+    try {
+        const std::u8string u = p.u8string();
+        return std::string(reinterpret_cast<const char*>(u.data()), u.size());
+    } catch (const std::exception&) {
+        return {};
+    }
+}
+
 namespace {
 // UTF-16 -> UTF-8 as is (WideCharToMultiByte; a lone surrogate becomes U+FFFD).
 std::string wide_to_utf8(const wchar_t* w) {
