@@ -810,6 +810,14 @@ void App::update_radar() {
     paint.fields = radar_fields_;
     paint.fill = radar_settings_.space_asteroid;
     paint.border = radar_settings_.space_asteroid_border;
+    if (!bview_.space() && w > 0 && h > 0) {  // #320: land fog covers the playable box, inside the square radar rect
+        const terrain::FowGridDesc& fd = fog.grid().desc();
+        paint.fog_box = true;
+        paint.fog_min_x = fd.x0;
+        paint.fog_min_y = fd.y0;
+        paint.fog_max_x = fd.x1;
+        paint.fog_max_y = fd.y1;
+    }
     if (!radar_terrain_built_) build_radar_terrain();  // normally built by begin_battle
     const uint32_t ts = radar_terrain_.empty() ? 0u : kRadarTerrainSize;
     radar_.build(kRadarTerrainSize, radar_terrain_, ts, ts, vis, w, h, bview_.space() ? radar_settings_.space_fow : radar_settings_.land_fow, paint);

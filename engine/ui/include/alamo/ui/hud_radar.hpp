@@ -68,6 +68,10 @@ struct RadarFieldPaint {
     std::span<const RadarField> fields;
     float min_x = -5000, min_y = -5000, max_x = 5000, max_y = 5000;  // the radar's world box (RadarView)
     Rgba8 fill{103, 130, 139, 127}, border{174, 171, 200, 127};
+    // #320: the fog grid's world box when it differs from the radar rect (land: the playable box inside the square rect);
+    // the fog is then sampled by world position and pixels outside the box get none. Unset: the grid spans the image.
+    bool fog_box = false;
+    float fog_min_x = 0, fog_min_y = 0, fog_max_x = 0, fog_max_y = 0;
 };
 
 class RadarImage {

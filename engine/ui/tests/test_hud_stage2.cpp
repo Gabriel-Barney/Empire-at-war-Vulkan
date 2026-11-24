@@ -895,8 +895,18 @@ void test_radar() {
         CHECK2(q.items()[0].pulse == 255.0f);  // only story blips pulse
     }
     {  // #320 (0x35f140): the land radar rect is the square about the camera box
-        const RadarFieldPaint sq = radar_square_box(0.0f, 0.0f, 200.0f, 100.0f);
+        RadarFieldPaint sq = radar_square_box(0.0f, 0.0f, 200.0f, 100.0f);
         CHECK2(near2(sq.min_x, 0.0f) && near2(sq.max_x, 200.0f) && near2(sq.min_y, -50.0f) && near2(sq.max_y, 150.0f));
+        // The fog grid covers only the box: sampled by world point, the strip rows (y -25, 125) get no fog, the box rows do.
+        sq.fog_box = true;
+        sq.fog_max_x = 200.0f;
+        sq.fog_max_y = 100.0f;
+        RadarImage img;
+        const uint8_t vis[1] = {0};  // unseen everywhere
+        img.build(4, {}, 0, 0, vis, 1, 1, Rgba8{0, 0, 0, 200}, sq);
+        const auto alpha_at = [&](uint32_t row) { return img.rgba()[(static_cast<size_t>(row) * 4 + 1) * 4 + 3]; };
+        // image rows run north (max y) to south: row 0 = y 125 (strip), rows 1 / 2 = y 75 / 25 (box), row 3 = y -25 (strip)
+        CHECK2(alpha_at(0) == 0 && alpha_at(1) == 200 && alpha_at(2) == 200 && alpha_at(3) == 0);
     }
     // Mapping.
     RadarView rv;

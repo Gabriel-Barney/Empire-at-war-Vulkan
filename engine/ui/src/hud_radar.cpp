@@ -289,9 +289,25 @@ void RadarImage::build(uint32_t size, std::span<const uint8_t> terrain, uint32_t
                     c[3] = std::max(c[3], static_cast<float>(fc.a));
                 }
             }
-            if (has_fog) {
-                const uint32_t sx = std::min(fw - 1, static_cast<uint32_t>((static_cast<uint64_t>(x) * fw) / size));
-                const uint32_t sy = std::min(fh - 1, static_cast<uint32_t>((static_cast<uint64_t>(y) * fh) / size));
+            uint32_t sx = 0, sy = 0;
+            bool fog_here = has_fog;
+            if (has_fog && fields.fog_box && span_x > 0.0f && span_y > 0.0f && fields.fog_max_x > fields.fog_min_x &&
+                fields.fog_max_y > fields.fog_min_y) {
+                // #320: the fog grid covers the playable box only; sample it by the pixel's world point.
+                const float wx = fields.min_x + (static_cast<float>(x) + 0.5f) / static_cast<float>(size) * span_x;
+                const float wy = fields.min_y + (static_cast<float>(y) + 0.5f) / static_cast<float>(size) * span_y;
+                const float fx = (wx - fields.fog_min_x) / (fields.fog_max_x - fields.fog_min_x);
+                const float fy = (wy - fields.fog_min_y) / (fields.fog_max_y - fields.fog_min_y);
+                fog_here = fx >= 0.0f && fx < 1.0f && fy >= 0.0f && fy < 1.0f;
+                if (fog_here) {
+                    sx = std::min(fw - 1, static_cast<uint32_t>(fx * static_cast<float>(fw)));
+                    sy = std::min(fh - 1, static_cast<uint32_t>(fy * static_cast<float>(fh)));
+                }
+            } else if (has_fog) {
+                sx = std::min(fw - 1, static_cast<uint32_t>((static_cast<uint64_t>(x) * fw) / size));
+                sy = std::min(fh - 1, static_cast<uint32_t>((static_cast<uint64_t>(y) * fh) / size));
+            }
+            if (fog_here) {
                 const float v = static_cast<float>(vis[static_cast<size_t>(sy) * fw + sx]) / 255.0f;
                 const float a = static_cast<float>(fow.a) / 255.0f * (1.0f - v);
                 const float fc[3] = {static_cast<float>(fow.r), static_cast<float>(fow.g), static_cast<float>(fow.b)};
