@@ -327,6 +327,8 @@ WeatherLines planet_weather_lines(std::string_view name_field, std::string_view 
     return {first_word(name_field), first_word(info_field)};
 }
 
+int32_t score_efficiency_percent(double stat) { return static_cast<int32_t>(std::clamp(stat * 100.0, 0.0, 100.0)); }
+
 GameOverArt game_over_art(bool victory, bool pick_land, std::string_view victory_text, std::string_view defeat_text,
                           std::string_view land_win, std::string_view space_win, std::string_view land_lose,
                           std::string_view space_lose) {

@@ -969,7 +969,7 @@ void App::show_campaign_end(bool victory) {
         if (fi < g->rules().factions.size()) {
             const galactic::FactionRules& fr = g->rules().factions[fi];
             const game::GameOverArt art = game::game_over_art(
-                victory, cine_.rng.range(0, 1) == 0,
+                victory, game::game_over_pick_land(cine_.rng.range(0, 1)),
                 fr.xml_text("Victory_Text"),       // ledger: consumes Faction.Victory_Text
                 fr.xml_text("Defeat_Text"),        // ledger: consumes Faction.Defeat_Text
                 fr.xml_text("Land_Win_Image"),     // ledger: consumes Faction.Land_Win_Image

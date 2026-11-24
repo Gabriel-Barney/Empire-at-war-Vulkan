@@ -523,7 +523,7 @@ ui::CampaignScoreInfo campaign_score(const GameSession& s, const galactic::Galac
     ui::CampaignScoreInfo c;
     c.victory = victory;
     if (stats.ok) {
-        auto pct = [](double e) { return static_cast<int32_t>(std::lround(std::clamp(e * 100.0, 0.0, 100.0))); };
+        auto pct = [](double e) { return game::score_efficiency_percent(e); };  // #470: truncated
         c.military = pct(stats.military);
         c.conquest = pct(stats.conquest);
         c.kill = pct(stats.kill);

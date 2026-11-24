@@ -1087,6 +1087,10 @@ void game_over_art_test() {
     CHECK(art(false, true).text_key == "TEXT_REBEL_DEFEAT" && art(false, true).image == "i_rl_lose.tga");
     CHECK(art(false, false).image == "i_rs_lose.tga");
     CHECK(game::game_over_art(true, true, "", "", "", "s.tga", "", "").image == "s.tga");  // a missing land image: space
+    // #470: the draw's 0 picks Space; the efficiencies are truncated and clamped.
+    CHECK(!game::game_over_pick_land(0) && game::game_over_pick_land(1));
+    CHECK(game::score_efficiency_percent(0.876) == 87 && game::score_efficiency_percent(0.999) == 99);
+    CHECK(game::score_efficiency_percent(1.5) == 100 && game::score_efficiency_percent(-0.2) == 0);
 }
 
 // mcx4 t14 (legacy docs/re/MCX4_T14_RE_ANSWERS.md): a planet's Encyclopedia_Weather_Name and Encyclopedia_Weather_Info text ids.

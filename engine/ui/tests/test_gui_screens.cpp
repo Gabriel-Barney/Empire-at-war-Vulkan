@@ -62,7 +62,7 @@ void test_real_data() {
     CampaignScoreInfo cs;
     cs.military = 87;
     cs.list = {U"Captured Coruscant"};
-    CHECK(gs.show_campaign_score(cs) && gui.find(dlg::kCampaignScore)->get("IDC_MILITARY_EFFICIENCY_STATIC")->text == U"87%");
+    CHECK(gs.show_campaign_score(cs) && gui.find(dlg::kCampaignScore)->get("IDC_MILITARY_EFFICIENCY_STATIC")->text == U"87");
     CHECK(gs.show_retreat_confirm() && gs.open_chat());
     PlanetInfoData pi;
     pi.name = U"Tatooine";

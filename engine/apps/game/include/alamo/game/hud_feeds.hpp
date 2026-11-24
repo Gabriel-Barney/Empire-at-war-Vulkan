@@ -210,6 +210,11 @@ std::string build_countdown_clock(float remaining);
 struct GameOverArt {
     std::string_view text_key, image;
 };
+// #470 (docs/re/SCORE_TOOLTIPS_GAME_OPTIONS.md t12 [H]): the image draw 0x1ffb40(0, 1) on the UI random: 0 picks Space,
+// 1 picks Land.
+inline bool game_over_pick_land(int32_t draw) { return draw != 0; }
+// #470 (0x92bb0 [H]): a campaign score efficiency, (int)(stat * 100) clamped to 0..100 (truncated).
+int32_t score_efficiency_percent(double stat);
 GameOverArt game_over_art(bool victory, bool pick_land, std::string_view victory_text, std::string_view defeat_text,
                           std::string_view land_win, std::string_view space_win, std::string_view land_lose,
                           std::string_view space_lose);
