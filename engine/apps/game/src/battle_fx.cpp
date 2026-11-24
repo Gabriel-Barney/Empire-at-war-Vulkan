@@ -218,8 +218,7 @@ CameraShake::Sample CameraShake::evaluate(int32_t clock, const Vec3& right, cons
 bool cinematic_shake(CameraShake& shake, bool cinematic_active, bool battle_mode, float jitter, float distance, int32_t clock,
                      UnsyncedRandom& rng) {
     if (!battle_mode || !cinematic_active) return false;
-    shake.start(explosion_shake(jitter, distance, rng.range(0, 100)), clock, kCinematicFps);
-    return true;
+    return shake.start(explosion_shake(jitter, distance, rng.range(0, 100)), clock, kCinematicFps);  // #143: false when refused
 }
 
 void camera_axes(const Vec3& eye, const Vec3& look, float roll_deg, Vec3& right, Vec3& up) {
