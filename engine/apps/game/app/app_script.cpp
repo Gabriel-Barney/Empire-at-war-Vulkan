@@ -1,22 +1,10 @@
 // alamo_game App: the scripted smoke steps (split from game_main.cpp). The step helpers shared with the save / load smoke
 // (app_script_saveload.cpp) are declared in app_script.hpp.
 #include "app_script.hpp"
+#include "game_app.hpp"  // the types the steps use (Options, the UI and game headers); App itself is private
 
 
 namespace alamo_game_app {
-
-// ------------------------------------------------------------------------------------------------ script
-ui::InputFrame App::idle_frame() const {
-    ui::InputFrame f;
-    f.time = static_cast<double>(frames_) / 30.0;
-    f.dt = 1.0f / 30.0f;
-    f.width = targets_.width;
-    f.height = targets_.height;
-    f.mouse_x = static_cast<int32_t>(targets_.width / 2);
-    f.mouse_y = static_cast<int32_t>(targets_.height / 2);
-    f.mouse_inside = false;  // no edge scrolling
-    return f;
-}
 
 namespace script {
 
@@ -36,8 +24,8 @@ bool click_at(ClickState& c, ui::InputFrame& f, int32_t x, int32_t y, ui::Button
     return ++c.phase > 3;
 }
 
-ScriptStep step_wait(std::string name, std::function<bool(App&)> cond, uint32_t timeout) {
-    return {std::move(name), [cond = std::move(cond)](App& a, ui::InputFrame&) { return cond(a); }, timeout};
+ScriptStep step_wait(std::string name, std::function<bool(AppProbe&)> cond, uint32_t timeout) {
+    return {std::move(name), [cond = std::move(cond)](AppProbe& a, ui::InputFrame&) { return cond(a); }, timeout};
 }
 
 // Clicks a control of `dialog` once it is the top dialog: at its centre, or (`first_row`) 6 px above its bottom edge in
@@ -45,7 +33,7 @@ ScriptStep step_wait(std::string name, std::function<bool(App&)> cond, uint32_t 
 ScriptStep step_click_in(std::string name, std::string dialog, std::string control, bool first_row) {
     auto st = std::make_shared<ClickState>();
     auto px = std::make_shared<std::pair<int32_t, int32_t>>(0, 0);
-    return {std::move(name), [st, px, dialog, control, first_row](App& a, ui::InputFrame& f) {
+    return {std::move(name), [st, px, dialog, control, first_row](AppProbe& a, ui::InputFrame& f) {
                 if (st->phase > 0) return click_at(*st, f, px->first, px->second, ui::Button::Left);  // the dialog may close on release
                 const ui::GuiDialog* d = a.ui().gui.find(dialog);
                 if (!d || d != a.ui().gui.top()) return false;  // wait for the dialog
@@ -75,11 +63,11 @@ ScriptStep step_click_first_row(std::string dialog, std::string control) {
 }
 
 // Selects list row `row` like a player: click the first row (selects + focuses the list), then Down until it is reached.
-ScriptStep step_select_row(std::string dialog, std::string control, std::function<size_t(App&)> row) {
+ScriptStep step_select_row(std::string dialog, std::string control, std::function<size_t(AppProbe&)> row) {
     auto st = std::make_shared<ClickState>();
     auto px = std::make_shared<std::pair<int32_t, int32_t>>(0, 0);
     auto key_frame = std::make_shared<bool>(false);
-    return {"select row of " + dialog + "/" + control, [st, px, key_frame, dialog, control, row](App& a, ui::InputFrame& f) {
+    return {"select row of " + dialog + "/" + control, [st, px, key_frame, dialog, control, row](AppProbe& a, ui::InputFrame& f) {
                 const ui::GuiDialog* d = a.ui().gui.find(dialog);
                 if (!d) return false;
                 const ui::GuiControl* c = d->get(control);
@@ -118,17 +106,17 @@ ScriptStep step_select_row(std::string dialog, std::string control, std::functio
 
 // a mod's skirmish staging dialog may have no game-type list (Age of Legends' layout): the dialog keeps the type it
 // opened on and the run plays that type's first map. These steps note that instead of waiting for a row that cannot exist.
-bool staging_has_game_types(App& a) {
+bool staging_has_game_types(AppProbe& a) {
     const ui::GuiDialog* d = a.ui().gui.find("IDD_SKIRMISH_STAGING_DIALOG");
     return !d || d->get("IDC_GAME_TYPE_LIST") != nullptr;
 }
 
 ScriptStep step_select_game_type(int32_t type) {
-    ScriptStep pick = step_select_row("IDD_SKIRMISH_STAGING_DIALOG", "IDC_GAME_TYPE_LIST", [type](App& a) {
+    ScriptStep pick = step_select_row("IDD_SKIRMISH_STAGING_DIALOG", "IDC_GAME_TYPE_LIST", [type](AppProbe& a) {
         return static_cast<size_t>(std::max<int32_t>(a.ui().front.skirmish_game_type_row(type), 0));
     });
     auto inner = pick.run;
-    pick.run = [inner](App& a, ui::InputFrame& f) {
+    pick.run = [inner](AppProbe& a, ui::InputFrame& f) {
         if (!a.ui().gui.find("IDD_SKIRMISH_STAGING_DIALOG")) return false;
         if (!staging_has_game_types(a)) {
             a.control().notes.push_back("skirmish staging has no IDC_GAME_TYPE_LIST: the dialog's default game type is played");
@@ -143,11 +131,11 @@ ScriptStep step_select_game_type(int32_t type) {
 // the open summary holds the ticks: wait until that has happened (or the campaign added no chapter early on), then close
 // the summary with its Close button like a player. Nothing to do when it never opened.
 void close_auto_holocron(std::vector<ScriptStep>& s) {
-    s.push_back(step_wait("campaign-start holocron settled", [](App& a) { return !a.summary_auto_open(); }, 600));
+    s.push_back(step_wait("campaign-start holocron settled", [](AppProbe& a) { return !a.summary_auto_open(); }, 600));
     ScriptStep click = step_click_control(ui::dlg::kStorySummary, "IDC_SUMMARY_DIALOG_CLOSE_BUTTON");
     auto skip = std::make_shared<bool>(false);
     auto checked = std::make_shared<bool>(false);
-    s.push_back({"close the campaign-start holocron", [skip, checked, run = std::move(click.run)](App& a, ui::InputFrame& f) {
+    s.push_back({"close the campaign-start holocron", [skip, checked, run = std::move(click.run)](AppProbe& a, ui::InputFrame& f) {
                      if (!*checked) {
                          *checked = true;
                          *skip = !a.story_summary_open();
@@ -155,15 +143,15 @@ void close_auto_holocron(std::vector<ScriptStep>& s) {
                      return *skip || run(a, f);
                  },
                  click.timeout_frames});
-    s.push_back(step_wait("campaign-start holocron closed", [](App& a) { return !a.story_summary_open(); }, 300));
+    s.push_back(step_wait("campaign-start holocron closed", [](AppProbe& a) { return !a.story_summary_open(); }, 300));
 }
 
 // Clicks list row `row` itself like a player (scrolled into view first). Unlike step_select_row it never clicks another
 // row on the way: in the saved games tree a click on a group row opens / closes that group.
-ScriptStep step_click_row(std::string dialog, std::string control, std::function<int32_t(App&)> row) {
+ScriptStep step_click_row(std::string dialog, std::string control, std::function<int32_t(AppProbe&)> row) {
     auto st = std::make_shared<ClickState>();
     auto px = std::make_shared<std::pair<int32_t, int32_t>>(0, 0);
-    return {"click row of " + dialog + "/" + control, [st, px, dialog, control, row](App& a, ui::InputFrame& f) {
+    return {"click row of " + dialog + "/" + control, [st, px, dialog, control, row](AppProbe& a, ui::InputFrame& f) {
                 if (st->phase > 0) return click_at(*st, f, px->first, px->second, ui::Button::Left);
                 const ui::GuiDialog* d = a.ui().gui.find(dialog);
                 if (!d || d != a.ui().gui.top()) return false;  // wait for the dialog
@@ -186,7 +174,7 @@ ScriptStep step_click_row(std::string dialog, std::string control, std::function
 
 ScriptStep step_shot(std::string file) {
     auto st = std::make_shared<int>(0);
-    return {"shot " + file, [st, file](App& a, ui::InputFrame&) {
+    return {"shot " + file, [st, file](AppProbe& a, ui::InputFrame&) {
                 if (a.options().png_dir.empty()) return true;
                 if (*st == 0) {  // hold the sim while models stream and pipelines compile (presentation-only pause)
                     a.control().hold_sim = true;
@@ -213,7 +201,7 @@ ScriptStep step_shot(std::string file) {
 
 ScriptStep step_ticks(std::string name, uint64_t n) {
     auto start = std::make_shared<uint64_t>(~uint64_t{0});
-    return {std::move(name), [start, n](App& a, ui::InputFrame&) {
+    return {std::move(name), [start, n](AppProbe& a, ui::InputFrame&) {
                 if (!a.session()) return false;
                 if (*start == ~uint64_t{0}) *start = a.session()->ticks();
                 return a.session()->ticks() >= *start + n;
@@ -224,7 +212,7 @@ ScriptStep step_ticks(std::string name, uint64_t n) {
 // One key press (a frame with the key down and pressed, then idle frames).
 ScriptStep step_key(std::string name, uint16_t key) {
     auto st = std::make_shared<int>(0);
-    return {std::move(name), [st, key](App&, ui::InputFrame& f) {
+    return {std::move(name), [st, key](AppProbe&, ui::InputFrame& f) {
                 if (*st == 1) {
                     f.keys_down.set(key);
                     f.keys_pressed.set(key);
@@ -238,10 +226,10 @@ ScriptStep step_key(std::string name, uint16_t key) {
 // rendering continues; then resume. Checks the sim frame stands still for 20 frames.
 void add_pause_steps(std::vector<ScriptStep>& s) {
     s.push_back(step_key("pause key", ui::vk::kPause));
-    s.push_back(step_wait("paused", [](App& a) { return a.session() && a.session()->paused(); }, 300));
+    s.push_back(step_wait("paused", [](AppProbe& a) { return a.session() && a.session()->paused(); }, 300));
     auto frame0 = std::make_shared<uint64_t>(0);
     auto n = std::make_shared<int>(0);
-    s.push_back({"sim stands still while paused", [frame0, n](App& a, ui::InputFrame&) {
+    s.push_back({"sim stands still while paused", [frame0, n](AppProbe& a, ui::InputFrame&) {
                      if (*n == 0) *frame0 = a.session()->host().frame();
                      if (++*n < 20) return false;
                      if (a.session()->host().frame() != *frame0) {
@@ -252,13 +240,13 @@ void add_pause_steps(std::vector<ScriptStep>& s) {
                  },
                  100});
     s.push_back(step_key("resume key", ui::vk::kPause));
-    s.push_back(step_wait("resumed", [](App& a) { return a.session() && !a.session()->paused() && !a.session()->pause_requested(); }, 300));
+    s.push_back(step_wait("resumed", [](AppProbe& a) { return a.session() && !a.session()->paused() && !a.session()->pause_requested(); }, 300));
 }
 
 // A hotkey slot pressed with its current binding (key + modifier from the HotkeyTable).
 ScriptStep step_hotkey(std::string name, uint16_t slot) {
     auto st = std::make_shared<int>(0);
-    return {std::move(name), [st, slot](App& a, ui::InputFrame& f) {
+    return {std::move(name), [st, slot](AppProbe& a, ui::InputFrame& f) {
                 const ui::HotkeyBinding b = a.ui().hotkeys.binding(slot);
                 if (b.key < 0) {
                     std::fprintf(stderr, "script: hotkey slot %u is unbound\n", slot);
@@ -282,11 +270,11 @@ ScriptStep step_hotkey(std::string name, uint16_t slot) {
 // group's centroid (SimHost::control_group through CameraFocus::group).
 // [port: Gabriel] fleet groups (--fleet-groups only, #174): N makes a group of the selection, Y locks it; the selected-unit
 // bar then shows the group's framed run under its header tab (checked, and shot as <prefix>_fleet_groups.png).
-std::pair<int32_t, int32_t> free_ground_pixel(App& a);  // below: a ground pixel with no object under it
+std::pair<int32_t, int32_t> free_ground_pixel(AppProbe& a);  // below: a ground pixel with no object under it
 
 void add_fleet_group_steps(std::vector<ScriptStep>& s, const std::string& prefix) {
     const auto press = [](const char* name, char key) {
-        return ScriptStep{name, [key](App&, ui::InputFrame& f) {
+        return ScriptStep{name, [key](AppProbe&, ui::InputFrame& f) {
                               static int n = 0;
                               if (++n == 2) {
                                   f.keys_down.set(ui::vk::key(key));
@@ -298,7 +286,7 @@ void add_fleet_group_steps(std::vector<ScriptStep>& s, const std::string& prefix
                           },
                           100};
     };
-    const auto own_group = [](App& a) -> const sim::FleetGroup* {
+    const auto own_group = [](AppProbe& a) -> const sim::FleetGroup* {
         const sim::TacticalBattle* b = a.battle();
         if (!b) return nullptr;
         for (const sim::FleetGroup& g : b->fleet_groups().groups())
@@ -306,14 +294,14 @@ void add_fleet_group_steps(std::vector<ScriptStep>& s, const std::string& prefix
         return nullptr;
     };
     s.push_back(press("make a fleet group (N)", 'N'));
-    s.push_back(step_wait("fleet group made", [own_group](App& a) { return own_group(a) != nullptr; }, 300));
+    s.push_back(step_wait("fleet group made", [own_group](AppProbe& a) { return own_group(a) != nullptr; }, 300));
     s.push_back(press("lock the fleet group (Y)", 'Y'));
-    s.push_back(step_wait("fleet group locked", [own_group](App& a) {
+    s.push_back(step_wait("fleet group locked", [own_group](AppProbe& a) {
         const sim::FleetGroup* g = own_group(a);
         return g && g->locked;
     }, 300));
     s.push_back(step_ticks("bar shows the group", 5));
-    s.push_back({"fleet group tab drawn", [](App& a, ui::InputFrame&) {
+    s.push_back({"fleet group tab drawn", [](AppProbe& a, ui::InputFrame&) {
                      const uint32_t tabs = a.ui().tactical_hud.stats().fleet_tabs;
                      std::printf("script: fleet groups: %u header tab(s) in the selected-unit bar\n", tabs);
                      if (tabs == 0) {
@@ -334,7 +322,7 @@ void add_fleet_group_steps(std::vector<ScriptStep>& s, const std::string& prefix
     };
     auto st = std::make_shared<Aim>();
     st->shot = step_shot(prefix + "_fleet_preview.png");
-    s.push_back({"aim a locked group move (preview)", [st](App& a, ui::InputFrame& f) {
+    s.push_back({"aim a locked group move (preview)", [st](AppProbe& a, ui::InputFrame& f) {
                      if (!a.battle_view().active() || a.screen() != Screen::Battle) return false;
                      const uint8_t bit = ui::button_bit(ui::Button::Right);
                      if (st->phase < 0) {  // released last frame: done
@@ -368,7 +356,7 @@ void add_fleet_group_steps(std::vector<ScriptStep>& s, const std::string& prefix
 }
 
 void add_control_group_steps(std::vector<ScriptStep>& s) {
-    s.push_back({"assign control group 1 (Ctrl+1)", [](App&, ui::InputFrame& f) {
+    s.push_back({"assign control group 1 (Ctrl+1)", [](AppProbe&, ui::InputFrame& f) {
                      static int n = 0;
                      if (++n == 2) {
                          f.keys_down.set(ui::vk::kControl);
@@ -378,10 +366,10 @@ void add_control_group_steps(std::vector<ScriptStep>& s) {
                      return n > 4;
                  },
                  100});
-    s.push_back(step_wait("group 1 assigned", [](App& a) {
+    s.push_back(step_wait("group 1 assigned", [](AppProbe& a) {
         return a.session() && !a.session()->host().control_group(static_cast<uint8_t>(a.local_player()), 1).empty();
     }, 300));
-    s.push_back({"recall group 1 twice (camera jump)", [](App& a, ui::InputFrame& f) {
+    s.push_back({"recall group 1 twice (camera jump)", [](AppProbe& a, ui::InputFrame& f) {
                      static int n = 0;
                      ++n;
                      if (n == 1) a.battle_camera().jump_to({0.0f, 0.0f, 0.0f});
@@ -422,7 +410,7 @@ ScriptStep step_encyclopedia(std::string name) {
     auto since_aim = std::make_shared<uint32_t>(0);
     auto target = std::make_shared<ui::Vec3>();
     auto target_id = std::make_shared<uint32_t>(0);
-    return {std::move(name), [aimed, shown0, waited, aims, since_aim, target, target_id](App& a, ui::InputFrame&) {
+    return {std::move(name), [aimed, shown0, waited, aims, since_aim, target, target_id](AppProbe& a, ui::InputFrame&) {
                 // The pop-up's delay is wall time: the sim is held meanwhile (presentation-only) so the ticks of the
                 // run stay independent of the machine's speed (the CRC log compares across compilers).
                 a.control().hold_sim = true;
@@ -531,7 +519,7 @@ ScriptStep step_unit_tooltip(std::string file) {
     };
     auto st = std::make_shared<State>();
     st->shot = step_shot(std::move(file));
-    return {"unit tooltip", [st](App& a, ui::InputFrame& f) {
+    return {"unit tooltip", [st](AppProbe& a, ui::InputFrame& f) {
                 if (a.screen() != Screen::Battle || !a.battle_view().active()) return false;
                 a.control().hold_sim = true;
                 if (st->phase == 0) {  // aim: the cursor stays in the middle of the screen
@@ -583,7 +571,7 @@ ScriptStep step_victory_screen(std::string file) {
     };
     auto st = std::make_shared<State>();
     st->shot = step_shot(std::move(file));
-    return {"victory screen", [st](App& a, ui::InputFrame& f) {
+    return {"victory screen", [st](AppProbe& a, ui::InputFrame& f) {
                 if (st->shown) return st->shot.run(a, f);
                 std::vector<std::pair<std::u32string, objects::TypeIndex>> names;
                 for (objects::TypeIndex t = 0; t < a.data().types.size() && t < a.ui().hud_types.size(); ++t)
@@ -618,7 +606,7 @@ ScriptStep step_victory_screen(std::string file) {
 // choice, row 0 on a fresh profile as in retail, SKIRMISH_SETUP 2.8). A mod whose row 0 is a list header with nothing to
 // field (Age of Legends) names a real faction row; retail kept the faction picked last in the player profile.
 ScriptStep step_skirmish_faction() {
-    return {"skirmish faction row", [](App& a, ui::InputFrame&) {
+    return {"skirmish faction row", [](AppProbe& a, ui::InputFrame&) {
                 const std::string want = env_or_empty("ALAMO_SMOKE_SKIRMISH_FACTION");
                 if (want.empty()) return true;
                 const ui::GuiDialog* d = a.ui().gui.find("IDD_SKIRMISH_STAGING_DIALOG");
@@ -639,7 +627,7 @@ ScriptStep step_skirmish_faction() {
 // Age of Legends' land skirmish in retail too, modc t09 A4) and the step passes.
 ScriptStep step_select_all(std::shared_ptr<bool> none = nullptr) {
     auto st = std::make_shared<int>(0);
-    return {"select all", [st, none](App& a, ui::InputFrame& f) {
+    return {"select all", [st, none](AppProbe& a, ui::InputFrame& f) {
                 if (*st % 30 == 1) {
                     f.keys_down.set(ui::vk::kControl);
                     f.keys_down.set(ui::vk::key('Y'));
@@ -681,7 +669,7 @@ ScriptStep step_attack_enemy(bool shift = false) {
     auto px = std::make_shared<std::pair<int32_t, int32_t>>(0, 0);
     auto settle = std::make_shared<int>(0);
     auto probe = std::make_shared<int32_t>(0);
-    return {shift ? "shift+right-click an enemy" : "right-click an enemy", [st, target, px, settle, shift, probe](App& a, ui::InputFrame& f) {
+    return {shift ? "shift+right-click an enemy" : "right-click an enemy", [st, target, px, settle, shift, probe](AppProbe& a, ui::InputFrame& f) {
                 if (!a.session() || !a.battle_view().active() || a.screen() != Screen::Battle) return false;
                 const render::InterpolatedFrame& fr = a.battle_view().frame();
                 const render::SnapshotObject* t = nullptr;
@@ -759,7 +747,7 @@ ScriptStep step_attack_enemy(bool shift = false) {
 }
 
 // Battle: jump the camera to the centroid of the local player's units (presentation only).
-void camera_on_local_units(App& a) {
+void camera_on_local_units(AppProbe& a) {
     double x = 0, y = 0;
     uint32_t n = 0;
     for (const render::SnapshotObject& o : a.battle_view().frame().objects)
@@ -773,7 +761,7 @@ void camera_on_local_units(App& a) {
 
 // a buy row the smoke can move: not a SpaceStructure (the category the mods' own scripts test with Is_Category;
 // Fall of the Republic's static defense stations carry a Max_Speed).
-bool smoke_unit_moves(App& a, const std::string& type) {
+bool smoke_unit_moves(AppProbe& a, const std::string& type) {
     const objects::TypeIndex t = a.data().types.resolve_name(type);
     if (t == objects::kNone) return true;
     for (const std::string_view c : a.data().types.get_list(t, "CategoryMask"))
@@ -785,7 +773,7 @@ bool smoke_unit_moves(App& a, const std::string& type) {
 void gate_steps(std::vector<ScriptStep>& s, size_t from, const std::shared_ptr<bool>& skip) {
     for (size_t k = from; k < s.size(); ++k) {
         auto run = std::move(s[k].run);
-        s[k].run = [skip, run](App& a, ui::InputFrame& f) { return *skip || run(a, f); };
+        s[k].run = [skip, run](AppProbe& a, ui::InputFrame& f) { return *skip || run(a, f); };
     }
 }
 
@@ -799,14 +787,14 @@ void gate_steps(std::vector<ScriptStep>& s, size_t from, const std::shared_ptr<b
 // spiral finds nothing free either (a hull larger than the view: the Empire smoke's Executor with the camera on it), the
 // camera steps across the view from where it looked, half its distance more each time and on alternate sides, and the
 // search runs again (step_move_ground, at most kGroundShifts steps; a note when they run out).
-bool ground_pixel_free(App& a, int32_t x, int32_t y) {
+bool ground_pixel_free(AppProbe& a, int32_t x, int32_t y) {
     const sim::TacticalMode* tm = a.session() ? a.session()->host().modes().top_tactical() : nullptr;
     if (!tm) return true;
     const ui::View v = ui::make_view(a.battle_view().camera_params(a.width(), a.height()), a.width(), a.height());
     tactical::QueryContext qc;
     return !ui::pick_world(tm->trees().all(), v, ui::pixel_ray(v, x, y), tactical::kSkipDead, qc, a.world_pick_tests()).has_value();
 }
-std::pair<int32_t, int32_t> free_ground_pixel(App& a) {
+std::pair<int32_t, int32_t> free_ground_pixel(AppProbe& a) {
     const int32_t w = static_cast<int32_t>(a.width()), h = static_cast<int32_t>(a.height());
     const std::pair<int32_t, int32_t> base{w / 2, h / 3};
     const auto free_at = [&](int32_t x, int32_t y) { return ground_pixel_free(a, x, y); };
@@ -829,7 +817,7 @@ ScriptStep step_move_ground(bool shift = false) {
     auto shifts = std::make_shared<int>(0);
     auto origin = std::make_shared<ui::Vec3>();
     return {shift ? "shift+right-click the ground" : "right-click the ground",
-            [st, px, settle, shifts, origin, shift](App& a, ui::InputFrame& f) {
+            [st, px, settle, shifts, origin, shift](AppProbe& a, ui::InputFrame& f) {
                 if (!a.battle_view().active() || a.screen() != Screen::Battle) return false;
                 if (st->phase == 0) {
                     const int32_t bx = static_cast<int32_t>(a.width() / 2), by = static_cast<int32_t>(a.height() / 3);
@@ -874,7 +862,7 @@ ScriptStep step_drag_box(std::string file) {
     };
     auto st = std::make_shared<State>();
     st->shot = step_shot(std::move(file));
-    return {"drag-select box", [st](App& a, ui::InputFrame& f) {
+    return {"drag-select box", [st](AppProbe& a, ui::InputFrame& f) {
                 if (!a.battle_view().active() || a.screen() != Screen::Battle) return false;
                 const auto w = static_cast<float>(a.width()), h = static_cast<float>(a.height());
                 const int kMove = 10;
@@ -914,7 +902,7 @@ ScriptStep step_zoom_light(std::string file) {
     };
     auto st = std::make_shared<State>();
     st->shot = step_shot(std::move(file));
-    return {"zoom light", [st](App& a, ui::InputFrame& f) {
+    return {"zoom light", [st](AppProbe& a, ui::InputFrame& f) {
                 if (a.screen() != Screen::Galactic) return false;
                 if (st->phase == 0) {
                     for (const ui::PickSphere& p : a.galactic_view().pick_items()) {
@@ -962,7 +950,7 @@ ScriptStep step_fleet_slots(std::string sel_file, std::string drag_file) {
     auto st = std::make_shared<State>();
     st->shot_sel = step_shot(std::move(sel_file));
     st->shot_drag = step_shot(std::move(drag_file));
-    return {"fleet slots", [st](App& a, ui::InputFrame& f) {
+    return {"fleet slots", [st](AppProbe& a, ui::InputFrame& f) {
                 if (st->phase < 0) return true;  // released last frame
                 const galactic::GalacticSim* g = a.session() ? a.session()->galaxy() : nullptr;
                 if (!g || a.screen() != Screen::Galactic) return false;
@@ -1057,7 +1045,7 @@ ScriptStep step_combat(bool land) {
         uint32_t n = 0, first_death = 0;
     };
     auto st = std::make_shared<State>();
-    return {land ? "land forces engage" : "space forces engage", [st, land](App& a, ui::InputFrame&) {
+    return {land ? "land forces engage" : "space forces engage", [st, land](AppProbe& a, ui::InputFrame&) {
                 const sim::BattleStats* stats = a.battle_stats();
                 if (!stats || !a.battle_view().active() || a.screen() != Screen::Battle) return false;
                 // Sim reads only (the battle's movable units, ascending id, store positions): the orders do not depend
@@ -1136,7 +1124,7 @@ ScriptStep step_reinforce() {
         ClickState click;
     };
     auto st = std::make_shared<State>();
-    return {"reinforcement drop", [st](App& a, ui::InputFrame& f) {
+    return {"reinforcement drop", [st](AppProbe& a, ui::InputFrame& f) {
                 const sim::TacticalBattle* b = a.session() ? a.session()->battle() : nullptr;
                 if (!b || a.screen() != Screen::Battle || !a.battle_view().active()) {
                     if (st->n > 0) a.control().notes.push_back("reinforcement: the battle ended before a drop deployed");
@@ -1193,7 +1181,7 @@ ScriptStep step_reinforce() {
 // the first reinforcement button r_0000 with the sim held; the shot shows its hover frame over the unit's icon.
 ScriptStep step_reinforce_hover(std::string file) {
     auto n = std::make_shared<uint32_t>(0);
-    return {"reinforcement button hover", [n, file](App& a, ui::InputFrame& f) {
+    return {"reinforcement button hover", [n, file](AppProbe& a, ui::InputFrame& f) {
                 if (!a.session() || a.screen() != Screen::Battle || !a.battle_view().active()) return false;
                 const int32_t ci = a.ui().components.find("r_0000");
                 if (ci < 0 || a.ui().tactical_hud.stats().reinforcements == 0) {
@@ -1232,7 +1220,7 @@ ScriptStep step_ability_pick() {
         uint64_t routed0 = 0;
     };
     auto st = std::make_shared<State>();
-    return {"targeted ability pick", [st](App& a, ui::InputFrame& f) {
+    return {"targeted ability pick", [st](AppProbe& a, ui::InputFrame& f) {
                 if (!a.session() || a.screen() != Screen::Battle || !a.battle_view().active()) return false;
                 if (st->phase == 0) {
                     a.control().hold_sim = true;  // presentation-only hold: no tick runs during the step (the later steps keep their ticks)
@@ -1276,7 +1264,7 @@ ScriptStep step_galactic_attack() {
         ClickState click;
     };
     auto st = std::make_shared<State>();
-    return {"galactic attack order", [st](App& a, ui::InputFrame& f) {
+    return {"galactic attack order", [st](AppProbe& a, ui::InputFrame& f) {
                 const galactic::GalacticSim* g = a.session() ? a.session()->galaxy() : nullptr;
                 if (!g || a.screen() != Screen::Galactic) return false;
                 const objects::ObjectStore& store = g->store();
@@ -1361,7 +1349,7 @@ ScriptStep answer_ai_attacks(ScriptStep inner) {
         ScriptStep cont;
     };
     auto st = std::make_shared<State>();
-    return {inner.name, [st, run = std::move(inner.run)](App& a, ui::InputFrame& f) {
+    return {inner.name, [st, run = std::move(inner.run)](AppProbe& a, ui::InputFrame& f) {
                 if (st->phase == 0) {
                     const galactic::ConflictInfo* c = a.choice_open() && a.session() ? a.session()->conflict_head() : nullptr;
                     if (!c || c->attacker == a.local_player()) return run(a, f);
@@ -1399,7 +1387,7 @@ ScriptStep step_galactic_move(bool drag) {
         ClickState click;
     };
     auto st = std::make_shared<State>();
-    return {drag ? "galactic move by drag" : "galactic move by click", [st, drag](App& a, ui::InputFrame& f) {
+    return {drag ? "galactic move by drag" : "galactic move by click", [st, drag](AppProbe& a, ui::InputFrame& f) {
                 const galactic::GalacticSim* g = a.session() ? a.session()->galaxy() : nullptr;
                 if (!g || a.screen() != Screen::Galactic) return false;
                 const objects::ObjectStore& store = g->store();
@@ -1501,12 +1489,10 @@ ScriptStep step_galactic_move(bool drag) {
 
 }  // namespace script
 
-using namespace script;
-
-void App::make_script() {
-    auto& s = script_;
+std::vector<ScriptStep> script::make_script(const Options& opt, AppProbe& probe) {
+    std::vector<ScriptStep> s;
     // Intro movies (when FFmpeg's Bink decoder is present): one frame shown, PNG, then Esc skips each one.
-    s.push_back({"intro movies skipped", [](App& a, ui::InputFrame& f) {
+    s.push_back({"intro movies skipped", [](AppProbe& a, ui::InputFrame& f) {
                      static int n = 0;
                      if (a.screen() != Screen::Movie) return true;
                      if (++n % 20 == 0) {
@@ -1519,23 +1505,23 @@ void App::make_script() {
                      return false;
                  },
                  1200});
-    s.push_back(step_wait("menu shown", [](App& a) { return a.ui().gui.top() != nullptr && a.frames() > 2; }, 600));
-    if (opt_.smoke == "saveload") {  // N1 follow-up: the save / load menus driven like a player (app_script_saveload.cpp)
+    s.push_back(step_wait("menu shown", [](AppProbe& a) { return a.ui().gui.top() != nullptr && a.frames() > 2; }, 600));
+    if (opt.smoke == "saveload") {  // N1 follow-up: the save / load menus driven like a player (app_script_saveload.cpp)
         add_saveload_steps(s);
-        return;
+        return s;
     }
     s.push_back(step_shot("game_main_menu.png"));
     // with a mod mounted the picker's active row is that mod, and its background check (minutes for a large mod)
     // never gives the base game report the steps below wait for; the no-mod smoke (and its golden) covers the picker.
-    const bool no_mod_mounted = std::none_of(opt_.game_args.begin(), opt_.game_args.end(), [](const std::string& a) { return vfs::is_mod_arg(a); });
-    if (opt_.smoke == "skirmish" && !no_mod_mounted)
+    const bool no_mod_mounted = std::none_of(opt.game_args.begin(), opt.game_args.end(), [](const std::string& a) { return vfs::is_mod_arg(a); });
+    if (opt.smoke == "skirmish" && !no_mod_mounted)
         std::printf("script: mod picker steps left out (a mod is mounted: the picker would check it in the background)\n");
-    if (opt_.smoke == "skirmish" && no_mod_mounted) {
+    if (opt.smoke == "skirmish" && no_mod_mounted) {
         // the mod picker from the main menu's Mods button: the rows (base game first, then whatever mods this
         // machine has), the base game's load report once its check finished, PNG, Back. Never launches anything; the
         // skirmish session (and its golden) starts afresh later.
         s.push_back(step_click_control("IDD_MAIN_MENU_DIALOG", "IDC_PORT_MAIN_MENU_MODS"));
-        s.push_back(step_wait("mod picker: base game report shown", [](App& a) {
+        s.push_back(step_wait("mod picker: base game report shown", [](AppProbe& a) {
             const ui::GuiDialog* d = a.ui().gui.find(ui::kPortModsDialog);
             const ui::GuiControl* list = d ? d->get("IDC_PORT_MODS_LIST") : nullptr;
             const ui::GuiControl* rep = d ? d->get("IDC_PORT_MODS_REPORT") : nullptr;
@@ -1549,17 +1535,17 @@ void App::make_script() {
         }, 6000));
         s.push_back(step_shot("game_mod_picker.png"));
         s.push_back(step_click_control(ui::kPortModsDialog, "IDC_CANCEL_BUTTON"));
-        s.push_back(step_wait("main menu again", [](App& a) {
+        s.push_back(step_wait("main menu again", [](AppProbe& a) {
             const ui::GuiDialog* d = a.ui().gui.top();
             return d && ascii_iequals(d->name(), "IDD_MAIN_MENU_DIALOG");
         }, 120));
     }
-    if (opt_.smoke == "skirmish") {
+    if (opt.smoke == "skirmish") {
         // OI host: the attract demo behind the main menu (legacy docs/re/MAIN_MENU_BACKGROUND.md; started here as the menu-open path would,
         // scripted runs never start it on their own): its battle world is drawn under the menu (world draws > 0, no
         // tactical HUD) and keeps ticking under the menu and its sub-dialogs (input never stops it); the skirmish's start
         // ends it. Its own session: the skirmish's session, CRC log and recording start afresh afterwards.
-        s.push_back(step_wait("attract demo starts", [](App& a) {
+        s.push_back(step_wait("attract demo starts", [](AppProbe& a) {
             if (a.attract_menu_opened(a.now_s(), true) == AttractController::Request::None || !a.start_attract_map()) {
                 a.control().notes.push_back("attract demo did not start");
                 a.control().smoke_ok = false;
@@ -1568,7 +1554,7 @@ void App::make_script() {
             return true;
         }));
         auto tick0 = std::make_shared<uint64_t>(0);
-        s.push_back(step_wait("attract demo drawn under the menu", [tick0](App& a) {
+        s.push_back(step_wait("attract demo drawn under the menu", [tick0](AppProbe& a) {
             if (!a.demo_session()) return true;  // failed above
             const sim::TacticalBattle* b = a.session()->battle();
             const bool drawn = a.screen() == Screen::Menu && a.battle_view().active() && b && a.draw_stats().draws > 0 &&
@@ -1588,7 +1574,7 @@ void App::make_script() {
                 std::map<objects::ObjectId, std::array<float, 2>> pos;
             };
             auto st = std::make_shared<Orient>();
-            s.push_back(step_wait("attract hull heading vs travel", [st](App& a) {
+            s.push_back(step_wait("attract hull heading vs travel", [st](AppProbe& a) {
                 const sim::TacticalBattle* b = a.demo_session() ? a.session()->battle() : nullptr;
                 if (!b) return true;  // the demo did not start (noted above)
                 const std::vector<render::SnapshotObject>& objs = a.battle_view().frame().objects;
@@ -1630,7 +1616,7 @@ void App::make_script() {
         {
             auto shot_tick = std::make_shared<uint64_t>(0);
             for (int k = 0; k < 4; ++k) {
-                s.push_back(step_wait("attract camera cut", [shot_tick, k](App& a) {
+                s.push_back(step_wait("attract camera cut", [shot_tick, k](AppProbe& a) {
                     const sim::TacticalBattle* b = a.demo_session() ? a.session()->battle() : nullptr;
                     if (!b) return true;
                     if (k == 0) a.reset_demo_stats();
@@ -1641,13 +1627,13 @@ void App::make_script() {
                     }
                     return false;
                 }, 1200));
-                s.push_back(step_wait("attract camera shot runs", [shot_tick](App& a) {
+                s.push_back(step_wait("attract camera shot runs", [shot_tick](AppProbe& a) {
                     const sim::TacticalBattle* b = a.demo_session() ? a.session()->battle() : nullptr;
                     return !b || b->frame() >= *shot_tick + 44;
                 }, 1200));
                 s.push_back(step_shot("game_attract_cam_" + std::to_string(k) + ".png"));
             }
-            s.push_back(step_wait("attract camera nose-on check", [](App& a) {
+            s.push_back(step_wait("attract camera nose-on check", [](AppProbe& a) {
                 if (!a.demo_session()) return true;
                 const auto& st = a.demo_stats();
                 std::printf("script: attract camera (%s) - %u frames, followed hull nose-on/tail-on in %u (longest run %u frames), nearby hulls %u / %u nose-on/tail-on\n",
@@ -1667,12 +1653,12 @@ void App::make_script() {
                 return true;
             }));
         }
-        s.push_back(step_wait("attract demo ticks under the menu", [tick0](App& a) {
+        s.push_back(step_wait("attract demo ticks under the menu", [tick0](AppProbe& a) {
             const sim::TacticalBattle* b = a.demo_session() ? a.session()->battle() : nullptr;
             return !b || b->frame() >= *tick0 + 30;
         }, 600));
         s.push_back(step_click_control("IDD_MAIN_MENU_DIALOG", "IDC_MAIN_MENU_SINGLE_PLAYER_GAMES"));
-        s.push_back(step_wait("attract demo runs under the single-player dialog", [tick0](App& a) {
+        s.push_back(step_wait("attract demo runs under the single-player dialog", [tick0](AppProbe& a) {
             const sim::TacticalBattle* b = a.demo_session() ? a.session()->battle() : nullptr;
             if (!b) {
                 a.control().notes.push_back("attract demo stopped by the menu input");
@@ -1687,10 +1673,10 @@ void App::make_script() {
     } else {
         s.push_back(step_click_control("IDD_MAIN_MENU_DIALOG", "IDC_MAIN_MENU_SINGLE_PLAYER_GAMES"));
     }
-    auto battle_steps = [&s, this](const std::string& prefix) {
-        s.push_back(step_wait("load screen ready", [](App& a) { return a.screen() == Screen::BattleLoad && a.ui().load.ready(); }, 6000));
+    auto battle_steps = [&s, &opt](const std::string& prefix) {
+        s.push_back(step_wait("load screen ready", [](AppProbe& a) { return a.screen() == Screen::BattleLoad && a.ui().load.ready(); }, 6000));
         s.push_back(step_shot(prefix + "_load.png"));
-        s.push_back({"begin", [](App& a, ui::InputFrame& f) {
+        s.push_back({"begin", [](AppProbe& a, ui::InputFrame& f) {
                          static ClickState c;  // one Begin per run of this step
                          if (a.screen() != Screen::BattleLoad) return true;
                          const ui::GuiDialog* d = a.ui().gui.find(a.ui().load.dialog());
@@ -1710,21 +1696,21 @@ void App::make_script() {
         const size_t unit_steps = s.size();
         s.push_back(step_ticks("selection drained", 3));
         add_control_group_steps(s);
-        if (opt_.fleet_groups) add_fleet_group_steps(s, prefix);
+        if (opt.fleet_groups) add_fleet_group_steps(s, prefix);
         s.push_back(step_encyclopedia("encyclopedia over a unit"));
         s.push_back(step_shot(prefix + "_encyclopedia.png"));
         if (env_or_empty("ALAMO_SMOKE_SCREENS") == "1") s.push_back(step_unit_tooltip(prefix + "_screen_tooltip.png"));
         s.push_back(step_attack_enemy());
-        s.push_back(step_wait("attack routed into the battle", [](App& a) { return a.session() && a.session()->order_stats().attacks >= 1; }, 600));
+        s.push_back(step_wait("attack routed into the battle", [](AppProbe& a) { return a.session() && a.session()->order_stats().attacks >= 1; }, 600));
         s.push_back(step_ticks("battle runs", 60));
-        s.push_back(step_wait("camera on the local units", [](App& a) {
+        s.push_back(step_wait("camera on the local units", [](AppProbe& a) {
             camera_on_local_units(a);
             return true;
         }));
         s.push_back(step_shot(prefix + "_battle.png"));
         if (env_or_empty("ALAMO_SMOKE_DRAG_BOX") == "1") s.push_back(step_drag_box(prefix + "_drag_box.png"));
         s.push_back(step_move_ground());
-        s.push_back(step_wait("move routed", [](App& a) {
+        s.push_back(step_wait("move routed", [](AppProbe& a) {
             static uint32_t waits = 0;  // what was selected when the move did not route
             if (a.session() && a.session()->order_stats().moves >= 1) return true;
             if (a.session() && ++waits == 300) {
@@ -1751,10 +1737,10 @@ void App::make_script() {
         // the HUD shows the selected units' queue markers.
         s.push_back(step_attack_enemy(true));
         s.push_back(step_move_ground(true));
-        s.push_back(step_wait("queued orders routed", [](App& a) {
+        s.push_back(step_wait("queued orders routed", [](AppProbe& a) {
             return a.session() && a.session()->order_stats().attacks >= 2 && a.session()->order_stats().moves >= 2;
         }, 600));
-        s.push_back(step_wait("queue markers shown", [](App& a) {
+        s.push_back(step_wait("queue markers shown", [](AppProbe& a) {
             if (a.queues().empty()) return false;
             // Movement path lines of the moving selection (HudWaypointLine, same frame: no extra step / tick).
             const ui::TacticalHudStats& hs = a.ui().tactical_hud.stats();
@@ -1777,7 +1763,7 @@ void App::make_script() {
         }
         gate_steps(s, unit_steps, no_units);
         // Battle end (time limit): the battle-end screen, then Continue.
-        s.push_back(step_wait("battle-end screen", [](App& a) { return a.battle_end_open() && a.ui().gui.find(ui::dlg::kBattleEnd); }, 20000));
+        s.push_back(step_wait("battle-end screen", [](AppProbe& a) { return a.battle_end_open() && a.ui().gui.find(ui::dlg::kBattleEnd); }, 20000));
         s.push_back(step_shot(prefix + "_battle_end.png"));
         if (env_or_empty("ALAMO_SMOKE_SCREENS") == "1") s.push_back(step_victory_screen(prefix + "_screen_victory.png"));
         s.push_back(step_click_control(ui::dlg::kBattleEnd, "IDC_CONTINUE_BUTTON"));
@@ -1791,7 +1777,7 @@ void App::make_script() {
         // (Age of Legends' list-header faction) passes it with nothing bought instead of stopping the smoke.
         auto empty = std::make_shared<bool>(false);
         auto skipped = std::make_shared<bool>(false);  // no buy screen (free starting units off): nothing to click
-        s.push_back({"buy list read", [empty, skipped, space_buy](App& a, ui::InputFrame&) {
+        s.push_back({"buy list read", [empty, skipped, space_buy](AppProbe& a, ui::InputFrame&) {
                          if (!a.ui().gui.find(ui::dlg::kBuyUnits)) {
                              if (!a.session()) return false;
                              *empty = *skipped = true;
@@ -1816,7 +1802,7 @@ void App::make_script() {
                      },
                      120});
         const size_t buy_from = s.size();
-        s.push_back(step_select_row(ui::dlg::kBuyUnits, "IDC_SKIRMISH_BUY_FORCES_LISTBOX", [space_buy](App& a) {
+        s.push_back(step_select_row(ui::dlg::kBuyUnits, "IDC_SKIRMISH_BUY_FORCES_LISTBOX", [space_buy](AppProbe& a) {
             // data without the stock corvette (mods): ALAMO_SMOKE_BUY_TYPE names the type; else the first listed
             // *_Corvette, else the first row that is not Build_Initially_Locked (Thrawn's Revenge lists a locked cheat unit
             // first). Vanilla always finds kSmokeSkirmishBuyType.
@@ -1846,7 +1832,7 @@ void App::make_script() {
             return size_t{0};
         }));
         s.push_back(step_click_control(ui::dlg::kBuyUnits, "IDC_BUY_BUTTON"));
-        s.push_back(step_wait("unit bought", [](App& a) {
+        s.push_back(step_wait("unit bought", [](AppProbe& a) {
             if (a.bought().empty()) return false;
             for (const auto& [type, n] : a.bought()) std::printf("script: bought %s x%u\n", type.c_str(), static_cast<unsigned>(n));
             return true;
@@ -1862,12 +1848,12 @@ void App::make_script() {
         s.push_back(step_click_control(ui::dlg::kBuyUnits, "IDC_NEXT_BUTTON"));
         gate_steps(s, next_from, skipped);
     };
-    if (opt_.smoke == "land") {  // land skirmish: the first land map of the list (rows after the space maps)
+    if (opt.smoke == "land") {  // land skirmish: the first land map of the list (rows after the space maps)
         s.push_back(step_click_control("IDD_SINGLE_PLAYER_GAMES_MENU_DIALOG", "IDC_SKIRMISH_GAMES_BUTTON"));
         // the Land game type (its row, the rows are sorted by text).
         s.push_back(step_select_game_type(ui::kSkirmishGameLand));
-        s.push_back(step_wait("land game type listed", [](App& a) { return !a.ui().front.skirmish_space_type() || !staging_has_game_types(a); }, 60));
-        s.push_back(step_select_row("IDD_SKIRMISH_STAGING_DIALOG", "IDC_STAGING_MAP_LIST", [](App& a) {
+        s.push_back(step_wait("land game type listed", [](AppProbe& a) { return !a.ui().front.skirmish_space_type() || !staging_has_game_types(a); }, 60));
+        s.push_back(step_select_row("IDD_SKIRMISH_STAGING_DIALOG", "IDC_STAGING_MAP_LIST", [](AppProbe& a) {
             // The first land map by name (the old list's first land row): its row in the staging list as the front end sorted it;
             // else the first land row of the Official tab.
             const std::vector<std::string> land = skirmish_land_maps(a.data());
@@ -1881,13 +1867,13 @@ void App::make_script() {
         s.push_back(step_click_control("IDD_SKIRMISH_STAGING_DIALOG", "IDC_SKIRMISH_START_GAME_BUTTON"));
         buy_steps("game_land");
         battle_steps("game_land");
-        s.push_back(step_wait("land skirmish over", [](App& a) { return a.session() && a.skirmish_ended() && a.screen() == Screen::Menu; }, 20000));
-    } else if (opt_.smoke == "skirmish") {
+        s.push_back(step_wait("land skirmish over", [](AppProbe& a) { return a.session() && a.skirmish_ended() && a.screen() == Screen::Menu; }, 20000));
+    } else if (opt.smoke == "skirmish") {
         s.push_back(step_click_control("IDD_SINGLE_PLAYER_GAMES_MENU_DIALOG", "IDC_SKIRMISH_GAMES_BUTTON"));
         // The dialog opens on Land (legacy docs/re/UI.md 9.7): select the Space game type (its row; the rows are sorted by text); the
         // run starts on its row 0.
         s.push_back(step_select_game_type(ui::kSkirmishGameSpace));
-        s.push_back(step_wait("space game type listed", [](App& a) {
+        s.push_back(step_wait("space game type listed", [](AppProbe& a) {
             return a.ui().front.skirmish_space_type() || !staging_has_game_types(a);
         }, 60));
         s.push_back(step_skirmish_faction());
@@ -1895,14 +1881,14 @@ void App::make_script() {
         s.push_back(step_click_control("IDD_SKIRMISH_STAGING_DIALOG", "IDC_SKIRMISH_START_GAME_BUTTON"));
         buy_steps("game_skirmish");
         battle_steps("game_skirmish");
-        s.push_back(step_wait("skirmish over", [](App& a) { return a.session() && a.skirmish_ended() && a.screen() == Screen::Menu; }, 20000));
+        s.push_back(step_wait("skirmish over", [](AppProbe& a) { return a.session() && a.skirmish_ended() && a.screen() == Screen::Menu; }, 20000));
     } else {
         // Selects row `row` exactly: step_select_row stops at the first row >= the wanted one (its click can land below
         // it), then Up keys back to it.
         auto exact_row = [&s](const char* dialog, const char* control, std::shared_ptr<int64_t> row) {
-            s.push_back(step_select_row(dialog, control, [row](App&) { return static_cast<size_t>(std::max<int64_t>(*row, 0)); }));
+            s.push_back(step_select_row(dialog, control, [row](AppProbe&) { return static_cast<size_t>(std::max<int64_t>(*row, 0)); }));
             auto key_frame = std::make_shared<bool>(false);
-            s.push_back({"campaign set row", [row, key_frame, dialog, control](App& a, ui::InputFrame& f) {
+            s.push_back({"campaign set row", [row, key_frame, dialog, control](AppProbe& a, ui::InputFrame& f) {
                              const ui::GuiDialog* d = a.ui().gui.find(dialog);
                              const ui::GuiControl* c = d ? d->get(control) : nullptr;
                              if (!c || c->selected < 0 || static_cast<int64_t>(c->selected) <= *row) return true;
@@ -1926,7 +1912,7 @@ void App::make_script() {
         size_t story_faction = 0;
         ui::CampaignChoice story_choice;
         if (!want.empty()) {
-            const ui::CampaignMenu menu = ui::build_campaign_menu(data_.db);
+            const ui::CampaignMenu menu = ui::build_campaign_menu(probe.data().db);
             for (size_t i = 0; i < menu.custom.size() && *custom_row < 0; ++i)
                 if (ascii_iequals(menu.custom[i].set, want)) *custom_row = static_cast<int64_t>(i);
             for (size_t i = 0; i < menu.story.size() && *custom_row < 0 && *story_row < 0; ++i) {
@@ -1936,12 +1922,12 @@ void App::make_script() {
                 if (*story_row >= 0 && story_faction < menu.story[i].factions.size()) story_choice = menu.story[i].factions[story_faction];
             }
             if (*custom_row < 0 && *story_row < 0)
-                ctl_.notes.push_back("ALAMO_SMOKE_CAMPAIGN_SET " + want + ": no such campaign set or campaign, first custom row kept");
+                probe.control().notes.push_back("ALAMO_SMOKE_CAMPAIGN_SET " + want + ": no such campaign set or campaign, first custom row kept");
             if (*story_row >= 0) std::printf("script: campaign smoke plays New Campaign row %" PRId64 ", faction button %zu\n", *story_row, story_faction);
         }
         if (*story_row >= 0) {
             auto direct = std::make_shared<bool>(false);
-            s.push_back({"New Campaign button or the campaign's start action", [direct, story_choice](App& a, ui::InputFrame&) {
+            s.push_back({"New Campaign button or the campaign's start action", [direct, story_choice](AppProbe& a, ui::InputFrame&) {
                              const ui::GuiDialog* d = a.ui().gui.find("IDD_SINGLE_PLAYER_GAMES_MENU_DIALOG");
                              if (!d || d != a.ui().gui.top()) return false;
                              if (d->find("IDC_NEW_CAMPAIGN_BUTTON") >= 0) return true;
@@ -1957,7 +1943,7 @@ void App::make_script() {
                          },
                          600});
             const auto unless_direct = [direct](ScriptStep st) {
-                return ScriptStep{st.name, [direct, run = std::move(st.run)](App& a, ui::InputFrame& f) { return *direct || run(a, f); },
+                return ScriptStep{st.name, [direct, run = std::move(st.run)](AppProbe& a, ui::InputFrame& f) { return *direct || run(a, f); },
                                   st.timeout_frames};
             };
             s.push_back(unless_direct(step_click_control("IDD_SINGLE_PLAYER_GAMES_MENU_DIALOG", "IDC_NEW_CAMPAIGN_BUTTON")));
@@ -1973,7 +1959,7 @@ void App::make_script() {
             if (*custom_row >= 0) exact_row("IDD_CUSTOM_CAMPAIGN_STAGING_DIALOG", "IDC_STAGING_MAP_LIST", custom_row);
             s.push_back(step_click_control("IDD_CUSTOM_CAMPAIGN_STAGING_DIALOG", "IDC_PLAY_BUTTON"));
         }
-        s.push_back(step_wait("galactic map", [](App& a) { return a.screen() == Screen::Galactic; }, 600));
+        s.push_back(step_wait("galactic map", [](AppProbe& a) { return a.screen() == Screen::Galactic; }, 600));
         close_auto_holocron(s);
         s.push_back(step_ticks("galaxy runs", 30));
         // GALACTIC_DIALOGS §2: the opening Story_Dialog event adds its chapter to the mission holocron (retail: b_story_arc_g
@@ -1981,12 +1967,12 @@ void App::make_script() {
         // summary, which holds the ticks.
         {
             auto n = std::make_shared<int>(0);
-            s.push_back({"holocron updated", [n](App& a, ui::InputFrame&) { return a.holocron_updates() > 0 || ++*n > 300; }, 400});
+            s.push_back({"holocron updated", [n](AppProbe& a, ui::InputFrame&) { return a.holocron_updates() > 0 || ++*n > 300; }, 400});
         }
         // without a chapter (Thrawn's Revenge's historical campaigns add none) the summary is not opened, so its shot
         // and close steps are skipped. Vanilla campaigns always have one.
         auto no_summary = std::make_shared<bool>(false);
-        s.push_back(step_wait("holocron button opens the story summary", [no_summary](App& a) {
+        s.push_back(step_wait("holocron button opens the story summary", [no_summary](AppProbe& a) {
             if ((a.holocron_chapters() == 0)) return *no_summary = true;  // no story chapter in this campaign
             ui::HudAction act;
             act.kind = ui::HudAction::Kind::Button;
@@ -1995,15 +1981,15 @@ void App::make_script() {
             return a.story_summary_open() && a.ui().gui.find(ui::dlg::kStorySummary) != nullptr;
         }, 10));
         for (ScriptStep st : {step_shot("game_campaign_story.png"), step_click_control(ui::dlg::kStorySummary, "IDC_SUMMARY_DIALOG_CLOSE_BUTTON"),
-                              step_wait("story summary closed", [](App& a) { return !a.story_summary_open(); }, 300)})
-            s.push_back({st.name, [no_summary, run = std::move(st.run)](App& a, ui::InputFrame& f) { return *no_summary || run(a, f); }, st.timeout_frames});
+                              step_wait("story summary closed", [](AppProbe& a) { return !a.story_summary_open(); }, 300)})
+            s.push_back({st.name, [no_summary, run = std::move(st.run)](AppProbe& a, ui::InputFrame& f) { return *no_summary || run(a, f); }, st.timeout_frames});
         s.push_back(step_shot("game_campaign_galactic.png"));
         if (env_or_empty("ALAMO_SMOKE_FLEET_SLOTS") == "1")
             s.push_back(step_fleet_slots("game_campaign_fleet_slots.png", "game_campaign_fleet_slot_drag.png"));
         if (env_or_empty("ALAMO_SMOKE_ZOOM_LIGHT") == "1") s.push_back(step_zoom_light("game_campaign_zoom_light.png"));
         if (env_or_empty("ALAMO_SMOKE_TRANSIT") == "1") {  // t32: a shot with any fleet in flight (opt-in, gives up after 3000 frames)
             auto n = std::make_shared<int>(0);
-            s.push_back({"a fleet in transit", [n](App& a, ui::InputFrame&) {
+            s.push_back({"a fleet in transit", [n](AppProbe& a, ui::InputFrame&) {
                              for (const render::GalacticFleetSnap& fl : a.galactic_view().frame().fleets)
                                  if (fl.flags & render::kGalFleetMoving) {
                                      a.galactic_camera().set_look_at({fl.position.x, fl.position.y, 0.0f});
@@ -2025,7 +2011,7 @@ void App::make_script() {
         auto no_fleet = std::make_shared<int>(-1);  // -1 not decided yet, 0 the local player has a fleet, 1 none
         auto gated = std::make_shared<size_t>(0);   // how many steps need the fleet
         const auto needs_fleet = [no_fleet, gated](ScriptStep st) {
-            return ScriptStep{st.name, [no_fleet, gated, run = std::move(st.run)](App& a, ui::InputFrame& f) {
+            return ScriptStep{st.name, [no_fleet, gated, run = std::move(st.run)](AppProbe& a, ui::InputFrame& f) {
                                   if (*no_fleet < 0) {
                                       const galactic::GalacticSim* g = a.session() ? a.session()->galaxy() : nullptr;
                                       if (!g) return run(a, f);
@@ -2048,39 +2034,39 @@ void App::make_script() {
         s.push_back(answer_ai_attacks(step_galactic_move(true)));
         s.push_back(answer_ai_attacks(step_galactic_attack()));
         // The pending-battle choice (message box): Fight.
-        s.push_back(step_wait("battle prompt shown", [](App& a) { return a.choice_open(); }, 6000));
+        s.push_back(step_wait("battle prompt shown", [](AppProbe& a) { return a.choice_open(); }, 6000));
         s.push_back(step_shot("game_campaign_battle_choice.png"));
-        s.push_back(step_wait("Begin", [](App& a) {
+        s.push_back(step_wait("Begin", [](AppProbe& a) {
             ui::HudAction act;
             act.kind = ui::HudAction::Kind::BattleBegin;
             a.hud_actions({act});
             return !a.choice_open();
         }, 10));
         battle_steps("game_campaign");
-        s.push_back(step_wait("back on the galactic map", [](App& a) { return a.screen() == Screen::Galactic && !a.battle_view().active() && !a.battle_end_open(); }, 20000));
+        s.push_back(step_wait("back on the galactic map", [](AppProbe& a) { return a.screen() == Screen::Galactic && !a.battle_view().active() && !a.battle_end_open(); }, 20000));
         // Shot at once: the AI may start the next conflict within a few ticks (the shot holds the sim).
         s.push_back(step_shot("game_campaign_galactic_after.png"));
         // GALACTIC_DIALOGS §3.1: a second attack answered Auto-Resolve - resolved at once (no progress dialog), the red
         // result line, then the battle-end screen.
         s.push_back(step_galactic_attack());
-        s.push_back(step_wait("battle prompt shown again", [](App& a) { return a.choice_open(); }, 6000));
-        s.push_back(step_wait("Auto-Resolve", [](App& a) {
+        s.push_back(step_wait("battle prompt shown again", [](AppProbe& a) { return a.choice_open(); }, 6000));
+        s.push_back(step_wait("Auto-Resolve", [](AppProbe& a) {
             ui::HudAction act;
             act.kind = ui::HudAction::Kind::BattleAutoResolve;
             a.hud_actions({act});
             return !a.choice_open();
         }, 10));
-        s.push_back(step_wait("auto-resolve battle-end screen", [](App& a) { return a.auto_results() > 0 && a.battle_end_open() && a.ui().gui.find(ui::dlg::kBattleEnd) && a.screen_text().empty(); }, 600));
+        s.push_back(step_wait("auto-resolve battle-end screen", [](AppProbe& a) { return a.auto_results() > 0 && a.battle_end_open() && a.ui().gui.find(ui::dlg::kBattleEnd) && a.screen_text().empty(); }, 600));
         s.push_back(step_shot("game_campaign_auto_result.png"));
         s.push_back(step_click_control(ui::dlg::kBattleEnd, "IDC_CONTINUE_BUTTON"));
         *gated = s.size() - fleet_steps;
         for (size_t k = fleet_steps; k < s.size(); ++k) s[k] = needs_fleet(std::move(s[k]));
         // The galaxy stands still from here (presentation-only hold: no AI conflict interrupts the screen checks).
-        s.push_back(step_wait("hold the galaxy", [](App& a) { return a.control().script_hold = true; }, 10));
+        s.push_back(step_wait("hold the galaxy", [](AppProbe& a) { return a.control().script_hold = true; }, 10));
         // In-game options (legacy docs/re/MAIN_LOOP.md §1.5): the HUD's options button opens the game menu, which pauses the session; the
         // options and their video page keep it paused (the video page lists the display modes); Esc x3 closes them all and
         // the session runs again. The galaxy is held already (no tick moves).
-        s.push_back(step_wait("options button opens the game menu", [](App& a) {
+        s.push_back(step_wait("options button opens the game menu", [](AppProbe& a) {
             ui::HudAction act;
             act.kind = ui::HudAction::Kind::Button;
             act.name = "b_option_g";
@@ -2089,7 +2075,7 @@ void App::make_script() {
         }, 10));
         s.push_back(step_click_control("IDD_GAME_OPTIONS_DIALOG", "IDC_INGAME_OPTIONS"));
         s.push_back(step_click_control("IDD_IN_GAME_OPTIONS_DIALOG", "IDC_IN_GAME_OPTIONS_VIDEO"));
-        s.push_back(step_wait("video options list the resolutions", [](App& a) {
+        s.push_back(step_wait("video options list the resolutions", [](AppProbe& a) {
             const ui::GuiDialog* d = a.ui().gui.find("IDD_VIDEO_OPTIONS_DIALOG");
             const ui::GuiControl* l = d ? d->get("IDC_RESOLUTION_LIST") : nullptr;
             if (!d || !a.menu_paused()) return false;
@@ -2107,11 +2093,11 @@ void App::make_script() {
         s.push_back(step_key("close the video options", ui::vk::kEscape));
         s.push_back(step_key("close the options", ui::vk::kEscape));
         s.push_back(step_key("close the game menu", ui::vk::kEscape));
-        s.push_back(step_wait("game menu closed, session unpaused", [](App& a) { return !a.menu_dialog_open() && !a.menu_paused(); }, 120));
+        s.push_back(step_wait("game menu closed, session unpaused", [](AppProbe& a) { return !a.menu_dialog_open() && !a.menu_paused(); }, 120));
         // P4 host: the black-market panel with the local player's real offers (bm_offers) at a planet of another playable
         // faction - a presentation-only preview: the scripted campaign has no natural black-market dialog (that needs an
         // Underworld hero at a Corruption_Black_Market planet), and the preview sends no command.
-        s.push_back(step_wait("black market panel", [](App& a) {
+        s.push_back(step_wait("black market panel", [](AppProbe& a) {
             const galactic::GalacticSim* g = a.session() ? a.session()->galaxy() : nullptr;
             if (!g) return true;
             if (!a.panel_preview()) {
@@ -2126,45 +2112,46 @@ void App::make_script() {
             return a.market_open() || !a.preview_planet();  // no such planet: nothing to show
         }, 120));
         s.push_back(step_shot("game_campaign_black_market.png"));
-        s.push_back(step_wait("black market closed", [](App& a) {
+        s.push_back(step_wait("black market closed", [](AppProbe& a) {
             a.set_panel_preview(0);
             return true;
         }, 10));
         // Holocron (hotkey): droid log, then the tech tree and the production summary pages; Esc closes.
         s.push_back(step_hotkey("advisor key", ui::hk::kDroidAdvisor));
-        s.push_back(step_wait("droid log shown", [](App& a) { return a.info().info_dialog() == ui::dlg::kDroidLog; }, 300));
+        s.push_back(step_wait("droid log shown", [](AppProbe& a) { return a.info().info_dialog() == ui::dlg::kDroidLog; }, 300));
         s.push_back(step_shot("game_campaign_droid_log.png"));
-        s.push_back(step_wait("tech tree page", [](App& a) {
+        s.push_back(step_wait("tech tree page", [](AppProbe& a) {
             a.open_holocron(ui::InfoPage::TechTree);
             return !a.info().info_dialog().empty() && a.info().info_page() == ui::InfoPage::TechTree;
         }, 300));
         s.push_back(step_shot("game_campaign_tech_tree.png"));
-        s.push_back(step_wait("production summary page", [](App& a) {
+        s.push_back(step_wait("production summary page", [](AppProbe& a) {
             a.open_holocron(ui::InfoPage::SummaryProduction);
             return a.info().info_dialog() == ui::dlg::kSummaryProduction;
         }, 300));
         s.push_back(step_shot("game_campaign_summary.png"));
         s.push_back(step_key("close the holocron", ui::vk::kEscape));
-        s.push_back(step_wait("holocron closed", [](App& a) { return a.info().info_dialog().empty(); }, 300));
+        s.push_back(step_wait("holocron closed", [](AppProbe& a) { return a.info().info_dialog().empty(); }, 300));
         // Story summary (b_story_arc_g opens it; [smoke] called directly): objectives + recap of the local plot set.
-        s.push_back({"story summary", [n = std::make_shared<int>(0)](App& a, ui::InputFrame&) {
+        s.push_back({"story summary", [n = std::make_shared<int>(0)](AppProbe& a, ui::InputFrame&) {
                          if (*n == 1) a.open_story_summary();
                          return ++*n > 3;
                      },
                      100});
-        s.push_back(step_wait("story summary shown", [](App& a) { return a.ui().gui.find(ui::dlg::kStorySummary) != nullptr; }, 300));
+        s.push_back(step_wait("story summary shown", [](AppProbe& a) { return a.ui().gui.find(ui::dlg::kStorySummary) != nullptr; }, 300));
         s.push_back(step_shot("game_campaign_story_summary.png"));
         s.push_back(step_key("close the story summary", ui::vk::kEscape));
-        s.push_back(step_wait("story summary closed", [](App& a) { return a.ui().gui.find(ui::dlg::kStorySummary) == nullptr; }, 300));
+        s.push_back(step_wait("story summary closed", [](AppProbe& a) { return a.ui().gui.find(ui::dlg::kStorySummary) == nullptr; }, 300));
         // Campaign end: [smoke] forced (the galaxy is not conquered in a smoke run) - the campaign score, then Quit.
-        s.push_back(step_wait("campaign score", [](App& a) {
+        s.push_back(step_wait("campaign score", [](AppProbe& a) {
             if (!a.campaign_over()) a.show_campaign_end(true);
             return a.ui().gui.find(ui::dlg::kCampaignScore) != nullptr;
         }, 300));
         s.push_back(step_shot("game_campaign_score.png"));
         s.push_back(step_click_control(ui::dlg::kCampaignScore, "IDC_QUIT_BUTTON"));
-        s.push_back(step_wait("main menu after the campaign", [](App& a) { return a.screen() == Screen::Menu; }, 300));
+        s.push_back(step_wait("main menu after the campaign", [](AppProbe& a) { return a.screen() == Screen::Menu; }, 300));
     }
+    return s;
 }
 
 }  // namespace alamo_game_app

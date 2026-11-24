@@ -19,6 +19,7 @@
 //                   tools (save_export.hpp): no window, Vulkan or audio; exit 0, or 1 + a message on stderr.
 // Game data: --game DIR or ALAMO_FOC_DATA (the FoC "corruption" folder).
 #include "game_app.hpp"
+#include "app_script.hpp"  // script::make_script
 #include <filesystem>
 
 #include "alamo/core/bytes.hpp"  // write_text_file
@@ -476,7 +477,7 @@ bool App::init() {
         overlay_.set_log(true);
     }
     if (opt_.frame_overlay) overlay_.set_shown(true, opt_.profile);
-    if (!opt_.smoke.empty()) make_script();
+    if (!opt_.smoke.empty()) script_ = script::make_script(opt_, *this);
     if (bench_active()) return bench_start();  // BM2a: straight into the save, no intro or menus
     if (!opt_.movies.empty() && next_movie()) flow_.on(ScreenEvent::IntroMovies);
     else show_menu_after_intro();

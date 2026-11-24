@@ -3,6 +3,19 @@
 
 namespace alamo_game_app {
 
+// The frame input of a script step that does nothing (no keys, the cursor centred, no edge scrolling).
+ui::InputFrame App::idle_frame() const {
+    ui::InputFrame f;
+    f.time = static_cast<double>(frames_) / 30.0;
+    f.dt = 1.0f / 30.0f;
+    f.width = targets_.width;
+    f.height = targets_.height;
+    f.mouse_x = static_cast<int32_t>(targets_.width / 2);
+    f.mouse_y = static_cast<int32_t>(targets_.height / 2);
+    f.mouse_inside = false;  // no edge scrolling
+    return f;
+}
+
 // ------------------------------------------------------------------------------------------------ render
 void App::resize_ui() {
     ui_.resize(win_.width(), win_.height(), ui_scale_);

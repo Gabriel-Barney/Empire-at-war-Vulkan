@@ -5,6 +5,7 @@
 // sim except through the actions a player could take (HUD actions, menu actions, submit).
 #pragma once
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -20,6 +21,7 @@
 #include "alamo/ui/gui_screens.hpp"  // BattleEndInfo
 #include "alamo/ui/hud_markers.hpp"
 #include "alamo/ui/hud_panels.hpp"
+#include "alamo/ui/input.hpp"
 #include "alamo/ui/targeting.hpp"
 #include "game_display.hpp"  // DisplayMode
 #include "game_ui.hpp"
@@ -70,6 +72,15 @@ struct Options;  // game_app.hpp: the command line
 // the look-at point are seen nose-on or tail-on, and the longest run of such frames of the followed hull. Presentation only.
 struct DemoCamStats {
     uint32_t frames = 0, target_nose_on = 0, run = 0, longest_run = 0, hulls = 0, hulls_nose_on = 0;
+};
+
+class AppProbe;
+// One scripted step: fills the frame's input (or leaves it idle) and returns true when done. Steps run in order; a step
+// sees the running game only through the probe.
+struct ScriptStep {
+    std::string name;
+    std::function<bool(AppProbe&, alamo::ui::InputFrame&)> run;
+    uint32_t timeout_frames = 3600;
 };
 
 class AppProbe {
