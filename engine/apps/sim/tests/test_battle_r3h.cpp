@@ -4,7 +4,10 @@
 // (105) one-shot, Force_Revel_Loop (106) from the frame Begin finishes, Force_Revel_End (107) when the 2 s run out, then
 // the IDLE behaviour's idle once End has finished.
 #include "battle_test_fixture.hpp"
+
+#include <functional>
 #include "tactical_battle_test_access.hpp"  // ref3 t06
+#include "alamo/jobs/crc_recorder.hpp"  // #115: check_worker_counts
 #include "alamo/tactical/abilities/ability_types.hpp"
 #include "alamo/tactical/combat/rocket.hpp"  // #357: the wreck's spline (SplineClass)
 
@@ -12,20 +15,27 @@ namespace {
 
 
 // A land battle on S10_B (invaded by player 1's S10_Squad company from planet 2). `per_tick(b, tm, host)` runs after every
-// host tick once the battle exists; it returns false to stop. `animation` is attached (its CRC system too).
+// host tick once the battle exists; it returns false to stop. `animation` is attached (its CRC system too). #115: `edit`
+// changes the galactic setup first, `opt_edit` the battle options; `workers` sizes the job system; `crc` (may be null)
+// receives the host's CRC log at the end.
 template <class F>
-void land_battle(Data& d, SimAnimation* animation, uint32_t max_frames, F per_tick) {
-    jobs::JobSystem js(jobs::JobSystemConfig{0});
+void land_battle(Data& d, SimAnimation* animation, uint32_t max_frames, F per_tick,
+                 const std::function<void(galactic::GalacticSetup&)>& edit = {},
+                 const std::function<void(CampaignBattleOptions&)>& opt_edit = {}, int32_t workers = 0, CrcLog* crc = nullptr) {
+    jobs::JobSystem js(jobs::JobSystemConfig{workers});
     SimConfig cfg;
     cfg.seed = 2026;
     cfg.players = 4;
     SimHost host(d.types, js, cfg);
-    galactic::GalacticSim* gs = host.start_galactic(d.rules, make_setup(d, true));
+    galactic::GalacticSetup setup = make_setup(d, true);
+    if (edit) edit(setup);
+    galactic::GalacticSim* gs = host.start_galactic(d.rules, std::move(setup));
     CHECK(gs != nullptr);
     if (!gs) return;
     CampaignBattleOptions opt;
     opt.conflict.human_choice = galactic::BattleChoice::Fight;
     opt.battle.max_frames = max_frames;
+    if (opt_edit) opt_edit(opt);
     if (animation) {
         animation->attach(host, true);
         opt.animation = animation;
@@ -62,6 +72,7 @@ void land_battle(Data& d, SimAnimation* animation, uint32_t max_frames, F per_ti
     }
     CHECK(seen);
     if (animation) animation->detach(host);
+    if (crc) *crc = host.crc_log();
 }
 
 std::string sight_patch(std::string t) {
@@ -789,6 +800,163 @@ void test_script_kill_survivors() {
     CHECK(victim != objects::kNoObjectId && dead && at_kill == before + 1 && after == before + 1);
 }
 
+// #115 (cu8l t02 beyond the unit tests, CU8K_T02_T06_RE §2 / §3): one non-squad unit runs the three draw sites in one
+// battle - a unit-ability toggle that stops and holds (LURE on, then off: the behaviour toggle 0x3a4070), a garrison
+// (GarrisonUnitBehavior approach / entry, then the leave) and a script lock (Lua Lock_Current_Orders' first lock,
+// TacticalBattle::script_first_lock). S10_Hero is an infantry hero outside any team (its company has no Create_Team);
+// the host is the squad-garrison data's S10_Walker. The per-tick CRC log of the battle is the same at 0 and 4 workers.
+std::string hero_patch(std::string t) {
+    const size_t end = t.find("</S10>");
+    if (end != std::string::npos)
+        t.insert(end,
+                 " <GroundInfantry Name=\"S10_Hero\"><Tactical_Health>100000</Tactical_Health><Max_Speed>1.0</Max_Speed>"
+                 "<AI_Combat_Power>50</AI_Combat_Power><CategoryMask>Infantry</CategoryMask><MovementClass>Infantry</MovementClass>"
+                 "<Behavior>SELECTABLE</Behavior><Collidable_By_Projectile_Living>Yes</Collidable_By_Projectile_Living>"
+                 "<LandBehavior>WALK_LOCOMOTOR, GARRISON_UNIT</LandBehavior><Garrison_Category>Infantry</Garrison_Category>"
+                 "<Custom_Hard_XExtent>3</Custom_Hard_XExtent><Custom_Hard_YExtent>3</Custom_Hard_YExtent>"
+                 "<Unit_Abilities_Data SubObjectList=\"Yes\"><Unit_Ability><Type>LURE</Type><Recharge_Seconds>1</Recharge_Seconds>"
+                 "</Unit_Ability></Unit_Abilities_Data></GroundInfantry>\n"
+                 " <GroundCompany Name=\"S10_Hero_Co\"><Company_Units>S10_Hero</Company_Units><Population_Value>1</Population_Value>"
+                 "</GroundCompany>\n");
+    return t;
+}
+
+enum class HeroStage { Start, LureOn, Garrison, Entering, Inside, Leaving, Moving, Done };
+
+struct HeroRun {
+    HeroStage stage = HeroStage::Start;  // the last stage reached
+    uint32_t lure_n = 0;                 // units the LURE on toggle counted
+    uint64_t tick_after_on = 0;          // synced draws of the tick after the LURE on command (the stop-and-hold's adopt)
+    int hold_before_on = -1;             // CoordinatorHold (0 none, 1 no formation, 2 formation) before LURE on
+    bool garrisoned = false, left = false;
+    int hold_moving = -1;                // CoordinatorHold five ticks into a move order
+    uint64_t lock_moving = 0, lock_again = 0;  // synced draws of the first lock during the move, then of a second one
+    int hold_after_lock = -1;
+};
+
+// One battle of the scenario. `lure` false: the control run, the same commands without the LURE toggles.
+HeroRun run_hero(Data& d, int32_t workers, bool lure, CrcLog* crc = nullptr) {
+    namespace ta = alamo::tactical::abilities;
+    using TA = alamo::sim::TacticalBattleTestAccess;
+    using S = HeroStage;
+    HeroRun out;
+    const uint32_t hero_co = type_of(d, "S10_Hero_Co"), walker_co = type_of(d, "S10_Walker_Co");
+    const objects::TypeIndex hero_t = d.types.resolve_name("S10_Hero"), walker_t = d.types.resolve_name("S10_Walker");
+    CHECK(hero_co < d.types.size() && walker_co < d.types.size() && hero_t != objects::kNone && walker_t != objects::kNone);
+    objects::ObjectId hero = objects::kNoObjectId, walker = objects::kNoObjectId;
+    uint32_t at = 0;            // the frame the current stage started
+    uint64_t prev_draws = 0;    // the synced stream after the previous per-tick call (its commands included)
+    land_battle(
+        d, nullptr, 3000,
+        [&](TacticalBattle& b, TacticalMode& tm, SimHost& host) {
+            SimRng& rng = host.random().synced();
+            const uint64_t tick_draws = rng.draws() - prev_draws;
+            const uint32_t f = b.frame();
+            const auto hold = [&b, &hero] { return static_cast<int>(b.movement().coordinator_hold(hero)); };
+            const objects::ObjectId ids[] = {hero};
+            bool go = true;
+            if (f < 3) {
+                // the battle's first ticks
+            } else if (out.stage == S::Start) {  // the human's hero and walker
+                const objects::ObjectStore& st = tm.primary();
+                for (const objects::ObjectHandle h : st.all_objects()) {
+                    if (!st.alive(h) || st.owner(h) != 0) continue;
+                    if (st.type(h) == hero_t) hero = st.id(h);
+                    if (st.type(h) == walker_t) walker = st.id(h);
+                }
+                CHECK(hero != objects::kNoObjectId && walker != objects::kNoObjectId);
+                go = hero != objects::kNoObjectId && walker != objects::kNoObjectId;
+                if (go) {
+                    out.hold_before_on = hold();
+                    const objects::ObjectId one[] = {hero};
+                    if (lure) out.lure_n = TA::abilities(b).set_unit_ability_mode(one, ta::kLure, true, f);
+                    out.stage = S::LureOn;
+                    at = f;
+                }
+            } else if (out.stage == S::LureOn) {
+                if (f == at + 1) out.tick_after_on = tick_draws;
+                if (f >= at + 30) {  // LURE off (a second toggle hold), then walk to the walker and enter it
+                    if (lure) (void)TA::abilities(b).set_unit_ability_mode(ids, ta::kLure, false, f);
+                    out.stage = S::Garrison;
+                    at = f;
+                }
+            } else if (out.stage == S::Garrison && f >= at + 5) {
+                CHECK(b.order_garrison(tm, 0, ids, walker, rng) == commands::RejectReason::None);
+                out.stage = S::Entering;
+                at = f;
+            } else if (out.stage == S::Entering) {
+                if (b.garrison_holder_of(hero) == walker) {
+                    out.garrisoned = true;
+                    out.stage = S::Inside;
+                    at = f;
+                }
+                go = f <= at + 1500;
+            } else if (out.stage == S::Inside && f >= at + 30) {  // leave again
+                CHECK(b.order_leave_garrison(tm, 0, ids) == commands::RejectReason::None);
+                out.stage = S::Leaving;
+                at = f;
+            } else if (out.stage == S::Leaving && f >= at + 30) {  // out: a move order 150 away
+                out.left = b.garrison_holder_of(hero) == objects::kNoObjectId;
+                const Vec3 p = tm.primary().position(tm.primary().find(hero));
+                CHECK(b.order_move(tm, 0, ids, p.x + 150.0f, p.y, rng) == commands::RejectReason::None);
+                out.stage = S::Moving;
+                at = f;
+            } else if (out.stage == S::Moving && f == at + 5) {  // the script's first lock while the move runs, then again
+                out.hold_moving = hold();
+                uint64_t d0 = rng.draws();
+                b.script_first_lock(tm, hero);
+                out.lock_moving = rng.draws() - d0;
+                out.hold_after_lock = hold();
+                d0 = rng.draws();
+                b.script_first_lock(tm, hero);
+                out.lock_again = rng.draws() - d0;
+            } else if (out.stage == S::Moving && f >= at + 35) {
+                out.stage = S::Done;
+                go = false;
+            }
+            prev_draws = rng.draws();
+            return go;
+        },
+        [hero_co, walker_co](galactic::GalacticSetup& s) {
+            s.forces.push_back({0, 1, walker_co});
+            s.forces.push_back({0, 1, hero_co});
+        },
+        [](CampaignBattleOptions& o) { o.battle.skip_human_units = true; },  // the stand-in leaves the human's units alone
+        workers, crc);
+    return out;
+}
+
+void test_hero_hold_garrison_lock() {
+    g_temp_prefix = "alamo_sim_r3h_tests_hero";
+    g_types_patch = hero_patch;
+    auto d = make_data(false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false,
+                       false, false, false, true);
+    g_types_patch = nullptr;
+    const HeroRun a = run_hero(*d, 0, true), c = run_hero(*d, 0, false);
+    std::printf("  #115 hero: LURE on %u unit(s), hold %d before; the next tick %llu draw(s) (control %llu); garrisoned %d, left %d; "
+                "moving hold %d, first lock %llu draw(s) -> hold %d, second lock %llu\n",
+                a.lure_n, a.hold_before_on, static_cast<unsigned long long>(a.tick_after_on),
+                static_cast<unsigned long long>(c.tick_after_on), a.garrisoned ? 1 : 0, a.left ? 1 : 0, a.hold_moving,
+                static_cast<unsigned long long>(a.lock_moving), a.hold_after_lock, static_cast<unsigned long long>(a.lock_again));
+    CHECK(a.stage == HeroStage::Done && c.stage == HeroStage::Done && a.lure_n == 1 && a.garrisoned && a.left);
+    // CU8K_T02_T06_RE §2 (the unit-ability behaviour toggle 0x3a4070): LURE on stops and holds a unit outside any team -
+    // leave its coordinator, adopt: one draw more than the same tick without the toggle.
+    CHECK(a.tick_after_on == c.tick_after_on + 1);
+    // §3 rule 6: the first lock of a unit running a move splits it off its formation (one draw) and leaves it held without
+    // a formation, so a second lock draws nothing.
+    using H = tactical::movement::MovementSystem::CoordinatorHold;
+    CHECK(a.hold_moving == static_cast<int>(H::Formation) && a.lock_moving == 1);
+    CHECK(a.hold_after_lock == static_cast<int>(H::NoFormation) && a.lock_again == 0);
+    // docs/SIMULATION.md "Worker-count check": the battle's per-tick CRC log at 0, 1, 4 and the default worker count
+    const auto rep = jobs::check_worker_counts([&d](int32_t w) {
+        CrcLog log;
+        (void)run_hero(*d, w, true, &log);
+        return log;
+    });
+    for (const auto& r : rep.runs) std::printf("  #115 workers %d: %s\n", r.workers, r.vs_first.message.c_str());
+    CHECK(!rep.first.records.empty() && rep.ok());
+}
+
 int main() {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
     std::printf("r3h t01: Force_Sight clips on the battle's animation world\n");
@@ -803,6 +971,7 @@ int main() {
     test_death_explosion_pick();    // #358
     test_spin_wreck();              // #357
     test_script_kill_survivors();   // #382
+    test_hero_hold_garrison_lock(); // #115
     if (g_fail) {
         std::printf("alamo_sim_r3h_tests: %d failure(s)\n", g_fail);
         return 1;
