@@ -732,6 +732,21 @@ inline std::unique_ptr<Data> hover_garrison_data() {
     if (pb == std::string::npos || ph == std::string::npos) return d;
     t.replace(pb, beh.size(), "WALK_LOCOMOTOR, GARRISON_HOVER");
     t.insert(t.find(head) + head.size(), "<Hover_Height>80</Hover_Height>");
+    // #360: the trooper's death data - a Damage_Normal clone (HIDE_WHEN_FOGGED: the primary path, a clone object), one
+    // Death_Explosions entry and one Destruction_Survivors pilot - so a garrison-killed occupant shows all three.
+    const std::string trooper = "<GroundInfantry Name=\"S10_Trooper\">";
+    if (const size_t p = t.find(trooper); p != std::string::npos)
+        t.insert(p + trooper.size(), "<Death_Clone>Damage_Normal, S10_Hover_Trooper_Clone</Death_Clone><Death_Explosions>S10_Hover_Boom</Death_Explosions>"
+                                     "<Destruction_Survivors>S10_Hover_Pilot, 1.0</Destruction_Survivors>"
+                                     "<Minimum_Destruction_Survivor_Count>1</Minimum_Destruction_Survivor_Count>"
+                                     "<Maximum_Destruction_Survivor_Count>1</Maximum_Destruction_Survivor_Count>");
+    if (const size_t end = t.find("</S10>"); end != std::string::npos)
+        t.insert(end, " <GroundInfantry Name=\"S10_Hover_Trooper_Clone\"><Death_Persistence_Duration>5</Death_Persistence_Duration>"
+                      "<Behavior>HIDE_WHEN_FOGGED</Behavior></GroundInfantry>\n"
+                      " <Particle Name=\"S10_Hover_Boom\"><Particle_Lifetime_Frames>60</Particle_Lifetime_Frames></Particle>\n"
+                      " <GroundInfantry Name=\"S10_Hover_Pilot\"><Tactical_Health>10</Tactical_Health><CategoryMask>Infantry</CategoryMask>"
+                      "<Behavior>SELECTABLE</Behavior><LandBehavior>WALK_LOCOMOTOR</LandBehavior><Max_Speed>1.0</Max_Speed>"
+                      "<MovementClass>Infantry</MovementClass></GroundInfantry>\n");
     write_file(f, t);
     auto h = std::make_unique<Data>();
     h->root = d->root;
@@ -800,9 +815,25 @@ inline void test_land_hover_garrison_death() {
             alive += a.b->combat().alive(m) ? 1u : 0u;
             held += a.b->garrison_holder_of(m) != objects::kNoObjectId ? 1u : 0u;
         }
-        std::printf("  hover garrison: walker killed %s (z %.1f over the ground) - %u of %zu members alive, %u still inside\n",
-                    c == kRaised ? "raised" : "grounded", static_cast<double>(z - ground), alive, a.members.size(), held);
+        // #360: a garrison-killed occupant dies through process_death - its clone and Death_Explosions entry - and its Die
+        // step 7 survivor is spawned (the walker itself names none of the three).
+        const objects::ObjectStore& s5 = a.tm->primary();
+        const auto t_clone = static_cast<objects::TypeIndex>(type_of(*d, "S10_Hover_Trooper_Clone"));
+        const auto t_boom = static_cast<objects::TypeIndex>(type_of(*d, "S10_Hover_Boom"));
+        const auto t_pilot = static_cast<objects::TypeIndex>(type_of(*d, "S10_Hover_Pilot"));
+        uint32_t clones = 0, booms = 0, pilots = 0;
+        for (const objects::ObjectHandle h : s5.all_objects()) {
+            if (!s5.alive(h)) continue;
+            clones += s5.type(h) == t_clone ? 1u : 0u;
+            booms += s5.type(h) == t_boom ? 1u : 0u;
+            pilots += s5.type(h) == t_pilot ? 1u : 0u;
+        }
+        std::printf("  hover garrison: walker killed %s (z %.1f over the ground) - %u of %zu members alive, %u still inside; "
+                    "%u clones, %u explosions, %u survivors\n",
+                    c == kRaised ? "raised" : "grounded", static_cast<double>(z - ground), alive, a.members.size(), held, clones, booms, pilots);
         CHECK(held == 0 && alive == (c == kRaised ? 0u : static_cast<uint32_t>(a.members.size())));
+        const uint32_t dead = c == kRaised ? static_cast<uint32_t>(a.members.size()) : 0u;
+        CHECK(clones == dead && booms == dead && pilots == dead);
     }
 }
 

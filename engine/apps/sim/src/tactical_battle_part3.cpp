@@ -646,26 +646,7 @@ void TacticalBattle::consume_events(TacticalMode& mode, SimRng& rng) {
         }
     }
     // c. hardpoint destructions: Death_Explosion_Particles, then Death_Breakoff_Prop (each an id).
-    for (const tc::HardpointEvent& e : combat_->hardpoint_events()) {
-        ++stats_.hardpoints_destroyed;
-        const objects::ObjectHandle oh = store.find(e.owner);
-        if (!store.exists(oh)) continue;
-        Vec3 at = store.position(oh);
-        // battle host: at the hard point's attachment bone (bind pose, BattleCatalog model data; unit centre without it):
-        // unit-local (x forward, y left, z up) rotated by the unit's yaw.
-        if (combat_->has_unit(e.owner)) {
-            const tc::UnitDesc& ud = combat_->data().units[combat_->desc_index(e.owner)];
-            if (e.index < ud.hardpoints.size() && ud.hardpoints[e.index] < combat_->data().hardpoints.size()) {
-                const auto off = combat_->data().hardpoints[ud.hardpoints[e.index]].attach_offset;
-                const Vec3 f = store.facing(oh);
-                const float len = dmath::sqrt(f.x * f.x + f.y * f.y);
-                const float fx = len > 0.0f ? f.x / len : 1.0f, fy = len > 0.0f ? f.y / len : 0.0f;
-                at = Vec3{at.x + fx * off.x - fy * off.y, at.y + fy * off.x + fx * off.y, at.z + off.z};
-            }
-        }
-        spawn_particle(mode, e.explosion_type, at, store.owner(oh));
-        if (e.breakoff_type >= 0 && spawn_prop(mode, e.breakoff_type, at, store.facing(oh), store.owner(oh))) ++stats_.props;
-    }
+    for (const tc::HardpointEvent& e : combat_->hardpoint_events()) consume_hardpoint_event(mode, e);
     // d. deaths: destroy, death clone object, first Death_Explosions entry [port: pick rule untraced].
     for (const tc::DeathEvent& d : combat_->deaths()) process_death(mode, d, rng);
     // e. damaged smoke (render attachment).
@@ -733,6 +714,41 @@ void TacticalBattle::consume_events(TacticalMode& mode, SimRng& rng) {
     oi_events(mode);  // OI abilities: ability moves / stops / owner changes, ability spawns, death survivors
     oi_deploy_sync(mode);  // this pass's deploy requests and jetpack swaps
     abilities_->clear_events();
+}
+
+void TacticalBattle::consume_hardpoint_event(TacticalMode& mode, const tc::HardpointEvent& e) {
+    objects::ObjectStore& store = mode.primary();
+    ++stats_.hardpoints_destroyed;
+    const objects::ObjectHandle oh = store.find(e.owner);
+    if (!store.exists(oh)) return;
+    Vec3 at = store.position(oh);
+    // battle host: at the hard point's attachment bone (bind pose, BattleCatalog model data; unit centre without it):
+    // unit-local (x forward, y left, z up) rotated by the unit's yaw.
+    if (combat_->has_unit(e.owner)) {
+        const tc::UnitDesc& ud = combat_->data().units[combat_->desc_index(e.owner)];
+        if (e.index < ud.hardpoints.size() && ud.hardpoints[e.index] < combat_->data().hardpoints.size()) {
+            const auto off = combat_->data().hardpoints[ud.hardpoints[e.index]].attach_offset;
+            const Vec3 f = store.facing(oh);
+            const float len = dmath::sqrt(f.x * f.x + f.y * f.y);
+            const float fx = len > 0.0f ? f.x / len : 1.0f, fy = len > 0.0f ? f.y / len : 0.0f;
+            at = Vec3{at.x + fx * off.x - fy * off.y, at.y + fy * off.x + fx * off.y, at.z + off.z};
+        }
+    }
+    spawn_particle(mode, e.explosion_type, at, store.owner(oh));
+    if (e.breakoff_type >= 0 && spawn_prop(mode, e.breakoff_type, at, store.facing(oh), store.owner(oh))) ++stats_.props;
+}
+
+void TacticalBattle::consume_kill_events(TacticalMode& mode, SimRng& rng, size_t hardpoints_from, size_t deaths_from, size_t survivors_from) {
+    // #360 (TACTICAL_GAPS §1.9 [H] Die step 7, ABILITIES_HARDPOINTS §4.9 Die step 5): consume_events' order - hardpoints (step
+    // c), deaths (step d), then oi_events' survivors (its step c) - for the events from the given list positions on (copies:
+    // the consumers may add to the lists).
+    const auto from = [](const auto& list, size_t k) { return std::vector(list.begin() + static_cast<std::ptrdiff_t>(std::min(k, list.size())), list.end()); };
+    const std::vector<tc::HardpointEvent> hardpoints = from(combat_->hardpoint_events(), hardpoints_from);
+    const std::vector<tc::DeathEvent> deaths = from(combat_->deaths(), deaths_from);
+    const std::vector<tc::SurvivorEvent> survivors = from(combat_->survivor_events(), survivors_from);
+    for (const tc::HardpointEvent& e : hardpoints) consume_hardpoint_event(mode, e);
+    for (const tc::DeathEvent& d : deaths) process_death(mode, d, rng);
+    for (const tc::SurvivorEvent& s : survivors) oi_survivor(mode, s);
 }
 
 void TacticalBattle::process_death(TacticalMode& mode, const tc::DeathEvent& d, SimRng& rng, bool silent) {

@@ -550,6 +550,18 @@ void TacticalBattle::s4_apply(TacticalMode& mode) {
             case tg::GarrisonEventKind::Killed: {  // host without a garrison behaviour died (or a hover host in the air)
                 Unit* u = unit_by_id(e.unit);
                 if (!u || !u->alive) break;
+                // #360 (TACTICAL_GAPS §1.9 [H], ABILITIES_HARDPOINTS §4.9): the occupant dies as any combat death - death
+                // clone / corpse, death clip, Death_Explosions (process_death) - and its hardpoint (Die step 5) and survivor
+                // (step 7) events are consumed now, in consume_events' order: the tick's consumers have run already (or the
+                // next combat tick clears the lists before they read them).
+                if (combat_->has_unit(e.unit) && bt_rng_) {
+                    const size_t hp0 = combat_->hardpoint_events().size(), d0 = combat_->deaths().size();
+                    const size_t s0 = combat_->survivor_events().size();
+                    combat_->kill_unit(e.unit, tc::kNoObject, tc::kKindNormal, frame_);
+                    consume_kill_events(mode, *bt_rng_, hp0, d0, s0);
+                    if (!u->alive) break;
+                }
+                // no combat entry or no battle RNG: the occupant is removed directly
                 if (combat_->has_unit(e.unit)) combat_->kill_unit(e.unit, tc::kNoObject, tc::kKindNormal, frame_);
                 // #327 t06 [port]: no death clone on this path; the dying type stands for its own clone.
                 if (mode.primary().exists(u->h))
