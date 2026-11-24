@@ -360,7 +360,7 @@ void TacticalBattle::build_service_graph() {
     // 6. victory. The victory monitor (losses since the last tick, countdown, end)
     g.add("victory", kAll, kAll, [this] { check_victory(*tick_.mode); });
     g.add("end_clones", kAll, kAll, [this] {
-        if (finished_ && !death_clones_.empty()) remove_death_clones(*tick_.mode, true);  // the clones end with it
+        if (finished_ && !death_clones_.empty()) remove_death_clones(*tick_.mode, nullptr);  // the clones end with it
     });
     g.add("space_obstacles", kAll, kAll, [this] { space_obstacles_sync(*tick_.mode); });  // refixf t02
     g.add("land_obstacles", kAll, kAll, [this] { land_obstacles_sync(*tick_.mode, *tick_.pf); });  // S8 t02
@@ -380,7 +380,7 @@ SimRng& TacticalBattle::svc_rng(uint32_t stream, uint64_t entity, SimRng& rng, S
 
 void TacticalBattle::tick(TacticalMode& mode, SimRng& rng, const ParallelFor& pf, double sim_time, uint64_t global_frame) {
     if (finished_) {  // finished outside a tick (auto-resolve stop): the clones go before the mode pops
-        if (!death_clones_.empty()) remove_death_clones(mode, true);
+        if (!death_clones_.empty()) remove_death_clones(mode, nullptr);
         return;
     }
     ++frame_;

@@ -2561,9 +2561,9 @@ private:
 #endif
     void schedule_death_clone(TacticalMode& mode, objects::ObjectHandle clone, int32_t clone_type, uint8_t kind, SimRng& rng,
                               const float* persistence_override = nullptr);
-    // due ones (expire_objects: each spawns its Death_Explosions_End entry, drawing from `rng`), or all (battle end: no spawn,
-    // `rng` unused)
-    void remove_death_clones(TacticalMode& mode, bool all, SimRng* rng = nullptr);
+    // `due_rng` set: the due ones (expire_objects), each spawning its Death_Explosions_End entry with draws from it; null:
+    // every clone left (the battle's end), no spawn.
+    void remove_death_clones(TacticalMode& mode, SimRng* due_rng);
     // s78n t20 batch 1 (MOVEMENT §5.4.5 item 2): a land clone of a type with IsDeathCloneObstacle and a UnitCollisionClass
     // is a movement object without a locomotor (the obstacle b of the land collisions); the clones a collision push
     // killed this tick (MovementSystem::push_kills) are removed after the movement tick, in list order.

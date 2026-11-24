@@ -521,7 +521,9 @@ void TacticalBattle::spawn_death_explosion_end(TacticalMode& mode, objects::Obje
     // clone type's (x, y) half extents 0x371be0 turned by the clone's facing yaw, owned by the clone's owner, then the
     // phase-0 path (spawn_death_explosion, with its [port] notes: no Ranged_Target_Z_Adjust / Layer_Z_Adjust lift,
     // particle facing, no projectile pack, no camera shake 0x2cdbb0). [port] Names that resolve to no type are dropped
-    // before the draw. Not called at the battle's end (remove_death_clones all): see there.
+    // before the draw. Not called at the battle's end (remove_death_clones without an RNG): see there. A remove-at-once
+    // clone's entry comes after the dying unit's phase-0 Death_Explosions object (its callers spawn that first), as
+    // retail's phase 0 runs before the deletion.
     const objects::ObjectStore& store = mode.primary();
     if (!store.exists(clone)) return;
     const objects::GameObjectTypes& types = catalog_->types();
@@ -776,6 +778,14 @@ void TacticalBattle::process_death(TacticalMode& mode, const tc::DeathEvent& d, 
         // here from data and the battle removes the clone object at the planned frame - identical with and without the
         // animation service, which only plays the planned clip (schedule_death_clone).
         const bool carried_by_clone = static_cast<bool>(ch);
+        // The dying type's first Death_Explosions entry (phase 0) before the clone's schedule, whose remove-at-once
+        // path deletes the clone and spawns its Death_Explosions_End entry (phase 2, #221). Neither step draws for
+        // phase 0 or makes an object between them otherwise, so the order only matters for that path.
+        if (const BattleTables::UnitVisuals* vis = visuals_of_type(u->type))
+            if (!silent && !vis->death_explosions.empty()) {
+                const int32_t neutral = galaxy_ ? galaxy_->neutral_player() : -1;  // the clone's owner
+                spawn_death_explosion(mode, vis->death_explosions.front(), at, neutral >= 0 ? neutral : owner);
+            }
         if (ch) schedule_death_clone(mode, ch, d.death_clone, d.kind, rng, persist);
 #ifdef ALAMO_SIM_HAVE_ANIM
         {  // R3 anim: death clip / corpse of the unit (unless a clone carries it), or the infantry corpse path
@@ -786,11 +796,6 @@ void TacticalBattle::process_death(TacticalMode& mode, const tc::DeathEvent& d, 
 #else
         (void)carried_by_clone;
 #endif
-        if (const BattleTables::UnitVisuals* vis = visuals_of_type(u->type))
-            if (!silent && !vis->death_explosions.empty()) {
-                const int32_t neutral = galaxy_ ? galaxy_->neutral_player() : -1;  // the clone's owner
-                spawn_death_explosion(mode, vis->death_explosions.front(), at, neutral >= 0 ? neutral : owner);
-            }
         unit_gone(mode, *u);
     }
 }
@@ -966,19 +971,20 @@ void TacticalBattle::kill_pushed_clones(TacticalMode& mode, SimRng& rng) {
     }
 }
 
-void TacticalBattle::remove_death_clones(TacticalMode& mode, bool all, SimRng* rng) {
+void TacticalBattle::remove_death_clones(TacticalMode& mode, SimRng* due_rng) {
     // Due clones go at their planned frame; at the battle's end (all) every clone left - forever ones included - goes with
     // it [port]: the tactical store is dropped when the mode pops (BT §3.1), and nothing of a clone (a removing object, no
     // battle unit) reaches the galactic write-back (units / participants only), the removal records or a later save.
     // #221: a due clone's deletion spawns its Death_Explosions_End entry (spawn_death_explosion_end). [port] The battle's
     // end spawns none: retail's mode pop runs the same destructor, but what it would create is dropped with the store in
     // the same teardown, never simulated or seen; the port takes no draw and no object id there (recorded on #221).
+    const bool all = due_rng == nullptr;
     objects::ObjectStore& store = mode.primary();
     size_t w = 0;
     for (size_t i = 0; i < death_clones_.size(); ++i) {
         if (all || frame_ >= death_clones_[i].frame) {
             if (store.alive(death_clones_[i].h)) {
-                if (!all && rng) spawn_death_explosion_end(mode, death_clones_[i].h, *rng);
+                if (due_rng) spawn_death_explosion_end(mode, death_clones_[i].h, *due_rng);
                 mode.destroy(death_clones_[i].h);
                 ++stats_.death_clones_removed;
             }
@@ -991,7 +997,7 @@ void TacticalBattle::remove_death_clones(TacticalMode& mode, bool all, SimRng* r
 }
 
 void TacticalBattle::expire_objects(TacticalMode& mode, SimRng& rng) {
-    remove_death_clones(mode, false, &rng);  // refixf t04
+    remove_death_clones(mode, &rng);  // refixf t04
     objects::ObjectStore& store = mode.primary();
     size_t w = 0;
     for (size_t i = 0; i < particles_.size(); ++i) {

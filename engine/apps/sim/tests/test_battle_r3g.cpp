@@ -630,7 +630,9 @@ struct EndBoomRun {
     uint64_t draws_before = 0, draws_after = 0;  // synced draws before / after the removal tick
 };
 
-EndBoomRun run_end_boom(const char* list) {
+// `anim`: with the animation service attached; `drop`: end the clones as the battle's end does, one tick after the clone
+// appears (gone = -2, booms counted on that tick).
+EndBoomRun run_end_boom(const char* list, bool anim = false, bool drop = false) {
     g_temp_prefix = "alamo_sim_r3g_tests_end_boom";
     static std::string s_list;  // g_types_patch is a plain function pointer
     s_list = list;
@@ -658,7 +660,8 @@ EndBoomRun run_end_boom(const char* list) {
     uint32_t made = 0;
     bool crushed = false;
     Vec3 clone_pos{}, clone_face{};
-    land_battle(*d, nullptr, 600, [&](TacticalBattle& b, TacticalMode& tm, SimHost& host) {
+    SimAnimation animation(d->types, *d->files);
+    land_battle(*d, anim ? &animation : nullptr, 600, [&](TacticalBattle& b, TacticalMode& tm, SimHost& host) {
         objects::ObjectStore& st = tm.primary();
         if (b.frame() < 2) return true;
         if (!crushed) {
@@ -682,6 +685,14 @@ EndBoomRun run_end_boom(const char* list) {
             return b.frame() < 300;
         }
         const objects::ObjectHandle ch = st.find(clone);
+        if (drop && st.alive(ch)) {
+            alamo::sim::TacticalBattleTestAccess::drop_death_clones(b, tm);
+            out.gone = st.alive(st.find(clone)) ? -1 : -2;
+            out.draws_after = out.draws_before;  // not measured here
+            for (const objects::ObjectHandle h : st.all_objects())
+                if (st.alive(h) && (st.type(h) == boom_a || st.type(h) == boom_b)) ++out.booms;
+            return false;
+        }
         if (st.alive(ch)) {
             out.draws_before = host.random().synced().draws();
             return b.frame() < made + 300;
@@ -720,6 +731,15 @@ void test_death_explosions_end() {
     // Same battle up to the removal; the two-entry list takes exactly one more synced draw on the removal tick.
     CHECK(two.draws_before == one.draws_before);
     CHECK(two.draws_after - two.draws_before == one.draws_after - one.draws_before + 1);
+    // The battle's end drops the clone without a spawn [port].
+    const EndBoomRun dropped = run_end_boom("S10_End_Boom_A", false, true);
+    CHECK(dropped.gone == -2 && dropped.booms == 0);
+#ifdef ALAMO_SIM_HAVE_ANIM
+    // With the animation service: the same removal frame, explosion and draws (the battle plans the clone's death).
+    const EndBoomRun animated = run_end_boom("S10_End_Boom_A, S10_End_Boom_B", true);
+    CHECK(animated.gone == two.gone && animated.booms == 1 && animated.boom_at.x == two.boom_at.x && animated.boom_at.y == two.boom_at.y);
+    CHECK(animated.draws_after - animated.draws_before == two.draws_after - two.draws_before);
+#endif
 }
 
 // MCX4_T10_RE_ANSWERS §16a addendum [H]: the space reinforcement drop 0x2bf2d0 ends with Apply_Elevated_Vulnerability on
