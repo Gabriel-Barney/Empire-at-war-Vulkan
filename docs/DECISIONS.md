@@ -484,3 +484,16 @@ story LOAD_CAMPAIGN reuses the running game's seed, and a loaded save keeps the 
 once by the host before the session starts, so this is an input to the session, not a wall-clock value the sim sees
 (`docs/SIMULATION.md` "Scheduling by tick number"). Why: identical choices should not replay identical AI, combat and
 auto-resolve outcomes, while tests and replays stay deterministic.
+
+## AI and player orders stay separate
+
+Gabriel, 2026-11-24 (#407, split from #147).
+
+The tactical AI keeps its own order semantics in `TacticalBattle::ai_order`. AI moves, attacks and Lua MoveTo /
+AttackMove / Guard are not merged into the player order path (`order_move` / `order_attack` / `order_move_to_object`).
+Both already enter through `TacticalBattle::apply_order` (#147).
+
+Why: the rules `ai_order` keeps are RE-cited as AI-specific (Move_Internal flags 0 gives a kind-1 snapshot; one land
+attack order per target group; the task force as one group order; Attack_Move on a non-hostile object; the task-force
+Order_Attack refusal drop), and there is no [M] or better evidence that retail's AI orders behave like player command
+events. Merging would replace cited AI behaviour with the player path's. Revisit only with such evidence.
