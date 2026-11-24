@@ -1637,17 +1637,11 @@ void FrontEnd::setup(GuiDialog& d) {
                 const char* id = hotkey_action_text_id(s);
                 return id ? text_or(id, hotkey_action_label(s)) : gui_->port_text(hotkey_action_label(s));
             };
-            auto fill = [](std::u32string s, std::u32string_view tag, const std::u32string& v) {
-                for (size_t at = s.find(tag); at != std::u32string::npos; at = s.find(tag, at + v.size())) s.replace(at, tag.size(), v);
-                return s;
-            };
             const std::u32string key = hotkey_label(rebind_key_, gui_->text_db());
-            d.set_text("IDC_USER_TEXT_STRING_1",
-                       fill(fill(text_or("TEXT_KEYBIND_WARNING_0", U"##0 is already assigned to the game command ##1."), U"##0", key),
-                            U"##1", action(rebind_other_)));
-            d.set_text("IDC_USER_TEXT_STRING_2",
-                       fill(fill(text_or("TEXT_KEYBIND_WARNING_1", U"Do you want to re-assign ##0 to game command ##2?"), U"##0", key),
-                            U"##2", action(rebind_slot_)));
+            std::u32string line1 = text_or("TEXT_KEYBIND_WARNING_0", U"##0 is already assigned to the game command ##1.");
+            std::u32string line2 = text_or("TEXT_KEYBIND_WARNING_1", U"Do you want to re-assign ##0 to game command ##2?");
+            d.set_text("IDC_USER_TEXT_STRING_1", replace_all(replace_all(std::move(line1), U"##0", key), U"##1", action(rebind_other_)));
+            d.set_text("IDC_USER_TEXT_STRING_2", replace_all(replace_all(std::move(line2), U"##0", key), U"##2", action(rebind_slot_)));
             d.show("IDC_USER_TEXT_STRING_1", true);
             d.show("IDC_USER_TEXT_STRING_2", true);
         }

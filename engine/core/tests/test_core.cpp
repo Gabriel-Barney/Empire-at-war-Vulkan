@@ -19,6 +19,7 @@
 #include "alamo/test/support.hpp"
 #include "alamo/core/x86_int.hpp"
 #include "alamo/core/frames.hpp"
+#include "alamo/core/utf8.hpp"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -198,9 +199,33 @@ void test_frames() {
     CHECK(frames_ceil(2147483647.5) == INT32_MIN && frames_trunc(2147483647.5) == INT32_MAX);  // ceil leaves the range
 }
 
+void test_utf8() {  // #138: the shared well-formedness rule (core/utf8.hpp)
+    using alamo::utf8_sequence;
+    using alamo::utf8_valid;
+    char32_t cp = 0;
+    CHECK(utf8_sequence("A", 0, cp) == 1 && cp == U'A');
+    CHECK(utf8_sequence("\xC3\xA9", 0, cp) == 2 && cp == 0xE9);              // U+00E9
+    CHECK(utf8_sequence("\xE2\x82\xAC", 0, cp) == 3 && cp == 0x20AC);        // U+20AC
+    CHECK(utf8_sequence("\xF0\x9F\x98\x80", 0, cp) == 4 && cp == 0x1F600);  // U+1F600
+    CHECK(utf8_sequence("\xF4\x8F\xBF\xBF", 0) == 4);                       // U+10FFFF, the last code point
+    CHECK(utf8_sequence("\x80", 0) == 0);                 // a stray continuation byte
+    CHECK(utf8_sequence("\xC0\x80", 0) == 0);             // overlong lead
+    CHECK(utf8_sequence("\xE0\x80\x80", 0) == 0);         // overlong 3-byte form
+    CHECK(utf8_sequence("\xF0\x80\x80\x80", 0) == 0);     // overlong 4-byte form
+    CHECK(utf8_sequence("\xED\xA0\x80", 0) == 0);         // U+D800, a surrogate
+    CHECK(utf8_sequence("\xF4\x90\x80\x80", 0) == 0);     // above U+10FFFF
+    CHECK(utf8_sequence("\xF5\x80\x80\x80", 0) == 0);     // F5..FF never lead
+    CHECK(utf8_sequence("\xC3", 0) == 0);                 // cut short
+    CHECK(utf8_sequence("\xC3" "A", 0) == 0);             // a lead without its continuation
+    CHECK(utf8_sequence("a\xC3\xA9", 1) == 2);            // from an offset
+    static_assert(utf8_valid("") && utf8_valid("plain") && utf8_valid("\xC3\xA9t\xC3\xA9"));
+    static_assert(!utf8_valid("ab\xFF") && !utf8_valid("\xED\xBF\xBF"));
+}
+
 int main() {
     test_x86_int();
     test_frames();
+    test_utf8();
     // CRC-32/IEEE check value.
     CHECK(alamo::crc32("123456789", 9) == 0xCBF43926u);
     CHECK(alamo::name_crc("data/xml/planets.xml") == alamo::name_crc("DATA\\XML\\PLANETS.XML"));

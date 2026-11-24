@@ -1493,13 +1493,6 @@ std::u32string GalacticHud::text_or(const char* key, std::u32string_view fallbac
     return text_or_port(text_, key, fallback);  // #45 t08: the English stand-in is a port string (pseudo-loc)
 }
 
-namespace {
-std::u32string replace_all(std::u32string s, std::u32string_view from, std::u32string_view to) {
-    for (size_t at = s.find(from); at != std::u32string::npos; at = s.find(from, at + to.size())) s.replace(at, from.size(), to);
-    return s;
-}
-}  // namespace
-
 std::u32string auto_resolve_text(const TextDatabase* text, bool space, bool win, int32_t magnitude, std::u32string_view faction,
                                  std::u32string_view planet, int64_t losses) {
     static const char* const kMag[3] = {"MAJOR", "REGULAR", "MINOR"};

@@ -13,6 +13,7 @@
 #include "alamo/core/ascii.hpp"
 #include "alamo/core/bytes.hpp"
 #include "alamo/core/host_fs.hpp"
+#include "alamo/core/utf8.hpp"
 #include "alamo/game/host_text.hpp"
 
 
@@ -24,26 +25,6 @@ namespace {
 
 // every path string here is UTF-8 (the dialogs' text): std::string <-> fs::path through host_path / host_utf8
 // (host_text.hpp).
-
-// Length of the valid UTF-8 sequence starting at s[i] (2..4, no overlong forms, no surrogates, <= U+10FFFF); 0 if
-// there is none.
-size_t utf8_sequence(std::string_view s, size_t i) {
-    const auto b = [&](size_t k) { return static_cast<unsigned char>(s[k]); };
-    const unsigned char c = b(i);
-    size_t n = 0;
-    uint32_t cp = 0;
-    if (c >= 0xC2 && c <= 0xDF) n = 2, cp = c & 0x1Fu;
-    else if (c >= 0xE0 && c <= 0xEF) n = 3, cp = c & 0x0Fu;
-    else if (c >= 0xF0 && c <= 0xF4) n = 4, cp = c & 0x07u;
-    else return 0;
-    if (i + n > s.size()) return 0;
-    for (size_t k = 1; k < n; ++k) {
-        if ((b(i + k) & 0xC0u) != 0x80u) return 0;
-        cp = (cp << 6) | (b(i + k) & 0x3Fu);
-    }
-    if ((n == 3 && (cp < 0x800 || (cp >= 0xD800 && cp <= 0xDFFF))) || (n == 4 && (cp < 0x10000 || cp > 0x10FFFF))) return 0;
-    return n;
-}
 
 bool read_bytes(const std::string& path, std::vector<uint8_t>& out, size_t max_bytes) {
     std::ifstream f(host_path(path), std::ios::binary);
@@ -263,7 +244,7 @@ std::string sanitize_save_name(std::string_view typed) {
         const char c = typed[i];
         const auto u = static_cast<unsigned char>(c);
         if (u >= 0x80) {  // a valid UTF-8 character is kept (Windows names are Unicode); a broken byte becomes '_'
-            const size_t n = utf8_sequence(typed, i);
+            const size_t n = alamo::utf8_sequence(typed, i);  // core/utf8.hpp
             if (n == 0) {
                 s.push_back('_');
                 ++i;
