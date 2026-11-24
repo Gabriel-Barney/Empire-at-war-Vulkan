@@ -1639,6 +1639,14 @@ std::string blaster_explosion_patch(std::string t) {
     }
     return t;
 }
+// #361 / #362 acceptance: without IDLE the trooper never flinches (the hit and the explosion both go through the gate).
+std::string trooper_no_idle_patch(std::string t) {
+    t = blaster_explosion_patch(std::move(t));
+    const std::string with = "<Behavior>SELECTABLE, WEAPON, IDLE</Behavior><Collidable_By_Projectile_Living>Yes</Collidable_By_Projectile_Living>"
+                             "<LandBehavior>WALK_LOCOMOTOR";
+    if (const size_t p = t.find(with); p != std::string::npos) t.replace(p, std::string("<Behavior>SELECTABLE, WEAPON, IDLE").size(), "<Behavior>SELECTABLE, WEAPON");
+    return t;
+}
 void test_flinch_intensity() {
     {
         auto d = make_data(false, true);
@@ -1661,6 +1669,17 @@ void test_flinch_intensity() {
         const AnimRun a = run_anim_campaign(*d, true, 0, 3000);
         std::printf("  explosion detonations: %u weight-frames, weights %.4f - %.4f\n", a.weight_frames, a.min_weight, a.max_weight);
         CHECK(a.weight_frames > 0 && a.min_weight >= 0.25f && a.min_weight < 1.0f && a.max_weight <= 1.0f);
+    }
+    {
+        g_types_patch = trooper_no_idle_patch;
+        auto d = make_data(false, true);
+        g_types_patch = nullptr;
+        const objects::TypeIndex tt = d->types.resolve_name("S10_Trooper");
+        CHECK(tt != objects::kNone && !d->types.has_behavior(tt, objects::BehaviorSet::Land, objects::beh::Idle));
+        const AnimRun a = run_anim_campaign(*d, true, 0, 3000);
+        std::printf("  trooper without IDLE (explosions on): %u flinches, %u weight-frames, %u deaths\n", a.stats.flinches, a.weight_frames,
+                    a.stats.deaths);
+        CHECK(a.stats.deaths > 0 && a.stats.flinches == 0 && a.weight_frames == 0 && a.flinch_seen == 0);
     }
 }
 

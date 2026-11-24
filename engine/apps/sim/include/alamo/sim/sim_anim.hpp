@@ -128,7 +128,7 @@ public:
     const anim::AnimBehaviors* find_behaviors(const GameMode& mode) const;
     // Flinch of `victim` hit along `travel` (2-D; victim facing `facing`) with intensity `weight` (I +0x58: a projectile's
     // Induced_Flinch_Intensity, or an explosion's distance-scaled one, #362). True if it played.
-    bool hit(const GameMode& mode, ObjectId victim, Vec3 facing, Vec3 travel, SimRng& rng, uint64_t frame, float weight = 1.0f);
+    bool hit(const GameMode& mode, ObjectId victim, Vec3 facing, Vec3 travel, SimRng& rng, uint64_t frame, float weight);
     // One IDLE service (incl. idle while engaged; s78k t02 rules in anim_behaviors.hpp) of a battle unit with
     // IdleTarget::NoTarget. s78l t03 (b): nothing for an object without IDLE.
     bool service_idle(const GameMode& mode, ObjectId id, SimRng& rng, uint64_t frame);

@@ -122,7 +122,7 @@ public:
         // Flinch (0x62dde0) of a live victim; travel direction = impact point -> victim centre (fallback:
         // shooter -> victim). Victims dying this tick are skipped (their death clip follows). #362: `weight` = the
         // projectile type's Induced_Flinch_Intensity (+0x20e4, s78l t03 step-2 "Start" [M]).
-        if (!anim_ || !mode_ || !world_ || !rng_ || e.victim == tc::kNoObject || !world_->contains(e.victim)) return;
+        if (!anim_active() || e.victim == tc::kNoObject || !world_->contains(e.victim)) return;
         const tc::CombatSystem& c = *b_->combat_;
         if (!c.has_unit(e.victim)) return;
         for (const tc::DeathEvent& d : c.deaths())
@@ -133,11 +133,13 @@ public:
             const tactical::Vec3 sp = c.position(e.shooter);
             dir = Vec3{vp.x - sp.x, vp.y - sp.y, 0.0f};
         }
-        anim_->hit(*mode_, e.victim, Vec3{f.x, f.y, f.z}, dir, *rng_, gframe_, weight);
+        anim_flinch(e.victim, Vec3{f.x, f.y, f.z}, dir, weight);
     }
-    // #362: one victim of an EXPLOSION object's area flinch (0x62e040; TacticalBattle::explosion_flinch).
+    // #362: the flinch start 0x62dde0 of `id` (a direct hit above, or one victim of an EXPLOSION object's area flinch
+    // 0x62e040, TacticalBattle::explosion_flinch).
+    bool anim_active() const { return anim_ && mode_ && world_ && rng_; }
     void anim_flinch(objects::ObjectId id, Vec3 facing, Vec3 dir, float weight) {
-        if (!anim_ || !mode_ || !world_ || !rng_ || !world_->contains(id)) return;
+        if (!anim_active() || !world_->contains(id)) return;
         anim_->hit(*mode_, id, facing, dir, *rng_, gframe_, weight);
     }
     void anim_death(objects::ObjectId id, bool has_clone, uint8_t kind, std::optional<bool> spin) {

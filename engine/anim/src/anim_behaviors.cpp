@@ -79,8 +79,8 @@ void AnimBehaviors::remove(ObjectId id) {
 
 // ---- flinch ------------------------------------------------------------------------------------------
 
-float explosion_flinch_weight(float intensity, float range, float dx, float dy) {
-    const float d2 = dx * dx + dy * dy;
+float explosion_flinch_weight(float intensity, float range, Float3 offset) {
+    const float d2 = offset.x * offset.x + offset.y * offset.y;  // d^2_xy
     return std::clamp(intensity * (1.0f - 0.5f * d2 / (range * range)), 0.25f, 1.0f);
 }
 

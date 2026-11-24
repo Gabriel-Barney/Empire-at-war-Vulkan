@@ -2329,6 +2329,7 @@ private:
     std::vector<PresenceTypeInfo> presence_cache_;
     std::vector<uint8_t> idle_gate_;  // drive_animation scratch (per units_ index)
     tactical::QueryContext presence_query_;  // #365: imposing_presence scratch (one per query site)
+    tactical::QueryContext explosion_query_;  // #362: explosion_flinch scratch
     void consume_events(TacticalMode& mode, SimRng& rng);
     // consume_events step d for one combat death (also script_damage's out-of-tick kills): a dead or unknown unit is skipped.
     // s78n t12 review: `silent` = a world removal without Die (CombatSystem::remove_from_world: the vehicle a thief's clone
@@ -2351,7 +2352,6 @@ private:
     } unread_;
     void spawn_particle(TacticalMode& mode, int32_t type, Vec3 pos, int32_t owner);
     void explosion_flinch(TacticalMode& mode, objects::ObjectHandle h);  // #362: an EXPLOSION object's area flinch
-    tactical::QueryContext explosion_query_;                            // #362: explosion_flinch scratch
     objects::ObjectHandle spawn_prop(TacticalMode& mode, int32_t type, Vec3 pos, Vec3 facing, int32_t owner);
     // Die step 8's clone object (flags 0xc0), and the infantry corpse-path test (S9 §1.6).
     objects::ObjectHandle spawn_death_clone(TacticalMode& mode, int32_t type, Vec3 pos, Vec3 facing, int32_t owner);

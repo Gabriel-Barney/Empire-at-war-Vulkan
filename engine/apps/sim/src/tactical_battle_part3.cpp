@@ -505,10 +505,14 @@ void TacticalBattle::explosion_flinch(TacticalMode& mode, objects::ObjectHandle 
     // flinch start 0x62dde0 with weight clamp(I x (1 - d^2 / (2 R^2)), 0.25, 1) - d horizontal, I = the explosion type's
     // Induced_Flinch_Intensity (+0x20e4, default 1) - and the direction victim - explosion. The flinch gates (IDLE, the
     // cooldown, the current clip) are on_hit's. [port] Victims in ascending id (the query's order; retail walks the
-    // tree's list): each accepted flinch play draws the synced variant.
-    static const objects::BehaviorTypeId kExplosion = objects::behavior_type_id("EXPLOSION");
+    // tree's list): each accepted flinch play draws the synced variant. [port] A projectile whose detonation particle is
+    // an EXPLOSION flinches its victim here first (the particle precedes anim_hit), so the direct hit's own flinch finds
+    // it in progress; the retail order inside Apply_Direct_Damage 0x4c73d0 was not read. [port] The anim hook's frame is
+    // the tick's (TacticalAnimHooks::set_tick); a retreat self-destruct explosion (before set_tick) stamps the last one.
     objects::ObjectStore& store = mode.primary();
-    if (!hooks_ || !store.exists(h) || !store.has_behavior(h, kExplosion)) return;
+    if (!hooks_ || !hooks_->anim_active() || &hooks_->anim_mode()->primary() != &store || !store.exists(h) ||
+        !store.has_behavior(h, objects::beh::Explosion))
+        return;
     const objects::GameObjectTypes& types = catalog_->types();
     const objects::TypeIndex t = store.type(h);
     const float range = types.get(t, objects::tags::Induced_Flinch_Range);
@@ -524,7 +528,7 @@ void TacticalBattle::explosion_flinch(TacticalMode& mode, objects::ObjectHandle 
         if (!store.exists(vh)) continue;
         const Vec3 vp = store.position(vh);
         const Vec3 d{vp.x - at.x, vp.y - at.y, vp.z - at.z};
-        hooks_->anim_flinch(id, store.facing(vh), d, anim::explosion_flinch_weight(intensity, range, d.x, d.y));
+        hooks_->anim_flinch(id, store.facing(vh), d, anim::explosion_flinch_weight(intensity, range, anim::Float3{d.x, d.y, d.z}));
     }
 #else
     (void)mode, (void)h;
