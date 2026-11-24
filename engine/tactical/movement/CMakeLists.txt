@@ -99,6 +99,11 @@ add_executable(alamo_tactical_movement_cohesion_tests tests/test_movement_cohesi
 target_link_libraries(alamo_tactical_movement_cohesion_tests PRIVATE alamo_tactical_movement Threads::Threads alamo_test_support)
 add_test(NAME alamo_tactical_movement_cohesion_tests COMMAND alamo_tactical_movement_cohesion_tests)
 set_tests_properties(alamo_tactical_movement_cohesion_tests PROPERTIES TIMEOUT 120)
+# #111: the avoidance meshes' triangle index answers exactly as the plain every-triangle loop (space_avoid.hpp).
+add_executable(alamo_tactical_movement_avoid_index_tests tests/test_space_avoid_index.cpp)
+target_link_libraries(alamo_tactical_movement_avoid_index_tests PRIVATE alamo_tactical_movement alamo_test_support)
+add_test(NAME alamo_tactical_movement_avoid_index_tests COMMAND alamo_tactical_movement_avoid_index_tests)
+set_tests_properties(alamo_tactical_movement_avoid_index_tests PROPERTIES TIMEOUT 120)
 # bkm1 (2026-11-12): the retail rules of backlog group bkm1 (formation class, lanes, 3-D brake lengths, secondary facing).
 add_executable(alamo_tactical_movement_bkm_tests tests/test_movement_bkm.cpp)
 target_link_libraries(alamo_tactical_movement_bkm_tests PRIVATE alamo_tactical_movement Threads::Threads alamo_test_support)

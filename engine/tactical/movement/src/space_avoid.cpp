@@ -1,6 +1,7 @@
 // Space avoidance tree and precise model test (legacy docs/re/SPACE_AVOIDANCE.md). See space_avoid.hpp.
 #include "alamo/tactical/movement/space_avoid.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 namespace alamo::tactical::movement {
@@ -106,6 +107,131 @@ bool segment_triangle_t(F3 o, F3 d, F3 a, F3 b, F3 c, float t_best, float& t_out
 }
 }  // namespace
 
+namespace {
+// #111 triangle index (AvoidModel::Mesh::nodes). Leaves hold at most kLeafTris triangles; a mesh of no more is not indexed.
+constexpr uint32_t kLeafTris = 8;
+
+struct IndexTri {
+    F3 lo, hi, c;  // box and centre of the triangle
+    uint32_t tri;  // its number in Mesh::tris / 3
+};
+
+// limit: guard the index traversal's stack (a median split is at most ~32 levels deep; deeper: the plain loop)
+constexpr uint32_t kMaxTraversalStack = 128;
+
+// Node `node` over tris[b, e): its box; a leaf when few enough (or every centre equal), else split at the median centre
+// along the longest centre extent (ties by triangle number, so the build is deterministic).
+void build_node(AvoidModel::Mesh& m, std::vector<IndexTri>& t, uint32_t node, uint32_t b, uint32_t e) {
+    F3 lo = t[b].lo, hi = t[b].hi, clo = t[b].c, chi = t[b].c;
+    for (uint32_t i = b + 1; i < e; ++i) {
+        lo = {std::min(lo.x, t[i].lo.x), std::min(lo.y, t[i].lo.y), std::min(lo.z, t[i].lo.z)};
+        hi = {std::max(hi.x, t[i].hi.x), std::max(hi.y, t[i].hi.y), std::max(hi.z, t[i].hi.z)};
+        clo = {std::min(clo.x, t[i].c.x), std::min(clo.y, t[i].c.y), std::min(clo.z, t[i].c.z)};
+        chi = {std::max(chi.x, t[i].c.x), std::max(chi.y, t[i].c.y), std::max(chi.z, t[i].c.z)};
+    }
+    m.nodes[node].lo = lo;
+    m.nodes[node].hi = hi;
+    const F3 ext{chi.x - clo.x, chi.y - clo.y, chi.z - clo.z};
+    const int32_t axis = ext.x >= ext.y && ext.x >= ext.z ? 0 : (ext.y >= ext.z ? 1 : 2);
+    if (e - b <= kLeafTris || !(avoid_axis(ext, axis) > 0.0f)) {
+        m.nodes[node].first = static_cast<uint32_t>(m.order.size());
+        m.nodes[node].count = e - b;
+        for (uint32_t i = b; i < e; ++i) m.order.push_back(t[i].tri);
+        return;
+    }
+    const uint32_t mid = b + (e - b) / 2;
+    std::nth_element(t.begin() + b, t.begin() + mid, t.begin() + e, [axis](const IndexTri& x, const IndexTri& y) {
+        const float cx = avoid_axis(x.c, axis), cy = avoid_axis(y.c, axis);
+        return cx < cy || (cx == cy && x.tri < y.tri);
+    });
+    const auto child = static_cast<uint32_t>(m.nodes.size());
+    m.nodes.resize(m.nodes.size() + 2);  // indices only from here: the resize moves the nodes
+    m.nodes[node].first = child;
+    m.nodes[node].count = 0;
+    build_node(m, t, child, b, mid);
+    build_node(m, t, child + 1, mid, e);
+}
+
+// Whether the segment o + t d, t in [0, 1], can meet [lo, hi] grown by `margin` on every side (slab test in double). A
+// triangle the exact test hits has its hit point on the segment and, up to the test's float rounding, inside its own
+// box: the margin covers that rounding with a wide factor. The one exception is a segment lying (to rounding) in a
+// triangle's plane, where det, u, v and t are all rounding noise and the exact test can report a "hit" away from the
+// triangle; such a numerical hit may be culled. It needs the segment's direction and position both within float
+// noise of the plane; none showed in the comparison test or in the measured runs (CRC logs unchanged).
+bool segment_may_touch(F3 o, F3 d, F3 lo, F3 hi, double margin) {
+    double t0 = 0.0, t1 = 1.0;
+    for (int32_t a = 0; a < 3; ++a) {
+        const double oa = avoid_axis(o, a), da = avoid_axis(d, a);
+        const double l = static_cast<double>(avoid_axis(lo, a)) - margin, h = static_cast<double>(avoid_axis(hi, a)) + margin;
+        if (da == 0.0) {
+            if (oa < l || oa > h) return false;
+            continue;
+        }
+        double ta = (l - oa) / da, tb = (h - oa) / da;
+        if (ta > tb) std::swap(ta, tb);
+        t0 = std::max(t0, ta);
+        t1 = std::min(t1, tb);
+        if (t0 > t1) return false;
+    }
+    return true;
+}
+
+// Calls visit(i) for the triangles of `mesh` (number i: points tris[3i .. 3i + 2]) that the segment o -> o + d may hit,
+// stopping when visit returns true (then true). No index: every triangle in order.
+template <class Visit>
+bool visit_triangles(const AvoidModel::Mesh& mesh, F3 o, F3 d, Visit&& visit) {
+    if (mesh.nodes.empty()) {
+        for (size_t i = 0; i + 2 < mesh.tris.size(); i += 3)
+            if (visit(static_cast<uint32_t>(i / 3))) return true;
+        return false;
+    }
+    const auto mag = [](F3 v) { return std::max(std::fabs(v.x), std::max(std::fabs(v.y), std::fabs(v.z))); };
+    const F3 root_ext{mesh.nodes[0].hi.x - mesh.nodes[0].lo.x, mesh.nodes[0].hi.y - mesh.nodes[0].lo.y,
+                      mesh.nodes[0].hi.z - mesh.nodes[0].lo.z};
+    const double margin = 1e-4 * (static_cast<double>(mag(o)) + mag(d) + mag(root_ext) + mag(mesh.nodes[0].lo)) + 1e-3;
+    uint32_t stack[kMaxTraversalStack];
+    uint32_t top = 0;
+    stack[top++] = 0;
+    while (top > 0) {
+        const AvoidModel::Mesh::Node& n = mesh.nodes[stack[--top]];
+        if (!segment_may_touch(o, d, n.lo, n.hi, margin)) continue;
+        if (n.count > 0) {
+            for (uint32_t k = n.first; k < n.first + n.count; ++k)
+                if (visit(mesh.order[k])) return true;
+            continue;
+        }
+        if (top + 2 > kMaxTraversalStack) {  // never for a median split: every triangle of the mesh (a superset)
+            for (size_t i = 0; i + 2 < mesh.tris.size(); i += 3)
+                if (visit(static_cast<uint32_t>(i / 3))) return true;
+            return false;
+        }
+        stack[top++] = n.first + 1;
+        stack[top++] = n.first;
+    }
+    return false;
+}
+}  // namespace
+
+void avoid_build_index(AvoidModel& model) {
+    for (AvoidModel::Mesh& m : model.meshes) {
+        m.nodes.clear();
+        m.order.clear();
+        const auto count = static_cast<uint32_t>(m.tris.size() / 3);
+        if (count <= kLeafTris) continue;
+        std::vector<IndexTri> t(count);
+        for (uint32_t i = 0; i < count; ++i) {
+            const F3 a = m.tris[3 * i], b = m.tris[3 * i + 1], c = m.tris[3 * i + 2];
+            t[i].lo = {std::min({a.x, b.x, c.x}), std::min({a.y, b.y, c.y}), std::min({a.z, b.z, c.z})};
+            t[i].hi = {std::max({a.x, b.x, c.x}), std::max({a.y, b.y, c.y}), std::max({a.z, b.z, c.z})};
+            t[i].c = {(t[i].lo.x + t[i].hi.x) * 0.5f, (t[i].lo.y + t[i].hi.y) * 0.5f, (t[i].lo.z + t[i].hi.z) * 0.5f};
+            t[i].tri = i;
+        }
+        m.order.reserve(count);
+        m.nodes.resize(1);
+        build_node(m, t, 0, 0, count);
+    }
+}
+
 bool avoid_segment_box(F3 o, F3 d, F3 lo, F3 hi, float t_best, bool& inside) {
     float t = 0.0f;
     return segment_box_t(o, d, lo, hi, t_best, inside, t);
@@ -130,8 +256,9 @@ bool avoid_precise(const AvoidObstacle& o, F3 a, F3 b, bool& inside) {
         if (mesh.shield && o.skip_shield) continue;
         bool private_inside = false;  // the broad phase's own record
         if (!avoid_segment_box(ma, d, mesh.lo, mesh.hi, 1.0f, private_inside)) continue;
-        for (size_t i = 0; i + 2 < mesh.tris.size(); i += 3)
-            if (avoid_segment_triangle(ma, d, mesh.tris[i], mesh.tris[i + 1], mesh.tris[i + 2], 1.0f)) return true;
+        const std::vector<F3>& tr = mesh.tris;
+        if (visit_triangles(mesh, ma, d, [&](uint32_t i) { return avoid_segment_triangle(ma, d, tr[3 * i], tr[3 * i + 1], tr[3 * i + 2], 1.0f); }))
+            return true;
     }
     return false;
 }
@@ -174,14 +301,16 @@ bool avoid_precise_segment(const AvoidObstacle& o, F3 a, F3 b, uint32_t mask, ui
         bool private_inside = false;
         float tb = 0.0f;
         if (!segment_box_t(ma, d, mesh.lo, mesh.hi, 1.0f, private_inside, tb)) continue;
-        for (size_t i = 0; i + 2 < mesh.tris.size(); i += 3) {
+        const std::vector<F3>& tr = mesh.tris;
+        visit_triangles(mesh, ma, d, [&](uint32_t i) {  // the nearest t: no visiting order changes the minimum
             float t = 0.0f;
-            if (segment_triangle_t(ma, d, mesh.tris[i], mesh.tris[i + 1], mesh.tris[i + 2], hit.t, t)) {
+            if (segment_triangle_t(ma, d, tr[3 * i], tr[3 * i + 1], tr[3 * i + 2], hit.t, t)) {
                 hit.t = t;
                 hit.mesh = static_cast<int32_t>(k);
                 any = true;
             }
-        }
+            return false;
+        });
     }
     return any;
 }
@@ -195,6 +324,8 @@ bool avoid_ray_any(const AvoidObstacle& o, F3 a, F3 b) {
         bool inside = false;
         float tb = 0.0f;
         if (!segment_box_t(ma, d, mesh.lo, mesh.hi, 1.0f, inside, tb)) continue;  // AABB pretest
+        // not through the index: the stamper's vertical rays meet slanted vertical faces edge-on, where the exact test is
+        // rounding noise (visit_triangles); this runs at map setup, not per tick
         for (size_t i = 0; i + 2 < mesh.tris.size(); i += 3) {
             float t = 0.0f;
             if (segment_triangle_t(ma, d, mesh.tris[i], mesh.tris[i + 1], mesh.tris[i + 2], 1.0f, t)) return true;

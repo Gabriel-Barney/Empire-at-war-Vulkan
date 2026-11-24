@@ -1117,6 +1117,7 @@ std::unique_ptr<tactical::movement::AvoidModel> avoid_from_asset(const assets::M
         out->bound_c = {(bound.min.x + bound.max.x) * 0.5f, (bound.min.y + bound.max.y) * 0.5f, (bound.min.z + bound.max.z) * 0.5f};
         out->bound_h = {(bound.max.x - bound.min.x) * 0.5f, (bound.max.y - bound.min.y) * 0.5f, (bound.max.z - bound.min.z) * 0.5f};
     }
+    mv::avoid_build_index(*out);  // #111: the meshes' triangle index (performance only; same results)
     return out;
 }
 
