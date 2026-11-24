@@ -1895,6 +1895,131 @@ void test_unit_responses_50() {
 #endif
 }
 
+// #327 t03 (the response resolvers 0x3739a0 / 0x373700 / 0x3738b0 and the Attack_Override step 0x373820 [H]):
+//   * resolve_speaker: a structure dummy or a TACTICAL_BUILD_OBJECTS container gives the plain line, a stolen-vehicle
+//     container the Move line, a team without members nothing; otherwise the plain line is read from the team's first
+//     member (or the container, or the speaker itself) first;
+//   * attack_override_event: the first (target type, event) pair whose type is the target and whose event exists;
+//   * unit_response: group line, then Attack_Override, then the resolver (variant, member's plain line, speaker's).
+void test_response_resolver_327() {
+    using H = GameAudioHost;
+    using R = H::ResponseResolve;
+    MemoryProvider files;
+    files.add("Data\\XML\\GameObjectFiles.xml", "<L><File>T327.xml</File></L>");
+    files.add("Data\\XML\\T327.xml", R"(<?xml version="1.0"?>
+<GroundUnits>
+  <GroundInfantry Name="Speaker"><SFXEvent_Select> Sp_Select </SFXEvent_Select><SFXEvent_Move> Sp_Move </SFXEvent_Move>
+    <SFXEvent_Attack> Sp_Attack </SFXEvent_Attack><SFXEvent_Group_Attack> Sp_Group </SFXEvent_Group_Attack>
+    <SFXEvent_Attack_With_Non_Hero_Ability> Sp_Variant </SFXEvent_Attack_With_Non_Hero_Ability>
+    <SFXEvent_Attack_Override> No_Such_Type, Sp_Over_A </SFXEvent_Attack_Override>
+    <SFXEvent_Attack_Override> Target_A, Sp_Over_A </SFXEvent_Attack_Override>
+    <SFXEvent_Attack_Override> Target_B, No_Such_Event </SFXEvent_Attack_Override>
+    <SFXEvent_Attack_Override> Target_B, Sp_Over_B </SFXEvent_Attack_Override></GroundInfantry>
+  <GroundInfantry Name="Member"><SFXEvent_Attack> Mb_Attack </SFXEvent_Attack></GroundInfantry>
+  <GroundInfantry Name="Target_A"/>
+  <GroundInfantry Name="Target_B"/>
+  <GroundInfantry Name="Target_C"/>
+  <GroundCompany Name="Company"><Behavior>TEAM</Behavior></GroundCompany>
+  <GroundStructure Name="Dummy"><Behavior>DUMMY_GROUND_STRUCTURE</Behavior></GroundStructure>
+  <GroundStructure Name="Pad"><Behavior>TACTICAL_BUILD_OBJECTS</Behavior></GroundStructure>
+  <GroundVehicle Name="Walker"/>
+</GroundUnits>
+)");
+    objects::ObjectTypeDatabase raw;
+    CHECK(raw.load(files));
+    objects::GameObjectTypes types;
+    CHECK(types.build(raw));
+    const auto ty = [&types](const char* n) { return types.resolve_name(n); };
+    const objects::TypeIndex speaker_t = ty("Speaker"), member_t = ty("Member");
+    CHECK(speaker_t != objects::kNone && member_t != objects::kNone && ty("Company") != objects::kNone && ty("Dummy") != objects::kNone);
+    if (speaker_t == objects::kNone || member_t == objects::kNone) return;
+    objects::ObjectStore store(objects::ModeKind::Land, objects::StoreKind::Primary, types);
+    const auto make = [&store](objects::TypeIndex t) {
+        objects::SpawnParams sp;
+        sp.type = t;
+        sp.owner = 0;
+        return store.create(sp);
+    };
+    const objects::ObjectHandle speaker = make(speaker_t), member = make(member_t), company = make(ty("Company")),
+                                dummy = make(ty("Dummy")), pad = make(ty("Pad")), walker = make(ty("Walker"));
+    const std::vector<objects::ObjectId> members = {store.id(member)}, none = {};
+    // resolve_speaker
+    const R lone = H::resolve_speaker(store, speaker, {}, none, false);
+    CHECK(lone.exit == R::Exit::Normal && lone.plain_source_type == speaker_t);
+    const R in_team = H::resolve_speaker(store, speaker, company, members, false);
+    CHECK(in_team.exit == R::Exit::Normal && in_team.plain_source_type == member_t);
+    const R team_speaker = H::resolve_speaker(store, company, {}, members, false);  // a team selected: its first member
+    CHECK(team_speaker.exit == R::Exit::Normal && team_speaker.plain_source_type == member_t);
+    CHECK(H::resolve_speaker(store, company, {}, none, false).exit == R::Exit::Silent);   // a team without members
+    CHECK(H::resolve_speaker(store, speaker, company, none, false).exit == R::Exit::Silent);
+    CHECK(H::resolve_speaker(store, dummy, company, members, true).exit == R::Exit::Plain);  // the dummy test comes first
+    CHECK(H::resolve_speaker(store, speaker, pad, members, true).exit == R::Exit::Plain);   // build container before stolen
+    CHECK(H::resolve_speaker(store, speaker, walker, none, true).exit == R::Exit::MoveLine);
+    const R in_walker = H::resolve_speaker(store, speaker, walker, none, false);  // a plain container: read like a member
+    CHECK(in_walker.exit == R::Exit::Normal && in_walker.plain_source_type == ty("Walker"));
+    // attack_override_event: list order, the type must be the target and the event must exist
+    const auto known = [](std::string_view e) { return e != "No_Such_Event"; };
+    const std::span<const std::string_view> list = types.get_list(speaker_t, "SFXEvent_Attack_Override");
+    CHECK(H::attack_override_event(list, "Target_A", known) == "Sp_Over_A");
+    CHECK(H::attack_override_event(list, "target_b", known) == "Sp_Over_B");  // the unknown event's entry is skipped
+    CHECK(H::attack_override_event(list, "Target_C", known).empty() && H::attack_override_event(list, "", known).empty());
+#ifdef ALAMO_GAME_HAVE_AUDIO
+    auto tree = make_tree(true);
+    std::string sfx = "<?xml version=\"1.0\"?>\n<SFXEvents>\n";
+    for (const char* e : {"Sp_Select", "Sp_Move", "Sp_Attack", "Sp_Group", "Sp_Variant", "Sp_Over_A", "Sp_Over_B", "Mb_Attack"})
+        sfx += std::string("  <SFXEvent Name=\"") + e +
+               "\"><Is_2D>Yes</Is_2D><Is_3D>No</Is_3D><Max_Instances>8</Max_Instances><Samples>A.WAV</Samples></SFXEvent>\n";
+    sfx += "</SFXEvents>\n";
+    tree->add("Data\\XML\\SFXEventsTest.xml", sfx);
+    GameData data;
+    data.files = std::move(tree);
+    H h;
+    CHECK(h.init(data, AudioBackendKind::Null, 3));
+    if (!h.active()) return;
+    const auto respond = [&](UnitResponse kind, R r, bool group = false, bool non_hero = false) {
+        h.unit_response(types, speaker_t, 5, kind, group, 0, 0, -1, non_hero, {}, r);
+    };
+    R m;
+    m.plain_source_type = member_t;
+    respond(UnitResponse::Attack, m);  // the member's plain line first
+    CHECK(starts(h, "Mb_Attack") == 1);
+    respond(UnitResponse::Select, m);  // the member's type sets no Select: the speaker's
+    CHECK(starts(h, "Sp_Select") == 1);
+    respond(UnitResponse::Attack, m, false, true);  // the speaker's variant beats the member's plain line
+    CHECK(starts(h, "Sp_Variant") == 1);
+    R plain = m;
+    plain.exit = R::Exit::Plain;
+    respond(UnitResponse::Attack, plain, false, true);  // dummy / build container: the speaker's plain line, no variant
+    CHECK(starts(h, "Sp_Attack") == 1 && starts(h, "Sp_Variant") == 1 && starts(h, "Mb_Attack") == 1);
+    R stolen = m;
+    stolen.exit = R::Exit::MoveLine;
+    respond(UnitResponse::Attack, stolen, false, true);  // a stolen-vehicle container: the Move line in every resolver
+    respond(UnitResponse::Select, stolen);
+    CHECK(starts(h, "Sp_Move") == 2);
+    R silent = m;
+    silent.exit = R::Exit::Silent;
+    const auto before = h.stats().responses;
+    respond(UnitResponse::Attack, silent);  // a team without members: nothing
+    CHECK(h.stats().responses == before);
+    respond(UnitResponse::Attack, silent, true);  // Group_Attack comes before the resolver
+    CHECK(starts(h, "Sp_Group") == 1);
+    R over = silent;
+    over.attack_target = ty("Target_A");
+    respond(UnitResponse::Attack, over, false, true);  // Attack_Override comes before the resolver and its exits
+    CHECK(starts(h, "Sp_Over_A") == 1);
+    respond(UnitResponse::Attack, over, true);  // ... and after the group line
+    CHECK(starts(h, "Sp_Group") == 2 && starts(h, "Sp_Over_A") == 1);
+    R over_c = m;
+    over_c.attack_target = ty("Target_C");
+    respond(UnitResponse::Attack, over_c);  // no entry for the target: the resolver
+    CHECK(starts(h, "Mb_Attack") == 2);
+    R over_b = m;
+    over_b.attack_target = ty("Target_B");
+    respond(UnitResponse::Move, over_b);  // only an Attack reads the list
+    CHECK(starts(h, "Sp_Move") == 3 && starts(h, "Sp_Over_B") == 0);
+#endif
+}
+
 // ref2 t02 (alamo/sim/presentation_events.hpp): one tick's presentation events -> GameAudioHost::on_events. The local
 // player's tactical production begin / cancel / complete play the built type's speech or SFXEvent_Tactical_Build_* line
 // (MCX4_T13_RE_ANSWERS "GameObjectType.SFXEvent_Tactical_Build_Started family"), no build music in a battle; another
@@ -2024,6 +2149,7 @@ int main() {
     test_aud2();
     test_presentation_events_ref2();  // ref2 t02
     test_unit_responses_50();          // #50 t02
+    test_response_resolver_327();      // #327 t03
     test_spin_and_self_destruct();  // mcx4 t13 batch Q
     test_death_end_sfx();           // #61
 #ifdef ALAMO_GAME_HAVE_AUDIO
