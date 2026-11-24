@@ -14,6 +14,7 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "alamo/core/bytes.hpp"
@@ -35,6 +36,7 @@
 #include "alamo/lua/presentation.hpp"  // #51 t03
 #include "alamo/sim/story_session.hpp"
 #include "alamo/test/support.hpp"
+#include "story_session_records.hpp"  // engine/apps/sim/src (#151)
 
 using namespace alamo;
 using namespace alamo::sim;
@@ -863,6 +865,86 @@ static void test_story_ledger() {
     std::printf("  story ledger: %zu retail rewards, %zu missing; %zu event types\n", retail, missing, story_event_table().size());
 }
 
+// #151: the story save records and their one field list each (src/story_session_records.hpp). The save bytes are the
+// ones write() put before #151 (story saves v8 / v9 load unchanged); the CRC reads the same fields in the same order
+// and widths; each field reaches the save, each hashed one the CRC, a save-only one leaves the CRC alone; a record
+// round-trips.
+static void test_story_records_151() {
+    namespace io = alamo::sim::save_io;
+    namespace rec = alamo::sim::story_records;
+    auto save = [](const auto& x) {
+        ByteWriter w;
+        io::Out a(w);
+        rec::visit(a, x);
+        return w.bytes();
+    };
+    auto crc = [](const auto& x) {
+        StateHasher h;
+        io::Hash a(h);
+        rec::visit(a, x);
+        return h.digest();
+    };
+    auto round_trip = [&save](const auto& x) {
+        const std::vector<uint8_t> bytes = save(x);
+        ByteReader r(bytes);
+        io::In a(r);
+        std::remove_cvref_t<decltype(x)> back;
+        rec::visit(a, back);
+        return r.ok() && r.done() && back == x;
+    };
+    {  // a plot definition edit: every field saved and hashed
+        const StorySession::DefinitionEdit e{1, 3, "PLACEHOLDER_X", "PlanetD", true};
+        ByteWriter pin;
+        pin.u8(1).u32(3).str("PLACEHOLDER_X").str("PlanetD").boolean(true);
+        CHECK(save(e) == pin.bytes());
+        StateHasher want;
+        want.u8(1);
+        want.u32(3);
+        want.str("PLACEHOLDER_X");
+        want.str("PlanetD");
+        want.boolean(true);
+        CHECK(crc(e) == want.digest());
+        CHECK(round_trip(e));
+        auto changed = [&](auto edit) {
+            StorySession::DefinitionEdit x = e;
+            edit(x);
+            CHECK(save(x) != save(e) && crc(x) != crc(e) && round_trip(x));
+        };
+        changed([](auto& x) { x.kind = 0; });
+        changed([](auto& x) { x.set = 4; });
+        changed([](auto& x) { x.a = "PLACEHOLDER_Y"; });
+        changed([](auto& x) { x.b = "PlanetE"; });
+        changed([](auto& x) { x.tactical = false; });
+    }
+    {  // a plot set's fields: identity numbers and poll state hashed; file, counts and fired-log cursor saved only
+        const rec::PlotSetFields s{2, 5, "Story_Plots_Sty1.xml", 7, 3, true, 1250.5f, 11};
+        ByteWriter pin;
+        pin.i32(2).u32(5).str("Story_Plots_Sty1.xml").u32(7).u32(3).boolean(true).f32(1250.5f).u64(11);
+        CHECK(save(s) == pin.bytes());
+        StateHasher want;
+        want.i32(2);
+        want.u32(5);
+        want.boolean(true);
+        want.f32(1250.5f);
+        CHECK(crc(s) == want.digest());
+        CHECK(round_trip(s));
+        auto changed = [&](auto edit, bool hashed) {
+            rec::PlotSetFields x = s;
+            edit(x);
+            CHECK(save(x) != save(s) && (crc(x) != crc(s)) == hashed && round_trip(x));
+        };
+        changed([](auto& x) { x.player = 1; }, true);
+        changed([](auto& x) { x.number = 6; }, true);
+        changed([](auto& x) { x.credits_seen = false; }, true);
+        changed([](auto& x) { x.last_credits = 10.0f; }, true);
+        changed([](auto& x) { x.file = "Story_Plots_Other.xml"; }, false);
+        changed([](auto& x) { x.plot_count = 8; }, false);
+        changed([](auto& x) { x.script_count = 4; }, false);
+        changed([](auto& x) { x.fired_seen = 12; }, false);
+    }
+    std::printf("  story records: definition edit and plot set field lists ok\n");
+}
+
 static objects::ObjectHandle spawn_at(objects::ObjectStore& st, objects::TypeIndex type, int32_t owner, Vec3 p) {
     objects::SpawnParams sp;
     sp.type = type;
@@ -1001,6 +1083,7 @@ int main() {
     story_test::test_sandbox_spawner_reward();
     story_test::test_coverage();
     story_test::test_story_ledger();
+    story_test::test_story_records_151();
     if (g_fail) std::printf("FAILED\n");
     else std::printf("story rewards tests passed\n");
     return g_fail ? 1 : 0;

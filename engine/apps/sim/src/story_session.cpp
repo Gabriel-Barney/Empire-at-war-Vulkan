@@ -1,6 +1,7 @@
 #include "alamo/sim/story_session.hpp"
 #include "alamo/sim/story_rewards.hpp"
 #include "story_random_story.hpp"  // mcx6 RANDOM_STORY
+#include "story_session_records.hpp"  // #151: the save / CRC field lists
 
 #include <algorithm>
 #include <cmath>
@@ -2003,14 +2004,46 @@ std::string StorySession::log_text(std::string_view header) const {
     return out;
 }
 
+namespace {
+// #151: the save, the reader and the CRC walk the same field lists (story_session_records.hpp).
+constexpr auto kEditFields = [](auto& a, auto& e) { story_records::visit(a, e); };
+
+template <class S>  // S: StorySession::Set
+story_records::PlotSetFields plot_set_fields(const S& s) {
+    return {s.player,       s.number,       s.file, static_cast<uint32_t>(s.model.plot_count()), static_cast<uint32_t>(s.scripts.size()),
+            s.credits_seen, s.last_credits, static_cast<uint64_t>(s.fired_seen)};
+}
+
+// A plot set: its fields, then its StoryModel (a section in the save, StoryModel::hash in the CRC).
+template <class S>
+void hash_plot_set(StateHasher& h, const S& s) {
+    const story_records::PlotSetFields f = plot_set_fields(s);
+    save_io::Hash a(h);
+    story_records::visit(a, f);
+    s.model.hash(h);
+}
+template <class S>
+void write_plot_set(ByteWriter& w, const S& s) {
+    const story_records::PlotSetFields f = plot_set_fields(s);
+    save_io::Out a(w);
+    story_records::visit(a, f);
+    put_section(w, [&s](ByteWriter& sub) { s.model.write(sub); });
+}
+// The saved plot set as read: its fields (checked against the session's set) and its StoryModel bytes.
+struct SetIn : story_records::PlotSetFields {
+    std::span<const uint8_t> model;
+};
+bool read_plot_set(ByteReader& r, SetIn& s) {
+    save_io::In a(r);
+    story_records::visit(a, static_cast<story_records::PlotSetFields&>(s));
+    s.model = r.raw(r.u32());
+    return r.ok();
+}
+}  // namespace
+
 void StorySession::hash(StateHasher& h) const {
     h.u32(static_cast<uint32_t>(sets_.size()));
-    for (const auto& s : sets_) {
-        h.i32(s->player);
-        s->model.hash(h);
-        h.boolean(s->credits_seen);
-        h.f32(s->last_credits);
-    }
+    for (const auto& s : sets_) hash_plot_set(h, *s);
     h.u32(static_cast<uint32_t>(triggers_.size()));
 #if defined(ALAMO_LUA_PLAYERS)
     lua_->players.hash(h);
@@ -2018,9 +2051,7 @@ void StorySession::hash(StateHasher& h) const {
     lua_->bridge.hash(h);
     // Wave 2a: only while a tactical plot set is attached (runs without one hash exactly as before).
     if (tactical_ && tactical_->set) {
-        h.u32(tactical_->set->number);
-        h.i32(tactical_->set->player);
-        tactical_->set->model.hash(h);
+        hash_plot_set(h, *tactical_->set);
         h.u32(static_cast<uint32_t>(tactical_->pending.size()));
         if (tactical_->bridge) tactical_->bridge->hash(h);
     }
@@ -2031,15 +2062,9 @@ void StorySession::hash(StateHasher& h) const {
     hash_sty1(h);  // STY1 lane B: only once a rule reward changed something
     if (!def_edits_.empty() || random_story_count_ != 0) {  // PICK_PLANET / RANDOM_STORY (absent otherwise)
         h.u32(0x4d435836u);  // "MCX6"
-        h.u32(random_story_count_);
-        h.u32(static_cast<uint32_t>(def_edits_.size()));
-        for (const DefinitionEdit& e : def_edits_) {
-            h.u32(e.kind);
-            h.u32(e.set);
-            h.str(e.a);
-            h.str(e.b);
-            if (e.tactical) h.u32(0x54414331u);  // "TAC1"
-        }
+        save_io::Hash a(h);
+        a(random_story_count_);
+        a.seq(def_edits_, kEditFields);
         if (random_story_count_ != 0) random_story_rng_.hash(h);
     }
     if (!comp_local_.empty() || !comp_other_.empty()) {  // the orbit record (absent while empty)
@@ -2826,17 +2851,15 @@ void StorySession::write(ByteWriter& w) const {
     w.u64(frame_).f64(seconds_);
     // v6 (mcx6): the RANDOM_STORY counter and the plot definition edits (v8: + each one's tactical flag, then the
     // RANDOM_STORY stream), applied by read() once the save passed its checks.
-    w.u32(random_story_count_).u32(static_cast<uint32_t>(def_edits_.size()));
-    for (const DefinitionEdit& e : def_edits_) w.u8(e.kind).u32(e.set).str(e.a).str(e.b).boolean(e.tactical);
+    {
+        save_io::Out a(w);
+        a(random_story_count_);
+        a.seq(def_edits_, kEditFields);
+    }
     random_story_rng_.write(w);
     // Plot sets: identity (checked on read), poll state, fired-log cursor, the StoryModel.
     w.u32(static_cast<uint32_t>(sets_.size()));
-    for (const auto& sp : sets_) {
-        const Set& s = *sp;
-        w.i32(s.player).u32(s.number).str(s.file).u32(static_cast<uint32_t>(s.model.plot_count())).u32(static_cast<uint32_t>(s.scripts.size()));
-        w.boolean(s.credits_seen).f32(s.last_credits).u64(static_cast<uint64_t>(s.fired_seen));
-        put_section(w, [&s](ByteWriter& sub) { s.model.write(sub); });
-    }
+    for (const auto& sp : sets_) write_plot_set(w, *sp);
     write_triggers(w, triggers_);
     write_triggers(w, pending_host_);
     write_triggers(w, pending_ui_);
@@ -2895,12 +2918,7 @@ void StorySession::write(ByteWriter& w) const {
     const Tactical& t = *tactical_;
     w.u64(t.start_frame).f64(t.spf);
     w.boolean(t.set != nullptr);
-    if (t.set) {
-        const Set& s = *t.set;
-        w.i32(s.player).u32(s.number).str(s.file).u32(static_cast<uint32_t>(s.model.plot_count())).u32(static_cast<uint32_t>(s.scripts.size()));
-        w.boolean(s.credits_seen).f32(s.last_credits).u64(static_cast<uint64_t>(s.fired_seen));
-        put_section(w, [&s](ByteWriter& sub) { s.model.write(sub); });
-    }
+    if (t.set) write_plot_set(w, *t.set);
     w.u32(static_cast<uint32_t>(t.pending.size()));
     for (const Tactical::Pending& p : t.pending) {
         write_trigger(w, p.trigger);
@@ -2926,17 +2944,22 @@ bool StorySession::read(ByteReader& r) {
     SimRng random_story_rng;
     if (version >= 6) {  // the definition edits, applied below once every check passed (they add plots: counts)
         random_story_count = r.u32();
-        const uint32_t n = read_count(r);
-        for (uint32_t i = 0; i < n && r.ok(); ++i) {
-            DefinitionEdit e;
-            e.kind = r.u8();
-            e.set = r.u32();
-            e.a = r.str();
-            e.b = r.str();
-            if (version >= 8) e.tactical = r.boolean();
-            if (e.kind > 1) r.fail();
-            def_edits.push_back(std::move(e));
+        if (version >= 8) {
+            save_io::In a(r);
+            a.seq(def_edits, kEditFields);
+        } else {  // v6 / v7: the edits before their tactical flag (the field list less its last field; no longer written)
+            const uint32_t n = read_count(r);
+            for (uint32_t i = 0; i < n && r.ok(); ++i) {
+                DefinitionEdit e;
+                e.kind = r.u8();
+                e.set = r.u32();
+                e.a = r.str();
+                e.b = r.str();
+                def_edits.push_back(std::move(e));
+            }
         }
+        for (const DefinitionEdit& e : def_edits)
+            if (e.kind > 1) r.fail();
         if (version >= 8) {
             if (!random_story_rng.read(r)) return false;
         } else if (random_story_count != 0) {
@@ -2987,29 +3010,15 @@ bool StorySession::read(ByteReader& r) {
             tac_delta += def_edits[sav_t[i]].kind == 0 ? 1 : 0;
         }
     }
-    struct SetIn {
-        bool credits_seen = false;
-        float last_credits = 0.0f;
-        uint64_t fired_seen = 0;
-        std::span<const uint8_t> model;
-    };
     const uint32_t nsets = read_count(r);
     if (!r.ok() || nsets != sets_.size()) return false;
     std::vector<SetIn> sets(nsets);
     for (uint32_t i = 0; i < nsets; ++i) {
         const Set& s = *sets_[i];
-        const int32_t player = r.i32();
-        const uint32_t number = r.u32();
-        const std::string file = r.str();
-        const uint32_t plots = r.u32(), scripts = r.u32();
-        sets[i].credits_seen = r.boolean();
-        sets[i].last_credits = r.f32();
-        sets[i].fired_seen = r.u64();
-        const uint32_t len = r.u32();
-        sets[i].model = r.raw(len);
-        if (!r.ok() || player != s.player || number != s.number || file != s.file ||
-            static_cast<int64_t>(plots) != static_cast<int64_t>(s.model.plot_count()) + delta_of(s.number) ||
-            scripts != s.scripts.size())
+        SetIn& in = sets[i];
+        if (!read_plot_set(r, in) || in.player != s.player || in.number != s.number || in.file != s.file ||
+            static_cast<int64_t>(in.plot_count) != static_cast<int64_t>(s.model.plot_count()) + delta_of(s.number) ||
+            in.script_count != s.scripts.size())
             return false;
     }
     std::vector<StoryTrigger> triggers, pending_host, pending_ui;
@@ -3097,20 +3106,15 @@ bool StorySession::read(ByteReader& r) {
         has_set = r.boolean();
         if (has_set) {
             tac_id.has_set = true;
-            tac_id.player = r.i32();
-            tac_id.number = r.u32();
-            tac_id.file = r.str();
-            const uint32_t plots = r.u32(), scripts = r.u32();
-            tac_set.credits_seen = r.boolean();
-            tac_set.last_credits = r.f32();
-            tac_set.fired_seen = r.u64();
-            tac_set.model = r.raw(r.u32());
-            if (!r.ok()) return false;
+            if (!read_plot_set(r, tac_set)) return false;
+            tac_id.player = tac_set.player;
+            tac_id.number = tac_set.number;
+            tac_id.file = tac_set.file;
             if (tactical_) {  // pass 2: the rebuilt battle's tactical set must be the saved one
                 const Set* s = tactical_->set.get();
                 if (!s || s->player != tac_id.player || s->number != tac_id.number || s->file != tac_id.file ||
-                    static_cast<int64_t>(plots) != static_cast<int64_t>(s->model.plot_count()) + tac_delta ||
-                    scripts != s->scripts.size())
+                    static_cast<int64_t>(tac_set.plot_count) != static_cast<int64_t>(s->model.plot_count()) + tac_delta ||
+                    tac_set.script_count != s->scripts.size())
                     return false;
             }
         }
