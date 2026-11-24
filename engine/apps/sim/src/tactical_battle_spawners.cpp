@@ -311,12 +311,9 @@ void TacticalBattle::sp_debris_expire(TacticalMode& mode, SimRng& rng, const Deb
     mode.destroy(h);
     const objects::ObjectHandle ch = spawn_death_clone(mode, static_cast<int32_t>(t), at, face, owner);
     if (ch) ++stats_.death_clones;
-    // phase 0 (the first Death_Explosions entry) before the schedule, whose remove-at-once path runs phase 2 (#221)
-    if (const BattleTables::UnitVisuals* vis = visuals_of_type(static_cast<uint32_t>(t)); vis && !vis->death_explosions.empty()) {
-        const int32_t neutral = galaxy_ ? galaxy_->neutral_player() : -1;  // the clone's owner
-        spawn_death_explosion(mode, vis->death_explosions, static_cast<uint32_t>(t), at, neutral >= 0 ? neutral : owner, rng);  // #358
-    }
+    // phase 0 (one Death_Explosions entry, #358) is the clone's, spawned by its schedule; without a clone, the piece's own here
     if (ch) schedule_death_clone(mode, ch, d.id, static_cast<int32_t>(t), 1, rng);
+    else spawn_death_explosion_start(mode, static_cast<uint32_t>(t), at, owner, rng, false);
 }
 
 void TacticalBattle::sp_activate(const TacticalMode& mode, SimRng& rng, size_t index) {
