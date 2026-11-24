@@ -425,7 +425,9 @@ uint64_t one_shot_frames(uint32_t frame_count, float fps, float speed) {
 
 DeathPlan plan_death(const AnimModel* m, const DeathParams& p, uint8_t damage_kind, SimRng& rng) {
     DeathPlan d;
-    if (p.spin_away) {
+    if (p.spin_decision) {
+        d.spin = *p.spin_decision;  // #356: the caller's draw (combat's DeathBehavior Initialise decision)
+    } else if (p.spin_away) {
         if (p.spin_away_chance > 0.0f && p.spin_away_chance < 1.0f) d.spin = rng.range_float(0.0f, 1.0f) < p.spin_away_chance;
         else d.spin = true;  // [port] chance >= 1 or unset
     }

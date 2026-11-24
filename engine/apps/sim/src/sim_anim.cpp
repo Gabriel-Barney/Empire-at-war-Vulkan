@@ -461,7 +461,7 @@ void SimAnimation::muzzle_flash(const GameMode& mode, ObjectId id, int32_t hardp
 
 anim::DeathResult SimAnimation::start_death(ModeWorld& mw, const GameMode& mode, ObjectId id, SimRng& rng, uint64_t frame, uint8_t damage_kind,
                                             objects::TypeIndex type_override, const anim::DeathPlan* plan,
-                                            const float* persistence_override) {
+                                            const float* persistence_override, std::optional<bool> spin) {
     const objects::ObjectStore& store = mode.primary();
     const ObjectHandle h = store.find(id);
     const objects::TypeIndex t = type_override != objects::kNone ? type_override : store.type(h);
@@ -478,6 +478,7 @@ anim::DeathResult SimAnimation::start_death(ModeWorld& mw, const GameMode& mode,
     const anim::TypeAnimParams& tp = params_for(t, mode.kind());
     anim::DeathParams dp = anim::death_params(tp);
     if (persistence_override) dp.persistence_seconds = *persistence_override;  // mcx4 tac2: 0x29f270 Infantry override
+    dp.spin_decision = spin;  // #356
     const anim::DeathResult r = plan ? mw.behaviors->begin_death(*mw.world, id, dp, *plan, info, frame, damage_kind)
                                      : mw.behaviors->begin_death(*mw.world, id, dp, info, rng, frame, damage_kind);
     ++stats_.deaths;
@@ -491,10 +492,11 @@ anim::DeathResult SimAnimation::start_death(ModeWorld& mw, const GameMode& mode,
     return r;
 }
 
-anim::DeathResult SimAnimation::begin_death(const GameMode& mode, ObjectId id, SimRng& rng, uint64_t frame, uint8_t damage_kind) {
+anim::DeathResult SimAnimation::begin_death(const GameMode& mode, ObjectId id, SimRng& rng, uint64_t frame, uint8_t damage_kind,
+                                            std::optional<bool> spin) {
     const objects::ObjectStore& store = mode.primary();
     if (!store.exists(store.find(id))) return anim::DeathResult::NoRow;
-    return start_death(mode_world(mode), mode, id, rng, frame, damage_kind);
+    return start_death(mode_world(mode), mode, id, rng, frame, damage_kind, objects::kNone, nullptr, nullptr, spin);
 }
 
 void SimAnimation::death_clone_spawned(const GameMode& mode, ObjectId clone, uint8_t damage_kind, const anim::DeathPlan* plan) {

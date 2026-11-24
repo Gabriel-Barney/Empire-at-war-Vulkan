@@ -791,7 +791,7 @@ void TacticalBattle::process_death(TacticalMode& mode, const tc::DeathEvent& d, 
         {  // R3 anim: death clip / corpse of the unit (unless a clone carries it), or the infantry corpse path
             bool carried = carried_by_clone || silent;  // s78n t12 review: a silent removal plays no death clip
             if (!ch && corpse_path) carried = hooks_->anim_corpse_clone(u->id, d.death_clone, d.kind, persist);
-            hooks_->anim_death(u->id, carried, d.kind);
+            hooks_->anim_death(u->id, carried, d.kind, d.spin_away);
         }
 #else
         (void)carried_by_clone;

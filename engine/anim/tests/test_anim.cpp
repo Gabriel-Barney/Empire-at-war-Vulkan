@@ -1288,6 +1288,25 @@ void test_events_and_locomotor() {
         b.service(w, 70, removed);
         CHECK(!b.is_corpse(5) && !w.contains(5) && std::find(removed.begin(), removed.end(), 5) != removed.end());
     }
+    {  // #356 (TACTICAL_GAPS §1.9 [H]: ONE synced draw in DeathBehavior Initialise): a caller's decision (combat's draw)
+       // is taken as it is - no second draw, even where plan_death's own rule would decide otherwise.
+        SimRng rng(12);
+        DeathParams sp;
+        sp.spin_away = true;
+        sp.spin_away_chance = 1.0f;  // plan_death's own rule: always spin, no draw
+        sp.spin_away_seconds = 2.0f;
+        sp.spin_decision = false;    // combat drew no spin
+        uint32_t st = rng.state();
+        DeathPlan pl = plan_death(nullptr, sp, 1, rng);
+        CHECK(!pl.spin && rng.state() == st);
+        sp.spin_away_chance = 0.4f;  // plan_death's own rule would draw here
+        sp.spin_decision = true;
+        pl = plan_death(nullptr, sp, 1, rng);
+        CHECK(pl.spin && pl.lifetime == 60 && rng.state() == st);
+        sp.spin_decision.reset();  // no caller decision: plan_death draws as before
+        pl = plan_death(nullptr, sp, 1, rng);
+        CHECK(rng.state() != st);
+    }
 }
 
 // ---- N1 save / load: AnimWorld + AnimBehaviors round trip ------------------------------------------------

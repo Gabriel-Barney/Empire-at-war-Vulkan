@@ -134,12 +134,13 @@ public:
         }
         anim_->hit(*mode_, e.victim, Vec3{f.x, f.y, f.z}, dir, *rng_, gframe_);
     }
-    void anim_death(objects::ObjectId id, bool has_clone, uint8_t kind) {
+    void anim_death(objects::ObjectId id, bool has_clone, uint8_t kind, bool spin) {
         // Die + DeathBehavior: the death clip (by damage kind when the type sets none), spin-away, then the
         // corpse rows (SimAnimation). [port] With a Death_Clone the clone carries the death animation (anim_clone)
-        // and the original is removed at once.
+        // and the original is removed at once. #356: `spin` = combat's DeathBehavior Initialise draw (DeathEvent::
+        // spin_away, TACTICAL_GAPS §1.9 [H] one synced draw): the corpse uses it and draws no second time.
         if (!anim_ || !mode_ || !rng_ || has_clone) return;
-        anim_->begin_death(*mode_, id, *rng_, gframe_, kind);
+        anim_->begin_death(*mode_, id, *rng_, gframe_, kind, spin);
     }
     const GameMode* anim_mode() const { return mode_; }
     bool anim_clone(objects::ObjectHandle clone, uint8_t kind, const anim::DeathPlan* plan) {  // false: no animation service

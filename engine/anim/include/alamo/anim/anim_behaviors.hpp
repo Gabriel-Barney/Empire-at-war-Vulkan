@@ -60,6 +60,7 @@
 #pragma once
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -104,6 +105,10 @@ struct DeathParams {
     bool spin_away = false;               // Spin_Away_On_Death (+0x9a)
     float spin_away_chance = 0.0f;        // Spin_Away_On_Death_Chance (+0x2208)
     float spin_away_seconds = 0.0f;       // Spin_Away_On_Death_Time (+0x220c)
+    // #356 (TACTICAL_GAPS §1.9 [H]: one synced draw in DeathBehavior Initialise): the spin decision a caller already
+    // drew (the battle passes combat's DeathEvent::spin_away for a unit dying without a clone); plan_death then draws
+    // nothing for it. Unset: plan_death's own draw.
+    std::optional<bool> spin_decision;
 };
 
 // Locomotor clip selection (WalkLocomotor 0x61f840, turn 0x620190; §A.7 walk / move and turn rows).
@@ -192,7 +197,7 @@ struct DeathPlan {
     bool forever = false;        // Death_Persistence_Duration < 0 (no spin) or a clip that never ends: never removed
     uint64_t lifetime = 0;       // frames from the death to the removal (valid when !remove_now && !forever)
 };
-// Same draws in the same order as begin_death (spin: one synced float when 0 < chance < 1; then the variant: one int in
+// Same draws in the same order as begin_death (spin: p.spin_decision when set, else one synced float when 0 < chance < 1; then the variant: one int in
 // [0, n - 1] when `p.index` is random and `m` has n > 0 variants of the death type - AnimWorld::play's draw). The death
 // type is p.type (never chosen by `damage_kind`, which is only recorded). m = null: no clip,
 // no variant draw. lifetime = what AnimBehaviors::service's countdown gives a corpse that starts at the death frame:
