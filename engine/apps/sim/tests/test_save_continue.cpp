@@ -164,11 +164,11 @@ struct Session {
         }
         if (ability_frame > 0 && !ability_sent)
             if (TacticalBattle* b = battle(); b && b->frame() >= ability_frame) {
-                // #146: command 43 for each player's ships that have the ability (one order per owner, ascending id)
+                // #146: SetUnitAbilityMode on for each player's ships that have the ability (one order per owner, ascending id)
                 const objects::ObjectStore& st = host->tactical()->primary();
                 std::map<int32_t, std::vector<uint32_t>> by_owner;
                 for (const objects::ObjectHandle h : st.all_objects())
-                    if (st.alive(h) && TacticalBattleTestAccess::abilities(*b).has_ability(st.id(h), kPowerToWeapons))
+                    if (st.alive(h) && st.owner(h) >= 0 && TacticalBattleTestAccess::abilities(*b).has_ability(st.id(h), kPowerToWeapons))
                         by_owner[st.owner(h)].push_back(static_cast<uint32_t>(st.id(h)));
                 for (auto& [owner, ids] : by_owner) {
                     std::sort(ids.begin(), ids.end());
@@ -228,13 +228,14 @@ std::vector<std::string> lookup_answers(const TacticalBattle& b, const TacticalM
     return out;
 }
 
-// #146: every object's POWER_TO_WEAPONS state at a checkpoint ("id active ready"), and whether any is active / recharging.
-struct AbilityState {
+// #146: every object's POWER_TO_WEAPONS state at a checkpoint ("id active ready"), and whether any is active / recharging
+// (neither active nor ready: this space map has no nebula, ion stun or force lockout).
+struct AbilityReadout {
     std::vector<std::string> lines;
     bool any_active = false, any_recharging = false;
 };
-AbilityState ability_state(TacticalBattle& b, const TacticalMode& tm) {
-    AbilityState out;
+AbilityReadout ability_readout(TacticalBattle& b, const TacticalMode& tm) {
+    AbilityReadout out;
     const tactical::abilities::AbilitySystem& ab = TacticalBattleTestAccess::abilities(b);
     const objects::ObjectStore& st = tm.primary();
     for (const objects::ObjectHandle h : st.all_objects()) {
@@ -259,6 +260,15 @@ struct RunResult {
     uint32_t ledger_checks = 0;
     bool ledger_ok = true, load_ok = true;
     uint64_t last_tick = 0;
+
+    // the lookup answers and ability readout of a battle at checkpoint `tick`
+    void record(uint64_t tick, TacticalBattle& b, const TacticalMode& tm) {
+        answers[tick] = lookup_answers(b, tm);
+        AbilityReadout a = ability_readout(b, tm);
+        ability_active_seen = ability_active_seen || a.any_active;
+        ability_recharge_seen = ability_recharge_seen || a.any_recharging;
+        abilities[tick] = std::move(a.lines);
+    }
 };
 
 void check_ledger(const TacticalBattle& b, RunResult& r, const char* fixture) {
@@ -284,13 +294,7 @@ RunResult run(const Data& d, const Fixture& f, uint32_t workers, bool reload) {
         if (b) {
             ++r.battle_checkpoints;
             check_ledger(*b, r, f.name);
-            if (!reload) {
-                r.answers[tick] = lookup_answers(*b, *s->host->tactical());
-                AbilityState a = ability_state(*b, *s->host->tactical());
-                r.ability_active_seen = r.ability_active_seen || a.any_active;
-                r.ability_recharge_seen = r.ability_recharge_seen || a.any_recharging;
-                r.abilities[tick] = std::move(a.lines);
-            }
+            if (!reload) r.record(tick, *b, *s->host->tactical());
         }
         if (!reload) continue;
         std::string why;
@@ -320,11 +324,7 @@ RunResult run(const Data& d, const Fixture& f, uint32_t workers, bool reload) {
         if (TacticalBattle* lb = s->battle()) {
             ++r.battle_reloads;
             check_ledger(*lb, r, f.name);
-            r.answers[tick] = lookup_answers(*lb, *s->host->tactical());
-            AbilityState a = ability_state(*lb, *s->host->tactical());
-            r.ability_active_seen = r.ability_active_seen || a.any_active;
-            r.ability_recharge_seen = r.ability_recharge_seen || a.any_recharging;
-            r.abilities[tick] = std::move(a.lines);
+            r.record(tick, *lb, *s->host->tactical());
         }
     }
     return r;
@@ -413,8 +413,10 @@ std::string test_fixture(const Data& d, const Fixture& f, uint32_t workers) {
     for (const auto& [tick, want] : a.abilities) {  // #146: the ability states a load gives back
         const auto it = b.abilities.find(tick);
         if (it == b.abilities.end() || it->second == want) continue;
-        std::printf("  %s: POWER_TO_WEAPONS states differ after the load at tick %" PRIu64 " (%zu vs %zu)\n", f.name, tick, want.size(),
+        std::printf("  %s: POWER_TO_WEAPONS states differ after the load at tick %" PRIu64 " (%zu vs %zu):\n", f.name, tick, want.size(),
                     it->second.size());
+        for (size_t i = 0; i < std::max(want.size(), it->second.size()) && i < 6; ++i)
+            std::printf("    want %-24s got %s\n", i < want.size() ? want[i].c_str() : "-", i < it->second.size() ? it->second[i].c_str() : "-");
         CHECK(false);
         break;
     }
