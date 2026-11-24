@@ -57,9 +57,12 @@ ui::HudBombingRunButton space_weapon_button(bool space, int32_t icon, int32_t fa
 }
 
 int32_t space_weapon_faction_icon(std::string_view faction) {
+    // [name-ok-begin: retail 0x317d00 compares the local faction's name with three HUD strings (+0x2708 / +0x2728 / +0x2748,
+    // copied from 0xb16ae0 / 0xb16b20 / 0xb16b60), docs/re/SPACE_SPECIAL_WEAPON_UI.md]
     if (ascii_iequals(faction, "Rebel")) return 0;
     if (ascii_iequals(faction, "Empire")) return 1;
     if (ascii_iequals(faction, "Underworld")) return 2;
+    // [name-ok-end]
     return 3;
 }
 
