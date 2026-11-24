@@ -126,6 +126,7 @@ alamo_headless_limits_conformance        retail:foc,file:extracted/foc_data_text
 ^alamo_bench_scenario_.*$                retail
 ^alamo_headless_bench_.*$                retail
 ^alamo_headless_galactic_ai_human.*$     retail
+alamo_headless_galactic_ai_scriptable_human  retail
 ^alamo_headless_limits_.*$               retail optional  # registered only with extracted/foc_data_text.zip
 ^alamo_headless_mod_golden_.*$           retail
 ^alamo_headless_outcome_.*$              retail

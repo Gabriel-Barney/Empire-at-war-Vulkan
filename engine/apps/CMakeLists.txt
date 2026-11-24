@@ -301,6 +301,13 @@ if(_alamo_sim)
         SETUP_ARGS --ai-log ${CMAKE_CURRENT_BINARY_DIR}/alamo_headless_galactic_ai_human_w0_ai.txt
         CHECK_ARGS --ai-golden ${CMAKE_CURRENT_BINARY_DIR}/alamo_headless_galactic_ai_human_w0_ai.txt
         TIMEOUT 1800 SLOW)
+    # #141: --human takes a faction whose campaign type is ScriptableHuman, not an AIPlayerType (the Underworld story
+    # campaign's player 6), as the scripted human instead of refusing it as unknown. 300 story ticks.
+    add_test(NAME alamo_headless_galactic_ai_scriptable_human
+             COMMAND alamo_headless --economy --galactic-ai --story --campaign Full_Story_Campaign_Underworld
+                     --human Underworld --ticks 300 --quiet)
+    set_tests_properties(alamo_headless_galactic_ai_scriptable_human PROPERTIES TIMEOUT 600
+                         PASS_REGULAR_EXPRESSION "AI players, human 6 \\(")
     # --trace-out (headless/port_trace.hpp), the Q2TRACE 1 state trace read by tools/probe_mod/q2_traces/q2trace.py.
     # 300 HotM ticks across worker counts (the trace changes nothing), then q2trace.py validate (headless/check_port_trace.cmake).
     find_program(ALAMO_PYTHON NAMES python PATHS ${CMAKE_SOURCE_DIR}/toolchain/venv/Scripts NO_DEFAULT_PATH)
