@@ -224,6 +224,19 @@ void test_logic() {
     const objects::ObjectId again[] = {100};  // regrouping a group's only unit replaces that group: allowed at the cap
     CHECK(fg.apply(0, op(Op::Create), again, info) == R::None && fg.groups().size() == FleetGroups::kMaxGroupsPerPlayer);
     CHECK(fg.apply(1, op(Op::Create), std::span<const objects::ObjectId>(), info) == R::InvalidUnit);
+
+    // #143 (docs/MODS.md "Limits policy"): a create of kMaxMembers + 1 units is refused whole (QueueFull), not cut to the
+    // guard; kMaxMembers units make one group
+    FleetGroups cap;
+    std::vector<objects::ObjectId> many;
+    for (objects::ObjectId id = 400; id < 400 + static_cast<objects::ObjectId>(FleetGroups::kMaxMembers) + 1; ++id) {
+        w.add(id, static_cast<float>(id), 50.0f, 4.0f);
+        many.push_back(id);
+    }
+    CHECK(cap.apply(0, op(Op::Create), many, info) == R::QueueFull && cap.groups().empty());
+    many.pop_back();
+    CHECK(cap.apply(0, op(Op::Create), many, info) == R::None && cap.groups().size() == 1 &&
+          cap.groups()[0].members.size() == FleetGroups::kMaxMembers);
 }
 
 // #177: Merge folds the player's groups with a selected unit into the oldest (lowest id), which keeps its id, name and

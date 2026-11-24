@@ -112,6 +112,7 @@ R FleetGroups::apply(uint8_t player, const commands::FleetGroupCommand& c, std::
     switch (c.op) {
         case Op::Create: {
             if (sel.empty()) return R::InvalidUnit;
+            if (sel.size() > kMaxMembers) return R::QueueFull;  // #143: the member guard refuses (as Merge), never cuts
             // Groups the selection empties make room; count the player's groups that remain.
             size_t remaining = 0;
             for (const FleetGroup& g : groups_) {
@@ -128,7 +129,6 @@ R FleetGroups::apply(uint8_t player, const commands::FleetGroupCommand& c, std::
             g.id = next_id_++;
             g.owner = player;
             for (const objects::ObjectId id : sel) {
-                if (g.members.size() >= kMaxMembers) break;
                 FleetMember m;
                 m.id = id;
                 g.members.push_back(m);

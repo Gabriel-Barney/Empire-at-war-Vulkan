@@ -2,6 +2,7 @@
 // bridge, task forces, blocking statuses (see tactical_ai.hpp). [port] / [L] / [M] mark behaviour the RE docs
 // do not fix.
 #include "alamo/ai/tactical/tactical_ai.hpp"
+#include "alamo/ai/tactical/group_order.hpp"  // #143
 #include "alamo/core/frames.hpp"
 #include "alamo/core/profile.hpp"
 
@@ -64,8 +65,6 @@ constexpr int32_t kFreeStoreScriptBase = 1000000;  // free-store script ids: bas
 constexpr int32_t kSlotBits = 20;                    // AITarget id = (player << 20) | slot [port]
 constexpr int32_t kSlotMask = (1 << kSlotBits) - 1;
 constexpr uint32_t kNoWireObject = 0x3FFFFFu;        // commands::kNoObject
-// limit: guard task-force group order ids (payload < 16 KiB)
-constexpr size_t kTfGroupOrderMaxUnits = 4096;       // [port] ids in one group order (payload < 16 KiB, header)
 
 int32_t target_id(int32_t player, int32_t slot) { return (player << kSlotBits) | slot; }
 
@@ -98,22 +97,11 @@ void put_u32(uint8_t* p, uint32_t v) {
     for (int i = 0; i < 4; ++i) p[i] = static_cast<uint8_t>(v >> (8 * i));
 }
 
-// The L1 object-order event (object_bridge.hpp: PortExtension, subtype kLuaOrderSubtype + order) for the task force's
-// movable units as ONE group order (header: the 24-byte block for units[0], then one u32 per further unit).
-cmd::EventData lua_order_event(lua::LuaOrder order, std::span<const uint32_t> units, int32_t target, const Vec3f& p, uint32_t arg = 0) {
-    cmd::EventData ev(cmd::EventType::PortExtension);
-    ev.set("subtype", static_cast<uint32_t>(lua::kLuaOrderSubtype + static_cast<uint32_t>(order)));
-    const size_t n = std::min(units.size(), kTfGroupOrderMaxUnits);
-    std::vector<uint8_t> b(lua::kLuaOrderPayloadBytes + 4 * (n > 0 ? n - 1 : 0), 0);
-    put_u32(b.data() + 0, n > 0 ? units[0] : kNoWireObject);
-    put_u32(b.data() + 4, target < 0 ? kNoWireObject : static_cast<uint32_t>(target));
-    put_u32(b.data() + 8, std::bit_cast<uint32_t>(p.x));
-    put_u32(b.data() + 12, std::bit_cast<uint32_t>(p.y));
-    put_u32(b.data() + 16, std::bit_cast<uint32_t>(p.z));
-    put_u32(b.data() + 20, arg);
-    for (size_t i = 1; i < n; ++i) put_u32(b.data() + lua::kLuaOrderPayloadBytes + 4 * (i - 1), units[i]);
-    ev.set_bytes("data", std::span<const uint8_t>(b.data(), b.size()));
-    return ev;
+// The task force's group order (tf_group_order_event); nullopt past the guard (#143).
+std::optional<cmd::EventData> lua_order_event(lua::LuaOrder order, std::span<const uint32_t> units, int32_t target, const Vec3f& p,
+                                              uint32_t arg = 0) {
+    return tf_group_order_event(static_cast<uint32_t>(lua::kLuaOrderSubtype + static_cast<uint32_t>(order)), units, target, p.x, p.y,
+                                p.z, arg);
 }
 
 // a threat tolerance as the Lua MoveTo order's argument word (float bits; BattleAi reads 0 as "no threshold", so a
@@ -146,6 +134,25 @@ std::vector<std::pair<int32_t, int32_t>> pp_buys(const std::vector<TacticalPpPic
 }
 
 }  // namespace
+
+std::optional<cmd::EventData> tf_group_order_event(uint32_t subtype, std::span<const uint32_t> units, int32_t target, float x, float y,
+                                                   float z, uint32_t arg) {
+    if (units.size() > kTfGroupOrderMaxUnits) return std::nullopt;  // #143: refused, never cut
+    const Vec3f p{x, y, z};
+    cmd::EventData ev(cmd::EventType::PortExtension);
+    ev.set("subtype", subtype);
+    const size_t n = units.size();
+    std::vector<uint8_t> b(lua::kLuaOrderPayloadBytes + 4 * (n > 0 ? n - 1 : 0), 0);
+    put_u32(b.data() + 0, n > 0 ? units[0] : kNoWireObject);
+    put_u32(b.data() + 4, target < 0 ? kNoWireObject : static_cast<uint32_t>(target));
+    put_u32(b.data() + 8, std::bit_cast<uint32_t>(p.x));
+    put_u32(b.data() + 12, std::bit_cast<uint32_t>(p.y));
+    put_u32(b.data() + 16, std::bit_cast<uint32_t>(p.z));
+    put_u32(b.data() + 20, arg);
+    for (size_t i = 1; i < n; ++i) put_u32(b.data() + lua::kLuaOrderPayloadBytes + 4 * (i - 1), units[i]);
+    ev.set_bytes("data", std::span<const uint8_t>(b.data(), b.size()));
+    return ev;
+}
 
 std::pair<uint32_t, uint32_t> ai_lane_seeds(uint32_t game_seed) {
     const uint64_t h = pp_mix(pp_mix(game_seed) ^ 0x41494C414E450001ull);  // "AILANE" salt
@@ -518,6 +525,21 @@ struct TacticalAiWorld::Impl final : lua::AiScriptHost, lua::AiTacticalScriptHos
             return "order " + text_of(what) + (r == cmd::RejectReason::None ? "" : " rejected " + std::string(cmd::reject_reason_name(r)));
         });
         return r;
+    }
+    // A task force's Lua group order (lua_order_event) through order(). #143 (docs/MODS.md "Limits policy"): past
+    // kTfGroupOrderMaxUnits the guard refuses - nothing is issued, limit_hit is counted in the stats whether or not the log
+    // is on, and logged - and the result is nullopt; otherwise the order's reject reason.
+    template <class What>
+    std::optional<cmd::RejectReason> group_order(int32_t player, lua::LuaOrder o, std::span<const uint32_t> ids, int32_t target,
+                                                 const Vec3f& p, uint32_t arg, What&& what) {
+        const std::optional<cmd::EventData> ev = lua_order_event(o, ids, target, p, arg);
+        if (ev) return order(player, *ev, std::forward<What>(what));
+        ++stats["limit_hit: task-force group order"];
+        decide(player, [&] {
+            return "limit_hit: task-force group order of " + std::to_string(ids.size()) + " units refused (guard " +
+                   std::to_string(kTfGroupOrderMaxUnits) + ")";
+        });
+        return std::nullopt;
     }
     // q6 land end (decision log only): a Lua object order of a script (free store, plan event handler) - who ordered,
     // the order, the first unit (type, id) and the unit count, the target object or position.
@@ -2997,8 +3019,8 @@ int32_t TacticalAiWorld::Impl::issue_move(TfRec& t, AiTacticalOrder kind, const 
     if (ids.empty()) return new_status(t.plan, t.id, StatusKind::Failed);
     bool any = false;
     if (kind == AiTacticalOrder::MoveTo && threat) {
-        any = order(t.player, lua_order_event(lua::LuaOrder::MoveTo, ids, -1, dest, threat_bits(*threat)),
-                    [&] { return where() + threat_text(*threat); }) == cmd::RejectReason::None;
+        any = group_order(t.player, lua::LuaOrder::MoveTo, ids, -1, dest, threat_bits(*threat),
+                          [&] { return where() + threat_text(*threat); }) == cmd::RejectReason::None;
     } else if (kind == AiTacticalOrder::MoveTo) {
         cmd::EventData ev(cmd::EventType::MoveToPositionFacing);
         ev.set_f("x", dest.x).set_f("y", dest.y).set_f("z", dest.z).set_ids("units", ids);
@@ -3010,7 +3032,7 @@ int32_t TacticalAiWorld::Impl::issue_move(TfRec& t, AiTacticalOrder kind, const 
         // refixf t06 (TACTICAL_COMBAT §2.8 A): a task-force Attack_Move on an object issues Order_Attack to every unit at
         // order time (the host drops refusing units). The follow re-orders below carry arg 0 [port: re-aim not repeated].
         const uint32_t arg = lo == lua::LuaOrder::AttackMove && target_object >= 0 ? kTfAttackMoveIssueAttack : 0u;
-        any = order(t.player, lua_order_event(lo, ids, target_object, dest, arg), where) == cmd::RejectReason::None;
+        any = group_order(t.player, lo, ids, target_object, dest, arg, where) == cmd::RejectReason::None;
     }
     if (!any) return new_status(t.plan, t.id, StatusKind::Failed);
     supersede(t.id);
@@ -3283,12 +3305,17 @@ void TacticalAiWorld::Impl::ambush_plan(StatusRec& s, bool first) {
     if (ids.empty()) return;
     // Coordinator::Move_To {kind 1 = P, threat tolerance = +0x58}: S7 t27 the group move carries the tolerance (the Lua
     // MoveTo group order: one formation move with the movement threshold T).
-    order(t->player, lua_order_event(lua::LuaOrder::MoveTo, ids, -1, p, threat_bits(s.threat)),
-          [&] {
-              char buf[96];
-              std::snprintf(buf, sizeof buf, " %zu units -> (%.0f, %.0f)", ids.size(), static_cast<double>(p.x), static_cast<double>(p.y));
-              return "tf " + t->name + (first ? " ambush on " : " ambush re-plan on ") + std::to_string(s.target) + buf + threat_text(s.threat);
-          });
+    const std::optional<cmd::RejectReason> r =
+        group_order(t->player, lua::LuaOrder::MoveTo, ids, -1, p, threat_bits(s.threat), [&] {
+            char buf[96];
+            std::snprintf(buf, sizeof buf, " %zu units -> (%.0f, %.0f)", ids.size(), static_cast<double>(p.x), static_cast<double>(p.y));
+            return "tf " + t->name + (first ? " ambush on " : " ambush re-plan on ") + std::to_string(s.target) + buf + threat_text(s.threat);
+        });
+    if (!r) {  // #143: the guard refused the move - the ambush fails (as with no point), it does not finish as reached
+        s.finished = true;
+        s.result = lua::AiStatusResult::False;
+        return;
+    }
     s.last_order = now;
 }
 

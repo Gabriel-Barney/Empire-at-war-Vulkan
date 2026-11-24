@@ -74,8 +74,8 @@ class FleetGroups {
 public:
     // limit: guard [port] fleet groups design cap (no retail feature), refuses
     static constexpr size_t kMaxGroupsPerPlayer = 20;
-    // limit: guard [port] fleet groups design cap (no retail feature)
-    static constexpr size_t kMaxMembers = 40;
+    // limit: guard [port] fleet groups design cap (no retail feature), refuses
+    static constexpr size_t kMaxMembers = 40;  // #143: a create or merge past it is rejected (QueueFull), never cut
     using InfoFn = std::function<FleetUnitInfo(objects::ObjectId)>;
 
     // Straggler rule (see the header comment); world units and a fraction.

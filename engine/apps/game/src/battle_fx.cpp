@@ -189,10 +189,14 @@ int32_t UnsyncedRandom::range(int32_t lo, int32_t hi) {
     return static_cast<int32_t>(static_cast<int64_t>(lo) + static_cast<int64_t>((r >> 11) % span));
 }
 
-void CameraShake::start(const ShakeEffect& e, int32_t start_clock, int32_t duration_frames) {
-    if (duration_frames <= 0) return;
-    if (trackers_.size() >= kMaxTrackers) trackers_.erase(trackers_.begin());
+bool CameraShake::start(const ShakeEffect& e, int32_t start_clock, int32_t duration_frames) {
+    if (duration_frames <= 0) return false;
+    if (trackers_.size() >= kMaxTrackers) {  // #143 (docs/MODS.md "Limits policy"): refused and counted, no running shake dropped
+        ++limit_hits_;
+        return false;
+    }
     trackers_.push_back({e, start_clock, duration_frames});
+    return true;
 }
 
 CameraShake::Sample CameraShake::evaluate(int32_t clock, const Vec3& right, const Vec3& up) const {
@@ -214,8 +218,7 @@ CameraShake::Sample CameraShake::evaluate(int32_t clock, const Vec3& right, cons
 bool cinematic_shake(CameraShake& shake, bool cinematic_active, bool battle_mode, float jitter, float distance, int32_t clock,
                      UnsyncedRandom& rng) {
     if (!battle_mode || !cinematic_active) return false;
-    shake.start(explosion_shake(jitter, distance, rng.range(0, 100)), clock, kCinematicFps);
-    return true;
+    return shake.start(explosion_shake(jitter, distance, rng.range(0, 100)), clock, kCinematicFps);  // #143: false when refused
 }
 
 void camera_axes(const Vec3& eye, const Vec3& look, float roll_deg, Vec3& right, Vec3& up) {
