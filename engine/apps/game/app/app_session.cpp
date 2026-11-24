@@ -665,6 +665,7 @@ void App::load_story_campaign(const sim::StoryLoadCampaign& lc) {
 // The presentation side of a session that just started or was loaded (session_ is set).
 void App::session_started(const std::vector<std::string>& diag) {
     const SessionSpec& spec = session_->spec();
+    home_planet_ = 0;  // #295: the HUD init 0x3d3200 clears the Home key's cache on a new game and on a load
     session_->set_presentation_events(true);  // GameAudioHost::on_events in post_tick
     // [port: Gabriel] a new game (or a save from before playthroughs) starts a playthrough its saves are grouped under.
     if (session_->playthrough().empty()) {

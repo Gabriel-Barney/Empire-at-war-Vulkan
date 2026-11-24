@@ -3,6 +3,7 @@
 #include "options_pages.hpp"  // the game setup pages
 #include "alamo/data/values.hpp"  // data::trim
 #include "alamo/galactic/economy.hpp"  // build countdown speech
+#include "alamo/galactic/leader_planet.hpp"
 #ifdef ALAMO_SIM_HAVE_ANIM
 #include "alamo/sim/sim_anim.hpp"  // aud1 t03
 #endif
@@ -1156,6 +1157,7 @@ void App::galactic_input() {
         // FIXPASS_GALACTIC §4.2 (capture C2): the advisor key (Numpad -) opens the Droid Log, as the dome and "?" do.
         if (e.slot == ui::hk::kHolocron || e.slot == ui::hk::kDroidAdvisor) open_holocron(ui::InfoPage::DroidLog);
         if (e.slot == ui::hk::kQuickSave || e.slot == ui::hk::kQuickLoad || e.slot == ui::hk::kScreenshot) interface_hotkey(e.slot);
+        if (e.slot == ui::hk::kCameraHome && !story_controls_locked()) galactic_home();  // #295 [port] locked as HeroFocusPlanet
     }
     handle_hud_actions(acts);
     route_commands(cmds);
@@ -1767,6 +1769,25 @@ void App::intro_movie_speech_done(const std::string& event) {
     if (story_movie_ || !advisor_movie_.playing()) return;
     advisor_movie_.stop(audio_);
     gpu_.hud.clear_image_page(kAdvisorPage);
+}
+
+// #295 (docs/re/GALACTIC_HOME_KEY.md, HUD home action 0x3d2330 [H]): the galactic Home key centres the camera on the planet
+// of the local faction's leader and selects it. The planet is found on the first press that finds one and cached until
+// the next new game or load (HUD +0xf80), even when the leader moves. No planet: nothing happens, no sound, and the next
+// press searches again.
+void App::galactic_home() {
+    const galactic::GalacticSim* g = galaxy();
+    if (!g || screen() != Screen::Galactic) return;
+    if (home_planet_ == 0) {
+        const PlanetIndex pi = galactic::leader_planet(*g, local_player());
+        if (pi != kInvalidPlanet && g->store().exists(g->planets()[pi].object))
+            home_planet_ = static_cast<uint32_t>(g->store().id(g->planets()[pi].object));
+    }
+    const PlanetIndex pi = home_planet_ != 0 ? planet_index(*g, home_planet_) : kInvalidPlanet;
+    if (pi == kInvalidPlanet) return;
+    const Vec3 c = g->planets()[pi].position;
+    gview_.camera().set_look_at({c.x, c.y, 0.0f});
+    selected_planet_ = home_planet_;  // 0x3de570(hud, planet, 0)
 }
 
 }  // namespace alamo_game_app
