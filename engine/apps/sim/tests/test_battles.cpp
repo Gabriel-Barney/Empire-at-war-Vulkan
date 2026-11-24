@@ -4027,8 +4027,7 @@ int main(int argc, char** argv) {
 #ifdef ALAMO_SIM_HAVE_ANIM
     std::printf("anim battles (R3: flinch, death clips, corpses)\n");
     test_anim_battles();
-    std::printf("flinch intensity: projectile and explosion weights (#362)
-");
+    std::printf("flinch intensity: projectile and explosion weights (#362)\n");
     test_flinch_intensity();
     std::printf("death clone removal, headless and with the anim service (refixf t04)\n");
     test_death_clone_removal();
