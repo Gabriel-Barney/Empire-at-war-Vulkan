@@ -227,7 +227,7 @@ void TacticalBattle::build_service_graph() {
     // ---- movement --------------------------------------------------------------------------------------------------
     g.add("move_tick", kAll, kAll, [this] { movement_->tick(frame_, *tick_.rng, *tick_.pf); });
     g.add("move_commit", kAll, kAll, [this] { movement_->commit(tick_.mode->primary()); });
-    g.add("pushed_clones", kAll, kAll, [this] { kill_pushed_clones(*tick_.mode); });  // s78n t20 batch 1
+    g.add("pushed_clones", kAll, kAll, [this] { kill_pushed_clones(*tick_.mode, *tick_.rng); });  // s78n t20 batch 1
     // the arrival turn's clip plays (synced variant draws), ascending id
     g.add("turn_clips", kAll, kAll, [this] { play_turn_clip_events(*tick_.rng, tick_.global_frame); });
     g.add("s4_exit_arrivals", kAll, kAll, [this] { s4_exit_arrivals(); });  // garrison hosts' +0xf8 hook
@@ -321,7 +321,7 @@ void TacticalBattle::build_service_graph() {
     lap("tac.services");
 
     // ---- cleanup ----------------------------------------------------------------------------------------------------
-    g.add("expire", kAll, kAll, [this] { expire_objects(*tick_.mode); });
+    g.add("expire", kAll, kAll, [this] { expire_objects(*tick_.mode, *tick_.rng); });
     g.add("garrisons", kAll, kAll, [this] { s4_tick(*tick_.mode, *tick_.rng); });  // S4: garrison enters / exits / ejects, capture
     g.add("pads", kAll, kAll, [this] { pads_tick(*tick_.mode); });  // Int-final: build pads
     // skai: skirmish map battles: the Income_Stream credit trickle (credits through the host's callback)
@@ -360,7 +360,7 @@ void TacticalBattle::build_service_graph() {
     // 6. victory. The victory monitor (losses since the last tick, countdown, end)
     g.add("victory", kAll, kAll, [this] { check_victory(*tick_.mode); });
     g.add("end_clones", kAll, kAll, [this] {
-        if (finished_ && !death_clones_.empty()) remove_death_clones(*tick_.mode, true);  // the clones end with it
+        if (finished_ && !death_clones_.empty()) remove_death_clones(*tick_.mode, nullptr);  // the clones end with it
     });
     g.add("space_obstacles", kAll, kAll, [this] { space_obstacles_sync(*tick_.mode); });  // refixf t02
     g.add("land_obstacles", kAll, kAll, [this] { land_obstacles_sync(*tick_.mode, *tick_.pf); });  // S8 t02
@@ -380,7 +380,7 @@ SimRng& TacticalBattle::svc_rng(uint32_t stream, uint64_t entity, SimRng& rng, S
 
 void TacticalBattle::tick(TacticalMode& mode, SimRng& rng, const ParallelFor& pf, double sim_time, uint64_t global_frame) {
     if (finished_) {  // finished outside a tick (auto-resolve stop): the clones go before the mode pops
-        if (!death_clones_.empty()) remove_death_clones(mode, true);
+        if (!death_clones_.empty()) remove_death_clones(mode, nullptr);
         return;
     }
     ++frame_;

@@ -11,6 +11,7 @@
 //     Damage_Cable_Attack (CA_DIE) clone; #44 t03: a speeder stopped during the pull lets the walker go.
 #include "battle_test_fixture.hpp"
 
+#include <cmath>
 #include <functional>
 #include "tactical_battle_test_access.hpp"  // ref3 t06
 #include "alamo/tactical/abilities/ability_types.hpp"
@@ -617,6 +618,130 @@ void test_death_persistence_override() {
     CHECK(pending > 0 && gone >= 36 && gone <= 39);
 }
 
+// #221 (0x58cf90 phase 2 from the behaviour-detach hook 0x58d830, traced in PR #218 [M]): a death clone whose type lists
+// Death_Explosions_End spawns one entry when it is deleted, at its position plus the type's half extents 0x371be0
+// (Custom_Hard 3 x 2 here) turned by its facing yaw, and goes when its persistence ends without Death_Fade_Time:
+// int(30 x 1) = 30 frames after the crush instead of 37. One entry takes no draw; two take one synced int(0, 1).
+// ledger: verifies GameObjectType.Death_Explosions_End
+struct EndBoomRun {
+    int gone = -1;                       // frames from the clone's appearance to its removal
+    size_t booms = 0;                    // S10_End_Boom_* objects alive on the removal tick
+    Vec3 boom_at{}, expect_at{};         // the explosion's position, the clone position + the turned extents
+    uint64_t draws_before = 0, draws_after = 0;  // synced draws before / after the removal tick
+};
+
+// `anim`: with the animation service attached; `drop`: end the clones as the battle's end does, one tick after the clone
+// appears (gone = -2, booms counted on that tick).
+EndBoomRun run_end_boom(const char* list, bool anim = false, bool drop = false) {
+    g_temp_prefix = "alamo_sim_r3g_tests_end_boom";
+    static std::string s_list;  // g_types_patch is a plain function pointer
+    s_list = list;
+    g_types_patch = [](std::string t) {
+        t = persist_patch(std::move(t));
+        const std::string at = "<GroundInfantry Name=\"S10_Trooper_Crush_Clone\">";
+        if (const size_t p = t.find(at); p != std::string::npos)
+            t.insert(p + at.size(), (s_list.empty() ? std::string() : "<Death_Explosions_End>" + s_list + "</Death_Explosions_End>") +
+                                        "<Custom_Hard_XExtent>3</Custom_Hard_XExtent><Custom_Hard_YExtent>2</Custom_Hard_YExtent>");
+        const size_t end = t.find("</S10>");
+        if (end != std::string::npos)
+            t.insert(end, " <Particle Name=\"S10_End_Boom_A\"><Particle_Lifetime_Frames>20</Particle_Lifetime_Frames></Particle>\n"
+                          " <Particle Name=\"S10_End_Boom_B\"><Particle_Lifetime_Frames>20</Particle_Lifetime_Frames></Particle>\n");
+        return t;
+    };
+    g_constants_extra = kFocVulnerability;
+    auto d = make_data();
+    g_types_patch = nullptr;
+    g_constants_extra = nullptr;
+    EndBoomRun out;
+    const objects::TypeIndex trooper = d->types.resolve_name("S10_Trooper"), clone_t = d->types.resolve_name("S10_Trooper_Crush_Clone");
+    const objects::TypeIndex boom_a = d->types.resolve_name("S10_End_Boom_A"), boom_b = d->types.resolve_name("S10_End_Boom_B");
+    CHECK(clone_t != objects::kNone && boom_a != objects::kNone && boom_b != objects::kNone);
+    objects::ObjectId victim = objects::kNoObjectId, crusher = objects::kNoObjectId, clone = objects::kNoObjectId;
+    uint32_t made = 0;
+    bool crushed = false;
+    Vec3 clone_pos{}, clone_face{};
+    SimAnimation animation(d->types, *d->files);
+    land_battle(*d, anim ? &animation : nullptr, 600, [&](TacticalBattle& b, TacticalMode& tm, SimHost& host) {
+        objects::ObjectStore& st = tm.primary();
+        if (b.frame() < 2) return true;
+        if (!crushed) {
+            for (const objects::ObjectHandle h : st.all_objects()) {
+                if (!st.alive(h) || !b.combat().has_unit(st.id(h)) || !b.combat().alive(st.id(h))) continue;
+                if (victim == objects::kNoObjectId && st.type(h) == trooper) victim = st.id(h);
+                else if (crusher == objects::kNoObjectId) crusher = st.id(h);
+            }
+            crushed = victim != objects::kNoObjectId && crusher != objects::kNoObjectId && alamo::sim::TacticalBattleTestAccess::crush(b, crusher, victim);
+            return crushed;
+        }
+        if (clone == objects::kNoObjectId) {  // the clone object appears when the death is processed
+            for (const objects::ObjectHandle h : st.all_objects())
+                if (st.alive(h) && st.type(h) == clone_t) {
+                    clone = st.id(h);
+                    clone_pos = st.position(h);
+                    clone_face = st.facing(h);
+                    made = b.frame();
+                }
+            out.draws_before = host.random().synced().draws();
+            return b.frame() < 300;
+        }
+        const objects::ObjectHandle ch = st.find(clone);
+        if (drop && st.alive(ch)) {
+            alamo::sim::TacticalBattleTestAccess::drop_death_clones(b, tm);
+            out.gone = st.alive(st.find(clone)) ? -1 : -2;
+            out.draws_after = out.draws_before;  // not measured here
+            for (const objects::ObjectHandle h : st.all_objects())
+                if (st.alive(h) && (st.type(h) == boom_a || st.type(h) == boom_b)) ++out.booms;
+            return false;
+        }
+        if (st.alive(ch)) {
+            out.draws_before = host.random().synced().draws();
+            return b.frame() < made + 300;
+        }
+        out.gone = static_cast<int>(b.frame() - made);
+        out.draws_after = host.random().synced().draws();
+        for (const objects::ObjectHandle h : st.all_objects())
+            if (st.alive(h) && (st.type(h) == boom_a || st.type(h) == boom_b)) {
+                ++out.booms;
+                out.boom_at = st.position(h);
+            }
+        const float yaw = std::atan2(clone_face.y, clone_face.x);
+        out.expect_at = {clone_pos.x + 3.0f * std::cos(yaw) - 2.0f * std::sin(yaw), clone_pos.y + 3.0f * std::sin(yaw) + 2.0f * std::cos(yaw),
+                         clone_pos.z};
+        return false;
+    });
+    std::printf("  #221 Death_Explosions_End \"%s\": clone removed +%d, %zu explosion(s) at (%.2f %.2f %.2f), expected (%.2f %.2f %.2f), "
+                "removal-tick draws %llu\n",
+                list, out.gone, out.booms, static_cast<double>(out.boom_at.x), static_cast<double>(out.boom_at.y),
+                static_cast<double>(out.boom_at.z), static_cast<double>(out.expect_at.x), static_cast<double>(out.expect_at.y),
+                static_cast<double>(out.expect_at.z), static_cast<unsigned long long>(out.draws_after - out.draws_before));
+    return out;
+}
+
+void test_death_explosions_end() {
+    const EndBoomRun none = run_end_boom("");
+    const EndBoomRun one = run_end_boom("S10_End_Boom_A");
+    const EndBoomRun two = run_end_boom("S10_End_Boom_A, S10_End_Boom_B");
+    // Without the list: the Death_Fade_Time 0.25 s stays (int(30 x 1) + int(30 x 0.25) = 37 frames) and nothing spawns.
+    CHECK(none.gone >= 36 && none.gone <= 39 && none.booms == 0);
+    // With it: removed 7 frames sooner, one explosion at the turned extents.
+    CHECK(one.gone == none.gone - 7 && one.booms == 1);
+    CHECK(std::fabs(one.boom_at.x - one.expect_at.x) < 1e-3f && std::fabs(one.boom_at.y - one.expect_at.y) < 1e-3f &&
+          one.boom_at.z == one.expect_at.z);
+    CHECK(two.gone == one.gone && two.booms == 1);
+    // Same battle up to the removal; the two-entry list takes exactly one more synced draw on the removal tick.
+    CHECK(two.draws_before == one.draws_before);
+    CHECK(two.draws_after - two.draws_before == one.draws_after - one.draws_before + 1);
+    // The battle's end drops the clone without a spawn [port].
+    const EndBoomRun dropped = run_end_boom("S10_End_Boom_A", false, true);
+    CHECK(dropped.gone == -2 && dropped.booms == 0);
+#ifdef ALAMO_SIM_HAVE_ANIM
+    // With the animation service: the same removal frame, explosion and draws (the battle plans the clone's death).
+    const EndBoomRun animated = run_end_boom("S10_End_Boom_A, S10_End_Boom_B", true);
+    CHECK(animated.gone == two.gone && animated.booms == 1 && animated.boom_at.x == two.boom_at.x && animated.boom_at.y == two.boom_at.y);
+    CHECK(animated.draws_after - animated.draws_before == two.draws_after - two.draws_before);
+#endif
+}
+
 // MCX4_T10_RE_ANSWERS §16a addendum [H]: the space reinforcement drop 0x2bf2d0 ends with Apply_Elevated_Vulnerability on
 // every arriving unit (no gate), with the space pair: FoC Space_Elevated_Vulnerability_Duration 5 s /
 // Space_Elevated_Vulnerability_Factor -3.0 (4x damage taken), so the entry expires 150 frames after the drop. Player 1's
@@ -1096,6 +1221,8 @@ int main() {
     test_skirmish_landing_delay();
     std::printf("mcx4 tac2: Override_Death_Persistence_Duration\n");
     test_death_persistence_override();
+    std::printf("#221: Death_Explosions_End when a death clone is removed\n");
+    test_death_explosions_end();
     std::printf("mcx4 tac2: income streams\n");
     test_income_streams();
     std::printf("#44 t01: DEPLOY_TROOPERS in a land battle\n");

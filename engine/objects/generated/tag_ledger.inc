@@ -392,7 +392,7 @@
 {"GameObjectType", "Death_Leave_Hulk_Behind", 0x0, LedgerState::Consumed, "docs/re/xml_reference_index.md", 8, 1},
 {"GameObjectType", "Death_Clone_Is_Obstacle", 0x0, LedgerState::Consumed, "docs/re/xml_reference_index.md", 84, 1},
 {"GameObjectType", "Should_Death_Clone_Play_Idle", 0x0, LedgerState::Stored, "docs/re/xml_reference_index.md", 17, 1},
-{"GameObjectType", "Death_Explosions_End", 0x1e, LedgerState::Stored, "docs/re/xml_reference_index.md", 20, 1},
+{"GameObjectType", "Death_Explosions_End", 0x1e, LedgerState::Verified, "docs/re/xml_reference_index.md", 20, 1},
 {"GameObjectType", "Vehicle_Thief_Inside_Clone", 0x1d, LedgerState::Consumed, "docs/re/xml_reference_index.md", 20, 1},
 {"GameObjectType", "Obstacle_Proxy_Type", 0x1d, LedgerState::Consumed, "docs/re/xml_reference_index.md", 77, 1},
 {"GameObjectType", "Specific_Death_Anim_Type", 0xe, LedgerState::Consumed, "docs/re/xml_reference_index.md", 96, 1},

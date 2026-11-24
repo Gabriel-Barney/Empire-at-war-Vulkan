@@ -31,6 +31,8 @@ struct TacticalBattleTestAccess {
     static bool play_clip(TacticalBattle& b, objects::ObjectId id, int32_t clip_type) { return b.test_play_clip(id, clip_type); }
     // `crusher` crushes `victim` now, as a movement crush event does.
     static bool crush(TacticalBattle& b, objects::ObjectId crusher, objects::ObjectId victim) { return b.test_crush(crusher, victim); }
+    // #221: the battle's-end removal of every death clone left (no Death_Explosions_End spawn).
+    static void drop_death_clones(TacticalBattle& b, TacticalMode& mode) { b.remove_death_clones(mode, nullptr); }
     // the joint box half-extents of movement-backed land squad container `id`.
     static bool squad_joint_box(const TacticalBattle& b, const objects::ObjectStore& st, objects::ObjectId id, float& hx, float& hy) {
         return b.squad_joint_box(st, id, hx, hy);
