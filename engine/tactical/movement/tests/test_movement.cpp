@@ -3575,7 +3575,7 @@ static CrcLog space_crc_run(const ParallelFor& pf) {
 // path (11 accepted goals); MovingVsMoving answers follow the role slots.
 // s78n t26.2 (MOVEMENT §3.5.2 A / B): the speed controller (End Move T = a, 0x15 restarts), the start turn in place.
 // s78n t26 closing review (FIGHTER_FLYING §7.5 item 4): formation mates side-step by their footprint overlap.
-static constexpr uint64_t kGoldenLand = 0x1367069f4e4ea7c9ull;  // #282: a 0x15 restart ends its frame; mov2 t01 / t03 / t08 / t09 and review fixes: formation path copies, 3-D recruitment, rejoin tracker, squad re-order at speed; tracker snapshot before the walk; mov1: Starved count, tie-break extent, terrain corners, +0x28c, overtake rank, step 10, SvS kept, tick order; sp6: tree-hash layout (movement / combat / objects hashes); bkm1: lane fallback / stop point, shield-free class, recruitment, stored z, secondary facing; s78p: formation path and lanes; s78n t26 review round 2 (mixed formations, range rank); closing review; t26.4 the move step C; t26.3 the corner pass
+static constexpr uint64_t kGoldenLand = 0x1367069f4e4ea7c9ull;  // #282 (MSVC): a 0x15 restart ends its frame; mov2 t01 / t03 / t08 / t09 and review fixes: formation path copies, 3-D recruitment, rejoin tracker, squad re-order at speed; tracker snapshot before the walk; mov1: Starved count, tie-break extent, terrain corners, +0x28c, overtake rank, step 10, SvS kept, tick order; sp6: tree-hash layout (movement / combat / objects hashes); bkm1: lane fallback / stop point, shield-free class, recruitment, stored z, secondary facing; s78p: formation path and lanes; s78n t26 review round 2 (mixed formations, range rank); closing review; t26.4 the move step C; t26.3 the corner pass
 static constexpr uint64_t kGoldenSpace = 0x8fc952146335d9dbull;  // sp6: tree-hash layout (movement / combat / objects hashes)
 
 static void test_determinism() {
@@ -3915,8 +3915,9 @@ static void test_real_data() {
     // step]: retail has no breaker for such a ring (no timer or counter in states 1 / 6, no re-decide stamp without a path
     // push, starvation only from states 2 / 14), so retail holds too; the port keeps it (MOVEMENT §5.4.6 "A static ring
     // whose links are not all hold lines").
-    // #282 (2026-11-23, MSVC; a 0x15 restart short of the last waypoint ends its frame, 0x61fc30 [H]): the TM05 ring no
-    // longer forms (13 / 14 / 22 arrive); Saleucami 14 and 17 still stop by the ring rule: 3238 of 3240 arrive.
+    // #282 (2026-11-23, MSVC; a 0x15 restart short of the last waypoint ends its frame, 0x61fc30 [H]): with the restarts a
+    // frame later the TM05 approach differs and the ring no longer forms (13 / 14 / 22 arrive), so this run no longer
+    // exercises the §5.4.6 static ring; Saleucami 14 and 17 still stop by the ring rule: 3238 of 3240 arrive.
     CHECK(group_arrived == group_units && land_units - land_arrived == 2u && land_stopped == 2u && all_stops == 2u && stopped_units == 2u);
     CHECK(not_arrived.size() == 2);
     if (not_arrived.size() == 2) {
