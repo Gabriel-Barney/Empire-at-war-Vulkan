@@ -86,8 +86,6 @@ struct SnapshotTypeInfo {
     bool ghost_last_state = false, ghost_initial_state = false;
     // R5 SurfaceFX particles: Max_Speed (Particle_Min_Energy is compared with speed / Max_Speed [port]); 0 = unknown.
     float max_speed = 0.0f;
-    // R3 spin-away deaths: Spin_Away_On_Death_Explosion (a particle type / ALO played when the spinning corpse ends).
-    std::string spin_away_explosion;
     // Projectile types (xml_field_tables: Projectile_Custom_Render +0x23c int, Projectile_Width +0x464, Projectile_Length
     // +0x468, Projectile_Texture_Slot +0x46c, Projectile_Laser_Color +0x454): Projectile_Custom_Render 1 (beam) / 2 (kite)
     // are procedural lasers (lasers.hpp, legacy docs/re/PROJECTILE_NEBULA_DRAW.md 1) - their model is never loaded (`model` stays "").
@@ -167,7 +165,6 @@ public:
         i.blob_bone = std::move(bone);
         i.blob_intensity = intensity;
     }
-    void set_spin_away_explosion(objects::TypeIndex t, std::string name) { info_[t].spin_away_explosion = std::move(name); }
     void set_projectile_render(objects::TypeIndex t, int32_t custom_render, float width, float length, uint8_t slot_col = 0,
                                uint8_t slot_row = 0) {
         info_[t].projectile_custom_render = custom_render;
@@ -218,9 +215,7 @@ enum SnapshotFlag : uint8_t {
     kSnapCorpse = 0x10,
     // R3: inside a garrison / transport (not drawn, no particles; the sim keeps the object). Set by apply_contained.
     kSnapContained = 0x20,
-    // R3: a spin-away corpse (Spin_Away_On_Death): add_snapshot_corpses applies the render-side spin motion; when it
-    // leaves the frame SimDecorations plays the type's Spin_Away_On_Death_Explosion at its last position.
-    kSnapSpinAway = 0x40,
+    // 0x40: free (#357 removed the render-side spin-away stand-in; the sim moves the wreck)
     // a store death clone (objects::kFlagDeathClone, dying / removing): drawn while it plays its death, but
     // not a HUD unit and never hovered or picked.
     kSnapDeathClone = 0x80,
@@ -614,13 +609,9 @@ struct SnapshotCorpse {
     Vec3 facing{1, 0, 0};
     float alpha = 1.0f;  // anim::Corpse::alpha(frame): 1 until the fade, then down to 0
     float roll = 0.0f;   // radians about the facing axis (0 when the record has none)
-    bool spin_away = false;      // Corpse::spin_away
-    float spin_seconds = 0.0f;   // seconds since death (spin-away motion)
 };
-// R3 spin-away motion [port: the original's spin is untraced (ABILITIES_HARDPOINTS §4.9 open item)]: the corpse rolls
-// about its facing at kSpinAwayRollRate, yaws at kSpinAwayYawRate and drifts along its death facing at kSpinAwayDrift
-// units / s from the death position. Visual only.
-inline constexpr float kSpinAwayRollRate = 3.0f, kSpinAwayYawRate = 0.6f, kSpinAwayDrift = 40.0f;
+// #357: a spin-away death clone is a store object the sim moves (TacticalBattle::service_spin_wrecks, its roll / pitch
+// through unit_attitude); a detached corpse is drawn where its record says, with no render-side motion.
 // Appends each corpse as a SnapshotObject (kSnapCorpse, fade = alpha, health 0, alt = the type's damage alternate at
 // health 0, team colour of the owner, no hardpoints) and re-sorts by id. Skipped: alpha <= 0, an unknown / model-less
 // type (with SnapshotOptions::drawable_only semantics), or an id already in the snapshot (a corpse whose store object
@@ -642,10 +633,6 @@ std::vector<SnapshotCorpse> snapshot_corpses(const CorpseRange& corpses, uint64_
         s.facing = {c.info.facing[0], c.info.facing[1], c.info.facing[2]};
         s.alpha = c.alpha(frame);
         if constexpr (requires { c.info.roll; }) s.roll = static_cast<float>(c.info.roll);  // when the record carries one
-        if constexpr (requires { c.spin_away; c.death_frame; }) {
-            s.spin_away = c.spin_away;
-            if (c.spin_away && frame > c.death_frame) s.spin_seconds = static_cast<float>(static_cast<double>(frame - c.death_frame) / 30.0);
-        }
         out.push_back(s);
     }
     return out;

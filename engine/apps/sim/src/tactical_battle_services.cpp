@@ -225,6 +225,7 @@ void TacticalBattle::build_service_graph() {
     lap("tac.pre_move");
 
     // ---- movement --------------------------------------------------------------------------------------------------
+    g.add("motion_snap", kAll, kAll, [this] { snapshot_unit_motion(tick_.mode->primary()); });  // #357: the death clones' V
     g.add("move_tick", kAll, kAll, [this] { movement_->tick(frame_, *tick_.rng, *tick_.pf); });
     g.add("move_commit", kAll, kAll, [this] { movement_->commit(tick_.mode->primary()); });
     g.add("pushed_clones", kAll, kAll, [this] { kill_pushed_clones(*tick_.mode, *tick_.rng); });  // s78n t20 batch 1

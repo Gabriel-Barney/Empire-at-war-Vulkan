@@ -1229,10 +1229,21 @@ void test_unit_died_events_327() {
     // a death without a clone: no death sound, Unit_Lost still
     h.on_events({died(0, 7, -1, objects::kNoObjectId)}, types, 0);
     CHECK(starts(h, "Clone_Die") == 2 && starts(h, "Tank_Die") == 0 && starts(h, "Tank_Lost") == 2);
+    // #357: a spin-away clone plays its Start_Die at the wreck's end (SpinAwayEnded), not at the death
+    sim::PresentationEvent spin = died(1, 10, static_cast<int32_t>(clone_t), 54);
+    spin.spin = true;
+    h.on_events({spin}, types, 0);
+    CHECK(starts(h, "Clone_Die") == 2);
+    sim::PresentationEvent end{PK::SpinAwayEnded, -1, static_cast<int32_t>(clone_t), 54, 0, 40};
+    end.clone = 54;
+    end.clone_type = static_cast<int32_t>(clone_t);
+    end.x = 30.0f;
+    h.on_events({end}, types, 0);
+    CHECK(starts(h, "Clone_Die") == 3);
     // gate 9 tests the clone: a hidden clone's death sound is refused, a seen one plays
     h.set_fog_test([](uint64_t parent) { return parent == 52; });
     h.on_events({died(1, 8, static_cast<int32_t>(clone_t), 52), died(1, 9, static_cast<int32_t>(clone_t), 53)}, types, 0);
-    CHECK(starts(h, "Clone_Die") == 3);
+    CHECK(starts(h, "Clone_Die") == 4);
 #endif
 }
 

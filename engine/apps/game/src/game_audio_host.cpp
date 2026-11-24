@@ -1859,8 +1859,16 @@ void GameAudioHost::on_events(const sim::PresentationEvents& events, const objec
         if (e.kind == K::UnitDied) {  // #327 t06: every player's death; Unit_Lost for the local player's
             if (e.type < 0 || static_cast<size_t>(e.type) >= types.size()) continue;
             const uint64_t clone = e.clone != objects::kNoObjectId ? static_cast<uint64_t>(e.clone) : 0u;
+            // #357: a spin-away clone's phase 1 plays no Death_SFXEvent_Start_Die (its SpinAwayEnded does)
             if (unit_died(types, e.object, static_cast<objects::TypeIndex>(e.type), Vec3{e.x, e.y, e.z},
-                          local_player >= 0 && e.player == local_player, e.clone_type, clone) != 0)
+                          local_player >= 0 && e.player == local_player, e.spin ? -1 : e.clone_type, clone) != 0)
+                ++stats_.deaths;
+            continue;
+        }
+        if (e.kind == K::SpinAwayEnded) {  // #357: the wreck's end (0x58d430 -> 0x58cf90 phase 0 [H]): the clone's Start_Die
+            if (e.clone_type < 0 || static_cast<size_t>(e.clone_type) >= types.size() || e.clone == objects::kNoObjectId) continue;
+            const auto clone = static_cast<uint64_t>(e.clone);
+            if (unit_died(types, e.clone, static_cast<objects::TypeIndex>(e.clone_type), Vec3{e.x, e.y, e.z}, false, e.clone_type, clone) != 0)
                 ++stats_.deaths;
             continue;
         }
@@ -1874,7 +1882,8 @@ void GameAudioHost::on_events(const sim::PresentationEvents& events, const objec
                 faction_sfx("Reinforcements_Enroute_SFXEvent");
                 ++stats_.hangar_enroute_lines;
                 break;
-            case K::UnitDied: break;  // above
+            case K::UnitDied:
+            case K::SpinAwayEnded: break;  // above
         }
     }
 }

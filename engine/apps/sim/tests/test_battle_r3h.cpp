@@ -6,6 +6,7 @@
 #include "battle_test_fixture.hpp"
 #include "tactical_battle_test_access.hpp"  // ref3 t06
 #include "alamo/tactical/abilities/ability_types.hpp"
+#include "alamo/tactical/combat/rocket.hpp"  // #357: the wreck's spline (SplineClass)
 
 namespace {
 
@@ -555,6 +556,179 @@ void test_death_explosion_pick() {
     CHECK(two.draws == one.draws + 1);  // the pick: one synced Get_Int(0, 1); none for one entry
 }
 
+// #357 (DeathBehavior service 0x58d430 spin branch, path 0x58c7a0, SplineClass [H]; docs/re/SPIN_AWAY_DEATH.md): a walking
+// trooper dies into S10_Spin_Wreck, which always spins away (chance 1, 1 s). The death spawns the clone's
+// Spin_Away_On_Death_Explosion at the death position + (0, 0, Ranged_Target_Z_Adjust); the wreck's first service builds the
+// 4-point path from V = 30 x the trooper's last-tick displacement (one synced theta); each later service moves it to the
+// spline sample at dist += speed / 30, rolls +20 degrees and keeps its land obstacle with it; the service that reaches
+// speed x Spin_Away_On_Death_Time spawns Death_Explosions at the last position + the lift and removes the clone through #221
+// (its Death_Explosions_End). `save_load`: the battle state is written and read back mid-spin.
+std::string spin_patch(std::string t) {
+    const std::string at = "<GroundInfantry Name=\"S10_Trooper\">";
+    if (const size_t p = t.find(at); p != std::string::npos) t.insert(p + at.size(), "<Death_Clone>Damage_Normal, S10_Spin_Wreck</Death_Clone>");
+    if (const size_t end = t.find("</S10>"); end != std::string::npos)
+        t.insert(end, " <GroundVehicle Name=\"S10_Spin_Wreck\"><LandBehavior>HIDE_WHEN_FOGGED</LandBehavior>"
+                      "<UnitCollisionClass>Vehicle</UnitCollisionClass><IsDeathCloneObstacle>Yes</IsDeathCloneObstacle>"
+                      "<Spin_Away_On_Death>Yes</Spin_Away_On_Death><Spin_Away_On_Death_Chance>1.0</Spin_Away_On_Death_Chance>"
+                      "<Spin_Away_On_Death_Time>1.0</Spin_Away_On_Death_Time><Spin_Away_On_Death_Explosion>S10_Spin_Start</Spin_Away_On_Death_Explosion>"
+                      "<Death_Explosions>S10_Spin_End</Death_Explosions><Death_Explosions_End>S10_Spin_Gone</Death_Explosions_End>"
+                      "<Ranged_Target_Z_Adjust>12</Ranged_Target_Z_Adjust><Max_Rate_Of_Turn>4</Max_Rate_Of_Turn>"
+                      "<Custom_Hard_XExtent>8</Custom_Hard_XExtent><Custom_Hard_YExtent>5</Custom_Hard_YExtent></GroundVehicle>\n"
+                      " <Particle Name=\"S10_Spin_Start\"><Particle_Lifetime_Frames>200</Particle_Lifetime_Frames></Particle>\n"
+                      " <Particle Name=\"S10_Spin_End\"><Particle_Lifetime_Frames>200</Particle_Lifetime_Frames></Particle>\n"
+                      " <Particle Name=\"S10_Spin_Gone\"><Particle_Lifetime_Frames>200</Particle_Lifetime_Frames></Particle>\n");
+    return t;
+}
+
+struct SpinRun {
+    objects::ObjectId clone = objects::kNoObjectId;
+    Vec3 death{}, v{};
+    uint32_t starts = 0, ends = 0, gones = 0;  // the three explosions, counted once each (start: right after the kill)
+    Vec3 start_at{}, end_at{};
+    std::vector<Vec3> pts;   // the wreck's control points after its first service
+    std::vector<Vec3> path;  // the clone's position after each tick from the kill on, while it exists
+    std::vector<float> roll; // its roll (radians) then
+    uint32_t services = 0;   // ticks from the kill to the clone's removal (the end service K)
+    bool obstacle_follows = true, obstacle_left = false, save_same = true, saved = false;
+};
+
+SpinRun run_spin_wreck(bool save_load) {
+    g_temp_prefix = save_load ? "alamo_sim_r3h_tests_357s" : "alamo_sim_r3h_tests_357";
+    g_types_patch = spin_patch;
+    auto d = make_data();
+    g_types_patch = nullptr;
+    const objects::TypeIndex trooper = d->types.resolve_name("S10_Trooper"), wreck = d->types.resolve_name("S10_Spin_Wreck");
+    const objects::TypeIndex t_start = d->types.resolve_name("S10_Spin_Start"), t_end = d->types.resolve_name("S10_Spin_End"),
+                             t_gone = d->types.resolve_name("S10_Spin_Gone");
+    CHECK(wreck != objects::kNone && t_start != objects::kNone && t_end != objects::kNone && t_gone != objects::kNone);
+    SpinRun out;
+    objects::ObjectId victim = objects::kNoObjectId;
+    std::vector<Vec3> hist;  // the victim's position after each tick since its move order
+    uint32_t kill_frame = 0;
+    const auto count = [](const objects::ObjectStore& st, objects::TypeIndex t, Vec3* at) {
+        uint32_t n = 0;
+        for (const objects::ObjectHandle h : st.all_objects())
+            if (st.alive(h) && st.type(h) == t) {
+                ++n;
+                if (at) *at = st.position(h);
+            }
+        return n;
+    };
+    land_battle(*d, nullptr, 1200, [&](TacticalBattle& b, TacticalMode& tm, SimHost& host) {
+        objects::ObjectStore& st = tm.primary();
+        if (victim == objects::kNoObjectId) {
+            if (b.frame() < 30) return true;
+            for (const objects::ObjectHandle h : st.owned_by(1))
+                if (victim == objects::kNoObjectId && st.alive(h) && st.type(h) == trooper && b.movement().has_unit(st.id(h))) victim = st.id(h);
+            if (victim == objects::kNoObjectId) return false;
+            const Vec3 p = st.position(st.find(victim));
+            const objects::ObjectId ids[1] = {victim};
+            CHECK(b.order_move(tm, 1, ids, p.x + 400.0f, p.y + 150.0f, host.random().synced()) == commands::RejectReason::None);
+            return true;
+        }
+        if (out.clone == objects::kNoObjectId) {
+            const objects::ObjectHandle vh = st.find(victim);
+            if (!st.alive(vh)) return false;
+            hist.push_back(st.position(vh));
+            const size_t n = hist.size();
+            if (n < 40 || !(hist[n - 2].x != hist[n - 3].x || hist[n - 2].y != hist[n - 3].y)) return n < 400;
+            // between ticks: the tick just run started at hist[n - 2] (V = 30 x the displacement of the tick before it)
+            out.v = Vec3{30.0f * (hist[n - 2].x - hist[n - 3].x), 30.0f * (hist[n - 2].y - hist[n - 3].y), 30.0f * (hist[n - 2].z - hist[n - 3].z)};
+            out.death = hist[n - 1];
+            kill_frame = b.frame();
+            CHECK(b.script_damage(tm, victim, 1.0e6f, false));
+            for (const objects::ObjectHandle h : st.all_objects())
+                if (st.alive(h) && st.type(h) == wreck) out.clone = st.id(h);
+            out.starts = count(st, t_start, &out.start_at);
+            return out.clone != objects::kNoObjectId;
+        }
+        const objects::ObjectHandle ch = st.find(out.clone);
+        if (!st.alive(ch)) {
+            out.services = b.frame() - kill_frame;
+            out.ends = count(st, t_end, &out.end_at);
+            out.gones = count(st, t_gone, nullptr);
+            out.obstacle_left = !b.movement().has_unit(out.clone);
+            return false;
+        }
+        if (out.pts.empty()) {
+            float dist = 0.0f;
+            CHECK(TacticalBattleTestAccess::spin_wreck(b, out.clone, out.pts, dist));
+        }
+        const Vec3 p = st.position(ch);
+        out.path.push_back(p);
+        float r = 0.0f, pitch = 0.0f;
+        CHECK(b.unit_attitude(out.clone, r, pitch));
+        out.roll.push_back(r);
+        const tactical::movement::UnitView mv = b.movement().view(out.clone);
+        out.obstacle_follows = out.obstacle_follows && b.movement().has_unit(out.clone) && mv.pos.x == p.x && mv.pos.y == p.y;
+        if (save_load && out.path.size() == 5) {  // mid-spin: the battle state written and read back in place
+            StateHasher h0;
+            b.hash(h0);
+            ByteWriter w;
+            b.write_part(TacticalBattle::SavePart::State, w);
+            ByteReader rd(w.bytes());
+            CHECK(b.read_part(TacticalBattle::SavePart::State, rd));
+            StateHasher h1;
+            b.hash(h1);
+            out.save_same = h0.digest() == h1.digest();
+            out.saved = true;
+        }
+        return b.frame() < kill_frame + 200;
+    });
+    std::printf("  #357 spin wreck%s: V (%.2f, %.2f, %.2f), %zu moves, end service %u, start / end / gone explosions %u / %u / %u\n",
+                save_load ? " (save / load mid-spin)" : "", static_cast<double>(out.v.x), static_cast<double>(out.v.y), static_cast<double>(out.v.z),
+                out.path.size(), out.services, out.starts, out.ends, out.gones);
+    return out;
+}
+
+void test_spin_wreck() {
+    const SpinRun a = run_spin_wreck(false);
+    CHECK(a.clone != objects::kNoObjectId && a.pts.size() == 4);
+    if (a.pts.size() != 4) return;
+    // the death: one Spin_Away_On_Death_Explosion at the death position + (0, 0, 12)
+    CHECK(a.starts == 1 && a.start_at.x == a.death.x && a.start_at.y == a.death.y && std::fabs(a.start_at.z - (a.death.z + 12.0f)) < 1e-4f);
+    // the path (0x58c7a0): P0 the death position, P3 = P0 + T V, P1 their midpoint, P2 at 0.3 |P3 - P0| from P3, not below it
+    const float T = 1.0f;
+    const Vec3 P0 = a.death, E{P0.x + T * a.v.x, P0.y + T * a.v.y, P0.z + T * a.v.z};
+    CHECK(a.pts[0].x == P0.x && a.pts[0].y == P0.y && a.pts[0].z == P0.z);
+    CHECK(a.pts[3].x == E.x && a.pts[3].y == E.y && a.pts[3].z == E.z);
+    CHECK(a.pts[1].x == (P0.x + E.x) * 0.5f && a.pts[1].y == (P0.y + E.y) * 0.5f && a.pts[1].z == (P0.z + E.z) * 0.5f);
+    const float L = std::sqrt((E.x - P0.x) * (E.x - P0.x) + (E.y - P0.y) * (E.y - P0.y) + (E.z - P0.z) * (E.z - P0.z));
+    const Vec3 q{a.pts[2].x - E.x, a.pts[2].y - E.y, a.pts[2].z - E.z};
+    CHECK(L > 1.0f && std::fabs(std::sqrt(q.x * q.x + q.y * q.y + q.z * q.z) - 0.3f * L) < 1e-3f * L && q.z >= 0.0f);
+    // the services: dist += speed / 30 (float), the end at the first dist >= speed x T, each move to sample(dist)
+    tactical::combat::RocketSpline sp;
+    for (const Vec3& p : a.pts) sp.append(tactical::Vec3{p.x, p.y, p.z});
+    sp.build(20);
+    const float speed = std::sqrt((a.v.x * a.v.x + a.v.y * a.v.y) + a.v.z * a.v.z), step = speed / 30.0f, limit = speed * T;
+    std::vector<Vec3> expect;
+    float dist = 0.0f;
+    for (;;) {
+        dist = step + dist;
+        tactical::Vec3 s;
+        if (dist >= limit || !sp.sample(dist, s)) break;
+        expect.push_back(Vec3{s.x, s.y, s.z});
+    }
+    std::printf("  #357 expected: %zu moves, end service %zu (speed %.3f, L %.3f)\n", expect.size(), expect.size() + 1, static_cast<double>(speed),
+                static_cast<double>(L));
+    CHECK(expect.size() >= 25 && a.services == expect.size() + 1 && a.path.size() == expect.size());
+    bool path_ok = a.path.size() == expect.size(), roll_ok = path_ok;
+    for (size_t k = 0; path_ok && k < expect.size(); ++k) {
+        path_ok = a.path[k].x == expect[k].x && a.path[k].y == expect[k].y && a.path[k].z == expect[k].z;
+        roll_ok = roll_ok && std::fabs(a.roll[k] - 20.0f * static_cast<float>(k + 1) * 0.017453292f) < 1e-4f;  // +20 degrees a service
+    }
+    CHECK(path_ok && roll_ok && a.obstacle_follows && a.obstacle_left);
+    // the end: Death_Explosions at the last position + (0, 0, 12), then the #221 removal's Death_Explosions_End
+    const Vec3 last = expect.empty() ? P0 : expect.back();
+    CHECK(a.ends == 1 && a.end_at.x == last.x && a.end_at.y == last.y && std::fabs(a.end_at.z - (last.z + 12.0f)) < 1e-4f && a.gones == 1);
+    // save / load mid-spin: the same digest, then the same path to the same end
+    const SpinRun b = run_spin_wreck(true);
+    CHECK(b.saved && b.save_same && b.services == a.services && b.path.size() == a.path.size() && b.ends == 1 && b.gones == 1);
+    bool same = b.path.size() == a.path.size();
+    for (size_t k = 0; same && k < a.path.size(); ++k) same = b.path[k].x == a.path[k].x && b.path[k].y == a.path[k].y && b.path[k].z == a.path[k].z;
+    CHECK(same);
+}
+
 int main() {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
     std::printf("r3h t01: Force_Sight clips on the battle's animation world\n");
@@ -567,6 +741,7 @@ int main() {
     test_clone_copies_slot();       // #359
     test_corpse_path_no_model();    // #359
     test_death_explosion_pick();    // #358
+    test_spin_wreck();              // #357
     if (g_fail) {
         std::printf("alamo_sim_r3h_tests: %d failure(s)\n", g_fail);
         return 1;

@@ -423,9 +423,10 @@ inline void test_landing_drop(bool timed, uint32_t destroy_at = 0) {
             // (land formation records, the attack blocks' last-observed point); version 19 (the attack blocks'
             // plan retry frame); version 20 (BOMBARD_DELAY, map hints, marker names, pad levels); aitac t05:
             // version 21 (space reinforcement arrivals); version 22 (INDIGENOUS_UNIT list and spawner homes); #222:
-            // version 23 (HgOrderCost::ai); #84: version 24 (the land retreat list): 22, 23 and 25 are refused.
+            // version 23 (HgOrderCost::ai); #84: version 24 (the land retreat list); #357: version 25 (spin-away wrecks, the
+            // units' motion snapshots): 23, 24 and 26 are refused.
             std::vector<uint8_t> stale(w.bytes().begin(), w.bytes().end());
-            for (const uint32_t v : {22u, 23u, 25u}) {
+            for (const uint32_t v : {23u, 24u, 26u}) {
                 for (size_t k = 0; k < 4; ++k) stale[k] = static_cast<uint8_t>(v >> (8 * k));
                 ByteReader rs(stale);
                 CHECK(!b->read_part(TacticalBattle::SavePart::State, rs));

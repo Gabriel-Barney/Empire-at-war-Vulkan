@@ -673,7 +673,7 @@ void SimAnimation::sync(const GameMode& mode, SimRng& rng, uint64_t frame) {
     for (ObjectId id : w.ids())
         if (!store.exists(store.find(id))) scratch_remove_.push_back(id);
     for (ObjectId id : scratch_remove_) {
-        if (beh.is_corpse(id)) {
+        if (beh.is_corpse(id) && !beh.held_spin(id)) {  // #357: a held spin-away goes with its wreck
             beh.detach(id);
             continue;
         }
@@ -684,7 +684,10 @@ void SimAnimation::sync(const GameMode& mode, SimRng& rng, uint64_t frame) {
     scratch_remove_.clear();  // row-less corpses (death clones without a model) whose object left too
     for (const anim::Corpse& c : beh.corpses())
         if (!c.detached && !store.exists(store.find(c.id))) scratch_remove_.push_back(c.id);
-    for (ObjectId id : scratch_remove_) beh.detach(id);
+    for (ObjectId id : scratch_remove_) {
+        if (beh.held_spin(id)) beh.remove(id);
+        else beh.detach(id);
+    }
     // Creations in ascending id (store order is not guaranteed to be id order after flushes). Ids come from the
     // session's monotonic IdCounter, so only ids above the last sync's maximum can be new: older objects either
     // have a row already or never get one (type without an animated model) - same result as rescanning all.
@@ -732,6 +735,8 @@ void SimAnimation::sync(const GameMode& mode, SimRng& rng, uint64_t frame) {
         if (!store.alive(store.find(pc.id)) || beh.is_corpse(pc.id)) continue;
         ++stats_.clone_deaths;
         start_death(mw, mode, pc.id, rng, frame, pc.kind, objects::kNone, pc.planned ? &pc.plan : nullptr);
+        // #357: a planned spin-away is the battle's wreck (TacticalBattle::service_spin_wrecks), which removes the object
+        if (pc.planned && pc.plan.spin) beh.hold_spin(pc.id);
     }
     mw.pending_clones.clear();
     stats_.rows = static_cast<uint32_t>(w.size());
