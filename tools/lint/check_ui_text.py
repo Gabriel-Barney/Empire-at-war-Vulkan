@@ -9,11 +9,13 @@ ending in sentence punctuation. Ids (TEXT_*, IDC_*, snake_case, camelCase), path
 English. Comments are not code and are never flagged. Exit 1 on any violation or malformed marker; 0 otherwise.
 
 Allowed without a marker:
-    a literal on a line that calls text_or( / text_or_port( / txt( / caption_text(, or that holds a "TEXT_*" key
-                                                                                - the English stand-in of a retail key
-    a literal on a line that calls port_text(                                   - the call is the port's mark
-    a literal on a line that logs (printf / fprintf / log:: / LOG_ / notes_.push_back) - diagnostics, not UI text
-    ("on a line" means anywhere in the literal's statement, back to the previous ';' / '{' / '}', at most 8 lines)
+    a literal inside the arguments of text_or( / text_or_port( / txt( / caption_text( - a retail key's English stand-in
+    a literal inside the arguments of port_text(                                - the call is the port's mark
+    a literal inside the arguments of a log call (printf / fprintf / log:: / LOG_ / notes_.push_back) - diagnostics
+    a literal in a statement that holds a "TEXT_*" key literal                  - the English stand-in of that key
+    ("inside the arguments" means between the call's parentheses at any depth, so in save_message(port_text(U"..."),
+    "a detail") the detail is flagged (#308); the call may open on an earlier line of the literal's statement, back to
+    the previous ';' / '{' / '}', at most 8 lines)
 Allowed uses with a marker in a comment (the reason is required):
     [port-text: reason]        on the line of the literal, or in the comment lines directly above the statement
     [port-text-begin: reason]  ... [port-text-end]   every literal between the two lines
@@ -46,9 +48,11 @@ NOT_TEXT = [
     re.compile(r'^[a-z]+[A-Z][A-Za-z0-9]*$'),               # camelCase
     re.compile(r'[\\/]|\.(?:xml|dat|tga|dds|alo|ala|meg|txt|lua|wav|mp3|bik)\b', re.I),  # paths, file names
 ]
-ALLOWED_CALL = re.compile(r'\b(?:text_or|text_or_port|txt|caption_text|port_text)\s*\(|\b(?:f?printf|log::\w+|LOG_\w+)\s*\('
-                          r'|\bnotes?_\.push_back\s*\('  # diagnostics notes
-                          r'|"TEXT_[A-Z0-9_]+"')  # a key literal on the line: the English is its stand-in
+# The code just before a '(' that opens an allowed call: a lookup, port_text, or a log line (#308: per call, not per
+# statement).
+ALLOWED_CALL = re.compile(r'(?:\b(?:text_or|text_or_port|txt|caption_text|port_text)|\b(?:f?printf|log::\w+|LOG_\w+)'
+                          r'|\bnotes?_\.push_back)\s*$')  # diagnostics notes
+KEY_LITERAL = re.compile(r'"TEXT_[A-Z0-9_]+"')  # a key literal in the statement: the English is its stand-in
 
 
 def is_english(content):
@@ -58,17 +62,56 @@ def is_english(content):
     return any(p.search(s) for p in ENGLISH)
 
 
-def statement_code(line, code_lines, src):
-    """The code of the statement holding `line`: the line and the code lines above it back to the end of the previous
-    statement (a line ending in ';', '{' or '}'), at most 8, so a printf( or text_or( call whose literal argument sits on
-    a continuation line still counts."""
+def statement_lines(line, code_lines, src):
+    """The lines of the statement holding `line`, in order: the line and the code lines above it back to the end of the
+    previous statement (a line ending in ';', '{' or '}'), at most 8, so a printf( or text_or( call whose literal
+    argument sits on a continuation line still counts."""
     lines = [line]
     for ln in sorted((l for l in code_lines if l < line), reverse=True):
         prev = src[ln - 1].split('//')[0].rstrip() if ln - 1 < len(src) else ''
         if prev.endswith((';', '{', '}')) or len(lines) >= 8:
             break
         lines.append(ln)
-    return '\n'.join(src[ln - 1] for ln in sorted(lines) if ln - 1 < len(src))
+    return [ln for ln in sorted(lines) if ln - 1 < len(src)]
+
+
+def in_allowed_call(line, content, code_lines, src):
+    """Whether the literal `content` on `line` is allowed by its statement: it sits inside the parentheses of an allowed
+    call (ALLOWED_CALL), or the statement holds a "TEXT_*" key literal. Walks the statement's code up to `line` with a
+    stack of the open parentheses, each marked by whether it opened an allowed call."""
+    lines = statement_lines(line, code_lines, src)
+    if KEY_LITERAL.search('\n'.join(src[ln - 1] for ln in lines)):
+        return True
+    stack = []
+    for ln in lines:
+        text = src[ln - 1]
+        i = 0
+        while i < len(text):
+            c = text[i]
+            if text.startswith('//', i):
+                break
+            if c == "'" and i > 0 and text[i - 1].isdigit():  # a digit separator (1'000), not a character literal
+                i += 1
+                continue
+            if c in '"\'':
+                j, buf = i + 1, []
+                while j < len(text) and text[j] != c:
+                    if text[j] == '\\' and j + 1 < len(text):
+                        buf.append(text[j:j + 2])
+                        j += 2
+                        continue
+                    buf.append(text[j])
+                    j += 1
+                if c == '"' and ln == line and ''.join(buf) == content and any(stack):
+                    return True
+                i = j + 1
+                continue
+            if c == '(':
+                stack.append(bool(ALLOWED_CALL.search(text[:i])))
+            elif c == ')' and stack:
+                stack.pop()
+            i += 1
+    return False
 
 
 def check_file(path, rel, out):
@@ -83,7 +126,7 @@ def check_file(path, rel, out):
     for line, content in literals:
         if not is_english(content):
             continue
-        if line in allowed or ALLOWED_CALL.search(statement_code(line, code_lines, src)):
+        if line in allowed or in_allowed_call(line, content, code_lines, src):
             ok += 1
             continue
         shown = content if len(content) <= 60 else content[:57] + '...'
@@ -136,9 +179,9 @@ def selftest(here):
     files, out, bad, ok = scan(fixture, ['ui/src/menu.cpp'])
     got = sorted(o.split(':')[0] + ':' + o.split(':')[1] for o in out)
     want = sorted(['VIOLATION ui/src/menu.cpp:4', 'VIOLATION ui/src/menu.cpp:5', 'MARKER ui/src/menu.cpp:13',
-                   'VIOLATION ui/src/menu.cpp:16'])
+                   'VIOLATION ui/src/menu.cpp:16', 'VIOLATION ui/src/menu.cpp:23'])
     expect(got == want, 'fixture findings:\n  got  ' + '\n       '.join(got) + '\n  want ' + '\n       '.join(want))
-    expect(ok == 7, f'fixture: {ok} literals allowed, want 7')
+    expect(ok == 11, f'fixture: {ok} literals allowed, want 11')
     _, out2, bad2, _ = scan(fixture, ['ui/src/missing.cpp'])
     expect(bad2 == 1 and out2 and out2[0].startswith('SCOPE'), 'a missing scope file is a finding')
     for f in fails:

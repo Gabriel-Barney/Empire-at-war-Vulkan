@@ -63,9 +63,15 @@ bool decode_description(std::string_view text, SaveMeta& out);
 // "<name>  -  <title or campaign> (<faction>), week <w>, <local date and time>"; a skirmish shows its map and the battle
 // time ("12:05") instead of a week.
 std::string save_label(const SaveMeta& m);
+// #308: the player-visible words of a save row (UTF-8). The app passes its port_text of the English defaults (no retail
+// key), so they follow the text path (pseudo-localised under ALAMO_PSEUDO_LOC).
+struct SaveRowWords {
+    std::string unnamed = "(unnamed)";  // a save without a name
+    std::string week = "Week ";         // before the week number
+};
 // [port: Gabriel] a save's row in the tree: "<name>  -  Week <w>, <local date and time>" (a skirmish: its battle time
 // "12:05" instead of the week).
-std::string save_row_label(const SaveMeta& m);
+std::string save_row_label(const SaveMeta& m, const SaveRowWords& words = {});
 std::string new_playthrough_id(int64_t now);          // a new SaveMeta::playthrough ("<now in hex>-<8 hex digits>")
 std::string format_local_time(int64_t unix_seconds);  // "2026-10-29 14:03" ("" for 0)
 int64_t unix_now();                                   // wall clock, seconds since 1970-01-01 UTC (SaveMeta::saved_at)

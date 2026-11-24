@@ -60,6 +60,7 @@ class FontCache;
 struct EncyclopediaRow {
     std::u32string left, right;  // label / value (encyclopedia_text / encyclopedia_right_text)
     std::u32string center;       // a centred row instead (encyclopedia_center_text) when not empty
+    std::string id;              // #308: "" or the row's id, for the app's filters (never shown)
 };
 // t40 (HUD_GAPS §2.2, captures C3_*tooltip*): a unit shows name, class + ability icons, description, then the Strong / Weak
 // icon rows; `rows` are for what is not a unit (a planet's income) [port].

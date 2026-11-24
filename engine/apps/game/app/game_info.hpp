@@ -29,7 +29,8 @@ std::u32string type_label(const GameData& d, const ui::TextDatabase& text, objec
 // population = Population_Value, unit_class = Encyclopedia_Unit_Class, abilities = the Unit_Abilities_Data button art,
 // strong / weak = the HUD icons of the Encyclopedia_Good_Against / _Vulnerable_To type lists, description = the
 // Encyclopedia_Text ids (MasterTextFile) joined (`skirmish_battle`: game::encyclopedia_text_tag picks the MP text). A
-// planet has one row instead, its income [port].
+// planet has one row instead, its income [port] (label TEXT_PLANET_INFO_INCOME, row id kPlanetIncomeRow).
+inline constexpr std::string_view kPlanetIncomeRow = "planet_income";  // #308: the CreditIncome filter removes it by id
 ui::EncyclopediaEntry encyclopedia_entry(const GameData& d, const ui::TextDatabase& text, std::span<const ui::HudTypeInfo> hud_types,
                                          objects::TypeIndex t, bool skirmish_battle = false);
 

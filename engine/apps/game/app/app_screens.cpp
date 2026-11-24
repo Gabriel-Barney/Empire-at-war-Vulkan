@@ -512,6 +512,7 @@ constexpr std::u32string_view kCannotSave = U"The game cannot be saved now";  //
 
 void App::save_game_as(const std::string& typed) {
     if (typed == kAutoSaveName) return;  // retail rejects the reserved name (the box is cleared, nothing saved)
+    // [port-text: the detail lines go through port_text inside save_message]
     if (!session_ || demo_session()) return save_message(port_text(kCannotSave), "no game is running");
     if (saves_dir_.empty()) return save_message(txt("TEXT_SAVE_FAILED", kSaveFailed), "no saved games folder");
     std::string path, err;
@@ -557,6 +558,7 @@ bool App::load_save_file(const std::string& path, const commands::CommandRecordi
         return false;
     }
     if (!s) {
+        // [port-text: the detail lines go through port_text inside save_message]
         save_message(port_text(U"The saved game could not be loaded"), path.empty() ? std::string("no save name") : err);
         return false;
     }
@@ -1134,8 +1136,7 @@ void App::build_encyclopedia(ui::HudDrawList& dl, const ui::HudCanvas& canvas) {
         if (const galactic::GalacticSim* g = galaxy())
             if (const PlanetIndex pi = planet_index(*g, shown); pi != kInvalidPlanet &&
                 !g->can_see_planet_info(local_player(), pi, galactic::GalacticSim::PlanetInfo::CreditIncome))
-                // [port-text: matches game_info.cpp's income row label, not shown here]
-                std::erase_if(e.rows, [](const ui::EncyclopediaRow& r) { return r.left == U"Income"; });
+                std::erase_if(e.rows, [](const ui::EncyclopediaRow& r) { return r.id == kPlanetIncomeRow; });
     // HUD_GAPS §2.2: anchored at the hint bone of the HUD on screen (not the cursor).
     const ui::HudLayout& layout = screen() == Screen::Battle ? ui_.tactical_hud.layout() : ui_.galactic_hud.layout();
     if (ency_.build(dl, canvas, e, layout, ui_.faction_alt()).x > 0.0f) ++ency_shown_;

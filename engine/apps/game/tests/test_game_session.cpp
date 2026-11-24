@@ -2668,6 +2668,14 @@ void save_files_test() {
     CHECK(back.faction_icon == m.faction_icon && back.playthrough == m.playthrough && back.playthrough_started == 1789990000);
     CHECK(game::save_row_label(m).rfind("Week 3  -  Week 3, ", 0) == 0);
     CHECK(game::save_row_label(sk) == "s  -  2:05");
+    {  // #308: the row's words come from the caller (the app passes port_text, pseudo-localised under ALAMO_PSEUDO_LOC)
+        const game::SaveRowWords words{"[(unnamed!)]", "[Week!] "};
+        game::SaveMeta unnamed = m;
+        unnamed.name.clear();
+        CHECK(game::save_row_label(unnamed, words).rfind("[(unnamed!)]  -  [Week!] 3, ", 0) == 0);
+        CHECK(game::save_row_label(sk, words) == "s  -  2:05");
+        CHECK(game::save_row_label(unnamed).rfind("(unnamed)  -  Week 3, ", 0) == 0);  // the English defaults
+    }
 
     // Listing: newest first, then by name (case-insensitive); unreadable files listed; other extensions ignored.
     const fs::path dir = fs::temp_directory_path() / "alamo_game_save_files_test";

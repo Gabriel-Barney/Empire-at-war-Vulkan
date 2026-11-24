@@ -19,3 +19,8 @@ void log_more() {
     std::fprintf(stderr, "%s: %d\n",
                  "a continuation argument of the call", 3);  // allowed: the statement logs
 }
+void narrow() {
+    save_message(port_text(U"Could not save"), "no save name");  // VIOLATION: the detail is beside port_text, not in it
+    std::printf("%s\n", label(U"Ships lost"));                    // allowed: inside the log call's arguments
+    show(txt("TEXT_X", U"Begin"), U"Unit Cap");                   // allowed: a key literal in the statement
+}

@@ -162,11 +162,11 @@ std::string save_label(const SaveMeta& m) {
     return s;
 }
 
-std::string save_row_label(const SaveMeta& m) {
-    std::string s = m.name.empty() ? std::string("(unnamed)") : m.name;
+std::string save_row_label(const SaveMeta& m, const SaveRowWords& words) {
+    std::string s = m.name.empty() ? words.unnamed : m.name;
     std::string when;
     if (m.week > 0) {
-        when = "Week " + std::to_string(m.week);
+        when = words.week + std::to_string(m.week);
     } else if (m.game_seconds > 0 || m.kind == "skirmish") {
         char buf[32];
         std::snprintf(buf, sizeof buf, "%llu:%02llu", static_cast<unsigned long long>(m.game_seconds / 60u),

@@ -284,6 +284,8 @@ bool App::init() {
     std::printf("saves: %s\n", saves_dir_.empty() ? "(no folder: %LOCALAPPDATA% unset)" : saves_dir_.c_str());
     mp.saves = [this] {
         std::vector<ui::SaveGameInfo> v;
+        // #308: the rows' words through the text path (no retail key; pseudo-localised under ALAMO_PSEUDO_LOC)
+        const SaveRowWords row_words{ui::utf32_to_utf8(port_text(U"(unnamed)")), ui::utf32_to_utf8(port_text(U"Week "))};
         for (const SaveEntry& e : list_saves(saves_dir_)) {
             ui::SaveGameInfo i;
             i.name = e.name;
@@ -304,7 +306,7 @@ bool App::init() {
             for (const galactic::FactionRules& f : data_.rules.factions)
                 if (ascii_iequals(f.name, m.faction)) fr = &f;
             i.icon = !m.faction_icon.empty() ? m.faction_icon : fr ? fr->icon : std::string();
-            i.label = ui::utf8_to_utf32(save_row_label(m));
+            i.label = ui::utf8_to_utf32(save_row_label(m, row_words));
             const std::string what = m.title.empty() ? m.campaign : m.title;
             // [port-text-begin: the port's save-list group names (no retail key), shown through port_text]
             i.groups.push_back({m.kind + ":" + m.campaign, skirmish ? port_text(U"Skirmish: ") + ui::utf8_to_utf32(what) : ui::utf8_to_utf32(what)});
