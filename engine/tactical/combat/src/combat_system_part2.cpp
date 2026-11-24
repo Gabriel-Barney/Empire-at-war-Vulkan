@@ -1183,7 +1183,10 @@ void CombatSystem::kill(Unit& v, ObjectId killer, uint8_t kind, uint32_t frame, 
     }
     // DeathBehavior Initialise (vf9 0x58cdb0, TACTICAL_GAPS §1.9 [H]; attached after Die [M: the draw comes after the
     // step 7-9 draws]): with Spin_Away_On_Death one synced Get_Float(0, 1); spin away when draw <= the chance.
-    if (vd.spin_away_on_death) {
+    // #356: only for a death without a clone. The clone spawn 0x29f270 attaches DEATH to the clone [H], and in practice
+    // the spinning wreck is the clone [M] (§1.9), so a death with a clone draws once, in the clone's DeathBehavior
+    // (the host's plan_clone_death / corpse path), not here as well.
+    if (vd.spin_away_on_death && deaths_[ei].death_clone < 0) {
         SimRng* rng = listener_rng();
         const float u = rng ? rng->range_float(0.0f, 1.0f) : 1.0f;  // [port] no RNG bound: no draw, no spin-away
         deaths_[ei].spin_away = rng != nullptr && u <= vd.spin_away_chance;

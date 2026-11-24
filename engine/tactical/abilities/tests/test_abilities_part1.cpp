@@ -1621,7 +1621,7 @@ namespace bo3split {
 
 void test_oi_death_draws() {
     // §1.9: Die step 7 - Destruction_Survivors count Get_Int(min, max), two inline draws per survivor (u >= 1 - total,
-    // v x total picks the entry); then the DeathBehavior spin-away Get_Float(0, 1) <= chance. Respawn first.
+    // v x total picks the entry); the DeathBehavior spin-away draw is the death clone's (#356). Respawn first.
     OiWorld w;
     UnitDesc u = oi_unit("Bike", 100.0f);
     u.object_type = 11;
@@ -1642,13 +1642,14 @@ void test_oi_death_draws() {
         const float v = pred.inline_unit_float() * 1.0f;
         if (a >= 0.0f) types.push_back(v <= 0.5f ? 21 : 22);
     }
-    const bool spin = pred.range_float(0.0f, 1.0f) <= 0.5f;
+    // #356: the unit dies with a death clone (its own type 11), whose DeathBehavior draws the spin-away (the host's
+    // plan): Die makes no spin draw.
     w.sys->kill_unit(1, kNoObject, kKindNormal, w.frame);
     CHECK(w.rng.state() == pred.state());
     const auto ev = w.sys->survivor_events();
     CHECK(ev.size() == types.size() + 1 && !ev.empty() && ev[0].respawn && ev[0].type == 11 && ev[0].due_frame == w.frame + 60);
     for (size_t i = 0; i < types.size() && i + 1 < ev.size(); ++i) CHECK(ev[i + 1].type == types[i] && !ev[i + 1].respawn);
-    CHECK(w.sys->deaths().size() == 1 && w.sys->deaths()[0].spin_away == spin);
+    CHECK(w.sys->deaths().size() == 1 && w.sys->deaths()[0].death_clone == 11 && !w.sys->deaths()[0].spin_away);
     // §1.8 burning: interval 30, first due = ignition + Get_Int(0, 29)
     OiWorld b;
     UnitDesc c = oi_unit("Hut", 100.0f);

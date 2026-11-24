@@ -60,6 +60,7 @@ class SimAnimation;
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -135,8 +136,10 @@ public:
     bool service_idle(const GameMode& mode, ObjectId id, bool gated, anim::IdleTarget target, SimRng& rng, uint64_t frame,
                       const anim::PresenceIdleFn* presence = nullptr);
     // Death of a live store object (call before destroying it). RemoveNow: no corpse (the caller removes it).
-    // `damage_kind` = the killing hit's DamageType (death type by kind, anim_behaviors.hpp).
-    anim::DeathResult begin_death(const GameMode& mode, ObjectId id, SimRng& rng, uint64_t frame, uint8_t damage_kind = 1);
+    // `damage_kind` = the killing hit's DamageType (death type by kind, anim_behaviors.hpp). `spin`: the spin-away
+    // decision already drawn (#356: combat's DeathEvent::spin_away; anim::DeathParams::spin_decision), unset = drawn here.
+    anim::DeathResult begin_death(const GameMode& mode, ObjectId id, SimRng& rng, uint64_t frame, uint8_t damage_kind = 1,
+                                  std::optional<bool> spin = std::nullopt);
     // A Death_Clone object was spawned: its death sequence runs after its model creation at the next sync.
     // `damage_kind` = the killing hit's kind (the death clip when the clone type sets no Specific_Death_Anim_*).
     // `plan`: the battle's plan_clone_death result - played as planned, no draws; null = drawn at the sync.
@@ -252,7 +255,7 @@ private:
     const ModeWorld* find_mode_world(const GameMode& mode) const;
     anim::DeathResult start_death(ModeWorld& mw, const GameMode& mode, ObjectId id, SimRng& rng, uint64_t frame, uint8_t damage_kind = 1,
                                   objects::TypeIndex type_override = objects::kNone, const anim::DeathPlan* plan = nullptr,
-                                  const float* persistence_override = nullptr);
+                                  const float* persistence_override = nullptr, std::optional<bool> spin = std::nullopt);
     struct TypeEntry {
         anim::TypeAnimParams params;
         const anim::AnimModel* model = nullptr;
