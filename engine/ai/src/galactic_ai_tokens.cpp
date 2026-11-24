@@ -762,12 +762,13 @@ uint64_t GalacticSimTokenResolver::cache_hits() const {
     return hits_;
 }
 
-// Planet evaluator neighbours (0x661da0) [H]: every other planet within GC+0x108 (3-D) or route-connected.
+// Planet evaluator neighbours (0x661da0) [H]: every other planet within GC+0x108 (3-D) or joined by a campaign trade route
+// (0x3f7b30: the planet's trade-route list, docs/re/PLANET_TRADE_ROUTE_LIST.md).
 void GalacticSimTokenResolver::build_neighbours() {
     const auto planets = sim_->planets();
+    const GalaxyMap& m = sim_->map();
     const size_t n = planets.size();
     neighbours_.assign(n, {});
-    const gal::PlanetGraph& g = sim_->graph();
     for (size_t i = 0; i < n; ++i) {
         if (!planets[i].is_planet) continue;
         for (size_t j = 0; j < n; ++j) {
@@ -776,9 +777,9 @@ void GalacticSimTokenResolver::build_neighbours() {
             const double dy = static_cast<double>(planets[i].position.y) - planets[j].position.y;
             const double dz = static_cast<double>(planets[i].position.z) - planets[j].position.z;
             bool near = std::sqrt(dx * dx + dy * dy + dz * dz) <= fleet_distance(*sim_);
-            if (!near && g.included(static_cast<PlanetIndex>(i)))
-                for (uint32_t e = g.edge_begin(static_cast<PlanetIndex>(i)); e < g.edge_end(static_cast<PlanetIndex>(i)); ++e)
-                    near = near || g.neighbour(e) == j;
+            for (const uint32_t rt : planets[i].links)
+                near = near || (rt < m.routes.size() && ((m.routes.point_a[rt] == i && m.routes.point_b[rt] == j) ||
+                                                        (m.routes.point_b[rt] == i && m.routes.point_a[rt] == j)));
             if (near) neighbours_[i].push_back(static_cast<uint32_t>(j));
         }
     }
@@ -1167,13 +1168,6 @@ struct GalacticSimTokenResolver::Impl {
         const double dy = static_cast<double>(planets[a].position.y) - planets[b].position.y;
         const double dz = static_cast<double>(planets[a].position.z) - planets[b].position.z;
         return std::sqrt(dx * dx + dy * dy + dz * dz);
-    }
-    bool routed(size_t a, size_t b) const {
-        const gal::PlanetGraph& g = sim.graph();
-        if (!g.included(static_cast<PlanetIndex>(a))) return false;
-        for (uint32_t e = g.edge_begin(static_cast<PlanetIndex>(a)); e < g.edge_end(static_cast<PlanetIndex>(a)); ++e)
-            if (g.neighbour(e) == b) return true;
-        return false;
     }
     // ---- the AI connectivity graph (MCX4_GAL2_RE_ANSWERS Q1, 0x662b30 / 0x662c90 / 0x662140) [H] ----
     bool friendly_to(int32_t a, int32_t b) const {  // relation table entry 0: self or ally; an invalid id fails
@@ -1823,7 +1817,9 @@ struct GalacticSimTokenResolver::Impl {
                         v = 1.0;
                         return true;
                     }
-                    const double d = routed(p, n) ? 0.0 : distance(p, n);
+                    // d = 0 only for a trade-route neighbour (0x3f7b30, docs/re/PLANET_TRADE_ROUTE_LIST.md) [H]: a
+                    // free-hop neighbour keeps its distance
+                    const double d = trade_linked(p, n) ? 0.0 : distance(p, n);
                     best = std::max(best, 1.0 - d / fleet_distance(sim) * a);
                 }
                 v = best;

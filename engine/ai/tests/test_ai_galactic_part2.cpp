@@ -479,6 +479,41 @@ void test_fleet_distance_tokens() {
     std::printf("fleet distance tokens: IsConnectedTo follows MaximumFleetMovementDistance (P1 72.1, P2 120)\n");
 }
 
+// #436 (docs/re/PLANET_TRADE_ROUTE_LIST.md) [H]: IsConnectedTo's attenuation 1 - d / GC+0x108 * A takes d = 0 only for a
+// neighbour a campaign trade route joins (0x3f7b30 walks the planet's trade-route list); a free-hop neighbour (within
+// MaximumFleetMovementDistance, no route) keeps its distance. P2 (120, 0) is the only planet of its type
+// (SynPlanetRestricted); radius 150, attenuator 0.5: free hop 1 - 120 / 150 * 0.5 = 0.6, trade route 1.0.
+void test_isconnectedto_trade_route_attenuation() {
+    auto value = [](bool trade_route) {
+        ParityWorld pw(false, {"BuildBarracks"}, [trade_route](gal::GalacticSetup& s) {
+            s.map.routes = decltype(s.map.routes){};
+            s.map.max_fleet_move_distance = 150.0f;
+            if (trade_route) {
+                const uint32_t r = s.map.routes.add("R02");
+                s.map.routes.point_a[r] = 0;
+                s.map.routes.point_b[r] = 2;
+                s.map.routes.hs_speed_factor[r] = 4.0f;
+                s.map.routes.credit_gain_factor[r] = 0.0f;
+            }
+        });
+        pw.run(2);
+        EquationSet e;
+        e.add("T", "Variable_Target.IsConnectedTo {Parameter_Type = \"" + pw.rules.types[pw.planet_r].name +
+                       "\", Parameter_Attenuator = 0.5}");
+        e.link();
+        EvalContext c;
+        c.self = 0;
+        c.target = 0;
+        const EvalResult r = evaluate(e, e.find("T"), c, pw.world->resolver());
+        CHECK(r.ok);
+        return r.value;
+    };
+    const double free_hop = value(false), routed = value(true);
+    std::printf("IsConnectedTo attenuation: free-hop neighbour %.4f, trade-route neighbour %.4f\n", free_hop, routed);
+    CHECK(std::fabs(free_hop - 0.6) < 1e-9);  // d = 120: attenuated
+    CHECK(routed == 1.0);                     // d = 0
+}
+
 // mcx4 t02 (legacy docs/re/MCX4_GAL2_RE_ANSWERS.md Q1): the four connectivity tokens over the AI connectivity graph 0x662c90.
 // The synthetic chain P0..P7 (60 apart in x, 72.1 per hop, a trade route per hop). Edge = distance / GameConstants
 // TradeRouteMovementFactor on a trade route, else the distance when <= MaximumFleetMovementDistance; value = how often the
