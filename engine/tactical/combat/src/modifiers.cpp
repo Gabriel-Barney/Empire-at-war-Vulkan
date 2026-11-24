@@ -265,17 +265,6 @@ float reduce_most_extreme(std::span<const ModifierEntry> entries, ModList list) 
         [](float v, float best) { return std::fabs(v) > std::fabs(best); });  // largest |value|, first kept on ties
 }
 
-float ability_product(const UnitAbilityDesc* const abilities[2], const bool active[2], ModKind kind) {
-    const auto k = static_cast<uint32_t>(kind) - 1u;
-    float p = 1.0f;
-    for (int s = 0; s < 2; ++s) {
-        const UnitAbilityDesc* a = abilities[s];
-        if (!a || !active[s] || a->ability_type == kAbilityLuckyShot || k >= kModKindCount) continue;
-        p = p * a->mult[k];
-    }
-    return p;
-}
-
 float squad_multiplier(float own, std::span<const float> members) {
     // s78h t03 (TACTICAL_COMBAT §4.4 "Who the squad leader is"): the container's own product when != 1, else the
     // minimum over every member (list order, kept with <= from 1e18); no member leaves the container's 1.0.
@@ -284,17 +273,6 @@ float squad_multiplier(float own, std::span<const float> members) {
     for (const float m : members)
         if (m <= best) best = m;
     return own * best;
-}
-
-bool ability_flag(const UnitAbilityDesc* const abilities[2], const bool active[2], uint8_t flag) {
-    if (flag >= kModFlagCount) return true;
-    bool r = true;
-    for (int s = 0; s < 2; ++s) {
-        const UnitAbilityDesc* a = abilities[s];
-        if (!a || !active[s] || a->flag[flag] < 0) continue;
-        r = r && a->flag[flag] != 0;
-    }
-    return r;
 }
 
 }  // namespace alamo::tactical::combat

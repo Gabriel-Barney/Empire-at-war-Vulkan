@@ -292,6 +292,7 @@ void test_base_shield_upgrade_keys() {
     ShieldWorld u;
     ByteReader rd(saved);
     CHECK(u.w.sys->read(rd));
+    u.w.restore_ability_states();
     u.w.sys->remove_base_shield_upgrade(0, 77, b);
     CHECK(u.w.sys->base_shield_upgraded(0));
     u.w.sys->remove_base_shield_upgrade(0, 77, a);
@@ -409,6 +410,7 @@ void test_base_shield_dome() {
         b.w.make(CombatConfig{});
         ByteReader rd(saved);
         CHECK(b.w.sys->read(rd));
+        b.w.restore_ability_states();
         CHECK(combat_bytes(*b.w.sys) == saved);
         CHECK(b.w.sys->base_shield_active(1) && b.w.sys->base_shield_straddled(2) == 1);
     }
@@ -428,6 +430,7 @@ void test_base_shield_dome() {
         build(b);
         ByteReader rd(saved);
         CHECK(b.w.sys->read(rd));
+        b.w.restore_ability_states();
         b.w.frame = a.w.frame;
         b.w.rng = a.w.rng;
         a.w.sys->remove_base_power(0, 99);
@@ -655,6 +658,7 @@ void test_stun_visuals() {
         const std::vector<uint8_t> saved = combat_bytes(*d.w.sys);
         ByteReader rd(saved);
         CHECK(d.w.sys->read(rd));
+        d.w.restore_ability_states();
         StateHasher after;
         d.w.sys->hash_extended(after);
         CHECK(d.w.sys->stun_visual_events().empty() && before.digest() == after.digest() && combat_bytes(*d.w.sys) == saved);

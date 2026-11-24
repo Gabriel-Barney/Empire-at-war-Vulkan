@@ -519,7 +519,6 @@ void test_targeting() {
         od.unit_abilities = {defend, tractor};
         cd.units.push_back(u);
         od.name = u.name;
-        link_combat_abilities(od, cd, cd.units.back());
         ad.objects.push_back(od);
         tactical::combat::CombatSystem cs(cd, tactical::combat::CombatConfig{},
                                           std::vector<tactical::combat::PlayerInfo>{tactical::combat::PlayerInfo{}, tactical::combat::PlayerInfo{}});

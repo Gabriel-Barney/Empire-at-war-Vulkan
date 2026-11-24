@@ -36,6 +36,8 @@ add_executable(alamo_tactical_combat_tests tests/test_combat.cpp tests/test_comb
   tests/test_combat_r1b.cpp  # r1b t10
   tests/test_combat_cmb3.cpp)  # cmb3
 target_link_libraries(alamo_tactical_combat_tests PRIVATE alamo_tactical_combat alamo_data alamo_objects alamo_test_support)
+# #417: the Unit_Abilities_Data descriptor and the per-unit state builder are the abilities module's
+target_link_libraries(alamo_tactical_combat_tests PRIVATE alamo_tactical_abilities)
 # FoC data through the VFS (Data\XML lives in Config.meg in the shipped game).
 if(TARGET alamo_vfs)
   target_link_libraries(alamo_tactical_combat_tests PRIVATE alamo_vfs)

@@ -31,6 +31,7 @@
 #include "alamo/data/game_database.hpp"
 #include "alamo/data/xml.hpp"
 #include "alamo/objects/enums.hpp"
+#include "alamo/tactical/abilities/unit_ability_desc.hpp"  // #417: the Unit_Abilities_Data descriptor is the abilities module's
 #include "alamo/tactical/combat/combat_system.hpp"
 #include "alamo/tactical/combat/hero_clash.hpp"
 #include "alamo/tactical/combat/weather.hpp"
@@ -53,6 +54,9 @@ using namespace bo3split;
 using namespace alamo;
 using namespace alamo::tactical;
 using namespace alamo::tactical::combat;
+using ::alamo::tactical::abilities::ability_flag;  // #417
+using ::alamo::tactical::abilities::ability_product;
+using ::alamo::tactical::abilities::UnitAbilityDesc;
 
 namespace bo3split {
 
@@ -103,6 +107,7 @@ struct World {
         s.position = pos;
         s.facing = facing;
         s.health_fraction = health;
+        s.ability_state = ability_state(desc, {0, 0});
         CHECK(sys->add_unit(s, frame, rng));
         TreeMembership m;
         m.owner = owner;
@@ -112,6 +117,36 @@ struct World {
         sys->tick(frame, trees, rng, pf);
         for (const DeathEvent& d : sys->deaths()) trees.remove(static_cast<EntityHandle>(d.id));
         ++frame;
+    }
+    // #417: the test's Unit_Abilities_Data records (the abilities module's descriptor) and, per unit desc, the records in its
+    // first two slots (-1 = empty). The world hands combat each unit's state as the ability system does: at add (activity
+    // off), at every activity change (set_ability_active) and after a load (restore_ability_states).
+    std::vector<UnitAbilityDesc> abilities;
+    std::vector<std::array<int32_t, 2>> slots;  // by unit desc; past the end: no slots
+    void set_slots(uint32_t desc, std::array<int32_t, 2> s) {
+        if (slots.size() <= desc) slots.resize(desc + 1, std::array<int32_t, 2>{-1, -1});
+        slots[desc] = s;
+    }
+    UnitAbilityState ability_state(uint32_t desc, const std::array<uint8_t, 2>& active) const {
+        const UnitAbilityDesc* sl[2] = {nullptr, nullptr};
+        for (size_t k = 0; k < 2; ++k) {
+            const int32_t a = desc < slots.size() ? slots[desc][k] : -1;
+            if (a >= 0 && static_cast<size_t>(a) < abilities.size()) sl[k] = &abilities[static_cast<size_t>(a)];
+        }
+        return ::alamo::tactical::abilities::unit_ability_state(sl, active);
+    }
+    void set_ability_active(ObjectId id, int slot, bool on) {
+        std::array<uint8_t, 2> act{sys->ability_active(id, 0) ? uint8_t{1} : uint8_t{0}, sys->ability_active(id, 1) ? uint8_t{1} : uint8_t{0}};
+        act[static_cast<size_t>(slot)] = on ? uint8_t{1} : uint8_t{0};
+        sys->set_ability_state(id, ability_state(sys->desc_index(id), act));
+    }
+    void restore_ability_states() {
+        for (size_t i = 0; i < sys->unit_count(); ++i) {
+            const ObjectId id = sys->unit_id_at(i);
+            const std::array<uint8_t, 2> act{sys->ability_active(id, 0) ? uint8_t{1} : uint8_t{0},
+                                             sys->ability_active(id, 1) ? uint8_t{1} : uint8_t{0}};
+            sys->restore_ability_state(id, ability_state(sys->desc_index(id), act));
+        }
     }
 };
 uint32_t push_unit(CombatData& d, const UnitDesc& u);
@@ -318,7 +353,7 @@ struct DamageWorld {
         cause.mult[static_cast<size_t>(ModKind::CauseDamage) - 1] = 2.0f;
         take.ability_type = kAbilityDefend;
         take.mult[static_cast<size_t>(ModKind::TakeDamage) - 1] = 1.5f;
-        w.data.abilities = {cause, take};
+        w.abilities = {cause, take};
         HardpointDesc hd;
         hd.kind = HardpointKind::Engine;
         hd.health = 100.0f;
@@ -332,12 +367,12 @@ struct DamageWorld {
         shielded = push_unit(w.data, s);
         UnitDesc pl;
         pl.tactical_health = 1000.0f;
-        pl.abilities = {1, -1};
         plain = push_unit(w.data, pl);
+        w.set_slots(plain, {1, -1});
         UnitDesc a;
         a.tactical_health = 100.0f;
-        a.abilities = {0, -1};
         attacker = push_unit(w.data, a);
+        w.set_slots(attacker, {0, -1});
         UnitDesc h;
         h.tactical_health = 500.0f;
         h.hardpoints = {0, 0};
@@ -482,7 +517,7 @@ struct Battle {
         ptw.ability_type = kAbilityPowerToWeapons;
         ptw.mult[static_cast<size_t>(ModKind::FireRate) - 1] = 1.5f;
         ptw.mult[static_cast<size_t>(ModKind::WeaponDelay) - 1] = 0.75f;
-        d.abilities = {ptw};
+        w.abilities = {ptw};
 
         UnitDesc ship;
         ship.name = "Destroyer";
@@ -497,7 +532,6 @@ struct Battle {
         ship.priority_set = 0;
         ship.stickiness_threshold = 4.0f;
         ship.hardpoints = {0, 0, 1, 2, 3};
-        ship.abilities = {0, -1};
         ship.hit_particle_count = 3;
         ship.shield_hit_particle_count = 2;
         UnitDesc fighter;
@@ -515,6 +549,7 @@ struct Battle {
         fighter.weapon_pulse_delay = 0.15f;
         fighter.hit_particle_count = 2;
         d.units = {ship, fighter};
+        w.set_slots(0, {0, -1});  // the destroyer
 
         CombatConfig cfg;
         cfg.grain = 2;  // small ranges so 4/N threads really split the work
@@ -555,7 +590,7 @@ struct Battle {
             if (ModifierSet* m = w.sys->unit_modifiers(11))
                 m->insert(ModList::FireRate, 4, 0.3f, expiry_frame(f, 10.0f, 30));
         }
-        if (f == 300) w.sys->set_ability_active(1, 0, true);  // POWER_TO_WEAPONS on destroyer 1
+        if (f == 300) w.set_ability_active(1, 0, true);  // POWER_TO_WEAPONS on destroyer 1
         for (const Mover& m : movers) {
             if (!w.sys->alive(m.id)) continue;
             const float t = static_cast<float>(f < m.frames ? f : m.frames);
@@ -709,7 +744,7 @@ struct SourceWorld {
         w.data.hardpoints.push_back(hd);
         UnitAbilityDesc rocket;
         rocket.ability_type = 11;
-        w.data.abilities.push_back(rocket);
+        w.abilities.push_back(rocket);
         UnitDesc s;
         s.tactical_health = 100.0f;
         s.max_attack_distance = 300.0f;
@@ -717,12 +752,11 @@ struct SourceWorld {
         s.weapon_recharge = 0.2f;
         s.deploys = true;
         s.hardpoints = {0, 0};
-        s.abilities = {0, -1};
         s.fire_weapon_when_deployed = own.dep;
         s.fire_weapon_when_undeployed = own.undep;
         s.fire_weapon_when_rocket_attack = own.rocket;
         s.fire_weapon_when_normal_attack = own.normal;
-        push_unit(w.data, s);
+        w.set_slots(push_unit(w.data, s), {0, -1});
         UnitDesc t;
         t.tactical_health = 1.0e7f;
         t.radius = 5.0f;
@@ -769,13 +803,12 @@ struct GateWorld {
         w.data.hardpoints.push_back(hd);
         UnitAbilityDesc defend;
         defend.ability_type = 1;
-        w.data.abilities.push_back(defend);
+        w.abilities.push_back(defend);
         UnitDesc s;
         s.tactical_health = 100.0f;
         s.max_attack_distance = 300.0f;
         s.hardpoints = {0};
-        s.abilities = {0, -1};
-        push_unit(w.data, s);
+        w.set_slots(push_unit(w.data, s), {0, -1});
         UnitDesc air;
         air.tactical_health = 1.0e7f;
         air.radius = 5.0f;
@@ -791,7 +824,7 @@ struct GateWorld {
         w.add(1, 0, 0, Vec3{0, 0, 0});
         w.add(2, 1, 1, Vec3{100, 0, 0});
         w.add(3, 2, 1, Vec3{0, 120, 0});
-        if (defend_active) w.sys->set_ability_active(1, 0, true);
+        if (defend_active) w.set_ability_active(1, 0, true);
     }
     uint64_t run(int ticks) {
         for (int i = 0; i < ticks; ++i) w.tick();
@@ -910,7 +943,7 @@ struct OwnWorld {
             UnitAbilityDesc a;
             a.ability_type = 1;
             a.flag[1] = o.weapons_enabled_flag;  // Mod_Flag index 1 = WEAPONS_ENABLED
-            w.data.abilities.push_back(a);
+            w.abilities.push_back(a);
         }
         UnitDesc s;
         s.tactical_health = 100.0f;
@@ -922,8 +955,8 @@ struct OwnWorld {
         s.weapon_pulse_delay = o.pulse_delay;
         s.can_fighter_fire_when_idle = o.idle_fire;
         s.lobbing_superweapon = o.lobbing;
-        if (o.weapons_enabled_flag >= 0) s.abilities = {0, -1};
-        push_unit(w.data, s);
+        const uint32_t sd = push_unit(w.data, s);
+        if (o.weapons_enabled_flag >= 0) w.set_slots(sd, {0, -1});
         UnitDesc t;
         t.tactical_health = 1.0e7f;
         t.radius = 5.0f;

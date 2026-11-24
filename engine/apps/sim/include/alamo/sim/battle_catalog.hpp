@@ -9,7 +9,7 @@
 // from the typed object view.
 // Integration (S10-int, 2026-10-27): build_battle() adds the S9 ability data (Unit_Abilities_Data /
 // Abilities sub-object lists through the type loader's variant rules, parsed by parse_unit_ability /
-// parse_special_ability, linked with link_combat_abilities), the S9 unit / projectile / hardpoint fields
+// parse_special_ability; their combat state built by the ability system, #417), the S9 unit / projectile / hardpoint fields
 // (death clones, death projectiles, hit-particle list sizes, energy, ion stun, smoke, fire bones, hardpoint
 // death objects) and the visual object types the host spawns as PARTICLE objects (R4).
 // PROVISIONAL [port] until models are loaded by the sim: hardpoint attachment points sit at the unit centre

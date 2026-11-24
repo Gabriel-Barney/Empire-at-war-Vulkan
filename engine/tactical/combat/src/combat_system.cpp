@@ -226,7 +226,8 @@ bool CombatSystem::add_unit(const UnitSpawn& s, uint32_t frame, SimRng& rng) {
     cands_.emplace_back();
     cands_.back().reserve(cand_reserve_);
     Unit& nu = units_.back();
-    build_ability_state(nu);
+    nu.ability_state = s.ability_state;
+    nu.ability_active = s.ability_state.active;
     refresh_unit_cache(nu);
     nu.health = unit_max_hull(nu) * s.health_fraction;
     nu.shield = unit_max_shield(nu);
@@ -333,12 +334,19 @@ void CombatSystem::set_flag(ObjectId id, uint32_t flag, bool on) {
     }
 }
 
-void CombatSystem::set_ability_active(ObjectId id, int slot, bool on) {
+void CombatSystem::set_ability_state(ObjectId id, const UnitAbilityState& state) {
     Unit* u = unit(id);
-    if (!u || slot < 0 || slot > 1) return;
-    u->ability_active[static_cast<size_t>(slot)] = on ? 1 : 0;
-    build_ability_state(*u);
+    if (!u) return;
+    u->ability_state = state;
+    u->ability_active = state.active;
     refresh_unit_cache(*u);
+}
+
+void CombatSystem::restore_ability_state(ObjectId id, const UnitAbilityState& state) {
+    Unit* u = unit(id);
+    if (!u) return;
+    u->ability_state = state;
+    u->ability_state.active = u->ability_active;  // the saved activity is the unit's
 }
 
 bool CombatSystem::ability_active(ObjectId id, int slot) const {
@@ -632,12 +640,6 @@ void CombatSystem::set_out_of_combat(ObjectId id, bool out_of_combat) {
 // modifiers
 // ================================================================================================
 
-const UnitAbilityDesc* CombatSystem::ability(const Unit& u, int slot) const {
-    const int32_t a = desc_of(u).abilities[static_cast<size_t>(slot)];
-    if (a < 0 || static_cast<size_t>(a) >= data_->abilities.size()) return nullptr;
-    return &data_->abilities[static_cast<size_t>(a)];
-}
-
 void CombatSystem::refresh_unit_cache(Unit& u) {
     const ModifierSet* ps = (u.owner >= 0 && static_cast<size_t>(u.owner) < player_mods_.size())
                                 ? &player_mods_[static_cast<size_t>(u.owner)]
@@ -648,36 +650,6 @@ void CombatSystem::refresh_unit_cache(Unit& u) {
     u.mod_valid = 1;
     u.own_mult = u.ability_state.mult;
     u.mult = u.own_mult;
-}
-
-void CombatSystem::build_ability_state(Unit& u) const {
-    UnitAbilityState& st = u.ability_state;
-    st = UnitAbilityState{};
-    const UnitAbilityDesc* ab[2] = {ability(u, 0), ability(u, 1)};
-    const bool act[2] = {u.ability_active[0] != 0, u.ability_active[1] != 0};
-    for (int s = 0; s < 2; ++s) {
-        const auto i = static_cast<size_t>(s);
-        st.present[i] = ab[s] ? uint8_t{1} : uint8_t{0};
-        st.type[i] = ab[s] ? ab[s]->ability_type : uint8_t{0};
-        st.active[i] = u.ability_active[i];
-    }
-    for (uint32_t k = 0; k < kModKindCount; ++k) st.mult[k] = ability_product(ab, act, static_cast<ModKind>(k + 1));
-    for (uint32_t f = 0; f < kModFlagCount; ++f) st.flag[f] = ability_flag(ab, act, static_cast<uint8_t>(f)) ? uint8_t{1} : uint8_t{0};
-    for (int s = 1; s >= 0; --s)  // active ability armor override, slot 1 before slot 0 [M]
-        if (ab[s] && act[s] && ab[s]->armor_override != kNoTypeId) {
-            st.armor_override = ab[s]->armor_override;
-            break;
-        }
-    for (int s = 0; s < 2; ++s)
-        if (ab[s] && act[s] && ab[s]->range_override > 0.0f) {
-            st.range_override = ab[s]->range_override;
-            break;
-        }
-    for (int s = 0; s < 2; ++s)
-        if (ab[s] && act[s] && ab[s]->inaccuracy_override > 0.0f) {
-            st.inaccuracy_override = ab[s]->inaccuracy_override;
-            break;
-        }
 }
 
 void CombatSystem::ensure_cache(Unit& u) {

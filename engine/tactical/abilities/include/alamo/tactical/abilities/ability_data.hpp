@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "alamo/tactical/abilities/ability_types.hpp"
+#include "alamo/tactical/abilities/unit_ability_desc.hpp"
 #include "alamo/tactical/combat/combat_system.hpp"
 
 namespace alamo::data {
@@ -33,7 +34,7 @@ struct CubicCurve {
 // One <Unit_Ability> (Unit_Abilities_Data entry).
 struct UnitAbilityRecord {
     uint8_t type = 0;                    // Type (enum 2.1)
-    combat::UnitAbilityDesc combat;      // Mod_Multiplier / Mod_Flag / Armor_Type / range + inaccuracy overrides
+    UnitAbilityDesc combat;              // Mod_Multiplier / Mod_Flag / Armor_Type / range + inaccuracy overrides (#417)
     bool active_by_default = false;      // Active_By_Default (applied at spawn [port], open item 2)
     float effective_radius = 0.0f;       // Effective_Radius
     float recharge_seconds = 0.0f;       // Recharge_Seconds
@@ -371,9 +372,9 @@ SpecialAbilityDesc parse_special_ability(const data::XmlNode& e, const AbilityRe
 std::vector<uint32_t> parse_special_abilities(const data::XmlNode& type_element, AbilityData& data, const AbilityResolvers& r,
                                               std::vector<std::string>* diag = nullptr);
 
-// Fills UnitDesc::abilities (the first two Unit_Abilities_Data entries, Mod_Multiplier system B)
-// by appending their combat descriptors to `cd.abilities`.
-void link_combat_abilities(const AbilityObjectDesc& d, combat::CombatData& cd, combat::UnitDesc& ud);
+// #417: the combat state of a unit of this type (its first two Unit_Abilities_Data entries, Mod_Multiplier system B)
+// with slot activity `active` - what the ability system hands combat at spawn and at every activity change.
+combat::UnitAbilityState combat_ability_state(const AbilityObjectDesc& d, const std::array<uint8_t, 2>& active);
 // UnitDesc::infection from the type's first Infection_Ability special (`specials` = AbilityData::specials, the
 // pool d.specials indexes); no such special -> has = false.
 void link_infection(const AbilityObjectDesc& d, std::span<const SpecialAbilityDesc> specials, combat::UnitDesc& ud);

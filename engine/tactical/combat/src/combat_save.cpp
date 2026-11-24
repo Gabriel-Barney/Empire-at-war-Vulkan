@@ -111,7 +111,7 @@ void CombatSystem::write(ByteWriter& w) const {
     w.u32(static_cast<uint32_t>(data_->units.size()));
     w.u32(static_cast<uint32_t>(data_->hardpoints.size()));
     w.u32(static_cast<uint32_t>(data_->projectiles.size()));
-    w.u32(static_cast<uint32_t>(data_->abilities.size()));
+    w.u32(0);  // #417: was the ability table's size (the table moved to the abilities module); read and ignored
     w.u32(static_cast<uint32_t>(data_->priority_sets.size()));
     w.u32(frame_).u32(next_serial_);
 
@@ -265,8 +265,9 @@ bool CombatSystem::read(ByteReader& r) {
     const uint32_t c_players = r.u32(), c_units = r.u32(), c_hps = r.u32(), c_proj = r.u32(), c_ab = r.u32(),
                    c_prio = r.u32();
     if (!r.ok() || c_players != np || c_units != data_->units.size() || c_hps != data_->hardpoints.size() ||
-        c_proj != data_->projectiles.size() || c_ab != data_->abilities.size() || c_prio != data_->priority_sets.size())
+        c_proj != data_->projectiles.size() || c_prio != data_->priority_sets.size())
         return false;
+    (void)c_ab;  // #417: the old ability-table size (0 since #417): no longer checked
     const auto unit_descs = static_cast<uint32_t>(data_->units.size());
     const auto hp_descs = static_cast<uint32_t>(data_->hardpoints.size());
     const auto proj_descs = static_cast<uint32_t>(data_->projectiles.size());
@@ -659,7 +660,8 @@ bool CombatSystem::read(ByteReader& r) {
     player_mods_ = std::move(pmods);
     weather_acc_ = wacc;
     units_ = std::move(units);
-    for (Unit& u : units_) build_ability_state(u);  // #416: derived from the type's slots and the saved activity
+    // #417: each unit's ability state is the abilities module's: AbilitySystem::restore_combat_states hands it back from
+    // the saved activity once both systems are loaded.
     hps_ = std::move(hps);
     projectiles_ = std::move(projectiles);
     rockets_ = std::move(rockets);

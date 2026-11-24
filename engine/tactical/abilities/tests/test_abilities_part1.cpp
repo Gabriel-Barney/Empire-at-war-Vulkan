@@ -26,7 +26,6 @@ uint32_t push(CombatData& cd, AbilityData& ad, const UnitDesc& u, AbilityObjectD
     a.name = u.name;
     a.name_crc = name_crc(u.name);
     a.category_mask = u.category_mask;
-    link_combat_abilities(a, cd, cd.units.back());
     ad.objects.push_back(std::move(a));
     return static_cast<uint32_t>(cd.units.size() - 1);
 }

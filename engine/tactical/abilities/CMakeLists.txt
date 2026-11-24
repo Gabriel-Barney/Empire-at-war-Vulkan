@@ -10,6 +10,7 @@ endif()
 add_library(alamo_tactical_abilities STATIC
   src/ability_types.cpp
   src/ability_data.cpp
+  src/unit_ability_desc.cpp  # #417: UnitAbilityDesc, Mod_Multiplier / Mod_Flag rules, the per-unit combat state
   src/countdown.cpp
   src/ability_system.cpp
   src/ability_behaviors.cpp  # OI abilities: SAP init, autofire, auras, handler bodies, HUNT / CONFUSE, mines

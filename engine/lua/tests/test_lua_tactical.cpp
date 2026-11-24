@@ -338,7 +338,6 @@ struct AbilityWorld {
         a.name = u.name;
         a.name_crc = name_crc(u.name);
         a.category_mask = u.category_mask;
-        ab::link_combat_abilities(a, cd, cd.units.back());
         ad.objects.push_back(std::move(a));
     }
     void add(objects::ObjectId id, uint32_t desc, int32_t owner, Vec3 p) {

@@ -100,6 +100,7 @@ void test_team_handover_and_damage() {
         const std::vector<uint8_t> saved = combat_bytes(*w.sys);
         ByteReader rd(saved);
         CHECK(b.sys->read(rd));
+        b.restore_ability_states();
         CHECK(combat_bytes(*b.sys) == saved);
         DamageRequest r;
         r.victim = 10;
@@ -345,16 +346,16 @@ void test_squad_value() {
         on.ability_type = kAbilityPowerToWeapons;
         on.mult[static_cast<size_t>(ModKind::FireRate) - 1] = 0.5f;
         on.mult[static_cast<size_t>(ModKind::Speed) - 1] = 1.5f;
-        w.data.abilities.push_back(on);
+        w.abilities.push_back(on);
         UnitAbilityDesc mid = on;
         mid.mult[static_cast<size_t>(ModKind::FireRate) - 1] = 0.8f;
-        w.data.abilities.push_back(mid);
+        w.abilities.push_back(mid);
         UnitDesc d;
         d.tactical_health = 100.0f;
-        d.abilities = {0, -1};
         const uint32_t d_half = push_unit(w.data, d);
-        d.abilities = {1, -1};
+        w.set_slots(d_half, {0, -1});
         const uint32_t d_mid = push_unit(w.data, d);
+        w.set_slots(d_mid, {1, -1});
         CombatConfig cfg;
         cfg.mode = mode;
         w.make(cfg);
@@ -376,7 +377,7 @@ void test_squad_value() {
         add(10, d_half, true);  // the stand-in leader on land; ability inactive: own 1.0
         add(11, d_mid, false);
         add(12, d_half, false);
-        w.sys->set_ability_active(11, 0, true);
+        w.set_ability_active(11, 0, true);
         w.tick();
         // The leader keeps its own 1.0 (the old phase-A rule gave it the members' 0.8).
         CHECK_F(w.sys->mod_multiplier(10, ModKind::FireRate), 1.0f);
@@ -385,11 +386,11 @@ void test_squad_value() {
         CHECK_F(w.sys->team_mod_multiplier(7, ModKind::FireRate), 0.8f);
         CHECK_F(w.sys->team_mod_multiplier(7, ModKind::Speed), 1.0f);  // 10 and 12 at 1.0 cap the team
         // The stand-in counts in the minimum and keeps its own value.
-        w.sys->set_ability_active(10, 0, true);
+        w.set_ability_active(10, 0, true);
         w.tick();
         CHECK_F(w.sys->mod_multiplier(10, ModKind::FireRate), 0.5f);
         CHECK_F(w.sys->team_mod_multiplier(7, ModKind::FireRate), 0.5f);
-        w.sys->set_ability_active(12, 0, true);
+        w.set_ability_active(12, 0, true);
         w.tick();
         CHECK_F(w.sys->team_mod_multiplier(7, ModKind::Speed), 1.5f);  // every member at 1.5
         CHECK_F(w.sys->mod_multiplier(11, ModKind::Speed), 1.5f);
@@ -958,15 +959,15 @@ void test_incognito_targeting() {
         UnitAbilityDesc cause;
         cause.ability_type = kAbilityPowerToWeapons;
         cause.mult[static_cast<size_t>(ModKind::CauseDamage) - 1] = 2.0f;
-        t.w.data.abilities = {cause};
+        t.w.abilities = {cause};
         UnitDesc src = t.w.data.units[t.capital];
         src.tactical_health = 10000.0f;
-        src.abilities = {0, -1};
         const uint32_t sd = push_unit(t.w.data, src);
+        t.w.set_slots(sd, {0, -1});
         t.w.make();
         t.w.add(1, sd, 0, Vec3{0, 0, 0});
         t.w.add(2, sd, 1, Vec3{300, 0, 0});
-        t.w.sys->set_ability_active(1, 0, true);
+        t.w.set_ability_active(1, 0, true);
         DamageRequest r;
         r.victim = 2;
         r.amount = 100.0f;
@@ -1019,6 +1020,7 @@ void test_incognito_targeting() {
         b.w.make(cfg);
         ByteReader rd(saved);
         CHECK(b.w.sys->read(rd));
+        b.w.restore_ability_states();
         CHECK(combat_bytes(*b.w.sys) == saved);
         b.w.frame = a.w.frame;
         for (int i = 0; i < 20; ++i) {
@@ -1041,6 +1043,7 @@ void test_incognito_targeting() {
         TargetWorld b;
         ByteReader r(wa.bytes());
         CHECK(b.w.sys->read(r));
+        b.w.restore_ability_states();
         CHECK((b.w.sys->flags(2) & (kUnitIncognito | kUnitStolenVehicle)) == (kUnitIncognito | kUnitStolenVehicle));
         CHECK(b.w.sys->owner(2) == 0);
         StateHasher ha, hb, hc;

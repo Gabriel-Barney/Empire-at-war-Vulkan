@@ -191,6 +191,7 @@ void test_surface_fx_fifth_instance() {
     t.w.add(1, t.five, 1, Vec3{250, 0, 0});
     ByteReader br(bw.bytes());
     CHECK(t.w.sys->read(br));
+    t.w.restore_ability_states();
     ByteWriter bw2;
     t.w.sys->write(bw2);
     CHECK(bw.bytes() == bw2.bytes());
@@ -216,6 +217,7 @@ void test_surface_fx_converted_and_save() {
     t.w.add(2, t.infantry, 1, Vec3{650, 0, 0});
     ByteReader br(bw.bytes());
     CHECK(t.w.sys->read(br));
+    t.w.restore_ability_states();
     t.w.frame = s.w.frame;
     t.w.rng = s.w.rng;
     ByteWriter bw2;

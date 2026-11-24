@@ -449,6 +449,7 @@ bool AbilitySystem::read(ByteReader& r) {
     bm_blocked_ = std::move(bm_blocked);
     scratch_.clear();
     member_scratch_.clear();
+    restore_combat_states();  // #417: the combat units' ability states from their saved activity (combat was read first)
     return true;
 }
 
