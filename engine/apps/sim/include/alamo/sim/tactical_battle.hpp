@@ -3138,8 +3138,11 @@ private:
     void hg_production(TacticalMode& mode, SimRng& rng);  // tick(): before the object services
     // ai: the tactical AI's Produce_Force order (BattleAi): no credit test, no charge (b0147, the plan's escrow pays).
     commands::RejectReason hg_production_command(TacticalMode& mode, uint8_t player, const commands::EventData& ev, bool ai = false);
+    // #327 t05: `space_launch` = a space hangar's launch (0x594dc0 [H]): a squadron only by Squadron_Units (Company_Units is
+    // the land branch's), and a single ship needs a free ring spot (0x595650: no spot, nothing created).
     objects::ObjectId hg_spawn(TacticalMode& mode, int32_t type, int32_t owner, Vec3 origin, Vec3 facing, Vec3 ring_center,
-                               bool launched, SimRng& rng, std::vector<objects::ObjectId>& ordered);
+                               bool launched, SimRng& rng, std::vector<objects::ObjectId>& ordered, bool space_launch = false);
+    bool hg_squadron_members(int32_t type, std::vector<int32_t>& members) const;  // #327 t05: Squadron_Units only
     // 0 ok, 1 not buildable here, 4 prerequisite missing, 5 build limit reached (BuildOptionInfo::block values).
     uint8_t hg_build_check(const objects::ObjectStore& st, int32_t player, objects::ObjectId builder, objects::TypeIndex type) const;
     bool hg_buildable(const objects::ObjectStore& st, int32_t player, objects::ObjectId builder, objects::TypeIndex type) const {

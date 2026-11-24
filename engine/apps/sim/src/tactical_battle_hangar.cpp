@@ -95,18 +95,21 @@ void TacticalBattle::hg_add_types() {
             if (std::find(types_used_.begin(), types_used_.end(), ut) == types_used_.end()) types_used_.push_back(ut);
         };
         // A launchable / buildable type with its Squadron_Units / Company_Units members and team types.
+        auto use_members = [&](int32_t x, const std::vector<int32_t>& members) {
+            for (const int32_t m : members) use(static_cast<objects::TypeIndex>(m));
+            uint32_t ot = 0xFFFFFFFFu, bt = 0xFFFFFFFFu, squad = 0;
+            if (bt_team(static_cast<uint32_t>(x), static_cast<uint32_t>(members.front()), ot, bt, squad)) {
+                use(static_cast<objects::TypeIndex>(ot));
+                use(static_cast<objects::TypeIndex>(bt));
+            }
+        };
         auto use_spawnable = [&](int32_t x) {
             if (x < 0) return;
             use(static_cast<objects::TypeIndex>(x));
-            std::vector<int32_t> members;
-            if (oi_company_members(x, members) && !members.empty()) {
-                for (const int32_t m : members) use(static_cast<objects::TypeIndex>(m));
-                uint32_t ot = 0xFFFFFFFFu, bt = 0xFFFFFFFFu, squad = 0;
-                if (bt_team(static_cast<uint32_t>(x), static_cast<uint32_t>(members.front()), ot, bt, squad)) {
-                    use(static_cast<objects::TypeIndex>(ot));
-                    use(static_cast<objects::TypeIndex>(bt));
-                }
-            }
+            std::vector<int32_t> members, squadron;
+            if (oi_company_members(x, members) && !members.empty()) use_members(x, members);
+            // #327 t05: a space hangar launches a type with Squadron_Units as that squadron, Company_Units or not.
+            if (space_ && hg_squadron_members(x, squadron) && squadron != members) use_members(x, squadron);
         };
         const std::vector<uint32_t> now = types_used_;
         for (const uint32_t t : now) {
@@ -467,15 +470,27 @@ void TacticalBattle::hg_engine_service() {
     }
 }
 
+bool TacticalBattle::hg_squadron_members(int32_t type, std::vector<int32_t>& members) const {
+    members.clear();
+    const objects::GameObjectTypes& types = catalog_->types();
+    if (type < 0 || static_cast<size_t>(type) >= types.size()) return false;
+    for (const std::string_view n : types.get(static_cast<objects::TypeIndex>(type), objects::tags::Squadron_Units)) {
+        const objects::TypeIndex m = types.resolve_name(ascii_trim(n));
+        if (m != objects::kNone) members.push_back(static_cast<int32_t>(m));
+    }
+    return !members.empty();
+}
+
 objects::ObjectId TacticalBattle::hg_spawn(TacticalMode& mode, int32_t type, int32_t owner, Vec3 origin, Vec3 facing, Vec3 ring_center,
-                                          bool launched, SimRng& rng, std::vector<objects::ObjectId>& ordered) {
+                                          bool launched, SimRng& rng, std::vector<objects::ObjectId>& ordered, bool space_launch) {
     // A launched / produced unit: a squadron (company members at `origin` with `facing`, ids ascending, then its team
     // container) or a single ship on the first free ring spot around `ring_center`. Returns the object the hangar binds
     // (team container, else the first member / the ship); `ordered` gets the movable units for the initial order.
     objects::ObjectStore& store = mode.primary();
     objects::ObjectId bound = objects::kNoObjectId;
     std::vector<int32_t> members;
-    if (oi_company_members(type, members) && !members.empty()) {
+    const bool squadron = space_launch ? hg_squadron_members(type, members) : oi_company_members(type, members) && !members.empty();
+    if (squadron) {
         // Squadron: the members at the bay origin with its facing (ids ascending), then the team container.
         std::vector<objects::ObjectHandle> hs;
         for (const int32_t m : members) {
@@ -584,6 +599,9 @@ objects::ObjectId TacticalBattle::hg_spawn(TacticalMode& mode, int32_t type, int
                 }
             }
         }
+        // #327 t05 (0x595650 [H]): a space launch tests every ring spot and creates the ship only on one that passes; with
+        // none free nothing is created (the unbound launch rolls back in HangarSystem::clear_requests).
+        if (!found && space_launch) return objects::kNoObjectId;
         const objects::ObjectId id = oi_spawn_unit(mode, type, at, facing, owner);
         if (id == objects::kNoObjectId) return objects::kNoObjectId;
         bound = id;
@@ -613,12 +631,13 @@ void TacticalBattle::hg_tick(TacticalMode& mode, SimRng& rng) {
             continue;
         }
         std::vector<objects::ObjectId> ordered;
-        const objects::ObjectId bound = hg_spawn(mode, r.type, r.owner, hg_sv(r.origin), hg_sv(r.facing), hg_sv(r.flyout), true, rng, ordered);
+        const objects::ObjectId bound =
+            hg_spawn(mode, r.type, r.owner, hg_sv(r.origin), hg_sv(r.facing), hg_sv(r.flyout), true, rng, ordered, true);
         if (bound == objects::kNoObjectId) continue;
         hangars_->bind_launch(r.serial, bound);
         ++hg_launches_;
         std::vector<int32_t> squad_members;
-        const bool squadron = oi_company_members(r.type, squad_members) && !squad_members.empty();
+        const bool squadron = hg_squadron_members(r.type, squad_members);  // #327 t05: Squadron_Units only (0x594dc0)
         // #50 t06 (§2.5 [H]): a single ship's launch (the faction's Reinforcements_Enroute_SFXEvent for the local player).
         if (!squadron) present(PresentationEventKind::HangarLaunch, r.owner, bound, r.type, 0);
         // Initial order (STATION_HANGARS_SOUND §2.5): escort -> guard the carrier (order kind 3 with the carrier as target;

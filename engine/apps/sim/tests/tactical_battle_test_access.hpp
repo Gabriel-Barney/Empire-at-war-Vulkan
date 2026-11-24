@@ -71,6 +71,12 @@ struct TacticalBattleTestAccess {
     static void fog_footprint(const TacticalBattle& b, const objects::ObjectStore& st, objects::ObjectHandle h, float* xy16) {
         b.fog_footprint_samples(st, h, xy16);
     }
+    // #327 t05: one space hangar launch of `type` with its flyout point `center` (hg_spawn, space_launch).
+    static objects::ObjectId hangar_space_launch(TacticalBattle& b, TacticalMode& mode, int32_t type, int32_t owner, Vec3 center,
+                                                 SimRng& rng) {
+        std::vector<objects::ObjectId> ordered;
+        return b.hg_spawn(mode, type, owner, center, Vec3{1.0f, 0.0f, 0.0f}, center, true, rng, ordered, true);
+    }
 };
 
 }  // namespace alamo::sim
