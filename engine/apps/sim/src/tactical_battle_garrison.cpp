@@ -551,6 +551,10 @@ void TacticalBattle::s4_apply(TacticalMode& mode) {
                 Unit* u = unit_by_id(e.unit);
                 if (!u || !u->alive) break;
                 if (combat_->has_unit(e.unit)) combat_->kill_unit(e.unit, tc::kNoObject, tc::kKindNormal, frame_);
+                // #327 t06 [port]: no death clone on this path; the dying type stands for its own clone.
+                if (mode.primary().exists(u->h))
+                    present_unit_died(mode.primary().owner(u->h), u->id, u->type, static_cast<int32_t>(u->type), objects::kNoObjectId,
+                                      mode.primary().position(u->h));
                 u->alive = false;
                 --parts_[u->participant].alive;
                 mode.destroy(u->h);

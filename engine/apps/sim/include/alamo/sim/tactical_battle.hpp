@@ -1982,6 +1982,18 @@ private:
     void present(PresentationEventKind kind, int32_t player, objects::ObjectId builder, int32_t type, uint32_t order) {
         if (emit_presentation_) presentation_.push_back({kind, player, type, builder, order, frame_});
     }
+    // #327 t06: PresentationEventKind::UnitDied (presentation_events.hpp).
+    void present_unit_died(int32_t owner, objects::ObjectId id, uint32_t type, int32_t clone_type, objects::ObjectId clone,
+                           const Vec3& at) {
+        if (!emit_presentation_) return;
+        PresentationEvent e{PresentationEventKind::UnitDied, owner, static_cast<int32_t>(type), id, 0, frame_};
+        e.clone = clone;
+        e.clone_type = clone_type;
+        e.x = at.x;
+        e.y = at.y;
+        e.z = at.z;
+        presentation_.push_back(e);
+    }
     void reinforce(TacticalMode& mode, SimRng& rng, bool force_empty_sides);
     // The S10 stand-in [port] (the one copy; BattleAi::standin_orders calls it): each movable unit not skipped
     // attacks its nearest enemy (land: the auto-attack block push; space: a move to 70 % of its range). `skip_owner`

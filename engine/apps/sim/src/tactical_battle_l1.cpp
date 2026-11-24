@@ -663,6 +663,9 @@ void TacticalBattle::l1_motion(TacticalMode& mode, SimRng& rng) {
         // Killed (0x391310, flag 1). Parent link cleared: the galactic unit survives (a retreat for the battle result);
         // kept: a death (the galactic counterpart is death-marked).
         if (e.keep_parent_link) {
+            // #327 t06 [port]: a death without a death clone; the dying type stands for its own clone.
+            if (st.exists(u->h))
+                present_unit_died(st.owner(u->h), u->id, u->type, static_cast<int32_t>(u->type), objects::kNoObjectId, st.position(u->h));
             u->alive = false;
             --parts_[u->participant].alive;
             ++stats_.deaths;
