@@ -26,9 +26,10 @@ cmd::RejectReason TacticalBattle::ai_order(TacticalMode& mode, uint8_t player, c
     using R = cmd::RejectReason;
     using T = cmd::EventType;
     if (finished_) return R::NotAllowed;
-    // the ordered-attack hostility test is 0x39a450 -> Is_Enemy 0x2824f0 (relation == 1): the battle's relation table
-    // (TACTICAL_COMBAT §2.10), where an Is_Neutral player is relation 2 (combat_->is_enemy)
     objects::ObjectStore& st = mode.primary();
+    // the ordered-attack hostility test (0x39a450 -> Is_Enemy 0x2824f0, relation == 1): the battle's relation table
+    // (TACTICAL_COMBAT §2.10), where an Is_Neutral player is relation 2 (not enemy)
+    const auto hostile = [&](int32_t owner) { return combat_->is_enemy(static_cast<int32_t>(player), owner); };
     // battle host: unit orders resolve through team_units (a unit, or a TEAM container's live members).
     switch (ev.type()) {
         case T::MoveToPositionFacing: {
@@ -95,7 +96,7 @@ cmd::RejectReason TacticalBattle::ai_order(TacticalMode& mode, uint8_t player, c
             // q6: a TEAM container is a valid target on its own (A1_READINGS §33.2.1 row 1, 0x5680b0); each attacker attacks
             // the container's live member nearest it, re-picked until the container is gone (TacticalBattle::TeamAttack).
             const TacticalBattle::Container* ct = t || tw > 0x7FFFFFFFu ? nullptr : team_target(static_cast<objects::ObjectId>(tw));
-            if (ct ? !combat_->is_enemy(static_cast<int32_t>(player), st.owner(ct->h)) : (!t || !t->alive || t->retreated || !combat_->is_enemy(static_cast<int32_t>(player), st.owner(t->h))))
+            if (ct ? !hostile(st.owner(ct->h)) : (!t || !t->alive || t->retreated || !hostile(st.owner(t->h))))
                 return R::InvalidTarget;
             int32_t hp = -1;
             if (const uint32_t ref2 = ev.u("ref2"); t && ref2 > 0)
@@ -131,7 +132,7 @@ cmd::RejectReason TacticalBattle::ai_order(TacticalMode& mode, uint8_t player, c
                 if (ct && combat_->has_unit(u->id)) team_attack_set(u->id, ct->id, tu->id, true);
                 if (!movement_locked(u->id))  // an object block; a locked unit keeps its formation (as Move_To)
                     fighter_order(std::span<const objects::ObjectId>(&u->id, 1), 0, tp,
-                                      ct && movement_->fighter_squad(ct->id) ? ct->id : tu->id);
+                                  ct && movement_->fighter_squad(ct->id) ? ct->id : tu->id);
                 ++n;
                 if (!u->movable) continue;
                 if (!space_) {  // s78n t20 stage A / t25.3 (MOVEMENT §4.3.2, FIGHTER_FLYING §4.11 A / E)
@@ -225,7 +226,7 @@ cmd::RejectReason TacticalBattle::ai_order(TacticalMode& mode, uint8_t player, c
                 y = tp.y;
                 const TacticalBattle::Unit* tu = unit_by_id(static_cast<objects::ObjectId>(tw));
                 const bool attackable = tu && tu->alive && !tu->retreated && combat_->has_unit(tu->id);
-                if (order == lua::LuaOrder::AttackMove && attackable && !combat_->is_enemy(static_cast<int32_t>(player), st.owner(tu->h))) {
+                if (order == lua::LuaOrder::AttackMove && attackable && !hostile(st.owner(tu->h))) {
                     // S7 t29 rework (TACTICAL_COMBAT §2.10 "Task-force Attack_Move on a non-hostile object"): not refused.
                     // Land (0x6e9440): the goal is the object's position, an attack-move to that point; space (0x6e4fc0): the
                     // object stays the goal. No Order_Attack, no formation attack target (path B needs relation 1): the units
@@ -307,7 +308,7 @@ cmd::RejectReason TacticalBattle::ai_order(TacticalMode& mode, uint8_t player, c
             const bool combat_target = atu && atu->alive && !atu->retreated && combat_->has_unit(atu->id);
             // a non-combat object (nonhostile_block set above) is a no-lock attack block as well
             const bool attack_block = !space_ && order == lua::LuaOrder::AttackMove && !point_goal && tw != cmd::kNoObject &&
-                                      (combat_target ? (nonhostile_block || combat_->is_enemy(static_cast<int32_t>(player), st.owner(atu->h))) : nonhostile_block);
+                                      (combat_target ? (nonhostile_block || hostile(st.owner(atu->h))) : nonhostile_block);
             if (attack_block) {
                 // s78n t25.3 (MOVEMENT §4.3.2 items 2 / 6 / 7): one movement order with the attack block (flags 0x01) for
                 // the movers; the staging 0x40e260 is the builder's (attack_stage_goal); a formation whose members can all
@@ -397,7 +398,7 @@ cmd::RejectReason TacticalBattle::ai_order(TacticalMode& mode, uint8_t player, c
             const uint32_t pw = ev.u("pad");
             if (pw == commands::kNoObject || pw > 0x7FFFFFFFu) return R::InvalidTarget;
             return ai_tactical_build(mode, player, static_cast<objects::ObjectId>(pw), static_cast<objects::TypeIndex>(ev.u("type_index")),
-                                         rng);
+                                     rng);
             // --- end A2 tactical ---
         }
         // every other event goes through the battle's validate-and-apply entry, as a human's would (Turn_To_Face

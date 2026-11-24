@@ -97,8 +97,8 @@
 #include "alamo/terrain/ted.hpp"
 #ifdef ALAMO_SIM_HAVE_AI_TACTICAL
 #include "alamo/ai/tactical/damage_tracking.hpp"
-#include "alamo/sim/ai_order_issuer.hpp"  // #147
 #endif
+#include "alamo/sim/ai_order_issuer.hpp"  // #147 (no AI dependency)
 #include "alamo/tactical/fog/fog_of_war.hpp"  // fog of war hookup (owner: fog agent)
 #include "alamo/tactical/garrison/capture.hpp"   // S4 garrisons + structure capture (owner: S4 agent)
 #include "alamo/tactical/garrison/cash_point.hpp"  // CASH_POINT markers
