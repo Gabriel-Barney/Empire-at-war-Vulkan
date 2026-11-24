@@ -1047,10 +1047,7 @@ bool GalacticSim::planet_destroy_impl(PlanetIndex planet, int32_t destroyer, int
     emit_special(GalacticEventKind::PlanetDestroyed, destroyer, planet, planets_[planet].object, kNoIndex, event_value, old_owner);
     {
         PlanetState& p = planets_[planet];
-        p.siphon_player = kNoPlayer;  // siphon fields cleared
-        p.siphon_amount = 0.0f;
-        p.siphon_type = kNoIndex;
-        p.siphon_source = 0;
+        p.clear_siphon();  // siphon fields cleared
         // galab §4 / §5 [M]: a destroyed planet gives no Galaxy_Wide_Upgrade / Reduce_Technology_Price bonus (both apply
         // paths test it); its holder loses them now.
         if (p.bonus_holder != kNoPlayer) {

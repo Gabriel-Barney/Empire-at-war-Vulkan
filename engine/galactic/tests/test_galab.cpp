@@ -15,12 +15,15 @@
 //      protection, prior neutralizations, planetary corruption), the AI pick and the executor (charge, both heroes
 //      leave with their drawn respawn times, the count), the siphon entry, eligibility, vigilance, the accept, the
 //      kind 3 payload;
-//   8. FoC data (ALAMO_FOC_DATA; skipped when unset): the tables of the vanilla entries.
+//   8. FoC data (ALAMO_FOC_DATA; skipped when unset): the tables of the vanilla entries;
+//   9. #134: the one walk over the objects at a planet (order, orbit first, early stop, dead objects) and the one siphon
+//      record reset (PlanetState::clear_siphon).
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "alamo/core/bytes.hpp"
@@ -649,6 +652,50 @@ void test_foc() {
                 targets);
 }
 
+// ---- 9. #134: the planet object walk and the siphon reset ------------------------------------------------------------------
+
+void test_planet_walk() {
+    World w;
+    GalacticSim& s = w.sim;
+    using Seen = std::vector<std::pair<ObjectHandle, bool>>;  // (object, in orbit)
+    const auto walk = [&](PlanetIndex planet, GalacticSim::PlanetWalk how) {
+        Seen seen;
+        CHECK(!s.visit_objects_at(planet, [&](ObjectHandle h, bool in_orbit) { seen.emplace_back(h, in_orbit); }, how));
+        return seen;
+    };
+    const std::vector<uint32_t> fleets = s.fleets_at(rA, pEmp);
+    CHECK(fleets.size() == 1 && s.fleets()[fleets[0]].contents.size() == 1);
+    const ObjectHandle frigate = s.fleets()[fleets[0]].contents[0];
+    const ObjectHandle tarkin = s.spawn_unit(pEmp, rA, tTarkin);
+    const ObjectHandle han = s.spawn_unit(pReb, rA, tHan);
+    // The surface units in list order, then the orbiting fleets' contents; orbit_first swaps the two lists.
+    CHECK(walk(rA, {}) == (Seen{{tarkin, false}, {han, false}, {frigate, true}}));
+    CHECK(walk(rA, {.orbit_first = true}) == (Seen{{frigate, true}, {tarkin, false}, {han, false}}));
+    CHECK(walk(rA, {.stationary_fleets = true}) == walk(rA, {}));  // no fleet at A is moving
+    // A bool callback stops at its first true, and the walk says so.
+    int calls = 0;
+    CHECK(s.visit_objects_at(rA, [&](ObjectHandle h, bool) { ++calls; return h == han; }) && calls == 2);
+    calls = 0;
+    CHECK(!s.visit_objects_at(rA, [&](ObjectHandle, bool) { ++calls; return false; }) && calls == 3);
+    // Only live objects; no walk of an invalid planet.
+    s.destroy_object(tarkin);
+    CHECK(walk(rA, {}) == (Seen{{han, false}, {frigate, true}}));
+    CHECK(walk(kInvalidPlanet, {}).empty());
+
+    // PlanetState::clear_siphon: the record (player, amount, hero type, hero object) is reset; the fraction and the end
+    // frame stay as they were (the reset sites never touched them, and both are saved).
+    PlanetState p;
+    p.siphon_player = pReb;
+    p.siphon_fraction = 0.5f;
+    p.siphon_until = 900;
+    p.siphon_amount = 12.5f;
+    p.siphon_type = tHan;
+    p.siphon_source = 7;
+    p.clear_siphon();
+    CHECK(p.siphon_player == kNoPlayer && p.siphon_amount == 0.0f && p.siphon_type == kNoIndex && p.siphon_source == 0);
+    CHECK(p.siphon_fraction == 0.5f && p.siphon_until == 900);
+}
+
 }  // namespace
 
 int main() {
@@ -659,6 +706,7 @@ int main() {
     test_political_transition();
     test_neutralize();
     test_foc();
+    test_planet_walk();
     if (g_fail) {
         std::printf("%d of %d check(s) failed\n", g_fail, g_checks);
         return 1;

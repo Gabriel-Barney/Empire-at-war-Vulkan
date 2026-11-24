@@ -475,10 +475,7 @@ float GalacticSim::planet_income(PlanetIndex planet, bool gross) {
     bool siphon = false;
     if (!gross && p.siphon_player != kNoPlayer) {
         if (p.corruption == kCorruptionNone && p.siphon_until < now) {  // siphon ended (0x3ff1f0)
-            p.siphon_player = kNoPlayer;
-            p.siphon_amount = 0.0f;
-            p.siphon_type = kNoIndex;  // 0x3ff1f0 clears the whole record
-            p.siphon_source = 0;
+            p.clear_siphon();  // 0x3ff1f0 clears the whole record
         } else {
             siphon = true;
         }
@@ -828,12 +825,7 @@ void GalacticSim::on_owner_change(PlanetIndex planet, int32_t old_owner) {
         if (p.corruption != kCorruptionNone) begin_removal_raw(planet, 10.0f);
     }
     // 9. a siphon by the new owner ends.
-    if (p.siphon_player == now_owner) {
-        p.siphon_player = kNoPlayer;
-        p.siphon_amount = 0.0f;
-        p.siphon_type = kNoIndex;
-        p.siphon_source = 0;
-    }
+    if (p.siphon_player == now_owner) p.clear_siphon();
     // galab §4 / §5: the owner-changed signal moves the planet's held bonuses (vf21) [port order: after the siphon step].
     move_planet_bonuses(planet);
     // GE 2.8: the space queue is re-evaluated at level 0 [M]. The ground queue's entries of other players are dropped
@@ -2115,12 +2107,11 @@ void GalacticSim::set_credit_halt(PlanetIndex planet, int32_t until_frame) {
 }
 void GalacticSim::set_siphon(PlanetIndex planet, int32_t player, float fraction, int32_t until_frame) {
     if (!valid_planet(planet)) return;
-    planets_[planet].siphon_player = player;
-    planets_[planet].siphon_fraction = fraction;
-    planets_[planet].siphon_until = until_frame;
-    planets_[planet].siphon_amount = 0.0f;
-    planets_[planet].siphon_type = kNoIndex;  // galab: set by Siphon_Credits_Ability after this call
-    planets_[planet].siphon_source = 0;
+    PlanetState& p = planets_[planet];
+    p.clear_siphon();  // the hero type and object: set by Siphon_Credits_Ability after this call (galab)
+    p.siphon_player = player;
+    p.siphon_fraction = fraction;
+    p.siphon_until = until_frame;
 }
 void GalacticSim::set_income_limits(PlanetIndex planet, bool has_min, float min_value, bool has_max, float max_value) {
     if (!valid_planet(planet)) return;
