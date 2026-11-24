@@ -56,6 +56,7 @@ int main(int argc, char** argv) {
     test_collect_all_free_units_galactic();  // #81
     test_plain_produce_hands_back();
     test_move_to_fleet_object();
+    test_move_to_fleet_save();  // #432
     test_fleet_object_reelection();
     test_produce_force_stage_launch();
     test_land_units_owner_rule();

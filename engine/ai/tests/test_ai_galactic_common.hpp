@@ -944,6 +944,7 @@ void test_null_stage_and_plain_produce();
 void test_plan_target_wrapper();
 void test_collect_all_free_units_galactic();  // #81
 void test_move_to_fleet_object();
+void test_move_to_fleet_save();  // #432
 void test_fleet_object_reelection();
 void test_produce_force_stage_launch();
 void test_land_units_owner_rule();

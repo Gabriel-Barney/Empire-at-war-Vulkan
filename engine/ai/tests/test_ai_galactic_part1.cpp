@@ -2582,6 +2582,44 @@ void test_stage_and_setup_a() {
         std::printf("setup A: hero in hyperspace -> %s, hero %s\n", ok ? "solved" : "failed", pw.has(s, pw.hero) ? "yes" : "no");
         CHECK(ok && pw.has(s, pw.hero));
     }
+    {
+        // #432 (a2m t05, A2M_T04_RE_ANSWERS Q1.3) [H]: the in-transit stage key is computed from the move's final
+        // destination (FleetState::path.back()), not from where the fleet left. No planet next to P3 is held, so Setup A
+        // stages Conquer_Planet @P3 at the target P3. The hero starts at P3, where a Rebel frigate also orbits (P3's node
+        // cost is > 0). From P3, the stage itself, the stage cost is 0; from P4 the path to the stage ends on P3, so
+        // there is no finite stage cost and the unit is dropped. The hero is ordered P3 -> P4: at P3 it is a candidate;
+        // in hyperspace it is dropped only when keyed by P4 (keyed by P3 it would stay a candidate).
+        ParityWorld pw(false, {"HeroDeny"}, [](gal::GalacticSetup& s) {
+            for (gal::StartingForce& f : s.forces)  // the hero is the Empire's only P0 unit besides the SB1 / Barracks / frigate
+                if (f.player == 0 && f.planet == 0 && f.type != tSB1 && f.type != tBarracks && f.type != tFrigate) f.planet = 3;
+            s.forces.push_back({1, 3, tFrigate});
+        });
+        pw.run(2);
+        const bool at_source = pw.has(pw.world->solve_potential_plan(0, "HeroDeny", "Conquer_Planet", 3, &ok), pw.hero);
+        objects::ObjectHandle h;
+        for (const gal::FleetState& f : pw.sim->fleets())
+            if (f.alive && f.owner == 0)
+                for (const objects::ObjectHandle u : f.contents)
+                    if (pw.store->alive(u) && pw.store->type(u) == pw.hero) h = u;
+        CHECK(static_cast<bool>(h) && pw.world->free_store_move(0, h, 4));
+        uint32_t fl = gal::kNoFleet;
+        for (int32_t fr = 3; fr < 600 && fl == gal::kNoFleet; ++fr) {
+            pw.sim->update();
+            pw.world->update_player(0, fr, true, false);
+            const uint32_t c = pw.sim->fleet_containing(h);
+            if (c != gal::kNoFleet && pw.sim->fleets()[c].moving) fl = c;
+        }
+        CHECK(fl != gal::kNoFleet);
+        if (fl == gal::kNoFleet) return;
+        const gal::FleetState& fs = pw.sim->fleets()[fl];
+        const PlanetIndex dest = fs.path.empty() ? fs.to : fs.path.back();
+        const bool in_transit = pw.has(pw.world->solve_potential_plan(0, "HeroDeny", "Conquer_Planet", 3, &ok), pw.hero);
+        std::printf("setup A: hero P3 -> P%u in hyperspace: candidate at the source %s, in transit %s\n", dest,
+                    at_source ? "yes" : "no", in_transit ? "yes" : "no");
+        CHECK(dest == 4);
+        CHECK(at_source);    // keyed by P3, the stage: cost 0
+        CHECK(!in_transit);  // keyed by the destination P4: no finite stage cost
+    }
 }
 
 // a2l t03 (A2L_T03_RE_ANSWERS Q5): the stage of a goal without a target is null (Get_Stage nil), and Produce_Force()
@@ -2675,19 +2713,88 @@ void test_move_to_fleet_object() {
         return -1;
     };
     CHECK(where(pw.hero) == 0 && where(tFrigate) == 1);
+    // #432: the FleetObject is the parent fleet of the first member added, the solve's first selection.
+    const std::vector<uint32_t> sel = pw.world->solve_potential_plan(0, "A2mMoveTo", "Conquer_Planet", 3);
+    std::printf("move_to fleet object: selection");
+    for (const uint32_t t : sel) std::printf(" %s", t == pw.hero ? "HeroShip" : t == tFrigate ? "Frigate" : "?");
+    std::printf("\n");
+    CHECK(sel.size() == 2);
+    if (sel.size() != 2) return;
+    // the first member's starting fleet (the hero's at P0 or the frigate's at P1)
+    uint32_t first_fleet = gal::kNoFleet;
+    for (uint32_t i = 0; i < pw.sim->fleets().size(); ++i) {
+        const gal::FleetState& f = pw.sim->fleets()[i];
+        if (f.alive && f.owner == 0)
+            for (const objects::ObjectHandle u : f.contents)
+                if (pw.store->alive(u) && pw.store->type(u) == sel.front()) first_fleet = i;
+    }
+    uint32_t fleet_object = gal::kNoFleet;
     bool hero_left = false, frigate_left = false;
     for (int32_t f = 1; f <= 30 * 300 && num("a2m_done") < 0.0; ++f) {
         pw.sim->update();
         pw.world->update_player(0, f, true, false);
         take_when_ready(pw, gv);
+        if (fleet_object == gal::kNoFleet && num("a2m_count0") >= 0.0) fleet_object = pw.world->task_force_fleet_object(0, "MainForce");
         hero_left = hero_left || where(pw.hero) != 0;
         frigate_left = frigate_left || where(tFrigate) != 1;
     }
-    std::printf("move_to fleet object: block %.0f, members %.0f -> %.0f, hero moved %s, frigate moved %s\n", num("a2m_block"),
-                num("a2m_count0"), num("a2m_count1"), hero_left ? "yes" : "no", frigate_left ? "yes" : "no");
+    std::printf("move_to fleet object: block %.0f, members %.0f -> %.0f, hero moved %s, frigate moved %s, FleetObject %u "
+                "(first member's fleet %u)\n", num("a2m_block"), num("a2m_count0"), num("a2m_count1"), hero_left ? "yes" : "no",
+                frigate_left ? "yes" : "no", fleet_object, first_fleet);
     CHECK(num("a2m_done") == 1.0 && num("a2m_block") == 1.0);
-    CHECK(num("a2m_count0") == 2.0 && num("a2m_count1") == 2.0);  // the member left behind is still in the task force
-    CHECK(hero_left != frigate_left);                              // exactly one fleet moved
+    CHECK(num("a2m_count0") == 2.0 && num("a2m_count1") == 2.0);    // the member left behind is still in the task force
+    CHECK(first_fleet != gal::kNoFleet && fleet_object == first_fleet);  // the first member's fleet is the FleetObject
+    CHECK(sel.front() == pw.hero ? (hero_left && !frigate_left) : (frigate_left && !hero_left));  // and only it moved
+    pw.world->set_global_values(nullptr);
+}
+
+// #432 (a2m t02 save fields): a galactic AI save taken while Move_To moves the FleetObject (the version-8 task-force
+// fleet and the MoveTo status's fleet both set) reads back into a rebuilt AI world with an equal AI hash and the same
+// FleetObject, and the move then finishes. Version-7 images (no fleet fields, kNoFleet after the read)
+// are alamo_ai_galactic_records_tests' test_old_versions.
+void test_move_to_fleet_save() {
+    ParityWorld pw(false, {"A2mMoveTo"}, [](gal::GalacticSetup& s) {
+        for (gal::StartingForce& f : s.forces)
+            if (f.player == 0 && f.type == tFrigate) f.planet = 1;
+    });
+    lua::GlobalValueStore gv;
+    pw.world->set_global_values(&gv);
+    auto num = [&gv](const char* n) { const lua::AiGlobalValue v = gv.get(n); return v.kind == lua::AiGlobalValue::Number ? v.number : -1.0; };
+    int32_t frame = 1;
+    bool moving = false;
+    for (; frame <= 30 * 300 && !moving && num("a2m_done") < 0.0; ++frame) {
+        pw.sim->update();
+        pw.world->update_player(0, frame, true, false);
+        take_when_ready(pw, gv);
+        const uint32_t fo = num("a2m_block") >= 0.0 ? pw.world->task_force_fleet_object(0, "MainForce") : gal::kNoFleet;
+        moving = fo != gal::kNoFleet && fo < pw.sim->fleets().size() && pw.sim->fleets()[fo].moving;
+    }
+    CHECK(moving);
+    if (!moving) return;
+    const uint32_t fo = pw.world->task_force_fleet_object(0, "MainForce");
+    const auto ai_hash = [&pw]() {
+        StateHasher h;
+        pw.world->hash(h);
+        return h.digest();
+    };
+    const uint64_t before = ai_hash();
+    ByteWriter w;
+    pw.world->write(w);
+    pw.world.reset();
+    pw.make_world();
+    ByteReader r(w.bytes());
+    CHECK(pw.world->read(r) && r.done());
+    pw.world->set_global_values(&gv);
+    const uint64_t after = ai_hash();
+    const uint32_t fo2 = pw.world->task_force_fleet_object(0, "MainForce");
+    std::printf("move_to save: frame %d, FleetObject %u -> %u, AI hash %016llx -> %016llx, %zu bytes\n", frame, fo, fo2,
+                static_cast<unsigned long long>(before), static_cast<unsigned long long>(after), w.bytes().size());
+    CHECK(after == before && fo2 == fo);
+    for (; frame <= 30 * 300 && num("a2m_done") < 0.0; ++frame) {
+        pw.sim->update();
+        pw.world->update_player(0, frame, true, false);
+    }
+    CHECK(num("a2m_done") == 1.0 && num("a2m_count1") == 2.0);  // the move finished after the load
     pw.world->set_global_values(nullptr);
 }
 
