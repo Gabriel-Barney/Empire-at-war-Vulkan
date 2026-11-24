@@ -69,6 +69,7 @@
     DERIVED(hyperspace_sfx_, "records of the last tick for the host (cleared at the next tick start)") \
     REBUILT(space_, "set by the host that starts the battle, the same on a rebuild") \
     REBUILT(map_, "set by the host that starts the battle, the same on a rebuild") \
+    REBUILT(land_box_, "#156: land_terrain_box(map_.terrain), computed with map_ in setup(), the same on a rebuild") \
     REBUILT(tables_, "made by setup(), the same on a rebuild; read_part adds the script-added types") \
     SAVED(types_used_, state) \
     SAVED(descs_, state) \
