@@ -901,10 +901,10 @@ void test_radar() {
         sq.fog_box = true;
         sq.fog_max_x = 200.0f;
         sq.fog_max_y = 100.0f;
-        RadarImage img;
-        const uint8_t vis[1] = {0};  // unseen everywhere
-        img.build(4, {}, 0, 0, vis, 1, 1, Rgba8{0, 0, 0, 200}, sq);
-        const auto alpha_at = [&](uint32_t row) { return img.rgba()[(static_cast<size_t>(row) * 4 + 1) * 4 + 3]; };
+        RadarImage fog_img;
+        const uint8_t fog_vis[1] = {0};  // unseen everywhere
+        fog_img.build(4, {}, 0, 0, fog_vis, 1, 1, Rgba8{0, 0, 0, 200}, sq);
+        const auto alpha_at = [&](uint32_t row) { return fog_img.rgba()[(static_cast<size_t>(row) * 4 + 1) * 4 + 3]; };
         // image rows run north (max y) to south: row 0 = y 125 (strip), rows 1 / 2 = y 75 / 25 (box), row 3 = y -25 (strip)
         CHECK2(alpha_at(0) == 0 && alpha_at(1) == 200 && alpha_at(2) == 200 && alpha_at(3) == 0);
     }
