@@ -1490,6 +1490,8 @@ void test_presence_idle(float small_range = 0.0f, float relax_seconds = 0.0f) {
     CHECK(gs->launch_units(1, 2, up) == commands::RejectReason::None);
     const std::vector<uint32_t> uf = gs->fleets_at(2, 1);
     if (!uf.empty()) CHECK(gs->move_fleet(1, uf[0], 1) == commands::RejectReason::None);
+    // #366: the GameConstants constructor's default (0x2c91c0: GC +0x117a8 = 5.0) when the data does not set it.
+    CHECK(opt.battle.presence_relaxation_seconds == 5.0f);
     const int32_t max_frames = static_cast<int32_t>(30.0f * (relax_seconds > 0.0f ? relax_seconds : opt.battle.presence_relaxation_seconds));
     int32_t top_frames = 0;  // the largest record value seen
     bool invaded = false;
@@ -4056,7 +4058,7 @@ int main(int argc, char** argv) {
     // #365: the tree-box query. Range 20 is below the closest trooper spacing (about 22) but within the spacing plus a
     // trooper's box half-extent (6), so only box overlaps write records.
     test_presence_idle(20.0f);
-    test_presence_idle(0.0f, 2.0f);  // #365: GameConstants Unit_Presence_Relaxation_Time (2 s = 60 frames, not the 3 s default)
+    test_presence_idle(0.0f, 2.0f);  // #365: GameConstants Unit_Presence_Relaxation_Time (2 s = 60 frames, not the 5 s default)
 #endif
     std::printf("black market gate (P4 tactical)\n");
     test_black_market_battle();

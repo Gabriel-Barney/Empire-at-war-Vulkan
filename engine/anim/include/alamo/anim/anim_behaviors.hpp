@@ -87,7 +87,9 @@ struct FlinchParams {
 };
 
 // s78l t03 (TACTICAL_COMBAT slot 47 "s78l t03" (c)): one idle record of the IDLE pack's list I +0x10 - a presence object's
-// id and the frames left (written by IMPOSING_PRESENCE, aged by the no-target service). Kept in ascending presence id.
+// id and the frames left (written by IMPOSING_PRESENCE, aged by the no-target service). [port] Kept in ascending presence
+// id (#366 maintainer decision): retail walks a list (obj +0xd8 -> +0x18, 0x395920) whose insert order was not read; the
+// order only breaks ties of equal value and hostility, and both vanilla presence types map to 77.
 struct IdleRecord {
     ObjectId presence = 0;
     int32_t frames = 0;

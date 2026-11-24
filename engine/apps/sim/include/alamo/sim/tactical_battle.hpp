@@ -136,8 +136,9 @@ struct BattleConfig {
     uint32_t dummy_lifetime = 900;            // [port] a Dummy_Barrage_Target is removed after this many frames at most
     float min_move_anim_ratio = 0.1f;         // [port] move-clip speed floor (current / max speed)
     // s78l t03 (TACTICAL_GAPS 6.2): GameConstants Unit_Presence_Relaxation_Time (GC +0x117a8), seconds an IMPOSING_PRESENCE
-    // idle record lasts (int(FPS x value) frames). [port] 3.0: the shipped XML does not set it and the default was not read.
-    float presence_relaxation_seconds = 3.0f;
+    // idle record lasts (int(FPS x value) frames). #366: 5.0, the GameConstants constructor's default (0x2c91c0 writes
+    // GC +0x117a8 = 0x40a00000 [H]); the shipped XML does not set it.
+    float presence_relaxation_seconds = 5.0f;
     // Fog of war (legacy docs/re/FOG_OF_WAR.md; owner: fog agent). Not in the frame CRC, never draws RNG.
     bool fog = true;
     // The overrun reveal (FOG_OF_WAR §3.3) runs only in the multiplayer game types: not ported (CU7).
