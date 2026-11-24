@@ -131,6 +131,7 @@ def trace_metrics(path, factions_override=None, max_tick=None, count_types=None)
     new_objs = []
     planet_names, credit_samples, player_flags = {}, {}, {}
     counted, structure_counts = set(), []  # ids of count_types objects; their per-planet counts on each change
+    corruption_now, corruption_changes = {}, []  # G records: planet id -> corruption field; (tick, id, value) per change
     mframe = 0
     in_header = True
     pending_sample = None
@@ -293,6 +294,10 @@ def trace_metrics(path, factions_override=None, max_tick=None, count_types=None)
                 objs.pop(int(p[1]), None)
             elif t == "G":
                 planets.add(int(p[1]))
+                c = int(p[6]) if len(p) > 6 else -1
+                if corruption_now.get(int(p[1])) != c:
+                    corruption_now[int(p[1])] = c
+                    corruption_changes.append((mframe, int(p[1]), c))
             elif t == "C":
                 players[int(p[1])] = f32(p[2])
                 player_flags[int(p[1])] = (int(p[4]), int(p[5])) if len(p) >= 6 else (0, 0)
@@ -358,6 +363,12 @@ def trace_metrics(path, factions_override=None, max_tick=None, count_types=None)
                           for tk, d in sorted(object_counts.items())} or None
     m["planet_names"] = dict(planet_names)
     m["type_names"] = types
+    # #240: the planet's corruption (the G record's corruption field, -1 = none, else the corruption type), per planet
+    # name: [(tick, corrupted)] on every change, for corrupted().
+    corr = collections.defaultdict(list)
+    for tk, i, c in corruption_changes:
+        corr[str(planet_names.get(i, i)).upper()].append((tk, c != -1))
+    m["corruption"] = dict(corr)
     if credit_samples:
         m["credits_series"] = {tk: {cfac(k): v for k, v in d.items()} for tk, d in sorted(credit_samples.items())}
     if credits:
@@ -373,6 +384,14 @@ def structure_count(m, tick, planet, types):
     counts = m.get("structure_counts") or []
     j = bisect.bisect_right([c[0] for c in counts], tick) - 1
     return sum(counts[j][1].get((planet, t), 0) for t in types) if j >= 0 else 0
+
+
+def corrupted(m, tick, planet):
+    """Whether `planet` (upper-case name) is corrupted after `tick`, from trace_metrics's m["corruption"] (False before
+    its first G record)."""
+    ch = (m.get("corruption") or {}).get(planet) or []
+    j = bisect.bisect_right([c[0] for c in ch], tick) - 1
+    return ch[j][1] if j >= 0 else False
 
 
 def queue_metrics(path, m, max_tick=None):

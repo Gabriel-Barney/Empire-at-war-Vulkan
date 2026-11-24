@@ -313,12 +313,14 @@ def fleet_hops(trace_path, fac, max_tick=None):
 
 
 def galactic_metrics(trace_path, queue_path=None, ai_log=None, sample_ticks=(4500, 9000, 13500), max_tick=None,
-                     hop_max_tick=None, factory_reduced=None):
+                     hop_max_tick=None, factory_reduced=None, corruption_timed=None):
     """Metric values of one galactic run (retail trace or port state trace), {metric id: value}, plus notes. max_tick: only
     the mode frames up to this one (a reference run that went on longer than the scenario). hop_max_tick: the
     cut for travel.hop_ticks alone (default max_tick); a reference run's later legs still measure fleet speeds.
     factory_reduced: {type: [structure types]} (scenario "factory_reduced"), the types whose build time the structures at
-    the planet divide."""
+    the planet divide. corruption_timed: the factions (scenario "corruption_timed") whose build time a corrupted planet
+    multiplies."""
+    timed = set(corruption_timed or ())
     reducers = {str(k).upper(): [str(x).upper() for x in v] for k, v in (factory_reduced or {}).items()}
     m = tp.trace_metrics(trace_path, max_tick=max_tick, count_types={x for v in reducers.values() for x in v} or None)
     fac = m["factions"]
@@ -364,15 +366,22 @@ def galactic_metrics(trace_path, queue_path=None, ai_log=None, sample_ticks=(450
     builds = None
     durations = collections.defaultdict(list)
 
-    def build_key(t, planet, queued):
+    def build_key(t, planet, queued, faction):
         # #229: Build_Time_Reduced_By_Multiple_Factories divides the build time by the number of the type's required
         # structures at the planet, any owner, when the item is queued (engine/galactic/src/campaign.cpp
         # GalacticSim::build_time_for), an AI choice; a build under n >= 2 of them is keyed /n<n>, so it is only graded
         # against builds under as many.
+        # #240: a faction that does not benefit from corruption builds at a corrupted planet under its
+        # Corruption_Galactic_Production_Time_Multipliers[1] (same function); when the planet is corrupted is the
+        # Underworld AI's choice, so such a build is keyed /c and only graded against builds under the same multiplier.
         k = "%s@%s" % (t, planet)
         req = reducers.get(str(t).upper())
         n = tp.structure_count(m, queued, str(planet).upper(), req) if req else 0
-        return k + "/n%d" % n if n >= 2 else k
+        if n >= 2:
+            k += "/n%d" % n
+        if faction in timed and tp.corrupted(m, queued, str(planet).upper()):
+            k += "/c"
+        return k
     if queue_path and os.path.exists(queue_path):
         tp.queue_metrics(queue_path, m, max_tick)
         builds = [(e["start"], e["faction"], e["type"]) for e in m["queue_entries"]]
@@ -384,7 +393,7 @@ def galactic_metrics(trace_path, queue_path=None, ai_log=None, sample_ticks=(450
         for e in m["queue_entries"]:
             d = e["done"] - e["last_start"]
             if e["restarts"] == 0 and (e["created"] is not None or e["last"] < end) and d >= e["frames"]:
-                durations[build_key(e["type"], e["planet"], e["seen"])].append(d)  # seen: the first frame it is listed
+                durations[build_key(e["type"], e["planet"], e["seen"], e["faction"])].append(d)  # seen: the first frame it is listed
     elif ai_log and os.path.exists(ai_log):
         o = tp.port_metrics(None, ai_log)
         orders = [(tk, f, at_, t) for tk, f, at_, d in o["production"] for t in d]
@@ -397,7 +406,7 @@ def galactic_metrics(trace_path, queue_path=None, ai_log=None, sample_ticks=(450
                 if j in used or ctk < tk or cf != f or ct != t or (at_ and cat and cat != at_):
                     continue
                 used.add(j)
-                durations[build_key(t, cat or at_, tk)].append(ctk - tk)
+                durations[build_key(t, cat or at_, tk, f)].append(ctk - tk)
                 break
     else:
         notes.append("no production data (no production.q2q and no AI log): build metrics left out")
@@ -967,7 +976,8 @@ def retail_metrics(scen, run_dir):
     if scen["kind"] == "galactic":
         return galactic_metrics(trace, os.path.join(run_dir, "production.q2q"), max_tick=scen.get("max_tick"),
                                 hop_max_tick=scen.get("hop_max_tick", scen.get("max_tick")),
-                                factory_reduced=scen.get("factory_reduced"))
+                                factory_reduced=scen.get("factory_reduced"),
+                                corruption_timed=scen.get("corruption_timed"))
     return skirmish_retail_metrics(trace, set(scen["frames"]))
 
 
@@ -1043,7 +1053,8 @@ def run_port(scen, exe, out_dir, ref_info, reuse, seed=None):
         m, notes, info = story_metrics(os.path.join(out_dir, "port.q2t"))
     elif scen["kind"] == "galactic":
         m, notes, info = galactic_metrics(os.path.join(out_dir, "port.q2t"), ai_log=os.path.join(out_dir, "port_ai.txt"),
-                                          factory_reduced=scen.get("factory_reduced"))
+                                          factory_reduced=scen.get("factory_reduced"),
+                                          corruption_timed=scen.get("corruption_timed"))
     else:
         m, notes, info = skirmish_port_metrics(os.path.join(out_dir, "port_ai.txt"), set(scen["frames"]), scen["ticks"] + 1, text)
         trace = os.path.join(out_dir, "port.q2t")
@@ -1365,11 +1376,12 @@ def _f(x):
     return "%08x" % struct.unpack("<I", struct.pack("<f", float(x)))[0]
 
 
-def _galactic_fixture(path, hop_len=26, income=667.5, new_obj_at=40, capture_at=45, queue_path=None, start=20, factories=()):
+def _galactic_fixture(path, hop_len=26, income=667.5, new_obj_at=40, capture_at=45, queue_path=None, start=20, factories=(),
+                      corrupt_at=None):
     """A tiny HotM-like trace: planets KUAT (Empire, x=0) and CORELLIA (Rebel, x=100), an Empire fleet hopping KUAT ->
     CORELLIA (departs tick 10, parks after hop_len ticks), a fiscal cycle at tick 30, a Rebel X-wing built at new_obj_at
     and CORELLIA captured by the Empire at capture_at. factories: the ticks at which an R_GROUND_LIGHT_VEHICLE_FACTORY
-    appears at CORELLIA, one each."""
+    appears at CORELLIA, one each. corrupt_at: the tick CORELLIA becomes corrupted (G record corruption 0; -1 before)."""
     types = {1: "KUAT", 2: "CORELLIA", 3: "STAR_DESTROYER", 4: "REBEL_X-WING_SQUADRON", 5: "GALACTIC_FLEET",
              6: "R_GROUND_LIGHT_VEHICLE_FACTORY"}
     L = ["Q2TRACE 1", "meta scenario galactic", "meta campaign Sandbox_Fixture_Empire", "seed 00000000 00000000 0",
@@ -1397,7 +1409,9 @@ def _galactic_fixture(path, hop_len=26, income=667.5, new_obj_at=40, capture_at=
             L.append("O %d %d %d %s %s 00000000 00000000 00000000 00000000 %s 1 4194303 %d 4194303 00000000 00000000" % (
                 oid, own, ty, _f(x), _f(0.0), _f(100.0), 2 if ty in (4, 6) else 4194303))
         if t == 0:
-            L += ["G 1 00000000 0 0 0 0 0 0", "G 2 00000000 0 0 0 0 0 0"]
+            L += ["G 1 00000000 0 0 0 -1 0 -1", "G 2 00000000 0 0 0 -1 0 -1"]
+        if t == corrupt_at:
+            L.append("G 2 00000000 0 0 0 0 0 -1")
         if t == 30:
             cred[1] += income
             cred[0] += 100.0
@@ -1623,6 +1637,37 @@ def selftest():
         p2 = galactic_metrics(port2, ai_log=ai, sample_ticks=(59,), factory_reduced=fr)[0]
         res = {r["metric"]: r for r in compare({}, tols, [("retail", r2)], p2)}
         check(res.get(key2, {}).get("status") == "PASS", "the same factory count is graded: 22 vs 20 within 3")
+        # #240: a build queued at a corrupted planet by a corruption-timed faction is keyed /c (the multiplier is fixed at
+        # queue time); a planet corrupted after the build starts, or a faction outside the list, keeps the plain key.
+        ct = ["Rebel", "Empire"]
+        keyc = "build.ticks[REBEL_X-WING_SQUADRON@CORELLIA/c]"
+        retc = os.path.join(tmp, "retail_c.q2t")
+        _galactic_fixture(retc, queue_path=os.path.join(tmp, "retail_c.q2q"), corrupt_at=10)
+        rc = galactic_metrics(retc, os.path.join(tmp, "retail_c.q2q"), sample_ticks=(59,), corruption_timed=ct)[0]
+        check(rc.get(keyc) == 20 and key not in rc, "retail build at a planet corrupted before the start keyed /c (%s)" % sorted(
+            k for k in rc if k.startswith("build.ticks")))
+        check(galactic_metrics(retc, os.path.join(tmp, "retail_c.q2q"), sample_ticks=(59,),
+                               corruption_timed=["Empire"])[0].get(key) == 20, "a faction outside the list keeps the plain key")
+        retl = os.path.join(tmp, "retail_cl.q2t")
+        _galactic_fixture(retl, queue_path=os.path.join(tmp, "retail_cl.q2q"), corrupt_at=30)
+        rl = galactic_metrics(retl, os.path.join(tmp, "retail_cl.q2q"), sample_ticks=(59,), corruption_timed=ct)[0]
+        check(rl.get(key) == 20 and keyc not in rl, "corrupted after the start (tick 30 > 20): plain key")
+        rcf = galactic_metrics(retc, os.path.join(tmp, "retail_c.q2q"), sample_ticks=(59,), corruption_timed=ct,
+                               factory_reduced=fr)[0]
+        portcf = os.path.join(tmp, "port_cf.q2t")
+        _galactic_fixture(portcf, hop_len=31, income=600.0, capture_at=50, factories=(0, 0), corrupt_at=5)
+        pcf = galactic_metrics(portcf, ai_log=ai, sample_ticks=(59,), corruption_timed=ct, factory_reduced=fr)[0]
+        check(pcf.get("build.ticks[REBEL_X-WING_SQUADRON@CORELLIA/n2/c]") == 22, "both keys: /n2/c (%s)" % sorted(
+            k for k in pcf if k.startswith("build.ticks")))
+        res = {r["metric"]: r for r in compare({}, tols, [("retail", rc)], p1)}
+        check(key not in res and keyc not in res, "corrupted and plain builds are not graded against each other")
+        portc = os.path.join(tmp, "port_c.q2t")
+        _galactic_fixture(portc, hop_len=31, income=600.0, capture_at=50, corrupt_at=0)
+        pc = galactic_metrics(portc, ai_log=ai, sample_ticks=(59,), corruption_timed=ct)[0]
+        res = {r["metric"]: r for r in compare({}, tols, [("retail", rc)], pc)}
+        check(res.get(keyc, {}).get("status") == "PASS", "corrupted builds are graded against each other: 22 vs 20 within 3")
+        check(rcf.get(keyc) == 20, "with the factory map too, no second factory: /c only (%s)" % sorted(
+            k for k in rcf if k.startswith("build.ticks")))
         check(res["outcome.planets_final[Empire]"]["status"] == "PASS", "same final owners pass")
         check(res["econ.cycle_tick[1]"]["status"] == "PASS", "same cycle tick passes")
         same = {r["metric"]: r for r in compare({}, tols, [("retail", rm)], rm)}
