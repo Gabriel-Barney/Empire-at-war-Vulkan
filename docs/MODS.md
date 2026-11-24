@@ -375,6 +375,8 @@ pane shows the stack, its errors and warnings, the grade badge, the base-EaW ref
 files, Lua and shader findings, the submod hint, a line per mod with no text in the game's language
 (`ui::retail_language_for_langid`), and the launch arguments. **Launch** restarts the executable with its mod arguments
 replaced by the row's launch list (a likely submod stacked on its parent); a refused base-EaW mod has no Launch.
+The check stays in this process rather than an `alamo_mod_check --json` child process: docs/DECISIONS.md "Mod picker
+load report stays in-process".
 
 ## Port rules that apply only when a mod layer is loaded
 
