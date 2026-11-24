@@ -342,7 +342,7 @@ bool App::render_frame() {
     bi.filter = VK_FILTER_LINEAR;
     fn.vkCmdBlitImage2(cmd, &bi);
     rhi::cmd_barrier(fn, cmd, rhi::transition(sw, rhi::ImageState::TransferDst, rhi::ImageState::Present));
-    const bool readback = !shot_path_.empty();
+    const bool readback = !ctl_.shot_path.empty();
     if (readback) {
         VkBufferImageCopy copy{};
         copy.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
@@ -381,12 +381,12 @@ bool App::render_frame() {
         const auto* px = static_cast<const uint8_t*>(targets_.readback.mapped());
         std::vector<uint8_t> rgba(px, px + static_cast<size_t>(w) * h * 4);
         for (size_t i = 3; i < rgba.size(); i += 4) rgba[i] = 255;
-        const bool wrote = render::write_png_rgba(shot_path_, w, h, rgba);
-        std::printf("%s %s (%s: %u draws, %u instances)\n", wrote ? "wrote" : "FAILED", shot_path_.c_str(), screen_name(screen()), draw_stats_.draws,
+        const bool wrote = render::write_png_rgba(ctl_.shot_path, w, h, rgba);
+        std::printf("%s %s (%s: %u draws, %u instances)\n", wrote ? "wrote" : "FAILED", ctl_.shot_path.c_str(), screen_name(screen()), draw_stats_.draws,
                     draw_stats_.instances);
-        if (!wrote) smoke_ok_ = false;
-        shot_path_.clear();
-        shot_done_ = true;
+        if (!wrote) ctl_.smoke_ok = false;
+        ctl_.shot_path.clear();
+        ctl_.shot_done = true;
     }
     return ok;
 }
@@ -422,7 +422,7 @@ void App::frame() {
     if (!script_.empty()) {
         raw = idle_frame();
         if (script_step_ < script_.size()) {
-            if (hold_release_) hold_sim_ = hold_release_ = false;
+            if (ctl_.hold_release) ctl_.hold_sim = ctl_.hold_release = false;
             ScriptStep& s = script_[script_step_];
             // Story dialogs fire whenever the plots say so: outside the story steps the script closes one after 30 frames.
             if (ui_.gui.find(ui::dlg::kStory) && s.name.find("story") == std::string::npos) {
@@ -442,7 +442,7 @@ void App::frame() {
                 std::fprintf(stderr, "script: step '%s' timed out (%s); dialogs:", s.name.c_str(), screen_name(screen()));
                 for (const std::string& n : ui_.gui.open_names()) std::fprintf(stderr, " %s", n.c_str());
                 std::fprintf(stderr, "\n");
-                script_failed_ = true;
+                ctl_.failed = true;
                 flow_.on(ScreenEvent::Quit);
                 return;
             }
@@ -625,12 +625,12 @@ void App::frame() {
     // 4. Render, 5. audio (listener from the camera).
     if (screen() == Screen::Quit) return;
     // BM2a: a PNG of every Nth counted frame (named by its index; an unsettled frame is drawn again under the same name).
-    if (bench_measuring() && opt_.bench.png_every && shot_path_.empty()) {
+    if (bench_measuring() && opt_.bench.png_every && ctl_.shot_path.empty()) {
         const uint64_t idx = bench_fixed() ? bench_.clock.frames() : static_cast<uint64_t>(bench_.frame_ms.size());
         if (idx % opt_.bench.png_every == 0) {
             char name[64];
             std::snprintf(name, sizeof name, "/bench_%06" PRIu64 ".png", idx);
-            shot_path_ = opt_.bench.png_dir + name;
+            ctl_.shot_path = opt_.bench.png_dir + name;
         }
     }
     const auto render0 = Clock::now();
@@ -638,7 +638,7 @@ void App::frame() {
     ft_.render = static_cast<float>(ms_since(render0));
     if (!rendered) {
         std::fprintf(stderr, "render failed\n");
-        smoke_ok_ = false;
+        ctl_.smoke_ok = false;
         flow_.on(ScreenEvent::Quit);
         return;
     }

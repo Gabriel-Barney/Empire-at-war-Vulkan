@@ -328,6 +328,7 @@ public:
     GuiDialog* find(std::string_view name);
     const GuiDialog* find(std::string_view name) const;
     GuiDialog* top() { return stack_.empty() ? nullptr : stack_.back().get(); }
+    const GuiDialog* top() const { return stack_.empty() ? nullptr : stack_.back().get(); }
     size_t open_count() const { return stack_.size(); }
     std::vector<std::string> open_names() const;  // bottom -> top
 

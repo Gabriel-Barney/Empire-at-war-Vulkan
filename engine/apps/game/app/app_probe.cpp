@@ -41,4 +41,19 @@ const sim::BattleStats* App::battle_stats() const {
 
 void App::menu_action(const ui::MenuAction& action) { handle_menu_actions({action}); }
 
+bool App::scroll_list_to(const std::string& dialog, const std::string& control, int32_t row) {
+    ui::GuiDialog* d = ui_.gui.find(dialog);
+    if (!d) return false;
+    ui_.gui.scroll_list_to(*d, control, row);
+    return true;
+}
+
+bool App::set_selected_row(const std::string& dialog, const std::string& control, int32_t row) {
+    ui::GuiDialog* d = ui_.gui.find(dialog);
+    ui::GuiControl* c = d ? d->get(control) : nullptr;
+    if (!c) return false;
+    c->selected = row;
+    return true;
+}
+
 }  // namespace alamo_game_app

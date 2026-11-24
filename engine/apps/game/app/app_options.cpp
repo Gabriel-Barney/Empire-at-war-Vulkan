@@ -174,12 +174,12 @@ void App::show_credits() {
     std::vector<uint8_t> bytes;
     const std::string lang = ui_.text.language.empty() ? std::string("ENGLISH") : ui_.text.language;
     if (!data_.files->read(ui::credits_path(lang), bytes) && !data_.files->read(ui::credits_path("ENGLISH"), bytes)) {
-        notes_.push_back("credits: no CreditsText DAT");
+        ctl_.notes.push_back("credits: no CreditsText DAT");
         return;
     }
     std::vector<ui::CreditsLine> lines;
     if (!ui::parse_credits(bytes, lines) || lines.empty()) {
-        notes_.push_back("credits: CreditsText DAT not readable");
+        ctl_.notes.push_back("credits: CreditsText DAT not readable");
         return;
     }
     ui_.gui.close_all();

@@ -47,17 +47,17 @@ ScriptStep step_click_in(std::string name, std::string dialog, std::string contr
     auto px = std::make_shared<std::pair<int32_t, int32_t>>(0, 0);
     return {std::move(name), [st, px, dialog, control, first_row](App& a, ui::InputFrame& f) {
                 if (st->phase > 0) return click_at(*st, f, px->first, px->second, ui::Button::Left);  // the dialog may close on release
-                ui::GuiDialog* d = a.ui_.gui.find(dialog);
-                if (!d || d != a.ui_.gui.top()) return false;  // wait for the dialog
+                const ui::GuiDialog* d = a.ui().gui.find(dialog);
+                if (!d || d != a.ui().gui.top()) return false;  // wait for the dialog
                 const int32_t i = d->find(control);
                 if (i < 0) {
                     std::fprintf(stderr, "script: %s has no %s\n", dialog.c_str(), control.c_str());
-                    a.script_failed_ = true;
+                    a.control().failed = true;
                     return true;
                 }
                 const ui::GuiRect r = d->control_rect(static_cast<size_t>(i));
                 const float y = first_row ? r.max.y - 6.0f : 0.5f * (r.min.y + r.max.y);
-                const ui::Vec2f p = a.ui_.gui.canvas().canvas_to_pixel(0.5f * (r.min.x + r.max.x), y);
+                const ui::Vec2f p = a.ui().gui.canvas().canvas_to_pixel(0.5f * (r.min.x + r.max.x), y);
                 *px = {static_cast<int32_t>(p.x), static_cast<int32_t>(p.y)};
                 return click_at(*st, f, px->first, px->second, ui::Button::Left);
             },
@@ -80,7 +80,7 @@ ScriptStep step_select_row(std::string dialog, std::string control, std::functio
     auto px = std::make_shared<std::pair<int32_t, int32_t>>(0, 0);
     auto key_frame = std::make_shared<bool>(false);
     return {"select row of " + dialog + "/" + control, [st, px, key_frame, dialog, control, row](App& a, ui::InputFrame& f) {
-                ui::GuiDialog* d = a.ui_.gui.find(dialog);
+                const ui::GuiDialog* d = a.ui().gui.find(dialog);
                 if (!d) return false;
                 const ui::GuiControl* c = d->get(control);
                 if (!c) return false;
@@ -97,7 +97,7 @@ ScriptStep step_select_row(std::string dialog, std::string control, std::functio
                         if (hit < 0 || hit == i) break;
                         cy -= 4.0f;
                     }
-                    const ui::Vec2f p = a.ui_.gui.canvas().canvas_to_pixel(cx, cy);
+                    const ui::Vec2f p = a.ui().gui.canvas().canvas_to_pixel(cx, cy);
                     *px = {static_cast<int32_t>(p.x), static_cast<int32_t>(p.y)};
                 }
                 if (st->phase <= 3) {
@@ -119,19 +119,19 @@ ScriptStep step_select_row(std::string dialog, std::string control, std::functio
 // a mod's skirmish staging dialog may have no game-type list (Age of Legends' layout): the dialog keeps the type it
 // opened on and the run plays that type's first map. These steps note that instead of waiting for a row that cannot exist.
 bool staging_has_game_types(App& a) {
-    ui::GuiDialog* d = a.ui_.gui.find("IDD_SKIRMISH_STAGING_DIALOG");
+    const ui::GuiDialog* d = a.ui().gui.find("IDD_SKIRMISH_STAGING_DIALOG");
     return !d || d->get("IDC_GAME_TYPE_LIST") != nullptr;
 }
 
 ScriptStep step_select_game_type(int32_t type) {
     ScriptStep pick = step_select_row("IDD_SKIRMISH_STAGING_DIALOG", "IDC_GAME_TYPE_LIST", [type](App& a) {
-        return static_cast<size_t>(std::max<int32_t>(a.ui_.front.skirmish_game_type_row(type), 0));
+        return static_cast<size_t>(std::max<int32_t>(a.ui().front.skirmish_game_type_row(type), 0));
     });
     auto inner = pick.run;
     pick.run = [inner](App& a, ui::InputFrame& f) {
-        if (!a.ui_.gui.find("IDD_SKIRMISH_STAGING_DIALOG")) return false;
+        if (!a.ui().gui.find("IDD_SKIRMISH_STAGING_DIALOG")) return false;
         if (!staging_has_game_types(a)) {
-            a.notes_.push_back("skirmish staging has no IDC_GAME_TYPE_LIST: the dialog's default game type is played");
+            a.control().notes.push_back("skirmish staging has no IDC_GAME_TYPE_LIST: the dialog's default game type is played");
             return true;
         }
         return inner(a, f);
@@ -143,19 +143,19 @@ ScriptStep step_select_game_type(int32_t type) {
 // the open summary holds the ticks: wait until that has happened (or the campaign added no chapter early on), then close
 // the summary with its Close button like a player. Nothing to do when it never opened.
 void close_auto_holocron(std::vector<ScriptStep>& s) {
-    s.push_back(step_wait("campaign-start holocron settled", [](App& a) { return !a.summary_auto_open_; }, 600));
+    s.push_back(step_wait("campaign-start holocron settled", [](App& a) { return !a.summary_auto_open(); }, 600));
     ScriptStep click = step_click_control(ui::dlg::kStorySummary, "IDC_SUMMARY_DIALOG_CLOSE_BUTTON");
     auto skip = std::make_shared<bool>(false);
     auto checked = std::make_shared<bool>(false);
     s.push_back({"close the campaign-start holocron", [skip, checked, run = std::move(click.run)](App& a, ui::InputFrame& f) {
                      if (!*checked) {
                          *checked = true;
-                         *skip = !a.story_summary_open_;
+                         *skip = !a.story_summary_open();
                      }
                      return *skip || run(a, f);
                  },
                  click.timeout_frames});
-    s.push_back(step_wait("campaign-start holocron closed", [](App& a) { return !a.story_summary_open_; }, 300));
+    s.push_back(step_wait("campaign-start holocron closed", [](App& a) { return !a.story_summary_open(); }, 300));
 }
 
 // Clicks list row `row` itself like a player (scrolled into view first). Unlike step_select_row it never clicks another
@@ -165,19 +165,19 @@ ScriptStep step_click_row(std::string dialog, std::string control, std::function
     auto px = std::make_shared<std::pair<int32_t, int32_t>>(0, 0);
     return {"click row of " + dialog + "/" + control, [st, px, dialog, control, row](App& a, ui::InputFrame& f) {
                 if (st->phase > 0) return click_at(*st, f, px->first, px->second, ui::Button::Left);
-                ui::GuiDialog* d = a.ui_.gui.find(dialog);
-                if (!d || d != a.ui_.gui.top()) return false;  // wait for the dialog
+                const ui::GuiDialog* d = a.ui().gui.find(dialog);
+                if (!d || d != a.ui().gui.top()) return false;  // wait for the dialog
                 const int32_t want = row(a);
                 ui::Vec2f p{};
-                if (!a.ui_.gui.list_row_point(*d, control, want, p)) {
-                    a.ui_.gui.scroll_list_to(*d, control, want);
-                    if (!a.ui_.gui.list_row_point(*d, control, want, p)) {
+                if (!a.ui().gui.list_row_point(*d, control, want, p)) {
+                    a.scroll_list_to(dialog, control, want);
+                    if (!a.ui().gui.list_row_point(*d, control, want, p)) {
                         std::fprintf(stderr, "script: %s/%s has no visible row %d\n", dialog.c_str(), control.c_str(), static_cast<int>(want));
-                        a.script_failed_ = true;
+                        a.control().failed = true;
                         return true;
                     }
                 }
-                const ui::Vec2f q = a.ui_.gui.canvas().canvas_to_pixel(p.x, p.y);
+                const ui::Vec2f q = a.ui().gui.canvas().canvas_to_pixel(p.x, p.y);
                 *px = {static_cast<int32_t>(q.x), static_cast<int32_t>(q.y)};
                 return click_at(*st, f, px->first, px->second, ui::Button::Left);
             },
@@ -189,8 +189,8 @@ ScriptStep step_shot(std::string file) {
     return {"shot " + file, [st, file](App& a, ui::InputFrame&) {
                 if (a.opt_.png_dir.empty()) return true;
                 if (*st == 0) {  // hold the sim while models stream and pipelines compile (presentation-only pause)
-                    a.hold_sim_ = true;
-                    a.shot_done_ = false;
+                    a.control().hold_sim = true;
+                    a.control().shot_done = false;
                     *st = 1;
                     return false;
                 }
@@ -199,13 +199,13 @@ ScriptStep step_shot(std::string file) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(5));
                     return false;
                 }
-                if (a.shot_path_.empty() && !a.shot_done_) {
-                    if (!a.present_settled()) a.notes_.push_back(file + ": taken before everything settled" + std::string(a.gview_.settled() ? " (models ok" : " (models pending") + ", pipelines " + std::to_string(a.draw_stats_.pending_pipeline) + ", translation " + std::to_string(a.draw_stats_.translation_pending) + ")");
-                    a.shot_path_ = a.opt_.png_dir + "/" + file;
+                if (a.control().shot_path.empty() && !a.control().shot_done) {
+                    if (!a.present_settled()) a.control().notes.push_back(file + ": taken before everything settled" + std::string(a.gview_.settled() ? " (models ok" : " (models pending") + ", pipelines " + std::to_string(a.draw_stats_.pending_pipeline) + ", translation " + std::to_string(a.draw_stats_.translation_pending) + ")");
+                    a.control().shot_path = a.opt_.png_dir + "/" + file;
                     return false;
                 }
-                if (!a.shot_done_) return false;
-                a.hold_sim_ = false;
+                if (!a.control().shot_done) return false;
+                a.control().hold_sim = false;
                 return true;
             },
             1200};
@@ -246,7 +246,7 @@ void add_pause_steps(std::vector<ScriptStep>& s) {
                      if (++*n < 20) return false;
                      if (a.session_->host().frame() != *frame0) {
                          std::fprintf(stderr, "script: the sim ticked while paused (%" PRIu64 " -> %" PRIu64 ")\n", *frame0, a.session_->host().frame());
-                         a.script_failed_ = true;
+                         a.control().failed = true;
                      }
                      return true;
                  },
@@ -259,10 +259,10 @@ void add_pause_steps(std::vector<ScriptStep>& s) {
 ScriptStep step_hotkey(std::string name, uint16_t slot) {
     auto st = std::make_shared<int>(0);
     return {std::move(name), [st, slot](App& a, ui::InputFrame& f) {
-                const ui::HotkeyBinding b = a.ui_.hotkeys.binding(slot);
+                const ui::HotkeyBinding b = a.ui().hotkeys.binding(slot);
                 if (b.key < 0) {
                     std::fprintf(stderr, "script: hotkey slot %u is unbound\n", slot);
-                    a.script_failed_ = true;
+                    a.control().failed = true;
                     return true;
                 }
                 if (*st == 1) {
@@ -314,11 +314,11 @@ void add_fleet_group_steps(std::vector<ScriptStep>& s, const std::string& prefix
     }, 300));
     s.push_back(step_ticks("bar shows the group", 5));
     s.push_back({"fleet group tab drawn", [](App& a, ui::InputFrame&) {
-                     const uint32_t tabs = a.ui_.tactical_hud.stats().fleet_tabs;
+                     const uint32_t tabs = a.ui().tactical_hud.stats().fleet_tabs;
                      std::printf("script: fleet groups: %u header tab(s) in the selected-unit bar\n", tabs);
                      if (tabs == 0) {
                          std::fprintf(stderr, "script: no fleet group tab in the selected-unit bar\n");
-                         a.script_failed_ = true;
+                         a.control().failed = true;
                      }
                      return true;
                  },
@@ -341,7 +341,7 @@ void add_fleet_group_steps(std::vector<ScriptStep>& s, const std::string& prefix
                          std::printf("script: fleet groups: move preview shown while aiming %d\n", st->shown ? 1 : 0);
                          if (!st->shown) {
                              std::fprintf(stderr, "script: no fleet group move preview while aiming\n");
-                             a.script_failed_ = true;
+                             a.control().failed = true;
                          }
                          return true;
                      }
@@ -357,7 +357,7 @@ void add_fleet_group_steps(std::vector<ScriptStep>& s, const std::string& prefix
                          ++st->phase;
                          return false;
                      }
-                     st->shown = st->shown || a.ui_.tactical_hud.stats().fleet_preview > 0;
+                     st->shown = st->shown || a.ui().tactical_hud.stats().fleet_preview > 0;
                      if (!st->shot.run(a, f)) return false;
                      f.buttons_down = 0;
                      f.buttons_released = bit;
@@ -404,7 +404,7 @@ void add_control_group_steps(std::vector<ScriptStep>& s) {
                      std::printf("script: control group 1: %zu units, camera %.0f units from their centroid\n", g.size(), std::sqrt(dx * dx + dy * dy));
                      if (k == 0 || dx * dx + dy * dy > 400.0 * 400.0) {
                          std::fprintf(stderr, "script: the camera did not jump to control group 1\n");
-                         a.script_failed_ = true;
+                         a.control().failed = true;
                      }
                      return true;
                  },
@@ -425,12 +425,12 @@ ScriptStep step_encyclopedia(std::string name) {
     return {std::move(name), [aimed, shown0, waited, aims, since_aim, target, target_id](App& a, ui::InputFrame&) {
                 // The pop-up's delay is wall time: the sim is held meanwhile (presentation-only) so the ticks of the
                 // run stay independent of the machine's speed (the CRC log compares across compilers).
-                a.hold_sim_ = true;
-                if (*shown0 == ~uint64_t{0}) *shown0 = a.ency_shown_;
+                a.control().hold_sim = true;
+                if (*shown0 == ~uint64_t{0}) *shown0 = a.encyclopedia_shown();
                 // in a battle, while nothing is under the cursor 60 frames after an aim, aim at the next local unit
                 // (a mod's first local unit can be one the pick cannot hit: the Remake's and FotR's start fighters sit in the
                 // station's hangar). The camera only; the sim stays held.
-                if (*aimed && a.screen() == Screen::Battle && a.hover_ship_ == 0 && a.ency_shown_ <= *shown0 && ++*since_aim >= 60) *aimed = false;
+                if (*aimed && a.screen() == Screen::Battle && a.hover_ship() == 0 && a.encyclopedia_shown() <= *shown0 && ++*since_aim >= 60) *aimed = false;
                 if (!*aimed) {
                     if (a.screen() == Screen::Battle && a.bview_.active()) {
                         // The local units: the selection the control-group steps left, else the owner test.
@@ -467,21 +467,21 @@ ScriptStep step_encyclopedia(std::string name) {
                     }
                     return false;
                 }
-                if (a.ency_shown_ <= *shown0 + 2) {
+                if (a.encyclopedia_shown() <= *shown0 + 2) {
                     if (++*waited == 600) {  // what the hover sees when the pop-up does not come
                         uint32_t hover_type = ~0u;
-                        for (const ui::HudUnit& u : a.hud_units_)
-                            if (u.id == a.hover_ship_) hover_type = u.type;
+                        for (const ui::HudUnit& u : a.hud_units())
+                            if (u.id == a.hover_ship()) hover_type = u.type;
                         uint32_t with_icon = 0;
-                        for (const ui::HudUnit& u : a.hud_units_)
-                            if (u.owner >= 0 && u.type < a.ui_.hud_types.size() && !a.ui_.hud_types[u.type].icon_name.empty()) ++with_icon;
-                        const int32_t mx = a.input_.mouse_x(), my = a.input_.mouse_y();
+                        for (const ui::HudUnit& u : a.hud_units())
+                            if (u.owner >= 0 && u.type < a.ui().hud_types.size() && !a.ui().hud_types[u.type].icon_name.empty()) ++with_icon;
+                        const int32_t mx = a.mouse_x(), my = a.mouse_y();
                         std::printf("script: encyclopedia wait - hover %u (type %u), %zu hud units (%u with an icon), panel %s, shown "
                                     "object %u, %zu pop-up frames, %u aims, mouse %d,%d, hud component %d, dialog hit %d\n",
-                                    a.hover_ship_, hover_type, a.hud_units_.size(), with_icon,
-                                    a.ency_.stage() == ui::EncyclopediaPanel::Stage::Shown ? "shown" : "hidden", a.ency_.shown_object(),
-                                    static_cast<size_t>(a.ency_shown_ - *shown0), *aims, mx, my, a.routed_.hover_component,
-                                    a.ui_.gui.hit(mx, my) ? 1 : 0);
+                                    a.hover_ship(), hover_type, a.hud_units().size(), with_icon,
+                                    a.encyclopedia().stage() == ui::EncyclopediaPanel::Stage::Shown ? "shown" : "hidden", a.encyclopedia().shown_object(),
+                                    static_cast<size_t>(a.encyclopedia_shown() - *shown0), *aims, mx, my, a.hover_component(),
+                                    a.ui().gui.hit(mx, my) ? 1 : 0);
                         const ui::Vec3 la = a.bview_.camera().look_at();
                         std::printf("script:   last aim %.0f,%.0f,%.0f, camera look-at %.0f,%.0f,%.0f\n", target->x, target->y,
                                     target->z, la.x, la.y, la.z);
@@ -498,21 +498,21 @@ ScriptStep step_encyclopedia(std::string name) {
                             if (const sim::TacticalBattle* b = a.session_ ? a.session_->battle() : nullptr) {
                                 const objects::ObjectId box = b->contained_by(static_cast<objects::ObjectId>(*target_id));
                                 std::string box_type = "-";
-                                for (const ui::HudUnit& u : a.hud_units_)
-                                    if (u.id == static_cast<uint32_t>(box) && u.type < a.ui_.hud_types.size()) box_type = a.ui_.hud_types[u.type].name;
+                                for (const ui::HudUnit& u : a.hud_units())
+                                    if (u.id == static_cast<uint32_t>(box) && u.type < a.ui().hud_types.size()) box_type = a.ui().hud_types[u.type].name;
                                 std::printf("script:   contained by %u (%s, a hud unit: %s)\n", static_cast<uint32_t>(box), box_type.c_str(),
                                             box_type == "-" ? "no" : "yes");
                             }
                         }
                         uint32_t shown_units = 0;
-                        for (const ui::HudUnit& u : a.hud_units_)
-                            if (u.owner == a.local_player() && u.type < a.ui_.hud_types.size() && shown_units++ < 6)
-                                std::printf("script:   local hud unit %u %s icon '%s'\n", u.id, a.ui_.hud_types[u.type].name.c_str(),
-                                            a.ui_.hud_types[u.type].icon_name.c_str());
+                        for (const ui::HudUnit& u : a.hud_units())
+                            if (u.owner == a.local_player() && u.type < a.ui().hud_types.size() && shown_units++ < 6)
+                                std::printf("script:   local hud unit %u %s icon '%s'\n", u.id, a.ui().hud_types[u.type].name.c_str(),
+                                            a.ui().hud_types[u.type].icon_name.c_str());
                     }
                     return false;
                 }
-                a.hold_sim_ = false;
+                a.control().hold_sim = false;
                 return true;
             },
             1200};
@@ -533,13 +533,13 @@ ScriptStep step_unit_tooltip(std::string file) {
     st->shot = step_shot(std::move(file));
     return {"unit tooltip", [st](App& a, ui::InputFrame& f) {
                 if (a.screen() != Screen::Battle || !a.bview_.active()) return false;
-                a.hold_sim_ = true;
+                a.control().hold_sim = true;
                 if (st->phase == 0) {  // aim: the cursor stays in the middle of the screen
                     size_t most = 0;
                     ui::Vec3 at{};
-                    for (const ui::HudUnit& u : a.hud_units_) {
+                    for (const ui::HudUnit& u : a.hud_units()) {
                         if (u.type >= a.data_.types.size()) continue;
-                        const ui::EncyclopediaEntry e = encyclopedia_entry(a.data_, a.ui_.text, a.ui_.hud_types, u.type);
+                        const ui::EncyclopediaEntry e = encyclopedia_entry(a.data_, a.ui().text, a.ui().hud_types, u.type);
                         size_t len = e.header.size() + e.description.size();
                         for (const ui::EncyclopediaRow& r : e.rows) len += r.left.size() + r.right.size() + r.center.size();
                         if (len > most) {
@@ -549,8 +549,8 @@ ScriptStep step_unit_tooltip(std::string file) {
                         }
                     }
                     if (st->target == 0) {
-                        a.notes_.push_back("unit tooltip: no unit on the HUD");
-                        a.hold_release_ = true;
+                        a.control().notes.push_back("unit tooltip: no unit on the HUD");
+                        a.control().hold_release = true;
                         return true;
                     }
                     st->look = a.bview_.camera().look_at();
@@ -559,15 +559,15 @@ ScriptStep step_unit_tooltip(std::string file) {
                     return false;
                 }
                 if (st->phase == 1) {
-                    if (a.ency_.shown_object() != st->target && ++st->n <= 150) return false;
-                    if (a.ency_.shown_object() != st->target) a.notes_.push_back("unit tooltip: another object under the cursor");
+                    if (a.encyclopedia().shown_object() != st->target && ++st->n <= 150) return false;
+                    if (a.encyclopedia().shown_object() != st->target) a.control().notes.push_back("unit tooltip: another object under the cursor");
                     st->phase = 2;
                     return false;
                 }
                 if (!st->shot.run(a, f)) return false;
                 a.bview_.camera().jump_to(st->look);
-                a.hold_sim_ = true;
-                a.hold_release_ = true;  // no ticks on this frame: the next step runs when it would have without this one
+                a.control().hold_sim = true;
+                a.control().hold_release = true;  // no ticks on this frame: the next step runs when it would have without this one
                 return true;
             },
             3000};
@@ -586,10 +586,10 @@ ScriptStep step_victory_screen(std::string file) {
     return {"victory screen", [st](App& a, ui::InputFrame& f) {
                 if (st->shown) return st->shot.run(a, f);
                 std::vector<std::pair<std::u32string, objects::TypeIndex>> names;
-                for (objects::TypeIndex t = 0; t < a.data_.types.size() && t < a.ui_.hud_types.size(); ++t)
+                for (objects::TypeIndex t = 0; t < a.data_.types.size() && t < a.ui().hud_types.size(); ++t)
                     if (const std::string_view id = a.data_.types.get_string(t, "Text_ID");
-                        !id.empty() && a.ui_.text.find(id) && !a.ui_.hud_types[t].icon_name.empty())
-                        names.emplace_back(type_label(a.data_, a.ui_.text, t), t);
+                        !id.empty() && a.ui().text.find(id) && !a.ui().hud_types[t].icon_name.empty())
+                        names.emplace_back(type_label(a.data_, a.ui().text, t), t);
                 std::stable_sort(names.begin(), names.end(), [](const auto& x, const auto& y) { return x.first.size() > y.first.size(); });
                 ui::BattleEndInfo info;
                 info.victory = true;
@@ -604,11 +604,11 @@ ScriptStep step_victory_screen(std::string file) {
                 for (size_t i = 0; i < names.size() && i < 20; ++i) {
                     ui::BattleEndUnit u;
                     u.name = names[i].first;
-                    u.icon = a.ui_.hud_types[names[i].second].icon_name;
+                    u.icon = a.ui().hud_types[names[i].second].icon_name;
                     u.count = i % 2 ? 12 : 1;
                     (i < 14 ? info.your_losses : info.enemy_losses).push_back(std::move(u));
                 }
-                if (!a.screens_.show_battle_end(info)) a.notes_.push_back("victory screen: dialog missing");
+                if (!a.show_battle_end(info)) a.control().notes.push_back("victory screen: dialog missing");
                 st->shown = true;
                 return false;
             },
@@ -621,13 +621,13 @@ ScriptStep step_skirmish_faction() {
     return {"skirmish faction row", [](App& a, ui::InputFrame&) {
                 const std::string want = env_or_empty("ALAMO_SMOKE_SKIRMISH_FACTION");
                 if (want.empty()) return true;
-                ui::GuiDialog* d = a.ui_.gui.find("IDD_SKIRMISH_STAGING_DIALOG");
-                ui::GuiControl* c = d ? d->get("IDC_PLAYER_FACTION_0") : nullptr;
+                const ui::GuiDialog* d = a.ui().gui.find("IDD_SKIRMISH_STAGING_DIALOG");
+                const ui::GuiControl* c = d ? d->get("IDC_PLAYER_FACTION_0") : nullptr;
                 if (!c) return false;
                 int32_t row = 0;
                 for (const char ch : want)
                     if (ch >= '0' && ch <= '9' && row < 100000) row = row * 10 + (ch - '0');
-                if (row >= 0 && static_cast<size_t>(row) < c->items.size()) c->selected = row;
+                if (row >= 0 && static_cast<size_t>(row) < c->items.size()) a.set_selected_row("IDD_SKIRMISH_STAGING_DIALOG", "IDC_PLAYER_FACTION_0", row);
                 std::printf("script: slot 0 faction row %d of %zu\n", c->selected, c->items.size());
                 return true;
             },
@@ -658,14 +658,14 @@ ScriptStep step_select_all(std::shared_ptr<bool> none = nullptr) {
                 // slots hold only the map's pre-built base): the unit steps need units that move and are skipped.
                 if (any && !moves && none) {
                     *none = true;
-                    a.notes_.push_back("select all: only static objects after " + std::to_string(*st) + " frames: the unit steps are skipped");
+                    a.control().notes.push_back("select all: only static objects after " + std::to_string(*st) + " frames: the unit steps are skipped");
                     std::printf("script: select all - only static objects after %d frames, unit steps skipped\n", *st);
                     return true;
                 }
-                if (any && *st > 4) a.notes_.push_back("select all: the first unit was selectable after " + std::to_string(*st) + " frames");
+                if (any && *st > 4) a.control().notes.push_back("select all: the first unit was selectable after " + std::to_string(*st) + " frames");
                 if (!any && none && *st >= 1500) {
                     *none = true;
-                    a.notes_.push_back("select all: nothing selectable after 1500 frames: the unit steps are skipped");
+                    a.control().notes.push_back("select all: nothing selectable after 1500 frames: the unit steps are skipped");
                     std::printf("script: select all - nothing selectable after %d frames, unit steps skipped\n", *st);
                     return true;
                 }
@@ -699,7 +699,7 @@ ScriptStep step_attack_enemy(bool shift = false) {
                 if (*target == 0) {
                     *target = static_cast<uint32_t>(t->id);
                     a.bview_.camera().jump_to({t->position.x, t->position.y, 0.0f});
-                    a.hold_sim_ = true;  // presentation-only hold: the target stays where the click aims
+                    a.control().hold_sim = true;  // presentation-only hold: the target stays where the click aims
                     return false;
                 }
                 if (st->phase == 0 && ++*settle < 10) return false;  // let the camera settle on the target
@@ -718,7 +718,7 @@ ScriptStep step_attack_enemy(bool shift = false) {
                                                            static_cast<int32_t>(sy) + kDirs[d][1] * kRings[ring]};
                     };
                     constexpr int32_t kCands = 1 + 8 * 4;
-                    if (*probe > 0 && a.hover_ship_ == *target) {
+                    if (*probe > 0 && a.hover_ship() == *target) {
                         *px = cand(*probe - 1);  // the pixel set last frame hovers the target
                     } else if (*probe < kCands) {
                         const auto p = cand(*probe);
@@ -733,13 +733,13 @@ ScriptStep step_attack_enemy(bool shift = false) {
                 }
                 const bool done = click_at(*st, f, px->first, px->second, ui::Button::Right, shift);
                 if (done) {
-                    a.hold_sim_ = false;
+                    a.control().hold_sim = false;
                     std::string ty = "?";  // what was clicked (the attack must route; a miss shows here)
-                    for (const ui::HudUnit& u : a.hud_units_)
-                        if (u.id == *target && u.type < a.ui_.hud_types.size()) ty = a.ui_.hud_types[u.type].name;
+                    for (const ui::HudUnit& u : a.hud_units())
+                        if (u.id == *target && u.type < a.ui().hud_types.size()) ty = a.ui().hud_types[u.type].name;
                     std::printf("script: enemy click - target %u %s at pixel %d,%d, hovered %u, hud component %d\n", *target, ty.c_str(),
-                                px->first, px->second, a.hover_ship_, a.routed_.hover_component);
-                    if (const ui::WorldPickTests* tests = a.world_pick_tests(); tests && tests->precise && a.hover_ship_ != *target) {
+                                px->first, px->second, a.hover_ship(), a.hover_component());
+                    if (const ui::WorldPickTests* tests = a.world_pick_tests(); tests && tests->precise && a.hover_ship() != *target) {
                         const ui::View v = ui::make_view(a.bview_.camera_params(a.targets_.width, a.targets_.height), a.targets_.width,
                                                          a.targets_.height);
                         float hit_t = 0.0f;
@@ -747,8 +747,8 @@ ScriptStep step_attack_enemy(bool shift = false) {
                         ui::Vec3 c{};
                         const float r = tests->sphere ? tests->sphere(*target, c) : 0.0f;
                         bool icon = false;
-                        for (const ui::HudUnit& u : a.hud_units_)
-                            if (u.id == *target && u.type < a.ui_.hud_types.size()) icon = !a.ui_.hud_types[u.type].icon_name.empty();
+                        for (const ui::HudUnit& u : a.hud_units())
+                            if (u.id == *target && u.type < a.ui().hud_types.size()) icon = !a.ui().hud_types[u.type].icon_name.empty();
                         std::printf("script:   target pick: precise %d (t %.1f), override sphere %.1f, icon %d\n", static_cast<int>(po), hit_t,
                                     r, icon ? 1 : 0);
                     }
@@ -854,7 +854,7 @@ ScriptStep step_move_ground(bool shift = false) {
                         }
                         if (*shifts == kGroundShifts) {
                             ++*shifts;
-                            a.notes_.push_back("ground move: no free ground pixel after the camera steps (the click lands on an object)");
+                            a.control().notes.push_back("ground move: no free ground pixel after the camera steps (the click lands on an object)");
                         }
                     }
                 }
@@ -885,7 +885,7 @@ ScriptStep step_drag_box(std::string file) {
                 const uint8_t bit = ui::button_bit(ui::Button::Left);
                 if (st->phase < 0) {  // released last frame: done
                     std::printf("script: drag box drawn while held %d\n", st->drawn ? 1 : 0);
-                    if (!st->drawn) a.notes_.push_back("drag-select box not drawn while dragging");
+                    if (!st->drawn) a.control().notes.push_back("drag-select box not drawn while dragging");
                     return true;
                 }
                 f.buttons_down = bit;
@@ -894,7 +894,7 @@ ScriptStep step_drag_box(std::string file) {
                     ++st->phase;
                     return false;
                 }
-                st->drawn = st->drawn || a.ui_.tactical_hud.stats().drag_box;
+                st->drawn = st->drawn || a.ui().tactical_hud.stats().drag_box;
                 if (!st->shot.run(a, f)) return false;
                 f.buttons_down = 0;
                 f.buttons_released = bit;
@@ -983,7 +983,7 @@ ScriptStep step_fleet_slots(std::string sel_file, std::string drag_file) {
                     ui::HudAction act;
                     act.kind = ui::HudAction::Kind::GalacticSelect;
                     act.ids = {st->fleet};
-                    a.handle_hud_actions({act});
+                    a.hud_actions({act});
                     st->phase = 1;
                     return false;
                 }
@@ -994,20 +994,20 @@ ScriptStep step_fleet_slots(std::string sel_file, std::string drag_file) {
                 if (st->phase == 4) {
                     if (!st->shot_sel.run(a, f)) return false;
                     std::printf("script: fleet %u selected, slots shown %d, empty ovals %u\n", st->fleet,
-                                a.ui_.galactic_hud.stats().fleet_slots_shown ? 1 : 0, a.ui_.galactic_hud.stats().empty_slots);
-                    a.orders_.set_selection({});
+                                a.ui().galactic_hud.stats().fleet_slots_shown ? 1 : 0, a.ui().galactic_hud.stats().empty_slots);
+                    a.clear_selection();
                     st->phase = 5;
                     return false;
                 }
-                const ui::HudCanvas& cv = a.ui_.galactic_hud.canvas();
+                const ui::HudCanvas& cv = a.ui().galactic_hud.canvas();
                 if (st->phase == 5) {  // the fleet's map button: the g_planet_fleet hit nearest above its planet
-                    const int32_t gpf = a.ui_.components.find("g_planet_fleet");
+                    const int32_t gpf = a.ui().components.find("g_planet_fleet");
                     const ui::View v = ui::make_view(a.gview_.camera_params(a.targets_.width, a.targets_.height), a.targets_.width, a.targets_.height);
                     float px = 0, py = 0, qx = 0, qy = 0;
                     const Vec3 p0 = g->planets()[st->at].position, p1 = g->planets()[st->to].position;
                     if (!ui::project(v, {p0.x, p0.y, p0.z}, px, py) || !ui::project(v, {p1.x, p1.y, p1.z}, qx, qy)) return false;
                     float best = 1e30f;
-                    for (const ui::HudHitBox& h : a.ui_.galactic_hud.hit_boxes()) {
+                    for (const ui::HudHitBox& h : a.ui().galactic_hud.hit_boxes()) {
                         if (h.component != gpf) continue;
                         const ui::Vec2f c = cv.canvas_to_pixel(0.5f * (h.min.x + h.max.x), 0.5f * (h.min.y + h.max.y));
                         const float d = std::hypot(c.x - px, c.y - py);
@@ -1035,9 +1035,9 @@ ScriptStep step_fleet_slots(std::string sel_file, std::string drag_file) {
                 }
                 if (!st->shot_drag.run(a, f)) return false;
                 std::printf("script: fleet drag active %d, over slot %d of planet %u, valid %d, empty ovals %u, highlights %u\n",
-                            a.ui_.galactic_hud.drag().active ? 1 : 0, a.ui_.galactic_hud.drag().over_slot,
-                            a.ui_.galactic_hud.drag().over_slot_planet, a.ui_.galactic_hud.drag().valid ? 1 : 0,
-                            a.ui_.galactic_hud.stats().empty_slots, a.ui_.galactic_hud.stats().slot_highlights);
+                            a.ui().galactic_hud.drag().active ? 1 : 0, a.ui().galactic_hud.drag().over_slot,
+                            a.ui().galactic_hud.drag().over_slot_planet, a.ui().galactic_hud.drag().valid ? 1 : 0,
+                            a.ui().galactic_hud.stats().empty_slots, a.ui().galactic_hud.stats().slot_highlights);
                 f.mouse_x = static_cast<int32_t>(st->from.x);  // back over its own planet: no order
                 f.mouse_y = static_cast<int32_t>(st->from.y);
                 f.buttons_down = 0;
@@ -1092,25 +1092,25 @@ ScriptStep step_combat(bool land) {
                     if (target != 0) a.bview_.camera().jump_to({static_cast<float>((cx + tx) / 2), static_cast<float>((cy + ty) / 2), 0.0f});
                     else a.bview_.camera().jump_to({static_cast<float>(cx), static_cast<float>(cy), 0.0f});
                 }
-                if (st->n++ % 150 == 0 && target != 0) a.submit(commands::ev::attack(target, mine));
+                if (st->n++ % 150 == 0 && target != 0) a.submit_command(commands::ev::attack(target, mine));
                 const sim::BattleStats& bs = *stats;
                 if (bs.deaths > 0 && st->first_death == 0) st->first_death = st->n;
                 // Sim-only end condition (frame counts, no render state): the run's ticks stay machine independent.
                 if (bs.shots == 0 || bs.deaths == 0 || st->n < st->first_death + 60) return false;
-                if (land && a.bview_.stats().corpses == 0) a.notes_.push_back("land combat: no corpse drawn yet");
+                if (land && a.bview_.stats().corpses == 0) a.control().notes.push_back("land combat: no corpse drawn yet");
 #ifdef ALAMO_SIM_HAVE_ANIM
                 // Animation feed: land infantry / vehicles walk, idle and attack (anim plays); every battle's shots flash
                 // muzzles. FoC's space capital ships ship no idle / move / attack clips (only _D_DIE_00), so space
                 // skirmishes legitimately log 0 anim plays.
                 if (const sim::SimAnimation* an = a.session_->animation()) {
-                    if (land && bs.anim_plays == 0) a.notes_.push_back("land combat: no animation played");
-                    if (an->stats().muzzle_flashes == 0) a.notes_.push_back("combat: no muzzle flash");
+                    if (land && bs.anim_plays == 0) a.control().notes.push_back("land combat: no animation played");
+                    if (an->stats().muzzle_flashes == 0) a.control().notes.push_back("combat: no muzzle flash");
                 }
 #endif
                 // a mod may draw its bolts as projectile models (Thrawn's Revenge: Proj_Space_Laser_*.alo) instead of
                 // procedural lasers; only a battle with neither is noted. Vanilla lines unchanged.
                 if (!land && a.bview_.stats().lasers_peak == 0)
-                    a.notes_.push_back(a.bview_.stats().model_projectiles_peak > 0
+                    a.control().notes.push_back(a.bview_.stats().model_projectiles_peak > 0
                                            ? "space combat: no procedural laser bolt drawn (" + std::to_string(a.bview_.stats().model_projectiles_peak) +
                                                  " model projectiles peak)"
                                            : std::string("space combat: no laser bolt drawn"));
@@ -1139,27 +1139,27 @@ ScriptStep step_reinforce() {
     return {"reinforcement drop", [st](App& a, ui::InputFrame& f) {
                 const sim::TacticalBattle* b = a.session_ ? a.session_->battle() : nullptr;
                 if (!b || a.screen() != Screen::Battle || !a.bview_.active()) {
-                    if (st->n > 0) a.notes_.push_back("reinforcement: the battle ended before a drop deployed");
+                    if (st->n > 0) a.control().notes.push_back("reinforcement: the battle ended before a drop deployed");
                     return st->n > 0;
                 }
                 if (st->n++ == 0) st->rejected0 = a.session_->order_stats().rejected;
                 const uint64_t refused = a.session_->order_stats().rejected - st->rejected0;
-                if (a.session_->order_stats().reinforcements > 0 || (a.reinforce_drops_ > 0 && refused > 0 && st->n >= st->next)) {
+                if (a.session_->order_stats().reinforcements > 0 || (a.reinforce_drops() > 0 && refused > 0 && st->n >= st->next)) {
                     // Deployed, or answered QueueFull (the cap is full until a unit dies; deployment after a loss is covered
                     // by alamo_game_session_tests).
                     std::printf("script: reinforcement drop answered: %s after %" PRIu64 " drop(s), %" PRIu64 " refused\n",
-                                a.session_->order_stats().reinforcements > 0 ? "deployed" : "refused (cap full)", a.reinforce_drops_, refused);
+                                a.session_->order_stats().reinforcements > 0 ? "deployed" : "refused (cap full)", a.reinforce_drops(), refused);
                     return true;
                 }
                 if (st->n > 900) {
-                    a.notes_.push_back("reinforcement: no drop deployed within 900 frames");
+                    a.control().notes.push_back("reinforcement: no drop deployed within 900 frames");
                     return true;
                 }
                 if (st->phase == 0) {
                     const auto pool = b->reserves(a.local_player());
                     if (pool.empty()) {
-                        if (st->n > 60 && a.reinforce_drops_ == 0) {
-                            a.notes_.push_back("reinforcement: no reserves in this battle");
+                        if (st->n > 60 && a.reinforce_drops() == 0) {
+                            a.control().notes.push_back("reinforcement: no reserves in this battle");
                             return true;
                         }
                         return false;
@@ -1168,14 +1168,14 @@ ScriptStep step_reinforce() {
                     // [port: Gabriel, 2026-11-13] with 12-fighter squadrons the starting fleet can fill the space cap, so
                     // the pad refuses the pick itself (reinforce_available: QueueFull) and no drop is ever clicked: the
                     // same answer as a refused drop.
-                    if (st->n > 60 && a.reinforce_drops_ == 0 && !a.reinforce_available(pool[0].galactic_id)) {
+                    if (st->n > 60 && a.reinforce_drops() == 0 && !a.reinforce_available(pool[0].galactic_id)) {
                         std::printf("script: reinforcement drop answered: pick refused (cap full)\n");
                         return true;
                     }
                     ui::HudAction act;
                     act.kind = ui::HudAction::Kind::BeginReinforcement;
                     act.unit = static_cast<uint32_t>(pool[0].galactic_id);
-                    a.handle_hud_actions({act});
+                    a.hud_actions({act});
                     st->phase = 1;
                     return false;
                 }
@@ -1195,28 +1195,28 @@ ScriptStep step_reinforce_hover(std::string file) {
     auto n = std::make_shared<uint32_t>(0);
     return {"reinforcement button hover", [n, file](App& a, ui::InputFrame& f) {
                 if (!a.session_ || a.screen() != Screen::Battle || !a.bview_.active()) return false;
-                const int32_t ci = a.ui_.components.find("r_0000");
-                if (ci < 0 || a.ui_.tactical_hud.stats().reinforcements == 0) {
+                const int32_t ci = a.ui().components.find("r_0000");
+                if (ci < 0 || a.ui().tactical_hud.stats().reinforcements == 0) {
                     if (++*n > 600) {
-                        a.notes_.push_back("reinforcement hover: no reinforcement button shown");
+                        a.control().notes.push_back("reinforcement hover: no reinforcement button shown");
                         return true;
                     }
                     return false;
                 }
-                const ui::ComponentPlacement& p = a.ui_.tactical_hud.layout().placement(static_cast<uint32_t>(ci));
-                const auto px = a.ui_.tactical_hud.canvas().canvas_to_pixel(p.center.x, p.center.y);
+                const ui::ComponentPlacement& p = a.ui().tactical_hud.layout().placement(static_cast<uint32_t>(ci));
+                const auto px = a.ui().tactical_hud.canvas().canvas_to_pixel(p.center.x, p.center.y);
                 f.mouse_x = static_cast<int32_t>(px.x);
                 f.mouse_y = static_cast<int32_t>(px.y);
                 f.mouse_inside = true;
-                a.hold_sim_ = true;
+                a.control().hold_sim = true;
                 if (*n < 1000) {  // a few held frames: the button takes the hover before the shot
                     *n = 1000;
-                    a.shot_done_ = false;
+                    a.control().shot_done = false;
                     return false;
                 }
-                if (++*n == 1005 && !a.opt_.png_dir.empty()) a.shot_path_ = a.opt_.png_dir + "/" + file;
-                if (*n < 1005 || (!a.opt_.png_dir.empty() && !a.shot_done_)) return false;
-                a.hold_sim_ = false;
+                if (++*n == 1005 && !a.opt_.png_dir.empty()) a.control().shot_path = a.opt_.png_dir + "/" + file;
+                if (*n < 1005 || (!a.opt_.png_dir.empty() && !a.control().shot_done)) return false;
+                a.control().hold_sim = false;
                 return true;
             },
             1200};
@@ -1235,17 +1235,17 @@ ScriptStep step_ability_pick() {
     return {"targeted ability pick", [st](App& a, ui::InputFrame& f) {
                 if (!a.session_ || a.screen() != Screen::Battle || !a.bview_.active()) return false;
                 if (st->phase == 0) {
-                    a.hold_sim_ = true;  // presentation-only hold: no tick runs during the step (the later steps keep their ticks)
+                    a.control().hold_sim = true;  // presentation-only hold: no tick runs during the step (the later steps keep their ticks)
                     ui::HudAction act;
                     act.kind = ui::HudAction::Kind::BeginAbilityTargeting;
                     act.ability_type = 30;  // TRACTOR_BEAM: an object pick
-                    act.ids = a.orders_.selection();
+                    act.ids = a.selection();
                     st->routed0 = a.session_->order_stats().routed;
-                    a.handle_hud_actions({act});
-                    if (!a.targeting_.active() || a.targeting_.target_kind() != ui::TargetKind::Object) {
-                        a.notes_.push_back("ability pick: the HUD action did not start the pick");
-                        a.smoke_ok_ = false;
-                        a.hold_release_ = true;
+                    a.hud_actions({act});
+                    if (!a.targeting().active() || a.targeting().target_kind() != ui::TargetKind::Object) {
+                        a.control().notes.push_back("ability pick: the HUD action did not start the pick");
+                        a.control().smoke_ok = false;
+                        a.control().hold_release = true;
                         return true;
                     }
                     st->phase = 1;
@@ -1253,13 +1253,13 @@ ScriptStep step_ability_pick() {
                 }
                 if (!click_at(st->click, f, static_cast<int32_t>(a.targets_.width / 2), static_cast<int32_t>(a.targets_.height / 2), ui::Button::Right))
                     return false;
-                a.hold_release_ = true;  // the next step's first frame runs the ticks the held frames did not
-                const bool ok = !a.targeting_.active() && a.targeting_.cancelled() >= 1 && a.session_->order_stats().routed == st->routed0;
+                a.control().hold_release = true;  // the next step's first frame runs the ticks the held frames did not
+                const bool ok = !a.targeting().active() && a.targeting().cancelled() >= 1 && a.session_->order_stats().routed == st->routed0;
                 std::printf("script: ability pick - %s (cancelled %" PRIu64 ", orders routed +%" PRIu64 ")\n", ok ? "right click cancelled it, no order" : "FAILED",
-                            a.targeting_.cancelled(), a.session_->order_stats().routed - st->routed0);
+                            a.targeting().cancelled(), a.session_->order_stats().routed - st->routed0);
                 if (!ok) {
-                    a.notes_.push_back("ability pick: the right click did not cancel the pick cleanly");
-                    a.smoke_ok_ = false;
+                    a.control().notes.push_back("ability pick: the right click did not cancel the pick cleanly");
+                    a.control().smoke_ok = false;
                 }
                 return true;
             },
@@ -1335,7 +1335,7 @@ ScriptStep step_galactic_attack() {
                     ui::HudAction act;  // (GalacticSelect {fleet}); the map picks transit fleets only
                     act.kind = ui::HudAction::Kind::GalacticSelect;
                     act.ids = {st->fleet};
-                    a.handle_hud_actions({act});
+                    a.hud_actions({act});
                     st->phase = 3;
                     return false;
                 }
@@ -1363,19 +1363,19 @@ ScriptStep answer_ai_attacks(ScriptStep inner) {
     auto st = std::make_shared<State>();
     return {inner.name, [st, run = std::move(inner.run)](App& a, ui::InputFrame& f) {
                 if (st->phase == 0) {
-                    const galactic::ConflictInfo* c = a.choice_open_ && a.session_ ? a.session_->conflict_head() : nullptr;
+                    const galactic::ConflictInfo* c = a.choice_open() && a.session_ ? a.session_->conflict_head() : nullptr;
                     if (!c || c->attacker == a.local_player()) return run(a, f);
                     std::printf("script: battle prompt for an attack by player %d: auto-resolved\n", c->attacker);
                     ui::HudAction act;
                     act.kind = ui::HudAction::Kind::BattleAutoResolve;
-                    a.handle_hud_actions({act});
+                    a.hud_actions({act});
                     st->phase = 1;
                     st->wait = 0;
                     st->cont = step_click_control(ui::dlg::kBattleEnd, "IDC_CONTINUE_BUTTON");
                     return false;
                 }
                 if (st->phase == 1) {
-                    if (a.battle_end_open_ && a.ui_.gui.find(ui::dlg::kBattleEnd) && a.screen_text_.empty()) st->phase = 2;
+                    if (a.battle_end_open() && a.ui().gui.find(ui::dlg::kBattleEnd) && a.screen_text().empty()) st->phase = 2;
                     else if (++st->wait > 600) st->phase = 0;  // no result screen came: back to the step
                     return false;
                 }
@@ -1434,8 +1434,8 @@ ScriptStep step_galactic_move(bool drag) {
                     // Both planets on screen: the camera looks at their midpoint.
                     const Vec3 c0 = g->planets()[st->from].position, c1 = g->planets()[st->to].position;
                     a.gview_.camera().set_look_at({0.5f * (c0.x + c1.x), 0.5f * (c0.y + c1.y), 0.0f});
-                    a.orders_.set_selection({});
-                    st->refused0 = a.refused_;
+                    a.clear_selection();
+                    st->refused0 = a.refused();
                     st->phase = 1;
                     return false;
                 }
@@ -1464,7 +1464,7 @@ ScriptStep step_galactic_move(bool drag) {
                         ui::HudAction act;
                         act.kind = ui::HudAction::Kind::GalacticSelect;
                         act.ids = {st->fleet};
-                        a.handle_hud_actions({act});
+                        a.hud_actions({act});
                         st->phase = 4;
                         return false;
                     }
@@ -1472,15 +1472,15 @@ ScriptStep step_galactic_move(bool drag) {
                     return false;
                 }
                 // Order sent: refused -> fail; else wait for the fleet to leave and to orbit the target.
-                if (a.refused_ != st->refused0) {
+                if (a.refused() != st->refused0) {
                     std::fprintf(stderr, "script: galactic move refused (see the submit line)\n");
-                    a.notes_.push_back("galactic move: order refused");
-                    a.smoke_ok_ = false;
+                    a.control().notes.push_back("galactic move: order refused");
+                    a.control().smoke_ok = false;
                     return true;
                 }
                 if (!store.alive(st->member)) {
                     std::fprintf(stderr, "script: the moving fleet's unit died\n");
-                    a.script_failed_ = true;
+                    a.control().failed = true;
                     return true;
                 }
                 for (const galactic::FleetState& fl : g->fleets())
@@ -1515,11 +1515,11 @@ void App::make_script() {
                      }
                      // (not the save / load smoke: it shares the PNG folder and writes only game_smoke_saveload_*.png)
                      if (n == 10 && a.full_movie_.has_frame() && !a.opt_.png_dir.empty() && a.opt_.smoke != "saveload")
-                         a.shot_path_ = a.opt_.png_dir + "/game_intro_movie.png";
+                         a.control().shot_path = a.opt_.png_dir + "/game_intro_movie.png";
                      return false;
                  },
                  1200});
-    s.push_back(step_wait("menu shown", [](App& a) { return a.ui_.gui.top() != nullptr && a.frames_ > 2; }, 600));
+    s.push_back(step_wait("menu shown", [](App& a) { return a.ui().gui.top() != nullptr && a.frames() > 2; }, 600));
     if (opt_.smoke == "saveload") {  // N1 follow-up: the save / load menus driven like a player (app_script_saveload.cpp)
         add_saveload_steps(s);
         return;
@@ -1536,21 +1536,21 @@ void App::make_script() {
         // skirmish session (and its golden) starts afresh later.
         s.push_back(step_click_control("IDD_MAIN_MENU_DIALOG", "IDC_PORT_MAIN_MENU_MODS"));
         s.push_back(step_wait("mod picker: base game report shown", [](App& a) {
-            const ui::GuiDialog* d = a.ui_.gui.find(ui::kPortModsDialog);
+            const ui::GuiDialog* d = a.ui().gui.find(ui::kPortModsDialog);
             const ui::GuiControl* list = d ? d->get("IDC_PORT_MODS_LIST") : nullptr;
             const ui::GuiControl* rep = d ? d->get("IDC_PORT_MODS_REPORT") : nullptr;
             if (!list || !rep || list->items.empty() || rep->items.empty() || rep->items[0] == U"Checking...") return false;
             std::printf("script: mod picker - %zu rows, base report: %s\n", list->items.size(), utf8_of(rep->items[0]).c_str());
             if (rep->items[0].rfind(U"Loads", 0) != 0) {
-                a.notes_.push_back("mod picker: base game report " + utf8_of(rep->items[0]));
-                a.smoke_ok_ = false;
+                a.control().notes.push_back("mod picker: base game report " + utf8_of(rep->items[0]));
+                a.control().smoke_ok = false;
             }
             return true;
         }, 6000));
         s.push_back(step_shot("game_mod_picker.png"));
         s.push_back(step_click_control(ui::kPortModsDialog, "IDC_CANCEL_BUTTON"));
         s.push_back(step_wait("main menu again", [](App& a) {
-            const ui::GuiDialog* d = a.ui_.gui.top();
+            const ui::GuiDialog* d = a.ui().gui.top();
             return d && ascii_iequals(d->name(), "IDD_MAIN_MENU_DIALOG");
         }, 120));
     }
@@ -1560,9 +1560,9 @@ void App::make_script() {
         // tactical HUD) and keeps ticking under the menu and its sub-dialogs (input never stops it); the skirmish's start
         // ends it. Its own session: the skirmish's session, CRC log and recording start afresh afterwards.
         s.push_back(step_wait("attract demo starts", [](App& a) {
-            if (a.attract_.menu_opened(a.now_s_, true) == AttractController::Request::None || !a.start_attract_map()) {
-                a.notes_.push_back("attract demo did not start");
-                a.smoke_ok_ = false;
+            if (a.attract_.menu_opened(a.now_s(), true) == AttractController::Request::None || !a.start_attract_map()) {
+                a.control().notes.push_back("attract demo did not start");
+                a.control().smoke_ok = false;
                 a.stop_attract();
             }
             return true;
@@ -1572,7 +1572,7 @@ void App::make_script() {
             if (!a.demo_session()) return true;  // failed above
             const sim::TacticalBattle* b = a.session_->battle();
             const bool drawn = a.screen() == Screen::Menu && a.bview_.active() && b && a.draw_stats_.draws > 0 &&
-                               a.ui_.gui.find("IDD_MAIN_MENU_DIALOG") && a.ui_.tactical_hud.stats().quads == 0;
+                               a.ui().gui.find("IDD_MAIN_MENU_DIALOG") && a.ui().tactical_hud.stats().quads == 0;
             if (drawn) {
                 *tick0 = b->frame();
                 std::printf("script: attract demo - %u world draws under the main menu, battle frame %u\n", a.draw_stats_.draws, b->frame());
@@ -1617,8 +1617,8 @@ void App::make_script() {
                 std::printf("script: attract orientation - %u moving hulls over 120 ticks: %u nose-first (cos > 0.7), %u backwards, %u sideways, mean cos %.3f\n",
                             moving, forward, backward, sideways, moving ? sum_cos / static_cast<double>(moving) : 0.0);
                 if (moving > 0 && forward * 2 < moving) {  // most moving hulls must fly nose-first
-                    a.notes_.push_back("attract hulls are not oriented along their travel direction");
-                    a.smoke_ok_ = false;
+                    a.control().notes.push_back("attract hulls are not oriented along their travel direction");
+                    a.control().smoke_ok = false;
                 }
                 return true;
             }, 3000));
@@ -1659,10 +1659,10 @@ void App::make_script() {
                 for (const render::SnapshotObject& o : a.bview_.frame().objects)
                     if (b && o.owner >= 0 && b->combat().has_unit(o.id)) any_unit = true;
                 if (st.frames == 0 && !any_unit) {
-                    a.notes_.push_back("attract demo: no combat unit on the demo map, camera check skipped");
+                    a.control().notes.push_back("attract demo: no combat unit on the demo map, camera check skipped");
                 } else if (st.frames == 0 || st.target_nose_on * 4 > st.frames) {
-                    a.notes_.push_back("attract camera shows the followed hull nose-on / tail-on for a long stretch");
-                    a.smoke_ok_ = false;
+                    a.control().notes.push_back("attract camera shows the followed hull nose-on / tail-on for a long stretch");
+                    a.control().smoke_ok = false;
                 }
                 return true;
             }));
@@ -1675,12 +1675,12 @@ void App::make_script() {
         s.push_back(step_wait("attract demo runs under the single-player dialog", [tick0](App& a) {
             const sim::TacticalBattle* b = a.demo_session() ? a.session_->battle() : nullptr;
             if (!b) {
-                a.notes_.push_back("attract demo stopped by the menu input");
-                a.smoke_ok_ = false;
+                a.control().notes.push_back("attract demo stopped by the menu input");
+                a.control().smoke_ok = false;
                 return true;
             }
             const bool ok = a.attract_.running() && a.bview_.active() && a.draw_stats_.draws > 0 && b->frame() >= *tick0 + 60 &&
-                            a.ui_.gui.find("IDD_SINGLE_PLAYER_GAMES_MENU_DIALOG") != nullptr;
+                            a.ui().gui.find("IDD_SINGLE_PLAYER_GAMES_MENU_DIALOG") != nullptr;
             if (ok) std::printf("script: attract demo - still running under the single-player dialog, battle frame %u\n", b->frame());
             return ok;
         }, 600));
@@ -1688,16 +1688,16 @@ void App::make_script() {
         s.push_back(step_click_control("IDD_MAIN_MENU_DIALOG", "IDC_MAIN_MENU_SINGLE_PLAYER_GAMES"));
     }
     auto battle_steps = [&s, this](const std::string& prefix) {
-        s.push_back(step_wait("load screen ready", [](App& a) { return a.screen() == Screen::BattleLoad && a.ui_.load.ready(); }, 6000));
+        s.push_back(step_wait("load screen ready", [](App& a) { return a.screen() == Screen::BattleLoad && a.ui().load.ready(); }, 6000));
         s.push_back(step_shot(prefix + "_load.png"));
         s.push_back({"begin", [](App& a, ui::InputFrame& f) {
                          static ClickState c;  // one Begin per run of this step
                          if (a.screen() != Screen::BattleLoad) return true;
-                         ui::GuiDialog* d = a.ui_.gui.find(a.ui_.load.dialog());
+                         const ui::GuiDialog* d = a.ui().gui.find(a.ui().load.dialog());
                          const int32_t i = d ? d->find("IDC_BEGIN_BUTTON") : -1;
                          if (i < 0) return false;
                          const ui::GuiRect r = d->control_rect(static_cast<size_t>(i));
-                         const ui::Vec2f p = a.ui_.gui.canvas().canvas_to_pixel(0.5f * (r.min.x + r.max.x), 0.5f * (r.min.y + r.max.y));
+                         const ui::Vec2f p = a.ui().gui.canvas().canvas_to_pixel(0.5f * (r.min.x + r.max.x), 0.5f * (r.min.y + r.max.y));
                          if (click_at(c, f, static_cast<int32_t>(p.x), static_cast<int32_t>(p.y), ui::Button::Left)) c = {};
                          return false;
                      },
@@ -1732,15 +1732,15 @@ void App::make_script() {
                             static_cast<unsigned long long>(a.session_->order_stats().rejected));
                 for (const objects::ObjectId id : a.session_->host().selection(static_cast<uint8_t>(a.local_player()))) {
                     std::string ty = "?";
-                    for (const ui::HudUnit& u : a.hud_units_)
-                        if (u.id == static_cast<uint32_t>(id) && u.type < a.ui_.hud_types.size()) ty = a.ui_.hud_types[u.type].name;
+                    for (const ui::HudUnit& u : a.hud_units())
+                        if (u.id == static_cast<uint32_t>(id) && u.type < a.ui().hud_types.size()) ty = a.ui().hud_types[u.type].name;
                     const bool moves = a.unit_moves(id);
                     std::printf(" %u %s%s", static_cast<uint32_t>(id), ty.c_str(), moves ? "" : " (no movement)");
                 }
                 std::printf("\n");
                 std::map<std::string, uint32_t> mine;  // the local player's objects on the map, by type
-                for (const ui::HudUnit& u : a.hud_units_)
-                    if (u.owner == a.local_player() && u.type < a.ui_.hud_types.size()) ++mine[a.ui_.hud_types[u.type].name];
+                for (const ui::HudUnit& u : a.hud_units())
+                    if (u.owner == a.local_player() && u.type < a.ui().hud_types.size()) ++mine[a.ui().hud_types[u.type].name];
                 std::printf("script:   local objects on the map:");
                 for (const auto& [ty, n] : mine) std::printf(" %s x%u", ty.c_str(), n);
                 std::printf("\n");
@@ -1755,12 +1755,12 @@ void App::make_script() {
             return a.session_ && a.session_->order_stats().attacks >= 2 && a.session_->order_stats().moves >= 2;
         }, 600));
         s.push_back(step_wait("queue markers shown", [](App& a) {
-            if (a.queues_.empty()) return false;
+            if (a.queues().empty()) return false;
             // Movement path lines of the moving selection (HudWaypointLine, same frame: no extra step / tick).
-            const ui::TacticalHudStats& hs = a.ui_.tactical_hud.stats();
-            std::printf("script: path lines - %zu units, %u waypoint dots, %u ability buttons\n", a.waypoints_.size(), hs.waypoint_dots,
+            const ui::TacticalHudStats& hs = a.ui().tactical_hud.stats();
+            std::printf("script: path lines - %zu units, %u waypoint dots, %u ability buttons\n", a.waypoints().size(), hs.waypoint_dots,
                         hs.ability_buttons);
-            if (a.waypoints_.empty()) a.notes_.push_back("no movement path line for the moving selection");
+            if (a.waypoints().empty()) a.control().notes.push_back("no movement path line for the moving selection");
             return true;
         }, 600));
         s.push_back(step_shot(prefix + "_queued.png"));
@@ -1777,7 +1777,7 @@ void App::make_script() {
         }
         gate_steps(s, unit_steps, no_units);
         // Battle end (time limit): the battle-end screen, then Continue.
-        s.push_back(step_wait("battle-end screen", [](App& a) { return a.battle_end_open_ && a.ui_.gui.find(ui::dlg::kBattleEnd); }, 20000));
+        s.push_back(step_wait("battle-end screen", [](App& a) { return a.battle_end_open() && a.ui().gui.find(ui::dlg::kBattleEnd); }, 20000));
         s.push_back(step_shot(prefix + "_battle_end.png"));
         if (env_or_empty("ALAMO_SMOKE_SCREENS") == "1") s.push_back(step_victory_screen(prefix + "_screen_victory.png"));
         s.push_back(step_click_control(ui::dlg::kBattleEnd, "IDC_CONTINUE_BUTTON"));
@@ -1792,10 +1792,10 @@ void App::make_script() {
         auto empty = std::make_shared<bool>(false);
         auto skipped = std::make_shared<bool>(false);  // no buy screen (free starting units off): nothing to click
         s.push_back({"buy list read", [empty, skipped, space_buy](App& a, ui::InputFrame&) {
-                         if (!a.ui_.gui.find(ui::dlg::kBuyUnits)) {
+                         if (!a.ui().gui.find(ui::dlg::kBuyUnits)) {
                              if (!a.session_) return false;
                              *empty = *skipped = true;
-                             a.notes_.push_back("no buy screen (free starting units off): the slots start without forces");
+                             a.control().notes.push_back("no buy screen (free starting units off): the slots start without forces");
                              std::printf("script: buy screen skipped - free starting units off\n");
                              return true;
                          }
@@ -1803,14 +1803,14 @@ void App::make_script() {
                          // with none the default start force plays (Fall of the Republic's start credits buy only static
                          // stations). Land rows are companies (no Max_Speed of their own): affordable is enough.
                          bool any = false;
-                         for (const ui::BuyUnitEntry& e : a.buy_.units) {
-                             if (!(e.can_buy && e.cost >= 0 && e.cost <= a.buy_.credits)) continue;
+                         for (const ui::BuyUnitEntry& e : a.buy().units) {
+                             if (!(e.can_buy && e.cost >= 0 && e.cost <= a.buy().credits)) continue;
                              any = any || !space_buy || smoke_unit_moves(a, e.type);
                          }
                          if (!any && env_or_empty("ALAMO_SMOKE_BUY_TYPE").empty()) {
                              *empty = true;
-                             a.notes_.push_back("buy list has no affordable unit that moves: nothing bought");
-                             std::printf("script: buy list - %zu rows, nothing to buy that moves\n", a.buy_.units.size());
+                             a.control().notes.push_back("buy list has no affordable unit that moves: nothing bought");
+                             std::printf("script: buy list - %zu rows, nothing to buy that moves\n", a.buy().units.size());
                          }
                          return true;
                      },
@@ -1821,7 +1821,7 @@ void App::make_script() {
             // *_Corvette, else the first row that is not Build_Initially_Locked (Thrawn's Revenge lists a locked cheat unit
             // first). Vanilla always finds kSmokeSkirmishBuyType.
             const std::string want = env_or_empty("ALAMO_SMOKE_BUY_TYPE");
-            const std::vector<ui::BuyUnitEntry>& u = a.buy_.units;
+            const std::vector<ui::BuyUnitEntry>& u = a.buy().units;
             for (size_t i = 0; i < u.size(); ++i)
                 if (!want.empty() && ascii_iequals(u[i].type, want)) return i;
             if (!space_buy) return size_t{0};
@@ -1832,7 +1832,7 @@ void App::make_script() {
             // and that can move (Max_Speed > 0): Fall of the Republic's cheapest affordable row is a static
             // defense station, which the smoke's move order cannot use.
             auto affordable = [&a, &u](size_t i) {
-                if (!(u[i].can_buy && u[i].cost >= 0 && u[i].cost <= a.buy_.credits)) return false;
+                if (!(u[i].can_buy && u[i].cost >= 0 && u[i].cost <= a.buy().credits)) return false;
                 return smoke_unit_moves(a, u[i].type);
             };
             for (size_t i = 0; i < u.size(); ++i)
@@ -1847,8 +1847,8 @@ void App::make_script() {
         }));
         s.push_back(step_click_control(ui::dlg::kBuyUnits, "IDC_BUY_BUTTON"));
         s.push_back(step_wait("unit bought", [](App& a) {
-            if (a.bought_.empty()) return false;
-            for (const auto& [type, n] : a.bought_) std::printf("script: bought %s x%u\n", type.c_str(), static_cast<unsigned>(n));
+            if (a.bought().empty()) return false;
+            for (const auto& [type, n] : a.bought()) std::printf("script: bought %s x%u\n", type.c_str(), static_cast<unsigned>(n));
             return true;
         }, 120));
         s.push_back(step_shot(prefix + "_buy_units.png"));
@@ -1866,15 +1866,15 @@ void App::make_script() {
         s.push_back(step_click_control("IDD_SINGLE_PLAYER_GAMES_MENU_DIALOG", "IDC_SKIRMISH_GAMES_BUTTON"));
         // the Land game type (its row, the rows are sorted by text).
         s.push_back(step_select_game_type(ui::kSkirmishGameLand));
-        s.push_back(step_wait("land game type listed", [](App& a) { return !a.ui_.front.skirmish_space_type() || !staging_has_game_types(a); }, 60));
+        s.push_back(step_wait("land game type listed", [](App& a) { return !a.ui().front.skirmish_space_type() || !staging_has_game_types(a); }, 60));
         s.push_back(step_select_row("IDD_SKIRMISH_STAGING_DIALOG", "IDC_STAGING_MAP_LIST", [](App& a) {
             // The first land map by name (the old list's first land row): its row in the staging list as the front end sorted it;
             // else the first land row of the Official tab.
             const std::vector<std::string> land = skirmish_land_maps(a.data_);
-            int32_t row = land.empty() ? -1 : a.ui_.front.skirmish_map_row(land.front());
+            int32_t row = land.empty() ? -1 : a.ui().front.skirmish_map_row(land.front());
             if (row < 0 && a.skirmish_catalog_)
                 for (const SkirmishMapEntry& e : skirmish_map_rows(*a.skirmish_catalog_, false))
-                    if (e.kind == 1 && row < 0) row = a.ui_.front.skirmish_map_row(e.map);
+                    if (e.kind == 1 && row < 0) row = a.ui().front.skirmish_map_row(e.map);
             return static_cast<size_t>(std::max<int32_t>(row, 0));
         }));
         s.push_back(step_shot("game_land_staging.png"));
@@ -1888,7 +1888,7 @@ void App::make_script() {
         // run starts on its row 0.
         s.push_back(step_select_game_type(ui::kSkirmishGameSpace));
         s.push_back(step_wait("space game type listed", [](App& a) {
-            return a.ui_.front.skirmish_space_type() || !staging_has_game_types(a);
+            return a.ui().front.skirmish_space_type() || !staging_has_game_types(a);
         }, 60));
         s.push_back(step_skirmish_faction());
         s.push_back(step_shot("game_skirmish_staging.png"));
@@ -1903,7 +1903,7 @@ void App::make_script() {
             s.push_back(step_select_row(dialog, control, [row](App&) { return static_cast<size_t>(std::max<int64_t>(*row, 0)); }));
             auto key_frame = std::make_shared<bool>(false);
             s.push_back({"campaign set row", [row, key_frame, dialog, control](App& a, ui::InputFrame& f) {
-                             ui::GuiDialog* d = a.ui_.gui.find(dialog);
+                             const ui::GuiDialog* d = a.ui().gui.find(dialog);
                              const ui::GuiControl* c = d ? d->get(control) : nullptr;
                              if (!c || c->selected < 0 || static_cast<int64_t>(c->selected) <= *row) return true;
                              *key_frame = !*key_frame;
@@ -1936,14 +1936,14 @@ void App::make_script() {
                 if (*story_row >= 0 && story_faction < menu.story[i].factions.size()) story_choice = menu.story[i].factions[story_faction];
             }
             if (*custom_row < 0 && *story_row < 0)
-                notes_.push_back("ALAMO_SMOKE_CAMPAIGN_SET " + want + ": no such campaign set or campaign, first custom row kept");
+                ctl_.notes.push_back("ALAMO_SMOKE_CAMPAIGN_SET " + want + ": no such campaign set or campaign, first custom row kept");
             if (*story_row >= 0) std::printf("script: campaign smoke plays New Campaign row %" PRId64 ", faction button %zu\n", *story_row, story_faction);
         }
         if (*story_row >= 0) {
             auto direct = std::make_shared<bool>(false);
             s.push_back({"New Campaign button or the campaign's start action", [direct, story_choice](App& a, ui::InputFrame&) {
-                             const ui::GuiDialog* d = a.ui_.gui.find("IDD_SINGLE_PLAYER_GAMES_MENU_DIALOG");
-                             if (!d || d != a.ui_.gui.top()) return false;
+                             const ui::GuiDialog* d = a.ui().gui.find("IDD_SINGLE_PLAYER_GAMES_MENU_DIALOG");
+                             if (!d || d != a.ui().gui.top()) return false;
                              if (d->find("IDC_NEW_CAMPAIGN_BUTTON") >= 0) return true;
                              *direct = true;
                              std::printf("script: the menu has no New Campaign button: StartCampaign %s (%s)\n", story_choice.campaign.c_str(),
@@ -1981,21 +1981,21 @@ void App::make_script() {
         // summary, which holds the ticks.
         {
             auto n = std::make_shared<int>(0);
-            s.push_back({"holocron updated", [n](App& a, ui::InputFrame&) { return a.holocron_updates_ > 0 || ++*n > 300; }, 400});
+            s.push_back({"holocron updated", [n](App& a, ui::InputFrame&) { return a.holocron_updates() > 0 || ++*n > 300; }, 400});
         }
         // without a chapter (Thrawn's Revenge's historical campaigns add none) the summary is not opened, so its shot
         // and close steps are skipped. Vanilla campaigns always have one.
         auto no_summary = std::make_shared<bool>(false);
         s.push_back(step_wait("holocron button opens the story summary", [no_summary](App& a) {
-            if (a.holocron_chapters_.empty()) return *no_summary = true;  // no story chapter in this campaign
+            if ((a.holocron_chapters() == 0)) return *no_summary = true;  // no story chapter in this campaign
             ui::HudAction act;
             act.kind = ui::HudAction::Kind::Button;
             act.name = "b_story_arc_g";
-            a.handle_hud_actions({act});
-            return a.story_summary_open_ && a.ui_.gui.find(ui::dlg::kStorySummary) != nullptr;
+            a.hud_actions({act});
+            return a.story_summary_open() && a.ui().gui.find(ui::dlg::kStorySummary) != nullptr;
         }, 10));
         for (ScriptStep st : {step_shot("game_campaign_story.png"), step_click_control(ui::dlg::kStorySummary, "IDC_SUMMARY_DIALOG_CLOSE_BUTTON"),
-                              step_wait("story summary closed", [](App& a) { return !a.story_summary_open_; }, 300)})
+                              step_wait("story summary closed", [](App& a) { return !a.story_summary_open(); }, 300)})
             s.push_back({st.name, [no_summary, run = std::move(st.run)](App& a, ui::InputFrame& f) { return *no_summary || run(a, f); }, st.timeout_frames});
         s.push_back(step_shot("game_campaign_galactic.png"));
         if (env_or_empty("ALAMO_SMOKE_FLEET_SLOTS") == "1")
@@ -2048,35 +2048,35 @@ void App::make_script() {
         s.push_back(answer_ai_attacks(step_galactic_move(true)));
         s.push_back(answer_ai_attacks(step_galactic_attack()));
         // The pending-battle choice (message box): Fight.
-        s.push_back(step_wait("battle prompt shown", [](App& a) { return a.choice_open_; }, 6000));
+        s.push_back(step_wait("battle prompt shown", [](App& a) { return a.choice_open(); }, 6000));
         s.push_back(step_shot("game_campaign_battle_choice.png"));
         s.push_back(step_wait("Begin", [](App& a) {
             ui::HudAction act;
             act.kind = ui::HudAction::Kind::BattleBegin;
-            a.handle_hud_actions({act});
-            return !a.choice_open_;
+            a.hud_actions({act});
+            return !a.choice_open();
         }, 10));
         battle_steps("game_campaign");
-        s.push_back(step_wait("back on the galactic map", [](App& a) { return a.screen() == Screen::Galactic && !a.bview_.active() && !a.battle_end_open_; }, 20000));
+        s.push_back(step_wait("back on the galactic map", [](App& a) { return a.screen() == Screen::Galactic && !a.bview_.active() && !a.battle_end_open(); }, 20000));
         // Shot at once: the AI may start the next conflict within a few ticks (the shot holds the sim).
         s.push_back(step_shot("game_campaign_galactic_after.png"));
         // GALACTIC_DIALOGS §3.1: a second attack answered Auto-Resolve - resolved at once (no progress dialog), the red
         // result line, then the battle-end screen.
         s.push_back(step_galactic_attack());
-        s.push_back(step_wait("battle prompt shown again", [](App& a) { return a.choice_open_; }, 6000));
+        s.push_back(step_wait("battle prompt shown again", [](App& a) { return a.choice_open(); }, 6000));
         s.push_back(step_wait("Auto-Resolve", [](App& a) {
             ui::HudAction act;
             act.kind = ui::HudAction::Kind::BattleAutoResolve;
-            a.handle_hud_actions({act});
-            return !a.choice_open_;
+            a.hud_actions({act});
+            return !a.choice_open();
         }, 10));
-        s.push_back(step_wait("auto-resolve battle-end screen", [](App& a) { return a.auto_results_ > 0 && a.battle_end_open_ && a.ui_.gui.find(ui::dlg::kBattleEnd) && a.screen_text_.empty(); }, 600));
+        s.push_back(step_wait("auto-resolve battle-end screen", [](App& a) { return a.auto_results_ > 0 && a.battle_end_open() && a.ui().gui.find(ui::dlg::kBattleEnd) && a.screen_text().empty(); }, 600));
         s.push_back(step_shot("game_campaign_auto_result.png"));
         s.push_back(step_click_control(ui::dlg::kBattleEnd, "IDC_CONTINUE_BUTTON"));
         *gated = s.size() - fleet_steps;
         for (size_t k = fleet_steps; k < s.size(); ++k) s[k] = needs_fleet(std::move(s[k]));
         // The galaxy stands still from here (presentation-only hold: no AI conflict interrupts the screen checks).
-        s.push_back(step_wait("hold the galaxy", [](App& a) { return a.script_hold_ = true; }, 10));
+        s.push_back(step_wait("hold the galaxy", [](App& a) { return a.control().script_hold = true; }, 10));
         // In-game options (legacy docs/re/MAIN_LOOP.md §1.5): the HUD's options button opens the game menu, which pauses the session; the
         // options and their video page keep it paused (the video page lists the display modes); Esc x3 closes them all and
         // the session runs again. The galaxy is held already (no tick moves).
@@ -2084,21 +2084,21 @@ void App::make_script() {
             ui::HudAction act;
             act.kind = ui::HudAction::Kind::Button;
             act.name = "b_option_g";
-            a.handle_hud_actions({act});
-            return a.paused_ && a.ui_.front.pause_menu_open();
+            a.hud_actions({act});
+            return a.menu_paused() && a.ui().front.pause_menu_open();
         }, 10));
         s.push_back(step_click_control("IDD_GAME_OPTIONS_DIALOG", "IDC_INGAME_OPTIONS"));
         s.push_back(step_click_control("IDD_IN_GAME_OPTIONS_DIALOG", "IDC_IN_GAME_OPTIONS_VIDEO"));
         s.push_back(step_wait("video options list the resolutions", [](App& a) {
-            const ui::GuiDialog* d = a.ui_.gui.find("IDD_VIDEO_OPTIONS_DIALOG");
+            const ui::GuiDialog* d = a.ui().gui.find("IDD_VIDEO_OPTIONS_DIALOG");
             const ui::GuiControl* l = d ? d->get("IDC_RESOLUTION_LIST") : nullptr;
-            if (!d || !a.paused_) return false;
+            if (!d || !a.menu_paused()) return false;
             const size_t n = l ? l->items.size() : 0;
-            std::printf("script: video options - %zu resolutions (%zu display modes), selected %d, session paused\n", n, a.display_modes_.size(),
+            std::printf("script: video options - %zu resolutions (%zu display modes), selected %d, session paused\n", n, a.display_mode_list().size(),
                         l ? l->selected : -1);
-            if (n != a.display_modes_.size()) {
-                a.notes_.push_back("video options: resolution list not filled");
-                a.smoke_ok_ = false;
+            if (n != a.display_mode_list().size()) {
+                a.control().notes.push_back("video options: resolution list not filled");
+                a.control().smoke_ok = false;
             }
             return true;
         }, 120));
@@ -2107,7 +2107,7 @@ void App::make_script() {
         s.push_back(step_key("close the video options", ui::vk::kEscape));
         s.push_back(step_key("close the options", ui::vk::kEscape));
         s.push_back(step_key("close the game menu", ui::vk::kEscape));
-        s.push_back(step_wait("game menu closed, session unpaused", [](App& a) { return !a.menu_dialog_open() && !a.paused_; }, 120));
+        s.push_back(step_wait("game menu closed, session unpaused", [](App& a) { return !a.menu_dialog_open() && !a.menu_paused(); }, 120));
         // P4 host: the black-market panel with the local player's real offers (bm_offers) at a planet of another playable
         // faction - a presentation-only preview: the scripted campaign has no natural black-market dialog (that needs an
         // Underworld hero at a Corruption_Black_Market planet), and the preview sends no command.
@@ -2123,7 +2123,7 @@ void App::make_script() {
                 }
                 a.panel_preview_ = galactic::kSpecialBlackMarket;
             }
-            return a.market_.open() || !a.preview_planet_;  // no such planet: nothing to show
+            return a.market_open() || !a.preview_planet_;  // no such planet: nothing to show
         }, 120));
         s.push_back(step_shot("game_campaign_black_market.png"));
         s.push_back(step_wait("black market closed", [](App& a) {
@@ -2132,34 +2132,34 @@ void App::make_script() {
         }, 10));
         // Holocron (hotkey): droid log, then the tech tree and the production summary pages; Esc closes.
         s.push_back(step_hotkey("advisor key", ui::hk::kDroidAdvisor));
-        s.push_back(step_wait("droid log shown", [](App& a) { return a.info_.info_dialog() == ui::dlg::kDroidLog; }, 300));
+        s.push_back(step_wait("droid log shown", [](App& a) { return a.info().info_dialog() == ui::dlg::kDroidLog; }, 300));
         s.push_back(step_shot("game_campaign_droid_log.png"));
         s.push_back(step_wait("tech tree page", [](App& a) {
             a.open_holocron(ui::InfoPage::TechTree);
-            return !a.info_.info_dialog().empty() && a.info_.info_page() == ui::InfoPage::TechTree;
+            return !a.info().info_dialog().empty() && a.info().info_page() == ui::InfoPage::TechTree;
         }, 300));
         s.push_back(step_shot("game_campaign_tech_tree.png"));
         s.push_back(step_wait("production summary page", [](App& a) {
             a.open_holocron(ui::InfoPage::SummaryProduction);
-            return a.info_.info_dialog() == ui::dlg::kSummaryProduction;
+            return a.info().info_dialog() == ui::dlg::kSummaryProduction;
         }, 300));
         s.push_back(step_shot("game_campaign_summary.png"));
         s.push_back(step_key("close the holocron", ui::vk::kEscape));
-        s.push_back(step_wait("holocron closed", [](App& a) { return a.info_.info_dialog().empty(); }, 300));
+        s.push_back(step_wait("holocron closed", [](App& a) { return a.info().info_dialog().empty(); }, 300));
         // Story summary (b_story_arc_g opens it; [smoke] called directly): objectives + recap of the local plot set.
         s.push_back({"story summary", [n = std::make_shared<int>(0)](App& a, ui::InputFrame&) {
                          if (*n == 1) a.open_story_summary();
                          return ++*n > 3;
                      },
                      100});
-        s.push_back(step_wait("story summary shown", [](App& a) { return a.ui_.gui.find(ui::dlg::kStorySummary) != nullptr; }, 300));
+        s.push_back(step_wait("story summary shown", [](App& a) { return a.ui().gui.find(ui::dlg::kStorySummary) != nullptr; }, 300));
         s.push_back(step_shot("game_campaign_story_summary.png"));
         s.push_back(step_key("close the story summary", ui::vk::kEscape));
-        s.push_back(step_wait("story summary closed", [](App& a) { return a.ui_.gui.find(ui::dlg::kStorySummary) == nullptr; }, 300));
+        s.push_back(step_wait("story summary closed", [](App& a) { return a.ui().gui.find(ui::dlg::kStorySummary) == nullptr; }, 300));
         // Campaign end: [smoke] forced (the galaxy is not conquered in a smoke run) - the campaign score, then Quit.
         s.push_back(step_wait("campaign score", [](App& a) {
-            if (!a.campaign_over_) a.show_campaign_end(true);
-            return a.ui_.gui.find(ui::dlg::kCampaignScore) != nullptr;
+            if (!a.campaign_over()) a.show_campaign_end(true);
+            return a.ui().gui.find(ui::dlg::kCampaignScore) != nullptr;
         }, 300));
         s.push_back(step_shot("game_campaign_score.png"));
         s.push_back(step_click_control(ui::dlg::kCampaignScore, "IDC_QUIT_BUTTON"));

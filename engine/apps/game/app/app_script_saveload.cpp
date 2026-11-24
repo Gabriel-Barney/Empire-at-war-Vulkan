@@ -1,7 +1,7 @@
 // alamo_game App: --smoke saveload (N1 follow-up t01), the save / load menus driven like a player - every save, overwrite,
 // delete and load goes through the in-game menu / main menu dialogs (mouse clicks on their controls, the save name typed
 // key by key), never through save_game / load_game directly. Checked at each step (a failed check: a "note:" line,
-// smoke_ok_ = false; a step that cannot continue stops the run):
+// ctl_.smoke_ok = false; a step that cannot continue stops the run):
 //   1. custom campaign -> galactic map; the HUD's options button (b_option_g) opens the in-game menu; Save, the name typed
 //      ("smoke_main"); the file holds the tick of the save.
 //   2. the galaxy runs on; Save again on the same name (picked from the list): the overwrite question names the save; Yes
@@ -56,26 +56,26 @@ struct Run {
 
 void fail(App& a, const std::string& step, const std::string& why) {
     std::fprintf(stderr, "saveload: %s: FAILED: %s\n", step.c_str(), why.c_str());
-    a.notes_.push_back("saveload " + step + ": " + why);
-    a.smoke_ok_ = false;
+    a.control().notes.push_back("saveload " + step + ": " + why);
+    a.control().smoke_ok = false;
 }
 // A failure the rest of the script cannot build on: the run stops here.
 bool stop(App& a, const std::string& step, const std::string& why) {
     fail(a, step, why);
     std::fprintf(stderr, "saveload: dialogs:");
-    for (const std::string& n : a.ui_.gui.open_names()) std::fprintf(stderr, " %s", n.c_str());
+    for (const std::string& n : a.ui().gui.open_names()) std::fprintf(stderr, " %s", n.c_str());
     std::fprintf(stderr, "\n");
-    a.script_failed_ = true;
-    a.flow_.on(ScreenEvent::Quit);
+    a.control().failed = true;
+    a.quit();
     return true;
 }
 
 bool top_is(App& a, std::string_view dialog) {
-    const ui::GuiDialog* d = a.ui_.gui.top();
+    const ui::GuiDialog* d = a.ui().gui.top();
     return d && ascii_iequals(d->name(), dialog);
 }
 const ui::GuiControl* control(App& a, std::string_view dialog, std::string_view id) {
-    ui::GuiDialog* d = a.ui_.gui.find(dialog);
+    const ui::GuiDialog* d = a.ui().gui.find(dialog);
     return d ? d->get(id) : nullptr;
 }
 // The list row of save `name` in an open Save / Load dialog (labels start with the save name), -1 when not listed.
@@ -149,11 +149,11 @@ ScriptStep step_click_hud(std::string component) {
     return {"click the HUD's " + component, [st, component](App& a, ui::InputFrame& f) {
                 if (st->aimed) return click_at(st->click, f, st->x, st->y, ui::Button::Left);
                 const bool gal = a.screen() == Screen::Galactic, bat = a.screen() == Screen::Battle && a.bview_.active();
-                if ((!gal && !bat) || a.ui_.gui.top() != nullptr) return false;
-                const int32_t ci = a.ui_.components.find(component);
+                if ((!gal && !bat) || a.ui().gui.top() != nullptr) return false;
+                const int32_t ci = a.ui().components.find(component);
                 if (ci < 0) return stop(a, "HUD button", component + " is not a HUD component");
-                const std::vector<ui::HudHitBox>& hits = gal ? a.ui_.galactic_hud.hit_boxes() : a.ui_.tactical_hud.hit_boxes();
-                const ui::HudCanvas& cv = gal ? a.ui_.galactic_hud.canvas() : a.ui_.tactical_hud.canvas();
+                const std::vector<ui::HudHitBox>& hits = gal ? a.ui().galactic_hud.hit_boxes() : a.ui().tactical_hud.hit_boxes();
+                const ui::HudCanvas& cv = gal ? a.ui().galactic_hud.canvas() : a.ui().tactical_hud.canvas();
                 for (const ui::HudHitBox& h : hits)
                     if (h.component == ci) {
                         const ui::Vec2f p = cv.canvas_to_pixel(0.5f * (h.min.x + h.max.x), 0.5f * (h.min.y + h.max.y));
@@ -180,7 +180,7 @@ void open_game_menu(std::vector<ScriptStep>& s, const std::string& button, bool 
             if (!a.session_) return false;
             const std::string why = a.session_->check_save();
             if (why.empty()) {
-                a.script_hold_ = true;
+                a.control().script_hold = true;
                 return true;
             }
             if (why != *last) std::printf("saveload: save not possible yet at tick %" PRIu64 ": %s\n", a.session_->host().frame(), why.c_str());
@@ -190,8 +190,8 @@ void open_game_menu(std::vector<ScriptStep>& s, const std::string& button, bool 
     }
     s.push_back(step_click_hud(button));
     s.push_back(step_wait("in-game menu open, session paused", [](App& a) {
-        if (!a.ui_.front.pause_menu_open() || !a.paused_) return false;
-        a.script_hold_ = false;  // the menu pauses the session from here on
+        if (!a.ui().front.pause_menu_open() || !a.menu_paused()) return false;
+        a.control().script_hold = false;  // the menu pauses the session from here on
         return true;
     }, 120));
 }
@@ -264,7 +264,7 @@ void select_save(std::vector<ScriptStep>& s, const char* dialog, const char* nam
 ScriptStep step_saved(const char* name, uint64_t written, Mark* m) {
     auto n = std::make_shared<uint32_t>(0);
     return {std::string("saved ") + name, [name, written, m, n](App& a, ui::InputFrame&) {
-                if (a.saves_written_ < written || a.ui_.gui.find(kSave)) {
+                if (a.saves_written_ < written || a.ui().gui.find(kSave)) {
                     if (++*n > 90) return stop(a, std::string("save ") + name, "no save written (saves written " + std::to_string(a.saves_written_) + ")");
                     return false;
                 }
@@ -338,7 +338,7 @@ ScriptStep step_loaded(std::string where, uint64_t loads, const Mark* m) {
                     if (++*n > 90) return stop(a, step, "nothing loaded (loads " + std::to_string(a.saves_loaded_) + ")");
                     return false;
                 }
-                a.script_hold_ = false;
+                a.control().script_hold = false;
                 if (!m->set) return stop(a, step, "no save mark");
                 if (!a.session_ || !a.session_->loaded()) return stop(a, step, "no loaded session");
                 const uint64_t tick = a.session_->host().frame();
@@ -354,7 +354,7 @@ ScriptStep step_loaded(std::string where, uint64_t loads, const Mark* m) {
                 // A battle save opens its battle at once (the load screen, no tick on the galactic map first).
                 if (m->battle && a.screen() != Screen::BattleLoad) fail(a, step, std::string("screen ") + screen_name(a.screen()) + ", not the battle's load screen");
                 if (a.session_->ticks() != 0) fail(a, step, "the session ticked before the check");
-                if (a.menu_dialog_open() || a.paused_) fail(a, step, "the menus are still open / the session is paused");
+                if (a.menu_dialog_open() || a.menu_paused()) fail(a, step, "the menus are still open / the session is paused");
                 return true;
             },
             200};
@@ -363,7 +363,7 @@ ScriptStep step_loaded(std::string where, uint64_t loads, const Mark* m) {
 // The load step itself: the sim is held (presentation only) from the click to the check, so the loaded state is
 // compared before its first tick.
 void load_selected(std::vector<ScriptStep>& s, const char* dialog, const std::string& where, uint64_t loads, const Mark* m) {
-    s.push_back(step_wait("hold the sim for the load check", [](App& a) { return a.script_hold_ = true; }, 10));
+    s.push_back(step_wait("hold the sim for the load check", [](App& a) { return a.control().script_hold = true; }, 10));
     s.push_back(step_click_control(dialog, "IDC_LOAD_GAME_BUTTON"));
     s.push_back(step_loaded(where, loads, m));
 }
@@ -372,11 +372,11 @@ ScriptStep step_begin_battle() {
     auto c = std::make_shared<ClickState>();
     return {"Begin on the battle load screen", [c](App& a, ui::InputFrame& f) {
                 if (a.screen() != Screen::BattleLoad) return true;
-                ui::GuiDialog* d = a.ui_.gui.find(a.ui_.load.dialog());
+                const ui::GuiDialog* d = a.ui().gui.find(a.ui().load.dialog());
                 const int32_t i = d ? d->find("IDC_BEGIN_BUTTON") : -1;
                 if (i < 0) return false;
                 const ui::GuiRect r = d->control_rect(static_cast<size_t>(i));
-                const ui::Vec2f p = a.ui_.gui.canvas().canvas_to_pixel(0.5f * (r.min.x + r.max.x), 0.5f * (r.min.y + r.max.y));
+                const ui::Vec2f p = a.ui().gui.canvas().canvas_to_pixel(0.5f * (r.min.x + r.max.x), 0.5f * (r.min.y + r.max.y));
                 if (click_at(*c, f, static_cast<int32_t>(p.x), static_cast<int32_t>(p.y), ui::Button::Left)) *c = {};
                 return false;
             },
@@ -411,7 +411,7 @@ void add_saveload_steps(std::vector<ScriptStep>& s) {
     s.push_back(step_shot(png + "game_menu.png"));
     save_typed(s, kMainSave, 1, &run->first, png + "save_typed.png");
     s.push_back(step_click_control(kPause, "IDC_GAME_OPTIONS_RESUME"));
-    s.push_back(step_wait("menu closed, session runs", [](App& a) { return !a.menu_dialog_open() && !a.paused_; }, 120));
+    s.push_back(step_wait("menu closed, session runs", [](App& a) { return !a.menu_dialog_open() && !a.menu_paused(); }, 120));
     s.push_back(step_ticks("galaxy runs on", 30));
     // ---- 2. Save on the same name: the overwrite question, Yes replaces the file ----
     open_game_menu(s, "b_option_g", true);
@@ -481,14 +481,14 @@ void add_saveload_steps(std::vector<ScriptStep>& s) {
     // ---- 5. a battle: Save during it, Load it, the battle resumes ----
     s.push_back(step_ticks("the loaded galaxy runs", 30));
     s.push_back(step_galactic_attack());
-    s.push_back(step_wait("battle prompt shown", [](App& a) { return a.choice_open_; }, 6000));
+    s.push_back(step_wait("battle prompt shown", [](App& a) { return a.choice_open(); }, 6000));
     s.push_back(step_wait("Fight", [](App& a) {
         ui::HudAction act;
         act.kind = ui::HudAction::Kind::BattleBegin;
-        a.handle_hud_actions({act});
-        return !a.choice_open_;
+        a.hud_actions({act});
+        return !a.choice_open();
     }, 10));
-    s.push_back(step_wait("load screen ready", [](App& a) { return a.screen() == Screen::BattleLoad && a.ui_.load.ready(); }, 6000));
+    s.push_back(step_wait("load screen ready", [](App& a) { return a.screen() == Screen::BattleLoad && a.ui().load.ready(); }, 6000));
     s.push_back(step_begin_battle());
     s.push_back(step_wait("in the battle", [](App& a) { return a.screen() == Screen::Battle && a.bview_.active(); }, 600));
     s.push_back(step_ticks("battle runs", 60));
@@ -504,7 +504,7 @@ void add_saveload_steps(std::vector<ScriptStep>& s) {
     load_selected(s, kLoad, "in-game menu (battle save)", 3, &run->battle);
     s.push_back(step_wait("the battle's load screen, no tick yet", [run](App& a) {
         if (a.screen() != Screen::BattleLoad) return stop(a, "battle load", std::string("screen ") + screen_name(a.screen()) + " before the load screen was ready");
-        if (!a.ui_.load.ready()) return false;
+        if (!a.ui().load.ready()) return false;
         if (a.session_->ticks() != 0 || a.session_->host().frame() != run->battle.tick)
             fail(a, "battle load", "ticked before Begin (" + std::to_string(a.session_->ticks()) + " ticks, frame " + std::to_string(a.session_->host().frame()) + ")");
         return true;
