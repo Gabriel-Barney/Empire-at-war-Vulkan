@@ -65,10 +65,28 @@ static int export_save_main(const Options& opt, const std::string& save, const s
 
 // ------------------------------------------------------------------------------------------------ init
 bool App::init() {
-    const std::string root = game::game_data_root(opt_.game);
+    std::string root = game::game_data_root(opt_.game);
     if (root.empty()) {
-        std::fprintf(stderr, "alamo_game needs --game <corruption dir> or ALAMO_FOC_DATA\n");
-        return false;
+        // #342: started with no --game and no ALAMO_FOC_DATA - look for the game (game_path.txt, Steam, the registry, the
+        // fixed folders, then a bounded scan of the fixed drives) and remember it in game_path.txt.
+        game::AutoFindInputs in = game::default_auto_find_inputs();
+        in.progress = [](uint64_t checked, const std::string& at) {
+            std::printf("looking for Forces of Corruption: %llu folders checked (%s)\n", static_cast<unsigned long long>(checked),
+                        at.c_str());
+            std::fflush(stdout);
+        };
+        const game::AutoFindResult found = game::auto_find_game(in);
+        root = found.foc;
+        if (root.empty()) {
+            std::fprintf(stderr,
+                         "alamo_game found no Forces of Corruption folder%s. Pass --game <corruption dir>, set ALAMO_FOC_DATA, "
+                         "or put the folder in game_path.txt next to alamo_game.exe.\n",
+                         found.scanned ? (found.limit_hit ? " (the drive scan stopped at its folder limit)" : " on the fixed drives")
+                                       : "");
+            return false;
+        }
+        std::printf("game folder: %s%s%s\n", root.c_str(), found.scanned ? " (found by the drive scan)" : "",
+                    found.saved ? ", saved to game_path.txt" : "");
     }
     game_root_ = root;
     const auto t0 = Clock::now();

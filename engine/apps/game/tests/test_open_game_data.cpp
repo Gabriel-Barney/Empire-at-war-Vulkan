@@ -6,6 +6,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <iterator>
+#include <fstream>
 #include <optional>
 #include <string>
 #include <vector>
@@ -104,6 +106,58 @@ int main(int argc, char** argv) {
         const std::string missing = alamo::path_to_utf8(fs::temp_directory_path() / "alamo_game_open_tests_no_such_folder");
         OpenedGameData d = alamo::game::open_game_data(missing, {}, issues);
         CHECK(!d.ok() && d.status == Status::VfsError && !d.env && !d.error.empty());
+    }
+
+    // #342: alamo_game started with no folder. A fake drive with the game at Stuff\Star Wars Empire at War\corruption, no
+    // Steam, no fixed folder, no ALAMO_FOC_DATA: the scan finds it and game_path.txt remembers it, so the next start does
+    // not scan; a saved folder that is gone searches again; no game anywhere finds nothing and writes nothing.
+    alamo::test::section("auto_find_game");
+    {
+        const fs::path T = fs::temp_directory_path() / "alamo_game_open_tests_auto_find";
+        std::error_code ec;
+        fs::remove_all(T, ec);
+        const fs::path drive = T / "drive", exe = T / "exe", game = drive / "Stuff" / "Star Wars Empire at War" / "corruption";
+        fs::create_directories(game / "Data", ec);
+        fs::create_directories(exe, ec);
+        std::ofstream(game / "Data" / "MegaFiles.xml", std::ios::binary) << "<Mega_Files/>";
+        alamo::game::AutoFindInputs in;
+        in.exe_dir = alamo::path_to_utf8(exe);
+        in.scan_roots = {alamo::path_to_utf8(drive)};
+        const auto same = [](const std::string& a, const fs::path& b) { return fs::equivalent(alamo::path_from_utf8(a), b); };
+        const auto saved_text = [&] {
+            std::ifstream f(exe / "game_path.txt", std::ios::binary);
+            return std::string(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>());
+        };
+
+        alamo::game::AutoFindResult r = alamo::game::auto_find_game(in);
+        std::printf("  first start: %s, scanned %d (%llu folders), saved %d\n", r.foc.c_str(), r.scanned ? 1 : 0,
+                    static_cast<unsigned long long>(r.checked), r.saved ? 1 : 0);
+        CHECK(!r.foc.empty() && same(r.foc, game) && r.scanned && r.saved);
+        const std::string text = saved_text();
+        CHECK(text.size() > 2 && text.substr(text.size() - 2) == "\r\n" && same(text.substr(0, text.size() - 2), game));
+
+        r = alamo::game::auto_find_game(in);  // the second start reads game_path.txt: no scan, nothing written
+        CHECK(same(r.foc, game) && !r.scanned && !r.saved && saved_text() == text);
+
+        // game_path.txt naming a folder that is gone: passed over, the scan runs again and the file is rewritten
+        std::ofstream(exe / "game_path.txt", std::ios::binary) << alamo::path_to_utf8(T / "gone") << "\r\n";
+        r = alamo::game::auto_find_game(in);
+        CHECK(same(r.foc, game) && r.scanned && r.saved && saved_text() == text);
+
+        // ALAMO_FOC_DATA (the env input) names it: found without a scan, and remembered
+        fs::remove(exe / "game_path.txt", ec);
+        in.env = alamo::path_to_utf8(game);
+        r = alamo::game::auto_find_game(in);
+        CHECK(same(r.foc, game) && !r.scanned && r.saved);
+        in.env.clear();
+
+        // no game anywhere: nothing found, nothing written
+        fs::remove(exe / "game_path.txt", ec);
+        in.scan_roots = {alamo::path_to_utf8(T / "empty_drive")};
+        fs::create_directories(T / "empty_drive" / "Games", ec);
+        r = alamo::game::auto_find_game(in);
+        CHECK(r.foc.empty() && r.scanned && !r.saved && !fs::exists(exe / "game_path.txt"));
+        fs::remove_all(T, ec);
     }
     return alamo::test::report("alamo_game_open_tests");
 }

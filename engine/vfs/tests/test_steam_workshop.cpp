@@ -11,6 +11,7 @@
 
 #include "alamo/core/file_provider.hpp"
 #include "alamo/core/host_fs.hpp"
+#include "alamo/vfs/host_path.hpp"
 #include "alamo/vfs/install_locations.hpp"
 #include "alamo/vfs/steam_workshop.hpp"
 #include "alamo/vfs/vfs.hpp"
@@ -216,9 +217,83 @@ void test_layout() {
 
 }  // namespace
 
+// #342: the bounded last-resort scan (scan_for_foc) on a temp tree, the shared fixed folders, the drive list, and a fixed
+// folder that names the EaW folder above "corruption".
+void test_scan() {
+    alamo::test::section("scan_for_foc");
+    const fs::path T = fs::temp_directory_path() / "alamo_vfs_scan_tests";
+    std::error_code ec;
+    fs::remove_all(T, ec);
+    const auto foc = [](const fs::path& game) {  // a FoC folder under `game` ("Star Wars Empire at War"), returned
+        write_file(game / "corruption" / "Data" / "MegaFiles.xml", "<Mega_Files/>");
+        return u8(game / "corruption");
+    };
+    const fs::path d1 = T / "d1", d2 = T / "d2", d3 = T / "d3", d4 = T / "d4";
+    foc(d1 / "Windows" / "Star Wars Empire at War");  // a system folder: never entered
+    const std::string in_zzz = foc(d1 / "zzz" / "Star Wars Empire at War");  // depth 2
+    const std::string in_d2 = foc(d2 / "Star Wars Empire at War");          // depth 1
+    fs::create_directories(d1 / "aaa" / "bbb" / "ccc", ec);
+    foc(d3 / "aaa" / "Star Wars Empire at War");  // depth 2, an ordinary name ...
+    const std::string in_games = foc(d3 / "Games" / "Star Wars Empire at War");  // ... after a likely one at the same depth
+    foc(d4 / "a" / "b" / "c" / "d" / "Star Wars Empire at War");  // depth 5 (+1 for corruption, which the check includes)
+
+    const auto same = [](const std::string& a, const std::string& b) { return av::lexical_folder_key(a) == av::lexical_folder_key(b); };
+    const auto scan = [](std::vector<std::string> roots, uint32_t depth = 6, uint64_t limit = 200000) {
+        av::FocScan s;
+        s.roots = std::move(roots);
+        s.max_depth = depth;
+        s.max_folders = limit;
+        return av::scan_for_foc(s);
+    };
+    // Breadth-first over both roots: d2's depth-1 install before d1's depth-2 one, whatever the root order.
+    av::FocScanResult r = scan({u8(d1), u8(d2)});
+    CHECK(same(r.foc, in_d2) && !r.limit_hit);
+    // d1 alone: the Windows folder is skipped, so zzz's.
+    r = scan({u8(d1)});
+    std::printf("  d1: %s after %llu folders\n", r.foc.c_str(), static_cast<unsigned long long>(r.checked));
+    CHECK(same(r.foc, in_zzz));
+    // the likely names first at one depth: Games before aaa.
+    CHECK(same(scan({u8(d3)}).foc, in_games));
+    // depth: d4's install is 5 below the root, so max_depth 4 misses it and 5 finds it.
+    r = scan({u8(d4)}, 4);
+    CHECK(r.foc.empty() && !r.limit_hit && r.checked == 5);  // d4, a, b, c, d
+    CHECK(!scan({u8(d4)}, 5).foc.empty());
+    // the folder limit: two folders, then the scan stops.
+    r = scan({u8(d1)}, 6, 2);
+    CHECK(r.foc.empty() && r.limit_hit && r.checked == 2);
+    // progress after every folder when asked
+    {
+        av::FocScan s;
+        s.roots = {u8(d1)};
+        s.progress_every = 1;
+        uint64_t calls = 0, last = 0;
+        s.progress = [&](uint64_t checked, const std::string&) {
+            ++calls;
+            last = checked;
+        };
+        r = av::scan_for_foc(s);
+        CHECK(same(r.foc, in_zzz) && calls == r.checked && last == r.checked);
+    }
+    CHECK(scan({u8(T / "none")}).foc.empty());  // a root that does not exist
+
+    // A fixed folder that names the EaW folder above "corruption" (the registry's InstallPath / GOG path) is found too.
+    av::InstallInputs in;
+    in.fixed = {u8(d2 / "Star Wars Empire at War")};
+    CHECK(same(av::find_install(in).foc, in_d2));
+    // The shared fixed folders are GOG's; the drive list holds drive roots only.
+    const std::vector<std::string> fixed = av::default_fixed_install_folders();
+    CHECK(fixed.size() == 2 && fixed[0].rfind("C:\\GOG Games\\", 0) == 0);
+    const std::vector<std::string> drives = av::fixed_drive_roots();
+    CHECK(!drives.empty());
+    for (const std::string& d : drives) CHECK(d.size() == 3 && d[1] == ':' && d[2] == '\\');
+    for (const std::string& d : av::registry_install_folders()) CHECK(fs::is_directory(alamo::path_from_utf8(d)));
+    fs::remove_all(T, ec);
+}
+
 int main() {
     test_parse();
     test_layout();
+    test_scan();
     std::printf(g_fail ? "alamo_vfs_steam_tests: %d FAILED\n" : "alamo_vfs_steam_tests: OK\n", g_fail);
     return g_fail ? 1 : 0;
 }

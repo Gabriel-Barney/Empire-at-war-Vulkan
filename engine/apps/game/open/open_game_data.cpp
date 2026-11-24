@@ -6,6 +6,20 @@
 #include <string>
 #include <utility>
 
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+
+#include "alamo/core/bytes.hpp"
+#include "alamo/core/host_fs.hpp"
+#include "alamo/vfs/host_path.hpp"
+#include "alamo/vfs/install_locations.hpp"
+#include "alamo/vfs/steam_workshop.hpp"
+
 namespace alamo::game {
 
 namespace {
@@ -36,6 +50,72 @@ std::optional<std::string> eaw_data_from_env() {
     std::string eaw = env_text("ALAMO_EAW_DATA");
     if (eaw.empty()) return std::nullopt;
     return eaw;
+}
+
+namespace {
+
+// game_path.txt's first line as UTF-8 (a UTF-8 BOM dropped); "" when there is no file.
+std::string read_saved_folder(const std::string& file) {
+    std::string text;
+    if (!read_text_file(file, text)) return {};
+    if (text.size() >= 3 && static_cast<unsigned char>(text[0]) == 0xEF && static_cast<unsigned char>(text[1]) == 0xBB &&
+        static_cast<unsigned char>(text[2]) == 0xBF)
+        text.erase(0, 3);
+    const size_t eol = text.find_first_of("\r\n");
+    if (eol != std::string::npos) text.resize(eol);
+    return text;
+}
+
+}  // namespace
+
+AutoFindResult auto_find_game(const AutoFindInputs& in) {
+    AutoFindResult r;
+    const std::string file = in.exe_dir.empty() ? std::string() : path_to_utf8(path_from_utf8(in.exe_dir) / "game_path.txt");
+    const std::string saved = file.empty() ? std::string() : read_saved_folder(file);
+    vfs::InstallInputs v;
+    if (!saved.empty()) v.user_folders.push_back(saved);
+    if (!in.env.empty()) v.user_folders.push_back(in.env);
+    v.steam_roots = in.steam_roots;
+    v.fixed = in.fixed;
+    r.foc = vfs::find_install(v).foc;
+    if (r.foc.empty() && !in.scan_roots.empty()) {
+        vfs::FocScan scan;
+        scan.roots = in.scan_roots;
+        scan.max_depth = in.max_depth;
+        scan.max_folders = in.max_folders;
+        scan.progress = in.progress;
+        const vfs::FocScanResult s = vfs::scan_for_foc(scan);
+        r.scanned = true;
+        r.checked = s.checked;
+        r.limit_hit = s.limit_hit;
+        r.foc = s.foc;
+    }
+    // remember it, unless game_path.txt already names this folder
+    if (!r.foc.empty() && !file.empty()) {
+        const std::string had = vfs::normalize_foc_dir(saved);
+        if (had.empty() || vfs::lexical_folder_key(had) != vfs::lexical_folder_key(r.foc))
+            r.saved = write_text_file(file, vfs::native_utf8(path_from_utf8(r.foc).make_preferred()) + "\r\n");
+    }
+    return r;
+}
+
+AutoFindInputs default_auto_find_inputs(std::string exe_dir) {
+    AutoFindInputs in;
+    if (exe_dir.empty()) {  // this executable's folder
+        std::wstring exe(32768, wchar_t{});
+        const DWORD n = GetModuleFileNameW(nullptr, exe.data(), static_cast<DWORD>(exe.size()));
+        if (n > 0 && n < exe.size()) {
+            exe.resize(n);
+            exe_dir = vfs::native_utf8(std::filesystem::path(exe).parent_path());
+        }
+    }
+    in.exe_dir = std::move(exe_dir);
+    in.env = env_text("ALAMO_FOC_DATA");
+    in.steam_roots = vfs::default_steam_roots();
+    in.fixed = vfs::registry_install_folders();
+    for (std::string& f : vfs::default_fixed_install_folders()) in.fixed.push_back(std::move(f));
+    in.scan_roots = vfs::fixed_drive_roots();
+    return in;
 }
 
 OpenedGameData open_game_data(std::string_view game_dir, std::span<const std::string> args, IssueSink& issues, OpenGameDataOptions options) {
