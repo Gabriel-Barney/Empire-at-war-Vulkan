@@ -5,6 +5,7 @@
 #include <cstdio>
 
 #include "alamo/core/ascii.hpp"
+#include "alamo/ui/gui_menus.hpp"
 #include "alamo/galactic/economy.hpp"
 #include "alamo/objects/type_fields.hpp"
 
@@ -40,6 +41,21 @@ ui::HudBombingRunButton bombing_run_button(bool land, bool controls_locked, bool
     b.disabled = !ready;
     if (!ready) b.dial = fraction > 0.0f ? std::min(fraction, 1.0f) : 1.0f;
     return b;
+}
+
+BattlePromptRule battle_prompt_rule(bool story_locked, bool game_options, int32_t option, float vote_timeout_s,
+                                    bool vote_default_tactical) {
+    BattlePromptRule r;
+    if (story_locked || !game_options) return r;
+    if (option == ui::kAutoResolveAlways) {
+        r.auto_now = true;
+        return r;
+    }
+    if (option == ui::kAutoResolveOdds && vote_timeout_s > 0.0f) {
+        r.timeout_s = vote_timeout_s;
+        r.timeout_auto = !vote_default_tactical;
+    }
+    return r;
 }
 
 ui::HudBombingRunButton space_weapon_button(bool space, int32_t icon, int32_t faction_icon, bool allowed, bool controls_locked,

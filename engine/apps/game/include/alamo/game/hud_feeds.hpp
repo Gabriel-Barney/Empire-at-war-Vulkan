@@ -81,6 +81,23 @@ ui::HudOrderButtons order_buttons(std::span<const OrderUnitState> selection, int
 // dial = fraction, a 0 shown as 1.0 (§9.3 rule 4: a skirmish before its first run is disabled with a full dial); ready:
 // no dial [port, §9.9 item 1].
 ui::HudBombingRunButton bombing_run_button(bool land, bool controls_locked, bool available, float fraction);
+// The galactic pending-battle prompt (GALACTIC_DIALOGS §1), from retail's state machines 0x2b92e0 / 0x2b76a0 and the
+// banner 0x3ca480 (#472: docs/re/SCORE_TOOLTIPS_GAME_OPTIONS.md t14 [H]), by the advanced options' auto-resolve option:
+// - "always" (0): resolve without asking;
+// - "never" (1): both buttons (the banner ignores the option; "never" only skips the overrun check);
+// - "overwhelming odds" (3): ask, and after `vote_timeout_s` (AutoResolveVoteDefaultTimeOut) of wall clock take the
+//   default, auto-resolve unless `vote_default_tactical` (AutoResolveVoteDefaultToTactical) [port: on the banner, not
+//   retail's IDD_MP_VOTE_DIALOG];
+// - "ask" (2) / no game options (a load, a skirmish): ask.
+// A story-locked battle (Begin only) is never answered by the rule. The profile's IDC_AUTORESOLVE acts earlier, in the
+// ConflictManager's Decide (ConflictConfig::always_auto_resolve, #467).
+struct BattlePromptRule {
+    bool auto_now = false;     // answer Auto-Resolve at once
+    float timeout_s = 0.0f;    // > 0: answer by itself after this many seconds
+    bool timeout_auto = true;  // that answer: Auto-Resolve, else Begin
+};
+BattlePromptRule battle_prompt_rule(bool story_locked, bool game_options, int32_t option, float vote_timeout_s,
+                                    bool vote_default_tactical);
 // ui1 t04 (HUD_GAPS §9.1) / #431 (docs/re/SPACE_SPECIAL_WEAPON_UI.md, 0x317d00 [H]): the space b_special_weapon. `space` = a
 // space battle (else not driven); `icon` = the local player's weapon (its Special_Weapon_Index, a station 2), < 0 = none,
 // which draws `faction_icon`. Never hidden; ready = readiness >= 1, allowed and controls not locked. With no weapon, not

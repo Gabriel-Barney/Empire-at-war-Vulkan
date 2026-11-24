@@ -624,7 +624,8 @@ private:
         PlanetIndex planet = kInvalidPlanet;
         bool land = false;
         bool story_pending = false;   // §1.4 single-button shell (story lock): no Auto-Resolve
-        bool no_autoresolve = false;  // the advanced options' auto-resolve "never": Begin only
+        double vote_deadline = 0.0;   // #472: "overwhelming odds" answers by itself at this time (now_s_; 0 = never)
+        bool vote_auto = true;        // that answer
         bool linked = false;          // a LINK_TACTICAL record's P13 banner (Begin = GameSession::begin_linked)
         std::u32string title;         // "<planet>: SPACE / PLANETARY BATTLE IMMINENT!" (log; the ui composes its own)
         std::u32string planet_name;

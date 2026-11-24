@@ -617,7 +617,7 @@ void App::auto_resolve_result(const galactic::GalacticSim& g, const galactic::Co
 }
 
 // GALACTIC_DIALOGS §1: the battle-pending prompt for the head conflict (paused: the conflict manager holds the galactic
-// pause in Vote; no timeout in single player). Feed: the planet, space / land, the title, Begin-only when the story lock
+// pause in Vote; in single player only the auto-resolve option "overwhelming odds" times out, #472). Feed: the planet, space / land, the title, Begin-only when the story lock
 // forbids auto-resolve (§1.4; [port] no tutorial lock / player flag source yet), each side's commander icon and stack
 // depth (Ships_Per_Stack); the faction pending SFX and music.
 // §1.5: Begin -> Fight = conflict state 3; Auto-Resolve (two-button prompt only) -> AutoResolve = state 6. No Retreat. SP
@@ -630,7 +630,7 @@ void App::answer_battle_prompt(bool auto_resolve) {
         std::printf("battle choice: begin (story link%s)\n", sent ? "" : ", not sent");
         return;
     }
-    const bool ar = auto_resolve && !prompt_.story_pending && !prompt_.no_autoresolve;
+    const bool ar = auto_resolve && !prompt_.story_pending;
     const galactic::BattleChoice c = ar ? galactic::BattleChoice::AutoResolve : galactic::BattleChoice::Fight;
     const galactic::GalacticSim* g = galaxy();
     const galactic::ConflictInfo* head = session_ ? session_->conflict_head() : nullptr;
@@ -671,21 +671,26 @@ void App::open_battle_prompt(const galactic::GalacticSim& g, const galactic::Con
                     (prompt_.land ? txt("TEXT_TACTICAL_LAND_BATTLE_IS_PENDING", U": PLANETARY BATTLE IMMINENT!")
                                   : txt("TEXT_TACTICAL_SPACE_BATTLE_IS_PENDING", U": SPACE BATTLE IMMINENT!"));
     prompt_.planet_name = planet_label(data_, ui_.text, g, c.planet);
-    audio_.battle_pending(prompt_.land);
-    if (prompt_.land && c.attacker == me) {  // ui4 t08 [port]: the local player's land invasion begins (the battle prompt)
-        audio_.faction_sfx("SFXEvent_Land_Invasion_Commencing");
-        ++announcements_;
+    // #472 (game::battle_prompt_rule): the advanced options' auto-resolve option.
+    const data::GameConstants& gc = data_.db.constants();
+    const BattlePromptRule rule = battle_prompt_rule(
+        prompt_.story_pending, session_->spec().game_options, session_->spec().auto_resolve_option,
+        static_cast<float>(gc.get_int("AutoResolveVoteDefaultTimeOut", 15)), gc.get_bool("AutoResolveVoteDefaultToTactical", false));
+    if (!rule.auto_now) {  // "always" answers at once: no pending SFX for a prompt that never shows
+        audio_.battle_pending(prompt_.land);
+        if (prompt_.land && c.attacker == me) {  // ui4 t08 [port]: the local player's land invasion begins (the battle prompt)
+            audio_.faction_sfx("SFXEvent_Land_Invasion_Commencing");
+            ++announcements_;
+        }
     }
     choice_open_ = true;  // the banner (GalacticHudFrame::battle) until Begin / Auto-Resolve
     ++choices_;
     if (prompt_.story_pending) ++prompts_story_;
-    // ui1 t06 (BATTLE_TRANSITIONS §1.6 step 4): with the advanced options' auto-resolve option, "always" (0) resolves a
-    // battle that is not story-locked without asking; "never" (1) [port: the original's GUI hook 0x140b15638 is not
-    // traced] offers Begin only; "ask" (2) and "overwhelming odds" (3) [port] ask.
-    if (session_ && session_->spec().game_options && !prompt_.story_pending && !prompt_.linked) {
-        if (session_->spec().auto_resolve_option == ui::kAutoResolveAlways) answer_battle_prompt(true);
-        else if (session_->spec().auto_resolve_option == ui::kAutoResolveNever) prompt_.no_autoresolve = true;
+    if (rule.timeout_s > 0.0f) {
+        prompt_.vote_deadline = now_s_ + static_cast<double>(rule.timeout_s);
+        prompt_.vote_auto = rule.timeout_auto;
     }
+    if (rule.auto_now) answer_battle_prompt(true);
     std::printf("battle prompt: %s (%s, %s), yours %u units / %u stacks [%s], enemy %u units / %u stacks [%s]\n",
                 utf8_of(prompt_.title).c_str(), prompt_.land ? "land" : "space", prompt_.story_pending ? "begin only" : "begin / auto-resolve",
                 prompt_.left.units, prompt_.left.stacks, prompt_.left.icon.c_str(), prompt_.right.units, prompt_.right.stacks,
@@ -899,6 +904,9 @@ void App::galactic_screens() {
     }
     if (session_->battle_choice_pending() && !choice_open_)
         if (const galactic::ConflictInfo* c = session_->conflict_head()) open_battle_prompt(*g, *c);
+    // #472: "overwhelming odds" takes the vote's default answer after AutoResolveVoteDefaultTimeOut (wall clock).
+    if (choice_open_ && !prompt_.linked && prompt_.vote_deadline > 0.0 && now_s_ >= prompt_.vote_deadline)
+        answer_battle_prompt(prompt_.vote_auto);
     // the linked record's banner (it can also go down without Begin, e.g. a loaded save shows it again).
     if (choice_open_ && prompt_.linked && !(session_->battles() && session_->battles()->linked_banner_up())) choice_open_ = false;
     if (!choice_open_)

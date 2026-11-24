@@ -787,13 +787,15 @@ void test_overrun_strength() {
     // Decide: with Overrun_Auto_Resolve_Multiple (synthetic 3; vanilla 0 = off) a human defender's battle against a much
     // weaker attacker is auto-resolved (BT §1.6); without it the human's Fight choice starts the battle.
     // mcx4 t07 (MCX4_RE_ANSWERS_GALACTIC Q7.6): the auto-resolve lock (story_lock: the story's +0x41 / RESTRICT list,
-    // or the campaign's Is_Autoresolve_Allowed false) suppresses the overrun check, so the human fights.
-    for (const auto& [multiple, locked] : {std::pair{0.0f, false}, std::pair{3.0f, false}, std::pair{3.0f, true}}) {
+    // or the campaign's Is_Autoresolve_Allowed false) suppresses the overrun check, so the human fights. #472: so does the
+    // game option "never" (ConflictConfig::overrun_check false, the same flag 0x2b9a11); `locked` 2 is that case.
+    for (const auto& [multiple, locked] : {std::pair{0.0f, 0}, std::pair{3.0f, 0}, std::pair{3.0f, 1}, std::pair{3.0f, 2}}) {
         World h({{pEmpire, rB, tSB1}, {pEmpire, rB, tFrigate}, {pEmpire, rB, tFrigate}, {pEmpire, rB, tFrigate},
                  {pUnder, rC, tCorvette}},
                 true);
         h.crules.overrun_multiple = multiple;
-        if (locked) h.cm->story_lock = [](const ConflictInfo&) { return true; };
+        if (locked == 1) h.cm->story_lock = [](const ConflictInfo&) { return true; };
+        if (locked == 2) h.cm->config().overrun_check = false;
         h.cm->config().human_choice = BattleChoice::Fight;
         int started = 0;
         h.cm->start_battle = [&started](const BattleRequest&) {
@@ -801,7 +803,7 @@ void test_overrun_strength() {
             return true;
         };
         h.arrive_at_b();  // 3300 vs 400
-        if (multiple == 0.0f || locked) {
+        if (multiple == 0.0f || locked != 0) {
             CHECK(started == 1 && h.cm->battle_active());
         } else {
             CHECK(started == 0 && !h.cm->battle_active());
@@ -1058,6 +1060,29 @@ void test_pending_choice() {
     CHECK(!w.sim.paused() && w.cm->state() == ConflictState::Idle && w.sim.frame() == frame);
     w.sim.update();
     CHECK(w.sim.frame() == frame + 1);
+}
+
+// #467: the profile's always-auto-resolve box sends the local player's conflict to auto-resolve without asking; the
+// story lock keeps the prompt [port]; off, the prompt (decide) runs.
+void test_always_auto_resolve() {
+    for (const int mode : {0, 1, 2}) {  // 0 off, 1 on, 2 on + story-locked
+        World w({{pEmpire, rB, tFrigate}, {pUnder, rC, tFrigate}, {pUnder, rC, tFrigate}}, true);
+        int asked = 0;
+        w.cm->decide = [&asked](const ConflictInfo&) {
+            ++asked;
+            return BattleChoice::Pending;
+        };
+        w.cm->config().always_auto_resolve = mode != 0;
+        if (mode == 2) w.cm->story_lock = [](const ConflictInfo&) { return true; };
+        w.arrive_at_b();
+        if (mode == 1) {
+            CHECK(asked == 0 && w.cm->log().size() == 1 && w.cm->log()[0].how == 1);
+            CHECK(w.cm->state() == ConflictState::Idle);
+        } else {
+            CHECK(asked == 1 && w.cm->state() == ConflictState::Vote && w.cm->log().empty());
+        }
+    }
+    std::printf("always auto-resolve: on -> resolved without asking; off or story-locked -> asked\n");
 }
 
 // L1/S4 integrator ask (3): GalacticSim::change_owner on a planet (GE 4.2 "clears the conflict") also drops the planet's
@@ -1697,6 +1722,7 @@ int main() {
     test_human_retreat_after_battle();
     std::printf("pending choice\n");
     test_pending_choice();
+    test_always_auto_resolve();
     test_change_owner_drops_queued();
     std::printf("land invasion\n");
     test_land_invasion();

@@ -59,6 +59,10 @@ void App::apply_gameplay_options() {
     // IDC_GAME_SPEED_SLIDER / IDC_STRATEGIC_GAME_SPEED_SLIDER (legacy docs/re/MAIN_LOOP.md §1.5): the speed table indices; wall-clock
     // pacing only. Retail sends them as GameOptions (39), which the port's command stream does not carry [port]: the
     // indices go straight to the pacing (a session start resets them to 2, so they are applied again then).
+    // #467: IDC_AUTORESOLVE, always auto-resolve the local player's galactic battles (the ConflictManager's Decide). Also
+    // applied at every session start (app_session.cpp), a load included.
+    if (session_ && session_->battles())
+        session_->battles()->conflicts().config().always_auto_resolve = gameplay_.auto_resolve;
     if (session_ && live_input()) {
         sim::FrameSynchronizer& fs = session_->host().pacing();
         fs.set_tactical_speed(game_speed_index(gameplay_.game_speed));

@@ -259,8 +259,6 @@ OUT_OF_SCOPE = {
     ("Faction", "Multiplayer_Campaign_Heroes"): _MP,
     ("Faction", "Multiplayer_Map_Preview_Icon"): _MP,
     ("Faction", "SFXEvent_Player_Taunt"): _MP,
-    ("GameConstants", "AutoResolveVoteDefaultTimeOut"): _MP,
-    ("GameConstants", "AutoResolveVoteDefaultToTactical"): _MP,
     ("GameConstants", "Battle_Pending_Timeout_Seconds"): _MP,  # GALACTIC_DIALOGS §1.1: MP banner countdown only
     ("GameConstants", "Credits_Logo_1_Height"): _LOC,
     ("GameConstants", "Credits_Logo_1_Name"): _LOC,

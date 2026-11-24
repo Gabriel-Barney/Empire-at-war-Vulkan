@@ -403,8 +403,8 @@ void options_round_trip() {
     p.gameplay.game_speed = 75;
     p.gameplay.strategic_speed = 0;
     p.gameplay.alternate_mouse = true;
-    p.gameplay.abilities_autofire = true;
-    p.gameplay.ask_autoresolve = false;
+    p.gameplay.abilities_autofire = false;
+    p.gameplay.auto_resolve = true;
     p.gameplay.difficulty = 2;
     p.camera.tactical_fov_deg = 70.0f;
     p.camera.queue_mods = 2;
@@ -425,7 +425,15 @@ void options_round_trip() {
     CHECK(q.skirmish.faction == "Empire" && q.skirmish.colour == 1);
     CHECK(std::fabs(q.audio.master - 0.25f) < 1e-4f && q.audio.music == 0.0f && q.audio.sfx == 1.0f && !q.audio.subtitles);
     CHECK(q.gameplay.game_speed == 75 && q.gameplay.strategic_speed == 0 && q.gameplay.alternate_mouse &&
-          q.gameplay.abilities_autofire && !q.gameplay.ask_autoresolve && q.gameplay.difficulty == 2 && q.gameplay.absolute_scroll);
+          !q.gameplay.abilities_autofire && q.gameplay.auto_resolve && q.gameplay.difficulty == 2 && q.gameplay.absolute_scroll);
+    {  // #467 / #473: the retail defaults, and the old keys are not read
+        const ui::GameplaySettings d;
+        CHECK(!d.auto_resolve && d.abilities_autofire);
+        std::istringstream old("ask_autoresolve=1\nabilities_autofire=0\n");
+        ui::GameplaySettings g3;
+        game::GameplayPage::load(game::OptionsKeys::parse(old), g3);
+        CHECK(!g3.auto_resolve && g3.abilities_autofire);
+    }
     CHECK(std::fabs(q.camera.tactical_fov_deg - 70.0f) < 1e-3f && q.camera.queue_mods == 2 && q.tactical_fov_set &&
           q.camera.show_path_lines && q.camera.fleet_groups);
     CHECK(!game::OptionsProfile{}.camera.fleet_groups);  // off by default
@@ -451,9 +459,9 @@ void options_pages() {
     g.alternate_mouse = true;
     game::GameplayPage::save(out, g);
     CHECK(out.str() ==
-          "game_speed=50\nstrategic_speed=50\nscroll_speed=33\ndifficulty=2\nask_autoresolve=1\ndelay_tooltips=0\n"
+          "game_speed=50\nstrategic_speed=50\nscroll_speed=33\ndifficulty=2\nauto_resolve=0\ndelay_tooltips=0\n"
           "absolute_scroll=1\nalternate_mouse=1\nright_button_scroll=0\nboth_buttons_rotate=0\nsimplified_colors=0\n"
-          "abilities_autofire=0\n");
+          "abilities_default_to_autofire=1\n");
     std::istringstream in("# comment\n difficulty = 9 \nalternate_mouse=on\ngame_speed=\nvolume_sfx=2.5\nsubtitles=0\n"
                           "galactic_fov=200\ntactical_fov=\nqueue_mods=258\nkey.Pause=80\nkey.Empty=\nskirmish_colour=12\n");
     const game::OptionsKeys k = game::OptionsKeys::parse(in);

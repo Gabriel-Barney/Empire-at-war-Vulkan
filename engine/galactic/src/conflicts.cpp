@@ -652,7 +652,7 @@ void ConflictManager::run(ConflictKind kind) {
                 const bool hum = human(head.attacker) || human(head.defender);
                 int32_t overrun_loser = kNoPlayer;
                 // mcx4 t07 (Q7.6): the story / campaign auto-resolve lock suppresses the overrun check (not the exclusion list).
-                if (rules_->overrun_multiple != 0.0f && !story_locked(head)) {
+                if (rules_->overrun_multiple != 0.0f && cfg_.overrun_check && !story_locked(head)) {
                     // the side strengths of 0x2ab880 (overrun_strength, AI_GALACTIC_TOKENS §9.12).
                     const bool space = kind == ConflictKind::Space;
                     const float ap = overrun_strength(head, false, space), dp = overrun_strength(head, true, space);
@@ -663,7 +663,10 @@ void ConflictManager::run(ConflictKind kind) {
                             overrun_loser = att_weaker ? head.attacker : head.defender;
                     }
                 }
-                if ((!hum && !cfg_.fight_ai_battles) || overrun_loser != kNoPlayer) {
+                const int32_t local = sim_->local_player();
+                const bool local_in = local != kNoPlayer && (head.attacker == local || head.defender == local);
+                const bool always = cfg_.always_auto_resolve && local_in && !story_locked(head);  // #467
+                if ((!hum && !cfg_.fight_ai_battles) || overrun_loser != kNoPlayer || always) {
                     force_ = true;
                     retreating_ = overrun_loser;
                     state_ = ConflictState::AutoSetup;
