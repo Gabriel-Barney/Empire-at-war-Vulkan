@@ -53,6 +53,7 @@
     DERIVED(presence_cache_, "per-type cache (filled from type data on first use)") \
     DERIVED(idle_gate_, "scratch inside one call or tick") \
     DERIVED(presence_query_, "query scratch inside one call (imposing_presence)") \
+    DERIVED(explosion_query_, "query scratch inside one call (explosion_flinch)") \
     DERIVED(infantry_category_, "lazy lookup of a category bit") \
     SAVED(queues_, state) \
     SAVED(queue_group_, state) \
