@@ -2345,12 +2345,9 @@ private:
     void late_swap_back_signals();  // signal 0x29 for a jetpack swap back after the combat_pre loop
     void combat_sync(const objects::ObjectStore& store);  // SP5 / S10: positions, facings, movement flags into combat
     bool queue_object_live(const TacticalMode& mode, objects::ObjectId id) const;
-    // `no_destination_check` - the move stands for an object-goal block (MOVEMENT §4.3.1 item 2: no destination
-    // check; an object goal implies it)
     void exec_move(TacticalMode& mode, std::span<const objects::ObjectId> ids, float x, float y, SimRng& rng, float facing_deg,
                    bool attack_move, uint8_t flags = 0, bool switch_locomotor = false,
                    objects::ObjectId goal_object = kNoObjectId,  // an object goal (mv::MoveOrder::goal_object)
-                   bool no_destination_check = false,
                    bool cohesion_tight = false);  // [port] fleet cohesion (mv::MoveOrder::cohesion_tight)
     bool cohesion_for(uint8_t player, uint8_t move_flags) const;  // [port] fleet cohesion of a player move
     uint32_t exec_attack(TacticalMode& mode, std::span<const objects::ObjectId> ids, objects::ObjectId target, int32_t hp, SimRng& rng);

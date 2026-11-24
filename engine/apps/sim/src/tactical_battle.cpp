@@ -1387,7 +1387,7 @@ void snap_move_point(const objects::ObjectStore& st, const BattleCatalog& cat, c
 
 void TacticalBattle::exec_move(TacticalMode& mode, std::span<const objects::ObjectId> ids, float x, float y, SimRng& rng,
                                float facing_deg, bool attack_move, uint8_t flags, bool switch_locomotor,
-                               objects::ObjectId goal_object, bool no_destination_check, bool cohesion_tight) {
+                               objects::ObjectId goal_object, bool cohesion_tight) {
     // s78n t26.1 (MOVEMENT §3.2.1 item 2, the group move 0x2a7b80): a deployed manual deployer is skipped entirely - its
     // orders (garrison enter, attack, team target) are kept and it is not moved
     std::vector<objects::ObjectId> admitted;
@@ -1411,7 +1411,7 @@ void TacticalBattle::exec_move(TacticalMode& mode, std::span<const objects::Obje
     if (std::isfinite(facing_deg)) o.facing_deg = facing_deg;
     o.goal_object = goal_object == objects::kNoObjectId ? -1 : goal_object;  // S7 t37 (movement: -1 = none)
     // s78n t20 (MOVEMENT §4.3.1 item 2): an object goal goes to the attack-arc slot test, not to the destination check
-    o.skip_destination_check = no_destination_check || goal_object != objects::kNoObjectId;
+    o.skip_destination_check = goal_object != objects::kNoObjectId;
     o.cohesion_tight = cohesion_tight && space_;  // [port] fleet cohesion (space only)
     movement_->move(o, rng, frame_);
     for (const objects::ObjectId id : o.units) {
