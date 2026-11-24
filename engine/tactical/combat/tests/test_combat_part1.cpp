@@ -293,6 +293,48 @@ void test_mod_multiplier() {
     CHECK(!ability_flag(ab, both, kFlagAllowDiminishingFirepower));
     CHECK(ability_flag(ab, none, kFlagAllowDiminishingFirepower));  // default true
 }
+
+// #416 (#150 ticket 1): combat reads a unit's ability slots through one derived state, rebuilt at every activity change
+// and after a load (the activity is saved, the state is not): the attack range follows the active slot's override in the
+// saving system and in the loaded one.
+void test_ability_state_after_load() {
+    auto build = [](World& w) {
+        UnitAbilityDesc near_mode, far_mode;
+        near_mode.ability_type = kAbilityDefend;
+        near_mode.range_override = 300.0f;
+        far_mode.ability_type = kAbilityPowerToWeapons;
+        far_mode.range_override = 700.0f;
+        w.data.abilities = {near_mode, far_mode};
+        UnitDesc u;
+        u.tactical_health = 100.0f;
+        u.max_attack_distance = 500.0f;
+        u.abilities = {0, 1};
+        const uint32_t d = push_unit(w.data, u);
+        w.make();
+        return d;
+    };
+    World a;
+    const uint32_t d = build(a);
+    a.add(1, d, 0, Vec3{0, 0, 0});
+    const float plain = a.sys->attack_range(1);
+    a.sys->set_ability_active(1, 1, true);
+    const float far_on = a.sys->attack_range(1);
+    a.sys->set_ability_active(1, 0, true);
+    const float both_on = a.sys->attack_range(1);  // the first active slot's override
+    ByteWriter wr;
+    a.sys->write(wr);
+    World b;
+    (void)build(b);
+    ByteReader rd(wr.bytes());
+    CHECK(b.sys->read(rd));
+    const float loaded = b.sys->attack_range(1);
+    std::printf("  ability state: range %.0f plain, %.0f slot 1 on, %.0f both on, %.0f after a load\n", plain, far_on, both_on, loaded);
+    CHECK_F(plain, 500.0f);
+    CHECK_F(far_on, 700.0f);
+    CHECK_F(both_on, 300.0f);
+    CHECK_F(loaded, both_on);
+    CHECK(b.sys->ability_active(1, 0) && b.sys->ability_active(1, 1));
+}
 }  // namespace bo3split
 
 namespace bo3split {

@@ -27,6 +27,7 @@ int main(int argc, char** argv) {
     test_modifier_expiry();
     test_reduce_all_matches();
     test_mod_multiplier();
+    test_ability_state_after_load();
     test_priority_sets();
     test_choose_target_hardpoint_by_type();
     test_damage_table();

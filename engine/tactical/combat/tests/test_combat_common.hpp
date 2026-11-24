@@ -123,6 +123,7 @@ void test_modifier_stacking();
 void test_modifier_expiry();
 void test_reduce_all_matches();
 void test_mod_multiplier();
+void test_ability_state_after_load();  // #416
 void test_priority_sets();
 void test_damage_table();
 

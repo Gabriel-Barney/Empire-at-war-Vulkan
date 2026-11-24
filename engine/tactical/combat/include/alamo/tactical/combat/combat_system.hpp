@@ -1950,6 +1950,7 @@ private:
         uint8_t mod_valid = 0;
         std::array<float, kModKindCount> own_mult{};
         std::array<float, kModKindCount> mult{};  // = own_mult (a member never takes the squad value)
+        UnitAbilityState abs;  // #416: the type's ability slots with this unit's activity (build_ability_state)
         uint8_t needs_scan = 0;  // phase C output
         uint8_t scan_due = 0;
         ObjectId share_group = kNoObject;  // squadron of the shared team target (host, per tick)
@@ -2049,7 +2050,10 @@ private:
     void ensure_cache(Unit& u);
     float mod_r(const Unit& u, ModList l) const { return u.mod_r[static_cast<uint32_t>(l)]; }
     float mult(const Unit& u, ModKind k) const { return u.mult[static_cast<uint32_t>(k) - 1u]; }
-    const UnitAbilityDesc* ability(const Unit& u, int slot) const;
+    // #416: the one reader of the type's ability slots - fills u.abs from them and u.ability_active (spawn, activity
+    // change, load). Every other ability read goes through u.abs.
+    void build_ability_state(Unit& u) const;
+    const UnitAbilityDesc* ability(const Unit& u, int slot) const;  // build_ability_state only
 
     // derived stats
     float unit_max_hull(const Unit& u) const;

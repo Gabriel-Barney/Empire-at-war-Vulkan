@@ -180,4 +180,21 @@ float squad_multiplier(float own, std::span<const float> members);
 // Get_Unit_Ability_Mod_Flag (0x397f60): AND across active slots whose ability sets the flag; true default.
 bool ability_flag(const UnitAbilityDesc* const abilities[2], const bool active[2], uint8_t flag);
 
+// #416 (#150 ticket 1): what combat reads of one unit's two Unit_Abilities_Data slots, built in one place
+// (CombatSystem::build_ability_state) from the type's slots and the unit's activity. Derived: rebuilt at spawn, at every
+// activity change and after a load; never saved or hashed.
+struct UnitAbilityState {
+    std::array<uint8_t, 2> present{0, 0};  // the slot names an ability record
+    std::array<uint8_t, 2> type{0, 0};     // that record's UnitAbilityType
+    std::array<uint8_t, 2> active{0, 0};   // the unit's activity of the slot (CombatSystem::Unit::ability_active)
+    std::array<float, kModKindCount> mult{1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};  // ability_product
+    std::array<uint8_t, kModFlagCount> flag{1, 1, 1, 1};  // ability_flag per Mod_Flag id
+    uint16_t armor_override = 0xFFFF;  // an active slot's Armor_Type override, slot 1 before slot 0 (0xFFFF = none)
+    float range_override = 0.0f;       // the first active slot's range override > 0 (0 = none)
+    float inaccuracy_override = 0.0f;  // the first active slot's inaccuracy override > 0, UNSCALED (0 = none)
+    bool on(int slot) const { return present[static_cast<size_t>(slot)] && active[static_cast<size_t>(slot)]; }
+    // an active slot of this UnitAbilityType
+    bool type_active(int32_t t) const { return (on(0) && type[0] == t) || (on(1) && type[1] == t); }
+};
+
 }  // namespace alamo::tactical::combat
