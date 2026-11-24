@@ -138,6 +138,7 @@ struct ModeWorld : World {
         s.shield_refresh_rate = 10.0f;
         s.radius = 50.0f;
         s.category_mask = kCatCapital;
+        s.ion_stun_effect = true;
         AbilityObjectDesc a;
         UnitAbilityRecord defend = rec(kDefend, 15.0f, 20.0f);
         defend.combat.mult[static_cast<size_t>(ModKind::ShieldRegenInterval) - 1] = 0.1f;
@@ -460,6 +461,7 @@ struct SpecialWorld : World {
         corvette = push(cd, ad, cv, ca);
         UnitDesc fr = cv;
         fr.name = "Frigate";
+        fr.ion_stun_effect = true;
         fr.category_mask = kCatFrigate;
         fr.hardpoints = {1, 1};
         AbilityObjectDesc fa;

@@ -840,6 +840,14 @@ void BattleCatalog::s9_unit_fields(uint32_t t, tc::UnitDesc& u, BuildState& s) c
     }
     u.tactical_respawn_secs = ty.get(t, objects::tags::Tactical_Respawn_Time_In_Secs);
     u.stunnable = ty.has_behavior(t, objects::BehaviorSet::Union, objects::behavior_type_id("STUNNABLE"));
+    {  // #92: the object's ION_STUN_EFFECT (0x45) behaviour - the object holds the type's generic and mode behaviours
+        static const objects::BehaviorTypeId kIonStunEffect = objects::behavior_type_id("ION_STUN_EFFECT");
+        const objects::BehaviorSet mode_set = s.model_mode < 0    ? objects::BehaviorSet::Union
+                                              : s.model_mode == 1 ? objects::BehaviorSet::Space
+                                                                  : objects::BehaviorSet::Land;
+        u.ion_stun_effect = kIonStunEffect != objects::kNoBehavior &&
+                            (ty.has_behavior(t, mode_set, kIonStunEffect) || ty.has_behavior(t, objects::BehaviorSet::Generic, kIonStunEffect));
+    }
     // trl2 t03 (TACTICAL_GAPS §2.3.4): Earthquake_Attack / Force_Telekinesis targets need these behaviours
     u.earthquake_target = ty.has_behavior(t, objects::BehaviorSet::Union, objects::behavior_type_id("EARTHQUAKE_TARGET"));
     u.telekinesis_target = ty.has_behavior(t, objects::BehaviorSet::Union, objects::behavior_type_id("TELEKINESIS_TARGET"));
