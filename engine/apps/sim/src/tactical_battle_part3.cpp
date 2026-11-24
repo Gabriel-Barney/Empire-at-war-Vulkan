@@ -1913,6 +1913,21 @@ void TacticalBattle::hash(StateHasher& h) const {
             h.f32(r.seen.x);
             h.f32(r.seen.y);
             h.f32(r.seen.z);
+            // #489: a stack holding queued waypoints (0x08) adds every block (absent otherwise: the bytes as before)
+            if (std::any_of(r.blocks.begin(), r.blocks.end(), [](const mv::FighterBlock& b) { return (b.flags & mv::kMoveFlagQueue) != 0; })) {
+                h.u32(static_cast<uint32_t>(r.blocks.size()));
+                for (const mv::FighterBlock& b : r.blocks) {
+                    h.u8(b.kind);
+                    h.i32(b.object);
+                    h.i32(b.hard_point);
+                    h.f32(b.point.x);
+                    h.f32(b.point.y);
+                    h.f32(b.facing);
+                    h.f32(b.threat);
+                    h.u8(b.flags);
+                    h.u8(static_cast<uint8_t>((b.pushed ? 1 : 0) | (b.own_speed ? 2 : 0) | (b.loop ? 4 : 0)));
+                }
+            }
         }
     }
     if (!hero_clash_.empty()) hero_clash_.hash(h);  // running hero clashes (absent while none)

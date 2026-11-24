@@ -237,7 +237,7 @@ struct BattleStats {
     // s78n t26 review round 3 (FIGHTER_FLYING §4.11 C 3): blocks dropped after arrival on a hidden / stealthed target
     uint32_t attack_unseen_drops = 0;
     // cmb1 t01 (land Auto_Engage, LandFormationRecord; not saved): auto attack blocks pushed and popped (the order resumed)
-    uint32_t land_auto_pushes = 0, land_auto_pops = 0;
+    uint32_t land_auto_pushes = 0, land_auto_pops = 0, land_waypoint_pops = 0;
     uint32_t land_step10_pushes = 0;  // MovingVsStopped step 10 attack blocks issued (not saved)
     // cmb1 t04 (land guard follow; not saved): re-plans while moving (D > R), arrived re-checks that re-planned (0x410a60),
     // re-plans toward the last-observed point and position guards made (C 3)
@@ -453,13 +453,22 @@ struct LandFormationRecord {
     bool locked = false;  // derived each tick by land_engage_service (0x39ad40 / 0x41fd30: a member order-locked)
     // blocks[0]'s flags (0x01 attack-move, 0x02 guard), goal point (an object block: the object's position at the order)
     // and object (Attack, Attack_Move / Guard of an object; none for a position block)
-    uint8_t flags() const { return blocks.empty() ? uint8_t{0} : blocks.front().flags; }
+    // the order flags a land block keeps (0x01 attack-move, 0x02 guard), and the stack's own (0x04 player order, 0x08 queued)
+    static constexpr uint8_t kOrderFlags = tactical::movement::kMoveFlagAttackMove | tactical::movement::kMoveFlagGuardMove;
+    static constexpr uint8_t kStackFlags = tactical::movement::kMoveFlagPlayerOrder | tactical::movement::kMoveFlagQueue;
+    uint8_t flags() const { return blocks.empty() ? uint8_t{0} : static_cast<uint8_t>(blocks.front().flags & kOrderFlags); }
     Vec3 goal() const { return blocks.empty() ? Vec3{0.0f, 0.0f, goal_z} : Vec3{blocks.front().point.x, blocks.front().point.y, goal_z}; }
     objects::ObjectId goal_object() const {
         return blocks.empty() || blocks.front().kind != tactical::movement::kFighterBlockObject ? kNoObjectId : blocks.front().object;
     }
     // the auto attack block on top (n >= 2, the push class), none
     objects::ObjectId pushed() const { return blocks.size() > 1 && blocks.back().pushed ? blocks.back().object : kNoObjectId; }
+    // #489: the blocks up to the running one (the top below any auto block): blocks[running_end() - 1] runs; 0 none
+    size_t running_end() const {
+        size_t n = blocks.size();
+        while (n > 0 && blocks[n - 1].pushed) --n;
+        return n;
+    }
 };
 
 // mcx4 tac2 (tactical_battle_skirmish.cpp; MCX4_T09_RE_ANSWERS Q10 [H]): one Income_Stream_Mod_Ability of a type - the
@@ -983,8 +992,9 @@ public:
         uint8_t flags = 0;                               // Move: the event's movement flags (MoveOrder::flags)
         commands::EventData ability;                     // Ability: the command (users / units replaced at start)
     };
-    // The pending orders of `unit` behind its current one, in run order (HUD queue markers). Empty when none.
-    std::span<const QueuedOrder> queued_orders(objects::ObjectId unit) const;
+    // The pending orders of `unit` behind its current one, in run order (HUD queue markers). Empty when none. #489: a land
+    // unit's shift-queued waypoints in its formation's block stack come first (Move entries, the patrol loop listed once).
+    std::vector<QueuedOrder> queued_orders(objects::ObjectId unit) const;
     // --- end queueable unit actions ---
 
     // --- L1 systems (owner: tactical-systems agent; tactical_battle_l1.cpp) ---
@@ -2377,6 +2387,14 @@ private:
     // Push 0x41fd30 of an auto / step-10 attack block on object t (unit tu: the record's TARGETING unit)
     void land_push(TacticalMode& mode, LandFormationRecord& r, objects::ObjectId tu, const Unit& t, SimRng& rng);
     void land_pop(TacticalMode& mode, LandFormationRecord& r, SimRng& rng);  // 0x4105a0 of the auto block: the order resumes
+    void land_replan(TacticalMode& mode, LandFormationRecord& r, SimRng& rng);  // the members move / attack to the top block
+    LandFormationRecord* land_formation_mut(objects::ObjectId mover);
+    // #489: the shift-queued land move into the movers' block stacks (0x420f70); returns the ids left to the host queue
+    std::vector<objects::ObjectId> land_waypoint_append(TacticalMode& mode, std::span<const objects::ObjectId> ids, float x, float y,
+                                                        float facing, uint8_t flags);
+    void land_waypoint_service(TacticalMode& mode, SimRng& rng);  // #489: the arrival pops (0x423760) of the land stacks
+    void land_waypoints_drop_locked();  // #489: a movement-locked mover loses its queued waypoints (as its host queue)
+    static constexpr float kLandPatrolRadius = 20.0f;  // 0x420f70: the land patrol-loop radius (space 80)
     uint32_t land_type_of(objects::ObjectId mover) const;
     // cmb1 review: a block's object as a live unit - the unit, or for a land TEAM container its first live member ([port],
     // as attack_lead); nullptr when gone. goal_member: `id` is the object or one of its container's members.

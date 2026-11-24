@@ -208,7 +208,10 @@ void TacticalBattle::build_service_graph() {
     // ---- pre-move: attack blocks, 4. speed factors, movement inputs --------------------------------------------------
     // s78n t20 stage A: serial, ascending mover, before the collision feed and the movement tick
     // land Auto_Engage (the auto attack blocks of the land formation records) and the land scan flags
-    g.add("land_engage", kAll, kAll, [this] { land_engage_service(*tick_.mode, *tick_.rng); });
+    g.add("land_engage", kAll, kAll, [this] {
+        land_engage_service(*tick_.mode, *tick_.rng);
+        land_waypoint_service(*tick_.mode, *tick_.rng);  // #489: the land stacks' arrival pops
+    });
     g.add("attack_block", kAll, kAll, [this] { attack_block_service(*tick_.mode, *tick_.rng); });
     g.add("speed_factors", kFeedReads, bit(cMovement), [this] { apply_speed_factors(); });
     // [port] fleet groups: slowest-member cap and straggler wait (no-op while no group exists)
