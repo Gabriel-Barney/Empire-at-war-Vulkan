@@ -180,8 +180,8 @@ struct SelectableObject {
 std::vector<uint32_t> select_like(std::span<const uint32_t> selection, std::optional<uint32_t> cursor_type,
                                   std::span<const SelectableObject> visible, size_t cap);
 // Next / Previous unit (slots 12 / 13, #461; 0x2fb150 [H], order 0x20a9b0 / 0x20aa60 [M]): `candidates` = the local
-// player's units, each team once, ascending id ([port]: the 0x20a9b0 order is open). An empty selection picks the first candidate, with no camera
-// move; otherwise the candidate after (step > 0) or before the first selected object's id, wrapping, with a
+// player's units, each team once, ascending id ([port]: the 0x20a9b0 order is open). An empty selection picks the
+// first candidate, with no camera move; otherwise the candidate after (step > 0) or before the first selected object's id, wrapping, with a
 // camera move. id 0 = no candidate.
 struct UnitCyclePick {
     uint32_t id = 0;
