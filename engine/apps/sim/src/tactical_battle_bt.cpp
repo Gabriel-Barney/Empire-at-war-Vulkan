@@ -354,21 +354,9 @@ cmd::RejectReason TacticalBattle::tactical_sell(TacticalMode& mode, uint8_t play
     if (!s || !st.alive(h)) return R::InvalidUnit;
     if (st.owner(h) != static_cast<int32_t>(player)) return R::NotOwner;
     if (s->locked) return R::NotAllowed;  // silently refused while locked (the only reader of the lock)
-    // Refund: the UC entry whose constructed type matches (0x374590) x Tactical_Sell_Percentage (+0xa08).
-    const objects::GameObjectTypes& types = catalog_->types();
     const objects::TypeIndex bt = st.type(h);
-    float cost = 0.0f;
     const objects::ObjectHandle ph = st.find(s->pad);
-    if (st.alive(ph))
-        for (const std::string_view tok : types.get(st.type(ph), pad_list_tag())) {
-            const objects::TypeIndex uc = types.raw().find(tok);
-            if (uc == objects::kNone || uc >= types.size()) continue;
-            if (types.resolve_name(types.get(uc, objects::tags::Tactical_Buildable_Constructed)) == bt) {
-                cost = build_cost(uc);
-                break;
-            }
-        }
-    const float refund = std::floor(cost * (bt < types.size() ? types.get(bt, objects::tags::Tactical_Sell_Percentage) : 0.0f));
+    const float refund = pad_sell_refund(st, *s, bt);
     if (refund > 0.0f && credits_add_) credits_add_(static_cast<int32_t>(player), refund);
     // Release 0x42ecd0: no cooldown; then the object is killed [port: removed from the battle at once].
     s->built = objects::kNoObjectId;
@@ -387,6 +375,34 @@ cmd::RejectReason TacticalBattle::tactical_sell(TacticalMode& mode, uint8_t play
     }
     mode.destroy(h);
     return R::None;
+}
+
+float TacticalBattle::pad_sell_refund(const objects::ObjectStore& st, const PadState& s, objects::TypeIndex bt) const {
+    // Refund: the UC entry whose constructed type matches (0x374590) x Tactical_Sell_Percentage (+0xa08).
+    const objects::GameObjectTypes& types = catalog_->types();
+    float cost = 0.0f;
+    const objects::ObjectHandle ph = st.find(s.pad);
+    if (st.alive(ph))
+        for (const std::string_view tok : types.get(st.type(ph), pad_list_tag())) {
+            const objects::TypeIndex uc = types.raw().find(tok);
+            if (uc == objects::kNone || uc >= types.size()) continue;
+            if (types.resolve_name(types.get(uc, objects::tags::Tactical_Buildable_Constructed)) == bt) {
+                cost = build_cost(uc);
+                break;
+            }
+        }
+    return std::floor(cost * (bt < types.size() ? types.get(bt, objects::tags::Tactical_Sell_Percentage) : 0.0f));
+}
+
+std::optional<int32_t> TacticalBattle::sell_refund(const objects::ObjectStore& st, uint8_t player, objects::ObjectId object) const {
+    if (finished_ || object == objects::kNoObjectId) return std::nullopt;
+    const PadState* s = nullptr;
+    for (const PadState& p : pads_)
+        if (p.built == object) s = &p;
+    const objects::ObjectHandle h = st.find(object);
+    if (!s || !st.alive(h) || st.owner(h) != static_cast<int32_t>(player) || !st.has_behavior(h, objects::beh::TacticalSell))
+        return std::nullopt;
+    return static_cast<int32_t>(pad_sell_refund(st, *s, st.type(h)));
 }
 
 // ---- HIJACK reserve ------------------------------------------------------------------------------------------------

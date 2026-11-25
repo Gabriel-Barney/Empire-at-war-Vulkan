@@ -1404,6 +1404,12 @@ public:
     commands::RejectReason ai_tactical_build(TacticalMode& mode, uint8_t player, objects::ObjectId pad, objects::TypeIndex type,
                                              SimRng& rng);
     commands::RejectReason tactical_sell(TacticalMode& mode, uint8_t player, objects::ObjectId object);
+    // #477 (TACTICAL_COMMANDBAR_COMPONENTS.md "Tactical sell"): the refund tactical_sell would credit `player` for `object`
+    // (the same pad lookup and amount), or nullopt unless it is a live object owned by `player` with the TACTICAL_SELL
+    // behaviour (hover action 10's +0x35d test) that is the built object of a pad (the only objects tactical_sell takes).
+    // A locked pad still answers (retail's hover and button do not test the lock; the command is then refused). Const: the
+    // HUD's sell cursor and button read it.
+    std::optional<int32_t> sell_refund(const objects::ObjectStore& st, uint8_t player, objects::ObjectId object) const;
     // Pad price 0x3744e0 (campaign): Tactical_Build_Cost_Campaign, else Tactical_Build_Cost_Multiplayer when < 1 (int fields), then
     // for `player` (>= 0) at a corrupted battle planet (int)((float)cost x the faction's
     // Corruption_Tactical_Build_Pad_Price_Multipliers entry 1) (MCX4_RE_ANSWERS_GALACTIC Q7.2). Skirmish: no factor.
@@ -3018,6 +3024,9 @@ private:
     // table names other objects until the saved one replaces it. Other pads: 0.
     std::vector<std::pair<objects::ObjectId, int32_t>> pad_levels_;
     std::vector<PadState> pads_;  // ascending pad id
+    // tactical_sell's refund for the built object (type `built`) of pad `s`: int(cost of the pad's UC entry that constructs
+    // `built` x Tactical_Sell_Percentage) (0x374590).
+    float pad_sell_refund(const objects::ObjectStore& st, const PadState& s, objects::TypeIndex built) const;
     bool pads_used_ = false;
     TacticalMode* pads_mode_ = nullptr;
     PadState* pad_state(objects::ObjectId pad, bool create);

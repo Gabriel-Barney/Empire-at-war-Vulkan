@@ -208,6 +208,7 @@ void TacticalHud::init(const ComponentTable& table, const TextureAtlas& atlas, F
     camera_t_ = table.find("b_camera_t");
     reinforce_counter_ = table.find("reinforcement_counter");
     garrison_respawn_ = table.find("garrison_respawn_counter");
+    sell_ = table.find("tactical_sell");
     r_pop_icon_ = table.find("r_pop_icon");
     r_pop_text_ = table.find("r_pop_text");
     for (int i = 0; i < 6; ++i) order_button_[i] = find_fmt(table, "c_button%02d", i);
@@ -229,7 +230,7 @@ void TacticalHud::init(const ComponentTable& table, const TextureAtlas& atlas, F
         for (int32_t i : *v) mark(i);
     for (int32_t i : buy_component_) mark(i);
     for (int32_t i : {radar_, radar_blip_, credits_, pause_text_, resume_, obj_back_, obj_header_, obj_text_, obj_icon_, movie_,
-                      garrison_respawn_})
+                      garrison_respawn_, sell_})
         mark(i);
     for (uint32_t i = 0; i < table.size(); ++i) {
         const std::string& n = table[i].name;
@@ -511,6 +512,11 @@ void TacticalHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
             out.push_back(commands::ev::retreat(true));
             continue;
         }
+        // #477 tactical_sell: a left click sells the button's object (command 34). [M click path]
+        if (k.component == sell_ && k.button == Button::Left) {
+            if (sell_drawn_ != 0) out.push_back(commands::ev::tactical_sell(sell_drawn_));
+            continue;
+        }
         // [port: Gabriel] Game Paused banner: Resume Game -> HudAction::ResumeGame (the host unpauses).
         if (k.component == resume_ && k.button == Button::Left) {
             if (paused_) {
@@ -627,6 +633,7 @@ void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> 
         apply_command_buttons(frame.command_buttons);
         build_buttons(frame);
         build_garrison_respawn(frame);
+        build_sell(frame);
         // C2 (FIXPASS_GALACTIC §4.2): the name's line is centred on the bone (250, 745 vs bone 252, 744). Drawn here because the
         // generic button text hangs a Max_Text_Width block below its anchor, half a line low (QA D12 on the galactic strip).
         if (planet_text_ >= 0 && !frame.planet_name.empty()) {
@@ -1196,6 +1203,52 @@ void TacticalHud::build_garrison_respawn(const TacticalHudFrame& f) {
     if (p.size.x > 0) size = p.size;
     hit(garrison_respawn_, layer, center, size);
     ++stats_.buttons;
+}
+
+std::u32string tactical_sell_text(std::u32string_view sell, std::u32string_view name, int32_t refund) {
+    char n[16];
+    std::snprintf(n, sizeof n, "%d", refund);
+    std::u32string t = U" ";
+    t += sell;
+    t += U' ';
+    t += name;
+    t += U" ($ ";
+    t += ascii32(n);
+    t += U") ";
+    return t;
+}
+
+// #477 tactical_sell (docs/re/TACTICAL_COMMANDBAR_COMPONENTS.md "Tactical sell" [H text, M click path]): 0x2dd250's
+// TextButton at the object's projected point (0x2fcf70), width from the text. [port] the button is the Icon_Texture_Name
+// (Mouse_Over_Texture_Name while hovered) stretched to the text's width at its atlas height x Scale; the drag offset is
+// not ported.
+void TacticalHud::build_sell(const TacticalHudFrame& f) {
+    sell_drawn_ = 0;
+    if (sell_ < 0 || f.sell.object == 0) return;
+    const auto ci = static_cast<uint32_t>(sell_);
+    const CommandBarComponent& c = (*table_)[ci];
+    const std::u32string caption = tactical_sell_text(text_or(text_, "TEXT_BUTTON_SELL"), f.sell.name, f.sell.refund);
+    HudTextStyle st;
+    st.font = font_of(sell_, 6.0f);
+    if (st.font < 0) return;
+    st.color = c.has_text_color ? c.text_color : Rgba8{};
+    st.outline = c.text_outline;
+    st.emboss = c.text_emboss;
+    st.align = TextAlign::Center;
+    const TextBlock tb = measure_text_block(*fonts_, canvas_, caption, 0.0f, st);
+    const bool over = buttons_.hover() == sell_;
+    auto first = [](const std::vector<std::string>& v) -> const std::string* { return v.empty() || v[0].empty() ? nullptr : &v[0]; };
+    const std::string* tex = over ? first(c.mouse_over_texture) : nullptr;
+    if (!tex) tex = first(c.icon_texture);
+    const AtlasEntry* e = tex ? atlas_->find(*tex) : nullptr;
+    const Vec2f size{tb.width, std::max(e ? static_cast<float>(e->height) * c.scale : 0.0f, tb.height)};
+    const Vec2f center = canvas_.pixel_to_canvas(f.sell.anchor_px.x, f.sell.anchor_px.y);
+    const auto layer = static_cast<uint32_t>(std::clamp(c.base_layer, 0, static_cast<int32_t>(kHudLayers) - 1));
+    if (e) add_atlas_quad(dl_, layer, HudList::Alpha, *atlas_, *tex, center, size, 1.0f, Rgba8{});
+    add_text(dl_, layer, HudList::Text, *fonts_, canvas_, caption, center, st);
+    hit(sell_, layer, center, size);
+    sell_drawn_ = f.sell.object;
+    stats_.sell_button = true;
 }
 
 void TacticalHud::apply_command_buttons(const HudCommandButtons& s) {

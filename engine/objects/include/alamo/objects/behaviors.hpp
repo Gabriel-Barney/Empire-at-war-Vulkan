@@ -30,7 +30,8 @@ inline constexpr BehaviorTypeId Locomotor = 0x01, Selectable = 0x02, Planet = 0x
                                 GuardSpawnHouse = 0x22, Lure = 0x23, BaseShield = 0x39, SelfDestruct = 0x43,
                                 Explosion = 0x20,  // #362: shares INDIGENOUS_UNIT's id (header comment)
                                 HolsterWeapon = 0x4E, DisableForceAbilities = 0x52,  // cu8f (legacy docs/re/CU8F_T01_T02_T07_RE.md)
-                                TacticalBuildObjects = 0x29, DummyGroundStructure = 0x5F, DummyOrbitalStructure = 0x60;
+                                TacticalBuildObjects = 0x29, TacticalSell = 0x2B, DummyGroundStructure = 0x5F,
+                                DummyOrbitalStructure = 0x60;
 }
 
 // XML behaviour name (ASCII case-insensitive) -> type id; kNoBehavior if unknown.

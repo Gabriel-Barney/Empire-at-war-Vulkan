@@ -1295,6 +1295,78 @@ void test_garrison_respawn_counter() {
     CHECK2(on.quads >= 2 && on.dials == 1 && near2(on.fill, 75.0f));
 }
 
+// #477 tactical_sell (docs/re/TACTICAL_COMMANDBAR_COMPONENTS.md "Tactical sell"): the caption " TEXT_BUTTON_SELL <name>
+// ($ <refund>) "; the button at the object's projected point, as wide as its text; a left click sends TacticalSell
+// {object}; none without an open offer.
+void test_tactical_sell_button() {
+    CHECK2(tactical_sell_text(U"Sell", U"Turret", 150) == U" Sell Turret ($ 150) ");
+    const std::string xml =
+        "<CommandBarComponents><CommandBarComponent Name=\"tactical_sell\"><Type>TextButton</Type>"
+        "<Icon_Texture_Name>i_sa_blank_button.tga</Icon_Texture_Name><Mouse_Over_Texture_Name>i_sa_blank_button_over.tga"
+        "</Mouse_Over_Texture_Name><Font_Name>EmpireAtWar-Medium</Font_Name><Font_Point_Size>6</Font_Point_Size>"
+        "<Text_Color>255 212 11 255</Text_Color><Text_Outline>True</Text_Outline><Base_Layer>1</Base_Layer>"
+        "</CommandBarComponent></CommandBarComponents>";
+    ComponentTable t;
+    const data::XmlDocument doc = data::XmlDocument::parse(std::string_view(xml), "sell.xml");
+    CHECK2(doc.ok());
+    t.parse(doc.root());
+    TextureAtlas atlas = stage2_atlas();
+    atlas.add({"i_sa_blank_button.tga", 0, 200, 40, 12, true});
+    atlas.add({"i_sa_blank_button_over.tga", 48, 200, 40, 12, true});
+    auto box = make_box_rasterizer();
+    FontCache fonts(*box);
+    TacticalHud hud;
+    hud.init(t, atlas, fonts);
+    hud.resize(1024, 768);
+    const int32_t ci = t.find("tactical_sell");
+    CHECK2(ci >= 0 && hud.sell_component() == ci);
+    TacticalHudFrame fr;
+    fr.world.view = top_view2(1024, 768);
+    auto sell_box = [&]() -> const HudHitBox* {
+        for (const HudHitBox& h : hud.hit_boxes())
+            if (h.component == ci) return &h;
+        return nullptr;
+    };
+    auto click = [&](std::vector<commands::EventData>& out) {
+        RoutedInput r;
+        r.hover_component = ci;
+        r.hud = {{HudPointerEvent::Kind::Press, Button::Left, ci, 0, 0}, {HudPointerEvent::Kind::Release, Button::Left, ci, 0, 0},
+                 {HudPointerEvent::Kind::Click, Button::Left, ci, 0, 0}};
+        std::vector<HudAction> acts;
+        hud.update_input(r, false, false, 1.0, out, &acts);
+    };
+    hud.build(fr, {}, {});  // no offer: no button, a stale click sends nothing
+    CHECK2(!hud.stats().sell_button && !sell_box());
+    std::vector<commands::EventData> cmds;
+    click(cmds);
+    CHECK2(cmds.empty());
+    fr.sell.object = 42;
+    fr.sell.anchor_px = {512.0f, 300.0f};
+    fr.sell.name = U"Turret";
+    fr.sell.refund = 150;
+    hud.build(fr, {}, {});
+    const HudHitBox* hb = sell_box();
+    const Vec2f at = hud.canvas().pixel_to_canvas(512.0f, 300.0f);
+    // the caption (no text database: the key itself) measured in the component's font
+    HudTextStyle st;
+    st.font = fonts.component_font("EmpireAtWar-Medium", 6.0f, FontUse::Text, hud.canvas().font_height());
+    const float text_w = measure_text_block(fonts, hud.canvas(), tactical_sell_text(U"TEXT_BUTTON_SELL", U"Turret", 150), 0.0f, st).width;
+    CHECK2(hud.stats().sell_button && hb);
+    if (hb) {
+        std::printf("tactical sell button: centre (%.1f, %.1f), %.1f x %.1f (text %.1f wide)\n", 0.5f * (hb->min.x + hb->max.x),
+                    0.5f * (hb->min.y + hb->max.y), hb->max.x - hb->min.x, hb->max.y - hb->min.y, text_w);
+        CHECK2(near2(0.5f * (hb->min.x + hb->max.x), at.x) && near2(0.5f * (hb->min.y + hb->max.y), at.y));
+        CHECK2(near2(hb->max.x - hb->min.x, text_w) && hb->max.y - hb->min.y >= 12.0f - 1e-3f);
+    }
+    click(cmds);
+    CHECK2(cmds.size() == 1 && cmds[0].type() == commands::EventType::TacticalSell && cmds[0].u("object") == 42u);
+    fr.sell.object = 0;  // the host closed it: gone, and a click on its old spot sends nothing
+    hud.build(fr, {}, {});
+    cmds.clear();
+    click(cmds);
+    CHECK2(!hud.stats().sell_button && !sell_box() && cmds.empty());
+}
+
 // Drag-select box (Playtest 3): drawn from the drag threshold on, over exactly the bounds box_select uses on release.
 void test_drag_box() {
     ComponentTable t;
@@ -1783,6 +1855,7 @@ int run_stage2_tests() {
     test_order_buttons();
     test_bombing_run_button();
     test_garrison_respawn_counter();  // #474
+    test_tactical_sell_button();  // #477
     test_drag_box();
     return g_fail2;
 }

@@ -114,7 +114,7 @@ Pointer choose_pointer(const CursorContext& c) {
         if (c.drop_on_planet) return c.drop_valid ? Pointer::Drop : Pointer::CantDrop;
         return Pointer::Grabbing;
     }
-    if (c.over_ui) return c.over_draggable ? Pointer::CanGrab : Pointer::Normal;
+    if (c.over_ui) return c.over_sell ? Pointer::TacticalSell : c.over_draggable ? Pointer::CanGrab : Pointer::Normal;
     if (c.drag_selecting) return Pointer::DragSelectMode;
     const bool v = c.target_valid;
     switch (c.targeting) {
@@ -151,6 +151,9 @@ Pointer choose_pointer(const CursorContext& c) {
             if (!c.can_attack) return Pointer::CantAttack;
             return c.in_range ? Pointer::Attack : Pointer::AttackOutOfRange;
         case H::Own:
+            // #477 (TACTICAL_COMMANDBAR_COMPONENTS.md "Tactical sell", 0x2ad280 action 10 [H]): an own object with the sell
+            // behaviour, selection or not. [port] before GARRISON_IN (the hover actions' order is not traced).
+            if (c.sellable) return Pointer::TacticalSell;
             if (c.selection && c.garrisonable) return Pointer::GarrisonIn;  // an own bunker / transport
             return c.selectable ? Pointer::Select : Pointer::CantSelect;
         case H::Friendly:

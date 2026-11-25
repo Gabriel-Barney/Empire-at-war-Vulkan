@@ -88,6 +88,7 @@ struct CursorContext {
     };
     bool hidden = false, movie = false, busy = false;
     bool over_ui = false;              // a dialog / HUD component under the cursor
+    bool over_sell = false;            // #477: that component is the tactical_sell button (POINTER_TACTICAL_SELL)
     bool over_draggable = false;       // HUD pad that can be dragged (Drag_And_Drop)
     bool rotating = false, scrolling = false, drag_selecting = false;
     // galactic fleet drag (GalacticHud::drag())
@@ -103,6 +104,7 @@ struct CursorContext {
     bool passable = true;              // ground under the cursor reachable
     bool garrisonable = false;         // hovered friendly object takes garrisons
     bool selectable = true;            // hovered own object selectable
+    bool sellable = false;             // #477: hovered own object has a sell offer (hover action 10: POINTER_TACTICAL_SELL)
 };
 Pointer choose_pointer(const CursorContext& ctx);
 

@@ -259,16 +259,19 @@ std::string pad_patch(std::string t) {
                       "</SpecialStructure>\n"
                       " <SpecialStructure Name=\"R3H_UC_Turret\"><Behavior>TACTICAL_UNDER_CONSTRUCTION</Behavior><Tactical_Health>100</Tactical_Health>"
                       "<Tactical_Build_Time_Seconds>2</Tactical_Build_Time_Seconds><Tactical_Buildable_Constructed>R3H_Turret</Tactical_Buildable_Constructed>"
-                      "</SpecialStructure>\n"
-                      " <SpecialStructure Name=\"R3H_Turret\"><Tactical_Health>500</Tactical_Health></SpecialStructure>\n");
+                      "<Tactical_Build_Cost_Multiplayer>200</Tactical_Build_Cost_Multiplayer></SpecialStructure>\n"
+                      " <SpecialStructure Name=\"R3H_Turret\"><Behavior>TACTICAL_SELL</Behavior><Tactical_Health>500</Tactical_Health>"
+                      "<Tactical_Sell_Percentage>0.5</Tactical_Sell_Percentage></SpecialStructure>\n");
     return t;
 }
 
 // One land skirmish map battle with the pre-built-bases option `prebuild`: the pad's AnimWorld row type and contents
-// after the first tick.
-void pad_start(bool prebuild, int32_t& type, bool& built) {
+// after the first tick. #477: `offers` = TacticalBattle::sell_refund of the contents for player 0 (the owner), player 1,
+// and of the pad itself for player 0 (-1 = none).
+void pad_start(bool prebuild, int32_t& type, bool& built, std::array<int32_t, 3>* offers = nullptr) {
     type = -2;
     built = false;
+    if (offers) offers->fill(-2);
 #ifdef ALAMO_SIM_HAVE_ANIM
     g_temp_prefix = prebuild ? "alamo_sim_r3h_tests_pad_pre" : "alamo_sim_r3h_tests_pad";
     g_types_patch = pad_patch;
@@ -327,7 +330,11 @@ void pad_start(bool prebuild, int32_t& type, bool& built) {
         for (const objects::ObjectHandle h : st.all_objects())
             if (st.active(h) && st.type(h) == pad_t) {
                 type = w && w->contains(st.id(h)) ? w->current_type(st.id(h)) : -1;
-                built = b->pad_contents(st.id(h)) != objects::kNoObjectId;
+                const objects::ObjectId c = b->pad_contents(st.id(h));
+                built = c != objects::kNoObjectId;
+                if (offers)
+                    *offers = {b->sell_refund(st, 0, c).value_or(-1), b->sell_refund(st, 1, c).value_or(-1),
+                               b->sell_refund(st, 0, st.id(h)).value_or(-1)};
             }
         break;
     }
@@ -348,9 +355,13 @@ void test_pad_sell_start() {
     pad_start(false, type, built);
     std::printf("  tru3 pad at a start without pre-build: row type %d, built %d\n", type, built ? 1 : 0);
     CHECK(type == 117 && !built);
-    pad_start(true, type, built);
+    std::array<int32_t, 3> offers{};
+    pad_start(true, type, built, &offers);
     std::printf("  tru3 pad at a pre-built start: row type %d, built %d\n", type, built ? 1 : 0);
     CHECK(type != 117 && built);
+    // #477: the built turret's sell offer is its UC price x Tactical_Sell_Percentage, for its owner only; the pad has none.
+    std::printf("  #477 sell offer: owner %d, other player %d, the pad %d\n", offers[0], offers[1], offers[2]);
+    CHECK(offers[0] == 100 && offers[1] == -1 && offers[2] == -1);
 #else
     std::printf("  tru3 pad sell: skipped (no engine/anim)\n");
 #endif

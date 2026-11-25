@@ -282,6 +282,16 @@ struct HudWing {
 inline constexpr int32_t kWingHitBase = 0x40000000;  // hit-box ids of the wing buttons (not CommandBarComponents)
 inline constexpr size_t kMaxWings = 4;
 
+// #477: see TacticalHudFrame::sell.
+struct HudSellButton {
+    uint32_t object = 0;
+    Vec2f anchor_px{};       // the object's projected point (pixels, +Y down)
+    std::u32string name;     // the type's name (Text_ID)
+    int32_t refund = 0;      // TacticalBattle::sell_refund
+};
+// 0x2dd250's caption, L" %s %s ($ %d) ": the localized TEXT_BUTTON_SELL, the type's name and the refund.
+std::u32string tactical_sell_text(std::u32string_view sell, std::u32string_view name, int32_t refund);
+
 struct TacticalHudFrame {
     WorldHudContext world;          // canvas is filled by TacticalHud
     // Radar mapping: world rectangle shown by the radar (the map's playable box).
@@ -366,6 +376,10 @@ struct TacticalHudFrame {
     bool fleet_groups_on = false;
     std::span<const HudFleetGroup> fleet_groups;
     std::span<const HudFleetGoal> fleet_preview;  // #179: faint circles at these slots (fleet groups on only)
+    // #477 tactical_sell (0x217, TACTICAL_COMMANDBAR_COMPONENTS.md "Tactical sell"): the button the host opened over an own
+    // object with a sell offer (object 0 = none), at its projected pixel; text tactical_sell_text(TEXT_BUTTON_SELL, name,
+    // refund). A left click sends TacticalSell {object}.
+    HudSellButton sell;
 };
 
 struct TacticalHudStats {
@@ -378,6 +392,7 @@ struct TacticalHudStats {
     bool advisor_movie = false;                  // Movie_tactical drew the advisor loop this frame
     bool tooltip = false;
     bool pause_banner = false;          // Game Paused banner drawn
+    bool sell_button = false;           // #477 tactical_sell button drawn
     uint32_t objectives = 0, objective_lines = 0;
     bool drag_box = false;              // drag-select box drawn
     uint32_t wings = 0;                 // [port: Gabriel] squadron wing buttons drawn
@@ -398,6 +413,8 @@ public:
     HudLayout& layout() { return layout_; }
     const HudLayout& layout() const { return layout_; }
     const ComponentTable& components() const { return *table_; }
+    // #477: the tactical_sell component (-1 = none in the data): the host's sell cursor over it.
+    int32_t sell_component() const { return sell_; }
     HudButtons& buttons() { return buttons_; }
     // ui2 t02 (FLASH_SPECIAL_ABILITY, REWARDS 3.6): the special_button_NN component bound to an ability type, -1 when none.
     int32_t ability_component(uint8_t ability_type) const {
@@ -455,6 +472,7 @@ private:
                               std::vector<commands::EventData>& out, std::vector<HudAction>* actions);
     void apply_bombing_run_button(const HudBombingRunButton& s);
     void build_garrison_respawn(const TacticalHudFrame& f);
+    void build_sell(const TacticalHudFrame& f);
     void apply_command_buttons(const HudCommandButtons& s);
     void build_pause_banner(const TacticalHudFrame& f);
     void build_objectives(const TacticalHudFrame& f);
@@ -511,6 +529,8 @@ private:
     int32_t radar_ = -1, radar_blip_ = -1, credits_ = -1, shell_ = -1, retreat_ = -1;
     int32_t order_button_[6] = {-1, -1, -1, -1, -1, -1};  // c_button00..05
     int32_t garrison_respawn_ = -1;                       // garrison_respawn_counter (#474)
+    int32_t sell_ = -1;                                   // tactical_sell (#477)
+    uint32_t sell_drawn_ = 0;                             // the object of the sell button drawn this frame (0 = none)
     int32_t special_weapon_ = -1;                         // b_special_weapon (land: the bombing-run button)
     int32_t reinforce_button_ = -1, beacon_button_ = -1, beacon_t_ = -1, camera_t_ = -1;  // ui3 t03
     int32_t reinforce_counter_ = -1, r_pop_icon_ = -1, r_pop_text_ = -1;                 // ui3 t04

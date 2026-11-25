@@ -107,7 +107,24 @@ build placement (DAT_140b29fc0) -> cursor 0x1d (TacticalSell, 0x38b60). Click ->
 sell menu" -> 0x2dd250: one clone at HUD +0x20d8 (user data 0 = object), state +0x20b4 = 0, text
 `L" %s %s ($ %d) "` = TEXT_BUTTON_SELL, the type's name (type +0x140), refund 0x374590(type, obj); width from the text.
 0x2fcf70 keeps it at the object's projected point (+ the drag offset); it goes when the object dies / is removed (+0x3a0 & 2).
-Hovering it gives cursor 0x1d (0x2f5fee). Port: sim TacticalBattle::tactical_sell (tactical_battle_bt.cpp:345) exists, no UI.
+Hovering it gives cursor 0x1d (0x2f5fee).
+
+Port (#477):
+- **Offer.** `TacticalBattle::sell_refund(store, player, object)` (const) answers with the refund `tactical_sell` would credit:
+  the same pad lookup and amount (`pad_sell_refund`), for a live object of the player's with the TACTICAL_SELL behaviour (the
+  +0x35d test) that is also the built object of a pad ([port]: the only objects the sim's sell accepts; the sim's command
+  itself does not test the behaviour). A locked pad still answers; the command is then refused.
+- **Cursor.** `fill_cursor_hover` sets `CursorContext::sellable` for an own object with an offer, and `choose_pointer` gives
+  POINTER_TACTICAL_SELL for it, selection or not ([port] before GARRISON_IN; the hover actions' order is not traced).
+  `over_sell` gives the same pointer over the button.
+- **Button.** A world left click on such an object opens the button (`App::sell_object_`) and is spent there, as 0x41f70
+  case 9 suggests: no order, no selection. [port] any other world left click closes it (retail's close path besides
+  death is not traced), and so do the sell click, the offer ending (sold, dead, changed owner) and a new battle.
+- **Draw.** `TacticalHud::build_sell` draws tactical_sell at the projected point with the caption `tactical_sell_text`
+  (" TEXT_BUTTON_SELL <Text_ID name> ($ <refund>) ") in the component's font, colour and outline. [port] the button is the
+  Icon_Texture_Name (Mouse_Over_Texture_Name while hovered) stretched to the text's width at its atlas height x Scale; the
+  drag offset is not ported.
+- **Click.** A left click on it sends TacticalSell {object} (command 34), [M] as retail's click path.
 
 ### skirmish_upgrade (0x232): tactical "sidebar" column [H]
 0x317480 rebuilds two lists (HUD +0x1130 / +0x1148, the top / bottom sets of the XML Size): every live object owned by the
@@ -147,8 +164,8 @@ with fill = progress and "%d%%". Plus: space with weather -> the weather icon sl
    one radio_on then two radio_off.
 3. **st_ability_icon** [H texture rule]: done in #476 (see "Port (#476)" above). The plan was HudUnit
    `std::string ability_icon[2]` filled from the provider's HudAbility (icon, active) for allied units, drawn above the bar.
-4. **tactical_sell** [H]: input hover/click on an own object with the sell behaviour -> HUD button text above -> HudAction ->
-   tactical_sell command. Medium (input + HUD + text).
+4. **tactical_sell** [H]: done in #477 (see "Port (#477)" above). The plan was input hover/click on an own object with the
+   sell behaviour -> HUD button text above -> tactical_sell command.
 5. cs ability palette (trigger [L]), skirmish_upgrade sidebar (large), lt_weather_icon / surface_mod_icon ([L] parts),
    tactical bribe_display (position [L]): not ready.
 

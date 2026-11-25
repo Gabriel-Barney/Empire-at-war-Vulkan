@@ -1295,6 +1295,9 @@ void App::fill_cursor_hover(ui::CursorContext& c) {
     else if (owner >= 0 && cb.is_enemy(me, owner)) c.hover = H::Enemy;
     else if (owner >= 0) c.hover = H::Friendly;
     else c.hover = H::Neutral;
+    // #477 (0x2ad280 hover action 10): an own object with a sell offer gives POINTER_TACTICAL_SELL, selection or not.
+    if (c.hover == H::Own && me >= 0)
+        c.sellable = tb->sell_refund(tm->primary(), static_cast<uint8_t>(me), static_cast<objects::ObjectId>(hit->id)).has_value();
     if (!c.selection) return;
     if (c.hover == H::Enemy) {
         bool attack = false, range = false;
@@ -1331,6 +1334,9 @@ void App::update_cursor(ui::HudDrawList& dl) {
     c.movie = screen() == Screen::Movie;
     c.busy = screen() == Screen::SessionLoad;
     c.over_ui = routed_.hover_component >= 0 || ui_.gui.hit(input_.mouse_x(), input_.mouse_y());
+    // #477 (0x2f5fee): POINTER_TACTICAL_SELL over the tactical_sell button.
+    c.over_sell = screen() == Screen::Battle && routed_.hover_component >= 0 &&
+                  routed_.hover_component == ui_.tactical_hud.sell_component();
     c.drag_selecting = input_.button(ui::Button::Left).dragging && screen() == Screen::Battle;
     c.selection = !orders_.selection().empty();
     if (screen() == Screen::Galactic) {
