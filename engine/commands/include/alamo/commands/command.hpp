@@ -161,6 +161,7 @@ EventData select_all();
 EventData control_group(uint8_t group, bool assign, bool add = false);
 EventData production(uint16_t type_index, ObjectId location, bool cancel = false, uint8_t queue = 0, uint8_t index = 0);
 EventData tactical_build(ObjectId pad, uint16_t type_index, uint16_t player);
+EventData tactical_sell(ObjectId object);  // 34 TacticalSell {object} (#477: the tactical_sell button)
 EventData ability(std::vector<ObjectId> users, uint8_t ability_type, ObjectId target);
 EventData move_object_to_object(ObjectId object, ObjectId target);  // galactic fleet hop
 EventData retreat(bool request);

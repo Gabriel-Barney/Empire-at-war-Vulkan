@@ -1184,6 +1184,27 @@ void App::build_tactical_hud() {
             out.push_back(std::move(e));
         }
     };
+    // #477: the open tactical_sell button, at its object's projected point while the offer stands (the object sold, dead or
+    // no longer the local player's closes it); behind the camera it is not drawn but stays open.
+    if (const sim::TacticalBattle* b = battle(); b && tm && sell_object_ != 0) {
+        const objects::ObjectStore& st = tm->primary();
+        const auto id = static_cast<objects::ObjectId>(sell_object_);
+        const std::optional<int32_t> refund =
+            local_player() >= 0 ? b->sell_refund(st, static_cast<uint8_t>(local_player()), id) : std::nullopt;
+        if (!refund) {
+            sell_object_ = 0;
+        } else {
+            const objects::ObjectHandle sh = st.find(id);
+            const Vec3 p = st.position(sh);
+            float sx = 0.0f, sy = 0.0f;
+            if (ui::project(hf.world.view, {p.x, p.y, p.z}, sx, sy)) {
+                hf.sell.object = sell_object_;
+                hf.sell.anchor_px = {sx, sy};
+                hf.sell.name = type_label(data_, ui_.text, st.type(sh));
+                hf.sell.refund = *refund;
+            }
+        }
+    }
     // Tactical buy bar: the first selected own builder with production options (skirmish space stations), its options
     // with price / queued count / block reason, anchored at the builder's projected pixel.
     // q6 [port]: the buttons are the i_build_buttons model at the builder in the world (legacy docs/re/UI.md: tactical build pads), so a

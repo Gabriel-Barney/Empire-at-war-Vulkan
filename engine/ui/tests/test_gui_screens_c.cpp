@@ -247,6 +247,15 @@ void test_cursor() {
     CHECK(choose_pointer(c) == Pointer::Select);
     c.garrisonable = true;
     CHECK(choose_pointer(c) == Pointer::GarrisonIn);
+    // #477: an own object with a sell offer -> TACTICAL_SELL, with or without a selection; only for an own object.
+    c.sellable = true;
+    CHECK(choose_pointer(c) == Pointer::TacticalSell);
+    c.selection = false;
+    CHECK(choose_pointer(c) == Pointer::TacticalSell);
+    c.selection = true;
+    c.hover = CursorContext::Hover::Friendly;
+    CHECK(choose_pointer(c) == Pointer::GarrisonIn);
+    c.sellable = false;
     c.hover = CursorContext::Hover::Neutral;
     CHECK(choose_pointer(c) == Pointer::GarrisonIn);
     c.hover = CursorContext::Hover::Friendly;
@@ -269,6 +278,9 @@ void test_cursor() {
     c.target_valid = false;
     CHECK(choose_pointer(c) == Pointer::AbilityEnemyInvalid);
     c.over_ui = true;
+    c.over_sell = true;  // #477: over the tactical_sell button
+    CHECK(choose_pointer(c) == Pointer::TacticalSell);
+    c.over_sell = false;
     c.over_draggable = true;
     CHECK(choose_pointer(c) == Pointer::CanGrab);
     c.fleet_drag = true;

@@ -311,6 +311,11 @@ EventData tactical_build(ObjectId pad, uint16_t type_index, uint16_t player) {
     e.set("pad", pad).set("type_index", type_index).set("player", player);
     return e;
 }
+EventData tactical_sell(ObjectId object) {
+    EventData e(EventType::TacticalSell);
+    e.set("object", object);
+    return e;
+}
 EventData ability(std::vector<ObjectId> users, uint8_t ability_type, ObjectId target) {
     EventData e(EventType::TacticalSpecialAbility);
     e.set_ids("users", std::move(users)).set("ability", ability_type).set("target", target);

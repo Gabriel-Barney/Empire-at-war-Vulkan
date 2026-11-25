@@ -1374,9 +1374,22 @@ void App::battle_input() {
             cmds.push_back(std::move(o.event));
         }
     }
-    if (!drop_click && !targeted && !world_blocked && !bombing_click && !bombing_targeting_ && !sw_click &&
-        sw_weapon_ == objects::kNoObjectId)
-        orders_.update(input_, ui_.bindings, ctx);
+    // #477 tactical sell (TACTICAL_COMMANDBAR_COMPONENTS.md "Tactical sell" [M click path]): a world left click on an own
+    // object with a sell offer opens its tactical_sell button; any other world left click closes it. [port] the click
+    // still reaches the order translator (it selects the object as before).
+    const bool order_input = !drop_click && !targeted && !world_blocked && !bombing_click && !bombing_targeting_ && !sw_click &&
+                             sw_weapon_ == objects::kNoObjectId;
+    if (order_input && input_.button(ui::Button::Left).click) {
+        sell_object_ = 0;
+        if (const sim::TacticalBattle* sb = battle(); sb && local_player() >= 0) {
+            tactical::QueryContext qc;
+            const auto hit = ui::pick_world(tm->trees().all(), ctx.view, ui::pixel_ray(ctx.view, input_.mouse_x(), input_.mouse_y()),
+                                            tactical::kSkipDead, qc, ctx.pick_tests);
+            if (hit && sb->sell_refund(tm->primary(), static_cast<uint8_t>(local_player()), static_cast<objects::ObjectId>(hit->id)))
+                sell_object_ = static_cast<uint32_t>(hit->id);
+        }
+    }
+    if (order_input) orders_.update(input_, ui_.bindings, ctx);
     // [port: Gabriel, #179] fleet groups: the slots the aimed ground move would give the selection's locked groups.
     fleet_goals_.clear();
     if (const sim::TacticalBattle* fb = battle(); fb && session_ && session_->spec().fleet_groups && fb->fleet_groups_enabled())
