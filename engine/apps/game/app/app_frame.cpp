@@ -278,7 +278,7 @@ bool App::render_frame() {
         dialogs.add(ui::kHudLayers - 1, ui::HudList::Alpha, q);
     }
     info_.build_overlay(dialogs);  // data-chart lines over IDC_DATA_CHART_IMAGE
-    if (credits_.active() && !credits_.build(dialogs, *ui_.fonts, *canvas, now_s_)) end_credits();  // ended
+    if (credits_.active() && !credits_.build(dialogs, *ui_.fonts, *canvas, now_s_, &hud_images_)) end_credits();  // ended
     if (rename_.active()) rename_.build(dialogs, *ui_.fonts, *canvas, now_s_);  // [port] fleet / ship rename prompt
     if (overlay_.shown()) {  // the frame-time overlay, top layer of the dialogs list (under the cursor)
         overlay_.read_ticks();

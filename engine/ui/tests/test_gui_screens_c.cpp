@@ -42,6 +42,25 @@ void test_credits_roll() {
         const CreditsStyle d;
         CHECK(d.font == "Arial Unicode MS" && d.font_size == 10.0f && d.spacing == 0.01f && d.scroll_rate == -0.01f && d.margin == 0.0f &&
               d.top.r == 255 && d.header_bottom.b == 255);
+        CHECK(d.logos[0].name.empty() && d.logos[2].width == 0.1f && d.logos[1].height == 0.1f && d.logos[0].y_offset == 0.5f);
+    }
+    // #458: the logo rectangles (0x44ecdc) and the margin fade.
+    {
+        CreditsLogo bink{"Logo_Bink.DDS", 0.15f, 0.15f, 0.1f};
+        // 256 x 128 texture at 1024 x 768, 4 records 30 px apart: w = 153.6, h = 0.15 x (128/768)/(256/1024) x 768 = 76.8
+        const CreditsRect r0 = credits_logo_rect(0, bink, 4, 30, 1024, 768, 256.0f, 128.0f);
+        CHECK(std::fabs(r0.x) < 1e-3f && std::fabs(r0.w - 153.6f) < 1e-3f && std::fabs(r0.h - 76.8f) < 1e-3f &&
+              std::fabs(r0.y - (768.0f + 76.8f + 120.0f)) < 1e-3f);
+        const CreditsRect r1 = credits_logo_rect(1, bink, 4, 30, 1024, 768, 256.0f, 128.0f);
+        const CreditsRect r2 = credits_logo_rect(2, bink, 4, 30, 1024, 768, 256.0f, 128.0f);
+        CHECK(std::fabs(r1.x - 435.2f) < 1e-3f && std::fabs(r2.x - 870.4f) < 1e-3f && r1.y == r0.y);
+        // the offsets do not add up: logo 2 with its own offset sits at 1 + N x pitch + its offset
+        const CreditsRect gs = credits_logo_rect(1, {"Logo_GameSpy.DDS", 0.3f, 0.3f, 0.19f}, 4, 30, 1024, 768, 256.0f, 256.0f);
+        CHECK(std::fabs(gs.y - (768.0f * 1.19f + 120.0f)) < 1e-2f);
+        CHECK(credits_logo_alpha(0.05f, 0.1f) == 0.0f && std::fabs(credits_logo_alpha(0.15f, 0.1f) - 0.5f) < 1e-6f &&
+              credits_logo_alpha(0.5f, 0.1f) == 1.0f && std::fabs(credits_logo_alpha(0.85f, 0.1f) - 0.5f) < 1e-6f &&
+              credits_logo_alpha(0.95f, 0.1f) == 0.0f && std::fabs(credits_logo_alpha(0.2f, 0.1f) - 1.0f) < 1e-6f);
+        CHECK(credits_logo_alpha(0.5f, 0.0f) == 1.0f && credits_logo_alpha(-0.01f, 0.0f) == 0.0f && credits_logo_alpha(1.01f, 0.0f) == 0.0f);
     }
     CHECK(credits_scroll_target_px(-0.10f, 768, 3.0) == 232);  // floor(230.4) + 2
     CHECK(credits_scroll_target_px(-0.10f, 768, 0.0) == 2);
@@ -83,6 +102,40 @@ void test_credits_roll() {
         roll.build(dl, fonts, cv, t);
     }
     CHECK(!roll.active() && roll.moved_px() == 858);
+    // #458: with a logo (Y_Offset 0.19) the roll runs until its top leaves too: 768 x 1.19 + 4 x 30 = 1033.92 -> 1034 px;
+    // a logo whose texture does not resolve is skipped.
+    {
+        CreditsStyle ls = st;
+        ls.margin = 0.04f;
+        ls.logos[1] = {"Logo_GameSpy.DDS", 0.3f, 0.3f, 0.19f};
+        ls.logos[2] = {"missing.dds", 0.2f, 0.2f, 0.9f};
+        const GuiImageResolver images = [](std::string_view t) {
+            GuiImage im;
+            if (t != "Logo_GameSpy.DDS") return im;
+            im.valid = true;
+            im.page = kHudPageImageBase;
+            im.size = {256.0f, 256.0f};
+            return im;
+        };
+        CreditsRoll lr;
+        lr.start(parsed, ls, 0.0, false);
+        double lt = 0.0;
+        size_t most = 0;
+        uint8_t faded = 255, full = 0;
+        for (int f = 0; f < 3000 && lr.active(); ++f) {
+            dl.clear();
+            lt += 0.01;
+            if (!lr.build(dl, fonts, cv, lt, &images)) break;
+            most = std::max(most, lr.logos_drawn());
+            for (const HudQuad& q : dl.items(kHudLayers - 1, HudList::Alpha))
+                if (q.page == kHudPageImageBase) {
+                    faded = std::min(faded, q.color.a);
+                    full = std::max(full, q.color.a);
+                }
+        }
+        CHECK(!lr.active() && lr.moved_px() == 1034);
+        CHECK(most == 1 && full == 255 && faded < 255);  // one logo, faded in and out by the margin
+    }
     // A black backdrop only when asked for (no Credits movie).
     CreditsRoll over_movie;
     over_movie.start(parsed, st, 0.0, false);

@@ -80,7 +80,9 @@ Positions are fractions of the screen, with y down and 0 at the top. H is the sc
 Still `[port]`:
 - **Click to skip:** a click skips too.
 - **No movie:** without the movie the roll runs over black.
-- **Logos:** they are not drawn, so the roll ends when the last text record leaves (follow-up #458).
+- **Logos (#458):** drawn and faded as in "Layout" and "Per frame" (`credits_logo_rect`, `credits_logo_alpha`), and
+  the end test includes them. The textures come through the GUI image pages; a logo whose page is not loaded yet is
+  skipped for that frame [port].
 
 ## Open
 
