@@ -233,7 +233,7 @@ public:
     void set_heal_selection(std::vector<uint32_t> ids) { heal_sel_ = std::move(ids); }
     // the object under the cursor (0 = none), brightened by Mouse_Over_Highlight_Scale. Set before prepare().
     void set_hover(uint32_t id) { hover_ = id; }
-    uint32_t hover() const { return hover_; }  // the object under the cursor (0 none)
+    uint32_t hover() const { return hover_; }
     // mcx4 t15 (MCX4_PRES_RE_ANSWERS_2 Q7): start an object light effect at wall time `now`, unless one is running on
     // the object (0x48e4d0: a running pulse is not replaced). set_pulse_time sets the clock of the next prepare().
     void start_light_pulse(uint32_t id, render::LightPulse p, double now);

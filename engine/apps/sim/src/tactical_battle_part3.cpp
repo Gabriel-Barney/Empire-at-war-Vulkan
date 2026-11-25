@@ -1452,19 +1452,19 @@ cmd::RejectReason TacticalBattle::handle_command(TacticalMode& mode, uint8_t pla
             const objects::ObjectHandle th = tw == cmd::kNoObject || tw > 0x7FFFFFFFu ? objects::ObjectHandle{} : store.find(static_cast<objects::ObjectId>(tw));
             if (!store.alive(th)) return R::InvalidTarget;
             const objects::ObjectId tid = store.id(th);
+            const auto swept = [&](bool fired) {  // 0x40a5b7: the sweep, then the fire's outcome
+                destroy_after();
+                return fired ? R::None : R::InvalidTarget;
+            };
             if ((l1_sw_.kinds(wid) & ta::kSwSpecialWeapon) != 0) {
                 if (l1_sw_.readiness(wid, frame_) < 1.0f) return R::AbilityNotReady;
                 if (!special_weapons_allowed(static_cast<int32_t>(player))) return R::NotAllowed;
-                const bool fired = sw_fire_at_object(mode, wid, tid);
-                destroy_after();
-                return fired ? R::None : R::InvalidTarget;
+                return swept(sw_fire_at_object(mode, wid, tid));
             }
             if (combat_ && combat_->special_weapon_readiness(wid) >= 0.0f) {
                 if (combat_->special_weapon_readiness(wid) < 1.0f) return R::AbilityNotReady;
                 if (!special_weapons_allowed(static_cast<int32_t>(player))) return R::NotAllowed;
-                const bool fired = combat_->special_weapon_fire(wid, tid);
-                destroy_after();
-                return fired ? R::None : R::InvalidTarget;
+                return swept(combat_->special_weapon_fire(wid, tid));
             }
             return R::Unhandled;
         }

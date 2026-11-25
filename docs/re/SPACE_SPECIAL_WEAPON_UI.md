@@ -47,7 +47,8 @@ A failed test gives action 0xf.
 
   It then clears the aim flag locally. No sound plays.
 - **Execute `0x40a3b0`.** It gates on SpecialWeaponsAllowed and on readiness >= 0.99, then fires through `0x491cd0`. It
-  does not call `0x491b40`. It runs the destroy-after sweep whatever the fire returns. The sim side of this is #460.
+  does not call `0x491b40`. It runs the destroy-after sweep whatever the fire returns. The port does the same (#460),
+  and the cursor and the click test the target with `TacticalBattle::sw_can_target`.
 - **An invalid target** (action 0xf) queues no command, plays no sound and keeps the aim [M].
 - **A right click** while aiming cancels every aim [M].
 
