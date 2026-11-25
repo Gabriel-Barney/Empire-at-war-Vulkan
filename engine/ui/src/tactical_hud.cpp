@@ -207,6 +207,7 @@ void TacticalHud::init(const ComponentTable& table, const TextureAtlas& atlas, F
     beacon_t_ = table.find("b_beacon_t");
     camera_t_ = table.find("b_camera_t");
     reinforce_counter_ = table.find("reinforcement_counter");
+    garrison_respawn_ = table.find("garrison_respawn_counter");
     r_pop_icon_ = table.find("r_pop_icon");
     r_pop_text_ = table.find("r_pop_text");
     for (int i = 0; i < 6; ++i) order_button_[i] = find_fmt(table, "c_button%02d", i);
@@ -227,7 +228,8 @@ void TacticalHud::init(const ComponentTable& table, const TextureAtlas& atlas, F
                           &queue_component_, &reinforce_component_})
         for (int32_t i : *v) mark(i);
     for (int32_t i : buy_component_) mark(i);
-    for (int32_t i : {radar_, radar_blip_, credits_, pause_text_, resume_, obj_back_, obj_header_, obj_text_, obj_icon_, movie_})
+    for (int32_t i : {radar_, radar_blip_, credits_, pause_text_, resume_, obj_back_, obj_header_, obj_text_, obj_icon_, movie_,
+                      garrison_respawn_})
         mark(i);
     for (uint32_t i = 0; i < table.size(); ++i) {
         const std::string& n = table[i].name;
@@ -624,6 +626,7 @@ void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> 
         apply_bombing_run_button(frame.bombing_run);
         apply_command_buttons(frame.command_buttons);
         build_buttons(frame);
+        build_garrison_respawn(frame);
         // C2 (FIXPASS_GALACTIC §4.2): the name's line is centred on the bone (250, 745 vs bone 252, 744). Drawn here because the
         // generic button text hangs a Max_Text_Width block below its anchor, half a line low (QA D12 on the galactic strip).
         if (planet_text_ >= 0 && !frame.planet_name.empty()) {
@@ -1171,6 +1174,27 @@ void TacticalHud::apply_bombing_run_button(const HudBombingRunButton& s) {
         r.icon_override = c.icon_alternate_texture[static_cast<size_t>(s.icon)];
     r.tooltip_index = s.tooltip >= 0 && c.tooltip_text.size() > static_cast<size_t>(s.tooltip) ? s.tooltip : -1;
     r.build_fill = s.dial < 0.0f ? -1.0f : std::clamp(s.dial, 0.0f, 1.0f) * 100.0f;
+}
+
+// #474 garrison_respawn_counter (docs/re/TACTICAL_COMMANDBAR_COMPONENTS.md "Garrison respawn counter"): shown with the
+// re-delivery fill on its Build_Texture_Name dial (0x311a60 [H]) while the timer runs, hidden otherwise. 0x318720 places it
+// at (30 - W/2, H/2 - 60) in the centred GUI space, i.e. 30 right and 60 down from the top-left corner [M].
+void TacticalHud::build_garrison_respawn(const TacticalHudFrame& f) {
+    if (garrison_respawn_ < 0) return;
+    const auto ci = static_cast<uint32_t>(garrison_respawn_);
+    ButtonRuntime& r = buttons_.state(ci);
+    r.hidden = r.script_visible >= 0 ? r.script_visible == 0 : f.garrison_respawn < 0.0f;
+    if (r.hidden) return;
+    r.build_fill = std::clamp(f.garrison_respawn, 0.0f, 1.0f) * 100.0f;
+    const CommandBarComponent& c = (*table_)[ci];
+    const ComponentPlacement& p = layout_.placement(ci);
+    const Vec2f center{-0.5f * canvas_.width + 30.0f, 0.5f * canvas_.height - 60.0f};
+    const uint32_t layer = layer_of(c, p);
+    Vec2f size = buttons_.draw(dl_, *atlas_, fonts_, canvas_, ci, center, p.size, f.faction_alt, f.time,
+                               static_cast<int32_t>(layer) - c.base_layer);
+    if (p.size.x > 0) size = p.size;
+    hit(garrison_respawn_, layer, center, size);
+    ++stats_.buttons;
 }
 
 void TacticalHud::apply_command_buttons(const HudCommandButtons& s) {

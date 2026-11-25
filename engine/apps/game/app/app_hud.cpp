@@ -955,6 +955,7 @@ void App::build_tactical_hud() {
         for (const sim::TacticalBattle::IconLink& l : b->icon_links())
             icons.push_back({static_cast<uint32_t>(l.unit), static_cast<uint32_t>(l.squad)});
         ui::assign_unit_icons(units, icons);
+        hf.garrison_respawn = b->garrison_respawn(local_player());  // #474: the local player's re-delivery fill, -1 = none
     }
     // Pause look, radar picture (fog of war), queue markers of the selected units (sim queued_orders, const reads).
     hf.paused = session_ && session_->pause_requested();

@@ -76,7 +76,9 @@ Created once (0x2e9700, HUD +0x2028), texture = Icon i_button_skirmish_reinforce
 - Hide: at expiry 0x287e70 -> 0x2f8d80 for the local player, with Reinforcements_Ready SFX (faction +0x22a0).
 - Place: 0x318720 at (30 - W/2, H/2 - 60) in the centred GUI space -> 30 px right, 60 px down from the top-left [M]; the hero
   grab-bar icons (+0x2008) follow to its right, step = width + 5.
-Port: the timer already exists (TacticalBattle::SkGarrison, tactical_battle_skirmish.cpp:136-171, `timer` = expiry frame).
+Port (#474): `TacticalBattle::garrison_respawn(player)` gives the fill from the SkGarrison timer (-1 = none); the host
+feeds the local player's to `TacticalHudFrame::garrison_respawn`, and `TacticalHud::build_garrison_respawn` draws the
+component with its dial at the [M] point above.
 
 ### Tactical sell (0x217) [H trigger/text, M click path]
 Hover action 10 (0x2ad280): the object is the local player's (+0x58) and has the sell behaviour slot (+0x35d != -1), not in a

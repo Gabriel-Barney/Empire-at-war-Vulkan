@@ -2832,6 +2832,8 @@ void test_skirmish_redelivery() {
     uint32_t killed_at = 0, delivered_at = 0;
     size_t pool0 = 0, pool_before = 0;
     bool fed = false;  // the presentation feed names the slot on the expiry tick
+    uint32_t armed_at = 0;  // #474
+    float respawn_before = 0.0f, respawn_armed = -1.0f, respawn_half = -1.0f, respawn_after = 0.0f;
     for (uint64_t t = 0; t < 1200 && delivered_at == 0; ++t) {
         host.tick_once();
         TacticalBattle* b = battles.battle();
@@ -2843,6 +2845,7 @@ void test_skirmish_redelivery() {
             std::vector<objects::ObjectId> mine;
             for (const objects::ObjectHandle h : tm->primary().owned_by(0))
                 if (tm->primary().alive(h) && b->combat().has_unit(tm->primary().id(h))) mine.push_back(tm->primary().id(h));
+            respawn_before = b->garrison_respawn(0);
             for (const objects::ObjectId id : mine) (void)b->script_damage(*tm, id, 1.0e9f, false);
             killed_at = b->frame();
             std::printf("  frame %u: %zu Empire start-force units killed, pool %zu\n", killed_at, mine.size(), pool0);
@@ -2850,12 +2853,23 @@ void test_skirmish_redelivery() {
             continue;
         }
         if (b->frame() == killed_at + 590) pool_before = pooled(*b);
+        if (armed_at == 0 && b->garrison_respawn(0) >= 0.0f) {  // the first tick the timer runs
+            armed_at = b->frame();
+            respawn_armed = b->garrison_respawn(0);
+        }
+        if (armed_at != 0 && b->frame() == armed_at + 300) respawn_half = b->garrison_respawn(0);
         if (pooled(*b) > pool0) {
             delivered_at = b->frame();
             fed = b->garrison_redelivered().size() == 1 && b->garrison_redelivered()[0] == 0;
+            respawn_after = b->garrison_respawn(0);
         }
     }
     CHECK(fed);
+    // #474: the respawn counter's fill: none before the garrison is gone, 0 on the tick the timer arms, half way 300 of the
+    // 600 frames later, none once delivered.
+    std::printf("  garrison respawn fill: before %.3f, armed %.3f (frame %u), half %.3f, after %.3f\n", respawn_before,
+                respawn_armed, armed_at, respawn_half, respawn_after);
+    CHECK(respawn_before == -1.0f && respawn_armed == 0.0f && std::fabs(respawn_half - 0.5f) < 1e-6f && respawn_after == -1.0f);
     std::printf("  start force re-delivered at frame %u (killed at %u), pool %zu -> %zu (%zu just before the delay)\n", delivered_at, killed_at,
                 pool0, battles.battle() ? pooled(*battles.battle()) : size_t{0}, pool_before);
     CHECK(delivered_at >= killed_at + 600 && delivered_at <= killed_at + 602 && pool_before == pool0);
