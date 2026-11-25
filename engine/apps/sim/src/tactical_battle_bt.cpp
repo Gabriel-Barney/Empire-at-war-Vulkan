@@ -1176,9 +1176,10 @@ void TacticalBattle::bt_map_load(TacticalMode& mode, SimRng& rng) {
     // marker's owner; the placeholder is removed. Spawned objects:
     //   * CAPTURE_POINT / garrison structures without a locomotor: S4 placement with the map owner (§3.3); the selectable
     //     ones are also third-party battle combat units of that owner (any owner, Is_Neutral included);
-    //   * selectable / mobile objects (map units, turrets, base layouts) of a non-Is_Neutral owner: battle combat units
-    //     (map participants; a third party when owned by neither side) [port: Is_Neutral-owned ones stay inert store
-    //     objects (every player is an enemy of every other in CombatSystem)];
+    //   * selectable / mobile objects (map units, turrets, base layouts): battle combat units (map participants; a third
+    //     party when owned by neither side). #334 t01: an Is_Neutral owner's too - retail's map load spawns every object
+    //     the same way, and the relation table (TACTICAL_COMBAT §2.10 [H]: an Is_Neutral player is 2 towards everyone; every
+    //     combat path reads 1) keeps them out of combat unless a script's Make_Enemy changes the relation;
     //   * map1 t03 (company expansion 0x2ab060, after the record loop [H]): a company / squadron type (Company_Units /
     //     Squadron_Units) is not an object of its own: each one, in map order, becomes its members through the company
     //     spawn 0x29e960 (every member created at the placement's position and facing for its owner, then the TEAM helper of
@@ -1384,7 +1385,7 @@ void TacticalBattle::bt_map_load(TacticalMode& mode, SimRng& rng) {
             if (!picked) note_hint(pl, h);
             note_stale(pl, h);
             note_decoration(t, h);
-            if (!bt_owner_neutral(owner)) bt_adopt_built(mode, h, owner, pl.health_fraction, &rng, true);
+            bt_adopt_built(mode, h, owner, pl.health_fraction, &rng, true);  // #334 t01: any owner
             continue;
         }
         const objects::ObjectHandle h = mode.spawn(sp, pl.health_fraction);
@@ -1584,7 +1585,7 @@ void TacticalBattle::bt_expand_company(TacticalMode& mode, const terrain::Object
     P.galactic_id = objects::kNoObjectId;
     P.owner = owner;
     P.type = ct;
-    if (bt_owner_neutral(owner) || !combat_ || !bt_rng_) {
+    if (!combat_ || !bt_rng_) {  // #334 t01: an Is_Neutral owner's company is a battle company too
         std::vector<objects::ObjectHandle> made;
         for (const uint32_t m : spawn_types(P)) {
             objects::SpawnParams sp;
