@@ -460,6 +460,10 @@ bool fly_past_shot(const InterestingObject& o, bool space, UnsyncedRandom& rng, 
     return true;
 }
 
+bool push_in_shot(const InterestingObject&, UnsyncedRandom&, BattleCamShot&) { return false; }
+bool drive_by_shot(const InterestingObject&, UnsyncedRandom&, BattleCamShot&) { return false; }
+bool land_flying_shot(const InterestingObject&, UnsyncedRandom&, BattleCamShot&) { return false; }
+
 bool interesting_shot(const InterestingObject& o, bool space, const InterestingCategories& c, UnsyncedRandom& rng,
                       BattleCamShot& out) {
     // Steps 1 - 5 (docs/re/BATTLE_CAM.md "The dispatcher"): the glory files (#572), the hardpoint shot (#571), the

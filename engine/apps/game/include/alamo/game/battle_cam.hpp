@@ -206,8 +206,18 @@ struct InterestingObject {
 };
 // GameObjectCategoryType values the dispatcher tests (the enum file's; [H] defaults). #569 / #570 add the rest.
 struct InterestingCategories {
-    uint64_t bomber = 0x2, corvette = 0x8;
+    uint64_t bomber = 0x2, corvette = 0x8, infantry = 0x80, vehicle = 0x100;
 };
+
+// #569 0x4a4e30 [H] (needs a model): the infantry push-in. n = 120..150, h = 1.5..2.0; the eye moves on world points
+// M (2s Ex, 2 Ey, 2h Ez) -> M (s Ex, 2 Ey, h Ez) fixed at the start, the look on the object; length n, handheld noise.
+bool push_in_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCamShot& out);
+// #569 0x4a6dd0 [H] (needs a model): the vehicle drive-by, one of three variants; every eye key a world point fixed at the
+// start, so the vehicle drives through the frame; length 2n, n = 60..90; no noise.
+bool drive_by_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCamShot& out);
+// #569 0x4a23d0 [H] (needs a model): a land flyer seen from a fixed world point M (s Ex, -Ey, Ez) beside it, the look
+// held on it; length n = 60..90; no noise.
+bool land_flying_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCamShot& out);
 
 // 0x4a17c0 [H]: a tripod at C + d (cos phi cos psi, cos phi sin psi, sin phi), psi = 0..360, phi = 20..45 (space:
 // negated half the time), d = 2|E|..4|E|; eye and look held on world points; 60 frames, handheld noise.
