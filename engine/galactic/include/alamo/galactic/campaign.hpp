@@ -187,6 +187,10 @@ struct PlayerState {
     // campaign setup for every player with a faction: 0x4af240, the first matching entry). Read by the AI token
     // Self.HomePlanet. Saved (v8); not hashed (fixed at setup, like the faction).
     PlanetIndex home = kInvalidPlanet;
+    // #68 (player +0x338 / +0x340 planets, +0x350 types): the per-planet tactical upgrade list, {planet, upgrade type}
+    // in append order, no repeated pair (0x27f9a0); a removal takes the pair out (0x2861f0). Written by the corruption
+    // change effects (corruption_upgrades). Saved (v13); hashed in its own section once any player has an entry.
+    std::vector<std::pair<PlanetIndex, uint32_t>> planet_upgrades;
 };
 
 // OI galactic: buildability 0x2804d0 (STRATEGIC_GAPS 1.3). `reason` = the out-argument code the GUI / Lua read (0 = the
@@ -613,12 +617,16 @@ public:
     // choice slot whose type is `type` (0 when none or `type` is none). first_corruption_player (0x2948d0): the first
     // player whose faction has Benefits_From_Corruption (kNoPlayer when none), who is paid on a normal completion.
     float corruption_credit_bonus(PlanetIndex planet, int8_t type) const;
+    // #68 (0x3715d0): the Corruption_N_Success_Planet_Specific_Tactical_Upgrade of the same first matching slot, kNoIndex
+    // when none.
+    uint32_t corruption_tactical_upgrade(PlanetIndex planet, int8_t type) const;
     int32_t first_corruption_player() const;
 
     void recompute_credit_caps();
 
     // Instant corruption change (story / Lua / host stand-ins): cancels a running transition (0x4b6c50), sets the
     // type, rebuilds the particle pairs (0x3ff230), notifies. Timed changes: begin_corruption_gain / _removal.
+    // #68: it leaves the per-planet tactical upgrade lists alone (0x3f9690's only callers are 0x3fc5b0 and 0x28dbe0).
     void set_corruption(PlanetIndex planet, int8_t type, int32_t corrupting_player);
 
     // ---- GRC: planet reveal (src/reveal.cpp) -------------------------------------------------------------------
@@ -728,6 +736,9 @@ public:
     // The Space_ / Land_Upgrade_Type list of the player's held Galaxy_Wide_Upgrade bonuses (player +0x300 / +0x318),
     // spawned for the player at the start of a space / land battle (0x2afc10).
     std::vector<uint32_t> player_upgrades(int32_t player, bool space) const;
+    // #68 (0x281620 / 0x281760): the player's planet_upgrades types for `planet`, in list order (empty for an invalid
+    // player). The battle start spawns the affiliated DUMMY_UPGRADE ones for the player (CampaignBattles).
+    std::vector<uint32_t> planet_upgrades(int32_t player, PlanetIndex planet) const;
     // The live objects at a planet, the one walk behind the galactic ability rules (#134): the surface units in list order,
     // then the contents of the live fleets in orbit (fleets in arrival order, members in fleet order) [M]. orbit_first
     // swaps the two lists (Neutralize_Hero's candidates); stationary_fleets skips a moving fleet (the political holders).
@@ -1436,6 +1447,11 @@ private:
     // pay_corruption_bonus (MCX4_T09_RE_ANSWERS Q1): corruption_credit_bonus(planet, type) added to `player` as a float,
     // notify 0, when > 0 (0x3f9690 step 2 and the first-owner path 0x3fb040).
     void pay_corruption_bonus(PlanetIndex planet, int8_t type, int32_t player);
+    // #68 (0x3f9690 [H]), after the planet's corruption changed from old_type to new_type: every player with a faction
+    // gets {planet, the faction's Automatic_Planetary_Corruption_Upgrade_Type of new_type} (0x33e310) and loses the one of
+    // old_type; then `player` (P: no-op when invalid) gets the planet type's Success_Planet_Specific_Tactical_Upgrade of
+    // new_type (0x3715d0) and loses the one of old_type. kCorruptionNone on either side skips that side.
+    void corruption_upgrades(PlanetIndex planet, int8_t new_type, int8_t old_type, int32_t player);
     // enqueue()'s checks; *cost = the build cost when None (A2 galactic: shared with can_enqueue).
     RejectReason check_enqueue(int32_t player, PlanetIndex planet, uint32_t type, int32_t* cost) const;
     void restart_head(BuildEntry& e) const;

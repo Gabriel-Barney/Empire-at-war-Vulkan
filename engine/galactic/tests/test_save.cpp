@@ -740,7 +740,8 @@ void test_synthetic() {
     sc.full_prefix_limit = 1u << 20;  // every prefix
     // #67 t04: the saved pending ProductionCanceled events of a command cancel carry object = kCancelVoiced. Only the save
     // part of the pin moves (galactic and conflict digests unchanged; with the flag at 0 the pin is the old 0x67e4152092046d2e).
-    sc.pin = 0xc6c75997ff12a0c3ull;  // before the records' field lists
+    // #68: the v13 per-planet tactical upgrade lists (a u32 count per player, empty here) move the save part again.
+    sc.pin = 0x0ddc3c8911b7cc9cull;
     run_scenario(sc);
 }
 
@@ -899,9 +900,16 @@ void test_queue_phases() {
         size_t placement = 2 + 4 + 5 * s.autoresolve_exclusions().size();
         for (const PlanetState& pl : s.planets()) placement += 4 + 4 * pl.initial_placement.size();
         // v11 adds the locked fleets (u32 count 0 here); a v10 image derives them from the contents (none).
-        // v12 adds the company survivor records last (u32 count 0 here); a v11 image has none.
-        CHECK(bytes.size() >= galab + 24 + placement && bytes[0] == 12 && bytes[bytes.size() - 1] == 0);
-        std::vector<uint8_t> v11(bytes.begin(), bytes.end() - 4);
+        // v12 adds the company survivor records (u32 count 0 here); a v11 image has none.
+        // v13 (#68) adds last, per player, the per-planet tactical upgrade list (u32 count 0 here); a v12 image rebuilds
+        // it from the corruption types (none here).
+        const size_t tactical = 4 * s.players().size();
+        CHECK(bytes.size() >= galab + 24 + placement + tactical && bytes[0] == 13 && bytes[bytes.size() - 1] == 0);
+        std::vector<uint8_t> v12(bytes.begin(), bytes.end() - static_cast<std::ptrdiff_t>(tactical));
+        v12[0] = 12;
+        ByteReader r12(v12);
+        CHECK(o.read(r12) && sim_bytes(o) == bytes);
+        std::vector<uint8_t> v11(v12.begin(), v12.end() - 4);
         v11[0] = 11;
         ByteReader r11(v11);
         CHECK(o.read(r11) && sim_bytes(o) == bytes);
@@ -1111,7 +1119,9 @@ void test_foc() {
         drive_conflicts(s, cm, st, t);
     };
     // #67 t04: as the synthetic pin, only the save part moves (with the voiced flag at 0 the pin is the old 0x3823a3d7aeba6b5e).
-    sc.pin = 0xe7bb9e7deedbbeccull;  // before the records' field lists (FoC data)
+    // #68: the v13 per-planet tactical upgrade lists move the save part, and the galactic digest too: the first political
+    // update gives the Underworld's start planets their Racketeering entries (the "PTU1" section).
+    sc.pin = 0xb3c06fd8cb9ee992ull;  // FoC data
     run_scenario(sc);
 }
 
