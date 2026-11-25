@@ -779,7 +779,8 @@ bool ConflictManager::read(ByteReader& r) {
             // [port] an older in-flight auto-resolve: the last piece (the own one, or a member) fires (tier 3: save format)
             c.shot = c.pieces.back();
         }
-        if (version >= 6) c.planet = r.boolean();  // #558; older saves had no land planet combatant
+        // #558; [port] a v5 land auto-resolve in flight keeps its structure combatants and no planet (tier 3: save format)
+        if (version >= 6) c.planet = r.boolean();
         if (!r.ok()) return false;
     }
     uint32_t nsides = 0;

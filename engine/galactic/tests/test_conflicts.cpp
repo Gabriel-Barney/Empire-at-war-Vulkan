@@ -1308,6 +1308,19 @@ void test_land_planet_combatant() {
         const AutoResolveResult r = auto_resolve(in, ct, k, rng);
         CHECK(r.winner == 1 && r.rem[1] == r.vec[1] && r.survives[0] == 0 && r.losses[0] == 0);
     }
+    {  // the planet is in the survival pick: one draw more than the same battle without it
+        AutoResolveInput in;
+        in.space = false;
+        in.attacker = 1;
+        in.combatants = {unit(0, 100.0f, kCatInfantry), unit(1, 1000.0f, kCatInfantry)};
+        in.players = {{0, true, true}, {1, true, true}};
+        SimRng rng_a(9u), rng_b(9u);
+        const AutoResolveResult without = auto_resolve(in, ct, k, rng_a);
+        in.combatants.insert(in.combatants.begin(), planet);
+        const AutoResolveResult with = auto_resolve(in, ct, k, rng_b);
+        CHECK(with.draws == without.draws + 1 && with.winner == without.winner);
+        std::printf("    survival draws: %u without the planet, %u with it\n", without.draws, with.draws);
+    }
     {  // the defender wins: the planet is kept with no budget test, and it is not the weakest (the unit dies)
         AutoResolveInput in;
         in.space = false;
@@ -1340,9 +1353,9 @@ void test_land_planet_combatant() {
         CHECK(r.vec[0][3] == 800.0 && r.rem[1][3] == 1500.0);
     }
 
-    // The conflict manager: an Underworld invasion of the Empire's B, held by a barracks (and four infantry or none).
+    // The conflict manager: an Underworld invasion of the Empire's B, held by two barracks (and four infantry or none).
     for (const bool defended : {false, true}) {
-        std::vector<StartingForce> f = {{pEmpire, rB, tBarracks}};
+        std::vector<StartingForce> f = {{pEmpire, rB, tBarracks}, {pEmpire, rB, tBarracks}};
         if (defended) f.insert(f.end(), 4, StartingForce{pEmpire, rB, tInfantry});
         f.push_back({pUnder, rB, tInfantry});
         World w(f, false);
@@ -1351,16 +1364,21 @@ void test_land_planet_combatant() {
         for (objects::ObjectHandle h : w.sim.planets()[rB].surface)
             if (w.store.owner(h) == pUnder) mine.push_back(h);
         barracks = w.sim.planets()[rB].structures;
-        CHECK(barracks.size() == 1);
+        CHECK(barracks.size() == 2);
         CHECK(w.sim.launch_units(pUnder, rB, mine) == commands::RejectReason::None);
         CHECK(w.sim.invade(pUnder, rB, mine) == commands::RejectReason::None);
         w.sim.update();
         CHECK(w.cm->log().size() == 1);
-        if (w.cm->log().size() != 1 || barracks.size() != 1) continue;
+        if (w.cm->log().size() != 1 || barracks.size() != 2) continue;
         const ConflictLogEntry& e = w.cm->log()[0];
         CHECK(e.kind == ConflictKind::Land && e.how == 1 && e.winner == (defended ? pEmpire : pUnder));
-        CHECK(w.store.alive(barracks[0]) == defended);  // kept with the planet, else cleared with it
-        if (!defended) CHECK(e.defender_losses == 1);   // the barracks
+        for (objects::ObjectHandle b : barracks) CHECK(w.store.alive(b) == defended);  // kept with the planet, else cleared
+        if (!defended) {
+            CHECK(e.defender_losses == 2);  // the two barracks
+            bool landed = false;
+            for (objects::ObjectHandle h : w.sim.planets()[rB].surface) landed = landed || (w.store.alive(h) && w.store.owner(h) == pUnder);
+            CHECK(landed);
+        }
         std::printf("    %s: %s, barracks %s\n", defended ? "defended" : "barracks only", e.text(w.sim).c_str(),
                     w.store.alive(barracks[0]) ? "kept" : "cleared");
     }

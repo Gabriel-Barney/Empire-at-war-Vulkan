@@ -63,8 +63,10 @@ tactical-built type (first matching category and the land total) and takes no pa
 - `auto_resolve` (engine/galactic/src/auto_resolve.cpp): spawned pieces in the vector, one `fire(shot)` per combatant,
   the spawned charge before each survival test, survival side 0 then side 1. Conflict save v5 carries the spawned
   pieces and the shot.
-- #558: `make_ar_planet` builds the land planet combatant from `PlanetState::built_objects`; `auto_setup` puts it before
-  the defender's surface units (its hero flag from theirs) and adds no structure; `auto_finish` destroys the defender's
-  structures, one defender loss each, when the planet dies. Conflict save v6 carries the planet flag.
+- #558: `make_ar_planet` builds the land planet combatant from `PlanetState::built_objects` (every record: the loop has no
+  owner test); `auto_setup` puts it before the defender's surface units and adds no structure; `auto_finish` removes the
+  defender's structures when the planet dies. Conflict save v6 carries the planet flag. [port] the planet fights for the
+  defender even when another player owns it; it holds no hero; each structure counts as a defender loss in the log (the
+  retail result screens list them). Tiers in the code comments.
 - [port] Not modelled: the space TRANSPORT shot skip (the port has no transport objects; tier 1: no combatant it would
   apply to exists).

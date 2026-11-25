@@ -928,20 +928,15 @@ void ConflictManager::auto_setup(const ConflictInfo& head) {
     } else {
         // #558 (Add_Object 0x608080 [H]): the planet's BaseCombatantClass, then its surface list; the ground structures are
         // not combatants (no TRANSPORT) and fall with the planet. The planet fights with its persisted built objects.
-        const size_t planet_at = ar_in_.combatants.size();
-        if (planet.owner == head.defender) {
-            std::vector<uint32_t> built;
-            for (const PersistedBuiltObject& b : planet.built_objects) built.push_back(b.type);
-            ar_in_.combatants.push_back(make_ar_planet(sim_->rules(), *rules_, head.defender, built));
-            ar_objects_.push_back(ObjectHandle{});  // the planet is not an object of the store
-        }
+        // [port] the planet fights for the defender even when another player owns it (retail adds it on its owner's
+        // side): the defender's structures then still fall with a lost battle and the landing is not blocked (tier 2,
+        // parity_autoresolve; the shipped campaigns' land defender is the planet owner). The pick's hero test 0x38fa20 is
+        // recursive over the planet's contents [M]; the port's planet holds no hero (tier 2, parity_autoresolve).
+        std::vector<uint32_t> built;  // every record, whatever its owner: 0x60b0d0 reads the types only [H]
+        for (const PersistedBuiltObject& b : planet.built_objects) built.push_back(b.type);
+        ar_in_.combatants.push_back(make_ar_planet(sim_->rules(), *rules_, head.defender, built));
+        ar_objects_.push_back(ObjectHandle{});  // the planet is not an object of the store
         for (ObjectHandle h : surface_units(head.planet, head.defender)) add(h);
-        if (planet_at < ar_in_.combatants.size() && ar_in_.combatants[planet_at].planet) {
-            // [M] the pick's hero test 0x38fa20 is recursive over the planet's contents: a hero on its surface makes the
-            // planet the first hero combatant.
-            for (size_t i = planet_at + 1; i < ar_in_.combatants.size(); ++i)
-                ar_in_.combatants[planet_at].hero = ar_in_.combatants[planet_at].hero || ar_in_.combatants[i].hero;
-        }
         const std::vector<ObjectHandle> cargo = orbit_cargo(head.planet, head.attacker);
         for (ObjectHandle h : head.units)
             if (std::find(cargo.begin(), cargo.end(), h) != cargo.end()) add(h);
@@ -975,14 +970,17 @@ void ConflictManager::auto_finish(const ConflictInfo& head) {
         const bool is_starbase = !ar_in_.combatants[i].starbase.empty();
         if (ar_in_.combatants[i].planet) {
             // #558 (0x60a140 -> 0x3f7430 -> 0x4b7350 [H]): a killed land planet clears its owner's ground structures
-            // (not the death handler: no bounty, no hero respawn); each counts as a defender loss.
+            // (not the death handler: no bounty, no hero respawn), removed as the battle's other losses are (battle_loss).
+            // [port] each counts as a defender loss in the log, as the retail result screen lists them
+            // (tools/parity/autoresolve_refs.json; tier 1).
             if (!r.survives[i]) {
                 std::vector<ObjectHandle> cut;
                 for (ObjectHandle s : sim_->planets()[planet].structures)
                     if (sim_->store().alive(s) && sim_->store().owner(s) == ar_in_.combatants[i].owner) cut.push_back(s);
                 for (ObjectHandle s : cut) {
                     ++e.defender_losses;
-                    sim_->destroy_object(s);
+                    if (ar_in_.from_tactical) sim_->destroy_object(s);
+                    else sim_->destroy_object_auto_resolve(s);
                 }
             }
             continue;
@@ -1087,10 +1085,13 @@ void ConflictManager::pay_auto_resolve_bounty(const ConflictInfo& head) {
     };
     const AutoResolveResult& r = last_ar_;
     const bool space = head.kind == ConflictKind::Space;
+    const std::vector<ObjectHandle>& structures = sim_->planets()[head.planet].structures;
     for (size_t i = 0; i < ar_objects_.size() && i < r.survives.size(); ++i) {
         if (r.survives[i]) continue;
         const ArCombatant& c = ar_in_.combatants[i];
         if (!c.starbase.empty() || c.planet) continue;  // the starbase level / the land planet (#558): no object dies
+        // a structure combatant of a conflict save v5 resumed in flight (#558: none since) pays nothing either
+        if (!space && std::find(structures.begin(), structures.end(), ar_objects_[i]) != structures.end()) continue;
         // Land: the attacker's units are the companies coming down from orbit (auto_setup).
         object_dies(ar_objects_[i], c.owner, !space && c.owner == head.attacker);
     }

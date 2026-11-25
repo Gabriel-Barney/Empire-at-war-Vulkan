@@ -181,8 +181,6 @@ int main(int argc, char** argv) {
                 }
                 in.combatants.push_back(make_ar_combatant(rules, crules, t, u.player, b.space, kTech));
                 type_of.push_back(t);
-                // [M] the hero pick is recursive over the planet's contents (auto_setup)
-                if (!b.space && u.player == b.defender) in.combatants.front().hero |= in.combatants.back().hero;
             }
         }
         if (!b.starbase.empty()) {
