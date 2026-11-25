@@ -1211,7 +1211,8 @@ void App::battle_input() {
         if (input_.button(ui::Button::Right).click && !input_.button(ui::Button::Right).in_double_press) {
             reinforce_unit_ = 0;
             drop_click = true;
-            audio_.faction_sfx("Reinforcements_Cancelled_SFXEvent");  // the user's placement cancel (0x343e0, argument 1)
+            // the user's placement cancel (0x343e0, argument 1)
+            audio_.faction_sfx("Reinforcements_Cancelled_SFXEvent");  // ledger: consumes Faction.Reinforcements_Cancelled_SFXEvent
         } else if (input_.button(ui::Button::Left).click) {
             drop_click = true;
             if (valid) {

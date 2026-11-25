@@ -789,6 +789,7 @@ void App::begin_battle(bool from_save) {
     reinforce_blob_.reset();  // nor a drop preview / beacon pick; tether and interface keys reset per battle [port]
     beacon_pick_ = false;
     tether_id_ = 0;
+    ui_.tactical_hud.close_reinforce_list();  // #463: each battle starts with the reinforcement list closed
     // L1/S4 wave 1: the battle's tactical plots (loaded by CampaignBattles at the tactical push) for STORY_MISSION_LOST;
     // battle-screen story notifications go to that plot set (story_ui_step / battle_input).
     const sim::StorySession* story = session_->host().story();

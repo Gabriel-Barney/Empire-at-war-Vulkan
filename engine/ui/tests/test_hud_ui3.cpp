@@ -131,6 +131,7 @@ const char* kUi3Xml = R"(<?xml version="1.0"?>
   <CommandBarComponent Name="reinforcement_counter"><Type>TextButton</Type></CommandBarComponent>
   <CommandBarComponent Name="r_pop_icon"><Type>Button</Type></CommandBarComponent>
   <CommandBarComponent Name="r_pop_text"><Type>TextButton</Type></CommandBarComponent>
+  <CommandBarComponent Name="r_0000"><Type>TextButton</Type></CommandBarComponent>
 </CommandBarComponents>)";
 
 // #461: SelectLike appends the cursor object's type; Next / Previous cycle from the first selected object.
@@ -238,6 +239,24 @@ void test_tactical_controls() {
     fr.command_buttons.reinforce_count = 3;
     fr.command_buttons.pop_used = 12;
     fr.command_buttons.pop_cap = 20;
+    fr.providers.reinforcements = [](std::vector<HudReinforcement>& out) {
+        HudReinforcement r;
+        r.unit = 555;
+        out.push_back(r);
+    };
+    // #463: the reinforcement list (the r_RRCC pad and its pop count) is closed until R / b_reinforcement opens it; a
+    // closed list opens only when allowed, and an open one always closes.
+    using RL = TacticalHud::ReinforceListToggle;
+    hud.build(fr, units, types);
+    CHECK(!hud.reinforce_list_open() && hud.stats().reinforcements == 0 && state("r_pop_text") && state("r_pop_text")->hidden);
+    CHECK(hud.toggle_reinforce_list(false) == RL::Refused && !hud.reinforce_list_open());
+    CHECK(hud.toggle_reinforce_list(true) == RL::Opened && hud.reinforce_list_open());
+    hud.build(fr, units, types);
+    CHECK(hud.stats().reinforcements == 1);
+    CHECK(hud.toggle_reinforce_list(false) == RL::Closed && !hud.reinforce_list_open());
+    hud.build(fr, units, types);
+    CHECK(hud.stats().reinforcements == 0);
+    CHECK(hud.toggle_reinforce_list(true) == RL::Opened);
     hud.build(fr, units, types);
     const ButtonRuntime* retreat = state("b_retreat");
     const ButtonRuntime* reinforce = state("b_reinforcement");

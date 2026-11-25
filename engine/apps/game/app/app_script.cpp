@@ -1181,12 +1181,21 @@ ScriptStep step_reinforce() {
 // the first reinforcement button r_0000 with the sim held; the shot shows its hover frame over the unit's icon.
 ScriptStep step_reinforce_hover(std::string file) {
     auto n = std::make_shared<uint32_t>(0);
-    return {"reinforcement button hover", [n, file](AppProbe& a, ui::InputFrame& f) {
+    auto opened = std::make_shared<bool>(false);
+    return {"reinforcement button hover", [n, opened, file](AppProbe& a, ui::InputFrame& f) {
                 if (!a.session() || a.screen() != Screen::Battle || !a.battle_view().active()) return false;
                 const int32_t ci = a.ui().components.find("r_0000");
+                if (!*opened && !a.ui().tactical_hud.reinforce_list_open()) {  // #463: the pad shows on the opened list
+                    ui::HudAction open;                                          // (one b_reinforcement click)
+                    open.name = "b_reinforcement";
+                    a.hud_actions({open});
+                    *opened = true;
+                }
                 if (ci < 0 || a.ui().tactical_hud.stats().reinforcements == 0) {
                     if (++*n > 600) {
-                        a.control().notes.push_back("reinforcement hover: no reinforcement button shown");
+                        a.control().notes.push_back(a.ui().tactical_hud.reinforce_list_open()
+                                                        ? "reinforcement hover: no reinforcement button shown"
+                                                        : "reinforcement hover: the reinforcement list did not open");
                         return true;
                     }
                     return false;

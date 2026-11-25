@@ -207,6 +207,7 @@ void TacticalHud::init(const ComponentTable& table, const TextureAtlas& atlas, F
     beacon_t_ = table.find("b_beacon_t");
     camera_t_ = table.find("b_camera_t");
     reinforce_counter_ = table.find("reinforcement_counter");
+    reinforce_list_open_ = false;
     garrison_respawn_ = table.find("garrison_respawn_counter");
     sell_ = table.find("tactical_sell");
     r_pop_icon_ = table.find("r_pop_icon");
@@ -1118,9 +1119,20 @@ void TacticalHud::build_buy_buttons(const TacticalHudFrame& f) {
     }
 }
 
+TacticalHud::ReinforceListToggle TacticalHud::toggle_reinforce_list(bool allowed) {
+    // 0x2e5580 [H]: a shown i_main_reinforce is hidden (vf +0x78(1)); a hidden one is shown when the mode allows it.
+    if (reinforce_list_open_) {
+        reinforce_list_open_ = false;
+        return ReinforceListToggle::Closed;
+    }
+    if (!allowed) return ReinforceListToggle::Refused;
+    reinforce_list_open_ = true;
+    return ReinforceListToggle::Opened;
+}
+
 void TacticalHud::build_reinforcements(const TacticalHudFrame& f) {
     reinforce_slots_.clear();
-    if (!f.providers.reinforcements) return;
+    if (!f.providers.reinforcements || !reinforce_list_open_) return;  // #463: the pad is drawn only while the list is open
     std::vector<HudReinforcement> entries;
     f.providers.reinforcements(entries);
     for (size_t i = 0; i < entries.size() && i < reinforce_component_.size(); ++i) {
@@ -1278,8 +1290,9 @@ void TacticalHud::apply_command_buttons(const HudCommandButtons& s) {
     text(reinforce_counter_, s.reinforce_count > 0, ascii32(n));
     const bool pop = s.pop_used >= 0 && s.pop_cap >= 0;
     if (pop) std::snprintf(n, sizeof n, "%d/%d", s.pop_used, s.pop_cap);
-    text(r_pop_text_, pop, pop ? ascii32(n) : std::u32string());
-    text(r_pop_icon_, pop, {});
+    // #463: the pop count sits on the reinforcement list (0x2e5580 fills r_pop_text when it opens).
+    text(r_pop_text_, pop && reinforce_list_open_, pop ? ascii32(n) : std::u32string());
+    text(r_pop_icon_, pop && reinforce_list_open_, {});
 }
 
 void TacticalHud::build_buttons(const TacticalHudFrame& f) {
