@@ -1006,6 +1006,16 @@ void test_scene_environment_real() {
     }
     scene.set_environment(n + 5);
     CHECK(scene.environment_index() == n - 1);
+    // #328: the start view is TacticalCameras.xml Land_Mode's (Pitch_Default 50, Distance_Max 460, Fov_Default 55), not the
+    // map's 0x10C / 0x103 camera values: retail's load end (0x2cee30(., ., 1), 0x2d0600(., 1.0, 1)) overwrites them.
+    const terrain::CameraBlock& tc = scene.map().tactical_camera;
+    const render::OrbitCamera cam = scene.tactical_camera(4.0f / 3.0f);
+    std::printf("start camera (#328): 0x10C %d (03 %.0f, 12 %.0f, 14 %.0f, 15 %.0f) -> pitch %.1f, distance %.0f, fov_x %.1f\n",
+                tc.present ? 1 : 0, tc.f32_or(0x03, 0), tc.f32_or(0x12, 0), tc.f32_or(0x14, 0), tc.f32_or(0x15, 0),
+                cam.pitch * 57.29578f, cam.distance, cam.fov_x * 57.29578f);
+    CHECK(tc.present && near_eq(cam.pitch, 50.0f * 0.017453293f) && near_eq(cam.distance, 460.0f) &&
+          near_eq(cam.fov_x, 55.0f * 0.017453293f) && near_eq(cam.yaw, -1.5707963f));
+    CHECK(near_eq(scene.tactical_camera(4.0f / 3.0f, 900.0f).distance, 900.0f));  // the caller's override still wins
 }
 
 void test_png() {

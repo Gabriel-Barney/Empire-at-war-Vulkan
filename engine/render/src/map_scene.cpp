@@ -871,17 +871,17 @@ OrbitCamera MapScene::tactical_camera(float aspect, float distance_override) con
     }
     cam.target = {cx, cy, map_.terrain.sample_height(cx, cy)};
     cam.yaw = -1.5707963f;  // camera south of the target, looking north (+Y)
-    // TacticalCameras.xml Land_Mode defaults (legacy docs/re/RENDER.md 3.4): pitch 50, distance 460, FOV 55. The map's 0x10C
-    // block stores 12 = 50, 14 = 460, 15 = 55, read here as pitch / distance / FOV [inferred]; 03 (1250..2300)
-    // is not the start distance.
-    const terrain::CameraBlock& tc = map_.tactical_camera;
-    float pitch = tc.present ? tc.f32_or(0x12, kLandPitch) : kLandPitch;
-    if (!(pitch >= 10.0f && pitch <= 89.0f)) pitch = kLandPitch;
-    float dist = tc.present ? tc.f32_or(0x14, kLandDistance) : kLandDistance;
-    if (!(dist >= 100.0f && dist <= 2000.0f)) dist = kLandDistance;
+    // #328 (read from the binary): the world load 0x3b8cd0 ends with the tactical camera controller's
+    // 0x2cee30(camera, ., 1), which sets pitch / yaw / FOV from the mode's TacticalCameras.xml Pitch_Default / Yaw_Default /
+    // Fov_Default, then 0x2d0600(camera, 1.0, 1): the distance := Distance_Max (zoom fraction 1), and 0x2d0770 saves that
+    // view as the home (+0x6c pitch, +0x70 yaw, +0x74 distance, +0x78 FOV). The map's own camera values (0x103 minis 00 /
+    // 01 / 02 / 04, the 0x10C state 00 / 01 / 03 / 08 and its saved home 0x12 / 0x14 / 0x15) are all overwritten, so the
+    // start view is Land_Mode's: pitch 50, distance Distance_Max 460, FOV 55 (legacy docs/re/RENDER.md 3.4). With
+    // Use_Splines the view matrix 0x2d0df0 then takes pitch / distance from Pitch_Spline / Distance_Spline at the zoom
+    // fraction (1.0: 55 / 460); ui::TacticalCamera does that in play, this fixed tool view keeps Pitch_Default.
+    const float pitch = kLandPitch, fov = kLandFov;
+    float dist = kLandDistance;
     if (distance_override > 0.0f) dist = distance_override;
-    float fov = tc.present ? tc.f32_or(0x15, kLandFov) : kLandFov;
-    if (!(fov >= 20.0f && fov <= 90.0f)) fov = kLandFov;
     cam.pitch = pitch * 0.017453293f;
     cam.distance = dist;
     cam.fov_x = tactical_fov_x(fov, aspect);
