@@ -964,6 +964,13 @@ void App::build_tactical_hud() {
     hf.world.view = ui::make_view(bview_.camera_params(w, h), w, h);
     hf.world.land = !bview_.space();
     hf.world.local_player = local_player();
+    // #536: hostile by the battle's diplomacy (CombatSystem::is_enemy), as retail's allied test for the overhead record
+    // (0x39a2c0 -> 0x2823e0, relation 0): an ally's units are not hostile, nor is a neutral owner (< 0). Without a battle
+    // or a local player, WorldHud's default (any other owner) stays.
+    if (const sim::TacticalBattle* hb = battle(); hb && local_player() >= 0) {
+        const int32_t me = local_player();
+        hf.world.hostile = [hb, me](int32_t owner) { return owner >= 0 && owner != me && hb->combat().is_enemy(me, owner); };
+    }
     // legacy docs/re/UI.md selection circle: the owner faction's Land_ / Space_Mode_Selection_Blob_Material_Name (by data).
     if (const galactic::GalacticSim* gs = galaxy())
         hf.world.selection_material = [gs](int32_t owner, bool land, bool) {
