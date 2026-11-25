@@ -750,7 +750,7 @@ void test_synthetic() {
     // part of the pin moves (galactic and conflict digests unchanged; with the flag at 0 the pin is the old 0x67e4152092046d2e).
     // #68: the v13 per-planet tactical upgrade lists (a u32 count per player, empty here) move the save part again;
     // #459: the scenario's upgrade objects (step 65) enter the hash, and v14 adds their count.
-    sc.pin = 0x0ddc3c8911b7cc9cull;
+    sc.pin = 0xf621b2e0297abeb3ull;
     run_scenario(sc);
 }
 
@@ -1161,7 +1161,7 @@ void test_foc() {
     // #68: the v13 per-planet tactical upgrade lists move the save part, and the galactic digest too: the first political
     // update gives the Underworld's start planets their Racketeering entries (the "PTU1" section).
     // #459: v14 adds the upgrade-object count to the save part.
-    sc.pin = 0xb3c06fd8cb9ee992ull;  // FoC data
+    sc.pin = 0x983ffbd46e045ec5ull;  // FoC data
     run_scenario(sc);
 }
 
