@@ -63,8 +63,10 @@ bool App::cancel_picks() {
     return any;
 }
 
-// NextUnit / PreviousUnit [port]: the local player's movable units (one per squadron, TacticalBattle::icon_links, ascending
-// id) in turn: the one after (before) the unit selected last, wrapping; it is selected and the camera centres on it.
+// NextUnit / PreviousUnit (#461, 0x2fb150 [H]; ui::unit_cycle): the candidates are the local player's units, one per
+// squadron (TacticalBattle::icon_links), ascending id ([port]: retail's filters and order 0x20a9b0 are open). An empty
+// selection selects the first, with no camera move; otherwise the one after (before) the first selected object is
+// selected and the camera centres on it.
 void App::select_cycle(int32_t step) {
     const sim::TacticalBattle* b = battle();
     if (!b || !bview_.active()) return;
@@ -75,50 +77,36 @@ void App::select_cycle(int32_t step) {
                                          [](const render::SnapshotObject& x, objects::ObjectId v) { return x.id < v; });
         if (it != objs.end() && it->id == l.unit && it->owner == local_player()) mine.push_back(&*it);
     }
-    if (mine.empty()) return;
-    const uint32_t anchor = cycle_unit_ != 0 ? cycle_unit_ : orders_.selection().empty() ? 0 : orders_.selection().front();
-    size_t pick = step > 0 ? 0 : mine.size() - 1;
-    if (step > 0) {
-        for (size_t i = 0; i < mine.size(); ++i)
-            if (static_cast<uint32_t>(mine[i]->id) > anchor) {
-                pick = i;
-                break;
-            }
-    } else {
-        for (size_t i = mine.size(); i-- > 0;)
-            if (static_cast<uint32_t>(mine[i]->id) < anchor) {
-                pick = i;
-                break;
-            }
-    }
-    const render::SnapshotObject& o = *mine[pick];
-    cycle_unit_ = static_cast<uint32_t>(o.id);
-    submit(commands::ev::select({static_cast<uint32_t>(o.id)}));
-    bview_.camera().jump_to({o.position.x, o.position.y, o.position.z});
+    std::sort(mine.begin(), mine.end(), [](const auto* x, const auto* y) { return x->id < y->id; });
+    std::vector<uint32_t> ids;
+    for (const render::SnapshotObject* o : mine) ids.push_back(static_cast<uint32_t>(o->id));
+    const ui::UnitCyclePick pick = ui::unit_cycle(orders_.selection(), ids, step);
+    if (pick.id == 0) return;
+    submit(commands::ev::select({pick.id}));
+    if (!pick.move_camera) return;
+    const auto o = std::find_if(mine.begin(), mine.end(), [&](const auto* m) { return static_cast<uint32_t>(m->id) == pick.id; });
+    bview_.camera().jump_to({(*o)->position.x, (*o)->position.y, (*o)->position.z});
 }
 
-// SelectLike [port]: every unit of the local player on screen whose type is the type of a selected own unit.
+// SelectLike (#461, 0x63f00 -> 0x3a690(type, 1) [H]; ui::select_like): the type of the local player's object under the
+// cursor (hover_ship_, the HUD's hovered unit: no props, nothing over the HUD); every own object of that type on screen
+// is appended to the selection. No own object under the cursor: nothing happens.
 void App::select_like() {
-    if (!bview_.active() || orders_.selection().empty()) return;
-    const std::vector<render::SnapshotObject>& objs = bview_.frame().objects;
-    std::vector<objects::TypeIndex> types;
-    for (const uint32_t id : orders_.selection())
-        for (const render::SnapshotObject& o : objs)
-            if (static_cast<uint32_t>(o.id) == id && o.owner == local_player()) types.push_back(o.type);
-    if (types.empty()) return;
-    std::sort(types.begin(), types.end());
+    if (!bview_.active()) return;
     const uint32_t w = targets_.width, h = targets_.height;
     const ui::View view = ui::make_view(bview_.camera_params(w, h), w, h);
-    std::vector<uint32_t> ids;
-    for (const render::SnapshotObject& o : objs) {
-        if (o.owner != local_player() || !std::binary_search(types.begin(), types.end(), o.type)) continue;
+    std::optional<uint32_t> type;
+    std::vector<ui::SelectableObject> visible;
+    for (const render::SnapshotObject& o : bview_.frame().objects) {
+        if (o.owner != local_player()) continue;
+        if (hover_ship_ != 0 && static_cast<uint32_t>(o.id) == hover_ship_) type = static_cast<uint32_t>(o.type);
         float sx = 0.0f, sy = 0.0f;
         if (!ui::project(view, {o.position.x, o.position.y, o.position.z}, sx, sy)) continue;
         if (sx < 0.0f || sy < 0.0f || sx >= static_cast<float>(w) || sy >= static_cast<float>(h)) continue;
-        ids.push_back(static_cast<uint32_t>(o.id));
-        if (ids.size() >= ui::OrderTranslator::kMaxSelect) break;
+        visible.push_back({static_cast<uint32_t>(o.id), static_cast<uint32_t>(o.type)});
     }
-    if (!ids.empty()) submit(commands::ev::select(ids));
+    const std::vector<uint32_t> ids = ui::select_like(orders_.selection(), type, visible, ui::OrderTranslator::kMaxSelect);
+    if (ids.size() > orders_.selection().size()) submit(commands::ev::select(ids));
 }
 
 // [port: Gabriel, 2026-11-13] Squadron wings: every own squadron (icon_links: unit -> its squadron's lead) whose member type

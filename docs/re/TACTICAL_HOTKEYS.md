@@ -21,8 +21,8 @@ Otherwise it maps the key to a slot through the applied table and switches on th
 
 | slot | retail | tier | port |
 |---|---|---|---|
-| 11 SelectLike | the type of the own object under the cursor; every selectable object of that type in the view is **appended** | H (append M) | the selected units' types, replacing the selection: #461 |
-| 12 / 13 Next / Prev | empty selection: select the first own object, no camera move; else the object after the selected one, with a camera move | H (order M) | anchored on the last pick: #461 |
+| 11 SelectLike | the type of the own object under the cursor; every selectable object of that type in the view is **appended** | H (append M) | the same (`ui::select_like`, #461); "selectable" = the local player's objects on screen [port] |
+| 12 / 13 Next / Prev | empty selection: select the first own object, no camera move; else the object after the selected one, with a camera move | H (order M) | the same (`ui::unit_cycle`, #461); the candidates are one unit per squadron, ascending id [port] |
 | 14 / 15 / 17 / 18 / 23 Guard / Attack / Move / Waypoint / AttackMove | **toggle** a flag; no exclusivity, no sound, no button test | H | sets the flag; Attack / Move gated on the button (#430 part 2) |
 | 20 Reinforce | `0x2e5580`, the same as the `b_reinforcement` click: opens or closes the reinforcement list | H | the first entry's drop pick: #463 |
 | 21 Place Beacon | `0x2e7e40`, the `b_beacon_t` click: armed → disarm; else arm when the cooldown is 0. **No sound** during the cooldown | H | matches |

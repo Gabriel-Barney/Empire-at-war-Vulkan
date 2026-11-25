@@ -169,6 +169,25 @@ std::string_view hotkey_ability_name2(uint16_t slot);
 // Camera Tether (slot 77, battle-cam key-down 0x2cbd00 [H]): on -> off (0); off -> the first selected object, nothing
 // with an empty selection. Ids are ObjectIds, 0 = none.
 uint32_t tether_toggle(uint32_t current, std::span<const uint32_t> selection);
+// SelectLike (slot 11, #461; docs/re/TACTICAL_HOTKEYS.md, 0x63f00 -> 0x3a690(type, 1) [H], append [M]): the type of the
+// own object under the cursor (nullopt: none, or not the local player's) picks every visible object of that type, which
+// is appended to the selection (ids already in it are kept once) up to cap. No own object under the cursor: the
+// selection unchanged. `visible` = the local player's selectable objects in the view, in the host's order.
+struct SelectableObject {
+    uint32_t id = 0;
+    uint32_t type = 0;
+};
+std::vector<uint32_t> select_like(std::span<const uint32_t> selection, std::optional<uint32_t> cursor_type,
+                                  std::span<const SelectableObject> visible, size_t cap);
+// Next / Previous unit (slots 12 / 13, #461; 0x2fb150 [H], order 0x20a9b0 / 0x20aa60 [M]): `candidates` = the local
+// player's units, each team once, ascending id ([port]: the 0x20a9b0 order is open). An empty selection picks the
+// first candidate, with no camera move; otherwise the candidate after (step > 0) or before the first selected object's id, wrapping, with a
+// camera move. id 0 = no candidate.
+struct UnitCyclePick {
+    uint32_t id = 0;
+    bool move_camera = false;
+};
+UnitCyclePick unit_cycle(std::span<const uint32_t> selection, std::span<const uint32_t> candidates, int32_t step);
 
 // Group number (0..9) of a group slot (0..9, 123..152), -1 otherwise.
 int8_t hotkey_group(uint16_t slot);

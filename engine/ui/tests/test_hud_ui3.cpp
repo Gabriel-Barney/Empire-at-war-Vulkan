@@ -133,6 +133,35 @@ const char* kUi3Xml = R"(<?xml version="1.0"?>
   <CommandBarComponent Name="r_pop_text"><Type>TextButton</Type></CommandBarComponent>
 </CommandBarComponents>)";
 
+// #461: SelectLike appends the cursor object's type; Next / Previous cycle from the first selected object.
+void test_selection_keys() {
+    const std::vector<SelectableObject> vis = {{3, 10}, {5, 20}, {6, 10}, {8, 10}, {9, 20}};
+    const std::vector<uint32_t> sel = {5, 6};
+    CHECK((select_like(sel, 10u, vis, 64) == std::vector<uint32_t>{5, 6, 3, 8}));  // appended, 6 kept once
+    CHECK((select_like(sel, std::nullopt, vis, 64) == sel));                      // no own object under the cursor
+    CHECK((select_like({}, 20u, vis, 64) == std::vector<uint32_t>{5, 9}));
+    CHECK((select_like(sel, 10u, vis, 3) == std::vector<uint32_t>{5, 6, 3}));     // the cap
+    CHECK((select_like(sel, 30u, vis, 64) == sel));                               // no visible object of the type
+
+    const std::vector<uint32_t> cand = {4, 7, 12};
+    UnitCyclePick p = unit_cycle({}, cand, 1);
+    CHECK(p.id == 4 && !p.move_camera);  // empty selection: the first, no camera move
+    p = unit_cycle({}, cand, -1);
+    CHECK(p.id == 4 && !p.move_camera);
+    const std::vector<uint32_t> s7 = {7, 4};
+    p = unit_cycle(s7, cand, 1);
+    CHECK(p.id == 12 && p.move_camera);  // after the first selected object
+    p = unit_cycle(s7, cand, -1);
+    CHECK(p.id == 4 && p.move_camera);
+    const std::vector<uint32_t> s12 = {12};
+    CHECK(unit_cycle(s12, cand, 1).id == 4);  // wraps
+    const std::vector<uint32_t> s4 = {4};
+    CHECK(unit_cycle(s4, cand, -1).id == 12);
+    const std::vector<uint32_t> s9 = {9};  // a selected object not in the list: the next one by order
+    CHECK(unit_cycle(s9, cand, 1).id == 12 && unit_cycle(s9, cand, -1).id == 7);
+    CHECK(unit_cycle(s7, {}, 1).id == 0);
+}
+
 void test_tactical_controls() {
     ComponentTable t;
     const data::XmlDocument doc = data::XmlDocument::parse(std::string_view(kUi3Xml), "ui3.xml");
@@ -253,6 +282,7 @@ void test_tactical_controls() {
 int main() {
     test_edit_box_order();
     test_ability_slots();
+    test_selection_keys();
     test_tactical_controls();
     if (g_fail) {
         std::printf("alamo_ui_hud_ui3_tests: %d failure(s)\n", g_fail);

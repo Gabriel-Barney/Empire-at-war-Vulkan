@@ -591,7 +591,6 @@ private:
     double beacon_last_s_ = -1.0e30;   // wall time of the last beacon (BeaconPlaceDelay)
     float beacon_delay_s_ = 5.0f;      // GameConstants BeaconPlaceDelay (ms) / 1000
     std::vector<std::string> command_rankings_;  // GameConstants Unit_Command_Rankings_By_Category (speaking unit)
-    uint32_t cycle_unit_ = 0;          // NextUnit / PreviousUnit: the unit selected last
     std::optional<render::JamBlob> reinforce_blob_;  // the drop-point preview blob (green valid / red invalid)
     uint64_t reinforce_invalid_clicks_ = 0, beacons_placed_ = 0, hotkey_abilities_ = 0;
     // P1 move acknowledgement (legacy docs/re/P1_DOUBLE_CLICK_MOVE.md §2.3): GameConstants values by ui::AckEffect / ui::AckRadar index.
