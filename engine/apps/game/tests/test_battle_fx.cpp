@@ -470,9 +470,12 @@ void test_shot_input_and_restore() {
     shot.begin(in, 0, 400, 300);  // 800 x 600: 1/20 = 40 x 30 px
     CHECK(!shot.input_cancels(400, 300, 800, 600, false));
     CHECK(!shot.input_cancels(439, 329, 800, 600, false));  // a small move is swallowed
-    CHECK(!shot.input_cancels(361, 271, 800, 600, false));
-    CHECK(shot.input_cancels(440, 300, 800, 600, false));   // beyond 1/20 of the width
+    // #564: the baseline follows the cursor (0x2cc3e0 [H]), so a slow drag of small moves never ends the shot.
+    for (int i = 1; i <= 10; ++i) CHECK(!shot.input_cancels(439 - 39 * i, 329, 800, 600, false));
+    CHECK(shot.input_cancels(9, 329, 800, 600, false));  // 40 px since the previous position (49): beyond 1/20
+    shot.begin(in, 0, 400, 300);
     CHECK(shot.input_cancels(400, 330, 800, 600, false));   // beyond 1/20 of the height
+    shot.begin(in, 0, 400, 300);
     CHECK(shot.input_cancels(400, 300, 800, 600, true));    // any button / wheel event
     // Restore: the camera saved once at cinematic mode on comes back at the end, whatever moved it meanwhile.
     struct Cam {

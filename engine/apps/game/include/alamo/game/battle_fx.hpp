@@ -93,6 +93,11 @@ struct ShakeEffect {
 // 0x2cdc00's parameters: J = the explosion type's Explosion_Jitter_Factor, D = 100 for the TSW (fixed = 1) else
 // |object - camera| + 0.1; `noise_draw` = int(0, 100) from the UNSYNCED generator (NoiseOffset = draw / 50).
 ShakeEffect explosion_shake(float jitter, float distance, int32_t noise_draw);
+// #564 (0x4ab780 / 0x4ab060, parameters from the controller constructor 0x499560 [H]): the battle cam's handheld noise
+// over `duration` frames: X / Y amplitude 20, frequency 0.01 x duration (0.01 noise cells per frame), ease in 0, ease out
+// 0.1, no roll, noise offset 0.
+ShakeEffect handheld_shake(int32_t duration);
+inline constexpr int32_t kHandheldFrames = 0x3fffffff;  // the hero clash and Cinematic View: no end
 inline constexpr float kTswShakeDistance = 100.0f;
 // Explosion_Jitter_Factor of `explosion` (type +0x2130), 1.0 when the type does not set it (constructor default).
 float explosion_jitter_factor(const objects::GameObjectTypes& types, objects::TypeIndex explosion);
@@ -249,9 +254,10 @@ public:
     tactical::Vec3 eye(int32_t c, const ObjectFrame& tsw);
     tactical::Vec3 look(int32_t c, const ObjectFrame& tsw);
 
-    // §11.2 input (0x2cc3e0, state 3): a mouse move within 1/20 of the screen width AND height of the baseline is swallowed,
-    // a larger move or any button / wheel event ends the shot. True = end it.
-    bool input_cancels(int32_t mouse_x, int32_t mouse_y, uint32_t width, uint32_t height, bool button_or_wheel) const;
+    // §11.2 input (0x2cc3e0, state 3): a mouse move within 1/20 of the screen width AND height of the previous cursor is
+    // swallowed, a larger move or any button / wheel event ends the shot. True = end it. #564: the baseline moves to the
+    // cursor on every move (+0x398 / +0x39c), so a slow drag never ends the shot.
+    bool input_cancels(int32_t mouse_x, int32_t mouse_y, uint32_t width, uint32_t height, bool button_or_wheel);
 
 private:
     const ObjectFrame& frame_of(const ObjectFrame& tsw);

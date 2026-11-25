@@ -243,12 +243,13 @@ BattleCamGates App::battle_cam_gates() const {
 BattleCamPicks App::battle_cam_picks() {
     BattleCamPicks p;
     // 0x4a6790: the local player's first selected object (it must belong to the local player), or the framed one.
-    p.view = [this](uint32_t target, float yaw, float pitch, BattleCamShot& out) {
+    p.view = [this](uint32_t target, uint32_t& id, ui::Vec3& half_extents) {
         const auto& sel = orders_.selection();
         if (target == 0 && sel.empty()) return false;
         const render::SnapshotObject* o = drawn_object(static_cast<objects::ObjectId>(target != 0 ? target : sel.front()), nullptr);
         if (!o || o->owner != local_player()) return false;
-        out = cinematic_view_shot(static_cast<uint32_t>(o->id), shot_half_extents(o->type), yaw, pitch);
+        id = static_cast<uint32_t>(o->id);
+        half_extents = shot_half_extents(o->type);
         return true;
     };
     // 0x4a4ac0 on the land clash list (clash_list).
@@ -349,8 +350,8 @@ void App::battle_cam_input(ui::InputFrame& raw) {
         }
     if (!cine_.cam.active()) return;
     // The mouse belongs to the controller while it runs: buttons and the wheel never reach the HUD or the world.
-    const bool button = raw.buttons_pressed != 0 || raw.buttons_released != 0 || raw.wheel != 0.0f;
-    cine_.cam.mouse(raw.mouse_x, raw.mouse_y, raw.width, raw.height, button, p);
+    const bool button = raw.buttons_pressed != 0 || raw.buttons_released != 0;
+    cine_.cam.mouse(raw.mouse_x, raw.mouse_y, raw.width, raw.height, button, raw.wheel, p);
     raw.buttons_pressed = raw.buttons_released = raw.buttons_down = 0;
     raw.wheel = 0.0f;
     battle_cam_sync();

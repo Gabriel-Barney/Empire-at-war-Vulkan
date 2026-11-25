@@ -28,6 +28,7 @@ struct BattleCamShot {
     uint64_t clash = 0;              // the hero clash it frames (+0x358), 0 = none
     std::vector<ShotKey> eye, look;
     float smoothing = 0.0f;          // +0x270: eye = f x previous eye + (1 - f) x keyed eye, once per shot frame
+    bool handheld = false;           // #564: 0x4ab780 starts the handheld noise (handheld_shake) with the shot
 };
 
 // 0x4a6790 [H]: view n (0..7) steps 45 degrees clockwise round the object: yaw 0, 315, 270 ... 45.
@@ -61,9 +62,9 @@ struct BattleCamGates {
 
 // The shots the host can frame now; each returns false when it has nothing to frame.
 struct BattleCamPicks {
-    // 0x4a6790 at this yaw / pitch: `target` 0 = the local player's first selected object (a new view), else that
-    // object (the mouse turning the running view, 0x4ac830).
-    std::function<bool(uint32_t target, float yaw_deg, float pitch_deg, BattleCamShot& out)> view;
+    // 0x4a6790's object: `target` 0 = the local player's first selected object (a new view), else that object (the
+    // mouse or the wheel turning the running view, 0x4ac830 / 0x4ac520). Out: its id and half-extents E.
+    std::function<bool(uint32_t target, uint32_t& id, tactical::Vec3& half_extents)> view;
     // 0x4a4ac0 via the clash list (land mode +0x3f8): the clash after `after` in list order, wrapping and never `after`
     // itself (`after` 0 or gone: the first clash), framing its first participant of the local player.
     std::function<bool(uint64_t after, BattleCamShot& out)> clash;
@@ -94,8 +95,14 @@ public:
     void toggle(const BattleCamGates& g, const BattleCamPicks& p);
     // 0x2cc3e0, one frame of mouse input. Battle cam: a move of 1/20 of the screen or more since the previous position,
     // or any button / wheel event, stops it. Cinematic View: the move's dominant axis / 4 turns the view (pitch +-80,
-    // yaw wrapped). The cursor position is the baseline either way.
-    void mouse(int32_t x, int32_t y, uint32_t width, uint32_t height, bool button_or_wheel, const BattleCamPicks& p);
+    // yaw wrapped), buttons do nothing, and the wheel (`wheel` notches, + = away) zooms (0x4ac520). The cursor position
+    // is the baseline either way.
+    void mouse(int32_t x, int32_t y, uint32_t width, uint32_t height, bool button, float wheel, const BattleCamPicks& p);
+    // #564 (0x4ac520 [H]): the Cinematic View zoom factor +0x1a8. 1.0 at the start and never reset: each wheel notch moves
+    // the view 25 units (away = closer) from 3 avg(E) x zoom, clamped to [3|E|, 10|E|], and the factor keeps the ratio.
+    float zoom() const { return zoom_; }
+    // #564 (+0x315 [H]): the land terrain clamp of the eye. Sticky: Cinematic View sets it, nothing here clears it.
+    bool terrain_clamp() const { return terrain_clamp_; }
     // 0x2cbc40: the framed clash ended. The next clash, else stop.
     void clash_ended(const BattleCamPicks& p);
     // 0x2cbb80 (and End_Cinematic_Mode 0x49b5c0).
@@ -115,6 +122,9 @@ private:
     bool has_cursor_ = false;
     int32_t cursor_x_ = 0, cursor_y_ = 0;  // +0x398 / +0x39c
     BattleCamShot shot_;
+    tactical::Vec3 view_extents_;  // the viewed object's E (+0x1a4 = 3 avg(E))
+    float zoom_ = 1.0f;            // +0x1a8
+    bool terrain_clamp_ = false;   // +0x315
     uint32_t serial_ = 0;
     int32_t smooth_clock_ = -1;
     tactical::Vec3 smooth_eye_;

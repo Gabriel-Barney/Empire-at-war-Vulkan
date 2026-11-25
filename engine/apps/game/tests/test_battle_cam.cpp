@@ -99,11 +99,12 @@ struct World {
     uint32_t last_view_target = 0xFFFFFFFFu;
     BattleCamPicks picks() {
         BattleCamPicks p;
-        p.view = [this](uint32_t target, float yaw, float pitch, BattleCamShot& out) {
+        p.view = [this](uint32_t target, uint32_t& id, V3& half_extents) {
             ++view_calls;
             last_view_target = target;
             if (target == 0 && !selection) return false;
-            out = cinematic_view_shot(target != 0 ? target : 9, {10.0f, 10.0f, 10.0f}, yaw, pitch);
+            id = target != 0 ? target : 9;
+            half_extents = {10.0f, 10.0f, 10.0f};
             return true;
         };
         p.clash = [this](uint64_t after, BattleCamShot& out) {
@@ -171,21 +172,24 @@ void test_mouse() {
     BattleCam cam;
     CHECK(cam.movie_key_up(g, w.picks()));
     // 1920 x 1080: under 96 x 54 pixels per move is swallowed, the baseline follows every move, so slow drags never stop it.
-    cam.mouse(500, 500, 1920, 1080, false, w.picks());
-    cam.mouse(590, 540, 1920, 1080, false, w.picks());
-    cam.mouse(680, 590, 1920, 1080, false, w.picks());
+    cam.mouse(500, 500, 1920, 1080, false, 0.0f, w.picks());
+    cam.mouse(590, 540, 1920, 1080, false, 0.0f, w.picks());
+    cam.mouse(680, 590, 1920, 1080, false, 0.0f, w.picks());
     CHECK(cam.active());
-    cam.mouse(780, 590, 1920, 1080, false, w.picks());  // 100 px
+    cam.mouse(780, 590, 1920, 1080, false, 0.0f, w.picks());  // 100 px
     CHECK(!cam.active());
     CHECK(cam.movie_key_up(g, w.picks()));
-    cam.mouse(780, 590, 1920, 1080, true, w.picks());  // a button or the wheel
+    cam.mouse(780, 590, 1920, 1080, true, 0.0f, w.picks());  // a button
+    CHECK(!cam.active());
+    CHECK(cam.movie_key_up(g, w.picks()));
+    cam.mouse(780, 590, 1920, 1080, false, 1.0f, w.picks());  // the wheel
     CHECK(!cam.active());
     // Cinematic View: the dominant axis / 4 turns the view; pitch clamped to +-80, yaw wrapped; buttons do not end it.
     CHECK(cam.key_down(Key::CinematicView, g, w.picks()) && cam.state() == State::View);
-    cam.mouse(100, 100, 1920, 1080, false, w.picks());
-    cam.mouse(140, 110, 1920, 1080, false, w.picks());  // dx 40 dominant: yaw -= 10
+    cam.mouse(100, 100, 1920, 1080, false, 0.0f, w.picks());
+    cam.mouse(140, 110, 1920, 1080, false, 0.0f, w.picks());  // dx 40 dominant: yaw -= 10
     CHECK(near(cam.view_yaw(), 350.0f) && near(cam.view_pitch(), 45.0f));
-    cam.mouse(140, 400, 1920, 1080, true, w.picks());  // dy 290: pitch += 72.5, clamped
+    cam.mouse(140, 400, 1920, 1080, true, 0.0f, w.picks());  // dy 290: pitch += 72.5, clamped
     CHECK(cam.state() == State::View && near(cam.view_pitch(), 80.0f) && near(cam.view_yaw(), 350.0f));
     CHECK(w.last_view_target == 9 && cam.shot().target == 9);  // the turn rebuilds the framed object's view
     CHECK(!cam.shot().eye.empty() && cam.shot().eye[0].where.z > 0.0f);  // the eye key rebuilt high above
@@ -228,6 +232,47 @@ void test_cinematic_view() {
     CHECK(cam.key_down(Key::CinematicView, g, w.picks()) && !cam.active());
 }
 
+// #564: the wheel zoom (0x4ac520), the sticky terrain clamp (+0x315), the handheld noise (0x4ab780).
+void test_polish() {
+    World w;
+    BattleCamGates g;
+    BattleCam cam;
+    CHECK(near(cam.zoom(), 1.0f) && !cam.terrain_clamp());
+    // E = (10, 10, 10): 3 avg(E) = 30, |E| = 17.32, so d in [51.96, 173.2].
+    CHECK(cam.key_down(Key::CinematicView, g, w.picks()) && cam.terrain_clamp());
+    const float lo = 3.0f * std::sqrt(300.0f), hi = 10.0f * std::sqrt(300.0f);
+    // The first notch from a fresh view is computed from 30 (unclamped) and clamped back to 3|E|: the factor jumps there.
+    cam.mouse(100, 100, 1920, 1080, false, 1.0f, w.picks());
+    CHECK(cam.state() == State::View && near(cam.zoom(), lo / 30.0f));
+    // Wheel towards the user (-): 25 units further per notch.
+    cam.mouse(100, 100, 1920, 1080, false, -2.0f, w.picks());
+    CHECK(near(cam.zoom(), (lo + 50.0f) / 30.0f));
+    const V3 eye = cam.shot().eye.empty() ? V3{} : cam.shot().eye[0].where;
+    CHECK(near(std::sqrt(::alamo::tactical::dot(eye, eye)), lo + 50.0f, 0.01f));  // the eye key rebuilt at the new distance
+    cam.mouse(100, 100, 1920, 1080, false, -100.0f, w.picks());
+    CHECK(near(cam.zoom(), hi / 30.0f));  // clamped to 10|E|
+    // The factor survives the stop and the next view; the clamp flag survives too.
+    const float z = cam.zoom();
+    cam.stop();
+    CHECK(near(cam.zoom(), z) && cam.terrain_clamp());
+    CHECK(cam.key_down(Key::CinematicView, g, w.picks()));
+    CHECK(!cam.shot().eye.empty() && near(std::sqrt(::alamo::tactical::dot(cam.shot().eye[0].where, cam.shot().eye[0].where)), hi, 0.01f));
+    // The handheld noise: both shots carry it; its parameters.
+    CHECK(cam.shot().handheld);
+    CHECK(hero_clash_shot(1, 1, {20.0f, 20.0f, 20.0f}, false, false).handheld);
+    const ShakeEffect e = handheld_shake(kHandheldFrames);
+    CHECK(near(e.x_amplitude, 20.0f) && near(e.y_amplitude, 20.0f) && near(e.roll_amplitude, 0.0f) && near(e.noise_offset, 0.0f));
+    CHECK(near(e.ease_in, 0.0f) && near(e.ease_out, 0.1f));
+    CHECK(near(e.frequency, 0.01f * static_cast<float>(kHandheldFrames), 1.0f));
+    CHECK(near(handheld_shake(600).frequency, 6.0f));
+    // Over a shot: s = 0.01 x the frames since the start, so 100 frames = one noise cell; it moves, without roll.
+    CameraShake shake;
+    CHECK(shake.start(handheld_shake(kHandheldFrames), 0, kHandheldFrames));
+    const CameraShake::Sample a = shake.evaluate(150, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f});
+    CHECK(near(a.roll_deg, 0.0f) && (a.offset.x != 0.0f || a.offset.z != 0.0f));
+    CHECK(std::fabs(a.offset.x) <= 40.0f && std::fabs(a.offset.z) <= 40.0f && near(a.offset.y, 0.0f));
+}
+
 void test_toggle_and_smoothing() {
     World w;
     BattleCamGates g;
@@ -267,6 +312,7 @@ int main() {
     test_movie_mode();
     test_mouse();
     test_cinematic_view();
+    test_polish();
     test_toggle_and_smoothing();
     std::printf(g_fail == 0 ? "game battle cam tests passed\n" : "%d game battle cam check(s) FAILED\n", g_fail);
     return g_fail == 0 ? 0 : 1;

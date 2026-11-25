@@ -109,9 +109,9 @@ void BattleCam::stop() {
 bool BattleCam::open_view(const BattleCamGates& g, const BattleCamPicks& p) {
     yaw_ = cinematic_view_yaw(view_);
     pitch_ = cinematic_view_pitch(g.space);
-    BattleCamShot s;
-    if (!p.view || !p.view(0, yaw_, pitch_, s)) return false;
-    start(State::View, std::move(s));
+    uint32_t id = 0;
+    if (!p.view || !p.view(0, id, view_extents_)) return false;
+    start(State::View, cinematic_view_shot(id, view_extents_, yaw_, pitch_, zoom_));
     return true;
 }
 
@@ -181,7 +181,8 @@ void BattleCam::toggle(const BattleCamGates& g, const BattleCamPicks& p) {
     if (g.in_game_cinematics && p.clash && p.clash(0, s)) start(State::Movie, std::move(s));
 }
 
-void BattleCam::mouse(int32_t x, int32_t y, uint32_t width, uint32_t height, bool button_or_wheel, const BattleCamPicks& p) {
+void BattleCam::mouse(int32_t x, int32_t y, uint32_t width, uint32_t height, bool button, float wheel, const BattleCamPicks& p) {
+    const bool button_or_wheel = button || wheel != 0.0f;
     if (!active()) return;
     const int32_t dx = has_cursor_ ? x - cursor_x_ : 0, dy = has_cursor_ ? y - cursor_y_ : 0;
     cursor_x_ = x;
@@ -200,8 +201,9 @@ void BattleCam::mouse(int32_t x, int32_t y, uint32_t width, uint32_t height, boo
         yaw_ = std::fmod(yaw_ - static_cast<float>(dx) * kViewMouseScale, 360.0f);
         if (yaw_ < 0.0f) yaw_ += 360.0f;
     }
-    BattleCamShot s;  // 0x4ac830: the eye key rebuilt; the shot clock and the smoothing run on
-    if (p.view && p.view(shot_.target, yaw_, pitch_, s)) shot_.eye = std::move(s.eye);
+    uint32_t id = 0;  // 0x4ac830: the eye key rebuilt; the shot clock and the smoothing run on
+    if (p.view && p.view(shot_.target, id, view_extents_))
+        shot_.eye = cinematic_view_shot(id, view_extents_, yaw_, pitch_, zoom_).eye;
 }
 
 void BattleCam::clash_ended(const BattleCamPicks& p) {
