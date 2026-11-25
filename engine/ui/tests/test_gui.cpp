@@ -1035,6 +1035,9 @@ void test_main_campaign() {
         step(env.click(*mc, "IDC_MAIN_CAMPAIGN_START"));
         CHECK(acts.size() == 1 && acts[0].kind == MenuAction::Kind::StartCampaign &&
               acts[0].campaign == "Full_Story_Campaign_Underworld" && acts[0].faction == "Underworld" && acts[0].difficulty == 2);
+        fe.update(std::vector<GuiEvent>{GuiEvent{GuiEvent::Kind::Clicked, "IDD_MAIN_CAMPAIGN_DIALOG", "IDC_MAIN_CAMPAIGN_START"}}, env.last,
+                  acts);
+        CHECK(acts.size() == 1);  // started once
         CHECK(!mc->get("IDC_CANCEL_BUTTON")->visible && !mc->get("IDC_MAIN_CAMPAIGN_START")->visible &&
               mc->get("IDC_LOAD_FACTION_A_PROGRESS")->visible);
         single_player(fe);  // Back (IDC_CANCEL_BUTTON) returns to the single player menu; the dialog reopens on Medium
@@ -1045,6 +1048,25 @@ void test_main_campaign() {
               env.gui.top()->get("IDC_CANCEL_BUTTON")->visible);
         step(env.click(*env.gui.top(), "IDC_CANCEL_BUTTON"));
         CHECK(fe.top() == "IDD_SINGLE_PLAYER_GAMES_MENU_DIALOG");
+    }
+    {  // a profile that was asked before (TutorialsPlayed "-1"), or no provider: straight to the dialog, Medium, Hard + Start
+        for (const bool provider : {true, false}) {
+            played = "-1";
+            MenuProviders q = p;
+            if (!provider) q.tutorials_played = nullptr;
+            FrontEnd fe;
+            fe.init(env.gui, menu, q);
+            single_player(fe);
+            acts.clear();
+            fe.update(env.click(*env.gui.top(), "IDC_NEW_CAMPAIGN_BUTTON"), env.last, acts);
+            CHECK(fe.top() == "IDD_MAIN_CAMPAIGN_DIALOG" && acts.empty());
+            if (fe.top() != "IDD_MAIN_CAMPAIGN_DIALOG") return;
+            GuiDialog* mc = env.gui.top();
+            CHECK(mc->get("IDC_RADIO_MEDIUM")->checked);
+            fe.update(env.click(*mc, "IDC_RADIO_HARD"), env.last, acts);
+            fe.update(env.click(*mc, "IDC_MAIN_CAMPAIGN_START"), env.last, acts);
+            CHECK(acts.size() == 1 && acts[0].kind == MenuAction::Kind::StartCampaign && acts[0].difficulty == 2);
+        }
     }
     {  // Yes opens the tutorial list
         played.clear();

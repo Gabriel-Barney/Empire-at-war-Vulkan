@@ -645,6 +645,7 @@ private:
     std::vector<Rgba8> colour_palette_;   // the host palette read when the skirmish dialog opened
     int32_t slot_colour_[8] = {0, 1, 2, 3, 4, 5, 6, 7};  // colour index of each skirmish slot (default = the slot index)
     bool tutorial_asked_ = false;  // #452: TEXT_SUGGEST_TUTORIAL was asked this run
+    bool main_campaign_started_ = false;  // #452: IDD_MAIN_CAMPAIGN_DIALOG sent its StartCampaign (reset when it opens)
     std::string quit_action_;  // "exit" / "main"; N1 / t09: "overwrite" / "delete" (confirm_save_); "rebind" / "keys"
     std::string confirm_save_;  // the save an overwrite / delete confirmation is about
     bool save_blocked_ = false; // the open Save dialog's save_blocker refused

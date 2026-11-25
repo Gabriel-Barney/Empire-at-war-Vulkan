@@ -286,7 +286,8 @@ exception there wins.
   first-click tutorial question, only when the data has both that dialog and the campaign its Start plays
   (`Full_Story_Campaign_Underworld`). Other data keeps the story-set list `IDD_CAMPAIGN_SELECTION_DIALOG`, with no question.
   This covers EaW, whose GUIDialogs.rc also has an `IDD_MAIN_CAMPAIGN_DIALOG`, and mods. EaW's own New Campaign handler is
-  not reverse-engineered, and the list starts every story campaign the data has.
+  not reverse-engineered, and the list starts every story campaign the data has. Esc on the question closes it, and the
+  tutorial list it opens goes back to the main menu as it does from there; retail's answers for both are not traced.
 - **EaW main-menu attract demo** (Gabriel, 2026-10-28): the port does not replay `.rec` recordings. For EaW's
   `Front_end_demo_attract.rec` it reads only the map path from the header and runs the same live AI-vs-AI battle as the
   FoC attract path. Replay would need tick-exact parity with the EaW exe and an undecoded command format.

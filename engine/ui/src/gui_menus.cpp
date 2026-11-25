@@ -40,7 +40,7 @@ constexpr const char* kCampaignSelect = "IDD_CAMPAIGN_SELECTION_DIALOG";
 // #452 (docs/re/SINGLE_PLAYER_DIALOGS.md "IDD_MAIN_CAMPAIGN_DIALOG" [H]): FoC's New Campaign dialog and the campaign its
 // Start looks up (0xc5250).
 constexpr const char* kMainCampaign = "IDD_MAIN_CAMPAIGN_DIALOG";
-// [name-ok-begin: retail hard-code, docs/re/SINGLE_PLAYER_DIALOGS.md 0xc5250 (the campaign IDC_MAIN_CAMPAIGN_START starts)]
+// [name-ok-begin: retail hard-code, docs/re/SINGLE_PLAYER_DIALOGS.md 0xc5250 [H] (the campaign IDC_MAIN_CAMPAIGN_START starts)]
 constexpr const char* kMainCampaignName = "Full_Story_Campaign_Underworld";
 // [name-ok-end]
 constexpr const char* kCustomStaging = "IDD_CUSTOM_CAMPAIGN_STAGING_DIALOG";
@@ -1598,9 +1598,8 @@ void FrontEnd::setup(GuiDialog& d) {
     } else if (ascii_iequals(n, kMainCampaign)) {  // #452: the opener 0xc4d90 [H]
         d.show("IDC_DIALOG_CLOSE_BUTTON", false);
         d.show("IDC_LOAD_FACTION_A_PROGRESS", false);
-        d.show("IDC_CANCEL_BUTTON", true);  // a Start before hid them (the dialog is reused)
-        d.show("IDC_MAIN_CAMPAIGN_START", true);
         d.set_checked("IDC_RADIO_MEDIUM", true);  // difficulty 1
+        main_campaign_started_ = false;
     } else if (ascii_iequals(n, kCustomStaging)) {
         d.set_checked("IDC_RADIO_CUSTOM_MEDIUM", true);
         for (int32_t i = 0; i < 3; ++i) {
@@ -1794,8 +1793,8 @@ void FrontEnd::on_cancel(const GuiEvent& e, std::vector<MenuAction>& out) {
         quit_action_.clear();
         rebind_slot_ = rebind_other_ = -1;
     }
-    // #452 [port] Esc on the tutorial question closes it (back to the single player menu); it was asked, so it is not
-    // asked again.
+    // #452 [port] (docs/DECISIONS.md "Front-end and skirmish choices", New Campaign) Esc on the tutorial question closes it
+    // (back to the single player menu); it was asked, so it is not asked again.
     if (ascii_iequals(n, kQuit) && quit_action_ == "suggest_tutorial") quit_action_.clear();
     if (ascii_iequals(n, kAudio)) {
         out.push_back(act(MenuAction::Kind::PreviewAudio));
@@ -1951,7 +1950,9 @@ void FrontEnd::on_click(const GuiEvent& e, std::vector<MenuAction>& out) {
         // EASY / MEDIUM / HARD are one radio group: the checked one is the difficulty (difficulty_of).
         if (is("IDC_CANCEL_BUTTON")) go(kSingle);
         else if (is("IDC_MAIN_CAMPAIGN_START") || is("IDC_PLAY_FACTION_A_BUTTON_BIG")) {
-            if (const CampaignChoice* choice = main_campaign()) {
+            const CampaignChoice* choice = main_campaign();
+            if (choice && !main_campaign_started_) {  // one start: IDC_PLAY_FACTION_A_BUTTON_BIG stays shown
+                main_campaign_started_ = true;
                 d->show("IDC_CANCEL_BUTTON", false);  // while it loads: Back and Start hidden, the progress bar shown
                 d->show("IDC_MAIN_CAMPAIGN_START", false);
                 d->show("IDC_LOAD_FACTION_A_PROGRESS", true);
