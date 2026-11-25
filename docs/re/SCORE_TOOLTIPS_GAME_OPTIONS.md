@@ -27,14 +27,11 @@ empty; every playable faction has all four images.
 **Efficiencies (aside) [H]:** text = L"%d" (0x7ffa20) of `(int)(stat*100.0)` clamped to 0..100, so it is truncated and has
 **no "%"**. The missing-stat fallback is L"0%" (0x805590). The RC has no separate "%" static.
 
-**Port today:**
-- app_screens.cpp:942-959 already puts the faction text in `score.list` and the image in `score.image`
-  (`game::game_over_art`, hud_feeds.cpp:300). The issue's "list empty" is stale.
-- gui_screens.cpp:321 uses `d->set_items`: no wrap, skin colour.
-- app_screens.cpp:948 passes `pick_land = rng.range(0,1) == 0` (0 picks Land).
-- gui_screens.cpp:316 `pct` appends "%", and game_info.cpp:524 rounds with `lround`.
+**Port (#470, landed):** `GameScreens::show_campaign_score` fills IDC_VICTORY_LIST with `set_paragraphs` (wrapped, white,
+top) and the efficiencies as "%d" ("0%" when missing); `game::game_over_pick_land` maps the draw's 0 to Space;
+`game::score_efficiency_percent` truncates.
 
-**Port change ([H]):**
+**Port change ([H]), as planned (line numbers as of #439):**
 1. gui_screens.cpp:321 -> `gui_->set_paragraphs(*d, "IDC_VICTORY_LIST", info.list, Rgba8{255,255,255,255});` (wrap, white,
    top).
 2. app_screens.cpp:948 -> `cine_.rng.range(0, 1) != 0` as `pick_land` (cosmetic; it only changes which value of the draw picks

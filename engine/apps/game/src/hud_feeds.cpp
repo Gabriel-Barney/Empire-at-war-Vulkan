@@ -5,6 +5,7 @@
 #include <cstdio>
 
 #include "alamo/core/ascii.hpp"
+#include "alamo/core/x86_int.hpp"
 #include "alamo/ui/gui_menus.hpp"
 #include "alamo/galactic/economy.hpp"
 #include "alamo/objects/type_fields.hpp"
@@ -326,6 +327,8 @@ std::string_view CorruptionChoiceArt::at(const std::vector<std::string>& list, i
 WeatherLines planet_weather_lines(std::string_view name_field, std::string_view info_field) {
     return {first_word(name_field), first_word(info_field)};
 }
+
+int32_t score_efficiency_percent(double stat) { return std::clamp(alamo::trunc_i32(stat * 100.0), 0, 100); }
 
 GameOverArt game_over_art(bool victory, bool pick_land, std::string_view victory_text, std::string_view defeat_text,
                           std::string_view land_win, std::string_view space_win, std::string_view land_lose,

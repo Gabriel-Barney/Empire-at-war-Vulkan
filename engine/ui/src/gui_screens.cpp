@@ -314,11 +314,15 @@ bool GameScreens::show_campaign_score(const CampaignScoreInfo& info) {
     if (h.empty()) h = info.victory ? text("TEXT_VICTORY", U"Victory") : text("TEXT_DEFEAT", U"Defeat");
     d->set_text("IDC_VICTORY_STATIC", std::move(h));
     d->set_text("IDC_TITLE_STATIC", info.rank_title);
-    auto pct = [](int32_t v) { return v < 0 ? std::u32string() : num32(v) + U"%"; };
+    // #470 (docs/re/SCORE_TOOLTIPS_GAME_OPTIONS.md t12, 0x92bb0 [H]): L"%d" of the truncated percentage, no "%"; a missing
+    // stat is L"0%" (0x805590).
+    auto pct = [](int32_t v) { return v < 0 ? std::u32string(U"0%") : num32(v); };
     d->set_text("IDC_MILITARY_EFFICIENCY_STATIC", pct(info.military));
     d->set_text("IDC_CONQUEST_EFFICIENCY_STATIC", pct(info.conquest));
     d->set_text("IDC_KILL_EFFICIENCY_STATIC", pct(info.kill));
-    d->set_items("IDC_VICTORY_LIST", info.list, -1);
+    // #470 (FUN_140094030 [H]): the faction's Victory_Text / Defeat_Text paragraph, word-wrapped to the list width in
+    // white rows (colour table index 1), scrolled to the top.
+    if (gui_) gui_->set_paragraphs(*d, "IDC_VICTORY_LIST", info.list, Rgba8{255, 255, 255, 255});
     d->show("IDC_BATTLE_VICTORY_IMAGE", !info.image.empty());
     d->set_image("IDC_BATTLE_VICTORY_IMAGE", info.image);
     d->focus("IDC_QUIT_BUTTON");
