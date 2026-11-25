@@ -25,6 +25,7 @@
 #include "alamo/core/log.hpp"
 #include "alamo/core/sim_crc.hpp"
 #include "alamo/game/attract_mode.hpp"
+#include "alamo/game/battle_cam.hpp"
 #include "alamo/game/battle_fx.hpp"
 #include "alamo/game/battle_summary.hpp"
 #include "alamo/game/benchmark.hpp"
@@ -230,6 +231,15 @@ private:
         bool enabled = true;                  // GameConstants In_Game_Cinematics
         float letterbox_height = 0.085f;      // GameConstants Camera_FX_Manager_Letterbox_Height
         uint32_t shots = 0, skipped = 0, completed = 0, shakes = 0;  // diagnostics
+        // #462 the battle cam (battle_cam.hpp): Movie Mode, Cinematic View and b_camera_t on the same controller. A
+        // shot start ends a running TSW shot and a TSW Fire ends the battle cam (0x2cbb80).
+        BattleCam cam;
+        bool cam_on = false;           // cinematic mode on for the battle cam (camera saved, letterbox, rate lock)
+        uint32_t cam_serial = 0;       // BattleCam::serial() of the shot the clock runs for
+        uint32_t cam_start = 0;        // tactical frame of that shot's start (shot clock 0)
+        int32_t cam_clock = 0;         // its shot clock at the frame being drawn
+        ui::KeySet cam_swallowed;      // keys the controller swallowed, hidden until released
+        ui::KeySet cam_prev_down;      // the previous frame's keys down (key-up edges)
     } cine_;
     void tsw_shot_begin(const TswCue& c, const sim::TacticalBattle& b, const objects::ObjectStore& st);
     void tsw_shake(const TswCue& c, const sim::TacticalBattle& b);
@@ -238,10 +248,22 @@ private:
     void cinematic_step();    // per frame after the sim: shot clock, timer end, letterbox slide
     void cinematic_input(ui::InputFrame& raw);  // §11.2 input skip rules (before the HUD / world routing)
     bool cinematic_camera(ui::CameraParams& cp);  // the shot's camera over the RTS params; false when no shot runs
-    bool cinematic_hides_hud() const { return cine_.shot.active() || story_hides_hud(); }
+    bool cinematic_hides_hud() const { return cine_.shot.active() || cine_.cam.active() || story_hides_hud(); }
     // The cursor is hidden unless the attract demo runs; [port] a GUI dialog with the focus (pause menu) shows it again.
-    bool cinematic_hides_cursor() const { return (cine_.shot.active() || story_cam_.active() || story_lua_mode_ || story_present_.cinematic_mode()) && !demo_session() && !ui_.gui.has_focus(); }
+    bool cinematic_hides_cursor() const { return (cine_.shot.active() || cine_.cam.active() || story_cam_.active() || story_lua_mode_ || story_present_.cinematic_mode()) && !demo_session() && !ui_.gui.has_focus(); }
     void draw_letterbox(ui::HudDrawList& dl, const ui::HudCanvas& canvas, uint32_t w, uint32_t h) const;
+    // #462 the battle cam (app_cinematic.cpp).
+    BattleCamGates battle_cam_gates() const;
+    BattleCamPicks battle_cam_picks();
+    void battle_cam_input(ui::InputFrame& raw);   // keys (down / Movie Mode up) and the mouse, before routing
+    void battle_cam_sync();                      // cinematic mode on / off and the shot clock after a controller call
+    void battle_cam_step();                      // per frame: the framed clash and object still there
+    bool battle_cam_camera(ui::CameraParams& cp);
+    void camera_button();                        // b_camera_t (0x347100)
+    // The drawn object `id` (snapshot, ascending id) and its transform; null when it is not drawn.
+    const render::SnapshotObject* drawn_object(objects::ObjectId id, ObjectFrame* frame) const;
+    ui::Vec3 shot_half_extents(objects::TypeIndex type);  // the shots' E: model box, else the drawn radius, else 200
+    float shot_z_adjust(objects::TypeIndex type) const;         // Ranged_Target_Z_Adjust (type +0x4dc), default 6.0
     // story t13 (story_ui.hpp LinkedBattleOverlay): a story-linked battle's P10 letterbox / P11 input block and the story
     // scripts' letterbox, drawn by draw_letterbox with the cinematic's bars; begun by begin_battle, stepped by
     // cinematic_step, cleared by cinematic_reset.
@@ -583,7 +605,6 @@ private:
     std::vector<ui::HudFleetGoal> fleet_goals_;  // [port: Gabriel] #179 move preview of the aimed move
     int32_t wing_last_ = -1;           // wing selected last and when (double press -> camera)
     double wing_last_s_ = -1.0e30;
-    bool movie_mode_ = false;          // MovieMode key / b_camera_t [port]: the interface hidden
     bool interface_hidden_ = false;    // ToggleInterface key (byte 0x140b3069b)
     bool objectives_hidden_ = false;   // MissionHolocron key in a battle [port]
     uint32_t tether_id_ = 0;           // CameraTether key (#430): the object the camera follows, 0 = none

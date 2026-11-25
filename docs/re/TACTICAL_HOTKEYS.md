@@ -15,7 +15,7 @@ are the port's `ui::hk` slots (the HotKeys.xml order).
 Otherwise it maps the key to a slot through the applied table and switches on the slot.
 - **Scroll keys:** slots 69-72 belong to the world key handler `0x33460`.
 - **Not in this switch:** slots 77-79 belong to the battle-cam controller. Its key-down handler `0x2cbd00` runs before
-  `0x63f00`, and its key-up handler is `0x2cc080`.
+  `0x63f00`, and its key-up handler is `0x2cc080` (`BATTLE_CAM.md`).
 
 ## Per slot
 
@@ -32,10 +32,10 @@ Otherwise it maps the key to a slot through the applied table and switches on th
 | 43 SwapWeapons | SWAP_WEAPONS, then ROCKET_ATTACK | H | done |
 | 109 ForceCloak | FORCE_CLOAK, then STEALTH | H | done |
 | 56 DestroyPlanet | no ability; the galactic planet-destroy UI | H | "" is right |
-| 76 Overview | only outside a battle-cam view | H | no gate: #462 |
+| 76 Overview | only outside a battle-cam view | H | done (#462: refused while the battle cam runs) |
 | 77 Camera Tether | on → off; off → follow the **first selected object**; nothing with an empty selection | H (the follow M) | done |
-| 78 Movie Mode | key up: the battle cam on the selected objects (state 3); Esc exits | H | only hides the HUD: #462 |
-| 79 Cinematic View | needs `In_Game_Cinematics`; steps through 8 views; Esc exits | H | nothing: #462 |
+| 78 Movie Mode | key up: the battle cam (state 3) on the first hero clash, else the bombing run, else an interesting object; again: the next clash; Esc exits | H | the hero clash orbit; no bombing-run or interesting-object shot yet (`BATTLE_CAM.md`) |
+| 79 Cinematic View | needs `In_Game_Cinematics`; 8 views round the first selected object; Esc exits | H | done (`BATTLE_CAM.md`), without the wheel zoom |
 | 80 Screenshot | `ScreenShots\EAW_<YYYYMMDD>_<HHMMSScc>.tga` on the next frame | H | the same name, `.png`, in a ScreenShots folder beside the saves [port] (#466) |
 | 81 / 82 Quick Save / Load | slot name `L"[QuickSave]"`; nothing in multiplayer | H | done |
 | 83 Mission Holocron | toggles the objective display | H | matches |
@@ -92,9 +92,7 @@ The port (`TacticalHud::toggle_reinforce_list`, `App::toggle_reinforcement_list`
 
 ## Open
 
-- The battle-cam key gates.
 - The names of the reinforcement list's four gates [M].
 - The `i_main_reinforce` shell model and its placement (-w/2, h/2 - 100): not loaded, the pad keeps its fallback positions.
 - The camera consumer of the tether target [M].
-- What the battle-cam cameras frame.
 - The Next / Prev filters and order.

@@ -195,7 +195,22 @@ struct ShotKey {
     tactical::Vec3 where;    // offset (attached) or world position
     float ease_out = 0.0f;   // +0x44: acceleration share of the segment starting at this key
     float ease_in = 0.0f;    // +0x48: deceleration share of the segment ending at this key
+    int32_t period = 300;    // +0x4c: frames per orbit turn (Orbit after the last key; literal frames)
+    bool reverse = false;    // +0x50: the orbit turns clockwise
 };
+
+// The key lists' position at shot clock `c` (docs/re/BATTLE_CAM.md "The per-frame evaluator"). Attached keys sit in the
+// object's frame `f`, plus `z_adjust` (Ranged_Target_Z_Adjust) on z (0x49d640).
+tactical::Vec3 shot_key_position(const ShotKey& k, const ObjectFrame& f, float z_adjust);
+// 0x49de50: the look. Hold, linear and spline segments; an Orbit segment has no look branch and yields (0, 0, 0); after
+// the last key it is held.
+tactical::Vec3 shot_keys_look(std::span<const ShotKey> look, int32_t c, const ObjectFrame& f, float z_adjust);
+// 0x49c540: the eye. As the look, and an Orbit key that is the last (or only) one turns its resolved position about world
+// +Z through the look point after its frame (0x49c810): angle = 360 x accel(((c - frame) % period) / period), mirrored
+// when `reverse`; the offset is re-resolved each frame, so the circle follows the object's facing.
+// [port] an Orbit key followed by another key (0x49a610, polar interpolation) holds; no shot here uses it.
+tactical::Vec3 shot_keys_eye(std::span<const ShotKey> eye, std::span<const ShotKey> look, int32_t c, const ObjectFrame& f,
+                             float z_adjust);
 
 // What 0x4a5ef0 reads once at Fire.
 struct TswShotInputs {
@@ -239,8 +254,6 @@ public:
     bool input_cancels(int32_t mouse_x, int32_t mouse_y, uint32_t width, uint32_t height, bool button_or_wheel) const;
 
 private:
-    tactical::Vec3 evaluate(std::span<const ShotKey> keys, int32_t c, const ObjectFrame& tsw) const;
-    tactical::Vec3 key_position(const ShotKey& k, const ObjectFrame& tsw) const;
     const ObjectFrame& frame_of(const ObjectFrame& tsw);
 
     bool active_ = false;

@@ -11,6 +11,7 @@
 
 #include "alamo/data/xml.hpp"
 #include "alamo/test/support.hpp"
+#include "alamo/ui/camera.hpp"
 #include "alamo/ui/gui_menus.hpp"
 #include "alamo/ui/hotkeys.hpp"
 #include "alamo/ui/hud_font.hpp"
@@ -298,10 +299,42 @@ void test_tactical_controls() {
 
 }  // namespace
 
+// #462: the battle cam's key mapping (0x2127f0) and b_camera_t's pitch / yaw test and snap (0x2ce420 / 0x2cf880).
+void test_battle_cam_hooks() {
+    HotkeyTable t;
+    const HotkeyBinding movie = t.binding(hk::kMovieMode);
+    CHECK(movie.key >= 0);
+    if (movie.key >= 0) {
+        const auto k = static_cast<uint32_t>(movie.key);
+        const bool sh = movie.mod == HotkeyMod::Shift, ct = movie.mod == HotkeyMod::Ctrl, al = movie.mod == HotkeyMod::Alt;
+        CHECK(t.slot_for(k, sh, ct, al) == hk::kMovieMode);
+    }
+    HotkeyBinding b;
+    b.key = 0x7B;  // F12 with Shift
+    b.mod = HotkeyMod::Shift;
+    t.bind(hk::kCinematicView, b);
+    CHECK(t.slot_for(0x7B, true, false, false) == hk::kCinematicView);
+    CHECK(t.slot_for(0x7B, false, false, false) != hk::kCinematicView);
+    CHECK(t.slot_for(0xFF, false, false, false) == -1);
+
+    TacticalCameraController cam;
+    cam.reset();
+    const float dist = cam.target_distance();
+    CHECK(cam.pitch_yaw_at_defaults());
+    cam.rotate(20.0f, 0.0f);
+    CHECK(!cam.pitch_yaw_at_defaults());
+    cam.zoom(2.0f);
+    const float zoomed = cam.target_distance();
+    cam.reset_pitch_yaw();
+    CHECK(cam.pitch_yaw_at_defaults());
+    CHECK(cam.target_distance() == zoomed && zoomed != dist);  // the distance is kept
+}
+
 int main() {
     test_edit_box_order();
     test_ability_slots();
     test_selection_keys();
+    test_battle_cam_hooks();
     test_tactical_controls();
     if (g_fail) {
         std::printf("alamo_ui_hud_ui3_tests: %d failure(s)\n", g_fail);

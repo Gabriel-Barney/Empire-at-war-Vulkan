@@ -110,6 +110,9 @@ public:
     // Slots whose binding fired this frame (ascending).
     void pressed(const InputState& in, std::vector<uint16_t>& out) const;
     bool pressed(const InputState& in, uint16_t slot) const;
+    // 0x2127f0: the first slot (index order) bound to `key` whose modifier matches; -1 = none. The battle-cam handlers
+    // map their key events with it (#462).
+    int32_t slot_for(uint32_t key, bool shift, bool ctrl, bool alt) const;
     // P1 Bindings sync: scroll (69..72) and camera reset (73) become held/pressed actions with kModAny; SelectAll
     // (10), Stop (16), ControlGroup0..9 (slots 9, 0..8), the free camera axes, Pause and zoom (160 / 161) with their
     // exact modifier. Only the camera, pause and zoom actions have a reader; SelectAll / Stop / ControlGroupN stay in the
