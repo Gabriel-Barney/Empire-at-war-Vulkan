@@ -942,18 +942,24 @@ void test_battle_hookups_aud1() {
     // Combat involving the local player: battle music from the Temperate row (mode 7).
     h.combat(true, false);
     CHECK(cur(h) == "Bat_Temperate" && mode(h) == audio::music_mode::kTacticalBattle);
-    // Base under attack: the faction line, then nothing for 60 s x 30 ticks.
-    h.combat(false, true);
+    // Base under attack: the faction line, then nothing for 60 s x 30 ticks. #479: each announcement queues one radar ping
+    // at the victim; the cooldown holds the ping back with the line.
+    const Vec3 base_at{300.0f, 400.0f, 0.0f};
+    CHECK(h.combat(false, true, base_at));
     CHECK(starts(h, "Base_Line") == 1);
+    {
+        const std::vector<Vec3> pings = h.take_base_attack_pings();
+        CHECK(pings.size() == 1 && pings[0].x == 300.0f && pings[0].y == 400.0f && h.take_base_attack_pings().empty());
+    }
     h.update(2.0);
-    h.combat(false, true);
-    CHECK(starts(h, "Base_Line") == 1);
+    CHECK(!h.combat(false, true, base_at));
+    CHECK(starts(h, "Base_Line") == 1 && h.take_base_attack_pings().empty());
     for (int t = 0; t < 1800; ++t) h.sim_tick();  // also past the 15 s peace timeout: back to ambient
     CHECK(cur(h) == "Amb_Temperate");
     h.update(2.0);  // the first line's instance ends (Max_Instances 1)
     h.update(2.0);
-    h.combat(false, true);
-    CHECK(starts(h, "Base_Line") == 2);
+    CHECK(h.combat(false, true, base_at));
+    CHECK(starts(h, "Base_Line") == 2 && h.take_base_attack_pings().size() == 1);
     // TSW activation music (mode 8) and Lua Play_Music (mode 12) are not replaced by combat (§9.2).
     h.system()->play_music("TSW_Song", audio::music_mode::kSuperWeapon, false, false);
     h.combat(true, false);
@@ -990,6 +996,12 @@ void test_battle_hookups_aud1() {
         for (const audio::LogEntry& e : h.system()->log()) streamed = streamed || (e.op == audio::LogOp::SpeechStart && e.sample == "Test_Speech_ENG.MP3");
         CHECK(streamed);
     }
+    // #479: a faction without SFXEvent_Land_Base_Under_Attack_Announcement gets neither the line nor the ping (a new battle:
+    // its cooldown starts clear).
+    h.music(MusicScene::None);
+    h.music(MusicScene::Battle, "Empire", false, H::terrain_name(0));
+    CHECK(!h.combat(false, true, base_at));
+    CHECK(h.take_base_attack_pings().empty());
 }
 #endif
 

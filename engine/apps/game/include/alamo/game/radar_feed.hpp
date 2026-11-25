@@ -23,8 +23,8 @@
 //                          test on the raise (only the SFX is the local player's) [M]. [port] a held event whose
 //                          generator is gone (dead, or removed) is removed too; after reset() (a new battle or a load)
 //                          the generators already under power raise theirs.
-// Not fed: the base-under-attack radar ping (no RADARMAP.XML entry; legacy docs/re/AUDIO.md names no event),
-// Default_Beacon_Placement (multiplayer beacons, out of scope), Galactic_Build_Complete_Planet_Ping (galactic radar).
+// Not fed here: the base-under-attack radar ping (no RADARMAP.XML entry; #479: GameAudioHost::take_base_attack_pings ->
+// RadarEvents::ping, docs/re/RADAR_BLIPS_AND_BOX.md §3), Default_Beacon_Placement (multiplayer beacons, out of scope), Galactic_Build_Complete_Planet_Ping (galactic radar).
 // Needs engine/ui's alamo_ui_hud (ALAMO_GAME_HAVE_CONTROLS).
 #pragma once
 #ifdef ALAMO_GAME_HAVE_CONTROLS

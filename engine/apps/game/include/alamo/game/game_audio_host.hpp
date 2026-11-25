@@ -369,7 +369,11 @@ public:
     // Mission HUD result lines).
     void set_corruption_mission(bool on) { corruption_mission_ = on; }
     void weather(std::string_view type, float intensity, bool local_affected = true);  // local_affected: no Weatherproof
-    void combat(bool local_involved, bool local_base_attacked);
+    // True when the base-under-attack announcement fired (GameAudio::combat); `victim` is then queued as a radar ping.
+    bool combat(bool local_involved, bool local_base_attacked, const Vec3& victim = {});
+    // #479 (docs/re/RADAR_BLIPS_AND_BOX.md §3 [H]): the positions of this tick's base-under-attack announcements; the
+    // host adds a 4 s pulsing radar_blip at each (0x2de700(HUD, pos, 4.0)). Taking them clears the queue.
+    std::vector<Vec3> take_base_attack_pings() { return std::exchange(base_pings_, {}); }
     // --- aud1 t05 (object SFX: abilities, shields, hyperspace; src/game_audio_host_objects.cpp) ---
     // legacy docs/re/AUDIO.md §9.6, after every battle tick (battle_tick calls it; presentation only, const reads):
     //   ability   AbilitySystem EffectOn (the activation presentation 0x48e4d0): the special ability's SFXEvent_Activate
@@ -513,6 +517,7 @@ public:
     uint64_t shield_sfx_played() const { return shield_sfx_played_; }
 
 private:
+    std::vector<Vec3> base_pings_;  // #479: take_base_attack_pings
     std::map<std::pair<objects::TypeIndex, uint8_t>, AbilitySfx> ability_sfx_cache_;  // lookup only
     std::map<objects::TypeIndex, std::pair<std::string, std::string>> shield_tags_;   // type -> (down, back up)
     std::map<objects::ObjectId, int> shield_up_;                                      // ascending id

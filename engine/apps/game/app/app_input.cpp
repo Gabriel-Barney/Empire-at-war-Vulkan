@@ -373,6 +373,8 @@ void App::post_tick() {
             }
             audio_.battle_tick(*b, st, data_.types, local_player(),
                                [gs](objects::ObjectId id) { return gs->script_hidden(id); });  // q6 t19 §10.3
+            // #479 (docs/re/RADAR_BLIPS_AND_BOX.md §3 [H]): a 4 s pulsing radar_blip where the base was attacked.
+            for (const Vec3& p : audio_.take_base_attack_pings()) radar_events_.ping(p.x, p.y, 4.0f);
             {  // aud1 t07 (legacy docs/re/AUDIO.md §9.7): the tactical intro speech, campaign battles only, not story-linked ones.
                 // [port] The port hosts a skirmish as a galactic hop, so "no galactic parent" is the skirmish / attract
                 // session kind; benchmark runs stay silent so their speech-done notifications do not change.
