@@ -127,9 +127,11 @@ struct OrderContext {
     // galactic
     std::span<const PickSphere> galactic_items;
     // Optional overrides. Defaults: selectable = owner == local_player (TreeSet membership / sphere owner);
-    // hostile = owner >= 0 && owner != local_player; type_of = none (double click acts as a click).
+    // hostile = owner >= 0 && owner != local_player; type_of = none (double click acts as a click). hostile is asked of
+    // the object's owner (TreeSet membership / sphere owner, -1 for none): the host passes the battle's diplomacy, so an
+    // ally's object is not attacked (#549, as WorldHudContext::hostile, #536).
     std::function<bool(uint32_t)> selectable;
-    std::function<bool(uint32_t)> hostile;
+    std::function<bool(int32_t owner)> hostile;
     std::function<uint32_t(uint32_t)> type_of;
 };
 

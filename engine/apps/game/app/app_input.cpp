@@ -1163,6 +1163,10 @@ void App::battle_input() {
     ctx.view = ui::make_view(cp, w, h);
     ctx.trees = &tm->trees();  // const reads between ticks (P1 picking contract)
     ctx.pick_tests = world_pick_tests();  // precise model test, then the override sphere (HUD_GAPS §2.2)
+    // #549: hostile by the battle's diplomacy (combat().is_enemy), so a right click on an ally's object is no attack;
+    // neutral (owner < 0) is not hostile.
+    if (const int32_t me = local_player(); me >= 0)
+        ctx.hostile = [this, me](int32_t owner) { return owner >= 0 && owner != me && hostile(me, owner); };
     if (!bview_.space() && bview_.scene()) {
         const terrain::MapData* m = &bview_.scene()->map();
         ctx.ground_height = [m](float x, float y) { return m->terrain.sample_height(x, y); };

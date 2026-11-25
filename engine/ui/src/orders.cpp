@@ -52,7 +52,6 @@ bool OrderTranslator::is_selectable(const OrderContext& ctx, uint32_t id) const 
 }
 
 bool OrderTranslator::is_hostile(const OrderContext& ctx, uint32_t id) const {
-    if (ctx.hostile) return ctx.hostile(id);
     int32_t owner = -1;
     if (ctx.mode == UiMode::Galactic) {
         const PickSphere* s = find_item(ctx.galactic_items, id);
@@ -60,6 +59,7 @@ bool OrderTranslator::is_hostile(const OrderContext& ctx, uint32_t id) const {
     } else if (const tactical::TreeMembership* m = ctx.trees ? ctx.trees->membership(id) : nullptr) {
         owner = m->owner;
     }
+    if (ctx.hostile) return ctx.hostile(owner);
     return owner >= 0 && owner != ctx.local_player;
 }
 
