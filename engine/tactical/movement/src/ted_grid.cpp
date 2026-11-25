@@ -37,10 +37,10 @@ PassabilityGrid grid_from_map(const terrain::MapData& map) {
         // Clear, 1 -> Steep, 2 -> Obstacle, anything else -> 0xFFFFFFFF, set as the cell's base bits (0x59f4b0).
         std::vector<uint32_t> v(static_cast<size_t>(w) * h, kPassClear);
         for (uint32_t x = 0; x < w; ++x) {
-            for (uint32_t i = 0; i < h; ++i) {
+            for (uint32_t i = 0; i < h; ++i) {  // i: the i-th byte of column x = row h - 1 - i
                 const uint8_t b = map.legacy_passability[static_cast<size_t>(x) * h + i];
-                v[static_cast<size_t>(h - 1 - i) * w + x] =
-                    b == 0 ? kPassClear : (b == 1 ? kPassSteep : (b == 2 ? kPassObstacle : 0xFFFFFFFFu));
+                constexpr uint32_t kLegacyBits[3] = {kPassClear, kPassSteep, kPassObstacle};
+                v[static_cast<size_t>(h - 1 - i) * w + x] = b < 3 ? kLegacyBits[b] : 0xFFFFFFFFu;  // every bit
             }
         }
         g.set_base(v);

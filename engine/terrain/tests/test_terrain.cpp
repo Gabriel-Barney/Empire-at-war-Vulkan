@@ -819,6 +819,7 @@ void test_hardening() {
         MapData p9;
         CHECK(parse_ted(nb, p9, &err) && p9.passability_present);
         CHECK(p9.unknown_world_chunks.empty());
+        CHECK(W > 1 && H > 1);  // the order check below needs both directions
         bool order = W > 1 && H > 1;
         for (uint32_t x = 0; x < W && order; ++x)
             for (uint32_t y = 0; y < H; ++y) order = order && p9.passability_at(x, y) == 1000u + x * H + (H - 1 - y);

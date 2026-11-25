@@ -868,7 +868,8 @@ bool parse_world(std::span<const uint8_t> node, MapData& map, Ctx& c, const Pars
         }
         case 0x109: {
             // #334 (0x3b9cc0 [H]): one u32 of pass bits per cell like 0x10A, in 0x104's order - x outer, y from H - 1 down
-            // to 0 - stored as the cell's base bits (0x59f4b0). Chunks apply in file order, so a later 0x10A / 0x109 wins.
+            // to 0 - stored as the cell's base bits (0x59f4b0). Retail applies the passability chunks in file order: a later
+            // 0x10A / 0x109 wins here too; [port] a 0x104 after them does not (grid_from_map uses 0x104 only without these).
             if (k.has_children) break;
             const Terrain& t = map.terrain;
             if (!t.present) break;

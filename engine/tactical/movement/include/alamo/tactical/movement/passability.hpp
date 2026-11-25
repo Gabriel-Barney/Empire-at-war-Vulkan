@@ -18,8 +18,8 @@
 //     - a footprint with `fine_tune` set keeps only the samples whose vertical ray hits the object's
 //     collision mesh (the caller supplies the ray test: the sim has no collision meshes yet).
 // Cells outside the playable box: the CELL CENTRE on or outside the box edge -> Obstacle (#334, the world load's
-// end 0x3b8cd0 [H]). PROVISIONAL: which objects become secondary occupants and with what footprint is not traced (the
-// vanilla users are the three base-shield generators, Base_Shield_Radius [inferred]: stamp_secondary_circle).
+// end 0x3b8cd0 [H]).
+// PROVISIONAL: which objects become secondary occupants and with what footprint is not traced (the vanilla users are the three base-shield generators, Base_Shield_Radius [inferred]: stamp_secondary_circle).
 #pragma once
 #include <array>
 #include <cstdint>
