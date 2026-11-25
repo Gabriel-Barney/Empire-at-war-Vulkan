@@ -6,7 +6,10 @@
 // Spec (one item per line, '#' comments):
 //   battle <id> space|land <attacker player> <defender player>
 //   side <player> <ai 0|1> <playable 0|1>
-//   unit <player> <type name> <count>          combatants in list order (defender units, attacker units, structures)
+//   unit <player> <type name> <count>          combatants in list order (defender units, attacker units, structures).
+//                                              #558: on land a ground structure is no combatant; the defender's planet
+//                                              (no persisted built objects in the refs) comes first, and the
+//                                              structures are lost when it is
 //   starbase <player> <type name>              the planet's starbase (space; levels below it from the rules)
 //   end
 // Output (stdout):
@@ -160,6 +163,11 @@ int main(int argc, char** argv) {
         in.attacker = b.attacker;
         in.players = b.sides;
         std::vector<uint32_t> type_of;  // per combatant
+        std::vector<std::pair<int32_t, uint32_t>> structures;  // land (#558): (owner, type), one per structure
+        if (!b.space) {  // as ConflictManager::auto_setup: the defender's planet first
+            in.combatants.push_back(make_ar_planet(rules, crules, b.defender, {}));
+            type_of.push_back(0xFFFFFFFFu);
+        }
         for (const Unit& u : b.units) {
             const uint32_t t = rules.find_type(u.type);
             if (t >= rules.types.size()) {
@@ -167,6 +175,10 @@ int main(int argc, char** argv) {
                 return 1;
             }
             for (int k = 0; k < u.count; ++k) {
+                if (!b.space && rules.types[t].kind == UnitKind::GroundStructure) {
+                    structures.emplace_back(u.player, t);
+                    continue;
+                }
                 in.combatants.push_back(make_ar_combatant(rules, crules, t, u.player, b.space, kTech));
                 type_of.push_back(t);
             }
@@ -200,6 +212,12 @@ int main(int argc, char** argv) {
                     const uint32_t st = r.starbase_type[i];
                     std::printf("starbase %s %d %d %s\n", b.id.c_str(), s, in.combatants[i].owner,
                                 st < rules.types.size() ? rules.types[st].name.c_str() : "destroyed");
+                    continue;
+                }
+                if (in.combatants[i].planet) {
+                    if (!r.survives[i])
+                        for (const auto& [owner, t] : structures)
+                            if (owner == in.combatants[i].owner) ++dead[{owner, t}];
                     continue;
                 }
                 if (!r.survives[i]) ++dead[{in.combatants[i].owner, type_of[i]}];

@@ -228,7 +228,7 @@ AutoResolveResult auto_resolve(const AutoResolveInput& in, const ContrastTable& 
                 if (e >= 0) r.vec[s][static_cast<size_t>(e)] += static_cast<double>(p.power);
                 r.vec[s][tot] += static_cast<double>(p.power);
             }
-        if (weakest[s] < 0 || c.own_power < weakest_p[s]) {
+        if (!c.planet && (weakest[s] < 0 || c.own_power < weakest_p[s])) {  // #558: the planet branch tracks none
             weakest[s] = static_cast<int32_t>(i);
             weakest_p[s] = c.own_power;
         }
@@ -308,9 +308,11 @@ AutoResolveResult auto_resolve(const AutoResolveInput& in, const ContrastTable& 
                     const float v = factor - 1.0f;
                     if (bit < 32 && v > strength_table[bit]) strength_table[bit] = v;
                 }
-        // #193 (0x60d2a0 [H]): one shot per combatant.
-        for (size_t i = 0; i < n; ++i)
-            if (side_of[i] == s) fire(in.combatants[i].shot, r.rem[1 - s]);
+        // #193 (0x60d2a0 [H]): one shot per combatant; #558: a land planet with no built objects fires none.
+        for (size_t i = 0; i < n; ++i) {
+            const ArCombatant& c = in.combatants[i];
+            if (side_of[i] == s && !(c.planet && c.pieces.empty())) fire(c.shot, r.rem[1 - s]);
+        }
     }
 
     // ---- winner (0x60c010) ----
@@ -403,7 +405,9 @@ AutoResolveResult auto_resolve(const AutoResolveInput& in, const ContrastTable& 
             const auto charge_spawned = [&b, &c] {
                 for (const ArPiece& p : c.spawned) b = std::max(0.0, b - static_cast<double>(p.power));
             };
-            if (loser && c.super) {
+            if (c.planet) {  // #558 (0x60a140 [H]): killed on the losing side, kept on the winning one, no charge
+                survive = !loser;
+            } else if (loser && c.super) {
                 survive = !killer[w];
             } else if (!c.starbase.empty()) {
                 charge_spawned();
@@ -427,7 +431,7 @@ AutoResolveResult auto_resolve(const AutoResolveInput& in, const ContrastTable& 
                 }
             }
             r.survives[ci] = survive ? 1 : 0;
-            if (!survive) ++r.losses[s];
+            if (!survive && !c.planet) ++r.losses[s];  // #558: the killed planet is no loss record (0x60a140 [H])
             any = any || survive;
         }
         if (!loser && !any && weakest[s] >= 0) {  // the winner keeps its weakest combatant
