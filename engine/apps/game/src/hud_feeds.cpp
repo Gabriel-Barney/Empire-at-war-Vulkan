@@ -442,7 +442,7 @@ FleetTooltip fleet_tooltip_summary(std::string_view owner_faction, bool land, st
     FleetTooltip out;
     // 0x2eb070 compares the owner faction with the tooltip's +0x2708 / +0x2728 / +0x2748 strings, the three HUD strings
     // space_weapon_faction_icon reads [M]: 0 Rebel, 1 Empire, 2 Underworld, 3 any other.
-    static constexpr const char* kSide[4] = {"GOOD", "EVIL", "CORRUPT", "PIRATE"};
+    static constexpr const char* kSide[4] = {"GOOD", "EVIL", "CORRUPT", "PIRATE"};  // [name-ok: retail TEXT_PIRATE_* tooltip keys]
     out.title = std::string("TEXT_") + kSide[space_weapon_faction_icon(owner_faction)] + (land ? "_LAND_GARRISON" : "_SPACE_FLEET");
     if (!land) {
         if (all_raid) out.badges.emplace_back("TEXT_RAID_FLEET");
