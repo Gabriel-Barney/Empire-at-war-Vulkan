@@ -1370,6 +1370,29 @@ using RunSetup = void (*)(game::GameSession&);
 void special_setup_run(game::GameSession& s) { special_setup(s); }
 void neutralize_setup_run(game::GameSession& s) { neutralize_setup(s); }
 
+// #455: a fleet dropped on its own planet's g_special_ability row activates by the fleet's id (App::activate_special_fleet):
+// the sim's fleet path finds the member with the accepting ability (the hunter) and opens its dialog.
+void fleet_activation_check(const game::GameData& data, const game::SessionSpec& spec) {
+    jobs::JobSystem js(jobs::JobSystemConfig{2});
+    game::GameSession s(data, js, spec);
+    CHECK(s.start());
+    if (!s.started()) return;
+    const NeutralizeIds ids = neutralize_setup(s);
+    sim::GalacticMode* gm = s.host().galactic_mode();
+    const galactic::GalacticSim* gs = gm ? gm->sim() : nullptr;
+    if (!gs || !ids.hunter) return;
+    uint32_t fleet_id = 0;
+    for (const galactic::FleetState& fl : gs->fleets())
+        for (const objects::ObjectHandle m : fl.contents)
+            if (fl.alive && gs->store().alive(m) && static_cast<uint32_t>(gs->store().id(m)) == ids.hunter)
+                fleet_id = static_cast<uint32_t>(gs->store().id(fl.object));
+    CHECK(fleet_id != 0 && game::fleet_by_id(*gs, fleet_id) != nullptr && game::fleet_by_id(*gs, ids.hunter) == nullptr);
+    CHECK(s.activate_special(fleet_id, ids.planet));
+    for (int i = 0; i < 2; ++i) s.tick();
+    const game::SpecialDialog* d = s.special_dialog();
+    CHECK(d && d->kind == galactic::kSpecialNeutralize && d->hero_id == ids.hunter);
+}
+
 void replay_run(const game::GameData& data, const game::SessionSpec& spec, const commands::CommandRecording& rec, uint64_t ticks,
                 int32_t workers, RunResult& out, RunSetup setup = nullptr, bool home_base = false) {
     jobs::JobSystem js(jobs::JobSystemConfig{workers});
@@ -2743,6 +2766,13 @@ void hud_feeds_test(const game::GameData& data, const game::SessionSpec& spec) {
             CHECK(raid.slot.kind == 0 && std::string_view(raid.slot.label) == "TEXT_ABILITY_SLOT_RAID");
             CHECK(game::drag_ability_slot(gg, units, kInvalidPlanet, rank, false).slot.kind == -1);
         }
+        // the rule itself (0x3eb200): one object keeps its kind; a group keeps only destroy planet; a gate clears; raid wins
+        const galactic::ActivatedAbilitySlot spy{3, "TEXT_ABILITY_SLOT_SPY"}, dp{game::kAbilityKindDestroyPlanet, "TEXT_TOOLTIP_ABILITY_DESTROY_PLANET_NAME"};
+        CHECK(game::drag_row_slot(spy, 1, false, false).kind == 3 && game::drag_row_slot(spy, 3, false, false).kind == -1);
+        CHECK(game::drag_row_slot(dp, 3, false, false).kind == game::kAbilityKindDestroyPlanet);
+        CHECK(game::drag_row_slot(dp, 3, true, false).kind == -1 && game::drag_row_slot(spy, 1, true, false).kind == -1);
+        const galactic::ActivatedAbilitySlot r = game::drag_row_slot({}, 3, true, true);
+        CHECK(r.kind == game::kAbilityKindRaid && std::string_view(r.label) == "TEXT_ABILITY_SLOT_RAID");
     }
     std::printf("hud feeds: cycle %.4f -> %.4f, %zu galactic hero entries, %zu drag routes\n", static_cast<double>(f0),
                 static_cast<double>(f1), heroes.size(), routes_checked);
@@ -3590,6 +3620,7 @@ int main() {
         commands::CommandRecording rec5;
         RunResult nr;
         if (neutralize_run(data, spec, rec5, nr)) replays("neutralize hero", rec5, nr, &neutralize_setup_run);
+        fleet_activation_check(data, spec);
         // [port] skirmish map -> planet type: the name after _MP_SPACE_ / _MP_LAND_ when it is a PLANET type.
         CHECK(game::skirmish_map_planet_type(data.rules, "_MP_LAND_GS_PLANET") == "GS_Planet");
         CHECK(game::skirmish_map_planet_type(data.rules, "Data\\Art\\Maps\\_mp_space_gs_planet.ted") == "GS_Planet");

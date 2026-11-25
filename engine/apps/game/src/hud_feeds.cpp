@@ -437,13 +437,19 @@ const char* galactic_announcement(const galactic::GalacticSim& g, const galactic
     }
 }
 
+const galactic::FleetState* fleet_by_id(const galactic::GalacticSim& g, uint32_t fleet_id) {
+    const objects::ObjectHandle h = g.store().find(static_cast<objects::ObjectId>(fleet_id));
+    const uint32_t fi = h ? g.fleet_of(h) : galactic::kNoFleet;
+    return fi == galactic::kNoFleet || fi >= g.fleets().size() ? nullptr : &g.fleets()[fi];
+}
+
 std::vector<PlanetIndex> fleet_drag_route(const galactic::GalacticSim& g, int32_t me, uint32_t fleet_id, PlanetIndex target) {
     std::vector<PlanetIndex> path;
     if (me < 0 || target >= g.planets().size()) return path;
-    const objects::ObjectHandle h = g.store().find(static_cast<objects::ObjectId>(fleet_id));
-    const uint32_t fi = h ? g.fleet_of(h) : galactic::kNoFleet;
-    if (fi == galactic::kNoFleet || fi >= g.fleets().size()) return path;
-    const galactic::FleetState& fl = g.fleets()[fi];
+    const galactic::FleetState* fp = fleet_by_id(g, fleet_id);
+    if (!fp) return path;
+    const galactic::FleetState& fl = *fp;
+    const objects::ObjectHandle h = fl.object;
     if (fl.moving || fl.planet == kInvalidPlanet || fl.planet == target) return path;
     // 0x3da30's request: Path_Request_Init (every flag set), then flags 0..2 = the fleet is hidden, flag 4 = set.
     const bool hidden = g.hidden(h);
@@ -474,9 +480,15 @@ DragAbilitySlot drag_ability_slot(const galactic::GalacticSim& g, std::span<cons
     if (live == 0 || target >= g.planets().size()) return out;
     const galactic::StoryGates& gates = g.story_gates();
     const bool gated = target < gates.planet.size() && (gates.planet[target] & galactic::StoryGates::kNoAbilities) != 0;
-    if (!gated) out.slot = galactic::activated_ability_slot_of(g.rules().special, static_cast<uint32_t>(st.type(out.member)));
-    if (live != 1 && out.slot.kind != 6) out.slot = {};
-    if (raid) out.slot = {0, "TEXT_ABILITY_SLOT_RAID"};
+    out.slot = drag_row_slot(galactic::activated_ability_slot_of(g.rules().special, static_cast<uint32_t>(st.type(out.member))), live,
+                             gated, raid);
+    return out;
+}
+
+galactic::ActivatedAbilitySlot drag_row_slot(galactic::ActivatedAbilitySlot member, size_t live, bool gated, bool raid) {
+    galactic::ActivatedAbilitySlot out = gated ? galactic::ActivatedAbilitySlot{} : member;
+    if (live != 1 && out.kind != kAbilityKindDestroyPlanet) out = {};
+    if (raid) out = {kAbilityKindRaid, "TEXT_ABILITY_SLOT_RAID"};
     return out;
 }
 

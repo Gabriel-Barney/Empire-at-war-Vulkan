@@ -822,6 +822,15 @@ private:
     double last_approach_s_ = -1e9;              // wall clock of the last enemy-approach announcement
     uint64_t build_refusals_ = 0;  // clicks on greyed galactic build pads (negative feedback)
     bool activate_special_fleet(uint32_t fleet_id, uint32_t planet_id);  // #455
+    int32_t type_ranking(uint32_t type) const;  // the type's Ranking_In_Category (0 when out of range)
+    // #455: the drag rows of one fleet for one galaxy frame (the provider runs per visible planet every build).
+    struct DragRowCache {
+        uint32_t fleet = 0;
+        int32_t frame = -1;
+        std::vector<std::pair<uint32_t, std::optional<ui::GalacticSpecialAbility>>> rows;  // planet id -> row
+    };
+    DragRowCache drag_rows_;
+    std::optional<ui::GalacticSpecialAbility> drag_special_row(uint32_t fleet_id, uint32_t planet_id) const;
     // OI host: main-menu attract demo (attract_mode.hpp), audio flags, fast forward.
     AttractController attract_;
     int32_t last_mouse_x_ = 0, last_mouse_y_ = 0;

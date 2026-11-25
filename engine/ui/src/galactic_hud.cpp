@@ -1335,7 +1335,7 @@ void GalacticHud::build_objectives(const GalacticHudFrame& f) {
 void GalacticHud::build_special_abilities(const GalacticHudFrame& f) {
     // #455 (docs/re/GALACTIC_ABILITY_ROWS.md "The row", 0x3eb200 refreshed for every planet by 0x3ea1b0 [H]): while an own
     // map fleet is dragged, each visible planet shows the one row the host classifies for it (only the first of the two
-    // clones 0x3d3790 makes is ever shown).
+    // clones 0x3d3790 makes is ever shown [H]).
     if (special_ < 0 || !drag_.active || drag_.fleet_index != kMapFleetIndex || drag_.fleet == 0 || !f.providers.drag_special_ability)
         return;
     const auto alpha = static_cast<uint8_t>(std::clamp(std::lround(planet_label_alpha(f.zoom_state, f.zoom)), 0L, 255L));
@@ -1357,8 +1357,8 @@ void GalacticHud::build_special_abilities(const GalacticHudFrame& f) {
         const Vec2f mn{ctr.x - 0.5f * size.x, ctr.y - 0.5f * size.y}, mx{ctr.x + 0.5f * size.x, ctr.y + 0.5f * size.y};
         const bool over = cur.x >= mn.x && cur.x <= mx.x && cur.y >= mn.y && cur.y <= mx.y;
         const Rgba8 tint = with_alpha(Rgba8{}, alpha);
-        if (const std::string* bt = pick(c.blank_texture, 0))
-            add_atlas_quad(dl_, layer, HudList::Alpha, *atlas_, *bt, ctr, {}, c.scale, tint, size);
+        if (const std::string* frame = pick(c.blank_texture, 0))
+            add_atlas_quad(dl_, layer, HudList::Alpha, *atlas_, *frame, ctr, {}, c.scale, tint, size);
         const std::string* icon = !r.icon.empty() ? &r.icon : pick(c.icon_alternate_texture, f.faction_alt);
         if (icon) add_atlas_quad(dl_, layer, HudList::Alpha, *atlas_, *icon, ctr, {}, c.scale, tint);
         if (over)

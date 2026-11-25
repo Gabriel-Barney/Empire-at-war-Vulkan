@@ -16,22 +16,13 @@ uint32_t App::panel_kind() const {
     return panel_preview_;
 }
 
-// #455: SpecialAbility kind 1 (activate) by the fleet dropped on a g_special_ability row at its own planet: the sim picks the
-// fleet's first member with an accepting Ground_Activated ability (0x398670). False when refused.
+// #455: SpecialAbility kind 1 (activate) by the fleet dropped on a g_special_ability row at its own planet. The fleet's own
+// id takes the sim's fleet path: the fleet must be at the planet and not moving, and the first member with an accepting
+// Ground_Activated ability uses it (0x398670 [M]). False when refused.
 bool App::activate_special_fleet(uint32_t fleet_id, uint32_t planet_id) {
-    const galactic::GalacticSim* g = galaxy();
-    if (!g || !session_) return false;
-    const objects::ObjectStore& st = g->store();
-    const objects::ObjectHandle fh = st.find(static_cast<objects::ObjectId>(fleet_id));
-    const uint32_t fi = fh ? g->fleet_of(fh) : galactic::kNoFleet;
-    if (fi == galactic::kNoFleet || fi >= g->fleets().size()) return false;
-    for (const objects::ObjectHandle m : g->fleets()[fi].contents)
-        if (st.alive(m)) {
-            if (!session_->activate_special(static_cast<uint32_t>(st.id(m)), planet_id)) return false;
-            ++activations_;
-            return true;
-        }
-    return false;
+    if (!session_ || !session_->activate_special(fleet_id, planet_id)) return false;
+    ++activations_;
+    return true;
 }
 
 // #62 t05: the local corrupter's corruption speech (CampaignBattles::corruption_speech -> GameAudioHost::corruption_speech),

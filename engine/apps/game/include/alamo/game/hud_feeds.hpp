@@ -161,11 +161,18 @@ ui::HudBuildOption::Block galactic_build_block(commands::RejectReason why);
 const char* galactic_announcement(const galactic::GalacticSim& g, const galactic::GalacticEvent& e, int32_t local_player);
 std::vector<std::u32string> droid_log_rows(std::u32string_view day_text, int32_t cycle, std::u32string_view text, std::u32string_view separator);
 std::vector<PlanetIndex> fleet_drag_route(const galactic::GalacticSim& g, int32_t local_player, uint32_t fleet_id, PlanetIndex target);
+// The live fleet whose fleet object has id `fleet_id` (a map stack's GalacticPlanetStack::fleet), nullptr when none.
+const galactic::FleetState* fleet_by_id(const galactic::GalacticSim& g, uint32_t fleet_id);
+// #455 (docs/re/GALACTIC_ABILITY_ROWS.md "The kind and its label"): the two kinds the row rule names.
+inline constexpr int32_t kAbilityKindRaid = 0, kAbilityKindDestroyPlanet = 6;
+// #455 (0x3eb200 [H]): the row rule on the classified member's slot. `live` = the group's live objects, `gated` = the
+// planet's story kNoAbilities gate (0x4470b0 [H]): none when gated, only kAbilityKindDestroyPlanet for more than one
+// object, then `raid` gives kAbilityKindRaid (TEXT_ABILITY_SLOT_RAID).
+galactic::ActivatedAbilitySlot drag_row_slot(galactic::ActivatedAbilitySlot member, size_t live, bool gated, bool raid);
 // #455 (docs/re/GALACTIC_ABILITY_ROWS.md "The kind and its label" / "The row", 0x3d2020 / 0x3eb200 [H]): the
 // g_special_ability row of a dragged group at `target`. The group's live member with the lowest Ranking_In_Category
-// (`ranking`, null: 0; the first on a tie) is classified (activated_ability_slot_of); a story-gated planet (kNoAbilities,
-// 0x4470b0) gives none; a group of more than one live object keeps only kind 6 (destroy planet); then `raid` (the caller's
-// raid test, 0x2e6020 [M]) makes it kind 0, TEXT_ABILITY_SLOT_RAID. `member` = the classified object.
+// (`ranking`, null: 0; the first on a tie) is classified (activated_ability_slot_of), then drag_row_slot applies (`raid`:
+// the caller's raid test, 0x2e6020 [M]). `member` = the classified object.
 struct DragAbilitySlot {
     galactic::ActivatedAbilitySlot slot;
     objects::ObjectHandle member;

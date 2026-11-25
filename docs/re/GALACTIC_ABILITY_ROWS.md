@@ -75,8 +75,11 @@ drive `g_special_ability` [H].
     `0x2e6020`].
   - The planets: the fleet's own planet, and every planet `fleet_drag_route` reaches (the drag lines' path request,
     `0x3da30`). Retail's `0x3f0010` is not read [M].
-  - A drop on the own planet's row activates (SpecialAbility kind 1 with the fleet's first member; the sim picks the
-    accepting member, `0x398670`). A drop on another planet's row is the planet drop's `MoveObjectToObject`.
+  - A drop on the own planet's row activates: SpecialAbility kind 1 with the fleet's id, so the sim's fleet path picks
+    the first member with an accepting ability (`0x398670` [M]). A drop on another planet's row is the planet drop's
+    `MoveObjectToObject`.
+  - The rows are cached per fleet and galaxy frame. The placement and the planets that show a row are recorded in
+    docs/DECISIONS.md "Galactic ability rows".
   - The selected-planet rows and their click are gone. Selecting a hero shows no row, as in retail.
 - **Enabled:** rows are always enabled, which matches retail.
 - **Not built:** the land-forces drag (the port's land stacks are not draggable) and the story-forced planets

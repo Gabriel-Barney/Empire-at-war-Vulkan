@@ -100,7 +100,7 @@ std::string App::representative_icon(std::span<const objects::ObjectHandle> unit
             best_hp = hp;
         }
         if (is_hero) {
-            const int32_t r = t < data_.types.size() ? data_.types.get_int(t, "Ranking_In_Category") : 0;
+            const int32_t r = type_ranking(t);
             if (hero == objects::kNone || r < hero_rank) {
                 hero = t;
                 hero_rank = r;
@@ -905,36 +905,56 @@ void App::build_galactic_hud(ui::GalacticHudFrame& f, std::vector<ui::GalacticPl
             }
         }
     };
-    // #455 (docs/re/GALACTIC_ABILITY_ROWS.md "The row"): while an own map fleet is dragged, each planet's g_special_ability
-    // row is that fleet classified there (game::drag_ability_slot, ranked by Ranking_In_Category). Its own planet always
-    // [M: 0x3d2900 has a same-planet branch]; another planet when the move is valid: fleet_drag_route finds a path (the drag
-    // lines' request, 0x3da30; retail's test 0x3f0010 is not read [M]). Raid: the planet's owner is an enemy and the fleet
-    // passes the Raid_Force test (0x432e20; what retail's 0x2e6020 tests is [M]).
+    // #455: the drag rows, cached per fleet and galaxy frame (drag_special_row).
     f.providers.drag_special_ability = [this](uint32_t fleet_id, uint32_t planet, ui::GalacticSpecialAbility& out) {
         const galactic::GalacticSim* gs = galaxy();
         if (!gs) return false;
-        const objects::ObjectStore& st = gs->store();
-        const objects::ObjectHandle fh = st.find(static_cast<objects::ObjectId>(fleet_id));
-        const uint32_t fi = fh ? gs->fleet_of(fh) : galactic::kNoFleet;
-        const PlanetIndex target = planet_index(*gs, planet);
-        if (fi == galactic::kNoFleet || fi >= gs->fleets().size() || target == kInvalidPlanet) return false;
-        const galactic::FleetState& fl = gs->fleets()[fi];
-        const int32_t me = local_player();
-        if (target != fl.planet && game::fleet_drag_route(*gs, me, fleet_id, target).empty()) return false;
-        const int32_t owner = gs->planets()[target].owner;
-        const galactic::ConflictManager* cm = session_ && session_->battles() ? &session_->battles()->conflicts() : nullptr;
-        const bool raid = cm && me >= 0 && owner >= 0 && owner != me && gs->relation(me, owner) == galactic::Relation::Enemy &&
-                          cm->raid_force(me, fl.contents);
-        const game::DragAbilitySlot d = game::drag_ability_slot(
-            *gs, fl.contents, target,
-            [this](uint32_t t) { return t < data_.types.size() ? data_.types.get_int(static_cast<objects::TypeIndex>(t), "Ranking_In_Category") : 0; },
-            raid);
-        if (d.slot.kind < 0 || !d.slot.label || d.slot.label[0] == '\0') return false;
-        out.text_key = d.slot.label;
-        if (st.alive(d.member))
-            if (const objects::TypeIndex t = st.type(d.member); t < ui_.hud_types.size()) out.icon = ui_.hud_types[t].icon_name;
-        return true;
+        if (drag_rows_.fleet != fleet_id || drag_rows_.frame != gs->frame()) drag_rows_ = {fleet_id, gs->frame(), {}};
+        for (const auto& [p, row] : drag_rows_.rows)
+            if (p == planet) {
+                if (row) out = *row;
+                return row.has_value();
+            }
+        const std::optional<ui::GalacticSpecialAbility> row = drag_special_row(fleet_id, planet);
+        drag_rows_.rows.emplace_back(planet, row);
+        if (row) out = *row;
+        return row.has_value();
     };
+}
+
+// #455 (docs/re/GALACTIC_ABILITY_ROWS.md "The row"): the g_special_ability row of an own map fleet at a planet, the fleet
+// classified there (game::drag_ability_slot, ranked by Ranking_In_Category).
+// - Its own planet [M: 0x3d2900 has a same-planet branch]: when the fleet is not moving, and never the raid row (a raid
+//   is a move) [port] (docs/DECISIONS.md "Galactic ability rows").
+// - Another planet when the move is valid: fleet_drag_route finds a path (the drag lines' request, 0x3da30; retail's
+//   0x3f0010 is not read [M]).
+// - Raid: the planet's owner is an enemy and the fleet passes the Raid_Force test (0x432e20; what 0x2e6020 tests is [M]).
+std::optional<ui::GalacticSpecialAbility> App::drag_special_row(uint32_t fleet_id, uint32_t planet_id) const {
+    const galactic::GalacticSim* gs = galaxy();
+    if (!gs) return std::nullopt;
+    const galactic::FleetState* fl = game::fleet_by_id(*gs, fleet_id);
+    const PlanetIndex target = planet_index(*gs, planet_id);
+    const int32_t me = local_player();
+    if (!fl || target == kInvalidPlanet || me < 0) return std::nullopt;
+    const bool home = target == fl->planet;
+    if (home ? fl->moving : game::fleet_drag_route(*gs, me, fleet_id, target).empty()) return std::nullopt;
+    const int32_t owner = gs->planets()[target].owner;
+    const galactic::ConflictManager* cm = session_ && session_->battles() ? &session_->battles()->conflicts() : nullptr;
+    const bool raid = !home && cm && owner >= 0 && owner != me && gs->relation(me, owner) == galactic::Relation::Enemy &&
+                      cm->raid_force(me, fl->contents);
+    const game::DragAbilitySlot d =
+        game::drag_ability_slot(*gs, fl->contents, target, [this](uint32_t t) { return type_ranking(t); }, raid);
+    if (d.slot.kind < 0 || !d.slot.label || d.slot.label[0] == '\0') return std::nullopt;
+    ui::GalacticSpecialAbility r;
+    r.text_key = d.slot.label;
+    const objects::ObjectStore& st = gs->store();
+    if (st.alive(d.member))
+        if (const objects::TypeIndex t = st.type(d.member); t < ui_.hud_types.size()) r.icon = ui_.hud_types[t].icon_name;
+    return r;
+}
+
+int32_t App::type_ranking(uint32_t type) const {
+    return type < data_.types.size() ? data_.types.get_int(static_cast<objects::TypeIndex>(type), "Ranking_In_Category") : 0;
 }
 
 void App::build_tactical_hud() {

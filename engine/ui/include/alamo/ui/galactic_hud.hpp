@@ -20,8 +20,9 @@
 //                   (g_planet_fleet) is dragged, at most one row per visible planet, the one
 //                   GalacticProviders::drag_special_ability gives for that fleet there. A drop on a row at the fleet's
 //                   own planet -> HudAction::Button "g_special_ability" (unit = fleet, ids = {planet}); at another planet
-//                   -> MoveObjectToObject {fleet, planet}, the planet drop's move (0x3d2900 [M]). [port] the row centre =
-//                   planet centre + Offset (Offset -48 -20: left of and below the planet, +Y up like the labels);
+//                   -> MoveObjectToObject {fleet, planet}, the planet drop's move (0x3d2900 [M]). [port] (docs/DECISIONS.md
+//                   "Galactic ability rows") the row centre = planet centre + Offset (Offset -48 -20: left of and below
+//                   the planet, +Y up like the labels);
 //                   Blank_Texture_Name frame, icon = the row's icon or Icon_Alternate_Texture_Name[faction],
 //                   Mouse_Over_Texture_Name[faction] on the row under the cursor, text at Text_Offset (+Y down,
 //                   Right_Justified); label alpha.
