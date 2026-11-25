@@ -365,8 +365,10 @@ bool GalacticSim::start(const GalacticSetup& setup, std::vector<std::string>* di
         for (PlanetIndex i = 0; i < n; ++i)
             if (planets_[i].is_planet && planets_[i].type == planet_type) {
                 set_corruption(i, value >= 1 ? kCorruptionRacketeering : kCorruptionNone, planets_[i].owner);
-                if (value >= 1) pay_corruption_bonus(i, kCorruptionRacketeering, planets_[i].owner);
-                corruption_upgrades(i, value >= 1 ? kCorruptionRacketeering : kCorruptionNone, kCorruptionNone, planets_[i].owner);
+                if (value >= 1) {
+                    pay_corruption_bonus(i, kCorruptionRacketeering, planets_[i].owner);
+                    corruption_upgrades(i, kCorruptionRacketeering, kCorruptionNone, planets_[i].owner);
+                }
                 break;
             }
     // mcx4 t21 (Q2) [H]: then each planet's first political update (tick 1 in retail, 0x3fb040 via the planet service
@@ -2358,7 +2360,7 @@ void GalacticSim::hash_state(StateHasher& h) const {
         bool any = false;
         for (const PlayerState& p : players_) any = any || !p.planet_upgrades.empty();
         if (any) {
-            h.u32(0x31555450u);  // "PTU1"
+            h.u32(0x50545531u);  // "PTU1"
             for (const PlayerState& p : players_) {
                 h.u32(static_cast<uint32_t>(p.planet_upgrades.size()));
                 for (const auto& [planet, t] : p.planet_upgrades) {

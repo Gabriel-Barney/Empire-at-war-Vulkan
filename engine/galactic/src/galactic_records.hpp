@@ -305,7 +305,8 @@ private:
 
 // ---- PlayerState: the CRC reads the identity, the account and the tech fields; the purchase / lock lists, the
 // tutorial flags, the corruption counts, the max tech level and the build counts are saved only (hash_oi /
-// hash_diplomacy hash some of them in their own sections, once touched). GalacticSim::write adds last_income after it.
+// hash_diplomacy hash some of them in their own sections, once touched). GalacticSim::write adds last_income after it;
+// home (v8) and the per-planet tactical upgrade lists (#68, v13; hashed in their own "PTU1" section) are saved later.
 template <class Ar, Of<PlayerState> R>
 void visit(Ar& ar, R& p) {
     ar.u32(p.faction);

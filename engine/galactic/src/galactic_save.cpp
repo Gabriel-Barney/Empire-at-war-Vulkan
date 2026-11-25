@@ -60,7 +60,8 @@ namespace {
 // session's start() values. v11: + last, the fleets holding the sticky story auto-resolve lock {u32 count,
 // u32 fleet index...} ascending; v10 and older derive it from each fleet's current contents. v12: + the company
 // survivor records. v13: + last, per player (player order) the planet_upgrades list {u32 count, {u32 planet, u32 type}...};
-// v12 and older read every list as empty.
+// v12 and older rebuild them from each planet's corruption type ([port] tier 3, save format): as a completion with old
+// type none and P = the first Benefits_From_Corruption player.
 constexpr uint32_t kGalacticSaveVersion = 13;  // 13: + the per-planet tactical upgrade lists after the survivors
 constexpr uint32_t kGalacticSaveVersionNoPlanetUpgrades = 12;
 constexpr uint32_t kGalacticSaveVersionNoSurvivors = 11;
@@ -445,7 +446,7 @@ bool GalacticSim::read(ByteReader& r) {
             }
         }
     }
-    for (PlayerState& p : players) p.planet_upgrades.clear();  // #68 (v13); v12 and older: none
+    for (PlayerState& p : players) p.planet_upgrades.clear();  // #68 (v13); v12 and older: rebuilt after the commit
     if (version >= 13)
         for (PlayerState& p : players) {
             uint32_t n_up = 0;
@@ -481,6 +482,10 @@ bool GalacticSim::read(ByteReader& r) {
     planets_ = std::move(planets);
     fleets_ = std::move(fleets);
     company_survivors_ = std::move(survivors);
+    if (version < 13)  // #68: the lists of a save from before them, from the current corruption (planet order)
+        for (PlanetIndex i = 0; i < planets_.size(); ++i)
+            if (planets_[i].is_planet && planets_[i].corruption != kCorruptionNone)
+                corruption_upgrades(i, planets_[i].corruption, kCorruptionNone, first_corruption_player());
     stealthed_ = std::move(stealthed);
     ground_shy_ = std::move(ground_shy);
     claims_ = std::move(claims);

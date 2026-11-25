@@ -1118,11 +1118,11 @@ namespace alamo::sim {
 void TacticalBattle::ga_add_types() {
     if (cfg_.skirmish) {  // no galactic planets behind a skirmish
         ga_upgrades_.clear();
-        cu_upgrades_.clear();
+        corruption_upgrades_.clear();
     }
-    if (!tables_ || (ga_upgrades_.empty() && cu_upgrades_.empty())) return;
+    if (!tables_ || (ga_upgrades_.empty() && corruption_upgrades_.empty())) return;
     const size_t before = types_used_.size();
-    for (const auto* list : {&ga_upgrades_, &cu_upgrades_})
+    for (const auto* list : {&ga_upgrades_, &corruption_upgrades_})
         for (const auto& [player, t] : *list) {
             (void)player;
             if (std::find(types_used_.begin(), types_used_.end(), t) == types_used_.end()) types_used_.push_back(t);
@@ -1137,9 +1137,9 @@ void TacticalBattle::ga_spawn_upgrades(TacticalMode& mode) {
     // [port] The object joins the ability system like a produced DUMMY_UPGRADE (add_container), so its automatic
     // abilities apply; it is tracked with the production upgrades (hashed and saved with them).
     // #68: then the per-planet corruption upgrades (set_corruption_upgrades), with no level or ownership test.
-    if (!ga_spawn_ || !abilities_) {  // a battle rebuilt by a save load: the objects come from the save
+    if (!ga_spawn_ || !abilities_) {  // a battle rebuilt by a save load (its objects come from the save), or no abilities
         ga_upgrades_.clear();
-        cu_upgrades_.clear();
+        corruption_upgrades_.clear();
         return;
     }
     const objects::GameObjectTypes& types = catalog_->types();
@@ -1155,9 +1155,9 @@ void TacticalBattle::ga_spawn_upgrades(TacticalMode& mode) {
         }
         return false;
     };
-    const auto spawn = [&](int32_t player, objects::TypeIndex ti) {  // 0x29f810 at the origin
+    const auto spawn = [&](int32_t player, uint32_t t) {  // 0x29f810 at the origin
         objects::SpawnParams sp;
-        sp.type = ti;
+        sp.type = static_cast<objects::TypeIndex>(t);
         sp.owner = player;
         sp.position = Vec3{};
         sp.facing = Vec3{1.0f, 0.0f, 0.0f};
@@ -1165,7 +1165,7 @@ void TacticalBattle::ga_spawn_upgrades(TacticalMode& mode) {
         if (!store.alive(h)) return;
         const objects::ObjectId id = store.id(h);
         const std::vector<tc::ObjectId> none;
-        abilities_->add_container(id, desc_of(static_cast<uint32_t>(ti)), player, none, frame_, bt_rng_);
+        abilities_->add_container(id, desc_of(t), player, none, frame_, bt_rng_);
         hg_upgrade_objs_.push_back(HgUpgradeObject{id, h});
         prod_used_ = true;
     };
@@ -1174,12 +1174,12 @@ void TacticalBattle::ga_spawn_upgrades(TacticalMode& mode) {
         const auto ti = static_cast<objects::TypeIndex>(t);
         if (!hg_trim(types.get(ti, objects::tags::Previous_Upgrade_Level_Type)).empty()) continue;
         if (owns_level(player, t)) continue;
-        spawn(player, ti);
+        spawn(player, t);
     }
-    for (const auto& [player, t] : cu_upgrades_)
-        if (t < types.size()) spawn(player, static_cast<objects::TypeIndex>(t));
+    for (const auto& [player, t] : corruption_upgrades_)
+        if (t < types.size()) spawn(player, t);
     ga_upgrades_.clear();
-    cu_upgrades_.clear();
+    corruption_upgrades_.clear();
 }
 
 }  // namespace alamo::sim
