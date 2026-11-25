@@ -73,7 +73,10 @@ flag set at the Tactical_Bribe owner change, [port] also true for a member of a 
 start-force ids (the port does not set bit 2 on the start force, so the hangar engine check is unchanged; re-delivered units are
 not flagged), and the slots from GarrisonSystem capacity / used. app_hud.cpp copies it into `HudUnit` for selected and hovered
 units; `WorldHud` draws the icons beside the health bar, so [port] none while the health bar is hidden. The slot row sits just
-under the bar [port]; retail's offset constant is not read.
+under the bar [port]; retail's offset constant is not read. Not ported: the slot row's hide test (obj +0x3a0 & 0x80, the death
+clone bit, which a selectable unit does not carry), and any bribed-icon width a hostile bribed unit may reserve before the bomb
+icon (retail shows bribed_icon by +0x3cc but gives it a texture only when allied; the port adds the width only when it draws the
+icon). "Allied" is WorldHud's hostile predicate, which the game host does not set yet (#536).
 
 ### Garrison respawn counter (0x231): tactical HUD button [H rule, M position]
 Created once (0x2e9700, HUD +0x2028), texture = Icon i_button_skirmish_reinforcements.tga, Build overlay i_button_build.tga.
