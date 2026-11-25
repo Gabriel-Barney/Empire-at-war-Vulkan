@@ -227,6 +227,10 @@ struct TypeSpecial {
     // all its cargo is).
     bool galactic_stealth = false;
     float detection_chance = -1.0f;  // DetectHeroAbility-style Detection_Chance (ability +0x17C), -1 = no detector
+    // #245 (docs/re/ANTI_STEALTH_EFFECTIVENESS.md): Detect_Interval_In_Seconds (ability +0x178). The apply vf30 0x6f6b70
+    // stores Detection_Chance / it as the unit's anti-stealth value (pack +0x8c, read by AntiStealthEffectiveness) [H];
+    // [M] the constructor's default for a missing tag was not read: 0.
+    float detect_interval = 0.0f;
     // mcx4 t06 (MCX4_T09_RE_ANSWERS Q11): the Galactic_Stealth_Ability's Evade_Detection_Chance (+0x178), clamped to
     // [0, 1] as the activation stores it (0x3a86d0). A team without its own stealth entry takes its first member's
     // [port, as for the abilities]. FoC: 0.0 everywhere.

@@ -572,6 +572,8 @@ void load_special_rules(const FileProvider& provider, const data::GameDatabase& 
                 const objects::FieldColumns& fc = raw.fields();
                 for (objects::FieldIndex c = f + 1; c < fc.size() && fc.depth[c] > fc.depth[f]; ++c)
                     if (fc.parent[c] == f && ascii_iequals(raw.tag_name(c), "Detection_Chance")) ts.detection_chance = to_f(fc.text[c]);
+                    else if (fc.parent[c] == f && ascii_iequals(raw.tag_name(c), "Detect_Interval_In_Seconds"))
+                        ts.detect_interval = to_f(fc.text[c]);  // #245
             }
             if (ascii_iequals(tag, "Bounty_On_Faction_Ability")) {  // a2m r2
                 auto bit = parsed_bounty.find(f);
