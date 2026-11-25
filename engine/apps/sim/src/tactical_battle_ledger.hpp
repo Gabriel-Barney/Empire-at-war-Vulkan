@@ -224,7 +224,7 @@
     REBUILT(credits_add_notify_, "host callback, registered again on a rebuild") \
     REBUILT(arrival_hold_, "host callback, registered again on a rebuild") \
     REBUILT(scoring_death_, "host callback, registered again on a rebuild") \
-    REBUILT(before_map_load_, "host callback, registered again on a rebuild") \
+    REBUILT(before_map_load_, "host callback, registered again on a rebuild")     REBUILT(upgrade_track_, "host callback, registered again on a rebuild (CampaignBattles, #459)") \
     REBUILT(bt_rng_, "set by the host that starts the battle, the same on a rebuild") \
     SAVED(bt_attrition_ids_, state) \
     SAVED(bt_attrition_kills_, state) \
