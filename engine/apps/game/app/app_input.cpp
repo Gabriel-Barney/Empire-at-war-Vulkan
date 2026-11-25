@@ -1582,7 +1582,7 @@ void App::move_ack(const ui::MoveAck& a) {
         const std::string& click = ack_radar_[static_cast<size_t>(ui::AckRadar::Click)];
         std::vector<uint32_t> gone;
         for (const ui::RadarEvent& e : radar_events_.items())
-            if (ascii_iequals(e.type, click)) gone.push_back(e.id);
+            if (!e.marker && !click.empty() && ascii_iequals(e.type, click)) gone.push_back(e.id);  // #479: not the unnamed pings
         for (const uint32_t id : gone) radar_events_.remove(id);
     }
     const std::string& radar = ack_radar_[static_cast<size_t>(a.radar())];
