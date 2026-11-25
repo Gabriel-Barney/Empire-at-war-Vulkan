@@ -209,9 +209,9 @@ public:
     void set_shadow_blobs(std::span<const terrain::ShadowBlob> blobs);
     WorldRenderer& world() { return world_; }
     const MapSceneStats& stats() const { return stats_; }
-    // The tactical start camera: TacticalCameras.xml Land_Mode pitch 50 / distance 460 / FOV 55 (4:3) / near
-    // 10 / far 7000 (or the map's 0x10C minis 12 / 14 / 15 when plausible, a mapping inferred from their
-    // values), looking north at the centre of the playable box on the terrain surface (legacy docs/re/RENDER.md 3.4).
+    // The tactical start camera: TacticalCameras.xml Land_Mode Pitch_Default 50 / Distance_Max 460 / Fov_Default 55 (4:3) /
+    // near 10 / far 7000 - retail overwrites the map's camera values at the end of the load (#328) - looking north at the
+    // centre of the playable box on the terrain surface (legacy docs/re/RENDER.md 3.4).
     // distance_override > 0 replaces the distance (alamo_render --camera-distance).
     OrbitCamera tactical_camera(float aspect, float distance_override = -1.0f) const;
     static constexpr float kNear = 10.0f, kFar = 7000.0f;
