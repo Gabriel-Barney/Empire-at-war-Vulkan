@@ -108,8 +108,10 @@ After the eye [H]:
 - They do not model `0x49a610` (an orbit key followed by another key, which no ported shot uses), the look smoothing,
   the hardpoint / muzzle keys or the roll keys (#562).
 - The smoothing is `BattleCam::smooth_eye`, once per shot frame.
-- The terrain clamp (#564) is the host's (`battle_cam_camera`), with the flag in `BattleCam::terrain_clamp` (set by
-  Cinematic View, never cleared).
+- The terrain clamp (#564) is `terrain_clamped_eye` in `battle_cam_camera`, with the flag in `BattleCam::terrain_clamp`.
+  The flag is set by Cinematic View. [port] Nothing clears it yet, because the paths that clear it in retail (a type's
+  cinematic file, the script cinematic `0x4a5d20`) don't use this controller in the port. The TSW shot doesn't apply
+  it, since it only runs in space.
 
 ## The handheld noise (`0x4ab780` / `0x4ab060`) [H]
 
@@ -146,8 +148,9 @@ The port: `handheld_shake(dur)` (`battle_fx.hpp`) on `CameraShake`, restarted by
   - End_Cinematic_Mode stops it;
   - the bombing run and the TSW shot leave it.
 
-The port: `GameAudioHost::cinematic_engine_loop`, driven by `App::engine_loop_to`. [port] A team member uses its own
-type: the ported shots frame heroes and selected units.
+The port: `GameAudioHost::cinematic_engine_loop`, driven by `App::engine_loop_to`. Like retail, it moves only to a
+different object. [port] A squadron member uses its own type, where retail uses its team's, so a selected fighter's
+loop can differ (see the tier list).
 
 ## Movie Mode (slot 78), on key up: `0x2cc080` [H]
 
@@ -285,6 +288,8 @@ each of these is a known gap rather than an accepted difference:
 - A failed view step stops the cam.
 - The cam stops when the framed object is no longer drawn.
 - View 0's side [M].
+- A squadron member's engine loop uses its own type, not its team's.
+- The wheel zoom keeps its factor when the viewed object is gone (retail clamps it to [0, d]).
 
 Tier 3 (internals): the clash identity (kind + first participant), and the battle cam and TSW shot holding their state in
 separate classes.

@@ -45,6 +45,10 @@ tactical::Vec3 cinematic_view_offset(float yaw_deg, float pitch_deg, float dista
 BattleCamShot cinematic_view_shot(uint32_t target, const tactical::Vec3& half_extents, float yaw_deg, float pitch_deg,
                                   float zoom = 1.0f);
 
+// #564 (0x49cd00, +0x315 [H]): the land terrain clamp of the eye: at least 15 over the highest ground of a 3 x 3 grid at
+// +-15 around it. `ground` = the map's height at (x, y).
+tactical::Vec3 terrain_clamped_eye(const tactical::Vec3& eye, const std::function<float(float x, float y)>& ground);
+
 // 0x4a4ac0 [H]: R = 7.5 x avg(E), clamped to 125..500 (mode type 2: 250..1000).
 float hero_clash_radius(const tactical::Vec3& half_extents, bool space);
 // 0x4a4ac0 [H]: eye held at (0, R, 0.67R) in the hero's frame for 45 frames, then an orbit of the hero (one turn per 600
@@ -114,6 +118,7 @@ public:
 private:
     void start(State s, BattleCamShot shot);
     bool open_view(const BattleCamGates& g, const BattleCamPicks& p);
+    bool rebuild_view_eye(const BattleCamPicks& p);  // 0x4ac830: the running view's eye key at yaw / pitch / zoom
 
     State state_ = State::None;
     int32_t view_ = 0;

@@ -137,8 +137,8 @@ void App::linked_ui_step() {
 }
 
 // 0x2cc3e0 (no GUI dialog has the focus): the controller is offered the mouse events before the HUD and the world and
-// consumes them. A move within 1/20 of the screen of the cursor at Fire is swallowed; a larger one or any button / wheel
-// event ends the shot at once. [M] the event codes 2, 4, 5, 7, 8, 10, 12 = button / wheel events. Keys are not consumed.
+// consumes them. A move within 1/20 of the screen of the previous cursor is swallowed (#564: the baseline follows the
+// cursor); a larger one or any button / wheel event ends the shot at once. [M] the event codes 2, 4, 5, 7, 8, 10, 12 = button / wheel events. Keys are not consumed.
 void App::cinematic_input(ui::InputFrame& raw) {
     battle_cam_input(raw);
     if (!cine_.shot.active() || ui_.gui.has_focus()) return;
@@ -315,11 +315,13 @@ void App::battle_cam_sync() {
 // 0x3a7bb0(old, 0) then 0x3a7bb0(new, 1). [port] A squadron member would use its team's type in retail; the shots here
 // frame heroes and selected units with their own type.
 void App::engine_loop_to(objects::ObjectId id) {
-    if (id == cine_.engine_object) return;
+    if (id == cine_.engine_object) return;  // 0x4a4ac0 / 0x4a6790 move it only to a different object
     if (cine_.engine_object != objects::kNoObjectId) {
+        // The off call's gate (not dying): a gone or dying object only has its loop stopped, without the ambient one-shot.
         const render::SnapshotObject* o = drawn_object(cine_.engine_object, nullptr);
+        const bool live = o && (o->flags & (render::kSnapDying | render::kSnapDeathClone)) == 0;
         (void)audio_.cinematic_engine_loop(data_.types, cine_.engine_type, static_cast<uint64_t>(cine_.engine_object),
-                                           o ? o->position : alamo::Vec3{}, false);
+                                           live ? o->position : alamo::Vec3{}, false, live);
     }
     cine_.engine_object = objects::kNoObjectId;
     cine_.engine_type = objects::kNone;
@@ -328,6 +330,7 @@ void App::engine_loop_to(objects::ObjectId id) {
     if (!o || (o->flags & (render::kSnapDying | render::kSnapDeathClone)) != 0) return;  // not dying (+0x3a0 & 2)
     cine_.engine_object = id;
     cine_.engine_type = o->type;
+    std::printf("cinematic: starting cinematic engine loop on object %u\n", static_cast<unsigned>(id));
     (void)audio_.cinematic_engine_loop(data_.types, o->type, static_cast<uint64_t>(id), o->position, true);
 }
 
@@ -413,15 +416,10 @@ bool App::battle_cam_camera(ui::CameraParams& cp) {
     const int32_t c = cine_.cam_clock;
     const ui::Vec3 look = shot_keys_look(s.look, c, f, z);
     ui::Vec3 keyed = shot_keys_eye(s.eye, s.look, c, f, z);
-    // #564 (+0x315, 0x49cd00 [H]): on land, with the sticky clamp set, the eye stays 15 over the highest ground of a 3 x 3
-    // grid at +-15 around it; before the smoothing.
+    // #564 (+0x315 [H]): on land, with the sticky clamp set, the eye keeps over the ground; before the smoothing.
     if (!bview_.space() && cine_.cam.terrain_clamp() && bview_.scene()) {
-        const terrain::MapData& m = bview_.scene()->map();
-        float h = -std::numeric_limits<float>::infinity();
-        for (int i = -1; i <= 1; ++i)
-            for (int j = -1; j <= 1; ++j)
-                h = std::max(h, m.terrain.sample_height(keyed.x + 15.0f * static_cast<float>(i), keyed.y + 15.0f * static_cast<float>(j)));
-        keyed.z = std::max(keyed.z, h + 15.0f);
+        const terrain::MapData* m = &bview_.scene()->map();
+        keyed = terrain_clamped_eye(keyed, [m](float x, float y) { return m->terrain.sample_height(x, y); });
     }
     const ui::Vec3 eye = cine_.cam.smooth_eye(keyed, c);
     const CinematicPose pose = apply_shake(eye, look, 0.0f, cine_.shake, c);

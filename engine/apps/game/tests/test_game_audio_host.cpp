@@ -2242,6 +2242,7 @@ void test_cinematic_engine_loop() {
     for (const audio::LogEntry& e : h.system()->log()) stops += e.op == audio::LogOp::SfxStop && e.event == "Focus_Loop" ? 1 : 0;
     CHECK(stops == 1 && starts(h, "Amb_Move") == 2);  // the ambient one-shot plays for the off call too
     CHECK(h.cinematic_engine_loop(types, quiet, 8, Vec3{}, true) == 0 && starts(h, "Focus_Loop") == 1);  // no tags
+    CHECK(h.cinematic_engine_loop(types, cruiser, 7, Vec3{}, false, false) == 0 && starts(h, "Amb_Move") == 2);  // no ambient
 #endif
 }
 

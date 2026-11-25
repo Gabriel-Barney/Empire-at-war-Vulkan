@@ -257,6 +257,13 @@ void test_polish() {
     CHECK(near(cam.zoom(), z) && cam.terrain_clamp());
     CHECK(cam.key_down(Key::CinematicView, g, w.picks()));
     CHECK(!cam.shot().eye.empty() && near(std::sqrt(::alamo::tactical::dot(cam.shot().eye[0].where, cam.shot().eye[0].where)), hi, 0.01f));
+    // The terrain clamp: 15 over the highest of the 9 samples at +-15; an eye already higher is kept.
+    const auto ground = [](float x, float y) { return x > 110.0f ? 80.0f : (y < -5.0f ? 40.0f : 0.0f); };
+    CHECK(near(terrain_clamped_eye({100.0f, 0.0f, 10.0f}, ground), {100.0f, 0.0f, 95.0f}));   // the x + 15 column: 80 + 15
+    CHECK(near(terrain_clamped_eye({0.0f, 0.0f, 10.0f}, ground), {0.0f, 0.0f, 55.0f}));       // the y - 15 row: 40 + 15
+    CHECK(near(terrain_clamped_eye({0.0f, 100.0f, 10.0f}, ground), {0.0f, 100.0f, 15.0f}));   // flat: 0 + 15
+    CHECK(near(terrain_clamped_eye({0.0f, 100.0f, 30.0f}, ground), {0.0f, 100.0f, 30.0f}));
+    CHECK(near(terrain_clamped_eye({0.0f, 0.0f, 10.0f}, {}), {0.0f, 0.0f, 10.0f}));             // no terrain
     // The handheld noise: both shots carry it; its parameters.
     CHECK(cam.shot().handheld);
     CHECK(hero_clash_shot(1, 1, {20.0f, 20.0f, 20.0f}, false, false).handheld);

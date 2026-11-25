@@ -61,6 +61,15 @@ BattleCamShot cinematic_view_shot(uint32_t target, const Vec3& half_extents, flo
     return s;
 }
 
+Vec3 terrain_clamped_eye(const Vec3& eye, const std::function<float(float x, float y)>& ground) {
+    constexpr float kStep = 15.0f, kOver = 15.0f;  // 0x49cd00: the grid step and the height over the ground
+    if (!ground) return eye;
+    float h = ground(eye.x, eye.y);
+    for (int i = -1; i <= 1; ++i)
+        for (int j = -1; j <= 1; ++j) h = std::max(h, ground(eye.x + kStep * static_cast<float>(i), eye.y + kStep * static_cast<float>(j)));
+    return {eye.x, eye.y, std::max(eye.z, h + kOver)};
+}
+
 float hero_clash_radius(const Vec3& half_extents, bool space) {
     const float r = avg(half_extents) * 7.5f;
     const float lo = space ? 250.0f : 125.0f, hi = space ? 1000.0f : 500.0f;
@@ -199,15 +208,13 @@ void BattleCam::mouse(int32_t x, int32_t y, uint32_t width, uint32_t height, boo
         return;
     }
     // Cinematic View: buttons do nothing; the wheel zooms (0x4ac520) from 3 avg(E) x zoom, the shown distance unclamped.
-    if (wheel != 0.0f) {
-        const float base = 3.0f * (view_extents_.x + view_extents_.y + view_extents_.z) / 3.0f;
-        const float e = std::sqrt(tactical::dot(view_extents_, view_extents_));
+    // [port] With the object gone the factor is kept (retail clamps to [0, d]); the next step stops the cam anyway.
+    uint32_t id = 0;
+    if (wheel != 0.0f && p.view && p.view(shot_.target, id, view_extents_)) {
+        const float base = 3.0f * avg(view_extents_), e = length(view_extents_);
         if (base > 0.0f) {
-            const float d = std::clamp(base * zoom_ - kViewZoomStep * wheel, 3.0f * e, 10.0f * e);
-            zoom_ = d / base;
-            uint32_t id = 0;
-            if (p.view && p.view(shot_.target, id, view_extents_))
-                shot_.eye = cinematic_view_shot(id, view_extents_, yaw_, pitch_, zoom_).eye;
+            zoom_ = std::clamp(base * zoom_ - kViewZoomStep * wheel, 3.0f * e, 10.0f * e) / base;
+            shot_.eye = cinematic_view_shot(id, view_extents_, yaw_, pitch_, zoom_).eye;
         }
     }
     if (dx == 0 && dy == 0) return;
@@ -217,9 +224,14 @@ void BattleCam::mouse(int32_t x, int32_t y, uint32_t width, uint32_t height, boo
         yaw_ = std::fmod(yaw_ - static_cast<float>(dx) * kViewMouseScale, 360.0f);
         if (yaw_ < 0.0f) yaw_ += 360.0f;
     }
+    (void)rebuild_view_eye(p);
+}
+
+bool BattleCam::rebuild_view_eye(const BattleCamPicks& p) {
     uint32_t id = 0;  // 0x4ac830: the eye key rebuilt; the shot clock and the smoothing run on
-    if (p.view && p.view(shot_.target, id, view_extents_))
-        shot_.eye = cinematic_view_shot(id, view_extents_, yaw_, pitch_, zoom_).eye;
+    if (!p.view || !p.view(shot_.target, id, view_extents_)) return false;
+    shot_.eye = cinematic_view_shot(id, view_extents_, yaw_, pitch_, zoom_).eye;
+    return true;
 }
 
 void BattleCam::clash_ended(const BattleCamPicks& p) {
