@@ -192,12 +192,20 @@ void GalacticView::init(GpuCore& gpu, const GameData& data, std::vector<render::
 #endif
 }
 
+void GalacticView::set_simplified_colors(const galactic::GalacticSim& sim, const render::SimplifiedColors& c) {
+    const bool changed = c.on != simplified_.on;
+    simplified_ = c;
+    if (!changed || !builder_) return;
+    palette_ = render::make_galactic_palette(sim, colors_, local_, simplified_);
+    builder_->options().simplified_colors = simplified_.on;
+}
+
 void GalacticView::attach(const galactic::GalacticSim& sim, int32_t local_player) {
-    palette_ = render::make_galactic_palette(sim, colors_);
+    palette_ = render::make_galactic_palette(sim, colors_, local_player, simplified_);
     render::GalacticViewOptions vo = render::galactic_view_options(sim);
     vo.viewpoint = local_player;
     vo.corruption_path = corruption_path_;
-    vo.multiplayer = false;  // [port] multiplayer is deferred: every session is single-player
+    vo.simplified_colors = simplified_.on;  // #468
     vo.rings = false;        // the game's planet ellipse is the HUD's g_planet_ring (C2_galactic_silent.png); the 3D ring is the viewer's
     local_ = local_player;
     builder_ = std::make_unique<render::GalacticSceneBuilder>(types_, style_, vo);

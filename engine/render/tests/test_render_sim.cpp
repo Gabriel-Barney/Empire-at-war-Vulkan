@@ -458,6 +458,16 @@ static void test_synthetic(const render::SyntheticSimWorld& w) {
         table.set_owner_colours({});
         table.team_color(0, table[frig], idx);
         CHECK(idx == 0);
+        // #468: a display colour replaces the palette entry (the index stays); nullopt and later owners keep the palette
+        const materials::float4 green{50 / 255.0f, 209 / 255.0f, 63 / 255.0f, 1};
+        table.set_owner_display_colors({green, std::nullopt});
+        const materials::float4 d0 = table.team_color(0, table[frig], idx);
+        CHECK(idx == 0 && d0.x == green.x && d0.y == green.y && d0.z == green.z);
+        const materials::float4 d1 = table.team_color(1, table[frig], idx);
+        CHECK(idx == 1 && d1.x == table.palette()[1].x && d1.y == table.palette()[1].y);
+        const materials::float4 d2 = table.team_color(2, table[frig], idx);
+        CHECK(d2.x == table.palette()[2].x);
+        table.set_owner_display_colors({});
     }
 
     // Read-only: CRC logs with and without the render side after every tick.

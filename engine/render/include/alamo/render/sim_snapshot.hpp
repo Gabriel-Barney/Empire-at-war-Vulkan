@@ -30,6 +30,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -142,6 +143,10 @@ public:
     // the palette index (0..8) a non-neutral owner uses instead of owner % 9: owner k takes colours[k]; owners past
     // the list keep owner % 9. Presentation only (the sim never reads a colour). Empty = every owner % 9.
     void set_owner_colours(std::vector<uint8_t> colours) { owner_colours_ = std::move(colours); }
+    // #468 (unit colorization 0x396190 -> 0x33e340, docs/re/GAMEPLAY_OPTIONS_AND_MOUSE.md t10): a colour that replaces a
+    // non-neutral owner's palette entry (IDC_SIMPLIFIED_FACTION_COLORS outside the MP-colour mode); the palette index
+    // stays. nullopt / owners past the list keep the palette.
+    void set_owner_display_colors(std::vector<std::optional<materials::float4>> colors) { display_colors_ = std::move(colors); }
     // Tests / tools: replace the model of every type (e.g. a debug box for model-less synthetic types).
     void set_model(objects::TypeIndex t, std::string model) { info_[t].model = std::move(model); }
     // Tests / tools: replace a type's R5 decoration fields.
@@ -198,6 +203,7 @@ private:
     std::vector<std::pair<std::string, objects::TypeIndex>> by_name_;  // upper-case name, sorted (lookup only)
     std::array<materials::float4, 9> palette_{};
     std::vector<uint8_t> owner_colours_;  // set_owner_colours
+    std::vector<std::optional<materials::float4>> display_colors_;  // set_owner_display_colors
     std::vector<uint8_t> neutral_;                     // per owner index (faction order)
     std::vector<materials::float4> neutral_color_;     // per owner index: the faction's No_Colorization_Color
 };

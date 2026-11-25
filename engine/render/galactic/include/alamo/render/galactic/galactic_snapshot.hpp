@@ -26,6 +26,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -115,7 +116,23 @@ struct GalacticPalette {
     materials::float4 none{0.55f, 0.55f, 0.55f, 1.0f};  // kNoPlayer
     materials::float4 color(int32_t owner, uint8_t& index) const;
 };
-GalacticPalette make_galactic_palette(const galactic::GalacticSim& sim, std::span<const FactionColor> factions);
+// #468 (docs/re/GAMEPLAY_OPTIONS_AND_MOUSE.md t10, the faction colour lookup 0x33e340 [H]): IDC_SIMPLIFIED_FACTION_COLORS,
+// also on for a story tutorial player. On: the local player's faction shows GameConstants Player_Color, every other
+// playable, non-neutral faction (an ally too: the lookup compares factions) Enemy_Color; any other faction its own.
+struct SimplifiedColors {
+    bool on = false;
+    materials::float4 player{50 / 255.0f, 209 / 255.0f, 63 / 255.0f, 1};  // Player_Color (FoC GameConstants)
+    materials::float4 enemy{239 / 255.0f, 9 / 255.0f, 9 / 255.0f, 1};     // Enemy_Color (FoC GameConstants)
+};
+// The colour that replaces the faction's own (nullopt: the option is off or the faction keeps its own).
+std::optional<materials::float4> simplified_faction_color(bool local_faction, bool playable, bool neutral, const SimplifiedColors& s);
+inline materials::float4 display_faction_color(const materials::float4& own, bool local_faction, bool playable, bool neutral,
+                                               const SimplifiedColors& s) {
+    return simplified_faction_color(local_faction, playable, neutral, s).value_or(own);
+}
+// `local_player` (< 0: none) and `simplified` apply display_faction_color to every non-neutral owner (#468).
+GalacticPalette make_galactic_palette(const galactic::GalacticSim& sim, std::span<const FactionColor> factions,
+                                      int32_t local_player = -1, const SimplifiedColors& simplified = {});
 
 enum GalacticPlanetFlag : uint16_t {
     kGalPlanet = 0x01,       // row has a planet object (PLANET behaviour)

@@ -733,6 +733,7 @@ void App::session_started(const std::vector<std::string>& diag) {
     ui_.gui.set_backdrop({});  // the front end's backdrop (FrontEnd::show_main_menu) is not drawn in game
     ui_.front.set_in_game(true);
     if (const galactic::GalacticSim* g = session_->galaxy()) gview_.attach(*g, local_player());
+    sync_simplified_colors();  // #468: before the first capture
     gview_.capture(session_->host());
     if (spec.kind == SessionKind::Campaign) {
         flow_.on(ScreenEvent::CampaignStarted);

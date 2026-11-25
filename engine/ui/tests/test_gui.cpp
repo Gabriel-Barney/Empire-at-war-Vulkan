@@ -2199,6 +2199,21 @@ void test_galactic_hud() {
         for (const HudQuad& q : h2.draw_list().items(0, HudList::Alpha))
             if (std::fabs(q.max.x - q.min.x - 14.0f) < 0.01f && std::fabs(q.max.y - q.min.y - 14.0f) < 0.01f) ++medals;
         CHECK(medals == 3);
+        // #468 (0x3ec380): simplified colours draw g_hero "you" and g_enemy_hero instead of the faction medals.
+        icons[0].hero_you = true;
+        icons[1].enemy_hero = 1;
+        g.planets = icons;
+        h2.build(g);
+        CHECK(h2.stats().label_icons == no_medal + 3);  // the faction medals: you / enemy are not drawn
+        g.simplified_colors = true;
+        h2.build(g);
+        CHECK(h2.stats().label_icons == no_medal + 2);  // you on planet 0, enemy on planet 1; no faction medal
+        icons[0].hero_you = false;
+        icons[1].enemy_hero = -1;
+        g.planets = icons;
+        h2.build(g);
+        CHECK(h2.stats().label_icons == no_medal);
+        g.simplified_colors = false;
     }
     // Zoomed out (state 1 at z = 0.2): no labels.
     GalacticHudFrame f2 = f;

@@ -38,8 +38,51 @@ ui::Rgba8 App::faction_rgba(const galactic::GalacticSim& g, int32_t player, bool
     materials::float4 c;
     const std::string_view name = rules.factions[fi].name;
     if (!(text ? render::faction_text_color(faction_colors_, name, c) : render::faction_map_color(faction_colors_, name, c))) return fallback;
+    if (!text) {  // #468: <Color> goes through the 0x33e340 lookup; Display_Font_Color does not
+        render::SimplifiedColors sc = simplified_colors_;
+        sc.on = simplified_colors_now();
+        const int32_t me = local_player();
+        const bool local = me >= 0 && static_cast<size_t>(me) < g.players().size() && g.players()[static_cast<size_t>(me)].faction == fi;
+        c = render::display_faction_color(c, local, rules.factions[fi].is_playable, rules.factions[fi].is_neutral, sc);
+    }
     auto to8 = [](float v) { return static_cast<uint8_t>(std::lround(std::clamp(v, 0.0f, 1.0f) * 255.0f)); };
     return {to8(c.x), to8(c.y), to8(c.z), 255};
+}
+
+bool App::simplified_colors_now() const {
+    if (gameplay_.simplified_colors) return true;
+#ifdef ALAMO_SIM_HAVE_STORY
+    if (session_)
+        if (const sim::StorySession* story = session_->host().story()) {  // local_player+0x3c0 (SET_TUTORIAL_PLAYER 0x456970)
+            const std::vector<int32_t>& marked = story->tutorial().marked_players;
+            return std::find(marked.begin(), marked.end(), local_player()) != marked.end();
+        }
+#endif
+    return false;
+}
+
+// #468: the galactic palette / routes, and (outside skirmish, retail's MP-colour mode keeps the lobby colours [M]) the
+// battle's team colours. The battle's owners are the galaxy's player ids [M]; without a galaxy the palette stays.
+void App::sync_simplified_colors() {
+    if (!session_) return;
+    render::SimplifiedColors sc = simplified_colors_;
+    sc.on = simplified_colors_now();
+    const galactic::GalacticSim* g = session_->galaxy();
+    if (g && gview_.attached()) gview_.set_simplified_colors(*g, sc);
+    if (!bview_.active()) return;
+    std::vector<std::optional<materials::float4>> owners;
+    if (sc.on && g && session_->spec().kind != SessionKind::Skirmish) {
+        const galactic::GalacticRules& rules = g->rules();
+        const int32_t me = local_player();
+        const uint32_t mine = me >= 0 && static_cast<size_t>(me) < g->players().size() ? g->players()[static_cast<size_t>(me)].faction : UINT32_MAX;
+        for (const auto& p : g->players()) {
+            const bool known = p.faction < rules.factions.size();
+            owners.push_back(known ? render::simplified_faction_color(p.faction == mine, rules.factions[p.faction].is_playable,
+                                                                      rules.factions[p.faction].is_neutral, sc)
+                                   : std::nullopt);
+        }
+    }
+    bview_.set_owner_display_colors(std::move(owners));
 }
 
 // Planet overlay icons (ui pass 2): the strongest garrison unit (AI combat power, then type index), the heroes at the
@@ -111,6 +154,7 @@ void App::planet_icons(const galactic::GalacticSim& g, PlanetIndex row, ui::Gala
             out.hero_rebel = out.hero_rebel || fx == 0;
             out.hero_empire = out.hero_empire || fx == 1;
             out.hero_underworld = out.hero_underworld || fx == 3;
+            out.hero_you = out.hero_you || friendly(st.owner(h));  // #468: g_hero "you" (0x39a230)
             if (!friendly(st.owner(h)) && out.enemy_hero < 0) out.enemy_hero = fx == 1 ? 1 : 0;  // ui4 t03 g_enemy_hero
             continue;
         }
@@ -695,6 +739,7 @@ void App::build_galactic_hud(ui::GalacticHudFrame& f, std::vector<ui::GalacticPl
     // Playtest 3 (base 40.jpg): a selected fleet / fleet unit shows every planet's fleet-slot ovals.
     f.show_fleet_slots = !orders_.selection().empty();
     if (g) f.empty_slot_color = faction_rgba(*g, local_player(), false, ui::Rgba8{});
+    f.simplified_colors = simplified_colors_now();  // #468
     f.paused = session_ && session_->pause_requested();
     for (ui::GalacticPlanetInfo& p : planets) p.selected = p.planet == selected_planet_;
     for (const ui::ShellSet::Shell& s : ui_.galactic_shells.shells())

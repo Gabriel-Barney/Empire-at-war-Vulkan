@@ -94,6 +94,9 @@ class GalacticView {
 public:
     void init(GpuCore& gpu, const GameData& data, std::vector<render::FactionColor> colors, render::RouteLineStyle style);
     void attach(const galactic::GalacticSim& sim, int32_t local_player);  // palette, builder, camera start
+    // #468: the palette and route classes of IDC_SIMPLIFIED_FACTION_COLORS (`c.on`); rebuilt when `on` changes, used
+    // from the next capture.
+    void set_simplified_colors(const galactic::GalacticSim& sim, const render::SimplifiedColors& c);
     void capture(const sim::SimHost& host);                               // after every tick (const reads)
     // frame thread (now_s: wall clock, particles). GALAXY_MAP_PRESENTATION §3: `selected_planet` (planet object id, 0 =
     // none) and the camera (`cam`, null = the builder's default) drive the selection model (GalacticSceneBuilder::set_selection).
@@ -145,6 +148,7 @@ private:
     render::GalacticFrame frame_;
     std::vector<render::FactionColor> colors_;
     render::RouteLineStyle style_;
+    render::SimplifiedColors simplified_;  // #468 (set_simplified_colors)
     render::CorruptionPathSettings corruption_path_;  // FIXPASS_GALACTIC §3.2 (GameConstants)
     float cycle_speed_ = 5.0f, cycle_darken_ = 0.5f;   // GUI_Cycle_Speed / GUI_Darken_Level
     uint32_t cycle_planet_ = 0;                        // the selection the cycle started for
@@ -214,6 +218,8 @@ public:
     ui::CameraParams camera_params(uint32_t w, uint32_t h) const;
     const render::InterpolatedFrame& frame() const { return frame_; }
     const render::SnapshotTypeTable& table() const { return table_; }
+    // #468: SnapshotTypeTable::set_owner_display_colors (presentation only).
+    void set_owner_display_colors(std::vector<std::optional<materials::float4>> c) { table_.set_owner_display_colors(std::move(c)); }
     const render::MapScene* scene() const { return scene_.get(); }
     bool space() const { return space_; }
     const BattleViewStats& stats() const { return stats_; }
