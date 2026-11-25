@@ -1139,6 +1139,11 @@ void test_lob_sticky() {
     ProjectileView pv = lw.w.sys->projectile(0);
     CHECK(pv.stuck && pv.stuck_to == 2 && pv.speed == 0.0f);
     CHECK(lw.w.sys->health(2) == lw.w.sys->max_health(2) && lw.w.sys->stats().hits == 0u);  // no contact damage
+    // #475: obj +0x328 counts the attached objects with Friendly_Damage_Amount > 0 - a remote bomb, not this grenade.
+    CHECK(lw.w.sys->stuck_bombs(2) == 0);
+    lw.w.data.projectiles[pv.desc].friendly_damage_amount = 200.0f;  // as Proj_Remote_Bomb
+    CHECK(lw.w.sys->stuck_bombs(2) == 1 && lw.w.sys->stuck_bombs(1) == 0 && lw.w.sys->stuck_bombs(kNoObject) == 0);
+    lw.w.data.projectiles[pv.desc].friendly_damage_amount = 0.0f;
     const Vec3 offset = pv.pos - Vec3{100, 0, 0};
     CHECK(offset.x < 0.0f);  // struck on the near side
     lw.move(2, Vec3{100, 40, 0});

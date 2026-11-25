@@ -2846,6 +2846,16 @@ void test_skirmish_redelivery() {
             for (const objects::ObjectHandle h : tm->primary().owned_by(0))
                 if (tm->primary().alive(h) && b->combat().has_unit(tm->primary().id(h))) mine.push_back(tm->primary().id(h));
             respawn_before = b->garrison_respawn(0);
+            // #475: the start-force units carry the overhead garrison flag (obj +0x3a2 & 2); nothing else is set on them.
+            size_t flagged = 0;
+            for (const objects::ObjectId id : mine) {
+                const TacticalBattle::UnitHudStatus hs = b->unit_hud_status(id);
+                flagged += hs.garrison_flag ? 1u : 0u;
+                CHECK(!hs.bribed && hs.bombs == 0);
+            }
+            std::printf("  garrison flag: %zu of %zu start-force units\n", flagged, mine.size());
+            CHECK(flagged == mine.size());
+            CHECK(!b->unit_hud_status(objects::kNoObjectId).garrison_flag);
             for (const objects::ObjectId id : mine) (void)b->script_damage(*tm, id, 1.0e9f, false);
             killed_at = b->frame();
             std::printf("  frame %u: %zu Empire start-force units killed, pool %zu\n", killed_at, mine.size(), pool0);

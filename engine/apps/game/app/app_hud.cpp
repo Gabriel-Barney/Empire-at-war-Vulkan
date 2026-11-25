@@ -998,6 +998,16 @@ void App::build_tactical_hud() {
         for (const sim::TacticalBattle::IconLink& l : b->icon_links())
             icons.push_back({static_cast<uint32_t>(l.unit), static_cast<uint32_t>(l.squad)});
         ui::assign_unit_icons(units, icons);
+        // #475: the overhead status icons of the units WorldHud draws a record for (selected or hovered).
+        for (ui::HudUnit& u : units) {
+            if (!u.selected && !u.hovered) continue;
+            const sim::TacticalBattle::UnitHudStatus s = b->unit_hud_status(static_cast<objects::ObjectId>(u.id));
+            u.bribed = s.bribed;
+            u.bomb = s.bombs > 0;
+            u.garrison_flag = s.garrison_flag;
+            u.garrison_slots = static_cast<uint8_t>(std::clamp(s.garrison_slots, 0, 255));
+            u.garrison_used = static_cast<uint8_t>(std::clamp(s.garrison_used, 0, 255));
+        }
         hf.garrison_respawn = b->garrison_respawn(local_player());  // #474: the local player's re-delivery fill, -1 = none
     }
     // Pause look, radar picture (fog of war), queue markers of the selected units (sim queued_orders, const reads).

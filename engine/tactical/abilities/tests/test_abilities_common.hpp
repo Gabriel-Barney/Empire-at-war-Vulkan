@@ -1581,6 +1581,7 @@ struct BribeRun {
     int32_t owner_after = -1;
     size_t refused = 0, changed = 0;
     float paid = -1.0f;
+    bool bribed = false, user_bribed = false;  // #475: obj +0x3cc of the target / the user after the run
 };
 inline BribeRun oi_bribe(const AbilityObjectDesc& target, int32_t target_owner, uint64_t target_cats, float credits = -1.0f,
                   bool corrupted = false, uint32_t target_flags = 0, int pad = -1) {
@@ -1621,6 +1622,8 @@ inline BribeRun oi_bribe(const AbilityObjectDesc& target, int32_t target_owner, 
     out.owner_after = w.sys->owner(2);
     out.refused = w.count(AbilityEventKind::BribeRefused, 1);
     out.changed = w.count(AbilityEventKind::OwnerChanged, 2);
+    out.bribed = w.ab->bribed(2);
+    out.user_bribed = w.ab->bribed(1);
     return out;
 }
 
@@ -1709,6 +1712,7 @@ inline void test_bribe_hack_accept() {
     {  // no filter tags, no cost data ([port] free): an enemy infantry is bribed at once
         const BribeRun r = oi_bribe(AbilityObjectDesc{}, 1, kCatInfantry);
         CHECK(r.accepted == 1 && r.owner_after == 0 && r.changed == 1 && r.refused == 0);
+        CHECK(r.bribed && !r.user_bribed);  // #475: the converted target carries the bribed flag, the briber does not
     }
     AbilityObjectDesc priced;
     priced.tactical_bribe_cost = 100;
@@ -1723,6 +1727,7 @@ inline void test_bribe_hack_accept() {
     {  // too few credits: accepted as a target, the apply plays the "cannot" event, no conversion
         const BribeRun r = oi_bribe(priced, 1, kCatInfantry, 100.0f);
         CHECK(r.accepted == 1 && r.owner_after == 1 && r.changed == 0 && r.refused == 1 && r.paid < 0.0f);
+        CHECK(!r.bribed);  // #475: no convert, no flag
     }
     {  // a named hero is never bribed
         AbilityObjectDesc hero = priced;

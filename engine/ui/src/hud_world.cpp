@@ -117,10 +117,15 @@ void WorldHud::bind(const ComponentTable& table) {
     power_ = table.find("st_power");
     group_ = table.find("st_control_group");
     flytext_ = table.find("generic_flytext");
+    bribed_ = table.find("bribed_icon");
+    bomb_ = table.find("remote_bomb_icon");
+    garrison_flag_ = table.find("st_garrison_icon");
+    garrison_slot_ = table.find("garrison_slot_icon");
 }
 
-void WorldHud::bars(const WorldHudContext& ctx, const HudUnit& u, BracketSize sz, const UnitScreenBounds& b,
-                    const TextureAtlas& atlas, HudDrawList& dl) {
+WorldHud::BarBox WorldHud::bars(const WorldHudContext& ctx, const HudUnit& u, BracketSize sz, const UnitScreenBounds& b,
+                                const TextureAtlas& atlas, HudDrawList& dl) {
+    BarBox health_box;
     const HudCanvas& cv = *ctx.canvas;
     const auto si = static_cast<size_t>(sz);
     struct BarSpec {
@@ -151,6 +156,10 @@ void WorldHud::bars(const WorldHudContext& ctx, const HudUnit& u, BracketSize sz
         const float h_px = h_units / cv.units_per_pixel_y;
         const Vec2f center = cv.pixel_to_canvas(b.cx, y_px - 0.5f * h_px);
         const Vec2f frame_size = fe ? Vec2f{} : Vec2f{fb.x + 2.0f, fb.y + 2.0f};
+        if (&s == &specs[0]) {
+            const float w_units = fe ? static_cast<float>(fe->width) * scale : frame_size.x;
+            health_box = {true, b.cx, y_px - 0.5f * h_px, w_units / cv.units_per_pixel_x, h_px};
+        }
         if (!frame || !add_atlas_quad(dl, layer, HudList::Alpha, atlas, *frame, center, {}, scale, Rgba8{}))
             add_atlas_quad(dl, layer, HudList::Alpha, atlas, {}, center, {}, 1.0f, kFallbackFrame, frame_size);
         const bool smooth = c ? c->smooth_bar : true;
@@ -168,6 +177,65 @@ void WorldHud::bars(const WorldHudContext& ctx, const HudUnit& u, BracketSize sz
         }
         ++stats_.bars;
         y_px -= h_px + ctx.health_bar_spacing_px;
+    }
+    return health_box;
+}
+
+void WorldHud::status_icons(const HudUnit& u, bool allied, const BarBox& bar, const HudCanvas& cv, const TextureAtlas& atlas,
+                            HudDrawList& dl) {
+    // #475 (TACTICAL_COMMANDBAR_COMPONENTS.md "Overhead status record", 0x2e7fd0 / 0x31de70 [H]). Each component draws its
+    // Icon_Texture_Name (the slot icon's Icon_Alternate_Texture_Name 0 when lit) at its atlas size x Scale; a missing
+    // component or texture draws nothing.
+    struct Icon {
+        const CommandBarComponent* c = nullptr;
+        const std::string* tex = nullptr;
+        float w = 0, h = 0;  // pixels
+    };
+    auto icon = [&](int32_t comp, bool alternate) {
+        Icon ic;
+        if (comp < 0 || !table_) return ic;
+        const CommandBarComponent& c = (*table_)[static_cast<size_t>(comp)];
+        const std::string* tex = pick(alternate ? c.icon_alternate_texture : c.icon_texture, 0);
+        const AtlasEntry* e = tex ? atlas.find(*tex) : nullptr;
+        if (!e) return ic;
+        ic = {&c, tex, static_cast<float>(e->width) * c.scale / cv.units_per_pixel_x,
+              static_cast<float>(e->height) * c.scale / cv.units_per_pixel_y};
+        return ic;
+    };
+    auto draw = [&](const Icon& ic, float px, float py) {
+        if (!ic.tex) return;
+        add_atlas_quad(dl, static_cast<uint32_t>(ic.c->base_layer), HudList::Alpha, atlas, *ic.tex, cv.pixel_to_canvas(px, py), {},
+                       ic.c->scale, Rgba8{});
+        ++stats_.status_icons;
+    };
+    // bribed_icon (allied) and st_garrison_icon (allied) share the spot right of the health bar, x + bar_w/2 + icon_w/2 at the
+    // bar's y; remote_bomb_icon follows, one bribed-icon width further right while that shows.
+    const float right = bar.cx + 0.5f * bar.w;
+    float bomb_left = right;
+    if (allied && u.bribed) {
+        const Icon ic = icon(bribed_, false);
+        draw(ic, right + 0.5f * ic.w, bar.cy);
+        bomb_left += ic.w;
+    }
+    if (allied && u.garrison_flag) {
+        const Icon ic = icon(garrison_flag_, false);
+        draw(ic, right + 0.5f * ic.w, bar.cy);
+    }
+    if (u.bomb) {
+        const Icon ic = icon(bomb_, false);
+        draw(ic, bomb_left + 0.5f * ic.w, bar.cy);
+    }
+    // garrison_slot_icon: one per Num_Garrison_Slots, the first `garrison_used` lit (alternate texture 0, radio_on), the
+    // rest the Icon (radio_off); a row centred on the bar, one icon width apart. [port] the row sits just under the health
+    // bar (retail's y offset constant DAT_140b2767c is not read).
+    if (u.garrison_slots > 0) {
+        const Icon off = icon(garrison_slot_, false), on = icon(garrison_slot_, true);
+        const float step = off.tex ? off.w : on.w;
+        const float n = static_cast<float>(u.garrison_slots);
+        for (uint8_t i = 0; i < u.garrison_slots; ++i) {
+            const Icon& ic = i < u.garrison_used ? on : off;
+            draw(ic, bar.cx + (static_cast<float>(i) - 0.5f * (n - 1.0f)) * step, bar.cy + 0.5f * bar.h + 0.5f * ic.h);
+        }
     }
 }
 
@@ -252,7 +320,11 @@ void WorldHud::build(const WorldHudContext& ctx, std::span<const HudUnit> units,
             if (!bc) add_atlas_quad(dl, layer, HudList::Alpha, atlas, {}, c, {}, 1.0f, color, kFallbackBracket[si]);
         }
         ++stats_.brackets;
-        if (!t.hide_health_bar && !stealth_hidden) bars(ctx, u, sz, b, atlas, dl);
+        if (!t.hide_health_bar && !stealth_hidden) {
+            // #475: the status icons hang off the health bar; [port] none without one.
+            const BarBox hb = bars(ctx, u, sz, b, atlas, dl);
+            if (hb.valid) status_icons(u, u.owner >= 0 && !hostile(u.owner), hb, cv, atlas, dl);
+        }
         // Control-group number.
         if (u.control_group >= 0 && u.control_group <= 9) {
             const CommandBarComponent* gc = group_ >= 0 && table_ ? &(*table_)[static_cast<size_t>(group_)] : nullptr;

@@ -1779,6 +1779,10 @@ public:
     // unit or index. Presentation may turn the turret bone with it.
     bool hardpoint_turret_pose(ObjectId id, uint32_t hp, float& pitch, float& yaw) const;
     ProjectileView projectile(size_t i) const;  // serial order
+    // #475 (TACTICAL_COMMANDBAR_COMPONENTS.md "Overhead status record", remote_bomb_icon): obj +0x328, counted up when an
+    // object whose type has Friendly_Damage_Amount > 0 attaches to `id` (0x38d320) [H] - the live sticky projectiles
+    // stuck to `id` with that field > 0 (Proj_Remote_Bomb in FoC data).
+    int32_t stuck_bombs(ObjectId id) const;
     bool has_unit(ObjectId id) const { return find(id) >= 0; }
     bool alive(ObjectId id) const;
     float health(ObjectId id) const;

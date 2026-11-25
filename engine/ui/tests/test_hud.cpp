@@ -1013,6 +1013,140 @@ void test_world() {
     CHECK(ft.items().empty());
 }
 
+// #475 (TACTICAL_COMMANDBAR_COMPONENTS.md "Overhead status record" [H]): bribed_icon and st_garrison_icon right of the
+// health bar for allied units, remote_bomb_icon right of that (past the bribed icon while it shows), and a row of
+// garrison_slot_icon under the bar, lit (alternate texture) for the occupied slots, left to right.
+void test_world_status_icons() {
+    const char* xml = R"(<?xml version="1.0"?>
+<CommandBarComponents>
+  <CommandBarComponent Name="st_health"><Type>Bar</Type><Max_Bar_Level>10</Max_Bar_Level><Smooth_Bar>True</Smooth_Bar>
+    <Bar_Texture_Name>i_bar_control_wide.tga</Bar_Texture_Name><Bar_Overlay_Name>i_bar_health_small10.tga</Bar_Overlay_Name></CommandBarComponent>
+  <CommandBarComponent Name="bribed_icon"><Type>Button</Type><Icon_Texture_Name>i_sa_tactical_bribe.tga</Icon_Texture_Name></CommandBarComponent>
+  <CommandBarComponent Name="remote_bomb_icon"><Type>Button</Type><Icon_Texture_Name>i_icon_bomb.tga</Icon_Texture_Name></CommandBarComponent>
+  <CommandBarComponent Name="st_garrison_icon"><Type>Button</Type><Icon_Texture_Name>i_garrison_flag.tga</Icon_Texture_Name></CommandBarComponent>
+  <CommandBarComponent Name="garrison_slot_icon"><Type>Button</Type><Icon_Texture_Name>i_dialogue_radio_off.tga</Icon_Texture_Name>
+    <Icon_Alternate_Texture_Name>i_dialogue_radio_on.tga</Icon_Alternate_Texture_Name></CommandBarComponent>
+</CommandBarComponents>
+)";
+    ComponentTable t;
+    const data::XmlDocument doc = data::XmlDocument::parse(std::string_view(xml), "status.xml");
+    CHECK(doc.ok());
+    t.parse(doc.root());
+    TextureAtlas atlas;
+    atlas.texture_width = atlas.texture_height = 256;
+    atlas.add({"i_bar_control_wide.tga", 0, 0, 34, 6, true});
+    atlas.add({"i_bar_health_small10.tga", 0, 8, 34, 6, true});
+    atlas.add({"i_sa_tactical_bribe.tga", 40, 0, 10, 10, true});
+    atlas.add({"i_icon_bomb.tga", 52, 0, 8, 8, true});
+    atlas.add({"i_garrison_flag.tga", 62, 0, 12, 12, true});
+    atlas.add({"i_dialogue_radio_off.tga", 76, 0, 6, 6, true});
+    atlas.add({"i_dialogue_radio_on.tga", 84, 0, 7, 7, true});
+    auto box = make_box_rasterizer();
+    FontCache fonts(*box);
+    std::vector<HudTypeInfo> types(1);
+    types[0].gui_bracket_size = 0;
+    WorldHud wh;
+    wh.bind(t);
+    const HudCanvas cv = HudCanvas::make(1024, 768);
+    WorldHudContext ctx;
+    ctx.canvas = &cv;
+    ctx.view = top_view(1024, 768);
+    HudUnit base;
+    base.id = 7;
+    base.owner = 0;
+    base.position = {100, 50, 0};
+    base.radius = 20.0f;
+    base.health = 1.0f;
+    base.selected = true;
+    struct Q {
+        float w, h, x, y;
+    };
+    auto run = [&](const HudUnit& u) {
+        HudDrawList dl;
+        wh.build(ctx, std::span<const HudUnit>(&u, 1), types, atlas, fonts, dl, nullptr);
+        std::vector<Q> out;
+        for (const HudQuad& q : dl.items(0, HudList::Alpha))
+            out.push_back({q.max.x - q.min.x, q.max.y - q.min.y, 0.5f * (q.min.x + q.max.x), 0.5f * (q.min.y + q.max.y)});
+        return out;
+    };
+    // Quads by atlas size (the icons are square; the bar frame and its fill are 34 x 6; the [port] bracket stand-ins 6 x 16).
+    auto is = [](const Q& q, float w) { return std::fabs(q.w - w) < 1e-3f && std::fabs(q.h - (w == 34.0f ? 6.0f : w)) < 1e-3f; };
+    auto find = [&](const std::vector<Q>& qs, float w) -> const Q* {
+        for (const Q& q : qs)
+            if (is(q, w)) return &q;
+        return nullptr;
+    };
+    auto count = [&](const std::vector<Q>& qs, float w) {
+        size_t n = 0;
+        for (const Q& q : qs) n += is(q, w) ? 1u : 0u;
+        return n;
+    };
+    auto near = [](float a, float b) { return std::fabs(a - b) < 1e-3f; };
+    {  // nothing set: the bar only
+        const std::vector<Q> qs = run(base);
+        CHECK(wh.stats().status_icons == 0 && find(qs, 34.0f));
+    }
+    {  // allied, bribed, bomb, garrison flag: bribe and flag at bar right + half their width, bomb past the bribe icon
+        HudUnit u = base;
+        u.bribed = u.bomb = u.garrison_flag = true;
+        const std::vector<Q> qs = run(u);
+        const Q* bar = find(qs, 34.0f);
+        const Q* bribe = find(qs, 10.0f);
+        const Q* bomb = find(qs, 8.0f);
+        const Q* flag = find(qs, 12.0f);
+        CHECK(wh.stats().status_icons == 3 && bar && bribe && bomb && flag);
+        if (bar && bribe && bomb && flag) {
+            std::printf("  status icons: bar centre (%.1f, %.1f), bribe x %.1f, flag x %.1f, bomb x %.1f\n", bar->x, bar->y,
+                        bribe->x, flag->x, bomb->x);
+            CHECK(near(bribe->x, bar->x + 17.0f + 5.0f) && near(bribe->y, bar->y));
+            CHECK(near(flag->x, bar->x + 17.0f + 6.0f) && near(flag->y, bar->y));
+            CHECK(near(bomb->x, bar->x + 17.0f + 10.0f + 4.0f) && near(bomb->y, bar->y));
+        }
+        u.bribed = false;  // the bomb moves up to the bar's right edge
+        const std::vector<Q> qs2 = run(u);
+        const Q* bar2 = find(qs2, 34.0f);
+        const Q* bomb2 = find(qs2, 8.0f);
+        CHECK(bar2 && bomb2 && !find(qs2, 10.0f));
+        if (bar2 && bomb2) CHECK(near(bomb2->x, bar2->x + 17.0f + 4.0f));
+    }
+    {  // hostile: bribed and garrison flag are allied-only, the bomb still shows
+        HudUnit u = base;
+        u.owner = 1;
+        u.bribed = u.bomb = u.garrison_flag = true;
+        const std::vector<Q> qs = run(u);
+        CHECK(wh.stats().status_icons == 1 && find(qs, 8.0f) && !find(qs, 10.0f) && !find(qs, 12.0f));
+    }
+    {  // 3 slots, 1 occupied: radio_on, then two radio_off, one radio_off width (6) apart, centred under the bar
+        HudUnit u = base;
+        u.garrison_slots = 3;
+        u.garrison_used = 1;
+        const std::vector<Q> qs = run(u);
+        const Q* bar = find(qs, 34.0f);
+        const Q* on = find(qs, 7.0f);
+        std::vector<float> offs;
+        for (const Q& q : qs)
+            if (is(q, 6.0f)) offs.push_back(q.x);
+        CHECK(wh.stats().status_icons == 3 && bar && on && count(qs, 7.0f) == 1 && offs.size() == 2);
+        if (bar && on && offs.size() == 2) {
+            std::printf("  garrison slots 3 / 1: on x %.1f, off x %.1f %.1f (bar x %.1f)\n", on->x, offs[0], offs[1], bar->x);
+            CHECK(near(on->x, bar->x - 6.0f) && near(offs[0], bar->x) && near(offs[1], bar->x + 6.0f));
+            CHECK(near(on->y, bar->y - 3.0f - 3.5f) && near(qs.back().y, bar->y - 3.0f - 3.0f));
+        }
+        u.garrison_used = 3;  // full: all lit
+        const std::vector<Q> qs2 = run(u);
+        CHECK(count(qs2, 7.0f) == 3 && count(qs2, 6.0f) == 0);
+    }
+    {  // a hostile stealthed unit has no health bar, so no status icons
+        HudUnit u = base;
+        u.owner = 1;
+        u.stealthed = true;
+        u.bomb = true;
+        u.garrison_slots = 2;
+        (void)run(u);
+        CHECK(wh.stats().status_icons == 0 && wh.stats().bars == 0);
+    }
+}
+
 void test_routing() {
     InputRouter router;
     RoutedInput out;
@@ -1614,6 +1748,7 @@ int main() {
     test_text();
     test_game_fonts();
     test_world();
+    test_world_status_icons();  // #475
     test_routing();
     test_tactical_hud();
     test_tactical_hud_fleet_groups();  // #174
