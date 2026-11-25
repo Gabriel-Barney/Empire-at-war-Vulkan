@@ -237,7 +237,7 @@ struct BattleStats {
     // s78n t26 review round 3 (FIGHTER_FLYING §4.11 C 3): blocks dropped after arrival on a hidden / stealthed target
     uint32_t attack_unseen_drops = 0;
     // cmb1 t01 (land Auto_Engage, LandFormationRecord; not saved): auto attack blocks pushed and popped (the order resumed)
-    uint32_t land_auto_pushes = 0, land_auto_pops = 0, land_waypoint_pops = 0;
+    uint32_t land_auto_pushes = 0, land_auto_pops = 0, land_waypoint_pops = 0, land_guard_pops = 0;
     uint32_t land_step10_pushes = 0;  // MovingVsStopped step 10 attack blocks issued (not saved)
     // cmb1 t04 (land guard follow; not saved): re-plans while moving (D > R), arrived re-checks that re-planned (0x410a60),
     // re-plans toward the last-observed point and position guards made (C 3)
@@ -2394,6 +2394,10 @@ private:
                                                         float facing, uint8_t flags);
     void land_waypoint_service(TacticalMode& mode, SimRng& rng);  // #489: the arrival pops (0x423760) of the land stacks
     void land_waypoints_drop_locked();  // #489: a movement-locked mover loses its queued waypoints (as its host queue)
+    void land_run_top(TacticalMode& mode, std::span<const objects::ObjectId> movers, SimRng& rng);  // plan the new top
+    // #490: the guard follow's 30-frame check drops a guard top with waypoints below it once the guarded object stops
+    std::vector<objects::ObjectId> land_guard_pop(TacticalMode& mode, std::span<const objects::ObjectId> movers, objects::ObjectId target,
+                                                  SimRng& rng);  // -> the movers whose guard was dropped
     static constexpr float kLandPatrolRadius = 20.0f;  // 0x420f70: the land patrol-loop radius (space 80)
     uint32_t land_type_of(objects::ObjectId mover) const;
     // cmb1 review: a block's object as a live unit - the unit, or for a land TEAM container its first live member ([port],

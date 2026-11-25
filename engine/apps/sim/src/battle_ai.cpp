@@ -2287,6 +2287,14 @@ void BattleAi::guard_follow_step(ObjectFollow& f, Vec3 tp) {
     }
     if (b_->frame_ < f.next) return;
     f.next = b_->frame_ + 30;
+    // #490 (0x4192b0 step 3): a guard top with shift-queued waypoints below it lasts only while G moves - dropped, those
+    // movers walk on and leave this follow (the others keep it)
+    if (const std::vector<objects::ObjectId> popped = b_->land_guard_pop(*mode_, movers, f.target, rng); !popped.empty()) {
+        std::erase_if(f.units, [&](objects::ObjectId id) {
+            return std::find(popped.begin(), popped.end(), b_->attack_mover(id)) != popped.end();
+        });
+        return;
+    }
     if (moving) {
         const float dx = P.x - f.gx, dy = P.y - f.gy;
         if (dx * dx + dy * dy <= f.r * f.r) return;

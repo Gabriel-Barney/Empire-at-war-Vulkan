@@ -1229,6 +1229,114 @@ void test_guard_r_cap() {
     CHECK(ordered && quiet && repathed && repath_frames <= 31 && moving);
 }
 
+// #490 (0x4192b0 step 3 [H], FIGHTER_FLYING §4.11 B 2: "a guard followed by shift waypoints lasts only while G moves"): the
+// guard scene of test_guard_r_cap. The guarded squad walks 600 east; meanwhile a Lua Guard_Target on it and a
+// shift-queued move of the guard squad to W, which goes below the guard block (a two-block stack, the queue view lists W).
+// No drop while the guarded squad moves; once it stops, the guard block is dropped within one 30-frame check and the
+// guard squad walks to W.
+void test_guard_waypoint_pop() {
+    auto d = squad_data_patched("_bkt1_range400", trooper_range_400);
+    CampaignBattleOptions opt;
+    opt.conflict.human_choice = galactic::BattleChoice::Fight;
+    opt.battle.max_frames = 6000;
+    opt.battle.skip_human_units = true;
+    opt.battle.order_interval = 0;
+    opt.battle.fog = false;
+    ClashSession s(*d, 0, opt, {"S10_Squad", "S10_Squad"}, {}, true);
+    if (!s.gs) return;
+    ai::AiDefinitions defs;
+    ai::EquationSet eqs;
+    std::unique_ptr<BattleAi> bai;
+    objects::ObjectId sq[2] = {objects::kNoObjectId, objects::kNoObjectId}, enemy = objects::kNoObjectId;
+    std::vector<objects::ObjectId> guards, guarded;
+    int stage = 0;
+    uint32_t stage_frame = 0, stop_frame = 0, pop_frames = 0, moved_frames = 0;
+    Vec3 w{};
+    bool ordered = false, stacked = false, listed = false, kept_while_moving = true, popped = false, to_w = false;
+    for (uint64_t tk = 0; tk < 6000 && stage < 9; ++tk) {
+        TacticalBattle* b = s.tick();
+        TacticalMode* tm = s.host->tactical();
+        if (!b || !tm || b->frame() < 3) {
+            if (stage > 0) break;
+            continue;
+        }
+        objects::ObjectStore& st = tm->primary();
+        const mv::MovementSystem& ms = b->movement();
+        SimRng& rng = s.host->random().synced();
+        if (bai) bai->follow_service();
+        if (stage == 0) {
+            CHECK(find_squads(*b, st, sq, enemy));
+            if (sq[1] == objects::kNoObjectId) break;
+            invulnerable_all(*b);
+            const tactical::Aabb& bb = tm->bounds();
+            const float y0 = bb.min.y + 120.0f;  // a lane along the south edge, away from the enemy squads
+            CHECK(b->teleport(*tm, sq[0], Vec3{bb.min.x + 120.0f, y0, 0.0f}, st.facing(st.find(sq[0]))));
+            CHECK(b->teleport(*tm, sq[1], Vec3{bb.min.x + 520.0f, y0 + 100.0f, 0.0f}, st.facing(st.find(sq[1]))));
+            w = Vec3{bb.min.x + 120.0f, y0 + 300.0f, 0.0f};
+            const tc::CombatSystem& cs = b->combat();
+            for (size_t i = 0; i < cs.unit_count(); ++i) {
+                const auto id = cs.unit_id_at(i);
+                if (cs.team(id) == static_cast<uint32_t>(sq[0])) guards.push_back(id);
+                if (cs.team(id) == static_cast<uint32_t>(sq[1])) guarded.push_back(id);
+            }
+            bai = guard_ai(*b, *tm, s, *d, defs, eqs);
+            stage = 1;
+            stage_frame = b->frame();
+            continue;
+        }
+        if (stage == 1 && b->frame() >= stage_frame + 2) {
+            const Vec3 gp = st.position(st.find(sq[1]));
+            CHECK(b->order_move(*tm, 0, guarded, gp.x + 600.0f, gp.y, rng) == commands::RejectReason::None);
+            stage = 2;
+            stage_frame = b->frame();
+            continue;
+        }
+        if (stage == 2 && b->frame() >= stage_frame + 2) {
+            ordered = lua_guard(*bai, sq[0], sq[1], st.position(st.find(sq[1])));
+            CHECK(b->order_move(*tm, 0, guards, w.x, w.y, rng, mv::kNoFacing, false, true) == commands::RejectReason::None);
+            const LandFormationRecord* r = nullptr;
+            for (const LandFormationRecord& x : b->land_formations())
+                if (x.mover == sq[0]) r = &x;
+            stacked = r && r->blocks.size() == 2 && (r->blocks.back().flags & mv::kMoveFlagGuardMove) != 0 &&
+                      r->blocks[0].kind == mv::kFighterBlockPosition;
+            const auto q = b->queued_orders(guards.front());
+            listed = q.size() == 1 && q[0].x == w.x && q[0].y == w.y;
+            stage = 3;
+            stage_frame = b->frame();
+            continue;
+        }
+        if (stage == 3) {
+            if (b->stats().land_guard_pops > 0) kept_while_moving = false;
+            moved_frames = b->frame() - stage_frame;
+            if (!ms.view(sq[1]).has_goal) {
+                stop_frame = b->frame();
+                stage = 4;
+            } else if (b->frame() > stage_frame + 2000) {
+                stage = 9;
+            }
+            continue;
+        }
+        if (stage == 4) {
+            if (b->stats().land_guard_pops > 0) {
+                popped = true;
+                pop_frames = b->frame() - stop_frame;
+                const mv::UnitView v = ms.view(sq[0]);
+                to_w = v.has_goal && std::hypot(v.goal.x - w.x, v.goal.y - w.y) < 60.0f;
+                for (const LandFormationRecord& x : b->land_formations())  // the stack is W alone
+                    if (x.mover == sq[0]) to_w = to_w && x.blocks.size() == 1 && x.blocks[0].kind == mv::kFighterBlockPosition;
+                stage = 9;
+            } else if (b->frame() > stop_frame + 90) {
+                stage = 9;
+            }
+        }
+    }
+    std::printf("  guard with a queued waypoint (#490): ordered %d, stack of 2 %d, queue view %d; kept while G moves %d (%u "
+                "frames); dropped %d after %u frame(s) once G stopped, walking to W %d\n",
+                ordered ? 1 : 0, stacked ? 1 : 0, listed ? 1 : 0, kept_while_moving ? 1 : 0, moved_frames, popped ? 1 : 0, pop_frames,
+                to_w ? 1 : 0);
+    CHECK(ordered && stacked && listed && kept_while_moving && moved_frames > 30 && popped && pop_frames <= 31 && to_w);
+}
+
 // #116: a battle save / load in the middle of a land guard follow. The guard scene of test_guard_r_cap (a Lua
 // Guard_Target of one player-0 squad on another, the guarded squad then moved 170 off its recorded point so the follow
 // re-paths) runs twice from the same start: straight through, and saved 20 frames into the re-pathed follow - every battle
@@ -1587,6 +1695,7 @@ int main() {
     test_guard_r_cap();
     test_guard_hidden_drop();
     test_guard_follow_save();  // #116: a battle save / load mid land guard follow
+    test_guard_waypoint_pop();  // #490: a guard with a shift-queued waypoint below it
 #endif
     std::printf("bkt1 t07: a third-party unit idles on land\n");
     {

@@ -427,7 +427,7 @@ LandFormationRecord* TacticalBattle::land_formation_mut(objects::ObjectId mover)
 // waypoint append 0x420f70 of the mover's formation (the land patrol radius 20, MaxWaypointsPerPath): once per mover record
 // whose running block (the top below any auto block) is a position block and whose units hold no host-queued order. The
 // block is {position, the event's flags | 0x08}; the append adds 0x04. Returns the other ids, which keep the host's order
-// queue. [port] A record running an object block (an attack, a guard: #490) keeps the host queue.
+// queue. [port] A record running an attack block keeps the host queue (an attack top never pops on arrival).
 std::vector<objects::ObjectId> TacticalBattle::land_waypoint_append(TacticalMode& mode, std::span<const objects::ObjectId> ids, float x,
                                                                      float y, float facing, uint8_t flags) {
     std::vector<objects::ObjectId> rest, done;
@@ -460,7 +460,9 @@ std::vector<objects::ObjectId> TacticalBattle::land_waypoint_append(TacticalMode
         bool hosted = false;
         if (run)
             for (const objects::ObjectId u : land_mover_units(mover)) hosted = hosted || host_queued(u);
-        if (!run || run->kind == mv::kFighterBlockObject || hosted) {
+        // #490: a guard of an object runs too (its waypoints wait below it until the guarded object stops)
+        const bool attack = run && run->kind == mv::kFighterBlockObject && (run->flags & mv::kMoveFlagGuardMove) == 0;
+        if (!run || attack || hosted) {
             rest.push_back(id);
             continue;
         }
@@ -540,31 +542,70 @@ void TacticalBattle::land_waypoint_service(TacticalMode& mode, SimRng& rng) {
     }
     for (const Group& g : groups) {
         if (!g.done) continue;
-        std::vector<objects::ObjectId> us;
-        std::vector<LandFormationRecord> keep;
-        for (const objects::ObjectId m : g.movers) {
-            LandFormationRecord* r = land_formation_mut(m);
-            if (!r) continue;
-            (void)mv::stack_pop(r->blocks);
-            ++stats_.land_waypoint_pops;
-            keep.push_back(*r);
-            for (const objects::ObjectId u : land_mover_units(m))
-                if (!movement_locked(u)) us.push_back(u);
-        }
-        if (keep.empty() || us.empty()) continue;
-        const mv::FighterBlock t = keep.front().blocks.back();
-        if (t.kind == mv::kFighterBlockObject) {  // not reached today (appended blocks are position blocks); re-plan as a Pop
-            for (const LandFormationRecord& k : keep)
-                if (LandFormationRecord* r = land_formation_mut(k.mover)) land_replan(mode, *r, rng);
-            continue;
-        }
-        std::sort(us.begin(), us.end());
-        exec_move(mode, us, t.point.x, t.point.y, rng, t.facing, (t.flags & mv::kMoveFlagAttackMove) != 0,
-                  static_cast<uint8_t>(t.flags & ~(mv::kMoveFlagAttackMove | LandFormationRecord::kStackFlags)), false);
-        // exec_move's record write (land_order) is a fresh order's (a new stack); the waypoint walk keeps the popped stacks
-        for (const LandFormationRecord& k : keep)
-            if (LandFormationRecord* r = land_formation_mut(k.mover)) *r = k;
+        for (const objects::ObjectId m : g.movers)
+            if (LandFormationRecord* r = land_formation_mut(m)) {
+                (void)mv::stack_pop(r->blocks);
+                ++stats_.land_waypoint_pops;
+            }
+        land_run_top(mode, g.movers, rng);
     }
+}
+
+// #489 / #490: the records of `movers` plan their new top together (the first record's top): a position block is one ordered move of
+// all their unlocked units (exec_move: a new composition, the ordered move's combat clears) with the stacks kept; an object
+// block re-plans per record as after a Pop.
+void TacticalBattle::land_run_top(TacticalMode& mode, std::span<const objects::ObjectId> movers, SimRng& rng) {
+    std::vector<objects::ObjectId> us;
+    std::vector<LandFormationRecord> keep;
+    for (const objects::ObjectId m : movers) {
+        const LandFormationRecord* r = land_formation(m);
+        if (!r || r->blocks.empty()) continue;
+        keep.push_back(*r);
+        for (const objects::ObjectId u : land_mover_units(m))
+            if (!movement_locked(u)) us.push_back(u);
+    }
+    if (keep.empty() || us.empty()) return;
+    const mv::FighterBlock t = keep.front().blocks.back();
+    if (t.kind == mv::kFighterBlockObject) {
+        for (const LandFormationRecord& k : keep)
+            if (LandFormationRecord* r = land_formation_mut(k.mover)) land_replan(mode, *r, rng);
+        return;
+    }
+    std::sort(us.begin(), us.end());
+    exec_move(mode, us, t.point.x, t.point.y, rng, t.facing, (t.flags & mv::kMoveFlagAttackMove) != 0,
+              static_cast<uint8_t>(t.flags & ~(mv::kMoveFlagAttackMove | LandFormationRecord::kStackFlags)), false);
+    // exec_move's record write (land_order) is a fresh order's (a new stack); the walk keeps the stacks
+    for (const LandFormationRecord& k : keep)
+        if (LandFormationRecord* r = land_formation_mut(k.mover)) *r = k;
+}
+
+// #490 (0x4192b0 step 3 [H], FIGHTER_FLYING §4.11 A / B 2: "a guard followed by shift waypoints lasts only while G moves"):
+// at a 30-frame check of the guard follow of `target`, the records of `movers` whose top is that guard block (kind 3,
+// 0x02) with blocks below it drop it once the guarded object is not moving (no patrol re-queue, no goal update, no 0x2a)
+// and plan the next block together. [port] As the fighters' fform_recheck, the arrived formation (state 3, 0x410a60) gets
+// the same drop: the port's members can finish the plan move to a still object before the check. G moves as the fighters'
+// fobject_moving (a movement goal, not arrived; no movement unit: still). Returns the movers whose guard was dropped.
+std::vector<objects::ObjectId> TacticalBattle::land_guard_pop(TacticalMode& mode, std::span<const objects::ObjectId> movers,
+                                                              objects::ObjectId target, SimRng& rng) {
+    std::vector<objects::ObjectId> popped;
+    if (space_ || !movement_) return popped;
+    const objects::ObjectId gm = attack_mover(target);
+    if (movement_->has_unit(gm)) {
+        const mv::UnitView g = movement_->view(gm);
+        if (g.has_goal && !g.arrived) return popped;  // G moves
+    }
+    for (const objects::ObjectId m : movers) {
+        LandFormationRecord* r = land_formation_mut(m);
+        if (!r || r->blocks.size() < 2) continue;
+        const mv::FighterBlock& t = r->blocks.back();
+        if (t.pushed || t.kind != mv::kFighterBlockObject || (t.flags & mv::kMoveFlagGuardMove) == 0) continue;
+        if (t.object != target && attack_mover(t.object) != gm) continue;  // the top guards this follow's object
+        r->blocks.pop_back();  // F +0x100 -= 0x68
+        ++stats_.land_guard_pops;
+        popped.push_back(m);
+    }
+    if (!popped.empty()) land_run_top(mode, popped, rng);
+    return popped;
 }
 
 }  // namespace alamo::sim
