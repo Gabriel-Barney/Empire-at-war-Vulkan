@@ -298,6 +298,9 @@ struct UnitView {
     // stop / new order / teleport / locomotor swap dropped a running turn since the tick before (reported on the next
     // tick). False otherwise. The host treats arrival_turn || arrival_turn_ended as "the turn owns the clip".
     bool arrival_turn_ended = false;
+    // #94: the Walk's secondary yaw Y2 (LandMotion::yaw2, degrees): stepped only for a UseSecondaryFacing type, which the
+    // land formation Pop turns to it (pop_facing); every other unit keeps the value copied at the Walk's attach
+    float yaw2 = 0.0f;
     // s78n t20 (FIGHTER_FLYING §4.11 E "stopping"): the land Walk state (LandMotion::state; WalkEndMove = braking for the end)
     LocoState walk_state = LocoState::None;
     // mov1 t05 (BKR1_RE_ANSWERS Q3 [H]): the rank of its formation (FormationClass +0x23c from 0x439360: 0 = the front-most
@@ -694,7 +697,8 @@ public:
     // turn rate); position and order unchanged. False when the unit is unknown.
     bool snap_yaw(ObjectId id, float yaw_deg);
     // #491 (locomotor vf +0x1e8, LocomotorBehaviorClass 0x42c600 [H]): the yaw the formation Pop 0x4105a0 sets on a member
-    // (0x3a8710): the unit's own orientation. kNoFacing for an unknown unit.
+    // (0x3a8710): the unit's own orientation; #94 (the Walk override 0x61e0a0 [H]): a UseSecondaryFacing Walk unit's Y2.
+    // kNoFacing for an unknown unit.
     float pop_facing(ObjectId id) const;
 
     // ---- REMAINING_GAPS §4.2-4.7
