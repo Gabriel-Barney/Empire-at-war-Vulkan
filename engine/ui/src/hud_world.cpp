@@ -121,7 +121,7 @@ void WorldHud::bind(const ComponentTable& table) {
     bomb_ = table.find("remote_bomb_icon");
     garrison_flag_ = table.find("st_garrison_icon");
     garrison_slot_ = table.find("garrison_slot_icon");
-    ability_ = table.find("st_ability_icon");
+    ability_icon_ = table.find("st_ability_icon");
 }
 
 WorldHud::BarBox WorldHud::bars(const WorldHudContext& ctx, const HudUnit& u, BracketSize sz, const UnitScreenBounds& b,
@@ -239,21 +239,28 @@ void WorldHud::status_icons(const HudUnit& u, bool allied, const BarBox& bar, co
             draw(ic, bar.cx + (static_cast<float>(i) - 0.5f * (n - 1.0f)) * step, bar.cy + 0.5f * bar.h + 0.5f * ic.h);
         }
     }
-    // #476 st_ability_icon (0x2e7fd0 / 0x31de70 [H]): allied units only. Slot 0's icon, then slot 1's as a second layer at the
-    // same spot (the first when slot 0 has none), each at its atlas size x the component's Scale on its Base_Layer, centred
-    // on the bar 3 px above it. [port] above the top of the bar stack rather than the health bar alone: the port stacks the
+}
+
+void WorldHud::ability_icons(const HudUnit& u, bool allied, const BarBox& bar, const HudCanvas& cv, const TextureAtlas& atlas,
+                             HudDrawList& dl) {
+    // #476 st_ability_icon (0x2e7fd0 / 0x31de70 [H]): allied units only. Slot 0's icon, then slot 1's as a second layer on
+    // the same button (the first layer when slot 0 has none), each at its atlas size x the component's Scale on its
+    // Base_Layer. The button is centred on the bar, 3 px plus half the first layer's height above it; the second layer
+    // shares that centre. [port] above the top of the bar stack rather than the health bar alone: the port stacks the
     // shield and power bars over the health bar (retail's placement of those is not traced), which the icon would cover.
-    // The lt_weather_icon shift is not ported (no weather icon).
-    if (allied && ability_ >= 0 && table_) {
-        const CommandBarComponent& c = (*table_)[static_cast<size_t>(ability_)];
-        for (const std::string& tex : u.ability_icon) {
-            const AtlasEntry* e = tex.empty() ? nullptr : atlas.find(tex);
-            if (!e) continue;
+    // The lt_weather_icon shift is not ported (no weather icon). The component's own Icon_Texture_Name is not drawn.
+    if (!allied || ability_icon_ < 0 || !table_) return;
+    const CommandBarComponent& c = (*table_)[static_cast<size_t>(ability_icon_)];
+    std::optional<Vec2f> centre;
+    for (const std::string& tex : u.ability_icon) {
+        const AtlasEntry* e = tex.empty() ? nullptr : atlas.find(tex);
+        if (!e) continue;
+        if (!centre) {
             const float h = static_cast<float>(e->height) * c.scale / cv.units_per_pixel_y;
-            add_atlas_quad(dl, static_cast<uint32_t>(c.base_layer), HudList::Alpha, atlas, tex,
-                           cv.pixel_to_canvas(bar.cx, bar.top - 3.0f - 0.5f * h), {}, c.scale, Rgba8{});
-            ++stats_.ability_icons;
+            centre = cv.pixel_to_canvas(bar.cx, bar.top - 3.0f - 0.5f * h);
         }
+        add_atlas_quad(dl, static_cast<uint32_t>(c.base_layer), HudList::Alpha, atlas, tex, *centre, {}, c.scale, Rgba8{});
+        ++stats_.ability_icons;
     }
 }
 
@@ -341,7 +348,11 @@ void WorldHud::build(const WorldHudContext& ctx, std::span<const HudUnit> units,
         if (!t.hide_health_bar && !stealth_hidden) {
             // #475: the status icons hang off the health bar; [port] none without one.
             const BarBox hb = bars(ctx, u, sz, b, atlas, dl);
-            if (hb.valid) status_icons(u, u.owner >= 0 && !hostile(u.owner), hb, cv, atlas, dl);
+            if (hb.valid) {
+                const bool allied = u.owner >= 0 && !hostile(u.owner);
+                status_icons(u, allied, hb, cv, atlas, dl);
+                ability_icons(u, allied, hb, cv, atlas, dl);
+            }
         }
         // Control-group number.
         if (u.control_group >= 0 && u.control_group <= 9) {

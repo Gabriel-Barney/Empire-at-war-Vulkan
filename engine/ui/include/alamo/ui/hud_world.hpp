@@ -226,8 +226,8 @@ public:
     const WorldHudStats& stats() const { return stats_; }
 
 private:
-    // The health bar as drawn: centre and size in pixels (+Y down); `valid` false when no health bar was drawn. `top`: the
-    // pixel y of the top edge of the whole bar stack (health, shield, power).
+    // The health bar as drawn: centre and size in pixels (+Y down); `valid` false when no health bar was drawn. Also `top`:
+    // the pixel y of the top edge of the whole bar stack (health, shield, power), for the ability icon above it.
     struct BarBox {
         bool valid = false;
         float cx = 0, cy = 0, w = 0, h = 0;
@@ -237,11 +237,13 @@ private:
                 const TextureAtlas& atlas, HudDrawList& dl);
     void status_icons(const HudUnit& u, bool allied, const BarBox& bar, const HudCanvas& cv, const TextureAtlas& atlas,
                       HudDrawList& dl);
+    void ability_icons(const HudUnit& u, bool allied, const BarBox& bar, const HudCanvas& cv, const TextureAtlas& atlas,
+                       HudDrawList& dl);
     const ComponentTable* table_ = nullptr;
     int32_t bracket_[3] = {-1, -1, -1}, health_[3] = {-1, -1, -1}, shield_[3] = {-1, -1, -1};
     int32_t power_ = -1, group_ = -1, flytext_ = -1;
     int32_t bribed_ = -1, bomb_ = -1, garrison_flag_ = -1, garrison_slot_ = -1;  // #475
-    int32_t ability_ = -1;  // #476 st_ability_icon
+    int32_t ability_icon_ = -1;  // #476 st_ability_icon
     WorldHudStats stats_;
 };
 

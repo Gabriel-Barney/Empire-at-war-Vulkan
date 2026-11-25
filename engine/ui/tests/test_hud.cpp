@@ -1225,7 +1225,7 @@ void test_world_ability_icons() {
             CHECK(near(ic->x, bar->x) && near(ic->y, bar->y + 3.0f + 3.0f + 8.0f) && ic->layer == 3);
         }
     }
-    {  // two, over a shield bar: both at one spot above the stack's top, the second drawn after the first
+    {  // two, over a shield bar: one button above the stack's top, the second layer at the first's centre, drawn after it
         HudUnit u = base;
         u.shield = 0.5f;
         u.ability_icon[0] = "i_sa_defend_mode.tga";
@@ -1239,7 +1239,7 @@ void test_world_ability_icons() {
             // health top = bar y + 3; then Health_Bar_Spacing 2 and the 4-high shield bar; then 3 px and half the icon
             const float top = bar->y + 3.0f + 2.0f + 4.0f;
             CHECK(near(first->x, bar->x) && near(first->y, top + 3.0f + 8.0f));
-            CHECK(near(second->x, bar->x) && near(second->y, top + 3.0f + 7.0f) && second->order > first->order);
+            CHECK(near(second->x, bar->x) && near(second->y, first->y) && second->order > first->order);
         }
     }
     {  // only the second slot active: it takes the first layer (retail: slot 1 -> the icon when slot 0 had none)

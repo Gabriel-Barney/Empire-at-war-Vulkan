@@ -42,11 +42,12 @@ galactic code names them. Port: galactic_hud.cpp:238/245 already has both. **Dro
 Port (#476): `ui::overhead_ability_icons` gives the unit's two icons from `abilities_from_s9` over that one unit: for slots 0
 and 1, the HudAbility icon (Alternate_Icon_Name, else `ability_icon(type)`) when the ability is active and not recharging
 (state 2), else none. [port] a slot is the unit's command-bar button order (ascending ability type), not the XML slot order;
-the 0x2f62f0 gates (the record cooldown timers, 0x39bbd0) are not ported. app_hud.cpp fills `HudUnit::ability_icon` for
+the 0x2f62f0 gates (the record cooldown timers, 0x39bbd0) are not ported, and 0x39b480 (unidentified) is not mapped. app_hud.cpp fills `HudUnit::ability_icon` for
 selected and hovered units. `WorldHud` draws them for allied units on st_ability_icon's Base_Layer at atlas size x Scale:
-slot 0's, then slot 1's at the same spot (the first when slot 0 has none). [port] centred 3 px above the top of the bar stack,
-not the health bar, because the port stacks the shield and power bars over the health bar; [port] none while the health bar
-is hidden. The weather shift is not ported (no lt_weather_icon). "Allied" has the #536 caveat of "Port (#475)" below.
+slot 0's, then slot 1's as a second layer sharing its centre (the first layer when slot 0 has none). [port] centred 3 px
+above the top of the bar stack, not the health bar, because the port stacks the shield and power bars over the health bar;
+the 3 is read as pixels [M]. [port] none while the health bar is hidden, and nothing (not the component's own
+Icon_Texture_Name) when no slot is active: whether retail keeps the last texture then is not traced. The weather shift is not ported (no lt_weather_icon). "Allied" has the #536 caveat of "Port (#475)" below.
 
 ### Overhead status record (0x2ddac0 build, 0x2e7fd0 + 0x31de70 update; tactical only) [H]
 0x302620 runs 0x31de70 when HUD +0x211c > 1 (2 land, 3 space) and +0x26a5. Units: the hovered object (+0x2030) and the local
