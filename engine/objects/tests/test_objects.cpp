@@ -702,6 +702,7 @@ static void test_s1_rules() {
           has_diag("<CategoryMask>: Failed to convert value (Fighter, Nope)!"));
     CHECK(ty.get_int(m2, "MovementClass") == -1 && ty.get_int(m2, "Ship_Class") == -1 &&
           ty.get_int(m2, "Projectile_Category") == -1 && ty.get_int(m2, "Weather_Category") == 0);
+    CHECK(ty.get_int(m2, "GUI_Row") == -1);  // #83: unset -> the constructor's -1 (0x367250)
     CHECK(ty.value(T("M3"), find_type_field("CategoryMask")) != nullptr && ty.get_mask(T("M3"), "CategoryMask") == 0);
     CHECK(ty.get_mask(mv, "CategoryMask") == 0x11);  // variant: rejected -> parent's value kept
     CHECK(ty.stats().mask_failed == 3 && ty.stats().enum_failed == 1);  // variant re-parse not counted twice
