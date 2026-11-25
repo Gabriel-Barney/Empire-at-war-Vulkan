@@ -1140,6 +1140,47 @@ void test_orders() {
     CHECK(batch.commands.size() == 1 && batch.commands[0].payload.type() == commands::EventType::MoveToRay);  // space
 }
 
+// #549: OrderContext::hostile is asked of the object's owner. Under a diplomacy where owner 1 is an ally, a right click
+// on 1's object 9 moves to it and a right double click adds nothing; where 1 is an enemy, the same click attacks.
+void test_orders_diplomacy() {
+    using T = commands::EventType;
+    World w;
+    Bindings keys;
+    InputState in;
+    OrderTranslator ot;
+    ot.set_selection({3, 5});
+    Script s;
+    int32_t x = 0, y = 0;
+    constexpr int32_t kOwner = 1;    // World: object 9's owner
+    constexpr uint32_t kTarget = 9;  // at (-300, 200, 0)
+    w.screen({-300, 200, 0}, x, y);
+    std::vector<int32_t> asked;
+    for (const bool ally : {true, false}) {
+        OrderContext c = w.ctx();
+        c.hostile = [&asked, ally, me = c.local_player](int32_t owner) {
+            asked.push_back(owner);
+            return owner >= 0 && owner != me && !(ally && owner == kOwner);
+        };
+        for (int i = 0; i < 40; ++i) s.idle();
+        size_t mark = s.frames.size();
+        s.click(Button::Right, x, y);
+        feed(in, ot, keys, c, s, mark);
+        auto out = ot.take();
+        CHECK(out.size() == 1 && out[0].type() == (ally ? T::MoveToObject : T::Attack) && out[0].u("target") == kTarget);
+        // the second click of a double click: an attack only on an enemy
+        mark = s.frames.size();
+        s.down(Button::Right);
+        s.up(Button::Right);
+        feed(in, ot, keys, c, s, mark);
+        const auto dbl = ot.take();
+        CHECK(ally ? dbl.empty() : (dbl.size() == 1 && dbl[0].type() == T::Attack && dbl[0].u("flag0") == 1));
+        std::printf("#549 diplomacy (owner 1 %s): right click on 9 -> %zu order(s), double click adds %zu\n",
+                    ally ? "ally" : "enemy", out.size(), dbl.size());
+        ot.take_move_acks();
+    }
+    CHECK(!asked.empty() && std::all_of(asked.begin(), asked.end(), [](int32_t o) { return o == kOwner; }));
+}
+
 // ---- session determinism ------------------------------------------------------------------------------
 struct SessionResult {
     std::vector<uint8_t> batches;  // canonical batch bytes of every tick
@@ -1180,45 +1221,6 @@ SessionResult run_session(const std::vector<InputFrame>& frames) {
 }
 
 // ---- P1 double-click move / move flags (legacy docs/re/P1_DOUBLE_CLICK_MOVE.md) ---------------------------------------------------
-// #549: OrderContext::hostile is asked of the object's owner. Under a diplomacy where owner 1 is an ally, a right click
-// on 1's object 9 moves to it and a right double click adds nothing; where 1 is an enemy, the same click attacks.
-void test_orders_diplomacy() {
-    using T = commands::EventType;
-    World w;
-    Bindings keys;
-    InputState in;
-    OrderTranslator ot;
-    ot.set_selection({3, 5});
-    Script s;
-    int32_t x = 0, y = 0;
-    w.screen({-300, 200, 0}, x, y);
-    std::vector<int32_t> asked;
-    for (const bool ally : {true, false}) {
-        OrderContext c = w.ctx();
-        c.hostile = [&asked, ally](int32_t owner) {
-            asked.push_back(owner);
-            return owner >= 0 && owner != 0 && !(ally && owner == 1);
-        };
-        for (int i = 0; i < 40; ++i) s.idle();
-        size_t mark = s.frames.size();
-        s.click(Button::Right, x, y);
-        feed(in, ot, keys, c, s, mark);
-        auto out = ot.take();
-        CHECK(out.size() == 1 && out[0].type() == (ally ? T::MoveToObject : T::Attack) && out[0].u("target") == 9);
-        // the second click of a double click: an attack only on an enemy
-        mark = s.frames.size();
-        s.down(Button::Right);
-        s.up(Button::Right);
-        feed(in, ot, keys, c, s, mark);
-        const auto dbl = ot.take();
-        CHECK(ally ? dbl.empty() : (dbl.size() == 1 && dbl[0].type() == T::Attack && dbl[0].u("flag0") == 1));
-        std::printf("#549 diplomacy (owner 1 %s): right click on 9 -> %s, double click adds %zu\n", ally ? "ally" : "enemy",
-                    out.size() == 1 && out[0].type() == T::Attack ? "Attack" : "MoveToObject", dbl.size());
-        ot.take_move_acks();
-    }
-    CHECK(!asked.empty() && std::all_of(asked.begin(), asked.end(), [](int32_t o) { return o == 1; }));
-}
-
 void test_double_click_move() {
     using T = commands::EventType;
     World w;
