@@ -841,21 +841,43 @@ void CampaignBattles::push_battle(SimHost& host) {
     {
         const galactic::GalacticSim& gs = *g->sim();
         const objects::GameObjectTypes& types = catalog_->types();
-        std::vector<std::pair<int32_t, uint32_t>> ups;
-        for (const int32_t p : {pending_req_.info.attacker, pending_req_.info.defender}) {
-            if (p < 0 || static_cast<size_t>(p) >= gs.players().size()) continue;
+        const auto affiliated = [&](int32_t p, uint32_t t) {  // 0x3751a0: the type lists the player's faction
+            if (p < 0 || static_cast<size_t>(p) >= gs.players().size() || t >= types.size()) return false;
             const uint32_t f = gs.players()[static_cast<size_t>(p)].faction;
-            if (f >= gs.rules().factions.size()) continue;
+            if (f >= gs.rules().factions.size()) return false;
             const std::string& fname = gs.rules().factions[f].name;
-            for (const uint32_t t : gs.player_upgrades(p, kind == ModeKind::Space)) {
-                if (t >= types.size()) continue;
-                bool affiliated = false;
-                for (const uint32_t fi : types.factions(static_cast<objects::TypeIndex>(t)))
-                    affiliated = affiliated || (fi < types.faction_names().size() && ascii_iequals(types.faction_names()[fi], fname));
-                if (affiliated) ups.push_back({p, t});
+            for (const uint32_t fi : types.factions(static_cast<objects::TypeIndex>(t)))
+                if (fi < types.faction_names().size() && ascii_iequals(types.faction_names()[fi], fname)) return true;
+            return false;
+        };
+        std::vector<std::pair<int32_t, uint32_t>> ups;
+        for (const int32_t p : {pending_req_.info.attacker, pending_req_.info.defender})
+            for (const uint32_t t : gs.player_upgrades(p, kind == ModeKind::Space))
+                if (affiliated(p, t)) ups.push_back({p, t});
+        battle_->set_galactic_upgrades(std::move(ups), !rebuilding_);
+        // #68 (0x2a1eb0 after the 0x2afc10 calls [H]): then, player by player, each type of the player's per-planet list
+        // for the battle planet (0x281620 / 0x281760, list order) that is affiliated with the player's faction (0x3751a0)
+        // and has DUMMY_UPGRADE (0x65) in the generic behaviours or the battle mode's (0x370320 with -1, then the mode).
+        // [port, open: #542] Retail walks every galactic player; the port spawns for the two battle players only, in
+        // ascending player index, as the pad persistence does: a third player has no place in the port's battle. A tier 1
+        // gap (a non-fighting Underworld loses its Racketeering bounty), tracked by #542.
+        std::vector<std::pair<int32_t, uint32_t>> corrupt;
+        const objects::BehaviorTypeId dummy = objects::behavior_type_id("DUMMY_UPGRADE");
+        const objects::BehaviorSet mode_set = kind == ModeKind::Space ? objects::BehaviorSet::Space : objects::BehaviorSet::Land;
+        const PlanetIndex planet = pending_req_.info.planet;
+        const int32_t lo = std::min(pending_req_.info.attacker, pending_req_.info.defender);
+        const int32_t hi = std::max(pending_req_.info.attacker, pending_req_.info.defender);
+        for (const int32_t p : {lo, hi}) {
+            if (planet == kInvalidPlanet || (p == hi && hi == lo)) continue;  // one player on both sides: once
+            for (const uint32_t t : gs.planet_upgrades(p, planet)) {
+                if (!affiliated(p, t)) continue;
+                const auto ti = static_cast<objects::TypeIndex>(t);
+                if (dummy != objects::kNoBehavior &&
+                    (types.has_behavior(ti, objects::BehaviorSet::Generic, dummy) || types.has_behavior(ti, mode_set, dummy)))
+                    corrupt.push_back({p, t});
             }
         }
-        battle_->set_galactic_upgrades(std::move(ups), !rebuilding_);
+        battle_->set_corruption_upgrades(std::move(corrupt));
     }
     {  // battle host: TacticalBuild charges / TacticalSell refunds spend the galactic account.
         // #222 (legacy docs/re/A2K_T10_CREDIT_NOTIFY_RE.md): the second add hook is Add_Credits with the AI notify on

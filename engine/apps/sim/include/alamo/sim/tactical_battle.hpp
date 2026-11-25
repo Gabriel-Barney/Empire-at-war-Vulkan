@@ -1476,6 +1476,11 @@ public:
     // production runs in skirmish only today (production_enabled), so the add is reached in a campaign battle once campaign
     // production exists (#544).
     void set_upgrade_tracking(std::function<void(bool add, int32_t owner, uint32_t type)> track) { upgrade_track_ = std::move(track); }
+    // #68 (0x2a1eb0 [H]): the per-planet tactical upgrade objects (corruption), {player, type} in spawn order, already
+    // filtered (affiliated DUMMY_UPGRADE types: GalacticSim::planet_upgrades). Set before setup(); created after the
+    // set_galactic_upgrades ones, each at the origin for its player, with no level or ownership test. The spawn flag of
+    // set_galactic_upgrades applies (a battle rebuilt by a save load adds the types and spawns nothing).
+    void set_corruption_upgrades(std::vector<std::pair<int32_t, uint32_t>> upgrades) { corruption_upgrades_ = std::move(upgrades); }
     using PadRecord = galactic::PersistedBuiltObject;
     void set_pad_persistence(std::vector<PadRecord>* records, bool restore = true) {
         pad_records_ = records;
@@ -3383,6 +3388,7 @@ private:
     std::vector<HgUpgradeObject> hg_upgrade_objs_;            // DUMMY_UPGRADE objects created by production (creation order)
     std::vector<std::pair<int32_t, uint32_t>> ga_upgrades_;   // galab: {player, upgrade type} to spawn at setup (not saved)
     bool ga_spawn_ = true;                                    // galab: false for a battle rebuilt by a save load (types only)
+    std::vector<std::pair<int32_t, uint32_t>> corruption_upgrades_;   // #68: {player, corruption upgrade type} to spawn (not saved)
     std::vector<objects::ObjectId> hg_orphans_;               // contents of a removed container: removed next frame
     bool prod_used_ = false;
     std::unique_ptr<tactical::hangar::HangarSystem> hangars_;

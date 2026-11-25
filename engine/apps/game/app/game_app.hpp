@@ -822,6 +822,12 @@ private:
     std::map<std::pair<uint32_t, uint32_t>, std::pair<int32_t, float>> countdown_speech_seen_;
     double last_approach_s_ = -1e9;              // wall clock of the last enemy-approach announcement
     uint64_t build_refusals_ = 0;  // clicks on greyed galactic build pads (negative feedback)
+    // #471: the fleet / land tooltip summary of a hovered stack (key: a fleet's id, or kEncyLandKey | a planet's id).
+    // Above every object id the sim hands out (ids count up from 1) and apart from the build pads' 0xE0000000 type keys.
+    static constexpr uint32_t kEncyLandKey = 0xD0000000u;
+    std::optional<ui::EncyclopediaEntry> fleet_summary_entry(uint32_t key) const;
+    bool own_fleet(uint32_t fleet_id) const;  // the live fleet with this id is the local player's
+    const galactic::FleetState* find_fleet(uint32_t fleet_id) const;  // the live fleet with this fleet object id
     bool activate_special_fleet(uint32_t fleet_id, uint32_t planet_id);  // #455
     int32_t type_ranking(uint32_t type) const;  // the type's Ranking_In_Category (0 when out of range)
     // #455: the drag rows of one fleet for one galaxy frame (the provider runs per visible planet every build).

@@ -67,6 +67,11 @@ constexpr float kEncHeadH = 47.0f, kEncLineX = 5.0f, kEncLineW = 232.0f, kEncLin
 constexpr float kEncDescGap = 4.0f, kEncAgainstGap = 14.0f, kEncAgainstBottom = 6.0f, kEncFrameW = 129.0f, kEncFrameH = 43.0f,
                 kEncCellW = 43.0f;
 constexpr size_t kEncCells = 3;
+// #471 the summary grid: six cells per row and the half-cell offset of the first row (0x3095c0 [H for the count, M for
+// the offset]); the cell size, the gap under the badge line and the grid, the 1-unit cell inset and the label's place at
+// the cell's bottom right are [M] (no capture).
+constexpr size_t kEncGridColumns = 6;
+constexpr float kEncGridCell = 32.0f, kEncGridGap = 4.0f, kEncGridInset = 1.0f, kEncGridLabelUp = 8.0f;
 constexpr Rgba8 kEncStrong{0, 192, 0, 255}, kEncWeak{192, 0, 0, 255}, kEncPopulation{255, 215, 56, 255};
 
 }  // namespace
@@ -251,7 +256,13 @@ Vec2f EncyclopediaPanel::build_at(HudDrawList& out, const HudCanvas& cv, const E
         rows_h += rl.height;
         row_layout.push_back(rl);
     }
-    const float height = head_h + rows_h + (longform ? kEncDescGap + db.height : 0.0f) + (against ? against_h : 2.0f * pad.y);
+    // #471: the summary's badge line and cell grid, under the rows.
+    const TextBlock badge_b = e.badges.empty() ? TextBlock{} : measure_text_block(fonts, cv, e.badges, wrap, cs);
+    const size_t grid_rows = (e.cells.size() + kEncGridColumns - 1) / kEncGridColumns;
+    const float grid_h = (e.badges.empty() ? 0.0f : badge_b.height + kEncGridGap) +
+                         (grid_rows > 0 ? static_cast<float>(grid_rows) * kEncGridCell + kEncGridGap : 0.0f);
+    const float height =
+        head_h + rows_h + grid_h + (longform ? kEncDescGap + db.height : 0.0f) + (against ? against_h : 2.0f * pad.y);
     // Placement: top-left corner.
     Vec2f tl;
     if (bottom_left) {
@@ -279,7 +290,9 @@ Vec2f EncyclopediaPanel::build_at(HudDrawList& out, const HudCanvas& cv, const E
     if (unit_head)
         add_atlas_quad(dl, layer, HudList::Alpha, *atlas_, "e_line.tga",
                        {tl.x + kEncLineX + 0.5f * kEncLineW, tl.y - head_h + 0.5f * kEncLineH}, {kEncLineW, kEncLineH}, 1.0f, Rgba8{});
-    if (ie) add_atlas_quad(dl, layer, HudList::Alpha, *atlas_, e.icon, {tl.x + cfg_.enc_icon_x, y - (-cfg_.enc_icon_y)}, icon_size, 1.0f, Rgba8{});
+    if (ie)
+        add_atlas_quad(dl, layer, HudList::Alpha, *atlas_, e.icon, {tl.x + cfg_.enc_icon_x, y - (-cfg_.enc_icon_y)}, icon_size, 1.0f,
+                       e.icon_tint);
     if (e.population > 0) {
         HudTextStyle ps = style_of(ico, fonts, cv, 6.0f, kEncPopulation, TextAlign::Center);
         ps.color = kEncPopulation;  // [inferred] capture h1_full
@@ -310,6 +323,21 @@ Vec2f EncyclopediaPanel::build_at(HudDrawList& out, const HudCanvas& cv, const E
         }
         y -= rl.height;
     }
+    if (!e.badges.empty()) {
+        add_text_block(dl, layer, HudList::Text, fonts, cv, e.badges, {center.x, y}, wrap, cs);
+        y -= badge_b.height + kEncGridGap;
+    }
+    for (size_t i = 0; i < e.cells.size(); ++i) {
+        const EncyclopediaEntry::Cell& c = e.cells[i];
+        const size_t r = i / kEncGridColumns, k = i % kEncGridColumns;
+        const Vec2f at{tl.x + pad.x + (static_cast<float>(k) + (r == 0 ? 1.0f : 0.5f)) * kEncGridCell,
+                       y - (static_cast<float>(r) + 0.5f) * kEncGridCell};
+        const Vec2f cell{kEncGridCell - 2.0f * kEncGridInset, kEncGridCell - 2.0f * kEncGridInset};
+        add_atlas_quad(dl, layer, HudList::Alpha, *atlas_, c.icon, at, cell, 1.0f, Rgba8{});
+        if (c.stealth) add_atlas_quad(dl, layer, HudList::Alpha, *atlas_, "i_icon_stealth.tga", at, cell, 1.0f, Rgba8{});
+        if (!c.label.empty()) add_text(dl, layer, HudList::Text, fonts, cv, c.label, {at.x + 0.5f * cell.x, at.y - 0.5f * cell.y + kEncGridLabelUp}, rs);
+    }
+    if (grid_rows > 0) y -= static_cast<float>(grid_rows) * kEncGridCell + kEncGridGap;
     if (longform) {
         y -= kEncDescGap;
         add_text_block(dl, layer, HudList::Text, fonts, cv, e.description, {tl.x + pad.x, y}, wrap, ts);

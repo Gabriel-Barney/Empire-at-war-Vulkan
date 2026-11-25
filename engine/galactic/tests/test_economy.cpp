@@ -2018,8 +2018,9 @@ void test_special_case_production() {
             CHECK(s.read(r) && s.planets()[rA].initial_placement == std::vector<uint32_t>{tBarracks});
         }
         // v9: no list section (the last one: per planet u32 count + types); the start() lists stay.
-        // then the auto-resolve rules (t07), the v11 lock list, the v12 survivors, the v13 upgrade records (none: one u32 count)
-        size_t tail = 4 + 4 + 2 + 4 + 5 * s.autoresolve_exclusions().size() + 4;
+        size_t tail = 4 + 4 + 2 + 4 + 5 * s.autoresolve_exclusions().size();  // then the auto-resolve rules (t07), the v11 lock list, the v12 survivors
+        tail += 4 * s.players().size();  // the v13 per-planet tactical upgrade lists (#68)
+        tail += 4;  // the v14 persistent upgrade objects (#459; none: one u32 count)
         for (const PlanetState& pl : s.planets()) tail += 4 + 4 * pl.initial_placement.size();
         std::vector<uint8_t> v9(bytes.begin(), bytes.end() - static_cast<std::ptrdiff_t>(tail));
         v9[0] = 9;

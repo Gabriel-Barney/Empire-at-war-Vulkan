@@ -666,7 +666,7 @@ void drive_synthetic(GalacticSim& s, ConflictManager& cm, const objects::ObjectS
                 v->push_back({tFrigate, 300.5f, 40.25f, 12.1f, 0, pEmpire});
             }
             break;
-        case 65:  // #459 (docs/re/HOLOCRON_SUMMARY_SORT.md): persistent upgrade objects on D (save v13, hashed once present)
+        case 65:  // #459 (docs/re/HOLOCRON_SUMMARY_SORT.md): persistent upgrade objects on D (save v14, hashed once present)
             CHECK(s.add_upgrade_object(rD, pUnder, tInfantry) && !s.add_upgrade_object(rD, pUnder, tInfantry));  // one per owner + type
             CHECK(s.add_upgrade_object(rD, pEmpire, tInfantry) && s.add_upgrade_object(rD, pEmpire, tFrigate));
             CHECK(s.remove_upgrade_object(rD, pEmpire, tInfantry) && !s.remove_upgrade_object(rD, pEmpire, tInfantry));
@@ -748,7 +748,9 @@ void test_synthetic() {
     sc.full_prefix_limit = 1u << 20;  // every prefix
     // #67 t04: the saved pending ProductionCanceled events of a command cancel carry object = kCancelVoiced. Only the save
     // part of the pin moves (galactic and conflict digests unchanged; with the flag at 0 the pin is the old 0x67e4152092046d2e).
-    sc.pin = 0x4bf04da84760b18dull;  // #459: the scenario's upgrade objects (step 65) enter the hash
+    // #68: the v13 per-planet tactical upgrade lists (a u32 count per player, empty here) move the save part again;
+    // #459: the scenario's upgrade objects (step 65) enter the hash, and v14 adds their count.
+    sc.pin = 0x0ddc3c8911b7cc9cull;
     run_scenario(sc);
 }
 
@@ -908,13 +910,20 @@ void test_queue_phases() {
         for (const PlanetState& pl : s.planets()) placement += 4 + 4 * pl.initial_placement.size();
         // v11 adds the locked fleets (u32 count 0 here); a v10 image derives them from the contents (none).
         // v12 adds the company survivor records (u32 count 0 here); a v11 image has none.
-        // #459: v13 adds the planets' persistent upgrade objects last (u32 count 0 here); a v12 image has none.
-        CHECK(bytes.size() >= galab + 28 + placement && bytes[0] == 13 && bytes[bytes.size() - 1] == 0);
-        std::vector<uint8_t> v12(bytes.begin(), bytes.end() - 4);
+        // v13 (#68) adds, per player, the per-planet tactical upgrade list (u32 count 0 here); a v12 image rebuilds it
+        // from the corruption types (none here). v14 (#459) adds last the planets' persistent upgrade objects (u32 count 0
+        // here); a v13 image has none.
+        const size_t tactical = 4 * s.players().size();
+        CHECK(bytes.size() >= galab + 28 + placement + tactical && bytes[0] == 14 && bytes[bytes.size() - 1] == 0);
+        std::vector<uint8_t> v13(bytes.begin(), bytes.end() - 4);
+        v13[0] = 13;
+        ByteReader r13(v13);
+        CHECK(o.read(r13) && sim_bytes(o) == bytes);
+        std::vector<uint8_t> v12(bytes.begin(), bytes.end() - static_cast<std::ptrdiff_t>(tactical + 4));
         v12[0] = 12;
         ByteReader r12(v12);
         CHECK(o.read(r12) && sim_bytes(o) == bytes);
-        {  // a v13 image whose upgrade records are malformed is refused: a bad type, then a duplicate owner + type
+        {  // a v14 image whose upgrade records are malformed is refused: a bad type, then a duplicate owner + type
             const size_t base = bytes.size() - 4;
             std::vector<uint8_t> bad(bytes.begin(), bytes.begin() + static_cast<std::ptrdiff_t>(base));
             const auto u32 = [&bad](uint32_t v) {
@@ -1149,7 +1158,10 @@ void test_foc() {
         drive_conflicts(s, cm, st, t);
     };
     // #67 t04: as the synthetic pin, only the save part moves (with the voiced flag at 0 the pin is the old 0x3823a3d7aeba6b5e).
-    sc.pin = 0xe52a752f6f0759a3ull;  // FoC data; #459: the save bytes carry v13's upgrade-object count
+    // #68: the v13 per-planet tactical upgrade lists move the save part, and the galactic digest too: the first political
+    // update gives the Underworld's start planets their Racketeering entries (the "PTU1" section).
+    // #459: v14 adds the upgrade-object count to the save part.
+    sc.pin = 0xb3c06fd8cb9ee992ull;  // FoC data
     run_scenario(sc);
 }
 

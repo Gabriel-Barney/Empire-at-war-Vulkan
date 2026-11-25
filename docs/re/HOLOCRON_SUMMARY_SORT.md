@@ -53,7 +53,7 @@ into the row. A queue counts 1 only when it has a head and that string is non-em
   - `galactic::PlanetState::upgrade_objects` holds `{type, owner, frame}`, the third field read as the galactic frame of
     the add [L].
   - The list changes through `GalacticSim::add_upgrade_object` / `remove_upgrade_object` (`0x4b7090` / `0x4bb690`; an
-    add of the same owner and type is refused). It is saved (galactic save v13; older saves read none) and hashed only
+    add of the same owner and type is refused). It is saved (galactic save v14; older saves read none) and hashed only
     for planets with records.
   - The battle installs them through `TacticalBattle::set_upgrade_tracking`, behind the pads' campaign gate:
     - the add on a finished DUMMY_UPGRADE (`0x498170`);
