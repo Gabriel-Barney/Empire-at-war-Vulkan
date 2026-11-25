@@ -437,6 +437,29 @@ const char* galactic_announcement(const galactic::GalacticSim& g, const galactic
     }
 }
 
+FleetTooltip fleet_tooltip_summary(std::string_view owner_faction, bool land, std::span<const FleetTooltipGroup> groups, bool all_raid,
+                                   bool all_stealth) {
+    FleetTooltip out;
+    // 0x2eb070 compares the owner faction with the tooltip's +0x2708 / +0x2728 / +0x2748 strings, the three HUD strings
+    // space_weapon_faction_icon reads [M]: 0 Rebel, 1 Empire, 2 Underworld, 3 any other.
+    static constexpr const char* kSide[4] = {"GOOD", "EVIL", "CORRUPT", "PIRATE"};  // [name-ok: retail TEXT_PIRATE_* tooltip keys]
+    out.title = std::string("TEXT_") + kSide[space_weapon_faction_icon(owner_faction)] + (land ? "_LAND_GARRISON" : "_SPACE_FLEET");
+    if (!land) {
+        if (all_raid) out.badges.emplace_back("TEXT_RAID_FLEET");
+        if (all_stealth) out.badges.emplace_back("TEXT_STEALTH_FLEET");
+    }
+    for (const FleetTooltipGroup& gr : groups) {
+        if (gr.count == 0) continue;
+        out.total += gr.pop * static_cast<int32_t>(gr.count);
+        FleetTooltipCell c;
+        c.icon = !gr.known ? "i_button_unknown.tga" : gr.icon.empty() ? "i_button_temporary.tga" : gr.icon;
+        if (gr.count >= 2) c.label = "x" + std::to_string(gr.count);
+        c.stealth = gr.stealth;
+        out.cells.push_back(std::move(c));
+    }
+    return out;
+}
+
 const galactic::FleetState* fleet_by_id(const galactic::GalacticSim& g, uint32_t fleet_id) {
     const objects::ObjectHandle h = g.store().find(static_cast<objects::ObjectId>(fleet_id));
     const uint32_t fi = h ? g.fleet_of(h) : galactic::kNoFleet;

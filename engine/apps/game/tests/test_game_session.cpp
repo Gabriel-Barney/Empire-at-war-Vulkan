@@ -2739,6 +2739,28 @@ void hud_feeds_test(const game::GameData& data, const game::SessionSpec& spec) {
         }
         CHECK(game::fleet_drag_route(gg, me, 0xFFFFFFF0u, 0).empty());
     }
+    // #471 (docs/re/SCORE_TOOLTIPS_GAME_OPTIONS.md "t13"): the fleet / land tooltip summary.
+    {
+        const std::vector<game::FleetTooltipGroup> fleet = {{3, 1, "i_button_tie.tga", true, false}, {1, 5, "i_button_sd.tga", true, false}};
+        const game::FleetTooltip t = game::fleet_tooltip_summary("Empire", false, fleet, false, false);
+        CHECK(t.title == "TEXT_EVIL_SPACE_FLEET" && t.total == 8 && t.badges.empty() && t.cells.size() == 2);
+        if (t.cells.size() == 2)
+            CHECK(t.cells[0].icon == "i_button_tie.tga" && t.cells[0].label == "x3" && t.cells[1].icon == "i_button_sd.tga" &&
+                  t.cells[1].label.empty());
+        CHECK(game::fleet_tooltip_summary("REBEL", false, fleet, false, false).title == "TEXT_GOOD_SPACE_FLEET");
+        CHECK(game::fleet_tooltip_summary("Underworld", true, fleet, true, true).title == "TEXT_CORRUPT_LAND_GARRISON");
+        CHECK(game::fleet_tooltip_summary("Pirates", false, fleet, false, false).title == "TEXT_PIRATE_SPACE_FLEET");
+        const game::FleetTooltip land = game::fleet_tooltip_summary("Empire", true, fleet, true, true);
+        CHECK(land.title == "TEXT_EVIL_LAND_GARRISON" && land.badges.empty());  // the land header has no badges
+        const game::FleetTooltip badges = game::fleet_tooltip_summary("Empire", false, fleet, true, true);
+        CHECK((badges.badges == std::vector<std::string>{"TEXT_RAID_FLEET", "TEXT_STEALTH_FLEET"}));
+        const std::vector<game::FleetTooltipGroup> odd = {{2, 3, "", true, true}, {1, 2, "i_button_x.tga", false, false}};
+        const game::FleetTooltip o = game::fleet_tooltip_summary("Empire", false, odd, false, false);
+        CHECK(o.total == 8 && o.cells.size() == 2);
+        if (o.cells.size() == 2)
+            CHECK(o.cells[0].icon == "i_button_temporary.tga" && o.cells[0].stealth && o.cells[0].label == "x2" &&
+                  o.cells[1].icon == "i_button_unknown.tga" && !o.cells[1].stealth);
+    }
     // #455 (docs/re/GALACTIC_ABILITY_ROWS.md 0x3d2020 / 0x3eb200): a dragged group's row kind. One object: its type's kind;
     // the lowest Ranking_In_Category member is the one classified; a larger group keeps only kind 6; raid overrides all.
     {

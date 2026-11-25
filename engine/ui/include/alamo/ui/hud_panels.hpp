@@ -75,6 +75,18 @@ struct EncyclopediaEntry {
     std::u32string description;  // long form (Encyclopedia_Text), shown after the long delay
     std::u32string strong_label, weak_label;  // TEXT_GOOD_AGAINST / TEXT_VULNERABLE_TO
     std::vector<std::string> strong, weak;    // unit icons (Encyclopedia_Good_Against / _Vulnerable_To): both empty = no rows
+    // #471 (docs/re/SCORE_TOOLTIPS_GAME_OPTIONS.md "t13" [H content, M layout]): a galactic fleet / land summary. The icon
+    // takes `icon_tint` (the owner colour on the stack art); `badges` is a centred line under the head; `cells` is the
+    // unit grid, six per row, the first row offset by half a cell, each cell its icon, the stealth overlay and its
+    // "x%d" label at the bottom right.
+    struct Cell {
+        std::string icon;
+        std::u32string label;
+        bool stealth = false;
+    };
+    Rgba8 icon_tint{};
+    std::u32string badges;
+    std::vector<Cell> cells;
 };
 
 class EncyclopediaPanel {

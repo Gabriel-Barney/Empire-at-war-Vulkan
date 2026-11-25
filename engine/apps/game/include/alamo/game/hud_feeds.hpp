@@ -161,6 +161,31 @@ ui::HudBuildOption::Block galactic_build_block(commands::RejectReason why);
 const char* galactic_announcement(const galactic::GalacticSim& g, const galactic::GalacticEvent& e, int32_t local_player);
 std::vector<std::u32string> droid_log_rows(std::u32string_view day_text, int32_t cycle, std::u32string_view text, std::u32string_view separator);
 std::vector<PlanetIndex> fleet_drag_route(const galactic::GalacticSim& g, int32_t local_player, uint32_t fleet_id, PlanetIndex target);
+// #471 (docs/re/SCORE_TOOLTIPS_GAME_OPTIONS.md "t13", header 0x2eb070, slot 0x2efb40, land 0x2f25a0, cell 0x3095c0 [H]): the
+// galactic fleet / land tooltip summary. One group per type of the hovered stack (its count, Population_Value, Icon_Name,
+// whether the type is known to the local player, whether the unit is stealthed).
+struct FleetTooltipGroup {
+    uint32_t count = 0;
+    int32_t pop = 0;
+    std::string icon;
+    bool known = true;
+    bool stealth = false;
+};
+struct FleetTooltipCell {
+    std::string icon;   // Icon_Name; i_button_unknown.tga unknown, i_button_temporary.tga without an icon
+    std::string label;  // "x%d" when the count is 2 or more, else ""
+    bool stealth = false;  // the i_icon_stealth.tga overlay
+};
+struct FleetTooltip {
+    std::string title;                // TEXT_{GOOD|EVIL|CORRUPT|PIRATE}_{SPACE_FLEET|LAND_GARRISON}
+    int32_t total = 0;                // sum of pop x count (drawn gold on e_topbar)
+    std::vector<std::string> badges;  // TEXT_RAID_FLEET, TEXT_STEALTH_FLEET (space only), shown joined with ", "
+    std::vector<FleetTooltipCell> cells;
+};
+// The title follows the owner faction (space_weapon_faction_icon: Rebel GOOD, Empire EVIL, Underworld CORRUPT, any other
+// PIRATE [M]). `all_raid` / `all_stealth`: every fleet of the stack is a raid / stealthed fleet.
+FleetTooltip fleet_tooltip_summary(std::string_view owner_faction, bool land, std::span<const FleetTooltipGroup> groups, bool all_raid,
+                                   bool all_stealth);
 // The live fleet whose fleet object has id `fleet_id` (a map stack's GalacticPlanetStack::fleet), nullptr when none.
 const galactic::FleetState* fleet_by_id(const galactic::GalacticSim& g, uint32_t fleet_id);
 // #455 (docs/re/GALACTIC_ABILITY_ROWS.md "The kind and its label"): the two kinds the row rule names.
