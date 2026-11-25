@@ -64,7 +64,10 @@ namespace {
 // type none and P = the first Benefits_From_Corruption player.
 // v14 (#459): + last, the planets' persistent upgrade objects {u32 planets with records, {u32 planet, u32 n, {u32 type,
 // i32 owner, i32 frame}...}...} planet-ascending; v13 and older read none.
-constexpr uint32_t kGalacticSaveVersion = 14;  // 14: + the planets' persistent upgrade objects
+// v15 (#456): + last, the fleets whose counts_for_starbase (fleet data +0x94) is clear {u32 count, u32 fleet index...}
+// ascending; v14 and older read every fleet as set.
+constexpr uint32_t kGalacticSaveVersion = 15;  // 15: + the fleets cleared by an AI magic spawn
+constexpr uint32_t kGalacticSaveVersionNoStarbaseFlag = 14;
 constexpr uint32_t kGalacticSaveVersionNoUpgradeObjects = 13;
 constexpr uint32_t kGalacticSaveVersionNoPlanetUpgrades = 12;
 constexpr uint32_t kGalacticSaveVersionNoSurvivors = 11;
@@ -199,12 +202,17 @@ void GalacticSim::write(ByteWriter& w) const {
         w.u32(pl).u32(static_cast<uint32_t>(v.size()));
         for (const PersistedUpgradeObject& r : v) w.u32(r.type).i32(r.owner).i32(r.frame);
     }
+    uint32_t cleared = 0;  // #456 (v15)
+    for (const FleetState& f : fleets_) cleared += f.counts_for_starbase ? 0u : 1u;
+    w.u32(cleared);
+    for (uint32_t i = 0; i < fleets_.size(); ++i)
+        if (!fleets_[i].counts_for_starbase) w.u32(i);
 }
 
 bool GalacticSim::read(ByteReader& r) {
     const objects::ObjectStore& st = *store_;
     const uint32_t version = r.u32();
-    if ((version != kGalacticSaveVersion && version != kGalacticSaveVersionNoUpgradeObjects && version != kGalacticSaveVersionNoPlanetUpgrades && version != kGalacticSaveVersionNoSurvivors && version != kGalacticSaveVersionNoLocks && version != kGalacticSaveVersionNoPlacement && version != kGalacticSaveVersionNoSlots && version != kGalacticSaveVersionNoGalab &&
+    if ((version != kGalacticSaveVersion && version != kGalacticSaveVersionNoStarbaseFlag && version != kGalacticSaveVersionNoUpgradeObjects && version != kGalacticSaveVersionNoPlanetUpgrades && version != kGalacticSaveVersionNoSurvivors && version != kGalacticSaveVersionNoLocks && version != kGalacticSaveVersionNoPlacement && version != kGalacticSaveVersionNoSlots && version != kGalacticSaveVersionNoGalab &&
          version != kGalacticSaveVersionNoNames) ||
         !r.ok())
         return false;
@@ -490,6 +498,17 @@ bool GalacticSim::read(ByteReader& r) {
                     if (q->owner == u.owner && q->type == u.type) return false;  // add_upgrade_object never writes a duplicate
             }
             prev = pl;
+        }
+    }
+    if (version >= 15) {  // #456: the fleets cleared by an AI magic spawn, ascending; v14 and older: every fleet set
+        uint32_t n_cleared = 0;
+        if (!r.count(n_cleared, 4)) return false;
+        uint32_t prev = 0;
+        for (uint32_t k = 0; k < n_cleared; ++k) {
+            const uint32_t i = r.u32();
+            if (!r.ok() || i >= fleets.size() || (k > 0 && i <= prev)) return false;
+            fleets[i].counts_for_starbase = false;
+            prev = i;
         }
     }
     if (!r.ok() || !r.done()) return false;

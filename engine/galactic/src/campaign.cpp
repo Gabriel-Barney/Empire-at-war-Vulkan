@@ -1088,7 +1088,8 @@ bool GalacticSim::enemy_fleet_in_orbit(PlanetIndex planet, int32_t player) const
 
 bool GalacticSim::starbase_orbit_blocked(PlanetIndex planet, int32_t player) const {
     for (const uint32_t f : planets_[planet].orbit)
-        if (fleets_[f].alive && fleets_[f].owner != player && !hidden(fleets_[f].object)) return true;
+        if (fleets_[f].alive && fleets_[f].owner != player && fleets_[f].counts_for_starbase && !hidden(fleets_[f].object))
+            return true;
     return false;
 }
 

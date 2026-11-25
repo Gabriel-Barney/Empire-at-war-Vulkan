@@ -2021,6 +2021,7 @@ void test_special_case_production() {
         size_t tail = 4 + 4 + 2 + 4 + 5 * s.autoresolve_exclusions().size();  // then the auto-resolve rules (t07), the v11 lock list, the v12 survivors
         tail += 4 * s.players().size();  // the v13 per-planet tactical upgrade lists (#68)
         tail += 4;  // the v14 persistent upgrade objects (#459; none: one u32 count)
+        tail += 4;  // the v15 cleared-fleet list (#456; none: one u32 count)
         for (const PlanetState& pl : s.planets()) tail += 4 + 4 * pl.initial_placement.size();
         std::vector<uint8_t> v9(bytes.begin(), bytes.end() - static_cast<std::ptrdiff_t>(tail));
         v9[0] = 9;
@@ -2298,6 +2299,56 @@ void test_starbase_orbit_fleets() {
         CHECK(r.step20 == c.blocks);
         CHECK(r.cancelled == c.blocks);
     }
+}
+
+// #456 (docs/re/STARBASE_ORBIT_FLEETS.md): an AI magic spawn leaves its unit alone in a fleet whose +0x94 is clear, so that
+// fleet does not count in the starbase orbit test; a merge keeps the receiving fleet's byte (0x433dd0) [H]; the byte is
+// saved (galactic v15).
+void test_magic_spawn_fleet_flag() {
+    std::printf("  oi: magic-spawned fleets and the starbase orbit test (#456)\n");
+    OiWorld w({{pEmpire, rA, tSB1}, {pEmpire, rA, tBarracks}});
+    GalacticSim& s = w.sim;
+    s.add_credits(pEmpire, 50000.0f);
+    s.set_relation(pEmpire, pUnder, Relation::Enemy);
+    const uint32_t none = commands::kNoObject;
+    const auto oid = [&w](ObjectHandle h) { return static_cast<uint32_t>(w.store.id(h)); };
+    const auto refused = [&] { return s.build_check(pEmpire, rA, tSB2).reason == kBuildHostileFleet; };
+    const auto merge = [&](uint32_t from, uint32_t into) {
+        return s.execute(static_cast<uint8_t>(pUnder),
+                         fleet_management_event(kFleetMerge, oid(s.fleets()[into].object), oid(s.fleets()[from].object), none));
+    };
+    // A magic spawn alone in orbit: its fleet is clear and does not block.
+    const ObjectHandle m1 = s.magic_spawn(pUnder, rA, tFrigate, false, false);
+    const uint32_t f1 = s.fleet_containing(m1);
+    CHECK(f1 != kNoFleet && s.fleets()[f1].contents.size() == 1 && !s.fleets()[f1].counts_for_starbase && !refused());
+    // A normal spawn joins the first idle orbit fleet, the clear one, which stays clear (a unit moved into a clear fleet
+    // does not count [H]).
+    const ObjectHandle u = s.spawn_unit(pUnder, rA, tFrigate);
+    CHECK(s.fleet_containing(u) == f1 && !s.fleets()[f1].counts_for_starbase && !refused());
+    // Detached into a new fleet (set), the normal unit blocks.
+    CHECK(s.execute(static_cast<uint8_t>(pUnder), fleet_management_event(kFleetDetach, oid(w.planet(rA).object), none, oid(u))) ==
+          RejectReason::None);
+    const uint32_t f2 = s.fleet_containing(u);
+    CHECK(f2 != kNoFleet && f2 != f1 && s.fleets()[f2].counts_for_starbase && refused());
+    // A magic spawn joins the first orbit fleet (f1), then leaves it for a clear fleet of its own.
+    const ObjectHandle m2 = s.magic_spawn(pUnder, rA, tFrigate, false, false);
+    const uint32_t f3 = s.fleet_containing(m2);
+    CHECK(f3 != kNoFleet && f3 != f1 && f3 != f2 && s.fleets()[f3].contents.size() == 1 && !s.fleets()[f3].counts_for_starbase);
+    CHECK(s.fleets()[f1].contents.size() == 1 && s.fleets()[f2].contents.size() == 1 && s.fleets()[f2].counts_for_starbase);
+    // Merges: the clear f3 into the set f2 gives a set fleet; the set f2 into the clear f1 leaves f1 clear.
+    CHECK(merge(f3, f2) == RejectReason::None && !s.fleets()[f3].alive && s.fleets()[f2].contents.size() == 2 && s.fleets()[f2].counts_for_starbase);
+    CHECK(refused());
+    CHECK(merge(f2, f1) == RejectReason::None && !s.fleets()[f2].alive && s.fleets()[f1].contents.size() == 3 && !s.fleets()[f1].counts_for_starbase);
+    CHECK(!refused());
+    std::printf("    magic spawn: a clear fleet of its own; merged into a set fleet: set; a set fleet merged into a clear one: %zu units, "
+                "clear, no refusal\n",
+                s.fleets()[f1].contents.size());
+    // Saved: the clear byte survives a write / read.
+    ByteWriter bw;
+    s.write(bw);
+    const std::vector<uint8_t> bytes = bw.bytes();
+    ByteReader br(bytes);
+    CHECK(s.read(br) && !s.fleets()[f1].counts_for_starbase && !refused());
 }
 
 // SG 1.3: buildability order and reason codes.
@@ -3686,6 +3737,7 @@ int main(int argc, char** argv) {
         test_oi_base_info();
         test_oi_buildability();
         test_starbase_orbit_fleets();  // #433
+        test_magic_spawn_fleet_flag();  // #456
         test_campaign_rule_fields_parse();
         test_special_case_production();
         test_corruption_level_override();

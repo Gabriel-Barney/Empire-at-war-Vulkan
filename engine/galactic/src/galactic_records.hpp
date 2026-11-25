@@ -463,6 +463,7 @@ void visit(Ar& ar, R& f) {
     ar.u32(f.want_planet, In::Save);
     ar.i8(f.want_slot, In::Save);
     if (f.story_autoresolve_lock) ar.hash_tag(0x95);
+    if (!f.counts_for_starbase) ar.hash_tag(0x94);  // #456
 }
 
 // ---- ConflictInfo (both queues, the active request's info): every field in the save and the CRC.
