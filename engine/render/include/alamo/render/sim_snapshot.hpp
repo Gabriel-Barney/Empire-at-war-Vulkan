@@ -143,9 +143,9 @@ public:
     // the palette index (0..8) a non-neutral owner uses instead of owner % 9: owner k takes colours[k]; owners past
     // the list keep owner % 9. Presentation only (the sim never reads a colour). Empty = every owner % 9.
     void set_owner_colours(std::vector<uint8_t> colours) { owner_colours_ = std::move(colours); }
-    // #468 (unit colorization 0x396190 -> 0x33e340, docs/re/GAMEPLAY_OPTIONS_AND_MOUSE.md t10): a colour that replaces a
-    // non-neutral owner's palette entry (IDC_SIMPLIFIED_FACTION_COLORS outside the MP-colour mode); the palette index
-    // stays. nullopt / owners past the list keep the palette.
+    // #468 (unit colorization 0x396190 -> 0x33e340 [H], docs/re/GAMEPLAY_OPTIONS_AND_MOUSE.md t10): a colour, per player
+    // id, that replaces a non-neutral owner's palette entry (IDC_SIMPLIFIED_FACTION_COLORS outside the MP-colour mode).
+    // The palette index stays (it only feeds the snapshot digest). nullopt / owners past the list keep the palette.
     void set_owner_display_colors(std::vector<std::optional<materials::float4>> colors) { display_colors_ = std::move(colors); }
     // Tests / tools: replace the model of every type (e.g. a debug box for model-less synthetic types).
     void set_model(objects::TypeIndex t, std::string model) { info_[t].model = std::move(model); }

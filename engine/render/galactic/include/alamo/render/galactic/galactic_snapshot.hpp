@@ -130,7 +130,11 @@ inline materials::float4 display_faction_color(const materials::float4& own, boo
                                                const SimplifiedColors& s) {
     return simplified_faction_color(local_faction, playable, neutral, s).value_or(own);
 }
-// `local_player` (< 0: none) and `simplified` apply display_faction_color to every non-neutral owner (#468).
+// Per player id: the simplified colour of that player's faction as seen by `local_player` (nullopt: the player keeps its
+// own colour; all nullopt when the option is off or there is no local player, 0x33e340 [H]).
+std::vector<std::optional<materials::float4>> simplified_owner_colors(const galactic::GalacticSim& sim, int32_t local_player,
+                                                                      const SimplifiedColors& s);
+// `local_player` (< 0: none) and `simplified` apply simplified_owner_colors to every non-neutral owner (#468).
 GalacticPalette make_galactic_palette(const galactic::GalacticSim& sim, std::span<const FactionColor> factions,
                                       int32_t local_player = -1, const SimplifiedColors& simplified = {});
 

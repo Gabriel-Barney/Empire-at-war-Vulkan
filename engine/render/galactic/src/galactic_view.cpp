@@ -588,7 +588,8 @@ uint32_t route_settings_index(std::string_view name) {
 }
 
 RouteClass classify_route(std::span<const GalacticPlanetSnap> planets, const GalacticRouteSnap& r, int32_t viewpoint,
-                          std::span<const uint8_t> neutral_players, std::span<const uint8_t> sides, bool simplified_colors) {
+                          std::span<const uint8_t> neutral_players, std::span<const uint8_t> sides, bool simplified_colors,
+                          std::span<const uint8_t> friendly) {
     if (r.a >= planets.size() || r.b >= planets.size()) return RouteClass::Neutral;
     const GalacticPlanetSnap& a = planets[r.a];
     const GalacticPlanetSnap& b = planets[r.b];
@@ -601,7 +602,7 @@ RouteClass classify_route(std::span<const GalacticPlanetSnap> planets, const Gal
         if (sides[o] == kRouteSideEvil) return RouteClass::Evil;
         if (sides[o] == kRouteSideOther) return RouteClass::Corrupt;
     }
-    return a.owner == viewpoint ? RouteClass::Ally : RouteClass::Enemy;
+    return a.owner == viewpoint || (o < friendly.size() && friendly[o]) ? RouteClass::Ally : RouteClass::Enemy;
 }
 
 namespace {
@@ -873,7 +874,7 @@ void GalacticSceneBuilder::build(const GalacticFrame& frame, GalacticModelSource
             ++st.hidden_routes;
             continue;
         }
-        const RouteClass rc = classify_route(planets, r, opt_.viewpoint, opt_.neutral, opt_.side, opt_.simplified_colors);
+        const RouteClass rc = classify_route(planets, r, opt_.viewpoint, opt_.neutral, opt_.side, opt_.simplified_colors, opt_.friendly);
         // §3.1 zoom blend: Color_Zoomed_In at f = 1. The line stays in the close-up (§3.1 has no hide rule, the sparkles alone
         // stop at f == 1). ADDITIVE with the block's texture; tinted per instance (LIGHT_SCALE), as the corruption paths are.
         const float zf = std::isfinite(route_zoom_) ? std::clamp(route_zoom_, 0.0f, 1.0f) : 0.0f;

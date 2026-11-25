@@ -100,5 +100,7 @@ inline constexpr const char* kDefaultGalacticCampaign = "Sandbox_Heart_Of_The_Ma
 // `evil_side_name` (default "": GameConstants Evil_Side_Name from the GalacticRules constants; no built-in
 // name) -> kRouteSideEvil, any other non-neutral faction -> kRouteSideOther (Corrupt).
 GalacticViewOptions galactic_view_options(const galactic::GalacticSim& sim, std::string_view evil_side_name = {});
+// Per player id: 1 when the player is not hostile to `viewpoint` (relation != Enemy, 0x2823e0 [H]; the route Ally rule).
+std::vector<uint8_t> route_friendly_players(const galactic::GalacticSim& sim, int32_t viewpoint);
 
 }  // namespace alamo::render

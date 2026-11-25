@@ -110,6 +110,13 @@ namespace {
 bool same_name(std::string_view a, std::string_view b) { return ascii_iequals(ascii_trim(a), ascii_trim(b)); }
 }  // namespace
 
+std::vector<uint8_t> route_friendly_players(const galactic::GalacticSim& sim, int32_t viewpoint) {
+    std::vector<uint8_t> out(sim.players().size(), 0);
+    for (size_t p = 0; p < out.size(); ++p)
+        out[p] = sim.relation(viewpoint, static_cast<int32_t>(p)) != galactic::Relation::Enemy ? 1 : 0;
+    return out;
+}
+
 GalacticViewOptions galactic_view_options(const galactic::GalacticSim& sim, std::string_view evil_side_name) {
     GalacticViewOptions o;
     o.viewpoint = 0;
@@ -133,6 +140,7 @@ GalacticViewOptions galactic_view_options(const galactic::GalacticSim& sim, std:
         }
         o.side.push_back(side);
     }
+    o.friendly = route_friendly_players(sim, o.viewpoint);
     return o;
 }
 

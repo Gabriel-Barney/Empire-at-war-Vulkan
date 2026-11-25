@@ -198,12 +198,14 @@ void GalacticView::set_simplified_colors(const galactic::GalacticSim& sim, const
     if (!changed || !builder_) return;
     palette_ = render::make_galactic_palette(sim, colors_, local_, simplified_);
     builder_->options().simplified_colors = simplified_.on;
+    builder_->options().friendly = render::route_friendly_players(sim, local_);
 }
 
 void GalacticView::attach(const galactic::GalacticSim& sim, int32_t local_player) {
     palette_ = render::make_galactic_palette(sim, colors_, local_player, simplified_);
     render::GalacticViewOptions vo = render::galactic_view_options(sim);
     vo.viewpoint = local_player;
+    vo.friendly = render::route_friendly_players(sim, local_player);
     vo.corruption_path = corruption_path_;
     vo.simplified_colors = simplified_.on;  // #468
     vo.rings = false;        // the game's planet ellipse is the HUD's g_planet_ring (C2_galactic_silent.png); the 3D ring is the viewer's

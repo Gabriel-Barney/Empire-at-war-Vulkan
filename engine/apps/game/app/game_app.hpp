@@ -410,6 +410,7 @@ private:
     ui::InfoScreens info_;
     std::vector<render::FactionColor> faction_colors_;  // Factions.xml <Color> (FactionFiles.xml order)
     render::SimplifiedColors simplified_colors_;         // #468: GameConstants Player_Color / Enemy_Color (`on` per tick)
+    std::optional<bool> battle_simplified_;              // #468: the flag the battle view's colours were last set for
     ui::HotkeyDispatcher hotkeys_;
     ui::CursorTable cursor_table_;
     ui::MouseCursor cursor_;
@@ -882,8 +883,14 @@ private:
     void show_battle_end(bool dialog = true);  // dialog false = the bookkeeping only (BT §2.9.6 skip)
     int32_t galactic_faction_icon(const galactic::GalacticSim& g, int32_t player) const;
     ui::Rgba8 faction_rgba(const galactic::GalacticSim& g, int32_t player, bool text, ui::Rgba8 fallback) const;
-    // #468 (0x33e340 [H]): IDC_SIMPLIFIED_FACTION_COLORS, or the local player is a story tutorial player (TUTORIAL_PLAYER).
+    // #468 (0x33e340 [H]): IDC_SIMPLIFIED_FACTION_COLORS, or the local player is a story tutorial player (TUTORIAL_PLAYER);
+    // the colours in force (simplified_colors_ with `on` set). Off without a local player.
     bool simplified_colors_now() const;
+    render::SimplifiedColors simplified_colors() const {
+        render::SimplifiedColors c = simplified_colors_;
+        c.on = simplified_colors_now();
+        return c;
+    }
     // pushes simplified_colors_now() to the galactic view (palette, routes) and, outside skirmish, the battle view.
     void sync_simplified_colors();
     void planet_icons(const galactic::GalacticSim& g, PlanetIndex row, ui::GalacticPlanetInfo& out) const;

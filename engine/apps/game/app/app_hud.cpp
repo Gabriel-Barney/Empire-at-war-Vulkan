@@ -38,22 +38,19 @@ ui::Rgba8 App::faction_rgba(const galactic::GalacticSim& g, int32_t player, bool
     materials::float4 c;
     const std::string_view name = rules.factions[fi].name;
     if (!(text ? render::faction_text_color(faction_colors_, name, c) : render::faction_map_color(faction_colors_, name, c))) return fallback;
-    if (!text) {  // #468: <Color> goes through the 0x33e340 lookup; Display_Font_Color does not
-        render::SimplifiedColors sc = simplified_colors_;
-        sc.on = simplified_colors_now();
-        const int32_t me = local_player();
-        const bool local = me >= 0 && static_cast<size_t>(me) < g.players().size() && g.players()[static_cast<size_t>(me)].faction == fi;
-        c = render::display_faction_color(c, local, rules.factions[fi].is_playable, rules.factions[fi].is_neutral, sc);
+    if (!text && player >= 0) {  // #468: <Color> goes through the 0x33e340 lookup; Display_Font_Color does not
+        const auto simple = render::simplified_owner_colors(g, local_player(), simplified_colors());
+        if (static_cast<size_t>(player) < simple.size() && simple[static_cast<size_t>(player)]) c = *simple[static_cast<size_t>(player)];
     }
     auto to8 = [](float v) { return static_cast<uint8_t>(std::lround(std::clamp(v, 0.0f, 1.0f) * 255.0f)); };
     return {to8(c.x), to8(c.y), to8(c.z), 255};
 }
 
 bool App::simplified_colors_now() const {
+    if (!session_ || local_player() < 0) return false;  // 0x33e340 [H]: only with a local player
     if (gameplay_.simplified_colors) return true;
 #ifdef ALAMO_SIM_HAVE_STORY
-    if (session_)
-        if (const sim::StorySession* story = session_->host().story()) {  // local_player+0x3c0 (SET_TUTORIAL_PLAYER 0x456970)
+    if (const sim::StorySession* story = session_->host().story()) {  // local_player+0x3c0 (SET_TUTORIAL_PLAYER 0x456970) [H]
             const std::vector<int32_t>& marked = story->tutorial().marked_players;
             return std::find(marked.begin(), marked.end(), local_player()) != marked.end();
         }
@@ -65,24 +62,18 @@ bool App::simplified_colors_now() const {
 // battle's team colours. The battle's owners are the galaxy's player ids [M]; without a galaxy the palette stays.
 void App::sync_simplified_colors() {
     if (!session_) return;
-    render::SimplifiedColors sc = simplified_colors_;
-    sc.on = simplified_colors_now();
+    const render::SimplifiedColors sc = simplified_colors();
     const galactic::GalacticSim* g = session_->galaxy();
     if (g && gview_.attached()) gview_.set_simplified_colors(*g, sc);
-    if (!bview_.active()) return;
-    std::vector<std::optional<materials::float4>> owners;
-    if (sc.on && g && session_->spec().kind != SessionKind::Skirmish) {
-        const galactic::GalacticRules& rules = g->rules();
-        const int32_t me = local_player();
-        const uint32_t mine = me >= 0 && static_cast<size_t>(me) < g->players().size() ? g->players()[static_cast<size_t>(me)].faction : UINT32_MAX;
-        for (const auto& p : g->players()) {
-            const bool known = p.faction < rules.factions.size();
-            owners.push_back(known ? render::simplified_faction_color(p.faction == mine, rules.factions[p.faction].is_playable,
-                                                                      rules.factions[p.faction].is_neutral, sc)
-                                   : std::nullopt);
-        }
+    if (!bview_.active()) {
+        battle_simplified_.reset();
+        return;
     }
-    bview_.set_owner_display_colors(std::move(owners));
+    const bool on = sc.on && g && session_->spec().kind != SessionKind::Skirmish;
+    if (battle_simplified_ == on) return;  // rebuilt only when the flag changes
+    battle_simplified_ = on;
+    bview_.set_owner_display_colors(on ? render::simplified_owner_colors(*g, local_player(), sc)
+                                       : std::vector<std::optional<materials::float4>>{});
 }
 
 // Planet overlay icons (ui pass 2): the strongest garrison unit (AI combat power, then type index), the heroes at the
@@ -154,7 +145,7 @@ void App::planet_icons(const galactic::GalacticSim& g, PlanetIndex row, ui::Gala
             out.hero_rebel = out.hero_rebel || fx == 0;
             out.hero_empire = out.hero_empire || fx == 1;
             out.hero_underworld = out.hero_underworld || fx == 3;
-            out.hero_you = out.hero_you || friendly(st.owner(h));  // #468: g_hero "you" (0x39a230)
+            out.hero_you = out.hero_you || friendly(st.owner(h));  // #468: g_hero "you" (0x39a230 [H])
             if (!friendly(st.owner(h)) && out.enemy_hero < 0) out.enemy_hero = fx == 1 ? 1 : 0;  // ui4 t03 g_enemy_hero
             continue;
         }
@@ -196,6 +187,13 @@ void App::planet_icons(const galactic::GalacticSim& g, PlanetIndex row, ui::Gala
             for (const objects::ObjectHandle m : live)
                 if (is_hero(st.type(m))) {
                     out.enemy_hero = galactic_faction_icon(g, owner) == 1 ? 1 : 0;
+                    break;
+                }
+        // #468: g_hero "you" follows g_enemy_hero's rule, so a friendly hero in orbit counts too, as an enemy one does.
+        if (friendly(owner) && !out.hero_you)
+            for (const objects::ObjectHandle m : live)
+                if (is_hero(st.type(m))) {
+                    out.hero_you = true;
                     break;
                 }
         s.enemy = owner != me;

@@ -617,6 +617,18 @@ static void test_simplified_colors(const render::GalacticWorld& w) {
     // seen from the Rebel player: the Empire is the enemy now
     const render::GalacticPalette reb = render::make_galactic_palette(*s.sim(), w.faction_colors, 1, on);
     CHECK(same(reb.player[0], on.enemy) && same(reb.player[1], on.player));
+    // no local player: every faction keeps its own colour (0x33e340 needs one)
+    const render::GalacticPalette none = render::make_galactic_palette(*s.sim(), w.faction_colors, -1, on);
+    CHECK(same(none.player[0], off.player[0]) && same(none.player[1], off.player[1]));
+    // the per-owner list the battle's team colours take: 0 Player_Color, 1 / 2 Enemy_Color, the neutral player none
+    const auto owners = render::simplified_owner_colors(*s.sim(), 0, on);
+    CHECK(owners.size() == 4 && owners[0] && same(*owners[0], on.player) && owners[1] && same(*owners[1], on.enemy) && owners[2] &&
+          !owners[3]);
+    const auto unset = render::simplified_owner_colors(*s.sim(), 0, fo);
+    CHECK(unset.size() == 4 && !unset[0] && !unset[1]);
+    // routes: an allied owner's same-owner route is Ally, an enemy's Enemy
+    const auto friendly = render::route_friendly_players(*s.sim(), 0);
+    CHECK(friendly.size() == 4 && friendly[0] == 1 && friendly[1] == 0);
 }
 
 static void test_scene_rules(const render::GalacticWorld& w) {
@@ -646,6 +658,10 @@ static void test_scene_rules(const render::GalacticWorld& w) {
     // #468 simplified colours (0x5c28e0): same-owner routes Ally / Enemy whatever the faction.
     CHECK(render::classify_route(p, {0, 1}, 0, neutral, sides, true) == render::RouteClass::Ally);
     CHECK(render::classify_route(p, {5, 6}, 0, neutral, sides, true) == render::RouteClass::Enemy);
+    // ...Ally when the owner is not hostile to the viewpoint (0x2823e0), whatever its id
+    const std::vector<uint8_t> friendly = {1, 0, 1, 0};
+    CHECK(render::classify_route(p, {5, 6}, 0, neutral, sides, true, friendly) == render::RouteClass::Ally);
+    CHECK(render::classify_route(p, {2, 3}, 0, neutral, sides, true, friendly) == render::RouteClass::Enemy);
     // Ownership change recolours at once (slot recomputed from the frame).
     {
         std::vector<render::GalacticPlanetSnap> q = p;
