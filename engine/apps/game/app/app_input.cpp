@@ -1352,8 +1352,8 @@ void App::battle_input() {
             const auto hit = ui::pick_world(tm->trees().all(), ctx.view, ui::pixel_ray(ctx.view, input_.mouse_x(), input_.mouse_y()),
                                             tactical::kSkipDead, qc, ctx.pick_tests);
             const int32_t me = local_player();
-            const int32_t owner = hit ? tb->combat().owner(static_cast<tactical::combat::ObjectId>(hit->id)) : -1;
-            if (hit && owner >= 0 && tb->combat().is_enemy(me, owner)) {
+            // #460 (0x491f80 / 0x386220 [H]): the click takes a valid special-weapon target only (sw_can_target).
+            if (hit && tb->sw_can_target(*tm, sw_weapon_, static_cast<objects::ObjectId>(hit->id))) {
                 commands::EventData ev(commands::EventType::SpecialWeaponFire);
                 ev.set("weapon", static_cast<uint32_t>(sw_weapon_)).set("player", static_cast<uint32_t>(me)).set("at_position", 0u).set("target", hit->id);
                 cmds.push_back(std::move(ev));

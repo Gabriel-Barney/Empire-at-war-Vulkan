@@ -14,8 +14,9 @@
 // FIRING (§1.6)
 //   * begin_targeting (0x491b40): a second call toggles the flag off and fails; in space it fails while another
 //     SPECIAL_WEAPON of the same owner is targeting.
-//   * fire_at_object (0x491cd0): pack ready, target not flagged, NOT allied to the weapon owner, target categories
-//     intersect Special_Weapon_Valid_Targets, target != self. Then the pack restarts (start = now, ready = now +
+//   * can_target (0x491f80, #460): a SPECIAL_WEAPON pack, target not flagged, NOT allied to the weapon owner, target
+//     categories intersect Special_Weapon_Valid_Targets, target != self; no readiness test (the cursor and the click).
+//   * fire_at_object (0x491cd0): pack ready, then can_target. Then the pack restarts (start = now, ready = now +
 //     int(fps x recharge)), the flag clears and Projectile_Fire_Pulse_Count shots are queued, Projectile_Fire_Pulse_
 //     Delay_Seconds apart [M: the weapon event 0x549d70 fires the type's weapon at the target].
 //   * fire_lobbing_at (0x4ea3f0): the owner's base power when Requires_Base_Power; no range / ally / fog check; the
@@ -203,6 +204,7 @@ public:
     float readiness(ObjectId id, uint32_t frame) const;  // < 0: no pack (not a special weapon / lobbing object)
     bool targeting(ObjectId id) const;
     bool begin_targeting(ObjectId id, uint32_t frame);
+    bool can_target(ObjectId id, ObjectId target, const SpecialWeaponWorld& w) const;
     bool fire_at_object(ObjectId id, ObjectId target, uint32_t frame, const SpecialWeaponWorld& w);
     bool fire_lobbing_at(ObjectId id, Vec3 point, uint32_t frame, const SpecialWeaponWorld& w);
     // Lua Force-style helper [port]: restart the pack (start = frame, ready = frame + seconds x fps; < 0 = the
