@@ -35,8 +35,8 @@
    {"label": "Empire walkers", "types": ["AT_ST_Walker", "AT_AA_Walker", "AT_AT_Walker", "SPMAT_Walker"], "min_seeds": 8,
     "min_walked": 1000,
     "why": "tst2 t04 (b0188): the Walk_Transition units the scenario exists for. Measured 2026-11-20 (tst2, clang, workers 0): 10/10 seeds field them, 17000-140000 walked in all; 8 of 10 must"},
-   {"label": "Destroyer droids", "types": ["Destroyer_Droid", "Destroyer_Droid_Attack"], "min_seeds": 3, "min_walked": 1000,
-    "why": "tst2 t04 (b0188): the Underworld droids the scenario exists for (the old pinned seed 4 test fielded them). Measured 2026-11-20: 6/10 seeds (1, 2, 3, 5, 8, 9), 29000-352000 walked; 3 of 10 must"}
+   {"label": "Destroyer droids", "types": ["Destroyer_Droid", "Destroyer_Droid_Attack"], "min_seeds": 1, "min_walked": 1000,
+    "why": "tst2 t04 (b0188): the Underworld droids the scenario exists for (the old pinned seed 4 test fielded them). Measured 2026-11-20: 6/10 seeds (1, 2, 3, 5, 8, 9), 29000-352000 walked; 3 of 10 must. #334 t01 (2026-11-25): Is_Neutral-owned map units are battle units, so Underworld crews the map's neutral vehicles instead (seed 1: Pirate_Skiff_U x39, Pod_Walker_Underworld x8, Swamp_Speeder_U x6, no droids). Re-measured: 2/10 seeds (3, 6), 9000-62000 walked; 1 of 10 must"}
   ],
   "why": "bkm2 t05 (b0047): land movement with Empire walkers and Underworld droids, the whole 70000 ticks with no Lua error outside retail's; no end needed (b0422). Measured 0/10 end; the MDU race in seeds 2-5, 9, 10, no other non-retail error. About 190-280 s a seed. tst2 t04: --report-fielded and the fielded checks make sure the walkers and droids are fielded and walk (re-measured 2026-11-20: 1/10 end, MDU race in seeds 4, 6, 9, 10). mdu1 (2026-11-21): the MDU race was a port ordering bug (DEPLOY's leave and adopt queued after the activation), fixed; its known_lua entry is gone. #539 (2026-11-25): the MDU race had a second path (DEPLOY left the attack block but not the battle AI object follow, whose 30-frame re-path undeployed the MDU before Build), fixed; no known_lua entry."
  },

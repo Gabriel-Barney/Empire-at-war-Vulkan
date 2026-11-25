@@ -1663,7 +1663,7 @@ bool TacticalBattle::request_retreat(int32_t player) {
     retreat_side_ = side;
     retreat_done_frame_ = frame_ + static_cast<uint32_t>(frames_trunc(secs * 30.0f));
     for (const Unit& u : units_)
-        if (u.side == side && u.alive) combat_->set_flag(u.id, tc::kUnitRetreating, true);
+        if (retreat_side_unit(u, side) && u.alive) combat_->set_flag(u.id, tc::kUnitRetreating, true);
     // #84 (TRL2_A_RE_ANSWERS Q3, land vf8 0x534d90 [H]): the land retreat list is taken now, so units made during the
     // countdown are not on it. [port] The listing rule: the side's live movers (team members included) and garrisoned
     // units (retail: the player's objects with a locomotor plus Stay_In_Transport_During_Ground_Battle objects). Retail
@@ -1672,7 +1672,7 @@ bool TacticalBattle::request_retreat(int32_t player) {
     land_retreat_list_.clear();
     if (!space_) {
         for (const Unit& u : units_)
-            if (u.side == side && u.alive && !u.retreated && (u.movable || garrison_.garrisoned(u.id)))
+            if (retreat_side_unit(u, side) && u.alive && !u.retreated && (u.movable || garrison_.garrisoned(u.id)))
                 land_retreat_list_.push_back(u.id);
         for (const Landing& l : landings_)
             if (l.state != 3 && l.participant < parts_.size() && parts_[l.participant].side == side)
@@ -1695,7 +1695,7 @@ bool TacticalBattle::request_retreat(int32_t player) {
                 if (retreat_listed(u, static_cast<uint8_t>(side))) (void)movement_->turn_in_place(u.id, heading, frame_);
             for (const Unit& u : units_) {
                 if (u.container == kNoContainer || u.container >= containers_.size() || squad_done[u.container]) continue;
-                if (u.side != side || !u.alive || u.retreated || !u.movable || l1_jumps_.departing(u.id)) continue;
+                if (!retreat_side_unit(u, side) || !u.alive || u.retreated || !u.movable || l1_jumps_.departing(u.id)) continue;
                 squad_done[u.container] = 1;
                 (void)movement_->turn_in_place(containers_[u.container].id, heading, frame_);
             }
@@ -1705,7 +1705,7 @@ bool TacticalBattle::request_retreat(int32_t player) {
 }
 
 bool TacticalBattle::retreat_listed(const Unit& u, uint8_t side) const {
-    return u.side == side && u.alive && !u.retreated && u.movable && u.container == kNoContainer && !l1_jumps_.departing(u.id);
+    return retreat_side_unit(u, side) && u.alive && !u.retreated && u.movable && u.container == kNoContainer && !l1_jumps_.departing(u.id);
 }
 
 bool TacticalBattle::retreat_cancellable(int32_t player) const {
@@ -1721,7 +1721,7 @@ bool TacticalBattle::cancel_retreat(int32_t player, bool by_player) {
     rec.by_player = by_player;
     std::vector<objects::ObjectId> stop;
     for (const Unit& u : units_) {
-        if (u.side != side || !u.alive || u.retreated) continue;
+        if (!retreat_side_unit(u, side) || !u.alive || u.retreated) continue;
         combat_->set_flag(u.id, tc::kUnitRetreating, false);
         if (!retreat_listed(u, side)) continue;  // the retreat list (vf8): what the start turned
         rec.units.push_back(u.id);
@@ -1829,7 +1829,7 @@ void TacticalBattle::complete_retreat(TacticalMode& mode, uint8_t side) {
             }
         }
         for (const Unit& u : units_) {
-            if (u.side != side || !u.alive || u.retreated || rt_listed(u.id)) continue;  // flown out
+            if (!retreat_side_unit(u, side) || !u.alive || u.retreated || rt_listed(u.id)) continue;  // flown out
             if (!space_ && st->alive(u.h) && st->has_behavior(u.h, objects::beh::Transport)) continue;
             const bool listed = space_ ? u.movable
                                        : std::find(land_retreat_list_.begin(), land_retreat_list_.end(), u.id) !=
@@ -1842,7 +1842,7 @@ void TacticalBattle::complete_retreat(TacticalMode& mode, uint8_t side) {
         }
     }
     for (Unit& u : units_) {
-        if (u.side != side || !u.alive || u.retreated) continue;
+        if (!retreat_side_unit(u, side) || !u.alive || u.retreated) continue;
         // battle host: retreat attrition victims stay to be killed at this tick's combat phase D (§4.9)
         if (std::find(bt_attrition_ids_.begin(), bt_attrition_ids_.end(), u.id) != bt_attrition_ids_.end()) continue;
         u.retreated = true;
@@ -2633,4 +2633,8 @@ objects::ObjectId TacticalBattle::fighter_push(const Unit& leader, objects::Obje
     if (fighter_chase_test(ci) != 0) movement_->fighter_push(key, tk);  // 0x41cf70: the auto attack block {kind 3, t, +0x5d = 1}
     return newest();
 }
+bool TacticalBattle::retreat_side_unit(const Unit& u, int32_t side) const {
+    return static_cast<int32_t>(u.side) == side && !(u.participant < parts_.size() && parts_[u.participant].third);
+}
+
 }  // namespace alamo::sim

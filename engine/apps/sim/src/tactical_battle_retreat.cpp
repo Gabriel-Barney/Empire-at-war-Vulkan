@@ -47,7 +47,7 @@ bool TacticalBattle::rt_begin_flight(TacticalMode& mode, uint8_t side) {
     // are left out.
     std::vector<objects::ObjectId> list;
     for (const Unit& u : units_) {
-        if (u.side != side || !u.alive || u.retreated || !u.movable || !st.alive(u.h)) continue;
+        if (!retreat_side_unit(u, side) || !u.alive || u.retreated || !u.movable || !st.alive(u.h)) continue;
         if (l1_jumps_.departing(u.id)) continue;
         if (std::find(bt_attrition_ids_.begin(), bt_attrition_ids_.end(), u.id) != bt_attrition_ids_.end()) continue;
         list.push_back(u.id);

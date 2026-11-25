@@ -1571,10 +1571,12 @@ void test_guard_hidden_drop() {
 // ---- t07: a third-party unit idles on land ------------------------------------------------------------------------
 
 // The land battle of ClashSession on the s4 data, plus one S10_Ranger placed on the map for the Hostile faction (raw
-// owner 3: the Hostile player 3, neither attacker nor defender; a map unit of an Is_Neutral owner would stay inert, so
-// it would prove nothing). Stand-in orders on (order_interval 60, human units too): the two sides' units get orders;
+// owner 3: the Hostile player 3, neither attacker nor defender). Stand-in orders on (order_interval 60, human units too): the two sides' units get orders;
 // the third party never gets a movement goal and stays where it was put.
-void test_third_party_idle(const Data& d) {
+// #334 t01 (`neutral`): player 3 is of the Is_Neutral faction instead. Retail spawns its map unit like any other; the
+// relation table (TACTICAL_COMBAT §2.10 [H]: an Is_Neutral player is 2 towards everyone, every combat path reads 1) keeps
+// it out of combat. So it is a battle combat unit, nobody targets it and it targets nobody.
+void test_third_party_idle(const Data& d, bool neutral = false) {
     jobs::JobSystem js(jobs::JobSystemConfig{0});
     SimConfig cfg;
     cfg.seed = 2026;
@@ -1582,23 +1584,27 @@ void test_third_party_idle(const Data& d) {
     SimHost host(d.types, js, cfg);
     galactic::GalacticSetup setup = make_setup(d, true);
     galactic::PlayerSetup hostile;  // the s4 data's Hostile faction (3): player 3, neither attacker nor defender
-    hostile.faction = d.rules.find_faction("Hostile");
-    CHECK(hostile.faction == 3u);
+    hostile.faction = d.rules.find_faction(neutral ? "Neutral" : "Hostile");
+    CHECK(neutral ? hostile.faction < d.rules.factions.size() && d.rules.factions[hostile.faction].is_neutral : hostile.faction == 3u);
     setup.players.push_back(hostile);
     galactic::GalacticSim* gs = host.start_galactic(d.rules, setup);
     CHECK(gs != nullptr);
     if (!gs) return;
+    // the map owner (a faction) resolves to the first player of that faction: 3 for Hostile, the setup's Neutral player
+    int32_t owner = -1;
+    for (size_t i = 0; owner < 0 && i < gs->players().size(); ++i)
+        if (gs->players()[i].faction == hostile.faction) owner = static_cast<int32_t>(i);
     CampaignBattleOptions opt;
     opt.conflict.human_choice = galactic::BattleChoice::Fight;
     opt.battle.max_frames = 3000;
     opt.battle.fog = false;
     CampaignBattles battles(host, d.crules, *d.catalog,
-                            [](const std::string& name, terrain::MapData& m) {
+                            [raw = hostile.faction](const std::string& name, terrain::MapData& m) {
                                 if (name != "S10_Land_B") return false;
                                 m = land_map();
                                 terrain::ObjectPlacement p;
                                 p.type_crc = name_crc("S10_Ranger");
-                                p.owner = 3;  // the Hostile faction: player 3 (a Neutral-owned map unit stays inert)
+                                p.owner = raw;  // the map owner is a faction: Hostile (3) or Neutral, both player 3
                                 p.position[0] = 1200.0f;
                                 p.position[1] = 1200.0f;
                                 m.objects.push_back(p);
@@ -1616,7 +1622,7 @@ void test_third_party_idle(const Data& d) {
     objects::ObjectId third = objects::kNoObjectId;
     Vec3 at{};
     uint32_t start_frame = 0, frames = 0, side_goals = 0;
-    bool third_goal = false;
+    bool third_goal = false, third_targeted = false, third_targets = false;
     float third_moved = 0.0f;
     for (uint64_t t = 0; t < 4000; ++t) {
         host.tick_once();
@@ -1633,7 +1639,7 @@ void test_third_party_idle(const Data& d) {
         const objects::ObjectStore& st = tm->primary();
         const mv::MovementSystem& ms = b->movement();
         if (!started) {
-            third = unit_of(*b, st, d, "S10_Ranger", 3);
+            third = unit_of(*b, st, d, "S10_Ranger", owner);
             if (third == objects::kNoObjectId && b->frame() < 60) continue;
             if (third == objects::kNoObjectId) {  // diagnostics: every S10_Ranger in the store and its owner
                 const objects::TypeIndex rt = d.types.resolve_name("S10_Ranger");
@@ -1642,9 +1648,9 @@ void test_third_party_idle(const Data& d) {
                         std::printf("    store S10_Ranger %d owner %d combat %d\n", static_cast<int>(st.id(h)), static_cast<int>(st.owner(h)),
                                     b->combat().has_unit(st.id(h)) ? 1 : 0);
             }
-            std::printf("  third party: map-placed ranger %d (owner 3), stand-in sides 0 %d 1 %d 3 %d\n", static_cast<int>(third),
-                        b->standin_owner(0) ? 1 : 0, b->standin_owner(1) ? 1 : 0, b->standin_owner(3) ? 1 : 0);
-            CHECK(third != objects::kNoObjectId && !b->standin_owner(3));
+            std::printf("  third party: map-placed ranger %d (owner %d), stand-in sides 0 %d 1 %d third %d\n", static_cast<int>(third),
+                        owner, b->standin_owner(0) ? 1 : 0, b->standin_owner(1) ? 1 : 0, b->standin_owner(owner) ? 1 : 0);
+            CHECK(third != objects::kNoObjectId && !b->standin_owner(owner));
             if (third == objects::kNoObjectId) break;
             invulnerable_all(*b);
             at = st.position(st.find(third));
@@ -1656,8 +1662,10 @@ void test_third_party_idle(const Data& d) {
         third_goal = third_goal || ms.view(third).has_goal;
         third_moved = std::max(third_moved, dist2(st.position(st.find(third)), at));
         const tc::CombatSystem& cs = b->combat();
+        third_targets = third_targets || cs.current_target(third) != tc::kNoObject;
         for (size_t i = 0; i < cs.unit_count(); ++i) {
             const auto id = cs.unit_id_at(i);
+            third_targeted = third_targeted || cs.current_target(id) == third;
             const objects::ObjectHandle h = st.find(id);
             if (!st.alive(h) || (st.owner(h) != 0 && st.owner(h) != 1)) continue;
             const objects::ObjectHandle ch = st.container(h);  // a squad member steers through its container
@@ -1666,9 +1674,35 @@ void test_third_party_idle(const Data& d) {
         }
         if (frames >= 600) break;
     }
-    std::printf("  third party over %u frames: side unit-frames with a goal %u; third party goal %d, moved %.2f\n", frames, side_goals,
-                third_goal ? 1 : 0, static_cast<double>(third_moved));
+    std::printf("  third party%s over %u frames: side unit-frames with a goal %u; third party goal %d, moved %.2f, targeted %d, "
+                "targets %d\n",
+                neutral ? " (Is_Neutral)" : "", frames, side_goals, third_goal ? 1 : 0, static_cast<double>(third_moved),
+                third_targeted ? 1 : 0, third_targets ? 1 : 0);
     CHECK(started && frames >= 600 && side_goals > 0 && !third_goal && third_moved < 1.0f);
+    if (neutral) CHECK(!third_targeted && !third_targets);  // #334 t01: relation 2 both ways
+    // #334 t01: the attacker's (player 1) retreat flags its own units, never the third party's (owner_side puts it on side
+    // 1 too; retail's retreat is per player, vf11 0x5335f0 [H])
+    TacticalBattle* b = battles.battle();
+    TacticalMode* tm = host.tactical();
+    bool requested = false;
+    uint32_t side_flagged = 0;
+    bool third_flagged = false;
+    for (int k = 0; b && tm && k < 900 && side_flagged == 0; ++k) {
+        if (!requested) requested = b->request_retreat(1);
+        host.tick_once();
+        if (battles.battle() != b) break;
+        const tc::CombatSystem& cs = b->combat();
+        const objects::ObjectStore& st = tm->primary();
+        for (size_t i = 0; i < cs.unit_count(); ++i) {
+            const auto id = cs.unit_id_at(i);
+            if ((cs.flags(id) & tc::kUnitRetreating) == 0) continue;
+            if (id == third) third_flagged = true;
+            else if (st.owner(st.find(id)) == 1) ++side_flagged;
+        }
+    }
+    std::printf("  third party%s: retreat requested %d, attacker units flagged %u, third party flagged %d\n", neutral ? " (Is_Neutral)" : "",
+                requested ? 1 : 0, side_flagged, third_flagged ? 1 : 0);
+    CHECK(requested && side_flagged > 0 && !third_flagged);
 }
 
 }  // namespace
@@ -1706,6 +1740,7 @@ int main() {
         g_types_patch = nullptr;
         g_temp_prefix = old;
         test_third_party_idle(*d4);
+        test_third_party_idle(*d4, true);  // #334 t01: an Is_Neutral-owned map unit is a combat unit out of combat
     }
     return ::alamo::test::report("alamo_sim_bkt1_tests");
 }

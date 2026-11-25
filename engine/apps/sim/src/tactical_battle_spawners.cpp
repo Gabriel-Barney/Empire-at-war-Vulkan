@@ -394,8 +394,8 @@ void TacticalBattle::sp_service(TacticalMode& mode, SimRng& rng, size_t index) {
             const int32_t owner = sp_corrupt_owner(st.type(u), spawner_owner);  // mcx4 t05
             if (owner != spawner_owner) st.set_owner(u, owner);
             sp_spawners_[index].spawned.push_back(st.id(u));
-            // a map unit of a non-Is_Neutral owner is a battle unit (bt_map_load)
-            if (!bt_owner_neutral(owner)) (void)bt_adopt_built(mode, u, owner, 1.0f, &rng, true);
+            // a map unit is a battle unit, of any owner (bt_map_load, #334 t01)
+            (void)bt_adopt_built(mode, u, owner, 1.0f, &rng, true);
         }
     } else {
         if (!sp_spawners_[index].spawned.empty()) return;  // a pack respawns only when it is all gone
@@ -404,7 +404,6 @@ void TacticalBattle::sp_service(TacticalMode& mode, SimRng& rng, size_t index) {
         if (st.alive(first)) {
             // mcx4 t05 [port]: a pack follows its first member (one owner for the pack and its team container)
             const int32_t owner = sp_corrupt_owner(st.type(first), spawner_owner);
-            const bool adopt = !bt_owner_neutral(owner);
             members.push_back(first);
             const Vec3 at = st.position(first);
             for (int32_t k = 1; k < quantity; ++k) {
@@ -415,8 +414,7 @@ void TacticalBattle::sp_service(TacticalMode& mode, SimRng& rng, size_t index) {
             // of the pack type's Max_Squad_Size, in member order, at the chunk's mean position with its first member's facing;
             // #114, CU8K_T02_T06_RE §1.3 [M]: 2 containers per Endor spawn, 10 Ewoks in chunks of 5): Spawned_Indigenous_
             // Pack_Type's team object over each chunk's members. No container without a pack type that resolves to a team
-            // (the original then uses the first member's type), or for an Is_Neutral owner (its members are bare objects, as
-            // map units).
+            // (the original then uses the first member's type).
             struct PackTeam {
                 uint32_t ci = 0;
                 std::vector<objects::ObjectId> members;
@@ -425,7 +423,7 @@ void TacticalBattle::sp_service(TacticalMode& mode, SimRng& rng, size_t index) {
             std::vector<uint32_t> team_of(members.size(), 0xFFFFFFFFu);
             const objects::TypeIndex pack = types.resolve_name(ascii_trim(types.get(t, objects::tags::Spawned_Indigenous_Pack_Type)));
             uint32_t team_obj = 0xFFFFFFFFu, team_beh = 0xFFFFFFFFu, squad = 0;
-            if (adopt && pack != objects::kNone && pack < types.size() &&
+            if (pack != objects::kNone && pack < types.size() &&
                 bt_team(static_cast<uint32_t>(pack), static_cast<uint32_t>(st.type(first)), team_obj, team_beh, squad) &&
                 std::find(types_used_.begin(), types_used_.end(), team_obj) != types_used_.end()) {
                 for (size_t chunk = 0; chunk < members.size(); chunk += squad) {
@@ -467,7 +465,7 @@ void TacticalBattle::sp_service(TacticalMode& mode, SimRng& rng, size_t index) {
                 const objects::ObjectHandle u = members[i];
                 if (owner != spawner_owner) st.set_owner(u, owner);
                 sp_spawners_[index].spawned.push_back(st.id(u));
-                if (adopt) (void)bt_adopt_built(mode, u, owner, 1.0f, &rng, true, team_of[i]);
+                (void)bt_adopt_built(mode, u, owner, 1.0f, &rng, true, team_of[i]);  // #334 t01: any owner
             }
             // #114 (CU8K_T02_T06_RE §1.3, §3 row SpawnIndigenousUnits 0x5320d4 [H trace]): each container registers itself
             // as a starting team's does, once its members are movement units: one composition each at this tick's step 10
