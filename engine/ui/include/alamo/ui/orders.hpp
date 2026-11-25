@@ -168,7 +168,8 @@ public:
     // drag - a left drag is the selection box); a left double press off own units is the double-click order at the
     // press; a right release that did not move cancels an armed Attack (else Move) toggle, else clears the selection
     // (#469; a moved right press is the camera's drag, CameraTuning::alternate_mouse); right / middle double clicks do
-    // nothing. The galactic orders do not read it yet [port].
+    // nothing. Galactic: a left click on a planet with fleets selected moves them, an unmoved right click clears [M].
+    // The host sets InputConfig::exact_right_click with it, so a right press that moved at all is not a click.
     void set_alternate_mouse(bool on) { alternate_ = on; }
     bool alternate_mouse() const { return alternate_; }
     // an armed toggle (tests, HUD look).
@@ -196,6 +197,7 @@ public:
 
 private:
     void emit_select(std::vector<uint32_t> ids);
+    void cancel_toggle_or_clear();
     void push_order(commands::EventData e, bool queued, bool voice = true, bool dbl = false);
     void sync_meta();
     uint8_t move_flags(const InputState& in, bool dbl);

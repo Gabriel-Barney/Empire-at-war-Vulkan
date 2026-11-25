@@ -69,6 +69,10 @@ struct InputFrame {
 // double_click_rect_w x double_click_rect_h rectangle centred on it (SM_CXDOUBLECLK / SM_CYDOUBLECLK, default 4 x 4).
 struct InputConfig {
     float drag_threshold_px = 4.0f;
+    // #469 (IDC_ALTERNATE_MOUSE_CONTROLS, 0x3296c [H]): the right button is the camera's drag button, so a right press
+    // that moved at all (even back to where it started) is a drag, not a click. Every right-click reader (orders,
+    // targeting and mode cancels, galactic orders) then sees only an unmoved click.
+    bool exact_right_click = false;
     double double_click_time = 0.5;
     int32_t double_click_slop_px = 4;
     int32_t double_click_rect_w = 4, double_click_rect_h = 4;
@@ -116,6 +120,7 @@ public:
 
     const InputFrame& frame() const { return cur_; }
     const InputConfig& config() const { return cfg_; }
+    void set_exact_right_click(bool on) { cfg_.exact_right_click = on; }  // #469
     bool key_down(uint32_t k) const { return cur_.keys_down.test(k); }
     bool key_pressed(uint32_t k) const { return pressed_.test(k); }
     bool key_released(uint32_t k) const { return released_.test(k); }

@@ -59,6 +59,9 @@ void App::apply_gameplay_options() {
     // IDC_GAME_SPEED_SLIDER / IDC_STRATEGIC_GAME_SPEED_SLIDER (legacy docs/re/MAIN_LOOP.md §1.5): the speed table indices; wall-clock
     // pacing only. Retail sends them as GameOptions (39), which the port's command stream does not carry [port]: the
     // indices go straight to the pacing (a session start resets them to 2, so they are applied again then).
+    // #469: IDC_ALTERNATE_MOUSE_CONTROLS makes the right button the camera's drag button: only an unmoved right press
+    // is a click (the camera half is CameraTuning::alternate_mouse, App::option_tuning).
+    if (live_input()) input_.set_exact_right_click(gameplay_.alternate_mouse);
     // #467: IDC_AUTORESOLVE, always auto-resolve the local player's galactic battles (the ConflictManager's Decide). Also
     // applied at every session start (app_session.cpp), a load included.
     if (session_ && session_->battles())

@@ -26,6 +26,13 @@ void OrderTranslator::set_selection(std::vector<uint32_t> ids) {
     sel_ = std::move(ids);
 }
 
+// #430 (0x32236 [H]) / #469: with Attack (else Move) armed the click clears that toggle instead of the selection.
+void OrderTranslator::cancel_toggle_or_clear() {
+    if (toggle_force_attack_) toggle_force_attack_ = false;
+    else if (toggle_force_move_) toggle_force_move_ = false;
+    else emit_select({});
+}
+
 void OrderTranslator::emit_select(std::vector<uint32_t> ids) {
     sort_unique(ids);
     if (ids.size() > kMaxSelect) ids.resize(kMaxSelect);
@@ -132,10 +139,7 @@ void OrderTranslator::tactical(const InputState& in, const OrderContext& ctx) {
                 right_release(in, ctx);
             }
         } else if (!hit && !in.shift()) {  // legacy docs/re/P1_CAMERA_INPUT.md §5: a plain click on nothing submits Select{} [port: Shift]
-            // #430 (0x32236 [H]): with Attack (else Move) armed the click clears that toggle instead.
-            if (toggle_force_attack_) toggle_force_attack_ = false;
-            else if (toggle_force_move_) toggle_force_move_ = false;
-            else emit_select({});
+            cancel_toggle_or_clear();  // #430 (0x32236 [H])
         }
     }
     if (alternate_) {
@@ -146,13 +150,11 @@ void OrderTranslator::tactical(const InputState& in, const OrderContext& ctx) {
             // is on an own selectable object (that double click selects every one of its type on the release).
             const auto hit = pick_world(all, ctx.view, pixel_ray(ctx.view, in.mouse_x(), in.mouse_y()), ctx.pick_filter, qctx_, ctx.pick_tests);
             if (!(hit && is_selectable(ctx, hit->id))) right_double(in, ctx);
-        } else if (rb.released && !rb.in_double_press && rb.drag.x0 == rb.drag.x1 && rb.drag.y0 == rb.drag.y1) {
-            // #469 (0x3296c [H]): a right release that did not move clears (a moved press was a camera drag). With Attack
-            // (else Move) armed it cancels that toggle instead [M: the cancelled bytes 0x140b29fc1 / fc2 are not named;
-            // the default scheme's left click on nothing, #430 0x32236].
-            if (toggle_force_attack_) toggle_force_attack_ = false;
-            else if (toggle_force_move_) toggle_force_move_ = false;
-            else emit_select({});
+        } else if (rb.click && !rb.in_double_press) {
+            // #469 (0x3296c [H]): an unmoved right click (InputConfig::exact_right_click; a moved press is the camera's
+            // drag) cancels an armed toggle, else clears [M: the cancelled bytes 0x140b29fc1 / fc2 are not named; the
+            // default scheme's left click on nothing, #430 0x32236].
+            cancel_toggle_or_clear();
         }
         return;
     }
@@ -380,7 +382,12 @@ void OrderTranslator::galactic(const InputState& in, const OrderContext& ctx) {
     const tactical::Ray ray = pixel_ray(ctx.view, in.mouse_x(), in.mouse_y());
     const auto idx = pick_spheres(ctx.galactic_items, ray);
     const PickSphere* hit = idx ? &ctx.galactic_items[*idx] : nullptr;
-    if (lb.click) {
+    // #469 (t11 [M: the galactic effect of each alternate action is read from the shared code]): the alternate scheme's
+    // left click on a planet with fleets selected is the context order (the fleet move); its unmoved right click clears.
+    const bool alt_move = alternate_ && lb.click && !lb.double_click && hit && hit->kind == PickKind::Planet && !sel_.empty();
+    if (alt_move) {
+        for (uint32_t fleet : sel_) push_order(ev::move_object_to_object(fleet, hit->id), queue_);
+    } else if (lb.click) {
         if (hit && hit->kind == PickKind::Planet) {
             if (lb.double_click) planet_zoom_ = hit->id;
         } else if (hit && is_selectable(ctx, hit->id)) {
@@ -390,7 +397,10 @@ void OrderTranslator::galactic(const InputState& in, const OrderContext& ctx) {
             planet_deselect_ = true;
         }
     }
-    if (rb.click && hit && hit->kind == PickKind::Planet) {
+    if (alternate_ && rb.click && !rb.in_double_press) {
+        emit_select({});
+        planet_deselect_ = true;
+    } else if (!alternate_ && rb.click && hit && hit->kind == PickKind::Planet) {
         for (uint32_t fleet : sel_) push_order(ev::move_object_to_object(fleet, hit->id), queue_);
     }
 }

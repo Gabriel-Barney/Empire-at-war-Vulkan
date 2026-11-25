@@ -60,7 +60,9 @@ void InputState::update(const InputFrame& f) {
             b.drag.x1 = f.mouse_x;
             b.drag.y1 = f.mouse_y;
             const int64_t ddx = b.drag.x1 - b.drag.x0, ddy = b.drag.y1 - b.drag.y0;
-            if (!b.dragging && ddx * ddx + ddy * ddy > thr2) b.dragging = true;
+            const bool exact = cfg_.exact_right_click && i == static_cast<size_t>(Button::Right);  // #469
+            if (!b.dragging && (exact ? (ddx != 0 || ddy != 0 || b.dx != 0 || b.dy != 0) : ddx * ddx + ddy * ddy > thr2))
+                b.dragging = true;
         }
         if (b.released) {
             if (b.dragging) {

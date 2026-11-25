@@ -805,6 +805,7 @@ void test_orders_alternate() {
     InputState in;
     OrderTranslator ot;
     ot.set_alternate_mouse(true);
+    in.set_exact_right_click(true);  // the host sets both (#469)
     CHECK(ot.alternate_mouse());
     Script s;
     int32_t x = 0, y = 0;
@@ -848,6 +849,16 @@ void test_orders_alternate() {
     s.idle();
     feed(in, ot, keys, c, s, mark);
     CHECK(ot.take().empty());
+    mark = s.frames.size();  // moved away and back to the press pixel: still a drag
+    for (int i = 0; i < 40; ++i) s.idle();
+    s.move(650, 150);
+    s.down(Button::Right);
+    s.move(651, 150);
+    s.move(650, 150);
+    s.up(Button::Right);
+    s.idle();
+    feed(in, ot, keys, c, s, mark);
+    CHECK(ot.take().empty() && !in.button(Button::Right).click);
     // ...and an unmoved right click with Attack armed cancels the toggle instead of clearing
     ot.toggle_move_toggle(MoveToggle::Attack, true);
     CHECK(ot.move_toggle_armed(MoveToggle::Attack));
@@ -1086,6 +1097,33 @@ void test_orders() {
     s.click(Button::Left, static_cast<int32_t>(px), static_cast<int32_t>(py));
     feed(in, got, keys, gc, s, mark);
     CHECK(got.take_planet_zoom() == std::optional<uint32_t>(70) && got.pending().empty());
+    {  // #469: the alternate scheme in galactic - the left click on the planet moves the selected fleet, an unmoved right
+       // click clears, a moved right press (the camera's drag) does nothing.
+        OrderTranslator alt;
+        alt.set_alternate_mouse(true);
+        InputState ia;
+        ia.set_exact_right_click(true);
+        Script sa;
+        sa.click(Button::Left, static_cast<int32_t>(fx), static_cast<int32_t>(fy));
+        for (int i = 0; i < 40; ++i) sa.idle();
+        sa.click(Button::Left, static_cast<int32_t>(px), static_cast<int32_t>(py));
+        feed(ia, alt, keys, gc, sa, 0);
+        auto ao = alt.take();
+        CHECK(ao.size() == 2 && ao[1].type() == commands::EventType::MoveObjectToObject && ao[1].u("target") == 70);
+        size_t am = sa.frames.size();
+        for (int i = 0; i < 40; ++i) sa.idle();
+        sa.down(Button::Right);
+        sa.move(static_cast<int32_t>(px) + 1, static_cast<int32_t>(py));
+        sa.up(Button::Right);
+        feed(ia, alt, keys, gc, sa, am);
+        CHECK(alt.take().empty());
+        am = sa.frames.size();
+        for (int i = 0; i < 40; ++i) sa.idle();
+        sa.click(Button::Right, static_cast<int32_t>(px), static_cast<int32_t>(py));
+        feed(ia, alt, keys, gc, sa, am);
+        ao = alt.take();
+        CHECK(ao.size() == 1 && ao[0].type() == commands::EventType::Select && ao[0].ids("ids").empty());
+    }
 
     // submit through the pipeline: scheduled for the next tick
     commands::CommandPipeline pipe;

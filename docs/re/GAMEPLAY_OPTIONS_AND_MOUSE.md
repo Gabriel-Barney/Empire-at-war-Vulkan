@@ -112,8 +112,10 @@ button pans the camera in the alternate scheme (and only an unmoved right click 
 does not pan and always resets, and the table applies in galactic too (left click = the context order, e.g. fleet move).
 
 **Port (#469, landed):** `CameraTuning::alternate_mouse` (tactical and galactic cameras) and the orders' unmoved right
-release, as in "Change" below; an armed Attack / Move toggle is cancelled first [M]. The galactic orders do not read the
-scheme yet [port].
+release, as in "Change" below; an armed Attack / Move toggle is cancelled first [M]. `InputConfig::exact_right_click`
+makes any right-button motion a drag under the scheme, so every right-click reader (orders, targeting and mode cancels)
+sees only an unmoved click. Galactic orders: a left click on a planet with fleets selected moves them, an unmoved right
+click clears [M].
 
 **Port before #469:** `engine/ui/src/orders.cpp:127-148` (alternate: left = select own / order; `rb.click` -> `Select{}`),
 `engine/ui/include/alamo/ui/orders.hpp:161-166` ("tactical only", "actions 3..5 not recovered"); the camera ignores the
