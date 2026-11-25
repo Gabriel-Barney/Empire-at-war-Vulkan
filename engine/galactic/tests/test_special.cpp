@@ -22,6 +22,7 @@
 
 #include "alamo/commands/event_types.hpp"
 #include "alamo/commands/pipeline.hpp"
+#include "alamo/core/bytes.hpp"
 #include "alamo/core/file_provider.hpp"
 #include "alamo/core/sim_crc.hpp"
 #include "alamo/data/game_database.hpp"
@@ -868,6 +869,73 @@ void test_tech_unlocks() {
         const std::array<float, 2> c0 = capture(false), c1 = capture(true);
         CHECK(c0[0] == c1[0] && std::fabs((c1[1] - c0[1]) - 300.0f) < 0.01f);
     }
+    // #68 (0x3f9690 [H], player +0x338 / +0x350): the per-planet tactical upgrade lists. A normal completion gives every
+    // player with a faction {planet, its faction's Automatic_Planetary_Corruption_Upgrade_Type of the new type} and takes
+    // out the one of the old type; P (the first Benefits_From_Corruption player) also gets / loses the planet type's
+    // Success_Planet_Specific_Tactical_Upgrade. The first political update (0x3fb040) appends the type-3 ones and removes
+    // none. Saved (v13) and hashed once non-empty.
+    {
+        using Pairs = std::vector<std::pair<PlanetIndex, uint32_t>>;
+        const auto configure = [](World& w) {
+            for (FactionRules& f : w.rules.factions) f.automatic_corruption_upgrades.assign(8, kNoIndex);
+            w.rules.factions[0].automatic_corruption_upgrades[1] = tSpecial;   // Empire, Piracy
+            w.rules.factions[1].automatic_corruption_upgrades[1] = tSpecial0;  // Rebel, Piracy
+            w.rules.factions[2].automatic_corruption_upgrades[1] = tArena;     // Underworld, Piracy
+            w.rules.factions[2].automatic_corruption_upgrades[kCorruptionRacketeering] = tUpkeep;
+            w.rules.factions[3].automatic_corruption_upgrades.clear();         // Neutral: none
+            w.rules.special.types[tPB].corruption[0].success_tactical_upgrade = tTRMine;  // slot 1, Piracy
+        };
+        const auto digest = [](const GalacticSim& s) {
+            StateHasher h;
+            s.hash_state(h);
+            return h.digest();
+        };
+        World a, b;
+        configure(a);
+        GalacticSim& s = a.sim;
+        CHECK(s.corruption_tactical_upgrade(rB, 1) == tTRMine && s.corruption_tactical_upgrade(rB, 0) == kNoIndex &&
+              s.corruption_tactical_upgrade(rB, kCorruptionNone) == kNoIndex);
+        CHECK(digest(a.sim) == digest(b.sim));  // empty lists: no section
+        for (World* w : {&a, &b}) CHECK(w->sim.begin_corruption_gain(rB, 1, pReb, 5.0f));
+        a.run(160);
+        b.run(160);
+        CHECK(a.planet(rB).corruption == 1);
+        CHECK((s.players()[pEmp].planet_upgrades == Pairs{{rB, tSpecial}}));
+        CHECK((s.players()[pReb].planet_upgrades == Pairs{{rB, tSpecial0}}));  // the starter gets no planet upgrade
+        CHECK((s.players()[pUnd].planet_upgrades == Pairs{{rB, tArena}, {rB, tTRMine}}));
+        CHECK(s.players()[pNeu].planet_upgrades.empty());
+        CHECK((s.planet_upgrades(pUnd, rB) == std::vector<uint32_t>{tArena, tTRMine}) && s.planet_upgrades(pUnd, rA).empty() &&
+              s.planet_upgrades(kNoPlayer, rB).empty());
+        CHECK(digest(a.sim) != digest(b.sim));
+        {  // save round trip: the lists come back
+            ByteWriter bw;
+            s.write(bw);
+            const std::vector<uint8_t> bytes = bw.bytes();
+            CHECK(s.begin_corruption_removal(rB, 5.0f));
+            a.run(160);
+            CHECK(a.planet(rB).corruption == kCorruptionNone);
+            for (const PlayerState& ps : s.players()) CHECK(ps.planet_upgrades.empty());  // the removal takes them out
+            ByteReader br(bytes);
+            CHECK(s.read(br));
+            CHECK((s.players()[pUnd].planet_upgrades == Pairs{{rB, tArena}, {rB, tTRMine}}) &&
+                  (s.players()[pEmp].planet_upgrades == Pairs{{rB, tSpecial}}));
+        }
+        {  // the removal in step with b: same digest again (no section)
+            CHECK(s.begin_corruption_removal(rB, 5.0f) && b.sim.begin_corruption_removal(rB, 5.0f));
+            a.run(160);
+            b.run(160);
+            CHECK(digest(a.sim) == digest(b.sim));
+        }
+        {  // 0x3fb040's first political update at start: the Underworld's rD becomes type 3; every player gets its
+           // faction's type-3 upgrade (only the Underworld has one), no planet one (tPD has no type-3 choice).
+            World c;
+            configure(c);
+            std::vector<std::string> diag;
+            CHECK(c.sim.start(make_setup(false, true), &diag));
+            CHECK(c.planet(rD).corruption == kCorruptionRacketeering);
+            CHECK((c.sim.players()[pUnd].planet_upgrades == Pairs{{rD, tUpkeep}}) && c.sim.players()[pEmp].planet_upgrades.empty());
+        }
+    }
 }
 
 // ---- 2e1. Rebel tech theft: Slicer_Ability (legacy docs/re/REMAINING_GAPS.md 1.1-1.3) --------------------------------------
@@ -1316,6 +1384,21 @@ void test_foc() {
             return t != kNoIndex && !ch.empty() && ch[0].slot == 1 && ch[0].type == 2 ? ch[0].success_credit_bonus : -1.0f;
         };
         CHECK(bonus1("Bestine") == 10000.0f && bonus1("Thyferra") == 7500.0f && bonus1("NalHutta") == 8000.0f);
+    }
+    {  // #68: no shipped planet sets Corruption_N_Success_Planet_Specific_Tactical_Upgrade; the per-planet lists come from
+       // the factions' Automatic_Planetary_Corruption_Upgrade_Type (Empire and Rebel: the eight Generic_* upgrades).
+        uint32_t planet_specific = 0;
+        for (const TypeSpecial& ts : s.types)
+            for (const CorruptionChoiceDef& c : ts.corruption) planet_specific += c.success_tactical_upgrade != kNoIndex ? 1u : 0u;
+        CHECK(planet_specific == 0);
+        for (const char* f : {"Empire", "Rebel"}) {
+            const uint32_t fi = rules.find_faction(f);
+            CHECK(fi != kNoIndex);
+            if (fi == kNoIndex) continue;
+            const std::vector<uint32_t>& ups = rules.factions[fi].automatic_corruption_upgrades;
+            CHECK(ups.size() == 8 && ups[kCorruptionRacketeering] == rules.find_type("Generic_Racketeering_Corruption_Upgrade") &&
+                  ups[kCorruptionRacketeering] != kNoIndex);
+        }
     }
     {  // a2m r2: the Underworld's Racketeering upgrade carries the salvage bounty; conflict-rule bounty values of the traced
        // battles (legacy docs/re/A2M_R2_UW_BOUNTY_TRACE.md §1).

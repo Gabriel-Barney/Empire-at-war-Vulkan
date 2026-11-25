@@ -894,6 +894,20 @@ void test_radar() {
         q.update(0.125f);
         CHECK2(q.items()[0].pulse == 255.0f);  // only story blips pulse
     }
+    {  // #479 (RADAR_BLIPS_AND_BOX §3, 0x2de700 [H]): the base-under-attack ping pulses as a story blip, stays 4 s, has no name
+        RadarEvents bp;
+        bp.set_marker("objective_blip", 1, 1);
+        bp.ping(300, 400, 4.0f);
+        CHECK2(bp.items().size() == 2 && bp.items()[1].marker && !bp.items()[1].persistent && near2(bp.items()[1].x, 300));
+        CHECK2(bp.marker_names().size() == 1 && !bp.remove_marker(""));  // not reachable by name
+        bp.update(0.125f);
+        CHECK2(near2(bp.items()[1].pulse, 127.0f));
+        bp.update(3.8f);
+        CHECK2(bp.items().size() == 2);
+        bp.update(0.1f);  // 4.025 s: gone; the story blip stays
+        std::printf("  base attack ping: expired after 4 s, %zu item left\n", bp.items().size());
+        CHECK2(bp.items().size() == 1 && bp.items()[0].type == "objective_blip");
+    }
     {  // #320 (0x35f140): the land radar rect is the square about the camera box
         RadarFieldPaint sq = radar_square_box(0.0f, 0.0f, 200.0f, 100.0f);
         CHECK2(near2(sq.min_x, 0.0f) && near2(sq.max_x, 200.0f) && near2(sq.min_y, -50.0f) && near2(sq.max_y, 150.0f));

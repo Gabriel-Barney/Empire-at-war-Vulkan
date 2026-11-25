@@ -16,40 +16,13 @@ uint32_t App::panel_kind() const {
     return panel_preview_;
 }
 
-// The local player's units at planet `pi` whose type has a Ground_Activated special ability, in g_special_ability row
-// order [port]: orbit fleets in orbit order, members in order, then the surface.
-std::vector<objects::ObjectHandle> App::special_units(const galactic::GalacticSim& g, PlanetIndex pi) const {
-    std::vector<objects::ObjectHandle> out;
-    if (pi == kInvalidPlanet) return out;
-    const objects::ObjectStore& st = g.store();
-    const galactic::SpecialRules& sp = g.rules().special;
-    auto usable = [&](objects::ObjectHandle h) {
-        if (!st.alive(h) || st.owner(h) != local_player()) return false;
-        for (const uint32_t a : sp.type(static_cast<uint32_t>(st.type(h))).abilities)
-            if (sp.abilities[a].style == galactic::ActivationStyle::GroundActivated) return true;
-        return false;
-    };
-    for (const uint32_t fi : g.fleets_at(pi, local_player()))
-        for (const objects::ObjectHandle h : g.fleets()[fi].contents)
-            if (usable(h)) out.push_back(h);
-    for (const objects::ObjectHandle h : g.planets()[pi].surface)
-        if (usable(h)) out.push_back(h);
-    return out;
-}
-
-// SpecialAbility kind 1 (activate) at the selected planet by the g_special_ability row's hero (GalacticHud rows from
-// special_units); hero_id 0 = the first of them. False when none / refused.
-bool App::activate_special_here(uint32_t hero_id) {
-    const galactic::GalacticSim* g = galaxy();
-    if (!g) return false;
-    const objects::ObjectStore& st = g->store();
-    for (const objects::ObjectHandle h : special_units(*g, planet_index(*g, selected_planet_)))
-        if ((hero_id == 0 || static_cast<uint32_t>(st.id(h)) == hero_id) &&
-            session_->activate_special(static_cast<uint32_t>(st.id(h)), selected_planet_)) {
-            ++activations_;
-            return true;
-        }
-    return false;
+// #455: SpecialAbility kind 1 (activate) by the fleet dropped on a g_special_ability row at its own planet. The fleet's own
+// id takes the sim's fleet path: the fleet must be at the planet and not moving, and the first member with an accepting
+// Ground_Activated ability uses it (0x398670 [M]). False when refused.
+bool App::activate_special_fleet(uint32_t fleet_id, uint32_t planet_id) {
+    if (!session_ || !session_->activate_special(fleet_id, planet_id)) return false;
+    ++activations_;
+    return true;
 }
 
 // #62 t05: the local corrupter's corruption speech (CampaignBattles::corruption_speech -> GameAudioHost::corruption_speech),
@@ -373,6 +346,8 @@ void App::post_tick() {
             }
             audio_.battle_tick(*b, st, data_.types, local_player(),
                                [gs](objects::ObjectId id) { return gs->script_hidden(id); });  // q6 t19 §10.3
+            // #479 (docs/re/RADAR_BLIPS_AND_BOX.md §3 [H]): a 4 s pulsing radar_blip where the base was attacked.
+            for (const Vec3& p : audio_.take_base_attack_pings()) radar_events_.ping(p.x, p.y, 4.0f);
             {  // aud1 t07 (legacy docs/re/AUDIO.md §9.7): the tactical intro speech, campaign battles only, not story-linked ones.
                 // [port] The port hosts a skirmish as a galactic hop, so "no galactic parent" is the skirmish / attract
                 // session kind; benchmark runs stay silent so their speech-done notifications do not change.
@@ -925,12 +900,9 @@ void App::handle_hud_actions(const std::vector<ui::HudAction>& acts) {
                     }
                     break;
                 }
-                // OI host: the retail per-planet ability button is CommandBarComponents' g_special_ability (TextButton
-                // beside the planet, one row per hero ability, GalacticHud): its HudAction carries the hero id in `unit`
-                // -> SpecialAbility kind 1 for that hero at the selected planet; the sim's SpecialDialog then opens the
-                // panel. (The P4 stand-in buttons - any component named market / sabotage / corrupt / hack activating the
-                // first special unit - are gone: the retail rows are the only way in.)
-                if (a.name == "g_special_ability") activate_special_here(a.unit);
+                // #455: a fleet dropped on its own planet's g_special_ability row (GalacticHud: unit = fleet, ids = {planet})
+                // -> SpecialAbility kind 1 there; the sim's SpecialDialog then opens the panel.
+                if (a.name == "g_special_ability" && a.ids.size() == 1) activate_special_fleet(a.unit, a.ids[0]);
                 break;
             // P4 host: the panels' answers (SpecialAbility kinds 2 / 4 / 5 / 6 / 7 through the command stream); the preview
             // panel of the smoke sends nothing. (#71 t01: the slice pick is IDD_SLICE_DIALOG, ScreenAction::Slice.)
@@ -1580,7 +1552,7 @@ void App::move_ack(const ui::MoveAck& a) {
         const std::string& click = ack_radar_[static_cast<size_t>(ui::AckRadar::Click)];
         std::vector<uint32_t> gone;
         for (const ui::RadarEvent& e : radar_events_.items())
-            if (ascii_iequals(e.type, click)) gone.push_back(e.id);
+            if (!e.marker && !click.empty() && ascii_iequals(e.type, click)) gone.push_back(e.id);  // #479: not the unnamed pings
         for (const uint32_t id : gone) radar_events_.remove(id);
     }
     const std::string& radar = ack_radar_[static_cast<size_t>(a.radar())];

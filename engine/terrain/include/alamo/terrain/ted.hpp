@@ -375,7 +375,7 @@ struct MapData {
     PlayableArea playable;                  // 0x103
     SpaceMapDesc space;                     // 0x103 decoded for space maps (space.present)
     CameraBlock space_camera;               // 0x105
-    std::vector<uint32_t> passability;      // 0x10A, converted to ROW-major (y * width + x)
+    std::vector<uint32_t> passability;      // 0x10A / 0x109, converted to ROW-major (y * width + x); written back as 0x10A
     bool passability_present = false;
     std::vector<uint8_t> legacy_passability;  // 0x104 raw (not in vanilla FoC)
     std::vector<AiZone> zones;              // 0x10B

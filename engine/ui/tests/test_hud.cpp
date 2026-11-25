@@ -1147,6 +1147,116 @@ void test_world_status_icons() {
     }
 }
 
+// #476 (TACTICAL_COMMANDBAR_COMPONENTS.md st_ability_icon, 0x2e7fd0 / 0x31de70 [H]): an allied unit's active ability icons
+// (HudUnit::ability_icon, the second as a layer over the first) centred 3 px above its bars; none for a hostile unit.
+void test_world_ability_icons() {
+    const char* xml = R"(<?xml version="1.0"?>
+<CommandBarComponents>
+  <CommandBarComponent Name="st_health"><Type>Bar</Type><Max_Bar_Level>10</Max_Bar_Level><Smooth_Bar>True</Smooth_Bar>
+    <Bar_Texture_Name>i_bar_control_wide.tga</Bar_Texture_Name><Bar_Overlay_Name>i_bar_health_small10.tga</Bar_Overlay_Name></CommandBarComponent>
+  <CommandBarComponent Name="st_shields"><Type>Bar</Type><Max_Bar_Level>10</Max_Bar_Level><Smooth_Bar>True</Smooth_Bar>
+    <Bar_Texture_Name>i_bar_shield_frame.tga</Bar_Texture_Name><Bar_Overlay_Name>i_bar_shield_fill.tga</Bar_Overlay_Name></CommandBarComponent>
+  <CommandBarComponent Name="st_ability_icon"><Type>Button</Type><Base_Layer>3</Base_Layer><Icon_Texture_Name>i_button_sa_blank.tga</Icon_Texture_Name></CommandBarComponent>
+</CommandBarComponents>
+)";
+    ComponentTable t;
+    const data::XmlDocument doc = data::XmlDocument::parse(std::string_view(xml), "ability_icon.xml");
+    CHECK(doc.ok());
+    t.parse(doc.root());
+    TextureAtlas atlas;
+    atlas.texture_width = atlas.texture_height = 256;
+    atlas.add({"i_bar_control_wide.tga", 0, 0, 34, 6, true});
+    atlas.add({"i_bar_health_small10.tga", 0, 8, 34, 6, true});
+    atlas.add({"i_bar_shield_frame.tga", 0, 16, 30, 4, true});
+    atlas.add({"i_bar_shield_fill.tga", 0, 22, 30, 4, true});
+    atlas.add({"i_sa_defend_mode.tga", 40, 0, 16, 16, true});
+    atlas.add({"i_sa_sprint.tga", 60, 0, 14, 14, true});
+    auto box = make_box_rasterizer();
+    FontCache fonts(*box);
+    std::vector<HudTypeInfo> types(1);
+    types[0].gui_bracket_size = 0;
+    WorldHud wh;
+    wh.bind(t);
+    const HudCanvas cv = HudCanvas::make(1024, 768);
+    WorldHudContext ctx;
+    ctx.canvas = &cv;
+    ctx.view = top_view(1024, 768);
+    HudUnit base;
+    base.id = 7;
+    base.owner = 0;
+    base.position = {100, 50, 0};
+    base.radius = 20.0f;
+    base.selected = true;
+    struct Q {
+        float w, h, x, y;
+        uint32_t layer;
+        size_t order;
+    };
+    auto run = [&](const HudUnit& u) {
+        HudDrawList dl;
+        wh.build(ctx, std::span<const HudUnit>(&u, 1), types, atlas, fonts, dl, nullptr);
+        std::vector<Q> out;
+        for (uint32_t layer = 0; layer < 8; ++layer)
+            for (const HudQuad& q : dl.items(layer, HudList::Alpha))
+                out.push_back({q.max.x - q.min.x, q.max.y - q.min.y, 0.5f * (q.min.x + q.max.x), 0.5f * (q.min.y + q.max.y),
+                               layer, out.size()});
+        return out;
+    };
+    auto find = [](const std::vector<Q>& qs, float w, float h) -> const Q* {
+        for (const Q& q : qs)
+            if (std::fabs(q.w - w) < 1e-3f && std::fabs(q.h - h) < 1e-3f) return &q;
+        return nullptr;
+    };
+    auto near = [](float a, float b) { return std::fabs(a - b) < 1e-3f; };
+    {  // none set: no icon (the component's own blank texture is not drawn)
+        (void)run(base);
+        CHECK(wh.stats().ability_icons == 0 && wh.stats().bars == 1);
+    }
+    {  // one active ability, health bar only: centred on the bar, 3 px + half the icon above its top edge
+        HudUnit u = base;
+        u.ability_icon[0] = "i_sa_defend_mode.tga";
+        const std::vector<Q> qs = run(u);
+        const Q* bar = find(qs, 34.0f, 6.0f);
+        const Q* ic = find(qs, 16.0f, 16.0f);
+        CHECK(wh.stats().ability_icons == 1 && bar && ic);
+        if (bar && ic) {
+            std::printf("  ability icon: bar centre (%.1f, %.1f), icon centre (%.1f, %.1f), layer %u\n", bar->x, bar->y, ic->x,
+                        ic->y, ic->layer);
+            CHECK(near(ic->x, bar->x) && near(ic->y, bar->y + 3.0f + 3.0f + 8.0f) && ic->layer == 3);
+        }
+    }
+    {  // two, over a shield bar: one button above the stack's top, the second layer at the first's centre, drawn after it
+        HudUnit u = base;
+        u.shield = 0.5f;
+        u.ability_icon[0] = "i_sa_defend_mode.tga";
+        u.ability_icon[1] = "i_sa_sprint.tga";
+        const std::vector<Q> qs = run(u);
+        const Q* bar = find(qs, 34.0f, 6.0f);
+        const Q* first = find(qs, 16.0f, 16.0f);
+        const Q* second = find(qs, 14.0f, 14.0f);
+        CHECK(wh.stats().ability_icons == 2 && wh.stats().bars == 2 && bar && first && second);
+        if (bar && first && second) {
+            // health top = bar y + 3; then Health_Bar_Spacing 2 and the 4-high shield bar; then 3 px and half the icon
+            const float top = bar->y + 3.0f + 2.0f + 4.0f;
+            CHECK(near(first->x, bar->x) && near(first->y, top + 3.0f + 8.0f));
+            CHECK(near(second->x, bar->x) && near(second->y, first->y) && second->order > first->order);
+        }
+    }
+    {  // only the second slot active: it takes the first layer (retail: slot 1 -> the icon when slot 0 had none)
+        HudUnit u = base;
+        u.ability_icon[1] = "i_sa_sprint.tga";
+        const std::vector<Q> qs = run(u);
+        CHECK(wh.stats().ability_icons == 1 && find(qs, 14.0f, 14.0f));
+    }
+    {  // hostile: no ability icon
+        HudUnit u = base;
+        u.owner = 1;
+        u.ability_icon[0] = "i_sa_defend_mode.tga";
+        const std::vector<Q> qs = run(u);
+        CHECK(wh.stats().ability_icons == 0 && !find(qs, 16.0f, 16.0f));
+    }
+}
+
 void test_routing() {
     InputRouter router;
     RoutedInput out;
@@ -1749,6 +1859,7 @@ int main() {
     test_game_fonts();
     test_world();
     test_world_status_icons();  // #475
+    test_world_ability_icons();  // #476
     test_routing();
     test_tactical_hud();
     test_tactical_hud_fleet_groups();  // #174

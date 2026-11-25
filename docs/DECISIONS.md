@@ -280,6 +280,15 @@ orders, scripted camera, per-tick CRCs; `tools/benchmark`) is not deferred. Para
 parallel sim redesign (P0-P7, "Performance goal") is excepted from this deferral (Gabriel, 2026-11-22): the later focus
 exception there wins.
 
+## Galactic ability rows
+
+Lane-3 run, 2026-11-25, #455 (docs/re/GALACTIC_ABILITY_ROWS.md). Retail's row placement and its valid-move test `0x3f0010`
+are not read. While an own map fleet is dragged:
+- each planet's one `g_special_ability` row sits at the planet centre plus the component's Offset;
+- another planet shows its row when `fleet_drag_route` reaches it;
+- the fleet's own planet shows its row when the fleet is not moving, and never shows the raid row there (a raid is a
+  move).
+
 ## Front-end and skirmish choices
 
 - **New Campaign by data** (lane-3 run, 2026-11-25, #452): New Campaign opens FoC's `IDD_MAIN_CAMPAIGN_DIALOG`, with the

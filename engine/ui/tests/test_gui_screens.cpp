@@ -429,12 +429,11 @@ void test_targeting() {
         CHECK(!apply_radar_jump(a, c));
     }
 
-    // Galactic g_special_ability rows: one per provider entry beside the selected planet; a click -> the host action.
+    // #455: g_special_ability rows exist only during a map fleet drag (test_gui_screens_c.cpp); a selected planet alone shows none.
     {
         const char* xml = R"(<CommandBarComponents>
   <CommandBarComponent Name="g_special_ability"><Type>TextButton</Type><Blank_Texture_Name>i_row.tga</Blank_Texture_Name>
-    <Icon_Alternate_Texture_Name>i_sym_r.tga i_sym_e.tga</Icon_Alternate_Texture_Name><No_Shell>True</No_Shell><Base_Layer>0</Base_Layer>
-    <Text_Offset>-18 0</Text_Offset><Offset>-48 -20</Offset><Right_Justified>True</Right_Justified></CommandBarComponent>
+    <No_Shell>True</No_Shell><Base_Layer>0</Base_Layer><Offset>-48 -20</Offset></CommandBarComponent>
 </CommandBarComponents>)";
         ComponentTable t;
         const data::XmlDocument d = data::XmlDocument::parse(std::string_view(xml), "s.xml");
@@ -442,8 +441,6 @@ void test_targeting() {
         TextureAtlas atlas;
         atlas.texture_width = atlas.texture_height = 64;
         atlas.add({"i_row.tga", 0, 0, 16, 16, true});
-        atlas.add({"i_sym_r.tga", 16, 0, 12, 12, true});
-        atlas.add({"i_sym_e.tga", 32, 0, 12, 12, true});
         auto raster = make_box_rasterizer();
         FontCache fonts(*raster);
         GalacticHud g;
@@ -456,43 +453,14 @@ void test_targeting() {
         GalacticHudFrame f;
         f.view = make_view(gc.params(4.0f / 3.0f), 1024, 768);
         f.planets = planets;
-        f.providers.special_abilities = [](uint32_t planet, std::vector<GalacticSpecialAbility>& out) {
-            if (planet != 300) return;
-            out.push_back({901, U"Black market", "", "", true});
-            out.push_back({902, U"Sabotage", "", "", true});
-            out.push_back({903, U"Corrupt", "", "", false});
+        int asked = 0;
+        f.providers.drag_special_ability = [&asked](uint32_t, uint32_t, GalacticSpecialAbility& r) {
+            ++asked;
+            r.text_key = "TEXT_ABILITY_SLOT_SPY";
+            return true;
         };
         g.build(f);
-        CHECK(g.stats().ability_rows == 3);
-        const int32_t sc = t.find("g_special_ability");
-        float sx = 0, sy = 0;
-        CHECK(project(f.view, planets[0].position, sx, sy));
-        const Vec2f at = g.canvas().pixel_to_canvas(sx, sy);
-        auto row_px = [&](int i) { return g.canvas().canvas_to_pixel(at.x - 48.0f, at.y - 20.0f * static_cast<float>(i + 1)); };
-        auto click_row = [&](int i, std::vector<HudAction>& acts) {
-            const Vec2f p = row_px(i);
-            const auto x = static_cast<int32_t>(p.x), y = static_cast<int32_t>(p.y);
-            CHECK(g.hit_test(x, y) == sc);
-            RoutedInput r;
-            r.hover_component = sc;
-            r.hud = {{HudPointerEvent::Kind::Press, Button::Left, sc, x, y}, {HudPointerEvent::Kind::Release, Button::Left, sc, x, y},
-                     {HudPointerEvent::Kind::Click, Button::Left, sc, x, y}};
-            std::vector<commands::EventData> cmds;
-            g.update_input(r, false, false, 1.0, cmds, &acts);
-            CHECK(cmds.empty());
-        };
-        std::vector<HudAction> acts;
-        click_row(1, acts);
-        CHECK(acts.size() == 1 && acts[0].kind == HudAction::Kind::Button && acts[0].name == "g_special_ability" && acts[0].unit == 902 &&
-              acts[0].value == 1 && acts[0].ids == std::vector<uint32_t>{300});
-        acts.clear();
-        click_row(2, acts);  // disabled row: no action
-        CHECK(acts.empty());
-        // frame + faction symbol per row (6 quads) and the texts; nothing without a selected planet
-        CHECK(g.draw_list().items(0, HudList::Alpha).size() == 6 && g.draw_list().items(0, HudList::Text).size() > 3);
-        planets[0].selected = false;
-        g.build(f);
-        CHECK(g.stats().ability_rows == 0);
+        CHECK(g.stats().ability_rows == 0 && asked == 0);
     }
 
 #ifdef ALAMO_UI_HAVE_ABILITIES
@@ -548,12 +516,25 @@ void test_targeting() {
         out.clear();
         abilities_from_s9(as, grp, 2, out);
         CHECK(!out.empty() && out[0].active && out[0].enabled);
+        {  // #476: the overhead st_ability_icon of the unit - slot 0 (Defend) active, slot 1 (Tractor beam) not
+            std::string icons[2] = {"x", "x"};
+            overhead_ability_icons(as, 1, 2, icons);
+            CHECK(icons[0] == "i_sa_defend_mode.tga" && icons[1].empty());
+        }
         for (uint32_t fr = 2; fr < 32; ++fr) as.tick(fr, strees, rng);  // 30 active frames
         CHECK(as.set_unit_ability_mode(ids, kDefend, false, 32) == 1);  // early off: recharging
         out.clear();
         auto provider = s9_ability_provider(as, [] { return 32u; });
         provider(grp, out);
         CHECK(!out.empty() && !out[0].active && out[0].recharge < 1.0f);
+        {  // #476: off and recharging - no overhead icon; a unit without abilities has none either
+            std::string icons[2] = {"x", "x"};
+            overhead_ability_icons(as, 1, 32, icons);
+            CHECK(icons[0].empty() && icons[1].empty());
+            icons[0] = "x";
+            overhead_ability_icons(as, 99, 32, icons);
+            CHECK(icons[0].empty() && icons[1].empty());
+        }
         // t42: a record's Alternate_Icon_Name replaces the type's art on the button (the parse: test_abilities).
         CHECK(ad.objects[0].unit_abilities[0].type == kDefend);
         ad.objects[0].unit_abilities[0].alternate_icon_name = "i_sa_strike.tga";

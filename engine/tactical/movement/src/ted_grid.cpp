@@ -33,12 +33,14 @@ PassabilityGrid grid_from_map(const terrain::MapData& map) {
     if (map.passability_present && map.passability.size() == static_cast<size_t>(w) * h) {
         g.set_base(map.passability);
     } else if (map.legacy_passability.size() == static_cast<size_t>(w) * h) {
-        // Legacy 0x104: one byte per cell, column-major like 0x10A [M].
+        // Legacy 0x104 (the world reader 0x3b8cd0 [H], #334): one byte per cell, x outer and y from h - 1 down to 0; 0 ->
+        // Clear, 1 -> Steep, 2 -> Obstacle, anything else -> 0xFFFFFFFF, set as the cell's base bits (0x59f4b0).
         std::vector<uint32_t> v(static_cast<size_t>(w) * h, kPassClear);
         for (uint32_t x = 0; x < w; ++x) {
-            for (uint32_t y = 0; y < h; ++y) {
-                const uint8_t b = map.legacy_passability[static_cast<size_t>(x) * h + y];
-                v[static_cast<size_t>(y) * w + x] = b == 1 ? kPassSteep : (b == 2 ? kPassObstacle : kPassClear);
+            for (uint32_t i = 0; i < h; ++i) {  // i: the i-th byte of column x = row h - 1 - i
+                const uint8_t b = map.legacy_passability[static_cast<size_t>(x) * h + i];
+                constexpr uint32_t kLegacyBits[3] = {kPassClear, kPassSteep, kPassObstacle};
+                v[static_cast<size_t>(h - 1 - i) * w + x] = b < 3 ? kLegacyBits[b] : 0xFFFFFFFFu;  // every bit
             }
         }
         g.set_base(v);

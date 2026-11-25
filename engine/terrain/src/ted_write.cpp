@@ -364,7 +364,7 @@ std::vector<uint8_t> write_ted(const MapData& map) {
         w.end();
     }
     if (map.terrain.present) write_terrain(w, map.terrain);
-    if (map.passability_present && map.terrain.present) {  // 0x10A column-major
+    if (map.passability_present && map.terrain.present) {  // as 0x10A (column-major, y ascending), also for a read 0x109
         const uint32_t W = map.terrain.width, H = map.terrain.height;
         std::vector<uint8_t> p(static_cast<size_t>(W) * H * 4);
         for (uint32_t x = 0; x < W; ++x)

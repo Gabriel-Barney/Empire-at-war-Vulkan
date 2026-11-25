@@ -358,7 +358,7 @@ void RadarEvents::remove(uint32_t id) {
 uint32_t RadarEvents::set_marker(std::string_view name, float x, float y) {
     const std::string key = upper(name);
     for (RadarEvent& e : items_)
-        if (e.marker && upper(e.type) == key) {
+        if (e.marker && !e.type.empty() && upper(e.type) == key) {
             e.x = x;
             e.y = y;
             return e.id;
@@ -374,10 +374,22 @@ uint32_t RadarEvents::set_marker(std::string_view name, float x, float y) {
     return items_.back().id;
 }
 
+uint32_t RadarEvents::ping(float x, float y, float seconds) {
+    RadarEvent e;
+    e.x = x;
+    e.y = y;
+    e.duration = seconds;
+    e.marker = true;  // drawn and pulsing as a story blip; `type` stays empty
+    e.id = next_++;
+    items_.push_back(std::move(e));
+    return items_.back().id;
+}
+
 bool RadarEvents::remove_marker(std::string_view name) {
     const std::string key = upper(name);
     const size_t before = items_.size();
-    items_.erase(std::remove_if(items_.begin(), items_.end(), [&](const RadarEvent& e) { return e.marker && upper(e.type) == key; }),
+    items_.erase(std::remove_if(items_.begin(), items_.end(),
+                                [&](const RadarEvent& e) { return e.marker && !e.type.empty() && upper(e.type) == key; }),
                  items_.end());
     return items_.size() != before;
 }
@@ -385,7 +397,7 @@ bool RadarEvents::remove_marker(std::string_view name) {
 std::vector<std::string> RadarEvents::marker_names() const {
     std::vector<std::string> out;
     for (const RadarEvent& e : items_)
-        if (e.marker) out.push_back(e.type);
+        if (e.marker && !e.type.empty()) out.push_back(e.type);  // #479: pings are unnamed
     return out;
 }
 

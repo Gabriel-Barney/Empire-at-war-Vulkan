@@ -1434,7 +1434,7 @@ void App::build_panels(std::vector<ui::HudDrawList>& lists) {
             galactic_heroes_ = galactic_hero_entries(
                 *gs, local_player(),
                 [this](uint32_t t) { return type_icon(t); }, sel, 11,
-                [this](uint32_t t) { return t < data_.types.size() ? data_.types.get_int(static_cast<objects::TypeIndex>(t), "Ranking_In_Category") : 0; });
+                [this](uint32_t t) { return type_ranking(t); });
             heroes = galactic_heroes_;
             for (ui::HeroEntry& e : heroes)
                 if (const objects::TypeIndex t = data_.types.resolve_name(e.type_name); t != objects::kNone) {

@@ -92,7 +92,8 @@ struct CombatEvent {
     bool local_player_involved = false;
     // The victim is one of the local player's base structures: base-under-attack announcement (faction
     // SFXEvent_<Land/Space>_Base_Under_Attack_Announcement), rate-limited by Audio.xml
-    // Delay_Between_<Land/Space>_Base_Attack_Announcement_Seconds x 30 sim ticks. The host does the radar ping.
+    // Delay_Between_<Land/Space>_Base_Attack_Announcement_Seconds x 30 sim ticks. The host does the radar ping when
+    // combat() reports the announcement (#479).
     bool local_base_attacked = false;
 };
 
@@ -205,8 +206,10 @@ public:
     // instances started.
     uint32_t animation_sounds(uint64_t object, std::string_view animation, int64_t prev_ms, int64_t now_ms,
                               const Vec3& position);
-    // Combat notification (see CombatEvent).
-    void combat(const CombatEvent& e);
+    // Combat notification (see CombatEvent). True when the base-under-attack announcement fired: the cooldown had run out
+    // and the faction has the SFXEvent_<Land/Space>_Base_Under_Attack_Announcement tag (#479: the host's radar ping shares
+    // this gate, docs/re/RADAR_BLIPS_AND_BOX.md §3 [H]). The cooldown restarts whether or not the faction has the tag.
+    bool combat(const CombatEvent& e);
 
     // ---------------- objects (loops and ambient chatter)
     // Object created / entered the tactical map: SFXEvent_Ambient_Loop starts attached with its

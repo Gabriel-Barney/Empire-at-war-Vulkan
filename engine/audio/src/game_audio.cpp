@@ -358,20 +358,27 @@ void GameAudio::stop_object_sfx(uint64_t object, std::string_view event, float f
     audio_->stop_object_sfx(object, event, fade_seconds);
 }
 
-void GameAudio::combat(const CombatEvent& e) {
-    if (!tactical_) return;
+bool GameAudio::combat(const CombatEvent& e) {
+    if (!tactical_) return false;
     // legacy docs/re/AUDIO.md §9.2: mode 16 (battle end) is not excluded from the battle switch, so combat after battle_end still
     // switches to battle music (notify_combat applies the retail exclusion list).
     if (e.local_player_involved) audio_->notify_combat(true);
-    if (!e.local_base_attacked) return;
+    if (!e.local_base_attacked) return false;
     const AudioConstants& c = audio_->database().constants();
     const int32_t delay_s = land_ ? c.delay_between_land_base_attack_announcement_seconds
                                   : c.delay_between_space_base_attack_announcement_seconds;
     const uint64_t delay_ticks = delay_s > 0 ? static_cast<uint64_t>(delay_s) * 30u : 0u;
-    if (base_announced_ && sim_ticks_ - last_base_announcement_ < delay_ticks) return;
+    if (base_announced_ && sim_ticks_ - last_base_announcement_ < delay_ticks) return false;
     base_announced_ = true;
     last_base_announcement_ = sim_ticks_;
-    faction_sfx(land_ ? "SFXEvent_Land_Base_Under_Attack_Announcement" : "SFXEvent_Space_Base_Under_Attack_Announcement");
+    // 0x3ba180 / 0x4d8ae0 (RADAR_BLIPS_AND_BOX §3 [H]): the countdown is set first; only a faction with the announcement
+    // event plays it and pings the radar.
+    const std::string_view tag =
+        land_ ? "SFXEvent_Land_Base_Under_Attack_Announcement" : "SFXEvent_Space_Base_Under_Attack_Announcement";
+    const FactionAudio* f = data_->find_faction(faction_);
+    if (!f || f->get(tag).empty()) return false;
+    faction_sfx(tag);
+    return true;
 }
 
 // ---------------------------------------------------------------- objects

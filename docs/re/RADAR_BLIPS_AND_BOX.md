@@ -124,12 +124,12 @@ does not use a RADARMAP.XML event.
   - 0x4367e5: the spawned beacon type's Beacon_Radar_Map_Event_Name (+0x1798);
   - 0x501bee: Begin_Control_Transition_Radar_Event (+0x1758);
   - **0x500f30: End_Control_Transition_Radar_Event (+0x1778).** It plays in 0x500e30, the capture-point owner change,
-    when the local player is allied with the old or the new owner (0x2823e0, relation 0 [M]). The port says this one
-    has no call site.
+    when the local player is allied with the old or the new owner (0x2823e0, relation 0 [M]). The port now raises it
+    from app_hud.cpp when a capture point changes hands (mcx4 t14; checked for #479).
   - 0x58cf16: DEFAULT_UNIT_DIE.
   - None of these is on an attack path.
 - The under-attack ping goes through the **HUD blip record 0x2de700**, not a RADARMAP event. Land 0x3ba180 (call
-  0x3ba394) and space 0x4d8ae0 (call 0x4d8cf4) handle the combat notification (attacker, victim). This is legacy
+  0x3ba394) and space 0x4d8ae0 (call 0x4d8cf4) handle the combat notification (attacker, victim). This is
   legacy docs/re/AUDIO.md 9.8; its "size 4.0" is wrong, the 4.0 is the duration. The rule:
   - the mode countdown (land +0x414, space +0x3c4) is 0, and the attacker is hostile to the victim's owner (0x39a4e0);
   - the victim is a base object: land behaviour slot +0x391 DUMMY_GROUND_STRUCTURE or +0x394
@@ -142,19 +142,15 @@ does not use a RADARMAP.XML event.
 - The result is the same pulsing `radar_blip` (i_radar_focus.tga) as part 1, at the victim's position at hit time. It is
   fixed (it does not follow) and lasts 4.0 s.
 
-**Port today:**
-- engine/apps/game/include/alamo/game/radar_feed.hpp:26 says "Not fed: the base-under-attack radar ping".
-- engine/audio/src/game_audio.cpp:361 `GameAudio::combat` plays the announcement with its own cooldown, and no
-  position reaches it.
+**Port (#479):**
+- `GameAudio::combat` returns true when the announcement fired: cooldown passed, then the faction tag present. The
+  cooldown restarts either way, as retail sets the countdown before the tag test.
+- `GameAudioHost::combat` then queues the victim position. The app takes the queue after `battle_tick` and calls
+  `RadarEvents::ping(x, y, 4.0)`: an unnamed, non-persistent marker that pulses like a story blip.
+- Tests: alamo_game_audio_host_tests and alamo_ui_hud_tests.
+- [port] The ping rides on the audio host. A build or run without audio (GameAudioHost inactive) gets no ping; retail
+  pings whether or not the sound can play.
 
-**Change:**
-- `GameAudio::combat` (and `GameAudioHost::combat`) report that the announcement fired, with the victim position.
-  GameAudioHost already finds the victim in its damage loop (game_audio_host.cpp:1010-1026).
-- That path adds a non-persistent blip record: `RadarEvent{marker, persistent false, duration 4.0, v 255}` at the
-  victim (x, y), pulsing by the part 1 rule and removed after 4 s.
-- Gate it exactly like the SFX: the cooldown has passed **and** the faction has the tag.
-- Test (game_session or audio_host): a hostile hit on a local DUMMY_GROUND_STRUCTURE adds one 4 s blip at the victim. A
-  second hit inside 60 s adds none. A faction without the announcement tag gets no blip.
 
 ## Open
 

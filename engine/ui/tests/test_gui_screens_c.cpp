@@ -558,6 +558,67 @@ void test_anim_hack_drag() {
             CHECK(ok && out.size() == 1 && out[0] == commands::ev::move_object_to_object(960, 101));
             auto [ok2, out2] = drag_stack(fleet_px[0], {tx, ty});  // enemy fleet: no drag
             CHECK(!ok2 && out2.empty());
+            // #455 (docs/re/GALACTIC_ABILITY_ROWS.md "The row", 0x3eb200; drop 0x2f6c30 -> 0x3d2900): while the fleet is
+            // dragged, every planet the host labels shows one g_special_ability row (none without a drag). A drop on its
+            // own planet's row asks the host to use the ability there; on another planet's row it is the planet drop's move.
+            {
+                const int32_t sc = ft.find("g_special_ability");
+                std::vector<std::pair<uint32_t, uint32_t>> asked;
+                gf.providers.drag_special_ability = [&asked](uint32_t fleet, uint32_t planet, GalacticSpecialAbility& r) {
+                    asked.emplace_back(fleet, planet);
+                    r.text_key = planet == 100 ? "TEXT_ABILITY_SLOT_SPY" : "TEXT_ABILITY_SLOT_RAID";
+                    return true;
+                };
+                hud.build(gf);
+                CHECK(hud.stats().ability_rows == 0 && asked.empty());
+                auto row_px = [&](size_t pi) {
+                    float sx = 0, sy = 0;
+                    CHECK(project(gf.view, planets[pi].position, sx, sy));
+                    const Vec2f at = hud.canvas().pixel_to_canvas(sx, sy);
+                    return hud.canvas().canvas_to_pixel(at.x - 48.0f, at.y - 20.0f);
+                };
+                auto drop_on_row = [&](size_t pi, std::vector<HudAction>& acts) {
+                    std::vector<commands::EventData> out;
+                    RoutedInput rr;
+                    rr.world.mouse_x = static_cast<int32_t>(fleet_px[1].x);
+                    rr.world.mouse_y = static_cast<int32_t>(fleet_px[1].y);
+                    rr.hover_component = gpf;
+                    rr.owner[static_cast<size_t>(Button::Left)] = PointerTarget::Hud;
+                    rr.hud = {{HudPointerEvent::Kind::Press, Button::Left, gpf, rr.world.mouse_x, rr.world.mouse_y}};
+                    hud.update_input(rr, false, false, 5.0, out, &acts);
+                    rr.hud.clear();
+                    rr.world.mouse_x = static_cast<int32_t>(tx);
+                    rr.world.mouse_y = static_cast<int32_t>(ty);
+                    rr.hover_component = -1;
+                    hud.update_input(rr, false, false, 5.1, out, &acts);
+                    asked.clear();
+                    hud.build(gf);  // the rows of this drag
+                    CHECK(hud.drag().active && hud.stats().ability_rows == 2 && asked.size() == 2 && asked[0].first == 960 &&
+                          asked[0].second == 100 && asked[1].second == 101);
+                    const Vec2f p = row_px(pi);
+                    const auto x = static_cast<int32_t>(p.x), y = static_cast<int32_t>(p.y);
+                    CHECK(hud.hit_test(x, y) == sc);
+                    rr.world.mouse_x = x;
+                    rr.world.mouse_y = y;
+                    rr.hover_component = sc;
+                    hud.update_input(rr, false, false, 5.2, out, &acts);
+                    CHECK(hud.drag().valid);
+                    rr.owner = {};
+                    rr.hud = {{HudPointerEvent::Kind::Release, Button::Left, sc, x, y}, {HudPointerEvent::Kind::Click, Button::Left, sc, x, y}};
+                    hud.update_input(rr, false, false, 5.3, out, &acts);
+                    hud.build(gf);
+                    CHECK(hud.stats().ability_rows == 0);  // the drag ended
+                    return out;
+                };
+                std::vector<HudAction> row_acts;
+                std::vector<commands::EventData> row_out = drop_on_row(0, row_acts);  // its own planet
+                CHECK(row_out.empty() && row_acts.size() == 1 && row_acts[0].kind == HudAction::Kind::Button &&
+                      row_acts[0].name == "g_special_ability" && row_acts[0].unit == 960 && row_acts[0].ids == std::vector<uint32_t>{100});
+                row_acts.clear();
+                row_out = drop_on_row(1, row_acts);  // another planet: the move
+                CHECK(row_acts.empty() && row_out.size() == 1 && row_out[0] == commands::ev::move_object_to_object(960, 101));
+                gf.providers.drag_special_ability = nullptr;
+            }
         }
         planets[0].stacks.clear();
         planets[0].orbit_local = false;

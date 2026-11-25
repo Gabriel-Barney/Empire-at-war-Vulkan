@@ -152,6 +152,9 @@ public:
     // (retail appends a record per Add); the age and pulse are kept on a move.
     uint32_t set_marker(std::string_view name, float x, float y);
     bool remove_marker(std::string_view name);
+    // #479 (docs/re/RADAR_BLIPS_AND_BOX.md §3, 0x2de700 [H]): the base-under-attack ping - the story blips' pulsing radar_blip,
+    // fixed at (x, y) for `seconds`, unnamed (not in marker_names, not reachable by name).
+    uint32_t ping(float x, float y, float seconds);
     std::vector<std::string> marker_names() const;
     void update(float dt);
     std::span<const RadarEvent> items() const { return items_; }
