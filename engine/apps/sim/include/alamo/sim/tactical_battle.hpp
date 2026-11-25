@@ -2479,20 +2479,21 @@ private:
     void process_death(TacticalMode& mode, const tactical::combat::DeathEvent& d, SimRng& rng, bool silent = false);
     // consume_events step c for one hardpoint destruction: Death_Explosion_Particles, then Death_Breakoff_Prop.
     void consume_hardpoint_event(TacticalMode& mode, const tactical::combat::HardpointEvent& e);
-    // #360: the events of a combat kill made outside the tick's consumers (a garrison host's Killed occupants, #382 a script
-    // kill), consumed in consume_events' order - hardpoints (Die step 5), deaths, survivors (Die step 7) - from the marks
-    // on. A list that consume_events has still to read (unread_, from the combat tick on) is left to it, so no event is
-    // consumed twice.
+    // #360 / #382 / #402: the combat events no consumer has read yet - a kill made outside the tick's consumers (a garrison
+    // host's Killed occupants, a script kill, a command-phase ability kill, which late_deaths takes up) - consumed in
+    // consume_events' order: hardpoints (Die step 5), deaths, survivors (Die step 7), each list from consumed_ on. A list
+    // that consume_events has still to read (kUnread, from the combat tick on) is left to it, so no event is consumed twice.
+    void consume_kill_events(TacticalMode& mode, SimRng& rng);
+    // #402: true when a combat list has events past consumed_ (and is not left to consume_events).
+    bool has_unconsumed_kill_events() const;
+    // #402: how far each combat list has been consumed (list sizes; u32 like the combat save's counts). kUnread from the
+    // combat tick (abilities_combat), which clears the lists, until consume_events has read that list; then its size, and
+    // moved on by consume_kill_events. Saved: a save between ticks can fall after a command-phase kill that late_deaths
+    // has still to consume (never kUnread then: consume_events always follows the combat tick).
+    static constexpr uint32_t kUnread = 0xFFFFFFFFu;
     struct CombatEventMarks {
-        size_t hardpoints = 0, deaths = 0, survivors = 0;
-    };
-    CombatEventMarks combat_event_marks() const;
-    void consume_kill_events(TacticalMode& mode, SimRng& rng, const CombatEventMarks& marks);
-    // #360 / #382: set for each combat list from the combat tick (abilities_combat) until consume_events has read it (it
-    // clears each as it passes it; transient: never set between ticks, so not saved or hashed).
-    struct UnreadCombatEvents {
-        bool hardpoints = false, deaths = false, survivors = false;
-    } unread_;
+        uint32_t hardpoints = 0, deaths = 0, survivors = 0;
+    } consumed_;
     void spawn_particle(TacticalMode& mode, int32_t type, Vec3 pos, int32_t owner);
     void explosion_flinch(TacticalMode& mode, objects::ObjectHandle h);  // #362: an EXPLOSION object's area flinch
     objects::ObjectHandle spawn_prop(TacticalMode& mode, int32_t type, Vec3 pos, Vec3 facing, int32_t owner);

@@ -124,18 +124,17 @@ void TacticalBattle::build_service_graph() {
     const auto lap = [&g](const char* zone) { g.barrier(std::string("lap.") + zone, [zone] { profile::lap(zone); }); };
 
     // ---- setup -----------------------------------------------------------------------------------------------------
-    // s78n t12 review: deaths raised between ticks by command-phase ability effects - the vehicle thief's eject (unit
+    // s78n t12 review: kills raised between ticks by command-phase ability effects - the vehicle thief's eject (unit
     // ability 46 / 18 off: Take_Damage kind 13 kills the stolen vehicle), a STIM_PACK that kills its user - are still in
-    // the combat system's list, which the coming combat tick clears. Process them now, in list order, like the combat
-    // tick's own deaths (process_death skips a unit that was processed already: last tick's deaths, script_damage's).
-    // [port] before this the host never saw such a death (the object stayed, dead in combat only).
+    // the combat system's lists, which the coming combat tick clears. #402: consume what no consumer has read yet -
+    // hardpoints, deaths, survivors (Die steps 5 and 7), in consume_events' order (consume_kill_events) - like the combat
+    // tick's own kills. [port] before this the host never saw such a death (the object stayed, dead in combat only).
     g.add("late_deaths", kAll, kAll, [this] {
-        if (combat_ && !combat_->deaths().empty()) {
+        if (has_unconsumed_kill_events()) {
             // the hooks get this tick's context first, so what a late death starts (its death clip, a corpse
             // clone) is stamped with the current frame, not with the tick before
             if (hooks_) hooks_->set_tick(tick_.rng, tick_.global_frame);
-            const std::vector<tc::DeathEvent> late(combat_->deaths().begin(), combat_->deaths().end());
-            for (const tc::DeathEvent& d : late) process_death(*tick_.mode, d, *tick_.rng);
+            consume_kill_events(*tick_.mode, *tick_.rng);
         }
     });
     g.add("clear", 0, bit(cSignals), [this] {
@@ -303,9 +302,9 @@ void TacticalBattle::build_service_graph() {
     g.add("combat_team_pos", bit(cStore) | bit(cState), bit(cCombat), [this] { combat_team_positions(tick_.mode->primary()); });
     lap("tac.combat_pre");
     g.add("abilities_combat", kAll, kAll, [this] {
-        // #382: from the combat tick on, its event lists are consume_events' to read; a kill in between (consume_kill_events)
-        // leaves them to it
-        unread_ = {true, true, true};
+        // #382 / #402: from the combat tick on (it clears the lists), they are consume_events' to read; a kill in between
+        // (consume_kill_events) leaves them to it
+        consumed_ = {kUnread, kUnread, kUnread};
         hooks_->set_tick(tick_.rng, tick_.global_frame);
         abilities_->tick(frame_, tick_.mode->trees(), *tick_.rng, *tick_.pf);
         oi_ability_anims(tick_.global_frame);  // this tick's ability clips on the animation world
