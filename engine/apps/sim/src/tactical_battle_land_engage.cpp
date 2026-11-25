@@ -375,8 +375,32 @@ void TacticalBattle::land_pop(TacticalMode& mode, LandFormationRecord& r, SimRng
     const auto it = std::lower_bound(attack_blocks_.begin(), attack_blocks_.end(), r.mover,
                                      [](const AttackBlock& b, objects::ObjectId m) { return b.mover < m; });
     if (!named && it != attack_blocks_.end() && it->mover == r.mover && it->target == was) attack_blocks_.erase(it);
+    if (popped) land_pop_effects(*popped, r.mover);
     if (r.blocks.empty()) return;
     land_replan(mode, r, rng);
+}
+
+// #491 (Pop 0x4105a0's member loop [H], read from the binary 2026-11-24): for each member of the formation, in member order
+// (the mover's units; [port] a land TEAM container's own ability slots last):
+//   - T has 0x40: signal 0x2a (0x220ed0) [port: counted - nothing in the port writes 0x40 or listens for 0x2a];
+//   - a member with a layer (0x397900(m, 1) != 0: a movement unit): the orientation := its locomotor's vf +0x1e8 (0x3a8710;
+//     MovementSystem::pop_facing) [port: the mode manager's vf +0x238 gate is taken as true in a battle];
+//   - T lacks 0x10 (0x583670) and the member's unit ability 5, BARRAGE, is active (0x39b950): switched off (0x38a350(m, 5,
+//     0)). [port] Nothing in the port writes 0x10 on a land block.
+// [port] The path-progress object F +0x230 (freed by the Pop) has no port counterpart.
+void TacticalBattle::land_pop_effects(const mv::FighterBlock& t, objects::ObjectId mover) {
+    constexpr uint8_t kBarrage = 5;  // the unit ability table: BARRAGE
+    const auto barrage_off = [&](objects::ObjectId id) {
+        if ((t.flags & 0x10) == 0 && abilities_ && abilities_->has_object(id) && abilities_->is_active(id, kBarrage))
+            (void)abilities_->set_unit_ability_active(id, kBarrage, false, frame_);
+    };
+    for (const objects::ObjectId u : land_mover_units(mover)) {
+        if ((t.flags & 0x40) != 0) ++stats_.land_pop_signals;
+        if (movement_ && movement_->has_unit(u))
+            if (const float y = movement_->pop_facing(u); y != mv::kNoFacing && movement_->snap_yaw(u, y)) ++stats_.land_pop_facings;
+        barrage_off(u);
+    }
+    if (movement_ && movement_->is_land_team_container(mover)) barrage_off(mover);
 }
 
 // The formation plans to its top block (state 0 -> 0x41c1a0; the recorded goal := goal(top)): an object block (attack /
@@ -544,7 +568,7 @@ void TacticalBattle::land_waypoint_service(TacticalMode& mode, SimRng& rng) {
         if (!g.done) continue;
         for (const objects::ObjectId m : g.movers)
             if (LandFormationRecord* r = land_formation_mut(m)) {
-                (void)mv::stack_pop(r->blocks);
+                if (const std::optional<mv::FighterBlock> p = mv::stack_pop(r->blocks)) land_pop_effects(*p, m);
                 ++stats_.land_waypoint_pops;
             }
         land_run_top(mode, g.movers, rng);

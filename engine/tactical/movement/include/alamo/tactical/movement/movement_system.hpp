@@ -693,6 +693,9 @@ public:
     // Teleport-free facing snap (0x3a8710; LOB_SOLVER §3.5 "Facing at apply"): the unit's yaw := yaw_deg at once (no
     // turn rate); position and order unchanged. False when the unit is unknown.
     bool snap_yaw(ObjectId id, float yaw_deg);
+    // #491 (locomotor vf +0x1e8, LocomotorBehaviorClass 0x42c600 [H]): the yaw the formation Pop 0x4105a0 sets on a member
+    // (0x3a8710): the unit's own orientation. kNoFacing for an unknown unit.
+    float pop_facing(ObjectId id) const;
 
     // ---- REMAINING_GAPS §4.2-4.7
     // Threat at a point for an owner (TacticalPerceptionGrid point query 0x653ff0); const and thread-safe (planning

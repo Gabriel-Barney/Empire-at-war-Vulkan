@@ -536,6 +536,117 @@ LandWaypointRun run_land_waypoints(const Data& d) {
     return out;
 }
 
+// #491 (Pop 0x4105a0's member loop [H]): a squad whose troopers carry BARRAGE walks a move to P1 and one shift-queued waypoint
+// P2. After the orders the test gives the order's block flag 0x40 (no port writer sets it) and switches BARRAGE on for every
+// trooper. While it walks, each trooper's Pop facing (locomotor vf +0x1e8) is its own yaw (a plain Walk) and BARRAGE stays on.
+// At the arrival pop of the order's block: every trooper's BARRAGE is off (the block lacks 0x10), signal 0x2a was raised and
+// the orientation set once per member. With 0x10 also given to the block, BARRAGE stays on through the pop.
+struct LandPopEffectsRun {
+    bool found = false, active = false, facing = true, on_before = true, popped = false, off = false, signals = false, oriented = false;
+};
+
+std::string barrage_trooper(std::string t) {
+    const char* at = "<GroundInfantry Name=\"S10_Trooper\">";
+    if (const size_t p = t.find(at); p != std::string::npos)
+        t.insert(p + std::strlen(at), "<Unit_Abilities_Data SubObjectList=\"Yes\"><Unit_Ability><Type>BARRAGE</Type></Unit_Ability>"
+                                      "</Unit_Abilities_Data>");
+    return t;
+}
+
+std::unique_ptr<Data> barrage_data() {
+    static std::string prefix;
+    const char* const old = g_temp_prefix;
+    prefix = std::string(old) + "_land_pop_barrage";
+    g_temp_prefix = prefix.c_str();
+    g_types_patch = barrage_trooper;
+    auto d = make_data(false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false,
+                       false, false, true);
+    g_types_patch = nullptr;
+    g_temp_prefix = old;
+    return d;
+}
+
+LandPopEffectsRun run_land_pop_effects(const Data& d, uint8_t extra_flags) {
+    LandPopEffectsRun out;
+    CampaignBattleOptions opt;
+    opt.conflict.human_choice = galactic::BattleChoice::Fight;
+    opt.battle.max_frames = 4000;
+    opt.battle.skip_human_units = true;
+    opt.battle.order_interval = 0;
+    opt.battle.fog = false;
+    ClashSession s(d, 0, opt, {"S10_Squad"}, {}, true);
+    if (!s.gs) return out;
+    objects::ObjectId sq = objects::kNoObjectId;
+    std::vector<objects::ObjectId> mem;
+    bool ordered = false;
+    for (uint64_t t = 0; t < 4000; ++t) {
+        TacticalBattle* b = s.tick();
+        TacticalMode* tm = s.host->tactical();
+        if (!b || !tm || b->frame() < 3) continue;
+        objects::ObjectStore& st = tm->primary();
+        const tc::CombatSystem& cs = b->combat();
+        const mv::MovementSystem& ms = b->movement();
+        SimRng& rng = s.host->random().synced();
+        if (!ordered) {
+            ordered = true;
+            Vec3 epos{};
+            bool enemy = false;
+            std::map<uint32_t, std::vector<objects::ObjectId>> teams;
+            for (size_t i = 0; i < cs.unit_count(); ++i) {
+                const auto id = cs.unit_id_at(i);
+                if (cs.team(id) != 0 && cs.alive(id)) teams[cs.team(id)].push_back(id);
+            }
+            for (const auto& [tid, m] : teams) {
+                const auto cid = static_cast<objects::ObjectId>(tid);
+                const objects::ObjectHandle th = st.find(cid);
+                if (m.size() < 2 || !st.alive(th) || !ms.has_unit(cid)) continue;
+                if (st.owner(th) == 0 && sq == objects::kNoObjectId) {
+                    sq = cid;
+                    mem = m;
+                } else if (st.owner(th) == 1 && !enemy) {
+                    enemy = true;
+                    epos = st.position(th);
+                }
+            }
+            out.found = sq != objects::kNoObjectId && enemy;
+            CHECK(out.found);
+            if (!out.found) break;
+            const Vec3 sp = st.position(st.find(sq));
+            float dx = sp.x - epos.x, dy = sp.y - epos.y;
+            const float len = std::max(1.0f, std::sqrt(dx * dx + dy * dy));
+            dx /= len;
+            dy /= len;
+            CHECK(b->order_move(*tm, 0, mem, sp.x + 100.0f * dx, sp.y + 100.0f * dy, rng, mv::kNoFacing, false, false,
+                                mv::kMoveFlagPlayerOrder) == commands::RejectReason::None);
+            CHECK(b->order_move(*tm, 0, mem, sp.x + 100.0f * dx - 100.0f * dy, sp.y + 100.0f * dy + 100.0f * dx, rng, mv::kNoFacing,
+                                false, true) == commands::RejectReason::None);
+            for (LandFormationRecord& r : TacticalBattleTestAccess::land_formations(*b))
+                if (r.mover == sq && r.blocks.size() == 2) r.blocks.back().flags = static_cast<uint8_t>(r.blocks.back().flags | 0x40 | extra_flags);
+            tactical::abilities::AbilitySystem& ab = TacticalBattleTestAccess::abilities(*b);
+            out.active = true;
+            for (const objects::ObjectId u : mem) {
+                (void)ab.set_unit_ability_active(u, 5, true, b->frame());
+                out.active = out.active && ab.is_active(u, 5);
+            }
+            continue;
+        }
+        if (b->stats().land_waypoint_pops == 0) {
+            for (const objects::ObjectId u : mem) {
+                if (ms.has_unit(u)) out.facing = out.facing && ms.pop_facing(u) == ms.view(u).yaw;
+                out.on_before = out.on_before && b->abilities().is_active(u, 5);  // on until the pop
+            }
+            continue;
+        }
+        out.popped = true;
+        out.off = true;
+        for (const objects::ObjectId u : mem) out.off = out.off && !b->abilities().is_active(u, 5);
+        out.signals = b->stats().land_pop_signals == mem.size();
+        out.oriented = b->stats().land_pop_facings == mem.size();
+        break;
+    }
+    return out;
+}
+
 void test_land_auto_engage() {
     {
         auto d = chase_data(true);
@@ -592,6 +703,17 @@ void test_land_auto_engage() {
                     r.stacked ? 1 : 0, r.listed ? 1 : 0, r.looped ? 1 : 0, r.saved ? 1 : 0, seq.c_str(), r.capped ? 1 : 0);
         CHECK(r.found && r.stacked && r.listed && r.looped && r.saved && r.capped);
         CHECK(seq.rfind("123123", 0) == 0);  // P1, P2, P3, then the loop P1, P2, P3
+    }
+    {
+        auto d = barrage_data();
+        const LandPopEffectsRun r = run_land_pop_effects(*d, 0);
+        const LandPopEffectsRun k = run_land_pop_effects(*d, 0x10);
+        std::printf("  land Pop member loop (#491): BARRAGE on %d, still on before the pop %d; Pop facing = own yaw %d; popped %d: "
+                    "BARRAGE off %d, signal 0x2a %d and orientation %d per member; with 0x10 BARRAGE kept %d\n",
+                    r.active ? 1 : 0, r.on_before ? 1 : 0, r.facing ? 1 : 0, r.popped ? 1 : 0, r.off ? 1 : 0, r.signals ? 1 : 0,
+                    r.oriented ? 1 : 0, k.popped && !k.off ? 1 : 0);
+        CHECK(r.found && r.active && r.on_before && r.facing && r.popped && r.off && r.signals && r.oriented);
+        CHECK(k.found && k.active && k.on_before && k.popped && !k.off && k.signals && k.oriented);
     }
 }
 
