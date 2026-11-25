@@ -96,16 +96,61 @@ Eye (`0x49c540`) [H]:
 Look (`0x49de50`): the same, but mode 3 has no look branch and yields (0, 0, 0) [H].
 
 After the eye [H]:
-- the land terrain clamp (+0x315);
+- the land terrain clamp (+0x315): in mode type 1 with the flag set, eye.z = max(eye.z, the highest ground on a 3 × 3
+  grid at ±15 around the eye + 15). The flag is sticky: Cinematic View and the interesting-object shot set it, a type's
+  cinematic file and a script cinematic clear it, and End_Cinematic_Mode leaves it, so later land shots inherit it;
 - the smoothing (+0x270: eye = f × previous eye + (1 − f) × eye);
 - the look smoothing `0x4a96d0` [L];
 - the shake.
 
 [port] The port evaluates the eye and look with `shot_keys_eye` and `shot_keys_look` (`battle_fx.hpp`):
 - They model the hold, linear, spline and orbit-after-the-last-key cases.
-- They do not model `0x49a610` (an orbit key followed by another key, which no ported shot uses), the terrain clamp,
-  the look smoothing, the hardpoint / muzzle keys or the roll keys.
+- They do not model `0x49a610` (an orbit key followed by another key, which no ported shot uses), the look smoothing,
+  the hardpoint / muzzle keys or the roll keys (#562).
 - The smoothing is `BattleCam::smooth_eye`, once per shot frame.
+- The terrain clamp (#564) is `terrain_clamped_eye` in `battle_cam_camera`, with the flag in `BattleCam::terrain_clamp`.
+  The flag is set by Cinematic View. [port] Nothing clears it yet, because the paths that clear it in retail (a type's
+  cinematic file, the script cinematic `0x4a5d20`) don't use this controller in the port. The TSW shot doesn't apply
+  it, since it only runs in space.
+
+## The handheld noise (`0x4ab780` / `0x4ab060`) [H]
+
+`0x4ab780(ctrl, dur)` clears every shake tracker (+0x278) and starts one CameraShakeEffect over `dur` frames from shot
+clock 0. Its parameters are set by the controller constructor `0x499560`, and nothing else writes them [M]:
+- XAmplitude 20 and YAmplitude 20;
+- Frequency 0.01 × dur;
+- EaseIn 0 and EaseOut 0.1;
+- NoiseOffset 0 and roll 0.
+
+That is a slow sway, one noise cell per 100 frames and about ±1° of view direction.
+
+The effect's vtable is `0x8fedb8` (apply `0x7d97d0`, the fbm shake). In `0x7d93a0`, Ghidra prints the AnimeSpiral branch
+(`0x8fefa0`) first, which is easy to misread.
+
+Who starts it:
+- the hero clash and Cinematic View (every view step), with dur 0x3fffffff;
+- the interesting-object templates, with the shot length.
+
+The bombing run and the TSW shot don't.
+
+The port: `handheld_shake(dur)` (`battle_fx.hpp`) on `CameraShake`, restarted by the host with each shot that has
+`BattleCamShot::handheld`.
+
+## The engine-loop SFX (`0x3a7bb0(obj, on)`) [H]
+
+- **On:** the type's `SFXEvent_Engine_Cinematic_Focus_Loop` (+0x1420) plays attached to the object ("%s: Starting
+  cinematic engine loop %s").
+- **Off:** it is stopped.
+- **Both:** the type's `SFXEvent_Ambient_Moving` (+0x1520) one-shot plays.
+- **Gates:** nothing plays for a dying object, and a squadron member uses its team's type.
+- **The object (+0x318):**
+  - the hero clash, Cinematic View and the interesting-object templates move it (off on the old object, on on the new);
+  - End_Cinematic_Mode stops it;
+  - the bombing run and the TSW shot leave it.
+
+The port: `GameAudioHost::cinematic_engine_loop`, driven by `App::engine_loop_to`. Like retail, it moves only to a
+different object. [port] A squadron member uses its own type, where retail uses its team's, so a selected fighter's
+loop can differ (see the tier list).
 
 ## Movie Mode (slot 78), on key up: `0x2cc080` [H]
 
@@ -189,11 +234,14 @@ Keys in a view (`0x2cbd00`):
 The mouse in a view (`0x2cc3e0`):
 - A move turns the view by its dominant axis / 4: pitch += dy / 4 (clamped to ±80), or yaw −= dx / 4 (wrapped).
 - The cursor is re-centred and the eye key rebuilt (`0x4ac830`).
-- The wheel zooms (`0x4ac520`, +0x1a8) [M].
+- The wheel zooms (`0x4ac520`) [H]: d = 3 avg(E) × zoom − 25 × notches (away = closer), clamped to [3|E|, 10|E|], and
+  zoom (+0x1a8) = d / (3 avg(E)). The factor starts at 1.0 when the process starts and is never reset, so it carries
+  over to the next view, object and battle. The first notch after a fresh view starts from the unclamped 3 avg(E),
+  which is under 3|E|, so it usually lands on 3|E|.
 - Mouse input never ends a view.
 
 The port: `cinematic_view_shot` and `BattleCam` (`battle_cam.hpp`):
-- [port] Zoom is 1: the wheel zoom `0x4ac520` is not read.
+- The wheel zoom is `BattleCam`'s, kept for the App's lifetime (#564).
 - [port] The offset is read as (−d cos p sin yaw, d cos p cos yaw, d sin p) in the object's frame, with view 0 on its
   +Y side, as the hero clash shot's eye is [M].
 - [port] There is no cursor re-centring: the turn is the cursor's move since the previous frame.
@@ -209,8 +257,8 @@ The port: `cinematic_view_shot` and `BattleCam` (`battle_cam.hpp`):
 - Esc (key down) stops it, and other keys pass through.
 - [port] The port measures the move per frame, not per mouse event, so a fast flick ends the shot sooner than in retail.
 
-The port's TSW shot (`TswFiringShot::input_cancels`) still measures from the cursor at Fire, not from the previous move
-(see Open).
+The TSW firing shot is state 3 too. `0x2ccf30` sets the baseline at Fire, and every move moves it; the port's
+`TswFiringShot::input_cancels` does the same (#564).
 
 ## The per-frame update (`0x2cd870` → `0x4aaf00`) [H]
 
@@ -235,12 +283,13 @@ The port's TSW shot (`TswFiringShot::input_cancels`) still measures from the cur
 All of them are presentation: no sim state, no synced draw, so tiers 2 and 3 are untouched. Camera feel is tier 1, so
 each of these is a known gap rather than an accepted difference:
 - The not-ported Movie Mode picks: with no clash, Movie Mode frames nothing (#562, #563).
-- The handheld noise, the engine-loop SFX and the wheel zoom (#564).
 - The mouse is measured per frame, not per event.
 - There is no cursor re-centring in a view.
 - A failed view step stops the cam.
 - The cam stops when the framed object is no longer drawn.
 - View 0's side [M].
+- A squadron member's engine loop uses its own type, not its team's.
+- The wheel zoom keeps its factor when the viewed object is gone (retail clamps it to [0, d]).
 
 Tier 3 (internals): the clash identity (kind + first participant), and the battle cam and TSW shot holding their state in
 separate classes.
@@ -267,10 +316,6 @@ start stops a running TSW shot.
 - The interesting-object shot: the pick `0x2cd0d0`, its ranking `0x520df0`, and the ~10 templates `0x4a53f0`
   dispatches to (#562).
 - The bombing-run shot `0x49f370` (#563).
-- The handheld noise `0x4ab780` / `0x4ab060` and its parameters +0x2b0..+0x2c0 (#564).
-- The cinematic engine-loop SFX (`0x3a7bb0`, type +0x1420 / +0x1520) (#564).
-- The wheel zoom in a view (`0x4ac520`, +0x1a8) (#564).
 - The exact axes of `0x4a6790`'s rotation.
-- `0x49a610` (polar interpolation), the land terrain clamp, the look smoothing `0x4a96d0`, the roll keys.
+- `0x49a610` (polar interpolation), the look smoothing `0x4a96d0`, the roll keys (#562: only its templates use them).
 - State 4 (script cinematics) and the story START cinematic mode (+0x348).
-- `TswFiringShot::input_cancels` measures from the cursor at Fire, where retail measures from the previous move (#564).

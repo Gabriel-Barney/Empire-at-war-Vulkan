@@ -166,6 +166,16 @@ ShakeEffect explosion_shake(float jitter, float distance, int32_t noise_draw) {
     return e;
 }
 
+ShakeEffect handheld_shake(int32_t duration) {
+    ShakeEffect e;  // 0x4ab060 by name, the template of the constructor 0x499560
+    e.x_amplitude = 20.0f;
+    e.y_amplitude = 20.0f;
+    e.frequency = 10.0f / 1000.0f * static_cast<float>(duration);  // +0x2b0 / 1000 x duration
+    e.ease_in = 0.0f;
+    e.ease_out = 0.1f;
+    return e;
+}
+
 float explosion_jitter_factor(const objects::GameObjectTypes& types, objects::TypeIndex explosion) {
     static const uint32_t f = objects::find_type_field("Explosion_Jitter_Factor");
     if (explosion == objects::kNone || f == 0xFFFFFFFFu) return 1.0f;
@@ -355,9 +365,11 @@ Vec3 shot_keys_eye(std::span<const ShotKey> eye, std::span<const ShotKey> look, 
     return l + Vec3{cs * d.x - sn * d.y, sn * d.x + cs * d.y, d.z};  // 0x4800f0: counter-clockwise about +Z
 }
 
-bool TswFiringShot::input_cancels(int32_t mouse_x, int32_t mouse_y, uint32_t width, uint32_t height, bool button_or_wheel) const {
+bool TswFiringShot::input_cancels(int32_t mouse_x, int32_t mouse_y, uint32_t width, uint32_t height, bool button_or_wheel) {
     if (button_or_wheel) return true;
     const float dx = static_cast<float>(std::abs(mouse_x - cursor_x_)), dy = static_cast<float>(std::abs(mouse_y - cursor_y_));
+    cursor_x_ = mouse_x;  // the baseline follows the cursor before the test
+    cursor_y_ = mouse_y;
     return !(dx < static_cast<float>(width) / 20.0f && dy < static_cast<float>(height) / 20.0f);
 }
 

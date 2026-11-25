@@ -433,6 +433,19 @@ uint32_t GameAudioHost::cinematic_engine_flyby(const objects::GameObjectTypes& t
     return ev.empty() ? 0u : game_->object_sfx(object, ev, position);
 }
 
+uint32_t GameAudioHost::cinematic_engine_loop(const objects::GameObjectTypes& types, objects::TypeIndex type, uint64_t object,
+                                              const Vec3& position, bool on, bool ambient) {
+    if (!game_ || type >= types.size()) return 0;
+    const std::string_view loop = ascii_trim(types.get_string(type, "SFXEvent_Engine_Cinematic_Focus_Loop"));
+    uint32_t id = 0;
+    if (!loop.empty()) {
+        if (on) id = game_->object_sfx(object, loop, position);
+        else game_->stop_object_sfx(object, loop);
+    }
+    if (ambient) (void)cinematic_engine_flyby(types, type, object, position);  // the ambient block runs for on and off
+    return id;
+}
+
 void GameAudioHost::ability_activations(std::span<const tactical::abilities::AbilityActivation> log, const objects::ObjectStore& store,
                                         const objects::GameObjectTypes& types) {
     if (!log.empty() && log.back().serial < activation_seen_) activation_seen_ = 0;
@@ -567,6 +580,9 @@ uint32_t GameAudioHost::galactic_ability_effect(const objects::GameObjectTypes&,
 }
 uint32_t GameAudioHost::cinematic_arrival(uint64_t, int32_t, const Vec3&) { return 0; }
 uint32_t GameAudioHost::cinematic_engine_flyby(const objects::GameObjectTypes&, objects::TypeIndex, uint64_t, const Vec3&) { return 0; }
+uint32_t GameAudioHost::cinematic_engine_loop(const objects::GameObjectTypes&, objects::TypeIndex, uint64_t, const Vec3&, bool, bool) {
+    return 0;
+}
 
 #endif
 

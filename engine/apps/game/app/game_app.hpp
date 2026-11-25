@@ -238,6 +238,8 @@ private:
         uint32_t cam_serial = 0;       // BattleCam::serial() of the shot the clock runs for
         uint32_t cam_start = 0;        // tactical frame of that shot's start (shot clock 0)
         int32_t cam_clock = 0;         // its shot clock at the frame being drawn
+        objects::ObjectId engine_object = objects::kNoObjectId;  // +0x318: the object whose engine loop plays (#564)
+        objects::TypeIndex engine_type = objects::kNone;
         ui::KeySet cam_swallowed;      // keys the controller swallowed, hidden until released
         ui::KeySet cam_prev_down;      // the previous frame's keys down (key-up edges)
     } cine_;
@@ -260,6 +262,7 @@ private:
     void battle_cam_step();                      // per frame: the framed clash and object still there
     bool battle_cam_camera(ui::CameraParams& cp);
     void camera_button();                        // b_camera_t (0x347100)
+    void engine_loop_to(objects::ObjectId id);   // #564: move the cinematic engine loop (+0x318) to `id` (none: off)
     // The drawn object `id` (snapshot, ascending id) and its transform; null when it is not drawn.
     const render::SnapshotObject* drawn_object(objects::ObjectId id, ObjectFrame* frame) const;
     ui::Vec3 shot_half_extents(objects::TypeIndex type);  // the shots' E: model box, else the drawn radius, else 200

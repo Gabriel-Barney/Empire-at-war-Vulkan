@@ -88,6 +88,7 @@ void App::tsw_shot_end() {
 }
 
 void App::cinematic_reset() {
+    engine_loop_to(objects::kNoObjectId);
     cine_.cam.stop();  // the swallowed keys stay hidden until released (else a held one would read as a new press)
     cine_.cam_on = false;
     cine_.shot.end();
@@ -136,8 +137,8 @@ void App::linked_ui_step() {
 }
 
 // 0x2cc3e0 (no GUI dialog has the focus): the controller is offered the mouse events before the HUD and the world and
-// consumes them. A move within 1/20 of the screen of the cursor at Fire is swallowed; a larger one or any button / wheel
-// event ends the shot at once. [M] the event codes 2, 4, 5, 7, 8, 10, 12 = button / wheel events. Keys are not consumed.
+// consumes them. A move within 1/20 of the screen of the previous cursor is swallowed (#564: the baseline follows the
+// cursor); a larger one or any button / wheel event ends the shot at once. [M] the event codes 2, 4, 5, 7, 8, 10, 12 = button / wheel events. Keys are not consumed.
 void App::cinematic_input(ui::InputFrame& raw) {
     battle_cam_input(raw);
     if (!cine_.shot.active() || ui_.gui.has_focus()) return;
@@ -243,12 +244,13 @@ BattleCamGates App::battle_cam_gates() const {
 BattleCamPicks App::battle_cam_picks() {
     BattleCamPicks p;
     // 0x4a6790: the local player's first selected object (it must belong to the local player), or the framed one.
-    p.view = [this](uint32_t target, float yaw, float pitch, BattleCamShot& out) {
+    p.view = [this](uint32_t target, uint32_t& id, ui::Vec3& half_extents) {
         const auto& sel = orders_.selection();
         if (target == 0 && sel.empty()) return false;
         const render::SnapshotObject* o = drawn_object(static_cast<objects::ObjectId>(target != 0 ? target : sel.front()), nullptr);
         if (!o || o->owner != local_player()) return false;
-        out = cinematic_view_shot(static_cast<uint32_t>(o->id), shot_half_extents(o->type), yaw, pitch);
+        id = static_cast<uint32_t>(o->id);
+        half_extents = shot_half_extents(o->type);
         return true;
     };
     // 0x4a4ac0 on the land clash list (clash_list).
@@ -289,6 +291,8 @@ void App::battle_cam_sync() {
     } else if (!on && cine_.cam_on) {
         if (bview_.active()) cine_.saved_camera.restore(bview_.camera());
         cine_.saved_camera.drop();
+        cine_.shake.reset();  // End_Cinematic_Mode frees the trackers (the handheld noise)
+        engine_loop_to(objects::kNoObjectId);
         if (session_) session_->set_presentation_rate_lock(false);
         cine_.letterbox.slide_out();
         std::printf("cinematic: battle cam off\n");
@@ -299,7 +303,35 @@ void App::battle_cam_sync() {
         const sim::TacticalBattle* b = battle();
         cine_.cam_start = b ? b->frame() : 0;
         cine_.cam_clock = 0;
+        // #564 0x4ab780: the handheld noise restarts with each shot (every tracker cleared first), at shot clock 0.
+        if (cine_.cam.shot().handheld) {
+            cine_.shake.reset();
+            (void)cine_.shake.start(handheld_shake(kHandheldFrames), 0, kHandheldFrames);
+        }
+        engine_loop_to(static_cast<objects::ObjectId>(cine_.cam.shot().target));  // +0x318: off on the old, on on the new
     }
+}
+
+// 0x3a7bb0(old, 0) then 0x3a7bb0(new, 1). [port] A squadron member would use its team's type in retail; the shots here
+// frame heroes and selected units with their own type.
+void App::engine_loop_to(objects::ObjectId id) {
+    if (id == cine_.engine_object) return;  // 0x4a4ac0 / 0x4a6790 move it only to a different object
+    if (cine_.engine_object != objects::kNoObjectId) {
+        // The off call's gate (not dying): a gone or dying object only has its loop stopped, without the ambient one-shot.
+        const render::SnapshotObject* o = drawn_object(cine_.engine_object, nullptr);
+        const bool live = o && (o->flags & (render::kSnapDying | render::kSnapDeathClone)) == 0;
+        (void)audio_.cinematic_engine_loop(data_.types, cine_.engine_type, static_cast<uint64_t>(cine_.engine_object),
+                                           live ? o->position : alamo::Vec3{}, false, live);
+    }
+    cine_.engine_object = objects::kNoObjectId;
+    cine_.engine_type = objects::kNone;
+    if (id == objects::kNoObjectId) return;
+    const render::SnapshotObject* o = drawn_object(id, nullptr);
+    if (!o || (o->flags & (render::kSnapDying | render::kSnapDeathClone)) != 0) return;  // not dying (+0x3a0 & 2)
+    cine_.engine_object = id;
+    cine_.engine_type = o->type;
+    std::printf("cinematic: starting cinematic engine loop on object %u\n", static_cast<unsigned>(id));
+    (void)audio_.cinematic_engine_loop(data_.types, o->type, static_cast<uint64_t>(id), o->position, true);
 }
 
 // 0x2cbd00 / 0x2cc080 / 0x2cc3e0 (no GUI dialog with the focus, a battle view, no TSW shot): the keys map to their
@@ -349,8 +381,8 @@ void App::battle_cam_input(ui::InputFrame& raw) {
         }
     if (!cine_.cam.active()) return;
     // The mouse belongs to the controller while it runs: buttons and the wheel never reach the HUD or the world.
-    const bool button = raw.buttons_pressed != 0 || raw.buttons_released != 0 || raw.wheel != 0.0f;
-    cine_.cam.mouse(raw.mouse_x, raw.mouse_y, raw.width, raw.height, button, p);
+    const bool button = raw.buttons_pressed != 0 || raw.buttons_released != 0;
+    cine_.cam.mouse(raw.mouse_x, raw.mouse_y, raw.width, raw.height, button, raw.wheel, p);
     raw.buttons_pressed = raw.buttons_released = raw.buttons_down = 0;
     raw.wheel = 0.0f;
     battle_cam_sync();
@@ -383,7 +415,13 @@ bool App::battle_cam_camera(ui::CameraParams& cp) {
     const float z = shot_z_adjust(o->type);
     const int32_t c = cine_.cam_clock;
     const ui::Vec3 look = shot_keys_look(s.look, c, f, z);
-    const ui::Vec3 eye = cine_.cam.smooth_eye(shot_keys_eye(s.eye, s.look, c, f, z), c);
+    ui::Vec3 keyed = shot_keys_eye(s.eye, s.look, c, f, z);
+    // #564 (+0x315 [H]): on land, with the sticky clamp set, the eye keeps over the ground; before the smoothing.
+    if (!bview_.space() && cine_.cam.terrain_clamp() && bview_.scene()) {
+        const terrain::MapData* m = &bview_.scene()->map();
+        keyed = terrain_clamped_eye(keyed, [m](float x, float y) { return m->terrain.sample_height(x, y); });
+    }
+    const ui::Vec3 eye = cine_.cam.smooth_eye(keyed, c);
     const CinematicPose pose = apply_shake(eye, look, 0.0f, cine_.shake, c);
     cp.eye = pose.eye;
     cp.target = pose.look;

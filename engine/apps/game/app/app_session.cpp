@@ -758,6 +758,7 @@ void App::session_started(const std::vector<std::string>& diag) {
 
 void App::end_session() {
     if (bview_.active()) bview_.stop(gpu_);
+    cinematic_reset();  // #564: the battle cam, its engine loop and the TSW shot end with the session
     if (ui_.load.is_open()) ui_.load.close();
     battle_view_pending_ = false;
     load_intro_frames_ = 0;
