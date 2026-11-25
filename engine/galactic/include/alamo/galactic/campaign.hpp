@@ -313,6 +313,14 @@ struct PersistedBuiltObject {
     int32_t owner = kNoPlayer;           // +0x14 the pad's owner at completion
 };
 
+// #459 (docs/re/HOLOCRON_SUMMARY_SORT.md "Key 8 and the Upgrades icons" [H]): one persistent upgrade object of a planet,
+// a 16-byte record {type, owner, frame} of the vector at planet data +0xb8 / +0x20.
+struct PersistedUpgradeObject {
+    uint32_t type = kNoIndex;   // the DUMMY_UPGRADE type
+    int32_t owner = kNoPlayer;  // the player whose production finished it
+    int32_t frame = 0;          // [L] the record's third field: the port writes the galactic frame of the add
+};
+
 struct PlanetState {
     bool is_planet = false;  // row has a planet object (scenery rows stay inert)
     uint32_t type = kNoIndex;
@@ -404,6 +412,9 @@ struct PlanetState {
     // fought, non-sandbox campaign land battles). Saved (galactic save v2); hashed by the battle host ("battle.state",
     // only planets with records) [port].
     std::vector<PersistedBuiltObject> built_objects;
+    // #459: the persistent upgrade objects, add order (GalacticSim::add_upgrade_object). Saved (galactic save v13), hashed
+    // only for planets with records.
+    std::vector<PersistedUpgradeObject> upgrade_objects;
     // mcx4 t01 (MCX4_RE_ANSWERS_GALACTIC Q1): the initial-placement list PD +0x108 (data +0x110): the
     // Build_Requires_Initial_Placement types this planet may build (can-build step 24), filled once at start() from the
     // campaign's Special_Case_Production, file order, no duplicates. Saved (v10); not hashed (fixed after start()).
@@ -811,6 +822,11 @@ public:
     // the rest is unchanged). Called after every land result (ConflictManager: fought battle, land auto-resolve, invasion
     // without a battle); other owner changes keep the records.
     void keep_built_objects(PlanetIndex planet, int32_t keep);
+    // #459 (docs/re/HOLOCRON_SUMMARY_SORT.md): the planet's persistent upgrade objects. add = 0x4b7090 ("Successfully added
+    // to persistent tracking"; refused when a record of the same owner and type is there), remove = 0x4bb690 (the record
+    // of that owner and type) [H]. False when nothing changed.
+    bool add_upgrade_object(PlanetIndex planet, int32_t owner, uint32_t type);
+    bool remove_upgrade_object(PlanetIndex planet, int32_t owner, uint32_t type);
     std::span<const FleetState> fleets() const { return fleets_; }
     // [port: Gabriel, 2026-11-13] Fleet and ship names (docs/DECISIONS.md "Fleet and ship names"; retail has none). A name
     // belongs to a fleet object or a unit object (it stays with a unit that changes fleets; a merged-away fleet's name goes

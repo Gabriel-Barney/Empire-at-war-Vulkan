@@ -884,7 +884,7 @@ void TacticalBattle::oi_events(TacticalMode& mode) {
         }
     }
     for (const objects::ObjectId id : remove_silently) {  // the upgrade object: out of its station, abilities, store
-        hg_remove_silently(id);
+        hg_remove_silently(id, store);
         bt_kill_silently(mode, store.find(id));
     }
     // c. Die step 7 (Â§1.9): Tactical_Respawn (delayed) and Destruction_Survivors, event order. Owner rule 0x3751a0

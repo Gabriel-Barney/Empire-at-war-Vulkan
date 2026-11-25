@@ -954,12 +954,20 @@ commands::RejectReason TacticalBattle::hg_production_command(TacticalMode& mode,
     return R::None;
 }
 
-void TacticalBattle::hg_remove_silently(objects::ObjectId id) {
+void TacticalBattle::track_upgrade(bool add, objects::ObjectHandle h, const objects::ObjectStore& store) {
+    // #459: campaign battles only (the persistence gate of the pads, 0x42f160).
+    if (!upgrade_track_ || cfg_.skirmish || req_.sandbox || !store.exists(h)) return;
+    upgrade_track_(add, store.owner(h), static_cast<uint32_t>(store.type(h)));
+}
+
+void TacticalBattle::hg_remove_silently(objects::ObjectId id, const objects::ObjectStore& store) {
     if (contents_ && contents_->remove(id)) prod_used_ = true;
     if (unit_by_id(id)) return;  // battle units: bt_kill_silently does the rest
     if (abilities_ && abilities_->has_object(id)) abilities_->remove(id);
     for (size_t i = 0; i < hg_upgrade_objs_.size(); ++i)
         if (hg_upgrade_objs_[i].id == id) {
+            // #459 (0x379df0 -> 0x4bb690): an upgrade object that loses its container leaves the planet's records.
+            track_upgrade(false, hg_upgrade_objs_[i].h, store);
             hg_upgrade_objs_.erase(hg_upgrade_objs_.begin() + static_cast<std::ptrdiff_t>(i));
             prod_used_ = true;
             break;
@@ -984,7 +992,7 @@ void TacticalBattle::hg_production(TacticalMode& mode, SimRng& rng) {
                     if (ow >= 0 && static_cast<size_t>(ow) < hg_tech_bonus_.size()) --hg_tech_bonus_[static_cast<size_t>(ow)];
                 }
             }
-            hg_remove_silently(id);
+            hg_remove_silently(id, store);
             bt_kill_silently(mode, store.find(id));
         }
     }
@@ -1016,6 +1024,7 @@ void TacticalBattle::hg_production(TacticalMode& mode, SimRng& rng) {
             const std::vector<tc::ObjectId> none;
             abilities_->add_container(id, desc_of(static_cast<uint32_t>(t)), o.player, none, frame_, &rng);
             hg_upgrade_objs_.push_back(HgUpgradeObject{id, h});
+            track_upgrade(true, h, store);  // #459 (0x498170 -> 0x4b7090): the planet's persistent upgrade objects
             // s78n t20 fix (SKIRMISH_SETUP §3 "Completion (0x498f70)": signal 0x22 is raised for every finished build,
             // before the DUMMY_UPGRADE branch; AI_GALACTIC_3 §1.11: the AI build task waits for it): the upgrade's
             // completion is reported too (no pool entry). Without it a land task force whose to-produce list holds an

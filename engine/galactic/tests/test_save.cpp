@@ -666,6 +666,14 @@ void drive_synthetic(GalacticSim& s, ConflictManager& cm, const objects::ObjectS
                 v->push_back({tFrigate, 300.5f, 40.25f, 12.1f, 0, pEmpire});
             }
             break;
+        case 65:  // #459 (docs/re/HOLOCRON_SUMMARY_SORT.md): persistent upgrade objects on D (save v13, hashed once present)
+            CHECK(s.add_upgrade_object(rD, pUnder, tInfantry) && !s.add_upgrade_object(rD, pUnder, tInfantry));  // one per owner + type
+            CHECK(s.add_upgrade_object(rD, pEmpire, tInfantry) && s.add_upgrade_object(rD, pEmpire, tFrigate));
+            CHECK(s.remove_upgrade_object(rD, pEmpire, tInfantry) && !s.remove_upgrade_object(rD, pEmpire, tInfantry));
+            CHECK(!s.add_upgrade_object(rD, pUnder, 0xFFFFu) && !s.add_upgrade_object(kInvalidPlanet, pUnder, tInfantry));
+            CHECK(s.planets()[rD].upgrade_objects.size() == 2 && s.planets()[rD].upgrade_objects[0].owner == pUnder &&
+                  s.planets()[rD].upgrade_objects[0].frame == s.frame() && s.planets()[rD].upgrade_objects[1].type == tFrigate);
+            break;
         case 300: {
             const uint32_t f = idle_fleet(s, rE, pUnder);
             if (f != kNoFleet)
@@ -740,7 +748,7 @@ void test_synthetic() {
     sc.full_prefix_limit = 1u << 20;  // every prefix
     // #67 t04: the saved pending ProductionCanceled events of a command cancel carry object = kCancelVoiced. Only the save
     // part of the pin moves (galactic and conflict digests unchanged; with the flag at 0 the pin is the old 0x67e4152092046d2e).
-    sc.pin = 0xc6c75997ff12a0c3ull;  // before the records' field lists
+    sc.pin = 0x4bf04da84760b18dull;  // #459: the scenario's upgrade objects (step 65) enter the hash
     run_scenario(sc);
 }
 
@@ -899,9 +907,14 @@ void test_queue_phases() {
         size_t placement = 2 + 4 + 5 * s.autoresolve_exclusions().size();
         for (const PlanetState& pl : s.planets()) placement += 4 + 4 * pl.initial_placement.size();
         // v11 adds the locked fleets (u32 count 0 here); a v10 image derives them from the contents (none).
-        // v12 adds the company survivor records last (u32 count 0 here); a v11 image has none.
-        CHECK(bytes.size() >= galab + 24 + placement && bytes[0] == 12 && bytes[bytes.size() - 1] == 0);
-        std::vector<uint8_t> v11(bytes.begin(), bytes.end() - 4);
+        // v12 adds the company survivor records (u32 count 0 here); a v11 image has none.
+        // #459: v13 adds the planets' persistent upgrade objects last (u32 count 0 here); a v12 image has none.
+        CHECK(bytes.size() >= galab + 28 + placement && bytes[0] == 13 && bytes[bytes.size() - 1] == 0);
+        std::vector<uint8_t> v12(bytes.begin(), bytes.end() - 4);
+        v12[0] = 12;
+        ByteReader r12(v12);
+        CHECK(o.read(r12) && sim_bytes(o) == bytes);
+        std::vector<uint8_t> v11(v12.begin(), v12.end() - 4);
         v11[0] = 11;
         ByteReader r11(v11);
         CHECK(o.read(r11) && sim_bytes(o) == bytes);
@@ -1111,7 +1124,7 @@ void test_foc() {
         drive_conflicts(s, cm, st, t);
     };
     // #67 t04: as the synthetic pin, only the save part moves (with the voiced flag at 0 the pin is the old 0x3823a3d7aeba6b5e).
-    sc.pin = 0xe7bb9e7deedbbeccull;  // before the records' field lists (FoC data)
+    sc.pin = 0xe52a752f6f0759a3ull;  // FoC data; #459: the save bytes carry v13's upgrade-object count
     run_scenario(sc);
 }
 

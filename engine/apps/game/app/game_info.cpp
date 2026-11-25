@@ -284,11 +284,14 @@ ui::SummaryInfo Holocron::summary(const galactic::GalacticSim& g, const GameData
             pr.ground_icon = icon_of(hud_types, static_cast<objects::TypeIndex>(p.queue[0].front().type));
             pr.ground_text = type_label(d, text, static_cast<objects::TypeIndex>(p.queue[0].front().type));
         }
+        // #459 (docs/re/HOLOCRON_SUMMARY_SORT.md, 0x11c020 [H]): the UPGRADES slots IDC_HERO<row>_ICON0..7 show the first 8
+        // persistent upgrade objects' icons (no owner filter).
+        for (const galactic::PersistedUpgradeObject& u : p.upgrade_objects)
+            if (pr.heroes.size() < 8 && u.type < d.types.size()) pr.heroes.push_back(icon_of(hud_types, static_cast<objects::TypeIndex>(u.type)));
         uint32_t units = 0;
         auto hero = [&](objects::ObjectHandle h) {
             if (!st.alive(h) || st.owner(h) != player) return;
             ++units;
-            if (d.types.get_bool(st.type(h), "Is_Named_Hero") && pr.heroes.size() < 8) pr.heroes.push_back(icon_of(hud_types, st.type(h)));
         };
         for (const objects::ObjectHandle h : p.surface) hero(h);
         const uint32_t land_units = units;
@@ -323,8 +326,8 @@ ui::SummaryInfo Holocron::summary(const galactic::GalacticSim& g, const GameData
         er.mining = number(mining);
         er.total = number(base + trade + other);
         // ui4 t07 (HUD_GAPS §10.2): the sort values of the planet's rows, by key. #429 (docs/re/HOLOCRON_SUMMARY_SORT.md,
-        // 0x10b0f0 [H]): 7 producing counts each queue whose head type has an icon (0..2). [port] 8 upgrades = 0 (the
-        // planet's persistent upgrade list is #459); 6 / 9 / 10 = own units / own land units / own fleets (retail's differ;
+        // 0x10b0f0 [H]): 7 producing counts each queue whose head type has an icon (0..2); #459: 8 = the planet's persistent
+        // upgrade objects (no owner filter). [port] 6 / 9 / 10 = own units / own land units / own fleets (retail's differ;
         // 9 and 10 have no button in FoC).
         std::array<double, ui::kSummarySortKeys> sv{};
         sv[2] = base;
@@ -333,6 +336,7 @@ ui::SummaryInfo Holocron::summary(const galactic::GalacticSim& g, const GameData
         sv[5] = base + trade + other;
         sv[6] = static_cast<double>(units);
         sv[7] = (pr.space_icon.empty() ? 0.0 : 1.0) + (pr.ground_icon.empty() ? 0.0 : 1.0);
+        sv[8] = static_cast<double>(p.upgrade_objects.size());
         sv[9] = static_cast<double>(land_units);
         sv[10] = static_cast<double>(space_fleets);
         s.production.back().sort = sv;
