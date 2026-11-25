@@ -1185,7 +1185,8 @@ void TacticalHud::build_garrison_respawn(const TacticalHudFrame& f) {
     ButtonRuntime& r = buttons_.state(ci);
     r.hidden = r.script_visible >= 0 ? r.script_visible == 0 : f.garrison_respawn < 0.0f;
     if (r.hidden) return;
-    r.build_fill = std::clamp(f.garrison_respawn, 0.0f, 1.0f) * 100.0f;
+    // A script-forced counter with no timer running gets no dial (-1), as the bombing-run button.
+    r.build_fill = f.garrison_respawn < 0.0f ? -1.0f : std::clamp(f.garrison_respawn, 0.0f, 1.0f) * 100.0f;
     const CommandBarComponent& c = (*table_)[ci];
     const ComponentPlacement& p = layout_.placement(ci);
     const Vec2f center{-0.5f * canvas_.width + 30.0f, 0.5f * canvas_.height - 60.0f};
