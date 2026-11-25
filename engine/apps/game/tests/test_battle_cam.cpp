@@ -454,6 +454,7 @@ void test_interesting_chain() {
     w.interesting = {timed(1, 60, 0.9f), timed(2, 30), timed(3, 30)};
     CHECK(cam.movie_key_up(g, w.picks()) && cam.state() == State::Movie && cam.shot().target == 1);
     CHECK(w.interesting_first.size() == 1 && w.interesting_first[0]);
+    CHECK(cam.terrain_clamp());  // 0x4a53f0 step 2: every generated shot sets the sticky land clamp
     CHECK(cam.tick(30, false, w.picks()) == 30 && cam.shot().target == 1);
     // Expiry: held key or Tab freezes the last frame.
     CHECK(cam.key_down(Key::MovieMode, g, w.picks()) && cam.tick(60, false, w.picks()) == 30 && cam.shot().target == 1);
@@ -470,6 +471,11 @@ void test_interesting_chain() {
     w.clashes = {4};
     CHECK(cam.tick(30, false, w.picks()) == 0 && cam.shot().clash == 4 && !cam.shot().interesting);
     CHECK(cam.tick(5000, false, w.picks()) == 5000 && cam.active());  // the clash shot has no length
+    // The clash ends: the run is still on an interesting object (+0x360 outlives the clash shot), so it picks another.
+    w.clashes.clear();
+    w.interesting = {timed(7, 30)};
+    cam.clash_ended(w.picks());
+    CHECK(cam.active() && cam.shot().target == 7 && cam.shot().interesting);
     // Nothing left: the expiry stops the cam (End_Cinematic_Mode), which resets the smoothing.
     w.clashes.clear();
     w.interesting = {timed(5, 10)};

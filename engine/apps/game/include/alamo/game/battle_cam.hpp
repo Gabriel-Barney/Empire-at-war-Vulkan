@@ -37,7 +37,7 @@ struct BattleCamShot {
     bool handheld = false;           // #564: 0x4ab780 starts the handheld noise (handheld_shake) with the shot
     int32_t handheld_frames = kHandheldFrames;  // its duration
     int32_t length = 0;              // #568: frames (0x4ad3a0); 0 = no length (it runs until input or the next key up)
-    bool interesting = false;        // #568: an interesting-object shot (+0x360 set): its expiry chains to another one
+    bool interesting = false;        // #568: an interesting-object shot; starting one sets +0x360, so the chain reaches the next
 };
 
 // 0x4a6790 [H]: view n (0..7) steps 45 degrees clockwise round the object: yaw 0, 315, 270 ... 45.
@@ -151,6 +151,7 @@ private:
     uint32_t serial_ = 0;
     int32_t smooth_clock_ = -1;
     float smoothing_ = 0.0f;  // +0x270, kept across chained shots
+    bool on_interesting_ = false;  // +0x360 set: the run reached an interesting object (a chained clash keeps it)
     int32_t last_clock_ = 0;
     tactical::Vec3 smooth_eye_;
 };

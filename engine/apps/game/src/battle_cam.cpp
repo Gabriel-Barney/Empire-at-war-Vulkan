@@ -1,8 +1,9 @@
 // The tactical battle-cam controller (battle_cam.hpp; docs/re/BATTLE_CAM.md).
 #include "alamo/game/battle_cam.hpp"
 
+#include "alamo/core/ascii.hpp"
+
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <utility>
@@ -107,6 +108,10 @@ void BattleCam::start(State s, BattleCamShot shot) {
     state_ = s;
     shot_ = std::move(shot);
     if (shot_.smoothing) smoothing_ = *shot_.smoothing;
+    if (shot_.interesting) {
+        on_interesting_ = true;
+        terrain_clamp_ = true;
+    }  // 0x4a53f0 step 2: +0x315 = 1 for every generated shot (sticky)
     last_clock_ = 0;
     ++serial_;
     smooth_clock_ = -1;
@@ -115,6 +120,7 @@ void BattleCam::start(State s, BattleCamShot shot) {
 void BattleCam::stop() {
     state_ = State::None;
     smoothing_ = 0.0f;  // End_Cinematic_Mode
+    on_interesting_ = false;
     view_ = 0;
     held_ = false;
     shot_ = {};
@@ -245,7 +251,7 @@ bool BattleCam::chain(const BattleCamPicks& p) {
         start(State::Movie, std::move(s));
         return true;
     }
-    if (shot_.interesting && p.interesting && p.interesting(false, s)) {  // only from an interesting object (+0x360)
+    if (on_interesting_ && p.interesting && p.interesting(false, s)) {  // only once on an interesting object (+0x360)
         start(State::Movie, std::move(s));
         return true;
     }
@@ -366,12 +372,6 @@ bool interesting_pick(InterestingState& s, bool first, const InterestingWorld& w
 }
 
 namespace {
-bool iequals(std::string_view a, std::string_view b) {  // _stricmp
-    if (a.size() != b.size()) return false;
-    for (size_t i = 0; i < a.size(); ++i)
-        if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) return false;
-    return true;
-}
 float smoothstep01(float t) { return t * t * (3.0f - 2.0f * t); }
 float size_fraction(const Vec3& e) { return smoothstep01(std::clamp((length(e) - 30.0f) / 470.0f, 0.0f, 1.0f)); }
 ShotKey key(int32_t frame, ShotKey::Segment seg, bool attached, Vec3 where, float ease_out = 0.0f, float ease_in = 0.0f) {
@@ -435,7 +435,8 @@ bool fly_past_shot(const InterestingObject& o, bool space, UnsyncedRandom& rng, 
     s.target = o.id;
     s.interesting = true;
     s.smoothing = 0.9f;
-    const bool frigate = iequals(o.type_name, "Nebulon_B_Frigate") || iequals(o.type_name, "Alliance_Assault_Frigate");
+    // 0x4a1c90 [H]: retail's _stricmp on the type name (docs/re/BATTLE_CAM.md "The three ported templates").
+    const bool frigate = ascii_iequals(o.type_name, "Nebulon_B_Frigate") || ascii_iequals(o.type_name, "Alliance_Assault_Frigate");
     if (rng.range(0, 1) == 0 && space && !frigate) {  // A: under the hull, along +Y
         const int32_t T = static_cast<int32_t>((t + 1.0f) * 8.0f * static_cast<float>(kCinematicFps));
         s.eye.push_back(key(0, ShotKey::Segment::Spline, true, {0.0f, -0.6f * e.y, -e.z}, 0.1f));
@@ -461,16 +462,17 @@ bool fly_past_shot(const InterestingObject& o, bool space, UnsyncedRandom& rng, 
 
 bool interesting_shot(const InterestingObject& o, bool space, const InterestingCategories& c, UnsyncedRandom& rng,
                       BattleCamShot& out) {
-    // Steps 1 - 6: the glory files (#572), the hardpoint shot (#571), the fighter chase (#570) and the infantry push-in
-    // (#569) are not ported: they fail and fall through.
-    if (rng.range(0, 3) == 0) {  // step 7: the static shot for a quarter of what gets here
+    // Steps 1 - 5 (docs/re/BATTLE_CAM.md "The dispatcher"): the glory files (#572), the hardpoint shot (#571), the
+    // fighter chase (#570) and the infantry push-in (#569) are not ported: they fail and fall through. Step 2 (the
+    // terrain clamp) is BattleCam::start's.
+    if (rng.range(0, 3) == 0) {  // step 6: the static shot for a quarter of what gets here
         out = static_shot(o, space, rng);
         return true;
     }
-    if ((o.category & (c.corvette | c.bomber)) != 0) (void)rng.range(0, 1);  // step 8's coin: attack run / chase (#570)
-    // Steps 9 (frigate: the attack run), 10 (vehicle: the drive-by), 11 (no locomotor: the structure shot) and 12 (flying,
-    // land by size) name templates that are not ported yet (#569, #570): they fall through to step 13.
-    if (rng.range(0, 1) == 0) {  // step 13: the orbit or the fly-past
+    if ((o.category & (c.corvette | c.bomber)) != 0) (void)rng.range(0, 1);  // step 7's coin: attack run / chase (#570)
+    // Steps 8 (frigate: the attack run), 9 (vehicle: the drive-by), 10 (no locomotor: the structure shot) and 11 (flying,
+    // land by size) name templates that are not ported yet (#569, #570): they fall through to step 12.
+    if (rng.range(0, 1) == 0) {  // step 12: the orbit or the fly-past
         out = orbit_shot(o, rng);
         return true;
     }

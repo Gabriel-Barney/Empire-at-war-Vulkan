@@ -263,7 +263,7 @@ It clears every key list and the shake trackers (`0x4a7a90`), but not the smooth
 
 Every template sets the shot length (frames), the letterbox and the engine loop on its object. A template that leaves
 the smoothing unset inherits the previous shot's value (`BattleCamShot::smoothing` is optional); only
-End_Cinematic_Mode zeroes it.
+End_Cinematic_Mode zeroes it. The hero clash sets none, so a clash chained after an orbit or a fly-past runs at 0.9.
 
 ### The three ported templates [H]
 
@@ -287,8 +287,8 @@ turning does not swing the camera.
 When a timed shot expires:
 - outside state 3, the cam stops;
 - while the Movie Mode key (+0x317) or **Tab** is held, the clock freezes on the last frame (attached keys still follow);
-- otherwise the next hero clash, the bombing run (#563), then, if an interesting object is running, the next pick
-  (`0x2cd930(ctrl, 0)`). If all fail, End_Cinematic_Mode: the cam stops.
+- otherwise the next hero clash, the bombing run (#563), then, if the run has reached an interesting object (+0x360,
+  which a chained clash shot keeps and End_Cinematic_Mode clears), the next pick (`0x2cd930(ctrl, 0)`). If all fail, End_Cinematic_Mode: the cam stops.
 
 So, with no hero clash, Movie Mode runs object to object: on alternate steps, with chance 2/3, to the current object's
 target, which follows the fight; otherwise to a high-ranked object of another type.
@@ -370,11 +370,14 @@ All of them are presentation: no sim state, no synced draw, so tiers 2 and 3 are
 each of these is a known gap rather than an accepted difference:
 - The not-ported picks and templates: the bombing run (#563); the glory, hardpoint, fighter, infantry, attack-run,
   vehicle, structure and flying templates (#569 - #572) fail and fall through, so their objects get the static shot,
-  the orbit or the fly-past. The hardpoint draw is made but no hardpoint is picked (#571).
-- The interesting object's fields, read from the port's objects: "in the world, not hidden" is drawn and not dying or
-  contained; "a model" is drawable; the ObjBox and the ModelBox are one box; the health is the drawn health; the speed
-  is the movement's current speed; a FLEET's power is its type's, not its members' sum; the target count leaves out
-  the hardpoints' targets.
+  the orbit or the fly-past. The 3/4 hardpoint draw is made, but no hardpoint is picked, and its index draws are
+  not made, so for an object with hardpoints the later draws differ from retail's (#571).
+- The interesting object's fields, read from the port's objects: "in the world, not hidden" (+0x39f, +0x3a0 & 0x40) is
+  drawn and not dying or contained; "a model" is drawable; fogged is hidden from the local player by the FOW; the
+  ObjBox and the ModelBox are one box; the health is the drawn health; the speed is the movement's current speed; a
+  FLEET's power is its type's, not its members' sum; the target count leaves out the hardpoints' targets.
+- The first pick takes the selection's drawn objects of the local player, where retail takes the selection unfiltered.
+- Equal saliency scores keep the candidates' order; retail's introsort is not stable, so a tie may pick another object.
 - The static shot's centre is the object's position, not its box centre [M].
 - The mouse is measured per frame, not per event.
 - There is no cursor re-centring in a view.

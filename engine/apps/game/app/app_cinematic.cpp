@@ -283,7 +283,8 @@ BattleCamPicks App::battle_cam_picks() {
 // #568 0x2cd930 / 0x2cd0d0 / 0x4a53f0 (docs/re/BATTLE_CAM.md "The interesting-object shot"): the pick reads the drawn
 // objects and the sim (presentation only), then the template is built on the picked object's drawn transform.
 // [port] Readings of retail's object fields: "in the world, not hidden" = drawn, not dying or contained; "a model" =
-// drawable; fogged = hidden from the local player (FOW); the ObjBox and the ModelBox are one box (shot_half_extents);
+// drawable; "may follow" (+0x3a0 & 0x40 clear) = drawn and not gone; fogged = hidden from the local player (FOW); the
+// selection is its drawn objects of the local player; the ObjBox and the ModelBox are one box (shot_half_extents);
 // health = the drawn health; speed = the movement's current speed; power = the type's AI_Combat_Power (a FLEET's
 // members are not summed); the target count leaves out the hardpoints' targets.
 bool App::interesting_object_shot(bool first, BattleCamShot& out) {
@@ -293,16 +294,13 @@ bool App::interesting_object_shot(bool first, BattleCamShot& out) {
     const objects::ObjectStore& st = tm->primary();
     const bool space = bview_.space();
     constexpr uint8_t kGone = render::kSnapDying | render::kSnapDeathClone | render::kSnapCorpse | render::kSnapContained;
-    constexpr objects::BehaviorTypeId kLocomotor = 0x01, kTransport = 0x05, kTeam = 0x16;
+    namespace beh = objects::beh;
     const auto has = [&st](objects::ObjectId id, objects::BehaviorTypeId bt) {
         const objects::ObjectHandle h = st.find(id);
         return st.alive(h) && st.has_behavior(h, bt);
     };
-    const auto flying = [this](objects::TypeIndex t) {
-        for (const char* tag : {"Behavior", "LandBehavior", "SpaceBehavior"})
-            for (const std::string_view v : data_.types.get_list(t, tag))
-                if (ascii_iequals(v, "FLYING_LOCOMOTOR")) return true;
-        return false;
+    const auto flying = [b](objects::TypeIndex t) {  // FlyingLocomotorBehaviorClass: the mode's locomotor token
+        return ascii_iequals(b->locomotor_token(static_cast<uint32_t>(t)), "FLYING_LOCOMOTOR");
     };
     const objects::EnumConverter& cats = data_.types.enums().get(objects::EnumId::GameObjectCategory);
     const uint64_t wall = static_cast<uint64_t>(cats.lookup("Wall").value_or(0x800000));
@@ -323,19 +321,22 @@ bool App::interesting_object_shot(bool first, BattleCamShot& out) {
         const objects::ObjectId t = b->combat().current_target(static_cast<objects::ObjectId>(id));
         const render::SnapshotObject* o = t != objects::kNoObjectId ? drawn_object(t, nullptr) : nullptr;
         if (!o || (o->flags & (kGone | render::kSnapFogHidden)) != 0 || (o->flags & render::kSnapDrawable) == 0) return 0;
-        if (has(t, kTeam) || has(t, kTransport)) return 0;
+        if (has(t, beh::Team) || has(t, beh::Transport)) return 0;
         return static_cast<uint32_t>(t);
     };
-    // Step C / D: every drawn mobile object (any owner) that is not a wall, not flying on land, not fogged, faded in.
+    // Step C: every drawn mobile object (any owner) with a model that is not a wall, not flying on land, not fogged.
     const std::vector<render::SnapshotObject>& objs = bview_.frame().objects;
-    std::vector<const render::SnapshotObject*> cand;
+    std::vector<const render::SnapshotObject*> step_c;
     for (const render::SnapshotObject& o : objs) {
-        if ((o.flags & (kGone | render::kSnapFogHidden)) != 0 || (o.flags & render::kSnapDrawable) == 0 || o.fade < 0.9f) continue;
-        if (!has(o.id, kLocomotor) || has(o.id, kTeam) || has(o.id, kTransport)) continue;
+        if ((o.flags & render::kSnapFogHidden) != 0 || (o.flags & render::kSnapDrawable) == 0 || !has(o.id, beh::Locomotor)) continue;
         if ((data_.types.get_mask(o.type, "CategoryMask") & wall) != 0) continue;
         if (!space && flying(o.type)) continue;
-        cand.push_back(&o);
+        step_c.push_back(&o);
     }
+    // Step D, pass 2: faded in, in the world, not a TEAM or TRANSPORT. Pass 1's target counts run over step C's list.
+    std::vector<const render::SnapshotObject*> cand;
+    for (const render::SnapshotObject* o : step_c)
+        if ((o->flags & kGone) == 0 && o->fade >= 0.9f && !has(o->id, beh::Team) && !has(o->id, beh::Transport)) cand.push_back(o);
     for (const render::SnapshotObject* o : cand) {
         SaliencyFeatures f;
         const ui::Vec3 e = shot_half_extents(o->type);
@@ -344,7 +345,7 @@ bool App::interesting_object_shot(bool first, BattleCamShot& out) {
         f.x = o->position.x;
         f.y = o->position.y;
         f.health = o->health;
-        for (const render::SnapshotObject* c : cand)
+        for (const render::SnapshotObject* c : step_c)
             if (b->combat().current_target(c->id) == o->id) f.targets += 1.0f;
         f.speed = b->movement().view(o->id).speed;
         w.candidate_ids.push_back(static_cast<uint32_t>(o->id));
@@ -358,7 +359,7 @@ bool App::interesting_object_shot(bool first, BattleCamShot& out) {
     InterestingObject io;
     io.id = static_cast<uint32_t>(o->id);
     io.category = data_.types.get_mask(o->type, "CategoryMask");
-    io.locomotor = has(o->id, kLocomotor);
+    io.locomotor = has(o->id, beh::Locomotor);
     io.flying = flying(o->type);
     io.model = (o->flags & render::kSnapDrawable) != 0;
     io.half_extents = shot_half_extents(o->type);
@@ -388,6 +389,7 @@ void App::battle_cam_sync() {
         engine_loop_to(objects::kNoObjectId);
         if (session_) session_->set_presentation_rate_lock(false);
         cine_.letterbox.slide_out();
+        cine_.interesting.current = 0;  // End_Cinematic_Mode clears +0x360 [H]; +0x368 / +0x370 are kept [M]
         std::printf("cinematic: battle cam off\n");
     }
     cine_.cam_on = on;
