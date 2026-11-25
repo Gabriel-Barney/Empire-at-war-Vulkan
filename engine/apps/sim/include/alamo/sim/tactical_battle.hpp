@@ -1028,6 +1028,7 @@ public:
     float sw_readiness(objects::ObjectId weapon) const;                     // < 0: no special-weapon pack
     bool sw_begin_targeting(objects::ObjectId weapon);
     bool sw_fire_at_object(const TacticalMode& mode, objects::ObjectId weapon, objects::ObjectId target);
+    bool sw_can_target(const TacticalMode& mode, objects::ObjectId weapon, objects::ObjectId target) const;
     bool sw_fire_lobbing_at(const TacticalMode& mode, objects::ObjectId weapon, Vec3 point);
     // SpecialWeaponsAllowed (0x527620): false once the battle planet is destroyed (in the galaxy, or by this battle's TSW).
     // then the player's Enable_Special_Weapons list (AbilitySystem PlayerGate::SpecialWeapons): empty -> allowed

@@ -345,6 +345,12 @@ bool TacticalBattle::sw_fire_at_object(const TacticalMode& mode, objects::Object
     return l1_sw_.fire_at_object(weapon, target, frame_, l1_world(mode));
 }
 
+bool TacticalBattle::sw_can_target(const TacticalMode& mode, objects::ObjectId weapon, objects::ObjectId target) const {
+    const objects::ObjectStore& st = mode.primary();
+    const objects::ObjectHandle w = st.find(weapon), t = st.find(target);
+    return combat_ && st.alive(w) && st.alive(t) && combat_->is_enemy(st.owner(w), st.owner(t));
+}
+
 bool TacticalBattle::sw_fire_lobbing_at(const TacticalMode& mode, objects::ObjectId weapon, Vec3 point) {
     if (finished_) return false;
     if (!l1_sw_.fire_lobbing_at(weapon, to_t(point), frame_, l1_world(mode))) return false;
