@@ -111,14 +111,15 @@ Hovering it gives cursor 0x1d (0x2f5fee).
 
 Port (#477):
 - **Offer.** `TacticalBattle::sell_refund(store, player, object)` (const) answers with the refund `tactical_sell` would credit:
-  the same pad lookup and amount (`pad_sell_refund`). "Has the sell behaviour" is [port] "is the live built object of a pad,
-  owned by the player", the only objects the sim's sell accepts. A locked pad still answers; the command is then refused.
+  the same pad lookup and amount (`pad_sell_refund`), for a live object of the player's with the TACTICAL_SELL behaviour (the
+  +0x35d test) that is also the built object of a pad ([port]: the only objects the sim's sell accepts; the sim's command
+  itself does not test the behaviour). A locked pad still answers; the command is then refused.
 - **Cursor.** `fill_cursor_hover` sets `CursorContext::sellable` for an own object with an offer, and `choose_pointer` gives
   POINTER_TACTICAL_SELL for it, selection or not ([port] before GARRISON_IN; the hover actions' order is not traced).
   `over_sell` gives the same pointer over the button.
-- **Button.** A world left click on such an object opens the button (`App::sell_object_`); any other world left click closes
-  it, and so does the offer ending (sold, dead, changed owner). [port] the click still selects the object, and the button
-  closes on the next world click (retail's close path besides death is not traced).
+- **Button.** A world left click on such an object opens the button (`App::sell_object_`) and is spent there, as 0x41f70
+  case 9 suggests: no order, no selection. [port] any other world left click closes it (retail's close path besides
+  death is not traced), and so do the sell click, the offer ending (sold, dead, changed owner) and a new battle.
 - **Draw.** `TacticalHud::build_sell` draws tactical_sell at the projected point with the caption `tactical_sell_text`
   (" TEXT_BUTTON_SELL <Text_ID name> ($ <refund>) ") in the component's font, colour and outline. [port] the button is the
   Icon_Texture_Name (Mouse_Over_Texture_Name while hovered) stretched to the text's width at its atlas height x Scale; the

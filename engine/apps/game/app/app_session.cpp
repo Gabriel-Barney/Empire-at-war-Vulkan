@@ -779,6 +779,7 @@ void App::begin_battle(bool from_save) {
     pulse_activation_seen_ = 0;   // mcx4 t15
     win_banner_.clear();
     reinforce_unit_ = 0;  // no drop point pending from an earlier battle
+    sell_object_ = 0;     // #477: no sell button open from an earlier battle (ids repeat across replays)
     bombing_targeting_ = false;  // nor a bombing-run pick
     autofire_seen_.clear();  // the default autofire is sent for this battle's objects
     sw_weapon_ = objects::kNoObjectId;  // nor a space special-weapon aim

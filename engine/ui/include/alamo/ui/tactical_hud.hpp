@@ -530,7 +530,7 @@ private:
     int32_t order_button_[6] = {-1, -1, -1, -1, -1, -1};  // c_button00..05
     int32_t garrison_respawn_ = -1;                       // garrison_respawn_counter (#474)
     int32_t sell_ = -1;                                   // tactical_sell (#477)
-    uint32_t sell_object_ = 0;                            // the object of the sell button drawn this frame (0 = none)
+    uint32_t sell_drawn_ = 0;                             // the object of the sell button drawn this frame (0 = none)
     int32_t special_weapon_ = -1;                         // b_special_weapon (land: the bombing-run button)
     int32_t reinforce_button_ = -1, beacon_button_ = -1, beacon_t_ = -1, camera_t_ = -1;  // ui3 t03
     int32_t reinforce_counter_ = -1, r_pop_icon_ = -1, r_pop_text_ = -1;                 // ui3 t04

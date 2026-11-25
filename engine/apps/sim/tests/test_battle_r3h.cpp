@@ -260,7 +260,7 @@ std::string pad_patch(std::string t) {
                       " <SpecialStructure Name=\"R3H_UC_Turret\"><Behavior>TACTICAL_UNDER_CONSTRUCTION</Behavior><Tactical_Health>100</Tactical_Health>"
                       "<Tactical_Build_Time_Seconds>2</Tactical_Build_Time_Seconds><Tactical_Buildable_Constructed>R3H_Turret</Tactical_Buildable_Constructed>"
                       "<Tactical_Build_Cost_Multiplayer>200</Tactical_Build_Cost_Multiplayer></SpecialStructure>\n"
-                      " <SpecialStructure Name=\"R3H_Turret\"><Tactical_Health>500</Tactical_Health>"
+                      " <SpecialStructure Name=\"R3H_Turret\"><Behavior>TACTICAL_SELL</Behavior><Tactical_Health>500</Tactical_Health>"
                       "<Tactical_Sell_Percentage>0.5</Tactical_Sell_Percentage></SpecialStructure>\n");
     return t;
 }

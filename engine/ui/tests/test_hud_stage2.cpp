@@ -1304,7 +1304,8 @@ void test_tactical_sell_button() {
         "<CommandBarComponents><CommandBarComponent Name=\"tactical_sell\"><Type>TextButton</Type>"
         "<Icon_Texture_Name>i_sa_blank_button.tga</Icon_Texture_Name><Mouse_Over_Texture_Name>i_sa_blank_button_over.tga"
         "</Mouse_Over_Texture_Name><Font_Name>EmpireAtWar-Medium</Font_Name><Font_Point_Size>6</Font_Point_Size>"
-        "<Text_Color>255 212 11 255</Text_Color><Base_Layer>1</Base_Layer></CommandBarComponent></CommandBarComponents>";
+        "<Text_Color>255 212 11 255</Text_Color><Text_Outline>True</Text_Outline><Base_Layer>1</Base_Layer>"
+        "</CommandBarComponent></CommandBarComponents>";
     ComponentTable t;
     const data::XmlDocument doc = data::XmlDocument::parse(std::string_view(xml), "sell.xml");
     CHECK2(doc.ok());

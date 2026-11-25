@@ -514,7 +514,7 @@ void TacticalHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
         }
         // #477 tactical_sell: a left click sells the button's object (command 34). [M click path]
         if (k.component == sell_ && k.button == Button::Left) {
-            if (sell_object_ != 0) out.push_back(commands::ev::tactical_sell(sell_object_));
+            if (sell_drawn_ != 0) out.push_back(commands::ev::tactical_sell(sell_drawn_));
             continue;
         }
         // [port: Gabriel] Game Paused banner: Resume Game -> HudAction::ResumeGame (the host unpauses).
@@ -1223,7 +1223,7 @@ std::u32string tactical_sell_text(std::u32string_view sell, std::u32string_view 
 // (Mouse_Over_Texture_Name while hovered) stretched to the text's width at its atlas height x Scale; the drag offset is
 // not ported.
 void TacticalHud::build_sell(const TacticalHudFrame& f) {
-    sell_object_ = 0;
+    sell_drawn_ = 0;
     if (sell_ < 0 || f.sell.object == 0) return;
     const auto ci = static_cast<uint32_t>(sell_);
     const CommandBarComponent& c = (*table_)[ci];
@@ -1247,7 +1247,7 @@ void TacticalHud::build_sell(const TacticalHudFrame& f) {
     if (e) add_atlas_quad(dl_, layer, HudList::Alpha, *atlas_, *tex, center, size, 1.0f, Rgba8{});
     add_text(dl_, layer, HudList::Text, *fonts_, canvas_, caption, center, st);
     hit(sell_, layer, center, size);
-    sell_object_ = f.sell.object;
+    sell_drawn_ = f.sell.object;
     stats_.sell_button = true;
 }
 

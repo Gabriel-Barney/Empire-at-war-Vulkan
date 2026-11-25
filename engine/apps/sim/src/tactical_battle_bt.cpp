@@ -400,7 +400,8 @@ std::optional<int32_t> TacticalBattle::sell_refund(const objects::ObjectStore& s
     for (const PadState& p : pads_)
         if (p.built == object) s = &p;
     const objects::ObjectHandle h = st.find(object);
-    if (!s || !st.alive(h) || st.owner(h) != static_cast<int32_t>(player)) return std::nullopt;
+    if (!s || !st.alive(h) || st.owner(h) != static_cast<int32_t>(player) || !st.has_behavior(h, objects::beh::TacticalSell))
+        return std::nullopt;
     return static_cast<int32_t>(pad_sell_refund(st, *s, st.type(h)));
 }
 

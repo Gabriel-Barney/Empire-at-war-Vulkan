@@ -1405,8 +1405,9 @@ public:
                                              SimRng& rng);
     commands::RejectReason tactical_sell(TacticalMode& mode, uint8_t player, objects::ObjectId object);
     // #477 (TACTICAL_COMMANDBAR_COMPONENTS.md "Tactical sell"): the refund tactical_sell would credit `player` for `object`
-    // (the same pad lookup and amount), or nullopt when it is not the live built object of a pad, owned by `player`. A
-    // locked pad still answers (retail's hover and button do not test the lock; the command is then refused). Const: the
+    // (the same pad lookup and amount), or nullopt unless it is a live object owned by `player` with the TACTICAL_SELL
+    // behaviour (hover action 10's +0x35d test) that is the built object of a pad (the only objects tactical_sell takes).
+    // A locked pad still answers (retail's hover and button do not test the lock; the command is then refused). Const: the
     // HUD's sell cursor and button read it.
     std::optional<int32_t> sell_refund(const objects::ObjectStore& st, uint8_t player, objects::ObjectId object) const;
     // Pad price 0x3744e0 (campaign): Tactical_Build_Cost_Campaign, else Tactical_Build_Cost_Multiplayer when < 1 (int fields), then
