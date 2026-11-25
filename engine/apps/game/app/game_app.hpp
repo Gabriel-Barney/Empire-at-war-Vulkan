@@ -824,9 +824,11 @@ private:
     uint64_t build_refusals_ = 0;  // clicks on greyed galactic build pads (negative feedback)
     bool activate_special_here(uint32_t hero_id);
     // #471: the fleet / land tooltip summary of a hovered stack (key: a fleet's id, or kEncyLandKey | a planet's id).
-    static constexpr uint32_t kEncyLandKey = 0xD0000000u;  // [port] above every object id the sim hands out
+    // Above every object id the sim hands out (ids count up from 1) and apart from the build pads' 0xE0000000 type keys.
+    static constexpr uint32_t kEncyLandKey = 0xD0000000u;
     std::optional<ui::EncyclopediaEntry> fleet_summary_entry(uint32_t key) const;
     bool own_fleet(uint32_t fleet_id) const;  // the live fleet with this id is the local player's
+    const galactic::FleetState* find_fleet(uint32_t fleet_id) const;  // the live fleet with this fleet object id
     std::vector<objects::ObjectHandle> special_units(const galactic::GalacticSim& g, PlanetIndex pi) const;
     // OI host: main-menu attract demo (attract_mode.hpp), audio flags, fast forward.
     AttractController attract_;

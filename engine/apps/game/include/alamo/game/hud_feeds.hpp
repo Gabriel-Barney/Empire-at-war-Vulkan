@@ -182,8 +182,8 @@ struct FleetTooltip {
     std::vector<std::string> badges;  // TEXT_RAID_FLEET, TEXT_STEALTH_FLEET (space only), shown joined with ", "
     std::vector<FleetTooltipCell> cells;
 };
-// The title follows the owner faction's name (Rebel GOOD, Empire EVIL, Underworld CORRUPT, any other PIRATE: retail's
-// three name comparisons [M]). `all_raid` / `all_stealth`: every fleet of the stack is a raid / stealthed fleet.
+// The title follows the owner faction (space_weapon_faction_icon: Rebel GOOD, Empire EVIL, Underworld CORRUPT, any other
+// PIRATE [M]). `all_raid` / `all_stealth`: every fleet of the stack is a raid / stealthed fleet.
 FleetTooltip fleet_tooltip_summary(std::string_view owner_faction, bool land, std::span<const FleetTooltipGroup> groups, bool all_raid,
                                    bool all_stealth);
 // mcx4 t14 (GALACTIC_DIALOGS §5.1.1, 0x3145c0 step 1 [H]): a type is listed on the galactic build bar only when one of

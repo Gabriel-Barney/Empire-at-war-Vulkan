@@ -67,9 +67,11 @@ constexpr float kEncHeadH = 47.0f, kEncLineX = 5.0f, kEncLineW = 232.0f, kEncLin
 constexpr float kEncDescGap = 4.0f, kEncAgainstGap = 14.0f, kEncAgainstBottom = 6.0f, kEncFrameW = 129.0f, kEncFrameH = 43.0f,
                 kEncCellW = 43.0f;
 constexpr size_t kEncCells = 3;
-// #471 [M] the summary grid: six cells per row (0x3095c0), the cell size and the half-cell offset of the first row.
+// #471 the summary grid: six cells per row and the half-cell offset of the first row (0x3095c0 [H for the count, M for
+// the offset]); the cell size, the gap under the badge line and the grid, the 1-unit cell inset and the label's place at
+// the cell's bottom right are [M] (no capture).
 constexpr size_t kEncGridColumns = 6;
-constexpr float kEncGridCell = 32.0f, kEncGridGap = 4.0f;
+constexpr float kEncGridCell = 32.0f, kEncGridGap = 4.0f, kEncGridInset = 1.0f, kEncGridLabelUp = 8.0f;
 constexpr Rgba8 kEncStrong{0, 192, 0, 255}, kEncWeak{192, 0, 0, 255}, kEncPopulation{255, 215, 56, 255};
 
 }  // namespace
@@ -330,10 +332,10 @@ Vec2f EncyclopediaPanel::build_at(HudDrawList& out, const HudCanvas& cv, const E
         const size_t r = i / kEncGridColumns, k = i % kEncGridColumns;
         const Vec2f at{tl.x + pad.x + (static_cast<float>(k) + (r == 0 ? 1.0f : 0.5f)) * kEncGridCell,
                        y - (static_cast<float>(r) + 0.5f) * kEncGridCell};
-        const Vec2f cell{kEncGridCell - 2.0f, kEncGridCell - 2.0f};
+        const Vec2f cell{kEncGridCell - 2.0f * kEncGridInset, kEncGridCell - 2.0f * kEncGridInset};
         add_atlas_quad(dl, layer, HudList::Alpha, *atlas_, c.icon, at, cell, 1.0f, Rgba8{});
         if (c.stealth) add_atlas_quad(dl, layer, HudList::Alpha, *atlas_, "i_icon_stealth.tga", at, cell, 1.0f, Rgba8{});
-        if (!c.label.empty()) add_text(dl, layer, HudList::Text, fonts, cv, c.label, {at.x + 0.5f * cell.x, at.y - 0.5f * cell.y + 8.0f}, rs);
+        if (!c.label.empty()) add_text(dl, layer, HudList::Text, fonts, cv, c.label, {at.x + 0.5f * cell.x, at.y - 0.5f * cell.y + kEncGridLabelUp}, rs);
     }
     if (grid_rows > 0) y -= static_cast<float>(grid_rows) * kEncGridCell + kEncGridGap;
     if (longform) {

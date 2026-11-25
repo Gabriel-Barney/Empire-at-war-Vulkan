@@ -97,8 +97,12 @@ not in the fleet summary. This corrects GALAXY_MAP_PRESENTATION §1.4 [H].
 - `App::fleet_summary_entry` (app_screens.cpp) builds the pop-up for a hovered fleet stack and for the local player's land
   stack:
   - the stack art `fleet_stacks_0n.tga` [M] tinted with the owner colour;
-  - a fleet that is not the local player's shows its types only with the planet's FleetContents visibility, else
-    `i_button_unknown.tga`.
+  - the stack's fleets, as the HUD forms the stack: another player's fleets at a planet are one stack without the
+    NumFleets visibility, so the summary counts them all;
+  - own and allied fleets show their types; another player's show them only with the planet's FleetContents visibility,
+    else `i_button_unknown.tga` (the counts stay [M]).
+- The badges are the text line. The header badge icon (component 0x274, frames 0 / 1) is not drawn, and the number sits
+  in the population circle of `e_topbar` [M].
 - A map fleet in transit gets the pop-up and `fleet_tooltip` only when it is the local player's.
 - Not built: other players' land stacks, which the port does not make hoverable (they carry no id), so the surface
   visibility gate for them waits for that.

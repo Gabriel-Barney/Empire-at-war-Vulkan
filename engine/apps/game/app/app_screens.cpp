@@ -1081,12 +1081,8 @@ void App::build_encyclopedia(ui::HudDrawList& dl, const ui::HudCanvas& canvas) {
     // ui1 t03 / #471 (docs/re/SCORE_TOOLTIPS_GAME_OPTIONS.md "t13"): a fleet stack shows the fleet summary and fires the
     // story trigger fleet_tooltip, a land-forces stack the land summary and land_tooltip (once per hovered stack). The
     // pop-up's subject is the stack key (fleet_summary_entry): the fleet's id, or kEncyLandKey | the planet's id.
-    bool summary = false;
-    if (stack_fleet != 0) {
-        object = stack_land ? (kEncyLandKey | stack_fleet) : stack_fleet;
-        summary = fleet_summary_entry(object).has_value();
-        if (!summary) object = 0;
-    }
+    const bool summary = stack_fleet != 0;  // the entry is built for the shown subject below
+    if (summary) object = stack_land ? (kEncyLandKey | stack_fleet) : stack_fleet;
     {
         const uint32_t key = stack_fleet == 0 ? 0u : (stack_fleet ^ (stack_land ? 0x80000000u : 0u));
         if (key != 0 && key != tooltip_trigger_fleet_) story_ui_.generic(stack_land ? "land_tooltip" : "fleet_tooltip");
@@ -1160,19 +1156,26 @@ void App::build_encyclopedia(ui::HudDrawList& dl, const ui::HudCanvas& canvas) {
     if (ency_.build(dl, canvas, e, layout, ui_.faction_alt()).x > 0.0f) ++ency_shown_;
 }
 
-bool App::own_fleet(uint32_t fleet_id) const {
+const galactic::FleetState* App::find_fleet(uint32_t fleet_id) const {
     const galactic::GalacticSim* g = galaxy();
-    if (!g) return false;
+    if (!g) return nullptr;
     const objects::ObjectStore& st = g->store();
     for (const galactic::FleetState& fl : g->fleets())
-        if (fl.alive && st.alive(fl.object) && static_cast<uint32_t>(st.id(fl.object)) == fleet_id) return fl.owner == local_player();
-    return false;
+        if (fl.alive && st.alive(fl.object) && static_cast<uint32_t>(st.id(fl.object)) == fleet_id) return &fl;
+    return nullptr;
+}
+
+bool App::own_fleet(uint32_t fleet_id) const {
+    const galactic::FleetState* fl = find_fleet(fleet_id);
+    return fl && fl->owner == local_player();
 }
 
 // #471 (docs/re/SCORE_TOOLTIPS_GAME_OPTIONS.md "t13" [H]): the summary pop-up of a hovered stack. `key` = a fleet's id
-// (0x2efb40: its members by type; a fleet that is not the local player's shows known types only with the planet's
-// FleetContents visibility, else i_button_unknown) or kEncyLandKey | a planet's id (0x2f25a0: the local player's surface
-// units there; the port's hoverable land stack is the local player's own). nullopt = not a stack key / nothing to show.
+// (0x2efb40: the fleets of the stack, their members by type) or kEncyLandKey | a planet's id (0x2f25a0: the local player's
+// surface units there; the port's hoverable land stack is the local player's own). The stack follows the HUD's: another
+// player's fleets at a planet form one stack without the NumFleets visibility (app_hud.cpp), so the summary counts them
+// all. Types are known for own and allied fleets, else with the planet's FleetContents visibility (i_button_unknown
+// otherwise; the counts stay, as retail's "partial" marks only the icons [M]). nullopt = not a stack key / nothing to show.
 std::optional<ui::EncyclopediaEntry> App::fleet_summary_entry(uint32_t key) const {
     const galactic::GalacticSim* g = galaxy();
     if (!g || key == 0) return std::nullopt;
@@ -1190,15 +1193,19 @@ std::optional<ui::EncyclopediaEntry> App::fleet_summary_entry(uint32_t key) cons
         for (const objects::ObjectHandle h : g->planets()[pi].surface)
             if (st.alive(h) && st.owner(h) == owner) units.push_back(h);
     } else {
-        const galactic::FleetState* fp = nullptr;
-        for (const galactic::FleetState& fl : g->fleets())
-            if (fl.alive && st.alive(fl.object) && static_cast<uint32_t>(st.id(fl.object)) == id) fp = &fl;
+        const galactic::FleetState* fp = find_fleet(id);
         if (!fp) return std::nullopt;
         owner = fp->owner;
-        for (const objects::ObjectHandle h : fp->contents)
-            if (st.alive(h)) units.push_back(h);
-        known = owner == me || (fp->planet != kInvalidPlanet &&
-                                g->can_see_planet_info(me, fp->planet, galactic::GalacticSim::PlanetInfo::FleetContents));
+        using PI = galactic::GalacticSim::PlanetInfo;
+        const bool at_planet = fp->planet != kInvalidPlanet && !fp->moving;
+        const bool merged = owner != me && at_planet && !g->can_see_planet_info(me, fp->planet, PI::NumFleets);
+        for (const galactic::FleetState& fl : g->fleets()) {
+            if (!fl.alive || (merged ? fl.owner != owner || fl.planet != fp->planet || fl.moving : &fl != fp)) continue;
+            for (const objects::ObjectHandle h : fl.contents)
+                if (st.alive(h)) units.push_back(h);
+        }
+        known = owner == me || (me >= 0 && g->relation(me, owner) == galactic::Relation::Ally) ||
+                (at_planet && g->can_see_planet_info(me, fp->planet, PI::FleetContents));
         const galactic::ConflictManager* cm = session_ && session_->battles() ? &session_->battles()->conflicts() : nullptr;
         all_raid = cm && cm->raid_force(owner, units);  // 0x432e20
         all_stealth = !units.empty() && std::all_of(units.begin(), units.end(), [g](objects::ObjectHandle h) { return g->hidden(h); });

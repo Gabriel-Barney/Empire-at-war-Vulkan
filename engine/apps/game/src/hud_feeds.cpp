@@ -440,13 +440,10 @@ const char* galactic_announcement(const galactic::GalacticSim& g, const galactic
 FleetTooltip fleet_tooltip_summary(std::string_view owner_faction, bool land, std::span<const FleetTooltipGroup> groups, bool all_raid,
                                    bool all_stealth) {
     FleetTooltip out;
-    // [name-ok-begin: retail hard-code, docs/re/SCORE_TOOLTIPS_GAME_OPTIONS.md 0x2eb070 [M] (the tooltip's three faction names)]
-    const char* side = ascii_iequals(owner_faction, "Rebel")        ? "GOOD"
-                       : ascii_iequals(owner_faction, "Empire")     ? "EVIL"
-                       : ascii_iequals(owner_faction, "Underworld") ? "CORRUPT"
-                                                                    : "PIRATE";
-    // [name-ok-end]
-    out.title = std::string("TEXT_") + side + (land ? "_LAND_GARRISON" : "_SPACE_FLEET");
+    // 0x2eb070 compares the owner faction with the tooltip's +0x2708 / +0x2728 / +0x2748 strings, the three HUD strings
+    // space_weapon_faction_icon reads [M]: 0 Rebel, 1 Empire, 2 Underworld, 3 any other.
+    static constexpr const char* kSide[4] = {"GOOD", "EVIL", "CORRUPT", "PIRATE"};
+    out.title = std::string("TEXT_") + kSide[space_weapon_faction_icon(owner_faction)] + (land ? "_LAND_GARRISON" : "_SPACE_FLEET");
     if (!land) {
         if (all_raid) out.badges.emplace_back("TEXT_RAID_FLEET");
         if (all_stealth) out.badges.emplace_back("TEXT_STEALTH_FLEET");
