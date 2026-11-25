@@ -5,7 +5,9 @@
 // OBJECTS
 //   * SPECIAL_WEAPON (behaviour 0x2f, e.g. Ground_Ion_Cannon / Hypervelocity gun in space): a data pack (obj +0x158)
 //     with a start frame (+0x8), a ready frame (+0xc) and a targeting flag (+0x28). Readiness (0x4914e0) = 1 when
-//     now >= ready, else clamp((now - start) / (ready - start), 0, 1); "ready" = readiness >= 1.
+//     now >= ready, else clamp((now - start) / (ready - start), 0, 1); "ready" = readiness >= 1. #487: the pack's
+//     constructor 0x491410 [H] zeroes start / ready, so a new pack is ready at once and its ready is not announced (the
+//     service 0x492010 announces when now >= ready != 0, then zeroes ready); its counter (+0x20) starts at 1.
 //   * LOBBING_SUPERWEAPON (0x37): the same pack (combatant pack fire request +0x3c, target point +0x30).
 //   * TACTICAL_SUPER_WEAPON (0x2c, the Death Star): the TSW data pack (obj +0x148), state +0x20 (4 = ready).
 //   The host adds every such object with a SpecialWeaponDesc built from its type (one object may carry several kinds;
@@ -17,7 +19,8 @@
 //   * can_target (0x491f80, #460): a SPECIAL_WEAPON pack, target not flagged, NOT allied to the weapon owner, target
 //     categories intersect Special_Weapon_Valid_Targets, target != self; no readiness test (the cursor and the click).
 //   * fire_at_object (0x491cd0): pack ready, then can_target. Then the pack restarts (start = now, ready = now +
-//     int(fps x recharge)), the flag clears and Projectile_Fire_Pulse_Count shots are queued, Projectile_Fire_Pulse_
+//     int(fps x recharge / count + 0.5): 0x491770 with 0x373630's Projectile_Fire_Recharge_Seconds / counter, #487 [H]),
+//     the flag clears and Projectile_Fire_Pulse_Count shots are queued, Projectile_Fire_Pulse_
 //     Delay_Seconds apart [M: the weapon event 0x549d70 fires the type's weapon at the target].
 //   * fire_lobbing_at (0x4ea3f0): the owner's base power when Requires_Base_Power; no range / ally / fog check; the
 //     point and the fire request are stored, the pack restarts. S8 t30 (TACTICAL_COMBAT §3.1.1 "Fire-at-position
@@ -117,9 +120,9 @@ struct SpecialWeaponDesc {
 struct SpecialWeaponConfig {
     uint32_t fps = combat::kDefaultFps;
     bool space = true;           // space mode (begin_targeting's one-per-owner rule)
-    // [port] a new pack: false = it starts charging at add (start = frame, ready = frame + recharge); true = ready
-    // at once. The pack's constructor values are not in the docs.
-    bool start_charged = false;
+    // #487: a new pack is ready at once and not announced (the constructor 0x491410 zeroes start / ready [H]); false
+    // makes it start charging at add (start = frame, ready = frame + recharge) - unit tests of the charge only.
+    bool start_charged = true;
 };
 
 enum class SwEventKind : uint8_t {
@@ -210,6 +213,10 @@ public:
     // Lua Force-style helper [port]: restart the pack (start = frame, ready = frame + seconds x fps; < 0 = the
     // type's recharge).
     bool restart(ObjectId id, uint32_t frame, float seconds = -1.0f);
+    // #487: the registration 0x35c520 removed a second weapon of the same (player, Special_Weapon_Index): add 1 to this
+    // pack's counter (+0x20, from 1), which divides its recharge at the next fire (0x373630 [H]). False: no pack.
+    bool add_duplicate(ObjectId id);
+    uint32_t duplicate_count(ObjectId id) const;  // the counter (1 + duplicates); 0 without a pack
     uint32_t ready_frame(ObjectId id) const;
 
     // ---- tactical superweapon (§1.2) ----
@@ -256,6 +263,7 @@ private:
         uint32_t start = 0, ready = 0;  // +0x8 / +0xc
         uint8_t targeting_flag = 0;     // +0x28
         uint8_t ready_signalled = 0;
+        uint32_t count = 1;  // #487: +0x20, the duplicate counter (0x35c520); the fire's recharge is divided by it
         // queued volley
         int32_t pulses_left = 0;
         uint32_t pulse_index = 0;

@@ -67,6 +67,18 @@ bool SpecialWeaponSystem::add(ObjectId id, uint32_t desc, int32_t owner, uint32_
     return true;
 }
 
+bool SpecialWeaponSystem::add_duplicate(ObjectId id) {
+    Pack* p = pack(id);
+    if (!p) return false;
+    ++p->count;
+    return true;
+}
+
+uint32_t SpecialWeaponSystem::duplicate_count(ObjectId id) const {
+    const Pack* p = pack(id);
+    return p ? p->count : 0u;
+}
+
 void SpecialWeaponSystem::remove(ObjectId id) {
     const int32_t i = find(id);
     if (i >= 0) packs_.erase(packs_.begin() + i);
@@ -160,9 +172,14 @@ bool SpecialWeaponSystem::fire_at_object(ObjectId id, ObjectId target, uint32_t 
     Pack* p = pack(id);
     if (!p || readiness_of(*p, frame) < 1.0f || !can_target(id, target, w)) return false;
     const SpecialWeaponDesc& d = descs_[p->desc];
-    // 0x491770: restart (start = now, ready = now + recharge), targeting off, the weapon event (the volley).
+    // 0x491770 [H]: restart (start = now, ready = now + int(fps x R + 0.5)), targeting off, the weapon event (the volley).
+    // #487: R = 0x373630(type, obj) [H] = Projectile_Fire_Recharge_Seconds / the pack's counter (float).
     p->start = frame;
-    p->ready = frame + recharge_frames(d);
+    {
+        const float r = p->count > 0 ? d.recharge_seconds / static_cast<float>(p->count) : d.recharge_seconds;
+        const float f = static_cast<float>(cfg_.fps) * r + 0.5f;
+        p->ready = frame + (f > 0.0f ? static_cast<uint32_t>(frames_trunc(f)) : 0u);
+    }
     p->ready_signalled = 0;
     p->targeting_flag = 0;
     queue_volley(*p, d, target, {}, false, frame);
@@ -411,6 +428,7 @@ void SpecialWeaponSystem::hash(StateHasher& h) const {
         h.u32(p.ready);
         h.u8(p.targeting_flag);
         h.u8(p.ready_signalled);
+        h.u32(p.count);  // #487
         h.i32(p.pulses_left);
         h.u32(p.pulse_index);
         h.u32(p.next_pulse);

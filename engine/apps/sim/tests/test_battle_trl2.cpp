@@ -337,6 +337,7 @@ std::string ion_patch(std::string t) {
 
 // TRL2_A_RE_ANSWERS Q1: in a campaign space battle the planet owner (player 0) gets one T_Ion object (two cannons of the
 // same Special_Weapon_Index register once) at the backdrop prop, registered as a special weapon; T_Other gives nothing.
+// #487 [H]: the duplicate adds 1 to the weapon's counter (2), and the weapon is ready at once (the pack constructor).
 // ledger: verifies GameObjectType.Is_Special_Weapon_In_Space
 void test_ground_special_weapon() {
     g_temp_prefix = "alamo_sim_trl2_tests_ion";
@@ -346,6 +347,8 @@ void test_ground_special_weapon() {
     const uint32_t ion = type_of(*d, "T_Ion"), other = type_of(*d, "T_Other"), bd = type_of(*d, "T_Backdrop");
     int ions = 0, others = 0;
     bool owner_ok = true, at_backdrop = true, registered = false, seen = false;
+    uint32_t count = 0;
+    float readiness = -1.0f;
     space_battle(
         *d, 300,
         [&](TacticalBattle& b, TacticalMode& tm, SimHost&) {
@@ -364,13 +367,17 @@ void test_ground_special_weapon() {
                 owner_ok = owner_ok && st.owner(h) == 0;
                 at_backdrop = at_backdrop && st.position(h).x == src.x && st.position(h).y == src.y;
                 registered = registered || b.special_weapons().has(st.id(h));
+                count = b.special_weapons().duplicate_count(st.id(h));
+                readiness = b.special_weapons().readiness(st.id(h), static_cast<uint32_t>(b.frame()));
             }
             return false;
         },
         10.0f, {{0, 1, ion}, {0, 1, ion}, {0, 1, other}}, "T_Backdrop");
-    std::printf("  trl2 t01: %d special weapon object(s) (owner 0: %d, at the source: %d, registered: %d), %d other structure(s)\n",
-                ions, owner_ok, at_backdrop, registered, others);
+    std::printf("  trl2 t01: %d special weapon object(s) (owner 0: %d, at the source: %d, registered: %d, counter %u, readiness %.2f), "
+                "%d other structure(s)\n",
+                ions, owner_ok, at_backdrop, registered, count, readiness, others);
     CHECK(seen && ions == 1 && owner_ok && at_backdrop && registered && others == 0);
+    CHECK(count == 2 && readiness == 1.0f);  // #487
 }
 
 // #87 (SpaceRetreatCoordinatorClass post-retreat, vf11 0x5335f0 [H]): when the planet owner's space retreat ends, every

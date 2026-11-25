@@ -891,8 +891,9 @@ void TacticalBattle::bt_ttm_stamp(const objects::ObjectStore& st, objects::Objec
 
 uint32_t TacticalBattle::bt_ground_special_weapons(TacticalMode& mode) {
     // Retail creates every qualifying structure's weapon and the registration 0x35c520 silently removes a second one of the
-    // same (player, Special_Weapon_Index), adding 1 to the first one's record counter (+0x20, effect not read [L]). [port]
-    // The duplicate is not created (no object id used) and no counter is kept. The weapon has no galactic link, no
+    // same (player, Special_Weapon_Index), adding 1 to the first one's pack counter (+0x20). #487 [H]: the counter divides
+    // the first weapon's recharge at each fire (0x373630, SpecialWeaponSystem::add_duplicate). [port] The duplicate is
+    // not created (no object id used). The weapon has no galactic link, no
     // population share and no battle participant (not victory relevant, never a valid target); #87: it dies at its owner's
     // space retreat end (vf11 0x5335f0, complete_retreat).
     if (!space_ || cfg_.skirmish || !galaxy_ || !catalog_) return 0;
@@ -915,7 +916,7 @@ uint32_t TacticalBattle::bt_ground_special_weapons(TacticalMode& mode) {
                 break;
             }
     }
-    std::vector<int32_t> indexes;  // Special_Weapon_Index values already placed for the owner
+    std::vector<std::pair<int32_t, objects::ObjectId>> placed;  // Special_Weapon_Index values placed for the owner, their weapon
     uint32_t n = 0;
     for (const objects::ObjectHandle g : galaxy_->planets()[pi].structures) {
         if (!gs.alive(g)) continue;
@@ -925,16 +926,22 @@ uint32_t TacticalBattle::bt_ground_special_weapons(TacticalMode& mode) {
         const int32_t idx = types.get(t, objects::tags::Special_Weapon_Index);
         // limit: retail TRL2_A_RE_ANSWERS Q1.2 (0x35c520, three special-weapon slots per player [H])
         constexpr int32_t kWeaponSlots = 3;
-        if (idx >= 0 && idx < kWeaponSlots) {
-            if (std::find(indexes.begin(), indexes.end(), idx) != indexes.end()) continue;
-            indexes.push_back(idx);
+        const bool slot = idx >= 0 && idx < kWeaponSlots;
+        if (slot) {
+            const auto it = std::find_if(placed.begin(), placed.end(), [idx](const auto& e) { return e.first == idx; });
+            if (it != placed.end()) {  // #487: a duplicate of a placed weapon adds to its counter
+                if (it->second != objects::kNoObjectId) (void)l1_sw_.add_duplicate(it->second);
+                continue;
+            }
         }
         objects::SpawnParams sp;
         sp.type = t;
         sp.owner = owner;
         sp.position = pos;
         sp.facing = face;
-        if (script_spawn_effect(mode, sp)) {
+        const objects::ObjectHandle h = script_spawn_effect(mode, sp);
+        if (slot) placed.emplace_back(idx, h ? mode.primary().id(h) : objects::kNoObjectId);
+        if (h) {
             ++n;
             bt_used_ = true;
         }
