@@ -765,8 +765,10 @@ bool company_team_lost(const ConflictRules& rules, uint32_t company_type, std::s
     return false;
 }
 
+// `space`: [port] the space-only rule that a TRANSPORT combatant fires no own shot (0x60d2a0) is not modelled (the port has
+// no transport objects), so the battle kind no longer changes the combatant.
 ArCombatant make_ar_combatant(const GalacticRules& galactic, const ConflictRules& rules, uint32_t t, int32_t owner,
-                              bool space, int32_t tech, const std::vector<uint32_t>* survivors) {
+                              [[maybe_unused]] bool space, int32_t tech, const std::vector<uint32_t>* survivors) {
     const auto& ti = galactic.types;
     const ConflictTypeInfo& ct = rules.type(t);
     ArCombatant c;
@@ -786,29 +788,28 @@ ArCombatant make_ar_combatant(const GalacticRules& galactic, const ConflictRules
             else members.emplace_back(m, 1);
         }
     }
+    // #193 (0x60b0d0 / 0x60a140 [H]): a combatant counts its type's P once, in the vector and in the survival cost. A type
+    // with Squadron_Units / Company_Units members has the members' summed P (the post-load pass 0x377500 [H]) and, as one
+    // piece, their combined categories [M]; a company that lost members, its survivors'.
+    ArPiece own;
+    own.type = t;
+    own.name = t < ti.size() ? std::string_view(ti[t].name) : std::string_view();
+    if (members.empty()) {
+        own.categories = ct.categories;
+        own.power = c.own_power;
+    }
     for (const auto& [mt, n] : members) {
         const ConflictTypeInfo& mi = rules.type(mt);
-        ArPiece p;
-        p.type = mt;
-        p.name = mt < ti.size() ? std::string_view(ti[mt].name) : std::string_view();
-        p.categories = mi.categories;
-        p.power = static_cast<float>(n) * (mt < ti.size() ? ti[mt].ai_combat_power : 0.0f);
-        c.pieces.push_back(p);
+        own.categories |= mi.categories;
+        own.power += static_cast<float>(n) * (mt < ti.size() ? ti[mt].ai_combat_power : 0.0f);
         c.hero = c.hero || mi.hero;
         c.super_killer = c.super_killer || mi.super_killer;
         if (first) first_cats = mi.categories;
         first = false;
     }
-    if (!(space && !ct.members.empty())) {  // property 5 [M: the container itself in a space battle]
-        ArPiece p;
-        p.type = t;
-        p.name = t < ti.size() ? std::string_view(ti[t].name) : std::string_view();
-        p.categories = ct.categories;
-        p.power = c.own_power;
-        c.pieces.push_back(p);
-    }
+    c.pieces.push_back(own);
     c.super = rules.super_category != 0 && (first_cats & rules.super_category) != 0;
-    // #193 (docs/re/BATTLE_TRANSITIONS.md §4.4): P(x) and CategoryMask of a type as one firing piece. A type with
+    // #193 (docs/re/AUTORESOLVE_FIRE_AND_HANGARS.md): P(x) and CategoryMask of a type as one firing piece. A type with
     // Squadron_Units / Company_Units members has its members' summed P (the post-load pass 0x377500 writes it into the
     // type [M]) and their categories [M]; any other type its own.
     const auto piece_of = [&](uint32_t x) {
@@ -838,21 +839,9 @@ ArCombatant make_ar_combatant(const GalacticRules& galactic, const ConflictRules
             p.power *= static_cast<float>(n);
             c.spawned.push_back(p);
         }
-    // The one shot (0x60d2a0 [H]): the first spawned entry at the P of one member, else the representative type; for a
-    // type with members, the pieces it fights with (a company's survivors) summed.
-    if (slot >= 0) {
-        c.shot = piece_of(ct.spawned[static_cast<size_t>(slot)].front().first);
-    } else if (!ct.members.empty()) {
-        c.shot.type = t;
-        c.shot.name = t < ti.size() ? std::string_view(ti[t].name) : std::string_view();
-        for (const ArPiece& p : c.pieces) {
-            if (p.type == t) continue;  // the land container's own piece is in the vector, not in the members' sum
-            c.shot.categories |= p.categories;
-            c.shot.power += p.power;
-        }
-    } else {
-        c.shot = piece_of(t);
-    }
+    // The one shot (0x60d2a0 [H], land and space): the first spawned entry at the P of one member, else the combatant's own
+    // piece.
+    c.shot = slot >= 0 ? piece_of(ct.spawned[static_cast<size_t>(slot)].front().first) : own;
     return c;
 }
 

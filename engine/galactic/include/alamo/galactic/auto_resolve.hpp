@@ -124,7 +124,7 @@ struct ArStarbaseLevel {
 
 struct ArCombatant {
     int32_t owner = -1;
-    std::vector<ArPiece> pieces;  // members first, then the own piece (when counted)
+    std::vector<ArPiece> pieces;  // #193: the own piece (a type with members: their summed P and combined categories)
     // #193 (0x60b0d0 / 0x60a140 [H]): Starting_Spawned_Units at the owner's tech level, one count x P(member) piece per
     // entry: in the strength vector, and charged against the budget before the survival test.
     std::vector<ArPiece> spawned;

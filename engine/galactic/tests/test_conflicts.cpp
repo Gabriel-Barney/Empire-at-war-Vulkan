@@ -445,7 +445,7 @@ GalacticSetup make_setup(std::vector<StartingForce> forces, bool empire_human, b
     return s;
 }
 
-// #193 (docs/re/BATTLE_TRANSITIONS.md §4.4): each combatant fires one shot (0x60d2a0); Starting_Spawned_Units at the
+// #193 (docs/re/AUTORESOLVE_FIRE_AND_HANGARS.md): each combatant fires one shot (0x60d2a0); Starting_Spawned_Units at the
 // owner's tech level enter the vector (0x60b0d0), and the first entry at the P of one member is the shot; the survival roll
 // charges them before the test (0x60a140) [H]. A type with members fires their summed P [M].
 void test_auto_resolve_one_shot() {
@@ -462,7 +462,10 @@ void test_auto_resolve_one_shot() {
     const ArCombatant above = make_ar_combatant(gr, cr, tSB2, pEmpire, true, 6);  // no list above Tech_5: its own shot
     CHECK(above.spawned.empty() && above.shot.type == tSB2 && above.shot.power == 600.0f && above.shot.categories == kCatStructure);
     const ArCombatant sq = make_ar_combatant(gr, cr, tFighters, pEmpire, true, 1);  // a squadron: its members' sum
-    CHECK(sq.pieces.size() == 1 && sq.shot.type == tFighters && sq.shot.power == 800.0f && sq.shot.categories == kCatCapital);
+    CHECK(sq.pieces.size() == 1 && sq.pieces[0].power == 800.0f && sq.shot.type == tFighters && sq.shot.power == 800.0f &&
+          sq.shot.categories == kCatCapital);
+    const ArCombatant sq_land = make_ar_combatant(gr, cr, tFighters, pEmpire, false, 1);  // land: counted once too
+    CHECK(sq_land.pieces.size() == 1 && sq_land.pieces[0].power == 800.0f && sq_land.shot.power == 800.0f);
     std::printf("    starbase tech 1: hangar 2 x 800 in the vector, shot %.0f (one squadron); tech 2: shot %.0f; squadron shot %.0f\n",
                 static_cast<double>(sb.shot.power), static_cast<double>(sb2.shot.power), static_cast<double>(sq.shot.power));
 
@@ -960,7 +963,8 @@ void test_company_survivors() {
             lost_events += e.type == tFrigate && e.object == static_cast<int32_t>(w.store.id(co)) ? 1u : 100u;
     CHECK(lost_events == 1);
     const ArCombatant ac = make_ar_combatant(w.rules, w.crules, tInfantry, pEmpire, false, 1, left);  // auto-resolve: survivors
-    CHECK(ac.pieces.size() == 3 && ac.pieces[0].type == tFrigate && ac.pieces[1].type == tCorvette);
+    // #193: one piece, the survivors' summed P (frigate 1000 + corvette 400) and their categories
+    CHECK(ac.pieces.size() == 1 && ac.pieces[0].type == tInfantry && ac.pieces[0].power == 1400.0f && ac.shot.power == 1400.0f);
     CHECK(w.sim.company_members(co) == *left);
     ByteWriter bw;
     w.sim.write(bw);
