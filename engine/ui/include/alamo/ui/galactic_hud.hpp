@@ -16,12 +16,15 @@
 //   objectives      objective_back (i_tooltip_back + faction frame, Size 266 x 14, Default_Offset 383 -180 /
 //                   _Widescreen 530 -350), objective_header_text (Text_Color2 = failed), objective_text (Size x = line
 //                   length, y = line spacing; Text_Color2 = completed), objective_icon (checked_box / failed_box)
-//   abilities       g_special_ability: one row per GalacticProviders::special_abilities entry beside the selected planet
-//                   -> HudAction::Button "g_special_ability" (unit = hero). [port] row i centre = planet centre +
-//                   (Offset.x, Offset.y x (i + 1)) (Offset -48 -20: rows left of the planet, 20 units apart going down,
-//                   +Y up like the labels); Blank_Texture_Name frame, icon = the row's icon or
-//                   Icon_Alternate_Texture_Name[faction], Mouse_Over_Texture_Name[faction] on the row under the cursor
-//                   only, text at Text_Offset (+Y down, Right_Justified); label alpha; at most 8 rows.
+//   abilities       g_special_ability (#455, docs/re/GALACTIC_ABILITY_ROWS.md "The row"): while an own map fleet
+//                   (g_planet_fleet) is dragged, at most one row per visible planet, the one
+//                   GalacticProviders::drag_special_ability gives for that fleet there. A drop on a row at the fleet's
+//                   own planet -> HudAction::Button "g_special_ability" (unit = fleet, ids = {planet}); at another planet
+//                   -> MoveObjectToObject {fleet, planet}, the planet drop's move (0x3d2900 [M]). [port] the row centre =
+//                   planet centre + Offset (Offset -48 -20: left of and below the planet, +Y up like the labels);
+//                   Blank_Texture_Name frame, icon = the row's icon or Icon_Alternate_Texture_Name[faction],
+//                   Mouse_Over_Texture_Name[faction] on the row under the cursor, text at Text_Offset (+Y down,
+//                   Right_Justified); label alpha.
 // [port] choices: label Offset / Default_Offset read with +Y UP (the data comment on g_conflict: "y = distance to shift the
 // status icons down" with -16); planet name coloured by the owner; status icons in a row 2 units apart; political
 // control level = round(control x (levels - 1)); fleet pad order row-major; objectives panel anchored at
@@ -190,10 +193,8 @@ struct GalacticBuildOption {
     uint32_t queued = 0;  // the local player's entries of this type in the planet's queues (Text_Offset2 line, > 0 shown)
 };
 // HudObjective: tactical_hud.hpp.
-// One g_special_ability row (CommandBarComponents: TextButton beside the planet, "x = offset to right of planet, y =
-// offset to next ability"): a hero / unit at the planet with a usable galactic special ability. Clicking a row emits
-// HudAction{Button, name "g_special_ability", unit = hero, ids = {planet}, value = row} - the SpecialAbility activate
-// request the host turns into the command (activate_special_here).
+// One g_special_ability row (CommandBarComponents: TextButton beside the planet): the dragged fleet's ability kind at
+// that planet (#455, retail 0x3eb200 [H]). Retail never disables a row.
 // mcx4 t14 (MCX4_PRES_RE_ANSWERS_3 Q2): a planet's label class from its ground structure count: below
 // Num_Structures_For_Medium_Planet_Name 0, below Num_Structures_For_Large_Planet_Name 1, else 2.
 constexpr int32_t planet_label_class(size_t structures, int32_t medium, int32_t large) {
@@ -204,11 +205,9 @@ constexpr int32_t planet_label_class(size_t structures, int32_t medium, int32_t 
 std::string alternate_font_entry(std::string_view list, int32_t index);
 
 struct GalacticSpecialAbility {
-    uint32_t hero = 0;          // object id of the hero / unit that activates it
-    std::u32string text;        // row text (e.g. the ability or hero name); "" = text_key
-    std::string text_key;       // MasterTextFile key
+    std::u32string text;        // row text; "" = text_key
+    std::string text_key;       // MasterTextFile key (the kind's TEXT_ABILITY_SLOT_*)
     std::string icon;           // icon over the frame ("" = Icon_Alternate_Texture_Name[faction]: the faction symbol)
-    bool enabled = true;        // false: drawn darkened, clicks ignored
 };
 struct GalacticProviders {
     std::function<void(uint32_t planet, std::vector<GalacticBuildOption>& out)> build_options;
@@ -218,9 +217,8 @@ struct GalacticProviders {
     std::function<void(uint32_t planet, std::vector<GalacticFleet>& out)> fleets;
     std::function<void(uint32_t planet, std::vector<GalacticFleetSlot>& out)> land_forces;  // max 20
     std::function<void(std::vector<HudObjective>& out)> objectives;                        // StorySession objectives
-    // g_special_ability rows for the selected planet, in display order (host: the local player's units there with a
-    // Ground_Activated special ability, P4_SIM_SYSTEMS).
-    std::function<void(uint32_t planet, std::vector<GalacticSpecialAbility>& out)> special_abilities;
+    // #455: the g_special_ability row of the dragged map fleet (its object id) at `planet`; false = none there.
+    std::function<bool(uint32_t fleet, uint32_t planet, GalacticSpecialAbility& out)> drag_special_ability;
 };
 
 // GALACTIC_DIALOGS §1: the battle-pending prompt. Shells pending_battle_shell (i_attack_mode_choice.alo: Begin +
@@ -524,11 +522,11 @@ public:
     static constexpr int32_t kDragThresholdPx = 4;
 
 private:
-    void drag_update(const RoutedInput& routed, std::vector<commands::EventData>& out, bool& dropped);
+    void drag_update(const RoutedInput& routed, std::vector<commands::EventData>& out, bool& dropped, std::vector<HudAction>* actions);
     // What releasing the dragged item over drag_.over_component at drag_.cursor_px does: appends the commands to `out` and
     // returns true when there are any. out = nullptr is a dry run (no commands), which is what drag_.valid (the drop
-    // highlight and cursor) is: the highlight can never disagree with the drop.
-    bool drop(std::vector<commands::EventData>* out);
+    // highlight and cursor) is: the highlight can never disagree with the drop. `actions` takes a drop's HudAction (#455).
+    bool drop(std::vector<commands::EventData>* out, std::vector<HudAction>* actions = nullptr);
     int32_t planet_at(float px, float py) const;
     void build_labels(const GalacticHudFrame& f);
     void build_planet_stacks(const GalacticPlanetInfo& p, Vec2f at, uint8_t alpha, Vec2f cursor);
@@ -601,8 +599,7 @@ private:
     int32_t special_ = -1;
     struct AbilityRow {
         Vec2f min{}, max{};
-        uint32_t hero = 0;
-        bool enabled = true;
+        uint32_t planet = 0;
     };
     std::vector<AbilityRow> ability_rows_;
     std::vector<int32_t> build_pad_, create_, queue_, land_;

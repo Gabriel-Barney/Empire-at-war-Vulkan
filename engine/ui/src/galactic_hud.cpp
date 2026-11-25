@@ -1124,7 +1124,8 @@ int32_t GalacticHud::planet_at(float px, float py) const {
     return best;
 }
 
-void GalacticHud::drag_update(const RoutedInput& routed, std::vector<commands::EventData>& out, bool& dropped) {
+void GalacticHud::drag_update(const RoutedInput& routed, std::vector<commands::EventData>& out, bool& dropped,
+                              std::vector<HudAction>* actions) {
     const Vec2f cur{static_cast<float>(routed.world.mouse_x), static_cast<float>(routed.world.mouse_y)};
     for (const HudPointerEvent& e : routed.hud) {
         if (e.button != Button::Left) continue;
@@ -1141,7 +1142,7 @@ void GalacticHud::drag_update(const RoutedInput& routed, std::vector<commands::E
             if (drag_.active) {
                 drag_.cursor_px = {static_cast<float>(e.x), static_cast<float>(e.y)};
                 drag_.over_component = e.component;
-                drop(&out);
+                drop(&out, actions);
                 dropped = true;
             }
             press_component_ = -1;
@@ -1196,7 +1197,7 @@ void GalacticHud::drag_update(const RoutedInput& routed, std::vector<commands::E
     drag_.valid = drop(nullptr);
 }
 
-bool GalacticHud::drop(std::vector<commands::EventData>* out) {
+bool GalacticHud::drop(std::vector<commands::EventData>* out, std::vector<HudAction>* actions) {
     constexpr uint32_t kNone = commands::kNoObject;
     const auto emit = [out](commands::EventData e) {
         if (out) out->push_back(std::move(e));
@@ -1222,6 +1223,28 @@ bool GalacticHud::drop(std::vector<commands::EventData>* out) {
     if (drag_.over_component >= 0 && drag_.over_component == planet_fleet_) {  // onto a fleet slot
         const StackHit* sh = stack_at(planet_fleet_, drag_.cursor_px.x, drag_.cursor_px.y);
         return sh && slot_drop(*sh, out);
+    }
+    if (drag_.over_component >= 0 && drag_.over_component == special_) {  // #455: onto a g_special_ability row
+        if (drag_.fleet_index != kMapFleetIndex) return false;
+        const Vec2f c = canvas_.pixel_to_canvas(drag_.cursor_px.x + 0.5f, drag_.cursor_px.y + 0.5f);
+        for (const AbilityRow& r : ability_rows_) {
+            if (c.x < r.min.x || c.x > r.max.x || c.y < r.min.y || c.y > r.max.y) continue;
+            // 0x2f6c30 -> 0x3d2900 [H for the branches]: at another planet the drop makes the planet drop's move [M]; at the
+            // fleet's own planet it uses the ability there (the host's SpecialAbility activate).
+            if (r.planet != drag_.planet) return emit(commands::ev::move_object_to_object(drag_.fleet, r.planet));
+            if (out && actions) {
+                HudAction a;
+                a.kind = HudAction::Kind::Button;
+                a.component = special_;
+                a.name = (*table_)[static_cast<size_t>(special_)].name;
+                a.unit = drag_.fleet;
+                a.ids = {r.planet};
+                a.button = Button::Left;
+                actions->push_back(std::move(a));
+            }
+            return true;
+        }
+        return false;
     }
     if (drag_.over_component >= 0 || !from_fleet) return false;  // another HUD component / land unit into the world
     const int32_t pi = planet_at(drag_.cursor_px.x, drag_.cursor_px.y);
@@ -1310,46 +1333,46 @@ void GalacticHud::build_objectives(const GalacticHudFrame& f) {
 }
 
 void GalacticHud::build_special_abilities(const GalacticHudFrame& f) {
-    if (special_ < 0 || selected_ < 0 || !f.providers.special_abilities) return;
-    const GalacticPlanetInfo& p = f.planets[static_cast<size_t>(selected_)];
-    std::vector<GalacticSpecialAbility> rows;
-    f.providers.special_abilities(p.planet, rows);
-    if (rows.empty() || !p.visible) return;
-    float sx = 0, sy = 0;
-    if (!project(f.view, p.position, sx, sy)) return;
+    // #455 (docs/re/GALACTIC_ABILITY_ROWS.md "The row", 0x3eb200 refreshed for every planet by 0x3ea1b0 [H]): while an own
+    // map fleet is dragged, each visible planet shows the one row the host classifies for it (only the first of the two
+    // clones 0x3d3790 makes is ever shown).
+    if (special_ < 0 || !drag_.active || drag_.fleet_index != kMapFleetIndex || drag_.fleet == 0 || !f.providers.drag_special_ability)
+        return;
     const auto alpha = static_cast<uint8_t>(std::clamp(std::lround(planet_label_alpha(f.zoom_state, f.zoom)), 0L, 255L));
     if (alpha == 0) return;
     const auto u = static_cast<uint32_t>(special_);
     const CommandBarComponent& c = (*table_)[u];
     const ComponentPlacement& pl = layout_.placement(u);
     const uint32_t layer = static_cast<uint32_t>(std::clamp(c.base_layer, 0, static_cast<int32_t>(kHudLayers) - 1));
-    const Vec2f at = canvas_.pixel_to_canvas(sx, sy);
     const Vec2f size = component_size(u, pl);
     const Vec2f cur = canvas_.pixel_to_canvas(f.cursor_px.x + 0.5f, f.cursor_px.y + 0.5f);
-    constexpr size_t kMaxRows = 8;  // [port]
-    for (size_t i = 0; i < rows.size() && i < kMaxRows; ++i) {
-        const GalacticSpecialAbility& r = rows[i];
-        const Vec2f ctr{at.x + c.offset.x, at.y + c.offset.y * static_cast<float>(i + 1)};
+    for (const GalacticPlanetInfo& p : f.planets) {
+        if (!p.visible) continue;
+        GalacticSpecialAbility r;
+        if (!f.providers.drag_special_ability(drag_.fleet, p.planet, r)) continue;
+        float sx = 0, sy = 0;
+        if (!project(f.view, p.position, sx, sy)) continue;
+        const Vec2f at = canvas_.pixel_to_canvas(sx, sy);
+        const Vec2f ctr{at.x + c.offset.x, at.y + c.offset.y};
         const Vec2f mn{ctr.x - 0.5f * size.x, ctr.y - 0.5f * size.y}, mx{ctr.x + 0.5f * size.x, ctr.y + 0.5f * size.y};
-        const bool over = r.enabled && cur.x >= mn.x && cur.x <= mx.x && cur.y >= mn.y && cur.y <= mx.y;
-        const Rgba8 tint = with_alpha(r.enabled ? Rgba8{} : Rgba8{128, 128, 128, 255}, alpha);
-        if (const std::string* b = pick(c.blank_texture, 0))
-            add_atlas_quad(dl_, layer, HudList::Alpha, *atlas_, *b, ctr, {}, c.scale, tint, size);
+        const bool over = cur.x >= mn.x && cur.x <= mx.x && cur.y >= mn.y && cur.y <= mx.y;
+        const Rgba8 tint = with_alpha(Rgba8{}, alpha);
+        if (const std::string* bt = pick(c.blank_texture, 0))
+            add_atlas_quad(dl_, layer, HudList::Alpha, *atlas_, *bt, ctr, {}, c.scale, tint, size);
         const std::string* icon = !r.icon.empty() ? &r.icon : pick(c.icon_alternate_texture, f.faction_alt);
         if (icon) add_atlas_quad(dl_, layer, HudList::Alpha, *atlas_, *icon, ctr, {}, c.scale, tint);
         if (over)
             if (const std::string* mo = pick(c.mouse_over_texture, f.faction_alt))
-                add_atlas_quad(dl_, layer, HudList::Alpha, *atlas_, *mo, ctr, {}, c.scale, with_alpha(Rgba8{}, alpha));
+                add_atlas_quad(dl_, layer, HudList::Alpha, *atlas_, *mo, ctr, {}, c.scale, tint);
         std::u32string text = r.text;
         if (text.empty() && !r.text_key.empty())
             text = text_ && text_->find(r.text_key) ? gui_unescape(utf16_to_utf32(*text_->find(r.text_key))) : utf8_to_utf32(r.text_key);
         if (!text.empty()) {
-            Rgba8 col = c.has_text_color ? c.text_color : Rgba8{};
-            if (!r.enabled) col = {static_cast<uint8_t>(col.r / 2), static_cast<uint8_t>(col.g / 2), static_cast<uint8_t>(col.b / 2), col.a};
+            const Rgba8 col = c.has_text_color ? c.text_color : Rgba8{};
             text_at(special_, text, {ctr.x + c.text_offset.x, ctr.y - c.text_offset.y}, layer, alpha, &col);
         }
         hit(special_, layer, ctr, size);
-        ability_rows_.push_back({mn, mx, r.hero, r.enabled});
+        ability_rows_.push_back({mn, mx, p.planet});
         ++stats_.ability_rows;
     }
 }
@@ -1730,7 +1753,7 @@ void GalacticHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
                                std::vector<commands::EventData>& out, std::vector<HudAction>* actions) {
     if (!table_) return;
     bool dropped = false;
-    drag_update(routed, out, dropped);
+    drag_update(routed, out, dropped, actions);
     std::vector<ButtonClick> clicks;
     buttons_.update(routed.hover_component, routed.hud, shift, ctrl, now, clicks);
     if (dropped) clicks.clear();  // the release ended a drag, not a click
@@ -1849,28 +1872,6 @@ void GalacticHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
         }
         if (k.component == pause_ && k.button == Button::Left) {  // [port: Gabriel] pause through the command stream
             out.push_back(pause_event(!paused_));
-            continue;
-        }
-        if (k.component == special_ && special_ >= 0) {  // g_special_ability: the row under the click
-            const Vec2f c = canvas_.pixel_to_canvas(static_cast<float>(k.x) + 0.5f, static_cast<float>(k.y) + 0.5f);
-            for (size_t i = 0; i < ability_rows_.size(); ++i) {
-                const AbilityRow& r = ability_rows_[i];
-                if (c.x < r.min.x || c.x > r.max.x || c.y < r.min.y || c.y > r.max.y) continue;
-                if (r.enabled && k.button == Button::Left) {
-                    HudAction a;
-                    a.kind = HudAction::Kind::Button;
-                    a.component = k.component;
-                    a.name = (*table_)[static_cast<size_t>(k.component)].name;
-                    a.unit = r.hero;
-                    a.value = static_cast<int32_t>(i);
-                    if (selected_id_ != 0) a.ids = {selected_id_};
-                    a.button = k.button;
-                    a.shift = k.shift;
-                    a.ctrl = k.ctrl;
-                    act(std::move(a));
-                }
-                break;
-            }
             continue;
         }
         HudAction a;

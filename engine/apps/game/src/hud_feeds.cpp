@@ -457,6 +457,29 @@ std::vector<PlanetIndex> fleet_drag_route(const galactic::GalacticSim& g, int32_
     return path;
 }
 
+DragAbilitySlot drag_ability_slot(const galactic::GalacticSim& g, std::span<const objects::ObjectHandle> group, PlanetIndex target,
+                                  const std::function<int32_t(uint32_t type)>& ranking, bool raid) {
+    DragAbilitySlot out;
+    const objects::ObjectStore& st = g.store();
+    size_t live = 0;
+    int32_t best = 0;
+    for (const objects::ObjectHandle h : group) {
+        if (!st.alive(h)) continue;
+        const int32_t r = ranking ? ranking(static_cast<uint32_t>(st.type(h))) : 0;
+        if (live++ == 0 || r < best) {
+            out.member = h;
+            best = r;
+        }
+    }
+    if (live == 0 || target >= g.planets().size()) return out;
+    const galactic::StoryGates& gates = g.story_gates();
+    const bool gated = target < gates.planet.size() && (gates.planet[target] & galactic::StoryGates::kNoAbilities) != 0;
+    if (!gated) out.slot = galactic::activated_ability_slot_of(g.rules().special, static_cast<uint32_t>(st.type(out.member)));
+    if (live != 1 && out.slot.kind != 6) out.slot = {};
+    if (raid) out.slot = {0, "TEXT_ABILITY_SLOT_RAID"};
+    return out;
+}
+
 std::string retreat_countdown_number(float seconds) {
     const float s = seconds > 0.0f ? seconds : 0.0f;
     const int32_t whole = static_cast<int32_t>(s);

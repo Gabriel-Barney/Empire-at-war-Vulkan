@@ -16,36 +16,18 @@ uint32_t App::panel_kind() const {
     return panel_preview_;
 }
 
-// The local player's units at planet `pi` whose type has a Ground_Activated special ability, in g_special_ability row
-// order [port]: orbit fleets in orbit order, members in order, then the surface.
-std::vector<objects::ObjectHandle> App::special_units(const galactic::GalacticSim& g, PlanetIndex pi) const {
-    std::vector<objects::ObjectHandle> out;
-    if (pi == kInvalidPlanet) return out;
-    const objects::ObjectStore& st = g.store();
-    const galactic::SpecialRules& sp = g.rules().special;
-    auto usable = [&](objects::ObjectHandle h) {
-        if (!st.alive(h) || st.owner(h) != local_player()) return false;
-        for (const uint32_t a : sp.type(static_cast<uint32_t>(st.type(h))).abilities)
-            if (sp.abilities[a].style == galactic::ActivationStyle::GroundActivated) return true;
-        return false;
-    };
-    for (const uint32_t fi : g.fleets_at(pi, local_player()))
-        for (const objects::ObjectHandle h : g.fleets()[fi].contents)
-            if (usable(h)) out.push_back(h);
-    for (const objects::ObjectHandle h : g.planets()[pi].surface)
-        if (usable(h)) out.push_back(h);
-    return out;
-}
-
-// SpecialAbility kind 1 (activate) at the selected planet by the g_special_ability row's hero (GalacticHud rows from
-// special_units); hero_id 0 = the first of them. False when none / refused.
-bool App::activate_special_here(uint32_t hero_id) {
+// #455: SpecialAbility kind 1 (activate) by the fleet dropped on a g_special_ability row at its own planet: the sim picks the
+// fleet's first member with an accepting Ground_Activated ability (0x398670). False when refused.
+bool App::activate_special_fleet(uint32_t fleet_id, uint32_t planet_id) {
     const galactic::GalacticSim* g = galaxy();
-    if (!g) return false;
+    if (!g || !session_) return false;
     const objects::ObjectStore& st = g->store();
-    for (const objects::ObjectHandle h : special_units(*g, planet_index(*g, selected_planet_)))
-        if ((hero_id == 0 || static_cast<uint32_t>(st.id(h)) == hero_id) &&
-            session_->activate_special(static_cast<uint32_t>(st.id(h)), selected_planet_)) {
+    const objects::ObjectHandle fh = st.find(static_cast<objects::ObjectId>(fleet_id));
+    const uint32_t fi = fh ? g->fleet_of(fh) : galactic::kNoFleet;
+    if (fi == galactic::kNoFleet || fi >= g->fleets().size()) return false;
+    for (const objects::ObjectHandle m : g->fleets()[fi].contents)
+        if (st.alive(m)) {
+            if (!session_->activate_special(static_cast<uint32_t>(st.id(m)), planet_id)) return false;
             ++activations_;
             return true;
         }
@@ -925,12 +907,9 @@ void App::handle_hud_actions(const std::vector<ui::HudAction>& acts) {
                     }
                     break;
                 }
-                // OI host: the retail per-planet ability button is CommandBarComponents' g_special_ability (TextButton
-                // beside the planet, one row per hero ability, GalacticHud): its HudAction carries the hero id in `unit`
-                // -> SpecialAbility kind 1 for that hero at the selected planet; the sim's SpecialDialog then opens the
-                // panel. (The P4 stand-in buttons - any component named market / sabotage / corrupt / hack activating the
-                // first special unit - are gone: the retail rows are the only way in.)
-                if (a.name == "g_special_ability") activate_special_here(a.unit);
+                // #455: a fleet dropped on its own planet's g_special_ability row (GalacticHud: unit = fleet, ids = {planet})
+                // -> SpecialAbility kind 1 there; the sim's SpecialDialog then opens the panel.
+                if (a.name == "g_special_ability" && a.ids.size() == 1) activate_special_fleet(a.unit, a.ids[0]);
                 break;
             // P4 host: the panels' answers (SpecialAbility kinds 2 / 4 / 5 / 6 / 7 through the command stream); the preview
             // panel of the smoke sends nothing. (#71 t01: the slice pick is IDD_SLICE_DIALOG, ScreenAction::Slice.)

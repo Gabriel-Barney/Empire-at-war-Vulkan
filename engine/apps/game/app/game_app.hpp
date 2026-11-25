@@ -821,8 +821,7 @@ private:
     std::map<std::pair<uint32_t, uint32_t>, std::pair<int32_t, float>> countdown_speech_seen_;
     double last_approach_s_ = -1e9;              // wall clock of the last enemy-approach announcement
     uint64_t build_refusals_ = 0;  // clicks on greyed galactic build pads (negative feedback)
-    bool activate_special_here(uint32_t hero_id);
-    std::vector<objects::ObjectHandle> special_units(const galactic::GalacticSim& g, PlanetIndex pi) const;
+    bool activate_special_fleet(uint32_t fleet_id, uint32_t planet_id);  // #455
     // OI host: main-menu attract demo (attract_mode.hpp), audio flags, fast forward.
     AttractController attract_;
     int32_t last_mouse_x_ = 0, last_mouse_y_ = 0;

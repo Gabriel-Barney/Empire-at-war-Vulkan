@@ -2716,6 +2716,34 @@ void hud_feeds_test(const game::GameData& data, const game::SessionSpec& spec) {
         }
         CHECK(game::fleet_drag_route(gg, me, 0xFFFFFFF0u, 0).empty());
     }
+    // #455 (docs/re/GALACTIC_ABILITY_ROWS.md 0x3d2020 / 0x3eb200): a dragged group's row kind. One object: its type's kind;
+    // the lowest Ranking_In_Category member is the one classified; a larger group keeps only kind 6; raid overrides all.
+    {
+        const galactic::GalacticSim& gg = *s.galaxy();
+        const objects::ObjectStore& st = gg.store();
+        std::vector<objects::ObjectHandle> units;
+        for (const galactic::FleetState& fl : gg.fleets())
+            for (const objects::ObjectHandle h : fl.contents)
+                if (st.alive(h) && units.size() < 3) units.push_back(h);
+        CHECK(units.size() == 3);
+        const PlanetIndex p0 = 0;
+        const auto kind_of = [&](objects::ObjectHandle h) {
+            return galactic::activated_ability_slot_of(gg.rules().special, static_cast<uint32_t>(st.type(h))).kind;
+        };
+        CHECK(game::drag_ability_slot(gg, {}, p0, nullptr, false).slot.kind == -1);
+        CHECK(game::drag_ability_slot(gg, {}, p0, nullptr, true).slot.kind == -1);  // nothing dragged: no row, even for raid
+        if (units.size() == 3) {
+            const game::DragAbilitySlot one = game::drag_ability_slot(gg, std::span(units.data(), 1), p0, nullptr, false);
+            CHECK(one.member == units[0] && one.slot.kind == kind_of(units[0]));
+            // the ranking picks the classified member (units[2] ranks lowest here)
+            const auto rank = [&](uint32_t t) { return t == static_cast<uint32_t>(st.type(units[2])) ? -5 : 10; };
+            const game::DragAbilitySlot three = game::drag_ability_slot(gg, units, p0, rank, false);
+            CHECK(st.type(three.member) == st.type(units[2]) && three.slot.kind == (kind_of(units[2]) == 6 ? 6 : -1));  // a type tie keeps the first
+            const game::DragAbilitySlot raid = game::drag_ability_slot(gg, units, p0, rank, true);
+            CHECK(raid.slot.kind == 0 && std::string_view(raid.slot.label) == "TEXT_ABILITY_SLOT_RAID");
+            CHECK(game::drag_ability_slot(gg, units, kInvalidPlanet, rank, false).slot.kind == -1);
+        }
+    }
     std::printf("hud feeds: cycle %.4f -> %.4f, %zu galactic hero entries, %zu drag routes\n", static_cast<double>(f0),
                 static_cast<double>(f1), heroes.size(), routes_checked);
 }

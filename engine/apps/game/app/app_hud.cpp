@@ -905,23 +905,35 @@ void App::build_galactic_hud(ui::GalacticHudFrame& f, std::vector<ui::GalacticPl
             }
         }
     };
-    // OI host: g_special_ability rows = the local player's Ground_Activated special-ability units at the planet.
-    f.providers.special_abilities = [this](uint32_t planet, std::vector<ui::GalacticSpecialAbility>& out) {
+    // #455 (docs/re/GALACTIC_ABILITY_ROWS.md "The row"): while an own map fleet is dragged, each planet's g_special_ability
+    // row is that fleet classified there (game::drag_ability_slot, ranked by Ranking_In_Category). Its own planet always
+    // [M: 0x3d2900 has a same-planet branch]; another planet when the move is valid: fleet_drag_route finds a path (the drag
+    // lines' request, 0x3da30; retail's test 0x3f0010 is not read [M]). Raid: the planet's owner is an enemy and the fleet
+    // passes the Raid_Force test (0x432e20; what retail's 0x2e6020 tests is [M]).
+    f.providers.drag_special_ability = [this](uint32_t fleet_id, uint32_t planet, ui::GalacticSpecialAbility& out) {
         const galactic::GalacticSim* gs = galaxy();
-        if (!gs) return;
+        if (!gs) return false;
         const objects::ObjectStore& st = gs->store();
-        for (const objects::ObjectHandle h : special_units(*gs, planet_index(*gs, planet))) {
-            // #437 (docs/re/GALACTIC_ABILITY_ROWS.md, 0x3d2020 / 0x3eb200): the row's text is the kind's label, which every
-            // kind has; a unit without a kind (-1) gets no row (retail hides the component; it never shows the unit name).
-            const galactic::ActivatedAbilitySlot slot = gs->activated_ability_slot(h, planet_index(*gs, planet));
-            if (slot.kind < 0 || !slot.label || slot.label[0] == '\0') continue;
-            ui::GalacticSpecialAbility r;
-            r.hero = static_cast<uint32_t>(st.id(h));
-            const objects::TypeIndex t = st.type(h);
-            r.text_key = slot.label;
-            if (t < ui_.hud_types.size()) r.icon = ui_.hud_types[t].icon_name;
-            out.push_back(std::move(r));
-        }
+        const objects::ObjectHandle fh = st.find(static_cast<objects::ObjectId>(fleet_id));
+        const uint32_t fi = fh ? gs->fleet_of(fh) : galactic::kNoFleet;
+        const PlanetIndex target = planet_index(*gs, planet);
+        if (fi == galactic::kNoFleet || fi >= gs->fleets().size() || target == kInvalidPlanet) return false;
+        const galactic::FleetState& fl = gs->fleets()[fi];
+        const int32_t me = local_player();
+        if (target != fl.planet && game::fleet_drag_route(*gs, me, fleet_id, target).empty()) return false;
+        const int32_t owner = gs->planets()[target].owner;
+        const galactic::ConflictManager* cm = session_ && session_->battles() ? &session_->battles()->conflicts() : nullptr;
+        const bool raid = cm && me >= 0 && owner >= 0 && owner != me && gs->relation(me, owner) == galactic::Relation::Enemy &&
+                          cm->raid_force(me, fl.contents);
+        const game::DragAbilitySlot d = game::drag_ability_slot(
+            *gs, fl.contents, target,
+            [this](uint32_t t) { return t < data_.types.size() ? data_.types.get_int(static_cast<objects::TypeIndex>(t), "Ranking_In_Category") : 0; },
+            raid);
+        if (d.slot.kind < 0 || !d.slot.label || d.slot.label[0] == '\0') return false;
+        out.text_key = d.slot.label;
+        if (st.alive(d.member))
+            if (const objects::TypeIndex t = st.type(d.member); t < ui_.hud_types.size()) out.icon = ui_.hud_types[t].icon_name;
+        return true;
     };
 }
 
