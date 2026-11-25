@@ -238,6 +238,11 @@ public:
     // snapped to the terrain (0 without); the spline fraction and the overview level are kept. 0x2ce460 itself does not
     // clamp; the pose build 0x2d0df0 clamps the look-at to the limits (4.6), done here at once by set_look_at.
     void centre(bool space);
+    // #462 b_camera_t (0x2ce420 / 0x2cf880 [H], docs/re/BATTLE_CAM.md "b_camera_t"): whether pitch and yaw are at the XML
+    // Pitch_Default / Yaw_Default, and the snap back to them (distance, FOV, the look-at and the overview kept). [port] the
+    // free-rotation pitch offset and roll count as pitch.
+    bool pitch_yaw_at_defaults() const;
+    void reset_pitch_yaw();
     // The home look-at (0x2d0770, saved at map load from the map's 0x103 camera look-at): stored clamped to the current
     // limits, z as given. Default the origin.
     void set_home(Vec3 p);

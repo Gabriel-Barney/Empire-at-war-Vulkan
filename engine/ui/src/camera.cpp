@@ -379,6 +379,9 @@ void TacticalCameraController::reset() {
     pitch_free_ = roll_ = 0.0f;
 }
 
+bool TacticalCameraController::pitch_yaw_at_defaults() const { return false; }
+void TacticalCameraController::reset_pitch_yaw() {}
+
 void TacticalCameraController::centre(bool space) {
     // 0x2ce460: the record defaults (value and target; [port] clamped as reset() does), the spline fraction kept.
     yaw_ = clampf(c_.yaw_default, c_.yaw_min, c_.yaw_max);

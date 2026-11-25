@@ -286,31 +286,37 @@ const ObjectFrame& TswFiringShot::frame_of(const ObjectFrame& tsw) {
     return last_tsw_;
 }
 
-Vec3 TswFiringShot::key_position(const ShotKey& k, const ObjectFrame& tsw) const {
+Vec3 TswFiringShot::eye(int32_t c, const ObjectFrame& tsw) { return shot_keys_eye(eye_, look_, c, frame_of(tsw), in_.z_adjust); }
+Vec3 TswFiringShot::look(int32_t c, const ObjectFrame& tsw) { return shot_keys_look(look_, c, frame_of(tsw), in_.z_adjust); }
+
+// ---- the key evaluator (0x49c540 eye / 0x49de50 look) ----------------------------------------------------------------
+Vec3 shot_key_position(const ShotKey& k, const ObjectFrame& f, float z_adjust) {
     if (!k.attached) return k.where;
-    return tsw.apply(k.where) + Vec3{0.0f, 0.0f, in_.z_adjust};  // 0x49d640: + Ranged_Target_Z_Adjust on z
+    return f.apply(k.where) + Vec3{0.0f, 0.0f, z_adjust};  // 0x49d640: + Ranged_Target_Z_Adjust on z
 }
 
-Vec3 TswFiringShot::evaluate(std::span<const ShotKey> keys, int32_t c, const ObjectFrame& tsw) const {
-    if (keys.empty()) return {};
-    if (c < keys.front().frame) return key_position(keys.front(), tsw);
+namespace {
+// The key at or before clock c (the first key before it), and whether c is past the last key.
+size_t key_at(std::span<const ShotKey> keys, int32_t c) {
     size_t k = 0;
     while (k + 1 < keys.size() && keys[k + 1].frame <= c) ++k;
-    if (k + 1 >= keys.size()) return key_position(keys[k], tsw);  // after the last key: hold it (re-evaluated if attached)
+    return k;
+}
+
+Vec3 segment(std::span<const ShotKey> keys, size_t k, int32_t c, const ObjectFrame& f, float z, bool look) {
     const ShotKey& a = keys[k];
     const ShotKey& b = keys[k + 1];
     const float sigma = static_cast<float>(c - a.frame) / static_cast<float>(b.frame - a.frame);
     const float w = shot_accel(sigma, a.ease_out, b.ease_in);
-    const Vec3 pa = key_position(a, tsw), pb = key_position(b, tsw);
+    const Vec3 pa = shot_key_position(a, f, z), pb = shot_key_position(b, f, z);
     switch (a.segment) {
-        case ShotKey::Segment::Hold:
-        case ShotKey::Segment::Orbit:  // [port] mode 3 (orbit, period +0x4c) is not used by this shot: held
-            return pa;
+        case ShotKey::Segment::Hold: return pa;
+        case ShotKey::Segment::Orbit: return look ? Vec3{} : pa;  // the look has no mode-3 branch; [port] 0x49a610 held
         case ShotKey::Segment::Linear: return pa + (pb - pa) * w;
         case ShotKey::Segment::Spline:
             if (!a.attached && !b.attached) {  // Catmull-Rom Hermite between two world keys (0x499ef0), tangent scale 0.5
-                const Vec3 p0 = k > 0 ? key_position(keys[k - 1], tsw) : pa;
-                const Vec3 p3 = k + 2 < keys.size() ? key_position(keys[k + 2], tsw) : pb;
+                const Vec3 p0 = k > 0 ? shot_key_position(keys[k - 1], f, z) : pa;
+                const Vec3 p3 = k + 2 < keys.size() ? shot_key_position(keys[k + 2], f, z) : pb;
                 const Vec3 m1 = (pb - p0) * 0.5f, m2 = (p3 - pa) * 0.5f;
                 const float w2 = w * w, w3 = w2 * w;
                 return pa * (2.0f * w3 - 3.0f * w2 + 1.0f) + m1 * (w3 - 2.0f * w2 + w) + pb * (-2.0f * w3 + 3.0f * w2) + m2 * (w3 - w2);
@@ -319,9 +325,35 @@ Vec3 TswFiringShot::evaluate(std::span<const ShotKey> keys, int32_t c, const Obj
     }
     return pa;
 }
+}  // namespace
 
-Vec3 TswFiringShot::eye(int32_t c, const ObjectFrame& tsw) { return evaluate(eye_, c, frame_of(tsw)); }
-Vec3 TswFiringShot::look(int32_t c, const ObjectFrame& tsw) { return evaluate(look_, c, frame_of(tsw)); }
+Vec3 shot_keys_look(std::span<const ShotKey> look, int32_t c, const ObjectFrame& f, float z_adjust) {
+    if (look.empty()) return {};
+    if (c < look.front().frame) return shot_key_position(look.front(), f, z_adjust);
+    const size_t k = key_at(look, c);
+    if (k + 1 >= look.size()) return shot_key_position(look[k], f, z_adjust);  // after the last key: held
+    return segment(look, k, c, f, z_adjust, true);
+}
+
+Vec3 shot_keys_eye(std::span<const ShotKey> eye, std::span<const ShotKey> look, int32_t c, const ObjectFrame& f,
+                   float z_adjust) {
+    if (eye.empty()) return {};
+    if (c < eye.front().frame) return shot_key_position(eye.front(), f, z_adjust);
+    const size_t k = key_at(eye, c);
+    if (k + 1 < eye.size()) return segment(eye, k, c, f, z_adjust, false);
+    const ShotKey& o = eye[k];
+    const Vec3 p = shot_key_position(o, f, z_adjust);
+    if (o.segment != ShotKey::Segment::Orbit || c <= o.frame || o.period <= 0) return p;  // held
+    // 0x49c810: the orbit of the resolved position about world +Z through the look point.
+    const Vec3 l = shot_keys_look(look, c, f, z_adjust);
+    const Vec3 d = p - l;
+    const float s = static_cast<float>((c - o.frame) % o.period) / static_cast<float>(o.period);
+    float a = 360.0f * std::clamp(shot_accel(s, o.ease_out, o.ease_in), 0.0f, 1.0f);
+    if (o.reverse) a = 360.0f - a;
+    const float r = a * (3.14159265358979f / 180.0f);
+    const float cs = std::cos(r), sn = std::sin(r);
+    return l + Vec3{cs * d.x - sn * d.y, sn * d.x + cs * d.y, d.z};  // 0x4800f0: counter-clockwise about +Z
+}
 
 bool TswFiringShot::input_cancels(int32_t mouse_x, int32_t mouse_y, uint32_t width, uint32_t height, bool button_or_wheel) const {
     if (button_or_wheel) return true;

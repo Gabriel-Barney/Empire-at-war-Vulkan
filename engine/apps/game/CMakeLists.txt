@@ -24,6 +24,7 @@ add_library(alamo_game_core STATIC
   src/game_audio_host_objects.cpp
   src/game_audio_host_intro.cpp
   src/battle_fx.cpp
+  src/battle_cam.cpp          # #462: the battle-cam controller (Movie Mode, Cinematic View)
   src/story_script.cpp
   src/game_controls.cpp
   src/attract_mode.cpp
@@ -190,6 +191,13 @@ add_executable(alamo_game_battle_fx_tests tests/test_battle_fx.cpp)
 target_link_libraries(alamo_game_battle_fx_tests PRIVATE alamo_core alamo_game_core alamo_test_support)
 add_test(NAME alamo_game_battle_fx_tests COMMAND alamo_game_battle_fx_tests)
 set_tests_properties(alamo_game_battle_fx_tests PROPERTIES TIMEOUT 120)
+
+# Data-free: the battle-cam controller (#462, battle_cam.hpp): the orbit evaluator, the hero clash and Cinematic View
+# shots, and the Movie Mode / Cinematic View / b_camera_t state machine.
+add_executable(alamo_game_battle_cam_tests tests/test_battle_cam.cpp)
+target_link_libraries(alamo_game_battle_cam_tests PRIVATE alamo_core alamo_game_core alamo_test_support)
+add_test(NAME alamo_game_battle_cam_tests COMMAND alamo_game_battle_cam_tests)
+set_tests_properties(alamo_game_battle_cam_tests PROPERTIES TIMEOUT 120)
 
 # the screen rule table (app/screen_flow.hpp) without a window or a GPU.
 add_executable(alamo_game_screen_flow_tests tests/test_screen_flow.cpp app/screen_flow.cpp)

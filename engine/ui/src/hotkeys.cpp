@@ -342,6 +342,8 @@ bool HotkeyTable::pressed(const InputState& in, uint16_t slot) const {
     return true;
 }
 
+int32_t HotkeyTable::slot_for(uint32_t, bool, bool, bool) const { return -1; }
+
 void HotkeyTable::pressed(const InputState& in, std::vector<uint16_t>& out) const {
     out.clear();
     std::array<bool, 256> taken{};
