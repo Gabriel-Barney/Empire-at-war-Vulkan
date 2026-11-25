@@ -90,23 +90,18 @@ Dispatch is in the galactic tooltip builder 0x2e0c20 [H]:
 The faction-emblem index 0x3d18f0 (with Galactic_Fleet_Override_Icon_Index) is used in the **planet** branch of 0x2e2910,
 not in the fleet summary. This corrects GALAXY_MAP_PRESENTATION §1.4 [H].
 
-**Port today:**
-- app_screens.cpp:1056-1081: a fleet stack shows the encyclopedia pop-up of its highest-Tactical_Health unit.
-- A land stack shows nothing (type stays kNone).
-- `fleet_tooltip` / `land_tooltip` fire once per hovered stack. A map fleet of any owner fires `fleet_tooltip`
-  (app_screens.cpp:1040).
-
-**Port change ([H] content, [M] layout):**
-1. Add a pure builder to hud_feeds:
-   `FleetTooltip fleet_tooltip_summary(owner_faction, land, groups{type, count, pop, known, stealth}, all_raid, all_stealth)`
-   -> {title key, -total, badge keys, cells{icon, "x%d" or "", unknown, stealth}}.
-2. Give `EncyclopediaEntry` a cell grid (`std::vector<{icon, label, unknown, stealth}>`, six per row) and an owner tint.
-3. In app_screens.cpp:1056, build the entry for fleet and land stacks instead of the representative unit's.
-4. Gate the map-fleet hover (line 1040) on owner == local player.
-
-Unit test (test_game_session or a hud_feeds test): an Empire fleet with 3 x TIE (pop 1) and 1 x Star Destroyer (pop 5) gives
-TEXT_EVIL_SPACE_FLEET, number 8, cells [TIE "x3", SD ""]. A land garrison gives TEXT_*_LAND_GARRISON. An all-raid fleet gives
-the badge TEXT_RAID_FLEET.
+**Port (#471):**
+- `game::fleet_tooltip_summary` (hud_feeds) builds the title key, the total, the badge keys and the cells.
+- `EncyclopediaEntry` has `icon_tint`, `badges` and `cells`. `EncyclopediaPanel` draws the cells six per row, the first row
+  offset by half a cell, 32 units each [M], with the number in the population circle in gold.
+- `App::fleet_summary_entry` (app_screens.cpp) builds the pop-up for a hovered fleet stack and for the local player's land
+  stack:
+  - the stack art `fleet_stacks_0n.tga` [M] tinted with the owner colour;
+  - a fleet that is not the local player's shows its types only with the planet's FleetContents visibility, else
+    `i_button_unknown.tga`.
+- A map fleet in transit gets the pop-up and `fleet_tooltip` only when it is the local player's.
+- Not built: other players' land stacks, which the port does not make hoverable (they carry no id), so the surface
+  visibility gate for them waits for that.
 
 ## t14 Game options record 0x140b1549c (GMM+0xbc, 0x24 bytes)
 

@@ -437,6 +437,32 @@ const char* galactic_announcement(const galactic::GalacticSim& g, const galactic
     }
 }
 
+FleetTooltip fleet_tooltip_summary(std::string_view owner_faction, bool land, std::span<const FleetTooltipGroup> groups, bool all_raid,
+                                   bool all_stealth) {
+    FleetTooltip out;
+    // [name-ok-begin: retail hard-code, docs/re/SCORE_TOOLTIPS_GAME_OPTIONS.md 0x2eb070 [M] (the tooltip's three faction names)]
+    const char* side = ascii_iequals(owner_faction, "Rebel")        ? "GOOD"
+                       : ascii_iequals(owner_faction, "Empire")     ? "EVIL"
+                       : ascii_iequals(owner_faction, "Underworld") ? "CORRUPT"
+                                                                    : "PIRATE";
+    // [name-ok-end]
+    out.title = std::string("TEXT_") + side + (land ? "_LAND_GARRISON" : "_SPACE_FLEET");
+    if (!land) {
+        if (all_raid) out.badges.emplace_back("TEXT_RAID_FLEET");
+        if (all_stealth) out.badges.emplace_back("TEXT_STEALTH_FLEET");
+    }
+    for (const FleetTooltipGroup& gr : groups) {
+        if (gr.count == 0) continue;
+        out.total += gr.pop * static_cast<int32_t>(gr.count);
+        FleetTooltipCell c;
+        c.icon = !gr.known ? "i_button_unknown.tga" : gr.icon.empty() ? "i_button_temporary.tga" : gr.icon;
+        if (gr.count >= 2) c.label = "x" + std::to_string(gr.count);
+        c.stealth = gr.stealth;
+        out.cells.push_back(std::move(c));
+    }
+    return out;
+}
+
 std::vector<PlanetIndex> fleet_drag_route(const galactic::GalacticSim& g, int32_t me, uint32_t fleet_id, PlanetIndex target) {
     std::vector<PlanetIndex> path;
     if (me < 0 || target >= g.planets().size()) return path;

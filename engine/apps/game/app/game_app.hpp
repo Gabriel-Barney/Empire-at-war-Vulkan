@@ -823,6 +823,10 @@ private:
     double last_approach_s_ = -1e9;              // wall clock of the last enemy-approach announcement
     uint64_t build_refusals_ = 0;  // clicks on greyed galactic build pads (negative feedback)
     bool activate_special_here(uint32_t hero_id);
+    // #471: the fleet / land tooltip summary of a hovered stack (key: a fleet's id, or kEncyLandKey | a planet's id).
+    static constexpr uint32_t kEncyLandKey = 0xD0000000u;  // [port] above every object id the sim hands out
+    std::optional<ui::EncyclopediaEntry> fleet_summary_entry(uint32_t key) const;
+    bool own_fleet(uint32_t fleet_id) const;  // the live fleet with this id is the local player's
     std::vector<objects::ObjectHandle> special_units(const galactic::GalacticSim& g, PlanetIndex pi) const;
     // OI host: main-menu attract demo (attract_mode.hpp), audio flags, fast forward.
     AttractController attract_;

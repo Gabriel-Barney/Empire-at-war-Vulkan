@@ -194,6 +194,28 @@ void test_panels() {
     dl.clear();
     enc.build(dl, cv, e, {500, 400}, std::nullopt, 0, true);  // zoomed variant on layer 4
     CHECK(!dl.items(4, HudList::Alpha).empty() && dl.items(9, HudList::Alpha).empty());
+    // #471: a fleet summary - the tinted stack art, a badge line and the unit grid (six per row, a stealth overlay, "x%d").
+    {
+        EncyclopediaEntry fs;
+        fs.header = U"Imperial Fleet";
+        fs.population = 8;
+        fs.icon = "i_button_vader.tga";
+        fs.icon_tint = Rgba8{200, 10, 10, 255};
+        HudDrawList d0, d1;
+        enc.update(3, 0, 20.0);
+        enc.update(3, 0, 21.0);
+        const Vec2f plain = enc.build(d0, cv, fs, {500, 400});
+        bool tinted = false;
+        for (const HudQuad& q : d0.items(9, HudList::Alpha))
+            if (q.color.r == 200 && q.color.g == 10) tinted = true;
+        CHECK(tinted);
+        fs.badges = U"Raid Fleet, Stealth Fleet";
+        for (int i = 0; i < 7; ++i) fs.cells.push_back({"i_button_vader.tga", i == 0 ? U"x3" : U"", i == 1});
+        const Vec2f grid = enc.build(d1, cv, fs, {500, 400});
+        CHECK(grid.x == plain.x && grid.y > plain.y + 2 * 32.0f);  // two rows of cells and the badge line
+        CHECK(d1.items(9, HudList::Alpha).size() == d0.items(9, HudList::Alpha).size() + 7 + 1);  // 7 cells + 1 stealth overlay
+        CHECK(d1.items(9, HudList::Text).size() > d0.items(9, HudList::Text).size() + 2);       // the badges and "x3"
+    }
 
     // QA U4 (HUD_GAPS Â§2.1): a long "Good against" value wraps in its own column, right of its label, and every glyph stays
     // inside the box; a long name wraps left of the cost; the box grows with the lines. Also pseudo-localised (+40 %).

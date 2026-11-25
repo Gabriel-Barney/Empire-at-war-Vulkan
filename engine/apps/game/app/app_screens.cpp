@@ -1061,7 +1061,9 @@ void App::build_encyclopedia(ui::HudDrawList& dl, const ui::HudCanvas& canvas) {
         const std::vector<ui::PickSphere> items = gview_.pick_items();
         stack_fleet = ui_.galactic_hud.stack_under(static_cast<float>(mx), static_cast<float>(my), stack_land);
         const auto fhit = ui::pick_spheres(items, ui::pixel_ray(v, mx, my));
-        if (stack_fleet == 0 && routed_.hover_component < 0 && fhit && items[*fhit].kind == ui::PickKind::Fleet) stack_fleet = items[*fhit].id;
+        // #471 (0x2f1130 [H]): a fleet object on the map has a tooltip (and fleet_tooltip) only when it is the local player's.
+        if (stack_fleet == 0 && routed_.hover_component < 0 && fhit && items[*fhit].kind == ui::PickKind::Fleet && own_fleet(items[*fhit].id))
+            stack_fleet = items[*fhit].id;
         if (const auto hit = fhit; hit && items[*hit].kind == ui::PickKind::Planet) {
             object = items[*hit].id;
             for (const render::GalacticPlanetSnap& p : gview_.frame().planets)
@@ -1076,33 +1078,21 @@ void App::build_encyclopedia(ui::HudDrawList& dl, const ui::HudCanvas& canvas) {
             }
     }
     if (routed_.hover_component >= 0) object = 0;  // over the HUD: no world pop-up
-    // ui1 t03 (HUD_GAPS §2.2: fleets use a fleet summary and fire the story trigger fleet_tooltip, land forces land_tooltip;
-    // [port] the summary layout is not recovered: the pop-up of the fleet's representative unit, the unit with the highest
-    // Tactical_Health as on the stack button; the trigger fires once per hovered fleet / land stack).
-    if (stack_fleet != 0 && !stack_land)
-        if (const galactic::GalacticSim* g = galaxy()) {
-            const objects::ObjectStore& st = g->store();
-            float best = -1.0f;
-            for (const auto& fl : g->fleets()) {
-                if (!fl.alive || !st.alive(fl.object) || static_cast<uint32_t>(st.id(fl.object)) != stack_fleet) continue;
-                for (const objects::ObjectHandle m : fl.contents) {
-                    if (!st.alive(m)) continue;
-                    const objects::TypeIndex t = st.type(m);
-                    const float hp = t < data_.types.size() ? data_.types.get_float(t, "Tactical_Health") : 0.0f;
-                    if (hp > best) {
-                        best = hp;
-                        type = t;
-                        object = stack_fleet;
-                    }
-                }
-            }
-        }
+    // ui1 t03 / #471 (docs/re/SCORE_TOOLTIPS_GAME_OPTIONS.md "t13"): a fleet stack shows the fleet summary and fires the
+    // story trigger fleet_tooltip, a land-forces stack the land summary and land_tooltip (once per hovered stack). The
+    // pop-up's subject is the stack key (fleet_summary_entry): the fleet's id, or kEncyLandKey | the planet's id.
+    bool summary = false;
+    if (stack_fleet != 0) {
+        object = stack_land ? (kEncyLandKey | stack_fleet) : stack_fleet;
+        summary = fleet_summary_entry(object).has_value();
+        if (!summary) object = 0;
+    }
     {
         const uint32_t key = stack_fleet == 0 ? 0u : (stack_fleet ^ (stack_land ? 0x80000000u : 0u));
         if (key != 0 && key != tooltip_trigger_fleet_) story_ui_.generic(stack_land ? "land_tooltip" : "fleet_tooltip");
         tooltip_trigger_fleet_ = key;
     }
-    if (type == objects::kNone) object = 0;
+    if (type == objects::kNone && !summary) object = 0;
     int32_t component = -1;
     // FIXPASS_GALACTIC §2.2 hover: a good hero slot shows its hero's pop-up.
     if (hero_panel_.open() && hero_panel_.hover_component() >= 0 && hero_panel_.hover_hero() != 0)
@@ -1149,6 +1139,11 @@ void App::build_encyclopedia(ui::HudDrawList& dl, const ui::HudCanvas& canvas) {
     const uint32_t shown = ency_.shown_object();
     std::erase_if(ency_types_, [&](const auto& p) { return p.first != shown && p.first != object; });
     if (shown == 0 || ency_.stage() == ui::EncyclopediaPanel::Stage::Hidden) return;
+    const ui::HudLayout& layout = screen() == Screen::Battle ? ui_.tactical_hud.layout() : ui_.galactic_hud.layout();
+    if (std::optional<ui::EncyclopediaEntry> fleet = screen() == Screen::Galactic ? fleet_summary_entry(shown) : std::nullopt) {
+        if (ency_.build(dl, canvas, *fleet, layout, ui_.faction_alt()).x > 0.0f) ++ency_shown_;
+        return;
+    }
     objects::TypeIndex shown_type = objects::kNone;
     for (const auto& [id, t] : ency_types_)
         if (id == shown) shown_type = t;
@@ -1162,8 +1157,86 @@ void App::build_encyclopedia(ui::HudDrawList& dl, const ui::HudCanvas& canvas) {
                 !g->can_see_planet_info(local_player(), pi, galactic::GalacticSim::PlanetInfo::CreditIncome))
                 std::erase_if(e.rows, [](const ui::EncyclopediaRow& r) { return r.id == kPlanetIncomeRow; });
     // HUD_GAPS §2.2: anchored at the hint bone of the HUD on screen (not the cursor).
-    const ui::HudLayout& layout = screen() == Screen::Battle ? ui_.tactical_hud.layout() : ui_.galactic_hud.layout();
     if (ency_.build(dl, canvas, e, layout, ui_.faction_alt()).x > 0.0f) ++ency_shown_;
+}
+
+bool App::own_fleet(uint32_t fleet_id) const {
+    const galactic::GalacticSim* g = galaxy();
+    if (!g) return false;
+    const objects::ObjectStore& st = g->store();
+    for (const galactic::FleetState& fl : g->fleets())
+        if (fl.alive && st.alive(fl.object) && static_cast<uint32_t>(st.id(fl.object)) == fleet_id) return fl.owner == local_player();
+    return false;
+}
+
+// #471 (docs/re/SCORE_TOOLTIPS_GAME_OPTIONS.md "t13" [H]): the summary pop-up of a hovered stack. `key` = a fleet's id
+// (0x2efb40: its members by type; a fleet that is not the local player's shows known types only with the planet's
+// FleetContents visibility, else i_button_unknown) or kEncyLandKey | a planet's id (0x2f25a0: the local player's surface
+// units there; the port's hoverable land stack is the local player's own). nullopt = not a stack key / nothing to show.
+std::optional<ui::EncyclopediaEntry> App::fleet_summary_entry(uint32_t key) const {
+    const galactic::GalacticSim* g = galaxy();
+    if (!g || key == 0) return std::nullopt;
+    const objects::ObjectStore& st = g->store();
+    const int32_t me = local_player();
+    const bool land = (key & 0xF0000000u) == kEncyLandKey;
+    const uint32_t id = key & ~kEncyLandKey;
+    std::vector<objects::ObjectHandle> units;
+    int32_t owner = -1;
+    bool known = true, all_raid = false, all_stealth = false;
+    if (land) {
+        const PlanetIndex pi = planet_index(*g, id);
+        if (pi == kInvalidPlanet || me < 0) return std::nullopt;
+        owner = me;
+        for (const objects::ObjectHandle h : g->planets()[pi].surface)
+            if (st.alive(h) && st.owner(h) == owner) units.push_back(h);
+    } else {
+        const galactic::FleetState* fp = nullptr;
+        for (const galactic::FleetState& fl : g->fleets())
+            if (fl.alive && st.alive(fl.object) && static_cast<uint32_t>(st.id(fl.object)) == id) fp = &fl;
+        if (!fp) return std::nullopt;
+        owner = fp->owner;
+        for (const objects::ObjectHandle h : fp->contents)
+            if (st.alive(h)) units.push_back(h);
+        known = owner == me || (fp->planet != kInvalidPlanet &&
+                                g->can_see_planet_info(me, fp->planet, galactic::GalacticSim::PlanetInfo::FleetContents));
+        const galactic::ConflictManager* cm = session_ && session_->battles() ? &session_->battles()->conflicts() : nullptr;
+        all_raid = cm && cm->raid_force(owner, units);  // 0x432e20
+        all_stealth = !units.empty() && std::all_of(units.begin(), units.end(), [g](objects::ObjectHandle h) { return g->hidden(h); });
+    }
+    if (units.empty() || owner < 0 || static_cast<size_t>(owner) >= g->players().size()) return std::nullopt;
+    std::vector<objects::TypeIndex> types;
+    std::vector<game::FleetTooltipGroup> groups;
+    for (const objects::ObjectHandle h : units) {
+        const objects::TypeIndex t = st.type(h);
+        const auto at = std::find(types.begin(), types.end(), t);
+        if (at != types.end()) {
+            ++groups[static_cast<size_t>(at - types.begin())].count;
+            continue;
+        }
+        types.push_back(t);
+        game::FleetTooltipGroup gr;
+        gr.count = 1;
+        gr.pop = t < data_.types.size() ? data_.types.get_int(t, "Population_Value") : 0;
+        gr.icon = t < ui_.hud_types.size() ? ui_.hud_types[t].icon_name : std::string();
+        gr.known = known;
+        gr.stealth = g->hidden(h);
+        groups.push_back(std::move(gr));
+    }
+    const uint32_t f = g->players()[static_cast<size_t>(owner)].faction;
+    const std::string_view faction = f < g->rules().factions.size() ? std::string_view(g->rules().factions[f].name) : std::string_view();
+    const game::FleetTooltip s = game::fleet_tooltip_summary(faction, land, groups, all_raid, all_stealth);
+    const auto text = [this](const std::string& k) {
+        const std::u16string* t = ui_.text.find(k);
+        return t ? ui::gui_unescape(ui::utf16_to_utf32(*t)) : ui::utf8_to_utf32(k);
+    };
+    ui::EncyclopediaEntry e;
+    e.header = text(s.title);
+    e.population = s.total;
+    e.icon = "fleet_stacks_0" + std::to_string(std::clamp<size_t>(units.size(), 1, 5)) + ".tga";  // the stack art [M]
+    e.icon_tint = faction_rgba(*g, owner, false, ui::Rgba8{});
+    for (const std::string& b : s.badges) e.badges += (e.badges.empty() ? U"" : U", ") + text(b);
+    for (const game::FleetTooltipCell& c : s.cells) e.cells.push_back({c.icon, ui::utf8_to_utf32(c.label), c.stealth});
+    return e;
 }
 
 // ui1 t01 (legacy docs/re/UI.md §3.1 gives the pointer set, not the rules; [port] legacy docs/PHASE4.md "UI1 cursor"): the object under the

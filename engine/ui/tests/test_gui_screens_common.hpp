@@ -493,6 +493,7 @@ struct PanelEnv {
                               "i_button_e_tech_upgrade_5.tga", "i_bar_health_small10.tga"})
             atlas.add({n, 0, 0, 40, 40, true});
         atlas.add({"i_button_vader.tga", 0, 0, 64, 64, true});
+        atlas.add({"i_icon_stealth.tga", 0, 0, 16, 16, true});  // #471: the summary cell's stealth overlay
     }
     // Click the centre of `component`'s hit box through the panel.
     template <class Panel>
