@@ -453,6 +453,10 @@ struct FleetState {
     // mcx4 t20 (MCX4_T09_RE_ANSWERS Q5): fleet data +0x95, set when a unit whose type has
     // Prevents_Story_Campaign_Autoresolve joins (GalacticSim::fleet_member_joined), never cleared. Saved (galactic v11).
     bool story_autoresolve_lock = false;
+    // #456 (docs/re/STARBASE_ORBIT_FLEETS.md): fleet data +0x94, set by the FleetDataPackClass constructor (0x5528e0) [H]
+    // and cleared only on the fleet of an AI magic spawn (HIJACK_UNIT 0x648370) [M, high]. Only a fleet with it set counts
+    // in the starbase orbit test. A merge keeps the receiving fleet's value (0x433dd0) [H]. Saved (galactic v15).
+    bool counts_for_starbase = true;
 };
 
 // ---- A2 galactic: AI-facing hooks (legacy docs/re/AI_GALACTIC_2.md §3.1, §5.4; legacy docs/re/COMMANDS.md id 8) -----------------------
@@ -948,6 +952,10 @@ public:
     // (any owner), spawn. Step 5 (launch op 4 + form op 0 for a unit created on a surface; FAILED when
     // blockaded) is the caller's, through FleetManagement events.
     ObjectHandle magic_spawn(int32_t player, PlanetIndex planet, uint32_t type, bool steal, bool hero);
+    // #456 (docs/re/STARBASE_ORBIT_FLEETS.md): HIJACK_UNIT's last step (0x648370, after op 4 + op 0 with no target and
+    // only when the planet is not AI-blockaded) clears fleet data +0x94 on the spawned unit's fleet [H]. Clears
+    // counts_for_starbase on the fleet holding `unit` when the unit is alone in it; otherwise nothing.
+    void clear_starbase_count(ObjectHandle unit);
     // A hostile combat fleet in orbit of the planet for `player` (HUD / story use; the starbase rules use
     // starbase_orbit_blocked).
     bool blockaded(PlanetIndex planet, int32_t player) const { return valid_planet(planet) && enemy_fleet_in_orbit(planet, player); }
@@ -1478,8 +1486,7 @@ private:
     bool enemy_fleet_in_orbit(PlanetIndex planet, int32_t player) const;
     // #433 (docs/re/STARBASE_ORBIT_FLEETS.md) [H]: the starbase orbit test of production rule 2 (0x402840) and buildability
     // step 20 (0x2804d0): an alive fleet in the orbit whose owner is not `player` (allies and neutrals included) and that
-    // is not hidden (0x3a9760). [port] retail also needs the fleet data byte +0x94, clear only on the fleet of an AI magic
-    // spawn [M]; not modelled, so every fleet counts (#456).
+    // is not hidden (0x3a9760), and whose fleet data byte +0x94 is set (FleetState::counts_for_starbase, #456).
     bool starbase_orbit_blocked(PlanetIndex planet, int32_t player) const;
     bool contested_surface(PlanetIndex planet) const;
     // objects

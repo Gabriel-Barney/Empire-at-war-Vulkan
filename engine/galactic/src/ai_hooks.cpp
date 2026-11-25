@@ -121,6 +121,11 @@ ObjectHandle GalacticSim::magic_spawn(int32_t player, PlanetIndex planet, uint32
     return spawn_unit(player, planet, type);
 }
 
+void GalacticSim::clear_starbase_count(ObjectHandle unit) {
+    const uint32_t f = fleet_containing(unit);
+    if (f != kNoFleet && fleets_[f].contents.size() == 1) fleets_[f].counts_for_starbase = false;
+}
+
 // ---- AI blockade test (0x3fa370, A2GAL_READINGS 4) [H] -------------------------------------------------------------
 // Relative to the planet's owner X: the first orbit entry that is not being removed and not hidden decides; blockaded
 // unless its owner is X itself or an ally of X (an owner with no player is not friendly). No combat-power filter, so

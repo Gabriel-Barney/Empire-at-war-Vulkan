@@ -35,8 +35,29 @@ There is no `ai_combat_power` test and no test of what the fleet holds.
 - The only readers found are the two tests above [M, same search].
 
 So +0x94 reads as "this fleet counts against starbase builds in its orbit", and only a fleet formed by an AI magic
-spawn has it clear. What happens to the byte when such a fleet merges into another, or another fleet merges into it,
-was not read [L].
+spawn has it clear.
+
+## Writers and merges (#456, read 2026-11-25)
+
+- A capstone sweep of every function for a store covering +0x94 (byte to xmm width) and for `lea +0x94` found these
+  writers on fleet data [H for each]:
+  - the constructor 0x5528e0 (the 16-bit store of 1; its only caller is 0x390790, reached from FleetBehaviorClass vf7
+    0x431800; there is no copy constructor or assignment, and the destructor 0x552970 leaves it alone);
+  - HIJACK_UNIT 0x648370 (the byte store of 0 at 0x6487f1);
+  - the load 0x552b90 (microchunk 0xF, one byte; the save 0x552e10 writes the same chunk).
+  Every other hit belongs to an unrelated class. So HIJACK_UNIT is the only clearing writer [M, high: the non-fleet hits
+  were classified by the stores around them, not by tracing each base register].
+- HIJACK_UNIT, after the magic spawn 0x400b40, unless the planet is AI-blockaded (0x3fa370) or the object is itself a
+  Galactic_Fleet, runs FleetManagement op 4 and then op 0 with no target on the spawned unit at its planet (0x5afb60
+  field map) [H]. Op 0 with no target makes a new Galactic_Fleet holding the unit, and the clear lands on the unit's
+  parent fleet (+0x2b0) [H for the calls; M that the unit ends alone in the new fleet].
+- Merge 0x433dd0(A, B): with the same player, every unit of B (last first) leaves B (0x434d30) and joins A (0x430f30);
+  the emptied B dies (0x391310). None of the add and remove functions touches +0x94 [H]. So A keeps its byte and B's
+  dies with B. Its two callers are the final arrival 0x56a1e0 (the arriving fleet merges into the one in orbit) and
+  FleetManagement op 3 0x5af260 (the object fleet merges into the target) [H].
+- Consequences: a clear fleet merging into a set one gives a set fleet; a set fleet merging into a clear one stays
+  clear; a unit moved into a clear fleet stays in a fleet that does not count; a unit split off into a new fleet gets a
+  fresh 1 [M].
 
 ## Port consequence
 
@@ -44,5 +65,16 @@ was not read [L].
   orbit, owner != player, not hidden. `service_production` rule 2 and `build_check` step 20 use it.
 - `enemy_fleet_in_orbit` (hostile and combat-capable) stays for its other callers, `orbit_conflict` (the
   enter-orbit test 0x4338d0) and `blockaded`, which are separate retail tests.
-- The +0x94 byte is not modelled: every port fleet counts. Porting it needs a fleet flag that the galactic save
-  carries, cleared on the fleet of a magic spawn, and the merge rule above (follow-up issue).
+- #456: the byte is `FleetState::counts_for_starbase` (true for every new fleet), tested by `starbase_orbit_blocked`.
+  The galactic build task's magic plan (engine/ai/src/galactic_build.cpp) follows HIJACK_UNIT: after the spawn, unless
+  the planet is AI-blockaded, a surface unit is launched and formed as before, and a unit spawned into an orbit fleet
+  is formed alone with FleetManagement op 0 (so slotting and the new-fleet conflict run as for any op 0). Then
+  `GalacticSim::clear_starbase_count` clears the flag on the unit's fleet when the unit is alone there. The merges
+  (`merge_fleet`, FleetManagement op 3, the arrival merge, the AI's READY_TO_MERGE) already keep the receiving fleet's
+  state, as retail does. Galactic save v15 carries the cleared fleets.
+- [port] gaps:
+  - a launched ground unit that stays in the shared orbit fleet (the port has no company transports) leaves that
+    fleet set; one formed alone (it carries itself) is cleared;
+  - a blockaded orbit spawn does not fail the task as retail's state 7 does (as before), but it is not formed or cleared;
+  - the tactical reinforcement hijack (engine/apps/sim/src/battle_ai.cpp `hijack_unit`) does not form or clear: the
+    reinforcement stays in the battle's orbit fleet.

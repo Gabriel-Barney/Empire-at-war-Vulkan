@@ -2021,6 +2021,7 @@ void test_special_case_production() {
         size_t tail = 4 + 4 + 2 + 4 + 5 * s.autoresolve_exclusions().size();  // then the auto-resolve rules (t07), the v11 lock list, the v12 survivors
         tail += 4 * s.players().size();  // the v13 per-planet tactical upgrade lists (#68)
         tail += 4;  // the v14 persistent upgrade objects (#459; none: one u32 count)
+        tail += 4;  // the v15 cleared-fleet list (#456; none: one u32 count)
         for (const PlanetState& pl : s.planets()) tail += 4 + 4 * pl.initial_placement.size();
         std::vector<uint8_t> v9(bytes.begin(), bytes.end() - static_cast<std::ptrdiff_t>(tail));
         v9[0] = 9;
@@ -2298,6 +2299,63 @@ void test_starbase_orbit_fleets() {
         CHECK(r.step20 == c.blocks);
         CHECK(r.cancelled == c.blocks);
     }
+}
+
+// #456 (docs/re/STARBASE_ORBIT_FLEETS.md): HIJACK_UNIT forms the spawned unit alone (op 0 with no target) and clears
+// that fleet's +0x94, so the fleet does not count in the starbase orbit test; the clear needs the unit alone in its fleet;
+// a merge keeps the receiving fleet's byte (0x433dd0) [H]; the byte is saved (galactic v15).
+void test_magic_spawn_fleet_flag() {
+    std::printf("  oi: magic-spawned fleets and the starbase orbit test (#456)\n");
+    OiWorld w({{pEmpire, rA, tSB1}, {pEmpire, rA, tBarracks}});
+    GalacticSim& s = w.sim;
+    s.add_credits(pEmpire, 50000.0f);
+    s.set_relation(pEmpire, pUnder, Relation::Enemy);
+    const uint32_t none = commands::kNoObject;
+    const auto oid = [&w](ObjectHandle h) { return static_cast<uint32_t>(w.store.id(h)); };
+    const auto fl = [&s](uint32_t f) -> const FleetState& { return s.fleets()[f]; };
+    const auto refused = [&] { return s.build_check(pEmpire, rA, tSB2).reason == kBuildHostileFleet; };
+    const auto op = [&](FleetOp o, uint32_t target, uint32_t fleet, uint32_t unit) {
+        return s.execute(static_cast<uint8_t>(pUnder), fleet_management_event(o, target, fleet, unit));
+    };
+    const uint32_t pa = oid(w.planet(rA).object);
+    // 1. A magic spawn alone in orbit, cleared: its fleet no longer blocks.
+    const ObjectHandle m1 = s.magic_spawn(pUnder, rA, tFrigate, false, false);
+    const uint32_t f1 = s.fleet_containing(m1);
+    CHECK(f1 != kNoFleet && fl(f1).counts_for_starbase && refused());
+    s.clear_starbase_count(m1);
+    CHECK(!fl(f1).counts_for_starbase && !refused());
+    // 2. A normal spawn joins the first idle orbit fleet, the clear f1, which stays clear (a unit moved into a clear fleet
+    // does not count [H]).
+    const ObjectHandle u = s.spawn_unit(pUnder, rA, tFrigate);
+    CHECK(s.fleet_containing(u) == f1 && !fl(f1).counts_for_starbase && !refused());
+    // 3. Detached into a new fleet (set), the normal unit blocks; the clear f1 merged into it gives a set fleet.
+    CHECK(op(kFleetDetach, pa, none, oid(u)) == RejectReason::None);
+    const uint32_t f2 = s.fleet_containing(u);
+    CHECK(f2 != kNoFleet && f2 != f1 && fl(f2).counts_for_starbase && refused());
+    CHECK(op(kFleetMerge, oid(fl(f2).object), oid(fl(f1).object), none) == RejectReason::None && !fl(f1).alive);
+    CHECK(fl(f2).contents.size() == 2 && fl(f2).counts_for_starbase && refused());
+    // 4. A magic spawn joins f2; sharing it, the clear does nothing; formed alone (op 0 with no target) and cleared, its
+    // own fleet is clear, and f2 still blocks.
+    const ObjectHandle m2 = s.magic_spawn(pUnder, rA, tFrigate, false, false);
+    CHECK(s.fleet_containing(m2) == f2);
+    s.clear_starbase_count(m2);
+    CHECK(fl(f2).counts_for_starbase && refused());
+    CHECK(op(kFleetForm, pa, none, oid(m2)) == RejectReason::None);
+    const uint32_t f3 = s.fleet_containing(m2);
+    CHECK(f3 != kNoFleet && f3 != f2 && fl(f3).contents.size() == 1 && fl(f3).counts_for_starbase);
+    s.clear_starbase_count(m2);
+    CHECK(!fl(f3).counts_for_starbase && refused());
+    // 5. The set f2 merged into the clear f3 leaves f3 clear: nothing blocks.
+    CHECK(op(kFleetMerge, oid(fl(f3).object), oid(fl(f2).object), none) == RejectReason::None && !fl(f2).alive);
+    CHECK(fl(f3).contents.size() == 3 && !fl(f3).counts_for_starbase && !refused());
+    std::printf("    hijack fleet cleared: no refusal; clear into set: set, refused; set into clear (%zu units): clear, no refusal\n",
+                fl(f3).contents.size());
+    // 6. Saved: the clear byte survives a write / read.
+    ByteWriter bw;
+    s.write(bw);
+    const std::vector<uint8_t> bytes = bw.bytes();
+    ByteReader br(bytes);
+    CHECK(s.read(br) && !fl(f3).counts_for_starbase && !refused());
 }
 
 // SG 1.3: buildability order and reason codes.
@@ -3686,6 +3744,7 @@ int main(int argc, char** argv) {
         test_oi_base_info();
         test_oi_buildability();
         test_starbase_orbit_fleets();  // #433
+        test_magic_spawn_fleet_flag();  // #456
         test_campaign_rule_fields_parse();
         test_special_case_production();
         test_corruption_level_override();
