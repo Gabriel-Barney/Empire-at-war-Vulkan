@@ -1524,7 +1524,8 @@ uint32_t GalacticAiWorld::Impl::movable_tf_fleet_at(const TaskForceRec& tf, Plan
 // parent chain [H, the a2f probe: Get_Planet_Location nil in On_Unit_Added for a built CRUSADER_GUNSHIP and an
 // UNDERWORLD_INFANTRY_DROID_SHUTTLE]; why the chain is still empty there is not read [L]. So for a produced admission the
 // unit reads as unplaced while On_Unit_Added runs: Get_Planet_Location / Get_Parent_Object nil, Move_Object refused (in
-// transit), and a FindTarget source of it gives no reachability test (0x698360).
+// transit), and a FindTarget source of it gives no reachability test (0x698360). The flag keys on the port's production
+// admissions in claim_units; a new path that admits a just-built unit must pass it too.
 void GalacticAiWorld::Impl::free_store_admitted(int32_t player, ObjectHandle u, bool produced) {
     PlayerAi* pa = player_ai(player);
     if (!pa || !pa->fs_vm || now <= 0 || !store.alive(u) || store.owner(u) != player || tf_owns(u)) return;
@@ -1534,11 +1535,20 @@ void GalacticAiWorld::Impl::free_store_admitted(int32_t player, ObjectHandle u, 
     a.kind = lua::AiEventArg::Object;
     a.object = u;
     std::string err;
-    const ObjectHandle outer = admitting_produced;
-    if (produced) admitting_produced = u;
+    // The unplaced slot holds one unit; claim_units is not re-entered from the script, so nested produced admissions do
+    // not happen. The guard restores the outer value on every exit.
+    struct Unplaced {
+        ObjectHandle& slot;
+        ObjectHandle outer;
+        Unplaced(ObjectHandle& s, ObjectHandle u, bool on) : slot(s), outer(s) {
+            if (on) slot = u;
+        }
+        ~Unplaced() { slot = outer; }
+        Unplaced(const Unplaced&) = delete;
+        Unplaced& operator=(const Unplaced&) = delete;
+    } unplaced(admitting_produced, u, produced);
     if (!lua::call_global_function(*pa->fs_vm, "On_Unit_Added", {a}, &err) && !err.empty())
         errors.push_back("free store " + std::to_string(player) + " On_Unit_Added: " + err);
-    admitting_produced = outer;
 }
 
 void GalacticAiWorld::Impl::claim_units(int32_t player) {
@@ -2324,10 +2334,10 @@ int32_t GalacticAiWorld::Impl::find_target(int32_t script, const lua::AiFindTarg
     // unit during its admission: 0x6b8590 gives null) skips the reachability test too. Plain FindTarget has neither.
     const bool reachable = !r.reachability.empty();
     const PlanetIndex source = reachable && r.relative.present ? planet_arg(r.relative) : kInvalidPlanet;
-    const bool have_source = valid_planet(source);
-    const AiPathFinder* finder = have_source && valid_planet(source) ? ensure_path_finder(player) : nullptr;
+    const bool have_source = valid_planet(source);  // [M] a fleet in transit has no planet (+0x2B0 null), as `moving`
+    const AiPathFinder* finder = have_source ? ensure_path_finder(player) : nullptr;
     auto slot7 = [&](PlanetIndex t) -> double {
-        if (!valid_planet(source) || !finder || !finder->created()) return kReachNone;
+        if (!finder || !finder->created()) return kReachNone;
         if (source == t) return 0.0;
         std::vector<PlanetIndex> path;
         std::vector<uint32_t> wts;
@@ -2350,7 +2360,7 @@ int32_t GalacticAiWorld::Impl::find_target(int32_t script, const lua::AiFindTarg
         if (have_source && slot7(static_cast<PlanetIndex>(t)) >= kReachNone) continue;
         double v = 0.0;
         if (!evaluate_id(player, pa->ctx.opponent, eq, r.perception, static_cast<int32_t>(t), v)) continue;
-        if (range > 0.0 && valid_planet(source)) {
+        if (range > 0.0) {
             const Vec3 a = sim.planets()[t].position, b = sim.planets()[source].position;
             const double dx = static_cast<double>(a.x) - b.x, dy = static_cast<double>(a.y) - b.y, dz = static_cast<double>(a.z) - b.z;
             if (dx * dx + dy * dy + dz * dz > range * range) continue;

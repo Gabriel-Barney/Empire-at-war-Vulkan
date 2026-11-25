@@ -2481,7 +2481,9 @@ void test_free_store_world() {
     CHECK(world.reachable_target(0, "One", "Enemy", "Friendly_Only", 1.0, 0) != 7);
     CHECK(world.reachable_target(0, "One", "Enemy", "Any", 1.0, 0) == 7);
     CHECK(world.reachable_target(0, "One", "Friendly", "Friendly_Only", 1.0, 1) == 1);  // P1 -> P0 is free; P1 itself is 0
-    CHECK(world.reachable_target(0, "One", "Friendly", "Friendly_Only", 1.0, 99) == -1);  // no source planet: 1e18 for all
+    // #401 (0x698360, the null-source skip at 0x698976) [H]: a source with no planet skips the reachability test, so the pick
+    // is the one without argument 6 (ties keep the first, P1). It used to give 1e18 for every candidate.
+    CHECK(world.reachable_target(0, "One", "Friendly", "Friendly_Only", 1.0, 99) == 1);
     // Argument 7: the 3-D distance from the source planet, after Evaluate.
     CHECK(world.reachable_target(0, "One", "Friendly", "Any", 1.0, 1, 1.0) == 1);
     CHECK(pw.rng->synced().draws() == d0 + 1);

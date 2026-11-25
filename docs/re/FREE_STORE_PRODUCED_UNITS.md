@@ -54,3 +54,10 @@ captures, every Underworld leg is a hero-shuttle fleet.
   1e18 for every candidate.
 - Other admissions (the initial fill, a unit a task force gives back, a free-store claim re-admitted) are unchanged:
   retail's script sees their planets.
+- Not flagged: a just-built ground unit that fails its task because its build planet is blockaded
+  (GROUND_UNIT_PRODUCTION 0x648120, then re-admitted). Whether retail's chain is still empty on that path is not read
+  [L]; the port keeps its planet.
+- The `find_target` change applies to every source with no planet, also a unit in a moving fleet: 0x698360's skip does
+  not depend on the caller [H]; that a fleet in transit has no planet (+0x2B0 null) is [M].
+- [port] Only the planet chain is hidden: the unit's fleet still lists it (`fleet_of_unit`, Lua `contents_of`). The
+  shipped script reads only the planet.
