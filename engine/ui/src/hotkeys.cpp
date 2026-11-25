@@ -322,15 +322,19 @@ bool HotkeyTable::load(const HotkeyProfile& in) {
 namespace {
 // `0x2127f0` (legacy docs/re/P1_CAMERA_INPUT.md §6): modifier 0 matches only with Shift, Ctrl and Alt all up; 1 / 2 / 3 when Shift /
 // Ctrl / Alt is held (the others are ignored).
-bool matches(const InputState& in, const HotkeyBinding& b) {
-    if (b.key < 0 || !in.key_pressed(static_cast<uint32_t>(b.key))) return false;
-    switch (b.mod) {
-        case HotkeyMod::None: return !in.shift() && !in.ctrl() && !in.alt();
-        case HotkeyMod::Shift: return in.shift();
-        case HotkeyMod::Ctrl: return in.ctrl();
-        case HotkeyMod::Alt: return in.alt();
+bool mods_match(HotkeyMod m, bool shift, bool ctrl, bool alt) {
+    switch (m) {
+        case HotkeyMod::None: return !shift && !ctrl && !alt;
+        case HotkeyMod::Shift: return shift;
+        case HotkeyMod::Ctrl: return ctrl;
+        case HotkeyMod::Alt: return alt;
     }
     return false;
+}
+
+bool matches(const InputState& in, const HotkeyBinding& b) {
+    if (b.key < 0 || !in.key_pressed(static_cast<uint32_t>(b.key))) return false;
+    return mods_match(b.mod, in.shift(), in.ctrl(), in.alt());
 }
 }  // namespace
 
@@ -342,7 +346,13 @@ bool HotkeyTable::pressed(const InputState& in, uint16_t slot) const {
     return true;
 }
 
-int32_t HotkeyTable::slot_for(uint32_t, bool, bool, bool) const { return -1; }
+int32_t HotkeyTable::slot_for(uint32_t key, bool shift, bool ctrl, bool alt) const {
+    for (uint16_t i = 0; i < kHotkeySlots; ++i) {
+        const HotkeyBinding& b = slots_[i];
+        if (b.key >= 0 && static_cast<uint32_t>(b.key) == key && mods_match(b.mod, shift, ctrl, alt)) return i;
+    }
+    return -1;
+}
 
 void HotkeyTable::pressed(const InputState& in, std::vector<uint16_t>& out) const {
     out.clear();

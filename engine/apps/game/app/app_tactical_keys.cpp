@@ -258,10 +258,10 @@ void App::tactical_hotkeys(const std::vector<ui::HotkeyEvent>& hk, std::vector<c
                 break;
             }
             case hk_::kCameraTether: tether_id_ = ui::tether_toggle(tether_id_, orders_.selection()); break;
-            case hk_::kMovieMode: movie_mode_ = !movie_mode_; break;
+            // MovieMode (on key up) and CinematicView: the battle cam (battle_cam_input, #462).
             case hk_::kToggleInterface: interface_hidden_ = !interface_hidden_; break;
             case hk_::kHolocron: objectives_hidden_ = !objectives_hidden_; break;  // [port] the battle's holocron = the objectives box
-            // CinematicView, taunts, chat, give credits, player list: multiplayer / not traced - no action (legacy docs/PHASE4.md).
+            // Taunts, chat, give credits, player list: multiplayer / not traced - no action (legacy docs/PHASE4.md).
             default: break;
         }
     }
@@ -287,8 +287,8 @@ bool App::tactical_button(const ui::HudAction& a) {
         toggle_reinforcement_list();
         return true;
     }
-    if (ascii_iequals(n, "b_camera_t")) {  // TEXT_MOVIE_MODE
-        movie_mode_ = !movie_mode_;
+    if (ascii_iequals(n, "b_camera_t")) {  // TEXT_MOVIE_MODE (#462, 0x347100)
+        camera_button();
         return true;
     }
     if (ascii_iequals(n, "b_special_weapon2") || ascii_iequals(n, "b_beacon_t")) {  // TEXT_PLACE_BEACON
@@ -309,7 +309,7 @@ bool App::tactical_button(const ui::HudAction& a) {
 }
 
 void App::fill_command_buttons(ui::TacticalHudFrame& hf) const {
-    hf.world.interface_hidden = interface_hidden_ || movie_mode_;
+    hf.world.interface_hidden = interface_hidden_;
     hf.world.health_bar_spacing_px = hud_consts_.health_bar_spacing;  // Health_Bar_Spacing
     hf.objectives_hidden = objectives_hidden_;  // ENABLE_OBJECTIVE_DISPLAY writes it too (story_present_frame)
     const sim::TacticalBattle* b = battle();
@@ -329,7 +329,7 @@ void App::fill_command_buttons(ui::TacticalHudFrame& hf) const {
     c.reinforce_selected = reinforce_unit_ != 0;
     c.beacon_enabled = now_s_ - beacon_last_s_ >= static_cast<double>(beacon_delay_s_);
     c.beacon_selected = beacon_pick_;
-    c.movie_mode = movie_mode_;
+    c.movie_mode = cine_.cam.state() == BattleCam::State::Movie;
     const float cap = b->population_cap(me);
     if (cap >= 0.0f) {
         c.pop_used = static_cast<int32_t>(std::lround(b->population_used(me)));
