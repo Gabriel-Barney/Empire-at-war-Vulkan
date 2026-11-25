@@ -136,6 +136,10 @@ struct ArCombatant {
     bool super = false;           // first member / own type in category "Super"
     bool super_killer = false;    // a member type flagged as Super-weapon killer
     std::vector<ArStarbaseLevel> starbase;  // non-empty: the planet's starbase (space)
+    // #558: the land planet combatant (BaseCombatantClass, docs/re/AUTORESOLVE_FIRE_AND_HANGARS.md). Its pieces are its
+    // persisted tactical-built objects; it fires the first of them (none: no shot), is never the weakest, and survives iff
+    // its side wins (0x60a140 [H]: the loser's planet is killed, the winner's kept, no budget either way).
+    bool planet = false;
     // Unit_Strength_Category / Unit_Strength_Factor of the representative type's <Abilities> (0x374010): one
     // (category bit 0..31, factor) pair per set low bit of an ability whose mask and factor are both non-zero.
     std::vector<std::pair<uint8_t, float>> strength_bonus;

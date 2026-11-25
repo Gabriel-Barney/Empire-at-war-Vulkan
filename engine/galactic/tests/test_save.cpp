@@ -754,7 +754,8 @@ void test_synthetic() {
     // #456: v15 adds the cleared-fleet count (0 here) to the save part.
     // #193: conflict save v5 adds each auto-resolve combatant's spawned pieces and its one shot, and the land conflicts
     // resolve by the one-shot rule.
-    sc.pin = 0x1b607e6e027320acull;
+    // #558: conflict save v6 adds the land planet flag; land auto-resolves fight with the planet, not its structures.
+    sc.pin = 0xf8da23684df19a0dull;
     run_scenario(sc);
 }
 
@@ -1183,7 +1184,8 @@ void test_foc() {
     // #459: v14 adds the upgrade-object count to the save part.
     // #456: v15 adds the cleared-fleet count to the save part.
     // #193: conflict save v5 (spawned pieces, the one shot) and the one-shot auto-resolve.
-    sc.pin = 0xd1f3b082768d6c4cull;  // FoC data
+    // #558: conflict save v6 (the land planet flag) and the land planet combatant.
+    sc.pin = 0x85ecdf6084bb9731ull;  // FoC data
     run_scenario(sc);
 }
 

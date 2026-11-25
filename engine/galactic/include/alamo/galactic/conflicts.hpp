@@ -146,20 +146,26 @@ struct ConflictRules {
 bool load_conflict_rules(const FileProvider& provider, const data::GameDatabase& db, const objects::GameObjectTypes& types,
                          const GalacticRules& galactic, ConflictRules& out, std::vector<std::string>* diagnostics = nullptr);
 
-// The auto-resolve combatant of one object of type `type` owned by `owner` (BT §4.3, #193): its own piece once (a type with
-// Squadron_Units / Company_Units members: their summed P, a company's survivors when given), its Starting_Spawned_Units at
-// the owner's tech level `tech`, and its one shot. Used by
-// ConflictManager::auto_setup and the auto-resolve parity check (tests/autoresolve_parity.cpp).
 // mcx4 t05 (legacy docs/re/MCX4_RE_ANSWERS_TACTICAL.md §9 / §13): a company (Company_Units holder: the TRANSPORT branch of
 // 0x48eb10) that survived a battle is lost as a whole when one of its dead members has Respawn_Whole_Team_When_Killed;
 // the battle end then removes it and schedules its respawn. Only a hero member counts (0x3a01f0); squadron holders
 // (TEAM branch) never are.
 bool company_team_lost(const ConflictRules& rules, uint32_t company_type, std::span<const uint32_t> dead_member_types);
 
+// The auto-resolve combatant of one object of type `type` owned by `owner` (BT §4.3, #193): its own piece once (a type with
+// Squadron_Units / Company_Units members: their summed P, a company's survivors when given), its Starting_Spawned_Units at
+// the owner's tech level `tech`, and its one shot. Used by ConflictManager::auto_setup and the auto-resolve parity check
+// (tests/autoresolve_parity.cpp).
 // survivors: a company's survivor record, nullptr = its full Company_Units. tech: the owner's tech level, which picks the
 // Starting_Spawned_Units list (that level, else the next lower non-empty one; none above 5).
 ArCombatant make_ar_combatant(const GalacticRules& galactic, const ConflictRules& rules, uint32_t type, int32_t owner,
                               bool space, int32_t tech, const std::vector<uint32_t>* survivors = nullptr);
+
+// #558: the land planet combatant of `owner` (0x60b0d0 / 0x60d2a0 [H]): one piece per persisted tactical-built object type
+// in `built` (list order: that type's AI_Combat_Power and CategoryMask), no own or spawned piece; its shot is the first.
+// Ground structures are not land combatants (Add_Object 0x608080: no TRANSPORT); they fall with the planet.
+ArCombatant make_ar_planet(const GalacticRules& galactic, const ConflictRules& rules, int32_t owner,
+                           const std::vector<uint32_t>& built);
 
 // ---- records ---------------------------------------------------------------------------------------------------
 enum class ConflictKind : uint8_t { Land = 1, Space = 2 };

@@ -1280,6 +1280,92 @@ void test_land_invasion() {
     std::printf("land invasion: %s\n", w.cm->log().empty() ? "-" : w.cm->log()[0].text(w.sim).c_str());
 }
 
+// #558 (docs/re/AUTORESOLVE_FIRE_AND_HANGARS.md, 0x608080 / 0x60b0d0 / 0x60d2a0 / 0x60a140 [H]): on land the defender's
+// planet is one combatant fighting with its persisted built objects (the first fires); it dies with its side, is kept
+// when its side wins, is never the weakest and is no loss record; ground structures are no combatants and fall with it.
+void test_land_planet_combatant() {
+    std::printf("  #558: land auto-resolve, the planet combatant and its structures\n");
+    const GalacticRules gr = make_rules();
+    const ConflictRules cr = make_conflict_rules();
+    const ArCombatant pl = make_ar_planet(gr, cr, pEmpire, {tFrigate, tInfantry});
+    CHECK(pl.planet && pl.owner == pEmpire && pl.pieces.size() == 2 && pl.spawned.empty());
+    CHECK(pl.pieces.size() == 2 && pl.pieces[0].type == tFrigate && pl.pieces[0].power == gr.types[tFrigate].ai_combat_power &&
+          pl.pieces[0].categories == kCatCapital && pl.pieces[1].type == tInfantry && pl.shot.type == tFrigate);
+    CHECK(make_ar_planet(gr, cr, pEmpire, {}).pieces.empty());
+
+    const ContrastTable ct = make_contrast();
+    const AutoResolveConstants k;
+    ArCombatant planet;
+    planet.owner = 0;
+    planet.planet = true;
+    {  // the defender loses: its empty planet fires nothing, dies, and is no loss record
+        AutoResolveInput in;
+        in.space = false;
+        in.attacker = 1;
+        in.combatants = {planet, unit(1, 1000.0f, kCatInfantry)};
+        in.players = {{0, true, true}, {1, true, true}};
+        SimRng rng(5u);
+        const AutoResolveResult r = auto_resolve(in, ct, k, rng);
+        CHECK(r.winner == 1 && r.rem[1] == r.vec[1] && r.survives[0] == 0 && r.losses[0] == 0);
+    }
+    {  // the defender wins: the planet is kept with no budget test, and it is not the weakest (the unit dies)
+        AutoResolveInput in;
+        in.space = false;
+        in.attacker = 1;
+        in.combatants = {planet, unit(0, 1000.0f, kCatInfantry), unit(1, 100.0f, kCatInfantry)};
+        in.players = {{0, true, true}, {1, true, true}};
+        in.from_tactical = true;
+        AutoResolveConstants none = k;
+        none.tactical_multiplier = 0.0f;  // a zero budget: nothing can pay
+        SimRng rng(5u);
+        const AutoResolveResult r = auto_resolve(in, ct, none, rng);
+        CHECK(r.winner == 0 && r.budget[0] == 0.0 && r.survives[0] == 1 && r.survives[1] == 0 && r.losses[0] == 1);
+        std::printf("    defender wins, budget %.0f: planet kept %d, unit kept %d\n", r.budget[0], r.survives[0], r.survives[1]);
+    }
+    {  // built objects: both P in the vector, the first one fires once
+        AutoResolveInput in;
+        in.space = false;
+        in.attacker = 1;
+        ArCombatant built = planet;
+        ArPiece a, b;
+        a.categories = b.categories = kCatCapital;
+        a.power = 500.0f;
+        b.power = 300.0f;
+        built.pieces = {a, b};
+        built.shot = a;
+        in.combatants = {built, unit(1, 2000.0f, kCatCapital)};
+        in.players = {{0, true, true}, {1, true, true}};
+        SimRng rng(7u);
+        const AutoResolveResult r = auto_resolve(in, ct, k, rng);
+        CHECK(r.vec[0][3] == 800.0 && r.rem[1][3] == 1500.0);
+    }
+
+    // The conflict manager: an Underworld invasion of the Empire's B, held by a barracks (and four infantry or none).
+    for (const bool defended : {false, true}) {
+        std::vector<StartingForce> f = {{pEmpire, rB, tBarracks}};
+        if (defended) f.insert(f.end(), 4, StartingForce{pEmpire, rB, tInfantry});
+        f.push_back({pUnder, rB, tInfantry});
+        World w(f, false);
+        CHECK(w.sim.planets()[rB].owner == pEmpire);
+        std::vector<objects::ObjectHandle> mine, barracks;
+        for (objects::ObjectHandle h : w.sim.planets()[rB].surface)
+            if (w.store.owner(h) == pUnder) mine.push_back(h);
+        barracks = w.sim.planets()[rB].structures;
+        CHECK(barracks.size() == 1);
+        CHECK(w.sim.launch_units(pUnder, rB, mine) == commands::RejectReason::None);
+        CHECK(w.sim.invade(pUnder, rB, mine) == commands::RejectReason::None);
+        w.sim.update();
+        CHECK(w.cm->log().size() == 1);
+        if (w.cm->log().size() != 1 || barracks.size() != 1) continue;
+        const ConflictLogEntry& e = w.cm->log()[0];
+        CHECK(e.kind == ConflictKind::Land && e.how == 1 && e.winner == (defended ? pEmpire : pUnder));
+        CHECK(w.store.alive(barracks[0]) == defended);  // kept with the planet, else cleared with it
+        if (!defended) CHECK(e.defender_losses == 1);   // the barracks
+        std::printf("    %s: %s, barracks %s\n", defended ? "defended" : "barracks only", e.text(w.sim).c_str(),
+                    w.store.alive(barracks[0]) ? "kept" : "cleared");
+    }
+}
+
 // a1h t03 (A1_READINGS §31.2): the Invade event executor 0x48ff50 drops the event while the galactic pause counter is
 // raised, or while a story-linked battle is pending and the local player is attacker or defender of a queued conflict
 // (0x2b0350). GalacticTaskForce.Invade 0x6ce600 calls Land_Invade (GalacticSim::invade) directly: no gate.
@@ -1791,6 +1877,7 @@ int main() {
     test_change_owner_drops_queued();
     std::printf("land invasion\n");
     test_land_invasion();
+    test_land_planet_combatant();  // #558
     test_invade_event_gates();
     test_linked_battle_gates();
     test_story_block_freezes_frame();

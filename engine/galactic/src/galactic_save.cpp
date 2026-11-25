@@ -77,7 +77,9 @@ constexpr uint32_t kGalacticSaveVersionNoPlacement = 9;
 constexpr uint32_t kGalacticSaveVersionNoSlots = 8;
 constexpr uint32_t kGalacticSaveVersionNoGalab = 7;
 constexpr uint32_t kGalacticSaveVersionNoNames = 6;
-constexpr uint32_t kConflictSaveVersion = 5;  // v2: BattleRequest::linked; v3: BattleRequest::sandbox (q6); v4: ArCombatant::strength_bonus; v5: ArCombatant::spawned / shot (#193)
+// v2: BattleRequest::linked; v3: BattleRequest::sandbox (q6); v4: ArCombatant::strength_bonus; v5: ArCombatant::spawned /
+// shot (#193); v6: ArCombatant::planet (#558)
+constexpr uint32_t kConflictSaveVersion = 6;
 
 using records::get_handle;
 using records::put_handle;
@@ -650,6 +652,7 @@ void ConflictManager::write(ByteWriter& w) const {
         w.u32(static_cast<uint32_t>(c.spawned.size()));  // v5 (#193)
         for (const ArPiece& p : c.spawned) w.u32(p.type).u64(p.categories).f32(p.power);
         w.u32(c.shot.type).u64(c.shot.categories).f32(c.shot.power);
+        w.boolean(c.planet);  // v6 (#558)
     }
     w.u32(static_cast<uint32_t>(ar_in_.players.size()));
     for (const ArSideInfo& s : ar_in_.players) w.i32(s.player).boolean(s.ai).boolean(s.playable);
@@ -776,6 +779,7 @@ bool ConflictManager::read(ByteReader& r) {
             // [port] an older in-flight auto-resolve: the last piece (the own one, or a member) fires (tier 3: save format)
             c.shot = c.pieces.back();
         }
+        if (version >= 6) c.planet = r.boolean();  // #558; older saves had no land planet combatant
         if (!r.ok()) return false;
     }
     uint32_t nsides = 0;
