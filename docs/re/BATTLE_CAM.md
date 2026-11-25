@@ -129,7 +129,8 @@ The effect's vtable is `0x8fedb8` (apply `0x7d97d0`, the fbm shake). In `0x7d93a
 
 Who starts it:
 - the hero clash and Cinematic View (every view step), with dur 0x3fffffff;
-- the interesting-object templates, with the shot length.
+- the static interesting-object shot, with dur 60. The attack run, the hardpoint, fighter and infantry templates use it
+  too (#569 - #571); the orbit and the fly-past don't.
 
 The bombing run and the TSW shot don't.
 
@@ -194,18 +195,103 @@ The key down in state 3 sets the hold +0x317; in state 4 it is swallowed.
   chases the bomber at offset (15, 60, 30), linear, until frames − 30. It then orbits the target marker at
   (300, 300, 250), period 600, clockwise. The look is fixed on the target. The length is 600 + FPS × frames [M: a retail
   seconds / frames mix-up]. The shot ends with the run (+0x32c).
-- **`0x2cd930` → `0x4a53f0`, the interesting object [H].**
-  - With `first` set: a random object of the local player's selection.
-  - Otherwise `0x2cd0d0`:
-    - with chance 2/3, the current object's target;
-    - otherwise one of the first ten candidates ranked by `0x520df0`;
-    - then, with chance 2/3, a random live hardpoint.
-  - `0x4a53f0` then dispatches to about 10 templates by category: the type's own cinematic files (`0x4a3b40`), the
-    hardpoint shot `0x4a47d0`, fighter `0x4a0140`, infantry `0x4a4e30`, frigate / corvette `0x4a26f0`, vehicle
-    `0x4a6dd0`, flying `0x4a23d0`, and others. None is decoded yet.
-  - In a battle without a hero clash or a bombing run, including every space battle, retail's Movie Mode lands here.
-  - [port] With no clash the port frames nothing, which is what retail does when every pick fails.
 - **`0x4a30b0`, a galactic-map tour,** reached from `0x2cc780` [H]. It is never a tactical shot.
+
+## The interesting-object shot (#568)
+
+The port: `interesting_pick`, `saliency_rank` and `interesting_shot` (`battle_cam.hpp`), with
+`App::interesting_object_shot` (`app_cinematic.cpp`) reading the drawn objects and the sim.
+
+### The pick: `0x2cd930(ctrl, first)` [H]
+
+- **`first` (a Movie Mode key up from states 0 / 1, or `b_camera_t`):** a random object of the local player's
+  selection, with no filter, so a structure can be picked. +0x368 is left alone, and no hardpoint is drawn. An empty
+  selection falls to the next step.
+- **Otherwise, `0x2cd0d0`:**
+  - **A, validate (+0x368):** with no current object, +0x368 = 0. Otherwise +0x368 is set from the current object when
+    it is 0, and when the id no longer resolves to the current object, both are cleared.
+  - **B, the target, chance 2/3** (`rand(0, 2) > 0`): the current object's target, when it is not hidden, not fogged
+    for the local player, has a model, and is neither a TEAM (0x16) nor a TRANSPORT (5). No hardpoint is drawn.
+  - **C, the candidates:** every object with a locomotor, of any owner, that is not a wall (CategoryMask), not
+    flying on land (`FlyingLocomotorBehaviorClass`), not fogged, fully faded in (≥ 0.9), not hidden, and not a TEAM
+    or TRANSPORT. Structures are reached only through B or the selection.
+  - **D, the ranking** `0x520df0`, below.
+  - **E, the choice:** k = min(n − 1, 10). Up to k draws of `rand(0, k)` into the ranking; the first that is neither
+    the current object nor of its type (+0x370) wins. With none, entry 0. Then the hardpoint draw, `rand(0, 3) > 0`:
+    a random live hardpoint with a target.
+- It logs `Start_Interesting_Object_Cinematic: Type %s` and dispatches (`0x4a53f0`).
+
+**The +0x368 alternation [H].** Only step A writes +0x368. B and E change the object but leave +0x368 on the old id, so
+the next validation clears the object, and only a ranked pick (whose "not the current" test then compares against
+nothing; the type test still bites) is possible. The step after re-arms +0x368. So the target branch is open on every
+other chain step. The port keeps the rule (`InterestingState::stored`).
+
+### The ranking: `0x520df0` [H]
+
+One row per candidate, 7 columns, each with a GameConstants weight (`Saliency_*`, FoC defaults in brackets):
+
+| column | value | weight | normalised |
+|---|---|---|---|
+| Size | \|E\|² of the box | Saliency_Size (1.0) | (v − min) / range |
+| Power | the type's AI_Combat_Power | Saliency_Power (1.0) | (v − min) / range |
+| X, Y | the world position | Saliency_X / Saliency_Y (0.5 each) | 1 − \|v − mean\| / range |
+| Health | the health | Saliency_Health (1.0) | 1 − (v − min) / range: lower is more salient |
+| Targets | how many candidates target it | Saliency_Targets (1.5) | (v − min) / range |
+| Speed | the displacement per frame | Saliency_Speed (1.0) | (v − min) / range |
+
+- A zero range divides by 1.
+- **The spread weighting:** each normalised column is multiplied by its own spread (max − min of the normalised
+  values), so a column whose values are all alike counts for nothing.
+- The score is Σ weight × column, sorted descending.
+
+### The dispatcher: `0x4a53f0(ctrl, mode, obj, hp)` [H]
+
+It clears every key list and the shake trackers (`0x4a7a90`), but not the smoothing +0x270. Then, first success wins:
+
+1. the type's Glory_Cinematics files (`0x4a3b40`, #572), which clear +0x315;
+2. +0x315 = 1, the land terrain clamp, for every generated shot;
+3. a drawn hardpoint with a target: the hardpoint shot (`0x4a47d0`, #571);
+4. Fighter: the chase (`0x4a0140`, #570);
+5. Infantry: the push-in (`0x4a4e30`, #569);
+6. `rand(0, 3) == 0`: **the static shot** (`0x4a17c0`);
+7. Corvette or Bomber: `rand(0, 1) == 0` ? the attack run (`0x4a26f0`) : the chase (#570);
+8. Frigate: the attack run (#570);
+9. Vehicle: the drive-by (`0x4a6dd0`, #569);
+10. no locomotor: the structure shot (`0x49f880`, #569), and on failure step 12;
+11. flying: `0x4a23d0` (#569); then, on land only, \|E\| < 30 ? the push-in : the drive-by;
+12. `rand(0, 1) == 0` ? **the orbit** (`0x4a0830`) : **the fly-past** (`0x4a1c90`).
+
+Every template sets the shot length (frames), the letterbox and the engine loop on its object. A template that leaves
+the smoothing unset inherits the previous shot's value (`BattleCamShot::smoothing` is optional); only
+End_Cinematic_Mode zeroes it.
+
+### The three ported templates [H]
+
+- **Static `0x4a17c0`:** ψ = randf(0, 360)°, φ = randf(20, 45)° (negated with chance 1/2 in space),
+  d = randf(2\|E\|, 4\|E\|). The look holds on the world centre C, and the eye holds at
+  C + d·(cos φ cos ψ, cos φ sin ψ, sin φ): a tripod where the object was. Length 60, handheld noise for 60.
+- **Orbit `0x4a0830`:** t = smoothstep(clamp((\|E\| − 30) / 470, 0, 1)) and r = ±2\|E\|. The eye orbits (mode 3)
+  at the attached, translate-only offset (r, 0, 1.25 Ez), period 600, ease out 0.25, reverse on a coin. The look
+  holds on the object, translate-only. Length 90 + trunc(180 t), smoothing 0.9, no noise.
+- **Fly-past `0x4a1c90`** (needs a model). With `rand(0, 1) == 0` in space, and the type neither `Nebulon_B_Frigate`
+  nor `Alliance_Assault_Frigate`: under the hull, eye (0, −0.6 Ey, −Ez) → (0, 3 Ey, −1.5 Ez) over
+  T = (t + 1)·8·FPS, looking at (0, −6 Ey, 0). Otherwise: across the top front, eye R·(2 Ex, ±2 Ey, 2 Ez) →
+  R·(2 Ex, ∓2 Ey, 2 Ez) translate-only over T = (4t + 3)·FPS, with R the object's rotation at the start. Smoothing
+  0.9, no noise.
+
+Translate-only (+0x51) places an attached key at the object's position plus the offset in world axes, so the object's
+turning does not swing the camera.
+
+### The chain: `0x4aaf00` → `0x2cda20` [H]
+
+When a timed shot expires:
+- outside state 3, the cam stops;
+- while the Movie Mode key (+0x317) or **Tab** is held, the clock freezes on the last frame (attached keys still follow);
+- otherwise the next hero clash, the bombing run (#563), then, if an interesting object is running, the next pick
+  (`0x2cd930(ctrl, 0)`). If all fail, End_Cinematic_Mode: the cam stops.
+
+So, with no hero clash, Movie Mode runs object to object: on alternate steps, with chance 2/3, to the current object's
+target, which follows the fight; otherwise to a high-ranked object of another type.
 
 ## Cinematic View (slot 79), on key down: `0x2cbd00` [H]
 
@@ -267,7 +353,7 @@ The TSW firing shot is state 3 too. `0x2ccf30` sets the baseline at Fire, and ev
 - When the shot's timer expires (and +0x32c is clear):
   - outside state 3, it ends;
   - while the key or **Tab** is held, the shot is kept;
-  - otherwise it chains: the next clash, the bombing run, then the interesting object.
+  - otherwise it chains: the next clash, the bombing run, then the interesting object. If all fail, the cam stops.
 - The hero clash and Cinematic View shots have no length, so none of this chaining reaches them.
 
 ## `b_camera_t` (`0x347100`) [H]
@@ -282,7 +368,14 @@ The TSW firing shot is state 3 too. `0x2ccf30` sets the baseline at Fire, and ev
 
 All of them are presentation: no sim state, no synced draw, so tiers 2 and 3 are untouched. Camera feel is tier 1, so
 each of these is a known gap rather than an accepted difference:
-- The not-ported Movie Mode picks: with no clash, Movie Mode frames nothing (#562, #563).
+- The not-ported picks and templates: the bombing run (#563); the glory, hardpoint, fighter, infantry, attack-run,
+  vehicle, structure and flying templates (#569 - #572) fail and fall through, so their objects get the static shot,
+  the orbit or the fly-past. The hardpoint draw is made but no hardpoint is picked (#571).
+- The interesting object's fields, read from the port's objects: "in the world, not hidden" is drawn and not dying or
+  contained; "a model" is drawable; the ObjBox and the ModelBox are one box; the health is the drawn health; the speed
+  is the movement's current speed; a FLEET's power is its type's, not its members' sum; the target count leaves out
+  the hardpoints' targets.
+- The static shot's centre is the object's position, not its box centre [M].
 - The mouse is measured per frame, not per event.
 - There is no cursor re-centring in a view.
 - A failed view step stops the cam.
@@ -313,8 +406,8 @@ start stops a running TSW shot.
 
 ## Open
 
-- The interesting-object shot: the pick `0x2cd0d0`, its ranking `0x520df0`, and the ~10 templates `0x4a53f0`
-  dispatches to (#562).
+- The interesting-object templates not ported yet (#569 - #572) and a second object per key (the attack run's and
+  the structure shot's target).
 - The bombing-run shot `0x49f370` (#563).
 - The exact axes of `0x4a6790`'s rotation.
 - `0x49a610` (polar interpolation), the look smoothing `0x4a96d0`, the roll keys (#562: only its templates use them).

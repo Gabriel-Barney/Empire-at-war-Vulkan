@@ -253,9 +253,14 @@ bool BattleCam::chain(const BattleCamPicks& p) {
 }
 
 int32_t BattleCam::tick(int32_t clock, bool tab_held, const BattleCamPicks& p) {
-    (void)tab_held;
-    (void)p;
-    return clock;
+    if (!active() || shot_.length <= 0 || clock < shot_.length) return last_clock_ = clock;
+    if (state_ != State::Movie) {
+        stop();
+        return 0;
+    }
+    if (held_ || tab_held) return last_clock_;  // frozen on the last frame
+    if (!chain(p)) stop();
+    return 0;
 }
 
 Vec3 BattleCam::smooth_eye(const Vec3& keyed, int32_t clock) {
@@ -273,18 +278,203 @@ Vec3 BattleCam::smooth_eye(const Vec3& keyed, int32_t clock) {
 }
 
 
-// ---- #568 the interesting-object shot (red: stubs) -------------------------------------------------------------------
-std::vector<size_t> saliency_rank(std::span<const SaliencyFeatures> features, const SaliencyWeights&) {
-    std::vector<size_t> order(features.size());
-    for (size_t i = 0; i < order.size(); ++i) order[i] = i;
+// ---- #568 the interesting-object shot --------------------------------------------------------------------------------
+std::vector<size_t> saliency_rank(std::span<const SaliencyFeatures> features, const SaliencyWeights& w) {
+    constexpr size_t kCols = 7;
+    const size_t n = features.size();
+    std::vector<size_t> order(n);
+    for (size_t i = 0; i < n; ++i) order[i] = i;
+    if (n == 0) return order;
+    const auto get = [](const SaliencyFeatures& f, size_t k) {
+        const float v[kCols] = {f.size, f.power, f.x, f.y, f.health, f.targets, f.speed};
+        return v[k];
+    };
+    std::vector<float> col(n * kCols);
+    for (size_t k = 0; k < kCols; ++k) {
+        float lo = get(features[0], k), hi = lo, sum = 0.0f;
+        for (const SaliencyFeatures& f : features) {
+            lo = std::min(lo, get(f, k));
+            hi = std::max(hi, get(f, k));
+            sum += get(f, k);
+        }
+        const float range = hi > lo ? hi - lo : 1.0f;  // a zero range divides by 1
+        const float mean = sum / static_cast<float>(n);
+        for (size_t i = 0; i < n; ++i) {
+            const float v = get(features[i], k);
+            float x = (v - lo) / range;
+            if (k == 2 || k == 3) x = 1.0f - std::fabs(v - mean) / range;  // x, y: near the centre of the action
+            else if (k == 4) x = 1.0f - x;                                  // health: lower is more salient
+            col[i * kCols + k] = x;
+        }
+    }
+    const float weight[kCols] = {w.size, w.power, w.x, w.y, w.health, w.targets, w.speed};
+    std::vector<float> score(n, 0.0f);
+    for (size_t k = 0; k < kCols; ++k) {
+        float lo = col[k], hi = lo;
+        for (size_t i = 0; i < n; ++i) {
+            lo = std::min(lo, col[i * kCols + k]);
+            hi = std::max(hi, col[i * kCols + k]);
+        }
+        const float spread = hi - lo;  // pass 3: a column whose values are all alike counts for nothing
+        for (size_t i = 0; i < n; ++i) score[i] += weight[k] * col[i * kCols + k] * spread;
+    }
+    std::stable_sort(order.begin(), order.end(), [&score](size_t a, size_t b) { return score[a] > score[b]; });
     return order;
 }
-bool interesting_pick(InterestingState&, bool, const InterestingWorld&, UnsyncedRandom&) { return false; }
-BattleCamShot static_shot(const InterestingObject&, bool, UnsyncedRandom&) { return {}; }
-BattleCamShot orbit_shot(const InterestingObject&, UnsyncedRandom&) { return {}; }
-bool fly_past_shot(const InterestingObject&, bool, UnsyncedRandom&, BattleCamShot&) { return false; }
-bool interesting_shot(const InterestingObject&, bool, const InterestingCategories&, UnsyncedRandom&, BattleCamShot&) {
-    return false;
+
+bool interesting_pick(InterestingState& s, bool first, const InterestingWorld& w, UnsyncedRandom& rng) {
+    if (first && !w.selection.empty()) {  // 0x2cd930: a random selected object, no filter; +0x368 untouched
+        const uint32_t id = w.selection[static_cast<size_t>(rng.range(0, static_cast<int32_t>(w.selection.size()) - 1))];
+        s.current = id;
+        s.type = w.type_of ? w.type_of(id) : -1;
+        return true;
+    }
+    // Step A: validate the current object through the stored id (only this step writes it).
+    if (s.current == 0) {
+        s.stored = 0;
+    } else {
+        if (s.stored == 0) s.stored = s.current;
+        if (s.stored != s.current || !w.type_of || w.type_of(s.stored) < 0) {
+            s.current = 0;
+            s.stored = 0;
+        }
+    }
+    // Step B: the current object's target, chance 2/3.
+    if (s.current != 0 && (!w.may_follow || w.may_follow(s.current)) && rng.range(0, 2) > 0)
+        if (const uint32_t t = w.target ? w.target(s.current) : 0; t != 0) {
+            s.current = t;
+            s.type = w.type_of ? w.type_of(t) : -1;
+            return true;
+        }
+    // Steps C - E: the ranked candidates.
+    const size_t n = w.candidate_ids.size();
+    if (n == 0 || w.candidate_types.size() != n || w.candidate_features.size() != n) return false;
+    const std::vector<size_t> ranked = saliency_rank(w.candidate_features, w.weights);
+    const int32_t k = static_cast<int32_t>(std::min<size_t>(n - 1, 10));
+    size_t pick = ranked[0];
+    for (int32_t i = 0; i < k; ++i) {
+        const size_t c = ranked[static_cast<size_t>(rng.range(0, k))];
+        if (w.candidate_ids[c] != s.current && w.candidate_types[c] != s.type) {
+            pick = c;
+            break;
+        }
+    }
+    s.current = w.candidate_ids[pick];
+    s.type = w.candidate_types[pick];
+    (void)rng.range(0, 3);  // the hardpoint draw; [port] no hardpoint is picked (#571)
+    return true;
+}
+
+namespace {
+bool iequals(std::string_view a, std::string_view b) {  // _stricmp
+    if (a.size() != b.size()) return false;
+    for (size_t i = 0; i < a.size(); ++i)
+        if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) return false;
+    return true;
+}
+float smoothstep01(float t) { return t * t * (3.0f - 2.0f * t); }
+float size_fraction(const Vec3& e) { return smoothstep01(std::clamp((length(e) - 30.0f) / 470.0f, 0.0f, 1.0f)); }
+ShotKey key(int32_t frame, ShotKey::Segment seg, bool attached, Vec3 where, float ease_out = 0.0f, float ease_in = 0.0f) {
+    ShotKey k;
+    k.frame = frame;
+    k.segment = seg;
+    k.attached = attached;
+    k.where = where;
+    k.ease_out = ease_out;
+    k.ease_in = ease_in;
+    return k;
+}
+}  // namespace
+
+BattleCamShot static_shot(const InterestingObject& o, bool space, UnsyncedRandom& rng) {
+    BattleCamShot s;
+    s.target = o.id;
+    s.interesting = true;
+    const float psi = rng.rangef(0.0f, 360.0f) * kDegToRad;
+    float phi = rng.rangef(20.0f, 45.0f);
+    if (space && rng.range(0, 1) != 0) phi = -phi;
+    phi *= kDegToRad;
+    const float e = length(o.half_extents);
+    const float d = rng.rangef(2.0f * e, 4.0f * e);
+    const Vec3 c = o.frame.position;  // the ObjBox centre [M: the object's position]
+    s.look.push_back(key(0, ShotKey::Segment::Hold, false, c));
+    s.eye.push_back(key(0, ShotKey::Segment::Hold, false,
+                        c + Vec3{d * std::cos(phi) * std::cos(psi), d * std::cos(phi) * std::sin(psi), d * std::sin(phi)}));
+    s.length = 60;
+    s.handheld = true;
+    s.handheld_frames = 60;
+    return s;
+}
+
+BattleCamShot orbit_shot(const InterestingObject& o, UnsyncedRandom& rng) {
+    BattleCamShot s;
+    s.target = o.id;
+    s.interesting = true;
+    const float t = size_fraction(o.half_extents);
+    float r = 2.0f * length(o.half_extents);
+    if (rng.range(0, 1) == 1) r = -r;
+    ShotKey eye = key(0, ShotKey::Segment::Orbit, true, {r, 0.0f, 1.25f * o.half_extents.z}, 0.25f);
+    eye.translate_only = true;
+    eye.period = 600;
+    eye.reverse = rng.range(0, 1) == 1;
+    s.eye.push_back(eye);
+    ShotKey look = key(0, ShotKey::Segment::Hold, true, {});
+    look.translate_only = true;
+    s.look.push_back(look);
+    s.length = 90 + static_cast<int32_t>(180.0f * t);
+    s.smoothing = 0.9f;
+    return s;
+}
+
+bool fly_past_shot(const InterestingObject& o, bool space, UnsyncedRandom& rng, BattleCamShot& out) {
+    if (!o.model) return false;
+    const Vec3 e = o.half_extents;
+    const float t = size_fraction(e);
+    const float sgn = rng.range(0, 1) != 0 ? -1.0f : 1.0f;
+    BattleCamShot s;
+    s.target = o.id;
+    s.interesting = true;
+    s.smoothing = 0.9f;
+    const bool frigate = iequals(o.type_name, "Nebulon_B_Frigate") || iequals(o.type_name, "Alliance_Assault_Frigate");
+    if (rng.range(0, 1) == 0 && space && !frigate) {  // A: under the hull, along +Y
+        const int32_t T = static_cast<int32_t>((t + 1.0f) * 8.0f * static_cast<float>(kCinematicFps));
+        s.eye.push_back(key(0, ShotKey::Segment::Spline, true, {0.0f, -0.6f * e.y, -e.z}, 0.1f));
+        s.eye.push_back(key(T, ShotKey::Segment::Spline, true, {0.0f, 3.0f * e.y, -1.5f * e.z}));
+        s.look.push_back(key(0, ShotKey::Segment::Hold, true, {0.0f, -6.0f * e.y, 0.0f}));
+        s.length = T;
+    } else {  // B: across the top front, along the start's axes
+        const int32_t T = static_cast<int32_t>((4.0f * t + 3.0f) * static_cast<float>(kCinematicFps));
+        const ObjectFrame& f = o.frame;
+        const auto rot = [&f](const Vec3& v) { return f.axis[0] * v.x + f.axis[1] * v.y + f.axis[2] * v.z; };
+        ShotKey a = key(0, ShotKey::Segment::Spline, true, rot({2.0f * e.x, 2.0f * sgn * e.y, 2.0f * e.z}), 0.25f);
+        a.translate_only = true;
+        ShotKey b = key(T, ShotKey::Segment::Spline, true, rot({2.0f * e.x, -2.0f * sgn * e.y, 2.0f * e.z}), 0.0f, 0.25f);
+        b.translate_only = true;
+        s.eye.push_back(a);
+        s.eye.push_back(b);
+        s.look.push_back(key(0, ShotKey::Segment::Hold, true, {}, 0.0f, 0.25f));
+        s.length = T;
+    }
+    out = std::move(s);
+    return true;
+}
+
+bool interesting_shot(const InterestingObject& o, bool space, const InterestingCategories& c, UnsyncedRandom& rng,
+                      BattleCamShot& out) {
+    // Steps 1 - 6: the glory files (#572), the hardpoint shot (#571), the fighter chase (#570) and the infantry push-in
+    // (#569) are not ported: they fail and fall through.
+    if (rng.range(0, 3) == 0) {  // step 7: the static shot for a quarter of what gets here
+        out = static_shot(o, space, rng);
+        return true;
+    }
+    if ((o.category & (c.corvette | c.bomber)) != 0) (void)rng.range(0, 1);  // step 8's coin: attack run / chase (#570)
+    // Steps 9 (frigate: the attack run), 10 (vehicle: the drive-by), 11 (no locomotor: the structure shot) and 12 (flying,
+    // land by size) name templates that are not ported yet (#569, #570): they fall through to step 13.
+    if (rng.range(0, 1) == 0) {  // step 13: the orbit or the fly-past
+        out = orbit_shot(o, rng);
+        return true;
+    }
+    return fly_past_shot(o, space, rng, out);
 }
 
 }  // namespace alamo::game
