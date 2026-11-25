@@ -756,7 +756,7 @@ void test_synthetic() {
     // resolve by the one-shot rule.
     // #558: conflict save v6 adds the land planet flag; land auto-resolves fight with the planet, not its structures.
     // #191: galactic save v16 adds the paid costs, and the produced objects' paid costs enter the hash ("PDC1").
-    sc.pin = 0x4118872219b0b785ull;
+    sc.pin = 0x2b57ccfc10d1a31bull;
     run_scenario(sc);
 }
 
@@ -1202,7 +1202,7 @@ void test_foc() {
     // #193: conflict save v5 (spawned pieces, the one shot) and the one-shot auto-resolve.
     // #558: conflict save v6 (the land planet flag) and the land planet combatant.
     // #191: galactic save v16 (the paid costs) and their hash.
-    sc.pin = 0x4ba9b62dcf84d11cull;  // FoC data
+    sc.pin = 0xb41a0391e92db5caull;  // FoC data
     run_scenario(sc);
 }
 
