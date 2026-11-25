@@ -233,8 +233,8 @@ void App::select_wing(size_t wing, bool add, bool centre_only) {
 
 // QuickSave (F6) / QuickLoad (F5) / Screenshot (F12), galactic and tactical: the save slot game::kQuickSaveName
 // ("[QuickSave]", 0x55c00 / 0x562c0, #430 [H]) through the save / load dialogs' path. The screenshot (#466 [H]): the next
-// presented frame as ScreenShots\EAW_<YYYYMMDD>_<HHMMSScc> (game::screenshot_file_name); [port] a PNG, in a folder beside
-// the saves (retail's is relative to the game's working folder).
+// presented frame as ScreenShots\EAW_<YYYYMMDD>_<HHMMSScc> (game::screenshot_file_name); [port] (docs/DECISIONS.md
+// "Front-end and skirmish choices") a PNG, in a folder beside the saves (retail's is under the game's working folder).
 void App::interface_hotkey(uint16_t slot) {
     const std::string quick(game::kQuickSaveName);
     if (slot == ui::hk::kQuickSave) {
@@ -247,7 +247,9 @@ void App::interface_hotkey(uint16_t slot) {
         std::error_code ec;
         const std::filesystem::path dir = host_path(saves_dir_).parent_path() / game::kScreenshotFolder;  // #137: UTF-8
         std::filesystem::create_directories(dir, ec);
-        ctl_.shot_path = host_utf8(dir / game::screenshot_file_name_now());  // retail overwrites a same-hundredth name
+        // One request at a time (shot_path is busy until the frame is written), so a name repeats only across runs.
+        if (const std::string name = game::screenshot_file_name_now(); !name.empty()) ctl_.shot_path = host_utf8(dir / name);
+        else std::printf("screenshot: the local time could not be read\n");
     }
 }
 

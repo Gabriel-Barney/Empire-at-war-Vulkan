@@ -36,7 +36,7 @@ Otherwise it maps the key to a slot through the applied table and switches on th
 | 77 Camera Tether | on → off; off → follow the **first selected object**; nothing with an empty selection | H (the follow M) | done |
 | 78 Movie Mode | key up: the battle cam on the selected objects (state 3); Esc exits | H | only hides the HUD: #462 |
 | 79 Cinematic View | needs `In_Game_Cinematics`; steps through 8 views; Esc exits | H | nothing: #462 |
-| 80 Screenshot | `ScreenShots\EAW_<YYYYMMDD>_<HHMMSScc>.tga` on the next frame | H | the same name, `.png` [port] (#466) |
+| 80 Screenshot | `ScreenShots\EAW_<YYYYMMDD>_<HHMMSScc>.tga` on the next frame | H | the same name, `.png`, in a ScreenShots folder beside the saves [port] (#466) |
 | 81 / 82 Quick Save / Load | slot name `L"[QuickSave]"`; nothing in multiplayer | H | done |
 | 83 Mission Holocron | toggles the objective display | H | matches |
 
