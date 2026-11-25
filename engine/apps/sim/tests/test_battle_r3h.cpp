@@ -811,6 +811,79 @@ void test_script_kill_survivors() {
     CHECK(victim != objects::kNoObjectId && dead && at_kill == before + 1 && after == before + 1);
 }
 
+// #402 (Die step 7, TACTICAL_GAPS §1.9 [H]): a command-phase ability kill - here a STIM_PACK whose self damage (twice the
+// max health) kills its user - leaves its death and its survivor events in the combat lists between ticks. The next tick's
+// late_deaths consumes both, so the survivor spawns once, at the start of that tick. `then_script` 1: a script kill of a
+// second trooper follows in the same window; it consumes the first kill's unread events with its own, still each once.
+std::string stim_survivor_patch(std::string t) {
+    t = survivor_patch(std::move(t));
+    const std::string at = "<GroundInfantry Name=\"S10_Trooper\">";
+    if (const size_t p = t.find(at); p != std::string::npos)
+        t.insert(p + at.size(), "<Unit_Abilities_Data SubObjectList=\"Yes\"><Unit_Ability><Type>STIM_PACK</Type>"
+                                "<Recharge_Seconds>1</Recharge_Seconds><Expiration_Seconds>2</Expiration_Seconds>"
+                                "<Damage_Percent_When_Activated>2.0</Damage_Percent_When_Activated></Unit_Ability>"
+                                "</Unit_Abilities_Data>");
+    return t;
+}
+
+void test_command_kill_survivors(bool then_script) {
+    g_temp_prefix = "alamo_sim_r3h_tests_402";
+    g_types_patch = stim_survivor_patch;
+    auto d = make_data();
+    g_types_patch = nullptr;
+    const objects::TypeIndex trooper = d->types.resolve_name("S10_Trooper"), pilot = d->types.resolve_name("S10_Script_Pilot");
+    CHECK(pilot != objects::kNone);
+    const uint8_t stim = tactical::abilities::ability_type_from_name("STIM_PACK");
+    objects::ObjectId first = objects::kNoObjectId, second = objects::kNoObjectId;
+    uint32_t kill_frame = 0, before = 0, at_kill = 0, after_script = 0, next_tick = 0, later = 0;
+    bool dead = false, object_left = false, object_gone = false;
+    const auto pilots = [&](const objects::ObjectStore& st) {
+        uint32_t n = 0;
+        for (const objects::ObjectHandle h : st.all_objects()) n += st.alive(h) && st.type(h) == pilot ? 1u : 0u;
+        return n;
+    };
+    land_battle(*d, nullptr, 900, [&](TacticalBattle& b, TacticalMode& tm, SimHost&) {
+        objects::ObjectStore& st = tm.primary();
+        if (b.frame() < 60) return true;
+        if (first == objects::kNoObjectId) {
+            for (const objects::ObjectHandle h : st.all_objects()) {
+                if (!st.alive(h) || st.type(h) != trooper || !b.combat().alive(st.id(h))) continue;
+                if (first == objects::kNoObjectId) first = st.id(h);
+                else if (second == objects::kNoObjectId) second = st.id(h);
+            }
+            if (second == objects::kNoObjectId) return false;
+            kill_frame = b.frame();
+            before = pilots(st);
+            const objects::ObjectId user[] = {first};
+            CHECK(alamo::sim::TacticalBattleTestAccess::abilities(b).set_unit_ability_mode(user, stim, true, b.frame()) == 1u);
+            dead = !b.combat().alive(first);
+            object_left = st.alive(st.find(first));  // the host has not processed the death yet
+            at_kill = pilots(st);
+            if (then_script) {
+                CHECK(b.script_damage(tm, second, 1.0e6f, false));
+                after_script = pilots(st);
+            }
+            return true;
+        }
+        if (b.frame() == kill_frame + 1) {
+            next_tick = pilots(st);
+            object_gone = !st.alive(st.find(first));
+        }
+        later = pilots(st);
+        return b.frame() < kill_frame + 4;
+    });
+    std::printf("  #402 command-phase kill%s: survivors %u before, %u right after the kill, %u after the script kill, %u after the "
+                "next tick, %u three ticks later (object left %d, gone %d)\n",
+                then_script ? " + script kill" : "", before, at_kill, after_script, next_tick, later, object_left ? 1 : 0,
+                object_gone ? 1 : 0);
+    CHECK(first != objects::kNoObjectId && dead && object_left && object_gone && at_kill == before);
+    if (then_script) {
+        CHECK(after_script == before + 2 && next_tick == before + 2 && later == before + 2);
+    } else {
+        CHECK(next_tick == before + 1 && later == before + 1);
+    }
+}
+
 // #115 (cu8l t02 beyond the unit tests, CU8K_T02_T06_RE §2 / §3): one non-squad unit runs the three draw sites in one
 // battle - a unit-ability toggle that stops and holds (LURE on, then off: the behaviour toggle 0x3a4070), a garrison
 // (GarrisonUnitBehavior approach / entry, then the leave) and a script lock (Lua Lock_Current_Orders' first lock,
@@ -982,6 +1055,8 @@ int main() {
     test_death_explosion_pick();    // #358
     test_spin_wreck();              // #357
     test_script_kill_survivors();   // #382
+    test_command_kill_survivors(false);  // #402
+    test_command_kill_survivors(true);   // #402
     test_hero_hold_garrison_lock(); // #115
     if (g_fail) {
         std::printf("alamo_sim_r3h_tests: %d failure(s)\n", g_fail);
