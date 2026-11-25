@@ -410,6 +410,9 @@ struct MenuAction {
         TestAudioSfx,     // play GUI_Audio_Options_SFX_Test
         TestAudioSpeech,  // stream Test_Speech_ENG.MP3
         StopAudioTest,    // the audio dialog closed (OK, Cancel, Esc): stop the speech stream (0x81bd0 -> 0x22d260 [H])
+        // #452 (docs/re/SINGLE_PLAYER_DIALOGS.md "IDD_MAIN_CAMPAIGN_DIALOG", 0xe9920 [H]), appended: the first New Campaign
+        // click asked TEXT_SUGGEST_TUTORIAL; the host writes "-1" to the profile's TutorialsPlayed and saves the profile.
+        TutorialSuggested,
     };
     Kind kind = Kind::ResumeGame;
     std::string campaign, faction, map, save;
@@ -484,6 +487,9 @@ struct MenuProviders {
     std::function<int32_t(std::string_view faction)> tech_adjustment;
     // the mod picker's rows; null = no Mods button on the main menu.
     std::function<std::vector<ModPickerEntry>()> mods;
+    // #452: the profile's TutorialsPlayed (retail's options key); "" = never asked, so FoC's New Campaign asks
+    // TEXT_SUGGEST_TUTORIAL first. Null = not empty (no question).
+    std::function<std::string()> tutorials_played;
     bool demo = false;               // show IDC_MAIN_MENU_PLAY_DEMO instead of Single Player
 };
 
@@ -510,6 +516,9 @@ public:
     bool pause_menu_open() const;
     void set_in_game(bool g) { in_game_ = g; }
     const CampaignMenu& campaigns() const { return menu_; }
+    // #452: the campaign FoC's New Campaign dialog (IDD_MAIN_CAMPAIGN_DIALOG) starts, nullptr when the data lacks the
+    // dialog or the campaign (New Campaign then opens IDD_CAMPAIGN_SELECTION_DIALOG).
+    const CampaignChoice* main_campaign() const;
 
     // Consumes this frame's GUI events (and, for the key-capture fields, the raw key presses). Call after
     // GuiManager::update.
@@ -554,6 +563,7 @@ private:
     void setup(GuiDialog& d);
     void close_multiplayer_gap(GuiDialog& d);
     void fill_campaign_select(GuiDialog& d);
+    void new_campaign(std::vector<MenuAction>& out);
     void fill_custom_staging(GuiDialog& d);
     void fill_skirmish(GuiDialog& d);
     void fill_skirmish_slots(GuiDialog& d);  // the player rows for the selected map's player count
@@ -634,6 +644,7 @@ private:
     std::string last_map_[2];
     std::vector<Rgba8> colour_palette_;   // the host palette read when the skirmish dialog opened
     int32_t slot_colour_[8] = {0, 1, 2, 3, 4, 5, 6, 7};  // colour index of each skirmish slot (default = the slot index)
+    bool tutorial_asked_ = false;  // #452: TEXT_SUGGEST_TUTORIAL was asked this run
     std::string quit_action_;  // "exit" / "main"; N1 / t09: "overwrite" / "delete" (confirm_save_); "rebind" / "keys"
     std::string confirm_save_;  // the save an overwrite / delete confirmation is about
     bool save_blocked_ = false; // the open Save dialog's save_blocker refused

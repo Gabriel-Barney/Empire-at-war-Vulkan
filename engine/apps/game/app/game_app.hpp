@@ -444,6 +444,7 @@ private:
     ui::GameplaySettings gameplay_;
     ui::AudioVolumes audio_opts_;
     ui::SkirmishProfile skirmish_profile_;  // the local skirmish slot's faction / colour (the staging dialog's start)
+    std::string tutorials_played_;  // #452: the profile's TutorialsPlayed ("" = New Campaign asks about the tutorial)
     std::string options_path_;
     std::vector<uint32_t> autofire_seen_;  // local objects already given their default autofire (sorted)
     void load_game_options();

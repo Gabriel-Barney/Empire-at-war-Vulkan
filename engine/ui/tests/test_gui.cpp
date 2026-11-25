@@ -952,6 +952,132 @@ void test_campaign_menu_is_listed() {
     CHECK(m.story.size() == 1u && m.tutorials.size() == 1u);
 }
 
+// #452 (docs/re/SINGLE_PLAYER_DIALOGS.md "IDD_MAIN_CAMPAIGN_DIALOG", retail FoC 0xe9920 / 0xc4d90 / 0xc5250 [H]): FoC's New
+// Campaign dialog (its .rc controls, plus a close button the opener hides) and the tutorial list the question can open.
+const char* kMainCampaignRc = R"RC(
+IDD_MAIN_CAMPAIGN_DIALOG DIALOGEX 0, 0, 918, 743
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Dialog"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    CONTROL         "",IDC_RADIO_EASY,"Button",BS_AUTORADIOBUTTON | BS_PUSHLIKE,373,525,124,19
+    CONTROL         "",IDC_RADIO_MEDIUM,"Button",BS_AUTORADIOBUTTON | BS_PUSHLIKE,373,565,144,19
+    CONTROL         "",IDC_RADIO_HARD,"Button",BS_AUTORADIOBUTTON | BS_PUSHLIKE,373,605,137,19
+    PUSHBUTTON      "TEXT_BUTTON_BACK",IDC_CANCEL_BUTTON,280,689,169,28
+    CONTROL         "",IDC_LOAD_FACTION_A_PROGRESS,"msctls_progress32",WS_BORDER,281,734,357,9
+    PUSHBUTTON      "TEXT_BUTTON_START_GAME",IDC_MAIN_CAMPAIGN_START,469,689,169,28
+    PUSHBUTTON      "X",IDC_DIALOG_CLOSE_BUTTON,880,10,20,20
+END
+
+IDD_SELECT_TUTORIAL_DIALOG DIALOGEX 0, 0, 660, 390
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Dialog"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    PUSHBUTTON      "TEXT_BUTTON_CANCEL",IDC_CANCEL_BUTTON,32,346,168,18
+    PUSHBUTTON      "TEXT_BUTTON_START_GAME",IDC_PLAY_BUTTON,466,346,167,18
+    LISTBOX         IDC_STAGING_MAP_LIST,31,40,397,178,LBS_SORT | LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_TABSTOP
+END
+)RC";
+
+void test_main_campaign() {
+    Env env;
+    CHECK(env.script.merge(kMainCampaignRc) && env.gui.has_dialog("IDD_MAIN_CAMPAIGN_DIALOG"));
+    env.text.add("TEXT_SUGGEST_TUTORIAL", u"Play the tutorial first?");
+    CampaignMenu menu;
+    {
+        CampaignSetInfo story;
+        story.set = "Underworld_Story";
+        story.factions = {{"Full_Story_Campaign_Underworld", "Underworld"}};
+        menu.story.push_back(story);
+        CampaignSetInfo tut;
+        tut.set = "Tutorial_One";
+        tut.factions = {{"Tutorial_One_Campaign", "Rebel"}};
+        menu.tutorials.push_back(tut);
+    }
+    std::string played;  // the profile's TutorialsPlayed
+    MenuProviders p;
+    p.tutorials_played = [&] { return played; };
+    std::vector<MenuAction> acts;
+    const auto single_player = [&](FrontEnd& fe) {
+        fe.show_main_menu();
+        fe.update(env.click(*env.gui.top(), "IDC_MAIN_MENU_SINGLE_PLAYER_GAMES"), env.last, acts);
+        CHECK(fe.top() == "IDD_SINGLE_PLAYER_GAMES_MENU_DIALOG");
+    };
+    {  // the first click (TutorialsPlayed empty) asks; No opens the dialog. Later clicks open it directly.
+        FrontEnd fe;
+        fe.init(env.gui, menu, p);
+        auto step = [&](std::vector<GuiEvent> ev) { fe.update(ev, env.last, acts); };
+        single_player(fe);
+        acts.clear();
+        step(env.click(*env.gui.top(), "IDC_NEW_CAMPAIGN_BUTTON"));
+        CHECK(fe.top() == "IDD_DIALOG_BOX_QUIT_CONFIRM");
+        if (fe.top() != "IDD_DIALOG_BOX_QUIT_CONFIRM") return;
+        CHECK(env.gui.top()->get("IDC_CAPTION")->text == U"Play the tutorial first?");
+        CHECK(acts.size() == 1 && acts[0].kind == MenuAction::Kind::TutorialSuggested);  // the host writes "-1" and saves
+        played = "-1";
+        step(env.click(*env.gui.top(), "IDC_DIALOG_BOX_BUTTON_RIGHT"));  // No
+        CHECK(fe.top() == "IDD_MAIN_CAMPAIGN_DIALOG" && env.gui.open_count() == 1);
+        if (fe.top() != "IDD_MAIN_CAMPAIGN_DIALOG") return;
+        GuiDialog* mc = env.gui.top();
+        CHECK(mc->get("IDC_RADIO_MEDIUM")->checked && !mc->get("IDC_RADIO_EASY")->checked && !mc->get("IDC_RADIO_HARD")->checked);
+        CHECK(!mc->get("IDC_DIALOG_CLOSE_BUTTON")->visible && !mc->get("IDC_LOAD_FACTION_A_PROGRESS")->visible);
+        step(env.frame({0, 0}, false, {vk::kEscape}));  // Esc: back to the single player menu
+        CHECK(fe.top() == "IDD_SINGLE_PLAYER_GAMES_MENU_DIALOG");
+        acts.clear();
+        step(env.click(*env.gui.top(), "IDC_NEW_CAMPAIGN_BUTTON"));
+        CHECK(fe.top() == "IDD_MAIN_CAMPAIGN_DIALOG" && acts.empty());
+        if (fe.top() != "IDD_MAIN_CAMPAIGN_DIALOG") return;
+        mc = env.gui.top();
+        CHECK(mc->get("IDC_RADIO_MEDIUM")->checked);
+        step(env.click(*mc, "IDC_RADIO_HARD"));
+        CHECK(mc->get("IDC_RADIO_HARD")->checked && !mc->get("IDC_RADIO_MEDIUM")->checked);
+        step(env.click(*mc, "IDC_MAIN_CAMPAIGN_START"));
+        CHECK(acts.size() == 1 && acts[0].kind == MenuAction::Kind::StartCampaign &&
+              acts[0].campaign == "Full_Story_Campaign_Underworld" && acts[0].faction == "Underworld" && acts[0].difficulty == 2);
+        CHECK(!mc->get("IDC_CANCEL_BUTTON")->visible && !mc->get("IDC_MAIN_CAMPAIGN_START")->visible &&
+              mc->get("IDC_LOAD_FACTION_A_PROGRESS")->visible);
+        single_player(fe);  // Back (IDC_CANCEL_BUTTON) returns to the single player menu; the dialog reopens on Medium
+        step(env.click(*env.gui.top(), "IDC_NEW_CAMPAIGN_BUTTON"));
+        CHECK(fe.top() == "IDD_MAIN_CAMPAIGN_DIALOG");
+        if (fe.top() != "IDD_MAIN_CAMPAIGN_DIALOG") return;
+        CHECK(env.gui.top()->get("IDC_RADIO_MEDIUM")->checked &&
+              env.gui.top()->get("IDC_CANCEL_BUTTON")->visible);
+        step(env.click(*env.gui.top(), "IDC_CANCEL_BUTTON"));
+        CHECK(fe.top() == "IDD_SINGLE_PLAYER_GAMES_MENU_DIALOG");
+    }
+    {  // Yes opens the tutorial list
+        played.clear();
+        FrontEnd fe;
+        fe.init(env.gui, menu, p);
+        single_player(fe);
+        fe.update(env.click(*env.gui.top(), "IDC_NEW_CAMPAIGN_BUTTON"), env.last, acts);
+        CHECK(fe.top() == "IDD_DIALOG_BOX_QUIT_CONFIRM");
+        acts.clear();
+        fe.update(env.click(*env.gui.top(), "IDC_DIALOG_BOX_BUTTON_LEFT"), env.last, acts);  // Yes
+        CHECK(fe.top() == "IDD_SELECT_TUTORIAL_DIALOG" && env.gui.open_count() == 1 && acts.empty());
+        // the front end remembers it asked, even before the host's profile says so
+        single_player(fe);
+        fe.update(env.click(*env.gui.top(), "IDC_NEW_CAMPAIGN_BUTTON"), env.last, acts);
+        CHECK(fe.top() == "IDD_MAIN_CAMPAIGN_DIALOG");
+    }
+    {  // [port] (docs/DECISIONS.md "Front-end and skirmish choices") data without Full_Story_Campaign_Underworld (EaW, mods)
+        // keep the story-set list, without the question.
+        played.clear();
+        CampaignMenu eaw;
+        CampaignSetInfo story;
+        story.set = "Galactic_Civil_War";
+        story.factions = {{"Story_Rebel", "Rebel"}, {"Story_Empire", "Empire"}};
+        eaw.story.push_back(story);
+        FrontEnd fe;
+        fe.init(env.gui, eaw, p);
+        single_player(fe);
+        acts.clear();
+        fe.update(env.click(*env.gui.top(), "IDC_NEW_CAMPAIGN_BUTTON"), env.last, acts);
+        CHECK(fe.top() == "IDD_CAMPAIGN_SELECTION_DIALOG" && acts.empty());
+    }
+}
+
 void test_menus() {
     Env env;
     CampaignMenu menu;
@@ -2712,6 +2838,7 @@ int main() {
     test_widgets_ui5();
     test_campaign_menu_is_listed();
     test_menus();
+    test_main_campaign();
     test_load_screen();
     test_galactic_hud();
     test_galactic_dialogs();

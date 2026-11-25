@@ -488,6 +488,7 @@ bool load_options_profile(const std::string& path, OptionsProfile& p) {
     p.camera = cam.camera;
     p.tactical_fov_set = cam.tactical_fov_set;
     SkirmishSlotPage::load(k, p.skirmish);
+    if (const std::string* v = k.find("tutorials_played")) p.tutorials_played = *v;  // #452
     KeysPage::load(k, p.keys);
     return true;
 }
@@ -503,6 +504,7 @@ bool save_options_profile(const std::string& path, const OptionsProfile& p) {
     AudioPage::save(f, p.audio);
     CameraPage::save(f, {p.camera, p.tactical_fov_set});
     SkirmishSlotPage::save(f, p.skirmish);
+    if (!p.tutorials_played.empty()) f << "tutorials_played=" << p.tutorials_played << "\n";  // #452
     KeysPage::save(f, p.keys);
     return static_cast<bool>(f);
 }
