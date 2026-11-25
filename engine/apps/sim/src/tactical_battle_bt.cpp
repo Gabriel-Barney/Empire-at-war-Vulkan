@@ -480,7 +480,7 @@ void TacticalBattle::bt_retreat_attrition(uint8_t side, SimRng& rng) {
         }
         if (blockade)
             for (const Unit& u : units_)
-                if (u.side == side && u.alive && !u.retreated && catalog_->types().get(u.type, objects::tags::Prevents_Blockade_Run_Attrition))
+                if (retreat_side_unit(u, side) && u.alive && !u.retreated && catalog_->types().get(u.type, objects::tags::Prevents_Blockade_Run_Attrition))
                     blockade = false;
         if (blockade) p = std::min(1.0f, p + k.blockade_run_attrition);
     }
@@ -490,7 +490,7 @@ void TacticalBattle::bt_retreat_attrition(uint8_t side, SimRng& rng) {
     // with a galactic counterpart: one inline synced draw each, also at p = 0.
     for (size_t i = units_.size(); i-- > 0;) {
         const Unit& u = units_[i];
-        if (u.side != side || !u.alive || u.retreated || parts_[u.participant].built) continue;
+        if (!retreat_side_unit(u, side) || !u.alive || u.retreated || parts_[u.participant].built) continue;
         if (rules_->type(u.type).hero) continue;
         const float draw = rng.inline_unit_float();
         if (draw < p - r) bt_attrition_ids_.push_back(u.id);
@@ -1177,9 +1177,10 @@ void TacticalBattle::bt_map_load(TacticalMode& mode, SimRng& rng) {
     //   * CAPTURE_POINT / garrison structures without a locomotor: S4 placement with the map owner (§3.3); the selectable
     //     ones are also third-party battle combat units of that owner (any owner, Is_Neutral included);
     //   * selectable / mobile objects (map units, turrets, base layouts): battle combat units (map participants; a third
-    //     party when owned by neither side). #334 t01: an Is_Neutral owner's too - retail's map load spawns every object
-    //     the same way, and the relation table (TACTICAL_COMBAT §2.10 [H]: an Is_Neutral player is 2 towards everyone; every
-    //     combat path reads 1) keeps them out of combat unless a script's Make_Enemy changes the relation;
+    //     party when owned by neither side). #334 t01: an Is_Neutral owner's too [M: the map load's spawn has no owner
+    //     test]; the relation table (TACTICAL_COMBAT §2.10 [H]: an Is_Neutral player is 2 towards everyone; every combat
+    //     path reads 1) keeps them out of combat [port: the table is read when the battle is built, so a Make_Enemy made
+    //     before the battle counts, one made during it does not];
     //   * map1 t03 (company expansion 0x2ab060, after the record loop [H]): a company / squadron type (Company_Units /
     //     Squadron_Units) is not an object of its own: each one, in map order, becomes its members through the company
     //     spawn 0x29e960 (every member created at the placement's position and facing for its owner, then the TEAM helper of
@@ -1550,8 +1551,9 @@ void TacticalBattle::bt_expand_company(TacticalMode& mode, const terrain::Object
     // order) at the company's position and facing for its owner, runs the TEAM helper (REMAINING_GAPS §3.4), and the company
     // object is removed. Members of a company with HINT and a hint get HINT (when they lack it) and a copy of the hint; the
     // company object is not findable. [M] 0x29e960 adopts nothing (as Lua Spawn_Unit's company path, deploy_script_): the
-    // load's post-load pass gives each member its coordinator. [port] A company of an Is_Neutral owner becomes inert store
-    // objects (as the Is_Neutral map units); [M] obj +0x3C8 (mini 0x28) copied to the members is not modelled.
+    // load's post-load pass gives each member its coordinator. #334 t01: a company of an Is_Neutral owner is a battle company
+    // like any other (inert store objects only without a combat system); [M] obj +0x3C8 (mini 0x28) copied to the members
+    // is not modelled.
     const auto ct = static_cast<uint32_t>(t);
     if (ct >= catalog_->types().size() || ct >= rules_->types.size() || rules_->type(ct).members.empty()) return;
     ++map_stats_.companies;
@@ -1597,9 +1599,10 @@ void TacticalBattle::bt_expand_company(TacticalMode& mode, const terrain::Object
             inherit(made.back());
         }
         // storyb t16 (STORY_T04 §7.1: retail UM01 has 14 URBAN_HUMAN_CIV_TEAM + 2 WOOKIE_TEAM for its Neutral prisoner
-        // companies): the company spawn runs the TEAM helper (REMAINING_GAPS §3.4) for an inert company too - one store
-        // object of the team type per Max_Squad_Size chunk, at the chunk's centroid, owner / facing of its first member,
-        // after every member. [port] The containers are inert like the members (no Container record, no movement unit).
+        // companies; battle companies since #334 t01): the company spawn runs the TEAM helper (REMAINING_GAPS §3.4) for an
+        // inert company (no combat system) too - one store object of the team type per Max_Squad_Size chunk, at the chunk's
+        // centroid, owner / facing of its first member, after every member. [port] The containers are inert like the
+        // members (no Container record, no movement unit).
         uint32_t team_obj = 0xFFFFFFFFu, team_beh = 0xFFFFFFFFu, squad = 0;
         if (!made.empty() && st.exists(made.front()) &&
             bt_team(ct, static_cast<uint32_t>(st.type(made.front())), team_obj, team_beh, squad) && squad > 0) {

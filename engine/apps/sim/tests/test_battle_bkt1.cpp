@@ -1571,8 +1571,7 @@ void test_guard_hidden_drop() {
 // ---- t07: a third-party unit idles on land ------------------------------------------------------------------------
 
 // The land battle of ClashSession on the s4 data, plus one S10_Ranger placed on the map for the Hostile faction (raw
-// owner 3: the Hostile player 3, neither attacker nor defender; a map unit of an Is_Neutral owner would stay inert, so
-// it would prove nothing). Stand-in orders on (order_interval 60, human units too): the two sides' units get orders;
+// owner 3: the Hostile player 3, neither attacker nor defender). Stand-in orders on (order_interval 60, human units too): the two sides' units get orders;
 // the third party never gets a movement goal and stays where it was put.
 // #334 t01 (`neutral`): player 3 is of the Is_Neutral faction instead. Retail spawns its map unit like any other; the
 // relation table (TACTICAL_COMBAT §2.10 [H]: an Is_Neutral player is 2 towards everyone, every combat path reads 1) keeps
@@ -1649,8 +1648,8 @@ void test_third_party_idle(const Data& d, bool neutral = false) {
                         std::printf("    store S10_Ranger %d owner %d combat %d\n", static_cast<int>(st.id(h)), static_cast<int>(st.owner(h)),
                                     b->combat().has_unit(st.id(h)) ? 1 : 0);
             }
-            std::printf("  third party: map-placed ranger %d (owner 3), stand-in sides 0 %d 1 %d 3 %d\n", static_cast<int>(third),
-                        b->standin_owner(0) ? 1 : 0, b->standin_owner(1) ? 1 : 0, b->standin_owner(owner) ? 1 : 0);
+            std::printf("  third party: map-placed ranger %d (owner %d), stand-in sides 0 %d 1 %d third %d\n", static_cast<int>(third),
+                        owner, b->standin_owner(0) ? 1 : 0, b->standin_owner(1) ? 1 : 0, b->standin_owner(owner) ? 1 : 0);
             CHECK(third != objects::kNoObjectId && !b->standin_owner(owner));
             if (third == objects::kNoObjectId) break;
             invulnerable_all(*b);
@@ -1681,6 +1680,29 @@ void test_third_party_idle(const Data& d, bool neutral = false) {
                 third_targeted ? 1 : 0, third_targets ? 1 : 0);
     CHECK(started && frames >= 600 && side_goals > 0 && !third_goal && third_moved < 1.0f);
     if (neutral) CHECK(!third_targeted && !third_targets);  // #334 t01: relation 2 both ways
+    // #334 t01: the attacker's (player 1) retreat flags its own units, never the third party's (owner_side puts it on side
+    // 1 too; retail's retreat is per player, vf11 0x5335f0 [H])
+    TacticalBattle* b = battles.battle();
+    TacticalMode* tm = host.tactical();
+    bool requested = false;
+    uint32_t side_flagged = 0;
+    bool third_flagged = false;
+    for (int k = 0; b && tm && k < 900 && side_flagged == 0; ++k) {
+        if (!requested) requested = b->request_retreat(1);
+        host.tick_once();
+        if (battles.battle() != b) break;
+        const tc::CombatSystem& cs = b->combat();
+        const objects::ObjectStore& st = tm->primary();
+        for (size_t i = 0; i < cs.unit_count(); ++i) {
+            const auto id = cs.unit_id_at(i);
+            if ((cs.flags(id) & tc::kUnitRetreating) == 0) continue;
+            if (id == third) third_flagged = true;
+            else if (st.owner(st.find(id)) == 1) ++side_flagged;
+        }
+    }
+    std::printf("  third party%s: retreat requested %d, attacker units flagged %u, third party flagged %d\n", neutral ? " (Is_Neutral)" : "",
+                requested ? 1 : 0, side_flagged, third_flagged ? 1 : 0);
+    CHECK(requested && side_flagged > 0 && !third_flagged);
 }
 
 }  // namespace

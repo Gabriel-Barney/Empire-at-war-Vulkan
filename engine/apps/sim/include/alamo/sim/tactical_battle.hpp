@@ -2250,6 +2250,10 @@ private:
         return side == 0 ? req_.info.defender : side == 1 ? req_.info.attacker : skirmish_slot_player(side);
     }
     uint8_t owner_side(int32_t owner) const;  // 0 the defender, a skirmish slot k >= 2 -> k, else 1
+    // #334 t01: a unit a retreat of `side` takes along (the flag, the list, the turn, the attrition, the end): one of the
+    // side's own, not a third party's (a map unit of neither side, which owner_side also puts on side 1). Retail's retreat
+    // is per player (SpaceRetreatCoordinatorClass vf11 0x5335f0 [H]: the retreating player's objects).
+    bool retreat_side_unit(const Unit& u, int32_t side) const;
     Unit* unit_by_id(objects::ObjectId id);
     // cu8j t02 (MOVEMENT §4.7.1): the adopt 0x39bcb0 of object h - the predicate (not a TEAM member; the mode's locomotor
     // kind, a TEAM_LOCOMOTOR container only when a member's locomotor admits; [port] builders and hyperspacing objects are

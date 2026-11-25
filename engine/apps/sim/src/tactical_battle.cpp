@@ -697,7 +697,7 @@ void TacticalBattle::setup(TacticalMode& mode, terrain::MapData map, SimRng& rng
     // cu8i t02 (CU8G_T02_ENV_PICK_RE §7 / §8 item 7): Load_Map's tail, after the pick: the deferred GOM post-load pass
     // (0x2b4440 -> 0x3952e0 -> 0x39bcb0) puts each movable object without a movement coordinator into a new one, which
     // creates a formation: one FormationClass ctor draw int(1, FPS) per object, in object order, whatever the owner: the
-    // port's inert Is_Neutral map units count too (_MP_LAND_ENDOR: its one Land_Speeder, retail 1 draw). cu8j t02
+    // Is_Neutral map units count too (_MP_LAND_ENDOR: its one Land_Speeder, retail 1 draw; battle units since #334 t01). cu8j t02
     // (MOVEMENT §4.7.3): land and space alike, through the full adopt predicate (mv_adopt: the mode's locomotor kind).
     {
         const objects::ObjectStore& st = mode.primary();
@@ -1195,11 +1195,10 @@ void TacticalBattle::issue_orders(TacticalMode& mode, SimRng& rng, const std::fu
         float best_d2 = 0.0f;
         for (const Unit& e : units_) {
             if (!e.alive || e.retreated || e.side == u.side) continue;
-            // more than two skirmish sides - only an enemy of the unit's owner (allied slots are other sides)
-            if (side_count() > 2 && combat_ && !combat_->is_enemy(store.owner(u.h), store.owner(e.h))) continue;
-            // s78n t25.3 [port]: on land the pick is an enemy of the unit's owner (the auto-attack push 0x41fd30 names what
-            // the targeting scan picked, never a neutral object)
-            if (!space_ && combat_ && !combat_->is_enemy(store.owner(u.h), store.owner(e.h))) continue;
+            // only an enemy of the unit's owner: allied skirmish slots are other sides; s78n t25.3 [port]: on land the auto-
+            // attack push 0x41fd30 names what the targeting scan picked, never a neutral object; #334 t01: in space too, an
+            // Is_Neutral map unit is on side 1 but no one's enemy
+            if (combat_ && !combat_->is_enemy(store.owner(u.h), store.owner(e.h))) continue;
             const Vec3 ep = store.position(e.h);
             const float dx = ep.x - up.x, dy = ep.y - up.y;
             const float d2 = dx * dx + dy * dy;
