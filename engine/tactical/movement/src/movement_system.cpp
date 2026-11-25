@@ -460,6 +460,7 @@ UnitView MovementSystem::view(ObjectId id) const {
     v.pos = u->m.pos;
     v.z = u->z;
     v.yaw = u->m.yaw;
+    v.yaw2 = u->m.yaw2;  // #94
     v.speed = u->m.speed;
     v.max_speed = loco_max_speed(*u);  // S10-int; the jetpack's Alternate_Max_Speed in its airborne kind
     v.has_goal = u->has_goal;

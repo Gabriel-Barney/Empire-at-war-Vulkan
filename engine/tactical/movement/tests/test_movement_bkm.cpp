@@ -459,6 +459,38 @@ void test_secondary_facing() {
     std::printf("bkm1 secondary arrival turn: %d frames plain, %d with UseSecondaryFacing\n", plain, sec);
     CHECK(plain > 0 && sec == plain + 3);
     CHECK(ya == yb && !ya.empty() && ya.back() == 90.0f);
+    // #94 (Pop 0x4105a0 -> Walk vf +0x1e8 0x61e0a0 [H]): the formation Pop sets a member's orientation from its locomotor:
+    // a UseSecondaryFacing unit faces its Y2 (here mid-walk, Y2 off the body yaw), a plain unit keeps its own yaw (its Y2,
+    // never stepped, stays at the attach yaw while the body turns).
+    const auto pop = [](bool secondary, float& yaw_before, float& y2, float& after) {
+        MovementSystem sys{MovementConfig{}};
+        land_system(sys, 100);
+        UnitDesc d = vehicle(1, cell_center(10, 10), 2.0f);
+        d.use_secondary_facing = secondary;
+        CHECK(sys.add_unit(d));
+        SimRng rng(3);
+        MoveOrder o;
+        o.units = {1};
+        o.destination = cell_center(20, 20);
+        sys.move(o, rng, 0);
+        for (uint32_t f = 1; f < 600; ++f) {
+            sys.tick(f, rng);
+            const UnitView v = sys.view(1);
+            if (std::fabs(v.yaw2 - v.yaw) > 1.0f) break;
+        }
+        const UnitView v = sys.view(1);
+        yaw_before = v.yaw;
+        y2 = v.yaw2;
+        CHECK(sys.snap_yaw(1, sys.pop_facing(1)));
+        after = sys.view(1).yaw;
+    };
+    float sb = 0.0f, s2 = 0.0f, sa = 0.0f, pb = 0.0f, p2 = 0.0f, pa = 0.0f;
+    pop(true, sb, s2, sa);
+    pop(false, pb, p2, pa);
+    std::printf("#94 Pop facing: UseSecondaryFacing yaw %.3f, Y2 %.3f -> %.3f; plain yaw %.3f -> %.3f\n", static_cast<double>(sb),
+                static_cast<double>(s2), static_cast<double>(sa), static_cast<double>(pb), static_cast<double>(pa));
+    CHECK(std::fabs(s2 - sb) > 1.0f && sa == s2);
+    CHECK(std::fabs(p2 - pb) > 1.0f && pa == pb);
 }
 
 

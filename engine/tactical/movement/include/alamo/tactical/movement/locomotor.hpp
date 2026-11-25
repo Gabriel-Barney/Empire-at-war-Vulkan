@@ -109,8 +109,8 @@ struct LandMotion {
     // bkm1 t08 (MOVEMENT §3.5.3; save version 31): the secondary yaw Y2 (Walk pack +0x270, degrees), copied from the
     // orientation when the Walk attaches (add_unit, a locomotor swap) and never reset after: only stepped - in the move
     // step with B2 toward the lookahead yaw w1, in the turn in place 0x10 toward its w at r x SecondaryTurnInPlaceROTCoefficient.
-    // Read only by the B2 angle and the arrival turn's reached rule ([port] the formation block pop's snap to Y2, 0x4105a0,
-    // is not modelled: the port has no multi-block land formation). Every unit carries it; only UseSecondaryFacing reads it.
+    // Read by the B2 angle, the arrival turn's reached rule and (#94) the land formation Pop's snap to Y2 (0x4105a0 through
+    // Walk vf +0x1e8 0x61e0a0: MovementSystem::pop_facing). Every unit carries it; only UseSecondaryFacing reads it.
     float yaw2 = 0.0f;
 };
 

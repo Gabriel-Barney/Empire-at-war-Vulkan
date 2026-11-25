@@ -332,7 +332,11 @@ bool MovementSystem::snap_yaw(ObjectId id, float yaw_deg) {
 
 float MovementSystem::pop_facing(ObjectId id) const {
     const Unit* u = unit_ptr(id);
-    return u ? u->m.yaw : kNoFacing;  // 0x42c600: the object's orientation (+0x84 / +0x88 / +0x8c)
+    if (!u) return kNoFacing;
+    // #94: Walk 0x61e0a0 - the yaw is pack +0x270 (Y2) when the type has UseSecondaryFacing (+0xd2) and the Walk pack (+0xa8)
+    // exists: the Walk is the active locomotor (a unit swapped to its secondary locomotor runs that one's vf +0x1e8)
+    if (u->lp.secondary && u->d.locomotor == LocomotorKind::Default) return u->m.yaw2;
+    return u->m.yaw;  // 0x42c600: the object's orientation (+0x84 / +0x88 / +0x8c)
 }
 
 void MovementSystem::tick_deploy(uint32_t frame) {
