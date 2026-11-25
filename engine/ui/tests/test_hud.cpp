@@ -1116,6 +1116,28 @@ void test_world_status_icons() {
         const std::vector<Q> qs = run(u);
         CHECK(wh.stats().status_icons == 1 && find(qs, 8.0f) && !find(qs, 10.0f) && !find(qs, 12.0f));
     }
+    {  // #536: with the host's diplomacy predicate, an allied player's unit (owner 2, not the local player) is allied - the
+       // allied-only icons show and its bracket keeps the own colour; an enemy's (owner 1) is tinted red.
+        WorldHudContext dctx = ctx;
+        dctx.hostile = [](int32_t owner) { return owner == 1; };
+        auto red_bracket = [&](int32_t owner, uint32_t& icons) {
+            HudUnit u = base;
+            u.owner = owner;
+            u.bribed = u.garrison_flag = true;
+            HudDrawList dl;
+            wh.build(dctx, std::span<const HudUnit>(&u, 1), types, atlas, fonts, dl, nullptr);
+            icons = wh.stats().status_icons;
+            bool red = false;
+            for (const HudQuad& q : dl.items(0, HudList::Alpha))
+                red = red || (q.color.r == 255 && q.color.g == 64 && q.color.b == 64);
+            return red;
+        };
+        uint32_t ally_icons = 0, enemy_icons = 0;
+        const bool ally_red = red_bracket(2, ally_icons), enemy_red = red_bracket(1, enemy_icons);
+        std::printf("  #536 diplomacy: ally owner 2 -> %u status icons, red bracket %d; enemy owner 1 -> %u, red %d\n", ally_icons,
+                    ally_red ? 1 : 0, enemy_icons, enemy_red ? 1 : 0);
+        CHECK(ally_icons == 2 && !ally_red && enemy_icons == 0 && enemy_red);
+    }
     {  // 3 slots, 1 occupied: radio_on, then two radio_off, one radio_off width (6) apart, centred under the bar
         HudUnit u = base;
         u.garrison_slots = 3;

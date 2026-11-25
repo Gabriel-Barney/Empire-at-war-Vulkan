@@ -47,7 +47,7 @@ selected and hovered units. `WorldHud` draws them for allied units on st_ability
 slot 0's, then slot 1's as a second layer sharing its centre (the first layer when slot 0 has none). [port] centred 3 px
 above the top of the bar stack, not the health bar, because the port stacks the shield and power bars over the health bar;
 the 3 is read as pixels [M]. [port] none while the health bar is hidden, and nothing (not the component's own
-Icon_Texture_Name) when no slot is active: whether retail keeps the last texture then is not traced. The weather shift is not ported (no lt_weather_icon). "Allied" has the #536 caveat of "Port (#475)" below.
+Icon_Texture_Name) when no slot is active: whether retail keeps the last texture then is not traced. The weather shift is not ported (no lt_weather_icon). "Allied" is the host's diplomacy predicate (#536).
 
 ### Overhead status record (0x2ddac0 build, 0x2e7fd0 + 0x31de70 update; tactical only) [H]
 0x302620 runs 0x31de70 when HUD +0x211c > 1 (2 land, 3 space) and +0x26a5. Units: the hovered object (+0x2030) and the local
@@ -86,7 +86,7 @@ units; `WorldHud` draws the icons beside the health bar, so [port] none while th
 under the bar [port]; retail's offset constant is not read. Not ported: the slot row's hide test (obj +0x3a0 & 0x80, the death
 clone bit, which a selectable unit does not carry), and any bribed-icon width a hostile bribed unit may reserve before the bomb
 icon (retail shows bribed_icon by +0x3cc but gives it a texture only when allied; the port adds the width only when it draws the
-icon). "Allied" is WorldHud's hostile predicate, which the game host does not set yet (#536).
+icon). "Allied" is WorldHud's hostile predicate, which the game host sets from the battle's diplomacy (#536).
 
 ### Garrison respawn counter (0x231): tactical HUD button [H rule, M position]
 Created once (0x2e9700, HUD +0x2028), texture = Icon i_button_skirmish_reinforcements.tga, Build overlay i_button_build.tga.
