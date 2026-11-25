@@ -24,7 +24,7 @@ Otherwise it maps the key to a slot through the applied table and switches on th
 | 11 SelectLike | the type of the own object under the cursor; every selectable object of that type in the view is **appended** | H (append M) | the same (`ui::select_like`, #461); "selectable" = the local player's objects on screen [port] |
 | 12 / 13 Next / Prev | empty selection: select the first own object, no camera move; else the object after the selected one, with a camera move | H (order M) | the same (`ui::unit_cycle`, #461); the candidates are one unit per squadron, ascending id [port] |
 | 14 / 15 / 17 / 18 / 23 Guard / Attack / Move / Waypoint / AttackMove | **toggle** a flag; no exclusivity, no sound, no button test | H | sets the flag; Attack / Move gated on the button (#430 part 2) |
-| 20 Reinforce | `0x2e5580`, the same as the `b_reinforcement` click: opens or closes the reinforcement list | H | the first entry's drop pick: #463 |
+| 20 Reinforce | `0x2e5580`, the same as the `b_reinforcement` click: opens or closes the reinforcement list | H | the same (#463); see "Reinforce" below |
 | 21 Place Beacon | `0x2e7e40`, the `b_beacon_t` click: armed → disarm; else arm when the cooldown is 0. **No sound** during the cooldown | H | matches |
 | 22 SuperWeapon | ready local SPECIAL_WEAPON objects first, in any mode; then the land bombing run | H | the land path skips the first step: #464 |
 | 24-66, 90-122 abilities | `0x2dccf0(HUD, type)` clicks every ability button of that type | H (click M) | the first matching button |
@@ -65,9 +65,33 @@ Both battle-end openers (`0x87770` @`0x87c0d`, `0x88050` @`0x88303`) hide `IDC_L
 shows it [M]. The port hides it too (`GuiScreens::show_battle_end`, #465). The name's only other reference is its click
 handler [M], which cannot be reached, so the port has none.
 
+## Reinforce: the reinforcement list (0x2e5580) [H]
+
+R and the `b_reinforcement` click both call `0x2e5580(HUD)`. Component 0x218 is `i_main_reinforce` and 0xe7 is
+`b_reinforcement` (the name table at `0xa174e0 + 0x48*id`). Nothing happens unless four gates pass [M names]:
+- HUD +0x211c > 1;
+- the local player's +0x39c flag;
+- HUD +0x26a0 < 1;
+- the input owner's (`0xb15418`) +0x28 object has +0x20 clear.
+
+Then:
+- **Hide:** a shown `i_main_reinforce` is hidden (vf +0x78(1)).
+- **Show:** a hidden one is shown unless `0x3400b0` reports a held object (+0x1c != -1). Showing it:
+  - places it at (-w/2, h/2 - 100) (vf +200);
+  - plays the local faction's `Reinforcements_Selection_SFXEvent` (+0x2250);
+  - refreshes the HUD texts (`0x316260`, among them `r_pop_text` 0x22f);
+  - flashes `b_reinforcement` (vf +0x120).
+
+The port (`TacticalHud::toggle_reinforce_list`, `App::toggle_reinforcement_list`):
+- the list is the `r_RRCC` pad with `r_pop_icon` / `r_pop_text`, drawn only while open;
+- [port] it opens in a battle when the controls are not story-locked and no drop point is being picked;
+- a pad entry starts the drop pick, as before;
+- [port] the `i_main_reinforce` shell model itself is not loaded: the pad keeps its fallback positions.
+
 ## Open
 
-- Component 0x218's name and the battle-cam key gates.
+- The battle-cam key gates.
+- The names of the reinforcement list's four gates [M].
 - The camera consumer of the tether target [M].
 - What the battle-cam cameras frame.
 - The Next / Prev filters and order.

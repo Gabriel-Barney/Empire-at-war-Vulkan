@@ -1184,6 +1184,11 @@ ScriptStep step_reinforce_hover(std::string file) {
     return {"reinforcement button hover", [n, file](AppProbe& a, ui::InputFrame& f) {
                 if (!a.session() || a.screen() != Screen::Battle || !a.battle_view().active()) return false;
                 const int32_t ci = a.ui().components.find("r_0000");
+                if (!a.ui().tactical_hud.reinforce_list_open()) {  // #463: the pad shows on the opened list (b_reinforcement)
+                    ui::HudAction open;
+                    open.name = "b_reinforcement";
+                    a.hud_actions({open});
+                }
                 if (ci < 0 || a.ui().tactical_hud.stats().reinforcements == 0) {
                     if (++*n > 600) {
                         a.control().notes.push_back("reinforcement hover: no reinforcement button shown");

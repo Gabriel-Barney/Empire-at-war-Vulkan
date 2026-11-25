@@ -17,31 +17,15 @@ bool App::reinforce_available(objects::ObjectId galactic_id) const {
     return b && !story_controls_locked() && b->reinforce_block(local_player(), galactic_id) == commands::RejectReason::None;
 }
 
-// R / b_reinforcement [port]: the first callable entry of the pad (pad order = TacticalBattle::reserves) starts its
-// drop pick, as a click on that pad entry; a second press while a drop point is being picked cancels it.
-bool App::begin_first_reinforcement() {
-    if (reinforce_unit_ != 0) {
-        reinforce_unit_ = 0;
-        reinforce_blob_.reset();
-        audio_.faction_sfx("Reinforcements_Cancelled_SFXEvent");  // ledger: consumes Faction.Reinforcements_Cancelled_SFXEvent
-        return true;
-    }
-    const sim::TacticalBattle* b = battle();
-    if (!b) return false;
-    for (const sim::TacticalBattle::Reserve& r : b->reserves(local_player()))
-        if (reinforce_available(r.galactic_id)) {
-            // mcx4 t13 (MCX4_T13_RE_ANSWERS "Faction.Reinforcements_Selection_SFXEvent family", command bar 0x2e5580): the
-            // reinforcement selection opening plays the local faction's line. [port] the port opens no list: the press
-            // that starts the first entry's pick stands for the opening.
-            audio_.faction_sfx("Reinforcements_Selection_SFXEvent");  // ledger: consumes Faction.Reinforcements_Selection_SFXEvent
-            ui::HudAction a;
-            a.kind = ui::HudAction::Kind::BeginReinforcement;
-            a.unit = static_cast<uint32_t>(r.galactic_id);
-            handle_hud_actions({a});
-            return true;
-        }
-    audio_.negative_feedback();
-    return false;
+// R / b_reinforcement (#463, 0x2e5580 [H]; docs/re/TACTICAL_HOTKEYS.md "Reinforce"): toggle the reinforcement list
+// (TacticalHud::toggle_reinforce_list). Opening it plays the local faction's Reinforcements_Selection line (mcx4 t13,
+// faction +0x2250) and flashes b_reinforcement; a list entry then starts its drop pick (BeginReinforcement). [port] The
+// open gates: a battle, controls not story-locked, and no drop point being picked (0x3400b0: nothing held [M]).
+void App::toggle_reinforcement_list() {
+    const bool allowed = battle() != nullptr && !story_controls_locked() && reinforce_unit_ == 0;
+    if (ui_.tactical_hud.toggle_reinforce_list(allowed) != ui::TacticalHud::ReinforceListToggle::Opened) return;
+    audio_.faction_sfx("Reinforcements_Selection_SFXEvent");  // ledger: consumes Faction.Reinforcements_Selection_SFXEvent
+    story_present_.flash_component("b_reinforcement", hud_consts_.cb_flash_count, now_s_);
 }
 
 bool App::cancel_picks() {
@@ -266,7 +250,7 @@ void App::tactical_hotkeys(const std::vector<ui::HotkeyEvent>& hk, std::vector<c
             case hk_::kSelectLike: select_like(); break;
             case hk_::kNextUnit: select_cycle(1); break;
             case hk_::kPrevUnit: select_cycle(-1); break;
-            case hk_::kReinforce: begin_first_reinforcement(); break;
+            case hk_::kReinforce: toggle_reinforcement_list(); break;
             case hk_::kBeacon: {
                 ui::HudAction a;
                 a.name = "b_special_weapon2";
@@ -299,8 +283,8 @@ bool App::tactical_button(const ui::HudAction& a) {
         if (!orders_.selection().empty()) submit(commands::ev::stop());
         return true;
     }
-    if (ascii_iequals(n, "b_reinforcement")) {  // t03 [port]: as the Reinforce key
-        begin_first_reinforcement();
+    if (ascii_iequals(n, "b_reinforcement")) {  // #463: as the Reinforce key (0x2e5580)
+        toggle_reinforcement_list();
         return true;
     }
     if (ascii_iequals(n, "b_camera_t")) {  // TEXT_MOVIE_MODE

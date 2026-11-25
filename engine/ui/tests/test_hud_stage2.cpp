@@ -1512,6 +1512,7 @@ void test_tactical_stage2() {
     RadarSettings rs;
     pings.add(rs, "Default_Click", 0, 0);
     fr.radar_events = &pings;
+    CHECK2(hud.toggle_reinforce_list(true) == TacticalHud::ReinforceListToggle::Opened);  // #463: the list shown
     hud.build(fr, units, types);
     const TacticalHudStats& st = hud.stats();
     CHECK2(st.panel_slots == 2 && st.ability_buttons == 2 && st.queue_entries == 1 && st.reinforcements == 1 && st.radar_events == 1);
@@ -1751,8 +1752,7 @@ void test_tactical_stage2() {
         CHECK2(hud.stats().build_options == 0);
     }
     {
-        CHECK2(hud.toggle_reinforce_list(true) == TacticalHud::ReinforceListToggle::Opened);  // #463: the list shown
-        hud.build(fr, units, types);
+        CHECK2(hud.reinforce_list_open());  // #463: opened above
         auto [cmds, acts] = click("r_0000", Button::Left);
         CHECK2(cmds.empty() && acts.size() == 1 && acts[0].kind == HudAction::Kind::BeginReinforcement && acts[0].unit == 555);
         const commands::EventData re = reinforce_event(555, {10, 20, 0});
