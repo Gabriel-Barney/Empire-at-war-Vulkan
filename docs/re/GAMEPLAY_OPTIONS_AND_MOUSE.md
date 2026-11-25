@@ -66,7 +66,18 @@ Readers of 0x140a7c475: fill `0x9f855`, OK `0xa166c`, and three game readers:
    hostile to the local player (`0x2823e0`), else 0 (Enemy); off -> Good / Evil / Corrupt by faction name. This is the
    global the port calls "multiplayer".
 
-**Port today:** nothing reads `simplified_colors` (gui_menus.hpp:302). `render::classify_route(..., bool multiplayer)`
+**Port (#468, landed):** `render::simplified_faction_color` / `display_faction_color` (galactic_snapshot.hpp) is the
+0x33e340 rule, on with the option or for a story tutorial player (`App::simplified_colors_now`); Player_Color /
+Enemy_Color come from GameConstants (`load_simplified_colors`). Readers: `make_galactic_palette`, `App::faction_rgba`
+(text = false), the battle's team colours outside skirmish (`SnapshotTypeTable::set_owner_display_colors`; skirmish is
+the MP-colour mode [M], the battle's owners are the galaxy's player ids [M]), the medals (`GalacticPlanetInfo::hero_you`
+/ `enemy_hero`, both counting surface and orbit heroes as the port's enemy medal did [port]; `GalacticHudFrame::simplified_colors`)
+and the routes (`GalacticViewOptions::simplified_colors`; Ally = not hostile to the local player, `route_friendly_players`).
+Off without a local player. The galactic palette is rebuilt when the flag changes (`GalacticView::set_simplified_colors`).
+Every `App::faction_rgba(text = false)` caller follows the rule, the urgent advisor line included [M: which of the ~90
+retail callers it matches is not traced].
+
+**Port before #468:** nothing read `simplified_colors` (gui_menus.hpp:302). `render::classify_route(..., bool multiplayer)`
 (`engine/render/galactic/include/alamo/render/galactic/galactic_view.hpp:183-190, 227`) is the 0x5c28e0 rule but the flag is
 mislabelled and pinned false (`engine/apps/game/app/game_render.cpp:200`). Medals: `galactic_hud.hpp:127` says "never drawn".
 Colours: `make_galactic_palette` `engine/render/galactic/src/galactic_snapshot.cpp:139-160`, `App::faction_rgba`

@@ -100,8 +100,10 @@ struct GalacticPlanetInfo {
     // every viewer); g_bounty_hunter [M].
     bool conflict = false, smuggler = false, bounty_hunter = false;
     // GALAXY_MAP_PRESENTATION §1.5: one g_hero medal per faction with a hero on the surface (orbiting heroes show only in
-    // their fleet slot, Gabriel 2026-10-29) [inferred: surface only]. The you / enemy alternates (mode flag not traced) are unused.
-    bool hero_rebel = false, hero_empire = false, hero_underworld = false;
+    // their fleet slot, Gabriel 2026-10-29) [inferred: surface only]. With GalacticHudFrame::simplified_colors (#468,
+    // 0x3ec380 [H]) g_hero's "you" alternate (hero_you: a hero allied to the local player) and g_enemy_hero (enemy_hero)
+    // replace the three faction medals.
+    bool hero_rebel = false, hero_empire = false, hero_underworld = false, hero_you = false;
     bool selected = false, visible = true;
     // GALACTIC_DIALOGS §5.3: Text_Allegiance_A emblem of the owner (Icon_Alternate_Texture_Name index: 0 rebel, 1 empire,
     // 2 underworld, 3 pirate, 4 jabba / hutt), < 0 = no emblem (neutral). Host: the owner faction's index.
@@ -124,7 +126,7 @@ struct GalacticPlanetInfo {
     // Planet_Ability_Icon on g_planet_ability ("" = none), fogged planets too. Status row: g_build (the local player owns
     // the planet and a production queue there has an entry), g_corruption_icon = corruption_icon ("" none; on a corrupted
     // planet it needs b_filters2, the uncorrupted-planet info icon of a Benefits_From_Corruption faction does not).
-    // g_enemy_hero / g_hero "you" are the multiplayer medals (global 0x140a7c475): never drawn here. credit_level is no
+    // g_enemy_hero (Icon_Alternate index, < 0 none) shows only with simplified colours (#468). credit_level is no
     // longer drawn (g_credit_bar does not exist in retail). g_corruption_text: the transition line, "" none.
     std::string weather_icon, ability_icon;
     int32_t credit_level = -1;
@@ -331,6 +333,9 @@ struct GalacticHudFrame {
     // destroyed planet.
     bool planet_destroyed = false, ground_forces_unknown = false;
     bool paused = false;          // [port: Gabriel] b_play_pause look; a click emits pause_event(!paused) (orders.hpp)
+    // IDC_SIMPLIFIED_FACTION_COLORS or a tutorial player (#468, 0x3ec380 [H]): the you / enemy hero medals instead of the
+    // faction medals.
+    bool simplified_colors = false;
     // Day pips (legacy docs/re/HUD_GAPS.md §4): the fiscal-cycle (income) timer as 10 balance_pip clones from the bone fight_bar_g
     // of i_main_commandbar, left to right, pip width apart (Pixel_Align: snapped to the pixel centre). k = floor(10 x
     // cycle_fraction) clamped 0..9: pips 0..k alternate texture 1 (i_bar_fight_blue), k+1..9 texture 0 (i_bar_fight_red);

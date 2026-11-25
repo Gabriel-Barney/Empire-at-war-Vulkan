@@ -297,6 +297,7 @@ void App::post_tick() {
             begin_battle();
             return;
         }
+        sync_simplified_colors();  // #468
         bview_.capture(*session_);
         if (const sim::TacticalBattle* b = session_->battle()) {
             const objects::ObjectStore& st = session_->host().modes().top_tactical()->primary();
@@ -453,7 +454,10 @@ void App::post_tick() {
         audio_.set_object_positions(std::move(pos));
     } else {
         if (bview_.active()) end_battle();
-        if (session_) gview_.capture(session_->host());
+        if (session_) {
+            sync_simplified_colors();  // #468
+            gview_.capture(session_->host());
+        }
     }
 }
 

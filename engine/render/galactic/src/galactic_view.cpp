@@ -588,7 +588,8 @@ uint32_t route_settings_index(std::string_view name) {
 }
 
 RouteClass classify_route(std::span<const GalacticPlanetSnap> planets, const GalacticRouteSnap& r, int32_t viewpoint,
-                          std::span<const uint8_t> neutral_players, std::span<const uint8_t> sides, bool multiplayer) {
+                          std::span<const uint8_t> neutral_players, std::span<const uint8_t> sides, bool simplified_colors,
+                          std::span<const uint8_t> friendly) {
     if (r.a >= planets.size() || r.b >= planets.size()) return RouteClass::Neutral;
     const GalacticPlanetSnap& a = planets[r.a];
     const GalacticPlanetSnap& b = planets[r.b];
@@ -596,12 +597,12 @@ RouteClass classify_route(std::span<const GalacticPlanetSnap> planets, const Gal
     if (a.owner != b.owner || a.owner < 0) return RouteClass::Neutral;
     const auto o = static_cast<size_t>(a.owner);
     if (o < neutral_players.size() && neutral_players[o]) return RouteClass::Neutral;
-    if (!multiplayer && o < sides.size()) {
+    if (!simplified_colors && o < sides.size()) {
         if (sides[o] == kRouteSideGood) return RouteClass::Good;
         if (sides[o] == kRouteSideEvil) return RouteClass::Evil;
         if (sides[o] == kRouteSideOther) return RouteClass::Corrupt;
     }
-    return a.owner == viewpoint ? RouteClass::Ally : RouteClass::Enemy;
+    return a.owner == viewpoint || (o < friendly.size() && friendly[o]) ? RouteClass::Ally : RouteClass::Enemy;
 }
 
 namespace {
@@ -620,6 +621,15 @@ float path_factor(const GalacticPlanetSnap& p) {
     return p.corruption_type < 0 ? fr : 1.0f - fr;
 }
 }  // namespace
+
+SimplifiedColors load_simplified_colors(const data::XmlNode& root) {
+    SimplifiedColors s;
+    if (!root) return s;
+    materials::float4 c;
+    if (parse_color_bytes(root.child_text("Player_Color"), c)) s.player = {c.x, c.y, c.z, 1.0f};
+    if (parse_color_bytes(root.child_text("Enemy_Color"), c)) s.enemy = {c.x, c.y, c.z, 1.0f};
+    return s;
+}
 
 CorruptionPathSettings load_corruption_path_settings(const data::XmlNode& root) {
     CorruptionPathSettings s;
@@ -864,7 +874,7 @@ void GalacticSceneBuilder::build(const GalacticFrame& frame, GalacticModelSource
             ++st.hidden_routes;
             continue;
         }
-        const RouteClass rc = classify_route(planets, r, opt_.viewpoint, opt_.neutral, opt_.side, opt_.multiplayer);
+        const RouteClass rc = classify_route(planets, r, opt_.viewpoint, opt_.neutral, opt_.side, opt_.simplified_colors, opt_.friendly);
         // §3.1 zoom blend: Color_Zoomed_In at f = 1. The line stays in the close-up (§3.1 has no hide rule, the sparkles alone
         // stop at f == 1). ADDITIVE with the block's texture; tinted per instance (LIGHT_SCALE), as the corruption paths are.
         const float zf = std::isfinite(route_zoom_) ? std::clamp(route_zoom_, 0.0f, 1.0f) : 0.0f;

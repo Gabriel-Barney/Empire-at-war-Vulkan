@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "alamo/core/file_provider.hpp"
+#include "alamo/data/xml.hpp"
 #include "alamo/core/host_fs.hpp"
 #include "alamo/core/log.hpp"
 #include "alamo/core/sim_crc.hpp"
@@ -579,6 +580,57 @@ static void test_thread_determinism(const render::GalacticWorld& w) {
     }
 }
 
+// #468 (docs/re/GAMEPLAY_OPTIONS_AND_MOUSE.md t10, 0x33e340): IDC_SIMPLIFIED_FACTION_COLORS.
+static void test_simplified_colors(const render::GalacticWorld& w) {
+    auto same = [](const materials::float4& a, const materials::float4& b) {
+        return std::fabs(a.x - b.x) < 1e-6f && std::fabs(a.y - b.y) < 1e-6f && std::fabs(a.z - b.z) < 1e-6f && std::fabs(a.w - b.w) < 1e-6f;
+    };
+    const render::SimplifiedColors fo;  // the FoC GameConstants values
+    CHECK(same(fo.player, {50 / 255.0f, 209 / 255.0f, 63 / 255.0f, 1}) && same(fo.enemy, {239 / 255.0f, 9 / 255.0f, 9 / 255.0f, 1}) && !fo.on);
+    render::SimplifiedColors on = fo;
+    on.on = true;
+    const materials::float4 own{0.1f, 0.2f, 0.3f, 1};
+    CHECK(same(render::display_faction_color(own, true, true, false, on), on.player));
+    CHECK(same(render::display_faction_color(own, false, true, false, on), on.enemy));    // another playable faction
+    CHECK(same(render::display_faction_color(own, false, true, true, on), own));          // neutral
+    CHECK(same(render::display_faction_color(own, false, false, false, on), own));        // not playable
+    CHECK(same(render::display_faction_color(own, true, true, false, fo), own));          // option off
+    {  // GameConstants values replace the defaults
+        const std::string xml = "<GameConstants><Player_Color>1, 2, 3, 255</Player_Color><Enemy_Color>4 5 6</Enemy_Color></GameConstants>";
+        const data::XmlDocument doc = data::XmlDocument::parse(std::string_view(xml), "gc.xml");
+        const render::SimplifiedColors gc = render::load_simplified_colors(doc.root());
+        CHECK(same(gc.player, {1 / 255.0f, 2 / 255.0f, 3 / 255.0f, 1}) && same(gc.enemy, {4 / 255.0f, 5 / 255.0f, 6 / 255.0f, 1}) && !gc.on);
+        CHECK(same(render::load_simplified_colors(data::XmlNode{}).player, fo.player));
+    }
+    // The palette of the synthetic galaxy: players 0 Empire (local), 1 Rebel, 2 Underworld, 3 Neutral.
+    jobs::JobSystem js(jobs::JobSystemConfig{0});
+    render::GalacticSession s(w.types, js, w.rules, w.setup, render::GalacticSessionSpec{});
+    CHECK(s.ok());
+    if (!s.ok()) return;
+    const render::GalacticPalette off = render::make_galactic_palette(*s.sim(), w.faction_colors, 0, fo);
+    const render::GalacticPalette simp = render::make_galactic_palette(*s.sim(), w.faction_colors, 0, on);
+    CHECK(off.player.size() == 4 && simp.player.size() == 4);
+    if (off.player.size() != 4 || simp.player.size() != 4) return;
+    CHECK(same(off.player[0], w.faction_colors[0].color) && same(off.player[1], w.faction_colors[1].color));
+    CHECK(same(simp.player[0], on.player) && same(simp.player[1], on.enemy) && same(simp.player[2], on.enemy));
+    CHECK(same(simp.player[3], w.faction_colors[3].no_colorization) && same(off.player[3], simp.player[3]));
+    // seen from the Rebel player: the Empire is the enemy now
+    const render::GalacticPalette reb = render::make_galactic_palette(*s.sim(), w.faction_colors, 1, on);
+    CHECK(same(reb.player[0], on.enemy) && same(reb.player[1], on.player));
+    // no local player: every faction keeps its own colour (0x33e340 needs one)
+    const render::GalacticPalette none = render::make_galactic_palette(*s.sim(), w.faction_colors, -1, on);
+    CHECK(same(none.player[0], off.player[0]) && same(none.player[1], off.player[1]));
+    // the per-owner list the battle's team colours take: 0 Player_Color, 1 / 2 Enemy_Color, the neutral player none
+    const auto owners = render::simplified_owner_colors(*s.sim(), 0, on);
+    CHECK(owners.size() == 4 && owners[0] && same(*owners[0], on.player) && owners[1] && same(*owners[1], on.enemy) && owners[2] &&
+          !owners[3]);
+    const auto unset = render::simplified_owner_colors(*s.sim(), 0, fo);
+    CHECK(unset.size() == 4 && !unset[0] && !unset[1]);
+    // routes: an allied owner's same-owner route is Ally, an enemy's Enemy
+    const auto friendly = render::route_friendly_players(*s.sim(), 0);
+    CHECK(friendly.size() == 4 && friendly[0] == 1 && friendly[1] == 0);
+}
+
 static void test_scene_rules(const render::GalacticWorld& w) {
     // Route classes on a hand-made frame: rows 0, 1 Empire (viewpoint 0), 2, 3 Rebel, 4 neutral player 3, 5 corrupted.
     std::vector<render::GalacticPlanetSnap> p(7);
@@ -603,9 +655,13 @@ static void test_scene_rules(const render::GalacticWorld& w) {
     CHECK(render::classify_route(p, {4, 4}, 0, neutral, sides) == render::RouteClass::Neutral);
     CHECK(render::classify_route(p, {5, 6}, 0, neutral, sides) == render::RouteClass::Corrupt);
     CHECK(render::classify_route(p, {1, 2}, 0, neutral, sides) == render::RouteClass::Neutral);
-    // Multiplayer flag: same-owner routes Ally / Enemy whatever the faction.
+    // #468 simplified colours (0x5c28e0): same-owner routes Ally / Enemy whatever the faction.
     CHECK(render::classify_route(p, {0, 1}, 0, neutral, sides, true) == render::RouteClass::Ally);
     CHECK(render::classify_route(p, {5, 6}, 0, neutral, sides, true) == render::RouteClass::Enemy);
+    // ...Ally when the owner is not hostile to the viewpoint (0x2823e0), whatever its id
+    const std::vector<uint8_t> friendly = {1, 0, 1, 0};
+    CHECK(render::classify_route(p, {5, 6}, 0, neutral, sides, true, friendly) == render::RouteClass::Ally);
+    CHECK(render::classify_route(p, {2, 3}, 0, neutral, sides, true, friendly) == render::RouteClass::Enemy);
     // Ownership change recolours at once (slot recomputed from the frame).
     {
         std::vector<render::GalacticPlanetSnap> q = p;
@@ -1365,6 +1421,7 @@ int main() {
     CHECK(world != nullptr);
     if (world) {
         test_scene_rules(*world);
+        test_simplified_colors(*world);
         test_corruption_fraction(*world);
         test_fleets_and_selection(*world);
         test_synthetic(*world);

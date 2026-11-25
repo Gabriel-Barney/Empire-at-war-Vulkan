@@ -411,6 +411,7 @@ bool App::init() {
     ui_.tactical_hud.set_sfx_hook([this](std::string_view ev, int32_t) { audio_.ui(ev); });
     load_game_options();  // audio, gameplay, camera and key bindings from the last run (live play)
     faction_colors_ = render::load_faction_colors(*data_.files);
+    simplified_colors_ = render::load_simplified_colors(data_.db.constants().element);  // #468
     gview_.init(gpu_, data_, faction_colors_, render::load_route_line_style(*data_.files));
     apply_camera_tuning();
     // P4 screens / panels / cursor / radar / hotkeys.

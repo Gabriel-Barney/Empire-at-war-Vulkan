@@ -138,10 +138,33 @@ materials::float4 GalacticPalette::color(int32_t owner, uint8_t& index) const {
     return player[p];
 }
 
-GalacticPalette make_galactic_palette(const galactic::GalacticSim& sim, std::span<const FactionColor> factions) {
+std::optional<materials::float4> simplified_faction_color(bool local_faction, bool playable, bool neutral, const SimplifiedColors& s) {
+    if (!s.on) return std::nullopt;
+    if (local_faction) return s.player;              // faction +0xe8 [H]
+    if (!neutral && playable) return s.enemy;        // faction +0xf8 [H]
+    return std::nullopt;                             // faction <Color> (+0xa8) [H]
+}
+
+std::vector<std::optional<materials::float4>> simplified_owner_colors(const galactic::GalacticSim& sim, int32_t local_player,
+                                                                      const SimplifiedColors& s) {
+    std::vector<std::optional<materials::float4>> out(sim.players().size());
+    if (!s.on || local_player < 0 || static_cast<size_t>(local_player) >= sim.players().size()) return out;  // no local player
+    const galactic::GalacticRules& rules = sim.rules();
+    const uint32_t mine = sim.players()[static_cast<size_t>(local_player)].faction;
+    for (size_t p = 0; p < out.size(); ++p) {
+        const uint32_t fi = sim.players()[p].faction;
+        if (fi < rules.factions.size())
+            out[p] = simplified_faction_color(fi == mine, rules.factions[fi].is_playable, rules.factions[fi].is_neutral, s);
+    }
+    return out;
+}
+
+GalacticPalette make_galactic_palette(const galactic::GalacticSim& sim, std::span<const FactionColor> factions, int32_t local_player,
+                                      const SimplifiedColors& simplified) {
     GalacticPalette pal;
     const MpPalette mp = default_mp_palette();
     const galactic::GalacticRules& rules = sim.rules();
+    const std::vector<std::optional<materials::float4>> simple = simplified_owner_colors(sim, local_player, simplified);
     for (size_t p = 0; p < sim.players().size(); ++p) {
         const uint32_t fi = sim.players()[p].faction;
         const std::string fname = fi < rules.factions.size() ? rules.factions[fi].name : std::string();
@@ -153,6 +176,7 @@ GalacticPalette make_galactic_palette(const galactic::GalacticSim& sim, std::spa
                 else if (f.has_color) c = f.color;
                 break;
             }
+        if (!neutral && simple[p]) c = *simple[p];  // the neutral owner keeps No_Colorization_Color
         pal.player.push_back(c);
         pal.neutral.push_back(neutral ? 1 : 0);
     }

@@ -583,9 +583,14 @@ void GalacticHud::build_labels(const GalacticHudFrame& f) {
             ++stats_.label_icons;
         };
         icon(conflict_, p.conflict, 0);
-        icon(hero_, p.hero_rebel, 2);  // g_hero alternates: you, enemy (multiplayer), rebel, empire, underworld
-        icon(hero_, p.hero_empire, 3);
-        icon(hero_, p.hero_underworld, 4);
+        if (f.simplified_colors) {  // #468 (0x3ec380 [H]): g_hero "you" and g_enemy_hero instead of the faction medals
+            icon(hero_, p.hero_you, 0);
+            icon(enemy_hero_, p.enemy_hero >= 0, std::max(p.enemy_hero, 0));
+        } else {
+            icon(hero_, p.hero_rebel, 2);  // g_hero alternates: you, enemy, rebel, empire, underworld
+            icon(hero_, p.hero_empire, 3);
+            icon(hero_, p.hero_underworld, 4);
+        }
         icon(build_icon_, p.building, 0);
         icon(smuggler_, p.smuggler, 0);
         icon(bounty_, p.bounty_hunter, 0);

@@ -285,6 +285,7 @@ materials::float4 SnapshotTypeTable::team_color(int32_t owner, const SnapshotTyp
     if (!neutral) {
         const auto o = static_cast<size_t>(owner);
         index = static_cast<uint8_t>(o < owner_colours_.size() ? owner_colours_[o] % kMpPaletteSize : static_cast<uint32_t>(owner) % kMpPaletteSize);
+        if (o < display_colors_.size() && display_colors_[o]) return *display_colors_[o];  // #468
         return palette_[index];
     }
     index = kNeutralTeam;

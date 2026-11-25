@@ -181,14 +181,16 @@ RouteLineStyle load_route_line_style(const FileProvider& files);
 // The settings index of a Settings_For_Faction name (case-insensitive; unknown names -> kRouteNeutral).
 uint32_t route_settings_index(std::string_view name);
 // FIXPASS_GALACTIC §3.1 slot rule 0x5c28e0 (per frame, so an ownership change recolours at once; no blend between
-// slots): Neutral when either owner is none / Is_Neutral or the two owners differ; else (same owner) Ally (viewpoint
-// player) / Enemy when `multiplayer` (global 0x140a7c475), else by the owner's faction from `sides`: 1 Good_Side_Name
+// slots): Neutral when either owner is none / Is_Neutral or the two owners differ; else (same owner) Ally (the viewpoint
+// player, or an owner `friendly` marks: not hostile to it, 0x2823e0 [H]) / Enemy when `simplified_colors`
+// (IDC_SIMPLIFIED_FACTION_COLORS, profile byte 0x140a7c475 [H], #468), else by the owner's faction from `sides`: 1 Good_Side_Name
 // (REBEL) -> Good, 2 Evil_Side_Name (EMPIRE) -> Evil, 3 any other faction (UNDERWORLD) -> Corrupt. The Corrupt slot is the
 // Underworld FACTION, not the corruption state. Side 0 / no entry -> Ally / Enemy.
 // [port] either end kGalFogged -> Neutral (the original uses the last-seen owner PD +0x9C, not in the snapshot).
 enum : uint8_t { kRouteSideNone = 0, kRouteSideGood = 1, kRouteSideEvil = 2, kRouteSideOther = 3 };
 RouteClass classify_route(std::span<const GalacticPlanetSnap> planets, const GalacticRouteSnap& r, int32_t viewpoint,
-                          std::span<const uint8_t> neutral_players, std::span<const uint8_t> sides = {}, bool multiplayer = false);
+                          std::span<const uint8_t> neutral_players, std::span<const uint8_t> sides = {}, bool simplified_colors = false,
+                          std::span<const uint8_t> friendly = {});
 
 // FIXPASS_GALACTIC §3.2 corruption path lines (0x3f4b50; GameConstants, FoC values as defaults).
 struct CorruptionPathSettings {
@@ -201,6 +203,9 @@ struct CorruptionPathSettings {
 // from the parsed <GameConstants> root (GameDatabase::constants().element; null = the defaults above), so the
 // host reads GameConstants.xml once for every settings record.
 CorruptionPathSettings load_corruption_path_settings(const data::XmlNode& game_constants_root);
+// #468: Player_Color / Enemy_Color of the parsed <GameConstants> root (null root, a missing or unparsable tag: the FoC
+// values); `on` stays false.
+SimplifiedColors load_simplified_colors(const data::XmlNode& game_constants_root);
 // One path line (galactic_corruption_paths): owned by planet row `owner`, towards row `other`; rgba = the tinted colour
 // (channel = (int)(c x f), alpha 255).
 struct CorruptionPathLine {
@@ -224,7 +229,10 @@ struct GalacticViewOptions {
     int32_t viewpoint = 0;              // local player (route colours)
     std::vector<uint8_t> neutral;       // per player id: neutral faction (route rule)
     std::vector<uint8_t> side;          // per player id: kRouteSide* (classify_route)
-    bool multiplayer = false;           // 0x140a7c475: same-owner routes Ally / Enemy instead of Good / Evil / Corrupt
+    std::vector<uint8_t> friendly;      // per player id: not hostile to the viewpoint (classify_route, route_friendly_players)
+    // IDC_SIMPLIFIED_FACTION_COLORS (0x140a7c475, route class 0x5c28e0, #468): same-owner routes Ally / Enemy instead of
+    // Good / Evil / Corrupt.
+    bool simplified_colors = false;
     // World width = <Width> x this. 3 world units with W_galaxy_line_alpha.tga's 9/64 core match the 2-3 px line of
     // ui_005_gc_running.png (1 world unit is about 4.2 px there) [inferred].
     float route_width_scale = 1.0f;
