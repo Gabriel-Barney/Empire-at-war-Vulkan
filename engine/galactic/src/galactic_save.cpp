@@ -58,8 +58,11 @@ namespace {
 // + per planet the initial-placement list {u32 count, u32 type...} (Special_Case_Production), then the campaign's
 // auto-resolve rules {bool disabled, bool story campaign, u32 count, {u32 planet type, bool land}...}; v6 - v9 keep the
 // session's start() values. v11: + last, the fleets holding the sticky story auto-resolve lock {u32 count,
-// u32 fleet index...} ascending; v10 and older derive it from each fleet's current contents.
-constexpr uint32_t kGalacticSaveVersion = 12;  // 12: + the company survivor records after the locks
+// u32 fleet index...} ascending; v10 and older derive it from each fleet's current contents. v12: + the company
+// survivor records. v13: + last, per player (player order) the planet_upgrades list {u32 count, {u32 planet, u32 type}...};
+// v12 and older read every list as empty.
+constexpr uint32_t kGalacticSaveVersion = 13;  // 13: + the per-planet tactical upgrade lists after the survivors
+constexpr uint32_t kGalacticSaveVersionNoPlanetUpgrades = 12;
 constexpr uint32_t kGalacticSaveVersionNoSurvivors = 11;
 constexpr uint32_t kGalacticSaveVersionNoLocks = 10;
 constexpr uint32_t kGalacticSaveVersionNoPlacement = 9;
@@ -179,12 +182,16 @@ void GalacticSim::write(ByteWriter& w) const {
         w.i32(id).u32(static_cast<uint32_t>(members.size()));
         for (const uint32_t m : members) w.u32(m);
     }
+    for (const PlayerState& p : players_) {  // #68 (v13), list order
+        w.u32(static_cast<uint32_t>(p.planet_upgrades.size()));
+        for (const auto& [planet, t] : p.planet_upgrades) w.u32(planet).u32(t);
+    }
 }
 
 bool GalacticSim::read(ByteReader& r) {
     const objects::ObjectStore& st = *store_;
     const uint32_t version = r.u32();
-    if ((version != kGalacticSaveVersion && version != kGalacticSaveVersionNoSurvivors && version != kGalacticSaveVersionNoLocks && version != kGalacticSaveVersionNoPlacement && version != kGalacticSaveVersionNoSlots && version != kGalacticSaveVersionNoGalab &&
+    if ((version != kGalacticSaveVersion && version != kGalacticSaveVersionNoPlanetUpgrades && version != kGalacticSaveVersionNoSurvivors && version != kGalacticSaveVersionNoLocks && version != kGalacticSaveVersionNoPlacement && version != kGalacticSaveVersionNoSlots && version != kGalacticSaveVersionNoGalab &&
          version != kGalacticSaveVersionNoNames) ||
         !r.ok())
         return false;
@@ -438,6 +445,18 @@ bool GalacticSim::read(ByteReader& r) {
             }
         }
     }
+    for (PlayerState& p : players) p.planet_upgrades.clear();  // #68 (v13); v12 and older: none
+    if (version >= 13)
+        for (PlayerState& p : players) {
+            uint32_t n_up = 0;
+            if (!r.count(n_up, 8)) return false;
+            p.planet_upgrades.resize(n_up);
+            for (auto& [planet, t] : p.planet_upgrades) {
+                planet = r.u32();
+                t = r.u32();
+                if (!r.ok() || planet >= rows || t >= types) return false;
+            }
+        }
     if (!r.ok() || !r.done()) return false;
 
     // ---- commit ----

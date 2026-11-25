@@ -676,6 +676,9 @@ void load_special_rules(const FileProvider& provider, const data::GameDatabase& 
                 if (const std::string_view u = ascii_trim(types.get_string(t, p + "Success_Unlock_Unit_Type")); !u.empty())
                     if (const objects::TypeIndex r = types.resolve_name(u); r != objects::kNone) c.success_unlock = r;
                 c.success_credit_bonus = types.get_float(t, p + "Success_Credit_Bonus");
+                if (const std::string_view u = ascii_trim(types.get_string(t, p + "Success_Planet_Specific_Tactical_Upgrade"));
+                    !u.empty())
+                    if (const objects::TypeIndex r = types.resolve_name(u); r != objects::kNone) c.success_tactical_upgrade = r;
                 c.tactical_map = std::string(ascii_trim(types.get_string(t, p + "Tactical_Map_Name")));
                 c.tactical_plots = std::string(ascii_trim(types.get_string(t, p + "Tactical_Script_Name")));
                 const bool has_mode = !ascii_trim(types.get_string(t, p + "Tactical_Game_Mode")).empty();

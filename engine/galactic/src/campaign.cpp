@@ -358,8 +358,7 @@ bool GalacticSim::start(const GalacticSetup& setup, std::vector<std::string>* di
     // mcx4 t07 (MCX4_RE_ANSWERS_GALACTIC Q7.4, 0x28dbe0 at L14, after the owners are set): Corruption_Level_Override puts
     // the first planet of the named type into Racketeering at once (value >= 1; below 1: no corruption), no transition
     // timer, and runs the change effects (0x3f9690 with P = the planet owner: the unlock and the success credit bonus,
-    // MCX4_T09_RE_ANSWERS Q1). [port] The faction / planet-type per-type upgrade records of 0x3f9690 are not applied
-    // (base FoC uses the override only in the Underworld exec demo campaign).
+    // MCX4_T09_RE_ANSWERS Q1) and the per-planet tactical upgrade records (#68: 0x3f9690 with old type -1, no removal).
     // mcx4 t21 (MCX4_GAL2_RE_ANSWERS Q2) [H]: the override does not test the current type, so a value >= 1 pays the
     // type-3 bonus on every run.
     for (const auto& [planet_type, value] : setup.corruption_level_override)
@@ -367,6 +366,7 @@ bool GalacticSim::start(const GalacticSetup& setup, std::vector<std::string>* di
             if (planets_[i].is_planet && planets_[i].type == planet_type) {
                 set_corruption(i, value >= 1 ? kCorruptionRacketeering : kCorruptionNone, planets_[i].owner);
                 if (value >= 1) pay_corruption_bonus(i, kCorruptionRacketeering, planets_[i].owner);
+                corruption_upgrades(i, value >= 1 ? kCorruptionRacketeering : kCorruptionNone, kCorruptionNone, planets_[i].owner);
                 break;
             }
     // mcx4 t21 (Q2) [H]: then each planet's first political update (tick 1 in retail, 0x3fb040 via the planet service
@@ -783,7 +783,9 @@ void GalacticSim::first_political_corruption(PlanetIndex planet) {
     // 0x3fb040's first-call block [H] (MCX4_GAL2_RE_ANSWERS Q2): an owner with Benefits_From_Corruption makes the planet
     // type 3 whatever its current type (an override below 1 does not keep it clean), with no transition timer, then the
     // type-3 completion effects with P = that owner: the unlock add (idempotent, 0x27f860), the success credit bonus
-    // (paid again after an override >= 1, T09 Q1 site 0x3fbeda) and the visuals 0x3ff230 (GRC 4.3).
+    // (paid again after an override >= 1, T09 Q1 site 0x3fbeda) and the visuals 0x3ff230 (GRC 4.3). #68 [H]: the block
+    // also appends the type-3 per-planet tactical upgrades (every player's faction one, then the owner's planet one) and
+    // removes none, whatever the old type.
     PlanetState& p = planets_[planet];
     if (!benefits(p.owner)) return;
     const int8_t old = p.corruption;
@@ -792,6 +794,7 @@ void GalacticSim::first_political_corruption(PlanetIndex planet) {
     p.corrupting_player = p.owner;
     if (old != kCorruptionRacketeering || old_player != p.owner) corruption_unlocks(planet, old, old_player);
     pay_corruption_bonus(planet, kCorruptionRacketeering, p.owner);
+    corruption_upgrades(planet, kCorruptionRacketeering, kCorruptionNone, p.owner);
     rebuild_corruption_pairs(planet);
 }
 
@@ -2349,6 +2352,20 @@ void GalacticSim::hash_state(StateHasher& h) const {
             h.i32(id);
             h.u32(static_cast<uint32_t>(members.size()));
             for (const uint32_t m : members) h.u32(m);
+        }
+    }
+    {  // #68: the per-planet tactical upgrade lists, hashed only once a player has an entry
+        bool any = false;
+        for (const PlayerState& p : players_) any = any || !p.planet_upgrades.empty();
+        if (any) {
+            h.u32(0x31555450u);  // "PTU1"
+            for (const PlayerState& p : players_) {
+                h.u32(static_cast<uint32_t>(p.planet_upgrades.size()));
+                for (const auto& [planet, t] : p.planet_upgrades) {
+                    h.u32(planet);
+                    h.u32(t);
+                }
+            }
         }
     }
     if (!special_state_default()) hash_special(h);  // P4 sim (order: special_systems.hpp "CRC")

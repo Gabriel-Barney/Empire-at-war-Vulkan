@@ -939,6 +939,51 @@ void GalacticSim::pay_corruption_bonus(PlanetIndex planet, int8_t type, int32_t 
     if (bonus > 0.0f) add_credits(player, bonus, false);
 }
 
+uint32_t GalacticSim::corruption_tactical_upgrade(PlanetIndex planet, int8_t type) const {
+    if (!valid_planet(planet) || type == kCorruptionNone) return kNoIndex;
+    const uint32_t pt = planets_[planet].type;
+    if (pt >= special().types.size()) return kNoIndex;
+    for (const CorruptionChoiceDef& c : special().types[pt].corruption)  // slot 1, 2, 3: the first match
+        if (c.type == type) return c.success_tactical_upgrade < rules_->types.size() ? c.success_tactical_upgrade : kNoIndex;
+    return kNoIndex;
+}
+
+void GalacticSim::corruption_upgrades(PlanetIndex planet, int8_t new_type, int8_t old_type, int32_t player) {
+    if (!valid_planet(planet)) return;
+    const auto add = [planet](PlayerState& ps, uint32_t t) {  // 0x27f9a0: no repeated pair
+        const std::pair<PlanetIndex, uint32_t> e{planet, t};
+        if (std::find(ps.planet_upgrades.begin(), ps.planet_upgrades.end(), e) == ps.planet_upgrades.end())
+            ps.planet_upgrades.push_back(e);
+    };
+    const auto remove = [planet](PlayerState& ps, uint32_t t) {  // 0x2861f0: the first match
+        const auto it = std::find(ps.planet_upgrades.begin(), ps.planet_upgrades.end(), std::pair<PlanetIndex, uint32_t>{planet, t});
+        if (it != ps.planet_upgrades.end()) ps.planet_upgrades.erase(it);
+    };
+    const auto faction_upgrade = [this](const PlayerState& ps, int8_t type) -> uint32_t {  // 0x33e310: types 0..7
+        if (ps.faction >= rules_->factions.size() || type < 0 || type >= 8) return kNoIndex;
+        const std::vector<uint32_t>& v = rules_->factions[ps.faction].automatic_corruption_upgrades;
+        const auto i = static_cast<size_t>(type);
+        return i < v.size() && v[i] < rules_->types.size() ? v[i] : kNoIndex;
+    };
+    for (PlayerState& ps : players_) {
+        if (ps.faction >= rules_->factions.size()) continue;
+        if (const uint32_t t = faction_upgrade(ps, new_type); t != kNoIndex) add(ps, t);
+        if (const uint32_t t = faction_upgrade(ps, old_type); t != kNoIndex) remove(ps, t);
+    }
+    if (!valid_player(player)) return;
+    PlayerState& ps = players_[static_cast<size_t>(player)];
+    if (const uint32_t t = corruption_tactical_upgrade(planet, new_type); t != kNoIndex) add(ps, t);
+    if (const uint32_t t = corruption_tactical_upgrade(planet, old_type); t != kNoIndex) remove(ps, t);
+}
+
+std::vector<uint32_t> GalacticSim::planet_upgrades(int32_t player, PlanetIndex planet) const {
+    std::vector<uint32_t> out;
+    if (!valid_player(player)) return out;
+    for (const auto& [pl, t] : players_[static_cast<size_t>(player)].planet_upgrades)
+        if (pl == planet) out.push_back(t);
+    return out;
+}
+
 int32_t GalacticSim::first_corruption_player() const {
     for (size_t i = 0; i < players_.size(); ++i)
         if (benefits(static_cast<int32_t>(i))) return static_cast<int32_t>(i);

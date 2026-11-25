@@ -178,6 +178,9 @@ struct CorruptionChoiceDef {
     std::vector<uint32_t> required_planets;      // Corruption_N_Required_Planets (planet type indices)
     uint32_t success_unlock = 0xFFFFFFFFu;       // Corruption_N_Success_Unlock_Unit_Type (REMAINING_GAPS 1.5 item 5)
     float success_credit_bonus = 0.0f;           // Corruption_N_Success_Credit_Bonus (float; MCX4_T09_RE_ANSWERS Q1)
+    // #68: Corruption_N_Success_Planet_Specific_Tactical_Upgrade (planet type +0x25f0 / +0x2790 / +0x2930, 0x3715d0);
+    // no shipped FoC planet sets it.
+    uint32_t success_tactical_upgrade = 0xFFFFFFFFu;
     // Tactical mission (S4): Corruption_N_Tactical_Game_Mode (tSubGameModeType: Galactic 0, Land 1, Space 2),
     // Tactical_Map_Name and Tactical_Script_Name (a Story_Plots file), both trimmed.
     bool tactical = false;        // the mode is Land / Space and the map is set

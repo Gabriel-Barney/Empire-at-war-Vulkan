@@ -848,6 +848,32 @@ void CampaignBattles::push_battle(SimHost& host) {
             }
         }
         battle_->set_galactic_upgrades(std::move(ups), !rebuilding_);
+        // #68 (0x2a1eb0 after the 0x2afc10 calls [H]): then, player by player, each type of the player's per-planet list
+        // for the battle planet (0x281620 / 0x281760, list order) that is affiliated with the player's faction (0x3751a0)
+        // and has DUMMY_UPGRADE (0x65) in the generic behaviours or the battle mode's (0x370320 with -1, then the mode).
+        // [port] Retail walks every galactic player; the port spawns for the battle players only (ascending player
+        // index), as the pad persistence does: a third player has no place in the port's battle.
+        std::vector<std::pair<int32_t, uint32_t>> corrupt;
+        const objects::BehaviorTypeId dummy = objects::behavior_type_id("DUMMY_UPGRADE");
+        const objects::BehaviorSet mode_set = kind == ModeKind::Space ? objects::BehaviorSet::Space : objects::BehaviorSet::Land;
+        const PlanetIndex planet = pending_req_.info.planet;
+        for (int32_t p = 0; planet != kInvalidPlanet && static_cast<size_t>(p) < gs.players().size(); ++p) {
+            if (p != pending_req_.info.attacker && p != pending_req_.info.defender) continue;
+            const uint32_t f = gs.players()[static_cast<size_t>(p)].faction;
+            if (f >= gs.rules().factions.size()) continue;
+            const std::string& fname = gs.rules().factions[f].name;
+            for (const uint32_t t : gs.planet_upgrades(p, planet)) {
+                if (t >= types.size()) continue;
+                const auto ti = static_cast<objects::TypeIndex>(t);
+                bool affiliated = false;
+                for (const uint32_t fi : types.factions(ti))
+                    affiliated = affiliated || (fi < types.faction_names().size() && ascii_iequals(types.faction_names()[fi], fname));
+                const bool is_dummy = dummy != objects::kNoBehavior && (types.has_behavior(ti, objects::BehaviorSet::Generic, dummy) ||
+                                                                         types.has_behavior(ti, mode_set, dummy));
+                if (affiliated && is_dummy) corrupt.push_back({p, t});
+            }
+        }
+        battle_->set_corruption_upgrades(std::move(corrupt));
     }
     {  // battle host: TacticalBuild charges / TacticalSell refunds spend the galactic account.
         // #222 (legacy docs/re/A2K_T10_CREDIT_NOTIFY_RE.md): the second add hook is Add_Credits with the AI notify on

@@ -4005,6 +4005,85 @@ void test_galactic_upgrade_spawns() {
     g_temp_prefix = prefix;
 }
 
+// #68 (0x3f9690 / 0x2a1eb0 [H]): the per-planet corruption upgrades at the start of a campaign battle. S10_B (the Empire's)
+// carries a Racketeering choice whose Success_Planet_Specific_Tactical_Upgrade is an Empire DUMMY_UPGRADE; the campaign's
+// Corruption_Level_Override corrupts it at start with P = the owner, so the Empire's list holds {B, that type}. The space
+// battle at B creates one for the Empire at the origin and none for the Underworld.
+namespace {
+std::string corruption_upgrade_types(std::string t) {
+    const std::string at = "<Land_Tactical_Map>S10_Land_B</Land_Tactical_Map></Planet>";
+    const size_t p = t.find(at);
+    if (p != std::string::npos)
+        t.replace(p, at.size(),
+                  "<Land_Tactical_Map>S10_Land_B</Land_Tactical_Map><Corruption_1_Type> Corruption_Racketeering </Corruption_1_Type>"
+                  "<Corruption_1_Success_Planet_Specific_Tactical_Upgrade> S10_Emp_Corrupt </Corruption_1_Success_Planet_Specific_Tactical_Upgrade>"
+                  "</Planet>");
+    const size_t e = t.find("</S10>");
+    if (e != std::string::npos)
+        t.insert(e, " <UpgradeObject Name=\"S10_Emp_Corrupt\"><Behavior>DUMMY_UPGRADE</Behavior><Affiliation>Empire</Affiliation></UpgradeObject>\n");
+    return t;
+}
+}  // namespace
+
+void test_corruption_upgrade_spawns() {
+    const char* prefix = g_temp_prefix;
+    g_types_patch = corruption_upgrade_types;
+    g_temp_prefix = "alamo_sim_battle_tests_corrupt";
+    {
+        auto d = make_data();
+        jobs::JobSystem js(jobs::JobSystemConfig{0});
+        SimConfig cfg;
+        cfg.seed = 2026;
+        cfg.players = 4;
+        SimHost host(d->types, js, cfg);
+        galactic::GalacticSetup setup = make_setup(*d, false);
+        setup.corruption_level_override = {{type_of(*d, "S10_B"), 1}};
+        galactic::GalacticSim* gs = host.start_galactic(d->rules, std::move(setup));
+        CHECK(gs != nullptr);
+        const auto up = static_cast<objects::TypeIndex>(type_of(*d, "S10_Emp_Corrupt"));
+        if (gs) {
+            CHECK(gs->planets()[1].corruption == galactic::kCorruptionRacketeering && gs->planets()[1].owner == 0);
+            CHECK((gs->planet_upgrades(0, 1) == std::vector<uint32_t>{static_cast<uint32_t>(up)}) && gs->planet_upgrades(1, 1).empty());
+            CampaignBattleOptions opt;
+            opt.conflict.human_choice = galactic::BattleChoice::Fight;
+            opt.battle.max_frames = 600;
+            CampaignBattles battles(host, d->crules, *d->catalog,
+                                    [](const std::string& name, terrain::MapData& m) {
+                                        if (name != "S10_Space_B") return false;
+                                        m = space_map();
+                                        return true;
+                                    },
+                                    opt);
+            std::vector<std::string> diag;
+            CHECK(battles.attach(&diag));
+            const std::vector<uint32_t> uf = gs->fleets_at(2, 1);
+            CHECK(!uf.empty() && gs->move_fleet(1, uf[0], 1) == commands::RejectReason::None);
+            bool seen = false;
+            for (uint64_t t = 0; t < 4000 && !seen; ++t) {
+                host.tick_once();
+                TacticalMode* tm = host.tactical();
+                if (!battles.battle() || !tm || battles.battle()->frame() < 1) continue;
+                seen = true;
+                uint32_t emp = 0, other = 0;
+                bool at_origin = true;
+                const objects::ObjectStore& st = tm->primary();
+                for (const objects::ObjectHandle h : st.all_objects()) {
+                    if (!st.alive(h) || st.type(h) != up) continue;
+                    (st.owner(h) == 0 ? emp : other) += 1u;
+                    const Vec3 pos = st.position(h);
+                    at_origin = at_origin && pos.x == 0.0f && pos.y == 0.0f && pos.z == 0.0f;
+                }
+                std::printf("  corruption upgrades in the battle: Empire %u, others %u, at the origin %s\n", emp, other,
+                            at_origin ? "yes" : "no");
+                CHECK(emp == 1 && other == 0 && at_origin);
+            }
+            CHECK(seen);
+        }
+    }
+    g_types_patch = nullptr;
+    g_temp_prefix = prefix;
+}
+
 int main(int argc, char** argv) {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
     g_temp_prefix = "alamo_sim_battle_tests";
@@ -4052,6 +4131,8 @@ int main(int argc, char** argv) {
     test_auto_only(*d);
     std::printf("galab: planet-bonus upgrade objects at a campaign battle's start\n");
     test_galactic_upgrade_spawns();
+    std::printf("corruption upgrade spawns (#68)\n");
+    test_corruption_upgrade_spawns();
     std::printf("human orders + order queue (integration fixes, [port: Gabriel])\n");
     test_orders_and_queue(*d);
     std::printf("fog of war battles\n");
