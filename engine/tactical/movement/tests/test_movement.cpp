@@ -3936,11 +3936,14 @@ static void test_real_data() {
     // #282 (2026-11-23, MSVC; a 0x15 restart short of the last waypoint ends its frame, 0x61fc30 [H]): with the restarts a
     // frame later the TM05 approach differs and the ring no longer forms (13 / 14 / 22 arrive), so this run no longer
     // exercises the §5.4.6 static ring; Saleucami 14 and 17 still stop by the ring rule: 3238 of 3240 arrive.
-    CHECK(group_arrived == group_units && land_units - land_arrived == 2u && land_stopped == 2u && all_stops == 2u && stopped_units == 2u);
-    CHECK(not_arrived.size() == 2);
-    if (not_arrived.size() == 2) {
-        CHECK(not_arrived[0].map == "_LAND_PLANET_SALEUCAMI_INTIMIDATION.TED" && not_arrived[0].id == 14 && not_arrived[0].kind == "f");
-        CHECK(not_arrived[1].map == "_LAND_PLANET_SALEUCAMI_INTIMIDATION.TED" && not_arrived[1].id == 17 && not_arrived[1].kind == "f");
+    // #334 (2026-11-25, MSVC; the playable-box edge cells are Obstacle, 0x3b8cd0 [H]): TM01_GAINING_GROUND unit 13 now also
+    // stops by a failed kind-3 detour (frame 531): 3237 of 3240 arrive.
+    CHECK(group_arrived == group_units && land_units - land_arrived == 3u && land_stopped == 3u && all_stops == 3u && stopped_units == 3u);
+    CHECK(not_arrived.size() == 3);
+    if (not_arrived.size() == 3) {
+        CHECK(not_arrived[0].map == "TM01_GAINING_GROUND.TED" && not_arrived[0].id == 13 && not_arrived[0].kind == "f");
+        CHECK(not_arrived[1].map == "_LAND_PLANET_SALEUCAMI_INTIMIDATION.TED" && not_arrived[1].id == 14 && not_arrived[1].kind == "f");
+        CHECK(not_arrived[2].map == "_LAND_PLANET_SALEUCAMI_INTIMIDATION.TED" && not_arrived[2].id == 17 && not_arrived[2].kind == "f");
     }
     CHECK(space_arrived == space_units && space_hits == 0);
 }

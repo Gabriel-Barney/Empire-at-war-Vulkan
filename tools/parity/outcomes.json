@@ -38,6 +38,10 @@
    {"label": "Destroyer droids", "types": ["Destroyer_Droid", "Destroyer_Droid_Attack"], "min_seeds": 3, "min_walked": 1000,
     "why": "tst2 t04 (b0188): the Underworld droids the scenario exists for (the old pinned seed 4 test fielded them). Measured 2026-11-20: 6/10 seeds (1, 2, 3, 5, 8, 9), 29000-352000 walked; 3 of 10 must"}
   ],
+  "known_lua": [
+   {"text": "is not a valid build location", "group": "#539",
+    "why": "#334 (2026-11-25): with the playable-box edge cells Obstacle, seed 2 calls Build on an undeployed MDU once (a residual of the mdu1 race, issue #539); drop this entry with its fix"}
+  ],
   "why": "bkm2 t05 (b0047): land movement with Empire walkers and Underworld droids, the whole 70000 ticks with no Lua error outside retail's; no end needed (b0422). Measured 0/10 end; the MDU race in seeds 2-5, 9, 10, no other non-retail error. About 190-280 s a seed. tst2 t04: --report-fielded and the fielded checks make sure the walkers and droids are fielded and walk (re-measured 2026-11-20: 1/10 end, MDU race in seeds 4, 6, 9, 10). mdu1 (2026-11-21): the MDU race was a port ordering bug (DEPLOY's leave and adopt queued after the activation), fixed; its known_lua entry is gone."
  },
  "skai_exit_rebel": {
