@@ -34,10 +34,14 @@ const SpecialWeaponSystem::Pack* SpecialWeaponSystem::pack(ObjectId id) const {
     return i < 0 ? nullptr : &packs_[static_cast<size_t>(i)];
 }
 
-uint32_t SpecialWeaponSystem::recharge_frames(const SpecialWeaponDesc& d) const {
-    // int(fps x recharge) (0x4ea3f0 [H]; 0x491770 uses the same getter [M]).
-    const float f = static_cast<float>(cfg_.fps) * d.recharge_seconds;
+uint32_t SpecialWeaponSystem::frames_of(float seconds, bool round) const {
+    const float f = static_cast<float>(cfg_.fps) * seconds + (round ? 0.5f : 0.0f);
     return f > 0.0f ? static_cast<uint32_t>(frames_trunc(f)) : 0u;
+}
+
+uint32_t SpecialWeaponSystem::recharge_frames(const SpecialWeaponDesc& d) const {
+    // int(fps x recharge), truncated: the lobbing fire 0x4ea3f0 [H] and restart. The object fire rounds (0x491770, #487).
+    return frames_of(d.recharge_seconds, false);
 }
 
 void SpecialWeaponSystem::event(SwEventKind k, const Pack& p, uint32_t frame, int32_t value, ObjectId target, Vec3 point) {
@@ -65,6 +69,18 @@ bool SpecialWeaponSystem::add(ObjectId id, uint32_t desc, int32_t owner, uint32_
     const auto it = std::lower_bound(packs_.begin(), packs_.end(), id, [](const Pack& q, ObjectId v) { return q.id < v; });
     packs_.insert(it, p);
     return true;
+}
+
+bool SpecialWeaponSystem::add_duplicate(ObjectId id) {
+    Pack* p = pack(id);
+    if (!p) return false;
+    ++p->count;
+    return true;
+}
+
+uint32_t SpecialWeaponSystem::recharge_counter(ObjectId id) const {
+    const Pack* p = pack(id);
+    return p ? p->count : 0u;
 }
 
 void SpecialWeaponSystem::remove(ObjectId id) {
@@ -133,8 +149,10 @@ bool SpecialWeaponSystem::begin_targeting(ObjectId id, uint32_t frame) {
     return true;
 }
 
-void SpecialWeaponSystem::queue_volley(Pack& p, const SpecialWeaponDesc& d, ObjectId target, Vec3 point, bool at_point, uint32_t frame) {
+void SpecialWeaponSystem::queue_volley(Pack& p, const SpecialWeaponDesc& d, ObjectId target, Vec3 point, bool at_point, uint32_t frame,
+                                       bool round_gap) {
     p.pulses_left = std::max(1, d.pulse_count);
+    p.pulse_gap = frames_of(d.pulse_delay_seconds, round_gap);  // #487: the object fire's 0x491770 rounds [H]
     p.pulse_index = 0;
     p.next_pulse = frame;
     p.shot_target = target;
@@ -160,12 +178,13 @@ bool SpecialWeaponSystem::fire_at_object(ObjectId id, ObjectId target, uint32_t 
     Pack* p = pack(id);
     if (!p || readiness_of(*p, frame) < 1.0f || !can_target(id, target, w)) return false;
     const SpecialWeaponDesc& d = descs_[p->desc];
-    // 0x491770: restart (start = now, ready = now + recharge), targeting off, the weapon event (the volley).
+    // 0x491770 [H]: restart (start = now, ready = now + int(fps x R + 0.5)), targeting off, the weapon event (the volley).
+    // #487: R = 0x373630(type, obj) [H] = Projectile_Fire_Recharge_Seconds / the pack's counter (float).
     p->start = frame;
-    p->ready = frame + recharge_frames(d);
+    p->ready = frame + frames_of(d.recharge_seconds / static_cast<float>(p->count), true);
     p->ready_signalled = 0;
     p->targeting_flag = 0;
-    queue_volley(*p, d, target, {}, false, frame);
+    queue_volley(*p, d, target, {}, false, frame, true);
     event(SwEventKind::Fired, *p, frame, d.target_action_index, target);
     return true;
 }
@@ -184,7 +203,7 @@ bool SpecialWeaponSystem::fire_lobbing_at(ObjectId id, Vec3 point, uint32_t fram
     p->ready_signalled = 0;
     // the WeaponBehavior charges and fires the order (TACTICAL_COMBAT §3.1.1); [port] the point volley only for an
     // object without one.
-    if (!(w.fire_at_position && w.fire_at_position(id, point))) queue_volley(*p, d, kNoObject, point, true, frame);
+    if (!(w.fire_at_position && w.fire_at_position(id, point))) queue_volley(*p, d, kNoObject, point, true, frame, false);
     event(SwEventKind::Fired, *p, frame, d.target_action_index, kNoObject, point);
     return true;
 }
@@ -194,8 +213,7 @@ bool SpecialWeaponSystem::restart(ObjectId id, uint32_t frame, float seconds) {
     if (!p) return false;
     const SpecialWeaponDesc& d = descs_[p->desc];
     p->start = frame;
-    const float f = static_cast<float>(cfg_.fps) * seconds;
-    p->ready = seconds < 0.0f ? frame + recharge_frames(d) : frame + (f > 0.0f ? static_cast<uint32_t>(frames_trunc(f)) : 0u);
+    p->ready = frame + (seconds < 0.0f ? recharge_frames(d) : frames_of(seconds, false));
     p->ready_signalled = p->ready <= frame ? 1 : 0;
     return true;
 }
@@ -382,9 +400,7 @@ void SpecialWeaponSystem::tick(uint32_t frame, SimRng& rng, const SpecialWeaponW
             s.pulse = p.pulse_index++;
             shots_.push_back(s);
             --p.pulses_left;
-            const float f = static_cast<float>(cfg_.fps) * d.pulse_delay_seconds;
-            const uint32_t gap = f > 0.0f ? static_cast<uint32_t>(frames_trunc(f)) : 0u;
-            p.next_pulse = p.next_pulse + gap;  // no delay: the whole volley this frame
+            p.next_pulse = p.next_pulse + p.pulse_gap;  // no delay: the whole volley this frame
         }
         if ((d.kinds & (kSwSpecialWeapon | kSwLobbing)) && !p.ready_signalled && frame >= p.ready) {
             p.ready_signalled = 1;
@@ -411,6 +427,8 @@ void SpecialWeaponSystem::hash(StateHasher& h) const {
         h.u32(p.ready);
         h.u8(p.targeting_flag);
         h.u8(p.ready_signalled);
+        h.u32(p.count);  // #487
+        h.u32(p.pulse_gap);
         h.i32(p.pulses_left);
         h.u32(p.pulse_index);
         h.u32(p.next_pulse);

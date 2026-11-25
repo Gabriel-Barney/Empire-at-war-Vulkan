@@ -61,10 +61,22 @@ SpecialWeaponWorld world_with_owners(const std::vector<int32_t>& owner_by_id, co
 }
 
 void test_readiness() {
-    SpecialWeaponSystem s({ion_cannon()});
+    {  // #487 (constructor 0x491410 [H]): a new pack is ready at once, counter 1, and its ready is not announced
+        SpecialWeaponSystem n({ion_cannon()});
+        CHECK(n.add(5, 0, 0, 100));
+        CHECK_EQ(n.readiness(5, 100), 1.0f);
+        CHECK_EQ(n.recharge_counter(5), 1u);
+        SimRng nrng(1u);
+        SpecialWeaponWorld nw;
+        n.tick(100, nrng, nw);
+        CHECK_EQ(count(n.events(), SwEventKind::Ready), 0);
+    }
+    SpecialWeaponConfig charging;
+    charging.start_charged = false;
+    SpecialWeaponSystem s({ion_cannon()}, charging);
     CHECK(s.add(5, 0, 0, 100));
     CHECK(!s.add(5, 0, 0, 100));  // once
-    // [port] a new pack charges first: ready = 100 + int(30 x 30) = 1000.
+    // start_charged false: the pack charges first: ready = 100 + int(30 x 30) = 1000.
     CHECK_EQ(s.ready_frame(5), 1000);
     CHECK_EQ(s.readiness(5, 100), 0.0f);
     CHECK_EQ(s.readiness(5, 550), 0.5f);
@@ -72,11 +84,6 @@ void test_readiness() {
     CHECK_EQ(s.readiness(5, 1000), 1.0f);
     CHECK_EQ(s.readiness(5, 5000), 1.0f);
     CHECK_EQ(s.readiness(6, 100), -1.0f);  // no pack
-    SpecialWeaponConfig cfg;
-    cfg.start_charged = true;
-    SpecialWeaponSystem c({ion_cannon()}, cfg);
-    CHECK(c.add(1, 0, 0, 10));
-    CHECK_EQ(c.readiness(1, 10), 1.0f);
     // The Ready event fires once per charge.
     SimRng rng(1u);
     SpecialWeaponWorld w;
@@ -147,6 +154,32 @@ void test_fire_at_object() {
     CHECK(s.restart(1, 100, 0.0f));
     CHECK_EQ(s.readiness(1, 100), 1.0f);
     CHECK(!s.fire_at_object(1, 2, 100, ally));
+}
+
+// #487 [H]: two duplicates (counter 3) divide the recharge at the fire - 0x373630: R / 3 = 10 s - and 0x491770 rounds:
+// ready = now + int(30 x 10 + 0.5) = now + 300. A 1.02 s recharge rounds 30.6 up to 31 frames (the old truncation: 30).
+void test_duplicate_counter() {
+    SpecialWeaponSystem s({ion_cannon()});
+    CHECK(s.add(1, 0, 0, 0));
+    CHECK(s.add_duplicate(1) && s.add_duplicate(1) && !s.add_duplicate(9));
+    CHECK_EQ(s.recharge_counter(1), 3u);
+    const SpecialWeaponWorld w = world_with_owners({-1, 0, 1}, {0, 0, kCatCapital});
+    CHECK(s.fire_at_object(1, 2, 10, w));
+    CHECK_EQ(s.ready_frame(1), 10 + 300);
+    SpecialWeaponDesc quick = ion_cannon();
+    quick.recharge_seconds = 1.02f;
+    quick.pulse_delay_seconds = 0.52f;  // 15.6 frames: the gap rounds to 16 (0x491770 +0x18)
+    SpecialWeaponSystem q({quick});
+    CHECK(q.add(1, 0, 0, 0));
+    CHECK(q.fire_at_object(1, 2, 10, w));
+    CHECK_EQ(q.ready_frame(1), 10 + 31);
+    SimRng rng(3u);
+    std::vector<uint32_t> pulses;
+    for (uint32_t f = 10; f < 50; ++f) {
+        q.tick(f, rng, w);
+        for (size_t k = 0; k < q.shots().size(); ++k) pulses.push_back(f);
+    }
+    CHECK(pulses == std::vector<uint32_t>({10, 26, 42}));
 }
 
 void test_lobbing() {
@@ -758,18 +791,21 @@ void test_special_weapon_save() {
     bad = saved;
     bad[0] = 0;
     CHECK(rejected(bad));
-    // version, descriptor count, 3 descriptors (63 bytes), pack count; packs (85 bytes) ascending id: 1, 4, 5, 9.
+    // version, descriptor count, 3 descriptors (63 bytes), pack count; packs (93 bytes) ascending id: 1, 4, 5, 9.
     const size_t packs = 4 + 4 + 3 * 63 + 4;
     bad = saved;
     bad[packs + 4] = 3;  // the first pack's descriptor index: past the table
     CHECK(rejected(bad));
     bad = saved;
-    bad[packs + 85 + 51] = 11;  // the Death Star pack's TSW state: there is no state 11
-    CHECK(rejected(bad));
-    bad[packs + 85 + 51] = 14;  // past kTswRelease
+    for (size_t k = 0; k < 4; ++k) bad[packs + 22 + k] = 0;  // #487: the first pack's counter 0 (it starts at 1)
     CHECK(rejected(bad));
     bad = saved;
-    bad[packs + 85] = 0x7F;  // the second pack's id (127 > 5): ids out of order
+    bad[packs + 93 + 59] = 11;  // the Death Star pack's TSW state: there is no state 11
+    CHECK(rejected(bad));
+    bad[packs + 93 + 59] = 14;  // past kTswRelease
+    CHECK(rejected(bad));
+    bad = saved;
+    bad[packs + 93] = 0x7F;  // the second pack's id (127 > 5): ids out of order
     CHECK(rejected(bad));
     CHECK(bytes_of(c) == before);
     ByteReader ok(saved);
@@ -815,6 +851,7 @@ int main() {
     test_readiness();
     test_targeting();
     test_fire_at_object();
+    test_duplicate_counter();  // #487
     test_lobbing();
     StateHasher a, b;
     test_tsw_defender_path(&a);

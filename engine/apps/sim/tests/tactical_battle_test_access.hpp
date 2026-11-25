@@ -8,6 +8,8 @@ namespace alamo::sim {
 
 struct TacticalBattleTestAccess {
     static tactical::abilities::AbilitySystem& abilities(TacticalBattle& b) { return *b.abilities_; }
+    // #487: the battle's special-weapon packs, mutable (a test restarts a new pack's charge: packs start ready).
+    static tactical::abilities::SpecialWeaponSystem& special_weapons(TacticalBattle& b) { return b.l1_sw_; }
     // #88: the battle's movement system, mutable (a test puts fighters in Dead_Stop, whose retail writer is untraced).
     static tactical::movement::MovementSystem& movement(TacticalBattle& b) { return *b.movement_; }
     // #491: the land formation records, mutable (a test puts a block flag no port writer sets, 0x40).

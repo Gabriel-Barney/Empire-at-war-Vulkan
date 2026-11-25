@@ -51,7 +51,7 @@ namespace {
 // tick); 8: buzz-droid clouds; 9: #57 t02 the rope landing's Rope Land state (rope_state 4; in state 2 rope_end is the
 // slide's end); 10: #475 the bribed flag. Only the current version is read (cu6).
 constexpr uint32_t kAbilitySaveVersion = 10;
-constexpr uint32_t kSpecialWeaponSaveVersion = 1;
+constexpr uint32_t kSpecialWeaponSaveVersion = 2;  // 2: #487 the pack's duplicate counter and pulse gap
 constexpr uint32_t kSpaceFieldSaveVersion = 1;
 
 void put_ids(ByteWriter& w, const std::vector<ObjectId>& v) {
@@ -469,6 +469,7 @@ void SpecialWeaponSystem::write(ByteWriter& w) const {
     w.u32(static_cast<uint32_t>(packs_.size()));
     for (const Pack& p : packs_) {
         w.i32(p.id).u32(p.desc).i32(p.owner).u32(p.start).u32(p.ready).u8(p.targeting_flag).u8(p.ready_signalled);
+        w.u32(p.count).u32(p.pulse_gap);  // #487 (version 2)
         w.i32(p.pulses_left).u32(p.pulse_index).u32(p.next_pulse).i32(p.shot_target);
         put_vec3(w, p.shot_point);
         w.u8(p.at_point).i32(p.tsw).u8(p.tsw_init).i32(p.tsw_target);
@@ -514,7 +515,7 @@ bool SpecialWeaponSystem::read(ByteReader& r) {
         if (!r.ok()) return false;
     }
     const auto nd = static_cast<uint32_t>(descs.size());
-    if (!r.count(n, 85)) return false;
+    if (!r.count(n, 93)) return false;
     std::vector<Pack> packs(n);
     bool first = true;
     ObjectId prev = 0;
@@ -526,6 +527,8 @@ bool SpecialWeaponSystem::read(ByteReader& r) {
         p.ready = r.u32();
         p.targeting_flag = r.u8();
         p.ready_signalled = r.u8();
+        p.count = r.u32();  // #487 (version 2)
+        p.pulse_gap = r.u32();
         p.pulses_left = r.i32();
         p.pulse_index = r.u32();
         p.next_pulse = r.u32();
@@ -540,7 +543,7 @@ bool SpecialWeaponSystem::read(ByteReader& r) {
         p.debris_pick = r.i32();
         p.debris_frame = r.u32();
         p.debris_pending = r.u8();
-        if (!r.ok() || p.desc >= nd || (!first && p.id <= prev) || p.tsw < -1 || p.tsw > static_cast<int32_t>(kTswRelease) ||
+        if (!r.ok() || p.desc >= nd || p.count == 0 || (!first && p.id <= prev) || p.tsw < -1 || p.tsw > static_cast<int32_t>(kTswRelease) ||
             p.tsw == 11 || p.tsw_init > 2)  // no state 11 (TSW_PLANET_DESTROY §3)
             return false;
         first = false;
