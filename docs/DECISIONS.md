@@ -266,6 +266,17 @@ Quality 1.7x, Balanced 2x, Performance 2.3x, Ultra Performance 3x) sit next to t
 runtime's `xessGetOptimalInputResolution`. `[port]` choices: the same inputs and jitter sequence as FSR, and the
 display-referred 8-bit colour passed as LDR input (exposure 1), since the frame graph has no HDR scene colour.
 
+## Mod support: exception to the current focus
+
+Gabriel, 2026-11-25. A named exception to "Current focus: parity tiers 1 and 2 only".
+
+Work whose only users are mods is in focus: data formats and tags that no vanilla map or file uses but mods do (for
+example the old map environment format 0x100/0 and /1, #329 / #577), the mod corpus and differential checks (#78, #79),
+and the mod tooling (mod golden fingerprints, #349). The rules in `docs/MODS.md` still bind it. There is no mod-specific
+code in `engine/`, fixes are general mechanisms, and base FoC does not move: base-FoC goldens stay byte-identical.
+Why: mod compatibility is a stated goal (`docs/MODS.md`), and a format only mods use can never come up as tier-1 or
+tier-2 parity work, so without this exception it would never be in focus.
+
 ## Side goals deferred
 
 Gabriel, 2026-11-06.
