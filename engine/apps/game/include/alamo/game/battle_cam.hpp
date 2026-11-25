@@ -9,9 +9,10 @@
 //   hero_clash_shot       0x4a4ac0: the local player's hero in a land hero clash, held 45 frames, then an orbit.
 //
 // Presentation only. Nothing here is written into the sim, and the orbit direction is an unsynced draw.
-// Ported shots: Cinematic View, the hero clash orbit, and (#568) the interesting-object shot with its orbit, fly-past and
-// static templates. [port] The land bombing run (0x49f370, #563) and the other interesting-object templates (#569 -
-// #572) are not ported yet: they fail, and the next pick is tried, as retail does when a pick fails.
+// Ported shots: Cinematic View, the hero clash orbit, and the interesting-object shot with its orbit, fly-past and
+// static templates (#568) and its push-in, drive-by and land flying shots (#569). [port] The land bombing run (0x49f370,
+// #563) and the other interesting-object templates (#570 - #572) are not ported yet: they fail, and the next pick is
+// tried, as retail does when a pick fails.
 #pragma once
 
 #include <cstdint>

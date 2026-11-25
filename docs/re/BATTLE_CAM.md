@@ -129,8 +129,9 @@ The effect's vtable is `0x8fedb8` (apply `0x7d97d0`, the fbm shake). In `0x7d93a
 
 Who starts it:
 - the hero clash and Cinematic View (every view step), with dur 0x3fffffff;
-- the static interesting-object shot, with dur 60. The attack run, the hardpoint, fighter and infantry templates use it
-  too (#569 - #571); the orbit and the fly-past don't.
+- the static interesting-object shot, with dur 60, and the infantry push-in, with its length. The attack run, the
+  hardpoint and fighter templates use it too (#570, #571); the orbit, the fly-past, the drive-by and the land flying
+  shot don't.
 
 The bombing run and the TSW shot don't.
 
@@ -252,20 +253,21 @@ It clears every key list and the shake trackers (`0x4a7a90`), but not the smooth
 2. +0x315 = 1, the land terrain clamp, for every generated shot;
 3. a drawn hardpoint with a target: the hardpoint shot (`0x4a47d0`, #571);
 4. Fighter: the chase (`0x4a0140`, #570);
-5. Infantry: the push-in (`0x4a4e30`, #569);
+5. Infantry: **the push-in** (`0x4a4e30`);
 6. `rand(0, 3) == 0`: **the static shot** (`0x4a17c0`);
 7. Corvette or Bomber: `rand(0, 1) == 0` ? the attack run (`0x4a26f0`) : the chase (#570);
 8. Frigate: the attack run (#570);
-9. Vehicle: the drive-by (`0x4a6dd0`, #569);
-10. no locomotor: the structure shot (`0x49f880`, #569), and on failure step 12;
-11. flying: `0x4a23d0` (#569); then, on land only, \|E\| < 30 ? the push-in : the drive-by;
+9. Vehicle: **the drive-by** (`0x4a6dd0`);
+10. no locomotor: the structure shot (`0x49f880`, #570), and on failure step 12;
+11. flying: **the land flying shot** (`0x4a23d0`); then, on land only, \|E\| < 30 ? the push-in : the drive-by, and on
+    failure step 12 (in space, straight to step 12);
 12. `rand(0, 1) == 0` ? **the orbit** (`0x4a0830`) : **the fly-past** (`0x4a1c90`).
 
 Every template sets the shot length (frames), the letterbox and the engine loop on its object. A template that leaves
 the smoothing unset inherits the previous shot's value (`BattleCamShot::smoothing` is optional); only
 End_Cinematic_Mode zeroes it. The hero clash sets none, so a clash chained after an orbit or a fly-past runs at 0.9.
 
-### The three ported templates [H]
+### The ported templates [H]
 
 - **Static `0x4a17c0`:** ψ = randf(0, 360)°, φ = randf(20, 45)° (negated with chance 1/2 in space),
   d = randf(2\|E\|, 4\|E\|). The look holds on the world centre C, and the eye holds at
@@ -278,6 +280,24 @@ End_Cinematic_Mode zeroes it. The hero clash sets none, so a clash chained after
   T = (t + 1)·8·FPS, looking at (0, −6 Ey, 0). Otherwise: across the top front, eye R·(2 Ex, ±2 Ey, 2 Ez) →
   R·(2 Ex, ∓2 Ey, 2 Ez) translate-only over T = (4t + 3)·FPS, with R the object's rotation at the start. Smoothing
   0.9, no noise.
+
+- **Push-in `0x4a4e30`** (infantry, or a small land unit; needs a model): n = rand(120, 150), h = rand(30, 40) / 20,
+  s = ±1. The eye moves on world points fixed from the start's transform M, M·(2s Ex, 2 Ey, 2h Ez) →
+  M·(s Ex, 2 Ey, h Ez), ease out / in 0.25. The look is attached: (0, 0, 0.25 h Ez) → (0, −2 Ey, 0.1 h Ez). Length n,
+  handheld noise for n, smoothing inherited.
+- **Drive-by `0x4a6dd0`** (a vehicle, or a large land unit; needs a model): n = rand(60, 90), s = ±1,
+  H = clamp(5 Ez, 50, 125), then the variant rand(0, 2). Every eye key is a world point M·(…) fixed at the start, so
+  the vehicle drives through the frame; the second eye key eases in 0.25. Length 2n, no noise, smoothing inherited.
+
+  | variant | eye, frame 0 → 2n | look, frame 0 → 2n |
+  |---|---|---|
+  | 0 | M·(3s Ex, 2 Ey, H) → M·(2s Ex, 0, Ez) | attached 0 → (0, −3 Ey, 0) |
+  | 1 | M·(3s Ex, −3 Ey, H) → M·(2s Ex, −Ey, Ez) | attached (0, −Ey, 0) → 0 |
+  | 2 | M·(2s Ex, −3 Ey, 7) → M·(2s Ex, −2 Ey, 7) | world M·(0, 0, 30) → M·(0, 0, 20) |
+- **Land flying `0x4a23d0`** (a flying locomotor; needs a model): n = rand(60, 90), s = ±1. The eye holds on the world
+  point M·(s Ex, −Ey, Ez) beside the craft, and the look holds on it (ease out 0.25). Length n, no noise.
+
+The look filter flag +0x1bd that the push-in and the land flying shot set only matters after a glory shot (#572).
 
 Translate-only (+0x51) places an attached key at the object's position plus the offset in world axes, so the object's
 turning does not swing the camera.
@@ -368,9 +388,8 @@ The TSW firing shot is state 3 too. `0x2ccf30` sets the baseline at Fire, and ev
 
 All of them are presentation: no sim state, no synced draw, so tiers 2 and 3 are untouched. Camera feel is tier 1, so
 each of these is a known gap rather than an accepted difference:
-- The not-ported picks and templates: the bombing run (#563); the glory, hardpoint, fighter, infantry, attack-run,
-  vehicle, structure and flying templates (#569 - #572) fail and fall through, so their objects get the static shot,
-  the orbit or the fly-past. The 3/4 hardpoint draw is made, but no hardpoint is picked, and its index draws are
+- The not-ported picks and templates: the bombing run (#563); the glory, hardpoint, fighter, attack-run and structure
+  templates (#570 - #572) fail and fall through, so their objects get the static shot, the orbit or the fly-past. The 3/4 hardpoint draw is made, but no hardpoint is picked, and its index draws are
   not made, so for an object with hardpoints the later draws differ from retail's (#571).
 - The interesting object's fields, read from the port's objects: "in the world, not hidden" (+0x39f, +0x3a0 & 0x40) is
   drawn and not dying or contained; "a model" is drawable; fogged is hidden from the local player by the FOW; the
@@ -379,6 +398,7 @@ each of these is a known gap rather than an accepted difference:
 - The first pick takes the selection's drawn objects of the local player, where retail takes the selection unfiltered.
 - Equal saliency scores keep the candidates' order; retail's introsort is not stable, so a tie may pick another object.
 - The static shot's centre is the object's position, not its box centre [M].
+- The land flying shot reads the ModelBox in retail; the port has one box.
 - The mouse is measured per frame, not per event.
 - There is no cursor re-centring in a view.
 - A failed view step stops the cam.
@@ -409,7 +429,7 @@ start stops a running TSW shot.
 
 ## Open
 
-- The interesting-object templates not ported yet (#569 - #572) and a second object per key (the attack run's and
+- The interesting-object templates not ported yet (#570 - #572) and a second object per key (the attack run's and
   the structure shot's target).
 - The bombing-run shot `0x49f370` (#563).
 - The exact axes of `0x4a6790`'s rotation.
