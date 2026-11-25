@@ -66,7 +66,10 @@ namespace {
 // i32 owner, i32 frame}...}...} planet-ascending; v13 and older read none.
 // v15 (#456): + last, the fleets whose counts_for_starbase (fleet data +0x94) is clear {u32 count, u32 fleet index...}
 // ascending; v14 and older read every fleet as set.
-constexpr uint32_t kGalacticSaveVersion = 15;  // 15: + the fleets cleared by an AI magic spawn
+// v16 (#191): + last, the objects' paid costs {u32 count, {i32 ObjectId, f32 credits}...} id-ascending; v15 and older read
+// none (a sold object then refunds half its build cost).
+constexpr uint32_t kGalacticSaveVersion = 16;  // 16: + the paid costs
+constexpr uint32_t kGalacticSaveVersionNoPaidCosts = 15;
 constexpr uint32_t kGalacticSaveVersionNoStarbaseFlag = 14;
 constexpr uint32_t kGalacticSaveVersionNoUpgradeObjects = 13;
 constexpr uint32_t kGalacticSaveVersionNoPlanetUpgrades = 12;
@@ -209,12 +212,14 @@ void GalacticSim::write(ByteWriter& w) const {
     w.u32(cleared);
     for (uint32_t i = 0; i < fleets_.size(); ++i)
         if (!fleets_[i].counts_for_starbase) w.u32(i);
+    w.u32(static_cast<uint32_t>(paid_costs_.size()));  // #191 (v16), ascending ObjectId
+    for (const auto& [id, credits] : paid_costs_) w.i32(id).f32(credits);
 }
 
 bool GalacticSim::read(ByteReader& r) {
     const objects::ObjectStore& st = *store_;
     const uint32_t version = r.u32();
-    if ((version != kGalacticSaveVersion && version != kGalacticSaveVersionNoStarbaseFlag && version != kGalacticSaveVersionNoUpgradeObjects && version != kGalacticSaveVersionNoPlanetUpgrades && version != kGalacticSaveVersionNoSurvivors && version != kGalacticSaveVersionNoLocks && version != kGalacticSaveVersionNoPlacement && version != kGalacticSaveVersionNoSlots && version != kGalacticSaveVersionNoGalab &&
+    if ((version != kGalacticSaveVersion && version != kGalacticSaveVersionNoPaidCosts && version != kGalacticSaveVersionNoStarbaseFlag && version != kGalacticSaveVersionNoUpgradeObjects && version != kGalacticSaveVersionNoPlanetUpgrades && version != kGalacticSaveVersionNoSurvivors && version != kGalacticSaveVersionNoLocks && version != kGalacticSaveVersionNoPlacement && version != kGalacticSaveVersionNoSlots && version != kGalacticSaveVersionNoGalab &&
          version != kGalacticSaveVersionNoNames) ||
         !r.ok())
         return false;
@@ -513,6 +518,17 @@ bool GalacticSim::read(ByteReader& r) {
             prev = i;
         }
     }
+    std::vector<std::pair<int32_t, float>> paid;  // #191 (v16)
+    if (version >= 16) {
+        uint32_t n_paid = 0;
+        if (!r.count(n_paid, 8)) return false;
+        paid.resize(n_paid);
+        for (uint32_t k = 0; k < n_paid; ++k) {
+            paid[k].first = r.i32();
+            paid[k].second = r.f32();
+            if (!r.ok() || paid[k].second == 0.0f || (k > 0 && paid[k].first <= paid[k - 1].first)) return false;
+        }
+    }
     if (!r.ok() || !r.done()) return false;
 
     // ---- commit ----
@@ -537,6 +553,7 @@ bool GalacticSim::read(ByteReader& r) {
     planets_ = std::move(planets);
     fleets_ = std::move(fleets);
     company_survivors_ = std::move(survivors);
+    paid_costs_ = std::move(paid);
     if (version < 13)  // #68: the lists of a save from before them, from the current corruption (planet order)
         for (PlanetIndex i = 0; i < planets_.size(); ++i)
             if (planets_[i].is_planet && planets_[i].corruption != kCorruptionNone)
