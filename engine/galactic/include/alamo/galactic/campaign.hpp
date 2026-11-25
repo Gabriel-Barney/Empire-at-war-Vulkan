@@ -318,7 +318,7 @@ struct PersistedBuiltObject {
 struct PersistedUpgradeObject {
     uint32_t type = kNoIndex;   // the DUMMY_UPGRADE type
     int32_t owner = kNoPlayer;  // the player whose production finished it
-    int32_t frame = 0;          // [L] the record's third field: the port writes the galactic frame of the add
+    int32_t frame = 0;          // the record's third field, read as the galactic frame of the add [L] (nothing reads it)
 };
 
 struct PlanetState {

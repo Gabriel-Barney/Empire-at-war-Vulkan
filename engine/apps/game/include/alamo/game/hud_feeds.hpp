@@ -161,6 +161,14 @@ ui::HudBuildOption::Block galactic_build_block(commands::RejectReason why);
 const char* galactic_announcement(const galactic::GalacticSim& g, const galactic::GalacticEvent& e, int32_t local_player);
 std::vector<std::u32string> droid_log_rows(std::u32string_view day_text, int32_t cycle, std::u32string_view text, std::u32string_view separator);
 std::vector<PlanetIndex> fleet_drag_route(const galactic::GalacticSim& g, int32_t local_player, uint32_t fleet_id, PlanetIndex target);
+// #459 (docs/re/HOLOCRON_SUMMARY_SORT.md "Key 8 and the Upgrades icons", 0x10b0f0 / 0x11c020 [H]): a planet's Holocron
+// Upgrades values. `count` = sort key 8 (every record, no owner filter); `types` = the first 8 records' types, for the
+// IDC_HERO<row>_ICON0..7 icons.
+struct UpgradeColumn {
+    size_t count = 0;
+    std::vector<uint32_t> types;
+};
+UpgradeColumn upgrade_column(std::span<const galactic::PersistedUpgradeObject> records);
 // The live fleet whose fleet object has id `fleet_id` (a map stack's GalacticPlanetStack::fleet), nullptr when none.
 const galactic::FleetState* fleet_by_id(const galactic::GalacticSim& g, uint32_t fleet_id);
 // #455 (docs/re/GALACTIC_ABILITY_ROWS.md "The kind and its label"): the two kinds the row rule names.

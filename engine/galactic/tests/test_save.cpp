@@ -914,6 +914,31 @@ void test_queue_phases() {
         v12[0] = 12;
         ByteReader r12(v12);
         CHECK(o.read(r12) && sim_bytes(o) == bytes);
+        {  // a v13 image whose upgrade records are malformed is refused: a bad type, then a duplicate owner + type
+            const size_t base = bytes.size() - 4;
+            std::vector<uint8_t> bad(bytes.begin(), bytes.begin() + static_cast<std::ptrdiff_t>(base));
+            const auto u32 = [&bad](uint32_t v) {
+                for (int i = 0; i < 4; ++i) bad.push_back(static_cast<uint8_t>(v >> (8 * i)));
+            };
+            u32(1);
+            u32(0);
+            u32(2);
+            u32(0xFFFFu);  // a type past the table
+            u32(0);
+            u32(0);
+            u32(0);
+            u32(0);
+            u32(0);
+            ByteReader rb(bad);
+            CHECK(!o.read(rb));
+            bad[base + 12] = 0;  // the first record's type: 0, the same as the second one's
+            bad[base + 13] = 0;
+            ByteReader rd(bad);
+            CHECK(!o.read(rd));
+            bad[base + 28] = 1;  // the second record's owner: 1, so the pair differs
+            ByteReader ro(bad);
+            CHECK(o.read(ro) && o.planets()[0].upgrade_objects.size() == 2);
+        }
         std::vector<uint8_t> v11(v12.begin(), v12.end() - 4);
         v11[0] = 11;
         ByteReader r11(v11);

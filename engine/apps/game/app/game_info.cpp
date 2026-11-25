@@ -286,8 +286,9 @@ ui::SummaryInfo Holocron::summary(const galactic::GalacticSim& g, const GameData
         }
         // #459 (docs/re/HOLOCRON_SUMMARY_SORT.md, 0x11c020 [H]): the UPGRADES slots IDC_HERO<row>_ICON0..7 show the first 8
         // persistent upgrade objects' icons (no owner filter).
-        for (const galactic::PersistedUpgradeObject& u : p.upgrade_objects)
-            if (pr.heroes.size() < 8 && u.type < d.types.size()) pr.heroes.push_back(icon_of(hud_types, static_cast<objects::TypeIndex>(u.type)));
+        // [M] the type's +0x120 text as each icon's tooltip is not shown (SummaryProductionRow carries icons only).
+        const game::UpgradeColumn upgrades = game::upgrade_column(p.upgrade_objects);
+        for (const uint32_t t : upgrades.types) pr.heroes.push_back(icon_of(hud_types, static_cast<objects::TypeIndex>(t)));
         uint32_t units = 0;
         auto hero = [&](objects::ObjectHandle h) {
             if (!st.alive(h) || st.owner(h) != player) return;
@@ -336,7 +337,7 @@ ui::SummaryInfo Holocron::summary(const galactic::GalacticSim& g, const GameData
         sv[5] = base + trade + other;
         sv[6] = static_cast<double>(units);
         sv[7] = (pr.space_icon.empty() ? 0.0 : 1.0) + (pr.ground_icon.empty() ? 0.0 : 1.0);
-        sv[8] = static_cast<double>(p.upgrade_objects.size());
+        sv[8] = static_cast<double>(upgrades.count);
         sv[9] = static_cast<double>(land_units);
         sv[10] = static_cast<double>(space_fleets);
         s.production.back().sort = sv;

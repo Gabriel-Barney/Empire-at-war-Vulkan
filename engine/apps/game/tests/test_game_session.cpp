@@ -2774,6 +2774,13 @@ void hud_feeds_test(const game::GameData& data, const game::SessionSpec& spec) {
         const galactic::ActivatedAbilitySlot r = game::drag_row_slot({}, 3, true, true);
         CHECK(r.kind == game::kAbilityKindRaid && std::string_view(r.label) == "TEXT_ABILITY_SLOT_RAID");
     }
+    {  // #459: the Holocron Upgrades column - key 8 counts every record (no owner filter), the icons are the first 8
+        std::vector<galactic::PersistedUpgradeObject> recs;
+        for (uint32_t i = 0; i < 10; ++i) recs.push_back({100 + i, static_cast<int32_t>(i % 2), 0});
+        const game::UpgradeColumn c = game::upgrade_column(recs);
+        CHECK(c.count == 10 && c.types.size() == 8 && c.types.front() == 100 && c.types.back() == 107);
+        CHECK(game::upgrade_column({}).count == 0 && game::upgrade_column({}).types.empty());
+    }
     std::printf("hud feeds: cycle %.4f -> %.4f, %zu galactic hero entries, %zu drag routes\n", static_cast<double>(f0),
                 static_cast<double>(f1), heroes.size(), routes_checked);
 }

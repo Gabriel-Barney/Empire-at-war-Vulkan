@@ -450,8 +450,8 @@ bool GalacticSim::read(ByteReader& r) {
             }
         }
     }
-    if (version >= 13) {  // #459: the planets' persistent upgrade objects (older saves: none)
-        for (PlanetState& p : planets) p.upgrade_objects.clear();
+    for (PlanetState& p : planets) p.upgrade_objects.clear();  // #459: older saves have none
+    if (version >= 13) {  // the planets' persistent upgrade objects, one record per owner + type
         uint32_t n_pl = 0;
         if (!r.count(n_pl, 8)) return false;
         uint32_t prev = 0;
@@ -466,11 +466,11 @@ bool GalacticSim::read(ByteReader& r) {
                 u.owner = r.i32();
                 u.frame = r.i32();
                 if (!r.ok() || u.type >= types || !player_ok(u.owner)) return false;
+                for (const PersistedUpgradeObject* q = v.data(); q != &u; ++q)
+                    if (q->owner == u.owner && q->type == u.type) return false;  // add_upgrade_object never writes a duplicate
             }
             prev = pl;
         }
-    } else {
-        for (PlanetState& p : planets) p.upgrade_objects.clear();
     }
     if (!r.ok() || !r.done()) return false;
 

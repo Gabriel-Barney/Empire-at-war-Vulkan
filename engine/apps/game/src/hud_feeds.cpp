@@ -443,6 +443,13 @@ const galactic::FleetState* fleet_by_id(const galactic::GalacticSim& g, uint32_t
     return fi == galactic::kNoFleet || fi >= g.fleets().size() ? nullptr : &g.fleets()[fi];
 }
 
+UpgradeColumn upgrade_column(std::span<const galactic::PersistedUpgradeObject> records) {
+    UpgradeColumn out;
+    out.count = records.size();
+    for (size_t i = 0; i < records.size() && i < 8; ++i) out.types.push_back(records[i].type);
+    return out;
+}
+
 std::vector<PlanetIndex> fleet_drag_route(const galactic::GalacticSim& g, int32_t me, uint32_t fleet_id, PlanetIndex target) {
     std::vector<PlanetIndex> path;
     if (me < 0 || target >= g.planets().size()) return path;

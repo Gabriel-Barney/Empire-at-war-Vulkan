@@ -50,15 +50,18 @@ into the row. A queue counts 1 only when it has a head and that string is non-em
 - **Open order:** `ui::InfoScreens::show_info` resets the sort to key 1 A→Z on each summary open.
 - **Key 7:** counts a queue only when its head type has an icon (`engine/apps/game/app/game_info.cpp`).
 - **Key 8 and the Upgrades icons (#459):**
-  - `galactic::PlanetState::upgrade_objects` holds `{type, owner, frame}`. The port writes the galactic frame into the
-    third field [L].
+  - `galactic::PlanetState::upgrade_objects` holds `{type, owner, frame}`, the third field read as the galactic frame of
+    the add [L].
   - The list changes through `GalacticSim::add_upgrade_object` / `remove_upgrade_object` (`0x4b7090` / `0x4bb690`; an
     add of the same owner and type is refused). It is saved (galactic save v13; older saves read none) and hashed only
     for planets with records.
   - The battle installs them through `TacticalBattle::set_upgrade_tracking`, behind the pads' campaign gate:
     - the add on a finished DUMMY_UPGRADE (`0x498170`);
-    - the remove when a production upgrade object leaves with its container, or with a station upgrade (`0x379df0`).
-  - Key 8 counts the list, and the 8 icons are its first 8 records, with no owner filter (`game_info.cpp`).
+    - the remove when an upgrade object is removed silently: with its dead container (`0x379df0`), or out of its station
+      by a station upgrade (the `0x498170` kill-list path [M]). The remove is by owner and type, so a planet-bonus
+      upgrade's removal clears a matching record too [M].
+  - Key 8 counts the list, and the 8 icons are its first 8 records, with no owner filter (`game::upgrade_column`).
+    The type's +0x120 text as each icon's tooltip is not shown.
   - Tactical production runs in skirmish only in the port, so the list fills once campaign battles produce (#544).
 - **Still `[port]`:** keys 6, 9 and 10 use the port's unit and fleet counts. Keys 9 and 10 cannot be reached in FoC.
 

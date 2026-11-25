@@ -158,7 +158,7 @@ struct SummaryProductionRow {
     std::u32string name;
     std::string space_icon, ground_icon;
     std::u32string space_text, ground_text;
-    std::vector<std::string> heroes;  // up to 8
+    std::vector<std::string> heroes;  // up to 8: the IDC_HERO<row>_ICON0..7 slots, which show upgrade icons (#459)
     std::u32string pop;
     // ui4 t07 (HUD_GAPS §10.2): the row's sort values by sort key 1..10 (index 0 unused; key 1 sorts by `name`).
     std::array<double, kSummarySortKeys> sort{};

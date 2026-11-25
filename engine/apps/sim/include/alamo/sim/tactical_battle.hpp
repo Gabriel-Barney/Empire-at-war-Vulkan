@@ -1466,9 +1466,12 @@ public:
         ga_upgrades_ = std::move(upgrades);
         ga_spawn_ = spawn;
     }
-    // #459 (docs/re/HOLOCRON_SUMMARY_SORT.md [H]): the battle planet's persistent upgrade objects. In a campaign battle
-    // (not a skirmish, not the sandbox) a finished DUMMY_UPGRADE calls `track(true, owner, type)` (0x498170 -> 0x4b7090), and
-    // a production upgrade object removed with its container calls `track(false, owner, type)` (0x379df0 -> 0x4bb690).
+    // #459 (docs/re/HOLOCRON_SUMMARY_SORT.md "Key 8 and the Upgrades icons" [H]): the battle planet's persistent upgrade
+    // objects. In a campaign battle (not a skirmish, not the sandbox) a finished DUMMY_UPGRADE calls `track(true, owner,
+    // type)` (0x498170 -> 0x4b7090), and an upgrade object removed silently - with its dead container (0x379df0), or out of
+    // its station by a station upgrade (the kill-list path of 0x498170 [M]) - calls `track(false, owner, type)` (0x4bb690).
+    // The remove is by owner and type, so the planet-bonus upgrades (ga_spawn_upgrades), which share the list but are never
+    // added, also clear a matching record, as retail's same-owner-and-type remove would [M].
     // CampaignBattles installs GalacticSim::add_upgrade_object / remove_upgrade_object for the battle planet. Tactical
     // production runs in skirmish only today (production_enabled), so the add is reached in a campaign battle once campaign
     // production exists (#544).
