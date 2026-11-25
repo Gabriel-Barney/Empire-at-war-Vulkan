@@ -516,12 +516,25 @@ void test_targeting() {
         out.clear();
         abilities_from_s9(as, grp, 2, out);
         CHECK(!out.empty() && out[0].active && out[0].enabled);
+        {  // #476: the overhead st_ability_icon of the unit - slot 0 (Defend) active, slot 1 (Tractor beam) not
+            std::string icons[2] = {"x", "x"};
+            overhead_ability_icons(as, 1, 2, icons);
+            CHECK(icons[0] == "i_sa_defend_mode.tga" && icons[1].empty());
+        }
         for (uint32_t fr = 2; fr < 32; ++fr) as.tick(fr, strees, rng);  // 30 active frames
         CHECK(as.set_unit_ability_mode(ids, kDefend, false, 32) == 1);  // early off: recharging
         out.clear();
         auto provider = s9_ability_provider(as, [] { return 32u; });
         provider(grp, out);
         CHECK(!out.empty() && !out[0].active && out[0].recharge < 1.0f);
+        {  // #476: off and recharging - no overhead icon; a unit without abilities has none either
+            std::string icons[2] = {"x", "x"};
+            overhead_ability_icons(as, 1, 32, icons);
+            CHECK(icons[0].empty() && icons[1].empty());
+            icons[0] = "x";
+            overhead_ability_icons(as, 99, 32, icons);
+            CHECK(icons[0].empty() && icons[1].empty());
+        }
         // t42: a record's Alternate_Icon_Name replaces the type's art on the button (the parse: test_abilities).
         CHECK(ad.objects[0].unit_abilities[0].type == kDefend);
         ad.objects[0].unit_abilities[0].alternate_icon_name = "i_sa_strike.tga";
