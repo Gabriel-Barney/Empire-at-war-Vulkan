@@ -237,6 +237,23 @@ static void test_classes() {
 }
 
 // ---------------------------------------------------------------- 3. grid
+#ifdef ALAMO_MOVEMENT_HAVE_TERRAIN
+// #334 (the world reader 0x3b8cd0, case 0x104 [H]): a map with only the legacy 0x104 chunk - one byte per cell, x outer and y
+// from h - 1 down - seeds the grid's base bits 0 -> Clear, 1 -> Steep, 2 -> Obstacle, anything else -> 0xFFFFFFFF.
+static void test_legacy_passability_grid() {
+    terrain::MapData map;
+    map.terrain.present = true;
+    map.terrain.width = 3;
+    map.terrain.height = 2;
+    map.legacy_passability = {1, 0, 0, 2, 7, 0};  // x0: (0,1) Steep (0,0) Clear; x1: (1,1) Clear (1,0) Obstacle; x2: (2,1) 7
+    const PassabilityGrid g = grid_from_map(map);
+    std::printf("legacy 0x104 grid (#334): (0,1) %#x (0,0) %#x (1,0) %#x (2,1) %#x\n", g.base(0, 1), g.base(0, 0), g.base(1, 0),
+                g.base(2, 1));
+    CHECK(g.base(0, 1) == kPassSteep && g.base(0, 0) == kPassClear && g.base(1, 1) == kPassClear && g.base(1, 0) == kPassObstacle &&
+          g.base(2, 1) == 0xFFFFFFFFu && g.base(2, 0) == kPassClear);
+}
+#endif
+
 static void test_grid() {
     CHECK(world_to_cell(-10.0f) == 0 && world_to_cell(9.99f) == 0 && world_to_cell(10.0f) == 1 && world_to_cell(-10.01f) == -1);
     PassabilityGrid g;
@@ -246,10 +263,11 @@ static void test_grid() {
     CHECK(g.effective(3, 3) == kPassWater);
     g.set_base(4, 4, kPassClear | kPassSteep);  // any non-Clear bit clears Clear
     CHECK(g.effective(4, 4) == kPassSteep);
-    // Playable box: cell centres strictly outside -> Obstacle.
+    // Playable box (#334, 0x3b8cd0 [H]): cell centres on or outside the edge -> Obstacle (cell 2's centre is 40, 25's 500).
     g.set_playable_box({40.0f, 40.0f}, {500.0f, 500.0f});
-    CHECK(g.effective(1, 5) == kPassObstacle && g.effective(2, 5) == kPassClear && g.effective(25, 5) == kPassClear &&
-          g.effective(26, 5) == kPassObstacle);
+    CHECK(g.effective(1, 5) == kPassObstacle && g.effective(2, 5) == kPassObstacle && g.effective(3, 5) == kPassClear &&
+          g.effective(24, 5) == kPassClear && g.effective(25, 5) == kPassObstacle && g.effective(26, 5) == kPassObstacle);
+    CHECK(g.effective(10, 2) == kPassObstacle && g.effective(10, 3) == kPassClear && g.effective(10, 25) == kPassObstacle);
     g.clear_playable_box();
     // Stamping: a 40 x 20 footprint at (200, 200), yaw 0, offset -half.
     const uint64_t v0 = g.version();
@@ -3575,7 +3593,7 @@ static CrcLog space_crc_run(const ParallelFor& pf) {
 // path (11 accepted goals); MovingVsMoving answers follow the role slots.
 // s78n t26.2 (MOVEMENT §3.5.2 A / B): the speed controller (End Move T = a, 0x15 restarts), the start turn in place.
 // s78n t26 closing review (FIGHTER_FLYING §7.5 item 4): formation mates side-step by their footprint overlap.
-static constexpr uint64_t kGoldenLand = 0x1367069f4e4ea7c9ull;  // #282 (MSVC): a 0x15 restart ends its frame; mov2 t01 / t03 / t08 / t09 and review fixes: formation path copies, 3-D recruitment, rejoin tracker, squad re-order at speed; tracker snapshot before the walk; mov1: Starved count, tie-break extent, terrain corners, +0x28c, overtake rank, step 10, SvS kept, tick order; sp6: tree-hash layout (movement / combat / objects hashes); bkm1: lane fallback / stop point, shield-free class, recruitment, stored z, secondary facing; s78p: formation path and lanes; s78n t26 review round 2 (mixed formations, range rank); closing review; t26.4 the move step C; t26.3 the corner pass
+static constexpr uint64_t kGoldenLand = 0x115781e4407dc80full;  // #334: playable-box edge cells are Obstacle; #282 (MSVC): a 0x15 restart ends its frame; mov2 t01 / t03 / t08 / t09 and review fixes: formation path copies, 3-D recruitment, rejoin tracker, squad re-order at speed; tracker snapshot before the walk; mov1: Starved count, tie-break extent, terrain corners, +0x28c, overtake rank, step 10, SvS kept, tick order; sp6: tree-hash layout (movement / combat / objects hashes); bkm1: lane fallback / stop point, shield-free class, recruitment, stored z, secondary facing; s78p: formation path and lanes; s78n t26 review round 2 (mixed formations, range rank); closing review; t26.4 the move step C; t26.3 the corner pass
 static constexpr uint64_t kGoldenSpace = 0x8fc952146335d9dbull;  // sp6: tree-hash layout (movement / combat / objects hashes)
 
 static void test_determinism() {
@@ -3918,11 +3936,14 @@ static void test_real_data() {
     // #282 (2026-11-23, MSVC; a 0x15 restart short of the last waypoint ends its frame, 0x61fc30 [H]): with the restarts a
     // frame later the TM05 approach differs and the ring no longer forms (13 / 14 / 22 arrive), so this run no longer
     // exercises the §5.4.6 static ring; Saleucami 14 and 17 still stop by the ring rule: 3238 of 3240 arrive.
-    CHECK(group_arrived == group_units && land_units - land_arrived == 2u && land_stopped == 2u && all_stops == 2u && stopped_units == 2u);
-    CHECK(not_arrived.size() == 2);
-    if (not_arrived.size() == 2) {
-        CHECK(not_arrived[0].map == "_LAND_PLANET_SALEUCAMI_INTIMIDATION.TED" && not_arrived[0].id == 14 && not_arrived[0].kind == "f");
-        CHECK(not_arrived[1].map == "_LAND_PLANET_SALEUCAMI_INTIMIDATION.TED" && not_arrived[1].id == 17 && not_arrived[1].kind == "f");
+    // #334 (2026-11-25, MSVC; the playable-box edge cells are Obstacle, 0x3b8cd0 [H]): TM01_GAINING_GROUND unit 13 now also
+    // stops by a failed kind-3 detour (frame 531): 3237 of 3240 arrive.
+    CHECK(group_arrived == group_units && land_units - land_arrived == 3u && land_stopped == 3u && all_stops == 3u && stopped_units == 3u);
+    CHECK(not_arrived.size() == 3);
+    if (not_arrived.size() == 3) {
+        CHECK(not_arrived[0].map == "TM01_GAINING_GROUND.TED" && not_arrived[0].id == 13 && not_arrived[0].kind == "f");
+        CHECK(not_arrived[1].map == "_LAND_PLANET_SALEUCAMI_INTIMIDATION.TED" && not_arrived[1].id == 14 && not_arrived[1].kind == "f");
+        CHECK(not_arrived[2].map == "_LAND_PLANET_SALEUCAMI_INTIMIDATION.TED" && not_arrived[2].id == 17 && not_arrived[2].kind == "f");
     }
     CHECK(space_arrived == space_units && space_hits == 0);
 }
@@ -4273,6 +4294,9 @@ int main() {
     test_heap();
     test_classes();
     test_grid();
+#ifdef ALAMO_MOVEMENT_HAVE_TERRAIN
+    test_legacy_passability_grid();
+#endif
     test_regions();
     test_land_paths();
     test_locomotion();

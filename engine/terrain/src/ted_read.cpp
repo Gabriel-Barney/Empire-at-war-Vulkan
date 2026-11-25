@@ -866,6 +866,27 @@ bool parse_world(std::span<const uint8_t> node, MapData& map, Ctx& c, const Pars
             }
             break;
         }
+        case 0x109: {
+            // #334 (0x3b9cc0 [H]): one u32 of pass bits per cell like 0x10A, in 0x104's order - x outer, y from H - 1 down
+            // to 0 - stored as the cell's base bits (0x59f4b0). Retail applies the passability chunks in file order: a later
+            // 0x10A / 0x109 wins here too; [port] a 0x104 after them does not (grid_from_map uses 0x104 only without these).
+            if (k.has_children) break;
+            const Terrain& t = map.terrain;
+            if (!t.present) break;
+            const size_t fw = t.header.width, fh = t.header.height;
+            if (k.payload.size() % 4 != 0) return c.fail("passability 0x109: size is not a multiple of 4");
+            if (k.payload.size() < fw * fh * 4) return c.fail("passability 0x109: shorter than width x height x 4");
+            map.passability.assign(static_cast<size_t>(t.width) * t.height, 0);
+            map.passability_present = true;
+            for (size_t i = 0; i < fw * fh; ++i) {
+                const size_t x = i / fh, y = fh - 1 - i % fh;
+                if (x >= t.width || y >= t.height) continue;
+                uint32_t v = 0;
+                std::memcpy(&v, k.payload.data() + 4 * i, 4);
+                map.passability[y * t.width + x] = v;
+            }
+            break;
+        }
         case 0x10B:
             if (opt.zones && k.has_children && !parse_zones(k.payload, map.zones, c)) return false;
             break;
