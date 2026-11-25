@@ -512,6 +512,11 @@ public:
     // object (0x2d5320). Returns the instance id (0 = no tag / refused).
     uint32_t cinematic_engine_flyby(const objects::GameObjectTypes& types, objects::TypeIndex type, uint64_t object,
                                     const Vec3& position);
+    // #564 (0x3a7bb0(obj, on) [H], docs/re/BATTLE_CAM.md "Engine loop"): the battle cam's object. On: the type's
+    // SFXEvent_Engine_Cinematic_Focus_Loop (+0x1420) attached to the object; off: that loop stopped. Both: the type's
+    // SFXEvent_Ambient_Moving (+0x1520) one-shot (cinematic_engine_flyby). Returns the loop's instance id (0 = none).
+    uint32_t cinematic_engine_loop(const objects::GameObjectTypes& types, objects::TypeIndex type, uint64_t object,
+                                   const Vec3& position, bool on);
     uint64_t ability_sfx_played() const { return ability_sfx_played_; }
     uint64_t hyperspace_sfx_played() const { return hyperspace_sfx_played_; }
     uint64_t shield_sfx_played() const { return shield_sfx_played_; }

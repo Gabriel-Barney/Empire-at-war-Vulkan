@@ -2200,8 +2200,54 @@ void test_presentation_events_ref2() {
 
 }  // namespace
 
+// #564 (0x3a7bb0 [H]): the battle cam's object. On: SFXEvent_Engine_Cinematic_Focus_Loop attached to it; off: the loop
+// stopped. Both play SFXEvent_Ambient_Moving.
+void test_cinematic_engine_loop() {
+    MemoryProvider files;
+    files.add("Data\\XML\\GameObjectFiles.xml", "<L><File>E.xml</File></L>");
+    files.add("Data\\XML\\E.xml", R"(<?xml version="1.0"?>
+<SpaceUnits>
+  <SpaceUnit Name="Cruiser"><SFXEvent_Engine_Cinematic_Focus_Loop>Focus_Loop</SFXEvent_Engine_Cinematic_Focus_Loop>
+    <SFXEvent_Ambient_Moving>Amb_Move</SFXEvent_Ambient_Moving></SpaceUnit>
+  <SpaceUnit Name="Quiet"/>
+</SpaceUnits>
+)");
+    objects::ObjectTypeDatabase raw;
+    CHECK(raw.load(files));
+    objects::GameObjectTypes types;
+    CHECK(types.build(raw));
+    const objects::TypeIndex cruiser = types.resolve_name("Cruiser"), quiet = types.resolve_name("Quiet");
+    CHECK(cruiser != objects::kNone && quiet != objects::kNone);
+    GameAudioHost off;  // inactive host: nothing
+    CHECK(off.cinematic_engine_loop(types, cruiser, 7, Vec3{}, true) == 0);
+#ifdef ALAMO_GAME_HAVE_AUDIO
+    GameData data;
+    auto tree = make_tree(true);
+    tree->add("Data\\XML\\SFXEventsTest.xml", R"(<?xml version="1.0"?>
+<SFXEvents>
+  <SFXEvent Name="Focus_Loop"><Is_3D>Yes</Is_3D><Samples>LOOP.WAV</Samples><Play_Count>-1</Play_Count></SFXEvent>
+  <SFXEvent Name="Amb_Move"><Is_3D>Yes</Is_3D><Samples>AMB.WAV</Samples></SFXEvent>
+</SFXEvents>
+)");
+    data.files = std::move(tree);
+    GameAudioHost h;
+    CHECK(h.init(data, AudioBackendKind::Null, 3));
+    if (!h.active()) return;
+    h.set_listener(Vec3{0, 0, 100}, Vec3{0, 0, 0});
+    h.set_object_positions({{7, Vec3{1, 0, 0}}});
+    CHECK(h.cinematic_engine_loop(types, cruiser, 7, Vec3{1, 0, 0}, true) != 0);
+    CHECK(starts(h, "Focus_Loop") == 1 && starts(h, "Amb_Move") == 1);
+    CHECK(h.cinematic_engine_loop(types, cruiser, 7, Vec3{1, 0, 0}, false) == 0);
+    int stops = 0;
+    for (const audio::LogEntry& e : h.system()->log()) stops += e.op == audio::LogOp::SfxStop && e.event == "Focus_Loop" ? 1 : 0;
+    CHECK(stops == 1 && starts(h, "Amb_Move") == 2);  // the ambient one-shot plays for the off call too
+    CHECK(h.cinematic_engine_loop(types, quiet, 8, Vec3{}, true) == 0 && starts(h, "Focus_Loop") == 1);  // no tags
+#endif
+}
+
 int main() {
     test_delayed_fire_sounds();  // trl2 t08
+    test_cinematic_engine_loop();  // #564
     test_object_sfx_t05();
     test_start_gates_50();  // #50 t08
     test_unit_lost_sighting_50();  // #50 t01 / t03

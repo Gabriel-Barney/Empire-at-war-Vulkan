@@ -16,6 +16,7 @@ constexpr int32_t kViews = 8;                 // 0x2cbd00: +0x354 wraps after 7
 constexpr float kViewPitchLimit = 80.0f;      // 0x2cc3e0: pitch clamped to +-80
 constexpr float kViewMouseScale = 0.25f;      // 0x2cc3e0: degrees per pixel of the dominant axis
 constexpr float kViewSmoothing = 0.9f;        // 0x4a6790: +0x270
+constexpr float kViewZoomStep = 25.0f;        // 0x4ac520: world units per wheel notch
 constexpr int32_t kClashHoldFrames = 45;      // 0x4a4ac0: the second eye key's frame
 constexpr int32_t kClashOrbitFrames = 600;    // 0x4a4ac0: +0x4c of the orbit key
 
@@ -46,6 +47,7 @@ BattleCamShot cinematic_view_shot(uint32_t target, const Vec3& half_extents, flo
     BattleCamShot s;
     s.target = target;
     s.smoothing = kViewSmoothing;
+    s.handheld = true;
     ShotKey eye;
     eye.frame = 0;
     eye.segment = ShotKey::Segment::Linear;
@@ -69,6 +71,7 @@ BattleCamShot hero_clash_shot(uint32_t hero, uint64_t clash, const Vec3& half_ex
     BattleCamShot s;
     s.target = hero;
     s.clash = clash;
+    s.handheld = true;
     const float R = hero_clash_radius(half_extents, space);
     const Vec3 at{0.0f, R, 0.67f * R};
     ShotKey a;
@@ -112,6 +115,7 @@ bool BattleCam::open_view(const BattleCamGates& g, const BattleCamPicks& p) {
     uint32_t id = 0;
     if (!p.view || !p.view(0, id, view_extents_)) return false;
     start(State::View, cinematic_view_shot(id, view_extents_, yaw_, pitch_, zoom_));
+    terrain_clamp_ = true;  // +0x315 = 1 (sticky)
     return true;
 }
 
@@ -194,7 +198,19 @@ void BattleCam::mouse(int32_t x, int32_t y, uint32_t width, uint32_t height, boo
         if (button_or_wheel || !small) stop();
         return;
     }
-    if (dx == 0 && dy == 0) return;  // Cinematic View: buttons and the wheel do not end it
+    // Cinematic View: buttons do nothing; the wheel zooms (0x4ac520) from 3 avg(E) x zoom, the shown distance unclamped.
+    if (wheel != 0.0f) {
+        const float base = 3.0f * (view_extents_.x + view_extents_.y + view_extents_.z) / 3.0f;
+        const float e = std::sqrt(tactical::dot(view_extents_, view_extents_));
+        if (base > 0.0f) {
+            const float d = std::clamp(base * zoom_ - kViewZoomStep * wheel, 3.0f * e, 10.0f * e);
+            zoom_ = d / base;
+            uint32_t id = 0;
+            if (p.view && p.view(shot_.target, id, view_extents_))
+                shot_.eye = cinematic_view_shot(id, view_extents_, yaw_, pitch_, zoom_).eye;
+        }
+    }
+    if (dx == 0 && dy == 0) return;
     if (std::abs(dy) > std::abs(dx)) {
         pitch_ = std::clamp(pitch_ + static_cast<float>(dy) * kViewMouseScale, -kViewPitchLimit, kViewPitchLimit);
     } else {
