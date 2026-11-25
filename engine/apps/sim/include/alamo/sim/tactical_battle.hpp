@@ -627,6 +627,10 @@ public:
     void remove_order_replaced_listener(uint32_t token);
     void raise_order_replaced(std::span<const objects::ObjectId> ids);
     void raise_order_replaced(objects::ObjectId id) { raise_order_replaced(std::span<const objects::ObjectId>(&id, 1)); }
+    // #539 (SKAI_T19_MDU_DEPLOY_BLOCK Q1 [H]): DEPLOY's leave - the unit leaves its formation (oi_stop_hold). The battle AI
+    // drops it from its object follows (BattleAi::follow_drop, the port's stand-in for the formation's kind-3 re-path
+    // 0x4192b0), so the follow's 30-frame re-path no longer moves - and undeploys - a unit DEPLOY just stopped. Null: none.
+    void set_formation_leave(std::function<void(objects::ObjectId)> fn) { formation_leave_ = std::move(fn); }
     // True for the ability ids whose command raises 0xb on the unit before executing (0x570a50 list, §7.3.3 item 1).
     static bool ability_raises_order_replaced(uint8_t ability);
     // a1i t04 (A1_READINGS §35.3): signal 0x19 (ReinforcementsUnloadedDataClass) of the land landing objects that finished
@@ -2749,6 +2753,7 @@ private:
     float bombard_delay_override_ = 0.0f;             // BOMBARD_DELAY seconds
     std::vector<objects::ObjectId> ability_finished_;  // S7 t15 A1: signal 0x29 this tick (not saved: read the same tick)
     std::vector<std::pair<uint32_t, OrderReplacedListener>> order_replaced_listeners_;  // token order
+    std::function<void(objects::ObjectId)> formation_leave_;  // #539: set_formation_leave (the battle AI's follow drop)
     uint32_t next_listener_token_ = 1;
     // --- S4 garrisons / capture (owner: S4 agent; tactical_battle_garrison.cpp; no-ops without the garrison lib) ---
     std::vector<StoryGarrisonEvent> story_garrisoned_;

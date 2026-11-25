@@ -1491,6 +1491,8 @@ struct DeployRun {
     bool pad_built = false, pad_held = false, off_accepted = false;
     uint32_t on_frame = 0, off_frame = 0, signals = 0, signal_on = 0, signal_off = 0, other_signals = 0;
     uint32_t deployed_at = 0, undeployed_at = 0;  // the frames Is_Active flipped (the clip ends)
+    // #539: the battle's formation-leave hook (DEPLOY's leave, the battle AI's follow drop) - calls for the unit / others
+    uint32_t left = 0, left_other = 0;
 };
 DeployRun run_deploy(const Data& d, bool pad = false, bool build = true) {
     DeployRun out;
@@ -1564,6 +1566,7 @@ DeployRun run_deploy(const Data& d, bool pad = false, bool build = true) {
                 if (dep == objects::kNoObjectId && st.alive(h) && st.type(h) == dep_t && b->combat().has_unit(st.id(h))) dep = st.id(h);
             CHECK(dep != objects::kNoObjectId);
             if (dep == objects::kNoObjectId) break;
+            b->set_formation_leave([&out, dep](objects::ObjectId id) { ++(id == dep ? out.left : out.left_other); });
         }
         if (dep == objects::kNoObjectId) continue;
         const objects::ObjectId ids[] = {dep};
@@ -1763,10 +1766,13 @@ void test_deploy_extents(const Data& d) {
 void test_deploy(const Data& d) {
     const DeployRun r = run_deploy(d);
     std::printf("  deploy: fought %d on %d (frame %u, deployed at %u) repeat refused %d off %d (frame %u, undeployed at %u): %u signals "
-                "(at the clip ends: on %u, off %u), others %u\n",
+                "(at the clip ends: on %u, off %u), others %u; formation leaves %u (others %u)\n",
                 r.fought, r.deployed, r.on_frame, r.deployed_at, r.repeat_refused, r.undeployed, r.off_frame, r.undeployed_at, r.signals,
-                r.signal_on, r.signal_off, r.other_signals);
+                r.signal_on, r.signal_off, r.other_signals, r.left, r.left_other);
     CHECK(r.fought && r.deployed && r.repeat_refused && r.undeployed);
+    // #539 (SKAI_T19_MDU_DEPLOY_BLOCK Q1): 0x3a1ce0 leaves the unit's formation in both directions, so the battle AI's
+    // object follow lets it go: once for the DEPLOY on, once for the off; the refused repeat leaves nothing
+    CHECK(r.left == 2 && r.left_other == 0);
     CHECK(r.signals == 2 && r.signal_on == 1 && r.signal_off == 1 && r.deployed_at > r.on_frame && r.undeployed_at > r.off_frame);
     // #57 t01 (MOVEMENT §3.2, 0x42e3b0 / 0x42e3d0): a deployed unit that is a build pad with something built on it does
     // not undeploy (the MDU case: Abstract_Mobile_Defense_Unit is the one vanilla Deploys type with TACTICAL_BUILD_OBJECTS)

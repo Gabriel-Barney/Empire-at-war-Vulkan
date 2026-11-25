@@ -104,6 +104,7 @@
     SAVED(bombard_delay_override_, state) \
     DERIVED(ability_finished_, "records of the last tick for the host (cleared at the next tick start)") \
     REBUILT(order_replaced_listeners_, "host callback, registered again on a rebuild") \
+    REBUILT(formation_leave_, "#539: host callback, set again by the battle AI on a rebuild") \
     REBUILT(next_listener_token_, "host callback, registered again on a rebuild") \
     DERIVED(story_garrisoned_, "records of the last tick for the host (cleared at the next tick start)") \
     DERIVED(story_captured_, "records of the last tick for the host (cleared at the next tick start)") \

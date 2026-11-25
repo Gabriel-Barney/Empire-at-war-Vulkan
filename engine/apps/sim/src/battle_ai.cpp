@@ -400,6 +400,8 @@ BattleAi::BattleAi(TacticalBattle& battle, TacticalMode& mode, SimHost& host, co
     // the FOW cell centre (FOG_OF_WAR §4.3, AI_TACTICAL_PERCEPTION §4.7). Cleared in the destructor. ---
     at::TacticalAiWorld* aw = world_.get();
     b_->set_fog_refog([aw](int32_t player, uint32_t, float x, float y) { aw->refog(player, x, y); });
+    // #539: DEPLOY's leave ends the unit's object follow (TacticalBattle::set_formation_leave). Cleared in the destructor.
+    b_->set_formation_leave([this](objects::ObjectId id) { follow_drop({id}); });
     // S7 t31 (AI_TACTICAL §7.3.3 items 1-2): signal 0xb from every host (AI orders, human commands, story orders, Activate_Ability
     // of any VM) reaches this world's ability / movement blocks; this world's Activate_Ability raises it through the battle.
     at::TacticalAiWorld* ow = world_.get();
@@ -778,6 +780,7 @@ BattleAi::~BattleAi() {
     b_->set_script_movement_lock(this, {});
     b_->set_script_unit_control(this, {});
     b_->set_fog_refog({});  // fog: the battle outlives its AI (CampaignBattles resets ai_ first)
+    b_->set_formation_leave({});  // #539
 }
 
 namespace {
