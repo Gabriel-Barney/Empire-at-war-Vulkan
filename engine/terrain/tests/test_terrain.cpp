@@ -802,6 +802,32 @@ void test_hardening() {
     std::memcpy(sb.data() + world_hdr, &wsize, 4);
     MapData spr;
     CHECK(!parse_ted(sb, spr, &err) && err.find("passability") != std::string::npos);
+    // #334 (0x3b9cc0 [H]): a 0x109 chunk is one u32 per cell, x outer and y from H - 1 down; it becomes the passability.
+    {
+        std::vector<uint8_t> nb = write_ted(sp);
+        std::vector<ChunkView> top3;
+        CHECK(read_chunks(nb, top3) && !top3.empty() && top3.back().id == 1);
+        const size_t hdr = static_cast<size_t>(top3.back().payload.data() - nb.data()) - 4;
+        const uint32_t W = sp.terrain.header.width, H = sp.terrain.header.height;
+        put32(nb, 0x109);
+        put32(nb, W * H * 4);
+        for (uint32_t i = 0; i < W * H; ++i) put32(nb, 1000u + i);
+        uint32_t ws = 0;
+        std::memcpy(&ws, nb.data() + hdr, 4);
+        ws += 8 + W * H * 4;
+        std::memcpy(nb.data() + hdr, &ws, 4);
+        MapData p9;
+        CHECK(parse_ted(nb, p9, &err) && p9.passability_present);
+        CHECK(p9.unknown_world_chunks.empty());
+        bool order = W > 1 && H > 1;
+        for (uint32_t x = 0; x < W && order; ++x)
+            for (uint32_t y = 0; y < H; ++y) order = order && p9.passability_at(x, y) == 1000u + x * H + (H - 1 - y);
+        CHECK(order);
+        CHECK(p9.passability_at(0, H - 1) == 1000u && p9.passability_at(0, 0) == 1000u + H - 1);
+        // written back as the 0x10A it equals
+        MapData back;
+        CHECK(parse_ted(write_ted(p9), back) && back.passability == p9.passability);
+    }
 }
 
 void fuzz_one(const std::vector<uint8_t>& bytes, uint32_t& parsed) {

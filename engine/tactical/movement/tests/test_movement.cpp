@@ -237,6 +237,23 @@ static void test_classes() {
 }
 
 // ---------------------------------------------------------------- 3. grid
+#ifdef ALAMO_MOVEMENT_HAVE_TERRAIN
+// #334 (the world reader 0x3b8cd0, case 0x104 [H]): a map with only the legacy 0x104 chunk - one byte per cell, x outer and y
+// from h - 1 down - seeds the grid's base bits 0 -> Clear, 1 -> Steep, 2 -> Obstacle, anything else -> 0xFFFFFFFF.
+static void test_legacy_passability_grid() {
+    terrain::MapData map;
+    map.terrain.present = true;
+    map.terrain.width = 3;
+    map.terrain.height = 2;
+    map.legacy_passability = {1, 0, 0, 2, 7, 0};  // x0: (0,1) Steep (0,0) Clear; x1: (1,1) Clear (1,0) Obstacle; x2: (2,1) 7
+    const PassabilityGrid g = grid_from_map(map);
+    std::printf("legacy 0x104 grid (#334): (0,1) %#x (0,0) %#x (1,0) %#x (2,1) %#x\n", g.base(0, 1), g.base(0, 0), g.base(1, 0),
+                g.base(2, 1));
+    CHECK(g.base(0, 1) == kPassSteep && g.base(0, 0) == kPassClear && g.base(1, 1) == kPassClear && g.base(1, 0) == kPassObstacle &&
+          g.base(2, 1) == 0xFFFFFFFFu && g.base(2, 0) == kPassClear);
+}
+#endif
+
 static void test_grid() {
     CHECK(world_to_cell(-10.0f) == 0 && world_to_cell(9.99f) == 0 && world_to_cell(10.0f) == 1 && world_to_cell(-10.01f) == -1);
     PassabilityGrid g;
@@ -246,10 +263,11 @@ static void test_grid() {
     CHECK(g.effective(3, 3) == kPassWater);
     g.set_base(4, 4, kPassClear | kPassSteep);  // any non-Clear bit clears Clear
     CHECK(g.effective(4, 4) == kPassSteep);
-    // Playable box: cell centres strictly outside -> Obstacle.
+    // Playable box (#334, 0x3b8cd0 [H]): cell centres on or outside the edge -> Obstacle (cell 2's centre is 40, 25's 500).
     g.set_playable_box({40.0f, 40.0f}, {500.0f, 500.0f});
-    CHECK(g.effective(1, 5) == kPassObstacle && g.effective(2, 5) == kPassClear && g.effective(25, 5) == kPassClear &&
-          g.effective(26, 5) == kPassObstacle);
+    CHECK(g.effective(1, 5) == kPassObstacle && g.effective(2, 5) == kPassObstacle && g.effective(3, 5) == kPassClear &&
+          g.effective(24, 5) == kPassClear && g.effective(25, 5) == kPassObstacle && g.effective(26, 5) == kPassObstacle);
+    CHECK(g.effective(10, 2) == kPassObstacle && g.effective(10, 3) == kPassClear && g.effective(10, 25) == kPassObstacle);
     g.clear_playable_box();
     // Stamping: a 40 x 20 footprint at (200, 200), yaw 0, offset -half.
     const uint64_t v0 = g.version();
@@ -4273,6 +4291,9 @@ int main() {
     test_heap();
     test_classes();
     test_grid();
+#ifdef ALAMO_MOVEMENT_HAVE_TERRAIN
+    test_legacy_passability_grid();
+#endif
     test_regions();
     test_land_paths();
     test_locomotion();

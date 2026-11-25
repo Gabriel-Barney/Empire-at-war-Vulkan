@@ -161,7 +161,8 @@ void PassabilityGrid::set_playable_box(V2 min_xy, V2 max_xy) {
     for (uint32_t y = 0; y < h_; ++y) {
         for (uint32_t x = 0; x < w_; ++x) {
             const V2 c = cell_center(static_cast<int32_t>(x), static_cast<int32_t>(y));
-            const bool out = c.x < min_xy.x || c.x > max_xy.x || c.y < min_xy.y || c.y > max_xy.y;
+            // #334 (0x3b8cd0's load end [H]): a cell whose centre is on or outside the box edge gets Obstacle (0x59f110).
+            const bool out = c.x <= min_xy.x || c.x >= max_xy.x || c.y <= min_xy.y || c.y >= max_xy.y;
             forced_[static_cast<size_t>(y) * w_ + x] = out ? 1 : 0;
         }
     }
