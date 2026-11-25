@@ -7,11 +7,10 @@
 //   sides (§4.2)      A side takes the first player id it sees; a third player id is skipped (the original
 //                     fails Add_Object with 0x80670001).
 //   vectors (§4.3)    2 + K doubles per side: [0] land total, [1] space total, [2 + j] the AI contrast
-//                     category j (ContrastTable row j). Every strength piece (company / squadron members
-//                     as count x P(member), then the combatant's own P unless it is a container in a space
-//                     battle) adds its float32 power to the FIRST category whose mask intersects the
-//                     piece's CategoryMask and to the battle's total (space total in space, land total on
-//                     land). #193: a combatant's Starting_Spawned_Units at its owner's tech level (falling back
+//                     category j (ContrastTable row j). Every strength piece (the combatant's own P once,
+//                     for a company / squadron its members' summed P) adds its float32 power to the FIRST
+//                     category whose mask intersects the piece's CategoryMask and to the battle's total
+//                     (space total in space, land total on land). #193: a combatant's Starting_Spawned_Units at its owner's tech level (falling back
 //                     to lower levels) add count x P(member) pieces too (0x60b0d0 [H]). The weakest combatant
 //                     (smallest own P, first wins) is tracked; Super flags.
 //   degenerate (§4.3) space, no Super unit on either side and both space totals <= 0: the side with more

@@ -146,8 +146,9 @@ struct ConflictRules {
 bool load_conflict_rules(const FileProvider& provider, const data::GameDatabase& db, const objects::GameObjectTypes& types,
                          const GalacticRules& galactic, ConflictRules& out, std::vector<std::string>* diagnostics = nullptr);
 
-// The auto-resolve combatant of one object of type `type` owned by `owner` (BT §4.3): its Squadron_Units / Company_Units
-// members first (count x AI_Combat_Power each), then its own piece unless it is a container in a space battle. Used by
+// The auto-resolve combatant of one object of type `type` owned by `owner` (BT §4.3, #193): its own piece once (a type with
+// Squadron_Units / Company_Units members: their summed P, a company's survivors when given), its Starting_Spawned_Units at
+// the owner's tech level `tech`, and its one shot. Used by
 // ConflictManager::auto_setup and the auto-resolve parity check (tests/autoresolve_parity.cpp).
 // mcx4 t05 (legacy docs/re/MCX4_RE_ANSWERS_TACTICAL.md §9 / §13): a company (Company_Units holder: the TRANSPORT branch of
 // 0x48eb10) that survived a battle is lost as a whole when one of its dead members has Respawn_Whole_Team_When_Killed;

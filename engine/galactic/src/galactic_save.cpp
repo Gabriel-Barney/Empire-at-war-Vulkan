@@ -772,7 +772,8 @@ bool ConflictManager::read(ByteReader& r) {
             c.spawned.resize(ns);
             for (ArPiece& p : c.spawned) get_piece(p);
             get_piece(c.shot);
-        } else if (!c.pieces.empty()) {  // [port] an older in-flight auto-resolve: the last piece (the own one, or a member) fires
+        } else if (!c.pieces.empty()) {
+            // [port] an older in-flight auto-resolve: the last piece (the own one, or a member) fires (tier 3: save format)
             c.shot = c.pieces.back();
         }
         if (!r.ok()) return false;

@@ -29,8 +29,9 @@ Every non-planet combatant adds count x P(member) for each Starting_Spawned_Unit
 
 - Called for side 0, then side 1 (0x60b930), not winner first.
 - Pick: the first combatant holding a named hero (0x38fa20) or with behaviour 0x5f, else a synced int(0, n - 1).
-- For a galactic object the budget first loses count x P(member) for each spawned entry, floored at 0, whether the
-  combatant survives or not. Then a non-planet survives iff budget - P(t) x allowance > 0 and pays P(t); a planet takes
+- A space TRANSPORT combatant dies and a Super combatant takes the Super rule first; neither is charged.
+- Otherwise, for a galactic object the budget first loses count x P(member) for each spawned entry, floored at 0,
+  whether the combatant survives or not. Then a non-planet survives iff budget - P(t) x allowance > 0 and pays P(t); a planet takes
   the starbase downgrade.
 
 ## A type with members [H / M]
