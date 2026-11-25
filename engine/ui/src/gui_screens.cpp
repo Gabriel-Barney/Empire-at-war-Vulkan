@@ -64,7 +64,6 @@ const char* screen_action_name(ScreenAction::Kind k) {
     switch (k) {
         case ScreenAction::Kind::MessageBoxResult: return "MessageBoxResult";
         case ScreenAction::Kind::BattleEndContinue: return "BattleEndContinue";
-        case ScreenAction::Kind::LandInvade: return "LandInvade";
         case ScreenAction::Kind::SaveReplay: return "SaveReplay";
         case ScreenAction::Kind::CampaignScoreClosed: return "CampaignScoreClosed";
         case ScreenAction::Kind::RetreatConfirmed: return "RetreatConfirmed";
@@ -269,7 +268,8 @@ bool GameScreens::show_battle_end(const BattleEndInfo& info) {
     d->show("IDC_STATIC_BOUNTY", info.bounty >= 0);
     if (info.bounty >= 0) d->set_text("IDC_STATIC_BOUNTY", format_ints(text("TEXT_SUMMARY_BOUNTY_COLLECTED", U"%d"), {info.bounty}));
     fill_battle_end_values(*d, info);
-    d->show("IDC_LAND_INVADE_BUTTON", info.can_invade);
+    // #465 (docs/re/TACTICAL_HOTKEYS.md "Battle end: Invade System" [H]): both retail openers hide it, and nothing shows it.
+    d->show("IDC_LAND_INVADE_BUTTON", false);
     d->show("IDC_SAVE_REPLAY_BUTTON", info.can_save_replay);
     const char* hero[2] = {"IDC_YOUR_HERO%d", "IDC_ENEMY_HERO%d"};
     const std::vector<std::string>* heroes[2] = {&info.your_heroes, &info.enemy_heroes};
@@ -435,9 +435,6 @@ void GameScreens::on_click(const GuiEvent& e, std::vector<ScreenAction>& out, st
         if (is("IDC_CONTINUE_BUTTON")) {
             gui_->close(n);
             out.push_back(act(ScreenAction::Kind::BattleEndContinue));
-        } else if (is("IDC_LAND_INVADE_BUTTON")) {
-            gui_->close(n);
-            out.push_back(act(ScreenAction::Kind::LandInvade));
         } else if (is("IDC_SAVE_REPLAY_BUTTON")) {
             out.push_back(act(ScreenAction::Kind::SaveReplay));
         }

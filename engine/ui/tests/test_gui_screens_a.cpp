@@ -75,9 +75,7 @@ void test_screens() {
     gs.update(env.click(dlg::kBattleEnd, "IDC_SAVE_REPLAY_BUTTON"), acts, cmds);
     gs.update(env.click(dlg::kBattleEnd, "IDC_CONTINUE_BUTTON"), acts, cmds);
     {  // #465 (docs/re/TACTICAL_HOTKEYS.md "Battle end: Invade System"): both retail openers hide IDC_LAND_INVADE_BUTTON
-        BattleEndInfo inv = be;
-        inv.can_invade = true;
-        CHECK(gs.show_battle_end(inv));
+        CHECK(gs.show_battle_end(be));
         const GuiDialog* id = env.gui.find(dlg::kBattleEnd);
         CHECK(id && !id->get("IDC_LAND_INVADE_BUTTON")->visible);
         acts.clear();
