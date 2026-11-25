@@ -330,6 +330,11 @@ bool MovementSystem::snap_yaw(ObjectId id, float yaw_deg) {
     return true;
 }
 
+float MovementSystem::pop_facing(ObjectId id) const {
+    const Unit* u = unit_ptr(id);
+    return u ? u->m.yaw : kNoFacing;  // 0x42c600: the object's orientation (+0x84 / +0x88 / +0x8c)
+}
+
 void MovementSystem::tick_deploy(uint32_t frame) {
     // Walk vf6 0x61e930, states 0x16, 0x18 / 0x1A (serial, ascending id; each unit writes only itself and the
     // event list).
