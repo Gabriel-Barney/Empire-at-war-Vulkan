@@ -121,6 +121,7 @@ void WorldHud::bind(const ComponentTable& table) {
     bomb_ = table.find("remote_bomb_icon");
     garrison_flag_ = table.find("st_garrison_icon");
     garrison_slot_ = table.find("garrison_slot_icon");
+    ability_ = table.find("st_ability_icon");
 }
 
 WorldHud::BarBox WorldHud::bars(const WorldHudContext& ctx, const HudUnit& u, BracketSize sz, const UnitScreenBounds& b,
@@ -176,6 +177,7 @@ WorldHud::BarBox WorldHud::bars(const WorldHudContext& ctx, const HudUnit& u, Br
             add_atlas_quad_clipped(dl, layer, HudList::Alpha, atlas, {}, center, {}, 1.0f, frac, s.fallback, fill_fb);
         }
         ++stats_.bars;
+        health_box.top = y_px - h_px;
         y_px -= h_px + ctx.health_bar_spacing_px;
     }
     return health_box;
@@ -235,6 +237,22 @@ void WorldHud::status_icons(const HudUnit& u, bool allied, const BarBox& bar, co
         for (uint8_t i = 0; i < u.garrison_slots; ++i) {
             const Icon& ic = i < u.garrison_used ? on : off;
             draw(ic, bar.cx + (static_cast<float>(i) - 0.5f * (n - 1.0f)) * step, bar.cy + 0.5f * bar.h + 0.5f * ic.h);
+        }
+    }
+    // #476 st_ability_icon (0x2e7fd0 / 0x31de70 [H]): allied units only. Slot 0's icon, then slot 1's as a second layer at the
+    // same spot (the first when slot 0 has none), each at its atlas size x the component's Scale on its Base_Layer, centred
+    // on the bar 3 px above it. [port] above the top of the bar stack rather than the health bar alone: the port stacks the
+    // shield and power bars over the health bar (retail's placement of those is not traced), which the icon would cover.
+    // The lt_weather_icon shift is not ported (no weather icon).
+    if (allied && ability_ >= 0 && table_) {
+        const CommandBarComponent& c = (*table_)[static_cast<size_t>(ability_)];
+        for (const std::string& tex : u.ability_icon) {
+            const AtlasEntry* e = tex.empty() ? nullptr : atlas.find(tex);
+            if (!e) continue;
+            const float h = static_cast<float>(e->height) * c.scale / cv.units_per_pixel_y;
+            add_atlas_quad(dl, static_cast<uint32_t>(c.base_layer), HudList::Alpha, atlas, tex,
+                           cv.pixel_to_canvas(bar.cx, bar.top - 3.0f - 0.5f * h), {}, c.scale, Rgba8{});
+            ++stats_.ability_icons;
         }
     }
 }

@@ -1039,6 +1039,10 @@ void App::build_tactical_hud() {
             u.garrison_flag = s.garrison_flag;
             u.garrison_slots = static_cast<uint8_t>(std::clamp(s.garrison_slots, 0, 255));
             u.garrison_used = static_cast<uint8_t>(std::clamp(s.garrison_used, 0, 255));
+#ifdef ALAMO_UI_HAVE_ABILITIES
+            // #476: st_ability_icon, the active abilities of slots 0 / 1 (WorldHud draws them for allied units only).
+            ui::overhead_ability_icons(b->abilities(), u.id, b->frame(), u.ability_icon);
+#endif
         }
         hf.garrison_respawn = b->garrison_respawn(local_player());  // #474: the local player's re-delivery fill, -1 = none
     }

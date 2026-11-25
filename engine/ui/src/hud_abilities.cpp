@@ -122,6 +122,18 @@ std::function<void(const SelectedGroup&, std::vector<HudAbility>&)> s9_ability_p
         abilities_from_s9(system, g, frame ? frame() : 0u, out);
     };
 }
+
+void overhead_ability_icons(const tactical::abilities::AbilitySystem& system, uint32_t unit, uint32_t frame,
+                            std::string (&out)[2]) {
+    SelectedGroup g;
+    g.ids = {unit};
+    std::vector<HudAbility> abilities;
+    abilities_from_s9(system, g, frame, abilities);
+    for (size_t s = 0; s < 2; ++s) {
+        const bool on = s < abilities.size() && abilities[s].active && abilities[s].recharge >= 1.0f;
+        out[s] = on ? abilities[s].icon : std::string();
+    }
+}
 #endif
 
 }  // namespace alamo::ui

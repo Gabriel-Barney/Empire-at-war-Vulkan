@@ -38,6 +38,11 @@ void abilities_from_s9(const tactical::abilities::AbilitySystem& system, const S
 // HudProviders::abilities over `system` at the frame `frame()` returns. The references must outlive the provider.
 std::function<void(const SelectedGroup&, std::vector<HudAbility>&)> s9_ability_provider(
     const tactical::abilities::AbilitySystem& system, std::function<uint32_t()> frame);
+// #476 st_ability_icon (TACTICAL_COMMANDBAR_COMPONENTS.md, 0x2e7fd0 [H]): HudUnit::ability_icon of one unit - for its
+// ability slots 0 and 1, the HudAbility icon when that ability is active and not recharging (retail state 2), else "".
+// [port] slot = the unit's command-bar button order (abilities_from_s9: ascending ability type), not its XML slot order.
+void overhead_ability_icons(const tactical::abilities::AbilitySystem& system, uint32_t unit, uint32_t frame,
+                            std::string (&out)[2]);
 #endif
 
 }  // namespace alamo::ui

@@ -135,6 +135,9 @@ struct HudUnit {
     // `garrison_slots` / `garrison_used`: Num_Garrison_Slots of a garrison holder and the slots its occupants take.
     bool bribed = false, bomb = false, garrison_flag = false;
     uint8_t garrison_slots = 0, garrison_used = 0;
+    // #476 (same record, st_ability_icon, 0x2e7fd0 [H]): the icon of the unit's ability in slot 0 / 1 when that ability is
+    // active ("" = none or not active): its Alternate_Icon_Name, else the per-type default (ui::ability_icon).
+    std::string ability_icon[2];
 };
 
 // One live unit and the unit standing for its squadron / company (itself when alone): TacticalBattle::icon_links.
@@ -209,6 +212,7 @@ std::optional<size_t> pick_hud_unit(std::span<const HudUnit> units, const View& 
 struct WorldHudStats {
     uint32_t unit_icons = 0, brackets = 0, bars = 0, group_numbers = 0, flytexts = 0, offscreen = 0, blobs = 0;
     uint32_t status_icons = 0;  // #475: bribed / remote bomb / garrison flag / garrison slot quads
+    uint32_t ability_icons = 0;  // #476: st_ability_icon quads
 };
 
 class WorldHud {
@@ -222,10 +226,12 @@ public:
     const WorldHudStats& stats() const { return stats_; }
 
 private:
-    // The health bar as drawn: centre and size in pixels (+Y down); `valid` false when no health bar was drawn.
+    // The health bar as drawn: centre and size in pixels (+Y down); `valid` false when no health bar was drawn. `top`: the
+    // pixel y of the top edge of the whole bar stack (health, shield, power).
     struct BarBox {
         bool valid = false;
         float cx = 0, cy = 0, w = 0, h = 0;
+        float top = 0;
     };
     BarBox bars(const WorldHudContext& ctx, const HudUnit& u, BracketSize sz, const UnitScreenBounds& b,
                 const TextureAtlas& atlas, HudDrawList& dl);
@@ -235,6 +241,7 @@ private:
     int32_t bracket_[3] = {-1, -1, -1}, health_[3] = {-1, -1, -1}, shield_[3] = {-1, -1, -1};
     int32_t power_ = -1, group_ = -1, flytext_ = -1;
     int32_t bribed_ = -1, bomb_ = -1, garrison_flag_ = -1, garrison_slot_ = -1;  // #475
+    int32_t ability_ = -1;  // #476 st_ability_icon
     WorldHudStats stats_;
 };
 
