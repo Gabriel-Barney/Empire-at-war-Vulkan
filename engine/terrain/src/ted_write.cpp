@@ -273,7 +273,7 @@ void write_object(ChunkWriter& w, const ObjectPlacement& o) {
         w.end();
     }
     w.begin(0x476);
-    w.mini_leaf(1, o.owner_raw);
+    w.mini_leaf(1, o.pad_raw);
     w.end();
     w.end();  // 0x44C
 }

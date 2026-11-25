@@ -682,11 +682,11 @@ bool parse_object(std::span<const uint8_t> node, ObjectPlacement& o, Ctx& c) {
                 }
             }
         } else if (k.id == 0x476 && k.has_children) {
-            if (!read_chunks(k.payload, sub)) return c.fail("object owner 0x476: malformed");
+            if (!read_chunks(k.payload, sub)) return c.fail("object pad data 0x476: malformed");
             for (const ChunkView& s : sub) {
                 if (s.id != 1 || s.has_children) continue;
-                if (!read_minis(s.payload, minis)) return c.fail("object owner 0x476/1: malformed");
-                o.owner_raw = copy_minis(minis);
+                if (!read_minis(s.payload, minis)) return c.fail("object pad data 0x476/1: malformed");
+                o.pad_raw = copy_minis(minis);
             }
         } else if (k.id == 0x482 && k.has_children) {  // hint name (TERRAIN_WATER_POST 1.6)
             if (!read_chunks(k.payload, sub)) return c.fail("object hint 0x482: malformed");

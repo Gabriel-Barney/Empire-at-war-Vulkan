@@ -14,6 +14,8 @@
 //       a Spawn_Garrison_On_Load one creates its garrison at the fly-out point, facing along the bone, with no order.
 //     * #57 t05: a map object that is a special weapon (LOBBING_SUPERWEAPON) keeps its SpecialWeaponSystem registration
 //       after the battle setup.
+//     * #334 t03 (0x42df80 [H]): a campaign pad whose map data (0x476/1 mini 2) names a pre-placed under-construction type
+//       builds its finished type for the pad's owner at setup, the pad's child; a pad without one stays empty.
 //   --every-map (slow, ALAMO_FOC_DATA / ALAMO_EAW_DATA; skipped when unset): every retail .ted map (land and space) goes
 //     through the TacticalBattle map load (start_map_battle, first battle tick): no crash, no unknown type, every company
 //     placement expanded; per-map counts of companies, hangar-off placements, extra behaviours and marker names (t08).
@@ -49,6 +51,11 @@ std::string map1_types(std::string t) {
         "<Spawn_Garrison_On_Load>True</Spawn_Garrison_On_Load></SpecialStructure>\n"
         " <SpecialStructure Name=\"M1_Lobber\"><Tactical_Health>500</Tactical_Health><CategoryMask>Structure</CategoryMask>"
         "<Behavior>SELECTABLE</Behavior><LandBehavior>LOBBING_SUPERWEAPON</LandBehavior></SpecialStructure>\n"
+        " <SpecialStructure Name=\"M1_Pad\"><Behavior>TACTICAL_BUILD_OBJECTS</Behavior></SpecialStructure>\n"
+        " <SpecialStructure Name=\"M1_UC_Turret\"><Behavior>TACTICAL_UNDER_CONSTRUCTION</Behavior><Tactical_Health>100</Tactical_Health>"
+        "<Tactical_Buildable_Constructed>M1_Turret</Tactical_Buildable_Constructed></SpecialStructure>\n"
+        " <SpecialStructure Name=\"M1_Turret\"><Tactical_Health>500</Tactical_Health><CategoryMask>Structure</CategoryMask>"
+        "<Behavior>SELECTABLE</Behavior></SpecialStructure>\n"
         " <SpaceUnit Name=\"M1_Escorted\"><Variant_Of_Existing_Type>S10_Frigate</Variant_Of_Existing_Type>"
         "<Space_Escort_Unit_Types>S10_Corvette, S10_Corvette</Space_Escort_Unit_Types></SpaceUnit>\n";
     t.insert(t.rfind("</S10>"), add);
@@ -228,6 +235,43 @@ void test_land(const Data& d) {
                 }
             });
     }
+}
+
+// #334 t03 (0x42df80 [H]): pad A's map data names M1_UC_Turret, pad B's nothing. At setup pad A holds an M1_Turret of the
+// pad's owner (player 0) at its build point; pad B is empty.
+void test_land_preplaced_pad(const Data& d) {
+    const uint32_t turret = type_of(d, "M1_Turret");
+    terrain::MapData m = land_map();
+    m.objects.push_back(place("Defending Forces Position", 600.0f, 600.0f, 0));
+    m.objects.push_back(place("Attacker Entry Position", 200.0f, 200.0f, 1));
+    terrain::ObjectPlacement a = place("M1_Pad", 1000.0f, 600.0f, 0);
+    const uint32_t uc = name_crc("M1_UC_Turret");
+    a.pad_raw = {terrain::RawMini{0x00, {0, 0, 0, 0}},
+                 terrain::RawMini{0x02, {static_cast<uint8_t>(uc), static_cast<uint8_t>(uc >> 8), static_cast<uint8_t>(uc >> 16),
+                                         static_cast<uint8_t>(uc >> 24)}}};
+    m.objects.push_back(a);
+    m.objects.push_back(place("M1_Pad", 1300.0f, 600.0f, 0));
+    run_map_battle(
+        d, true, m, make_setup(d, true), [](galactic::GalacticSim&, galactic::BattleRequest&) {},
+        [&](galactic::GalacticSim&, TacticalBattle& b, TacticalMode& tm) {
+            const objects::ObjectStore& st = tm.primary();
+            uint32_t turrets = 0, on_a = 0, child_a = 0, empty_b = 0;
+            for (const objects::ObjectHandle h : st.all_objects()) {
+                if (!st.alive(h)) continue;
+                const Vec3 p = st.position(h);
+                if (static_cast<uint32_t>(st.type(h)) == turret) {
+                    ++turrets;
+                    on_a += st.owner(h) == 0 && std::fabs(p.x - 1000.0f) < 50.0f && std::fabs(p.y - 600.0f) < 50.0f ? 1u : 0u;
+                }
+                if (st.type(h) != d.types.resolve_name("M1_Pad")) continue;
+                const objects::ObjectId c = b.pad_contents(st.id(h));
+                if (p.x == 1000.0f) child_a += c != objects::kNoObjectId && static_cast<uint32_t>(st.type(st.find(c))) == turret ? 1u : 0u;
+                if (p.x == 1300.0f) empty_b += c == objects::kNoObjectId ? 1u : 0u;
+            }
+            std::printf("  pre-placed pad: %u turret(s), %u on pad A for its owner, pad A's child %u, pad B empty %u, pre-placed %u\n",
+                        turrets, on_a, child_a, empty_b, b.stats().pad_preplaced);
+            CHECK(turrets == 1 && on_a == 1 && child_a == 1 && empty_b == 1 && b.stats().pad_preplaced == 1);
+        });
 }
 
 // #70 t07 (0x2a1eb0 [H]): pass 1 reads no used flag, so two structures that remember the same in-base marker both stand
@@ -782,6 +826,7 @@ int main(int argc, char** argv) {
     test_land(*d);
     test_land_shared_memory(*d);  // #70 t07
     test_land_unmatched_memory(*d);  // #70 follow-up
+    test_land_preplaced_pad(*d);     // #334 t03
     std::printf("map1: space start (starbase pick, escorts, camera focus)\n");
     test_space(*d);
     std::printf("map1: a map special weapon stays registered (#57 t05)\n");

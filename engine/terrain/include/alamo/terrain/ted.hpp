@@ -302,7 +302,9 @@ struct ObjectPlacement {
     std::vector<RawMini> placement_raw;  // every 0x4B0 mini as stored
     std::vector<std::string> attachments;  // 0x4BA child names that are not "NONE" (hardpoint slots)
     uint32_t attachment_slots = 0;         // number of 0x4BA children
-    std::vector<RawMini> owner_raw;        // 0x476/1 minis
+    // 0x476/1 minis: the TacticalBuildObjectsDataPack of a build pad (#334 t03, the object reader 0x2b0a20 loads obj +0x150
+    // from it; its load 0x5612d0 [H]): 0 / 1 the occupant ids, 2 the pre-placed type's name CRC (0 none), 3..6 counters
+    std::vector<RawMini> pad_raw;
     // 0x482 (TERRAIN_WATER_POST 1.6): the object's hint (marker) name, leaf child 0 mini 01 (NUL-terminated);
     // empty = the object has no 0x482 chunk. Lua Find_Hint / Get_Hint read it.
     std::string hint;
