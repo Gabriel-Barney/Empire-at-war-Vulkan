@@ -476,10 +476,12 @@ def cmd_launcher(r: Runner, args: list[str], verb: str) -> None:
 # ------------------------------------------------------------------------------------------------- packaging (#29)
 
 PACKAGE_PRESET = "package"
-PACKAGE_TARGETS = ("alamo_game", "alamo_headless")
+PACKAGE_TARGETS = ("alamo_game", "alamo_headless", "alamo_play")
 # (path in the package, source): "bin:<name>" is the build tree's bin folder; anything else is relative to the
-# checkout, and one "*" matches a versioned toolchain folder. #27 decision 3 lists what ships.
+# checkout, and one "*" matches a versioned toolchain folder. #27 decision 3 lists what ships; Play.exe (alamo_play)
+# is the double-click entry, since alamo_game alone exits with only a console line when no game folder is given.
 PACKAGE_FILES = (
+    ("Play.exe", "bin:Play.exe"),
     ("alamo_game.exe", "bin:alamo_game.exe"),
     ("alamo_headless.exe", "bin:alamo_headless.exe"),
     ("dxcompiler.dll", "bin:dxcompiler.dll"),
@@ -813,7 +815,7 @@ class _Tests(unittest.TestCase):
 
     def test_package_lists_the_runtime_and_licence_notices(self):
         dests = {d for d, _ in PACKAGE_FILES}
-        for name in ("alamo_game.exe", "alamo_headless.exe", "dxcompiler.dll", "dxil.dll", "avcodec-62.dll",
+        for name in ("Play.exe", "alamo_game.exe", "alamo_headless.exe", "dxcompiler.dll", "dxil.dll", "avcodec-62.dll",
                      "avformat-62.dll", "avutil-60.dll", "amd_fidelityfx_loader_vk.dll",
                      "amd_fidelityfx_upscaler_vk.dll", "libxess.dll"):
             self.assertIn(name, dests)
