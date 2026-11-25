@@ -32,7 +32,7 @@ Otherwise it maps the key to a slot through the applied table and switches on th
 | 43 SwapWeapons | SWAP_WEAPONS, then ROCKET_ATTACK | H | done |
 | 109 ForceCloak | FORCE_CLOAK, then STEALTH | H | done |
 | 56 DestroyPlanet | no ability; the galactic planet-destroy UI | H | "" is right |
-| 76 Overview | only outside a battle-cam view | H | no gate [port]; the camera saved at the battle cam's start is restored at its end, which undoes a toggle made meanwhile |
+| 76 Overview | only outside a battle-cam view | H | done (#462: refused while the battle cam runs) |
 | 77 Camera Tether | on → off; off → follow the **first selected object**; nothing with an empty selection | H (the follow M) | done |
 | 78 Movie Mode | key up: the battle cam (state 3) on the first hero clash, else the bombing run, else an interesting object; again: the next clash; Esc exits | H | the hero clash orbit; no bombing-run or interesting-object shot yet (`BATTLE_CAM.md`) |
 | 79 Cinematic View | needs `In_Game_Cinematics`; 8 views round the first selected object; Esc exits | H | done (`BATTLE_CAM.md`), without the wheel zoom |

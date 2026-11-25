@@ -1463,6 +1463,9 @@ void App::battle_input() {
         const std::vector<objects::ObjectId>& ids = host.control_group(static_cast<uint8_t>(me), static_cast<uint8_t>(g));
         return centroid([&ids](const render::SnapshotObject& o) { return std::binary_search(ids.begin(), ids.end(), o.id); });
     };
+    // #462 (docs/re/TACTICAL_HOTKEYS.md slot 76 [H]): no Overview while the battle cam runs.
+    if (cine_.cam.active())
+        std::erase_if(hk, [](const ui::HotkeyEvent& e) { return e.slot == ui::hk::kTacticalOverview; });
     ui::apply_camera_hotkeys(hk, bview_.camera(), focus);
     // #430 (docs/re/TACTICAL_HOTKEYS.md, 0x2cbd00 [H]): the CameraTether key keeps the camera on the object that was
     // first in the selection at the press [M: what the camera does with the target]; the tether ends when it is gone.

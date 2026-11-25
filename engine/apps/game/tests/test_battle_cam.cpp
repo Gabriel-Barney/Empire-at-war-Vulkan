@@ -96,12 +96,14 @@ struct World {
     bool selection = true;
     std::vector<uint64_t> clashes;
     int view_calls = 0;
+    uint32_t last_view_target = 0xFFFFFFFFu;
     BattleCamPicks picks() {
         BattleCamPicks p;
-        p.view = [this](float yaw, float pitch, BattleCamShot& out) {
+        p.view = [this](uint32_t target, float yaw, float pitch, BattleCamShot& out) {
             ++view_calls;
-            if (!selection) return false;
-            out = cinematic_view_shot(9, {10.0f, 10.0f, 10.0f}, yaw, pitch);
+            last_view_target = target;
+            if (target == 0 && !selection) return false;
+            out = cinematic_view_shot(target != 0 ? target : 9, {10.0f, 10.0f, 10.0f}, yaw, pitch);
             return true;
         };
         p.clash = [this](uint64_t after, BattleCamShot& out) {
@@ -185,6 +187,7 @@ void test_mouse() {
     CHECK(near(cam.view_yaw(), 350.0f) && near(cam.view_pitch(), 45.0f));
     cam.mouse(140, 400, 1920, 1080, true, w.picks());  // dy 290: pitch += 72.5, clamped
     CHECK(cam.state() == State::View && near(cam.view_pitch(), 80.0f) && near(cam.view_yaw(), 350.0f));
+    CHECK(w.last_view_target == 9 && cam.shot().target == 9);  // the turn rebuilds the framed object's view
     CHECK(!cam.shot().eye.empty() && cam.shot().eye[0].where.z > 0.0f);  // the eye key rebuilt high above
 }
 

@@ -110,7 +110,7 @@ bool BattleCam::open_view(const BattleCamGates& g, const BattleCamPicks& p) {
     yaw_ = cinematic_view_yaw(view_);
     pitch_ = cinematic_view_pitch(g.space);
     BattleCamShot s;
-    if (!p.view || !p.view(yaw_, pitch_, s)) return false;
+    if (!p.view || !p.view(0, yaw_, pitch_, s)) return false;
     start(State::View, std::move(s));
     return true;
 }
@@ -201,7 +201,7 @@ void BattleCam::mouse(int32_t x, int32_t y, uint32_t width, uint32_t height, boo
         if (yaw_ < 0.0f) yaw_ += 360.0f;
     }
     BattleCamShot s;  // 0x4ac830: the eye key rebuilt; the shot clock and the smoothing run on
-    if (p.view && p.view(yaw_, pitch_, s)) shot_.eye = std::move(s.eye);
+    if (p.view && p.view(shot_.target, yaw_, pitch_, s)) shot_.eye = std::move(s.eye);
 }
 
 void BattleCam::clash_ended(const BattleCamPicks& p) {

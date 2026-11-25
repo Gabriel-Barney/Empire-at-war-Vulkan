@@ -88,9 +88,8 @@ void App::tsw_shot_end() {
 }
 
 void App::cinematic_reset() {
-    cine_.cam.stop();
+    cine_.cam.stop();  // the swallowed keys stay hidden until released (else a held one would read as a new press)
     cine_.cam_on = false;
-    cine_.cam_swallowed = {};
     cine_.shot.end();
     cine_.shake.reset();
     cine_.saved_camera.drop();
@@ -213,6 +212,24 @@ float App::shot_z_adjust(objects::TypeIndex type) const {
 }
 
 // ---- #462 the battle cam (docs/re/BATTLE_CAM.md) ------------------------------------------------------------------------
+namespace {
+// The land clash list as the battle cam walks it (land mode +0x3f8). [port] The melee clashes, then the action clashes,
+// in start order; a clash is known by its kind and first participant. Its participants: the two heroes, or the
+// action's objects.
+struct ClashEntry {
+    uint64_t key;
+    std::vector<objects::ObjectId> who;
+};
+std::vector<ClashEntry> clash_list(const tactical::combat::HeroClashManager& m) {
+    std::vector<ClashEntry> list;
+    for (const auto& c : m.clashes()) list.push_back({(uint64_t{1} << 32) | static_cast<uint32_t>(c.hero1), {c.hero1, c.hero2}});
+    for (const auto& c : m.action_clashes())
+        if (!c.objects.empty()) list.push_back({(uint64_t{2} << 32) | static_cast<uint32_t>(c.objects.front()), c.objects});
+    return list;
+}
+bool modifier_key(uint32_t k) { return k == ui::vk::kShift || k == ui::vk::kControl || k == ui::vk::kAlt || (k >= 0xA0u && k <= 0xA5u); }
+}  // namespace
+
 BattleCamGates App::battle_cam_gates() const {
     BattleCamGates g;
     g.in_game_cinematics = cine_.enabled;
@@ -225,29 +242,20 @@ BattleCamGates App::battle_cam_gates() const {
 
 BattleCamPicks App::battle_cam_picks() {
     BattleCamPicks p;
-    // 0x4a6790: the local player's first selected object (it must belong to the local player).
-    p.view = [this](float yaw, float pitch, BattleCamShot& out) {
+    // 0x4a6790: the local player's first selected object (it must belong to the local player), or the framed one.
+    p.view = [this](uint32_t target, float yaw, float pitch, BattleCamShot& out) {
         const auto& sel = orders_.selection();
-        if (sel.empty()) return false;
-        const render::SnapshotObject* o = drawn_object(static_cast<objects::ObjectId>(sel.front()), nullptr);
+        if (target == 0 && sel.empty()) return false;
+        const render::SnapshotObject* o = drawn_object(static_cast<objects::ObjectId>(target != 0 ? target : sel.front()), nullptr);
         if (!o || o->owner != local_player()) return false;
         out = cinematic_view_shot(static_cast<uint32_t>(o->id), shot_half_extents(o->type), yaw, pitch);
         return true;
     };
-    // 0x4a4ac0 on the land clash list. [port] The list is the melee clashes, then the action clashes, in start order;
-    // a clash is known by its kind and first participant. Its participants: the two heroes, or the action's objects.
+    // 0x4a4ac0 on the land clash list (clash_list).
     p.clash = [this](uint64_t after, BattleCamShot& out) {
         const sim::TacticalBattle* b = battle();
         if (!b || bview_.space()) return false;  // space and galactic have no clash list (vf +0x210 = null)
-        struct Entry {
-            uint64_t key;
-            std::vector<objects::ObjectId> who;
-        };
-        std::vector<Entry> list;
-        const tactical::combat::HeroClashManager& m = b->hero_clashes();
-        for (const auto& c : m.clashes()) list.push_back({(uint64_t{1} << 32) | c.hero1, {c.hero1, c.hero2}});
-        for (const auto& c : m.action_clashes())
-            if (!c.objects.empty()) list.push_back({(uint64_t{2} << 32) | c.objects.front(), c.objects});
+        const std::vector<ClashEntry> list = clash_list(b->hero_clashes());
         if (list.empty()) return false;
         size_t pick = 0;
         for (size_t i = 0; i < list.size(); ++i)
@@ -258,7 +266,8 @@ BattleCamPicks App::battle_cam_picks() {
             }
         for (const objects::ObjectId id : list[pick].who) {
             const render::SnapshotObject* o = drawn_object(id, nullptr);
-            if (!o || o->owner != local_player()) continue;
+            // (+0x3a0 & 2) == 0 [L: not dying]: the drawn object is not dying nor a death clone.
+            if (!o || o->owner != local_player() || (o->flags & (render::kSnapDying | render::kSnapDeathClone)) != 0) continue;
             out = hero_clash_shot(static_cast<uint32_t>(o->id), list[pick].key, shot_half_extents(o->type), bview_.space(), cine_.rng.range(0, 1) != 0);
             return true;
         }
@@ -308,7 +317,8 @@ void App::battle_cam_input(ui::InputFrame& raw) {
         }
     const ui::KeySet prev = cine_.cam_prev_down;
     cine_.cam_prev_down = down;
-    if (screen() != Screen::Battle || !session_ || !bview_.active() || !battle() || ui_.gui.has_focus() || cine_.shot.active())
+    if (screen() != Screen::Battle || !session_ || !bview_.active() || !battle() || ui_.gui.has_focus() || cine_.shot.active() ||
+        rename_.active())  // the rename prompt takes the keyboard
         return;
     const BattleCamGates g = battle_cam_gates();
     const BattleCamPicks p = battle_cam_picks();
@@ -324,9 +334,11 @@ void App::battle_cam_input(ui::InputFrame& raw) {
         else if (k == ui::vk::kEscape) key = BattleCam::Key::Escape;
         else if (k == ui::vk::kControl || k == 0xA2u || k == 0xA3u) key = BattleCam::Key::Control;  // VK_(L/R)CONTROL
         if (cine_.cam.key_down(key, g, p)) {
-            cine_.cam_swallowed.set(k);
             raw.keys_pressed.set(k, false);
-            raw.keys_down.set(k, false);
+            if (!modifier_key(k)) {  // a held modifier stays down: the next keys keep their Ctrl / Shift / Alt
+                cine_.cam_swallowed.set(k);
+                raw.keys_down.set(k, false);
+            }
         }
         battle_cam_sync();
     }
@@ -350,14 +362,10 @@ void App::battle_cam_step() {
         cinematic_reset();
         return;
     }
-    const BattleCamShot& s = cine_.cam.shot();
-    if (s.clash != 0) {  // 0x2cbc40: the framed clash ended
-        const tactical::combat::HeroClashManager& m = b->hero_clashes();
-        bool live = false;
-        for (const auto& c : m.clashes()) live = live || ((uint64_t{1} << 32) | c.hero1) == s.clash;
-        for (const auto& c : m.action_clashes())
-            live = live || (!c.objects.empty() && ((uint64_t{2} << 32) | c.objects.front()) == s.clash);
-        if (!live) cine_.cam.clash_ended(battle_cam_picks());
+    if (const uint64_t clash = cine_.cam.shot().clash; clash != 0) {  // 0x2cbc40: the framed clash ended
+        const std::vector<ClashEntry> list = clash_list(b->hero_clashes());
+        if (std::none_of(list.begin(), list.end(), [clash](const ClashEntry& e) { return e.key == clash; }))
+            cine_.cam.clash_ended(battle_cam_picks());
     }
     if (cine_.cam.active() && !drawn_object(static_cast<objects::ObjectId>(cine_.cam.shot().target), nullptr)) cine_.cam.stop();  // [port] the object is gone
     battle_cam_sync();

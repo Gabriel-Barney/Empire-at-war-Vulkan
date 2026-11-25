@@ -61,8 +61,9 @@ struct BattleCamGates {
 
 // The shots the host can frame now; each returns false when it has nothing to frame.
 struct BattleCamPicks {
-    // 0x4a6790: the local player's first selected object, at this yaw / pitch.
-    std::function<bool(float yaw_deg, float pitch_deg, BattleCamShot& out)> view;
+    // 0x4a6790 at this yaw / pitch: `target` 0 = the local player's first selected object (a new view), else that
+    // object (the mouse turning the running view, 0x4ac830).
+    std::function<bool(uint32_t target, float yaw_deg, float pitch_deg, BattleCamShot& out)> view;
     // 0x4a4ac0 via the clash list (land mode +0x3f8): the clash after `after` in list order, wrapping and never `after`
     // itself (`after` 0 or gone: the first clash), framing its first participant of the local player.
     std::function<bool(uint64_t after, BattleCamShot& out)> clash;

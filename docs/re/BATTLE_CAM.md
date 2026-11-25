@@ -178,6 +178,8 @@ The key down in state 3 sets the hold +0x317; in state 4 it is swallowed.
   - The eye offset is Rx(90) · Rz(yaw) · Rx(pitch) · (0, 0, −d) [M on the exact axes].
 - **The keys:** one attached linear eye key and one look key on the object, so both are held and follow it.
 - **The rest:** smoothing 0.9, no length, the letterbox, cinematic mode on, the handheld noise and the engine-loop SFX.
+- Each view resets the shot clock (`0x4ad3a0`), and the smoothing only runs when the clock is above 0, so a view step
+  cuts to the new view instead of gliding [M].
 
 Keys in a view (`0x2cbd00`):
 - View 0: Esc stops, and other keys pass through.
@@ -196,6 +198,8 @@ The port: `cinematic_view_shot` and `BattleCam` (`battle_cam.hpp`):
   +Y side, as the hero clash shot's eye is [M].
 - [port] There is no cursor re-centring: the turn is the cursor's move since the previous frame.
 - [port] A view that cannot be framed when stepping stops the cam.
+- [port] Mouse buttons and the wheel are taken by the view (they do not reach the HUD or the world) [M: retail's
+  `0x2cc3e0` returns before the world sees them].
 
 ## Input while the battle cam runs (`0x2cc3e0`, state 3) [H]
 
@@ -226,6 +230,32 @@ The port's TSW shot (`TswFiringShot::input_cancels`) still measures from the cur
   LOCK_CONTROLS and story-lock gates. In state > 1 it stops instead, so the button is a toggle and never cycles.
 - [port] The free-rotation pitch offset and roll count as pitch (`TacticalCameraController::pitch_yaw_at_defaults`).
 
+## The port's differences and their tier (`docs/SIMULATION.md` "Parity tiers")
+
+All of them are presentation: no sim state, no synced draw, so tiers 2 and 3 are untouched. Camera feel is tier 1, so
+each of these is a known gap rather than an accepted difference:
+- The not-ported Movie Mode picks: with no clash, Movie Mode frames nothing (#562, #563).
+- The handheld noise, the engine-loop SFX and the wheel zoom (#564).
+- The mouse is measured per frame, not per event.
+- There is no cursor re-centring in a view.
+- A failed view step stops the cam.
+- The cam stops when the framed object is no longer drawn.
+- View 0's side [M].
+
+Tier 3 (internals): the clash identity (kind + first participant), and the battle cam and TSW shot holding their state in
+separate classes.
+
+## The host (port)
+
+`App::battle_cam_sync` (`app_cinematic.cpp`) applies cinematic mode on and off:
+- On: the mode camera is saved once, the HUD and the cursor are hidden, the letterbox slides in, and the presentation
+  rate lock is taken (FS +0x37, 30 ticks/s, as the TSW shot's cinematic mode on).
+- Off: the camera is restored, the lock is released, and the letterbox slides out.
+- Overview (slot 76) is refused while the cam runs.
+- [port] The cam stops when the framed object is no longer drawn.
+- [port] A clash is identified by its kind and first participant. The list is the melee clashes, then the action
+  clashes, in start order.
+
 ## Stop (`0x2cbb80`) and End_Cinematic_Mode (`0x49b5c0`) [H]
 
 The letterbox slides out, the mode camera is restored, the shake / effect is cleared and the engine-loop SFX stops. The
@@ -234,12 +264,13 @@ start stops a running TSW shot.
 
 ## Open
 
-- The four not-ported Movie Mode picks: the interesting-object templates (`0x4a53f0` and the ~10 shots it dispatches
-  to), the bombing-run shot `0x49f370`, and the pick `0x2cd0d0` with its ranking `0x520df0`.
-- The handheld noise `0x4ab780` / `0x4ab060` and its parameters +0x2b0..+0x2c0.
-- The cinematic engine-loop SFX (`0x3a7bb0`, type +0x1420 / +0x1520).
-- The wheel zoom in a view (`0x4ac520`, +0x1a8).
+- The interesting-object shot: the pick `0x2cd0d0`, its ranking `0x520df0`, and the ~10 templates `0x4a53f0`
+  dispatches to (#562).
+- The bombing-run shot `0x49f370` (#563).
+- The handheld noise `0x4ab780` / `0x4ab060` and its parameters +0x2b0..+0x2c0 (#564).
+- The cinematic engine-loop SFX (`0x3a7bb0`, type +0x1420 / +0x1520) (#564).
+- The wheel zoom in a view (`0x4ac520`, +0x1a8) (#564).
 - The exact axes of `0x4a6790`'s rotation.
 - `0x49a610` (polar interpolation), the land terrain clamp, the look smoothing `0x4a96d0`, the roll keys.
 - State 4 (script cinematics) and the story START cinematic mode (+0x348).
-- `TswFiringShot::input_cancels` measures from the cursor at Fire, where retail measures from the previous move.
+- `TswFiringShot::input_cancels` measures from the cursor at Fire, where retail measures from the previous move (#564).
