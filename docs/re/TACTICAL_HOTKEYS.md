@@ -61,8 +61,9 @@ Otherwise it maps the key to a slot through the applied table and switches on th
 
 ## Battle end: Invade System [H, M]
 
-Both battle-end openers hide `IDC_LAND_INVADE_BUTTON` [H], and nothing shows it [M]. The port shows it on a `[port]`
-condition: #465.
+Both battle-end openers (`0x87770` @`0x87c0d`, `0x88050` @`0x88303`) hide `IDC_LAND_INVADE_BUTTON` [H], and nothing
+shows it [M]. The port hides it too (`GuiScreens::show_battle_end`, #465). The name's only other reference is its click
+handler [M], which cannot be reached, so the port has none.
 
 ## Open
 

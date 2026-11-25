@@ -8,7 +8,8 @@
 //   IDD_DIALOG_BOX_SMALL           -> MessageBoxResult{tag, button index} (Esc: -1)
 //   IDD_BATTLE_END_DIALOG          title, planet, battle time, bounty, losses (IDC_YOUR/ENEMY_UNIT0..11 icons + names,
 //                                  IDC_YOUR/ENEMY_HERO0..4), trackbars scroll the loss lists, countdown text;
-//                                  Continue -> BattleEndContinue, Invade -> LandInvade, Save replay -> SaveReplay
+//                                  Continue -> BattleEndContinue, Save replay -> SaveReplay (IDC_LAND_INVADE_BUTTON
+//                                  stays hidden, as both retail openers leave it: #465)
 //   IDD_CAMPAIGN_SCORE_DIALOG      victory text, rank title, military / conquest / kill efficiency, list, image;
 //                                  IDC_QUIT_BUTTON -> CampaignScoreClosed
 //   IDD_RETREAT_DIALOG             Retreat -> commands::ev::retreat(true) + RetreatConfirmed; Autoresolve -> AutoResolve;
@@ -71,7 +72,6 @@ struct BattleEndInfo {
     int32_t your_efficiency = -1, enemy_efficiency = -1;
     std::vector<BattleEndUnit> your_losses, enemy_losses;
     std::vector<std::string> your_heroes, enemy_heroes;  // icons, up to 5 each
-    bool can_invade = false;
     bool can_save_replay = true;
     float countdown = -1.0f;  // seconds; < 0 hidden
 };
@@ -115,7 +115,6 @@ struct ScreenAction {
     enum class Kind : uint8_t {
         MessageBoxResult,     // tag, button (-1 = Esc)
         BattleEndContinue,
-        LandInvade,
         SaveReplay,           // N1 / replay owner
         CampaignScoreClosed,
         RetreatConfirmed,     // the Retreat command was emitted

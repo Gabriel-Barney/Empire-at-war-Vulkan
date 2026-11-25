@@ -508,7 +508,6 @@ private:
     std::vector<PlanetIndex> drag_route_;                    // its planets (fleet_drag_route)
     bool battle_end_open_ = false;        // battle-end screen shown: ticks held until Continue (presentation only)
     std::u32string battle_place_;         // the running battle's localized place (the battle-end screen's title line)
-    uint32_t invade_planet_ = 0;          // planet object the battle-end "Invade System" button invades (0 = none)
     int32_t load_intro_frames_ = 0;       // frames left before the blocking load runs (0 = none; presentation only)
     uint32_t load_intro_shown_ = 0;       // frames presented since the load screen opened
     uint64_t load_open_tick_ = 0;         // sim tick at which the load screen opened ahead of the tactical push

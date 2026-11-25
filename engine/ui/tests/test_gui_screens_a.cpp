@@ -74,6 +74,16 @@ void test_screens() {
     CHECK(!bd->get("IDC_COUNTDOWN_TIMER")->visible);
     gs.update(env.click(dlg::kBattleEnd, "IDC_SAVE_REPLAY_BUTTON"), acts, cmds);
     gs.update(env.click(dlg::kBattleEnd, "IDC_CONTINUE_BUTTON"), acts, cmds);
+    {  // #465 (docs/re/TACTICAL_HOTKEYS.md "Battle end: Invade System"): both retail openers hide IDC_LAND_INVADE_BUTTON
+        CHECK(gs.show_battle_end(be));
+        const GuiDialog* id = env.gui.find(dlg::kBattleEnd);
+        CHECK(id && !id->get("IDC_LAND_INVADE_BUTTON")->visible);
+        std::vector<ScreenAction> inv;  // its own list: the later check reads the two clicks above
+        gs.update(std::vector<GuiEvent>{event(GuiEvent::Kind::Clicked, dlg::kBattleEnd, "IDC_LAND_INVADE_BUTTON", 0)}, inv, cmds);
+        CHECK(inv.empty() && env.gui.find(dlg::kBattleEnd) != nullptr);  // no invade action reaches the host
+        gs.update(env.click(dlg::kBattleEnd, "IDC_CONTINUE_BUTTON"), inv, cmds);
+        CHECK(inv.size() == 1 && inv[0].kind == ScreenAction::Kind::BattleEndContinue);
+    }
 
     // Playtest 2 t13: auto-resolve results figures. Battle time from seconds (TEXT_BATTLE_TIME without a number is followed by
     // hh:mm:ss; a pattern with %02d takes the parts), bounty through TEXT_SUMMARY_BOUNTY_COLLECTED, loss values and

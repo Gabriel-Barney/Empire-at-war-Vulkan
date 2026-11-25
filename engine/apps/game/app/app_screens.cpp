@@ -211,14 +211,6 @@ void App::handle_screen_actions(const std::vector<ui::ScreenAction>& acts) {
                 screens_.show_message(m);
                 break;
             }
-            case K::LandInvade:  // "Invade System" - the Invade command at the battle's planet, then as Continue
-                if (session_ && invade_planet_ != 0) {
-                    commands::EventData ev(commands::EventType::Invade);
-                    ev.set("planet", invade_planet_);
-                    submit(std::move(ev));
-                }
-                invade_planet_ = 0;
-                [[fallthrough]];
             case K::BattleEndContinue:
                 battle_end_open_ = false;
                 story_ui_.generic("battle_end_closed");  // L1/S4 wave 1: legacy docs/re/STORY.md 4.1 step 6, GENERIC "battle_end_closed"
@@ -350,21 +342,6 @@ void App::show_battle_end(bool dialog) {
     info.enemy_loss_value = sum.loss_value[1];
     info.your_efficiency = sum.efficiency[0];
     info.enemy_efficiency = sum.efficiency[1];
-    // §3.1 IDC_LAND_INVADE_BUTTON "Invade System": a won space battle with an invasion possible [port: a campaign, the
-    // planet not the local player's and accessible, and a stopped own fleet there carrying a ground unit - the
-    // GalacticSim::invade conditions; the click sends the Invade command for every such unit].
-    invade_planet_ = 0;
-    if (g && end.valid && end.space && info.victory && session_->spec().kind != SessionKind::Skirmish && end.planet < g->planets().size()) {
-        const auto pi = static_cast<PlanetIndex>(end.planet);
-        const galactic::PlanetState& ps = g->planets()[pi];
-        bool ground = false;
-        for (const uint32_t fi : g->fleets_at(pi, me))
-            if (!g->fleets()[fi].moving)
-                for (const objects::ObjectHandle h : g->fleets()[fi].contents)
-                    ground = ground || (g->store().alive(h) && g->rules().types[g->store().type(h)].kind == galactic::UnitKind::GroundUnit);
-        info.can_invade = ground && g->surface_accessible(pi) && g->store().owner(ps.object) != me;
-        if (info.can_invade) invade_planet_ = static_cast<uint32_t>(g->store().id(ps.object));
-    }
     info.can_save_replay = false;  // N1
     if (!dialog) return;  // a linked battle's skip - the story and score bookkeeping above, no screen, no music
     // the dialog's music call (modes 9 / 10; no change when the declare already set that mode).
