@@ -199,6 +199,8 @@ int32_t UnsyncedRandom::range(int32_t lo, int32_t hi) {
     return static_cast<int32_t>(static_cast<int64_t>(lo) + static_cast<int64_t>((r >> 11) % span));
 }
 
+float UnsyncedRandom::rangef(float lo, float) { return lo; }
+
 bool CameraShake::start(const ShakeEffect& e, int32_t start_clock, int32_t duration_frames) {
     if (duration_frames <= 0) return false;
     if (trackers_.size() >= kMaxTrackers) {  // #143 (docs/MODS.md "Limits policy"): refused and counted, no running shake dropped

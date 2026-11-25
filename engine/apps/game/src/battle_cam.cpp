@@ -2,6 +2,7 @@
 #include "alamo/game/battle_cam.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <utility>
@@ -105,12 +106,15 @@ BattleCamShot hero_clash_shot(uint32_t hero, uint64_t clash, const Vec3& half_ex
 void BattleCam::start(State s, BattleCamShot shot) {
     state_ = s;
     shot_ = std::move(shot);
+    if (shot_.smoothing) smoothing_ = *shot_.smoothing;
+    last_clock_ = 0;
     ++serial_;
     smooth_clock_ = -1;
 }
 
 void BattleCam::stop() {
     state_ = State::None;
+    smoothing_ = 0.0f;  // End_Cinematic_Mode
     view_ = 0;
     held_ = false;
     shot_ = {};
@@ -167,14 +171,8 @@ bool BattleCam::key_down(Key k, const BattleCamGates& g, const BattleCamPicks& p
 bool BattleCam::movie_key_up(const BattleCamGates& g, const BattleCamPicks& p) {
     held_ = false;
     if (!g.combat_cinematic || g.controls_locked) return false;
-    if (state_ == State::Movie) {  // the next clash (never the same one); none = the shot runs on
-        BattleCamShot s;
-        if (g.in_game_cinematics && p.clash && p.clash(shot_.clash, s)) {
-            start(State::Movie, std::move(s));
-            return true;
-        }
-        return false;
-    }
+    if (state_ == State::Movie)  // 0x2cda20: the next clash (never the same one), then another interesting object;
+        return g.in_game_cinematics && chain(p);  // none = the shot runs on
     if (state_ == State::View) {
         stop();
         return true;
@@ -191,7 +189,9 @@ void BattleCam::toggle(const BattleCamGates& g, const BattleCamPicks& p) {
     stop();
     // [port] the per-frame update needs In_Game_Cinematics (0x2cd870), so without it no shot starts.
     BattleCamShot s;
-    if (g.in_game_cinematics && p.clash && p.clash(0, s)) start(State::Movie, std::move(s));
+    if (!g.in_game_cinematics) return;
+    if (p.clash && p.clash(0, s)) start(State::Movie, std::move(s));
+    else if (p.interesting && p.interesting(true, s)) start(State::Movie, std::move(s));  // #568 0x2cd930(ctrl, 1)
 }
 
 void BattleCam::mouse(int32_t x, int32_t y, uint32_t width, uint32_t height, bool button, float wheel, const BattleCamPicks& p) {
@@ -236,23 +236,55 @@ bool BattleCam::rebuild_view_eye(const BattleCamPicks& p) {
 
 void BattleCam::clash_ended(const BattleCamPicks& p) {
     if (state_ != State::Movie || shot_.clash == 0) return;
+    if (!chain(p)) stop();
+}
+
+bool BattleCam::chain(const BattleCamPicks& p) {
     BattleCamShot s;
-    if (p.clash && p.clash(shot_.clash, s)) start(State::Movie, std::move(s));
-    else stop();
+    if (p.clash && p.clash(shot_.clash, s)) {
+        start(State::Movie, std::move(s));
+        return true;
+    }
+    if (shot_.interesting && p.interesting && p.interesting(false, s)) {  // only from an interesting object (+0x360)
+        start(State::Movie, std::move(s));
+        return true;
+    }
+    return false;
+}
+
+int32_t BattleCam::tick(int32_t clock, bool tab_held, const BattleCamPicks& p) {
+    (void)tab_held;
+    (void)p;
+    return clock;
 }
 
 Vec3 BattleCam::smooth_eye(const Vec3& keyed, int32_t clock) {
-    if (shot_.smoothing <= 0.0f || smooth_clock_ < 0 || clock <= 0) {
+    if (smoothing_ <= 0.0f || smooth_clock_ < 0 || clock <= 0) {
         smooth_clock_ = clock;
         smooth_eye_ = keyed;
         return keyed;
     }
     if (clock > smooth_clock_) {  // one step per shot frame since the last one
-        const float f = std::pow(shot_.smoothing, static_cast<float>(clock - smooth_clock_));
+        const float f = std::pow(smoothing_, static_cast<float>(clock - smooth_clock_));
         smooth_eye_ = smooth_eye_ * f + keyed * (1.0f - f);
         smooth_clock_ = clock;
     }
     return smooth_eye_;
+}
+
+
+// ---- #568 the interesting-object shot (red: stubs) -------------------------------------------------------------------
+std::vector<size_t> saliency_rank(std::span<const SaliencyFeatures> features, const SaliencyWeights&) {
+    std::vector<size_t> order(features.size());
+    for (size_t i = 0; i < order.size(); ++i) order[i] = i;
+    return order;
+}
+bool interesting_pick(InterestingState&, bool, const InterestingWorld&, UnsyncedRandom&) { return false; }
+BattleCamShot static_shot(const InterestingObject&, bool, UnsyncedRandom&) { return {}; }
+BattleCamShot orbit_shot(const InterestingObject&, UnsyncedRandom&) { return {}; }
+bool fly_past_shot(const InterestingObject&, bool, UnsyncedRandom&, BattleCamShot&) { return false; }
+bool interesting_shot(const InterestingObject&, bool, const InterestingCategories&, UnsyncedRandom&, BattleCamShot&) {
+    return false;
 }
 
 }  // namespace alamo::game

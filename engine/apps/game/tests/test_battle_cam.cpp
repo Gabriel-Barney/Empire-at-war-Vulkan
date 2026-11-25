@@ -8,6 +8,8 @@
 //   next clash, Esc, Cinematic View's steps and key rules, the mouse rules, the smoothing.
 #include <cmath>
 #include <cstdio>
+#include <optional>
+#include <string_view>
 #include <vector>
 
 #include "alamo/game/battle_cam.hpp"
@@ -84,7 +86,7 @@ void test_views() {
     CHECK(near(cinematic_view_offset(0.0f, 30.0f, 100.0f), {0.0f, 86.6025f, 50.0f}));
     CHECK(near(cinematic_view_offset(90.0f, 0.0f, 100.0f), {-100.0f, 0.0f, 0.0f}));
     const BattleCamShot s = cinematic_view_shot(9, cube, 0.0f, 45.0f, 3.0f);
-    CHECK(s.target == 9 && s.clash == 0 && s.eye.size() == 1 && s.look.size() == 1 && near(s.smoothing, 0.9f));
+    CHECK(s.target == 9 && s.clash == 0 && s.eye.size() == 1 && s.look.size() == 1 && s.smoothing && near(*s.smoothing, 0.9f));
     CHECK(!s.eye.empty() && s.eye[0].attached && s.eye[0].segment == ShotKey::Segment::Linear);
     // One linear key each: held, and attached, so it follows the object.
     const ObjectFrame f = frame_at({0.0f, 0.0f, 0.0f});
@@ -96,6 +98,9 @@ struct World {
     bool selection = true;
     std::vector<uint64_t> clashes;
     int view_calls = 0;
+    // #568: the interesting-object shots handed out in turn (empty: none), and the calls' `first`.
+    std::vector<BattleCamShot> interesting;
+    std::vector<bool> interesting_first;
     uint32_t last_view_target = 0xFFFFFFFFu;
     BattleCamPicks picks() {
         BattleCamPicks p;
@@ -105,6 +110,13 @@ struct World {
             if (target == 0 && !selection) return false;
             id = target != 0 ? target : 9;
             half_extents = {10.0f, 10.0f, 10.0f};
+            return true;
+        };
+        p.interesting = [this](bool first, BattleCamShot& out) {
+            interesting_first.push_back(first);
+            if (interesting.empty()) return false;
+            out = interesting.front();
+            interesting.erase(interesting.begin());
             return true;
         };
         p.clash = [this](uint64_t after, BattleCamShot& out) {
@@ -280,6 +292,196 @@ void test_polish() {
     CHECK(std::fabs(a.offset.x) <= 40.0f && std::fabs(a.offset.z) <= 40.0f && near(a.offset.y, 0.0f));
 }
 
+// #568: the ranking (0x520df0), the pick (0x2cd0d0 with the +0x368 alternation), the templates and the chain.
+SaliencyFeatures feat(float power = 0.0f, float health = 0.0f, float x = 0.0f) {
+    SaliencyFeatures f;
+    f.power = power;
+    f.health = health;
+    f.x = x;
+    return f;
+}
+
+void test_saliency_rank() {
+    const SaliencyWeights w;
+    const std::vector<SaliencyFeatures> by_power = {feat(1.0f), feat(3.0f), feat(2.0f)};
+    CHECK((saliency_rank(by_power, w) == std::vector<size_t>{1, 2, 0}));
+    const std::vector<SaliencyFeatures> by_health = {feat(0.0f, 10.0f), feat(0.0f, 5.0f)};
+    CHECK((saliency_rank(by_health, w) == std::vector<size_t>{1, 0}));  // lower health is more salient
+    const std::vector<SaliencyFeatures> by_x = {feat(0.0f, 0.0f, 0.0f), feat(0.0f, 0.0f, 5.0f), feat(0.0f, 0.0f, 10.0f)};
+    CHECK(saliency_rank(by_x, w).front() == 1);  // nearest the mean
+    // The spread weighting: power spread 1 x weight 1 against health spread 1 x weight 1.5 (an override).
+    SaliencyWeights hw = w;
+    hw.health = 1.5f;
+    const std::vector<SaliencyFeatures> both = {feat(1.0f, 10.0f), feat(0.0f, 0.0f)};
+    CHECK((saliency_rank(both, w) == std::vector<size_t>{0, 1}));   // tie 1 : 1 keeps the order
+    CHECK((saliency_rank(both, hw) == std::vector<size_t>{1, 0}));  // health wins
+    CHECK(saliency_rank({}, w).empty());
+}
+
+InterestingWorld world3() {
+    InterestingWorld w;
+    w.type_of = [](uint32_t id) { return id >= 20 && id < 40 ? static_cast<int32_t>(id % 3) : id == 99 ? 7 : -1; };
+    w.may_follow = [](uint32_t) { return true; };
+    w.target = [](uint32_t) { return 0u; };
+    w.candidate_ids = {20, 21, 22};
+    w.candidate_types = {2, 0, 1};
+    w.candidate_features = {feat(1.0f), feat(3.0f), feat(2.0f)};
+    return w;
+}
+
+void test_interesting_pick() {
+    UnsyncedRandom rng(5);
+    InterestingWorld w = world3();
+    InterestingState s;
+    // first: a random object of the selection, no filter; the stored id is left alone.
+    w.selection = {7, 8};
+    w.type_of = [](uint32_t id) { return static_cast<int32_t>(id); };
+    CHECK(interesting_pick(s, true, w, rng) && (s.current == 7 || s.current == 8) && s.type == static_cast<int32_t>(s.current));
+    CHECK(s.stored == 0);
+    w = world3();
+    // A ranked pick that differs from the last type; with every candidate of that type, the first ranked one.
+    s = {};
+    CHECK(interesting_pick(s, false, w, rng) && (s.current >= 20 && s.current <= 22));
+    s = {};
+    s.type = 5;
+    w.candidate_types = {5, 5, 5};
+    CHECK(interesting_pick(s, false, w, rng) && s.current == 21);  // ranked first (power 3)
+    w = world3();
+    // The validation: a stored id that is not the current object clears it (+0x368), so no target branch.
+    w.target = [](uint32_t) { return 99u; };
+    bool followed = false, ranked = false;
+    for (uint64_t seed = 1; seed <= 40; ++seed) {
+        UnsyncedRandom r(seed);
+        InterestingState a;
+        a.current = 30;
+        a.stored = 31;  // the previous object's id: the retail bug's second step
+        CHECK(interesting_pick(a, false, w, r) && a.current != 99 && a.stored == 0);
+        InterestingState b;
+        b.current = 30;  // stored 0: armed from the current object, validation passes
+        CHECK(interesting_pick(b, false, w, r) && b.stored == 30);
+        (b.current == 99 ? followed : ranked) = true;
+        if (b.current == 99) CHECK(b.type == 7);
+    }
+    CHECK(followed && ranked);  // the target 2/3 of the time, else a ranked candidate
+    // A gone current object is cleared; nothing at all = false.
+    InterestingState g;
+    g.current = 5;  // type_of(5) = -1
+    w.candidate_ids.clear();
+    w.candidate_types.clear();
+    w.candidate_features.clear();
+    CHECK(!interesting_pick(g, false, w, rng) && g.current == 0);
+}
+
+InterestingObject object(V3 e, bool model = true, std::string_view name = "Corvette_X") {
+    InterestingObject o;
+    o.id = 42;
+    o.half_extents = e;
+    o.model = model;
+    o.type_name = name;
+    o.frame = frame_at({100.0f, 50.0f, 0.0f});
+    return o;
+}
+
+void test_interesting_templates() {
+    UnsyncedRandom rng(9);
+    // The orbit: radius 2|E| (either side), height 1.25 Ez, translate-only, 600-frame turn, length 90 + 180 t.
+    const BattleCamShot o = orbit_shot(object({10.0f, 10.0f, 10.0f}), rng);
+    CHECK(o.interesting && o.target == 42 && o.length == 90 && o.smoothing && near(*o.smoothing, 0.9f) && !o.handheld);
+    CHECK(o.eye.size() == 1 && o.look.size() == 1);
+    if (o.eye.size() == 1 && o.look.size() == 1) {
+        const ShotKey& e = o.eye[0];
+        CHECK(e.segment == ShotKey::Segment::Orbit && e.translate_only && e.period == 600 && near(e.ease_out, 0.25f));
+        CHECK(near(std::fabs(e.where.x), 2.0f * std::sqrt(300.0f)) && near(e.where.z, 12.5f) && o.look[0].translate_only);
+        // Translate-only: the offset is not turned by the object's frame.
+        ObjectFrame turned = frame_at({100.0f, 50.0f, 0.0f});
+        turned.axis[0] = {0.0f, 1.0f, 0.0f};
+        turned.axis[1] = {-1.0f, 0.0f, 0.0f};
+        CHECK(near(shot_keys_eye(o.eye, o.look, 0, turned, 0.0f), V3{100.0f + e.where.x, 50.0f, 12.5f}));
+    }
+    CHECK(orbit_shot(object({300.0f, 300.0f, 300.0f}), rng).length == 270);  // |E| >= 500: t = 1
+    // The static shot: world eye and look, 60 frames, handheld over 60; d in [2|E|, 4|E|], up 20..45 degrees on land.
+    const BattleCamShot st = static_shot(object({10.0f, 10.0f, 10.0f}), false, rng);
+    CHECK(st.length == 60 && st.handheld && st.handheld_frames == 60 && st.interesting && !st.smoothing);
+    if (st.eye.size() == 1 && st.look.size() == 1) {
+        CHECK(!st.eye[0].attached && !st.look[0].attached && near(st.look[0].where, V3{100.0f, 50.0f, 0.0f}));
+        const V3 d = st.eye[0].where - st.look[0].where;
+        const float len = std::sqrt(::alamo::tactical::dot(d, d)), e = std::sqrt(300.0f);
+        CHECK(len >= 2.0f * e - 0.01f && len <= 4.0f * e + 0.01f);
+        const float up = std::asin(d.z / len) * 180.0f / 3.14159265f;
+        CHECK(up >= 19.9f && up <= 45.1f);
+    } else {
+        CHECK(false);
+    }
+    // The fly-past: needs a model; the two frigates never get variant A; A only in space.
+    BattleCamShot fp;
+    CHECK(!fly_past_shot(object({10.0f, 10.0f, 10.0f}, false), true, rng, fp));
+    bool a = false, b = false;
+    for (int i = 0; i < 40; ++i) {
+        CHECK(fly_past_shot(object({10.0f, 10.0f, 10.0f}), true, rng, fp) && fp.smoothing && near(*fp.smoothing, 0.9f));
+        const bool is_b = !fp.eye.empty() && fp.eye[0].translate_only;
+        (is_b ? b : a) = true;
+        CHECK(is_b ? fp.length == 90 : fp.length == 240);  // t = 0: B 3 s, A 8 s
+        CHECK(fly_past_shot(object({10.0f, 10.0f, 10.0f}, true, "nebulon_b_frigate"), true, rng, fp) && fp.eye[0].translate_only);
+        CHECK(fly_past_shot(object({10.0f, 10.0f, 10.0f}), false, rng, fp) && fp.eye[0].translate_only);  // land: B
+    }
+    CHECK(a && b);
+    // The dispatcher: with a model it always finds a shot (static, orbit or fly-past here).
+    bool saw_static = false, saw_orbit = false, saw_fly = false;
+    for (int i = 0; i < 60; ++i) {
+        BattleCamShot s;
+        CHECK(interesting_shot(object({10.0f, 10.0f, 10.0f}), true, InterestingCategories{}, rng, s) && s.interesting);
+        if (s.length == 60) saw_static = true;
+        else if (!s.eye.empty() && s.eye[0].segment == ShotKey::Segment::Orbit) saw_orbit = true;
+        else saw_fly = true;
+    }
+    CHECK(saw_static && saw_orbit && saw_fly);
+}
+
+BattleCamShot timed(uint32_t id, int32_t length, std::optional<float> smoothing = std::nullopt) {
+    UnsyncedRandom r(1);
+    BattleCamShot s = static_shot(object({10.0f, 10.0f, 10.0f}), false, r);
+    s.target = id;
+    s.length = length;
+    s.smoothing = smoothing;
+    return s;
+}
+
+void test_interesting_chain() {
+    World w;
+    BattleCamGates g;
+    BattleCam cam;
+    // No clash: Movie Mode starts the interesting-object shot on the selection (first = true).
+    w.interesting = {timed(1, 60, 0.9f), timed(2, 30), timed(3, 30)};
+    CHECK(cam.movie_key_up(g, w.picks()) && cam.state() == State::Movie && cam.shot().target == 1);
+    CHECK(w.interesting_first.size() == 1 && w.interesting_first[0]);
+    CHECK(cam.tick(30, false, w.picks()) == 30 && cam.shot().target == 1);
+    // Expiry: held key or Tab freezes the last frame.
+    CHECK(cam.key_down(Key::MovieMode, g, w.picks()) && cam.tick(60, false, w.picks()) == 30 && cam.shot().target == 1);
+    CHECK(!cam.movie_key_up(g, BattleCamPicks{}) && cam.shot().target == 1);  // released, nothing new to pick: runs on
+    CHECK(cam.tick(61, true, w.picks()) == 30 && cam.shot().target == 1);
+    // Released: the chain picks the next object (first = false); the smoothing carries over (unset on the new shot).
+    const uint32_t serial = cam.serial();
+    CHECK(cam.tick(61, false, w.picks()) == 0 && cam.shot().target == 2 && cam.serial() == serial + 1);
+    CHECK(w.interesting_first.size() == 2 && !w.interesting_first[1]);
+    CHECK(near(cam.smooth_eye({0.0f, 0.0f, 0.0f}, 0), {0.0f, 0.0f, 0.0f}) && near(cam.smooth_eye({100.0f, 0.0f, 0.0f}, 1), {10.0f, 0.0f, 0.0f}));
+    // A key up in state 3 also moves to the next interesting object.
+    CHECK(cam.movie_key_up(g, w.picks()) && cam.shot().target == 3);
+    // A clash comes first in the chain.
+    w.clashes = {4};
+    CHECK(cam.tick(30, false, w.picks()) == 0 && cam.shot().clash == 4 && !cam.shot().interesting);
+    CHECK(cam.tick(5000, false, w.picks()) == 5000 && cam.active());  // the clash shot has no length
+    // Nothing left: the expiry stops the cam (End_Cinematic_Mode), which resets the smoothing.
+    w.clashes.clear();
+    w.interesting = {timed(5, 10)};
+    cam.stop();
+    CHECK(cam.movie_key_up(g, w.picks()) && cam.shot().target == 5);
+    CHECK(cam.tick(10, false, w.picks()) == 0 && !cam.active());
+    // b_camera_t starts it too (first = true).
+    w.interesting = {timed(6, 10)};
+    cam.toggle(g, w.picks());
+    CHECK(cam.active() && cam.shot().target == 6 && w.interesting_first.back());
+}
+
 void test_toggle_and_smoothing() {
     World w;
     BattleCamGates g;
@@ -320,6 +522,10 @@ int main() {
     test_mouse();
     test_cinematic_view();
     test_polish();
+    test_saliency_rank();
+    test_interesting_pick();
+    test_interesting_templates();
+    test_interesting_chain();
     test_toggle_and_smoothing();
     std::printf(g_fail == 0 ? "game battle cam tests passed\n" : "%d game battle cam check(s) FAILED\n", g_fail);
     return g_fail == 0 ? 0 : 1;
