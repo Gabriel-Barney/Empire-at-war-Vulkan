@@ -130,8 +130,7 @@ void TacticalBattle::build_service_graph() {
     // hardpoints, deaths, survivors (Die steps 5 and 7), in consume_events' order (consume_kill_events) - like the combat
     // tick's own kills. [port] before this the host never saw such a death (the object stayed, dead in combat only).
     g.add("late_deaths", kAll, kAll, [this] {
-        if (combat_ && (consumed_.hardpoints < combat_->hardpoint_events().size() || consumed_.deaths < combat_->deaths().size() ||
-                        consumed_.survivors < combat_->survivor_events().size())) {
+        if (has_unconsumed_kill_events()) {
             // the hooks get this tick's context first, so what a late death starts (its death clip, a corpse
             // clone) is stamped with the current frame, not with the tick before
             if (hooks_) hooks_->set_tick(tick_.rng, tick_.global_frame);

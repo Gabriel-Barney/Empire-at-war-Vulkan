@@ -2470,12 +2470,15 @@ private:
     // consume_events' order: hardpoints (Die step 5), deaths, survivors (Die step 7), each list from consumed_ on. A list
     // that consume_events has still to read (kUnread, from the combat tick on) is left to it, so no event is consumed twice.
     void consume_kill_events(TacticalMode& mode, SimRng& rng);
-    // #402: how far each combat list has been consumed (list sizes). kUnread from the combat tick (abilities_combat), which
-    // clears the lists, until consume_events has read that list; then its size, and moved on by consume_kill_events. Saved:
-    // a save between ticks can fall after a command-phase kill that late_deaths has still to consume.
-    static constexpr size_t kUnread = static_cast<size_t>(-1);
+    // #402: true when a combat list has events past consumed_ (and is not left to consume_events).
+    bool has_unconsumed_kill_events() const;
+    // #402: how far each combat list has been consumed (list sizes; u32 like the combat save's counts). kUnread from the
+    // combat tick (abilities_combat), which clears the lists, until consume_events has read that list; then its size, and
+    // moved on by consume_kill_events. Saved: a save between ticks can fall after a command-phase kill that late_deaths
+    // has still to consume (never kUnread then: consume_events always follows the combat tick).
+    static constexpr uint32_t kUnread = 0xFFFFFFFFu;
     struct CombatEventMarks {
-        size_t hardpoints = 0, deaths = 0, survivors = 0;
+        uint32_t hardpoints = 0, deaths = 0, survivors = 0;
     } consumed_;
     void spawn_particle(TacticalMode& mode, int32_t type, Vec3 pos, int32_t owner);
     void explosion_flinch(TacticalMode& mode, objects::ObjectHandle h);  // #362: an EXPLOSION object's area flinch

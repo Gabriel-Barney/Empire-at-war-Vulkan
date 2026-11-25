@@ -777,6 +777,8 @@ void TacticalBattle::oi_events(TacticalMode& mode) {
                         const std::vector<tc::DeathEvent> deaths(combat_->deaths().begin() + static_cast<std::ptrdiff_t>(deaths_before),
                                                                  combat_->deaths().end());
                         for (const tc::DeathEvent& d : deaths) process_death(mode, d, *bt_rng_, true);
+                        // #402: these deaths are consumed (silently); a later consumer starts past them
+                        if (consumed_.deaths == deaths_before) consumed_.deaths = static_cast<uint32_t>(combat_->deaths().size());
                     }
                     if (!thief_alive) break;
                 }
@@ -889,7 +891,6 @@ void TacticalBattle::oi_events(TacticalMode& mode) {
     // c. Die step 7 (Â§1.9): Tactical_Respawn (delayed) and Destruction_Survivors, event order. Owner rule 0x3751a0
     //    [port: the dying object's owner].
     for (const tc::SurvivorEvent& s : combat_->survivor_events()) oi_survivor(mode, s);
-    consumed_.survivors = combat_->survivor_events().size();  // #360 / #402
 }
 
 void TacticalBattle::oi_survivor(TacticalMode& mode, const tc::SurvivorEvent& s) {
