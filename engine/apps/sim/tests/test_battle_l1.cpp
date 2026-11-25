@@ -430,6 +430,10 @@ Run run(const Data& d, int32_t workers, int follow = 0, bool via_command = false
             const objects::ObjectHandle wh = tm->spawn(sp);
             b->adopt_object(*tm, wh);
             weapon = st.id(wh);
+            // #487: a new pack is ready at once (the constructor 0x491410 [H]); restart its charge (the Lua restart path) so
+            // the not-ready refusal and the first ready frame are seen
+            CHECK(b->sw_readiness(weapon) == 1.0f);
+            CHECK(alamo::sim::TacticalBattleTestAccess::special_weapons(*b).restart(weapon, b->frame()));
             out.weapon_adopted = b->sw_readiness(weapon) >= 0.0f && b->sw_readiness(weapon) < 1.0f;
             out.not_ready_refused = !b->sw_fire_at_object(*tm, weapon, target);
             if (sw_variant) {
@@ -2417,7 +2421,10 @@ SwFireRun run_sw_fire(const Data& d) {
                 sp.position = {wp.x - 50.0f, wp.y + 30.0f * static_cast<float>(i), wp.z};
                 markers[i] = st.id(tm->spawn(sp));
             }
-            // (a) not ready (the pack restarted at registration, 1 s recharge); (b) not the issuing player's weapon.
+            // (a) not ready (#487: a new pack is ready at once [H]; restarted here, 1 s recharge); (b) not the issuing player's
+            // weapon.
+            CHECK(b->sw_readiness(weapon) == 1.0f);
+            CHECK(alamo::sim::TacticalBattleTestAccess::special_weapons(*b).restart(weapon, f));
             const commands::EventData ev = fire_event(weapon, true, point, objects::kNoObjectId);
             out.not_ready = b->sw_readiness(weapon) >= 0.0f && b->sw_readiness(weapon) < 0.99f &&
                             b->handle_command(*tm, 0, ev, host.random().synced()) == R::AbilityNotReady;
