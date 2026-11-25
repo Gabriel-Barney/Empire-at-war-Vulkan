@@ -964,6 +964,8 @@ bool TacticalBattle::oi_stop_hold(TacticalMode& mode, objects::ObjectId id) {
     // Defense Unit that DEPLOY had just stopped.
     const std::vector<objects::ObjectId> ids{id};
     team_attack_drop(ids);
+    // #539: nor the battle AI's object follow (its 30-frame re-path gave the stopped unit a long path and undeployed it)
+    if (formation_leave_) formation_leave_(id);
     if (bt_rng_) (void)mv_adopt(mode, u->h, *bt_rng_, true);
     return true;
 }
