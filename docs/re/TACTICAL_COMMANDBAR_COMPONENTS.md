@@ -67,6 +67,14 @@ bars / brackets / control group of selected-or-hovered units) fed by HudUnit (hu
 - **surface_mod_icon 0x37f [H code, L source]:** shown iff the string at (obj +0xf0) + 0x168 (or a team member's) is non-empty;
   that string is the texture. The obj +0xf0 record class (save tag 0x29) is not identified. Left of the health bar.
 
+Port (#475): `TacticalBattle::unit_hud_status(id)` reads the four inputs: bribed from `AbilitySystem::bribed` (a saved per-object
+flag set at the Tactical_Bribe owner change, [port] also true for a member of a bribed team container), bombs from
+`CombatSystem::stuck_bombs` summed over a team's members, the garrison flag from `flags_3a2 & 2` or [port] the SkGarrison
+start-force ids (the port does not set bit 2 on the start force, so the hangar engine check is unchanged; re-delivered units are
+not flagged), and the slots from GarrisonSystem capacity / used. app_hud.cpp copies it into `HudUnit` for selected and hovered
+units; `WorldHud` draws the icons beside the health bar, so [port] none while the health bar is hidden. The slot row sits just
+under the bar [port]; retail's offset constant is not read.
+
 ### Garrison respawn counter (0x231): tactical HUD button [H rule, M position]
 Created once (0x2e9700, HUD +0x2028), texture = Icon i_button_skirmish_reinforcements.tga, Build overlay i_button_build.tga.
 - Show: 0x280c50 (player) when 0x28afb0 and player +0x2f8 == 0 and +0x2e8 == 0 (start-force garrison gone): arms the timer
@@ -116,6 +124,7 @@ with fill = progress and "%d%%". Plus: space with weather -> the weather icon sl
    tactical_hud.cpp:1038); app_hud.cpp sets it for local_player(). Test (test_hud_draw.cpp): -1 -> no quad; 0.25 -> the icon +
    build overlay at 25 %.
 2. **Overhead status icons in WorldHud** (bribed_icon, remote_bomb_icon, st_garrison_icon, garrison_slot_icon) [H rules].
+   Done in #475 (see "Port (#475)" above); the plan as written:
    HudUnit gains `bool bribed, bomb, garrison_flag; uint8_t garrison_slots, garrison_used`; WorldHud::bind finds the four
    components; draw for selected/hovered units with the placements above (bribed/flag right of the health bar, bomb right of
    that, slot row below). Data: flags_3a2 bit 2 exists (tactical_battle.hpp:1930) but is not set for skirmish start-force units

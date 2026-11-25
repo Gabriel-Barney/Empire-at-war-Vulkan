@@ -1694,6 +1694,13 @@ bool AbilitySystem::is_stealthed(ObjectId id, uint32_t frame) const {
     const Obj* o = obj(id);
     return o && stealthed_now(*o, frame);
 }
+bool AbilitySystem::bribed(ObjectId id) const {
+    const Obj* o = obj(id);
+    if (!o) return false;
+    if (o->bribed) return true;
+    const Obj* c = o->container != kNoObject ? obj(o->container) : nullptr;
+    return c && c->bribed;
+}
 bool AbilitySystem::tractored(ObjectId id) const {
     const Obj* o = obj(id);
     return o && o->tractored;
@@ -2425,6 +2432,7 @@ void AbilitySystem::hash(StateHasher& h) const {
         h.u8(o.stealthed);
         h.i32(o.stealth_frames);
         h.u32(o.last_detected);
+        h.u8(o.bribed);
         for (size_t k = 0; k < 2; ++k) {
             h.i32(o.shot_target[k]);
             h.i32(o.shot_hp[k]);

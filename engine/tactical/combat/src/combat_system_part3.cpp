@@ -85,6 +85,14 @@ ProjectileView CombatSystem::projectile(size_t i) const {
     return v;
 }
 
+int32_t CombatSystem::stuck_bombs(ObjectId id) const {
+    int32_t n = 0;
+    if (id == kNoObject) return n;
+    for (const Projectile& p : projectiles_)
+        if (p.alive && p.stuck && p.stuck_to == id && data_->projectiles[p.desc].friendly_damage_amount > 0.0f) ++n;
+    return n;
+}
+
 // ================================================================================================
 // S9 ability-facing API
 // ================================================================================================

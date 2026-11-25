@@ -509,6 +509,9 @@ public:
     // (the special named by the pending CRC in the unit's ability list); false when nothing is pending or it is unknown.
     bool pending_ranges(ObjectId id, float& min_range, float& max_range) const;
     bool is_stealthed(ObjectId id, uint32_t frame) const;  // Is_Stealthed (0x39b140)
+    // #475 (TACTICAL_COMMANDBAR_COMPONENTS "Overhead status record"): obj +0x3cc, set to 1 only when a Tactical_Bribe
+    // converts the object [H]. [port] also true for a member of a bribed team container.
+    bool bribed(ObjectId id) const;
     bool tractored(ObjectId id) const;                     // CD +0x132
     bool interdicting(ObjectId id) const;
     // TRU1 t03 (legacy docs/re/TRU1_GRAVITY_FIELD.md): `id` is slowed by a gravity control field (obj +0x3a1 bit 0x40; also
@@ -821,6 +824,7 @@ private:
         uint8_t stealthed = 0;
         int32_t stealth_frames = 0;
         uint32_t last_detected = 0;
+        uint8_t bribed = 0;  // #475: obj +0x3cc, set by the Tactical_Bribe convert (0x5b07c0) [H]; the overhead bribed_icon
         // ion cannon shot [0] / lucky shot [1] per shooter (members get copies)
         std::array<ObjectId, 2> shot_target{kNoObject, kNoObject};
         std::array<int32_t, 2> shot_hp{-1, -1};

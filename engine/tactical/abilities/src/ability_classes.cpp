@@ -1657,6 +1657,7 @@ void AbilitySystem::class_update(Obj& o, SpecialState& sp, uint32_t frame) {
                     combat_->set_health(sp.target, combat_->max_health(sp.target));  // [M] the repair effect
                 } else if (Obj* t = obj(sp.target)) {
                     change_owner(*t, o.owner, frame);
+                    if (s.cls == C::TacticalBribe) t->bribed = 1;  // #475: obj +0x3cc := 1 after the convert (0x5b07c0) [H]
                     // cu8l t02 (CU8K_T02_T06_RE §2 row 0x5b0c8a): the bribe holds the bribed object after the owner change
                     // [M: or its team container]
                     if (s.cls == C::TacticalBribe) stop_order(sp.target, frame, kStopHold);

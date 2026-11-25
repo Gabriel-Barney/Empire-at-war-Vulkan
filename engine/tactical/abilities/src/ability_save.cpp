@@ -49,8 +49,8 @@ namespace {
 // DEPLOY_TROOPERS machine and the rope landing, r3g t04 the cable hold count; 7: r3h the queued animation plays (a
 // play queued after the host drained the queue - AI / Lua activations, damage listeners, deaths - waits for the next
 // tick); 8: buzz-droid clouds; 9: #57 t02 the rope landing's Rope Land state (rope_state 4; in state 2 rope_end is the
-// slide's end). Only the current version is read (cu6).
-constexpr uint32_t kAbilitySaveVersion = 9;
+// slide's end); 10: #475 the bribed flag. Only the current version is read (cu6).
+constexpr uint32_t kAbilitySaveVersion = 10;
 constexpr uint32_t kSpecialWeaponSaveVersion = 1;
 constexpr uint32_t kSpaceFieldSaveVersion = 1;
 
@@ -94,7 +94,7 @@ void AbilitySystem::write(ByteWriter& w) const {
         w.u32(o.nebula_frame).u32(o.force_frame).u32(o.ion_storm_frame);
         w.u8(o.locomotor_busy).u8(o.sap_disabled).u8(o.corrupted).u8(o.weapons_disabled).i32(o.garrison_count);
         w.u8(o.gravity_well_destroyed).u8(o.tractored).u8(o.interdicting).i32(o.immobilize);
-        w.u8(o.stealthed).i32(o.stealth_frames).u32(o.last_detected);
+        w.u8(o.stealthed).i32(o.stealth_frames).u32(o.last_detected).u8(o.bribed);
         for (size_t k = 0; k < 2; ++k) w.i32(o.shot_target[k]).i32(o.shot_hp[k]).i32(o.shot_proj[k]);
         w.u8(o.lucky_fired);
         w.u32(static_cast<uint32_t>(o.specials.size()));
@@ -226,6 +226,7 @@ bool AbilitySystem::read(ByteReader& r) {
         o.stealthed = r.u8();
         o.stealth_frames = r.i32();
         o.last_detected = r.u32();
+        o.bribed = r.u8();
         for (size_t k = 0; k < 2; ++k) {
             o.shot_target[k] = r.i32();
             o.shot_hp[k] = r.i32();

@@ -155,6 +155,31 @@ float TacticalBattle::garrison_respawn(int32_t player) const {
     return -1.0f;
 }
 
+TacticalBattle::UnitHudStatus TacticalBattle::unit_hud_status(objects::ObjectId id) const {
+    UnitHudStatus s;
+    const auto it = std::lower_bound(units_.begin(), units_.end(), id, [](const Unit& x, objects::ObjectId v) { return x.id < v; });
+    if (it == units_.end() || it->id != id) return s;
+    const Unit* u = &*it;
+    s.bribed = abilities_ && abilities_->bribed(id);
+    // [port] retail sets +0x3a2 bit 2 when the start force spawns (0x2a1eb0 -> 0x2a00b0); the port keeps the flag for the
+    // hangar / DEPLOY_TROOPERS spawns it reads elsewhere and finds the start force in the garrison lists instead.
+    s.garrison_flag = (u->flags_3a2 & 2u) != 0;
+    for (const SkGarrison& g : sk_garrisons_)
+        if (std::binary_search(g.ids.begin(), g.ids.end(), id)) s.garrison_flag = true;
+    s.garrison_slots = std::max(0, garrison_.capacity(id));
+    s.garrison_used = std::clamp(garrison_.used_slots(id), 0, s.garrison_slots);
+    // 0x3972c0: +0x328 summed over the team - one per Friendly_Damage_Amount > 0 object attached (0x38d320), i.e. a stuck
+    // remote bomb. A team member counts the bombs on every member of its team container.
+    const bool team = u->container < containers_.size() && containers_[u->container].team;
+    if (combat_) {
+        if (!team) s.bombs = combat_->stuck_bombs(id);
+        else
+            for (const Unit& m : units_)
+                if (m.container == u->container) s.bombs += combat_->stuck_bombs(m.id);
+    }
+    return s;
+}
+
 void TacticalBattle::sk_garrison_tick() {
     for (SkGarrison& g : sk_garrisons_) {
         if (!g.ids.empty() && g.timer < 0 && g.pending.empty()) {

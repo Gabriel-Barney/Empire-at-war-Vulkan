@@ -129,6 +129,12 @@ struct HudUnit {
     bool fog_hidden = false;
     // map1 t01 (same filter, obj +0x3A7): inside a garrison / transport (render::kSnapContained). No blip, whoever owns it.
     bool contained = false;
+    // #475 (TACTICAL_COMMANDBAR_COMPONENTS.md "Overhead status record", 0x31de70 [H]; sim TacticalBattle::unit_hud_status):
+    // the status icons of a selected / hovered unit. `bribed`: converted by a Tactical_Bribe (obj +0x3cc); `bomb`: a remote
+    // bomb is stuck to it (obj +0x328 > 0); `garrison_flag`: a spawned / skirmish start-force unit (obj +0x3a2 & 2);
+    // `garrison_slots` / `garrison_used`: Num_Garrison_Slots of a garrison holder and the slots its occupants take.
+    bool bribed = false, bomb = false, garrison_flag = false;
+    uint8_t garrison_slots = 0, garrison_used = 0;
 };
 
 // One live unit and the unit standing for its squadron / company (itself when alone): TacticalBattle::icon_links.
@@ -202,6 +208,7 @@ std::optional<size_t> pick_hud_unit(std::span<const HudUnit> units, const View& 
 
 struct WorldHudStats {
     uint32_t unit_icons = 0, brackets = 0, bars = 0, group_numbers = 0, flytexts = 0, offscreen = 0, blobs = 0;
+    uint32_t status_icons = 0;  // #475: bribed / remote bomb / garrison flag / garrison slot quads
 };
 
 class WorldHud {
@@ -215,11 +222,19 @@ public:
     const WorldHudStats& stats() const { return stats_; }
 
 private:
-    void bars(const WorldHudContext& ctx, const HudUnit& u, BracketSize sz, const UnitScreenBounds& b,
-              const TextureAtlas& atlas, HudDrawList& dl);
+    // The health bar as drawn: centre and size in pixels (+Y down); `valid` false when no health bar was drawn.
+    struct BarBox {
+        bool valid = false;
+        float cx = 0, cy = 0, w = 0, h = 0;
+    };
+    BarBox bars(const WorldHudContext& ctx, const HudUnit& u, BracketSize sz, const UnitScreenBounds& b,
+                const TextureAtlas& atlas, HudDrawList& dl);
+    void status_icons(const HudUnit& u, bool allied, const BarBox& bar, const HudCanvas& cv, const TextureAtlas& atlas,
+                      HudDrawList& dl);
     const ComponentTable* table_ = nullptr;
     int32_t bracket_[3] = {-1, -1, -1}, health_[3] = {-1, -1, -1}, shield_[3] = {-1, -1, -1};
     int32_t power_ = -1, group_ = -1, flytext_ = -1;
+    int32_t bribed_ = -1, bomb_ = -1, garrison_flag_ = -1, garrison_slot_ = -1;  // #475
     WorldHudStats stats_;
 };
 

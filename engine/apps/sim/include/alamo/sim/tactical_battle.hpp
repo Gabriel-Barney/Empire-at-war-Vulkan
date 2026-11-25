@@ -722,6 +722,16 @@ public:
     // `player`'s start-force re-delivery timer, elapsed / Garrison_Reinforcement_Delay_Seconds (0 when it arms, towards 1
     // at expiry), or -1 while no timer runs (the counter is hidden).
     float garrison_respawn(int32_t player) const;
+    // #475 (TACTICAL_COMMANDBAR_COMPONENTS.md "Overhead status record", 0x31de70 [H]): what the overhead status icons of
+    // a hovered / selected unit read. All zero for an unknown id.
+    struct UnitHudStatus {
+        bool bribed = false;         // obj +0x3cc: converted by a Tactical_Bribe (AbilitySystem::bribed)
+        int32_t bombs = 0;           // obj +0x328 over the team: live projectiles stuck to it with Friendly_Damage_Amount > 0
+        bool garrison_flag = false;  // obj +0x3a2 & 2 (spawned), or [port] a skirmish start-force unit (SkGarrison ids)
+        int32_t garrison_slots = 0;  // Num_Garrison_Slots of a garrison holder
+        int32_t garrison_used = 0;   // slots taken: the occupants' summed Garrison_Value (capacity - free)
+    };
+    UnitHudStatus unit_hud_status(objects::ObjectId id) const;
     // mcx4 t13 (presentation feed; MCX4_T13_RE_ANSWERS "Faction.SFXEvent_GUI_Toggle_Non_Hero_Ability_On family",
     // SetUnitAbilityModeEvent 0x430270): a SetUnitAbilityMode with its sound flag that toggled at least one unit, in this
     // tick or in the command phase before it, in event order.
