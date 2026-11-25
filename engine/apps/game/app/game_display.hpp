@@ -79,6 +79,9 @@ struct OptionsProfile {
     bool tactical_fov_set = false;
     ui::HotkeyProfile keys;  // empty: the bindings were never stored
     ui::SkirmishProfile skirmish;  // the local skirmish slot's faction and colour (keys skirmish_faction / _colour)
+    // #452: retail's TutorialsPlayed (key tutorials_played, written once set): "" until New Campaign asked
+    // TEXT_SUGGEST_TUTORIAL, then "-1".
+    std::string tutorials_played;
 };
 std::string default_options_profile_path();  // "" when %LOCALAPPDATA% is unset
 bool load_options_profile(const std::string& path, OptionsProfile& p);

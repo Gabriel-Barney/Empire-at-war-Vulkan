@@ -97,6 +97,12 @@ The opener `0xbf9b0` has two outside callers:
 
 - **TUTORIAL** matches: `ui::GuiInfoScreens::show_tutorial`, the story reward in story_present.cpp, and the quit
   question.
-- **MAIN_CAMPAIGN differs:** the port's New Campaign opens `IDD_CAMPAIGN_SELECTION_DIALOG` (engine/ui/src/gui_menus.cpp).
-  Follow-up #452.
+- **MAIN_CAMPAIGN matches (#452):** `ui::FrontEnd::new_campaign` and the dialog's fill and handler in
+  engine/ui/src/gui_menus.cpp.
+  - The host keeps `TutorialsPlayed` as the options file's `tutorials_played` key. The question box is
+    `IDD_DIALOG_BOX_QUIT_CONFIRM`. Esc on it closes it, and the tutorial list's Cancel goes to the main menu [port]
+    (docs/DECISIONS.md "Front-end and skirmish choices").
+  - Data without `Full_Story_Campaign_Underworld` (EaW, mods) keeps `IDD_CAMPAIGN_SELECTION_DIALOG` (docs/DECISIONS.md
+    "Front-end and skirmish choices").
+  - The port does not write the played tutorials to `TutorialsPlayed`: it never needs more than "not empty".
 - **The other seven** have no port version, which is correct.

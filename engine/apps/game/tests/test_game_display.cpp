@@ -418,11 +418,12 @@ void options_round_trip() {
     t.save(p.keys);
     p.skirmish.faction = "Empire";  // modc t47
     p.skirmish.colour = 1;
+    p.tutorials_played = "-1";  // #452
     CHECK(game::save_options_profile(path, p));
     game::OptionsProfile q;
-    CHECK(q.skirmish.faction.empty() && q.skirmish.colour == -1);
+    CHECK(q.skirmish.faction.empty() && q.skirmish.colour == -1 && q.tutorials_played.empty());
     CHECK(game::load_options_profile(path, q));
-    CHECK(q.skirmish.faction == "Empire" && q.skirmish.colour == 1);
+    CHECK(q.skirmish.faction == "Empire" && q.skirmish.colour == 1 && q.tutorials_played == "-1");
     CHECK(std::fabs(q.audio.master - 0.25f) < 1e-4f && q.audio.music == 0.0f && q.audio.sfx == 1.0f && !q.audio.subtitles);
     CHECK(q.gameplay.game_speed == 75 && q.gameplay.strategic_speed == 0 && q.gameplay.alternate_mouse &&
           !q.gameplay.abilities_autofire && q.gameplay.auto_resolve && q.gameplay.difficulty == 2 && q.gameplay.absolute_scroll);

@@ -19,6 +19,7 @@ void App::load_game_options() {
     camera_ = p.camera;
     tactical_fov_set_ = p.tactical_fov_set;
     skirmish_profile_ = p.skirmish;
+    tutorials_played_ = p.tutorials_played;
     if (!p.keys.empty()) ui_.hotkeys.load(p.keys);
     apply_audio_page();
     apply_camera_page();  // also the key bindings (hotkeys + queue modifier)
@@ -49,6 +50,7 @@ void App::save_game_options() {
     p.camera = camera_;
     p.tactical_fov_set = tactical_fov_set_;
     p.skirmish = skirmish_profile_;
+    p.tutorials_played = tutorials_played_;
     ui_.hotkeys.save(p.keys);
     if (!save_options_profile(options_path_, p)) std::printf("options: %s not written\n", options_path_.c_str());
 }

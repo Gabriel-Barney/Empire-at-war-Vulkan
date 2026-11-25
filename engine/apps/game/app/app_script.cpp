@@ -1947,12 +1947,55 @@ std::vector<ScriptStep> script::make_script(const Options& opt, AppProbe& probe)
                                   st.timeout_frames};
             };
             s.push_back(unless_direct(step_click_control("IDD_SINGLE_PLAYER_GAMES_MENU_DIALOG", "IDC_NEW_CAMPAIGN_BUTTON")));
+            // #452: FoC data asks TEXT_SUGGEST_TUTORIAL on the first click (a scripted run's profile is fresh: answered No),
+            // then opens IDD_MAIN_CAMPAIGN_DIALOG; other data opens the story-set list.
+            auto asked = std::make_shared<bool>(false), main_dialog = std::make_shared<bool>(false);
+            const auto top_is = [](AppProbe& a, const char* dialog) {
+                const ui::GuiDialog* t = a.ui().gui.top();
+                return t && t->name() == dialog;
+            };
+            s.push_back(unless_direct({"the tutorial question or a campaign dialog", [asked, top_is](AppProbe& a, ui::InputFrame&) {
+                                           *asked = top_is(a, "IDD_DIALOG_BOX_QUIT_CONFIRM");
+                                           return *asked || top_is(a, "IDD_MAIN_CAMPAIGN_DIALOG") ||
+                                                  top_is(a, "IDD_CAMPAIGN_SELECTION_DIALOG");
+                                       },
+                                       120}));
+            const auto when = [direct](std::shared_ptr<bool> flag, bool want, ScriptStep st) {
+                return ScriptStep{st.name, [direct, flag, want, run = std::move(st.run)](AppProbe& a, ui::InputFrame& f) {
+                                      return *direct || *flag != want || run(a, f);
+                                  },
+                                  st.timeout_frames};
+            };
+            s.push_back(when(asked, true, step_click_control("IDD_DIALOG_BOX_QUIT_CONFIRM", "IDC_DIALOG_BOX_BUTTON_RIGHT")));
+            s.push_back(unless_direct({"campaign dialog", [main_dialog, top_is](AppProbe& a, ui::InputFrame&) {
+                                           *main_dialog = top_is(a, "IDD_MAIN_CAMPAIGN_DIALOG");
+                                           return *main_dialog || top_is(a, "IDD_CAMPAIGN_SELECTION_DIALOG");
+                                       },
+                                       120}));
             s.push_back(unless_direct(step_shot("game_campaign_select.png")));
             const size_t first = s.size();
             exact_row("IDD_CAMPAIGN_SELECTION_DIALOG", "IDC_CAMPAIGNS_LIST", story_row);
-            for (size_t k = first; k < s.size(); ++k) s[k] = unless_direct(std::move(s[k]));
-            s.push_back(unless_direct(
-                step_click_control("IDD_CAMPAIGN_SELECTION_DIALOG", story_faction == 0 ? "IDC_PLAY_FACTION_A_BUTTON" : "IDC_PLAY_FACTION_B_BUTTON")));
+            s.push_back(
+                step_click_control("IDD_CAMPAIGN_SELECTION_DIALOG", story_faction == 0 ? "IDC_PLAY_FACTION_A_BUTTON" : "IDC_PLAY_FACTION_B_BUTTON"));
+            for (size_t k = first; k < s.size(); ++k) s[k] = when(main_dialog, false, std::move(s[k]));
+            // the dialog's Start plays one campaign; another one wanted is started with the action Start sends.
+            auto start_click = std::make_shared<bool>(false);
+            s.push_back(when(main_dialog, true, {"Start, or the wanted campaign's start action", [start_click, story_choice](AppProbe& a, ui::InputFrame&) {
+                                                    const ui::CampaignChoice* c = a.ui().front.main_campaign();
+                                                    *start_click = c && ascii_iequals(c->campaign, story_choice.campaign);
+                                                    if (*start_click) return true;
+                                                    std::printf("script: IDD_MAIN_CAMPAIGN_DIALOG starts %s: StartCampaign %s (%s)\n",
+                                                                c ? c->campaign.c_str() : "nothing", story_choice.campaign.c_str(),
+                                                                story_choice.faction.c_str());
+                                                    ui::MenuAction act;
+                                                    act.kind = ui::MenuAction::Kind::StartCampaign;
+                                                    act.campaign = story_choice.campaign;
+                                                    act.faction = story_choice.faction;
+                                                    a.menu_action(act);
+                                                    return true;
+                                                },
+                                                2}));
+            s.push_back(when(start_click, true, step_click_control("IDD_MAIN_CAMPAIGN_DIALOG", "IDC_MAIN_CAMPAIGN_START")));
         } else {
             s.push_back(step_click_control("IDD_SINGLE_PLAYER_GAMES_MENU_DIALOG", "IDC_CUSTOM_CAMPAIGN_BUTTON"));
             s.push_back(step_shot("game_campaign_select.png"));

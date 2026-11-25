@@ -1700,6 +1700,10 @@ void App::handle_menu_actions(const std::vector<ui::MenuAction>& acts) {
             case K::TestAudioSfx: audio_.options_sfx_test(); break;  // #62 t01: a released SFX volume slider
             case K::TestAudioSpeech: audio_.options_speech_test(); break;  // #62 t01: a released dialog volume slider
             case K::StopAudioTest: audio_.options_test_stop(); break;      // #62 t01: the audio dialog closed
+            case K::TutorialSuggested:  // #452 (0xe9920 [H]): the profile's TutorialsPlayed becomes "-1", saved now
+                tutorials_played_ = "-1";
+                save_game_options();
+                break;
             case K::ApplyAudio:  // the dialog opens with these and they are kept between runs
                 audio_opts_ = a.audio;
                 apply_audio_page();

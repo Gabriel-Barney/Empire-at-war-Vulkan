@@ -37,6 +37,12 @@ std::string map_file_label(std::string_view map) {
 constexpr const char* kMain = "IDD_MAIN_MENU_DIALOG";
 constexpr const char* kSingle = "IDD_SINGLE_PLAYER_GAMES_MENU_DIALOG";
 constexpr const char* kCampaignSelect = "IDD_CAMPAIGN_SELECTION_DIALOG";
+// #452 (docs/re/SINGLE_PLAYER_DIALOGS.md "IDD_MAIN_CAMPAIGN_DIALOG" [H]): FoC's New Campaign dialog and the campaign its
+// Start looks up (0xc5250).
+constexpr const char* kMainCampaign = "IDD_MAIN_CAMPAIGN_DIALOG";
+// [name-ok-begin: retail hard-code, docs/re/SINGLE_PLAYER_DIALOGS.md 0xc5250 [H] (the campaign IDC_MAIN_CAMPAIGN_START starts)]
+constexpr const char* kMainCampaignName = "Full_Story_Campaign_Underworld";
+// [name-ok-end]
 constexpr const char* kCustomStaging = "IDD_CUSTOM_CAMPAIGN_STAGING_DIALOG";
 constexpr const char* kAdvanced = "IDD_CAMPAIGN_ADVANCED_OPTIONS_DIALOG";
 constexpr const char* kSkirmishAdvanced = "IDD_INTERNET_STAGING_DIALOG_ADVANCED_SKIRMISH_OPTIONS";  // skm1 t02 (0xea8d0)
@@ -221,6 +227,7 @@ const char* menu_action_name(MenuAction::Kind k) {
         case MenuAction::Kind::TestAudioSfx: return "TestAudioSfx";
         case MenuAction::Kind::TestAudioSpeech: return "TestAudioSpeech";
         case MenuAction::Kind::StopAudioTest: return "StopAudioTest";
+        case MenuAction::Kind::TutorialSuggested: return "TutorialSuggested";
     }
     return "?";
 }
@@ -731,6 +738,34 @@ void FrontEnd::close_pause_menu() {
 }
 
 bool FrontEnd::pause_menu_open() const { return gui_ && gui_->find(kPause) != nullptr; }
+
+// #452: FoC's campaign, when the data has both its dialog and the campaign. [port] (docs/DECISIONS.md "Front-end and skirmish
+// choices", New Campaign) data without them (EaW, whose GUIDialogs.rc also has an IDD_MAIN_CAMPAIGN_DIALOG, and mods)
+// keep the story-set list IDD_CAMPAIGN_SELECTION_DIALOG.
+const CampaignChoice* FrontEnd::main_campaign() const {
+    if (!gui_ || !gui_->has_dialog(kMainCampaign)) return nullptr;
+    for (const CampaignSetInfo& s : menu_.story)
+        for (const CampaignChoice& c : s.factions)
+            if (ascii_iequals(c.campaign, kMainCampaignName)) return &c;
+    return nullptr;
+}
+
+// #452 (0xe9920 [H]): New Campaign. The first click (the profile's TutorialsPlayed empty) has the host write "-1" and asks
+// TEXT_SUGGEST_TUTORIAL; later ones open the dialog.
+void FrontEnd::new_campaign(std::vector<MenuAction>& out) {
+    if (!main_campaign()) {
+        go(kCampaignSelect);
+        return;
+    }
+    if (tutorial_asked_ || !p_.tutorials_played || !p_.tutorials_played().empty()) {
+        go(kMainCampaign);
+        return;
+    }
+    tutorial_asked_ = true;  // asked once, also before the host's profile says so
+    out.push_back(act(MenuAction::Kind::TutorialSuggested));
+    quit_action_ = "suggest_tutorial";
+    push(kQuit);
+}
 
 int32_t FrontEnd::difficulty_of(const GuiDialog& d) const {
     if (const GuiControl* s = d.get("IDC_CAMPAIGN_DIFFICULTY_SLIDER")) return s->value;
@@ -1560,6 +1595,11 @@ void FrontEnd::setup(GuiDialog& d) {
     } else if (ascii_iequals(n, kCampaignSelect)) {
         d.set_value("IDC_CAMPAIGN_DIFFICULTY_SLIDER", 1);
         fill_campaign_select(d);
+    } else if (ascii_iequals(n, kMainCampaign)) {  // #452: the opener 0xc4d90 [H]
+        d.show("IDC_DIALOG_CLOSE_BUTTON", false);
+        d.show("IDC_LOAD_FACTION_A_PROGRESS", false);
+        d.set_checked("IDC_RADIO_MEDIUM", true);  // difficulty 1
+        main_campaign_started_ = false;
     } else if (ascii_iequals(n, kCustomStaging)) {
         d.set_checked("IDC_RADIO_CUSTOM_MEDIUM", true);
         for (int32_t i = 0; i < 3; ++i) {
@@ -1619,10 +1659,11 @@ void FrontEnd::setup(GuiDialog& d) {
         }
     } else if (ascii_iequals(n, kQuit)) {
         const bool overwrite = quit_action_ == "overwrite", del = quit_action_ == "delete";
-        const bool rebind = quit_action_ == "rebind";
+        const bool rebind = quit_action_ == "rebind", suggest = quit_action_ == "suggest_tutorial";
         d.set_text("IDC_CAPTION", overwrite ? text_or("TEXT_SAVE_CONFIRM", U"Overwrite Save Game?")
                                   : del     ? text_or("TEXT_DELETE_CONFIRM", U"Delete saved game?")
                                   : rebind  ? text_or("TEXT_KEYBOARD_OPTIONS", U"Keyboard")
+                                  : suggest ? text_or("TEXT_SUGGEST_TUTORIAL", U"Would you like to play the tutorial first?")
                                             : text("TEXT_BUTTON_QUIT_GAME"));
         d.set_text("IDC_DIALOG_BOX_BUTTON_LEFT", rebind ? text_or("TEXT_BUTTON_OK", U"OK") : text("TEXT_BUTTON_YES"));
         d.set_text("IDC_DIALOG_BOX_BUTTON_RIGHT", rebind ? text_or("TEXT_BUTTON_CANCEL", U"Cancel") : text("TEXT_BUTTON_NO"));
@@ -1727,7 +1768,8 @@ void FrontEnd::on_cancel(const GuiEvent& e, std::vector<MenuAction>& out) {
         go(kMain);
         return;
     }
-    if (ascii_iequals(n, kCampaignSelect) || ascii_iequals(n, kCustomStaging) || ascii_iequals(n, kSkirmish)) {
+    if (ascii_iequals(n, kCampaignSelect) || ascii_iequals(n, kMainCampaign) || ascii_iequals(n, kCustomStaging) ||
+        ascii_iequals(n, kSkirmish)) {
         go(kSingle);
         return;
     }
@@ -1751,6 +1793,9 @@ void FrontEnd::on_cancel(const GuiEvent& e, std::vector<MenuAction>& out) {
         quit_action_.clear();
         rebind_slot_ = rebind_other_ = -1;
     }
+    // #452 [port] (docs/DECISIONS.md "Front-end and skirmish choices", New Campaign) Esc on the tutorial question closes it
+    // (back to the single player menu); it was asked, so it is not asked again.
+    if (ascii_iequals(n, kQuit) && quit_action_ == "suggest_tutorial") quit_action_.clear();
     if (ascii_iequals(n, kAudio)) {
         out.push_back(act(MenuAction::Kind::PreviewAudio));
         out.back().audio = audio_before_;
@@ -1880,7 +1925,7 @@ void FrontEnd::on_click(const GuiEvent& e, std::vector<MenuAction>& out) {
             push(kQuit);
         }
     } else if (ascii_iequals(n, kSingle)) {
-        if (is("IDC_NEW_CAMPAIGN_BUTTON")) go(kCampaignSelect);
+        if (is("IDC_NEW_CAMPAIGN_BUTTON")) new_campaign(out);
         else if (is("IDC_CUSTOM_CAMPAIGN_BUTTON")) go(kCustomStaging);
         else if (is("IDC_SKIRMISH_GAMES_BUTTON")) go(kSkirmish);
         else if (is("IDC_BACK_BUTTON_MAIN")) go(kMain);
@@ -1899,6 +1944,23 @@ void FrontEnd::on_click(const GuiEvent& e, std::vector<MenuAction>& out) {
                     a.difficulty = difficulty_of(*d);
                     out.push_back(std::move(a));
                 }
+            }
+        }
+    } else if (ascii_iequals(n, kMainCampaign) && d) {  // #452: the handler 0xc5250 [H]
+        // EASY / MEDIUM / HARD are one radio group: the checked one is the difficulty (difficulty_of).
+        if (is("IDC_CANCEL_BUTTON")) go(kSingle);
+        else if (is("IDC_MAIN_CAMPAIGN_START") || is("IDC_PLAY_FACTION_A_BUTTON_BIG")) {
+            const CampaignChoice* choice = main_campaign();
+            if (choice && !main_campaign_started_) {  // one start: IDC_PLAY_FACTION_A_BUTTON_BIG stays shown
+                main_campaign_started_ = true;
+                d->show("IDC_CANCEL_BUTTON", false);  // while it loads: Back and Start hidden, the progress bar shown
+                d->show("IDC_MAIN_CAMPAIGN_START", false);
+                d->show("IDC_LOAD_FACTION_A_PROGRESS", true);
+                MenuAction a = act(MenuAction::Kind::StartCampaign);
+                a.campaign = choice->campaign;
+                a.faction = choice->faction;
+                a.difficulty = difficulty_of(*d);
+                out.push_back(std::move(a));
             }
         }
     } else if (ascii_iequals(n, kCustomStaging) && d) {
@@ -2232,6 +2294,11 @@ void FrontEnd::on_click(const GuiEvent& e, std::vector<MenuAction>& out) {
             pop();
             quit_action_.clear();
             rebind_slot_ = rebind_other_ = -1;
+        } else if ((is("IDC_DIALOG_BOX_BUTTON_LEFT") || is("IDC_DIALOG_BOX_BUTTON_RIGHT")) && quit_action_ == "suggest_tutorial") {
+            const bool yes = is("IDC_DIALOG_BOX_BUTTON_LEFT");  // #452: Yes the tutorial list, No the campaign dialog
+            pop();
+            quit_action_.clear();
+            go(yes ? kTutorial : kMainCampaign);
         } else if (is("IDC_DIALOG_BOX_BUTTON_LEFT")) {
             pop();
             if (quit_action_ == "overwrite" || quit_action_ == "delete") {  // N1 / t09: the confirmed save request
