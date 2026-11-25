@@ -189,6 +189,13 @@ uint32_t tether_toggle(uint32_t current, std::span<const uint32_t> selection) {
     return selection.empty() ? 0 : selection.front();
 }
 
+std::vector<uint32_t> select_like(std::span<const uint32_t> selection, std::optional<uint32_t>,
+                                  std::span<const SelectableObject>, size_t) {
+    return {selection.begin(), selection.end()};
+}
+
+UnitCyclePick unit_cycle(std::span<const uint32_t>, std::span<const uint32_t>, int32_t) { return {}; }
+
 int8_t hotkey_group(uint16_t slot) {
     uint16_t n = 0xFFFF;
     if (slot < 10) n = slot;
