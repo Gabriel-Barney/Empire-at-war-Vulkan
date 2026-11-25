@@ -431,7 +431,7 @@ public:
     enum class ReinforceListToggle : uint8_t { Closed, Opened, Refused };
     ReinforceListToggle toggle_reinforce_list(bool allowed);
     bool reinforce_list_open() const { return reinforce_list_open_; }
-    void set_reinforce_list_open(bool open) { reinforce_list_open_ = open; }
+    void close_reinforce_list() { reinforce_list_open_ = false; }
 
     void build(const TacticalHudFrame& frame, std::span<const HudUnit> units, std::span<const HudTypeInfo> types,
                const FlyTextList* flytext = nullptr);

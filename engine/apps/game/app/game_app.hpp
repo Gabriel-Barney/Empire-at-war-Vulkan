@@ -568,7 +568,7 @@ private:
     bool tactical_button(const ui::HudAction& a);  // true = handled (c_button00 / 02 / 04, b_reinforcement, beacon, ...)
     void fill_command_buttons(ui::TacticalHudFrame& hf) const;  // b_retreat / b_reinforcement / beacon / movie mode state
     bool reinforce_available(objects::ObjectId galactic_id) const override;
-    void toggle_reinforcement_list();  // R / b_reinforcement: the first callable pad entry's drop pick (toggle)
+    void toggle_reinforcement_list();  // R / b_reinforcement (#463): open / close the reinforcement list
     bool cancel_picks();               // Esc: ends a reinforcement / bombing-run / beacon pick (true when one was on)
     void select_cycle(int32_t step);   // NextUnit / PreviousUnit
     void select_like();                // SelectLike

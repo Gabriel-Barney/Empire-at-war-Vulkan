@@ -86,12 +86,15 @@ The port (`TacticalHud::toggle_reinforce_list`, `App::toggle_reinforcement_list`
 - the list is the `r_RRCC` pad with `r_pop_icon` / `r_pop_text`, drawn only while open;
 - [port] it opens in a battle when the controls are not story-locked and no drop point is being picked;
 - a pad entry starts the drop pick, as before;
+- [port] while a drop point is being picked, R closes an open list but does not reopen it, and the refusal is silent (as
+  retail's held-object test, which plays nothing); right-click and Esc cancel the pick, R no longer does;
 - [port] the `i_main_reinforce` shell model itself is not loaded: the pad keeps its fallback positions.
 
 ## Open
 
 - The battle-cam key gates.
 - The names of the reinforcement list's four gates [M].
+- The `i_main_reinforce` shell model and its placement (-w/2, h/2 - 100): not loaded, the pad keeps its fallback positions.
 - The camera consumer of the tether target [M].
 - What the battle-cam cameras frame.
 - The Next / Prev filters and order.

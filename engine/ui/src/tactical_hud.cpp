@@ -1132,7 +1132,7 @@ TacticalHud::ReinforceListToggle TacticalHud::toggle_reinforce_list(bool allowed
 
 void TacticalHud::build_reinforcements(const TacticalHudFrame& f) {
     reinforce_slots_.clear();
-    if (!f.providers.reinforcements || !reinforce_list_open_) return;  // #463: the pad is the closed list's
+    if (!f.providers.reinforcements || !reinforce_list_open_) return;  // #463: the pad is drawn only while the list is open
     std::vector<HudReinforcement> entries;
     f.providers.reinforcements(entries);
     for (size_t i = 0; i < entries.size() && i < reinforce_component_.size(); ++i) {
