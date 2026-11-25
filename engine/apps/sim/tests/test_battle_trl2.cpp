@@ -367,7 +367,7 @@ void test_ground_special_weapon() {
                 owner_ok = owner_ok && st.owner(h) == 0;
                 at_backdrop = at_backdrop && st.position(h).x == src.x && st.position(h).y == src.y;
                 registered = registered || b.special_weapons().has(st.id(h));
-                count = b.special_weapons().duplicate_count(st.id(h));
+                count = b.special_weapons().recharge_counter(st.id(h));
                 readiness = b.special_weapons().readiness(st.id(h), static_cast<uint32_t>(b.frame()));
             }
             return false;

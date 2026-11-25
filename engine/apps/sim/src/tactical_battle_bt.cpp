@@ -916,7 +916,11 @@ uint32_t TacticalBattle::bt_ground_special_weapons(TacticalMode& mode) {
                 break;
             }
     }
-    std::vector<std::pair<int32_t, objects::ObjectId>> placed;  // Special_Weapon_Index values placed for the owner, their weapon
+    struct Placed {
+        int32_t index;              // Special_Weapon_Index
+        objects::ObjectId weapon;   // its weapon (kNoObjectId: the spawn failed)
+    };
+    std::vector<Placed> placed;  // the owner's placed slots
     uint32_t n = 0;
     for (const objects::ObjectHandle g : galaxy_->planets()[pi].structures) {
         if (!gs.alive(g)) continue;
@@ -928,9 +932,9 @@ uint32_t TacticalBattle::bt_ground_special_weapons(TacticalMode& mode) {
         constexpr int32_t kWeaponSlots = 3;
         const bool slot = idx >= 0 && idx < kWeaponSlots;
         if (slot) {
-            const auto it = std::find_if(placed.begin(), placed.end(), [idx](const auto& e) { return e.first == idx; });
+            const auto it = std::find_if(placed.begin(), placed.end(), [idx](const Placed& e) { return e.index == idx; });
             if (it != placed.end()) {  // #487: a duplicate of a placed weapon adds to its counter
-                if (it->second != objects::kNoObjectId) (void)l1_sw_.add_duplicate(it->second);
+                if (it->weapon != objects::kNoObjectId) (void)l1_sw_.add_duplicate(it->weapon);
                 continue;
             }
         }
@@ -940,7 +944,7 @@ uint32_t TacticalBattle::bt_ground_special_weapons(TacticalMode& mode) {
         sp.position = pos;
         sp.facing = face;
         const objects::ObjectHandle h = script_spawn_effect(mode, sp);
-        if (slot) placed.emplace_back(idx, h ? mode.primary().id(h) : objects::kNoObjectId);
+        if (slot) placed.push_back({idx, h ? mode.primary().id(h) : objects::kNoObjectId});
         if (h) {
             ++n;
             bt_used_ = true;

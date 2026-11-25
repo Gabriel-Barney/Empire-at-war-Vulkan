@@ -7,7 +7,8 @@
 //     with a start frame (+0x8), a ready frame (+0xc) and a targeting flag (+0x28). Readiness (0x4914e0) = 1 when
 //     now >= ready, else clamp((now - start) / (ready - start), 0, 1); "ready" = readiness >= 1. #487: the pack's
 //     constructor 0x491410 [H] zeroes start / ready, so a new pack is ready at once and its ready is not announced (the
-//     service 0x492010 announces when now >= ready != 0, then zeroes ready); its counter (+0x20) starts at 1.
+//     service 0x492010 announces when now >= ready != 0, then zeroes ready); its counter (+0x20) starts at 1. Both
+//     SPECIAL_WEAPON and LOBBING_SUPERWEAPON create it in their vf +0x38 (0x491c70 -> 0x390ed0) [H].
 //   * LOBBING_SUPERWEAPON (0x37): the same pack (combatant pack fire request +0x3c, target point +0x30).
 //   * TACTICAL_SUPER_WEAPON (0x2c, the Death Star): the TSW data pack (obj +0x148), state +0x20 (4 = ready).
 //   The host adds every such object with a SpecialWeaponDesc built from its type (one object may carry several kinds;
@@ -20,8 +21,8 @@
 //     categories intersect Special_Weapon_Valid_Targets, target != self; no readiness test (the cursor and the click).
 //   * fire_at_object (0x491cd0): pack ready, then can_target. Then the pack restarts (start = now, ready = now +
 //     int(fps x recharge / count + 0.5): 0x491770 with 0x373630's Projectile_Fire_Recharge_Seconds / counter, #487 [H]),
-//     the flag clears and Projectile_Fire_Pulse_Count shots are queued, Projectile_Fire_Pulse_
-//     Delay_Seconds apart [M: the weapon event 0x549d70 fires the type's weapon at the target].
+//     the flag clears and Projectile_Fire_Pulse_Count shots are queued, int(fps x Projectile_Fire_Pulse_Delay_Seconds +
+//     0.5) frames apart (0x491770 +0x18 [H]) [M: the weapon event 0x549d70 fires the type's weapon at the target].
 //   * fire_lobbing_at (0x4ea3f0): the owner's base power when Requires_Base_Power; no range / ally / fog check; the
 //     point and the fire request are stored, the pack restarts. S8 t30 (TACTICAL_COMBAT §3.1.1 "Fire-at-position
 //     order"): the order goes to the weapon's own WeaponBehavior through SpecialWeaponWorld::fire_at_position (the
@@ -216,7 +217,7 @@ public:
     // #487: the registration 0x35c520 removed a second weapon of the same (player, Special_Weapon_Index): add 1 to this
     // pack's counter (+0x20, from 1), which divides its recharge at the next fire (0x373630 [H]). False: no pack.
     bool add_duplicate(ObjectId id);
-    uint32_t duplicate_count(ObjectId id) const;  // the counter (1 + duplicates); 0 without a pack
+    uint32_t recharge_counter(ObjectId id) const;  // the counter (1 + duplicates, the recharge divisor); 0 without a pack
     uint32_t ready_frame(ObjectId id) const;
 
     // ---- tactical superweapon (§1.2) ----
@@ -264,6 +265,7 @@ private:
         uint8_t targeting_flag = 0;     // +0x28
         uint8_t ready_signalled = 0;
         uint32_t count = 1;  // #487: +0x20, the duplicate counter (0x35c520); the fire's recharge is divided by it
+        uint32_t pulse_gap = 0;  // #487: the queued volley's frames between pulses (0x491770 +0x18: rounded)
         // queued volley
         int32_t pulses_left = 0;
         uint32_t pulse_index = 0;
@@ -286,7 +288,10 @@ private:
     const Pack* pack(ObjectId id) const;
     float readiness_of(const Pack& p, uint32_t frame) const;
     uint32_t recharge_frames(const SpecialWeaponDesc& d) const;
-    void queue_volley(Pack& p, const SpecialWeaponDesc& d, ObjectId target, Vec3 point, bool at_point, uint32_t frame);
+    // int(fps x seconds), + 0.5 first when `round` (0x491770 [H]); 0 for a non-positive product.
+    uint32_t frames_of(float seconds, bool round) const;
+    void queue_volley(Pack& p, const SpecialWeaponDesc& d, ObjectId target, Vec3 point, bool at_point, uint32_t frame,
+                      bool round_gap);
     void set_tsw_state(Pack& p, int32_t s, uint32_t frame);
     void tsw_service(Pack& p, const SpecialWeaponDesc& d, uint32_t frame, SimRng& rng, const SpecialWeaponWorld& w);
     void event(SwEventKind k, const Pack& p, uint32_t frame, int32_t value = 0, ObjectId target = kNoObject, Vec3 point = {});
