@@ -438,6 +438,55 @@ void test_camera() {
         CHECK(c.target_distance() == 500.0f);
         settle(c);
         CHECK(near(c.distance(), 500.0f, 0.01f));
+        {  // #469: the alternate scheme - the right button drags from its first moved pixel, the middle does not drag
+           // and its release always resets the camera.
+            CameraTuning alt;
+            alt.alternate_mouse = true;
+            TacticalCameraController a(space_mode_defaults(), UiConstants{}.tactical, alt);
+            InputState ia;
+            Script sa;
+            sa.move(400, 300);
+            sa.down(Button::Right);
+            frame(a, ia, keys, sa.f, 0.0f);
+            sa.move(401, 300);  // the first moved pixel pans (no right-button-scroll threshold)
+            frame(a, ia, keys, sa.f, 0.0f);
+            CHECK(a.drag() == TacticalCameraController::Drag::Pan && near(a.look_at().x, 4.0f * 1000.0f / 800.0f, 1e-3f));
+            sa.key(vk::kControl, true);  // Ctrl + right drag rotates
+            frame(a, ia, keys, sa.f, 0.0f);
+            sa.move(441, 300);
+            frame(a, ia, keys, sa.f, 0.0f);
+            CHECK(a.drag() == TacticalCameraController::Drag::Rotate && a.yaw_deg() != 0.0f);
+            sa.key(vk::kControl, false);
+            sa.up(Button::Right);
+            frame(a, ia, keys, sa.f, 0.0f);
+            const Vec3 look = a.look_at();
+            sa.down(Button::Middle);
+            frame(a, ia, keys, sa.f, 0.0f);
+            sa.move(481, 300);  // a 40 px middle drag does not move the camera
+            frame(a, ia, keys, sa.f, 0.0f);
+            CHECK(a.drag() == TacticalCameraController::Drag::None && a.look_at().x == look.x && a.yaw_deg() != 0.0f);
+            sa.up(Button::Middle);  // released after moving: still a reset
+            frame(a, ia, keys, sa.f, 0.0f);
+            CHECK(a.yaw_deg() == 0.0f && a.pitch_deg() == 50.0f && a.look_at().x == look.x);
+            // galactic: the right button drag-scrolls, the middle does not
+            GalacticCameraController ga({}, UiConstants{}.strategic, alt);
+            ga.set_bounds({-5000.0f, -5000.0f, 5000.0f, 5000.0f});
+            const float g0 = ga.look_at().x;
+            InputState ig;
+            Script sg;
+            sg.move(400, 300);
+            sg.down(Button::Middle);
+            frame(ga, ig, keys, sg.f, 0.0f);
+            sg.move(440, 300);
+            frame(ga, ig, keys, sg.f, 0.0f);
+            const float gx = ga.look_at().x;
+            sg.up(Button::Middle);
+            sg.down(Button::Right);
+            frame(ga, ig, keys, sg.f, 0.0f);
+            sg.move(480, 300);
+            frame(ga, ig, keys, sg.f, 0.0f);
+            CHECK(gx == g0 && ga.look_at().x != g0);
+        }
         // both-buttons rotate (option): 600 deg / width
         CameraTuning both;
         both.both_buttons_rotate = true;
@@ -756,6 +805,7 @@ void test_orders_alternate() {
     InputState in;
     OrderTranslator ot;
     ot.set_alternate_mouse(true);
+    in.set_exact_right_click(true);  // the host sets both (#469)
     CHECK(ot.alternate_mouse());
     Script s;
     int32_t x = 0, y = 0;
@@ -783,6 +833,41 @@ void test_orders_alternate() {
     CHECK(out.size() == 1 && out[0].type() == commands::EventType::Attack);
     // a right click clears the selection; the default scheme's right-click order is gone
     mark = s.frames.size();
+    for (int i = 0; i < 40; ++i) s.idle();
+    s.click(Button::Right, 650, 150);
+    feed(in, ot, keys, c, s, mark);
+    out = ot.take();
+    CHECK(out.size() == 1 && out[0].type() == commands::EventType::Select && out[0].ids("ids").empty());
+    // #469 (0x3296c): a right press that moved is a camera drag, not a clear
+    ot.set_selection({5});  // the own cube again (the right click above cleared the selection)
+    mark = s.frames.size();
+    for (int i = 0; i < 40; ++i) s.idle();
+    s.move(650, 150);
+    s.down(Button::Right);
+    s.move(652, 150);  // 2 px: under the click / drag threshold (4 px), yet retail's test is "did not move at all"
+    s.up(Button::Right);
+    s.idle();
+    feed(in, ot, keys, c, s, mark);
+    CHECK(ot.take().empty());
+    mark = s.frames.size();  // moved away and back to the press pixel: still a drag
+    for (int i = 0; i < 40; ++i) s.idle();
+    s.move(650, 150);
+    s.down(Button::Right);
+    s.move(651, 150);
+    s.move(650, 150);
+    s.up(Button::Right);
+    s.idle();
+    feed(in, ot, keys, c, s, mark);
+    CHECK(ot.take().empty() && !in.button(Button::Right).click);
+    // ...and an unmoved right click with Attack armed cancels the toggle instead of clearing
+    ot.toggle_move_toggle(MoveToggle::Attack, true);
+    CHECK(ot.move_toggle_armed(MoveToggle::Attack));
+    mark = s.frames.size();
+    for (int i = 0; i < 40; ++i) s.idle();
+    s.click(Button::Right, 650, 150);
+    feed(in, ot, keys, c, s, mark);
+    CHECK(ot.take().empty() && !ot.move_toggle_armed(MoveToggle::Attack));
+    mark = s.frames.size();  // the next unmoved right click clears
     for (int i = 0; i < 40; ++i) s.idle();
     s.click(Button::Right, 650, 150);
     feed(in, ot, keys, c, s, mark);
@@ -1012,6 +1097,33 @@ void test_orders() {
     s.click(Button::Left, static_cast<int32_t>(px), static_cast<int32_t>(py));
     feed(in, got, keys, gc, s, mark);
     CHECK(got.take_planet_zoom() == std::optional<uint32_t>(70) && got.pending().empty());
+    {  // #469: the alternate scheme in galactic - the left click on the planet moves the selected fleet, an unmoved right
+       // click clears, a moved right press (the camera's drag) does nothing.
+        OrderTranslator alt;
+        alt.set_alternate_mouse(true);
+        InputState ia;
+        ia.set_exact_right_click(true);
+        Script sa;
+        sa.click(Button::Left, static_cast<int32_t>(fx), static_cast<int32_t>(fy));
+        for (int i = 0; i < 40; ++i) sa.idle();
+        sa.click(Button::Left, static_cast<int32_t>(px), static_cast<int32_t>(py));
+        feed(ia, alt, keys, gc, sa, 0);
+        auto ao = alt.take();
+        CHECK(ao.size() == 2 && ao[1].type() == commands::EventType::MoveObjectToObject && ao[1].u("target") == 70);
+        size_t am = sa.frames.size();
+        for (int i = 0; i < 40; ++i) sa.idle();
+        sa.down(Button::Right);
+        sa.move(static_cast<int32_t>(px) + 1, static_cast<int32_t>(py));
+        sa.up(Button::Right);
+        feed(ia, alt, keys, gc, sa, am);
+        CHECK(alt.take().empty());
+        am = sa.frames.size();
+        for (int i = 0; i < 40; ++i) sa.idle();
+        sa.click(Button::Right, static_cast<int32_t>(px), static_cast<int32_t>(py));
+        feed(ia, alt, keys, gc, sa, am);
+        ao = alt.take();
+        CHECK(ao.size() == 1 && ao[0].type() == commands::EventType::Select && ao[0].ids("ids").empty());
+    }
 
     // submit through the pipeline: scheduled for the next tick
     commands::CommandPipeline pipe;

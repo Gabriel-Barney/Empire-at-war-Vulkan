@@ -559,6 +559,7 @@ float TacticalCameraController::scroll_speed() const {
 }
 
 // Mouse camera modes (§3): middle drag pans (Ctrl: rotates), right drag with IDC_RIGHT_BUTTON_SCROLL, both buttons rotate.
+// The alternate scheme (#469): the right button is the drag button from its first moved pixel, the middle only resets.
 void TacticalCameraController::mouse(const InputState& in) {
     const ButtonState& mb = in.button(Button::Middle);
     const ButtonState& rb = in.button(Button::Right);
@@ -580,14 +581,17 @@ void TacticalCameraController::mouse(const InputState& in) {
     if (t_.both_buttons_rotate && lb.down && rb.down) {
         drag_ = Drag::Rotate;
         dx = rb.dx, dy = rb.dy;
-    } else if (mb.down || (t_.right_button_scroll && rb.down && right_active_)) {
-        const ButtonState& b = mb.down ? mb : rb;
+    } else if (t_.alternate_mouse ? rb.down : (mb.down || (t_.right_button_scroll && rb.down && right_active_))) {
+        const ButtonState& b = !t_.alternate_mouse && mb.down ? mb : rb;
         drag_ = in.ctrl() ? Drag::Rotate : Drag::Pan;
         fmul = in.ctrl() ? 1.0f : 4.0f;
         dx = b.dx, dy = b.dy;
-        if (mb.down && (dx != 0 || dy != 0)) drag_moved_ = true;
+        if (!t_.alternate_mouse && mb.down && (dx != 0 || dy != 0)) drag_moved_ = true;
     }
-    if (mb.released) {
+    if (mb.released && t_.alternate_mouse) {
+        reset();  // 0x32a70: the alternate middle release always resets (0x2cf800(cam, 0))
+        drag_moved_ = false;
+    } else if (mb.released) {
         // A middle click without movement resets the camera (look-at kept); not with Ctrl.
         if (!in.ctrl() && !drag_moved_ && mb.drag.x0 == mb.drag.x1 && mb.drag.y0 == mb.drag.y1) reset();
         drag_moved_ = false;
@@ -612,7 +616,7 @@ void TacticalCameraController::update(const InputState& in, const Bindings& keys
     const bool push = !t_.absolute_scrolling && drag_ == Drag::Pan;
     const bool edge = drag_ != Drag::Rotate && !(t_.absolute_scrolling && dragging) && !lb.down &&
                       (in.frame().mouse_inside || dragging);
-    const ButtonState& db = in.button(in.button(Button::Middle).down ? Button::Middle : Button::Right);
+    const ButtonState& db = in.button(!t_.alternate_mouse && in.button(Button::Middle).down ? Button::Middle : Button::Right);
     float tx = 0, ty = 0;
     if (!scroll_locked_) scroll_target(in, keys, s_, t_, edge, push, db.drag.x0, db.drag.y0, tx, ty);  // SCROLL_LOCK
     scroll_smooth(tx, ty, dt, s_, scroll_vx_, scroll_vy_);
@@ -778,8 +782,9 @@ void GalacticCameraController::update(const InputState& in, const Bindings& keys
     const InputFrame& f = in.frame();
     // Mouse drag scroll (§3.5): middle drag, or a right drag with IDC_RIGHT_BUTTON_SCROLL (starts at once); not while
     // zoomed in.
-    const ButtonState& b = mb.down ? mb : rb;
-    dragging_ = (mb.down || (t_.right_button_scroll && rb.down)) && zoom_state() != 3;
+    // #469: the alternate scheme drags with the right button only.
+    const ButtonState& b = !t_.alternate_mouse && mb.down ? mb : rb;
+    dragging_ = (t_.alternate_mouse ? rb.down : (mb.down || (t_.right_button_scroll && rb.down))) && zoom_state() != 3;
     if (dragging_ && t_.absolute_scrolling && (b.dx != 0 || b.dy != 0)) {
         const float w = static_cast<float>(f.width > 0 ? f.width : 1), h = static_cast<float>(f.height > 0 ? f.height : 1);
         const float fmul = in.ctrl() ? 1.0f : 4.0f;
