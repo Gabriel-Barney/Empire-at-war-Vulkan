@@ -135,6 +135,18 @@ void test_credits_roll() {
         }
         CHECK(!lr.active() && lr.moved_px() == 1034);
         CHECK(most == 1 && full == 255 && faded < 255);  // one logo, faded in and out by the margin
+        // a page that resolves once and then is gone (reloading / evicted) still holds the end: the size is kept
+        int calls = 0;
+        const GuiImageResolver flaky = [&calls, &images](std::string_view t) { return ++calls <= 2 ? images(t) : GuiImage{}; };
+        CreditsRoll fr;
+        fr.start(parsed, ls, 0.0, false);
+        lt = 0.0;
+        for (int f = 0; f < 3000 && fr.active(); ++f) {
+            dl.clear();
+            lt += 0.01;
+            if (!fr.build(dl, fonts, cv, lt, &flaky)) break;
+        }
+        CHECK(!fr.active() && fr.moved_px() == 1034 && fr.logos_drawn() == 0);
     }
     // A black backdrop only when asked for (no Credits movie).
     CreditsRoll over_movie;

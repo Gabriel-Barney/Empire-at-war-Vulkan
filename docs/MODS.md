@@ -505,7 +505,8 @@ also retail-unused:
 - **hardware detection**: `HardwareConfiguration` fields; the port uses its own Video options.
 - **graphic detail levels**: `GraphicDetailLevel` presets; the renderer has its own settings.
 - **debug keys**: debug hot keys and debug displays.
-- **localised splash / credits**: per-language splash screens, `Localized_*` overlays, the credits logos.
+- **localised splash / credits**: per-language splash screens and `Localized_*` overlays (the credits logos are read
+  since #458).
 
 ### Limits policy
 

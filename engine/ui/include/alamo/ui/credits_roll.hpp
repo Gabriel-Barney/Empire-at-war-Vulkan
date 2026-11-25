@@ -41,7 +41,8 @@ struct CreditsLine {
     std::u32string text;
 };
 
-// #458 (docs/re/CREDITS_ROLL.md "Layout"): Credits_Logo_<i>_Name / _Width / _Height / _Y_Offset (fractions of the screen).
+// #458 (docs/re/CREDITS_ROLL.md "Layout"): Credits_Logo_<i>_Name / _Width / _Height / _Y_Offset (fractions of the screen);
+// the defaults are retail's (GameConstants ctor 0x2c91c0 [H]).
 struct CreditsLogo {
     std::string name;  // texture ("" = no logo)
     float width = 0.1f, height = 0.1f, y_offset = 0.5f;
@@ -104,6 +105,7 @@ private:
     int64_t moved_px_ = 0;
     float last_top_px_ = 0.0f;
     size_t drawn_ = 0, logos_drawn_ = 0;
+    std::array<Vec2f, 3> logo_tex_{};  // #458: each logo's texture size once it resolved ({0, 0}: not yet)
 };
 
 }  // namespace alamo::ui

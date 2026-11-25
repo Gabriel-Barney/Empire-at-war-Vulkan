@@ -75,14 +75,14 @@ Positions are fractions of the screen, with y down and 0 at the top. H is the sc
 - the header match;
 - the defaults;
 - the skip keys;
-- the looping `Credits` movie, whose Has_Credits starts the credits music [M for the port's wiring].
+- the looping `Credits` movie, whose Has_Credits starts the credits music [M for the port's wiring];
+- the logos (#458): `credits_logo_rect`, `credits_logo_alpha`, and the end test with them.
 
 Still `[port]`:
 - **Click to skip:** a click skips too.
 - **No movie:** without the movie the roll runs over black.
-- **Logos (#458):** drawn and faded as in "Layout" and "Per frame" (`credits_logo_rect`, `credits_logo_alpha`), and
-  the end test includes them. The textures come through the GUI image pages; a logo whose page is not loaded yet is
-  skipped for that frame [port].
+- **Logo textures** (docs/DECISIONS.md "Front-end and skirmish choices"): they load through the GUI image pages after the
+  roll starts, so a logo takes part once its texture has resolved, and keeps its size from then on.
 
 ## Open
 
