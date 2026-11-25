@@ -147,10 +147,7 @@
       "TIE_Defender_Squadron": 1
      }
     },
-    "starbase_after": "destroyed",
-    "known_fail": {
-     "total lost Rebel": "b0139"
-    }
+    "starbase_after": "destroyed"
    }
   },
   {

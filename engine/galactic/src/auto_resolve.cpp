@@ -222,11 +222,12 @@ AutoResolveResult auto_resolve(const AutoResolveInput& in, const ContrastTable& 
         const int s = side_of[i];
         const ArCombatant& c = in.combatants[i];
         ++count[s];
-        for (const ArPiece& p : c.pieces) {
-            const int32_t e = category_entry(p.categories);
-            if (e >= 0) r.vec[s][static_cast<size_t>(e)] += static_cast<double>(p.power);
-            r.vec[s][tot] += static_cast<double>(p.power);
-        }
+        for (const auto* list : {&c.pieces, &c.spawned})  // #193: the spawned units' pieces too (0x60b0d0 [H])
+            for (const ArPiece& p : *list) {
+                const int32_t e = category_entry(p.categories);
+                if (e >= 0) r.vec[s][static_cast<size_t>(e)] += static_cast<double>(p.power);
+                r.vec[s][tot] += static_cast<double>(p.power);
+            }
         if (weakest[s] < 0 || c.own_power < weakest_p[s]) {
             weakest[s] = static_cast<int32_t>(i);
             weakest_p[s] = c.own_power;
@@ -307,9 +308,9 @@ AutoResolveResult auto_resolve(const AutoResolveInput& in, const ContrastTable& 
                     const float v = factor - 1.0f;
                     if (bit < 32 && v > strength_table[bit]) strength_table[bit] = v;
                 }
+        // #193 (0x60d2a0 [H]): one shot per combatant.
         for (size_t i = 0; i < n; ++i)
-            if (side_of[i] == s)
-                for (const ArPiece& p : in.combatants[i].pieces) fire(p, r.rem[1 - s]);
+            if (side_of[i] == s) fire(in.combatants[i].shot, r.rem[1 - s]);
     }
 
     // ---- winner (0x60c010) ----
@@ -375,9 +376,9 @@ AutoResolveResult auto_resolve(const AutoResolveInput& in, const ContrastTable& 
         r.budget[s] = b;
     }
 
-    // ---- survival roll (0x60a140): winner first, then loser ----
+    // ---- survival roll (0x60a140): side 0, then side 1 (0x60b930 [H], #193) ----
     const double allow = static_cast<double>(k.attrition_allowance);
-    for (int s : {w, l}) {
+    for (int s : {0, 1}) {
         const bool loser = s == l;
         double b = r.budget[s];
         std::vector<uint32_t> list;
@@ -398,9 +399,14 @@ AutoResolveResult auto_resolve(const AutoResolveInput& in, const ContrastTable& 
             list.erase(list.begin() + static_cast<std::ptrdiff_t>(pick));
             const ArCombatant& c = in.combatants[ci];
             bool survive = false;
+            // #193 (0x60a140 [H]): the spawned units are charged first, whether the combatant survives or not.
+            const auto charge_spawned = [&b, &c] {
+                for (const ArPiece& p : c.spawned) b = std::max(0.0, b - static_cast<double>(p.power));
+            };
             if (loser && c.super) {
                 survive = !killer[w];
             } else if (!c.starbase.empty()) {
+                charge_spawned();
                 r.starbase_type[ci] = 0xFFFFFFFFu;
                 for (const ArStarbaseLevel& lv : c.starbase)
                     if (static_cast<double>(lv.power) * allow <= b) {
@@ -412,6 +418,7 @@ AutoResolveResult auto_resolve(const AutoResolveInput& in, const ContrastTable& 
             } else if (loser && c.always_dies) {
                 survive = false;
             } else {
+                charge_spawned();
                 double cost = 0.0;
                 for (const ArPiece& p : c.pieces) cost += static_cast<double>(p.power);
                 if (b - cost * allow > 0.0) {

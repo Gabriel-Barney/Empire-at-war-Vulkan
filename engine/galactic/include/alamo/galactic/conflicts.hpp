@@ -43,6 +43,7 @@
 // DETERMINISM: vectors only, list orders as documented; the only randomness is auto_resolve's survival
 // picks on the session's synced RNG. hash() covers queues, state and the result log ("galactic.conflicts").
 #pragma once
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <span>
@@ -83,6 +84,8 @@ struct ConflictTypeInfo {
     bool respawn_whole_team = false;
     bool company = false;
     std::vector<std::pair<uint32_t, int32_t>> members;  // Squadron_Units / Company_Units: (type, count), first-seen order
+    // #193: Starting_Spawned_Units_Tech_0..5, (type, count) in list order (repeated tags appended), per tech slot.
+    std::array<std::vector<std::pair<uint32_t, int32_t>>, 6> spawned;
     int32_t bounty = 0;                       // a2m r2: the type's own bounty, rounded (bounty.hpp type_bounty)
     uint32_t lower_starbase = kNoIndex;       // next lower starbase level type (last name digit - 1) [M]
     // planet types
@@ -143,8 +146,9 @@ struct ConflictRules {
 bool load_conflict_rules(const FileProvider& provider, const data::GameDatabase& db, const objects::GameObjectTypes& types,
                          const GalacticRules& galactic, ConflictRules& out, std::vector<std::string>* diagnostics = nullptr);
 
-// The auto-resolve combatant of one object of type `type` owned by `owner` (BT §4.3): its Squadron_Units / Company_Units
-// members first (count x AI_Combat_Power each), then its own piece unless it is a container in a space battle. Used by
+// The auto-resolve combatant of one object of type `type` owned by `owner` (BT §4.3, #193): its own piece once (a type with
+// Squadron_Units / Company_Units members: their summed P, a company's survivors when given), its Starting_Spawned_Units at
+// the owner's tech level `tech`, and its one shot. Used by
 // ConflictManager::auto_setup and the auto-resolve parity check (tests/autoresolve_parity.cpp).
 // mcx4 t05 (legacy docs/re/MCX4_RE_ANSWERS_TACTICAL.md §9 / §13): a company (Company_Units holder: the TRANSPORT branch of
 // 0x48eb10) that survived a battle is lost as a whole when one of its dead members has Respawn_Whole_Team_When_Killed;
@@ -152,9 +156,10 @@ bool load_conflict_rules(const FileProvider& provider, const data::GameDatabase&
 // (TEAM branch) never are.
 bool company_team_lost(const ConflictRules& rules, uint32_t company_type, std::span<const uint32_t> dead_member_types);
 
-// survivors: a company's survivor record, nullptr = its full Company_Units.
+// survivors: a company's survivor record, nullptr = its full Company_Units. tech: the owner's tech level, which picks the
+// Starting_Spawned_Units list (that level, else the next lower non-empty one; none above 5).
 ArCombatant make_ar_combatant(const GalacticRules& galactic, const ConflictRules& rules, uint32_t type, int32_t owner,
-                              bool space, const std::vector<uint32_t>* survivors = nullptr);
+                              bool space, int32_t tech, const std::vector<uint32_t>* survivors = nullptr);
 
 // ---- records ---------------------------------------------------------------------------------------------------
 enum class ConflictKind : uint8_t { Land = 1, Space = 2 };

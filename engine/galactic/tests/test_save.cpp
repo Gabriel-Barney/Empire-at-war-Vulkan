@@ -752,7 +752,9 @@ void test_synthetic() {
     // #68: the v13 per-planet tactical upgrade lists (a u32 count per player, empty here) move the save part again;
     // #459: the scenario's upgrade objects (step 65) enter the hash, and v14 adds their count.
     // #456: v15 adds the cleared-fleet count (0 here) to the save part.
-    sc.pin = 0xb83074e41d7616bbull;
+    // #193: conflict save v5 adds each auto-resolve combatant's spawned pieces and its one shot, and the land conflicts
+    // resolve by the one-shot rule.
+    sc.pin = 0x1b607e6e027320acull;
     run_scenario(sc);
 }
 
@@ -1180,7 +1182,8 @@ void test_foc() {
     // update gives the Underworld's start planets their Racketeering entries (the "PTU1" section).
     // #459: v14 adds the upgrade-object count to the save part.
     // #456: v15 adds the cleared-fleet count to the save part.
-    sc.pin = 0xe678cb4e0a28f35dull;  // FoC data
+    // #193: conflict save v5 (spawned pieces, the one shot) and the one-shot auto-resolve.
+    sc.pin = 0xd1f3b082768d6c4cull;  // FoC data
     run_scenario(sc);
 }
 

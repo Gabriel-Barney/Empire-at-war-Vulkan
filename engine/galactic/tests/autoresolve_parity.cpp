@@ -38,6 +38,10 @@ using namespace alamo::galactic;
 
 namespace {
 
+// #193: the tech level the Starting_Spawned_Units lists are read at (the campaign default Starting_Tech_Level; the
+// shipped starbases list Tech_0 only, so any level >= 0 reads the same).
+constexpr int32_t kTech = 1;
+
 struct Unit {
     int32_t player = -1;
     std::string type;
@@ -163,7 +167,7 @@ int main(int argc, char** argv) {
                 return 1;
             }
             for (int k = 0; k < u.count; ++k) {
-                in.combatants.push_back(make_ar_combatant(rules, crules, t, u.player, b.space));
+                in.combatants.push_back(make_ar_combatant(rules, crules, t, u.player, b.space, kTech));
                 type_of.push_back(t);
             }
         }
@@ -173,7 +177,7 @@ int main(int argc, char** argv) {
                 std::fprintf(stderr, "%s: unknown starbase %s\n", b.id.c_str(), b.starbase.c_str());
                 return 1;
             }
-            ArCombatant c = make_ar_combatant(rules, crules, t, b.starbase_player, true);  // as ConflictManager::auto_setup
+            ArCombatant c = make_ar_combatant(rules, crules, t, b.starbase_player, true, kTech);  // as ConflictManager::auto_setup
             for (int guard = 0; guard < 16 && t < rules.types.size(); ++guard) {
                 c.starbase.push_back({t, rules.types[t].ai_combat_power});
                 t = crules.type(t).lower_starbase;

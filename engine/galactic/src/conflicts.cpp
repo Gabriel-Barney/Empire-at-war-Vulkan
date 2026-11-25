@@ -4,6 +4,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iterator>
+#include <tuple>
 #include <utility>
 
 #include "alamo/data/game_database.hpp"
@@ -193,6 +195,43 @@ bool load_conflict_rules(const FileProvider& provider, const data::GameDatabase&
                     }
                 if (!found) i.members.emplace_back(static_cast<uint32_t>(mt), 1);
             }
+        // #193: Starting_Spawned_Units_Tech_0..5, read as the AI's spawn lists (galactic_ai.cpp type_count_list): "Type, N"
+        // or "Type N" in one token, else "Type" "N" as two tokens (the count token consumed only when it parses).
+        static constexpr const objects::ListTag* kSpawnedTech[] = {
+            &objects::tags::Starting_Spawned_Units_Tech_0, &objects::tags::Starting_Spawned_Units_Tech_1,
+            &objects::tags::Starting_Spawned_Units_Tech_2, &objects::tags::Starting_Spawned_Units_Tech_3,
+            &objects::tags::Starting_Spawned_Units_Tech_4, &objects::tags::Starting_Spawned_Units_Tech_5};
+        static_assert(std::size(kSpawnedTech) == std::tuple_size_v<decltype(i.spawned)>);
+        for (size_t k = 0; k < std::size(kSpawnedTech); ++k) {
+            const auto toks = types.get(t, *kSpawnedTech[k]);
+            const auto parse_count = [](std::string_view s, int32_t& out) {  // a whole decimal integer, no overflow
+                s = ascii_trim(s);
+                if (s.empty() || s.size() > 9) return false;
+                int32_t n = 0;
+                for (const char ch : s) {
+                    if (ch < '0' || ch > '9') return false;
+                    n = n * 10 + (ch - '0');
+                }
+                out = n;
+                return true;
+            };
+            for (size_t q = 0; q < toks.size(); ++q) {
+                std::string_view name = ascii_trim(toks[q]);
+                int32_t n = 0;
+                bool ok = false;
+                const size_t cut = name.find(',') != std::string_view::npos ? name.find(',') : name.find_last_of(" \t");
+                if (cut != std::string_view::npos) {
+                    ok = parse_count(name.substr(cut + 1), n);
+                    name = ascii_trim(name.substr(0, cut));
+                } else if (q + 1 < toks.size()) {
+                    ok = parse_count(toks[q + 1], n);
+                    if (ok) ++q;
+                }
+                const objects::TypeIndex mt = ok && !name.empty() ? types.resolve_name(name) : objects::kNone;
+                // [port] a zero count adds no piece (none in the shipped data; tier 1, the auto-resolve parity refs)
+                if (mt != objects::kNone && n > 0) i.spawned[k].emplace_back(static_cast<uint32_t>(mt), n);
+            }
+        }
         i.space_map = trimmed(types.get(t, objects::tags::Space_Tactical_Map));
         i.land_map = trimmed(types.get(t, objects::tags::Land_Tactical_Map));
         const std::string terrain = trimmed(types.get(t, objects::tags::Terrain));
@@ -734,8 +773,11 @@ bool company_team_lost(const ConflictRules& rules, uint32_t company_type, std::s
     return false;
 }
 
+// `space`: [port] the space-only rule that a TRANSPORT combatant fires no own shot (0x60d2a0) is not modelled (the port has
+// no transport objects; tier 1: no combatant it would apply to exists), so the battle kind no longer changes the
+// combatant.
 ArCombatant make_ar_combatant(const GalacticRules& galactic, const ConflictRules& rules, uint32_t t, int32_t owner,
-                              bool space, const std::vector<uint32_t>* survivors) {
+                              [[maybe_unused]] bool space, int32_t tech, const std::vector<uint32_t>* survivors) {
     const auto& ti = galactic.types;
     const ConflictTypeInfo& ct = rules.type(t);
     ArCombatant c;
@@ -755,34 +797,70 @@ ArCombatant make_ar_combatant(const GalacticRules& galactic, const ConflictRules
             else members.emplace_back(m, 1);
         }
     }
+    // #193 (0x60b0d0 / 0x60a140 [H]): a combatant counts its type's P once, in the vector and in the survival cost. A type
+    // with Squadron_Units / Company_Units members has the members' summed P (the post-load pass 0x377500 [H]) and, as one
+    // piece, their combined categories [M]; a company that lost members, its survivors'.
+    ArPiece own;
+    own.type = t;
+    own.name = t < ti.size() ? std::string_view(ti[t].name) : std::string_view();
+    if (members.empty()) {
+        own.categories = ct.categories;
+        own.power = c.own_power;
+    }
     for (const auto& [mt, n] : members) {
         const ConflictTypeInfo& mi = rules.type(mt);
-        ArPiece p;
-        p.type = mt;
-        p.name = mt < ti.size() ? std::string_view(ti[mt].name) : std::string_view();
-        p.categories = mi.categories;
-        p.power = static_cast<float>(n) * (mt < ti.size() ? ti[mt].ai_combat_power : 0.0f);
-        c.pieces.push_back(p);
+        own.categories |= mi.categories;
+        own.power += static_cast<float>(n) * (mt < ti.size() ? ti[mt].ai_combat_power : 0.0f);
         c.hero = c.hero || mi.hero;
         c.super_killer = c.super_killer || mi.super_killer;
         if (first) first_cats = mi.categories;
         first = false;
     }
-    if (!(space && !ct.members.empty())) {  // property 5 [M: the container itself in a space battle]
-        ArPiece p;
-        p.type = t;
-        p.name = t < ti.size() ? std::string_view(ti[t].name) : std::string_view();
-        p.categories = ct.categories;
-        p.power = c.own_power;
-        c.pieces.push_back(p);
-    }
+    c.pieces.push_back(own);
     c.super = rules.super_category != 0 && (first_cats & rules.super_category) != 0;
+    // #193 (docs/re/AUTORESOLVE_FIRE_AND_HANGARS.md): P(x) and CategoryMask of a type as one firing piece. A type with
+    // Squadron_Units / Company_Units members has its members' summed P (the post-load pass 0x377500 writes it into the
+    // type [H], so it equals the type's own P on real data) and their categories [M]; any other type its own.
+    const auto piece_of = [&](uint32_t x) {
+        ArPiece p;
+        p.type = x;
+        p.name = x < ti.size() ? std::string_view(ti[x].name) : std::string_view();
+        const ConflictTypeInfo& xi = rules.type(x);
+        if (xi.members.empty()) {
+            p.categories = xi.categories;
+            p.power = x < ti.size() ? ti[x].ai_combat_power : 0.0f;
+        } else {
+            for (const auto& [mt, n] : xi.members) {
+                p.categories |= rules.type(mt).categories;
+                p.power += static_cast<float>(n) * (mt < ti.size() ? ti[mt].ai_combat_power : 0.0f);
+            }
+        }
+        return p;
+    };
+    // Starting_Spawned_Units at the owner's tech level, falling back to lower levels; none above level 5 (0x60b0d0 [H]).
+    int32_t slot = -1;
+    if (tech >= 0 && static_cast<size_t>(tech) < ct.spawned.size())
+        for (int32_t k = tech; k >= 0 && slot < 0; --k)
+            if (!ct.spawned[static_cast<size_t>(k)].empty()) slot = k;
+    if (slot >= 0)
+        for (const auto& [st, n] : ct.spawned[static_cast<size_t>(slot)]) {
+            ArPiece p = piece_of(st);
+            p.power *= static_cast<float>(n);
+            c.spawned.push_back(p);
+        }
+    // The one shot (0x60d2a0 [H], land and space): the first spawned entry at the P of one member, else the combatant's own
+    // piece.
+    c.shot = slot >= 0 ? piece_of(ct.spawned[static_cast<size_t>(slot)].front().first) : own;
     return c;
 }
 
 ArCombatant ConflictManager::combatant_of(ObjectHandle h, bool space) const {
     const auto& store = sim_->store();
-    return make_ar_combatant(sim_->rules(), *rules_, static_cast<uint32_t>(store.type(h)), store.owner(h), space,
+    const int32_t owner = store.owner(h);
+    const int32_t tech = owner >= 0 && static_cast<size_t>(owner) < sim_->players().size()
+                             ? sim_->players()[static_cast<size_t>(owner)].tech_level
+                             : -1;
+    return make_ar_combatant(sim_->rules(), *rules_, static_cast<uint32_t>(store.type(h)), owner, space, tech,
                              sim_->company_survivors(h));
 }
 
