@@ -705,6 +705,11 @@ detail::AiTargetArg detail::ai_target_arg(Call& c, int i) {
     return a;
 }
 
+bool detail::ai_object_unplaced(Call& c, objects::ObjectHandle h) {
+    const AiScriptHost* host = host_of(c.L);
+    return host && host->object_unplaced(h);
+}
+
 int detail::ai_give_desire_bonus(Call& c, int32_t player, std::string_view goal, objects::ObjectHandle target, double bonus,
                                  double seconds) {
     AiScriptHost* h = host_of(c.L);

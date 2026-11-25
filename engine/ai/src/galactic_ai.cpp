@@ -280,6 +280,7 @@ std::vector<ObjectHandle> GalacticAiWorld::Impl::player_units(int32_t p) const {
 uint32_t GalacticAiWorld::Impl::fleet_of_unit(ObjectHandle u) const { return sim.fleet_containing(u); }
 
 PlanetIndex GalacticAiWorld::Impl::planet_of_unit(ObjectHandle u) const {
+    if (object_unplaced(u)) return kInvalidPlanet;  // #401: a produced unit during its admission
     const uint32_t f = fleet_of_unit(u);
     if (f != gal::kNoFleet) return sim.fleets()[f].moving ? kInvalidPlanet : sim.fleets()[f].planet;
     const auto planets = sim.planets();
@@ -1519,7 +1520,12 @@ uint32_t GalacticAiWorld::Impl::movable_tf_fleet_at(const TaskForceRec& tf, Plan
 // Galactic free-store admission (vf19 0x68ece0 -> 0x4d2c90 step 6, A2L_T01_RE_ANSWERS Q7.1 / Q7.2) [H]: a unit of the AI
 // player that is not a structure gets the store script's On_Unit_Added synchronously. It runs for the initial fill and
 // every later admission, including a unit a task force gives back (0x6c27d0: Release_Unit, Release_Forces, plan end).
-void GalacticAiWorld::Impl::free_store_admitted(int32_t player, ObjectHandle u) {
+// #401 (docs/re/FREE_STORE_PRODUCED_UNITS.md): retail's free store gets a just-built unit before the unit has a planet in its
+// parent chain [H, the a2f probe: Get_Planet_Location nil in On_Unit_Added for a built CRUSADER_GUNSHIP and an
+// UNDERWORLD_INFANTRY_DROID_SHUTTLE]; why the chain is still empty there is not read [L]. So for a produced admission the
+// unit reads as unplaced while On_Unit_Added runs: Get_Planet_Location / Get_Parent_Object nil, Move_Object refused (in
+// transit), and a FindTarget source of it gives no reachability test (0x698360).
+void GalacticAiWorld::Impl::free_store_admitted(int32_t player, ObjectHandle u, bool produced) {
     PlayerAi* pa = player_ai(player);
     if (!pa || !pa->fs_vm || now <= 0 || !store.alive(u) || store.owner(u) != player || tf_owns(u)) return;
     const gal::TypeInfo* ti = type_info(store.type(u));
@@ -1528,8 +1534,11 @@ void GalacticAiWorld::Impl::free_store_admitted(int32_t player, ObjectHandle u) 
     a.kind = lua::AiEventArg::Object;
     a.object = u;
     std::string err;
+    const ObjectHandle outer = admitting_produced;
+    if (produced) admitting_produced = u;
     if (!lua::call_global_function(*pa->fs_vm, "On_Unit_Added", {a}, &err) && !err.empty())
         errors.push_back("free store " + std::to_string(player) + " On_Unit_Added: " + err);
+    admitting_produced = outer;
 }
 
 void GalacticAiWorld::Impl::claim_units(int32_t player) {
@@ -1545,6 +1554,7 @@ void GalacticAiWorld::Impl::claim_units(int32_t player) {
         const objects::ObjectId id = store.id(u);
         if (!pa->known.insert(id).second) continue;
         const uint32_t type = store.type(u);
+        bool produced = false;  // #401: a finished production (claimed by a task with no destination, or its task gone)
         // Signals 3 / 4 of the producing planet (0x53c4f0): the AI build task with the matching production
         // (planet, type, earliest queue id) claims the new object.
         const PlanetIndex at = sim.planet_of(sim.container_of(u)) != kInvalidPlanet ? sim.planet_of(sim.container_of(u)) : planet_of_unit(u);
@@ -1580,6 +1590,7 @@ void GalacticAiWorld::Impl::claim_units(int32_t player) {
                 tit->second.had_units = true;
                 continue;
             }
+            produced = true;
         } else {
             // A finished production whose task is gone (the plan ended): the queue frees and the object goes to
             // the free store.
@@ -1589,10 +1600,11 @@ void GalacticAiWorld::Impl::claim_units(int32_t player) {
                         q.current = kQueueTaskEnded;
                         q.current_queue_id = -1;
                         q.current_type = gal::kNoIndex;
+                        produced = true;
                         break;
                     }
         }
-        free_store_admitted(player, u);
+        free_store_admitted(player, u, produced);
     }
     // Task forces that lost every unit (No_Units_Remaining, galactic code 7 [H]). a TF with a member loss queued
     // in lost_tfs is decided by drain_lost_members instead (the counted-entry rule); this sweep keeps the empty TFs whose
@@ -2308,11 +2320,11 @@ int32_t GalacticAiWorld::Impl::find_target(int32_t script, const lua::AiFindTarg
     // Reachable_Target (0x698360, A2L_T03_RE_ANSWERS Q1.1) [H]: the reachability test runs only when argument 6 gives a
     // source; it is the candidate's slot 7 (0x663810, Q1.2) from the source's planet at the level of argument 4, and a
     // result of 1e18 skips the candidate. No argument 6: no reachability test (slot 5 / the player-level flood are not
-    // read). A source that resolves to no planet (an object in transit) gives 1e18 for every candidate. Plain FindTarget
-    // has neither.
+    // read). #401 (disassembly 0x698976) [H]: a source that resolves to no planet (an object in transit, or a produced
+    // unit during its admission: 0x6b8590 gives null) skips the reachability test too. Plain FindTarget has neither.
     const bool reachable = !r.reachability.empty();
-    const bool have_source = reachable && r.relative.present;
-    const PlanetIndex source = have_source ? planet_arg(r.relative) : kInvalidPlanet;
+    const PlanetIndex source = reachable && r.relative.present ? planet_arg(r.relative) : kInvalidPlanet;
+    const bool have_source = valid_planet(source);
     const AiPathFinder* finder = have_source && valid_planet(source) ? ensure_path_finder(player) : nullptr;
     auto slot7 = [&](PlanetIndex t) -> double {
         if (!valid_planet(source) || !finder || !finder->created()) return kReachNone;

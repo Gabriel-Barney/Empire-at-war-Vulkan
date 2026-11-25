@@ -1684,7 +1684,7 @@ objects::ObjectHandle detail::galactic_spawn_unit(Call& c, uint32_t type, int32_
 bool detail::galactic_container_of(Call& c, objects::ObjectHandle object, objects::ObjectHandle& out) {
     const galactic::GalacticSim* sim = galactic_of(c, world_of(c.L));
     if (!sim) return false;
-    out = sim->container_of(object);
+    out = detail::ai_object_unplaced(c, object) ? objects::ObjectHandle{} : sim->container_of(object);  // #401
     return true;
 }
 

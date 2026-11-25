@@ -442,7 +442,10 @@ struct GalacticAiWorld::Impl final : lua::AiScriptHost, lua::ScriptMarkupHost, A
     ObjectHandle free_store_supply(int32_t player, uint32_t type) const;  // 0x4d2bd0 (galactic_build.cpp)
     bool resolve_claim(BuildTask& b);  // free-store service 0x4d5a70 for a claiming build task (galactic_build.cpp)
     void claim_split(const TaskForceRec& t, ObjectHandle u);  // PRE_PATH_SEPERATE of a claimed unit
-    void free_store_admitted(int32_t player, ObjectHandle u);  // On_Unit_Added of an admission (galactic_ai.cpp)
+    // On_Unit_Added of an admission (galactic_ai.cpp). produced: a just-built unit (#401): while the call runs the unit
+    // has no planet (object_unplaced), as retail's free store sees it.
+    void free_store_admitted(int32_t player, ObjectHandle u, bool produced = false);
+    ObjectHandle admitting_produced;  // #401: the produced unit whose On_Unit_Added is running (null outside the call)
     PlanetIndex planet_arg(const lua::AiArg& a) const;
     cmd::RejectReason order(int32_t player, const cmd::EventData& ev, const std::string& what);
     cmd::RejectReason note_order(int32_t player, cmd::RejectReason r, const std::string& what);
@@ -639,6 +642,7 @@ struct GalacticAiWorld::Impl final : lua::AiScriptHost, lua::ScriptMarkupHost, A
         const int32_t p = script >= kFreeStoreScriptBase ? script - kFreeStoreScriptBase : -1;
         return store.alive(unit) && (p < 0 || store.owner(unit) == p) && !tf_owns(unit);
     }
+    bool object_unplaced(ObjectHandle unit) const override { return unit && unit == admitting_produced; }
     bool unit_in_transit(ObjectHandle unit) override {  // 0x68efb0: also with a pending free-store move
         if (planet_of_unit(unit) == kInvalidPlanet) return true;
         for (const FreeStoreMove& m : fs_moves)

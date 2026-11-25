@@ -122,6 +122,9 @@ public:
     virtual bool free_store_has(int32_t script, objects::ObjectHandle unit) = 0;
     virtual bool unit_in_transit(objects::ObjectHandle unit) = 0;
     virtual bool unit_safe(objects::ObjectHandle unit) = 0;
+    // #401 (docs/re/FREE_STORE_PRODUCED_UNITS.md): an object retail's free store sees with no parent chain, so its
+    // Get_Planet_Location / Get_Parent_Object are nil (a just-built unit while its admission runs). False by default.
+    virtual bool object_unplaced(objects::ObjectHandle /*unit*/) const { return false; }
     virtual bool free_store_move(int32_t script, objects::ObjectHandle unit, const AiArg& destination) = 0;
 
     // ---- globals ----

@@ -162,6 +162,9 @@ bool ai_task_force_units(Call& c, int i, std::vector<objects::ObjectHandle>& out
 // blocking status and returns 1 when the host took it; 0 (nothing pushed) without a host or when it declined.
 int ai_give_desire_bonus(Call& c, int32_t player, std::string_view goal, objects::ObjectHandle target, double bonus,
                          double seconds);
+// #401, bind_ai.cpp: true when the attached AI host reports the object as having no parent chain
+// (AiScriptHost::object_unplaced); false without a host.
+bool ai_object_unplaced(Call& c, objects::ObjectHandle h);
 // bind_ai_tactical.cpp: EvaluatePerception(name, player [, target at target_index; 0 = none]) through the attached
 // tactical AI host (AI targets and task forces accepted). Pushes the result and returns 1; -2 = no tactical host.
 int tactical_evaluate_perception(Call& c, std::string_view name, int32_t player, int target_index);

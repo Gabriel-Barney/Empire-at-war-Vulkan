@@ -1024,6 +1024,8 @@ public:
     void tf_release_forces(int32_t, double) override {}
     void tf_release_unit(int32_t, objects::ObjectHandle) override {}
     std::vector<objects::ObjectHandle> tf_units(int32_t tf) override { return tf == 3 ? units : std::vector<objects::ObjectHandle>{}; }
+    objects::ObjectHandle unplaced{};  // #401
+    bool object_unplaced(objects::ObjectHandle u) const override { return u && u == unplaced; }
     std::string tf_goal_type_name(int32_t) override { return {}; }
     bool tf_collect_free_units(int32_t, uint64_t) override { return false; }
     bool status_finished(int32_t) override { return true; }
@@ -1207,6 +1209,17 @@ uint64_t special_session() {
         CHECK(ai.produced.size() == 4 && !ai.produced[1].first && !ai.produced[1].second && ai.produced[2].first &&
               ai.produced[2].second && ai.produced[3].first && !ai.produced[3].second);
     }
+    // #401: an object the AI host reports as unplaced (a produced unit during its admission) has no planet and no parent;
+    // the others keep theirs.
+    vm.set_object_global("U2", h[1]);
+    vm.set_object_global("U3", h[2]);
+    ai.unplaced = h[1];
+    CHECK(run(vm, "u2p = (U2.Get_Planet_Location() == nil) u2f = (U2.Get_Parent_Object() == nil) "
+                  "u3p = (U3.Get_Planet_Location() ~= nil) u3f = (U3.Get_Parent_Object() ~= nil)") == "" &&
+          gtrue(vm, "u2p") && gtrue(vm, "u2f") && gtrue(vm, "u3p") && gtrue(vm, "u3f"));
+    ai.unplaced = {};
+    CHECK(run(vm, "u2p = (U2.Get_Planet_Location() ~= nil)") == "" && gtrue(vm, "u2p"));
+    std::printf("  #401: an unplaced unit reads Get_Planet_Location / Get_Parent_Object nil, a placed one its planet / fleet\n");
     attach_ai_host(vm, nullptr, 0);
     // The fleet itself with a matching type name: every carried unit of that type (content order) tries its abilities -
     // both remaining saboteurs apply.
