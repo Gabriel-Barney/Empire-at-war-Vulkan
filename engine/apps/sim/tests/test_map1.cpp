@@ -245,10 +245,7 @@ void test_land_preplaced_pad(const Data& d) {
     m.objects.push_back(place("Defending Forces Position", 600.0f, 600.0f, 0));
     m.objects.push_back(place("Attacker Entry Position", 200.0f, 200.0f, 1));
     terrain::ObjectPlacement a = place("M1_Pad", 1000.0f, 600.0f, 0);
-    const uint32_t uc = name_crc("M1_UC_Turret");
-    a.pad_raw = {terrain::RawMini{0x00, {0, 0, 0, 0}},
-                 terrain::RawMini{0x02, {static_cast<uint8_t>(uc), static_cast<uint8_t>(uc >> 8), static_cast<uint8_t>(uc >> 16),
-                                         static_cast<uint8_t>(uc >> 24)}}};
+    a.pad_raw = {terrain::mk_u32(0x00, 0), terrain::mk_u32(0x02, name_crc("M1_UC_Turret"))};
     m.objects.push_back(a);
     m.objects.push_back(place("M1_Pad", 1300.0f, 600.0f, 0));
     run_map_battle(

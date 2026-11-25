@@ -50,6 +50,7 @@ struct RawMini {
 std::vector<RawMini> copy_minis(std::span<const MiniView> minis);
 const RawMini* find_mini(const std::vector<RawMini>& minis, uint8_t id);
 bool raw_f32(const std::vector<RawMini>& minis, uint8_t id, float& v);
+bool raw_u32(const std::vector<RawMini>& minis, uint8_t id, uint32_t& v);
 bool raw_f32x3(const std::vector<RawMini>& minis, uint8_t id, float (&v)[3]);
 
 // ---- writer side (used by write_ted and by tests that build synthetic maps) ----

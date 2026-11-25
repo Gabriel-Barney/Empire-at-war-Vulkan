@@ -222,7 +222,7 @@ struct BattleStats {
     // t50 (land skirmish): pads of the two slots, pads that started built, structures started on a pad during the battle.
     uint32_t skirmish_pads = 0, skirmish_prebuilt = 0, pad_builds = 0;
     uint32_t pad_restored = 0;  // §9.4 persisted pad children recreated at setup
-    uint32_t pad_preplaced = 0;  // #334 t03: campaign pads that built their map's pre-placed type at setup
+    uint32_t pad_preplaced = 0;  // #334 t03: campaign pads that built their map's pre-placed type at setup (not saved)
     // s78n t20 (skirmish, SKIRMISH_SETUP §2.2; not saved): per side, its spawn-point marker (when one was found) and where its
     // first start-force unit was placed.
     // per side, 8 = TacticalBattle::kMaxSides.
@@ -3155,7 +3155,11 @@ private:
     void bt_pad_restore(TacticalMode& mode);          // setup: persistent pad children back on their pads
     // #334 t03: the map load's pads with a pre-placed type (pad data 0x476/1 mini 2), {pad, type}, ascending pad; consumed
     // by bt_pad_restore (the campaign pre-build) and cleared there
-    std::vector<std::pair<objects::ObjectId, objects::TypeIndex>> map_preplaced_;
+    struct PreplacedPad {
+        objects::ObjectId pad = objects::kNoObjectId;
+        objects::TypeIndex type = objects::kNone;
+    };
+    std::vector<PreplacedPad> map_preplaced_;
     // a pad's pre-build (0x42df80's create, shared by the campaign and the skirmish base): `type` (an under-construction
     // type -> its Tactical_Buildable_Constructed) for `owner` at the pad's build point with the pad's facing; the pad's
     // child. kNone when it is not created.

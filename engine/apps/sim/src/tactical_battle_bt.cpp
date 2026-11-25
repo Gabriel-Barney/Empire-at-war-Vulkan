@@ -791,10 +791,8 @@ int32_t placement_base_level(const terrain::ObjectPlacement& pl) {
 // #334 t03 (the pad data pack's load 0x5612d0 [H]): mini 2 of the placement's 0x476/1 pad data, the pre-placed type's name
 // CRC (type +0x11c, resolved by 0x407db0); 0 when absent.
 uint32_t placement_preplaced_crc(const terrain::ObjectPlacement& pl) {
-    const terrain::RawMini* m = terrain::find_mini(pl.pad_raw, 0x02);
-    if (!m || m->data.size() < 4) return 0;
-    return static_cast<uint32_t>(m->data[0]) | static_cast<uint32_t>(m->data[1]) << 8 | static_cast<uint32_t>(m->data[2]) << 16 |
-           static_cast<uint32_t>(m->data[3]) << 24;
+    uint32_t crc = 0;
+    return terrain::raw_u32(pl.pad_raw, 0x02, crc) ? crc : 0u;
 }
 
 // bkg3 b0028: mini 0x29 of the placement, the garrison / hangar spawn byte (obj +0x3CB, map load 0x39ce40); -1 when absent.
@@ -1172,10 +1170,10 @@ void TacticalBattle::bt_map_prepass() {
             // #334 t03: a campaign pad's pre-placed type (bt_pad_restore builds it) and its finished type
             if (const uint32_t pc = placement_preplaced_crc(pl); pc != 0 && !cfg_.skirmish) {
                 const objects::TypeIndex u = index.find(pc);
-                if (u != objects::kNone && u < types.size()) {
-                    use_type(u);
-                    use_type(types.resolve_name(types.get(u, objects::tags::Tactical_Buildable_Constructed)));
-                }
+                if (u != objects::kNone && u < types.size())
+                    use_type(uc_behavior() != objects::kNoBehavior && types.has_behavior(u, objects::BehaviorSet::Union, uc_behavior())
+                                 ? types.resolve_name(types.get(u, objects::tags::Tactical_Buildable_Constructed))
+                                 : u);
             }
         }
         kept.push_back(std::move(pl));
@@ -1245,22 +1243,17 @@ void TacticalBattle::bt_map_load(TacticalMode& mode, SimRng& rng) {
     // AI_GALACTIC_TOKENS §9.4: a pad's base level byte +0x39C (mini 0x0B) for the persistence add (non-zero ones only).
     map_preplaced_.clear();
     auto note_pad = [&](const terrain::ObjectPlacement& p, objects::ObjectHandle h) {
-        // #334 t03: the pad's pre-placed type (pad data 0x476/1 mini 2), for setup's pre-build
-        if (const uint32_t pc = placement_preplaced_crc(p); pc != 0 && mode.primary().alive(h) &&
-                                                             pad_behavior() != objects::kNoBehavior &&
-                                                             mode.primary().has_behavior(h, pad_behavior())) {
-            const objects::TypeIndex u = index.find(pc);
-            const objects::ObjectId pid = mode.primary().id(h);
-            if (u != objects::kNone && u < types.size()) {
-                const auto it = std::lower_bound(map_preplaced_.begin(), map_preplaced_.end(), pid,
-                                                 [](const std::pair<objects::ObjectId, objects::TypeIndex>& e, objects::ObjectId v) { return e.first < v; });
-                if (it == map_preplaced_.end() || it->first != pid) map_preplaced_.insert(it, {pid, u});
-            }
+        if (!mode.primary().alive(h) || pad_behavior() == objects::kNoBehavior || !mode.primary().has_behavior(h, pad_behavior())) return;
+        const objects::ObjectId id = mode.primary().id(h);
+        // #334 t03: the pad's pre-placed type (pad data 0x476/1 mini 2), for setup's pre-build (ascending pad)
+        const uint32_t pc = placement_preplaced_crc(p);
+        if (const objects::TypeIndex u = pc != 0 ? index.find(pc) : objects::kNone; u != objects::kNone && u < types.size()) {
+            const auto it = std::lower_bound(map_preplaced_.begin(), map_preplaced_.end(), id,
+                                             [](const PreplacedPad& e, objects::ObjectId v) { return e.pad < v; });
+            if (it == map_preplaced_.end() || it->pad != id) map_preplaced_.insert(it, PreplacedPad{id, u});
         }
         const int32_t level = placement_base_level(p);
-        if (level == 0 || !mode.primary().alive(h) || pad_behavior() == objects::kNoBehavior || !mode.primary().has_behavior(h, pad_behavior()))
-            return;
-        const objects::ObjectId id = mode.primary().id(h);
+        if (level == 0) return;
         const auto it = std::lower_bound(pad_levels_.begin(), pad_levels_.end(), id,
                                          [](const std::pair<objects::ObjectId, int32_t>& e, objects::ObjectId v) { return e.first < v; });
         if (it == pad_levels_.end() || it->first != id) pad_levels_.insert(it, {id, level});
@@ -2407,9 +2400,10 @@ void TacticalBattle::bt_pad_restore(TacticalMode& mode) {
     // is still empty and holds a map-saved pre-placed type (pad data +0x18: the map's 0x476/1 mini 2) builds it for the PAD's
     // owner (+0x58) - no Respects_Skirmish_Pre_Build_Bases_Option test outside a skirmish. Shipped campaign maps carry them:
     // the story maps' turrets, bacta tanks, repair facilities and sensor nodes (EM02, RM06, RM09, UM06, UM07, UM11), TM06's
-    // two bases, _LAND_PLANET_TATOOINE_02, the Felucia tutorial, two space maps' defense satellites. [port] The pad is not
-    // revealed to every player (0x3a51e0) and its +0x3CB byte is not copied.
-    std::vector<std::pair<objects::ObjectId, objects::TypeIndex>> preplaced = std::move(map_preplaced_);
+    // two bases, _LAND_PLANET_TATOOINE_02, the Felucia tutorial, two space maps' defense satellites. The parent link
+    // (0x3a8f80: obj +0x2b0 = the pad) re-derives no capture record, so no capture grant follows. [port, tier 1 gap shared
+    // with the skirmish base] The pad is not revealed to every player (0x3a51e0); its +0x3CB byte is not copied.
+    std::vector<PreplacedPad> preplaced = std::move(map_preplaced_);
     map_preplaced_.clear();
     if (!pad_restore_ || cfg_.skirmish || !combat_) return;
     const bool restore = pad_records_ && !pad_records_->empty();
@@ -2423,11 +2417,10 @@ void TacticalBattle::bt_pad_restore(TacticalMode& mode) {
     const auto preplace = [&](objects::ObjectHandle ph) {
         const objects::ObjectId pid = st.id(ph);
         const auto it = std::lower_bound(preplaced.begin(), preplaced.end(), pid,
-                                         [](const std::pair<objects::ObjectId, objects::TypeIndex>& e, objects::ObjectId v) { return e.first < v; });
-        if (it == preplaced.end() || it->first != pid || pad_contents(pid) != objects::kNoObjectId) return;
-        const int32_t owner = st.owner(ph);
-        if (owner < 0 || !bt_owner_valid(owner)) return;  // [port] a pad of no player of this battle
-        if (bt_pad_prebuild(mode, ph, it->second, owner) != objects::kNone) ++stats_.pad_preplaced;
+                                         [](const PreplacedPad& e, objects::ObjectId v) { return e.pad < v; });
+        if (it == preplaced.end() || it->pad != pid || pad_contents(pid) != objects::kNoObjectId) return;
+        // the map load keeps only placements of a player of this battle (owner_drops), so the pad's owner is one
+        if (bt_pad_prebuild(mode, ph, it->type, st.owner(ph)) != objects::kNone) ++stats_.pad_preplaced;
     };
     for (const objects::ObjectHandle ph : pads) {
         if (!restore) {
