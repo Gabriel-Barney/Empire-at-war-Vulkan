@@ -191,6 +191,10 @@ struct CameraTuning {
     bool absolute_scrolling = true;    // IDC_ABSOLUTE_SCROLLING: off -> a middle drag push-scrolls instead of panning
     bool right_button_scroll = false;  // IDC_RIGHT_BUTTON_SCROLL: a right drag > 0.08 drag units acts as a middle drag
     bool both_buttons_rotate = false;  // IDC_BOTH_MOUSE_BUTTONS_ROTATE: left + right held rotates (4 x the Ctrl rate)
+    // IDC_ALTERNATE_MOUSE_CONTROLS (#469, docs/re/GAMEPLAY_OPTIONS_AND_MOUSE.md t11 [H], table 0x9cf230): the right button
+    // drags the camera from its first moved pixel (Ctrl: rotate); the middle button does not drag, and its release
+    // always resets the camera. Galactic too (the right button drag-scrolls; the middle does not).
+    bool alternate_mouse = false;
     int32_t push_dead_zone_px = 10;    // 5 x Tactical_Edge_Scroll_Region (the tactical value in galactic too)
     // [port: Gabriel] keyboard camera axes (the original has none; a mouse-like feel would be ~1.5 deg per mouse unit).
     float key_yaw_deg_per_s = 90.0f;

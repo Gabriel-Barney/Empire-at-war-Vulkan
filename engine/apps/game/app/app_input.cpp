@@ -1590,6 +1590,7 @@ ui::CameraTuning App::option_tuning(ui::CameraTuning t) const {
     t.absolute_scrolling = gameplay_.absolute_scroll;
     t.right_button_scroll = gameplay_.right_button_scroll;
     t.both_buttons_rotate = gameplay_.both_buttons_rotate;
+    t.alternate_mouse = gameplay_.alternate_mouse;  // #469: the camera half of IDC_ALTERNATE_MOUSE_CONTROLS
     return t;
 }
 

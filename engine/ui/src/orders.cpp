@@ -146,8 +146,13 @@ void OrderTranslator::tactical(const InputState& in, const OrderContext& ctx) {
             // is on an own selectable object (that double click selects every one of its type on the release).
             const auto hit = pick_world(all, ctx.view, pixel_ray(ctx.view, in.mouse_x(), in.mouse_y()), ctx.pick_filter, qctx_, ctx.pick_tests);
             if (!(hit && is_selectable(ctx, hit->id))) right_double(in, ctx);
-        } else if (rb.click && !rb.in_double_press) {
-            emit_select({});  // [port] a right click clears the selection (the alternate table's right actions 3..5 are not recovered)
+        } else if (rb.released && !rb.in_double_press && rb.drag.x0 == rb.drag.x1 && rb.drag.y0 == rb.drag.y1) {
+            // #469 (0x3296c [H]): a right release that did not move clears (a moved press was a camera drag). With Attack
+            // (else Move) armed it cancels that toggle instead [M: the cancelled bytes 0x140b29fc1 / fc2 are not named;
+            // the default scheme's left click on nothing, #430 0x32236].
+            if (toggle_force_attack_) toggle_force_attack_ = false;
+            else if (toggle_force_move_) toggle_force_move_ = false;
+            else emit_select({});
         }
         return;
     }
