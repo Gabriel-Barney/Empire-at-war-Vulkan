@@ -2182,7 +2182,7 @@
 {"Siphon_Credits_Ability", "Max_Siphon_Percentage", 0x9, LedgerState::Consumed, "", 4, 1},
 {"Siphon_Credits_Ability", "Siphon_Duration_In_Cycles", 0x6, LedgerState::Consumed, "", 4, 1},
 {"Siphon_Credits_Ability", "Evade_Detection_Chance", 0x9, LedgerState::Verified, "docs/re/xml_reference_index.md", 25, 1},
-{"Siphon_Credits_Ability", "Detect_Interval_In_Seconds", 0x8, LedgerState::Stored, "", 0, 1},
+{"Siphon_Credits_Ability", "Detect_Interval_In_Seconds", 0x8, LedgerState::Consumed, "docs/re/ANTI_STEALTH_EFFECTIVENESS.md", 0, 1},
 {"Siphon_Credits_Ability", "Detection_Chance", 0x9, LedgerState::Consumed, "docs/re/xml_reference_index.md", 0, 1},
 {"Siphon_Credits_Ability", "Detect_Credit_Siphon_Effects", 0x0, LedgerState::Stored, "docs/re/xml_reference_index.md", 0, 1},
 {"Siphon_Credits_Ability", "Political_Change", 0x6, LedgerState::Stored, "", 0, 1},

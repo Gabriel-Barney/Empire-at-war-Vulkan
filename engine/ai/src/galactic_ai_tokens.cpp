@@ -1521,8 +1521,35 @@ struct GalacticSimTokenResolver::Impl {
             out = s + static_cast<double>(records);
             return true;
         }
-        if (k == "ANTISTEALTHEFFECTIVENESS") {  // [port] per-unit value 0x395830 not modelled
-            out = 0.0;
+        if (k == "ANTISTEALTHEFFECTIVENESS") {
+            // #245 (0x6d9180, docs/re/ANTI_STEALTH_EFFECTIVENESS.md [H]): v = 1 - prod(1 - p) built as v += p k, k *= 1 - p
+            // in double, p = the unit's float 0x395830 (a Detect_Hero_Ability's Detection_Chance / Detect_Interval_In_Seconds,
+            // [M] the ability taken as applied, as the port's detector does). Order: the side's orbit fleets in list order,
+            // each content unit (the port keeps ground cargo as direct contents: retail's transport adds its cargo); then
+            // every surface entry with NO side filter, each adding its company members (its own type when it has none [port]).
+            const auto& sp = sim.rules().special.types;
+            const auto value = [&](uint32_t t) -> double {
+                if (t >= sp.size() || sp[t].detection_chance < 0.0f) return 0.0;
+                return static_cast<double>(sp[t].detection_chance / sp[t].detect_interval);
+            };
+            double v = 0.0, keep = 1.0;
+            const auto add = [&](uint32_t t) {
+                const double pv = value(t);
+                v += pv * keep;
+                keep *= 1.0 - pv;
+            };
+            const gal::PlanetState& ps = planets[p];
+            for (const uint32_t f : ps.orbit)
+                if (f < sim.fleets().size() && sim.fleets()[f].alive && side(enemy, sim.fleets()[f].owner))
+                    for (const ObjectHandle u : sim.fleets()[f].contents)
+                        if (st.alive(u)) add(static_cast<uint32_t>(st.type(u)));
+            for (const ObjectHandle u : ps.surface) {
+                if (!st.alive(u)) continue;
+                const std::vector<uint32_t> members = sim.company_members(u);
+                if (members.empty()) add(static_cast<uint32_t>(st.type(u)));
+                for (const uint32_t t : members) add(t);
+            }
+            out = v;
             return true;
         }
         return no_path();  // bare EnemyForce / FriendlyForce and unknown leaves are not registered
