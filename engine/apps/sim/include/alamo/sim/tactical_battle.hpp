@@ -1472,6 +1472,16 @@ public:
         ga_upgrades_ = std::move(upgrades);
         ga_spawn_ = spawn;
     }
+    // #459 (docs/re/HOLOCRON_SUMMARY_SORT.md "Key 8 and the Upgrades icons" [H]): the battle planet's persistent upgrade
+    // objects. In a campaign battle (not a skirmish, not the sandbox) a finished DUMMY_UPGRADE calls `track(true, owner,
+    // type)` (0x498170 -> 0x4b7090), and an upgrade object removed silently - with its dead container (0x379df0), or out of
+    // its station by a station upgrade (the kill-list path of 0x498170 [M]) - calls `track(false, owner, type)` (0x4bb690).
+    // The remove is by owner and type, so the planet-bonus upgrades (ga_spawn_upgrades), which share the list but are never
+    // added, also clear a matching record, as retail's same-owner-and-type remove would [M].
+    // CampaignBattles installs GalacticSim::add_upgrade_object / remove_upgrade_object for the battle planet. Tactical
+    // production runs in skirmish only today (production_enabled), so the add is reached in a campaign battle once campaign
+    // production exists (#544).
+    void set_upgrade_tracking(std::function<void(bool add, int32_t owner, uint32_t type)> track) { upgrade_track_ = std::move(track); }
     // #68 (0x2a1eb0 [H]): the per-planet tactical upgrade objects (corruption), {player, type} in spawn order, already
     // filtered (affiliated DUMMY_UPGRADE types: GalacticSim::planet_upgrades). Set before setup(); created after the
     // set_galactic_upgrades ones, each at the origin for its player, with no level or ownership test. The spawn flag of
@@ -3109,6 +3119,8 @@ private:
     void s4_capture_reset(TacticalMode& mode, objects::ObjectId pad);   // §6.5: the pad's capture point -> neutral
     Vec3 bt_pad_attach_point(const TacticalMode& mode, objects::ObjectHandle pad) const;  // §6.5 UC attachment bone
     std::vector<PadRecord>* pad_records_ = nullptr;  // §9.4 galactic persistence (GalacticSim::built_objects of the planet)
+    std::function<void(bool, int32_t, uint32_t)> upgrade_track_;  // #459 (set_upgrade_tracking); not saved, re-installed
+    void track_upgrade(bool add, objects::ObjectHandle h, const objects::ObjectStore& store);
     bool pad_restore_ = true;                         // §9.4 recreate at setup (false while a save is loaded)
     void bt_pad_restore(TacticalMode& mode);          // setup: persistent pad children back on their pads
     // the pad's map-saved pre-placed (under-construction) type in the port's stand-in reading (an owned slot pad
@@ -3342,7 +3354,7 @@ private:
     // a cancelled order: credits back 0x499000's amount (done = its built fraction) and drops its charge record
     void hg_refund(uint32_t order, float done);
     void hg_forget(uint32_t order);  // a completed order: drops its charge record
-    void hg_remove_silently(objects::ObjectId id);  // RemoveSilently: contents / abilities bookkeeping of a non-unit
+    void hg_remove_silently(objects::ObjectId id, const objects::ObjectStore& store);  // RemoveSilently: contents / abilities bookkeeping of a non-unit
     struct HgOrderCost {
         uint32_t order = 0;
         int32_t player = -1;

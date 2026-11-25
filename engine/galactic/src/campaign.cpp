@@ -2220,6 +2220,26 @@ void GalacticSim::keep_built_objects(PlanetIndex planet, int32_t keep) {
         if (v[i].owner != keep) v.erase(v.begin() + static_cast<std::ptrdiff_t>(i));
 }
 
+bool GalacticSim::add_upgrade_object(PlanetIndex planet, int32_t owner, uint32_t type) {
+    if (!valid_planet(planet) || type >= rules_->types.size()) return false;
+    std::vector<PersistedUpgradeObject>& v = planets_[planet].upgrade_objects;
+    for (const PersistedUpgradeObject& r : v)
+        if (r.owner == owner && r.type == type) return false;
+    v.push_back(PersistedUpgradeObject{type, owner, frame_});
+    return true;
+}
+
+bool GalacticSim::remove_upgrade_object(PlanetIndex planet, int32_t owner, uint32_t type) {
+    if (!valid_planet(planet)) return false;
+    std::vector<PersistedUpgradeObject>& v = planets_[planet].upgrade_objects;
+    for (size_t i = 0; i < v.size(); ++i)
+        if (v[i].owner == owner && v[i].type == type) {
+            v.erase(v.begin() + static_cast<std::ptrdiff_t>(i));
+            return true;
+        }
+    return false;
+}
+
 bool GalacticSim::replace_starbase(PlanetIndex planet, uint32_t type) {
     if (!valid_planet(planet)) return false;
     PlanetState& p = planets_[planet];
@@ -2368,6 +2388,18 @@ void GalacticSim::hash_state(StateHasher& h) const {
                     h.u32(t);
                 }
             }
+        }
+    }
+    for (size_t pl = 0; pl < planets_.size(); ++pl) {  // #459: only planets with upgrade records (none: no bytes)
+        const std::vector<PersistedUpgradeObject>& v = planets_[pl].upgrade_objects;
+        if (v.empty()) continue;
+        h.u32(0x55504731u);  // "UPG1"
+        h.u32(static_cast<uint32_t>(pl));
+        h.u32(static_cast<uint32_t>(v.size()));
+        for (const PersistedUpgradeObject& r : v) {
+            h.u32(r.type);
+            h.i32(r.owner);
+            h.i32(r.frame);
         }
     }
     if (!special_state_default()) hash_special(h);  // P4 sim (order: special_systems.hpp "CRC")

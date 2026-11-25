@@ -161,6 +161,14 @@ ui::HudBuildOption::Block galactic_build_block(commands::RejectReason why);
 const char* galactic_announcement(const galactic::GalacticSim& g, const galactic::GalacticEvent& e, int32_t local_player);
 std::vector<std::u32string> droid_log_rows(std::u32string_view day_text, int32_t cycle, std::u32string_view text, std::u32string_view separator);
 std::vector<PlanetIndex> fleet_drag_route(const galactic::GalacticSim& g, int32_t local_player, uint32_t fleet_id, PlanetIndex target);
+// #459 (docs/re/HOLOCRON_SUMMARY_SORT.md "Key 8 and the Upgrades icons", 0x10b0f0 / 0x11c020 [H]): a planet's Holocron
+// Upgrades values. `count` = sort key 8 (every record, no owner filter); `types` = the first 8 records' types, for the
+// IDC_HERO<row>_ICON0..7 icons.
+struct UpgradeColumn {
+    size_t count = 0;
+    std::vector<uint32_t> types;
+};
+UpgradeColumn upgrade_column(std::span<const galactic::PersistedUpgradeObject> records);
 // #471 (docs/re/SCORE_TOOLTIPS_GAME_OPTIONS.md "t13", header 0x2eb070, slot 0x2efb40, land 0x2f25a0, cell 0x3095c0 [H]): the
 // galactic fleet / land tooltip summary. One group per type of the hovered stack (its count, Population_Value, Icon_Name,
 // whether the type is known to the local player, whether the unit is stealthed).

@@ -62,7 +62,10 @@ namespace {
 // survivor records. v13: + last, per player (player order) the planet_upgrades list {u32 count, {u32 planet, u32 type}...};
 // v12 and older rebuild them from each planet's corruption type ([port] tier 3, save format): as a completion with old
 // type none and P = the first Benefits_From_Corruption player.
-constexpr uint32_t kGalacticSaveVersion = 13;  // 13: + the per-planet tactical upgrade lists after the survivors
+// v14 (#459): + last, the planets' persistent upgrade objects {u32 planets with records, {u32 planet, u32 n, {u32 type,
+// i32 owner, i32 frame}...}...} planet-ascending; v13 and older read none.
+constexpr uint32_t kGalacticSaveVersion = 14;  // 14: + the planets' persistent upgrade objects
+constexpr uint32_t kGalacticSaveVersionNoUpgradeObjects = 13;
 constexpr uint32_t kGalacticSaveVersionNoPlanetUpgrades = 12;
 constexpr uint32_t kGalacticSaveVersionNoSurvivors = 11;
 constexpr uint32_t kGalacticSaveVersionNoLocks = 10;
@@ -187,12 +190,21 @@ void GalacticSim::write(ByteWriter& w) const {
         w.u32(static_cast<uint32_t>(p.planet_upgrades.size()));
         for (const auto& [planet, t] : p.planet_upgrades) w.u32(planet).u32(t);
     }
+    uint32_t with_upgrades = 0;  // #459 (v14)
+    for (const PlanetState& p : planets_) with_upgrades += p.upgrade_objects.empty() ? 0u : 1u;
+    w.u32(with_upgrades);
+    for (uint32_t pl = 0; pl < planets_.size(); ++pl) {
+        const std::vector<PersistedUpgradeObject>& v = planets_[pl].upgrade_objects;
+        if (v.empty()) continue;
+        w.u32(pl).u32(static_cast<uint32_t>(v.size()));
+        for (const PersistedUpgradeObject& r : v) w.u32(r.type).i32(r.owner).i32(r.frame);
+    }
 }
 
 bool GalacticSim::read(ByteReader& r) {
     const objects::ObjectStore& st = *store_;
     const uint32_t version = r.u32();
-    if ((version != kGalacticSaveVersion && version != kGalacticSaveVersionNoPlanetUpgrades && version != kGalacticSaveVersionNoSurvivors && version != kGalacticSaveVersionNoLocks && version != kGalacticSaveVersionNoPlacement && version != kGalacticSaveVersionNoSlots && version != kGalacticSaveVersionNoGalab &&
+    if ((version != kGalacticSaveVersion && version != kGalacticSaveVersionNoUpgradeObjects && version != kGalacticSaveVersionNoPlanetUpgrades && version != kGalacticSaveVersionNoSurvivors && version != kGalacticSaveVersionNoLocks && version != kGalacticSaveVersionNoPlacement && version != kGalacticSaveVersionNoSlots && version != kGalacticSaveVersionNoGalab &&
          version != kGalacticSaveVersionNoNames) ||
         !r.ok())
         return false;
@@ -458,6 +470,28 @@ bool GalacticSim::read(ByteReader& r) {
                 if (!r.ok() || planet >= rows || t >= types) return false;
             }
         }
+    for (PlanetState& p : planets) p.upgrade_objects.clear();  // #459: v13 and older have none
+    if (version >= 14) {  // the planets' persistent upgrade objects, one record per owner + type
+        uint32_t n_pl = 0;
+        if (!r.count(n_pl, 8)) return false;
+        uint32_t prev = 0;
+        for (uint32_t k = 0; k < n_pl; ++k) {
+            const uint32_t pl = r.u32();
+            uint32_t n = 0;
+            if (!r.ok() || pl >= planets.size() || (k > 0 && pl <= prev) || !r.count(n, 12) || n == 0) return false;
+            std::vector<PersistedUpgradeObject>& v = planets[pl].upgrade_objects;
+            v.resize(n);
+            for (PersistedUpgradeObject& u : v) {
+                u.type = r.u32();
+                u.owner = r.i32();
+                u.frame = r.i32();
+                if (!r.ok() || u.type >= types || !player_ok(u.owner)) return false;
+                for (const PersistedUpgradeObject* q = v.data(); q != &u; ++q)
+                    if (q->owner == u.owner && q->type == u.type) return false;  // add_upgrade_object never writes a duplicate
+            }
+            prev = pl;
+        }
+    }
     if (!r.ok() || !r.done()) return false;
 
     // ---- commit ----

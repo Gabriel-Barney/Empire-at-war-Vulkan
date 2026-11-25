@@ -666,6 +666,14 @@ void drive_synthetic(GalacticSim& s, ConflictManager& cm, const objects::ObjectS
                 v->push_back({tFrigate, 300.5f, 40.25f, 12.1f, 0, pEmpire});
             }
             break;
+        case 65:  // #459 (docs/re/HOLOCRON_SUMMARY_SORT.md): persistent upgrade objects on D (save v14, hashed once present)
+            CHECK(s.add_upgrade_object(rD, pUnder, tInfantry) && !s.add_upgrade_object(rD, pUnder, tInfantry));  // one per owner + type
+            CHECK(s.add_upgrade_object(rD, pEmpire, tInfantry) && s.add_upgrade_object(rD, pEmpire, tFrigate));
+            CHECK(s.remove_upgrade_object(rD, pEmpire, tInfantry) && !s.remove_upgrade_object(rD, pEmpire, tInfantry));
+            CHECK(!s.add_upgrade_object(rD, pUnder, 0xFFFFu) && !s.add_upgrade_object(kInvalidPlanet, pUnder, tInfantry));
+            CHECK(s.planets()[rD].upgrade_objects.size() == 2 && s.planets()[rD].upgrade_objects[0].owner == pUnder &&
+                  s.planets()[rD].upgrade_objects[0].frame == s.frame() && s.planets()[rD].upgrade_objects[1].type == tFrigate);
+            break;
         case 300: {
             const uint32_t f = idle_fleet(s, rE, pUnder);
             if (f != kNoFleet)
@@ -740,8 +748,9 @@ void test_synthetic() {
     sc.full_prefix_limit = 1u << 20;  // every prefix
     // #67 t04: the saved pending ProductionCanceled events of a command cancel carry object = kCancelVoiced. Only the save
     // part of the pin moves (galactic and conflict digests unchanged; with the flag at 0 the pin is the old 0x67e4152092046d2e).
-    // #68: the v13 per-planet tactical upgrade lists (a u32 count per player, empty here) move the save part again.
-    sc.pin = 0x0ddc3c8911b7cc9cull;
+    // #68: the v13 per-planet tactical upgrade lists (a u32 count per player, empty here) move the save part again;
+    // #459: the scenario's upgrade objects (step 65) enter the hash, and v14 adds their count.
+    sc.pin = 0xf621b2e0297abeb3ull;
     run_scenario(sc);
 }
 
@@ -901,14 +910,44 @@ void test_queue_phases() {
         for (const PlanetState& pl : s.planets()) placement += 4 + 4 * pl.initial_placement.size();
         // v11 adds the locked fleets (u32 count 0 here); a v10 image derives them from the contents (none).
         // v12 adds the company survivor records (u32 count 0 here); a v11 image has none.
-        // v13 (#68) adds last, per player, the per-planet tactical upgrade list (u32 count 0 here); a v12 image rebuilds
-        // it from the corruption types (none here).
+        // v13 (#68) adds, per player, the per-planet tactical upgrade list (u32 count 0 here); a v12 image rebuilds it
+        // from the corruption types (none here). v14 (#459) adds last the planets' persistent upgrade objects (u32 count 0
+        // here); a v13 image has none.
         const size_t tactical = 4 * s.players().size();
-        CHECK(bytes.size() >= galab + 24 + placement + tactical && bytes[0] == 13 && bytes[bytes.size() - 1] == 0);
-        std::vector<uint8_t> v12(bytes.begin(), bytes.end() - static_cast<std::ptrdiff_t>(tactical));
+        CHECK(bytes.size() >= galab + 28 + placement + tactical && bytes[0] == 14 && bytes[bytes.size() - 1] == 0);
+        std::vector<uint8_t> v13(bytes.begin(), bytes.end() - 4);
+        v13[0] = 13;
+        ByteReader r13(v13);
+        CHECK(o.read(r13) && sim_bytes(o) == bytes);
+        std::vector<uint8_t> v12(bytes.begin(), bytes.end() - static_cast<std::ptrdiff_t>(tactical + 4));
         v12[0] = 12;
         ByteReader r12(v12);
         CHECK(o.read(r12) && sim_bytes(o) == bytes);
+        {  // a v14 image whose upgrade records are malformed is refused: a bad type, then a duplicate owner + type
+            const size_t base = bytes.size() - 4;
+            std::vector<uint8_t> bad(bytes.begin(), bytes.begin() + static_cast<std::ptrdiff_t>(base));
+            const auto u32 = [&bad](uint32_t v) {
+                for (int i = 0; i < 4; ++i) bad.push_back(static_cast<uint8_t>(v >> (8 * i)));
+            };
+            u32(1);
+            u32(0);
+            u32(2);
+            u32(0xFFFFu);  // a type past the table
+            u32(0);
+            u32(0);
+            u32(0);
+            u32(0);
+            u32(0);
+            ByteReader rb(bad);
+            CHECK(!o.read(rb));
+            bad[base + 12] = 0;  // the first record's type: 0, the same as the second one's
+            bad[base + 13] = 0;
+            ByteReader rd(bad);
+            CHECK(!o.read(rd));
+            bad[base + 28] = 1;  // the second record's owner: 1, so the pair differs
+            ByteReader ro(bad);
+            CHECK(o.read(ro) && o.planets()[0].upgrade_objects.size() == 2);
+        }
         std::vector<uint8_t> v11(v12.begin(), v12.end() - 4);
         v11[0] = 11;
         ByteReader r11(v11);
@@ -1121,7 +1160,8 @@ void test_foc() {
     // #67 t04: as the synthetic pin, only the save part moves (with the voiced flag at 0 the pin is the old 0x3823a3d7aeba6b5e).
     // #68: the v13 per-planet tactical upgrade lists move the save part, and the galactic digest too: the first political
     // update gives the Underworld's start planets their Racketeering entries (the "PTU1" section).
-    sc.pin = 0xb3c06fd8cb9ee992ull;  // FoC data
+    // #459: v14 adds the upgrade-object count to the save part.
+    sc.pin = 0x983ffbd46e045ec5ull;  // FoC data
     run_scenario(sc);
 }
 

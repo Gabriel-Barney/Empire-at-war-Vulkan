@@ -824,6 +824,14 @@ void CampaignBattles::push_battle(SimHost& host) {
     // not the sandbox battle). A battle rebuilt by a save load does not recreate them (the save has the battle's objects).
     if (pending_req_.info.planet != kInvalidPlanet)
         battle_->set_pad_persistence(g->sim()->built_objects(pending_req_.info.planet), !rebuilding_);
+    // #459: the battle planet's persistent upgrade objects (the battle applies the campaign gate).
+    if (const PlanetIndex up = pending_req_.info.planet; up != kInvalidPlanet) {
+        galactic::GalacticSim* gs = g->sim();
+        battle_->set_upgrade_tracking([gs, up](bool add, int32_t owner, uint32_t type) {
+            if (add) (void)gs->add_upgrade_object(up, owner, type);
+            else (void)gs->remove_upgrade_object(up, owner, type);
+        });
+    }
     // map1 t06 (REMAINING_GAPS 3.2 step 4): the galactic structure marker memory (pass 1 reads it, the placement updates it;
     // a battle rebuilt by a save load reads it only).
     battle_->set_structure_memory(g->sim(), !rebuilding_);
