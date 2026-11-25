@@ -38,6 +38,7 @@
     SAVED(emit_events_, unhashed) \
     DERIVED(destroy_auto_resolve_, "mcx4 Q4: true only inside destroy_object_auto_resolve") \
     SAVED(company_survivors_, hashed) \
+    SAVED(paid_costs_, hashed) \
     REBUILT(scoring_hooks_, "host callbacks") \
     REBUILT(contested_check_hook_, "host callback (#65 t05; the flag is saved with the script state)") \
     DERIVED(last_spawn_, "set before every read (event payloads only)") \
