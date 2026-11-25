@@ -63,6 +63,7 @@ ArCombatant unit(int32_t owner, float p, uint64_t cats, const char* name = "Ship
     piece.categories = cats;
     piece.power = p;
     c.pieces.push_back(piece);
+    c.shot = piece;  // #193: one piece, its one shot
     return c;
 }
 
@@ -146,7 +147,8 @@ void test_auto_resolve_basic() {
     // Budgets: winner 1000 + 1000 x 0.25 = 1250; loser -1000 + 2000 x 0.2 = -600.
     CHECK(r.budget[1] == 1000.0 + 1000.0 * (1.0 - static_cast<double>(0.75f)));
     CHECK(r.budget[0] == -1000.0 + 2000.0 * (1.0 - static_cast<double>(0.80f)));
-    // Winner first: one draw int(0, 1) picks the survivor (1250 - 333 > 0 -> pays 1000, then 250 - 333 < 0).
+    // Side 0 (the loser, one pick: no draw), then side 1: one draw int(0, 1) picks the survivor (1250 - 333 > 0 -> pays
+    // 1000, then 250 - 333 < 0).
     const int32_t first = copy.range_int(0, 1);
     CHECK(r.survives[0] == 0);
     CHECK(r.survives[static_cast<size_t>(1 + first)] == 1 && r.survives[static_cast<size_t>(2 - first)] == 0);
@@ -441,6 +443,64 @@ GalacticSetup make_setup(std::vector<StartingForce> forces, bool empire_human, b
     s.players = {e, u, n};
     s.forces = std::move(forces);
     return s;
+}
+
+// #193 (docs/re/BATTLE_TRANSITIONS.md §4.4): each combatant fires one shot (0x60d2a0); Starting_Spawned_Units at the
+// owner's tech level enter the vector (0x60b0d0), and the first entry at the P of one member is the shot; the survival roll
+// charges them before the test (0x60a140) [H]. A type with members fires their summed P [M].
+void test_auto_resolve_one_shot() {
+    std::printf("  #193: auto-resolve, one shot per combatant and hangar units\n");
+    const GalacticRules gr = make_rules();
+    ConflictRules cr = make_conflict_rules();
+    cr.types[tSB2].spawned[0] = {{tFighters, 2}};  // Tech_0: 2 x Fighters (members 2 x Corvette 400: P 800 each)
+    cr.types[tSB2].spawned[2] = {{tCorvette, 1}};  // Tech_2: 1 x Corvette
+    const ArCombatant sb = make_ar_combatant(gr, cr, tSB2, pEmpire, true, 1);  // tech 1: Tech_0 (the next lower list)
+    CHECK(sb.spawned.size() == 1 && sb.spawned[0].type == tFighters && sb.spawned[0].power == 1600.0f);
+    CHECK(sb.shot.type == tFighters && sb.shot.power == 800.0f && sb.shot.categories == kCatCapital);
+    const ArCombatant sb2 = make_ar_combatant(gr, cr, tSB2, pEmpire, true, 2);
+    CHECK(sb2.spawned.size() == 1 && sb2.spawned[0].type == tCorvette && sb2.shot.type == tCorvette && sb2.shot.power == 400.0f);
+    const ArCombatant above = make_ar_combatant(gr, cr, tSB2, pEmpire, true, 6);  // no list above Tech_5: its own shot
+    CHECK(above.spawned.empty() && above.shot.type == tSB2 && above.shot.power == 600.0f && above.shot.categories == kCatStructure);
+    const ArCombatant sq = make_ar_combatant(gr, cr, tFighters, pEmpire, true, 1);  // a squadron: its members' sum
+    CHECK(sq.pieces.size() == 1 && sq.shot.type == tFighters && sq.shot.power == 800.0f && sq.shot.categories == kCatCapital);
+    std::printf("    starbase tech 1: hangar 2 x 800 in the vector, shot %.0f (one squadron); tech 2: shot %.0f; squadron shot %.0f\n",
+                static_cast<double>(sb.shot.power), static_cast<double>(sb2.shot.power), static_cast<double>(sq.shot.power));
+
+    const ContrastTable ct = make_contrast();
+    const AutoResolveConstants k;
+    {  // two 500 pieces in the vector, one 500 shot: the enemy's Capital loses 500, not 1000
+        AutoResolveInput in;
+        in.space = true;
+        in.attacker = 1;
+        ArCombatant two = unit(0, 500.0f, kCatCapital);
+        two.pieces.push_back(two.pieces[0]);
+        in.combatants = {two, unit(1, 2000.0f, kCatCapital)};
+        in.players = {{0, true, true}, {1, true, true}};
+        SimRng rng(7u);
+        const AutoResolveResult r = auto_resolve(in, ct, k, rng);
+        CHECK(r.vec[0][3] == 1000.0 && r.rem[1][3] == 1500.0 && r.rem[1][1] == 1500.0);
+        std::printf("    two pieces, one shot: enemy Capital 2000 -> %.0f\n", r.rem[1][3]);
+    }
+    {  // the winner's hangar is charged before its survival test: 1226 - 900 leaves 326 < 1000 x 0.333 (dies); without the
+       // charge it would survive
+        AutoResolveInput in;
+        in.space = true;
+        in.attacker = 1;
+        ArCombatant carrier = unit(1, 1000.0f, kCatCapital);
+        ArPiece hangar;
+        hangar.name = "Hangar";
+        hangar.categories = kCatCapital;
+        hangar.power = 900.0f;
+        carrier.spawned.push_back(hangar);
+        in.combatants = {unit(0, 900.0f, kCatCapital), carrier, unit(1, 1.0f, kCatCapital)};
+        in.players = {{0, true, true}, {1, true, true}};
+        SimRng rng(11u);
+        const AutoResolveResult r = auto_resolve(in, ct, k, rng);
+        CHECK(r.winner == 1 && r.vec[1][3] == 1901.0 && r.rem[1][1] == 1001.0);
+        CHECK(r.budget[1] == 1001.0 + 900.0 * (1.0 - static_cast<double>(k.winner_attrition)));
+        CHECK(r.survives[1] == 0 && r.survives[2] == 1 && r.losses[1] == 1);
+        std::printf("    winner budget %.0f, hangar 900 charged first: the carrier dies, the 1-power unit survives\n", r.budget[1]);
+    }
 }
 
 struct World {
@@ -899,7 +959,7 @@ void test_company_survivors() {
         if (e.kind == GalacticEventKind::ObjectDestroyed && e.value == 2)
             lost_events += e.type == tFrigate && e.object == static_cast<int32_t>(w.store.id(co)) ? 1u : 100u;
     CHECK(lost_events == 1);
-    const ArCombatant ac = make_ar_combatant(w.rules, w.crules, tInfantry, pEmpire, false, left);  // auto-resolve: survivors
+    const ArCombatant ac = make_ar_combatant(w.rules, w.crules, tInfantry, pEmpire, false, 1, left);  // auto-resolve: survivors
     CHECK(ac.pieces.size() == 3 && ac.pieces[0].type == tFrigate && ac.pieces[1].type == tCorvette);
     CHECK(w.sim.company_members(co) == *left);
     ByteWriter bw;
@@ -1710,6 +1770,7 @@ int main() {
     test_company_survivors();
     test_respawn_tied_to_structure();
     test_auto_resolve_rules();
+    test_auto_resolve_one_shot();  // #193
     std::printf("force split\n");
     test_force_split();
     std::printf("ai auto-resolve\n");

@@ -77,7 +77,7 @@ constexpr uint32_t kGalacticSaveVersionNoPlacement = 9;
 constexpr uint32_t kGalacticSaveVersionNoSlots = 8;
 constexpr uint32_t kGalacticSaveVersionNoGalab = 7;
 constexpr uint32_t kGalacticSaveVersionNoNames = 6;
-constexpr uint32_t kConflictSaveVersion = 4;  // v2: BattleRequest::linked; v3: BattleRequest::sandbox (q6); v4: ArCombatant::strength_bonus
+constexpr uint32_t kConflictSaveVersion = 5;  // v2: BattleRequest::linked; v3: BattleRequest::sandbox (q6); v4: ArCombatant::strength_bonus; v5: ArCombatant::spawned / shot (#193)
 
 using records::get_handle;
 using records::put_handle;
@@ -647,6 +647,9 @@ void ConflictManager::write(ByteWriter& w) const {
         for (const ArStarbaseLevel& l : c.starbase) w.u32(l.type).f32(l.power);
         w.u32(static_cast<uint32_t>(c.strength_bonus.size()));  // v4
         for (const auto& [bit, factor] : c.strength_bonus) w.u8(bit).f32(factor);
+        w.u32(static_cast<uint32_t>(c.spawned.size()));  // v5 (#193)
+        for (const ArPiece& p : c.spawned) w.u32(p.type).u64(p.categories).f32(p.power);
+        w.u32(c.shot.type).u64(c.shot.categories).f32(c.shot.power);
     }
     w.u32(static_cast<uint32_t>(ar_in_.players.size()));
     for (const ArSideInfo& s : ar_in_.players) w.i32(s.player).boolean(s.ai).boolean(s.playable);
@@ -756,6 +759,21 @@ bool ConflictManager::read(ByteReader& r) {
                 bit = r.u8();
                 factor = r.f32();
             }
+        }
+        const auto get_piece = [&r, &types](ArPiece& p) {
+            p.type = r.u32();
+            p.categories = r.u64();
+            p.power = r.f32();
+            p.name = p.type < types.size() ? std::string_view(types[p.type].name) : std::string_view();
+        };
+        if (version >= 5) {  // #193: the spawned pieces and the one shot
+            uint32_t ns = 0;
+            if (!r.count(ns, 16)) return false;
+            c.spawned.resize(ns);
+            for (ArPiece& p : c.spawned) get_piece(p);
+            get_piece(c.shot);
+        } else if (!c.pieces.empty()) {  // [port] an older in-flight auto-resolve: the last piece (the own one, or a member) fires
+            c.shot = c.pieces.back();
         }
         if (!r.ok()) return false;
     }

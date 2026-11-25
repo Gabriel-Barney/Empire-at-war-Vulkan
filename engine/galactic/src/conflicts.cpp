@@ -4,6 +4,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iterator>
+#include <tuple>
 #include <utility>
 
 #include "alamo/data/game_database.hpp"
@@ -193,6 +195,35 @@ bool load_conflict_rules(const FileProvider& provider, const data::GameDatabase&
                     }
                 if (!found) i.members.emplace_back(static_cast<uint32_t>(mt), 1);
             }
+        // #193: Starting_Spawned_Units_Tech_0..5 ("Type, N" pairs, in one token or two).
+        static constexpr const objects::ListTag* kSpawnedTech[] = {
+            &objects::tags::Starting_Spawned_Units_Tech_0, &objects::tags::Starting_Spawned_Units_Tech_1,
+            &objects::tags::Starting_Spawned_Units_Tech_2, &objects::tags::Starting_Spawned_Units_Tech_3,
+            &objects::tags::Starting_Spawned_Units_Tech_4, &objects::tags::Starting_Spawned_Units_Tech_5};
+        static_assert(std::size(kSpawnedTech) == std::tuple_size_v<decltype(i.spawned)>);
+        for (size_t k = 0; k < std::size(kSpawnedTech); ++k) {
+            const auto toks = types.get(t, *kSpawnedTech[k]);
+            for (size_t q = 0; q < toks.size(); ++q) {
+                std::string_view name = ascii_trim(toks[q]);
+                std::string_view count;
+                if (const size_t comma = name.find(','); comma != std::string_view::npos) {
+                    count = ascii_trim(name.substr(comma + 1));
+                    name = ascii_trim(name.substr(0, comma));
+                } else if (q + 1 < toks.size()) {
+                    count = ascii_trim(toks[++q]);
+                }
+                int32_t n = 0;
+                for (const char ch : count) {
+                    if (ch < '0' || ch > '9') {
+                        n = 0;
+                        break;
+                    }
+                    n = n * 10 + (ch - '0');
+                }
+                const objects::TypeIndex mt = types.resolve_name(name);
+                if (mt != objects::kNone && n > 0) i.spawned[k].emplace_back(static_cast<uint32_t>(mt), n);
+            }
+        }
         i.space_map = trimmed(types.get(t, objects::tags::Space_Tactical_Map));
         i.land_map = trimmed(types.get(t, objects::tags::Land_Tactical_Map));
         const std::string terrain = trimmed(types.get(t, objects::tags::Terrain));
@@ -735,7 +766,7 @@ bool company_team_lost(const ConflictRules& rules, uint32_t company_type, std::s
 }
 
 ArCombatant make_ar_combatant(const GalacticRules& galactic, const ConflictRules& rules, uint32_t t, int32_t owner,
-                              bool space, const std::vector<uint32_t>* survivors) {
+                              bool space, int32_t tech, const std::vector<uint32_t>* survivors) {
     const auto& ti = galactic.types;
     const ConflictTypeInfo& ct = rules.type(t);
     ArCombatant c;
@@ -777,12 +808,61 @@ ArCombatant make_ar_combatant(const GalacticRules& galactic, const ConflictRules
         c.pieces.push_back(p);
     }
     c.super = rules.super_category != 0 && (first_cats & rules.super_category) != 0;
+    // #193 (docs/re/BATTLE_TRANSITIONS.md §4.4): P(x) and CategoryMask of a type as one firing piece. A type with
+    // Squadron_Units / Company_Units members has its members' summed P (the post-load pass 0x377500 writes it into the
+    // type [M]) and their categories [M]; any other type its own.
+    const auto piece_of = [&](uint32_t x) {
+        ArPiece p;
+        p.type = x;
+        p.name = x < ti.size() ? std::string_view(ti[x].name) : std::string_view();
+        const ConflictTypeInfo& xi = rules.type(x);
+        if (xi.members.empty()) {
+            p.categories = xi.categories;
+            p.power = x < ti.size() ? ti[x].ai_combat_power : 0.0f;
+        } else {
+            for (const auto& [mt, n] : xi.members) {
+                p.categories |= rules.type(mt).categories;
+                p.power += static_cast<float>(n) * (mt < ti.size() ? ti[mt].ai_combat_power : 0.0f);
+            }
+        }
+        return p;
+    };
+    // Starting_Spawned_Units at the owner's tech level, falling back to lower levels; none above level 5 (0x60b0d0 [H]).
+    int32_t slot = -1;
+    if (tech >= 0 && static_cast<size_t>(tech) < ct.spawned.size())
+        for (int32_t k = tech; k >= 0 && slot < 0; --k)
+            if (!ct.spawned[static_cast<size_t>(k)].empty()) slot = k;
+    if (slot >= 0)
+        for (const auto& [st, n] : ct.spawned[static_cast<size_t>(slot)]) {
+            ArPiece p = piece_of(st);
+            p.power *= static_cast<float>(n);
+            c.spawned.push_back(p);
+        }
+    // The one shot (0x60d2a0 [H]): the first spawned entry at the P of one member, else the representative type; for a
+    // type with members, the pieces it fights with (a company's survivors) summed.
+    if (slot >= 0) {
+        c.shot = piece_of(ct.spawned[static_cast<size_t>(slot)].front().first);
+    } else if (!ct.members.empty()) {
+        c.shot.type = t;
+        c.shot.name = t < ti.size() ? std::string_view(ti[t].name) : std::string_view();
+        for (const ArPiece& p : c.pieces) {
+            if (p.type == t) continue;  // the land container's own piece is in the vector, not in the members' sum
+            c.shot.categories |= p.categories;
+            c.shot.power += p.power;
+        }
+    } else {
+        c.shot = piece_of(t);
+    }
     return c;
 }
 
 ArCombatant ConflictManager::combatant_of(ObjectHandle h, bool space) const {
     const auto& store = sim_->store();
-    return make_ar_combatant(sim_->rules(), *rules_, static_cast<uint32_t>(store.type(h)), store.owner(h), space,
+    const int32_t owner = store.owner(h);
+    const int32_t tech = owner >= 0 && static_cast<size_t>(owner) < sim_->players().size()
+                             ? sim_->players()[static_cast<size_t>(owner)].tech_level
+                             : -1;
+    return make_ar_combatant(sim_->rules(), *rules_, static_cast<uint32_t>(store.type(h)), owner, space, tech,
                              sim_->company_survivors(h));
 }
 

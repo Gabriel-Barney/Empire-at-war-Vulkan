@@ -11,11 +11,15 @@
 //                     as count x P(member), then the combatant's own P unless it is a container in a space
 //                     battle) adds its float32 power to the FIRST category whose mask intersects the
 //                     piece's CategoryMask and to the battle's total (space total in space, land total on
-//                     land). The weakest combatant (smallest own P, first wins) is tracked; Super flags.
+//                     land). #193: a combatant's Starting_Spawned_Units at its owner's tech level (falling back
+//                     to lower levels) add count x P(member) pieces too (0x60b0d0 [H]). The weakest combatant
+//                     (smallest own P, first wins) is tracked; Super flags.
 //   degenerate (§4.3) space, no Super unit on either side and both space totals <= 0: the side with more
 //                     combatants wins (tie: the side that is not the attacker), the loser retreats, nothing
 //                     dies.
-//   fire (§4.4.1)     each side fires once at a COPY of the other side's vector: per piece p, target j
+//   fire (§4.4.1)     each side fires once at a COPY of the other side's vector. #193 (0x60d2a0 [H]): each
+//                     combatant fires exactly ONE shot, ArCombatant::shot (the first Starting_Spawned_Units
+//                     entry at the P of one member, else its own type); per shot p, target j
 //                     maximising (1 - ((R_j - p c_j) / max(R_j, p c_j))^2) x c_j (double, first max wins)
 //                     over categories with R_j > 0 and c_j = contrast(piece type, row j) > 0. Unit strength
 //                     bonus (MCX4_T09_RE_ANSWERS Q9): per firing side a 32-float table, cleared, entry k =
@@ -34,11 +38,13 @@
 //   budget (4.4.5)    budget = rem + (orig - rem)(1 - X) on the battle total, X = loser / winner attrition
 //                     (retreat variants when a retreat is flagged); a non-playable loser gets 0; x the
 //                     tactical multiplier when started from a tactical battle.
-//   survival (4.4.6)  per side, WINNER FIRST then loser [M: order not stated], until the list is empty: pick
+//   survival (4.4.6)  per side, side 0 then side 1 (0x60b930 [H], #193), until the list is empty: pick
 //                     the first combatant that is or carries a named hero or has the always-die behaviour
 //                     (0x5f), else index = synced RNG int(0, n - 1) (one draw per pick); loser Super units
 //                     survive free unless the enemy has a Super-weapon killer; starbases drop to the
 //                     highest level whose P x allowance <= budget (destroyed if none), budget -= P(level);
+//                     #193: before a starbase or unit test, budget -= the combatant's spawned pieces (floored at 0,
+//                     whether it survives or not, 0x60a140 [H]);
 //                     loser always-die units die; other units survive iff budget - cost x allowance > 0 and
 //                     then pay budget -= cost (floored at 0) [M: charged only on survival]. A winner with no
 //                     survivor keeps its weakest combatant. Any loser survivor -> the loser retreats.
@@ -119,6 +125,12 @@ struct ArStarbaseLevel {
 struct ArCombatant {
     int32_t owner = -1;
     std::vector<ArPiece> pieces;  // members first, then the own piece (when counted)
+    // #193 (0x60b0d0 / 0x60a140 [H]): Starting_Spawned_Units at the owner's tech level, one count x P(member) piece per
+    // entry: in the strength vector, and charged against the budget before the survival test.
+    std::vector<ArPiece> spawned;
+    // #193 (0x60d2a0 [H]): the combatant's one shot in the exchange of fire: the first spawned entry at the P of one
+    // member, else the representative type (a type with members: their summed P and categories [M]).
+    ArPiece shot;
     float own_power = 0.0f;       // P of the representative type (weakest-combatant key)
     bool hero = false;            // is or carries a named hero
     bool always_dies = false;     // behaviour 0x5f [L: meaning unknown; no port type sets it]
