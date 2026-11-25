@@ -13,7 +13,10 @@ Tiers: **[H]** read directly in the code, **[M]** inferred from the code with a 
   - **vf31 (0x6f6dd0)**, the ability's remove: v = 0 [H].
 - The class's XML tag is `Detect_Hero_Ability`: its name function returns the string, and it is registered under that
   name at 0x68b1f0 [H].
-- The parser table gives the fields [H for the offsets]:
+- The parser table gives the fields [M for the class binding]. The rows sit in a merged segment labelled
+  `Siphon_Credits_Ability` (xml_field_tables.md), which also puts Min_Siphon_Percentage, Evade_Detection_Chance and
+  Political_Change at +0x178: each ability subclass reuses that offset. DetectHeroAbilityClass's own parser was not
+  identified; the Detect_* trio is bound to it because the apply reads +0x178 / +0x17c and the tags name the detector.
 
 | Offset | Tag | Parser type |
 |---|---|---|
@@ -35,11 +38,14 @@ v = 0, k = 1 and adds every value p in this order with `v += p·k; k *= 1 − p`
 v = 1 − Π(1 − pᵢ), the chance that at least one detector succeeds [H]:
 
 1. **Orbit:** the planet data's fleet list (D +0xc0, 0x395900) in list order. Only fleets that pass the side filter
-   (evaluator vf +0x58) count. Each fleet's contents are flattened (0x3965f0, recursive), and each unit adds its own p.
-   A unit with a TRANSPORT behaviour (slot byte +0x337 ≠ -1) adds its cargo's values (0x397bf0, obj +0xc8 list)
-   instead.
+   (evaluator vf +0x58) count. Each fleet's contents are flattened one level (0x3965f0 with param_3 = 1): each content
+   object, then its team members (+0x336, +0xc0) and its transport cargo (+0x337, +0xc8 list). Each flattened unit
+   adds its own p, except a unit with a TRANSPORT behaviour (slot byte +0x337 ≠ -1), which adds its cargo's values
+   (0x397bf0, the +0xc8 list) instead of its own. The cargo is then counted twice, once from the flat list and once
+   from the transport, so a cargo detector contributes 1 − (1 − p)² [M: the decompile drops 0x397bf0's argument].
+   The running product k carries from the orbit pass into the surface pass.
 2. **Surface:** the planet data's surface list (D +0xd8, 0x397120). Each entry adds the values of its member list
-   (0x397bf0). **No side filter is applied** here [H].
+   (0x397bf0, +0xc8), never its own. **No side filter is applied** here [H].
 
 ## 3. The port
 
@@ -48,8 +54,11 @@ v = 1 − Π(1 − pᵢ), the chance that at least one detector succeeds [H]:
 - `anti_stealth_value(type)` = (float) detection_chance / detect_interval for a type that has the ability. The port
   treats the ability as applied, as its detector already does: vf30 runs when the ability is applied, and for a
   galactic ability that is creation for an `Initially_Enabled` one [M].
+- A type with the ability but no positive interval gives 0 [port]: retail's float division has no guard, and with
+  the default unknown, 0 would turn the union into NaN.
 - The token walks the same lists in the same order:
-  - the orbit fleets of the side, each content unit adding its own value (the port keeps ground cargo as direct fleet
-    contents, with no transport object);
-  - then every surface entry with no side filter, each adding its company members' values (`company_members`), or its
-    own when it has none [port].
+  - the orbit fleets of the side, each content unit adding its own value. The port keeps ground cargo as direct fleet
+    contents, with no transport object, so a cargo detector counts once, where retail counts it twice [port];
+  - then every surface entry with no side filter, each adding its company members' values (`company_members`). An
+    entry without members adds its own value [port]: retail's surface entries are company objects whose units are
+    the +0xc8 list, while a port surface entry can be a bare unit.

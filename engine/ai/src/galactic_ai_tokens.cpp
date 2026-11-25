@@ -1522,14 +1522,14 @@ struct GalacticSimTokenResolver::Impl {
             return true;
         }
         if (k == "ANTISTEALTHEFFECTIVENESS") {
-            // #245 (0x6d9180, docs/re/ANTI_STEALTH_EFFECTIVENESS.md [H]): v = 1 - prod(1 - p) built as v += p k, k *= 1 - p
-            // in double, p = the unit's float 0x395830 (a Detect_Hero_Ability's Detection_Chance / Detect_Interval_In_Seconds,
-            // [M] the ability taken as applied, as the port's detector does). Order: the side's orbit fleets in list order,
-            // each content unit (the port keeps ground cargo as direct contents: retail's transport adds its cargo); then
-            // every surface entry with NO side filter, each adding its company members (its own type when it has none [port]).
+            // #245 (0x6d9180, docs/re/ANTI_STEALTH_EFFECTIVENESS.md): v += p k, k *= 1 - p in double over the side's orbit
+            // fleet contents, then every surface entry's members with no side filter [H]; the [port] differences (cargo
+            // counted once, a member-less surface entry adding its own value) are in the note.
             const auto& sp = sim.rules().special.types;
             const auto value = [&](uint32_t t) -> double {
-                if (t >= sp.size() || sp[t].detection_chance < 0.0f) return 0.0;
+                // [port] no value without a positive interval: the constructor default of a missing
+                // Detect_Interval_In_Seconds was not read [M], and 0 would make the union NaN.
+                if (t >= sp.size() || sp[t].detection_chance < 0.0f || !(sp[t].detect_interval > 0.0f)) return 0.0;
                 return static_cast<double>(sp[t].detection_chance / sp[t].detect_interval);
             };
             double v = 0.0, keep = 1.0;

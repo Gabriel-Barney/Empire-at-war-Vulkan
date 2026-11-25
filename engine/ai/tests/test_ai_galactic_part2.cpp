@@ -479,19 +479,16 @@ void test_fleet_distance_tokens() {
     std::printf("fleet distance tokens: IsConnectedTo follows MaximumFleetMovementDistance (P1 72.1, P2 120)\n");
 }
 
-// #436 (docs/re/PLANET_TRADE_ROUTE_LIST.md) [H]: IsConnectedTo's attenuation 1 - d / GC+0x108 * A takes d = 0 only for a
-// neighbour a campaign trade route joins (0x3f7b30 walks the planet's trade-route list); a free-hop neighbour (within
-// MaximumFleetMovementDistance, no route) keeps its distance. P2 (120, 0) is the only planet of its type
-// (SynPlanetRestricted); radius 150, attenuator 0.5: free hop 1 - 120 / 150 * 0.5 = 0.6, trade route 1.0.
 void test_anti_stealth_effectiveness() {
     // #245 (0x6d9180, docs/re/ANTI_STEALTH_EFFECTIVENESS.md): AntiStealthEffectiveness = 1 - prod(1 - p) over the side's units,
     // p = Detection_Chance / Detect_Interval_In_Seconds of a Detect_Hero_Ability type.
-    const auto value = [](int frigates, bool corvette, const char* side) {
+    const auto value = [](int frigates, bool corvette, bool infantry, const char* side) {
         ParityWorld pw(
             false, {"BuildBarracks"},
-            [frigates, corvette](gal::GalacticSetup& s) {
+            [frigates, corvette, infantry](gal::GalacticSetup& s) {
                 for (int i = 0; i < frigates; ++i) s.forces.push_back({1, 3, tFrigate});
                 if (corvette) s.forces.push_back({1, 3, tCorvette});
+                if (infantry) s.forces.push_back({1, 3, tInfantry});  // a surface unit
             },
             [](gal::GalacticRules& r) {
                 r.special.types.resize(r.types.size());
@@ -499,6 +496,8 @@ void test_anti_stealth_effectiveness() {
                 r.special.types[tFrigate].detect_interval = 1.0f;
                 r.special.types[tCorvette].detection_chance = 0.4f;  // p = 0.4 / 2 = 0.2
                 r.special.types[tCorvette].detect_interval = 2.0f;
+                r.special.types[tInfantry].detection_chance = 0.5f;  // p = 0.5 on the surface
+                r.special.types[tInfantry].detect_interval = 1.0f;
             });
         pw.run(2);
         EquationSet e;
@@ -511,15 +510,25 @@ void test_anti_stealth_effectiveness() {
         CHECK(r.ok);
         return r.value;
     };
-    const double two = value(2, false, "EnemyForce"), three = value(2, true, "EnemyForce"), none = value(0, false, "EnemyForce");
-    const double friendly = value(2, true, "FriendlyForce");
-    std::printf("AntiStealthEffectiveness: 2 x 0.5 -> %.4f; + 0.2 -> %.4f; none %.4f; friendly side %.4f\n", two, three, none,
-                friendly);
+    const double two = value(2, false, false, "EnemyForce"), three = value(2, true, false, "EnemyForce");
+    const double none = value(0, false, false, "EnemyForce"), friendly = value(2, true, false, "FriendlyForce");
+    const double ground = value(0, false, true, "EnemyForce"), ground_friendly = value(0, false, true, "FriendlyForce");
+    const double both = value(1, false, true, "EnemyForce");
+    std::printf("AntiStealthEffectiveness: 2 x 0.5 -> %.4f; + 0.2 -> %.4f; none %.4f; friendly side %.4f; surface 0.5 -> %.4f "
+                "(friendly side %.4f); orbit 0.5 + surface 0.5 -> %.4f\n",
+                two, three, none, friendly, ground, ground_friendly, both);
     CHECK(std::fabs(two - 0.75) < 1e-9);    // the acceptance: 1 - 0.5 x 0.5
     CHECK(std::fabs(three - 0.8) < 1e-6);   // 1 - 0.5 x 0.5 x 0.8 (p = 0.2 from the float division)
     CHECK(none == 0.0 && friendly == 0.0);  // the enemy's orbit fleets are not the friendly side's
+    // The surface list has no side filter: the enemy's ground detector counts for either side's query.
+    CHECK(std::fabs(ground - 0.5) < 1e-9 && std::fabs(ground_friendly - 0.5) < 1e-9);
+    CHECK(std::fabs(both - 0.75) < 1e-9);   // the running product carries from the orbit pass into the surface pass
 }
 
+// #436 (docs/re/PLANET_TRADE_ROUTE_LIST.md) [H]: IsConnectedTo's attenuation 1 - d / GC+0x108 * A takes d = 0 only for a
+// neighbour a campaign trade route joins (0x3f7b30 walks the planet's trade-route list); a free-hop neighbour (within
+// MaximumFleetMovementDistance, no route) keeps its distance. P2 (120, 0) is the only planet of its type
+// (SynPlanetRestricted); radius 150, attenuator 0.5: free hop 1 - 120 / 150 * 0.5 = 0.6, trade route 1.0.
 void test_isconnectedto_trade_route_attenuation() {
     auto value = [](bool trade_route) {
         ParityWorld pw(false, {"BuildBarracks"}, [trade_route](gal::GalacticSetup& s) {
