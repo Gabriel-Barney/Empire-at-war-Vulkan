@@ -54,6 +54,9 @@ const Def kDefaults[] = {
     // Enums whose constructor value is -1 ("none"); kept as FieldValue::i = -1 with no name.
     {"MovementClass", "-1"}, {"Ship_Class", "-1"}, {"OccupationStyle", "-1"}, {"UnitCollisionClass", "-1"},
     {"Weather_Category", "-1"}, {"Tactical_Production_Queue", "-1"}, {"Projectile_Blast_Area_Dropoff_Tiers", "5"}, {"Projectile_Category", "-1"},
+    // #83: the constructor 0x367250 writes -1 over +0x1b3c..+0x1b43 (GUI_Bracket_Size, GUI_Row) [H]; the build pads 0x3145c0
+    // warn "does not have GUI_Row set" on -1 and place it with every row but 0 (the upper pads).
+    {"GUI_Row", "-1"},
 };
 
 const FieldId kNoField = 0xFFFFFFFFu;
