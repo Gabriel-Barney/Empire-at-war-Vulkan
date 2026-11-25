@@ -996,6 +996,7 @@ void GameAudioHost::battle_tick(const sim::TacticalBattle& battle, const objects
             battle.weather().active() ? battle.weather().intensity() : 1.0f, local_player < 0 || ab.weather_affected(local_player));
     // aud1 t08 (legacy docs/re/AUDIO.md §9.8): this tick's hits on the local player's (or a community-property ally's) base objects.
     bool base_hit = false;
+    Vec3 base_victim{};  // #479: the radar ping's position
     if (local_player >= 0) {
         using namespace objects;
         if (!base_behaviors_ready_) {
@@ -1023,9 +1024,10 @@ void GameAudioHost::battle_tick(const sim::TacticalBattle& battle, const objects
             const bool ally = vo >= 0 && vo != local_player && !cs.is_enemy(local_player, vo);
             base_hit = base_attacked(is_base, cs.is_enemy(d.source_owner, vo), vo, local_player, ally,
                                      ally && types.get_bool(vt, "Is_Community_Property"));
+            if (base_hit) base_victim = store.position(vh);
         }
     }
-    if (combat || base_hit) this->combat(combat, base_hit);
+    if (combat || base_hit) this->combat(combat, base_hit, base_victim);
 }
 
 uint32_t GameAudioHost::weapon_fired(uint64_t shooter, std::string_view hardpoint_fire, std::string_view shooter_fire, const Vec3& position) {
@@ -1146,13 +1148,15 @@ void GameAudioHost::weather(std::string_view type, float intensity, bool local_a
     if (game_) game_->set_weather(type, intensity, local_affected);
 }
 
-void GameAudioHost::combat(bool local_involved, bool local_base_attacked) {
-    if (!game_ || (!local_involved && !local_base_attacked)) return;
+bool GameAudioHost::combat(bool local_involved, bool local_base_attacked, const Vec3& victim) {
+    if (!game_ || (!local_involved && !local_base_attacked)) return false;
     audio::CombatEvent ce;
     ce.local_player_involved = local_involved;
     ce.local_base_attacked = local_base_attacked;
-    game_->combat(ce);
+    const bool announced = game_->combat(ce);
     ++stats_.combat_notes;
+    if (announced) base_pings_.push_back(victim);  // #479: the radar ping shares the announcement's gate
+    return announced;
 }
 
 void GameAudioHost::cue_lines(const sim::TacticalBattle& battle, const objects::ObjectStore& store, const objects::GameObjectTypes& types,
@@ -1818,7 +1822,7 @@ uint32_t GameAudioHost::death_clone_ends(const objects::ObjectStore&, const obje
 uint32_t GameAudioHost::self_destruct_lines(std::span<const SelfDestructCue>) { return 0; }
 uint32_t GameAudioHost::weapon_fired(uint64_t, std::string_view, std::string_view, const Vec3&) { return 0; }
 void GameAudioHost::weather(std::string_view, float, bool) {}
-void GameAudioHost::combat(bool, bool) {}
+bool GameAudioHost::combat(bool, bool, const Vec3&) { return false; }
 void GameAudioHost::super_weapon_report(bool) { battle_reported_ = true; }
 void GameAudioHost::music(MusicScene scene, std::string_view, bool, std::string_view) {
     if (scene != scene_) pending_played_ = false;
