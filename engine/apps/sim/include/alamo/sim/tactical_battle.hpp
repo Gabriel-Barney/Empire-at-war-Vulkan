@@ -1032,6 +1032,10 @@ public:
     float sw_readiness(objects::ObjectId weapon) const;                     // < 0: no special-weapon pack
     bool sw_begin_targeting(objects::ObjectId weapon);
     bool sw_fire_at_object(const TacticalMode& mode, objects::ObjectId weapon, objects::ObjectId target);
+    // #460 (0x491f80 / 0x386220 [H]): the special-weapon cursor and click test, with no readiness threshold. A
+    // SPECIAL_WEAPON: SpecialWeaponSystem::can_target ("not allied": a neutral target passes); a space station with a
+    // special-weapon hard point: CombatSystem::special_weapon_can_fire. False for anything else.
+    bool sw_can_target(const TacticalMode& mode, objects::ObjectId weapon, objects::ObjectId target) const;
     bool sw_fire_lobbing_at(const TacticalMode& mode, objects::ObjectId weapon, Vec3 point);
     // SpecialWeaponsAllowed (0x527620): false once the battle planet is destroyed (in the galaxy, or by this battle's TSW).
     // then the player's Enable_Special_Weapons list (AbilitySystem PlayerGate::SpecialWeapons): empty -> allowed
@@ -2928,6 +2932,7 @@ private:
     void l1_hash(StateHasher& h) const;
     uint32_t l1_desc_of(int32_t type);                       // SpecialWeaponDesc index (cache by type)
     tactical::abilities::SpecialWeaponWorld l1_world(const TacticalMode& mode);
+    tactical::abilities::SpecialWeaponWorld l1_target_world(const TacticalMode& mode) const;  // the target-test hooks only
     tactical::abilities::SpecialWeaponSystem l1_sw_;
     std::vector<std::pair<int32_t, uint32_t>> l1_desc_cache_;  // (type, desc index), lookup only
     std::vector<tactical::abilities::SpecialWeaponEvent> l1_sw_events_;

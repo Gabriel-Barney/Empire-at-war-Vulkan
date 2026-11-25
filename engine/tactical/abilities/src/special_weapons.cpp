@@ -142,17 +142,24 @@ void SpecialWeaponSystem::queue_volley(Pack& p, const SpecialWeaponDesc& d, Obje
     p.at_point = at_point ? 1 : 0;
 }
 
-bool SpecialWeaponSystem::fire_at_object(ObjectId id, ObjectId target, uint32_t frame, const SpecialWeaponWorld& w) {
-    // 0x491cd0 [H]: ready, target not flagged, not allied, categories in Special_Weapon_Valid_Targets, not self.
-    Pack* p = pack(id);
+bool SpecialWeaponSystem::can_target(ObjectId id, ObjectId target, const SpecialWeaponWorld& w) const {
+    // 0x491f80 [H]: target not flagged, not allied, categories in Special_Weapon_Valid_Targets; not self.
+    const Pack* p = pack(id);
     if (!p || target == kNoObject || target == id) return false;
     const SpecialWeaponDesc& d = descs_[p->desc];
-    if (!(d.kinds & kSwSpecialWeapon) || readiness_of(*p, frame) < 1.0f) return false;
+    if (!(d.kinds & kSwSpecialWeapon)) return false;
     if (w.target_flagged && w.target_flagged(target)) return false;
     const bool allied = w.allied ? w.allied(p->owner, target) : (w.owner_of && w.owner_of(target) == p->owner);
     if (allied) return false;
     const uint64_t cats = w.category_mask ? w.category_mask(target) : ~uint64_t{0};
-    if (!(cats & d.valid_targets)) return false;
+    return (cats & d.valid_targets) != 0;
+}
+
+bool SpecialWeaponSystem::fire_at_object(ObjectId id, ObjectId target, uint32_t frame, const SpecialWeaponWorld& w) {
+    // 0x491cd0 [H]: ready, then the target tests (can_target, 0x491f80).
+    Pack* p = pack(id);
+    if (!p || readiness_of(*p, frame) < 1.0f || !can_target(id, target, w)) return false;
+    const SpecialWeaponDesc& d = descs_[p->desc];
     // 0x491770: restart (start = now, ready = now + recharge), targeting off, the weapon event (the volley).
     p->start = frame;
     p->ready = frame + recharge_frames(d);

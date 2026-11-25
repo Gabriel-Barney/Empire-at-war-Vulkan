@@ -304,6 +304,10 @@ struct Run {
     float ground = 0.0f;
     bool fields = false, jump_timing = false;
     uint32_t deaths_before = 0;
+    // #460 (sw_variant): command 25 with a second special weapon of the owner aimed first; a refused friendly-target
+    // command; TacticalBattle::sw_can_target.
+    bool other_aimed = false, friendly_refused = false, friendly_swept = false, foreign_marker_kept = false;
+    bool can_unready = false, can_enemy = false, can_friendly = true, can_wrong_category = true;
     std::vector<std::string> log;
     // TSW_PLANET_DESTROY follow-up runs (follow > 0): the battle runs on to its end.
     uint32_t tsw_fire_frame = 0, destroy_frame = 0, debris_frame = 0, done_frame = 0, end_frame = 0;
@@ -319,13 +323,21 @@ struct Run {
     float ds_health0 = 0.0f, ds_health = 0.0f;  // at frame 2 and as last seen
 };
 
+// #460: the destroy-after marker for run()'s sw_variant (in its own data folder: the golden run's type table stays).
+const char* kSw460Types = R"(
+ <MiscObject Name="L1_SW_Marker"><Behavior>DUMMY_DESTROY_AFTER_SPECIAL_WEAPON_FIRED</Behavior><Is_Decoration>No</Is_Decoration></MiscObject>
+)";
+
 // Battle frame schedule (frames of the battle's own counter). follow: 0 = the golden run (stops at the planet's
 // destruction); 1 = on to the end, the Empire (defender) retreats during the TSW sequence (victory hold, §2); 2 = on to
 // the end, the Empire's Faction_Leader is a member of a company on the battle planet's surface (victory 7 / 0x10, §6);
 // 3 = on to the end, the Underworld escort frigates die (Hyperspace_Away) on the release frame, the Death Star is left.
 // via_command = the special weapon fires through command 25 (weapon + target object) instead of the direct
-// begin targeting + fire calls; the CRC log and the special-weapon trace must not change.
-Run run(const Data& d, int32_t workers, int follow = 0, bool via_command = false) {
+// begin targeting + fire calls; the CRC log and the special-weapon trace must not change (#460: command 25 never begins
+// targeting, 0x40a3b0; the trace reads the events of each tick, and the calls run between ticks).
+// sw_variant (#460, data with kSw460Types): a second Ion Cannon of the Empire and three L1_SW_Marker objects (Empire,
+// Empire, Underworld); before the command, the second cannon is aimed and a command at a friendly target is refused.
+Run run(const Data& d, int32_t workers, int follow = 0, bool via_command = false, bool sw_variant = false) {
     Run out;
     jobs::JobSystem js(jobs::JobSystemConfig{workers});
     SimConfig cfg;
@@ -372,8 +384,10 @@ Run run(const Data& d, int32_t workers, int follow = 0, bool via_command = false
                       corvette = objects::kNoObjectId, old = objects::kNoObjectId, slowed = objects::kNoObjectId, tsw = objects::kNoObjectId;
     float target_hp0 = 0.0f;
     uint32_t fire_frame = 0;
+    bool fire_tried = false;  // the first ready frame only: a refused fire is not retried
     objects::ObjectId dummy = objects::kNoObjectId;
     std::vector<objects::ObjectId> escorts;  // the Underworld (attacker) frigates
+    objects::ObjectId other = objects::kNoObjectId, markers[3] = {objects::kNoObjectId, objects::kNoObjectId, objects::kNoObjectId};
     for (uint64_t t = 0; t < 4000 && (follow ? !out.ended : !out.planet_destroyed); ++t) {
         host.tick_once();
         TacticalBattle* b = battles.battle();
@@ -418,6 +432,19 @@ Run run(const Data& d, int32_t workers, int follow = 0, bool via_command = false
             weapon = st.id(wh);
             out.weapon_adopted = b->sw_readiness(weapon) >= 0.0f && b->sw_readiness(weapon) < 1.0f;
             out.not_ready_refused = !b->sw_fire_at_object(*tm, weapon, target);
+            if (sw_variant) {
+                const objects::ObjectHandle oh = tm->spawn(sp);
+                b->adopt_object(*tm, oh);
+                other = st.id(oh);
+                for (int i = 0; i < 3; ++i) {
+                    objects::SpawnParams mp;
+                    mp.type = static_cast<objects::TypeIndex>(type_of(d, "L1_SW_Marker"));
+                    mp.owner = i < 2 ? 0 : 1;
+                    mp.position = st.position(source);
+                    markers[i] = st.id(tm->spawn(mp));
+                }
+                out.can_unready = b->sw_can_target(*tm, weapon, target);  // no readiness test
+            }
             out.tsw_ready = b->tsw_state(tsw) == tactical::abilities::kTswReady;  // the attacker's TSW starts ready
             // Hyperspace: an Underworld frigate leaves; an Empire corvette jumps cinematically.
             CHECK(b->hyperspace_out(jumper, 5, false));    // cinematic retreat form: galactic unit survives
@@ -453,8 +480,21 @@ Run run(const Data& d, int32_t workers, int follow = 0, bool via_command = false
                          b->nearest_field(0.0f, 0.0f, 4u) != objects::kNoObjectId && b->nearest_field(0.0f, 0.0f, 1u) == objects::kNoObjectId;
         }
         if (f == 70) out.engines_back = b->engines_online(slowed) == 1;
-        if (weapon != objects::kNoObjectId && !out.fired && b->sw_readiness(weapon) >= 1.0f) {
+        if (weapon != objects::kNoObjectId && !fire_tried && b->sw_readiness(weapon) >= 1.0f) {
+            fire_tried = true;
             target_hp0 = b->combat().health(target);
+            if (sw_variant) {
+                auto alive = [&st](objects::ObjectId id) { return id != objects::kNoObjectId && st.alive(st.find(id)); };
+                out.can_enemy = b->sw_can_target(*tm, weapon, target);
+                out.can_friendly = b->sw_can_target(*tm, weapon, slowed);  // an Empire frigate
+                out.can_wrong_category = b->sw_can_target(*tm, weapon, tsw);  // the Underworld Death Star: Super
+                out.other_aimed = b->sw_begin_targeting(other);
+                commands::EventData fe(commands::EventType::SpecialWeaponFire);
+                fe.set("weapon", static_cast<uint32_t>(weapon)).set("player", 0).set("at_position", 0).set("target", static_cast<uint32_t>(slowed));
+                out.friendly_refused = b->handle_command(*tm, 0, fe, host.random().synced()) == commands::RejectReason::InvalidTarget;
+                out.friendly_swept = !alive(markers[0]) && !alive(markers[1]);
+                out.foreign_marker_kept = alive(markers[2]);
+            }
             if (via_command) {
                 commands::EventData ev(commands::EventType::SpecialWeaponFire);
                 ev.set("weapon", static_cast<uint32_t>(weapon)).set("player", 0).set("at_position", 0).set("target", static_cast<uint32_t>(target));
@@ -547,11 +587,23 @@ void test_battle(const Data& d) {
     CHECK(a.increment == 3);
     CHECK(a.ground < -1.0e30f);
     CHECK(a.fields);
-    {  // the human space special-weapon path (command 25 with a target object) fires exactly as the direct calls
+    {  // the human space special-weapon path (command 25 with a target object) fires exactly as the direct calls, without
+       // their begin targeting (#460: 0x40a3b0 never calls 0x491b40)
         const Run c = run(d, 0, 0, true);
         const auto dv = first_divergence(a.crc, c.crc);
         std::printf("  via command 25: fired %d hit %d, %s, trace %s\n", c.fired, c.hit, dv.message.c_str(), c.trace == a.trace ? "identical" : "DIFFERENT");
         CHECK(c.fired && c.hit && !dv.diverged && c.trace == a.trace);
+    }
+    {  // #460: command 25 fires with another of the owner's special weapons aimed; a refused command still sweeps
+        const auto dv = make_data("alamo_sim_l1_sw460", kSw460Types);
+        const Run v = run(*dv, 0, 0, true, true);
+        std::printf("  #460: other aimed %d, fired %d; friendly refused %d, swept %d (Underworld marker kept %d); can_target unready %d "
+                    "enemy %d friendly %d wrong category %d\n",
+                    v.other_aimed, v.fired, v.friendly_refused, v.friendly_swept, v.foreign_marker_kept, v.can_unready, v.can_enemy,
+                    v.can_friendly, v.can_wrong_category);
+        CHECK(v.other_aimed && v.fired && v.hit);
+        CHECK(v.friendly_refused && v.friendly_swept && v.foreign_marker_kept);
+        CHECK(v.can_unready && v.can_enemy && !v.can_friendly && !v.can_wrong_category);
     }
     for (int32_t w : jobs::determinism_worker_counts()) {
         if (w == 0) continue;

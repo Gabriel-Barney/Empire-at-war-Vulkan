@@ -286,12 +286,9 @@ std::vector<std::string> TacticalBattle::adoption_violations(const TacticalMode&
     return out;
 }
 
-ta::SpecialWeaponWorld TacticalBattle::l1_world(const TacticalMode& mode) {
+ta::SpecialWeaponWorld TacticalBattle::l1_target_world(const TacticalMode& mode) const {
     const objects::ObjectStore* st = &mode.primary();
     ta::SpecialWeaponWorld w;
-    // S8 t26 / t30 (TACTICAL_COMBAT §3.1.1 "Fire-at-position order"): the order (point + pending) goes to the weapon's own
-    // WeaponBehavior, which charges and fires it.
-    w.fire_at_position = [this](tc::ObjectId id, tactical::Vec3 p) { return combat_ != nullptr && combat_->order_fire_at_position(id, p); };
     w.owner_of = [st](tc::ObjectId t) {
         const objects::ObjectHandle h = st->find(t);
         return st->alive(h) ? st->owner(h) : -1;
@@ -307,6 +304,15 @@ ta::SpecialWeaponWorld TacticalBattle::l1_world(const TacticalMode& mode) {
         return st->alive(h) ? catalog_->types().get(st->type(h), objects::tags::CategoryMask) : 0u;
     };
     w.target_flagged = [st](tc::ObjectId t) { return !st->alive(st->find(t)); };  // obj +0x3a0 & 0x40 [M: dying]
+    return w;
+}
+
+ta::SpecialWeaponWorld TacticalBattle::l1_world(const TacticalMode& mode) {
+    const objects::ObjectStore* st = &mode.primary();
+    ta::SpecialWeaponWorld w = l1_target_world(mode);
+    // S8 t26 / t30 (TACTICAL_COMBAT §3.1.1 "Fire-at-position order"): the order (point + pending) goes to the weapon's own
+    // WeaponBehavior, which charges and fires it.
+    w.fire_at_position = [this](tc::ObjectId id, tactical::Vec3 p) { return combat_ != nullptr && combat_->order_fire_at_position(id, p); };
     // OI abilities: the Base_Power_Ability list (TACTICAL_GAPS §7.3; empty = no power) replaces the "passes" stand-in.
     w.base_power = [this](int32_t p) { return combat_ && combat_->has_base_power(p); };
     const objects::BehaviorTypeId dummy = l1_beh().tsw_target;
@@ -343,6 +349,11 @@ bool TacticalBattle::sw_begin_targeting(objects::ObjectId weapon) { return l1_sw
 bool TacticalBattle::sw_fire_at_object(const TacticalMode& mode, objects::ObjectId weapon, objects::ObjectId target) {
     if (finished_) return false;
     return l1_sw_.fire_at_object(weapon, target, frame_, l1_world(mode));
+}
+
+bool TacticalBattle::sw_can_target(const TacticalMode& mode, objects::ObjectId weapon, objects::ObjectId target) const {
+    if ((l1_sw_.kinds(weapon) & ta::kSwSpecialWeapon) != 0) return l1_sw_.can_target(weapon, target, l1_target_world(mode));
+    return combat_ && combat_->special_weapon_readiness(weapon) >= 0.0f && combat_->special_weapon_can_fire(weapon, target);
 }
 
 bool TacticalBattle::sw_fire_lobbing_at(const TacticalMode& mode, objects::ObjectId weapon, Vec3 point) {

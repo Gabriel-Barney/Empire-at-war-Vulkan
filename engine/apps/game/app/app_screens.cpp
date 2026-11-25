@@ -1355,7 +1355,9 @@ void App::update_cursor(ui::HudDrawList& dl) {
             } else if (sw_weapon_ != objects::kNoObjectId) {  // POINTER_ATTACK_WITH_SPECIAL_WEAPON_n / _INVALID
                 c.targeting = ui::CursorContext::Targeting::SpecialWeapon;
                 c.special_weapon = sw_icon_;
-                c.target_valid = c.hover == ui::CursorContext::Hover::Enemy;
+                // #460 (0x491f80 / 0x386220 [H]): _INVALID unless the object under the cursor is a valid target.
+                const auto hovered = static_cast<objects::ObjectId>(bview_.hover());
+                c.target_valid = tm && tb && hovered != 0 && tb->sw_can_target(*tm, sw_weapon_, hovered);
             }
         }
         // HUD_GAPS §1.4: the repair cursor over an own / allied damaged hard point not being repaired, when the selection

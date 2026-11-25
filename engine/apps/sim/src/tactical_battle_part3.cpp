@@ -1448,33 +1448,29 @@ cmd::RejectReason TacticalBattle::handle_command(TacticalMode& mode, uint8_t pla
             for (const objects::ObjectHandle h : list)
                 if (store.alive(h) && store.has_behavior(h, kDestroyAfter)) bt_kill_silently(mode, h);
         };
-        // ui1 t04 [port] (retail's human UI path is not traced): the space special-weapon button sends
-        // command 25 with a target object for a SPECIAL_WEAPON object or a space station; it fires as Lua
-        // Fire_Special_Weapon does (SCRIPT_GAPS §1.1 steps 4 / 5): readiness >= 1, the SpecialWeaponsAllowed gate, begin
-        // targeting + fire at the object (0x491b40 / 0x491cd0), or the station's special-weapon hard point (can-fire test
-        // 0x386220 + assign); then the destroy-after sweep (step 6).
+        // #460 (0x40a3b0 [H]): a target object for a SPECIAL_WEAPON object or a space station: readiness, the
+        // SpecialWeaponsAllowed gate (0x527620), then the fire at the object (0x491cd0, no begin targeting: 0x491b40 is the
+        // Lua Fire_Special_Weapon path's) or the station's special-weapon hard point (can-fire test 0x386220 + assign,
+        // 0x3822e0). The destroy-after sweep runs whatever the fire returns (0x40a5b2 / 0x40a565 -> 0x40a5b7); a refused
+        // fire is InvalidTarget after it.
         if (ev.u("at_position") == 0 && !(combat_ && combat_->fires_at_position(wid))) {
             const uint32_t tw = ev.u("target");
             const objects::ObjectHandle th = tw == cmd::kNoObject || tw > 0x7FFFFFFFu ? objects::ObjectHandle{} : store.find(static_cast<objects::ObjectId>(tw));
             if (!store.alive(th)) return R::InvalidTarget;
             const objects::ObjectId tid = store.id(th);
+            const auto swept = [&](bool fired) {  // 0x40a5b7: the sweep, then the fire's outcome
+                destroy_after();
+                return fired ? R::None : R::InvalidTarget;
+            };
             if ((l1_sw_.kinds(wid) & ta::kSwSpecialWeapon) != 0) {
                 if (l1_sw_.readiness(wid, frame_) < 1.0f) return R::AbilityNotReady;
                 if (!special_weapons_allowed(static_cast<int32_t>(player))) return R::NotAllowed;
-                if (!l1_sw_.targeting(wid) && !sw_begin_targeting(wid)) return R::NotAllowed;
-                if (!sw_fire_at_object(mode, wid, tid)) {
-                    if (l1_sw_.targeting(wid)) sw_begin_targeting(wid);  // a second begin clears the flag (0x491b40)
-                    return R::InvalidTarget;
-                }
-                destroy_after();
-                return R::None;
+                return swept(sw_fire_at_object(mode, wid, tid));
             }
             if (combat_ && combat_->special_weapon_readiness(wid) >= 0.0f) {
                 if (combat_->special_weapon_readiness(wid) < 1.0f) return R::AbilityNotReady;
                 if (!special_weapons_allowed(static_cast<int32_t>(player))) return R::NotAllowed;
-                if (!combat_->special_weapon_fire(wid, tid)) return R::InvalidTarget;
-                destroy_after();
-                return R::None;
+                return swept(combat_->special_weapon_fire(wid, tid));
             }
             return R::Unhandled;
         }
