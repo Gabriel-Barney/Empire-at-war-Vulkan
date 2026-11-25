@@ -288,6 +288,10 @@ exception there wins.
 - **Pre-battle skirmish buy screen kept** (Gabriel, 2026-11-04): the port keeps its buy-units screen between skirmish
   staging and Start Game, although retail single-player skirmish has none (its buy dialog opens only inside a battle).
   Its list follows retail's filter. Revisit if the in-battle buy dialog is built.
+- **Screenshot files** (lane-3 run, 2026-11-24, #466): the screenshot key keeps retail's name
+  `EAW_<YYYYMMDD>_<HHMMSScc>` and `ScreenShots` folder, but writes a PNG (the port's capture path already encodes PNG;
+  retail writes TGA) into a folder beside the saves, not under the game's working folder (the port's executable folder
+  can be read-only).
 
 ## Mod picker load report stays in-process
 

@@ -25,6 +25,7 @@
 //               destroys the save it was replacing.
 #pragma once
 #include <cstdint>
+#include <ctime>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -74,6 +75,12 @@ struct SaveRowWords {
 std::string save_row_label(const SaveMeta& m, const SaveRowWords& words = {});
 std::string new_playthrough_id(int64_t now);          // a new SaveMeta::playthrough ("<now in hex>-<8 hex digits>")
 std::string format_local_time(int64_t unix_seconds);  // "2026-10-29 14:03" ("" for 0)
+// #466 (docs/re/TACTICAL_HOTKEYS.md slot 80, format 0x8034ec [H]): retail's screenshot file name
+// EAW_<YYYYMMDD>_<HHMMSScc> (cc = hundredths of a second) in a ScreenShots folder. [port] (docs/DECISIONS.md "Front-end
+// and skirmish choices", screenshot files): a PNG, and the folder beside the saves.
+inline constexpr const char* kScreenshotFolder = "ScreenShots";
+std::string screenshot_file_name(const std::tm& local, int centis);  // `local` as localtime_s fills it
+std::string screenshot_file_name_now();  // the local time now ("" when the clock cannot be read)
 int64_t unix_now();                                   // wall clock, seconds since 1970-01-01 UTC (SaveMeta::saved_at)
 
 struct SaveEntry {
