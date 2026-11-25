@@ -132,6 +132,29 @@ void TacticalBattle::sk_garrison_upgrade(int32_t player, const std::vector<int32
     }
 }
 
+int32_t TacticalBattle::sk_garrison_delay_frames(int32_t player) const {
+    float delay = 20.0f;
+    const auto& ps = galaxy_->players();
+    const auto& fs = galaxy_->rules().factions;
+    if (player >= 0 && static_cast<size_t>(player) < ps.size() && ps[static_cast<size_t>(player)].faction < fs.size())
+        if (const std::string_view v = fs[ps[static_cast<size_t>(player)].faction].xml_text("Garrison_Reinforcement_Delay_Seconds");
+            !v.empty())
+            delay = std::max(0.0f, to_f(v));
+    return frames_trunc(delay * 30.0f);
+}
+
+float TacticalBattle::garrison_respawn(int32_t player) const {
+    for (const SkGarrison& g : sk_garrisons_) {
+        if (g.player != player || g.timer < 0) continue;
+        // The timer holds the expiry frame; the delay is recomputed as the arming did (the faction data does not change).
+        const int32_t dur = sk_garrison_delay_frames(player);
+        if (dur <= 0) return 0.0f;
+        const float elapsed = static_cast<float>(static_cast<int32_t>(frame_) - (g.timer - dur));
+        return std::clamp(elapsed / static_cast<float>(dur), 0.0f, 1.0f);
+    }
+    return -1.0f;
+}
+
 void TacticalBattle::sk_garrison_tick() {
     for (SkGarrison& g : sk_garrisons_) {
         if (!g.ids.empty() && g.timer < 0 && g.pending.empty()) {
@@ -142,14 +165,7 @@ void TacticalBattle::sk_garrison_tick() {
             });
             if (!any) {
                 g.ids.clear();
-                float delay = 20.0f;
-                const auto& ps = galaxy_->players();
-                const auto& fs = galaxy_->rules().factions;
-                if (static_cast<size_t>(g.player) < ps.size() && ps[static_cast<size_t>(g.player)].faction < fs.size())
-                    if (const std::string_view v = fs[ps[static_cast<size_t>(g.player)].faction].xml_text("Garrison_Reinforcement_Delay_Seconds");
-                        !v.empty())
-                        delay = std::max(0.0f, to_f(v));
-                g.timer = static_cast<int32_t>(frame_) + frames_trunc(delay * 30.0f);
+                g.timer = static_cast<int32_t>(frame_) + sk_garrison_delay_frames(g.player);
             }
         }
         if (g.timer >= 0 && static_cast<int32_t>(frame_) >= g.timer) {

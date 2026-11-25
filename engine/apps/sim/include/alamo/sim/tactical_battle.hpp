@@ -718,6 +718,10 @@ public:
     // mcx4 t13 (presentation feed; MCX4_T13_RE_ANSWERS "Faction.Reinforcements_Selection_SFXEvent family", Player::Update
     // 0x287e70): players whose skirmish start-force re-delivery timer expired this tick, slot order.
     std::span<const int32_t> garrison_redelivered() const { return sk_redelivered_; }
+    // #474 (docs/re/TACTICAL_COMMANDBAR_COMPONENTS.md "Garrison respawn counter", 0x287e70 -> 0x311a60 [H]): the fill of
+    // `player`'s start-force re-delivery timer, elapsed / Garrison_Reinforcement_Delay_Seconds (0 when it arms, towards 1
+    // at expiry), or -1 while no timer runs (the counter is hidden).
+    float garrison_respawn(int32_t player) const;
     // mcx4 t13 (presentation feed; MCX4_T13_RE_ANSWERS "Faction.SFXEvent_GUI_Toggle_Non_Hero_Ability_On family",
     // SetUnitAbilityModeEvent 0x430270): a SetUnitAbilityMode with its sound flag that toggled at least one unit, in this
     // tick or in the command phase before it, in event order.
@@ -3352,6 +3356,7 @@ private:
     // list exists for every player, but its re-delivery needs a garrison member that dies, so nothing reads it.
     void sk_garrison_upgrade(int32_t player, const std::vector<int32_t>& types, bool add);
     void sk_garrison_tick();                  // tick
+    int32_t sk_garrison_delay_frames(int32_t player) const;  // Garrison_Reinforcement_Delay_Seconds in frames (20 s default)
     int32_t sk_pending_delivery(int32_t player, bool pop);  // HangarHost::pending_delivery
     std::vector<HgUpgradeObject> hg_upgrade_objs_;            // DUMMY_UPGRADE objects created by production (creation order)
     std::vector<std::pair<int32_t, uint32_t>> ga_upgrades_;   // galab: {player, upgrade type} to spawn at setup (not saved)

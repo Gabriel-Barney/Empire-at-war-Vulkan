@@ -341,6 +341,9 @@ struct TacticalHudFrame {
     std::span<const HudOrderQueue> order_queues;
     HudOrderButtons order_buttons;  // c_button00..05 enable state (HUD_GAPS §5)
     HudBombingRunButton bombing_run;  // b_special_weapon in land (HUD_GAPS §9)
+    // #474 garrison_respawn_counter (0x231): the local player's skirmish start-force re-delivery fill 0..1 (the sim's
+    // garrison_respawn), drawn as the component's Build_Texture_Name dial; < 0 hides it.
+    float garrison_respawn = -1.0f;
     HudCommandButtons command_buttons;  // b_retreat, b_reinforcement, beacon, movie mode, reinforcement texts
     bool objectives_hidden = false;     // ui3 t01 [port]: the Mission Holocron key (Tab) toggles the objectives box
     // [port: Gabriel, original screenshot] Game Paused banner (pause_shell: yellow TEXT_GAME_PAUSED bar at the top
@@ -451,6 +454,7 @@ private:
     static void ability_click(const AbilitySlot& a, const std::string& name, Button button, bool queued,
                               std::vector<commands::EventData>& out, std::vector<HudAction>* actions);
     void apply_bombing_run_button(const HudBombingRunButton& s);
+    void build_garrison_respawn(const TacticalHudFrame& f);
     void apply_command_buttons(const HudCommandButtons& s);
     void build_pause_banner(const TacticalHudFrame& f);
     void build_objectives(const TacticalHudFrame& f);
@@ -506,6 +510,7 @@ private:
     std::vector<uint8_t> dynamic_;  // per component: drawn by a panel (not by build_buttons)
     int32_t radar_ = -1, radar_blip_ = -1, credits_ = -1, shell_ = -1, retreat_ = -1;
     int32_t order_button_[6] = {-1, -1, -1, -1, -1, -1};  // c_button00..05
+    int32_t garrison_respawn_ = -1;                       // garrison_respawn_counter (#474)
     int32_t special_weapon_ = -1;                         // b_special_weapon (land: the bombing-run button)
     int32_t reinforce_button_ = -1, beacon_button_ = -1, beacon_t_ = -1, camera_t_ = -1;  // ui3 t03
     int32_t reinforce_counter_ = -1, r_pop_icon_ = -1, r_pop_text_ = -1;                 // ui3 t04

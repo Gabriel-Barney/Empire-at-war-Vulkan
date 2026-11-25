@@ -1227,6 +1227,60 @@ void test_bombing_run_button() {
     CHECK2(r && !r->hidden && r->disabled && r->build_fill == 25.0f);
 }
 
+// #474 garrison_respawn_counter (docs/re/TACTICAL_COMMANDBAR_COMPONENTS.md "Garrison respawn counter"): hidden at -1; at
+// 0.25 the icon plus the Build_Texture_Name dial at 25 %, centred 30 right and 60 down from the top-left corner.
+void test_garrison_respawn_counter() {
+    const std::string xml =
+        "<CommandBarComponents><CommandBarComponent Name=\"garrison_respawn_counter\"><Type>Button</Type>"
+        "<Icon_Texture_Name>i_button_skirmish_reinforcements.tga</Icon_Texture_Name>"
+        "<Build_Texture_Name>i_button_build.tga</Build_Texture_Name></CommandBarComponent></CommandBarComponents>";
+    ComponentTable t;
+    const data::XmlDocument doc = data::XmlDocument::parse(std::string_view(xml), "garrison.xml");
+    CHECK2(doc.ok());
+    t.parse(doc.root());
+    TextureAtlas atlas = stage2_atlas();
+    atlas.add({"i_button_skirmish_reinforcements.tga", 220, 60, 40, 40, true});
+    auto box = make_box_rasterizer();
+    FontCache fonts(*box);
+    TacticalHud hud;
+    hud.init(t, atlas, fonts);
+    hud.resize(1024, 768);
+    TacticalHudFrame fr;
+    fr.world.view = top_view2(1024, 768);
+    const auto ci = static_cast<uint32_t>(t.find("garrison_respawn_counter"));
+    const Vec2f at{-0.5f * hud.canvas().width + 30.0f, 0.5f * hud.canvas().height - 60.0f};
+    struct Seen {
+        size_t quads = 0, dials = 0;
+        float fill = -1.0f;
+    };
+    auto seen = [&]() {
+        Seen s;
+        for (uint32_t layer = 0; layer < 13; ++layer)
+            for (const HudQuad& q : hud.draw_list().items(layer, HudList::Alpha)) {
+                if (!near2(0.5f * (q.min.x + q.max.x), at.x) || !near2(0.5f * (q.min.y + q.max.y), at.y)) continue;
+                ++s.quads;
+                if (q.fill < 100.0f) {
+                    ++s.dials;
+                    s.fill = q.fill;
+                }
+            }
+        return s;
+    };
+    hud.build(fr, {}, {});  // -1: hidden, nothing drawn
+    const Seen off = seen();
+    const ButtonRuntime* r = hud.buttons().find_state(ci);
+    CHECK2(r && r->hidden && off.quads == 0);
+    fr.garrison_respawn = 0.25f;
+    hud.build(fr, {}, {});
+    const Seen on = seen();
+    r = hud.buttons().find_state(ci);
+    std::printf("garrison respawn counter: off %zu quads; 0.25 -> %zu quads, %zu dial at fill %.1f\n", off.quads, on.quads, on.dials,
+                on.fill);
+    CHECK2(r && !r->hidden && r->build_fill == 25.0f);
+    // The icon and the i_button_build.tga dial over it, which covers the part still to come (100 - 25, as the build queue).
+    CHECK2(on.quads >= 2 && on.dials == 1 && near2(on.fill, 75.0f));
+}
+
 // Drag-select box (Playtest 3): drawn from the drag threshold on, over exactly the bounds box_select uses on release.
 void test_drag_box() {
     ComponentTable t;
@@ -1714,6 +1768,7 @@ int run_stage2_tests() {
     test_tactical_stage2();
     test_order_buttons();
     test_bombing_run_button();
+    test_garrison_respawn_counter();  // #474
     test_drag_box();
     return g_fail2;
 }
