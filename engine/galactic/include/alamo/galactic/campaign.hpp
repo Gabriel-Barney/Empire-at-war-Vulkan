@@ -615,7 +615,8 @@ public:
     // #191 (docs/re/GALACTIC_SELL.md): the credits paid for an object (object +0x32c), written at its production
     // completion (0x402840 -> 0x499000) [H]; 0 for an object that was never produced (starting forces, spawns).
     float paid_cost(ObjectHandle object) const;
-    void set_paid_cost(ObjectHandle object, float credits);
+    void set_paid_cost(ObjectHandle object, float credits);  // 0 drops the record
+    const std::vector<std::pair<int32_t, float>>& paid_costs() const { return paid_costs_; }  // (ObjectId, credits) ascending
     // GalacticSell (command 46, GalacticSellEventClass::Execute 0x5327a0) [H]: the object found by id (no owner check)
     // is removed with what it carries, and `player` (the issuer) gets back round(paid / 2) when paid > 1, nothing when
     // 0 < paid <= 1, else Build_Cost_Credits / 2 (integer halving). InvalidUnit when no live object has the id.

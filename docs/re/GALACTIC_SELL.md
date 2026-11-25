@@ -30,17 +30,21 @@ is 0x3FFFFF).
   (+0x336 != -1) passes it to its first member (0x3965f0); any other object takes it itself.
 - The value is 0x499000(entry): the entry's cost (+0x28) for an up-front payer; for a pay-as-you-go payer (0x289050)
   cost x clamp(1 - remaining (+0x1c) / build time (+0x10), 0, 1), the comparisons written so that a NaN reads as 1.
-  At completion the remaining time is 0, so both give the full cost.
+  At completion the remaining time is 0, so both give the full cost. It is the same function as the failed-creation
+  refund (the port's `econ::refund_amount`).
 - The other writers are constructors (0) and object copies (the source's value). An object that was never produced
   (starting forces, story spawns, reinforcements) keeps 0, and its sale refunds half its build cost.
 
 ## Port (#191)
 
 - `GalacticSim::paid_cost` / `set_paid_cost`: an ascending (ObjectId, credits) list holding the non-zero values,
-  written by `complete_build` with 0x499000's formula, dropped when the object is destroyed, hashed ("PDC1", once
-  non-empty) and saved (galactic save v16; older saves read none).
-- `GalacticSim::sell` and the `GalacticSell` case of `GalacticSim::execute`: the rule above. `destroy_object` removes
-  a fleet's members with it.
+  written by `complete_build` (`econ::refund_amount`), dropped when the object is destroyed (`destroy_object`, and a
+  starbase replaced by an upgrade or `replace_starbase`), hashed ("PDC1", once non-empty) and saved (galactic save v16;
+  older saves read none).
+- `GalacticSim::sell` and the `GalacticSell` case of `GalacticSim::execute`: the rule above.
+- [port] The removal is `destroy_object`: a fleet's members go with it, and the port's galactic objects carry and
+  attach nothing else, a company being one object (tier 1). Whether 0x391310 raises the score's destroyed signal and
+  ObjectDestroyed as `destroy_object` does was not traced [L] (tier 2: the end-of-game statistics).
 - [port] The type is the object's own, not 0x3973b0's derivation from behaviours 4 / 5 / 0x16 [M]. This is tier 1 for
   the shipped structures, which derive their own type.
 - [port] The score's read of +0x32c is not modelled (tier 3: nothing reads it yet).

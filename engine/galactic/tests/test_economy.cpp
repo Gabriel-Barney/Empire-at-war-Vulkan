@@ -2187,8 +2187,6 @@ void test_route_bribe_toll() {
     }
 }
 
-// the XML-to-setup step of the campaign rule fields (read_campaign_rule_fields), from a hand-built
-// campaign definition: value shapes, pair order, land / space matching, unresolved names dropped, last bool wins.
 // #191 (docs/re/GALACTIC_SELL.md; 0x5327a0, 0x402840, 0x499000 [H]): GalacticSell removes the object found by id and
 // refunds the issuer round(paid / 2), nothing for 0 < paid <= 1, else Build_Cost_Credits / 2; production writes the paid cost.
 void test_galactic_sell() {
@@ -2231,8 +2229,19 @@ void test_galactic_sell() {
     CHECK(s.execute(static_cast<uint8_t>(pEmpire), none) == RejectReason::InvalidUnit);
     CHECK(s.sell(pEmpire, frigate) == RejectReason::InvalidUnit && s.credits(pEmpire) == c0 + 2.0f);
     std::printf("    frigate paid 1250 -> 625, starting barracks -> 300, paid 0.5 -> 0, paid 3 -> 2\n");
+    // A starbase upgrade replaces the base: the old base's record goes with it, and the new base has its own.
+    World u({{pEmpire, rA, tSB1}, {pEmpire, rA, tBarracks}});
+    const objects::ObjectHandle sb1 = u.planet(rA).starbase;
+    const int32_t sb1_id = static_cast<int32_t>(u.store.id(sb1));
+    u.sim.set_paid_cost(sb1, 1000.0f);
+    CHECK(u.sim.enqueue(pEmpire, rA, tSB2) == RejectReason::None);
+    u.run(20 * 30 + 1);
+    CHECK(u.planet(rA).starbase_level == 2 && u.sim.paid_cost(u.planet(rA).starbase) == 1500.0f);
+    for (const auto& [id, credits] : u.sim.paid_costs()) CHECK(id != sb1_id);
 }
 
+// the XML-to-setup step of the campaign rule fields (read_campaign_rule_fields), from a hand-built
+// campaign definition: value shapes, pair order, land / space matching, unresolved names dropped, last bool wins.
 void test_campaign_rule_fields_parse() {
     std::printf("  mcx4: campaign rule fields parse\n");
     const GalacticRules rules = make_oi_rules(1.0f);

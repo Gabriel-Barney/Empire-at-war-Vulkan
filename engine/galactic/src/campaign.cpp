@@ -1196,22 +1196,11 @@ void GalacticSim::complete_build(PlanetIndex planet, const BuildEntry& e) {
     }
     if (!created && t.kind != UnitKind::StarBase && t.kind != UnitKind::GroundStructure)
         add_credits(e.player, econ::refund_amount(pays_as_you_go(e.player), e.remaining, e.build_time, e.cost), true);
-    // #191 (0x402840 [H]): the paid cost on the new object (+0x32c), read back by the sell refund. 0x499000: an up-front
-    // payer's full cost; a pay-as-you-go payer's cost x clamp(1 - remaining / T, 0, 1), the full cost once done. The
-    // original's comparisons are kept, so T = 0 reads as the full cost too. [port] the score's read is not modelled
+    // #191 (0x402840 [H]): the paid cost on the new object (+0x32c), read back by the sell refund: 0x499000, the same
+    // amount as the failed-creation refund above (the full cost once done). [port] the score's read is not modelled
     // (tier 3: nothing reads it yet).
-    if (created && store_->exists(last_spawn_)) {
-        float paid = e.cost;
-        if (pays_as_you_go(e.player)) {
-            const float f = 1.0f - e.remaining / e.build_time;
-            float g = 1.0f;
-            if (f <= 1.0f) g = f;
-            float c = 0.0f;
-            if (0.0f <= g) c = g;
-            paid = c * e.cost;
-        }
-        set_paid_cost(last_spawn_, paid);
-    }
+    if (created && store_->exists(last_spawn_))
+        set_paid_cost(last_spawn_, econ::refund_amount(pays_as_you_go(e.player), e.remaining, e.build_time, e.cost));
 }
 
 float GalacticSim::paid_cost(ObjectHandle object) const {
@@ -1246,8 +1235,10 @@ RejectReason GalacticSim::sell(int32_t player, ObjectHandle object) {
     // shipped structures, whose derived type is their own).
     const int32_t build_cost = t < rules_->types.size() ? rules_->types[t].build_cost : 0;
     int32_t refund = build_cost / 2;  // cdq / sar: halving toward zero
-    // The carried objects (TRANSPORT contents) and the attached ones go first, then the object, all through the
-    // removal 0x391310 (not the death handler); destroy_object takes a fleet's or carrier's contents with it.
+    // Retail removes the carried objects (TRANSPORT contents) and the attached ones (+0xC0), then the object, through
+    // 0x391310 (not the death handler). [port] destroy_object: a fleet's members go with it; the port's galactic objects
+    // carry and attach nothing else (a company is one object) (tier 1). Whether 0x391310 raises the score's destroyed
+    // signal and ObjectDestroyed as destroy_object does was not traced [L] (tier 2: the end-of-game statistics).
     destroy_object(object);
     if (paid > 1.0f) {
         const float half = paid / 2.0f;  // 0x22f9c0: (int)(x + 0.5f), (int)(x - 0.5f) below 0, in float
@@ -1278,7 +1269,10 @@ bool GalacticSim::create_unit(int32_t player, PlanetIndex planet, uint32_t type)
     const TypeInfo& t = rules_->types[type];
     switch (t.kind) {
     case UnitKind::StarBase: {
-        if (store_->alive(p.starbase)) store_->destroy(p.starbase);  // an upgrade replaces the base
+        if (store_->alive(p.starbase)) {  // an upgrade replaces the base
+            set_paid_cost(p.starbase, 0.0f);  // #191: the old base's record goes with it
+            store_->destroy(p.starbase);
+        }
         p.starbase = spawn(player, planet, type, p.object);
         p.starbase_level = t.base_level;
         p.starbase_owner = player;
@@ -2318,6 +2312,7 @@ bool GalacticSim::replace_starbase(PlanetIndex planet, uint32_t type) {
     if (type == kNoIndex || type >= rules_->types.size()) return destroy_object(p.starbase);
     const int32_t owner = p.starbase_owner;
     const int32_t old_type = static_cast<int32_t>(store_->type(p.starbase));  // storyb t14
+    set_paid_cost(p.starbase, 0.0f);  // #191: the replaced base's record goes with it
     store_->destroy(p.starbase);
     p.starbase = spawn(owner, planet, type, p.object);
     p.starbase_level = rules_->types[type].base_level;
