@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <functional>
+#include <initializer_list>
 #include <memory>
 #include <span>
 #include <string>
@@ -750,7 +751,8 @@ void test_synthetic() {
     // part of the pin moves (galactic and conflict digests unchanged; with the flag at 0 the pin is the old 0x67e4152092046d2e).
     // #68: the v13 per-planet tactical upgrade lists (a u32 count per player, empty here) move the save part again;
     // #459: the scenario's upgrade objects (step 65) enter the hash, and v14 adds their count.
-    sc.pin = 0xf621b2e0297abeb3ull;
+    // #456: v15 adds the cleared-fleet count (0 here) to the save part.
+    sc.pin = 0xb83074e41d7616bbull;
     run_scenario(sc);
 }
 
@@ -912,20 +914,36 @@ void test_queue_phases() {
         // v12 adds the company survivor records (u32 count 0 here); a v11 image has none.
         // v13 (#68) adds, per player, the per-planet tactical upgrade list (u32 count 0 here); a v12 image rebuilds it
         // from the corruption types (none here). v14 (#459) adds last the planets' persistent upgrade objects (u32 count 0
-        // here); a v13 image has none.
+        // here); a v13 image has none. v15 (#456) adds last the fleets cleared by an AI magic spawn (u32 count 0 here); a
+        // v14 image reads every fleet as set.
         const size_t tactical = 4 * s.players().size();
-        CHECK(bytes.size() >= galab + 28 + placement + tactical && bytes[0] == 14 && bytes[bytes.size() - 1] == 0);
-        std::vector<uint8_t> v13(bytes.begin(), bytes.end() - 4);
+        CHECK(bytes.size() >= galab + 32 + placement + tactical && bytes[0] == 15 && bytes[bytes.size() - 1] == 0);
+        std::vector<uint8_t> v14(bytes.begin(), bytes.end() - 4);
+        v14[0] = 14;
+        ByteReader r14(v14);
+        CHECK(o.read(r14) && sim_bytes(o) == bytes);
+        {  // a v15 image whose cleared-fleet list is malformed is refused: an index past the fleets, then two not ascending
+            const auto with_list = [&bytes](std::initializer_list<uint32_t> list) {
+                std::vector<uint8_t> img(bytes.begin(), bytes.end() - 4);
+                for (const uint32_t v : list)
+                    for (int i = 0; i < 4; ++i) img.push_back(static_cast<uint8_t>(v >> (8 * i)));
+                return img;
+            };
+            const std::vector<uint8_t> past = with_list({1, 0xFFFFu}), repeated = with_list({2, 0, 0});
+            ByteReader rp(past), rn(repeated);
+            CHECK(!o.read(rp) && !o.read(rn));
+        }
+        std::vector<uint8_t> v13(v14.begin(), v14.end() - 4);
         v13[0] = 13;
         ByteReader r13(v13);
         CHECK(o.read(r13) && sim_bytes(o) == bytes);
-        std::vector<uint8_t> v12(bytes.begin(), bytes.end() - static_cast<std::ptrdiff_t>(tactical + 4));
+        std::vector<uint8_t> v12(v14.begin(), v14.end() - static_cast<std::ptrdiff_t>(tactical + 4));
         v12[0] = 12;
         ByteReader r12(v12);
         CHECK(o.read(r12) && sim_bytes(o) == bytes);
         {  // a v14 image whose upgrade records are malformed is refused: a bad type, then a duplicate owner + type
-            const size_t base = bytes.size() - 4;
-            std::vector<uint8_t> bad(bytes.begin(), bytes.begin() + static_cast<std::ptrdiff_t>(base));
+            const size_t base = v14.size() - 4;
+            std::vector<uint8_t> bad(v14.begin(), v14.begin() + static_cast<std::ptrdiff_t>(base));
             const auto u32 = [&bad](uint32_t v) {
                 for (int i = 0; i < 4; ++i) bad.push_back(static_cast<uint8_t>(v >> (8 * i)));
             };
@@ -1161,7 +1179,8 @@ void test_foc() {
     // #68: the v13 per-planet tactical upgrade lists move the save part, and the galactic digest too: the first political
     // update gives the Underworld's start planets their Racketeering entries (the "PTU1" section).
     // #459: v14 adds the upgrade-object count to the save part.
-    sc.pin = 0x983ffbd46e045ec5ull;  // FoC data
+    // #456: v15 adds the cleared-fleet count to the save part.
+    sc.pin = 0xe678cb4e0a28f35dull;  // FoC data
     run_scenario(sc);
 }
 

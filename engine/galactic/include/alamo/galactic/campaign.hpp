@@ -950,10 +950,12 @@ public:
     bool steal_unit(int32_t player, uint32_t type, PlanetIndex destination, bool include_destination);
     // Steps 2-4 in order: steal (when `steal`), cancel the pending delayed-spawn entries of the type on every planet
     // (any owner), spawn. Step 5 (launch op 4 + form op 0 for a unit created on a surface; FAILED when
-    // blockaded) is the caller's, through FleetManagement events. #456: a spawned space unit or squadron ends in a fleet
-    // of its own (op 4 + op 0 with no target, 0x648370 [H calls; M that it ends alone]) whose counts_for_starbase is
-    // cleared [H].
+    // blockaded) is the caller's, through FleetManagement events.
     ObjectHandle magic_spawn(int32_t player, PlanetIndex planet, uint32_t type, bool steal, bool hero);
+    // #456 (docs/re/STARBASE_ORBIT_FLEETS.md): HIJACK_UNIT's last step (0x648370, after op 4 + op 0 with no target and
+    // only when the planet is not AI-blockaded) clears fleet data +0x94 on the spawned unit's fleet [H]. Clears
+    // counts_for_starbase on the fleet holding `unit` when the unit is alone in it; otherwise nothing.
+    void clear_starbase_count(ObjectHandle unit);
     // A hostile combat fleet in orbit of the planet for `player` (HUD / story use; the starbase rules use
     // starbase_orbit_blocked).
     bool blockaded(PlanetIndex planet, int32_t player) const { return valid_planet(planet) && enemy_fleet_in_orbit(planet, player); }

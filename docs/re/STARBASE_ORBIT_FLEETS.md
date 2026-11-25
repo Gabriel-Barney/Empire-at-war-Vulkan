@@ -65,9 +65,16 @@ spawn has it clear.
   orbit, owner != player, not hidden. `service_production` rule 2 and `build_check` step 20 use it.
 - `enemy_fleet_in_orbit` (hostile and combat-capable) stays for its other callers, `orbit_conflict` (the
   enter-orbit test 0x4338d0) and `blockaded`, which are separate retail tests.
-- #456: the byte is `FleetState::counts_for_starbase` (true for every new fleet). `GalacticSim::magic_spawn` moves a
-  spawned space unit or squadron that joined an orbit fleet into a fleet of its own and clears the flag there (both
-  HIJACK_UNIT callers: the galactic build task and the tactical reinforcement hijack). `starbase_orbit_blocked` tests
-  it. The merges (`merge_fleet`, FleetManagement op 3, the arrival merge) already keep the receiving fleet's state, as
-  retail does. Galactic save v15 carries the cleared fleets.
-- [port] the clear is not gated by the AI blockade test: the callers keep that gate for surface units only, as before.
+- #456: the byte is `FleetState::counts_for_starbase` (true for every new fleet), tested by `starbase_orbit_blocked`.
+  The galactic build task's magic plan (engine/ai/src/galactic_build.cpp) follows HIJACK_UNIT: after the spawn, unless
+  the planet is AI-blockaded, a surface unit is launched and formed as before, and a unit spawned into an orbit fleet
+  is formed alone with FleetManagement op 0 (so slotting and the new-fleet conflict run as for any op 0). Then
+  `GalacticSim::clear_starbase_count` clears the flag on the unit's fleet when the unit is alone there. The merges
+  (`merge_fleet`, FleetManagement op 3, the arrival merge, the AI's READY_TO_MERGE) already keep the receiving fleet's
+  state, as retail does. Galactic save v15 carries the cleared fleets.
+- [port] gaps:
+  - a launched ground unit that stays in the shared orbit fleet (the port has no company transports) leaves that
+    fleet set; one formed alone (it carries itself) is cleared;
+  - a blockaded orbit spawn does not fail the task as retail's state 7 does (as before), but it is not formed or cleared;
+  - the tactical reinforcement hijack (engine/apps/sim/src/battle_ai.cpp `hijack_unit`) does not form or clear: the
+    reinforcement stays in the battle's orbit fleet.

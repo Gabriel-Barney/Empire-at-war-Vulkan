@@ -118,31 +118,12 @@ ObjectHandle GalacticSim::magic_spawn(int32_t player, PlanetIndex planet, uint32
         auto& list = p.respawns;
         list.erase(std::remove_if(list.begin(), list.end(), [type](const RespawnEntry& e) { return e.type == type; }), list.end());
     }
-    const ObjectHandle made = spawn_unit(player, planet, type);
-    // #456 (docs/re/STARBASE_ORBIT_FLEETS.md): HIJACK_UNIT runs FleetManagement op 4, then op 0 with no target, on the spawned
-    // unit, so a space unit or squadron that joined an orbit fleet leaves it for a fleet of its own [H calls; M alone]; then
-    // it clears that fleet's +0x94 [H]. A ground unit or structure has no fleet: no clear. [port] the clear is done here for
-    // both callers and is not gated by the AI blockade test, which the callers keep for surface units.
-    const uint32_t f = fleet_containing(made);
-    if (f != kNoFleet) {
-        uint32_t own = f;
-        if (fleets_[f].contents.size() > 1) {
-            FleetState& from = fleets_[f];
-            const auto it = std::find(from.contents.begin(), from.contents.end(), made);
-            const auto i = static_cast<size_t>(it - from.contents.begin());
-            const uint8_t carried = i < from.carried.size() ? from.carried[i] : uint8_t{0};
-            from.contents.erase(it);
-            if (i < from.carried.size()) from.carried.erase(from.carried.begin() + static_cast<std::ptrdiff_t>(i));
-            const int32_t owner = from.owner;
-            const PlanetIndex at = from.planet;
-            own = create_fleet(owner, at);  // invalidates `from`
-            fleets_[own].contents.push_back(made);
-            fleets_[own].carried.push_back(carried);
-            fleet_member_joined(own, made);
-        }
-        fleets_[own].counts_for_starbase = false;
-    }
-    return made;
+    return spawn_unit(player, planet, type);
+}
+
+void GalacticSim::clear_starbase_count(ObjectHandle unit) {
+    const uint32_t f = fleet_containing(unit);
+    if (f != kNoFleet && fleets_[f].contents.size() == 1) fleets_[f].counts_for_starbase = false;
 }
 
 // ---- AI blockade test (0x3fa370, A2GAL_READINGS 4) [H] -------------------------------------------------------------

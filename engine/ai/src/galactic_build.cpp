@@ -103,13 +103,23 @@ void GalacticAiWorld::Impl::create_build_tasks(TaskForceRec& tf) {
             decide(tf.player, "magic spawn " + type_name(type) + " at " + planet_name(at));
             if (PlayerAi* owner = player_ai(tf.player)) owner->known.insert(store.id(o));  // not an On_Unit_Added: the task takes it
             // Step 5: a non-structure created on the surface is launched (op 4) and formed (op 0), FAILED when blockaded.
+            const bool blockaded = sim.ai_blockaded(at);  // 0x3fa370 (A2GAL_READINGS 4), after the spawn
             if (ti && !structure_kind(ti->kind) && on_surface(o)) {
-                if (sim.ai_blockaded(at)) {  // 0x3fa370 (A2GAL_READINGS 4)
+                if (blockaded) {
                     fail_build(t, "blockaded");
                     continue;
                 }
                 launch_and_form(tf.player, at, o, unit_jumps(o) ? kAloneFleet : gal::kNoFleet);
+            } else if (ti && !structure_kind(ti->kind) && !blockaded && fleet_of_unit(o) != gal::kNoFleet) {
+                // #456 (docs/re/STARBASE_ORBIT_FLEETS.md): a unit spawned into an orbit fleet is formed alone too (op 0
+                // with no target [H calls; M that it ends alone]). [port] a blockaded orbit spawn does not fail the task.
+                const uint32_t uid = static_cast<uint32_t>(store.id(o));
+                fleet_op(tf.player, gal::kFleetForm, static_cast<uint32_t>(store.id(sim.planets()[at].object)), cmd::kNoObject, uid,
+                         "form " + std::to_string(uid) + " alone");
             }
+            // #456: then +0x94 is cleared on the unit's fleet [H], when the unit is alone there. [port] a launched ground unit
+            // that stays in the shared orbit fleet (no company transports) leaves that fleet set.
+            if (!blockaded) sim.clear_starbase_count(o);
             tf_join(tf, o);  // galactic: 0x6498f0 hands the unit to the task -> FINISHED
             tf.had_units = true;
             finish_build(t);
