@@ -189,12 +189,28 @@ uint32_t tether_toggle(uint32_t current, std::span<const uint32_t> selection) {
     return selection.empty() ? 0 : selection.front();
 }
 
-std::vector<uint32_t> select_like(std::span<const uint32_t> selection, std::optional<uint32_t>,
-                                  std::span<const SelectableObject>, size_t) {
-    return {selection.begin(), selection.end()};
+std::vector<uint32_t> select_like(std::span<const uint32_t> selection, std::optional<uint32_t> cursor_type,
+                                  std::span<const SelectableObject> visible, size_t cap) {
+    std::vector<uint32_t> out(selection.begin(), selection.end());
+    if (!cursor_type) return out;
+    for (const SelectableObject& o : visible) {
+        if (out.size() >= cap) break;
+        if (o.type == *cursor_type && std::find(out.begin(), out.end(), o.id) == out.end()) out.push_back(o.id);
+    }
+    return out;
 }
 
-UnitCyclePick unit_cycle(std::span<const uint32_t>, std::span<const uint32_t>, int32_t) { return {}; }
+UnitCyclePick unit_cycle(std::span<const uint32_t> selection, std::span<const uint32_t> candidates, int32_t step) {
+    if (candidates.empty()) return {};
+    if (selection.empty()) return {candidates.front(), false};
+    const uint32_t anchor = selection.front();
+    if (step > 0) {
+        const auto it = std::upper_bound(candidates.begin(), candidates.end(), anchor);
+        return {it != candidates.end() ? *it : candidates.front(), true};
+    }
+    const auto it = std::lower_bound(candidates.begin(), candidates.end(), anchor);
+    return {it != candidates.begin() ? *(it - 1) : candidates.back(), true};
+}
 
 int8_t hotkey_group(uint16_t slot) {
     uint16_t n = 0xFFFF;
