@@ -48,7 +48,15 @@ drive `g_special_ability` [H].
   - the dragged group is classified against that target planet;
   - the kind is forced to -1 unless the group holds exactly one object or the kind is 6;
   - then the raid override applies.
-- **Use.** A drop of the dragged button on the row uses the ability: release handler `0x2f6c30`, then `0x3d2900`.
+- **Use.** A drop of the dragged button on the row: release handler `0x2f6c30` calls `0x3d2900(hud, row, dragged)` when
+  the drop target is a `g_special_ability` instance (#455) [H]. `0x3d2900` branches on the dragged component:
+  - another `g_special_ability`: nothing [H];
+  - `g_planet_fleet` at the row's planet: a same-planet path that builds the group's object list and uses the ability
+    [M: the list code was read, the call that uses it was not traced to its end];
+  - `g_planet_fleet` at another planet: it stores the target on the dragged button's data (`0x435750` / `0x4355a0`, a
+    pointer at +0x80 / +0x88), runs the move feedback `0x3ce870` and calls the HUD callback (0x11, the cursor, the target):
+    the move a planet drop makes [M]. Nothing there fires the ability on arrival [M];
+  - `g_planet_land_forces`: `0x3d51f0`, the call a land-forces drop on a planet makes [H].
 - **Story-forced planets.** A set of story-forced planets (`0xb30578..0xb305b0`) always shows a fixed kind. Who writes
   that set was not traced.
 - **Plain selection.** Selecting a hero on the map shows no `g_special_ability` row.
@@ -59,10 +67,20 @@ drive `g_special_ability` [H].
 
 - **Labels:** `activated_ability_slot_of` (engine/galactic/src/special_systems.cpp) now gives every kind its key. It
   used to give "" for 9, 2, 7 and 10, which were untraced.
-- **Rows:** the g_special_ability provider (engine/apps/game/app/app_hud.cpp) gives a unit with kind -1 no row. It
-  used to show the unit's name.
+- **Rows (#455):** while an own map fleet (`g_planet_fleet`) is dragged, every visible planet shows at most one row
+  (`GalacticHud::build_special_abilities`, provider `drag_special_ability` in engine/apps/game/app/app_hud.cpp).
+  - The kind is `game::drag_ability_slot`: the member with the lowest `Ranking_In_Category`, none on a story-gated
+    planet, only kind 6 for a group of more than one, then the raid override.
+  - Raid: the planet's owner is an enemy and the fleet passes `ConflictManager::raid_force` (`0x432e20`) [M for
+    `0x2e6020`].
+  - The planets: the fleet's own planet, and every planet `fleet_drag_route` reaches (the drag lines' path request,
+    `0x3da30`). Retail's `0x3f0010` is not read [M].
+  - A drop on the own planet's row activates: SpecialAbility kind 1 with the fleet's id, so the sim's fleet path picks
+    the first member with an accepting ability (`0x398670` [M]). A drop on another planet's row is the planet drop's
+    `MoveObjectToObject`.
+  - The rows are cached per fleet and galaxy frame. The placement and the planets that show a row are recorded in
+    docs/DECISIONS.md "Galactic ability rows".
+  - The selected-planet rows and their click are gone. Selecting a hero shows no row, as in retail.
 - **Enabled:** rows are always enabled, which matches retail.
-- **[port]** The rows appear beside the selected planet, one per ability unit there, and are used with a click.
-  Retail shows one row per reachable planet during a fleet or land-forces drag and uses it with a drop. That change,
-  with its cap of one row per planet, is follow-up #455. Until then, a single row would hide every hero's ability
-  but the first.
+- **Not built:** the land-forces drag (the port's land stacks are not draggable) and the story-forced planets
+  (`0xb30578..`, writer untraced).

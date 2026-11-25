@@ -477,6 +477,8 @@ inline const char* kFleetXml = R"(<CommandBarComponents>
     <No_Shell>True</No_Shell><Drag_And_Drop>True</Drag_And_Drop><Size>0.75 5</Size><Offset>3 47</Offset><Default_Offset>36 42</Default_Offset></CommandBarComponent>
   <CommandBarComponent Name="g_planet_land_forces"><Type>Button</Type><Blank_Texture_Name>fleet_empty.tga fleet_stacks_01.tga</Blank_Texture_Name>
     <No_Shell>True</No_Shell><Drag_And_Drop>True</Drag_And_Drop><Size>0.75 0</Size><Offset>3 5</Offset></CommandBarComponent>
+  <CommandBarComponent Name="g_special_ability"><Type>TextButton</Type><Blank_Texture_Name>i_frame.tga</Blank_Texture_Name>
+    <No_Shell>True</No_Shell><Base_Layer>0</Base_Layer><Offset>-48 -20</Offset></CommandBarComponent>
 </CommandBarComponents>)";
 
 struct PanelEnv {
