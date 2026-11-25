@@ -846,6 +846,16 @@ public:
     // any object, kept in the same records - a structure's for its next battle placement, a landed unit's for its planet-map
     // pad. The slot (+0x3ac) is kept; a record with neither (slot and marker -1, the object's default) is erased.
     void set_object_marker(objects::ObjectId object, int32_t marker);
+    // #515 fleet lead ("pathfinder", legacy docs/re/UI.md §7.4 [H]): unit +0x1b0 -> UI record +0x32, set by COMMANDS kind 56
+    // SetGUIIndex (execute 0x5b12a0) to (index == Pathfinder_Slot_Index, 999). No unit starts as one; the organiser's
+    // q{n}_0000 pad drop is the only writer. Read by the land lead rule (a) (0x29c0c0, TACTICAL_GAPS §4.2) and the
+    // sandbox flagship split (0x2bd500 rule 3). Kept as object ids (ascending); saved (v13) and hashed ("PFL1") for live
+    // objects only. set_gui_index: the issuer's own live unit [port: retail's execute checks no owner]; InvalidUnit /
+    // NotOwner. Moving units into a fleet that already has a lead clears the moved units' flags (the organiser drop
+    // 0x3d02e0 does it before its merge [H]; here every FleetManagement op that adds units to an existing fleet does) [port].
+    bool pathfinder(ObjectHandle unit) const;
+    RejectReason set_gui_index(int32_t player, ObjectHandle unit, uint32_t index);
+    std::span<const int32_t> pathfinders() const { return pathfinders_; }
     // Owner filter 0x4b7d90: erase every record of `planet` whose owner is not `keep`, walking last to first (the order of
     // the rest is unchanged). Called after every land result (ConflictManager: fought battle, land auto-resolve, invasion
     // without a battle); other owner changes keep the records.
@@ -1650,6 +1660,9 @@ private:
     std::vector<std::pair<int32_t, uint8_t>> victory_deferred_;  // {player, type}, monitor +0x60
     std::vector<std::pair<int32_t, std::string>> names_;  // [port] fleet / ship names {ObjectId, name}, id-ascending (v7)
     std::vector<StructureSlot> structure_slots_;  // structure marker memory, object-id-ascending (v9)
+    std::vector<int32_t> pathfinders_;  // #515 fleet-lead units (UI record +0x32), ObjectId-ascending (v13)
+    void set_pathfinder(objects::ObjectId object, bool on);
+    void keep_one_lead(uint32_t fleet, const std::vector<ObjectHandle>& moved);  // before `moved` join `fleet`
     // galab §7: GameScoring's GalacticNeutralizedTable {player, type, count}, (player, type)-ascending (v8, "GLB1" tail)
     struct NeutralizedEntry {
         int32_t player = 0;

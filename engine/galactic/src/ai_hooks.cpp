@@ -327,6 +327,7 @@ RejectReason GalacticSim::fleet_management(int32_t player, const commands::Event
             std::vector<ObjectHandle> moved;
             std::vector<uint8_t> carried;
             take(from, unit, moved, carried);
+            keep_one_lead(dst, moved);  // #515
             for (size_t i = 0; i < moved.size(); ++i) {
                 fleets_[dst].contents.push_back(moved[i]);
                 fleets_[dst].carried.push_back(carried[i]);
@@ -336,6 +337,7 @@ RejectReason GalacticSim::fleet_management(int32_t player, const commands::Event
         }
         if (surface_planet_of(unit) != p) return RejectReason::InvalidUnit;  // launch (op 4) + join
         planets_[p].surface.erase(std::remove(planets_[p].surface.begin(), planets_[p].surface.end(), unit), planets_[p].surface.end());
+        keep_one_lead(dst, {unit});  // #515
         fleets_[dst].contents.push_back(unit);
         fleets_[dst].carried.push_back(0);
         fleet_member_joined(dst, unit);
@@ -408,6 +410,7 @@ RejectReason GalacticSim::fleet_management(int32_t player, const commands::Event
         std::vector<ObjectHandle> moved;
         std::vector<uint8_t> carried;
         take(src, ObjectHandle{}, moved, carried);
+        keep_one_lead(occupant, moved);  // #515: a merged fleet keeps the target's lead
         for (size_t i = 0; i < moved.size(); ++i) {
             fleets_[occupant].contents.push_back(moved[i]);
             fleets_[occupant].carried.push_back(carried[i]);
@@ -426,6 +429,7 @@ RejectReason GalacticSim::fleet_management(int32_t player, const commands::Event
         std::vector<ObjectHandle> moved;
         std::vector<uint8_t> carried;
         take(src, unit, moved, carried);
+        keep_one_lead(dst, moved);  // #515: a merged fleet keeps the target's lead
         for (size_t i = 0; i < moved.size(); ++i) {
             fleets_[dst].contents.push_back(moved[i]);
             fleets_[dst].carried.push_back(carried[i]);
@@ -458,6 +462,7 @@ RejectReason GalacticSim::fleet_management(int32_t player, const commands::Event
         std::vector<ObjectHandle> moved;
         std::vector<uint8_t> carried;
         take(from, unit, moved, carried);
+        keep_one_lead(src, moved);  // #515
         for (size_t i = 0; i < moved.size(); ++i) {
             fleets_[src].contents.push_back(moved[i]);
             fleets_[src].carried.push_back(carried[i]);
@@ -515,6 +520,7 @@ RejectReason GalacticSim::fleet_management(int32_t player, const commands::Event
         const uint32_t dst = ev.u("target") == commands::kNoObject ? orbit_fleet(player, p) : fleet_of(find(ev.u("target")));
         if (!own_idle(dst) || fleets_[dst].planet != p) return RejectReason::InvalidTarget;
         planets_[p].surface.erase(std::remove(planets_[p].surface.begin(), planets_[p].surface.end(), unit), planets_[p].surface.end());
+        keep_one_lead(dst, {unit});  // #515
         fleets_[dst].contents.push_back(unit);
         fleets_[dst].carried.push_back(0);
         fleet_member_joined(dst, unit);

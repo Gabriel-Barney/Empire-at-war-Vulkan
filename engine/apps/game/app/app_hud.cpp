@@ -816,7 +816,8 @@ void App::build_galactic_hud(ui::GalacticHudFrame& f, std::vector<ui::GalacticPl
     // legacy docs/re/UI.md §7.5: every fleet in orbit that the local player may see, with its slot and enemy flag; the ui places them in the
     // three panes. The visibility is the map stacks' rule (planet_icons): own and allied fleets always, others with
     // FleetPresence and not all-stealthed, their units only with FleetContents (else one blank unit, as the map's single stack).
-    f.providers.fleets = [s, types](uint32_t planet, std::vector<ui::GalacticFleet>& out) {
+    // #515: each unit's fleet-lead flag (GalacticSim::pathfinder) and whether its type may lead (not TACTICAL_SUPER_WEAPON).
+    f.providers.fleets = [s, types, otypes = &data_.types](uint32_t planet, std::vector<ui::GalacticFleet>& out) {
         const galactic::GalacticSim* gs = s ? s->galaxy() : nullptr;
         if (!gs) return;
         const PlanetIndex row = planet_index(*gs, planet);
@@ -845,7 +846,8 @@ void App::build_galactic_hud(ui::GalacticHudFrame& f, std::vector<ui::GalacticPl
                 }
                 const objects::TypeIndex t = st.type(m);
                 gf.units.push_back({static_cast<uint32_t>(st.id(m)), t < types->size() ? (*types)[t].icon_name : std::string(), 1, false, t,
-                                    ui::utf8_to_utf32(gs->object_name(m))});
+                                    ui::utf8_to_utf32(gs->object_name(m)), gs->pathfinder(m),
+                                    otypes->has_behavior(t, objects::BehaviorSet::Space, objects::beh::TacticalSuperWeapon)});
             }
             if (gf.units.empty() || gf.fleet == 0 || (!own && all_stealth)) continue;
             out.push_back(std::move(gf));

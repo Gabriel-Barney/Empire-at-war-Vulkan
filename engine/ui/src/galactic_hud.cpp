@@ -888,6 +888,7 @@ void GalacticHud::build_fleets(const GalacticHudFrame& f) {
         ps.empty = empty;
         ps.icon = s.icon;
         ps.name = s.name;
+        ps.no_lead = s.no_lead;
         pads_.push_back(std::move(ps));
         return true;
     };
@@ -896,6 +897,7 @@ void GalacticHud::build_fleets(const GalacticHudFrame& f) {
     auto hide = [&](int32_t ci) {
         if (ci >= 0) buttons_.state(static_cast<uint32_t>(ci)).hidden = true;
     };
+    for (std::vector<uint32_t>& v : pane_leads_) v.clear();
     if (!stats_.organize_shown) {
         for (size_t fl = 0; fl < fleet_.size(); ++fl) {
             for (const int32_t ci : fleet_[fl]) hide(ci);
@@ -922,10 +924,30 @@ void GalacticHud::build_fleets(const GalacticHudFrame& f) {
         }
         const uint32_t pane_fleet = fd ? fd->fleet : 0;
         const bool pane_foreign = fd && fd->enemy;
-        // legacy docs/re/UI.md §7.4: q{n}_0000 ("Fleet PF", the pathfinder) is the header pad, not a unit pad; the unit pads are q{n}_0001
-        // upward. It is always shown, empty (no unit is a pathfinder until flagship battles exist), and inert [port]: no
-        // drag, click or drop (a foreign-style empty pad).
-        if (pathfinder_[fl] >= 0) draw_slot(pathfinder_[fl], GalacticFleetSlot{}, {}, fi, pane_fleet, 0, true, true);
+        // legacy docs/re/UI.md §7.4 (#515): q{n}_0000 ("Fleet PF", the pathfinder) is the header pad, not a unit pad; the unit pads
+        // are q{n}_0001 upward. It is always shown: the pane's first lead unit (stack builder 0x3cac60: that unit leaves its
+        // stack), else empty (its blank texture). An own pane's header pad is a drop target (lead_drop); a filled one drags
+        // its unit like any unit pad. [port] a further lead in the pane is drawn in its stack (retail resets it to -1 here).
+        const GalacticFleet* lead_fleet = nullptr;
+        const GalacticFleetSlot* lead = nullptr;
+        for (const GalacticFleet* gf : in_pane)
+            for (const GalacticFleetSlot& u : gf->units)
+                if (u.lead && u.object != 0) {
+                    if (!gf->enemy) pane_leads_[fl].push_back(u.object);
+                    if (!lead) {
+                        lead = &u;
+                        lead_fleet = gf;
+                    }
+                }
+        if (pathfinder_[fl] >= 0) {
+            const bool drawn = lead ? draw_slot(pathfinder_[fl], *lead, lead_fleet->enemy ? std::vector<uint32_t>{} : std::vector<uint32_t>{lead->object}, fi,
+                                                lead_fleet->fleet, lead->object, lead_fleet->enemy)
+                                    : draw_slot(pathfinder_[fl], GalacticFleetSlot{}, {}, fi, pane_fleet, 0, pane_foreign, true);
+            if (drawn) {
+                pads_.back().lead_pad = true;
+                pads_.back().no_lead = lead && lead->no_lead;
+            }
+        }
         // legacy docs/re/UI.md §7.2: the pane's units, grouped per fleet and type into stacks (one pad each, the count as text), fill the unit
         // pads upward, fleet after fleet; further stacks are not drawn. Dragging a stack takes its first unit.
         struct Stack {
@@ -935,9 +957,17 @@ void GalacticHud::build_fleets(const GalacticHudFrame& f) {
         };
         std::vector<Stack> stacks;
         std::vector<GalacticUnitStack> of_fleet;
+        std::vector<GalacticFleetSlot> without_lead;
         for (const GalacticFleet* gf : in_pane) {
             of_fleet.clear();
-            galactic_unit_stacks(gf->units, of_fleet);
+            if (lead && lead_fleet == gf) {  // #515: the lead is on the header pad, not in a stack
+                without_lead.clear();
+                for (const GalacticFleetSlot& u : gf->units)
+                    if (&u != lead) without_lead.push_back(u);
+                galactic_unit_stacks(without_lead, of_fleet);
+            } else {
+                galactic_unit_stacks(gf->units, of_fleet);
+            }
             for (GalacticUnitStack& s : of_fleet) stacks.push_back({gf, std::move(s.slot), std::move(s.members)});
         }
         size_t next = 0;
@@ -1232,6 +1262,7 @@ void GalacticHud::drag_update(const RoutedInput& routed, std::vector<commands::E
             drag_.fleet_index = p->fleet_index;
             drag_.fleet = p->fleet;
             drag_.unit = p->unit;
+            drag_.no_lead = p->no_lead;
             drag_.icon = p->icon;
         } else if (press_stack_.component == press_component_) {
             drag_.active = true;
@@ -1288,6 +1319,7 @@ bool GalacticHud::drop(std::vector<commands::EventData>* out, std::vector<HudAct
     const GalacticOrganiserDrag source{from_fleet, drag_.fleet, drag_.unit, drag_.planet};
     using Target = GalacticDropTarget;
     if (over && over->fleet_index >= 0) {  // onto a fleet pad
+        if (over->lead_pad) return lead_drop(over->component, out);  // #515
         // an empty pane k: a new fleet in slot k (legacy docs/re/UI.md §7.2, §7.3)
         if (!over->foreign && over->empty && over->fleet == 0) return selected_id_ != 0 && slot_drop(pane_hit(*over), out);
         return galactic_organiser_drop(source, Target{Target::Kind::Fleet, over->fleet, over->foreign}, selected_id_, out);
@@ -1328,6 +1360,24 @@ bool GalacticHud::drop(std::vector<commands::EventData>* out, std::vector<HudAct
     world.on_planet = pi >= 0;
     if (pi >= 0) world.planet = planet_px_[static_cast<size_t>(pi)].planet;
     return galactic_organiser_drop(source, world, selected_id_, out);
+}
+
+// #515 (legacy docs/re/UI.md §7.4, header-pad drop 0x3d63f0): a unit dragged from an own pane onto an own pane's header pad
+// becomes that fleet's lead. From another pane it first merges into the pad's fleet (0x3d0790); then every lead of the
+// pad's pane is cleared (0x3ccdd0: GUI index 999 -> -1) and the unit gets index 999 (SetGUIIndex). Refused: a unit whose
+// type has the always-deployed property (retail: a HUD message and sound; [port] no message), a whole fleet, a land or map
+// drag, the pad's own lead, and [port] a pane without a fleet.
+bool GalacticHud::lead_drop(int32_t over_component, std::vector<commands::EventData>* out) const {
+    const PadSlot* over = pad_of(over_component);
+    if (!over || !over->lead_pad || over->foreign || over->fleet == 0) return false;
+    if (drag_.fleet_index < 0 || drag_.fleet_index >= 3 || drag_.unit == 0 || drag_.no_lead || drag_.unit == over->unit) return false;
+    if (!out) return true;
+    if (drag_.fleet_index != over->fleet_index)
+        out->push_back(fleet_management_event(commands::kFleetMerge, over->fleet, drag_.fleet, drag_.unit));
+    for (const uint32_t u : pane_leads_[static_cast<size_t>(over->fleet_index)])
+        if (u != drag_.unit) out->push_back(commands::ev::set_gui_index(u, commands::kNoGuiIndex));
+    out->push_back(commands::ev::set_gui_index(drag_.unit, commands::kPathfinderGuiIndex));
+    return true;
 }
 
 void GalacticHud::build_objectives(const GalacticHudFrame& f) {
@@ -1903,6 +1953,7 @@ void GalacticHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
             if (s.component != k.component) continue;
             handled = true;
             if (s.foreign) break;  // legacy docs/re/UI.md §7.2 [port]: a foreign fleet's pads are drawn, not clickable
+            if (s.empty) break;    // an empty organiser pad (a drop target, #515's empty header pad included) has no click
             if (s.is_queue) {
                 if (k.button == Button::Left) {
                     out.push_back(galactic_queue_cancel(s.queue));

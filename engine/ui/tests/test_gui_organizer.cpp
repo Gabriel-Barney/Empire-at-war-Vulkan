@@ -246,17 +246,50 @@ void test_unknown_slots() {
     CHECK(e.filled(0) == 1 && e.filled(1) == 1 && e.filled(2) == 1 && e.hud.stats().fleet_slots == 3);
 }
 
-// legacy docs/re/UI.md §7.4: q{n}_0000 is the header pad, never a unit pad: units start at q{n}_0001.
+// legacy docs/re/UI.md §7.4: q{n}_0000 is the header pad, never a unit pad: units start at q{n}_0001. #515: it shows the
+// pane's fleet lead, and a unit dropped on it becomes the lead (SetGUIIndex 999, drop 0x3d63f0).
 void test_header_pad() {
     Env e;
     e.build({make_fleet(900, 0, false, 2)}, true);
     CHECK(!e.hidden("q1_0001") && !e.hidden("q1_0002") && e.hidden("q1_0003"));
-    // The header pad shows in every pane, empty and inert: no drag, no click, no drop target.
+    // No lead: the header pad shows in every pane, empty; it is no drag source and a click selects nothing.
     CHECK(!e.hidden("q1_0000") && !e.hidden("q2_0000") && !e.hidden("q3_0000") && e.icon(0, -1).empty());
     CHECK(!e.hud.draggable(e.id("q1_0000")) && e.click("q1_0000").empty());
+    const auto set = [](uint32_t u, uint32_t index) { return commands::ev::set_gui_index(u, index); };
+    bool valid = false;
+    // A unit of the same pane: it becomes the lead (no merge, no lead to clear).
+    std::vector<commands::EventData> o = e.drag("q1_0002", "q1_0000", &valid);
+    CHECK(valid && o.size() == 1 && o[0] == set(9002, commands::kPathfinderGuiIndex));
+    // From another pane: merged into the pad's fleet first, then made the lead.
     e.build({make_fleet(900, 0, false, 2), make_fleet(901, 1, false, 1)}, true);
-    bool valid = true;
+    o = e.drag("q2_0001", "q1_0000", &valid);
+    CHECK(valid && o.size() == 2 && o[0] == fleet_management_event(commands::kFleetMerge, 900, 901, 9011) &&
+          o[1] == set(9011, commands::kPathfinderGuiIndex));
+
+    // A lead: it shows on the header pad (icon, its own select) and leaves its stack; the header pad drags it like a unit pad.
+    GalacticFleet f = make_fleet(900, 0, false, 3);
+    f.units[1].lead = true;
+    e.build({f, make_fleet(901, 1, false, 1)}, true);
+    CHECK(e.icon(0, -1) == "i_900_1.tga" && e.filled(0) == 2 && e.icon(0, 0) == "i_900_0.tga" && e.icon(0, 1) == "i_900_2.tga");
+    CHECK(e.hud.draggable(e.id("q1_0000")));
+    std::vector<HudAction> a = e.click("q1_0000");
+    CHECK(a.size() == 1 && a[0].ids == std::vector<uint32_t>{9002});
+    // Another unit of the pane replaces it: the old lead is cleared first.
+    o = e.drag("q1_0001", "q1_0000", &valid);
+    CHECK(valid && o.size() == 2 && o[0] == set(9002, commands::kNoGuiIndex) && o[1] == set(9001, commands::kPathfinderGuiIndex));
+    // The lead itself back on its pad does nothing; dragged onto another fleet's pad it merges as any unit.
+    CHECK(e.drag("q1_0000", "q1_0000", &valid).empty() && !valid);
+    o = e.drag("q1_0000", "q2_0001", &valid);
+    CHECK(valid && o.size() == 1 && o[0] == fleet_management_event(commands::kFleetMerge, 901, 900, 9002));
+    // Refused: a whole fleet (its header), a unit whose type may not lead, a foreign pane's pad, an empty pane's pad.
+    CHECK(e.drag("q2_fleet", "q1_0000", &valid).empty() && !valid);
+    GalacticFleet sw = make_fleet(901, 1, false, 1);
+    sw.units[0].no_lead = true;
+    e.build({f, sw}, true);
     CHECK(e.drag("q2_0001", "q1_0000", &valid).empty() && !valid);
+    e.build({make_fleet(906, 0, true, 1), make_fleet(901, 1, false, 1)}, false);
+    CHECK(e.drag("q2_0001", "q1_0000", &valid).empty() && !valid);
+    CHECK(e.drag("q2_0001", "q3_0000", &valid).empty() && !valid);
 }
 
 // legacy docs/re/UI.md §7.2: units of one fleet with the same type share a pad with the count; other types and kNoSlotType units do not.

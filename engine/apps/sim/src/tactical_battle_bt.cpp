@@ -99,12 +99,19 @@ void TacticalBattle::bt_force_split() {
             return;
         }
     }
-    // Lead unit 0x29c0c0: (b) Preferred_Pathfinder_Types in order, non-heroes first, then heroes; (c) first non-hero,
-    // else first hero. [port] rule (a) (fleet-lead flag / forced type) has no ground-unit source.
+    // Lead unit 0x29c0c0: (a) the first fleet lead (galactic UI record +0x32, #515; [port] the forced type of a linked
+    // battle is the ConflictManager's split), (b) Preferred_Pathfinder_Types in order, non-heroes first, then heroes;
+    // (c) first non-hero, else first hero.
     const auto& gtypes = galaxy_->rules().types;
     auto name_of = [&](uint32_t t) -> std::string_view { return t < gtypes.size() ? std::string_view(gtypes[t].name) : std::string_view(); };
     uint32_t lead = 0xFFFFFFFFu;
+    for (const uint32_t i : att)
+        if (galaxy_->pathfinder(parts_[i].galactic)) {
+            lead = i;
+            break;
+        }
     for (const std::string& want : k.preferred_pathfinder_types) {
+        if (lead != 0xFFFFFFFFu) break;
         for (int hero = 0; hero < 2 && lead == 0xFFFFFFFFu; ++hero)
             for (const uint32_t i : att)
                 if (rules_->type(parts_[i].type).hero == (hero == 1) && iequal_trim(name_of(parts_[i].type), want)) {

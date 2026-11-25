@@ -389,9 +389,10 @@ public:
     void split_space_forces(int32_t player, const std::vector<ObjectHandle>& units, BattleForces& out, uint32_t forced_type,
                             bool flagship, const std::vector<ObjectHandle>& leads) const;
     // OI galactic: land force split 0x2bc6a0 (TACTICAL_GAPS 4.2): the defender's surface units all start (no cap); the
-    // attacker's record units all start when they pass the Raid_Force_* test, else only the lead unit (first
-    // Preferred_Pathfinder_Types match among non-heroes, then heroes; else the first non-hero, else the first hero; the
-    // fleet-lead / forced-type rule (a) has no source) starts and every other attacker unit in orbit goes to reserve.
+    // attacker's record units all start when they pass the Raid_Force_* test, else only the lead unit (rule (a): the first
+    // fleet lead, GalacticSim::pathfinder (#515), or unit of the forced type; else the first Preferred_Pathfinder_Types match
+    // among non-heroes, then heroes; else the first non-hero, else the first hero) starts and every other attacker unit in
+    // orbit goes to reserve.
     void split_land_forces(const ConflictInfo& head, BattleForces& defender, BattleForces& attacker) const;
     // rule (a) with a forced type (LINK_TACTICAL Param6): the first record unit of `forced_type` leads.
     void split_land_forces(const ConflictInfo& head, BattleForces& defender, BattleForces& attacker, uint32_t forced_type) const;

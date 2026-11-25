@@ -1269,12 +1269,12 @@ void ConflictManager::split_land_impl(const ConflictInfo& head, BattleForces& d,
         return t < gt.size() ? std::string_view(gt[t].name) : std::string_view();
     };
     ObjectHandle lead;
-    if (forced_type != kNoIndex)  // rule (a): the forced type (the fleet-lead byte has no port source)
-        for (ObjectHandle h : rec)
-            if (static_cast<uint32_t>(sim_->store().type(h)) == forced_type) {
-                lead = h;
-                break;
-            }
+    // rule (a) (0x29c0c0): the first record unit that is a fleet lead (UI record +0x32, #515) or of the forced type.
+    for (ObjectHandle h : rec)
+        if (sim_->pathfinder(h) || (forced_type != kNoIndex && static_cast<uint32_t>(sim_->store().type(h)) == forced_type)) {
+            lead = h;
+            break;
+        }
     for (const std::string& want : rules_->preferred_pathfinder_types) {
         if (lead) break;
         for (int pass = 0; pass < 2 && !lead; ++pass)
@@ -1384,13 +1384,9 @@ bool ConflictManager::begin_battle(const ConflictInfo& head, Linked linked, uint
                 f.player = pl;  // §2.9.5 sandbox: AI sides get nothing
             } else if (linked == Linked::Sandbox) {  // 0x2bce30 with Param6 / Param14
                 const std::vector<ObjectHandle> units = orbit_units(head.planet, pl);
-                std::vector<ObjectHandle> leads;  // [port] a fleet's lead ship = its first space unit (fleet order)
-                for (uint32_t fi : sim_->fleets_at(head.planet, pl))
-                    for (ObjectHandle m : sim_->fleets()[fi].contents)
-                        if (std::find(units.begin(), units.end(), m) != units.end()) {
-                            leads.push_back(m);
-                            break;
-                        }
+                std::vector<ObjectHandle> leads;  // rule 3: the fleet-lead units (UI record +0x32, #515; legacy docs/re/UI.md §7.4)
+                for (ObjectHandle m : units)
+                    if (sim_->pathfinder(m)) leads.push_back(m);
                 split_space_forces(pl, units, f, forced_type, flagship, leads);
             } else {
                 split_space_forces(pl, orbit_units(head.planet, pl), f);

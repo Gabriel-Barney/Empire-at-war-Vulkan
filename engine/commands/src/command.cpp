@@ -336,6 +336,11 @@ EventData set_marker_id(ObjectId object, int32_t marker) {
     e.set("object", object).set("marker", static_cast<uint32_t>(marker));
     return e;
 }
+EventData set_gui_index(ObjectId object, uint32_t index) {
+    EventData e(EventType::SetGUIIndex);
+    e.set("object", object).set("index", index & 0xFFFu);
+    return e;
+}
 EventData port_extension(uint16_t subtype, std::span<const uint8_t> data) {
     EventData e(EventType::PortExtension);
     e.set("subtype", subtype).set_bytes("data", data);

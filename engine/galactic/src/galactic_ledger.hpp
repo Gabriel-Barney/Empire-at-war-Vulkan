@@ -62,6 +62,7 @@
     SAVED(victory_deferred_, hashed) \
     SAVED(names_, unhashed) \
     SAVED(structure_slots_, hashed) \
+    SAVED(pathfinders_, hashed) \
     SAVED(neutralized_, hashed) \
     DERIVED(neutralize_offer_, "UI records (read() clears them)") \
     REBUILT(victory_rules_, "q6 t21: set_victory_rules from the definitions") \

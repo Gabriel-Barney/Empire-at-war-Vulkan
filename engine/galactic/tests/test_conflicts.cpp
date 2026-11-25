@@ -1630,6 +1630,15 @@ void test_oi_transitions() {
         w.crules.preferred_pathfinder_types = {"INFANTRY"};
         w.cm->split_land_forces(head, d, a);
         CHECK(a.start.size() == 1 && a.start[0] == rec[1]);
+        // #515 rule (a): the fleet lead (SetGUIIndex 999) goes first, ahead of Preferred_Pathfinder_Types; cleared, the
+        // split is back to rule (b).
+        const auto rec2 = static_cast<uint32_t>(w.store.id(rec[2]));
+        CHECK(w.sim.execute(pUnder, commands::ev::set_gui_index(rec2, commands::kPathfinderGuiIndex)) == commands::RejectReason::None);
+        w.cm->split_land_forces(head, d, a);
+        CHECK(a.start.size() == 1 && a.start[0] == rec[2] && a.reserve.size() == 2 && a.reserve[0] == rec[1] && a.reserve[1] == rec[0]);
+        CHECK(w.sim.execute(pUnder, commands::ev::set_gui_index(rec2, commands::kNoGuiIndex)) == commands::RejectReason::None);
+        w.cm->split_land_forces(head, d, a);
+        CHECK(a.start.size() == 1 && a.start[0] == rec[1]);
         // Raid: every unit in the limited mask, 1 <= limited <= max -> all record units start.
         w.crules.raid_limited_mask = kCatInfantry;
         w.crules.raid_max_limited = 2;
@@ -1861,11 +1870,24 @@ void test_linked_sandbox_split() {
         bool flagship;
         size_t start, reserve;
         uint32_t start_type;
+        uint32_t lead_type = kNoIndex;  // #515: the first unit of this type is made its fleet's lead (SetGUIIndex 999)
     };
-    for (const Case& c : {Case{tCorvette, true, 1, 2, tCorvette}, Case{kNoIndex, true, 1, 2, tFrigate}, Case{kNoIndex, false, 3, 0, kNoIndex},
-                          Case{tDeathStar, false, 3, 0, kNoIndex}}) {
+    // Rule 3 picks the fleet lead (0x2bd500 reads UI record +0x32, #515); with no lead the cap split applies.
+    for (const Case& c : {Case{tCorvette, true, 1, 2, tCorvette}, Case{kNoIndex, true, 1, 2, tCorvette, tCorvette},
+                          Case{kNoIndex, true, 3, 0, kNoIndex}, Case{kNoIndex, false, 3, 0, kNoIndex, tCorvette},
+                          Case{kNoIndex, false, 3, 0, kNoIndex}, Case{tDeathStar, false, 3, 0, kNoIndex}}) {
         World w({{pEmpire, rB, tFrigate}, {pEmpire, rB, tCorvette}, {pEmpire, rB, tCorvette}, {pUnder, rB, tFrigate}}, true);
         w.cm->start_battle = [](const BattleRequest&) { return true; };
+        if (c.lead_type != kNoIndex) {
+            bool set = false;
+            for (uint32_t fi : w.sim.fleets_at(rB, pEmpire))
+                for (objects::ObjectHandle m : w.sim.fleets()[fi].contents)
+                    if (!set && static_cast<uint32_t>(w.store.type(m)) == c.lead_type) {
+                        set = w.sim.execute(pEmpire, commands::ev::set_gui_index(static_cast<uint32_t>(w.store.id(m)), commands::kPathfinderGuiIndex)) ==
+                              commands::RejectReason::None;
+                    }
+            CHECK(set);
+        }
         ConflictManager::LinkedBattle b;
         b.kind = ConflictKind::Space;
         b.planet = rB;

@@ -68,7 +68,10 @@ namespace {
 // ascending; v14 and older read every fleet as set.
 // v16 (#191): + last, the objects' paid costs {u32 count, {i32 ObjectId, f32 credits}...} id-ascending; v15 and older read
 // none (a sold object then refunds half its build cost).
-constexpr uint32_t kGalacticSaveVersion = 16;  // 16: + the paid costs
+// v17 (#515): + last, the fleet-lead units {u32 count, i32 ObjectId...} ascending, live objects only; v16 and older
+// read none.
+constexpr uint32_t kGalacticSaveVersion = 17;  // 17: + the fleet-lead units after the paid costs (#515)
+constexpr uint32_t kGalacticSaveVersionNoLeads = 16;
 constexpr uint32_t kGalacticSaveVersionNoPaidCosts = 15;
 constexpr uint32_t kGalacticSaveVersionNoStarbaseFlag = 14;
 constexpr uint32_t kGalacticSaveVersionNoUpgradeObjects = 13;
@@ -214,12 +217,17 @@ void GalacticSim::write(ByteWriter& w) const {
         if (!fleets_[i].counts_for_starbase) w.u32(i);
     w.u32(static_cast<uint32_t>(paid_costs_.size()));  // #191 (v16), ascending ObjectId
     for (const auto& [id, credits] : paid_costs_) w.i32(id).f32(credits);
+    uint32_t live_leads = 0;  // #515 (v17): the fleet-lead units, live objects only, ascending ObjectId
+    for (const int32_t id : pathfinders_) live_leads += st.alive(st.find(static_cast<objects::ObjectId>(id))) ? 1u : 0u;
+    w.u32(live_leads);
+    for (const int32_t id : pathfinders_)
+        if (st.alive(st.find(static_cast<objects::ObjectId>(id)))) w.i32(id);
 }
 
 bool GalacticSim::read(ByteReader& r) {
     const objects::ObjectStore& st = *store_;
     const uint32_t version = r.u32();
-    if ((version != kGalacticSaveVersion && version != kGalacticSaveVersionNoPaidCosts && version != kGalacticSaveVersionNoStarbaseFlag && version != kGalacticSaveVersionNoUpgradeObjects && version != kGalacticSaveVersionNoPlanetUpgrades && version != kGalacticSaveVersionNoSurvivors && version != kGalacticSaveVersionNoLocks && version != kGalacticSaveVersionNoPlacement && version != kGalacticSaveVersionNoSlots && version != kGalacticSaveVersionNoGalab &&
+    if ((version != kGalacticSaveVersion && version != kGalacticSaveVersionNoLeads && version != kGalacticSaveVersionNoPaidCosts && version != kGalacticSaveVersionNoStarbaseFlag && version != kGalacticSaveVersionNoUpgradeObjects && version != kGalacticSaveVersionNoPlanetUpgrades && version != kGalacticSaveVersionNoSurvivors && version != kGalacticSaveVersionNoLocks && version != kGalacticSaveVersionNoPlacement && version != kGalacticSaveVersionNoSlots && version != kGalacticSaveVersionNoGalab &&
          version != kGalacticSaveVersionNoNames) ||
         !r.ok())
         return false;
@@ -529,6 +537,16 @@ bool GalacticSim::read(ByteReader& r) {
             if (!r.ok() || paid[k].second == 0.0f || (k > 0 && paid[k].first <= paid[k - 1].first)) return false;
         }
     }
+    std::vector<int32_t> leads;  // #515 (v17); v16 and older: none
+    if (version >= 17) {
+        uint32_t n_leads = 0;
+        if (!r.count(n_leads, 4)) return false;
+        leads.resize(n_leads);
+        for (uint32_t k = 0; k < n_leads; ++k) {
+            leads[k] = r.i32();
+            if (!r.ok() || (k > 0 && leads[k] <= leads[k - 1]) || !st.alive(st.find(static_cast<objects::ObjectId>(leads[k])))) return false;
+        }
+    }
     if (!r.ok() || !r.done()) return false;
 
     // ---- commit ----
@@ -558,6 +576,7 @@ bool GalacticSim::read(ByteReader& r) {
         for (PlanetIndex i = 0; i < planets_.size(); ++i)
             if (planets_[i].is_planet && planets_[i].corruption != kCorruptionNone)
                 corruption_upgrades(i, planets_[i].corruption, kCorruptionNone, first_corruption_player());
+    pathfinders_ = std::move(leads);
     stealthed_ = std::move(stealthed);
     ground_shy_ = std::move(ground_shy);
     claims_ = std::move(claims);
