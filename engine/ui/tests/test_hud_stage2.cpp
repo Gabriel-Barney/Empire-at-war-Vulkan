@@ -1751,6 +1751,8 @@ void test_tactical_stage2() {
         CHECK2(hud.stats().build_options == 0);
     }
     {
+        CHECK2(hud.toggle_reinforce_list(true) == TacticalHud::ReinforceListToggle::Opened);  // #463: the list shown
+        hud.build(fr, units, types);
         auto [cmds, acts] = click("r_0000", Button::Left);
         CHECK2(cmds.empty() && acts.size() == 1 && acts[0].kind == HudAction::Kind::BeginReinforcement && acts[0].unit == 555);
         const commands::EventData re = reinforce_event(555, {10, 20, 0});

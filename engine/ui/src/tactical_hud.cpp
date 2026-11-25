@@ -1118,6 +1118,8 @@ void TacticalHud::build_buy_buttons(const TacticalHudFrame& f) {
     }
 }
 
+TacticalHud::ReinforceListToggle TacticalHud::toggle_reinforce_list(bool) { return ReinforceListToggle::Refused; }
+
 void TacticalHud::build_reinforcements(const TacticalHudFrame& f) {
     reinforce_slots_.clear();
     if (!f.providers.reinforcements) return;

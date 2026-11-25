@@ -425,6 +425,13 @@ public:
     const HudButtons& buttons() const { return buttons_; }
     void set_sfx_hook(HudSfxHook hook) { buttons_.set_sfx_hook(std::move(hook)); }
     void set_tooltip_config(const TooltipConfig& c) { tooltip_cfg_ = c; }
+    // #463 (0x2e5580 [H], docs/re/TACTICAL_HOTKEYS.md "Reinforce"): the reinforcement list (component i_main_reinforce:
+    // the r_RRCC pad, r_pop_icon / r_pop_text), closed at init. R and the b_reinforcement click toggle it: an open list
+    // closes; a closed one opens only when `allowed` (the host's gates). The next build() draws the new state.
+    enum class ReinforceListToggle : uint8_t { Closed, Opened, Refused };
+    ReinforceListToggle toggle_reinforce_list(bool allowed);
+    bool reinforce_list_open() const { return reinforce_list_open_; }
+    void set_reinforce_list_open(bool open) { reinforce_list_open_ = open; }
 
     void build(const TacticalHudFrame& frame, std::span<const HudUnit> units, std::span<const HudTypeInfo> types,
                const FlyTextList* flytext = nullptr);
@@ -534,6 +541,7 @@ private:
     int32_t special_weapon_ = -1;                         // b_special_weapon (land: the bombing-run button)
     int32_t reinforce_button_ = -1, beacon_button_ = -1, beacon_t_ = -1, camera_t_ = -1;  // ui3 t03
     int32_t reinforce_counter_ = -1, r_pop_icon_ = -1, r_pop_text_ = -1;                 // ui3 t04
+    bool reinforce_list_open_ = false;                                                   // #463
     int32_t planet_text_ = -1, tech_text_ = -1, pop_text_ = -1, movie_ = -1;
     int32_t pause_ = -1, pause_g_ = -1;  // [port: Gabriel] b_play_pause_t / b_play_pause
     bool paused_ = false;
