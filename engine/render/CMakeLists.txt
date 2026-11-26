@@ -74,6 +74,7 @@ add_library(alamo_render STATIC
   src/lod.cpp
   src/hardpoints.cpp
   src/png.cpp
+  src/bombard_flash.cpp
   src/lighting.cpp
   src/weather_fx.cpp
   src/fleet.cpp

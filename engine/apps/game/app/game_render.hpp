@@ -36,6 +36,7 @@
 #include "alamo/render/sim_snapshot.hpp"
 #include "alamo/render/sim_view.hpp"
 #include "alamo/render/surface_fx.hpp"
+#include "alamo/render/bombard_flash.hpp"
 #include "alamo/render/weather_fx.hpp"  // vis1 t01 weather emitter / lightning / fog plane
 #include "alamo/rhi/rhi.hpp"
 #include "alamo/ui/camera.hpp"
@@ -238,6 +239,9 @@ public:
     // the object (0x48e4d0: a running pulse is not replaced). set_pulse_time sets the clock of the next prepare().
     void start_light_pulse(uint32_t id, render::LightPulse p, double now);
     void set_pulse_time(double now) { pulse_now_ = now; }
+    // #314 (docs/re/BOMBARD_FLASH.md): after each sim tick: steps the bombardment lights around the camera's look-at
+    // (0x52aa50), then adds this tick's new ones (0x52a110; life = 30 fps x seconds, truncated).
+    void bombard_tick(std::span<const sim::TacticalBattle::BombardFlashEvent> shots);
     float shield_flash_duration() const { return shield_flash_duration_; }
     // mcx4 t14 (MCX4_PRES_RE_ANSWERS_3 Q10, 0x392ba0 mode 3): the rapid GUI flash of a click-selected object - the colour
     // x (1 + GUI_Flash_Level x remaining / GUI_Rapid_Flash_Duration), three times; a new flash replaces a running one.
@@ -290,6 +294,7 @@ private:
     void sync_weather_emitter();
     render::WeatherView weather_;
     render::LightningFlash lightning_;
+    render::BombardFlashes bombard_;  // #314 the planetary bombardment lights (stepped per sim tick)
     std::chrono::steady_clock::time_point last_prepare_{};
     bool have_last_prepare_ = false;
     uint64_t weather_fx_ = 0;  // ParticleWorld::Handle of the weather emitter (0 = none)

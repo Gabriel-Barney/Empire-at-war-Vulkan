@@ -176,6 +176,15 @@ SceneLightConstants scene_light_constants(const Lighting& l) {
     s.sph_fill = sph_matrices(fills, 3, l.ambient);
     const DirLight all[4] = {l.fill[0], l.fill[1], l.sun, l.flash};
     s.sph_all = sph_matrices(all, 4, l.ambient);
+    // #314: the bombardment lights' SH is added to both (0x277830 adds it to the fill SH). The matrices are linear in
+    // the lights, so their own set (no ambient) is summed in: no list is built here.
+    if (!l.bombard.empty()) {
+        const SphMatrices b = sph_matrices(l.bombard.data(), static_cast<int>(l.bombard.size()), {0, 0, 0});
+        for (size_t i = 0; i < b.size(); ++i) {
+            s.sph_fill[i] = {s.sph_fill[i].x + b[i].x, s.sph_fill[i].y + b[i].y, s.sph_fill[i].z + b[i].z, s.sph_fill[i].w + b[i].w};
+            s.sph_all[i] = {s.sph_all[i].x + b[i].x, s.sph_all[i].y + b[i].y, s.sph_all[i].z + b[i].z, s.sph_all[i].w + b[i].w};
+        }
+    }
     return s;
 }
 

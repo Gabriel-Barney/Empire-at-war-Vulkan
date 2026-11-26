@@ -39,13 +39,16 @@ const SceneLightConstants& RendererCore::scene_lights() {
                       std::memcmp(&c.fill[0], &l.fill[0], sizeof c.fill[0]) == 0 &&
                       std::memcmp(&c.fill[1], &l.fill[1], sizeof c.fill[1]) == 0 &&
                       std::memcmp(&c.flash, &l.flash, sizeof c.flash) == 0 &&
-                      std::memcmp(&c.ambient, &l.ambient, sizeof c.ambient) == 0;
+                      std::memcmp(&c.ambient, &l.ambient, sizeof c.ambient) == 0 &&
+                      c.bombard.size() == l.bombard.size() &&  // #314 the bombardment lights are in the SH too
+                      (l.bombard.empty() || std::memcmp(c.bombard.data(), l.bombard.data(), l.bombard.size() * sizeof(DirLight)) == 0);
     if (!same) {
         c.sun = l.sun;
         c.fill[0] = l.fill[0];
         c.fill[1] = l.fill[1];
         c.flash = l.flash;
         c.ambient = l.ambient;
+        c.bombard = l.bombard;  // keeps its capacity: no allocation once it has held the most lights
         c.slc = scene_light_constants(l);
         c.valid = true;
     }

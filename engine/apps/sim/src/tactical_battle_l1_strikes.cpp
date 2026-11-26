@@ -12,6 +12,7 @@
 #include "alamo/core/ascii.hpp"
 #include "alamo/data/game_database.hpp"
 #include "alamo/data/xml.hpp"
+#include "alamo/data/xml_values.hpp"
 #include "alamo/objects/game_object_types.hpp"
 #include "alamo/objects/type_fields.hpp"
 #include "alamo/sim/l1_loaders.hpp"
@@ -25,6 +26,13 @@ namespace tc = alamo::tactical::combat;
 namespace {
 
 tactical::Vec3 tv3(Vec3 v) { return tactical::Vec3{v.x, v.y, v.z}; }
+
+// #314: the numbers of a list tag, split by the shared list splitter (docs/MODS.md "Tag ledger and value semantics").
+std::vector<float> split_numbers(std::string_view s) {
+    std::vector<float> out;
+    for (const std::string_view v : data::xml_values::split_list(s)) out.push_back(static_cast<float>(objects::c_atof(std::string(v))));
+    return out;
+}
 
 std::vector<std::string> split_names(std::string_view s) {
     std::vector<std::string> out;
@@ -120,6 +128,13 @@ std::vector<TacticalBattle::L1Faction> load_l1_factions(const galactic::Galactic
         if (auto v = n.xml_text("Bombardment_Shot_Delay"); !v.empty()) f.shot_delay = static_cast<float>(objects::c_atof(v));
         if (auto v = n.xml_text("Bombardment_Salvo_Delay"); !v.empty()) f.salvo_delay = static_cast<float>(objects::c_atof(v));
         if (auto v = n.xml_text("Bombardment_Initial_Delay"); !v.empty()) f.initial_delay = static_cast<float>(objects::c_atof(v));
+        // #314 the lighting lists (docs/re/BOMBARD_FLASH.md); a colour entry is three numbers
+        if (const std::string v = n.xml_list("Bombardment_Lighting_Color_List"); !v.empty()) {
+            const std::vector<float> c = split_numbers(v);
+            for (size_t k = 0; k + 2 < c.size(); k += 3) f.light_colors.push_back({c[k], c[k + 1], c[k + 2]});
+        }
+        if (const std::string v = n.xml_list("Bombardment_Lighting_Intensity_List"); !v.empty()) f.light_intensities = split_numbers(v);
+        if (const std::string v = n.xml_list("Bombardment_Lighting_Seconds_List"); !v.empty()) f.light_seconds = split_numbers(v);
     }
     return out;
 }
@@ -532,6 +547,15 @@ void TacticalBattle::l1_strikes(TacticalMode& mode, SimRng& rng) {
             l.from = tv3(from);
             l.point = tv3(aim);
             combat_->launch_projectile(l, frame_);
+        }
+        // #314 (0x52a110 [H]): the shot's light, by its salvo index, when that salvo's seconds entry is > 0.
+        if (const size_t si = static_cast<size_t>(r.salvo); si < f.light_seconds.size() && f.light_seconds[si] > 0.0f) {
+            BombardFlashEvent e;
+            e.at = aim;
+            e.color = si < f.light_colors.size() ? f.light_colors[si] : Vec3{};
+            e.intensity = si < f.light_intensities.size() ? f.light_intensities[si] : 0.0f;
+            e.seconds = f.light_seconds[si];
+            bombard_flashes_.push_back(e);
         }
         // Advance: next shot / next salvo (particle) / finish.
         if (r.shot + 1 < f.shots_per_salvo) {
