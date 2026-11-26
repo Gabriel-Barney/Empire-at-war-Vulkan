@@ -1,7 +1,8 @@
 // alamo_terrain tests (no framework; non-zero exit on failure).
 //   * CPU (always): synthetic .ted write/parse round trip, mesh build on tiny grids, blend-texture
 //     rules (incl. the lowest-index quad rule, full coverage, not rendered), texcoord/rotation and
-//     blend-UV maths, normals, water mesh/shore alpha/constants, placements, fuzzing.
+//     blend-UV maths, normals, water mesh/shore alpha/constants, placements, fuzzing, the old environment format
+//     0x100/0 + /1 (#577).
 //   * Real data (ALAMO_FOC_DATA = FoC "corruption" folder; built with vfs/data/jobs): every map in
 //     the VFS, the legacy docs/re/TERRAIN_WATER_POST.md 1.9 table, space maps, Endor/Dagobah/Hoth mesh stats and
 //     determinism, Endor object placements resolved through the GameDatabase.
@@ -1437,6 +1438,60 @@ void test_dynamic_track() {
     }
 }
 
+// #577 (0x2734c0 [H]): the old environment format. Each 0x100/0 appends an environment and sets its colour minis 00-04;
+// a 0x100/1 sets minis 05-0D of the last one. Minis outside each block's range are ignored; a /1 before any /0 sets
+// nothing. Written back, the environments become TEE records with the same values.
+void test_legacy_environments() {
+    const float sun[3] = {0.9f, 0.8f, 0.7f}, fill1[3] = {0.2f, 0.3f, 0.4f}, fill2[3] = {0.1f, 0.1f, 0.2f};
+    const float spec[3] = {0.5f, 0.6f, 0.7f}, amb[3] = {0.05f, 0.06f, 0.07f}, other[3] = {9, 9, 9};
+    ChunkWriter w;
+    w.begin(1);
+    w.begin(0x100);
+    {
+        const RawMini early[] = {mk_f32(0x05, 7.0f)};  // a /1 before any /0: nothing to set
+        w.mini_leaf(1, early);
+        const RawMini c0[] = {mk_f32x3(0x00, sun), mk_f32x3(0x01, fill1), mk_f32x3(0x02, fill2), mk_f32x3(0x03, spec),
+                              mk_f32x3(0x04, amb), mk_f32(0x05, 3.0f)};  // 05 is not a /0 mini
+        w.mini_leaf(0, c0);
+        const RawMini l0[] = {mk_f32(0x05, 0.9f), mk_f32(0x06, 0.4f), mk_f32(0x07, 0.3f), mk_f32(0x08, 0.5f), mk_f32(0x09, 1.5f),
+                              mk_f32(0x0A, 2.5f), mk_f32(0x0B, 0.6f), mk_f32(0x0C, -0.2f), mk_f32(0x0D, -0.3f),
+                              mk_f32x3(0x00, other)};  // 00 is not a /1 mini
+        w.mini_leaf(1, l0);
+        const RawMini c1[] = {mk_f32x3(0x04, fill1)};
+        w.mini_leaf(0, c1);  // second environment: ambient only, the rest defaults
+    }
+    w.end();
+    w.end();
+    const std::vector<uint8_t> bytes = w.take();
+    MapData m;
+    std::string err;
+    CHECK(parse_ted(bytes, m, &err));
+    const std::vector<Environment>& es = m.environments.environments;
+    CHECK(m.environments.legacy_format && es.size() == 2);
+    if (es.size() != 2) return;
+    const Environment& a = es[0];
+    const Environment def;
+    CHECK(a.name == "Environment 1" && es[1].name == "Environment 2");
+    CHECK(a.light_color[0][0] == 0.9f && a.light_color[0][2] == 0.7f && a.light_color[1][1] == 0.3f && a.light_color[2][2] == 0.2f);
+    CHECK(a.sun_specular[1] == 0.6f && a.ambient[2] == 0.07f);
+    CHECK(a.intensity[0] == 0.9f && a.intensity[1] == 0.4f && a.intensity[2] == 0.3f);
+    CHECK(a.yaw[0] == 0.5f && a.yaw[1] == 1.5f && a.yaw[2] == 2.5f && a.elevation[0] == 0.6f && a.elevation[1] == -0.2f &&
+          a.elevation[2] == -0.3f);
+    CHECK(es[1].ambient[0] == 0.2f && es[1].light_color[0][0] == def.light_color[0][0] && es[1].intensity[0] == def.intensity[0] &&
+          es[1].yaw[1] == def.yaw[1]);
+    std::printf("legacy environments: %zu, sun (%.2f %.2f %.2f) x %.2f, yaw %.2f, elevation %.2f\n", es.size(),
+                static_cast<double>(a.light_color[0][0]), static_cast<double>(a.light_color[0][1]),
+                static_cast<double>(a.light_color[0][2]), static_cast<double>(a.intensity[0]), static_cast<double>(a.yaw[0]),
+                static_cast<double>(a.elevation[0]));
+    MapData back;
+    CHECK(parse_ted(write_ted(m), back) && !back.environments.legacy_format && back.environments.environments.size() == 2);
+    if (back.environments.environments.size() == 2) {
+        const Environment& b = back.environments.environments[0];
+        CHECK(b.light_color[0][1] == 0.8f && b.intensity[0] == 0.9f && b.yaw[2] == 2.5f && b.elevation[2] == -0.3f &&
+              b.ambient[0] == 0.05f);
+    }
+}
+
 void test_fow() {
     // Synthetic 20 x 10 grid over (0,0)-(300,150) with 15-unit cells.
     const FowGridDesc d = make_fow_grid(0.0f, 0.0f, 300.0f, 150.0f, kLandFowCellSize);
@@ -2153,6 +2208,7 @@ int main() {
     test_decal_budget();
     test_track_malformed();
     test_dynamic_track();
+    test_legacy_environments();  // #577
     test_fow();
 #if defined(ALAMO_TERRAIN_HAVE_DATA)
     test_surface_types();  // trn1

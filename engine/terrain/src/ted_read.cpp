@@ -47,19 +47,29 @@ std::array<float, 3> Environment::cloud_velocity() const {
     return {cloud_speed * std::cos(w), cloud_speed * std::sin(w), 0.0f};
 }
 
+namespace {
+// The light minis 00-0D of a TEE record (0x273b10 [H]). The old 0x100/0 and /1 blocks carry the same ids (0x2734c0 [H]).
+bool decode_light_mini(const MiniView& m, Environment& e) {
+    switch (m.id) {
+    case 0x00: case 0x01: case 0x02: mini_f32x3(m, e.light_color[m.id]); return true;
+    case 0x03: mini_f32x3(m, e.sun_specular); return true;
+    case 0x04: mini_f32x3(m, e.ambient); return true;
+    case 0x05: case 0x06: case 0x07: mini_f32(m, e.intensity[m.id - 0x05]); return true;
+    case 0x08: case 0x09: case 0x0A: mini_f32(m, e.yaw[m.id - 0x08]); return true;
+    case 0x0B: case 0x0C: case 0x0D: mini_f32(m, e.elevation[m.id - 0x0B]); return true;
+    default: return false;
+    }
+}
+}  // namespace
+
 bool decode_environment(std::span<const uint8_t> leaf, Environment& e) {
     std::vector<MiniView> minis;
     if (!read_minis(leaf, minis)) return false;
     e.raw = copy_minis(minis);
     float fog_a = e.fog_start, fog_b = e.fog_end;
     for (const MiniView& m : minis) {
+        if (m.id <= 0x0D && decode_light_mini(m, e)) continue;
         switch (m.id) {
-        case 0x00: case 0x01: case 0x02: mini_f32x3(m, e.light_color[m.id]); break;
-        case 0x03: mini_f32x3(m, e.sun_specular); break;
-        case 0x04: mini_f32x3(m, e.ambient); break;
-        case 0x05: case 0x06: case 0x07: mini_f32(m, e.intensity[m.id - 0x05]); break;
-        case 0x08: case 0x09: case 0x0A: mini_f32(m, e.yaw[m.id - 0x08]); break;
-        case 0x0B: case 0x0C: case 0x0D: mini_f32(m, e.elevation[m.id - 0x0B]); break;
         case 0x0F: mini_f32x3(m, e.fog_color); break;
         case 0x10: set_bool(m, e.fog_enabled); break;
         case 0x11: mini_f32(m, fog_a); break;
@@ -352,8 +362,22 @@ bool parse_environments(std::span<const uint8_t> node, EnvironmentSet& es, Ctx& 
                     if (m.id == 0x03) mini_f32(m, es.scene_fog_end);
                 }
             }
-        } else if (k.id == 0 || k.id == 1) {
+        } else if ((k.id == 0 || k.id == 1) && !k.has_children) {
+            // #577: the old environment format (0x2734c0 [H], the world reader's case 0x100). Each /0 appends a
+            // default-constructed environment and reads its minis 00-04 (the colours); a /1 sets minis 05-0D (the
+            // intensities, yaws and elevations) of the last one appended. Both use the TEE record's ids and fields.
             es.legacy_format = true;
+            if (!read_minis(k.payload, minis)) return c.fail("old environment 0x100/0 or /1: malformed");
+            if (k.id == 0) {
+                Environment e;
+                e.name = "Environment " + std::to_string(es.environments.size() + 1);
+                es.environments.push_back(std::move(e));
+            } else if (es.environments.empty()) {
+                continue;  // [port] retail would write environment 0 of an empty list; nothing to set
+            }
+            Environment& e = es.environments.back();
+            for (const MiniView& m : minis)
+                if (k.id == 0 ? m.id <= 0x04 : m.id >= 0x05 && m.id <= 0x0D) decode_light_mini(m, e);
         }
     }
     return true;
