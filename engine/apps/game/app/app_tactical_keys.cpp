@@ -133,11 +133,26 @@ void App::fill_wings(ui::TacticalHudFrame& hf) {
             }
             sq->ids.push_back(static_cast<uint32_t>(l.unit));
         }
+        auto snap = [&](objects::ObjectId id) -> const render::SnapshotObject* {
+            const auto it = std::lower_bound(objs.begin(), objs.end(), id, [](const render::SnapshotObject& x, objects::ObjectId v) { return x.id < v; });
+            return it != objs.end() && it->id == id ? &*it : nullptr;
+        };
+        std::vector<float> health_sum(wings_.size(), 0.0f);
         for (const Squad& s : squads) {
             ui::HudWing& w = wings_[s.wing];
             ++w.squadrons;
             if (w.ids.size() + s.ids.size() <= ui::OrderTranslator::kMaxSelect) w.ids.insert(w.ids.end(), s.ids.begin(), s.ids.end());
+            // #600 craft alive / full strength (the squadron type's Squadron_Units) and the craft's mean hull fraction.
+            size_t full = s.ids.size();
+            if (const render::SnapshotObject* lead = snap(s.lead); lead && lead->type < data_.types.size())
+                full = std::max(full, data_.types.get(lead->type, objects::tags::Squadron_Units).size());
+            w.craft_alive += static_cast<uint32_t>(s.ids.size());
+            w.craft_total += static_cast<uint32_t>(full);
+            for (const uint32_t id : s.ids)
+                if (const render::SnapshotObject* o = snap(static_cast<objects::ObjectId>(id))) health_sum[s.wing] += o->health_fraction;
         }
+        for (size_t k = 0; k < wings_.size(); ++k)
+            if (wings_[k].craft_alive > 0) wings_[k].health = health_sum[k] / static_cast<float>(wings_[k].craft_alive);
         std::vector<uint32_t> sel = orders_.selection();
         std::sort(sel.begin(), sel.end());
         for (ui::HudWing& w : wings_) {
@@ -162,6 +177,19 @@ void App::fill_fleet_groups(ui::TacticalHudFrame& hf) {
             h.name = ui::utf8_to_utf32(g.name);
             h.locked = g.locked;
             for (const sim::FleetMember& m : g.members) h.members.push_back(static_cast<uint32_t>(m.id));  // ascending id
+            if (bview_.active()) {  // #600 the members' mean hull fraction
+                const std::vector<render::SnapshotObject>& objs = bview_.frame().objects;  // ascending id
+                float sum = 0.0f;
+                size_t n = 0;
+                for (const uint32_t id : h.members) {
+                    const auto it = std::lower_bound(objs.begin(), objs.end(), static_cast<objects::ObjectId>(id),
+                                                     [](const render::SnapshotObject& x, objects::ObjectId v) { return x.id < v; });
+                    if (it == objs.end() || it->id != static_cast<objects::ObjectId>(id)) continue;
+                    sum += it->health_fraction;
+                    ++n;
+                }
+                if (n > 0) h.health = sum / static_cast<float>(n);
+            }
             fleet_groups_.push_back(std::move(h));
         }
     hf.fleet_groups = fleet_groups_;

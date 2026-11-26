@@ -60,6 +60,7 @@ struct HudFleetGroup {
     std::u32string name;            // "" = unnamed
     bool locked = false;
     std::vector<uint32_t> members;  // every member, ascending (selected or not)
+    float health = -1.0f;           // #600 aggregate health 0..1 (the members' mean hull fraction); < 0 unknown
 };
 // #179: one member's destination slot of a locked group move being aimed (host feed: TacticalBattle::fleet_move_preview).
 struct HudFleetGoal {
@@ -351,6 +352,10 @@ struct HudWing {
     uint32_t squadrons = 0;          // squadrons in the wing (drawn as the count)
     std::vector<uint32_t> ids;       // every member of the wing's squadrons, ascending
     bool selected = false;           // the whole wing is in the selection (the selected look)
+    // #600: the wing's craft alive / in full strength (its squadrons' Squadron_Units), its aggregate health 0..1 (the
+    // craft's mean hull fraction; < 0 unknown).
+    uint32_t craft_alive = 0, craft_total = 0;
+    float health = -1.0f;
 };
 inline constexpr int32_t kWingHitBase = 0x40000000;  // hit-box ids of the wing buttons (not CommandBarComponents)
 inline constexpr size_t kMaxWings = 4;

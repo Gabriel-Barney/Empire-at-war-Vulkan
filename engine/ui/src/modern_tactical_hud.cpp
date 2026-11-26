@@ -683,9 +683,13 @@ void ModernTacticalHud::build_selection(const TacticalHudFrame& f, std::span<con
         hit(kModernClearHit, kControlLayer, c, {cw, header});
         stats_.clear_button = true;
     }
-    // Cards: the Classic grouping; with more groups than fit, the last card is "+N" (every unit not shown). With fleet groups
-    // on, a row of group tabs over the cards (#588).
-    const float tab_h = f.fleet_groups_on ? line * 1.4f : 0.0f;
+    // Cards: the Classic grouping; with more groups than fit, the last card is "+N" (every unit not shown). A row of tabs
+    // over the cards with fleet groups on (#588) or a wing's craft selected (#600), tall enough for 24 px Merge / Split.
+    bool wing_selected = false;
+    for (const HudWing& w : f.wings)
+        for (const HudUnit& u : units)
+            wing_selected = wing_selected || (u.selected && std::binary_search(w.ids.begin(), w.ids.end(), u.id));
+    const float tab_h = f.fleet_groups_on || wing_selected ? std::max(line * 1.6f, px_units(28.0f)) : 0.0f;
     const float card_h = height - header - 0.5f * kPad - tab_h, card_w = std::max(card_h * 0.8f, 6.0f * line);
     const float gap = 0.5f * kPad;
     const auto fit = static_cast<size_t>(std::max(1.0f, std::floor((width + gap) / (card_w + gap))));
@@ -696,7 +700,7 @@ void ModernTacticalHud::build_selection(const TacticalHudFrame& f, std::span<con
         fold_selection_overflow(groups_, fit);
     }
     const float cy = top_left.y - header - 0.5f * kPad - tab_h - 0.5f * card_h;
-    if (f.fleet_groups_on) build_fleet_tabs(f, units, {{top_left.x + 0.5f * card_w, cy}, {card_w, card_h}, gap, top_left.x + width}, tab_h);
+    if (tab_h > 0.0f) build_fleet_tabs(f, units, {{top_left.x + 0.5f * card_w, cy}, {card_w, card_h}, gap, top_left.x + width}, tab_h);
     for (size_t i = 0; i < groups_.size(); ++i) {
         const SelectedGroup& g = groups_[i];
         const Vec2f c{top_left.x + 0.5f * card_w + static_cast<float>(i) * (card_w + gap), cy};
@@ -736,9 +740,11 @@ void ModernTacticalHud::build_selection(const TacticalHudFrame& f, std::span<con
     }
 }
 
-// #588 the fleet group tabs (Classic's build_fleet_tabs rules: fleet_tab_state): each run of a group's cards framed, its
-// tab over the run with the group's number and name (a padlock and the warning colour while locked) and its Merge / Split
-// buttons; the tab's members are the feed group's (or the run's units).
+// #588 / #600 the tabs over the selection cards: one per fleet group run (its number and name, Merge / Split by the
+// shared rules) and one per wing run (cards whose units are all one wing's: its name and key). Each tab has a state chip
+// (a closed padlock LOCKED, an open one FREE, a wing WING: a shape as well as the text) and an aggregate health bar
+// (the feed's, else the run's cards' mean). A group tab clicks as Classic's tab (kFleetTabHitBase + index), a wing tab
+// as Classic's wing button (WingSelect).
 void ModernTacticalHud::build_fleet_tabs(const TacticalHudFrame& f, std::span<const HudUnit> units, const CardRow& row, float tab_h) {
     const float card_w = row.card.x, card_h = row.card.y, gap = row.gap;
     const Vec2f first_card = row.first;
@@ -749,56 +755,117 @@ void ModernTacticalHud::build_fleet_tabs(const TacticalHudFrame& f, std::span<co
     st.align = TextAlign::Left;
     HudTextStyle bs = st;
     bs.align = TextAlign::Center;
+    auto wing_of = [&](const SelectedGroup& g) -> int32_t {  // the wing every unit of the card belongs to, -1 none
+        for (size_t w = 0; w < f.wings.size() && w < kMaxWings; ++w) {
+            const std::vector<uint32_t>& ids = f.wings[w].ids;
+            if (!g.ids.empty() && std::all_of(g.ids.begin(), g.ids.end(), [&](uint32_t id) { return std::binary_search(ids.begin(), ids.end(), id); }))
+                return static_cast<int32_t>(w);
+        }
+        return -1;
+    };
+    enum class Chip { Locked, Free, Wing };
+    const std::u32string merge = text_or_port(text_, nullptr, U"Merge"), split = text_or_port(text_, nullptr, U"Split");
+    const float button_h = std::max(px_units(24.0f), tab_h - 4.0f);
     for (size_t first = 0; first < groups_.size();) {
-        const uint16_t id = groups_[first].fleet;
-        size_t end = first + 1;  // the run [first, end): one group's cards
-        while (end < groups_.size() && groups_[end].fleet == id && !groups_[end].overflow) ++end;
-        if (id == 0 || groups_[first].overflow) {
+        const SelectedGroup& g0 = groups_[first];
+        const uint16_t id = g0.fleet;
+        const int32_t wing = id == 0 && !g0.overflow ? wing_of(g0) : -1;
+        size_t end = first + 1;  // the run [first, end): one group's or one wing's cards
+        if (id != 0)
+            while (end < groups_.size() && groups_[end].fleet == id && !groups_[end].overflow) ++end;
+        else if (wing >= 0)
+            while (end < groups_.size() && groups_[end].fleet == 0 && !groups_[end].overflow && wing_of(groups_[end]) == wing) ++end;
+        if (g0.overflow || (id == 0 && wing < 0)) {
             first = end;
             continue;
         }
         const size_t s = first, e = end;
-        const HudFleetTabState ts = fleet_tab_state(f.fleet_groups, selected, id);
+        const HudFleetTabState ts = id != 0 ? fleet_tab_state(f.fleet_groups, selected, id) : HudFleetTabState{};
         const bool locked = ts.group && ts.group->locked;
+        const Chip chip = wing >= 0 ? Chip::Wing : locked ? Chip::Locked : Chip::Free;
         const Rgba8 edge = locked ? colours_.hull_warn : accent(230);
         const float x0 = first_card.x - 0.5f * card_w + static_cast<float>(s) * (card_w + gap);
         const float x1 = first_card.x - 0.5f * card_w + static_cast<float>(e - 1) * (card_w + gap) + card_w;
         // The run's frame (round the cards) and its tab.
         frame_rect(dl_, kControlLayer, {0.5f * (x0 + x1), first_card.y}, {x1 - x0 + 4.0f, card_h + 4.0f}, Rgba8{0, 0, 0, 0}, edge);
-        char num[16];
-        std::snprintf(num, sizeof num, "%u", static_cast<unsigned>(id));
-        std::u32string label = ascii32(num);
-        if (ts.group && !ts.group->name.empty()) label += U" " + ts.group->name;
-        const std::u32string merge = text_or_port(text_, nullptr, U"Merge"), split = text_or_port(text_, nullptr, U"Split");
+        std::u32string label;
+        if (wing >= 0) {
+            const HudWing& w = f.wings[static_cast<size_t>(wing)];
+            label = w.label;
+            if (!w.hotkey.empty()) label += U" " + w.hotkey;
+        } else {
+            char num[16];
+            std::snprintf(num, sizeof num, "%u", static_cast<unsigned>(id));
+            label = ascii32(num);
+            if (ts.group && !ts.group->name.empty()) label += U" " + ts.group->name;
+        }
+        const std::u32string chip_text = text_or_port(text_, nullptr, chip == Chip::Wing ? U"WING" : chip == Chip::Locked ? U"LOCKED" : U"FREE");
+        const float chip_w = 0.6f * tab_h + measure_text_block(*fonts_, canvas_, chip_text, 0.0f, bs).width + kPad;
         const float mw = measure_text_block(*fonts_, canvas_, merge, 0.0f, bs).width + kPad;
         const float sw = measure_text_block(*fonts_, canvas_, split, 0.0f, bs).width + kPad;
-        const float lock_w = locked ? tab_h : 0.0f;
         const float buttons = (ts.merge ? mw + 2.0f : 0.0f) + (ts.split ? sw + 2.0f : 0.0f);
-        // As wide as the run, or its label and buttons, up to the next run's start (or the section's end): the next tab never
-        // covers this one's buttons; the label is squeezed to the room left.
+        // As wide as the run, or its chip, label and buttons, up to the next run's start (or the section's end): the next tab
+        // never covers this one's buttons; the label is squeezed to the room left.
         const float room = (e < groups_.size() ? first_card.x - 0.5f * card_w + static_cast<float>(e) * (card_w + gap) - 0.5f * gap : row.right) - (x0 - 2.0f);
         const float label_w = measure_text_block(*fonts_, canvas_, label, 0.0f, st).width;
-        const float tab_w = std::max(x1 - x0 + 4.0f, std::min(room, lock_w + label_w + buttons + 2.0f * kPad));
-        st.width_scale = fit_width_scale(label_w, std::max(1.0f, tab_w - lock_w - buttons - 2.0f * kPad));
+        const float tab_w = std::max(x1 - x0 + 4.0f, std::min(room, chip_w + label_w + buttons + 3.0f * kPad));
+        st.width_scale = fit_width_scale(label_w, std::max(1.0f, tab_w - chip_w - buttons - 3.0f * kPad));
         const Vec2f tab{x0 - 2.0f + 0.5f * tab_w, first_card.y + 0.5f * card_h + 2.0f + 0.5f * tab_h};
         const int32_t index = static_cast<int32_t>(fleet_tab_ids_.size());
-        frame_rect(dl_, kControlLayer, tab, {tab_w, tab_h}, colours_.button, hover_ == kFleetTabHitBase + index ? colours_.text : edge);
-        float tx = tab.x - 0.5f * tab_w + kPad;
-        if (locked) {  // a padlock: shackle over a body (a shape as well as the colour)
-            const float u = 0.25f * tab_h;
-            frame_rect(dl_, kControlLayer, {tx + u, tab.y + 0.5f * u}, {u, u}, Rgba8{0, 0, 0, 0}, edge);
-            add_rect(dl_, kControlLayer, tx + 0.4f * u, tab.y - 0.9f * u, tx + 1.6f * u, tab.y + 0.1f * u, edge);
-            tx += lock_w;
+        const int32_t tab_id = wing >= 0 ? kModernWingTabBase + wing : kFleetTabHitBase + index;
+        frame_rect(dl_, kControlLayer, tab, {tab_w, tab_h}, colours_.button, hover_ == tab_id ? colours_.text : edge);
+        // The chip: a dark plate with its icon and text.
+        float tx = tab.x - 0.5f * tab_w + 0.5f * kPad;
+        const Vec2f cc{tx + 0.5f * chip_w, tab.y + 1.0f};
+        frame_rect(dl_, kControlLayer, cc, {chip_w, tab_h - 8.0f}, Rgba8{0, 0, 0, 200}, edge);
+        const float u = 0.22f * tab_h, ix = cc.x - 0.5f * chip_w + 0.5f * kPad + 0.5f * u, iy = cc.y;
+        switch (chip) {
+            case Chip::Locked:  // a closed padlock: the shackle down on the body
+            case Chip::Free: {  // an open padlock: the shackle raised and off to one side
+                const float lift = chip == Chip::Free ? 0.5f * u : 0.0f, shift = chip == Chip::Free ? 0.35f * u : 0.0f;
+                frame_rect(dl_, kControlLayer, {ix + shift, iy + 0.45f * u + lift}, {u, u}, Rgba8{0, 0, 0, 0}, edge);
+                add_rect(dl_, kControlLayer, ix - 0.6f * u, iy - 0.9f * u, ix + 0.6f * u, iy + 0.05f * u, edge);
+                if (chip == Chip::Locked) ++stats_.chips_locked;
+                else ++stats_.chips_free;
+                break;
+            }
+            case Chip::Wing: {  // a wing: a swept triangle
+                HudQuad q;
+                q.has_corners = true;
+                q.corners = {Vec2f{ix - 0.7f * u, iy - 0.6f * u}, Vec2f{ix + 0.8f * u, iy + 0.7f * u}, Vec2f{ix + 0.8f * u, iy + 0.7f * u},
+                             Vec2f{ix + 0.2f * u, iy - 0.6f * u}};
+                q.color = edge;
+                dl_.add(kControlLayer, HudList::Alpha, q);
+                ++stats_.chips_wing;
+                break;
+            }
         }
-        add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, label, {tx, tab.y}, st);
-        hit(kFleetTabHitBase + index, kControlLayer, tab, {tab_w, tab_h});
+        add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, chip_text, {cc.x + 0.3f * tab_h, cc.y}, bs);
+        tx += chip_w + kPad;
+        add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, label, {tx, tab.y + 1.0f}, st);
+        // The aggregate health along the tab's bottom edge (solid, as a hull bar).
+        float health = wing >= 0 ? f.wings[static_cast<size_t>(wing)].health : ts.group ? ts.group->health : -1.0f;
+        if (health < 0.0f) {  // the run's cards, by unit count
+            float sum = 0.0f;
+            size_t n = 0;
+            for (size_t k = s; k < e; ++k) {
+                sum += groups_[k].health * static_cast<float>(groups_[k].ids.size());
+                n += groups_[k].ids.size();
+            }
+            health = n > 0 ? sum / static_cast<float>(n) : -1.0f;
+        }
+        if (health >= 0.0f) {
+            add_bar(dl_, kControlLayer, {tab.x, tab.y - 0.5f * tab_h + 2.5f}, {tab_w - 4.0f, 3.0f}, health, hull_colour(health), false);
+            ++stats_.tab_health_bars;
+        }
+        hit(tab_id, kControlLayer, tab, {tab_w, tab_h});
         float bx = tab.x + 0.5f * tab_w - 1.0f;
         auto button = [&](int32_t base, const std::u32string& text, float w) {  // a layer over the tabs, as Classic's
             const Vec2f bc{bx - 0.5f * w, tab.y};
             bx -= w + 2.0f;
-            frame_rect(dl_, kControlLayer + 1, bc, {w, tab_h - 4.0f}, accent(120), hover_ == base + index ? colours_.text : edge);
+            frame_rect(dl_, kControlLayer + 1, bc, {w, button_h}, accent(120), hover_ == base + index ? colours_.text : edge);
             add_text(dl_, kControlLayer + 1, HudList::Text, *fonts_, canvas_, text, bc, bs);
-            hit(base + index, kControlLayer + 1, bc, {w, tab_h - 4.0f});
+            hit(base + index, kControlLayer + 1, bc, {w, button_h});
         };
         if (ts.split) {
             button(kFleetSplitHitBase, split, sw);
@@ -808,6 +875,12 @@ void ModernTacticalHud::build_fleet_tabs(const TacticalHudFrame& f, std::span<co
             button(kFleetMergeHitBase, merge, mw);
             ++stats_.fleet_merge;
         }
+        st.width_scale = 1.0f;
+        first = end;
+        if (wing >= 0) {
+            ++stats_.wing_tabs;
+            continue;
+        }
         std::vector<uint32_t> members;
         if (ts.group) members = ts.group->members;
         else
@@ -815,8 +888,6 @@ void ModernTacticalHud::build_fleet_tabs(const TacticalHudFrame& f, std::span<co
         fleet_tab_ids_.push_back(std::move(members));
         fleet_tab_group_.emplace_back(id, ts.group ? utf32_to_utf8(ts.group->name) : std::string{});
         ++stats_.fleet_tabs;
-        st.width_scale = 1.0f;
-        first = end;
     }
 }
 
@@ -1316,6 +1387,12 @@ void ModernTacticalHud::update_input(const RoutedInput& routed, bool shift, bool
         }
         if (e.component == kModernStationHit) {
             if (e.button == Button::Left && station_ != commands::kNoObject) out.push_back(commands::ev::select({station_}));
+            continue;
+        }
+        // #600 a wing run's tab: the Classic wing button's action.
+        if (e.component >= kModernWingTabBase && e.component - kModernWingTabBase < static_cast<int32_t>(wing_ids_.size())) {
+            const auto w = static_cast<size_t>(e.component - kModernWingTabBase);
+            if (e.button == Button::Left && !wing_ids_[w].empty()) act(wing_select_action(static_cast<int32_t>(w), wing_ids_[w], shift, ctrl));
             continue;
         }
         if (e.component >= kModernHitBase) continue;  // a panel's back

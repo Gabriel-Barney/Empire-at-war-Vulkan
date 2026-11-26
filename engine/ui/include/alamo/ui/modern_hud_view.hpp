@@ -108,6 +108,9 @@ protected:
     void begin_build(uint8_t faction_alt);
     int32_t font() const;
     float text_height_units() const;
+    // Canvas units of `px` pixels at 1080p (scaled with the screen and the UI scale as the text is; not with the text
+    // size): the readability rules' minimum target sizes.
+    float px_units(float px) const;
     Rgba8 accent(uint8_t alpha) const;
     void hit(int32_t id, uint32_t layer, Vec2f center, Vec2f size);
     // #587 a deck button (tile()).

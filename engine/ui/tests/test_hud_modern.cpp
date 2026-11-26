@@ -1173,6 +1173,63 @@ void test_land() {
     CHECK(st.production && !st.pad_options && st.build_options == 3);
 }
 
+// #600 the tabs' state chips and health: a free and a locked group (chips by the lock flag, a health bar each, the
+// feed's health first), Merge / Split at least 24 px tall at 1080p; a wing run's tab (fleet groups off too) clicks as
+// Classic's wing button; with fleet groups off no group tab.
+void test_tab_chips() {
+    Huds h;
+    Selection s;
+    TacticalHudFrame f = frame();
+    f.world.local_player = 0;
+    std::vector<HudFleetGroup> fleets(2);
+    fleets[0].id = 1;
+    fleets[0].members = {20, 21};
+    fleets[0].health = 0.4f;
+    fleets[1].id = 2;
+    fleets[1].locked = true;
+    fleets[1].members = {22, 50};
+    f.fleet_groups_on = true;
+    f.fleet_groups = fleets;
+    h.modern.build(f, s.units, s.types);
+    const ModernHudStats& st = h.modern.stats();
+    CHECK(st.fleet_tabs == 2 && st.chips_free == 1 && st.chips_locked == 1 && st.chips_wing == 0 && st.tab_health_bars == 2 && st.wing_tabs == 0);
+    for (const HudHitBox& b : h.modern.hit_boxes())
+        if ((b.component >= kFleetMergeHitBase && b.component < kFleetMergeHitBase + 8) ||
+            (b.component >= kFleetSplitHitBase && b.component < kFleetSplitHitBase + 8)) {
+            const Vec2f lo = h.modern.canvas().canvas_to_pixel(b.min.x, b.min.y), hi = h.modern.canvas().canvas_to_pixel(b.max.x, b.max.y);
+            CHECK(std::fabs(hi.y - lo.y) >= 24.0f - 0.5f);
+        }
+    fleets[0].locked = true;
+    h.modern.build(f, s.units, s.types);
+    CHECK(st.chips_locked == 2 && st.chips_free == 0);
+    // A wing: the X-wings (20, 21) are the fighter wing.
+    std::vector<HudWing> wings(1);
+    wings[0].label = U"FIGHTERS";
+    wings[0].hotkey = U"F2";
+    wings[0].squadrons = 1;
+    wings[0].ids = {20, 21};
+    wings[0].craft_alive = 2;
+    wings[0].craft_total = 3;
+    wings[0].health = 0.6f;
+    f.wings = wings;
+    f.fleet_groups_on = false;
+    f.fleet_groups = {};
+    h.build(f, s.units, s.types);
+    CHECK(st.wing_tabs == 1 && st.fleet_tabs == 0 && st.chips_wing == 1 && st.tab_health_bars == 1 &&
+          has_hit(h.modern.hit_boxes(), kModernWingTabBase));
+    size_t emitted = 0;
+    CHECK(h.same_click(kWingHitBase, kModernWingTabBase, false, false, Button::Left, &emitted));
+    CHECK(emitted == 1);
+    h.build(f, s.units, s.types);
+    CHECK(h.same_click(kWingHitBase, kModernWingTabBase, true, false));
+    // Fleet groups on: the grouped X-wings are their group's run, not the wing's.
+    fleets[0].locked = false;
+    f.fleet_groups_on = true;
+    f.fleet_groups = fleets;
+    h.modern.build(f, s.units, s.types);
+    CHECK(st.fleet_tabs == 2 && st.wing_tabs == 0);
+}
+
 // ---- #599 the fleet discipline control ----
 
 // The commands the Classic key of `slot` sends (HotkeyDispatcher, fleet groups `on`, `locked` = the selection's groups
@@ -1623,6 +1680,7 @@ int main() {
     test_land();
     test_hotkey();
     test_world_split();
+    test_tab_chips();
     test_discipline_rule();
     test_discipline_control();
     test_galactic_view();

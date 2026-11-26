@@ -56,6 +56,7 @@ inline constexpr int32_t kModernFleetShortcutBase = kModernHitBase + 0x200;  // 
 inline constexpr int32_t kModernDisciplineHit = kModernHitBase + 6;  // #599 the fleet discipline control
 inline constexpr int32_t kModernNewGroupHit = kModernHitBase + 7;    // #599 New group (the N key's Create)
 inline constexpr int32_t kModernLockHit = kModernHitBase + 8;        // #599 Lock (the Y key's SetLock)
+inline constexpr int32_t kModernWingTabBase = kModernHitBase + 0x800;  // #600 + wing index: a wing run's tab (WingSelect)
 // Hull bar colours by health (badly damaged units stand out): above kModernHullWarn, above kModernHullCritical, below.
 inline constexpr float kModernHullWarn = 0.6f, kModernHullCritical = 0.3f;
 
@@ -94,6 +95,8 @@ struct ModernHudStats {
     uint32_t shortcuts = 0;                  // wing, fleet group and station shortcuts drawn
     float deck_width = 0.0f;                 // canvas units
     uint32_t fleet_tabs = 0, fleet_merge = 0, fleet_split = 0;  // #588 group tabs and their Merge / Split buttons drawn
+    // #600 wing run tabs; the tabs' state chips (a padlock LOCKED, an open padlock FREE, a wing WING) and health bars
+    uint32_t wing_tabs = 0, chips_locked = 0, chips_free = 0, chips_wing = 0, tab_health_bars = 0;
     // #591 the map (bottom left above the deck, or right with the map side option): blips by shape - own units squares,
     // hostile diamonds, neutral and allied circles - in their team colours; pings; the camera footprint. The hover target
     // card: the hovered hostile unit's name, hull, shields and hard points beside it (no hit box: clicks pass through).
