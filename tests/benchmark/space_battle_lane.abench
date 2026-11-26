@@ -1,0 +1,9 @@
+ALAMO_BENCH 1
+name space_battle_lane
+version 1
+description space_battle with the AI lane on (--ai-lane, k_ai 2): the same FoC _MP_SPACE_KUAT skirmish, Empire vs Rebel with four times the --skirmish-ai foc fleets, saved at tick 300 in the battle, then 1 min of battle; its own fingerprint, so a lane-on run is timed against lane-on CRCs (#629)
+make --save-session skirmish --campaign foc-fleet --ai-lane --save-when battle --bench-save-at 300 --ticks 1800 --bench-every 16 --bench-desc "space_battle with the AI lane on (--ai-lane, k_ai 2): the same FoC _MP_SPACE_KUAT skirmish, Empire vs Rebel with four times the --skirmish-ai foc fleets, saved at tick 300 in the battle, then 1 min of battle; its own fingerprint, so a lane-on run is timed against lane-on CRCs (#629)"
+fingerprint_every 16
+start_tick 300
+ticks 1800
+workers auto

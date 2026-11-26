@@ -14,6 +14,7 @@ alamo_assets_tests
 alamo_audio_game_tests
 alamo_audio_tests
 alamo_bench_compare_tool
+alamo_bench_worker_sweep_tool
 alamo_commands_tests slow
 alamo_core_atomic_file_tests
 alamo_core_compat_issue_tests
