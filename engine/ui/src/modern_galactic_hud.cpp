@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 
 #include "alamo/core/ascii.hpp"
 #include "alamo/ui/hud_font.hpp"
@@ -42,6 +43,7 @@ void ModernGalacticHud::init(const ComponentTable& table, const TextureAtlas& at
     holocron_ = table.find("b_story_arc_g");
     planet_info_ = table.find("planet_info");
     base_layout_ = table.find("advanced_planetary");
+    radar_ = table.find("radar_galactic");  // #613
     if (const int32_t c = table.find("Text_Credits"); c >= 0 && table[static_cast<size_t>(c)].has_text_color)
         credits_color_ = table[static_cast<size_t>(c)].text_color;
 }
@@ -53,6 +55,12 @@ void ModernGalacticHud::build(const GalacticHudFrame& f) {
     options_shown_.clear();
     queue_.clear();
     heroes_.clear();
+    org_.clear();
+    rows_.clear();
+    slots_.clear();
+    land_row_ = false;
+    map_side_ = 0.0f;
+    map_fit_ = {};
     for (bool& t : tab_live_) t = false;
     paused_ = f.paused;
     // The selected planet: the frame's flag (GalacticHud::build).
@@ -60,7 +68,13 @@ void ModernGalacticHud::build(const GalacticHudFrame& f) {
     for (size_t i = 0; i < f.planets.size(); ++i)
         if (f.planets[i].selected) selected_ = static_cast<int32_t>(i);
     selected_id_ = selected_ >= 0 ? f.planets[static_cast<size_t>(selected_)].planet : 0;
-    if (!table_ || !fonts_ || font() < 0 || f.advanced_map_open) return;  // the planet map is Classic's
+    galactic_planet_screens(f, planet_px_);  // #613 the organiser drag's planets in the world
+    if (!table_ || !fonts_ || font() < 0 || f.advanced_map_open) {  // the planet map is Classic's
+        drag_ = {};
+        press_pad_ = -1;
+        return;
+    }
+    build_map(f);
     build_deck(f);
     build_status(f);
     build_controls(f);
@@ -70,6 +84,7 @@ void ModernGalacticHud::build(const GalacticHudFrame& f) {
     stats_.alerts_more = strip.more;
     stats_.jump = strip.jump;
     build_heroes(f, status_bottom_ - kPad);
+    build_drag();
     stats_.key_badges = key_badges_;
     stats_.hit_boxes = static_cast<uint32_t>(hits_.size());
     stats_.quads = static_cast<uint32_t>(dl_.total());
@@ -199,15 +214,20 @@ void ModernGalacticHud::build_heroes(const GalacticHudFrame& f, float top) {
     }
 }
 
-// With a planet selected: [planet card | fleets in orbit | build tabs and options | queue] along the bottom.
+// With a planet selected: [planet card | fleets in orbit | build tabs and options | queue] along the bottom, beside the
+// map; in the planet close-up the organiser above it (#613).
 void ModernGalacticHud::build_deck(const GalacticHudFrame& f) {
     if (selected_ < 0) return;
     const GalacticPlanetInfo& p = f.planets[static_cast<size_t>(selected_)];
-    const float width = canvas_.width - 2.0f * kMargin;
-    const Vec2f center{0.0f, -0.5f * canvas_.height + kMargin + 0.5f * kDeckHeight};
+    const float beside = map_side_ > 0.0f ? map_side_ + kMargin : 0.0f;
+    const float region_left = -0.5f * canvas_.width + kMargin + (options_.map_right ? 0.0f : beside);
+    const float region_right = 0.5f * canvas_.width - kMargin - (options_.map_right ? beside : 0.0f);
+    const float width = region_right - region_left;
+    const Vec2f center{0.5f * (region_left + region_right), -0.5f * canvas_.height + kMargin + 0.5f * kDeckHeight};
     frame_rect(dl_, kPanelLayer, center, {width, kDeckHeight}, colours_.back, accent(200));
     hit(kModernPanelHit, kPanelLayer, center, {width, kDeckHeight});
     stats_.deck = true;
+    if (f.organize_open) build_organiser(f, p, {region_left, center.y + 0.5f * kDeckHeight + kPad}, 0.6f * width);
     const float height = kDeckHeight - 2.0f * kPad;
     float left = center.x - 0.5f * width + kPad;
     float right = center.x + 0.5f * width - kPad;
@@ -368,6 +388,248 @@ void ModernGalacticHud::build_options(const GalacticHudFrame& f, const GalacticP
     }
 }
 
+// #613 the map: a square panel at the deck's end (left, right with the map side option), level with its bottom edge. The
+// Classic radar's blips on its mapping (galactic_radar_fit) - a planet in its owner's colour, the selected one framed in
+// white (a shape cue, not colour alone) - and the camera's footprint (its bounding box, clipped, as Classic's).
+void ModernGalacticHud::build_map(const GalacticHudFrame& f) {
+    const float side = kDeckHeight;
+    const float cx = options_.map_right ? 0.5f * canvas_.width - kMargin - 0.5f * side : -0.5f * canvas_.width + kMargin + 0.5f * side;
+    const Vec2f center{cx, -0.5f * canvas_.height + kMargin + 0.5f * side}, size{side - 2.0f * kPad, side - 2.0f * kPad};
+    frame_rect(dl_, kPanelLayer, center, {side, side}, colours_.back, accent(200));
+    add_rect(dl_, kPanelLayer, center.x - 0.5f * size.x, center.y - 0.5f * size.y, center.x + 0.5f * size.x, center.y + 0.5f * size.y,
+             Rgba8{0, 0, 0, 120});
+    hit(kModernPanelHit, kPanelLayer, center, {side, side});
+    hit(map_id(), kControlLayer, center, size);
+    map_side_ = side;
+    map_at_ = center;
+    map_size_ = size;
+    stats_.map = true;
+    if (f.planets.empty()) return;
+    map_fit_ = galactic_radar_fit(f.planets);
+    const float r = std::max(2.0f, 0.025f * side);
+    for (const GalacticPlanetInfo& p : f.planets) {
+        if (!p.visible) continue;
+        const Vec2f at = map_fit_.to_canvas(center, size, p.position.x, p.position.y);
+        if (p.selected) add_rect(dl_, kControlLayer, at.x - r - 1.5f, at.y - r - 1.5f, at.x + r + 1.5f, at.y + r + 1.5f, colours_.text);
+        add_rect(dl_, kControlLayer, at.x - r, at.y - r, at.x + r, at.y + r, Rgba8{p.owner_color.r, p.owner_color.g, p.owner_color.b, 255});
+        ++stats_.map_blips;
+    }
+    Vec2f a{}, b{};
+    if (!galactic_radar_view(map_fit_, f.view, center, size, a, b)) return;
+    const Rgba8 line{255, 255, 255, 220};
+    add_rect(dl_, kControlLayer + 1, a.x, a.y, b.x, a.y + 1.0f, line);
+    add_rect(dl_, kControlLayer + 1, a.x, b.y - 1.0f, b.x, b.y, line);
+    add_rect(dl_, kControlLayer + 1, a.x, a.y, a.x + 1.0f, b.y, line);
+    add_rect(dl_, kControlLayer + 1, b.x - 1.0f, a.y, b.x, b.y, line);
+    stats_.map_view = true;
+}
+
+// #613 the organiser above the deck (the planet close-up), the panel growing up from `bottom_left`:
+//   - a row per own fleet in orbit, in the Classic panes' order (galactic_organiser_panes: q1, q2, q3, each pane's fleets
+//     in feed order), then the own fleets no pane holds: its header (the whole fleet), its unit stacks, and the row's back
+//     (a drop there merges into that fleet, as a Classic pane's empty pads do);
+//   - with an empty pane (a free orbit slot), the "New fleet" row: while something is dragged, a tile per free slot k (a
+//     drop there makes a new fleet in slot k, as on the Classic empty pane);
+//   - the land-forces row: a tile per unit; its back takes drops (land) with or without units.
+void ModernGalacticHud::build_organiser(const GalacticHudFrame& f, const GalacticPlanetInfo& p, Vec2f bottom_left, float max_width) {
+    constexpr size_t kRows = 5;       // fleet rows at most [port]
+    constexpr size_t kLandMax = 20;   // the Classic land_fleet_00..19 pads
+    std::vector<GalacticFleet> all;
+    if (f.providers.fleets) f.providers.fleets(p.planet, all);
+    GalacticOrganiserPanes panes;
+    galactic_organiser_panes(all, p.orbit_local, panes);
+    auto own_fleet = [](const GalacticFleet* g) { return !g->enemy && g->fleet != 0 && g->fleet != commands::kNoObject; };
+    std::vector<const GalacticFleet*> own;
+    for (const auto& pane : panes)
+        for (const GalacticFleet* g : pane)
+            if (own_fleet(g)) own.push_back(g);
+    for (const GalacticFleet& g : all)
+        if (own_fleet(&g) && std::find(own.begin(), own.end(), &g) == own.end()) own.push_back(&g);
+    if (own.size() > kRows) own.resize(kRows);
+    std::vector<int32_t> free_slots;
+    for (size_t k = 0; k < panes.size(); ++k)
+        if (panes[k].empty()) free_slots.push_back(static_cast<int32_t>(k));
+    std::vector<GalacticFleetSlot> land;
+    if (f.providers.land_forces) f.providers.land_forces(p.planet, land);
+    if (land.size() > kLandMax) land.resize(kLandMax);
+    const float th = text_height_units();
+    const float side = std::max(2.6f * th, px_units(48.0f)), gap = 0.5f * kPad, header_w = 7.0f * th;
+    const float inner = max_width - 2.0f * kPad;
+    const auto per_row = static_cast<size_t>(std::max(0.0f, std::floor((inner - header_w) / (side + gap))));
+    // The panel is as wide as its longest row.
+    std::vector<std::vector<GalacticUnitStack>> stacks(own.size());
+    size_t longest = std::max(std::min(land.size(), per_row), std::min(free_slots.size(), per_row));
+    for (size_t i = 0; i < own.size(); ++i) {
+        galactic_unit_stacks(own[i]->units, stacks[i]);
+        if (stacks[i].size() > per_row) stacks[i].resize(per_row);  // further stacks are not drawn, as a full Classic pane's
+        longest = std::max(longest, stacks[i].size());
+    }
+    const size_t rows = own.size() + (free_slots.empty() ? 0 : 1) + 1;
+    const Vec2f size{std::min(max_width, header_w + static_cast<float>(longest) * (side + gap) + 2.0f * kPad),
+                     static_cast<float>(rows) * side + static_cast<float>(rows - 1) * gap + 2.0f * kPad};
+    const Vec2f center{bottom_left.x + 0.5f * size.x, bottom_left.y + 0.5f * size.y};
+    frame_rect(dl_, kPanelLayer, center, size, colours_.back, accent(200));
+    hit(kModernPanelHit, kPanelLayer, center, size);
+    stats_.organiser = true;
+    const float left = center.x - 0.5f * size.x + kPad;
+    float y = center.y + 0.5f * size.y - kPad - 0.5f * side;
+    auto pad = [&](ModernOrganiserPad pd, Tile t) {
+        pd.id = t.id = kModernGalacticOrganiserBase + static_cast<int32_t>(org_.size());
+        t.selected = t.selected || highlight(t.id);  // the drag's target that takes the drop (the Classic drop highlight)
+        if (highlight(t.id)) ++stats_.drop_highlights;
+        tile(t);
+        org_.push_back(std::move(pd));
+    };
+    // A row's back: a drop target over the whole row (its tiles on top take their own drops).
+    auto row_back = [&](int32_t id) {
+        const Vec2f c{center.x, y}, s{size.x - kPad, side + gap};
+        const bool lit = highlight(id);
+        frame_rect(dl_, kPanelLayer, c, s, Rgba8{0, 0, 0, 90}, lit ? colours_.text : accent(120));
+        if (lit) ++stats_.drop_highlights;
+        hit(id, kPanelLayer, c, s);
+    };
+    auto row_label = [&](std::u32string_view label) {
+        HudTextStyle ls;
+        ls.font = font();
+        ls.color = colours_.label;
+        ls.width_scale = fit_width_scale(measure_text_block(*fonts_, canvas_, label, 0.0f, ls).width, header_w - kPad);
+        add_text(dl_, kPanelLayer, HudList::Text, *fonts_, canvas_, label, {left, y}, ls);
+    };
+    for (size_t i = 0; i < own.size(); ++i, y -= side + gap) {
+        const GalacticFleet& g = *own[i];
+        row_back(kModernGalacticRowBase + static_cast<int32_t>(i));
+        rows_.push_back(g.fleet);
+        uint32_t n = 0;
+        for (const GalacticFleetSlot& u : g.units) n += u.count;
+        ModernOrganiserPad hp;
+        hp.fleet = g.fleet;
+        hp.select = {g.fleet};
+        hp.icon = g.units.empty() ? std::string() : g.units.front().icon;
+        hp.name = g.name;
+        hp.count = n;
+        Tile ht;
+        ht.size = {header_w - gap, side};
+        ht.c = {left + 0.5f * ht.size.x, y};
+        ht.text = !g.name.empty() ? g.name : text_or_port(text_, nullptr, U"Fleet");
+        ht.badge = count_text(n);
+        pad(std::move(hp), std::move(ht));
+        ++stats_.organiser_fleets;
+        float x = left + header_w;
+        for (GalacticUnitStack& s : stacks[i]) {
+            Tile t;
+            t.size = {side, side};
+            t.c = {x + 0.5f * side, y};
+            t.icon = s.slot.icon;
+            t.selected = s.slot.selected;
+            if (s.slot.count > 1) t.badge = count_text(s.slot.count);
+            ModernOrganiserPad sp;
+            sp.fleet = g.fleet;
+            sp.unit = s.slot.object;
+            sp.select = std::move(s.members);
+            sp.icon = s.slot.icon;
+            sp.name = s.slot.name;
+            sp.count = s.slot.count;
+            pad(std::move(sp), std::move(t));
+            ++stats_.organiser_stacks;
+            x += side + gap;
+        }
+    }
+    if (!free_slots.empty()) {  // the row keeps its place, so nothing moves when a drag starts
+        row_label(text_or_port(text_, nullptr, U"New fleet"));
+        if (dragging()) {
+            float x = left + header_w;
+            for (size_t k = 0; k < free_slots.size() && k < per_row; ++k) {
+                Tile t;
+                t.id = kModernGalacticSlotBase + free_slots[k];
+                t.size = {side, side};
+                t.c = {x + 0.5f * side, y};
+                t.text = count_text(static_cast<uint32_t>(free_slots[k] + 1));  // the slot, as the Classic panes q1..q3
+                t.selected = highlight(t.id);
+                if (t.selected) ++stats_.drop_highlights;
+                tile(t);
+                slots_.push_back(free_slots[k]);
+                ++stats_.slot_tiles;
+                x += side + gap;
+            }
+        }
+        y -= side + gap;
+    }
+    row_back(kModernGalacticLandRowHit);
+    land_row_ = true;
+    row_label(text_or_port(text_, nullptr, U"Land forces"));
+    float x = left + header_w;
+    for (size_t k = 0; k < land.size() && k < per_row; ++k) {
+        const GalacticFleetSlot& u = land[k];
+        Tile t;
+        t.size = {side, side};
+        t.c = {x + 0.5f * side, y};
+        t.icon = u.icon;
+        t.selected = u.selected;
+        if (u.count > 1) t.badge = count_text(u.count);
+        ModernOrganiserPad lp;
+        lp.land = true;
+        lp.unit = u.object;
+        lp.select = {u.object};
+        lp.icon = u.icon;
+        lp.name = u.name;
+        lp.count = u.count;
+        pad(std::move(lp), std::move(t));
+        ++stats_.land_pads;
+        x += side + gap;
+    }
+}
+
+// #613 the dragged tile's icon follows the cursor on the topmost layer (as Classic's Should_Render_At_Drag_Pos).
+void ModernGalacticHud::build_drag() {
+    stats_.drop_valid = drag_.active ? drag_.valid : classic_drag_.active && classic_drag_.valid;
+    if (!drag_.active || !atlas_) return;
+    const Vec2f at = canvas_.pixel_to_canvas(drag_.cursor_px.x, drag_.cursor_px.y);
+    const float s = px_units(40.0f);
+    if (drag_.icon.empty() || !add_atlas_quad(dl_, kHudLayers - 1, HudList::Alpha, *atlas_, drag_.icon, at, {s, s}, 1.0f, Rgba8{255, 255, 255, 200}))
+        frame_rect(dl_, kHudLayers - 1, at, {s, s}, accent(150), colours_.text);
+}
+
+const ModernOrganiserPad* ModernGalacticHud::org_pad(int32_t id) const {
+    if (id < kModernGalacticOrganiserBase || id - kModernGalacticOrganiserBase >= static_cast<int32_t>(org_.size())) return nullptr;
+    return &org_[static_cast<size_t>(id - kModernGalacticOrganiserBase)];
+}
+
+GalacticDropTarget ModernGalacticHud::drop_target(int32_t component, Vec2f px) const {
+    using Target = GalacticDropTarget;
+    if (component >= 0) {
+        if (const ModernOrganiserPad* p = org_pad(component))  // a fleet's row (header or stack), or a land unit
+            return p->land ? Target{Target::Kind::LandForces} : Target{Target::Kind::Fleet, p->fleet, false};
+        if (component == kModernGalacticLandRowHit && land_row_) return Target{Target::Kind::LandForces};
+        if (const size_t r = static_cast<size_t>(component - kModernGalacticRowBase);  // a fleet row's back
+            component >= kModernGalacticRowBase && r < rows_.size())
+            return Target{Target::Kind::Fleet, rows_[r], false};
+        if (const int32_t k = component - kModernGalacticSlotBase;  // a free slot's tile: an empty pane of Classic's
+            component >= kModernGalacticSlotBase && std::find(slots_.begin(), slots_.end(), k) != slots_.end()) {
+            Target t{Target::Kind::Slot};
+            t.planet = selected_id_;
+            t.slot = k;
+            return t;
+        }
+        return Target{Target::Kind::Other};  // any other Modern control, or the Classic map layer's
+    }
+    Target t{Target::Kind::World};
+    const int32_t pi = galactic_planet_at(planet_px_, px.x, px.y);
+    t.on_planet = pi >= 0;
+    if (pi >= 0) t.planet = planet_px_[static_cast<size_t>(pi)].planet;
+    return t;
+}
+
+bool ModernGalacticHud::organiser_target(int32_t component, GalacticDropTarget& out) const {
+    if (component < 0) return false;
+    out = drop_target(component, {});
+    return out.kind != GalacticDropTarget::Kind::Other;
+}
+
+bool ModernGalacticHud::drop(std::vector<commands::EventData>* out) const {
+    const GalacticOrganiserDrag source{drag_.fleet_index >= 0, drag_.fleet, drag_.unit, 0};
+    return galactic_organiser_drop(source, drop_target(drag_.over_component, drag_.cursor_px), selected_id_, out);
+}
+
 void ModernGalacticHud::update_input(const RoutedInput& routed, bool shift, bool ctrl, double now,
                                      std::vector<commands::EventData>& out, std::vector<HudAction>* actions) {
     hover_ = routed.hover_component;
@@ -375,11 +637,90 @@ void ModernGalacticHud::update_input(const RoutedInput& routed, bool shift, bool
     auto act = [&](HudAction a) {
         if (actions) actions->push_back(std::move(a));
     };
+    // #613 the organiser drag (GalacticHud::drag_update's rules): a left press on a tile, then a move past the threshold
+    // while the HUD owns the button; the release drops it (and swallows that release's click).
+    bool dropped = false;
+    for (const HudPointerEvent& e : routed.hud) {
+        if (e.button != Button::Left) continue;
+        if (e.kind == HudPointerEvent::Kind::Press) {
+            press_pad_ = org_pad(e.component) ? e.component : -1;
+            press_px_ = {static_cast<float>(e.x), static_cast<float>(e.y)};
+        } else if (e.kind == HudPointerEvent::Kind::Release) {
+            if (drag_.active) {
+                drag_.cursor_px = {static_cast<float>(e.x), static_cast<float>(e.y)};
+                drag_.over_component = e.component;
+                drop(&out);
+                dropped = true;
+            }
+            press_pad_ = -1;
+            drag_ = {};
+        }
+    }
+    // A press or drag the HUD no longer holds (the button let go without a release here: the view hidden, a dialog) ends
+    // without a drop, so a later release can never send it.
+    if (!dropped && routed.owner[static_cast<size_t>(Button::Left)] != PointerTarget::Hud) cancel_drag();
+    const Vec2f cur{static_cast<float>(routed.world.mouse_x), static_cast<float>(routed.world.mouse_y)};
+    if (press_pad_ >= 0 && !drag_.active && routed.owner[static_cast<size_t>(Button::Left)] == PointerTarget::Hud &&
+        std::hypot(cur.x - press_px_.x, cur.y - press_px_.y) > static_cast<float>(GalacticHud::kDragThresholdPx))
+        if (const ModernOrganiserPad* p = org_pad(press_pad_)) {
+            drag_.active = true;
+            drag_.component = p->id;
+            drag_.fleet_index = p->land ? -1 : 0;
+            drag_.fleet = p->fleet;
+            drag_.unit = p->unit;
+            drag_.icon = p->icon;
+        }
+    if (drag_.active) {
+        drag_.cursor_px = cur;
+        drag_.over_component = routed.hover_component;
+        const GalacticDropTarget t = drop_target(drag_.over_component, cur);
+        drag_.over_fleet = t.kind == GalacticDropTarget::Kind::Fleet && t.fleet != drag_.fleet;
+        drag_.over_planet = -1;
+        if (t.kind == GalacticDropTarget::Kind::World && t.on_planet)
+            for (const GalacticPlanetScreen& s : planet_px_)
+                if (s.planet == t.planet) drag_.over_planet = static_cast<int32_t>(s.index);
+        drag_.valid = drop(nullptr);
+    }
+    if (dropped) return;  // the release ended a drag, not a click
     auto index = [](int32_t component, int32_t base, size_t n) {
         return component >= base && component - base < static_cast<int32_t>(n) ? static_cast<size_t>(component - base) : SIZE_MAX;
     };
     for (const HudPointerEvent& e : routed.hud) {
         if (e.kind != HudPointerEvent::Kind::Click || e.component < 0 || !drawn(e.component)) continue;
+        // #613 the map: the Classic radar's click (RadarCameraJump to that point).
+        if (e.component == map_id()) {
+            HudAction a;
+            const Vec2f c = canvas_.pixel_to_canvas(static_cast<float>(e.x) + 0.5f, static_cast<float>(e.y) + 0.5f);
+            if (galactic_radar_click(map_fit_, map_at_, map_size_, c, e.component,
+                                     radar_ >= 0 ? (*table_)[static_cast<size_t>(radar_)].name : std::string(), e.button, a))
+                act(std::move(a));
+            continue;
+        }
+        // #613 an organiser tile: the Classic pad's click (GalacticHud::update_input): GalacticSelect of the pad, and a second
+        // plain left click on the same tile within 0.5 s and 4 px asks for a rename of the fleet (header) or the unit.
+        if (const ModernOrganiserPad* p = org_pad(e.component)) {
+            act(galactic_select_action(e.component, p->select, e.button, shift, ctrl));
+            if (e.button == Button::Left && !shift && !ctrl) {
+                const bool dbl = last_pad_click_ == e.component && now - last_pad_time_ <= 0.5 && std::abs(e.x - last_pad_x_) <= 4 &&
+                                 std::abs(e.y - last_pad_y_) <= 4;
+                if (dbl && (p->unit != 0 || p->fleet != 0)) {
+                    HudAction r;
+                    r.kind = HudAction::Kind::Rename;
+                    r.component = e.component;
+                    r.unit = p->unit != 0 ? p->unit : p->fleet;
+                    r.value = p->unit != 0 ? 0 : 1;
+                    if (p->fleet != 0) r.ids = {p->fleet};
+                    act(std::move(r));
+                    last_pad_click_ = -1;
+                } else {
+                    last_pad_click_ = e.component;
+                    last_pad_time_ = now;
+                    last_pad_x_ = e.x;
+                    last_pad_y_ = e.y;
+                }
+            }
+            continue;
+        }
         if (view_click(e, actions)) continue;  // the style switch, Jump
         if (const size_t k = index(e.component, kModernGalacticTabBase, kGalacticBuildTabs); k != SIZE_MAX) {
             if (e.button == Button::Left && tab_live_[k]) tab_ = static_cast<GalacticBuildTab>(k);
