@@ -221,7 +221,7 @@ void TacticalBattle::land_engage_service(TacticalMode& mode, SimRng& rng) {
     for (size_t i = 0; i < lformations_.size(); ++i) {
         LandFormationRecord& r = lformations_[i];
         // #510 state 6 (0x422b70 [H]): while any member's locomotor moves, wait; then wait while frame <= deadline; then
-        // speed := -1, state 0 (the re-plan)
+        // speed := -1, state 0 (the re-plan). Ahead of the target guards below: the wait does not need a target.
         if (r.wait && land_members_still(r) && frame_ > r.deadline) {
             r.wait = false;
             land_replan(mode, r, rng);
@@ -385,7 +385,7 @@ void TacticalBattle::land_pop(TacticalMode& mode, LandFormationRecord& r, SimRng
     if (popped) land_pop_effects(*popped, r.mover);
     if (r.blocks.empty()) return;
     // #510: Pop 0x4105a0 goes to state 5 after an object block (kind 3), else to state 0 (the re-plan)
-    if (popped && popped->kind == mv::kFighterBlockObject && !land_pop_ready(r)) return;
+    if (popped && popped->kind == mv::kFighterBlockObject && land_pop_enter_wait(r)) return;
     land_replan(mode, r, rng);
 }
 
@@ -395,7 +395,7 @@ void TacticalBattle::land_pop(TacticalMode& mode, LandFormationRecord& r, SimRng
 // own members (land_mover_units lists the units). TARGETING vf +0xe0 (0x567080: the targeting data's +8 is set) is "has a
 // target": CombatSystem::current_target [M]. Every member with a target and none whose locomotor moves (vf +0x1a8 or vf
 // +0x1c0(0)): speed := -1, state 0 (re-plan now). Else state 6 (r.wait).
-bool TacticalBattle::land_pop_ready(LandFormationRecord& r) {
+bool TacticalBattle::land_pop_enter_wait(LandFormationRecord& r) {
     uint32_t deadline = frame_ + 2u;
     bool targets = true;
     for (const objects::ObjectId id : land_mover_units(r.mover)) {
@@ -403,10 +403,10 @@ bool TacticalBattle::land_pop_ready(LandFormationRecord& r) {
         deadline = std::max(deadline, combat_->next_scan(id));
         targets = targets && combat_->current_target(id) != tc::kNoObject;
     }
-    r.deadline = deadline;
     r.wait = !(targets && land_members_still(r));
+    r.deadline = r.wait ? deadline : 0u;
     if (r.wait) ++stats_.land_pop_waits;
-    return !r.wait;
+    return r.wait;
 }
 
 bool TacticalBattle::land_members_still(const LandFormationRecord& r) const {
@@ -567,7 +567,7 @@ void TacticalBattle::land_waypoint_service(TacticalMode& mode, SimRng& rng) {
     for (size_t i = 0; i < lformations_.size(); ++i) {
         const LandFormationRecord& r = lformations_[i];
         const size_t n = r.blocks.size();
-        if (n < 2 || r.locked) continue;
+        if (n < 2 || r.locked || r.wait) continue;  // #510: a state-6 record runs its wait, not the arrival
         const mv::FighterBlock& t = r.blocks.back();
         if (t.pushed || t.kind == mv::kFighterBlockObject) continue;
         if ((t.flags & mv::kMoveFlagPlayerOrder) != 0 && (r.blocks[n - 2].flags & mv::kMoveFlagQueue) == 0) continue;

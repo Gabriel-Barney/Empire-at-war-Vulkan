@@ -63,7 +63,7 @@ struct LandAutoEngageRun {
     // #510 (0x422e50 / 0x422b70 [H]): the Pop of the auto (object) block with the members' targets gone -> state 6: the
     // record waits; it re-plans on the first frame past its deadline (Pop frame + 2, raised to the members' next target
     // scans) once no member moves, and not before
-    bool waited = false, held_until_deadline = true;
+    bool waited = false, held_until_deadline = true, held_while_moving = false;
     uint32_t pop_frame = 0, deadline = 0, resume_frame = 0;
     int32_t push_hp = -2;  // the hard point the auto block names (-1 none)
 };
@@ -190,6 +190,8 @@ LandAutoEngageRun run_land_auto_engage(const Data& d) {
             const LandFormationRecord* r = record_of(*b, sq);
             const bool back = v.has_goal && dist2d(v.goal, dest) < 40.0f;
             if (r && r->wait && back) out.held_until_deadline = false;  // re-planned while still waiting
+            if (r && r->wait && b->frame() > r->deadline)  // past the deadline, still waiting: a member's locomotor moves
+                for (const objects::ObjectId u : mem) out.held_while_moving = out.held_while_moving || ms.locomotor_moving(u);
             if (back && (!r || !r->wait)) {
                 out.resumed = true;
                 out.resume_frame = b->frame();
@@ -675,12 +677,15 @@ void test_land_auto_engage() {
                     "%u frame(s), walking toward it %d; enemy gone -> popped %d after %u frame(s), order resumed %d\n",
                     r.idle_none ? 1 : 0, r.ordered ? 1 : 0, r.arrived ? 1 : 0, r.pushed ? 1 : 0, r.push_frames,
                     r.moved_toward ? 1 : 0, r.popped ? 1 : 0, r.pop_frames, r.resumed ? 1 : 0);
-        std::printf("  #510: the Pop waited %d (deadline pop + %u), re-planned at pop + %u, not before the deadline %d\n",
-                    r.waited ? 1 : 0, r.deadline - r.pop_frame, r.resume_frame - r.pop_frame, r.held_until_deadline ? 1 : 0);
+        std::printf("  #510: the Pop waited %d (deadline pop + %u), re-planned at pop + %u, not before the deadline %d, held past it "
+                    "while a member moved %d\n",
+                    r.waited ? 1 : 0, r.deadline - r.pop_frame, r.resume_frame - r.pop_frame, r.held_until_deadline ? 1 : 0,
+                    r.held_while_moving ? 1 : 0);
         CHECK(r.found && r.idle_none && r.ordered && r.arrived && r.pushed && r.push_frames <= 120 && r.moved_toward);
         CHECK(r.popped && r.pop_frames <= 61 && r.resumed);
         // #510: no member has a target once the enemy is 2500 away -> state 6; the re-plan comes after the deadline
         CHECK(r.waited && r.held_until_deadline && r.deadline >= r.pop_frame + 2 && r.resume_frame > r.deadline);
+        CHECK(r.held_while_moving);  // the members walk on after the deadline: the wait holds until they stop
         CHECK(r.push_hp == -1);  // no hard points, no hard point named
         // cmb2 t04 (FIGHTER_FLYING §4.11 B, BKT1_ATTACK_RE §1.3 [H]): the troopers carry a targetable hard point -> the Push
         // names one (0x394610); its position is the block's goal point and the engagement adds 0x397780(T)

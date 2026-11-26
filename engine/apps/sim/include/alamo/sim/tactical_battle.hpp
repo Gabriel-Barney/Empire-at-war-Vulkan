@@ -2457,7 +2457,7 @@ private:
     // Push 0x41fd30 of an auto / step-10 attack block on object t (unit tu: the record's TARGETING unit)
     void land_push(TacticalMode& mode, LandFormationRecord& r, objects::ObjectId tu, const Unit& t, SimRng& rng);
     void land_pop(TacticalMode& mode, LandFormationRecord& r, SimRng& rng);  // 0x4105a0 of the auto block: the order resumes
-    bool land_pop_ready(LandFormationRecord& r);  // #510: state 5 (0x422e50): true = re-plan now, else r waits (state 6)
+    bool land_pop_enter_wait(LandFormationRecord& r);  // #510: state 5 (0x422e50): true = r waits (state 6), else re-plan now
     bool land_members_still(const LandFormationRecord& r) const;  // #510: no member's locomotor moves (vf +0x1a8 / +0x1c0)
     void land_replan(TacticalMode& mode, LandFormationRecord& r, SimRng& rng);  // the members move / attack to the top block
     LandFormationRecord* land_formation_mut(objects::ObjectId mover);

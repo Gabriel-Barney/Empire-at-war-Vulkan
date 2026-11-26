@@ -1514,6 +1514,7 @@ private:
     static void start_turn_mark(Unit& u, const WalkResult& r);
     // s78n t26.2 (MOVEMENT §5.3 "What Moving is", vf +0x1b0 0x42cd30): turning in place (Walk states 0xF / 0x10 / 0x11 -
     // a start turn, an arrival turn - or a container's turn in place).
+    static bool locomotor_moving(const Unit& u);  // #510: vf +0x1a8 0x42cc60 (unit_moving without the in-place turn)
     static bool in_place_turn(const Unit& u) {
         return u.aturn != LocoState::None || u.fturn || u.m.state == LocoState::WalkStartTurn ||
                u.m.state == LocoState::WalkTurning || u.m.state == LocoState::WalkEndTurn;
