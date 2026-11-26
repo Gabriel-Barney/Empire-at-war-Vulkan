@@ -49,6 +49,17 @@ const char* kXml = R"(<?xml version="1.0"?>
   <CommandBarComponent Name="special_button_01"><Type>Button</Type></CommandBarComponent>
   <CommandBarComponent Name="special_button_02"><Type>Button</Type></CommandBarComponent>
   <CommandBarComponent Name="special_button_03"><Type>Button</Type></CommandBarComponent>
+  <CommandBarComponent Name="b_retreat"><Type>Button</Type></CommandBarComponent>
+  <CommandBarComponent Name="b_reinforcement"><Type>Button</Type></CommandBarComponent>
+  <CommandBarComponent Name="b_special_weapon"><Type>Button</Type></CommandBarComponent>
+  <CommandBarComponent Name="b_special_weapon2"><Type>Button</Type></CommandBarComponent>
+  <CommandBarComponent Name="Build_00"><Type>Button</Type></CommandBarComponent>
+  <CommandBarComponent Name="Build_01"><Type>Button</Type></CommandBarComponent>
+  <CommandBarComponent Name="Build_02"><Type>Button</Type></CommandBarComponent>
+  <CommandBarComponent Name="tqueue00"><Type>Button</Type></CommandBarComponent>
+  <CommandBarComponent Name="tqueue01"><Type>Button</Type></CommandBarComponent>
+  <CommandBarComponent Name="r_0000"><Type>Button</Type></CommandBarComponent>
+  <CommandBarComponent Name="r_0001"><Type>Button</Type></CommandBarComponent>
 </CommandBarComponents>)";
 
 // Two own groups (types 0 and 1, type 1 shielded) and an enemy unit, all selected but the enemy.
@@ -766,6 +777,133 @@ void test_abilities() {
     CHECK(merged.size() == 1 && merged[0].ability.seconds_left == 8.0f && (merged[0].users == std::vector<uint32_t>{1, 2}));
 }
 
+// #587 the battle actions (always), the shortcuts and the contextual deck, production and the reinforcement list: the
+// sections follow the selection, and every click is Classic's.
+void test_actions() {
+    Huds h;
+    Selection s;
+    TacticalHudFrame f = frame();
+    f.world.local_player = 0;
+    f.command_buttons.present = true;
+    f.command_buttons.retreat_enabled = true;
+    f.command_buttons.retreat_dial = 0.4f;
+    f.command_buttons.reinforce_enabled = true;
+    f.command_buttons.reinforce_count = 3;
+    f.command_buttons.beacon_enabled = false;
+    f.bombing_run.present = true;
+    f.bombing_run.disabled = false;
+    f.bombing_run.dial = 0.5f;
+    std::vector<HudUnit> none = s.units;
+    for (HudUnit& u : none) u.selected = false;
+    h.build(f, none, s.types);
+    const ModernHudStats& st = h.modern.stats();
+    // Nothing selected: the actions, no cards / orders, and (contextual on) a deck shrunk to them.
+    CHECK(st.actions == 4 && st.actions_live == 3 && st.cards == 0 && st.orders == 0 && !st.production);
+    const float full = h.modern.canvas().width - 16.0f;
+    CHECK(st.deck_width > 0.0f && st.deck_width < 0.5f * full);
+    for (const auto& [name, n] : {std::pair{"b_retreat", 1u}, std::pair{"b_reinforcement", 1u}, std::pair{"b_special_weapon", 1u},
+                                  std::pair{"b_special_weapon2", 0u}}) {
+        h.build(f, none, s.types);
+        size_t emitted = 0;
+        CHECK(h.same_click(h.t.find(name), h.t.find(name), false, false, Button::Left, &emitted));
+        CHECK(emitted == n);
+    }
+    {
+        std::vector<commands::EventData> cmds;
+        h.modern.update_input(click_on(h.t.find("b_retreat")), false, false, cmds, nullptr);
+        CHECK(cmds.size() == 1 && cmds[0] == commands::ev::retreat(true));
+    }
+    // The contextual option off: the deck is always full width.
+    ModernHudOptions o;
+    o.contextual = false;
+    h.modern.set_options(o);
+    h.build(f, none, s.types);
+    CHECK(std::fabs(st.deck_width - full) < 0.5f);
+    h.modern.set_options({});
+    // Shortcuts: a wing, a fleet group (its members) and the station.
+    HudWing wing;
+    wing.label = U"FIGHTERS";
+    wing.squadrons = 1;
+    wing.ids = {40, 41};
+    std::vector<HudWing> wings{wing};
+    f.wings = wings;
+    HudFleetGroup g;
+    g.id = 2;
+    g.members = {20, 21};
+    std::vector<HudFleetGroup> groups{g};
+    f.fleet_groups_on = true;
+    f.fleet_groups = groups;
+    f.station = 77;
+    h.build(f, none, s.types);
+    CHECK(st.shortcuts == 3);
+    std::vector<commands::EventData> cmds;
+    h.modern.update_input(click_on(kModernStationHit), false, false, cmds, nullptr);
+    h.build(f, none, s.types);
+    h.modern.update_input(click_on(kModernFleetShortcutBase), false, false, cmds, nullptr);
+    CHECK(cmds.size() == 2 && cmds[0] == commands::ev::select({77}) && cmds[1] == commands::ev::select({20, 21}));
+    h.build(f, none, s.types);
+    size_t wn = 0;
+    CHECK(h.same_click(kWingHitBase, kWingHitBase, false, false, Button::Left, &wn) && wn == 1);
+    f.wings = {};
+    f.fleet_groups_on = false;
+    f.fleet_groups = {};
+    f.station = commands::kNoObject;
+    // Production: the selected builder's card, options (cost / blocked reason) and queue; the clicks are Classic's.
+    std::vector<HudBuildOption> opts(3);
+    opts[0].type_index = 1;
+    opts[0].cost = 1200;
+    opts[1].type_index = 0;
+    opts[1].block = HudBuildOption::Block::Funds;
+    opts[2].type_index = 1;
+    opts[2].block = HudBuildOption::Block::QueueFull;
+    opts[2].queued = 2;
+    f.builder = 22;
+    f.build_options = opts;
+    f.providers.build_queue = [](std::vector<HudQueueEntry>& out) {
+        HudQueueEntry e;
+        e.type_index = 1;
+        e.progress = 0.3f;
+        e.location = 22;
+        e.index = 0;
+        out.push_back(e);
+        e.index = 1;
+        e.progress = 0.0f;
+        out.push_back(e);
+    };
+    h.build(f, s.units, s.types);
+    CHECK(st.production && st.build_options == 3 && st.build_blocked == 2 && st.queue_entries == 2 && st.cards == 0 && st.orders == 6);
+    CHECK(st.build_texts.size() == 3 && st.build_texts[0] == U"$ 1,200" && st.build_texts[1] == U"Not enough credits");
+    for (const auto& [name, n, shift] : {std::tuple{"Build_00", 1u, false}, std::tuple{"Build_00", 1u, true}, std::tuple{"Build_01", 0u, false},
+                                         std::tuple{"tqueue00", 1u, false}, std::tuple{"tqueue01", 1u, false}}) {
+        h.build(f, s.units, s.types);
+        size_t emitted = 0;
+        CHECK(h.same_click(h.t.find(name), h.t.find(name), shift, false, Button::Left, &emitted));
+        CHECK(emitted == n);
+    }
+    f.builder = commands::kNoObject;
+    f.build_options = {};
+    // The reinforcement list while open: its entries; a call starts the drop point pick, as Classic's.
+    f.reinforce_list_open = true;
+    h.classic.toggle_reinforce_list(true);
+    f.providers.reinforcements = [](std::vector<HudReinforcement>& out) {
+        HudReinforcement r;
+        r.unit = 90;
+        r.count = 2;
+        out.push_back(r);
+        r.unit = 91;
+        r.available = false;
+        out.push_back(r);
+    };
+    h.build(f, none, s.types);
+    CHECK(st.reinforcements == 2 && st.actions == 4);
+    for (const auto& [name, n] : {std::pair{"r_0000", 1u}, std::pair{"r_0001", 0u}}) {
+        h.build(f, none, s.types);
+        size_t emitted = 0;
+        CHECK(h.same_click(h.t.find(name), h.t.find(name), false, false, Button::Left, &emitted));
+        CHECK(emitted == n);
+    }
+}
+
 void test_world_split() {
     // The Classic HUD with the split off is unchanged (world_draw_list empty); with it on, the drag box (a world-space
     // item) moves to world_draw_list and the two lists together hold what draw_list held.
@@ -805,6 +943,7 @@ int main() {
     test_text_scale();
     test_options();
     test_abilities();
+    test_actions();
     test_hotkey();
     test_world_split();
     if (g_fail) {

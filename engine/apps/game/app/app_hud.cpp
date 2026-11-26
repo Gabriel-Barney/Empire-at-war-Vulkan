@@ -1272,6 +1272,7 @@ void App::build_tactical_hud() {
         }
     }
     hf.build_options = build_opts_;
+    hf.reinforce_list_open = ui_.tactical_hud.reinforce_list_open();  // #587 the Modern deck shows Classic's list state
     // Build queue: the local player's skirmish station production orders (queue order); index = the order's position
     // among the player's orders at its builder (the Production cancel index).
     hf.providers.build_queue = [sess, htypes](std::vector<ui::HudQueueEntry>& out) {
@@ -1339,6 +1340,14 @@ void App::build_tactical_hud() {
     // #584: in the Modern style the Classic HUD still builds (its world-space layer, selection circles and the state the
     // hotkeys read: ability buttons, order-button liveness), with its world layer split off; the Modern HUD draws over it.
     const bool modern = modern_hud();
+    // #587 the Modern deck's station shortcut (nothing selected): the first own object with production options.
+    if (const sim::TacticalBattle* b = battle(); modern && b && tm && b->production_enabled() && orders_.selection().empty())
+        for (const ui::HudUnit& u : units)
+            if (u.owner == local_player() && u.id <= 0x7FFFFFFFu &&
+                !b->station_build_options(tm->primary(), local_player(), static_cast<objects::ObjectId>(u.id)).empty()) {
+                hf.station = u.id;
+                break;
+            }
     ui_.tactical_hud.set_world_split(modern);
     if (modern && !(ui_.modern_hud.options() == video_profile_.modern_hud)) ui_.modern_hud.set_options(video_profile_.modern_hud);  // #590
     ui_.tactical_hud.build(hf, units, ui_.hud_types);

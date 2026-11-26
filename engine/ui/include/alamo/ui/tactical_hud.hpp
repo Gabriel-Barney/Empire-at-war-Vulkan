@@ -397,6 +397,11 @@ struct TacticalHudFrame {
     // garrison_respawn), drawn as the component's Build_Texture_Name dial; < 0 hides it.
     float garrison_respawn = -1.0f;
     HudCommandButtons command_buttons;  // b_retreat, b_reinforcement, beacon, movie mode, reinforcement texts
+    // [port] #587 for the Modern deck: whether Classic's reinforcement list is open (TacticalHud::reinforce_list_open: the
+    // b_reinforcement button / Reinforce key toggle it), and the local player's station to select with nothing selected
+    // (kNoObject: none).
+    bool reinforce_list_open = false;
+    uint32_t station = commands::kNoObject;
     bool objectives_hidden = false;     // ui3 t01 [port]: the Mission Holocron key (Tab) toggles the objectives box
     // [port: Gabriel, original screenshot] Game Paused banner (pause_shell: yellow TEXT_GAME_PAUSED bar at the top
     // centre, red TEXT_BUTTON_RESUME_GAME button under it - a click emits HudAction::ResumeGame) while `paused`.
