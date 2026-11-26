@@ -694,9 +694,18 @@ void App::toggle_pause() {
     }
 }
 
+void App::toggle_hud_style() {
+    if (!live_input()) return;  // scripted, smoke and benchmark runs stay Classic
+    video_profile_.hud_style = ui::other_hud_style(video_profile_.hud_style);
+    save_video_options();
+    const std::string_view name = ui::hud_style_name(video_profile_.hud_style);
+    std::printf("hud: %.*s style\n", static_cast<int>(name.size()), name.data());
+}
+
 void App::handle_hud_actions(const std::vector<ui::HudAction>& acts) {
     for (const ui::HudAction& a : acts) {
         switch (a.kind) {
+            case ui::HudAction::Kind::HudStyleToggle: toggle_hud_style(); break;  // #584: the Modern HUD's switch
             case ui::HudAction::Kind::GalacticSelect: {
                 // A planet fleet button selects its fleet; the land-forces button names the planet: select the planet
                 // (no fleet selection).
@@ -1134,6 +1143,7 @@ void App::galactic_input() {
         if (e.slot == ui::hk::kHolocron || e.slot == ui::hk::kDroidAdvisor) open_holocron(ui::InfoPage::DroidLog);
         if (e.slot == ui::hk::kQuickSave || e.slot == ui::hk::kQuickLoad || e.slot == ui::hk::kScreenshot) interface_hotkey(e.slot);
         if (e.slot == ui::hk::kCameraHome && !story_controls_locked()) galactic_home();  // #295 [port] locked as HeroFocusPlanet
+        if (e.slot == ui::hk::kHudStyle) toggle_hud_style();  // #584: stored now; the galactic Modern view comes with #593
     }
     handle_hud_actions(acts);
     route_commands(cmds);
@@ -1495,7 +1505,8 @@ void App::battle_input() {
     }
     story_forced_clicks();  // FORCE_CLICK_GUI
     const size_t cmds_before = cmds.size(), acts_before = acts.size();
-    ui_.tactical_hud.update_input(routed_, input_.shift(), input_.ctrl(), now_s_, cmds, &acts);
+    if (modern_hud()) ui_.modern_hud.update_input(routed_, input_.shift(), input_.ctrl(), now_s_, cmds, &acts);  // #584
+    else ui_.tactical_hud.update_input(routed_, input_.shift(), input_.ctrl(), now_s_, cmds, &acts);
     for (size_t i = cmds_before; i < cmds.size(); ++i)  // #477: the sell click closes the button (no second sale)
         if (cmds[i].type() == commands::EventType::TacticalSell) sell_object_ = 0;
     {  // mcx4 t13 (MCX4_T13_RE_ANSWERS "Unit_Ability.SFXEvent_GUI_Unit_Ability_Activated family", 0x307190): the HUD

@@ -1315,7 +1315,12 @@ void App::build_tactical_hud() {
     // FIXPASS_GALACTIC §4.2: the advisor *_LOOP Bink in Movie_tactical (the HUD's own component), only while it plays.
     hf.advisor_page = advisor_loop_shown() ? static_cast<int32_t>(kAdvisorPage) : -1;
     hf.advisor_alpha = advisor_movie_.alpha();
+    // #584: in the Modern style the Classic HUD still builds (its world-space layer, selection circles and the state the
+    // hotkeys read: ability buttons, order-button liveness), with its world layer split off; the Modern HUD draws over it.
+    const bool modern = modern_hud();
+    ui_.tactical_hud.set_world_split(modern);
     ui_.tactical_hud.build(hf, units, ui_.hud_types);
+    if (modern) ui_.modern_hud.build(hf, units, ui_.hud_types);
     if (ui_.tactical_hud.stats().reticles > 0) ++reticle_frames_;
 }
 

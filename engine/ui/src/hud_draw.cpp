@@ -87,6 +87,11 @@ void HudDrawList::add(uint32_t layer, HudList list, const HudQuad& q) {
     lists_[layer < kHudLayers ? layer : kHudLayers - 1][static_cast<size_t>(list)].push_back(q);
 }
 
+void HudDrawList::append(const HudDrawList& other) {
+    for (size_t l = 0; l < lists_.size(); ++l)
+        for (size_t k = 0; k < kHudSubLists; ++k) lists_[l][k].insert(lists_[l][k].end(), other.lists_[l][k].begin(), other.lists_[l][k].end());
+}
+
 size_t HudDrawList::total() const {
     size_t n = 0;
     for (const auto& layer : lists_)

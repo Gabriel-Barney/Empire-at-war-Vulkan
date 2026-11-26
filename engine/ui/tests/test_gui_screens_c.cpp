@@ -782,7 +782,7 @@ void test_controls() {
     CHECK(pause_event(true).type() == commands::EventType::PortExtension && pause_event(true).u("subtype") == kPortPauseSubtype);
     {
         HotkeyTable table;
-        CHECK(table.binding(hk::kPause).key == vk::kPause && kHotkeySlots == 166 && hotkey_slot("Pause") == hk::kPause);
+        CHECK(table.binding(hk::kPause).key == vk::kPause && kHotkeySlots == 167 && hotkey_slot("Pause") == hk::kPause);
         HotkeyDispatcher disp;
         InputState in;
         std::vector<commands::EventData> cmds;
@@ -897,24 +897,24 @@ void test_controls() {
         // #175: the fleet groups checkbox shows the setting; unticked here, so Accept reports it off.
         CHECK(d && d->get("IDC_PORT_FLEET_GROUPS") && d->get("IDC_PORT_FLEET_GROUPS")->checked);
         if (d && d->get("IDC_PORT_FLEET_GROUPS")) d->set_checked("IDC_PORT_FLEET_GROUPS", false);
-        // Slider moves update the value label; key capture rebinds Pause to F9; the queue modifier becomes Ctrl.
+        // Slider moves update the value label; key capture rebinds Pause to F8 (F9 is the HUD style key, #584); the queue modifier becomes Ctrl.
         d->set_value("IDC_PORT_GALACTIC_FOV_SLIDER", 35);
         fe.update(std::vector<GuiEvent>{event(GuiEvent::Kind::ValueChanged, kPortControlsDialog, "IDC_PORT_GALACTIC_FOV_SLIDER", 35)},
                   InputFrame{}, acts);
         CHECK(d->get("IDC_PORT_GALACTIC_FOV_VALUE")->text == U"35");
         d->focus("IDC_EDIT_PORT_PAUSE");
         InputFrame kf;
-        kf.keys_pressed.set(0x78);  // F9
-        kf.keys_down.set(0x78);
+        kf.keys_pressed.set(0x77);  // F8
+        kf.keys_down.set(0x77);
         fe.update({}, kf, acts);
-        CHECK(d->get("IDC_EDIT_PORT_PAUSE")->text == U"F9");
+        CHECK(d->get("IDC_EDIT_PORT_PAUSE")->text == U"F8");
         d->set_selected("IDC_PORT_QUEUE_MODIFIER", 1);
         acts.clear();
         fe.update(std::vector<GuiEvent>{event(GuiEvent::Kind::Clicked, kPortControlsDialog, "IDC_BUTTON_ACCEPT")}, InputFrame{}, acts);
         CHECK(acts.size() == 2 && acts[0].kind == MenuAction::Kind::ApplyCamera && acts[0].camera.galactic_fov_deg == 35.0f &&
               acts[0].camera.tactical_fov_deg == 70.0f && acts[0].camera.queue_mods == kModCtrl && !acts[0].camera.fleet_groups &&
               acts[1].kind == MenuAction::Kind::KeybindingsChanged);
-        CHECK(keys.binding(hk::kPause).key == 0x78 && binds.binding(Action::Pause, 0).key == 0x78 && binds.queue_mods() == kModCtrl);
+        CHECK(keys.binding(hk::kPause).key == 0x77 && binds.binding(Action::Pause, 0).key == 0x77 && binds.queue_mods() == kModCtrl);
         CHECK(env.gui.find(kPortControlsDialog) == nullptr);
     }
     // the mod picker. The port's main-menu Mods button (shown only with a mods provider), the rows (the active one

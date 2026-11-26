@@ -12,7 +12,7 @@ namespace {
 constexpr int32_t K(char c) { return static_cast<int32_t>(c); }
 // Win32 virtual keys not in vk:: (legacy docs/re/UI.md §4.3 defaults).
 constexpr int32_t kVkNumpad1 = 0x61, kVkNumpad2 = 0x62, kVkNumpad3 = 0x63, kVkNumpadSub = 0x6D, kVkF5 = 0x74,
-                  kVkF6 = 0x75, kVkF12 = 0x7B, kVkScrollLock = 0x91, kVkOem1 = 0xBA /* ; */, kVkOemComma = 0xBC,
+                  kVkF6 = 0x75, kVkF9 = 0x78, kVkF12 = 0x7B, kVkScrollLock = 0x91, kVkOem1 = 0xBA /* ; */, kVkOemComma = 0xBC,
                   kVkOemMinus = 0xBD, kVkOemPeriod = 0xBE, kVkOem2 = 0xBF /* / */, kVkOem4 = 0xDB /* [ */,
                   kVkOem6 = 0xDD /* ] */, kVkOem7 = 0xDE /* ' */, kVkOemPlus = 0xBB /* = */, kVkOem5 = 0xDC /* backslash */,
                   kVkOem3 = 0xC0 /* ` */;
@@ -121,6 +121,9 @@ constexpr HotkeySlotInfo kSlots[kHotkeySlots] = {
     // Y lock / unlock (G, L and O are Guard, Waypoint and FleetCohesion; Ctrl+Y is Select All).
     {"FleetGroupCreate", HK::Order, {K('N'), N}}, {"FleetGroupUngroup", HK::Order, {K('U'), N}},
     {"FleetGroupLock", HK::Order, {K('Y'), N}},
+    // 166 [port] #584 HUD style switch Classic <-> Modern (docs/DECISIONS.md "Modern HUD: exception to the current focus"):
+    // F9, a free key (Ctrl+H, drawn on the design canvas, is Ability_DeployTroopers).
+    {"HudStyleToggle", HK::Interface, {kVkF9, N}},
 };
 
 }  // namespace
@@ -307,10 +310,12 @@ bool HotkeyTable::load(const HotkeyProfile& in) {
         }
     }
     // [port: Gabriel] a port slot whose default collides with a loaded binding (an original 153-slot profile keeps the
-    // arrows on scrolling) is unbound rather than shadowing it.
+    // arrows on scrolling; #584: a profile from before a newer port slot may have its key on an older port slot) is
+    // unbound rather than shadowing it.
+    const auto loaded = static_cast<uint16_t>(std::max<int32_t>(n, kOriginalHotkeySlots));
     for (uint16_t p = kOriginalHotkeySlots; p < kHotkeySlots; ++p) {
         if (p < static_cast<uint16_t>(n) || slots_[p].key < 0) continue;
-        for (uint16_t o = 0; o < kOriginalHotkeySlots; ++o)
+        for (uint16_t o = 0; o < loaded; ++o)
             if (slots_[o] == slots_[p]) {
                 slots_[p] = HotkeyBinding{};
                 break;

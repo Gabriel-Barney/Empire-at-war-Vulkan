@@ -144,6 +144,21 @@ std::u32string hud_thousands(int64_t v) {
 
 std::u32string hud_credits_text(int64_t credits) { return U"$ " + hud_thousands(credits); }
 
+std::u32string hud_tech_text(const TextDatabase* text, int32_t tech) {
+    if (tech < 0) return {};
+    char n[16];
+    std::snprintf(n, sizeof n, " %d", tech);
+    return text_or(text, "TEXT_TECH") + ascii32(n);  // no English stand-in
+}
+
+std::u32string hud_pop_text(int32_t used, int32_t cap) {
+    if (used < 0) return {};
+    char n[32];
+    if (cap >= 0) std::snprintf(n, sizeof n, "%d/%d", used, cap);
+    else std::snprintf(n, sizeof n, "%d", used);
+    return ascii32(n);
+}
+
 commands::EventData reinforce_event(uint32_t unit, Vec3 p) {
     commands::EventData e(commands::EventType::Reinforce);
     e.set("unit", unit).set_f("x", p.x).set_f("y", p.y).set_f("z", p.z);
@@ -550,6 +565,7 @@ void TacticalHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
 void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> units, std::span<const HudTypeInfo> types,
                         const FlyTextList* flytext) {
     dl_.clear();
+    world_dl_.clear();
     blobs_.clear();
     hits_.clear();
     wing_ids_.clear();
@@ -566,7 +582,8 @@ void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> 
     layout_.update(canvas_, *table_);
     WorldHudContext wc = frame.world;
     wc.canvas = &canvas_;
-    world_.build(wc, units, types, *atlas_, *fonts_, dl_, &blobs_, flytext);
+    HudDrawList& wdl = world_split_ ? world_dl_ : dl_;  // #584: the world-space layer
+    world_.build(wc, units, types, *atlas_, *fonts_, wdl, &blobs_, flytext);
     stats_.world = world_.stats();
     groups_ = frame.fleet_groups_on ? group_selection_fleets(units, frame.fleet_groups, panel_slot_count())
                                     : group_selection(units);
@@ -599,7 +616,7 @@ void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> 
     for (uint32_t i = 0; i < table_->size(); ++i)
         if ((*table_)[i].tooltip_text.size() > 1) buttons_.state(i).tooltip_index = frame.world.land ? 1 : 0;
     if (!frame.world.interface_hidden) {
-        build_markers(frame, units);
+        build_markers(frame, units, wdl);
         build_skeleton(frame);
         build_radar(frame, units, types);
         build_panel(frame, types);
@@ -613,22 +630,8 @@ void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> 
             if (ci >= 0) buttons_.state(static_cast<uint32_t>(ci)).text = std::move(t);
         };
         set_text(planet_text_, frame.planet_name);
-        if (frame.tech >= 0) {
-            std::u32string t = text_or(text_, "TEXT_TECH");  // no English stand-in
-            char n[16];
-            std::snprintf(n, sizeof n, " %d", frame.tech);
-            set_text(tech_text_, t + ascii32(n));
-        } else {
-            set_text(tech_text_, {});
-        }
-        if (frame.pop >= 0) {
-            char n[32];
-            if (frame.pop_cap >= 0) std::snprintf(n, sizeof n, "%d/%d", frame.pop, frame.pop_cap);
-            else std::snprintf(n, sizeof n, "%d", frame.pop);
-            set_text(pop_text_, ascii32(n));
-        } else {
-            set_text(pop_text_, {});
-        }
+        set_text(tech_text_, hud_tech_text(text_, frame.tech));
+        set_text(pop_text_, hud_pop_text(frame.pop, frame.pop_cap));
         apply_order_buttons(frame.order_buttons);
         apply_bombing_run_button(frame.bombing_run);
         apply_command_buttons(frame.command_buttons);
@@ -679,7 +682,7 @@ void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> 
         build_wings(frame);
         build_pause_banner(frame);
         // legacy docs/re/UI.md §1.1 5h: the drag rectangle is queued with the main HUD pass (not while the interface is hidden).
-        if (frame.drag_select) stats_.drag_box = add_drag_box(dl_, canvas_, frame.drag_rect) > 0;
+        if (frame.drag_select) stats_.drag_box = add_drag_box(wdl, canvas_, frame.drag_rect) > 0;
         // #71 t06 (legacy docs/re/HUD_GAPS.md §2.1 [H]): no component tooltip while a HUD modal is up (HUD +0x26a0 > 0: the
         // pause shell - here the pause banner).
         tooltip_modal_ = frame.paused && frame.pause_banner;
@@ -692,20 +695,20 @@ void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> 
         }
     }
     stats_.hit_boxes = static_cast<uint32_t>(hits_.size());
-    stats_.quads = static_cast<uint32_t>(dl_.total());
+    stats_.quads = static_cast<uint32_t>(dl_.total() + world_dl_.total());
 }
 
-void TacticalHud::build_markers(const TacticalHudFrame& f, std::span<const HudUnit> units) {
+void TacticalHud::build_markers(const TacticalHudFrame& f, std::span<const HudUnit> units, HudDrawList& dl) {
     const View& v = f.world.view;
-    stats_.waypoint_dots = add_waypoint_lines(dl_, canvas_, v, f.waypoints, 0);
-    if (f.move_acks) stats_.ack_dots = f.move_acks->draw(dl_, canvas_, v, 0);
+    stats_.waypoint_dots = add_waypoint_lines(dl, canvas_, v, f.waypoints, 0);
+    if (f.move_acks) stats_.ack_dots = f.move_acks->draw(dl, canvas_, v, 0);
     if (f.reticles && !f.hardpoints.empty()) {
         const std::vector<HudHardPoint> shown = filter_hardpoints(f.hardpoints, units);
-        stats_.reticles = add_hardpoint_reticles(dl_, *atlas_, canvas_, v, *f.reticles, shown, 1, f.images, f.time);
+        stats_.reticles = add_hardpoint_reticles(dl, *atlas_, canvas_, v, *f.reticles, shown, 1, f.images, f.time);
     }
     // [port: Gabriel] queued orders of the selected units (sim queued_orders(unit), from the host).
     if (!f.order_queues.empty()) {
-        const QueueMarkerStats qs = add_queue_markers(dl_, fonts_, canvas_, v, f.order_queues, 1);
+        const QueueMarkerStats qs = add_queue_markers(dl, fonts_, canvas_, v, f.order_queues, 1);
         stats_.queue_dots = qs.dots;
         stats_.queue_markers = qs.markers;
     }

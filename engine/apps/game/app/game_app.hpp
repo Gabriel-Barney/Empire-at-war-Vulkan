@@ -422,6 +422,12 @@ private:
     void save_video_options() {
         if (live_input() && !save_video_profile(video_profile_path_, video_profile_)) std::printf("video options: %s not written\n", video_profile_path_.c_str());
     }
+    // [port: Gabriel] #584 the HUD style this run draws (active_hud_style: Classic unless a live run's profile says Modern)
+    // and the switch (the F9 hotkey, the Modern HUD's switch): flips the profile's style and stores it. Presentation only:
+    // the selection, a targeting mode in progress and the sim are untouched; the next frame builds the other style.
+    ui::HudStyle hud_style() const { return active_hud_style(video_profile_, live_input()); }
+    bool modern_hud() const { return hud_style() == ui::HudStyle::Modern; }
+    void toggle_hud_style();
     render::DrawStats draw_stats_;
     // the frame-time overlay and this frame's phase times (wall clock, presentation only).
     FrameOverlay overlay_;
