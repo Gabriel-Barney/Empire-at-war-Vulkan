@@ -109,6 +109,9 @@ struct ModernHudStats {
     bool pad_options = false;                          // #592 the buy options drawn at the build pad (land, an anchor)
     bool target_card = false;
     uint32_t target_id = 0, target_hardpoints = 0;
+    // #602 group badges (the group number, or the wing's key): beside each selected unit's world icon (a squadron: its one
+    // icon), on the map at each group's and wing's member centre; the selected locked groups' outline tags (and dark edge)
+    uint32_t world_badges = 0, radar_badges = 0, outline_tags = 0;
     uint32_t abilities = 0;              // #586 ability buttons drawn
     uint32_t ability_rings = 0;          // of them recharging (a ring and the seconds left)
     uint32_t ability_auto = 0;           // of them with the AUTO badge (autofire on)
@@ -172,6 +175,8 @@ private:
     float build_abilities(const TacticalHudFrame& f, std::span<const HudUnit> units, Vec2f top_right, float height, float max_width);
     void build_map(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
     void build_target_card(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
+    void build_badges(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
+    void badge(std::u32string_view text, Vec2f left_mid, uint32_t layer);  // a dark backplate with the text, from its left edge
     int32_t map_id() const { return radar_ >= 0 ? radar_ : kModernMapHit; }
     float map_side() const { return std::min(0.3f * canvas_.height, 0.22f * canvas_.width); }
     std::vector<HudModelDraw> radar_models_;
@@ -244,7 +249,7 @@ private:
     };
     // #600 / #601 a state chip's icon (a closed padlock, an open one, a wing) round `c`, `u` canvas units the unit size.
     enum class Chip { Locked, Free, Wing };
-    void chip_icon(Chip chip, Vec2f c, float u, Rgba8 edge);
+    void chip_icon(Chip chip, Vec2f c, float u, Rgba8 edge, uint32_t layer);
     void build_run_tabs(const TacticalHudFrame& f, std::span<const HudUnit> units, const CardRow& row, float tab_h);
     uint32_t builder_ = commands::kNoObject, station_ = commands::kNoObject;
     std::vector<SelectedGroup> groups_;
