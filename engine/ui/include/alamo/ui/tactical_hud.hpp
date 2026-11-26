@@ -345,6 +345,14 @@ struct HudSellButton {
 // 0x2dd250's caption, L" %s %s ($ %d) ": the localized TEXT_BUTTON_SELL, the type's name and the refund.
 std::u32string tactical_sell_text(std::u32string_view sell, std::u32string_view name, int32_t refund);
 
+// [port] #592 a land reinforcement zone for the Modern map (TACTICAL_GAPS §4.2.1 test 4, check-radius drops): an allied
+// object's Reinforcement_Enabling_Radius (with Use_Reinforcement_Points: drops are allowed inside it) or a non-allied
+// object's Reinforcement_Prevention_Radius (drops are refused inside it). World units.
+struct HudDropZone {
+    float x = 0.0f, y = 0.0f, radius = 0.0f;
+    bool enabling = true;  // false: a prevention radius
+};
+
 struct TacticalHudFrame {
     WorldHudContext world;          // canvas is filled by TacticalHud
     // Radar mapping: world rectangle shown by the radar (the map's playable box).
@@ -393,6 +401,7 @@ struct TacticalHudFrame {
     // HudHardPoint::parent set - only the hovered one's are drawn (filter_hardpoints). `images` resolves the stand-alone I_Hard_Point_Reticle_* DDS textures
     // to image pages (the GUI's resolver; null = [port] corner outlines).
     std::span<const HudHardPoint> hardpoints;
+    std::span<const HudDropZone> drop_zones;  // #592 land: the reinforcement zones the Modern map marks
     const ReticleTable* reticles = nullptr;
     const GuiImageResolver* images = nullptr;
     const MoveAcks* move_acks = nullptr;
@@ -681,6 +690,9 @@ inline bool hud_hostile(const WorldHudContext& w, int32_t owner) {
 HudAction radar_jump_action(int32_t component, Vec2f world);
 void radar_move_click(Vec2f world, float ground_z, std::vector<commands::EventData>& out, std::vector<HudAction>* actions);
 commands::EventData fleet_button_event(bool merge);
+// #592 a buy option's line both Modern placements show: its cost, or its blocked reason (Build_NN Tooltip_Text[0..2] for
+// QueueFull / PopCap / Funds, port strings for the others).
+std::u32string build_option_text(const HudBuildOption& o, const TextDatabase* text);
 HudAction tactical_buy_action(int32_t component, const std::string& name, uint32_t builder, const HudBuildOption& o, bool shift,
                               bool ctrl);
 HudAction begin_reinforcement_action(int32_t component, const std::string& name, const HudReinforcement& r);

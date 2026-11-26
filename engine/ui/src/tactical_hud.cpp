@@ -481,6 +481,18 @@ HudAction tactical_cancel_action(int32_t component, const std::string& name, con
     return h;
 }
 
+std::u32string build_option_text(const HudBuildOption& o, const TextDatabase* text) {
+    switch (o.block) {
+        case HudBuildOption::Block::QueueFull: return text_or_port(text, "TEXT_PRODUCTION_QUEUE_FULL", U"Queue full");
+        case HudBuildOption::Block::PopCap: return text_or_port(text, "TEXT_PRODUCTION_POP_CAP_REACHED", U"Population cap");
+        case HudBuildOption::Block::Funds: return text_or_port(text, "TEXT_PRODUCTION_INSUFFICIENT_FUNDS", U"Not enough credits");
+        case HudBuildOption::Block::Prerequisite: return text_or_port(text, nullptr, U"Needs technology");
+        case HudBuildOption::Block::Limit: return text_or_port(text, nullptr, U"Limit reached");
+        case HudBuildOption::Block::None: break;
+    }
+    return o.cost >= 0 ? ascii32(std::to_string(o.cost)) : std::u32string();  // the number, as Classic's text2
+}
+
 HudAction tactical_buy_action(int32_t component, const std::string& name, uint32_t builder, const HudBuildOption& o, bool shift,
                               bool ctrl) {
     HudAction h;

@@ -524,6 +524,7 @@ private:
     uint32_t hover_ship_ = 0;
     std::vector<ui::HudHardPoint> hud_hardpoints_;
     std::vector<ui::HudBuildOption> build_opts_;  // tactical buy bar of the selected builder (TacticalHudFrame::build_options)
+    std::vector<ui::HudDropZone> drop_zones_;     // #592 TacticalHudFrame::drop_zones
     std::vector<HardPointRef> hud_hp_refs_;
     ui::ReticleTable reticles_;
     ui::GuiImageResolver hud_images_;

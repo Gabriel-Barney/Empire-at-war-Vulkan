@@ -969,6 +969,10 @@ public:
     // Unknown entry -> false. Space battles -> true.
     bool land_drop_valid(const TacticalMode& mode, int32_t player, objects::ObjectId key, float x, float y, bool human,
                          bool use_reinforcement_points) const;
+    // The reinforcement-radius inputs land_drop_valid checks for `player` (TACTICAL_GAPS §4.2.1 test 4, GOM list +0x2f0):
+    // every active object of `st` with a Reinforcement_Enabling_Radius or _Prevention_Radius, in GOM order. Read-only
+    // (#592: the Modern map marks them).
+    std::vector<LandDropRadiusObject> land_drop_radius_objects(const objects::ObjectStore& st, int32_t player) const;
     float player_drop_yaw(int32_t player) const {
         for (uint8_t s = 1; s < side_count(); ++s)  // a skirmish slot's own side; anyone else side 0's
             if (side_player(s) == player) return drop_yaw(s);

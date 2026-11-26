@@ -116,6 +116,8 @@ struct ModernHudStats {
     // card: the hovered hostile unit's name, hull, shields and hard points beside it (no hit box: clicks pass through).
     bool map = false, map_right = false;
     uint32_t map_squares = 0, map_diamonds = 0, map_circles = 0, map_pings = 0;
+    uint32_t map_drop_zones = 0, map_block_zones = 0;  // #592 land reinforcement zones marked (enabling / prevention)
+    bool pad_options = false;                          // #592 the buy options drawn at the build pad (land, an anchor)
     bool target_card = false;
     uint32_t target_id = 0, target_hardpoints = 0;
     uint32_t abilities = 0;              // #586 ability buttons drawn
@@ -230,6 +232,9 @@ private:
     float build_shortcuts(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types,
                           Vec2f top_left, float height, bool draw);
     float build_queue(const TacticalHudFrame& f, Vec2f top_left, float height, float max_width, bool builder_only, bool draw);
+    Tile option_tile(size_t i, const HudBuildOption& o, Vec2f c, Vec2f size) const;
+    void add_option(const Tile& t, size_t i, const HudBuildOption& o);
+    void build_pad_options(const TacticalHudFrame& f);
     Vec2f grid2_cell(size_t i, Vec2f top_left, Vec2f cell, float gap) const;  // two rows, filled by columns
     const HudButtons* script_ = nullptr;
     float build_production(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types,

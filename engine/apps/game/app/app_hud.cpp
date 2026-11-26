@@ -1273,6 +1273,21 @@ void App::build_tactical_hud() {
     }
     hf.build_options = build_opts_;
     hf.reinforce_list_open = ui_.tactical_hud.reinforce_list_open();  // #587 the Modern deck shows Classic's list state
+    // #592 land: the reinforcement zones the Modern map marks - the drop rule's own radius inputs
+    // (TacticalBattle::land_drop_radius_objects, land_drop_radius_ok): allied Reinforcement_Enabling_Radius with
+    // Use_Reinforcement_Points; non-allied Reinforcement_Prevention_Radius, except a POWERED object whose owner has no base
+    // power, and not one the fog hides from the local player (the map shows nothing fogged).
+    drop_zones_.clear();
+    if (const sim::TacticalBattle* b = battle(); b && tm && modern_hud() && !bview_.space() && local_player() >= 0) {
+        const int32_t me = local_player();
+        const bool points = data_.db.constants().get_bool("Use_Reinforcement_Points", true);  // the catalog reads the same constant
+        for (const sim::LandDropRadiusObject& o : b->land_drop_radius_objects(tm->primary(), me)) {
+            if (points && o.allied && o.enabling > 0.0f) drop_zones_.push_back({o.x, o.y, o.enabling, true});
+            if (!o.allied && o.prevention > 0.0f && !(o.powered && !o.owner_base_power) && !b->fog_point_fogged(me, o.x, o.y, true))
+                drop_zones_.push_back({o.x, o.y, o.prevention, false});
+        }
+    }
+    hf.drop_zones = drop_zones_;
     // Build queue: the local player's skirmish station production orders (queue order); index = the order's position
     // among the player's orders at its builder (the Production cancel index).
     hf.providers.build_queue = [sess, htypes](std::vector<ui::HudQueueEntry>& out) {

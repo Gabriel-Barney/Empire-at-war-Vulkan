@@ -1304,6 +1304,30 @@ bool TacticalBattle::space_member_spots(TacticalMode& mode, const Participant& p
     return true;
 }
 
+std::vector<LandDropRadiusObject> TacticalBattle::land_drop_radius_objects(const objects::ObjectStore& st, int32_t player) const {
+    std::vector<LandDropRadiusObject> radius;
+    if (!catalog_) return radius;
+    const objects::GameObjectTypes& types = catalog_->types();
+    for (const objects::ObjectHandle h : st.all_objects()) {  // GOM order
+        // 4. radius inputs (GOM list +0x2f0): dying / removing (+0x3a0 & 0x42) skipped.
+        if (!st.alive(h) || !st.active(h)) continue;
+        const objects::TypeIndex t = st.type(h);
+        if (t >= types.size()) continue;
+        const int32_t o = st.owner(h);
+        const Vec3 q = st.position(h);
+        LandDropRadiusObject ro;
+        ro.x = q.x;
+        ro.y = q.y;
+        ro.allied = o >= 0 && (o == player || !combat_->is_enemy(player, o));  // 0x2823c0 / 0x39a230
+        ro.enabling = types.get(t, objects::tags::Reinforcement_Enabling_Radius);
+        ro.prevention = types.get(t, objects::tags::Reinforcement_Prevention_Radius);
+        ro.powered = st.has_behavior(h, objects::beh::Powered);
+        ro.owner_base_power = o >= 0 && combat_->has_base_power(o);
+        if (ro.enabling > 0.0f || ro.prevention > 0.0f) radius.push_back(ro);
+    }
+    return radius;
+}
+
 // ---- land drop validity (header; TACTICAL_GAPS §4.2.1 tests 1-4, §4.2.2 items 2-4) ----
 bool TacticalBattle::land_drop_valid(const TacticalMode& mode, int32_t player, objects::ObjectId key, float x, float y, bool human,
                                      bool use_reinforcement_points) const {
@@ -1336,25 +1360,12 @@ bool TacticalBattle::land_drop_valid(const TacticalMode& mode, int32_t player, o
     static const objects::BehaviorTypeId kMine = objects::behavior_type_id("PROXIMITY_MINE");
     static const objects::BehaviorTypeId kLanding = objects::behavior_type_id("TRANSPORT_LANDING");
     const DropBox formation{x, y, lay.half_x, lay.half_y, yaw};
-    std::vector<LandDropRadiusObject> radius;
+    const std::vector<LandDropRadiusObject> radius = land_drop_radius_objects(st, player);  // 4. radius inputs
     for (const objects::ObjectHandle h : st.all_objects()) {  // GOM order
         if (!st.alive(h)) continue;
         const objects::TypeIndex t = st.type(h);
         if (t >= types.size()) continue;
-        const int32_t o = st.owner(h);
         const Vec3 q = st.position(h);
-        // 4. radius inputs (GOM list +0x2f0): dying / removing (+0x3a0 & 0x42) skipped.
-        if (st.active(h)) {
-            LandDropRadiusObject ro;
-            ro.x = q.x;
-            ro.y = q.y;
-            ro.allied = o >= 0 && (o == player || !combat_->is_enemy(player, o));  // 0x2823c0 / 0x39a230
-            ro.enabling = types.get(t, objects::tags::Reinforcement_Enabling_Radius);
-            ro.prevention = types.get(t, objects::tags::Reinforcement_Prevention_Radius);
-            ro.powered = st.has_behavior(h, objects::beh::Powered);
-            ro.owner_base_power = o >= 0 && combat_->has_base_power(o);
-            if (ro.enabling > 0.0f || ro.prevention > 0.0f) radius.push_back(ro);
-        }
         // a1h t06 (§4.2.2 item 4): the object tree GOM +0xd8 - Collidable_By_Projectile_Living (a death clone: _Dead),
         // any owner; never proximity mines; an AI issuer ignores movers; a human issuer ignores landing transports (item 3).
         if (!types.get(t, st.dying(h) ? objects::tags::Collidable_By_Projectile_Dead : objects::tags::Collidable_By_Projectile_Living)) continue;
