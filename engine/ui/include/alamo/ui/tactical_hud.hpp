@@ -61,6 +61,9 @@ struct HudFleetGroup {
     bool locked = false;
     std::vector<uint32_t> members;  // every member, ascending (selected or not)
     float health = -1.0f;           // #600 aggregate health 0..1 (the members' mean hull fraction); < 0 unknown
+    // #603 the members a running locked move is waiting for (host: TacticalBattle::fleet_lagging), ascending; empty while
+    // no move runs or nobody lags
+    std::vector<uint32_t> lagging;
 };
 // #179: one member's destination slot of a locked group move being aimed (host feed: TacticalBattle::fleet_move_preview).
 struct HudFleetGoal {

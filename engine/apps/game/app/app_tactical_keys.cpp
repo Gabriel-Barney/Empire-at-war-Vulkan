@@ -188,6 +188,9 @@ void App::fill_fleet_groups(ui::TacticalHudFrame& hf) {
     fleet_groups_.clear();
     const sim::TacticalBattle* b = battle();
     hf.fleet_groups_on = session_ && session_->spec().fleet_groups && b && b->fleet_groups_enabled();
+    std::vector<sim::FleetGroups::Lagging> lagging;  // #603 the members running locked moves wait for
+    if (hf.fleet_groups_on)
+        if (const sim::TacticalMode* tm = session_->host().modes().top_tactical()) lagging = b->fleet_lagging(*tm);
     if (hf.fleet_groups_on)
         for (const sim::FleetGroup& g : b->fleet_groups().groups()) {
             if (static_cast<int32_t>(g.owner) != local_player()) continue;
@@ -196,6 +199,9 @@ void App::fill_fleet_groups(ui::TacticalHudFrame& hf) {
             h.name = ui::utf8_to_utf32(g.name);
             h.locked = g.locked;
             for (const sim::FleetMember& m : g.members) h.members.push_back(static_cast<uint32_t>(m.id));  // ascending id
+            for (const sim::FleetGroups::Lagging& l : lagging)
+                if (l.group == g.id)
+                    for (const objects::ObjectId id : l.members) h.lagging.push_back(static_cast<uint32_t>(id));  // ascending
             if (bview_.active()) {  // #600 the members' mean hull fraction
                 const std::vector<render::SnapshotObject>& objs = bview_.frame().objects;  // ascending id
                 float sum = 0.0f;

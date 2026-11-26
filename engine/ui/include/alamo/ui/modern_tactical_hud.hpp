@@ -112,6 +112,12 @@ struct ModernHudStats {
     // #602 group badges (the group number, or the wing's key): beside each selected unit's world icon (a squadron: its one
     // icon), on the map at each group's and wing's member centre; the selected locked groups' outline tags (and dark edge)
     uint32_t world_badges = 0, radar_badges = 0, outline_tags = 0;
+    // #603 lagging stragglers (HudFleetGroup::lagging): the roster cards and run tabs with "N lagging", the world badges in
+    // the amber lagging look, the outlines' dashed amber sections (one per lagging member), and the move-preview readout
+    // (shown while a locked move is aimed) with the lagging count it adds while a move runs
+    uint32_t roster_lagging = 0, tab_lagging = 0, badges_lagging = 0, outline_lagging = 0;
+    bool move_readout = false;
+    uint32_t move_readout_lagging = 0;
     uint32_t abilities = 0;              // #586 ability buttons drawn
     uint32_t ability_rings = 0;          // of them recharging (a ring and the seconds left)
     uint32_t ability_auto = 0;           // of them with the AUTO badge (autofire on)
@@ -176,7 +182,12 @@ private:
     void build_map(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
     void build_target_card(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
     void build_badges(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
-    void badge(std::u32string_view text, Vec2f left_mid, uint32_t layer);  // a dark backplate with the text, from its left edge
+    void badge(std::u32string_view text, Vec2f left_mid, uint32_t layer, bool lagging);  // a dark backplate with the text
+    // #603 "N lagging" (or "N" alone when !words) after a warning triangle, ending at right_mid; its width, and the width
+    // without drawing
+    float lag_mark(Vec2f right_mid, uint32_t n, bool words, uint32_t layer);
+    float lag_mark_width(uint32_t n, bool words);
+    void build_move_readout(const TacticalHudFrame& f, std::span<const HudUnit> units);
     int32_t map_id() const { return radar_ >= 0 ? radar_ : kModernMapHit; }
     float map_side() const { return std::min(0.3f * canvas_.height, 0.22f * canvas_.width); }
     std::vector<HudModelDraw> radar_models_;
@@ -248,7 +259,7 @@ private:
         float gap = 0.0f, right = 0.0f;  // between cards; the section's right edge
     };
     // #600 / #601 a state chip's icon (a closed padlock, an open one, a wing) round `c`, `u` canvas units the unit size.
-    enum class Chip { Locked, Free, Wing };
+    enum class Chip { Locked, Free, Wing, Lagging };
     void chip_icon(Chip chip, Vec2f c, float u, Rgba8 edge, uint32_t layer);
     void build_run_tabs(const TacticalHudFrame& f, std::span<const HudUnit> units, const CardRow& row, float tab_h);
     uint32_t builder_ = commands::kNoObject, station_ = commands::kNoObject;

@@ -118,6 +118,16 @@ public:
     // Per tick, after the host set its own speed factors: `scale(id, s)` for every member of a moving locked group (group
     // order, ascending id), s in (0, 1]. Ends the moves that have no member with a goal left.
     void regulate(const InfoFn& info, const std::function<void(objects::ObjectId, float)>& scale);
+    // #603 (Modern HUD) the members a running locked move is waiting for, by regulate's measure: a moving member with a
+    // goal lags when some moving member with a goal and a max speed (a leader regulate can slow) is ahead of it by more
+    // than straggler_distance, lead = (p_leader - p_member) x the leader's start distance. The least-progressed member
+    // lags exactly when regulate slows a leader. One entry per moving group with a lagging member (group order), members
+    // ascending. Changes nothing; for the HUD only (never the tick, a CRC or a save).
+    struct Lagging {
+        uint16_t group = 0;
+        std::vector<objects::ObjectId> members;
+    };
+    std::vector<Lagging> lagging(const InfoFn& info) const;
 
     void hash(StateHasher& h) const;
     void write(ByteWriter& w) const;
@@ -128,6 +138,8 @@ private:
     void remove_units(std::span<const objects::ObjectId> units);
     void drop_empty();
     static void capture_slots(FleetGroup& g, const InfoFn& info);
+    // A moving member's progress toward its slot, 0 at the move's start, 1 there (regulate's p).
+    static float progress(const FleetMember& m, const FleetUnitInfo& u);
 
     std::vector<FleetGroup> groups_;
     uint16_t next_id_ = 1;

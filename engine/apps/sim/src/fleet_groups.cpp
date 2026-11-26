@@ -297,7 +297,7 @@ void FleetGroups::regulate(const InfoFn& info, const std::function<void(objects:
             if (!m.moving || !u.valid || !u.has_goal) continue;
             any_goal = true;
             if (u.max_speed > 0.0f && u.max_speed < slowest) slowest = u.max_speed;
-            const float p = m.start_dist > 1.0e-3f ? 1.0f - mv::distance(u.pos, m.goal) / m.start_dist : 1.0f;
+            const float p = progress(m, u);
             if (p < p_min) p_min = p;
         }
         if (!any_goal) {
@@ -310,13 +310,48 @@ void FleetGroups::regulate(const InfoFn& info, const std::function<void(objects:
             const FleetUnitInfo& u = infos[i];
             if (!m.moving || !u.valid || !u.has_goal || !(u.max_speed > 0.0f)) continue;
             float s = slowest < u.max_speed ? slowest / u.max_speed : 1.0f;
-            const float p = m.start_dist > 1.0e-3f ? 1.0f - mv::distance(u.pos, m.goal) / m.start_dist : 1.0f;
+            const float p = progress(m, u);
             const float lead = (p - p_min) * m.start_dist;
             if (lead > straggler_distance && straggler_distance > 0.0f)
                 s = s * std::max(min_leader_scale, 1.0f - (lead - straggler_distance) / straggler_distance);
             if (s < 1.0f) scale(m.id, s);
         }
     }
+}
+
+float FleetGroups::progress(const FleetMember& m, const FleetUnitInfo& u) {
+    return m.start_dist > 1.0e-3f ? 1.0f - mv::distance(u.pos, m.goal) / m.start_dist : 1.0f;
+}
+
+std::vector<FleetGroups::Lagging> FleetGroups::lagging(const InfoFn& info) const {
+    std::vector<Lagging> out;
+    if (!(straggler_distance > 0.0f)) return out;
+    struct Moving {
+        objects::ObjectId id;
+        float p, start_dist;
+        bool leader;
+    };
+    std::vector<Moving> moving;
+    for (const FleetGroup& g : groups_) {
+        if (!g.moving) continue;
+        moving.clear();
+        for (const FleetMember& m : g.members) {
+            if (!m.moving) continue;
+            const FleetUnitInfo u = info(m.id);
+            if (!u.valid || !u.has_goal) continue;
+            moving.push_back({m.id, progress(m, u), m.start_dist, u.max_speed > 0.0f});
+        }
+        Lagging l;
+        l.group = g.id;
+        for (const Moving& s : moving)
+            for (const Moving& lead : moving)
+                if (lead.leader && lead.id != s.id && (lead.p - s.p) * lead.start_dist > straggler_distance) {
+                    l.members.push_back(s.id);
+                    break;
+                }
+        if (!l.members.empty()) out.push_back(std::move(l));
+    }
+    return out;
 }
 
 void FleetGroups::hash(StateHasher& h) const {

@@ -1,7 +1,8 @@
 // [port] Fleet groups, phase 1 (sim/fleet_groups.hpp; docs/DECISIONS.md "Fleet groups: exception to the current focus").
 //   * the command payloads round-trip and malformed ones are refused;
 //   * FleetGroups on a fake world: create / lock / slots, the locked-move plan, the slowest-member cap and the straggler
-//     wait, interrupt, prune (deaths, owner change), remove / dissolve / rename rules, the group cap, save round trip;
+//     wait, the lagging query (#603), interrupt, prune (deaths, owner change), remove / dissolve / rename rules, the group
+//     cap, save round trip;
 //   * a space battle (the S10 fixture): with the switch off every fleet command is refused and moves pass through
 //     unchanged; with it on, the human's ships made into a locked group move as a block at the slowest ship's speed and
 //     end on their slots. The per-tick battle digests are the worker-count check (--fleet mode, one ctest entry per count).
@@ -28,6 +29,20 @@ cmd::FleetGroupCommand op(Op o, bool locked = false) {
 }
 
 bool near(float a, float b, float eps = 0.01f) { return std::fabs(a - b) <= eps; }
+
+uint64_t digest_of(const FleetGroups& fg) {
+    StateHasher h;
+    fg.hash(h);
+    return h.digest();
+}
+
+// #603: the lagging members of the one moving group (empty when none), checking the query changes nothing.
+std::vector<objects::ObjectId> lagging_of(const FleetGroups& fg, const FleetGroups::InfoFn& info) {
+    const uint64_t before = digest_of(fg);
+    const std::vector<FleetGroups::Lagging> l = fg.lagging(info);
+    CHECK(digest_of(fg) == before && l.size() <= 1);
+    return l.empty() ? std::vector<objects::ObjectId>{} : l[0].members;
+}
 
 void test_commands() {
     for (const Op o : {Op::Create, Op::Dissolve, Op::RemoveUnits, Op::Merge}) {
@@ -140,14 +155,24 @@ void test_logic() {
     const auto take = [&scales](objects::ObjectId id, float s) { scales[id] = s; };
     fg.regulate(info, take);
     CHECK(scales.size() == 2 && near(scales[11], 0.6f) && near(scales[12], 0.6f) && !scales.count(10));
+    CHECK(lagging_of(fg, info).empty());  // all at the start: nobody ahead
     // 11 runs 400 ahead of the straggler 10 (lead 400 > 150): scale 0.6 x max(0.25, 1 - 250 / 150) = 0.15
     {
         const FleetMember& m11 = fg.groups()[0].members[1];
         const mv::V2 dir = (m11.goal - w.units[11].pos) * (1.0f / mv::length(m11.goal - w.units[11].pos));
         w.units[11].pos = w.units[11].pos + dir * 400.0f;
     }
-    scales.clear();
-    fg.regulate(info, take);
+    // #603: 10 and 12 are 400 behind the leader 11 (past 150): both lag, and asking changes nothing
+    CHECK((lagging_of(fg, info) == std::vector<objects::ObjectId>{10, 12}));
+    {
+        std::map<objects::ObjectId, float> again;
+        FleetGroups copy = fg;
+        copy.regulate(info, [&again](objects::ObjectId id, float s) { again[id] = s; });
+        (void)fg.lagging(info);
+        scales.clear();
+        fg.regulate(info, take);
+        CHECK(scales == again && digest_of(fg) == digest_of(copy));  // the next tick is the same with or without the query
+    }
     CHECK(near(scales[11], 0.15f) && near(scales[12], 0.6f));
     // 11 only 200 ahead: 0.6 x (1 - 50 / 150) = 0.4
     {
@@ -155,6 +180,13 @@ void test_logic() {
         const mv::V2 dir = (m11.goal - w.units[11].pos) * (1.0f / mv::length(m11.goal - w.units[11].pos));
         w.units[11].pos = w.units[11].pos - dir * 200.0f;
     }
+    // #603: 12 moves up to 100 behind 11 (inside 150): only 10, 200 behind, lags
+    {
+        const FleetMember& m12 = fg.groups()[0].members[2];
+        const mv::V2 dir = (m12.goal - w.units[12].pos) * (1.0f / mv::length(m12.goal - w.units[12].pos));
+        w.units[12].pos = w.units[12].pos + dir * 100.0f;
+    }
+    CHECK((lagging_of(fg, info) == std::vector<objects::ObjectId>{10}));
     scales.clear();
     fg.regulate(info, take);
     CHECK(near(scales[11], 0.4f, 0.02f));
@@ -164,6 +196,7 @@ void test_logic() {
     scales.clear();
     fg.regulate(info, take);
     CHECK(!fg.any_moving() && scales.empty() && fg.groups()[0].members[1].slot == slot_before);
+    CHECK(fg.lagging(info).empty());  // #603: a finished move reports none
     // another order interrupts a running move
     fg.start_move(moves[0], info);
     const objects::ObjectId i12[] = {12};
@@ -322,7 +355,7 @@ struct FleetRun {
     bool arrived = false;      // the move ended with every member near its slot goal
     bool capped = true;        // no member ran faster than the slowest member's max speed during the move
     bool split_speeds = false; // the members had different max speeds (the cap was tested)
-    uint32_t members = 0, move_ticks = 0;
+    uint32_t members = 0, move_ticks = 0, lagging_ticks = 0;  // lagging_ticks: #603 ticks with a lagging member
     float worst_goal = 0.0f, fastest_over = 0.0f;
 };
 
@@ -475,6 +508,17 @@ FleetRun run_fleet_battle(const Data& d, int32_t workers, bool on) {
         if (!g) break;
         if (g->moving) {
             ++out.move_ticks;
+            {  // #603: the HUD's lagging query each tick changes nothing (the digests are the worker / golden check too)
+                StateHasher before;
+                b->hash(before);
+                b->movement().hash_units(before);
+                const std::vector<FleetGroups::Lagging> lag = b->fleet_lagging(*tm);
+                StateHasher after;
+                b->hash(after);
+                b->movement().hash_units(after);
+                CHECK(before.digest() == after.digest() && lag.size() <= 1);
+                if (!lag.empty()) ++out.lagging_ticks;
+            }
             for (const FleetMember& m : g->members) {
                 const mv::UnitView v = b->movement().view(m.id);
                 const float over = v.speed - slowest;
@@ -558,8 +602,9 @@ int main(int argc, char** argv) {
     std::printf("fleet groups in a space battle: switch on\n");
     const FleetRun on = run_fleet_battle(*d, 0, true);
     CHECK(on.ordered && on.arrived && on.capped);
-    std::printf("  %u members, speeds differ %d, move %u ticks, worst slot distance %.1f, fastest over cap %.3f\n", on.members,
-                on.split_speeds ? 1 : 0, on.move_ticks, static_cast<double>(on.worst_goal), static_cast<double>(on.fastest_over));
+    std::printf("  %u members, speeds differ %d, move %u ticks (%u lagging), worst slot distance %.1f, fastest over cap %.3f\n",
+                on.members, on.split_speeds ? 1 : 0, on.move_ticks, on.lagging_ticks, static_cast<double>(on.worst_goal),
+                static_cast<double>(on.fastest_over));
     CHECK(on.split_speeds && on.members == 5 && on.previewed);  // the fixture's frigates (3) and corvettes (5): the cap is exercised
     std::error_code ec;
     remove_all_long(d->root, ec);
