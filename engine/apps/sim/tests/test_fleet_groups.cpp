@@ -356,10 +356,13 @@ struct FleetRun {
     bool capped = true;        // no member ran faster than the slowest member's max speed during the move
     bool split_speeds = false; // the members had different max speeds (the cap was tested)
     uint32_t members = 0, move_ticks = 0, lagging_ticks = 0;  // lagging_ticks: #603 ticks with a lagging member
+    // #608 idle_units: a moving member listed idle (must stay 0); once the move ended, the members idle, the members still
+    // with a target (fighting in place: not idle), and any member that is neither (must stay 0)
+    uint32_t idle_while_moving = 0, idle_after = 0, fighting_after = 0, idle_wrong = 0;
     float worst_goal = 0.0f, fastest_over = 0.0f;
 };
 
-FleetRun run_fleet_battle(const Data& d, int32_t workers, bool on) {
+FleetRun run_fleet_battle(const Data& d, int32_t workers, bool on, bool idle_phase = false) {
     FleetRun out;
     jobs::JobSystem js(jobs::JobSystemConfig{workers});
     SimConfig cfg;
@@ -519,6 +522,18 @@ FleetRun run_fleet_battle(const Data& d, int32_t workers, bool on) {
                 CHECK(before.digest() == after.digest() && lag.size() <= 1);
                 if (!lag.empty()) ++out.lagging_ticks;
             }
+            {  // #608: the HUD's idle query each tick changes nothing, and lists no member with a movement goal
+                StateHasher before;
+                b->hash(before);
+                b->movement().hash_units(before);
+                const std::vector<TacticalBattle::IconLink> idle = b->idle_units(0);
+                StateHasher after;
+                b->hash(after);
+                b->movement().hash_units(after);
+                CHECK(before.digest() == after.digest());
+                for (const TacticalBattle::IconLink& l : idle)
+                    if (b->movement().has_unit(l.unit) && b->movement().view(l.unit).has_goal) ++out.idle_while_moving;
+            }
             for (const FleetMember& m : g->members) {
                 const mv::UnitView v = b->movement().view(m.id);
                 const float over = v.speed - slowest;
@@ -529,12 +544,64 @@ FleetRun run_fleet_battle(const Data& d, int32_t workers, bool on) {
         }
         moving = false;
         out.arrived = true;
+        {
+            const std::vector<TacticalBattle::IconLink> idle = b->idle_units(0);
+            for (const FleetMember& m : g->members) {
+                const bool listed = std::any_of(idle.begin(), idle.end(), [&](const TacticalBattle::IconLink& l) { return l.unit == m.id; });
+                const bool target = b->combat().has_unit(m.id) && (b->combat().current_target(m.id) != tactical::combat::kNoObject ||
+                                                                   b->combat().attack_goal(m.id) != tactical::combat::kNoObject);
+                const bool goal = b->movement().view(m.id).has_goal;
+                if (listed) ++out.idle_after;
+                if (target && !goal) ++out.fighting_after;
+                if (listed == (target || goal)) ++out.idle_wrong;  // idle exactly when it has neither (no queue, no garrison here)
+            }
+        }
         for (const FleetMember& m : g->members) {
             const float dist = mv::distance(b->movement().view(m.id).pos, m.goal);
             out.worst_goal = std::max(out.worst_goal, dist);
             if (dist > 120.0f) out.arrived = false;
         }
         break;
+    }
+    // #608 after the move (the 0-worker run only; no digests, so the worker check is unchanged): the first member attacks
+    // the nearest enemy; each tick a member is listed idle exactly when it has no movement goal, no combat target and no
+    // attack-move goal (nothing is queued here), and the member ticks standing still with a target are fighting in place.
+    if (idle_phase && out.arrived && !ids.empty()) {
+        TacticalBattle* b = battles.battle();
+        TacticalMode* tm = host.tactical();
+        objects::ObjectId enemy = objects::kNoObjectId;
+        if (b && tm) {
+            const objects::ObjectStore& st = tm->primary();
+            const Vec3 p0 = st.position(st.find(ids[0]));
+            float best = 3.0e38f;
+            for (objects::ObjectHandle h : st.owned_by(1)) {
+                if (!st.alive(h) || !b->combat().has_unit(st.id(h))) continue;
+                const Vec3 p = st.position(h);
+                const float d2 = (p.x - p0.x) * (p.x - p0.x) + (p.y - p0.y) * (p.y - p0.y);
+                if (d2 < best) {
+                    best = d2;
+                    enemy = st.id(h);
+                }
+            }
+        }
+        const objects::ObjectId first[] = {ids[0]};
+        if (enemy != objects::kNoObjectId && b->order_attack(*tm, 0, first, enemy, host.random().synced()) == R::None)
+            for (uint64_t t = 0; t < 1500; ++t) {
+                host.tick_once();
+                b = battles.battle();
+                tm = host.tactical();
+                if (!b || !tm) break;
+                const std::vector<TacticalBattle::IconLink> idle = b->idle_units(0);
+                for (const objects::ObjectId id : ids) {
+                    if (!b->movement().has_unit(id)) continue;
+                    const bool listed = std::any_of(idle.begin(), idle.end(), [&](const TacticalBattle::IconLink& l) { return l.unit == id; });
+                    const bool target = b->combat().has_unit(id) && (b->combat().current_target(id) != tactical::combat::kNoObject ||
+                                                                     b->combat().attack_goal(id) != tactical::combat::kNoObject);
+                    const bool goal = b->movement().view(id).has_goal;
+                    if (listed == (target || goal)) ++out.idle_wrong;
+                    if (target && !goal) ++out.fighting_after;
+                }
+            }
     }
     return out;
 }
@@ -600,11 +667,14 @@ int main(int argc, char** argv) {
     const FleetRun off = run_fleet_battle(*d, 0, false);
     CHECK(off.refused_off);
     std::printf("fleet groups in a space battle: switch on\n");
-    const FleetRun on = run_fleet_battle(*d, 0, true);
+    const FleetRun on = run_fleet_battle(*d, 0, true, true);  // #608 with the idle phase
     CHECK(on.ordered && on.arrived && on.capped);
     std::printf("  %u members, speeds differ %d, move %u ticks (%u lagging), worst slot distance %.1f, fastest over cap %.3f\n",
                 on.members, on.split_speeds ? 1 : 0, on.move_ticks, on.lagging_ticks, static_cast<double>(on.worst_goal),
                 static_cast<double>(on.fastest_over));
+    std::printf("  #608 idle: %u while moving, %u of %u members idle after the move, %u member ticks fighting in place\n", on.idle_while_moving,
+                on.idle_after, on.members, on.fighting_after);
+    CHECK(on.idle_while_moving == 0 && on.idle_after > 0 && on.idle_wrong == 0 && on.fighting_after > 0);
     CHECK(on.split_speeds && on.members == 5 && on.previewed);  // the fixture's frigates (3) and corvettes (5): the cap is exercised
     std::error_code ec;
     remove_all_long(d->root, ec);

@@ -937,6 +937,12 @@ public:
         objects::ObjectId unit = objects::kNoObjectId, squad = objects::kNoObjectId;
     };
     std::vector<IconLink> icon_links() const;
+    // #608 the Modern deck's Idle shortcut: `player`'s icon_links entries (live, not retreated, movable; one per member with
+    // its squadron / company lead) that are idle: outside any garrison, no queued order, not busy (order_busy: no movement
+    // goal, no live ordered attack, no pending ability), no combat target (ordered or auto) and no attack-move goal, so a
+    // unit fighting in place is not idle. A squadron or company is listed only when every member is idle. Ascending ids;
+    // changes nothing.
+    std::vector<IconLink> idle_units(int32_t player) const;
     // Reinforce (legacy docs/re/COMMANDS.md id 12) from a human player: the rules of BattleAi's Reinforce (owner, undeployed reserve,
     // the side not retreating, space unit cap -> QueueFull). Space: the members by the free-placement ring search
     // (space_member_spots), else in rows of 6 around (x, y) clamped to the mode bounds [port]. Land (TACTICAL_GAPS §4.2.2 item 5: ReinforceEventClass Execute 0x403cb0): the drop
@@ -2545,6 +2551,7 @@ private:
     FleetUnitInfo fleet_unit_info(const objects::ObjectStore& store, objects::ObjectId id) const;
     void fleet_tick(const TacticalMode& mode);  // prune + speed regulation, after apply_speed_factors
     bool order_busy(objects::ObjectId id, const OrderQueue* q) const;
+    bool unit_idle(objects::ObjectId id) const;  // #608 one unit's idle_units rule
     void clear_queues(std::span<const objects::ObjectId> ids);
     std::vector<objects::ObjectId> enqueue(std::span<const objects::ObjectId> ids, const QueuedOrder& o);  // -> run now
     void advance_queues(TacticalMode& mode, SimRng& rng);

@@ -1379,6 +1379,26 @@ void App::build_tactical_hud() {
                 hf.station = u.id;
                 break;
             }
+    // #608 the Modern deck's Idle shortcut (no own unit selected): the idle units by whole squadron / company (ascending
+    // lead), at most kMaxSelect ids (a squadron that would pass it is left out, a smaller one after it may still fit); the
+    // count shows each squadron once.
+    idle_ids_.clear();
+    hf.idle_count = 0;
+    if (const sim::TacticalBattle* b = battle(); modern && b && !own_selected) {
+        std::vector<sim::TacticalBattle::IconLink> idle = b->idle_units(local_player());
+        std::stable_sort(idle.begin(), idle.end(), [](const auto& x, const auto& y) { return x.squad < y.squad; });
+        for (size_t i = 0; i < idle.size();) {
+            size_t j = i;
+            while (j < idle.size() && idle[j].squad == idle[i].squad) ++j;
+            if (idle_ids_.size() + (j - i) <= ui::OrderTranslator::kMaxSelect) {
+                for (size_t k = i; k < j; ++k) idle_ids_.push_back(static_cast<uint32_t>(idle[k].unit));
+                ++hf.idle_count;
+            }
+            i = j;
+        }
+        std::sort(idle_ids_.begin(), idle_ids_.end());
+    }
+    hf.idle_units = idle_ids_;
     ui_.tactical_hud.set_world_split(modern);
     if (modern) ui_.modern_hud.sync_options(video_profile_.modern_hud);  // #590
     ui_.tactical_hud.build(hf, units, ui_.hud_types);

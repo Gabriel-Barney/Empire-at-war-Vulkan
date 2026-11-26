@@ -863,6 +863,23 @@ void test_actions() {
     h.build(f, none, s.types);
     h.modern.update_input(click_on(kModernRosterGroupBase), false, false, cmds, nullptr);
     CHECK(cmds.size() == 2 && cmds[0] == commands::ev::select({77}) && cmds[1] == commands::ev::select({20, 21}));
+    // #608 Idle: "Idle N" beside the station; a click selects the idle units.
+    {
+        const std::vector<uint32_t> idle = {20, 40, 41};
+        f.idle_units = idle;
+        f.idle_count = 2;  // ship 20 and the squadron 40 / 41
+        h.build(f, none, s.types);
+        CHECK(st.shortcuts == 2);
+        std::vector<commands::EventData> ic;
+        h.modern.update_input(click_on(kModernIdleHit), false, false, ic, nullptr);
+        CHECK(ic.size() == 1 && ic[0] == commands::ev::select({20, 40, 41}));
+        f.idle_units = {};
+        f.idle_count = 0;
+        h.build(f, none, s.types);
+        ic.clear();
+        h.modern.update_input(click_on(kModernIdleHit), false, false, ic, nullptr);
+        CHECK(st.shortcuts == 1 && ic.empty());
+    }
     h.build(f, none, s.types);
     size_t wn = 0;
     CHECK(h.same_click(kWingHitBase, kWingHitBase, false, false, Button::Left, &wn) && wn == 1);
