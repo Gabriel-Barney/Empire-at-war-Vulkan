@@ -1536,6 +1536,74 @@ void test_lagging() {
     CHECK(!st.move_readout && st.badges_lagging == 0 && st.roster_lagging == 0);
 }
 
+// #616 the hero bar's slots (TacticalHudFrame::hero_slots): a badge on each slot whose hero is in a group or wing, over
+// the slot's layer; none for a hero in neither, with the interface hidden or with fleet groups off and no wing. Classic
+// draws the same with or without the slots.
+void test_hero_badges() {
+    Huds h;
+    Selection s;
+    TacticalHudFrame f = frame();
+    f.world.local_player = 0;
+    std::vector<HudUnit> units = s.units;
+    std::vector<HudFleetGroup> fleets(1);
+    fleets[0].id = 3;
+    fleets[0].members = {20, 21};
+    f.fleet_groups_on = true;
+    f.fleet_groups = fleets;
+    h.build(f, units, s.types);
+    const ModernHudStats& st = h.modern.stats();
+    const uint64_t classic_before = h.classic.draw_list().digest();
+    CHECK(st.hero_badges == 0);
+    auto on_layer_7 = [&] {  // the badge is drawn one layer over the slot's (6); nothing else of Modern's is on 7
+        size_t n = 0;
+        for (uint32_t l = 0; l < kHudSubLists; ++l) n += h.modern.draw_list().items(7, static_cast<HudList>(l)).size();
+        return n;
+    };
+    CHECK(on_layer_7() == 0);
+    // 21 is in group 3, 999 in no group.
+    const std::vector<HudHeroSlot> slots = {{21, 6, {1700.0f, 980.0f}, {1760.0f, 1040.0f}}, {999, 6, {1630.0f, 980.0f}, {1690.0f, 1040.0f}}};
+    f.hero_slots = slots;
+    h.build(f, units, s.types);
+    CHECK(st.hero_badges == 1);
+    CHECK(h.classic.draw_list().digest() == classic_before);
+    CHECK(on_layer_7() > 0);
+    {  // inside the slot's box (pixels -> canvas, +Y up), in its top-left part
+        const Vec2f bl = h.modern.canvas().pixel_to_canvas(1700.0f, 1040.0f), tr = h.modern.canvas().pixel_to_canvas(1760.0f, 980.0f);
+        float x0 = 1e9f, y1 = -1e9f;
+        bool inside = true;
+        for (uint32_t l = 0; l < kHudSubLists; ++l)
+            for (const HudQuad& q : h.modern.draw_list().items(7, static_cast<HudList>(l))) {
+                inside = inside && q.min.x >= bl.x - 0.5f && q.max.x <= tr.x + 0.5f && q.min.y >= bl.y - 0.5f && q.max.y <= tr.y + 0.5f;
+                x0 = std::min(x0, q.min.x);
+                y1 = std::max(y1, q.max.y);
+            }
+        CHECK(inside && x0 < bl.x + 0.25f * (tr.x - bl.x) && y1 > tr.y - 0.25f * (tr.y - bl.y));
+    }
+    // A slot on the top layer: no badge (the panel would cover it).
+    std::vector<HudHeroSlot> top = slots;
+    top[0].layer = kHudLayers - 1;
+    f.hero_slots = top;
+    h.modern.build(f, units, s.types);
+    CHECK(st.hero_badges == 0);
+    f.hero_slots = slots;
+    // A wing's craft: its key.
+    std::vector<HudWing> wings(1);
+    wings[0].hotkey = U"F2";
+    wings[0].ids = {999};
+    wings[0].squadrons = 1;
+    f.wings = wings;
+    h.modern.build(f, units, s.types);
+    CHECK(st.hero_badges == 2);
+    f.world.interface_hidden = true;
+    h.modern.build(f, units, s.types);
+    CHECK(st.hero_badges == 0);
+    f.world.interface_hidden = false;
+    f.wings = {};
+    f.fleet_groups_on = false;
+    h.modern.build(f, units, s.types);
+    CHECK(st.hero_badges == 0);
+}
+
 // ---- #593 the galactic map ----
 
 const char* kGalacticXml = R"(<?xml version="1.0"?>
@@ -1872,6 +1940,7 @@ int main() {
     test_roster();
     test_badges();
     test_lagging();  // #603
+    test_hero_badges();  // #616
     test_discipline_control();
     test_galactic_view();
     test_galactic_parity();

@@ -112,6 +112,7 @@ struct ModernHudStats {
     // #602 group badges (the group number, or the wing's key): beside each selected unit's world icon (a squadron: its one
     // icon), on the map at each group's and wing's member centre; the selected locked groups' outline tags (and dark edge)
     uint32_t world_badges = 0, radar_badges = 0, outline_tags = 0;
+    uint32_t hero_badges = 0;  // #616 the hero bar slots badged (TacticalHudFrame::hero_slots)
     // #603 lagging stragglers (HudFleetGroup::lagging): the roster cards and run tabs with "N lagging", the world badges in
     // the amber lagging look, the outlines' dashed amber sections (one per lagging member), and the move-preview readout
     // (shown while a locked move is aimed) with the lagging count it adds while a move runs
@@ -182,7 +183,8 @@ private:
     void build_map(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
     void build_target_card(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
     void build_badges(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
-    void badge(std::u32string_view text, Vec2f left_mid, uint32_t layer, bool lagging);  // a dark backplate with the text
+    void badge(std::u32string_view text, Vec2f left_mid, uint32_t layer, bool lagging);
+    float badge_height() const { return 1.1f * text_height_units(); }  // a badge's backplate height  // a dark backplate with the text
     // #603 "N lagging" (or "N" alone when !words) after a warning triangle, ending at right_mid; its width, and the width
     // without drawing
     float lag_mark(Vec2f right_mid, uint32_t n, bool words, uint32_t layer);

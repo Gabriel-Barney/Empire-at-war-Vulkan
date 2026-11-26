@@ -296,6 +296,9 @@ public:
                       float wheel = 0.0f) override;
     uint32_t hover_hero() const;        // hovered good slot's hero object (0 = none)
     int32_t hover_component() const;    // its slot component (-1 = none)
+    // #616 the good bar's shown slots of the last build with a hero object and a hit box, in slot order (empty: closed,
+    // or the enemy bar). Reads only what build() drew.
+    std::vector<HudHeroSlot> shown_slots() const;
 
 private:
     void fallback_layout() override;

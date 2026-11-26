@@ -70,6 +70,13 @@ struct HudFleetGoal {
     uint32_t id = 0;  // the member
     float x = 0.0f, y = 0.0f;
 };
+// #616 a shown slot of the hero bar (HeroPanel::shown_slots): its hero and the slot's box in pixels (top-left origin), with
+// the layer the bar draws it on. Modern badges the heroes in a group or wing over these.
+struct HudHeroSlot {
+    uint32_t hero = 0;
+    uint32_t layer = 0;
+    Vec2f min_px{}, max_px{};
+};
 inline constexpr int32_t kFleetTabHitBase = 0x41000000;  // hit-box ids of the group header tabs (index into the runs)
 // #177: a tab's Merge button (on the oldest tab when the selection spans two or more groups; sends FleetGroupOp::Merge)
 // and Split button (on a tab whose group is only partly selected; sends FleetGroupOp::Create of the selection).
@@ -485,6 +492,7 @@ struct TacticalHudFrame {
     bool fleet_groups_on = false;
     std::span<const HudFleetGroup> fleet_groups;
     std::span<const HudFleetGoal> fleet_preview;  // #179: faint circles at these slots (fleet groups on only)
+    std::span<const HudHeroSlot> hero_slots;      // #616 the hero bar's shown good slots (read by Modern only)
     // #477 tactical_sell (0x217, TACTICAL_COMMANDBAR_COMPONENTS.md "Tactical sell"): the button the host opened over an own
     // object with a sell offer (object 0 = none), at its projected pixel; text tactical_sell_text(TEXT_BUTTON_SELL, name,
     // refund). A left click sends TacticalSell {object}.
