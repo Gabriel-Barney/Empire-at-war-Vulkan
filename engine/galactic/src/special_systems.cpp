@@ -723,17 +723,16 @@ bool GalacticSim::apply_sabotage(const SpecialAbilityDef& a, ObjectHandle sabote
     bool ok = false;
     switch (k) {
     case kSabotageGroundBase: {
-        // 0x5b2910: queued base upgrades cancelled (0x5b1d40), the base replaced by its Prev_Level_Base or destroyed.
-        // [port] the ground base level is the structure count: the queued ground structures are dropped (no refund
-        // [inferred]) and the newest structure goes.
+        // 0x5b2910: the queued base upgrade cancelled (0x5b1d40), the base replaced by its Prev_Level_Base or destroyed.
+        // 0x5b1d40 [H] cancels one entry through 0x4035d0 (the last queued entry of the base-upgrade type, refund 1: to the
+        // planet owner through 0x4023d0, and the cancel line voiced). [port] the port has no base-level chain (the ground
+        // base level is the structure count), so the entry that stands for the base upgrade is the last queued ground
+        // structure, refunded (maintainer decision on #325); the newest structure goes.
         auto& g = p.queue[kGroundQueue];
         for (size_t i = g.size(); i-- > 0;)
             if (rules_->types[g[i].type].kind == UnitKind::GroundStructure) {
-                // #67 t04: 0x5b1d40 cancels through 0x4035d0, which voices the line. Retail cancels one entry (the last of
-                // the base-upgrade type, with a refund); the [port] above drops every queued structure, so it plays per entry.
-                emit_cancel(planet, kGroundQueue, g[i], false, true);
-                g.erase(g.begin() + static_cast<std::ptrdiff_t>(i));
-                if (i == 0 && !g.empty()) restart_head(g[0]);
+                (void)cancel(g[i].player, planet, kGroundQueue, static_cast<uint32_t>(i), true);
+                break;
             }
         for (size_t i = p.structures.size(); i-- > 0;)
             if (store_->alive(p.structures[i])) {
