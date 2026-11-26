@@ -45,6 +45,10 @@ const char* kXml = R"(<?xml version="1.0"?>
   <CommandBarComponent Name="c_button03"><Type>Button</Type></CommandBarComponent>
   <CommandBarComponent Name="c_button04"><Type>Button</Type></CommandBarComponent>
   <CommandBarComponent Name="c_button05"><Type>Button</Type></CommandBarComponent>
+  <CommandBarComponent Name="special_button_00"><Type>Button</Type></CommandBarComponent>
+  <CommandBarComponent Name="special_button_01"><Type>Button</Type></CommandBarComponent>
+  <CommandBarComponent Name="special_button_02"><Type>Button</Type></CommandBarComponent>
+  <CommandBarComponent Name="special_button_03"><Type>Button</Type></CommandBarComponent>
 </CommandBarComponents>)";
 
 // Two own groups (types 0 and 1, type 1 shielded) and an enemy unit, all selected but the enemy.
@@ -556,6 +560,16 @@ void test_options() {
     std::vector<HudAlert> alerts(3);
     for (HudAlert& a : alerts) a.text = U"Base under attack at the northern landing pad";
     f.alerts = alerts;
+    f.providers.abilities = [](const SelectedGroup&, std::vector<HudAbility>& out) {  // #586: with the abilities section
+        for (uint8_t t = 1; t <= 4; ++t) {
+            HudAbility a;
+            a.ability_type = t;
+            a.recharge = 0.25f;
+            a.seconds_left = 30.0f;
+            a.autofire = true;
+            out.push_back(a);
+        }
+    };
     for (const auto& [w, hgt, ui] : {std::tuple{1920u, 1080u, 1.0f}, std::tuple{1280u, 720u, 2.0f}}) {
         h.modern.set_ui_scale(ui);  // takes effect on the resize
         h.modern.resize(w, hgt);
@@ -619,6 +633,139 @@ void test_hotkey() {
     CHECK(cmds.empty() && evs.size() == 1 && evs[0].slot == hk::kHudStyle);
 }
 
+// #586 the abilities section: the Classic buttons (merge, users, order), the same clicks and hotkey, and the ring / AUTO /
+// active states from the feed.
+void test_abilities() {
+    Huds h;
+    Selection s;
+    TacticalHudFrame f = frame();
+    f.world.local_player = 0;
+    float recharge9 = 0.4f;
+    bool auto7 = true;
+    f.providers.abilities = [&](const SelectedGroup& g, std::vector<HudAbility>& out) {
+        HudAbility a;
+        if (g.type == 0) {  // X-wings: 5 ready, 9 targeted and recharging
+            a.ability_type = 5;
+            out.push_back(a);
+            a = {};
+            a.ability_type = 9;
+            a.targeted = true;
+            a.target_kind = 2;
+            a.recharge = recharge9;
+            a.seconds_left = recharge9 < 1.0f ? 12.2f : -1.0f;
+            out.push_back(a);
+        } else {  // the corvette: 5 on, 7 disabled with autofire on
+            a.ability_type = 5;
+            a.active = true;
+            a.recharge = 0.5f;
+            out.push_back(a);
+            a = {};
+            a.ability_type = 7;
+            a.enabled = false;
+            a.autofire = auto7;
+            out.push_back(a);
+        }
+    };
+    h.build(f, s.units, s.types);
+    const ModernHudStats& st = h.modern.stats();
+    CHECK(st.abilities == 3 && st.ability_rings == 1 && st.ability_auto == 1 && st.ability_active == 1);
+    CHECK(st.ability_counts.size() == 1 && st.ability_counts[0] == U"13");  // 12.2 s left -> 13
+    CHECK(h.classic.stats().ability_buttons == 3);
+    // Clicks: left, Shift-left (queued) and right on each button = Classic's, the disabled one nothing in either.
+    for (int32_t i = 0; i < 3; ++i) {
+        char n[24];
+        std::snprintf(n, sizeof n, "special_button_%02d", i);
+        const int32_t id = h.t.find(n);
+        for (const auto& [b, shift] : {std::pair{Button::Left, false}, std::pair{Button::Left, true}, std::pair{Button::Right, false}}) {
+            h.build(f, s.units, s.types);
+            size_t emitted = 0;
+            CHECK(h.same_click(id, id, shift, false, b, &emitted));
+            CHECK(emitted == (i == 2 ? 0u : 1u));
+        }
+    }
+    // The ability hotkey: activate_ability agrees for every type (one shown, one targeted, one disabled, one absent).
+    h.build(f, s.units, s.types);
+    for (const uint8_t type : {uint8_t{5}, uint8_t{9}, uint8_t{7}, uint8_t{99}}) {
+        std::vector<commands::EventData> cc, mc;
+        std::vector<HudAction> ca, ma;
+        const bool cr = h.classic.activate_ability(type, true, cc, &ca), mr = h.modern.activate_ability(type, true, mc, &ma);
+        bool same = cr == mr && cc == mc && ca.size() == ma.size();
+        for (size_t i = 0; same && i < ca.size(); ++i) same = same_action(ca[i], ma[i]) && ca[i].ability_type == ma[i].ability_type;
+        CHECK(same);
+        CHECK(mr == (type == 5 || type == 9));
+    }
+    // The ring and AUTO follow the feed.
+    recharge9 = 1.0f;
+    auto7 = false;
+    h.build(f, s.units, s.types);
+    CHECK(st.abilities == 3 && st.ability_rings == 0 && st.ability_auto == 0);
+    // The story's ability arrow finds the drawn Modern button; an absent type none.
+    Vec2f bc, bs;
+    CHECK(h.modern.ability_box(9, bc, bs) && bs.x > 0.0f && !h.modern.ability_box(99, bc, bs));
+    // Key badges: the binding of the slot that fires the type (ability_hotkey_slot), with the live table.
+    uint16_t slot = 0;
+    while (slot < kHotkeySlots && hotkey_ability_name(slot).empty()) ++slot;
+    const std::string bound(hotkey_ability_name(slot));
+    HotkeyTable keys;
+    CHECK(!bound.empty() && ability_hotkey_slot(keys, bound) >= 0 && ability_hotkey_slot(keys, "NO_SUCH_ABILITY") < 0);
+    h.modern.set_hotkeys(&keys);
+    f.providers.abilities = [&](const SelectedGroup& g, std::vector<HudAbility>& out) {
+        if (g.type != 0) return;
+        HudAbility a;
+        a.ability_type = 5;
+        a.type_name = bound;
+        out.push_back(a);
+    };
+    h.build(f, s.units, s.types);
+    const uint32_t with_badge = st.key_badges;
+    f.providers.abilities = [&](const SelectedGroup& g, std::vector<HudAbility>& out) {
+        if (g.type != 0) return;
+        HudAbility a;
+        a.ability_type = 5;
+        out.push_back(a);
+    };
+    h.build(f, s.units, s.types);
+    CHECK(st.abilities == 1 && with_badge == st.key_badges + 1);
+    h.modern.set_hotkeys(nullptr);
+    // More abilities than the deck has room for (and than the table has special buttons): the hotkey agrees with Classic
+    // for every one, drawn or not.
+    f.providers.abilities = [](const SelectedGroup&, std::vector<HudAbility>& out) {
+        for (uint8_t t = 1; t <= 12; ++t) {
+            HudAbility a;
+            a.ability_type = t;
+            out.push_back(a);
+        }
+    };
+    h.build(f, s.units, s.types);
+    CHECK(st.abilities <= 4);
+    for (uint8_t type = 1; type <= 12; ++type) {
+        std::vector<commands::EventData> cc, mc;
+        std::vector<HudAction> ca, ma;
+        const bool cr = h.classic.activate_ability(type, false, cc, &ca), mr = h.modern.activate_ability(type, false, mc, &ma);
+        CHECK(cr == mr && cr && cc == mc && ca.size() == ma.size());
+    }
+    // No provider or no own selection: no section.
+    f.providers.abilities = nullptr;
+    h.build(f, s.units, s.types);
+    CHECK(st.abilities == 0);
+    // The merge keeps the seconds left of the readiest group, the shorter on a tie.
+    HudProviders p;
+    p.abilities = [](const SelectedGroup& g, std::vector<HudAbility>& out) {
+        HudAbility a;
+        a.ability_type = 3;
+        a.recharge = 0.5f;
+        a.seconds_left = g.type == 0 ? 20.0f : 8.0f;
+        out.push_back(a);
+    };
+    std::vector<SelectedGroup> two(2);
+    two[0].type = 0;
+    two[0].ids = {1};
+    two[1].type = 1;
+    two[1].ids = {2};
+    const std::vector<HudAbilityButton> merged = selection_ability_buttons(two, p, 48);
+    CHECK(merged.size() == 1 && merged[0].ability.seconds_left == 8.0f && (merged[0].users == std::vector<uint32_t>{1, 2}));
+}
+
 void test_world_split() {
     // The Classic HUD with the split off is unchanged (world_draw_list empty); with it on, the drag box (a world-space
     // item) moves to world_draw_list and the two lists together hold what draw_list held.
@@ -657,6 +804,7 @@ int main() {
     test_style_switch();
     test_text_scale();
     test_options();
+    test_abilities();
     test_hotkey();
     test_world_split();
     if (g_fail) {

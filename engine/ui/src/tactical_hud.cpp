@@ -339,15 +339,45 @@ void TacticalHud::on_pointer(std::span<const HudPointerEvent> events, std::vecto
     }
 }
 
+std::vector<HudAbilityButton> selection_ability_buttons(std::span<const SelectedGroup> groups, const HudProviders& providers,
+                                                        size_t max) {
+    std::vector<HudAbilityButton> buttons;
+    if (!providers.abilities) return buttons;
+    std::vector<HudAbility> list;
+    for (const SelectedGroup& g : groups) {
+        list.clear();
+        providers.abilities(g, list);
+        for (const HudAbility& a : list) {
+            auto it = std::find_if(buttons.begin(), buttons.end(),
+                                   [&](const HudAbilityButton& s) { return s.ability.ability_type == a.ability_type; });
+            if (it == buttons.end()) {
+                if (buttons.size() >= max) continue;
+                buttons.push_back({a, {}});
+                it = buttons.end() - 1;
+            } else {  // merged: ready when any group is; active when any is
+                const bool sooner = a.seconds_left >= 0.0f && (it->ability.seconds_left < 0.0f || a.seconds_left < it->ability.seconds_left);
+                if (a.recharge > it->ability.recharge || (a.recharge == it->ability.recharge && sooner))
+                    it->ability.seconds_left = a.seconds_left;
+                it->ability.recharge = std::max(it->ability.recharge, a.recharge);
+                it->ability.active = it->ability.active || a.active;
+                it->ability.enabled = it->ability.enabled || a.enabled;
+            }
+            it->users.insert(it->users.end(), g.ids.begin(), g.ids.end());
+        }
+    }
+    for (HudAbilityButton& b : buttons) std::sort(b.users.begin(), b.users.end());
+    return buttons;
+}
+
 // An ability button's click: right = autofire toggle; left = targeting mode (targeted) or the mode toggle.
-void TacticalHud::ability_click(const AbilitySlot& a, const std::string& name, Button button, bool queued,
-                                std::vector<commands::EventData>& out, std::vector<HudAction>* actions) {
+void ability_button_click(const HudAbilityButton& a, int32_t component, const std::string& name, Button button, bool queued,
+                          std::vector<commands::EventData>& out, std::vector<HudAction>* actions) {
     if (button == Button::Right) {
         out.push_back(ability_autofire_event(a.users, a.ability.ability_type, !a.ability.autofire));
     } else if (a.ability.targeted) {
         HudAction h;
         h.kind = HudAction::Kind::BeginAbilityTargeting;
-        h.component = a.component;
+        h.component = component;
         h.name = name;
         h.ability_type = a.ability.ability_type;
         h.value = a.ability.target_kind != 0 ? a.ability.target_kind : -1;  // TargetingController: -1 = by type
@@ -367,8 +397,8 @@ bool TacticalHud::activate_ability(uint8_t ability_type, bool queued, std::vecto
         if (!a.ability.enabled || a.users.empty()) return false;
         if (a.component >= 0)
             if (const ButtonRuntime* r = buttons_.find_state(static_cast<uint32_t>(a.component)); r && (r->disabled || r->hidden)) return false;
-        ability_click(a, a.component >= 0 ? (*table_)[static_cast<uint32_t>(a.component)].name : std::string(), Button::Left,
-                      queued, out, actions);
+        ability_button_click(a, a.component, a.component >= 0 ? (*table_)[static_cast<uint32_t>(a.component)].name : std::string(),
+                             Button::Left, queued, out, actions);
         return true;
     }
     return false;
@@ -472,7 +502,7 @@ void TacticalHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
         for (const AbilitySlot& a : ability_slots_) {
             if (a.component != k.component) continue;
             handled = true;
-            if (a.ability.enabled) ability_click(a, c.name, k.button, k.shift, out, actions);
+            if (a.ability.enabled) ability_button_click(a, a.component, c.name, k.button, k.shift, out, actions);
             break;
         }
         if (handled) continue;
@@ -978,34 +1008,15 @@ void TacticalHud::build_abilities(const TacticalHudFrame& f) {
     ability_slots_.clear();
     for (int32_t ci : special_button_)
         if (ci >= 0) buttons_.state(static_cast<uint32_t>(ci)).hidden = true;
-    if (!f.providers.abilities) return;
-    // [port] abilities of the selection: per group (panel order), its abilities; distinct ability types across the
-    // selection take one button each (users = every selected unit of the groups having it), in first-seen order.
-    std::vector<HudAbility> list;
-    for (const SelectedGroup& g : groups_) {
-        list.clear();
-        f.providers.abilities(g, list);
-        for (const HudAbility& a : list) {
-            auto it = std::find_if(ability_slots_.begin(), ability_slots_.end(),
-                                   [&](const AbilitySlot& s) { return s.ability.ability_type == a.ability_type; });
-            if (it == ability_slots_.end()) {
-                if (ability_slots_.size() >= special_button_.size()) continue;
-                AbilitySlot s;
-                s.ability = a;
-                ability_slots_.push_back(std::move(s));
-                it = ability_slots_.end() - 1;
-            } else {  // merged: ready when any group is; active when any is
-                it->ability.recharge = std::max(it->ability.recharge, a.recharge);
-                it->ability.active = it->ability.active || a.active;
-                it->ability.enabled = it->ability.enabled || a.enabled;
-            }
-            it->users.insert(it->users.end(), g.ids.begin(), g.ids.end());
-        }
+    // [port] abilities of the selection (selection_ability_buttons): one button per distinct ability type.
+    for (HudAbilityButton& b : selection_ability_buttons(groups_, f.providers, special_button_.size())) {
+        AbilitySlot s;
+        static_cast<HudAbilityButton&>(s) = std::move(b);
+        ability_slots_.push_back(std::move(s));
     }
     std::vector<uint8_t> column_used(special_border_.size(), 0);
     for (size_t i = 0; i < ability_slots_.size(); ++i) {
         AbilitySlot& s = ability_slots_[i];
-        std::sort(s.users.begin(), s.users.end());
         s.component = special_button_[i];
         if (s.component < 0) continue;
         const auto ci = static_cast<uint32_t>(s.component);

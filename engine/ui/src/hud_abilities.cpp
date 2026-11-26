@@ -63,6 +63,7 @@ std::string ability_icon(uint8_t t) {
 }
 
 #ifdef ALAMO_UI_HAVE_ABILITIES
+constexpr float kAbilityFramesPerSecond = 30.0f;  // the sim rate, jobs::kDefaultTicksPerSecond (alamo_ui_hud does not link jobs)
 void abilities_from_s9(const tactical::abilities::AbilitySystem& sys, const SelectedGroup& g, uint32_t frame,
                        std::vector<HudAbility>& out) {
     using tactical::abilities::kMaxAbilityType;
@@ -91,10 +92,14 @@ void abilities_from_s9(const tactical::abilities::AbilitySystem& sys, const Sele
             a.active = a.active || active;
             a.autofire = a.autofire || sys.is_autofire(id, type);
             a.enabled = a.enabled || active || sys.can_activate(id, type, false, true, frame);
-            float r = 1.0f;
+            float r = 1.0f, seconds = -1.0f;
             const int32_t counter = sys.countdown_counter(id, type), maximum = sys.countdown_maximum(id, type);
-            if (sys.countdown_phase(id, type) == 0 && counter > 0 && maximum > 0)
+            if (sys.countdown_phase(id, type) == 0 && counter > 0 && maximum > 0) {
                 r = std::clamp(1.0f - static_cast<float>(counter) / static_cast<float>(maximum), 0.0f, 1.0f);
+                seconds = static_cast<float>(counter) / kAbilityFramesPerSecond;  // #586 the counter counts sim frames
+            }
+            if (r > a.recharge || (r == a.recharge && seconds >= 0.0f && (a.seconds_left < 0.0f || seconds < a.seconds_left)))
+                a.seconds_left = r < 1.0f ? seconds : -1.0f;  // the best member's
             a.recharge = std::max(a.recharge, r);
         }
         if (!any) continue;
@@ -102,6 +107,7 @@ void abilities_from_s9(const tactical::abilities::AbilitySystem& sys, const Sele
         a.targeted = k != TargetKind::None;
         a.target_kind = static_cast<uint8_t>(k);
         a.icon = alternate.empty() ? ability_icon(type) : std::move(alternate);
+        a.type_name = std::string(tactical::abilities::ability_type_info(type).name);  // #586 the Modern key badge
         // the MasterTextFile pair TEXT_TOOLTIP_ABILITY_<type>_NAME / _DESCRIPTION; mcx4 t14 (MCX4_PRES_RE_ANSWERS_2
         // Q5, tooltip 0x2f3e20): the first member's record's Alternate_Name_Text / Alternate_Description_Text replace each
         // key when set. Two keys: two lines.

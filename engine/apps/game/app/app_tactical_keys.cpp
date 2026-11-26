@@ -236,7 +236,10 @@ void App::tactical_hotkeys(const std::vector<ui::HotkeyEvent>& hk, std::vector<c
             bool used = false;
             for (const std::string_view name : {ui::hotkey_ability_name(e.slot), ui::hotkey_ability_name2(e.slot)}) {
                 const uint8_t type = name.empty() ? uint8_t{0} : tactical::abilities::ability_type_from_name(name);
-                if (type != 0 && !story_controls_locked() && ui_.tactical_hud.activate_ability(type, false, cmds, &acts)) used = true;
+                if (type != 0 && !story_controls_locked() &&
+                    (modern_hud() ? ui_.modern_hud.activate_ability(type, false, cmds, &acts)  // #586 the drawn style's button
+                                  : ui_.tactical_hud.activate_ability(type, false, cmds, &acts)))
+                    used = true;
             }
             if (used) ++hotkey_abilities_;
             continue;

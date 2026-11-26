@@ -510,7 +510,7 @@ void test_targeting() {
         abilities_from_s9(as, grp, 2, out);
         CHECK(out.size() == 2 && out[0].ability_type == kDefend && out[1].ability_type == kTractorBeam);
         CHECK(out.size() == 2 && !out[0].targeted && out[1].targeted && out[1].target_kind == static_cast<uint8_t>(TargetKind::Object) &&
-              out[0].icon == "i_sa_defend_mode.tga" && out[0].recharge == 1.0f && !out[0].active && out[0].enabled);
+              out[0].icon == "i_sa_defend_mode.tga" && out[0].recharge == 1.0f && out[0].seconds_left < 0.0f && !out[0].active && out[0].enabled);
         const tactical::combat::ObjectId ids[] = {1};
         CHECK(as.set_unit_ability_mode(ids, kDefend, true, 2) == 1);
         out.clear();
@@ -527,6 +527,8 @@ void test_targeting() {
         auto provider = s9_ability_provider(as, [] { return 32u; });
         provider(grp, out);
         CHECK(!out.empty() && !out[0].active && out[0].recharge < 1.0f);
+        // #586: the seconds left, from the countdown's frames (1/30 s each), at most the 20 s recharge; -1 when ready.
+        CHECK(!out.empty() && out[0].seconds_left > 0.0f && out[0].seconds_left <= 20.0f + 1e-3f);
         {  // #476: off and recharging - no overhead icon; a unit without abilities has none either
             std::string icons[2] = {"x", "x"};
             overhead_ability_icons(as, 1, 32, icons);
