@@ -63,6 +63,12 @@ void add_bar(HudDrawList& dl, uint32_t layer, Vec2f c, Vec2f size, float fractio
     for (float x = x0; x < end; x += 4.0f) add_rect(dl, layer, x, y0, std::min(x + 2.0f, end), y1, color);
 }
 
+std::u32string count_text(uint32_t n) {
+    char b[16];
+    std::snprintf(b, sizeof b, "%u", n);
+    return ascii32(b);
+}
+
 // The card's name line: the type's Text_ID text, else [port] its name with '_' as spaces.
 std::u32string type_label(const HudTypeInfo* t, const TextDatabase* text) {
     std::u32string out;
@@ -143,6 +149,28 @@ void ModernTacticalHud::init(const ComponentTable& table, const TextureAtlas& at
         std::snprintf(n, sizeof n, "s_select_%02d", i);
         if (panel_slots_ == static_cast<size_t>(i) && table.find(n) >= 0) ++panel_slots_;
     }
+    retreat_ = table.find("b_retreat");  // #587, as TacticalHud::init
+    special_weapon_ = table.find("b_special_weapon");
+    reinforce_button_ = table.find("b_reinforcement");
+    beacon_ = table.find("b_special_weapon2");  // TEXT_PLACE_BEACON (b_beacon_t: the same action, the other skin's button)
+    if (beacon_ < 0) beacon_ = table.find("b_beacon_t");
+    auto numbered = [&](const char* fmt, int n, std::vector<int32_t>& out) {
+        out.clear();
+        for (int i = 0; i < n; ++i) {
+            char nm[24];
+            std::snprintf(nm, sizeof nm, fmt, i);
+            out.push_back(table.find(nm));
+        }
+    };
+    numbered("Build_%02d", kTacticalBuyButtons, buy_);
+    numbered("tqueue%02d", kTacticalQueueSlots, queue_);
+    reinforce_.clear();
+    for (int r = 0; r < kReinforceRows; ++r)
+        for (int c = 0; c < kReinforceColumns; ++c) {
+            char nm[24];
+            std::snprintf(nm, sizeof nm, "r_%02d%02d", r, c);
+            reinforce_.push_back(table.find(nm));
+        }
     if (const int32_t c = table.find("Text_Credits_tactical"); c >= 0 && table[static_cast<size_t>(c)].has_text_color)
         credits_color_ = table[static_cast<size_t>(c)].text_color;
     set_options(options_);  // the palette from the options' opacity
@@ -220,6 +248,13 @@ void ModernTacticalHud::build(const TacticalHudFrame& frame, std::span<const Hud
     hits_.clear();
     groups_.clear();
     abilities_.clear();
+    dead_actions_.clear();
+    buy_slots_.clear();
+    queue_slots_.clear();
+    reinforce_slots_.clear();
+    fleet_shortcuts_.clear();
+    builder_ = frame.builder;
+    station_ = commands::kNoObject;
     wing_ids_.clear();
     for (bool& l : order_live_) l = false;
     stats_ = {};
@@ -320,22 +355,327 @@ void ModernTacticalHud::build_controls(const TacticalHudFrame& f) {
 }
 
 void ModernTacticalHud::build_deck(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types) {
-    const Vec2f size{canvas_.width - 2.0f * kMargin, kDeckHeight};
+    // Selection and orders only with an own unit selected (#520: "abilities and orders appear only when I have a selection").
+    const bool own = std::any_of(units.begin(), units.end(),
+                                 [&](const HudUnit& u) { return u.selected && u.owner == f.world.local_player; });
+    const bool producing = f.builder != commands::kNoObject && !f.build_options.empty();
+    const bool reinforcing = f.reinforce_list_open && f.providers.reinforcements;
+    const bool idle = !own && !producing && !reinforcing;
+    const float height = kDeckHeight - 2.0f * kPad;
+    float width = canvas_.width - 2.0f * kMargin;
+    if (idle && options_.contextual) {  // #587 shrunk to the battle actions, the shortcuts and the queue
+        float w = build_actions(f, {}, height, false) + 2.0f * kPad;
+        for (const float part : {build_shortcuts(f, units, types, {}, height, false), build_queue(f, {}, height, 1e9f, false, false)})
+            if (part > 0.0f) w += part + 2.0f * kPad;
+        width = std::min(width, w);
+    }
+    const Vec2f size{width, kDeckHeight};
     const Vec2f center{0.0f, -0.5f * canvas_.height + kMargin + 0.5f * size.y};
     frame_rect(dl_, kPanelLayer, center, size, colours_.back, accent(200));
     hit(kModernPanelHit, kPanelLayer, center, size);
     stats_.deck = true;
-    // Selection and orders only with an own unit selected (#520: "abilities and orders appear only when I have a selection").
-    const bool own = std::any_of(units.begin(), units.end(),
-                                 [&](const HudUnit& u) { return u.selected && u.owner == f.world.local_player; });
-    if (!own) return;
-    const float left = center.x - 0.5f * size.x + kPad, right = center.x + 0.5f * size.x - kPad;
-    const float top = center.y + 0.5f * size.y - kPad, height = size.y - 2.0f * kPad;
-    const float orders_w = build_orders(f, {right, top}, height);
-    const float abilities_right = right - orders_w - 2.0f * kPad;
-    const float abilities_w = build_abilities(f, units, {abilities_right, top}, height, 0.3f * (abilities_right - left));
-    build_selection(f, units, types, {left, top}, abilities_right - (abilities_w > 0.0f ? abilities_w + 2.0f * kPad : 0.0f) - left,
-                    height);
+    stats_.deck_width = width;
+    float left = center.x - 0.5f * size.x + kPad;
+    const float right = center.x + 0.5f * size.x - kPad, top = center.y + 0.5f * size.y - kPad;
+    if (const float aw = build_actions(f, {left, top}, height, true); aw > 0.0f) left += aw + 2.0f * kPad;
+    if (idle) {  // the shortcuts, then the whole build queue (Classic shows it whatever is selected)
+        if (const float sw = build_shortcuts(f, units, types, {left, top}, height, true); sw > 0.0f) left += sw + 2.0f * kPad;
+        build_queue(f, {left, top}, height, right - left, false, true);
+        return;
+    }
+    float section_right = right;
+    if (own) {
+        const float orders_w = build_orders(f, {right, top}, height);
+        section_right = right - orders_w - 2.0f * kPad;
+        const float abilities_w = build_abilities(f, units, {section_right, top}, height, 0.3f * (section_right - left));
+        if (abilities_w > 0.0f) section_right -= abilities_w + 2.0f * kPad;
+    }
+    // The left section: the reinforcement list while open, else production with a builder, else the selection cards.
+    if (reinforcing && build_reinforcements(f, {left, top}, height, section_right - left) > 0.0f) return;
+    if (producing && build_production(f, units, types, {left, top}, height, section_right - left) > 0.0f) return;
+    if (own) build_selection(f, units, types, {left, top}, section_right - left, height);
+}
+
+// #587 a deck button: its back (the selected look: filled, with a corner notch; disabled: a dashed outline), the icon or
+// text, a countdown ring, a count badge and the key badge.
+void ModernTacticalHud::tile(const Tile& t) {
+    const Vec2f c = t.c, s = t.size;
+    if (!t.enabled) {
+        add_rect(dl_, kControlLayer, c.x - 0.5f * s.x, c.y - 0.5f * s.y, c.x + 0.5f * s.x, c.y + 0.5f * s.y, Rgba8{16, 20, 28, 160});
+        dashed_rect(dl_, kControlLayer, c, s, colours_.disabled);
+    } else {
+        frame_rect(dl_, kControlLayer, c, s, t.selected ? accent(150) : colours_.button,
+                   hover_ == t.id || t.selected ? colours_.text : accent(200));
+    }
+    if (t.selected) {
+        HudQuad notch;
+        notch.has_corners = true;
+        const float n = 0.3f * std::min(s.x, s.y), x0 = c.x - 0.5f * s.x, y1 = c.y + 0.5f * s.y;
+        notch.corners = {Vec2f{x0, y1}, Vec2f{x0 + n, y1}, Vec2f{x0 + n, y1}, Vec2f{x0, y1 - n}};
+        notch.color = colours_.text;
+        dl_.add(kControlLayer, HudList::Alpha, notch);
+    }
+    const float th = text_height_units();
+    HudTextStyle st;
+    st.font = font();
+    st.color = t.enabled ? colours_.text : colours_.disabled;
+    st.align = TextAlign::Center;
+    float text_y = c.y;
+    if (!t.icon.empty() && atlas_) {
+        const float side = std::min(s.x, s.y - (t.text.empty() ? 0.0f : th)) * 0.75f;
+        add_atlas_quad(dl_, kControlLayer, HudList::Alpha, *atlas_, t.icon, {c.x, c.y + (t.text.empty() ? 0.0f : 0.5f * th)},
+                       {side, side}, 1.0f, t.enabled ? Rgba8{255, 255, 255, 255} : Rgba8{128, 128, 128, 255});
+        text_y = c.y - 0.5f * s.y + 0.6f * th;
+    }
+    if (t.ring >= 0.0f) ability_ring(c, 0.5f * std::min(s.x, s.y) - 2.0f, std::clamp(t.ring, 0.0f, 1.0f));
+    if (!t.text.empty()) {
+        st.width_scale = fit_width_scale(measure_text_block(*fonts_, canvas_, t.text, 0.0f, st).width, s.x - kPad);
+        add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, t.text, {c.x, text_y}, st);
+    }
+    if (!t.badge.empty()) {
+        HudTextStyle bs = st;
+        bs.width_scale = 1.0f;
+        const float bw = measure_text_block(*fonts_, canvas_, t.badge, 0.0f, bs).width + kPad, bh = th * 1.1f;
+        const Vec2f bc{c.x - 0.5f * s.x + 0.5f * bw + 2.0f, c.y + 0.5f * s.y - 0.5f * bh - 2.0f};
+        frame_rect(dl_, kControlLayer, bc, {bw, bh}, Rgba8{0, 0, 0, 200}, accent(220));
+        bs.color = colours_.text;
+        add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, t.badge, bc, bs);
+    }
+    if (t.hotkey >= 0) key_badge(static_cast<uint16_t>(t.hotkey), {c.x + 0.5f * s.x - 2.0f, c.y + 0.5f * s.y - 2.0f}, kControlLayer);
+    if (!t.enabled) dead_actions_.push_back(t.id);
+    hit(t.id, kControlLayer, c, s);
+}
+
+// #587 the battle actions, two rows of two at the deck's left end, always: Retreat (its countdown ring), Reinforce (the
+// pad's entry count; the selected look while a drop point is picked), the special weapon / bombing run (its cooldown ring;
+// absent while the feed hides it) and the beacon. The feed's states are Classic's (HudCommandButtons, HudBombingRunButton);
+// clicks are Classic's (retreat command, else the Button action by name).
+float ModernTacticalHud::build_actions(const TacticalHudFrame& f, Vec2f top_left, float height, bool draw) {
+    const HudCommandButtons& cb = f.command_buttons;
+    const HudBombingRunButton& bomb = f.bombing_run;
+    std::vector<Tile> tiles;
+    // Classic's states (apply_command_buttons / apply_bombing_run_button), with the Lua overrides of its buttons.
+    auto add = [&](int32_t id, const char32_t* label, bool hidden, bool disabled, bool selected, float ring, std::u32string badge,
+                   int32_t key) {
+        if (id < 0) return;
+        const ButtonRuntime* r = script_ ? script_->find_state(static_cast<uint32_t>(id)) : nullptr;
+        if (script_hidden(r ? r->script_visible : int8_t{-1}, hidden)) return;
+        Tile t;
+        t.id = id;
+        t.text = text_or_port(text_, nullptr, label);
+        t.enabled = !script_disabled(r ? r->script_enabled : int8_t{-1}, disabled);
+        t.selected = selected;
+        t.ring = ring;
+        t.badge = std::move(badge);
+        t.hotkey = key;
+        tiles.push_back(std::move(t));
+    };
+    const bool locked = cb.controls_locked;
+    if (cb.present) {
+        add(retreat_, U"Retreat", false, locked || !cb.retreat_enabled, false, cb.retreat_dial, {}, hk::kRetreat);
+        add(reinforce_button_, U"Reinforce", false, locked || !cb.reinforce_enabled, cb.reinforce_selected, -1.0f,
+            cb.reinforce_count > 0 ? count_text(cb.reinforce_count) : std::u32string(), hk::kReinforce);
+    }
+    // No hotkey slot fires the special weapon (the original binds none), so it has no key badge.
+    if (bomb.present) add(special_weapon_, f.world.land ? U"Bombing Run" : U"Special Weapon", bomb.hidden, bomb.disabled, false, bomb.dial, {}, -1);
+    if (cb.present) add(beacon_, U"Beacon", false, locked || !cb.beacon_enabled, cb.beacon_selected, -1.0f, {}, hk::kBeacon);
+    if (tiles.empty()) return 0.0f;
+    const float gap = 0.5f * kPad, row_h = 0.5f * (height - gap), col_w = text_height_units() * 6.5f;
+    const size_t cols = (tiles.size() + 1) / 2;
+    const float width = static_cast<float>(cols) * col_w + static_cast<float>(cols - 1) * gap;
+    if (!draw) return width;
+    for (size_t i = 0; i < tiles.size(); ++i) {
+        Tile& t = tiles[i];
+        t.c = grid2_cell(i, top_left, {col_w, row_h}, gap);
+        t.size = {col_w, row_h};
+        tile(t);
+        ++stats_.actions;
+        if (t.enabled) ++stats_.actions_live;
+    }
+    return width;
+}
+
+// #587 with nothing selected: the wings (as the selection header's), the fleet groups (selecting a group's members, as
+// Classic's fleet tab) and the station (selecting it), as text buttons in two rows.
+Vec2f ModernTacticalHud::grid2_cell(size_t i, Vec2f top_left, Vec2f cell, float gap) const {
+    return {top_left.x + 0.5f * cell.x + static_cast<float>(i / 2) * (cell.x + gap), top_left.y - 0.5f * cell.y - static_cast<float>(i % 2) * (cell.y + gap)};
+}
+
+float ModernTacticalHud::build_shortcuts(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types,
+                                         Vec2f top_left, float height, bool draw) {
+    struct Entry {
+        int32_t id;
+        std::u32string label;
+        bool selected;
+    };
+    std::vector<Entry> entries;
+    for (size_t w = 0; w < f.wings.size() && w < kMaxWings; ++w) {
+        const HudWing& wing = f.wings[w];
+        if (draw) wing_ids_.push_back(wing.squadrons > 0 ? wing.ids : std::vector<uint32_t>{});
+        if (wing.squadrons == 0 || wing.ids.empty()) continue;
+        char n[16];
+        std::snprintf(n, sizeof n, " %u", wing.squadrons);
+        entries.push_back({kWingHitBase + static_cast<int32_t>(w), wing.label + ascii32(n), wing.selected});
+    }
+    int32_t fleet_n = 0;  // the shortcut's index (fleet_shortcuts_)
+    if (f.fleet_groups_on)
+        for (size_t k = 0; k < f.fleet_groups.size(); ++k) {
+            const HudFleetGroup& g = f.fleet_groups[k];
+            if (g.members.empty()) continue;
+            char n[24];
+            std::snprintf(n, sizeof n, "%u", static_cast<unsigned>(g.id));
+            std::u32string label = text_or_port(text_, nullptr, U"Group ") + ascii32(n);
+            if (!g.name.empty()) label += U" " + g.name;
+            if (draw) fleet_shortcuts_.push_back(g.members);
+            entries.push_back({kModernFleetShortcutBase + fleet_n++, std::move(label), false});
+        }
+    if (f.station != commands::kNoObject) {  // named by its type (a space station, a land build pad)
+        if (draw) station_ = f.station;
+        std::u32string label;
+        for (const HudUnit& u : units)
+            if (u.id == f.station && u.type < types.size()) label = type_label(&types[u.type], text_);
+        entries.push_back({kModernStationHit, label.empty() ? text_or_port(text_, nullptr, U"Station") : std::move(label), false});
+    }
+    if (entries.empty()) return 0.0f;
+    HudTextStyle st;
+    st.font = font();
+    st.color = colours_.text;
+    st.align = TextAlign::Center;
+    const float gap = 0.5f * kPad, row_h = 0.5f * (height - gap);
+    float col_w = 0.0f;
+    for (const Entry& e : entries) col_w = std::max(col_w, measure_text_block(*fonts_, canvas_, e.label, 0.0f, st).width + 2.0f * kPad);
+    const size_t cols = (entries.size() + 1) / 2;
+    const float width = static_cast<float>(cols) * col_w + static_cast<float>(cols - 1) * gap;
+    if (!draw) return width;
+    for (size_t i = 0; i < entries.size(); ++i) {
+        Tile t;
+        t.id = entries[i].id;
+        t.text = entries[i].label;
+        t.selected = entries[i].selected;
+        t.c = grid2_cell(i, top_left, {col_w, row_h}, gap);
+        t.size = {col_w, row_h};
+        tile(t);
+        ++stats_.shortcuts;
+    }
+    return width;
+}
+
+// #587 production, while a builder with options is selected: the builder card, the options (Classic's Build_NN ids) with
+// their cost or blocked reason, and the build queue (tqueueNN) with each entry's progress; returns the width (0: none).
+float ModernTacticalHud::build_production(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types,
+                                          Vec2f top_left, float height, float max_width) {
+    const float line = text_height_units(), gap = 0.5f * kPad, row_h = 0.5f * (height - gap);
+    const float card_w = line * 8.0f, opt_w = line * 8.0f;
+    float x = top_left.x;
+    // The builder card: its name over "Production".
+    {
+        const HudUnit* b = nullptr;
+        for (const HudUnit& u : units)
+            if (u.id == f.builder) b = &u;
+        const HudTypeInfo* t = b && b->type < types.size() ? &types[b->type] : nullptr;
+        const Vec2f c{x + 0.5f * card_w, top_left.y - 0.5f * height};
+        frame_rect(dl_, kControlLayer, c, {card_w, height}, colours_.button, accent(200));
+        HudTextStyle st;
+        st.font = font();
+        st.color = colours_.text;
+        st.align = TextAlign::Center;
+        const std::u32string name = type_label(t, text_);
+        st.width_scale = fit_width_scale(measure_text_block(*fonts_, canvas_, name, 0.0f, st).width, card_w - kPad);
+        add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, name, {c.x, c.y + 0.6f * line}, st);
+        HudTextStyle ls = st;
+        ls.width_scale = 1.0f;
+        ls.color = colours_.label;
+        add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, text_or_port(text_, nullptr, U"Production"), {c.x, c.y - 0.6f * line}, ls);
+        x += card_w + 2.0f * gap;
+    }
+    // The options: 3 columns of 2 rows, the icon over the cost (or the blocked reason, dashed).
+    for (size_t i = 0; i < f.build_options.size() && i < buy_.size(); ++i) {
+        if (buy_[i] < 0) continue;
+        const HudBuildOption& o = f.build_options[i];
+        Tile t;
+        t.id = buy_[i];
+        t.c = grid2_cell(i, {x, top_left.y}, {opt_w, row_h}, gap);
+        t.size = {opt_w, row_h};
+        if (t.c.x + 0.5f * opt_w > top_left.x + max_width) break;
+        t.icon = o.icon;
+        t.enabled = o.block == HudBuildOption::Block::None;
+        switch (o.block) {  // Build_NN Tooltip_Text[0..2] (HudBuildOption::Block), port strings for the others
+            case HudBuildOption::Block::QueueFull: t.text = text_or_port(text_, "TEXT_PRODUCTION_QUEUE_FULL", U"Queue full"); break;
+            case HudBuildOption::Block::PopCap: t.text = text_or_port(text_, "TEXT_PRODUCTION_POP_CAP_REACHED", U"Population cap"); break;
+            case HudBuildOption::Block::Funds: t.text = text_or_port(text_, "TEXT_PRODUCTION_INSUFFICIENT_FUNDS", U"Not enough credits"); break;
+            case HudBuildOption::Block::Prerequisite: t.text = text_or_port(text_, nullptr, U"Needs technology"); break;
+            case HudBuildOption::Block::Limit: t.text = text_or_port(text_, nullptr, U"Limit reached"); break;
+            case HudBuildOption::Block::None: t.text = o.cost >= 0 ? hud_credits_text(o.cost) : std::u32string(); break;
+        }
+        if (o.queued > 1) t.badge = count_text(o.queued);  // as Classic's text (shown above 1)
+        tile(t);
+        stats_.build_texts.push_back(t.text);
+        buy_slots_.push_back({buy_[i], o});
+        ++stats_.build_options;
+        if (!t.enabled) ++stats_.build_blocked;
+    }
+    if (!f.build_options.empty()) x += 3.0f * opt_w + 2.0f * gap + 2.0f * gap;
+    x += build_queue(f, {x, top_left.y}, height, top_left.x + max_width - x, true, true);
+    stats_.production = true;
+    return x - top_left.x;
+}
+
+// #587 the build queue (Classic's tqueueNN slots, in its order): square entries with a progress bar and the count; a click
+// cancels (Classic's TacticalCancel). `builder_only`: only the selected builder's entries. Returns the width (0: none).
+float ModernTacticalHud::build_queue(const TacticalHudFrame& f, Vec2f top_left, float height, float max_width, bool builder_only, bool draw) {
+    if (!f.providers.build_queue) return 0.0f;
+    std::vector<HudQueueEntry> entries;
+    f.providers.build_queue(entries);
+    const float gap = 0.5f * kPad, side = 0.5f * (height - gap);
+    float width = 0.0f;
+    size_t shown = 0;
+    for (size_t i = 0; i < entries.size() && i < queue_.size(); ++i) {
+        const HudQueueEntry& e = entries[i];
+        if (queue_[i] < 0 || (builder_only && e.location != f.builder)) continue;
+        const Vec2f c = grid2_cell(shown, top_left, {side, side}, gap);
+        if (c.x + 0.5f * side > top_left.x + max_width) break;
+        ++shown;
+        width = c.x + 0.5f * side - top_left.x;
+        if (!draw) continue;
+        Tile t;
+        t.id = queue_[i];  // the entry's own slot: Classic's id for the same entry
+        t.c = c;
+        t.size = {side, side};
+        t.icon = e.icon;
+        if (e.count > 1) t.badge = count_text(e.count);
+        tile(t);
+        add_bar(dl_, kControlLayer, {c.x, c.y - 0.5f * side + 4.0f}, {side - 6.0f, 4.0f}, std::clamp(e.progress, 0.0f, 1.0f), accent(255), false);
+        queue_slots_.push_back({queue_[i], e});
+        ++stats_.queue_entries;
+    }
+    return width;
+}
+
+// #587 the reinforcement list while open (Classic's r_RRCC entries): each entry's icon and count; unavailable ones dashed.
+// A click starts the drop point pick (HudAction::BeginReinforcement, as Classic's).
+float ModernTacticalHud::build_reinforcements(const TacticalHudFrame& f, Vec2f top_left, float height, float max_width) {
+    std::vector<HudReinforcement> entries;
+    f.providers.reinforcements(entries);
+    const float gap = 0.5f * kPad, side = 0.5f * (height - gap);
+    float width = 0.0f;
+    for (size_t i = 0; i < entries.size() && i < reinforce_.size(); ++i) {
+        if (reinforce_[i] < 0) continue;
+        const Vec2f c = grid2_cell(i, top_left, {side, side}, gap);
+        if (c.x + 0.5f * side > top_left.x + max_width) break;
+        const HudReinforcement& e = entries[i];
+        Tile t;
+        t.id = reinforce_[i];
+        t.c = c;
+        t.size = {side, side};
+        t.icon = e.icon;
+        t.enabled = e.available;
+        if (e.count > 1) t.badge = count_text(e.count);
+        tile(t);
+        reinforce_slots_.push_back({reinforce_[i], e});
+        ++stats_.reinforcements;
+        width = c.x + 0.5f * side - top_left.x;
+    }
+    return width;
 }
 
 // #586 a recharge ring round an ability button: the recharged part (from 12 o'clock, clockwise) in the accent, the rest dim.
@@ -856,6 +1196,17 @@ void ModernTacticalHud::update_input(const RoutedInput& routed, bool shift, bool
             if (e.button == Button::Left) out.push_back(commands::ev::select({}));
             continue;
         }
+        // #587 shortcuts (Modern's own): a fleet group's members, the station.
+        if (e.component >= kModernFleetShortcutBase && e.component - kModernFleetShortcutBase < static_cast<int32_t>(fleet_shortcuts_.size())) {
+            const std::vector<uint32_t>& m = fleet_shortcuts_[static_cast<size_t>(e.component - kModernFleetShortcutBase)];
+            if (e.button == Button::Left)
+                out.push_back(commands::ev::select(std::vector<uint32_t>(m.begin(), m.begin() + static_cast<std::ptrdiff_t>(std::min<size_t>(m.size(), 127)))));
+            continue;
+        }
+        if (e.component == kModernStationHit) {
+            if (e.button == Button::Left && station_ != commands::kNoObject) out.push_back(commands::ev::select({station_}));
+            continue;
+        }
         if (e.component >= kModernHitBase) continue;  // a panel's back
         // Wing buttons: the Classic ids and action (TacticalHud::update_input "squadron wing buttons").
         if (e.component >= kWingHitBase && e.component < kFleetTabHitBase) {
@@ -870,6 +1221,30 @@ void ModernTacticalHud::update_input(const RoutedInput& routed, bool shift, bool
             it != abilities_.end()) {
             if (it->ability.enabled)
                 ability_button_click(*it, it->component, (*table_)[static_cast<size_t>(e.component)].name, e.button, shift, out, actions);
+            continue;
+        }
+        // #587 the build queue, buy buttons and reinforcement entries: Classic's actions (TacticalHud::update_input).
+        if (const auto q = std::find_if(queue_slots_.begin(), queue_slots_.end(), [&](const auto& s) { return s.first == e.component; });
+            q != queue_slots_.end()) {
+            if (e.button == Button::Left) act(tactical_cancel_action(e.component, (*table_)[static_cast<size_t>(e.component)].name, q->second));
+            continue;
+        }
+        if (const auto b = std::find_if(buy_slots_.begin(), buy_slots_.end(), [&](const auto& s) { return s.first == e.component; });
+            b != buy_slots_.end()) {
+            if (e.button == Button::Left && b->second.block == HudBuildOption::Block::None)
+                act(tactical_buy_action(e.component, (*table_)[static_cast<size_t>(e.component)].name, builder_, b->second, shift, ctrl));
+            continue;
+        }
+        if (const auto r = std::find_if(reinforce_slots_.begin(), reinforce_slots_.end(), [&](const auto& s) { return s.first == e.component; });
+            r != reinforce_slots_.end()) {
+            if (e.button == Button::Left && r->second.available)
+                act(begin_reinforcement_action(e.component, (*table_)[static_cast<size_t>(e.component)].name, r->second));
+            continue;
+        }
+        // A disabled battle action takes no click (the Classic HudButtons swallows it); Retreat sends the retreat command.
+        if (std::find(dead_actions_.begin(), dead_actions_.end(), e.component) != dead_actions_.end()) continue;
+        if (e.component == retreat_ && retreat_ >= 0) {
+            if (e.button == Button::Left) out.push_back(commands::ev::retreat(true));
             continue;
         }
         // A disabled order takes no click (the Classic HudButtons swallows it).

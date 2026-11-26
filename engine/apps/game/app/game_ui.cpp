@@ -202,6 +202,7 @@ bool GameUi::init(GpuCore& gpu, const GameData& data, ui::MenuProviders provider
     tactical_hud.init(components, atlas, *fonts, &text);
     modern_hud.init(components, atlas, *fonts, &text);
     modern_hud.set_hotkeys(&hotkeys);  // the key badges show the live bindings
+    modern_hud.set_script_state(&tactical_hud.buttons());  // #587 the Lua button overrides
     galactic_shells.apply(galactic_hud.layout());
     tactical_shells.apply(tactical_hud.layout());
     hud_types = ui::build_hud_type_table(data.types);

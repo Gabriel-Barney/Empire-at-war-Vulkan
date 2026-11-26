@@ -521,9 +521,8 @@ namespace {
 constexpr const char* kModernRows[] = {"IDC_PORT_HUD_TEXT_SIZE", "IDC_PORT_HUD_COLOURS", "IDC_PORT_HUD_MAP_SIDE",
                                        "IDC_PORT_HUD_KEY_HINTS", "IDC_PORT_HUD_ORDER_LABELS", "IDC_PORT_HUD_CONTEXTUAL",
                                        "IDC_EDIT_PORT_ALERT_JUMP"};  // the alert strip is Modern's
-// The rows the page keeps hidden until the HUD uses them: the map side (#591) and the contextual deck (#587). Their values
-// are still shown, read and saved.
-constexpr const char* kHudLaterRows[] = {"IDC_PORT_HUD_MAP_SIDE_TEXT", "IDC_PORT_HUD_MAP_SIDE", "IDC_PORT_HUD_CONTEXTUAL"};
+// The rows the page keeps hidden until the HUD uses them: the map side (#591). Their values are still shown, read and saved.
+constexpr const char* kHudLaterRows[] = {"IDC_PORT_HUD_MAP_SIDE_TEXT", "IDC_PORT_HUD_MAP_SIDE"};
 // The line under the style list (the page's preview of each style, as words).
 std::u32string style_info(const GuiManager& gui, bool modern) {
     return modern ? gui.port_text(U"Modern: one command deck along the bottom, larger text, key hints, shapes as well as colours.")

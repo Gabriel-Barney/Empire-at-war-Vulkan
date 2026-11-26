@@ -397,6 +397,11 @@ struct TacticalHudFrame {
     // garrison_respawn), drawn as the component's Build_Texture_Name dial; < 0 hides it.
     float garrison_respawn = -1.0f;
     HudCommandButtons command_buttons;  // b_retreat, b_reinforcement, beacon, movie mode, reinforcement texts
+    // [port] #587 for the Modern deck: whether Classic's reinforcement list is open (TacticalHud::reinforce_list_open: the
+    // b_reinforcement button / Reinforce key toggle it), and the local player's station to select with nothing selected
+    // (kNoObject: none).
+    bool reinforce_list_open = false;
+    uint32_t station = commands::kNoObject;
     bool objectives_hidden = false;     // ui3 t01 [port]: the Mission Holocron key (Tab) toggles the objectives box
     // [port: Gabriel, original screenshot] Game Paused banner (pause_shell: yellow TEXT_GAME_PAUSED bar at the top
     // centre, red TEXT_BUTTON_RESUME_GAME button under it - a click emits HudAction::ResumeGame) while `paused`.
@@ -647,5 +652,20 @@ commands::EventData ability_autofire_event(std::span<const uint32_t> units, uint
 // SetUnitAbilityMode toggled.
 void ability_button_click(const HudAbilityButton& a, int32_t component, const std::string& name, Button button, bool queued,
                           std::vector<commands::EventData>& out, std::vector<HudAction>* actions);
+// [port] #587 the production and reinforcement clicks both HUD styles send (component `component`, named `name`):
+// a queue entry's left click -> TacticalCancel; a buyable option's left click -> TacticalBuy at `builder`; an available
+// reinforcement entry's left click -> BeginReinforcement.
+HudAction tactical_cancel_action(int32_t component, const std::string& name, const HudQueueEntry& e);
+HudAction tactical_buy_action(int32_t component, const std::string& name, uint32_t builder, const HudBuildOption& o, bool shift,
+                              bool ctrl);
+HudAction begin_reinforcement_action(int32_t component, const std::string& name, const HudReinforcement& r);
+// [port] #587 a command-bar button's state under the Lua GUI_Component_Visibility / _Enable overrides (mods; ButtonRuntime
+// script_visible / script_enabled, -1 = none): the override when the script set one, else the feed's.
+inline bool script_hidden(int8_t script_visible, bool feed_hidden) { return script_visible >= 0 ? script_visible == 0 : feed_hidden; }
+inline bool script_disabled(int8_t script_enabled, bool feed_disabled) {
+    return script_enabled >= 0 ? script_enabled == 0 : feed_disabled;
+}
+// The tactical production / reinforcement slots of the command bar (TacticalHud::init, shared with the Modern deck).
+inline constexpr int kTacticalBuyButtons = 6, kTacticalQueueSlots = 20, kReinforceRows = 5, kReinforceColumns = 4;
 
 }  // namespace alamo::ui

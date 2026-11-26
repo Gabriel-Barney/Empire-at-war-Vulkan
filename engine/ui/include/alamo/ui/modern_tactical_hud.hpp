@@ -59,6 +59,8 @@ inline constexpr int32_t kModernPanelHit = kModernHitBase + 1;        // a panel
 inline constexpr int32_t kModernClearHit = kModernHitBase + 2;        // the deck's clear-selection button
 inline constexpr int32_t kModernJumpHit = kModernHitBase + 3;         // the alert strip's Jump
 inline constexpr int32_t kModernCardHitBase = kModernHitBase + 0x100;  // + card index (the deck's selection cards)
+inline constexpr int32_t kModernStationHit = kModernHitBase + 4;          // #587 the shortcut that selects the station
+inline constexpr int32_t kModernFleetShortcutBase = kModernHitBase + 0x200;  // + fleet group index (#587 shortcuts)
 // Hull bar colours by health (badly damaged units stand out): above kModernHullWarn, above kModernHullCritical, below.
 inline constexpr float kModernHullWarn = 0.6f, kModernHullCritical = 0.3f;
 
@@ -97,6 +99,15 @@ struct ModernHudStats {
     std::u32string alert_text;           // the alert strip's alert ("" = no strip)
     uint32_t alerts_more = 0;            // other alerts behind it
     bool jump = false;                   // its Jump button drawn
+    // #587 the deck's sections: battle actions (retreat, reinforcements, special weapon / bombing run, beacon), always;
+    // production (the builder card, its options and queue) while a builder is selected; the reinforcement list while open;
+    // with nothing selected, the shortcuts (wings, fleet groups, the station) in a deck that shrinks to them (contextual on).
+    uint32_t actions = 0, actions_live = 0;  // battle action buttons drawn / enabled
+    bool production = false;                 // the production section drawn
+    uint32_t build_options = 0, build_blocked = 0, queue_entries = 0, reinforcements = 0;
+    std::vector<std::u32string> build_texts;  // each option's line: its cost, or its blocked reason
+    uint32_t shortcuts = 0;                  // wing, fleet group and station shortcuts drawn
+    float deck_width = 0.0f;                 // canvas units
     uint32_t abilities = 0;              // #586 ability buttons drawn
     uint32_t ability_rings = 0;          // of them recharging (a ring and the seconds left)
     uint32_t ability_auto = 0;           // of them with the AUTO badge (autofire on)
@@ -115,13 +126,16 @@ public:
     void init(const ComponentTable& table, const TextureAtlas& atlas, FontCache& fonts, const TextDatabase* text = nullptr);
     // The live bindings the key badges show (null: no badges). Must outlive the HUD.
     void set_hotkeys(const HotkeyTable* keys) { keys_ = keys; }
+    // #587 the Classic HUD's button states (TacticalHud::buttons), for the Lua GUI_Component_Visibility / _Enable overrides
+    // on the shared battle buttons (null: none). Must outlive the HUD.
+    void set_script_state(const HudButtons* classic) { script_ = classic; }
     void resize(uint32_t width, uint32_t height);
     // The UI scale (as TacticalHud::set_ui_scale): takes effect on the next resize().
     void set_ui_scale(float s) { canvas_.ui_scale = s > 0.0f ? s : 0.0f; }
     // Modern text scale, clamped to kModernTextScaleMin .. kModernTextScaleMax (also set by set_options).
     void set_text_scale(float s);
     // [port] #590 the Interface page's Modern options (clamped): text size, colours, key hints, order labels, panel opacity;
-    // map side and the contextual deck are kept for the deck (#587, #591). Takes effect on the next build().
+    // the contextual deck (#587); the map side is kept for the map (#591). Takes effect on the next build().
     void set_options(const ModernHudOptions& o);
     const ModernHudOptions& options() const { return options_; }
     float text_scale() const { return text_scale_; }
@@ -177,6 +191,27 @@ private:
                          Vec2f top_left, float width, float height);
     float build_orders(const TacticalHudFrame& f, Vec2f top_right, float height);  // returns the width used
     float build_abilities(const TacticalHudFrame& f, std::span<const HudUnit> units, Vec2f top_right, float height, float max_width);
+    // #587
+    struct Tile {
+        int32_t id = -1;
+        Vec2f c{}, size{};
+        bool enabled = true, selected = false;
+        std::string icon;
+        std::u32string text;    // centred (under the icon, if any)
+        float ring = -1.0f;     // 0..1 countdown ring, < 0 none
+        std::u32string badge;   // a count in the top-left corner
+        int32_t hotkey = -1;    // key badge slot
+    };
+    void tile(const Tile& t);
+    float build_actions(const TacticalHudFrame& f, Vec2f top_left, float height, bool draw);  // returns the width
+    float build_shortcuts(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types,
+                          Vec2f top_left, float height, bool draw);
+    float build_queue(const TacticalHudFrame& f, Vec2f top_left, float height, float max_width, bool builder_only, bool draw);
+    Vec2f grid2_cell(size_t i, Vec2f top_left, Vec2f cell, float gap) const;  // two rows, filled by columns
+    const HudButtons* script_ = nullptr;
+    float build_production(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types,
+                           Vec2f top_left, float height, float max_width);
+    float build_reinforcements(const TacticalHudFrame& f, Vec2f top_left, float height, float max_width);
     void ability_ring(Vec2f c, float radius, float recharge);
     void key_badge(uint16_t slot, Vec2f top_right, uint32_t layer, bool always = false);  // always: even with key hints off
     std::vector<uint32_t> selection_ids() const;
@@ -207,6 +242,15 @@ private:
         Vec2f center{}, size{};
     };
     std::vector<AbilityButton> abilities_;  // every button Classic would build (its 48 cap), deck order; the first drawn
+    // #587 the shared battle controls (Classic's ids) and this build's slots.
+    int32_t retreat_ = -1, special_weapon_ = -1, reinforce_button_ = -1, beacon_ = -1;
+    std::vector<int32_t> buy_, queue_, reinforce_;  // Build_NN, tqueueNN, r_RRCC
+    std::vector<int32_t> dead_actions_;             // battle actions drawn disabled (their clicks are swallowed)
+    std::vector<std::pair<int32_t, HudBuildOption>> buy_slots_;
+    std::vector<std::pair<int32_t, HudQueueEntry>> queue_slots_;
+    std::vector<std::pair<int32_t, HudReinforcement>> reinforce_slots_;
+    std::vector<std::vector<uint32_t>> fleet_shortcuts_;
+    uint32_t builder_ = commands::kNoObject, station_ = commands::kNoObject;
     std::vector<SelectedGroup> groups_;
     std::vector<std::vector<uint32_t>> wing_ids_;  // per TacticalHudFrame::wings entry (empty: not drawn), as Classic's
     Rgba8 credits_color_{255, 212, 33, 255};                // Text_Credits_tactical's Text_Color when the data has one
