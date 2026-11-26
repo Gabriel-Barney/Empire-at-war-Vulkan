@@ -437,6 +437,69 @@ struct GalacticDrag {
     Rgba8 tint{};                // map fleet: its pancake's owner tint (GalacticPlanetStack::owner_color)
 };
 
+// [port: Gabriel] #613 the organiser rules both HUD styles use: the Classic organiser (GalacticHud) and the Modern one
+// (ModernGalacticHud) call these, so the same drop sends the same commands in either.
+//
+// The "Drop rules" rows above for a release that is not on a fleet slot, an empty pane or an ability row (those are
+// the Classic map layer's and organiser panes'): onto a fleet pad (merge / launch), onto the land forces (land), onto a
+// planet in the world (move) or onto empty space (detach).
+struct GalacticOrganiserDrag {
+    bool from_fleet = false;  // a fleet header or a fleet's unit; false: a land unit
+    uint32_t fleet = 0;       // the source fleet (0: a land unit)
+    uint32_t unit = 0;        // the dragged unit (0: the whole fleet)
+    uint32_t planet = 0;      // a map fleet's planet; 0: an organiser pad (at the selected planet)
+};
+struct GalacticDropTarget {
+    enum class Kind : uint8_t {
+        Other,       // another HUD component: nothing
+        Fleet,       // a fleet's pad (its header or a unit stack)
+        LandForces,  // the land forces
+        World,       // no HUD component: the planet under the cursor, or empty space
+    };
+    Kind kind = Kind::Other;
+    uint32_t fleet = 0;      // Fleet: that fleet
+    bool foreign = false;    // Fleet: not the local player's, never a target (legacy docs/re/UI.md §7.2)
+    bool on_planet = false;  // World: over a planet, `planet`
+    uint32_t planet = 0;
+};
+// Appends the drop's commands to `out` (nullptr: a dry run, the drop highlight) and returns whether there are any.
+bool galactic_organiser_drop(const GalacticOrganiserDrag& drag, const GalacticDropTarget& target, uint32_t selected_planet,
+                             std::vector<commands::EventData>* out);
+// legacy docs/re/UI.md §7.2: one fleet's units as organiser stacks in feed order. Units of one type (GalacticFleetSlot::type)
+// share a stack; a kNoSlotType unit and a named unit take one of their own.
+struct GalacticUnitStack {
+    GalacticFleetSlot slot;         // its first unit, the counts summed, selected when any member is
+    std::vector<uint32_t> members;  // every unit in it: a click selects them, a drag takes the first (slot.object)
+};
+void galactic_unit_stacks(std::span<const GalacticFleetSlot> units, std::vector<GalacticUnitStack>& out);
+// The planets on screen for drop picking: each visible planet that projects, its centre and radius in pixels.
+struct GalacticPlanetScreen {
+    uint32_t planet = 0;
+    size_t index = 0;           // into the frame's planets
+    float x = 0, y = 0, r = 0;  // pixels
+};
+void galactic_planet_screens(const GalacticHudFrame& f, std::vector<GalacticPlanetScreen>& out);
+// The nearest planet within max(1.2 r, 24 px) of pixel (px, py): its index in `planets`, -1 none.
+int32_t galactic_planet_at(std::span<const GalacticPlanetScreen> planets, float px, float py);
+// [port] the galactic radar's mapping (GalacticHud::build_radar): the planets' bounding box, squared and padded 10 %, fills
+// the radar rectangle (centre `at`, `size`; +X right, +Y up).
+struct GalacticRadarFit {
+    float cx = 0.0f, cy = 0.0f;  // galaxy centre
+    float half = 0.0f;           // half extent; 0: no planets, no mapping
+    float z = 0.0f;              // the planets' mean height (the camera footprint's plane)
+    Vec2f to_canvas(Vec2f at, Vec2f size, float wx, float wy) const {
+        return {at.x + (wx - cx) / half * 0.5f * size.x, at.y + (wy - cy) / half * 0.5f * size.y};
+    }
+    Vec2f to_world(Vec2f at, Vec2f size, Vec2f c) const {
+        return {cx + (c.x - at.x) / (0.5f * size.x) * half, cy + (c.y - at.y) / (0.5f * size.y) * half};
+    }
+};
+GalacticRadarFit galactic_radar_fit(std::span<const GalacticPlanetInfo> planets);
+// ui4 t07 (HUD_GAPS §10.1): a left click at canvas point `c` of that radar -> HudAction::RadarCameraJump {component, name,
+// x, y = the galaxy point}; false (nothing) for another button, without a mapping or for an empty rectangle.
+bool galactic_radar_click(const GalacticRadarFit& fit, Vec2f at, Vec2f size, Vec2f c, int32_t component, const std::string& name,
+                          Button button, HudAction& out);
+
 struct GalacticHudStats {
     uint32_t labels = 0, label_icons = 0, buttons = 0, build_buttons = 0, queue_entries = 0, fleet_slots = 0,
              land_slots = 0, objectives = 0, hit_boxes = 0, ability_rows = 0, radar_blips = 0;
@@ -599,9 +662,9 @@ private:
     // b_filters0..3 and the extra planet-label components.
     int32_t filters_[4] = {-1, -1, -1, -1};
     int32_t ground_pips_ = -1, space_pips_ = -1, ground_icon_ = -1, land_fleet_text_ = -1;  // ui4 t10
-    // the radar mapping of the last build (canvas centre / size, galaxy centre and half extent; half 0 = none).
+    // the radar mapping of the last build (canvas centre / size, the fit; half 0 = none).
     Vec2f radar_at_{}, radar_size_{};
-    float radar_cx_ = 0.0f, radar_cy_ = 0.0f, radar_half_ = 0.0f;
+    GalacticRadarFit radar_fit_;
     // build tabs.
     int32_t space_tab_ = -1, planet_tab_ = -1, dial_ = -1, scroll_left_ = -1, scroll_right_ = -1;
     bool build_space_tab_ = false;
@@ -680,11 +743,7 @@ private:
     GalacticDrag drag_;
     int32_t press_component_ = -1;
     Vec2f press_px_{};
-    struct PlanetScreen {
-        uint32_t planet = 0;
-        float x = 0, y = 0, r = 0;  // pixels
-    };
-    std::vector<PlanetScreen> planet_px_;
+    std::vector<GalacticPlanetScreen> planet_px_;
     // Fleet slots: the sim's state (GalacticPlanetStack::slot = galactic::FleetState::slot); the HUD keeps none of its own.
     bool slots_shown_ = false;
     Rgba8 empty_slot_color_{255, 255, 255, 255};  // GalacticHudFrame::empty_slot_color

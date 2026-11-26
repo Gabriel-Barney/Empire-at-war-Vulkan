@@ -1318,7 +1318,7 @@ void App::update_cursor(ui::HudDrawList& dl) {
     c.selection = !orders_.selection().empty();
     if (screen() == Screen::Galactic) {
         c.scrolling = gview_.camera().dragging();  // POINTER_MAP_SCROLLING_MODE while the map is dragged
-        const ui::GalacticDrag& d = ui_.galactic_hud.drag();
+        const ui::GalacticDrag& d = galactic_drag();  // #613 the Modern organiser's drag too
         c.fleet_drag = d.active;
         c.drop_on_fleet = d.over_fleet;
         c.drop_on_planet = d.over_planet >= 0;

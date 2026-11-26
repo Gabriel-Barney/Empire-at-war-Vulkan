@@ -530,6 +530,9 @@ private:
     ui::HudAlertLog galactic_alerts_;
     // The Modern galactic view takes this frame's HUD input and draws (Modern style, the command bar not story-hidden).
     bool modern_galactic_shown() const { return modern_hud() && !story_present_.command_bar_hidden(); }
+    // #613 the galactic HUD drag in progress: the Modern organiser's while it drags, else the Classic HUD's (map fleets,
+    // the Classic organiser). The drag cursor, its sounds, the route preview and the story's drag state read it.
+    const ui::GalacticDrag& galactic_drag() const;
     std::vector<HardPointRef> hud_hp_refs_;
     ui::ReticleTable reticles_;
     ui::GuiImageResolver hud_images_;

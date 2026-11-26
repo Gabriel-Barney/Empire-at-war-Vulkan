@@ -965,6 +965,11 @@ void App::handle_hud_actions(const std::vector<ui::HudAction>& acts) {
     }
 }
 
+const ui::GalacticDrag& App::galactic_drag() const {
+    if (modern_galactic_shown() && ui_.modern_galactic.drag().active) return ui_.modern_galactic.drag();
+    return ui_.galactic_hud.drag();
+}
+
 void App::fleet_drag_preview(const ui::View& view, const std::vector<ui::PickSphere>& fleets) {
     // 0x3da30 [H]: while a fleet is dragged, the planet under the cursor (the world pick, else the HUD's hovered planet)
     // gets the path finder's route drawn as grey (128) segments; with no planet there, a dark grey (50) line from the
@@ -973,7 +978,7 @@ void App::fleet_drag_preview(const ui::View& view, const std::vector<ui::PickSph
     // fleets only) and the port's world drag of a fleet sphere both show it; over any other HUD component nothing is drawn.
     std::vector<render::GalacticDragLine> lines;
     const galactic::GalacticSim* g = session_ ? session_->galaxy() : nullptr;
-    const ui::GalacticDrag& d = ui_.galactic_hud.drag();
+    const ui::GalacticDrag& d = galactic_drag();  // #613 the Modern organiser's drag too
     const ui::ButtonState& lb = input_.button(ui::Button::Left);
     uint32_t fleet = 0, over = 0;
     bool over_hud = false;
@@ -1168,8 +1173,9 @@ void App::galactic_input() {
             ui_.modern_galactic.update_input(routed_, input_.shift(), input_.ctrl(), now_s_, cmds, &acts);
         }
         ui_.galactic_hud.update_input(classic_in, input_.shift(), input_.ctrl(), now_s_, cmds, &acts);
-        // Fleet drag sounds: GUI_Drag_Fleet when a fleet / unit drag starts, GUI_Drop_Fleet when its drop issued an order.
-        const ui::GalacticDrag& d = ui_.galactic_hud.drag();
+        // Fleet drag sounds: GUI_Drag_Fleet when a fleet / unit drag starts, GUI_Drop_Fleet when its drop issued an order
+        // (#613 the Modern organiser's drags too).
+        const ui::GalacticDrag& d = galactic_drag();
         fleet_drag_active_ = d.active;
         if (d.active && !was_dragging) audio_.ui("GUI_Drag_Fleet");
         if (!d.active && was_dragging && cmds.size() > before) audio_.ui("GUI_Drop_Fleet");
