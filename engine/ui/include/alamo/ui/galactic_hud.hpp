@@ -33,6 +33,7 @@
 // objective_back Size.x - 24 units; without shell bones components sit at apply_galactic_fallback_layout positions.
 #pragma once
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <span>
@@ -440,9 +441,9 @@ struct GalacticDrag {
 // [port: Gabriel] #613 the organiser rules both HUD styles use: the Classic organiser (GalacticHud) and the Modern one
 // (ModernGalacticHud) call these, so the same drop sends the same commands in either.
 //
-// The "Drop rules" rows above for a release that is not on a fleet slot, an empty pane or an ability row (those are
-// the Classic map layer's and organiser panes'): onto a fleet pad (merge / launch), onto the land forces (land), onto a
-// planet in the world (move) or onto empty space (detach).
+// The "Drop rules" rows above: onto a fleet pad (merge / launch), onto the land forces (land), onto a planet in the world
+// (move), onto empty space (detach), and onto a fleet slot ("Fleet-slot drops": an empty pane, a slot oval). An ability
+// row stays Classic's (GalacticHud::drop).
 struct GalacticOrganiserDrag {
     bool from_fleet = false;  // a fleet header or a fleet's unit; false: a land unit
     uint32_t fleet = 0;       // the source fleet (0: a land unit)
@@ -455,16 +456,31 @@ struct GalacticDropTarget {
         Fleet,       // a fleet's pad (its header or a unit stack)
         LandForces,  // the land forces
         World,       // no HUD component: the planet under the cursor, or empty space
+        Slot,        // a fleet slot (an empty organiser pane = its slot, a map slot oval): galactic_slot_drop
     };
     Kind kind = Kind::Other;
-    uint32_t fleet = 0;      // Fleet: that fleet
-    bool foreign = false;    // Fleet: not the local player's, never a target (legacy docs/re/UI.md §7.2)
+    uint32_t fleet = 0;      // Fleet: that fleet; Slot: the fleet in it (0: an empty slot)
+    bool foreign = false;    // Fleet / Slot: not the local player's, never a target (legacy docs/re/UI.md §7.2)
     bool on_planet = false;  // World: over a planet, `planet`
-    uint32_t planet = 0;
+    uint32_t planet = 0;     // World: that planet; Slot: the slot's planet
+    int32_t slot = -1;       // Slot: 0..2
 };
 // Appends the drop's commands to `out` (nullptr: a dry run, the drop highlight) and returns whether there are any.
 bool galactic_organiser_drop(const GalacticOrganiserDrag& drag, const GalacticDropTarget& target, uint32_t selected_planet,
                              std::vector<commands::EventData>* out);
+// The "Fleet-slot drops" rows above for a Slot target: an own fleet's slot at the drag's planet merges / launches; an
+// empty one there re-slots the whole fleet (op 8) or makes the unit a new fleet in it (detach / op 6, `b` = the slot);
+// another planet's slot moves there (op 8 with the destination, then MoveObjectToObject; a unit: op 6).
+bool galactic_slot_drop(const GalacticOrganiserDrag& drag, const GalacticDropTarget& slot, uint32_t selected_planet,
+                        std::vector<commands::EventData>* out);
+// legacy docs/re/UI.md §7.2: the organiser pane q1 / q2 / q3 each fleet in orbit fills (GalacticHud::build_fleets). Orbit owner = the
+// local player: slot k -> pane k, every slot-0 fleet in pane 0, non-local fleets (allied ones too) in none. Otherwise every
+// non-local fleet -> pane 0, slot 1 -> pane 1, slots 0 and 2 -> pane 2 [M]. A fleet without a slot or whose pane is taken
+// takes the first empty pane in feed order [port, as the map]; with none left it is in no pane. A drop on an empty pane k
+// makes a new fleet in slot k.
+inline constexpr size_t kOrganiserPanes = 3;
+using GalacticOrganiserPanes = std::array<std::vector<const GalacticFleet*>, kOrganiserPanes>;
+void galactic_organiser_panes(std::span<const GalacticFleet> fleets, bool orbit_local, GalacticOrganiserPanes& panes);
 // legacy docs/re/UI.md §7.2: one fleet's units as organiser stacks in feed order. Units of one type (GalacticFleetSlot::type)
 // share a stack; a kNoSlotType unit and a named unit take one of their own.
 struct GalacticUnitStack {

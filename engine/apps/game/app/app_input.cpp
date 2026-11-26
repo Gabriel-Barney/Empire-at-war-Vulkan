@@ -1176,6 +1176,8 @@ void App::galactic_input() {
                 !(ui_.galactic_hud.drag().active && ui_.modern_galactic.organiser_target(classic_in.hover_component, row)))
                 classic_in.hover_component = -1;
             ui_.modern_galactic.update_input(routed_, input_.shift(), input_.ctrl(), now_s_, cmds, &acts);
+        } else {
+            ui_.modern_galactic.cancel_drag();  // #613 hidden (Classic, or the command bar story-hidden): no drag left behind
         }
         ui_.galactic_hud.update_input(classic_in, input_.shift(), input_.ctrl(), now_s_, cmds, &acts);
         // Fleet drag sounds: GUI_Drag_Fleet when a fleet / unit drag starts, GUI_Drop_Fleet when its drop issued an order

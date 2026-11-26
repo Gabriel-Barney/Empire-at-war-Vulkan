@@ -137,6 +137,7 @@ struct Env {
     void build() {
         f.planets = planets;
         classic.build(f);
+        modern.set_classic_drag(classic.drag());  // as the host (app_frame.cpp)
         modern.build(f);
     }
     int32_t id(const std::string& name) const { return t.find(name); }
@@ -178,9 +179,11 @@ struct Env {
         r.world.mouse_x += 10;
         hud.update_input(r, false, false, now + 0.05, o.cmds, &o.acts);
         CHECK(hud.drag().active);
-        build();
-        r.world.mouse_x = static_cast<int32_t>(to_px.x);
-        r.world.mouse_y = static_cast<int32_t>(to_px.y);
+        build();  // the targets shown only while dragging (Classic's empty pads, Modern's New fleet tiles) appear
+        Vec2f at = to_px;
+        if (to >= 0) centre_px(hud.hit_boxes(), hud.canvas(), to, at);  // this HUD's own target: its centre now
+        r.world.mouse_x = static_cast<int32_t>(at.x);
+        r.world.mouse_y = static_cast<int32_t>(at.y);
         r.hover_component = to;
         hud.update_input(r, false, false, now + 0.1, o.cmds, &o.acts);
         CHECK(hud.drag().active);
@@ -207,11 +210,11 @@ struct Env {
     // The same drag through both: Classic from / to its components, Modern from / to its tiles (-1: the world at `world_px`).
     Out classic_drag(const std::string& from, const std::string& to, Vec2f world_px = {}) {
         const int32_t fc = id(from), tc = to.empty() ? -1 : id(to);
-        return drag(classic, fc, classic_px(fc), tc, tc >= 0 ? classic_px(tc) : world_px);
+        return drag(classic, fc, classic_px(fc), tc, world_px);  // a target's pixel: found once the drag shows it
     }
     Out modern_drag(int32_t from, int32_t to, Vec2f world_px = {}) {
         CHECK(from >= 0);
-        return drag(modern, from, modern_px(from), to, to >= 0 ? modern_px(to) : world_px);
+        return drag(modern, from, modern_px(from), to, world_px);
     }
     template <class Hud>
     Out click(Hud& hud, int32_t c, double at, Button b = Button::Left) {
@@ -295,6 +298,118 @@ void test_drop_parity() {
     // A release on any other Modern control (a panel's back) does nothing.
     const Out panel = e.modern_drag(e.pad(900, 9003), kModernPanelHit);
     CHECK(!panel.valid && panel.cmds.empty() && panel.acts.empty());
+}
+
+// The Classic empty panes and empty pads: a free orbit slot is the Modern New fleet tile (shown while dragging), a fleet
+// row's back is the occupied pane's empty pads (merge into that fleet). Same commands: launch / detach into the slot (op 6
+// / detach with b = slot), re-slot the whole fleet (op 8).
+void test_slot_parity() {
+    Env e;
+    CHECK(e.modern.stats().slot_tiles == 0);  // nothing dragged: the row is there, its tiles are not
+    const int32_t slot2 = kModernGalacticSlotBase + 2, row900 = kModernGalacticRowBase + 0;
+    auto with_b = [](commands::EventData ev, uint32_t b) {
+        ev.set("b", b);
+        return ev;
+    };
+    struct Case {
+        const char* what;
+        std::string classic_from, classic_to;
+        int32_t modern_from, modern_to;
+        std::vector<commands::EventData> want;
+    };
+    const std::vector<Case> cases = {
+        {"land unit -> free slot 2: launch a new fleet there", "land_fleet_00", "q3_0001", e.pad(0, 8001, true), slot2,
+         {with_b(fleet_management_event(commands::kFleetMoveNew, 100, kNone, 8001, 100), 2)}},
+        {"fleet unit -> free slot 2: detach into it", "q1_0002", "q3_0001", e.pad(900, 9003), slot2,
+         {with_b(fleet_management_event(commands::kFleetDetach, 100, 900, 9003), 2)}},
+        {"whole fleet -> free slot 2: re-slot", "q1_fleet", "q3_0002", e.pad(900, 0), slot2,
+         {fleet_management_event(commands::kFleetSlot, 100, 900, kNone, kNone, 2)}},
+        {"unit -> another fleet's row back (its pane's empty pad): merge", "q2_0001", "q1_0003", e.pad(901, 9011), row900,
+         {fleet_management_event(commands::kFleetMerge, 900, 901, 9011)}},
+        {"land unit -> a fleet row's back: launch", "land_fleet_01", "q1_0003", e.pad(0, 8002, true), row900,
+         {fleet_management_event(commands::kFleetLaunch, 900, kNone, 8002)}},
+        {"unit -> its own row's back: nothing", "q1_0001", "q1_0003", e.pad(900, 9001), row900, {}},
+    };
+    for (const Case& c : cases) {
+        const Out co = e.classic_drag(c.classic_from, c.classic_to);
+        const Out mo = e.modern_drag(c.modern_from, c.modern_to);
+        const bool ok = co.cmds == c.want && co.valid == !c.want.empty() && same(co, mo);
+        if (!ok) std::printf("  slot drop: %s\n", c.what);
+        CHECK(ok);
+    }
+    // No own fleet in orbit: every slot is free, and a land unit can still launch (Classic's empty pane q1 = slot 0).
+    e.fleets = {e.fleets[2]};  // the enemy fleet only (the local player's orbit: in no pane)
+    e.build();
+    CHECK(e.modern.stats().organiser_fleets == 0 && e.pad(0, 8001, true) >= 0);
+    const Out co = e.classic_drag("land_fleet_00", "q1_0001");
+    const Out mo = e.modern_drag(e.pad(0, 8001, true), kModernGalacticSlotBase + 0);
+    CHECK(co.cmds.size() == 1 && co.cmds[0] == with_b(fleet_management_event(commands::kFleetMoveNew, 100, kNone, 8001, 100), 0) && same(co, mo));
+    // While dragging, all three free slots show.
+    RoutedInput r;
+    std::vector<commands::EventData> c;
+    const Vec2f p = e.modern_px(e.pad(0, 8001, true));
+    r.world.mouse_x = static_cast<int32_t>(p.x);
+    r.world.mouse_y = static_cast<int32_t>(p.y);
+    r.owner[static_cast<size_t>(Button::Left)] = PointerTarget::Hud;
+    r.hud = {{HudPointerEvent::Kind::Press, Button::Left, e.pad(0, 8001, true), r.world.mouse_x, r.world.mouse_y}};
+    e.modern.update_input(r, false, false, e.now, c);
+    r.hud.clear();
+    r.world.mouse_x += 10;
+    e.modern.update_input(r, false, false, e.now, c);
+    e.build();
+    CHECK(e.modern.drag().active && e.modern.stats().slot_tiles == 3 && c.empty());
+    e.modern.cancel_drag();
+}
+
+// A Modern drag never outlives the view: hidden mid-drag (the host's cancel_drag), or the HUD no longer holding the button
+// (no release reached this view), it ends without a drop, and a later release sends nothing.
+void test_stale_drag() {
+    Env e;
+    const int32_t from = e.pad(900, 9001);
+    const Vec2f p = e.modern_px(from);
+    auto start = [&](std::vector<commands::EventData>& c) {
+        RoutedInput r;
+        r.world.mouse_x = static_cast<int32_t>(p.x);
+        r.world.mouse_y = static_cast<int32_t>(p.y);
+        r.owner[static_cast<size_t>(Button::Left)] = PointerTarget::Hud;
+        r.hud = {{HudPointerEvent::Kind::Press, Button::Left, from, r.world.mouse_x, r.world.mouse_y}};
+        e.modern.update_input(r, false, false, e.now, c);
+        r.hud.clear();
+        r.world.mouse_x += 10;
+        e.modern.update_input(r, false, false, e.now, c);
+        CHECK(e.modern.drag().active);
+    };
+    auto release_over_fleet = [&](std::vector<commands::EventData>& c) {
+        RoutedInput r;
+        r.hover_component = e.pad(901, 9011);
+        r.hud = {{HudPointerEvent::Kind::Release, Button::Left, r.hover_component, 0, 0}};
+        e.modern.update_input(r, false, false, e.now, c);
+    };
+    std::vector<commands::EventData> c;
+    start(c);
+    e.modern.cancel_drag();  // the host: the view hidden (Classic style, the command bar story-hidden)
+    CHECK(!e.modern.drag().active);
+    release_over_fleet(c);
+    CHECK(c.empty());
+    // The button let go elsewhere: the next input without a release here ends the drag.
+    start(c);
+    RoutedInput idle;
+    e.modern.update_input(idle, false, false, e.now, c);
+    CHECK(!e.modern.drag().active);
+    release_over_fleet(c);
+    CHECK(c.empty());
+    // A press alone (no drag yet) is forgotten the same way: a later move never starts a drag from it.
+    RoutedInput press;
+    press.owner[static_cast<size_t>(Button::Left)] = PointerTarget::Hud;
+    press.hud = {{HudPointerEvent::Kind::Press, Button::Left, from, static_cast<int32_t>(p.x), static_cast<int32_t>(p.y)}};
+    e.modern.update_input(press, false, false, e.now, c);
+    e.modern.update_input(idle, false, false, e.now, c);
+    RoutedInput move;
+    move.owner[static_cast<size_t>(Button::Left)] = PointerTarget::Hud;
+    move.world.mouse_x = static_cast<int32_t>(p.x) + 30;
+    move.world.mouse_y = static_cast<int32_t>(p.y);
+    e.modern.update_input(move, false, false, e.now, c);
+    CHECK(!e.modern.drag().active && c.empty());
 }
 
 // A foreign fleet is never a drop target: Classic draws it inert (its orbit is not the local player's: pane q1), Modern
@@ -463,6 +578,8 @@ void test_map_fleet_onto_rows() {
     const Out c_land = e.drag(e.classic, button, e.classic_px(button), e.id("land_fleet_00"), e.classic_px(e.id("land_fleet_00")));
     CHECK(c_merge.valid && c_merge.cmds.size() == 1 && c_merge.cmds[0] == fleet_management_event(commands::kFleetMerge, 901, 900, kNone));
     CHECK(c_land.valid && c_land.cmds.size() == 1 && c_land.cmds[0] == fleet_management_event(commands::kFleetLand, 100, 900, kNone));
+    const Out c_slot = e.drag(e.classic, button, e.classic_px(button), e.id("q3_0001"), {});  // an empty pad: drawn once dragging
+    CHECK(c_slot.valid && c_slot.cmds.size() == 1 && c_slot.cmds[0] == fleet_management_event(commands::kFleetSlot, 100, 900, kNone, kNone, 2));
     // Modern: the Classic HUD draws the map layer only; the rows are Modern's.
     e.classic.set_modern_overlay(true);
     e.build();
@@ -473,6 +590,49 @@ void test_map_fleet_onto_rows() {
     CHECK(same(c_merge, e.drag(e.classic, button, e.classic_px(button), row, e.modern_px(row))));
     CHECK(same(c_merge, e.drag(e.classic, button, e.classic_px(button), e.pad(901, 9011), e.modern_px(e.pad(901, 9011)))));
     CHECK(same(c_land, e.drag(e.classic, button, e.classic_px(button), land_row, e.modern_px(land_row))));
+    // The New fleet tiles show during the Classic drag (set_classic_drag); slot 2's is Classic's empty pane q3.
+    {
+        RoutedInput r;
+        std::vector<commands::EventData> c;
+        const Vec2f bp = e.classic_px(button);
+        r.world.mouse_x = static_cast<int32_t>(bp.x);
+        r.world.mouse_y = static_cast<int32_t>(bp.y);
+        r.hover_component = button;
+        r.owner[static_cast<size_t>(Button::Left)] = PointerTarget::Hud;
+        r.hud = {{HudPointerEvent::Kind::Press, Button::Left, button, r.world.mouse_x, r.world.mouse_y}};
+        e.classic.update_input(r, false, false, e.now, c);
+        r.hud.clear();
+        r.world.mouse_x += 10;
+        e.classic.update_input(r, false, false, e.now, c);
+        e.build();
+        CHECK(e.classic.drag().active && e.modern.stats().slot_tiles == 1 && e.modern.stats().drop_highlights == 0);
+        // Over a Modern row whose drop Classic takes: the row is lit (as the host keeps it the Classic hover).
+        r.hover_component = row;
+        const Vec2f rp = e.modern_px(row);
+        r.world.mouse_x = static_cast<int32_t>(rp.x);
+        r.world.mouse_y = static_cast<int32_t>(rp.y);
+        e.classic.update_input(r, false, false, e.now, c);
+        RoutedInput hover;
+        hover.hover_component = row;
+        hover.owner = r.owner;
+        e.modern.update_input(hover, false, false, e.now, c);
+        e.build();
+        CHECK(e.classic.drag().valid && e.modern.stats().drop_highlights == 1 && e.modern.stats().drop_valid);
+        // Over its own row: not taken, not lit.
+        r.hover_component = e.pad(900, 0);
+        hover.hover_component = r.hover_component;
+        e.classic.update_input(r, false, false, e.now, c);
+        e.modern.update_input(hover, false, false, e.now, c);
+        e.build();
+        CHECK(!e.classic.drag().valid && e.modern.stats().drop_highlights == 0);
+        r.owner = {};
+        r.hud = {{HudPointerEvent::Kind::Release, Button::Left, e.pad(900, 0), r.world.mouse_x, r.world.mouse_y}};
+        e.classic.update_input(r, false, false, e.now, c);
+        CHECK(c.empty() && !e.classic.drag().active);
+        e.now += 1.0;
+        e.build();
+    }
+    CHECK(same(c_slot, e.drag(e.classic, button, e.classic_px(button), kModernGalacticSlotBase + 2, {})));
     // Its own row and any other Modern control take nothing.
     CHECK(e.drag(e.classic, button, e.classic_px(button), e.pad(900, 0), e.modern_px(e.pad(900, 0))).cmds.empty());
     CHECK(e.drag(e.classic, button, e.classic_px(button), kModernPanelHit, e.modern_px(e.pad(901, 0))).cmds.empty());
@@ -500,6 +660,8 @@ void test_classic_unchanged() {
 int main() {
     test_organiser_view();
     test_drop_parity();
+    test_slot_parity();
+    test_stale_drag();
     test_foreign();
     test_click_parity();
     test_radar_parity();

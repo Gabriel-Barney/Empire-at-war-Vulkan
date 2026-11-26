@@ -166,7 +166,10 @@ bool App::render_frame() {
         ui_.galactic_hud.build(gf);
         if (modern) {
             ui_.modern_galactic.sync_options(video_profile_.modern_hud);
+            ui_.modern_galactic.set_classic_drag(ui_.galactic_hud.drag());  // #613 a map fleet over the organiser rows
             ui_.modern_galactic.build(gf);
+        } else {
+            ui_.modern_galactic.cancel_drag();  // #613 no organiser drag outlives the view
         }
         // The shells the build wants shown (organiser, the two battle-prompt shells); re-applied to the layout on a change.
         bool shells_changed = false;

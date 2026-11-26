@@ -854,39 +854,11 @@ void GalacticHud::build_fleets(const GalacticHudFrame& f) {
         if (f.providers.fleets) f.providers.fleets(sel->planet, fleets);
         if (f.providers.land_forces) f.providers.land_forces(sel->planet, land);
     }
-    // legacy docs/re/UI.md §7.2: pane k = frame q{k+1}; a fleet's pane comes from its orbit slot, not from the provider order. Orbit owner
-    // = the local player (the planet's orbit_local): slot k -> pane k, every slot-0 fleet merged into pane 0, non-local fleets
-    // (allied ones too) not shown. Otherwise every
-    // non-local fleet -> pane 0 (merged), slot 1 -> pane 1, slots 0 and 2 -> pane 2 (merged) [M]. The same rule as the map's
-    // build_planet_stacks (§1.3). Fleets without a slot or whose pane is taken take the first empty pane in feed order [port,
-    // as the map]; with none left they are not shown.
-    constexpr size_t kPanes = 3;
-    std::vector<const GalacticFleet*> panes[kPanes];
-    {
-        std::vector<const GalacticFleet*> later;
-        for (const GalacticFleet& gf : fleets) {
-            std::vector<const GalacticFleet*>* to = nullptr;
-            if (sel->orbit_local) {
-                if (gf.enemy) continue;  // §7.2 first row: only the local player's fleets fill the panes
-                if (gf.slot == 0) to = &panes[0];
-                else if (gf.slot > 0 && gf.slot < 3 && panes[gf.slot].empty()) to = &panes[gf.slot];
-            } else if (gf.enemy) {
-                to = &panes[0];
-            } else if (gf.slot == 0 || gf.slot == 2) {
-                to = &panes[2];
-            } else if (gf.slot == 1 && panes[1].empty()) {
-                to = &panes[1];
-            }
-            if (to) to->push_back(&gf);
-            else later.push_back(&gf);
-        }
-        for (const GalacticFleet* gf : later)
-            for (auto& pane : panes)
-                if (pane.empty()) {
-                    pane.push_back(gf);
-                    break;
-                }
-    }
+    // legacy docs/re/UI.md §7.2: pane k = frame q{k+1}; a fleet's pane comes from its orbit slot, not from the provider order
+    // (galactic_organiser_panes, #613 shared with the Modern organiser). The same rule as the map's build_planet_stacks (§1.3).
+    constexpr size_t kPanes = kOrganiserPanes;
+    GalacticOrganiserPanes panes;
+    galactic_organiser_panes(fleets, sel && sel->orbit_local, panes);
     auto draw_slot = [&](int32_t ci, const GalacticFleetSlot& s, std::vector<uint32_t> select, int32_t fleet_index, uint32_t fleet,
                          uint32_t unit, bool foreign, bool empty = false) {
         const auto u = static_cast<uint32_t>(ci);
@@ -987,30 +959,31 @@ static commands::EventData with_slot_request(commands::EventData e, int32_t slot
 }
 
 // The order a drop on a fleet slot issues (rules: galactic_hud.hpp, "Fleet-slot drops"); out = nullptr only tests it.
-bool GalacticHud::slot_drop(const StackHit& sh, std::vector<commands::EventData>* out) {
+bool galactic_slot_drop(const GalacticOrganiserDrag& d, const GalacticDropTarget& sh, uint32_t selected,
+                        std::vector<commands::EventData>* out) {
     constexpr uint32_t kNone = commands::kNoObject;
-    const bool land = drag_.fleet_index < 0;
-    const uint32_t home = drag_.planet != 0 ? drag_.planet : selected_id_;  // the dragged fleet's / unit's planet
-    const uint32_t unit = drag_.unit != 0 ? drag_.unit : kNone;
+    const bool land = !d.from_fleet;
+    const uint32_t home = d.planet != 0 ? d.planet : selected;  // the dragged fleet's / unit's planet
+    const uint32_t unit = d.unit != 0 ? d.unit : kNone;
     const bool empty = sh.fleet == 0 || sh.fleet == kNone;
     if (sh.planet == 0 || home == 0) return false;
-    if (land && drag_.unit == 0) return false;
+    if (land && d.unit == 0) return false;
     if (sh.planet == home) {
         if (!empty) {
-            if (sh.enemy || sh.fleet == drag_.fleet) return false;
+            if (sh.foreign || sh.fleet == d.fleet) return false;
             if (out) out->push_back(land ? fleet_management_event(commands::kFleetLaunch, sh.fleet, kNone, unit)
-                                         : fleet_management_event(commands::kFleetMerge, sh.fleet, drag_.fleet, unit));
+                                         : fleet_management_event(commands::kFleetMerge, sh.fleet, d.fleet, unit));
             return true;
         }
-        if (!land && drag_.unit == 0) {  // re-slot the whole fleet
-            if (out) out->push_back(fleet_management_event(commands::kFleetSlot, home, drag_.fleet, kNone, kNone, static_cast<uint8_t>(sh.slot)));
+        if (!land && d.unit == 0) {  // re-slot the whole fleet
+            if (out) out->push_back(fleet_management_event(commands::kFleetSlot, home, d.fleet, kNone, kNone, static_cast<uint8_t>(sh.slot)));
             return true;
         }
         if (out) {
             // The unit becomes a new fleet in that slot: detach from its fleet, or launch from the surface (op 6 with the
             // destination = its own planet); the slot rides in the payload's `b` and the sim gives it to the new fleet.
             out->push_back(with_slot_request(land ? fleet_management_event(commands::kFleetMoveNew, home, kNone, unit, home)
-                                                  : fleet_management_event(commands::kFleetDetach, home, drag_.fleet, unit),
+                                                  : fleet_management_event(commands::kFleetDetach, home, d.fleet, unit),
                                              sh.slot));
         }
         return true;
@@ -1019,17 +992,51 @@ bool GalacticHud::slot_drop(const StackHit& sh, std::vector<commands::EventData>
     if (out) {
         // [inferred] the slot chosen (an empty one, or an own fleet's: merge on arrival) is the sim's to apply on arrival;
         // an enemy fleet's slot is no choice.
-        const bool choose = sh.slot >= 0 && (empty || !sh.enemy);
-        if (land || drag_.unit != 0) {  // the unit becomes a new fleet that moves (op 6; `b` = its slot at the destination)
-            commands::EventData e = fleet_management_event(commands::kFleetMoveNew, home, land ? kNone : drag_.fleet, unit, sh.planet);
+        const bool choose = sh.slot >= 0 && (empty || !sh.foreign);
+        if (land || d.unit != 0) {  // the unit becomes a new fleet that moves (op 6; `b` = its slot at the destination)
+            commands::EventData e = fleet_management_event(commands::kFleetMoveNew, home, land ? kNone : d.fleet, unit, sh.planet);
             out->push_back(choose ? with_slot_request(std::move(e), sh.slot) : std::move(e));
         } else {
             if (choose)  // op 8 with a destination planet: the slot it takes on arrival, ahead of the move order
-                out->push_back(fleet_management_event(commands::kFleetSlot, home, drag_.fleet, kNone, sh.planet, static_cast<uint8_t>(sh.slot)));
-            out->push_back(commands::ev::move_object_to_object(drag_.fleet, sh.planet));
+                out->push_back(fleet_management_event(commands::kFleetSlot, home, d.fleet, kNone, sh.planet, static_cast<uint8_t>(sh.slot)));
+            out->push_back(commands::ev::move_object_to_object(d.fleet, sh.planet));
         }
     }
     return true;
+}
+
+bool GalacticHud::slot_drop(const StackHit& sh, std::vector<commands::EventData>* out) {
+    GalacticDropTarget t{GalacticDropTarget::Kind::Slot, sh.fleet, sh.enemy};
+    t.planet = sh.planet;
+    t.slot = sh.slot;
+    return galactic_slot_drop({drag_.fleet_index >= 0, drag_.fleet, drag_.unit, drag_.planet}, t, selected_id_, out);
+}
+
+void galactic_organiser_panes(std::span<const GalacticFleet> fleets, bool orbit_local, GalacticOrganiserPanes& panes) {
+    for (auto& pane : panes) pane.clear();
+    std::vector<const GalacticFleet*> later;
+    for (const GalacticFleet& gf : fleets) {
+        std::vector<const GalacticFleet*>* to = nullptr;
+        if (orbit_local) {
+            if (gf.enemy) continue;  // §7.2 first row: only the local player's fleets fill the panes
+            if (gf.slot == 0) to = &panes[0];
+            else if (gf.slot > 0 && gf.slot < 3 && panes[static_cast<size_t>(gf.slot)].empty()) to = &panes[static_cast<size_t>(gf.slot)];
+        } else if (gf.enemy) {
+            to = &panes[0];
+        } else if (gf.slot == 0 || gf.slot == 2) {
+            to = &panes[2];
+        } else if (gf.slot == 1 && panes[1].empty()) {
+            to = &panes[1];
+        }
+        if (to) to->push_back(&gf);
+        else later.push_back(&gf);
+    }
+    for (const GalacticFleet* gf : later)
+        for (auto& pane : panes)
+            if (pane.empty()) {
+                pane.push_back(gf);
+                break;
+            }
 }
 
 // The slot a drop on an empty organiser pane addresses: the selected planet's slot of that pane (legacy docs/re/UI.md §7.2, pane k = slot k).
@@ -1174,6 +1181,7 @@ bool galactic_organiser_drop(const GalacticOrganiserDrag& d, const GalacticDropT
             }
             if (d.unit != 0 && selected != 0) return emit(fleet_management_event(commands::kFleetDetach, selected, kNone, d.unit));
             return false;
+        case GalacticDropTarget::Kind::Slot: return galactic_slot_drop(d, t, selected, out);
         case GalacticDropTarget::Kind::Other: break;
     }
     return false;
@@ -1801,7 +1809,7 @@ bool galactic_radar_view(const GalacticRadarFit& fit, const View& view, Vec2f at
     const Vec2f lo{at.x - 0.5f * size.x, at.y - 0.5f * size.y}, hi{at.x + 0.5f * size.x, at.y + 0.5f * size.y};
     a = {std::clamp(a.x, lo.x, hi.x), std::clamp(a.y, lo.y, hi.y)};
     b = {std::clamp(b.x, lo.x, hi.x), std::clamp(b.y, lo.y, hi.y)};
-    return b.x - a.x >= 1.0f && b.y - a.y >= 1.0f;
+    return !(b.x - a.x < 1.0f || b.y - a.y < 1.0f);  // Classic's exact test (a NaN footprint is drawn as before)
 }
 
 // ui4 t07 (HUD_GAPS §10.1, 0x3d1260): a left click on the galactic radar moves the camera to that point; it never selects a
