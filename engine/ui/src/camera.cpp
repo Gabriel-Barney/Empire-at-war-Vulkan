@@ -477,6 +477,7 @@ void TacticalCameraController::set_overview(int32_t level) {
     if (level == ov_level_) return;
     ov_from_ = effective_pose();
     ov_level_ = level;
+    ++ov_changes_;
     ov_t_ = t_.overview_blend_time > 0.0f ? 0.0f : 1.0f;
     ov_clicks_ = 0.0f;
 }
@@ -525,8 +526,8 @@ void TacticalCameraController::roll(float droll) {
 
 void TacticalCameraController::zoom(float notches) {
     if (notches == 0.0f) return;
-    if (ov_level_ > 0) {  // overview: in -> back to the normal pose, out -> towards the next level
-        if (notches > 0.0f) set_overview(0);
+    if (ov_level_ > 0) {  // overview: in -> down one level (0x2ce520: 2 -> 1, 1 -> 0 [H]), out -> towards the next level
+        if (notches > 0.0f) set_overview(ov_level_ - 1);
         else overview_click(-notches);
         return;
     }

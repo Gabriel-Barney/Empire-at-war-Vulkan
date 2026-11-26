@@ -75,6 +75,10 @@ bool App::render_frame() {
     const bool battle_view = (screen() == Screen::Battle || screen() == Screen::BattleLoad || (screen() == Screen::Menu && demo_session())) && bview_.active();
     const int world_view = galactic ? 1 : battle_view ? 2 : 0;
     if (world_view != world_view_) gpu_.renderer.reset_taa_history();
+    if (world_view != 2) {  // #66 no fade outlives the battle view; a new battle's camera starts its own count
+        frame_fade_.reset();
+        fade_overview_seen_ = bview_.camera().overview_changes();
+    }
     world_view_ = world_view;
     // the Anti-Aliasing list (t11; one mode since 2026-11-13) and the Upscaler / Upscaler Quality lists (2026-11-13)
     apply_aa_options(gview_.ropt, video_profile_.anti_alias, video_profile_.upscaler, video_profile_.upscale_quality);
@@ -139,6 +143,16 @@ bool App::render_frame() {
         for (int i = 0; i < 4; ++i) pt.clear[i] = bview_.clear_color(i);
         ok = gpu_.renderer.render(*f, cmd, pt, ui::to_view_matrices(cp, w, h), bview_.main, render::DrawMode::Lit, bro, &draw_stats_,
                                   nullptr, bview_.sky);
+        // #66 FrameEffectAlpha over the world, before the HUD (0x25fb30 runs before the GUI draw 0x28c520).
+        const uint32_t changes = bview_.camera().overview_changes();
+        if (changes > fade_overview_seen_) frame_fade_.request();
+        fade_overview_seen_ = changes;
+        const render::FrameFade::Step fs = frame_fade_.frame();
+        if (ok && (fs.alpha > 0.0f || fs.capture) &&
+            !gpu_.renderer.apply_frame_fade(*f, cmd, slot.color.handle, slot.color.view, slot.color.vk_format(), {w, h},
+                                            rhi::ImageState::TransferSrc, rhi::ImageState::TransferSrc, fs.alpha, fs.capture) &&
+            fs.capture)
+            frame_fade_.capture_failed();
     } else {
         render::RecordOptions ro;
         ro.shadows = false;

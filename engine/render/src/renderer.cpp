@@ -21,6 +21,7 @@
 #include "render_internal.hpp"
 #include "fx2_reader.hpp"
 #include "gamma.hpp"  // [port] output gamma
+#include "frame_fade_pass.hpp"  // #66 FrameEffectAlpha
 #include "fsr.hpp"  // [port] FSR upscaling
 #include "xess.hpp"  // [port] XeSS upscaling
 #include "smaa.hpp"  // [port] SMAA
@@ -446,6 +447,7 @@ void RendererCore::shutdown() {
     fsr_.reset();   // [port] FSR context, runtime + output
     xess_.reset();  // [port] XeSS context, runtime + output
     gamma_.reset();  // [port] gamma pipeline + scratch image
+    frame_fade_.reset();  // #66 frame fade pipeline + captured scene
     psos_.shutdown(true);
     for (VkPipelineLayout& l : tlayout_) {
         if (l) ctx_->vkd().vkDestroyPipelineLayout(ctx_->device(), l, nullptr);

@@ -48,6 +48,7 @@
 #include "alamo/game/story_ui.hpp"
 #include "alamo/game/world_pick.hpp"
 #include "alamo/jobs/crc_recorder.hpp"
+#include "alamo/render/frame_fade.hpp"
 #include "alamo/render/galactic/galactic_session.hpp"
 #include "alamo/render/png.hpp"
 #include "alamo/sim/tactical_battle.hpp"
@@ -413,6 +414,9 @@ private:
     // frame's world (0 none, 1 galactic, 2 battle); a change restarts the TAA history.
     ui::AdvancedVideoSettings adv_video_;
     int world_view_ = 0;
+    // #66 FrameEffectAlpha: requested by each battle-camera overview level change, drawn over the battle world.
+    render::FrameFade frame_fade_;
+    uint32_t fade_overview_seen_ = 0;  // the camera's overview_changes() at the last drawn battle frame
     // [port] the video options file (game_display.hpp VideoProfile): read at start, written on every Video / Advanced
     // video Apply in live play. detail_options_: the advanced detail options reach the renderer (live play, or a run
     // given --video-options; other smoke runs keep the renderer's defaults).

@@ -42,8 +42,8 @@
 //   * Tactical overview (Tactical_Overview_*): two overview levels above the normal zoom range. Zooming out with the
 //     target distance already at Distance_Max counts notches; Tactical_Overview_Clicks of them within
 //     Tactical_Overview_Click_Time seconds go up one level (level 2 only when Distance2 > Distance). The overview pose
-//     is (Tactical_Overview_Distance[2], _Pitch[2] (< 0 = keep the current pitch), _FOV[2]); any zoom-in notch goes
-//     back to the normal pose. Hotkey slot 76 (Insert) toggles 0 -> 1 -> 2 -> 0 (toggle_overview). Changes blend with
+//     is (Tactical_Overview_Distance[2], _Pitch[2] (< 0 = keep the current pitch), _FOV[2]); a zoom-in notch goes
+//     down one level (2 -> 1 -> 0; 0x2ce520 [H], #66). Hotkey slot 76 (Insert) toggles 0 -> 1 -> 2 -> 0 (toggle_overview). Changes blend with
 //     smoothstep over CameraTuning::overview_blend_time; splines stay in force underneath.
 //   * Terrain following (Location_Follows_Terrain, Min_Height_Above_Terrain): with a height callback the look-at z
 //     follows the terrain under it (linear smoothing over CameraTuning::terrain_smooth_time; snapped on jumps), and
@@ -276,6 +276,9 @@ public:
     void set_overview(int32_t level);  // clamped to 0..max_overview_level()
     void toggle_overview();            // 0 -> 1 -> 2 -> 0 (hotkey slot 76)
     bool overview_transitioning() const { return ov_t_ < 1.0f; }
+    // #66: counts the overview level changes (zoom notches, toggle, set_overview; not reset()). Each one requests
+    // retail's FrameEffectAlpha cross-fade (0x2ce520 / 0x2d07b0 call 0x25fb10(2), docs/re/FRAME_EFFECTS.md).
+    uint32_t overview_changes() const { return ov_changes_; }
     // Terrain following: null = flat (look-at z as set). Setting a callback snaps the look-at height.
     void set_terrain_height(TerrainHeightFn fn);
     // Moves the look-at point (control-group camera jump, radar jump); yaw / pitch / zoom kept.
@@ -353,6 +356,7 @@ private:
     float ov_t_ = 1.0f;
     float ov_clicks_ = 0.0f;
     double ov_click_start_ = -1e30;
+    uint32_t ov_changes_ = 0;
     double time_ = 0.0;
     // terrain
     TerrainHeightFn height_;

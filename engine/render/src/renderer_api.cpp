@@ -25,6 +25,10 @@ bool Renderer::apply_gamma(rhi::Frame& frame, VkCommandBuffer cmd, VkImage color
                            VkExtent2D extent, rhi::ImageState state, rhi::ImageState after, float gamma) {
     return core_->apply_gamma(frame, cmd, color, view, format, extent, state, after, gamma);
 }
+bool Renderer::apply_frame_fade(rhi::Frame& frame, VkCommandBuffer cmd, VkImage color, VkImageView view, VkFormat format,
+                                VkExtent2D extent, rhi::ImageState state, rhi::ImageState after, float alpha, bool capture) {
+    return core_->apply_frame_fade(frame, cmd, color, view, format, extent, state, after, alpha, capture);
+}
 
 bool Renderer::upload_model(std::shared_ptr<const assets::ModelAsset> model, const TextureSource& textures, GpuModel& out,
                             jobs::JobSystem* js, std::string* error) {

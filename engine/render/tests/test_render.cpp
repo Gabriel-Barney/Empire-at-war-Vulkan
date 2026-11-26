@@ -2,6 +2,7 @@
 #include "test_render_common.hpp"
 #include "renderer_core.hpp"  // RendererCore inspection points (src/, target alamo_render_internal)
 #include "alamo/core/host_fs.hpp"
+#include "alamo/render/frame_fade.hpp"
 #include "alamo/render/weather_fx.hpp"
 
 namespace test_render_t {
@@ -309,6 +310,38 @@ void test_ssao_math() {
     // Screen corner uv (0, 0) = top-left = (-x, +y) in view space.
     const Float3 tl = render::ssao_view_position(kp, 0.0f, 0.0f, 0.5f);
     CHECK(tl.x < 0.0f && tl.y > 0.0f);
+}
+
+// #66 FrameEffectAlpha (0x25fb10 / 0x25fb30 / 0x181c50): a request captures the frame it is made in; the next frames
+// draw the capture with alpha 1 - t / 0.25 at t = 0.1, 0.2; at t = 0.3 the fade is over.
+void test_frame_fade() {
+    render::FrameFade f;
+    render::FrameFade::Step s = f.frame();
+    CHECK(s.alpha == 0.0f && !s.capture && !f.active());  // nothing requested
+    f.request();
+    s = f.frame();
+    CHECK(s.capture && s.alpha == 0.0f && f.active() && !f.pending());
+    s = f.frame();
+    CHECK(!s.capture && std::fabs(s.alpha - 0.6f) < 1e-4f);
+    s = f.frame();
+    CHECK(!s.capture && std::fabs(s.alpha - 0.2f) < 1e-4f);
+    s = f.frame();
+    CHECK(!s.capture && s.alpha == 0.0f && !f.active());
+    // a request while a fade runs: that frame's step first, then the capture restarts the fade
+    f.request();
+    (void)f.frame();
+    f.request();
+    s = f.frame();
+    CHECK(s.capture && std::fabs(s.alpha - 0.6f) < 1e-4f);
+    s = f.frame();
+    CHECK(std::fabs(s.alpha - 0.6f) < 1e-4f);
+    // a failed copy (0x181c20 false) does not start the fade
+    f.reset();
+    f.request();
+    s = f.frame();
+    f.capture_failed();
+    s = f.frame();
+    CHECK(s.alpha == 0.0f && !f.active());
 }
 
 // Planet spin (legacy docs/re/SPACE_AND_OPEN.md D.7 4): the planets' _IDLE_00 clip turns bone Hoth +360 deg about local Z over
@@ -1287,6 +1320,7 @@ int main() {
     test_render_scale_extent();
     test_ssao_math();
     test_idle_spin();
+    test_frame_fade();
     test_lod();
     test_lighting();
     test_weather_fx();

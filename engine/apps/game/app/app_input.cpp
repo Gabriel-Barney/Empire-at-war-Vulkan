@@ -1536,8 +1536,12 @@ void App::battle_input() {
         return centroid([&ids](const render::SnapshotObject& o) { return std::binary_search(ids.begin(), ids.end(), o.id); });
     };
     // #462 (docs/re/TACTICAL_HOTKEYS.md slot 76 [H]): no Overview while the battle cam runs.
-    if (cine_.cam.active())
+    if (cine_.cam.active()) {
         std::erase_if(hk, [](const ui::HotkeyEvent& e) { return e.slot == ui::hk::kTacticalOverview; });
+        // #66 (docs/re/FRAME_EFFECTS.md): while the cam runs the mode update leaves the overview with the cross-fade
+        // (0x3bad20 / 0x4d9110 -> 0x2ce9c0(cam, 1) [H]).
+        if (bview_.camera().overview_level() > 0) bview_.camera().set_overview(0);
+    }
     ui::apply_camera_hotkeys(hk, bview_.camera(), focus);
     // #430 (docs/re/TACTICAL_HOTKEYS.md, 0x2cbd00 [H]): the CameraTether key keeps the camera on the object that was
     // first in the selection at the press [M: what the camera does with the target]; the tether ends when it is gone.

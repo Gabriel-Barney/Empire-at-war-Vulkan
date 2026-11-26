@@ -27,6 +27,7 @@
 #include "alamo/render/camera.hpp"
 #include "alamo/render/map_scene.hpp"
 #include "alamo/render/pipelines.hpp"
+#include "alamo/render/frame_fade.hpp"
 #include "alamo/render/png.hpp"
 #include "alamo/render/renderer.hpp"
 #include "alamo/render/world.hpp"
@@ -47,7 +48,7 @@ using Offscreen = render::test::OffscreenColorOnly;  // alamo/render/offscreen.h
 
 bool frame(Gpu& g, render::Renderer& r, Offscreen& o, const render::ViewMatrices& vm, std::span<const render::Instance> inst,
            const render::RecordOptions& ro, render::DrawStats& st, const float (&clear)[4], std::span<const render::Instance> sky = {},
-           float gamma = 1.0f, bool* gamma_ok = nullptr) {
+           float gamma = 1.0f, bool* gamma_ok = nullptr, const render::FrameFade::Step* fade = nullptr, bool* fade_ok = nullptr) {
     rhi::Frame* f = g.ring.begin_frame();
     if (!f) return false;
     VkCommandBuffer cmd = f->cmd();
@@ -60,6 +61,11 @@ bool frame(Gpu& g, render::Renderer& r, Offscreen& o, const render::ViewMatrices
     std::memcpy(pt.clear, clear, sizeof pt.clear);
     pt.color_after = rhi::ImageState::TransferSrc;
     const bool drawn = r.render(*f, cmd, pt, vm, inst, render::DrawMode::Lit, ro, &st, nullptr, sky);
+    if (fade) {  // #66 the game's order: world, frame fade, HUD, gamma
+        const bool fok = r.apply_frame_fade(*f, cmd, o.color.handle, o.color.view, VK_FORMAT_R8G8B8A8_UNORM, {o.w, o.h},
+                                            rhi::ImageState::TransferSrc, rhi::ImageState::TransferSrc, fade->alpha, fade->capture);
+        if (fade_ok) *fade_ok = fok;
+    }
     // The game's order: world, HUD, gamma over the finished frame (the HUD target stays in TransferSrc).
     const bool gok = r.apply_gamma(*f, cmd, o.color.handle, o.color.view, VK_FORMAT_R8G8B8A8_UNORM, {o.w, o.h},
                                    rhi::ImageState::TransferSrc, rhi::ImageState::TransferSrc, gamma);
@@ -317,6 +323,28 @@ int run_gpu(const std::string& src_dir) {
             CHECK(alpha == 255);
             p = mid(1.0f, &gok);  // back to identity: the scratch copy of the last pass leaves no trace
             CHECK(std::abs(p[0] - 64) <= 1);
+            // #66 FrameEffectAlpha: a request captures the frame it is made in (red); the next frames (blue) get the
+            // capture blended over them with alpha 0.6, then 0.2; then the fade is over.
+            render::FrameFade fade;
+            const float red[4] = {1.0f, 0.0f, 0.0f, 1.0f}, blue[4] = {0.0f, 0.0f, 1.0f, 1.0f};
+            auto faded = [&](const float (&c)[4], bool* fok) {
+                const render::FrameFade::Step s = fade.frame();
+                CHECK(frame(g, r, o, v, {}, ro, st, c, {}, 1.0f, nullptr, &s, fok));
+                if (s.capture && !*fok) fade.capture_failed();
+                return o.data() + (static_cast<size_t>(24) * 64 + 32) * 4;
+            };
+            bool fok = false;
+            fade.request();
+            p = faded(red, &fok);  // the capture frame is drawn as is
+            CHECK(fok && p[0] == 255 && p[2] == 0);
+            p = faded(blue, &fok);
+            std::printf("frame fade 0.6: (%d,%d,%d)\n", p[0], p[1], p[2]);
+            CHECK(fok && std::abs(p[0] - 153) <= 2 && std::abs(p[2] - 102) <= 2);
+            p = faded(blue, &fok);
+            std::printf("frame fade 0.2: (%d,%d,%d)\n", p[0], p[1], p[2]);
+            CHECK(fok && std::abs(p[0] - 51) <= 2 && std::abs(p[2] - 204) <= 2);
+            p = faded(blue, &fok);  // t = 0.3 >= 0.25: over
+            CHECK(fok && p[0] == 0 && p[2] == 255 && !fade.active());
             g.ring.wait_idle();
         }
         o.destroy(g);

@@ -226,6 +226,27 @@ add_custom_target(alamo_render_gamma_shaders DEPENDS ${_render_gamma_headers})
 target_sources(alamo_render PRIVATE src/gamma.cpp ${_render_gamma_headers})
 add_dependencies(alamo_render alamo_render_gamma_shaders)
 
+# ---------------------------------------------------------------- #66 FrameEffectAlpha (shaders/frame_fade.hlsl, src/frame_fade_pass.cpp)
+set(_render_fade_headers)
+foreach(spec "frame_fade_vs:VSMain:vs_6_0" "frame_fade_ps:PSMain:ps_6_0")
+  string(REPLACE ":" ";" parts "${spec}")
+  list(GET parts 0 _name)
+  list(GET parts 1 _entry)
+  list(GET parts 2 _profile)
+  set(_hdr ${_render_gen_dir}/${_name}.h)
+  add_custom_command(
+    OUTPUT ${_hdr}
+    COMMAND "${_render_dxc}" -nologo -spirv -fvk-use-dx-layout -fspv-target-env=vulkan1.3 -WX -O3
+            -T ${_profile} -E ${_entry} -Fh ${_hdr} -Vn g_${_name} "${_render_shader_dir}/frame_fade.hlsl"
+    DEPENDS ${_render_shader_dir}/frame_fade.hlsl
+    COMMENT "DXC ${_name} (frame_fade.hlsl ${_entry} ${_profile})"
+    VERBATIM)
+  list(APPEND _render_fade_headers ${_hdr})
+endforeach()
+add_custom_target(alamo_render_fade_shaders DEPENDS ${_render_fade_headers})
+target_sources(alamo_render PRIVATE src/frame_fade_pass.cpp ${_render_fade_headers})
+add_dependencies(alamo_render alamo_render_fade_shaders)
+
 # ---------------------------------------------------------------- [port] SMAA 1x (shaders/smaa_pass.hlsl, src/smaa.cpp)
 # third_party/smaa: the reference SMAA (Jimenez et al., MIT licence, LICENSE.txt), approved by Gabriel 2026-11-13.
 # No -WX: the reference shader is kept unmodified.
