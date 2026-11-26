@@ -136,6 +136,10 @@ bool centre_px(const std::vector<HudHitBox>& hits, const HudCanvas& c, int32_t i
     return false;
 }
 
+bool has_hit(const std::vector<HudHitBox>& hits, int32_t id) {
+    return std::any_of(hits.begin(), hits.end(), [id](const HudHitBox& h) { return h.component == id; });
+}
+
 struct Huds {
     ComponentTable t = table();
     TextureAtlas atlas = hud_test::make_atlas();
@@ -1169,6 +1173,125 @@ void test_land() {
     CHECK(st.production && !st.pad_options && st.build_options == 3);
 }
 
+// ---- #599 the fleet discipline control ----
+
+// The commands the Classic key of `slot` sends (HotkeyDispatcher, fleet groups `on`, `locked` = the selection's groups
+// all locked) for `selection`.
+std::vector<commands::EventData> key_commands(uint16_t slot, bool on, bool locked, std::span<const uint32_t> selection) {
+    HotkeyTable t;
+    HotkeyDispatcher d;
+    d.set_fleet_groups(on, locked);
+    InputState in;
+    InputFrame fr;
+    fr.keys_pressed.set(static_cast<size_t>(t.binding(slot).key));
+    fr.keys_down.set(static_cast<size_t>(t.binding(slot).key));
+    fr.time = 1.0;
+    in.update(fr);
+    std::vector<commands::EventData> cmds;
+    std::vector<HotkeyEvent> evs;
+    d.update(in, t, selection, 1.0, cmds, evs);
+    return cmds;
+}
+
+// The pure rule over every combination: fleet groups on / off, cohesion Loose / Tight, each of two groups locked or not,
+// and selections with no group, one group, both groups, a group and an ungrouped unit.
+void test_discipline_rule() {
+    std::vector<HudFleetGroup> groups(2);
+    groups[0].id = 1;
+    groups[0].members = {10, 11};
+    groups[1].id = 2;
+    groups[1].members = {20};
+    const std::vector<std::vector<uint32_t>> selections = {{}, {30}, {10}, {10, 20}, {11, 30}};
+    uint32_t cases = 0;
+    for (const bool on : {false, true})
+        for (const bool tight : {false, true})
+            for (const bool l0 : {false, true})
+                for (const bool l1 : {false, true})
+                    for (const std::vector<uint32_t>& sel : selections) {
+                        groups[0].locked = l0;
+                        groups[1].locked = l1;
+                        const bool in0 = std::find(sel.begin(), sel.end(), 10u) != sel.end() || std::find(sel.begin(), sel.end(), 11u) != sel.end();
+                        const bool in1 = std::find(sel.begin(), sel.end(), 20u) != sel.end();
+                        const bool any = on && (in0 || in1);
+                        const bool all = any && (!in0 || l0) && (!in1 || l1);
+                        const FleetDisciplineStep s = fleet_discipline(on, groups, sel, tight);
+                        const FleetDiscipline shown = all ? FleetDiscipline::Locked : tight ? FleetDiscipline::Tight : FleetDiscipline::Loose;
+                        CHECK(s.shown == shown && s.lock_available == any && s.selection_locked == all);
+                        if (shown == FleetDiscipline::Loose) CHECK(s.next == FleetDiscipline::Tight && !s.lock && s.cohesion == true);
+                        if (shown == FleetDiscipline::Tight && any) CHECK(s.next == FleetDiscipline::Locked && s.lock == true && !s.cohesion);
+                        if (shown == FleetDiscipline::Tight && !any) CHECK(s.next == FleetDiscipline::Loose && !s.lock && s.cohesion == false);
+                        if (shown == FleetDiscipline::Locked) CHECK(s.next == FleetDiscipline::Loose && s.lock == false && s.cohesion == false);
+                        ++cases;
+                    }
+    CHECK(cases == 80);
+    // Spot checks: a mixed selection (one locked group, one free) is not Locked; fleet groups off never is.
+    groups[0].locked = true;
+    groups[1].locked = false;
+    const std::vector<uint32_t> mixed{10, 20};
+    CHECK(fleet_discipline(true, groups, mixed, true).shown == FleetDiscipline::Tight && fleet_discipline(true, groups, mixed, true).lock == true);
+    groups[1].locked = true;
+    CHECK(fleet_discipline(true, groups, mixed, false).shown == FleetDiscipline::Locked &&
+          fleet_discipline(false, groups, mixed, false).shown == FleetDiscipline::Loose);
+}
+
+// The control in the deck: shown in space only, 2 steps with fleet groups off and 3 on, New group and Lock only on; each
+// click is the Classic key's order (O's cohesion as the FleetCohesion action, Y's SetLock, N's Create).
+void test_discipline_control() {
+    Huds h;
+    Selection s;
+    TacticalHudFrame f = frame();
+    f.world.local_player = 0;
+    std::vector<HudFleetGroup> groups(1);
+    groups[0].id = 1;
+    groups[0].members = {20, 21};
+    f.fleet_groups = groups;
+    // Land (no cohesion feed): no control.
+    h.modern.build(f, s.units, s.types);
+    const ModernHudStats& st = h.modern.stats();
+    CHECK(!st.discipline_drawn && st.discipline_lights == 0 && st.fleet_buttons == 0);
+    f.cohesion_text = U"Fleet cohesion: Loose (O)";
+    h.modern.build(f, s.units, s.types);
+    CHECK(st.discipline_drawn && st.discipline_lights == 2 && st.discipline == FleetDiscipline::Loose && st.fleet_buttons == 0 &&
+          has_hit(h.modern.hit_boxes(), kModernDisciplineHit) && !has_hit(h.modern.hit_boxes(), kModernLockHit));
+    auto click = [&](int32_t id) {
+        std::pair<std::vector<commands::EventData>, std::vector<HudAction>> o;
+        h.modern.update_input(click_on(id), false, false, o.first, &o.second);
+        return o;
+    };
+    // Loose -> Tight: the cohesion (the O key toggles the same preference).
+    auto [c0, a0] = click(kModernDisciplineHit);
+    CHECK(c0.empty() && a0.size() == 1 && a0[0].kind == HudAction::Kind::FleetCohesion && a0[0].value == 1);
+    // Tight with fleet groups off -> Loose.
+    f.cohesion_tight = true;
+    h.modern.build(f, s.units, s.types);
+    auto [c1, a1] = click(kModernDisciplineHit);
+    CHECK(st.discipline == FleetDiscipline::Tight && c1.empty() && a1.size() == 1 && a1[0].value == 0);
+    // Fleet groups on: 3 steps and the buttons; Tight -> Locked = Y's SetLock(true).
+    f.fleet_groups_on = true;
+    h.modern.build(f, s.units, s.types);
+    CHECK(st.discipline_lights == 3 && st.fleet_buttons == 2 && st.discipline == FleetDiscipline::Tight);
+    const std::vector<uint32_t> sel = {20, 21, 22};
+    auto [c2, a2] = click(kModernDisciplineHit);
+    CHECK(a2.empty() && c2 == key_commands(hk::kFleetLock, true, false, sel) && c2.size() == 1 && c2[0] == fleet_lock_event(true));
+    // The Lock and New group buttons = Y and N.
+    CHECK(click(kModernLockHit).first == key_commands(hk::kFleetLock, true, false, sel));
+    CHECK(click(kModernNewGroupHit).first == key_commands(hk::kFleetCreate, true, false, sel));
+    // Locked -> Loose: SetLock(false) and the cohesion Loose, in two orders; Lock now unlocks (Y on a locked selection).
+    groups[0].locked = true;
+    h.modern.build(f, s.units, s.types);
+    CHECK(st.discipline == FleetDiscipline::Locked);
+    auto [c3, a3] = click(kModernDisciplineHit);
+    CHECK(c3.size() == 1 && c3[0] == fleet_lock_event(false) && a3.size() == 1 && a3[0].kind == HudAction::Kind::FleetCohesion && a3[0].value == 0);
+    CHECK(click(kModernLockHit).first == key_commands(hk::kFleetLock, true, true, sel));
+    // Hovered: the one-line-per-step hint.
+    RoutedInput hover;
+    hover.hover_component = kModernDisciplineHit;
+    std::vector<commands::EventData> none;
+    h.modern.update_input(hover, false, false, none);
+    h.modern.build(f, s.units, s.types);
+    CHECK(st.discipline_hint);
+}
+
 // ---- #593 the galactic map ----
 
 const char* kGalacticXml = R"(<?xml version="1.0"?>
@@ -1305,10 +1428,6 @@ struct GalacticHuds {
         return o;
     }
 };
-
-bool has_hit(const std::vector<HudHitBox>& hits, int32_t id) {
-    return std::any_of(hits.begin(), hits.end(), [id](const HudHitBox& h) { return h.component == id; });
-}
 
 // What the host reads from a galactic action (component and name differ between the styles for the Modern-only tiles;
 // a Button action's name is its meaning, so it must match).
@@ -1504,6 +1623,8 @@ int main() {
     test_land();
     test_hotkey();
     test_world_split();
+    test_discipline_rule();
+    test_discipline_control();
     test_galactic_view();
     test_galactic_parity();
     test_galactic_switch();

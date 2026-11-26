@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <array>
 #include <functional>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -85,6 +86,25 @@ struct HudFleetTabState {
 HudFleetTabState fleet_tab_state(std::span<const HudFleetGroup> fleets, std::span<const size_t> selected, uint16_t id);
 // A tab's left click: Select of its members; with Shift added to `selection` (at most 127).
 std::vector<uint32_t> fleet_tab_select_ids(std::span<const uint32_t> members, std::span<const uint32_t> selection, bool shift);
+// [port: Gabriel] #599 (#596) fleet discipline: the player's fleet cohesion (per player) and the lock of the selection's
+// fleet groups (per group) shown as one cycle for the selection, Loose -> Tight -> Locked, through the existing orders.
+// Shown: Locked when fleet groups are on, the selection holds members of a group and every such group is locked; else
+// Tight when the cohesion is Tight; else Loose. Next: Loose -> Tight sets cohesion Tight; Tight -> Locked locks the
+// groups with selected members (SetLock true), or with no such group / fleet groups off Tight -> Loose sets cohesion
+// Loose; Locked -> Loose unlocks them (SetLock false) and sets cohesion Loose, in two orders. Ungrouped selected units
+// are not touched by the lock. `selection` = the selected own unit ids (any order).
+enum class FleetDiscipline : uint8_t { Loose, Tight, Locked };
+struct FleetDisciplineStep {
+    FleetDiscipline shown = FleetDiscipline::Loose, next = FleetDiscipline::Tight;
+    bool lock_available = false;    // fleet groups on and a group with selected members: Locked is a step
+    bool selection_locked = false;  // ... and every such group is locked (the Lock key's SetLock(!selection_locked))
+    std::optional<bool> lock;       // the next step's SetLock (true = lock), none = no lock order
+    std::optional<bool> cohesion;   // the next step's cohesion (true = Tight), none = no cohesion change
+};
+FleetDisciplineStep fleet_discipline(bool fleet_groups_on, std::span<const HudFleetGroup> groups, std::span<const uint32_t> selection,
+                                     bool tight);
+// The fleet group SetLock order of the selection's groups (the Lock key Y, commands/fleet_group.hpp).
+commands::EventData fleet_lock_event(bool locked);
 // The "+N" fold both selection bars use (#585): with more entries than `slots`, the entries from the last slot on become
 // one overflow entry (every unit not shown, ascending; health -1).
 void fold_selection_overflow(std::vector<SelectedGroup>& groups, size_t slots);
@@ -210,6 +230,9 @@ struct HudAction {
         // [port: Gabriel] appended 2026-11-25 (#584, docs/DECISIONS.md "Modern HUD: exception to the current focus"): the
         // HUD style switch drawn on the Modern HUD was clicked. Host: switch Classic <-> Modern (presentation only).
         HudStyleToggle,
+        // [port: Gabriel] appended 2026-11-25 (#599): the Modern fleet discipline control's cohesion step: value = 1 Tight,
+        // 0 Loose. Host: GameSession::set_fleet_cohesion (the O key's toggle sets the same preference).
+        FleetCohesion,
     };
     Kind kind = Kind::Button;
     int32_t component = -1;
@@ -362,6 +385,7 @@ struct TacticalHudFrame {
     // Text_Tactical_Tech ("Tech: 3", TEXT_TECH), Text_Planetary_Pop ("13/20"; Text_Pop_Cap without it); empty / < 0 = blank.
     std::u32string planet_name;
     std::u32string cohesion_text;  // [port: Gabriel 2026-11-13] fleet cohesion line above the planet name ("" = none)
+    bool cohesion_tight = false;   // #599 the local player's fleet cohesion is Tight (with cohesion_text: a space battle)
     int32_t tech = -1, pop = -1, pop_cap = -1;
     // FIXPASS_GALACTIC §4.2 bottom-left advisor frame (i_main_skirmish = i_tactical_controls.alo bones: Movie_tactical
     // (50, 288), b_droid_help_tactical (19, 255), Text_tactical_help (65, 309), Text_Planet_tactical (179, 239); the
