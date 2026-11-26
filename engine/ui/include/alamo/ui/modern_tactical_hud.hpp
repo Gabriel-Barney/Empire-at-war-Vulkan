@@ -254,8 +254,12 @@ private:
     // #588 per drawn group tab (Classic's tab ids: kFleetTabHitBase / kFleetMergeHitBase / kFleetSplitHitBase + index).
     std::vector<std::vector<uint32_t>> fleet_tab_ids_;
     std::vector<std::pair<uint16_t, std::string>> fleet_tab_group_;  // the group id and name (UTF-8), for Rename
-    void build_fleet_tabs(const TacticalHudFrame& f, std::span<const HudUnit> units, float card_w, float card_h, float gap,
-                          Vec2f first_card, float tab_h);
+    struct CardRow {  // the selection cards' geometry
+        Vec2f first{};    // the first card's centre
+        Vec2f card{};     // a card's size
+        float gap = 0.0f, right = 0.0f;  // between cards; the section's right edge
+    };
+    void build_fleet_tabs(const TacticalHudFrame& f, std::span<const HudUnit> units, const CardRow& row, float tab_h);
     uint32_t builder_ = commands::kNoObject, station_ = commands::kNoObject;
     std::vector<SelectedGroup> groups_;
     std::vector<std::vector<uint32_t>> wing_ids_;  // per TacticalHudFrame::wings entry (empty: not drawn), as Classic's

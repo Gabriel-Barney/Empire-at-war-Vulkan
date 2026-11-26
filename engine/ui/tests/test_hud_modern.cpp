@@ -980,6 +980,25 @@ void test_fleet_tabs() {
         emitted = mc.size() + ma.size();
         CHECK(emitted == 1);
     }
+    // A one-card run with a name and both buttons, followed by another run: its Merge and Split stay the topmost hit at
+    // their centres (a layer over the tabs, the tab clamped to its room).
+    {
+        std::vector<HudFleetGroup> fl(2);
+        fl[0].id = 1;
+        fl[0].name = U"A very long group name for the first run";
+        fl[0].members = {20, 50};  // partly selected: Split; the oldest of two: Merge
+        fl[1].id = 2;
+        fl[1].members = {21, 22};
+        std::vector<HudUnit> us = s.units;
+        TacticalHudFrame g = f;
+        g.fleet_groups = fl;
+        h.modern.build(g, us, s.types);
+        CHECK(st.fleet_merge == 1 && st.fleet_split == 1);
+        for (const int32_t id : {kFleetMergeHitBase, kFleetSplitHitBase}) {
+            int32_t px = 0, py = 0;
+            CHECK(centre_px(h.modern.hit_boxes(), h.modern.canvas(), id, px, py) && h.modern.hit_test(px, py) == id);
+        }
+    }
     // Fleet groups off: no tabs.
     f.fleet_groups_on = false;
     h.build(f, s.units, s.types);

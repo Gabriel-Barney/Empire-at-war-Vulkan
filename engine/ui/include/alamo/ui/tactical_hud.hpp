@@ -667,6 +667,10 @@ void ability_button_click(const HudAbilityButton& a, int32_t component, const st
 // a queue entry's left click -> TacticalCancel; a buyable option's left click -> TacticalBuy at `builder`; an available
 // reinforcement entry's left click -> BeginReinforcement.
 HudAction tactical_cancel_action(int32_t component, const std::string& name, const HudQueueEntry& e);
+// #588 a fleet tab's right click: HudAction::FleetGroupRename of group `id` (`name` UTF-8); Merge / Split: the fleet
+// group command (Merge; Split = Create of the synced selection).
+HudAction fleet_rename_action(int32_t component, uint16_t id, const std::string& name);
+commands::EventData fleet_button_event(bool merge);
 HudAction tactical_buy_action(int32_t component, const std::string& name, uint32_t builder, const HudBuildOption& o, bool shift,
                               bool ctrl);
 HudAction begin_reinforcement_action(int32_t component, const std::string& name, const HudReinforcement& r);

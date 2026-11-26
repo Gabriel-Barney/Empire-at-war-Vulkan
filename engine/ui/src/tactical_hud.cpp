@@ -423,6 +423,21 @@ std::vector<uint32_t> fleet_tab_select_ids(std::span<const uint32_t> members, st
     return capped(std::move(ids));
 }
 
+HudAction fleet_rename_action(int32_t component, uint16_t id, const std::string& name) {
+    HudAction h;
+    h.kind = HudAction::Kind::FleetGroupRename;
+    h.component = component;
+    h.value = id;
+    h.name = name;
+    return h;
+}
+
+commands::EventData fleet_button_event(bool merge) {
+    commands::FleetGroupCommand c;
+    c.op = merge ? commands::FleetGroupOp::Merge : commands::FleetGroupOp::Create;
+    return commands::fleet_group_event(c);
+}
+
 HudAction tactical_cancel_action(int32_t component, const std::string& name, const HudQueueEntry& e) {
     HudAction h;
     h.kind = HudAction::Kind::TacticalCancel;
@@ -525,25 +540,14 @@ void TacticalHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
     for (const HudPointerEvent& e : routed.hud) {
         if (e.kind != HudPointerEvent::Kind::Click || e.button != Button::Left) continue;
         // #177: Merge / Split act on the synced selection (the sim's), as the N / U / Y hotkeys do.
-        commands::FleetGroupCommand c;
-        if (in_range(e.component, kFleetMergeHitBase)) {
-            c.op = commands::FleetGroupOp::Merge;
-            out.push_back(commands::fleet_group_event(c));
-        } else if (in_range(e.component, kFleetSplitHitBase)) {
-            c.op = commands::FleetGroupOp::Create;
-            out.push_back(commands::fleet_group_event(c));
-        }
+        if (in_range(e.component, kFleetMergeHitBase)) out.push_back(fleet_button_event(true));
+        else if (in_range(e.component, kFleetSplitHitBase)) out.push_back(fleet_button_event(false));
     }
     for (const HudPointerEvent& e : routed.hud) {
         if (e.kind != HudPointerEvent::Kind::Click || !in_range(e.component, kFleetTabHitBase)) continue;
         if (e.button == Button::Right) {
             const auto& [gid, gname] = fleet_tab_group_[static_cast<size_t>(e.component - kFleetTabHitBase)];
-            HudAction h;
-            h.kind = HudAction::Kind::FleetGroupRename;
-            h.component = e.component;
-            h.value = gid;
-            h.name = gname;
-            act(std::move(h));
+            act(fleet_rename_action(e.component, gid, gname));
             continue;
         }
         if (e.button != Button::Left) continue;
