@@ -1214,8 +1214,16 @@ void FrontEnd::show_game_option_values(GuiDialog& d) const {
 
 // ui1 t07 [port] (legacy docs/re/UI.md 9.6.1: the map's start positions cap IDC_PLAYER_TEAM_n; the original's slot name rows are not
 // recovered): one row per player the selected map takes (2..8). Slot 0 is the local player, slot 1 an AI, slots 2.. a
-// "Closed" / "AI" choice (Closed first, so the default game stays one against one); teams 1..N (slot 0 team 1, the
-// others team 2). The skirmish sim takes two players: the host starts slots 0 and 1 only.
+// "Closed" / "AI" choice (Closed first, so the default game stays one against one); teams 1..N. #435
+// (docs/re/SKIRMISH_DEFAULT_TEAMS.md [H]): slot 0 team 1, slot 1 team 2 (the local team XOR 1), every later slot team 1
+// (a new slot record's team is 0 and opening the slot does not set it).
+// #435 (docs/re/SKIRMISH_DEFAULT_TEAMS.md [H]): the team row a slot opens on. The staging setup 0xf1230 gives the local
+// record team 0 and the AI record team 0 XOR 1 (0 when there is only one team); a slot opened later gets a fresh record
+// (0x2c1f0: team 0) whose team the open handler 0xf2690 leaves alone.
+namespace {
+int32_t skirmish_default_team(int32_t slot) { return slot == 1 ? 1 : 0; }
+}  // namespace
+
 void FrontEnd::fill_skirmish_slots(GuiDialog& d) {
     const GuiControl* list = d.get("IDC_STAGING_MAP_LIST");
     const SkirmishMapInfo* m = list && list->selected >= 0 && static_cast<size_t>(list->selected) < map_view_.size()
@@ -1253,7 +1261,7 @@ void FrontEnd::fill_skirmish_slots(GuiDialog& d) {
         d.set_items(id, skirmish_factions_, fsel);
         std::snprintf(id, sizeof id, "IDC_PLAYER_TEAM_%d", p);
         const GuiControl* tc = d.get(id);
-        const int32_t tsel = tc && tc->selected >= 0 && tc->items.size() == teams.size() ? tc->selected : (p == 0 ? 0 : 1);
+        const int32_t tsel = tc && tc->selected >= 0 && tc->items.size() == teams.size() ? tc->selected : skirmish_default_team(p);
         d.set_items(id, teams, tsel);
     }
     fill_skirmish_colours(d);
@@ -2168,7 +2176,7 @@ void FrontEnd::on_click(const GuiEvent& e, std::vector<MenuAction>& out) {
                     a.factions.push_back(fi < p_.skirmish_factions.size() ? p_.skirmish_factions[fi].name : std::string());
                     std::snprintf(id, sizeof id, "IDC_PLAYER_TEAM_%d", p);
                     const GuiControl* t = d->get(id);
-                    a.teams.push_back(t && t->selected >= 0 ? t->selected + 1 : (p == 0 ? 1 : 2));
+                    a.teams.push_back((t && t->selected >= 0 ? t->selected : skirmish_default_team(p)) + 1);
                 }
                 out.push_back(std::move(a));
             }
