@@ -3222,7 +3222,7 @@ private:
     std::vector<SkIncome> sk_income_;
     const IncomeStreamDef& sk_income_of(uint32_t type);
     // #574: per-type Bounty_On_Faction_Ability data (parsed on first use, by type), and the kill bounty
-    // (tactical_battle_skirmish.cpp; 0x392600's tactical branch [H]) of a dying battle unit `victim` whose killer is
+    // (tactical_battle_bounty.cpp; 0x392600's tactical branch [H]) of a dying battle unit `victim` whose killer is
     // `killer`'s (-1: none), called by process_death while the victim is still in the store.
     struct BountyDefs {
         bool parsed = false;

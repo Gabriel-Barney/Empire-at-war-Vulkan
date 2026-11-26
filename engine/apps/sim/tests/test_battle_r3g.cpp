@@ -932,9 +932,6 @@ void test_income_streams() {
 // S10_Trooper gets Override_Bounty_SP 10 and three Bounty_On_Faction abilities aimed at the Empire: 1.5 and 0.5 in
 // category 1 (the largest counts: 1.5), 0.25 in category 2 (summed: f = 1.75). Both sides field troopers (the Empire's
 // defenders, player 0; the Underworld's invading squad, player 1).
-// ledger: verifies Bounty_On_Faction_Ability.Bounty_Percentage_Amount
-// ledger: verifies Bounty_On_Faction_Ability.Stacking_Category
-// ledger: verifies Bounty_On_Faction_Ability.Target_Faction_Names
 std::string bounty_patch(std::string t) {
     const std::string at = "<GroundInfantry Name=\"S10_Trooper\">";
     if (const size_t p = t.find(at); p != std::string::npos)
@@ -955,6 +952,9 @@ std::string bounty_patch(std::string t) {
 // parse; then a land battle: the Underworld (1) crushes an Empire (0) trooper and is paid round(1.75 x 10) = 18 (17.5,
 // half away from zero), nobody else; the Empire crushes an Underworld trooper and nobody is paid (no Empire-held ability
 // names the Underworld).
+// ledger: verifies Bounty_On_Faction_Ability.Bounty_Percentage_Amount
+// ledger: verifies Bounty_On_Faction_Ability.Stacking_Category
+// ledger: verifies Bounty_On_Faction_Ability.Target_Faction_Names
 void test_tactical_bounty() {
     const BountyEntry none[] = {{1, 0.0f}};
     const BountyEntry mixed[] = {{2, 0.25f}, {1, 1.5f}, {1, 0.5f}, {3, -0.5f}};

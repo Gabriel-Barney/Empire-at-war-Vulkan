@@ -70,6 +70,7 @@ if(TARGET alamo_objects AND TARGET alamo_commands AND TARGET alamo_tactical AND 
       sim/src/tactical_battle_pads.cpp       # Int-final: build pads (L1_S4_REMAINING §3.6)
       sim/src/tactical_battle_bt.cpp         # battle host: BT setup / transition rules, pad units
       sim/src/tactical_battle_skirmish.cpp   # skai: skirmish map battles (income)
+      sim/src/tactical_battle_bounty.cpp     # #574: the tactical kill bounty (Bounty_On_Faction_Ability)
       sim/src/tactical_battle_victory.cpp    # the tactical victory monitor (BT §3.1a)
       sim/src/tactical_battle_story_rewards.cpp  # DISABLE_REINFORCEMENTS / CHANGE_OWNER / DESTROY_OBJECT / BOMBARD_DELAY
       sim/src/tactical_battle_oi_abilities.cpp  # OI abilities: ability host side (owner: abilities agent)
