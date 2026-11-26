@@ -511,6 +511,10 @@ void SimHost::scoring_deliver_events() {
                 scoring_call("Galactic_Production_Begin_Event", {arg_object(planet_object(e.planet)), arg_type(e.type)});
                 break;
             case K::ProductionCanceled:
+                // #325 [H]: every ProductionCanceled, voiced or silent. The Lua event comes from the planet signal 3
+                // (listener 0x486970 case 3), which the queue wipes raise as well as the cancels: the whole-queue wipe
+                // 0x403490 (owner change 0x3fb040, battle end 0x2bff60), the service's drops (0x402840) and the
+                // re-evaluation (0x402490 / 0x402660). Only the voice line is limited to the cancels (cancel_voiced).
                 scoring_call("Galactic_Production_Canceled_Event", {arg_object(planet_object(e.planet)), arg_type(e.type)});
                 break;
             case K::ProductionCompleted: {

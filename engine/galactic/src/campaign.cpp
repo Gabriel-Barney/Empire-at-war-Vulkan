@@ -1049,7 +1049,8 @@ RejectReason GalacticSim::cancel(int32_t player, PlanetIndex planet, uint32_t qu
     if (refund)  // through Add_Credits with notify: AI refunds get Credit_Multiplier again (quirk) [H]
         add_credits(e.player, econ::refund_amount(pays_as_you_go(e.player), e.remaining, e.build_time, e.cost), true);
     if (index == 0 && !qv.empty()) restart_head(qv[0]);
-    // #67 t04: a queue cancel (0x403770 / 0x403900: the command, the AI, the production sabotage) voices the line
+    // #67 t04: a queue cancel (0x403770 / 0x403900 / 0x4035d0: the command, the AI, the production and ground-base
+    // sabotages) voices the line
     emit_cancel(planet, queue, e, refund, true);
     return RejectReason::None;
 }
