@@ -102,7 +102,7 @@ struct VideoProfile {
     // [port: Gabriel] (#584, docs/DECISIONS.md "Modern HUD: exception to the current focus") the player's HUD style, key
     // "hud_style=classic|modern" (ui::hud_style_name); missing or unknown: Classic.
     ui::HudStyle hud_style = ui::HudStyle::Classic;
-    // [port: Gabriel] (#590) the Modern options: keys hud_text_scale (percent), hud_colours (ui::hud_colours_name),
+    // [port: Gabriel] (#590, docs/DECISIONS.md "Modern HUD: exception to the current focus") the Modern options: keys hud_text_scale (percent), hud_colours (ui::hud_colours_name),
     // hud_key_hints, hud_order_labels, hud_map_side (left|right), hud_panel_opacity (percent), hud_contextual; clamped,
     // a missing or unknown value keeps the default.
     ui::ModernHudOptions modern_hud;

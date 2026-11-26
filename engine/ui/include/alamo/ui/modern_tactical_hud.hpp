@@ -149,14 +149,14 @@ private:
     float text_height_units() const;
     Rgba8 accent(uint8_t alpha) const;
     Rgba8 hull_colour(float health) const;
-    struct Colours {  // set_options: the chosen palette (defaults: the Faction look at 80 % opacity)
+    struct Palette {  // set_options: the chosen colours (HudColours) at the panel opacity
         Rgba8 back{10, 14, 22, 204}, button{24, 32, 46, 234}, text{236, 240, 244, 255}, label{170, 182, 198, 255};
         Rgba8 disabled{120, 128, 140, 255}, shield{90, 190, 255, 255};
         Rgba8 hull_ok{96, 210, 110, 255}, hull_warn{236, 188, 60, 255}, hull_bad{230, 70, 60, 255};
         Rgba8 accent{};
         bool faction_accent = true;  // the local faction's colour (kAccent) instead of `accent`
     };
-    Colours colours_;
+    Palette colours_;
     ModernHudOptions options_;
     void build_status(const TacticalHudFrame& f);
     void build_controls(const TacticalHudFrame& f);
@@ -164,7 +164,7 @@ private:
     void build_selection(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types,
                          Vec2f top_left, float width, float height);
     float build_orders(const TacticalHudFrame& f, Vec2f top_right, float height);  // returns the width used
-    void key_badge(uint16_t slot, Vec2f top_right, uint32_t layer);
+    void key_badge(uint16_t slot, Vec2f top_right, uint32_t layer, bool always = false);  // always: even with key hints off
     std::vector<uint32_t> selection_ids() const;
     void build_pause(const TacticalHudFrame& f);
     void build_alerts(const TacticalHudFrame& f);

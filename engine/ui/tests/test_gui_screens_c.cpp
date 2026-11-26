@@ -956,10 +956,21 @@ void test_controls() {
               d->get("IDC_EDIT_PORT_HUD_STYLE")->text == U"F9" && d->get("IDC_EDIT_PORT_ALERT_JUMP")->text == U"F4");
         CHECK(d && d->get("IDC_PORT_HUD_UI_SCALE")->items.size() == std::size(kUiScaleChoices));
         CHECK(d && !d->get("IDC_PORT_HUD_TEXT_SIZE")->enabled && !d->get("IDC_PORT_HUD_CONTEXTUAL")->enabled);  // Classic: greyed
+        // The map side (#591) and the contextual deck (#587) stay hidden until the HUD uses them.
+        CHECK(d && !d->get("IDC_PORT_HUD_MAP_SIDE")->visible && !d->get("IDC_PORT_HUD_CONTEXTUAL")->visible &&
+              d->get("IDC_PORT_HUD_KEY_HINTS")->visible);
         // Picking Modern enables the rows; the slider's label follows it.
         d->set_selected("IDC_PORT_HUD_STYLE", 1);
         fe.update(std::vector<GuiEvent>{event(GuiEvent::Kind::SelectionChanged, kPortHudDialog, "IDC_PORT_HUD_STYLE", 1)}, InputFrame{}, acts);
-        CHECK(d->get("IDC_PORT_HUD_TEXT_SIZE")->enabled && d->get("IDC_PORT_HUD_CONTEXTUAL")->enabled);
+        CHECK(d->get("IDC_PORT_HUD_TEXT_SIZE")->enabled && d->get("IDC_PORT_HUD_CONTEXTUAL")->enabled &&
+              d->get("IDC_PORT_HUD_OPACITY_SLIDER")->enabled);
+        // High contrast has near-opaque panels: the opacity slider is greyed while it is chosen.
+        d->set_selected("IDC_PORT_HUD_COLOURS", 2);
+        fe.update(std::vector<GuiEvent>{event(GuiEvent::Kind::SelectionChanged, kPortHudDialog, "IDC_PORT_HUD_COLOURS", 2)}, InputFrame{}, acts);
+        CHECK(!d->get("IDC_PORT_HUD_OPACITY_SLIDER")->enabled && d->get("IDC_PORT_HUD_TEXT_SIZE")->enabled);
+        d->set_selected("IDC_PORT_HUD_COLOURS", 1);
+        fe.update(std::vector<GuiEvent>{event(GuiEvent::Kind::SelectionChanged, kPortHudDialog, "IDC_PORT_HUD_COLOURS", 1)}, InputFrame{}, acts);
+        CHECK(d->get("IDC_PORT_HUD_OPACITY_SLIDER")->enabled);
         d->set_value("IDC_PORT_HUD_OPACITY_SLIDER", 90);
         fe.update(std::vector<GuiEvent>{event(GuiEvent::Kind::ValueChanged, kPortHudDialog, "IDC_PORT_HUD_OPACITY_SLIDER", 90)}, InputFrame{}, acts);
         CHECK(d->get("IDC_PORT_HUD_OPACITY_VALUE")->text == U"90 %");
@@ -982,6 +993,18 @@ void test_controls() {
         }
         CHECK(keys.binding(hk::kAlertJump).key == 0x76 && keys.binding(hk::kPause).key != 0x77);
         CHECK(fe.top() == kPortControlsDialog);  // back to the page it was opened from
+        // A stored text size between rows (118 %) is kept while its row is untouched; Defaults then Accept gives 115 %.
+        hs.modern.text_scale = 118;
+        fe.update(std::vector<GuiEvent>{event(GuiEvent::Kind::Clicked, kPortControlsDialog, "IDC_PORT_OPEN_HUD")}, InputFrame{}, acts);
+        acts.clear();
+        fe.update(std::vector<GuiEvent>{event(GuiEvent::Kind::Clicked, kPortHudDialog, "IDC_BUTTON_ACCEPT")}, InputFrame{}, acts);
+        CHECK(!acts.empty() && acts[0].kind == MenuAction::Kind::ApplyHud && acts[0].hud.modern.text_scale == 118);
+        fe.update(std::vector<GuiEvent>{event(GuiEvent::Kind::Clicked, kPortControlsDialog, "IDC_PORT_OPEN_HUD")}, InputFrame{}, acts);
+        fe.update(std::vector<GuiEvent>{event(GuiEvent::Kind::Clicked, kPortHudDialog, "IDC_DEFAULTS_BUTTON")}, InputFrame{}, acts);
+        acts.clear();
+        fe.update(std::vector<GuiEvent>{event(GuiEvent::Kind::Clicked, kPortHudDialog, "IDC_BUTTON_ACCEPT")}, InputFrame{}, acts);
+        CHECK(!acts.empty() && acts[0].kind == MenuAction::Kind::ApplyHud && acts[0].hud.modern.text_scale == kModernTextScaleDefaultPct &&
+              acts[0].hud.style == HudStyle::Classic);
     }
     // the mod picker. The port's main-menu Mods button (shown only with a mods provider), the rows (the active one
     // marked and selected first), a selection asks the host for the row's report (CheckMod), the report arriving enables

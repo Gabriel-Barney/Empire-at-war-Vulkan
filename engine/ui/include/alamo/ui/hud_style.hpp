@@ -23,6 +23,7 @@ std::string_view hud_colours_name(HudColours c);
 std::optional<HudColours> parse_hud_colours(std::string_view s);
 
 // Modern text size choices in percent (the Interface page's list; 115 = 18 px body text at 1080p).
+inline constexpr size_t kHudColoursCount = 3;  // HudColours' values, 0 ..
 inline constexpr int32_t kModernTextScaleChoices[] = {100, 115, 125, 150, 175, 200};
 inline constexpr int32_t kModernTextScaleMinPct = 100, kModernTextScaleMaxPct = 200, kModernTextScaleDefaultPct = 115;
 inline constexpr int32_t kModernOpacityMin = 40, kModernOpacityMax = 100;  // panel opacity, percent

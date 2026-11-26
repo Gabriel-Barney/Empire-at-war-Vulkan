@@ -1694,8 +1694,7 @@ void App::handle_menu_actions(const std::vector<ui::MenuAction>& acts) {
                     std::printf("video: UI scale %d %%\n", ui_scale_);
                 }
                 if (live_input()) video_profile_.ui_scale = ui_scale_;
-                ui_.modern_hud.set_options(video_profile_.modern_hud);
-                save_video_options();
+                save_video_options();  // build_tactical_hud hands the options to the Modern HUD
                 break;
             }
             case K::KeybindingsChanged:  // the keyboard dialogs edited ui_.hotkeys; bindings follow, kept between runs

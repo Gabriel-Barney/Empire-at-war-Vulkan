@@ -513,6 +513,10 @@ void test_options() {
     h.modern.set_options(o);
     h.modern.build(f, s.units, s.types);
     CHECK(h.modern.stats().orders == 6 && h.modern.stats().key_badges == badges && h.modern.draw_list().total() < quads);
+    o.key_hints = false;  // both off: the order buttons keep their badges (else they would name nothing)
+    h.modern.set_options(o);
+    h.modern.build(f, s.units, s.types);
+    CHECK(h.modern.stats().key_badges == 6);
     // Colours: colour-blind safe draws the Okabe-Ito blue accent, high contrast the yellow one; the faction look neither.
     o = {};
     h.modern.set_options(o);
@@ -546,7 +550,9 @@ void test_options() {
     o.text_scale = 900;
     h.modern.set_options(o);
     CHECK(h.modern.options().text_scale == kModernTextScaleMaxPct && h.modern.text_scale() == kModernTextScaleMax);
-    // 200 % text, at 1080p and at 720p with a 200 % UI scale: every hit box on the screen.
+    // The smallest text size keeps every label at the design minimum (#520: 14 px at 1080p); all Modern text uses font().
+    CHECK(font_pixel_height_int(kModernTextPx * kModernTextScaleMin * 450.0f / 1080.0f, 1080) >= 14);
+    // 200 % text, at 1080p and at 720p with a 200 % UI scale: every hit box and every glyph on the screen.
     std::vector<HudAlert> alerts(3);
     for (HudAlert& a : alerts) a.text = U"Base under attack at the northern landing pad";
     f.alerts = alerts;
@@ -566,6 +572,13 @@ void test_options() {
                             static_cast<double>(lo.y), static_cast<double>(hi.x), static_cast<double>(hi.y));
             CHECK(inside);
         }
+        size_t glyphs = 0, off = 0;
+        for (uint32_t layer = 0; layer < kHudLayers; ++layer)
+            for (const HudQuad& q : h.modern.draw_list().items(layer, HudList::Text)) {
+                ++glyphs;
+                if (q.min.x < lo.x - 0.5f || q.min.y < lo.y - 0.5f || q.max.x > hi.x + 0.5f || q.max.y > hi.y + 0.5f) ++off;
+            }
+        CHECK(glyphs > 0 && off == 0);
     }
 }
 

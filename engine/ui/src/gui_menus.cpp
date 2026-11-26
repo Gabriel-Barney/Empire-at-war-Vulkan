@@ -115,6 +115,7 @@ constexpr const char* kDifficultyKeys[3] = {"TEXT_DIFFICULTY_EASY_NAME", "TEXT_D
 
 bool is_port_controls(std::string_view dialog) { return ascii_iequals(dialog, kPortControlsDialog); }
 bool is_port_hud(std::string_view dialog) { return ascii_iequals(dialog, kPortHudDialog); }
+constexpr uint16_t kHudPageSlots[] = {hk::kHudStyle, hk::kAlertJump};  // the Interface page's own keys
 // The port's own key pages (capture, Backspace / Delete unbind): the camera and controls page and the Interface page.
 bool is_port_keys(std::string_view dialog) { return is_port_controls(dialog) || is_port_hud(dialog); }
 
@@ -306,10 +307,10 @@ BEGIN
     RTEXT           "Panel Opacity",IDC_STATIC,16,258,200,18
     CONTROL         "",IDC_PORT_HUD_OPACITY_SLIDER,"msctls_trackbar32",TBS_BOTH | TBS_NOTICKS | WS_TABSTOP,226,258,240,18
     LTEXT           "80 %",IDC_PORT_HUD_OPACITY_VALUE,476,258,60,18
-    RTEXT           "Map Side",IDC_STATIC,16,282,200,18
-    COMBOBOX        IDC_PORT_HUD_MAP_SIDE,226,282,150,60,CBS_DROPDOWNLIST | WS_TABSTOP
-    CONTROL         "Key Hints",IDC_PORT_HUD_KEY_HINTS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,226,308,310,23
-    CONTROL         "Order Labels",IDC_PORT_HUD_ORDER_LABELS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,226,332,310,23
+    CONTROL         "Key Hints",IDC_PORT_HUD_KEY_HINTS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,226,282,310,23
+    CONTROL         "Order Labels",IDC_PORT_HUD_ORDER_LABELS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,226,306,310,23
+    RTEXT           "Map Side",IDC_PORT_HUD_MAP_SIDE_TEXT,16,332,200,18
+    COMBOBOX        IDC_PORT_HUD_MAP_SIDE,226,332,150,60,CBS_DROPDOWNLIST | WS_TABSTOP
     CONTROL         "Contextual Deck",IDC_PORT_HUD_CONTEXTUAL,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,226,356,310,23
     PUSHBUTTON     "TEXT_BUTTON_CANCEL",IDC_CANCEL_BUTTON,14,398,160,24
     PUSHBUTTON      "TEXT_BUTTON_DEFAULTS",IDC_DEFAULTS_BUTTON,200,398,160,24
@@ -459,12 +460,19 @@ std::optional<size_t> picked(const GuiDialog& d, const char* id, size_t count) {
     if (!c || c->selected < 0 || static_cast<size_t>(c->selected) >= count) return std::nullopt;
     return static_cast<size_t>(c->selected);
 }
-// The IDC_PORT_UI_SCALE row a stored scale shows: the largest choice not above it (a value between rows shows the row below).
-size_t ui_scale_row(int32_t pct) {
+// The row of a percent list a stored value shows: the largest choice not above it (a value between rows shows the row below).
+size_t percent_row(std::span<const int32_t> choices, int32_t pct) {
     size_t row = 0;
-    for (size_t i = 0; i < std::size(kUiScaleChoices); ++i)
-        if (kUiScaleChoices[i] <= pct) row = i;
+    for (size_t i = 0; i < choices.size(); ++i)
+        if (choices[i] <= pct) row = i;
     return row;
+}
+size_t ui_scale_row(int32_t pct) { return percent_row(kUiScaleChoices, pct); }  // IDC_PORT_UI_SCALE / IDC_PORT_HUD_UI_SCALE
+// The rows of a percent list ("100 %", ...).
+std::vector<std::u32string> percent_items(const GuiManager& gui, std::span<const int32_t> choices) {
+    std::vector<std::u32string> items;
+    for (const int32_t pct : choices) items.push_back(gui.port_text(ascii32(std::to_string(pct) + " %")));
+    return items;
 }
 // QA U11: the shipped IDD_GAME_OPTIONS_DIALOG leaves one button row empty between Options and Quit Game, with no control
 // for it in GUIDialogs.rc. Quit and Resume move up by that row and the dialog ends that much sooner [port].
@@ -508,39 +516,39 @@ CameraSettings FrontEnd::read_port_controls(const GuiDialog& d) const {
     return s;
 }
 
-// [port: Gabriel] #590 the Interface page.
+// [port: Gabriel] #590 the Interface page (docs/DECISIONS.md "Modern HUD: exception to the current focus").
 namespace {
-constexpr const char* kModernRows[] = {"IDC_PORT_HUD_TEXT_SIZE", "IDC_PORT_HUD_COLOURS", "IDC_PORT_HUD_OPACITY_SLIDER",
-                                       "IDC_PORT_HUD_MAP_SIDE", "IDC_PORT_HUD_KEY_HINTS", "IDC_PORT_HUD_ORDER_LABELS",
-                                       "IDC_PORT_HUD_CONTEXTUAL"};
+constexpr const char* kModernRows[] = {"IDC_PORT_HUD_TEXT_SIZE", "IDC_PORT_HUD_COLOURS", "IDC_PORT_HUD_MAP_SIDE",
+                                       "IDC_PORT_HUD_KEY_HINTS", "IDC_PORT_HUD_ORDER_LABELS", "IDC_PORT_HUD_CONTEXTUAL",
+                                       "IDC_EDIT_PORT_ALERT_JUMP"};  // the alert strip is Modern's
+// The rows the page keeps hidden until the HUD uses them: the map side (#591) and the contextual deck (#587). Their values
+// are still shown, read and saved.
+constexpr const char* kHudLaterRows[] = {"IDC_PORT_HUD_MAP_SIDE_TEXT", "IDC_PORT_HUD_MAP_SIDE", "IDC_PORT_HUD_CONTEXTUAL"};
 // The line under the style list (the page's preview of each style, as words).
 std::u32string style_info(const GuiManager& gui, bool modern) {
     return modern ? gui.port_text(U"Modern: one command deck along the bottom, larger text, key hints, shapes as well as colours.")
                   : gui.port_text(U"Classic: the original command bar, exactly as it was.");
 }
-size_t text_size_row(int32_t pct) {
-    size_t row = 0;
-    for (size_t i = 0; i < std::size(kModernTextScaleChoices); ++i)
-        if (kModernTextScaleChoices[i] <= pct) row = i;
-    return row;
-}
+size_t text_size_row(int32_t pct) { return percent_row(kModernTextScaleChoices, pct); }
 }  // namespace
 
 void FrontEnd::enable_modern_rows(GuiDialog& d, bool modern) {
     for (const char* id : kModernRows) d.enable(id, modern);
-    d.enable("IDC_EDIT_PORT_ALERT_JUMP", modern);  // the alert strip is Modern's
+    // High contrast keeps its panels near-opaque, so the opacity slider has nothing to set then.
+    const GuiControl* colours = d.get("IDC_PORT_HUD_COLOURS");
+    const bool contrast = colours && colours->selected == static_cast<int32_t>(HudColours::HighContrast);
+    d.enable("IDC_PORT_HUD_OPACITY_SLIDER", modern && !contrast);
+    d.enable("IDC_PORT_HUD_OPACITY_VALUE", modern && !contrast);
 }
 
 void FrontEnd::fill_port_hud(GuiDialog& d, const HudPageSettings& s) {
     const bool modern = s.style == HudStyle::Modern;
     d.set_items("IDC_PORT_HUD_STYLE", {gui_->port_text(U"Classic"), gui_->port_text(U"Modern")}, modern ? 1 : 0);
     d.set_text("IDC_PORT_HUD_STYLE_INFO", style_info(*gui_, modern));
-    std::vector<std::u32string> scales;
-    for (const int32_t pct : kUiScaleChoices) scales.push_back(gui_->port_text(ascii32(std::to_string(pct) + " %")));
-    d.set_items("IDC_PORT_HUD_UI_SCALE", std::move(scales), static_cast<int32_t>(ui_scale_row(s.ui_scale)));
-    std::vector<std::u32string> sizes;
-    for (const int32_t pct : kModernTextScaleChoices) sizes.push_back(gui_->port_text(ascii32(std::to_string(pct) + " %")));
-    d.set_items("IDC_PORT_HUD_TEXT_SIZE", std::move(sizes), static_cast<int32_t>(text_size_row(s.modern.text_scale)));
+    hud_shown_ = s;  // what the lists show: read_port_hud keeps a value between rows only while its row is untouched
+    d.set_items("IDC_PORT_HUD_UI_SCALE", percent_items(*gui_, kUiScaleChoices), static_cast<int32_t>(ui_scale_row(s.ui_scale)));
+    d.set_items("IDC_PORT_HUD_TEXT_SIZE", percent_items(*gui_, kModernTextScaleChoices),
+                static_cast<int32_t>(text_size_row(s.modern.text_scale)));
     d.set_items("IDC_PORT_HUD_COLOURS",
                 {gui_->port_text(U"Faction colour"), gui_->port_text(U"Colour-blind safe"), gui_->port_text(U"High contrast")},
                 static_cast<int32_t>(s.modern.colours));
@@ -552,12 +560,13 @@ void FrontEnd::fill_port_hud(GuiDialog& d, const HudPageSettings& s) {
     d.set_checked("IDC_PORT_HUD_ORDER_LABELS", s.modern.order_labels);
     d.set_checked("IDC_PORT_HUD_CONTEXTUAL", s.modern.contextual);
     use_ui_font(d, {"IDC_PORT_HUD_STYLE", "IDC_PORT_HUD_UI_SCALE", "IDC_PORT_HUD_TEXT_SIZE", "IDC_PORT_HUD_COLOURS", "IDC_PORT_HUD_MAP_SIDE"});
+    for (const char* id : kHudLaterRows) d.show(id, false);
     fill_keyboard(d);
     enable_modern_rows(d, modern);
 }
 
 HudPageSettings FrontEnd::read_port_hud(const GuiDialog& d) const {
-    HudPageSettings s = p_.hud_settings ? p_.hud_settings() : HudPageSettings{};
+    HudPageSettings s = hud_shown_;
     if (const std::optional<size_t> row = picked(d, "IDC_PORT_HUD_STYLE", 2)) s.style = *row == 1 ? HudStyle::Modern : HudStyle::Classic;
     // A list left on the row the stored value shows keeps that value (as the Display page's UI Scale).
     if (const std::optional<size_t> row = picked(d, "IDC_PORT_HUD_UI_SCALE", std::size(kUiScaleChoices)); row && *row != ui_scale_row(s.ui_scale))
@@ -565,7 +574,7 @@ HudPageSettings FrontEnd::read_port_hud(const GuiDialog& d) const {
     if (const std::optional<size_t> row = picked(d, "IDC_PORT_HUD_TEXT_SIZE", std::size(kModernTextScaleChoices));
         row && *row != text_size_row(s.modern.text_scale))
         s.modern.text_scale = kModernTextScaleChoices[*row];
-    if (const std::optional<size_t> row = picked(d, "IDC_PORT_HUD_COLOURS", 3)) s.modern.colours = static_cast<HudColours>(*row);
+    if (const std::optional<size_t> row = picked(d, "IDC_PORT_HUD_COLOURS", kHudColoursCount)) s.modern.colours = static_cast<HudColours>(*row);
     if (const GuiControl* c = d.get("IDC_PORT_HUD_OPACITY_SLIDER")) s.modern.panel_opacity = c->value;
     if (const std::optional<size_t> row = picked(d, "IDC_PORT_HUD_MAP_SIDE", 2)) s.modern.map_right = *row == 1;
     if (const GuiControl* c = d.get("IDC_PORT_HUD_KEY_HINTS")) s.modern.key_hints = c->checked;
@@ -1472,9 +1481,7 @@ void FrontEnd::fill_video(GuiDialog& d) {
     d.set_items("IDC_PORT_WINDOW_MODE",
                 {gui_->port_text(U"Fullscreen"), gui_->port_text(U"Borderless fullscreen"), gui_->port_text(U"Windowed")},
                 static_cast<int32_t>(v.window_mode));
-    std::vector<std::u32string> scales;
-    for (const int32_t pct : kUiScaleChoices) scales.push_back(gui_->port_text(ascii32(std::to_string(pct) + " %")));
-    d.set_items("IDC_PORT_UI_SCALE", std::move(scales), static_cast<int32_t>(ui_scale_row(v.ui_scale)));
+    d.set_items("IDC_PORT_UI_SCALE", percent_items(*gui_, kUiScaleChoices), static_cast<int32_t>(ui_scale_row(v.ui_scale)));
     // [port: Gabriel 2026-11-13] the shipped "V-sync enabled" check is gone: the V-Sync Mode list's Off row turns it off.
     d.show("IDC_VSYNC_ENABLED", false);
     d.show("IDC_WIDESCREEN", false);  // [port: Gabriel 2026-11-13] the option is gone: every display mode is listed, the HUD follows the window shape
@@ -1987,10 +1994,10 @@ void FrontEnd::on_change(const GuiEvent& e, std::vector<MenuAction>& out) {
     } else if (is_port_hud(n) && e.kind == GuiEvent::Kind::ValueChanged) {  // #590 the opacity value label
         if (e.control == "IDC_PORT_HUD_OPACITY_SLIDER") d->set_text("IDC_PORT_HUD_OPACITY_VALUE", value_text(e.value) + U" %");
     } else if (is_port_hud(n) && e.kind == GuiEvent::Kind::SelectionChanged) {  // #590 the Modern rows follow the style
-        if (e.control == "IDC_PORT_HUD_STYLE") {
-            enable_modern_rows(*d, e.value == 1);
-            d->set_text("IDC_PORT_HUD_STYLE_INFO", style_info(*gui_, e.value == 1));
-        }
+        const GuiControl* style = d->get("IDC_PORT_HUD_STYLE");
+        const bool modern = style && style->selected == 1;
+        if (e.control == "IDC_PORT_HUD_STYLE") d->set_text("IDC_PORT_HUD_STYLE_INFO", style_info(*gui_, modern));
+        if (e.control == "IDC_PORT_HUD_STYLE" || e.control == "IDC_PORT_HUD_COLOURS") enable_modern_rows(*d, modern);
     } else if (is_port_controls(n) && e.kind == GuiEvent::Kind::ValueChanged) {  // [port: Gabriel] FOV value labels
         if (e.control == "IDC_PORT_GALACTIC_FOV_SLIDER") d->set_text("IDC_PORT_GALACTIC_FOV_VALUE", fov_text(static_cast<float>(e.value)));
         if (e.control == "IDC_PORT_TACTICAL_FOV_SLIDER") d->set_text("IDC_PORT_TACTICAL_FOV_VALUE", fov_text(static_cast<float>(e.value)));
@@ -2320,18 +2327,18 @@ void FrontEnd::on_click(const GuiEvent& e, std::vector<MenuAction>& out) {
             MenuAction a = act(MenuAction::Kind::ApplyHud);
             a.hud = read_port_hud(*d);
             if (p_.hotkeys)  // its own two keys only: the camera and controls page commits the rest
-                for (const uint16_t slot : {hk::kHudStyle, hk::kAlertJump}) p_.hotkeys->bind(slot, keys_work_.binding(slot));
+                for (const uint16_t slot : kHudPageSlots) p_.hotkeys->bind(slot, keys_work_.binding(slot));
             if (p_.hotkeys && p_.bindings) p_.hotkeys->apply_to_bindings(*p_.bindings);
             out.push_back(std::move(a));
             out.push_back(act(MenuAction::Kind::KeybindingsChanged));
             pop();
         } else if (is("IDC_CANCEL_BUTTON")) {  // the two keys go back to the applied ones; the controls page keeps its edits
             const HotkeyTable applied = p_.hotkeys ? *p_.hotkeys : HotkeyTable{};
-            for (const uint16_t slot : {hk::kHudStyle, hk::kAlertJump}) keys_work_.bind(slot, applied.binding(slot));
+            for (const uint16_t slot : kHudPageSlots) keys_work_.bind(slot, applied.binding(slot));
             pop();
         } else if (is("IDC_DEFAULTS_BUTTON")) {
             const HotkeyTable defaults;
-            for (const uint16_t slot : {hk::kHudStyle, hk::kAlertJump}) keys_work_.bind(slot, defaults.binding(slot));
+            for (const uint16_t slot : kHudPageSlots) keys_work_.bind(slot, defaults.binding(slot));
             keys_dirty_ = true;
             fill_port_hud(*d, HudPageSettings{});
         }

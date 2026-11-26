@@ -272,7 +272,7 @@ inline constexpr float kGalacticFovMinDeg = 15.0f, kGalacticFovMaxDeg = 60.0f, k
 extern const char* const kPortDialogsRc;
 inline constexpr const char* kPortControlsDialog = "IDD_PORT_CAMERA_CONTROLS_DIALOG";
 inline constexpr const char* kPortModsDialog = "IDD_PORT_MODS_DIALOG";
-// [port: Gabriel] #590 the Interface page IDD_PORT_HUD_DIALOG (in kPortDialogsRc), opened by IDC_PORT_OPEN_HUD on the
+// [port: Gabriel] #590 (docs/DECISIONS.md "Modern HUD: exception to the current focus") the Interface page IDD_PORT_HUD_DIALOG (in kPortDialogsRc), opened by IDC_PORT_OPEN_HUD on the
 // camera and controls page: the HUD style (with a line describing each), the HudStyleToggle and AlertJump keys, the UI
 // scale, and the Modern options, greyed while Classic is chosen. Accept -> MenuAction::ApplyHud (+ KeybindingsChanged).
 inline constexpr const char* kPortHudDialog = "IDD_PORT_HUD_DIALOG";
@@ -604,6 +604,7 @@ private:
     void fill_port_hud(GuiDialog& d, const HudPageSettings& s);  // #590
     HudPageSettings read_port_hud(const GuiDialog& d) const;
     static void enable_modern_rows(GuiDialog& d, bool modern);
+    HudPageSettings hud_shown_;  // #590 what the Interface page was last filled with
     void fill_gameplay(GuiDialog& d, const GameplaySettings& g);
     void fill_keyboard(GuiDialog& d);
     void fill_mods(GuiDialog& d);         // rows from MenuProviders::mods, the selected row's report

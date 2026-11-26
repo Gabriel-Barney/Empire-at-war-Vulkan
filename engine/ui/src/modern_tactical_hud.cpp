@@ -137,6 +137,7 @@ void ModernTacticalHud::init(const ComponentTable& table, const TextureAtlas& at
     }
     if (const int32_t c = table.find("Text_Credits_tactical"); c >= 0 && table[static_cast<size_t>(c)].has_text_color)
         credits_color_ = table[static_cast<size_t>(c)].text_color;
+    set_options(options_);  // the palette from the options' opacity
 }
 
 void ModernTacticalHud::resize(uint32_t width, uint32_t height) { resize_canvas(canvas_, nullptr, width, height); }
@@ -166,7 +167,7 @@ void ModernTacticalHud::set_options(const ModernHudOptions& o) {
     options_ = clamp_options(o);
     text_scale_ = static_cast<float>(options_.text_scale) / 100.0f;
     const auto alpha = static_cast<uint8_t>(std::lround(2.55f * static_cast<float>(options_.panel_opacity)));
-    Colours c;
+    Palette c;
     c.back = {10, 14, 22, alpha};
     c.button = {24, 32, 46, static_cast<uint8_t>(std::min(255, alpha + 30))};
     switch (options_.colours) {
@@ -423,8 +424,8 @@ void ModernTacticalHud::build_selection(const TacticalHudFrame& f, std::span<con
 }
 
 // A key badge (the slot's live binding) with its top-right corner at `top_right`.
-void ModernTacticalHud::key_badge(uint16_t slot, Vec2f top_right, uint32_t layer) {
-    if (!keys_ || !options_.key_hints) return;
+void ModernTacticalHud::key_badge(uint16_t slot, Vec2f top_right, uint32_t layer, bool always) {
+    if (!keys_ || (!options_.key_hints && !always)) return;
     const HotkeyBinding& b = keys_->binding(slot);
     if (b.key < 0) return;
     const std::u32string label = hotkey_label(b, text_);
@@ -466,12 +467,12 @@ float ModernTacticalHud::build_orders(const TacticalHudFrame& f, Vec2f top_right
             dashed_rect(dl_, kControlLayer, c, size, colours_.disabled);
         }
         st.color = live ? colours_.text : colours_.disabled;
-        if (options_.order_labels) {  // off: the key badge alone names the order
+        if (options_.order_labels) {  // off: the key badge alone names the order (drawn even with key hints off)
             const std::u32string label = text_or_port(text_, nullptr, kOrderLabels[i]);
             st.width_scale = fit_width_scale(measure_text_block(*fonts_, canvas_, label, 0.0f, st).width, col_w - kPad);
             add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, label, {c.x, c.y - 0.2f * row_h}, st);
         }
-        key_badge(kOrderSlots[i], {c.x + 0.5f * size.x - 2.0f, c.y + 0.5f * size.y - 2.0f}, kControlLayer);
+        key_badge(kOrderSlots[i], {c.x + 0.5f * size.x - 2.0f, c.y + 0.5f * size.y - 2.0f}, kControlLayer, !options_.order_labels);
         hit(order_[i], kControlLayer, c, size);
         ++stats_.orders;
         if (live) ++stats_.orders_live;
