@@ -5,8 +5,10 @@
 // the IDLE behaviour's idle once End has finished.
 #include "battle_test_fixture.hpp"
 
+#include <algorithm>
 #include <functional>
 #include <map>
+#include <set>
 #include "tactical_battle_test_access.hpp"  // ref3 t06
 #include "alamo/jobs/crc_recorder.hpp"  // #115: check_worker_counts
 #include "alamo/tactical/abilities/ability_types.hpp"
@@ -409,10 +411,21 @@ void test_weapon_clip_gates(bool turret) {
         int32_t cur = -1;
         bool fading = false, held = false;
     };
+    struct Counts {
+        uint32_t shots = 0;           // trooper projectiles
+        uint32_t through_closed = 0;  // ... in a tick the shooter was held at both ends
+        uint32_t after_fade = 0;      // ... the first one after the shooter's fade into an attack clip ended
+        uint32_t pose_shots = 0;      // ... from an idle / walk clip at both ends
+        uint32_t held_with_target = 0, fade_held = 0, idle_held = 0, move_held = 0, flinch_held = 0, flinch_frames = 0;
+    } c;
+    constexpr uint32_t kFrames = 1800;
+    const auto pose = [](const State& s) {  // the pose gate's clips (WEAPON_CLIP_GATES.md §3 rule 2)
+        return !s.fading && (s.cur == anim::kAnimIdle || s.cur == anim::kAnimMove || s.cur == anim::kAnimWalkMove);
+    };
     std::map<objects::ObjectId, State> last;
-    std::vector<uint32_t> seen;
-    uint32_t shots = 0, through_closed = 0, pose_shots = 0, held_with_target = 0, fade_held = 0, pose_held = 0, flinch_held = 0, flinch_frames = 0;
-    land_battle(*d, &animation, 1800, [&](TacticalBattle& b, TacticalMode& tm, SimHost&) {
+    std::set<objects::ObjectId> faded;  // troopers held by a fade since their last shot
+    std::set<uint32_t> seen;
+    land_battle(*d, &animation, kFrames, [&](TacticalBattle& b, TacticalMode& tm, SimHost&) {
         const objects::ObjectStore& st = tm.primary();
         const anim::AnimWorld* w = animation.find_world(tm);
         if (!w) return true;
@@ -420,40 +433,49 @@ void test_weapon_clip_gates(bool turret) {
         for (const objects::ObjectHandle h : st.all_objects()) {
             if (!st.alive(h) || st.type(h) != trooper || !w->contains(st.id(h))) continue;
             const objects::ObjectId id = st.id(h);
-            State s{w->current_type(id), w->crossfading(id), anim::weapon_clip_hold(*w, id, false, turret)};
+            const State s{w->current_type(id), w->crossfading(id), anim::weapon_clip_hold(*w, id, false, turret)};
             now[id] = s;
-            if (anim::is_flinch(s.cur)) ++flinch_frames;
+            if (anim::is_flinch(s.cur)) ++c.flinch_frames;
             if (!s.held || !b.combat().has_unit(id) || b.combat().current_target(id) == tactical::combat::kNoObject) continue;
-            ++held_with_target;
-            if (anim::is_flinch(s.cur)) ++flinch_held;
-            else if (s.fading) ++fade_held;
-            else ++pose_held;
+            ++c.held_with_target;
+            if (anim::is_flinch(s.cur)) {
+                ++c.flinch_held;
+            } else if (s.fading) {
+                ++c.fade_held;
+                faded.insert(id);
+            } else if (s.cur == anim::kAnimIdle) {
+                ++c.idle_held;
+            } else {
+                ++c.move_held;  // MOVE / WALKMOVE
+            }
         }
         for (size_t i = 0; i < b.combat().projectile_count(); ++i) {
             const tactical::combat::ProjectileView p = b.combat().projectile(i);
-            if (std::find(seen.begin(), seen.end(), p.serial) != seen.end()) continue;
-            seen.push_back(p.serial);
-            const auto a = last.find(p.shooter);
-            const auto n = now.find(p.shooter);
-            if (a == last.end() || n == now.end()) continue;
-            ++shots;
-            if (a->second.held && n->second.held) ++through_closed;
-            const auto pose = [](const State& s) {
-                return !s.fading && (s.cur == anim::kAnimIdle || s.cur == anim::kAnimMove || s.cur == anim::kAnimWalkMove);
-            };
-            if (pose(a->second) && pose(n->second)) ++pose_shots;
+            if (!seen.insert(p.serial).second) continue;
+            const auto before = last.find(p.shooter);
+            const auto after = now.find(p.shooter);
+            if (before == last.end() || after == now.end()) continue;
+            ++c.shots;
+            if (before->second.held && after->second.held) ++c.through_closed;
+            if (faded.erase(p.shooter) != 0) ++c.after_fade;
+            if (pose(before->second) && pose(after->second)) ++c.pose_shots;
         }
         last = std::move(now);
-        return b.frame() < 1800;
+        return b.frame() < kFrames;
     });
-    std::printf("  #504 clip gates%s: %u trooper shot(s), %u through a closed gate, %u from an idle / walk clip; held with a "
-                "target %u trooper-frame(s) (fade %u, pose %u, flinch %u); %u flinch clip frame(s), %u flinch(es)\n",
-                turret ? " (TURRET)" : "", shots, through_closed, pose_shots, held_with_target, fade_held, pose_held, flinch_held,
-                flinch_frames, static_cast<unsigned>(animation.stats().flinches));
-    CHECK(shots > 0 && through_closed == 0 && held_with_target > 0 && fade_held > 0 && flinch_held > 0);
-    // the pose gate: never for a TURRET; without one it holds the idle / walk clips, which fire nothing
-    if (turret) CHECK(pose_held == 0);
-    else CHECK(pose_shots == 0 && pose_held > 0);
+    std::printf("  #504 clip gates%s: %u trooper shot(s) (%u right after a fade), %u through a closed gate, %u from an idle / "
+                "walk clip; held with a target %u trooper-frame(s) (fade %u, idle %u, move %u, flinch %u); %u flinch clip "
+                "frame(s), %u flinch(es)\n",
+                turret ? " (TURRET)" : "", c.shots, c.after_fade, c.through_closed, c.pose_shots, c.held_with_target, c.fade_held,
+                c.idle_held, c.move_held, c.flinch_held, c.flinch_frames, static_cast<unsigned>(animation.stats().flinches));
+    // the gates hold armed troopers (the fade into ATTACK / ATTACKIDLE, the flinch crossfade), nothing leaves through a
+    // closed gate, and a trooper fires once its fade ends
+    CHECK(c.shots > 0 && c.through_closed == 0 && c.fade_held > 0 && c.flinch_held > 0 && c.after_fade > 0);
+    // the pose gate: never for a TURRET (TacticalBattle passes TURRET or GARRISON_UNIT state 7 as the exemption); without
+    // one it holds the walk clips of troopers moving with a target (a trooper with a target that stands plays ATTACKIDLE,
+    // not IDLE), and nothing fires from an idle or walk clip
+    if (turret) CHECK(c.idle_held == 0 && c.move_held == 0);
+    else CHECK(c.pose_shots == 0 && c.move_held > 0);
 #else
     (void)turret;
     std::printf("  #504 clip gates: skipped (no engine/anim)\n");
