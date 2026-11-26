@@ -886,7 +886,7 @@ void test_actions() {
     };
     h.build(f, s.units, s.types);
     CHECK(st.production && st.build_options == 3 && st.build_blocked == 2 && st.queue_entries == 2 && st.cards == 0 && st.orders == 6);
-    CHECK(st.build_texts.size() == 3 && st.build_texts[0] == U"$ 1,200" && st.build_texts[1] == U"Not enough credits");
+    CHECK(st.build_texts.size() == 3 && st.build_texts[0] == U"1200" && st.build_texts[1] == U"Not enough credits");
     for (const auto& [name, n, shift] : {std::tuple{"Build_00", 1u, false}, std::tuple{"Build_00", 1u, true}, std::tuple{"Build_01", 0u, false},
                                          std::tuple{"tqueue00", 1u, false}, std::tuple{"tqueue01", 1u, false}}) {
         h.build(f, s.units, s.types);
@@ -1092,6 +1092,56 @@ void test_map() {
     CHECK(!st.target_card);
 }
 
+// #592 tactical land: the reinforcement zones on the map (enabling solid, prevention dashed); the build pad's buy
+// buttons on the pad (Classic's placement) with the same options, costs, blocked reasons and clicks; the bombing run and
+// a reinforcement call are #587's (test_actions).
+void test_land() {
+    Huds h;
+    Selection s;
+    TacticalHudFrame f = frame();
+    f.world.local_player = 0;
+    f.world.land = true;
+    std::vector<HudDropZone> zones{{0.0f, 0.0f, 800.0f, true}, {1500.0f, 1500.0f, 600.0f, false}, {0.0f, 0.0f, 0.0f, true}};
+    f.drop_zones = zones;
+    h.modern.build(f, s.units, s.types);
+    const ModernHudStats& st = h.modern.stats();
+    CHECK(st.map_drop_zones == 1 && st.map_block_zones == 1);  // a zero radius is not drawn
+    // The pad: a land builder with its anchor on screen.
+    std::vector<HudBuildOption> opts(3);
+    opts[0].type_index = 1;
+    opts[0].cost = 300;
+    opts[1].type_index = 0;
+    opts[1].block = HudBuildOption::Block::PopCap;
+    opts[2].type_index = 1;
+    opts[2].cost = 450;
+    opts[2].queued = 3;
+    f.builder = 22;
+    f.build_options = opts;
+    f.has_build_anchor = true;
+    f.build_anchor_px = {960.0f, 400.0f};
+    h.build(f, s.units, s.types);
+    CHECK(st.production && st.pad_options && st.build_options == 3 && st.build_blocked == 1 && h.classic.stats().build_options == 3);
+    CHECK(st.build_texts.size() == 3 && st.build_texts[0] == U"300" && st.build_texts[1] == U"Population cap" && st.build_texts[2] == U"450");
+    CHECK(build_option_text(opts[0], nullptr) == U"300" && build_option_text(opts[1], nullptr) == U"Population cap");
+    // The buttons sit round the pad's point (above the deck), each where Classic's hit box is.
+    for (const char* name : {"Build_00", "Build_02"}) {
+        int32_t mx = 0, my = 0, cx = 0, cy = 0;
+        CHECK(centre_px(h.modern.hit_boxes(), h.modern.canvas(), h.t.find(name), mx, my) &&
+              centre_px(h.classic.hit_boxes(), h.classic.canvas(), h.t.find(name), cx, cy));
+        CHECK(std::abs(mx - cx) <= 2 && std::abs(my - cy) <= 2);
+    }
+    for (const auto& [name, n] : {std::pair{"Build_00", 1u}, std::pair{"Build_01", 0u}, std::pair{"Build_02", 1u}}) {
+        h.build(f, s.units, s.types);
+        size_t emitted = 0;
+        CHECK(h.same_click(h.t.find(name), h.t.find(name), false, false, Button::Left, &emitted));
+        CHECK(emitted == n);
+    }
+    // Space (or no anchor): the options are in the deck.
+    f.world.land = false;
+    h.build(f, s.units, s.types);
+    CHECK(st.production && !st.pad_options && st.build_options == 3);
+}
+
 void test_world_split() {
     // The Classic HUD with the split off is unchanged (world_draw_list empty); with it on, the drag box (a world-space
     // item) moves to world_draw_list and the two lists together hold what draw_list held.
@@ -1134,6 +1184,7 @@ int main() {
     test_actions();
     test_fleet_tabs();
     test_map();
+    test_land();
     test_hotkey();
     test_world_split();
     if (g_fail) {

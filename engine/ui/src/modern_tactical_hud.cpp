@@ -604,36 +604,54 @@ float ModernTacticalHud::build_production(const TacticalHudFrame& f, std::span<c
         add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, text_or_port(text_, nullptr, U"Production"), {c.x, c.y - 0.6f * line}, ls);
         x += card_w + 2.0f * gap;
     }
-    // The options: 3 columns of 2 rows, the icon over the cost (or the blocked reason, dashed).
-    for (size_t i = 0; i < f.build_options.size() && i < buy_.size(); ++i) {
+    // The options: 3 columns of 2 rows, the icon over the cost (or the blocked reason, dashed). On land with the pad on
+    // screen they sit on the pad itself instead (#592, build_pad_options).
+    const bool on_pad = f.world.land && f.has_build_anchor;
+    for (size_t i = 0; !on_pad && i < f.build_options.size() && i < buy_.size(); ++i) {
         if (buy_[i] < 0) continue;
-        const HudBuildOption& o = f.build_options[i];
-        Tile t;
-        t.id = buy_[i];
-        t.c = grid2_cell(i, {x, top_left.y}, {opt_w, row_h}, gap);
-        t.size = {opt_w, row_h};
+        const Tile t = option_tile(i, f.build_options[i], grid2_cell(i, {x, top_left.y}, {opt_w, row_h}, gap), {opt_w, row_h});
         if (t.c.x + 0.5f * opt_w > top_left.x + max_width) break;
-        t.icon = o.icon;
-        t.enabled = o.block == HudBuildOption::Block::None;
-        switch (o.block) {  // Build_NN Tooltip_Text[0..2] (HudBuildOption::Block), port strings for the others
-            case HudBuildOption::Block::QueueFull: t.text = text_or_port(text_, "TEXT_PRODUCTION_QUEUE_FULL", U"Queue full"); break;
-            case HudBuildOption::Block::PopCap: t.text = text_or_port(text_, "TEXT_PRODUCTION_POP_CAP_REACHED", U"Population cap"); break;
-            case HudBuildOption::Block::Funds: t.text = text_or_port(text_, "TEXT_PRODUCTION_INSUFFICIENT_FUNDS", U"Not enough credits"); break;
-            case HudBuildOption::Block::Prerequisite: t.text = text_or_port(text_, nullptr, U"Needs technology"); break;
-            case HudBuildOption::Block::Limit: t.text = text_or_port(text_, nullptr, U"Limit reached"); break;
-            case HudBuildOption::Block::None: t.text = o.cost >= 0 ? hud_credits_text(o.cost) : std::u32string(); break;
-        }
-        if (o.queued > 1) t.badge = count_text(o.queued);  // as Classic's text (shown above 1)
-        tile(t);
-        stats_.build_texts.push_back(t.text);
-        buy_slots_.push_back({buy_[i], o});
-        ++stats_.build_options;
-        if (!t.enabled) ++stats_.build_blocked;
+        add_option(t, i, f.build_options[i]);
     }
-    if (!f.build_options.empty()) x += 3.0f * opt_w + 2.0f * gap + 2.0f * gap;
+    if (on_pad) build_pad_options(f);
+    else if (!f.build_options.empty()) x += 3.0f * opt_w + 2.0f * gap + 2.0f * gap;
     x += build_queue(f, {x, top_left.y}, height, top_left.x + max_width - x, true, true);
     stats_.production = true;
     return x - top_left.x;
+}
+
+ModernTacticalHud::Tile ModernTacticalHud::option_tile(size_t i, const HudBuildOption& o, Vec2f c, Vec2f size) const {
+    Tile t;
+    t.id = buy_[i];
+    t.c = c;
+    t.size = size;
+    t.icon = o.icon;
+    t.enabled = o.block == HudBuildOption::Block::None;
+    t.text = build_option_text(o, text_);
+    if (o.queued > 1) t.badge = count_text(o.queued);  // as Classic's text (shown above 1)
+    return t;
+}
+
+void ModernTacticalHud::add_option(const Tile& t, size_t i, const HudBuildOption& o) {
+    tile(t);
+    stats_.build_texts.push_back(t.text);
+    buy_slots_.push_back({buy_[i], o});
+    ++stats_.build_options;
+    if (!t.enabled) ++stats_.build_blocked;
+}
+
+// #592 the build pad's buy buttons on the pad: Classic's placement (TacticalHud::build_buy_buttons: the i_build_buttons
+// bones round the pad's projected point, 52 x 52 each), Modern's look; the same options, costs, blocked reasons and clicks.
+void ModernTacticalHud::build_pad_options(const TacticalHudFrame& f) {
+    static constexpr Vec2f kBone[6] = {{-54.0f, -67.0f}, {-0.5f, -67.0f}, {52.0f, -67.0f}, {-54.0f, -120.0f}, {-0.5f, -120.0f}, {52.0f, -120.0f}};
+    static constexpr Vec2f kHitOffset{1.0f, -4.0f};
+    const Vec2f anchor = canvas_.pixel_to_canvas(f.build_anchor_px.x, f.build_anchor_px.y);
+    for (size_t i = 0; i < f.build_options.size() && i < buy_.size() && i < std::size(kBone); ++i) {
+        if (buy_[i] < 0) continue;
+        const Vec2f c{anchor.x + kBone[i].x + kHitOffset.x, anchor.y + kBone[i].y + kHitOffset.y};
+        add_option(option_tile(i, f.build_options[i], c, {52.0f, 52.0f}), i, f.build_options[i]);
+    }
+    stats_.pad_options = true;
 }
 
 // #587 the build queue (Classic's tqueueNN slots, in its order): square entries with a progress bar and the count; a click
@@ -1096,6 +1114,22 @@ void ModernTacticalHud::build_map(const TacticalHudFrame& f, std::span<const Hud
             const float th = t->radar_show_facing && u.yaw_deg != 0.0f ? u.yaw_deg * 0.017453292519943295f - 1.5707963267948966f : 0.0f;
             add_atlas_quad_turned(dl_, layer, HudList::Alpha, *atlas_, t->radar_icon, c, {1.1f * ur, 1.1f * ur}, 1.0f, col, th, t->radar_rotate);
         }
+    }
+    // #592 land reinforcement zones: an enabling radius as a solid ring, a prevention radius as a dashed one in the warning
+    // colour (a pattern as well as a colour); only the parts inside the map.
+    for (const HudDropZone& z : f.drop_zones) {
+        const Vec2f c = map_view_.to_canvas(z.x, z.y);
+        const float rr = z.radius / (map_view_.max_x - map_view_.min_x) * map_view_.size.x;
+        if (rr <= 0.5f) continue;
+        constexpr int kSeg = 32;
+        for (int d = 0; d < kSeg; ++d) {
+            if (!z.enabling && d % 2 == 1) continue;
+            const float a0 = 6.2831853f * static_cast<float>(d) / kSeg, a1 = 6.2831853f * static_cast<float>(d + 1) / kSeg;
+            const Vec2f p0{c.x + rr * std::cos(a0), c.y + rr * std::sin(a0)}, p1{c.x + rr * std::cos(a1), c.y + rr * std::sin(a1)};
+            if (map_view_.inside(p0) && map_view_.inside(p1))
+                line_quad(dl_, kControlLayer + 1, p0, p1, 1.5f, z.enabling ? colours_.hull_ok : colours_.hull_bad);
+        }
+        ++(z.enabling ? stats_.map_drop_zones : stats_.map_block_zones);
     }
     if (f.radar_events)  // pings, as Classic's: a model for the host, else an expanding, fading ring; story blips pulse
         for (const RadarEvent& e : f.radar_events->items()) {
