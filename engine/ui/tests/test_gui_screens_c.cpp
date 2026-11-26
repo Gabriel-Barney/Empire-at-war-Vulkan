@@ -917,6 +917,72 @@ void test_controls() {
         CHECK(keys.binding(hk::kPause).key == 0x77 && binds.binding(Action::Pause, 0).key == 0x77 && binds.queue_mods() == kModCtrl);
         CHECK(env.gui.find(kPortControlsDialog) == nullptr);
     }
+    // #590 the Interface page: opened from the camera and controls page; it shows the host's settings, greys the Modern
+    // rows while Classic is chosen, and Accept reports the page (ApplyHud) and commits its two keys only.
+    {
+        Env env;
+        CHECK(env.script.merge(kPortDialogsRc) && env.gui.has_dialog(kPortHudDialog));
+        FrontEnd fe;
+        HotkeyTable keys;
+        Bindings binds;
+        MenuProviders p;
+        p.hotkeys = &keys;
+        p.bindings = &binds;
+        HudPageSettings hs;
+        hs.ui_scale = 125;
+        hs.modern.text_scale = 150;
+        hs.modern.colours = HudColours::ColourBlind;
+        hs.modern.panel_opacity = 60;
+        p.hud_settings = [&] { return hs; };
+        fe.init(env.gui, {}, p);
+        std::vector<MenuAction> acts;
+        fe.update(std::vector<GuiEvent>{event(GuiEvent::Kind::Clicked, "IDD_MAIN_OPTIONS_DIALOG", "IDC_MAIN_OPTIONS_MODS")}, InputFrame{}, acts);
+        CHECK(fe.top() == kPortControlsDialog);
+        const GuiDialog* c = env.gui.top();
+        CHECK(c && c->get("IDC_PORT_OPEN_HUD") && c->get("IDC_PORT_OPEN_HUD")->visible);
+        // An edit on the camera and controls page (Pause to F8) is not committed by the Interface page's Accept.
+        GuiDialog* cd = env.gui.top();
+        cd->focus("IDC_EDIT_PORT_PAUSE");
+        InputFrame f8;
+        f8.keys_pressed.set(0x77);
+        f8.keys_down.set(0x77);
+        fe.update({}, f8, acts);
+        fe.update(std::vector<GuiEvent>{event(GuiEvent::Kind::Clicked, kPortControlsDialog, "IDC_PORT_OPEN_HUD")}, InputFrame{}, acts);
+        CHECK(fe.top() == kPortHudDialog);
+        GuiDialog* d = env.gui.top();
+        CHECK(d && d->get("IDC_PORT_HUD_STYLE")->selected == 0 && d->get("IDC_PORT_HUD_TEXT_SIZE")->selected == 3 &&
+              d->get("IDC_PORT_HUD_COLOURS")->selected == 1 && d->get("IDC_PORT_HUD_OPACITY_SLIDER")->value == 60 &&
+              d->get("IDC_PORT_HUD_OPACITY_VALUE")->text == U"60 %" && d->get("IDC_PORT_HUD_KEY_HINTS")->checked &&
+              d->get("IDC_EDIT_PORT_HUD_STYLE")->text == U"F9" && d->get("IDC_EDIT_PORT_ALERT_JUMP")->text == U"F4");
+        CHECK(d && d->get("IDC_PORT_HUD_UI_SCALE")->items.size() == std::size(kUiScaleChoices));
+        CHECK(d && !d->get("IDC_PORT_HUD_TEXT_SIZE")->enabled && !d->get("IDC_PORT_HUD_CONTEXTUAL")->enabled);  // Classic: greyed
+        // Picking Modern enables the rows; the slider's label follows it.
+        d->set_selected("IDC_PORT_HUD_STYLE", 1);
+        fe.update(std::vector<GuiEvent>{event(GuiEvent::Kind::SelectionChanged, kPortHudDialog, "IDC_PORT_HUD_STYLE", 1)}, InputFrame{}, acts);
+        CHECK(d->get("IDC_PORT_HUD_TEXT_SIZE")->enabled && d->get("IDC_PORT_HUD_CONTEXTUAL")->enabled);
+        d->set_value("IDC_PORT_HUD_OPACITY_SLIDER", 90);
+        fe.update(std::vector<GuiEvent>{event(GuiEvent::Kind::ValueChanged, kPortHudDialog, "IDC_PORT_HUD_OPACITY_SLIDER", 90)}, InputFrame{}, acts);
+        CHECK(d->get("IDC_PORT_HUD_OPACITY_VALUE")->text == U"90 %");
+        d->set_selected("IDC_PORT_HUD_TEXT_SIZE", 5);
+        d->set_selected("IDC_PORT_HUD_MAP_SIDE", 1);
+        d->set_checked("IDC_PORT_HUD_ORDER_LABELS", false);
+        d->focus("IDC_EDIT_PORT_ALERT_JUMP");  // Jump to Alert -> F7 (free by default)
+        InputFrame f7;
+        f7.keys_pressed.set(0x76);
+        f7.keys_down.set(0x76);
+        fe.update({}, f7, acts);
+        CHECK(d->get("IDC_EDIT_PORT_ALERT_JUMP")->text == U"F7");
+        acts.clear();
+        fe.update(std::vector<GuiEvent>{event(GuiEvent::Kind::Clicked, kPortHudDialog, "IDC_BUTTON_ACCEPT")}, InputFrame{}, acts);
+        CHECK(acts.size() == 2 && acts[0].kind == MenuAction::Kind::ApplyHud && acts[1].kind == MenuAction::Kind::KeybindingsChanged);
+        if (acts.size() == 2) {
+            const HudPageSettings& got = acts[0].hud;
+            CHECK(got.style == HudStyle::Modern && got.ui_scale == 125 && got.modern.text_scale == 200 && got.modern.map_right &&
+                  !got.modern.order_labels && got.modern.panel_opacity == 90 && got.modern.colours == HudColours::ColourBlind);
+        }
+        CHECK(keys.binding(hk::kAlertJump).key == 0x76 && keys.binding(hk::kPause).key != 0x77);
+        CHECK(fe.top() == kPortControlsDialog);  // back to the page it was opened from
+    }
     // the mod picker. The port's main-menu Mods button (shown only with a mods provider), the rows (the active one
     // marked and selected first), a selection asks the host for the row's report (CheckMod), the report arriving enables
     // Launch (not for the active row), Launch reports the row, Back / Esc return to the main menu.

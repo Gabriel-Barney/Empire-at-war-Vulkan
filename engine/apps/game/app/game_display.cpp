@@ -419,6 +419,16 @@ bool load_video_profile(const std::string& path, VideoProfile& p) {
     p.ui_scale = std::clamp(p.ui_scale, ui::kUiScaleMin, ui::kUiScaleMax);
     if (auto it = kv.find("hud_style"); it != kv.end())  // #584: an unknown value keeps the current style
         if (const std::optional<ui::HudStyle> s = ui::parse_hud_style(it->second)) p.hud_style = *s;
+    num("hud_text_scale", p.modern_hud.text_scale);  // #590
+    if (auto it = kv.find("hud_colours"); it != kv.end())
+        if (const std::optional<ui::HudColours> c = ui::parse_hud_colours(it->second)) p.modern_hud.colours = *c;
+    flag("hud_key_hints", p.modern_hud.key_hints);
+    flag("hud_order_labels", p.modern_hud.order_labels);
+    if (auto it = kv.find("hud_map_side"); it != kv.end() && (it->second == "left" || it->second == "right"))
+        p.modern_hud.map_right = it->second == "right";
+    num("hud_panel_opacity", p.modern_hud.panel_opacity);
+    flag("hud_contextual", p.modern_hud.contextual);
+    p.modern_hud = ui::clamp_options(p.modern_hud);
     if (auto it = kv.find("vsync_mode"); it != kv.end()) p.vsync_mode = it->second == "mailbox" ? ui::VsyncMode::Mailbox : ui::VsyncMode::Fifo;
     for (const ProfileInt& e : kProfileInts) num(e.key, p.*e.field);
     for (const ProfileAdvInt& e : kProfileAdvInts) num(e.key, p.advanced.*e.field);
@@ -463,6 +473,10 @@ bool save_video_profile(const std::string& path, const VideoProfile& p) {
     f << "vsync=" << (p.vsync ? 1 : 0) << "\nvsync_mode=" << (p.vsync_mode == ui::VsyncMode::Mailbox ? "mailbox" : "fifo") << "\n";
     f << "window_mode=" << window_mode_name(p.window_mode) << "\nui_scale=" << p.ui_scale << "\n";
     f << "hud_style=" << ui::hud_style_name(p.hud_style) << "\n";
+    const ui::ModernHudOptions& m = p.modern_hud;  // #590
+    f << "hud_text_scale=" << m.text_scale << "\nhud_colours=" << ui::hud_colours_name(m.colours) << "\nhud_key_hints=" << (m.key_hints ? 1 : 0)
+      << "\nhud_order_labels=" << (m.order_labels ? 1 : 0) << "\nhud_map_side=" << (m.map_right ? "right" : "left")
+      << "\nhud_panel_opacity=" << m.panel_opacity << "\nhud_contextual=" << (m.contextual ? 1 : 0) << "\n";
     for (const ProfileInt& e : kProfileInts) f << e.key << "=" << p.*e.field << "\n";
     f << "aa_mode=" << aa_mode_name(p.anti_alias) << "\n";
     f << "upscaler=" << upscaler_name(p.upscaler) << "\nupscale_quality=" << upscale_quality_name(p.upscale_quality) << "\n";

@@ -14,16 +14,7 @@ namespace alamo::ui {
 
 namespace {
 
-// [port: Gabriel] Modern look (#520 design canvas "Modern HUD redesign" v2): dark translucent panels with an edge in the
-// local player's faction colour.
-constexpr Rgba8 kBack{10, 14, 22, 200};
-constexpr Rgba8 kButtonBack{24, 32, 46, 230};
-constexpr Rgba8 kText{236, 240, 244, 255};
-constexpr Rgba8 kLabel{170, 182, 198, 255};
-constexpr Rgba8 kDisabledText{120, 128, 140, 255};
 constexpr Rgba8 kBarBack{0, 0, 0, 170};
-constexpr Rgba8 kShield{90, 190, 255, 255};
-constexpr Rgba8 kHullOk{96, 210, 110, 255}, kHullWarn{236, 188, 60, 255}, kHullBad{230, 70, 60, 255};
 constexpr Rgba8 kPausedBar{196, 176, 8, 245};  // the Classic pause banner's yellow bar
 // By TacticalHudFrame::faction_alt (GameUi::set_faction): 0 the good side (Rebel), 1 any other (Empire, Underworld).
 constexpr Rgba8 kAccent[2] = {{226, 120, 48, 255}, {92, 156, 230, 255}};
@@ -34,12 +25,6 @@ constexpr float kDeckHeight = 120.0f;  // canvas units
 // c_button00..05: attack, attack-move, move, waypoint, full stop, guard (HudOrderButtons), their port labels and hotkeys.
 constexpr const char32_t* kOrderLabels[kOrderButtonCount] = {U"Attack", U"Attack Move", U"Move", U"Waypoint", U"Stop", U"Guard"};
 constexpr uint16_t kOrderSlots[kOrderButtonCount] = {hk::kAttack, hk::kAttackMove, hk::kMove, hk::kWaypoint, hk::kStop, hk::kGuard};
-
-Rgba8 hull_color(float health) {
-    if (health > kModernHullWarn) return kHullOk;
-    if (health > kModernHullCritical) return kHullWarn;
-    return kHullBad;
-}
 
 void add_rect(HudDrawList& dl, uint32_t layer, float x0, float y0, float x1, float y1, Rgba8 color) {
     HudQuad q;
@@ -125,6 +110,17 @@ std::optional<HudStyle> parse_hud_style(std::string_view s) {
     return std::nullopt;
 }
 
+std::string_view hud_colours_name(HudColours c) {
+    return c == HudColours::ColourBlind ? "colourblind" : c == HudColours::HighContrast ? "contrast" : "faction";
+}
+
+std::optional<HudColours> parse_hud_colours(std::string_view s) {
+    if (ascii_iequals(s, "faction")) return HudColours::Faction;
+    if (ascii_iequals(s, "colourblind")) return HudColours::ColourBlind;
+    if (ascii_iequals(s, "contrast")) return HudColours::HighContrast;
+    return std::nullopt;
+}
+
 void ModernTacticalHud::init(const ComponentTable& table, const TextureAtlas& atlas, FontCache& fonts, const TextDatabase* text) {
     table_ = &table;
     atlas_ = &atlas;
@@ -147,6 +143,7 @@ void ModernTacticalHud::resize(uint32_t width, uint32_t height) { resize_canvas(
 
 void ModernTacticalHud::set_text_scale(float s) {
     text_scale_ = std::clamp(s > 0.0f ? s : kModernTextScaleDefault, kModernTextScaleMin, kModernTextScaleMax);
+    options_.text_scale = static_cast<int32_t>(std::lround(text_scale_ * 100.0f));
 }
 
 // The text height in canvas units: kModernTextPx x the text scale pixels at 1080p, following the canvas text height as
@@ -162,8 +159,45 @@ int32_t ModernTacticalHud::font() const {
     return fonts_->font(fonts_->defaults().text_face, pt, canvas_.font_height());
 }
 
+// [port: Gabriel] The Modern look (#520 design canvas "Modern HUD redesign" v2; #590 colour choices): dark translucent
+// panels (the panel opacity) with an edge in the local faction's colour; colour-blind safe = the Okabe-Ito palette (blue
+// accent, bluish green / orange / vermillion hull); high contrast = near-opaque black panels, white text, yellow accent.
+void ModernTacticalHud::set_options(const ModernHudOptions& o) {
+    options_ = clamp_options(o);
+    text_scale_ = static_cast<float>(options_.text_scale) / 100.0f;
+    const auto alpha = static_cast<uint8_t>(std::lround(2.55f * static_cast<float>(options_.panel_opacity)));
+    Colours c;
+    c.back = {10, 14, 22, alpha};
+    c.button = {24, 32, 46, static_cast<uint8_t>(std::min(255, alpha + 30))};
+    switch (options_.colours) {
+        case HudColours::ColourBlind:
+            c.faction_accent = false;
+            c.accent = {0, 114, 178, 255};
+            c.shield = {86, 180, 233, 255};
+            c.hull_ok = {0, 158, 115, 255};
+            c.hull_warn = {230, 159, 0, 255};
+            c.hull_bad = {213, 94, 0, 255};
+            break;
+        case HudColours::HighContrast:
+            c.faction_accent = false;
+            c.back = {0, 0, 0, std::max<uint8_t>(alpha, 240)};
+            c.button = {0, 0, 0, 255};
+            c.text = {255, 255, 255, 255};
+            c.label = {230, 230, 230, 255};
+            c.disabled = {150, 150, 150, 255};
+            c.accent = {255, 230, 0, 255};
+            break;
+        case HudColours::Faction: break;
+    }
+    colours_ = c;
+}
+
+Rgba8 ModernTacticalHud::hull_colour(float health) const {
+    return health > kModernHullWarn ? colours_.hull_ok : health > kModernHullCritical ? colours_.hull_warn : colours_.hull_bad;
+}
+
 Rgba8 ModernTacticalHud::accent(uint8_t alpha) const {
-    Rgba8 c = kAccent[faction_alt_ ? 1 : 0];
+    Rgba8 c = colours_.faction_accent ? kAccent[faction_alt_ ? 1 : 0] : colours_.accent;
     c.a = alpha;
     return c;
 }
@@ -203,12 +237,12 @@ void ModernTacticalHud::build_status(const TacticalHudFrame& f) {
     stats_.tech_text = hud_tech_text(text_, f.tech);
     std::vector<Row> rows;
     if (!stats_.credits_text.empty()) rows.push_back({{}, stats_.credits_text, credits_color_});
-    if (!stats_.pop_text.empty()) rows.push_back({text_or_port(text_, nullptr, U"Population"), stats_.pop_text, kText});
-    if (!stats_.tech_text.empty()) rows.push_back({{}, stats_.tech_text, kText});
+    if (!stats_.pop_text.empty()) rows.push_back({text_or_port(text_, nullptr, U"Population"), stats_.pop_text, colours_.text});
+    if (!stats_.tech_text.empty()) rows.push_back({{}, stats_.tech_text, colours_.text});
     if (rows.empty()) return;
     HudTextStyle value_style, label_style;
     value_style.font = label_style.font = font();
-    label_style.color = kLabel;
+    label_style.color = colours_.label;
     const float line = text_height_units() * 1.5f;
     float width = 0.0f;
     for (const Row& r : rows) {
@@ -219,7 +253,7 @@ void ModernTacticalHud::build_status(const TacticalHudFrame& f) {
     const Vec2f size{width + 2.0f * kPad, line * static_cast<float>(rows.size()) + kPad};
     const float hw = 0.5f * canvas_.width, hh = 0.5f * canvas_.height;
     const Vec2f center{-hw + kMargin + 0.5f * size.x, hh - kMargin - 0.5f * size.y};
-    frame_rect(dl_, kPanelLayer, center, size, kBack, accent(200));
+    frame_rect(dl_, kPanelLayer, center, size, colours_.back, accent(200));
     hit(kModernPanelHit, kPanelLayer, center, size);
     float y = center.y + 0.5f * size.y - 0.5f * kPad - 0.5f * line;
     const float left = center.x - 0.5f * size.x + kPad;
@@ -241,12 +275,12 @@ void ModernTacticalHud::build_controls(const TacticalHudFrame& f) {
     float right = hw - kMargin;  // laid out right to left
     HudTextStyle st;
     st.font = font();
-    st.color = kText;
+    st.color = colours_.text;
     st.align = TextAlign::Center;
     auto button = [&](int32_t id, std::u32string_view label, bool selected) {
         const float w = std::max(h, measure_text_block(*fonts_, canvas_, label, 0.0f, st).width + 2.0f * kPad);
         const Vec2f c{right - 0.5f * w, y};
-        frame_rect(dl_, kControlLayer, c, {w, h}, selected ? accent(220) : kButtonBack, hover_ == id ? kText : accent(200));
+        frame_rect(dl_, kControlLayer, c, {w, h}, selected ? accent(220) : colours_.button, hover_ == id ? colours_.text : accent(200));
         add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, label, c, st);
         hit(id, kControlLayer, c, {w, h});
         right -= w + 0.5f * kPad;
@@ -263,13 +297,13 @@ void ModernTacticalHud::build_controls(const TacticalHudFrame& f) {
     const float classic_w = measure_text_block(*fonts_, canvas_, classic, 0.0f, st).width + 2.0f * kPad;
     const Vec2f size{modern_w + classic_w, h};
     const Vec2f c{right - 0.5f * size.x, y};
-    frame_rect(dl_, kControlLayer, c, size, kButtonBack, hover_ == kModernStyleSwitchHit ? kText : accent(200));
+    frame_rect(dl_, kControlLayer, c, size, colours_.button, hover_ == kModernStyleSwitchHit ? colours_.text : accent(200));
     const float modern_x = c.x - 0.5f * size.x + 0.5f * modern_w, classic_x = c.x + 0.5f * size.x - 0.5f * classic_w;
     add_rect(dl_, kControlLayer, modern_x - 0.5f * modern_w + 2.0f, y - 0.5f * h + 2.0f, modern_x + 0.5f * modern_w - 2.0f,
              y + 0.5f * h - 2.0f, accent(220));
     add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, modern, {modern_x, y}, st);
     HudTextStyle dim = st;
-    dim.color = kLabel;
+    dim.color = colours_.label;
     add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, classic, {classic_x, y}, dim);
     hit(kModernStyleSwitchHit, kControlLayer, c, size);
     stats_.style_switch = true;
@@ -278,7 +312,7 @@ void ModernTacticalHud::build_controls(const TacticalHudFrame& f) {
 void ModernTacticalHud::build_deck(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types) {
     const Vec2f size{canvas_.width - 2.0f * kMargin, kDeckHeight};
     const Vec2f center{0.0f, -0.5f * canvas_.height + kMargin + 0.5f * size.y};
-    frame_rect(dl_, kPanelLayer, center, size, kBack, accent(200));
+    frame_rect(dl_, kPanelLayer, center, size, colours_.back, accent(200));
     hit(kModernPanelHit, kPanelLayer, center, size);
     stats_.deck = true;
     // Selection and orders only with an own unit selected (#520: "abilities and orders appear only when I have a selection").
@@ -298,7 +332,7 @@ void ModernTacticalHud::build_selection(const TacticalHudFrame& f, std::span<con
     const float header = line * 1.6f;
     HudTextStyle st;
     st.font = font();
-    st.color = kText;
+    st.color = colours_.text;
     HudTextStyle centred = st;
     centred.align = TextAlign::Center;
     // Header: the wings (Classic's hit ids and members), then Clear at the right end.
@@ -311,16 +345,16 @@ void ModernTacticalHud::build_selection(const TacticalHudFrame& f, std::span<con
         char n[16];
         std::snprintf(n, sizeof n, " %u", wing.squadrons);
         const std::u32string label = wing.label + ascii32(n);
-        const float hint_w = wing.hotkey.empty() ? 0.0f : measure_text_block(*fonts_, canvas_, wing.hotkey, 0.0f, st).width + kPad;
+        const float hint_w = wing.hotkey.empty() || !options_.key_hints ? 0.0f : measure_text_block(*fonts_, canvas_, wing.hotkey, 0.0f, st).width + kPad;
         const float w_units = measure_text_block(*fonts_, canvas_, label, 0.0f, st).width + hint_w + 2.0f * kPad;
         const Vec2f c{x + 0.5f * w_units, hy};
         const int32_t id = kWingHitBase + static_cast<int32_t>(w);
-        frame_rect(dl_, kControlLayer, c, {w_units, header}, wing.selected ? accent(220) : kButtonBack,
-                   hover_ == id ? kText : accent(200));
+        frame_rect(dl_, kControlLayer, c, {w_units, header}, wing.selected ? accent(220) : colours_.button,
+                   hover_ == id ? colours_.text : accent(200));
         add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, label, {c.x - 0.5f * hint_w, c.y}, centred);
-        if (!wing.hotkey.empty()) {  // the wing's key hint (HudWing::hotkey), as the Classic button draws it
+        if (!wing.hotkey.empty() && options_.key_hints) {  // the wing's key hint (HudWing::hotkey), as the Classic button draws it
             HudTextStyle ks = st;
-            ks.color = kLabel;
+            ks.color = colours_.label;
             ks.align = TextAlign::Right;
             add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, wing.hotkey, {c.x + 0.5f * w_units - kPad, c.y}, ks);
             ++stats_.key_badges;
@@ -333,7 +367,7 @@ void ModernTacticalHud::build_selection(const TacticalHudFrame& f, std::span<con
         const std::u32string clear = text_or_port(text_, nullptr, U"Clear");
         const float cw = measure_text_block(*fonts_, canvas_, clear, 0.0f, centred).width + 2.0f * kPad;
         const Vec2f c{top_left.x + width - 0.5f * cw, hy};
-        frame_rect(dl_, kControlLayer, c, {cw, header}, kButtonBack, hover_ == kModernClearHit ? kText : accent(200));
+        frame_rect(dl_, kControlLayer, c, {cw, header}, colours_.button, hover_ == kModernClearHit ? colours_.text : accent(200));
         add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, clear, c, centred);
         hit(kModernClearHit, kControlLayer, c, {cw, header});
         stats_.clear_button = true;
@@ -353,7 +387,7 @@ void ModernTacticalHud::build_selection(const TacticalHudFrame& f, std::span<con
         const SelectedGroup& g = groups_[i];
         const Vec2f c{top_left.x + 0.5f * card_w + static_cast<float>(i) * (card_w + gap), cy};
         const int32_t id = kModernCardHitBase + static_cast<int32_t>(i);
-        frame_rect(dl_, kControlLayer, c, {card_w, card_h}, kButtonBack, hover_ == id ? kText : accent(160));
+        frame_rect(dl_, kControlLayer, c, {card_w, card_h}, colours_.button, hover_ == id ? colours_.text : accent(160));
         hit(id, kControlLayer, c, {card_w, card_h});
         ++stats_.cards;
         char n[24];
@@ -383,26 +417,26 @@ void ModernTacticalHud::build_selection(const TacticalHudFrame& f, std::span<con
         }
         const Vec2f bar{card_w - 2.0f * kPad, 4.0f};
         const float by = c.y - 0.5f * card_h + kPad + (g.shield >= 0.0f ? 8.0f : 2.0f);
-        add_bar(dl_, kControlLayer, {c.x, by}, bar, g.health, hull_color(g.health), false);
-        if (g.shield >= 0.0f) add_bar(dl_, kControlLayer, {c.x, by - 6.0f}, bar, g.shield, kShield, true);
+        add_bar(dl_, kControlLayer, {c.x, by}, bar, g.health, hull_colour(g.health), false);
+        if (g.shield >= 0.0f) add_bar(dl_, kControlLayer, {c.x, by - 6.0f}, bar, g.shield, colours_.shield, true);
     }
 }
 
 // A key badge (the slot's live binding) with its top-right corner at `top_right`.
 void ModernTacticalHud::key_badge(uint16_t slot, Vec2f top_right, uint32_t layer) {
-    if (!keys_) return;
+    if (!keys_ || !options_.key_hints) return;
     const HotkeyBinding& b = keys_->binding(slot);
     if (b.key < 0) return;
     const std::u32string label = hotkey_label(b, text_);
     if (label.empty()) return;
     HudTextStyle st;
     st.font = font();
-    st.color = kText;
+    st.color = colours_.text;
     st.align = TextAlign::Center;
     const float h = text_height_units() * 1.2f;
     const float w = std::max(h, measure_text_block(*fonts_, canvas_, label, 0.0f, st).width + kPad);
     const Vec2f c{top_right.x - 0.5f * w, top_right.y - 0.5f * h};
-    frame_rect(dl_, layer, c, {w, h}, Rgba8{0, 0, 0, 200}, kLabel);
+    frame_rect(dl_, layer, c, {w, h}, Rgba8{0, 0, 0, 200}, colours_.label);
     add_text(dl_, layer, HudList::Text, *fonts_, canvas_, label, c, st);
     ++stats_.key_badges;
 }
@@ -425,16 +459,18 @@ float ModernTacticalHud::build_orders(const TacticalHudFrame& f, Vec2f top_right
         const float cy = top_right.y - 0.5f * row_h - static_cast<float>(i / 3) * (row_h + gap);
         const Vec2f c{cx, cy}, size{col_w, row_h};
         if (live) {
-            frame_rect(dl_, kControlLayer, c, size, kButtonBack, hover_ == order_[i] ? kText : accent(200));
+            frame_rect(dl_, kControlLayer, c, size, colours_.button, hover_ == order_[i] ? colours_.text : accent(200));
         } else {
             add_rect(dl_, kControlLayer, c.x - 0.5f * size.x, c.y - 0.5f * size.y, c.x + 0.5f * size.x, c.y + 0.5f * size.y,
                      Rgba8{16, 20, 28, 160});
-            dashed_rect(dl_, kControlLayer, c, size, kDisabledText);
+            dashed_rect(dl_, kControlLayer, c, size, colours_.disabled);
         }
-        st.color = live ? kText : kDisabledText;
-        const std::u32string label = text_or_port(text_, nullptr, kOrderLabels[i]);
-        st.width_scale = fit_width_scale(measure_text_block(*fonts_, canvas_, label, 0.0f, st).width, col_w - kPad);
-        add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, label, {c.x, c.y - 0.2f * row_h}, st);
+        st.color = live ? colours_.text : colours_.disabled;
+        if (options_.order_labels) {  // off: the key badge alone names the order
+            const std::u32string label = text_or_port(text_, nullptr, kOrderLabels[i]);
+            st.width_scale = fit_width_scale(measure_text_block(*fonts_, canvas_, label, 0.0f, st).width, col_w - kPad);
+            add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, label, {c.x, c.y - 0.2f * row_h}, st);
+        }
         key_badge(kOrderSlots[i], {c.x + 0.5f * size.x - 2.0f, c.y + 0.5f * size.y - 2.0f}, kControlLayer);
         hit(order_[i], kControlLayer, c, size);
         ++stats_.orders;
@@ -443,7 +479,7 @@ float ModernTacticalHud::build_orders(const TacticalHudFrame& f, Vec2f top_right
     if (cohesion) {  // [port: Gabriel 2026-11-13] fleet cohesion (Loose / Tight), toggled by its hotkey
         HudTextStyle cs;
         cs.font = font();
-        cs.color = kLabel;
+        cs.color = colours_.label;
         const float y = top_right.y - height + 0.6f * line;
         add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, f.cohesion_text, {top_right.x - width, y}, cs);
         key_badge(hk::kFleetCohesion, {top_right.x, y + 0.6f * line}, kControlLayer);
@@ -460,7 +496,7 @@ void ModernTacticalHud::build_alerts(const TacticalHudFrame& f) {
     const float y = 0.5f * canvas_.height - kMargin - 0.5f * h;
     HudTextStyle st;
     st.font = font();
-    st.color = kText;
+    st.color = colours_.text;
     std::u32string more;
     if (f.alerts.size() > 1) {
         char n[16];
@@ -477,7 +513,7 @@ void ModernTacticalHud::build_alerts(const TacticalHudFrame& f) {
     const float mark = 0.6f * h;  // the kind's mark: a square (advisor), a diamond (radar), a triangle (objective), a bar (production)
     const Vec2f size{mark + text_w + more_w + jump_w + 4.0f * kPad, h};
     const Vec2f c{0.0f, y};
-    frame_rect(dl_, kPanelLayer, c, size, kBack, accent(220));
+    frame_rect(dl_, kPanelLayer, c, size, colours_.back, accent(220));
     hit(kModernPanelHit, kPanelLayer, c, size);
     float x = c.x - 0.5f * size.x + kPad;
     const Vec2f mc{x + 0.5f * mark, y};
@@ -514,14 +550,14 @@ void ModernTacticalHud::build_alerts(const TacticalHudFrame& f) {
     x += text_w;
     if (!more.empty()) {
         HudTextStyle ms = st;
-        ms.color = kLabel;
+        ms.color = colours_.label;
         add_text(dl_, kPanelLayer, HudList::Text, *fonts_, canvas_, more, {x, y}, ms);
         x += more_w;
     }
     if (a.has_position) {
         const Vec2f jc{x + kPad + 0.5f * jump_w, y};
         const Vec2f js{jump_w, h - 4.0f};
-        frame_rect(dl_, kControlLayer, jc, js, kButtonBack, hover_ == kModernJumpHit ? kText : accent(220));
+        frame_rect(dl_, kControlLayer, jc, js, colours_.button, hover_ == kModernJumpHit ? colours_.text : accent(220));
         add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, jump, {jc.x - 1.5f * kPad, y}, cs);
         key_badge(hk::kAlertJump, {jc.x + 0.5f * js.x - 2.0f, jc.y + 0.5f * js.y - 2.0f}, kControlLayer);
         hit(kModernJumpHit, kControlLayer, jc, js);
@@ -541,7 +577,7 @@ void ModernTacticalHud::build_objectives(const TacticalHudFrame& f, float top) {
     const float right = 0.5f * canvas_.width - kMargin;
     HudTextStyle st;
     st.font = font();
-    st.color = kText;
+    st.color = colours_.text;
     std::vector<std::pair<std::vector<std::u32string>, HudObjective::State>> entries;
     const float mark = 0.6f * text_height_units();
     const float wrap_px = (width - 3.0f * kPad - mark) / canvas_.units_per_pixel_x;
@@ -557,12 +593,12 @@ void ModernTacticalHud::build_objectives(const TacticalHudFrame& f, float top) {
                                                               : f.objectives_header;
     const Vec2f size{width, line * static_cast<float>(1 + lines) + kPad};
     const Vec2f c{right - 0.5f * width, top - 0.5f * size.y};
-    frame_rect(dl_, kPanelLayer, c, size, kBack, accent(200));
+    frame_rect(dl_, kPanelLayer, c, size, colours_.back, accent(200));
     hit(kModernPanelHit, kPanelLayer, c, size);
     float y = top - 0.5f * kPad - 0.5f * line;
     const float left = c.x - 0.5f * width + kPad;
     HudTextStyle hs = st;
-    hs.color = kLabel;
+    hs.color = colours_.label;
     add_text(dl_, kPanelLayer, HudList::Text, *fonts_, canvas_, header, {left, y}, hs);
     key_badge(hk::kHolocron, {c.x + 0.5f * width - 2.0f, top - 2.0f}, kPanelLayer);
     for (const auto& [wrapped, state] : entries) {
@@ -579,17 +615,17 @@ void ModernTacticalHud::build_objectives(const TacticalHudFrame& f, float top) {
                     const float d = 0.5f * mark, t = 1.0f;
                     q.corners = {Vec2f{mc.x - d, mc.y + s * d}, Vec2f{mc.x - d + t, mc.y + s * d}, Vec2f{mc.x + d, mc.y - s * d},
                                  Vec2f{mc.x + d - t, mc.y - s * d}};
-                    q.color = kHullBad;  // the hull bar's critical colour
+                    q.color = colours_.hull_bad;  // the hull bar's critical colour
                     dl_.add(kPanelLayer, HudList::Alpha, q);
                 }
                 break;
-            default: frame_rect(dl_, kPanelLayer, mc, {mark, mark}, Rgba8{0, 0, 0, 0}, kText); break;
+            default: frame_rect(dl_, kPanelLayer, mc, {mark, mark}, Rgba8{0, 0, 0, 0}, colours_.text); break;
         }
         bool first = true;
         for (const std::u32string& w : wrapped) {
             if (!first) y -= line;
             HudTextStyle ts = st;
-            if (state != HudObjective::State::Active) ts.color = kLabel;
+            if (state != HudObjective::State::Active) ts.color = colours_.label;
             add_text(dl_, kPanelLayer, HudList::Text, *fonts_, canvas_, w, {left + mark + kPad, y}, ts);
             first = false;
         }
@@ -627,9 +663,9 @@ void ModernTacticalHud::build_pause(const TacticalHudFrame& f) {
     if (resume_ >= 0) {
         const Vec2f size{measure_text_block(*fonts_, canvas_, resume, 0.0f, st).width + 4.0f * kPad, h};
         const Vec2f c{0.0f, bar.y - h - kPad};
-        frame_rect(dl_, kBannerLayer, c, size, hover_ == resume_ ? accent(240) : kButtonBack, accent(230));
+        frame_rect(dl_, kBannerLayer, c, size, hover_ == resume_ ? accent(240) : colours_.button, accent(230));
         HudTextStyle bs = st;
-        bs.color = kText;
+        bs.color = colours_.text;
         add_text(dl_, kBannerLayer, HudList::Text, *fonts_, canvas_, resume, c, bs);
         hit(resume_, kBannerLayer, c, size);
     }

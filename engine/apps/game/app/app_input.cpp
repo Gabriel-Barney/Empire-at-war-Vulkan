@@ -1685,6 +1685,19 @@ void App::handle_menu_actions(const std::vector<ui::MenuAction>& acts) {
                 apply_camera_page();
                 save_game_options();  // ui1 t02
                 break;
+            case K::ApplyHud: {  // [port: Gabriel] #590 the Interface page: style, UI scale and the Modern options, kept
+                if (live_input()) video_profile_.hud_style = a.hud.style;  // scripted, smoke and benchmark runs stay Classic
+                video_profile_.modern_hud = ui::clamp_options(a.hud.modern);
+                if (const int32_t s = std::clamp(a.hud.ui_scale, ui::kUiScaleMin, ui::kUiScaleMax); live_input() && s != ui_scale_) {
+                    ui_scale_ = s;
+                    resize_ui();
+                    std::printf("video: UI scale %d %%\n", ui_scale_);
+                }
+                if (live_input()) video_profile_.ui_scale = ui_scale_;
+                ui_.modern_hud.set_options(video_profile_.modern_hud);
+                save_video_options();
+                break;
+            }
             case K::KeybindingsChanged:  // the keyboard dialogs edited ui_.hotkeys; bindings follow, kept between runs
                 sync_control_bindings(ui_.hotkeys, camera_, ui_.bindings);
                 save_game_options();

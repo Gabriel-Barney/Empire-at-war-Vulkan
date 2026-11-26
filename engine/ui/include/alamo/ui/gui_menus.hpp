@@ -47,6 +47,7 @@
 
 #include "alamo/ui/gui_dialog.hpp"
 #include "alamo/ui/hotkeys.hpp"
+#include "alamo/ui/hud_style.hpp"
 #include "alamo/ui/input.hpp"
 
 namespace alamo::data {
@@ -271,6 +272,16 @@ inline constexpr float kGalacticFovMinDeg = 15.0f, kGalacticFovMaxDeg = 60.0f, k
 extern const char* const kPortDialogsRc;
 inline constexpr const char* kPortControlsDialog = "IDD_PORT_CAMERA_CONTROLS_DIALOG";
 inline constexpr const char* kPortModsDialog = "IDD_PORT_MODS_DIALOG";
+// [port: Gabriel] #590 the Interface page IDD_PORT_HUD_DIALOG (in kPortDialogsRc), opened by IDC_PORT_OPEN_HUD on the
+// camera and controls page: the HUD style (with a line describing each), the HudStyleToggle and AlertJump keys, the UI
+// scale, and the Modern options, greyed while Classic is chosen. Accept -> MenuAction::ApplyHud (+ KeybindingsChanged).
+inline constexpr const char* kPortHudDialog = "IDD_PORT_HUD_DIALOG";
+struct HudPageSettings {
+    HudStyle style = HudStyle::Classic;
+    int32_t ui_scale = 100;  // one of kUiScaleChoices (the Display page's UI Scale)
+    ModernHudOptions modern;
+    friend bool operator==(const HudPageSettings&, const HudPageSettings&) = default;
+};
 // [port: Gabriel] controls the port adds to shipped dialogs: IDD_VIDEO_OPTIONS_DIALOG gets the V-sync mode combo
 // (IDC_PORT_VSYNC_MODE), the frame rate cap list and slider (IDC_PORT_FRAME_CAP, IDC_PORT_FRAME_CAP_SLIDER), a live 0..100 value beside the Gamma slider
 // (IDC_PORT_GAMMA_VALUE; the shipped Low / Max captions only name the slider's ends) and a display line
@@ -413,6 +424,8 @@ struct MenuAction {
         // #452 (docs/re/SINGLE_PLAYER_DIALOGS.md "IDD_MAIN_CAMPAIGN_DIALOG", 0xe9920 [H]), appended: the first New Campaign
         // click asked TEXT_SUGGEST_TUTORIAL; the host writes "-1" to the profile's TutorialsPlayed and saves the profile.
         TutorialSuggested,
+        // [port: Gabriel] #590, appended: the Interface page's Accept: `hud` (style, UI scale, Modern options).
+        ApplyHud,
     };
     Kind kind = Kind::ResumeGame;
     std::string campaign, faction, map, save;
@@ -431,6 +444,7 @@ struct MenuAction {
     GameplaySettings gameplay;
     AdvancedVideoSettings advanced;
     CameraSettings camera;
+    HudPageSettings hud;  // ApplyHud
     GameOptionsSetup game_options;  // StartCampaign / StartSkirmish (set = Accepted on the advanced options)
     // StartSkirmish: the skirmish options dialog's values (set = false: never accepted, the host's defaults).
     SkirmishOptionsSetup skirmish_options;
@@ -477,6 +491,7 @@ struct MenuProviders {
     SkirmishOptionsSetup skirmish_option_defaults;  // the skirmish options' defaults and slider range (host)
     std::function<AdvancedVideoSettings()> advanced_video;  // null: defaults
     std::function<CameraSettings()> camera_settings;        // [port: Gabriel] null: defaults
+    std::function<HudPageSettings()> hud_settings;          // [port: Gabriel] #590 the Interface page; null: defaults
     HotkeyTable* hotkeys = nullptr;  // edited by the keyboard dialogs (Accept)
     Bindings* bindings = nullptr;    // synced with apply_to_bindings on Accept
     // the skirmish staging faction combos. The host fills it from the data (alamo_game: the Is_Playable,
@@ -586,6 +601,9 @@ private:
     AdvancedVideoSettings read_advanced_video(const GuiDialog& d) const;
     void fill_port_controls(GuiDialog& d, const CameraSettings& s);
     CameraSettings read_port_controls(const GuiDialog& d) const;
+    void fill_port_hud(GuiDialog& d, const HudPageSettings& s);  // #590
+    HudPageSettings read_port_hud(const GuiDialog& d) const;
+    static void enable_modern_rows(GuiDialog& d, bool modern);
     void fill_gameplay(GuiDialog& d, const GameplaySettings& g);
     void fill_keyboard(GuiDialog& d);
     void fill_mods(GuiDialog& d);         // rows from MenuProviders::mods, the selected row's report

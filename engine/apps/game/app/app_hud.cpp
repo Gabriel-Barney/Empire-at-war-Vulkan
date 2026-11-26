@@ -1340,6 +1340,7 @@ void App::build_tactical_hud() {
     // hotkeys read: ability buttons, order-button liveness), with its world layer split off; the Modern HUD draws over it.
     const bool modern = modern_hud();
     ui_.tactical_hud.set_world_split(modern);
+    if (modern && !(ui_.modern_hud.options() == video_profile_.modern_hud)) ui_.modern_hud.set_options(video_profile_.modern_hud);  // #590
     ui_.tactical_hud.build(hf, units, ui_.hud_types);
     if (modern) ui_.modern_hud.build(hf, units, ui_.hud_types);
     if (ui_.tactical_hud.stats().reticles > 0) ++reticle_frames_;
