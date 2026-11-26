@@ -49,8 +49,18 @@ bool MovementSystem::unit_moving(const Unit& u) const {
     // vf +0x1a8 0x42cc60: not suspended (pack +0x260; the port's speed factor 0) and (speed > 0 or a path record on its
     // stack); vf +0x1b0 0x42cd30: not suspended and turning in place (the start turn, the arrival turn, a container's
     // final-facing turn)
+    return locomotor_moving(u) || (u.speed_factor > 0.0f && !u.d.no_locomotor && in_place_turn(u));
+}
+
+bool MovementSystem::locomotor_moving(const Unit& u) {
+    // vf +0x1a8 0x42cc60 alone (unit_moving without vf +0x1b0)
     if (!(u.speed_factor > 0.0f) || u.d.no_locomotor) return false;  // s78n t20 batch 1: no locomotor, never Moving
-    return u.m.speed > 0.0f || u.pushed || (u.has_goal && !u.need_path) || in_place_turn(u);
+    return u.m.speed > 0.0f || u.pushed || (u.has_goal && !u.need_path);
+}
+
+bool MovementSystem::locomotor_moving(ObjectId id) const {
+    const Unit* u = unit_ptr(id);
+    return u && locomotor_moving(*u);
 }
 
 bool MovementSystem::turning_in_place(ObjectId id) const {

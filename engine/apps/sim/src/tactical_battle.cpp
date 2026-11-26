@@ -2269,6 +2269,7 @@ void TacticalBattle::attack_block_service(TacticalMode& mode, SimRng& rng) {
                                              [](const LandFormationRecord& x, objects::ObjectId m) { return x.mover < m; });
             if (lr != lformations_.end() && lr->mover == mover) {
                 d.flags = lr->flags();
+                lr->wait = false;  // #510: Set_Move plans the new stack (state 0); a state-6 wait ends
                 // #488: Set_Move(F, {kind 1 at L, flags kept}, clear) - the stack becomes that one position block
                 mv::FighterBlock b;
                 b.kind = mv::kFighterBlockPosition;
