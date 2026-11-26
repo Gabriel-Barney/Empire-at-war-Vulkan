@@ -238,6 +238,7 @@ private:
         uint32_t cam_serial = 0;       // BattleCam::serial() of the shot the clock runs for
         uint32_t cam_start = 0;        // tactical frame of that shot's start (shot clock 0)
         int32_t cam_clock = 0;         // its shot clock at the frame being drawn
+        InterestingState interesting;  // #568 +0x360 / +0x368 / +0x370
         objects::ObjectId engine_object = objects::kNoObjectId;  // +0x318: the object whose engine loop plays (#564)
         objects::TypeIndex engine_type = objects::kNone;
         ui::KeySet cam_swallowed;      // keys the controller swallowed, hidden until released
@@ -263,6 +264,7 @@ private:
     bool battle_cam_camera(ui::CameraParams& cp);
     void camera_button();                        // b_camera_t (0x347100)
     void engine_loop_to(objects::ObjectId id);   // #564: move the cinematic engine loop (+0x318) to `id` (none: off)
+    bool interesting_object_shot(bool first, BattleCamShot& out);  // #568 0x2cd930: the pick and its template
     // The drawn object `id` (snapshot, ascending id) and its transform; null when it is not drawn.
     const render::SnapshotObject* drawn_object(objects::ObjectId id, ObjectFrame* frame) const;
     ui::Vec3 shot_half_extents(objects::TypeIndex type);  // the shots' E: model box, else the drawn radius, else 200

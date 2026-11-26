@@ -89,6 +89,7 @@ void App::tsw_shot_end() {
 
 void App::cinematic_reset() {
     engine_loop_to(objects::kNoObjectId);
+    cine_.interesting = {};
     cine_.cam.stop();  // the swallowed keys stay hidden until released (else a held one would read as a new press)
     cine_.cam_on = false;
     cine_.shot.end();
@@ -275,7 +276,100 @@ BattleCamPicks App::battle_cam_picks() {
         }
         return false;  // no participant of the local player
     };
+    p.interesting = [this](bool first, BattleCamShot& out) { return interesting_object_shot(first, out); };
     return p;
+}
+
+// #568 0x2cd930 / 0x2cd0d0 / 0x4a53f0 (docs/re/BATTLE_CAM.md "The interesting-object shot"): the pick reads the drawn
+// objects and the sim (presentation only), then the template is built on the picked object's drawn transform.
+// [port] Readings of retail's object fields: "in the world, not hidden" = drawn, not dying or contained; "a model" =
+// drawable; "may follow" (+0x3a0 & 0x40 clear) = drawn and not gone; fogged = hidden from the local player (FOW); the
+// selection is its drawn objects of the local player; the ObjBox and the ModelBox are one box (shot_half_extents);
+// health = the drawn health; speed = the movement's current speed; power = the type's AI_Combat_Power (a FLEET's
+// members are not summed); the target count leaves out the hardpoints' targets.
+bool App::interesting_object_shot(bool first, BattleCamShot& out) {
+    const sim::TacticalBattle* b = battle();
+    const sim::TacticalMode* tm = session_ ? session_->host().modes().top_tactical() : nullptr;
+    if (!b || !tm || !bview_.active()) return false;
+    const objects::ObjectStore& st = tm->primary();
+    const bool space = bview_.space();
+    constexpr uint8_t kGone = render::kSnapDying | render::kSnapDeathClone | render::kSnapCorpse | render::kSnapContained;
+    namespace beh = objects::beh;
+    const auto has = [&st](objects::ObjectId id, objects::BehaviorTypeId bt) {
+        const objects::ObjectHandle h = st.find(id);
+        return st.alive(h) && st.has_behavior(h, bt);
+    };
+    const auto flying = [b](objects::TypeIndex t) {  // FlyingLocomotorBehaviorClass: the mode's locomotor token
+        return ascii_iequals(b->locomotor_token(static_cast<uint32_t>(t)), "FLYING_LOCOMOTOR");
+    };
+    const objects::EnumConverter& cats = data_.types.enums().get(objects::EnumId::GameObjectCategory);
+    const uint64_t wall = static_cast<uint64_t>(cats.lookup("Wall").value_or(0x800000));
+    InterestingWorld w;
+    w.weights = saliency_;
+    for (const uint32_t id : orders_.selection())
+        if (const render::SnapshotObject* o = drawn_object(static_cast<objects::ObjectId>(id), nullptr); o && o->owner == local_player())
+            w.selection.push_back(id);
+    w.type_of = [this](uint32_t id) {
+        const render::SnapshotObject* o = drawn_object(static_cast<objects::ObjectId>(id), nullptr);
+        return o && (o->flags & kGone) == 0 ? static_cast<int32_t>(o->type) : -1;
+    };
+    w.may_follow = [this](uint32_t id) {
+        const render::SnapshotObject* o = drawn_object(static_cast<objects::ObjectId>(id), nullptr);
+        return o && (o->flags & kGone) == 0;
+    };
+    w.target = [this, b, &has](uint32_t id) -> uint32_t {
+        const objects::ObjectId t = b->combat().current_target(static_cast<objects::ObjectId>(id));
+        const render::SnapshotObject* o = t != objects::kNoObjectId ? drawn_object(t, nullptr) : nullptr;
+        if (!o || (o->flags & (kGone | render::kSnapFogHidden)) != 0 || (o->flags & render::kSnapDrawable) == 0) return 0;
+        if (has(t, beh::Team) || has(t, beh::Transport)) return 0;
+        return static_cast<uint32_t>(t);
+    };
+    // Step C: every drawn mobile object (any owner) with a model that is not a wall, not flying on land, not fogged.
+    const std::vector<render::SnapshotObject>& objs = bview_.frame().objects;
+    std::vector<const render::SnapshotObject*> step_c;
+    for (const render::SnapshotObject& o : objs) {
+        if ((o.flags & render::kSnapFogHidden) != 0 || (o.flags & render::kSnapDrawable) == 0 || !has(o.id, beh::Locomotor)) continue;
+        if ((data_.types.get_mask(o.type, "CategoryMask") & wall) != 0) continue;
+        if (!space && flying(o.type)) continue;
+        step_c.push_back(&o);
+    }
+    // Step D, pass 2: faded in, in the world, not a TEAM or TRANSPORT. Pass 1's target counts run over step C's list.
+    std::vector<const render::SnapshotObject*> cand;
+    for (const render::SnapshotObject* o : step_c)
+        if ((o->flags & kGone) == 0 && o->fade >= 0.9f && !has(o->id, beh::Team) && !has(o->id, beh::Transport)) cand.push_back(o);
+    for (const render::SnapshotObject* o : cand) {
+        SaliencyFeatures f;
+        const ui::Vec3 e = shot_half_extents(o->type);
+        f.size = tactical::dot(e, e);
+        f.power = data_.types.get_float(o->type, "AI_Combat_Power");
+        f.x = o->position.x;
+        f.y = o->position.y;
+        f.health = o->health;
+        for (const render::SnapshotObject* c : step_c)
+            if (b->combat().current_target(c->id) == o->id) f.targets += 1.0f;
+        f.speed = b->movement().view(o->id).speed;
+        w.candidate_ids.push_back(static_cast<uint32_t>(o->id));
+        w.candidate_types.push_back(static_cast<int32_t>(o->type));
+        w.candidate_features.push_back(f);
+    }
+    if (!interesting_pick(cine_.interesting, first, w, cine_.rng)) return false;
+    ObjectFrame frame;
+    const render::SnapshotObject* o = drawn_object(static_cast<objects::ObjectId>(cine_.interesting.current), &frame);
+    if (!o) return false;
+    InterestingObject io;
+    io.id = static_cast<uint32_t>(o->id);
+    io.category = data_.types.get_mask(o->type, "CategoryMask");
+    io.locomotor = has(o->id, beh::Locomotor);
+    io.flying = flying(o->type);
+    io.model = (o->flags & render::kSnapDrawable) != 0;
+    io.half_extents = shot_half_extents(o->type);
+    io.frame = frame;
+    io.type_name = data_.types.name(o->type);
+    InterestingCategories c;
+    c.bomber = static_cast<uint64_t>(cats.lookup("Bomber").value_or(0x2));
+    c.corvette = static_cast<uint64_t>(cats.lookup("Corvette").value_or(0x8));
+    std::printf("Start_Interesting_Object_Cinematic: Type %.*s\n", static_cast<int>(io.type_name.size()), io.type_name.data());
+    return interesting_shot(io, space, c, cine_.rng, out);
 }
 
 // Cinematic mode on (0x49b1a0: the mode camera saved once, HUD and cursor hidden, FS +0x37) and the letterbox (0x44b550,
@@ -295,6 +389,7 @@ void App::battle_cam_sync() {
         engine_loop_to(objects::kNoObjectId);
         if (session_) session_->set_presentation_rate_lock(false);
         cine_.letterbox.slide_out();
+        cine_.interesting.current = 0;  // End_Cinematic_Mode clears +0x360 [H]; +0x368 / +0x370 are kept [M]
         std::printf("cinematic: battle cam off\n");
     }
     cine_.cam_on = on;
@@ -304,10 +399,9 @@ void App::battle_cam_sync() {
         cine_.cam_start = b ? b->frame() : 0;
         cine_.cam_clock = 0;
         // #564 0x4ab780: the handheld noise restarts with each shot (every tracker cleared first), at shot clock 0.
-        if (cine_.cam.shot().handheld) {
-            cine_.shake.reset();
-            (void)cine_.shake.start(handheld_shake(kHandheldFrames), 0, kHandheldFrames);
-        }
+        cine_.shake.reset();  // 0x4a7a90: every shot start clears the trackers
+        if (const BattleCamShot& s = cine_.cam.shot(); s.handheld)
+            (void)cine_.shake.start(handheld_shake(s.handheld_frames), 0, s.handheld_frames);
         engine_loop_to(static_cast<objects::ObjectId>(cine_.cam.shot().target));  // +0x318: off on the old, on on the new
     }
 }
@@ -401,7 +495,13 @@ void App::battle_cam_step() {
     }
     if (cine_.cam.active() && !drawn_object(static_cast<objects::ObjectId>(cine_.cam.shot().target), nullptr)) cine_.cam.stop();  // [port] the object is gone
     battle_cam_sync();
-    if (cine_.cam.active()) cine_.cam_clock = b->frame() >= cine_.cam_start ? static_cast<int32_t>(b->frame() - cine_.cam_start) : 0;
+    if (!cine_.cam.active()) return;
+    // #568 0x4aaf00: a timed shot expires, freezes while the Movie Mode key or Tab is held, or chains.
+    const int32_t raw = b->frame() >= cine_.cam_start ? static_cast<int32_t>(b->frame() - cine_.cam_start) : 0;
+    const uint32_t serial = cine_.cam.serial();
+    const int32_t c = cine_.cam.tick(raw, input_.key_down(ui::vk::kTab), battle_cam_picks());
+    battle_cam_sync();
+    cine_.cam_clock = cine_.cam.serial() != serial ? 0 : c;
 }
 
 // 0x49cd00 for the battle cam: the keyed eye / look on the framed object's drawn transform, the eye smoothing, near / far

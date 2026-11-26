@@ -199,6 +199,11 @@ int32_t UnsyncedRandom::range(int32_t lo, int32_t hi) {
     return static_cast<int32_t>(static_cast<int64_t>(lo) + static_cast<int64_t>((r >> 11) % span));
 }
 
+float UnsyncedRandom::rangef(float lo, float hi) {
+    const float u = static_cast<float>(range(0, 32767)) / 32767.0f;
+    return lo + (hi - lo) * u;
+}
+
 bool CameraShake::start(const ShakeEffect& e, int32_t start_clock, int32_t duration_frames) {
     if (duration_frames <= 0) return false;
     if (trackers_.size() >= kMaxTrackers) {  // #143 (docs/MODS.md "Limits policy"): refused and counted, no running shake dropped
@@ -302,6 +307,7 @@ Vec3 TswFiringShot::look(int32_t c, const ObjectFrame& tsw) { return shot_keys_l
 // ---- the key evaluator (0x49c540 eye / 0x49de50 look) ----------------------------------------------------------------
 Vec3 shot_key_position(const ShotKey& k, const ObjectFrame& f, float z_adjust) {
     if (!k.attached) return k.where;
+    if (k.translate_only) return f.position + k.where + Vec3{0.0f, 0.0f, z_adjust};  // +0x51: world axes
     return f.apply(k.where) + Vec3{0.0f, 0.0f, z_adjust};  // 0x49d640: + Ranged_Target_Z_Adjust on z
 }
 

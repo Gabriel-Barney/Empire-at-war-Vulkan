@@ -112,6 +112,7 @@ public:
     explicit UnsyncedRandom(uint64_t seed = 0xf0f0f0f0u) { reseed(seed); }
     void reseed(uint64_t seed) { s_ = seed != 0 ? seed : 0x9e3779b97f4a7c15ull; }
     int32_t range(int32_t lo, int32_t hi);  // inclusive; lo >= hi -> lo
+    float rangef(float lo, float hi);       // #568 (0x1ffbb0): lo + (hi - lo) x u, u in [0, 1]
 private:
     uint64_t s_ = 1;
 };
@@ -202,6 +203,7 @@ struct ShotKey {
     float ease_in = 0.0f;    // +0x48: deceleration share of the segment ending at this key
     int32_t period = 300;    // +0x4c: frames per orbit turn (Orbit after the last key; literal frames)
     bool reverse = false;    // +0x50: the orbit turns clockwise
+    bool translate_only = false;  // +0x51 (#568): an attached offset in world axes from the object's position
 };
 
 // The key lists' position at shot clock `c` (docs/re/BATTLE_CAM.md "The per-frame evaluator"). Attached keys sit in the
