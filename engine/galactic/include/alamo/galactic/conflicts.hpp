@@ -314,6 +314,7 @@ public:
     bool on_invade(int32_t attacker, PlanetIndex planet, std::span<const ObjectHandle> units) override;
     void on_service_tail() override;
     bool in_queued_conflict(int32_t player) const override;
+    void evacuate_owner_change(PlanetIndex planet, int32_t player) override;  // #189: retreat_fleets, then retreat_ground
 
     // ---- direct entry points (Lua / story / tests) ----
     bool initiate_space_conflict(PlanetIndex planet, int32_t attacker, int32_t defender = kNoPlayer,

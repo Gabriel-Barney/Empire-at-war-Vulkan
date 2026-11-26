@@ -896,6 +896,7 @@ void test_galactic_ops() {
     vm.set_object_global("Tr", sim.planets()[0].surface[0]);
     vm.set_object_global("UTr", sim.planets()[2].surface[0]);
     const objects::ObjectHandle tr = sim.planets()[0].surface[0], utr = sim.planets()[2].surface[0];
+    const auto utr_type = static_cast<uint32_t>(g.store->type(utr));
     CHECK(run(vm, "emp = Find_Player('Empire') und = Find_Player('Underworld')") == "");
 
     // Containment through the GalacticSim (ships carry no store container).
@@ -927,21 +928,22 @@ void test_galactic_ops() {
     CHECK(run(vm, "Assemble_Fleet({5})").find("Assemble_Fleet -- unexpected type found in table of units to assemble.") != std::string::npos);
     CHECK(run(vm, "Assemble_Fleet()").find("Assemble_Fleet -- invalid number of parameters. Expected 1, got 0.") != std::string::npos);
 
-    // Change_Owner: a fleet member, a surface unit, a planet (GE 4.2 forced transfer), a fleet object.
+    // Change_Owner: a fleet member, a surface unit, a planet (0x3f7280, docs/re/CHANGE_OWNER_EVACUATION.md), a fleet object.
     sim.set_emit_events(true);
     const uint32_t old_fleet = fa[0];
     CHECK(run(vm, "F2.Change_Owner(und) Tr.Change_Owner(und) PC.Change_Owner(emp) o1 = F2.Get_Owner().Get_ID() "
                   "o2 = F2.Get_Parent_Object().Get_Owner().Get_ID()") == "");
     CHECK(g.store->owner(c[1]) == 1 && g.store->owner(tr) == 1 && !sim.fleets()[old_fleet].alive && sim.fleets_at(0, 1).size() == 1);
     CHECK(gnum(vm, "o1") == 1.0 && gnum(vm, "o2") == 1.0);
-    CHECK(sim.planets()[2].owner == 0 && sim.planets()[2].control == 1.0f && g.store->owner(utr) == 0);
+    // C's old owner is the AI Underworld, not the local player: its surface unit is removed (0x4b7670).
+    CHECK(sim.planets()[2].owner == 0 && sim.planets()[2].control == 1.0f && !g.store->alive(utr));
     std::vector<galactic::GalacticEvent> evs;
     sim.drain_events(evs);
     CHECK(std::any_of(evs.begin(), evs.end(), [](const galactic::GalacticEvent& e) {
         return e.kind == galactic::GalacticEventKind::PlanetOwnerChanged && e.planet == 2 && e.player == 0 && e.other_player == 1;
     }));
     sim.update();
-    CHECK(sim.planets()[2].owner == 0);  // derived owner keeps the transfer (converted surface unit)
+    CHECK(sim.planets()[2].owner == 0);  // derived owner keeps the transfer
     CHECK(run(vm, "af3.Change_Owner(und) ufa = F2.Get_Parent_Object() uc = ufa.Get_Contained_Object_Count()") == "");
     CHECK(gnum(vm, "uc") == 3.0 && sim.fleets_at(0, 1).size() == 1 && sim.fleets_at(0, 0).size() == 0 && g.store->owner(c[2]) == 1);
     CHECK(run(vm, "PC.Change_Owner(emp)") == "" && sim.planets()[2].owner == 0);  // same owner: nothing
@@ -971,6 +973,9 @@ void test_galactic_ops() {
     CHECK(run(vm, "GetNextStarbaseType()").find("GetNextStarbaseType : invalid number of parameters. Expected 1, got 0.") !=
           std::string::npos);
     sim.set_hidden(1, true);
+    const objects::ObjectHandle utr2 = sim.spawn_unit(1, 2, utr_type);  // an Underworld transport on C again
+    CHECK(g.store->alive(utr2));
+    vm.set_object_global("UTr", utr2);
     CHECK(run(vm, "u1 = PA.Get_Is_Planet_AI_Usable() u2 = PB.Get_Is_Planet_AI_Usable() "
                   "c1 = UTr.Can_Land_On_Planet(PA) c2 = F1.Can_Land_On_Planet(PA) c3 = UTr.Can_Land_On_Planet(PB)") == "");
     // Can_Land_On_Planet has no hidden test (c3); a non-planet's Get_Is_Planet_AI_Usable is an error.
@@ -986,7 +991,7 @@ void test_galactic_ops() {
     CHECK(sim.fleets_at(0, 1).empty() && !g.store->alive(c[0]) && !g.store->alive(c[2]) && sim.planets()[2].surface.empty());
     CHECK(run(vm, "PA.Destroy_Contained_Objects('x')").find("Expected number.") != std::string::npos);
     sim.update();  // flush: the destroyed objects leave the store
-    CHECK(!g.store->exists(c[0]) && !g.store->exists(c[2]) && !g.store->exists(utr));
+    CHECK(!g.store->exists(c[0]) && !g.store->exists(c[2]) && !g.store->exists(utr) && !g.store->exists(utr2));
 }
 
 // ------------------------------------------------------------------------------------------

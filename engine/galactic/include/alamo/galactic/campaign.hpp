@@ -525,6 +525,10 @@ public:
     virtual void on_service_tail() = 0;
     // 0x2b0350 (REMAINING_GAPS 6.4, BT §1.4 step 2): `player` is attacker or defender of a conflict in either queue.
     virtual bool in_queued_conflict(int32_t /*player*/) const { return false; }
+    // #189 (docs/re/CHANGE_OWNER_EVACUATION.md): Change_Owner 0x3f7280 of a planet whose old owner is the local player,
+    // before the owner change: `player`'s orbit objects get the battle retreat's move (0x2ba6c0) and its surface units
+    // retreat into a fleet (0x2ba850, flag clear). Without hooks nothing leaves.
+    virtual void evacuate_owner_change(PlanetIndex /*planet*/, int32_t /*player*/) {}
 };
 
 class GalacticSim {
