@@ -339,7 +339,6 @@ void TacticalHud::on_pointer(std::span<const HudPointerEvent> events, std::vecto
     }
 }
 
-// An ability button's click: right = autofire toggle; left = targeting mode (targeted) or the mode toggle.
 std::vector<HudAbilityButton> selection_ability_buttons(std::span<const SelectedGroup> groups, const HudProviders& providers,
                                                         size_t max) {
     std::vector<HudAbilityButton> buttons;
@@ -356,7 +355,9 @@ std::vector<HudAbilityButton> selection_ability_buttons(std::span<const Selected
                 buttons.push_back({a, {}});
                 it = buttons.end() - 1;
             } else {  // merged: ready when any group is; active when any is
-                if (a.recharge > it->ability.recharge) it->ability.seconds_left = a.seconds_left;
+                const bool sooner = a.seconds_left >= 0.0f && (it->ability.seconds_left < 0.0f || a.seconds_left < it->ability.seconds_left);
+                if (a.recharge > it->ability.recharge || (a.recharge == it->ability.recharge && sooner))
+                    it->ability.seconds_left = a.seconds_left;
                 it->ability.recharge = std::max(it->ability.recharge, a.recharge);
                 it->ability.active = it->ability.active || a.active;
                 it->ability.enabled = it->ability.enabled || a.enabled;
@@ -368,6 +369,7 @@ std::vector<HudAbilityButton> selection_ability_buttons(std::span<const Selected
     return buttons;
 }
 
+// An ability button's click: right = autofire toggle; left = targeting mode (targeted) or the mode toggle.
 void ability_button_click(const HudAbilityButton& a, int32_t component, const std::string& name, Button button, bool queued,
                           std::vector<commands::EventData>& out, std::vector<HudAction>* actions) {
     if (button == Button::Right) {

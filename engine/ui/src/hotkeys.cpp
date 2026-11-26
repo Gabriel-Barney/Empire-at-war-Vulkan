@@ -189,6 +189,13 @@ std::string_view hotkey_ability_name2(uint16_t slot) {
     return {};
 }
 
+int32_t ability_hotkey_slot(const HotkeyTable& keys, std::string_view type_name) {
+    if (type_name.empty()) return -1;
+    for (uint16_t s = 0; s < kHotkeySlots; ++s)
+        if ((hotkey_ability_name(s) == type_name || hotkey_ability_name2(s) == type_name) && keys.binding(s).key >= 0) return s;
+    return -1;
+}
+
 uint32_t tether_toggle(uint32_t current, std::span<const uint32_t> selection) {
     if (current != 0) return 0;
     return selection.empty() ? 0 : selection.front();

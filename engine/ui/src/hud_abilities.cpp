@@ -63,7 +63,7 @@ std::string ability_icon(uint8_t t) {
 }
 
 #ifdef ALAMO_UI_HAVE_ABILITIES
-constexpr float kAbilityFramesPerSecond = 30.0f;  // the sim step, 1/30 s (sim/pacing.hpp kSimTicksPerSecond)
+constexpr float kAbilityFramesPerSecond = 30.0f;  // the sim rate, jobs::kDefaultTicksPerSecond (alamo_ui_hud does not link jobs)
 void abilities_from_s9(const tactical::abilities::AbilitySystem& sys, const SelectedGroup& g, uint32_t frame,
                        std::vector<HudAbility>& out) {
     using tactical::abilities::kMaxAbilityType;
@@ -107,6 +107,7 @@ void abilities_from_s9(const tactical::abilities::AbilitySystem& sys, const Sele
         a.targeted = k != TargetKind::None;
         a.target_kind = static_cast<uint8_t>(k);
         a.icon = alternate.empty() ? ability_icon(type) : std::move(alternate);
+        a.type_name = std::string(tactical::abilities::ability_type_info(type).name);  // #586 the Modern key badge
         // the MasterTextFile pair TEXT_TOOLTIP_ABILITY_<type>_NAME / _DESCRIPTION; mcx4 t14 (MCX4_PRES_RE_ANSWERS_2
         // Q5, tooltip 0x2f3e20): the first member's record's Alternate_Name_Text / Alternate_Description_Text replace each
         // key when set. Two keys: two lines.

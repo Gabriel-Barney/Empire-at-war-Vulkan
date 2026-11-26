@@ -173,6 +173,10 @@ std::string_view hotkey_ability_name(uint16_t slot);
 // The second type a slot also activates (0x63f00 calls 0x2dccf0 twice): SwapWeapons -> ROCKET_ATTACK, ForceCloak ->
 // STEALTH; "" for every other slot.
 std::string_view hotkey_ability_name2(uint16_t slot);
+class HotkeyTable;
+// [port] #586 the slot whose key fires ability type `type_name` (hotkey_ability_name / _name2): the first such slot with a
+// key bound in `keys`; -1 when none (the Modern ability button's key badge).
+int32_t ability_hotkey_slot(const HotkeyTable& keys, std::string_view type_name);
 // Camera Tether (slot 77, battle-cam key-down 0x2cbd00 [H]): on -> off (0); off -> the first selected object, nothing
 // with an empty selection. Ids are ObjectIds, 0 = none.
 uint32_t tether_toggle(uint32_t current, std::span<const uint32_t> selection);

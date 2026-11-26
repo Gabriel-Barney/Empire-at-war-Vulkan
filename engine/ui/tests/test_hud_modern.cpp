@@ -699,10 +699,71 @@ void test_abilities() {
     auto7 = false;
     h.build(f, s.units, s.types);
     CHECK(st.abilities == 3 && st.ability_rings == 0 && st.ability_auto == 0);
+    // The story's ability arrow finds the drawn Modern button; an absent type none.
+    Vec2f bc, bs;
+    CHECK(h.modern.ability_box(9, bc, bs) && bs.x > 0.0f && !h.modern.ability_box(99, bc, bs));
+    // Key badges: the binding of the slot that fires the type (ability_hotkey_slot), with the live table.
+    uint16_t slot = 0;
+    while (slot < kHotkeySlots && hotkey_ability_name(slot).empty()) ++slot;
+    const std::string bound(hotkey_ability_name(slot));
+    HotkeyTable keys;
+    CHECK(!bound.empty() && ability_hotkey_slot(keys, bound) >= 0 && ability_hotkey_slot(keys, "NO_SUCH_ABILITY") < 0);
+    h.modern.set_hotkeys(&keys);
+    f.providers.abilities = [&](const SelectedGroup& g, std::vector<HudAbility>& out) {
+        if (g.type != 0) return;
+        HudAbility a;
+        a.ability_type = 5;
+        a.type_name = bound;
+        out.push_back(a);
+    };
+    h.build(f, s.units, s.types);
+    const uint32_t with_badge = st.key_badges;
+    f.providers.abilities = [&](const SelectedGroup& g, std::vector<HudAbility>& out) {
+        if (g.type != 0) return;
+        HudAbility a;
+        a.ability_type = 5;
+        out.push_back(a);
+    };
+    h.build(f, s.units, s.types);
+    CHECK(st.abilities == 1 && with_badge == st.key_badges + 1);
+    h.modern.set_hotkeys(nullptr);
+    // More abilities than the deck has room for (and than the table has special buttons): the hotkey agrees with Classic
+    // for every one, drawn or not.
+    f.providers.abilities = [](const SelectedGroup&, std::vector<HudAbility>& out) {
+        for (uint8_t t = 1; t <= 12; ++t) {
+            HudAbility a;
+            a.ability_type = t;
+            out.push_back(a);
+        }
+    };
+    h.build(f, s.units, s.types);
+    CHECK(st.abilities <= 4);
+    for (uint8_t type = 1; type <= 12; ++type) {
+        std::vector<commands::EventData> cc, mc;
+        std::vector<HudAction> ca, ma;
+        const bool cr = h.classic.activate_ability(type, false, cc, &ca), mr = h.modern.activate_ability(type, false, mc, &ma);
+        CHECK(cr == mr && cr && cc == mc && ca.size() == ma.size());
+    }
     // No provider or no own selection: no section.
     f.providers.abilities = nullptr;
     h.build(f, s.units, s.types);
     CHECK(st.abilities == 0);
+    // The merge keeps the seconds left of the readiest group, the shorter on a tie.
+    HudProviders p;
+    p.abilities = [](const SelectedGroup& g, std::vector<HudAbility>& out) {
+        HudAbility a;
+        a.ability_type = 3;
+        a.recharge = 0.5f;
+        a.seconds_left = g.type == 0 ? 20.0f : 8.0f;
+        out.push_back(a);
+    };
+    std::vector<SelectedGroup> two(2);
+    two[0].type = 0;
+    two[0].ids = {1};
+    two[1].type = 1;
+    two[1].ids = {2};
+    const std::vector<HudAbilityButton> merged = selection_ability_buttons(two, p, 48);
+    CHECK(merged.size() == 1 && merged[0].ability.seconds_left == 8.0f && (merged[0].users == std::vector<uint32_t>{1, 2}));
 }
 
 void test_world_split() {

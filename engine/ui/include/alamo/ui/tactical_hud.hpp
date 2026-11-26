@@ -88,6 +88,7 @@ struct HudAbility {
     std::string icon;           // atlas texture (e.g. "i_sa_*.tga")
     float recharge = 1.0f;      // 0..1, 1 = ready (the dial shows recharge x 100 while < 1)
     float seconds_left = -1.0f;  // [port] #586 the recharge's seconds left (< 0 unknown): the Modern ring's count
+    std::string type_name;       // [port] #586 the ABILITIES_HARDPOINTS 2.1 type name ("" unknown): the Modern key badge
     bool active = false;        // mode on (selected look)
     bool enabled = true;
     bool targeted = false;      // needs a target: a click starts the targeting mode (HudAction)
@@ -140,7 +141,8 @@ struct HudAbilityButton {
     std::vector<uint32_t> users;
 };
 // The selection's ability buttons: per group (panel order), its abilities (`provider`); distinct ability types take one
-// button each, in first-seen order, at most `max` (merged: ready when any group is, active / enabled when any is).
+// button each, in first-seen order, at most `max` (merged: ready when any group is, active / enabled when any is; the
+// seconds left of the readiest group, the shorter on a tie).
 std::vector<HudAbilityButton> selection_ability_buttons(std::span<const SelectedGroup> groups, const HudProviders& providers,
                                                         size_t max);
 

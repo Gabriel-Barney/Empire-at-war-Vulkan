@@ -422,7 +422,16 @@ void App::build_story_pointers(ui::HudDrawList& dl, const ui::HudCanvas& canvas)
                 if (t != galactic::kNoIndex) idx = ui_.galactic_hud.build_component(static_cast<uint16_t>(t));
             } else if (a.kind == StoryArrow::Kind::Ability && !gal) {
                 const uint8_t at_type = tactical::abilities::ability_type_from_name(a.target);
-                if (at_type != 0) idx = ui_.tactical_hud.ability_component(at_type);
+                ui::Vec2f mc, ms;
+                if (at_type != 0 && modern_hud() && ui_.modern_hud.ability_box(at_type, mc, ms)) {  // #586 the drawn Modern button
+                    const ui::Vec2f size{std::max(ms.x, 24.0f) + 6.0f, std::max(ms.y, 24.0f) + 6.0f};
+                    if ((static_cast<int64_t>(std::floor(now_s_ / (kFlashSeconds * 0.5))) % 2) == 0)
+                        ui::frame_rect(dl, kPointerLayer, mc, size, ui::Rgba8{255, 255, 80, 40}, kFlashColor);
+                    at = {mc.x, mc.y + 0.5f * std::max(ms.y, 24.0f)};
+                    ok = true;
+                } else if (at_type != 0 && !modern_hud()) {
+                    idx = ui_.tactical_hud.ability_component(at_type);
+                }
             }
             if (idx >= 0) {
                 const ui::ComponentPlacement& pl = layout.placement(static_cast<uint32_t>(idx));

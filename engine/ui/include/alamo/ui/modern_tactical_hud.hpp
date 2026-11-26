@@ -152,6 +152,9 @@ public:
     // `ability_type` (the same command / BeginAbilityTargeting action). False when none is drawn or it is disabled.
     bool activate_ability(uint8_t ability_type, bool queued, std::vector<commands::EventData>& out,
                           std::vector<HudAction>* actions = nullptr) const;
+    // The drawn button of `ability_type` (canvas centre and size) after the previous build, for the story's ability arrow
+    // and flash (TacticalHud::ability_component's Modern counterpart). False when it is not drawn.
+    bool ability_box(uint8_t ability_type, Vec2f& center, Vec2f& size) const;
 
 private:
     int32_t font() const;
@@ -199,9 +202,11 @@ private:
     std::vector<int32_t> special_button_;  // special_button_NN: the ability buttons' Classic ids (hit ids and action names)
     size_t panel_slots_ = 0;               // s_select_NN present: Classic's fleet grouping bound
     struct AbilityButton : HudAbilityButton {
-        int32_t component = -1;
+        int32_t component = -1;  // special_button_NN (-1: the table has none; the hotkey still fires it, as Classic's)
+        bool drawn = false;
+        Vec2f center{}, size{};
     };
-    std::vector<AbilityButton> abilities_;  // drawn, deck order
+    std::vector<AbilityButton> abilities_;  // every button Classic would build (its 48 cap), deck order; the first drawn
     std::vector<SelectedGroup> groups_;
     std::vector<std::vector<uint32_t>> wing_ids_;  // per TacticalHudFrame::wings entry (empty: not drawn), as Classic's
     Rgba8 credits_color_{255, 212, 33, 255};                // Text_Credits_tactical's Text_Color when the data has one

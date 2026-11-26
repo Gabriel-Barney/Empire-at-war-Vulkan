@@ -372,11 +372,15 @@ float ModernTacticalHud::build_abilities(const TacticalHudFrame& f, std::span<co
     st.font = font();
     st.color = colours_.text;
     st.align = TextAlign::Center;
-    for (size_t i = 0; i < buttons.size() && i < 2 * cols && i < special_button_.size(); ++i) {
-        if (special_button_[i] < 0) continue;
+    for (size_t i = 0; i < buttons.size(); ++i) {
         AbilityButton b;
         static_cast<HudAbilityButton&>(b) = std::move(buttons[i]);
         b.component = special_button_[i];
+        // Past the deck's room (or without a component) the button is not drawn but its hotkey still fires, as Classic's.
+        if (i >= 2 * cols || b.component < 0) {
+            abilities_.push_back(std::move(b));
+            continue;
+        }
         const HudAbility& a = b.ability;
         const Vec2f c{top_right.x - width + 0.5f * side + static_cast<float>(i / 2) * (side + gap),
                       top_right.y - 0.5f * side - static_cast<float>(i % 2) * (side + gap)};
@@ -385,8 +389,14 @@ float ModernTacticalHud::build_abilities(const TacticalHudFrame& f, std::span<co
         if (!a.enabled) {
             add_rect(dl_, kControlLayer, c.x - 0.5f * side, c.y - 0.5f * side, c.x + 0.5f * side, c.y + 0.5f * side, Rgba8{16, 20, 28, 160});
             dashed_rect(dl_, kControlLayer, c, size, colours_.disabled);
-        } else if (a.active) {  // the active look: the accent filled, a bright edge
+        } else if (a.active) {  // the active look: the accent filled, a bright edge and a corner notch (a shape, not only colour)
             frame_rect(dl_, kControlLayer, c, size, accent(150), colours_.text);
+            HudQuad notch;
+            notch.has_corners = true;
+            const float n = 0.3f * side, x0 = c.x - 0.5f * side, y1 = c.y + 0.5f * side;
+            notch.corners = {Vec2f{x0, y1}, Vec2f{x0 + n, y1}, Vec2f{x0 + n, y1}, Vec2f{x0, y1 - n}};
+            notch.color = colours_.text;
+            dl_.add(kControlLayer, HudList::Alpha, notch);
             ++stats_.ability_active;
         } else {
             frame_rect(dl_, kControlLayer, c, size, colours_.button, hovered ? colours_.text : accent(200));
@@ -418,7 +428,13 @@ float ModernTacticalHud::build_abilities(const TacticalHudFrame& f, std::span<co
             add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, label, lc, as);
             ++stats_.ability_auto;
         }
+        if (keys_ && !a.type_name.empty())
+            if (const int32_t slot = ability_hotkey_slot(*keys_, a.type_name); slot >= 0)
+                key_badge(static_cast<uint16_t>(slot), {c.x + 0.5f * side - 2.0f, c.y + 0.5f * side - 2.0f}, kControlLayer);
         hit(b.component, kControlLayer, c, size);
+        b.drawn = true;
+        b.center = c;
+        b.size = size;
         abilities_.push_back(std::move(b));
         ++stats_.abilities;
     }
@@ -431,9 +447,20 @@ bool ModernTacticalHud::activate_ability(uint8_t ability_type, bool queued, std:
     for (const AbilityButton& a : abilities_) {
         if (a.ability.ability_type != ability_type) continue;
         if (!a.ability.enabled || a.users.empty()) return false;
-        ability_button_click(a, a.component, (*table_)[static_cast<size_t>(a.component)].name, Button::Left, queued, out, actions);
+        ability_button_click(a, a.component, a.component >= 0 ? (*table_)[static_cast<size_t>(a.component)].name : std::string(),
+                             Button::Left, queued, out, actions);
         return true;
     }
+    return false;
+}
+
+bool ModernTacticalHud::ability_box(uint8_t ability_type, Vec2f& center, Vec2f& size) const {
+    for (const AbilityButton& a : abilities_)
+        if (a.ability.ability_type == ability_type && a.drawn) {
+            center = a.center;
+            size = a.size;
+            return true;
+        }
     return false;
 }
 
@@ -838,7 +865,8 @@ void ModernTacticalHud::update_input(const RoutedInput& routed, bool shift, bool
             continue;
         }
         // Ability buttons: the Classic click (TacticalHud::update_input "Ability buttons"; Shift = queued).
-        if (const auto it = std::find_if(abilities_.begin(), abilities_.end(), [&](const AbilityButton& a) { return a.component == e.component; });
+        if (const auto it = std::find_if(abilities_.begin(), abilities_.end(),
+                                         [&](const AbilityButton& a) { return a.drawn && a.component == e.component; });
             it != abilities_.end()) {
             if (it->ability.enabled)
                 ability_button_click(*it, it->component, (*table_)[static_cast<size_t>(e.component)].name, e.button, shift, out, actions);
