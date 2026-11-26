@@ -90,7 +90,8 @@ bool GameAudioHost::galactic_activation_presented(galactic::SpecialAbilityClass 
         case C::Sabotage:          // 0x5b1920
         case C::Hack:              // 0x61b520
         case C::SystemSpy:         // 0x70f510
-        case C::SiphonCredits: return true;  // 0x70e440
+        case C::SiphonCredits:              // 0x70e440
+        case C::PlanetDestruction: return true;  // #330 0x707670
         case C::RemoveCorruption: return local_user;  // 0x5b13c0: the hero's owner is the local player
         default: return false;
     }
@@ -105,7 +106,7 @@ std::vector<GameAudioHost::GalacticActivation> GameAudioHost::galactic_activatio
         if (e.kind == K::SabotageVigilance) caught.push_back(e.object);
     std::vector<GalacticActivation> out;
     for (const galactic::GalacticEvent& e : batch) {
-        if (e.kind != K::SpecialApplied || !class_of) continue;
+        if ((e.kind != K::SpecialApplied && e.kind != K::SpecialPresented) || !class_of) continue;  // #330 SpecialPresented
         const galactic::SpecialAbilityClass cls = class_of(static_cast<uint32_t>(e.value));
         if (!galactic_activation_presented(cls, e.player == local_player)) continue;
         if (cls == galactic::SpecialAbilityClass::Sabotage && std::find(caught.begin(), caught.end(), e.object) != caught.end())

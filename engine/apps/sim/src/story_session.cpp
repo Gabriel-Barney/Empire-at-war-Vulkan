@@ -704,7 +704,9 @@ void StorySession::route_load_events() {
         std::vector<StoryTrigger> batch;
         batch.reserve(scratch_.size());
         for (const galactic::GalacticEvent& e : scratch_)
-            if (!(e.kind == galactic::GalacticEventKind::PlanetDestroyed && e.value == 1)) batch.push_back(translate(e));
+            if (!(e.kind == galactic::GalacticEventKind::PlanetDestroyed && e.value == 1) &&
+                e.kind != galactic::GalacticEventKind::SpecialPresented)  // #330 presentation only
+                batch.push_back(translate(e));
         for (StoryTrigger& t : batch) {
             t.frame = frame_;
             t.index = static_cast<uint32_t>(triggers_.size());
@@ -1963,7 +1965,8 @@ void StorySession::service(uint64_t frame, double mode_seconds, bool galactic_to
         std::vector<StoryTrigger> batch;
         batch.reserve(scratch_.size() + pending_host_.size() + pending_ui_.size());
         for (const galactic::GalacticEvent& e : scratch_)
-            if (!(e.kind == galactic::GalacticEventKind::PlanetDestroyed && e.value == 1))  // TSW: battle plots only (§7)
+            if (!(e.kind == galactic::GalacticEventKind::PlanetDestroyed && e.value == 1) &&  // TSW: battle plots only (§7)
+                e.kind != galactic::GalacticEventKind::SpecialPresented)  // #330 presentation only, no story event
                 batch.push_back(translate(e));
         poll_planets(batch);  // wave 1: PLANET_DESTROYED (no stream event)
         for (StoryTrigger& h : pending_host_) batch.push_back(std::move(h));

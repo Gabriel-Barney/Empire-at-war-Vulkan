@@ -97,6 +97,10 @@ enum class GalacticEventKind : uint8_t {
                              // host's GameSession opens IDD_NEUTRALIZE_HERO_DIALOG from it (#71 t08).
     NeutralizeVigilance,     // a generic neutralizer caught on Planet_Vigilance (killed): player, planet, object = the
                              // neutralizer, other_player = planet owner
+    // #330 (docs/re/AUDIO_BINARY_ANSWERS.md section 3): the activation presentation 0x48e4d0 of a successful apply that
+    // raises no SpecialApplied (Planet_Destruction: 0x707670 calls no story 0x3284c0): player, planet, object = the
+    // user, type = its type, value = the ability ref (as SpecialApplied). Presentation only.
+    SpecialPresented,
     Count
 };
 

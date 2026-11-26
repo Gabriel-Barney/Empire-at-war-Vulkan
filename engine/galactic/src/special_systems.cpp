@@ -278,6 +278,10 @@ bool GalacticSim::special_apply(uint32_t ability, ObjectHandle unit, int32_t own
     if (applied && story && a.cls != SpecialAbilityClass::PlanetDestruction && a.cls != SpecialAbilityClass::NeutralizeHero)
         emit_special(GalacticEventKind::SpecialApplied, owner, planet, unit, static_cast<uint32_t>(store_->exists(unit) ? store_->type(unit) : kNoIndex),
                      static_cast<int32_t>(ability), -1);
+    // #330: 0x707670 ends with the activation presentation 0x48e4d0(ability, user, planet) [H], without the story event
+    if (applied && a.cls == SpecialAbilityClass::PlanetDestruction)
+        emit_special(GalacticEventKind::SpecialPresented, owner, planet, unit,
+                     static_cast<uint32_t>(store_->exists(unit) ? store_->type(unit) : kNoIndex), static_cast<int32_t>(ability), -1);
     return applied;
 }
 
