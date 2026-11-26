@@ -28,6 +28,7 @@ std::vector<HudTypeInfo> build_hud_type_table(const objects::GameObjectTypes& ty
         h.has_shields = types.get_float(t, "Shield_Points") > 0.0f;
         h.is_hero = types.get_bool(t, "Is_Named_Hero");
         h.icon_name = std::string(data::trim(types.get_string(t, "Icon_Name")));
+        h.text_id = std::string(data::trim(types.get_string(t, "Text_ID")));
         h.radar_icon = std::string(data::trim(types.get_string(t, "Radar_Icon_Name")));
         float rs[2] = {0.0f, 0.0f};
         if (data::parse_floats(types.get_string(t, "Radar_Icon_Size"), rs, 2) == 2) h.radar_icon_size = {rs[0], rs[1]};
