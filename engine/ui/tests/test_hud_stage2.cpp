@@ -354,15 +354,13 @@ void test_real_shell() {
     ShellSet set;
     std::vector<std::string> missing;
     const std::string names[] = {"i_main_skirmish", "i_main_reinforce", "i_main_commandbar"};
-    set.load(
-        table,
-        [&](std::string_view name) -> std::shared_ptr<const assets::ModelAsset> {
-            auto m = std::make_shared<assets::ModelAsset>();
-            std::string e;
-            if (!assets::load_model(*files, name, *m, &e)) return nullptr;
-            return m;
-        },
-        names, &missing);
+    const auto load_alo = [&](std::string_view name) -> std::shared_ptr<const assets::ModelAsset> {
+        auto m = std::make_shared<assets::ModelAsset>();
+        std::string e;
+        if (!assets::load_model(*files, name, *m, &e)) return nullptr;
+        return m;
+    };
+    set.load(table, load_alo, names, &missing);
     for (const std::string& m : missing) std::printf("real shell: missing %s\n", m.c_str());
     CHECK2(set.shells().size() == 3);
     const ShellSet::Shell* tac = set.find(static_cast<uint32_t>(table.find("i_main_skirmish")));
@@ -386,7 +384,8 @@ void test_real_shell() {
     // FIXPASS_GALACTIC §4.2 / capture C2: the bottom-left advisor bones, model units from the bottom-left corner.
     for (const ShellBone& b : tac->info.bones) {
         const auto is = [&b](const char* n) { return _stricmp(b.name.c_str(), n) == 0; };
-        if (is("Movie_tactical") || is("b_droid_help_tactical") || is("Text_Planet_tactical"))
+        if (is("Movie_tactical") || is("b_droid_help_tactical") || is("Text_Planet_tactical") || is("Text_Tactical_Tech") ||
+            is("Text_Planetary_Pop"))
             std::printf("real advisor bone %s (%.1f, %.1f) mesh half %.1f x %.1f, rect centre +%.1f +%.1f\n", b.name.c_str(),
                         static_cast<double>(b.x), static_cast<double>(b.y), static_cast<double>(b.half_size.x),
                         static_cast<double>(b.half_size.y), static_cast<double>(b.rect_center.x),
@@ -405,6 +404,13 @@ void test_real_shell() {
             }
         CHECK2(movie_bone);
     }
+    for (const char* n : {"Text_Planet_tactical", "Text_Tactical_Tech", "Text_Planetary_Pop"})
+        if (const int32_t ci = table.find(n); ci >= 0) {
+            const CommandBarComponent& c = table[static_cast<size_t>(ci)];
+            std::printf("real planet panel %s: font %s %.1f pt, Max_Text_Width %.1f, offset %.1f %.1f, justified %d\n", n,
+                        c.font_name.c_str(), static_cast<double>(c.font_point_size), static_cast<double>(c.max_text_width),
+                        static_cast<double>(c.text_offset.x), static_cast<double>(c.text_offset.y), c.right_justified ? 1 : 0);
+        }
     HudLayout layout;
     set.apply(layout);
     for (auto [w, h] : {std::pair{1024u, 768u}, std::pair{1920u, 1080u}}) {
@@ -420,6 +426,64 @@ void test_real_shell() {
         CHECK2(rd.placed && near2(rd.size.x, 175, 1.0f) && rd.center.x < -0.5f * cv.width + 120.0f);
         // Land reinforcement window: top-left (bones y <= 0 -> origin on the top edge).
         CHECK2(r0.placed && r0.center.y > 0.5f * cv.height - 80.0f && r0.center.x < -0.5f * cv.width + 60.0f);
+    }
+    // #597: the Classic fleet cohesion line clear of the planet panel's name, tech and population texts with the real
+    // shell, components, master text and system fonts (100 % UI scale), whole and squeezed no narrower than
+    // kCohesionMinWidthScale.
+    {
+        ShellSet tac_set;
+        const std::string tac_name[] = {"i_main_skirmish"};
+        tac_set.load(table, load_alo, tac_name, nullptr);
+        CHECK2(tac_set.shells().size() == 1);
+        TextDatabase text;
+        CHECK2(load_master_text(*files, "ENGLISH", text));
+        TextureAtlas atlas;
+        atlas.texture_width = atlas.texture_height = 64;
+        auto raster = make_system_rasterizer();
+        FontCache fonts(*raster);
+        TacticalHud hud;
+        hud.init(table, atlas, fonts, &text);
+        if (!tac_set.shells().empty()) {
+            tac_set.set_alt(tac_set.shells()[0].component, 0);
+            tac_set.set_visible(tac_set.shells()[0].component, true);
+            tac_set.apply(hud.layout());
+        }
+        const CommandBarComponent& name_c = table[static_cast<size_t>(table.find("Text_Planet_tactical"))];
+        TacticalHudFrame fr;
+        fr.planet_name = U"Kuat";
+        fr.tech = 3;
+        fr.pop = 13;
+        fr.pop_cap = 20;
+        for (const char32_t* cohesion : {U"Fleet cohesion: Loose (O)", U"Fleet cohesion: Tight (O)"})
+            for (auto [w, h] : {std::pair{1024u, 768u}, std::pair{1920u, 1080u}, std::pair{2000u, 1125u}, std::pair{2560u, 1440u},
+                                std::pair{3840u, 2160u}}) {
+                hud.resize(w, h);
+                fr.cohesion_text = cohesion;
+                const hud_test::PlanetPanelTexts p = hud_test::planet_panel_texts(hud, fr);
+                HudTextStyle st;
+                st.font = fonts.component_font(name_c.font_name, name_c.font_point_size, FontUse::Text, hud.canvas().font_height());
+                st.outline = name_c.text_outline;
+                st.align = TextAlign::Center;
+                HudDrawList solo;
+                add_text_block(solo, 0, HudList::Text, fonts, hud.canvas(), fr.cohesion_text, {0.0f, 0.0f}, 0.0f, st);
+                const hud_test::TextRect natural = hud_test::added_text(hud_test::text_boxes(solo), {});
+                const float hw = 0.5f * hud.canvas().width, hh = 0.5f * hud.canvas().height;
+                std::printf("real cohesion %ux%u: line %.1f..%.1f x %.1f..%.1f (natural width %.1f), name y %.1f..%.1f, tech y "
+                            "%.1f..%.1f, pop y %.1f..%.1f (from the bottom-left corner)\n",
+                            w, h, p.cohesion.x0 + hw, p.cohesion.x1 + hw, p.cohesion.y0 + hh, p.cohesion.y1 + hh, natural.width(),
+                            p.name.y0 + hh, p.name.y1 + hh, p.tech.y0 + hh, p.tech.y1 + hh, p.pop.y0 + hh, p.pop.y1 + hh);
+                CHECK2(!p.name.empty() && !p.tech.empty() && !p.pop.empty() && !p.cohesion.empty());
+                CHECK2(!p.cohesion.intersects(p.name) && !p.cohesion.intersects(p.tech) && !p.cohesion.intersects(p.pop));
+                CHECK2(p.cohesion.quads == natural.quads && p.cohesion.height() < 1.5f * natural.height());
+                CHECK2(p.cohesion.width() >= kCohesionMinWidthScale * natural.width() - 0.5f);
+                CHECK2(p.cohesion.x0 > -hw && p.cohesion.y1 < hh && p.empty_digest_kept);
+                // Clear of the advisor droid's help button and under the advisor movie (its bone is the bottom-left corner).
+                const ComponentPlacement& help = hud.layout().placement(static_cast<uint32_t>(table.find("b_droid_help_tactical")));
+                const ComponentPlacement& movie = hud.layout().placement(static_cast<uint32_t>(table.find("Movie_tactical")));
+                CHECK2(help.placed && movie.placed);
+                CHECK2(p.cohesion.x0 > help.rect_center.x + 0.5f * help.size.x || p.cohesion.y1 < help.rect_center.y - 0.5f * help.size.y);
+                CHECK2(p.cohesion.y1 < movie.center.y);
+            }
     }
 }
 

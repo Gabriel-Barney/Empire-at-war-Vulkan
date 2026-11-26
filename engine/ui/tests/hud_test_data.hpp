@@ -3,15 +3,92 @@
 // drawn 256 x 256 RGBA image) so the HUD renders without game data.
 #pragma once
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
+#include <iterator>
 #include <string_view>
 #include <vector>
 
 #include "alamo/data/xml.hpp"
 #include "alamo/ui/hud_components.hpp"
+#include "alamo/ui/hud_draw.hpp"
+#include "alamo/ui/tactical_hud.hpp"
 
 namespace hud_test {
+
+// #597: the bounding box of a set of text glyph quads (canvas units, +Y up).
+struct TextRect {
+    float x0 = 1e9f, y0 = 1e9f, x1 = -1e9f, y1 = -1e9f;
+    size_t quads = 0;
+    bool empty() const { return quads == 0; }
+    float width() const { return empty() ? 0.0f : x1 - x0; }
+    float height() const { return empty() ? 0.0f : y1 - y0; }
+    bool intersects(const TextRect& o) const { return !empty() && !o.empty() && x0 < o.x1 && o.x0 < x1 && y0 < o.y1 && o.y0 < y1; }
+};
+
+// Every text glyph quad of a draw list (Text and ModelText, all layers) as sorted min / max corners.
+inline std::vector<std::array<float, 4>> text_boxes(const alamo::ui::HudDrawList& dl) {
+    using alamo::ui::HudList;
+    std::vector<std::array<float, 4>> out;
+    for (uint32_t l = 0; l < alamo::ui::kHudLayers; ++l)
+        for (const HudList list : {HudList::Text, HudList::ModelText})
+            for (const alamo::ui::HudQuad& q : dl.items(l, list)) out.push_back({q.min.x, q.min.y, q.max.x, q.max.y});
+    std::sort(out.begin(), out.end());
+    return out;
+}
+
+// The box of the glyph quads in `with` that are not in `without` (multiset difference): the text one frame field adds.
+inline TextRect added_text(const std::vector<std::array<float, 4>>& with, const std::vector<std::array<float, 4>>& without) {
+    std::vector<std::array<float, 4>> d;
+    std::set_difference(with.begin(), with.end(), without.begin(), without.end(), std::back_inserter(d));
+    TextRect r;
+    for (const auto& b : d) {
+        r.x0 = std::min(r.x0, b[0]);
+        r.y0 = std::min(r.y0, b[1]);
+        r.x1 = std::max(r.x1, b[2]);
+        r.y1 = std::max(r.y1, b[3]);
+        ++r.quads;
+    }
+    return r;
+}
+
+// #597: the planet panel's text blocks in one TacticalHud build of `f` (name, tech, population and the fleet cohesion
+// line), each found as the glyphs its field adds; `empty_digest_kept` = clearing the cohesion text gives the same draw
+// list as a build that never had one.
+struct PlanetPanelTexts {
+    TextRect name, tech, pop, cohesion;
+    bool empty_digest_kept = false;
+};
+inline PlanetPanelTexts planet_panel_texts(alamo::ui::TacticalHud& hud, const alamo::ui::TacticalHudFrame& f) {
+    PlanetPanelTexts out;
+    alamo::ui::TacticalHudFrame g = f;
+    auto boxes = [&] {
+        hud.build(g, {}, {});
+        return text_boxes(hud.draw_list());
+    };
+    g.cohesion_text.clear();
+    const auto plain = boxes();
+    const uint64_t plain_digest = hud.draw_list().digest();
+    g = f;
+    const auto full = boxes();
+    out.cohesion = added_text(full, plain);
+    g.cohesion_text.clear();
+    g.planet_name.clear();  // the cohesion line goes with the name
+    out.name = added_text(plain, boxes());
+    g = f;
+    g.tech = -1;
+    out.tech = added_text(full, boxes());
+    g = f;
+    g.pop = -1;
+    out.pop = added_text(full, boxes());
+    g = f;
+    g.cohesion_text.clear();
+    hud.build(g, {}, {});
+    out.empty_digest_kept = hud.draw_list().digest() == plain_digest;
+    hud.build(f, {}, {});
+    return out;
+}
 
 inline const char* kComponentsXml = R"(<?xml version="1.0"?>
 <CommandBarComponents>
