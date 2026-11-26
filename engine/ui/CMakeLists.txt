@@ -43,6 +43,7 @@ add_library(alamo_ui_hud STATIC
   src/hud_markers.cpp
   src/hotkeys.cpp
   src/tactical_hud.cpp
+  src/modern_tactical_hud.cpp  # [port: Gabriel] the Modern HUD style (#520 / #584)
   # P4 GUI & menus: GUIDialogs.rc / Resource.h / GUIDialogs.xml, dialog manager, menus, load screens, galactic HUD,
   # Lua GUI control consumer.
   src/gui_resource.cpp
@@ -99,6 +100,11 @@ endif()
 add_test(NAME alamo_ui_hud_tests COMMAND alamo_ui_hud_tests)
 set_tests_properties(alamo_ui_hud_tests PROPERTIES TIMEOUT 120)
 # ui3 (UIART "Tactical HUD controls"): ability hotkeys, keyboard edit-box order, command-bar button state, tooltips.
+# [port: Gabriel] #584: the Modern HUD style against the Classic one on the HUD seam.
+add_executable(alamo_ui_hud_modern_tests tests/test_hud_modern.cpp)
+target_link_libraries(alamo_ui_hud_modern_tests PRIVATE alamo_ui_hud alamo_data alamo_test_support)
+add_test(NAME alamo_ui_hud_modern_tests COMMAND alamo_ui_hud_modern_tests)
+set_tests_properties(alamo_ui_hud_modern_tests PROPERTIES TIMEOUT 120)
 add_executable(alamo_ui_hud_ui3_tests tests/test_hud_ui3.cpp)
 target_link_libraries(alamo_ui_hud_ui3_tests PRIVATE alamo_ui_hud alamo_data alamo_test_support)
 add_test(NAME alamo_ui_hud_ui3_tests COMMAND alamo_ui_hud_ui3_tests)

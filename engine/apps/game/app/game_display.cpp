@@ -417,6 +417,8 @@ bool load_video_profile(const std::string& path, VideoProfile& p) {
         if (const std::optional<ui::WindowMode> wm = parse_window_mode(it->second)) p.window_mode = *wm;
     num("ui_scale", p.ui_scale);
     p.ui_scale = std::clamp(p.ui_scale, ui::kUiScaleMin, ui::kUiScaleMax);
+    if (auto it = kv.find("hud_style"); it != kv.end())  // #584: an unknown value keeps the current style
+        if (const std::optional<ui::HudStyle> s = ui::parse_hud_style(it->second)) p.hud_style = *s;
     if (auto it = kv.find("vsync_mode"); it != kv.end()) p.vsync_mode = it->second == "mailbox" ? ui::VsyncMode::Mailbox : ui::VsyncMode::Fifo;
     for (const ProfileInt& e : kProfileInts) num(e.key, p.*e.field);
     for (const ProfileAdvInt& e : kProfileAdvInts) num(e.key, p.advanced.*e.field);
@@ -460,6 +462,7 @@ bool save_video_profile(const std::string& path, const VideoProfile& p) {
     f << "width=" << p.mode.width << "\nheight=" << p.mode.height << "\nrefresh_hz=" << p.mode.hz << "\n";
     f << "vsync=" << (p.vsync ? 1 : 0) << "\nvsync_mode=" << (p.vsync_mode == ui::VsyncMode::Mailbox ? "mailbox" : "fifo") << "\n";
     f << "window_mode=" << window_mode_name(p.window_mode) << "\nui_scale=" << p.ui_scale << "\n";
+    f << "hud_style=" << ui::hud_style_name(p.hud_style) << "\n";
     for (const ProfileInt& e : kProfileInts) f << e.key << "=" << p.*e.field << "\n";
     f << "aa_mode=" << aa_mode_name(p.anti_alias) << "\n";
     f << "upscaler=" << upscaler_name(p.upscaler) << "\nupscale_quality=" << upscale_quality_name(p.upscale_quality) << "\n";

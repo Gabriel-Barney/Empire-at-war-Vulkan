@@ -134,6 +134,7 @@ void profile_round_trip() {
     p.frame_cap = ui::kFrameCapDisplay;
     p.window_mode = ui::WindowMode::Borderless;  // UI5 t01 / display mode list
     p.ui_scale = 175;
+    p.hud_style = ui::HudStyle::Modern;  // #584
     p.detail = 40;
     p.gamma = 70;
     p.anti_alias = ui::kAaMsaa4;
@@ -150,6 +151,9 @@ void profile_round_trip() {
     CHECK(q.detail == 40 && q.gamma == 70 && q.anti_alias == ui::kAaMsaa4);
     CHECK(q.advanced == p.advanced);
     CHECK(q.window_mode == ui::WindowMode::Borderless && q.ui_scale == 175);
+    CHECK(q.hud_style == ui::HudStyle::Modern);
+    // #584: a live run draws the profile's style; scripted, smoke, hidden and benchmark runs (not live) draw Classic.
+    CHECK(game::active_hud_style(q, true) == ui::HudStyle::Modern && game::active_hud_style(q, false) == ui::HudStyle::Classic);
     {
         const std::vector<game::DisplayMode> all{{1024, 768, 60}, {1280, 1024, 60}, {1920, 1080, 60}, {2560, 1440, 144}};
         ui::VideoSettings v;
@@ -171,6 +175,17 @@ void profile_round_trip() {
     CHECK(game::render_scale_value(75) == 0.75f && game::render_scale_value(100) == 1.0f && game::render_scale_value(0) == 0.25f);
     CHECK(r.mode.width == 0 && r.vsync && !r.advanced.ambient_occlusion && r.advanced.bloom);
     CHECK(r.window_mode == ui::WindowMode::Windowed && r.ui_scale == 100);  // the defaults: windowed, UI scale 100 %
+    CHECK(r.hud_style == ui::HudStyle::Classic);  // #584: a profile without hud_style (an old one) loads as Classic
+    // #584: an unknown hud_style value keeps the style; the value is case-insensitive.
+    for (const auto& [text, want] : {std::pair{"hud_style=retro\n", ui::HudStyle::Classic}, std::pair{"hud_style=MODERN\n", ui::HudStyle::Modern},
+                                     std::pair{"hud_style=classic\n", ui::HudStyle::Classic}, std::pair{"", ui::HudStyle::Classic}}) {
+        {
+            std::ofstream f(path, std::ios::trunc);
+            f << text;
+        }
+        game::VideoProfile hs;
+        CHECK(game::load_video_profile(path, hs) && hs.hud_style == want);
+    }
     // A profile from before the display mode list: "windowed=0" is Fullscreen, "windowed=1" Windowed; window_mode wins.
     for (const auto& [text, want] : {std::pair{"windowed=0\n", ui::WindowMode::Fullscreen}, std::pair{"windowed=1\n", ui::WindowMode::Windowed},
                                      std::pair{"windowed=0\nwindow_mode=borderless\nui_scale=50\n", ui::WindowMode::Borderless}}) {

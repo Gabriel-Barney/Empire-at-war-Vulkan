@@ -207,6 +207,7 @@ alamo_ui_colour_arrows_tests
 alamo_ui_draw_tests
 alamo_ui_gui_draw_tests
 alamo_ui_gui_tests
+alamo_ui_hud_modern_tests
 alamo_ui_hud_tests
 alamo_ui_hud_ui3_tests
 alamo_ui_organizer_tests

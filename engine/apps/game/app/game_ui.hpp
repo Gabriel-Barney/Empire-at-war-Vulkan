@@ -18,6 +18,7 @@
 #include "alamo/ui/hud_shell_draw.hpp"
 #include "alamo/ui/hud_world.hpp"
 #include "alamo/ui/load_screen.hpp"
+#include "alamo/ui/modern_tactical_hud.hpp"
 #include "alamo/ui/tactical_hud.hpp"
 #include "game_render.hpp"
 
@@ -56,6 +57,7 @@ public:
     ui::LoadScreen load;
     ui::GalacticHud galactic_hud;
     ui::TacticalHud tactical_hud;
+    ui::ModernTacticalHud modern_hud;  // [port: Gabriel] #584 the Modern tactical HUD style (over tactical_hud's world layer)
     ui::ShellSet galactic_shells, tactical_shells;
     ui::ShellDrawer galactic_drawer, tactical_drawer;
     bool galactic_shells_ok = false, tactical_shells_ok = false;

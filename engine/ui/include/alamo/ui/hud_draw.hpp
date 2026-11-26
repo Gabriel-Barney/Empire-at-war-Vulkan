@@ -108,6 +108,8 @@ class HudDrawList {
 public:
     void clear();
     void add(uint32_t layer, HudList list, const HudQuad& q);
+    // Every item of `other` after this list's items, per (layer, sub-list) (#584: the Modern HUD over the world layer).
+    void append(const HudDrawList& other);
     std::span<const HudQuad> items(uint32_t layer, HudList list) const {
         return lists_[layer < kHudLayers ? layer : kHudLayers - 1][static_cast<size_t>(list)];
     }

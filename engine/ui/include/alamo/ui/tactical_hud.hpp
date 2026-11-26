@@ -177,6 +177,9 @@ struct HudAction {
         // [port: Gabriel] appended 2026-11-22 (#176): a right click on a fleet group's header tab in the selected-unit bar:
         // value = the group id, name = its name (UTF-8). Host: open the rename prompt for the group.
         FleetGroupRename,
+        // [port: Gabriel] appended 2026-11-25 (#584, docs/DECISIONS.md "Modern HUD: exception to the current focus"): the
+        // HUD style switch drawn on the Modern HUD was clicked. Host: switch Classic <-> Modern (presentation only).
+        HudStyleToggle,
     };
     Kind kind = Kind::Button;
     int32_t component = -1;
@@ -443,6 +446,12 @@ public:
     // Radar event models of the last build (pings inside the radar whose RadarMap.xml type names a model), in event order.
     const std::vector<HudModelDraw>& radar_models() const { return radar_models_; }
     const TooltipState& tooltip() const { return tooltip_; }
+    // [port: Gabriel] (#584) World-space split for the Modern HUD style: while on, build() puts the world-space layer
+    // (brackets, bars, fly text, waypoint lines, move acknowledgements, hard-point reticles, queued-order markers, the
+    // drag box) into world_draw_list() instead of draw_list(), which then holds the Classic panels only. Off (the
+    // default): world_draw_list() stays empty and draw_list() is the whole Classic HUD, exactly as before.
+    void set_world_split(bool on) { world_split_ = on; }
+    const HudDrawList& world_draw_list() const { return world_dl_; }
 
     // Topmost HUD component under a pixel (-1: none) - RouteHooks::hud_hit.
     int32_t hit_test(int32_t px, int32_t py) const;
@@ -472,7 +481,7 @@ private:
     void build_buttons(const TacticalHudFrame& f);
     void build_radar(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
     void build_skeleton(const TacticalHudFrame& f);
-    void build_markers(const TacticalHudFrame& f, std::span<const HudUnit> units);
+    void build_markers(const TacticalHudFrame& f, std::span<const HudUnit> units, HudDrawList& dl);
     void apply_order_buttons(const HudOrderButtons& s);
     struct AbilitySlot;
     static void ability_click(const AbilitySlot& a, const std::string& name, Button button, bool queued,
@@ -504,6 +513,8 @@ private:
     bool tooltip_modal_ = false;  // #71 t06: the last build had a HUD modal up (no tooltip)
     TooltipConfig tooltip_cfg_;
     HudDrawList dl_;
+    HudDrawList world_dl_;      // #584: the world-space layer while world_split_ (else empty)
+    bool world_split_ = false;
     std::vector<SelectionBlob> blobs_;
     std::vector<SelectedGroup> groups_;
     std::vector<HudHitBox> hits_;
@@ -584,6 +595,11 @@ std::u32string hud_thousands(int64_t v);
 // and Text_Credits_tactical (0xf2); every HUD frame (0x2ee40, 0x3c990) passes (int) of the local player's credits, so the text
 // jumps to a new amount (no tick: Credits_Scroll_Rate is the end credits roll's). '$' is the fonts' credits sign.
 std::u32string hud_credits_text(int64_t credits);
+// The Text_Tactical_Tech text: TEXT_TECH, a space and the level ("Tech 3"); "" for tech < 0. `text` null: the key itself.
+// Shared by the Classic and Modern HUD styles (#584).
+std::u32string hud_tech_text(const TextDatabase* text, int32_t tech);
+// The Text_Planetary_Pop text: "used/cap", or "used" with no cap (cap < 0); "" for used < 0. Shared as hud_tech_text.
+std::u32string hud_pop_text(int32_t used, int32_t cap);
 // Reinforce event (legacy docs/re/COMMANDS.md §2 id 12) for a reinforcement unit dropped at a world point.
 commands::EventData reinforce_event(uint32_t unit, Vec3 point);
 // SetUnitAbilityMode (id 43) toggling `ability` on `units` (max 127).

@@ -11,6 +11,7 @@
 #include "alamo/render/upscale.hpp"
 #include "alamo/ui/gui_menus.hpp"
 #include "alamo/ui/hotkeys.hpp"
+#include "alamo/ui/hud_style.hpp"
 
 namespace alamo::render {
 struct RecordOptions;
@@ -98,6 +99,9 @@ struct VideoProfile {
     // (window_mode_name); a profile from before it has "windowed=0|1" (0 = Fullscreen).
     ui::WindowMode window_mode = ui::WindowMode::Windowed;
     int32_t ui_scale = 100;  // [port: Gabriel] Options > Video > UI Scale, percent (kUiScaleMin .. kUiScaleMax; key "ui_scale")
+    // [port: Gabriel] (#584, docs/DECISIONS.md "Modern HUD: exception to the current focus") the player's HUD style, key
+    // "hud_style=classic|modern" (ui::hud_style_name); missing or unknown: Classic.
+    ui::HudStyle hud_style = ui::HudStyle::Classic;
     ui::VsyncMode vsync_mode = ui::VsyncMode::Fifo;
     int32_t frame_cap = 0;
     int32_t detail = 100, gamma = 50;  // IDD_VIDEO_OPTIONS_DIALOG values 0..100
@@ -125,6 +129,11 @@ std::string default_video_profile_path();  // "" when %LOCALAPPDATA% is unset
 // Missing keys keep `p`'s values; false when the file cannot be read.
 bool load_video_profile(const std::string& path, VideoProfile& p);
 bool save_video_profile(const std::string& path, const VideoProfile& p);
+// #584: the HUD style a run draws: the profile's for a live run, Classic for scripted, smoke, hidden and benchmark runs
+// (live_input false) so their captures and goldens stay comparable.
+inline ui::HudStyle active_hud_style(const VideoProfile& p, bool live_input) {
+    return live_input ? p.hud_style : ui::HudStyle::Classic;
+}
 // The original's advanced detail options that map onto the renderer's frame options, applied on top of the view's own
 // options: Mesh detail -> RecordOptions::lod_detail (slider / 100, legacy docs/re/RENDER.md §5), Shadow detail 0 -> no shadow volumes
 // [inferred: the dialog has no separate Shadow volumes check], Bloom (off: strength 0), Heat distortions (off: distortion

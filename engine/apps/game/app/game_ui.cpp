@@ -200,6 +200,7 @@ bool GameUi::init(GpuCore& gpu, const GameData& data, ui::MenuProviders provider
     for (const ui::ShellSet::Shell& s : tactical_shells.shells()) tactical_shells.set_visible(s.component, true);
     galactic_hud.init(components, atlas, *fonts, &text);
     tactical_hud.init(components, atlas, *fonts, &text);
+    modern_hud.init(components, *fonts, &text);
     galactic_shells.apply(galactic_hud.layout());
     tactical_shells.apply(tactical_hud.layout());
     hud_types = ui::build_hud_type_table(data.types);
@@ -220,9 +221,11 @@ void GameUi::resize(uint32_t w, uint32_t h, int32_t ui_scale_pct) {
     gui.set_ui_scale(s);
     galactic_hud.set_ui_scale(s);
     tactical_hud.set_ui_scale(s);
+    modern_hud.set_ui_scale(s);
     gui.resize(w, h);
     galactic_hud.resize(w, h);
     tactical_hud.resize(w, h);
+    modern_hud.resize(w, h);
     galactic_shells.apply(galactic_hud.layout());
     tactical_shells.apply(tactical_hud.layout());
     galactic_hud.layout().update(galactic_hud.canvas(), components);

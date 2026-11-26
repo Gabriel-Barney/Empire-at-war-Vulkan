@@ -179,9 +179,14 @@ bool App::render_frame() {
         }
     } else if (screen() == Screen::Battle && battle_view && !cinematic_hides_hud()) {  // no HUD during the cinematic
         build_tactical_hud();
-        hud_list = ui_.tactical_hud.draw_list();
         canvas = &ui_.tactical_hud.canvas();
-        if (ui_.tactical_shells_ok) {
+        if (modern_hud()) {  // #584: the Classic world-space layer, the Modern HUD over it; no Classic shells
+            hud_list = ui_.tactical_hud.world_draw_list();
+            hud_list.append(ui_.modern_hud.draw_list());
+        } else {
+            hud_list = ui_.tactical_hud.draw_list();
+        }
+        if (ui_.tactical_shells_ok && !modern_hud()) {
             drawer = &ui_.tactical_drawer;
             shells = &ui_.tactical_shells;
             layout = &ui_.tactical_hud.layout();
@@ -290,7 +295,7 @@ bool App::render_frame() {
     if (panel_shells_ok_) panel_drawer_.make_resident(gpu_.renderer);
     // Radar event models (tactical HUD only): uploaded the first time a ping names them, drawn at the Models2 step.
     std::span<const ui::HudModelDraw> radar_models;
-    if (ui_.radar_models_ok && battle_hud && !galactic) {
+    if (ui_.radar_models_ok && battle_hud && !galactic && !modern_hud()) {  // #584: the Modern style has no radar yet (#585)
         radar_models = ui_.tactical_hud.radar_models();
         std::string merr;
         if (!radar_models.empty() && !ui_.radar_drawer.prepare(gpu_.renderer, radar_models, &merr))
@@ -527,7 +532,7 @@ void App::frame() {
     else if (screen() == Screen::Battle)
         hooks.hud_hit = [this, panel_hit](int32_t x, int32_t y) {
             const int32_t c = panel_hit(x, y);
-            return c >= 0 ? c : ui_.tactical_hud.hit_test(x, y);
+            return c >= 0 ? c : modern_hud() ? ui_.modern_hud.hit_test(x, y) : ui_.tactical_hud.hit_test(x, y);
         };
     router_.route(raw, hooks, routed_);
     target_input_.update(raw);
