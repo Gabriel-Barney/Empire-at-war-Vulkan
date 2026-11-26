@@ -625,6 +625,8 @@ private:
     void select_wing(size_t wing, bool add, bool centre_only);
     std::vector<ui::HudWing> wings_;
     std::vector<ui::HudFleetGroup> fleet_groups_;
+    std::vector<uint32_t> squadron_strength_;  // #600 squadron_strength's table (by craft type)
+    uint32_t squadron_strength(objects::TypeIndex craft);
     std::vector<ui::HudFleetGoal> fleet_goals_;  // [port: Gabriel] #179 move preview of the aimed move
     int32_t wing_last_ = -1;           // wing selected last and when (double press -> camera)
     double wing_last_s_ = -1.0e30;

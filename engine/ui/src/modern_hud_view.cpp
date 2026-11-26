@@ -133,6 +133,10 @@ float ModernHudView::text_height_units() const {
     return kModernTextPx * text_scale_ * static_cast<float>(canvas_.font_height()) / 1080.0f * canvas_.units_per_pixel_y;
 }
 
+float ModernHudView::px_units(float px) const {
+    return px * static_cast<float>(canvas_.font_height()) / 1080.0f * canvas_.units_per_pixel_y;
+}
+
 int32_t ModernHudView::font() const {
     if (!fonts_) return -1;
     // font_pixel_height(pt, h) = pt x h / 450: the point size whose pixel height is kModernTextPx x scale at 1080p.
