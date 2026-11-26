@@ -250,6 +250,12 @@ struct HeroEntry {
     uint32_t container = commands::kNoObject;  // tactical: the hero's parent / container (kNoObject = none)
     std::u32string tooltip;                    // the hero type's tooltip text (display name); "" = no tooltip
 };
+// The planet a galactic hero entry's click focuses (HeroFocusPlanet ids, FIXPASS_GALACTIC §2.2), 0 when the click does
+// nothing: no object (building / respawning) or no planet (hyperspace). Shared by the hero bar and the Modern hero list (#593).
+inline uint32_t hero_focus_planet(const HeroEntry& h) {
+    const bool object = h.object != 0 && h.object != commands::kNoObject;
+    return object && h.planet != commands::kNoObject ? h.planet : 0u;
+}
 // FIXPASS_GALACTIC §2.4 tie key. FoC (comparator 0x3202e0) breaks equal rankings by type +0x11C = CRC-32 of the
 // UPPER-CASED type name. Capture C3 (FoC 1.121): the name is the hero's bar type (game::hero_bar_type), not the *_Team
 // type: Emperor_Palpatine, Boba_Fett, General_Veers, Grand_Moff_Tarkin, Accuser_Star_Destroyer, right to left.

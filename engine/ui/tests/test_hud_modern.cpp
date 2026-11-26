@@ -1,7 +1,8 @@
 // alamo_ui_hud_modern_tests (#584, docs/DECISIONS.md "Modern HUD: exception to the current focus"): the Modern tactical
 // HUD style against the Classic one on the HUD seam (frame in; stats, hit boxes, commands and actions out): the status
 // corner shows the Classic values, the shared game controls send the Classic commands and actions, the style switch
-// asks the host to switch, the style names, the text scale, and the Classic world-space split.
+// asks the host to switch, the style names, the text scale, and the Classic world-space split. #593: the Modern galactic
+// view against the Classic GalacticHud (the same clicks, the Classic overlay, the selection kept across a switch).
 #include <cstdio>
 #include <memory>
 #include <span>
@@ -12,8 +13,11 @@
 
 #include "alamo/data/xml.hpp"
 #include "alamo/test/support.hpp"
+#include "alamo/ui/camera.hpp"
+#include "alamo/ui/galactic_hud.hpp"
 #include "alamo/ui/hotkeys.hpp"
 #include "alamo/ui/hud_font.hpp"
+#include "alamo/ui/modern_galactic_hud.hpp"
 #include "alamo/ui/modern_tactical_hud.hpp"
 #include "alamo/ui/orders.hpp"
 #include "alamo/ui/picking.hpp"
@@ -1165,6 +1169,296 @@ void test_land() {
     CHECK(st.production && !st.pad_options && st.build_options == 3);
 }
 
+// ---- #593 the galactic map ----
+
+const char* kGalacticXml = R"(<?xml version="1.0"?>
+<CommandBarComponents>
+  <CommandBarComponent Name="Text_Credits"><Type>TextButton</Type><Text_Color>255 212 33 255</Text_Color></CommandBarComponent>
+  <CommandBarComponent Name="b_option_g"><Type>TextButton</Type><Icon_Texture_Name>i_button_units.tga</Icon_Texture_Name></CommandBarComponent>
+  <CommandBarComponent Name="b_play_pause"><Type>Button</Type><Blank_Texture_Name>i_button_units.tga</Blank_Texture_Name></CommandBarComponent>
+  <CommandBarComponent Name="b_fast_forward"><Type>Button</Type><Blank_Texture_Name>i_button_units.tga</Blank_Texture_Name></CommandBarComponent>
+  <CommandBarComponent Name="b_story_arc_g"><Type>Button</Type><Blank_Texture_Name>i_button_units.tga</Blank_Texture_Name></CommandBarComponent>
+  <CommandBarComponent Name="planet_info"><Type>TextButton</Type><Icon_Texture_Name>i_button_units.tga</Icon_Texture_Name></CommandBarComponent>
+  <CommandBarComponent Name="advanced_planetary"><Type>Button</Type><Blank_Texture_Name>i_button_units.tga</Blank_Texture_Name></CommandBarComponent>
+  <CommandBarComponent Name="b_Create_00"><Type>TextButton</Type><Blank_Texture_Name>i_button_units.tga</Blank_Texture_Name></CommandBarComponent>
+  <CommandBarComponent Name="b_Create_01"><Type>TextButton</Type><Blank_Texture_Name>i_button_units.tga</Blank_Texture_Name></CommandBarComponent>
+  <CommandBarComponent Name="b_Create_02"><Type>TextButton</Type><Blank_Texture_Name>i_button_units.tga</Blank_Texture_Name></CommandBarComponent>
+  <CommandBarComponent Name="b_Create_03"><Type>TextButton</Type><Blank_Texture_Name>i_button_units.tga</Blank_Texture_Name></CommandBarComponent>
+  <CommandBarComponent Name="queue00"><Type>Button</Type><Blank_Texture_Name>i_button_units.tga</Blank_Texture_Name></CommandBarComponent>
+  <CommandBarComponent Name="queue01"><Type>Button</Type><Blank_Texture_Name>i_button_units.tga</Blank_Texture_Name></CommandBarComponent>
+  <CommandBarComponent Name="q1_fleet"><Type>Button</Type><Blank_Texture_Name>i_button_units.tga</Blank_Texture_Name></CommandBarComponent>
+  <CommandBarComponent Name="q1_0000"><Type>Button</Type><Blank_Texture_Name>i_button_units.tga</Blank_Texture_Name></CommandBarComponent>
+  <CommandBarComponent Name="radar_galactic"><Type>Button</Type><Size>175 175</Size></CommandBarComponent>
+</CommandBarComponents>
+)";
+
+struct GalacticHuds {
+    ComponentTable t;
+    TextureAtlas atlas;
+    std::unique_ptr<GlyphRasterizer> raster = make_box_rasterizer();
+    FontCache fonts{*raster};
+    GalacticHud classic;
+    ModernGalacticHud modern;
+    std::vector<GalacticPlanetInfo> planets;
+    std::vector<GalacticBuildOption> options;
+    std::vector<HudQueueEntry> queue;
+    std::vector<GalacticFleet> fleets;
+    std::vector<HeroEntry> heroes;
+    std::vector<HudAlert> alerts;
+    GalacticHudFrame f;
+    double now = 1.0;
+    GalacticHuds() {
+        const data::XmlDocument doc = data::XmlDocument::parse(std::string_view(kGalacticXml), "modern_galactic.xml");
+        if (doc.ok()) t.parse(doc.root());
+        atlas.texture_width = atlas.texture_height = 256;
+        atlas.add({"i_button_units.tga", 0, 0, 56, 56, true});
+        atlas.add({"i_unit.tga", 64, 0, 32, 32, true});
+        classic.init(t, atlas, fonts);
+        classic.resize(1920, 1080);
+        modern.init(t, atlas, fonts);
+        modern.resize(1920, 1080);
+        planets.resize(2);
+        for (size_t i = 0; i < planets.size(); ++i) {
+            planets[i].planet = 100 + static_cast<uint32_t>(i);
+            planets[i].position = {-200.0f + 400.0f * static_cast<float>(i), 0.0f, 0.0f};
+            planets[i].name = i == 0 ? U"Coruscant" : U"Kuat";
+        }
+        planets[1].selected = true;
+        planets[1].income = 120;
+        planets[1].owner_color = {60, 120, 255, 255};
+        // b_Create_00 / _02 on Classic's land tab (the start): a ground unit and a greyed one; a space unit on the other tab.
+        options.resize(3);
+        options[0].type_index = 5;
+        options[0].icon = "i_unit.tga";
+        options[0].cost = 300;
+        options[1].type_index = 6;
+        options[1].enabled = false;
+        options[1].block = HudBuildOption::Block::PopCap;
+        options[2].type_index = 7;
+        options[2].space = true;
+        options[2].cost = 1200;
+        HudQueueEntry q;
+        q.type_index = 7;
+        q.location = 101;
+        q.progress = 0.4f;
+        queue.push_back(q);
+        GalacticFleet own;
+        own.fleet = 900;
+        own.slot = 0;
+        own.units = {{901, "i_unit.tga", 2, false}, {902, "i_unit.tga", 1, false}};
+        GalacticFleet enemy;
+        enemy.fleet = 950;
+        enemy.enemy = true;
+        enemy.units = {{951, "i_unit.tga", 1, false}};
+        fleets = {own, enemy};
+        // The hero bar's roster: one at Kuat, one in hyperspace, one in production.
+        heroes.resize(3);
+        heroes[0].object = 700;
+        heroes[0].icon = "i_unit.tga";
+        heroes[0].planet = 101;
+        heroes[0].tooltip = U"Hero";
+        heroes[1].object = 701;
+        heroes[1].tooltip = U"Traveller";
+        heroes[2].object = 0;
+        heroes[2].type_name = "Builder_Hero";
+        HudAlert a;
+        a.kind = HudAlert::Kind::Radar;
+        a.text = U"Enemy fleet approaching Kuat";
+        a.has_position = true;
+        a.x = 200.0f;
+        a.y = 0.0f;
+        alerts = {a};
+        GalacticCameraController cam;
+        f.view = make_view(cam.params(16.0f / 9.0f), 1920, 1080);
+        f.planets = planets;
+        f.credits = 12345;
+        f.income = 1250;
+        f.pop = 13;
+        f.pop_cap = 40;
+        f.tech = 2;
+        f.day = 7;
+        f.planets_owned = 5;
+        f.heroes = heroes;
+        f.alerts = alerts;
+        f.providers.build_options = [this](uint32_t, std::vector<GalacticBuildOption>& out) { out = options; };
+        f.providers.build_queue = [this](std::vector<HudQueueEntry>& out) { out = queue; };
+        f.providers.fleets = [this](uint32_t, std::vector<GalacticFleet>& out) { out = fleets; };
+    }
+    void build() {
+        classic.build(f);
+        modern.build(f);
+    }
+    struct Out {
+        std::vector<commands::EventData> cmds;
+        std::vector<HudAction> acts;
+    };
+    Out classic_click(const char* name, Button b = Button::Left) {
+        Out o;
+        now += 1.0;  // never a double click
+        classic.update_input(click_on(t.find(name), b), false, false, now, o.cmds, &o.acts);
+        return o;
+    }
+    Out modern_click(int32_t id, Button b = Button::Left) {
+        Out o;
+        now += 1.0;
+        modern.update_input(click_on(id, b), false, false, now, o.cmds, &o.acts);
+        return o;
+    }
+};
+
+bool has_hit(const std::vector<HudHitBox>& hits, int32_t id) {
+    return std::any_of(hits.begin(), hits.end(), [id](const HudHitBox& h) { return h.component == id; });
+}
+
+// What the host reads from a galactic action (component and name differ between the styles for the Modern-only tiles;
+// a Button action's name is its meaning, so it must match).
+bool same_galactic(const GalacticHuds::Out& a, const GalacticHuds::Out& b) {
+    if (a.cmds != b.cmds || a.acts.size() != b.acts.size()) {
+        std::printf("  galactic click: classic %zu cmds %zu acts, modern %zu cmds %zu acts\n", a.cmds.size(), a.acts.size(), b.cmds.size(),
+                    b.acts.size());
+        return false;
+    }
+    for (size_t i = 0; i < a.acts.size(); ++i) {
+        const HudAction &x = a.acts[i], &y = b.acts[i];
+        if (x.kind != y.kind || x.button != y.button || x.shift != y.shift || x.ctrl != y.ctrl || x.value != y.value ||
+            x.unit != y.unit || x.ids != y.ids || x.x != y.x || x.y != y.y || (x.kind == HudAction::Kind::Button && x.name != y.name))
+            return false;
+    }
+    return true;
+}
+
+// The status corner, the controls and the Classic overlay: with it the Classic HUD draws no command bar, organiser or
+// radar (no hit boxes there), and the Modern view nothing while the planet map is open.
+void test_galactic_view() {
+    GalacticHuds g;
+    g.classic.set_modern_overlay(true);
+    g.build();
+    const ModernGalacticStats& st = g.modern.stats();
+    CHECK(st.status_corner && st.credits_text == hud_credits_text(12345) && st.income_text == U"+1,250 / day" &&
+          st.pop_text == hud_pop_text(13, 40) && st.tech_text == hud_tech_text(nullptr, 2) && st.planets_text == U"5" && st.day_text == U"7");
+    CHECK(st.controls == 4 && st.style_switch);
+    CHECK(st.alert_text == U"Enemy fleet approaching Kuat" && st.jump && st.heroes == 3);
+    // The battle prompt takes the top centre: no strip, no Jump.
+    g.f.battle.active = true;
+    g.modern.build(g.f);
+    CHECK(st.alert_text.empty() && !st.jump);
+    std::vector<HudAction> none;
+    CHECK(!g.modern.jump(none));
+    g.f.battle.active = false;
+    g.modern.build(g.f);
+    CHECK(st.deck && st.planet_card && st.planet_name == U"KUAT" && st.fleets == 2 && st.enemy_fleets == 1 && st.queue_entries == 1);
+    for (const char* name : {"b_Create_00", "queue00", "q1_fleet", "b_option_g", "b_play_pause", "radar_galactic", "Text_Credits"})
+        CHECK(!has_hit(g.classic.hit_boxes(), g.t.find(name)));
+    CHECK(g.classic.stats().build_buttons == 0 && g.classic.stats().queue_entries == 0 && !g.classic.stats().organize_shown &&
+          g.classic.stats().radar_blips == 0 && g.classic.selected_planet() == 1);
+    // Off: the Classic HUD as before.
+    g.classic.set_modern_overlay(false);
+    g.classic.build(g.f);
+    CHECK(g.classic.stats().build_buttons == 2 && g.classic.stats().queue_entries == 1 && has_hit(g.classic.hit_boxes(), g.t.find("b_option_g")));
+    // The advanced planet map: Classic whole (overlay or not), Modern nothing.
+    g.f.advanced_map_open = true;
+    g.classic.set_modern_overlay(true);
+    g.build();
+    CHECK(!g.modern.stats().deck && !g.modern.stats().status_corner && g.modern.hit_boxes().empty());
+    // No planet selected: no deck, the corners stay.
+    g.f.advanced_map_open = false;
+    g.planets[1].selected = false;
+    g.build();
+    CHECK(!g.modern.stats().deck && g.modern.stats().status_corner && g.modern.selected_planet() == -1);
+}
+
+// Parity: selecting a fleet, buying, a refused buy, cancelling (right click and a queue entry), pause and menu emit the
+// Classic commands and actions; Jump and a hero row move the camera (RadarCameraJump); the tabs sort the options.
+void test_galactic_parity() {
+    GalacticHuds g;
+    g.modern.set_build_tab(GalacticBuildTab::Ground);  // Classic starts on its land tab
+    g.build();
+    const ModernGalacticStats& st = g.modern.stats();
+    CHECK(st.tabs_live == 2 && st.build_options == 2 && st.build_blocked == 1 && st.build_texts.size() == 2 &&
+          st.build_texts[0] == U"300" && st.build_texts[1] == U"Population cap");
+    using Out = GalacticHuds::Out;
+    for (const Button b : {Button::Left, Button::Right}) {
+        CHECK(same_galactic(g.classic_click("b_Create_00", b), g.modern_click(kModernGalacticBuildBase + 0, b)));
+        CHECK(same_galactic(g.classic_click("b_Create_02", b), g.modern_click(kModernGalacticBuildBase + 1, b)));
+    }
+    const Out buy = g.modern_click(kModernGalacticBuildBase + 0);
+    CHECK(buy.cmds.size() == 1 && buy.cmds[0] == commands::ev::production(5, 101));
+    const Out refused = g.modern_click(kModernGalacticBuildBase + 1);
+    CHECK(refused.cmds.empty() && refused.acts.size() == 1 && refused.acts[0].kind == HudAction::Kind::BuildRefused &&
+          refused.acts[0].value == static_cast<int32_t>(HudBuildOption::Block::PopCap) && refused.acts[0].unit == 6);
+    const Out cancel = g.modern_click(kModernGalacticQueueBase + 0);
+    CHECK(cancel.cmds.size() == 1 && cancel.cmds[0] == commands::ev::production(7, 101, true, 0, 0));
+    CHECK(same_galactic(g.classic_click("queue00"), cancel));
+    const Out select = g.modern_click(kModernGalacticFleetBase + 0);
+    CHECK(select.acts.size() == 1 && select.acts[0].kind == HudAction::Kind::GalacticSelect && select.acts[0].ids == std::vector<uint32_t>{900});
+    CHECK(same_galactic(g.classic_click("q1_fleet"), select));
+    const Out enemy = g.modern_click(kModernGalacticFleetBase + 1);
+    CHECK(enemy.cmds.empty() && enemy.acts.empty());
+    for (const char* name : {"b_play_pause", "b_option_g", "b_fast_forward"}) {
+        const Out c = g.classic_click(name), m = g.modern_click(g.t.find(name));
+        CHECK(same_galactic(c, m) && c.cmds.size() + c.acts.size() == 1);
+    }
+    // Jump (and its hotkey): the camera there. A hero row: the hero bar's click (HeroFocusPlanet), nothing in hyperspace
+    // or in production.
+    const Out jump = g.modern_click(kModernJumpHit);
+    CHECK(jump.acts.size() == 1 && jump.acts[0].kind == HudAction::Kind::RadarCameraJump && jump.acts[0].x == 200.0f && jump.acts[0].y == 0.0f);
+    std::vector<HudAction> key;
+    CHECK(g.modern.jump(key) && key.size() == 1 && key[0].x == 200.0f);
+    const Out hero = g.modern_click(kModernGalacticHeroBase + 0);
+    CHECK(hero.acts.size() == 1 && hero.acts[0].kind == HudAction::Kind::HeroFocusPlanet && hero.acts[0].unit == 700 &&
+          hero.acts[0].ids == std::vector<uint32_t>{101});
+    for (const int32_t row : {1, 2}) {
+        const Out none = g.modern_click(kModernGalacticHeroBase + row);
+        CHECK(none.cmds.empty() && none.acts.empty());
+    }
+    {  // the bar's double click: a second click within 0.5 s adds HeroZoomPlanet
+        std::vector<commands::EventData> c;
+        std::vector<HudAction> a;
+        g.modern.update_input(click_on(kModernGalacticHeroBase + 0), false, false, 100.0, c, &a);
+        g.modern.update_input(click_on(kModernGalacticHeroBase + 0), false, false, 100.2, c, &a);
+        CHECK(a.size() == 3 && a[1].kind == HudAction::Kind::HeroFocusPlanet && a[2].kind == HudAction::Kind::HeroZoomPlanet &&
+              a[2].ids == std::vector<uint32_t>{101});
+    }
+    CHECK(hero_focus_planet(g.heroes[0]) == 101 && hero_focus_planet(g.heroes[1]) == 0 && hero_focus_planet(g.heroes[2]) == 0);
+    // In the planet close-up: Planet Info (Classic's PlanetInfo of the selected planet) and Base Layout (its Button action).
+    g.f.organize_open = true;
+    g.build();
+    CHECK(st.planet_buttons == 2);
+    const Out info = g.modern_click(g.t.find("planet_info"));
+    CHECK(info.acts.size() == 1 && info.acts[0].kind == HudAction::Kind::PlanetInfo && info.acts[0].unit == 101);
+    const Out layout = g.modern_click(g.t.find("advanced_planetary"));
+    CHECK(layout.acts.size() == 1 && layout.acts[0].kind == HudAction::Kind::Button && layout.acts[0].name == "advanced_planetary");
+    // Tabs: an empty tab takes no click; Space lists the space unit; an inaccessible surface leaves Ground empty.
+    g.modern_click(kModernGalacticTabBase + static_cast<int32_t>(GalacticBuildTab::Buildings));
+    CHECK(g.modern.build_tab() == GalacticBuildTab::Ground);
+    g.modern_click(kModernGalacticTabBase + static_cast<int32_t>(GalacticBuildTab::Space));
+    g.build();
+    CHECK(g.modern.build_tab() == GalacticBuildTab::Space && st.build_options == 1 && st.build_texts[0] == U"1200");
+    g.f.land_tab_allowed = false;
+    g.build();
+    CHECK(st.tabs_live == 1);
+    g.options[0].hero = true;
+    g.options[1].structure = true;
+    CHECK(galactic_build_tab(g.options[0]) == GalacticBuildTab::Heroes && galactic_build_tab(g.options[1]) == GalacticBuildTab::Buildings &&
+          galactic_build_tab(g.options[2]) == GalacticBuildTab::Space);
+    // The style switch asks the host to switch.
+    const Out sw = g.modern_click(kModernStyleSwitchHit);
+    CHECK(sw.acts.size() == 1 && sw.acts[0].kind == HudAction::Kind::HudStyleToggle);
+}
+
+// Switching the style keeps the selection (the host's, read from the frame by both) and Modern's build tab.
+void test_galactic_switch() {
+    GalacticHuds g;
+    g.modern.set_build_tab(GalacticBuildTab::Space);
+    for (const bool modern : {true, false, true}) {
+        g.classic.set_modern_overlay(modern);
+        g.classic.build(g.f);
+        if (modern) g.modern.build(g.f);
+        CHECK(g.classic.selected_planet() == 1 && (!modern || (g.modern.selected_planet() == 1 && g.modern.build_tab() == GalacticBuildTab::Space)));
+        CHECK(g.classic.stats().build_buttons == (modern ? 0u : 2u));
+    }
+}
+
 void test_world_split() {
     // The Classic HUD with the split off is unchanged (world_draw_list empty); with it on, the drag box (a world-space
     // item) moves to world_draw_list and the two lists together hold what draw_list held.
@@ -1210,6 +1504,9 @@ int main() {
     test_land();
     test_hotkey();
     test_world_split();
+    test_galactic_view();
+    test_galactic_parity();
+    test_galactic_switch();
     if (g_fail) {
         std::printf("alamo_ui_hud_modern_tests: %d failure(s)\n", g_fail);
         return 1;

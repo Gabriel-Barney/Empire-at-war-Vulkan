@@ -160,7 +160,14 @@ bool App::render_frame() {
         build_galactic_hud(gf, planets);
         gf.advisor_page = advisor_loop_shown() ? static_cast<int32_t>(kAdvisorPage) : -1;  // FIXPASS_GALACTIC §4.2: Movie_galactic
         gf.advisor_alpha = advisor_movie_.alpha();
+        // #593: in the Modern style the Classic HUD keeps its map layer and the Modern view replaces the command bar.
+        const bool modern = modern_galactic_shown();
+        ui_.galactic_hud.set_modern_overlay(modern);
         ui_.galactic_hud.build(gf);
+        if (modern) {
+            ui_.modern_galactic.sync_options(video_profile_.modern_hud);
+            ui_.modern_galactic.build(gf);
+        }
         // The shells the build wants shown (organiser, the two battle-prompt shells); re-applied to the layout on a change.
         bool shells_changed = false;
         for (const ui::GalacticShellVisibility& v : ui_.galactic_hud.shell_visibility())
@@ -171,6 +178,7 @@ bool App::render_frame() {
                 }
         if (shells_changed) ui_.galactic_shells.apply(ui_.galactic_hud.layout());
         hud_list = ui_.galactic_hud.draw_list();
+        if (modern) hud_list.append(ui_.modern_galactic.draw_list());
         canvas = &ui_.galactic_hud.canvas();
         if (ui_.galactic_shells_ok) {
             drawer = &ui_.galactic_drawer;
@@ -521,12 +529,15 @@ void App::frame() {
     };
     if (screen() == Screen::Galactic)
         hooks.hud_hit = [this, panel_hit](int32_t x, int32_t y) {
-            const int32_t c = panel_hit(x, y);
-            return c >= 0 ? c : ui_.galactic_hud.hit_test(x, y);
+            if (const int32_t c = panel_hit(x, y); c >= 0) return c;
+            if (modern_galactic_shown())  // #593 the Modern view over the Classic map layer
+                if (const int32_t c = ui_.modern_galactic.hit_test(x, y); c >= 0) return c;
+            return ui_.galactic_hud.hit_test(x, y);
         };
     if (screen() == Screen::Galactic)  // right presses on the planet fleet / land-forces buttons reach the planet picking
         hooks.hud_takes = [this, panel_hit](int32_t c, ui::Button b) {
             if (panel_hit(input_.mouse_x(), input_.mouse_y()) >= 0) return true;  // an open panel's component
+            if (modern_galactic_shown() && ui_.modern_galactic.hit_test(input_.mouse_x(), input_.mouse_y()) >= 0) return true;  // #593
             return ui_.galactic_hud.takes_button(c, b);
         };
     else if (screen() == Screen::Battle)

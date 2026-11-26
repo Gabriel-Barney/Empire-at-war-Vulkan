@@ -672,9 +672,10 @@ void HeroPanel::update_input(const RoutedInput& routed, bool shift, bool ctrl, d
             actions->push_back(std::move(a));
         };
         if (!tactical_) {
-            if (h.planet == commands::kNoObject || h.planet == 0) continue;  // hyperspace: no planet up the parent chain
-            emit(HudAction::Kind::HeroFocusPlanet, {h.planet});
-            if (dbl) emit(HudAction::Kind::HeroZoomPlanet, {h.planet});
+            const uint32_t planet = hero_focus_planet(h);
+            if (planet == 0) continue;  // hyperspace: no planet up the parent chain
+            emit(HudAction::Kind::HeroFocusPlanet, {planet});
+            if (dbl) emit(HudAction::Kind::HeroZoomPlanet, {planet});
         } else {
             emit(HudAction::Kind::HeroSelect, {h.object});
             if (dbl) {

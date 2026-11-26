@@ -525,6 +525,11 @@ private:
     std::vector<ui::HudHardPoint> hud_hardpoints_;
     std::vector<ui::HudBuildOption> build_opts_;  // tactical buy bar of the selected builder (TacticalHudFrame::build_options)
     std::vector<ui::HudDropZone> drop_zones_;     // #592 TacticalHudFrame::drop_zones
+    // [port: Gabriel] #593 the Modern galactic view's event strip (enemy fleets approaching, planets changing hands,
+    // production done; announcer_feedback).
+    ui::HudAlertLog galactic_alerts_;
+    // The Modern galactic view takes this frame's HUD input and draws (Modern style, the command bar not story-hidden).
+    bool modern_galactic_shown() const { return modern_hud() && !story_present_.command_bar_hidden(); }
     std::vector<HardPointRef> hud_hp_refs_;
     ui::ReticleTable reticles_;
     ui::GuiImageResolver hud_images_;

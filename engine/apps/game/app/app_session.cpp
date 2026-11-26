@@ -679,6 +679,7 @@ void App::session_started(const std::vector<std::string>& diag) {
     // empties it too; retail keeps the old rows [M].
     droid_rows_.clear();
     droid_row_colors_.clear();
+    galactic_alerts_.clear();  // #593: each session starts with an empty Modern event strip
     planet_map_open_ = false;  // the planet map and its marker cache start fresh per session
     planet_map_planet_ = 0;
     planet_map_markers_.clear();

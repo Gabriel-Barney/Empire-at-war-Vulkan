@@ -43,7 +43,9 @@ add_library(alamo_ui_hud STATIC
   src/hud_markers.cpp
   src/hotkeys.cpp
   src/tactical_hud.cpp
+  src/modern_hud_view.cpp  # [port: Gabriel] what the Modern HUD views share (#520)
   src/modern_tactical_hud.cpp  # [port: Gabriel] the Modern HUD style (#520 / #584)
+  src/modern_galactic_hud.cpp  # [port: Gabriel] the Modern galactic view (#593)
   # P4 GUI & menus: GUIDialogs.rc / Resource.h / GUIDialogs.xml, dialog manager, menus, load screens, galactic HUD,
   # Lua GUI control consumer.
   src/gui_resource.cpp
