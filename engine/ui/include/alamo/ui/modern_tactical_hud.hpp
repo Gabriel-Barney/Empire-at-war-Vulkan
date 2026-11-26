@@ -97,6 +97,11 @@ struct ModernHudStats {
     std::u32string alert_text;           // the alert strip's alert ("" = no strip)
     uint32_t alerts_more = 0;            // other alerts behind it
     bool jump = false;                   // its Jump button drawn
+    uint32_t abilities = 0;              // #586 ability buttons drawn
+    uint32_t ability_rings = 0;          // of them recharging (a ring and the seconds left)
+    uint32_t ability_auto = 0;           // of them with the AUTO badge (autofire on)
+    uint32_t ability_active = 0;         // of them in the active look
+    std::vector<std::u32string> ability_counts;  // the rings' counts ("12", or "40%" without seconds), button order
     bool objectives_panel = false, objectives_folded = false;
     std::vector<std::u32string> objective_texts;  // the panel's entries (unfolded), feed order
     bool pause_banner = false;           // the Game Paused banner drawn
@@ -143,6 +148,10 @@ public:
     // The AlertJump hotkey: the Jump of the strip's alert of the previous build (RadarCameraJump to its position). False
     // when the strip shows no alert with a position (nothing emitted).
     bool jump(std::vector<HudAction>& actions) const;
+    // #586 an ability hotkey, as TacticalHud::activate_ability: a left click on the drawn ability button showing
+    // `ability_type` (the same command / BeginAbilityTargeting action). False when none is drawn or it is disabled.
+    bool activate_ability(uint8_t ability_type, bool queued, std::vector<commands::EventData>& out,
+                          std::vector<HudAction>* actions = nullptr) const;
 
 private:
     int32_t font() const;
@@ -164,6 +173,8 @@ private:
     void build_selection(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types,
                          Vec2f top_left, float width, float height);
     float build_orders(const TacticalHudFrame& f, Vec2f top_right, float height);  // returns the width used
+    float build_abilities(const TacticalHudFrame& f, std::span<const HudUnit> units, Vec2f top_right, float height, float max_width);
+    void ability_ring(Vec2f c, float radius, float recharge);
     void key_badge(uint16_t slot, Vec2f top_right, uint32_t layer, bool always = false);  // always: even with key hints off
     std::vector<uint32_t> selection_ids() const;
     void build_pause(const TacticalHudFrame& f);
@@ -185,6 +196,12 @@ private:
     int32_t resume_ = -1;                                   // attack_button: the pause banner's Resume Game
     int32_t order_[kOrderButtonCount] = {-1, -1, -1, -1, -1, -1};  // c_button00..05
     bool order_live_[kOrderButtonCount] = {};
+    std::vector<int32_t> special_button_;  // special_button_NN: the ability buttons' Classic ids (hit ids and action names)
+    size_t panel_slots_ = 0;               // s_select_NN present: Classic's fleet grouping bound
+    struct AbilityButton : HudAbilityButton {
+        int32_t component = -1;
+    };
+    std::vector<AbilityButton> abilities_;  // drawn, deck order
     std::vector<SelectedGroup> groups_;
     std::vector<std::vector<uint32_t>> wing_ids_;  // per TacticalHudFrame::wings entry (empty: not drawn), as Classic's
     Rgba8 credits_color_{255, 212, 33, 255};                // Text_Credits_tactical's Text_Color when the data has one

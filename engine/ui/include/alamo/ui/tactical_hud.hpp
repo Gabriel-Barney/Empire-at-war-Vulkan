@@ -87,6 +87,7 @@ struct HudAbility {
     uint8_t ability_type = 0;   // 1..76 (legacy docs/re/COMMANDS.md §2 TacticalSpecialAbility)
     std::string icon;           // atlas texture (e.g. "i_sa_*.tga")
     float recharge = 1.0f;      // 0..1, 1 = ready (the dial shows recharge x 100 while < 1)
+    float seconds_left = -1.0f;  // [port] #586 the recharge's seconds left (< 0 unknown): the Modern ring's count
     bool active = false;        // mode on (selected look)
     bool enabled = true;
     bool targeted = false;      // needs a target: a click starts the targeting mode (HudAction)
@@ -132,6 +133,16 @@ struct HudProviders {
     std::function<void(std::vector<HudQueueEntry>& out)> build_queue;
     std::function<void(std::vector<HudReinforcement>& out)> reinforcements;
 };
+// [port] One ability button of the selection (#586, shared by both HUD styles): the ability and every selected unit of
+// the groups having it (sorted).
+struct HudAbilityButton {
+    HudAbility ability;
+    std::vector<uint32_t> users;
+};
+// The selection's ability buttons: per group (panel order), its abilities (`provider`); distinct ability types take one
+// button each, in first-seen order, at most `max` (merged: ready when any group is, active / enabled when any is).
+std::vector<HudAbilityButton> selection_ability_buttons(std::span<const SelectedGroup> groups, const HudProviders& providers,
+                                                        size_t max);
 
 // A request the HUD cannot turn into a command by itself (the host / targeting controller / P4 handle it).
 struct HudAction {
@@ -511,9 +522,6 @@ private:
     void build_skeleton(const TacticalHudFrame& f);
     void build_markers(const TacticalHudFrame& f, std::span<const HudUnit> units, HudDrawList& dl);
     void apply_order_buttons(const HudOrderButtons& s);
-    struct AbilitySlot;
-    static void ability_click(const AbilitySlot& a, const std::string& name, Button button, bool queued,
-                              std::vector<commands::EventData>& out, std::vector<HudAction>* actions);
     void apply_bombing_run_button(const HudBombingRunButton& s);
     void build_garrison_respawn(const TacticalHudFrame& f);
     void build_sell(const TacticalHudFrame& f);
@@ -548,10 +556,8 @@ private:
     std::vector<HudHitBox> hits_;
     std::vector<int32_t> slot_component_, health_component_, shield_component_;
     std::vector<int32_t> special_button_, special_border_, queue_component_, reinforce_component_;
-    struct AbilitySlot {
+    struct AbilitySlot : HudAbilityButton {
         int32_t component = -1;
-        HudAbility ability;
-        std::vector<uint32_t> users;
     };
     std::vector<AbilitySlot> ability_slots_;
     struct QueueSlot {
@@ -634,5 +640,10 @@ commands::EventData reinforce_event(uint32_t unit, Vec3 point);
 commands::EventData ability_mode_event(std::span<const uint32_t> units, uint8_t ability, bool on);
 // SetAbilityAutofire (id 58).
 commands::EventData ability_autofire_event(std::span<const uint32_t> units, uint8_t ability, bool on);
+// A click on an ability button (component `component`, named `name`): right -> SetAbilityAutofire toggled; left on a
+// targeted ability -> HudAction::BeginAbilityTargeting (`queued` = the queue modifier); left otherwise ->
+// SetUnitAbilityMode toggled.
+void ability_button_click(const HudAbilityButton& a, int32_t component, const std::string& name, Button button, bool queued,
+                          std::vector<commands::EventData>& out, std::vector<HudAction>* actions);
 
 }  // namespace alamo::ui

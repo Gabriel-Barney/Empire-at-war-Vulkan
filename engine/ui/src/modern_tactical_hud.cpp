@@ -135,6 +135,14 @@ void ModernTacticalHud::init(const ComponentTable& table, const TextureAtlas& at
         std::snprintf(n, sizeof n, "c_button%02d", i);
         order_[i] = table.find(n);
     }
+    special_button_.assign(48, -1);  // as TacticalHud::init
+    for (int i = 0; i < 48; ++i) {
+        char n[24];
+        std::snprintf(n, sizeof n, "special_button_%02d", i);
+        special_button_[static_cast<size_t>(i)] = table.find(n);
+        std::snprintf(n, sizeof n, "s_select_%02d", i);
+        if (panel_slots_ == static_cast<size_t>(i) && table.find(n) >= 0) ++panel_slots_;
+    }
     if (const int32_t c = table.find("Text_Credits_tactical"); c >= 0 && table[static_cast<size_t>(c)].has_text_color)
         credits_color_ = table[static_cast<size_t>(c)].text_color;
     set_options(options_);  // the palette from the options' opacity
@@ -211,6 +219,7 @@ void ModernTacticalHud::build(const TacticalHudFrame& frame, std::span<const Hud
     dl_.clear();
     hits_.clear();
     groups_.clear();
+    abilities_.clear();
     wing_ids_.clear();
     for (bool& l : order_live_) l = false;
     stats_ = {};
@@ -323,7 +332,109 @@ void ModernTacticalHud::build_deck(const TacticalHudFrame& f, std::span<const Hu
     const float left = center.x - 0.5f * size.x + kPad, right = center.x + 0.5f * size.x - kPad;
     const float top = center.y + 0.5f * size.y - kPad, height = size.y - 2.0f * kPad;
     const float orders_w = build_orders(f, {right, top}, height);
-    build_selection(f, units, types, {left, top}, right - orders_w - 2.0f * kPad - left, height);
+    const float abilities_right = right - orders_w - 2.0f * kPad;
+    const float abilities_w = build_abilities(f, units, {abilities_right, top}, height, 0.3f * (abilities_right - left));
+    build_selection(f, units, types, {left, top}, abilities_right - (abilities_w > 0.0f ? abilities_w + 2.0f * kPad : 0.0f) - left,
+                    height);
+}
+
+// #586 a recharge ring round an ability button: the recharged part (from 12 o'clock, clockwise) in the accent, the rest dim.
+void ModernTacticalHud::ability_ring(Vec2f c, float radius, float recharge) {
+    constexpr int kSegments = 32;
+    const float inner = radius - 3.0f, outer = radius;
+    for (int k = 0; k < kSegments; ++k) {
+        const float a0 = 6.2831853f * static_cast<float>(k) / kSegments, a1 = 6.2831853f * static_cast<float>(k + 1) / kSegments;
+        auto at = [&](float a, float r) { return Vec2f{c.x + r * std::sin(a), c.y + r * std::cos(a)}; };
+        HudQuad q;
+        q.has_corners = true;
+        q.corners = {at(a0, outer), at(a1, outer), at(a1, inner), at(a0, inner)};
+        q.color = static_cast<float>(k) + 0.5f < recharge * kSegments ? accent(255) : Rgba8{0, 0, 0, 170};
+        dl_.add(kControlLayer, HudList::Alpha, q);
+    }
+}
+
+// #586 the abilities section (left of the orders): the selection's ability buttons (selection_ability_buttons on the
+// Classic grouping, so the same buttons, users and order as Classic) in two rows; each with its icon, a recharge ring and
+// the seconds left while recharging, the AUTO badge while autofire is on, the active look while on. Returns the width.
+float ModernTacticalHud::build_abilities(const TacticalHudFrame& f, std::span<const HudUnit> units, Vec2f top_right, float height,
+                                         float max_width) {
+    if (!f.providers.abilities) return 0.0f;
+    const std::vector<SelectedGroup> classic = f.fleet_groups_on ? group_selection_fleets(units, f.fleet_groups, panel_slots_)
+                                                                 : group_selection(units);
+    std::vector<HudAbilityButton> buttons = selection_ability_buttons(classic, f.providers, special_button_.size());
+    if (buttons.empty()) return 0.0f;
+    const float gap = 0.5f * kPad;
+    const float side = 0.5f * (height - gap);
+    const auto fit_cols = static_cast<size_t>(std::max(1.0f, std::floor((max_width + gap) / (side + gap))));
+    const size_t cols = std::min((buttons.size() + 1) / 2, fit_cols);
+    const float width = static_cast<float>(cols) * side + static_cast<float>(cols - 1) * gap;
+    HudTextStyle st;
+    st.font = font();
+    st.color = colours_.text;
+    st.align = TextAlign::Center;
+    for (size_t i = 0; i < buttons.size() && i < 2 * cols && i < special_button_.size(); ++i) {
+        if (special_button_[i] < 0) continue;
+        AbilityButton b;
+        static_cast<HudAbilityButton&>(b) = std::move(buttons[i]);
+        b.component = special_button_[i];
+        const HudAbility& a = b.ability;
+        const Vec2f c{top_right.x - width + 0.5f * side + static_cast<float>(i / 2) * (side + gap),
+                      top_right.y - 0.5f * side - static_cast<float>(i % 2) * (side + gap)};
+        const Vec2f size{side, side};
+        const bool hovered = hover_ == b.component;
+        if (!a.enabled) {
+            add_rect(dl_, kControlLayer, c.x - 0.5f * side, c.y - 0.5f * side, c.x + 0.5f * side, c.y + 0.5f * side, Rgba8{16, 20, 28, 160});
+            dashed_rect(dl_, kControlLayer, c, size, colours_.disabled);
+        } else if (a.active) {  // the active look: the accent filled, a bright edge
+            frame_rect(dl_, kControlLayer, c, size, accent(150), colours_.text);
+            ++stats_.ability_active;
+        } else {
+            frame_rect(dl_, kControlLayer, c, size, colours_.button, hovered ? colours_.text : accent(200));
+        }
+        if (!a.icon.empty() && atlas_)
+            add_atlas_quad(dl_, kControlLayer, HudList::Alpha, *atlas_, a.icon, c, {0.8f * side, 0.8f * side}, 1.0f,
+                           a.enabled ? Rgba8{255, 255, 255, 255} : Rgba8{128, 128, 128, 255});
+        if (a.recharge < 1.0f) {
+            ability_ring(c, 0.5f * side - 2.0f, std::clamp(a.recharge, 0.0f, 1.0f));
+            char n[16];
+            if (a.seconds_left >= 0.0f) std::snprintf(n, sizeof n, "%d", static_cast<int>(std::ceil(a.seconds_left)));
+            else std::snprintf(n, sizeof n, "%d%%", static_cast<int>(std::clamp(a.recharge, 0.0f, 1.0f) * 100.0f));
+            const std::u32string count = ascii32(n);
+            const float th = text_height_units();
+            add_rect(dl_, kControlLayer, c.x - 0.4f * side, c.y - 0.6f * th, c.x + 0.4f * side, c.y + 0.6f * th, Rgba8{0, 0, 0, 170});
+            add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, count, c, st);
+            stats_.ability_counts.push_back(count);
+            ++stats_.ability_rings;
+        }
+        if (a.autofire) {  // AUTO along the bottom edge
+            HudTextStyle as = st;
+            const std::u32string label = text_or_port(text_, nullptr, U"AUTO");
+            const float lh = text_height_units() * 1.1f;
+            const float lw = std::min(side, measure_text_block(*fonts_, canvas_, label, 0.0f, as).width + kPad);
+            as.width_scale = fit_width_scale(measure_text_block(*fonts_, canvas_, label, 0.0f, as).width, lw - 2.0f);
+            const Vec2f lc{c.x, c.y - 0.5f * side + 0.5f * lh};
+            frame_rect(dl_, kControlLayer, lc, {lw, lh}, accent(230), colours_.text);
+            as.color = Rgba8{0, 0, 0, 255};
+            add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, label, lc, as);
+            ++stats_.ability_auto;
+        }
+        hit(b.component, kControlLayer, c, size);
+        abilities_.push_back(std::move(b));
+        ++stats_.abilities;
+    }
+    return width;
+}
+
+bool ModernTacticalHud::activate_ability(uint8_t ability_type, bool queued, std::vector<commands::EventData>& out,
+                                         std::vector<HudAction>* actions) const {
+    if (!table_ || ability_type == 0) return false;
+    for (const AbilityButton& a : abilities_) {
+        if (a.ability.ability_type != ability_type) continue;
+        if (!a.ability.enabled || a.users.empty()) return false;
+        ability_button_click(a, a.component, (*table_)[static_cast<size_t>(a.component)].name, Button::Left, queued, out, actions);
+        return true;
+    }
+    return false;
 }
 
 // The selection section: a header row (wing buttons, the clear-selection button) over the unit cards.
@@ -724,6 +835,13 @@ void ModernTacticalHud::update_input(const RoutedInput& routed, bool shift, bool
             const auto w = static_cast<size_t>(e.component - kWingHitBase);
             if (e.button == Button::Left && w < wing_ids_.size() && !wing_ids_[w].empty())
                 act(wing_select_action(static_cast<int32_t>(w), wing_ids_[w], shift, ctrl));
+            continue;
+        }
+        // Ability buttons: the Classic click (TacticalHud::update_input "Ability buttons"; Shift = queued).
+        if (const auto it = std::find_if(abilities_.begin(), abilities_.end(), [&](const AbilityButton& a) { return a.component == e.component; });
+            it != abilities_.end()) {
+            if (it->ability.enabled)
+                ability_button_click(*it, it->component, (*table_)[static_cast<size_t>(e.component)].name, e.button, shift, out, actions);
             continue;
         }
         // A disabled order takes no click (the Classic HudButtons swallows it).
