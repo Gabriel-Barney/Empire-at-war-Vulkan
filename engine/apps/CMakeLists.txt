@@ -644,7 +644,9 @@ if(_alamo_sim)
   # 0-worker run; a stale fingerprint only prints "not comparable"; skipped without ALAMO_FOC_DATA) and the result comparison
   # tool's self-test on synthetic files (tools/benchmark/compare_results.py; no game data). The rendered scenes (host game) are
   # checked by alamo_game_bench_scene_* in apps/game/CMakeLists.txt. ---
-  foreach(_bm_name galactic_late land_battle)
+  # #629: land_battle_lane is land_battle with the AI lane on (--ai-lane in its recipe, its own fingerprint): the lane-on
+  # worker-count check from a save made mid-battle with an AI job in flight.
+  foreach(_bm_name galactic_late land_battle land_battle_lane)
     if(EXISTS ${CMAKE_SOURCE_DIR}/tests/benchmark/${_bm_name}.abench)
       alamo_add_worker_count_check(alamo_headless_bench_${_bm_name}
           COMMAND alamo_headless --bench ${ALAMO_BENCH_SCENARIOS}/${_bm_name}.abench --runs 1 --warmup 0 --quiet --bench-allow-changed
@@ -674,6 +676,10 @@ if(_alamo_sim)
     add_test(NAME alamo_bench_compare_tool
              COMMAND ${ALAMO_BENCH_PYTHON} -I ${CMAKE_SOURCE_DIR}/tools/benchmark/test_compare_results.py ${CMAKE_CURRENT_BINARY_DIR}/bench_compare)
     set_tests_properties(alamo_bench_compare_tool PROPERTIES TIMEOUT 120)
+    # #629: the worker-count sweep (tools/benchmark/worker_sweep.py) on a fake alamo_headless: run order, arguments, tables.
+    add_test(NAME alamo_bench_worker_sweep_tool
+             COMMAND ${ALAMO_BENCH_PYTHON} -I ${CMAKE_SOURCE_DIR}/tools/benchmark/test_worker_sweep.py ${CMAKE_CURRENT_BINARY_DIR}/bench_worker_sweep)
+    set_tests_properties(alamo_bench_worker_sweep_tool PROPERTIES TIMEOUT 120)
   endif()
   # --- end BM1 ---
 endif()

@@ -1,0 +1,9 @@
+ALAMO_BENCH 1
+name land_battle_lane
+version 1
+description land_battle with the AI lane on (--ai-lane, k_ai 2): the same FoC _MP_LAND_UTAPAU skirmish, Empire vs Rebel with six times the foc-land company lists, saved at tick 300, then 2 min of battle; its own fingerprint, so a lane-on run is timed against lane-on CRCs (#629)
+make --save-session skirmish --campaign foc-land-army --ai-lane --bench-save-at 300 --ticks 3600 --bench-every 16 --bench-desc "land_battle with the AI lane on (--ai-lane, k_ai 2): the same FoC _MP_LAND_UTAPAU skirmish, Empire vs Rebel with six times the foc-land company lists, saved at tick 300, then 2 min of battle; its own fingerprint, so a lane-on run is timed against lane-on CRCs (#629)"
+fingerprint_every 16
+start_tick 300
+ticks 3600
+workers auto
