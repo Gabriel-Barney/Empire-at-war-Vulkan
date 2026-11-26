@@ -597,6 +597,7 @@ int main() {
     test_cursor();
     test_credits_roll();
     test_anim_hack_drag();
+    test_drag_over_planet_index();
     test_controls();
     test_targeting();
     test_real_data();

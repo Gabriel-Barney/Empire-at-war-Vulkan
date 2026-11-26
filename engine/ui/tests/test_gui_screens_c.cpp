@@ -774,6 +774,110 @@ void test_anim_hack_drag() {
     }
 }
 
+// #623 GalacticDrag::over_planet is an index into the frame's planets (the host looks the planet up in its own list of the
+// frame's planets), not into the planets on screen: a hidden planet and one behind the camera before the hovered one do not
+// shift it, over the world and over a fleet slot alike. The drops send what they did.
+void test_drag_over_planet_index() {
+    PanelEnv env;
+    ComponentTable ft;
+    const data::XmlDocument fd = data::XmlDocument::parse(std::string_view(kFleetXml), "f.xml");
+    ft.parse(fd.root());
+    TextureAtlas fa;
+    fa.texture_width = fa.texture_height = 64;
+    fa.add({"i_frame.tga", 0, 0, 40, 40, true});
+    fa.add({"fleet_stacks_01.tga", 0, 0, 36, 45, true});
+    fa.add({"fleet_empty.tga", 0, 0, 36, 45, true});
+    GalacticHud hud;
+    hud.init(ft, fa, env.fonts);
+    hud.resize(1024, 768);
+    GalacticCameraController cam;
+    cam.set_look_at({275.0f, 150.0f, 0.0f});
+    GalacticHudFrame gf;
+    gf.view = make_view(cam.params(4.0f / 3.0f), 1024, 768);
+    std::vector<GalacticPlanetInfo> planets(4);
+    planets[0].planet = 98;  // hidden
+    planets[0].position = {100, 300, 0};
+    planets[0].visible = false;
+    planets[1].planet = 99;  // at the eye: it does not project
+    planets[1].position = gf.view.eye;
+    planets[2].planet = 100;
+    planets[2].position = {200, 100, 0};
+    planets[2].selected = true;
+    planets[3].planet = 101;
+    planets[3].position = {350, 200, 0};
+    float sx = 0, sy = 0;
+    CHECK(!project(gf.view, planets[1].position, sx, sy));
+    gf.planets = planets;
+    gf.providers.fleets = [](uint32_t, std::vector<GalacticFleet>& out) {
+        out.push_back({900, {{901, "i_frame.tga", 1, false}, {902, "i_frame.tga", 1, false}}});
+    };
+    hud.build(gf);
+    auto center_px = [&](std::string_view name) {
+        const int32_t c = ft.find(name);
+        for (const HudHitBox& h : hud.hit_boxes())
+            if (h.component == c) return hud.canvas().canvas_to_pixel(0.5f * (h.min.x + h.max.x), 0.5f * (h.min.y + h.max.y));
+        return Vec2f{-1, -1};
+    };
+    // Press `from_c` at `from`, move to `to` (the drag starts), rebuild, hover there (the HUD hit test when `hover_hit`, else
+    // the world), release: the drag state over `to` and the drop's commands.
+    auto drag_to = [&](int32_t from_c, Vec2f from, Vec2f to, bool hover_hit, GalacticDrag& seen) {
+        std::vector<commands::EventData> out;
+        RoutedInput r;
+        r.world.mouse_x = static_cast<int32_t>(from.x);
+        r.world.mouse_y = static_cast<int32_t>(from.y);
+        r.hover_component = from_c;
+        r.owner[static_cast<size_t>(Button::Left)] = PointerTarget::Hud;
+        r.hud = {{HudPointerEvent::Kind::Press, Button::Left, from_c, r.world.mouse_x, r.world.mouse_y}};
+        hud.update_input(r, false, false, 1.0, out);
+        r.hud.clear();
+        r.world.mouse_x = static_cast<int32_t>(to.x);
+        r.world.mouse_y = static_cast<int32_t>(to.y);
+        r.hover_component = -1;
+        hud.update_input(r, false, false, 1.1, out);
+        hud.build(gf);
+        r.hover_component = hover_hit ? hud.hit_test(r.world.mouse_x, r.world.mouse_y) : -1;
+        hud.update_input(r, false, false, 1.2, out);
+        seen = hud.drag();
+        r.owner = {};
+        r.hud = {{HudPointerEvent::Kind::Release, Button::Left, r.hover_component, r.world.mouse_x, r.world.mouse_y}};
+        hud.update_input(r, false, false, 1.3, out);
+        hud.build(gf);
+        return out;
+    };
+    // The organiser's fleet header over a planet in the world.
+    GalacticDrag d;
+    CHECK(project(gf.view, planets[3].position, sx, sy));
+    std::vector<commands::EventData> o = drag_to(ft.find("q1_fleet"), center_px("q1_fleet"), {sx, sy}, false, d);
+    CHECK(d.active && d.over_component == -1 && d.over_planet == 3 && d.valid);
+    CHECK(o.size() == 1 && o[0] == commands::ev::move_object_to_object(900, 101));
+    CHECK(project(gf.view, planets[2].position, sx, sy));
+    o = drag_to(ft.find("q1_fleet"), center_px("q1_fleet"), {sx, sy}, false, d);
+    CHECK(d.active && d.over_planet == 2 && !d.valid && o.empty());  // its own planet
+    // A map fleet over another planet's empty slot oval: the slot's planet is the planet under the cursor.
+    {
+        constexpr uint32_t kNone = commands::kNoObject;
+        const int32_t gpf = ft.find("g_planet_fleet");
+        GalacticPlanetStack s;
+        s.units = 3;
+        s.fleet = 960;
+        s.slot = 0;
+        planets[2].stacks = {s};
+        gf.show_fleet_slots = true;
+        hud.build(gf);
+        auto slot_px = [&](size_t pi, int k) {
+            float px = 0, py = 0;
+            CHECK(project(gf.view, planets[pi].position, px, py));
+            const Vec2f at = hud.canvas().pixel_to_canvas(px, py);
+            const Vec2f off[3] = {{-36, 42}, {0, 47}, {36, 42}};
+            return hud.canvas().canvas_to_pixel(at.x + off[k].x, at.y + off[k].y);
+        };
+        o = drag_to(gpf, slot_px(2, 0), slot_px(3, 1), true, d);
+        CHECK(d.active && d.over_component == gpf && d.over_slot == 1 && d.over_slot_planet == 101 && d.over_planet == 3 && d.valid);
+        CHECK(o.size() == 2 && o[0] == fleet_management_event(commands::kFleetSlot, 100, 960, kNone, 101, 1) &&
+              o[1] == commands::ev::move_object_to_object(960, 101));
+    }
+}
+
 void test_controls() {
     // 1. Pause: the port extension event round trip, the hotkey (Pause key) toggling, and both HUD buttons.
     bool pz = false;
