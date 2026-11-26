@@ -1240,7 +1240,9 @@ void GalacticHud::drag_update(const RoutedInput& routed, std::vector<commands::E
     drag_.over_fleet = over && over->fleet_index >= 0 && !over->foreign && over->fleet != drag_.fleet;  // never merge into a foreign fleet
     if (GalacticDropTarget t; !over && drag_.over_component >= 0 && drop_targets_ && drop_targets_(drag_.over_component, t))
         drag_.over_fleet = t.kind == GalacticDropTarget::Kind::Fleet && !t.foreign && t.fleet != drag_.fleet;  // #613
-    drag_.over_planet = drag_.over_component < 0 ? planet_at(cur.x, cur.y) : -1;
+    // #623 over_planet indexes the frame's planets (GalacticPlanetScreen::index), not planet_px_ (the planets on screen).
+    const int32_t pi = drag_.over_component < 0 ? planet_at(cur.x, cur.y) : -1;
+    drag_.over_planet = pi >= 0 ? static_cast<int32_t>(planet_px_[static_cast<size_t>(pi)].index) : -1;
     // Over a fleet slot (an empty oval or a fleet button): its planet counts as the planet under the cursor.
     drag_.over_slot = -1;
     drag_.over_slot_planet = drag_.over_slot_fleet = 0;
@@ -1254,8 +1256,8 @@ void GalacticHud::drag_update(const RoutedInput& routed, std::vector<commands::E
             drag_.over_slot = sh->slot;
             drag_.over_slot_planet = sh->planet;
             drag_.over_slot_fleet = sh->fleet;
-            for (size_t i = 0; i < planet_px_.size(); ++i)
-                if (planet_px_[i].planet == sh->planet) drag_.over_planet = static_cast<int32_t>(i);
+            for (const GalacticPlanetScreen& s : planet_px_)
+                if (s.planet == sh->planet) drag_.over_planet = static_cast<int32_t>(s.index);
             drag_.valid = drop(nullptr);
             return;
         }

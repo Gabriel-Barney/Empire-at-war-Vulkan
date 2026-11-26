@@ -547,6 +547,7 @@ void test_info_screens();
 void test_cursor();
 void test_credits_roll();
 void test_anim_hack_drag();
+void test_drag_over_planet_index();
 void test_controls();
 void test_camera_hotkeys();
 

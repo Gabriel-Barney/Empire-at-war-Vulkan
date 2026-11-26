@@ -429,7 +429,7 @@ struct GalacticDrag {
     std::string icon;
     Vec2f cursor_px{};
     int32_t over_component = -1; // HUD pad under the cursor
-    int32_t over_planet = -1;    // index into the frame's planets under the cursor
+    int32_t over_planet = -1;    // index into the frame's planets (GalacticHudFrame::planets) under the cursor, -1 none
     bool over_fleet = false;     // over another fleet's pad
     bool valid = false;          // a drop here does something
     int32_t over_slot = -1;      // fleet slot 0..2 under the cursor (g_planet_fleet instance), -1 none
