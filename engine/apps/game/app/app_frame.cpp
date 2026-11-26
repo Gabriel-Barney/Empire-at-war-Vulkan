@@ -165,7 +165,7 @@ bool App::render_frame() {
         ui_.galactic_hud.set_modern_overlay(modern);
         ui_.galactic_hud.build(gf);
         if (modern) {
-            if (!(ui_.modern_galactic.options() == video_profile_.modern_hud)) ui_.modern_galactic.set_options(video_profile_.modern_hud);
+            ui_.modern_galactic.sync_options(video_profile_.modern_hud);
             ui_.modern_galactic.build(gf);
         }
         // The shells the build wants shown (organiser, the two battle-prompt shells); re-applied to the layout on a change.

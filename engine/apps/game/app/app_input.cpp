@@ -157,6 +157,12 @@ void App::announcer_feedback() {
         // destroyed, new owner's faction playable).
         // [port] retail queues it when the HUD text method (0x140b31410) exists, i.e. whenever the HUD is up; the port's
         // queue is drained only while a story presenter runs (story_present_frame), so it queues only then (no growth).
+        auto changed_hands = [&](std::optional<int32_t> bonus) {
+            const char* id = bonus ? "TEXT_PLANET_CHANGED_HANDS_BONUS" : "TEXT_PLANET_CHANGED_HANDS";
+            const std::u16string* fmt = ui_.text.find(id);
+            const std::u32string format = fmt ? ui::utf16_to_utf32(*fmt) : ui::utf8_to_utf32(id);  // [port] a missing id shows the id
+            return changed_hands_text(format, planet_label(data_, ui_.text, *g, e.planet), owner_label(e.other_player), owner_label(e.player), bonus);
+        };
         if (e.kind == K::PlanetOwnerChanged && e.planet < g->planets().size() && story_present_story_) {
             std::optional<int32_t> bonus;
             if (me >= 0 && e.player == me && !g->planets()[e.planet].destroyed && static_cast<size_t>(me) < g->players().size()) {
@@ -165,22 +171,12 @@ void App::announcer_feedback() {
                 if (fac < g->rules().factions.size() && g->rules().factions[fac].is_playable && ptype < g->rules().types.size())
                     bonus = g->rules().types[ptype].capture_bonus;
             }
-            const char* id = bonus ? "TEXT_PLANET_CHANGED_HANDS_BONUS" : "TEXT_PLANET_CHANGED_HANDS";
-            const std::u16string* fmt = ui_.text.find(id);
-            const std::u32string format = fmt ? ui::utf16_to_utf32(*fmt) : ui::utf8_to_utf32(id);  // [port] a missing id shows the id
-            story_present_.queue_message(changed_hands_text(format, planet_label(data_, ui_.text, *g, e.planet), owner_label(e.other_player),
-                                                            owner_label(e.player), bonus),
-                                         kChangedHandsColor);
+            story_present_.queue_message(changed_hands(bonus), kChangedHandsColor);
         }
         // #593 the Modern event strip: a planet the local player takes or loses (the changed-hands line), with Jump there.
         if (e.kind == K::PlanetOwnerChanged && e.planet < g->planets().size() && me >= 0 && (e.player == me || e.other_player == me)) {
-            const std::u16string* fmt = ui_.text.find("TEXT_PLANET_CHANGED_HANDS");
-            const std::u32string format = fmt ? ui::utf16_to_utf32(*fmt) : ui::utf8_to_utf32("TEXT_PLANET_CHANGED_HANDS");
             const auto& at = g->planets()[e.planet].position;
-            galactic_alerts_.push_at(ui::HudAlert::Kind::Radar,
-                                     changed_hands_text(format, planet_label(data_, ui_.text, *g, e.planet), owner_label(e.other_player),
-                                                        owner_label(e.player), std::nullopt),
-                                     at.x, at.y, now_s_);
+            galactic_alerts_.push_at(ui::HudAlert::Kind::Radar, changed_hands(std::nullopt), at.x, at.y, now_s_);
         }
         // ui4 t11 (P4_SIM_SYSTEMS §2.7.3): an enemy approach at most every 5 s of wall-clock time (all planets together),
         // with the urgent line TEXT_ENEMY_FLEET_APPROACHING_LOCATION ("##0" = the planet) in (0, 193, 91).
@@ -213,10 +209,10 @@ void App::announcer_feedback() {
             if (e.kind == K::ProductionCompleted) {  // #593 the Modern event strip ("##0 ready", as the tactical strip's)
                 std::u32string text = ui::replace_all(ui::text_or_port(&ui_.text, nullptr, U"##0 ready"), U"##0",
                                                       type_label(data_, ui_.text, static_cast<objects::TypeIndex>(e.type)));
-                if (e.planet < g->planets().size())
-                    galactic_alerts_.push_at(ui::HudAlert::Kind::Production, std::move(text), g->planets()[e.planet].position.x,
-                                             g->planets()[e.planet].position.y, now_s_);
-                else
+                if (e.planet < g->planets().size()) {
+                    const auto& at = g->planets()[e.planet].position;
+                    galactic_alerts_.push_at(ui::HudAlert::Kind::Production, std::move(text), at.x, at.y, now_s_);
+                } else
                     galactic_alerts_.push(ui::HudAlert::Kind::Production, std::move(text), now_s_);
             }
         }
@@ -1153,17 +1149,20 @@ void App::galactic_input() {
         const size_t before = cmds.size();
         const bool was_dragging = fleet_drag_active_;
         story_forced_clicks();  // FORCE_CLICK_GUI
-        // #593: the Modern view's clicks go to it alone (its shared controls carry the Classic ids, which the Classic HUD
-        // would click too); the Classic HUD keeps the rest (the map layer: fleet buttons, slots, drags).
+        // #593: the Modern view's presses and clicks go to it alone (its shared controls carry the Classic ids, which the
+        // Classic HUD would click too); the Classic HUD keeps the rest (the map layer: fleet buttons, slots, drags) and every
+        // release, so a map drag dropped over a Modern panel still ends.
         ui::RoutedInput classic_in = routed_;
         if (modern_galactic_shown()) {
             const std::vector<ui::HudHitBox>& mine = ui_.modern_galactic.hit_boxes();
             auto modern_owns = [&mine](int32_t c) {
                 return c >= 0 && std::any_of(mine.begin(), mine.end(), [c](const ui::HudHitBox& h) { return h.component == c; });
             };
-            std::erase_if(classic_in.hud, [&](const ui::HudPointerEvent& e) { return modern_owns(e.component); });
+            std::erase_if(classic_in.hud, [&](const ui::HudPointerEvent& e) {
+                return e.kind != ui::HudPointerEvent::Kind::Release && modern_owns(e.component);
+            });
             if (modern_owns(classic_in.hover_component)) classic_in.hover_component = -1;
-            ui_.modern_galactic.update_input(routed_, input_.shift(), input_.ctrl(), cmds, &acts);
+            ui_.modern_galactic.update_input(routed_, input_.shift(), input_.ctrl(), now_s_, cmds, &acts);
         }
         ui_.galactic_hud.update_input(classic_in, input_.shift(), input_.ctrl(), now_s_, cmds, &acts);
         // Fleet drag sounds: GUI_Drag_Fleet when a fleet / unit drag starts, GUI_Drop_Fleet when its drop issued an order.

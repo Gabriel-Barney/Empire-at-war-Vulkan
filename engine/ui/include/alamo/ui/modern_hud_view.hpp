@@ -12,6 +12,7 @@
 #include "alamo/ui/hud_canvas.hpp"
 #include "alamo/ui/hud_components.hpp"
 #include "alamo/ui/hud_draw.hpp"
+#include "alamo/ui/hud_input.hpp"
 #include "alamo/ui/hud_style.hpp"
 #include "alamo/ui/tactical_hud.hpp"
 
@@ -81,6 +82,10 @@ public:
     // [port] #590 the Interface page's Modern options (clamped): text size, colours, key hints, order labels, panel opacity;
     // the contextual deck (#587), the map side (#591). Takes effect on the next build().
     void set_options(const ModernHudOptions& o);
+    // set_options when `o` differs from the options in use (the host's per-frame profile sync).
+    void sync_options(const ModernHudOptions& o) {
+        if (!(options_ == o)) set_options(o);
+    }
     const ModernHudOptions& options() const { return options_; }
     float text_scale() const { return text_scale_; }
     const HudCanvas& canvas() const { return canvas_; }
@@ -126,6 +131,12 @@ protected:
     // The alert strip (top centre): the newest of `alerts` with a mark by kind, the count of the others and, for an alert
     // with a position, Jump (its live hotkey badge, slot AlertJump). Remembers that position for jump().
     ModernAlertStrip alert_strip(std::span<const HudAlert> alerts);
+    // Input both views share: whether the previous build drew a hit box `id`; a click on the style switch
+    // (HudStyleToggle) or Jump (jump()) - true when `e` was one of them; the Classic Button action of a shared
+    // component (by its name, with the click's modifiers).
+    bool drawn(int32_t id) const;
+    bool view_click(const HudPointerEvent& e, std::vector<HudAction>* actions) const;
+    HudAction button_action(const HudPointerEvent& e, bool shift, bool ctrl) const;
 
     const ComponentTable* table_ = nullptr;
     const TextureAtlas* atlas_ = nullptr;

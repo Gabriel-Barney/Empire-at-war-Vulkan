@@ -56,6 +56,38 @@ void ModernHudView::init_view(const ComponentTable& table, const TextureAtlas& a
     set_options(options_);  // the palette from the options' opacity
 }
 
+bool ModernHudView::drawn(int32_t id) const {
+    return std::any_of(hits_.begin(), hits_.end(), [id](const HudHitBox& h) { return h.component == id; });
+}
+
+bool ModernHudView::view_click(const HudPointerEvent& e, std::vector<HudAction>* actions) const {
+    if (e.component == kModernStyleSwitchHit) {
+        if (e.button == Button::Left && actions) {
+            HudAction h;
+            h.kind = HudAction::Kind::HudStyleToggle;
+            h.component = e.component;
+            actions->push_back(std::move(h));
+        }
+        return true;
+    }
+    if (e.component == kModernJumpHit) {
+        if (e.button == Button::Left && actions) jump(*actions);
+        return true;
+    }
+    return false;
+}
+
+HudAction ModernHudView::button_action(const HudPointerEvent& e, bool shift, bool ctrl) const {
+    HudAction h;
+    h.kind = HudAction::Kind::Button;
+    h.component = e.component;
+    h.name = (*table_)[static_cast<size_t>(e.component)].name;
+    h.button = e.button;
+    h.shift = shift;
+    h.ctrl = ctrl;
+    return h;
+}
+
 void ModernHudView::begin_build(uint8_t faction_alt) {
     dl_.clear();
     hits_.clear();

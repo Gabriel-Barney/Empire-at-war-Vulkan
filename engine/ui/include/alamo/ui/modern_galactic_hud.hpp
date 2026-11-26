@@ -10,10 +10,12 @@
 //     holocron (b_story_arc_g, lit while a chapter is unread), whose clicks are the Classic components' clicks, and the
 //     HUD style switch (HudAction::HudStyleToggle);
 //   - the alert strip (top centre): the newest of GalacticHudFrame::alerts with a count of the others and, for an event
-//     with a position, Jump (slot AlertJump) -> HudAction::RadarCameraJump there;
+//     with a position, Jump (slot AlertJump) -> HudAction::RadarCameraJump there; not while the battle prompt (the
+//     Classic banner at the top centre) is up;
 //   - the hero list (left, under the status corner), standing in for the Classic hero bar: its entries
-//     (GalacticHudFrame::heroes) with where each hero is; a click is the bar's single click (HeroFocusPlanet: the camera
-//     on the hero's planet, which it selects; nothing in hyperspace or while building / returning);
+//     (GalacticHudFrame::heroes, sort_hero_entries order, the bar's 11 at most) with where each hero is; its clicks are
+//     the bar's (HeroFocusPlanet: the camera on the hero's planet, which it selects; a double click adds
+//     HeroZoomPlanet; nothing in hyperspace or while building / returning);
 //   - with a planet selected, the deck along the bottom: the planet card (name in the owner's colour, its income, and in
 //     the planet close-up Planet Info and Base Layout: the Classic planet_info and advanced_planetary clicks), the fleets
 //     in orbit (a click selects an own fleet: the organiser header's GalacticSelect; other players' fleets are shown,
@@ -83,7 +85,8 @@ public:
     // One frame of HUD input on the hit boxes of the previous build(): the commands and actions the Classic GalacticHud
     // sends for the same control (a hero row: the hero bar's), plus HudStyleToggle for the style switch and RadarCameraJump
     // for Jump.
-    void update_input(const RoutedInput& routed, bool shift, bool ctrl, std::vector<commands::EventData>& out,
+    // `now` (seconds) times the hero rows' double click, as the hero bar's.
+    void update_input(const RoutedInput& routed, bool shift, bool ctrl, double now, std::vector<commands::EventData>& out,
                       std::vector<HudAction>* actions = nullptr);
 
 private:
@@ -108,7 +111,10 @@ private:
     std::vector<GalacticFleet> fleets_;
     std::vector<GalacticBuildOption> options_shown_;
     std::vector<HudQueueEntry> queue_;
-    std::vector<HeroEntry> heroes_;
+    std::vector<HeroEntry> heroes_;  // the rows drawn (sort_hero_entries order)
+    int32_t last_hero_click_ = -1;   // the hero row of the last left click, its time and pixel (the bar's double click)
+    double last_hero_time_ = -1e30;
+    int32_t last_hero_x_ = 0, last_hero_y_ = 0;
     bool tab_live_[kGalacticBuildTabs] = {};
     ModernGalacticStats stats_;
 };

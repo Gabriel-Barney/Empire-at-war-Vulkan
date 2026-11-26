@@ -1173,9 +1173,6 @@ void ModernTacticalHud::update_input(const RoutedInput& routed, bool shift, bool
                                      std::vector<HudAction>* actions) {
     hover_ = routed.hover_component;
     if (!table_) return;
-    auto drawn = [this](int32_t id) {
-        return std::any_of(hits_.begin(), hits_.end(), [id](const HudHitBox& h) { return h.component == id; });
-    };
     auto act = [&](HudAction a) {
         if (actions) actions->push_back(std::move(a));
     };
@@ -1200,24 +1197,12 @@ void ModernTacticalHud::update_input(const RoutedInput& routed, bool shift, bool
                                  out, actions);
             continue;
         }
-        if (e.component == kModernStyleSwitchHit) {
-            if (e.button == Button::Left) {
-                HudAction h;
-                h.kind = HudAction::Kind::HudStyleToggle;
-                h.component = e.component;
-                act(std::move(h));
-            }
-            continue;
-        }
+        if (view_click(e, actions)) continue;  // the style switch, Jump
         // Cards: the Classic portrait click (TacticalHud::update_input "Selection portraits").
         if (e.component >= kModernCardHitBase && e.component - kModernCardHitBase < static_cast<int32_t>(groups_.size())) {
             if (e.button != Button::Left) continue;
             const SelectedGroup& g = groups_[static_cast<size_t>(e.component - kModernCardHitBase)];
             out.push_back(commands::ev::select(portrait_select_ids(g, selection_ids(), shift, ctrl)));
-            continue;
-        }
-        if (e.component == kModernJumpHit) {
-            if (e.button == Button::Left && actions) jump(*actions);
             continue;
         }
         if (e.component == kModernClearHit) {
@@ -1315,14 +1300,7 @@ void ModernTacticalHud::update_input(const RoutedInput& routed, bool shift, bool
             out.push_back(pause_event(!paused_));
             continue;
         }
-        HudAction h;
-        h.kind = HudAction::Kind::Button;
-        h.component = e.component;
-        h.name = name;
-        h.button = e.button;
-        h.shift = shift;
-        h.ctrl = ctrl;
-        act(std::move(h));
+        act(button_action(e, shift, ctrl));
     }
 }
 

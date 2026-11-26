@@ -16,7 +16,7 @@ using namespace modern_draw;
 namespace {
 
 constexpr float kDeckHeight = 132.0f;  // canvas units: the tabs row over the option tiles
-constexpr size_t kHeroRows = 8;        // the hero list's rows (the rest are left out)
+constexpr size_t kHeroRows = 11;       // the hero bar's entries at most
 constexpr const char32_t* kTabLabels[kGalacticBuildTabs] = {U"Space", U"Ground", U"Buildings", U"Heroes"};
 
 // "+1,250 / day" (a loss without the plus).
@@ -64,7 +64,8 @@ void ModernGalacticHud::build(const GalacticHudFrame& f) {
     build_deck(f);
     build_status(f);
     build_controls(f);
-    const ModernAlertStrip strip = alert_strip(f.alerts);
+    // The battle prompt's banner takes the top centre (GalacticHud::build_battle_prompt).
+    const ModernAlertStrip strip = alert_strip(f.battle.active ? std::span<const HudAlert>{} : f.alerts);
     stats_.alert_text = strip.text;
     stats_.alerts_more = strip.more;
     stats_.jump = strip.jump;
@@ -145,8 +146,10 @@ void ModernGalacticHud::build_controls(const GalacticHudFrame& f) {
 // returning), under the status corner.
 void ModernGalacticHud::build_heroes(const GalacticHudFrame& f, float top) {
     if (f.heroes.empty()) return;
+    std::vector<HeroEntry> sorted(f.heroes.begin(), f.heroes.end());
+    sort_hero_entries(sorted);  // the bar's order
     const float th = text_height_units(), line = th * 1.5f;
-    const size_t rows = std::min(f.heroes.size(), kHeroRows);
+    const size_t rows = std::min(sorted.size(), kHeroRows);
     const float width = std::min(0.24f * canvas_.width, 20.0f * th);
     const float left = -0.5f * canvas_.width + kMargin;
     const float header = line;
@@ -162,10 +165,9 @@ void ModernGalacticHud::build_heroes(const GalacticHudFrame& f, float top) {
     ws.align = TextAlign::Right;
     float y = top - 0.5f * kPad - 0.5f * header;
     add_text(dl_, kPanelLayer, HudList::Text, *fonts_, canvas_, text_or_port(text_, nullptr, U"Heroes"), {left + kPad, y}, hs);
-    const std::u32string transit = text_or_port(text_, nullptr, U"In transit"), building = text_or_port(text_, nullptr, U"In production"),
-                         returning = text_or_port(text_, nullptr, U"Returning");
+    const std::u32string transit = text_or_port(text_, nullptr, U"In transit"), not_ready = text_or_port(text_, nullptr, U"Not ready");
     for (size_t i = 0; i < rows; ++i) {
-        const HeroEntry& h = f.heroes[i];
+        const HeroEntry& h = sorted[i];
         y -= line;
         const auto id = kModernGalacticHeroBase + static_cast<int32_t>(i);
         const Vec2f rc{center.x, y}, rs{width - kPad, line - 2.0f};
@@ -176,7 +178,13 @@ void ModernGalacticHud::build_heroes(const GalacticHudFrame& f, float top) {
             add_atlas_quad(dl_, kControlLayer, HudList::Alpha, *atlas_, h.icon, {x + 0.5f * side, y}, {side, side}, 1.0f, Rgba8{255, 255, 255, 255});
             x += side + 0.5f * kPad;
         }
-        std::u32string where = h.respawn >= 0.0f ? returning : h.object == 0 || h.object == commands::kNoObject ? building : transit;
+        // Being built or returning (the bar's dial: respawn 0..1), else in hyperspace, else the planet's name.
+        std::u32string where = transit;
+        if (h.object == 0 || h.object == commands::kNoObject) {
+            where = not_ready;
+            if (h.respawn >= 0.0f)
+                where += U" " + count_text(static_cast<uint32_t>(std::lround(100.0f * std::clamp(h.respawn, 0.0f, 1.0f)))) + U"%";
+        }
         for (const GalacticPlanetInfo& p : f.planets)
             if (hero_focus_planet(h) != 0 && p.planet == h.planet) where = p.name;
         const std::u32string& name = h.tooltip.empty() ? ascii32(h.type_name) : h.tooltip;
@@ -360,13 +368,10 @@ void ModernGalacticHud::build_options(const GalacticHudFrame& f, const GalacticP
     }
 }
 
-void ModernGalacticHud::update_input(const RoutedInput& routed, bool shift, bool ctrl, std::vector<commands::EventData>& out,
-                                     std::vector<HudAction>* actions) {
+void ModernGalacticHud::update_input(const RoutedInput& routed, bool shift, bool ctrl, double now,
+                                     std::vector<commands::EventData>& out, std::vector<HudAction>* actions) {
     hover_ = routed.hover_component;
     if (!table_) return;
-    auto drawn = [this](int32_t id) {
-        return std::any_of(hits_.begin(), hits_.end(), [id](const HudHitBox& h) { return h.component == id; });
-    };
     auto act = [&](HudAction a) {
         if (actions) actions->push_back(std::move(a));
     };
@@ -375,19 +380,7 @@ void ModernGalacticHud::update_input(const RoutedInput& routed, bool shift, bool
     };
     for (const HudPointerEvent& e : routed.hud) {
         if (e.kind != HudPointerEvent::Kind::Click || e.component < 0 || !drawn(e.component)) continue;
-        if (e.component == kModernStyleSwitchHit) {
-            if (e.button == Button::Left) {
-                HudAction h;
-                h.kind = HudAction::Kind::HudStyleToggle;
-                h.component = e.component;
-                act(std::move(h));
-            }
-            continue;
-        }
-        if (e.component == kModernJumpHit) {
-            if (e.button == Button::Left && actions) jump(*actions);
-            continue;
-        }
+        if (view_click(e, actions)) continue;  // the style switch, Jump
         if (const size_t k = index(e.component, kModernGalacticTabBase, kGalacticBuildTabs); k != SIZE_MAX) {
             if (e.button == Button::Left && tab_live_[k]) tab_ = static_cast<GalacticBuildTab>(k);
             continue;
@@ -408,11 +401,22 @@ void ModernGalacticHud::update_input(const RoutedInput& routed, bool shift, bool
             if (!fleets_[k].enemy) act(galactic_select_action(e.component, {fleets_[k].fleet}, e.button, shift, ctrl));
             continue;
         }
-        // A hero row: the hero bar's single click (HeroPanel::update_input, galactic; left only).
+        // A hero row: the hero bar's clicks (HeroPanel::update_input, galactic; left only): HeroFocusPlanet, and on a
+        // second click on the same row within 0.5 s and 4 px HeroZoomPlanet too.
         if (const size_t k = index(e.component, kModernGalacticHeroBase, heroes_.size()); k != SIZE_MAX) {
-            if (const uint32_t planet = hero_focus_planet(heroes_[k]); e.button == Button::Left && planet != 0) {
+            if (e.button != Button::Left) continue;
+            const bool dbl = last_hero_click_ == e.component && now - last_hero_time_ <= 0.5 && std::abs(e.x - last_hero_x_) <= 4 &&
+                             std::abs(e.y - last_hero_y_) <= 4;
+            last_hero_click_ = dbl ? -1 : e.component;
+            last_hero_time_ = now;
+            last_hero_x_ = e.x;
+            last_hero_y_ = e.y;
+            const uint32_t planet = hero_focus_planet(heroes_[k]);
+            if (planet == 0) continue;
+            for (const HudAction::Kind kind : {HudAction::Kind::HeroFocusPlanet, HudAction::Kind::HeroZoomPlanet}) {
+                if (kind == HudAction::Kind::HeroZoomPlanet && !dbl) break;
                 HudAction h;
-                h.kind = HudAction::Kind::HeroFocusPlanet;
+                h.kind = kind;
                 h.component = e.component;
                 h.unit = heroes_[k].object;
                 h.ids = {planet};
@@ -430,17 +434,10 @@ void ModernGalacticHud::update_input(const RoutedInput& routed, bool shift, bool
             out.push_back(pause_event(!paused_));
             continue;
         }
-        HudAction h;
-        h.component = e.component;
-        h.name = (*table_)[static_cast<size_t>(e.component)].name;
-        h.button = e.button;
-        h.shift = shift;
-        h.ctrl = ctrl;
+        HudAction h = button_action(e, shift, ctrl);
         if (e.component == planet_info_) {
             h.kind = HudAction::Kind::PlanetInfo;
             h.unit = selected_id_;
-        } else {
-            h.kind = HudAction::Kind::Button;
         }
         act(std::move(h));
     }

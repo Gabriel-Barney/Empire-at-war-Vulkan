@@ -1300,7 +1300,8 @@ struct GalacticHuds {
     }
     Out modern_click(int32_t id, Button b = Button::Left) {
         Out o;
-        modern.update_input(click_on(id, b), false, false, o.cmds, &o.acts);
+        now += 1.0;
+        modern.update_input(click_on(id, b), false, false, now, o.cmds, &o.acts);
         return o;
     }
 };
@@ -1337,6 +1338,14 @@ void test_galactic_view() {
           st.pop_text == hud_pop_text(13, 40) && st.tech_text == hud_tech_text(nullptr, 2) && st.planets_text == U"5" && st.day_text == U"7");
     CHECK(st.controls == 4 && st.style_switch);
     CHECK(st.alert_text == U"Enemy fleet approaching Kuat" && st.jump && st.heroes == 3);
+    // The battle prompt takes the top centre: no strip, no Jump.
+    g.f.battle.active = true;
+    g.modern.build(g.f);
+    CHECK(st.alert_text.empty() && !st.jump);
+    std::vector<HudAction> none;
+    CHECK(!g.modern.jump(none));
+    g.f.battle.active = false;
+    g.modern.build(g.f);
     CHECK(st.deck && st.planet_card && st.planet_name == U"KUAT" && st.fleets == 2 && st.enemy_fleets == 1 && st.queue_entries == 1);
     for (const char* name : {"b_Create_00", "queue00", "q1_fleet", "b_option_g", "b_play_pause", "radar_galactic", "Text_Credits"})
         CHECK(!has_hit(g.classic.hit_boxes(), g.t.find(name)));
@@ -1401,6 +1410,14 @@ void test_galactic_parity() {
     for (const int32_t row : {1, 2}) {
         const Out none = g.modern_click(kModernGalacticHeroBase + row);
         CHECK(none.cmds.empty() && none.acts.empty());
+    }
+    {  // the bar's double click: a second click within 0.5 s adds HeroZoomPlanet
+        std::vector<commands::EventData> c;
+        std::vector<HudAction> a;
+        g.modern.update_input(click_on(kModernGalacticHeroBase + 0), false, false, 100.0, c, &a);
+        g.modern.update_input(click_on(kModernGalacticHeroBase + 0), false, false, 100.2, c, &a);
+        CHECK(a.size() == 3 && a[1].kind == HudAction::Kind::HeroFocusPlanet && a[2].kind == HudAction::Kind::HeroZoomPlanet &&
+              a[2].ids == std::vector<uint32_t>{101});
     }
     CHECK(hero_focus_planet(g.heroes[0]) == 101 && hero_focus_planet(g.heroes[1]) == 0 && hero_focus_planet(g.heroes[2]) == 0);
     // In the planet close-up: Planet Info (Classic's PlanetInfo of the selected planet) and Base Layout (its Button action).

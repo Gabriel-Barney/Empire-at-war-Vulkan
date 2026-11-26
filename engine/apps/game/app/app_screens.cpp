@@ -1420,12 +1420,12 @@ void App::build_panels(std::vector<ui::HudDrawList>& lists) {
                 *gs, local_player(),
                 [this](uint32_t t) { return type_icon(t); }, sel, 11,
                 [this](uint32_t t) { return type_ranking(t); });
-            heroes = galactic_heroes_;
-            for (ui::HeroEntry& e : heroes)
+            for (ui::HeroEntry& e : galactic_heroes_)  // named here, so the Modern hero list (#593) has the names too
                 if (const objects::TypeIndex t = data_.types.resolve_name(e.type_name); t != objects::kNone) {
                     e.tooltip = type_label(data_, ui_.text, t);
                     if (e.object != 0 && e.object != commands::kNoObject) hero_types_.emplace_back(e.object, t);
                 }
+            heroes = galactic_heroes_;
         }
     ui::HeroPanelFrame hf;
     // #593: on the galactic map the Modern hero list stands in for the hero bar (the same entries and clicks).
