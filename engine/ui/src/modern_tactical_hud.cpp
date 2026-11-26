@@ -153,6 +153,7 @@ void ModernTacticalHud::build(const TacticalHudFrame& frame, std::span<const Hud
     if (!table_ || !fonts_ || frame.world.interface_hidden || font() < 0) return;
     build_deck(frame, units, types);
     build_map(frame, units, types);
+    build_badges(frame, units, types);
     build_target_card(frame, units, types);
     build_status(frame);
     build_roster(frame, units, types);
@@ -1014,6 +1015,119 @@ void ModernTacticalHud::build_map(const TacticalHudFrame& f, std::span<const Hud
 
 // #591 the hover target card: the hovered hostile unit (HudUnit::hovered) - its name, hull and shield bars with their
 // percentages, and its hard points (the frame's, parent = the unit) as a bar each - beside it on screen. No hit box.
+void ModernTacticalHud::badge(std::u32string_view text, Vec2f left_mid, uint32_t layer) {
+    HudTextStyle st;
+    st.font = font();
+    st.color = colours_.text;
+    st.align = TextAlign::Center;
+    const float h = 1.1f * text_height_units();
+    const float w = std::max(h, measure_text_block(*fonts_, canvas_, text, 0.0f, st).width + kPad);
+    const Vec2f c{left_mid.x + 0.5f * w, left_mid.y};
+    frame_rect(dl_, layer, c, {w, h}, Rgba8{0, 0, 0, 210}, colours_.label);
+    add_text(dl_, layer, HudList::Text, *fonts_, canvas_, text, c, st);
+}
+
+// #602 (#596 world markers), Modern only: a group badge (the group's number, or the wing's key F2 / F3) on a dark
+// backplate beside each selected own unit's world icon (unit_icon_centre: a squadron's one icon stands for its craft), the
+// same badges on the map at each group's and wing's member centre, and for each selected locked group (the Classic
+// outline's rule, #178) a dark edge round the outline and a tag over it: a padlock, the number and name, LOCKED.
+void ModernTacticalHud::build_badges(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types) {
+    if (f.world.interface_hidden || f.world.cinematic) return;
+    constexpr uint32_t kWorldLayer = 2;  // under the panels
+    auto label_of = [&](uint32_t id) -> std::u32string {
+        if (f.fleet_groups_on)
+            for (const HudFleetGroup& g : f.fleet_groups)
+                if (std::binary_search(g.members.begin(), g.members.end(), id)) return count_text(g.id);
+        for (const HudWing& w : f.wings)
+            if (std::binary_search(w.ids.begin(), w.ids.end(), id)) return w.hotkey.empty() ? w.label.substr(0, 1) : w.hotkey;
+        return {};
+    };
+    // Beside the world icons.
+    for (const HudUnit& u : units) {
+        if (!u.selected || u.owner != f.world.local_player || u.type >= types.size()) continue;
+        if (u.squadron_member && !u.unit_icon) continue;  // the squadron's icon carries its badge
+        const std::u32string label = label_of(u.id);
+        Vec2f c;
+        if (label.empty() || !unit_icon_centre(f.world, canvas_, u, types[u.type], c)) continue;
+        badge(label, {c.x + 0.5f * f.world.unit_icon_size + 2.0f, c.y}, kWorldLayer);
+        ++stats_.world_badges;
+    }
+    // On the map: each group's and wing's member centre.
+    if (map_view_.valid()) {
+        auto centre_of = [&](std::span<const uint32_t> ids, Vec2f& out) {
+            float x = 0.0f, y = 0.0f;
+            size_t n = 0;
+            for (const HudUnit& u : units)
+                if (std::binary_search(ids.begin(), ids.end(), u.id)) {
+                    x += u.position.x;
+                    y += u.position.y;
+                    ++n;
+                }
+            if (n == 0) return false;
+            out = map_view_.to_canvas(x / static_cast<float>(n), y / static_cast<float>(n));
+            return map_view_.inside(out);
+        };
+        auto map_badge = [&](std::span<const uint32_t> ids, std::u32string_view text) {
+            Vec2f c;
+            if (text.empty() || !centre_of(ids, c)) return;
+            badge(text, {c.x + 3.0f, c.y}, kControlLayer);
+            ++stats_.radar_badges;
+        };
+        if (f.fleet_groups_on)
+            for (const HudFleetGroup& g : f.fleet_groups) map_badge(g.members, count_text(g.id));
+        for (const HudWing& w : f.wings)
+            if (w.squadrons > 0) map_badge(w.ids, w.hotkey.empty() ? w.label.substr(0, 1) : w.hotkey);
+    }
+    // The selected locked groups' outlines.
+    if (!f.fleet_groups_on || f.world.targeting_active) return;
+    for (const HudFleetGroup& g : f.fleet_groups) {
+        if (!g.locked || !std::any_of(units.begin(), units.end(), [&](const HudUnit& u) {
+                return u.selected && std::binary_search(g.members.begin(), g.members.end(), u.id);
+            }))
+            continue;
+        const std::optional<FleetOutline> o = fleet_outline(g, units, types);
+        if (!o) continue;
+        constexpr int kSegments = 32;
+        std::vector<Vec2f> ring;
+        float sx = 0.0f, sy = 0.0f;
+        const bool centre_on = project(f.world.view, o->centre, sx, sy);
+        const Vec2f sc = canvas_.pixel_to_canvas(sx, sy);
+        for (int k = 0; k <= kSegments; ++k) {
+            const float a = 6.2831853f * static_cast<float>(k) / kSegments;
+            const Vec3 p{o->centre.x + o->radius * std::cos(a), o->centre.y + o->radius * std::sin(a), o->centre.z};
+            float px = 0.0f, py = 0.0f;
+            if (project(f.world.view, p, px, py)) ring.push_back(canvas_.pixel_to_canvas(px, py));
+        }
+        if (!centre_on || ring.size() < 2) continue;
+        // The dark edge just outside the outline (readable on nebulae and on black space alike).
+        auto out = [&](Vec2f q) {
+            const float dx = q.x - sc.x, dy = q.y - sc.y, l = std::max(1e-3f, std::sqrt(dx * dx + dy * dy));
+            return Vec2f{q.x + 2.5f * dx / l, q.y + 2.5f * dy / l};
+        };
+        for (size_t k = 1; k < ring.size(); ++k) line_quad(dl_, kWorldLayer, out(ring[k - 1]), out(ring[k]), 3.0f, Rgba8{0, 0, 0, 190});
+        // The tag over the outline's top.
+        Vec2f top = ring.front();
+        for (const Vec2f& q : ring)
+            if (q.y > top.y) top = q;
+        std::u32string text = count_text(g.id);
+        if (!g.name.empty()) text += U" " + g.name;
+        text += U"  " + text_or_port(text_, nullptr, U"LOCKED");
+        HudTextStyle st;
+        st.font = font();
+        st.color = colours_.text;
+        const float th = text_height_units(), h = 1.3f * th, icon = 0.5f * h;
+        const float w = measure_text_block(*fonts_, canvas_, text, 0.0f, st).width + 2.0f * kPad + icon;
+        const Vec2f tc{std::clamp(top.x, -0.5f * canvas_.width + 0.5f * w, 0.5f * canvas_.width - 0.5f * w), top.y + 4.0f + 0.5f * h};
+        frame_rect(dl_, kWorldLayer, tc, {w, h}, Rgba8{0, 0, 0, 210}, colours_.hull_warn);
+        // a padlock: a shackle over a body
+        const float lx = tc.x - 0.5f * w + kPad + 0.5f * icon;
+        frame_rect(dl_, kWorldLayer, {lx, tc.y + 0.3f * icon}, {0.6f * icon, 0.6f * icon}, Rgba8{0, 0, 0, 0}, colours_.hull_warn);
+        add_rect(dl_, kWorldLayer, lx - 0.5f * icon, tc.y - 0.5f * icon, lx + 0.5f * icon, tc.y + 0.1f * icon, colours_.hull_warn);
+        add_text(dl_, kWorldLayer, HudList::Text, *fonts_, canvas_, text, {lx + 0.5f * icon + 0.5f * kPad, tc.y}, st);
+        ++stats_.outline_tags;
+    }
+}
+
 void ModernTacticalHud::build_target_card(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types) {
     const HudUnit* u = nullptr;
     for (const HudUnit& x : units)

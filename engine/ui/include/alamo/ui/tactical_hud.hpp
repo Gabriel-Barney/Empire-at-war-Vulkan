@@ -87,6 +87,14 @@ struct HudFleetTabState {
 HudFleetTabState fleet_tab_state(std::span<const HudFleetGroup> fleets, std::span<const size_t> selected, uint16_t id);
 // A tab's left click: Select of its members; with Shift added to `selection` (at most 127).
 std::vector<uint32_t> fleet_tab_select_ids(std::span<const uint32_t> members, std::span<const uint32_t> selection, bool shift);
+// [port: Gabriel] #178 the ground outline of a fleet group (shared by the Classic outline and the Modern outline tag,
+// #602): the circle round its live members (`units` ascending id) - their mean position, the farthest member's distance
+// plus its select box, plus a 12-unit margin. None without a live member.
+struct FleetOutline {
+    Vec3 centre{};
+    float radius = 0.0f;
+};
+std::optional<FleetOutline> fleet_outline(const HudFleetGroup& g, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
 // [port: Gabriel] #599 (#596) fleet discipline: the player's fleet cohesion (per player) and the lock of the selection's
 // fleet groups (per group) shown as one cycle for the selection, Loose -> Tight -> Locked, through the existing orders.
 // Shown: Locked when fleet groups are on, the selection holds members of a group and every such group is locked; else

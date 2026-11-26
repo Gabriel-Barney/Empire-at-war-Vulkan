@@ -111,6 +111,7 @@ struct HudUnit {
     // per fighter / bomber squadron; the host flags one member per squadron (assign_unit_icons), which also gives the
     // marker's anchor and bar: the squadron's centre and its live members' mean health (icon_anchored false: the unit's own).
     bool unit_icon = false;
+    bool squadron_member = false;  // #602 a member of a squadron (assign_unit_icons): one icon stands for the squadron
     bool icon_anchored = false;
     Vec3 icon_anchor{};
     float icon_health = 1.0f;
@@ -202,6 +203,10 @@ struct UnitScreenBounds {
     float cx = 0, cy = 0, radius_px = 0;
 };
 UnitScreenBounds unit_screen_bounds(const View& v, const HudUnit& u, const HudTypeInfo& t);
+// Where a unit's world icon sits (canvas units, its centre): centred above the unit's (or, icon_anchored, the squadron's)
+// screen bounds, clear of the health bars. False when off screen. Shared by the world layer's icon and the Modern group
+// badges beside it (#602); a unit without an icon gets the place an icon would have.
+bool unit_icon_centre(const WorldHudContext& ctx, const HudCanvas& cv, const HudUnit& u, const HudTypeInfo& t, Vec2f& centre);
 
 // Hover pick for world tooltips / the encyclopedia pop-up and the hard-point reticles (playtest: "tooltip picking by
 // bounding sphere"): the unit whose bounding sphere (HudUnit::position, radius; <= 0: 10 [port] as the brackets) the

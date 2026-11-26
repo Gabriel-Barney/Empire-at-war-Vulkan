@@ -1443,6 +1443,48 @@ void test_roster() {
     CHECK(st.wings == 1 && st.roster_groups == 0 && !st.roster_new);
 }
 
+// #602 group badges: one per selected own unit beside its world icon (a squadron's craft share their one icon), one per
+// group and wing on the map, an outline tag for each selected locked group; nothing without groups or wings. Classic's
+// outline (the shared fleet_outline) is unchanged.
+void test_badges() {
+    Huds h;
+    Selection s;
+    TacticalHudFrame f = frame();
+    f.world.local_player = 0;
+    CameraParams cp;
+    cp.eye = {0.0f, -600.0f, 600.0f};
+    cp.target = {0.0f, 0.0f, 0.0f};
+    f.world.view = make_view(cp, 1920, 1080);
+    std::vector<HudUnit> units = s.units;
+    for (size_t i = 0; i < units.size(); ++i) units[i].position = {40.0f * static_cast<float>(i), 0.0f, 0.0f};
+    std::vector<HudFleetGroup> fleets(2);
+    fleets[0].id = 1;
+    fleets[0].members = {20, 21};
+    fleets[1].id = 2;
+    fleets[1].name = U"Escort";
+    fleets[1].locked = true;
+    fleets[1].members = {22};
+    f.fleet_groups_on = true;
+    f.fleet_groups = fleets;
+    h.build(f, units, s.types);
+    const ModernHudStats& st = h.modern.stats();
+    CHECK(st.world_badges == 3 && st.radar_badges == 2 && st.outline_tags == 1);
+    CHECK(h.classic.stats().fleet_outlines == 1);
+    const std::optional<FleetOutline> o = fleet_outline(fleets[1], units, s.types);
+    CHECK(o && std::fabs(o->centre.x - 80.0f) < 1e-3f && o->radius >= 12.0f);
+    // A squadron craft without the icon: no badge of its own.
+    units[1].squadron_member = true;
+    h.modern.build(f, units, s.types);
+    CHECK(st.world_badges == 2);
+    // Unlocked: no tag; fleet groups off and no wing: nothing.
+    fleets[1].locked = false;
+    h.modern.build(f, units, s.types);
+    CHECK(st.outline_tags == 0);
+    f.fleet_groups_on = false;
+    h.modern.build(f, units, s.types);
+    CHECK(st.world_badges == 0 && st.radar_badges == 0 && st.outline_tags == 0);
+}
+
 // ---- #593 the galactic map ----
 
 const char* kGalacticXml = R"(<?xml version="1.0"?>
@@ -1777,6 +1819,7 @@ int main() {
     test_tab_chips();
     test_discipline_rule();
     test_roster();
+    test_badges();
     test_discipline_control();
     test_galactic_view();
     test_galactic_parity();

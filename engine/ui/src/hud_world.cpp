@@ -69,6 +69,16 @@ UnitScreenBounds unit_screen_bounds(const View& v, const HudUnit& u, const HudTy
     return b;
 }
 
+bool unit_icon_centre(const WorldHudContext& ctx, const HudCanvas& cv, const HudUnit& u, const HudTypeInfo& t, Vec2f& centre) {
+    HudUnit marker = u;
+    if (u.icon_anchored) marker.position = u.icon_anchor;
+    const UnitScreenBounds ib = unit_screen_bounds(ctx.view, marker, t);
+    if (!ib.visible) return false;
+    const float lift_px = ib.radius_px + ctx.health_bar_spacing_px + 0.5f * ctx.unit_icon_size / cv.units_per_pixel_y + 4.0f;
+    centre = cv.pixel_to_canvas(ib.cx, ib.cy - lift_px);
+    return true;
+}
+
 void assign_unit_icons(std::span<HudUnit> units, std::span<const UnitIconLink> links) {
     struct Member {
         uint32_t squad = 0;
@@ -80,10 +90,14 @@ void assign_unit_icons(std::span<HudUnit> units, std::span<const UnitIconLink> l
     members.reserve(sorted.size());
     for (size_t i = 0; i < units.size(); ++i) {
         units[i].unit_icon = false;
+        units[i].squadron_member = false;
         units[i].icon_anchored = false;
         const auto it = std::lower_bound(sorted.begin(), sorted.end(), units[i].id,
                                          [](const UnitIconLink& l, uint32_t id) { return l.unit < id; });
-        if (it != sorted.end() && it->unit == units[i].id) members.push_back({it->squad, i});
+        if (it != sorted.end() && it->unit == units[i].id) {
+            members.push_back({it->squad, i});
+            units[i].squadron_member = true;
+        }
     }
     std::stable_sort(members.begin(), members.end(), [](const Member& a, const Member& b) { return a.squad < b.squad; });
     for (size_t first = 0; first < members.size();) {
@@ -300,11 +314,9 @@ void WorldHud::build(const WorldHudContext& ctx, std::span<const HudUnit> units,
                 marker.position = u.icon_anchor;
                 marker.health = u.icon_health;
             }
-            const UnitScreenBounds ib = unit_screen_bounds(ctx.view, marker, t);
-            if (ib.visible) {
+            Vec2f c;
+            if (unit_icon_centre(ctx, cv, u, t, c)) {
                 const float s = ctx.unit_icon_size;
-                const float lift_px = ib.radius_px + ctx.health_bar_spacing_px + 0.5f * s / cv.units_per_pixel_y + 4.0f;
-                const Vec2f c = cv.pixel_to_canvas(ib.cx, ib.cy - lift_px);
                 const Rgba8 fc = hostile(u.owner) ? ctx.unit_icon_hostile : ctx.unit_icon_own;
                 add_atlas_quad(dl, 0, HudList::Alpha, atlas, {}, c, {}, 1.0f, Rgba8{0, 0, 0, 160}, {s, s});
                 add_atlas_quad(dl, 0, HudList::Alpha, atlas, t.icon_name, c, {s - 4.0f, s - 4.0f}, 1.0f, Rgba8{});
