@@ -1419,6 +1419,24 @@ void test_roster() {
     h.modern.update_input(click_on(kModernRosterHeaderHit), false, false, cmds, nullptr);
     h.build(f, s.units, s.types);
     CHECK(!st.roster_collapsed && st.wings == 1);
+    // Many groups: the cards shrink, then a "+N more" line; every card stays above the map (left end) and the deck.
+    std::vector<HudFleetGroup> many(30);
+    for (size_t k = 0; k < many.size(); ++k) {
+        many[k].id = static_cast<uint16_t>(k + 1);
+        many[k].members = {static_cast<uint32_t>(100 + k)};
+    }
+    f.fleet_groups = many;
+    h.build(f, s.units, s.types);
+    CHECK(st.roster_groups + st.roster_more == 30 && st.roster_more > 0 && st.roster_new);
+    float map_top = -1e9f, lowest = 1e9f;
+    for (const HudHitBox& b : h.modern.hit_boxes()) {
+        if (b.component == h.t.find("radar") || b.component == kModernMapHit) map_top = std::max(map_top, b.max.y);
+        if ((b.component >= kModernRosterGroupBase && b.component < kModernRosterGroupBase + 64) || b.component == kModernRosterNewHit ||
+            b.component == kWingHitBase)
+            lowest = std::min(lowest, b.min.y);
+    }
+    CHECK(map_top > -1e9f && lowest >= map_top);
+    f.fleet_groups = fleets;
     // Fleet groups off: the wings only.
     f.fleet_groups_on = false;
     h.build(f, s.units, s.types);

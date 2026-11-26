@@ -12,8 +12,8 @@
 //     clicks are the Classic components' clicks (same component ids, same commands and actions), and the HUD style switch
 //     (HudAction::HudStyleToggle);
 //   - the command deck along the bottom (#585): with own units selected, the selection as unit cards (icon, count, name,
-//     a solid hull bar and a striped shield bar; the "+N" overflow card), the wing buttons and a clear-selection button
-//     in the selection header, and the six order buttons (the Classic c_button00..05 ids and rule, order_button_enabled)
+//     a solid hull bar and a striped shield bar; the "+N" overflow card), a clear-selection button in the selection
+//     header (the wings are the fleet roster's, #601), and the six order buttons (the Classic c_button00..05 ids and rule, order_button_enabled)
 //     with their live hotkey badges, greyed with a dashed outline when no selected unit can do the order, and the fleet
 //     cohesion line. Cards group by the Classic functions (group_selection / group_selection_fleets) and click as the
 //     Classic portraits do (plain: the group; Shift: drop it; Ctrl: its first unit);
@@ -120,7 +120,7 @@ struct ModernHudStats {
     // #601 the fleet roster (left edge): drawn, collapsed to its header, its group cards, the "+ New group" card, the
     // cards marked as in the selection (a border and a side bar)
     bool roster = false, roster_collapsed = false, roster_new = false;
-    uint32_t roster_groups = 0, roster_selected = 0;
+    uint32_t roster_groups = 0, roster_selected = 0, roster_more = 0;  // roster_more: the cards a "+N more" line stands for
     uint32_t hit_boxes = 0, quads = 0;
 };
 
@@ -219,13 +219,22 @@ private:
     // the last group card click (time, card) for the double click that centres the camera.
     void build_roster(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
     bool roster_collapsed_ = false;
-    std::vector<std::vector<uint32_t>> roster_groups_;
-    std::vector<Vec2f> roster_centres_;  // per group card: its members' mean position (world x, y), for the double click
-    std::vector<std::pair<uint16_t, std::string>> roster_names_;  // per group card: its id and name (UTF-8), for Rename
+    struct RosterGroup {  // a drawn group card's click data
+        uint16_t id = 0;
+        std::string name;               // UTF-8, for Rename
+        std::vector<uint32_t> members;  // Classic's tab members
+        Vec2f centre{};                 // the members' mean position (world x, y), for the double click
+    };
+    std::vector<RosterGroup> roster_groups_;  // the feed's order (kModernRosterGroupBase + index)
     bool roster_new_live_ = false;
-    double time_ = 0.0, last_roster_time_ = -1e30;
-    int32_t last_roster_card_ = -1;
-    float status_bottom_ = 0.0f;  // canvas y under the status corner (the roster hangs from it)    // #588 per drawn group tab (Classic's tab ids: kFleetTabHitBase / kFleetMergeHitBase / kFleetSplitHitBase + index).
+    struct RosterClick {  // the last left click on a group card, for the double click (by group id, not card index)
+        uint16_t group = 0;
+        double time = -1e30;
+    };
+    RosterClick last_roster_click_;
+    double time_ = 0.0;           // the frame's time (TacticalHudFrame::time) of the last build
+    float status_bottom_ = 0.0f;  // canvas y under the status corner (the roster hangs from it)
+    // #588 per drawn group tab (Classic's tab ids: kFleetTabHitBase / kFleetMergeHitBase / kFleetSplitHitBase + index).
     std::vector<std::vector<uint32_t>> fleet_tab_ids_;
     std::vector<std::pair<uint16_t, std::string>> fleet_tab_group_;  // the group id and name (UTF-8), for Rename
     struct CardRow {  // the selection cards' geometry
@@ -233,6 +242,9 @@ private:
         Vec2f card{};     // a card's size
         float gap = 0.0f, right = 0.0f;  // between cards; the section's right edge
     };
+    // #600 / #601 a state chip's icon (a closed padlock, an open one, a wing) round `c`, `u` canvas units the unit size.
+    enum class Chip { Locked, Free, Wing };
+    void chip_icon(Chip chip, Vec2f c, float u, Rgba8 edge);
     void build_run_tabs(const TacticalHudFrame& f, std::span<const HudUnit> units, const CardRow& row, float tab_h);
     uint32_t builder_ = commands::kNoObject, station_ = commands::kNoObject;
     std::vector<SelectedGroup> groups_;
