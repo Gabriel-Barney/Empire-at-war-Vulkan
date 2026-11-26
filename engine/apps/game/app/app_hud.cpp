@@ -1273,19 +1273,18 @@ void App::build_tactical_hud() {
     }
     hf.build_options = build_opts_;
     hf.reinforce_list_open = ui_.tactical_hud.reinforce_list_open();  // #587 the Modern deck shows Classic's list state
-    // #592 land: the reinforcement zones the Modern map marks (the drop rule's radius inputs, TACTICAL_GAPS §4.2.1 test 4):
-    // allied Reinforcement_Enabling_Radius (with Use_Reinforcement_Points), non-allied Reinforcement_Prevention_Radius.
+    // #592 land: the reinforcement zones the Modern map marks - the drop rule's own radius inputs
+    // (TacticalBattle::land_drop_radius_objects, land_drop_radius_ok): allied Reinforcement_Enabling_Radius with
+    // Use_Reinforcement_Points; non-allied Reinforcement_Prevention_Radius, except a POWERED object whose owner has no base
+    // power, and not one the fog hides from the local player (the map shows nothing fogged).
     drop_zones_.clear();
-    if (const sim::TacticalBattle* b = battle(); b && modern_hud() && !bview_.space() && local_player() >= 0) {
+    if (const sim::TacticalBattle* b = battle(); b && tm && modern_hud() && !bview_.space() && local_player() >= 0) {
         const int32_t me = local_player();
-        const bool points = data_.db.constants().get_bool("Use_Reinforcement_Points", true);
-        for (const render::SnapshotObject& o : bview_.frame().objects) {
-            if (o.type >= data_.types.size()) continue;
-            const bool allied = o.owner >= 0 && (o.owner == me || !b->combat().is_enemy(me, o.owner));
-            const float en = data_.types.get_float(o.type, "Reinforcement_Enabling_Radius");
-            const float pv = data_.types.get_float(o.type, "Reinforcement_Prevention_Radius");
-            if (points && allied && en > 0.0f) drop_zones_.push_back({o.position.x, o.position.y, en, true});
-            if (!allied && pv > 0.0f) drop_zones_.push_back({o.position.x, o.position.y, pv, false});
+        const bool points = data_.db.constants().get_bool("Use_Reinforcement_Points", true);  // the catalog reads the same constant
+        for (const sim::LandDropRadiusObject& o : b->land_drop_radius_objects(tm->primary(), me)) {
+            if (points && o.allied && o.enabling > 0.0f) drop_zones_.push_back({o.x, o.y, o.enabling, true});
+            if (!o.allied && o.prevention > 0.0f && !(o.powered && !o.owner_base_power) && !b->fog_point_fogged(me, o.x, o.y, true))
+                drop_zones_.push_back({o.x, o.y, o.prevention, false});
         }
     }
     hf.drop_zones = drop_zones_;

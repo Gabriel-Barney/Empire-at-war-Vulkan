@@ -1136,6 +1136,29 @@ void test_land() {
         CHECK(h.same_click(h.t.find(name), h.t.find(name), false, false, Button::Left, &emitted));
         CHECK(emitted == n);
     }
+    // The open reinforcement list takes the deck; the pad keeps its buttons.
+    f.reinforce_list_open = true;
+    h.classic.toggle_reinforce_list(true);
+    f.providers.reinforcements = [](std::vector<HudReinforcement>& out) {
+        HudReinforcement r;
+        r.unit = 90;
+        out.push_back(r);
+    };
+    h.build(f, s.units, s.types);
+    CHECK(st.reinforcements == 1 && st.pad_options && st.build_options == 3);
+    // On land: a reinforcement call (to the drop point the host then picks) and the bombing run are Classic's.
+    f.bombing_run.present = true;
+    f.bombing_run.disabled = false;
+    f.command_buttons.present = true;
+    f.command_buttons.reinforce_enabled = true;
+    for (const auto& [name, n] : {std::pair{"r_0000", 1u}, std::pair{"b_special_weapon", 1u}, std::pair{"b_reinforcement", 1u}}) {
+        h.build(f, s.units, s.types);
+        size_t emitted = 0;
+        CHECK(h.same_click(h.t.find(name), h.t.find(name), false, false, Button::Left, &emitted));
+        CHECK(emitted == n);
+    }
+    f.reinforce_list_open = false;
+    f.providers.reinforcements = nullptr;
     // Space (or no anchor): the options are in the deck.
     f.world.land = false;
     h.build(f, s.units, s.types);

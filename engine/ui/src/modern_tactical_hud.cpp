@@ -407,7 +407,12 @@ void ModernTacticalHud::build_deck(const TacticalHudFrame& f, std::span<const Hu
         if (abilities_w > 0.0f) section_right -= abilities_w + 2.0f * kPad;
     }
     // The left section: the reinforcement list while open, else production with a builder, else the selection cards.
-    if (reinforcing && build_reinforcements(f, {left, top}, height, section_right - left) > 0.0f) return;
+    // A land pad's buttons stay on the pad whatever the deck shows (Classic draws them whenever a builder is selected).
+    const bool pad = producing && f.world.land && f.has_build_anchor;
+    if (reinforcing && build_reinforcements(f, {left, top}, height, section_right - left) > 0.0f) {
+        if (pad) build_pad_options(f);
+        return;
+    }
     if (producing && build_production(f, units, types, {left, top}, height, section_right - left) > 0.0f) return;
     if (own) build_selection(f, units, types, {left, top}, section_right - left, height);
 }
