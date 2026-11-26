@@ -165,9 +165,9 @@ void test_deck() {
     const ModernHudStats& st = h.modern.stats();
     // Cards: the Classic grouping, the enemy left out as Classic leaves it.
     CHECK(st.cards == 2 && !st.overflow_card && st.wings == 1 && st.clear_button);
-    CHECK(h.modern.cards().size() == h.classic.panel_groups().size());
-    for (size_t i = 0; i < h.modern.cards().size() && i < h.classic.panel_groups().size(); ++i)
-        CHECK(h.modern.cards()[i].ids == h.classic.panel_groups()[i].ids && h.modern.cards()[i].type == h.classic.panel_groups()[i].type);
+    CHECK(h.modern.selection_cards().size() == h.classic.panel_groups().size());
+    for (size_t i = 0; i < h.modern.selection_cards().size() && i < h.classic.panel_groups().size(); ++i)
+        CHECK(h.modern.selection_cards()[i].ids == h.classic.panel_groups()[i].ids && h.modern.selection_cards()[i].type == h.classic.panel_groups()[i].type);
     // Orders: the shared rule, the same liveness as Classic.
     CHECK(st.orders == 6 && st.orders_live == 3);
     for (uint32_t i = 0; i < 6; ++i) CHECK(h.modern.order_button_live(i) == h.classic.order_button_live(i));
@@ -219,8 +219,32 @@ void test_deck() {
     }
     h.modern.build(f, crowd, many);
     size_t total = 0;
-    for (const SelectedGroup& g : h.modern.cards()) total += g.ids.size();
-    CHECK(h.modern.stats().overflow_card && h.modern.cards().back().overflow && total == 60 && h.modern.cards().size() < 60);
+    for (const SelectedGroup& g : h.modern.selection_cards()) total += g.ids.size();
+    size_t grouped = 0;  // the Classic grouping keeps its first 48 groups
+    for (const SelectedGroup& g : group_selection(crowd)) grouped += g.ids.size();
+    CHECK(grouped == 48 && h.modern.stats().overflow_card && h.modern.selection_cards().back().overflow && total == grouped &&
+          h.modern.selection_cards().size() < 48);
+    // The "+N" card selects every unit it stands for, as the Classic "+N" portrait does.
+    const SelectedGroup rest = h.modern.selection_cards().back();
+    cmds.clear();
+    h.modern.update_input(click_on(kModernCardHitBase + static_cast<int32_t>(h.modern.selection_cards().size() - 1)), false, false,
+                          cmds, nullptr);
+    CHECK(cmds.size() == 1 && cmds[0] == commands::ev::select(rest.ids));
+    // Fleet groups on: the Classic fleet grouping, and the same card clicks.
+    std::vector<HudFleetGroup> fleets(1);
+    fleets[0].id = 1;
+    fleets[0].members = {21, 22};
+    f.fleet_groups_on = true;
+    f.fleet_groups = fleets;
+    h.build(f, s.units, s.types);
+    CHECK(h.modern.selection_cards().size() == h.classic.panel_groups().size());
+    for (size_t i = 0; i < h.modern.selection_cards().size() && i < h.classic.panel_groups().size(); ++i)
+        CHECK(h.modern.selection_cards()[i].ids == h.classic.panel_groups()[i].ids &&
+              h.modern.selection_cards()[i].fleet == h.classic.panel_groups()[i].fleet);
+    for (int32_t card = 0; card < 2; ++card) {
+        h.build(f, s.units, s.types);
+        CHECK(h.same_click(h.t.find(card == 0 ? "s_select_00" : "s_select_01"), kModernCardHitBase + card, false, false));
+    }
 }
 
 void test_style_names() {

@@ -74,6 +74,12 @@ inline constexpr int32_t kFleetMergeHitBase = 0x42000000, kFleetSplitHitBase = 0
 // `slots`, the entries from the last slot on fold into one overflow entry ("+N", every unit not shown).
 std::vector<SelectedGroup> group_selection_fleets(std::span<const HudUnit> units, std::span<const HudFleetGroup> fleets,
                                                   size_t slots);
+// The "+N" fold both selection bars use (#585): with more entries than `slots`, the entries from the last slot on become
+// one overflow entry (every unit not shown, ascending; health -1).
+void fold_selection_overflow(std::vector<SelectedGroup>& groups, size_t slots);
+// A left click on a selection portrait / card (#585, shared by both HUD styles): the ids of the Select command - the
+// group; with Shift the selection without the group; with Ctrl the group's first unit - at most 127.
+std::vector<uint32_t> portrait_select_ids(const SelectedGroup& group, std::span<const uint32_t> selection, bool shift, bool ctrl);
 
 // Ability state of a selected group: read-only S9 queries (hud_abilities.hpp abilities_from_s9 fills it from
 // tactical::abilities::AbilitySystem) or any host callback.
@@ -228,6 +234,7 @@ struct HudOrderButtons {
     bool can_move = false;       // some own selected unit has a locomotor
     bool controls_locked = false;
 };
+inline constexpr uint32_t kOrderButtonCount = 6;  // c_button00..05
 bool order_button_enabled(uint32_t button, const HudOrderButtons& s);  // button 0..5 = c_button00..05
 
 // Land b_special_weapon = the bombing-run button (HUD_GAPS §9.1 - §9.3). Never hidden in land, only disabled
@@ -284,6 +291,9 @@ struct HudWing {
 };
 inline constexpr int32_t kWingHitBase = 0x40000000;  // hit-box ids of the wing buttons (not CommandBarComponents)
 inline constexpr size_t kMaxWings = 4;
+struct HudAction;
+// A left click on wing button `wing` (#585, shared by both HUD styles): HudAction::WingSelect (component kWingHitBase + wing).
+HudAction wing_select_action(int32_t wing, std::span<const uint32_t> ids, bool shift, bool ctrl);
 
 // #477: see TacticalHudFrame::sell.
 struct HudSellButton {

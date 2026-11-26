@@ -95,16 +95,43 @@ std::vector<SelectedGroup> group_selection_fleets(std::span<const HudUnit> units
     for (size_t i = 0; i < units.size(); ++i)
         if (units[i].selected && !taken[i]) part.push_back(units[i]);
     add(group_selection(part), 0);
-    if (slots > 0 && out.size() > slots) {  // "+N": every unit from the last slot on
-        SelectedGroup rest;
-        rest.overflow = true;
-        rest.health = -1.0f;
-        for (size_t k = slots - 1; k < out.size(); ++k) rest.ids.insert(rest.ids.end(), out[k].ids.begin(), out[k].ids.end());
-        std::sort(rest.ids.begin(), rest.ids.end());
-        out.resize(slots - 1);
-        out.push_back(std::move(rest));
-    }
+    fold_selection_overflow(out, slots);
     return out;
+}
+
+void fold_selection_overflow(std::vector<SelectedGroup>& groups, size_t slots) {
+    if (slots == 0 || groups.size() <= slots) return;
+    SelectedGroup rest;  // "+N": every unit from the last slot on
+    rest.overflow = true;
+    rest.health = -1.0f;
+    for (size_t k = slots - 1; k < groups.size(); ++k) rest.ids.insert(rest.ids.end(), groups[k].ids.begin(), groups[k].ids.end());
+    std::sort(rest.ids.begin(), rest.ids.end());
+    groups.resize(slots - 1);
+    groups.push_back(std::move(rest));
+}
+
+std::vector<uint32_t> portrait_select_ids(const SelectedGroup& group, std::span<const uint32_t> selection, bool shift, bool ctrl) {
+    std::vector<uint32_t> ids;
+    if (shift) {  // [port] shift: remove the group from the selection
+        for (uint32_t id : selection)
+            if (!std::binary_search(group.ids.begin(), group.ids.end(), id)) ids.push_back(id);
+    } else if (ctrl) {  // [port] ctrl: the group's first unit only
+        if (!group.ids.empty()) ids.push_back(group.ids.front());
+    } else {
+        ids = group.ids;
+    }
+    return capped(std::move(ids));
+}
+
+HudAction wing_select_action(int32_t wing, std::span<const uint32_t> ids, bool shift, bool ctrl) {
+    HudAction h;
+    h.kind = HudAction::Kind::WingSelect;
+    h.component = kWingHitBase + wing;
+    h.value = wing;
+    h.ids.assign(ids.begin(), ids.end());
+    h.shift = shift;
+    h.ctrl = ctrl;
+    return h;
 }
 
 uint32_t add_drag_box(HudDrawList& dl, const HudCanvas& canvas, const DragRect& rect, uint32_t layer) {
@@ -385,14 +412,7 @@ void TacticalHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
         if (e.kind != HudPointerEvent::Kind::Click || e.button != Button::Left || e.component < kWingHitBase) continue;
         const auto w = static_cast<size_t>(e.component - kWingHitBase);
         if (w >= wing_ids_.size() || wing_ids_[w].empty()) continue;
-        HudAction h;
-        h.kind = HudAction::Kind::WingSelect;
-        h.component = e.component;
-        h.value = static_cast<int32_t>(w);
-        h.ids = wing_ids_[w];
-        h.shift = shift;
-        h.ctrl = ctrl;
-        act(std::move(h));
+        act(wing_select_action(static_cast<int32_t>(w), wing_ids_[w], shift, ctrl));
     }
 
     // [port: Gabriel] fleet group header tabs (#174): left click selects the whole group; shift adds it to the selection.
@@ -440,16 +460,7 @@ void TacticalHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
         for (size_t s = 0; s < groups_.size() && s < slot_component_.size(); ++s) {
             if (slot_component_[s] != k.component || k.button != Button::Left) continue;
             handled = true;
-            std::vector<uint32_t> ids;
-            if (k.shift) {  // [port] shift: remove the group from the selection
-                for (uint32_t id : selection_ids())
-                    if (!std::binary_search(groups_[s].ids.begin(), groups_[s].ids.end(), id)) ids.push_back(id);
-            } else if (k.ctrl) {  // [port] ctrl: the group's first unit only
-                ids.push_back(groups_[s].ids.front());
-            } else {
-                ids = groups_[s].ids;
-            }
-            out.push_back(commands::ev::select(capped(std::move(ids))));
+            out.push_back(commands::ev::select(portrait_select_ids(groups_[s], selection_ids(), k.shift, k.ctrl)));
         }
         if (handled) continue;
         // Ability buttons.

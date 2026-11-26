@@ -59,6 +59,7 @@ struct HudTypeInfo {
     // else medium).
     BracketSize land_class = BracketSize::Medium, space_class = BracketSize::Medium;
     std::string icon_name;                // Icon_Name (selection panel portrait)
+    std::string text_id;                  // Text_ID (the display name's MasterTextFile key; [port] #585 Modern selection cards)
     // Radar (legacy docs/re/UI.md §1.7 per-type tags): Radar_Icon_Name (atlas texture, "" = the radar_blip dot), Radar_Icon_Size (x y in
     // the radar's logical space, -1..1 across the radar: canvas size = size x radar size / 2 [port]), Is_Visible_On_Radar /
     // Is_Visible_On_Enemy_Radar (absent = Yes [port]). mcx4 t14 (MCX4_PRES_RE_ANSWERS_3 Q12): Radar_Show_Facing (default

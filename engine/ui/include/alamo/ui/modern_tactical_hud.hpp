@@ -51,7 +51,6 @@ inline constexpr int32_t kModernStyleSwitchHit = kModernHitBase + 0;  // the HUD
 inline constexpr int32_t kModernPanelHit = kModernHitBase + 1;        // a panel's back: takes the click, does nothing
 inline constexpr int32_t kModernClearHit = kModernHitBase + 2;        // the deck's clear-selection button
 inline constexpr int32_t kModernCardHitBase = kModernHitBase + 0x100;  // + card index (the deck's selection cards)
-inline constexpr size_t kModernMaxCards = 0x100;
 // Hull bar colours by health (badly damaged units stand out): above kModernHullWarn, above kModernHullCritical, below.
 inline constexpr float kModernHullWarn = 0.6f, kModernHullCritical = 0.3f;
 
@@ -91,10 +90,10 @@ public:
     const HudDrawList& draw_list() const { return dl_; }
     const ModernHudStats& stats() const { return stats_; }
     // The cards of the last build (group_selection / group_selection_fleets order; the "+N" entry last).
-    const std::vector<SelectedGroup>& cards() const { return groups_; }
+    const std::vector<SelectedGroup>& selection_cards() const { return groups_; }
     // c_button00..05 enabled after the previous build (order_button_enabled on the frame's HudOrderButtons); false when the
     // deck drew no orders (no own selection) or the component is missing.
-    bool order_button_live(uint32_t button) const { return button < 6 && order_live_[button]; }
+    bool order_button_live(uint32_t button) const { return button < kOrderButtonCount && order_live_[button]; }
 
     // Topmost hit box under a pixel (-1: none): a Classic component id for the shared controls, kModern* otherwise.
     int32_t hit_test(int32_t px, int32_t py) const;
@@ -129,8 +128,8 @@ private:
     float text_scale_ = kModernTextScaleDefault;
     int32_t option_ = -1, pause_ = -1, fast_forward_ = -1;  // b_option_t, b_play_pause_t, b_fast_forward_t
     int32_t resume_ = -1;                                   // attack_button: the pause banner's Resume Game
-    int32_t order_[6] = {-1, -1, -1, -1, -1, -1};           // c_button00..05
-    bool order_live_[6] = {};
+    int32_t order_[kOrderButtonCount] = {-1, -1, -1, -1, -1, -1};  // c_button00..05
+    bool order_live_[kOrderButtonCount] = {};
     std::vector<SelectedGroup> groups_;
     std::vector<std::vector<uint32_t>> wing_ids_;  // per TacticalHudFrame::wings entry (empty: not drawn), as Classic's
     Rgba8 credits_color_{255, 212, 33, 255};                // Text_Credits_tactical's Text_Color when the data has one

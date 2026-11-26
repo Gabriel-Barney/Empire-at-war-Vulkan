@@ -8,6 +8,7 @@
 #include "alamo/ui/gui_menus.hpp"
 #include "alamo/ui/hud_font.hpp"
 #include "alamo/ui/orders.hpp"
+#include "ui_strings.hpp"
 
 namespace alamo::ui {
 
@@ -30,20 +31,8 @@ constexpr float kMargin = 8.0f;        // canvas units from the screen edge
 constexpr float kPad = 8.0f;           // inside a panel
 constexpr float kDeckHeight = 120.0f;  // canvas units
 // c_button00..05: attack, attack-move, move, waypoint, full stop, guard (HudOrderButtons), their port labels and hotkeys.
-constexpr const char32_t* kOrderLabels[6] = {U"Attack", U"Attack Move", U"Move", U"Waypoint", U"Stop", U"Guard"};
-constexpr uint16_t kOrderSlots[6] = {hk::kAttack, hk::kAttackMove, hk::kMove, hk::kWaypoint, hk::kStop, hk::kGuard};
-
-// Select commands carry at most 127 ids (TacticalHud's cap).
-std::vector<uint32_t> capped(std::vector<uint32_t> ids) {
-    if (ids.size() > 127) ids.resize(127);
-    return ids;
-}
-
-std::u32string ascii_text(const char* s) {
-    std::u32string out;
-    for (; *s; ++s) out.push_back(static_cast<char32_t>(static_cast<unsigned char>(*s)));
-    return out;
-}
+constexpr const char32_t* kOrderLabels[kOrderButtonCount] = {U"Attack", U"Attack Move", U"Move", U"Waypoint", U"Stop", U"Guard"};
+constexpr uint16_t kOrderSlots[kOrderButtonCount] = {hk::kAttack, hk::kAttackMove, hk::kMove, hk::kWaypoint, hk::kStop, hk::kGuard};
 
 Rgba8 hull_color(float health) {
     if (health > kModernHullWarn) return {96, 210, 110, 255};
@@ -88,10 +77,11 @@ void add_bar(HudDrawList& dl, uint32_t layer, Vec2f c, Vec2f size, float fractio
     for (float x = x0; x < end; x += 4.0f) add_rect(dl, layer, x, y0, std::min(x + 2.0f, end), y1, color);
 }
 
-// [port] the card's name line: the type's name with '_' as spaces (HudTypeInfo has no display text yet).
-std::u32string type_label(const HudTypeInfo* t) {
+// The card's name line: the type's Text_ID text, else [port] its name with '_' as spaces.
+std::u32string type_label(const HudTypeInfo* t, const TextDatabase* text) {
     std::u32string out;
     if (!t) return out;
+    if (const std::u16string* s = text && !t->text_id.empty() ? text->find(t->text_id) : nullptr) return utf16_to_utf32(*s);
     for (char ch : t->name) out.push_back(ch == '_' ? U' ' : static_cast<char32_t>(static_cast<unsigned char>(ch)));
     return out;
 }
@@ -115,7 +105,7 @@ void ModernTacticalHud::init(const ComponentTable& table, const TextureAtlas& at
     pause_ = table.find("b_play_pause_t");
     fast_forward_ = table.find("b_fast_forward_t");
     resume_ = table.find("attack_button");
-    for (int32_t i = 0; i < 6; ++i) {
+    for (uint32_t i = 0; i < kOrderButtonCount; ++i) {
         char n[16];
         std::snprintf(n, sizeof n, "c_button%02d", i);
         order_[i] = table.find(n);
@@ -287,13 +277,21 @@ void ModernTacticalHud::build_selection(const TacticalHudFrame& f, std::span<con
         if (wing.squadrons == 0 || wing.ids.empty()) continue;
         char n[16];
         std::snprintf(n, sizeof n, " %u", wing.squadrons);
-        const std::u32string label = wing.label + ascii_text(n);
-        const float w_units = measure_text_block(*fonts_, canvas_, label, 0.0f, st).width + 2.0f * kPad;
+        const std::u32string label = wing.label + ascii32(n);
+        const float hint_w = wing.hotkey.empty() ? 0.0f : measure_text_block(*fonts_, canvas_, wing.hotkey, 0.0f, st).width + kPad;
+        const float w_units = measure_text_block(*fonts_, canvas_, label, 0.0f, st).width + hint_w + 2.0f * kPad;
         const Vec2f c{x + 0.5f * w_units, hy};
         const int32_t id = kWingHitBase + static_cast<int32_t>(w);
         frame_rect(dl_, kControlLayer, c, {w_units, header}, wing.selected ? accent(220) : kButtonBack,
                    hover_ == id ? kText : accent(200));
-        add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, label, c, centred);
+        add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, label, {c.x - 0.5f * hint_w, c.y}, centred);
+        if (!wing.hotkey.empty()) {  // the wing's key hint (HudWing::hotkey), as the Classic button draws it
+            HudTextStyle ks = st;
+            ks.color = kLabel;
+            ks.align = TextAlign::Right;
+            add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, wing.hotkey, {c.x + 0.5f * w_units - kPad, c.y}, ks);
+            ++stats_.key_badges;
+        }
         hit(id, kControlLayer, c, {w_units, header});
         x += w_units + 0.5f * kPad;
         ++stats_.wings;
@@ -314,15 +312,8 @@ void ModernTacticalHud::build_selection(const TacticalHudFrame& f, std::span<con
     if (f.fleet_groups_on) {
         groups_ = group_selection_fleets(units, f.fleet_groups, fit);
     } else {
-        groups_ = group_selection(units, kModernMaxCards);
-        if (groups_.size() > fit) {
-            SelectedGroup more;
-            more.overflow = true;
-            for (size_t i = fit - 1; i < groups_.size(); ++i) more.ids.insert(more.ids.end(), groups_[i].ids.begin(), groups_[i].ids.end());
-            std::sort(more.ids.begin(), more.ids.end());
-            groups_.resize(fit - 1);
-            groups_.push_back(std::move(more));
-        }
+        groups_ = group_selection(units);  // the Classic grouping and its cap
+        fold_selection_overflow(groups_, fit);
     }
     const float cy = top_left.y - header - 0.5f * kPad - 0.5f * card_h;
     for (size_t i = 0; i < groups_.size(); ++i) {
@@ -335,7 +326,7 @@ void ModernTacticalHud::build_selection(const TacticalHudFrame& f, std::span<con
         char n[24];
         if (g.overflow) {
             std::snprintf(n, sizeof n, "+%zu", g.ids.size());
-            add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, ascii_text(n), c, centred);
+            add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, ascii32(n), c, centred);
             stats_.overflow_card = true;
             continue;
         }
@@ -349,10 +340,10 @@ void ModernTacticalHud::build_selection(const TacticalHudFrame& f, std::span<con
             HudTextStyle ns = st;
             ns.align = TextAlign::Right;
             ns.outline = true;
-            add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, ascii_text(n),
+            add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, ascii32(n),
                      {c.x + 0.5f * card_w - 0.5f * kPad, ic.y + 0.5f * icon - 0.5f * line}, ns);
         }
-        if (const std::u32string name = type_label(t); !name.empty()) {
+        if (const std::u32string name = type_label(t, text_); !name.empty()) {
             HudTextStyle ns = centred;
             ns.width_scale = fit_width_scale(measure_text_block(*fonts_, canvas_, name, 0.0f, ns).width, card_w - kPad);
             add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, name, {c.x, ic.y - 0.5f * icon - 0.6f * line}, ns);
@@ -393,7 +384,7 @@ float ModernTacticalHud::build_orders(const TacticalHudFrame& f, Vec2f top_right
     HudTextStyle st;
     st.font = font();
     st.align = TextAlign::Center;
-    for (uint32_t i = 0; i < 6; ++i) {
+    for (uint32_t i = 0; i < kOrderButtonCount; ++i) {
         if (order_[i] < 0) continue;
         const bool live = order_button_enabled(i, f.order_buttons);  // the Classic rule (HUD_GAPS §5)
         order_live_[i] = live;
@@ -489,16 +480,7 @@ void ModernTacticalHud::update_input(const RoutedInput& routed, bool shift, bool
         if (e.component >= kModernCardHitBase && e.component - kModernCardHitBase < static_cast<int32_t>(groups_.size())) {
             if (e.button != Button::Left) continue;
             const SelectedGroup& g = groups_[static_cast<size_t>(e.component - kModernCardHitBase)];
-            std::vector<uint32_t> ids;
-            if (shift) {  // drop the group from the selection
-                for (uint32_t id : selection_ids())
-                    if (!std::binary_search(g.ids.begin(), g.ids.end(), id)) ids.push_back(id);
-            } else if (ctrl) {  // the group's first unit only
-                ids.push_back(g.ids.front());
-            } else {
-                ids = g.ids;
-            }
-            out.push_back(commands::ev::select(capped(std::move(ids))));
+            out.push_back(commands::ev::select(portrait_select_ids(g, selection_ids(), shift, ctrl)));
             continue;
         }
         if (e.component == kModernClearHit) {
@@ -509,21 +491,13 @@ void ModernTacticalHud::update_input(const RoutedInput& routed, bool shift, bool
         // Wing buttons: the Classic ids and action (TacticalHud::update_input "squadron wing buttons").
         if (e.component >= kWingHitBase && e.component < kFleetTabHitBase) {
             const auto w = static_cast<size_t>(e.component - kWingHitBase);
-            if (e.button == Button::Left && w < wing_ids_.size() && !wing_ids_[w].empty()) {
-                HudAction h;
-                h.kind = HudAction::Kind::WingSelect;
-                h.component = e.component;
-                h.value = static_cast<int32_t>(w);
-                h.ids = wing_ids_[w];
-                h.shift = shift;
-                h.ctrl = ctrl;
-                act(std::move(h));
-            }
+            if (e.button == Button::Left && w < wing_ids_.size() && !wing_ids_[w].empty())
+                act(wing_select_action(static_cast<int32_t>(w), wing_ids_[w], shift, ctrl));
             continue;
         }
         // A disabled order takes no click (the Classic HudButtons swallows it).
         bool dead_order = false;
-        for (uint32_t i = 0; i < 6; ++i) dead_order = dead_order || (order_[i] == e.component && !order_live_[i]);
+        for (uint32_t i = 0; i < kOrderButtonCount; ++i) dead_order = dead_order || (order_[i] == e.component && !order_live_[i]);
         if (dead_order) continue;
         const std::string& name = (*table_)[static_cast<size_t>(e.component)].name;
         // The Classic clicks of the shared controls: Resume Game while paused, pause through the command stream, the
