@@ -263,6 +263,7 @@ private:
         bool valid = false;
         DirLight sun, fill[2], flash;  // the lightning flash is part of the SH too
         assets::Float3 ambient{0, 0, 0};
+        std::vector<DirLight> bombard;  // #314
         SceneLightConstants slc;
     };
     SlcCache slc_cache_;

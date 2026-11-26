@@ -12,6 +12,7 @@
 #include "alamo/core/ascii.hpp"
 #include "alamo/data/game_database.hpp"
 #include "alamo/data/xml.hpp"
+#include "alamo/data/xml_values.hpp"
 #include "alamo/objects/game_object_types.hpp"
 #include "alamo/objects/type_fields.hpp"
 #include "alamo/sim/l1_loaders.hpp"
@@ -26,17 +27,10 @@ namespace {
 
 tactical::Vec3 tv3(Vec3 v) { return tactical::Vec3{v.x, v.y, v.z}; }
 
-// #314: the numbers of a list tag (commas, spaces, tabs or line breaks between them).
+// #314: the numbers of a list tag, split by the shared list splitter (docs/MODS.md "Tag ledger and value semantics").
 std::vector<float> split_numbers(std::string_view s) {
     std::vector<float> out;
-    size_t i = 0;
-    while (i < s.size()) {
-        while (i < s.size() && (s[i] == ',' || s[i] == ' ' || s[i] == '\t' || s[i] == '\r' || s[i] == '\n')) ++i;
-        size_t j = i;
-        while (j < s.size() && !(s[j] == ',' || s[j] == ' ' || s[j] == '\t' || s[j] == '\r' || s[j] == '\n')) ++j;
-        if (j > i) out.push_back(static_cast<float>(objects::c_atof(std::string(s.substr(i, j - i)))));
-        i = j;
-    }
+    for (const std::string_view v : data::xml_values::split_list(s)) out.push_back(static_cast<float>(objects::c_atof(std::string(v))));
     return out;
 }
 

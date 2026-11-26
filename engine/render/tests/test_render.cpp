@@ -314,7 +314,7 @@ void test_ssao_math() {
 }
 
 // #314 the bombardment flash (0x52aa50): the envelope rises to 1 at 0.85 of the life and falls to 0 at its end, the
-// direction leans from the camera's look-at toward the shot, the ambient share is 0.4; a light leaves at age >= life.
+// direction leans from the camera's look-at toward the shot; a light leaves at age >= life.
 void test_bombard_flash() {
     render::BombardFlashes f;
     f.add({0, 0, 0}, {1, 0.2f, 0.2f}, 0.4f, 0);  // no life: no light
@@ -327,20 +327,18 @@ void test_bombard_flash() {
     for (int a = 1; a < 17; ++a) f.step(0, 0);
     f.step(0, 0);  // age 17: 17 / 17 = 1
     CHECK(near_eq(f.lights()[0].color.x, 0.4f, 1e-5f) && near_eq(f.lights()[0].color.y, 0.08f, 1e-5f));
-    CHECK(near_eq(f.ambient().x, 0.16f, 1e-5f));
     f.step(0, 0);  // age 18: 1 - (18 - 17) / 3
     CHECK(near_eq(f.lights()[0].color.x, 0.4f * (2.0f / 3.0f), 1e-4f));
     f.step(0, 0);  // age 19 -> 20: dropped before the sum
-    CHECK(f.lights().empty() && f.live() == 0 && f.ambient().x == 0.0f);
+    CHECK(f.lights().empty() && f.live() == 0);
     // far from the camera (|d| >= 1): horizontal
     f.add({0, -3000, 0}, {1, 1, 1}, 1.0f, 10);
     f.step(0, 0);
     CHECK(near_eq(f.lights()[0].direction.y, -1.0f, 1e-5f) && f.lights()[0].direction.z == 0.0f);
-    // the lights reach the SH like the lightning flash; the ambient share only the frame ambient
+    // the lights reach both SH sets like the lightning flash; the frame ambient is unchanged
     render::Lighting l = render::Lighting::land_default();
     const render::SceneLightConstants base = render::scene_light_constants(l);
     l.bombard = {render::DirLight{{0, 0, 1}, {0.5f, 0.1f, 0.1f}, {0, 0, 0}, 1.0f}};
-    l.bombard_ambient = {0.2f, 0.04f, 0.04f};
     const render::SceneLightConstants lit = render::scene_light_constants(l);
     bool fill_changed = false, all_changed = false;
     for (size_t i = 0; i < lit.sph_fill.size(); ++i) {
@@ -351,9 +349,9 @@ void test_bombard_flash() {
     CHECK(fill_changed && all_changed);
     materials::FrameCB cb{}, cb0{};
     render::fill_frame_lights(l, cb);
-    l.bombard_ambient = {0, 0, 0};
+    l.bombard.clear();
     render::fill_frame_lights(l, cb0);
-    CHECK(near_eq(cb.light_ambient.x - cb0.light_ambient.x, 0.2f, 1e-5f));
+    CHECK(cb.light_ambient.x == cb0.light_ambient.x);
 }
 
 // #66 FrameEffectAlpha (0x25fb10 / 0x25fb30 / 0x181c50): a request captures the frame it is made in; the next frames

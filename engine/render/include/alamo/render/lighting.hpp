@@ -56,9 +56,8 @@ struct Lighting {
     // Set per frame by the battle host from render::LightningFlash; environments never set it.
     DirLight flash{{0, 0, 1}, {1, 1, 1}, {0, 0, 0}, 0.0f};
     // #314 (docs/re/BOMBARD_FLASH.md): the planetary bombardment lights of this frame (BombardFlashes), added to the
-    // spherical harmonics like the flash, and 0.4 x their colours added to the frame ambient (not to the SH).
+    // spherical harmonics like the flash (retail's 0.4 ambient share is the low shader-detail path only, as the flash's).
     std::vector<DirLight> bombard;
-    assets::Float3 bombard_ambient{0, 0, 0};
 
     // Built-in defaults from legacy docs/re/TERRAIN_WATER_POST.md 5.4 (real first environment records):
     //   space_default(): _MP_SPACE_KUAT "Environment 1" (sun (0.918,1,0.988) x 0.646 at yaw 217.1,

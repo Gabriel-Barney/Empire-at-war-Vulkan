@@ -172,13 +172,19 @@ assets::Float3 sph_irradiance(const SphMatrices& m, const assets::Float3& n) {
 SceneLightConstants scene_light_constants(const Lighting& l) {
     SceneLightConstants s;
     // the lightning flash joins the fills (sph_matrices skips a light of intensity 0).
-    // #314: the bombardment lights join them the same way (0x277830 adds their SH to the fill SH).
-    std::vector<DirLight> fills = {l.fill[0], l.fill[1], l.flash};
-    fills.insert(fills.end(), l.bombard.begin(), l.bombard.end());
-    s.sph_fill = sph_matrices(fills.data(), static_cast<int>(fills.size()), l.ambient);
-    std::vector<DirLight> all = {l.fill[0], l.fill[1], l.sun, l.flash};
-    all.insert(all.end(), l.bombard.begin(), l.bombard.end());
-    s.sph_all = sph_matrices(all.data(), static_cast<int>(all.size()), l.ambient);
+    const DirLight fills[3] = {l.fill[0], l.fill[1], l.flash};
+    s.sph_fill = sph_matrices(fills, 3, l.ambient);
+    const DirLight all[4] = {l.fill[0], l.fill[1], l.sun, l.flash};
+    s.sph_all = sph_matrices(all, 4, l.ambient);
+    // #314: the bombardment lights' SH is added to both (0x277830 adds it to the fill SH). The matrices are linear in
+    // the lights, so their own set (no ambient) is summed in: no list is built here.
+    if (!l.bombard.empty()) {
+        const SphMatrices b = sph_matrices(l.bombard.data(), static_cast<int>(l.bombard.size()), {0, 0, 0});
+        for (size_t i = 0; i < b.size(); ++i) {
+            s.sph_fill[i] = {s.sph_fill[i].x + b[i].x, s.sph_fill[i].y + b[i].y, s.sph_fill[i].z + b[i].z, s.sph_fill[i].w + b[i].w};
+            s.sph_all[i] = {s.sph_all[i].x + b[i].x, s.sph_all[i].y + b[i].y, s.sph_all[i].z + b[i].z, s.sph_all[i].w + b[i].w};
+        }
+    }
     return s;
 }
 
@@ -205,8 +211,7 @@ void fill_frame_lights(const Lighting& l, materials::FrameCB& cb) {
                           l.sun.specular.z * 2.0f * l.sun.intensity, 0.0f};
     light_constants(l.fill[0], cb.light1_vector, cb.light1_diffuse, cb.light1_specular);
     light_constants(l.fill[1], cb.light2_vector, cb.light2_diffuse, cb.light2_specular);
-    cb.light_ambient = {l.ambient.x + l.bombard_ambient.x, l.ambient.y + l.bombard_ambient.y, l.ambient.z + l.bombard_ambient.z,
-                        1.0f};  // #314 the bombardment lights' ambient share
+    cb.light_ambient = {l.ambient.x, l.ambient.y, l.ambient.z, 1.0f};
 }
 
 assets::Mat3x4 skydome_transform(const Lighting& l, int k) {

@@ -17,7 +17,6 @@ void BombardFlashes::add(assets::Float3 at, assets::Float3 color, float intensit
 
 void BombardFlashes::step(float look_x, float look_y) {
     lights_.clear();
-    ambient_ = {0, 0, 0};
     size_t keep = 0;
     for (size_t i = 0; i < flashes_.size(); ++i) {
         Flash& f = flashes_[i];
@@ -43,9 +42,6 @@ void BombardFlashes::step(float look_x, float look_y) {
         ++f.age;
         if (f.age >= f.life) continue;  // dropped before the lights are summed
         lights_.push_back(l);
-        ambient_.x += l.color.x * kAmbientShare;
-        ambient_.y += l.color.y * kAmbientShare;
-        ambient_.z += l.color.z * kAmbientShare;
         flashes_[keep++] = f;
     }
     flashes_.resize(keep);
@@ -54,7 +50,6 @@ void BombardFlashes::step(float look_x, float look_y) {
 void BombardFlashes::clear() {
     flashes_.clear();
     lights_.clear();
-    ambient_ = {0, 0, 0};
 }
 
 }  // namespace alamo::render

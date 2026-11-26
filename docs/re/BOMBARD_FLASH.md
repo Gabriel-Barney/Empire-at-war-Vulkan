@@ -12,8 +12,9 @@ which steps at the end of each salvo):
 - Bombardment_Lighting_Seconds_List (+0x2800) entry i.
 
 When i is inside the seconds list and seconds[i] > 0, a 0x3c-byte light record is pushed on the manager's list
-(+0x30 / +0x38 / +0x40): life = (int)(FPS × seconds[i]) frames (FPS = `0x140b0a340`), the shot position, the colour and
-the intensity, age 0. No light otherwise.
+(+0x30 / +0x38 / +0x40): life = (int)(FPS × seconds[i]) frames (FPS = `0x140b0a340`), the shot's aim point (the
+target after the scatter, the point the projectile flies to [H]), the colour and the intensity, age 0. No light
+otherwise.
 
 Ghidra types the record as ints. The consumer reads the colour, intensity and position as floats and the life and age
 as counts, so the record is read here as floats with integer life and age [M].
@@ -35,8 +36,13 @@ as a directional light of weight 1), and 0.4 × the sum of their colours is an a
 ## Applying it: `0x277830` (the scene's environment lighting) [H]
 
 The fill SH is built from the ambient and the two fill lights (`0x236500`, then `0x236550` × 2), and the scene's extra SH
-from +0xc0 is added to it (`0x236910`). The extra ambient is added to the ambient colour only while the global
-`0x140a12670` (returned by `0x1789f0`) is 0 [M: it looks like the render-path selector].
+from +0xc0 is added to it (`0x236910`). That light block's SH (+0x94) is copied to the fill-SH global, and the full SH
+is that global plus the sun, so the flash is in both [H].
+
+The extra ambient is added to the ambient colour only while the global `0x140a12670` (returned by `0x1789f0`) is 0
+[M]. That global is the shader detail level: it is seeded from `0x140a12678` (3) and lowered by the device's shader
+version. The lightning flash follows the same rule in `0x277570`: the SH when the level is not 0, the ambient when it
+is 0.
 
 No option is read on this path: the flash does not depend on DynamicLighting [H].
 
@@ -48,7 +54,9 @@ No option is read on this path: the flash does not depend on DynamicLighting [H]
   seconds gate), not saved or hashed.
 - The battle view steps the lights once per sim tick, after that tick's new shots are added. The battle host reads the
   feed after each tick.
-- `Lighting::bombard` / `Lighting::bombard_ambient`: the lights join the fill and full SH, like the lightning flash,
-  and the ambient share is added to the frame ambient.
-- The ambient gate `0x140a12670` is taken as 0, the default render path [M].
+- `Lighting::bombard`: the lights join the fill and full SH, like the lightning flash. The 0.4 ambient share
+  belongs to shader detail 0 only, which the port does not draw (its lightning flash takes the SH path too) [M].
+- **No point-light path:** retail's flash is a set of directional terms in the scene SH, not a local light [H], so
+  the renderer gets none for it. Per-object local lights (LightSources.xml) are not used by this flash; whether
+  anything else needs them was not traced here.
 - Only Underworld data sets the lists.

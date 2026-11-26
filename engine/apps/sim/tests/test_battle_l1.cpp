@@ -883,12 +883,12 @@ void test_land(const Data& d) {
     CHECK(a.fought && a.weather_on && a.weather_advanced && a.forced && a.rain_sight);
     CHECK(a.refused_unavailable && a.bombard_started && a.bombard_hit && a.bombard_reset);
     CHECK(a.run_started && a.bombers_flew && a.run_done);
-    CHECK(a.bombard_fed && a.run_fed);
+    CHECK(a.bombard_fed && a.run_fed);  // strike_starts names the bombardment and the run's first bomber
     // #314 (0x52a110): salvo 0's seconds entry is 0 (no light); each of salvo 1's three shots makes one, with that
     // salvo's colour and intensity, at its impact point.
     CHECK(a.flashes.size() == 3);
     for (const TacticalBattle::BombardFlashEvent& e : a.flashes)
-        CHECK(e.seconds == 2.0f && e.intensity == 0.4f && e.color.x == 1.0f && e.color.y == 0.2f && e.color.z == 0.2f);  // strike_starts names the bombardment and the run's first bomber
+        CHECK(e.seconds == 2.0f && e.intensity == 0.4f && e.color.x == 1.0f && e.color.y == 0.2f && e.color.z == 0.2f);
     std::printf("  strike projectile: found %d same as catalog %d visuals aligned %d\n", a.strike_desc_found, a.strike_desc_same,
                 a.strike_visuals_aligned);
     CHECK(a.strike_desc_found && a.strike_desc_same && a.strike_visuals_aligned);  // ref5 t01
