@@ -1428,7 +1428,8 @@ void App::build_panels(std::vector<ui::HudDrawList>& lists) {
                 }
         }
     ui::HeroPanelFrame hf;
-    frame_of(hf, !heroes.empty());
+    // #593: on the galactic map the Modern hero list stands in for the hero bar (the same entries and clicks).
+    frame_of(hf, !heroes.empty() && !(screen() == Screen::Galactic && modern_galactic_shown()));
     // FIXPASS_GALACTIC §2.1: the good bar is the local player's own (self / allied heroes), whatever the faction.
     hf.good = true;
     hf.tactical = screen() == Screen::Battle;

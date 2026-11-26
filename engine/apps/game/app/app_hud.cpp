@@ -728,7 +728,14 @@ void App::build_galactic_hud(ui::GalacticHudFrame& f, std::vector<ui::GalacticPl
         // HUD_GAPS §4: the day pips = the fiscal-cycle timer (mode frame - cycle start) / round(30 x Fiscal_Cycle_Time).
         f.cycle_fraction = galactic_cycle_fraction(*g);
         f.day_pip_flash = true;
+        // #593 the Modern view's feeds (the Classic HUD reads none of them).
+        int32_t owned = 0;
+        for (const galactic::PlanetState& ps : g->planets()) owned += ps.is_planet && ps.owner == local_player() && local_player() >= 0;
+        f.planets_owned = owned;
+        f.heroes = galactic_heroes_;  // the hero bar's roster (build_panels, the frame before)
     }
+    galactic_alerts_.update(now_s_);
+    f.alerts = galactic_alerts_.items();
     f.faction_alt = ui_.faction_alt();
     f.shells_loaded = ui_.galactic_shells_ok;
     // Playtest 2 (base 24 / 26.jpg): the fleet organiser (Fleet 1..3 boxes) belongs to the zoomed planet view only - never
@@ -864,8 +871,10 @@ void App::build_galactic_hud(ui::GalacticHudFrame& f, std::vector<ui::GalacticPl
             return o.type_index >= otypes->size() ||
                    !game::galactic_build_listed([otypes, t](std::string_view tag) { return otypes->get_bool(t, tag); });
         });
-        for (ui::GalacticBuildOption& o : out)
+        for (ui::GalacticBuildOption& o : out) {
             o.row = otypes->get_int(static_cast<objects::TypeIndex>(o.type_index), "GUI_Row") == 0 ? 0 : 1;
+            o.hero = o.type_index < types->size() && (*types)[o.type_index].is_hero;  // #593 the Modern Heroes tab
+        }
     };
     // §5.1.1 (0x3e8a80): an inaccessible (or destroyed) surface forces the space tab.
     if (g && selected_planet_ != 0)

@@ -203,6 +203,8 @@ bool GameUi::init(GpuCore& gpu, const GameData& data, ui::MenuProviders provider
     modern_hud.init(components, atlas, *fonts, &text);
     modern_hud.set_hotkeys(&hotkeys);  // the key badges show the live bindings
     modern_hud.set_script_state(&tactical_hud.buttons());  // #587 the Lua button overrides
+    modern_galactic.init(components, atlas, *fonts, &text);  // #593
+    modern_galactic.set_hotkeys(&hotkeys);
     galactic_shells.apply(galactic_hud.layout());
     tactical_shells.apply(tactical_hud.layout());
     hud_types = ui::build_hud_type_table(data.types);
@@ -224,10 +226,12 @@ void GameUi::resize(uint32_t w, uint32_t h, int32_t ui_scale_pct) {
     galactic_hud.set_ui_scale(s);
     tactical_hud.set_ui_scale(s);
     modern_hud.set_ui_scale(s);
+    modern_galactic.set_ui_scale(s);
     gui.resize(w, h);
     galactic_hud.resize(w, h);
     tactical_hud.resize(w, h);
     modern_hud.resize(w, h);
+    modern_galactic.resize(w, h);
     galactic_shells.apply(galactic_hud.layout());
     tactical_shells.apply(tactical_hud.layout());
     galactic_hud.layout().update(galactic_hud.canvas(), components);

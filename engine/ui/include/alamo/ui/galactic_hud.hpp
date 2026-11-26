@@ -45,6 +45,7 @@
 #include "alamo/ui/hud_components.hpp"
 #include "alamo/ui/hud_draw.hpp"
 #include "alamo/ui/hud_input.hpp"
+#include "alamo/ui/hud_panels.hpp"
 #include "alamo/ui/picking.hpp"
 #include "alamo/ui/tactical_hud.hpp"
 
@@ -192,6 +193,7 @@ struct GalacticBuildOption {
     // a Production command the sim would refuse. Host: also set enabled = (block == None).
     HudBuildOption::Block block = HudBuildOption::Block::None;
     uint32_t queued = 0;  // the local player's entries of this type in the planet's queues (Text_Offset2 line, > 0 shown)
+    bool hero = false;    // [port: Gabriel] #593 a hero type (HudTypeInfo::is_hero): the Modern view's Heroes tab
 };
 // HudObjective: tactical_hud.hpp.
 // One g_special_ability row (CommandBarComponents: TextButton beside the planet): the dragged fleet's ability kind at
@@ -361,6 +363,12 @@ struct GalacticHudFrame {
     // the image page holding the loop's current frame, only while a loop plays; -1 = nothing drawn.
     int32_t advisor_page = -1;
     bool advisor_alpha = true;
+    // [port: Gabriel] #593 Modern only (the Classic HUD reads none of them): the hero roster (the Classic hero bar's
+    // entries, HeroPanelFrame::heroes), the events for the alert strip (the host keeps them in a HudAlertLog: enemy fleets
+    // approaching, planets changing hands, production done), the number of planets the local player owns (< 0: not known).
+    std::span<const HeroEntry> heroes;
+    std::span<const HudAlert> alerts;
+    int32_t planets_owned = -1;
     // §5.1 build tab shown (the pads' colour follows each option's `space`); informational.
 };
 
@@ -452,6 +460,21 @@ struct GalacticHudStats {
     uint32_t empty_slots = 0, slot_highlights = 0;     // fleet_empty ovals drawn / mouse-over frames on slots
 };
 
+// [port] #593 the galactic build and selection clicks both HUD styles send (component `component`, named `name`):
+// an option is buyable when enabled, not production-disabled and not blocked (GalacticSim::can_enqueue); a left click on
+// one that is not -> HudAction::BuildRefused (the GUI negative feedback, value = the block reason, unit = the type);
+// a left click on a buyable one -> Production {type, planet}; a right click on it -> the Production cancel of that type
+// at the planet; a queue entry's left click -> its Production cancel {queue, index}; an own fleet or unit pad ->
+// HudAction::GalacticSelect of `ids`.
+inline bool galactic_option_buyable(const GalacticBuildOption& o) {
+    return o.enabled && !o.production_disabled && o.block == HudBuildOption::Block::None;
+}
+HudAction galactic_refused_action(int32_t component, const std::string& name, const GalacticBuildOption& o);
+// Appends the click's Production to `out` (planet 0 or a greyed option: nothing).
+void galactic_option_click(const GalacticBuildOption& o, Button button, uint32_t planet, std::vector<commands::EventData>& out);
+commands::EventData galactic_queue_cancel(const HudQueueEntry& q);
+HudAction galactic_select_action(int32_t component, std::vector<uint32_t> ids, Button button, bool shift, bool ctrl);
+
 // [port] positions for the galactic components when i_galactic_controls.alo / i_galactic_organize.alo are not loaded.
 void apply_galactic_fallback_layout(const ComponentTable& table, const HudCanvas& canvas, HudLayout& layout);
 
@@ -482,6 +505,13 @@ public:
     void build(const GalacticHudFrame& frame);
     const HudDrawList& draw_list() const { return dl_; }
     const GalacticHudStats& stats() const { return stats_; }
+    // [port: Gabriel] #593 the Modern galactic view over this HUD (ModernGalacticHud). On: build() leaves out what Modern
+    // replaces - the command bar (i_main_commandbar and every component it or a fallback places: the top bar texts, the
+    // controls, the build pads and queue), the fleet organiser (i_main_organize) and its land pads, the radar and the day
+    // pips - and keeps the map layer (labels, fleet buttons and slots, ability rows, drags), the objectives, the battle
+    // prompt, the screen text and the advisor movie. While the advanced planet map is open it is the Classic HUD whole
+    // (the planet map is a Classic side panel in both styles). Off (the default): exactly as before.
+    void set_modern_overlay(bool on) { modern_overlay_ = on; }
     // ui4 t12 (GALACTIC_DIALOGS §5.1.1): the build tab - false land (b_planet_tab, the start), true space (b_space_tab).
     // Clicks on b_space_tab / b_planet_tab / b_dial switch it (GUI_Dial_Switch_SFX on a change); planet selection keeps
     // it. set_build_tab is the same switch for the host (a loaded game, a story click).
@@ -586,6 +616,8 @@ private:
     int32_t balance_pip_ = -1, map_shell_ = -1;
     // the planet map (map_shell components) and its state of the last build.
     bool map_open_ = false, map_foreign_ = false, map_surface_full_ = false;
+    bool modern_overlay_ = false;  // set_modern_overlay
+    bool overlay_ = false;         // this build leaves the command bar to the Modern view (modern_overlay_, map closed)
     uint32_t map_planet_ = 0;
     int32_t map_window_ = -1, radar_adv_ = -1, map_name_ = -1, map_allegiance_ = -1, map_day_ = -1, map_income_ = -1,
             map_weather_ = -1, map_bonus_ = -1, map_back_ = -1, unit_cap_ = -1, building_cap_ = -1;

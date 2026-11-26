@@ -660,7 +660,7 @@ void GalacticHud::build_bar(const GalacticHudFrame& f) {
     // D12 (25.jpg, bone (175, 257)): the name's line is centred on the bone, inside the top strip. Drawn here because the generic
     // button text hangs a Max_Text_Width block below its anchor, half a line low: onto the Day bar. Bold 9, outlined and the
     // owner's colour are as in 25.jpg and the XML.
-    if (planet_text_ >= 0 && sel && fonts_ && !map_open_) {
+    if (planet_text_ >= 0 && sel && fonts_ && !map_open_ && !overlay_) {
         const auto u = static_cast<uint32_t>(planet_text_);
         const ComponentPlacement& p = layout_.placement(u);
         const CommandBarComponent& c = (*table_)[u];
@@ -722,7 +722,7 @@ void GalacticHud::build_bar(const GalacticHudFrame& f) {
         if (c.type != ComponentType::Button && c.type != ComponentType::TextButton && c.type != ComponentType::Icon) continue;
         const ComponentPlacement& p = layout_.placement(i);
         if (!p.placed) continue;
-        if (map_open_ && !p.from_bone) continue;  // the command bar is hidden; no fallback-placed component shows
+        if ((map_open_ || overlay_) && !p.from_bone) continue;  // the command bar is hidden; no fallback-placed component shows
         const ButtonRuntime* r = buttons_.find_state(i);
         if (r ? r->hidden : c.hidden) continue;
         const bool has_art = !c.blank_texture.empty() || !c.icon_texture.empty() || !c.icon_alternate_texture.empty() ||
@@ -740,7 +740,7 @@ void GalacticHud::build_bar(const GalacticHudFrame& f) {
     // odd pads b_Create_01, 03 .. (lower row), any other GUI_Row the even pads b_Create_00, 02 .. (upper row), each from
     // the left in provider order; past a row's pads the options are dropped (no scrolling: b_scroll_left / _right stay
     // hidden). The shell has no build_padNN bones, so those components stay unused here.
-    if (map_open_) {  // ui4 t04 (GALACTIC_PLANET_MAP §1.2): no build pads or queue under the planet map
+    if (map_open_ || overlay_) {  // ui4 t04 (GALACTIC_PLANET_MAP §1.2): no build pads or queue under the planet map (#593: nor under Modern)
         for (const auto* v : {&create_, &queue_})
             for (const int32_t ci : *v) buttons_.state(static_cast<uint32_t>(ci)).hidden = true;
         return;
@@ -1664,7 +1664,9 @@ void GalacticHud::build(const GalacticHudFrame& f) {
     if (pause_ >= 0) buttons_.state(static_cast<uint32_t>(pause_)).selected = f.paused;
     // GALACTIC_DIALOGS §4: the organiser shows with a selected planet in the planet close-up (host: organize_open) while
     // the advanced planet map is closed. §1: one of the two battle-prompt shells while the prompt is up.
-    const bool organize = f.organize_open && !f.advanced_map_open;
+    // #593 the Modern view replaces the command bar and the organiser (set_modern_overlay), not the planet map.
+    overlay_ = modern_overlay_ && !f.advanced_map_open;
+    const bool organize = f.organize_open && !f.advanced_map_open && !overlay_;
     const bool prompt2 = f.battle.active && !f.battle.single, prompt1 = f.battle.active && f.battle.single;
     shell_vis_.clear();
     auto shell = [&](int32_t ci, bool on) {
@@ -1677,7 +1679,7 @@ void GalacticHud::build(const GalacticHudFrame& f) {
     shell(story_pending_shell_, prompt1);
     // ui4 t04 (GALACTIC_PLANET_MAP §1.2 / §1.3): the planet map replaces the command bar (and the organiser, above).
     map_open_ = f.advanced_map_open;
-    shell(commandbar_, !map_open_);
+    shell(commandbar_, !map_open_ && !overlay_);
     shell(map_shell_, map_open_);
     stats_.organize_shown = organize;
     // Prompt buttons not shown this frame take no clicks.
@@ -1690,9 +1692,11 @@ void GalacticHud::build(const GalacticHudFrame& f) {
         build_special_abilities(f);
     }
     build_bar(f);
-    build_radar(f);
-    build_day_pips(f);
-    build_fleets(f);
+    if (!overlay_) {
+        build_radar(f);
+        build_day_pips(f);
+        build_fleets(f);
+    }
     build_objectives(f);
     build_battle_prompt(f);
     build_screen_text(f);
@@ -1749,6 +1753,37 @@ void GalacticHud::build(const GalacticHudFrame& f) {
     stats_.hit_boxes = static_cast<uint32_t>(hits_.size());
 }
 
+HudAction galactic_refused_action(int32_t component, const std::string& name, const GalacticBuildOption& o) {
+    HudAction a;
+    a.kind = HudAction::Kind::BuildRefused;
+    a.component = component;
+    a.name = name;
+    a.value = static_cast<int32_t>(o.block);
+    a.unit = o.type_index;
+    return a;
+}
+
+void galactic_option_click(const GalacticBuildOption& o, Button button, uint32_t planet, std::vector<commands::EventData>& out) {
+    if (planet == 0 || !galactic_option_buyable(o)) return;
+    if (button == Button::Left) out.push_back(commands::ev::production(o.type_index, planet));
+    else if (button == Button::Right) out.push_back(commands::ev::production(o.type_index, planet, true));  // [port] right click cancels
+}
+
+commands::EventData galactic_queue_cancel(const HudQueueEntry& q) {
+    return commands::ev::production(q.type_index, q.location, true, q.queue, q.index);
+}
+
+HudAction galactic_select_action(int32_t component, std::vector<uint32_t> ids, Button button, bool shift, bool ctrl) {
+    HudAction a;
+    a.kind = HudAction::Kind::GalacticSelect;
+    a.component = component;
+    a.ids = std::move(ids);
+    a.button = button;
+    a.shift = shift;
+    a.ctrl = ctrl;
+    return a;
+}
+
 void GalacticHud::update_input(const RoutedInput& routed, bool shift, bool ctrl, double now,
                                std::vector<commands::EventData>& out, std::vector<HudAction>* actions) {
     if (!table_) return;
@@ -1767,14 +1802,8 @@ void GalacticHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
             if (e.kind != HudPointerEvent::Kind::Click || e.button != Button::Left || e.component < 0) continue;
             for (const PadSlot& s : pads_) {
                 if (s.component != e.component || s.is_queue || s.foreign || !s.select.empty()) continue;
-                if (s.option.enabled && !s.option.production_disabled && s.option.block == HudBuildOption::Block::None) break;
-                HudAction a;
-                a.kind = HudAction::Kind::BuildRefused;
-                a.component = e.component;
-                a.name = (*table_)[static_cast<size_t>(e.component)].name;
-                a.value = static_cast<int32_t>(s.option.block);
-                a.unit = s.option.type_index;
-                act(std::move(a));
+                if (galactic_option_buyable(s.option)) break;
+                act(galactic_refused_action(e.component, (*table_)[static_cast<size_t>(e.component)].name, s.option));
                 break;
             }
         }
@@ -1786,18 +1815,11 @@ void GalacticHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
             if (s.foreign) break;  // legacy docs/re/UI.md §7.2 [port]: a foreign fleet's pads are drawn, not clickable
             if (s.is_queue) {
                 if (k.button == Button::Left) {
-                    out.push_back(commands::ev::production(s.queue.type_index, s.queue.location, true, s.queue.queue, s.queue.index));
+                    out.push_back(galactic_queue_cancel(s.queue));
                     buttons_.play_sfx("GUI_Cancel_SFX", k.component);  // CommandBarClass::Cancel_Production (legacy docs/re/UI.md §3.6)
                 }
             } else if (!s.select.empty()) {
-                HudAction a;
-                a.kind = HudAction::Kind::GalacticSelect;
-                a.component = k.component;
-                a.ids = s.select;
-                a.button = k.button;
-                a.shift = k.shift;
-                a.ctrl = k.ctrl;
-                act(std::move(a));
+                act(galactic_select_action(k.component, s.select, k.button, k.shift, k.ctrl));
                 // [port: Gabriel] a second left click on the same own pad within 0.5 s and 4 px (HeroPanel's double-click
                 // rule) asks the host to rename the fleet (header) or the pad's unit.
                 if (k.button == Button::Left && !k.shift && !k.ctrl) {
@@ -1820,11 +1842,8 @@ void GalacticHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
                         last_pad_click_y_ = k.y;
                     }
                 }
-            } else if (k.button == Button::Left && s.option.enabled && !s.option.production_disabled &&
-                       s.option.block == HudBuildOption::Block::None && selected_id_ != 0) {
-                out.push_back(commands::ev::production(s.option.type_index, selected_id_));
-            } else if (k.button == Button::Right && selected_id_ != 0) {
-                out.push_back(commands::ev::production(s.option.type_index, selected_id_, true));  // [port] right click cancels
+            } else {
+                galactic_option_click(s.option, k.button, selected_id_, out);  // HudButtons clicks only enabled (buyable) pads
             }
             break;
         }

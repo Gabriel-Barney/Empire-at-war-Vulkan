@@ -172,6 +172,16 @@ void App::announcer_feedback() {
                                                             owner_label(e.player), bonus),
                                          kChangedHandsColor);
         }
+        // #593 the Modern event strip: a planet the local player takes or loses (the changed-hands line), with Jump there.
+        if (e.kind == K::PlanetOwnerChanged && e.planet < g->planets().size() && me >= 0 && (e.player == me || e.other_player == me)) {
+            const std::u16string* fmt = ui_.text.find("TEXT_PLANET_CHANGED_HANDS");
+            const std::u32string format = fmt ? ui::utf16_to_utf32(*fmt) : ui::utf8_to_utf32("TEXT_PLANET_CHANGED_HANDS");
+            const auto& at = g->planets()[e.planet].position;
+            galactic_alerts_.push_at(ui::HudAlert::Kind::Radar,
+                                     changed_hands_text(format, planet_label(data_, ui_.text, *g, e.planet), owner_label(e.other_player),
+                                                        owner_label(e.player), std::nullopt),
+                                     at.x, at.y, now_s_);
+        }
         // ui4 t11 (P4_SIM_SYSTEMS §2.7.3): an enemy approach at most every 5 s of wall-clock time (all planets together),
         // with the urgent line TEXT_ENEMY_FLEET_APPROACHING_LOCATION ("##0" = the planet) in (0, 193, 91).
         const bool approach = e.kind == K::FleetDeparted;
@@ -183,6 +193,10 @@ void App::announcer_feedback() {
                 const std::u16string* t = ui_.text.find("TEXT_ENEMY_FLEET_APPROACHING_LOCATION");
                 std::u32string line = t ? ui::utf16_to_utf32(*t) : std::u32string(U"##0");
                 if (const size_t at = line.find(U"##0"); at != std::u32string::npos) line.replace(at, 3, planet_label(data_, ui_.text, *g, e.other_planet));
+                if (e.other_planet < g->planets().size()) {  // #593 the Modern event strip, Jump to the planet
+                    const auto& at = g->planets()[e.other_planet].position;
+                    galactic_alerts_.push_at(ui::HudAlert::Kind::Radar, line, at.x, at.y, now_s_);
+                }
                 story_present_.urgent_message(std::move(line), StoryColor{0, 193, 91, 255});
             }
         }
@@ -196,6 +210,15 @@ void App::announcer_feedback() {
                                                    : e.kind == K::ProductionCanceled ? GameAudioHost::Production::Cancel
                                                                                      : GameAudioHost::Production::Complete;
             audio_.production(data_.types, static_cast<objects::TypeIndex>(e.type), kind);
+            if (e.kind == K::ProductionCompleted) {  // #593 the Modern event strip ("##0 ready", as the tactical strip's)
+                std::u32string text = ui::replace_all(ui::text_or_port(&ui_.text, nullptr, U"##0 ready"), U"##0",
+                                                      type_label(data_, ui_.text, static_cast<objects::TypeIndex>(e.type)));
+                if (e.planet < g->planets().size())
+                    galactic_alerts_.push_at(ui::HudAlert::Kind::Production, std::move(text), g->planets()[e.planet].position.x,
+                                             g->planets()[e.planet].position.y, now_s_);
+                else
+                    galactic_alerts_.push(ui::HudAlert::Kind::Production, std::move(text), now_s_);
+            }
         }
         // aud2 t07 (BATTLE_TRANSITIONS, departure 0x431c80): Galactic_Fleet_Hyperspace when the local player owns or sees
         // the departing fleet. mcx4 t14 (MCX4_GAL2_RE_ANSWERS Q3): "sees" is the fleet visibility vote 0x433090
@@ -1130,7 +1153,19 @@ void App::galactic_input() {
         const size_t before = cmds.size();
         const bool was_dragging = fleet_drag_active_;
         story_forced_clicks();  // FORCE_CLICK_GUI
-        ui_.galactic_hud.update_input(routed_, input_.shift(), input_.ctrl(), now_s_, cmds, &acts);
+        // #593: the Modern view's clicks go to it alone (its shared controls carry the Classic ids, which the Classic HUD
+        // would click too); the Classic HUD keeps the rest (the map layer: fleet buttons, slots, drags).
+        ui::RoutedInput classic_in = routed_;
+        if (modern_galactic_shown()) {
+            const std::vector<ui::HudHitBox>& mine = ui_.modern_galactic.hit_boxes();
+            auto modern_owns = [&mine](int32_t c) {
+                return c >= 0 && std::any_of(mine.begin(), mine.end(), [c](const ui::HudHitBox& h) { return h.component == c; });
+            };
+            std::erase_if(classic_in.hud, [&](const ui::HudPointerEvent& e) { return modern_owns(e.component); });
+            if (modern_owns(classic_in.hover_component)) classic_in.hover_component = -1;
+            ui_.modern_galactic.update_input(routed_, input_.shift(), input_.ctrl(), cmds, &acts);
+        }
+        ui_.galactic_hud.update_input(classic_in, input_.shift(), input_.ctrl(), now_s_, cmds, &acts);
         // Fleet drag sounds: GUI_Drag_Fleet when a fleet / unit drag starts, GUI_Drop_Fleet when its drop issued an order.
         const ui::GalacticDrag& d = ui_.galactic_hud.drag();
         fleet_drag_active_ = d.active;
@@ -1154,7 +1189,8 @@ void App::galactic_input() {
         if (e.slot == ui::hk::kHolocron || e.slot == ui::hk::kDroidAdvisor) open_holocron(ui::InfoPage::DroidLog);
         if (e.slot == ui::hk::kQuickSave || e.slot == ui::hk::kQuickLoad || e.slot == ui::hk::kScreenshot) interface_hotkey(e.slot);
         if (e.slot == ui::hk::kCameraHome && !story_controls_locked()) galactic_home();  // #295 [port] locked as HeroFocusPlanet
-        if (e.slot == ui::hk::kHudStyle) toggle_hud_style();  // #584: stored now; the galactic Modern view comes with #593
+        if (e.slot == ui::hk::kHudStyle) toggle_hud_style();  // #584 / #593 Classic <-> Modern
+        if (e.slot == ui::hk::kAlertJump && modern_galactic_shown()) ui_.modern_galactic.jump(acts);  // #593 the event strip's Jump
     }
     handle_hud_actions(acts);
     route_commands(cmds);
