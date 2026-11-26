@@ -13,6 +13,7 @@
 #pragma once
 #include <array>
 #include <string>
+#include <vector>
 
 #include "alamo/assets/math.hpp"
 #include "alamo/materials/constants.hpp"
@@ -54,6 +55,10 @@ struct Lighting {
     // directional light added to the spherical harmonics (SPH_LIGHT_FILL and SPH_LIGHT_ALL) only; intensity 0 = no flash.
     // Set per frame by the battle host from render::LightningFlash; environments never set it.
     DirLight flash{{0, 0, 1}, {1, 1, 1}, {0, 0, 0}, 0.0f};
+    // #314 (docs/re/BOMBARD_FLASH.md): the planetary bombardment lights of this frame (BombardFlashes), added to the
+    // spherical harmonics like the flash, and 0.4 x their colours added to the frame ambient (not to the SH).
+    std::vector<DirLight> bombard;
+    assets::Float3 bombard_ambient{0, 0, 0};
 
     // Built-in defaults from legacy docs/re/TERRAIN_WATER_POST.md 5.4 (real first environment records):
     //   space_default(): _MP_SPACE_KUAT "Environment 1" (sun (0.918,1,0.988) x 0.646 at yaw 217.1,

@@ -2,6 +2,7 @@
 #include "test_render_common.hpp"
 #include "renderer_core.hpp"  // RendererCore inspection points (src/, target alamo_render_internal)
 #include "alamo/core/host_fs.hpp"
+#include "alamo/render/bombard_flash.hpp"
 #include "alamo/render/frame_fade.hpp"
 #include "alamo/render/weather_fx.hpp"
 
@@ -310,6 +311,49 @@ void test_ssao_math() {
     // Screen corner uv (0, 0) = top-left = (-x, +y) in view space.
     const Float3 tl = render::ssao_view_position(kp, 0.0f, 0.0f, 0.5f);
     CHECK(tl.x < 0.0f && tl.y > 0.0f);
+}
+
+// #314 the bombardment flash (0x52aa50): the envelope rises to 1 at 0.85 of the life and falls to 0 at its end, the
+// direction leans from the camera's look-at toward the shot, the ambient share is 0.4; a light leaves at age >= life.
+void test_bombard_flash() {
+    render::BombardFlashes f;
+    f.add({0, 0, 0}, {1, 0.2f, 0.2f}, 0.4f, 0);  // no life: no light
+    CHECK(f.live() == 0);
+    f.add({750, 0, 0}, {1, 0.2f, 0.2f}, 0.4f, 20);  // 20 frames: peak at age 17
+    f.step(0, 0);  // age 0: envelope 0
+    CHECK(f.lights().size() == 1 && f.lights()[0].color.x == 0.0f);
+    // d = 750 / 1500 = 0.5 -> (0.5, 0, sqrt(0.75))
+    CHECK(near_eq(f.lights()[0].direction.x, 0.5f, 1e-5f) && near_eq(f.lights()[0].direction.z, std::sqrt(0.75f), 1e-5f));
+    for (int a = 1; a < 17; ++a) f.step(0, 0);
+    f.step(0, 0);  // age 17: 17 / 17 = 1
+    CHECK(near_eq(f.lights()[0].color.x, 0.4f, 1e-5f) && near_eq(f.lights()[0].color.y, 0.08f, 1e-5f));
+    CHECK(near_eq(f.ambient().x, 0.16f, 1e-5f));
+    f.step(0, 0);  // age 18: 1 - (18 - 17) / 3
+    CHECK(near_eq(f.lights()[0].color.x, 0.4f * (2.0f / 3.0f), 1e-4f));
+    f.step(0, 0);  // age 19 -> 20: dropped before the sum
+    CHECK(f.lights().empty() && f.live() == 0 && f.ambient().x == 0.0f);
+    // far from the camera (|d| >= 1): horizontal
+    f.add({0, -3000, 0}, {1, 1, 1}, 1.0f, 10);
+    f.step(0, 0);
+    CHECK(near_eq(f.lights()[0].direction.y, -1.0f, 1e-5f) && f.lights()[0].direction.z == 0.0f);
+    // the lights reach the SH like the lightning flash; the ambient share only the frame ambient
+    render::Lighting l = render::Lighting::land_default();
+    const render::SceneLightConstants base = render::scene_light_constants(l);
+    l.bombard = {render::DirLight{{0, 0, 1}, {0.5f, 0.1f, 0.1f}, {0, 0, 0}, 1.0f}};
+    l.bombard_ambient = {0.2f, 0.04f, 0.04f};
+    const render::SceneLightConstants lit = render::scene_light_constants(l);
+    bool fill_changed = false, all_changed = false;
+    for (size_t i = 0; i < lit.sph_fill.size(); ++i) {
+        const auto ne = [](const materials::float4& a, const materials::float4& b) { return a.x != b.x || a.y != b.y || a.z != b.z || a.w != b.w; };
+        fill_changed = fill_changed || ne(lit.sph_fill[i], base.sph_fill[i]);
+        all_changed = all_changed || ne(lit.sph_all[i], base.sph_all[i]);
+    }
+    CHECK(fill_changed && all_changed);
+    materials::FrameCB cb{}, cb0{};
+    render::fill_frame_lights(l, cb);
+    l.bombard_ambient = {0, 0, 0};
+    render::fill_frame_lights(l, cb0);
+    CHECK(near_eq(cb.light_ambient.x - cb0.light_ambient.x, 0.2f, 1e-5f));
 }
 
 // #66 FrameEffectAlpha (0x25fb10 / 0x25fb30 / 0x181c50): a request captures the frame it is made in; the next frames
@@ -1321,6 +1365,7 @@ int main() {
     test_ssao_math();
     test_idle_spin();
     test_frame_fade();
+    test_bombard_flash();
     test_lod();
     test_lighting();
     test_weather_fx();

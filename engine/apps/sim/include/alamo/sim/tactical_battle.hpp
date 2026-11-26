@@ -756,6 +756,16 @@ public:
         objects::TypeIndex ship_type = objects::kNone;
     };
     std::span<const StrikeEvent> strike_starts() const { return strike_starts_; }
+    // #314 (presentation feed; docs/re/BOMBARD_FLASH.md, 0x52a110 [H]): the bombardment shots of this tick that make a
+    // light: the faction's Bombardment_Lighting_Seconds_List entry for the shot's salvo index is > 0. The colour and
+    // intensity are that salvo's entries (0 past the end of their lists). Not saved or hashed.
+    struct BombardFlashEvent {
+        Vec3 at;
+        Vec3 color;
+        float intensity = 0.0f;
+        float seconds = 0.0f;
+    };
+    std::span<const BombardFlashEvent> bombard_flashes() const { return bombard_flashes_; }
     // mcx4 t13 (presentation; MCX4_T13_RE_ANSWERS "Tractor_Beam_Attack_Ability.SFXEvent_Unit_Summoned",
     // "Radioactive_Contaminate_Ability.SFXEvent_Radioactive", "Buzz_Droids_Ability.Activate_SFX"): objects a Summon /
     // Radioactive_Contaminate / Buzz_Droids ability created since the last tick, request order. `ability` = the unit
@@ -1339,6 +1349,9 @@ public:
         float shot_delay = 0.0f, salvo_delay = 0.0f, initial_delay = 0.0f;  // seconds
         bool playable = false;                         // Is_Playable (+0x20a8)
         std::string skirmish_land_bomber;              // Skirmish_Land_Bomber (the skirmish bombing-run bomber type)
+        // #314 Bombardment_Lighting_Color_List (3 numbers per entry) / _Intensity_List / _Seconds_List, by salvo index
+        std::vector<Vec3> light_colors;
+        std::vector<float> light_intensities, light_seconds;
     };
     void set_l1_factions(std::vector<L1Faction> f) { l1_factions_ = std::move(f); }
     // Campaign: only the battle attacker [M: battle-record slot 1] gets a record, enabled when one of its orbit fleets
@@ -2806,6 +2819,8 @@ private:
     std::vector<AbilityToggleEvent> ability_toggles_;  // presentation only (not saved / hashed)
     std::vector<StrikeEvent> strike_starts_;           // presentation only (not saved / hashed)
     size_t strike_starts_mark_ = 0;
+    std::vector<BombardFlashEvent> bombard_flashes_;   // #314 presentation only (not saved / hashed)
+    size_t bombard_flashes_mark_ = 0;
     std::vector<SummonSpawn> summon_spawns_;           // presentation only (not saved / hashed)
     size_t summon_spawns_mark_ = 0;
     size_t ability_toggles_mark_ = 0;

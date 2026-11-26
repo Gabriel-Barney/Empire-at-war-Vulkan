@@ -172,10 +172,13 @@ assets::Float3 sph_irradiance(const SphMatrices& m, const assets::Float3& n) {
 SceneLightConstants scene_light_constants(const Lighting& l) {
     SceneLightConstants s;
     // the lightning flash joins the fills (sph_matrices skips a light of intensity 0).
-    const DirLight fills[3] = {l.fill[0], l.fill[1], l.flash};
-    s.sph_fill = sph_matrices(fills, 3, l.ambient);
-    const DirLight all[4] = {l.fill[0], l.fill[1], l.sun, l.flash};
-    s.sph_all = sph_matrices(all, 4, l.ambient);
+    // #314: the bombardment lights join them the same way (0x277830 adds their SH to the fill SH).
+    std::vector<DirLight> fills = {l.fill[0], l.fill[1], l.flash};
+    fills.insert(fills.end(), l.bombard.begin(), l.bombard.end());
+    s.sph_fill = sph_matrices(fills.data(), static_cast<int>(fills.size()), l.ambient);
+    std::vector<DirLight> all = {l.fill[0], l.fill[1], l.sun, l.flash};
+    all.insert(all.end(), l.bombard.begin(), l.bombard.end());
+    s.sph_all = sph_matrices(all.data(), static_cast<int>(all.size()), l.ambient);
     return s;
 }
 
@@ -202,7 +205,8 @@ void fill_frame_lights(const Lighting& l, materials::FrameCB& cb) {
                           l.sun.specular.z * 2.0f * l.sun.intensity, 0.0f};
     light_constants(l.fill[0], cb.light1_vector, cb.light1_diffuse, cb.light1_specular);
     light_constants(l.fill[1], cb.light2_vector, cb.light2_diffuse, cb.light2_specular);
-    cb.light_ambient = {l.ambient.x, l.ambient.y, l.ambient.z, 1.0f};
+    cb.light_ambient = {l.ambient.x + l.bombard_ambient.x, l.ambient.y + l.bombard_ambient.y, l.ambient.z + l.bombard_ambient.z,
+                        1.0f};  // #314 the bombardment lights' ambient share
 }
 
 assets::Mat3x4 skydome_transform(const Lighting& l, int k) {

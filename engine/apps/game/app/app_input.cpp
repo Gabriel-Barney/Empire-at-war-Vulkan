@@ -374,6 +374,7 @@ void App::post_tick() {
                         bview_.start_light_pulse(static_cast<uint32_t>(dmg.victim), p, now_s_);
                     }
             }
+            bview_.bombard_tick(b->bombard_flashes());  // #314 the bombardment lights, once per tick
             audio_.battle_tick(*b, st, data_.types, local_player(),
                                [gs](objects::ObjectId id) { return gs->script_hidden(id); });  // q6 t19 §10.3
             // #479 (docs/re/RADAR_BLIPS_AND_BOX.md §3 [H]): a 4 s pulsing radar_blip where the base was attacked.

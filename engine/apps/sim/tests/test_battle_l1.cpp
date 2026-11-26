@@ -174,7 +174,10 @@ const char* kFactions = R"(<Factions>
   <Space_Tactical_Unit_Cap>20</Space_Tactical_Unit_Cap><Skirmish_Land_Bomber> L1_Bomber </Skirmish_Land_Bomber>
   <Bombardment_Required_Orbital_Ships> S10_Frigate </Bombardment_Required_Orbital_Ships><Bombardment_Projectile> L1_Bombard_Proj </Bombardment_Projectile>
   <Bombardment_Number_Of_Salvos> 2 </Bombardment_Number_Of_Salvos><Bombardment_Shots_Per_Salvo> 3 </Bombardment_Shots_Per_Salvo>
-  <Bombardment_Shot_Delay> 0.2 </Bombardment_Shot_Delay><Bombardment_Salvo_Delay> 1 </Bombardment_Salvo_Delay><Bombardment_Initial_Delay> 1.0 </Bombardment_Initial_Delay></Faction>
+  <Bombardment_Shot_Delay> 0.2 </Bombardment_Shot_Delay><Bombardment_Salvo_Delay> 1 </Bombardment_Salvo_Delay><Bombardment_Initial_Delay> 1.0 </Bombardment_Initial_Delay>
+  <Bombardment_Lighting_Color_List>0.0,0.0,0.0,1.0,0.2,0.2</Bombardment_Lighting_Color_List>
+  <Bombardment_Lighting_Intensity_List>0.2 0.4</Bombardment_Lighting_Intensity_List>
+  <Bombardment_Lighting_Seconds_List>0 2</Bombardment_Lighting_Seconds_List></Faction>
  <Faction Name="Neutral"><Is_Neutral>Yes</Is_Neutral></Faction>
 </Factions>
 )";
@@ -647,6 +650,7 @@ struct LandRun {
     bool bombard_started = false, bombard_hit = false, bombard_reset = false;
     bool run_started = false, bombers_flew = false, run_done = false, refused_unavailable = false;
     bool bombard_fed = false, run_fed = false;  // the strike_starts presentation feed
+    std::vector<TacticalBattle::BombardFlashEvent> flashes;  // #314 the bombard_flashes feed, every tick
     // the strike projectile in the battle tables equals the catalog's one builder, visuals stay index-aligned.
     bool strike_desc_found = false, strike_desc_same = false, strike_visuals_aligned = false;
     // the HUD cooldown query (bombing_run_frames_until_available, 0x4950f0) when the run starts / ends.
@@ -767,6 +771,7 @@ LandRun run_land(const Data& d, int32_t workers, bool via_command = false) {
             out.bombard_fed = out.bombard_started && !b->strike_starts().empty() && b->strike_starts().back().bombard &&
                               b->strike_starts().back().player == 1;
         }
+        for (const TacticalBattle::BombardFlashEvent& e : b->bombard_flashes()) out.flashes.push_back(e);  // #314
         if (out.bombard_started && !out.bombard_hit && b->combat().has_unit(victim) && b->combat().health(victim) < hp0) out.bombard_hit = true;
         if (out.bombard_hit && !out.bombard_reset && !b->bombardment_available(1) && bombard_end_ready == 0) bombard_end_ready = f;
         if (out.bombard_hit && b->bombardment_available(1) && f > 120) out.bombard_reset = true;
@@ -878,7 +883,12 @@ void test_land(const Data& d) {
     CHECK(a.fought && a.weather_on && a.weather_advanced && a.forced && a.rain_sight);
     CHECK(a.refused_unavailable && a.bombard_started && a.bombard_hit && a.bombard_reset);
     CHECK(a.run_started && a.bombers_flew && a.run_done);
-    CHECK(a.bombard_fed && a.run_fed);  // strike_starts names the bombardment and the run's first bomber
+    CHECK(a.bombard_fed && a.run_fed);
+    // #314 (0x52a110): salvo 0's seconds entry is 0 (no light); each of salvo 1's three shots makes one, with that
+    // salvo's colour and intensity, at its impact point.
+    CHECK(a.flashes.size() == 3);
+    for (const TacticalBattle::BombardFlashEvent& e : a.flashes)
+        CHECK(e.seconds == 2.0f && e.intensity == 0.4f && e.color.x == 1.0f && e.color.y == 0.2f && e.color.z == 0.2f);  // strike_starts names the bombardment and the run's first bomber
     std::printf("  strike projectile: found %d same as catalog %d visuals aligned %d\n", a.strike_desc_found, a.strike_desc_same,
                 a.strike_visuals_aligned);
     CHECK(a.strike_desc_found && a.strike_desc_same && a.strike_visuals_aligned);  // ref5 t01

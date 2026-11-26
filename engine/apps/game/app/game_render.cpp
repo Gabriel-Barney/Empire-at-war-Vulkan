@@ -1031,11 +1031,21 @@ ui::Vec3 BattleView::type_half_extents(objects::TypeIndex t) {
     return {(b.max.x - b.min.x) * s, (b.max.y - b.min.y) * s, (b.max.z - b.min.z) * s};
 }
 
+void BattleView::bombard_tick(std::span<const sim::TacticalBattle::BombardFlashEvent> shots) {
+    const ui::Vec3 look = camera_.look_at();
+    bombard_.step(look.x, look.y);
+    for (const sim::TacticalBattle::BombardFlashEvent& e : shots)
+        bombard_.add({e.at.x, e.at.y, e.at.z}, {e.color.x, e.color.y, e.color.z}, e.intensity,
+                     static_cast<int32_t>(30.0f * e.seconds));  // FPS x seconds (0x140b0a340: the 30 Hz game frame) [M]
+}
+
 void BattleView::use_scene(GpuCore& gpu) {
     if (!scene_) return;
     render::Lighting lit = scene_->lighting();
     render::apply_fog_plane_alpha(lit, weather_.active ? weather_.fog_alpha : 0.0f);  // vis1 t01 (WEATHER_VISUALS §3)
     lit.flash = lightning_.light();                                                  // vis1 t01 (§2)
+    lit.bombard = bombard_.lights();                                                 // #314
+    lit.bombard_ambient = bombard_.ambient();
     lit.fog_enabled = lit.fog_enabled && fog_master_ && fog_distance_;  // Enable_Fog / Enable_Distance_Fog (false = no fog)
     gpu.renderer.set_lighting(lit);
     gpu.renderer.set_world(&scene_->world());
