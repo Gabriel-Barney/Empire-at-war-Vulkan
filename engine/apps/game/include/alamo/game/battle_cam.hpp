@@ -9,9 +9,10 @@
 //   hero_clash_shot       0x4a4ac0: the local player's hero in a land hero clash, held 45 frames, then an orbit.
 //
 // Presentation only. Nothing here is written into the sim, and the orbit direction is an unsynced draw.
-// Ported shots: Cinematic View, the hero clash orbit, and (#568) the interesting-object shot with its orbit, fly-past and
-// static templates. [port] The land bombing run (0x49f370, #563) and the other interesting-object templates (#569 -
-// #572) are not ported yet: they fail, and the next pick is tried, as retail does when a pick fails.
+// Ported shots: Cinematic View, the hero clash orbit, and the interesting-object shot with its orbit, fly-past and
+// static templates (#568) and its push-in, drive-by and land flying shots (#569). [port] The land bombing run (0x49f370,
+// #563) and the other interesting-object templates (#570 - #572) are not ported yet: they fail, and the next pick is
+// tried, as retail does when a pick fails.
 #pragma once
 
 #include <cstdint>
@@ -204,10 +205,20 @@ struct InterestingObject {
     ObjectFrame frame;              // its transform at the start (M)
     std::string_view type_name;     // type +0xf8
 };
-// GameObjectCategoryType values the dispatcher tests (the enum file's; [H] defaults). #569 / #570 add the rest.
+// GameObjectCategoryType values the dispatcher tests (the enum file's; [H] defaults). #570 adds the rest.
 struct InterestingCategories {
-    uint64_t bomber = 0x2, corvette = 0x8;
+    uint64_t bomber = 0x2, corvette = 0x8, infantry = 0x80, vehicle = 0x100;
 };
+
+// #569 0x4a4e30 [H] (needs a model): the infantry push-in. n = 120..150, h = 1.5..2.0; the eye moves on world points
+// M (2s Ex, 2 Ey, 2h Ez) -> M (s Ex, 2 Ey, h Ez) fixed at the start, the look on the object; length n, handheld noise.
+bool push_in_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCamShot& out);
+// #569 0x4a6dd0 [H] (needs a model): the vehicle drive-by, one of three variants; every eye key a world point fixed at the
+// start, so the vehicle drives through the frame; length 2n, n = 60..90; no noise.
+bool drive_by_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCamShot& out);
+// #569 0x4a23d0 [H] (needs a model): a land flyer seen from a fixed world point M (s Ex, -Ey, Ez) beside it, the look
+// held on it; length n = 60..90; no noise.
+bool land_flying_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCamShot& out);
 
 // 0x4a17c0 [H]: a tripod at C + d (cos phi cos psi, cos phi sin psi, sin phi), psi = 0..360, phi = 20..45 (space:
 // negated half the time), d = 2|E|..4|E|; eye and look held on world points; 60 frames, handheld noise.

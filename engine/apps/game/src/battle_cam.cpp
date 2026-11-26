@@ -460,18 +460,94 @@ bool fly_past_shot(const InterestingObject& o, bool space, UnsyncedRandom& rng, 
     return true;
 }
 
+bool push_in_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCamShot& out) {
+    if (!o.model) return false;
+    const Vec3 e = o.half_extents;
+    const int32_t n = rng.range(120, 150);
+    const float h = static_cast<float>(rng.range(30, 40)) / 20.0f;
+    const float sgn = rng.range(0, 1) != 0 ? 1.0f : -1.0f;  // 0x4a4e30: a nonzero draw is +1 (the others: zero is +1)
+    const ObjectFrame& m = o.frame;
+    BattleCamShot s;
+    s.target = o.id;
+    s.interesting = true;
+    s.eye.push_back(key(0, ShotKey::Segment::Spline, false, m.apply({2.0f * sgn * e.x, 2.0f * e.y, 2.0f * h * e.z}), 0.25f));
+    s.eye.push_back(key(n, ShotKey::Segment::Spline, false, m.apply({sgn * e.x, 2.0f * e.y, h * e.z}), 0.0f, 0.25f));
+    s.look.push_back(key(0, ShotKey::Segment::Spline, true, {0.0f, 0.0f, 0.25f * h * e.z}, 0.25f));
+    s.look.push_back(key(n, ShotKey::Segment::Spline, true, {0.0f, -2.0f * e.y, 0.1f * h * e.z}, 0.0f, 0.25f));
+    s.length = n;
+    s.handheld = true;
+    s.handheld_frames = n;
+    out = std::move(s);
+    return true;
+}
+
+bool drive_by_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCamShot& out) {
+    if (!o.model) return false;
+    const Vec3 e = o.half_extents;
+    const int32_t n = rng.range(60, 90);
+    const float sgn = rng.range(0, 1) == 0 ? 1.0f : -1.0f;
+    const float hi = std::clamp(5.0f * e.z, 50.0f, 125.0f);
+    const int32_t variant = rng.range(0, 2);
+    const ObjectFrame& m = o.frame;
+    BattleCamShot s;
+    s.target = o.id;
+    s.interesting = true;
+    s.length = 2 * n;
+    const auto eye = [&](int32_t frame, Vec3 local, float ease_in) {
+        s.eye.push_back(key(frame, ShotKey::Segment::Spline, false, m.apply(local), 0.0f, ease_in));
+    };
+    if (variant == 2) {  // low, 7 up: the look on world points over the vehicle
+        eye(0, {2.0f * sgn * e.x, -3.0f * e.y, 7.0f}, 0.0f);
+        eye(2 * n, {2.0f * sgn * e.x, -2.0f * e.y, 7.0f}, 0.25f);
+        s.look.push_back(key(0, ShotKey::Segment::Spline, false, m.apply({0.0f, 0.0f, 30.0f}), 0.25f));
+        s.look.push_back(key(2 * n, ShotKey::Segment::Spline, false, m.apply({0.0f, 0.0f, 20.0f}), 0.25f));
+    } else if (variant == 1) {
+        eye(0, {3.0f * sgn * e.x, -3.0f * e.y, hi}, 0.0f);
+        eye(2 * n, {2.0f * sgn * e.x, -e.y, e.z}, 0.25f);
+        s.look.push_back(key(0, ShotKey::Segment::Spline, true, {0.0f, -e.y, 0.0f}, 0.25f));
+        s.look.push_back(key(2 * n, ShotKey::Segment::Spline, true, {}, 0.0f, 0.25f));
+    } else {
+        eye(0, {3.0f * sgn * e.x, 2.0f * e.y, hi}, 0.0f);
+        eye(2 * n, {2.0f * sgn * e.x, 0.0f, e.z}, 0.25f);
+        s.look.push_back(key(0, ShotKey::Segment::Spline, true, {}, 0.25f));
+        s.look.push_back(key(2 * n, ShotKey::Segment::Spline, true, {0.0f, -3.0f * e.y, 0.0f}, 0.0f, 0.25f));
+    }
+    out = std::move(s);
+    return true;
+}
+
+bool land_flying_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCamShot& out) {
+    if (!o.model) return false;
+    const Vec3 e = o.half_extents;  // [port] retail reads the ModelBox here; the port has one box
+    const int32_t n = rng.range(60, 90);
+    const float sgn = rng.range(0, 1) == 0 ? 1.0f : -1.0f;
+    BattleCamShot s;
+    s.target = o.id;
+    s.interesting = true;
+    s.eye.push_back(key(0, ShotKey::Segment::Hold, false, o.frame.apply({sgn * e.x, -e.y, e.z})));
+    s.look.push_back(key(0, ShotKey::Segment::Hold, true, {}, 0.25f));
+    s.length = n;
+    out = std::move(s);
+    return true;
+}
+
 bool interesting_shot(const InterestingObject& o, bool space, const InterestingCategories& c, UnsyncedRandom& rng,
                       BattleCamShot& out) {
-    // Steps 1 - 5 (docs/re/BATTLE_CAM.md "The dispatcher"): the glory files (#572), the hardpoint shot (#571), the
-    // fighter chase (#570) and the infantry push-in (#569) are not ported: they fail and fall through. Step 2 (the
-    // terrain clamp) is BattleCam::start's.
+    // Steps 1 - 4 (docs/re/BATTLE_CAM.md "The dispatcher"): the glory files (#572), the hardpoint shot (#571) and the
+    // fighter chase (#570) are not ported: they fail and fall through. Step 2 (the terrain clamp) is BattleCam::start's.
+    if ((o.category & c.infantry) != 0 && push_in_shot(o, rng, out)) return true;  // step 5
     if (rng.range(0, 3) == 0) {  // step 6: the static shot for a quarter of what gets here
         out = static_shot(o, space, rng);
         return true;
     }
     if ((o.category & (c.corvette | c.bomber)) != 0) (void)rng.range(0, 1);  // step 7's coin: attack run / chase (#570)
-    // Steps 8 (frigate: the attack run), 9 (vehicle: the drive-by), 10 (no locomotor: the structure shot) and 11 (flying,
-    // land by size) name templates that are not ported yet (#569, #570): they fall through to step 12.
+    // Step 8 (frigate: the attack run, #570) is not ported yet.
+    if ((o.category & c.vehicle) != 0 && drive_by_shot(o, rng, out)) return true;  // step 9
+    // Step 10 (no locomotor: the structure shot, #570) is not ported yet; it falls through to step 12.
+    if (o.locomotor) {  // step 11: a flyer (in space too), then on land by size
+        if (o.flying && land_flying_shot(o, rng, out)) return true;
+        if (!space && (length(o.half_extents) < 30.0f ? push_in_shot(o, rng, out) : drive_by_shot(o, rng, out))) return true;
+    }
     if (rng.range(0, 1) == 0) {  // step 12: the orbit or the fly-past
         out = orbit_shot(o, rng);
         return true;

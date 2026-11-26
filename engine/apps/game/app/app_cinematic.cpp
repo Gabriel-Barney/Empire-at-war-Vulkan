@@ -368,6 +368,8 @@ bool App::interesting_object_shot(bool first, BattleCamShot& out) {
     InterestingCategories c;
     c.bomber = static_cast<uint64_t>(cats.lookup("Bomber").value_or(0x2));
     c.corvette = static_cast<uint64_t>(cats.lookup("Corvette").value_or(0x8));
+    c.infantry = static_cast<uint64_t>(cats.lookup("Infantry").value_or(0x80));
+    c.vehicle = static_cast<uint64_t>(cats.lookup("Vehicle").value_or(0x100));
     std::printf("Start_Interesting_Object_Cinematic: Type %.*s\n", static_cast<int>(io.type_name.size()), io.type_name.data());
     return interesting_shot(io, space, c, cine_.rng, out);
 }
