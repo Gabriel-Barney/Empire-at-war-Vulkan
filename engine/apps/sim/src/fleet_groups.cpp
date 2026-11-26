@@ -119,30 +119,33 @@ void FleetGroups::join_spawned(uint8_t player, uint32_t fleet, std::span<const o
         }
         if (!g) {
             if (owned >= kMaxGroupsPerPlayer || next_id_ == 0xFFFFu) continue;
-            FleetGroup n;
-            n.id = next_id_++;
-            n.owner = player;
-            n.fleet = fleet;
-            n.facing_deg = u.yaw_deg;
-            groups_.push_back(std::move(n));
+            FleetGroup made;
+            made.id = next_id_++;
+            made.owner = player;
+            made.fleet = fleet;
+            made.facing_deg = u.yaw_deg;
+            groups_.push_back(std::move(made));
             g = &groups_.back();
             used_ = true;
         }
-        // the slot: the offset from the current members' centre (summed in member order), in the group frame
-        mv::V2 sum{0.0f, 0.0f};
-        uint32_t n = 0;
+        // The slot in the members' frame: the offset from their current centre plus their mean slot, so the joiner
+        // sits where the frame the slots were captured in puts it (plan_move measures slots from their mean).
+        mv::V2 pos_sum{0.0f, 0.0f}, slot_sum{0.0f, 0.0f};
+        uint32_t count = 0;
         for (const FleetMember& m : g->members) {
             const FleetUnitInfo mu = info(m.id);
             if (!mu.valid) continue;
-            sum = sum + mu.pos;
-            ++n;
+            pos_sum = pos_sum + mu.pos;
+            slot_sum = slot_sum + m.slot;
+            ++count;
         }
         FleetMember m;
         m.id = id;
-        if (n > 0) {
-            const mv::V2 d = u.pos - sum * (1.0f / static_cast<float>(n));
+        if (count > 0) {
+            const float k = 1.0f / static_cast<float>(count);
+            const mv::V2 d = u.pos - pos_sum * k;
             const mv::V2 f = mv::dir_from_deg(g->facing_deg);
-            m.slot = {mv::dot(d, f), mv::dot(d, mv::perp_left(f))};
+            m.slot = mv::V2{mv::dot(d, f), mv::dot(d, mv::perp_left(f))} + slot_sum * k;
         }
         const auto at = std::lower_bound(g->members.begin(), g->members.end(), id,
                                          [](const FleetMember& x, objects::ObjectId v) { return x.id < v; });

@@ -284,9 +284,6 @@ void test_logic() {
           cap.groups()[0].members.size() == FleetGroups::kMaxMembers);
 }
 
-// #177: Merge folds the player's groups with a selected unit into the oldest (lowest id), which keeps its id, name and
-// lock; every member's slot is recaptured; a merge past kMaxMembers or of fewer than two groups is refused; Split is
-// Create from the selected part of a group.
 // #173: units spawned from a galactic fleet join that fleet's group of their player, or make one.
 void test_join_spawned() {
     World w;
@@ -307,12 +304,13 @@ void test_join_spawned() {
     CHECK(g.members[0].id == 10 && g.members[1].id == 11);
     // the first member defines the centre (slot 0); the second is 100 along the first's facing (yaw 0 = +X)
     CHECK(near(g.members[0].slot.x, 0.0f) && near(g.members[1].slot.x, 100.0f) && near(g.members[1].slot.y, 0.0f));
-    // a reinforcement of the same fleet joins on arrival; its slot is its offset from the current centre (50, 0)
+    // a reinforcement of the same fleet joins on arrival: its offset from the centre (50, 0) plus the mean slot (50, 0),
+    // so the slots keep the positions' shape (10 at 0, 11 at 100, 12 at (50, 40))
     const uint64_t before = digest_of(fg);
     const objects::ObjectId reinf[] = {12};
     fg.join_spawned(0, 7, reinf, info);
     CHECK(fg.groups().size() == 1 && fg.groups()[0].members.size() == 3 && digest_of(fg) != before);
-    CHECK(fg.groups()[0].members[2].id == 12 && near(fg.groups()[0].members[2].slot.x, 0.0f) &&
+    CHECK(fg.groups()[0].members[2].id == 12 && near(fg.groups()[0].members[2].slot.x, 50.0f) &&
           near(fg.groups()[0].members[2].slot.y, 40.0f));
     CHECK(near(fg.groups()[0].members[1].slot.x, 100.0f));  // the others' slots are untouched
     // an already grouped unit stays where it is; another fleet gets its own group
@@ -337,8 +335,20 @@ void test_join_spawned() {
     FleetGroups back;
     ByteReader br(bw.bytes());
     CHECK(back.read(br) && digest_of(back) == digest_of(fg) && back.groups()[1].fleet == 8);
+    // a version-1 chunk (no fleet key) still loads; its groups belong to no galactic fleet
+    ByteWriter v1;
+    v1.u32(1).u16(3).boolean(true).u32(1);
+    v1.u16(2).u8(0).boolean(true).boolean(false).f32(90.0f).str("Red");
+    v1.u32(1).i32(10).f32(1.0f).f32(2.0f).f32(0.0f).f32(0.0f).f32(0.0f).boolean(false);
+    FleetGroups old;
+    ByteReader r1(v1.bytes());
+    CHECK(old.read(r1) && old.groups().size() == 1 && old.groups()[0].fleet == FleetGroup::kNoFleet &&
+          old.groups()[0].locked && old.groups()[0].name == "Red" && near(old.groups()[0].members[0].slot.y, 2.0f));
 }
 
+// #177: Merge folds the player's groups with a selected unit into the oldest (lowest id), which keeps its id, name and
+// lock; every member's slot is recaptured; a merge past kMaxMembers or of fewer than two groups is refused; Split is
+// Create from the selected part of a group.
 void test_merge_split() {
     World w;
     w.add(10, 0.0f, 0.0f, 4.0f);
