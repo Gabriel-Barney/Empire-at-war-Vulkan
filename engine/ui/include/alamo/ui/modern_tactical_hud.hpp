@@ -108,6 +108,7 @@ struct ModernHudStats {
     std::vector<std::u32string> build_texts;  // each option's line: its cost, or its blocked reason
     uint32_t shortcuts = 0;                  // wing, fleet group and station shortcuts drawn
     float deck_width = 0.0f;                 // canvas units
+    uint32_t fleet_tabs = 0, fleet_merge = 0, fleet_split = 0;  // #588 group tabs and their Merge / Split buttons drawn
     uint32_t abilities = 0;              // #586 ability buttons drawn
     uint32_t ability_rings = 0;          // of them recharging (a ring and the seconds left)
     uint32_t ability_auto = 0;           // of them with the AUTO badge (autofire on)
@@ -250,6 +251,11 @@ private:
     std::vector<std::pair<int32_t, HudQueueEntry>> queue_slots_;
     std::vector<std::pair<int32_t, HudReinforcement>> reinforce_slots_;
     std::vector<std::vector<uint32_t>> fleet_shortcuts_;
+    // #588 per drawn group tab (Classic's tab ids: kFleetTabHitBase / kFleetMergeHitBase / kFleetSplitHitBase + index).
+    std::vector<std::vector<uint32_t>> fleet_tab_ids_;
+    std::vector<std::pair<uint16_t, std::string>> fleet_tab_group_;  // the group id and name (UTF-8), for Rename
+    void build_fleet_tabs(const TacticalHudFrame& f, std::span<const HudUnit> units, float card_w, float card_h, float gap,
+                          Vec2f first_card, float tab_h);
     uint32_t builder_ = commands::kNoObject, station_ = commands::kNoObject;
     std::vector<SelectedGroup> groups_;
     std::vector<std::vector<uint32_t>> wing_ids_;  // per TacticalHudFrame::wings entry (empty: not drawn), as Classic's

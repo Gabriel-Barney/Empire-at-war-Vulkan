@@ -74,6 +74,17 @@ inline constexpr int32_t kFleetMergeHitBase = 0x42000000, kFleetSplitHitBase = 0
 // `slots`, the entries from the last slot on fold into one overflow entry ("+N", every unit not shown).
 std::vector<SelectedGroup> group_selection_fleets(std::span<const HudUnit> units, std::span<const HudFleetGroup> fleets,
                                                   size_t slots);
+// [port] #588 the fleet group tabs both HUD styles draw. Per feed group, its selected members (`units` selected).
+std::vector<size_t> fleet_selected_counts(std::span<const HudUnit> units, std::span<const HudFleetGroup> fleets);
+// The tab of group `id`: the feed group (null: not in the feed), and its buttons - Merge on the oldest tab when the
+// selection spans two or more groups, Split on a tab whose group is only partly selected.
+struct HudFleetTabState {
+    const HudFleetGroup* group = nullptr;
+    bool merge = false, split = false;
+};
+HudFleetTabState fleet_tab_state(std::span<const HudFleetGroup> fleets, std::span<const size_t> selected, uint16_t id);
+// A tab's left click: Select of its members; with Shift added to `selection` (at most 127).
+std::vector<uint32_t> fleet_tab_select_ids(std::span<const uint32_t> members, std::span<const uint32_t> selection, bool shift);
 // The "+N" fold both selection bars use (#585): with more entries than `slots`, the entries from the last slot on become
 // one overflow entry (every unit not shown, ascending; health -1).
 void fold_selection_overflow(std::vector<SelectedGroup>& groups, size_t slots);
