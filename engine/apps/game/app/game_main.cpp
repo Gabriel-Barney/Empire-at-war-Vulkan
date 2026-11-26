@@ -232,6 +232,9 @@ bool App::init() {
         return pv;
     };
     mp.camera_settings = [this] { return camera_; };
+    mp.hud_settings = [this] {  // [port: Gabriel] #590 the Interface page
+        return ui::HudPageSettings{video_profile_.hud_style, ui_scale_ > 0 ? ui_scale_ : video_profile_.ui_scale, video_profile_.modern_hud};
+    };
     mp.gameplay = [this] { return gameplay_; };
     mp.audio = [this] { return audio_opts_; };  // ui1 t02
     {  // the advanced game options' defaults (GameConstants MP_Default_*) and the credits range

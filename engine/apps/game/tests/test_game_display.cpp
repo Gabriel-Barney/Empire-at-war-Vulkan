@@ -135,6 +135,7 @@ void profile_round_trip() {
     p.window_mode = ui::WindowMode::Borderless;  // UI5 t01 / display mode list
     p.ui_scale = 175;
     p.hud_style = ui::HudStyle::Modern;  // #584
+    p.modern_hud = {150, ui::HudColours::ColourBlind, false, false, true, 60, false};  // #590
     p.detail = 40;
     p.gamma = 70;
     p.anti_alias = ui::kAaMsaa4;
@@ -152,6 +153,7 @@ void profile_round_trip() {
     CHECK(q.advanced == p.advanced);
     CHECK(q.window_mode == ui::WindowMode::Borderless && q.ui_scale == 175);
     CHECK(q.hud_style == ui::HudStyle::Modern);
+    CHECK(q.modern_hud == p.modern_hud);  // #590 every Modern option round-trips
     // #584: a live run draws the profile's style; scripted, smoke, hidden and benchmark runs (not live) draw Classic.
     CHECK(game::active_hud_style(q, true) == ui::HudStyle::Modern && game::active_hud_style(q, false) == ui::HudStyle::Classic);
     {
@@ -176,6 +178,18 @@ void profile_round_trip() {
     CHECK(r.mode.width == 0 && r.vsync && !r.advanced.ambient_occlusion && r.advanced.bloom);
     CHECK(r.window_mode == ui::WindowMode::Windowed && r.ui_scale == 100);  // the defaults: windowed, UI scale 100 %
     CHECK(r.hud_style == ui::HudStyle::Classic);  // #584: a profile without hud_style (an old one) loads as Classic
+    CHECK(r.modern_hud == ui::ModernHudOptions{});  // #590: and with the default Modern options
+    {  // #590: out-of-range numbers are clamped, unknown words keep the default
+        {
+            std::ofstream f(path, std::ios::trunc);
+            f << "hud_text_scale=900\nhud_panel_opacity=3\nhud_colours=plaid\nhud_map_side=up\nhud_key_hints=0\nhud_colours=contrast\n";
+        }
+        game::VideoProfile m;
+        CHECK(game::load_video_profile(path, m));
+        CHECK(m.modern_hud.text_scale == ui::kModernTextScaleMaxPct && m.modern_hud.panel_opacity == ui::kModernOpacityMin &&
+              !m.modern_hud.map_right && !m.modern_hud.key_hints && m.modern_hud.order_labels);
+        CHECK(m.modern_hud.colours == ui::HudColours::HighContrast);  // the later line of a key wins
+    }
     // #584: an unknown hud_style value keeps the style; the value is case-insensitive.
     for (const auto& [text, want] : {std::pair{"hud_style=retro\n", ui::HudStyle::Classic}, std::pair{"hud_style=MODERN\n", ui::HudStyle::Modern},
                                      std::pair{"hud_style=classic\n", ui::HudStyle::Classic}, std::pair{"", ui::HudStyle::Classic}}) {

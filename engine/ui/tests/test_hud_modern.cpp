@@ -6,6 +6,7 @@
 #include <memory>
 #include <span>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -478,6 +479,109 @@ void test_text_scale() {
     CHECK(w1 > 0.0f && w2 > w1);
 }
 
+// Every quad colour the Modern list draws.
+bool draws_colour(const ModernTacticalHud& m, Rgba8 want) {
+    for (uint32_t layer = 0; layer < kHudLayers; ++layer)
+        for (uint32_t l = 0; l < kHudSubLists; ++l)
+            for (const HudQuad& q : m.draw_list().items(layer, static_cast<HudList>(l)))
+                if (q.color.r == want.r && q.color.g == want.g && q.color.b == want.b) return true;
+    return false;
+}
+
+// #590 the Interface page's Modern options: key hints, order labels, the colour choices, the panel opacity and the text
+// size; at the largest text every control stays on the screen.
+void test_options() {
+    Huds h;
+    Selection s;
+    TacticalHudFrame f = frame();
+    f.world.local_player = 0;
+    f.order_buttons.can_attack = true;
+    HotkeyTable keys;
+    h.modern.set_hotkeys(&keys);
+    CHECK(h.modern.options() == ModernHudOptions{});
+    h.modern.build(f, s.units, s.types);
+    const uint32_t badges = h.modern.stats().key_badges;
+    const size_t quads = h.modern.draw_list().total();
+    CHECK(badges >= 5);
+    ModernHudOptions o;
+    o.key_hints = false;
+    h.modern.set_options(o);
+    h.modern.build(f, s.units, s.types);
+    CHECK(h.modern.stats().key_badges == 0 && h.modern.draw_list().total() < quads);
+    o = {};
+    o.order_labels = false;  // the badge alone names the order: fewer glyphs, the same buttons and badges
+    h.modern.set_options(o);
+    h.modern.build(f, s.units, s.types);
+    CHECK(h.modern.stats().orders == 6 && h.modern.stats().key_badges == badges && h.modern.draw_list().total() < quads);
+    o.key_hints = false;  // both off: the order buttons keep their badges (else they would name nothing)
+    h.modern.set_options(o);
+    h.modern.build(f, s.units, s.types);
+    CHECK(h.modern.stats().key_badges == 6);
+    // Colours: colour-blind safe draws the Okabe-Ito blue accent, high contrast the yellow one; the faction look neither.
+    o = {};
+    h.modern.set_options(o);
+    h.modern.build(f, s.units, s.types);
+    CHECK(!draws_colour(h.modern, {0, 114, 178, 255}) && !draws_colour(h.modern, {255, 230, 0, 255}));
+    o.colours = HudColours::ColourBlind;
+    h.modern.set_options(o);
+    h.modern.build(f, s.units, s.types);
+    CHECK(draws_colour(h.modern, {0, 114, 178, 255}));
+    o.colours = HudColours::HighContrast;
+    h.modern.set_options(o);
+    h.modern.build(f, s.units, s.types);
+    CHECK(draws_colour(h.modern, {255, 230, 0, 255}));
+    // Panel opacity: the panel back's alpha follows it.
+    auto panel_alpha = [&] {
+        for (const HudQuad& q : h.modern.draw_list().items(3, HudList::Alpha))  // frame_rect: the back on the Alpha list
+            if (q.color.r == 10 && q.color.g == 14 && q.color.b == 22) return static_cast<int>(q.color.a);
+        return -1;
+    };
+    o = {};
+    o.panel_opacity = 40;
+    h.modern.set_options(o);
+    h.modern.build(f, s.units, s.types);
+    const int a40 = panel_alpha();
+    o.panel_opacity = 100;
+    h.modern.set_options(o);
+    h.modern.build(f, s.units, s.types);
+    CHECK(a40 == 102 && panel_alpha() == 255);
+    // The text size option is the text scale; out-of-range values are clamped.
+    o = {};
+    o.text_scale = 900;
+    h.modern.set_options(o);
+    CHECK(h.modern.options().text_scale == kModernTextScaleMaxPct && h.modern.text_scale() == kModernTextScaleMax);
+    // The smallest text size keeps every label at the design minimum (#520: 14 px at 1080p); all Modern text uses font().
+    CHECK(font_pixel_height_int(kModernTextPx * kModernTextScaleMin * 450.0f / 1080.0f, 1080) >= 14);
+    // 200 % text, at 1080p and at 720p with a 200 % UI scale: every hit box and every glyph on the screen.
+    std::vector<HudAlert> alerts(3);
+    for (HudAlert& a : alerts) a.text = U"Base under attack at the northern landing pad";
+    f.alerts = alerts;
+    for (const auto& [w, hgt, ui] : {std::tuple{1920u, 1080u, 1.0f}, std::tuple{1280u, 720u, 2.0f}}) {
+        h.modern.set_ui_scale(ui);  // takes effect on the resize
+        h.modern.resize(w, hgt);
+        h.modern.build(f, s.units, s.types);
+        const HudCanvas& c = h.modern.canvas();
+        const Vec2f lo = c.corners[3], hi = c.corners[1];
+        CHECK(!h.modern.hit_boxes().empty());
+        for (const HudHitBox& b : h.modern.hit_boxes()) {
+            const bool inside = b.min.x >= lo.x - 0.5f && b.min.y >= lo.y - 0.5f && b.max.x <= hi.x + 0.5f && b.max.y <= hi.y + 0.5f;
+            if (!inside)
+                std::printf("  %ux%u ui %.1f: hit %d at (%.1f, %.1f)-(%.1f, %.1f) off the canvas (%.1f, %.1f)-(%.1f, %.1f)\n", w, hgt,
+                            static_cast<double>(ui), b.component, static_cast<double>(b.min.x), static_cast<double>(b.min.y),
+                            static_cast<double>(b.max.x), static_cast<double>(b.max.y), static_cast<double>(lo.x),
+                            static_cast<double>(lo.y), static_cast<double>(hi.x), static_cast<double>(hi.y));
+            CHECK(inside);
+        }
+        size_t glyphs = 0, off = 0;
+        for (uint32_t layer = 0; layer < kHudLayers; ++layer)
+            for (const HudQuad& q : h.modern.draw_list().items(layer, HudList::Text)) {
+                ++glyphs;
+                if (q.min.x < lo.x - 0.5f || q.min.y < lo.y - 0.5f || q.max.x > hi.x + 0.5f || q.max.y > hi.y + 0.5f) ++off;
+            }
+        CHECK(glyphs > 0 && off == 0);
+    }
+}
+
 void test_hotkey() {
     // The port slot after the fleet group slots: HudStyleToggle on F9, an Interface event for the host.
     HotkeyTable t;
@@ -552,6 +656,7 @@ int main() {
     test_pause_banner();
     test_style_switch();
     test_text_scale();
+    test_options();
     test_hotkey();
     test_world_split();
     if (g_fail) {
