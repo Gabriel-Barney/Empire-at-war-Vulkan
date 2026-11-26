@@ -197,14 +197,36 @@ retail behaviour. Design: the claude.ai doc "Fleet groups design" (2026-11-13). 
 - Hotkeys N (new group), U (ungroup), Y (lock / unlock), slots 163..165. Every fleet group order is one PortExtension
   event (id 63) of subtype `kFleetGroupSubtype`, so the original event catalogue is unchanged.
 
+## Modern HUD: exception to the current focus
+
+Gabriel, 2026-11-24. A named exception to "Current focus: parity tiers 1 and 2 only".
+
+A second HUD style, Modern, is built for tactical battles (space and land) and the galactic map, although retail has
+only one HUD. Spec: issue #520; design: the claude.ai canvas "Modern HUD redesign" (v2, 2026-11-24). Rules:
+
+- **Classic is the retail HUD and stays exactly as it is.** Modern is a separate view over the same HUD feed
+  (`TacticalHudFrame`, `GalacticHudFrame`); it does not change the retail shells, `HudLayout` or the Classic HUD code, so
+  Classic goldens and retail captures must not change.
+- **The player chooses.** Modern or Classic in a port options page, from a switch on the HUD and with a rebindable
+  hotkey; the switch takes effect at once, in battle too. Profile key `hud_style=classic|modern`. **Classic is the
+  default**, and scripted, smoke and benchmark runs always use Classic.
+- **Presentation only.** For the same intent Modern sends the same commands and HUD actions as Classic; the style, its
+  options and its hotkey are never read by the simulation, are not in the command stream, saves or tick CRC.
+- **Modern's readability rules:** text meets Xbox accessibility guideline 101 (18 px at 1080p) at its default text size
+  of 115 %, scalable to 200 %; friend and enemy, hull and shields, and enabled and disabled controls differ by shape or
+  pattern as well as colour.
+- Not part of the exception: restyling the galactic dialogs and side panels, the front end and the pause menu, and a
+  high-legibility font (a font asset needs its own dependency decision under "Approved third-party dependencies").
+
 ## Current focus: parity tiers 1 and 2 only
 
 Gabriel, 2026-11-10, until he lifts it.
 
 Work goes to tier-1 and tier-2 parity (tiers defined in `docs/SIMULATION.md`). Tier-3 work (internals, performance,
 port-only features) is not started unless a section here names it as an exception, as "Fleet groups: exception to the
-current focus", "FSR upscaling" and "XeSS upscaling" do. A crash, hang or save corruption is always fixed regardless of
-tier. Work without a tier (tools, harness, UI) is done when it serves tier-1 or tier-2 work. Lifting the focus is
+current focus", "Modern HUD: exception to the current focus", "Mod support: exception to the current focus", "FSR
+upscaling" and "XeSS upscaling" do. A crash, hang or save corruption is always fixed regardless of tier. Work without a
+tier (tools, harness, UI) is done when it serves tier-1 or tier-2 work. Lifting the focus is
 Gabriel's call.
 
 ## Graphics and display
