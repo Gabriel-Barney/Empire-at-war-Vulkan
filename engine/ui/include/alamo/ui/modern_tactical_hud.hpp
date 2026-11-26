@@ -132,7 +132,7 @@ public:
     // Modern text scale, clamped to kModernTextScaleMin .. kModernTextScaleMax (also set by set_options).
     void set_text_scale(float s);
     // [port] #590 the Interface page's Modern options (clamped): text size, colours, key hints, order labels, panel opacity;
-    // map side and the contextual deck are kept for the deck (#587, #591). Takes effect on the next build().
+    // the contextual deck (#587); the map side is kept for the map (#591). Takes effect on the next build().
     void set_options(const ModernHudOptions& o);
     const ModernHudOptions& options() const { return options_; }
     float text_scale() const { return text_scale_; }
