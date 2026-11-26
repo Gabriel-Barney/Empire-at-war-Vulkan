@@ -278,6 +278,23 @@ std::vector<FleetGroups::Lagging> TacticalBattle::fleet_lagging(const TacticalMo
     return fleet_.lagging([this, &st](objects::ObjectId id) { return fleet_unit_info(st, id); });
 }
 
+static_assert(FleetGroup::kNoFleet == galactic::kNoFleet, "#173: FleetGroup::fleet holds galactic fleet ids");
+
+void TacticalBattle::fleet_join_spawned(const TacticalMode& mode, uint32_t pi, size_t first) {
+    if (!fleet_on_ || finished_ || !movement_ || pi >= parts_.size() || first >= units_.size()) return;
+    const Participant& P = parts_[pi];
+    if (P.built || P.map || P.owner < 0 || P.owner > 255) return;
+    const auto& players = galaxy_->players();
+    if (static_cast<size_t>(P.owner) >= players.size() || !players[static_cast<size_t>(P.owner)].human) return;
+    const uint32_t fleet = galaxy_->fleet_containing(P.galactic);
+    if (fleet == galactic::kNoFleet) return;
+    std::vector<objects::ObjectId> ids;
+    for (size_t i = first; i < units_.size(); ++i)
+        if (units_[i].participant == pi && units_[i].movable) ids.push_back(units_[i].id);
+    const objects::ObjectStore& st = mode.primary();
+    fleet_.join_spawned(static_cast<uint8_t>(P.owner), fleet, ids, [this, &st](objects::ObjectId id) { return fleet_unit_info(st, id); });
+}
+
 void TacticalBattle::fleet_tick(const TacticalMode& mode) {
     if (!fleet_on_ || !fleet_.used() || !movement_) return;
     const objects::ObjectStore& st = mode.primary();

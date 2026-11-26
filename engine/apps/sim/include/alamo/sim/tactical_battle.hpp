@@ -2550,6 +2550,8 @@ private:
     bool fleet_on_ = false;
     FleetUnitInfo fleet_unit_info(const objects::ObjectStore& store, objects::ObjectId id) const;
     void fleet_tick(const TacticalMode& mode);  // prune + speed regulation, after apply_speed_factors
+    // #173: units_[first..] just spawned for participant `pi` join its human owner's group of its galactic fleet.
+    void fleet_join_spawned(const TacticalMode& mode, uint32_t pi, size_t first);
     bool order_busy(objects::ObjectId id, const OrderQueue* q) const;
     bool unit_idle(objects::ObjectId id) const;  // #608 one unit's idle_units rule
     void clear_queues(std::span<const objects::ObjectId> ids);
