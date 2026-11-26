@@ -513,7 +513,7 @@ struct TacticalHudStats {
     uint32_t objectives = 0, objective_lines = 0;
     bool drag_box = false;              // drag-select box drawn
     uint32_t wings = 0;                 // [port: Gabriel] squadron wing buttons drawn
-    uint32_t fleet_tabs = 0;            // [port: Gabriel] fleet group header tabs drawn
+    uint32_t fleet_tabs = 0;            // [port: Gabriel] fleet group header tabs drawn whose centre hits them (#598)
     uint32_t fleet_outlines = 0;        // [port: Gabriel] locked fleet group ground outlines (#178)
     uint32_t fleet_preview = 0;         // [port: Gabriel] move-preview circles (#179)
 };

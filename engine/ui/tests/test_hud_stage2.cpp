@@ -149,6 +149,107 @@ InputState keys_frame(std::initializer_list<uint16_t> pressed, bool shift = fals
     return in;
 }
 
+// #598 [port: Gabriel] fleet groups: two groups, 7 = {20, 21, 23} and 8 = {22}, with 20, 21 and 22 selected, so group 7's
+// tab carries Merge (the selection spans two groups) and Split (group 7 is partly selected). Every group has an ability,
+// so the ability buttons are drawn too.
+struct FleetTabScene {
+    std::vector<HudUnit> units;
+    std::vector<HudFleetGroup> fleets;
+    std::vector<HudTypeInfo> types = std::vector<HudTypeInfo>(2);
+    TacticalHudFrame frame;
+};
+
+FleetTabScene fleet_tab_scene(uint32_t w, uint32_t h) {
+    FleetTabScene s;
+    for (uint32_t i = 0; i < 4; ++i) {
+        HudUnit u;
+        u.id = 20 + i;
+        u.type = i < 2 ? 0u : 1u;
+        u.owner = 0;
+        u.selected = i != 3;
+        u.position = {static_cast<float>(i) * 100.0f - 100.0f, 50.0f, 0};
+        s.units.push_back(u);
+    }
+    s.fleets = {HudFleetGroup{7, U"Vanguard", true, {20, 21, 23}}, HudFleetGroup{8, U"", false, {22}}};
+    s.frame.world.view = top_view2(w, h);
+    s.frame.time = 1.0;
+    s.frame.fleet_groups = s.fleets;
+    s.frame.providers.abilities = [](const SelectedGroup& g, std::vector<HudAbility>& out) {
+        HudAbility a;
+        a.ability_type = g.type == 0 ? 7 : 12;
+        a.icon = "i_icon_unit.tga";
+        out.push_back(a);
+    };
+    return s;
+}
+
+// The centre of every fleet tab, Merge and Split hit box hits that box, not an ability button or another tab. Returns how
+// many such boxes the build has.
+uint32_t check_fleet_targets_on_top(const TacticalHud& hud, const char* what) {
+    uint32_t n = 0;
+    for (const HudHitBox& b : hud.hit_boxes()) {
+        const bool fleet = (b.component >= kFleetTabHitBase && b.component < kFleetTabHitBase + 0x100) ||
+                           (b.component >= kFleetMergeHitBase && b.component < kFleetMergeHitBase + 0x100) ||
+                           (b.component >= kFleetSplitHitBase && b.component < kFleetSplitHitBase + 0x100);
+        if (!fleet) continue;
+        ++n;
+        const Vec2f c{0.5f * (b.min.x + b.max.x), 0.5f * (b.min.y + b.max.y)};
+        const Vec2f px = hud.canvas().canvas_to_pixel(c.x, c.y);
+        const int32_t got = hud.hit_test(static_cast<int32_t>(px.x), static_cast<int32_t>(px.y));
+        if (got != b.component)
+            std::printf("%s: fleet box 0x%08x at (%.1f, %.1f) layer %u is covered by component 0x%08x\n", what,
+                        static_cast<unsigned>(b.component), static_cast<double>(c.x), static_cast<double>(c.y), b.layer,
+                        static_cast<unsigned>(got));
+        CHECK2(got == b.component);
+    }
+    return n;
+}
+
+// The centre of every drawn ability button still hits that button (the fleet tabs take nothing from it).
+uint32_t check_abilities_on_top(const TacticalHud& hud, const ComponentTable& t, const char* what) {
+    uint32_t n = 0;
+    for (const HudHitBox& b : hud.hit_boxes()) {
+        if (b.component < 0 || static_cast<size_t>(b.component) >= t.size()) continue;
+        if (t[static_cast<size_t>(b.component)].name.rfind("special_button_", 0) != 0) continue;
+        ++n;
+        const Vec2f c{0.5f * (b.min.x + b.max.x), 0.5f * (b.min.y + b.max.y)};
+        const Vec2f px = hud.canvas().canvas_to_pixel(c.x, c.y);
+        const int32_t got = hud.hit_test(static_cast<int32_t>(px.x), static_cast<int32_t>(px.y));
+        if (got != b.component)
+            std::printf("%s: ability %s at (%.1f, %.1f) is covered by component 0x%08x\n", what,
+                        t[static_cast<size_t>(b.component)].name.c_str(), static_cast<double>(c.x), static_cast<double>(c.y),
+                        static_cast<unsigned>(got));
+        CHECK2(got == b.component);
+    }
+    return n;
+}
+
+// #598: in the fallback layout the band above the panel's first row is the ability row; the tabs and their Merge / Split
+// buttons stay clickable, and so do the abilities.
+void test_tactical_fleet_tabs_fallback() {
+    const ComponentTable t = stage2_table();
+    const TextureAtlas atlas = stage2_atlas();
+    auto box = make_box_rasterizer();
+    FontCache fonts(*box);
+    TacticalHud hud;
+    hud.init(t, atlas, fonts);
+    for (auto [w, h] : {std::pair{1024u, 768u}, std::pair{1920u, 1080u}}) {
+        hud.resize(w, h);
+        FleetTabScene s = fleet_tab_scene(w, h);
+        TacticalHudFrame off = s.frame;
+        off.fleet_groups = {};
+        hud.build(off, s.units, s.types);
+        const uint64_t retail = hud.draw_list().digest();
+        hud.build(s.frame, s.units, s.types);  // fleet groups off: the feed changes nothing
+        CHECK2(hud.draw_list().digest() == retail && hud.stats().fleet_tabs == 0);
+        s.frame.fleet_groups_on = true;
+        hud.build(s.frame, s.units, s.types);
+        CHECK2(hud.stats().ability_buttons == 2 && hud.stats().fleet_tabs == 2);
+        CHECK2(check_fleet_targets_on_top(hud, "fallback") == 4);  // two tabs, Merge, Split
+        CHECK2(check_abilities_on_top(hud, t, "fallback") == 2);
+    }
+}
+
 // ------------------------------------------------------------------------------------------- shells
 #ifdef ALAMO_UI_HAVE_ASSETS
 std::shared_ptr<assets::ModelAsset> synthetic_shell() {
@@ -319,6 +420,65 @@ void test_real_shell() {
         CHECK2(rd.placed && near2(rd.size.x, 175, 1.0f) && rd.center.x < -0.5f * cv.width + 120.0f);
         // Land reinforcement window: top-left (bones y <= 0 -> origin on the top edge).
         CHECK2(r0.placed && r0.center.y > 0.5f * cv.height - 80.0f && r0.center.x < -0.5f * cv.width + 60.0f);
+    }
+}
+
+// #598: the same as test_tactical_fleet_tabs_fallback on the shipped CommandBarComponents.xml, MT_CommandBar atlas and
+// i_tactical_controls.alo bones.
+void test_real_shell_fleet_tabs() {
+    const char* root = std::getenv("ALAMO_FOC_DATA");
+    if (!root || !*root) {
+        std::printf("real shell fleet tabs: ALAMO_FOC_DATA not set, skipped\n");
+        return;
+    }
+    vfs::VfsConfig cfg;
+    cfg.foc_root = root;
+    std::string err;
+    auto files = vfs::Vfs::create(cfg, &err);
+    CHECK2(files != nullptr);
+    if (!files) return;
+    ComponentTable table;
+    CHECK2(table.load(*files, &err));
+    TextureAtlas atlas;
+    std::vector<uint8_t> mtd;
+    CHECK2(files->read("Data\\Art\\Textures\\MT_CommandBar.mtd", mtd) && atlas.parse(mtd, &err));
+    atlas.add({"i_icon_unit.tga", 0, 0, 30, 30, true});
+    ShellSet set;
+    std::vector<std::string> missing;
+    const std::string names[] = {"i_main_skirmish"};
+    set.load(
+        table,
+        [&](std::string_view name) -> std::shared_ptr<const assets::ModelAsset> {
+            auto m = std::make_shared<assets::ModelAsset>();
+            std::string e;
+            if (!assets::load_model(*files, name, *m, &e)) return nullptr;
+            return m;
+        },
+        names, &missing);
+    CHECK2(set.shells().size() == 1 && missing.empty());
+    auto box = make_box_rasterizer();
+    FontCache fonts(*box);
+    TacticalHud hud;
+    hud.init(table, atlas, fonts);
+    set.apply(hud.layout());
+    for (auto [w, h] : {std::pair{1024u, 768u}, std::pair{1920u, 1080u}, std::pair{2000u, 1125u}}) {
+        hud.resize(w, h);
+        FleetTabScene s = fleet_tab_scene(w, h);
+        s.frame.shells_loaded = true;
+        s.frame.faction_alt = 1;
+        TacticalHudFrame off = s.frame;
+        off.fleet_groups = {};
+        hud.build(off, s.units, s.types);
+        const uint64_t retail = hud.draw_list().digest();
+        hud.build(s.frame, s.units, s.types);  // fleet groups off: the feed changes nothing
+        CHECK2(hud.draw_list().digest() == retail && hud.stats().fleet_tabs == 0);
+        s.frame.fleet_groups_on = true;
+        hud.build(s.frame, s.units, s.types);
+        std::printf("real shell fleet tabs %ux%u: %u tabs, %u ability buttons\n", w, h, hud.stats().fleet_tabs,
+                    hud.stats().ability_buttons);
+        CHECK2(hud.stats().ability_buttons == 2 && hud.stats().fleet_tabs == 2);
+        CHECK2(check_fleet_targets_on_top(hud, "real shell") == 4);
+        CHECK2(check_abilities_on_top(hud, table, "real shell") == 2);
     }
 }
 #endif
@@ -1844,6 +2004,7 @@ int run_stage2_tests() {
     test_shell_models();
 #ifdef ALAMO_UI_HAVE_VFS
     test_real_shell();
+    test_real_shell_fleet_tabs();
 #endif
 #else
     std::printf("stage 2: alamo_assets not configured, shell tests skipped\n");
@@ -1854,6 +2015,7 @@ int run_stage2_tests() {
     test_radar();
     test_markers();
     test_tactical_stage2();
+    test_tactical_fleet_tabs_fallback();  // #598
     test_order_buttons();
     test_bombing_run_button();
     test_garrison_respawn_counter();  // #474
