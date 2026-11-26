@@ -10,9 +10,9 @@
 //
 // Presentation only. Nothing here is written into the sim, and the orbit direction is an unsynced draw.
 // Ported shots: Cinematic View, the hero clash orbit, and the interesting-object shot with its orbit, fly-past and
-// static templates (#568) and its push-in, drive-by and land flying shots (#569). [port] The land bombing run (0x49f370,
-// #563) and the other interesting-object templates (#570 - #572) are not ported yet: they fail, and the next pick is
-// tried, as retail does when a pick fails.
+// static templates (#568), its push-in, drive-by and land flying shots (#569), and its structure, attack-run and
+// fighter shots (#570). [port] The land bombing run (0x49f370, #563) and the hardpoint and glory templates (#571, #572)
+// are not ported yet: they fail, and the next pick is tried, as retail does when a pick fails.
 #pragma once
 
 #include <cstdint>

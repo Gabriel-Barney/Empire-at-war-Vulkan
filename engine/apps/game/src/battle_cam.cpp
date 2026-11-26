@@ -460,9 +460,108 @@ bool fly_past_shot(const InterestingObject& o, bool space, UnsyncedRandom& rng, 
     return true;
 }
 
-BattleCamShot structure_shot(const InterestingObject&, UnsyncedRandom&) { return {}; }
-bool attack_run_shot(const InterestingObject&, UnsyncedRandom&, BattleCamShot&) { return false; }
-BattleCamShot fighter_chase_shot(const InterestingObject&, UnsyncedRandom&) { return {}; }
+BattleCamShot structure_shot(const InterestingObject& o, UnsyncedRandom& rng) {
+    const Vec3 e = o.half_extents;
+    const int32_t n = rng.range(60, 90);
+    const float sx = rng.range(0, 1) == 0 ? 1.0f : -1.0f;
+    const float sy = rng.range(0, 1) == 0 ? 1.0f : -1.0f;
+    BattleCamShot s;
+    s.target = o.id;
+    s.interesting = true;
+    s.look.push_back(key(0, ShotKey::Segment::Spline, true, {}, 0.25f));
+    int32_t count = 1;
+    if (o.target.id != 0) {  // any target: the look turns to it at n
+        ShotKey t = key(n, ShotKey::Segment::Spline, true, {}, 0.25f);
+        t.on_second = true;
+        s.look.push_back(t);
+        s.second = o.target.id;
+        count = 2;
+    }
+    s.eye.push_back(key(0, ShotKey::Segment::Spline, true, {sx * e.x, sy * e.y, 2.0f * e.z}, 0.25f, 0.25f));
+    s.eye.push_back(key(n, ShotKey::Segment::Spline, true, {2.0f * sx * e.x, 2.0f * sy * e.y, 3.0f * e.z}, 0.25f, 0.25f));
+    s.length = count * n;
+    return s;
+}
+
+namespace {
+float yaw_degrees(const ObjectFrame& f) { return std::atan2(f.axis[0].y, f.axis[0].x) / kDegToRad; }  // +0x8c
+}  // namespace
+
+bool attack_run_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCamShot& out) {
+    const Vec3 e = o.half_extents;
+    const float m = std::max(e.x, e.z);
+    const int32_t t = rng.range(90, 120);
+    const float y1 = static_cast<float>(rng.range(5, 10)) * e.y;
+    const float y2 = -static_cast<float>(rng.range(5, 10)) * e.y;
+    float sn[3], cs[3];
+    for (int k = 0; k < 3; ++k) {  // retail bug: the degrees are converted to radians twice, so a_k is 0..6.3 degrees
+        const float a = static_cast<float>(rng.range(0, 360)) * kDegToRad * kDegToRad;
+        sn[k] = std::sin(a);
+        cs[k] = std::cos(a);
+    }
+    const int32_t rz = rng.range(1, 7), rx = rng.range(1, 7);
+    BattleCamShot s;
+    s.target = o.id;
+    s.interesting = true;
+    s.eye.push_back(key(0, ShotKey::Segment::Spline, true, {static_cast<float>(rx) * m * sn[0], y1, static_cast<float>(rz) * m * cs[0]}, 0.25f));
+    s.look.push_back(key(0, ShotKey::Segment::Spline, true, {}, 0.25f));
+    // [port] A FLEET target's member draw (0x3965f0) is not made: tactical targets are never fleets.
+    const InterestingTarget& g = o.target;
+    if (g.id == 0 || !g.model) return false;
+    Vec3 d = g.frame.position - o.frame.position;
+    d.z = 0.0f;
+    if (const float len = std::sqrt(dot(d, d)); len > 0.0f) d = d * (1.0f / len);
+    const float yaw = yaw_degrees(o.frame) * kDegToRad;
+    float apart = yaw_degrees(o.frame) - yaw_degrees(g.frame);  // 0x20af60: within 80 degrees is a similar heading
+    while (apart > 180.0f) apart -= 360.0f;
+    while (apart <= -180.0f) apart += 360.0f;
+    if (std::fabs(apart) <= 80.0f) return false;
+    if (std::cos(yaw) * d.x + std::sin(yaw) * d.y < std::cos(30.0f * kDegToRad)) return false;  // the nose cone
+    s.eye.push_back(key(t, ShotKey::Segment::Spline, true, {sn[1] * e.x, (y1 + y2) * 0.5f, cs[1] * e.z}));
+    ShotKey e3 = key(2 * t, ShotKey::Segment::Spline, true, {0.0f, -1.5f * g.half_extents.y, 2.0f * g.half_extents.z}, 0.0f, 0.5f);
+    e3.on_second = true;
+    s.eye.push_back(e3);
+    ShotKey l2 = key(2 * t, ShotKey::Segment::Spline, true, {}, 0.0f, 0.25f);
+    l2.on_second = true;
+    s.look.push_back(l2);
+    s.second = g.id;
+    s.length = 2 * t;
+    s.handheld = true;
+    s.handheld_frames = 2 * t;
+    s.smoothing = 0.9f;
+    out = std::move(s);
+    return true;
+}
+
+BattleCamShot fighter_chase_shot(const InterestingObject& o, UnsyncedRandom& rng) {
+    const float e = length(o.half_extents);  // [port] retail's ModelBox (the TEAM box without a model); one box here
+    const int32_t deg = rng.range(0, 1) == 0 ? rng.range(135, 225) : rng.range(-45, 45);
+    const float c = std::cos(static_cast<float>(deg) * kDegToRad), sn = std::sin(static_cast<float>(deg) * kDegToRad);
+    BattleCamShot s;
+    s.target = o.id;
+    s.interesting = true;
+    int32_t n = 0;
+    if (rng.range(0, 1) == 0) {  // A: off the nose or the tail, drifting sideways
+        n = rng.range(2 * kCinematicFps, 4 * kCinematicFps);
+        const float sgn = rng.range(0, 1) != 0 ? -1.0f : 1.0f;
+        const float y1 = rng.rangef(3.0f, 7.0f) * sgn * e;
+        s.eye.push_back(key(0, ShotKey::Segment::Spline, true, {6.0f * e * c, y1, 6.0f * e * sn}, 0.1f));
+        const float y2 = rng.rangef(2.0f, 9.0f) * sgn * e;
+        s.eye.push_back(key(n, ShotKey::Segment::Spline, true, {6.0f * e * c, y2, 6.0f * e * sn}, 0.1f));
+    } else {  // B: a side-to-side pass
+        n = 4 * kCinematicFps;
+        const float y1 = -rng.rangef(6.0f, 8.0f) * e;
+        s.eye.push_back(key(0, ShotKey::Segment::Spline, true, {3.0f * e * c, y1, 3.0f * e * sn}, 0.1f));
+        const float y2 = rng.rangef(2.0f, 4.0f) * e;
+        s.eye.push_back(key(n, ShotKey::Segment::Spline, true, {3.0f * e * c, y2, 3.0f * e * sn}, 0.1f));
+    }
+    s.look.push_back(key(0, ShotKey::Segment::Hold, true, {}));
+    s.length = n;
+    s.smoothing = 0.99f;
+    s.handheld = true;
+    s.handheld_frames = n;
+    return s;
+}
 
 bool push_in_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCamShot& out) {
     if (!o.model) return false;
@@ -537,18 +636,32 @@ bool land_flying_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCam
 
 bool interesting_shot(const InterestingObject& o, bool space, const InterestingCategories& c, UnsyncedRandom& rng,
                       BattleCamShot& out) {
-    // Steps 1 - 4 (docs/re/BATTLE_CAM.md "The dispatcher"): the glory files (#572), the hardpoint shot (#571) and the
-    // fighter chase (#570) are not ported: they fail and fall through. Step 2 (the terrain clamp) is BattleCam::start's.
+    // Steps 1 - 3 (docs/re/BATTLE_CAM.md "The dispatcher"): the glory files (#572) and the hardpoint shot (#571) are not
+    // ported: they fail and fall through. Step 2 (the terrain clamp) is BattleCam::start's.
+    if ((o.category & c.fighter) != 0) {  // step 4
+        out = fighter_chase_shot(o, rng);
+        return true;
+    }
     if ((o.category & c.infantry) != 0 && push_in_shot(o, rng, out)) return true;  // step 5
     if (rng.range(0, 3) == 0) {  // step 6: the static shot for a quarter of what gets here
         out = static_shot(o, space, rng);
         return true;
     }
-    if ((o.category & (c.corvette | c.bomber)) != 0) (void)rng.range(0, 1);  // step 7's coin: attack run / chase (#570)
-    // Step 8 (frigate: the attack run, #570) is not ported yet.
+    if ((o.category & (c.corvette | c.bomber)) != 0) {  // step 7: the attack run or the chase, on a coin
+        if (rng.range(0, 1) == 0) {
+            if (attack_run_shot(o, rng, out)) return true;
+        } else {
+            out = fighter_chase_shot(o, rng);
+            return true;
+        }
+    }
+    if ((o.category & c.frigate) != 0 && attack_run_shot(o, rng, out)) return true;  // step 8
     if ((o.category & c.vehicle) != 0 && drive_by_shot(o, rng, out)) return true;  // step 9
-    // Step 10 (no locomotor: the structure shot, #570) is not ported yet; it falls through to step 12.
-    if (o.locomotor) {  // step 11: a flyer (in space too), then on land by size
+    if (!o.locomotor) {  // step 10: the structure shot (it never fails)
+        out = structure_shot(o, rng);
+        return true;
+    }
+    {  // step 11: a flyer (in space too), then on land by size
         if (o.flying && land_flying_shot(o, rng, out)) return true;
         if (!space && (length(o.half_extents) < 30.0f ? push_in_shot(o, rng, out) : drive_by_shot(o, rng, out))) return true;
     }

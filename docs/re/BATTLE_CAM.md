@@ -129,9 +129,9 @@ The effect's vtable is `0x8fedb8` (apply `0x7d97d0`, the fbm shake). In `0x7d93a
 
 Who starts it:
 - the hero clash and Cinematic View (every view step), with dur 0x3fffffff;
-- the static interesting-object shot, with dur 60, and the infantry push-in, with its length. The attack run, the
-  hardpoint and fighter templates use it too (#570, #571); the orbit, the fly-past, the drive-by and the land flying
-  shot don't.
+- the static interesting-object shot, with dur 60; the infantry push-in and the fighter chase, with their length; the
+  attack run, with 2T. The hardpoint shot uses it too (#571); the orbit, the fly-past, the drive-by, the land flying
+  and the structure shots don't.
 
 The bombing run and the TSW shot don't.
 
@@ -252,13 +252,13 @@ It clears every key list and the shake trackers (`0x4a7a90`), but not the smooth
 1. the type's Glory_Cinematics files (`0x4a3b40`, #572), which clear +0x315;
 2. +0x315 = 1, the land terrain clamp, for every generated shot;
 3. a drawn hardpoint with a target: the hardpoint shot (`0x4a47d0`, #571);
-4. Fighter: the chase (`0x4a0140`, #570);
+4. Fighter: **the chase** (`0x4a0140`);
 5. Infantry: **the push-in** (`0x4a4e30`);
 6. `rand(0, 3) == 0`: **the static shot** (`0x4a17c0`);
-7. Corvette or Bomber: `rand(0, 1) == 0` ? the attack run (`0x4a26f0`) : the chase (#570);
-8. Frigate: the attack run (#570);
+7. Corvette or Bomber: `rand(0, 1) == 0` ? **the attack run** (`0x4a26f0`) : the chase; a failed attack run goes on;
+8. Frigate: the attack run;
 9. Vehicle: **the drive-by** (`0x4a6dd0`);
-10. no locomotor: the structure shot (`0x49f880`, #570), and on failure step 12;
+10. no locomotor: **the structure shot** (`0x49f880`), which never fails;
 11. flying: **the land flying shot** (`0x4a23d0`); then, on land only, \|E\| < 30 ? the push-in : the drive-by, and on
     failure step 12 (in space, straight to step 12);
 12. `rand(0, 1) == 0` ? **the orbit** (`0x4a0830`) : **the fly-past** (`0x4a1c90`).
@@ -299,8 +299,32 @@ End_Cinematic_Mode zeroes it. The hero clash sets none, so a clash chained after
 
 The look filter flag +0x1bd that the push-in and the land flying shot set only matters after a glory shot (#572).
 
+- **Structure `0x49f880`** (no locomotor): n = rand(60, 90), then sx and sy (each zero = +1). The eye pulls back from
+  (sx Ex, sy Ey, 2 Ez) to (2 sx Ex, 2 sy Ey, 3 Ez) over n, eases 0.25 / 0.25. The look holds on the structure; when it
+  has a target (any), a second look key at n turns to the target. Length n × (1 or 2), no noise, smoothing inherited.
+- **Attack run `0x4a26f0`** (Corvette / Bomber on a coin, Frigate): T = rand(90, 120), y1 = rand(5, 10)·Ey,
+  y2 = −rand(5, 10)·Ey, three angles a_k = rand(0, 360)·(π/180)² (retail converts to radians twice, so they stay
+  under 6.3°), then rand(1, 7) for z and for x. The first keys ride the hull: eye (x·M_·sin a0, y1, z·M_·cos a0) with
+  M_ = max(Ex, Ez), look on the object. It needs a target with a model, more than 80° of heading apart
+  (`0x20af60`: |wrapped yaw difference| ≤ 80 is a similar heading) and inside the 30° cone off the nose. Then eye
+  (sin a1·Ex, (y1 + y2) / 2, cos a1·Ez) at T, eye on the **target** (0, −1.5 Ey, 2 Ez) at 2T (ease in 0.5), and the
+  look on the target at 2T (ease in 0.25). Length 2T, handheld for 2T, smoothing 0.9. On a failure every draw has
+  been made, and the dispatcher goes on.
+- **Fighter chase `0x4a0140`**: e = |E|; θ = rand(0, 1) == 0 ? rand(135, 225) : rand(−45, 45) degrees (behind or
+  ahead), c = cos θ, s = sin θ. Variant rand(0, 1):
+  - A: n = rand(2, 4) s, side = rand(0, 1) ? −1 : +1, eye (6e c, side·randf(3, 7)·e, 6e s) → (6e c, side·randf(2, 9)·e,
+    6e s);
+  - B: n = 4 s, eye (3e c, −randf(6, 8)·e, 3e s) → (3e c, randf(2, 4)·e, 3e s).
+
+  Eye eases out 0.1; the look holds on the fighter. Length n, smoothing 0.99, handheld for n. Retail also runs a
+  CameraAnimeSpiral wander (frequency 0.001, amplitudes 10e / e / 10e); its parameter slots are [M], so it is left out.
+
 Translate-only (+0x51) places an attached key at the object's position plus the offset in world axes, so the object's
 turning does not swing the camera.
+
+**A second object per key** (+0x2c holds another id, resolved per key by `0x49d640`): the attack run's last eye and look
+keys and the structure shot's second look key sit on the target. The port marks them `ShotKey::on_second`, with the
+id in `BattleCamShot::second`; the host resolves both objects each frame (`KeyAnchors`).
 
 ### The chain: `0x4aaf00` → `0x2cda20` [H]
 
@@ -388,10 +412,14 @@ The TSW firing shot is state 3 too. `0x2ccf30` sets the baseline at Fire, and ev
 
 All of them are presentation: no sim state, no synced draw, so tiers 2 and 3 are untouched. Camera feel is tier 1, so
 each of these is a known gap rather than an accepted difference:
-- The not-ported picks and templates: the bombing run (#563); the glory, hardpoint, fighter, attack-run and structure
-  templates (#570 - #572) fail and fall through, so their objects get the static shot, the orbit or the fly-past. The
+- The not-ported picks and templates: the bombing run (#563); the glory and hardpoint templates (#571, #572) fail and
+  fall through. The
   3/4 hardpoint draw is made, but no hardpoint is picked, and its index draws are not made, so for an object with
   hardpoints the later draws differ from retail's (#571).
+- The fighter chase leaves out retail's CameraAnimeSpiral wander (parameter slots [M]); its box is the one box, where
+  retail reads the ModelBox, or the TEAM box without a model.
+- The attack run makes no FLEET member draw (`0x3965f0`): tactical targets are never fleets.
+- A target that is no longer drawn: its keys fall back to the framed object (retail's lookup of a gone id is [L]).
 - The look-filter flag +0x1bd (set by the attack run, the push-in, the land flying shot and the fly-past) is not kept;
   it only matters after a glory shot turns the filter on (#572).
 - The interesting object's fields, read from the port's objects: "in the world, not hidden" (+0x39f, +0x3a0 & 0x40) is
@@ -432,8 +460,8 @@ start stops a running TSW shot.
 
 ## Open
 
-- The interesting-object templates not ported yet (#570 - #572) and a second object per key (the attack run's and
-  the structure shot's target).
+- The interesting-object templates not ported yet: the hardpoint shot (#571) and the glory files (#572).
+- The fighter chase's CameraAnimeSpiral parameter slots (+0x38..+0x50).
 - The bombing-run shot `0x49f370` (#563).
 - The exact axes of `0x4a6790`'s rotation.
 - `0x49a610` (polar interpolation), the look smoothing `0x4a96d0`, the roll keys (#562: only its templates use them).
