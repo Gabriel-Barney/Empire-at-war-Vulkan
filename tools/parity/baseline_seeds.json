@@ -1,8 +1,9 @@
 {
- "commit": "2bcc1e2a+bkx1",
+ "commit": "e6ab3d52",
  "mode": "distribution",
  "scenarios": {
   "geonosis_skirmish": {
+   "commit": "2bcc1e2a+bkx1",
    "references": [
     "20261030-062751-skirmish-vanilla-lua",
     "20261108-204213-skirmish-vanilla-lua",
@@ -65,6 +66,7 @@
    }
   },
   "hotm_galactic": {
+   "commit": "e6ab3d52",
    "references": [
     "20261108-170824-galactic-vanilla-lua",
     "20261030-061228-galactic-vanilla-lua",
@@ -90,7 +92,7 @@
    ],
    "status": {
     "ai.build_count[Empire]": "PASS",
-    "ai.build_count[Rebel]": "FAIL",
+    "ai.build_count[Rebel]": "PASS",
     "ai.build_count[Underworld]": "PASS",
     "ai.build_mix[Empire]": "PASS",
     "ai.build_mix[Rebel]": "FAIL",
@@ -106,25 +108,28 @@
     "ai.fleet_targets[Empire]": "PASS",
     "ai.fleet_targets[Rebel]": "PASS",
     "ai.fleet_targets[Underworld]": "PASS",
+    "build.ticks[CORELLIAN_GUNBOAT@NABOO/c]": "PASS",
     "build.ticks[CORELLIAN_GUNBOAT@NABOO]": "PASS",
     "build.ticks[CRUSADER_GUNSHIP@FELUCIA]": "PASS",
     "build.ticks[CRUSADER_GUNSHIP@NALHUTTA]": "PASS",
     "build.ticks[DESTROYER_DROID_COMPANY@NALHUTTA]": "FAIL",
     "build.ticks[INTERCEPTOR4_FRIGATE@THE_MAW]": "PASS",
-    "build.ticks[MAL_ROCKET_VEHICLE_COMPANY@NALHUTTA]": "PASS",
     "build.ticks[REBEL_GROUND_MINING_FACILITY@KAMINO]": "PASS",
     "build.ticks[REBEL_GROUND_MINING_FACILITY@MONCALIMARI]": "PASS",
-    "build.ticks[REBEL_GROUND_MINING_FACILITY@NABOO]": "PASS",
-    "build.ticks[REBEL_INFANTRY_SQUAD@KAMINO]": "FAIL",
+    "build.ticks[REBEL_GROUND_MINING_FACILITY@NABOO/c]": "PASS",
+    "build.ticks[REBEL_INFANTRY_SQUAD@KAMINO]": "PASS",
     "build.ticks[REBEL_INFANTRY_SQUAD@MONCALIMARI]": "PASS",
-    "build.ticks[REBEL_INFANTRY_SQUAD@NABOO]": "FAIL",
+    "build.ticks[REBEL_INFANTRY_SQUAD@NABOO/n2/c]": "PASS",
+    "build.ticks[REBEL_INFANTRY_SQUAD@NABOO]": "PASS",
     "build.ticks[REBEL_LIGHT_TANK_BRIGADE@YAVIN]": "PASS",
     "build.ticks[REBEL_TANK_BUSTER_SQUAD@KAMINO]": "PASS",
-    "build.ticks[REBEL_TANK_BUSTER_SQUAD@NABOO]": "FAIL",
+    "build.ticks[REBEL_TANK_BUSTER_SQUAD@NABOO/c]": "PASS",
+    "build.ticks[REBEL_TANK_BUSTER_SQUAD@NABOO/n2/c]": "PASS",
+    "build.ticks[REBEL_TANK_BUSTER_SQUAD@NABOO]": "PASS",
     "build.ticks[R_GALACTIC_TURBOLASER_TOWER_DEFENSES@YAVIN]": "PASS",
     "build.ticks[R_GROUND_BARRACKS@KAMINO]": "PASS",
-    "build.ticks[R_GROUND_BARRACKS@NABOO]": "PASS",
-    "build.ticks[R_GROUND_HEAVY_VEHICLE_FACTORY@YAVIN]": "PASS",
+    "build.ticks[R_GROUND_BARRACKS@NABOO/c]": "PASS",
+    "build.ticks[R_GROUND_BARRACKS@SHOLA]": "PASS",
     "build.ticks[UNDERWORLD_DISRUPTOR_MERC_SQUAD@NALHUTTA]": "PASS",
     "build.ticks[UNDERWORLD_MDU_COMPANY@SHOLA]": "FAIL",
     "build.ticks[UNDERWORLD_MERC_SQUAD@FELUCIA]": "PASS",
@@ -136,13 +141,13 @@
     "diag.rng_draws_total": "INFO",
     "econ.credits_at_13500[Empire]": "PASS",
     "econ.credits_at_13500[Rebel]": "PASS",
-    "econ.credits_at_13500[Underworld]": "FAIL",
+    "econ.credits_at_13500[Underworld]": "PASS",
     "econ.credits_at_4500[Empire]": "PASS",
     "econ.credits_at_4500[Rebel]": "PASS",
     "econ.credits_at_4500[Underworld]": "PASS",
     "econ.credits_at_9000[Empire]": "PASS",
     "econ.credits_at_9000[Rebel]": "PASS",
-    "econ.credits_at_9000[Underworld]": "PASS",
+    "econ.credits_at_9000[Underworld]": "FAIL",
     "econ.cycle_tick[10]": "PASS",
     "econ.cycle_tick[1]": "PASS",
     "econ.cycle_tick[2]": "PASS",
@@ -154,8 +159,8 @@
     "econ.cycle_tick[8]": "PASS",
     "econ.cycle_tick[9]": "PASS",
     "econ.income_cycle1[Empire]": "PASS",
-    "econ.income_cycle1[Rebel]": "PASS",
-    "econ.income_cycle1[Underworld]": "PASS",
+    "econ.income_cycle1[Rebel]": "INFO",
+    "econ.income_cycle1[Underworld]": "INFO",
     "econ.income_mean[Empire]": "PASS",
     "econ.income_mean[Rebel]": "PASS",
     "econ.income_mean[Underworld]": "PASS",
@@ -178,6 +183,7 @@
     "travel.hop_ticks[Rebel:KASHYYYK->THE_MAW]": "PASS",
     "travel.hop_ticks[Rebel:KUAT->CORELLIA]": "PASS",
     "travel.hop_ticks[Rebel:KUAT->KASHYYYK]": "PASS",
+    "travel.hop_ticks[Rebel:MONCALIMARI->KAMINO]": "PASS",
     "travel.hop_ticks[Rebel:MONCALIMARI->SHOLA]": "PASS",
     "travel.hop_ticks[Rebel:MONCALIMARI->YAVIN]": "PASS",
     "travel.hop_ticks[Rebel:NABOO->SHOLA]": "PASS",
@@ -187,6 +193,7 @@
     "travel.hop_ticks[Rebel:SHOLA->MONCALIMARI]": "PASS",
     "travel.hop_ticks[Rebel:SHOLA->NABOO]": "PASS",
     "travel.hop_ticks[Rebel:SHOLA->NALHUTTA]": "PASS",
+    "travel.hop_ticks[Rebel:SHOLA->THE_MAW]": "PASS",
     "travel.hop_ticks[Rebel:TATOOINE->CORELLIA]": "PASS",
     "travel.hop_ticks[Rebel:TATOOINE->NABOO]": "PASS",
     "travel.hop_ticks[Rebel:THE_MAW->YAVIN]": "PASS",
@@ -205,14 +212,14 @@
     "travel.hop_ticks[Underworld:MONCALIMARI->YAVIN]": "PASS",
     "travel.hop_ticks[Underworld:NABOO->SHOLA]": "PASS",
     "travel.hop_ticks[Underworld:NABOO->TATOOINE]": "PASS",
-    "travel.hop_ticks[Underworld:NALHUTTA->KASHYYYK]": "PASS",
+    "travel.hop_ticks[Underworld:NALHUTTA->KASHYYYK]": "FAIL",
     "travel.hop_ticks[Underworld:NALHUTTA->SHOLA]": "FAIL",
     "travel.hop_ticks[Underworld:SHOLA->MONCALIMARI]": "PASS",
     "travel.hop_ticks[Underworld:SHOLA->NABOO]": "PASS",
     "travel.hop_ticks[Underworld:SHOLA->NALHUTTA]": "FAIL",
     "travel.hop_ticks[Underworld:SHOLA->THE_MAW]": "PASS",
     "travel.hop_ticks[Underworld:TATOOINE->CORELLIA]": "PASS",
-    "travel.hop_ticks[Underworld:TATOOINE->NABOO]": "PASS",
+    "travel.hop_ticks[Underworld:TATOOINE->NABOO]": "FAIL",
     "travel.hop_ticks[Underworld:THE_MAW->KASHYYYK]": "FAIL",
     "travel.hop_ticks[Underworld:THE_MAW->SHOLA]": "FAIL",
     "travel.hop_ticks[Underworld:THE_MAW->YAVIN]": "PASS",
@@ -221,9 +228,9 @@
    },
    "summary": {
     "AI choices": {
-     "FAIL": 2,
+     "FAIL": 1,
      "N/A": 1,
-     "PASS": 14
+     "PASS": 15
     },
     "battle outcomes": {
      "FAIL": 2,
@@ -234,11 +241,12 @@
     },
     "income": {
      "FAIL": 1,
-     "PASS": 24
+     "INFO": 2,
+     "PASS": 22
     },
     "timing": {
-     "FAIL": 10,
-     "PASS": 67
+     "FAIL": 9,
+     "PASS": 73
     }
    }
   }
