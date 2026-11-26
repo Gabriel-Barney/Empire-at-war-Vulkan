@@ -49,6 +49,19 @@ BEGIN
     COMBOBOX        IDC_PLAYER_FACTION_0,300,300,100,128,CBS_DROPDOWNLIST | WS_TABSTOP
     COMBOBOX        IDC_PLAYER_FACTION_1,300,320,100,128,CBS_DROPDOWNLIST | WS_TABSTOP
     COMBOBOX        IDC_PLAYER_FACTION_2,300,340,100,128,CBS_DROPDOWNLIST | WS_TABSTOP
+    COMBOBOX        IDC_PLAYER_NAME_3,410,348,100,128,CBS_DROPDOWNLIST | WS_TABSTOP
+    COMBOBOX        IDC_PLAYER_NAME_4,410,356,100,128,CBS_DROPDOWNLIST | WS_TABSTOP
+    COMBOBOX        IDC_PLAYER_NAME_5,410,364,100,128,CBS_DROPDOWNLIST | WS_TABSTOP
+    COMBOBOX        IDC_PLAYER_NAME_6,410,372,100,128,CBS_DROPDOWNLIST | WS_TABSTOP
+    COMBOBOX        IDC_PLAYER_NAME_7,410,380,100,128,CBS_DROPDOWNLIST | WS_TABSTOP
+    COMBOBOX        IDC_PLAYER_TEAM_0,250,300,40,128,CBS_DROPDOWNLIST | WS_TABSTOP
+    COMBOBOX        IDC_PLAYER_TEAM_1,250,310,40,128,CBS_DROPDOWNLIST | WS_TABSTOP
+    COMBOBOX        IDC_PLAYER_TEAM_2,250,320,40,128,CBS_DROPDOWNLIST | WS_TABSTOP
+    COMBOBOX        IDC_PLAYER_TEAM_3,250,330,40,128,CBS_DROPDOWNLIST | WS_TABSTOP
+    COMBOBOX        IDC_PLAYER_TEAM_4,250,340,40,128,CBS_DROPDOWNLIST | WS_TABSTOP
+    COMBOBOX        IDC_PLAYER_TEAM_5,250,350,40,128,CBS_DROPDOWNLIST | WS_TABSTOP
+    COMBOBOX        IDC_PLAYER_TEAM_6,250,360,40,128,CBS_DROPDOWNLIST | WS_TABSTOP
+    COMBOBOX        IDC_PLAYER_TEAM_7,250,370,40,128,CBS_DROPDOWNLIST | WS_TABSTOP
     PUSHBUTTON      "x",IDC_SELECT_OPTIONS,240,398,150,24
 END
 
@@ -449,6 +462,40 @@ void test_skirmish_colours() {
     bare.acts.clear();
     bare.click(kStaging, "IDC_SKIRMISH_START_GAME_BUTTON");
     CHECK(bare.acts.size() == 1 && bare.acts[0].colors == (std::vector<int32_t>{0, 1}));
+}
+
+// #435 (docs/re/SKIRMISH_DEFAULT_TEAMS.md [H]): with the team boxes untouched, slot 0 is team 1, the AI slot team 2 and every
+// slot opened later team 1 (0xf1230 / 0x2c1f0 / 0xf2690). Start carries those teams.
+void test_skirmish_default_teams() {
+    Rig rig({map_row("_MP_LAND_EIGHT", "", 8, false, false)});
+    rig.env.text.add("TEXT_EASY_AI_PLAYER", u"Easy");
+    rig.env.text.add("TEXT_MEDIUM_AI_PLAYER", u"Medium");
+    rig.env.text.add("TEXT_HARD_AI_PLAYER", u"Hard");
+    rig.env.text.add("TEXT_OPEN_PLAYER", u"Open");
+    rig.open_staging();
+    rig.select(0);
+    std::vector<int32_t> rows;
+    for (int32_t p = 0; p < 8; ++p) {
+        const std::string id = "IDC_PLAYER_TEAM_" + std::to_string(p);
+        const GuiControl* t = rig.control(id.c_str());
+        rows.push_back(t && t->visible && t->items.size() == 8 ? t->selected : -9);
+    }
+    CHECK(rows == (std::vector<int32_t>{0, 1, 0, 0, 0, 0, 0, 0}));
+    for (int32_t p = 2; p < 8; ++p) {  // open every slot as an Easy AI; the team boxes stay untouched
+        const std::string id = "IDC_PLAYER_NAME_" + std::to_string(p);
+        rig.env.gui.find(kStaging)->set_selected(id, 1);
+        rig.fe.update(std::vector<GuiEvent>{event(GuiEvent::Kind::SelectionChanged, kStaging, id, 1)}, InputFrame{}, rig.acts);
+    }
+    for (int32_t p = 0; p < 8; ++p) {
+        const std::string id = "IDC_PLAYER_TEAM_" + std::to_string(p);
+        const GuiControl* t = rig.control(id.c_str());
+        CHECK(t && t->selected == (p == 1 ? 1 : 0));
+    }
+    CHECK(rig.start() == "_MP_LAND_EIGHT");
+    CHECK(rig.acts.size() == 1 && rig.acts[0].teams == (std::vector<int32_t>{1, 2, 1, 1, 1, 1, 1, 1}));
+    std::printf("skirmish default teams: slots 0..7 open on");
+    for (int32_t r : rows) std::printf(" %d", r + 1);
+    std::printf("\n");
 }
 
 // modc t47 (SKIRMISH_SETUP §2.8): the staging dialog opens slot 0 on the profile's faction (by name; row 0 when none is
