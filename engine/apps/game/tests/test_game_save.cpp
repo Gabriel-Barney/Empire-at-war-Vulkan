@@ -67,7 +67,10 @@ void order_units(game::GameSession& s) {
         const objects::ObjectHandle h = store.find(id);
         if (!store.alive(h)) continue;
         if (store.owner(h) == s.local_player()) mine.push_back(static_cast<uint32_t>(id));
-        else if (enemy == 0 && b->combat().has_unit(id)) enemy = static_cast<uint32_t>(id);
+        // #581: an enemy of the local player - since #334 t01 an Is_Neutral map unit is a combat unit too, and an attack
+        // on a unit that is no enemy is refused (#549; TACTICAL_COMBAT §2.10: an Is_Neutral player is no one's enemy)
+        else if (enemy == 0 && b->combat().has_unit(id) && b->combat().is_enemy(s.local_player(), store.owner(h)))
+            enemy = static_cast<uint32_t>(id);
     }
     CHECK(mine.size() >= 2 && enemy != 0);
     if (mine.size() < 2 || enemy == 0) return;
