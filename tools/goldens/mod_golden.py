@@ -69,22 +69,24 @@ def find_mod(game: str, mod_id: str) -> str | None:
 
 
 def fingerprint(mod_check: str, game: str, mod_id: str, run=subprocess.run) -> str | None:
-    """The workshop item's content_hash (16 hex digits) in alamo_mod_check --list-mods, or None when it is not listed."""
+    """The workshop item's content_hash (16 hex digits) in alamo_mod_check --list-mods, or None when it is not listed.
+
+    The item's main modinfo entry (variant "") is preferred; its <variant>-modinfo.json entries share the folder and so
+    the hash, and stand in when the folder has no main entry."""
     out = run([mod_check, "--game", game, "--list-mods", "--json", "-"], capture_output=True, text=True, encoding="utf-8")
     if out.returncode != 0:
         raise RuntimeError(f"alamo_mod_check --list-mods failed ({out.returncode}): {out.stderr.strip()}")
-    for m in json.loads(out.stdout).get("mods", []):
-        if m.get("kind") == "workshop" and m.get("id") == mod_id:
-            return m.get("content_hash")
-    return None
+    items = [m for m in json.loads(out.stdout).get("mods", []) if m.get("kind") == "workshop" and m.get("id") == mod_id]
+    items.sort(key=lambda m: m.get("variant", "") != "")  # the main entry first (stable)
+    return items[0].get("content_hash") if items else None
 
 
 def _selftest() -> int:
     listing = {"schema": "alamo.mod_list", "version": 1, "game": "G", "mods": [
-        {"key": "MODPATH=Mods/X", "kind": "local", "id": "1125571106", "content_hash": "1111111111111111"},
-        {"key": "STEAMMOD=1125571106", "kind": "workshop", "id": "1125571106", "content_hash": "755e1df113e97c7e"},
-        {"key": "STEAMMOD=1125571106;v2", "kind": "workshop", "id": "1125571106", "content_hash": "755e1df113e97c7e"},
-        {"key": "STEAMMOD=2", "kind": "workshop", "id": "2", "content_hash": "2222222222222222"}]}
+        {"key": "MODPATH=Mods/X", "kind": "local", "id": "1125571106", "variant": "", "content_hash": "1111111111111111"},
+        {"key": "STEAMMOD=1125571106:v2", "kind": "workshop", "id": "1125571106", "variant": "v2", "content_hash": "3333333333333333"},
+        {"key": "STEAMMOD=1125571106", "kind": "workshop", "id": "1125571106", "variant": "", "content_hash": "755e1df113e97c7e"},
+        {"key": "STEAMMOD=2:only", "kind": "workshop", "id": "2", "variant": "only", "content_hash": "2222222222222222"}]}
     calls = []
 
     class Done:
@@ -97,16 +99,17 @@ def _selftest() -> int:
 
     fails = 0
     checks = [
-        (fingerprint("mc.exe", "G", "1125571106", ok) == "755e1df113e97c7e", "the workshop entry's content_hash, not the local entry's"),
-        (fingerprint("mc.exe", "G", "2", ok) == "2222222222222222", "a second item"),
+        (fingerprint("mc.exe", "G", "1125571106", ok) == "755e1df113e97c7e", "the workshop item's main entry, not a variant or a local mod"),
+        (fingerprint("mc.exe", "G", "2", ok) == "2222222222222222", "a variant when the item has no main entry"),
         (fingerprint("mc.exe", "G", "3", ok) is None, "an item that is not listed"),
         (calls[0] == ["mc.exe", "--game", "G", "--list-mods", "--json", "-"], "the command line"),
     ]
     try:
         fingerprint("mc.exe", "G", "2", lambda cmd, **_: Done(1, ""))
-        checks.append((False, "a failing tool raises"))
+        raised = False
     except RuntimeError:
-        pass
+        raised = True
+    checks.append((raised, "a failing tool raises"))
     for good, what in checks:
         if not good:
             print("selftest FAIL:", what)
@@ -134,10 +137,6 @@ def main() -> int:
     if not game or not os.path.isdir(game):
         print(f"SKIP mod golden {name}: ALAMO_FOC_DATA not set")
         return 77
-    mod_dir = find_mod(game, spec["mod"])
-    if mod_dir is None:
-        print(f"SKIP mod golden {name}: workshop item {spec['mod']} ({spec.get('name', '')}) not installed next to ALAMO_FOC_DATA")
-        return 77
     if a.fingerprint:
         if not a.mod_check:
             ap.error("--fingerprint needs --mod-check alamo_mod_check.exe")
@@ -147,6 +146,10 @@ def main() -> int:
             return 1
         print(fp)
         return 0
+    mod_dir = find_mod(game, spec["mod"])
+    if mod_dir is None:
+        print(f"SKIP mod golden {name}: workshop item {spec['mod']} ({spec.get('name', '')}) not installed next to ALAMO_FOC_DATA")
+        return 77
     if not a.exe:
         ap.error("--exe is required")
     cmd = [a.exe, "--game", game] + list(spec["args"]) + list(spec.get("stack") or ["STEAMMOD=" + spec["mod"]])
