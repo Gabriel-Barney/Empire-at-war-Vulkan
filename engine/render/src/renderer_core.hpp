@@ -31,7 +31,7 @@ class SsaoPass;         // ssao.hpp: [port] screen-space ambient occlusion
 class SmaaPass;         // smaa.hpp: [port] SMAA 1x
 class TaaPass;          // taa.hpp: [port] temporal anti-aliasing
 class GammaPass;        // gamma.hpp: [port] output gamma
-class FrameFadePass;    // frame_fade.hpp: #66 FrameEffectAlpha
+class FrameFadePass;    // frame_fade_pass.hpp: #66 FrameEffectAlpha
 class FsrPass;          // fsr.hpp: [port] FSR upscaling
 class XessPass;         // xess.hpp: [port] XeSS upscaling
 

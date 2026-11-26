@@ -38,6 +38,8 @@ and the fake motion blur are loaded but never started.
 - Step: +0x38 += dt (`0x1b2260`); done when length ≤ t (`0x1b2280`).
 - Draw (`0x1b22a0`): one full-screen quad with PrevSceneTexture, diffuse colour white and alpha
   `clamp(1 − t / length, 0, 1) × 255`.
+- The blend state lives in the effect file (`FrameEffectAlpha.fx`), which was not read: src-alpha / inverse-src-alpha
+  is assumed from the quad's diffuse alpha [M].
 
 So a request made in frame N captures frame N; frames N+1 and N+2 draw the capture over the new view with alpha 0.6
 and 0.2; at frame N+3 (t = 0.3) the fade is over.
@@ -48,7 +50,8 @@ All in the tactical camera controller (`TacticalCameraControllerClass`, the over
 +0xb0..0xcc of the camera type):
 
 - `0x2ce520` (the zoom notch): the change into overview level 1 or 2 by zooming out at the maximum distance, and the
-  change back to level 0 by zooming in.
+  change down one level by zooming in (level 2 sets the +0x9c countdown, which ends in level 1; level 1 sets +0xa4,
+  which ends in level 0).
 - `0x2d07b0` (hotkey slot 76, Overview): 0 → 1 → 2 → 0.
 - `0x2ce9c0(cam, fade)`: back to level 0, the fade only when `fade` is true. The land / space mode updates (`0x3bad20`,
   `0x4d9110`) call it with true while the battle cam (`CinematicClass 0x140b27a10`) runs; Esc (`0x61fe0`, key 0x1b)
@@ -62,10 +65,12 @@ frame shows the old view.
 
 - `render::FrameFade` (`engine/render/include/alamo/render/frame_fade.hpp`): the request, the 0.1 step, the 0.25 s
   length and the alpha law.
-- `Renderer::apply_frame_fade` (`engine/render/src/frame_fade.cpp`, `shaders/frame_fade.hlsl`): the capture into a
+- `Renderer::apply_frame_fade` (`engine/render/src/frame_fade_pass.cpp`, `shaders/frame_fade.hlsl`): the capture into a
   PrevSceneTexture image and the blended full-screen pass.
 - The game app requests a fade for each battle-camera overview level change
   (`TacticalCameraController::overview_changes`) and draws it over the battle world before the HUD.
+- The camera's zoom-in goes down one level (2 → 1 → 0), as `0x2ce520`.
+- The battle cam leaves an overview level with the fade (`0x2ce9c0(cam, 1)` from the mode updates while the cam runs).
 - Not ported: the wipe and the fake motion blur (no retail trigger); the `0x140b2f1d8` request [L].
 - [port] The camera still blends the overview pose with smoothstep over `overview_blend_time` (0.5 s); retail cuts
   after its 2-frame countdown. The port has no Esc exit from the overview, so every port change fades.

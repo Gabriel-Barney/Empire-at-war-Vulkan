@@ -1,5 +1,5 @@
-// alamo_render FrameEffectAlpha (src/frame_fade.hpp, shaders/frame_fade.hlsl, docs/re/FRAME_EFFECTS.md).
-#include "frame_fade.hpp"
+// alamo_render FrameEffectAlpha (src/frame_fade_pass.hpp, shaders/frame_fade.hlsl, docs/re/FRAME_EFFECTS.md).
+#include "frame_fade_pass.hpp"
 
 #include <memory>
 #include <vector>

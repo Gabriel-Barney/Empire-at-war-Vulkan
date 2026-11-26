@@ -312,7 +312,6 @@ void test_ssao_math() {
     CHECK(tl.x < 0.0f && tl.y > 0.0f);
 }
 
-// Planet spin (legacy docs/re/SPACE_AND_OPEN.md D.7 4): the planets' _IDLE_00 clip turns bone Hoth +360 deg about local Z over
 // #66 FrameEffectAlpha (0x25fb10 / 0x25fb30 / 0x181c50): a request captures the frame it is made in; the next frames
 // draw the capture with alpha 1 - t / 0.25 at t = 0.1, 0.2; at t = 0.3 the fade is over.
 void test_frame_fade() {
@@ -345,6 +344,7 @@ void test_frame_fade() {
     CHECK(s.alpha == 0.0f && !f.active());
 }
 
+// Planet spin (legacy docs/re/SPACE_AND_OPEN.md D.7 4): the planets' _IDLE_00 clip turns bone Hoth +360 deg about local Z over
 // 240 frames at fps 1.0; clip time = ticks / 30 x Idle_Anim_00_Rate_Mod. This checks the time base with
 // assets::sample's generic loop (period = frame count). R3: MapScene itself now wraps at count - 1 like the original
 // (legacy docs/re/ANIM_PARTICLES.md A.9: one revolution per 239 s); that rule is tested in engine/anim (alamo_anim_tests).

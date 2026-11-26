@@ -1647,11 +1647,16 @@ void test_camera_p1() {
     CHECK(sp.overview_level() == 2);
     for (int i = 0; i < 40; ++i) sp.step(0.05f);
     CHECK(near(sp.distance(), 2900.0f) && near(sp.pitch_deg(), 80.0f) && near(sp.fov_deg(), 70.0f));
+    // #66 (0x2ce520): zooming in from level 2 goes to level 1, from level 1 to the normal pose
+    sp.zoom(1.0f);
+    CHECK(sp.overview_level() == 1);
+    for (int i = 0; i < 40; ++i) sp.step(0.05f);
+    CHECK(near(sp.distance(), 2200.0f));
     // halfway through the blend back the pose is between the two
     sp.zoom(1.0f);
     CHECK(sp.overview_level() == 0);
     sp.step(0.25f);
-    CHECK(sp.distance() < 2900.0f && sp.distance() > 1900.0f);
+    CHECK(sp.distance() < 2200.0f && sp.distance() > 1900.0f);
     for (int i = 0; i < 40; ++i) sp.step(0.05f);
     CHECK(near(sp.distance(), 1900.0f) && near(sp.fov_deg(), 55.0f));
     CHECK(near(sp.target_distance(), 1900.0f));  // the normal zoom is untouched by the overview

@@ -1,4 +1,4 @@
-// alamo_render FrameEffectAlpha (render/src/frame_fade.cpp, docs/re/FRAME_EFFECTS.md): one full-screen triangle that
+// alamo_render FrameEffectAlpha (render/src/frame_fade_pass.cpp, docs/re/FRAME_EFFECTS.md): one full-screen triangle that
 // draws the captured previous scene over the frame with alpha Params.x (0x1b22a0 puts (1 - t / length) x 255 in the
 // quad's diffuse alpha), blended src-alpha / inverse-src-alpha.
 struct FadePush {

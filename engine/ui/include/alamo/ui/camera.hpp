@@ -42,8 +42,8 @@
 //   * Tactical overview (Tactical_Overview_*): two overview levels above the normal zoom range. Zooming out with the
 //     target distance already at Distance_Max counts notches; Tactical_Overview_Clicks of them within
 //     Tactical_Overview_Click_Time seconds go up one level (level 2 only when Distance2 > Distance). The overview pose
-//     is (Tactical_Overview_Distance[2], _Pitch[2] (< 0 = keep the current pitch), _FOV[2]); any zoom-in notch goes
-//     back to the normal pose. Hotkey slot 76 (Insert) toggles 0 -> 1 -> 2 -> 0 (toggle_overview). Changes blend with
+//     is (Tactical_Overview_Distance[2], _Pitch[2] (< 0 = keep the current pitch), _FOV[2]); a zoom-in notch goes
+//     down one level (2 -> 1 -> 0; 0x2ce520 [H], #66). Hotkey slot 76 (Insert) toggles 0 -> 1 -> 2 -> 0 (toggle_overview). Changes blend with
 //     smoothstep over CameraTuning::overview_blend_time; splines stay in force underneath.
 //   * Terrain following (Location_Follows_Terrain, Min_Height_Above_Terrain): with a height callback the look-at z
 //     follows the terrain under it (linear smoothing over CameraTuning::terrain_smooth_time; snapped on jumps), and
