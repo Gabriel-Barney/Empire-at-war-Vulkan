@@ -816,12 +816,17 @@ void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> 
                 const TextBlock tb = measure_text_block(*fonts_, canvas_, frame.planet_name, 0.0f, st);
                 add_text_block(dl_, layer_of(c, p), HudList::Text, *fonts_, canvas_, frame.planet_name,
                                {p.center.x, p.center.y + 0.5f * tb.height}, 0.0f, st);
-                // [port: Gabriel 2026-11-13] fleet cohesion: one line above the name, same style
+                // [port: Gabriel 2026-11-13] fleet cohesion: one line above the name, same style. #597: +Y is up, so the
+                // line's bottom edge sits a quarter of the name's line over the name's top (it was drawn below, over the
+                // Tech / population row at bone y 216), and it is squeezed to no less than kCohesionMinWidthScale of its
+                // natural width (it was 0.5 into the name's Max_Text_Width), overhanging that width centred.
                 if (!frame.cohesion_text.empty()) {
-                    st.width_scale = fit_width_scale(measure_text_block(*fonts_, canvas_, frame.cohesion_text, 0.0f, st).width,
-                                                     c.max_text_width);
+                    st.width_scale = 1.0f;
+                    const float natural = measure_text_block(*fonts_, canvas_, frame.cohesion_text, 0.0f, st).width;
+                    st.width_scale = std::max(kCohesionMinWidthScale, fit_width_scale(natural, c.max_text_width));
+                    const float h = measure_text_block(*fonts_, canvas_, frame.cohesion_text, 0.0f, st).height;
                     add_text_block(dl_, layer_of(c, p), HudList::Text, *fonts_, canvas_, frame.cohesion_text,
-                                   {p.center.x, p.center.y - 0.75f * tb.height}, 0.0f, st);
+                                   {p.center.x, p.center.y + 0.5f * tb.height + 0.25f * tb.height + h}, 0.0f, st);
                 }
             }
         }

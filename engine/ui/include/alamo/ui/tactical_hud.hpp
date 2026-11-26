@@ -701,6 +701,9 @@ std::u32string hud_credits_text(int64_t credits);
 std::u32string hud_tech_text(const TextDatabase* text, int32_t tech);
 // The Text_Planetary_Pop text: "used/cap", or "used" with no cap (cap < 0); "" for used < 0. Shared as hud_tech_text.
 std::u32string hud_pop_text(int32_t used, int32_t cap);
+// [port: Gabriel] #597 (docs/DECISIONS.md "Fleet cohesion"): the narrowest the Classic fleet cohesion line is squeezed
+// into the planet name's Max_Text_Width, as a share of its natural width (a wider line overhangs the width, centred).
+inline constexpr float kCohesionMinWidthScale = 0.85f;
 // Reinforce event (legacy docs/re/COMMANDS.md §2 id 12) for a reinforcement unit dropped at a world point.
 commands::EventData reinforce_event(uint32_t unit, Vec3 point);
 // SetUnitAbilityMode (id 43) toggling `ability` on `units` (max 127).

@@ -1866,6 +1866,82 @@ void test_tactical_panels() {
     CHECK(min_x > right - 266.0f && max_x <= right + 0.5f);  // all glyphs inside the box
 }
 
+// #597 (Classic, a port line): the fleet cohesion line sits clear of the planet panel's name, tech and population texts
+// at every resolution (100 % UI scale, fallback layout with the tech / population texts at the retail
+// i_tactical_controls.alo bones), keeps its whole text, is squeezed no narrower than kCohesionMinWidthScale of its
+// natural width, and adds nothing without a cohesion text. The planet panel components mirror the retail data
+// (Text_Planet_tactical: EmpireAtWar-Bold 10, Max_Text_Width 110; Text_Tactical_Tech: Arial Bold 8; Text_Planetary_Pop:
+// Arial Bold 6, right-justified, Text_Offset -10 0).
+const char* kCohesionPanelXml = R"(<CommandBarComponents>
+  <CommandBarComponent Name="Text_Planet_tactical"><Type>TextButton</Type><Font_Name>EmpireAtWar-Bold</Font_Name>
+    <Font_Point_Size>10</Font_Point_Size><Max_Text_Width>110</Max_Text_Width><Text_Color>255 255 255 255</Text_Color></CommandBarComponent>
+  <CommandBarComponent Name="Text_Tactical_Tech"><Type>TextButton</Type><Font_Name>Arial Bold</Font_Name>
+    <Font_Point_Size>8</Font_Point_Size></CommandBarComponent>
+  <CommandBarComponent Name="Text_Planetary_Pop"><Type>TextButton</Type><Font_Name>Arial Bold</Font_Name>
+    <Font_Point_Size>6</Font_Point_Size><Right_Justified>True</Right_Justified><Text_Offset>-10 0</Text_Offset></CommandBarComponent>
+</CommandBarComponents>)";
+
+void test_tactical_cohesion_line() {
+    ComponentTable t;
+    const data::XmlDocument doc = data::XmlDocument::parse(std::string_view(kCohesionPanelXml), "cohesion.xml");
+    t.parse(doc.root());
+    TextureAtlas atlas;
+    atlas.texture_width = atlas.texture_height = 64;
+    auto box = make_box_rasterizer();
+    FontCache fonts(*box);
+    TextDatabase text;
+    text.add("TEXT_TECH", u"Tech:");
+    TacticalHud hud;
+    hud.init(t, atlas, fonts, &text);
+    TacticalHudFrame fr;
+    fr.planet_name = U"Kuat";
+    fr.tech = 3;
+    fr.pop = 13;
+    fr.pop_cap = 20;
+    const CommandBarComponent& name_c = t[static_cast<size_t>(t.find("Text_Planet_tactical"))];
+    for (const char* cohesion : {"Fleet cohesion: Loose (O)", "Fleet cohesion: Tight (O)"})
+        for (auto [w, h] : {std::pair{1024u, 768u}, std::pair{1280u, 1024u}, std::pair{1920u, 1080u}, std::pair{2000u, 1125u},
+                            std::pair{2560u, 1440u}, std::pair{3840u, 2160u}}) {
+            hud.resize(w, h);
+            const float hw = 0.5f * hud.canvas().width, hh = 0.5f * hud.canvas().height;
+            // i_tactical_controls.alo: Text_Tactical_Tech (67.6, 216) rect +24, Text_Planetary_Pop (178, 216).
+            hud.layout().set_fallback(static_cast<uint32_t>(t.find("Text_Tactical_Tech")), {-hw + 91.6f, -hh + 216.0f});
+            hud.layout().set_fallback(static_cast<uint32_t>(t.find("Text_Planetary_Pop")), {-hw + 178.0f, -hh + 216.0f});
+            fr.cohesion_text.assign(cohesion, cohesion + std::strlen(cohesion));
+            const hud_test::PlanetPanelTexts p = hud_test::planet_panel_texts(hud, fr);
+            // The cohesion text alone at its natural width (no squeeze), in the name's style.
+            HudTextStyle st;
+            st.font = fonts.component_font(name_c.font_name, name_c.font_point_size, FontUse::Text, hud.canvas().font_height());
+            st.align = TextAlign::Center;
+            HudDrawList solo;
+            add_text_block(solo, 0, HudList::Text, fonts, hud.canvas(), fr.cohesion_text, {0.0f, 0.0f}, 0.0f, st);
+            const hud_test::TextRect natural = hud_test::added_text(hud_test::text_boxes(solo), {});
+            const bool ok = !p.name.empty() && !p.tech.empty() && !p.pop.empty() && !p.cohesion.empty() &&
+                            !p.cohesion.intersects(p.name) && !p.cohesion.intersects(p.tech) && !p.cohesion.intersects(p.pop) &&
+                            p.cohesion.quads == natural.quads && p.cohesion.height() < 1.5f * natural.height() &&
+                            p.cohesion.width() >= kCohesionMinWidthScale * natural.width() - 0.5f && p.cohesion.x0 > -hw &&
+                            p.cohesion.y1 < hh && p.empty_digest_kept;
+            if (!ok)
+                std::printf("cohesion %ux%u: cohesion %.1f..%.1f x %.1f..%.1f (natural w %.1f), name %.1f..%.1f x %.1f..%.1f, tech %.1f..%.1f "
+                            "x %.1f..%.1f, pop %.1f..%.1f x %.1f..%.1f\n",
+                            w, h, p.cohesion.x0, p.cohesion.x1, p.cohesion.y0, p.cohesion.y1, natural.width(), p.name.x0, p.name.x1,
+                            p.name.y0, p.name.y1, p.tech.x0, p.tech.x1, p.tech.y0, p.tech.y1, p.pop.x0, p.pop.x1, p.pop.y0, p.pop.y1);
+            CHECK(ok);
+        }
+    // No cohesion text (retail, land battles): the line adds nothing.
+    fr.cohesion_text.clear();
+    hud.resize(1920, 1080);
+    hud.build(fr, {}, {});
+    const uint64_t retail = hud.draw_list().digest();
+    fr.cohesion_text = U"Fleet cohesion: Loose (O)";
+    hud.build(fr, {}, {});
+    CHECK(hud.draw_list().digest() != retail);
+    fr.cohesion_text.clear();
+    hud.build(fr, {}, {});
+    CHECK(hud.draw_list().digest() == retail);
+    std::printf("cohesion: retail planet panel digest %016llx\n", static_cast<unsigned long long>(retail));
+}
+
 }  // namespace
 
 int run_stage2_tests();  // test_hud_stage2.cpp
@@ -1887,6 +1963,7 @@ int main() {
     test_tactical_hud_fleet_groups();  // #174
     test_tactical_hud_fleet_outline();  // #178
     test_tactical_panels();
+    test_tactical_cohesion_line();  // #597
     g_fail += run_stage2_tests();
     if (g_fail) {
         std::printf("alamo_ui_hud_tests: %d failure(s)\n", g_fail);
