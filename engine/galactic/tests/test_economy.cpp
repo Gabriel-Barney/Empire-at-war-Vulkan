@@ -2022,6 +2022,7 @@ void test_special_case_production() {
         tail += 4 * s.players().size();  // the v13 per-planet tactical upgrade lists (#68)
         tail += 4;  // the v14 persistent upgrade objects (#459; none: one u32 count)
         tail += 4;  // the v15 cleared-fleet list (#456; none: one u32 count)
+        tail += 4;  // the v16 paid costs (#191; none: one u32 count)
         for (const PlanetState& pl : s.planets()) tail += 4 + 4 * pl.initial_placement.size();
         std::vector<uint8_t> v9(bytes.begin(), bytes.end() - static_cast<std::ptrdiff_t>(tail));
         v9[0] = 9;
@@ -2184,6 +2185,59 @@ void test_route_bribe_toll() {
         CHECK(s.players()[pUnder].account.credits == u0 - static_cast<float>(want));
         CHECK(s.players()[pEmpire].account.credits == e0 + static_cast<float>(want));
     }
+}
+
+// #191 (docs/re/GALACTIC_SELL.md; 0x5327a0, 0x402840, 0x499000 [H]): GalacticSell removes the object found by id and
+// refunds the issuer round(paid / 2), nothing for 0 < paid <= 1, else Build_Cost_Credits / 2; production writes the paid cost.
+void test_galactic_sell() {
+    std::printf("  #191: GalacticSell and the paid cost\n");
+    World w({{pEmpire, rA, tSB1}, {pEmpire, rA, tBarracks}, {pUnder, rE, tSB1}, {pUnder, rE, tBarracks}});
+    GalacticSim& s = w.sim;
+    const objects::ObjectHandle start_barracks = w.planet(rA).structures[0];
+    CHECK(s.paid_cost(start_barracks) == 0.0f);  // a starting force was never produced
+    CHECK(s.enqueue(pEmpire, rA, tFrigate) == RejectReason::None);  // up front: 1250
+    w.run(451);
+    const uint32_t f = w.fleet(rA, pEmpire);
+    CHECK(f != kNoFleet && w.fl(f).contents.size() == 1);
+    if (f == kNoFleet || w.fl(f).contents.size() != 1) return;
+    const objects::ObjectHandle frigate = w.fl(f).contents[0];
+    CHECK(s.paid_cost(frigate) == 1250.0f);
+    // The command: round(1250 / 2) = 625, the object and its emptied fleet gone.
+    float c0 = s.credits(pEmpire);
+    commands::EventData sell(commands::EventType::GalacticSell);
+    sell.set("object", static_cast<uint32_t>(w.store.id(frigate)));
+    CHECK(s.execute(static_cast<uint8_t>(pEmpire), sell) == RejectReason::None);
+    CHECK(!w.store.alive(frigate) && s.credits(pEmpire) == c0 + 625.0f && w.fleet(rA, pEmpire) == kNoFleet);
+    CHECK(s.paid_cost(frigate) == 0.0f);
+    // Never produced: Build_Cost_Credits 600 / 2 = 300.
+    c0 = s.credits(pEmpire);
+    CHECK(s.sell(pEmpire, start_barracks) == RejectReason::None);
+    CHECK(!w.store.alive(start_barracks) && w.planet(rA).structures.empty() && s.credits(pEmpire) == c0 + 300.0f);
+    // 0 < paid <= 1: no refund; paid 3: round(1.5) = 2. No owner check: the issuer (the Empire) is paid for Underworld objects.
+    const objects::ObjectHandle uw_barracks = w.planet(rE).structures[0];
+    s.set_paid_cost(uw_barracks, 0.5f);
+    c0 = s.credits(pEmpire);
+    CHECK(s.sell(pEmpire, uw_barracks) == RejectReason::None && !w.store.alive(uw_barracks) && s.credits(pEmpire) == c0);
+    const objects::ObjectHandle uw_base = w.planet(rE).starbase;
+    s.set_paid_cost(uw_base, 3.0f);
+    const float u0 = s.credits(pUnder);
+    CHECK(s.sell(pEmpire, uw_base) == RejectReason::None && s.credits(pEmpire) == c0 + 2.0f && s.credits(pUnder) == u0);
+    CHECK(w.planet(rE).starbase_level == 0);
+    // No object: refused, nothing paid.
+    commands::EventData none(commands::EventType::GalacticSell);
+    none.set("object", commands::kNoObject);
+    CHECK(s.execute(static_cast<uint8_t>(pEmpire), none) == RejectReason::InvalidUnit);
+    CHECK(s.sell(pEmpire, frigate) == RejectReason::InvalidUnit && s.credits(pEmpire) == c0 + 2.0f);
+    std::printf("    frigate paid 1250 -> 625, starting barracks -> 300, paid 0.5 -> 0, paid 3 -> 2\n");
+    // A starbase upgrade replaces the base: the old base's record goes with it, and the new base has its own.
+    World u({{pEmpire, rA, tSB1}, {pEmpire, rA, tBarracks}});
+    const objects::ObjectHandle sb1 = u.planet(rA).starbase;
+    const int32_t sb1_id = static_cast<int32_t>(u.store.id(sb1));
+    u.sim.set_paid_cost(sb1, 1000.0f);
+    CHECK(u.sim.enqueue(pEmpire, rA, tSB2) == RejectReason::None);
+    u.run(20 * 30 + 1);
+    CHECK(u.planet(rA).starbase_level == 2 && u.sim.paid_cost(u.planet(rA).starbase) == 1500.0f);
+    for (const auto& [id, credits] : u.sim.paid_costs()) CHECK(id != sb1_id);
 }
 
 // the XML-to-setup step of the campaign rule fields (read_campaign_rule_fields), from a hand-built
@@ -3745,6 +3799,7 @@ int main(int argc, char** argv) {
         test_oi_buildability();
         test_starbase_orbit_fleets();  // #433
         test_magic_spawn_fleet_flag();  // #456
+        test_galactic_sell();           // #191
         test_campaign_rule_fields_parse();
         test_special_case_production();
         test_corruption_level_override();

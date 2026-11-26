@@ -237,6 +237,7 @@ bool GalacticSim::start(const GalacticSetup& setup, std::vector<std::string>* di
     planets_.assign(n, PlanetState{});
     fleets_.clear();
     company_survivors_.clear();  // mcx4 t22
+    paid_costs_.clear();         // #191
     fleet_by_slot_.clear();
     planet_by_slot_.clear();
     stealthed_.clear();  // OI galactic
@@ -1195,7 +1196,59 @@ void GalacticSim::complete_build(PlanetIndex planet, const BuildEntry& e) {
     }
     if (!created && t.kind != UnitKind::StarBase && t.kind != UnitKind::GroundStructure)
         add_credits(e.player, econ::refund_amount(pays_as_you_go(e.player), e.remaining, e.build_time, e.cost), true);
-    // (The paid cost stored on the object, +0x32c, feeds sell-back and score: not modelled.)
+    // #191 (0x402840 [H]): the paid cost on the new object (+0x32c), read back by the sell refund: 0x499000, the same
+    // amount as the failed-creation refund above (the full cost once done). [port] the score's read is not modelled
+    // (tier 3: nothing reads it yet).
+    if (created && store_->exists(last_spawn_))
+        set_paid_cost(last_spawn_, econ::refund_amount(pays_as_you_go(e.player), e.remaining, e.build_time, e.cost));
+}
+
+float GalacticSim::paid_cost(ObjectHandle object) const {
+    if (paid_costs_.empty() || !store_->exists(object)) return 0.0f;
+    const int32_t id = static_cast<int32_t>(store_->id(object));
+    const auto it = std::lower_bound(paid_costs_.begin(), paid_costs_.end(), id,
+                                     [](const std::pair<int32_t, float>& e, int32_t k) { return e.first < k; });
+    return it != paid_costs_.end() && it->first == id ? it->second : 0.0f;
+}
+
+void GalacticSim::set_paid_cost(ObjectHandle object, float credits) {
+    if (!store_->exists(object)) return;
+    const int32_t id = static_cast<int32_t>(store_->id(object));
+    auto it = std::lower_bound(paid_costs_.begin(), paid_costs_.end(), id,
+                               [](const std::pair<int32_t, float>& e, int32_t k) { return e.first < k; });
+    const bool found = it != paid_costs_.end() && it->first == id;
+    if (credits == 0.0f) {
+        if (found) paid_costs_.erase(it);
+    } else if (found) {
+        it->second = credits;
+    } else {
+        paid_costs_.insert(it, {id, credits});
+    }
+}
+
+// #191: GalacticSellEventClass::Execute 0x5327a0 [H] (docs/re/GALACTIC_SELL.md).
+RejectReason GalacticSim::sell(int32_t player, ObjectHandle object) {
+    if (!store_->alive(object)) return RejectReason::InvalidUnit;
+    const float paid = paid_cost(object);
+    const uint32_t t = static_cast<uint32_t>(store_->type(object));
+    // [port] the type is the object's own (0x3973b0 derives it from behaviours 4 / 5 / 0x16 [M]; tier 1 for the
+    // shipped structures, whose derived type is their own).
+    const int32_t build_cost = t < rules_->types.size() ? rules_->types[t].build_cost : 0;
+    int32_t refund = build_cost / 2;  // cdq / sar: halving toward zero
+    // Retail removes the carried objects (TRANSPORT contents) and the attached ones (+0xC0), then the object, through
+    // 0x391310 (not the death handler). [port] destroy_object: a fleet's members go with it; the port's galactic objects
+    // carry and attach nothing else (a company is one object) (tier 1). Whether 0x391310 raises the score's destroyed
+    // signal and ObjectDestroyed as destroy_object does was not traced [L] (tier 2: the end-of-game statistics).
+    destroy_object(object);
+    if (paid > 1.0f) {
+        const float half = paid / 2.0f;  // 0x22f9c0: (int)(x + 0.5f), (int)(x - 0.5f) below 0, in float
+        refund = static_cast<int32_t>(0.0f <= half ? half + 0.5f : half - 0.5f);
+    }
+    else if (paid > 0.0f) {
+        refund = 0;
+    }
+    if (refund > 0 && valid_player(player)) add_credits(player, static_cast<float>(refund), false);  // Add_Credits(P, r, 0)
+    return RejectReason::None;
 }
 
 // ---- objects -------------------------------------------------------------------------------------------------
@@ -1216,7 +1269,10 @@ bool GalacticSim::create_unit(int32_t player, PlanetIndex planet, uint32_t type)
     const TypeInfo& t = rules_->types[type];
     switch (t.kind) {
     case UnitKind::StarBase: {
-        if (store_->alive(p.starbase)) store_->destroy(p.starbase);  // an upgrade replaces the base
+        if (store_->alive(p.starbase)) {  // an upgrade replaces the base
+            set_paid_cost(p.starbase, 0.0f);  // #191: the old base's record goes with it
+            store_->destroy(p.starbase);
+        }
         p.starbase = spawn(player, planet, type, p.object);
         p.starbase_level = t.base_level;
         p.starbase_owner = player;
@@ -1405,6 +1461,10 @@ bool GalacticSim::destroy_object(ObjectHandle object) {
         if (!company_survivors_.empty() && store_->exists(h)) {  // mcx4 t22
             const int32_t id = static_cast<int32_t>(store_->id(h));
             std::erase_if(company_survivors_, [id](const std::pair<int32_t, std::vector<uint32_t>>& e) { return e.first == id; });
+        }
+        if (!paid_costs_.empty() && store_->exists(h)) {  // #191
+            const int32_t id = static_cast<int32_t>(store_->id(h));
+            std::erase_if(paid_costs_, [id](const std::pair<int32_t, float>& e) { return e.first == id; });
         }
         if (!emit_events_ || !store_->alive(h)) return;
         GalacticEvent ev;
@@ -2000,6 +2060,10 @@ RejectReason GalacticSim::execute(uint8_t player_id, const commands::EventData& 
         return fleet_management(player, ev);
     case EventType::SpecialAbility:  // P4 sim: kinds 1 / 4 / 5 / 7 (kind 6 and others: Unhandled -> host hooks)
         return special_command(player, ev);
+    case EventType::GalacticSell: {  // #191 (command 46, execute 0x5327a0): any object found by id, no owner check
+        const uint32_t id = ev.u("object");
+        return sell(player, id == commands::kNoObject ? ObjectHandle{} : store_->find(static_cast<objects::ObjectId>(id)));
+    }
     case EventType::SetMarkerID: {  // ui4 t13 (COMMANDS kind 53, execute 0x5b0660): any object found by id, no owner check
         const ObjectHandle h = store_->find(static_cast<objects::ObjectId>(ev.u("object")));
         if (!store_->alive(h)) return RejectReason::InvalidUnit;
@@ -2248,6 +2312,7 @@ bool GalacticSim::replace_starbase(PlanetIndex planet, uint32_t type) {
     if (type == kNoIndex || type >= rules_->types.size()) return destroy_object(p.starbase);
     const int32_t owner = p.starbase_owner;
     const int32_t old_type = static_cast<int32_t>(store_->type(p.starbase));  // storyb t14
+    set_paid_cost(p.starbase, 0.0f);  // #191: the replaced base's record goes with it
     store_->destroy(p.starbase);
     p.starbase = spawn(owner, planet, type, p.object);
     p.starbase_level = rules_->types[type].base_level;
@@ -2368,6 +2433,14 @@ void GalacticSim::hash_state(StateHasher& h) const {
     h.u32(live);
     for (const FleetState& f : fleets_)
         if (f.alive) records::visit(rec, f);
+    if (!paid_costs_.empty()) {  // #191: hashed only once an object has a paid cost
+        h.u32(0x50444331u);  // "PDC1"
+        h.u32(static_cast<uint32_t>(paid_costs_.size()));
+        for (const auto& [id, credits] : paid_costs_) {
+            h.i32(id);
+            h.f32(credits);
+        }
+    }
     if (!company_survivors_.empty()) {  // hashed only once a company lost members
         h.u32(0x43535631u);  // "CSV1"
         h.u32(static_cast<uint32_t>(company_survivors_.size()));

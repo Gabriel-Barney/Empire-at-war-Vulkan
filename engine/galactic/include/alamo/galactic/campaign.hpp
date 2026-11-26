@@ -612,6 +612,15 @@ public:
     // as member types in Company_Units order; the next tactical spawn makes those. An empty list or the full member
     // list clears the record. Saved (galactic v12), hashed once one exists; dropped when the object is destroyed.
     void set_company_survivors(ObjectHandle company, std::vector<uint32_t> member_types);
+    // #191 (docs/re/GALACTIC_SELL.md): the credits paid for an object (object +0x32c), written at its production
+    // completion (0x402840 -> 0x499000) [H]; 0 for an object that was never produced (starting forces, spawns).
+    float paid_cost(ObjectHandle object) const;
+    void set_paid_cost(ObjectHandle object, float credits);  // 0 drops the record
+    const std::vector<std::pair<int32_t, float>>& paid_costs() const { return paid_costs_; }  // (ObjectId, credits) ascending
+    // GalacticSell (command 46, GalacticSellEventClass::Execute 0x5327a0) [H]: the object found by id (no owner check)
+    // is removed with what it carries, and `player` (the issuer) gets back round(paid / 2) when paid > 1, nothing when
+    // 0 < paid <= 1, else Build_Cost_Credits / 2 (integer halving). InvalidUnit when no live object has the id.
+    RejectReason sell(int32_t player, ObjectHandle object);
     const std::vector<uint32_t>* company_survivors(ObjectHandle company) const;  // nullptr = the full company
     // The company's current members: its survivor record, else its type's Company_Units (empty for a plain unit).
     std::vector<uint32_t> company_members(ObjectHandle company) const;
@@ -1611,6 +1620,7 @@ private:
     // mcx4 Q4: true only inside destroy_object_auto_resolve (not state, not hashed or saved): tags ObjectDestroyed.
     bool destroy_auto_resolve_ = false;
     std::vector<std::pair<int32_t, std::vector<uint32_t>>> company_survivors_;  // (ObjectId, members), ascending id
+    std::vector<std::pair<int32_t, float>> paid_costs_;  // #191: (ObjectId, credits paid), ascending id; non-zero only
     ScoringHooks scoring_hooks_;  // storyb t14
     ContestedCheckHook contested_check_hook_;  // #65 t05
     ObjectHandle last_spawn_;  // newest object made by spawn() (event payloads only, never hashed)

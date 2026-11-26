@@ -755,7 +755,8 @@ void test_synthetic() {
     // #193: conflict save v5 adds each auto-resolve combatant's spawned pieces and its one shot, and the land conflicts
     // resolve by the one-shot rule.
     // #558: conflict save v6 adds the land planet flag; land auto-resolves fight with the planet, not its structures.
-    sc.pin = 0xf8da23684df19a0dull;
+    // #191: galactic save v16 adds the paid costs, and the produced objects' paid costs enter the hash ("PDC1").
+    sc.pin = 0x2b57ccfc10d1a31bull;
     run_scenario(sc);
 }
 
@@ -918,16 +919,31 @@ void test_queue_phases() {
         // v13 (#68) adds, per player, the per-planet tactical upgrade list (u32 count 0 here); a v12 image rebuilds it
         // from the corruption types (none here). v14 (#459) adds last the planets' persistent upgrade objects (u32 count 0
         // here); a v13 image has none. v15 (#456) adds last the fleets cleared by an AI magic spawn (u32 count 0 here); a
-        // v14 image reads every fleet as set.
+        // v14 image reads every fleet as set. v16 (#191) adds last the paid costs (u32 count 0 here); a v15 image has none.
         const size_t tactical = 4 * s.players().size();
-        CHECK(bytes.size() >= galab + 32 + placement + tactical && bytes[0] == 15 && bytes[bytes.size() - 1] == 0);
-        std::vector<uint8_t> v14(bytes.begin(), bytes.end() - 4);
+        CHECK(bytes.size() >= galab + 36 + placement + tactical && bytes[0] == 16 && bytes[bytes.size() - 1] == 0);
+        std::vector<uint8_t> v15(bytes.begin(), bytes.end() - 4);
+        v15[0] = 15;
+        ByteReader r15(v15);
+        CHECK(o.read(r15) && sim_bytes(o) == bytes);
+        {  // a v16 image whose paid costs are malformed is refused: two records of one id, then a zero cost
+            const auto with_paid = [&bytes](std::initializer_list<uint32_t> words) {
+                std::vector<uint8_t> img(bytes.begin(), bytes.end() - 4);
+                for (const uint32_t v : words)
+                    for (int i = 0; i < 4; ++i) img.push_back(static_cast<uint8_t>(v >> (8 * i)));
+                return img;
+            };
+            const std::vector<uint8_t> repeated = with_paid({2, 5, 0x3F800000u, 5, 0x3F800000u}), zero = with_paid({1, 5, 0});
+            ByteReader rr(repeated), rz(zero);
+            CHECK(!o.read(rr) && !o.read(rz));
+        }
+        std::vector<uint8_t> v14(v15.begin(), v15.end() - 4);
         v14[0] = 14;
         ByteReader r14(v14);
         CHECK(o.read(r14) && sim_bytes(o) == bytes);
         {  // a v15 image whose cleared-fleet list is malformed is refused: an index past the fleets, then two not ascending
-            const auto with_list = [&bytes](std::initializer_list<uint32_t> list) {
-                std::vector<uint8_t> img(bytes.begin(), bytes.end() - 4);
+            const auto with_list = [&v15](std::initializer_list<uint32_t> list) {
+                std::vector<uint8_t> img(v15.begin(), v15.end() - 4);
                 for (const uint32_t v : list)
                     for (int i = 0; i < 4; ++i) img.push_back(static_cast<uint8_t>(v >> (8 * i)));
                 return img;
@@ -1185,7 +1201,8 @@ void test_foc() {
     // #456: v15 adds the cleared-fleet count to the save part.
     // #193: conflict save v5 (spawned pieces, the one shot) and the one-shot auto-resolve.
     // #558: conflict save v6 (the land planet flag) and the land planet combatant.
-    sc.pin = 0x85ecdf6084bb9731ull;  // FoC data
+    // #191: galactic save v16 (the paid costs) and their hash.
+    sc.pin = 0xb41a0391e92db5caull;  // FoC data
     run_scenario(sc);
 }
 
