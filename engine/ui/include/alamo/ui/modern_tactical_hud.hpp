@@ -53,6 +53,9 @@ inline constexpr int32_t kModernCardHitBase = kModernHitBase + 0x100;  // + card
 inline constexpr int32_t kModernStationHit = kModernHitBase + 4;          // #587 the shortcut that selects the station
 inline constexpr int32_t kModernMapHit = kModernHitBase + 5;              // #591 the map, when the table has no "radar"
 inline constexpr int32_t kModernFleetShortcutBase = kModernHitBase + 0x200;  // + fleet group index (#587 shortcuts)
+inline constexpr int32_t kModernDisciplineHit = kModernHitBase + 6;  // #599 the fleet discipline control
+inline constexpr int32_t kModernNewGroupHit = kModernHitBase + 7;    // #599 New group (the N key's Create)
+inline constexpr int32_t kModernLockHit = kModernHitBase + 8;        // #599 Lock (the Y key's SetLock)
 // Hull bar colours by health (badly damaged units stand out): above kModernHullWarn, above kModernHullCritical, below.
 inline constexpr float kModernHullWarn = 0.6f, kModernHullCritical = 0.3f;
 
@@ -71,7 +74,11 @@ struct ModernHudStats {
     bool overflow_card = false;          // the last card is the "+N" overflow
     uint32_t orders = 0, orders_live = 0;  // order buttons drawn, enabled
     uint32_t wings = 0;                  // wing buttons drawn
-    bool clear_button = false, cohesion = false;
+    bool clear_button = false, cohesion = false;  // cohesion: the fleet discipline control drawn (#599)
+    uint32_t discipline_lights = 0;               // its steps (2: Loose / Tight; 3 with Locked)
+    FleetDiscipline discipline = FleetDiscipline::Loose;  // the step lit
+    bool discipline_hint = false;                 // the one-line-per-step hint (hovered)
+    uint32_t fleet_buttons = 0;                   // New group and Lock drawn
     uint32_t key_badges = 0;             // hotkey badges drawn
     std::u32string alert_text;           // the alert strip's alert ("" = no strip)
     uint32_t alerts_more = 0;            // other alerts behind it
@@ -147,6 +154,9 @@ private:
     void build_selection(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types,
                          Vec2f top_left, float width, float height);
     float build_orders(const TacticalHudFrame& f, Vec2f top_right, float height);  // returns the width used
+    float build_discipline(const TacticalHudFrame& f, std::span<const HudUnit> units, Vec2f top_right, float height);
+    FleetDisciplineStep discipline_{};  // the last build's step (its click), drawn: discipline_drawn_
+    bool discipline_drawn_ = false;
     float build_abilities(const TacticalHudFrame& f, std::span<const HudUnit> units, Vec2f top_right, float height, float max_width);
     void build_map(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
     void build_target_card(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);

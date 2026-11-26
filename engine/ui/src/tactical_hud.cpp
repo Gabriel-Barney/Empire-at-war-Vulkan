@@ -464,6 +464,50 @@ HudAction fleet_rename_action(int32_t component, uint16_t id, const std::string&
     return h;
 }
 
+FleetDisciplineStep fleet_discipline(bool fleet_groups_on, std::span<const HudFleetGroup> groups, std::span<const uint32_t> selection,
+                                     bool tight) {
+    bool any = false, all_locked = true;
+    if (fleet_groups_on)
+        for (const HudFleetGroup& g : groups)
+            if (std::any_of(g.members.begin(), g.members.end(),
+                            [&](uint32_t m) { return std::find(selection.begin(), selection.end(), m) != selection.end(); })) {
+                any = true;
+                all_locked = all_locked && g.locked;
+            }
+    FleetDisciplineStep s;
+    s.lock_available = fleet_groups_on && any;
+    s.selection_locked = s.lock_available && all_locked;
+    s.shown = s.selection_locked ? FleetDiscipline::Locked : tight ? FleetDiscipline::Tight : FleetDiscipline::Loose;
+    switch (s.shown) {
+        case FleetDiscipline::Loose:
+            s.next = FleetDiscipline::Tight;
+            s.cohesion = true;
+            break;
+        case FleetDiscipline::Tight:
+            if (s.lock_available) {
+                s.next = FleetDiscipline::Locked;
+                s.lock = true;
+            } else {
+                s.next = FleetDiscipline::Loose;
+                s.cohesion = false;
+            }
+            break;
+        case FleetDiscipline::Locked:
+            s.next = FleetDiscipline::Loose;
+            s.lock = false;
+            s.cohesion = false;
+            break;
+    }
+    return s;
+}
+
+commands::EventData fleet_lock_event(bool locked) {
+    commands::FleetGroupCommand c;
+    c.op = commands::FleetGroupOp::SetLock;
+    c.locked = locked;
+    return commands::fleet_group_event(c);
+}
+
 commands::EventData fleet_button_event(bool merge) {
     commands::FleetGroupCommand c;
     c.op = merge ? commands::FleetGroupOp::Merge : commands::FleetGroupOp::Create;

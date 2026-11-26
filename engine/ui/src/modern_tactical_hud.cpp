@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <tuple>
 
 #include "alamo/core/ascii.hpp"
 #include "alamo/ui/gui_menus.hpp"
@@ -134,6 +135,7 @@ void ModernTacticalHud::build(const TacticalHudFrame& frame, std::span<const Hud
     fleet_tab_ids_.clear();
     fleet_tab_group_.clear();
     builder_ = frame.builder;
+    discipline_drawn_ = false;
     station_ = commands::kNoObject;
     map_view_ = {};
     radar_models_.clear();
@@ -258,6 +260,7 @@ void ModernTacticalHud::build_deck(const TacticalHudFrame& f, std::span<const Hu
     if (own) {
         const float orders_w = build_orders(f, {right, top}, height);
         section_right = right - orders_w - 2.0f * kPad;
+        if (const float dw = build_discipline(f, units, {section_right, top}, height); dw > 0.0f) section_right -= dw + 2.0f * kPad;
         const float abilities_w = build_abilities(f, units, {section_right, top}, height, 0.3f * (section_right - left));
         if (abilities_w > 0.0f) section_right -= abilities_w + 2.0f * kPad;
     }
@@ -1023,11 +1026,11 @@ void ModernTacticalHud::build_target_card(const TacticalHudFrame& f, std::span<c
     stats_.target_hardpoints = static_cast<uint32_t>(points.size());
 }
 
-// The order buttons (2 rows of 3, the right end of the deck) and the cohesion line under them.
+// The order buttons (2 rows of 3, the right end of the deck); the fleet discipline control beside them (#599) shows the
+// cohesion Classic writes as a line.
 float ModernTacticalHud::build_orders(const TacticalHudFrame& f, Vec2f top_right, float height) {
     const float line = text_height_units();
-    const bool cohesion = !f.cohesion_text.empty();
-    const float row_h = 0.5f * (height - (cohesion ? line * 1.4f : 0.0f) - 0.5f * kPad);
+    const float row_h = 0.5f * (height - 0.5f * kPad);
     const float col_w = line * 7.5f, gap = 0.5f * kPad;
     const float width = 3.0f * col_w + 2.0f * gap;
     HudTextStyle st;
@@ -1058,14 +1061,88 @@ float ModernTacticalHud::build_orders(const TacticalHudFrame& f, Vec2f top_right
         ++stats_.orders;
         if (live) ++stats_.orders_live;
     }
-    if (cohesion) {  // [port: Gabriel 2026-11-13] fleet cohesion (Loose / Tight), toggled by its hotkey
-        HudTextStyle cs;
-        cs.font = font();
-        cs.color = colours_.label;
-        const float y = top_right.y - height + 0.6f * line;
-        add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, f.cohesion_text, {top_right.x - width, y}, cs);
-        key_badge(hk::kFleetCohesion, {top_right.x, y + 0.6f * line}, kControlLayer);
-        stats_.cohesion = true;
+    return width;
+}
+
+// #599 the fleet discipline control (space battles, where cohesion applies): Loose / Tight / Locked (fleet_discipline)
+// as position-coded lights with labels, the lit one filled; a click takes the next step. Under it New group (N) and
+// Lock (Y) while fleet groups are on. Hovered, a hint names each step in one line. Returns the width (0: not drawn).
+float ModernTacticalHud::build_discipline(const TacticalHudFrame& f, std::span<const HudUnit> units, Vec2f top_right, float height) {
+    discipline_drawn_ = false;
+    if (f.cohesion_text.empty()) return 0.0f;  // a land battle (no cohesion) or no feed
+    std::vector<uint32_t> selection;
+    for (const HudUnit& u : units)
+        if (u.selected && u.owner == f.world.local_player) selection.push_back(u.id);
+    discipline_ = fleet_discipline(f.fleet_groups_on, f.fleet_groups, selection, f.cohesion_tight);
+    const float th = text_height_units(), gap = 0.5f * kPad;
+    const uint32_t steps = f.fleet_groups_on ? 3u : 2u;
+    const float width = 10.0f * th;
+    const float button_h = f.fleet_groups_on ? std::max(0.4f * height, 1.6f * th) : 0.0f;
+    const float control_h = height - (button_h > 0.0f ? button_h + gap : 0.0f);
+    const Vec2f c{top_right.x - 0.5f * width, top_right.y - 0.5f * control_h};
+    frame_rect(dl_, kControlLayer, c, {width, control_h}, colours_.button, hover_ == kModernDisciplineHit ? colours_.text : accent(200));
+    hit(kModernDisciplineHit, kControlLayer, c, {width, control_h});
+    static constexpr const char32_t* kStepLabels[3] = {U"Loose", U"Tight", U"Locked"};
+    HudTextStyle ls;
+    ls.font = font();
+    ls.align = TextAlign::Center;
+    const float slot = width / static_cast<float>(steps);
+    const float light = std::min(0.8f * th, 0.3f * control_h);
+    const float light_y = c.y + 0.5f * control_h - kPad - 0.5f * light;
+    for (uint32_t k = 0; k < steps; ++k) {  // left to right: the position names the step, as well as the label
+        const float x = c.x - 0.5f * width + (static_cast<float>(k) + 0.5f) * slot;
+        const bool lit = static_cast<uint32_t>(discipline_.shown) == k;
+        if (lit) frame_rect(dl_, kControlLayer, {x, light_y}, {light, light}, accent(255), colours_.text);
+        else frame_rect(dl_, kControlLayer, {x, light_y}, {light, light}, Rgba8{0, 0, 0, 170}, colours_.label);
+        const std::u32string label = text_or_port(text_, nullptr, kStepLabels[k]);
+        ls.color = lit ? colours_.text : colours_.label;
+        ls.width_scale = fit_width_scale(measure_text_block(*fonts_, canvas_, label, 0.0f, ls).width, slot - 0.5f * kPad);
+        add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, label, {x, light_y - 0.5f * light - 0.8f * th}, ls);
+    }
+    key_badge(hk::kFleetCohesion, {c.x + 0.5f * width - 2.0f, c.y - 0.5f * control_h + 1.2f * th}, kControlLayer);  // O: Loose / Tight
+    discipline_drawn_ = true;
+    stats_.cohesion = true;
+    stats_.discipline_lights = steps;
+    stats_.discipline = discipline_.shown;
+    if (f.fleet_groups_on) {  // New group (N) and Lock (Y), the keys' orders
+        const float bw = 0.5f * (width - gap);
+        const float by = top_right.y - control_h - gap - 0.5f * button_h;
+        for (const auto& [id, label, slot_key] : {std::tuple{kModernNewGroupHit, U"New group", hk::kFleetCreate},
+                                                  std::tuple{kModernLockHit, discipline_.selection_locked ? U"Unlock" : U"Lock", hk::kFleetLock}}) {
+            Tile t;
+            t.id = id;
+            t.size = {bw, button_h};
+            t.c = {top_right.x - width + (id == kModernNewGroupHit ? 0.5f * bw : 1.5f * bw + gap), by};
+            t.text = text_or_port(text_, nullptr, label);
+            t.hotkey = slot_key;
+            tile(t);
+            ++stats_.fleet_buttons;
+        }
+    }
+    if (hover_ == kModernDisciplineHit) {  // the hint: one line per step, above the control
+        static constexpr const char32_t* kHints[3] = {U"Loose: each ship flies at its own speed",
+                                                      U"Tight: ships keep to the slowest ship's speed",
+                                                      U"Locked: the group keeps formation and waits for stragglers"};
+        HudTextStyle hs;
+        hs.font = font();
+        hs.color = colours_.text;
+        float hw = 0.0f;
+        std::vector<std::u32string> lines;
+        for (uint32_t k = 0; k < steps; ++k) {
+            lines.push_back(text_or_port(text_, nullptr, kHints[k]));
+            hw = std::max(hw, measure_text_block(*fonts_, canvas_, lines.back(), 0.0f, hs).width);
+        }
+        const float line = 1.4f * th;
+        const Vec2f size{hw + 2.0f * kPad, line * static_cast<float>(steps) + kPad};
+        const float right = std::min(top_right.x, 0.5f * canvas_.width - kMargin);
+        const Vec2f hc{right - 0.5f * size.x, top_right.y + kPad + 0.5f * size.y};
+        frame_rect(dl_, kBannerLayer, hc, size, colours_.back, accent(220));
+        float y = hc.y + 0.5f * size.y - 0.5f * kPad - 0.5f * line;
+        for (const std::u32string& l : lines) {
+            add_text(dl_, kBannerLayer, HudList::Text, *fonts_, canvas_, l, {hc.x - 0.5f * size.x + kPad, y}, hs);
+            y -= line;
+        }
+        stats_.discipline_hint = true;
     }
     return width;
 }
@@ -1203,6 +1280,26 @@ void ModernTacticalHud::update_input(const RoutedInput& routed, bool shift, bool
             if (e.button != Button::Left) continue;
             const SelectedGroup& g = groups_[static_cast<size_t>(e.component - kModernCardHitBase)];
             out.push_back(commands::ev::select(portrait_select_ids(g, selection_ids(), shift, ctrl)));
+            continue;
+        }
+        // #599 the discipline control's step (fleet_discipline: SetLock and / or the cohesion), New group (N's Create) and
+        // Lock (Y's SetLock of the selection).
+        if (e.component == kModernDisciplineHit) {
+            if (e.button == Button::Left && discipline_drawn_) {
+                if (discipline_.lock) out.push_back(fleet_lock_event(*discipline_.lock));
+                if (discipline_.cohesion) {
+                    HudAction h;
+                    h.kind = HudAction::Kind::FleetCohesion;
+                    h.component = e.component;
+                    h.value = *discipline_.cohesion ? 1 : 0;
+                    act(std::move(h));
+                }
+            }
+            continue;
+        }
+        if (e.component == kModernNewGroupHit || e.component == kModernLockHit) {
+            if (e.button == Button::Left && !selection_ids().empty())
+                out.push_back(e.component == kModernLockHit ? fleet_lock_event(!discipline_.selection_locked) : fleet_button_event(false));
             continue;
         }
         if (e.component == kModernClearHit) {

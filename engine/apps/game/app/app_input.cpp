@@ -736,6 +736,9 @@ void App::handle_hud_actions(const std::vector<ui::HudAction>& acts) {
     for (const ui::HudAction& a : acts) {
         switch (a.kind) {
             case ui::HudAction::Kind::HudStyleToggle: toggle_hud_style(); break;  // #584: the Modern HUD's switch
+            case ui::HudAction::Kind::FleetCohesion:  // #599 the Modern discipline control's cohesion step (as the O key)
+                if (session_ && screen() == Screen::Battle && bview_.space()) session_->set_fleet_cohesion(a.value != 0);
+                break;
             case ui::HudAction::Kind::GalacticSelect: {
                 // A planet fleet button selects its fleet; the land-forces button names the planet: select the planet
                 // (no fleet selection).
