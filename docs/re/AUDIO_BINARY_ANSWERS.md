@@ -26,7 +26,8 @@ Neither manager is a general conversation system.
 - **Start `0x3225a0`:**
   - Its only caller is a MeleeHeroClash step, `0x6ad230` [M].
   - It kills every playing and queued speech line (`0x321830(&SpeechEventManager, 1)`).
-  - It then queues `table[index++]` (`0x320a50` name lookup, `0x321170` queue) and sets state 1.
+  - It then queues `table[index++]` (`0x320a50` name lookup, `0x321170` queue) and sets state 1. A name the lookup
+    does not find resets the state and the index to 0 (here and in the callback).
 - **No per-frame step:** a speech-done callback (`0x322400`, registered at init) moves the state on.
   - The end of the first line queues the next one (state 2).
   - The end of the second line moves to state 4 when the next table entry is NULL, and to state 3 otherwise. State 3
@@ -65,7 +66,8 @@ and only `cancel_all` is called today. The hero-clash dialogue is not ported; it
 - **No distance factor:** `AIL_set_3D_distance_factor` is not imported [H].
 - **Listener:** `0x21caf0` sets the listener position, forward and up vectors every frame [H].
 - **The law:** Miles applies its own inverse distance law, `gain = min / (min + rolloff × (d − min))`, at full volume
-  inside min [M]. What Miles does past the 15000 maximum is Miles behaviour, not in the binary [L].
+  inside min [M: the binary only sets the inputs; a capture or the MSS documentation would confirm the curve]. What
+  Miles does past the 15000 maximum is Miles behaviour, not in the binary [L].
 
 **The port:** `AudioSystem::attenuation` already uses these inputs and this law. Past the maximum it is silent [L].
 
@@ -83,9 +85,13 @@ and only `cancel_all` is called today. The hero-clash dialogue is not ported; it
     - Owner_Particle_Effect (+0x100) on the first bone from +0x108 that exists, else `ROOT`;
     - **SFXEvent_Activate** (+0x148): 2D when Is_2D (`0x2d5290`), else 3D on the user (`0x2d5320`).
   - **The target:** the target light effect, the target particle (+0x128 on a bone from +0x130), and
-    **SFXEvent_Target_Affected** (+0x158) 3D on the planet.
+    **SFXEvent_Target_Affected** (+0x158), 2D when Is_2D, else 3D on the planet.
+- Before the presentation, 0x707670 destroys the planet (`0x3f76c0`) and, when the human-player gate
+  (`(*0x140b15418)+0xf8`, `0x3464b0(.., 7, owner)`) passes, raises `0x343b90(.., {7, owner, 30})`: the victory claim 7
+  with its 30-cycle countdown, which the port already has (`GalacticSim::super_weapon_destroy_planet`, claim 7) [M].
 
 **The port:** a successful Planet_Destruction apply raises `GalacticEventKind::SpecialPresented`. This is
 presentation only: no story event, since `0x707670` calls no `0x3284c0`. The game plays SFXEvent_Activate on the shooter
 and SFXEvent_Target_Affected on the planet through the same `GameAudioHost::galactic_ability_effect` as the other
-galactic abilities. The light effects and particles of `0x48e4d0` are not ported for galactic abilities.
+galactic abilities. The light effects and particles of `0x48e4d0`, and its Is_2D branch, are not ported for galactic
+abilities (every one plays 3D at its object).

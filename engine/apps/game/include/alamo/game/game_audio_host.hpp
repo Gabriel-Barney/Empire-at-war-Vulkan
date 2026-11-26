@@ -408,10 +408,11 @@ public:
     // spy (0x70f4a0 -> 0x70f510) applies, for any player's hero (`local_user` ignored); Remove_Corruption (0x5b13c0) only
     // when the hero's owner is the local player. Not callers: Corruption_Ability (0x52b160 / 0x52bf50), the black
     // market, slicer and Neutralize_Hero (0x616740) applies. Corrupt_Planet_Ability (0x6f6120) presents too, but the port
-    // has no class for it (no vanilla data uses it); the planet destruction ability presents from 0x707670 / 0x707b90,
-    // outside the port's special_apply. Neither is covered here.
+    // has no class for it (no vanilla data uses it, not covered here). #330: the planet destruction ability presents at
+    // the end of 0x707670, for any player; the sim raises SpecialPresented for it, as it raises no SpecialApplied.
     static bool galactic_activation_presented(galactic::SpecialAbilityClass cls, bool local_user);
-    // #62 t06: the SpecialApplied events of one special-event batch (GameSession::take_special_events) that present, in
+    // #62 t06: the SpecialApplied (and #330 SpecialPresented) events of one special-event batch
+    // (GameSession::take_special_events) that present, in
     // order. `class_of` maps SpecialApplied.value (the ability ref) to its class. A sabotage caught by vigilance does not
     // present: retail's vigilance branch of 0x5b1920 skips 0x48e4d0. The galactic sim no longer raises SpecialApplied for
     // a catch (#62 follow-up, 0x3284c0 skipped there too); the SabotageVigilance filter stays as a guard.

@@ -275,12 +275,10 @@ bool GalacticSim::special_apply(uint32_t ability, ObjectHandle unit, int32_t own
     // Story LAND_ON (2) + DEPLOY (0xC) for every successful apply (0x3284c0) [H]; type = the unit's type. galab: the
     // planet destruction ability does not call it (0x707670); Neutralize_Hero calls it inside its executor (0x616740),
     // before the neutralizer leaves. #62: a sabotage caught by vigilance returns true but skips it (0x5b1920 [H]).
-    if (applied && story && a.cls != SpecialAbilityClass::PlanetDestruction && a.cls != SpecialAbilityClass::NeutralizeHero)
-        emit_special(GalacticEventKind::SpecialApplied, owner, planet, unit, static_cast<uint32_t>(store_->exists(unit) ? store_->type(unit) : kNoIndex),
-                     static_cast<int32_t>(ability), -1);
-    // #330: 0x707670 ends with the activation presentation 0x48e4d0(ability, user, planet) [H], without the story event
-    if (applied && a.cls == SpecialAbilityClass::PlanetDestruction)
-        emit_special(GalacticEventKind::SpecialPresented, owner, planet, unit,
+    // #330: 0x707670 ends with the activation presentation 0x48e4d0(ability, user, planet) [H], without the story event.
+    const bool presented = a.cls == SpecialAbilityClass::PlanetDestruction;
+    if (applied && (presented || (story && a.cls != SpecialAbilityClass::NeutralizeHero)))
+        emit_special(presented ? GalacticEventKind::SpecialPresented : GalacticEventKind::SpecialApplied, owner, planet, unit,
                      static_cast<uint32_t>(store_->exists(unit) ? store_->type(unit) : kNoIndex), static_cast<int32_t>(ability), -1);
     return applied;
 }

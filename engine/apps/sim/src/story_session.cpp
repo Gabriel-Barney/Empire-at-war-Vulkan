@@ -41,6 +41,13 @@ namespace alamo::sim {
 
 namespace {
 
+// Whether a galactic stream event reaches the story. Not: a TSW planet destruction (value 1: battle plots only, §7),
+// and #330's SpecialPresented (presentation only, no story event).
+bool story_visible(const galactic::GalacticEvent& e) {
+    if (e.kind == galactic::GalacticEventKind::PlanetDestroyed && e.value == 1) return false;
+    return e.kind != galactic::GalacticEventKind::SpecialPresented;
+}
+
 int32_t to_int(std::string_view s, int32_t fallback) {
     s = ascii_trim(s);
     if (s.empty()) return fallback;
@@ -704,9 +711,7 @@ void StorySession::route_load_events() {
         std::vector<StoryTrigger> batch;
         batch.reserve(scratch_.size());
         for (const galactic::GalacticEvent& e : scratch_)
-            if (!(e.kind == galactic::GalacticEventKind::PlanetDestroyed && e.value == 1) &&
-                e.kind != galactic::GalacticEventKind::SpecialPresented)  // #330 presentation only
-                batch.push_back(translate(e));
+            if (story_visible(e)) batch.push_back(translate(e));
         for (StoryTrigger& t : batch) {
             t.frame = frame_;
             t.index = static_cast<uint32_t>(triggers_.size());
@@ -1965,9 +1970,7 @@ void StorySession::service(uint64_t frame, double mode_seconds, bool galactic_to
         std::vector<StoryTrigger> batch;
         batch.reserve(scratch_.size() + pending_host_.size() + pending_ui_.size());
         for (const galactic::GalacticEvent& e : scratch_)
-            if (!(e.kind == galactic::GalacticEventKind::PlanetDestroyed && e.value == 1) &&  // TSW: battle plots only (§7)
-                e.kind != galactic::GalacticEventKind::SpecialPresented)  // #330 presentation only, no story event
-                batch.push_back(translate(e));
+            if (story_visible(e)) batch.push_back(translate(e));
         poll_planets(batch);  // wave 1: PLANET_DESTROYED (no stream event)
         for (StoryTrigger& h : pending_host_) batch.push_back(std::move(h));
         pending_host_.clear();
@@ -2776,7 +2779,8 @@ namespace {
 
 // 2 (stage 2): + the attached tactical story; 3: + the holocron list (GALACTIC_DIALOGS §2.8). 1 and 2 still load
 // (with an empty holocron); 3 loads with default STY1 state.
-constexpr uint32_t kStorySaveVersion = 9;  // 9: the tactical story's sandbox spawner objectives after its bridge; 8 (mcx6 review): each definition edit's tactical flag, the RANDOM_STORY stream after the edits; 7: the battle snapshot without its CategoryMask list / base flag, + the orbit record's Ship_Class lists after the STY1 block; 6 (mcx6): + the definition edits after the clock, the mcx6 story gates at the end of the STY1 block; 5: + the DISABLE_RETREAT switches at the end of the STY1 block; 4 (STY1 lane B): + the story rule gates / tutorial state / reinforcement switches
+constexpr uint32_t kStorySaveVersion = 10;  // 10 (#330): a trigger with no galactic event writes kNoEventKind, not
+// GalacticEventKind::Count (a version 9 save holds the Count of its day, the value of SpecialPresented now); 9: the tactical story's sandbox spawner objectives after its bridge; 8 (mcx6 review): each definition edit's tactical flag, the RANDOM_STORY stream after the edits; 7: the battle snapshot without its CategoryMask list / base flag, + the orbit record's Ship_Class lists after the STY1 block; 6 (mcx6): + the definition edits after the clock, the mcx6 story gates at the end of the STY1 block; 5: + the DISABLE_RETREAT switches at the end of the STY1 block; 4 (STY1 lane B): + the story rule gates / tutorial state / reinforcement switches
 // "story.lua" (write_scripts): 1 galactic sets, 2 + the tactical set, 3 = 2 (it followed kStorySaveVersion), 4:
 // each script's Lua state is a script block (alamo/lua/script_save.hpp, legacy docs/re/LUA_SAVE.md §2) instead of a bare LuaVm image.
 constexpr uint32_t kStoryScriptsVersion = 4;
@@ -2801,16 +2805,25 @@ bool read_strings(ByteReader& r, std::vector<std::string>& v) {
     return r.ok();
 }
 
+// A trigger's "no galactic event" (GalacticEventKind::Count in memory) on disk, fixed so new kinds do not move it.
+constexpr uint32_t kNoEventKind = 0xFFFFFFFFu;
+// The value Count had in a version 9 save: the kinds before SpecialPresented (#330) were all there were.
+constexpr uint32_t kV9NoEventKind = static_cast<uint32_t>(galactic::GalacticEventKind::SpecialPresented);
+
 void write_event(ByteWriter& w, const galactic::GalacticEvent& e) {
-    w.i32(e.frame).u32(static_cast<uint32_t>(e.kind)).i32(e.player).i32(e.other_player);
+    const uint32_t kind = e.kind == galactic::GalacticEventKind::Count ? kNoEventKind : static_cast<uint32_t>(e.kind);
+    w.i32(e.frame).u32(kind).i32(e.player).i32(e.other_player);
     w.u32(static_cast<uint32_t>(e.planet)).u32(static_cast<uint32_t>(e.other_planet)).u32(e.fleet).u32(e.type);
     w.i32(e.object).i32(e.value);
 }
 
-bool read_event(ByteReader& r, galactic::GalacticEvent& e) {
+bool read_event(ByteReader& r, galactic::GalacticEvent& e, uint32_t version) {
     e.frame = r.i32();
-    const uint32_t kind = r.u32();
-    if (kind > static_cast<uint32_t>(galactic::GalacticEventKind::Count)) r.fail();
+    uint32_t kind = r.u32();
+    if (version >= 10 ? kind == kNoEventKind : kind == kV9NoEventKind)
+        kind = static_cast<uint32_t>(galactic::GalacticEventKind::Count);
+    else if (kind >= (version >= 10 ? static_cast<uint32_t>(galactic::GalacticEventKind::Count) : kV9NoEventKind))
+        r.fail();
     e.kind = static_cast<galactic::GalacticEventKind>(kind);
     e.player = r.i32();
     e.other_player = r.i32();
@@ -2830,11 +2843,11 @@ void write_trigger(ByteWriter& w, const StoryTrigger& t) {
     write_strings(w, t.units);
 }
 
-bool read_trigger(ByteReader& r, StoryTrigger& t) {
+bool read_trigger(ByteReader& r, StoryTrigger& t, uint32_t version) {
     t.frame = r.u64();
     t.index = r.u32();
     t.kind = r.str();
-    if (!read_event(r, t.event)) return false;
+    if (!read_event(r, t.event, version)) return false;
     t.planet = r.str();
     t.other_planet = r.str();
     t.type = r.str();
@@ -2848,13 +2861,13 @@ void write_triggers(ByteWriter& w, const std::vector<StoryTrigger>& v) {
     for (const StoryTrigger& t : v) write_trigger(w, t);
 }
 
-bool read_triggers(ByteReader& r, std::vector<StoryTrigger>& v) {
+bool read_triggers(ByteReader& r, std::vector<StoryTrigger>& v, uint32_t version) {
     const uint32_t n = read_count(r);
     v.clear();
     v.reserve(n);
     for (uint32_t i = 0; i < n && r.ok(); ++i) {
         StoryTrigger t;
-        if (!read_trigger(r, t)) return false;
+        if (!read_trigger(r, t, version)) return false;
         v.push_back(std::move(t));
     }
     return r.ok();
@@ -3042,7 +3055,9 @@ bool StorySession::read(ByteReader& r) {
             return false;
     }
     std::vector<StoryTrigger> triggers, pending_host, pending_ui;
-    if (!read_triggers(r, triggers) || !read_triggers(r, pending_host) || !read_triggers(r, pending_ui)) return false;
+    if (!read_triggers(r, triggers, version) || !read_triggers(r, pending_host, version) ||
+        !read_triggers(r, pending_ui, version))
+        return false;
     std::vector<uint8_t> destroyed_seen(read_count(r));
     for (uint8_t& d : destroyed_seen) d = r.u8();
     const bool destroyed_init = r.boolean();
@@ -3140,7 +3155,7 @@ bool StorySession::read(ByteReader& r) {
         }
         pending.resize(read_count(r));
         for (Tactical::Pending& p : pending) {
-            if (!read_trigger(r, p.trigger)) return false;
+            if (!read_trigger(r, p.trigger, version)) return false;
             const uint8_t kind = r.u8();
             if (kind > static_cast<uint8_t>(TacticalStoryEvent::Count)) r.fail();
             p.kind = static_cast<TacticalStoryEvent>(kind);
