@@ -470,7 +470,7 @@ struct TacticalHudFrame {
     bool reinforce_list_open = false;
     uint32_t station = commands::kNoObject;
     // #608 for the Modern deck's Idle shortcut (nothing selected): the local player's idle units to select
-    // (TacticalBattle::idle_units, whole squadrons, at most 127 ids: Select's limit) and the count the shortcut shows (a
+    // (TacticalBattle::idle_units, whole squadrons, at most OrderTranslator::kMaxSelect ids) and the count the shortcut shows (a
     // squadron or company once). Empty / 0: no shortcut.
     std::span<const uint32_t> idle_units;
     uint32_t idle_count = 0;
