@@ -8,6 +8,7 @@
 #include "alamo/ui/gui_menus.hpp"
 #include "alamo/ui/hud_font.hpp"
 #include "alamo/ui/orders.hpp"
+#include "alamo/ui/picking.hpp"
 #include "ui_strings.hpp"
 
 namespace alamo::ui {
@@ -149,6 +150,7 @@ void ModernTacticalHud::init(const ComponentTable& table, const TextureAtlas& at
         std::snprintf(n, sizeof n, "s_select_%02d", i);
         if (panel_slots_ == static_cast<size_t>(i) && table.find(n) >= 0) ++panel_slots_;
     }
+    radar_ = table.find("radar");  // #591
     retreat_ = table.find("b_retreat");  // #587, as TacticalHud::init
     special_weapon_ = table.find("b_special_weapon");
     reinforce_button_ = table.find("b_reinforcement");
@@ -257,6 +259,9 @@ void ModernTacticalHud::build(const TacticalHudFrame& frame, std::span<const Hud
     fleet_tab_group_.clear();
     builder_ = frame.builder;
     station_ = commands::kNoObject;
+    map_view_ = {};
+    ground_z_ = frame.ground_z;
+    select_groups_ = !group_selection(units).empty();
     wing_ids_.clear();
     for (bool& l : order_live_) l = false;
     stats_ = {};
@@ -265,6 +270,8 @@ void ModernTacticalHud::build(const TacticalHudFrame& frame, std::span<const Hud
     jump_ok_ = false;  // before the early return: a hidden HUD has no Jump
     if (!table_ || !fonts_ || frame.world.interface_hidden || font() < 0) return;
     build_deck(frame, units, types);
+    build_map(frame, units, types);
+    build_target_card(frame, units, types);
     build_status(frame);
     build_controls(frame);
     build_alerts(frame);
@@ -990,6 +997,172 @@ void ModernTacticalHud::build_fleet_tabs(const TacticalHudFrame& f, std::span<co
     }
 }
 
+namespace {
+// #591 map blip shapes (a shape as well as the team colour): square, diamond (a turned square), circle (an octagon).
+void blip_square(HudDrawList& dl, uint32_t layer, Vec2f c, float r, Rgba8 col) { add_rect(dl, layer, c.x - r, c.y - r, c.x + r, c.y + r, col); }
+void blip_diamond(HudDrawList& dl, uint32_t layer, Vec2f c, float r, Rgba8 col) {
+    HudQuad q;
+    q.has_corners = true;
+    q.corners = {Vec2f{c.x, c.y + 1.3f * r}, Vec2f{c.x + 1.3f * r, c.y}, Vec2f{c.x, c.y - 1.3f * r}, Vec2f{c.x - 1.3f * r, c.y}};
+    q.color = col;
+    dl.add(layer, HudList::Alpha, q);
+}
+void blip_circle(HudDrawList& dl, uint32_t layer, Vec2f c, float r, Rgba8 col) {
+    const float k = 0.4142f * r;  // the octagon's half side
+    add_rect(dl, layer, c.x - r, c.y - k, c.x + r, c.y + k, col);
+    for (const float s : {1.0f, -1.0f}) {  // the top and bottom trapezoids
+        HudQuad q;
+        q.has_corners = true;
+        q.corners = {Vec2f{c.x - k, c.y + s * r}, Vec2f{c.x + k, c.y + s * r}, Vec2f{c.x + r, c.y + s * k}, Vec2f{c.x - r, c.y + s * k}};
+        q.color = col;
+        dl.add(layer, HudList::Alpha, q);
+    }
+}
+void line_quad(HudDrawList& dl, uint32_t layer, Vec2f a, Vec2f b, float w, Rgba8 col) {
+    const float dx = b.x - a.x, dy = b.y - a.y, len = std::sqrt(dx * dx + dy * dy);
+    if (len < 1e-3f) return;
+    const Vec2f n{-dy / len * 0.5f * w, dx / len * 0.5f * w};
+    HudQuad q;
+    q.has_corners = true;
+    q.corners = {Vec2f{a.x + n.x, a.y + n.y}, Vec2f{b.x + n.x, b.y + n.y}, Vec2f{b.x - n.x, b.y - n.y}, Vec2f{a.x - n.x, a.y - n.y}};
+    q.color = col;
+    dl.add(layer, HudList::Alpha, q);
+}
+}  // namespace
+
+// #591 the Modern map: the Classic radar's feed and rules (radar_blip_shown, RadarView, the radar image page, the events,
+// the camera footprint) in a square panel above the deck's left end (right with the map side option).
+void ModernTacticalHud::build_map(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types) {
+    const float side = std::min(0.3f * canvas_.height, 0.22f * canvas_.width);
+    const float deck_top = -0.5f * canvas_.height + kMargin + kDeckHeight;
+    const float cx = options_.map_right ? 0.5f * canvas_.width - kMargin - 0.5f * side : -0.5f * canvas_.width + kMargin + 0.5f * side;
+    const Vec2f center{cx, deck_top + kMargin + 0.5f * side}, size{side, side};
+    frame_rect(dl_, kPanelLayer, center, {side + 2.0f * kPad, side + 2.0f * kPad}, colours_.back, accent(200));
+    if (f.radar_image && !f.radar_image->empty()) {  // terrain and fog: the host's radar page
+        HudQuad q;
+        q.min = {center.x - 0.5f * side, center.y - 0.5f * side};
+        q.max = {center.x + 0.5f * side, center.y + 0.5f * side};
+        q.page = kHudPageRadar;
+        dl_.add(kPanelLayer, HudList::Alpha, q);
+    }
+    hit(map_id(), kControlLayer, center, size);
+    stats_.map = true;
+    stats_.map_right = options_.map_right;
+    map_view_.center = center;
+    map_view_.size = size;
+    map_view_.min_x = f.map_min_x;
+    map_view_.min_y = f.map_min_y;
+    map_view_.max_x = f.map_max_x;
+    map_view_.max_y = f.map_max_y;
+    if (!map_view_.valid()) return;
+    const int32_t local = f.world.local_player;
+    const float r = std::max(2.0f, 0.012f * side);
+    for (const HudUnit& u : units) {
+        const HudTypeInfo* t = u.type < types.size() ? &types[u.type] : nullptr;
+        const bool hostile = f.world.hostile ? f.world.hostile(u.owner) : (u.owner >= 0 && u.owner != local);
+        if (!radar_blip_shown(u, t, hostile)) continue;
+        const Vec2f c = map_view_.to_canvas(u.position.x, u.position.y);
+        if (!map_view_.inside(c)) continue;
+        Rgba8 col = u.selected && f.radar_colorize_selected ? f.radar_selected_color : u.team_color;
+        col.a = 255;
+        const float ur = u.selected ? 1.4f * r : r;
+        if (u.owner == local && local >= 0) {
+            blip_square(dl_, kControlLayer + 1, c, ur, col);
+            ++stats_.map_squares;
+        } else if (hostile) {
+            blip_diamond(dl_, kControlLayer + 1, c, ur, col);
+            ++stats_.map_diamonds;
+        } else {
+            blip_circle(dl_, kControlLayer + 1, c, ur, col);
+            ++stats_.map_circles;
+        }
+    }
+    if (f.radar_events)  // pings: an expanding, fading ring (story blips a steady ring)
+        for (const RadarEvent& e : f.radar_events->items()) {
+            const Vec2f c = map_view_.to_canvas(e.x, e.y);
+            if (!map_view_.inside(c)) continue;
+            const float tt = e.marker ? 0.5f : e.persistent ? std::fmod(e.age, 1.0f) : std::clamp(e.age / std::max(e.duration, 1e-3f), 0.0f, 1.0f);
+            const float rr = r * (2.0f + 6.0f * tt);
+            const auto a = static_cast<uint8_t>(std::lround(255.0f * (1.0f - 0.8f * tt)));
+            for (int d = 0; d < 16; ++d) {
+                const float a0 = 6.2831853f * static_cast<float>(d) / 16.0f, a1 = 6.2831853f * static_cast<float>(d + 1) / 16.0f;
+                line_quad(dl_, kControlLayer + 1, {c.x + rr * std::cos(a0), c.y + rr * std::sin(a0)}, {c.x + rr * std::cos(a1), c.y + rr * std::sin(a1)},
+                          1.5f, Rgba8{255, 255, 255, a});
+            }
+            ++stats_.map_pings;
+        }
+    if (f.radar_footprint) {  // the camera's ground footprint, clipped to the map
+        const std::array<Vec2f, 4> fp = camera_footprint(f.world.view, f.ground_z);
+        auto clip = [&](Vec2f p) {
+            return Vec2f{std::clamp(p.x, center.x - 0.5f * side, center.x + 0.5f * side), std::clamp(p.y, center.y - 0.5f * side, center.y + 0.5f * side)};
+        };
+        for (size_t i = 0; i < 4; ++i)
+            line_quad(dl_, kControlLayer + 1, clip(map_view_.to_canvas(fp[i].x, fp[i].y)), clip(map_view_.to_canvas(fp[(i + 1) % 4].x, fp[(i + 1) % 4].y)),
+                      1.5f, Rgba8{255, 255, 255, 200});
+    }
+}
+
+// #591 the hover target card: the hovered hostile unit (HudUnit::hovered) - its name, hull and shield bars with their
+// percentages, and its hard points (the frame's, parent = the unit) as a bar each - beside it on screen. No hit box.
+void ModernTacticalHud::build_target_card(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types) {
+    const int32_t local = f.world.local_player;
+    const HudUnit* u = nullptr;
+    for (const HudUnit& x : units) {
+        const bool hostile = f.world.hostile ? f.world.hostile(x.owner) : (x.owner >= 0 && x.owner != local);
+        if (x.hovered && hostile && !x.stealthed) u = &x;
+    }
+    if (!u) return;
+    float sx = 0.0f, sy = 0.0f;
+    if (!project(f.world.view, u->position, sx, sy)) return;
+    const Vec2f at = canvas_.pixel_to_canvas(sx, sy);
+    std::vector<const HudHardPoint*> points;
+    for (const HudHardPoint& hp : f.hardpoints)
+        if (hp.parent == u->id) points.push_back(&hp);
+    const float line = text_height_units() * 1.3f, w = 14.0f * text_height_units();
+    const size_t hp_rows = std::min<size_t>(points.size(), 8);
+    const float h = line * (2.0f + (u->shield >= 0.0f ? 1.0f : 0.0f) + (hp_rows > 0 ? 1.0f + static_cast<float>(hp_rows) * 0.6f : 0.0f)) + kPad;
+    Vec2f c{at.x + 40.0f + 0.5f * w, at.y};
+    c.x = std::clamp(c.x, -0.5f * canvas_.width + kMargin + 0.5f * w, 0.5f * canvas_.width - kMargin - 0.5f * w);
+    c.y = std::clamp(c.y, -0.5f * canvas_.height + kMargin + kDeckHeight + 0.5f * h, 0.5f * canvas_.height - kMargin - 0.5f * h);
+    frame_rect(dl_, kBannerLayer, c, {w, h}, colours_.back, colours_.hull_bad);
+    HudTextStyle st;
+    st.font = font();
+    st.color = colours_.text;
+    const float left = c.x - 0.5f * w + kPad, bar_w = w - 2.0f * kPad;
+    float y = c.y + 0.5f * h - 0.5f * kPad - 0.5f * line;
+    const std::u32string name = type_label(u->type < types.size() ? &types[u->type] : nullptr, text_);
+    st.width_scale = fit_width_scale(measure_text_block(*fonts_, canvas_, name, 0.0f, st).width, bar_w);
+    add_text(dl_, kBannerLayer, HudList::Text, *fonts_, canvas_, name, {left, y}, st);
+    st.width_scale = 1.0f;
+    auto row = [&](const char32_t* label, float v, Rgba8 col, bool striped) {
+        y -= line;
+        char n[16];
+        std::snprintf(n, sizeof n, " %d%%", static_cast<int>(std::lround(std::clamp(v, 0.0f, 1.0f) * 100.0f)));
+        HudTextStyle ls = st;
+        ls.color = colours_.label;
+        add_text(dl_, kBannerLayer, HudList::Text, *fonts_, canvas_, text_or_port(text_, nullptr, label) + ascii32(n), {left, y + 0.2f * line}, ls);
+        add_bar(dl_, kBannerLayer, {c.x, y - 0.35f * line}, {bar_w, 4.0f}, v, col, striped);
+    };
+    row(U"Hull", u->health, hull_colour(u->health), false);
+    if (u->shield >= 0.0f) row(U"Shields", u->shield, colours_.shield, true);
+    if (hp_rows > 0) {
+        y -= line;
+        HudTextStyle ls = st;
+        ls.color = colours_.label;
+        char n[24];
+        std::snprintf(n, sizeof n, "%zu ", points.size());
+        add_text(dl_, kBannerLayer, HudList::Text, *fonts_, canvas_, ascii32(n) + text_or_port(text_, nullptr, U"hard points"), {left, y}, ls);
+        for (size_t i = 0; i < hp_rows; ++i) {
+            y -= 0.6f * line;
+            const HudHardPoint& hp = *points[i];
+            add_bar(dl_, kBannerLayer, {c.x, y}, {bar_w, 4.0f}, hp.health, hp.disabled ? colours_.disabled : hull_colour(hp.health), hp.disabled);
+        }
+    }
+    stats_.target_card = true;
+    stats_.target_id = u->id;
+    stats_.target_hardpoints = static_cast<uint32_t>(points.size());
+}
+
 // A key badge (the slot's live binding) with its top-right corner at `top_right`.
 void ModernTacticalHud::key_badge(uint16_t slot, Vec2f top_right, uint32_t layer, bool always) {
     if (!keys_ || (!options_.key_hints && !always)) return;
@@ -1259,8 +1432,27 @@ void ModernTacticalHud::update_input(const RoutedInput& routed, bool shift, bool
     auto act = [&](HudAction a) {
         if (actions) actions->push_back(std::move(a));
     };
+    // #591 the map: Classic's radar input (TacticalHud::update_input "Radar"): a left press / drag jumps the camera to the
+    // cursor's point; a right click with a selection moves it there (and pings).
+    for (const HudPointerEvent& e : routed.hud) {
+        if (e.button != Button::Left) continue;
+        if (e.kind == HudPointerEvent::Kind::Press) map_drag_ = e.component == map_id() && map_view_.valid();
+        if (e.kind == HudPointerEvent::Kind::Release) map_drag_ = false;
+    }
+    if (map_drag_ && routed.owner[static_cast<size_t>(Button::Left)] == PointerTarget::Hud && map_view_.valid()) {
+        const Vec2f cp = canvas_.pixel_to_canvas(static_cast<float>(routed.world.mouse_x) + 0.5f, static_cast<float>(routed.world.mouse_y) + 0.5f);
+        act(radar_jump_action(map_id(), map_view_.to_world(cp)));
+    } else if (routed.owner[static_cast<size_t>(Button::Left)] != PointerTarget::Hud) {
+        map_drag_ = false;
+    }
     for (const HudPointerEvent& e : routed.hud) {
         if (e.kind != HudPointerEvent::Kind::Click || e.component < 0 || !drawn(e.component)) continue;
+        if (e.component == map_id()) {
+            if (e.button == Button::Right && select_groups_ && map_view_.valid())
+                radar_move_click(map_view_.to_world(canvas_.pixel_to_canvas(static_cast<float>(e.x) + 0.5f, static_cast<float>(e.y) + 0.5f)), ground_z_,
+                                 out, actions);
+            continue;
+        }
         if (e.component == kModernStyleSwitchHit) {
             if (e.button == Button::Left) {
                 HudAction h;

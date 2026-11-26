@@ -40,6 +40,7 @@
 #include "alamo/ui/hud_components.hpp"
 #include "alamo/ui/hud_draw.hpp"
 #include "alamo/ui/hud_input.hpp"
+#include "alamo/ui/hud_radar.hpp"
 #include "alamo/ui/hud_style.hpp"
 #include "alamo/ui/tactical_hud.hpp"
 
@@ -60,6 +61,7 @@ inline constexpr int32_t kModernClearHit = kModernHitBase + 2;        // the dec
 inline constexpr int32_t kModernJumpHit = kModernHitBase + 3;         // the alert strip's Jump
 inline constexpr int32_t kModernCardHitBase = kModernHitBase + 0x100;  // + card index (the deck's selection cards)
 inline constexpr int32_t kModernStationHit = kModernHitBase + 4;          // #587 the shortcut that selects the station
+inline constexpr int32_t kModernMapHit = kModernHitBase + 5;              // #591 the map, when the table has no "radar"
 inline constexpr int32_t kModernFleetShortcutBase = kModernHitBase + 0x200;  // + fleet group index (#587 shortcuts)
 // Hull bar colours by health (badly damaged units stand out): above kModernHullWarn, above kModernHullCritical, below.
 inline constexpr float kModernHullWarn = 0.6f, kModernHullCritical = 0.3f;
@@ -109,6 +111,13 @@ struct ModernHudStats {
     uint32_t shortcuts = 0;                  // wing, fleet group and station shortcuts drawn
     float deck_width = 0.0f;                 // canvas units
     uint32_t fleet_tabs = 0, fleet_merge = 0, fleet_split = 0;  // #588 group tabs and their Merge / Split buttons drawn
+    // #591 the map (bottom left above the deck, or right with the map side option): blips by shape - own units squares,
+    // hostile diamonds, neutral and allied circles - in their team colours; pings; the camera footprint. The hover target
+    // card: the hovered hostile unit's name, hull, shields and hard points beside it (no hit box: clicks pass through).
+    bool map = false, map_right = false;
+    uint32_t map_squares = 0, map_diamonds = 0, map_circles = 0, map_pings = 0;
+    bool target_card = false;
+    uint32_t target_id = 0, target_hardpoints = 0;
     uint32_t abilities = 0;              // #586 ability buttons drawn
     uint32_t ability_rings = 0;          // of them recharging (a ring and the seconds left)
     uint32_t ability_auto = 0;           // of them with the AUTO badge (autofire on)
@@ -136,7 +145,7 @@ public:
     // Modern text scale, clamped to kModernTextScaleMin .. kModernTextScaleMax (also set by set_options).
     void set_text_scale(float s);
     // [port] #590 the Interface page's Modern options (clamped): text size, colours, key hints, order labels, panel opacity;
-    // the contextual deck (#587); the map side is kept for the map (#591). Takes effect on the next build().
+    // the contextual deck (#587), the map side (#591). Takes effect on the next build().
     void set_options(const ModernHudOptions& o);
     const ModernHudOptions& options() const { return options_; }
     float text_scale() const { return text_scale_; }
@@ -204,6 +213,14 @@ private:
         int32_t hotkey = -1;    // key badge slot
     };
     void tile(const Tile& t);
+    void build_map(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
+    void build_target_card(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
+    int32_t map_id() const { return radar_ >= 0 ? radar_ : kModernMapHit; }
+    int32_t radar_ = -1;      // the Classic "radar" component: the map's hit id (its RadarCameraJump component)
+    RadarView map_view_;      // the last build's map rectangle (to_world for clicks)
+    bool map_drag_ = false;   // a left press on the map (camera jumps while held)
+    bool select_groups_ = false;  // the selection has groups (Classic's radar move click needs one)
+    float ground_z_ = 0.0f;
     float build_actions(const TacticalHudFrame& f, Vec2f top_left, float height, bool draw);  // returns the width
     float build_shortcuts(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types,
                           Vec2f top_left, float height, bool draw);

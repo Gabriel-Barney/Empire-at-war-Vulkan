@@ -423,6 +423,38 @@ std::vector<uint32_t> fleet_tab_select_ids(std::span<const uint32_t> members, st
     return capped(std::move(ids));
 }
 
+bool radar_blip_shown(const HudUnit& u, const HudTypeInfo* t, bool hostile) {
+    if (t && !t->visible_on_radar) return false;
+    if (t && hostile && !t->visible_on_enemy_radar) return false;
+    if (hostile && u.jammed) return false;  // R5 sensor jamming: the jammer's side drops these units from the enemy radar (0x35b4d0)
+    if (hostile && u.stealthed) return false;  // R5 stealth: the same filter drops hostile Is_Stealthed units (ABILITY_VISUALS 1.4)
+    // q6 t19 (OBJECT_SCRIPTS §10.3): a Lua-hidden unit (model hidden) has no blip unless Visible_On_Radar_When_Fogged.
+    if (u.script_hidden && !(t && t->visible_on_radar_when_fogged)) return false;
+    // map1 t01 (0x35b4d0): an object in a container (obj +0x3A7) never has a blip; one the fog hides from the local
+    // player (its HIDE_WHEN_FOGGED state not visible) has none unless its type is Visible_On_Radar_When_Fogged.
+    if (u.contained) return false;
+    return !(u.fog_hidden && !(t && t->visible_on_radar_when_fogged));
+}
+
+HudAction radar_jump_action(int32_t component, Vec2f world) {
+    HudAction a;
+    a.kind = HudAction::Kind::RadarCameraJump;
+    a.component = component;
+    a.x = world.x;
+    a.y = world.y;
+    return a;
+}
+
+void radar_move_click(Vec2f world, float ground_z, std::vector<commands::EventData>& out, std::vector<HudAction>* actions) {
+    out.push_back(commands::ev::move_to_position(world.x, world.y, ground_z));  // [port] move order on the radar point
+    HudAction h;
+    h.kind = HudAction::Kind::RadarPing;
+    h.name = "Default_Click";
+    h.x = world.x;
+    h.y = world.y;
+    if (actions) actions->push_back(std::move(h));
+}
+
 HudAction fleet_rename_action(int32_t component, uint16_t id, const std::string& name) {
     HudAction h;
     h.kind = HudAction::Kind::FleetGroupRename;
@@ -509,13 +541,7 @@ void TacticalHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
     if (radar_drag_ && routed.owner[static_cast<size_t>(Button::Left)] == PointerTarget::Hud && radar_view_.valid()) {
         const Vec2f cp = canvas_.pixel_to_canvas(static_cast<float>(routed.world.mouse_x) + 0.5f,
                                                  static_cast<float>(routed.world.mouse_y) + 0.5f);
-        const Vec2f w = radar_view_.to_world(cp);
-        HudAction a;
-        a.kind = HudAction::Kind::RadarCameraJump;
-        a.component = radar_;
-        a.x = w.x;
-        a.y = w.y;
-        act(std::move(a));
+        act(radar_jump_action(radar_, radar_view_.to_world(cp)));
     } else if (routed.owner[static_cast<size_t>(Button::Left)] != PointerTarget::Hud) {
         radar_drag_ = false;
     }
@@ -604,15 +630,7 @@ void TacticalHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
         if (k.component == radar_ && radar_view_.valid()) {
             const Vec2f w = radar_view_.to_world(canvas_.pixel_to_canvas(static_cast<float>(k.x) + 0.5f,
                                                                          static_cast<float>(k.y) + 0.5f));
-            if (k.button == Button::Right && !groups_.empty()) {  // [port] move order on the radar point
-                out.push_back(commands::ev::move_to_position(w.x, w.y, radar_ground_z_));
-                HudAction h;
-                h.kind = HudAction::Kind::RadarPing;
-                h.name = "Default_Click";
-                h.x = w.x;
-                h.y = w.y;
-                act(std::move(h));
-            }
+            if (k.button == Button::Right && !groups_.empty()) radar_move_click(w, radar_ground_z_, out, actions);
             continue;
         }
         if (k.component == retreat_ && k.button == Button::Left) {
@@ -869,17 +887,8 @@ void TacticalHud::build_radar(const TacticalHudFrame& f, std::span<const HudUnit
     const int32_t local = f.world.local_player;
     for (const HudUnit& u : units) {
         const HudTypeInfo* t = u.type < types.size() ? &types[u.type] : nullptr;
-        if (t && !t->visible_on_radar) continue;
         const bool hostile = f.world.hostile ? f.world.hostile(u.owner) : (u.owner >= 0 && u.owner != local);
-        if (t && hostile && !t->visible_on_enemy_radar) continue;
-        if (hostile && u.jammed) continue;  // R5 sensor jamming: the jammer's side drops these units from the enemy radar (0x35b4d0)
-        if (hostile && u.stealthed) continue;  // R5 stealth: the same filter drops hostile Is_Stealthed units (ABILITY_VISUALS 1.4)
-        // q6 t19 (OBJECT_SCRIPTS §10.3): a Lua-hidden unit (model hidden) has no blip unless Visible_On_Radar_When_Fogged.
-        if (u.script_hidden && !(t && t->visible_on_radar_when_fogged)) continue;
-        // map1 t01 (0x35b4d0): an object in a container (obj +0x3A7) never has a blip; one the fog hides from the local
-        // player (its HIDE_WHEN_FOGGED state not visible) has none unless its type is Visible_On_Radar_When_Fogged.
-        if (u.contained) continue;
-        if (u.fog_hidden && !(t && t->visible_on_radar_when_fogged)) continue;
+        if (!radar_blip_shown(u, t, hostile)) continue;
         const Vec2f c = radar_view_.to_canvas(u.position.x, u.position.y);
         if (!radar_view_.inside(c)) continue;
         Rgba8 col = u.selected && f.radar_colorize_selected ? f.radar_selected_color : u.team_color;

@@ -956,8 +956,8 @@ void test_controls() {
               d->get("IDC_EDIT_PORT_HUD_STYLE")->text == U"F9" && d->get("IDC_EDIT_PORT_ALERT_JUMP")->text == U"F4");
         CHECK(d && d->get("IDC_PORT_HUD_UI_SCALE")->items.size() == std::size(kUiScaleChoices));
         CHECK(d && !d->get("IDC_PORT_HUD_TEXT_SIZE")->enabled && !d->get("IDC_PORT_HUD_CONTEXTUAL")->enabled);  // Classic: greyed
-        // The map side (#591) stays hidden until the HUD uses it; the contextual deck (#587) is shown.
-        CHECK(d && !d->get("IDC_PORT_HUD_MAP_SIDE")->visible && d->get("IDC_PORT_HUD_CONTEXTUAL")->visible &&
+        // The map side (#591) and the contextual deck (#587) are shown.
+        CHECK(d && d->get("IDC_PORT_HUD_MAP_SIDE")->visible && d->get("IDC_PORT_HUD_CONTEXTUAL")->visible &&
               d->get("IDC_PORT_HUD_KEY_HINTS")->visible);
         // Picking Modern enables the rows; the slider's label follows it.
         d->set_selected("IDC_PORT_HUD_STYLE", 1);
