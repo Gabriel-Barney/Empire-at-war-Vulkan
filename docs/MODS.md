@@ -613,10 +613,13 @@ blocks G3.
 
 The runner's 0 / 4 worker comparison covers worker counts. Each reference mod also has a short headless scenario in
 `tests/goldens/mods/<name>.json`, run by `tools/goldens/mod_golden.py` as ctest `alamo_headless_mod_golden_<name>`,
-skipped when `ALAMO_FOC_DATA` is unset or the mod is not installed. Mods set values the stock game never uses (delays of
-99999999999 seconds); sim code converts them with x86 range behaviour (`alamo/core/x86_int.hpp`, `alamo/core/frames.hpp`;
-`tools/lint/check_frame_casts.py` enforces it outside `engine/core`), and `tools/conformance/limit_mods.py` checks the CRC
-logs agree across worker counts on such data. All other rules are in `docs/SIMULATION.md`.
+skipped when `ALAMO_FOC_DATA` is unset or the mod is not installed. A spec's `fingerprint` is the mod's content hash
+(`vfs::mod_content_hash`, no write times), printed by `mod_golden.py --spec S --fingerprint --mod-check
+alamo_mod_check.exe` from `alamo_mod_check --list-mods`; it is informational (#349). Mods set values the stock game
+never uses (delays of 99999999999 seconds); sim code converts them with x86 range behaviour (`alamo/core/x86_int.hpp`,
+`alamo/core/frames.hpp`; `tools/lint/check_frame_casts.py` enforces it outside `engine/core`), and
+`tools/conformance/limit_mods.py` checks the CRC logs agree across worker counts on such data. All other rules are in
+`docs/SIMULATION.md`.
 
 ### Saves, mod versions and the launcher
 

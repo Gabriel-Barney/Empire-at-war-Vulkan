@@ -7,8 +7,11 @@ diffed by tools/goldens/behaviour_check.py (nightly tier). The spec file names t
   {"name": "...", "mod": "<workshop id>", "stack": ["STEAMMOD=<id>", ...], "args": [alamo_headless arguments],
    "fingerprint": "<data fingerprint of the mod when the spec was made; informational>"}
   python -I tools/goldens/mod_golden.py --spec S --exe alamo_headless.exe [more alamo_headless arguments, e.g. --crc-out F]
-  python -I tools/goldens/mod_golden.py --spec S --fingerprint     print the installed mod's fingerprint (the scenario's
-                                                                    input identity in the result cache key)
+  python -I tools/goldens/mod_golden.py --spec S --fingerprint --mod-check alamo_mod_check.exe
+      print the installed mod's fingerprint: the engine's mod content hash (vfs::mod_content_hash: file sizes plus each
+      MEG's header and tables, no write times), read from alamo_mod_check --list-mods, so a re-downloaded or copied mod
+      with the same bytes keeps it and the two definitions cannot drift (#349)
+  python -I tools/goldens/mod_golden.py --selftest                 check the fingerprint lookup on a canned mod list
 It skips (prints a "SKIP mod golden ..." line and exits 77, the skip code its retail ctest entry registers) when ALAMO_FOC_DATA is not set or the workshop item
 is not installed (the Steam libraries: the one holding the FoC folder, then ALAMO_STEAM_ROOT or the default client's
 libraryfolders.vdf, as docs/MODS.md "Command line switches"). Otherwise it runs alamo_headless --game <ALAMO_FOC_DATA> <args> <stack>
@@ -17,7 +20,6 @@ libraryfolders.vdf, as docs/MODS.md "Command line switches"). Otherwise it runs 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import re
@@ -66,24 +68,68 @@ def find_mod(game: str, mod_id: str) -> str | None:
     return None
 
 
-def fingerprint(mod_dir: str) -> str:
-    """SHA-1 (16 hex digits) of the sorted (relative path, size, write time) list of the mod's Data folder."""
-    rows = []
-    data = os.path.join(mod_dir, "Data")
-    for base, _, files in os.walk(data):
-        for n in files:
-            p = os.path.join(base, n)
-            st = os.stat(p)
-            rows.append(f"{os.path.relpath(p, data).replace(os.sep, '/').lower()}|{st.st_size}|{st.st_mtime_ns}")
-    return hashlib.sha1("\n".join(sorted(rows)).encode()).hexdigest()[:16]
+def fingerprint(mod_check: str, game: str, mod_id: str, run=subprocess.run) -> str | None:
+    """The workshop item's content_hash (16 hex digits) in alamo_mod_check --list-mods, or None when it is not listed.
+
+    The item's main modinfo entry (variant "") is preferred; its <variant>-modinfo.json entries share the folder and so
+    the hash, and stand in when the folder has no main entry."""
+    out = run([mod_check, "--game", game, "--list-mods", "--json", "-"], capture_output=True, text=True, encoding="utf-8")
+    if out.returncode != 0:
+        raise RuntimeError(f"alamo_mod_check --list-mods failed ({out.returncode}): {out.stderr.strip()}")
+    items = [m for m in json.loads(out.stdout).get("mods", []) if m.get("kind") == "workshop" and m.get("id") == mod_id]
+    items.sort(key=lambda m: m.get("variant", "") != "")  # the main entry first (stable)
+    return items[0].get("content_hash") if items else None
+
+
+def _selftest() -> int:
+    listing = {"schema": "alamo.mod_list", "version": 1, "game": "G", "mods": [
+        {"key": "MODPATH=Mods/X", "kind": "local", "id": "1125571106", "variant": "", "content_hash": "1111111111111111"},
+        {"key": "STEAMMOD=1125571106:v2", "kind": "workshop", "id": "1125571106", "variant": "v2", "content_hash": "3333333333333333"},
+        {"key": "STEAMMOD=1125571106", "kind": "workshop", "id": "1125571106", "variant": "", "content_hash": "755e1df113e97c7e"},
+        {"key": "STEAMMOD=2:only", "kind": "workshop", "id": "2", "variant": "only", "content_hash": "2222222222222222"}]}
+    calls = []
+
+    class Done:
+        def __init__(self, code: int, text: str) -> None:
+            self.returncode, self.stdout, self.stderr = code, text, "boom"
+
+    def ok(cmd, **_):
+        calls.append(cmd)
+        return Done(0, json.dumps(listing))
+
+    fails = 0
+    checks = [
+        (fingerprint("mc.exe", "G", "1125571106", ok) == "755e1df113e97c7e", "the workshop item's main entry, not a variant or a local mod"),
+        (fingerprint("mc.exe", "G", "2", ok) == "2222222222222222", "a variant when the item has no main entry"),
+        (fingerprint("mc.exe", "G", "3", ok) is None, "an item that is not listed"),
+        (calls[0] == ["mc.exe", "--game", "G", "--list-mods", "--json", "-"], "the command line"),
+    ]
+    try:
+        fingerprint("mc.exe", "G", "2", lambda cmd, **_: Done(1, ""))
+        raised = False
+    except RuntimeError:
+        raised = True
+    checks.append((raised, "a failing tool raises"))
+    for good, what in checks:
+        if not good:
+            print("selftest FAIL:", what)
+            fails += 1
+    print("mod_golden selftest:", "ok" if fails == 0 else f"{fails} failed")
+    return 1 if fails else 0
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(add_help=True)
-    ap.add_argument("--spec", required=True)
+    ap.add_argument("--spec")
     ap.add_argument("--exe")
     ap.add_argument("--fingerprint", action="store_true")
+    ap.add_argument("--mod-check", help="alamo_mod_check.exe, for --fingerprint")
+    ap.add_argument("--selftest", action="store_true")
     a, rest = ap.parse_known_args()
+    if a.selftest:
+        return _selftest()
+    if not a.spec:
+        ap.error("--spec is required")
     with open(a.spec, encoding="utf-8") as f:
         spec = json.load(f)
     name = os.path.splitext(os.path.basename(a.spec))[0]
@@ -91,14 +137,19 @@ def main() -> int:
     if not game or not os.path.isdir(game):
         print(f"SKIP mod golden {name}: ALAMO_FOC_DATA not set")
         return 77
+    if a.fingerprint:
+        if not a.mod_check:
+            ap.error("--fingerprint needs --mod-check alamo_mod_check.exe")
+        fp = fingerprint(a.mod_check, game, spec["mod"])
+        if fp is None:
+            print(f"mod golden {name}: alamo_mod_check does not list workshop item {spec['mod']}", file=sys.stderr)
+            return 1
+        print(fp)
+        return 0
     mod_dir = find_mod(game, spec["mod"])
     if mod_dir is None:
         print(f"SKIP mod golden {name}: workshop item {spec['mod']} ({spec.get('name', '')}) not installed next to ALAMO_FOC_DATA")
         return 77
-    fp = fingerprint(mod_dir)
-    if a.fingerprint:
-        print(fp)
-        return 0
     if not a.exe:
         ap.error("--exe is required")
     cmd = [a.exe, "--game", game] + list(spec["args"]) + list(spec.get("stack") or ["STEAMMOD=" + spec["mod"]])

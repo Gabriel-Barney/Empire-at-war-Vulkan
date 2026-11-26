@@ -721,6 +721,10 @@ if(ALAMO_GOLDEN_PYTHON)
   add_test(NAME alamo_goldens_convert_selftest
            COMMAND ${ALAMO_GOLDEN_PYTHON} ${CMAKE_SOURCE_DIR}/tools/goldens/convert_goldens.py --selftest)
   set_tests_properties(alamo_goldens_convert_selftest PROPERTIES TIMEOUT 60)
+  # #349: the mod golden fingerprint lookup (alamo_mod_check --list-mods content_hash) on a canned mod list
+  add_test(NAME alamo_goldens_mod_golden_selftest
+           COMMAND ${ALAMO_GOLDEN_PYTHON} -I ${CMAKE_SOURCE_DIR}/tools/goldens/mod_golden.py --selftest)
+  set_tests_properties(alamo_goldens_mod_golden_selftest PROPERTIES TIMEOUT 60)
 endif()
 
 # mod scenarios (docs/MODS.md "Determinism with mods"): one short headless skirmish per reference mod, the run in
