@@ -17,22 +17,29 @@
 //     with their live hotkey badges, greyed with a dashed outline when no selected unit can do the order, and the fleet
 //     cohesion line. Cards group by the Classic functions (group_selection / group_selection_fleets) and click as the
 //     Classic portraits do (plain: the group; Shift: drop it; Ctrl: its first unit);
+//   - the alert strip (top centre, #589): the newest of TacticalHudFrame::alerts (advisor lines, radar events, production
+//     done, objectives added; the host keeps them in a HudAlertLog) with a count of the others and, for an alert with a
+//     position, Jump (its live hotkey badge, slot AlertJump) -> HudAction::RadarCameraJump there;
+//   - the objectives panel (top right, under the controls, #589): the Classic objectives (hud_objective_text) with their
+//     state as a shape (open: an outlined square, done: a filled square, failed: a cross); folded to its header while
+//     objectives_hidden (the Mission Holocron key, Tab, as Classic);
 //   - while paused, the Game Paused banner with Resume Game (the Classic banner's HudAction::ResumeGame on its
 //     attack_button component): the Classic banner is drawn into the Classic panels, which Modern replaces.
 // Sizes: panels are in canvas units, so the UI scale (HudCanvas) sizes them as it sizes Classic. Text has its own scale
 // (set_text_scale, 100..200 %, default 115 %), at which all Modern text is 18 px at 1080p (Xbox accessibility guideline 101).
 #pragma once
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
 
 #include "alamo/commands/command.hpp"
+#include "alamo/ui/hotkeys.hpp"
 #include "alamo/ui/hud_canvas.hpp"
 #include "alamo/ui/hud_components.hpp"
 #include "alamo/ui/hud_draw.hpp"
 #include "alamo/ui/hud_input.hpp"
-#include "alamo/ui/hotkeys.hpp"
 #include "alamo/ui/hud_style.hpp"
 #include "alamo/ui/tactical_hud.hpp"
 
@@ -50,9 +57,30 @@ inline constexpr int32_t kModernHitBase = 0x44000000;
 inline constexpr int32_t kModernStyleSwitchHit = kModernHitBase + 0;  // the HUD style switch
 inline constexpr int32_t kModernPanelHit = kModernHitBase + 1;        // a panel's back: takes the click, does nothing
 inline constexpr int32_t kModernClearHit = kModernHitBase + 2;        // the deck's clear-selection button
+inline constexpr int32_t kModernJumpHit = kModernHitBase + 3;         // the alert strip's Jump
 inline constexpr int32_t kModernCardHitBase = kModernHitBase + 0x100;  // + card index (the deck's selection cards)
 // Hull bar colours by health (badly damaged units stand out): above kModernHullWarn, above kModernHullCritical, below.
 inline constexpr float kModernHullWarn = 0.6f, kModernHullCritical = 0.3f;
+
+// [port: Gabriel] #589 The host's alert list for the Modern alert strip: push() what happened, update() each frame
+// (ages the entries, drops those older than kSeconds and all but the newest kMax).
+class HudAlertLog {
+public:
+    static constexpr double kSeconds = 12.0;
+    static constexpr size_t kMax = 8;
+    void push(HudAlert::Kind kind, std::u32string text, double now);
+    void push_at(HudAlert::Kind kind, std::u32string text, float x, float y, double now);
+    void update(double now);
+    void clear() { items_.clear(); }
+    std::span<const HudAlert> items() const { return items_; }  // oldest first
+
+private:
+    std::vector<HudAlert> items_;
+};
+// The alert text of a radar event (#589), nullopt for none. An allow-list: only the base-under-attack ping (an unnamed
+// marker) -> "Base under attack". Story blips (named markers), the player's own clicks and beacons, and every other
+// RadarMap.xml event -> none (the host announces capture points itself, at the transition, with who took the point).
+std::optional<std::u32string> radar_alert_text(const RadarEvent& e, const TextDatabase* text);
 
 struct ModernHudStats {
     bool status_corner = false;          // the status corner drawn
@@ -66,6 +94,11 @@ struct ModernHudStats {
     uint32_t wings = 0;                  // wing buttons drawn
     bool clear_button = false, cohesion = false;
     uint32_t key_badges = 0;             // hotkey badges drawn
+    std::u32string alert_text;           // the alert strip's alert ("" = no strip)
+    uint32_t alerts_more = 0;            // other alerts behind it
+    bool jump = false;                   // its Jump button drawn
+    bool objectives_panel = false, objectives_folded = false;
+    std::vector<std::u32string> objective_texts;  // the panel's entries (unfolded), feed order
     bool pause_banner = false;           // the Game Paused banner drawn
     uint32_t hit_boxes = 0, quads = 0;
 };
@@ -103,6 +136,9 @@ public:
     // for the same control (TacticalHud::update_input), plus HudStyleToggle for the style switch.
     void update_input(const RoutedInput& routed, bool shift, bool ctrl, std::vector<commands::EventData>& out,
                       std::vector<HudAction>* actions = nullptr);
+    // The AlertJump hotkey: the Jump of the strip's alert of the previous build (RadarCameraJump to its position). False
+    // when the strip shows no alert with a position (nothing emitted).
+    bool jump(std::vector<HudAction>& actions) const;
 
 private:
     int32_t font() const;
@@ -117,6 +153,11 @@ private:
     void key_badge(uint16_t slot, Vec2f top_right, uint32_t layer);
     std::vector<uint32_t> selection_ids() const;
     void build_pause(const TacticalHudFrame& f);
+    void build_alerts(const TacticalHudFrame& f);
+    void build_objectives(const TacticalHudFrame& f, float top);
+    float controls_bottom_ = 0.0f;  // canvas y under the controls row (the objectives panel hangs from it)
+    bool jump_ok_ = false;          // the strip's alert has a position
+    Vec2f jump_at_{};
     void hit(int32_t id, uint32_t layer, Vec2f center, Vec2f size);
 
     const ComponentTable* table_ = nullptr;

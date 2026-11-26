@@ -258,6 +258,17 @@ void App::galactic_message(std::string_view id) {
 void App::post_tick() {
     audio_.sim_tick();
     audio_.on_events(session_->presentation_events(), data_.types, local_player());  // this tick's events
+    for (const sim::PresentationEvent& e : session_->presentation_events())  // #589: the local player's production done
+        if (e.kind == sim::PresentationEventKind::ProductionCompleted && e.player == local_player() && local_player() >= 0 && e.type >= 0 &&
+            static_cast<size_t>(e.type) < data_.types.size()) {
+            // "##0 ready" as one port string (a translation may put the name anywhere), the name from type_label.
+            std::u32string text = ui::replace_all(ui::text_or_port(&ui_.text, nullptr, U"##0 ready"), U"##0",
+                                                  type_label(data_, ui_.text, static_cast<objects::TypeIndex>(e.type)));
+            if (ui::Vec3 at; story_object_position(static_cast<int32_t>(e.object), at))  // Jump to the builder
+                alerts_.push_at(ui::HudAlert::Kind::Production, std::move(text), at.x, at.y, now_s_);
+            else
+                alerts_.push(ui::HudAlert::Kind::Production, std::move(text), now_s_);
+        }
     if (session_->take_reveal_sfx()) {  // GRC 1.3: a planet was revealed by the galactic pre-step (frame > 0)
         audio_.planet_revealed();  // Audio.xml's SFXEvent_Planet_Revealed value (FoC GUI_Planet_Mouse_Over)
         ++reveal_sfx_;

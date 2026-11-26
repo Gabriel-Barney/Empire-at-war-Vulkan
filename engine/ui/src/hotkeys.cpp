@@ -12,7 +12,7 @@ namespace {
 constexpr int32_t K(char c) { return static_cast<int32_t>(c); }
 // Win32 virtual keys not in vk:: (legacy docs/re/UI.md §4.3 defaults).
 constexpr int32_t kVkNumpad1 = 0x61, kVkNumpad2 = 0x62, kVkNumpad3 = 0x63, kVkNumpadSub = 0x6D, kVkF5 = 0x74,
-                  kVkF6 = 0x75, kVkF9 = 0x78, kVkF12 = 0x7B, kVkScrollLock = 0x91, kVkOem1 = 0xBA /* ; */, kVkOemComma = 0xBC,
+                  kVkF4 = 0x73, kVkF6 = 0x75, kVkF9 = 0x78, kVkF12 = 0x7B, kVkScrollLock = 0x91, kVkOem1 = 0xBA /* ; */, kVkOemComma = 0xBC,
                   kVkOemMinus = 0xBD, kVkOemPeriod = 0xBE, kVkOem2 = 0xBF /* / */, kVkOem4 = 0xDB /* [ */,
                   kVkOem6 = 0xDD /* ] */, kVkOem7 = 0xDE /* ' */, kVkOemPlus = 0xBB /* = */, kVkOem5 = 0xDC /* backslash */,
                   kVkOem3 = 0xC0 /* ` */;
@@ -124,6 +124,8 @@ constexpr HotkeySlotInfo kSlots[kHotkeySlots] = {
     // 166 [port] #584 HUD style switch Classic <-> Modern (docs/DECISIONS.md "Modern HUD: exception to the current focus"):
     // F9, a free key (Ctrl+H, drawn on the design canvas, is Ability_DeployTroopers).
     {"HudStyleToggle", HK::Interface, {kVkF9, N}},
+    // 167 [port] #589 Jump to the newest alert of the Modern alert strip: F4 (Space, drawn on the design canvas, is MovieMode).
+    {"AlertJump", HK::Interface, {kVkF4, N}},
 };
 
 }  // namespace

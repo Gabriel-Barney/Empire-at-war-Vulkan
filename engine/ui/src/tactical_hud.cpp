@@ -178,6 +178,11 @@ std::u32string hud_tech_text(const TextDatabase* text, int32_t tech) {
     return text_or(text, "TEXT_TECH") + ascii32(n);  // no English stand-in
 }
 
+std::u32string hud_objective_text(const TextDatabase* text, const HudObjective& o) {
+    if (!o.text.empty()) return o.text;
+    return text ? gui_unescape(utf16_to_utf32(text->text(o.text_key))) : utf8_to_utf32(o.text_key);
+}
+
 std::u32string hud_pop_text(int32_t used, int32_t cap) {
     if (used < 0) return {};
     char n[32];
@@ -1404,8 +1409,7 @@ void TacticalHud::build_objectives(const TacticalHudFrame& f) {
     const float wrap_px = (width - 2.0f * pad_x - 12.0f) / canvas_.units_per_pixel_x;
     int n = 0;
     for (const HudObjective& o : f.objectives) {
-        std::u32string t = o.text;
-        if (t.empty()) t = text_ ? gui_unescape(utf16_to_utf32(text_->text(o.text_key))) : utf8_to_utf32(o.text_key);
+        const std::u32string t = hud_objective_text(text_, o);
         char num[16];
         std::snprintf(num, sizeof num, "%d. ", ++n);
         bool first = true;

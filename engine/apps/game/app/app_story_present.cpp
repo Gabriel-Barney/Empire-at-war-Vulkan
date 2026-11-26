@@ -133,6 +133,7 @@ void App::story_present_frame() {
         audio_.faction_sfx(snd == StoryHint::Sound::Urgent ? "SFXEvent_HUD_Advisor_Urgent_Message"
                            : snd == StoryHint::Sound::Hint ? "SFXEvent_HUD_Advisor_Hint"
                                                            : "SFXEvent_HUD_Advisor_Message");
+        if (sh) alerts_.push(ui::HudAlert::Kind::Advisor, sh->hint.text, now_s_);  // #589: the Modern alert strip
         // ui4 t11 (P4_SIM_SYSTEMS §2.7.2): a line shown in galactic mode goes to the Droid Log as three rows.
         if (sh && screen() == Screen::Galactic)
             if (const galactic::GalacticSim* g = galaxy()) {

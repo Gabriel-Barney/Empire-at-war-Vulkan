@@ -318,6 +318,90 @@ void test_controls_parity() {
     }
 }
 
+void test_alerts() {
+    // The log: oldest first, aged by update, dropped after kSeconds, at most kMax, empty texts ignored.
+    HudAlertLog log;
+    log.push(HudAlert::Kind::Advisor, U"", 1.0);
+    CHECK(log.items().empty());
+    log.push(HudAlert::Kind::Advisor, U"Hold the line", 1.0);
+    log.push_at(HudAlert::Kind::Radar, U"Under attack", 120.0f, -40.0f, 2.0);
+    log.update(5.0);
+    CHECK(log.items().size() == 2 && log.items()[0].age == 4.0f && log.items()[1].has_position && !log.items()[0].has_position);
+    log.update(1.0 + HudAlertLog::kSeconds + 0.5);
+    CHECK(log.items().size() == 1 && log.items()[0].text == U"Under attack");
+    for (int i = 0; i < 20; ++i) log.push(HudAlert::Kind::Production, U"X", 3.0);
+    CHECK(log.items().size() == HudAlertLog::kMax);
+    // Radar events: an allow-list - only the base-under-attack ping alerts (story blips, clicks, beacons and the rest do
+    // not; the host announces capture points itself).
+    RadarEvent ping;
+    ping.marker = true;
+    RadarEvent blip = ping;
+    blip.type = "Rebel_Base";
+    RadarEvent click;
+    click.type = "Default_Double_Click";
+    RadarEvent beacon;
+    beacon.type = "Default_Beacon_Placement";
+    CHECK(radar_alert_text(ping, nullptr) == std::u32string(U"Base under attack") && !radar_alert_text(blip, nullptr) &&
+          !radar_alert_text(click, nullptr) && !radar_alert_text(beacon, nullptr));
+    // The strip: the newest alert, the count of the others, Jump for a positioned one -> RadarCameraJump there.
+    Huds h;
+    HudAlertLog shown;
+    shown.push(HudAlert::Kind::Advisor, U"Hold the line", 1.0);
+    shown.push_at(HudAlert::Kind::Radar, U"Under attack", 120.0f, -40.0f, 2.0);
+    TacticalHudFrame f = frame();
+    f.alerts = shown.items();
+    h.build(f);
+    CHECK(h.modern.stats().alert_text == U"Under attack" && h.modern.stats().alerts_more == 1 && h.modern.stats().jump);
+    std::vector<commands::EventData> cmds;
+    std::vector<HudAction> acts;
+    h.modern.update_input(click_on(kModernJumpHit), false, false, cmds, &acts);
+    CHECK(cmds.empty() && acts.size() == 1 && acts[0].kind == HudAction::Kind::RadarCameraJump && acts[0].x == 120.0f &&
+          acts[0].y == -40.0f);
+    acts.clear();
+    CHECK(h.modern.jump(acts) && acts.size() == 1 && acts[0].x == 120.0f);  // the AlertJump hotkey: the same jump
+    {  // a hidden interface has no Jump: the hotkey does nothing after a hidden build
+        TacticalHudFrame hidden = f;
+        hidden.world.interface_hidden = true;
+        h.build(hidden);
+        acts.clear();
+        CHECK(!h.modern.jump(acts) && acts.empty());
+    }
+    // No position: no Jump, and the hotkey does nothing.
+    HudAlertLog plain;
+    plain.push(HudAlert::Kind::Objective, U"Destroy the station", 1.0);
+    f.alerts = plain.items();
+    h.build(f);
+    acts.clear();
+    CHECK(h.modern.stats().alert_text == U"Destroy the station" && !h.modern.stats().jump && !h.modern.jump(acts) && acts.empty());
+    f.alerts = {};
+    h.build(f);
+    CHECK(h.modern.stats().alert_text.empty());
+}
+
+void test_objectives() {
+    // The Classic entries, in order, with their texts (hud_objective_text); folded to the header while hidden.
+    Huds h;
+    std::vector<HudObjective> objs(3);
+    objs[0].text_key = "TEXT_TACTICAL_PRIMARY_SPACE_ATTACK";
+    objs[1].text = U"Protect the corvette";
+    objs[1].state = HudObjective::State::Complete;
+    objs[2].text = U"Do not lose the Home One";
+    objs[2].state = HudObjective::State::Failed;
+    TacticalHudFrame f = frame();
+    f.objectives = objs;
+    h.build(f);
+    const ModernHudStats& s = h.modern.stats();
+    CHECK(s.objectives_panel && !s.objectives_folded && s.objective_texts.size() == 3 && h.classic.stats().objectives == 3);
+    for (size_t i = 0; i < objs.size() && i < s.objective_texts.size(); ++i) CHECK(s.objective_texts[i] == hud_objective_text(nullptr, objs[i]));
+    CHECK(s.objective_texts[0] == U"TEXT_TACTICAL_PRIMARY_SPACE_ATTACK" && s.objective_texts[1] == U"Protect the corvette");
+    f.objectives_hidden = true;
+    h.build(f);
+    CHECK(h.modern.stats().objectives_panel && h.modern.stats().objectives_folded && h.modern.stats().objective_texts.empty());
+    f.objectives = {};
+    h.build(f);
+    CHECK(!h.modern.stats().objectives_panel);
+}
+
 void test_pause_banner() {
     // While paused, Modern shows the banner and its Resume Game sends the Classic banner's action (same component).
     Huds h;
@@ -397,7 +481,9 @@ void test_text_scale() {
 void test_hotkey() {
     // The port slot after the fleet group slots: HudStyleToggle on F9, an Interface event for the host.
     HotkeyTable t;
-    CHECK(hk::kHudStyle == hk::kFleetLock + 1 && hk::kHudStyle + 1 == kHotkeySlots);
+    CHECK(hk::kHudStyle == hk::kFleetLock + 1 && hk::kAlertJump == hk::kHudStyle + 1 && hk::kAlertJump + 1 == kHotkeySlots);
+    CHECK(hotkey_slot("AlertJump") == hk::kAlertJump && t.binding(hk::kAlertJump).key == 0x73 &&
+          t.binding(hk::kAlertJump).mod == HotkeyMod::None);
     CHECK(hotkey_slot("HudStyleToggle") == hk::kHudStyle && hotkey_slots()[hk::kHudStyle].kind == HotkeyKind::Interface);
     CHECK(t.binding(hk::kHudStyle).key == 0x78 && t.binding(hk::kHudStyle).mod == HotkeyMod::None);
     for (uint16_t s = 0; s < kHotkeySlots; ++s) CHECK(s == hk::kHudStyle || !(t.binding(s) == t.binding(hk::kHudStyle)));
@@ -461,6 +547,8 @@ int main() {
     test_status_corner();
     test_deck();
     test_controls_parity();
+    test_alerts();
+    test_objectives();
     test_pause_banner();
     test_style_switch();
     test_text_scale();

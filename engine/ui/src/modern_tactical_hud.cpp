@@ -23,6 +23,7 @@ constexpr Rgba8 kLabel{170, 182, 198, 255};
 constexpr Rgba8 kDisabledText{120, 128, 140, 255};
 constexpr Rgba8 kBarBack{0, 0, 0, 170};
 constexpr Rgba8 kShield{90, 190, 255, 255};
+constexpr Rgba8 kHullOk{96, 210, 110, 255}, kHullWarn{236, 188, 60, 255}, kHullBad{230, 70, 60, 255};
 constexpr Rgba8 kPausedBar{196, 176, 8, 245};  // the Classic pause banner's yellow bar
 // By TacticalHudFrame::faction_alt (GameUi::set_faction): 0 the good side (Rebel), 1 any other (Empire, Underworld).
 constexpr Rgba8 kAccent[2] = {{226, 120, 48, 255}, {92, 156, 230, 255}};
@@ -35,9 +36,9 @@ constexpr const char32_t* kOrderLabels[kOrderButtonCount] = {U"Attack", U"Attack
 constexpr uint16_t kOrderSlots[kOrderButtonCount] = {hk::kAttack, hk::kAttackMove, hk::kMove, hk::kWaypoint, hk::kStop, hk::kGuard};
 
 Rgba8 hull_color(float health) {
-    if (health > kModernHullWarn) return {96, 210, 110, 255};
-    if (health > kModernHullCritical) return {236, 188, 60, 255};
-    return {230, 70, 60, 255};
+    if (health > kModernHullWarn) return kHullOk;
+    if (health > kModernHullCritical) return kHullWarn;
+    return kHullBad;
 }
 
 void add_rect(HudDrawList& dl, uint32_t layer, float x0, float y0, float x1, float y1, Rgba8 color) {
@@ -87,6 +88,34 @@ std::u32string type_label(const HudTypeInfo* t, const TextDatabase* text) {
 }
 
 }  // namespace
+
+void HudAlertLog::push(HudAlert::Kind kind, std::u32string text, double now) {
+    if (text.empty()) return;
+    HudAlert a;
+    a.kind = kind;
+    a.text = std::move(text);
+    a.time = now;
+    items_.push_back(std::move(a));
+    if (items_.size() > kMax) items_.erase(items_.begin(), items_.end() - static_cast<std::ptrdiff_t>(kMax));
+}
+
+void HudAlertLog::push_at(HudAlert::Kind kind, std::u32string text, float x, float y, double now) {
+    if (text.empty()) return;
+    push(kind, std::move(text), now);
+    items_.back().has_position = true;
+    items_.back().x = x;
+    items_.back().y = y;
+}
+
+void HudAlertLog::update(double now) {
+    for (HudAlert& a : items_) a.age = static_cast<float>(std::max(0.0, now - a.time));
+    std::erase_if(items_, [](const HudAlert& a) { return a.age > static_cast<float>(kSeconds); });
+}
+
+std::optional<std::u32string> radar_alert_text(const RadarEvent& e, const TextDatabase* text) {
+    if (e.marker && e.type.empty()) return text_or_port(text, nullptr, U"Base under attack");
+    return std::nullopt;  // a story blip (Lua Add_Radar_Blip), a click, a beacon, any other event
+}
 
 std::string_view hud_style_name(HudStyle s) { return s == HudStyle::Modern ? "modern" : "classic"; }
 
@@ -152,10 +181,13 @@ void ModernTacticalHud::build(const TacticalHudFrame& frame, std::span<const Hud
     stats_ = {};
     paused_ = frame.paused;
     faction_alt_ = frame.faction_alt;
+    jump_ok_ = false;  // before the early return: a hidden HUD has no Jump
     if (!table_ || !fonts_ || frame.world.interface_hidden || font() < 0) return;
     build_deck(frame, units, types);
     build_status(frame);
     build_controls(frame);
+    build_alerts(frame);
+    build_objectives(frame, controls_bottom_ - kPad);
     build_pause(frame);
     stats_.hit_boxes = static_cast<uint32_t>(hits_.size());
     stats_.quads = static_cast<uint32_t>(dl_.total());
@@ -205,6 +237,7 @@ void ModernTacticalHud::build_controls(const TacticalHudFrame& f) {
     const float h = text_height_units() * 2.0f;
     const float hw = 0.5f * canvas_.width, hh = 0.5f * canvas_.height;
     const float y = hh - kMargin - 0.5f * h;
+    controls_bottom_ = y - 0.5f * h;
     float right = hw - kMargin;  // laid out right to left
     HudTextStyle st;
     st.font = font();
@@ -419,6 +452,163 @@ float ModernTacticalHud::build_orders(const TacticalHudFrame& f, Vec2f top_right
     return width;
 }
 
+// The alert strip: the newest alert at the top centre (in the controls row), the count of the others, and Jump.
+void ModernTacticalHud::build_alerts(const TacticalHudFrame& f) {
+    if (f.alerts.empty()) return;
+    const HudAlert& a = f.alerts.back();
+    const float h = text_height_units() * 2.0f;
+    const float y = 0.5f * canvas_.height - kMargin - 0.5f * h;
+    HudTextStyle st;
+    st.font = font();
+    st.color = kText;
+    std::u32string more;
+    if (f.alerts.size() > 1) {
+        char n[16];
+        std::snprintf(n, sizeof n, "  +%zu", f.alerts.size() - 1);
+        more = ascii32(n);
+    }
+    const std::u32string jump = text_or_port(text_, nullptr, U"Jump");
+    HudTextStyle cs = st;
+    cs.align = TextAlign::Center;
+    const float max_text = 0.4f * canvas_.width;
+    const float text_w = std::min(max_text, measure_text_block(*fonts_, canvas_, a.text, 0.0f, st).width);
+    const float more_w = more.empty() ? 0.0f : measure_text_block(*fonts_, canvas_, more, 0.0f, st).width;
+    const float jump_w = a.has_position ? measure_text_block(*fonts_, canvas_, jump, 0.0f, cs).width + 6.0f * kPad : 0.0f;
+    const float mark = 0.6f * h;  // the kind's mark: a square (advisor), a diamond (radar), a triangle (objective), a bar (production)
+    const Vec2f size{mark + text_w + more_w + jump_w + 4.0f * kPad, h};
+    const Vec2f c{0.0f, y};
+    frame_rect(dl_, kPanelLayer, c, size, kBack, accent(220));
+    hit(kModernPanelHit, kPanelLayer, c, size);
+    float x = c.x - 0.5f * size.x + kPad;
+    const Vec2f mc{x + 0.5f * mark, y};
+    switch (a.kind) {
+        case HudAlert::Kind::Radar: {
+            HudQuad q;
+            q.has_corners = true;
+            q.corners = {Vec2f{mc.x, mc.y + 0.5f * mark}, Vec2f{mc.x + 0.5f * mark, mc.y}, Vec2f{mc.x, mc.y - 0.5f * mark},
+                         Vec2f{mc.x - 0.5f * mark, mc.y}};
+            q.color = accent(255);
+            dl_.add(kPanelLayer, HudList::Alpha, q);
+            break;
+        }
+        case HudAlert::Kind::Advisor:
+            add_rect(dl_, kPanelLayer, mc.x - 0.4f * mark, mc.y - 0.4f * mark, mc.x + 0.4f * mark, mc.y + 0.4f * mark, accent(255));
+            break;
+        case HudAlert::Kind::Objective: {  // a triangle, point up (the fourth corner repeats the apex)
+            HudQuad q;
+            q.has_corners = true;
+            const float d = 0.5f * mark;
+            q.corners = {Vec2f{mc.x, mc.y + d}, Vec2f{mc.x, mc.y + d}, Vec2f{mc.x + d, mc.y - d}, Vec2f{mc.x - d, mc.y - d}};
+            q.color = accent(255);
+            dl_.add(kPanelLayer, HudList::Alpha, q);
+            break;
+        }
+        default:
+            add_rect(dl_, kPanelLayer, mc.x - 0.5f * mark, mc.y - 0.15f * mark, mc.x + 0.5f * mark, mc.y + 0.15f * mark, accent(255));
+            break;
+    }
+    x += mark + kPad;
+    HudTextStyle ts = st;
+    ts.width_scale = fit_width_scale(measure_text_block(*fonts_, canvas_, a.text, 0.0f, st).width, max_text);
+    add_text(dl_, kPanelLayer, HudList::Text, *fonts_, canvas_, a.text, {x, y}, ts);
+    x += text_w;
+    if (!more.empty()) {
+        HudTextStyle ms = st;
+        ms.color = kLabel;
+        add_text(dl_, kPanelLayer, HudList::Text, *fonts_, canvas_, more, {x, y}, ms);
+        x += more_w;
+    }
+    if (a.has_position) {
+        const Vec2f jc{x + kPad + 0.5f * jump_w, y};
+        const Vec2f js{jump_w, h - 4.0f};
+        frame_rect(dl_, kControlLayer, jc, js, kButtonBack, hover_ == kModernJumpHit ? kText : accent(220));
+        add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, jump, {jc.x - 1.5f * kPad, y}, cs);
+        key_badge(hk::kAlertJump, {jc.x + 0.5f * js.x - 2.0f, jc.y + 0.5f * js.y - 2.0f}, kControlLayer);
+        hit(kModernJumpHit, kControlLayer, jc, js);
+        jump_ok_ = true;
+        jump_at_ = {a.x, a.y};
+        stats_.jump = true;
+    }
+    stats_.alert_text = a.text;
+    stats_.alerts_more = static_cast<uint32_t>(f.alerts.size() - 1);
+}
+
+// The objectives panel: the Classic entries with their state as a shape; folded to its header while objectives_hidden.
+void ModernTacticalHud::build_objectives(const TacticalHudFrame& f, float top) {
+    if (f.objectives.empty()) return;
+    const float line = text_height_units() * 1.4f;
+    const float width = std::min(0.3f * canvas_.width, 22.0f * text_height_units());
+    const float right = 0.5f * canvas_.width - kMargin;
+    HudTextStyle st;
+    st.font = font();
+    st.color = kText;
+    std::vector<std::pair<std::vector<std::u32string>, HudObjective::State>> entries;
+    const float mark = 0.6f * text_height_units();
+    const float wrap_px = (width - 3.0f * kPad - mark) / canvas_.units_per_pixel_x;
+    size_t lines = 0;
+    if (!f.objectives_hidden)
+        for (const HudObjective& o : f.objectives) {
+            const std::u32string t = hud_objective_text(text_, o);
+            stats_.objective_texts.push_back(t);
+            entries.push_back({wrap_text(*fonts_, st.font, t, wrap_px), o.state});
+            lines += entries.back().first.size();
+        }
+    const std::u32string header = f.objectives_header.empty() ? text_or_port(text_, "TEXT_TEST_OBJECTIVE_HEADER", U"Mission Objectives")
+                                                              : f.objectives_header;
+    const Vec2f size{width, line * static_cast<float>(1 + lines) + kPad};
+    const Vec2f c{right - 0.5f * width, top - 0.5f * size.y};
+    frame_rect(dl_, kPanelLayer, c, size, kBack, accent(200));
+    hit(kModernPanelHit, kPanelLayer, c, size);
+    float y = top - 0.5f * kPad - 0.5f * line;
+    const float left = c.x - 0.5f * width + kPad;
+    HudTextStyle hs = st;
+    hs.color = kLabel;
+    add_text(dl_, kPanelLayer, HudList::Text, *fonts_, canvas_, header, {left, y}, hs);
+    key_badge(hk::kHolocron, {c.x + 0.5f * width - 2.0f, top - 2.0f}, kPanelLayer);
+    for (const auto& [wrapped, state] : entries) {
+        y -= line;
+        const Vec2f mc{left + 0.5f * mark, y};
+        switch (state) {  // open: an outline; done: filled; failed: a cross
+            case HudObjective::State::Complete:
+                add_rect(dl_, kPanelLayer, mc.x - 0.5f * mark, mc.y - 0.5f * mark, mc.x + 0.5f * mark, mc.y + 0.5f * mark, accent(255));
+                break;
+            case HudObjective::State::Failed:
+                for (const float s : {1.0f, -1.0f}) {
+                    HudQuad q;
+                    q.has_corners = true;
+                    const float d = 0.5f * mark, t = 1.0f;
+                    q.corners = {Vec2f{mc.x - d, mc.y + s * d}, Vec2f{mc.x - d + t, mc.y + s * d}, Vec2f{mc.x + d, mc.y - s * d},
+                                 Vec2f{mc.x + d - t, mc.y - s * d}};
+                    q.color = kHullBad;  // the hull bar's critical colour
+                    dl_.add(kPanelLayer, HudList::Alpha, q);
+                }
+                break;
+            default: frame_rect(dl_, kPanelLayer, mc, {mark, mark}, Rgba8{0, 0, 0, 0}, kText); break;
+        }
+        bool first = true;
+        for (const std::u32string& w : wrapped) {
+            if (!first) y -= line;
+            HudTextStyle ts = st;
+            if (state != HudObjective::State::Active) ts.color = kLabel;
+            add_text(dl_, kPanelLayer, HudList::Text, *fonts_, canvas_, w, {left + mark + kPad, y}, ts);
+            first = false;
+        }
+    }
+    stats_.objectives_panel = true;
+    stats_.objectives_folded = f.objectives_hidden;
+}
+
+bool ModernTacticalHud::jump(std::vector<HudAction>& actions) const {
+    if (!jump_ok_) return false;
+    HudAction h;
+    h.kind = HudAction::Kind::RadarCameraJump;
+    h.component = kModernJumpHit;
+    h.x = jump_at_.x;
+    h.y = jump_at_.y;
+    actions.push_back(std::move(h));
+    return true;
+}
+
 // The Classic banner's content (TEXT_GAME_PAUSED, Resume Game on attack_button) at the top centre, below the controls row.
 void ModernTacticalHud::build_pause(const TacticalHudFrame& f) {
     if (!f.paused || !f.pause_banner) return;
@@ -481,6 +671,10 @@ void ModernTacticalHud::update_input(const RoutedInput& routed, bool shift, bool
             if (e.button != Button::Left) continue;
             const SelectedGroup& g = groups_[static_cast<size_t>(e.component - kModernCardHitBase)];
             out.push_back(commands::ev::select(portrait_select_ids(g, selection_ids(), shift, ctrl)));
+            continue;
+        }
+        if (e.component == kModernJumpHit) {
+            if (e.button == Button::Left && actions) jump(*actions);
             continue;
         }
         if (e.component == kModernClearHit) {
