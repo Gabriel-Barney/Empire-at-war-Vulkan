@@ -851,12 +851,13 @@ void TacticalBattle::process_death(TacticalMode& mode, const tc::DeathEvent& d, 
         const Vec3 at = store.position(u->h);
         const Vec3 face = store.facing(u->h);
         const int32_t owner = store.owner(u->h);
-        if (scoring_death_) {  // Tactical_Unit_Destroyed_Event while the object is still in the store
-            int32_t killer = -1;
-            if (const Unit* k = d.killer != tc::kNoObject ? unit_by_id(d.killer) : nullptr; k && store.alive(k->h))
-                killer = store.owner(k->h);
-            scoring_death_(u->h, killer);
-        }
+        int32_t killer = -1;  // the killer's player (-1 when the killer is unknown or gone)
+        if (const Unit* k = d.killer != tc::kNoObject ? unit_by_id(d.killer) : nullptr; k && store.alive(k->h))
+            killer = store.owner(k->h);
+        if (scoring_death_) scoring_death_(u->h, killer);  // Tactical_Unit_Destroyed_Event while the object is still in the store
+        // #574 (Die 0x39bdb0 -> 0x392600 [H]): the Bounty_On_Faction kill bounty; a silent removal (Remove_From_World) does
+        // not reach the death handler
+        if (!silent) pay_kill_bounty(mode, *u, killer);
         if (!silent) store.set_health(u->h, 0.0f);  // storyb t17 (STORYB_T17 §3.1 [H]): Die sets health 0 before the kill
         mode.destroy(u->h);
         vm_deaths_.push_back(u->id);  // the victory monitor sees this tick's deaths in this order

@@ -93,6 +93,8 @@ BattleCatalog::BattleCatalog(const objects::GameObjectTypes& types, const FilePr
         space_elev_vuln_factor_ = constants->get_float("Space_Elevated_Vulnerability_Factor", space_elev_vuln_factor_);
         skirmish_reinforce_delay_ = constants->get_int("Skirmish_Reinforcement_Delay_Frames", skirmish_reinforce_delay_);
         override_death_persistence_ = constants->get_float("Override_Death_Persistence_Duration", override_death_persistence_);
+        bounty_sp_ = galactic::load_bounty_table(*constants, types, false);  // #574
+        bounty_mp_ = galactic::load_bounty_table(*constants, types, true);
         threat_decay_step_ = constants->get_float("AI_SpaceThreatDecayStep", threat_decay_step_);
         engines_disabled_speed_ = constants->get_float("Engines_Disabled_Speed_Modifier", engines_disabled_speed_);
         nebula_ability_disable_ = constants->get_float("Nebula_Ability_Disable_Time", nebula_ability_disable_);

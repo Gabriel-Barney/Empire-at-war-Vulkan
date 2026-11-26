@@ -35,5 +35,10 @@ int64_t type_bounty(const BountyTable& table, const objects::GameObjectTypes& ty
                     bool skirmish = false);
 // Same rule from already-extracted values (tests, hosts without a type database).
 int64_t bounty_of(const BountyTable& table, bool has_override, float override_amount, uint64_t categories);
+// #574: the same values before the rounding (>= 0). The tactical bounty (0x392600's tactical branch [H]) multiplies the
+// unrounded value by the Bounty_On_Faction fold and rounds the product.
+float bounty_value(const BountyTable& table, bool has_override, float override_amount, uint64_t categories);
+float type_bounty_value(const BountyTable& table, const objects::GameObjectTypes& types, objects::TypeIndex t,
+                        bool skirmish = false);
 
 }  // namespace alamo::galactic
