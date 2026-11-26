@@ -1193,12 +1193,16 @@ void test_tab_chips() {
     h.modern.build(f, s.units, s.types);
     const ModernHudStats& st = h.modern.stats();
     CHECK(st.fleet_tabs == 2 && st.chips_free == 1 && st.chips_locked == 1 && st.chips_wing == 0 && st.tab_health_bars == 2 && st.wing_tabs == 0);
+    CHECK(st.fleet_merge == 1 && st.fleet_split == 1);  // the #177 rules (test_fleet_tabs: their clicks)
+    size_t sized = 0;
     for (const HudHitBox& b : h.modern.hit_boxes())
         if ((b.component >= kFleetMergeHitBase && b.component < kFleetMergeHitBase + 8) ||
             (b.component >= kFleetSplitHitBase && b.component < kFleetSplitHitBase + 8)) {
             const Vec2f lo = h.modern.canvas().canvas_to_pixel(b.min.x, b.min.y), hi = h.modern.canvas().canvas_to_pixel(b.max.x, b.max.y);
             CHECK(std::fabs(hi.y - lo.y) >= 24.0f - 0.5f);
+            ++sized;
         }
+    CHECK(sized == 2);
     fleets[0].locked = true;
     h.modern.build(f, s.units, s.types);
     CHECK(st.chips_locked == 2 && st.chips_free == 0);

@@ -689,7 +689,7 @@ void ModernTacticalHud::build_selection(const TacticalHudFrame& f, std::span<con
     for (const HudWing& w : f.wings)
         for (const HudUnit& u : units)
             wing_selected = wing_selected || (u.selected && std::binary_search(w.ids.begin(), w.ids.end(), u.id));
-    const float tab_h = f.fleet_groups_on || wing_selected ? std::max(line * 1.6f, px_units(28.0f)) : 0.0f;
+    const float tab_h = f.fleet_groups_on || wing_selected ? std::max(line * 1.6f, px_units(24.0f) + 8.0f) : 0.0f;
     const float card_h = height - header - 0.5f * kPad - tab_h, card_w = std::max(card_h * 0.8f, 6.0f * line);
     const float gap = 0.5f * kPad;
     const auto fit = static_cast<size_t>(std::max(1.0f, std::floor((width + gap) / (card_w + gap))));
@@ -700,7 +700,7 @@ void ModernTacticalHud::build_selection(const TacticalHudFrame& f, std::span<con
         fold_selection_overflow(groups_, fit);
     }
     const float cy = top_left.y - header - 0.5f * kPad - tab_h - 0.5f * card_h;
-    if (tab_h > 0.0f) build_fleet_tabs(f, units, {{top_left.x + 0.5f * card_w, cy}, {card_w, card_h}, gap, top_left.x + width}, tab_h);
+    if (tab_h > 0.0f) build_run_tabs(f, units, {{top_left.x + 0.5f * card_w, cy}, {card_w, card_h}, gap, top_left.x + width}, tab_h);
     for (size_t i = 0; i < groups_.size(); ++i) {
         const SelectedGroup& g = groups_[i];
         const Vec2f c{top_left.x + 0.5f * card_w + static_cast<float>(i) * (card_w + gap), cy};
@@ -740,12 +740,12 @@ void ModernTacticalHud::build_selection(const TacticalHudFrame& f, std::span<con
     }
 }
 
-// #588 / #600 the tabs over the selection cards: one per fleet group run (its number and name, Merge / Split by the
+// #588 / #600 the run tabs over the selection cards: one per fleet group run (its number and name, Merge / Split by the
 // shared rules) and one per wing run (cards whose units are all one wing's: its name and key). Each tab has a state chip
 // (a closed padlock LOCKED, an open one FREE, a wing WING: a shape as well as the text) and an aggregate health bar
 // (the feed's, else the run's cards' mean). A group tab clicks as Classic's tab (kFleetTabHitBase + index), a wing tab
 // as Classic's wing button (WingSelect).
-void ModernTacticalHud::build_fleet_tabs(const TacticalHudFrame& f, std::span<const HudUnit> units, const CardRow& row, float tab_h) {
+void ModernTacticalHud::build_run_tabs(const TacticalHudFrame& f, std::span<const HudUnit> units, const CardRow& row, float tab_h) {
     const float card_w = row.card.x, card_h = row.card.y, gap = row.gap;
     const Vec2f first_card = row.first;
     const std::vector<size_t> selected = fleet_selected_counts(units, f.fleet_groups);
@@ -765,7 +765,8 @@ void ModernTacticalHud::build_fleet_tabs(const TacticalHudFrame& f, std::span<co
     };
     enum class Chip { Locked, Free, Wing };
     const std::u32string merge = text_or_port(text_, nullptr, U"Merge"), split = text_or_port(text_, nullptr, U"Split");
-    const float button_h = std::max(px_units(24.0f), tab_h - 4.0f);
+    // Merge / Split: at least 24 px, from the tab's top down to just above the health bar along its bottom edge.
+    const float button_h = std::max(px_units(24.0f), tab_h - 7.0f);
     for (size_t first = 0; first < groups_.size();) {
         const SelectedGroup& g0 = groups_[first];
         const uint16_t id = g0.fleet;
@@ -792,7 +793,7 @@ void ModernTacticalHud::build_fleet_tabs(const TacticalHudFrame& f, std::span<co
         if (wing >= 0) {
             const HudWing& w = f.wings[static_cast<size_t>(wing)];
             label = w.label;
-            if (!w.hotkey.empty()) label += U" " + w.hotkey;
+            if (!w.hotkey.empty() && options_.key_hints) label += U" " + w.hotkey;  // as the wing button's key hint
         } else {
             char num[16];
             std::snprintf(num, sizeof num, "%u", static_cast<unsigned>(id));
@@ -800,7 +801,7 @@ void ModernTacticalHud::build_fleet_tabs(const TacticalHudFrame& f, std::span<co
             if (ts.group && !ts.group->name.empty()) label += U" " + ts.group->name;
         }
         const std::u32string chip_text = text_or_port(text_, nullptr, chip == Chip::Wing ? U"WING" : chip == Chip::Locked ? U"LOCKED" : U"FREE");
-        const float chip_w = 0.6f * tab_h + measure_text_block(*fonts_, canvas_, chip_text, 0.0f, bs).width + kPad;
+        const float chip_full = 0.6f * tab_h + measure_text_block(*fonts_, canvas_, chip_text, 0.0f, bs).width + kPad;
         const float mw = measure_text_block(*fonts_, canvas_, merge, 0.0f, bs).width + kPad;
         const float sw = measure_text_block(*fonts_, canvas_, split, 0.0f, bs).width + kPad;
         const float buttons = (ts.merge ? mw + 2.0f : 0.0f) + (ts.split ? sw + 2.0f : 0.0f);
@@ -808,8 +809,15 @@ void ModernTacticalHud::build_fleet_tabs(const TacticalHudFrame& f, std::span<co
         // never covers this one's buttons; the label is squeezed to the room left.
         const float room = (e < groups_.size() ? first_card.x - 0.5f * card_w + static_cast<float>(e) * (card_w + gap) - 0.5f * gap : row.right) - (x0 - 2.0f);
         const float label_w = measure_text_block(*fonts_, canvas_, label, 0.0f, st).width;
-        const float tab_w = std::max(x1 - x0 + 4.0f, std::min(room, chip_w + label_w + buttons + 3.0f * kPad));
-        st.width_scale = fit_width_scale(label_w, std::max(1.0f, tab_w - chip_w - buttons - 3.0f * kPad));
+        const float tab_w = std::max(x1 - x0 + 4.0f, std::min(room, chip_full + label_w + buttons + 3.0f * kPad));
+        // Short of room (a one-card run with Merge / Split): the chip keeps its icon only, then the label is squeezed (at
+        // most to half width) or left out, so nothing runs under the buttons.
+        const float avail = tab_w - buttons - 3.0f * kPad;
+        const bool chip_label = chip_full + 0.5f * label_w <= avail;
+        const float chip_w = chip_label ? chip_full : 0.8f * tab_h;
+        const float label_room = avail - chip_w;
+        const bool show_label = label_room >= 0.5f * label_w && label_room > 0.0f;
+        st.width_scale = fit_width_scale(label_w, std::max(1.0f, label_room));
         const Vec2f tab{x0 - 2.0f + 0.5f * tab_w, first_card.y + 0.5f * card_h + 2.0f + 0.5f * tab_h};
         const int32_t index = static_cast<int32_t>(fleet_tab_ids_.size());
         const int32_t tab_id = wing >= 0 ? kModernWingTabBase + wing : kFleetTabHitBase + index;
@@ -840,9 +848,9 @@ void ModernTacticalHud::build_fleet_tabs(const TacticalHudFrame& f, std::span<co
                 break;
             }
         }
-        add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, chip_text, {cc.x + 0.3f * tab_h, cc.y}, bs);
+        if (chip_label) add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, chip_text, {cc.x + 0.3f * tab_h, cc.y}, bs);
         tx += chip_w + kPad;
-        add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, label, {tx, tab.y + 1.0f}, st);
+        if (show_label) add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, label, {tx, tab.y + 1.0f}, st);
         // The aggregate health along the tab's bottom edge (solid, as a hull bar).
         float health = wing >= 0 ? f.wings[static_cast<size_t>(wing)].health : ts.group ? ts.group->health : -1.0f;
         if (health < 0.0f) {  // the run's cards, by unit count
@@ -861,7 +869,7 @@ void ModernTacticalHud::build_fleet_tabs(const TacticalHudFrame& f, std::span<co
         hit(tab_id, kControlLayer, tab, {tab_w, tab_h});
         float bx = tab.x + 0.5f * tab_w - 1.0f;
         auto button = [&](int32_t base, const std::u32string& text, float w) {  // a layer over the tabs, as Classic's
-            const Vec2f bc{bx - 0.5f * w, tab.y};
+            const Vec2f bc{bx - 0.5f * w, tab.y + 0.5f * tab_h - 1.0f - 0.5f * button_h};
             bx -= w + 2.0f;
             frame_rect(dl_, kControlLayer + 1, bc, {w, button_h}, accent(120), hover_ == base + index ? colours_.text : edge);
             add_text(dl_, kControlLayer + 1, HudList::Text, *fonts_, canvas_, text, bc, bs);

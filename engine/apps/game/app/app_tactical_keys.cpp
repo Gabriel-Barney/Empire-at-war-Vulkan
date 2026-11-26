@@ -93,6 +93,29 @@ void App::select_like() {
     if (ids.size() > orders_.selection().size()) submit(commands::ev::select(ids));
 }
 
+namespace {
+// The live snapshot object with `id` (ascending-id `objs`; corpses, kSnapCorpse, are not live), null when none.
+const render::SnapshotObject* live_object(const std::vector<render::SnapshotObject>& objs, objects::ObjectId id) {
+    const auto it = std::lower_bound(objs.begin(), objs.end(), id, [](const render::SnapshotObject& x, objects::ObjectId v) { return x.id < v; });
+    return it != objs.end() && it->id == id && (it->flags & render::kSnapCorpse) == 0 ? &*it : nullptr;
+}
+}  // namespace
+
+// #600 the full strength of a squadron a craft type belongs to: the longest Squadron_Units list naming the type (a list
+// repeats a name per craft); 0 when no squadron lists it. Built once per type table.
+uint32_t App::squadron_strength(objects::TypeIndex craft) {
+    if (squadron_strength_.size() != data_.types.size()) {
+        squadron_strength_.assign(data_.types.size(), 0);
+        for (objects::TypeIndex t = 0; t < data_.types.size(); ++t) {
+            const auto list = data_.types.get(t, objects::tags::Squadron_Units);
+            for (const std::string_view name : list)
+                if (const objects::TypeIndex m = data_.types.resolve_name(name); m != objects::kNone && m < squadron_strength_.size())
+                    squadron_strength_[m] = std::max<uint32_t>(squadron_strength_[m], static_cast<uint32_t>(list.size()));
+        }
+    }
+    return craft < squadron_strength_.size() ? squadron_strength_[craft] : 0;
+}
+
 // [port: Gabriel, 2026-11-13] Squadron wings: every own squadron (icon_links: unit -> its squadron's lead) whose member type
 // is listed in some Squadron_Units joins the bomber wing when the member's CategoryMask has Bomber, else the fighter wing
 // when it has Fighter. A wing's ids hold whole squadrons up to the selection cap (OrderTranslator::kMaxSelect); its count
@@ -113,6 +136,7 @@ void App::fill_wings(ui::TacticalHudFrame& hf) {
             objects::ObjectId lead = objects::kNoObjectId;
             size_t wing = 0;
             std::vector<uint32_t> ids;
+            uint32_t full = 0;  // #600 the squadron's full strength (its craft type's Squadron_Units)
         };
         std::vector<Squad> squads;  // first-seen order (ascending member id)
         for (const sim::TacticalBattle::IconLink& l : b->icon_links()) {
@@ -132,24 +156,19 @@ void App::fill_wings(ui::TacticalHudFrame& hf) {
                 sq = &squads.back();
             }
             sq->ids.push_back(static_cast<uint32_t>(l.unit));
+            sq->full = std::max(sq->full, squadron_strength(t));
         }
-        auto snap = [&](objects::ObjectId id) -> const render::SnapshotObject* {
-            const auto it = std::lower_bound(objs.begin(), objs.end(), id, [](const render::SnapshotObject& x, objects::ObjectId v) { return x.id < v; });
-            return it != objs.end() && it->id == id ? &*it : nullptr;
-        };
         std::vector<float> health_sum(wings_.size(), 0.0f);
         for (const Squad& s : squads) {
             ui::HudWing& w = wings_[s.wing];
             ++w.squadrons;
             if (w.ids.size() + s.ids.size() <= ui::OrderTranslator::kMaxSelect) w.ids.insert(w.ids.end(), s.ids.begin(), s.ids.end());
-            // #600 craft alive / full strength (the squadron type's Squadron_Units) and the craft's mean hull fraction.
-            size_t full = s.ids.size();
-            if (const render::SnapshotObject* lead = snap(s.lead); lead && lead->type < data_.types.size())
-                full = std::max(full, data_.types.get(lead->type, objects::tags::Squadron_Units).size());
+            // #600 craft alive / full strength (the Squadron_Units of the squadron its craft come from) and their mean hull
+            // fraction.
             w.craft_alive += static_cast<uint32_t>(s.ids.size());
-            w.craft_total += static_cast<uint32_t>(full);
+            w.craft_total += std::max(s.full, static_cast<uint32_t>(s.ids.size()));
             for (const uint32_t id : s.ids)
-                if (const render::SnapshotObject* o = snap(static_cast<objects::ObjectId>(id))) health_sum[s.wing] += o->health_fraction;
+                if (const render::SnapshotObject* o = live_object(objs, static_cast<objects::ObjectId>(id))) health_sum[s.wing] += o->health_fraction;
         }
         for (size_t k = 0; k < wings_.size(); ++k)
             if (wings_[k].craft_alive > 0) wings_[k].health = health_sum[k] / static_cast<float>(wings_[k].craft_alive);
@@ -181,13 +200,11 @@ void App::fill_fleet_groups(ui::TacticalHudFrame& hf) {
                 const std::vector<render::SnapshotObject>& objs = bview_.frame().objects;  // ascending id
                 float sum = 0.0f;
                 size_t n = 0;
-                for (const uint32_t id : h.members) {
-                    const auto it = std::lower_bound(objs.begin(), objs.end(), static_cast<objects::ObjectId>(id),
-                                                     [](const render::SnapshotObject& x, objects::ObjectId v) { return x.id < v; });
-                    if (it == objs.end() || it->id != static_cast<objects::ObjectId>(id)) continue;
-                    sum += it->health_fraction;
-                    ++n;
-                }
+                for (const uint32_t id : h.members)
+                    if (const render::SnapshotObject* o = live_object(objs, static_cast<objects::ObjectId>(id))) {
+                        sum += o->health_fraction;
+                        ++n;
+                    }
                 if (n > 0) h.health = sum / static_cast<float>(n);
             }
             fleet_groups_.push_back(std::move(h));
