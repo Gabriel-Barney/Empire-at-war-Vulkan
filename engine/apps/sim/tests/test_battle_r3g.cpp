@@ -952,9 +952,6 @@ std::string bounty_patch(std::string t) {
 // parse; then a land battle: the Underworld (1) crushes an Empire (0) trooper and is paid round(1.75 x 10) = 18 (17.5,
 // half away from zero), nobody else; the Empire crushes an Underworld trooper and nobody is paid (no Empire-held ability
 // names the Underworld).
-// ledger: verifies Bounty_On_Faction_Ability.Bounty_Percentage_Amount
-// ledger: verifies Bounty_On_Faction_Ability.Stacking_Category
-// ledger: verifies Bounty_On_Faction_Ability.Target_Faction_Names
 void test_tactical_bounty() {
     const BountyEntry none[] = {{1, 0.0f}};
     const BountyEntry mixed[] = {{2, 0.25f}, {1, 1.5f}, {1, 0.5f}, {3, -0.5f}};

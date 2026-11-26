@@ -35,14 +35,12 @@ std::vector<BountyOnFactionDef> parse_bounty_on_faction(const objects::GameObjec
             if (fc.parent[c] != f) continue;
             const std::string_view k = raw.tag_name(c);
             if (ascii_iequals(k, "Bounty_Percentage_Amount")) {
-                d.percentage = to_f(fc.text[c]);  // ledger: consumes Bounty_On_Faction_Ability.Bounty_Percentage_Amount
+                d.percentage = to_f(fc.text[c]);
             } else if (ascii_iequals(k, "Stacking_Category")) {
-                // ledger: consumes Bounty_On_Faction_Ability.Stacking_Category
                 d.category = static_cast<int32_t>(std::atoi(std::string(ascii_trim(fc.text[c])).c_str()));
             } else if (ascii_iequals(k, "Apply_To_All_Allies")) {
-                // ledger: consumes Bounty_On_Faction_Ability.Apply_To_All_Allies
                 d.all_allies = objects::parse_type_bool(ascii_trim(fc.text[c]));
-            } else if (ascii_iequals(k, "Target_Faction_Names")) {  // ledger: consumes Bounty_On_Faction_Ability.Target_Faction_Names
+            } else if (ascii_iequals(k, "Target_Faction_Names")) {
                 std::string_view rest = fc.text[c];
                 while (!rest.empty()) {
                     const size_t comma = rest.find(',');
