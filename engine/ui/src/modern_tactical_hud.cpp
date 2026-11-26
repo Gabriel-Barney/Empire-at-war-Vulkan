@@ -1073,7 +1073,7 @@ void ModernTacticalHud::badge(std::u32string_view text, Vec2f left_mid, uint32_t
     st.font = font();
     st.color = colours_.text;
     st.align = TextAlign::Center;
-    const float h = 1.1f * text_height_units(), u = 0.35f * h, icon = lagging ? 2.0f * u + 0.5f * kPad : 0.0f;
+    const float h = badge_height(), u = 0.35f * h, icon = lagging ? 2.0f * u + 0.5f * kPad : 0.0f;
     const float w = std::max(h, measure_text_block(*fonts_, canvas_, text, 0.0f, st).width + kPad) + icon;
     const Vec2f c{left_mid.x + 0.5f * w, left_mid.y};
     frame_rect(dl_, layer, c, {w, h}, Rgba8{0, 0, 0, 210}, lagging ? colours_.hull_warn : colours_.label);
@@ -1117,14 +1117,14 @@ void ModernTacticalHud::build_badges(const TacticalHudFrame& f, std::span<const 
         ++stats_.world_badges;
         if (lagging) ++stats_.badges_lagging;
     }
-    // On the hero bar's slots.
+    // On the hero bar's slots: inside the slot's top-left corner, one layer over it (a slot on the top layer gets none, as
+    // the panel's list merges after Modern's and would cover it).
     for (const HudHeroSlot& s : f.hero_slots) {
         const std::u32string label = label_of(s.hero);
-        if (label.empty()) continue;
-        const Vec2f lo = canvas_.pixel_to_canvas(s.min_px.x, s.max_px.y), hi = canvas_.pixel_to_canvas(s.max_px.x, s.min_px.y);
-        const float h = 1.1f * text_height_units();
-        const uint32_t layer = std::min(s.layer + 1, kHudLayers - 1);
-        badge(label, {lo.x + 1.0f, hi.y - 0.5f * h - 1.0f}, layer, false);
+        if (label.empty() || s.layer + 1 >= kHudLayers) continue;
+        const Vec2f bottom_left = canvas_.pixel_to_canvas(s.min_px.x, s.max_px.y), top_right = canvas_.pixel_to_canvas(s.max_px.x, s.min_px.y);
+        constexpr bool kNotLagging = false;  // a hero's lagging look stays on its world badge
+        badge(label, {bottom_left.x + 1.0f, top_right.y - 0.5f * badge_height() - 1.0f}, s.layer + 1, kNotLagging);
         ++stats_.hero_badges;
     }
     // On the map: each group's and wing's member centre.
@@ -1145,8 +1145,8 @@ void ModernTacticalHud::build_badges(const TacticalHudFrame& f, std::span<const 
         auto map_badge = [&](std::span<const uint32_t> ids, std::u32string_view text) {
             Vec2f c;
             if (text.empty() || !centre_of(ids, c)) return;
-            constexpr bool kNotLagging = false;  // the map badge has no lagging look (#603: the world badge has)
-            badge(text, {c.x + 3.0f, c.y}, kControlLayer, kNotLagging);
+            constexpr bool kMapNotLagging = false;  // the map badge has no lagging look (#603: the world badge has)
+            badge(text, {c.x + 3.0f, c.y}, kControlLayer, kMapNotLagging);
             ++stats_.radar_badges;
         };
         if (f.fleet_groups_on)

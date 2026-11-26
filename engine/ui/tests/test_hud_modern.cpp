@@ -1567,6 +1567,25 @@ void test_hero_badges() {
     CHECK(st.hero_badges == 1);
     CHECK(h.classic.draw_list().digest() == classic_before);
     CHECK(on_layer_7() > 0);
+    {  // inside the slot's box (pixels -> canvas, +Y up), in its top-left part
+        const Vec2f bl = h.modern.canvas().pixel_to_canvas(1700.0f, 1040.0f), tr = h.modern.canvas().pixel_to_canvas(1760.0f, 980.0f);
+        float x0 = 1e9f, y1 = -1e9f;
+        bool inside = true;
+        for (uint32_t l = 0; l < kHudSubLists; ++l)
+            for (const HudQuad& q : h.modern.draw_list().items(7, static_cast<HudList>(l))) {
+                inside = inside && q.min.x >= bl.x - 0.5f && q.max.x <= tr.x + 0.5f && q.min.y >= bl.y - 0.5f && q.max.y <= tr.y + 0.5f;
+                x0 = std::min(x0, q.min.x);
+                y1 = std::max(y1, q.max.y);
+            }
+        CHECK(inside && x0 < bl.x + 0.25f * (tr.x - bl.x) && y1 > tr.y - 0.25f * (tr.y - bl.y));
+    }
+    // A slot on the top layer: no badge (the panel would cover it).
+    std::vector<HudHeroSlot> top = slots;
+    top[0].layer = kHudLayers - 1;
+    f.hero_slots = top;
+    h.modern.build(f, units, s.types);
+    CHECK(st.hero_badges == 0);
+    f.hero_slots = slots;
     // A wing's craft: its key.
     std::vector<HudWing> wings(1);
     wings[0].hotkey = U"F2";

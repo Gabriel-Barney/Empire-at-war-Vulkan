@@ -183,7 +183,8 @@ private:
     void build_map(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
     void build_target_card(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
     void build_badges(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
-    void badge(std::u32string_view text, Vec2f left_mid, uint32_t layer, bool lagging);  // a dark backplate with the text
+    void badge(std::u32string_view text, Vec2f left_mid, uint32_t layer, bool lagging);
+    float badge_height() const { return 1.1f * text_height_units(); }  // a badge's backplate height  // a dark backplate with the text
     // #603 "N lagging" (or "N" alone when !words) after a warning triangle, ending at right_mid; its width, and the width
     // without drawing
     float lag_mark(Vec2f right_mid, uint32_t n, bool words, uint32_t layer);

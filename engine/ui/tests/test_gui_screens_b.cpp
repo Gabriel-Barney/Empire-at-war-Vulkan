@@ -416,6 +416,7 @@ void test_panels() {
     hs[0].planet = commands::kNoObject;  // hyperspace
     hs[1].object = 0;                    // building / respawning
     heroes.build(hf);
+    CHECK(heroes.shown_slots().size() == 1 && heroes.shown_slots()[0].hero == 4001);  // #616: no slot without a hero object
     env.click(heroes, "hero_slot_good00", acts, Button::Left, 7.0);
     env.click(heroes, "hero_slot_good01", acts, Button::Left, 9.0);
     CHECK(acts.empty());

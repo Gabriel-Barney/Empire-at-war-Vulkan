@@ -645,8 +645,9 @@ std::vector<HudHeroSlot> HeroPanel::shown_slots() const {
         if (s.value < 0 || s.component < 0 || s.id == 0 || s.id == commands::kNoObject) continue;  // bars, building heroes
         const auto it = std::find_if(hits_.begin(), hits_.end(), [&](const HudHitBox& h) { return h.component == s.component; });
         if (it == hits_.end()) continue;
-        const Vec2f a = canvas_.canvas_to_pixel(it->min.x, it->max.y), b = canvas_.canvas_to_pixel(it->max.x, it->min.y);
-        out.push_back({s.id, it->layer, a, b});
+        // canvas +Y up, pixels +Y down: the box's top-left pixel is the canvas (min.x, max.y)
+        const Vec2f top_left = canvas_.canvas_to_pixel(it->min.x, it->max.y), bottom_right = canvas_.canvas_to_pixel(it->max.x, it->min.y);
+        out.push_back({s.id, it->layer, top_left, bottom_right});
     }
     return out;
 }
