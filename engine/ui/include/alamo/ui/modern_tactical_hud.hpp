@@ -12,8 +12,8 @@
 //     clicks are the Classic components' clicks (same component ids, same commands and actions), and the HUD style switch
 //     (HudAction::HudStyleToggle);
 //   - the command deck along the bottom (#585): with own units selected, the selection as unit cards (icon, count, name,
-//     a solid hull bar and a striped shield bar; the "+N" overflow card), the wing buttons and a clear-selection button
-//     in the selection header, and the six order buttons (the Classic c_button00..05 ids and rule, order_button_enabled)
+//     a solid hull bar and a striped shield bar; the "+N" overflow card), a clear-selection button in the selection
+//     header (the wings are the fleet roster's, #601), and the six order buttons (the Classic c_button00..05 ids and rule, order_button_enabled)
 //     with their live hotkey badges, greyed with a dashed outline when no selected unit can do the order, and the fleet
 //     cohesion line. Cards group by the Classic functions (group_selection / group_selection_fleets) and click as the
 //     Classic portraits do (plain: the group; Shift: drop it; Ctrl: its first unit);
@@ -52,11 +52,14 @@ inline constexpr int32_t kModernClearHit = kModernHitBase + 2;        // the dec
 inline constexpr int32_t kModernCardHitBase = kModernHitBase + 0x100;  // + card index (the deck's selection cards)
 inline constexpr int32_t kModernStationHit = kModernHitBase + 4;          // #587 the shortcut that selects the station
 inline constexpr int32_t kModernMapHit = kModernHitBase + 5;              // #591 the map, when the table has no "radar"
-inline constexpr int32_t kModernFleetShortcutBase = kModernHitBase + 0x200;  // + fleet group index (#587 shortcuts)
 inline constexpr int32_t kModernDisciplineHit = kModernHitBase + 6;  // #599 the fleet discipline control
 inline constexpr int32_t kModernNewGroupHit = kModernHitBase + 7;    // #599 New group (the N key's Create)
 inline constexpr int32_t kModernLockHit = kModernHitBase + 8;        // #599 Lock (the Y key's SetLock)
 inline constexpr int32_t kModernWingTabBase = kModernHitBase + 0x800;  // #600 + wing index: a wing run's tab (WingSelect)
+// #601 the fleet roster (its wing cards use the Classic wing button ids, kWingHitBase + wing)
+inline constexpr int32_t kModernRosterHeaderHit = kModernHitBase + 9;     // the header: collapse / expand
+inline constexpr int32_t kModernRosterNewHit = kModernHitBase + 10;       // "+ New group (N)" (the N key's Create)
+inline constexpr int32_t kModernRosterGroupBase = kModernHitBase + 0x900;  // + fleet group index (the feed's order)
 // Hull bar colours by health (badly damaged units stand out): above kModernHullWarn, above kModernHullCritical, below.
 inline constexpr float kModernHullWarn = 0.6f, kModernHullCritical = 0.3f;
 
@@ -74,7 +77,7 @@ struct ModernHudStats {
     uint32_t cards = 0;                  // selection cards drawn (the "+N" card included)
     bool overflow_card = false;          // the last card is the "+N" overflow
     uint32_t orders = 0, orders_live = 0;  // order buttons drawn, enabled
-    uint32_t wings = 0;                  // wing buttons drawn
+    uint32_t wings = 0;                  // wing cards drawn (#601 the roster's; the selection header's before)
     bool clear_button = false;
     bool discipline_drawn = false;                // #599 the fleet discipline control (it shows the fleet cohesion)
     uint32_t discipline_lights = 0;               // its steps (2: Loose / Tight; 3 with Locked)
@@ -92,7 +95,7 @@ struct ModernHudStats {
     bool production = false;                 // the production section drawn
     uint32_t build_options = 0, build_blocked = 0, queue_entries = 0, reinforcements = 0;
     std::vector<std::u32string> build_texts;  // each option's line: its cost, or its blocked reason
-    uint32_t shortcuts = 0;                  // wing, fleet group and station shortcuts drawn
+    uint32_t shortcuts = 0;                  // shortcuts drawn (the station; wings and groups are the roster's, #601)
     float deck_width = 0.0f;                 // canvas units
     uint32_t fleet_tabs = 0, fleet_merge = 0, fleet_split = 0;  // #588 group tabs and their Merge / Split buttons drawn
     // #600 wing run tabs; the tabs' state chips (a padlock LOCKED, an open padlock FREE, a wing WING) and health bars
@@ -114,6 +117,10 @@ struct ModernHudStats {
     bool objectives_panel = false, objectives_folded = false;
     std::vector<std::u32string> objective_texts;  // the panel's entries (unfolded), feed order
     bool pause_banner = false;           // the Game Paused banner drawn
+    // #601 the fleet roster (left edge): drawn, collapsed to its header, its group cards, the "+ New group" card, the
+    // cards marked as in the selection (a border and a side bar)
+    bool roster = false, roster_collapsed = false, roster_new = false;
+    uint32_t roster_groups = 0, roster_selected = 0, roster_more = 0;  // roster_more: the cards a "+N more" line stands for
     uint32_t hit_boxes = 0, quads = 0;
 };
 
@@ -208,7 +215,25 @@ private:
     std::vector<std::pair<int32_t, HudBuildOption>> buy_slots_;
     std::vector<std::pair<int32_t, HudQueueEntry>> queue_slots_;
     std::vector<std::pair<int32_t, HudReinforcement>> reinforce_slots_;
-    std::vector<std::vector<uint32_t>> fleet_shortcuts_;
+    // #601 the fleet roster: collapsed (the header's toggle, kept across builds), its group cards' members (feed order),
+    // the last group card click (time, card) for the double click that centres the camera.
+    void build_roster(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
+    bool roster_collapsed_ = false;
+    struct RosterGroup {  // a drawn group card's click data
+        uint16_t id = 0;
+        std::string name;               // UTF-8, for Rename
+        std::vector<uint32_t> members;  // Classic's tab members
+        Vec2f centre{};                 // the members' mean position (world x, y), for the double click
+    };
+    std::vector<RosterGroup> roster_groups_;  // the feed's order (kModernRosterGroupBase + index)
+    bool roster_new_live_ = false;
+    struct RosterClick {  // the last left click on a group card, for the double click (by group id, not card index)
+        uint16_t group = 0;
+        double time = -1e30;
+    };
+    RosterClick last_roster_click_;
+    double time_ = 0.0;           // the frame's time (TacticalHudFrame::time) of the last build
+    float status_bottom_ = 0.0f;  // canvas y under the status corner (the roster hangs from it)
     // #588 per drawn group tab (Classic's tab ids: kFleetTabHitBase / kFleetMergeHitBase / kFleetSplitHitBase + index).
     std::vector<std::vector<uint32_t>> fleet_tab_ids_;
     std::vector<std::pair<uint16_t, std::string>> fleet_tab_group_;  // the group id and name (UTF-8), for Rename
@@ -217,6 +242,9 @@ private:
         Vec2f card{};     // a card's size
         float gap = 0.0f, right = 0.0f;  // between cards; the section's right edge
     };
+    // #600 / #601 a state chip's icon (a closed padlock, an open one, a wing) round `c`, `u` canvas units the unit size.
+    enum class Chip { Locked, Free, Wing };
+    void chip_icon(Chip chip, Vec2f c, float u, Rgba8 edge);
     void build_run_tabs(const TacticalHudFrame& f, std::span<const HudUnit> units, const CardRow& row, float tab_h);
     uint32_t builder_ = commands::kNoObject, station_ = commands::kNoObject;
     std::vector<SelectedGroup> groups_;

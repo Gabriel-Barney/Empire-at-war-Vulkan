@@ -131,7 +131,9 @@ void ModernTacticalHud::build(const TacticalHudFrame& frame, std::span<const Hud
     buy_slots_.clear();
     queue_slots_.clear();
     reinforce_slots_.clear();
-    fleet_shortcuts_.clear();
+    roster_groups_.clear();
+    roster_new_live_ = false;
+    time_ = frame.time;
     fleet_tab_ids_.clear();
     fleet_tab_group_.clear();
     builder_ = frame.builder;
@@ -143,6 +145,8 @@ void ModernTacticalHud::build(const TacticalHudFrame& frame, std::span<const Hud
     // Classic's radar move click needs its selection groups (TacticalHud::build: its grouping and slot count).
     select_groups_ = !(frame.fleet_groups_on ? group_selection_fleets(units, frame.fleet_groups, panel_slots_) : group_selection(units)).empty();
     wing_ids_.clear();
+    for (size_t w = 0; w < frame.wings.size() && w < kMaxWings; ++w)  // as Classic's wing buttons (an empty wing: none)
+        wing_ids_.push_back(frame.wings[w].squadrons > 0 ? frame.wings[w].ids : std::vector<uint32_t>{});
     for (bool& l : order_live_) l = false;
     stats_ = {};
     paused_ = frame.paused;
@@ -151,6 +155,7 @@ void ModernTacticalHud::build(const TacticalHudFrame& frame, std::span<const Hud
     build_map(frame, units, types);
     build_target_card(frame, units, types);
     build_status(frame);
+    build_roster(frame, units, types);
     build_controls(frame);
     const ModernAlertStrip strip = alert_strip(frame.alerts);
     stats_.alert_text = strip.text;
@@ -175,6 +180,7 @@ void ModernTacticalHud::build_status(const TacticalHudFrame& f) {
     if (!stats_.credits_text.empty()) rows.push_back({{}, stats_.credits_text, credits_color_});
     if (!stats_.pop_text.empty()) rows.push_back({text_or_port(text_, nullptr, U"Population"), stats_.pop_text, colours_.text});
     if (!stats_.tech_text.empty()) rows.push_back({{}, stats_.tech_text, colours_.text});
+    status_bottom_ = 0.5f * canvas_.height - kMargin;
     if (rows.empty()) return;
     HudTextStyle value_style, label_style;
     value_style.font = label_style.font = font();
@@ -200,6 +206,7 @@ void ModernTacticalHud::build_status(const TacticalHudFrame& f) {
         add_text(dl_, kPanelLayer, HudList::Text, *fonts_, canvas_, r.value, {x, y}, value_style);
         y -= line;
     }
+    status_bottom_ = center.y - 0.5f * size.y;
     stats_.status_corner = true;
 }
 
@@ -337,27 +344,7 @@ float ModernTacticalHud::build_shortcuts(const TacticalHudFrame& f, std::span<co
         std::u32string label;
         bool selected;
     };
-    std::vector<Entry> entries;
-    for (size_t w = 0; w < f.wings.size() && w < kMaxWings; ++w) {
-        const HudWing& wing = f.wings[w];
-        if (draw) wing_ids_.push_back(wing.squadrons > 0 ? wing.ids : std::vector<uint32_t>{});
-        if (wing.squadrons == 0 || wing.ids.empty()) continue;
-        char n[16];
-        std::snprintf(n, sizeof n, " %u", wing.squadrons);
-        entries.push_back({kWingHitBase + static_cast<int32_t>(w), wing.label + ascii32(n), wing.selected});
-    }
-    int32_t fleet_n = 0;  // the shortcut's index (fleet_shortcuts_)
-    if (f.fleet_groups_on)
-        for (size_t k = 0; k < f.fleet_groups.size(); ++k) {
-            const HudFleetGroup& g = f.fleet_groups[k];
-            if (g.members.empty()) continue;
-            char n[24];
-            std::snprintf(n, sizeof n, "%u", static_cast<unsigned>(g.id));
-            std::u32string label = text_or_port(text_, nullptr, U"Group ") + ascii32(n);
-            if (!g.name.empty()) label += U" " + g.name;
-            if (draw) fleet_shortcuts_.push_back(g.members);
-            entries.push_back({kModernFleetShortcutBase + fleet_n++, std::move(label), false});
-        }
+    std::vector<Entry> entries;  // the station (the wings and fleet groups are the roster's, #601)
     if (f.station != commands::kNoObject) {  // named by its type (a space station, a land build pad)
         if (draw) station_ = f.station;
         std::u32string label;
@@ -646,34 +633,8 @@ void ModernTacticalHud::build_selection(const TacticalHudFrame& f, std::span<con
     st.color = colours_.text;
     HudTextStyle centred = st;
     centred.align = TextAlign::Center;
-    // Header: the wings (Classic's hit ids and members), then Clear at the right end.
-    float x = top_left.x;
+    // Header: Clear at the right end (the wings are the roster's, #601).
     const float hy = top_left.y - 0.5f * header;
-    for (size_t w = 0; w < f.wings.size() && w < kMaxWings; ++w) {
-        const HudWing& wing = f.wings[w];
-        wing_ids_.push_back(wing.squadrons > 0 ? wing.ids : std::vector<uint32_t>{});
-        if (wing.squadrons == 0 || wing.ids.empty()) continue;
-        char n[16];
-        std::snprintf(n, sizeof n, " %u", wing.squadrons);
-        const std::u32string label = wing.label + ascii32(n);
-        const float hint_w = wing.hotkey.empty() || !options_.key_hints ? 0.0f : measure_text_block(*fonts_, canvas_, wing.hotkey, 0.0f, st).width + kPad;
-        const float w_units = measure_text_block(*fonts_, canvas_, label, 0.0f, st).width + hint_w + 2.0f * kPad;
-        const Vec2f c{x + 0.5f * w_units, hy};
-        const int32_t id = kWingHitBase + static_cast<int32_t>(w);
-        frame_rect(dl_, kControlLayer, c, {w_units, header}, wing.selected ? accent(220) : colours_.button,
-                   hover_ == id ? colours_.text : accent(200));
-        add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, label, {c.x - 0.5f * hint_w, c.y}, centred);
-        if (!wing.hotkey.empty() && options_.key_hints) {  // the wing's key hint (HudWing::hotkey), as the Classic button draws it
-            HudTextStyle ks = st;
-            ks.color = colours_.label;
-            ks.align = TextAlign::Right;
-            add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, wing.hotkey, {c.x + 0.5f * w_units - kPad, c.y}, ks);
-            ++stats_.key_badges;
-        }
-        hit(id, kControlLayer, c, {w_units, header});
-        x += w_units + 0.5f * kPad;
-        ++stats_.wings;
-    }
     {
         const std::u32string clear = text_or_port(text_, nullptr, U"Clear");
         const float cw = measure_text_block(*fonts_, canvas_, clear, 0.0f, centred).width + 2.0f * kPad;
@@ -740,6 +701,28 @@ void ModernTacticalHud::build_selection(const TacticalHudFrame& f, std::span<con
     }
 }
 
+void ModernTacticalHud::chip_icon(Chip chip, Vec2f c, float u, Rgba8 edge) {
+    const float ix = c.x, iy = c.y;
+    switch (chip) {
+        case Chip::Locked:  // a closed padlock: the shackle down on the body
+        case Chip::Free: {  // an open padlock: the shackle raised and off to one side
+            const float lift = chip == Chip::Free ? 0.5f * u : 0.0f, shift = chip == Chip::Free ? 0.35f * u : 0.0f;
+            frame_rect(dl_, kControlLayer, {ix + shift, iy + 0.45f * u + lift}, {u, u}, Rgba8{0, 0, 0, 0}, edge);
+            add_rect(dl_, kControlLayer, ix - 0.6f * u, iy - 0.9f * u, ix + 0.6f * u, iy + 0.05f * u, edge);
+            break;
+        }
+        case Chip::Wing: {  // a wing: a swept triangle
+            HudQuad q;
+            q.has_corners = true;
+            q.corners = {Vec2f{ix - 0.7f * u, iy - 0.6f * u}, Vec2f{ix + 0.8f * u, iy + 0.7f * u}, Vec2f{ix + 0.8f * u, iy + 0.7f * u},
+                         Vec2f{ix + 0.2f * u, iy - 0.6f * u}};
+            q.color = edge;
+            dl_.add(kControlLayer, HudList::Alpha, q);
+            break;
+        }
+    }
+}
+
 // #588 / #600 the run tabs over the selection cards: one per fleet group run (its number and name, Merge / Split by the
 // shared rules) and one per wing run (cards whose units are all one wing's: its name and key). Each tab has a state chip
 // (a closed padlock LOCKED, an open one FREE, a wing WING: a shape as well as the text) and an aggregate health bar
@@ -763,7 +746,6 @@ void ModernTacticalHud::build_run_tabs(const TacticalHudFrame& f, std::span<cons
         }
         return -1;
     };
-    enum class Chip { Locked, Free, Wing };
     const std::u32string merge = text_or_port(text_, nullptr, U"Merge"), split = text_or_port(text_, nullptr, U"Split");
     // Merge / Split: at least 24 px, from the tab's top down to just above the health bar along its bottom edge.
     const float button_h = std::max(px_units(24.0f), tab_h - 7.0f);
@@ -827,27 +809,10 @@ void ModernTacticalHud::build_run_tabs(const TacticalHudFrame& f, std::span<cons
         const Vec2f cc{tx + 0.5f * chip_w, tab.y + 1.0f};
         frame_rect(dl_, kControlLayer, cc, {chip_w, tab_h - 8.0f}, Rgba8{0, 0, 0, 200}, edge);
         const float u = 0.22f * tab_h, ix = cc.x - 0.5f * chip_w + 0.5f * kPad + 0.5f * u, iy = cc.y;
-        switch (chip) {
-            case Chip::Locked:  // a closed padlock: the shackle down on the body
-            case Chip::Free: {  // an open padlock: the shackle raised and off to one side
-                const float lift = chip == Chip::Free ? 0.5f * u : 0.0f, shift = chip == Chip::Free ? 0.35f * u : 0.0f;
-                frame_rect(dl_, kControlLayer, {ix + shift, iy + 0.45f * u + lift}, {u, u}, Rgba8{0, 0, 0, 0}, edge);
-                add_rect(dl_, kControlLayer, ix - 0.6f * u, iy - 0.9f * u, ix + 0.6f * u, iy + 0.05f * u, edge);
-                if (chip == Chip::Locked) ++stats_.chips_locked;
-                else ++stats_.chips_free;
-                break;
-            }
-            case Chip::Wing: {  // a wing: a swept triangle
-                HudQuad q;
-                q.has_corners = true;
-                q.corners = {Vec2f{ix - 0.7f * u, iy - 0.6f * u}, Vec2f{ix + 0.8f * u, iy + 0.7f * u}, Vec2f{ix + 0.8f * u, iy + 0.7f * u},
-                             Vec2f{ix + 0.2f * u, iy - 0.6f * u}};
-                q.color = edge;
-                dl_.add(kControlLayer, HudList::Alpha, q);
-                ++stats_.chips_wing;
-                break;
-            }
-        }
+        chip_icon(chip, {ix, iy}, u, edge);
+        if (chip == Chip::Locked) ++stats_.chips_locked;
+        else if (chip == Chip::Free) ++stats_.chips_free;
+        else ++stats_.chips_wing;
         if (chip_label) add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, chip_text, {cc.x + 0.3f * tab_h, cc.y}, bs);
         tx += chip_w + kPad;
         if (show_label) add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, label, {tx, tab.y + 1.0f}, st);
@@ -1227,6 +1192,170 @@ float ModernTacticalHud::build_discipline(const TacticalHudFrame& f, std::span<c
     return width;
 }
 
+// #601 the fleet roster at the left edge, under the status corner and above the deck: a card per squadron wing (its
+// craft's icon, name, key, squadrons and craft left, health, a WING chip), then with fleet groups on a card per group in
+// creation order (its first member's icon, number and name, ships, health, a LOCKED / FREE chip) and "+ New group (N)".
+// Cards with units in the selection get a border and a side bar. The header collapses the roster to itself.
+void ModernTacticalHud::build_roster(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types) {
+    struct Card {
+        int32_t id;
+        std::u32string name, detail, chip;
+        std::string icon;
+        float health;
+        bool selected;
+        Chip state;
+    };
+    auto icon_of = [&](std::span<const uint32_t> ids) {
+        for (const HudUnit& u : units)
+            if (!ids.empty() && std::binary_search(ids.begin(), ids.end(), u.id) && u.type < types.size()) return types[u.type].icon_name;
+        return std::string();
+    };
+    auto any_selected = [&](std::span<const uint32_t> ids) {
+        return std::any_of(units.begin(), units.end(), [&](const HudUnit& u) { return u.selected && std::binary_search(ids.begin(), ids.end(), u.id); });
+    };
+    std::vector<Card> cards;
+    for (size_t w = 0; w < f.wings.size() && w < kMaxWings; ++w) {
+        const HudWing& wing = f.wings[w];
+        if (wing.squadrons == 0 || wing.ids.empty()) continue;
+        std::u32string name = wing.label;
+        if (!wing.hotkey.empty()) name += U" " + wing.hotkey;  // always: what one key press selects (#596 story 2)
+        std::u32string detail = count_text(wing.squadrons) + U" " + text_or_port(text_, nullptr, wing.squadrons == 1 ? U"squadron" : U"squadrons");
+        if (wing.craft_total > 0) detail += U", " + count_text(wing.craft_alive) + U"/" + count_text(wing.craft_total) + U" " + text_or_port(text_, nullptr, U"craft");
+        cards.push_back({kWingHitBase + static_cast<int32_t>(w), std::move(name), std::move(detail), text_or_port(text_, nullptr, U"WING"),
+                         icon_of(wing.ids), wing.health, any_selected(wing.ids), Chip::Wing});
+    }
+    std::vector<uint32_t> own_selected;
+    for (const HudUnit& u : units)
+        if (u.selected && u.owner == f.world.local_player) own_selected.push_back(u.id);
+    if (f.fleet_groups_on)
+        for (const HudFleetGroup& g : f.fleet_groups) {
+            if (g.members.empty()) continue;
+            const auto k = static_cast<int32_t>(roster_groups_.size());
+            std::u32string name = count_text(g.id);
+            if (!g.name.empty()) name += U" " + g.name;
+            std::u32string detail = count_text(static_cast<uint32_t>(g.members.size())) + U" " +
+                                    text_or_port(text_, nullptr, g.members.size() == 1 ? U"ship" : U"ships");
+            cards.push_back({kModernRosterGroupBase + k, std::move(name), std::move(detail), text_or_port(text_, nullptr, g.locked ? U"LOCKED" : U"FREE"),
+                             icon_of(g.members), g.health, any_selected(g.members), g.locked ? Chip::Locked : Chip::Free});
+            RosterGroup rg;
+            rg.id = g.id;
+            rg.name = utf32_to_utf8(g.name);
+            rg.members = g.members;
+            Vec2f sum{};
+            size_t n = 0;
+            for (const HudUnit& u : units)
+                if (std::binary_search(g.members.begin(), g.members.end(), u.id)) {
+                    sum = {sum.x + u.position.x, sum.y + u.position.y};
+                    ++n;
+                }
+            if (n > 0) rg.centre = {sum.x / static_cast<float>(n), sum.y / static_cast<float>(n)};
+            roster_groups_.push_back(std::move(rg));
+        }
+    if (cards.empty() && !f.fleet_groups_on) return;
+    const float th = text_height_units(), gap = 0.5f * kPad;
+    const float width = std::min(0.2f * canvas_.width, 15.0f * th);
+    const float left = -0.5f * canvas_.width + kMargin;
+    const float top = status_bottom_ - kPad;
+    // Above the deck, and above the map when it sits at the deck's left end (#591).
+    float bottom = -0.5f * canvas_.height + kMargin + kDeckHeight + kPad;
+    if (map_view_.valid() && !options_.map_right) bottom = std::max(bottom, map_view_.center.y + 0.5f * map_view_.size.y + kPad);
+    const float header_h = std::max(1.6f * th, px_units(24.0f));
+    if (top - bottom < header_h) return;
+    HudTextStyle st;
+    st.font = font();
+    st.color = colours_.text;
+    HudTextStyle ls = st;
+    ls.color = colours_.label;
+    // Header: "Fleet" and the collapse mark (- open, + collapsed).
+    const Vec2f hc{left + 0.5f * width, top - 0.5f * header_h};
+    frame_rect(dl_, kPanelLayer, hc, {width, header_h}, colours_.back, hover_ == kModernRosterHeaderHit ? colours_.text : accent(200));
+    add_text(dl_, kPanelLayer, HudList::Text, *fonts_, canvas_, text_or_port(text_, nullptr, U"Fleet"), {left + kPad, hc.y}, st);
+    HudTextStyle ms = st;
+    ms.align = TextAlign::Right;
+    add_text(dl_, kPanelLayer, HudList::Text, *fonts_, canvas_, roster_collapsed_ ? U"+" : U"-", {left + width - kPad, hc.y}, ms);
+    hit(kModernRosterHeaderHit, kPanelLayer, hc, {width, header_h});
+    stats_.roster = true;
+    stats_.roster_collapsed = roster_collapsed_;
+    if (roster_collapsed_) return;
+    // Every card when they fit; else the cards shrink to one line (no detail line), and what still does not fit is counted
+    // in a "+N more" line (the roster always ends with "+ New group" while fleet groups are on).
+    const float new_h = f.fleet_groups_on ? std::max(1.8f * th, px_units(24.0f)) + gap : 0.0f;
+    const float more_h = 1.4f * th + gap;
+    const float avail = top - header_h - gap - bottom - new_h;
+    const float full_h = std::max(2.8f * th, px_units(24.0f)), slim_h = std::max(1.6f * th, px_units(24.0f));
+    const auto n_cards = static_cast<float>(cards.size());
+    float card_h = full_h;
+    size_t shown = cards.size();
+    if (n_cards * (full_h + gap) > avail) {
+        card_h = std::max(slim_h, avail / std::max(1.0f, n_cards) - gap);
+        if (n_cards * (card_h + gap) > avail) shown = static_cast<size_t>(std::max(0.0f, std::floor((avail - more_h) / (card_h + gap))));
+    }
+    const bool detail = card_h >= 2.6f * th;
+    float y = top - header_h - gap;
+    for (size_t ci = 0; ci < shown && ci < cards.size(); ++ci) {
+        const Card& c = cards[ci];
+        const Vec2f cc{hc.x, y - 0.5f * card_h};
+        const bool locked = c.state == Chip::Locked;
+        frame_rect(dl_, kControlLayer, cc, {width, card_h}, colours_.button,
+                   hover_ == c.id || c.selected ? colours_.text : locked ? colours_.hull_warn : accent(200));
+        if (c.selected) {  // the selection: a side bar as well as the border
+            add_rect(dl_, kControlLayer, left, cc.y - 0.5f * card_h, left + 4.0f, cc.y + 0.5f * card_h, colours_.text);
+            ++stats_.roster_selected;
+        }
+        const float portrait = card_h - 2.0f * gap;
+        float x = left + 4.0f + gap;
+        if (!c.icon.empty() && atlas_)
+            add_atlas_quad(dl_, kControlLayer, HudList::Alpha, *atlas_, c.icon, {x + 0.5f * portrait, cc.y}, {portrait, portrait}, 1.0f, Rgba8{255, 255, 255, 255});
+        x += portrait + gap;
+        const float right = left + width - gap;
+        // The chip (top right): its icon and text on a dark plate; locked also as the border's warning colour.
+        HudTextStyle cs = st;
+        cs.align = TextAlign::Center;
+        const Rgba8 chip_edge = locked ? colours_.hull_warn : accent(220);
+        const float icon_u = 0.22f * 1.1f * th * 2.0f;
+        const float chip_w = measure_text_block(*fonts_, canvas_, c.chip, 0.0f, cs).width + kPad + 2.0f * icon_u;
+        const float line_y = detail ? cc.y + 0.5f * card_h - gap - 0.5f * th : cc.y;
+        const Vec2f chip_c{right - 0.5f * chip_w, line_y};
+        frame_rect(dl_, kControlLayer, chip_c, {chip_w, 1.1f * th}, Rgba8{0, 0, 0, 200}, chip_edge);
+        chip_icon(c.state, {chip_c.x - 0.5f * chip_w + 0.5f * kPad + 0.6f * icon_u, chip_c.y}, icon_u, chip_edge);
+        add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, c.chip, {chip_c.x + icon_u, chip_c.y}, cs);
+        HudTextStyle ns = st;
+        ns.width_scale = fit_width_scale(measure_text_block(*fonts_, canvas_, c.name, 0.0f, ns).width, std::max(1.0f, right - chip_w - kPad - x));
+        add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, c.name, {x, line_y}, ns);
+        if (detail) {
+            HudTextStyle ds = ls;
+            ds.width_scale = fit_width_scale(measure_text_block(*fonts_, canvas_, c.detail, 0.0f, ds).width, std::max(1.0f, right - x));
+            add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, c.detail, {x, line_y - 1.2f * th}, ds);
+        }
+        if (c.health >= 0.0f) add_bar(dl_, kControlLayer, {0.5f * (x + right), cc.y - 0.5f * card_h + gap + 2.0f}, {right - x, 4.0f}, c.health, hull_colour(c.health), false);
+        hit(c.id, kControlLayer, cc, {width, card_h});
+        if (c.state == Chip::Wing) ++stats_.wings;
+        else ++stats_.roster_groups;
+        y -= card_h + gap;
+    }
+    if (shown < cards.size()) {  // "+N more": the cards left out
+        HudTextStyle mo = ls;
+        add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_,
+                 replace_all(text_or_port(text_, nullptr, U"+##0 more"), U"##0", count_text(static_cast<uint32_t>(cards.size() - shown))),
+                 {left + kPad, y - 0.5f * more_h}, mo);
+        stats_.roster_more = static_cast<uint32_t>(cards.size() - shown);
+        y -= more_h;
+    }
+    auto room = [&](float h) { return y - h >= bottom - 0.5f; };
+    if (f.fleet_groups_on && room(new_h - gap)) {  // "+ New group (N)": N's Create of the selection
+        roster_new_live_ = !own_selected.empty();
+        Tile t;
+        t.id = kModernRosterNewHit;
+        t.size = {width, std::max(1.8f * th, px_units(24.0f))};
+        t.c = {hc.x, y - 0.5f * t.size.y};
+        t.text = text_or_port(text_, nullptr, U"+ New group");
+        t.hotkey = hk::kFleetCreate;
+        t.enabled = roster_new_live_;
+        tile(t);
+        stats_.roster_new = true;
+    }
+}
+
 // The objectives panel: the Classic entries with their state as a shape; folded to its header while objectives_hidden.
 void ModernTacticalHud::build_objectives(const TacticalHudFrame& f, float top) {
     if (f.objectives.empty()) return;
@@ -1386,11 +1515,27 @@ void ModernTacticalHud::update_input(const RoutedInput& routed, bool shift, bool
             if (e.button == Button::Left) out.push_back(commands::ev::select({}));
             continue;
         }
-        // #587 shortcuts (Modern's own): a fleet group's members, the station.
-        if (e.component >= kModernFleetShortcutBase && e.component - kModernFleetShortcutBase < static_cast<int32_t>(fleet_shortcuts_.size())) {
-            const std::vector<uint32_t>& m = fleet_shortcuts_[static_cast<size_t>(e.component - kModernFleetShortcutBase)];
-            if (e.button == Button::Left)
-                out.push_back(commands::ev::select(std::vector<uint32_t>(m.begin(), m.begin() + static_cast<std::ptrdiff_t>(std::min<size_t>(m.size(), 127)))));
+        // #601 the roster: the header collapses it; a group card is Classic's group tab click (Shift adds; a second left
+        // click within 0.5 s also centres the camera on the group), right renames it; "+ New group" is N's Create.
+        if (e.component == kModernRosterHeaderHit) {
+            if (e.button == Button::Left) roster_collapsed_ = !roster_collapsed_;
+            continue;
+        }
+        if (e.component == kModernRosterNewHit) {
+            if (e.button == Button::Left && roster_new_live_) out.push_back(fleet_button_event(false));
+            continue;
+        }
+        if (e.component >= kModernRosterGroupBase && e.component - kModernRosterGroupBase < static_cast<int32_t>(roster_groups_.size())) {
+            const RosterGroup& g = roster_groups_[static_cast<size_t>(e.component - kModernRosterGroupBase)];
+            if (e.button == Button::Right) {
+                act(fleet_rename_action(e.component, g.id, g.name));
+            } else if (e.button == Button::Left) {
+                out.push_back(commands::ev::select(fleet_tab_select_ids(g.members, selection_ids(), shift)));
+                constexpr double kDoubleClick = 0.5;  // the hero bar's (InputConfig::double_click_time)
+                const bool dbl = last_roster_click_.group == g.id && time_ - last_roster_click_.time <= kDoubleClick;
+                last_roster_click_ = dbl ? RosterClick{} : RosterClick{g.id, time_};
+                if (dbl) act(radar_jump_action(e.component, g.centre));
+            }
             continue;
         }
         if (e.component == kModernStationHit) {
