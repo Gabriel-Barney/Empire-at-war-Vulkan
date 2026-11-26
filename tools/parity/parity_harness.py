@@ -1060,7 +1060,7 @@ def run_port(scen, exe, out_dir, ref_info, reuse, seed=None, extra=()):
     os.makedirs(out_dir, exist_ok=True)
     cmd = port_command(scen, exe, out_dir, ref_info, seed, extra)
     log = os.path.join(out_dir, "port_run.txt")
-    if not (reuse and os.path.exists(log) and os.path.exists(os.path.join(out_dir, "port_ai.txt"))):
+    if not (reuse and os.path.exists(os.path.join(out_dir, "port_ai.txt")) and _logged_command(log) == " ".join(cmd)):
         r = subprocess.run(cmd, capture_output=True, text=True, check=False)
         with open(log, "w", encoding="utf-8", newline="\n") as fh:
             fh.write(" ".join(cmd) + "\n" + r.stdout + r.stderr)
@@ -1084,6 +1084,16 @@ def run_port(scen, exe, out_dir, ref_info, reuse, seed=None, extra=()):
             notes.append("no port tactical trace (%s): combat.* has no port value" % trace)
     info["port_cmd"] = " ".join(os.path.basename(c) if i == 0 else c for i, c in enumerate(cmd))
     return m, notes, info
+
+
+def _logged_command(log):
+    """The command line a port run log starts with (run_port writes it first); None without a log. --reuse-port reuses a
+    run only when it was made with the same command (a changed --port-arg runs again)."""
+    try:
+        with open(log, "r", encoding="utf-8", errors="replace") as fh:
+            return fh.readline().rstrip("\n")
+    except OSError:
+        return None
 
 
 def seed_range(seeds):
@@ -1214,7 +1224,8 @@ def cmd_run(a):
             flag = " ".join(port_extra)
             text = render(sid, scen, results, info, [n for n, _ in have], commit,
                           mode="A/B of %s: the flag-on runs against the flag-off runs' distribution over %d seeds (%s); z %g, "
-                               "spread factor %g, spread graded from %d runs a side" % (
+                               "spread factor %g, spread graded from %d runs a side; in the rows below 'retail' is the "
+                               "flag-off side" % (
                                    flag, len(seeds), seed_range(seeds), cfg["z"], cfg["spread_factor"], cfg["spread_min_runs"]))
             text += "\n" + render(sid, scen, retail_results, {"port_cmd": info["port_cmd"]}, [n for n, _ in have], commit,
                                   mode="the flag-on runs (%s) against the %d retail runs' distribution (reported, not the "
@@ -1554,6 +1565,26 @@ def selftest_distribution(check, tmp):
         cmd = port_command(sc_, "exe", tmp, ri, 3, ["--ai-lane", "--ai-lane-k", "2"])
         check(cmd[-3:] == ["--ai-lane", "--ai-lane-k", "2"] and cmd[:len(cmd) - 3] == port_command(sc_, "exe", tmp, ri, 3),
               "port args appended to the %s port command (%s)" % (kind, cmd))
+    # #630: run_port_seeds hands the port args to every seed's run (run_port swapped for a recorder here).
+    global run_port
+    real_run_port, seen = run_port, []
+
+    def fake_run_port(scen_, exe_, out_, ri_, reuse_, seed_=None, extra_=()):
+        seen.append((seed_, list(extra_)))
+        return {}, [], {"port_cmd": "x"}
+    run_port = fake_run_port
+    try:
+        run_port_seeds({"kind": "skirmish"}, "exe", tmp, {}, False, [1, 2, 3], 2, ["--ai-lane"])
+    finally:
+        run_port = real_run_port
+    check(sorted(seen) == [(1, ["--ai-lane"]), (2, ["--ai-lane"]), (3, ["--ai-lane"])],
+          "port args reach every seed's run (%s)" % seen)
+    # --reuse-port keys a reused run on its logged command line.
+    lg = os.path.join(tmp, "port_run.txt")
+    with open(lg, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write("exe --seed 1 --ai-lane\nbench output\n")
+    check(_logged_command(lg) == "exe --seed 1 --ai-lane" and _logged_command(os.path.join(tmp, "none.txt")) is None,
+          "logged command of a port run")
     # #630: the A/B grades the flag-on seeds against the flag-off seeds' distribution, per metric.
     off = [(s, {"outcome.units_lost[Rebel]": v, "econ.credits_at_1800[Rebel]": 900 + v})
            for s, v in enumerate([48, 52, 50, 55, 45, 50, 49, 51, 53, 47, 50, 50])]

@@ -4,7 +4,7 @@
 #                                     against baseline.json: fails only when a metric that passed in the baseline fails
 #                                     now. Skips (exit 77) without ALAMO_FOC_DATA or the reference runs. Label slow.
 #   parity_harness_<scenario>_seeds   distribution mode (parity tier 2, docs/SIMULATION.md "Parity tiers"): the port over
-#                                     12 seeds (docs/SIMULATION.md "Flag-gated tier-2 changes": at least 12) against every retail run, per-metric means and spreads, checked against
+#                                     12 seeds (the rule's minimum) against every retail run, per-metric means and spreads, checked against
 #                                     baseline_seeds.json the same way. Own output folder (out_seeds). Label slow.
 find_program(ALAMO_PARITY_PYTHON NAMES python PATHS ${CMAKE_SOURCE_DIR}/toolchain/venv/Scripts NO_DEFAULT_PATH)
 find_program(ALAMO_PARITY_PYTHON NAMES python python3)
