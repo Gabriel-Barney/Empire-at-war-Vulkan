@@ -855,6 +855,12 @@ void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> 
                                            frame.faction_alt, tooltip_cfg_);
         }
     }
+    // #598: a fleet tab counts once the whole HUD is built and its centre still hits it (nothing drawn later covers it).
+    for (const HudHitBox& h : hits_) {
+        if (h.component < kFleetTabHitBase || h.component - kFleetTabHitBase >= static_cast<int32_t>(fleet_tab_ids_.size())) continue;
+        const Vec2f px = canvas_.canvas_to_pixel(0.5f * (h.min.x + h.max.x), 0.5f * (h.min.y + h.max.y));
+        if (topmost_hit(hits_, canvas_, static_cast<int32_t>(px.x), static_cast<int32_t>(px.y)) == h.component) ++stats_.fleet_tabs;
+    }
     stats_.hit_boxes = static_cast<uint32_t>(hits_.size());
     stats_.quads = static_cast<uint32_t>(dl_.total() + world_dl_.total());
 }
@@ -1647,8 +1653,8 @@ size_t TacticalHud::panel_slot_count() const {
 }
 
 // [port: Gabriel, 2026-11-22, #172 / #174] Fleet groups in the selected-unit bar: each run of panel slots holding one
-// group's units gets a frame (one per row the run spans) and, above its first row, a header tab with the group's number,
-// its name and a lock when locked. The tab is a hit box (kFleetTabHitBase + tab index) that selects every member.
+// group's units gets a frame (one per row the run spans) and, over the top of its first row (#598), a header tab with the
+// group's number, its name and a lock when locked. The tab is a hit box (kFleetTabHitBase + tab index) that selects every member.
 void TacticalHud::build_fleet_tabs(const TacticalHudFrame& f) {
     if (!f.fleet_groups_on) return;
     const int32_t font = font_of(obj_text_, 8.0f);
@@ -1683,10 +1689,18 @@ void TacticalHud::build_fleet_tabs(const TacticalHudFrame& f) {
                        Rgba8{0, 0, 0, 0}, edge);
             if (first) {
                 first = false;
-                constexpr Vec2f kButton{34.0f, 12.0f};
-                const float buttons = (merge_button ? kButton.x + 2.0f : 0.0f) + (split_button ? kButton.x + 2.0f : 0.0f);
-                const Vec2f tab_size{std::max(hi.x - lo.x + 4.0f, 64.0f + buttons), 14.0f};
-                const Vec2f tab{lo.x - 2.0f + 0.5f * tab_size.x, hi.y + 2.0f + 0.5f * tab_size.y};
+                // #598: the tab lies inside the frame, over the top of the run's own first row and as wide as that row.
+                // The band above the row is the ability row (in the fallback layout and on the shipped shell), where the
+                // tab covered the ability buttons; a tab wider than its run covered the next run's tab. Merge / Split sit
+                // at the tab's right end when the row has room for them and a 32-unit label, else in a strip under it.
+                constexpr float kButtonW = 34.0f, kButtonH = 12.0f, kLabelMin = 32.0f;
+                const float nbuttons = (merge_button ? 1.0f : 0.0f) + (split_button ? 1.0f : 0.0f);
+                const Vec2f tab_size{hi.x - lo.x + 4.0f, 14.0f};
+                const Vec2f tab{0.5f * (lo.x + hi.x), hi.y - 0.5f * tab_size.y};  // under the frame's top edge
+                const bool inline_buttons = tab_size.x >= kLabelMin + nbuttons * (kButtonW + 2.0f);
+                const Vec2f button_size{
+                    inline_buttons ? kButtonW : std::min(kButtonW, (tab_size.x - 2.0f) / std::max(nbuttons, 1.0f) - 2.0f), kButtonH};
+                const float button_y = inline_buttons ? tab.y : tab.y - 0.5f * tab_size.y - 1.0f - 0.5f * kButtonH;
                 frame_rect(dl_, layer, tab, tab_size, locked ? Rgba8{70, 52, 18, 230} : Rgba8{22, 40, 66, 230}, edge);
                 float text_x = tab.x - 0.5f * tab_size.x + 4.0f;
                 if (locked) {  // a small padlock: shackle over a body
@@ -1704,25 +1718,34 @@ void TacticalHud::build_fleet_tabs(const TacticalHudFrame& f) {
                     char num[16];
                     std::snprintf(num, sizeof num, "%u", static_cast<unsigned>(id));
                     std::u32string label = ascii32(num);
-                    label += fg && !fg->name.empty() ? U" " + fg->name : std::u32string{};
+                    // #598: narrowed into the tab (the name dropped when even half width does not fit).
+                    const float room = tab.x + 0.5f * tab_size.x - 2.0f - text_x -
+                                       (inline_buttons ? nbuttons * (kButtonW + 2.0f) : 0.0f);
+                    if (fg && !fg->name.empty()) {
+                        const std::u32string named = label + U" " + fg->name;
+                        if (0.5f * measure_text_block(*fonts_, canvas_, named, 0.0f, st).width <= room) label = named;
+                    }
+                    st.width_scale = fit_width_scale(measure_text_block(*fonts_, canvas_, label, 0.0f, st).width, room);
                     add_text(dl_, layer, HudList::Text, *fonts_, canvas_, label, {text_x, tab.y}, st);
                 }
                 hit(kFleetTabHitBase + static_cast<int32_t>(fleet_tab_ids_.size()), layer, tab, tab_size);
-                // #177: Merge / Split buttons at the tab's right end (above the tab's own hit box).
+                // #177: Merge / Split buttons from the tab's right end (above the tab's own hit box).
                 float bx = tab.x + 0.5f * tab_size.x - 1.0f;
                 const auto button = [&](int32_t hit_base, const char* text) {
-                    const Vec2f bc{bx - 0.5f * kButton.x, tab.y};
-                    bx -= kButton.x + 2.0f;
-                    frame_rect(dl_, layer + 1, bc, kButton, Rgba8{40, 62, 92, 240}, Rgba8{170, 200, 240, 255});
+                    const Vec2f bc{bx - 0.5f * button_size.x, button_y};
+                    bx -= button_size.x + 2.0f;
+                    frame_rect(dl_, layer + 1, bc, button_size, Rgba8{40, 62, 92, 240}, Rgba8{170, 200, 240, 255});
                     if (font >= 0) {
                         HudTextStyle bst;
                         bst.font = font;
                         bst.outline = true;
                         bst.align = TextAlign::Center;
                         bst.color = Rgba8{236, 240, 246, 255};
+                        bst.width_scale =
+                            fit_width_scale(measure_text_block(*fonts_, canvas_, ascii32(text), 0.0f, bst).width, button_size.x - 2.0f);
                         add_text(dl_, layer + 1, HudList::Text, *fonts_, canvas_, ascii32(text), bc, bst);
                     }
-                    hit(hit_base + static_cast<int32_t>(fleet_tab_ids_.size()), layer + 1, bc, kButton);
+                    hit(hit_base + static_cast<int32_t>(fleet_tab_ids_.size()), layer + 1, bc, button_size);
                 };
                 if (split_button) button(kFleetSplitHitBase, "Split");
                 if (merge_button) button(kFleetMergeHitBase, "Merge");
@@ -1732,7 +1755,6 @@ void TacticalHud::build_fleet_tabs(const TacticalHudFrame& f) {
                     for (size_t k = s; k < e; ++k) members.insert(members.end(), groups_[k].ids.begin(), groups_[k].ids.end());
                 fleet_tab_ids_.push_back(std::move(members));
                 fleet_tab_group_.emplace_back(id, fg ? utf32_to_utf8(fg->name) : std::string{});
-                ++stats_.fleet_tabs;
             }
             a = b;
         }
