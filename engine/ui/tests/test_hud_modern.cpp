@@ -331,7 +331,8 @@ void test_alerts() {
     CHECK(log.items().size() == 1 && log.items()[0].text == U"Under attack");
     for (int i = 0; i < 20; ++i) log.push(HudAlert::Kind::Production, U"X", 3.0);
     CHECK(log.items().size() == HudAlertLog::kMax);
-    // Radar events: the base-under-attack ping alerts, story blips and the player's clicks do not, others by type name.
+    // Radar events: an allow-list - only the base-under-attack ping alerts (story blips, clicks, beacons and the rest do
+    // not; the host announces capture points itself).
     RadarEvent ping;
     ping.marker = true;
     RadarEvent blip = ping;
@@ -341,7 +342,7 @@ void test_alerts() {
     RadarEvent beacon;
     beacon.type = "Default_Beacon_Placement";
     CHECK(radar_alert_text(ping, nullptr) == std::u32string(U"Base under attack") && !radar_alert_text(blip, nullptr) &&
-          !radar_alert_text(click, nullptr) && radar_alert_text(beacon, nullptr) == std::u32string(U"Default Beacon Placement"));
+          !radar_alert_text(click, nullptr) && !radar_alert_text(beacon, nullptr));
     // The strip: the newest alert, the count of the others, Jump for a positioned one -> RadarCameraJump there.
     Huds h;
     HudAlertLog shown;
@@ -358,6 +359,13 @@ void test_alerts() {
           acts[0].y == -40.0f);
     acts.clear();
     CHECK(h.modern.jump(acts) && acts.size() == 1 && acts[0].x == 120.0f);  // the AlertJump hotkey: the same jump
+    {  // a hidden interface has no Jump: the hotkey does nothing after a hidden build
+        TacticalHudFrame hidden = f;
+        hidden.world.interface_hidden = true;
+        h.build(hidden);
+        acts.clear();
+        CHECK(!h.modern.jump(acts) && acts.empty());
+    }
     // No position: no Jump, and the hotkey does nothing.
     HudAlertLog plain;
     plain.push(HudAlert::Kind::Objective, U"Destroy the station", 1.0);

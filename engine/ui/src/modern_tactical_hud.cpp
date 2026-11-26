@@ -23,6 +23,7 @@ constexpr Rgba8 kLabel{170, 182, 198, 255};
 constexpr Rgba8 kDisabledText{120, 128, 140, 255};
 constexpr Rgba8 kBarBack{0, 0, 0, 170};
 constexpr Rgba8 kShield{90, 190, 255, 255};
+constexpr Rgba8 kHullOk{96, 210, 110, 255}, kHullWarn{236, 188, 60, 255}, kHullBad{230, 70, 60, 255};
 constexpr Rgba8 kPausedBar{196, 176, 8, 245};  // the Classic pause banner's yellow bar
 // By TacticalHudFrame::faction_alt (GameUi::set_faction): 0 the good side (Rebel), 1 any other (Empire, Underworld).
 constexpr Rgba8 kAccent[2] = {{226, 120, 48, 255}, {92, 156, 230, 255}};
@@ -35,9 +36,9 @@ constexpr const char32_t* kOrderLabels[kOrderButtonCount] = {U"Attack", U"Attack
 constexpr uint16_t kOrderSlots[kOrderButtonCount] = {hk::kAttack, hk::kAttackMove, hk::kMove, hk::kWaypoint, hk::kStop, hk::kGuard};
 
 Rgba8 hull_color(float health) {
-    if (health > kModernHullWarn) return {96, 210, 110, 255};
-    if (health > kModernHullCritical) return {236, 188, 60, 255};
-    return {230, 70, 60, 255};
+    if (health > kModernHullWarn) return kHullOk;
+    if (health > kModernHullCritical) return kHullWarn;
+    return kHullBad;
 }
 
 void add_rect(HudDrawList& dl, uint32_t layer, float x0, float y0, float x1, float y1, Rgba8 color) {
@@ -112,14 +113,8 @@ void HudAlertLog::update(double now) {
 }
 
 std::optional<std::u32string> radar_alert_text(const RadarEvent& e, const TextDatabase* text) {
-    if (e.marker) {
-        if (!e.type.empty()) return std::nullopt;  // a story blip (Lua Add_Radar_Blip)
-        return text_or_port(text, nullptr, U"Base under attack");
-    }
-    if (e.type.empty() || ascii_upper(e.type).find("CLICK") != std::string::npos) return std::nullopt;
-    std::u32string out;
-    for (char ch : e.type) out.push_back(ch == '_' ? U' ' : static_cast<char32_t>(static_cast<unsigned char>(ch)));
-    return out;
+    if (e.marker && e.type.empty()) return text_or_port(text, nullptr, U"Base under attack");
+    return std::nullopt;  // a story blip (Lua Add_Radar_Blip), a click, a beacon, any other event
 }
 
 std::string_view hud_style_name(HudStyle s) { return s == HudStyle::Modern ? "modern" : "classic"; }
@@ -186,8 +181,8 @@ void ModernTacticalHud::build(const TacticalHudFrame& frame, std::span<const Hud
     stats_ = {};
     paused_ = frame.paused;
     faction_alt_ = frame.faction_alt;
+    jump_ok_ = false;  // before the early return: a hidden HUD has no Jump
     if (!table_ || !fonts_ || frame.world.interface_hidden || font() < 0) return;
-    jump_ok_ = false;
     build_deck(frame, units, types);
     build_status(frame);
     build_controls(frame);
@@ -479,7 +474,7 @@ void ModernTacticalHud::build_alerts(const TacticalHudFrame& f) {
     const float text_w = std::min(max_text, measure_text_block(*fonts_, canvas_, a.text, 0.0f, st).width);
     const float more_w = more.empty() ? 0.0f : measure_text_block(*fonts_, canvas_, more, 0.0f, st).width;
     const float jump_w = a.has_position ? measure_text_block(*fonts_, canvas_, jump, 0.0f, cs).width + 6.0f * kPad : 0.0f;
-    const float mark = 0.6f * h;  // the kind's mark: a square (advisor), a diamond (radar), a bar (production, objective)
+    const float mark = 0.6f * h;  // the kind's mark: a square (advisor), a diamond (radar), a triangle (objective), a bar (production)
     const Vec2f size{mark + text_w + more_w + jump_w + 4.0f * kPad, h};
     const Vec2f c{0.0f, y};
     frame_rect(dl_, kPanelLayer, c, size, kBack, accent(220));
@@ -499,6 +494,15 @@ void ModernTacticalHud::build_alerts(const TacticalHudFrame& f) {
         case HudAlert::Kind::Advisor:
             add_rect(dl_, kPanelLayer, mc.x - 0.4f * mark, mc.y - 0.4f * mark, mc.x + 0.4f * mark, mc.y + 0.4f * mark, accent(255));
             break;
+        case HudAlert::Kind::Objective: {  // a triangle, point up (the fourth corner repeats the apex)
+            HudQuad q;
+            q.has_corners = true;
+            const float d = 0.5f * mark;
+            q.corners = {Vec2f{mc.x, mc.y + d}, Vec2f{mc.x, mc.y + d}, Vec2f{mc.x + d, mc.y - d}, Vec2f{mc.x - d, mc.y - d}};
+            q.color = accent(255);
+            dl_.add(kPanelLayer, HudList::Alpha, q);
+            break;
+        }
         default:
             add_rect(dl_, kPanelLayer, mc.x - 0.5f * mark, mc.y - 0.15f * mark, mc.x + 0.5f * mark, mc.y + 0.15f * mark, accent(255));
             break;
@@ -575,7 +579,7 @@ void ModernTacticalHud::build_objectives(const TacticalHudFrame& f, float top) {
                     const float d = 0.5f * mark, t = 1.0f;
                     q.corners = {Vec2f{mc.x - d, mc.y + s * d}, Vec2f{mc.x - d + t, mc.y + s * d}, Vec2f{mc.x + d, mc.y - s * d},
                                  Vec2f{mc.x + d - t, mc.y - s * d}};
-                    q.color = Rgba8{230, 70, 60, 255};
+                    q.color = kHullBad;  // the hull bar's critical colour
                     dl_.add(kPanelLayer, HudList::Alpha, q);
                 }
                 break;

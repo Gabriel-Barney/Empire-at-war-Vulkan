@@ -452,7 +452,7 @@ private:
     // [port: Gabriel] #589 the Modern alert strip's entries: advisor lines, radar events, production done, objectives added
     // (fill_alerts); cleared at each battle start.
     ui::HudAlertLog alerts_;
-    size_t alert_objectives_seen_ = 0;  // objectives already announced this battle
+    std::set<std::u32string> alert_objectives_seen_;  // objectives already announced this battle (by text: the list reorders)
     uint32_t alert_radar_seen_ = 0;     // the newest radar event id already announced
     void fill_alerts();
     ui::RadarSettings radar_settings_;

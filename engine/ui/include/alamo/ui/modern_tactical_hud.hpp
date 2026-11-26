@@ -77,9 +77,9 @@ public:
 private:
     std::vector<HudAlert> items_;
 };
-// The alert text of a radar event (#589), nullopt for none: a base-under-attack ping (an unnamed marker) -> "Base under
-// attack"; a story blip (a named marker) and the player's own clicks (types with "Click") -> none; any other event its
-// RadarMap.xml type name with '_' as spaces [port: no display text in the data].
+// The alert text of a radar event (#589), nullopt for none. An allow-list: only the base-under-attack ping (an unnamed
+// marker) -> "Base under attack". Story blips (named markers), the player's own clicks and beacons, and every other
+// RadarMap.xml event -> none (the host announces capture points itself, at the transition, with who took the point).
 std::optional<std::u32string> radar_alert_text(const RadarEvent& e, const TextDatabase* text);
 
 struct ModernHudStats {

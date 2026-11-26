@@ -960,9 +960,9 @@ int32_t App::type_ranking(uint32_t type) const {
 // #589: the alert list's battle sources read each frame (objectives added, new radar events); advisor lines and
 // production done arrive where the host already reacts to them (story_present_frame, post_tick).
 void App::fill_alerts() {
-    for (size_t i = alert_objectives_seen_; i < hud_objectives_.size(); ++i)
-        alerts_.push(ui::HudAlert::Kind::Objective, ui::hud_objective_text(&ui_.text, hud_objectives_[i]), now_s_);
-    alert_objectives_seen_ = std::max(alert_objectives_seen_, hud_objectives_.size());
+    for (const ui::HudObjective& o : hud_objectives_)
+        if (std::u32string t = ui::hud_objective_text(&ui_.text, o); alert_objectives_seen_.insert(t).second)
+            alerts_.push(ui::HudAlert::Kind::Objective, std::move(t), now_s_);
     for (const ui::RadarEvent& e : radar_events_.items()) {
         if (e.id <= alert_radar_seen_) continue;
         alert_radar_seen_ = e.id;
@@ -1105,6 +1105,10 @@ void App::build_tactical_hud() {
                 // ledger: consumes GameObjectType.End_Control_Transition_Radar_Event
                 const std::string_view ev = ascii_trim(data_.types.get_string(o->type, "End_Control_Transition_Radar_Event"));
                 if (!ev.empty()) radar_events_.add(radar_settings_, std::string(ev), o->position.x, o->position.y);
+                // #589 the Modern alert strip: who has the point now, with Jump to it.
+                alerts_.push_at(ui::HudAlert::Kind::Radar,
+                                ui::text_or_port(&ui_.text, nullptr, friendly(now) ? U"Capture point taken" : U"Capture point lost"),
+                                o->position.x, o->position.y, now_s_);
             }
         }
     if (const sim::TacticalBattle* b = battle())
