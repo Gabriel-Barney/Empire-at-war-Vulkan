@@ -842,7 +842,7 @@ void test_actions() {
     h.build(f, none, s.types);
     CHECK(std::fabs(st.deck_width - full) < 0.5f);
     h.modern.set_options({});
-    // Shortcuts: a wing, a fleet group (its members) and the station.
+    // Shortcuts: the station (#601: the wing and the fleet group are the roster's cards, with their clicks).
     HudWing wing;
     wing.label = U"FIGHTERS";
     wing.squadrons = 1;
@@ -857,11 +857,11 @@ void test_actions() {
     f.fleet_groups = groups;
     f.station = 77;
     h.build(f, none, s.types);
-    CHECK(st.shortcuts == 3);
+    CHECK(st.shortcuts == 1 && st.roster && st.wings == 1 && st.roster_groups == 1);
     std::vector<commands::EventData> cmds;
     h.modern.update_input(click_on(kModernStationHit), false, false, cmds, nullptr);
     h.build(f, none, s.types);
-    h.modern.update_input(click_on(kModernFleetShortcutBase), false, false, cmds, nullptr);
+    h.modern.update_input(click_on(kModernRosterGroupBase), false, false, cmds, nullptr);
     CHECK(cmds.size() == 2 && cmds[0] == commands::ev::select({77}) && cmds[1] == commands::ev::select({20, 21}));
     h.build(f, none, s.types);
     size_t wn = 0;
@@ -1353,6 +1353,78 @@ void test_discipline_control() {
     CHECK(st.discipline_hint);
 }
 
+// #601 the fleet roster: wing cards, group cards in feed order and "+ New group"; the cards' clicks are Classic's wing
+// button, group tab (select, Shift adds, right renames) and N; a double click on a group card also centres the camera;
+// the header collapses the roster; with fleet groups off only the wings.
+void test_roster() {
+    Huds h;
+    Selection s;
+    TacticalHudFrame f = frame();
+    f.world.local_player = 0;
+    std::vector<HudWing> wings(1);
+    wings[0].label = U"FIGHTERS";
+    wings[0].hotkey = U"F2";
+    wings[0].squadrons = 2;
+    wings[0].ids = {40, 41};
+    wings[0].craft_alive = 2;
+    wings[0].craft_total = 6;
+    f.wings = wings;
+    std::vector<HudFleetGroup> fleets(2);
+    fleets[0].id = 1;
+    fleets[0].members = {20, 21};
+    fleets[1].id = 2;
+    fleets[1].name = U"Escort";
+    fleets[1].locked = true;
+    fleets[1].members = {50};  // not selected
+    f.fleet_groups_on = true;
+    f.fleet_groups = fleets;
+    h.build(f, s.units, s.types);
+    const ModernHudStats& st = h.modern.stats();
+    CHECK(st.roster && !st.roster_collapsed && st.wings == 1 && st.roster_groups == 2 && st.roster_new && st.roster_selected == 1);
+    CHECK(has_hit(h.modern.hit_boxes(), kWingHitBase) && has_hit(h.modern.hit_boxes(), kModernRosterGroupBase + 1) &&
+          has_hit(h.modern.hit_boxes(), kModernRosterNewHit));
+    // Clicks: the wing card = Classic's wing button; the first group card = Classic's tab of that group (its only tab).
+    size_t n = 0;
+    CHECK(h.same_click(kWingHitBase, kWingHitBase, false, false, Button::Left, &n) && n == 1);
+    for (const bool shift : {false, true}) {
+        f.time += 1.0;  // never a double click
+        h.build(f, s.units, s.types);
+        CHECK(h.same_click(kFleetTabHitBase, kModernRosterGroupBase, shift, false, Button::Left, &n) && n == 1);
+    }
+    {  // right: Classic's rename of the group (what the host reads: the group id and name; the component is the card's)
+        std::vector<commands::EventData> cc, mc;
+        std::vector<HudAction> ca, ma;
+        h.classic.update_input(click_on(kFleetTabHitBase, Button::Right), false, false, 1.0, cc, &ca);
+        h.modern.update_input(click_on(kModernRosterGroupBase + 1, Button::Right), false, false, mc, &ma);
+        CHECK(ca.size() == 1 && ma.size() == 1 && ma[0].kind == ca[0].kind && ma[0].kind == HudAction::Kind::FleetGroupRename &&
+              ma[0].value == 2 && ma[0].name == "Escort" && ca[0].value == 1);
+    }
+    // A second left click within 0.5 s: the selection and the camera on the group (the members' mean position).
+    f.time += 1.0;
+    h.build(f, s.units, s.types);
+    std::vector<commands::EventData> cmds;
+    std::vector<HudAction> acts;
+    h.modern.update_input(click_on(kModernRosterGroupBase), false, false, cmds, &acts);
+    h.modern.update_input(click_on(kModernRosterGroupBase), false, false, cmds, &acts);
+    CHECK(cmds.size() == 2 && acts.size() == 1 && acts[0].kind == HudAction::Kind::RadarCameraJump);
+    // "+ New group" = N.
+    const std::vector<uint32_t> sel = {20, 21, 22};
+    cmds.clear();
+    h.modern.update_input(click_on(kModernRosterNewHit), false, false, cmds, nullptr);
+    CHECK(cmds == key_commands(hk::kFleetCreate, true, false, sel) && cmds.size() == 1);
+    // Collapse and expand.
+    h.modern.update_input(click_on(kModernRosterHeaderHit), false, false, cmds, nullptr);
+    h.build(f, s.units, s.types);
+    CHECK(st.roster_collapsed && st.wings == 0 && st.roster_groups == 0 && !has_hit(h.modern.hit_boxes(), kWingHitBase));
+    h.modern.update_input(click_on(kModernRosterHeaderHit), false, false, cmds, nullptr);
+    h.build(f, s.units, s.types);
+    CHECK(!st.roster_collapsed && st.wings == 1);
+    // Fleet groups off: the wings only.
+    f.fleet_groups_on = false;
+    h.build(f, s.units, s.types);
+    CHECK(st.wings == 1 && st.roster_groups == 0 && !st.roster_new);
+}
+
 // ---- #593 the galactic map ----
 
 const char* kGalacticXml = R"(<?xml version="1.0"?>
@@ -1686,6 +1758,7 @@ int main() {
     test_world_split();
     test_tab_chips();
     test_discipline_rule();
+    test_roster();
     test_discipline_control();
     test_galactic_view();
     test_galactic_parity();
