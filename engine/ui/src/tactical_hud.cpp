@@ -884,10 +884,9 @@ void TacticalHud::build_radar(const TacticalHudFrame& f, std::span<const HudUnit
     const uint32_t blayer = bc ? std::max<uint32_t>(static_cast<uint32_t>(bc->base_layer), layer + 1) : 5u;
     // Per type (legacy docs/re/UI.md §1.7): Is_Visible_On_Radar / Is_Visible_On_Enemy_Radar, Radar_Icon_Name at Radar_Icon_Size
     // (logical -1..1 radar space -> canvas: x size / 2) [port: tinted with the blip colour]; no icon: the dot.
-    const int32_t local = f.world.local_player;
     for (const HudUnit& u : units) {
         const HudTypeInfo* t = u.type < types.size() ? &types[u.type] : nullptr;
-        const bool hostile = f.world.hostile ? f.world.hostile(u.owner) : (u.owner >= 0 && u.owner != local);
+        const bool hostile = hud_hostile(f.world, u.owner);
         if (!radar_blip_shown(u, t, hostile)) continue;
         const Vec2f c = radar_view_.to_canvas(u.position.x, u.position.y);
         if (!radar_view_.inside(c)) continue;

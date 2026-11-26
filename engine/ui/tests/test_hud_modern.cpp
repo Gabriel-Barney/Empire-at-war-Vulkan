@@ -800,7 +800,9 @@ void test_actions() {
     const ModernHudStats& st = h.modern.stats();
     // Nothing selected: the actions, no cards / orders, and (contextual on) a deck shrunk to them.
     CHECK(st.actions == 4 && st.actions_live == 3 && st.cards == 0 && st.orders == 0 && !st.production);
-    const float full = h.modern.canvas().width - 16.0f;
+    // The full row: the screen less the margins and the map at its end (#591).
+    const HudCanvas& hc = h.modern.canvas();
+    const float full = hc.width - 16.0f - (std::min(0.3f * hc.height, 0.22f * hc.width) + 8.0f);
     CHECK(st.deck_width > 0.0f && st.deck_width < 0.5f * full);
     for (const auto& [name, n] : {std::pair{"b_retreat", 1u}, std::pair{"b_reinforcement", 1u}, std::pair{"b_special_weapon", 1u},
                                   std::pair{"b_special_weapon2", 0u}}) {
@@ -1030,6 +1032,12 @@ void test_map() {
     const ModernHudStats& st = h.modern.stats();
     CHECK(st.map && !st.map_right && st.map_squares == 3 && st.map_diamonds == 1 && st.map_circles == 1);
     CHECK(radar_blip_shown(units[3], nullptr, true) && !radar_blip_shown(jammed, nullptr, true));
+    // The map sits at the deck's end, level with it: no deck control overlaps it.
+    for (const HudHitBox& m : h.modern.hit_boxes())
+        if (m.component == kModernMapHit)
+            for (const HudHitBox& b : h.modern.hit_boxes())
+                if (b.component != kModernMapHit && b.component != kModernPanelHit)
+                    CHECK(b.max.x <= m.min.x || b.min.x >= m.max.x || b.max.y <= m.min.y || b.min.y >= m.max.y);
     // The map's centre is the world's (0, 0): a press there jumps the camera there; a right click moves the selection.
     int32_t px = 0, py = 0;
     CHECK(centre_px(h.modern.hit_boxes(), h.modern.canvas(), kModernMapHit, px, py) && h.modern.hit_test(px, py) == kModernMapHit);

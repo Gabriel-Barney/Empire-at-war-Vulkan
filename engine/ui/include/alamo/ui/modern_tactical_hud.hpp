@@ -176,6 +176,9 @@ public:
     // `ability_type` (the same command / BeginAbilityTargeting action). False when none is drawn or it is disabled.
     bool activate_ability(uint8_t ability_type, bool queued, std::vector<commands::EventData>& out,
                           std::vector<HudAction>* actions = nullptr) const;
+    // #591 the map's ping models (TacticalHud::radar_models: an event type's Event_Model_Name) for the host's model drawer,
+    // when the frame says the host draws them (radar_event_models).
+    const std::vector<HudModelDraw>& radar_models() const { return radar_models_; }
     // The drawn button of `ability_type` (canvas centre and size) after the previous build, for the story's ability arrow
     // and flash (TacticalHud::ability_component's Modern counterpart). False when it is not drawn.
     bool ability_box(uint8_t ability_type, Vec2f& center, Vec2f& size) const;
@@ -216,6 +219,8 @@ private:
     void build_map(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
     void build_target_card(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
     int32_t map_id() const { return radar_ >= 0 ? radar_ : kModernMapHit; }
+    float map_side() const { return std::min(0.3f * canvas_.height, 0.22f * canvas_.width); }
+    std::vector<HudModelDraw> radar_models_;
     int32_t radar_ = -1;      // the Classic "radar" component: the map's hit id (its RadarCameraJump component)
     RadarView map_view_;      // the last build's map rectangle (to_world for clicks)
     bool map_drag_ = false;   // a left press on the map (camera jumps while held)

@@ -674,6 +674,10 @@ HudAction fleet_rename_action(int32_t component, uint16_t id, const std::string&
 // Is_Visible_On_Radar / _Enemy_Radar, jammed / stealthed hostiles, Lua-hidden, contained and fogged units); a left press or
 // drag at world (x, y) -> RadarCameraJump there; a right click with a selection -> the move there plus the RadarPing.
 bool radar_blip_shown(const HudUnit& u, const HudTypeInfo* t, bool hostile);
+// Whether `owner` is hostile to the local player: the host's rule (WorldHudContext::hostile), else any other owner.
+inline bool hud_hostile(const WorldHudContext& w, int32_t owner) {
+    return w.hostile ? w.hostile(owner) : (owner >= 0 && owner != w.local_player);
+}
 HudAction radar_jump_action(int32_t component, Vec2f world);
 void radar_move_click(Vec2f world, float ground_z, std::vector<commands::EventData>& out, std::vector<HudAction>* actions);
 commands::EventData fleet_button_event(bool merge);

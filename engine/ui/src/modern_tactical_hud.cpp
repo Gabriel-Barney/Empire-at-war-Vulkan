@@ -260,8 +260,10 @@ void ModernTacticalHud::build(const TacticalHudFrame& frame, std::span<const Hud
     builder_ = frame.builder;
     station_ = commands::kNoObject;
     map_view_ = {};
+    radar_models_.clear();
     ground_z_ = frame.ground_z;
-    select_groups_ = !group_selection(units).empty();
+    // Classic's radar move click needs its selection groups (TacticalHud::build: its grouping and slot count).
+    select_groups_ = !(frame.fleet_groups_on ? group_selection_fleets(units, frame.fleet_groups, panel_slots_) : group_selection(units)).empty();
     wing_ids_.clear();
     for (bool& l : order_live_) l = false;
     stats_ = {};
@@ -371,7 +373,10 @@ void ModernTacticalHud::build_deck(const TacticalHudFrame& f, std::span<const Hu
     const bool reinforcing = f.reinforce_list_open && f.providers.reinforcements;
     const bool idle = !own && !producing && !reinforcing;
     const float height = kDeckHeight - 2.0f * kPad;
-    float width = canvas_.width - 2.0f * kMargin;
+    // #591 the map sits at the deck's left end (right with the map side option): the deck fills the rest of the row.
+    const float region_left = -0.5f * canvas_.width + kMargin + (options_.map_right ? 0.0f : map_side() + kMargin);
+    const float region_right = 0.5f * canvas_.width - kMargin - (options_.map_right ? map_side() + kMargin : 0.0f);
+    float width = region_right - region_left;
     if (idle && options_.contextual) {  // #587 shrunk to the battle actions, the shortcuts and the queue
         float w = build_actions(f, {}, height, false) + 2.0f * kPad;
         for (const float part : {build_shortcuts(f, units, types, {}, height, false), build_queue(f, {}, height, 1e9f, false, false)})
@@ -379,7 +384,9 @@ void ModernTacticalHud::build_deck(const TacticalHudFrame& f, std::span<const Hu
         width = std::min(width, w);
     }
     const Vec2f size{width, kDeckHeight};
-    const Vec2f center{0.0f, -0.5f * canvas_.height + kMargin + 0.5f * size.y};
+    // Centred on the screen when it fits beside the map (a shrunk deck), else filling the row.
+    const float deck_x = std::clamp(0.0f, region_left + 0.5f * width, region_right - 0.5f * width);
+    const Vec2f center{deck_x, -0.5f * canvas_.height + kMargin + 0.5f * size.y};
     frame_rect(dl_, kPanelLayer, center, size, colours_.back, accent(200));
     hit(kModernPanelHit, kPanelLayer, center, size);
     stats_.deck = true;
@@ -1033,15 +1040,19 @@ void line_quad(HudDrawList& dl, uint32_t layer, Vec2f a, Vec2f b, float w, Rgba8
 // #591 the Modern map: the Classic radar's feed and rules (radar_blip_shown, RadarView, the radar image page, the events,
 // the camera footprint) in a square panel above the deck's left end (right with the map side option).
 void ModernTacticalHud::build_map(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types) {
-    const float side = std::min(0.3f * canvas_.height, 0.22f * canvas_.width);
-    const float deck_top = -0.5f * canvas_.height + kMargin + kDeckHeight;
+    const float side = map_side();
+    const float bottom = -0.5f * canvas_.height + kMargin;  // level with the deck's bottom edge, at its end
     const float cx = options_.map_right ? 0.5f * canvas_.width - kMargin - 0.5f * side : -0.5f * canvas_.width + kMargin + 0.5f * side;
-    const Vec2f center{cx, deck_top + kMargin + 0.5f * side}, size{side, side};
-    frame_rect(dl_, kPanelLayer, center, {side + 2.0f * kPad, side + 2.0f * kPad}, colours_.back, accent(200));
+    const Vec2f center{cx, bottom + 0.5f * side}, size{side - 2.0f * kPad, side - 2.0f * kPad};
+    frame_rect(dl_, kPanelLayer, center, {side, side}, colours_.back, accent(200));
+    // The backdrop (RadarMap.xml's land / space grid, as Classic's), then terrain and fog.
+    const std::string backdrop = f.radar_settings ? (f.world.land ? f.radar_settings->land_backdrop : f.radar_settings->space_backdrop)
+                                                  : std::string("i_radar_map_grid.tga");
+    if (atlas_) add_atlas_quad(dl_, kPanelLayer, HudList::Alpha, *atlas_, backdrop, center, size, 1.0f, Rgba8{255, 255, 255, 160});
     if (f.radar_image && !f.radar_image->empty()) {  // terrain and fog: the host's radar page
         HudQuad q;
-        q.min = {center.x - 0.5f * side, center.y - 0.5f * side};
-        q.max = {center.x + 0.5f * side, center.y + 0.5f * side};
+        q.min = {center.x - 0.5f * size.x, center.y - 0.5f * size.y};
+        q.max = {center.x + 0.5f * size.x, center.y + 0.5f * size.y};
         q.page = kHudPageRadar;
         dl_.add(kPanelLayer, HudList::Alpha, q);
     }
@@ -1059,58 +1070,78 @@ void ModernTacticalHud::build_map(const TacticalHudFrame& f, std::span<const Hud
     const float r = std::max(2.0f, 0.012f * side);
     for (const HudUnit& u : units) {
         const HudTypeInfo* t = u.type < types.size() ? &types[u.type] : nullptr;
-        const bool hostile = f.world.hostile ? f.world.hostile(u.owner) : (u.owner >= 0 && u.owner != local);
+        const bool hostile = hud_hostile(f.world, u.owner);
         if (!radar_blip_shown(u, t, hostile)) continue;
         const Vec2f c = map_view_.to_canvas(u.position.x, u.position.y);
         if (!map_view_.inside(c)) continue;
         Rgba8 col = u.selected && f.radar_colorize_selected ? f.radar_selected_color : u.team_color;
         col.a = 255;
-        const float ur = u.selected ? 1.4f * r : r;
+        // A type's Radar_Icon_Name (mods' too) sits inside its shape: the shape grows to frame it, the icon in the blip
+        // colour over a dark centre; Radar_Register_As_Foreground_Object a layer up.
+        const bool icon = t && !t->radar_icon.empty() && atlas_ && atlas_->find(t->radar_icon);
+        const float ur = (u.selected ? 1.4f : 1.0f) * (icon ? 2.2f * r : r);
+        const uint32_t layer = kControlLayer + (t && t->radar_foreground ? 2u : 1u);
         if (u.owner == local && local >= 0) {
-            blip_square(dl_, kControlLayer + 1, c, ur, col);
+            blip_square(dl_, layer, c, ur, col);
             ++stats_.map_squares;
         } else if (hostile) {
-            blip_diamond(dl_, kControlLayer + 1, c, ur, col);
+            blip_diamond(dl_, layer, c, ur, col);
             ++stats_.map_diamonds;
         } else {
-            blip_circle(dl_, kControlLayer + 1, c, ur, col);
+            blip_circle(dl_, layer, c, ur, col);
             ++stats_.map_circles;
         }
+        if (icon) {
+            add_rect(dl_, layer, c.x - 0.6f * ur, c.y - 0.6f * ur, c.x + 0.6f * ur, c.y + 0.6f * ur, Rgba8{0, 0, 0, 200});
+            const float th = t->radar_show_facing && u.yaw_deg != 0.0f ? u.yaw_deg * 0.017453292519943295f - 1.5707963267948966f : 0.0f;
+            add_atlas_quad_turned(dl_, layer, HudList::Alpha, *atlas_, t->radar_icon, c, {1.1f * ur, 1.1f * ur}, 1.0f, col, th, t->radar_rotate);
+        }
     }
-    if (f.radar_events)  // pings: an expanding, fading ring (story blips a steady ring)
+    if (f.radar_events)  // pings, as Classic's: a model for the host, else an expanding, fading ring; story blips pulse
         for (const RadarEvent& e : f.radar_events->items()) {
             const Vec2f c = map_view_.to_canvas(e.x, e.y);
             if (!map_view_.inside(c)) continue;
-            const float tt = e.marker ? 0.5f : e.persistent ? std::fmod(e.age, 1.0f) : std::clamp(e.age / std::max(e.duration, 1e-3f), 0.0f, 1.0f);
-            const float rr = r * (2.0f + 6.0f * tt);
-            const auto a = static_cast<uint8_t>(std::lround(255.0f * (1.0f - 0.8f * tt)));
+            ++stats_.map_pings;
+            const RadarEventType* et = !e.marker && f.radar_settings ? f.radar_settings->event(e.type) : nullptr;
+            if (et && !et->model.empty()) {
+                radar_models_.push_back({et->model, c, et->scale * 0.5f * canvas_.width, e.age, e.id});
+                if (f.radar_event_models) continue;
+            }
+            float tt = e.persistent ? std::fmod(e.age, 1.0f) : std::clamp(e.age / std::max(e.duration, 1e-3f), 0.0f, 1.0f);
+            float rr = r * (2.0f + 6.0f * tt);
+            auto a = static_cast<uint8_t>(std::lround(255.0f * (1.0f - 0.8f * tt)));
+            if (e.marker) {  // #320: alpha = the pulse, scale = pulse / 512 + 0.5
+                const float v = std::clamp(e.pulse, 0.0f, 255.0f);
+                rr = 4.0f * r * (v / 512.0f + 0.5f);
+                a = static_cast<uint8_t>(v);
+            }
             for (int d = 0; d < 16; ++d) {
                 const float a0 = 6.2831853f * static_cast<float>(d) / 16.0f, a1 = 6.2831853f * static_cast<float>(d + 1) / 16.0f;
-                line_quad(dl_, kControlLayer + 1, {c.x + rr * std::cos(a0), c.y + rr * std::sin(a0)}, {c.x + rr * std::cos(a1), c.y + rr * std::sin(a1)},
-                          1.5f, Rgba8{255, 255, 255, a});
+                const Vec2f p0{c.x + rr * std::cos(a0), c.y + rr * std::sin(a0)}, p1{c.x + rr * std::cos(a1), c.y + rr * std::sin(a1)};
+                if (map_view_.inside(p0) && map_view_.inside(p1)) line_quad(dl_, kControlLayer + 1, p0, p1, 1.5f, Rgba8{255, 255, 255, a});
             }
-            ++stats_.map_pings;
         }
-    if (f.radar_footprint) {  // the camera's ground footprint, clipped to the map
+    if (f.radar_footprint) {  // the camera's ground footprint as dotted lines, the dots outside the map dropped (as Classic's)
         const std::array<Vec2f, 4> fp = camera_footprint(f.world.view, f.ground_z);
-        auto clip = [&](Vec2f p) {
-            return Vec2f{std::clamp(p.x, center.x - 0.5f * side, center.x + 0.5f * side), std::clamp(p.y, center.y - 0.5f * side, center.y + 0.5f * side)};
-        };
-        for (size_t i = 0; i < 4; ++i)
-            line_quad(dl_, kControlLayer + 1, clip(map_view_.to_canvas(fp[i].x, fp[i].y)), clip(map_view_.to_canvas(fp[(i + 1) % 4].x, fp[(i + 1) % 4].y)),
-                      1.5f, Rgba8{255, 255, 255, 200});
+        for (size_t i = 0; i < 4; ++i) {
+            const Vec2f a = map_view_.to_canvas(fp[i].x, fp[i].y), b = map_view_.to_canvas(fp[(i + 1) % 4].x, fp[(i + 1) % 4].y);
+            const float len = std::sqrt((b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y));
+            const int n = std::min(400, static_cast<int>(len / 3.0f) + 1);
+            for (int k = 0; k <= n; ++k) {
+                const float tk = static_cast<float>(k) / static_cast<float>(n);
+                const Vec2f q{a.x + (b.x - a.x) * tk, a.y + (b.y - a.y) * tk};
+                if (map_view_.inside(q)) add_rect(dl_, kControlLayer + 1, q.x - 0.75f, q.y - 0.75f, q.x + 0.75f, q.y + 0.75f, Rgba8{255, 255, 255, 200});
+            }
+        }
     }
 }
 
 // #591 the hover target card: the hovered hostile unit (HudUnit::hovered) - its name, hull and shield bars with their
 // percentages, and its hard points (the frame's, parent = the unit) as a bar each - beside it on screen. No hit box.
 void ModernTacticalHud::build_target_card(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types) {
-    const int32_t local = f.world.local_player;
     const HudUnit* u = nullptr;
-    for (const HudUnit& x : units) {
-        const bool hostile = f.world.hostile ? f.world.hostile(x.owner) : (x.owner >= 0 && x.owner != local);
-        if (x.hovered && hostile && !x.stealthed) u = &x;
-    }
+    for (const HudUnit& x : units)
+        if (x.hovered && hud_hostile(f.world, x.owner) && !x.stealthed) u = &x;
     if (!u) return;
     float sx = 0.0f, sy = 0.0f;
     if (!project(f.world.view, u->position, sx, sy)) return;
