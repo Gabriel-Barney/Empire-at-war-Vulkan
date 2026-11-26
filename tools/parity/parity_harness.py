@@ -8,11 +8,19 @@ parsers are tools/parity/trace_parsers.py (the Q2 kit imports them from there).
 
   parity_harness.py run [--scenario ID ...] [--port-exe alamo_headless.exe] [--refs DIR] [--out DIR]
                         [--reuse-port] [--check-baseline FILE] [--write-baseline FILE] [--commit SHA]
+                        [--seeds N [--seed-base S] [--jobs J]] [--port-arg=ARG ...] [--ab]
       Replays every scenario in the port (alamo_headless, same campaign / map, seed and tick count as the reference runs),
       reduces the reference runs and the port run to the same metrics and grades each metric. Writes
       <out>/<scenario>/report.txt and report.json (default out: tools/parity/out, ignored by git).
       Exit 0: no metric out of tolerance (or, with --check-baseline, no metric that passed in the baseline fails now);
       1: out of tolerance / regression; 2: error; 77: skipped (ALAMO_FOC_DATA or the reference runs missing).
+      --port-arg=ARG (repeatable) adds ARG to every port run's command line, e.g. --port-arg=--ai-lane for a flag-gated
+      tier-2 change (docs/SIMULATION.md "Flag-gated tier-2 changes").
+      --ab (with --seeds and --port-arg): the port-vs-port A/B of a flag. Every seed runs twice, without the --port-arg
+      arguments (flag off, the reference distribution) and with them (flag on); each metric of the flag-on runs is graded
+      against the flag-off runs' distribution, then against the retail runs'. Exit 1 when a metric fails the flag-off
+      distribution; the retail grading is reported beside it (it is what the default flag-off run is held to by its own
+      baseline). No baseline in this mode. Writes <out>/<scenario>/ab/report.txt and report.json.
   parity_harness.py retail [--scenario ID ...] [--refs DIR]
       The retail runs of a scenario against each other: the run-to-run spread the tolerances must allow.
   parity_harness.py list [--refs DIR]
@@ -766,7 +774,7 @@ def compare(scen, tols, retail_runs, port, gaps=None):
 
 
 # ---- distribution mode (parity tier 2, docs/SIMULATION.md "Parity tiers") --------------------------------------------------
-DIST_DEFAULTS = {"seeds": 10, "z": 2.0, "spread_factor": 3.0, "spread_min_runs": 5, "seed_min_share": 0.8}
+DIST_DEFAULTS = {"seeds": 12, "z": 2.0, "spread_factor": 3.0, "spread_min_runs": 5, "seed_min_share": 0.8}
 
 
 def dist_config(scens, scen):
@@ -901,6 +909,13 @@ def compare_dist(scen, tols, retail_runs, port_runs, cfg, gaps=None):
     return results
 
 
+def compare_ab(scen, tols, off_runs, on_runs, cfg, gaps=None):
+    """The port-vs-port A/B of a flag (--ab): off_runs / on_runs = [(seed, metrics)] of the same seeds without and with the
+    flag. Each metric of the flag-on runs is graded against the flag-off runs' distribution, as compare_dist grades the
+    port against retail (same tolerances, z and spread rule)."""
+    return compare_dist(scen, tols, [("off seed %d" % s, m) for s, m in off_runs], on_runs, cfg, gaps)
+
+
 def summarize(results):
     s = collections.OrderedDict()
     for r in results:
@@ -991,8 +1006,12 @@ def default_seed(scen, ref_info):
     return None
 
 
-def port_command(scen, exe, out_dir, ref_info, seed=None):
-    """seed None: the single-run mode's seed (default_seed)."""
+def port_command(scen, exe, out_dir, ref_info, seed=None, extra=()):
+    """seed None: the single-run mode's seed (default_seed). extra: arguments added to the end of the command (--port-arg)."""
+    return _port_command(scen, exe, out_dir, ref_info, seed) + list(extra)
+
+
+def _port_command(scen, exe, out_dir, ref_info, seed=None):
     if seed is None:
         seed = default_seed(scen, ref_info)
     seed_args = ["--seed", str(seed)] if seed is not None else []
@@ -1037,11 +1056,11 @@ def skirmish_port_trace_metrics(trace_path, frames):
     return {k: v for k, v in m.items() if k.startswith("combat.")}, info
 
 
-def run_port(scen, exe, out_dir, ref_info, reuse, seed=None):
+def run_port(scen, exe, out_dir, ref_info, reuse, seed=None, extra=()):
     os.makedirs(out_dir, exist_ok=True)
-    cmd = port_command(scen, exe, out_dir, ref_info, seed)
+    cmd = port_command(scen, exe, out_dir, ref_info, seed, extra)
     log = os.path.join(out_dir, "port_run.txt")
-    if not (reuse and os.path.exists(log) and os.path.exists(os.path.join(out_dir, "port_ai.txt"))):
+    if not (reuse and os.path.exists(os.path.join(out_dir, "port_ai.txt")) and _logged_command(log) == " ".join(cmd)):
         r = subprocess.run(cmd, capture_output=True, text=True, check=False)
         with open(log, "w", encoding="utf-8", newline="\n") as fh:
             fh.write(" ".join(cmd) + "\n" + r.stdout + r.stderr)
@@ -1067,19 +1086,29 @@ def run_port(scen, exe, out_dir, ref_info, reuse, seed=None):
     return m, notes, info
 
 
+def _logged_command(log):
+    """The command line a port run log starts with (run_port writes it first); None without a log. --reuse-port reuses a
+    run only when it was made with the same command (a changed --port-arg runs again)."""
+    try:
+        with open(log, "r", encoding="utf-8", errors="replace") as fh:
+            return fh.readline().rstrip("\n")
+    except OSError:
+        return None
+
+
 def seed_range(seeds):
     return ("%d..%d" % (seeds[0], seeds[-1])) if seeds == list(range(seeds[0], seeds[0] + len(seeds))) else \
         ", ".join(str(s) for s in seeds)
 
 
-def run_port_seeds(scen, exe, out_dir, ref_info, reuse, seeds, jobs=None):
-    """The port run once per seed (out_dir/seed_<s>), `jobs` at a time (separate processes, separate folders). Returns
-    ([(seed, metrics)] in seed order, notes, info of the first seed)."""
+def run_port_seeds(scen, exe, out_dir, ref_info, reuse, seeds, jobs=None, extra=()):
+    """The port run once per seed (out_dir/seed_<s>), `jobs` at a time (separate processes, separate folders), each with the
+    `extra` arguments. Returns ([(seed, metrics)] in seed order, notes, info of the first seed)."""
     import concurrent.futures
     jobs = max(1, int(jobs or min(4, len(seeds))))
 
     def one(s):
-        return run_port(scen, exe, os.path.join(out_dir, "seed_%d" % s), ref_info, reuse, s)
+        return run_port(scen, exe, os.path.join(out_dir, "seed_%d" % s), ref_info, reuse, s, extra)
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as ex:
         done = list(ex.map(one, seeds))
     notes = []
@@ -1125,6 +1154,14 @@ def cmd_run(a):
     exe = a.port_exe or default_port_exe()
     commit = a.commit or git_head()
     seeds_mode = bool(getattr(a, "seeds", None))
+    port_extra = list(getattr(a, "port_arg", None) or [])
+    ab_mode = bool(getattr(a, "ab", False))
+    if ab_mode and (not seeds_mode or not port_extra):
+        print("ERROR: --ab compares the port with and without --port-arg over --seeds seeds: give both")
+        return 2
+    if ab_mode and (a.check_baseline or a.write_baseline):
+        print("ERROR: --ab has no baseline (the flag-off runs are its reference): drop --check-baseline / --write-baseline")
+        return 2
     mode = "distribution" if seeds_mode else "single"
     baseline = load_json(a.check_baseline) if a.check_baseline else None
     if baseline is not None and baseline.get("mode", "single") != mode:
@@ -1168,12 +1205,39 @@ def cmd_run(a):
             ref_info = ref_info or info
         out_dir = os.path.join(a.out or os.path.join(HERE, "out"), sid)
         extra = {}
-        if seeds_mode:
+        if ab_mode:
+            cfg = dist_config(scens, scen)
+            seeds = seed_list(scen, ref_info, cfg, a.seeds, a.seed_base)
+            out_dir = os.path.join(out_dir, "ab")
+            try:
+                off_runs, offn, offinfo = run_port_seeds(scen, exe, os.path.join(out_dir, "off"), ref_info, a.reuse_port, seeds,
+                                                         a.jobs)
+                on_runs, onn, oninfo = run_port_seeds(scen, exe, os.path.join(out_dir, "on"), ref_info, a.reuse_port, seeds,
+                                                      a.jobs, port_extra)
+            except RuntimeError as e:
+                print("ERROR %s: %s" % (sid, e))
+                return 2
+            notes += ["port flag off: %s" % n for n in offn] + ["port flag on: %s" % n for n in onn]
+            results = compare_ab(scen, scens["tolerances"], off_runs, on_runs, cfg, scen.get("gaps"))
+            retail_results = compare_dist(scen, scens["tolerances"], retail, on_runs, cfg, scen.get("gaps"))
+            info = {"port_cmd": "flag on: %s; flag off: %s" % (oninfo.get("port_cmd"), offinfo.get("port_cmd")), "notes": notes}
+            flag = " ".join(port_extra)
+            text = render(sid, scen, results, info, [n for n, _ in have], commit,
+                          mode="A/B of %s: the flag-on runs against the flag-off runs' distribution over %d seeds (%s); z %g, "
+                               "spread factor %g, spread graded from %d runs a side; in the rows below 'retail' is the "
+                               "flag-off side" % (
+                                   flag, len(seeds), seed_range(seeds), cfg["z"], cfg["spread_factor"], cfg["spread_min_runs"]))
+            text += "\n" + render(sid, scen, retail_results, {"port_cmd": info["port_cmd"]}, [n for n, _ in have], commit,
+                                  mode="the flag-on runs (%s) against the %d retail runs' distribution (reported, not the "
+                                       "A/B verdict)" % (flag, len(retail)))
+            extra = {"mode": "ab", "seeds": seeds, "port_args": port_extra, "distribution": cfg,
+                     "retail_results": retail_results, "retail_summary": summarize(retail_results)}
+        elif seeds_mode:
             cfg = dist_config(scens, scen)
             seeds = seed_list(scen, ref_info, cfg, a.seeds, a.seed_base)
             out_dir = os.path.join(out_dir, "seeds")
             try:
-                port_runs, pn, pinfo = run_port_seeds(scen, exe, out_dir, ref_info, a.reuse_port, seeds, a.jobs)
+                port_runs, pn, pinfo = run_port_seeds(scen, exe, out_dir, ref_info, a.reuse_port, seeds, a.jobs, port_extra)
             except RuntimeError as e:
                 print("ERROR %s: %s" % (sid, e))
                 return 2
@@ -1190,7 +1254,7 @@ def cmd_run(a):
             extra = {"mode": "distribution", "seeds": seeds, "distribution": cfg}
         else:
             try:
-                pm, pn, pinfo = run_port(scen, exe, out_dir, ref_info, a.reuse_port)
+                pm, pn, pinfo = run_port(scen, exe, out_dir, ref_info, a.reuse_port, extra=port_extra)
             except RuntimeError as e:
                 print("ERROR %s: %s" % (sid, e))
                 return 2
@@ -1487,13 +1551,54 @@ def selftest_distribution(check, tmp):
     check(set(res) == {"outcome.units_lost[Rebel]"}, "dist: a route seen on one side only is not graded (%s)" % sorted(res))
     check(res["outcome.units_lost[Rebel]"]["status"] == "PASS", "dist: compare_dist grades the shared metric")
     # Seeds: the single run's seed first (galactic: the reference run's, skirmish: 1); settings merge scenario over file.
-    check(seed_list({"kind": "galactic"}, {"seed": "00000000"}, cfg) == list(range(10)), "seeds: galactic 0..9")
+    check(seed_list({"kind": "galactic"}, {"seed": "00000000"}, cfg) == list(range(12)), "seeds: galactic 0..11 (12 by default)")
     check(seed_list({"kind": "skirmish"}, {}, cfg, 3) == [1, 2, 3], "seeds: skirmish 1..3")
     check(seed_list({"kind": "skirmish"}, {}, cfg, 2, 40) == [40, 41], "seeds: --seed-base")
     dc = dist_config({"distribution": {"z": 3.0, "why": "x"}}, {"distribution": {"seeds": 6}})
     check(dc["z"] == 3.0 and dc["seeds"] == 6 and dc["spread_factor"] == DIST_DEFAULTS["spread_factor"] and "why" not in dc,
           "dist settings merge (%s)" % dc)
     check(seed_range([3, 4, 5]) == "3..5" and seed_range([1, 5]) == "1, 5", "seed range text")
+    # #630: --port-arg reaches every kind of port command, after the harness's own arguments.
+    for kind, sc_, ri in (("skirmish", {"kind": "skirmish", "map": "M", "human": "Empire", "ticks": 10}, {}),
+                          ("galactic", {"kind": "galactic"}, {"campaign": "Sandbox_X_Empire", "ticks": 10, "seed": "0"}),
+                          ("story", {"kind": "story", "campaign": "C", "human": "Rebel", "ticks": 10}, {})):
+        cmd = port_command(sc_, "exe", tmp, ri, 3, ["--ai-lane", "--ai-lane-k", "2"])
+        check(cmd[-3:] == ["--ai-lane", "--ai-lane-k", "2"] and cmd[:len(cmd) - 3] == port_command(sc_, "exe", tmp, ri, 3),
+              "port args appended to the %s port command (%s)" % (kind, cmd))
+    # #630: run_port_seeds hands the port args to every seed's run (run_port swapped for a recorder here).
+    global run_port
+    real_run_port, seen = run_port, []
+
+    def fake_run_port(scen_, exe_, out_, ri_, reuse_, seed_=None, extra_=()):
+        seen.append((seed_, list(extra_)))
+        return {}, [], {"port_cmd": "x"}
+    run_port = fake_run_port
+    try:
+        run_port_seeds({"kind": "skirmish"}, "exe", tmp, {}, False, [1, 2, 3], 2, ["--ai-lane"])
+    finally:
+        run_port = real_run_port
+    check(sorted(seen) == [(1, ["--ai-lane"]), (2, ["--ai-lane"]), (3, ["--ai-lane"])],
+          "port args reach every seed's run (%s)" % seen)
+    # --reuse-port keys a reused run on its logged command line.
+    lg = os.path.join(tmp, "port_run.txt")
+    with open(lg, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write("exe --seed 1 --ai-lane\nbench output\n")
+    check(_logged_command(lg) == "exe --seed 1 --ai-lane" and _logged_command(os.path.join(tmp, "none.txt")) is None,
+          "logged command of a port run")
+    # #630: the A/B grades the flag-on seeds against the flag-off seeds' distribution, per metric.
+    off = [(s, {"outcome.units_lost[Rebel]": v, "econ.credits_at_1800[Rebel]": 900 + v})
+           for s, v in enumerate([48, 52, 50, 55, 45, 50, 49, 51, 53, 47, 50, 50])]
+    same = [(s, {"outcome.units_lost[Rebel]": v, "econ.credits_at_1800[Rebel]": 900 + v})
+            for s, v in enumerate([49, 51, 50, 53, 47, 50, 52, 48, 50, 50, 51, 49])]
+    moved = [(s, {"outcome.units_lost[Rebel]": v + 20, "econ.credits_at_1800[Rebel]": 900 + v})
+             for s, v in enumerate([49, 51, 50, 53, 47, 50, 52, 48, 50, 50, 51, 49])]
+    tl = {"outcome": {"abs": 2}, "econ": {"abs": 2}}
+    res = {r["metric"]: r for r in compare_ab({}, tl, off, same, cfg)}
+    check(all(r["status"] == "PASS" for r in res.values()) and res["outcome.units_lost[Rebel]"]["retail_runs"] == 12,
+          "ab: flag on inside flag off's distribution passes every metric (%s)" % {k: r["status"] for k, r in res.items()})
+    res = {r["metric"]: r for r in compare_ab({}, tl, off, moved, cfg)}
+    check(res["outcome.units_lost[Rebel]"]["status"] == "FAIL" and res["econ.credits_at_1800[Rebel]"]["status"] == "PASS",
+          "ab: only the metric the flag moved fails (%s)" % {k: r["status"] for k, r in res.items()})
     # add-refs keeps the hand layout and appends after the last reference.
     sp = os.path.join(tmp, "scenarios.json")
     shutil.copyfile(os.path.join(HERE, "scenarios.json"), sp)
@@ -1747,6 +1852,17 @@ def selftest():
         with contextlib.redirect_stdout(io.StringIO()):
             rc = cmd_run(ns)
         check(rc == SKIP, "--seeds without reference runs -> exit %d (got %s)" % (SKIP, rc))
+        # #630: --ab needs --seeds and --port-arg, and has no baseline.
+        for seeds, pa, base, what in ((None, ["--ai-lane"], None, "--ab without --seeds"), (3, None, None, "--ab without --port-arg"),
+                                      (3, ["--ai-lane"], os.path.join(tmp, "b.json"), "--ab with a baseline")):
+            ns.seeds, ns.port_arg, ns.ab, ns.write_baseline = seeds, pa, True, base
+            with contextlib.redirect_stdout(io.StringIO()):
+                rc = cmd_run(ns)
+            check(rc == 2, "%s is an error (got %s)" % (what, rc))
+        ns.seeds, ns.port_arg, ns.write_baseline = 3, ["--ai-lane"], None
+        with contextlib.redirect_stdout(io.StringIO()):
+            rc = cmd_run(ns)
+        check(rc == SKIP, "--ab without reference runs -> exit %d (got %s)" % (SKIP, rc))
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     print("selftest %s (%d failures)" % ("OK" if not fails else "FAILED", len(fails)))
@@ -1811,6 +1927,10 @@ def main(argv=None):
                                              "compare per-metric means and spreads with the retail runs'")
     r.add_argument("--seed-base", type=int, help="first port seed of --seeds (default: the single run's seed, else 1)")
     r.add_argument("--jobs", type=int, help="port runs at a time in --seeds mode (default: min(4, seeds))")
+    r.add_argument("--port-arg", action="append", metavar="ARG",
+                   help="an extra alamo_headless argument for every port run (repeatable; write --port-arg=--ai-lane)")
+    r.add_argument("--ab", action="store_true", help="with --seeds and --port-arg: the flag-on runs graded against the "
+                                                     "flag-off runs' distribution (and reported against retail's)")
     t = sub.add_parser("retail")
     t.add_argument("--scenario", action="append")
     t.add_argument("--refs")

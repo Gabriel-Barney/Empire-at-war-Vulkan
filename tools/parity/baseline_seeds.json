@@ -1,9 +1,9 @@
 {
- "commit": "e6ab3d52",
+ "commit": "446013b3",
  "mode": "distribution",
  "scenarios": {
   "geonosis_skirmish": {
-   "commit": "2bcc1e2a+bkx1",
+   "commit": "446013b3",
    "references": [
     "20261030-062751-skirmish-vanilla-lua",
     "20261108-204213-skirmish-vanilla-lua",
@@ -27,7 +27,9 @@
     7,
     8,
     9,
-    10
+    10,
+    11,
+    12
    ],
    "status": {
     "ai.build_count[Empire]": "PASS",
@@ -66,7 +68,7 @@
    }
   },
   "hotm_galactic": {
-   "commit": "e6ab3d52",
+   "commit": "446013b3",
    "references": [
     "20261108-170824-galactic-vanilla-lua",
     "20261030-061228-galactic-vanilla-lua",
@@ -88,7 +90,9 @@
     6,
     7,
     8,
-    9
+    9,
+    10,
+    11
    ],
    "status": {
     "ai.build_count[Empire]": "PASS",
@@ -118,6 +122,7 @@
     "build.ticks[REBEL_GROUND_MINING_FACILITY@MONCALIMARI]": "PASS",
     "build.ticks[REBEL_GROUND_MINING_FACILITY@NABOO/c]": "PASS",
     "build.ticks[REBEL_INFANTRY_SQUAD@KAMINO]": "PASS",
+    "build.ticks[REBEL_INFANTRY_SQUAD@MONCALIMARI/c]": "PASS",
     "build.ticks[REBEL_INFANTRY_SQUAD@MONCALIMARI]": "PASS",
     "build.ticks[REBEL_INFANTRY_SQUAD@NABOO/n2/c]": "PASS",
     "build.ticks[REBEL_INFANTRY_SQUAD@NABOO]": "PASS",
@@ -130,6 +135,7 @@
     "build.ticks[R_GROUND_BARRACKS@KAMINO]": "PASS",
     "build.ticks[R_GROUND_BARRACKS@NABOO/c]": "PASS",
     "build.ticks[R_GROUND_BARRACKS@SHOLA]": "PASS",
+    "build.ticks[R_GROUND_HEAVY_VEHICLE_FACTORY@YAVIN]": "PASS",
     "build.ticks[UNDERWORLD_DISRUPTOR_MERC_SQUAD@NALHUTTA]": "PASS",
     "build.ticks[UNDERWORLD_MDU_COMPANY@SHOLA]": "FAIL",
     "build.ticks[UNDERWORLD_MERC_SQUAD@FELUCIA]": "PASS",
@@ -147,7 +153,7 @@
     "econ.credits_at_4500[Underworld]": "PASS",
     "econ.credits_at_9000[Empire]": "PASS",
     "econ.credits_at_9000[Rebel]": "PASS",
-    "econ.credits_at_9000[Underworld]": "FAIL",
+    "econ.credits_at_9000[Underworld]": "PASS",
     "econ.cycle_tick[10]": "PASS",
     "econ.cycle_tick[1]": "PASS",
     "econ.cycle_tick[2]": "PASS",
@@ -163,7 +169,7 @@
     "econ.income_cycle1[Underworld]": "INFO",
     "econ.income_mean[Empire]": "PASS",
     "econ.income_mean[Rebel]": "PASS",
-    "econ.income_mean[Underworld]": "PASS",
+    "econ.income_mean[Underworld]": "FAIL",
     "outcome.captures[Empire]": "PASS",
     "outcome.captures[Rebel]": "PASS",
     "outcome.captures[Underworld]": "PASS",
@@ -219,7 +225,7 @@
     "travel.hop_ticks[Underworld:SHOLA->NALHUTTA]": "FAIL",
     "travel.hop_ticks[Underworld:SHOLA->THE_MAW]": "PASS",
     "travel.hop_ticks[Underworld:TATOOINE->CORELLIA]": "PASS",
-    "travel.hop_ticks[Underworld:TATOOINE->NABOO]": "FAIL",
+    "travel.hop_ticks[Underworld:TATOOINE->NABOO]": "PASS",
     "travel.hop_ticks[Underworld:THE_MAW->KASHYYYK]": "FAIL",
     "travel.hop_ticks[Underworld:THE_MAW->SHOLA]": "FAIL",
     "travel.hop_ticks[Underworld:THE_MAW->YAVIN]": "PASS",
@@ -245,8 +251,8 @@
      "PASS": 22
     },
     "timing": {
-     "FAIL": 9,
-     "PASS": 73
+     "FAIL": 8,
+     "PASS": 76
     }
    }
   }

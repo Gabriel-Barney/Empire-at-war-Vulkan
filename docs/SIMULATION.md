@@ -77,7 +77,10 @@ Every change that moves AI decisions or random draws (the AI lane, counter-based
 behind a config flag that defaults to the old path, so landing it moves no CRC. The default is switched in its own commit
 only after the parity harness in distribution mode shows the new path inside the old path's distribution (and retail's)
 over at least 12 seeds per scenario. Reason: a 2-frame galactic AI timing shift once moved the Underworld's random-driven
-outcomes out of retail's range. Story and mission Lua stay on the critical lane (tier 1).
+outcomes out of retail's range. The harness's A/B mode is that check: `tools/parity/parity_harness.py run --scenario S
+--seeds 12 --port-arg=--ai-lane --ab` runs every seed with and without the flag, grades each flag-on metric against the
+flag-off runs' distribution and reports it against retail's beside that. Story and mission Lua stay on the critical
+lane (tier 1).
 
 ## Parallel simulation design
 
