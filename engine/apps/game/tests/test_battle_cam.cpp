@@ -616,12 +616,12 @@ constexpr float kDegToRad = 3.14159265358979f / 180.0f;
 // #570: keys on a second object. The shot's object at (100, 50, 0), its target at (200, 50, 0) facing +Y.
 InterestingObject with_target(bool model = true, V3 at = {200.0f, 50.0f, 0.0f}, V3 facing = {0.0f, 1.0f, 0.0f}) {
     InterestingObject o = object({10.0f, 4.0f, 6.0f});
-    o.target.id = 77;
-    o.target.model = model;
-    o.target.half_extents = {8.0f, 2.0f, 3.0f};
-    o.target.frame = frame_at(at);
-    o.target.frame.axis[0] = facing;
-    o.target.frame.axis[1] = {-facing.y, facing.x, 0.0f};
+    o.combat_target.id = 77;
+    o.combat_target.model = model;
+    o.combat_target.half_extents = {8.0f, 2.0f, 3.0f};
+    o.combat_target.frame = frame_at(at);
+    o.combat_target.frame.axis[0] = facing;
+    o.combat_target.frame.axis[1] = {-facing.y, facing.x, 0.0f};
     return o;
 }
 
@@ -662,7 +662,9 @@ void test_structure_shot() {
         CHECK(near(s.eye[0].where, V3{10.0f * sx, 4.0f * sy, 12.0f}) && near(s.eye[1].where, V3{20.0f * sx, 8.0f * sy, 18.0f}));
         CHECK(s.eye[1].frame == n && s.eye[0].attached && near(s.eye[0].ease_out, 0.25f) && near(s.eye[1].ease_in, 0.25f));
         CHECK(s.look[0].attached && !s.look[0].on_second && near(s.look[0].ease_out, 0.25f));
-        if (target) CHECK(s.look[1].on_second && s.look[1].frame == n && near(s.look[1].ease_out, 0.25f));
+        if (target) CHECK(s.look[1].on_second && s.look[1].frame == n && near(s.look[1].ease_out, 0.25f) && near(s.look[1].ease_in, 0.0f));
+        CHECK(s.eye[0].frame == 0 && near(s.eye[0].ease_in, 0.25f) && near(s.eye[1].ease_out, 0.25f));
+        CHECK(rng.range(0, 1000000) == replay.range(0, 1000000));  // no other draw
     }
 }
 
@@ -708,6 +710,18 @@ void test_attack_run() {
         BattleCamShot s;
         CHECK(!attack_run_shot(o, rng, s) && rng.range(0, 1000000) == replay.range(0, 1000000));
     }
+    // The object facing +Y (yaw 90) with the target ahead of it, heading -X: 180 degrees apart.
+    InterestingObject north = with_target(true, {100.0f, 150.0f, 0.0f}, {-1.0f, 0.0f, 0.0f});
+    north.frame.axis[0] = {0.0f, 1.0f, 0.0f};
+    north.frame.axis[1] = {-1.0f, 0.0f, 0.0f};
+    BattleCamShot ns;
+    CHECK(attack_run_shot(north, rng, ns));
+    north.combat_target.frame.position = {100.0f, -50.0f, 0.0f};  // behind it: outside the cone
+    CHECK(!attack_run_shot(north, rng, ns));
+    // The 30-degree cone off the nose: 29 degrees is inside, 31 outside.
+    const float c29 = 29.0f * kDegToRad, c31 = 31.0f * kDegToRad;
+    CHECK(attack_run_shot(with_target(true, {100.0f + 100.0f * std::cos(c29), 50.0f + 100.0f * std::sin(c29), 0.0f}), rng, ns));
+    CHECK(!attack_run_shot(with_target(true, {100.0f + 100.0f * std::cos(c31), 50.0f + 100.0f * std::sin(c31), 0.0f}), rng, ns));
     BattleCamShot s;  // up to 80 degrees apart is a similar heading
     const float r80 = 79.5f * kDegToRad, r81 = 80.5f * kDegToRad;
     CHECK(!attack_run_shot(with_target(true, {200.0f, 50.0f, 0.0f}, {std::cos(r80), std::sin(r80), 0.0f}), rng, s));
@@ -726,6 +740,7 @@ void test_fighter_chase() {
         const BattleCamShot s = fighter_chase_shot(object({10.0f, 4.0f, 6.0f}), rng);
         CHECK(s.smoothing && near(*s.smoothing, 0.99f) && s.handheld && s.handheld_frames == s.length && s.interesting);
         CHECK(s.look.size() == 1 && s.look[0].segment == ShotKey::Segment::Hold && s.look[0].attached && s.eye.size() == 2);
+        CHECK(!s.look.empty() && near(s.look[0].ease_out, 0.1f));
         if (s.eye.size() != 2) continue;
         if (a) {
             saw_a = true;
@@ -771,7 +786,13 @@ void test_follow_dispatch() {
     bool chase = false, attack = false, fell = false;
     for (int i = 0; i < 80; ++i) {
         BattleCamShot s;
+        UnsyncedRandom replay = rng;  // step 6's draw, then step 7's coin: zero is the attack run, one the chase
+        const bool static_shot_drawn = replay.range(0, 3) == 0;
+        const bool coin_attack = !static_shot_drawn && replay.range(0, 1) == 0;
         CHECK(interesting_shot(cat(with_target(), c.corvette), true, c, rng, s));
+        if (static_shot_drawn) CHECK(s.length == 60);
+        else if (coin_attack) CHECK(s.eye.size() == 3 && s.second == 77);
+        else CHECK(s.smoothing && near(*s.smoothing, 0.99f));
         if (s.smoothing && near(*s.smoothing, 0.99f)) chase = true;
         if (s.eye.size() == 3) attack = true;
         CHECK(interesting_shot(cat(object({10.0f, 4.0f, 6.0f}), c.corvette), true, c, rng, s));

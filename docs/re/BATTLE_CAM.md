@@ -316,7 +316,7 @@ The look filter flag +0x1bd that the push-in and the land flying shot set only m
     6e s);
   - B: n = 4 s, eye (3e c, −randf(6, 8)·e, 3e s) → (3e c, randf(2, 4)·e, 3e s).
 
-  Eye eases out 0.1; the look holds on the fighter. Length n, smoothing 0.99, handheld for n. Retail also runs a
+  Eye and look ease out 0.1; the look holds on the fighter. Length n, smoothing 0.99, handheld for n. Retail also runs a
   CameraAnimeSpiral wander (frequency 0.001, amplitudes 10e / e / 10e); its parameter slots are [M], so it is left out.
 
 Translate-only (+0x51) places an attached key at the object's position plus the offset in world axes, so the object's
@@ -413,13 +413,13 @@ The TSW firing shot is state 3 too. `0x2ccf30` sets the baseline at Fire, and ev
 All of them are presentation: no sim state, no synced draw, so tiers 2 and 3 are untouched. Camera feel is tier 1, so
 each of these is a known gap rather than an accepted difference:
 - The not-ported picks and templates: the bombing run (#563); the glory and hardpoint templates (#571, #572) fail and
-  fall through. The
-  3/4 hardpoint draw is made, but no hardpoint is picked, and its index draws are not made, so for an object with
+  fall through. The 3/4 hardpoint draw is made, but no hardpoint is picked, and its index draws are not made, so for an object with
   hardpoints the later draws differ from retail's (#571).
 - The fighter chase leaves out retail's CameraAnimeSpiral wander (parameter slots [M]); its box is the one box, where
   retail reads the ModelBox, or the TEAM box without a model.
 - The attack run makes no FLEET member draw (`0x3965f0`): tactical targets are never fleets.
-- A target that is no longer drawn: its keys fall back to the framed object (retail's lookup of a gone id is [L]).
+- A target that is no longer drawn: its keys fall back to the framed object (retail's lookup of a gone id is [L]). The
+  shot only takes a drawn target, where retail takes any.
 - The look-filter flag +0x1bd (set by the attack run, the push-in, the land flying shot and the fly-past) is not kept;
   it only matters after a glory shot turns the filter on (#572).
 - The interesting object's fields, read from the port's objects: "in the world, not hidden" (+0x39f, +0x3a0 & 0x40) is

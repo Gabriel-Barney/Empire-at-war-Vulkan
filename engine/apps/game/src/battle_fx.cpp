@@ -305,9 +305,11 @@ Vec3 TswFiringShot::eye(int32_t c, const ObjectFrame& tsw) { return shot_keys_ey
 Vec3 TswFiringShot::look(int32_t c, const ObjectFrame& tsw) { return shot_keys_look(look_, c, frame_of(tsw), in_.z_adjust); }
 
 // ---- the key evaluator (0x49c540 eye / 0x49de50 look) ----------------------------------------------------------------
-Vec3 shot_key_position(const ShotKey& k, const ObjectFrame& f, float z_adjust) {
-    return shot_key_position(k, KeyAnchors{f, z_adjust, f, z_adjust});
-}
+namespace {
+KeyAnchors one_anchor(const ObjectFrame& f, float z_adjust) { return KeyAnchors{f, z_adjust, f, z_adjust}; }
+}  // namespace
+
+Vec3 shot_key_position(const ShotKey& k, const ObjectFrame& f, float z_adjust) { return shot_key_position(k, one_anchor(f, z_adjust)); }
 
 Vec3 shot_key_position(const ShotKey& k, const KeyAnchors& an) {
     if (!k.attached) return k.where;
@@ -325,20 +327,20 @@ size_t key_at(std::span<const ShotKey> keys, int32_t c) {
     return k;
 }
 
-Vec3 segment(std::span<const ShotKey> keys, size_t k, int32_t c, const KeyAnchors& f, bool look) {
+Vec3 segment(std::span<const ShotKey> keys, size_t k, int32_t c, const KeyAnchors& an, bool look) {
     const ShotKey& a = keys[k];
     const ShotKey& b = keys[k + 1];
     const float sigma = static_cast<float>(c - a.frame) / static_cast<float>(b.frame - a.frame);
     const float w = shot_accel(sigma, a.ease_out, b.ease_in);
-    const Vec3 pa = shot_key_position(a, f), pb = shot_key_position(b, f);
+    const Vec3 pa = shot_key_position(a, an), pb = shot_key_position(b, an);
     switch (a.segment) {
         case ShotKey::Segment::Hold: return pa;
         case ShotKey::Segment::Orbit: return look ? Vec3{} : pa;  // the look has no mode-3 branch; [port] 0x49a610 held
         case ShotKey::Segment::Linear: return pa + (pb - pa) * w;
         case ShotKey::Segment::Spline:
             if (!a.attached && !b.attached) {  // Catmull-Rom Hermite between two world keys (0x499ef0), tangent scale 0.5
-                const Vec3 p0 = k > 0 ? shot_key_position(keys[k - 1], f) : pa;
-                const Vec3 p3 = k + 2 < keys.size() ? shot_key_position(keys[k + 2], f) : pb;
+                const Vec3 p0 = k > 0 ? shot_key_position(keys[k - 1], an) : pa;
+                const Vec3 p3 = k + 2 < keys.size() ? shot_key_position(keys[k + 2], an) : pb;
                 const Vec3 m1 = (pb - p0) * 0.5f, m2 = (p3 - pa) * 0.5f;
                 const float w2 = w * w, w3 = w2 * w;
                 return pa * (2.0f * w3 - 3.0f * w2 + 1.0f) + m1 * (w3 - 2.0f * w2 + w) + pb * (-2.0f * w3 + 3.0f * w2) + m2 * (w3 - w2);
@@ -350,32 +352,32 @@ Vec3 segment(std::span<const ShotKey> keys, size_t k, int32_t c, const KeyAnchor
 }  // namespace
 
 Vec3 shot_keys_look(std::span<const ShotKey> look, int32_t c, const ObjectFrame& f, float z_adjust) {
-    return shot_keys_look(look, c, KeyAnchors{f, z_adjust, f, z_adjust});
+    return shot_keys_look(look, c, one_anchor(f, z_adjust));
 }
 
-Vec3 shot_keys_look(std::span<const ShotKey> look, int32_t c, const KeyAnchors& f) {
+Vec3 shot_keys_look(std::span<const ShotKey> look, int32_t c, const KeyAnchors& an) {
     if (look.empty()) return {};
-    if (c < look.front().frame) return shot_key_position(look.front(), f);
+    if (c < look.front().frame) return shot_key_position(look.front(), an);
     const size_t k = key_at(look, c);
-    if (k + 1 >= look.size()) return shot_key_position(look[k], f);  // after the last key: held
-    return segment(look, k, c, f, true);
+    if (k + 1 >= look.size()) return shot_key_position(look[k], an);  // after the last key: held
+    return segment(look, k, c, an, true);
 }
 
 Vec3 shot_keys_eye(std::span<const ShotKey> eye, std::span<const ShotKey> look, int32_t c, const ObjectFrame& f,
                    float z_adjust) {
-    return shot_keys_eye(eye, look, c, KeyAnchors{f, z_adjust, f, z_adjust});
+    return shot_keys_eye(eye, look, c, one_anchor(f, z_adjust));
 }
 
-Vec3 shot_keys_eye(std::span<const ShotKey> eye, std::span<const ShotKey> look, int32_t c, const KeyAnchors& f) {
+Vec3 shot_keys_eye(std::span<const ShotKey> eye, std::span<const ShotKey> look, int32_t c, const KeyAnchors& an) {
     if (eye.empty()) return {};
-    if (c < eye.front().frame) return shot_key_position(eye.front(), f);
+    if (c < eye.front().frame) return shot_key_position(eye.front(), an);
     const size_t k = key_at(eye, c);
-    if (k + 1 < eye.size()) return segment(eye, k, c, f, false);
+    if (k + 1 < eye.size()) return segment(eye, k, c, an, false);
     const ShotKey& o = eye[k];
-    const Vec3 p = shot_key_position(o, f);
+    const Vec3 p = shot_key_position(o, an);
     if (o.segment != ShotKey::Segment::Orbit || c <= o.frame || o.period <= 0) return p;  // held
     // 0x49c810: the orbit of the resolved position about world +Z through the look point.
-    const Vec3 l = shot_keys_look(look, c, f);
+    const Vec3 l = shot_keys_look(look, c, an);
     const Vec3 d = p - l;
     const float s = static_cast<float>((c - o.frame) % o.period) / static_cast<float>(o.period);
     float a = 360.0f * std::clamp(shot_accel(s, o.ease_out, o.ease_in), 0.0f, 1.0f);

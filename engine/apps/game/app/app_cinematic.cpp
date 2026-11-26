@@ -369,10 +369,10 @@ bool App::interesting_object_shot(bool first, BattleCamShot& out) {
     if (const objects::ObjectId t = b->combat().current_target(o->id); t != objects::kNoObjectId) {
         ObjectFrame tf;
         if (const render::SnapshotObject* to = drawn_object(t, &tf)) {
-            io.target.id = static_cast<uint32_t>(t);
-            io.target.model = (to->flags & render::kSnapDrawable) != 0;
-            io.target.half_extents = shot_half_extents(to->type);
-            io.target.frame = tf;
+            io.combat_target.id = static_cast<uint32_t>(t);
+            io.combat_target.model = (to->flags & render::kSnapDrawable) != 0;
+            io.combat_target.half_extents = shot_half_extents(to->type);
+            io.combat_target.frame = tf;
         }
     }
     InterestingCategories c;

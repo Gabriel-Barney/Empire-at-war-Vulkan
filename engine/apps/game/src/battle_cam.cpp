@@ -470,11 +470,11 @@ BattleCamShot structure_shot(const InterestingObject& o, UnsyncedRandom& rng) {
     s.interesting = true;
     s.look.push_back(key(0, ShotKey::Segment::Spline, true, {}, 0.25f));
     int32_t count = 1;
-    if (o.target.id != 0) {  // any target: the look turns to it at n
+    if (o.combat_target.id != 0) {  // any target: the look turns to it at n
         ShotKey t = key(n, ShotKey::Segment::Spline, true, {}, 0.25f);
         t.on_second = true;
         s.look.push_back(t);
-        s.second = o.target.id;
+        s.second = o.combat_target.id;
         count = 2;
     }
     s.eye.push_back(key(0, ShotKey::Segment::Spline, true, {sx * e.x, sy * e.y, 2.0f * e.z}, 0.25f, 0.25f));
@@ -485,6 +485,13 @@ BattleCamShot structure_shot(const InterestingObject& o, UnsyncedRandom& rng) {
 
 namespace {
 float yaw_degrees(const ObjectFrame& f) { return std::atan2(f.axis[0].y, f.axis[0].x) / kDegToRad; }  // +0x8c
+// 0x20af60(a, b, 80): the wrapped yaw difference is within the limit (a similar heading).
+bool similar_heading(float a_deg, float b_deg, float limit) {
+    float d = a_deg - b_deg;
+    while (d > 180.0f) d -= 360.0f;
+    while (d <= -180.0f) d += 360.0f;
+    return std::fabs(d) <= limit;
+}
 }  // namespace
 
 bool attack_run_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCamShot& out) {
@@ -493,38 +500,38 @@ bool attack_run_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCamS
     const int32_t t = rng.range(90, 120);
     const float y1 = static_cast<float>(rng.range(5, 10)) * e.y;
     const float y2 = -static_cast<float>(rng.range(5, 10)) * e.y;
-    float sn[3], cs[3];
+    float sin_a[3], cos_a[3];
     for (int k = 0; k < 3; ++k) {  // retail bug: the degrees are converted to radians twice, so a_k is 0..6.3 degrees
         const float a = static_cast<float>(rng.range(0, 360)) * kDegToRad * kDegToRad;
-        sn[k] = std::sin(a);
-        cs[k] = std::cos(a);
+        sin_a[k] = std::sin(a);
+        cos_a[k] = std::cos(a);
     }
-    const int32_t rz = rng.range(1, 7), rx = rng.range(1, 7);
+    const int32_t z_scale = rng.range(1, 7), x_scale = rng.range(1, 7);
     BattleCamShot s;
     s.target = o.id;
     s.interesting = true;
-    s.eye.push_back(key(0, ShotKey::Segment::Spline, true, {static_cast<float>(rx) * m * sn[0], y1, static_cast<float>(rz) * m * cs[0]}, 0.25f));
+    s.eye.push_back(key(0, ShotKey::Segment::Spline, true,
+                        {static_cast<float>(x_scale) * m * sin_a[0], y1, static_cast<float>(z_scale) * m * cos_a[0]}, 0.25f));
     s.look.push_back(key(0, ShotKey::Segment::Spline, true, {}, 0.25f));
     // [port] A FLEET target's member draw (0x3965f0) is not made: tactical targets are never fleets.
-    const InterestingTarget& g = o.target;
-    if (g.id == 0 || !g.model) return false;
-    Vec3 d = g.frame.position - o.frame.position;
-    d.z = 0.0f;
-    if (const float len = std::sqrt(dot(d, d)); len > 0.0f) d = d * (1.0f / len);
-    const float yaw = yaw_degrees(o.frame) * kDegToRad;
-    float apart = yaw_degrees(o.frame) - yaw_degrees(g.frame);  // 0x20af60: within 80 degrees is a similar heading
-    while (apart > 180.0f) apart -= 360.0f;
-    while (apart <= -180.0f) apart += 360.0f;
-    if (std::fabs(apart) <= 80.0f) return false;
-    if (std::cos(yaw) * d.x + std::sin(yaw) * d.y < std::cos(30.0f * kDegToRad)) return false;  // the nose cone
-    s.eye.push_back(key(t, ShotKey::Segment::Spline, true, {sn[1] * e.x, (y1 + y2) * 0.5f, cs[1] * e.z}));
-    ShotKey e3 = key(2 * t, ShotKey::Segment::Spline, true, {0.0f, -1.5f * g.half_extents.y, 2.0f * g.half_extents.z}, 0.0f, 0.5f);
-    e3.on_second = true;
-    s.eye.push_back(e3);
-    ShotKey l2 = key(2 * t, ShotKey::Segment::Spline, true, {}, 0.0f, 0.25f);
-    l2.on_second = true;
-    s.look.push_back(l2);
-    s.second = g.id;
+    const InterestingTarget& tgt = o.combat_target;
+    if (tgt.id == 0 || !tgt.model) return false;
+    Vec3 to_target = tgt.frame.position - o.frame.position;
+    to_target.z = 0.0f;
+    if (const float len = std::sqrt(dot(to_target, to_target)); len > 0.0f) to_target = to_target * (1.0f / len);
+    const float yaw = yaw_degrees(o.frame);
+    if (similar_heading(yaw, yaw_degrees(tgt.frame), 80.0f)) return false;
+    const float nose_x = std::cos(yaw * kDegToRad), nose_y = std::sin(yaw * kDegToRad);
+    if (nose_x * to_target.x + nose_y * to_target.y < std::cos(30.0f * kDegToRad)) return false;  // the nose cone
+    s.eye.push_back(key(t, ShotKey::Segment::Spline, true, {sin_a[1] * e.x, (y1 + y2) * 0.5f, cos_a[1] * e.z}));
+    ShotKey onto_eye = key(2 * t, ShotKey::Segment::Spline, true,
+                           {0.0f, -1.5f * tgt.half_extents.y, 2.0f * tgt.half_extents.z}, 0.0f, 0.5f);
+    onto_eye.on_second = true;
+    s.eye.push_back(onto_eye);
+    ShotKey onto_look = key(2 * t, ShotKey::Segment::Spline, true, {}, 0.0f, 0.25f);
+    onto_look.on_second = true;
+    s.look.push_back(onto_look);
+    s.second = tgt.id;
     s.length = 2 * t;
     s.handheld = true;
     s.handheld_frames = 2 * t;
@@ -555,7 +562,7 @@ BattleCamShot fighter_chase_shot(const InterestingObject& o, UnsyncedRandom& rng
         const float y2 = rng.rangef(2.0f, 4.0f) * e;
         s.eye.push_back(key(n, ShotKey::Segment::Spline, true, {3.0f * e * c, y2, 3.0f * e * sn}, 0.1f));
     }
-    s.look.push_back(key(0, ShotKey::Segment::Hold, true, {}));
+    s.look.push_back(key(0, ShotKey::Segment::Hold, true, {}, 0.1f));
     s.length = n;
     s.smoothing = 0.99f;
     s.handheld = true;
@@ -661,10 +668,9 @@ bool interesting_shot(const InterestingObject& o, bool space, const InterestingC
         out = structure_shot(o, rng);
         return true;
     }
-    {  // step 11: a flyer (in space too), then on land by size
-        if (o.flying && land_flying_shot(o, rng, out)) return true;
-        if (!space && (length(o.half_extents) < 30.0f ? push_in_shot(o, rng, out) : drive_by_shot(o, rng, out))) return true;
-    }
+    // Step 11: a flyer (in space too), then on land by size.
+    if (o.flying && land_flying_shot(o, rng, out)) return true;
+    if (!space && (length(o.half_extents) < 30.0f ? push_in_shot(o, rng, out) : drive_by_shot(o, rng, out))) return true;
     if (rng.range(0, 1) == 0) {  // step 12: the orbit or the fly-past
         out = orbit_shot(o, rng);
         return true;

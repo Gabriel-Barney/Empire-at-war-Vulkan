@@ -212,7 +212,7 @@ struct InterestingObject {
     tactical::Vec3 half_extents{1.0f, 1.0f, 1.0f};  // E (ObjBox / ModelBox [M: one box in the port])
     ObjectFrame frame;              // its transform at the start (M)
     std::string_view type_name;     // type +0xf8
-    InterestingTarget target;       // #570
+    InterestingTarget combat_target;  // #570: what it is shooting at (not BattleCamShot::target, the framed object)
 };
 // GameObjectCategoryType values the dispatcher tests (the enum file's; [H] defaults).
 struct InterestingCategories {
