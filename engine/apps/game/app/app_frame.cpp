@@ -295,8 +295,8 @@ bool App::render_frame() {
     if (panel_shells_ok_) panel_drawer_.make_resident(gpu_.renderer);
     // Radar event models (tactical HUD only): uploaded the first time a ping names them, drawn at the Models2 step.
     std::span<const ui::HudModelDraw> radar_models;
-    if (ui_.radar_models_ok && battle_hud && !galactic && !modern_hud()) {  // #584: the Modern style has no radar yet (#585)
-        radar_models = ui_.tactical_hud.radar_models();
+    if (ui_.radar_models_ok && battle_hud && !galactic) {  // #591: the drawn style's map
+        radar_models = modern_hud() ? std::span<const ui::HudModelDraw>(ui_.modern_hud.radar_models()) : ui_.tactical_hud.radar_models();
         std::string merr;
         if (!radar_models.empty() && !ui_.radar_drawer.prepare(gpu_.renderer, radar_models, &merr))
             std::fprintf(stderr, "radar event models: %s\n", merr.c_str());

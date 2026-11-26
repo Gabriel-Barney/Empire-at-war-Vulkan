@@ -16,6 +16,7 @@
 #include "alamo/ui/hud_font.hpp"
 #include "alamo/ui/modern_tactical_hud.hpp"
 #include "alamo/ui/orders.hpp"
+#include "alamo/ui/picking.hpp"
 #include "alamo/ui/tactical_hud.hpp"
 #include "hud_test_data.hpp"
 
@@ -799,7 +800,9 @@ void test_actions() {
     const ModernHudStats& st = h.modern.stats();
     // Nothing selected: the actions, no cards / orders, and (contextual on) a deck shrunk to them.
     CHECK(st.actions == 4 && st.actions_live == 3 && st.cards == 0 && st.orders == 0 && !st.production);
-    const float full = h.modern.canvas().width - 16.0f;
+    // The full row: the screen less the margins and the map at its end (#591).
+    const HudCanvas& hc = h.modern.canvas();
+    const float full = hc.width - 16.0f - (std::min(0.3f * hc.height, 0.22f * hc.width) + 8.0f);
     CHECK(st.deck_width > 0.0f && st.deck_width < 0.5f * full);
     for (const auto& [name, n] : {std::pair{"b_retreat", 1u}, std::pair{"b_reinforcement", 1u}, std::pair{"b_special_weapon", 1u},
                                   std::pair{"b_special_weapon2", 0u}}) {
@@ -1005,6 +1008,90 @@ void test_fleet_tabs() {
     CHECK(st.fleet_tabs == 0);
 }
 
+// #591 the map: blips by shape (own squares, hostile diamonds, neutral circles) with Classic's filter; the map side; the
+// radar clicks (press / drag jump, right click move + ping). The hover target card: hull, shields and hard points.
+void test_map() {
+    Huds h;
+    Selection s;
+    TacticalHudFrame f = frame();
+    f.world.local_player = 0;
+    CameraParams cp;
+    cp.eye = {0.0f, -600.0f, 600.0f};
+    cp.target = {0.0f, 0.0f, 0.0f};
+    f.world.view = make_view(cp, 1920, 1080);
+    std::vector<HudUnit> units = s.units;
+    HudUnit neutral;
+    neutral.id = 60;
+    neutral.owner = -1;
+    units.push_back(neutral);
+    HudUnit jammed = units[3];  // a jammed hostile: no blip (radar_blip_shown, as Classic's)
+    jammed.id = 61;
+    jammed.jammed = true;
+    units.push_back(jammed);
+    h.modern.build(f, units, s.types);
+    const ModernHudStats& st = h.modern.stats();
+    CHECK(st.map && !st.map_right && st.map_squares == 3 && st.map_diamonds == 1 && st.map_circles == 1);
+    CHECK(radar_blip_shown(units[3], nullptr, true) && !radar_blip_shown(jammed, nullptr, true));
+    // The map sits at the deck's end, level with it: no deck control overlaps it.
+    for (const HudHitBox& m : h.modern.hit_boxes())
+        if (m.component == kModernMapHit)
+            for (const HudHitBox& b : h.modern.hit_boxes())
+                if (b.component != kModernMapHit && b.component != kModernPanelHit)
+                    CHECK(b.max.x <= m.min.x || b.min.x >= m.max.x || b.max.y <= m.min.y || b.min.y >= m.max.y);
+    // The map's centre is the world's (0, 0): a press there jumps the camera there; a right click moves the selection.
+    int32_t px = 0, py = 0;
+    CHECK(centre_px(h.modern.hit_boxes(), h.modern.canvas(), kModernMapHit, px, py) && h.modern.hit_test(px, py) == kModernMapHit);
+    {
+        RoutedInput r;
+        r.hover_component = kModernMapHit;
+        r.owner[static_cast<size_t>(Button::Left)] = PointerTarget::Hud;
+        r.world.mouse_x = px;
+        r.world.mouse_y = py;
+        r.hud = {{HudPointerEvent::Kind::Press, Button::Left, kModernMapHit, px, py}};
+        std::vector<commands::EventData> cmds;
+        std::vector<HudAction> acts;
+        h.modern.update_input(r, false, false, cmds, &acts);
+        CHECK(cmds.empty() && acts.size() == 1 && acts[0].kind == HudAction::Kind::RadarCameraJump && std::fabs(acts[0].x) < 60.0f &&
+              std::fabs(acts[0].y) < 60.0f);
+        r.hud = {{HudPointerEvent::Kind::Release, Button::Left, kModernMapHit, px, py},
+                 {HudPointerEvent::Kind::Press, Button::Right, kModernMapHit, px, py},
+                 {HudPointerEvent::Kind::Release, Button::Right, kModernMapHit, px, py},
+                 {HudPointerEvent::Kind::Click, Button::Right, kModernMapHit, px, py}};
+        cmds.clear();
+        acts.clear();
+        h.modern.update_input(r, false, false, cmds, &acts);
+        CHECK(cmds.size() == 1 && acts.size() == 1 && acts[0].kind == HudAction::Kind::RadarPing && acts[0].name == "Default_Click");
+    }
+    // The map side option: the map on the right.
+    ModernHudOptions o;
+    o.map_right = true;
+    h.modern.set_options(o);
+    h.modern.build(f, units, s.types);
+    CHECK(st.map_right);
+    for (const HudHitBox& b : h.modern.hit_boxes())
+        if (b.component == kModernMapHit) CHECK(b.min.x > 0.0f);
+    h.modern.set_options({});
+    // The hover target card: the hovered hostile's hull, shields and hard points; it takes no clicks.
+    units[3].hovered = true;
+    units[3].health = 0.4f;
+    units[3].shield = 0.75f;
+    std::vector<HudHardPoint> hps(3);
+    for (HudHardPoint& hp : hps) hp.parent = 30;
+    hps[2].parent = 99;  // another ship's
+    f.hardpoints = hps;
+    const size_t hits_before = [&] {
+        h.modern.build(f, s.units, s.types);
+        return h.modern.hit_boxes().size();
+    }();
+    h.modern.build(f, units, s.types);
+    CHECK(st.target_card && st.target_id == 30 && st.target_hardpoints == 2);
+    CHECK(h.modern.hit_boxes().size() == hits_before);
+    units[3].hovered = false;
+    units[0].hovered = true;  // an own unit: no card
+    h.modern.build(f, units, s.types);
+    CHECK(!st.target_card);
+}
+
 void test_world_split() {
     // The Classic HUD with the split off is unchanged (world_draw_list empty); with it on, the drag box (a world-space
     // item) moves to world_draw_list and the two lists together hold what draw_list held.
@@ -1046,6 +1133,7 @@ int main() {
     test_abilities();
     test_actions();
     test_fleet_tabs();
+    test_map();
     test_hotkey();
     test_world_split();
     if (g_fail) {
