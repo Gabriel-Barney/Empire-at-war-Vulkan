@@ -452,8 +452,13 @@ void test_ground_templates() {
     const InterestingObject o = ground({4.0f, 2.0f, 10.0f});
     // The push-in: world eye keys from the start's frame, attached look keys, n = 120..150, h = 1.5..2.0, noise over n.
     for (int i = 0; i < 20; ++i) {
+        UnsyncedRandom replay = rng;  // the draws in retail's order: n, h, then the side (nonzero = +1)
+        const int32_t n = replay.range(120, 150);
+        const float hh = static_cast<float>(replay.range(30, 40)) / 20.0f;
+        const float side = replay.range(0, 1) != 0 ? 1.0f : -1.0f;
         BattleCamShot s;
         CHECK(push_in_shot(o, rng, s) && s.interesting && s.target == 42 && !s.smoothing);
+        CHECK(s.length == n && near(s.eye.empty() ? V3{} : s.eye[0].where, V3{96.0f, 50.0f + 8.0f * side, 20.0f * hh}));
         CHECK(s.length >= 120 && s.length <= 150 && s.handheld && s.handheld_frames == s.length);
         if (s.eye.size() != 2 || s.look.size() != 2) {
             CHECK(false);
@@ -468,14 +473,26 @@ void test_ground_templates() {
         const float h = a.z / 20.0f;  // 2h Ez = 20 h
         CHECK(near(b.x, 96.0f) && near(std::fabs(b.y - 50.0f), 4.0f) && near(b.z, h * 10.0f));
         CHECK(near(s.look[0].where, V3{0.0f, 0.0f, 0.25f * h * 10.0f}) && near(s.look[1].where, V3{0.0f, -4.0f, 0.1f * h * 10.0f}));
+        CHECK(near(s.look[0].ease_out, 0.25f) && near(s.look[1].ease_in, 0.25f) && s.look[0].frame == 0 && near(s.eye[0].ease_in, 0.0f));
+        CHECK(s.eye[1].segment == ShotKey::Segment::Spline && s.look[0].segment == ShotKey::Segment::Spline &&
+              s.look[1].segment == ShotKey::Segment::Spline && near(s.eye[1].ease_out, 0.0f));
     }
     BattleCamShot none;
     CHECK(!push_in_shot(object({4.0f, 2.0f, 10.0f}, false), rng, none));
     // The drive-by: every eye key a world point; length 2n (120..180); three variants; no noise, smoothing inherited.
     bool seen[3] = {false, false, false};
     for (int i = 0; i < 60; ++i) {
+        UnsyncedRandom replay = rng;  // n, the side (zero = +1), then the variant
+        const int32_t n = replay.range(60, 90);
+        const float side = replay.range(0, 1) == 0 ? 1.0f : -1.0f;
+        const int32_t variant = replay.range(0, 2);
         BattleCamShot s;
-        CHECK(drive_by_shot(o, rng, s) && !s.handheld && !s.smoothing);
+        CHECK(drive_by_shot(o, rng, s) && !s.handheld && !s.smoothing && s.length == 2 * n);
+        if (s.eye.size() == 2) {  // eye 1: world y = 50 + side x (2 Ex in variant 2, else 3 Ex)
+            const float ex = variant == 2 ? 8.0f : 12.0f;
+            CHECK(near(s.eye[0].where.y, 50.0f + side * ex) && s.eye[0].segment == ShotKey::Segment::Spline);
+            CHECK((variant == 2) == !s.look[0].attached && near(s.eye[0].ease_out, 0.0f));
+        }
         CHECK(s.length >= 120 && s.length <= 180 && s.length % 2 == 0);
         if (s.eye.size() != 2 || s.look.size() != 2) {
             CHECK(false);
@@ -486,11 +503,12 @@ void test_ground_templates() {
             seen[2] = true;
             CHECK(near(s.eye[0].where.z, 7.0f) && near(s.eye[1].where.z, 7.0f) && near(s.eye[0].where.x, 106.0f));
             CHECK(near(s.look[0].where, V3{100.0f, 50.0f, 30.0f}) && near(s.look[1].where, V3{100.0f, 50.0f, 20.0f}));
-            CHECK(near(s.look[1].ease_out, 0.25f));
+            CHECK(near(s.look[1].ease_out, 0.25f) && near(s.look[0].ease_out, 0.25f) && near(s.eye[1].where.x, 104.0f));
         } else if (near(s.look[0].where, V3{0.0f, -2.0f, 0.0f})) {  // variant 1: from behind, H = clamp(5 Ez, 50, 125)
             seen[1] = true;
             CHECK(near(s.eye[0].where, V3{106.0f, s.eye[0].where.y, 50.0f}) && near(std::fabs(s.eye[0].where.y - 50.0f), 12.0f));
             CHECK(near(s.eye[1].where.z, 10.0f) && near(s.look[1].where, V3{}) && near(s.look[1].ease_in, 0.25f));
+            CHECK(near(s.eye[1].where.x, 102.0f) && near(s.look[0].ease_out, 0.25f));
         } else {  // variant 0: from ahead, the look drifts to (0, -3 Ey, 0)
             seen[0] = true;
             CHECK(near(s.eye[0].where.x, 96.0f) && near(s.eye[0].where.z, 50.0f) && near(s.eye[1].where.x, 100.0f));
@@ -498,16 +516,24 @@ void test_ground_templates() {
         }
     }
     CHECK(seen[0] && seen[1] && seen[2]);
+    InterestingObject flat = ground({4.0f, 2.0f, 4.0f});  // 5 Ez = 20: H at its floor, 50
+    for (int i = 0; i < 20; ++i) {
+        BattleCamShot t;
+        if (drive_by_shot(flat, rng, t) && t.look[0].attached) CHECK(near(t.eye[0].where.z, 50.0f));
+    }
     InterestingObject tall = ground({4.0f, 2.0f, 40.0f});
     BattleCamShot t;
     for (int i = 0; i < 20; ++i)
         if (drive_by_shot(tall, rng, t) && t.look[0].attached) CHECK(near(t.eye[0].where.z, 125.0f));  // H capped at 125
     // The land flyer: a fixed world eye beside it, the look held on it, n = 60..90.
     BattleCamShot f;
-    CHECK(land_flying_shot(ground({4.0f, 2.0f, 10.0f}, true, true), rng, f) && f.length >= 60 && f.length <= 90 && !f.handheld);
+    UnsyncedRandom replay = rng;  // n, then the side (zero = +1)
+    const int32_t fn = replay.range(60, 90);
+    const float fside = replay.range(0, 1) == 0 ? 1.0f : -1.0f;
+    CHECK(land_flying_shot(ground({4.0f, 2.0f, 10.0f}, true, true), rng, f) && f.length == fn && !f.handheld);
     if (f.eye.size() == 1 && f.look.size() == 1) {
         CHECK(f.eye[0].segment == ShotKey::Segment::Hold && !f.eye[0].attached && near(f.eye[0].where.x, 102.0f));
-        CHECK(near(std::fabs(f.eye[0].where.y - 50.0f), 4.0f) && near(f.eye[0].where.z, 10.0f));
+        CHECK(near(f.eye[0].where.y, 50.0f + 4.0f * fside) && near(f.eye[0].where.z, 10.0f) && near(f.look[0].where, V3{}));
         CHECK(f.look[0].attached && f.look[0].segment == ShotKey::Segment::Hold && near(f.look[0].ease_out, 0.25f));
     } else {
         CHECK(false);
@@ -554,13 +580,34 @@ void test_ground_dispatch() {
         CHECK(s.length == 60 || (!s.eye.empty() && (s.eye[0].segment == ShotKey::Segment::Orbit || s.smoothing)));
     }
     CHECK(fly && push && drive);
-    // Without a model a land object falls through to the orbit (step 12's fly-past needs a model too).
-    for (int i = 0; i < 20; ++i) {
+    // A flyer in space tries the flying shot too (step 11 comes before the land test).
+    bool space_fly = false;
+    for (int i = 0; i < 40; ++i) {
+        BattleCamShot s;
+        CHECK(interesting_shot(ground({4.0f, 2.0f, 10.0f}, true, true), true, c, rng, s));
+        if (s.eye.size() == 1 && s.eye[0].segment == ShotKey::Segment::Hold && s.length != 60) space_fly = true;
+    }
+    CHECK(space_fly);
+    // No locomotor (the structure shot is #570's): the static shot or step 12, never the ground templates.
+    for (int i = 0; i < 40; ++i) {
+        BattleCamShot s;
+        CHECK(interesting_shot(ground({4.0f, 2.0f, 10.0f}, false), false, c, rng, s));
+        CHECK(s.length == 60 || (!s.eye.empty() && (s.eye[0].segment == ShotKey::Segment::Orbit || s.eye[0].translate_only)));
+    }
+    // Without a model the push-in and the fly-past fail: the static shot or the orbit, else no shot at all.
+    bool failed = false, found = false;
+    for (int i = 0; i < 40; ++i) {
         InterestingObject o = ground({4.0f, 2.0f, 10.0f});
         o.model = false;
         BattleCamShot s;
-        if (interesting_shot(o, false, c, rng, s)) CHECK(s.length == 60 || s.eye[0].segment == ShotKey::Segment::Orbit);
+        if (interesting_shot(o, false, c, rng, s)) {
+            found = true;
+            CHECK(s.length == 60 || s.eye[0].segment == ShotKey::Segment::Orbit);
+        } else {
+            failed = true;
+        }
     }
+    CHECK(failed && found);
 }
 
 BattleCamShot timed(uint32_t id, int32_t length, std::optional<float> smoothing = std::nullopt) {

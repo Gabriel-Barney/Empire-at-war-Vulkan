@@ -293,7 +293,7 @@ End_Cinematic_Mode zeroes it. The hero clash sets none, so a clash chained after
   |---|---|---|
   | 0 | M·(3s Ex, 2 Ey, H) → M·(2s Ex, 0, Ez) | attached 0 → (0, −3 Ey, 0) |
   | 1 | M·(3s Ex, −3 Ey, H) → M·(2s Ex, −Ey, Ez) | attached (0, −Ey, 0) → 0 |
-  | 2 | M·(2s Ex, −3 Ey, 7) → M·(2s Ex, −2 Ey, 7) | world M·(0, 0, 30) → M·(0, 0, 20) |
+  | 2 | M·(2s Ex, −3 Ey, 7) → M·(2s Ex, −2 Ey, 7) | world M·(0, 0, 30) → M·(0, 0, 20), both ease out 0.25 |
 - **Land flying `0x4a23d0`** (a flying locomotor; needs a model): n = rand(60, 90), s = ±1. The eye holds on the world
   point M·(s Ex, −Ey, Ez) beside the craft, and the look holds on it (ease out 0.25). Length n, no noise.
 
@@ -389,8 +389,11 @@ The TSW firing shot is state 3 too. `0x2ccf30` sets the baseline at Fire, and ev
 All of them are presentation: no sim state, no synced draw, so tiers 2 and 3 are untouched. Camera feel is tier 1, so
 each of these is a known gap rather than an accepted difference:
 - The not-ported picks and templates: the bombing run (#563); the glory, hardpoint, fighter, attack-run and structure
-  templates (#570 - #572) fail and fall through, so their objects get the static shot, the orbit or the fly-past. The 3/4 hardpoint draw is made, but no hardpoint is picked, and its index draws are
-  not made, so for an object with hardpoints the later draws differ from retail's (#571).
+  templates (#570 - #572) fail and fall through, so their objects get the static shot, the orbit or the fly-past. The
+  3/4 hardpoint draw is made, but no hardpoint is picked, and its index draws are not made, so for an object with
+  hardpoints the later draws differ from retail's (#571).
+- The look-filter flag +0x1bd (set by the attack run, the push-in, the land flying shot and the fly-past) is not kept;
+  it only matters after a glory shot turns the filter on (#572).
 - The interesting object's fields, read from the port's objects: "in the world, not hidden" (+0x39f, +0x3a0 & 0x40) is
   drawn and not dying or contained; "a model" is drawable; fogged is hidden from the local player by the FOW; the
   ObjBox and the ModelBox are one box; the health is the drawn health; the speed is the movement's current speed; a

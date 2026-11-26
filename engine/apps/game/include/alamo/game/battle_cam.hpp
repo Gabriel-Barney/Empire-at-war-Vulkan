@@ -205,7 +205,7 @@ struct InterestingObject {
     ObjectFrame frame;              // its transform at the start (M)
     std::string_view type_name;     // type +0xf8
 };
-// GameObjectCategoryType values the dispatcher tests (the enum file's; [H] defaults). #569 / #570 add the rest.
+// GameObjectCategoryType values the dispatcher tests (the enum file's; [H] defaults). #570 adds the rest.
 struct InterestingCategories {
     uint64_t bomber = 0x2, corvette = 0x8, infantry = 0x80, vehicle = 0x100;
 };

@@ -465,7 +465,7 @@ bool push_in_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCamShot
     const Vec3 e = o.half_extents;
     const int32_t n = rng.range(120, 150);
     const float h = static_cast<float>(rng.range(30, 40)) / 20.0f;
-    const float sgn = rng.range(0, 1) != 0 ? 1.0f : -1.0f;
+    const float sgn = rng.range(0, 1) != 0 ? 1.0f : -1.0f;  // 0x4a4e30: a nonzero draw is +1 (the others: zero is +1)
     const ObjectFrame& m = o.frame;
     BattleCamShot s;
     s.target = o.id;
@@ -543,9 +543,8 @@ bool interesting_shot(const InterestingObject& o, bool space, const InterestingC
     if ((o.category & (c.corvette | c.bomber)) != 0) (void)rng.range(0, 1);  // step 7's coin: attack run / chase (#570)
     // Step 8 (frigate: the attack run, #570) is not ported yet.
     if ((o.category & c.vehicle) != 0 && drive_by_shot(o, rng, out)) return true;  // step 9
-    if (!o.locomotor) {
-        // Step 10: the structure shot (#570) is not ported yet; it falls through to step 12.
-    } else {  // step 11
+    // Step 10 (no locomotor: the structure shot, #570) is not ported yet; it falls through to step 12.
+    if (o.locomotor) {  // step 11: a flyer (in space too), then on land by size
         if (o.flying && land_flying_shot(o, rng, out)) return true;
         if (!space && (length(o.half_extents) < 30.0f ? push_in_shot(o, rng, out) : drive_by_shot(o, rng, out))) return true;
     }
