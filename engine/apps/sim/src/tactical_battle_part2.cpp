@@ -272,6 +272,12 @@ std::vector<FleetGroups::LockedMove> TacticalBattle::fleet_move_preview(const Ta
     return moves;
 }
 
+std::vector<FleetGroups::Lagging> TacticalBattle::fleet_lagging(const TacticalMode& mode) const {
+    if (!fleet_on_ || !fleet_.any_moving() || !movement_) return {};
+    const objects::ObjectStore& st = mode.primary();
+    return fleet_.lagging([this, &st](objects::ObjectId id) { return fleet_unit_info(st, id); });
+}
+
 void TacticalBattle::fleet_tick(const TacticalMode& mode) {
     if (!fleet_on_ || !fleet_.used() || !movement_) return;
     const objects::ObjectStore& st = mode.primary();

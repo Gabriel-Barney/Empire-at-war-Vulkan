@@ -1485,6 +1485,57 @@ void test_badges() {
     CHECK(st.world_badges == 0 && st.radar_badges == 0 && st.outline_tags == 0);
 }
 
+// #603 lagging stragglers: the marks on the roster card, the run tab, the world badge and the outline show only while the
+// feed reports lagging members; the move readout only while a locked move is aimed, with "N lagging" while one runs.
+// Classic draws the same with or without the lagging feed.
+void test_lagging() {
+    Huds h;
+    Selection s;
+    TacticalHudFrame f = frame();
+    f.world.local_player = 0;
+    CameraParams cp;
+    cp.eye = {0.0f, -600.0f, 600.0f};
+    cp.target = {0.0f, 0.0f, 0.0f};
+    f.world.view = make_view(cp, 1920, 1080);
+    std::vector<HudUnit> units = s.units;
+    for (size_t i = 0; i < units.size(); ++i) units[i].position = {40.0f * static_cast<float>(i), 0.0f, 0.0f};
+    std::vector<HudFleetGroup> fleets(1);
+    fleets[0].id = 1;
+    fleets[0].name = U"Line";
+    fleets[0].locked = true;
+    fleets[0].members = {20, 21, 22};
+    f.fleet_groups_on = true;
+    f.fleet_groups = fleets;
+    h.build(f, units, s.types);
+    const ModernHudStats& st = h.modern.stats();
+    const uint64_t classic_before = h.classic.draw_list().digest();
+    CHECK(st.roster_groups == 1 && st.chips_locked == 1 && st.outline_tags == 1);
+    CHECK(st.roster_lagging == 0 && st.tab_lagging == 0 && st.badges_lagging == 0 && st.outline_lagging == 0 && !st.move_readout);
+    // A running move waits for 22.
+    fleets[0].lagging = {22};
+    h.build(f, units, s.types);
+    CHECK(st.roster_lagging == 1 && st.tab_lagging == 1 && st.badges_lagging == 1 && st.outline_lagging == 1);
+    CHECK(st.world_badges == 3 && !st.move_readout);
+    CHECK(h.classic.draw_list().digest() == classic_before);
+    // Aiming a locked move: the readout, with "1 lagging" while the move runs.
+    const std::vector<HudFleetGoal> goals = {{20, 400.0f, 200.0f}, {21, 440.0f, 200.0f}, {22, 480.0f, 200.0f}};
+    f.fleet_preview = goals;
+    h.modern.build(f, units, s.types);
+    CHECK(st.move_readout && st.move_readout_lagging == 1);
+    fleets[0].lagging.clear();
+    h.modern.build(f, units, s.types);
+    CHECK(st.move_readout && st.move_readout_lagging == 0 && st.roster_lagging == 0 && st.tab_lagging == 0);
+    // Targeting (no preview there) or fleet groups off: no readout.
+    f.world.targeting_active = true;
+    h.modern.build(f, units, s.types);
+    CHECK(!st.move_readout);
+    f.world.targeting_active = false;
+    f.fleet_groups_on = false;
+    fleets[0].lagging = {22};
+    h.modern.build(f, units, s.types);
+    CHECK(!st.move_readout && st.badges_lagging == 0 && st.roster_lagging == 0);
+}
+
 // ---- #593 the galactic map ----
 
 const char* kGalacticXml = R"(<?xml version="1.0"?>
@@ -1820,6 +1871,7 @@ int main() {
     test_discipline_rule();
     test_roster();
     test_badges();
+    test_lagging();  // #603
     test_discipline_control();
     test_galactic_view();
     test_galactic_parity();
