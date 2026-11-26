@@ -223,7 +223,7 @@ void TacticalHud::init(const ComponentTable& table, const TextureAtlas& atlas, F
     shield_component_.assign(48, -1);
     special_button_.assign(48, -1);
     special_border_.assign(24, -1);
-    queue_component_.assign(20, -1);
+    queue_component_.assign(kTacticalQueueSlots, -1);
     reinforce_component_.clear();
     for (int i = 0; i < 48; ++i) {
         const auto s = static_cast<size_t>(i);
@@ -233,10 +233,10 @@ void TacticalHud::init(const ComponentTable& table, const TextureAtlas& atlas, F
         special_button_[s] = find_fmt(table, "special_button_%02d", i);
     }
     for (int i = 0; i < 24; ++i) special_border_[static_cast<size_t>(i)] = find_fmt(table, "special_border_%02d", i);
-    for (int i = 0; i < 20; ++i) queue_component_[static_cast<size_t>(i)] = find_fmt(table, "tqueue%02d", i);
-    for (int i = 0; i < 6; ++i) buy_component_[static_cast<size_t>(i)] = find_fmt(table, "Build_%02d", i);
-    for (int r = 0; r < 5; ++r)
-        for (int c = 0; c < 4; ++c) reinforce_component_.push_back(find_fmt(table, "r_%02d%02d", r, c));
+    for (int i = 0; i < kTacticalQueueSlots; ++i) queue_component_[static_cast<size_t>(i)] = find_fmt(table, "tqueue%02d", i);
+    for (int i = 0; i < kTacticalBuyButtons; ++i) buy_component_[static_cast<size_t>(i)] = find_fmt(table, "Build_%02d", i);
+    for (int r = 0; r < kReinforceRows; ++r)
+        for (int c = 0; c < kReinforceColumns; ++c) reinforce_component_.push_back(find_fmt(table, "r_%02d%02d", r, c));
     radar_ = table.find("radar");
     radar_blip_ = table.find("radar_blip");
     credits_ = table.find("Text_Credits_tactical");
@@ -389,6 +389,39 @@ void ability_button_click(const HudAbilityButton& a, int32_t component, const st
     }
 }
 
+HudAction tactical_cancel_action(int32_t component, const std::string& name, const HudQueueEntry& e) {
+    HudAction h;
+    h.kind = HudAction::Kind::TacticalCancel;
+    h.component = component;
+    h.name = name;
+    h.unit = e.location;
+    h.value = e.type_index;
+    h.ids = {e.queue, e.index};
+    return h;
+}
+
+HudAction tactical_buy_action(int32_t component, const std::string& name, uint32_t builder, const HudBuildOption& o, bool shift,
+                              bool ctrl) {
+    HudAction h;
+    h.kind = HudAction::Kind::TacticalBuy;
+    h.component = component;
+    h.name = name;
+    h.unit = builder;
+    h.value = o.type_index;
+    h.shift = shift;
+    h.ctrl = ctrl;
+    return h;
+}
+
+HudAction begin_reinforcement_action(int32_t component, const std::string& name, const HudReinforcement& r) {
+    HudAction h;
+    h.kind = HudAction::Kind::BeginReinforcement;
+    h.component = component;
+    h.name = name;
+    h.unit = r.unit;
+    return h;
+}
+
 bool TacticalHud::activate_ability(uint8_t ability_type, bool queued, std::vector<commands::EventData>& out,
                                    std::vector<HudAction>* actions) const {
     if (!table_ || ability_type == 0) return false;
@@ -511,14 +544,7 @@ void TacticalHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
             if (q.component != k.component) continue;
             handled = true;
             if (k.button == Button::Left) {
-                HudAction h;
-                h.kind = HudAction::Kind::TacticalCancel;
-                h.component = k.component;
-                h.name = c.name;
-                h.unit = q.entry.location;
-                h.value = q.entry.type_index;
-                h.ids = {q.entry.queue, q.entry.index};
-                act(std::move(h));
+                act(tactical_cancel_action(k.component, c.name, q.entry));
                 buttons_.play_sfx("GUI_Cancel_SFX", k.component);  // CommandBarClass::Cancel_Production (legacy docs/re/UI.md §3.6)
             }
             break;
@@ -528,31 +554,15 @@ void TacticalHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
         for (const BuySlot& b : buy_slots_) {
             if (b.component != k.component) continue;
             handled = true;
-            if (k.button == Button::Left && b.option.block == HudBuildOption::Block::None) {
-                HudAction h;
-                h.kind = HudAction::Kind::TacticalBuy;
-                h.component = k.component;
-                h.name = c.name;
-                h.unit = builder_;
-                h.value = b.option.type_index;
-                h.shift = k.shift;
-                h.ctrl = k.ctrl;
-                act(std::move(h));
-            }
+            if (k.button == Button::Left && b.option.block == HudBuildOption::Block::None)
+                act(tactical_buy_action(k.component, c.name, builder_, b.option, k.shift, k.ctrl));
             break;
         }
         if (handled) continue;
         for (const ReinforceSlot& r : reinforce_slots_) {
             if (r.component != k.component) continue;
             handled = true;
-            if (k.button == Button::Left && r.entry.available) {
-                HudAction h;
-                h.kind = HudAction::Kind::BeginReinforcement;
-                h.component = k.component;
-                h.name = c.name;
-                h.unit = r.entry.unit;
-                act(std::move(h));
-            }
+            if (k.button == Button::Left && r.entry.available) act(begin_reinforcement_action(k.component, c.name, r.entry));
             break;
         }
         if (handled) continue;
@@ -1217,8 +1227,8 @@ void TacticalHud::apply_bombing_run_button(const HudBombingRunButton& s) {
     const auto ci = static_cast<uint32_t>(special_weapon_);
     const CommandBarComponent& c = (*table_)[ci];
     ButtonRuntime& r = buttons_.state(ci);
-    r.hidden = r.script_visible >= 0 ? r.script_visible == 0 : s.hidden;
-    r.disabled = r.script_enabled >= 0 ? r.script_enabled == 0 : s.disabled;
+    r.hidden = script_hidden(r.script_visible, s.hidden);
+    r.disabled = script_disabled(r.script_enabled, s.disabled);
     if (s.icon >= 0 && c.icon_alternate_texture.size() > static_cast<size_t>(s.icon))
         r.icon_override = c.icon_alternate_texture[static_cast<size_t>(s.icon)];
     r.tooltip_index = s.tooltip >= 0 && c.tooltip_text.size() > static_cast<size_t>(s.tooltip) ? s.tooltip : -1;
@@ -1298,8 +1308,8 @@ void TacticalHud::apply_command_buttons(const HudCommandButtons& s) {
     auto set = [&](int32_t ci, bool enabled, bool selected) {
         if (ci < 0) return;
         ButtonRuntime& r = buttons_.state(static_cast<uint32_t>(ci));
-        r.hidden = r.script_visible == 0;
-        r.disabled = r.script_enabled >= 0 ? r.script_enabled == 0 : (s.controls_locked || !enabled);
+        r.hidden = script_hidden(r.script_visible, false);
+        r.disabled = script_disabled(r.script_enabled, s.controls_locked || !enabled);
         r.selected = selected;
     };
     set(retreat_, s.retreat_enabled, false);

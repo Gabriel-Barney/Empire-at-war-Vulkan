@@ -126,6 +126,9 @@ public:
     void init(const ComponentTable& table, const TextureAtlas& atlas, FontCache& fonts, const TextDatabase* text = nullptr);
     // The live bindings the key badges show (null: no badges). Must outlive the HUD.
     void set_hotkeys(const HotkeyTable* keys) { keys_ = keys; }
+    // #587 the Classic HUD's button states (TacticalHud::buttons), for the Lua GUI_Component_Visibility / _Enable overrides
+    // on the shared battle buttons (null: none). Must outlive the HUD.
+    void set_script_state(const HudButtons* classic) { script_ = classic; }
     void resize(uint32_t width, uint32_t height);
     // The UI scale (as TacticalHud::set_ui_scale): takes effect on the next resize().
     void set_ui_scale(float s) { canvas_.ui_scale = s > 0.0f ? s : 0.0f; }
@@ -201,7 +204,11 @@ private:
     };
     void tile(const Tile& t);
     float build_actions(const TacticalHudFrame& f, Vec2f top_left, float height, bool draw);  // returns the width
-    float build_shortcuts(const TacticalHudFrame& f, Vec2f top_left, float height, bool draw);
+    float build_shortcuts(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types,
+                          Vec2f top_left, float height, bool draw);
+    float build_queue(const TacticalHudFrame& f, Vec2f top_left, float height, float max_width, bool builder_only, bool draw);
+    Vec2f grid2_cell(size_t i, Vec2f top_left, Vec2f cell, float gap) const;  // two rows, filled by columns
+    const HudButtons* script_ = nullptr;
     float build_production(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types,
                            Vec2f top_left, float height, float max_width);
     float build_reinforcements(const TacticalHudFrame& f, Vec2f top_left, float height, float max_width);

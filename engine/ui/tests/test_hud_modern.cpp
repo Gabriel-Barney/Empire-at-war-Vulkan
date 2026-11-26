@@ -813,6 +813,17 @@ void test_actions() {
         h.modern.update_input(click_on(h.t.find("b_retreat")), false, false, cmds, nullptr);
         CHECK(cmds.size() == 1 && cmds[0] == commands::ev::retreat(true));
     }
+    // A Lua GUI_Component_Visibility / _Enable override on Classic's buttons applies in Modern too: retreat hidden, beacon on.
+    {
+        HudButtons script;
+        script.bind(h.t);
+        script.state(static_cast<uint32_t>(h.t.find("b_retreat"))).script_visible = 0;
+        script.state(static_cast<uint32_t>(h.t.find("b_special_weapon2"))).script_enabled = 1;
+        h.modern.set_script_state(&script);
+        h.build(f, none, s.types);
+        CHECK(st.actions == 3 && st.actions_live == 3);
+        h.modern.set_script_state(nullptr);
+    }
     // The contextual option off: the deck is always full width.
     ModernHudOptions o;
     o.contextual = false;
@@ -880,8 +891,29 @@ void test_actions() {
         CHECK(h.same_click(h.t.find(name), h.t.find(name), shift, false, Button::Left, &emitted));
         CHECK(emitted == n);
     }
+    // The queue: with production, only the selected builder's entries; with nothing selected, the whole queue (Classic
+    // shows it whatever is selected), its cancel Classic's.
+    auto two_builders = [](std::vector<HudQueueEntry>& out) {
+        HudQueueEntry e;
+        e.type_index = 1;
+        e.location = 22;
+        out.push_back(e);
+        e.location = 99;  // another builder's
+        out.push_back(e);
+    };
+    f.providers.build_queue = two_builders;
+    h.build(f, s.units, s.types);
+    CHECK(st.production && st.queue_entries == 1);
     f.builder = commands::kNoObject;
     f.build_options = {};
+    h.build(f, none, s.types);
+    CHECK(!st.production && st.queue_entries == 2);
+    for (const char* name : {"tqueue00", "tqueue01"}) {
+        h.build(f, none, s.types);
+        size_t emitted = 0;
+        CHECK(h.same_click(h.t.find(name), h.t.find(name), false, false, Button::Left, &emitted) && emitted == 1);
+    }
+    f.providers.build_queue = nullptr;
     // The reinforcement list while open: its entries; a call starts the drop point pick, as Classic's.
     f.reinforce_list_open = true;
     h.classic.toggle_reinforce_list(true);

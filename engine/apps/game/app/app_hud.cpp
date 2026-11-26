@@ -1340,8 +1340,10 @@ void App::build_tactical_hud() {
     // #584: in the Modern style the Classic HUD still builds (its world-space layer, selection circles and the state the
     // hotkeys read: ability buttons, order-button liveness), with its world layer split off; the Modern HUD draws over it.
     const bool modern = modern_hud();
-    // #587 the Modern deck's station shortcut (nothing selected): the first own object with production options.
-    if (const sim::TacticalBattle* b = battle(); modern && b && tm && b->production_enabled() && orders_.selection().empty())
+    // #587 the Modern deck's station shortcut (no own unit selected, when the deck shows its shortcuts): the first own object
+    // with production options. Ids above 0x7FFFFFFF are HUD-only stand-ins (not ObjectIds), as in the buy bar above.
+    const bool own_selected = std::any_of(units.begin(), units.end(), [&](const ui::HudUnit& u) { return u.selected && u.owner == local_player(); });
+    if (const sim::TacticalBattle* b = battle(); modern && b && tm && b->production_enabled() && !own_selected)
         for (const ui::HudUnit& u : units)
             if (u.owner == local_player() && u.id <= 0x7FFFFFFFu &&
                 !b->station_build_options(tm->primary(), local_player(), static_cast<objects::ObjectId>(u.id)).empty()) {
