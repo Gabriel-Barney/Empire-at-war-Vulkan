@@ -309,11 +309,7 @@ void WorldHud::build(const WorldHudContext& ctx, std::span<const HudUnit> units,
         const bool stealth_hidden = u.stealthed && hostile(u.owner);
         // [port] world unit icon (HudUnit::unit_icon): frame + Icon_Name + health bar, centred above the bounds.
         if (u.unit_icon && !t.icon_name.empty() && !stealth_hidden) {
-            HudUnit marker = u;
-            if (u.icon_anchored) {
-                marker.position = u.icon_anchor;
-                marker.health = u.icon_health;
-            }
+            const float icon_health = u.icon_anchored ? u.icon_health : u.health;  // a squadron's icon: the squadron's
             Vec2f c;
             if (unit_icon_centre(ctx, cv, u, t, c)) {
                 const float s = ctx.unit_icon_size;
@@ -326,7 +322,7 @@ void WorldHud::build(const WorldHudContext& ctx, std::span<const HudUnit> units,
                 add_atlas_quad(dl, 0, HudList::Alpha, atlas, {}, {c.x - 0.5f * s + 0.5f * e, c.y}, {}, 1.0f, fc, {e, s});
                 add_atlas_quad(dl, 0, HudList::Alpha, atlas, {}, {c.x + 0.5f * s - 0.5f * e, c.y}, {}, 1.0f, fc, {e, s});
                 const Vec2f bar_at{c.x, c.y - 0.5f * s - 3.0f};
-                add_atlas_quad_clipped(dl, 0, HudList::Alpha, atlas, {}, bar_at, {}, 1.0f, std::clamp(marker.health, 0.0f, 1.0f),
+                add_atlas_quad_clipped(dl, 0, HudList::Alpha, atlas, {}, bar_at, {}, 1.0f, std::clamp(icon_health, 0.0f, 1.0f),
                                        kFallbackHealth, {s, 2.0f});
                 ++stats_.unit_icons;
             }

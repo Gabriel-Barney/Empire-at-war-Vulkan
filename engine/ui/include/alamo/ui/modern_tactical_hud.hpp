@@ -249,7 +249,7 @@ private:
     };
     // #600 / #601 a state chip's icon (a closed padlock, an open one, a wing) round `c`, `u` canvas units the unit size.
     enum class Chip { Locked, Free, Wing };
-    void chip_icon(Chip chip, Vec2f c, float u, Rgba8 edge);
+    void chip_icon(Chip chip, Vec2f c, float u, Rgba8 edge, uint32_t layer);
     void build_run_tabs(const TacticalHudFrame& f, std::span<const HudUnit> units, const CardRow& row, float tab_h);
     uint32_t builder_ = commands::kNoObject, station_ = commands::kNoObject;
     std::vector<SelectedGroup> groups_;

@@ -702,14 +702,14 @@ void ModernTacticalHud::build_selection(const TacticalHudFrame& f, std::span<con
     }
 }
 
-void ModernTacticalHud::chip_icon(Chip chip, Vec2f c, float u, Rgba8 edge) {
+void ModernTacticalHud::chip_icon(Chip chip, Vec2f c, float u, Rgba8 edge, uint32_t layer) {
     const float ix = c.x, iy = c.y;
     switch (chip) {
         case Chip::Locked:  // a closed padlock: the shackle down on the body
         case Chip::Free: {  // an open padlock: the shackle raised and off to one side
             const float lift = chip == Chip::Free ? 0.5f * u : 0.0f, shift = chip == Chip::Free ? 0.35f * u : 0.0f;
-            frame_rect(dl_, kControlLayer, {ix + shift, iy + 0.45f * u + lift}, {u, u}, Rgba8{0, 0, 0, 0}, edge);
-            add_rect(dl_, kControlLayer, ix - 0.6f * u, iy - 0.9f * u, ix + 0.6f * u, iy + 0.05f * u, edge);
+            frame_rect(dl_, layer, {ix + shift, iy + 0.45f * u + lift}, {u, u}, Rgba8{0, 0, 0, 0}, edge);
+            add_rect(dl_, layer, ix - 0.6f * u, iy - 0.9f * u, ix + 0.6f * u, iy + 0.05f * u, edge);
             break;
         }
         case Chip::Wing: {  // a wing: a swept triangle
@@ -718,7 +718,7 @@ void ModernTacticalHud::chip_icon(Chip chip, Vec2f c, float u, Rgba8 edge) {
             q.corners = {Vec2f{ix - 0.7f * u, iy - 0.6f * u}, Vec2f{ix + 0.8f * u, iy + 0.7f * u}, Vec2f{ix + 0.8f * u, iy + 0.7f * u},
                          Vec2f{ix + 0.2f * u, iy - 0.6f * u}};
             q.color = edge;
-            dl_.add(kControlLayer, HudList::Alpha, q);
+            dl_.add(layer, HudList::Alpha, q);
             break;
         }
     }
@@ -810,7 +810,7 @@ void ModernTacticalHud::build_run_tabs(const TacticalHudFrame& f, std::span<cons
         const Vec2f cc{tx + 0.5f * chip_w, tab.y + 1.0f};
         frame_rect(dl_, kControlLayer, cc, {chip_w, tab_h - 8.0f}, Rgba8{0, 0, 0, 200}, edge);
         const float u = 0.22f * tab_h, ix = cc.x - 0.5f * chip_w + 0.5f * kPad + 0.5f * u, iy = cc.y;
-        chip_icon(chip, {ix, iy}, u, edge);
+        chip_icon(chip, {ix, iy}, u, edge, kControlLayer);
         if (chip == Chip::Locked) ++stats_.chips_locked;
         else if (chip == Chip::Free) ++stats_.chips_free;
         else ++stats_.chips_wing;
@@ -1013,8 +1013,7 @@ void ModernTacticalHud::build_map(const TacticalHudFrame& f, std::span<const Hud
     }
 }
 
-// #591 the hover target card: the hovered hostile unit (HudUnit::hovered) - its name, hull and shield bars with their
-// percentages, and its hard points (the frame's, parent = the unit) as a bar each - beside it on screen. No hit box.
+// #602 a badge: the text on a dark backplate (1.1 x the text height), its left edge's middle at left_mid.
 void ModernTacticalHud::badge(std::u32string_view text, Vec2f left_mid, uint32_t layer) {
     HudTextStyle st;
     st.font = font();
@@ -1031,6 +1030,11 @@ void ModernTacticalHud::badge(std::u32string_view text, Vec2f left_mid, uint32_t
 // backplate beside each selected own unit's world icon (unit_icon_centre: a squadron's one icon stands for its craft), the
 // same badges on the map at each group's and wing's member centre, and for each selected locked group (the Classic
 // outline's rule, #178) a dark edge round the outline and a tag over it: a padlock, the number and name, LOCKED.
+namespace {
+// A wing's badge: its key (F2 / F3), else its label's first letter.
+std::u32string wing_badge(const HudWing& w) { return w.hotkey.empty() ? w.label.substr(0, 1) : w.hotkey; }
+}  // namespace
+
 void ModernTacticalHud::build_badges(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types) {
     if (f.world.interface_hidden || f.world.cinematic) return;
     constexpr uint32_t kWorldLayer = 2;  // under the panels
@@ -1039,7 +1043,7 @@ void ModernTacticalHud::build_badges(const TacticalHudFrame& f, std::span<const 
             for (const HudFleetGroup& g : f.fleet_groups)
                 if (std::binary_search(g.members.begin(), g.members.end(), id)) return count_text(g.id);
         for (const HudWing& w : f.wings)
-            if (std::binary_search(w.ids.begin(), w.ids.end(), id)) return w.hotkey.empty() ? w.label.substr(0, 1) : w.hotkey;
+            if (std::binary_search(w.ids.begin(), w.ids.end(), id)) return wing_badge(w);
         return {};
     };
     // Beside the world icons.
@@ -1076,7 +1080,7 @@ void ModernTacticalHud::build_badges(const TacticalHudFrame& f, std::span<const 
         if (f.fleet_groups_on)
             for (const HudFleetGroup& g : f.fleet_groups) map_badge(g.members, count_text(g.id));
         for (const HudWing& w : f.wings)
-            if (w.squadrons > 0) map_badge(w.ids, w.hotkey.empty() ? w.label.substr(0, 1) : w.hotkey);
+            if (w.squadrons > 0) map_badge(w.ids, wing_badge(w));
     }
     // The selected locked groups' outlines.
     if (!f.fleet_groups_on || f.world.targeting_active) return;
@@ -1088,27 +1092,32 @@ void ModernTacticalHud::build_badges(const TacticalHudFrame& f, std::span<const 
         const std::optional<FleetOutline> o = fleet_outline(g, units, types);
         if (!o) continue;
         constexpr int kSegments = 32;
-        std::vector<Vec2f> ring;
         float sx = 0.0f, sy = 0.0f;
-        const bool centre_on = project(f.world.view, o->centre, sx, sy);
+        if (!project(f.world.view, o->centre, sx, sy)) continue;
         const Vec2f sc = canvas_.pixel_to_canvas(sx, sy);
+        // The ring's points, k = 0..kSegments (the last is the first again, closing it). A point behind the camera is
+        // empty, and the edge breaks there rather than jumping across.
+        std::vector<std::optional<Vec2f>> ring;
         for (int k = 0; k <= kSegments; ++k) {
-            const float a = 6.2831853f * static_cast<float>(k) / kSegments;
+            const float a = 6.2831853f * static_cast<float>(k % kSegments) / kSegments;
             const Vec3 p{o->centre.x + o->radius * std::cos(a), o->centre.y + o->radius * std::sin(a), o->centre.z};
             float px = 0.0f, py = 0.0f;
-            if (project(f.world.view, p, px, py)) ring.push_back(canvas_.pixel_to_canvas(px, py));
+            if (project(f.world.view, p, px, py)) ring.emplace_back(canvas_.pixel_to_canvas(px, py));
+            else ring.emplace_back(std::nullopt);
         }
-        if (!centre_on || ring.size() < 2) continue;
+        const Vec2f* top_point = nullptr;
+        for (const std::optional<Vec2f>& q : ring)
+            if (q && (!top_point || q->y > top_point->y)) top_point = &*q;
+        if (!top_point) continue;
         // The dark edge just outside the outline (readable on nebulae and on black space alike).
         auto out = [&](Vec2f q) {
             const float dx = q.x - sc.x, dy = q.y - sc.y, l = std::max(1e-3f, std::sqrt(dx * dx + dy * dy));
             return Vec2f{q.x + 2.5f * dx / l, q.y + 2.5f * dy / l};
         };
-        for (size_t k = 1; k < ring.size(); ++k) line_quad(dl_, kWorldLayer, out(ring[k - 1]), out(ring[k]), 3.0f, Rgba8{0, 0, 0, 190});
+        for (size_t k = 1; k < ring.size(); ++k)
+            if (ring[k - 1] && ring[k]) line_quad(dl_, kWorldLayer, out(*ring[k - 1]), out(*ring[k]), 3.0f, Rgba8{0, 0, 0, 190});
         // The tag over the outline's top.
-        Vec2f top = ring.front();
-        for (const Vec2f& q : ring)
-            if (q.y > top.y) top = q;
+        const Vec2f top = *top_point;
         std::u32string text = count_text(g.id);
         if (!g.name.empty()) text += U" " + g.name;
         text += U"  " + text_or_port(text_, nullptr, U"LOCKED");
@@ -1117,17 +1126,19 @@ void ModernTacticalHud::build_badges(const TacticalHudFrame& f, std::span<const 
         st.color = colours_.text;
         const float th = text_height_units(), h = 1.3f * th, icon = 0.5f * h;
         const float w = measure_text_block(*fonts_, canvas_, text, 0.0f, st).width + 2.0f * kPad + icon;
-        const Vec2f tc{std::clamp(top.x, -0.5f * canvas_.width + 0.5f * w, 0.5f * canvas_.width - 0.5f * w), top.y + 4.0f + 0.5f * h};
+        // over the top, kept on screen (a group at the top edge has its tag just inside it)
+        const Vec2f tc{std::clamp(top.x, -0.5f * canvas_.width + kMargin + 0.5f * w, 0.5f * canvas_.width - kMargin - 0.5f * w),
+                       std::clamp(top.y + 4.0f + 0.5f * h, -0.5f * canvas_.height + kMargin + 0.5f * h, 0.5f * canvas_.height - kMargin - 0.5f * h)};
         frame_rect(dl_, kWorldLayer, tc, {w, h}, Rgba8{0, 0, 0, 210}, colours_.hull_warn);
-        // a padlock: a shackle over a body
         const float lx = tc.x - 0.5f * w + kPad + 0.5f * icon;
-        frame_rect(dl_, kWorldLayer, {lx, tc.y + 0.3f * icon}, {0.6f * icon, 0.6f * icon}, Rgba8{0, 0, 0, 0}, colours_.hull_warn);
-        add_rect(dl_, kWorldLayer, lx - 0.5f * icon, tc.y - 0.5f * icon, lx + 0.5f * icon, tc.y + 0.1f * icon, colours_.hull_warn);
+        chip_icon(Chip::Locked, {lx, tc.y}, 0.55f * icon, colours_.hull_warn, kWorldLayer);  // the tabs' padlock
         add_text(dl_, kWorldLayer, HudList::Text, *fonts_, canvas_, text, {lx + 0.5f * icon + 0.5f * kPad, tc.y}, st);
         ++stats_.outline_tags;
     }
 }
 
+// #591 the hover target card: the hovered hostile unit (HudUnit::hovered) - its name, hull and shield bars with their
+// percentages, and its hard points (the frame's, parent = the unit) as a bar each - beside it on screen. No hit box.
 void ModernTacticalHud::build_target_card(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types) {
     const HudUnit* u = nullptr;
     for (const HudUnit& x : units)
@@ -1431,7 +1442,7 @@ void ModernTacticalHud::build_roster(const TacticalHudFrame& f, std::span<const 
         const float line_y = detail ? cc.y + 0.5f * card_h - gap - 0.5f * th : cc.y;
         const Vec2f chip_c{right - 0.5f * chip_w, line_y};
         frame_rect(dl_, kControlLayer, chip_c, {chip_w, 1.1f * th}, Rgba8{0, 0, 0, 200}, chip_edge);
-        chip_icon(c.state, {chip_c.x - 0.5f * chip_w + 0.5f * kPad + 0.6f * icon_u, chip_c.y}, icon_u, chip_edge);
+        chip_icon(c.state, {chip_c.x - 0.5f * chip_w + 0.5f * kPad + 0.6f * icon_u, chip_c.y}, icon_u, chip_edge, kControlLayer);
         add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, c.chip, {chip_c.x + icon_u, chip_c.y}, cs);
         HudTextStyle ns = st;
         ns.width_scale = fit_width_scale(measure_text_block(*fonts_, canvas_, c.name, 0.0f, ns).width, std::max(1.0f, right - chip_w - kPad - x));

@@ -1590,10 +1590,8 @@ void TacticalHud::build_objectives(const TacticalHudFrame& f) {
 // [port: Gabriel, 2026-11-13] Squadron wing buttons (HudWing): a column at the left edge of the canvas, 40 units below
 // its middle, one 172 x 24 button per wing that has a squadron: "LABEL  n" (n = squadrons) and the key hint at the right.
 // Selected look while the whole wing is selected, brighter while hovered. Hit ids kWingHitBase + wing index.
-// [port: Gabriel, 2026-11-22, #178] A selected locked fleet group (any member selected) gets one ground outline: a
-// selection circle in the local player's selection material (the unit circles' drawing), centred on the members'
-// centroid and enclosing every member and its own circle, plus a small margin. Not while targeting or in a cinematic,
-// as the unit circles.
+// #602 (from build_fleet_outlines) a fleet group's ground outline: centred on its live members' centroid and enclosing
+// every member and its own selection circle, plus a small margin. Empty with no live member.
 std::optional<FleetOutline> fleet_outline(const HudFleetGroup& g, std::span<const HudUnit> units, std::span<const HudTypeInfo> types) {
     constexpr float kMargin = 12.0f;
     std::vector<const HudUnit*> live;
@@ -1620,6 +1618,9 @@ std::optional<FleetOutline> fleet_outline(const HudFleetGroup& g, std::span<cons
     return FleetOutline{c, r + kMargin};
 }
 
+// [port: Gabriel, 2026-11-22, #178] A selected locked fleet group (any member selected) gets one ground outline
+// (fleet_outline): a selection circle in the local player's selection material (the unit circles' drawing). Not while
+// targeting or in a cinematic, as the unit circles.
 void TacticalHud::build_fleet_outlines(const TacticalHudFrame& f, std::span<const HudUnit> units,
                                        std::span<const HudTypeInfo> types) {
     if (!f.fleet_groups_on || f.world.targeting_active || f.world.cinematic) return;
