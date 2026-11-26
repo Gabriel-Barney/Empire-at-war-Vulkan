@@ -1,5 +1,9 @@
 #include "alamo/ai/tactical/perception_cache.hpp"
 
+#include <bit>
+#include <cstring>
+#include <vector>
+
 #include "alamo/ai/tactical/constants.hpp"
 #include "alamo/core/sim_crc.hpp"
 
@@ -61,20 +65,43 @@ uint64_t LeafCache::hits() const {
 void LeafCache::hash(StateHasher& h) const {
     std::lock_guard<std::mutex> lock(mu_);
     h.u64(static_cast<uint64_t>(map_.size()));
-    for (const auto& [k, e] : map_) {
-        h.u8(k.eval_kind);
-        h.i32(k.eval_a);
-        h.i32(k.eval_b);
-        h.u16(k.leaf);
-        h.i32(k.self);
-        h.i32(k.target);
-        h.i32(k.enemy);
-        h.i32(k.human);
-        h.i32(k.location);
-        h.str(k.params);
-        h.u32(e.stamp);
-        h.f64(e.value);
-    }
+    // #631: the entries (key order) as a tree hash, so the capture spreads them over its workers (same digest for every
+    // worker count; the lock is held by this thread while the blocks only read).
+    std::vector<const std::pair<const LeafCacheKey, Entry>*> entries;
+    entries.reserve(map_.size());
+    for (const auto& kv : map_) entries.push_back(&kv);
+    // Each block gathers the fields' little-endian bytes (the typed feeds' byte stream) and hashes them with one bytes().
+    static_assert(std::endian::native == std::endian::little);
+    hash_blocks(h, static_cast<uint32_t>(entries.size()), [&](StateHasher& bh, uint32_t b, uint32_t e) {
+        thread_local std::vector<unsigned char> buf;
+        buf.clear();
+        for (uint32_t i = b; i < e; ++i) {
+            const auto& [k, en] = *entries[i];
+            const auto len = static_cast<uint32_t>(k.params.size());
+            const size_t at = buf.size();
+            buf.resize(at + 1 + 4 * 2 + 2 + 4 * 5 + 4 + len + 4 + 8);
+            unsigned char* o = buf.data() + at;
+            const auto put = [&o](const auto& v) {
+                std::memcpy(o, &v, sizeof v);
+                o += sizeof v;
+            };
+            put(k.eval_kind);
+            put(k.eval_a);
+            put(k.eval_b);
+            put(k.leaf);
+            put(k.self);
+            put(k.target);
+            put(k.enemy);
+            put(k.human);
+            put(k.location);
+            put(len);
+            if (len != 0) std::memcpy(o, k.params.data(), len);
+            o += len;
+            put(en.stamp);
+            put(std::bit_cast<uint64_t>(en.value));
+        }
+        bh.bytes(buf.data(), buf.size());
+    });
 }
 
 }  // namespace alamo::ai::tactical

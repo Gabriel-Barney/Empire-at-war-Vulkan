@@ -313,6 +313,12 @@ each hashed by its own `StateHasher`, in parallel through the capture's `Paralle
 fixed forever. `CrcBlockCache` reuses the digest of a block nobody marked dirty; a missed mark can only hide a divergence,
 never change the sim.
 
+`hash_parts(h, fn...)` hashes independent parts of one system side by side: each part feeds its own `StateHasher` (with
+the capture's `ParallelFor`, so it may use `hash_blocks` inside), then the system's hasher receives `u32(parts)` and every
+part's digest in order. Users: the object store, `battle.movement` and `battle.combat` (`hash_blocks`), and the tactical
+AI's perception in `battle.ai` (#631: the threat grid's per-cell lists, each player's per-cell layers and its objects, the
+targets and the leaf cache, the three as `hash_parts`). No production code passes a `CrcBlockCache`.
+
 ### CRC log formats
 
 Text, LF line ends, written byte-identically by every build (`CrcLog` in `sim_crc.hpp`; the Python twin is
