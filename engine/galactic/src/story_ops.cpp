@@ -63,14 +63,19 @@ std::vector<ObjectHandle> GalacticSim::contents_of(ObjectHandle object) const {
     return out;
 }
 
-// Change_Owner. Planets: GE 4.2 "Forced transfers" (0x3f7280) in its documented order: the conflict is
-// cleared, the starbase is cleared (0x4bda40: destroyed here [M]), the space queue is re-evaluated at
-// level 0, the starbase owner reset, the planet's surface forces handled (0x4b7670 / 0x4b7860 not traced:
-// [L] every structure and surface unit not owned by the new owner is converted to it, so the derived owner
-// (GE 4.1: structures, then surface units) keeps the new owner), then the transfer is applied with
-// control 1.0 through the common owner-change steps (on_owner_change: story/store event, credit caps,
-// capture bonus, corruption, siphon, queues). The political-control breakdown is recomputed every frame
-// here, so "clears the political breakdown" has nothing to clear.
+// Change_Owner. Planets: 0x3f7280 (#189, docs/re/CHANGE_OWNER_EVACUATION.md [H]), in its order:
+//   1. the new owner already owns the planet: nothing, false;
+//   2. every ground structure is removed (0x4b7350 over the ground-structure list), whatever its owner;
+//   3. the conflict is cleared, the starbase cleared (0x4bda40: destroyed here [M]), the space queue re-evaluated at
+//      level 0, the starbase owner reset;
+//   4. old owner = the local player: its orbit objects get the battle retreat's move and its surface units retreat into
+//      a fleet (ConflictHooks::evacuate_owner_change: 0x2ba6c0, then 0x2ba850 with the flag clear); nothing else on the
+//      planet changes. Any other old owner: every surface unit (0x4b7670) and every orbit object (0x4b7860) not owned by
+//      the new owner is removed, last first; a hero inside leaves first (respawn at Default_Hero_Respawn_Time, then
+//      despawned without a death event: 0x48eb10 / 0x48cf20);
+//   5. the transfer with control 1.0 through the common owner-change steps (on_owner_change).
+// [port] a structure outside the ground family (retail keeps orbital structures in another list, which 0x3f7280 never
+// reads) is converted to the new owner, as before, so the derived owner (GE 4.1) keeps the new owner.
 // Other objects [port]: the store owner changes (ObjectStore::set_owner); a fleet's members follow their
 // fleet and a stationary fleet then merges into the new owner's stationary fleet in orbit (as on
 // arrival); a member of a stationary fleet leaves it (an emptied fleet dies) and joins the new owner's
@@ -80,19 +85,46 @@ bool GalacticSim::change_owner(ObjectHandle object, int32_t player) {
     if (!store_->alive(object) || !valid_player(player)) return false;
     const PlanetIndex pi = planet_of(object);
     if (pi != kInvalidPlanet && valid_planet(pi)) {
+        if (planets_[pi].owner == player) return false;
+        const int32_t old = planets_[pi].owner;
+        std::vector<ObjectHandle> ground;  // 0x4b7350
+        for (ObjectHandle s : planets_[pi].structures)
+            if (store_->alive(s) && is_ground_structure_type(rules_->types[static_cast<size_t>(store_->type(s))])) ground.push_back(s);
+        for (ObjectHandle s : ground) destroy_object(s);
         PlanetState& p = planets_[pi];
-        if (p.owner == player) return false;
         p.in_battle = false;
         if (store_->alive(p.starbase)) destroy_object(p.starbase);
         reevaluate_queue(pi, kSpaceQueue, 0);
         p.starbase_owner = kNoPlayer;
-        for (ObjectHandle s : p.structures)
+        if (old != kNoPlayer && old == local_player_) {
+            if (conflicts_) conflicts_->evacuate_owner_change(pi, old);
+        } else {
+            const auto remove = [this](ObjectHandle h) {  // 0x4b7670 / 0x4b7860 body: heroes leave, then the object goes
+                std::vector<ObjectHandle> heroes;
+                const uint32_t fl = fleet_of(h);
+                if (fl != kNoFleet) {
+                    for (ObjectHandle m : fleets_[fl].contents)
+                        if (store_->alive(m) && is_hero_type(static_cast<uint32_t>(store_->type(m)))) heroes.push_back(m);
+                } else if (is_hero_type(static_cast<uint32_t>(store_->type(h)))) {
+                    heroes.push_back(h);
+                }
+                for (ObjectHandle m : heroes) hero_depart(m, kInvalidPlanet, 0.0f);
+                if (store_->alive(h)) destroy_object(h);
+            };
+            const std::vector<ObjectHandle> surface = planets_[pi].surface;
+            for (size_t k = surface.size(); k-- > 0;)
+                if (store_->alive(surface[k]) && store_->owner(surface[k]) != player) remove(surface[k]);
+            const std::vector<uint32_t> orbit = planets_[pi].orbit;
+            for (size_t k = orbit.size(); k-- > 0;) {
+                const uint32_t f = orbit[k];
+                if (fleets_[f].alive && fleets_[f].owner != player && store_->alive(fleets_[f].object)) remove(fleets_[f].object);
+            }
+        }
+        PlanetState& q = planets_[pi];  // the steps above may grow planets_' members, never planets_ itself
+        for (ObjectHandle s : q.structures)
             if (store_->alive(s)) store_->set_owner(s, player);
-        for (ObjectHandle u : p.surface)
-            if (store_->alive(u)) store_->set_owner(u, player);
-        const int32_t old = p.owner;
-        p.owner = player;
-        p.control = 1.0f;
+        q.owner = player;
+        q.control = 1.0f;
         on_owner_change(pi, old);
         return true;
     }

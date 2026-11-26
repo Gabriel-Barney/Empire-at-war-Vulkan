@@ -1168,6 +1168,52 @@ void test_change_owner_drops_queued() {
     CHECK(!w.sim.planets()[rA].in_battle && w.sim.planets()[rB].in_battle);
 }
 
+// #189 (docs/re/CHANGE_OWNER_EVACUATION.md): Change_Owner 0x3f7280. Old owner = the local player (the human Empire): every
+// ground structure is removed, its orbit fleet gets the battle retreat's direct hop (0x2ba6c0: finder 0x2aa400 picks C, the
+// planet with the Empire's barracks, over the nearer Underworld B) and its surface units retreat into a fleet (0x2ba850),
+// which stays above A because that fleet makes the Empire A's orbit controller (finder 0x2a9dd0, no exclusion). Old owner
+// = an AI (the Underworld at B): every object not the new owner's leaves, the hero by a respawn, the rest destroyed.
+void test_change_owner_evacuates_local_player() {
+    std::printf("  #189: Change_Owner evacuates the local player's planet; other owners lose their forces\n");
+    World w({{pEmpire, rA, tBarracks}, {pEmpire, rA, tFrigate}, {pEmpire, rA, tInfantry}, {pEmpire, rC, tBarracks},
+             {pUnder, rB, tBarracks}, {pUnder, rB, tFrigate}, {pUnder, rB, tCorvette}, {pUnder, rB, tInfantry}},
+            true);
+    w.rules.special.types.resize(tTypeCount);
+    w.rules.special.types[tCorvette].named_hero = true;
+    w.rules.special.default_hero_respawn_time = 40.0f;
+    CHECK(w.sim.local_player() == pEmpire && w.sim.planets()[rA].owner == pEmpire && w.sim.planets()[rB].owner == pUnder);
+    const uint32_t ef = w.fleet(rA, pEmpire);
+    const std::vector<ObjectHandle> a_surface = w.sim.planets()[rA].surface;
+    const std::vector<ObjectHandle> a_structures = w.sim.planets()[rA].structures;
+    CHECK(ef != kNoFleet && a_surface.size() == 1 && a_structures.size() == 1);
+    if (ef == kNoFleet || a_surface.size() != 1 || a_structures.size() != 1) return;
+    const ObjectHandle infantry = a_surface[0];
+
+    CHECK(w.sim.change_owner(w.sim.planets()[rA].object, pUnder));
+    const PlanetState& a = w.sim.planets()[rA];
+    CHECK(a.owner == pUnder && !w.store.alive(a_structures[0]) && a.structures.empty());
+    const FleetState& fleet = w.sim.fleets()[ef];
+    CHECK(fleet.alive && fleet.owner == pEmpire && fleet.moving && fleet.from == rA && fleet.to == rC);
+    CHECK(a.surface.empty() && w.store.alive(infantry) && w.store.owner(infantry) == pEmpire);
+    const uint32_t up = w.sim.fleet_containing(infantry);
+    CHECK(up != kNoFleet && up != ef && w.sim.fleets()[up].planet == rA && !w.sim.fleets()[up].moving);
+
+    std::vector<ObjectHandle> b_orbit, b_surface = w.sim.planets()[rB].surface, b_structures = w.sim.planets()[rB].structures;
+    ObjectHandle hero{};
+    for (uint32_t f : w.sim.fleets_at(rB, pUnder))
+        for (ObjectHandle m : w.sim.fleets()[f].contents) {
+            b_orbit.push_back(m);
+            if (static_cast<uint32_t>(w.store.type(m)) == tCorvette) hero = m;
+        }
+    CHECK(b_orbit.size() == 2 && b_surface.size() == 1 && b_structures.size() == 1 && w.store.alive(hero));
+    CHECK(w.sim.change_owner(w.sim.planets()[rB].object, pEmpire));
+    const PlanetState& b = w.sim.planets()[rB];
+    CHECK(b.owner == pEmpire && b.structures.empty() && b.surface.empty() && w.sim.fleets_at(rB, pUnder).empty());
+    for (ObjectHandle h : b_orbit) CHECK(!w.store.alive(h));
+    CHECK(!w.store.alive(b_surface.empty() ? ObjectHandle{} : b_surface[0]));
+    CHECK(w.sim.respawns_pending(rB).size() == 1);  // the hero corvette: Default_Hero_Respawn_Time
+}
+
 // P4 sim: Set_Retreating (BT §4.6) during the pending choice and during a running auto-resolve.
 void test_p4_set_retreating() {
     {
@@ -1893,6 +1939,7 @@ int main() {
     test_pending_choice();
     test_always_auto_resolve();
     test_change_owner_drops_queued();
+    test_change_owner_evacuates_local_player();  // #189
     std::printf("land invasion\n");
     test_land_invasion();
     test_land_planet_combatant();  // #558

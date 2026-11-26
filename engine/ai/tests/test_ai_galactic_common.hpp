@@ -674,8 +674,9 @@ function MainForce_Thread()
 end
 )";
 // #122: the task force holds the hero and the starting frigate and builds a second frigate; the test then destroys the
-// hero and takes the build planet, so the sim step fails the build (planet lost) and the handler's Get_Force_Count
-// finds the hero gone (queued for Unit_Destroyed at the next drain).
+// hero and takes the build planet, which also removes the AI's frigate in its orbit (#189, Change_Owner 0x3f7280: the old
+// owner is not the local player). The sim step fails the build (planet lost) and the handler's Get_Force_Count finds both
+// members gone (queued for Unit_Destroyed at the next drain).
 inline const char* kPlanLossSave = R"(
 require("SynAICommands")
 function Definitions()

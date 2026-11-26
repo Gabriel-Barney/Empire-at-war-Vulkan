@@ -2828,11 +2828,11 @@ void test_galactic_task_force_creation() {
 }
 
 // #122: a production failure raised in the sim step (the build planet is lost) whose handler reads its task force
-// queues the member it finds gone; Unit_Destroyed fires at the next update_player's drain. A save taken between the
+// queues the members it finds gone; Unit_Destroyed fires at the next update_player's drain. A save taken between the
 // two keeps the queue, so a world loaded from it raises the event exactly as the uninterrupted world does.
 namespace {
 struct LossSaveResult {
-    bool reached = false;   // the handler ran and the hero's loss was queued before the save point
+    bool reached = false;   // the handler ran and both losses were queued before the save point
     double destroyed = -1;  // Unit_Destroyed count after the next update_player
 };
 
@@ -2871,7 +2871,7 @@ LossSaveResult run_loss_save(bool save_and_load) {
     pw.sim->destroy_object(hero);
     pw.sim->change_owner(pw.sim->planets()[static_cast<size_t>(at)].object, 1);
     for (int32_t i = 0; i < 30 * 5 && num("ls_failed") < 0.0; ++i) pw.sim->update();  // the sim step alone: no drain yet
-    res.reached = num("ls_failed") == 1.0 && num("ls_count") == 1.0 && num("ls_destroyed") < 0.0;
+    res.reached = num("ls_failed") == 1.0 && num("ls_count") == 0.0 && num("ls_destroyed") < 0.0;
     if (save_and_load) {
         ByteWriter w;
         pw.world->write(w);
@@ -2893,6 +2893,6 @@ void test_lost_members_survive_save() {
     std::printf("lost members across a save: reached %s / %s, Unit_Destroyed %.0f uninterrupted, %.0f after save and load\n",
                 plain.reached ? "yes" : "no", saved.reached ? "yes" : "no", plain.destroyed, saved.destroyed);
     CHECK(plain.reached && saved.reached);
-    CHECK(plain.destroyed == 1.0);
+    CHECK(plain.destroyed == 2.0);  // the hero and the frigate
     CHECK(saved.destroyed == plain.destroyed);
 }

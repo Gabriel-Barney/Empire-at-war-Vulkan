@@ -540,6 +540,14 @@ bool ConflictManager::in_queued_conflict(int32_t player) const {
     return false;
 }
 
+void ConflictManager::evacuate_owner_change(PlanetIndex planet, int32_t player) {
+    // #189 (docs/re/CHANGE_OWNER_EVACUATION.md) [H]: 0x3f7280 calls 0x2ba6c0(planet, old owner), then 0x2ba850(planet, old
+    // owner, 0): the battle retreat's two steps, in that order.
+    if (player == kNoPlayer || planet >= sim_->planets().size()) return;
+    retreat_fleets(player, planet);
+    retreat_ground(player, planet);
+}
+
 void ConflictManager::refresh_in_battle(PlanetIndex planet) {
     bool on = false;
     for (const ConflictInfo& c : space_q_) on = on || c.planet == planet;
