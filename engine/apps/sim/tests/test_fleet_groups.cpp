@@ -3,7 +3,9 @@
 //   * FleetGroups on a fake world: create / lock / slots, the locked-move plan, the slowest-member cap and the straggler
 //     wait, the lagging query (#603), interrupt, prune (deaths, owner change), remove / dissolve / rename rules, the group
 //     cap, save round trip;
-//   * a space battle (the S10 fixture): with the switch off every fleet command is refused and moves pass through
+//   * #173 join_spawned: spawned units join their galactic fleet's group (or a new one), slots from the current centre;
+//   * a space battle (the S10 fixture): with the switch on the human's opening fleet starts as one group of its
+//     galactic fleet; with the switch off every fleet command is refused and moves pass through
 //     unchanged; with it on, the human's ships made into a locked group move as a block at the slowest ship's speed and
 //     end on their slots. The per-tick battle digests are the worker-count check (--fleet mode, one ctest entry per count).
 #include "battle_test_fixture.hpp"
@@ -282,6 +284,68 @@ void test_logic() {
           cap.groups()[0].members.size() == FleetGroups::kMaxMembers);
 }
 
+// #173: units spawned from a galactic fleet join that fleet's group of their player, or make one.
+void test_join_spawned() {
+    World w;
+    w.add(10, 0.0f, 0.0f, 3.0f);
+    w.add(11, 100.0f, 0.0f, 3.0f);
+    w.add(12, 50.0f, 40.0f, 3.0f);
+    w.add(13, 500.0f, 0.0f, 3.0f);
+    w.add(20, 0.0f, 0.0f, 3.0f, 1);  // player 1's
+    const FleetGroups::InfoFn info = w.fn();
+    FleetGroups fg;
+    const objects::ObjectId opening[] = {11, 10, 20};
+    fg.join_spawned(0, FleetGroup::kNoFleet, opening, info);  // no galactic fleet: nothing
+    CHECK(fg.groups().empty() && !fg.used());
+    fg.join_spawned(0, 7, opening, info);
+    CHECK(fg.used() && fg.groups().size() == 1);
+    const FleetGroup& g = fg.groups()[0];
+    CHECK(g.fleet == 7 && g.owner == 0 && !g.locked && g.members.size() == 2);  // player 1's unit left out
+    CHECK(g.members[0].id == 10 && g.members[1].id == 11);
+    // the first member defines the centre (slot 0); the second is 100 along the first's facing (yaw 0 = +X)
+    CHECK(near(g.members[0].slot.x, 0.0f) && near(g.members[1].slot.x, 100.0f) && near(g.members[1].slot.y, 0.0f));
+    // a reinforcement of the same fleet joins on arrival: its offset from the centre (50, 0) plus the mean slot (50, 0),
+    // so the slots keep the positions' shape (10 at 0, 11 at 100, 12 at (50, 40))
+    const uint64_t before = digest_of(fg);
+    const objects::ObjectId reinf[] = {12};
+    fg.join_spawned(0, 7, reinf, info);
+    CHECK(fg.groups().size() == 1 && fg.groups()[0].members.size() == 3 && digest_of(fg) != before);
+    CHECK(fg.groups()[0].members[2].id == 12 && near(fg.groups()[0].members[2].slot.x, 50.0f) &&
+          near(fg.groups()[0].members[2].slot.y, 40.0f));
+    CHECK(near(fg.groups()[0].members[1].slot.x, 100.0f));  // the others' slots are untouched
+    // an already grouped unit stays where it is; another fleet gets its own group
+    const objects::ObjectId again[] = {12, 13};
+    fg.join_spawned(0, 8, again, info);
+    CHECK(fg.groups().size() == 2 && fg.groups()[1].fleet == 8 && fg.groups()[1].members.size() == 1 &&
+          fg.groups()[1].members[0].id == 13 && fg.group_of(12) == &fg.groups()[0]);
+    // a full group: the next unit of that fleet starts a second group of the same fleet
+    World big;
+    std::vector<objects::ObjectId> many;
+    for (objects::ObjectId id = 100; id < 100 + static_cast<objects::ObjectId>(FleetGroups::kMaxMembers) + 3; ++id) {
+        big.add(id, static_cast<float>(id), 0.0f, 3.0f);
+        many.push_back(id);
+    }
+    FleetGroups full;
+    full.join_spawned(0, 3, many, big.fn());
+    CHECK(full.groups().size() == 2 && full.groups()[0].members.size() == FleetGroups::kMaxMembers &&
+          full.groups()[1].members.size() == 3 && full.groups()[1].fleet == 3);
+    // the fleet key survives a save round trip
+    ByteWriter bw;
+    fg.write(bw);
+    FleetGroups back;
+    ByteReader br(bw.bytes());
+    CHECK(back.read(br) && digest_of(back) == digest_of(fg) && back.groups()[1].fleet == 8);
+    // a version-1 chunk (no fleet key) still loads; its groups belong to no galactic fleet
+    ByteWriter v1;
+    v1.u32(1).u16(3).boolean(true).u32(1);
+    v1.u16(2).u8(0).boolean(true).boolean(false).f32(90.0f).str("Red");
+    v1.u32(1).i32(10).f32(1.0f).f32(2.0f).f32(0.0f).f32(0.0f).f32(0.0f).boolean(false);
+    FleetGroups old;
+    ByteReader r1(v1.bytes());
+    CHECK(old.read(r1) && old.groups().size() == 1 && old.groups()[0].fleet == FleetGroup::kNoFleet &&
+          old.groups()[0].locked && old.groups()[0].name == "Red" && near(old.groups()[0].members[0].slot.y, 2.0f));
+}
+
 // #177: Merge folds the player's groups with a selected unit into the oldest (lowest id), which keeps its id, name and
 // lock; every member's slot is recaptured; a merge past kMaxMembers or of fewer than two groups is refused; Split is
 // Create from the selected part of a group.
@@ -352,6 +416,9 @@ struct FleetRun {
     bool previewed = false;  // #179: the move preview matched the order
     bool ordered = false;      // the group was made, locked and moved
     bool refused_off = false;  // switch off: every fleet command refused, the move passed through
+    // #173 at frame 3, before any command: the human's groups, and whether one group of a galactic fleet held them all
+    size_t opening_groups = 0;
+    bool opening_fleet = false;
     bool arrived = false;      // the move ended with every member near its slot goal
     bool capped = true;        // no member ran faster than the slowest member's max speed during the move
     bool split_speeds = false; // the members had different max speeds (the cap was tested)
@@ -417,6 +484,13 @@ FleetRun run_fleet_battle(const Data& d, int32_t workers, bool on, bool idle_pha
             CHECK(ids.size() >= 2);
             if (ids.size() < 2) break;
             out.members = static_cast<uint32_t>(ids.size());
+            out.opening_groups = b->fleet_groups().groups().size();
+            if (out.opening_groups == 1) {
+                const FleetGroup& og = b->fleet_groups().groups()[0];
+                bool all = og.owner == 0 && og.fleet != FleetGroup::kNoFleet && og.members.size() == ids.size();
+                for (const objects::ObjectId id : ids) all = all && b->fleet_groups().group_of(id) == &og;
+                out.opening_fleet = all;
+            }
             SimRng& rng = host.random().synced();
             // away from the enemy: the members' centroid moved 900 along (own centroid - enemy centroid)
             float ox = 0.0f, oy = 0.0f, ex = 0.0f, ey = 0.0f;
@@ -662,13 +736,15 @@ int main(int argc, char** argv) {
     std::printf("fleet groups on a fake world\n");
     test_logic();
     test_merge_split();  // #177
+    test_join_spawned();  // #173
     auto d = make_data();
     std::printf("fleet groups in a space battle: switch off\n");
     const FleetRun off = run_fleet_battle(*d, 0, false);
-    CHECK(off.refused_off);
+    CHECK(off.refused_off && off.opening_groups == 0);  // #173 off: no opening group
     std::printf("fleet groups in a space battle: switch on\n");
     const FleetRun on = run_fleet_battle(*d, 0, true, true);  // #608 with the idle phase
     CHECK(on.ordered && on.arrived && on.capped);
+    CHECK(on.opening_groups == 1 && on.opening_fleet);  // #173 the opening fleet starts as its galactic fleet's group
     std::printf("  %u members, speeds differ %d, move %u ticks (%u lagging), worst slot distance %.1f, fastest over cap %.3f\n",
                 on.members, on.split_speeds ? 1 : 0, on.move_ticks, on.lagging_ticks, static_cast<double>(on.worst_goal),
                 static_cast<double>(on.fastest_over));

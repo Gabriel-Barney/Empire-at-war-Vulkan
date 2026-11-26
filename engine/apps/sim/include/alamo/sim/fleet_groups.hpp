@@ -18,6 +18,13 @@
 // x its start distance, exceeds straggler_distance is slowed by 1 - (lead - D) / D, floored at min_leader_scale. A move
 // ends when no member has a movement goal left; the slots stay as they were.
 //
+// Phase 3 (#173; maintainer decision 2026-11-24: groups are made fresh each battle, never carried on the galactic fleet):
+// when a human player's units spawn from a galactic fleet - the opening fleet at the battle start, a reinforcement when
+// it arrives - they join that player's group of the same galactic fleet (`FleetGroup::fleet`), or a new one when there
+// is none or it is full (join_spawned). A unit from no galactic fleet (a pad build, a map object, a land structure)
+// stays ungrouped. A joining member's slot is its offset from the group's current centre in the group's frame, so the
+// other members' slots and a running move are untouched.
+//
 // Determinism (rule 3): groups in a vector in creation order, members ascending by id, every loop in that order, the math
 // is + - * / sqrt and alamo::dmath; ids are issued from a counter and never reused within a battle.
 #pragma once
@@ -51,8 +58,10 @@ struct FleetMember {
 };
 
 struct FleetGroup {
+    static constexpr uint32_t kNoFleet = 0xFFFFFFFFu;  // == galactic::kNoFleet
     uint16_t id = 0;
     uint8_t owner = 0;
+    uint32_t fleet = kNoFleet;  // #173 the galactic fleet the group was made for at a spawn (kNoFleet: a player's Create)
     bool locked = false;
     bool moving = false;  // a locked move is running
     float facing_deg = 0.0f;
@@ -88,6 +97,11 @@ public:
     // oldest keeps its id, name and lock; every member's slot is recaptured).
     commands::RejectReason apply(uint8_t player, const commands::FleetGroupCommand& c, std::span<const objects::ObjectId> units,
                                  const InfoFn& info);
+
+    // #173: `units` (ascending or not) spawned for `player` from galactic fleet `fleet` join the player's group of that
+    // fleet - the oldest with room - or a new group keyed to it (while the player has room for one). Units that are
+    // not valid, not the player's, already grouped, or past both caps stay ungrouped. kNoFleet does nothing.
+    void join_spawned(uint8_t player, uint32_t fleet, std::span<const objects::ObjectId> units, const InfoFn& info);
 
     const std::vector<FleetGroup>& groups() const { return groups_; }
     const FleetGroup* group_of(objects::ObjectId id) const;

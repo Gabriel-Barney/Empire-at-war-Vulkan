@@ -13,7 +13,7 @@ using R = commands::RejectReason;
 
 namespace {
 
-constexpr uint32_t kSaveVersion = 1;
+constexpr uint32_t kSaveVersion = 2;  // 2: FleetGroup::fleet (#173); 1 still loads
 
 std::vector<objects::ObjectId> sorted_unique(std::span<const objects::ObjectId> units) {
     std::vector<objects::ObjectId> v(units.begin(), units.end());
@@ -103,6 +103,54 @@ void FleetGroups::capture_slots(FleetGroup& g, const InfoFn& info) {
         m.slot = {mv::dot(d, f), mv::dot(d, l)};
     }
     g.moving = false;
+}
+
+void FleetGroups::join_spawned(uint8_t player, uint32_t fleet, std::span<const objects::ObjectId> units, const InfoFn& info) {
+    if (fleet == FleetGroup::kNoFleet) return;
+    for (const objects::ObjectId id : sorted_unique(units)) {
+        const FleetUnitInfo u = info(id);
+        if (!u.valid || u.owner != static_cast<int32_t>(player) || group_of(id)) continue;
+        FleetGroup* g = nullptr;
+        size_t owned = 0;
+        for (FleetGroup& x : groups_) {
+            if (x.owner != player) continue;
+            ++owned;
+            if (!g && x.fleet == fleet && x.members.size() < kMaxMembers) g = &x;
+        }
+        if (!g) {
+            if (owned >= kMaxGroupsPerPlayer || next_id_ == 0xFFFFu) continue;
+            FleetGroup made;
+            made.id = next_id_++;
+            made.owner = player;
+            made.fleet = fleet;
+            made.facing_deg = u.yaw_deg;
+            groups_.push_back(std::move(made));
+            g = &groups_.back();
+            used_ = true;
+        }
+        // The slot in the members' frame: the offset from their current centre plus their mean slot, so the joiner
+        // sits where the frame the slots were captured in puts it (plan_move measures slots from their mean).
+        mv::V2 pos_sum{0.0f, 0.0f}, slot_sum{0.0f, 0.0f};
+        uint32_t count = 0;
+        for (const FleetMember& m : g->members) {
+            const FleetUnitInfo mu = info(m.id);
+            if (!mu.valid) continue;
+            pos_sum = pos_sum + mu.pos;
+            slot_sum = slot_sum + m.slot;
+            ++count;
+        }
+        FleetMember m;
+        m.id = id;
+        if (count > 0) {
+            const float k = 1.0f / static_cast<float>(count);
+            const mv::V2 d = u.pos - pos_sum * k;
+            const mv::V2 f = mv::dir_from_deg(g->facing_deg);
+            m.slot = mv::V2{mv::dot(d, f), mv::dot(d, mv::perp_left(f))} + slot_sum * k;
+        }
+        const auto at = std::lower_bound(g->members.begin(), g->members.end(), id,
+                                         [](const FleetMember& x, objects::ObjectId v) { return x.id < v; });
+        g->members.insert(at, m);
+    }
 }
 
 R FleetGroups::apply(uint8_t player, const commands::FleetGroupCommand& c, std::span<const objects::ObjectId> units,
@@ -360,6 +408,7 @@ void FleetGroups::hash(StateHasher& h) const {
     for (const FleetGroup& g : groups_) {
         h.u16(g.id);
         h.u8(g.owner);
+        h.u32(g.fleet);
         h.boolean(g.locked);
         h.boolean(g.moving);
         h.f32(g.facing_deg);
@@ -384,7 +433,7 @@ void FleetGroups::write(ByteWriter& w) const {
     w.boolean(used_);
     w.u32(static_cast<uint32_t>(groups_.size()));
     for (const FleetGroup& g : groups_) {
-        w.u16(g.id).u8(g.owner).boolean(g.locked).boolean(g.moving).f32(g.facing_deg).str(g.name);
+        w.u16(g.id).u8(g.owner).u32(g.fleet).boolean(g.locked).boolean(g.moving).f32(g.facing_deg).str(g.name);
         w.u32(static_cast<uint32_t>(g.members.size()));
         for (const FleetMember& m : g.members) {
             w.i32(m.id).f32(m.slot.x).f32(m.slot.y).f32(m.goal.x).f32(m.goal.y).f32(m.start_dist).boolean(m.moving);
@@ -393,7 +442,8 @@ void FleetGroups::write(ByteWriter& w) const {
 }
 
 bool FleetGroups::read(ByteReader& r) {
-    if (r.u32() != kSaveVersion || !r.ok()) return false;
+    const uint32_t version = r.u32();
+    if ((version != 1 && version != kSaveVersion) || !r.ok()) return false;
     const uint16_t next = r.u16();
     const bool used = r.boolean();
     uint32_t n = 0;
@@ -404,6 +454,7 @@ bool FleetGroups::read(ByteReader& r) {
         FleetGroup g;
         g.id = r.u16();
         g.owner = r.u8();
+        if (version >= 2) g.fleet = r.u32();
         g.locked = r.boolean();
         g.moving = r.boolean();
         g.facing_deg = r.f32();

@@ -196,6 +196,10 @@ retail behaviour. Design: the claude.ai doc "Fleet groups design" (2026-11-13). 
   slots come from the same plan the order uses (`TacticalBattle::fleet_move_preview`).
 - Hotkeys N (new group), U (ungroup), Y (lock / unlock), slots 163..165. Every fleet group order is one PortExtension
   event (id 63) of subtype `kFleetGroupSubtype`, so the original event catalogue is unchanged.
+- Pre-grouped spawns (phase 3, 2026-11-24 on #173): groups are made fresh each battle and are never carried on the
+  galactic fleet (`galactic.state` is unchanged). A human player's units that spawn from a galactic fleet, the opening
+  fleet at the battle start and each reinforcement as it arrives, join that player's group of the same galactic fleet,
+  or a new one when there is none or it is full. AI players get no automatic groups.
 
 ## Modern HUD: exception to the current focus
 
