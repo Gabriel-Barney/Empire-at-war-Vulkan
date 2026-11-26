@@ -460,6 +460,10 @@ bool fly_past_shot(const InterestingObject& o, bool space, UnsyncedRandom& rng, 
     return true;
 }
 
+BattleCamShot structure_shot(const InterestingObject&, UnsyncedRandom&) { return {}; }
+bool attack_run_shot(const InterestingObject&, UnsyncedRandom&, BattleCamShot&) { return false; }
+BattleCamShot fighter_chase_shot(const InterestingObject&, UnsyncedRandom&) { return {}; }
+
 bool push_in_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCamShot& out) {
     if (!o.model) return false;
     const Vec3 e = o.half_extents;

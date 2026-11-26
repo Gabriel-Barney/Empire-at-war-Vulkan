@@ -35,6 +35,7 @@ struct BattleCamShot {
     // +0x270: eye = f x previous eye + (1 - f) x keyed eye, once per shot frame. Unset (#568): the previous shot's value
     // carries on (chained shots never reset it; stopping the cam does).
     std::optional<float> smoothing;
+    uint32_t second = 0;             // #570: the object the keys with `on_second` sit on (the target), 0 = none
     bool handheld = false;           // #564: 0x4ab780 starts the handheld noise (handheld_shake) with the shot
     int32_t handheld_frames = kHandheldFrames;  // its duration
     int32_t length = 0;              // #568: frames (0x4ad3a0); 0 = no length (it runs until input or the next key up)
@@ -195,6 +196,13 @@ struct InterestingWorld {
 bool interesting_pick(InterestingState& s, bool first, const InterestingWorld& w, UnsyncedRandom& rng);
 
 // One object as the dispatcher and the templates see it.
+// #570: the object's current target (0x397a40(obj, 0)), as the attack run and the structure shot read it.
+struct InterestingTarget {
+    uint32_t id = 0;                // 0: no target
+    bool model = true;              // a model (+0x2a0)
+    tactical::Vec3 half_extents{1.0f, 1.0f, 1.0f};
+    ObjectFrame frame;              // its transform at the start (position +0x78, yaw +0x8c from axis 0)
+};
 struct InterestingObject {
     uint32_t id = 0;
     uint64_t category = 0;          // CategoryMask (type +0x1648)
@@ -204,12 +212,24 @@ struct InterestingObject {
     tactical::Vec3 half_extents{1.0f, 1.0f, 1.0f};  // E (ObjBox / ModelBox [M: one box in the port])
     ObjectFrame frame;              // its transform at the start (M)
     std::string_view type_name;     // type +0xf8
+    InterestingTarget target;       // #570
 };
-// GameObjectCategoryType values the dispatcher tests (the enum file's; [H] defaults). #570 adds the rest.
+// GameObjectCategoryType values the dispatcher tests (the enum file's; [H] defaults).
 struct InterestingCategories {
-    uint64_t bomber = 0x2, corvette = 0x8, infantry = 0x80, vehicle = 0x100;
+    uint64_t fighter = 0x1, bomber = 0x2, corvette = 0x8, frigate = 0x10, infantry = 0x80, vehicle = 0x100;
 };
 
+// #570 0x49f880 [H]: no locomotor (a structure, a turret). The eye pulls back over n = 60..90 frames from
+// (sx Ex, sy Ey, 2 Ez) to (2 sx Ex, 2 sy Ey, 3 Ez); with a target the look then turns to it and holds, so the length is
+// 2n, else n. Never fails.
+BattleCamShot structure_shot(const InterestingObject& o, UnsyncedRandom& rng);
+// #570 0x4a26f0 [H]: the attack run. It needs a target with a model, inside a 30-degree cone off the nose and heading
+// more than 80 degrees apart; then the eye rides the hull for T = 90..120 frames and swings onto the target by 2T,
+// where the look ends. Every draw is made even when it fails. Retail's double degree-to-radian conversion is kept.
+bool attack_run_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCamShot& out);
+// #570 0x4a0140 [H]: the fighter chase, from a side within 45 degrees of the nose or the tail; smoothing 0.99, handheld
+// noise. [port] Retail's CameraAnimeSpiral wander over the shot is left out (its parameter slots are [M]).
+BattleCamShot fighter_chase_shot(const InterestingObject& o, UnsyncedRandom& rng);
 // #569 0x4a4e30 [H] (needs a model): the infantry push-in. n = 120..150, h = 1.5..2.0; the eye moves on world points
 // M (2s Ex, 2 Ey, 2h Ez) -> M (s Ex, 2 Ey, h Ez) fixed at the start, the look on the object; length n, handheld noise.
 bool push_in_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCamShot& out);

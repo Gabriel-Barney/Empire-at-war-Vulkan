@@ -204,20 +204,33 @@ struct ShotKey {
     int32_t period = 300;    // +0x4c: frames per orbit turn (Orbit after the last key; literal frames)
     bool reverse = false;    // +0x50: the orbit turns clockwise
     bool translate_only = false;  // +0x51 (#568): an attached offset in world axes from the object's position
+    bool on_second = false;  // #570 (+0x2c holds another id): attached to the shot's second object (a target)
+};
+
+// #570: the objects attached keys sit on (0x49d640 resolves each key's +0x2c): the shot's object, and a second one for
+// keys with `on_second`, each with its Ranged_Target_Z_Adjust.
+struct KeyAnchors {
+    ObjectFrame first;
+    float z_first = 0.0f;
+    ObjectFrame second;
+    float z_second = 0.0f;
 };
 
 // The key lists' position at shot clock `c` (docs/re/BATTLE_CAM.md "The per-frame evaluator"). Attached keys sit in the
 // object's frame `f`, plus `z_adjust` (Ranged_Target_Z_Adjust) on z (0x49d640).
 tactical::Vec3 shot_key_position(const ShotKey& k, const ObjectFrame& f, float z_adjust);
+tactical::Vec3 shot_key_position(const ShotKey& k, const KeyAnchors& a);
 // 0x49de50: the look. Hold, linear and spline segments; an Orbit segment has no look branch and yields (0, 0, 0); after
 // the last key it is held.
 tactical::Vec3 shot_keys_look(std::span<const ShotKey> look, int32_t c, const ObjectFrame& f, float z_adjust);
+tactical::Vec3 shot_keys_look(std::span<const ShotKey> look, int32_t c, const KeyAnchors& a);
 // 0x49c540: the eye. As the look, and an Orbit key that is the last (or only) one turns its resolved position about world
 // +Z through the look point after its frame (0x49c810): angle = 360 x accel(((c - frame) % period) / period), mirrored
 // when `reverse`; the offset is re-resolved each frame, so the circle follows the object's facing.
 // [port] an Orbit key followed by another key (0x49a610, polar interpolation) holds; no shot here uses it.
 tactical::Vec3 shot_keys_eye(std::span<const ShotKey> eye, std::span<const ShotKey> look, int32_t c, const ObjectFrame& f,
                              float z_adjust);
+tactical::Vec3 shot_keys_eye(std::span<const ShotKey> eye, std::span<const ShotKey> look, int32_t c, const KeyAnchors& a);
 
 // What 0x4a5ef0 reads once at Fire.
 struct TswShotInputs {
