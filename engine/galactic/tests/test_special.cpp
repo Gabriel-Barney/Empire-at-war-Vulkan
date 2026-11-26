@@ -560,7 +560,7 @@ void test_sabotage() {
     {
         // #325: the ground-base sabotage (option 0). 0x5b1d40 [H] cancels one queued entry through 0x4035d0 with refund 1;
         // [port] the last queued ground structure stands for the base-upgrade type. B's ground queue: Mine, Arena, Merc
-        // (a unit). Only the Arena goes, refunded to the Empire and voiced; the Mine and the Merc stay; B's structure goes.
+        // (a unit). Only the Arena goes, refunded to the Empire and voiced; the Mine and the Merc stay; B's newest structure goes.
         World w;
         GalacticSim& s = w.sim;
         SpecialAbilityDef& halt = w.rules.special.abilities[aHalt];
@@ -570,6 +570,8 @@ void test_sabotage() {
             w.rules.types[t].build_cost = 300;
             w.rules.types[t].build_time_seconds = 20;
         }
+        w.rules.types[tMerc].required_ground_base = 1;  // a unit is ground-buildable through its base level
+        (void)s.spawn_unit(pEmp, rB, tArena);           // a second structure: level 1 is left after the sabotage
         CHECK(s.enqueue(pEmp, rB, tMine) == RejectReason::None && s.enqueue(pEmp, rB, tArena) == RejectReason::None &&
               s.enqueue(pEmp, rB, tMerc) == RejectReason::None);
         const float c0 = s.credits(pEmp);
@@ -582,7 +584,7 @@ void test_sabotage() {
         CHECK(w.count(GalacticEventKind::ProductionCanceled) == 1);
         const GalacticEvent* c = w.last(GalacticEventKind::ProductionCanceled);
         CHECK(c && c->type == tArena && c->player == pEmp && c->other_player == 1 && cancel_voiced(*c));
-        CHECK(s.credits(pEmp) == c0 + 300.0f && !w.store.alive(st));
+        CHECK(s.credits(pEmp) == c0 + 300.0f && w.store.alive(st) && w.planet(rB).structures.size() == 1);
         std::printf("  ground-base sabotage: queue %zu left, %zu cancel(s), refund %.0f\n", g.size(),
                     w.count(GalacticEventKind::ProductionCanceled), static_cast<double>(s.credits(pEmp) - c0));
     }
