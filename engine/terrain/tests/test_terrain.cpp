@@ -160,7 +160,7 @@ MapData make_map(uint32_t patches, uint64_t seed) {
         o.secondary[0] = 5.0f;
         o.attachment_slots = 3;
         if (i == 1) o.attachments = {"HP_A"};
-        o.owner_raw = {mk_u32(0, i), mk_u32(3, 0xFFFFFFFFu)};
+        o.pad_raw = {mk_u32(0, i), mk_u32(3, 0xFFFFFFFFu)};
         m.objects.push_back(o);
     }
     m.playable.present = true;
@@ -278,7 +278,7 @@ void test_round_trip() {
         CHECK(p.list_id[0] == q.list_id[0] && p.list_id[1] == q.list_id[1]);
         CHECK(std::equal(p.position, p.position + 3, q.position) && std::equal(p.rotation_deg, p.rotation_deg + 3, q.rotation_deg));
         CHECK(p.has_secondary == q.has_secondary && p.attachments == q.attachments && p.attachment_slots == q.attachment_slots);
-        CHECK(p.owner_raw == q.owner_raw);
+        CHECK(p.pad_raw == q.pad_raw);
         CHECK(p.hint == q.hint);
         CHECK(p.has_marker_name == q.has_marker_name && p.marker_name == q.marker_name);
         CHECK(p.extra_behaviors.size() == q.extra_behaviors.size());

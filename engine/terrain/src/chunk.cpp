@@ -138,6 +138,11 @@ bool raw_f32(const std::vector<RawMini>& minis, uint8_t id, float& v) {
     return m && mini_f32(MiniView{m->id, m->data}, v);
 }
 
+bool raw_u32(const std::vector<RawMini>& minis, uint8_t id, uint32_t& v) {
+    const RawMini* m = find_mini(minis, id);
+    return m && mini_u32(MiniView{m->id, m->data}, v);
+}
+
 bool raw_f32x3(const std::vector<RawMini>& minis, uint8_t id, float (&v)[3]) {
     const RawMini* m = find_mini(minis, id);
     return m && mini_f32x3(MiniView{m->id, m->data}, v);

@@ -222,6 +222,7 @@ struct BattleStats {
     // t50 (land skirmish): pads of the two slots, pads that started built, structures started on a pad during the battle.
     uint32_t skirmish_pads = 0, skirmish_prebuilt = 0, pad_builds = 0;
     uint32_t pad_restored = 0;  // §9.4 persisted pad children recreated at setup
+    uint32_t pad_preplaced = 0;  // #334 t03: campaign pads that built their map's pre-placed type at setup (not saved)
     // s78n t20 (skirmish, SKIRMISH_SETUP §2.2; not saved): per side, its spawn-point marker (when one was found) and where its
     // first start-force unit was placed.
     // per side, 8 = TacticalBattle::kMaxSides.
@@ -3152,6 +3153,17 @@ private:
     void track_upgrade(bool add, objects::ObjectHandle h, const objects::ObjectStore& store);
     bool pad_restore_ = true;                         // §9.4 recreate at setup (false while a save is loaded)
     void bt_pad_restore(TacticalMode& mode);          // setup: persistent pad children back on their pads
+    // #334 t03: the map load's pads with a pre-placed type (pad data 0x476/1 mini 2), {pad, type}, ascending pad; consumed
+    // by bt_pad_restore (the campaign pre-build) and cleared there
+    struct PreplacedPad {
+        objects::ObjectId pad = objects::kNoObjectId;
+        objects::TypeIndex type = objects::kNone;
+    };
+    std::vector<PreplacedPad> map_preplaced_;
+    // a pad's pre-build (0x42df80's create, shared by the campaign and the skirmish base): `type` (an under-construction
+    // type -> its Tactical_Buildable_Constructed) for `owner` at the pad's build point with the pad's facing; the pad's
+    // child. kNone when it is not created.
+    objects::TypeIndex bt_pad_prebuild(TacticalMode& mode, objects::ObjectHandle pad, objects::TypeIndex type, int32_t owner);
     // the pad's map-saved pre-placed (under-construction) type in the port's stand-in reading (an owned slot pad
     // whose type respects the pre-build option, empty, with an under-construction type in its owner's faction row), else
     // kNone. Shared by the pre-build and the Pad_Sell a non-pre-built start plays.
