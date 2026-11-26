@@ -1230,6 +1230,8 @@ void GalacticHud::drag_update(const RoutedInput& routed, std::vector<commands::E
     drag_.over_component = routed.hover_component;
     const PadSlot* over = pad_of(drag_.over_component);
     drag_.over_fleet = over && over->fleet_index >= 0 && !over->foreign && over->fleet != drag_.fleet;  // never merge into a foreign fleet
+    if (GalacticDropTarget t; !over && drag_.over_component >= 0 && drop_targets_ && drop_targets_(drag_.over_component, t))
+        drag_.over_fleet = t.kind == GalacticDropTarget::Kind::Fleet && !t.foreign && t.fleet != drag_.fleet;  // #613
     drag_.over_planet = drag_.over_component < 0 ? planet_at(cur.x, cur.y) : -1;
     // Over a fleet slot (an empty oval or a fleet button): its planet counts as the planet under the cursor.
     drag_.over_slot = -1;
@@ -1269,6 +1271,9 @@ bool GalacticHud::drop(std::vector<commands::EventData>* out, std::vector<HudAct
         return galactic_organiser_drop(source, Target{Target::Kind::Fleet, over->fleet, over->foreign}, selected_id_, out);
     }
     if (over) return galactic_organiser_drop(source, Target{Target::Kind::LandForces}, selected_id_, out);  // the land forces
+    // #613 another view's organiser row under the cursor (set_drop_targets: the Modern organiser).
+    if (Target t; drag_.over_component >= 0 && drop_targets_ && drop_targets_(drag_.over_component, t))
+        return galactic_organiser_drop(source, t, selected_id_, out);
     if (drag_.over_component >= 0 && drag_.over_component == planet_fleet_) {  // onto a fleet slot
         const StackHit* sh = stack_at(planet_fleet_, drag_.cursor_px.x, drag_.cursor_px.y);
         return sh && slot_drop(*sh, out);
@@ -1449,7 +1454,6 @@ void GalacticHud::build_radar(const GalacticHudFrame& f) {
     hit(radar, static_cast<uint32_t>(std::max(0, rc.base_layer)), rc_at, size);  // the radar takes clicks
     if (f.planets.empty()) return;
     const GalacticRadarFit fit = galactic_radar_fit(f.planets);  // #613 shared with the Modern map
-    const float z = fit.z;
     radar_at_ = rc_at;
     radar_size_ = size;
     radar_fit_ = fit;
@@ -1468,19 +1472,8 @@ void GalacticHud::build_radar(const GalacticHudFrame& f) {
         ++stats_.radar_blips;
     }
     // Camera footprint (bounding box of the four ground corners), clipped to the radar.
-    const std::array<Vec2f, 4> fp = camera_footprint(f.view, z);
-    float fx0 = fp[0].x, fx1 = fx0, fy0 = fp[0].y, fy1 = fy0;
-    for (const Vec2f& c : fp) {
-        fx0 = std::min(fx0, c.x);
-        fx1 = std::max(fx1, c.x);
-        fy0 = std::min(fy0, c.y);
-        fy1 = std::max(fy1, c.y);
-    }
-    Vec2f a = to_radar(fx0, fy0), b = to_radar(fx1, fy1);
-    const Vec2f lo{rc_at.x - 0.5f * size.x, rc_at.y - 0.5f * size.y}, hi{rc_at.x + 0.5f * size.x, rc_at.y + 0.5f * size.y};
-    a = {std::clamp(a.x, lo.x, hi.x), std::clamp(a.y, lo.y, hi.y)};
-    b = {std::clamp(b.x, lo.x, hi.x), std::clamp(b.y, lo.y, hi.y)};
-    if (b.x - a.x < 1.0f || b.y - a.y < 1.0f) return;
+    Vec2f a{}, b{};
+    if (!galactic_radar_view(fit, f.view, rc_at, size, a, b)) return;
     const CommandBarComponent* vc = radar_view_ >= 0 ? &(*table_)[static_cast<size_t>(radar_view_)] : nullptr;
     const uint32_t view_layer = vc ? static_cast<uint32_t>(vc->base_layer) : 4u;
     const Rgba8 line{255, 255, 255, 220};
@@ -1792,6 +1785,23 @@ GalacticRadarFit galactic_radar_fit(std::span<const GalacticPlanetInfo> planets)
     fit.cx = 0.5f * (x0 + x1);
     fit.cy = 0.5f * (y0 + y1);
     return fit;
+}
+
+bool galactic_radar_view(const GalacticRadarFit& fit, const View& view, Vec2f at, Vec2f size, Vec2f& a, Vec2f& b) {
+    const std::array<Vec2f, 4> fp = camera_footprint(view, fit.z);
+    float fx0 = fp[0].x, fx1 = fx0, fy0 = fp[0].y, fy1 = fy0;
+    for (const Vec2f& c : fp) {
+        fx0 = std::min(fx0, c.x);
+        fx1 = std::max(fx1, c.x);
+        fy0 = std::min(fy0, c.y);
+        fy1 = std::max(fy1, c.y);
+    }
+    a = fit.to_canvas(at, size, fx0, fy0);
+    b = fit.to_canvas(at, size, fx1, fy1);
+    const Vec2f lo{at.x - 0.5f * size.x, at.y - 0.5f * size.y}, hi{at.x + 0.5f * size.x, at.y + 0.5f * size.y};
+    a = {std::clamp(a.x, lo.x, hi.x), std::clamp(a.y, lo.y, hi.y)};
+    b = {std::clamp(b.x, lo.x, hi.x), std::clamp(b.y, lo.y, hi.y)};
+    return b.x - a.x >= 1.0f && b.y - a.y >= 1.0f;
 }
 
 // ui4 t07 (HUD_GAPS §10.1, 0x3d1260): a left click on the galactic radar moves the camera to that point; it never selects a

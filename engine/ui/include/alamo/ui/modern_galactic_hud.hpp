@@ -35,7 +35,8 @@
 //     release decides by galactic_organiser_drop, as the Classic organiser: another fleet's row (merge; a land unit:
 //     launch), the land-forces row (land), a planet in the world (move) or empty space (detach a fleet unit). Other
 //     players' fleets have no row, so they are never a target; a release on any other HUD control does nothing. The
-//     Classic organiser panes' slot drops (an empty pane, the map's slot ovals) are Classic's only.
+//     Classic organiser panes' slot drops (an empty pane, the map's slot ovals) are Classic's only. A map fleet dragged from
+//     its Classic button onto these rows merges or lands as onto the Classic organiser (organiser_target).
 // While the advanced planet map is open this view draws nothing (the planet map is a Classic side panel in both styles).
 #pragma once
 #include <cstdint>
@@ -127,6 +128,10 @@ public:
     // frame's planet under the cursor; over_fleet / valid = the target takes the drop). The host reads it for the drag
     // cursor, sounds and route preview while it is active.
     const GalacticDrag& drag() const { return drag_; }
+    // #613 an organiser row's drop target under HUD component `component` of the last build (a fleet's tile, a land tile or
+    // the land-forces row); false for any other. The host gives it to the Classic HUD (GalacticHud::set_drop_targets), so a
+    // map fleet dragged from its Classic button onto these rows merges or lands as onto the Classic organiser's pads.
+    bool organiser_target(int32_t component, GalacticDropTarget& out) const;
     // #613 the organiser tiles of the last build (id = kModernGalacticOrganiserBase + index).
     const std::vector<ModernOrganiserPad>& organiser_pads() const { return org_; }
     // #613 the map's hit box id: the Classic radar_galactic's (its click is that component's), else kModernGalacticMapHit.

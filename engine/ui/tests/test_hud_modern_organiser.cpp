@@ -41,6 +41,7 @@ std::string organiser_xml() {
         for (int c = 0; c <= 3; ++c) add("q" + std::to_string(n) + "_000" + std::to_string(c));
     }
     for (int k = 0; k < 3; ++k) add("land_fleet_0" + std::to_string(k));
+    add("g_planet_fleet");  // the map fleet buttons (Classic's map layer in both styles)
     x += "<CommandBarComponent Name=\"radar_galactic\"><Type>Button</Type><Size>175 175</Size></CommandBarComponent>\n";
     return x + "</CommandBarComponents>";
 }
@@ -445,6 +446,40 @@ void test_drag_state() {
     CHECK(e.modern.organiser_pads().empty() && !e.modern.stats().map && !e.modern.drag().active);
 }
 
+// A map fleet dragged from its Classic button (the map layer, Classic in both styles) onto the Modern organiser's rows:
+// the Classic HUD asks the Modern view for the target there (set_drop_targets) and sends what a drop on its own
+// organiser pads sends - merge into the fleet, land at the selected planet.
+void test_map_fleet_onto_rows() {
+    Env e;
+    GalacticPlanetStack st;
+    st.fleet = 900;
+    st.slot = 0;
+    st.units = 3;
+    st.icon = "i_unit.tga";
+    e.planets[0].stacks = {st};
+    e.build();
+    const int32_t button = e.id("g_planet_fleet");
+    const Out c_merge = e.drag(e.classic, button, e.classic_px(button), e.id("q2_fleet"), e.classic_px(e.id("q2_fleet")));
+    const Out c_land = e.drag(e.classic, button, e.classic_px(button), e.id("land_fleet_00"), e.classic_px(e.id("land_fleet_00")));
+    CHECK(c_merge.valid && c_merge.cmds.size() == 1 && c_merge.cmds[0] == fleet_management_event(commands::kFleetMerge, 901, 900, kNone));
+    CHECK(c_land.valid && c_land.cmds.size() == 1 && c_land.cmds[0] == fleet_management_event(commands::kFleetLand, 100, 900, kNone));
+    // Modern: the Classic HUD draws the map layer only; the rows are Modern's.
+    e.classic.set_modern_overlay(true);
+    e.build();
+    const int32_t row = e.pad(901, 0), land_row = kModernGalacticLandRowHit;
+    const Out unset = e.drag(e.classic, button, e.classic_px(button), row, e.modern_px(row));
+    CHECK(unset.cmds.empty() && !unset.valid);  // without the hook: as before, nothing
+    e.classic.set_drop_targets([&e](int32_t c, GalacticDropTarget& t) { return e.modern.organiser_target(c, t); });
+    CHECK(same(c_merge, e.drag(e.classic, button, e.classic_px(button), row, e.modern_px(row))));
+    CHECK(same(c_merge, e.drag(e.classic, button, e.classic_px(button), e.pad(901, 9011), e.modern_px(e.pad(901, 9011)))));
+    CHECK(same(c_land, e.drag(e.classic, button, e.classic_px(button), land_row, e.modern_px(land_row))));
+    // Its own row and any other Modern control take nothing.
+    CHECK(e.drag(e.classic, button, e.classic_px(button), e.pad(900, 0), e.modern_px(e.pad(900, 0))).cmds.empty());
+    CHECK(e.drag(e.classic, button, e.classic_px(button), kModernPanelHit, e.modern_px(e.pad(901, 0))).cmds.empty());
+    GalacticDropTarget t;
+    CHECK(!e.modern.organiser_target(kModernPanelHit, t) && !e.modern.organiser_target(-1, t));
+}
+
 // Classic unchanged: building and driving the Modern view (its organiser, a drag, its map) leaves the Classic draw list,
 // hit boxes and stats as they were.
 void test_classic_unchanged() {
@@ -469,6 +504,7 @@ int main() {
     test_click_parity();
     test_radar_parity();
     test_drag_state();
+    test_map_fleet_onto_rows();
     test_classic_unchanged();
     if (g_fail) {
         std::printf("alamo_ui_hud_modern_organiser_tests: %d failure(s)\n", g_fail);

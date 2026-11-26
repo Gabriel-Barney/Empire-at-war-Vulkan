@@ -495,6 +495,9 @@ struct GalacticRadarFit {
     }
 };
 GalacticRadarFit galactic_radar_fit(std::span<const GalacticPlanetInfo> planets);
+// The camera's footprint on that radar: the bounding box (a = min, b = max corner, canvas) of `view`'s four ground corners
+// at the fit's height, clipped to the rectangle; false when less than a unit wide or high (not drawn).
+bool galactic_radar_view(const GalacticRadarFit& fit, const View& view, Vec2f at, Vec2f size, Vec2f& a, Vec2f& b);
 // ui4 t07 (HUD_GAPS §10.1): a left click at canvas point `c` of that radar -> HudAction::RadarCameraJump {component, name,
 // x, y = the galaxy point}; false (nothing) for another button, without a mapping or for an empty rectangle.
 bool galactic_radar_click(const GalacticRadarFit& fit, Vec2f at, Vec2f size, Vec2f c, int32_t component, const std::string& name,
@@ -575,6 +578,10 @@ public:
     // prompt, the screen text and the advisor movie. While the advanced planet map is open it is the Classic HUD whole
     // (the planet map is a Classic side panel in both styles). Off (the default): exactly as before.
     void set_modern_overlay(bool on) { modern_overlay_ = on; }
+    // [port: Gabriel] #613 drop targets another view draws over this HUD (the Modern organiser's rows): for a HUD component
+    // that is none of this HUD's, true and the target a drag released there takes (galactic_organiser_drop, as an
+    // organiser pad of this HUD would). Unset (the default): such a release does nothing, as before.
+    void set_drop_targets(std::function<bool(int32_t component, GalacticDropTarget& out)> f) { drop_targets_ = std::move(f); }
     // ui4 t12 (GALACTIC_DIALOGS §5.1.1): the build tab - false land (b_planet_tab, the start), true space (b_space_tab).
     // Clicks on b_space_tab / b_planet_tab / b_dial switch it (GUI_Dial_Switch_SFX on a change); planet selection keeps
     // it. set_build_tab is the same switch for the host (a loaded game, a story click).
@@ -680,6 +687,7 @@ private:
     // the planet map (map_shell components) and its state of the last build.
     bool map_open_ = false, map_foreign_ = false, map_surface_full_ = false;
     bool modern_overlay_ = false;  // set_modern_overlay
+    std::function<bool(int32_t, GalacticDropTarget&)> drop_targets_;  // set_drop_targets
     bool overlay_ = false;         // this build leaves the command bar to the Modern view (modern_overlay_, map closed)
     uint32_t map_planet_ = 0;
     int32_t map_window_ = -1, radar_adv_ = -1, map_name_ = -1, map_allegiance_ = -1, map_day_ = -1, map_income_ = -1,

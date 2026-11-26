@@ -1169,7 +1169,12 @@ void App::galactic_input() {
             std::erase_if(classic_in.hud, [&](const ui::HudPointerEvent& e) {
                 return e.kind != ui::HudPointerEvent::Kind::Release && modern_owns(e.component);
             });
-            if (modern_owns(classic_in.hover_component)) classic_in.hover_component = -1;
+            // #613 while a Classic map fleet is dragged, a Modern organiser row under the cursor stays its hover: the drop
+            // target (GalacticHud::set_drop_targets) for the highlight and the cursor.
+            ui::GalacticDropTarget row;
+            if (modern_owns(classic_in.hover_component) &&
+                !(ui_.galactic_hud.drag().active && ui_.modern_galactic.organiser_target(classic_in.hover_component, row)))
+                classic_in.hover_component = -1;
             ui_.modern_galactic.update_input(routed_, input_.shift(), input_.ctrl(), now_s_, cmds, &acts);
         }
         ui_.galactic_hud.update_input(classic_in, input_.shift(), input_.ctrl(), now_s_, cmds, &acts);

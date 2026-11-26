@@ -205,6 +205,9 @@ bool GameUi::init(GpuCore& gpu, const GameData& data, ui::MenuProviders provider
     modern_hud.set_script_state(&tactical_hud.buttons());  // #587 the Lua button overrides
     modern_galactic.init(components, atlas, *fonts, &text);  // #593
     modern_galactic.set_hotkeys(&hotkeys);
+    // #613 a map fleet dragged from its Classic button onto the Modern organiser's rows: the Classic drop rules there. The
+    // Modern ids are reached only while the Modern view takes the input (app_input.cpp galactic_input).
+    galactic_hud.set_drop_targets([this](int32_t c, ui::GalacticDropTarget& t) { return modern_galactic.organiser_target(c, t); });
     galactic_shells.apply(galactic_hud.layout());
     tactical_shells.apply(tactical_hud.layout());
     hud_types = ui::build_hud_type_table(data.types);

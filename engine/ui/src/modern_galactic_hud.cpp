@@ -1,13 +1,11 @@
 #include "alamo/ui/modern_galactic_hud.hpp"
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstdlib>
 
 #include "alamo/core/ascii.hpp"
 #include "alamo/ui/hud_font.hpp"
-#include "alamo/ui/hud_radar.hpp"
 #include "alamo/ui/orders.hpp"
 #include "modern_hud_draw.hpp"
 #include "ui_strings.hpp"
@@ -414,19 +412,8 @@ void ModernGalacticHud::build_map(const GalacticHudFrame& f) {
         add_rect(dl_, kControlLayer, at.x - r, at.y - r, at.x + r, at.y + r, Rgba8{p.owner_color.r, p.owner_color.g, p.owner_color.b, 255});
         ++stats_.map_blips;
     }
-    const std::array<Vec2f, 4> fp = camera_footprint(f.view, map_fit_.z);
-    float fx0 = fp[0].x, fx1 = fx0, fy0 = fp[0].y, fy1 = fy0;
-    for (const Vec2f& c : fp) {
-        fx0 = std::min(fx0, c.x);
-        fx1 = std::max(fx1, c.x);
-        fy0 = std::min(fy0, c.y);
-        fy1 = std::max(fy1, c.y);
-    }
-    Vec2f a = map_fit_.to_canvas(center, size, fx0, fy0), b = map_fit_.to_canvas(center, size, fx1, fy1);
-    const Vec2f lo{center.x - 0.5f * size.x, center.y - 0.5f * size.y}, hi{center.x + 0.5f * size.x, center.y + 0.5f * size.y};
-    a = {std::clamp(a.x, lo.x, hi.x), std::clamp(a.y, lo.y, hi.y)};
-    b = {std::clamp(b.x, lo.x, hi.x), std::clamp(b.y, lo.y, hi.y)};
-    if (b.x - a.x < 1.0f || b.y - a.y < 1.0f) return;
+    Vec2f a{}, b{};
+    if (!galactic_radar_view(map_fit_, f.view, center, size, a, b)) return;
     const Rgba8 line{255, 255, 255, 220};
     add_rect(dl_, kControlLayer + 1, a.x, a.y, b.x, a.y + 1.0f, line);
     add_rect(dl_, kControlLayer + 1, a.x, b.y - 1.0f, b.x, b.y, line);
@@ -578,6 +565,12 @@ GalacticDropTarget ModernGalacticHud::drop_target(int32_t component, Vec2f px) c
     t.on_planet = pi >= 0;
     if (pi >= 0) t.planet = planet_px_[static_cast<size_t>(pi)].planet;
     return t;
+}
+
+bool ModernGalacticHud::organiser_target(int32_t component, GalacticDropTarget& out) const {
+    if (component < 0 || (!org_pad(component) && !(component == kModernGalacticLandRowHit && land_row_))) return false;
+    out = drop_target(component, {});
+    return true;
 }
 
 bool ModernGalacticHud::drop(std::vector<commands::EventData>* out) const {
