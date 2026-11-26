@@ -123,9 +123,10 @@ struct GalacticEvent {
 // #67 t04 (retail 0x403770 / 0x4035d0 / 0x403900 [H]): ProductionCanceled.object when one of the three queue-cancel
 // functions removed the entry. Only they voice the built type's SFXEvent_Build_Cancelled (tactical:
 // SFXEvent_Tactical_Build_Cancelled), for the local player. Their callers: the command cancel (0x5242c0), the AI cancel
-// (0x53ba60) and the sabotage applies (0x5b1d40 ground base, 0x5b2f50 production); here GalacticSim::cancel and the
-// ground-base sabotage. The queue wipes (owner change, battle end, re-evaluation 0x402490 / 0x402660, the service's
-// drops) call none of them, so they are silent.
+// (0x53ba60) and the sabotage applies (0x5b1d40 ground base, 0x5b2f50 production); here GalacticSim::cancel, which both
+// sabotages call (#325). The queue wipes (owner change, battle end, re-evaluation 0x402490 / 0x402660, the service's
+// drops) call none of them, so they are silent; they still raise the planet signal 3 and with it the Lua
+// Galactic_Production_Canceled_Event (#325, SimHost).
 inline constexpr int32_t kCancelVoiced = 1;
 inline bool cancel_voiced(const GalacticEvent& e) {
     return e.kind == GalacticEventKind::ProductionCanceled && e.object == kCancelVoiced;

@@ -724,10 +724,11 @@ bool GalacticSim::apply_sabotage(const SpecialAbilityDef& a, ObjectHandle sabote
     switch (k) {
     case kSabotageGroundBase: {
         // 0x5b2910: the queued base upgrade cancelled (0x5b1d40), the base replaced by its Prev_Level_Base or destroyed.
-        // 0x5b1d40 [H] cancels one entry through 0x4035d0 (the last queued entry of the base-upgrade type, refund 1: to the
-        // planet owner through 0x4023d0, and the cancel line voiced). [port] the port has no base-level chain (the ground
-        // base level is the structure count), so the entry that stands for the base upgrade is the last queued ground
-        // structure, refunded (maintainer decision on #325); the newest structure goes.
+        // 0x5b1d40 [H] cancels one entry through 0x4035d0 (the last queued entry of the base-upgrade type, refund 1 to the
+        // planet owner through 0x4023d0, and the cancel line voiced). [port: Gabriel, #325; tier 1 (credits)] the port has
+        // no base-level chain (the ground base level is the structure count), so the entry that stands for the base
+        // upgrade is the last queued ground structure, refunded through cancel() to the entry's player: the planet owner,
+        // since only the owner queues at a planet and an owner change wipes the queue. The newest structure goes.
         auto& g = p.queue[kGroundQueue];
         for (size_t i = g.size(); i-- > 0;)
             if (rules_->types[g[i].type].kind == UnitKind::GroundStructure) {

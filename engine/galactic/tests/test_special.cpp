@@ -568,7 +568,7 @@ void test_sabotage() {
         halt.sabotage_can[kSabotageGroundBase] = true;
         for (const uint32_t t : {static_cast<uint32_t>(tMine), static_cast<uint32_t>(tArena), static_cast<uint32_t>(tMerc)}) {
             w.rules.types[t].build_cost = 300;
-            w.rules.types[t].build_time = 20.0f;
+            w.rules.types[t].build_time_seconds = 20;
         }
         CHECK(s.enqueue(pEmp, rB, tMine) == RejectReason::None && s.enqueue(pEmp, rB, tArena) == RejectReason::None &&
               s.enqueue(pEmp, rB, tMerc) == RejectReason::None);
