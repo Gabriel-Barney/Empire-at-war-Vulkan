@@ -378,6 +378,21 @@ void test_panels() {
     heroes.build(hf);
     CHECK(heroes.open() && heroes.active_shell() == env.table.find("good_hero_frame") && heroes.hit_boxes().size() == 2 &&
           heroes.slots().size() == 4);
+    // #616 shown_slots: the good bar's two slots in slot order, each with its hero and its hit box in pixels; the enemy
+    // bar has none (no callbacks, no badges).
+    {
+        const std::vector<HudHeroSlot> ss = heroes.shown_slots();
+        const HudHitBox& h0 = heroes.hit_boxes()[0];
+        const Vec2f p0 = heroes.canvas().canvas_to_pixel(h0.min.x, h0.max.y);
+        CHECK(ss.size() == 2 && ss[0].hero == 4001 && ss[1].hero == 4002 && ss[0].layer == h0.layer);
+        CHECK(std::fabs(ss[0].min_px.x - p0.x) < 1e-3f && std::fabs(ss[0].min_px.y - p0.y) < 1e-3f);
+        CHECK(ss[0].min_px.x < ss[0].max_px.x && ss[0].min_px.y < ss[0].max_px.y);
+        hf.good = false;
+        heroes.build(hf);
+        CHECK(heroes.shown_slots().empty());
+        hf.good = true;
+        heroes.build(hf);
+    }
     std::vector<HudAction> acts;
     // FIXPASS_GALACTIC Â§2.2 galactic: left -> HeroFocusPlanet {hero, {planet}}; double -> + HeroZoomPlanet; right: nothing.
     env.click(heroes, "hero_slot_good01", acts, Button::Left, 1.0);

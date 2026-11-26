@@ -1085,6 +1085,8 @@ void ModernTacticalHud::badge(std::u32string_view text, Vec2f left_mid, uint32_t
 // backplate beside each selected own unit's world icon (unit_icon_centre: a squadron's one icon stands for its craft), the
 // same badges on the map at each group's and wing's member centre, and for each selected locked group (the Classic
 // outline's rule, #178) a dark edge round the outline and a tag over it: a padlock, the number and name, LOCKED.
+// #616 the same badge in the top-left corner of each hero bar slot whose hero is in a group or wing, one layer over the
+// slot (the bar is Classic's panel; Modern draws over it and Classic's list is untouched).
 namespace {
 // A wing's badge: its key (F2 / F3), else its label's first letter.
 std::u32string wing_badge(const HudWing& w) { return w.hotkey.empty() ? w.label.substr(0, 1) : w.hotkey; }
@@ -1114,6 +1116,16 @@ void ModernTacticalHud::build_badges(const TacticalHudFrame& f, std::span<const 
         badge(label, {c.x + 0.5f * f.world.unit_icon_size + 2.0f, c.y}, kWorldLayer, lagging);
         ++stats_.world_badges;
         if (lagging) ++stats_.badges_lagging;
+    }
+    // On the hero bar's slots.
+    for (const HudHeroSlot& s : f.hero_slots) {
+        const std::u32string label = label_of(s.hero);
+        if (label.empty()) continue;
+        const Vec2f lo = canvas_.pixel_to_canvas(s.min_px.x, s.max_px.y), hi = canvas_.pixel_to_canvas(s.max_px.x, s.min_px.y);
+        const float h = 1.1f * text_height_units();
+        const uint32_t layer = std::min(s.layer + 1, kHudLayers - 1);
+        badge(label, {lo.x + 1.0f, hi.y - 0.5f * h - 1.0f}, layer, false);
+        ++stats_.hero_badges;
     }
     // On the map: each group's and wing's member centre.
     if (map_view_.valid()) {

@@ -638,6 +638,19 @@ int32_t HeroPanel::hover_component() const {
     return s && s->value >= 0 ? h : -1;
 }
 
+std::vector<HudHeroSlot> HeroPanel::shown_slots() const {
+    std::vector<HudHeroSlot> out;
+    if (!open_ || !good_) return out;
+    for (const PanelSlot& s : slots_) {
+        if (s.value < 0 || s.component < 0 || s.id == 0 || s.id == commands::kNoObject) continue;  // bars, building heroes
+        const auto it = std::find_if(hits_.begin(), hits_.end(), [&](const HudHitBox& h) { return h.component == s.component; });
+        if (it == hits_.end()) continue;
+        const Vec2f a = canvas_.canvas_to_pixel(it->min.x, it->max.y), b = canvas_.canvas_to_pixel(it->max.x, it->min.y);
+        out.push_back({s.id, it->layer, a, b});
+    }
+    return out;
+}
+
 uint32_t HeroPanel::hover_hero() const {
     const int32_t h = hover_component();
     const PanelSlot* s = h >= 0 ? slot_of(h) : nullptr;
