@@ -26,6 +26,8 @@ const char* kXml = R"(<?xml version="1.0"?>
   <CommandBarComponent Name="b_option_t"><Type>TextButton</Type><Tooltip_Text>TEXT_BUTTON_MAIN_MENU</Tooltip_Text></CommandBarComponent>
   <CommandBarComponent Name="b_play_pause_t"><Type>Button</Type></CommandBarComponent>
   <CommandBarComponent Name="b_fast_forward_t"><Type>Button</Type></CommandBarComponent>
+  <CommandBarComponent Name="text_attack"><Type>TextButton</Type></CommandBarComponent>
+  <CommandBarComponent Name="attack_button"><Type>TextButton</Type></CommandBarComponent>
   <CommandBarComponent Name="Text_Credits_tactical"><Type>TextButton</Type>
     <Font_Name>EmpireAtWar-Medium</Font_Name><Font_Point_Size>7</Font_Point_Size></CommandBarComponent>
   <CommandBarComponent Name="Text_Tactical_Tech"><Type>TextButton</Type></CommandBarComponent>
@@ -138,7 +140,7 @@ void test_controls_parity() {
                     std::vector<commands::EventData> cc, mc;
                     std::vector<HudAction> ca, ma;
                     h.classic.update_input(click_on(ci, b), shift, false, 1.0, cc, &ca);
-                    h.modern.update_input(click_on(ci, b), shift, false, 1.0, mc, &ma);
+                    h.modern.update_input(click_on(ci, b), shift, false, mc, &ma);
                     bool same = cc == mc && ca.size() == ma.size();
                     for (size_t i = 0; same && i < ca.size(); ++i) same = same_action(ca[i], ma[i]);
                     if (!same)
@@ -151,7 +153,7 @@ void test_controls_parity() {
         // the pause click is the pause command
         std::vector<commands::EventData> mc;
         h.build(f);
-        h.modern.update_input(click_on(h.t.find("b_play_pause_t")), false, false, 1.0, mc, nullptr);
+        h.modern.update_input(click_on(h.t.find("b_play_pause_t")), false, false, mc, nullptr);
         CHECK(mc.size() == 1 && mc[0] == pause_event(!paused));
     }
     // The shared controls are hit at the Classic component ids.
@@ -164,6 +166,32 @@ void test_controls_parity() {
     }
 }
 
+void test_pause_banner() {
+    // While paused, Modern shows the banner and its Resume Game sends the Classic banner's action (same component).
+    Huds h;
+    TacticalHudFrame f = frame();
+    f.paused = true;
+    h.build(f);
+    CHECK(h.modern.stats().pause_banner && h.classic.stats().pause_banner);
+    const int32_t resume = h.t.find("attack_button");
+    int32_t px = 0, py = 0;
+    CHECK(centre_px(h.modern.hit_boxes(), h.modern.canvas(), resume, px, py) && h.modern.hit_test(px, py) == resume);
+    std::vector<commands::EventData> cc, mc;
+    std::vector<HudAction> ca, ma;
+    h.classic.update_input(click_on(resume), false, false, 1.0, cc, &ca);
+    h.modern.update_input(click_on(resume), false, false, mc, &ma);
+    CHECK(cc.empty() && mc.empty() && ca.size() == 1 && ma.size() == 1 && ca[0].kind == HudAction::Kind::ResumeGame &&
+          same_action(ca[0], ma[0]));
+    // No banner while running, or with the banner turned off (scripted captures).
+    f.paused = false;
+    h.build(f);
+    CHECK(!h.modern.stats().pause_banner);
+    f.paused = true;
+    f.pause_banner = false;
+    h.build(f);
+    CHECK(!h.modern.stats().pause_banner);
+}
+
 void test_style_switch() {
     Huds h;
     h.build(frame());
@@ -172,14 +200,14 @@ void test_style_switch() {
           h.modern.hit_test(px, py) == kModernStyleSwitchHit);
     std::vector<commands::EventData> cmds;
     std::vector<HudAction> acts;
-    h.modern.update_input(click_on(kModernStyleSwitchHit), false, false, 1.0, cmds, &acts);
+    h.modern.update_input(click_on(kModernStyleSwitchHit), false, false, cmds, &acts);
     CHECK(cmds.empty() && acts.size() == 1 && acts[0].kind == HudAction::Kind::HudStyleToggle);
     acts.clear();
-    h.modern.update_input(click_on(kModernStyleSwitchHit, Button::Right), false, false, 1.0, cmds, &acts);
+    h.modern.update_input(click_on(kModernStyleSwitchHit, Button::Right), false, false, cmds, &acts);
     CHECK(cmds.empty() && acts.empty());
     // A panel's back takes the click and sends nothing; the deck covers the bottom middle of the screen.
     CHECK(h.modern.hit_test(960, 1000) == kModernPanelHit);
-    h.modern.update_input(click_on(kModernPanelHit), false, false, 1.0, cmds, &acts);
+    h.modern.update_input(click_on(kModernPanelHit), false, false, cmds, &acts);
     CHECK(cmds.empty() && acts.empty());
     CHECK(h.modern.hit_test(960, 540) == -1);  // the battle in the middle is the world's
     // Interface hidden (the Toggle Interface key, movie mode): nothing drawn, nothing hit, a stale click sends nothing.
@@ -187,8 +215,8 @@ void test_style_switch() {
     f.world.interface_hidden = true;
     h.build(f);
     CHECK(h.modern.draw_list().total() == 0 && h.modern.hit_boxes().empty() && !h.modern.stats().status_corner);
-    h.modern.update_input(click_on(kModernStyleSwitchHit), false, false, 1.0, cmds, &acts);
-    h.modern.update_input(click_on(h.t.find("b_option_t")), false, false, 1.0, cmds, &acts);
+    h.modern.update_input(click_on(kModernStyleSwitchHit), false, false, cmds, &acts);
+    h.modern.update_input(click_on(h.t.find("b_option_t")), false, false, cmds, &acts);
     CHECK(cmds.empty() && acts.empty());
 }
 
@@ -199,9 +227,8 @@ void test_text_scale() {
     CHECK(h.modern.text_scale() == kModernTextScaleMax);
     h.modern.set_text_scale(0.5f);
     CHECK(h.modern.text_scale() == kModernTextScaleMin);
-    // Body text at the default scale is 18 px at 1080p (Xbox accessibility guideline 101), labels 14 px at 100 %.
-    CHECK(font_pixel_height_int(kModernBodyPx * kModernTextScaleDefault * 450.0f / 1080.0f, 1080) == 18);
-    CHECK(font_pixel_height_int(kModernLabelPx * 450.0f / 1080.0f, 1080) == 14);
+    // All Modern text at the default scale is 18 px at 1080p (Xbox accessibility guideline 101).
+    CHECK(font_pixel_height_int(kModernTextPx * kModernTextScaleDefault * 450.0f / 1080.0f, 1080) == 18);
     // A larger text scale makes a wider status corner.
     h.modern.set_text_scale(1.0f);
     h.modern.build(frame(), {}, {});
@@ -281,6 +308,7 @@ int main() {
     test_style_names();
     test_status_corner();
     test_controls_parity();
+    test_pause_banner();
     test_style_switch();
     test_text_scale();
     test_hotkey();

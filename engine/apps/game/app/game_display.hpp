@@ -11,7 +11,7 @@
 #include "alamo/render/upscale.hpp"
 #include "alamo/ui/gui_menus.hpp"
 #include "alamo/ui/hotkeys.hpp"
-#include "alamo/ui/modern_tactical_hud.hpp"
+#include "alamo/ui/hud_style.hpp"
 
 namespace alamo::render {
 struct RecordOptions;

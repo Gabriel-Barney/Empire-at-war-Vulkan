@@ -1505,7 +1505,7 @@ void App::battle_input() {
     }
     story_forced_clicks();  // FORCE_CLICK_GUI
     const size_t cmds_before = cmds.size(), acts_before = acts.size();
-    if (modern_hud()) ui_.modern_hud.update_input(routed_, input_.shift(), input_.ctrl(), now_s_, cmds, &acts);  // #584
+    if (modern_hud()) ui_.modern_hud.update_input(routed_, input_.shift(), input_.ctrl(), cmds, &acts);  // #584
     else ui_.tactical_hud.update_input(routed_, input_.shift(), input_.ctrl(), now_s_, cmds, &acts);
     for (size_t i = cmds_before; i < cmds.size(); ++i)  // #477: the sell click closes the button (no second sale)
         if (cmds[i].type() == commands::EventType::TacticalSell) sell_object_ = 0;

@@ -177,7 +177,7 @@ struct HudAction {
         // [port: Gabriel] appended 2026-11-22 (#176): a right click on a fleet group's header tab in the selected-unit bar:
         // value = the group id, name = its name (UTF-8). Host: open the rename prompt for the group.
         FleetGroupRename,
-        // [port: Gabriel] appended 2026-11-26 (#584, docs/DECISIONS.md "Modern HUD: exception to the current focus"): the
+        // [port: Gabriel] appended 2026-11-25 (#584, docs/DECISIONS.md "Modern HUD: exception to the current focus"): the
         // HUD style switch drawn on the Modern HUD was clicked. Host: switch Classic <-> Modern (presentation only).
         HudStyleToggle,
     };
@@ -451,7 +451,6 @@ public:
     // drag box) into world_draw_list() instead of draw_list(), which then holds the Classic panels only. Off (the
     // default): world_draw_list() stays empty and draw_list() is the whole Classic HUD, exactly as before.
     void set_world_split(bool on) { world_split_ = on; }
-    bool world_split() const { return world_split_; }
     const HudDrawList& world_draw_list() const { return world_dl_; }
 
     // Topmost HUD component under a pixel (-1: none) - RouteHooks::hud_hit.
