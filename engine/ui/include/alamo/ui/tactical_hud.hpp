@@ -469,6 +469,11 @@ struct TacticalHudFrame {
     // (kNoObject: none).
     bool reinforce_list_open = false;
     uint32_t station = commands::kNoObject;
+    // #608 for the Modern deck's Idle shortcut (nothing selected): the local player's idle units to select
+    // (TacticalBattle::idle_units, whole squadrons, at most 127 ids: Select's limit) and the count the shortcut shows (a
+    // squadron or company once). Empty / 0: no shortcut.
+    std::span<const uint32_t> idle_units;
+    uint32_t idle_count = 0;
     bool objectives_hidden = false;     // ui3 t01 [port]: the Mission Holocron key (Tab) toggles the objectives box
     // [port: Gabriel, original screenshot] Game Paused banner (pause_shell: yellow TEXT_GAME_PAUSED bar at the top
     // centre, red TEXT_BUTTON_RESUME_GAME button under it - a click emits HudAction::ResumeGame) while `paused`.

@@ -632,6 +632,7 @@ private:
     uint32_t squadron_strength(objects::TypeIndex craft);
     std::vector<ui::HudFleetGoal> fleet_goals_;  // [port: Gabriel] #179 move preview of the aimed move
     std::vector<ui::HudHeroSlot> hero_slots_;    // #616 the hero bar's shown slots (TacticalHudFrame::hero_slots)
+    std::vector<uint32_t> idle_ids_;             // #608 the Idle shortcut's units (TacticalHudFrame::idle_units)
     int32_t wing_last_ = -1;           // wing selected last and when (double press -> camera)
     double wing_last_s_ = -1.0e30;
     bool interface_hidden_ = false;    // ToggleInterface key (byte 0x140b3069b)

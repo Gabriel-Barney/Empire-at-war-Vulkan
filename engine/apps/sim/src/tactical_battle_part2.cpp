@@ -356,6 +356,25 @@ std::vector<TacticalBattle::IconLink> TacticalBattle::icon_links() const {
     return out;
 }
 
+bool TacticalBattle::unit_idle(objects::ObjectId id) const {
+    if (contained_by(id) != objects::kNoObjectId || !queued_orders(id).empty() || order_busy(id, nullptr)) return false;
+    return !combat_->has_unit(id) || (combat_->current_target(id) == tc::kNoObject && combat_->attack_goal(id) == tc::kNoObject);
+}
+
+std::vector<TacticalBattle::IconLink> TacticalBattle::idle_units(int32_t player) const {
+    std::vector<IconLink> mine;
+    std::vector<objects::ObjectId> busy;  // squad leads with a member that is not idle
+    for (const IconLink& l : icon_links()) {
+        const auto u = std::lower_bound(units_.begin(), units_.end(), l.unit, [](const Unit& x, objects::ObjectId v) { return x.id < v; });
+        if (u == units_.end() || u->id != l.unit || u->participant >= parts_.size() || parts_[u->participant].owner != player) continue;
+        mine.push_back(l);
+        if (!unit_idle(l.unit)) busy.push_back(l.squad);
+    }
+    std::sort(busy.begin(), busy.end());
+    std::erase_if(mine, [&](const IconLink& l) { return std::binary_search(busy.begin(), busy.end(), l.squad); });
+    return mine;
+}
+
 float TacticalBattle::population_cap(int32_t player) const {
     if (!space_ || !galaxy_ || player < 0 || static_cast<size_t>(player) >= galaxy_->players().size()) return -1.0f;
     return rules_->faction(galaxy_->players()[static_cast<size_t>(player)].faction).space_unit_cap;

@@ -140,6 +140,7 @@ void ModernTacticalHud::build(const TacticalHudFrame& frame, std::span<const Hud
     discipline_drawn_ = false;
     roster_right_ = -0.5f * canvas_.width;  // no roster
     station_ = commands::kNoObject;
+    idle_ids_.clear();
     map_view_ = {};
     radar_models_.clear();
     ground_z_ = frame.ground_z;
@@ -334,8 +335,8 @@ float ModernTacticalHud::build_actions(const TacticalHudFrame& f, Vec2f top_left
     return width;
 }
 
-// #587 with nothing selected: the wings (as the selection header's), the fleet groups (selecting a group's members, as
-// Classic's fleet tab) and the station (selecting it), as text buttons in two rows.
+// #587 with nothing selected: the station (selecting it) and #608 "Idle N" (selecting the idle units), as text buttons in
+// two rows (the wings and fleet groups are the roster's, #601).
 Vec2f ModernTacticalHud::grid2_cell(size_t i, Vec2f top_left, Vec2f cell, float gap) const {
     return {top_left.x + 0.5f * cell.x + static_cast<float>(i / 2) * (cell.x + gap), top_left.y - 0.5f * cell.y - static_cast<float>(i % 2) * (cell.y + gap)};
 }
@@ -354,6 +355,10 @@ float ModernTacticalHud::build_shortcuts(const TacticalHudFrame& f, std::span<co
         for (const HudUnit& u : units)
             if (u.id == f.station && u.type < types.size()) label = type_label(&types[u.type], text_);
         entries.push_back({kModernStationHit, label.empty() ? text_or_port(text_, nullptr, U"Station") : std::move(label), false});
+    }
+    if (!f.idle_units.empty() && f.idle_count > 0) {
+        if (draw) idle_ids_.assign(f.idle_units.begin(), f.idle_units.end());
+        entries.push_back({kModernIdleHit, text_or_port(text_, nullptr, U"Idle") + U" " + count_text(f.idle_count), false});
     }
     if (entries.empty()) return 0.0f;
     HudTextStyle st;
@@ -1828,6 +1833,10 @@ void ModernTacticalHud::update_input(const RoutedInput& routed, bool shift, bool
         }
         if (e.component == kModernStationHit) {
             if (e.button == Button::Left && station_ != commands::kNoObject) out.push_back(commands::ev::select({station_}));
+            continue;
+        }
+        if (e.component == kModernIdleHit) {  // #608
+            if (e.button == Button::Left && !idle_ids_.empty()) out.push_back(commands::ev::select(idle_ids_));
             continue;
         }
         // #600 a wing run's tab: the Classic wing button's action.

@@ -59,6 +59,7 @@ inline constexpr int32_t kModernWingTabBase = kModernHitBase + 0x800;  // #600 +
 // #601 the fleet roster (its wing cards use the Classic wing button ids, kWingHitBase + wing)
 inline constexpr int32_t kModernRosterHeaderHit = kModernHitBase + 9;     // the header: collapse / expand
 inline constexpr int32_t kModernRosterNewHit = kModernHitBase + 10;       // "+ New group (N)" (the N key's Create)
+inline constexpr int32_t kModernIdleHit = kModernHitBase + 11;            // #608 the shortcut that selects the idle units
 inline constexpr int32_t kModernRosterGroupBase = kModernHitBase + 0x900;  // + fleet group index (the feed's order)
 // Hull bar colours by health (badly damaged units stand out): above kModernHullWarn, above kModernHullCritical, below.
 inline constexpr float kModernHullWarn = 0.6f, kModernHullCritical = 0.3f;
@@ -95,7 +96,7 @@ struct ModernHudStats {
     bool production = false;                 // the production section drawn
     uint32_t build_options = 0, build_blocked = 0, queue_entries = 0, reinforcements = 0;
     std::vector<std::u32string> build_texts;  // each option's line: its cost, or its blocked reason
-    uint32_t shortcuts = 0;                  // shortcuts drawn (the station; wings and groups are the roster's, #601)
+    uint32_t shortcuts = 0;                  // shortcuts drawn (the station, #608 Idle; wings and groups are the roster's, #601)
     float deck_width = 0.0f;                 // canvas units
     uint32_t fleet_tabs = 0, fleet_merge = 0, fleet_split = 0;  // #588 group tabs and their Merge / Split buttons drawn
     // #600 wing run tabs; the tabs' state chips (a padlock LOCKED, an open padlock FREE, a wing WING) and health bars
@@ -267,6 +268,7 @@ private:
     void chip_icon(Chip chip, Vec2f c, float u, Rgba8 edge, uint32_t layer);
     void build_run_tabs(const TacticalHudFrame& f, std::span<const HudUnit> units, const CardRow& row, float tab_h);
     uint32_t builder_ = commands::kNoObject, station_ = commands::kNoObject;
+    std::vector<uint32_t> idle_ids_;  // #608 the Idle shortcut's units (the last build's, empty: none)
     std::vector<SelectedGroup> groups_;
     std::vector<std::vector<uint32_t>> wing_ids_;  // per TacticalHudFrame::wings entry (empty: not drawn), as Classic's
     Rgba8 credits_color_{255, 212, 33, 255};                // Text_Credits_tactical's Text_Color when the data has one

@@ -356,6 +356,8 @@ struct FleetRun {
     bool capped = true;        // no member ran faster than the slowest member's max speed during the move
     bool split_speeds = false; // the members had different max speeds (the cap was tested)
     uint32_t members = 0, move_ticks = 0, lagging_ticks = 0;  // lagging_ticks: #603 ticks with a lagging member
+    // #608 idle_units: a moving member listed idle (must stay 0), and the members idle once the move ended
+    uint32_t idle_while_moving = 0, idle_after = 0;
     float worst_goal = 0.0f, fastest_over = 0.0f;
 };
 
@@ -519,6 +521,18 @@ FleetRun run_fleet_battle(const Data& d, int32_t workers, bool on) {
                 CHECK(before.digest() == after.digest() && lag.size() <= 1);
                 if (!lag.empty()) ++out.lagging_ticks;
             }
+            {  // #608: the HUD's idle query each tick changes nothing, and lists no member with a movement goal
+                StateHasher before;
+                b->hash(before);
+                b->movement().hash_units(before);
+                const std::vector<TacticalBattle::IconLink> idle = b->idle_units(0);
+                StateHasher after;
+                b->hash(after);
+                b->movement().hash_units(after);
+                CHECK(before.digest() == after.digest());
+                for (const TacticalBattle::IconLink& l : idle)
+                    if (b->movement().has_unit(l.unit) && b->movement().view(l.unit).has_goal) ++out.idle_while_moving;
+            }
             for (const FleetMember& m : g->members) {
                 const mv::UnitView v = b->movement().view(m.id);
                 const float over = v.speed - slowest;
@@ -529,6 +543,8 @@ FleetRun run_fleet_battle(const Data& d, int32_t workers, bool on) {
         }
         moving = false;
         out.arrived = true;
+        for (const TacticalBattle::IconLink& l : b->idle_units(0))
+            if (std::any_of(g->members.begin(), g->members.end(), [&](const FleetMember& m) { return m.id == l.unit; })) ++out.idle_after;
         for (const FleetMember& m : g->members) {
             const float dist = mv::distance(b->movement().view(m.id).pos, m.goal);
             out.worst_goal = std::max(out.worst_goal, dist);
@@ -605,6 +621,8 @@ int main(int argc, char** argv) {
     std::printf("  %u members, speeds differ %d, move %u ticks (%u lagging), worst slot distance %.1f, fastest over cap %.3f\n",
                 on.members, on.split_speeds ? 1 : 0, on.move_ticks, on.lagging_ticks, static_cast<double>(on.worst_goal),
                 static_cast<double>(on.fastest_over));
+    std::printf("  #608 idle: %u while moving, %u of %u members idle after the move\n", on.idle_while_moving, on.idle_after, on.members);
+    CHECK(on.idle_while_moving == 0 && on.idle_after > 0);  // arrived with nothing to fight: idle
     CHECK(on.split_speeds && on.members == 5 && on.previewed);  // the fixture's frigates (3) and corvettes (5): the cap is exercised
     std::error_code ec;
     remove_all_long(d->root, ec);
