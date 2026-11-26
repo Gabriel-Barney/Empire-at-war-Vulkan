@@ -936,6 +936,75 @@ void test_actions() {
     }
 }
 
+// #588 fleet group tabs: the Classic grouping (group_selection_fleets) under each group's tab, Merge on the oldest tab
+// when the selection spans groups, Split on a partly selected group; every click Classic's.
+void test_fleet_tabs() {
+    Huds h;
+    Selection s;
+    TacticalHudFrame f = frame();
+    f.world.local_player = 0;
+    std::vector<HudFleetGroup> fleets(2);
+    fleets[0].id = 1;
+    fleets[0].members = {20, 21};
+    fleets[1].id = 2;
+    fleets[1].name = U"Escort";
+    fleets[1].locked = true;
+    fleets[1].members = {22, 50};  // 50 not selected: a partial selection
+    f.fleet_groups_on = true;
+    f.fleet_groups = fleets;
+    h.build(f, s.units, s.types);
+    const ModernHudStats& st = h.modern.stats();
+    CHECK(st.fleet_tabs == 2 && st.fleet_merge == 1 && st.fleet_split == 1);
+    CHECK(h.classic.stats().fleet_tabs == 2);
+    CHECK(h.modern.selection_cards().size() == h.classic.panel_groups().size());
+    for (size_t i = 0; i < h.modern.selection_cards().size() && i < h.classic.panel_groups().size(); ++i)
+        CHECK(h.modern.selection_cards()[i].ids == h.classic.panel_groups()[i].ids &&
+              h.modern.selection_cards()[i].fleet == h.classic.panel_groups()[i].fleet);
+    // The shared rules: Merge on the oldest selected group's tab, Split on the partly selected one.
+    const std::vector<size_t> sel = fleet_selected_counts(s.units, fleets);
+    CHECK((sel == std::vector<size_t>{2, 1}));
+    const HudFleetTabState t0 = fleet_tab_state(fleets, sel, 1), t1 = fleet_tab_state(fleets, sel, 2);
+    CHECK(t0.merge && !t0.split && !t1.merge && t1.split && t1.group == &fleets[1]);
+    // Clicks: the tab (left, Shift-left, right = rename), Merge, Split = Classic's.
+    for (const auto& [id, b, shift] : {std::tuple{kFleetTabHitBase, Button::Left, false}, std::tuple{kFleetTabHitBase + 1, Button::Left, true},
+                                       std::tuple{kFleetTabHitBase + 1, Button::Right, false}, std::tuple{kFleetMergeHitBase, Button::Left, false},
+                                       std::tuple{kFleetSplitHitBase + 1, Button::Left, false}}) {
+        h.build(f, s.units, s.types);
+        size_t emitted = 0;
+        std::vector<commands::EventData> cc, mc;
+        std::vector<HudAction> ca, ma;
+        h.classic.update_input(click_on(id, b), shift, false, 1.0, cc, &ca);
+        h.modern.update_input(click_on(id, b), shift, false, mc, &ma);
+        CHECK(cc == mc && ca.size() == ma.size());
+        for (size_t i = 0; i < ca.size() && i < ma.size(); ++i) CHECK(same_action(ca[i], ma[i]));
+        emitted = mc.size() + ma.size();
+        CHECK(emitted == 1);
+    }
+    // A one-card run with a name and both buttons, followed by another run: its Merge and Split stay the topmost hit at
+    // their centres (a layer over the tabs, the tab clamped to its room).
+    {
+        std::vector<HudFleetGroup> fl(2);
+        fl[0].id = 1;
+        fl[0].name = U"A very long group name for the first run";
+        fl[0].members = {20, 50};  // partly selected: Split; the oldest of two: Merge
+        fl[1].id = 2;
+        fl[1].members = {21, 22};
+        std::vector<HudUnit> us = s.units;
+        TacticalHudFrame g = f;
+        g.fleet_groups = fl;
+        h.modern.build(g, us, s.types);
+        CHECK(st.fleet_merge == 1 && st.fleet_split == 1);
+        for (const int32_t id : {kFleetMergeHitBase, kFleetSplitHitBase}) {
+            int32_t px = 0, py = 0;
+            CHECK(centre_px(h.modern.hit_boxes(), h.modern.canvas(), id, px, py) && h.modern.hit_test(px, py) == id);
+        }
+    }
+    // Fleet groups off: no tabs.
+    f.fleet_groups_on = false;
+    h.build(f, s.units, s.types);
+    CHECK(st.fleet_tabs == 0);
+}
+
 void test_world_split() {
     // The Classic HUD with the split off is unchanged (world_draw_list empty); with it on, the drag box (a world-space
     // item) moves to world_draw_list and the two lists together hold what draw_list held.
@@ -976,6 +1045,7 @@ int main() {
     test_options();
     test_abilities();
     test_actions();
+    test_fleet_tabs();
     test_hotkey();
     test_world_split();
     if (g_fail) {

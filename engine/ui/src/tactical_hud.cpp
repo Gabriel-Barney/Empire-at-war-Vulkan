@@ -389,6 +389,55 @@ void ability_button_click(const HudAbilityButton& a, int32_t component, const st
     }
 }
 
+std::vector<size_t> fleet_selected_counts(std::span<const HudUnit> units, std::span<const HudFleetGroup> fleets) {
+    std::vector<size_t> n(fleets.size(), 0);
+    for (size_t k = 0; k < fleets.size(); ++k)
+        for (const HudUnit& u : units)
+            if (u.selected && std::binary_search(fleets[k].members.begin(), fleets[k].members.end(), u.id)) ++n[k];
+    return n;
+}
+
+HudFleetTabState fleet_tab_state(std::span<const HudFleetGroup> fleets, std::span<const size_t> selected, uint16_t id) {
+    HudFleetTabState t;
+    size_t selected_here = 0, groups_selected = 0;
+    bool oldest = true;  // no earlier group has a selected member
+    for (size_t k = 0; k < fleets.size(); ++k) {
+        const size_t n_sel = k < selected.size() ? selected[k] : 0;
+        if (n_sel > 0) ++groups_selected;
+        if (fleets[k].id == id) {
+            t.group = &fleets[k];
+            selected_here = n_sel;
+        } else if (!t.group && n_sel > 0) {
+            oldest = false;
+        }
+    }
+    t.merge = oldest && groups_selected >= 2;
+    t.split = t.group && selected_here > 0 && selected_here < t.group->members.size();
+    return t;
+}
+
+std::vector<uint32_t> fleet_tab_select_ids(std::span<const uint32_t> members, std::span<const uint32_t> selection, bool shift) {
+    std::vector<uint32_t> ids = shift ? std::vector<uint32_t>(selection.begin(), selection.end()) : std::vector<uint32_t>{};
+    for (const uint32_t id : members)
+        if (std::find(ids.begin(), ids.end(), id) == ids.end()) ids.push_back(id);
+    return capped(std::move(ids));
+}
+
+HudAction fleet_rename_action(int32_t component, uint16_t id, const std::string& name) {
+    HudAction h;
+    h.kind = HudAction::Kind::FleetGroupRename;
+    h.component = component;
+    h.value = id;
+    h.name = name;
+    return h;
+}
+
+commands::EventData fleet_button_event(bool merge) {
+    commands::FleetGroupCommand c;
+    c.op = merge ? commands::FleetGroupOp::Merge : commands::FleetGroupOp::Create;
+    return commands::fleet_group_event(c);
+}
+
 HudAction tactical_cancel_action(int32_t component, const std::string& name, const HudQueueEntry& e) {
     HudAction h;
     h.kind = HudAction::Kind::TacticalCancel;
@@ -491,33 +540,19 @@ void TacticalHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
     for (const HudPointerEvent& e : routed.hud) {
         if (e.kind != HudPointerEvent::Kind::Click || e.button != Button::Left) continue;
         // #177: Merge / Split act on the synced selection (the sim's), as the N / U / Y hotkeys do.
-        commands::FleetGroupCommand c;
-        if (in_range(e.component, kFleetMergeHitBase)) {
-            c.op = commands::FleetGroupOp::Merge;
-            out.push_back(commands::fleet_group_event(c));
-        } else if (in_range(e.component, kFleetSplitHitBase)) {
-            c.op = commands::FleetGroupOp::Create;
-            out.push_back(commands::fleet_group_event(c));
-        }
+        if (in_range(e.component, kFleetMergeHitBase)) out.push_back(fleet_button_event(true));
+        else if (in_range(e.component, kFleetSplitHitBase)) out.push_back(fleet_button_event(false));
     }
     for (const HudPointerEvent& e : routed.hud) {
         if (e.kind != HudPointerEvent::Kind::Click || !in_range(e.component, kFleetTabHitBase)) continue;
         if (e.button == Button::Right) {
             const auto& [gid, gname] = fleet_tab_group_[static_cast<size_t>(e.component - kFleetTabHitBase)];
-            HudAction h;
-            h.kind = HudAction::Kind::FleetGroupRename;
-            h.component = e.component;
-            h.value = gid;
-            h.name = gname;
-            act(std::move(h));
+            act(fleet_rename_action(e.component, gid, gname));
             continue;
         }
         if (e.button != Button::Left) continue;
         const std::vector<uint32_t>& m = fleet_tab_ids_[static_cast<size_t>(e.component - kFleetTabHitBase)];
-        std::vector<uint32_t> ids = shift ? selection_ids() : std::vector<uint32_t>{};
-        for (const uint32_t id : m)
-            if (std::find(ids.begin(), ids.end(), id) == ids.end()) ids.push_back(id);
-        out.push_back(commands::ev::select(capped(std::move(ids))));
+        out.push_back(commands::ev::select(fleet_tab_select_ids(m, selection_ids(), shift)));
     }
 
     for (const ButtonClick& k : clicks) {
@@ -643,11 +678,7 @@ void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> 
     stats_.world = world_.stats();
     groups_ = frame.fleet_groups_on ? group_selection_fleets(units, frame.fleet_groups, panel_slot_count())
                                     : group_selection(units);
-    fleet_selected_.assign(frame.fleet_groups_on ? frame.fleet_groups.size() : 0, 0);
-    for (size_t k = 0; k < fleet_selected_.size(); ++k)
-        for (const HudUnit& u : units)
-            if (u.selected && std::binary_search(frame.fleet_groups[k].members.begin(), frame.fleet_groups[k].members.end(), u.id))
-                ++fleet_selected_[k];
+    fleet_selected_ = frame.fleet_groups_on ? fleet_selected_counts(units, frame.fleet_groups) : std::vector<size_t>{};
     build_fleet_outlines(frame, units, types);
     if (frame.fleet_groups_on && !frame.world.targeting_active && !frame.world.cinematic)
         for (const HudFleetGoal& g : frame.fleet_preview) {  // #179: a faint circle per destination slot
@@ -1559,22 +1590,11 @@ void TacticalHud::build_fleet_tabs(const TacticalHudFrame& f) {
             s = e;
             continue;
         }
-        const HudFleetGroup* fg = nullptr;
-        size_t selected_here = 0, groups_selected = 0;
-        bool oldest = true;  // no earlier group has a selected member
-        for (size_t k = 0; k < f.fleet_groups.size(); ++k) {
-            const size_t n_sel = k < fleet_selected_.size() ? fleet_selected_[k] : 0;
-            if (n_sel > 0) ++groups_selected;
-            if (f.fleet_groups[k].id == id) {
-                fg = &f.fleet_groups[k];
-                selected_here = n_sel;
-            } else if (!fg && n_sel > 0) {
-                oldest = false;
-            }
-        }
+        const HudFleetTabState ts = fleet_tab_state(f.fleet_groups, fleet_selected_, id);
+        const HudFleetGroup* fg = ts.group;
         const bool locked = fg && fg->locked;
-        const bool merge_button = oldest && groups_selected >= 2;
-        const bool split_button = fg && selected_here > 0 && selected_here < fg->members.size();
+        const bool merge_button = ts.merge;
+        const bool split_button = ts.split;
         const Rgba8 edge = locked ? Rgba8{230, 190, 80, 255} : Rgba8{120, 170, 230, 255};
         bool first = true;
         for (size_t a = s; a < e;) {  // one frame per row of the run
