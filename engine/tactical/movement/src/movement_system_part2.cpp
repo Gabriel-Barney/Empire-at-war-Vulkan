@@ -53,6 +53,11 @@ bool MovementSystem::unit_moving(const Unit& u) const {
     return u.m.speed > 0.0f || u.pushed || (u.has_goal && !u.need_path) || in_place_turn(u);
 }
 
+bool MovementSystem::locomotor_moving(ObjectId id) const {
+    const Unit* u = unit_ptr(id);  // vf +0x1a8 0x42cc60, unit_moving without vf +0x1b0
+    return u && u->speed_factor > 0.0f && !u->d.no_locomotor && (u->m.speed > 0.0f || u->pushed || (u->has_goal && !u->need_path));
+}
+
 bool MovementSystem::turning_in_place(ObjectId id) const {
     // vf +0x1b0 0x42cd30, the turning half of unit_moving
     const Unit* u = unit_ptr(id);

@@ -220,6 +220,12 @@ void TacticalBattle::land_engage_service(TacticalMode& mode, SimRng& rng) {
     // Per record, ascending mover (land_attack_order / land_pop do not touch lformations_).
     for (size_t i = 0; i < lformations_.size(); ++i) {
         LandFormationRecord& r = lformations_[i];
+        // #510 state 6 (0x422b70 [H]): while any member's locomotor moves, wait; then wait while frame <= deadline; then
+        // speed := -1, state 0 (the re-plan)
+        if (r.wait && land_members_still(r) && frame_ > r.deadline) {
+            r.wait = false;
+            land_replan(mode, r, rng);
+        }
         const objects::ObjectId tu = land_mover_target_unit(r.mover);
         const Unit* lead = live(attack_lead(r.mover));
         if (tu == objects::kNoObjectId || !combat_->has_unit(tu) || !lead) continue;
@@ -343,6 +349,7 @@ bool TacticalBattle::land_step10_attack(TacticalMode& mode, objects::ObjectId mo
 void TacticalBattle::land_push(TacticalMode& mode, LandFormationRecord& r, objects::ObjectId tu, const Unit& t, SimRng& rng) {
     const std::vector<objects::ObjectId> us = land_mover_units(r.mover);
     if (us.empty()) return;
+    r.wait = false;  // #510: a Push plans to the new top (state 0); a state-6 wait ends
     const Vec3 tp = mode.primary().position(t.h);
     // cmb2 t04 (FIGHTER_FLYING §4.11 B, BKT1_ATTACK_RE §1.3 [H]): Push gives the block a hard point when the object has hard
     // points (0x394610 Choose_Target_Hardpoint for the TARGETING unit; -1 none)
@@ -377,7 +384,35 @@ void TacticalBattle::land_pop(TacticalMode& mode, LandFormationRecord& r, SimRng
     if (!named && it != attack_blocks_.end() && it->mover == r.mover && it->target == was) attack_blocks_.erase(it);
     if (popped) land_pop_effects(*popped, r.mover);
     if (r.blocks.empty()) return;
+    // #510: Pop 0x4105a0 goes to state 5 after an object block (kind 3), else to state 0 (the re-plan)
+    if (popped && popped->kind == mv::kFighterBlockObject && !land_pop_ready(r)) return;
     land_replan(mode, r, rng);
+}
+
+// #510 state 5, 0x422e50 [H] (read 2026-11-26): the deadline F +0x244 := frame + 2, raised to each member's TARGETING
+// (behaviour 9) vf +0x110 - 0x566b80, the targeting data's +0x20, which 0x5670b0 sets to frame + interval + rand(0,
+// interval / 2): CombatSystem::next_scan, the same rule (formulas next_scan_frame) [H]; a team member answers through its
+// own members (land_mover_units lists the units). TARGETING vf +0xe0 (0x567080: the targeting data's +8 is set) is "has a
+// target": CombatSystem::current_target [M]. Every member with a target and none whose locomotor moves (vf +0x1a8 or vf
+// +0x1c0(0)): speed := -1, state 0 (re-plan now). Else state 6 (r.wait).
+bool TacticalBattle::land_pop_ready(LandFormationRecord& r) {
+    uint32_t deadline = frame_ + 2u;
+    bool targets = true;
+    for (const objects::ObjectId id : land_mover_units(r.mover)) {
+        if (!combat_->has_unit(id)) continue;
+        deadline = std::max(deadline, combat_->next_scan(id));
+        targets = targets && combat_->current_target(id) != tc::kNoObject;
+    }
+    r.deadline = deadline;
+    r.wait = !(targets && land_members_still(r));
+    if (r.wait) ++stats_.land_pop_waits;
+    return !r.wait;
+}
+
+bool TacticalBattle::land_members_still(const LandFormationRecord& r) const {
+    for (const objects::ObjectId id : land_mover_units(r.mover))
+        if (movement_->has_unit(id) && movement_->locomotor_moving(id)) return false;
+    return true;
 }
 
 // #491 (Pop 0x4105a0's member loop [H], read from the binary 2026-11-24): for each member of the formation, in member order

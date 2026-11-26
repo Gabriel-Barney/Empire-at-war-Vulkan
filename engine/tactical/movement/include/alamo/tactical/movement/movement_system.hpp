@@ -653,6 +653,10 @@ public:
     // #44 t04 (MOVEMENT §5.3 "What Moving is", vf +0x1b0 0x42cd30): not suspended and turning in place (the Walk start
     // turn, the arrival turn, a container's final-facing turn) - Moving at speed 0. False for an unknown id.
     bool turning_in_place(ObjectId id) const;
+    // #510 (the land formation's state 5 / 6 member test, 0x422e50): the locomotor's vf +0x1a8 0x42cc60 - not suspended and
+    // (speed > 0, or a path record on its stack), which also answers vf +0x1c0(0) (a path on the stack). Moving without the
+    // in-place turn of vf +0x1b0. False for an unknown id.
+    bool locomotor_moving(ObjectId id) const;
     // The deploy state: None (also every non-Walk unit), WalkDeploying, WalkDeployed or WalkUndeploying.
     LocoState deploy_state(ObjectId id) const;
     // One deploy-state change (requests, clip ends and swaps), in the order they happen. `finished` = the change raises

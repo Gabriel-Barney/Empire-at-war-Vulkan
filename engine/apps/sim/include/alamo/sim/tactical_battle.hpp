@@ -239,6 +239,7 @@ struct BattleStats {
     uint32_t attack_unseen_drops = 0;
     // cmb1 t01 (land Auto_Engage, LandFormationRecord; not saved): auto attack blocks pushed and popped (the order resumed)
     uint32_t land_auto_pushes = 0, land_auto_pops = 0, land_waypoint_pops = 0, land_guard_pops = 0;
+    uint32_t land_pop_waits = 0;  // #510: object-block Pops that waited (state 6) before the re-plan
     uint32_t land_pop_signals = 0;  // #491: signal 0x2a raised by a Pop of a block with 0x40 (per member; not saved)
     uint32_t land_pop_facings = 0;  // #491: members whose orientation a Pop set from locomotor vf +0x1e8 (not saved)
     uint32_t land_step10_pushes = 0;  // MovingVsStopped step 10 attack blocks issued (not saved)
@@ -454,6 +455,12 @@ struct LandFormationRecord {
     // lead's owner: frozen; stealthed against the lead's type: the lead's position
     Vec3 seen;
     bool locked = false;  // derived each tick by land_engage_service (0x39ad40 / 0x41fd30: a member order-locked)
+    // #510 (0x4105a0 -> state 5 0x422e50, state 6 in the formation update 0x422b70 [H]): after the Pop of an object block
+    // (an auto attack block) the formation re-plans at once only when every member has a target and no member's locomotor
+    // moves. Else it waits (`wait`) until no member's locomotor moves and the frame is past `deadline` (the Pop frame + 2,
+    // raised to every member's next target scan). Saved (battle state 28).
+    bool wait = false;
+    uint32_t deadline = 0;
     // blocks[0]'s flags (0x01 attack-move, 0x02 guard), goal point (an object block: the object's position at the order)
     // and object (Attack, Attack_Move / Guard of an object; none for a position block)
     // the order flags a land block keeps (0x01 attack-move, 0x02 guard), and the stack's own (0x04 player order, 0x08 queued)
@@ -2450,6 +2457,8 @@ private:
     // Push 0x41fd30 of an auto / step-10 attack block on object t (unit tu: the record's TARGETING unit)
     void land_push(TacticalMode& mode, LandFormationRecord& r, objects::ObjectId tu, const Unit& t, SimRng& rng);
     void land_pop(TacticalMode& mode, LandFormationRecord& r, SimRng& rng);  // 0x4105a0 of the auto block: the order resumes
+    bool land_pop_ready(LandFormationRecord& r);  // #510: state 5 (0x422e50): true = re-plan now, else r waits (state 6)
+    bool land_members_still(const LandFormationRecord& r) const;  // #510: no member's locomotor moves (vf +0x1a8 / +0x1c0)
     void land_replan(TacticalMode& mode, LandFormationRecord& r, SimRng& rng);  // the members move / attack to the top block
     LandFormationRecord* land_formation_mut(objects::ObjectId mover);
     // #489: the shift-queued land move into the movers' block stacks (0x420f70); returns the ids left to the host queue

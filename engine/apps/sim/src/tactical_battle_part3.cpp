@@ -1915,6 +1915,10 @@ void TacticalBattle::hash(StateHasher& h) const {
             h.f32(r.seen.x);
             h.f32(r.seen.y);
             h.f32(r.seen.z);
+            if (r.wait) {  // #510: a state-6 wait (absent otherwise: the bytes as before)
+                h.u8(6);
+                h.u32(r.deadline);
+            }
             // #489: a stack holding queued waypoints (0x08) adds every block (absent otherwise: the bytes as before)
             if (std::any_of(r.blocks.begin(), r.blocks.end(), [](const mv::FighterBlock& b) { return (b.flags & mv::kMoveFlagQueue) != 0; })) {
                 h.u32(static_cast<uint32_t>(r.blocks.size()));
