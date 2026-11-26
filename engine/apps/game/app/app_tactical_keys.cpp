@@ -261,6 +261,9 @@ void App::tactical_hotkeys(const std::vector<ui::HotkeyEvent>& hk, std::vector<c
             // MovieMode (on key up) and CinematicView: the battle cam (battle_cam_input, #462).
             case hk_::kToggleInterface: interface_hidden_ = !interface_hidden_; break;
             case hk_::kHudStyle: toggle_hud_style(); break;  // #584 [port] Classic <-> Modern
+            case hk_::kAlertJump:  // #589 [port] the Modern alert strip's Jump
+                if (modern_hud()) ui_.modern_hud.jump(acts);
+                break;
             case hk_::kHolocron: objectives_hidden_ = !objectives_hidden_; break;  // [port] the battle's holocron = the objectives box
             // Taunts, chat, give credits, player list: multiplayer / not traced - no action (legacy docs/PHASE4.md).
             default: break;

@@ -449,6 +449,12 @@ private:
     ui::MouseCursor cursor_;
     bool cursor_ok_ = false;
     std::vector<ui::HudObjective> hud_objectives_;  // tactical objectives box (built per frame)
+    // [port: Gabriel] #589 the Modern alert strip's entries: advisor lines, radar events, production done, objectives added
+    // (fill_alerts); cleared at each battle start.
+    ui::HudAlertLog alerts_;
+    size_t alert_objectives_seen_ = 0;  // objectives already announced this battle
+    uint32_t alert_radar_seen_ = 0;     // the newest radar event id already announced
+    void fill_alerts();
     ui::RadarSettings radar_settings_;
     ui::RadarImage radar_;
     ui::RadarEvents radar_events_;

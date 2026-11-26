@@ -40,7 +40,7 @@ namespace alamo::ui {
 // wingmen -> Alt+', Alt+S force sight -> Alt+=, Alt+D drain life -> Alt+\, Alt+A FoC full salvo -> Alt+. An original-format
 // profile is migrated on load (HotkeyTable::load).
 inline constexpr uint16_t kOriginalHotkeySlots = 153;
-inline constexpr uint16_t kHotkeySlots = 167;
+inline constexpr uint16_t kHotkeySlots = 168;
 
 enum class HotkeyMod : uint8_t { None = 0, Shift = 1, Ctrl = 2, Alt = 3 };  // profile encoding
 
@@ -89,7 +89,8 @@ inline constexpr uint16_t kSelectAll = 10, kSelectLike = 11, kNextUnit = 12, kPr
                           kFleetCreate = 163, kFleetUngroup = 164, kFleetLock = 165,
                           // [port] #584 (docs/DECISIONS.md "Modern HUD: exception to the current focus"): switch the HUD
                           // style Classic <-> Modern (F9; the host acts on the event)
-                          kHudStyle = 166;
+                          kHudStyle = 166,
+                          kAlertJump = 167;  // [port] #589 the Modern alert strip's Jump (F4)
 }  // namespace hk
 
 // Profile values (name -> integer), e.g. a registry / ini abstraction owned by the host.

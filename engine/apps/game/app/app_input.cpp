@@ -258,6 +258,14 @@ void App::galactic_message(std::string_view id) {
 void App::post_tick() {
     audio_.sim_tick();
     audio_.on_events(session_->presentation_events(), data_.types, local_player());  // this tick's events
+    for (const sim::PresentationEvent& e : session_->presentation_events())  // #589: the local player's production done
+        if (e.kind == sim::PresentationEventKind::ProductionCompleted && e.player == local_player() && local_player() >= 0 && e.type >= 0 &&
+            static_cast<size_t>(e.type) < data_.types.size()) {
+            const std::string_view id = ascii_trim(data_.types.get_string(static_cast<objects::TypeIndex>(e.type), "Text_ID"));
+            const std::u16string* name = id.empty() ? nullptr : ui_.text.find(id);
+            std::u32string text = name ? ui::utf16_to_utf32(*name) : ui::utf8_to_utf32(data_.types.name(static_cast<objects::TypeIndex>(e.type)));
+            alerts_.push(ui::HudAlert::Kind::Production, text + ui::text_or_port(&ui_.text, nullptr, U" ready"), now_s_);
+        }
     if (session_->take_reveal_sfx()) {  // GRC 1.3: a planet was revealed by the galactic pre-step (frame > 0)
         audio_.planet_revealed();  // Audio.xml's SFXEvent_Planet_Revealed value (FoC GUI_Planet_Mouse_Over)
         ++reveal_sfx_;

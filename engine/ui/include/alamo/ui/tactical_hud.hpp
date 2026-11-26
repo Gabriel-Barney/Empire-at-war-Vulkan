@@ -220,6 +220,22 @@ struct HudObjective {
     State state = State::Active;
 };
 
+// An objective's line text: its own `text`, else the key's MasterTextFile entry (GUI escapes resolved), else the key
+// itself without a text database. Shared by the Classic objectives box and the Modern objectives panel (#589).
+std::u32string hud_objective_text(const TextDatabase* text, const HudObjective& o);
+
+// [port: Gabriel] (#589, docs/DECISIONS.md "Modern HUD: exception to the current focus") one entry of the Modern HUD's
+// alert strip: an advisor line or an event the host already reacts to. Presentation only (never read by the sim).
+struct HudAlert {
+    enum class Kind : uint8_t { Advisor, Radar, Production, Objective };
+    Kind kind = Kind::Advisor;
+    std::u32string text;
+    bool has_position = false;  // Jump (HudAction::RadarCameraJump) goes to (x, y)
+    float x = 0.0f, y = 0.0f;
+    double time = 0.0;          // wall seconds when it was raised
+    float age = 0.0f;           // seconds since then (HudAlertLog::update)
+};
+
 // Tactical order buttons c_button00..05 (attack, attack-move, move, waypoint, full stop, guard; legacy docs/re/HUD_GAPS.md §5):
 // never hidden - visible whenever the tactical command bar is - only enabled / disabled every frame from the local
 // player's OWN selected units (enemy / allied units in the selection are ignored):
@@ -377,6 +393,8 @@ struct TacticalHudFrame {
     // objectives word-wrapped to the box. Empty = no box.
     std::span<const HudObjective> objectives;
     std::u32string objectives_header;   // "" = TEXT_TEST_OBJECTIVE_HEADER
+    // [port: Gabriel] #589: the Modern alert strip's entries (HudAlertLog, oldest first); the Classic HUD ignores them.
+    std::span<const HudAlert> alerts;
     // Drag-select box (legacy docs/re/UI.md §1.1 step 5h "drag rectangle"; Playtest 3): while the world owns a left drag past the drag
     // threshold (InputState ButtonState::dragging), the press -> cursor rectangle in pixels (ButtonState::drag). Drawn
     // by add_drag_box over the same bounds box_select uses on release (drag_select_bounds). The corner marker of the

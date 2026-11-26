@@ -957,6 +957,21 @@ int32_t App::type_ranking(uint32_t type) const {
     return type < data_.types.size() ? data_.types.get_int(static_cast<objects::TypeIndex>(type), "Ranking_In_Category") : 0;
 }
 
+// #589: the alert list's battle sources read each frame (objectives added, new radar events); advisor lines and
+// production done arrive where the host already reacts to them (story_present_frame, post_tick).
+void App::fill_alerts() {
+    for (size_t i = alert_objectives_seen_; i < hud_objectives_.size(); ++i)
+        alerts_.push(ui::HudAlert::Kind::Objective, ui::hud_objective_text(&ui_.text, hud_objectives_[i]), now_s_);
+    alert_objectives_seen_ = std::max(alert_objectives_seen_, hud_objectives_.size());
+    for (const ui::RadarEvent& e : radar_events_.items()) {
+        if (e.id <= alert_radar_seen_) continue;
+        alert_radar_seen_ = e.id;
+        if (std::optional<std::u32string> t = ui::radar_alert_text(e, &ui_.text))
+            alerts_.push_at(ui::HudAlert::Kind::Radar, std::move(*t), e.x, e.y, now_s_);
+    }
+    alerts_.update(now_s_);
+}
+
 void App::build_tactical_hud() {
     const sim::TacticalMode* tm = session_ ? session_->host().modes().top_tactical() : nullptr;
     const uint32_t w = targets_.width, h = targets_.height;
@@ -1020,6 +1035,8 @@ void App::build_tactical_hud() {
         hud_objectives_.push_back(std::move(o));
     }
     hf.objectives = hud_objectives_;
+    fill_alerts();  // #589
+    hf.alerts = alerts_.items();
     hf.faction_alt = ui_.faction_alt();
     hf.shells_loaded = ui_.tactical_shells_ok;
     hf.time = now_s_;
