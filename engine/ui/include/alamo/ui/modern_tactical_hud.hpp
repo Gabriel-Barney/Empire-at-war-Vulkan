@@ -11,7 +11,12 @@
 //   - the game controls (top right): menu (b_option_t), pause (b_play_pause_t) and fast forward (b_fast_forward_t), whose
 //     clicks are the Classic components' clicks (same component ids, same commands and actions), and the HUD style switch
 //     (HudAction::HudStyleToggle);
-//   - the command deck along the bottom, empty for now (#585 fills it);
+//   - the command deck along the bottom (#585): with own units selected, the selection as unit cards (icon, count, name,
+//     a solid hull bar and a striped shield bar; the "+N" overflow card), the wing buttons and a clear-selection button
+//     in the selection header, and the six order buttons (the Classic c_button00..05 ids and rule, order_button_enabled)
+//     with their live hotkey badges, greyed with a dashed outline when no selected unit can do the order, and the fleet
+//     cohesion line. Cards group by the Classic functions (group_selection / group_selection_fleets) and click as the
+//     Classic portraits do (plain: the group; Shift: drop it; Ctrl: its first unit);
 //   - while paused, the Game Paused banner with Resume Game (the Classic banner's HudAction::ResumeGame on its
 //     attack_button component): the Classic banner is drawn into the Classic panels, which Modern replaces.
 // Sizes: panels are in canvas units, so the UI scale (HudCanvas) sizes them as it sizes Classic. Text has its own scale
@@ -27,6 +32,7 @@
 #include "alamo/ui/hud_components.hpp"
 #include "alamo/ui/hud_draw.hpp"
 #include "alamo/ui/hud_input.hpp"
+#include "alamo/ui/hotkeys.hpp"
 #include "alamo/ui/hud_style.hpp"
 #include "alamo/ui/tactical_hud.hpp"
 
@@ -43,6 +49,11 @@ inline constexpr float kModernTextPx = 18.0f / kModernTextScaleDefault;
 inline constexpr int32_t kModernHitBase = 0x44000000;
 inline constexpr int32_t kModernStyleSwitchHit = kModernHitBase + 0;  // the HUD style switch
 inline constexpr int32_t kModernPanelHit = kModernHitBase + 1;        // a panel's back: takes the click, does nothing
+inline constexpr int32_t kModernClearHit = kModernHitBase + 2;        // the deck's clear-selection button
+inline constexpr int32_t kModernCardHitBase = kModernHitBase + 0x100;  // + card index (the deck's selection cards)
+inline constexpr size_t kModernMaxCards = 0x100;
+// Hull bar colours by health (badly damaged units stand out): above kModernHullWarn, above kModernHullCritical, below.
+inline constexpr float kModernHullWarn = 0.6f, kModernHullCritical = 0.3f;
 
 struct ModernHudStats {
     bool status_corner = false;          // the status corner drawn
@@ -50,6 +61,12 @@ struct ModernHudStats {
     uint32_t controls = 0;               // game control buttons drawn (menu, pause, fast forward)
     bool style_switch = false;           // the HUD style switch drawn
     bool deck = false;                   // the command deck drawn
+    uint32_t cards = 0;                  // selection cards drawn (the "+N" card included)
+    bool overflow_card = false;          // the last card is the "+N" overflow
+    uint32_t orders = 0, orders_live = 0;  // order buttons drawn, enabled
+    uint32_t wings = 0;                  // wing buttons drawn
+    bool clear_button = false, cohesion = false;
+    uint32_t key_badges = 0;             // hotkey badges drawn
     bool pause_banner = false;           // the Game Paused banner drawn
     uint32_t hit_boxes = 0, quads = 0;
 };
@@ -58,7 +75,9 @@ class ModernTacticalHud {
 public:
     // `table` (the CommandBarComponents the Classic HUD uses) must outlive the HUD; it names the shared controls' ids.
     // `text` may be null (port strings in English, retail keys as the keys).
-    void init(const ComponentTable& table, FontCache& fonts, const TextDatabase* text = nullptr);
+    void init(const ComponentTable& table, const TextureAtlas& atlas, FontCache& fonts, const TextDatabase* text = nullptr);
+    // The live bindings the key badges show (null: no badges). Must outlive the HUD.
+    void set_hotkeys(const HotkeyTable* keys) { keys_ = keys; }
     void resize(uint32_t width, uint32_t height);
     // The UI scale (as TacticalHud::set_ui_scale): takes effect on the next resize().
     void set_ui_scale(float s) { canvas_.ui_scale = s > 0.0f ? s : 0.0f; }
@@ -71,6 +90,11 @@ public:
     void build(const TacticalHudFrame& frame, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
     const HudDrawList& draw_list() const { return dl_; }
     const ModernHudStats& stats() const { return stats_; }
+    // The cards of the last build (group_selection / group_selection_fleets order; the "+N" entry last).
+    const std::vector<SelectedGroup>& cards() const { return groups_; }
+    // c_button00..05 enabled after the previous build (order_button_enabled on the frame's HudOrderButtons); false when the
+    // deck drew no orders (no own selection) or the component is missing.
+    bool order_button_live(uint32_t button) const { return button < 6 && order_live_[button]; }
 
     // Topmost hit box under a pixel (-1: none): a Classic component id for the shared controls, kModern* otherwise.
     int32_t hit_test(int32_t px, int32_t py) const;
@@ -87,17 +111,28 @@ private:
     Rgba8 accent(uint8_t alpha) const;
     void build_status(const TacticalHudFrame& f);
     void build_controls(const TacticalHudFrame& f);
-    void build_deck();
+    void build_deck(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
+    void build_selection(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types,
+                         Vec2f top_left, float width, float height);
+    float build_orders(const TacticalHudFrame& f, Vec2f top_right, float height);  // returns the width used
+    void key_badge(uint16_t slot, Vec2f top_right, uint32_t layer);
+    std::vector<uint32_t> selection_ids() const;
     void build_pause(const TacticalHudFrame& f);
     void hit(int32_t id, uint32_t layer, Vec2f center, Vec2f size);
 
     const ComponentTable* table_ = nullptr;
+    const TextureAtlas* atlas_ = nullptr;
+    const HotkeyTable* keys_ = nullptr;
     FontCache* fonts_ = nullptr;
     const TextDatabase* text_ = nullptr;
     HudCanvas canvas_ = HudCanvas::make(1024, 768);
     float text_scale_ = kModernTextScaleDefault;
     int32_t option_ = -1, pause_ = -1, fast_forward_ = -1;  // b_option_t, b_play_pause_t, b_fast_forward_t
     int32_t resume_ = -1;                                   // attack_button: the pause banner's Resume Game
+    int32_t order_[6] = {-1, -1, -1, -1, -1, -1};           // c_button00..05
+    bool order_live_[6] = {};
+    std::vector<SelectedGroup> groups_;
+    std::vector<std::vector<uint32_t>> wing_ids_;  // per TacticalHudFrame::wings entry (empty: not drawn), as Classic's
     Rgba8 credits_color_{255, 212, 33, 255};                // Text_Credits_tactical's Text_Color when the data has one
     uint8_t faction_alt_ = 1;
     bool paused_ = false;

@@ -200,7 +200,8 @@ bool GameUi::init(GpuCore& gpu, const GameData& data, ui::MenuProviders provider
     for (const ui::ShellSet::Shell& s : tactical_shells.shells()) tactical_shells.set_visible(s.component, true);
     galactic_hud.init(components, atlas, *fonts, &text);
     tactical_hud.init(components, atlas, *fonts, &text);
-    modern_hud.init(components, *fonts, &text);
+    modern_hud.init(components, atlas, *fonts, &text);
+    modern_hud.set_hotkeys(&hotkeys);  // the key badges show the live bindings
     galactic_shells.apply(galactic_hud.layout());
     tactical_shells.apply(tactical_hud.layout());
     hud_types = ui::build_hud_type_table(data.types);

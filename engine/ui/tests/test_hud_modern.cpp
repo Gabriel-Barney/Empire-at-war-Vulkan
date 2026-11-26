@@ -3,7 +3,10 @@
 // corner shows the Classic values, the shared game controls send the Classic commands and actions, the style switch
 // asks the host to switch, the style names, the text scale, and the Classic world-space split.
 #include <cstdio>
+#include <memory>
+#include <span>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "alamo/data/xml.hpp"
@@ -32,7 +35,43 @@ const char* kXml = R"(<?xml version="1.0"?>
     <Font_Name>EmpireAtWar-Medium</Font_Name><Font_Point_Size>7</Font_Point_Size></CommandBarComponent>
   <CommandBarComponent Name="Text_Tactical_Tech"><Type>TextButton</Type></CommandBarComponent>
   <CommandBarComponent Name="Text_Planetary_Pop"><Type>TextButton</Type></CommandBarComponent>
+  <CommandBarComponent Name="s_select_00"><Type>TextButton</Type><Base_Layer>4</Base_Layer></CommandBarComponent>
+  <CommandBarComponent Name="s_select_01"><Type>TextButton</Type><Base_Layer>4</Base_Layer></CommandBarComponent>
+  <CommandBarComponent Name="s_select_02"><Type>TextButton</Type><Base_Layer>4</Base_Layer></CommandBarComponent>
+  <CommandBarComponent Name="c_button00"><Type>Button</Type></CommandBarComponent>
+  <CommandBarComponent Name="c_button01"><Type>Button</Type></CommandBarComponent>
+  <CommandBarComponent Name="c_button02"><Type>Button</Type></CommandBarComponent>
+  <CommandBarComponent Name="c_button03"><Type>Button</Type></CommandBarComponent>
+  <CommandBarComponent Name="c_button04"><Type>Button</Type></CommandBarComponent>
+  <CommandBarComponent Name="c_button05"><Type>Button</Type></CommandBarComponent>
 </CommandBarComponents>)";
+
+// Two own groups (types 0 and 1, type 1 shielded) and an enemy unit, all selected but the enemy.
+struct Selection {
+    std::vector<HudTypeInfo> types;
+    std::vector<HudUnit> units;
+    Selection() {
+        types.resize(2);
+        types[0].name = "Rebel_X_Wing";
+        types[0].icon_name = "i_icon_unit.tga";
+        types[1].name = "Corellian_Corvette";
+        types[1].has_shields = true;
+        auto add = [&](uint32_t id, uint32_t type, int32_t owner, bool selected, float health, float shield) {
+            HudUnit u;
+            u.id = id;
+            u.type = type;
+            u.owner = owner;
+            u.selected = selected;
+            u.health = health;
+            u.shield = shield;
+            units.push_back(u);
+        };
+        add(20, 0, 0, true, 1.0f, -1.0f);
+        add(21, 0, 0, true, 0.2f, -1.0f);
+        add(22, 1, 0, true, 0.5f, 0.75f);
+        add(30, 1, 1, false, 1.0f, 1.0f);
+    }
+};
 
 ComponentTable table() {
     ComponentTable t;
@@ -86,14 +125,103 @@ struct Huds {
     Huds() {
         classic.init(t, atlas, fonts);
         classic.resize(1920, 1080);
-        modern.init(t, fonts);
+        modern.init(t, atlas, fonts);
         modern.resize(1920, 1080);
     }
-    void build(const TacticalHudFrame& f) {
-        classic.build(f, {}, {});
-        modern.build(f, {}, {});
+    void build(const TacticalHudFrame& f, std::span<const HudUnit> units = {}, std::span<const HudTypeInfo> types = {}) {
+        classic.build(f, units, types);
+        modern.build(f, units, types);
+    }
+    // Both HUDs' output for one click: Classic on `classic_id`, Modern on `modern_id`.
+    bool same_click(int32_t classic_id, int32_t modern_id, bool shift, bool ctrl, Button b = Button::Left,
+                    size_t* emitted = nullptr) {
+        std::vector<commands::EventData> cc, mc;
+        std::vector<HudAction> ca, ma;
+        classic.update_input(click_on(classic_id, b), shift, ctrl, 1.0, cc, &ca);
+        modern.update_input(click_on(modern_id, b), shift, ctrl, mc, &ma);
+        bool same = cc == mc && ca.size() == ma.size();
+        for (size_t i = 0; same && i < ca.size(); ++i) same = same_action(ca[i], ma[i]);
+        if (emitted) *emitted = cc.size() + ca.size();
+        if (!same)
+            std::printf("  click %d / %d (shift %d ctrl %d): classic %zu cmds %zu acts, modern %zu cmds %zu acts\n", classic_id,
+                        modern_id, shift, ctrl, cc.size(), ca.size(), mc.size(), ma.size());
+        return same;
     }
 };
+
+void test_deck() {
+    Huds h;
+    Selection s;
+    TacticalHudFrame f = frame();
+    f.world.local_player = 0;
+    f.order_buttons.can_attack = true;  // attack, attack-move and guard live; move, waypoint and stop not
+    HudWing wing;
+    wing.label = U"FIGHTERS";
+    wing.squadrons = 2;
+    wing.ids = {40, 41};
+    std::vector<HudWing> wings{wing};
+    f.wings = wings;
+    h.build(f, s.units, s.types);
+    const ModernHudStats& st = h.modern.stats();
+    // Cards: the Classic grouping, the enemy left out as Classic leaves it.
+    CHECK(st.cards == 2 && !st.overflow_card && st.wings == 1 && st.clear_button);
+    CHECK(h.modern.cards().size() == h.classic.panel_groups().size());
+    for (size_t i = 0; i < h.modern.cards().size() && i < h.classic.panel_groups().size(); ++i)
+        CHECK(h.modern.cards()[i].ids == h.classic.panel_groups()[i].ids && h.modern.cards()[i].type == h.classic.panel_groups()[i].type);
+    // Orders: the shared rule, the same liveness as Classic.
+    CHECK(st.orders == 6 && st.orders_live == 3);
+    for (uint32_t i = 0; i < 6; ++i) CHECK(h.modern.order_button_live(i) == h.classic.order_button_live(i));
+    // Card clicks (plain, Shift, Ctrl) = the Classic portrait clicks.
+    for (int32_t card = 0; card < 2; ++card)
+        for (const auto& [shift, ctrl] : {std::pair{false, false}, std::pair{true, false}, std::pair{false, true}}) {
+            h.build(f, s.units, s.types);
+            size_t n = 0;
+            CHECK(h.same_click(h.t.find(card == 0 ? "s_select_00" : "s_select_01"), kModernCardHitBase + card, shift, ctrl,
+                               Button::Left, &n) &&
+                  n == 1);
+        }
+    // Orders: a live one sends the Classic Button action, a dead one nothing in either style.
+    for (const char* name : {"c_button00", "c_button02", "c_button05"}) {
+        h.build(f, s.units, s.types);
+        size_t n = 0;
+        CHECK(h.same_click(h.t.find(name), h.t.find(name), false, false, Button::Left, &n));
+        CHECK(n == (std::string_view(name) == "c_button02" ? 0u : 1u));
+    }
+    // The wing button: Classic's id and WingSelect.
+    h.build(f, s.units, s.types);
+    size_t n = 0;
+    CHECK(h.same_click(kWingHitBase, kWingHitBase, true, false, Button::Left, &n) && n == 1);
+    // Clear: an empty selection.
+    std::vector<commands::EventData> cmds;
+    h.modern.update_input(click_on(kModernClearHit), false, false, cmds, nullptr);
+    CHECK(cmds.size() == 1 && cmds[0] == commands::ev::select({}));
+    // Key badges show the live bindings when the host gives them.
+    CHECK(st.key_badges == 0);
+    HotkeyTable keys;
+    h.modern.set_hotkeys(&keys);
+    h.modern.build(f, s.units, s.types);
+    CHECK(h.modern.stats().key_badges >= 5);
+    // Nothing own selected: no cards, no orders (and the order hotkeys are not live).
+    std::vector<HudUnit> none = s.units;
+    for (HudUnit& u : none) u.selected = false;
+    h.build(f, none, s.types);
+    CHECK(h.modern.stats().cards == 0 && h.modern.stats().orders == 0 && !h.modern.order_button_live(0));
+    // More groups than fit: the last card is "+N" with every unit not shown, and no unit is lost.
+    std::vector<HudTypeInfo> many(60);
+    std::vector<HudUnit> crowd;
+    for (uint32_t i = 0; i < 60; ++i) {
+        HudUnit u;
+        u.id = 100 + i;
+        u.type = i;
+        u.owner = 0;
+        u.selected = true;
+        crowd.push_back(u);
+    }
+    h.modern.build(f, crowd, many);
+    size_t total = 0;
+    for (const SelectedGroup& g : h.modern.cards()) total += g.ids.size();
+    CHECK(h.modern.stats().overflow_card && h.modern.cards().back().overflow && total == 60 && h.modern.cards().size() < 60);
+}
 
 void test_style_names() {
     CHECK(hud_style_name(HudStyle::Classic) == "classic" && hud_style_name(HudStyle::Modern) == "modern");
@@ -307,6 +435,7 @@ void test_world_split() {
 int main() {
     test_style_names();
     test_status_corner();
+    test_deck();
     test_controls_parity();
     test_pause_banner();
     test_style_switch();
